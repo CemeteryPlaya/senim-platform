@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CLIENT
+  MASTER
+  ADMIN
+}
+
+enum LegalType {
+  SELF_EMPLOYED
+  IP
+  TOO
+}
+
+enum DealStatus {
+  PROPOSED // условия согласовываются
+  AWAITING_SIGNATURES // договор сформирован, ждём ЭЦП обеих сторон
+  AWAITING_FUNDING // договор подписан, ждём пополнения эскроу
+  IN_PROGRESS // деньги заморожены, мастер работает по этапам
+  DISPUTE // открыт спор, решение за оператором
+  COMPLETED // все средства выплачены исполнителю
+  REFUNDED // средства возвращены заказчику
+  CANCELLED // отменена до оплаты
+}
+
+enum Party {
+  CLIENT
+  MASTER
+}
+
+enum StageStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED // мастер сдал этап, ждём подтверждения заказчика
+  REWORK // заказчик вернул на доработку
+  APPROVED
+}
+
+enum EscrowStatus {
+  OPEN
+  FUNDED
+  PARTIALLY_RELEASED
+  CLOSED
+  REFUNDED
+}
+
+enum TxType {
+  DEPOSIT
+  RELEASE
+  COMMISSION
+  REFUND
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+}
+
+enum DisputeResolution {
+  RELEASE
+  REFUND
+  SPLIT
+}
+
+enum EventKind {
+  SYSTEM
+  MESSAGE
+}
+
+model User {
+  id     String  @id
+  role   Role
+  name   String
+  phone  String
+  iin    String
+  city   String
+  avatar String // цвет аватара
+
+  master MasterProfile?
+
+  clientDeals Deal[]      @relation("ClientDeals")
+  masterDeals Deal[]      @relation("MasterDeals")
+  signatures  Signature[]
+  events      DealEvent[]
+  disputes    Dispute[]
+}
+
+model MasterProfile {
+  userId         String    @id
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName    String
+  legalType      LegalType
+  specialties    String[]
+  bio            String
+  rating         Float
+  reviewsCount   Int
+  completedDeals Int
+  yearsExp       Int
+  priceFrom      Int
+  responseTime   String
+  verified       Boolean   @default(false)
+  portfolio      Json // [{ title, image }]
+  reviews        Json // [{ author, text, rating }]
+}
+
+model Deal {
+  id             String     @id @default(cuid())
+  number         Int        @unique @default(autoincrement())
+  title          String
+  furnitureType  String
+  description    String
+  specs          Json // { dimensions, materials, color }
+  address        String
+  amount         Int // ₸
+  commissionRate Float      @default(0.06)
+  deadline       DateTime
+  status         DealStatus @default(PROPOSED)
+  awaitingParty  Party? // чей ход в согласовании условий
+  revision       Int        @default(1)
+
+  clientId String
+  client   User   @relation("ClientDeals", fields: [clientId], references: [id])
+  masterId String
+  master   User   @relation("MasterDeals", fields: [masterId], references: [id])
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  signedAt   DateTime?
+  fundedAt   DateTime?
+  closedAt   DateTime?
+  contractNo String?
+
+  stages       Stage[]
+  signatures   Signature[]
+  escrow       EscrowAccount?
+  transactions Transaction[]
+  events       DealEvent[]
+  disputes     Dispute[]
+}
+
+model Stage {
+  id            String      @id @default(cuid())
+  dealId        String
+  deal          Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  order         Int
+  title         String
+  description   String
+  payoutPercent Int         @default(0) // доля суммы, раскрываемая при подтверждении этапа
+  status        StageStatus @default(PENDING)
+  report        String?
+  photos        String[]
+  clientNote    String?
+  startedAt     DateTime?
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+}
+
+model Signature {
+  id         String   @id @default(cuid())
+  dealId     String
+  deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  party      Party
+  method     String // NCALAYER | EGOV_QR
+  signerName String
+  iin        String
+  certSerial String
+  docHash    String
+  revision   Int
+  signedAt   DateTime @default(now())
+
+  @@unique([dealId, party, revision])
+}
+
+model EscrowAccount {
+  id        String       @id @default(cuid())
+  dealId    String       @unique
+  deal      Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  bank      String
+  iban      String
+  status    EscrowStatus @default(OPEN)
+  funded    Int          @default(0)
+  released  Int          @default(0)
+  refunded  Int          @default(0)
+  createdAt DateTime     @default(now())
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  dealId    String
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  type      TxType
+  amount    Int
+  note      String
+  stageId   String?
+  createdAt DateTime @default(now())
+}
+
+model DealEvent {
+  id        String    @id @default(cuid())
+  dealId    String
+  deal      Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  kind      EventKind
+  actorId   String?
+  actor     User?     @relation(fields: [actorId], references: [id])
+  text      String
+  icon      String? // ключ иконки для системных событий
+  image     String?
+  createdAt DateTime  @default(now())
+
+  @@index([dealId, createdAt])
+}
+
+model Dispute {
+  id             String             @id @default(cuid())
+  dealId         String
+  deal           Deal               @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  stageId        String?
+  openedById     String
+  openedBy       User               @relation(fields: [openedById], references: [id])
+  reason         String
+  status         DisputeStatus      @default(OPEN)
+  resolution     DisputeResolution?
+  resolutionNote String?
+  createdAt      DateTime           @default(now())
+  resolvedAt     DateTime?
+}
