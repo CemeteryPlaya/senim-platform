@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { getBankDemo, isDemoMode, type BankDemo, type ScenarioStep } from "@/modules/operator";
 import { Alert, Button, ButtonLink, Card, Container, DateText, EmptyState, Money, PageHeader, Select, SimulatorBadge, StatusBadge } from "@/ui";
+import { PersonaButton } from "../demo/PersonaButton";
 import { AuditList } from "../operator/_components/AuditList";
 
 const t = ru.bankDemo;
@@ -31,9 +32,13 @@ function Step({ step, index }: { step: ScenarioStep; index: number }) {
       )}
       {step.href ? (
         <div className="flex flex-wrap gap-3">
-          <ButtonLink href={step.href} variant="secondary">
-            {t.open}
-          </ButtonLink>
+          {step.persona ? (
+            <PersonaButton userId={step.persona.userId} name={step.persona.name} next={step.href} label={t.openAs(step.persona.name)} />
+          ) : (
+            <ButtonLink href={step.href} variant="secondary">
+              {t.open}
+            </ButtonLink>
+          )}
           {step.extraHref && (
             <ButtonLink href={step.extraHref} variant="soft">
               {t.openSimulator}

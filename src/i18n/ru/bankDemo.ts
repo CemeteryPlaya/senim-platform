@@ -19,6 +19,7 @@ export const bankDemo = {
   personaValue: (name: string, phone: string) => `${name}, ${phone}`,
   roles: { CLIENT: "заказчик", EXECUTOR: "исполнитель", OPERATOR: "оператор" } as Record<string, string>,
   open: "Открыть экран",
+  openAs: (name: string) => `Войти как ${name} и открыть`,
   openSimulator: "Открыть симулятор банка",
   missing: "В демо-данных сейчас нет подходящей записи. Сбросьте демо или пройдите предыдущий шаг.",
   needsEscrow: "Шаг есть только в эскроу-режиме. Включите «Симулятор банка» для новых сделок и подпишите договор новой сделки.",

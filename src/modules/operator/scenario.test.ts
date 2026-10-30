@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildScenario, SCENARIO_STEPS, type ScenarioSnapshot } from "./scenario";
 
-const client = { name: "Айгерим", role: "CLIENT" as const, phone: "+77000000101" };
-const executor = { name: "Ерлан", role: "EXECUTOR" as const, phone: "+77000000201" };
+const client = { userId: "u-client", name: "Айгерим", role: "CLIENT" as const, phone: "+77000000101" };
+const executor = { userId: "u-executor", name: "Ерлан", role: "EXECUTOR" as const, phone: "+77000000201" };
 
 const full: ScenarioSnapshot = {
   railMode: "escrow-simulator",

@@ -1,7 +1,7 @@
 import type { RailMode } from "@/modules/payments";
 
 /** Демо-персона, под которой показывать шаг: имя и телефон для входа на /demo. */
-export type Persona = { name: string; role: "CLIENT" | "EXECUTOR" | "OPERATOR"; phone: string };
+export type Persona = { userId: string; name: string; role: "CLIENT" | "EXECUTOR" | "OPERATOR"; phone: string };
 
 type Ref<P extends "client" | "executor"> = { id: string; number: number } & Record<P, Persona>;
 

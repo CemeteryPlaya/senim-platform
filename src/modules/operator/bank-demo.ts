@@ -14,11 +14,11 @@ import { buildScenario, type Persona, type ScenarioSnapshot } from "./scenario";
  * Роль не проверяется: ведущий переключает персоны по ходу показа, а в DEMO_MODE все данные тестовые.
  */
 
-const personUser = { fullName: true, phone: true, role: true } satisfies Prisma.UserSelect;
+const personUser = { id: true, fullName: true, phone: true, role: true } satisfies Prisma.UserSelect;
 type PersonUser = Prisma.UserGetPayload<{ select: typeof personUser }>;
 
 function persona(user: PersonUser, fallbackName = ""): Persona {
-  return { name: user.fullName ?? fallbackName, role: user.role, phone: user.phone };
+  return { userId: user.id, name: user.fullName ?? fallbackName, role: user.role, phone: user.phone };
 }
 
 const dealForStep = {
