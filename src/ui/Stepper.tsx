@@ -75,10 +75,11 @@ export function Stepper({ steps, current, back, backLabel = ru.common.actions.ba
                 >
                   {done && <Check className="size-4" strokeWidth={3} />}
                 </span>
-                <span className={cn("sr-only text-center text-sm break-words sm:not-sr-only", active ? "font-bold text-primary" : "text-muted")}>
+                {/* Для диктора — одна строка «Стиль: пройден»: из соседних элементов браузер собрал бы «Стиль : пройден». */}
+                <span aria-hidden className={cn("hidden text-center text-sm break-words sm:block", active ? "font-bold text-primary" : "text-muted")}>
                   {step}
-                  {done && <span className="sr-only">: {ru.common.ui.stepper.done}</span>}
                 </span>
+                <span className="sr-only">{done ? ru.common.ui.stepper.doneStep(step) : step}</span>
               </li>
             );
           })}

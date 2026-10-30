@@ -68,7 +68,7 @@ export function VisualizationPanel({ requestId, photos, initial, pollIntervalMs 
             columns={3}
             value={photos[sourceIndex].id}
             onChange={setSourceId}
-            options={photos.map((p, i) => ({ value: p.id, label: t.sourceAlt(i + 1), image: { src: p.src, alt: t.sourceAlt(i + 1) } }))}
+            options={photos.map((p, i) => ({ value: p.id, label: t.sourceAlt(i + 1), image: { src: p.src } }))}
           />
         )}
         <Textarea

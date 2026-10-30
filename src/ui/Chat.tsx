@@ -107,9 +107,11 @@ export function Chat({ messages, onSend, disabledReason, title = ru.common.ui.ch
               onKeyDown={handleKeyDown}
               maxLength={maxLength}
               rows={2}
-              disabled={sending}
+              // Во время отправки поле только для чтения, а не disabled: фокус остаётся в поле.
+              readOnly={sending}
+              aria-busy={sending || undefined}
               aria-describedby={`${inputId}-hint`}
-              className="block min-h-control w-full resize-y rounded-control border border-line-strong bg-surface px-4 py-2 text-base text-ink placeholder:text-muted hover:border-ink focus-visible:border-primary disabled:bg-sunken"
+              className="block min-h-control w-full resize-y rounded-control border border-line-strong bg-surface px-4 py-2 text-base text-ink placeholder:text-muted read-only:bg-sunken hover:border-ink focus-visible:border-primary"
             />
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p id={`${inputId}-hint`} className="hidden text-sm text-muted sm:block">

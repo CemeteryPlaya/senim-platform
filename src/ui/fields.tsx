@@ -184,8 +184,11 @@ export type RadioCardOption = {
   description?: ReactNode;
   /** Иконка слева от подписи (для карточек без картинки). */
   icon?: ReactNode;
-  /** Картинка сверху карточки — стиль, сегмент (как в макетах); с картинками на телефоне две колонки. */
-  image?: { src: string; alt: string };
+  /**
+   * Картинка сверху карточки — стиль, сегмент (как в макетах); с картинками на телефоне две колонки.
+   * Она иллюстрирует подпись варианта, поэтому для диктора скрыта (alt=""): имя варианта — его подпись.
+   */
+  image?: { src: string };
   disabled?: boolean;
 };
 
@@ -255,7 +258,7 @@ export function RadioCards({ label, hint, error, optional, name, options, value,
             {o.image && (
               // Картинки из каталога и хранилища: размеры заранее неизвестны, оптимизация next/image здесь не нужна.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={o.image.src} alt={o.image.alt} loading="lazy" className="aspect-[16/10] w-full object-cover" />
+              <img src={o.image.src} alt="" loading="lazy" className="aspect-[16/10] w-full object-cover" />
             )}
             <span className={cn("flex min-w-0 items-start gap-3 p-4", !o.image && "pr-14")}>
               {o.icon && <span aria-hidden className="mt-0.5 inline-flex shrink-0 text-primary [&_svg]:size-6">{o.icon}</span>}

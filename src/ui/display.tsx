@@ -105,9 +105,10 @@ export type StatusBadgeProps = { tone?: Tone; icon?: ReactNode; className?: stri
 /** Метка статуса: тон + текст. Цвет никогда не единственный носитель смысла — текст обязателен. */
 export function StatusBadge({ tone = "neutral", icon, className, children }: StatusBadgeProps) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-sm font-semibold", TONE_SOFT[tone], className)}>
+    // max-w-full и перенос по словам: при крупном системном шрифте метка не вылезает за карточку.
+    <span className={cn("inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-0.5 text-sm font-semibold break-words", TONE_SOFT[tone], className)}>
       {icon && <span aria-hidden className="inline-flex shrink-0 [&_svg]:size-4">{icon}</span>}
-      {children}
+      <span className="min-w-0">{children}</span>
     </span>
   );
 }

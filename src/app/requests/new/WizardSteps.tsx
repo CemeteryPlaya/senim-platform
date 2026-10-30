@@ -130,7 +130,7 @@ export function StyleStep(props: StepBase & { initial: { style: string | null; s
       value: key,
       label: STYLES[key].name,
       description: STYLES[key].hint,
-      image: { src: STYLE_IMAGES[key], alt: w.style.imageAlt(STYLES[key].name) },
+      image: { src: STYLE_IMAGES[key] },
     })),
     { value: CUSTOM, label: w.custom, description: w.style.customOptionHint },
   ];
@@ -370,7 +370,7 @@ export function SendStep(props: { draftId: string; initial: SendInitial; suggest
     value: key,
     label: SEGMENT_NAMES[key],
     description: s.segmentHint[key],
-    image: { src: SEGMENT_IMAGES[key], alt: s.segmentImageAlt(SEGMENT_NAMES[key]) },
+    image: { src: SEGMENT_IMAGES[key] },
   }));
   const chosen = SEGMENTS.find((k) => k === form.segment);
   return (

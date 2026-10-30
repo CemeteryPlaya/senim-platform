@@ -58,18 +58,27 @@ function Icon({ children }: { children: ReactNode }) {
 export type ButtonProps = ComponentProps<"button"> &
   StyleOptions &
   IconProps & {
-    /** Идёт действие: кнопка заблокирована, показан индикатор, aria-busy. */
+    /**
+     * Идёт действие: индикатор, aria-busy и aria-disabled; нажатие (и отправка формы) игнорируется.
+     * Атрибут disabled не ставится намеренно: иначе браузер снимает фокус с кнопки и диктор теряет место.
+     */
     loading?: boolean;
   };
 
 /** Кнопка. По умолчанию type="button"; для отправки формы укажите type="submit". */
-export function Button({ variant, fullWidth, shape, className, loading = false, icon, iconEnd, disabled, children, type = "button", ...rest }: ButtonProps) {
+export function Button({ variant, fullWidth, shape, className, loading = false, icon, iconEnd, disabled, children, type = "button", onClick, ...rest }: ButtonProps) {
   return (
     <button
       type={type}
       className={buttonClasses({ variant, fullWidth, shape, className })}
-      disabled={disabled || loading}
+      disabled={disabled}
+      aria-disabled={loading || undefined}
       aria-busy={loading || undefined}
+      onClick={(event) => {
+        // preventDefault у submit-кнопки отменяет и отправку формы (в том числе по Enter в поле).
+        if (loading) return event.preventDefault();
+        onClick?.(event);
+      }}
       {...rest}
     >
       {loading ? (
