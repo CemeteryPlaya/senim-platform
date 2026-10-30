@@ -8,7 +8,6 @@ export {
   actorOf,
   endSession,
   getCurrentUser,
-  requireApprovedExecutor,
   requireUser,
   requireUserPage,
   revokeAllSessions,

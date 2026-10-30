@@ -119,13 +119,6 @@ export async function requireUserPage(returnTo: string, ...roles: Role[]): Promi
   return user;
 }
 
-/** Исполнитель, подтверждённый оператором. */
-export async function requireApprovedExecutor(): Promise<CurrentUser & { executor: NonNullable<CurrentUser["executor"]> }> {
-  const user = await requireUser("EXECUTOR");
-  if (!user.executor || user.executor.status !== "APPROVED") return fail.forbidden("Профиль ещё не подтверждён оператором");
-  return { ...user, executor: user.executor };
-}
-
 export function actorOf(user: Pick<CurrentUser, "id" | "role">): Actor {
   return { kind: "user", id: user.id, role: user.role };
 }
