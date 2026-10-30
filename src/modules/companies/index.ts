@@ -5,7 +5,26 @@ import "server-only";
  * реализация экспортируется отсюда под теми же именами.
  * Анонимность: заказчику исполнитель доступен только как PublicExecutorView.
  */
-export type { GetPublicExecutorView, PublicExecutorView, RecalculateRating } from "./types";
+export type {
+  GetPublicExecutorView,
+  PhotoView,
+  PortfolioCard,
+  PublicExecutorPage,
+  PublicExecutorView,
+  PublicReview,
+  RecalculateRating,
+} from "./types";
+export {
+  CATALOG_PAGE_SIZE,
+  getCatalogFacets,
+  getPortfolioForRequest,
+  getPublicExecutorPage,
+  listCatalog,
+  listExecutorReviews,
+  listPublicPortfolio,
+  type PortfolioForRequest,
+} from "./catalog";
+export { catalogHref, parseCatalogFilter, PRICE_BUCKETS, type CatalogFilter, type PriceBucket, type SearchParams } from "./catalog-filter";
 
 export { publicExecutorView, publicExecutorViews } from "./anonymity";
 export { recalculateRating } from "./rating";
