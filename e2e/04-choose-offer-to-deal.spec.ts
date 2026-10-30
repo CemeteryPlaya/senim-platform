@@ -27,6 +27,7 @@ test("выбор отклика → замер → итоговая цена →
   await page.getByRole("article", { name: "Исполнитель №3" }).getByRole("link", { name: /^Подробнее/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Предложение Исполнителя №3" })).toBeVisible();
   await page.getByRole("button", { name: "Выбрать и перейти к замеру" }).click();
+  await page.getByRole("dialog", { name: "Выбрать Исполнителя №3?" }).getByRole("button", { name: "Да, выбрать" }).click();
   await page.waitForURL(/\/requests\/[^/]+$/);
   await expect(page.getByText("Вы выбрали Исполнителя №3")).toBeVisible();
   await expect(page.getByText("Отклик выбран").first()).toBeVisible();

@@ -27,6 +27,14 @@ function history(page: Page) {
   return page.locator("section").filter({ has: page.getByRole("heading", { name: "История сделки", exact: true }) }).getByRole("listitem");
 }
 
+/** Окно подтверждения необратимого действия: одно открытое окно с вопросом, кнопка согласия. */
+async function confirmIn(page: Page, title: string, yes: string) {
+  const dialog = page.getByRole("dialog", { name: title });
+  await expect(dialog).toHaveCount(1);
+  await dialog.getByRole("button", { name: yes }).click();
+  await expect(dialog).toBeHidden();
+}
+
 /** Подписать акт из «Что дальше» и вернуться на свежий экран сделки. */
 async function signAct(page: Page, dealPath: string, expected: "Подпись принята" | "Документ подписан обеими сторонами") {
   await expect(nextStep(page).getByText(/^Подпишите акт по этапу «/)).toBeVisible();
@@ -34,6 +42,17 @@ async function signAct(page: Page, dealPath: string, expected: "Подпись �
   await expect(panel.getByText(expected)).toBeVisible();
   await page.goto(dealPath);
 }
+
+test("двойное нажатие «Принять этап» оставляет окно подтверждения открытым", async ({ page }) => {
+  // Дефект (см. отчёт QA): второй клик двойного нажатия попадает в затемнение только что открытого
+  // <dialog> и закрывает окно (src/ui/Modal.tsx, onClick по затемнению). Приёмки при этом нет — это проверяем первым.
+  test.fail(true, "двойное нажатие открывает и сразу закрывает окно подтверждения");
+  await loginAs(page, P.aigerim);
+  await openDeal(page, 11);
+  await nextStep(page).getByRole("button", { name: "Принять этап" }).dblclick();
+  await expect(stage(page, 2).getByText("Сдан, ждёт приёмки")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Принять этап?" })).toBeVisible({ timeout: 2_000 });
+});
 
 test("приёмка этапа, акт, оплата этапа с подтверждением и завершение сделки", async ({ page }) => {
   test.setTimeout(180_000);
@@ -47,10 +66,24 @@ test("приёмка этапа, акт, оплата этапа с подтве
   const accepted = history(page).filter({ hasText: /^Этап принят/ });
   const acceptedBefore = await accepted.count();
 
-  await nextStep(page).getByRole("button", { name: "Принять этап" }).dblclick();
-  await expect(stage(page, 2).getByText("Принят", { exact: true })).toBeVisible();
+  // Приёмку подтверждают одновременно из двух вкладок: эффект должен быть один
+  const second = await page.context().newPage();
+  await second.goto(dealPath);
+  for (const p of [page, second]) {
+    await nextStep(p).getByRole("button", { name: "Принять этап" }).click();
+    await expect(p.getByRole("dialog", { name: "Принять этап?" })).toBeVisible();
+  }
+  await Promise.all([page, second].map((p) => p.getByRole("dialog", { name: "Принять этап?" }).getByRole("button", { name: "Да, принять этап" }).click()));
+  // Одна вкладка приняла этап, вторая получила отказ «действие недоступно» без второй приёмки
+  const refused = (p: Page) => nextStep(p).getByRole("alert").filter({ hasText: "Сейчас это действие недоступно" });
+  const acceptedIn = (p: Page) => stage(p, 2).getByText("Принят", { exact: true });
+  await expect(refused(page).or(acceptedIn(page)).first()).toBeVisible();
+  await expect(refused(second).or(acceptedIn(second)).first()).toBeVisible();
+  expect((await refused(page).count()) + (await refused(second).count())).toBe(1);
+  await second.close();
   await page.goto(dealPath);
-  // Двойное нажатие не дало второй приёмки и второго акта
+  await expect(acceptedIn(page)).toBeVisible();
+  // Ни второй приёмки, ни второго акта
   await expect(actHeadings(page)).toHaveCount(actsBefore + 1);
   await expect(accepted).toHaveCount(acceptedBefore + 1);
   await signAct(page, dealPath, "Подпись принята");
@@ -69,6 +102,8 @@ test("приёмка этапа, акт, оплата этапа с подтве
   await nextStep(page).getByRole("button", { name: /^Загрузить фото/ }).click();
   await (await chooser).setFiles({ name: "montazh.jpg", mimeType: "image/jpeg", buffer: photo });
   await expect(nextStep(page).getByRole("img", { name: /Фото 1/ })).toBeVisible();
+  // Ждём конец загрузки: пока идёт загрузка, «Сдать этап» отвечает «Добавьте хотя бы одно фото» (см. отчёт QA)
+  await expect(nextStep(page).getByRole("progressbar")).toHaveCount(0);
   await nextStep(page).getByRole("button", { name: "Сдать этап" }).click();
   await expect(stage(page, 3).getByText("Сдан, ждёт приёмки")).toBeVisible();
 
@@ -77,10 +112,12 @@ test("приёмка этапа, акт, оплата этапа с подтве
   await page.goto(dealPath);
   await expect(stage(page, 3).getByText("Шкаф установлен, фасады отрегулированы, мусор вывезен.")).toBeVisible();
   await nextStep(page).getByRole("button", { name: "Принять этап" }).click();
+  await confirmIn(page, "Принять этап?", "Да, принять этап");
   await expect(stage(page, 3).getByText("Принят", { exact: true })).toBeVisible();
   await signAct(page, dealPath, "Подпись принята");
   await expect(nextStep(page).getByText(/^Оплатите этап «.+» исполнителю и отметьте оплату здесь\.$/)).toBeVisible();
   await nextStep(page).getByRole("button", { name: "Я оплатил" }).click();
+  await confirmIn(page, "Вы уже оплатили этап?", "Да, я оплатил");
   await expect(stage(page, 3).getByText("Заказчик отметил оплату")).toBeVisible();
 
   // ── Исполнитель: подпись акта и подтверждение оплаты ──
