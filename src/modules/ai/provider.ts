@@ -1,38 +1,39 @@
 /**
  * ИИ-провайдер. Персональные данные (ИИН, телефоны, адреса, имена) провайдеру не передаются —
- * ai-модуль вычищает их до вызова.
+ * сервис ai-модуля вычищает их (scrubPii) до вызова.
+ *
+ * Провайдер не считает деньги и не проверяет ответ: стоимость — по таблице pricing.ts,
+ * структура ответа — zod-схемой schema.ts в сервисе. Так у каждого решения одно место.
  */
 
 export type AiUsageInfo = {
+  /** Идентификатор модели для учёта и таблицы цен: «mock/text», «openai/gpt-…». */
   model: string;
   inputTokens?: number;
   outputTokens?: number;
   images?: number;
-  costUsdMicros: number;
 };
 
-/** Черновик заявки из свободного текста. Структура проверяется zod-схемой в ai-модуле. */
-export type RequestDraftSuggestion = {
-  furnitureTypeSlug: string | null;
-  customType: string | null;
-  style: string | null;
-  widthCm: number | null;
-  heightCm: number | null;
-  depthCm: number | null;
-  materials: string[];
-  wishes: string;
+export type StructureRequestInput = {
+  /** Текст заказчика, уже без персональных данных. */
+  text: string;
+  /** Активные типы мебели из справочника оператора. */
+  furnitureTypes: readonly { slug: string; name: string }[];
 };
+
+export type VisualizeRoomInput = {
+  image: Uint8Array;
+  contentType: string;
+  /** Пожелания к иллюстрации, уже без персональных данных. */
+  prompt: string;
+};
+
+export type GeneratedImage = { data: Uint8Array; contentType: string };
 
 export interface AiProvider {
   readonly name: "mock" | "gateway";
-  structureRequest(input: {
-    text: string;
-    furnitureTypes: { slug: string; name: string }[];
-    styles: { key: string; name: string }[];
-  }): Promise<{ draft: RequestDraftSuggestion; usage: AiUsageInfo }>;
-  visualizeRoom(input: {
-    image: Uint8Array;
-    contentType: string;
-    prompt: string;
-  }): Promise<{ images: { data: Uint8Array; contentType: string }[]; usage: AiUsageInfo }>;
+  /** Черновик заявки из свободного текста. `raw` — непроверенный ответ модели. */
+  structureRequest(input: StructureRequestInput): Promise<{ raw: unknown; usage: AiUsageInfo }>;
+  /** Иллюстрация мебели в помещении по фото. Пометку «Иллюстрация ИИ» ставит сервис. */
+  visualizeRoom(input: VisualizeRoomInput): Promise<{ images: GeneratedImage[]; usage: AiUsageInfo }>;
 }
