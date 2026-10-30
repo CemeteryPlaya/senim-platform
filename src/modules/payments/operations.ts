@@ -1,7 +1,7 @@
 import type { PaymentOperation } from "@/generated/prisma/client";
 import { ru } from "@/i18n/ru";
 import { recordAudit, SYSTEM } from "@/modules/audit";
-import { db, transaction, type Tx } from "@/platform/db";
+import { db, lockDealRow, transaction, type Tx } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { escrowStatusOf } from "./escrow-status";
 import { paymentModeOf, railModeOf } from "./modes";
@@ -28,7 +28,7 @@ const ACTOR = SYSTEM("payments");
 
 /** Одна очередь изменений на сделку: и deal-core, и payments блокируют строку сделки первой. */
 async function lockDeal(tx: Tx, dealId: string) {
-  await tx.$queryRaw`SELECT "id" FROM "Deal" WHERE "id" = ${dealId} FOR UPDATE`;
+  await lockDealRow(tx, dealId);
 }
 
 export type OperationRequest = {

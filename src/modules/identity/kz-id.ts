@@ -1,7 +1,5 @@
 import type { LegalForm } from "@/generated/prisma/enums";
-// INTEGRATOR: алгоритм контрольной цифры живёт в src/demo/kz-id.ts (его же использует сид).
-// Перенести kzCheckDigit в src/platform/ и импортировать оттуда и здесь, и в сиде.
-import { kzCheckDigit } from "@/demo/kz-id";
+import { kzCheckDigit } from "@/platform/kz-id";
 
 export type BinIinKind = "IIN" | "BIN";
 

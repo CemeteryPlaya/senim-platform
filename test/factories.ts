@@ -23,7 +23,8 @@ export async function makeExecutor(
   opts: { segment?: Segment; status?: "PENDING" | "APPROVED" | "REJECTED"; legalName?: string } = {},
 ): Promise<CurrentUser & { executor: NonNullable<CurrentUser["executor"]> }> {
   const user = await makeUser("EXECUTOR");
-  const bin = `2101400${String(seq).padStart(5, "0")}`;
+  // Номер БИН — из уникального телефона: seq после await уже мог увеличить параллельный вызов.
+  const bin = `2101400${user.phone.slice(-5)}`;
   const profile = await db.executorProfile.create({
     data: {
       userId: user.id,

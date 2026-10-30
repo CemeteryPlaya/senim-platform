@@ -7,7 +7,7 @@ import { saveFile, storageByName } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { decryptPii, sha256Hex } from "@/platform/crypto";
-import { db, transaction, type Tx } from "@/platform/db";
+import { db, lockDealRow, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { TIME_ZONE } from "@/ui/format";
@@ -27,8 +27,7 @@ const scopeOf = (dealId: string) => `deal:${dealId}`;
 
 /** Строка сделки под блокировкой: версии договора и акты одной сделки создаются строго по очереди. */
 async function lockDeal(tx: Tx, dealId: string) {
-  const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Deal" WHERE id = ${dealId} FOR UPDATE`;
-  if (rows.length === 0) fail.notFound("Сделка не найдена");
+  if (!(await lockDealRow(tx, dealId))) fail.notFound("Сделка не найдена");
 }
 
 const yearIn = (d: Date) => Number(new Intl.DateTimeFormat("en", { year: "numeric", timeZone: TIME_ZONE }).format(d));

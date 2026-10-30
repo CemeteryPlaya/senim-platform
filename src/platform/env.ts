@@ -77,7 +77,15 @@ const schema = z
         require(key, "STORAGE_PROVIDER=s3");
     }
     if (env.STORAGE_PROVIDER === "vercel-blob") require("BLOB_READ_WRITE_TOKEN", "STORAGE_PROVIDER=vercel-blob");
-    if (env.AI_ENABLED && env.AI_PROVIDER === "gateway") require("AI_GATEWAY_API_KEY", "AI_PROVIDER=gateway");
+    if (env.AI_ENABLED && env.AI_PROVIDER === "gateway") {
+      require("AI_GATEWAY_API_KEY", "AI_PROVIDER=gateway");
+      require("AI_TEXT_MODEL", "AI_PROVIDER=gateway");
+      require("AI_IMAGE_MODEL", "AI_PROVIDER=gateway");
+    }
+    // Симулятор банка в production (показ банку): вебхуки подписываются постоянным секретом, а не случайным секретом процесса.
+    if (env.NODE_ENV === "production" && (env.PAYMENT_RAIL === "escrow-simulator" || env.DEMO_MODE)) {
+      require("ESCROW_SIMULATOR_WEBHOOK_SECRET", "escrow-simulator или DEMO_MODE в production");
+    }
     if (env.PAYMENT_RAIL === "bank") {
       require("BANK_API_URL", "PAYMENT_RAIL=bank");
       require("BANK_WEBHOOK_SECRET", "PAYMENT_RAIL=bank");

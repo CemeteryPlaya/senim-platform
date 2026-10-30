@@ -10,7 +10,7 @@ import { mockProvider } from "./mock";
 export function aiProviderFromEnv(): AiProvider {
   const e = env();
   if (e.AI_PROVIDER === "mock") return mockProvider;
-  // INTEGRATOR: env.ts должен требовать AI_TEXT_MODEL и AI_IMAGE_MODEL при AI_PROVIDER=gateway (см. отчёт ai-engineer).
+  // env.ts требует ключ и модели при AI_ENABLED; здесь — на случай AI_PROVIDER=gateway при выключенном ИИ.
   if (!e.AI_GATEWAY_API_KEY || !e.AI_TEXT_MODEL || !e.AI_IMAGE_MODEL) return fail.unavailable(ru.ai.errors.notConfigured);
   const gw = createGateway({ apiKey: e.AI_GATEWAY_API_KEY });
   return createGatewayProvider({

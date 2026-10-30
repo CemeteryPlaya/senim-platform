@@ -3,7 +3,7 @@ import type { DealStatus, StagePaymentStatus, StageStatus } from "@/generated/pr
 import { ru } from "@/i18n/ru";
 import { recordAudit, type Actor } from "@/modules/audit";
 import type { CurrentUser } from "@/modules/identity";
-import type { Tx } from "@/platform/db";
+import { lockDealRow, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import {
   DEAL_TRANSITIONS,
@@ -36,7 +36,7 @@ export type StageState = DealState["stages"][number];
  * Все изменения сделки (этапы, оплаты, спор, вебхуки банка) идут по очереди — гонок между ними нет.
  */
 export async function lockDeal(tx: Tx, dealId: string): Promise<DealState> {
-  await tx.$queryRaw`SELECT "id" FROM "Deal" WHERE "id" = ${dealId} FOR UPDATE`;
+  await lockDealRow(tx, dealId);
   const deal = await tx.deal.findUnique({ where: { id: dealId }, include: dealInclude });
   return deal ?? fail.notFound(ru.deal.errors.notFound);
 }

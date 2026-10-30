@@ -23,6 +23,15 @@ export const db: PrismaClient = new Proxy({} as PrismaClient, {
   },
 });
 
+/**
+ * Блокирует строку сделки до конца транзакции (SELECT … FOR UPDATE). Все изменения сделки —
+ * deal-core, payments, documents — берут её первой, поэтому идут по очереди. false — сделки нет.
+ */
+export async function lockDealRow(tx: Tx, dealId: string): Promise<boolean> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Deal" WHERE "id" = ${dealId} FOR UPDATE`;
+  return rows.length > 0;
+}
+
 /** Транзакция с уровнем изоляции по умолчанию (READ COMMITTED) и разумными таймаутами. */
 export function transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   return db.$transaction(fn, { maxWait: 5_000, timeout: 15_000 });
