@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { ImageOff, Plus } from "lucide-react";
 import { ru } from "@/i18n/ru";
-import { listOwnPortfolio, requireExecutorPage } from "@/modules/companies";
+import { listOwnPortfolio } from "@/modules/companies";
+import { requireUserPage } from "@/modules/identity";
 import { ButtonLink, Container, EmptyState, Money, PageHeader, StatusBadge } from "@/ui";
 import { WorkActions } from "./WorkActions";
 
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: t.title };
 
 /** Своё портфолио: опубликованные и скрытые работы, добавление, правка, публикация, удаление. */
 export default async function PortfolioPage() {
-  const user = await requireExecutorPage("/executor/portfolio");
+  const user = await requireUserPage("/executor/portfolio", "EXECUTOR");
   const items = await listOwnPortfolio(user);
   const addButton = (
     <ButtonLink href="/executor/portfolio/new" icon={<Plus />}>

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import { ru } from "@/i18n/ru";
-import { getOwnProfile, listFurnitureTypes, requireExecutorPage } from "@/modules/companies";
+import { getOwnProfile, listFurnitureTypes } from "@/modules/companies";
+import { requireUserPage } from "@/modules/identity";
 import { Alert, ButtonLink, Container, PageHeader } from "@/ui";
 import { SegmentBadge } from "../../catalog/_components/executor-bits";
 import { ProfileForm } from "./ProfileForm";
@@ -12,7 +13,7 @@ export const metadata: Metadata = { title: t.title };
 
 /** Профиль исполнителя: что видят заказчики. Сегмент только показывается — его ставит оператор. */
 export default async function ExecutorProfilePage() {
-  const user = await requireExecutorPage("/executor/profile");
+  const user = await requireUserPage("/executor/profile", "EXECUTOR");
   const [profile, types] = await Promise.all([getOwnProfile(user), listFurnitureTypes()]);
 
   return (

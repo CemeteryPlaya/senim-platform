@@ -1,59 +1,57 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { ImageOff, X } from "lucide-react";
+import { useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import type { PhotoView } from "@/modules/companies";
-import { Alert, Button } from "@/ui";
-import { removeWorkPhoto } from "../actions";
+import { Alert } from "@/ui";
+import { Uploader } from "@/app/_components/uploader";
+import { attachWorkPhotos, removeWorkPhoto } from "../actions";
 
 const t = ru.companies.portfolio.photos;
 
-/** Фото работы: миниатюры с «Убрать» и место под загрузку. */
-export function WorkPhotos({ itemId, photos }: { itemId: string; photos: PhotoView[] }) {
+/**
+ * Фото работы: загрузчик показывает сохранённые фото; новое фото сразу прикрепляется к работе,
+ * убранное — открепляется. Порядок сохранения — порядок загрузки.
+ */
+export function WorkPhotos({ itemId, photos, max }: { itemId: string; photos: PhotoView[]; max: number }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const saved = useRef(new Set(photos.map((p) => p.id)));
+  const queue = useRef<Promise<void>>(Promise.resolve());
 
-  const remove = (fileId: string) => {
-    setError(null);
-    startTransition(async () => {
+  async function sync(ids: string[]) {
+    const added = ids.filter((id) => !saved.current.has(id));
+    const removed = [...saved.current].filter((id) => !ids.includes(id));
+    for (const fileId of removed) {
       const result = await removeWorkPhoto({ id: itemId, fileId });
-      if (!result.ok) setError(result.error);
-      else router.refresh();
-    });
+      if (!result.ok) return setError(result.error);
+      saved.current.delete(fileId);
+    }
+    if (added.length > 0) {
+      const result = await attachWorkPhotos({ id: itemId, fileIds: added });
+      if (!result.ok) return setError(result.error);
+      added.forEach((id) => saved.current.add(id));
+    }
+    setError(null);
+    router.refresh();
+  }
+
+  // Изменения применяются по очереди: два быстрых изменения не прикрепят один файл дважды.
+  const onChange = (ids: string[]) => {
+    queue.current = queue.current.then(() => sync(ids));
   };
 
   return (
     <div className="flex flex-col gap-4">
-      {photos.length > 0 && (
-        <ul className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]">
-          {photos.map((photo, i) => (
-            <li key={photo.id} className="flex flex-col gap-2">
-              {photo.src ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photo.src} alt={photo.alt} className="aspect-[4/3] w-full rounded-control bg-sunken object-cover" />
-              ) : (
-                <div className="flex aspect-[4/3] w-full items-center justify-center rounded-control bg-sunken text-muted">
-                  <ImageOff aria-hidden className="size-6" />
-                  <span className="sr-only">{photo.alt}</span>
-                </div>
-              )}
-              <Button variant="ghost" icon={<X />} disabled={pending} onClick={() => remove(photo.id)}>
-                {t.remove(i + 1)}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/*
-        INTEGRATOR: сюда — компонент из src/app/_components/uploader (platform-engineer) с purpose PORTFOLIO;
-        после загрузки вызвать attachWorkPhotos({ id: itemId, fileIds }) из ../actions и router.refresh().
-      */}
-      <p className="rounded-card border border-dashed border-line-strong p-4 text-base text-muted">{t.uploaderPending}</p>
-
+      <Uploader
+        purpose="PORTFOLIO"
+        label={t.title}
+        hint={t.hint(max)}
+        max={max}
+        initial={photos.flatMap((p) => (p.src ? [{ id: p.id, url: p.src }] : []))}
+        onChange={onChange}
+      />
       {error && (
         <Alert tone="danger" live="assertive">
           {error}

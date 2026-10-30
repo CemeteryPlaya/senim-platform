@@ -34,7 +34,7 @@ const CARD_SELECT = {
 
 type CardRow = Prisma.PortfolioItemGetPayload<{ select: typeof CARD_SELECT }>;
 
-function toCard(row: CardRow): PortfolioCard {
+async function toCard(row: CardRow): Promise<PortfolioCard> {
   const view = toPublicView(row.executor);
   return {
     id: row.id,
@@ -43,7 +43,7 @@ function toCard(row: CardRow): PortfolioCard {
     furnitureType: row.furnitureType,
     style: styleView(row.style),
     priceFrom: row.priceFrom,
-    photos: toPhotoViews(row.photos, (n) => ru.companies.photoAlt(row.title, n)),
+    photos: await toPhotoViews(row.photos, (n) => ru.companies.photoAlt(row.title, n)),
     executor: { id: view.id, publicNumber: view.publicNumber, label: view.label, segment: view.segment, ratingAvg: view.ratingAvg, reviewsCount: view.reviewsCount },
   };
 }
@@ -62,13 +62,13 @@ export async function listCatalog(filter: CatalogFilter): Promise<{ items: Portf
     db.portfolioItem.count({ where }),
     db.portfolioItem.findMany({ where, orderBy: ORDER, skip: (filter.page - 1) * CATALOG_PAGE_SIZE, take: CATALOG_PAGE_SIZE, select: CARD_SELECT }),
   ]);
-  return { items: rows.map(toCard), total, page: filter.page, pageCount: Math.max(1, Math.ceil(total / CATALOG_PAGE_SIZE)) };
+  return { items: await Promise.all(rows.map(toCard)), total, page: filter.page, pageCount: Math.max(1, Math.ceil(total / CATALOG_PAGE_SIZE)) };
 }
 
 /** Опубликованные работы исполнителя — для публичной страницы и миниатюр в карточке отклика. */
 export async function listPublicPortfolio(executorId: string, limit = PUBLIC_PAGE_PORTFOLIO_LIMIT): Promise<PortfolioCard[]> {
   const rows = await db.portfolioItem.findMany({ where: { ...VISIBLE_ITEM, executorId }, orderBy: ORDER, take: limit, select: CARD_SELECT });
-  return rows.map(toCard);
+  return Promise.all(rows.map(toCard));
 }
 
 /** Отзывы об исполнителе: оценка, текст без контактов, дата. Автор не показывается. */
@@ -104,7 +104,7 @@ export type PortfolioForRequest = PortfolioCard & { furnitureTypeId: string; exe
 export async function getPortfolioForRequest(portfolioItemId: string): Promise<PortfolioForRequest | null> {
   const row = await db.portfolioItem.findFirst({ where: { id: portfolioItemId, ...VISIBLE_ITEM }, select: CARD_SELECT });
   if (!row) return null;
-  return { ...toCard(row), furnitureTypeId: row.furnitureTypeId, executor: toPublicView(row.executor) };
+  return { ...(await toCard(row)), furnitureTypeId: row.furnitureTypeId, executor: toPublicView(row.executor) };
 }
 
 export async function getCatalogFacets(): Promise<{ types: { slug: string; name: string }[] }> {

@@ -59,7 +59,7 @@ export function styleView(key: string): { key: string; name: string } {
   return { key, name: key in STYLES ? STYLES[key as StyleKey].name : key };
 }
 
-function toOwnItem(row: ItemRow): OwnPortfolioItem {
+async function toOwnItem(row: ItemRow): Promise<OwnPortfolioItem> {
   return {
     id: row.id,
     title: row.title,
@@ -68,7 +68,7 @@ function toOwnItem(row: ItemRow): OwnPortfolioItem {
     style: styleView(row.style),
     priceFrom: row.priceFrom,
     published: row.published,
-    photos: toPhotoViews(row.photos, (n) => ru.companies.photoAlt(row.title, n)),
+    photos: await toPhotoViews(row.photos, (n) => ru.companies.photoAlt(row.title, n)),
     createdAt: row.createdAt,
   };
 }
@@ -87,7 +87,7 @@ function audit(user: CurrentUser, executorId: string, itemId: string, action: st
 export async function listOwnPortfolio(user: CurrentUser): Promise<OwnPortfolioItem[]> {
   const { executorId } = requireExecutor(user);
   const rows = await db.portfolioItem.findMany({ where: { executorId }, orderBy: { createdAt: "desc" }, select: ITEM_SELECT });
-  return rows.map(toOwnItem);
+  return Promise.all(rows.map(toOwnItem));
 }
 
 export async function getOwnPortfolioItem(user: CurrentUser, itemId: string): Promise<OwnPortfolioItem> {
