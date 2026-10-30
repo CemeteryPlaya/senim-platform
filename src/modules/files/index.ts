@@ -1,4 +1,5 @@
 import "server-only";
+import { cleanupOrphans } from "./cleanup";
 
 // Публичный API модуля files. Другие модули импортируют только отсюда.
 export type * from "./storage";
@@ -20,4 +21,6 @@ export { PURPOSE_POLICY, type FileOwner } from "./policy";
 export { verifyDownload, openUploadToken } from "./signing";
 export { sniffType } from "./image";
 
-export const jobHandlers = {} as const;
+export const jobHandlers = {
+  "files.cleanupOrphans": cleanupOrphans,
+} as const;

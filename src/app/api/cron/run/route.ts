@@ -1,4 +1,4 @@
-import { jobHandlers } from "@/jobs";
+import { enqueueDailyJobs, jobHandlers } from "@/jobs";
 import { safeEqual } from "@/platform/crypto";
 import { env } from "@/platform/env";
 import { runDueJobs } from "@/platform/jobs";
@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   } else if (env().NODE_ENV === "production") {
     return new Response("CRON_SECRET is not configured", { status: 500 });
   }
+  await enqueueDailyJobs();
   const summary = await runDueJobs(jobHandlers);
   return Response.json(summary);
 }

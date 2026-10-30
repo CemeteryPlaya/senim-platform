@@ -86,8 +86,7 @@ async function storeDocument(
   input: { dealId: string; stageId?: string; kind: DocumentKind; number: string; version: number; issuedAt: Date; bytes: Uint8Array },
 ): Promise<CreatedDocument> {
   const sha256 = sha256Hex(input.bytes);
-  // INTEGRATOR: saveFile пишет StoredFile через db, а не через tx — при откате транзакции остаётся файл без документа.
-  const file = await saveFile({ purpose: "DOCUMENT", bytes: input.bytes });
+  const file = await saveFile({ purpose: "DOCUMENT", bytes: input.bytes, tx });
   if (file.sha256 !== sha256) {
     logger.error("documents: хранилище изменило байты PDF", { fileId: file.id });
     fail.unavailable(t.errors.damaged);

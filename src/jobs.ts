@@ -9,7 +9,8 @@ import { jobHandlers as notifications } from "@/modules/notifications";
 import { jobHandlers as operator } from "@/modules/operator";
 import { jobHandlers as payments } from "@/modules/payments";
 import { jobHandlers as requests } from "@/modules/requests";
-import type { JobHandlers } from "@/platform/jobs";
+import { db } from "@/platform/db";
+import { enqueueJob, type JobHandlers } from "@/platform/jobs";
 
 /**
  * Все обработчики фоновых задач. Каждый модуль экспортирует свои `jobHandlers`
@@ -27,3 +28,11 @@ export const jobHandlers: JobHandlers = {
   ...payments,
   ...requests,
 };
+
+/** Обслуживающие задачи раз в сутки. Ставятся перед каждым проходом; повтор за те же сутки отсекает dedupeKey. */
+const DAILY = ["files.cleanupOrphans"] as const;
+
+export async function enqueueDailyJobs(now = new Date()): Promise<void> {
+  const day = now.toISOString().slice(0, 10);
+  for (const kind of DAILY) await enqueueJob(db, { kind, dedupeKey: `${kind}:${day}` });
+}

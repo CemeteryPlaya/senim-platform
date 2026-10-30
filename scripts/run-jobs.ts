@@ -1,6 +1,6 @@
 // Локальный запуск фоновых задач: npm run jobs (один проход) или npm run jobs -- --watch.
 import "dotenv/config";
-import { jobHandlers } from "@/jobs";
+import { enqueueDailyJobs, jobHandlers } from "@/jobs";
 import { db } from "@/platform/db";
 import { runDueJobs } from "@/platform/jobs";
 import { logger } from "@/platform/logger";
@@ -8,6 +8,7 @@ import { logger } from "@/platform/logger";
 const watch = process.argv.includes("--watch");
 
 async function once() {
+  await enqueueDailyJobs();
   const summary = await runDueJobs(jobHandlers);
   logger.info("jobs.run", summary);
 }

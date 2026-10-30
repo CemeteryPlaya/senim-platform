@@ -122,13 +122,14 @@ async function persist(
   base: string,
   purpose: FilePurpose,
   processed: Processed,
-  extra: { uploadedById?: string; isAiGenerated?: boolean },
+  extra: { uploadedById?: string; isAiGenerated?: boolean; tx?: Db },
 ): Promise<StoredFile> {
+  const client = extra.tx ?? db;
   const storageKey = `${base}.${processed.ext}`;
   const provider = await storageByName(providerName);
   await provider.put(storageKey, processed.bytes, processed.contentType);
   try {
-    return await db.storedFile.create({
+    return await client.storedFile.create({
       data: {
         storageKey,
         provider: providerName,
@@ -145,7 +146,7 @@ async function persist(
     });
   } catch (e) {
     // Параллельный finalize того же токена успел раньше: тот же ключ — тот же файл.
-    if (isUniqueViolation(e)) return db.storedFile.findUniqueOrThrow({ where: { storageKey } });
+    if (isUniqueViolation(e)) return client.storedFile.findUniqueOrThrow({ where: { storageKey } });
     throw e;
   }
 }
@@ -159,13 +160,18 @@ export async function saveFile(input: {
   bytes: Uint8Array;
   uploadedById?: string;
   isAiGenerated?: boolean;
+  /**
+   * Транзакция вызывающего: при её откате не останется записи StoredFile. Байты в хранилище при этом
+   * остаются (без записи их не найдёт и files.cleanupOrphans) — для PDF это килобайты, допустимо.
+   */
+  tx?: Db;
 }): Promise<StoredFile> {
   const provider = await storage();
   const processed = await processBytes(input.bytes, PURPOSE_POLICY[input.purpose].accepts);
   return persist(provider.name, finalKeyBase(input.purpose, new Date(), randomUUID()), input.purpose, processed, input);
 }
 
-const UNATTACHED = {
+export const UNATTACHED = {
   portfolioItemId: null,
   requestId: null,
   stageId: null,
