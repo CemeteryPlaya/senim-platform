@@ -42,6 +42,8 @@ describe("экраны сделки: доступ и анонимность", ()
     const f = await makeDeal();
     await signContract(f.dealId);
     const view = await getDealView(f.executor, f.dealId);
-    expect(view.history.map((h) => h.action).slice(0, 2)).toEqual(["deal.created", "deal.signed"]);
+    const actions = view.history.map((h) => h.action);
+    expect(actions[0]).toBe("deal.created");
+    expect(actions.indexOf("deal.signed")).toBeGreaterThan(0);
   });
 });

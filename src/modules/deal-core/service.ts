@@ -30,12 +30,11 @@ import {
   requestMoney,
   tryCloseStage,
 } from "./effects";
-import { completeSigning, createContract, recalculateRating } from "./ports";
+import { createContract, recalculateRating } from "./ports";
 import {
   autoAcceptPayloadSchema,
   cancelDealSchema,
   createDealSchema,
-  documentRefSchema,
   parseInput,
   reviewSchema,
   reworkSchema,
@@ -390,20 +389,12 @@ export async function leaveReview(user: CurrentUser, raw: { dealId: string; rati
   });
 }
 
-// ─── Временная подпись (до подключения documents) ────────────────────────────
-
-// INTEGRATOR: удалить вместе с временной подписью в ports.ts — экран вызовет documents.completeSigning
-// с хуком { onFullySigned: onDocumentSigned } через _components/signing.
-export async function signDocumentTemporarily(user: CurrentUser, raw: { documentId: string }) {
-  const input = parseInput(documentRefSchema, raw);
-  const result = await completeSigning(user, input, { onFullySigned: onDocumentSigned });
-  if (result.fullySigned) await afterSigning(input.documentId);
-  return result;
-}
+// ─── После полной подписи ────────────────────────────────────────────────────
 
 /**
  * После полной подписи (вне транзакции): открыть счёт сделки в эскроу и отправить операции в банк.
- * INTEGRATOR: экран сделки вызывает это после documents.completeSigning, когда fullySigned = true.
+ * Не обязательно: то же делают задача deal-core.openEscrowAccount и экран сделки при показе,
+ * но вызов сразу после completeSigning (fullySigned = true) убирает задержку для заказчика.
  */
 export async function afterSigning(documentId: string) {
   const doc = await db.document.findUnique({ where: { id: documentId }, select: { dealId: true } });

@@ -20,7 +20,6 @@ export {
   leaveReview,
   markStagePaid,
   requestRework,
-  signDocumentTemporarily,
   startStage,
   submitStage,
 } from "./service";
@@ -35,7 +34,6 @@ export {
   cancelDealSchema,
   dealRefSchema,
   disputePositionSchema,
-  documentRefSchema,
   openDisputeSchema,
   resolveDisputeSchema,
   reviewSchema,

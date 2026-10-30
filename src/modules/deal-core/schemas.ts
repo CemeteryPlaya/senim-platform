@@ -13,7 +13,6 @@ const text = (min: number, max: number, tooShort: string) =>
 
 export const stageRefSchema = z.object({ stageId: id });
 export const dealRefSchema = z.object({ dealId: id });
-export const documentRefSchema = z.object({ documentId: id });
 
 export const submitStageSchema = z.object({
   stageId: id,

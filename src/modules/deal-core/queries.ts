@@ -137,6 +137,8 @@ export async function getDealView(user: CurrentUser, dealId: string) {
   const base = {
     id: deal.id,
     number: deal.number,
+    /** Чат сделки привязан к отклику (ADR-003). */
+    offerId: deal.offerId,
     title: deal.title,
     status: deal.status,
     paymentMode: deal.paymentMode,

@@ -40,6 +40,7 @@ export const deal = {
     ON_START: "Оплата до начала этапа",
     ON_ACCEPTANCE: "Оплата после приёмки",
   },
+  paymentLabel: "Оплата",
   paymentModeManual: "Оплата по этапам напрямую исполнителю",
 
   sections: {
@@ -92,11 +93,13 @@ export const deal = {
     cancelDeal: "Отменить сделку",
     sendReview: "Отправить отзыв",
     toBank: "Открыть банк-симулятор",
+    goSign: "Перейти к подписи",
     confirmCancel: "Да, отменить",
   },
 
   stage: {
     amount: "Сумма этапа",
+    paymentWhen: "Когда оплата",
     noAmount: "Без оплаты — только отчёт",
     report: "Отчёт исполнителя",
     reworkNote: "Что исправить",
@@ -161,24 +164,10 @@ export const deal = {
   },
 
   contract: {
-    title: "Договор подряда",
-    status: {
-      SIGNING: "На подписи",
-      SIGNED: "Подписан обеими сторонами",
-      SUPERSEDED: "Заменён новой версией",
-    },
-    signedBy: { CLIENT: "Заказчик подписал", EXECUTOR: "Исполнитель подписал" },
-    notSignedBy: { CLIENT: "Заказчик ещё не подписал", EXECUTOR: "Исполнитель ещё не подписал" },
-    missing: "Договор формируется.",
     revealNote: "Наименование и ИИН/БИН исполнителя указаны только в договоре.",
-    actTitle: (order: number, title: string) => `Акт по этапу ${order}: ${title}`,
     noActs: "Акты появятся после приёмки этапов.",
-    // INTEGRATOR: временная подпись до подключения _components/signing (documents-engineer).
-    tempSign: "Подписать (временно, без ЭЦП)",
-    tempSignNote: "Подпись ЭЦП подключается в модуле документов. Сейчас подпись условная.",
+    actFor: (order: number, title: string) => `Этап ${order}: ${title}`,
   },
-
-  chatPending: "Чат сделки подключается отдельно: переписка продолжится здесь же, в отклике.",
 
   history: {
     empty: "Событий пока нет.",
@@ -211,6 +200,11 @@ export const deal = {
       "payment.operation.failed": "Операция по счёту не прошла",
       "payment.deposit.received": "Счёт пополнен",
       "payment.account.opened": "Открыт счёт сделки",
+      "document.created": "Сформирован документ",
+      "document.signing.started": "Сторона начала подпись документа",
+      "document.signature.added": "Сторона подписала документ",
+      "document.signed": "Документ подписан обеими сторонами",
+      "document.superseded": "Документ заменён новой версией",
     } as Record<string, string>,
   },
 
