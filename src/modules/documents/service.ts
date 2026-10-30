@@ -261,16 +261,37 @@ function assertSignable(status: DocumentStatus, signatures: { party: SignParty }
 
 // ─── подпись ────────────────────────────────────────────────────────────────
 
+/**
+ * Последние 4 цифры ИИН, которым сторона обязана подписать: подписант привязан к стороне договора.
+ *  - заказчик — свой ИИН (User.iinLast4);
+ *  - исполнитель ИП или самозанятый — ИИН владельца, он же ИИН/БИН профиля (ExecutorProfile.binIinLast4);
+ *  - исполнитель ТОО — подписывает директор (представитель) своим сертификатом: в нём ИИН директора,
+ *    а не БИН организации, поэтому сверяем ИИН представителя (User.iinLast4).
+ *    TODO(ТОО): сверять и БИН организации из сертификата юрлица (ExecutorProfile.binIinLast4), когда
+ *    провайдер подписи станет возвращать его (SignatureVerification.certBin) и будет проверено право подписи.
+ * ИИН неизвестен — подписать нельзя: иначе подпись не привязана ни к кому.
+ */
+async function expectedSignerIin(userId: string, party: SignParty): Promise<string> {
+  const user = await db.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { iinLast4: true, executorProfile: { select: { legalForm: true, binIinLast4: true } } },
+  });
+  const profile = party === "EXECUTOR" ? user.executorProfile : null;
+  const iin = profile && profile.legalForm !== "TOO" ? profile.binIinLast4 : user.iinLast4;
+  return iin || fail.validation(t.errors.signerIinMissing);
+}
+
 /** Начать подпись стороной сделки. Подписывается sha256 PDF, сохранённый в Document. */
 export async function startSigning(user: CurrentUser, documentId: string, method: SignMethod): Promise<StartedSigning> {
-  const { doc } = await signableBy(user, documentId);
-  const me = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { fullName: true, iinLast4: true } });
+  const { doc, party } = await signableBy(user, documentId);
+  const iinLast4 = await expectedSignerIin(user.id, party);
+  const me = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { fullName: true } });
   const provider = signatureProvider();
   const session = await provider.startSigning({
     documentId,
     sha256: doc.sha256,
     method,
-    signer: { userId: user.id, fullName: me.fullName ?? "", iinLast4: me.iinLast4 ?? undefined },
+    signer: { userId: user.id, fullName: me.fullName ?? "", iinLast4 },
   });
   await recordAudit(db, {
     actor: actorOf(user),
@@ -299,8 +320,8 @@ export const completeSigning: CompleteSigning = async (user, { documentId, sessi
   const verified = await provider.verify({ cms: result.cms, sha256: doc.sha256 });
   if (!verified.valid) return fail.validation(t.errors.rejected(verified.reason));
 
-  const me = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { iinLast4: true } });
-  if (verified.certIinLast4 && me.iinLast4 && verified.certIinLast4 !== me.iinLast4) return fail.validation(t.errors.otherSigner);
+  // Сертификат без ИИН или с чужим ИИН — подпись не этой стороны.
+  if (verified.certIinLast4 !== (await expectedSignerIin(user.id, party))) return fail.validation(t.errors.otherSigner);
 
   return transaction(async (tx) => {
     // Порядок блокировок как в createContract и deal-core: сначала сделка, потом документ.

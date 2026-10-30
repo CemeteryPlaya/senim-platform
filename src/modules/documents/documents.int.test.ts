@@ -198,6 +198,57 @@ describe("подпись", () => {
     await expect(completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
   });
 
+  it("подписант привязан к стороне: заказчик — своим ИИН; нет ИИН — подписать нельзя", async () => {
+    const { deal, client } = await makeDeal();
+    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
+    const noIin = await mockSignatureProvider.startSigning({ documentId, sha256, method: "EGOV_QR", signer: { userId: client.id, fullName: "Без ИИН" } });
+    await expect(completeSigning(client, { documentId, sessionId: noIin.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
+
+    await db.user.update({ where: { id: client.id }, data: { iinLast4: null } });
+    await expect(startSigning(client, documentId, "EGOV_QR")).rejects.toMatchObject({ code: "VALIDATION" });
+    expect(await db.signature.count()).toBe(0);
+  });
+
+  it("исполнитель ИП подписывает ИИН из профиля (ИИН/БИН), а не любым ИИН", async () => {
+    const { deal, executor } = await makeDeal();
+    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
+    // ИИН/БИН профиля ИП — ИИН владельца; личный ИИН в записи пользователя может отсутствовать или устареть.
+    const profile = await db.executorProfile.update({
+      where: { id: executor.executor.id },
+      data: { binIinLast4: "4321" },
+      include: { user: true },
+    });
+    expect(profile.legalForm).toBe("IP");
+    expect(profile.user.iinLast4).not.toBe("4321");
+
+    const wrong = await mockSignatureProvider.startSigning({
+      documentId,
+      sha256,
+      method: "EGOV_QR",
+      signer: { userId: executor.id, fullName: "Кто-то", iinLast4: profile.user.iinLast4 ?? undefined },
+    });
+    await expect(completeSigning(executor, { documentId, sessionId: wrong.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
+
+    expect(await signAs(executor, documentId)).toEqual({ fullySigned: false });
+    expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ party: "EXECUTOR", certIinLast4: profile.binIinLast4 });
+  });
+
+  it("исполнитель ТОО подписывает сертификатом представителя (его ИИН); без ИИН представителя — отказ", async () => {
+    const { deal, executor } = await makeDeal();
+    await db.executorProfile.update({ where: { id: executor.executor.id }, data: { legalForm: "TOO" } });
+    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
+    const user = await db.user.findUniqueOrThrow({ where: { id: executor.id } });
+
+    expect(await signAs(executor, documentId)).toEqual({ fullySigned: false });
+    expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ certIinLast4: user.iinLast4 });
+
+    const g = await makeDeal();
+    await db.executorProfile.update({ where: { id: g.executor.executor.id }, data: { legalForm: "TOO" } });
+    await db.user.update({ where: { id: g.executor.id }, data: { iinLast4: null } });
+    const other = await transaction((tx) => createContract(tx, g.deal.id));
+    await expect(startSigning(g.executor, other.documentId, "EGOV_QR")).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
   it("заменённую версию подписать нельзя", async () => {
     const { deal, client } = await makeDeal();
     const v1 = await transaction((tx) => createContract(tx, deal.id));
