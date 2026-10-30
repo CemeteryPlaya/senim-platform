@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
+import { logger } from "@/platform/logger";
 import { makeClient, makeExecutor } from "../../../test/factories";
 import { inDays, makeChosen, makeMeasured, makeMeasuring, makeOpenRequest, offerInput } from "../../../test/factories/requests";
 import {
   agreeToContract,
   completeMeasurement,
   getIncomingRequest,
+  jobHandlers,
   listMyMeasurements,
   measurementNoDeal,
   onContractSigned,
@@ -46,6 +48,35 @@ describe("назначение замера OFFER_CHOSEN → MEASURING", () => {
     const executor = await makeExecutor({ segment: "COMFORT" });
     const { offerId } = await sendOffer(executor, offerInput(requestId));
     await expect(scheduleMeasurement(executor, { offerId, scheduledAt: inDays(2) })).rejects.toThrow(code("CONFLICT"));
+  });
+});
+
+describe("напоминание о замере", () => {
+  const remind = (measurementId: string) =>
+    jobHandlers["requests.measurementReminder"]({ measurementId }, { jobId: "j", attempt: 1, log: logger });
+
+  it("ставится за сутки до выезда и приходит обеим сторонам с SMS", async () => {
+    const client = await makeClient();
+    const { executor, offerId } = await makeChosen(client);
+    const at = inDays(2);
+    const { measurementId } = await scheduleMeasurement(executor, { offerId, scheduledAt: at });
+
+    const job = await db.job.findFirstOrThrow({ where: { kind: "requests.measurementReminder" } });
+    expect(job.runAt.getTime()).toBe(at.getTime() - 24 * 60 * 60 * 1000);
+
+    await remind(measurementId);
+    const notes = await db.notification.findMany({ where: { kind: "measurement.reminder" }, orderBy: { userId: "asc" } });
+    expect(notes.map((n) => n.userId).sort()).toEqual([client.id, executor.id].sort());
+    expect(await db.job.count({ where: { kind: "notifications.sendSms", dedupeKey: { in: notes.map((n) => `sms:${n.id}`) } } })).toBe(2);
+  });
+
+  it("выполненный замер не напоминается", async () => {
+    const client = await makeClient();
+    const m = await makeMeasuring(client);
+    await completeMeasurement(m.executor, { measurementId: m.measurementId, finalPrice: 650_000, result: "" });
+
+    await remind(m.measurementId);
+    expect(await db.notification.count({ where: { kind: "measurement.reminder" } })).toBe(0);
   });
 });
 

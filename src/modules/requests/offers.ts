@@ -128,7 +128,7 @@ export async function chooseOffer(user: CurrentUser, input: { offerId: string })
     const title = requestTitle(r);
     await notify(tx, {
       userId: offer.executor.userId,
-      kind: "offer.chosen",
+      kind: "offer.accepted",
       title: n.offerChosen.title,
       body: n.offerChosen.body(title),
       link: links.executor(r.id),

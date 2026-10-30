@@ -1,12 +1,14 @@
 import "server-only";
+import { z } from "zod";
 import { recordAudit, SYSTEM } from "@/modules/audit";
 import { sanitizeExecutorText } from "@/modules/companies";
 import { createDeal } from "@/modules/deal-core";
 import type { CurrentUser } from "@/modules/identity";
-import { notify } from "@/modules/notifications";
+import { notify, notifyTemplate } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
 import { db, transaction, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
+import { enqueueJob, type JobHandler } from "@/platform/jobs";
 import { STAGE_TEMPLATES, type StageTemplateKey } from "@/verticals/furniture";
 import { auditByUser, links, loadExecutor, loadOwnRequest, requestScope, requestTitle, requireClient } from "./access";
 import { MEASUREMENT_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
@@ -16,6 +18,10 @@ const v = ru.requests.validation;
 const n = ru.requests.notify;
 
 const withRequest = { request: { include: { furnitureType: { select: { name: true } } } } } as const;
+
+export const JOB_MEASUREMENT_REMINDER = "requests.measurementReminder";
+/** За сколько до выезда напомнить обеим сторонам (SMS — шаблон measurement.reminder). */
+const REMINDER_LEAD_MS = 24 * 60 * 60 * 1000;
 
 /** OFFER_CHOSEN → MEASURING: исполнитель выбранного отклика назначает выезд замерщика. */
 export async function scheduleMeasurement(user: CurrentUser, input: { offerId: string; scheduledAt: Date }): Promise<{ measurementId: string }> {
@@ -36,6 +42,12 @@ export async function scheduleMeasurement(user: CurrentUser, input: { offerId: s
       before: { request: r.status },
       after: { status: m.status, scheduledAt: m.scheduledAt.toISOString(), request: to },
     });
+    await enqueueJob(tx, {
+      kind: JOB_MEASUREMENT_REMINDER,
+      payload: { measurementId: m.id },
+      runAt: new Date(Math.max(Date.now(), m.scheduledAt.getTime() - REMINDER_LEAD_MS)),
+      dedupeKey: `measurement-reminder:${m.id}`,
+    });
     await notify(tx, {
       userId: r.clientId,
       kind: "measurement.scheduled",
@@ -46,6 +58,27 @@ export async function scheduleMeasurement(user: CurrentUser, input: { offerId: s
     return { measurementId: m.id };
   });
 }
+
+/**
+ * Задача напоминания о замере: обеим сторонам, если замер всё ещё назначен (не отменён, не перенесён в итог).
+ * Повтор безопасен: одна задача на замер (dedupeKey), а выполненный или отменённый замер не напоминается.
+ */
+export const remindMeasurement: JobHandler = async (payload, ctx) => {
+  const { measurementId } = z.object({ measurementId: z.string().min(1) }).parse(payload);
+  await transaction(async (tx) => {
+    const m = await tx.measurement.findUnique({
+      where: { id: measurementId },
+      include: { ...withRequest, offer: { select: { executor: { select: { userId: true } } } } },
+    });
+    if (!m || m.status !== "SCHEDULED" || m.request.status !== "MEASURING") {
+      ctx.log.info("measurement.reminder.skipped", { measurementId });
+      return;
+    }
+    const common = { requestId: m.requestId, requestTitle: requestTitle(m.request), at: m.scheduledAt };
+    await notifyTemplate(tx, m.request.clientId, "measurement.reminder", { ...common, audience: "client" });
+    await notifyTemplate(tx, m.offer.executor.userId, "measurement.reminder", { ...common, audience: "executor" });
+  });
+};
 
 /** SCHEDULED → DONE: исполнитель вносит итоговую цену после замера. */
 export async function completeMeasurement(user: CurrentUser, input: { measurementId: string; finalPrice: number; result: string }): Promise<void> {

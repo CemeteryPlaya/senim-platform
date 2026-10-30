@@ -2,6 +2,7 @@ import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { attachFiles } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
+import { notifyOperators } from "@/modules/notifications";
 import { escrowBalance } from "@/modules/payments";
 import { transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
@@ -62,10 +63,11 @@ export async function openDispute(
       after: { deal: "DISPUTE", reason: input.reason },
       meta: { stageId: stage?.id ?? null },
     });
-    await notifyParty(tx, deal, who === "CLIENT" ? "EXECUTOR" : "CLIENT", "deal.dispute.opened", {
+    await notifyParty(tx, deal, who === "CLIENT" ? "EXECUTOR" : "CLIENT", "dispute.opened", {
       title: t.disputeOpened.title,
       body: t.disputeOpened.body(deal.number),
     });
+    await notifyOperators(tx, "dispute.opened", { audience: "operator", disputeId: dispute.id, dealTitle: deal.title });
     return { disputeId: dispute.id };
   });
 }
@@ -163,7 +165,7 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
       after: { status: "RESOLVED", decision: input.decision, decisionAmount: input.decisionAmount ?? null, deal: deal.status },
     });
     for (const to of ["CLIENT", "EXECUTOR"] as const) {
-      await notifyParty(tx, deal, to, "deal.dispute.resolved", { title: t.disputeResolved.title, body: t.disputeResolved.body(deal.number) });
+      await notifyParty(tx, deal, to, "dispute.resolved", { title: t.disputeResolved.title, body: t.disputeResolved.body(deal.number) });
     }
     return deal.id;
   });

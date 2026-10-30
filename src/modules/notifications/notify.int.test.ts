@@ -22,7 +22,7 @@ describe("notify с готовым текстом", () => {
     const executor = await makeExecutor();
     await db.$transaction(async (tx) => {
       await notify(tx, { userId: executor.id, kind: "deal.stage.rework", title: "Этап на доработку", body: "…" });
-      await notify(tx, { userId: executor.id, kind: "deal.dispute.resolved", title: "Спор решён", body: "…" });
+      await notify(tx, { userId: executor.id, kind: "dispute.resolved", title: "Спор решён", body: "…" });
       await notify(tx, { userId: executor.id, kind: "chat.message", title: "Новое сообщение", body: "…" });
     });
     expect(await db.notification.count()).toBe(3);

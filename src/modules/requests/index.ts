@@ -27,6 +27,8 @@ export {
   type OfferDetail,
   type OfferListItem,
 } from "./offers";
+import { JOB_MEASUREMENT_REMINDER, remindMeasurement } from "./measurements";
+
 export {
   agreeToContract,
   completeMeasurement,
@@ -42,4 +44,4 @@ export { onDealCancelled } from "./deal-cancelled";
 export * from "./schema";
 export { MEASUREMENT_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS } from "./transitions";
 
-export const jobHandlers = {} as const;
+export const jobHandlers = { [JOB_MEASUREMENT_REMINDER]: remindMeasurement } as const;

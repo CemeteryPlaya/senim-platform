@@ -190,7 +190,8 @@ describe("выбор отклика OPEN → OFFER_CHOSEN", () => {
     expect((await db.request.findUniqueOrThrow({ where: { id: requestId } })).status).toBe("OFFER_CHOSEN");
     expect((await db.offer.findUniqueOrThrow({ where: { id: offerId } })).status).toBe("ACCEPTED");
     expect((await db.offer.findUniqueOrThrow({ where: { id: other } })).status).toBe("DECLINED");
-    expect(await db.notification.findFirst({ where: { userId: win.id, kind: "offer.chosen" } })).not.toBeNull();
+    const chosen = await db.notification.findFirstOrThrow({ where: { userId: win.id, kind: "offer.accepted" } });
+    expect(await db.job.count({ where: { kind: "notifications.sendSms", dedupeKey: `sms:${chosen.id}` } })).toBe(1);
     expect(await db.notification.findFirst({ where: { userId: lose.id, kind: "offer.declined" } })).not.toBeNull();
   });
 

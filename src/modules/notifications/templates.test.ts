@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { NOTIFICATIONS } from "@/demo/data";
@@ -72,5 +72,24 @@ describe("шаблоны уведомлений", () => {
 
   it("склонение дней", () => {
     expect([1, 2, 5, 11, 21, 22, 25, 112].map(days)).toEqual(["1 день", "2 дня", "5 дней", "11 дней", "21 день", "22 дня", "25 дней", "112 дней"]);
+  });
+});
+
+describe("важные уведомления доходят", () => {
+  /** Исходники модулей (без тестов и самого notifications): где вид уведомления пишется строкой. */
+  async function moduleSources(): Promise<string> {
+    const root = path.join(process.cwd(), "src/modules");
+    const files = (await readdir(root, { recursive: true })).filter(
+      (f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !f.startsWith(`notifications${path.sep}`),
+    );
+    return (await Promise.all(files.map((f) => readFile(path.join(root, f), "utf8")))).join("\n");
+  }
+
+  it("каждый шаблон с SMS кто-то из модулей шлёт под его ключом", async () => {
+    const source = await moduleSources();
+    const sms = (Object.keys(TEMPLATES) as TemplateKey[]).filter((k) => TEMPLATES[k].sms);
+    // Те же строки бывают действиями журнала («action: "offer.accepted"») — они уведомление не шлют.
+    const sent = (key: string) => new RegExp(`(?<!action: )"${key.replace(/\./g, "\\.")}"`).test(source);
+    expect(sms.filter((key) => !sent(key))).toEqual([]);
   });
 });

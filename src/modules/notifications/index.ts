@@ -14,7 +14,12 @@ export { renderTemplate, TEMPLATES, type TemplateKey, type TemplateParams } from
 
 export type NotifyInput = {
   userId: string;
-  kind: string; // ключ шаблона, например «offer.received»
+  /**
+   * Вид события. Для событий из templates.ts — ровно ключ шаблона («offer.accepted», «dispute.opened»):
+   * по нему решается, дублировать ли SMS. Синонимов нет — templates.test.ts проверяет, что каждый
+   * шаблон с SMS кто-то шлёт.
+   */
+  kind: string;
   title: string;
   body: string;
   link?: string;
@@ -22,11 +27,13 @@ export type NotifyInput = {
 
 const SEND_SMS = "notifications.sendSms";
 const TEMPLATES_WITH_SMS = new Set<string>(Object.entries(TEMPLATES).flatMap(([key, t]) => (t.sms ? [key] : [])));
-/** Виды, под которыми модули пишут те же события, что и шаблоны. */
-const KIND_ALIASES: Record<string, TemplateKey> = { "deal.dispute.resolved": "dispute.resolved" };
 
-function needsSms(kind: string): boolean {
-  return TEMPLATES_WITH_SMS.has(KIND_ALIASES[kind] ?? kind);
+/** Запись уведомления; для важного вида (sms: true в шаблоне) — ещё и задача SMS, одна на уведомление. */
+async function create(tx: Db, input: NotifyInput, sms: boolean): Promise<void> {
+  const notification = await tx.notification.create({ data: input, select: { id: true } });
+  if (sms && TEMPLATES_WITH_SMS.has(input.kind)) {
+    await enqueueJob(tx, { kind: SEND_SMS, payload: { notificationId: notification.id }, dedupeKey: `sms:${notification.id}` });
+  }
 }
 
 /**
@@ -34,10 +41,7 @@ function needsSms(kind: string): boolean {
  * Если вид совпадает с важным шаблоном (sms: true), ставит и задачу SMS — как notifyTemplate.
  */
 export async function notify(tx: Db, input: NotifyInput): Promise<void> {
-  const notification = await tx.notification.create({ data: input, select: { id: true } });
-  if (needsSms(input.kind)) {
-    await enqueueJob(tx, { kind: SEND_SMS, payload: { notificationId: notification.id }, dedupeKey: `sms:${notification.id}` });
-  }
+  await create(tx, input, true);
 }
 
 /**
@@ -46,11 +50,17 @@ export async function notify(tx: Db, input: NotifyInput): Promise<void> {
  * задачу notifications.sendSms — одна задача на уведомление (dedupeKey).
  */
 export async function notifyTemplate<K extends TemplateKey>(tx: Db, userId: string, key: K, params: TemplateParams<K>): Promise<void> {
-  const { title, body, link } = renderTemplate(key, params);
-  const notification = await tx.notification.create({ data: { userId, kind: key, title, body, link }, select: { id: true } });
-  if (needsSms(key)) {
-    await enqueueJob(tx, { kind: SEND_SMS, payload: { notificationId: notification.id }, dedupeKey: `sms:${notification.id}` });
-  }
+  await create(tx, { userId, kind: key, ...renderTemplate(key, params) }, true);
+}
+
+/**
+ * Всем действующим операторам — только in-app: операторы работают в панели, SMS получают стороны.
+ * Вызывать в транзакции события (например, открытия спора).
+ */
+export async function notifyOperators<K extends TemplateKey>(tx: Db, key: K, params: TemplateParams<K>): Promise<void> {
+  const operators = await tx.user.findMany({ where: { role: "OPERATOR", blockedAt: null }, select: { id: true } });
+  const rendered = renderTemplate(key, params);
+  for (const { id } of operators) await create(tx, { userId: id, kind: key, ...rendered }, false);
 }
 
 export async function listNotifications(userId: string, limit = 30) {

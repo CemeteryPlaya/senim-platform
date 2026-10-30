@@ -156,9 +156,9 @@ export async function publishRequest(user: CurrentUser, input: { requestId: stri
     });
 
     const title = requestTitle(r);
-    const text = r.mode === "DIRECT" ? n.directRequest : n.newRequest;
+    const [kind, text] = r.mode === "DIRECT" ? (["request.direct", n.directRequest] as const) : (["request.new", n.newRequest] as const);
     for (const userId of recipients) {
-      await notify(tx, { userId, kind: "request.new", title: text.title, body: text.body(title), link: links.executor(r.id) });
+      await notify(tx, { userId, kind, title: text.title, body: text.body(title), link: links.executor(r.id) });
     }
   });
 }

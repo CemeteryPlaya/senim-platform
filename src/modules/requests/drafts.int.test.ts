@@ -152,6 +152,20 @@ describe("отправка заявки DRAFT → OPEN", () => {
     await expect(publishRequest(await makeClient(), { requestId })).rejects.toThrow(code("NOT_FOUND"));
   });
 
+  it("прямой запрос: исполнитель получает важное уведомление «request.direct» с SMS", async () => {
+    const client = await makeClient();
+    const executor = await makeExecutor();
+    const type = await makeFurnitureType();
+    const item = await db.portfolioItem.create({ data: { executorId: executor.executor.id, furnitureTypeId: type.id, style: "modern", title: "Кухня" } });
+    const requestId = await makeDraft(client, { like: item.id, typeId: type.id });
+
+    await publishRequest(client, { requestId });
+
+    const note = await db.notification.findFirstOrThrow({ where: { userId: executor.id } });
+    expect(note).toMatchObject({ kind: "request.direct", link: `/executor/requests/${requestId}` });
+    expect(await db.job.count({ where: { kind: "notifications.sendSms", dedupeKey: `sms:${note.id}` } })).toBe(1);
+  });
+
   it("прямой запрос к неподтверждённому исполнителю не отправляется", async () => {
     const client = await makeClient();
     const executor = await makeExecutor();
