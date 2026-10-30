@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getDraft, likeTarget, listFurnitureTypes, segmentInputOf, WIZARD_SCREENS, type Draft, type WizardScreen } from "@/modules/requests";
+import { listFurnitureTypes } from "@/modules/companies";
+import { getDraft, likeTarget, segmentInputOf, WIZARD_SCREENS, type Draft, type WizardScreen } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { Alert, Container, EmptyState, Stepper } from "@/ui";
 import { orNotFound, pageUser } from "../_parts/guard";

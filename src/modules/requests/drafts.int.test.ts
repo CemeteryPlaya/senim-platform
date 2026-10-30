@@ -73,6 +73,18 @@ describe("черновик заявки", () => {
     expect(await db.request.count()).toBe(0);
   });
 
+  it("«Хочу похожее» на работу выключенного типа мебели — не найдено, как и в каталоге", async () => {
+    const client = await makeClient();
+    const executor = await makeExecutor();
+    const type = await makeFurnitureType("Шкаф");
+    const item = await db.portfolioItem.create({ data: { executorId: executor.executor.id, furnitureTypeId: type.id, style: "scandi", title: "Шкаф", published: true } });
+    await db.furnitureType.update({ where: { id: type.id }, data: { active: false } });
+
+    await expect(likeTarget(item.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(makeDraft(client, { like: item.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await db.request.count()).toBe(0);
+  });
+
   it("фото помещения: свои загруженные файлы прикрепляются, убранные открепляются, чужие — отказ", async () => {
     const client = await makeClient();
     const stranger = await makeClient();

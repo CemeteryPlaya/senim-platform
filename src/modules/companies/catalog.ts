@@ -1,6 +1,6 @@
 import "server-only";
 import { ru } from "@/i18n/ru";
-import { db, type Prisma } from "@/platform/db";
+import { db, type Db, type Prisma } from "@/platform/db";
 import { PUBLIC_EXECUTOR_SELECT, toPublicView } from "./anonymity";
 import { priceRange, type CatalogFilter } from "./catalog-filter";
 import { maskContacts, maskIdentity } from "./mask";
@@ -105,6 +105,18 @@ export async function getPortfolioForRequest(portfolioItemId: string): Promise<P
   const row = await db.portfolioItem.findFirst({ where: { id: portfolioItemId, ...VISIBLE_ITEM }, select: CARD_SELECT });
   if (!row) return null;
   return { ...(await toCard(row)), furnitureTypeId: row.furnitureTypeId, executor: toPublicView(row.executor) };
+}
+
+/**
+ * Работа для «Хочу похожее» по тому же правилу видимости, что и каталог (опубликована, исполнитель
+ * подтверждён и не заблокирован, тип мебели включён). client — транзакция вызывающего или db.
+ * executorId — только для серверной записи заявки; на экран идёт executor (номер и сегмент).
+ */
+export async function findLikeablePortfolioItem(client: Db, portfolioItemId: string) {
+  return client.portfolioItem.findFirst({
+    where: { id: portfolioItemId, ...VISIBLE_ITEM },
+    select: { id: true, title: true, style: true, furnitureTypeId: true, executorId: true, executor: { select: { publicNumber: true, segment: true } } },
+  });
 }
 
 export async function getCatalogFacets(): Promise<{ types: { slug: string; name: string }[] }> {

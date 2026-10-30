@@ -1,5 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
+import { findLikeablePortfolioItem } from "@/modules/companies";
 import { attachFiles } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
@@ -63,13 +64,8 @@ async function linkRoomPhotos(tx: Tx, user: CurrentUser, requestId: string, file
   if (fresh.length > 0) await attachFiles(tx, { fileIds: fresh, uploadedById: user.id, owner: { requestId } });
 }
 
-/** Работа доступна для «Хочу похожее», как в каталоге: опубликована, исполнитель подтверждён и не заблокирован. */
-const LIKEABLE = { published: true, executor: { status: "APPROVED", user: { blockedAt: null } } } satisfies Prisma.PortfolioItemWhereInput;
-
 async function createDraft(tx: Tx, user: CurrentUser, like: string | null | undefined): Promise<RequestWithType> {
-  const item = like
-    ? await tx.portfolioItem.findFirst({ where: { id: like, ...LIKEABLE }, select: { id: true, executorId: true, style: true } })
-    : null;
+  const item = like ? await findLikeablePortfolioItem(tx, like) : null;
   if (like && !item) fail.notFound(e.portfolioNotFound);
   const r = await tx.request.create({
     data: {
@@ -237,21 +233,11 @@ export async function getDraft(user: CurrentUser, requestId: string) {
 }
 export type Draft = Awaited<ReturnType<typeof getDraft>>;
 
-/**
- * Активные типы мебели для первого шага мастера. Справочник ведёт оператор.
- * INTEGRATOR: перенести в operator, если справочник появится в его index.ts.
- */
-export async function listFurnitureTypes() {
-  return db.furnitureType.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, slug: true, name: true } });
-}
-
 /** Работа из портфолио для «Хочу похожее»: тип и исполнитель без личных данных. */
 export async function likeTarget(portfolioItemId: string) {
-  const item = await db.portfolioItem.findFirst({
-    where: { id: portfolioItemId, ...LIKEABLE },
-    select: { id: true, title: true, furnitureTypeId: true, style: true, executor: { select: { publicNumber: true, segment: true } } },
-  });
-  return item ?? fail.notFound(e.portfolioNotFound);
+  const item = await findLikeablePortfolioItem(db, portfolioItemId);
+  if (!item) return fail.notFound(e.portfolioNotFound);
+  return { id: item.id, title: item.title, furnitureTypeId: item.furnitureTypeId, style: item.style, executor: item.executor };
 }
 
 /** «Мои заявки»: свои заявки с числом действующих откликов. */

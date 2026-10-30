@@ -7,7 +7,6 @@ export {
   getClientRequest,
   getDraft,
   likeTarget,
-  listFurnitureTypes,
   listMyRequests,
   publishRequest,
   saveDraftStep,
