@@ -34,7 +34,9 @@ describe("автоприёмка этапа (задача deal-core.autoAcceptSt
 
   it("до срока ничего не происходит", async () => {
     const f = await submittedStage();
-    expect(await runDueJobs(jobHandlers)).toMatchObject({ claimed: 0 });
+    // К запуску могут быть готовы только задачи SMS о сдаче этапа; автоприёмка ждёт срока.
+    await runDueJobs(jobHandlers);
+    expect(await db.job.findFirstOrThrow({ where: { kind: "deal-core.autoAcceptStage" } })).toMatchObject({ status: "PENDING", attempts: 0 });
     expect((await stagesOf(f.dealId))[0].status).toBe("SUBMITTED");
   });
 

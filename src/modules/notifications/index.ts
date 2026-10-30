@@ -20,13 +20,25 @@ export type NotifyInput = {
   link?: string;
 };
 
-/** In-app уведомление с готовым текстом. Вызывать в той же транзакции, что и изменение состояния. Предпочтительно — notifyTemplate. */
-export async function notify(tx: Db, input: NotifyInput): Promise<void> {
-  await tx.notification.create({ data: input });
-}
-
 const SEND_SMS = "notifications.sendSms";
 const TEMPLATES_WITH_SMS = new Set<string>(Object.entries(TEMPLATES).flatMap(([key, t]) => (t.sms ? [key] : [])));
+/** Виды, под которыми модули пишут те же события, что и шаблоны. */
+const KIND_ALIASES: Record<string, TemplateKey> = { "deal.dispute.resolved": "dispute.resolved" };
+
+function needsSms(kind: string): boolean {
+  return TEMPLATES_WITH_SMS.has(KIND_ALIASES[kind] ?? kind);
+}
+
+/**
+ * In-app уведомление с готовым текстом. Вызывать в той же транзакции, что и изменение состояния.
+ * Если вид совпадает с важным шаблоном (sms: true), ставит и задачу SMS — как notifyTemplate.
+ */
+export async function notify(tx: Db, input: NotifyInput): Promise<void> {
+  const notification = await tx.notification.create({ data: input, select: { id: true } });
+  if (needsSms(input.kind)) {
+    await enqueueJob(tx, { kind: SEND_SMS, payload: { notificationId: notification.id }, dedupeKey: `sms:${notification.id}` });
+  }
+}
 
 /**
  * Уведомление по шаблону (templates.ts). Вызывать в транзакции изменения состояния:
@@ -36,7 +48,7 @@ const TEMPLATES_WITH_SMS = new Set<string>(Object.entries(TEMPLATES).flatMap(([k
 export async function notifyTemplate<K extends TemplateKey>(tx: Db, userId: string, key: K, params: TemplateParams<K>): Promise<void> {
   const { title, body, link } = renderTemplate(key, params);
   const notification = await tx.notification.create({ data: { userId, kind: key, title, body, link }, select: { id: true } });
-  if (TEMPLATES_WITH_SMS.has(key)) {
+  if (needsSms(key)) {
     await enqueueJob(tx, { kind: SEND_SMS, payload: { notificationId: notification.id }, dedupeKey: `sms:${notification.id}` });
   }
 }

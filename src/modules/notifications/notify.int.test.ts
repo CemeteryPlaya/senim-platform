@@ -3,7 +3,7 @@ import { db } from "@/platform/db";
 import { isAppError } from "@/platform/errors";
 import { runDueJobs } from "@/platform/jobs";
 import { makeClient, makeExecutor } from "../../../test/factories";
-import { createSendSmsHandler, notifyTemplate, openNotification, unreadCount, type SmsProvider } from "./index";
+import { createSendSmsHandler, notify, notifyTemplate, openNotification, unreadCount, type SmsProvider } from "./index";
 
 function recordingSms() {
   const sent: { phone: string; text: string; idempotencyKey?: string }[] = [];
@@ -16,6 +16,19 @@ function recordingSms() {
   };
   return { sent, handlers: { "notifications.sendSms": createSendSmsHandler(() => provider) } };
 }
+
+describe("notify с готовым текстом", () => {
+  it("важный вид (как у шаблона с SMS) ставит задачу SMS, обычный — нет", async () => {
+    const executor = await makeExecutor();
+    await db.$transaction(async (tx) => {
+      await notify(tx, { userId: executor.id, kind: "deal.stage.rework", title: "Этап на доработку", body: "…" });
+      await notify(tx, { userId: executor.id, kind: "deal.dispute.resolved", title: "Спор решён", body: "…" });
+      await notify(tx, { userId: executor.id, kind: "chat.message", title: "Новое сообщение", body: "…" });
+    });
+    expect(await db.notification.count()).toBe(3);
+    expect(await db.job.count({ where: { kind: "notifications.sendSms" } })).toBe(2);
+  });
+});
 
 describe("notifyTemplate", () => {
   it("создаёт уведомление по шаблону в транзакции вызывающего", async () => {
