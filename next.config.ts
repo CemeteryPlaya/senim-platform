@@ -22,7 +22,30 @@ function sharedRoot(): string | null {
 
 const root = sharedRoot();
 
+// Заголовки безопасности для всех ответов. CSP — только frame-ancestors (защита от встраивания
+// в чужой сайт): script-src и прочее не задаём, чтобы не сломать встроенные скрипты Next.
+// Камера разрешена своему сайту — фото замеров и этапов снимают с телефона.
+const securityHeaders = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "no-referrer" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()" },
+  // HSTS — только в production: локально сайт работает по http.
+  ...(process.env.NODE_ENV === "production"
+    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]
+    : []),
+];
+
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Заголовок из next.config побеждает заголовок обработчика, а /api/files/* отдаёт загруженные
+      // файлы со своим, более строгим CSP (default-src 'none'; sandbox) — его не перетираем.
+      { source: "/((?!api/files/).*)", headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'none'" }] },
+    ];
+  },
   // Приложение почти полностью динамическое (роль из cookie, данные из БД),
   // поэтому используем классическую модель рендеринга без Cache Components.
   cacheComponents: false,
