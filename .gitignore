@@ -47,3 +47,20 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# служебные файлы агентов и инструментов (не код проекта)
+/.claude/state/
+/.claude/sessions/
+/.claude/memory/
+/.claude/settings.local.json
+/.claude/worktrees/
+/.codebase-memory/
+/.remember/
+
+# локальное хранилище файлов (StorageProvider=local)
+/storage/
+
+# тесты
+/test-results/
+/playwright-report/
+/blob-report/
