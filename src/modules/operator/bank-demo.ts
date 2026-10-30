@@ -29,9 +29,12 @@ const dealForStep = {
   executor: { select: { legalName: true, user: { select: personUser } } },
 } satisfies Prisma.DealSelect;
 
+/** Шаг показа — только с демо-персонами с обеих сторон: под другими войти из /demo нельзя. */
+const DEMO_PARTIES = { client: { isDemo: true }, executor: { user: { isDemo: true } } } satisfies Prisma.DealWhereInput;
+
 /** В эскроу-режиме показываем эскроу-сделку, если она есть: ради неё и показ. */
 async function dealIn(status: "AWAITING_SIGNATURES" | "AWAITING_DEPOSIT" | "IN_PROGRESS" | "COMPLETED") {
-  const deals = await db.deal.findMany({ where: { status }, orderBy: { updatedAt: "desc" }, select: dealForStep });
+  const deals = await db.deal.findMany({ where: { status, ...DEMO_PARTIES }, orderBy: { updatedAt: "desc" }, select: dealForStep });
   return deals.find((d) => d.paymentMode !== "MANUAL") ?? deals[0];
 }
 
@@ -40,11 +43,11 @@ async function snapshot(): Promise<ScenarioSnapshot> {
     getPaymentRailSetting(),
     db.user.findFirst({ where: { isDemo: true, role: "CLIENT" }, orderBy: { phone: "asc" }, select: personUser }),
     db.request.findMany({
-      where: { status: "OPEN", mode: "TENDER" },
+      where: { status: "OPEN", mode: "TENDER", client: { isDemo: true } },
       select: { id: true, number: true, client: { select: personUser }, _count: { select: { offers: { where: { status: "SENT" } } } } },
     }),
     db.measurement.findFirst({
-      where: { status: "SCHEDULED" },
+      where: { status: "SCHEDULED", request: { client: { isDemo: true } }, offer: { executor: { user: { isDemo: true } } } },
       orderBy: { scheduledAt: "asc" },
       select: { request: { select: { id: true, number: true } }, offer: { select: { executor: { select: { legalName: true, user: { select: personUser } } } } } },
     }),

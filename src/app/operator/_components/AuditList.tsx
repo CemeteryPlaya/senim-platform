@@ -4,6 +4,7 @@ import type { AuditView } from "@/modules/operator";
 import { DateText } from "@/ui";
 
 const t = ru.operator.audit;
+const actionLabel = (code: string) => t.actions[code] ?? ru.deal.history.action[code] ?? code;
 
 /** Значение до/после в одну строку: {"status":"APPROVED"} → status: APPROVED. */
 export function describeJson(value: unknown): string {
@@ -33,7 +34,9 @@ export function AuditList({ events, linkScopes = false }: { events: AuditView[];
               <DateText value={e.createdAt} format="dateTime" className="text-sm text-muted" />
               <span className="text-sm text-ink-soft">{t.roles[e.actorRole] ?? e.actorRole}</span>
             </div>
-            <p className="font-semibold break-words text-ink">{e.action}</p>
+            <p className="font-semibold break-words text-ink">
+              {actionLabel(e.action)} <span className="text-sm font-normal text-muted">({e.action})</span>
+            </p>
             <p className="text-sm break-all text-ink-soft">
               {e.entityType}: {e.entityId}
               {linkScopes && e.scope && (
