@@ -2,7 +2,16 @@ import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../test/factories";
 import { dealOf, makeDeal, makeStagePhoto, signContract, stagesOf, TEMPLATES } from "../../../test/factories/deal";
-import { acceptStage, openDispute, resolveDispute, startStage, submitDisputePosition, submitStage } from "./index";
+import {
+  acceptStage,
+  confirmStagePayment,
+  markStagePaid,
+  openDispute,
+  resolveDispute,
+  startStage,
+  submitDisputePosition,
+  submitStage,
+} from "./index";
 
 const code = (p: Promise<unknown>) => p.then(() => "OK", (e: { code?: string }) => e.code ?? String(e));
 
@@ -81,5 +90,60 @@ describe("спор", () => {
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(await db.document.count({ where: { stageId: f.stageId, kind: "STAGE_ACT" } })).toBe(1);
     expect(await db.auditEvent.count({ where: { action: "dispute.resolved" } })).toBe(1);
+  });
+});
+
+/** Manual-сделка с авансом: первый этап принят (акт ещё не подписан — этап не закрыт), второй — не начат. */
+async function firstAccepted() {
+  const f = await makeDeal();
+  await signContract(f.dealId);
+  const [advance, work] = await stagesOf(f.dealId);
+  await markStagePaid(f.client, { stageId: advance.id });
+  await confirmStagePayment(f.executor, { stageId: advance.id });
+  await startStage(f.executor, { stageId: advance.id });
+  await submitStage(f.executor, { stageId: advance.id, report: "Материалы закуплены", photoIds: [await makeStagePhoto(f.executor)] });
+  await acceptStage(f.client, { stageId: advance.id });
+  return { ...f, advance, work, operator: await makeOperator() };
+}
+
+const disputeOf = (id: string) => db.dispute.findUniqueOrThrow({ where: { id } });
+
+describe("спор — о том этапе, где идёт работа", () => {
+  it("сданный этап важнее принятого раньше: спор о нём, решение двигает его", async () => {
+    const f = await firstAccepted();
+    await startStage(f.executor, { stageId: f.work.id });
+    await submitStage(f.executor, { stageId: f.work.id, report: "Корпус собран", photoIds: [await makeStagePhoto(f.executor)] });
+    const { disputeId } = await openDispute(f.client, { dealId: f.dealId, reason: "QUALITY", description: "Корпус собран криво" });
+    expect(await disputeOf(disputeId)).toMatchObject({ stageId: f.work.id });
+
+    await resolveDispute(f.operator, { disputeId, decision: "FAVOR_EXECUTOR", rationale: "Фото подтверждают качество" });
+    expect((await stagesOf(f.dealId)).map((s) => s.status)).toEqual(["ACCEPTED", "ACCEPTED", "PENDING"]);
+  });
+
+  it("этап в работе: спор о нём, а не о принятом раньше", async () => {
+    const f = await firstAccepted();
+    await startStage(f.executor, { stageId: f.work.id });
+    const { disputeId } = await openDispute(f.client, { dealId: f.dealId, reason: "DEADLINE", description: "Сроки сорваны на неделю" });
+    expect(await disputeOf(disputeId)).toMatchObject({ stageId: f.work.id });
+
+    await resolveDispute(f.operator, { disputeId, decision: "FAVOR_CLIENT", rationale: "Ускорить работу и сдать за неделю" });
+    expect((await stagesOf(f.dealId))[1]).toMatchObject({ status: "REWORK" });
+  });
+
+  it("решение, неприменимое к этапу спора, — CONFLICT, спор остаётся открытым", async () => {
+    const f = await firstAccepted();
+    const { disputeId } = await openDispute(f.client, { dealId: f.dealId, reason: "QUALITY", description: "Материалы не те, что в договоре" });
+    expect(await disputeOf(disputeId)).toMatchObject({ stageId: f.advance.id });
+
+    await expect(
+      resolveDispute(f.operator, { disputeId, decision: "FAVOR_CLIENT", rationale: "Вернуть этап на доработку" }),
+    ).rejects.toMatchObject({ code: "CONFLICT", message: expect.stringMatching(/уже принят/) });
+    expect(await disputeOf(disputeId)).toMatchObject({ status: "OPEN" });
+    expect(await dealOf(f.dealId)).toMatchObject({ status: "DISPUTE" });
+
+    // В пользу исполнителя принятый этап остаётся принятым — сделка продолжается.
+    await resolveDispute(f.operator, { disputeId, decision: "FAVOR_EXECUTOR", rationale: "Материалы соответствуют договору" });
+    expect(await dealOf(f.dealId)).toMatchObject({ status: "IN_PROGRESS" });
+    expect((await stagesOf(f.dealId))[0]).toMatchObject({ status: "ACCEPTED" });
   });
 });

@@ -9,7 +9,7 @@ import type { ResolveDispute } from "./contracts";
 import { afterStageAccepted, notifyParty, partyText, requestMoney } from "./effects";
 import { disputePositionSchema, openDisputeSchema, parseInput, resolveDisputeSchema } from "./schemas";
 import { settleDeal } from "./service";
-import { canMoveStage, lockDeal, moveDeal, moveStage, requireRole, scopeOf, type DealState } from "./state";
+import { canMoveStage, lockDeal, moveDeal, moveStage, requireRole, scopeOf, type DealState, type StageState } from "./state";
 
 /**
  * Споры: открывает сторона, решает оператор. Всё хранится структурированно (причина, позиции,
@@ -18,8 +18,15 @@ import { canMoveStage, lockDeal, moveDeal, moveStage, requireRole, scopeOf, type
 
 const t = ru.deal.notify;
 
-/** Спор о текущем этапе — первом, который ещё не закрыт. */
-const currentStage = (deal: DealState) => deal.stages.find((s) => s.status !== "CLOSED") ?? null;
+/**
+ * Этап, о котором спор: там, где сейчас идёт работа. Следующий этап можно начать, пока предыдущий
+ * принят, но не закрыт, поэтому «первый незакрытый» — не то. Порядок: последний сданный,
+ * иначе последний в работе или на доработке, иначе первый незакрытый (спор об оплате или акте).
+ */
+function currentStage(deal: DealState): StageState | null {
+  const latest = (statuses: StageState["status"][]) => deal.stages.findLast((s) => statuses.includes(s.status));
+  return latest(["SUBMITTED"]) ?? latest(["IN_PROGRESS", "REWORK"]) ?? deal.stages.find((s) => s.status !== "CLOSED") ?? null;
+}
 
 export async function openDispute(
   user: CurrentUser,
@@ -116,6 +123,12 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
       return fail.validation(ru.deal.errors.partialAmount);
     }
 
+    const stage = deal.stages.find((s) => s.id === ref.stageId) ?? null;
+    const decision = input.decision;
+    const continues = decision === "FAVOR_CLIENT" || decision === "FAVOR_EXECUTOR";
+    const stageMove = stage && continues ? stageOutcome(deal, stage, decision) : "keep";
+    if (stageMove === "refuse") return fail.conflict(ru.deal.errors.decisionNotApplicable(stage!.title));
+
     const resolved = await tx.dispute.updateMany({
       where: { id: ref.id, status: "OPEN" },
       data: {
@@ -129,11 +142,8 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
     });
     expectOneUpdated(resolved, ru.deal.errors.disputeResolved);
 
-    const stage = deal.stages.find((s) => s.id === ref.stageId) ?? null;
-    const decision = input.decision;
-    const continues = decision === "FAVOR_CLIENT" || decision === "FAVOR_EXECUTOR";
     // Сначала этап (пока сделка ещё в споре — так в таблице), потом сделка, потом последствия приёмки.
-    const accepted = stage && continues ? await applyStageDecision(tx, deal, stage, decision, input.rationale, actor) : false;
+    const accepted = stage && continues && stageMove === "move" ? await applyStageDecision(tx, deal, stage, decision, input.rationale, actor) : false;
     await moveDeal(tx, deal, {
       event: continues ? "resolveContinue" : "resolveTerminate",
       who: "OPERATOR",
@@ -160,17 +170,30 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
   await settleDeal(dealId);
 };
 
-/** Двигает этап по решению; возвращает, принят ли он. Этап не в подходящем статусе — решение меняет только сделку. */
+type StageDecision = "FAVOR_CLIENT" | "FAVOR_EXECUTOR";
+const decisionEvent = (decision: StageDecision) => (decision === "FAVOR_EXECUTOR" ? "disputeFavorExecutor" : "disputeFavorClient");
+
+/**
+ * Что решение делает с этапом спора: move — переход по таблице; keep — этап уже там, где нужно
+ * (не начат, уже на доработке, а в пользу исполнителя — уже принят), меняется только сделка;
+ * refuse — принятый этап нельзя вернуть на доработку: оператору — понятный отказ, а не молчаливое продолжение.
+ */
+function stageOutcome(deal: DealState, stage: StageState, decision: StageDecision): "move" | "keep" | "refuse" {
+  if (canMoveStage(deal, stage, decisionEvent(decision), "OPERATOR")) return "move";
+  const accepted = stage.status === "ACCEPTED" || stage.status === "CLOSED";
+  return decision === "FAVOR_CLIENT" && accepted ? "refuse" : "keep";
+}
+
+/** Двигает этап по решению (stageOutcome = move); возвращает, принят ли он. */
 async function applyStageDecision(
   tx: Tx,
   deal: DealState,
-  stage: DealState["stages"][number],
-  decision: "FAVOR_CLIENT" | "FAVOR_EXECUTOR",
+  stage: StageState,
+  decision: StageDecision,
   rationale: string,
   actor: ReturnType<typeof actorOf>,
 ): Promise<boolean> {
-  const event = decision === "FAVOR_EXECUTOR" ? "disputeFavorExecutor" : "disputeFavorClient";
-  if (!canMoveStage(deal, stage, event, "OPERATOR")) return false;
+  const event = decisionEvent(decision);
   if (decision === "FAVOR_EXECUTOR") {
     await moveStage(tx, deal, stage, {
       event,
