@@ -63,11 +63,13 @@ async function snapshot(): Promise<ScenarioSnapshot> {
     railMode: rail.mode,
     newRequest: client ? { client: persona(client) } : undefined,
     tender: tender && { id: tender.id, number: tender.number, offers: tender._count.offers, client: persona(tender.client) },
-    measuring: measurement && {
-      id: measurement.request.id,
-      number: measurement.request.number,
-      executor: persona(measurement.offer.executor.user, measurement.offer.executor.legalName),
-    },
+    measuring: measurement
+      ? {
+          id: measurement.request.id,
+          number: measurement.request.number,
+          executor: persona(measurement.offer.executor.user, measurement.offer.executor.legalName),
+        }
+      : undefined,
     signing: withClient(signing),
     deposit: withClient(deposit),
     inProgress: withExecutor(inProgress),
