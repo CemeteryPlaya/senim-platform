@@ -26,6 +26,10 @@ export {
 } from "./service";
 export { openDispute, submitDisputePosition } from "./dispute";
 
+// Чтения для экранов
+export { getDealView, listDeals, type DealListItem, type DealView } from "./queries";
+export type { NextAction, NextStep } from "./next-step";
+
 // Схемы входа для Server Actions экранов
 export {
   cancelDealSchema,
