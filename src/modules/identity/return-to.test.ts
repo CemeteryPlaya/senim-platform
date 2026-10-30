@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { homePathFor, loginHref, safeReturnTo } from "./return-to";
 
 describe("safeReturnTo", () => {
-  it.each(["/deals/1", "/requests?tab=offers", "/"])("пропускает свой адрес %s", (path) => {
+  it.each(["/deals/1", "/requests?tab=offers", "/", "/catalog?q=%D1%88%D0%BA%D0%B0%D1%84"])("пропускает свой адрес %s", (path) => {
     expect(safeReturnTo(path)).toBe(path);
   });
 
@@ -10,12 +10,20 @@ describe("safeReturnTo", () => {
     "https://evil.example/",
     "//evil.example/path",
     "/\\evil.example",
+    "/\\\\evil.example",
+    "/\t/evil.example",
+    "/\n/evil.example",
+    "/\r/evil.example",
+    "/\u0000/evil.example",
+    "/%09/evil.example",
+    "/%0a/evil.example",
+    "/%E0%A4%A",
     "javascript:alert(1)",
     "deals/1",
     "",
     undefined,
     ["/a", "/b"],
-  ])("не пускает на чужой или неполный адрес %s", (value) => {
+  ])("не пускает на чужой, неполный или с управляющими символами адрес %j", (value) => {
     expect(safeReturnTo(value)).toBeNull();
   });
 });
