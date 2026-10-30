@@ -24,12 +24,13 @@ import type { CancelDealHooks, CreateDeal, OnDocumentSigned } from "./contracts"
 import {
   afterDealStarted,
   afterStageAccepted,
-  JOB_AUTO_ACCEPT,
+  DAY_MS,
   JOB_OPEN_ACCOUNT,
   notifyParty,
-  requestMoney,
-  tryCloseStage,
   partyText,
+  requestMoney,
+  scheduleAutoAccept,
+  tryCloseStage,
 } from "./effects";
 import { createContract, recalculateRating, withdrawContract } from "./ports";
 import {
@@ -46,7 +47,6 @@ import { planStages } from "./stage-plan";
 import { lockDeal, lockStage, moveDeal, movePayment, moveStage, requireRole, scopeOf } from "./state";
 
 const t = ru.deal.notify;
-const DAY_MS = 24 * 3600 * 1000;
 
 // ─── Создание и подпись договора ─────────────────────────────────────────────
 
@@ -237,12 +237,7 @@ export async function submitStage(user: CurrentUser, raw: { stageId: string; rep
       data: { report: await partyText(tx, deal, who, input.report), submittedAt, autoAcceptAt },
     });
     await attachStagePhotos(tx, user, stage.id, input.photoIds);
-    await enqueueJob(tx, {
-      kind: JOB_AUTO_ACCEPT,
-      payload: { stageId: stage.id, submittedAt: submittedAt.toISOString() },
-      runAt: autoAcceptAt,
-      dedupeKey: `auto-accept:${stage.id}:${submittedAt.getTime()}`,
-    });
+    await scheduleAutoAccept(tx, { id: stage.id, submittedAt }, autoAcceptAt);
     await notifyParty(tx, deal, "CLIENT", "deal.stage.submitted", { title: t.stageSubmitted.title, body: t.stageSubmitted.body(stage.title) });
   });
 }
@@ -296,7 +291,8 @@ export async function acceptStage(user: CurrentUser, raw: { stageId: string }) {
 /**
  * Задача deal-core.autoAcceptStage: этап принимается сам, если заказчик молчит.
  * Идемпотентна: этап уже не SUBMITTED, сдан заново (другое время сдачи), идёт спор или срок не вышел —
- * ничего не делает. Повторный запуск после сбоя посередине транзакции ничего не дублирует.
+ * ничего не делает. Задача, поставленная заново после решения спора (resumedAt), — та же сдача с новым сроком.
+ * Повторный запуск после сбоя посередине транзакции ничего не дублирует.
  */
 export async function autoAcceptStage(payload: unknown, now = new Date()): Promise<"accepted" | "skipped"> {
   const { stageId, submittedAt } = parseInput(autoAcceptPayloadSchema, payload);

@@ -1,5 +1,5 @@
 import { ru } from "@/i18n/ru";
-import { SYSTEM, type Actor } from "@/modules/audit";
+import { recordAudit, SYSTEM, type Actor } from "@/modules/audit";
 import { notify } from "@/modules/notifications";
 import { requestOperation, type OperationRequest } from "@/modules/payments";
 import type { Tx } from "@/platform/db";
@@ -19,6 +19,7 @@ export const JOB_AUTO_ACCEPT = "deal-core.autoAcceptStage";
 export const JOB_OPEN_ACCOUNT = "deal-core.openEscrowAccount";
 
 const t = ru.deal.notify;
+export const DAY_MS = 24 * 3600 * 1000;
 const link = (dealId: string) => `/deals/${dealId}`;
 
 /** Executor — профиль; уведомление идёт пользователю профиля. */
@@ -44,6 +45,45 @@ export async function notifyParty(
 ) {
   const userId = to === "CLIENT" ? deal.clientId : await executorUserId(tx, deal);
   await notify(tx, { userId, kind, title: msg.title, body: msg.body, link: link(deal.id) });
+}
+
+/**
+ * Задача автоприёмки сданного этапа на срок autoAcceptAt. Каждая постановка — своя задача: при сдаче
+ * ключ — этап + время сдачи; после решения спора — ещё и время решения (время сдачи не меняется,
+ * поэтому обработчик по-прежнему узнаёт «ту же сдачу»).
+ */
+export async function scheduleAutoAccept(tx: Tx, stage: { id: string; submittedAt: Date }, autoAcceptAt: Date, resumedAt?: Date) {
+  const base = `auto-accept:${stage.id}:${stage.submittedAt.getTime()}`;
+  await enqueueJob(tx, {
+    kind: JOB_AUTO_ACCEPT,
+    payload: { stageId: stage.id, submittedAt: stage.submittedAt.toISOString(), ...(resumedAt && { resumedAt: resumedAt.toISOString() }) },
+    runAt: autoAcceptAt,
+    dedupeKey: resumedAt ? `${base}:resumed:${resumedAt.getTime()}` : base,
+  });
+}
+
+/** Спор приостанавливает автоприёмку всех сданных этапов: срок сброшен, экран его не показывает. */
+export async function pauseAutoAccept(tx: Tx, deal: DealState) {
+  await tx.stage.updateMany({ where: { dealId: deal.id, status: "SUBMITTED" }, data: { autoAcceptAt: null } });
+  for (const s of deal.stages) if (s.status === "SUBMITTED") s.autoAcceptAt = null;
+}
+
+/** Спор решён, сделка продолжается: каждому сданному этапу — новый срок от момента решения и новая задача. */
+export async function resumeAutoAccept(tx: Tx, deal: DealState, resumedAt: Date) {
+  const autoAcceptAt = new Date(resumedAt.getTime() + deal.autoAcceptDays * DAY_MS);
+  for (const s of deal.stages) {
+    if (s.status !== "SUBMITTED" || !s.submittedAt) continue;
+    await tx.stage.updateMany({ where: { id: s.id, status: "SUBMITTED" }, data: { autoAcceptAt } });
+    s.autoAcceptAt = autoAcceptAt;
+    await scheduleAutoAccept(tx, { id: s.id, submittedAt: s.submittedAt }, autoAcceptAt, resumedAt);
+    await recordAudit(tx, {
+      actor: SYSTEM_ACTOR,
+      action: "deal.stage.auto_accept.resumed",
+      entity: { type: "stage", id: s.id },
+      scope: `deal:${deal.id}`,
+      after: { autoAcceptAt: autoAcceptAt.toISOString() },
+    });
+  }
 }
 
 /** Денежная операция по счёту (только эскроу-режимы): запись в журнал + задача на отправку в банк. */

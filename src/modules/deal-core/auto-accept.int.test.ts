@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { runDueJobs } from "@/platform/jobs";
+import { makeOperator } from "../../../test/factories";
 import { makeDeal, makeStagePhoto, signContract, stagesOf, TEMPLATES } from "../../../test/factories/deal";
-import { jobHandlers, openDispute, requestRework, startStage, submitStage } from "./index";
+import {
+  acceptStage,
+  confirmStagePayment,
+  getDealView,
+  jobHandlers,
+  markStagePaid,
+  openDispute,
+  requestRework,
+  resolveDispute,
+  startStage,
+  submitStage,
+} from "./index";
 
 /** Сделка с одним этапом, этап сдан. */
 async function submittedStage() {
@@ -75,5 +87,46 @@ describe("автоприёмка этапа (задача deal-core.autoAcceptSt
     await timePasses(f.stageId);
     await runDueJobs(jobHandlers);
     expect((await stagesOf(f.dealId))[0].status).toBe("SUBMITTED");
+  });
+
+  it("спор сбрасывает срок, а решение «продолжить» ставит автоприёмку заново — от момента решения", async () => {
+    // Сделка с авансом: первый этап принят (не закрыт), второй сдан.
+    const f = await makeDeal();
+    await signContract(f.dealId);
+    const [advance, work] = await stagesOf(f.dealId);
+    await markStagePaid(f.client, { stageId: advance.id });
+    await confirmStagePayment(f.executor, { stageId: advance.id });
+    await startStage(f.executor, { stageId: advance.id });
+    await submitStage(f.executor, { stageId: advance.id, report: "Материалы закуплены", photoIds: [await makeStagePhoto(f.executor)] });
+    await acceptStage(f.client, { stageId: advance.id });
+    await startStage(f.executor, { stageId: work.id });
+    await submitStage(f.executor, { stageId: work.id, report: "Корпус собран", photoIds: [await makeStagePhoto(f.executor)] });
+    const { submittedAt } = await db.stage.findUniqueOrThrow({ where: { id: work.id } });
+
+    const { disputeId } = await openDispute(f.client, { dealId: f.dealId, reason: "PAYMENT", description: "Спор об оплате первого этапа" });
+    expect((await db.stage.findUniqueOrThrow({ where: { id: work.id } })).autoAcceptAt).toBeNull();
+    // Спор, открытый до исправления выбора этапа, указывает на принятый первый этап — сданный второй остаётся SUBMITTED.
+    await db.dispute.update({ where: { id: disputeId }, data: { stageId: advance.id } });
+    await resolveDispute(await makeOperator(), { disputeId, decision: "FAVOR_EXECUTOR", rationale: "Оплата подтверждена выпиской" });
+
+    const { resolvedAt } = await db.dispute.findUniqueOrThrow({ where: { id: disputeId } });
+    const stage = await db.stage.findUniqueOrThrow({ where: { id: work.id } });
+    expect(stage).toMatchObject({ status: "SUBMITTED", submittedAt });
+    expect(stage.autoAcceptAt!.getTime() - resolvedAt!.getTime()).toBe(5 * 24 * 3600 * 1000);
+    const resumed = await db.job.findFirstOrThrow({
+      where: { kind: "deal-core.autoAcceptStage", dedupeKey: `auto-accept:${work.id}:${submittedAt!.getTime()}:resumed:${resolvedAt!.getTime()}` },
+    });
+    expect(resumed.runAt).toEqual(stage.autoAcceptAt);
+
+    await timePasses(work.id);
+    await runDueJobs(jobHandlers);
+    expect((await stagesOf(f.dealId))[1]).toMatchObject({ status: "ACCEPTED", acceptedBy: "system:auto-accept" });
+  });
+
+  it("экран не показывает прошедший срок автоприёмки", async () => {
+    const f = await submittedStage();
+    expect((await getDealView(f.client, f.dealId)).stages[0].autoAcceptAt).toBeInstanceOf(Date);
+    await db.stage.update({ where: { id: f.stageId }, data: { autoAcceptAt: new Date(Date.now() - 60_000) } });
+    expect((await getDealView(f.client, f.dealId)).stages[0].autoAcceptAt).toBeNull();
   });
 });

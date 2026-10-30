@@ -7,7 +7,7 @@ import { escrowBalance } from "@/modules/payments";
 import { transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import type { ResolveDispute } from "./contracts";
-import { afterStageAccepted, notifyParty, partyText, requestMoney } from "./effects";
+import { afterStageAccepted, notifyParty, partyText, pauseAutoAccept, requestMoney, resumeAutoAccept } from "./effects";
 import { disputePositionSchema, openDisputeSchema, parseInput, resolveDisputeSchema } from "./schemas";
 import { settleDeal } from "./service";
 import { canMoveStage, lockDeal, moveDeal, moveStage, requireRole, scopeOf, type DealState, type StageState } from "./state";
@@ -52,7 +52,7 @@ export async function openDispute(
       },
     });
     // Спор приостанавливает автоприёмку: задача увидит, что сделка не в работе, а срок сброшен.
-    if (stage?.status === "SUBMITTED") await tx.stage.update({ where: { id: stage.id }, data: { autoAcceptAt: null } });
+    await pauseAutoAccept(tx, deal);
     await attachDisputeFiles(tx, user, dispute.id, input.attachmentIds);
     await recordAudit(tx, {
       actor: actorOf(user),
@@ -131,6 +131,7 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
     const stageMove = stage && continues ? stageOutcome(deal, stage, decision) : "keep";
     if (stageMove === "refuse") return fail.conflict(ru.deal.errors.decisionNotApplicable(stage!.title));
 
+    const resolvedAt = new Date();
     const resolved = await tx.dispute.updateMany({
       where: { id: ref.id, status: "OPEN" },
       data: {
@@ -139,7 +140,7 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
         decisionAmount: input.decisionAmount ?? null,
         rationale: input.rationale,
         resolvedById: operator.id,
-        resolvedAt: new Date(),
+        resolvedAt,
       },
     });
     expectOneUpdated(resolved, ru.deal.errors.disputeResolved);
@@ -154,6 +155,7 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
       data: continues ? undefined : { closedAt: new Date() },
     });
     if (accepted && stage) await afterStageAccepted(tx, deal, stage);
+    if (continues) await resumeAutoAccept(tx, deal, resolvedAt);
     if (!continues && deal.paymentMode !== "MANUAL") await settleTermination(tx, deal, ref.id, input.decisionAmount ?? 0);
 
     await recordAudit(tx, {

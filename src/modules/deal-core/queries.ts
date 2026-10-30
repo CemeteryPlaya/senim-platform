@@ -94,7 +94,7 @@ async function photoUrls(photos: { id: string; provider: string; storageKey: str
   return out;
 }
 
-export async function getDealView(user: CurrentUser, dealId: string) {
+export async function getDealView(user: CurrentUser, dealId: string, now = new Date()) {
   let deal = await loadView(user, dealId);
   // Эскроу: счёт открывается задачей после подписи; если её ещё не было — открываем при показе.
   if (deal.status === "AWAITING_DEPOSIT" && !deal.escrow) {
@@ -122,7 +122,8 @@ export async function getDealView(user: CurrentUser, dealId: string) {
         report: s.report,
         reworkNote: s.reworkNote,
         submittedAt: s.submittedAt,
-        autoAcceptAt: s.autoAcceptAt,
+        // Срок показываем, только пока он впереди и сделка в работе: прошедший ждёт задачу, а не человека.
+        autoAcceptAt: deal.status === "IN_PROGRESS" && s.autoAcceptAt && s.autoAcceptAt > now ? s.autoAcceptAt : null,
         acceptedAt: s.acceptedAt,
         acceptedAutomatically: s.acceptedBy === "system:auto-accept",
         payment: s.payment ? { status: s.payment.status, amount: s.payment.amount, markedPaidAt: s.payment.markedPaidAt, confirmedAt: s.payment.confirmedAt } : null,
