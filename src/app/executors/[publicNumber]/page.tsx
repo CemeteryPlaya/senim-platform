@@ -22,7 +22,7 @@ const loadPage = cache(async (raw: string) => {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await loadPage((await params).publicNumber);
-  return { title: page ? t.metaTitle(page.view.label) : ru.common.errors.notFound };
+  return { title: page ? page.view.label : ru.common.errors.notFound };
 }
 
 /** Публичная страница исполнителя: анонимно — «Исполнитель №N», без наименования, ФИО, телефона и ИИН/БИН. */

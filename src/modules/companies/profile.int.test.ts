@@ -20,7 +20,7 @@ describe("профиль исполнителя", () => {
       measurementFee: 10_000,
     });
 
-    expect(result).toEqual({ aboutMasked: false });
+    expect(result).toEqual({ aboutMasked: false, about: "Делаю кухни и шкафы" });
     const profile = await getOwnProfile(executor);
     expect(profile).toMatchObject({
       publicNumber: executor.executor.publicNumber,
@@ -49,7 +49,7 @@ describe("профиль исполнителя", () => {
   it("контакты и наименование в «о себе» скрываются", async () => {
     const executor = await makeExecutor({ legalName: "ТОО «Ағаш Шебер»" });
     const result = await updateProfile(executor, { ...base, about: "Мы Ағаш Шебер. Звоните 87001234567" });
-    expect(result).toEqual({ aboutMasked: true });
+    expect(result).toEqual({ aboutMasked: true, about: `Мы ${MASK}. Звоните ${MASK}` });
     expect((await getOwnProfile(executor)).about).toBe(`Мы ${MASK}. Звоните ${MASK}`);
   });
 

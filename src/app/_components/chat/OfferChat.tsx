@@ -1,6 +1,8 @@
+import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { getChat } from "@/modules/companies";
 import { requireUser } from "@/modules/identity";
+import { isAppError } from "@/platform/errors";
 import { OfferChatClient } from "./OfferChatClient";
 
 export type OfferChatProps = {
@@ -22,7 +24,11 @@ export type OfferChatProps = {
  */
 export async function OfferChat({ offerId, title, id = "chat", className }: OfferChatProps) {
   const user = await requireUser();
-  const chat = await getChat(user, offerId);
+  // Чужой отклик — 404 всей страницы, как будто чата нет (не раскрываем, что такой id существует).
+  const chat = await getChat(user, offerId).catch((e: unknown) => {
+    if (isAppError(e) && e.code === "NOT_FOUND") notFound();
+    throw e;
+  });
   const t = ru.companies.chat;
   const defaultTitle = user.role === "EXECUTOR" ? t.titleForExecutor : user.role === "OPERATOR" ? t.titleForOperator : t.title;
   return <OfferChatClient id={id} offerId={offerId} initial={chat} title={title ?? defaultTitle} className={className} />;

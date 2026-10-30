@@ -81,7 +81,6 @@ export const companies = {
   },
 
   publicPage: {
-    metaTitle: (label: string) => `${label} — Сенім`,
     description: "Наименование и контакты исполнителя откроются только в договоре. Общение — во внутреннем чате.",
     facts: "Об исполнителе",
     about: "О себе",

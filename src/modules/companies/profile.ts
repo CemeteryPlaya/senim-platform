@@ -84,8 +84,8 @@ export async function getOwnProfile(user: CurrentUser): Promise<OwnProfile> {
   };
 }
 
-/** Сохранение профиля. aboutMasked — из «о себе» убраны контакты или наименование (показать пояснение). */
-export async function updateProfile(user: CurrentUser, raw: ProfileInput): Promise<{ aboutMasked: boolean }> {
+/** Сохранение профиля. aboutMasked — из «о себе» убраны контакты или наименование (показать пояснение); about — сохранённый текст. */
+export async function updateProfile(user: CurrentUser, raw: ProfileInput): Promise<{ aboutMasked: boolean; about: string }> {
   const { executorId } = requireExecutor(user);
   const input = parseInput(profileInputSchema, raw);
 
@@ -120,7 +120,7 @@ export async function updateProfile(user: CurrentUser, raw: ProfileInput): Promi
         aboutMasked: about.masked,
       },
     });
-    return { aboutMasked: about.masked };
+    return { aboutMasked: about.masked, about: about.text };
   });
 }
 
