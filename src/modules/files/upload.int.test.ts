@@ -179,4 +179,18 @@ describe("fileUrl", () => {
     expect(await fileUrl({ provider: "static", storageKey: "demo/portfolio/kitchen-sage.svg" })).toBe("/demo/portfolio/kitchen-sage.svg");
     expect(await fileUrl({ provider: "local", storageKey: "a/b.jpg" })).toMatch(/^\/api\/files\/a\/b\.jpg\?exp=\d+&sig=/);
   });
+
+  it.each([
+    ["stage_report/2026/10/a.jpg", 15 * 60],
+    ["dispute/2026/10/a.jpg", 15 * 60],
+    ["message/2026/10/a.jpg", 15 * 60],
+    ["document/2026/10/a.pdf", 15 * 60],
+    ["portfolio/2026/10/a.jpg", 60 * 60],
+    ["visualization/2026/10/a.jpg", 60 * 60],
+    ["request_room/2026/10/a.jpg", 60 * 60],
+  ])("ссылка на %s живёт %i с", async (storageKey, ttl) => {
+    const exp = Number(new URL(await fileUrl({ provider: "local", storageKey }), "http://x").searchParams.get("exp"));
+    expect(exp - Date.now() / 1000).toBeGreaterThan(ttl - 5);
+    expect(exp - Date.now() / 1000).toBeLessThanOrEqual(ttl);
+  });
 });

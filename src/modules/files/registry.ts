@@ -67,6 +67,17 @@ export function storage(): Promise<StorageProvider> {
 
 /** Срок жизни ссылки для экрана: хватает на просмотр страницы и открытие фото. */
 const SCREEN_URL_TTL_SEC = 60 * 60;
+/**
+ * Фото сделки, споров, чата и документы — 15 минут: пересланная ссылка быстро перестаёт работать.
+ * Портфолио, фото помещения и визуализации — час (их и так видит больше людей).
+ */
+const PRIVATE_URL_TTL_SEC = 15 * 60;
+const PRIVATE_PURPOSES = new Set(["stage_report", "dispute", "message", "document"]);
+
+/** Назначение — первый сегмент ключа: <purpose>/<yyyy>/<mm>/<id>.<ext> (finalKeyBase в upload.ts). */
+function screenUrlTtlSec(storageKey: string): number {
+  return PRIVATE_PURPOSES.has(storageKey.split("/")[0] ?? "") ? PRIVATE_URL_TTL_SEC : SCREEN_URL_TTL_SEC;
+}
 
 /**
  * Адрес файла для экрана (<img src>, ссылка на PDF). Права проверяет экран:
@@ -77,5 +88,6 @@ export async function fileUrl(
   opts: { expiresInSec?: number; fileName?: string } = {},
 ): Promise<string> {
   const provider = await storageByName(file.provider);
-  return provider.downloadUrl(file.storageKey, { expiresInSec: opts.expiresInSec ?? SCREEN_URL_TTL_SEC, fileName: opts.fileName });
+  const expiresInSec = opts.expiresInSec ?? screenUrlTtlSec(file.storageKey);
+  return provider.downloadUrl(file.storageKey, { expiresInSec, fileName: opts.fileName });
 }
