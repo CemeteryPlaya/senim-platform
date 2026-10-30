@@ -34,7 +34,7 @@ describe("таблица переходов сделки: каждый стат�
   for (const event of events) {
     const rows = DEAL_TRANSITIONS.filter((t) => t.event === event);
     for (const from of Object.values(DealStatus)) {
-      const row = rows.find((r) => r.from.includes(from));
+      const row = rows.find((r) => (r.from as readonly string[]).includes(from));
       const who = row?.who[0] ?? rows[0].who[0];
       const ctx = { ...okDeal, mode: event === "contractSigned" && row?.to === "AWAITING_DEPOSIT" ? "ESCROW_SIMULATOR" : "MANUAL" } as const;
       it(`${event} из ${from}: ${row ? `→ ${row.to}` : "запрещён"}`, () => {
@@ -94,7 +94,7 @@ describe("таблица переходов этапа: каждый стату�
     const row = STAGE_TRANSITIONS.find((t) => t.event === event)!;
     const dealStatus = event.startsWith("dispute") ? "DISPUTE" : "IN_PROGRESS";
     for (const from of Object.values(StageStatus)) {
-      const allowed = row.from.includes(from);
+      const allowed = (row.from as readonly string[]).includes(from);
       it(`${event} из ${from}: ${allowed ? `→ ${row.to}` : "запрещён"}`, () => {
         const result = resolveTransition(STAGE_TRANSITIONS, { event, from, who: row.who[0], ctx: okStage(dealStatus) });
         expect(result).toEqual(allowed ? { ok: true, to: row.to } : { ok: false, reason: "notAllowedNow" });
@@ -158,7 +158,7 @@ describe("таблица переходов оплаты этапа: кажды�
     const row = PAYMENT_TRANSITIONS.find((t) => t.event === event)!;
     const mode = event === "release" ? "ESCROW_SIMULATOR" : "MANUAL";
     for (const from of Object.values(StagePaymentStatus)) {
-      const allowed = row.from.includes(from);
+      const allowed = (row.from as readonly string[]).includes(from);
       it(`${event} из ${from}: ${allowed ? `→ ${row.to}` : "запрещён"}`, () => {
         const result = resolveTransition(PAYMENT_TRANSITIONS, { event, from, who: row.who[0], ctx: okPayment(mode) });
         expect(result).toEqual(allowed ? { ok: true, to: row.to } : { ok: false, reason: "notAllowedNow" });
