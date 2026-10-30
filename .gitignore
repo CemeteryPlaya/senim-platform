@@ -49,7 +49,7 @@ next-env.d.ts
 .env*
 
 # служебные файлы агентов и инструментов (не код проекта)
-/.claude/state/
+**/.claude/state/
 /.claude/sessions/
 /.claude/memory/
 /.claude/settings.local.json
@@ -64,3 +64,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /blob-report/
+
+# пример переменных окружения — в git
+!.env.example

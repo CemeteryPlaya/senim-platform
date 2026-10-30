@@ -1,0 +1,2 @@
+CREATE DATABASE senim_test;
+CREATE DATABASE senim_e2e;

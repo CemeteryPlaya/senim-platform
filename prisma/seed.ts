@@ -1,10 +1,19 @@
+// Демо-данные: npm run db:seed. Только тестовые ИИН и телефоны.
 import "dotenv/config";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../src/generated/prisma/client";
-import { seedDatabase } from "../src/lib/seed-data";
+import { db } from "../src/platform/db";
+import { logger } from "../src/platform/logger";
+import { DEFAULT_FURNITURE_TYPES } from "../src/verticals/furniture/catalog";
 
-const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+async function main() {
+  for (const [i, t] of DEFAULT_FURNITURE_TYPES.entries()) {
+    await db.furnitureType.upsert({ where: { slug: t.slug }, create: { ...t, sortOrder: i }, update: {} });
+  }
+  logger.info("seed.done");
+}
 
-seedDatabase(db)
-  .then(() => console.log("Демо-данные загружены"))
+main()
+  .catch((e) => {
+    logger.error("seed.failed", { error: e });
+    process.exitCode = 1;
+  })
   .finally(() => db.$disconnect());

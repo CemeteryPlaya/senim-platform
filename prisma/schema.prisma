@@ -1,3 +1,8 @@
+// Модель данных «Сенім». Глоссарий терминов — docs/GLOSSARY.md.
+// Деньги — целые тенге (Int). Время — UTC.
+// Деньги клиентов никогда не проходят через счёт платформы: в режиме manual
+// платформа только фиксирует отметки об оплате, в эскроу-режимах деньги лежат на счёте банка.
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -7,55 +12,388 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─── identity ────────────────────────────────────────────────────────────────
+
 enum Role {
   CLIENT
-  MASTER
-  ADMIN
+  EXECUTOR
+  OPERATOR
 }
 
-enum LegalType {
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique // E.164: +77001234567
+  role      Role
+  fullName  String?
+  iinEnc    String? // ИИН, AES-256-GCM (platform/crypto)
+  iinHash   String? @unique // HMAC для поиска без расшифровки
+  iinLast4  String?
+  isDemo    Boolean  @default(false) // демо-персона, доступна только при DEMO_MODE
+  blockedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions        Session[]
+  executorProfile ExecutorProfile?
+  requests        Request[]        @relation("ClientRequests")
+  clientDeals     Deal[]           @relation("ClientDeals")
+  signatures      Signature[]
+  messages        Message[]
+  notifications   Notification[]
+  reviews         Review[]
+  disputesOpened  Dispute[]        @relation("DisputeOpenedBy")
+  disputesResolved Dispute[]       @relation("DisputeResolvedBy")
+  files           StoredFile[]
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique // sha256 от токена из cookie; сам токен не храним
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([userId])
+}
+
+model OtpCode {
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String // HMAC кода; сам код не храним
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+// ─── companies ───────────────────────────────────────────────────────────────
+
+enum LegalForm {
   SELF_EMPLOYED
   IP
   TOO
 }
 
-enum DealStatus {
-  PROPOSED // условия согласовываются
-  AWAITING_SIGNATURES // договор сформирован, ждём ЭЦП обеих сторон
-  AWAITING_FUNDING // договор подписан, ждём пополнения эскроу
-  IN_PROGRESS // деньги заморожены, мастер работает по этапам
-  DISPUTE // открыт спор, решение за оператором
-  COMPLETED // все средства выплачены исполнителю
-  REFUNDED // средства возвращены заказчику
-  CANCELLED // отменена до оплаты
+enum Segment {
+  ECONOMY
+  COMFORT
+  PREMIUM
 }
 
-enum Party {
-  CLIENT
-  MASTER
+enum MeasurementTerms {
+  FREE // бесплатно
+  INCLUDED // включён в стоимость заказа
+  FEE_IF_NO_DEAL // фиксированная плата за выезд, если сделка не состоялась (оплата напрямую исполнителю)
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ExecutorProfile {
+  id               String             @id @default(cuid())
+  userId           String             @unique
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publicNumber     Int                @unique @default(autoincrement()) // «Исполнитель №17»
+  legalForm        LegalForm
+  legalName        String // наименование ТОО/ИП или ФИО самозанятого; раскрывается только в договоре
+  binIinEnc        String // ИИН/БИН, AES-256-GCM
+  binIinLast4      String
+  segment          Segment? // ставит оператор; null — ещё не присвоен
+  status           RegistrationStatus @default(PENDING)
+  rejectReason     String?
+  about            String             @default("")
+  yearsExperience  Int                @default(0)
+  city             String             @default("Астана")
+  measurementTerms MeasurementTerms   @default(FREE)
+  measurementFee   Int? // ₸, только для FEE_IF_NO_DEAL
+  ratingAvg        Float              @default(0)
+  reviewsCount     Int                @default(0)
+  completedDeals   Int                @default(0)
+  addedByOperator  Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  reviewedAt       DateTime?
+
+  specializations FurnitureType[]
+  portfolio       PortfolioItem[]
+  offers          Offer[]
+  directRequests  Request[]       @relation("DirectRequests")
+  deals           Deal[]
+  reviews         Review[]
+
+  @@index([status, segment])
+}
+
+model FurnitureType {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  executors ExecutorProfile[]
+  portfolio PortfolioItem[]
+  requests  Request[]
+}
+
+model PortfolioItem {
+  id              String          @id @default(cuid())
+  executorId      String
+  executor        ExecutorProfile @relation(fields: [executorId], references: [id], onDelete: Cascade)
+  furnitureTypeId String
+  furnitureType   FurnitureType   @relation(fields: [furnitureTypeId], references: [id])
+  style           String // ключ стиля из verticals/furniture
+  title           String
+  description     String          @default("")
+  priceFrom       Int? // ориентир цены, ₸
+  published       Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+
+  photos   StoredFile[]
+  requests Request[]
+
+  @@index([furnitureTypeId, style])
+}
+
+model Review {
+  id         String          @id @default(cuid())
+  dealId     String          @unique // отзыв только по завершённой сделке, один на сделку
+  deal       Deal            @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  executorId String
+  executor   ExecutorProfile @relation(fields: [executorId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User            @relation(fields: [authorId], references: [id])
+  rating     Int // 1..5
+  text       String          @default("")
+  createdAt  DateTime        @default(now())
+}
+
+// ─── requests ────────────────────────────────────────────────────────────────
+
+enum RequestMode {
+  TENDER // видят все подтверждённые исполнители сегмента
+  DIRECT // только выбранный исполнитель («Хочу похожее»)
+}
+
+enum RequestStatus {
+  DRAFT
+  OPEN
+  OFFER_CHOSEN
+  MEASURING
+  CONTRACTING
+  CLOSED
+  CANCELLED
+}
+
+model Request {
+  id                String          @id @default(cuid())
+  number            Int             @unique @default(autoincrement())
+  clientId          String
+  client            User            @relation("ClientRequests", fields: [clientId], references: [id])
+  mode              RequestMode
+  targetExecutorId  String? // для DIRECT
+  targetExecutor    ExecutorProfile? @relation("DirectRequests", fields: [targetExecutorId], references: [id])
+  portfolioItemId   String? // «Хочу похожее»
+  portfolioItem     PortfolioItem?  @relation(fields: [portfolioItemId], references: [id])
+  furnitureTypeId   String?
+  furnitureType     FurnitureType?  @relation(fields: [furnitureTypeId], references: [id])
+  customType        String? // свой вариант типа мебели
+  style             String?
+  details           Json            @default("{}") // размеры, материалы, «не знаю»: схема в requests/schema.ts
+  segment           Segment?
+  segmentSuggested  Segment? // подсказка правил verticals/furniture
+  city              String          @default("Астана")
+  address           String? // раскрывается исполнителю после выбора отклика
+  desiredDate       DateTime?
+  wishes            String          @default("")
+  status            RequestStatus   @default(DRAFT)
+  wizardStep        Int             @default(0) // последний сохранённый шаг мастера
+  publishedAt       DateTime?
+  closedAt          DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  photos         StoredFile[]
+  offers         Offer[]
+  measurements   Measurement[]
+  deal           Deal?
+  visualizations Visualization[]
+
+  @@index([status, segment, mode])
+  @@index([clientId, status])
+}
+
+enum OfferStatus {
+  SENT
+  WITHDRAWN
+  DECLINED
+  ACCEPTED
+}
+
+model Offer {
+  id               String           @id @default(cuid())
+  requestId        String
+  request          Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  executorId       String
+  executor         ExecutorProfile  @relation(fields: [executorId], references: [id])
+  price            Int // предварительная цена, ₸
+  durationDays     Int
+  warrantyMonths   Int
+  measurementTerms MeasurementTerms
+  measurementFee   Int?
+  comment          String           @default("")
+  status           OfferStatus      @default(SENT)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  measurement Measurement?
+  deal        Deal?
+  messages    Message[]
+
+  @@unique([requestId, executorId]) // один отклик исполнителя на заявку
+}
+
+enum MeasurementStatus {
+  SCHEDULED
+  DONE
+  NO_DEAL
+  CANCELLED
+}
+
+model Measurement {
+  id          String            @id @default(cuid())
+  offerId     String            @unique
+  offer       Offer             @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  requestId   String
+  request     Request           @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  scheduledAt DateTime
+  status      MeasurementStatus @default(SCHEDULED)
+  result      String?
+  finalPrice  Int? // итоговая цена после замера, ₸
+  feeAccrued  Int? // плата за выезд к оплате напрямую исполнителю; только запись
+  doneAt      DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+// ─── deal-core ───────────────────────────────────────────────────────────────
+
+enum PaymentMode {
+  MANUAL // заказчик платит исполнителю напрямую, стороны отмечают оплату
+  ESCROW_SIMULATOR // встроенный симулятор банка, только для показа
+  BANK // эскроу-счёт банка-партнёра
+}
+
+enum DealStatus {
+  AWAITING_SIGNATURES // договор сформирован, ждём ЭЦП обеих сторон
+  AWAITING_DEPOSIT // только эскроу: ждём пополнения счёта
+  IN_PROGRESS
+  DISPUTE
+  COMPLETED
+  CANCELLED // до начала работ
+  TERMINATED // расторгнута по решению спора
 }
 
 enum StageStatus {
   PENDING
   IN_PROGRESS
-  SUBMITTED // мастер сдал этап, ждём подтверждения заказчика
-  REWORK // заказчик вернул на доработку
-  APPROVED
+  SUBMITTED // исполнитель сдал, ждём заказчика
+  REWORK
+  ACCEPTED // работа принята (заказчиком или автоприёмкой)
+  CLOSED // акт подписан и оплата подтверждена
 }
 
-enum EscrowStatus {
-  OPEN
-  FUNDED
-  PARTIALLY_RELEASED
-  CLOSED
-  REFUNDED
+enum PaymentDue {
+  ON_START // аванс: оплата до начала этапа
+  ON_ACCEPTANCE // оплата после приёмки этапа
 }
 
-enum TxType {
-  DEPOSIT
-  RELEASE
-  COMMISSION
-  REFUND
+model Deal {
+  id             String      @id @default(cuid())
+  number         Int         @unique @default(autoincrement())
+  requestId      String      @unique
+  request        Request     @relation(fields: [requestId], references: [id])
+  offerId        String      @unique
+  offer          Offer       @relation(fields: [offerId], references: [id])
+  clientId       String
+  client         User        @relation("ClientDeals", fields: [clientId], references: [id])
+  executorId     String
+  executor       ExecutorProfile @relation(fields: [executorId], references: [id])
+  title          String
+  totalAmount    Int // ₸
+  paymentMode    PaymentMode
+  status         DealStatus  @default(AWAITING_SIGNATURES)
+  stageTemplate  String // ключ шаблона этапов из вертикали
+  autoAcceptDays Int
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  signedAt       DateTime?
+  completedAt    DateTime?
+  closedAt       DateTime?
+
+  stages        Stage[]
+  documents     Document[]
+  disputes      Dispute[]
+  review        Review?
+  escrow        EscrowAccount?
+  operations    PaymentOperation[]
+
+  @@index([clientId, status])
+  @@index([executorId, status])
+}
+
+model Stage {
+  id          String      @id @default(cuid())
+  dealId      String
+  deal        Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  order       Int
+  title       String
+  description String      @default("")
+  amount      Int // ₸, сумма этапа; сумма всех этапов = Deal.totalAmount
+  paymentDue  PaymentDue
+  status      StageStatus @default(PENDING)
+  report      String?
+  reworkNote  String?
+  startedAt   DateTime?
+  submittedAt DateTime?
+  autoAcceptAt DateTime? // когда SUBMITTED примется сам, если заказчик молчит
+  acceptedAt  DateTime?
+  acceptedBy  String? // userId или "system:auto-accept"
+  closedAt    DateTime?
+
+  payment   StagePayment?
+  photos    StoredFile[]
+  documents Document[]
+  disputes  Dispute[]
+
+  @@unique([dealId, order])
+}
+
+enum StagePaymentStatus {
+  DUE
+  MARKED_PAID // заказчик отметил «оплатил»
+  CONFIRMED // исполнитель подтвердил получение (или банк раскрыл транш)
+}
+
+model StagePayment {
+  id            String             @id @default(cuid())
+  stageId       String             @unique
+  stage         Stage              @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  amount        Int
+  status        StagePaymentStatus @default(DUE)
+  markedPaidAt  DateTime?
+  confirmedAt   DateTime?
+  createdAt     DateTime           @default(now())
 }
 
 enum DisputeStatus {
@@ -63,173 +401,360 @@ enum DisputeStatus {
   RESOLVED
 }
 
-enum DisputeResolution {
-  RELEASE
-  REFUND
-  SPLIT
+enum DisputeReason {
+  QUALITY // качество работы
+  DEADLINE // сроки
+  SCOPE // не соответствует договору
+  PAYMENT // оплата
+  OTHER
 }
 
-enum EventKind {
-  SYSTEM
-  MESSAGE
+enum DisputeDecision {
+  FAVOR_CLIENT
+  FAVOR_EXECUTOR
+  PARTIAL
+  TERMINATE
 }
 
-model User {
-  id     String  @id
-  role   Role
-  name   String
-  phone  String
-  iin    String
-  city   String
-  avatar String // цвет аватара
+// Споры храним структурированно: это будущие обучающие данные для ИИ.
+model Dispute {
+  id               String           @id @default(cuid())
+  dealId           String
+  deal             Deal             @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  stageId          String?
+  stage            Stage?           @relation(fields: [stageId], references: [id])
+  openedById       String
+  openedBy         User             @relation("DisputeOpenedBy", fields: [openedById], references: [id])
+  reason           DisputeReason
+  description      String
+  clientPosition   String?
+  executorPosition String?
+  status           DisputeStatus    @default(OPEN)
+  decision         DisputeDecision?
+  decisionAmount   Int? // ₸ в пользу исполнителя при PARTIAL
+  rationale        String?
+  resolvedById     String?
+  resolvedBy       User?            @relation("DisputeResolvedBy", fields: [resolvedById], references: [id])
+  createdAt        DateTime         @default(now())
+  resolvedAt       DateTime?
 
-  master MasterProfile?
+  attachments StoredFile[]
 
-  clientDeals Deal[]      @relation("ClientDeals")
-  masterDeals Deal[]      @relation("MasterDeals")
-  signatures  Signature[]
-  events      DealEvent[]
-  disputes    Dispute[]
+  @@index([status, createdAt])
 }
 
-model MasterProfile {
-  userId         String    @id
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName    String
-  legalType      LegalType
-  specialties    String[]
-  bio            String
-  rating         Float
-  reviewsCount   Int
-  completedDeals Int
-  yearsExp       Int
-  priceFrom      Int
-  responseTime   String
-  verified       Boolean   @default(false)
-  portfolio      Json // [{ title, image }]
-  reviews        Json // [{ author, text, rating }]
-}
+// ─── payments ────────────────────────────────────────────────────────────────
 
-model Deal {
-  id             String     @id @default(cuid())
-  number         Int        @unique @default(autoincrement())
-  title          String
-  furnitureType  String
-  description    String
-  specs          Json // { dimensions, materials, color }
-  address        String
-  amount         Int // ₸
-  commissionRate Float      @default(0.06)
-  deadline       DateTime
-  status         DealStatus @default(PROPOSED)
-  awaitingParty  Party? // чей ход в согласовании условий
-  revision       Int        @default(1)
-
-  clientId String
-  client   User   @relation("ClientDeals", fields: [clientId], references: [id])
-  masterId String
-  master   User   @relation("MasterDeals", fields: [masterId], references: [id])
-
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  signedAt   DateTime?
-  fundedAt   DateTime?
-  closedAt   DateTime?
-  contractNo String?
-
-  stages       Stage[]
-  signatures   Signature[]
-  escrow       EscrowAccount?
-  transactions Transaction[]
-  events       DealEvent[]
-  disputes     Dispute[]
-}
-
-model Stage {
-  id            String      @id @default(cuid())
-  dealId        String
-  deal          Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  order         Int
-  title         String
-  description   String
-  payoutPercent Int         @default(0) // доля суммы, раскрываемая при подтверждении этапа
-  status        StageStatus @default(PENDING)
-  report        String?
-  photos        String[]
-  clientNote    String?
-  startedAt     DateTime?
-  submittedAt   DateTime?
-  approvedAt    DateTime?
-}
-
-model Signature {
-  id         String   @id @default(cuid())
-  dealId     String
-  deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  party      Party
-  method     String // NCALAYER | EGOV_QR
-  signerName String
-  iin        String
-  certSerial String
-  docHash    String
-  revision   Int
-  signedAt   DateTime @default(now())
-
-  @@unique([dealId, party, revision])
+enum EscrowStatus {
+  OPENED
+  FUNDED
+  PARTIALLY_RELEASED
+  CLOSED
+  REFUNDED
 }
 
 model EscrowAccount {
-  id        String       @id @default(cuid())
-  dealId    String       @unique
-  deal      Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  bank      String
-  iban      String
-  status    EscrowStatus @default(OPEN)
-  funded    Int          @default(0)
-  released  Int          @default(0)
-  refunded  Int          @default(0)
-  createdAt DateTime     @default(now())
+  id          String       @id @default(cuid())
+  dealId      String       @unique
+  deal        Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  rail        PaymentMode
+  externalId  String // номер счёта у банка
+  requisites  Json // реквизиты для пополнения
+  status      EscrowStatus @default(OPENED)
+  deposited   Int          @default(0)
+  released    Int          @default(0)
+  refunded    Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
-model Transaction {
-  id        String   @id @default(cuid())
-  dealId    String
-  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  type      TxType
-  amount    Int
-  note      String
-  stageId   String?
-  createdAt DateTime @default(now())
+enum PaymentOperationKind {
+  DEPOSIT
+  RELEASE
+  REFUND
 }
 
-model DealEvent {
-  id        String    @id @default(cuid())
-  dealId    String
-  deal      Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  kind      EventKind
-  actorId   String?
-  actor     User?     @relation(fields: [actorId], references: [id])
-  text      String
-  icon      String? // ключ иконки для системных событий
-  image     String?
-  createdAt DateTime  @default(now())
+enum PaymentOperationStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+// Операции по эскроу: основа сверки с выпиской банка.
+model PaymentOperation {
+  id             String                 @id @default(cuid())
+  dealId         String
+  deal           Deal                   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  stageId        String?
+  kind           PaymentOperationKind
+  amount         Int
+  status         PaymentOperationStatus @default(PENDING)
+  idempotencyKey String                 @unique
+  externalRef    String?
+  error          String?
+  createdAt      DateTime               @default(now())
+  completedAt    DateTime?
 
   @@index([dealId, createdAt])
 }
 
-model Dispute {
-  id             String             @id @default(cuid())
-  dealId         String
-  deal           Deal               @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  stageId        String?
-  openedById     String
-  openedBy       User               @relation(fields: [openedById], references: [id])
-  reason         String
-  status         DisputeStatus      @default(OPEN)
-  resolution     DisputeResolution?
-  resolutionNote String?
-  createdAt      DateTime           @default(now())
-  resolvedAt     DateTime?
+// Входящие вебхуки банка: externalEventId уникален — повтор не обрабатывается дважды.
+model BankWebhookEvent {
+  id              String    @id @default(cuid())
+  rail            PaymentMode
+  externalEventId String    @unique
+  payload         Json
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+  error           String?
+}
+
+// ─── documents ───────────────────────────────────────────────────────────────
+
+enum DocumentKind {
+  CONTRACT
+  STAGE_ACT
+}
+
+enum DocumentStatus {
+  SIGNING
+  SIGNED
+  SUPERSEDED
+}
+
+enum SignParty {
+  CLIENT
+  EXECUTOR
+}
+
+enum SignMethod {
+  MOCK
+  EGOV_QR
+  NCALAYER
+}
+
+model Document {
+  id        String         @id @default(cuid())
+  dealId    String
+  deal      Deal           @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  stageId   String?
+  stage     Stage?         @relation(fields: [stageId], references: [id])
+  kind      DocumentKind
+  version   Int            @default(1)
+  number    String // «Д-0001/2026», «А-0001-2»
+  fileId    String         @unique
+  file      StoredFile     @relation("DocumentFile", fields: [fileId], references: [id])
+  sha256    String // хэш PDF — именно он подписывается
+  status    DocumentStatus @default(SIGNING)
+  createdAt DateTime       @default(now())
+  signedAt  DateTime?
+
+  signatures Signature[]
+
+  @@index([dealId, kind])
+}
+
+model Signature {
+  id            String     @id @default(cuid())
+  documentId    String
+  document      Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User       @relation(fields: [userId], references: [id])
+  party         SignParty
+  method        SignMethod
+  signedSha256  String // хэш документа на момент подписи
+  signature     String // CMS (base64) от провайдера
+  certSubject   String
+  certSerial    String
+  certIinLast4  String?
+  verified      Boolean    @default(false) // подпись проверена на сервере
+  signedAt      DateTime   @default(now())
+
+  @@unique([documentId, party])
+}
+
+// ─── files ───────────────────────────────────────────────────────────────────
+
+enum FilePurpose {
+  PORTFOLIO
+  REQUEST_ROOM
+  STAGE_REPORT
+  DISPUTE
+  MESSAGE
+  DOCUMENT
+  VISUALIZATION
+}
+
+// Файл принадлежит не более чем одной сущности (одно из полей-владельцев заполнено).
+model StoredFile {
+  id           String      @id @default(cuid())
+  storageKey   String      @unique
+  provider     String // local | s3 | vercel-blob
+  purpose      FilePurpose
+  contentType  String
+  size         Int
+  sha256       String
+  phash        String? // перцептивный хэш изображения (поиск повторов)
+  width        Int?
+  height       Int?
+  isAiGenerated Boolean    @default(false) // «Иллюстрация ИИ»
+  uploadedById String?
+  uploadedBy   User?       @relation(fields: [uploadedById], references: [id])
+  sortOrder    Int         @default(0)
+  createdAt    DateTime    @default(now())
+
+  portfolioItemId String?
+  portfolioItem   PortfolioItem? @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)
+  requestId       String?
+  request         Request?       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  stageId         String?
+  stage           Stage?         @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  disputeId       String?
+  dispute         Dispute?       @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  messageId       String?
+  message         Message?       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  visualizationId String?
+  visualization   Visualization? @relation("VisualizationResults", fields: [visualizationId], references: [id], onDelete: Cascade)
+
+  document          Document?      @relation("DocumentFile")
+  visualizationSrc  Visualization[] @relation("VisualizationSource")
+
+  @@index([phash])
+}
+
+// ─── чат, уведомления ────────────────────────────────────────────────────────
+
+// Чат привязан к отклику: начинается с отклика и продолжается в сделке.
+model Message {
+  id          String   @id @default(cuid())
+  offerId     String
+  offer       Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User     @relation(fields: [senderId], references: [id])
+  body        String // уже с замаскированными контактами; исходный текст не храним
+  wasMasked   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  attachments StoredFile[]
+
+  @@index([offerId, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // ключ шаблона в notifications/templates
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+// ─── audit ───────────────────────────────────────────────────────────────────
+
+// Журнал только на добавление. UPDATE и DELETE запрещены триггером в миграции.
+model AuditEvent {
+  id         String   @id @default(cuid())
+  seq        BigInt   @unique @default(autoincrement())
+  actorId    String? // null — система
+  actorRole  String // CLIENT | EXECUTOR | OPERATOR | SYSTEM
+  action     String // «deal.stage.accepted»
+  entityType String
+  entityId   String
+  scope      String? // корень истории: «deal:<id>», «request:<id>» — вся история сделки одним запросом
+  before     Json?
+  after      Json?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, seq])
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+  @@index([scope, seq])
+}
+
+// ─── platform ────────────────────────────────────────────────────────────────
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  kind        String // «deal.autoAcceptStage»
+  payload     Json      @default("{}")
+  dedupeKey   String?   @unique // одна задача на ключ: повторная постановка не создаёт дубль
+  status      JobStatus @default(PENDING)
+  runAt       DateTime  @default(now())
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  lockedAt    DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@index([status, runAt])
+}
+
+model RateLimitBucket {
+  key         String   @id
+  windowStart DateTime
+  count       Int
+}
+
+// Настройки, которые оператор меняет в рантайме (например, режим PaymentRail для демо).
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// ─── ai ──────────────────────────────────────────────────────────────────────
+
+model AiUsage {
+  id          String   @id @default(cuid())
+  provider    String
+  operation   String // «request.assist» | «request.visualize»
+  model       String?
+  requestId   String?
+  userId      String?
+  inputTokens Int?
+  outputTokens Int?
+  images      Int?
+  costUsdMicros Int    @default(0) // стоимость в миллионных долях доллара
+  createdAt   DateTime @default(now())
+
+  @@index([operation, createdAt])
+}
+
+enum VisualizationStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+model Visualization {
+  id           String              @id @default(cuid())
+  requestId    String
+  request      Request             @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  sourceFileId String?
+  sourceFile   StoredFile?         @relation("VisualizationSource", fields: [sourceFileId], references: [id])
+  prompt       String
+  status       VisualizationStatus @default(QUEUED)
+  error        String?
+  costUsdMicros Int                @default(0)
+  createdAt    DateTime            @default(now())
+  finishedAt   DateTime?
+
+  results StoredFile[] @relation("VisualizationResults")
+
+  @@index([requestId])
 }
