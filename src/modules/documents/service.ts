@@ -15,12 +15,12 @@ import { canRead, partyOf } from "./access";
 import type { CompleteSigning, CreateContract, CreatedDocument, CreateStageAct } from "./contracts";
 import { renderPdf } from "./pdf/render";
 import { signatureProvider } from "./providers";
-import type { SigningSession } from "./signature";
 import { contractNumber, stageActNumber } from "./templates/common";
 import { contractSpec } from "./templates/contract";
 import { stageActSpec } from "./templates/stage-act";
 import { subjectDetails } from "./templates/subject";
 import type { ContractData } from "./templates/types";
+import type { SigningDocumentView, StartedSigning } from "./views";
 
 const t = ru.documents;
 const scopeOf = (dealId: string) => `deal:${dealId}`;
@@ -228,12 +228,6 @@ function assertSignable(status: DocumentStatus, signatures: { party: SignParty }
 
 // ─── подпись ────────────────────────────────────────────────────────────────
 
-export type StartedSigning = SigningSession & {
-  /** Для EGOV_QR: QR-код картинкой (data:image/png) — показывать в <img>. */
-  qrImage?: string;
-  provider: "mock" | "sigex";
-};
-
 /** Начать подпись стороной сделки. Подписывается sha256 PDF, сохранённый в Document. */
 export async function startSigning(user: CurrentUser, documentId: string, method: SignMethod): Promise<StartedSigning> {
   const { doc } = await signableBy(user, documentId);
@@ -344,25 +338,6 @@ export async function getDocumentPdf(user: CurrentUser, documentId: string): Pro
   const fileName = `${doc.number.replace(/[^\p{L}\p{N}-]+/gu, "-")}-v${doc.version}.pdf`;
   return { bytes, fileName, sha256: doc.sha256 };
 }
-
-/** Документ для экрана подписи. Сведения сертификата (ФИО в нём) не отдаются: исполнитель раскрыт только в PDF. */
-export type SigningDocumentView = {
-  id: string;
-  dealId: string;
-  stageId: string | null;
-  kind: DocumentKind;
-  number: string;
-  version: number;
-  status: DocumentStatus;
-  sha256: string;
-  createdAt: Date;
-  signedAt: Date | null;
-  pdfUrl: string;
-  /** Сторона текущего пользователя; null — оператор. */
-  myParty: SignParty | null;
-  canSign: boolean;
-  signatures: { party: SignParty; signedAt: Date; signedSha256: string; method: SignMethod }[];
-};
 
 /** Действующие документы сделки (без заменённых версий) для сторон и оператора. */
 export async function listDealDocuments(user: CurrentUser, dealId: string): Promise<SigningDocumentView[]> {

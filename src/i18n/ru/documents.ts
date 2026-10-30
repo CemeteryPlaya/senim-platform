@@ -19,6 +19,7 @@ export const documents = {
     signaturesTitle: "Подписи сторон",
     signedAt: (party: string, when: string) => `${party}: подписано ${when}`,
     notSigned: (party: string) => `${party}: ещё не подписал`,
+    hashMatches: "Подписан этот же файл: хэш совпадает",
     youSigned: "Вы подписали документ",
     methodLabel: "Способ подписи",
     sign: "Подписать",

@@ -4,15 +4,7 @@ import "server-only";
 export type * from "./signature";
 export type { CompleteSigning, CreateContract, CreateStageAct, CreatedDocument } from "./contracts";
 export { signatureProvider } from "./providers";
-export {
-  completeSigning,
-  createContract,
-  createStageAct,
-  getDocumentPdf,
-  listDealDocuments,
-  startSigning,
-  type SigningDocumentView,
-  type StartedSigning,
-} from "./service";
+export { completeSigning, createContract, createStageAct, getDocumentPdf, listDealDocuments, startSigning } from "./service";
+export type { SigningDocumentView, StartedSigning } from "./views";
 
 export const jobHandlers = {} as const;

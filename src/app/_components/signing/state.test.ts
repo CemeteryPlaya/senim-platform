@@ -1,0 +1,42 @@
+import { describe, expect, it } from "vitest";
+import { initialSigningState, signingReducer, type SigningSessionView } from "./state";
+
+const session: SigningSessionView = { sessionId: "s1", method: "EGOV_QR", qrImage: "data:image/png;base64,AA", expiresAt: new Date(0), provider: "mock" };
+
+describe("signingReducer", () => {
+  it("выбор способа → старт → ожидание с QR → проверка → готово", () => {
+    let s = initialSigningState;
+    s = signingReducer(s, { type: "method", method: "NCALAYER" });
+    expect(s).toMatchObject({ step: "choose", method: "NCALAYER" });
+    s = signingReducer(s, { type: "start" });
+    expect(s).toMatchObject({ step: "starting", method: "NCALAYER" });
+    s = signingReducer(s, { type: "started", session });
+    expect(s).toMatchObject({ step: "awaiting", session });
+    s = signingReducer(s, { type: "complete" });
+    expect(s).toMatchObject({ step: "completing" });
+    s = signingReducer(s, { type: "completed", fullySigned: true });
+    expect(s).toEqual({ step: "done", fullySigned: true });
+  });
+
+  it("ошибка старта возвращает к выбору с сообщением", () => {
+    const s = signingReducer(signingReducer(initialSigningState, { type: "start" }), { type: "failed", error: "Нет связи" });
+    expect(s).toMatchObject({ step: "choose", error: "Нет связи" });
+  });
+
+  it("подпись ещё не получена — остаёмся в ожидании той же сессии с сообщением", () => {
+    const awaiting = signingReducer(signingReducer(initialSigningState, { type: "start" }), { type: "started", session });
+    const s = signingReducer(signingReducer(awaiting, { type: "complete" }), { type: "failed", error: "Подпись ещё не получена" });
+    expect(s).toMatchObject({ step: "awaiting", session, error: "Подпись ещё не получена" });
+  });
+
+  it("«Выбрать другой способ» сбрасывает сессию", () => {
+    const awaiting = signingReducer(signingReducer(initialSigningState, { type: "start" }), { type: "started", session });
+    expect(signingReducer(awaiting, { type: "reset" })).toEqual({ step: "choose", method: "EGOV_QR" });
+  });
+
+  it("действия не по порядку игнорируются (двойное нажатие)", () => {
+    const starting = signingReducer(initialSigningState, { type: "start" });
+    expect(signingReducer(starting, { type: "start" })).toBe(starting);
+    expect(signingReducer(initialSigningState, { type: "complete" })).toBe(initialSigningState);
+  });
+});
