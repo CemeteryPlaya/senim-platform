@@ -17,6 +17,11 @@ export interface StorageProvider {
   /** null — объекта нет (например, браузер так и не загрузил файл). */
   get(key: string): Promise<Uint8Array | null>;
   delete(key: string): Promise<void>;
+  /**
+   * Размер объекта без чтения тела (HEAD); null — объекта нет. Нужен, где размер прямой загрузки
+   * не ограничен на входе (подписанный PUT в S3 его не ограничивает): проверить до чтения в память.
+   */
+  size?(key: string): Promise<number | null>;
   /** Ссылка на скачивание с ограниченным сроком жизни. */
   downloadUrl(key: string, opts: { expiresInSec: number; fileName?: string }): Promise<string>;
   /** Цель для прямой загрузки из браузера, минуя тело запроса к функции (лимит Vercel 4,5 МБ). */

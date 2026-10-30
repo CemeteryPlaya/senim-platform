@@ -106,9 +106,13 @@ export async function finalizeUpload(user: CurrentUser, input: { token: string }
   if (existing) return toUploaded(existing);
 
   const provider = await storageByName(claims.provider);
-  const raw = await provider.get(claims.stagingKey);
-  if (!raw) return fail.validation(ru.files.errors.notUploaded);
+  const declared = await provider.size?.(claims.stagingKey);
+  if (declared === null) return fail.validation(ru.files.errors.notUploaded);
   try {
+    // Сначала размер по HEAD (S3): объект больше лимита в память не читаем.
+    if (declared !== undefined && declared > claims.maxBytes) return fail.validation(ru.files.errors.tooLarge(mb(claims.maxBytes)));
+    const raw = await provider.get(claims.stagingKey);
+    if (!raw) return fail.validation(ru.files.errors.notUploaded);
     if (raw.length > claims.maxBytes) return fail.validation(ru.files.errors.tooLarge(mb(claims.maxBytes)));
     const file = await persist(provider.name, `${base}`, claims.purpose, await processBytes(raw, policy.accepts), { uploadedById: user.id });
     return toUploaded(file);

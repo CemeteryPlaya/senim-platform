@@ -101,6 +101,11 @@ describe("s3 (на моке клиента)", () => {
           const key = String(input.Key);
           if (name === "PutObjectCommand") objects.set(key, input.Body as Uint8Array);
           if (name === "DeleteObjectCommand") objects.delete(key);
+          if (name === "HeadObjectCommand") {
+            const body = objects.get(key);
+            if (!body) throw Object.assign(new Error("NotFound"), { name: "NotFound", $metadata: { httpStatusCode: 404 } });
+            return { ContentLength: body.length };
+          }
           if (name === "GetObjectCommand") {
             const body = objects.get(key);
             if (!body) throw Object.assign(new Error("NoSuchKey"), { name: "NoSuchKey" });
@@ -121,6 +126,15 @@ describe("s3 (на моке клиента)", () => {
     expect(new TextDecoder().decode((await storage.get("deal/2026/10/a.pdf"))!)).toBe("pdf");
     await storage.delete("deal/2026/10/a.pdf");
     expect(await storage.get("deal/2026/10/a.pdf")).toBeNull();
+  });
+
+  it("размер объекта — HEAD без чтения тела; нет объекта — null", async () => {
+    const { storage, sent } = fake();
+    await storage.put("uploads/big", new Uint8Array(1234), "image/jpeg");
+    expect(await storage.size!("uploads/big")).toBe(1234);
+    expect(await storage.size!("uploads/none")).toBeNull();
+    expect(sent.map((c) => c.name)).not.toContain("GetObjectCommand");
+    expect(sent.at(-1)).toMatchObject({ name: "HeadObjectCommand", input: { Bucket: "senim", Key: "uploads/none" } });
   });
 
   it("ссылка на скачивание — подписанный GET со сроком, без обращения к сети", async () => {

@@ -1,9 +1,9 @@
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { contentDisposition } from "../disposition";
 import type { StorageProvider } from "../storage";
 
-type S3Command = PutObjectCommand | GetObjectCommand | DeleteObjectCommand;
+type S3Command = PutObjectCommand | GetObjectCommand | HeadObjectCommand | DeleteObjectCommand;
 
 /** Зависимости провайдера: клиент и подпись подменяются в тестах. */
 export type S3Deps = {
@@ -39,6 +39,15 @@ export function createS3Storage(deps: S3Deps): StorageProvider {
           Body?: { transformToByteArray(): Promise<Uint8Array> };
         };
         return out.Body ? await out.Body.transformToByteArray() : null;
+      } catch (e) {
+        if (isNotFound(e)) return null;
+        throw e;
+      }
+    },
+    async size(key) {
+      try {
+        const out = (await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }))) as { ContentLength?: number };
+        return out.ContentLength ?? 0;
       } catch (e) {
         if (isNotFound(e)) return null;
         throw e;
