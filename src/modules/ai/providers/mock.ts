@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { MAX_INPUT_PIXELS } from "@/modules/files";
 import type { AiProvider } from "../provider";
 import { parseRequestText } from "./mock-text";
 
@@ -58,7 +59,7 @@ export const mockProvider: AiProvider = {
   },
 
   async visualizeRoom({ image, prompt }) {
-    const { data, info } = await sharp(image)
+    const { data, info } = await sharp(image, { limitInputPixels: MAX_INPUT_PIXELS })
       .rotate()
       .resize({ width: MAX_WIDTH, withoutEnlargement: true })
       .modulate({ brightness: 1.04, saturation: 0.85 })

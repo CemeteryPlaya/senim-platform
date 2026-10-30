@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { ru } from "@/i18n/ru";
+import { MAX_INPUT_PIXELS } from "@/modules/files";
 
 /**
  * Пометка «Иллюстрация ИИ» вшивается в пиксели: картинку, скачанную или пересланную,
@@ -11,7 +12,7 @@ const LABEL_HEX = "#1f5d4a";
 
 export async function stampAiLabel(image: Uint8Array): Promise<Uint8Array> {
   // Сначала поворот по EXIF, потом размеры: иначе у повёрнутого фото ширина и высота поменяются местами.
-  const base = sharp(await sharp(image).rotate().toBuffer());
+  const base = sharp(await sharp(image, { limitInputPixels: MAX_INPUT_PIXELS }).rotate().toBuffer());
   const { width = 1024, height = 768 } = await base.metadata();
   const fontSize = Math.max(14, Math.round(Math.min(width, height) * 0.045));
   const barH = Math.round(fontSize * 1.9);

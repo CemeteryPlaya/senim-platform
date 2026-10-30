@@ -39,7 +39,8 @@ describe("files.cleanupOrphans", () => {
     await enqueueDailyJobs();
     await enqueueDailyJobs(); // повтор за те же сутки не ставит вторую задачу
     expect(await db.job.count({ where: { kind: "files.cleanupOrphans" } })).toBe(1);
-    expect(await runDueJobs(jobHandlers)).toMatchObject({ done: 1 });
+    await runDueJobs(jobHandlers);
+    expect(await db.job.findFirstOrThrow({ where: { kind: "files.cleanupOrphans" } })).toMatchObject({ status: "DONE" });
 
     const left = (await db.storedFile.findMany({ select: { id: true } })).map((f) => f.id).sort();
     expect(left).toEqual([fresh.id, attached.id].sort());

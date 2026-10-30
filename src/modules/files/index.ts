@@ -19,7 +19,7 @@ export { canReadFile } from "./access";
 export { readLocalDownload, receiveLocalUpload } from "./local-transfer";
 export { PURPOSE_POLICY, type FileOwner } from "./policy";
 export { verifyDownload, openUploadToken } from "./signing";
-export { sniffType } from "./image";
+export { MAX_INPUT_PIXELS, sniffType } from "./image";
 
 export const jobHandlers = {
   "files.cleanupOrphans": cleanupOrphans,
