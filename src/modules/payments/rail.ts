@@ -28,7 +28,8 @@ export type OpenAccountInput = {
 export type TrancheInput = {
   externalId: string; // счёт сделки у банка
   dealId: string;
-  stageId: string;
+  /** Этап, за который раскрывается транш; нет — выплата по решению спора. */
+  stageId?: string;
   amount: number;
   idempotencyKey: string;
 };
