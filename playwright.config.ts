@@ -5,7 +5,8 @@ import { defineConfig, devices } from "@playwright/test";
 const E2E_DATABASE_URL = process.env.E2E_DATABASE_URL;
 if (!E2E_DATABASE_URL) throw new Error("Задайте E2E_DATABASE_URL (пример — в .env.example)");
 
-const PORT = 3100;
+// Свой порт, не порт dev-сервера: reuseExistingServer иначе прогнал бы e2e против dev-базы.
+const PORT = Number(process.env.E2E_PORT ?? 3110);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -25,7 +26,7 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: {
-    command: process.env.CI ? `npm run build && npm run start` : `npm run dev`,
+    command: process.env.CI ? `npm run build && npx next start -p ${PORT}` : `npx next dev -p ${PORT}`,
     port: PORT,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
