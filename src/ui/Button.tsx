@@ -74,11 +74,9 @@ export function Button({ variant, fullWidth, shape, className, loading = false, 
       disabled={disabled}
       aria-disabled={loading || undefined}
       aria-busy={loading || undefined}
-      onClick={(event) => {
-        // preventDefault у submit-кнопки отменяет и отправку формы (в том числе по Enter в поле).
-        if (loading) return event.preventDefault();
-        onClick?.(event);
-      }}
+      // preventDefault у submit-кнопки отменяет и отправку формы (в том числе по Enter в поле).
+      // Без loading обработчик — только переданный: кнопку используют и серверные компоненты (без функций в пропсах).
+      onClick={loading ? (event) => event.preventDefault() : onClick}
       {...rest}
     >
       {loading ? (
