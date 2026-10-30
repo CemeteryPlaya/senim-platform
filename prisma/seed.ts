@@ -1,14 +1,22 @@
-// Демо-данные: npm run db:seed. Только тестовые ИИН и телефоны.
+// Демо-данные: npm run db:seed. Только тестовые ИИН, телефоны и адреса (src/demo/data.ts).
+// Пустая база — заполняется. Непустая — пересоздаётся только при DEMO_MODE=true, иначе ошибка.
 import "dotenv/config";
+import { isDatabaseEmpty, resetDemo, seedDemo } from "../src/demo/seed";
 import { db } from "../src/platform/db";
+import { env } from "../src/platform/env";
 import { logger } from "../src/platform/logger";
-import { DEFAULT_FURNITURE_TYPES } from "../src/verticals/furniture/catalog";
 
 async function main() {
-  for (const [i, t] of DEFAULT_FURNITURE_TYPES.entries()) {
-    await db.furnitureType.upsert({ where: { slug: t.slug }, create: { ...t, sortOrder: i }, update: {} });
+  if (await isDatabaseEmpty(db)) {
+    logger.info("seed.done", await seedDemo(db));
+    return;
   }
-  logger.info("seed.done");
+  if (!env().DEMO_MODE) {
+    logger.error("seed.refused: база не пуста", { hint: "Сброс демо-данных разрешён только при DEMO_MODE=true" });
+    process.exitCode = 1;
+    return;
+  }
+  logger.info("seed.reset", await resetDemo(db));
 }
 
 main()

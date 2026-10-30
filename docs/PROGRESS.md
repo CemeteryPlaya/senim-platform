@@ -10,7 +10,7 @@
 - [x] Инструменты: vitest (unit + integration на отдельной БД), Playwright, скрипты, GitHub Actions (только проверка)
 - [x] Скелет модулей, ESLint-правило границ, `platform/` (env, db, errors, logger, crypto, jobs, rate-limit, action), `audit/` с триггером append-only
 - [x] Prisma-схема и миграция по разделу 5
-- [ ] Сид с тестовыми данными (агент сида)
+- [x] Сид: 19 пользователей (персоны isDemo), 10 исполнителей, 21 заявка во всех статусах, 14 сделок, 1 открытый спор, 385 событий аудита; `src/demo/` (resetDemo для «Сбросить демо»)
 - [x] Контракты провайдеров с моками: PaymentRail (manual, bank-заглушка), SignatureProvider (mock), StorageProvider (local), SmsProvider (mock), AiProvider (контракт)
 - [x] Вертикаль `furniture`: типы, стили, материалы, правила сегмента с «Почему?», шаблоны этапов (в том числе без предоплаты)
 - [ ] `ui-foundation`: токены, компоненты, оболочка, лендинг, витрина, проверка контраста

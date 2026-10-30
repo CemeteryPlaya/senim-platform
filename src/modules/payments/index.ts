@@ -19,9 +19,22 @@ export function railFor(mode: RailMode): PaymentRail {
   }
 }
 
-/** Режим для новых сделок: из env (оператор в DEMO_MODE переопределяет через PlatformSetting — фаза B). */
+/** Режим для новых сделок: env, в DEMO_MODE — переопределение оператором (PlatformSetting, фаза B). */
 export async function activeRailMode(): Promise<RailMode> {
   return env().PAYMENT_RAIL;
 }
+
+export type ReconciliationRow = {
+  dealId: string;
+  idempotencyKey: string | null;
+  externalRef: string | null;
+  kind: "DEPOSIT" | "RELEASE" | "REFUND";
+  ourAmount: number | null; // по PaymentOperation
+  bankAmount: number | null; // по выписке рельса
+  status: "MATCHED" | "MISSING_IN_BANK" | "MISSING_IN_JOURNAL" | "AMOUNT_MISMATCH";
+};
+
+/** operator → payments: сверка операций сделки с выпиской рельса. Реализацию экспортирует deal-core-engineer. */
+export type Reconcile = (dealId: string) => Promise<ReconciliationRow[]>;
 
 export const jobHandlers = {} as const;

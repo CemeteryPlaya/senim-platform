@@ -1,6 +1,8 @@
 # Общие правила для агентов фазы B
 
-Прочитай по порядку: `./SKILL.md` → `CLAUDE.md` → `docs/AGENT_PROMPT.md` (разделы 2, 4, 6) → `docs/GLOSSARY.md` → `docs/adr/*` → свой файл в `.claude/agents/`.
+Прочитай по порядку: `./SKILL.md` → `CLAUDE.md` → `docs/AGENT_PROMPT.md` (разделы 2, 4, 6) → `docs/GLOSSARY.md` → `docs/adr/*` → `docs/agents/UI_COMPONENTS.md` → `docs/design/MOCKUPS.md` (открой макеты своих экранов в `docs/design/mockups/`) → свой файл в `.claude/agents/`.
+
+Демо-данные уже есть (`src/demo/`, персоны и сценарии — в отчёте сида ниже по ссылке `docs/agents/DEMO_DATA.md`). Формат `Request.details` в сиде: `widthCm`, `heightCm`, `depthCm`, `facade`, `countertop`, `hardware`, `color`, `unknown` (список полей «не знаю») — схема requests должна принять его или интегратор поправит сид. Фото портфолио в сиде: `StoredFile.provider = "static"`, ключ `demo/portfolio/<file>.svg` в `public/`.
 
 ## Владение файлами
 
@@ -23,6 +25,26 @@
 
 Компоненты, которые встраиваются в чужие экраны (`_components/chat`, `_components/signing`, `_components/uploader`, `_components/ai-assistant`, `_components/notifications`), — с понятными пропсами и примером использования в отчёте.
 
+## Межмодульные контракты (фаза A)
+
+Сигнатуры функций, которые один модуль вызывает у другого, зафиксированы **типами** — реализуй и экспортируй из своего `index.ts` под этим именем и типом (`export const createDeal: CreateDeal = async (tx, input) => …`):
+
+| Кто вызывает → кто реализует | Тип | Где описан |
+|---|---|---|
+| requests → deal-core | `CreateDeal` (`createDeal`) | `src/modules/deal-core/contracts.ts` |
+| documents → deal-core (через экран) | `OnDocumentSigned` (`onDocumentSigned`) | там же |
+| operator → deal-core | `ResolveDispute` (`resolveDispute`) | там же |
+| deal-core → documents | `CreateContract`, `CreateStageAct` | `src/modules/documents/contracts.ts` |
+| экран сделки → documents | `CompleteSigning` (`completeSigning`, хук `onFullySigned`) | там же |
+| все экраны заказчика → companies | `GetPublicExecutorView` (`publicExecutorView`) | `src/modules/companies/index.ts` |
+| deal-core → companies | `RecalculateRating` (`recalculateRating`) | там же |
+| operator → identity | `ReviewExecutorRegistration` (`reviewExecutorRegistration`) | `src/modules/identity/index.ts` |
+| operator → payments | `Reconcile` (`reconcile`) | `src/modules/payments/index.ts` |
+
+Помощник ИИ не вызывает requests: экран мастера заявки (marketplace) сам переносит `RequestDraftSuggestion` в черновик.
+
+Пока чужой реализации нет в твоём worktree, вызывающая сторона пишет **рабочий** временный адаптер внутри своего модуля (например, прямой запрос через Prisma с той же сигнатурой) с пометкой `// INTEGRATOR: заменить на <модуль>.<функция>`. Хук окружения блокирует запись функций-заглушек, которые только бросают «not implemented», — не пиши их.
+
 ## Как писать код
 
 - Сервис модуля: функции в модуле принимают `user: CurrentUser` (из `@/modules/identity`) и проверяют права сами (защита от IDOR: заказчик видит только свои заявки и сделки, исполнитель — только свои отклики и сделки, оператор — всё).
@@ -39,7 +61,7 @@
 
 - Postgres уже запущен в Docker (`senim-pg`, порт 5442). Переменные передавай в командной строке, `.env*` читать и писать нельзя (хук):
   `export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5442/senim_test?schema=public"`.
-- В worktree перед тестами: `npm ci` не нужен, если есть `node_modules` (иначе `npm install`), затем `npx prisma generate`.
+- В worktree нет `node_modules`. Не ставь заново — подключи общие из основного дерева (зависимости никто не меняет): в PowerShell `New-Item -ItemType Junction -Path node_modules -Target D:\mvp-scale-arna\node_modules`. Затем `npx prisma generate` (клиент генерируется в `src/generated/prisma` твоего worktree).
 - Интеграционные тесты делят одну базу `senim_test`, файлы идут последовательно. Если параллельный агент гоняет тесты одновременно, возможны помехи: для своих прогонов создай свою базу `docker exec senim-pg psql -U postgres -c "CREATE DATABASE senim_test_<агент>;"` и укажи её в `TEST_DATABASE_URL`.
 - Проверка перед коммитом: `npm run typecheck && npm run lint && npx vitest run`.
 - Коммиты — маленькие, Conventional Commits, тело: почему, что, как проверено; последняя строка `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Не пушь.

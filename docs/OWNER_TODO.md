@@ -2,6 +2,27 @@
 
 Шаги, которые агент не делает сам: ключи, аккаунты, хостинг. Код работает без них на моках.
 
-| # | Что сделать | Зачем | Где используется |
+## Сделано (проверено 2026-10-30)
+
+| # | Что | Как проверено |
+|---|-----|---------------|
+| 1 | Docker Desktop запущен, Postgres `senim-pg` на порту 5442 | контейнер `healthy` |
+| 2 | `.env` обновлён: `DATABASE_URL` (5442), `TEST_DATABASE_URL`, `E2E_DATABASE_URL` | `prisma migrate status` без переменных в командной строке — база `senim` на 5442, схема актуальна; тесты и Playwright находят свои базы |
+| 3 | 7 макетов в `docs/design/mockups/` | файлы на месте; дизайн-токены снимаются с них |
+
+## Отложено владельцем
+
+Решение: пока работаем на моках; провайдеры не выбраны. Код готов к подключению — меняются только переменные окружения.
+
+| # | Что сделать | Когда | Где используется |
 |---|-------------|-------|------------------|
-| 1 | Запускать Docker Desktop перед `npm run db:up` | Локальный Postgres для разработки и тестов | `docker-compose.yml` |
+| 4 | Vercel: ключи `PII_ENCRYPTION_KEY`, `PII_HASH_KEY`, `FILE_URL_SECRET`, `CRON_SECRET` (генерация — в `.env.example`); без них в `NODE_ENV=production` приложение не стартует | при тестировании на Vercel | `src/platform/env.ts` |
+| 5 | Vercel Cron: на Hobby-плане — раз в сутки; для автоприёмки чаще — Pro и `*/15 * * * *` в `vercel.json` | при тестировании на Vercel | `vercel.json`, `/api/cron/run` |
+| 6 | Vercel Blob (`BLOB_READ_WRITE_TOKEN`, `STORAGE_PROVIDER=vercel-blob`) — на Vercel нет постоянного диска для фото | при тестировании на Vercel | модуль `files` |
+| 7 | SMS-провайдер РК: договор, токен, имя отправителя, документация API → `SMS_PROVIDER=http` | провайдер не выбран; сейчас `mock` (код показывается в демо-баннере) | модуль `notifications` |
+| 8 | SIGEX / НУЦ РК: доступ и документация → `SIGNATURE_PROVIDER=sigex` | не выбран; сейчас `mock` | модуль `documents` |
+| 9 | ИИ-провайдер: ключ и модели → `AI_ENABLED=true`, `AI_PROVIDER=gateway` | не выбран; сейчас `mock` | модуль `ai` |
+| 10 | Банк-партнёр: спецификация API эскроу → `PAYMENT_RAIL=bank` | не определён; для показа — `escrow-simulator` | модуль `payments`, `docs/bank/03-escrow-integration.md` |
+| 11 | Облако в РК: Postgres, S3-совместимое хранилище, резервные копии | перед выкаткой демонстрации банкам | `docs/bank/04-security-and-data.md` |
+| 13 | Фото для лендинга из макета 719 отдельными файлами: `public/landing/hero.jpg`, `client.jpg`, `executor.jpg` | когда будут исходники | `src/app/page.tsx` (место отмечено `INTEGRATOR:`) |
+| 12 | Юридическая проверка договора подряда и акта | позже; пока используется текущий шаблон из модуля `documents` | модуль `documents` |

@@ -1,0 +1,99 @@
+/*
+ * Дизайн-токены «Сенім» — сняты с макетов основателей (docs/design/mockups/*.jpg).
+ * Где макет ниже порогов доступности (мелкий текст, светлые границы полей, низкие поля ввода),
+ * вид сохранён, а значения подняты до минимума: текст ≥ 16px (основной 18px), контраст ≥ 4,5:1,
+ * границы полей ≥ 3:1, кнопки и поля ≥ 48px.
+ *
+ * Правило: цвета, шрифты, размеры текста, радиусы и тени в компонентах — только через эти
+ * токены (утилиты Tailwind: bg-canvas, text-ink, rounded-card, shadow-card…). Стандартные палитры
+ * Tailwind отключены (`--color-*: initial`), чтобы случайный `bg-blue-500` не собирался.
+ *
+ * Цвета — в hex: их пары проверяет src/ui/contrast.test.ts (WCAG ≥ 4,5:1).
+ */
+
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+
+  /* Поверхности: тёплый почти белый фон, белые карточки. */
+  --color-canvas: #f7f7f4; /* фон страницы */
+  --color-surface: #ffffff; /* карточки, поля ввода, шапка */
+  --color-sunken: #f0f2ef; /* заливка второстепенных блоков, скелетоны, миниатюры */
+
+  /* Текст. */
+  --color-ink: #141917; /* заголовки и основной текст */
+  --color-ink-soft: #2b322f; /* длинный текст */
+  --color-muted: #5a625e; /* вторичный текст, подсказки (в макете светлее — поднят до 4,5:1) */
+
+  /* Рамки. line — разделители и рамки карточек; line-strong — границы полей (≥ 3:1 к фону). */
+  --color-line: #e2e5e2;
+  --color-line-strong: #858c88;
+
+  /* Главное действие — тёмно-зелёная кнопка. */
+  --color-primary: #0f5b44;
+  --color-primary-hover: #0b4836;
+  --color-on-primary: #ffffff;
+
+  /* Акцент — тот же зелёный: выделенное слово в заголовке, выбор, прогресс, иконки. */
+  --color-accent: #0f5b44;
+  --color-accent-hover: #0b4836;
+  --color-accent-soft: #e6f0eb; /* мятные плашки: «Войти», «Свой вариант», подсказки ИИ */
+  --color-accent-soft-hover: #d4e6dc;
+  --color-on-accent: #ffffff;
+  --color-focus: #0f5b44;
+
+  /* Статусы: насыщенный цвет — текст и иконки, soft — подложка. */
+  --color-info: #1d4f7c;
+  --color-info-soft: #e7eff7;
+  --color-success: #17663f;
+  --color-success-soft: #e4f1e8;
+  --color-warning: #7a4a06;
+  --color-warning-soft: #fbefdc; /* персиковые бейджи «Быстрые сроки» */
+  --color-danger: #b42318;
+  --color-danger-hover: #912018;
+  --color-danger-soft: #fdeceb;
+
+  /* Звезда рейтинга: декоративная иконка, всегда рядом с числом. */
+  --color-rating: #e09b0c;
+
+  /* Шрифт: next/font кладёт переменную на <html> (src/ui/fonts.ts). */
+  --font-sans: var(--font-onest), ui-sans-serif, system-ui, sans-serif;
+
+  /* Текст в rem — растёт вместе с системным размером шрифта. Основной — 18px. */
+  --text-sm: 1rem; /* подписи, бейджи, подсказки — не меньше 16px (в макете 12–14px) */
+  --text-sm--line-height: 1.45;
+  --text-base: 1.125rem;
+  --text-base--line-height: 1.55;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.45;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 1.3;
+  --text-2xl: 1.875rem;
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 1.12;
+  --text-display: clamp(2.5rem, 1.6rem + 3.6vw, 4rem); /* заголовок лендинга */
+  --text-display--line-height: 1.04;
+
+  /* Высота кнопок и полей: 56px как в макете; минимум — 48px. */
+  --spacing-control: 3.5rem;
+  --spacing-control-sm: 3rem;
+
+  /* Ширины: страница, форма, текст. */
+  --container-page: 72rem;
+  --container-form: 40rem;
+  --container-prose: 42rem;
+
+  /* Радиусы с макетов: кнопки и поля — 14px, карточки — 16px, бейджи и «Войти» — пилюля. */
+  --radius-control: 0.875rem;
+  --radius-card: 1rem;
+  --radius-full: 9999px;
+
+  /* Тени: мягкая у карточек, глубже — у модального окна и нижней панели. */
+  --shadow-card: 0 1px 2px rgb(20 25 23 / 0.04), 0 4px 16px rgb(20 25 23 / 0.06);
+  --shadow-overlay: 0 1.5rem 3rem -1rem rgb(20 25 23 / 0.35);
+  --shadow-bar: 0 -4px 16px rgb(20 25 23 / 0.06);
+}
