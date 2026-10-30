@@ -7,6 +7,7 @@ import { db } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { nextStep, type NextStep } from "./next-step";
+import { retryableKeys } from "./retry-policy";
 import { openEscrowAccount } from "./service";
 import { roleIn, scopeOf } from "./state";
 
@@ -134,6 +135,8 @@ export async function getDealView(user: CurrentUser, dealId: string, now = new D
   );
 
   const dispute = deal.disputes[0] ?? null;
+  // Ключ повтора нужен только оператору; правило — то же, что у сервиса повтора.
+  const retryable = viewer === "OPERATOR" ? retryableKeys(deal.operations, { dealStatus: deal.status, stages: deal.stages, dispute }) : new Set<string>();
   const history = await scopeHistory(scopeOf(deal.id));
   const base = {
     id: deal.id,
@@ -179,8 +182,7 @@ export async function getDealView(user: CurrentUser, dealId: string, now = new D
       amount: o.amount,
       status: o.status,
       createdAt: o.createdAt,
-      // Ключ нужен только оператору — для повтора отклонённой операции.
-      retryKey: viewer === "OPERATOR" && o.status === "FAILED" && o.kind !== "DEPOSIT" ? o.idempotencyKey : null,
+      retryKey: retryable.has(o.idempotencyKey) ? o.idempotencyKey : null,
     })),
     history: history.map((e) => ({ id: e.id, action: e.action, actorRole: e.actorRole, createdAt: e.createdAt })),
   };

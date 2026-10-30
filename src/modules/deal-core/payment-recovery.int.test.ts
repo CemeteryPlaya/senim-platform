@@ -3,7 +3,7 @@ import { railFor, resendPendingOperations, simulatorDeposit } from "@/modules/pa
 import { db } from "@/platform/db";
 import { makeOperator } from "../../../test/factories";
 import { makeDeal, makeStagePhoto, signContract, stagesOf, TEMPLATES, type DealFixture } from "../../../test/factories/deal";
-import { acceptStage, handleRailWebhook, retryPaymentOperation, startStage, submitStage } from "./index";
+import { acceptStage, getDealView, handleRailWebhook, openDispute, resolveDispute, retryPaymentOperation, startStage, submitStage } from "./index";
 import { onPaymentSettled } from "./service";
 
 const code = (p: Promise<unknown>) => p.then(() => "OK", (e: { code?: string }) => e.code ?? String(e));
@@ -100,5 +100,31 @@ describe("отклонённая банком операция", () => {
     // Повторять нечего: операция уже выполнена.
     expect(await code(retryPaymentOperation(operator, { idempotencyKey: key }))).toBe("CONFLICT");
     expect(await code(retryPaymentOperation(operator, { idempotencyKey: `${key}:retry:1` }))).toBe("CONFLICT");
+  });
+
+  it("транш отклонён, спор расторг сделку, возврат отклонён: повтор транша — CONFLICT, повтор возврата — можно", async () => {
+    const operator = await makeOperator();
+    const f = await submittedEscrowStage();
+    vi.spyOn(rail(), "releaseTranche").mockResolvedValueOnce({ status: "FAILED", error: "Счёт заблокирован" });
+    await acceptStage(f.client, { stageId: f.stageId });
+    const release = `release:${f.stageId}`;
+
+    const { disputeId } = await openDispute(f.client, { dealId: f.dealId, reason: "QUALITY", description: "Работа не устроила" });
+    vi.spyOn(rail(), "refund").mockResolvedValueOnce({ status: "FAILED", error: "Счёт заблокирован" });
+    await resolveDispute(operator, { disputeId, decision: "TERMINATE", rationale: "Стороны не договорились" });
+    const refund = `dispute:${disputeId}:refund`;
+    expect(await opOf(refund)).toMatchObject({ status: "FAILED", amount: 100_000 });
+
+    // Экран показывает оператору повтор только для операции, которая всё ещё должна быть выполнена.
+    const view = await getDealView(operator, f.dealId);
+    expect(view.operations.map((o) => o.retryKey).filter(Boolean)).toEqual([refund]);
+
+    expect(await code(retryPaymentOperation(operator, { idempotencyKey: release }))).toBe("CONFLICT");
+    expect(await db.paymentOperation.count({ where: { idempotencyKey: `${release}:retry:1` } })).toBe(0);
+
+    await retryPaymentOperation(operator, { idempotencyKey: refund });
+    expect(await opOf(`${refund}:retry:1`)).toMatchObject({ status: "SUCCEEDED", amount: 100_000 });
+    expect(await db.escrowAccount.findUniqueOrThrow({ where: { dealId: f.dealId } })).toMatchObject({ released: 0, refunded: 100_000 });
+    expect((await getDealView(operator, f.dealId)).operations.every((o) => o.retryKey === null)).toBe(true);
   });
 });
