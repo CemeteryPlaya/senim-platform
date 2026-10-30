@@ -49,6 +49,7 @@ export const documents = {
     otherSigner: "Подпись сделана сертификатом другого человека. Подпишите своей ЭЦП",
     damaged: "Файл документа повреждён. Сообщите оператору",
     sigexUnavailable: "Подпись через SIGEX ещё не подключена",
+    ncalayerUnavailable: "Подпись через NCALayer пока недоступна. Выберите eGov Mobile",
   },
 
   notify: {
