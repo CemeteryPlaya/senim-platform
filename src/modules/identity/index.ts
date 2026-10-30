@@ -22,10 +22,18 @@ export { authorize, can, type ActionOn, type Resource } from "./rbac";
 export { EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, homePathFor, loginHref, safeReturnTo } from "./return-to";
 export { formatPhone, parsePhone, type Phone } from "./phone";
 export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id";
+export {
+  executorRegistrationSchema,
+  getMyRegistration,
+  registerExecutor,
+  reviewExecutorRegistration,
+  type ExecutorRegistrationInput,
+  type MyRegistration,
+} from "./registration";
 
 export type RegistrationDecision = { approve: true; segment: Segment } | { approve: false; reason: string };
 
-/** operator → identity: решение по регистрации исполнителя. Реализацию экспортирует identity-engineer. */
+/** operator → identity: решение по регистрации исполнителя (реализация — reviewExecutorRegistration). */
 export type ReviewExecutorRegistration = (
   operator: CurrentUser,
   profileId: string,
