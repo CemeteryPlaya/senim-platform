@@ -53,3 +53,21 @@ export function formatRelative(value: DateInput, now: Date = new Date()): string
   if (abs < WEEK) return relativeFormat.format(Math.trunc(diff / DAY), "day");
   return formatDate(value);
 }
+
+const pluralRules = new Intl.PluralRules(LOCALE);
+type Unit = keyof typeof ru.common.units;
+
+/** «35 дней», «21 день», «3 дня»: число и полное слово в нужной форме, без переноса между ними. */
+function formatCount(n: number, unit: Unit): string {
+  const [one, few, many] = ru.common.units[unit];
+  const rule = pluralRules.select(n);
+  const word = rule === "one" ? one : rule === "few" ? few : many;
+  return `${n}${NBSP}${word}`;
+}
+
+/** Срок в днях: «35 дней». */
+export const formatDays = (n: number): string => formatCount(n, "days");
+/** Срок в месяцах: «18 месяцев». */
+export const formatMonths = (n: number): string => formatCount(n, "months");
+/** Годы: «12 лет». */
+export const formatYears = (n: number): string => formatCount(n, "years");

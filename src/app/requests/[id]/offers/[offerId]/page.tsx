@@ -3,7 +3,7 @@ import { ArrowRight, Star } from "lucide-react";
 import type { ReactNode } from "react";
 import { getOfferForClient } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Container, DateText, EmptyState, Money, PageHeader, StatusBadge } from "@/ui";
+import { Container, DateText, EmptyState, formatDays, formatMonths, formatYears, Money, PageHeader, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { chooseOfferAction } from "../../../actions";
 import { ActionButton } from "../../../_parts/ActionButton";
@@ -51,7 +51,7 @@ export default async function OfferPage({ params }: Props) {
           </span>
         </Fact>
         {ex.segment && <Fact label={o.segment}>{SEGMENT_NAMES[ex.segment]}</Fact>}
-        <Fact label={o.experience}>{o.years(ex.yearsExperience)}</Fact>
+        <Fact label={o.experience}>{formatYears(ex.yearsExperience)}</Fact>
         <Fact label={o.deals}>{ex.completedDeals}</Fact>
       </dl>
 
@@ -67,8 +67,8 @@ export default async function OfferPage({ params }: Props) {
             <span className="text-base text-ink-soft">{o.priceNote}</span>
           </p>
           <dl className="flex flex-col gap-3 border-t border-line pt-4 text-base">
-            <Fact label={o.duration}>{o.days(offer.durationDays)}</Fact>
-            <Fact label={o.warranty}>{o.months(offer.warrantyMonths)}</Fact>
+            <Fact label={o.duration}>{formatDays(offer.durationDays)}</Fact>
+            <Fact label={o.warranty}>{formatMonths(offer.warrantyMonths)}</Fact>
             <Fact label={o.measurement}>{termsText(offer.measurementTerms, offer.measurementFee)}</Fact>
           </dl>
           {offer.comment && (

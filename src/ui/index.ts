@@ -2,7 +2,18 @@
 // Шрифты — отдельно (`@/ui/fonts`), их подключает только корневой layout.
 
 export { cn } from "./cn";
-export { formatDate, formatDateTime, formatMoney, formatRelative, formatTime, TIME_ZONE, type DateInput } from "./format";
+export {
+  formatDate,
+  formatDateTime,
+  formatDays,
+  formatMoney,
+  formatMonths,
+  formatRelative,
+  formatTime,
+  formatYears,
+  TIME_ZONE,
+  type DateInput,
+} from "./format";
 
 export { Button, ButtonLink, buttonClasses, type ButtonLinkProps, type ButtonProps, type ButtonVariant } from "./Button";
 export {

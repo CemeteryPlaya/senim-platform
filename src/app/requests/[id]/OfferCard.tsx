@@ -1,7 +1,7 @@
 import { MessageCircle, Star } from "lucide-react";
 import type { OfferListItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { ButtonLink, Money, StatusBadge } from "@/ui";
+import { ButtonLink, formatDays, formatMonths, Money, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { OFFER_TONE, termsText } from "../_parts/labels";
 
@@ -53,9 +53,9 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
             </>
           )}
           <dt className="text-muted">{o.duration}</dt>
-          <dd className="text-ink">{o.days(offer.durationDays)}</dd>
+          <dd className="text-ink">{formatDays(offer.durationDays)}</dd>
           <dt className="text-muted">{o.warranty}</dt>
-          <dd className="text-ink">{o.months(offer.warrantyMonths)}</dd>
+          <dd className="text-ink">{formatMonths(offer.warrantyMonths)}</dd>
           <dt className="text-muted">{o.measurement}</dt>
           <dd className="text-ink">{termsText(offer.measurementTerms, offer.measurementFee)}</dd>
         </dl>

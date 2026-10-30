@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatDateTime, formatMoney, formatRelative, formatTime } from "./format";
+import { formatDate, formatDateTime, formatDays, formatMoney, formatMonths, formatRelative, formatTime, formatYears } from "./format";
 
 const NBSP = " ";
 
@@ -70,5 +70,28 @@ describe("formatRelative", () => {
 
   it("дальше недели — обычная дата", () => {
     expect(formatRelative(ago(30 * DAY), now)).toBe("10 февраля 2026");
+  });
+});
+
+describe("сроки полными словами со склонением", () => {
+  it("дни: 1 день, 3 дня, 35 дней, 21 день, 11 дней", () => {
+    expect(formatDays(1)).toBe(`1${NBSP}день`);
+    expect(formatDays(3)).toBe(`3${NBSP}дня`);
+    expect(formatDays(35)).toBe(`35${NBSP}дней`);
+    expect(formatDays(21)).toBe(`21${NBSP}день`);
+    expect(formatDays(11)).toBe(`11${NBSP}дней`);
+  });
+
+  it("месяцы: 1 месяц, 2 месяца, 18 месяцев, 24 месяца", () => {
+    expect(formatMonths(1)).toBe(`1${NBSP}месяц`);
+    expect(formatMonths(2)).toBe(`2${NBSP}месяца`);
+    expect(formatMonths(18)).toBe(`18${NBSP}месяцев`);
+    expect(formatMonths(24)).toBe(`24${NBSP}месяца`);
+  });
+
+  it("годы: 1 год, 4 года, 12 лет", () => {
+    expect(formatYears(1)).toBe(`1${NBSP}год`);
+    expect(formatYears(4)).toBe(`4${NBSP}года`);
+    expect(formatYears(12)).toBe(`12${NBSP}лет`);
   });
 });

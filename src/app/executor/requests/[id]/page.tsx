@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { getIncomingRequest, type IncomingRequest } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Alert, ButtonLink, Container, EmptyState, Money, PageHeader, StatusBadge, formatDate, formatDateTime, formatMoney } from "@/ui";
+import { Alert, ButtonLink, Container, EmptyState, Money, PageHeader, StatusBadge, formatDate, formatDateTime, formatDays, formatMoney, formatMonths } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { ActionButton } from "@/app/requests/_parts/ActionButton";
 import { orNotFound, pageUser } from "@/app/requests/_parts/guard";
@@ -93,9 +93,9 @@ function OfferSummary({ offer }: { offer: NonNullable<IncomingRequest["myOffer"]
         <Money amount={offer.price} />
       </dd>
       <dt className="text-muted">{o.duration}</dt>
-      <dd className="text-ink">{o.days(offer.durationDays)}</dd>
+      <dd className="text-ink">{formatDays(offer.durationDays)}</dd>
       <dt className="text-muted">{o.warranty}</dt>
-      <dd className="text-ink">{o.months(offer.warrantyMonths)}</dd>
+      <dd className="text-ink">{formatMonths(offer.warrantyMonths)}</dd>
       <dt className="text-muted">{o.measurement}</dt>
       <dd className="text-ink">{termsText(offer.measurementTerms, offer.measurementFee)}</dd>
     </dl>
