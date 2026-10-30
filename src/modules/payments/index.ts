@@ -22,7 +22,13 @@ export {
 } from "./operations";
 export { reconcile, type Reconcile } from "./reconcile";
 export type { ReconciliationRow } from "./reconcile-entries";
-export { getSimulatorAccount, simulatorDeposit, simulatorRedeliver } from "./simulator";
+export {
+  getSimulatorAccount,
+  simulatorAccountSchema,
+  simulatorDeposit,
+  simulatorDepositSchema,
+  simulatorRedeliver,
+} from "./simulator";
 export type { SignedDelivery } from "./rails/escrow-simulator";
 export { SIGNATURE_HEADER, TIMESTAMP_HEADER } from "./webhook-signature";
 

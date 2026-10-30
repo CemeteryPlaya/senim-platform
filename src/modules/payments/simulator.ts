@@ -1,9 +1,17 @@
+import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import { db } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { assertAmount } from "./operations";
 import { escrowSimulator, type SignedDelivery } from "./rails/escrow-simulator";
+
+const accountId = z.string().trim().min(1).max(64);
+export const simulatorAccountSchema = z.object({ accountId });
+export const simulatorDepositSchema = z.object({
+  accountId,
+  amount: z.coerce.number({ error: ru.payments.errors.depositAmount }).int(ru.payments.errors.depositAmount).positive(ru.payments.errors.depositAmount),
+});
 
 /**
  * Экран «Банк-симулятор»: счёт сделки глазами банка. Видят стороны сделки и оператор,
