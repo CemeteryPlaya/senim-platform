@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { executeOperation, railFor, reconcile, requestOperation, simulatorDeposit, simulatorRedeliver } from "@/modules/payments";
 import { db, transaction } from "@/platform/db";
 import { makeOperator } from "../../../test/factories";
-import { dealOf, makeDeal, makeStagePhoto, signAct, signContract, stagesOf, type DealFixture } from "../../../test/factories/deal";
+import { dealOf, makeDeal, makeStagePhoto, noCancelHooks, signAct, signContract, stagesOf, type DealFixture } from "../../../test/factories/deal";
 import {
   acceptStage,
   cancelDeal,
@@ -141,7 +141,7 @@ describe("эскроу-сделка в банк-симуляторе", () => {
   it("отмена после частичного пополнения возвращает внесённое заказчику", async () => {
     const f = await signedEscrowDeal();
     await deposit(f, 30_000);
-    await cancelDeal(f.client, { dealId: f.dealId, reason: "Нашли другого мастера" });
+    await cancelDeal(f.client, { dealId: f.dealId, reason: "Нашли другого мастера" }, noCancelHooks);
     expect(await dealOf(f.dealId)).toMatchObject({ status: "CANCELLED" });
     expect(await accountOf(f.dealId)).toMatchObject({ deposited: 30_000, refunded: 30_000, status: "REFUNDED" });
     expect(await db.paymentOperation.findUniqueOrThrow({ where: { idempotencyKey: `cancel:${f.dealId}:refund` } })).toMatchObject({

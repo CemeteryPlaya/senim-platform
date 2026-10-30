@@ -20,6 +20,7 @@ import {
   submitStageSchema,
 } from "@/modules/deal-core";
 import { requireUser } from "@/modules/identity";
+import { onDealCancelled } from "@/modules/requests";
 import { action } from "@/platform/action";
 
 // Действия на экране сделки. Вход — zod-схема deal-core, первая строка — роль;
@@ -57,7 +58,7 @@ export const confirmPaymentAction = action("deal.confirmStagePayment", stageRefS
 
 export const cancelDealAction = action("deal.cancel", cancelDealSchema, async (input) => {
   const user = await requireUser("CLIENT", "EXECUTOR");
-  await cancelDeal(user, input);
+  await cancelDeal(user, input, { onCancelled: onDealCancelled });
 });
 
 export const openDisputeAction = action("deal.openDispute", openDisputeSchema, async (input) => {

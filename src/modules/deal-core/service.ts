@@ -20,7 +20,7 @@ import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { enqueueJob } from "@/platform/jobs";
 import { logger } from "@/platform/logger";
-import type { CreateDeal, OnDocumentSigned } from "./contracts";
+import type { CancelDealHooks, CreateDeal, OnDocumentSigned } from "./contracts";
 import {
   afterDealStarted,
   afterStageAccepted,
@@ -353,15 +353,17 @@ export async function confirmStagePayment(user: CurrentUser, raw: { stageId: str
 
 /**
  * Отмена до начала работ. Неподписанный договор снимается с подписи (documents.withdrawContract),
- * в эскроу внесённое возвращается заказчику (ключ cancel:<dealId>:refund) — всё в одной транзакции.
+ * в эскроу внесённое возвращается заказчику (ключ cancel:<dealId>:refund), заявка закрывается хуком
+ * hooks.onCancelled (requests.onDealCancelled) — всё в одной транзакции.
  */
-export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reason?: string }) {
+export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reason?: string }, hooks: CancelDealHooks) {
   const input = parseInput(cancelDealSchema, raw);
   await transaction(async (tx) => {
     const deal = await lockDeal(tx, input.dealId);
     const who = requireRole(user, deal);
     await moveDeal(tx, deal, { event: "cancel", who, actor: actorOf(user), audit: { action: "deal.cancelled", meta: { reason: input.reason } }, data: { closedAt: new Date() } });
     await withdrawContract(tx, deal.id);
+    await hooks.onCancelled(tx, deal.id);
     const balance = deal.paymentMode === "MANUAL" ? 0 : await escrowBalance(tx, deal.id);
     if (balance > 0) await requestMoney(tx, { dealId: deal.id, kind: "REFUND", amount: balance, idempotencyKey: `cancel:${deal.id}:refund` });
     await notifyParty(tx, deal, who === "CLIENT" ? "EXECUTOR" : "CLIENT", "deal.cancelled", { title: t.cancelled.title, body: t.cancelled.body(deal.number) });

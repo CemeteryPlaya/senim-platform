@@ -3,7 +3,15 @@ import "server-only";
 // Публичный API ядра сделки. Ядро не знает про мебель: шаблоны этапов приходят из вертикали.
 // Статусные машины — ./transitions.ts (ADR-002). Контракты для других модулей — ./contracts.ts.
 export { planStages, type PlannedStage, type StageTemplate } from "./stage-plan";
-export type { CreateDeal, CreateDealInput, OnDocumentSigned, ResolveDispute, ResolveDisputeInput } from "./contracts";
+export type {
+  CancelDealHooks,
+  CreateDeal,
+  CreateDealInput,
+  OnDealCancelled,
+  OnDocumentSigned,
+  ResolveDispute,
+  ResolveDisputeInput,
+} from "./contracts";
 export { DEAL_TRANSITIONS, PAYMENT_TRANSITIONS, STAGE_TRANSITIONS } from "./transitions";
 
 // Контракты (фаза A)

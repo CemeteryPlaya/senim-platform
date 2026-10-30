@@ -71,6 +71,9 @@ export async function makeDeal(opts: { template?: StageTemplate; total?: number;
   return { dealId, requestId: request.id, client, executor };
 }
 
+/** Хук отмены для тестов deal-core: заявку закрывает requests (его тест — requests/deal-cancelled.int.test.ts). */
+export const noCancelHooks = { onCancelled: async () => {} };
+
 /** Временно меняет PAYMENT_RAIL (режим новой сделки). */
 export async function withRail<T>(rail: RailMode, fn: () => Promise<T>): Promise<T> {
   const prev = process.env.PAYMENT_RAIL;

@@ -16,6 +16,7 @@ const REQUEST_SPEC = [
   "measurementNoDeal: MEASURING → OPEN (CLIENT)",
   "measurementNoDeal: MEASURING → OPEN (EXECUTOR)",
   "contractSigned: CONTRACTING → CLOSED (SYSTEM)",
+  "dealCancelled: CONTRACTING → CANCELLED (SYSTEM)",
   "cancel: DRAFT → CANCELLED (CLIENT)",
   "cancel: OPEN → CANCELLED (CLIENT)",
   "cancel: OFFER_CHOSEN → CANCELLED (CLIENT)",

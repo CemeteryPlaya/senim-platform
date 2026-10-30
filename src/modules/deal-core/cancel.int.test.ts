@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
-import { dealOf, makeDeal } from "../../../test/factories/deal";
+import { dealOf, makeDeal, noCancelHooks } from "../../../test/factories/deal";
 import { cancelDeal } from "./index";
 
 describe("отмена сделки до начала работ", () => {
@@ -8,7 +8,7 @@ describe("отмена сделки до начала работ", () => {
     const f = await makeDeal();
     const contract = await db.document.findFirstOrThrow({ where: { dealId: f.dealId, kind: "CONTRACT" } });
 
-    await cancelDeal(f.client, { dealId: f.dealId, reason: "Передумали" });
+    await cancelDeal(f.client, { dealId: f.dealId, reason: "Передумали" }, noCancelHooks);
 
     expect(await dealOf(f.dealId)).toMatchObject({ status: "CANCELLED" });
     expect(await db.document.findUniqueOrThrow({ where: { id: contract.id } })).toMatchObject({ status: "SUPERSEDED" });

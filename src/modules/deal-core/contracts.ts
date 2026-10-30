@@ -31,6 +31,13 @@ export type CreateDeal = (tx: Tx, input: CreateDealInput) => Promise<{ dealId: s
  */
 export type OnDocumentSigned = (tx: Tx, documentId: string) => Promise<void>;
 
+/**
+ * Хук отмены сделки (в той же транзакции): requests закрывает заявку CONTRACTING → CANCELLED.
+ * Экран передаёт requests.onDealCancelled в cancelDeal — requests сам импортирует deal-core, цикла нет.
+ */
+export type OnDealCancelled = (tx: Tx, dealId: string) => Promise<void>;
+export type CancelDealHooks = { onCancelled: OnDealCancelled };
+
 /** operator → deal-core: решение по спору. */
 export type ResolveDisputeInput = {
   disputeId: string;

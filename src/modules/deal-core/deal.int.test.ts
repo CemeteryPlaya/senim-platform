@@ -6,6 +6,7 @@ import {
   dealOf,
   makeDeal,
   makeStagePhoto,
+  noCancelHooks,
   signAct,
   signContract,
   stagesOf,
@@ -136,11 +137,11 @@ describe("полный путь сделки в режиме manual", () => {
 
   it("отмена до начала работ — любой стороной; после начала — нельзя", async () => {
     const f = await makeDeal();
-    await cancelDeal(f.executor, { dealId: f.dealId, reason: "Передумали" });
+    await cancelDeal(f.executor, { dealId: f.dealId, reason: "Передумали" }, noCancelHooks);
     expect(await dealOf(f.dealId)).toMatchObject({ status: "CANCELLED" });
 
     const g = await startedDeal();
-    expect(await code(cancelDeal(g.client, { dealId: g.dealId }))).toBe("CONFLICT");
+    expect(await code(cancelDeal(g.client, { dealId: g.dealId }, noCancelHooks))).toBe("CONFLICT");
   });
 
   it("отзыв — только заказчик и только после завершения", async () => {
@@ -203,7 +204,7 @@ describe("доступ к чужим сделкам (IDOR)", () => {
     const operator = await makeOperator();
 
     expect(await code(startStage(otherExecutor, { stageId: advance.id }))).toBe("NOT_FOUND");
-    expect(await code(cancelDeal(stranger, { dealId: f.dealId }))).toBe("NOT_FOUND");
+    expect(await code(cancelDeal(stranger, { dealId: f.dealId }, noCancelHooks))).toBe("NOT_FOUND");
     expect(await code(startStage(operator, { stageId: advance.id }))).toBe("FORBIDDEN");
     await startStage(f.executor, { stageId: advance.id });
     await submit(f, advance.id);
@@ -260,7 +261,7 @@ describe("на реальной БД: каждое действие из каж�
   }
 
   const dealActions = [
-    { name: "отменить", allowed: ["AWAITING_SIGNATURES", "AWAITING_DEPOSIT"], run: (f: DealFixture) => cancelDeal(f.client, { dealId: f.dealId }) },
+    { name: "отменить", allowed: ["AWAITING_SIGNATURES", "AWAITING_DEPOSIT"], run: (f: DealFixture) => cancelDeal(f.client, { dealId: f.dealId }, noCancelHooks) },
     {
       name: "открыть спор",
       allowed: ["IN_PROGRESS"],

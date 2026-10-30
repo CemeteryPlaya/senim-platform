@@ -38,6 +38,7 @@ export {
   scheduleMeasurement,
   type MeasurementListItem,
 } from "./measurements";
+export { onDealCancelled } from "./deal-cancelled";
 export * from "./schema";
 export { MEASUREMENT_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS } from "./transitions";
 
