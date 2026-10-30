@@ -1,3 +1,4 @@
+import { crc32, deflateSync } from "node:zlib";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { isAppError } from "@/platform/errors";
@@ -74,7 +75,38 @@ describe("обработка фото", () => {
     const error = await processImage(fake).catch((e: unknown) => e);
     expect(isAppError(error) && error.code).toBe("VALIDATION");
   });
+
+  it("картинка-бомба: маленький файл на 64 млн пикселей отклоняется, не раскодируясь", async () => {
+    const bomb = blackPng(8000, 8000);
+    expect(bomb.length).toBeLessThan(100_000);
+    const error = await processImage(bomb).catch((e: unknown) => e);
+    expect(isAppError(error) && error.code).toBe("VALIDATION");
+    const hashError = await dHash(bomb).catch((e: unknown) => e);
+    expect(hashError).toBeInstanceOf(Error);
+  });
 });
+
+/** Настоящий PNG (1 бит, оттенки серого, всё чёрное): сжимается в килобайты при любом размере. */
+function blackPng(width: number, height: number): Uint8Array {
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc32(body), body.length + 4);
+    return out;
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 1; // глубина 1 бит
+  ihdr[9] = 0; // оттенки серого
+  const row = Math.ceil(width / 8) + 1; // байт фильтра + пиксели
+  const idat = deflateSync(Buffer.alloc(row * height), { level: 9 });
+  return new Uint8Array(
+    Buffer.concat([Buffer.from("\x89PNG\r\n\x1a\n", "latin1"), chunk("IHDR", ihdr), chunk("IDAT", idat), chunk("IEND", Buffer.alloc(0))]),
+  );
+}
 
 describe("перцептивный хэш (dHash, 64 бита)", () => {
   it("16 шестнадцатеричных символов", async () => {

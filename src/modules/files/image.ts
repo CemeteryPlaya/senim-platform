@@ -23,6 +23,11 @@ export function sniffType(bytes: Uint8Array): SniffedType | null {
 /** Длинная сторона после сжатия: хватает для просмотра на экране и для акта в PDF. */
 export const MAX_SIDE = 2560;
 const JPEG_QUALITY = 82;
+/**
+ * Предел пикселей на входе sharp: PNG в десятки килобайт может заявить 100 млн пикселей и занять
+ * гигабайты памяти при раскодировании. 50 млн — с запасом для фото телефона (48 Мп).
+ */
+export const MAX_INPUT_PIXELS = 50_000_000;
 
 export type ProcessedImage = {
   bytes: Uint8Array;
@@ -40,7 +45,7 @@ export type ProcessedImage = {
 export async function processImage(input: Uint8Array): Promise<ProcessedImage> {
   const heic = sniffType(input) === "heic";
   try {
-    const { data, info } = await sharp(input, { failOn: "error" })
+    const { data, info } = await sharp(input, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
       .autoOrient()
       .resize({ width: MAX_SIDE, height: MAX_SIDE, fit: "inside", withoutEnlargement: true })
       .flatten({ background: "#ffffff" })
@@ -59,7 +64,7 @@ export async function processImage(input: Uint8Array): Promise<ProcessedImage> {
  * Устойчив к пережатию и масштабу, поэтому находит одно и то же фото, загруженное разными людьми.
  */
 export async function dHash(input: Uint8Array): Promise<string> {
-  const pixels = await sharp(input).autoOrient().grayscale().resize(9, 8, { fit: "fill" }).raw().toBuffer();
+  const pixels = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).autoOrient().grayscale().resize(9, 8, { fit: "fill" }).raw().toBuffer();
   let hash = 0n;
   for (let y = 0; y < 8; y++) {
     for (let x = 0; x < 8; x++) {
