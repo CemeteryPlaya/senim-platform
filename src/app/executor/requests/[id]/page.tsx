@@ -7,7 +7,7 @@ import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { ActionButton } from "@/app/requests/_parts/ActionButton";
 import { orNotFound, pageUser } from "@/app/requests/_parts/guard";
 import { MEASUREMENT_TONE, OFFER_TONE, termsText } from "@/app/requests/_parts/labels";
-import { OfferChat } from "@/app/requests/_parts/OfferChat";
+import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { detailRows, FactList } from "@/app/requests/_parts/RequestFacts";
 import { executorNoDealAction, withdrawOfferAction } from "../actions";
 import { CompleteForm, OfferForm, ScheduleForm } from "../ExecutorForms";
@@ -78,12 +78,7 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
       </div>
 
       {r.myOffer && (
-        <section aria-labelledby="chat-title" id="chat" className="flex flex-col gap-4">
-          <h2 id="chat-title" className="text-2xl font-bold text-ink">
-            {ru.requests.offer.chat}
-          </h2>
-          <OfferChat lines={r.messages} otherLabel={ru.common.roles.CLIENT} title={ru.requests.offer.chat} />
-        </section>
+        <OfferChat offerId={r.myOffer.id} />
       )}
     </Container>
   );

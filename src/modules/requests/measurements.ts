@@ -1,5 +1,6 @@
 import "server-only";
 import { recordAudit, SYSTEM } from "@/modules/audit";
+import { createDeal } from "@/modules/deal-core";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
@@ -7,7 +8,6 @@ import { db, transaction, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { STAGE_TEMPLATES, type StageTemplateKey } from "@/verticals/furniture";
 import { auditByUser, links, loadExecutor, loadOwnRequest, requestScope, requestTitle, requireClient } from "./access";
-import { createDeal } from "./adapters";
 import { MEASUREMENT_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
 
 const e = ru.requests.errors;

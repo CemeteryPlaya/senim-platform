@@ -9,7 +9,7 @@ import { chooseOfferAction } from "../../../actions";
 import { ActionButton } from "../../../_parts/ActionButton";
 import { orNotFound, pageUser } from "../../../_parts/guard";
 import { OFFER_TONE, termsText } from "../../../_parts/labels";
-import { OfferChat } from "../../../_parts/OfferChat";
+import { OfferChat } from "@/app/_components/chat/OfferChat";
 
 const o = ru.requests.offer;
 
@@ -33,7 +33,7 @@ export default async function OfferPage({ params }: Props) {
   }
   const offer = await orNotFound(getOfferForClient(user, { requestId: id, offerId }));
   const ex = offer.executor;
-  const gallery = offer.portfolio.items.flatMap((item) => item.photos.slice(0, 1).map((p) => ({ ...p, title: item.title, style: item.style })));
+  const gallery = offer.portfolio.flatMap((item) => item.photos.slice(0, 1));
 
   return (
     <Container className="flex flex-col gap-10 pb-10">
@@ -81,12 +81,11 @@ export default async function OfferPage({ params }: Props) {
       </div>
 
       <Section id="portfolio" title={o.portfolio}>
-        {offer.portfolio.items.length === 0 ? (
+        {offer.portfolio.length === 0 ? (
           <p className="text-base text-ink-soft">{o.portfolioEmpty}</p>
         ) : (
-          <>
-            <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-4">
-              {offer.portfolio.items.map((item) => (
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-4">
+              {offer.portfolio.map((item) => (
                 <li key={item.id} className="flex flex-col gap-2">
                   {item.photos[0] && (
                     // eslint-disable-next-line @next/next/no-img-element -- иллюстрации портфолио из хранилища
@@ -96,11 +95,7 @@ export default async function OfferPage({ params }: Props) {
                   <span className="text-sm text-muted">{STYLES[item.style as StyleKey]?.name}</span>
                 </li>
               ))}
-            </ul>
-            {offer.portfolio.total > offer.portfolio.items.length && (
-              <p className="text-base text-muted">{o.portfolioMore(offer.portfolio.total - offer.portfolio.items.length)}</p>
-            )}
-          </>
+          </ul>
         )}
       </Section>
 
@@ -141,9 +136,7 @@ export default async function OfferPage({ params }: Props) {
         </ol>
       </Section>
 
-      <Section id="chat" title={o.chat}>
-        <OfferChat lines={offer.messages} otherLabel={ex.label} title={o.chatWith(ex.publicNumber)} />
-      </Section>
+      <OfferChat offerId={offer.id} title={o.chatWith(ex.publicNumber)} />
 
       {offer.canChoose && (
         <div className="sticky bottom-4 z-10 rounded-card border border-line bg-surface p-4 shadow-card sm:self-end">

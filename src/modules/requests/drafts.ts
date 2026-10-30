@@ -1,5 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
+import { attachFiles } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
@@ -7,7 +8,7 @@ import { db, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { suggestSegment } from "@/verticals/furniture";
 import { auditByUser, links, loadOwnRequest, requestTitle, requireClient, type RequestWithType } from "./access";
-import { fileSrc } from "./adapters";
+import { roomPhotos } from "./adapters";
 import {
   applyStep,
   parseDetails,
@@ -49,17 +50,17 @@ async function fieldsOf(tx: Tx, step: StepInput): Promise<Prisma.RequestUpdateMa
   }
 }
 
-/** Фото помещения: ровно выбранные файлы заказчика привязаны к заявке. Загружает их uploader (files). */
+/**
+ * Фото помещения: к заявке прикреплены ровно выбранные файлы. Убранные открепляются,
+ * новые прикрепляет files.attachFiles (только свои, ещё не прикреплённые, назначения REQUEST_ROOM).
+ */
 async function linkRoomPhotos(tx: Tx, user: CurrentUser, requestId: string, fileIds: string[]) {
-  await tx.storedFile.updateMany({
-    where: { requestId, purpose: "REQUEST_ROOM", id: { notIn: fileIds } },
-    data: { requestId: null },
-  });
-  if (fileIds.length === 0) return;
-  await tx.storedFile.updateMany({
-    where: { id: { in: fileIds }, uploadedById: user.id, purpose: "REQUEST_ROOM", OR: [{ requestId: null }, { requestId }] },
-    data: { requestId },
-  });
+  await tx.storedFile.updateMany({ where: { requestId, purpose: "REQUEST_ROOM", id: { notIn: fileIds } }, data: { requestId: null } });
+  const attached = new Set(
+    (await tx.storedFile.findMany({ where: { requestId, purpose: "REQUEST_ROOM" }, select: { id: true } })).map((f) => f.id),
+  );
+  const fresh = fileIds.filter((id) => !attached.has(id));
+  if (fresh.length > 0) await attachFiles(tx, { fileIds: fresh, uploadedById: user.id, owner: { requestId } });
 }
 
 async function createDraft(tx: Tx, user: CurrentUser, like: string | null | undefined): Promise<RequestWithType> {
@@ -227,7 +228,7 @@ export async function getDraft(user: CurrentUser, requestId: string) {
     wishes: r.wishes,
     wizardStep: r.wizardStep,
     title: requestTitle(r),
-    photos: photos.map((f) => ({ id: f.id, src: fileSrc(f) })),
+    photos: await roomPhotos(photos),
     target,
   };
 }

@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { getDraft, likeTarget, listFurnitureTypes, segmentInputOf, WIZARD_SCREENS, type Draft, type WizardScreen } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { Alert, Container, EmptyState, Stepper } from "@/ui";
-import { SEGMENT_NAMES, suggestSegment } from "@/verticals/furniture";
 import { orNotFound, pageUser } from "../_parts/guard";
 import { detailRows, FactList, type FactRow } from "../_parts/RequestFacts";
+import { VisualizationPanel, SegmentHint } from "@/app/_components/ai-assistant";
+import { aiEnabled, listVisualizations } from "@/modules/ai";
+import { AssistantApply } from "./AssistantApply";
 import { MaterialsStep, RoomStep, SendStep, SizeStep, StyleStep, TypeStep } from "./WizardSteps";
 
 const w = ru.requests.wizard;
@@ -61,12 +63,16 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
         />
       )}
       {screen === "style" && draft && <StyleStep {...base} initial={{ style: draft.style, styleNote: draft.details.styleNote ?? "" }} />}
+      {screen === "style" && draft && aiEnabled() && <AssistantApply draftId={draft.id} types={await listFurnitureTypes()} reviewScreen="style" />}
       {screen === "room" && draft && (
         <RoomStep
           {...base}
           photos={draft.photos}
-          // INTEGRATOR: aiSlot={<AiAssistant requestId={draft.id} />} из _components/ai-assistant (только при aiEnabled());
-          // предложение ИИ (RequestDraftSuggestion) переносится в черновик через saveStepAction по экранам.
+          aiSlot={
+            aiEnabled() && draft.photos.length > 0 ? (
+              <VisualizationPanel requestId={draft.id} photos={draft.photos} initial={await listVisualizations(user, draft.id)} />
+            ) : undefined
+          }
         />
       )}
       {screen === "size" && draft && <SizeStep {...base} details={draft.details} />}
@@ -78,7 +84,6 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
 
 function SendScreen({ draft, directNumber }: { draft: Draft; directNumber: number | null }) {
   const s = w.send;
-  const suggestion = suggestSegment(segmentInputOf(draft.details));
   const edit = (screen: WizardScreen, label: string) => (
     <Link href={hrefOf(draft.id, screen)} className="inline-flex min-h-control-sm items-center rounded-control px-2 font-semibold text-primary">
       {w.edit}
@@ -107,22 +112,7 @@ function SendScreen({ draft, directNumber }: { draft: Draft; directNumber: numbe
         desiredDate: draft.desiredDate ? draft.desiredDate.toISOString().slice(0, 10) : "",
         wishes: draft.wishes,
       }}
-      suggestion={
-        suggestion.segment && (
-          <Alert tone="accent" title={s.suggestionTitle}>
-            <p>{s.suggestion(SEGMENT_NAMES[suggestion.segment])}</p>
-            <details className="mt-2">
-              <summary className="inline-flex min-h-control-sm cursor-pointer items-center font-semibold text-primary">{ru.common.actions.why}</summary>
-              <p className="mt-2 text-base text-ink">{s.whyLead}</p>
-              <ul className="mt-2 list-disc pl-6 text-base text-ink">
-                {suggestion.reasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-            </details>
-          </Alert>
-        )
-      }
+      suggestion={<SegmentHint details={segmentInputOf(draft.details)} />}
       summary={
         <section aria-labelledby="send-summary" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 sm:p-6">
           <h2 id="send-summary" className="text-xl font-bold text-ink">

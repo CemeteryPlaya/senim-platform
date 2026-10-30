@@ -59,7 +59,6 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
           <dt className="text-muted">{o.measurement}</dt>
           <dd className="text-ink">{termsText(offer.measurementTerms, offer.measurementFee)}</dd>
         </dl>
-        {offer.portfolioCount > 0 && <p className="text-sm text-muted">{o.portfolioMore(offer.portfolioCount)}</p>}
       </div>
 
       <div className="flex flex-col gap-3 sm:min-w-52 sm:items-stretch">

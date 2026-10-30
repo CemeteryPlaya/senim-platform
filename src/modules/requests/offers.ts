@@ -1,12 +1,13 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
+import { publicExecutorView, publicExecutorViews } from "@/modules/companies";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
 import { db, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { auditByUser, links, loadExecutor, loadOwnRequest, requestTitle, requireClient, type ExecutorRow } from "./access";
-import { executorPortfolio, executorReviews, fileSrc, offerMessages, publicExecutorView } from "./adapters";
+import { executorPortfolio, executorReviews, roomPhotos } from "./adapters";
 import { parseDetails, type OfferSort, type SendOfferInput } from "./schema";
 import { sortOffers } from "./sort";
 import { OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
@@ -158,9 +159,11 @@ export async function chooseOffer(user: CurrentUser, input: { offerId: string })
 export async function listOffers(user: CurrentUser, input: { requestId: string; sort: OfferSort }) {
   await loadOwnRequest(db, user, input.requestId);
   const offers = await db.offer.findMany({ where: { requestId: input.requestId, status: { not: "WITHDRAWN" } } });
+  const views = await publicExecutorViews(offers.map((o) => o.executorId));
   const withExecutors = await Promise.all(
     offers.map(async (o) => {
-      const [executor, portfolio] = await Promise.all([publicExecutorView(o.executorId), executorPortfolio(o.executorId, 3)]);
+      const executor = views.get(o.executorId) ?? (await publicExecutorView(o.executorId));
+      const portfolio = await executorPortfolio(o.executorId, 4);
       return {
         id: o.id,
         status: o.status,
@@ -172,8 +175,7 @@ export async function listOffers(user: CurrentUser, input: { requestId: string; 
         comment: o.comment,
         createdAt: o.createdAt,
         executor,
-        preview: portfolio.items.flatMap((i) => i.photos).slice(0, 4),
-        portfolioCount: portfolio.total,
+        preview: portfolio.flatMap((i) => i.photos.slice(0, 1)),
       };
     }),
   );
@@ -186,11 +188,10 @@ export async function getOfferForClient(user: CurrentUser, input: { requestId: s
   const r = await loadOwnRequest(db, user, input.requestId);
   const o = await db.offer.findFirst({ where: { id: input.offerId, requestId: r.id, status: { not: "WITHDRAWN" } } });
   if (!o) return fail.notFound(e.offerNotFound);
-  const [executor, portfolio, reviews, messages] = await Promise.all([
+  const [executor, portfolio, reviews] = await Promise.all([
     publicExecutorView(o.executorId),
     executorPortfolio(o.executorId, 8),
     executorReviews(o.executorId),
-    offerMessages(o.id, user.id),
   ]);
   return {
     id: o.id,
@@ -207,7 +208,6 @@ export async function getOfferForClient(user: CurrentUser, input: { requestId: s
     executor,
     portfolio,
     reviews,
-    messages,
   };
 }
 export type OfferDetail = Awaited<ReturnType<typeof getOfferForClient>>;
@@ -259,7 +259,6 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
   if (!r) return fail.notFound(e.notFound);
   const mine = r.offers[0] ?? null;
   const chosen = mine?.status === "ACCEPTED";
-  const messages = mine ? await offerMessages(mine.id, user.id) : [];
   return {
     id: r.id,
     number: r.number,
@@ -274,10 +273,9 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     desiredDate: r.desiredDate,
     wishes: r.wishes,
     publishedAt: r.publishedAt,
-    photos: r.photos.map((f) => ({ id: f.id, src: fileSrc(f) })),
+    photos: await roomPhotos(r.photos),
     canOffer: r.status === "OPEN" && mine === null,
     defaults: { measurementTerms: executor.measurementTerms, measurementFee: executor.measurementFee },
-    messages,
     myOffer: mine && {
       id: mine.id,
       status: mine.status,

@@ -19,6 +19,7 @@ import {
 import { ru } from "@/i18n/ru";
 import { Button, Checkbox, Input, RadioCards, Select, Textarea } from "@/ui";
 import { COUNTERTOPS, FACADES, HARDWARE, SEGMENT_NAMES, STYLES } from "@/verticals/furniture";
+import { Uploader } from "@/app/_components/uploader";
 import { saveStepAction, submitRequestAction } from "../actions";
 import { FormError, useRunAction } from "../_parts/ActionButton";
 import { SEGMENT_IMAGES, STYLE_IMAGES } from "../_parts/labels";
@@ -166,9 +167,8 @@ export function StyleStep(props: StepBase & { initial: { style: string | null; s
 // ─── 3. Помещение ────────────────────────────────────────────────────────────
 
 export function RoomStep(props: StepBase & { photos: { id: string; src: string }[]; aiSlot?: ReactNode }) {
-  const { submit, pending, error } = useStep(props);
-  // INTEGRATOR: id файлов приходят из <Uploader purpose="REQUEST_ROOM" … onChange={setPhotoIds} /> (_components/uploader).
-  const [photoIds] = useState(props.photos.map((p) => p.id));
+  const { submit, pending, error, errors } = useStep(props);
+  const [photoIds, setPhotoIds] = useState(props.photos.map((p) => p.id));
   const save = () => submit({ screen: "room", photoFileIds: photoIds });
   return (
     <StepForm
@@ -183,21 +183,15 @@ export function RoomStep(props: StepBase & { photos: { id: string; src: string }
       }
     >
       <StepHeading title={w.room.title} lead={w.room.lead} />
-      <section aria-label={w.room.photosLabel} className="flex flex-col gap-3">
-        {/* INTEGRATOR: здесь <Uploader> от platform-engineer: «Сфотографировать», «Загрузить фото», «Использовать чертёж». */}
-        {props.photos.length > 0 ? (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,9rem),1fr))] gap-3">
-            {props.photos.map((p, i) => (
-              <li key={p.id}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- адрес файла приходит из хранилища, размеры неизвестны */}
-                <img src={p.src} alt={w.room.photoAlt(i + 1)} className="aspect-square w-full rounded-card border border-line object-cover" />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-base text-ink-soft">{w.room.none}</p>
-        )}
-      </section>
+      <Uploader
+        purpose="REQUEST_ROOM"
+        label={w.room.photosLabel}
+        hint={w.room.hint}
+        max={LIMITS.photos}
+        initial={props.photos.map((p) => ({ id: p.id, url: p.src }))}
+        onChange={setPhotoIds}
+        error={first(errors, "photoFileIds")}
+      />
       {props.aiSlot}
       <FormError message={error} />
     </StepForm>

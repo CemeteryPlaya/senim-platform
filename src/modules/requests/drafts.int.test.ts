@@ -59,6 +59,24 @@ describe("черновик заявки", () => {
     });
   });
 
+  it("фото помещения: свои загруженные файлы прикрепляются, убранные открепляются, чужие — отказ", async () => {
+    const client = await makeClient();
+    const stranger = await makeClient();
+    const requestId = await makeDraft(client);
+    const upload = (uploadedById: string, n: number) =>
+      db.storedFile.create({
+        data: { storageKey: `test/room-${uploadedById}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById },
+      });
+    const [a, b] = [await upload(client.id, 1), await upload(client.id, 2)];
+    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds } });
+
+    await room([a.id, b.id]);
+    expect((await getDraft(client, requestId)).photos.map((p) => p.id)).toEqual([a.id, b.id]);
+    await room([b.id]);
+    expect((await getDraft(client, requestId)).photos.map((p) => p.id)).toEqual([b.id]);
+    await expect(room([b.id, (await upload(stranger.id, 3)).id])).rejects.toThrow(code("CONFLICT"));
+  });
+
   it("чужой черновик не виден и не меняется (IDOR)", async () => {
     const owner = await makeClient();
     const stranger = await makeClient();
