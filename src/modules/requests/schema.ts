@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import { COUNTERTOPS, FACADES, HARDWARE, STYLES, type SegmentInput } from "@/verticals/furniture";
+import { COUNTERTOPS, FACADES, HARDWARE, STAGE_TEMPLATES, STYLES, type SegmentInput } from "@/verticals/furniture";
 
 /**
  * Данные заявки на входе и в БД (`Request.details`). Разбираются один раз — здесь;
@@ -150,6 +150,54 @@ const sendStep = z.strictObject({
 export const stepInputSchema = z.discriminatedUnion("screen", [typeStep, styleStep, roomStep, sizeStep, materialsStep, sendStep]);
 export type StepInput = z.output<typeof stepInputSchema>;
 export type StepFormInput = z.input<typeof stepInputSchema>;
+
+// ─── входы сервиса (Server Actions разбирают их этими схемами) ────────────────
+
+const id = z.string().min(1).max(64);
+
+export const saveDraftSchema = z.strictObject({
+  requestId: id.nullable(),
+  /** «Хочу похожее»: работа из портфолио — только при создании черновика. */
+  like: id.nullable().optional(),
+  step: stepInputSchema,
+});
+export type SaveDraftInput = z.output<typeof saveDraftSchema>;
+
+export const requestRefSchema = z.strictObject({ requestId: id });
+export const cancelRequestSchema = z.strictObject({ requestId: id, reason: optionalText(300) });
+export const offerRefSchema = z.strictObject({ offerId: id });
+
+export const OFFER_SORTS = ["price", "duration", "rating"] as const;
+export type OfferSort = (typeof OFFER_SORTS)[number];
+export const listOffersSchema = z.strictObject({ requestId: id, sort: z.enum(OFFER_SORTS).default("price") });
+export const offerDetailSchema = z.strictObject({ requestId: id, offerId: id });
+
+const money = z.number({ error: t.price }).int(t.price).min(1, t.price).max(100_000_000, t.price);
+const MEASUREMENT_TERMS = ["FREE", "INCLUDED", "FEE_IF_NO_DEAL"] as const;
+
+export const sendOfferSchema = z
+  .strictObject({
+    requestId: id,
+    price: money,
+    durationDays: z.number({ error: t.days }).int(t.days).min(1, t.days).max(365, t.days),
+    warrantyMonths: z.number({ error: t.warranty }).int(t.warranty).min(0, t.warranty).max(120, t.warranty),
+    comment: optionalText(1000),
+    /** Не указаны — берутся из профиля исполнителя. */
+    measurementTerms: z.enum(MEASUREMENT_TERMS).optional(),
+    measurementFee: money.nullable().optional(),
+  })
+  .refine((o) => o.measurementTerms !== "FEE_IF_NO_DEAL" || (o.measurementFee ?? 0) > 0, {
+    message: t.feeRequired,
+    path: ["measurementFee"],
+  });
+export type SendOfferInput = z.output<typeof sendOfferSchema>;
+
+export const scheduleMeasurementSchema = z.strictObject({ offerId: id, scheduledAt: z.coerce.date({ error: t.date }) });
+export const completeMeasurementSchema = z.strictObject({ measurementId: id, finalPrice: money, result: optionalText(1000) });
+export const noDealSchema = z.strictObject({ measurementId: id, result: optionalText(1000) });
+
+/** Шаблон этапов из вертикали: заказчик выбирает порядок оплаты при согласии на договор. */
+export const agreeToContractSchema = z.strictObject({ requestId: id, template: z.enum(keysOf(STAGE_TEMPLATES)) });
 
 /** Номер экрана (с нуля). `Request.wizardStep` — сколько экранов уже сохранено. */
 export function screenIndex(screen: WizardScreen): number {
