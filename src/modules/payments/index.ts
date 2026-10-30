@@ -22,6 +22,7 @@ export {
   type SettledOperation,
   type WebhookOutcome,
 } from "./operations";
+export { JOB_RESEND_PENDING, paymentJobHandlers, RESEND_AFTER_MINUTES, resendPendingOperations } from "./resend";
 export { reconcile, type Reconcile } from "./reconcile";
 export type { ReconciliationRow } from "./reconcile-entries";
 export {
@@ -34,4 +35,4 @@ export {
 export type { SignedDelivery } from "./rails/escrow-simulator";
 export { SIGNATURE_HEADER, TIMESTAMP_HEADER } from "./webhook-signature";
 
-export const jobHandlers = {} as const;
+// Задачи payments собирает src/jobs.ts через paymentJobHandlers(deal-core.onPaymentSettled).

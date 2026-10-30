@@ -222,6 +222,10 @@ export const deal = {
     paymentDue: { title: "Пора оплатить этап", body: (title: string) => `Этап «${title}»: оплатите исполнителю и отметьте оплату.` },
     paymentMarked: { title: "Заказчик отметил оплату", body: (title: string) => `Этап «${title}»: подтвердите получение денег.` },
     paymentConfirmed: { title: "Оплата подтверждена", body: (title: string) => `Исполнитель подтвердил оплату этапа «${title}».` },
+    paymentFailed: {
+      title: "Банк отклонил операцию по счёту сделки",
+      body: (number: number, amount: string) => `Сделка № ${number}: операция на ${amount} не прошла. Проверьте причину и повторите операцию.`,
+    },
     paymentReleased: { title: "Оплата этапа раскрыта", body: (title: string) => `Банк перечислил оплату за этап «${title}».` },
     stageStarted: { title: "Этап начат", body: (title: string) => `Исполнитель начал этап «${title}».` },
     stageSubmitted: { title: "Этап сдан", body: (title: string) => `Проверьте этап «${title}» и примите его или верните на доработку.` },
@@ -260,6 +264,10 @@ export const deal = {
     partialAmount: "Укажите сумму в пользу исполнителя: больше нуля и не больше неоплаченной суммы",
     decisionNotApplicable: (stage: string) =>
       `Этап «${stage}» уже принят — вернуть его на доработку нельзя. Выберите решение в пользу исполнителя, расторжение или частичное решение`,
+    operationNotFound: "Операция по счёту не найдена",
+    retryOnlyFailed: "Повторить можно только операцию, которую отклонил банк",
+    retryInProgress: "Операция уже повторена или выполнена — дождитесь ответа банка",
+    retryNoFunds: "На счёте сделки не хватает свободных средств для повтора",
     amountOnlyPartial: "Сумма указывается только при частичном решении",
     dealExists: "Сделка по этой заявке уже создана",
     badDealInput: "Заявка, отклик и стороны сделки не совпадают",

@@ -33,6 +33,10 @@ export {
 } from "./service";
 export { openDispute, submitDisputePosition } from "./dispute";
 
+// Деньги: итог операции банка (хук для payments) и повтор отклонённой операции оператором
+export { onPaymentSettled } from "./service";
+export { retryPaymentOperation } from "./retry";
+
 // Чтения для экранов
 export { getDealView, listDeals, type DealListItem, type DealView } from "./queries";
 export type { NextAction, NextStep } from "./next-step";
@@ -44,6 +48,7 @@ export {
   disputePositionSchema,
   openDisputeSchema,
   resolveDisputeSchema,
+  retryOperationSchema,
   reviewSchema,
   reworkSchema,
   stageRefSchema,

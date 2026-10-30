@@ -26,6 +26,7 @@ import {
   afterStageAccepted,
   DAY_MS,
   JOB_OPEN_ACCOUNT,
+  notifyOperatorsPaymentFailed,
   notifyParty,
   partyText,
   requestMoney,
@@ -149,7 +150,10 @@ export const onDocumentSigned: OnDocumentSigned = async (tx, documentId) => {
 /** payments → deal-core: операция по счёту выполнена или отклонена (в транзакции payments, сделка уже заблокирована). */
 export const onPaymentSettled: SettledHook = async (tx, op) => {
   const deal = await lockDeal(tx, op.dealId);
-  if (op.status !== "SUCCEEDED") return;
+  if (op.status === "FAILED") {
+    await notifyOperatorsPaymentFailed(tx, deal, op);
+    return;
+  }
 
   if (op.kind === "DEPOSIT") {
     if (deal.status === "AWAITING_DEPOSIT" && (await isFullyFunded(tx, deal.id, deal.totalAmount))) {

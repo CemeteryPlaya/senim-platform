@@ -83,6 +83,7 @@ export const autoAcceptPayloadSchema = z.object({
   /** Задача поставлена заново после решения спора (срок — от решения). */
   resumedAt: z.iso.datetime().optional(),
 });
+export const retryOperationSchema = z.object({ idempotencyKey: z.string().trim().min(1).max(200) });
 export const settlePayloadSchema = z.object({ idempotencyKey: z.string().min(1) });
 export const dealPayloadSchema = z.object({ dealId: id });
 

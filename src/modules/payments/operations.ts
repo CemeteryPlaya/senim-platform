@@ -71,11 +71,13 @@ export async function pendingOperationKeys(dealId: string): Promise<string[]> {
 /**
  * Шаги 2–3: отправить операцию в банк и зафиксировать результат. Идемпотентно: операция не в PENDING —
  * ничего не делаем; два параллельных вызова получают от банка один и тот же результат по ключу.
+ * Операция, уже принятая банком (externalRef есть, ждём вебхук), отправляется с тем же ключом снова —
+ * банк возвращает её итог (так досылка узнаёт итог, если вебхук потерялся).
  * Банк недоступен — исключение (задача повторит позже).
  */
 export async function executeOperation(idempotencyKey: string, onSettled: SettledHook) {
   const op = await db.paymentOperation.findUnique({ where: { idempotencyKey }, include: { deal: { include: { escrow: true } } } });
-  if (!op || op.status !== "PENDING" || op.kind === "DEPOSIT" || op.externalRef) return op?.status ?? null;
+  if (!op || op.status !== "PENDING" || op.kind === "DEPOSIT") return op?.status ?? null;
   const account = op.deal.escrow;
   if (!account) throw new Error(`У сделки ${op.dealId} нет счёта для операции ${idempotencyKey}`);
 

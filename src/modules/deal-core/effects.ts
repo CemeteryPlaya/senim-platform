@@ -4,6 +4,7 @@ import { notify } from "@/modules/notifications";
 import { requestOperation, type OperationRequest } from "@/modules/payments";
 import type { Tx } from "@/platform/db";
 import { enqueueJob } from "@/platform/jobs";
+import { formatMoney } from "@/ui/format";
 import { createStageAct, maskContacts, recalculateRating, sanitizeExecutorText } from "./ports";
 import { canMoveStage, moveDeal, moveStage, previousDone, type DealState, type StageState } from "./state";
 import type { Who } from "./transitions";
@@ -84,6 +85,18 @@ export async function resumeAutoAccept(tx: Tx, deal: DealState, resumedAt: Date)
       after: { autoAcceptAt: autoAcceptAt.toISOString() },
     });
   }
+}
+
+/**
+ * Банк отклонил операцию: всем действующим операторам — in-app уведомление со ссылкой на сделку
+ * (повторить можно с новым ключом — retryPaymentOperation). Запись в журнал делает payments
+ * (payment.operation.failed) в той же транзакции.
+ * INTEGRATOR: заменить на notifications.notifyOperators, когда появится шаблон «payment.failed».
+ */
+export async function notifyOperatorsPaymentFailed(tx: Tx, deal: DealState, op: { kind: string; amount: number }) {
+  const operators = await tx.user.findMany({ where: { role: "OPERATOR", blockedAt: null }, select: { id: true } });
+  const msg = { title: t.paymentFailed.title, body: t.paymentFailed.body(deal.number, formatMoney(op.amount)) };
+  for (const { id } of operators) await notify(tx, { userId: id, kind: "payment.failed", ...msg, link: link(deal.id) });
 }
 
 /** Денежная операция по счёту (только эскроу-режимы): запись в журнал + задача на отправку в банк. */

@@ -1,13 +1,13 @@
 import "server-only";
 import { jobHandlers as ai } from "@/modules/ai";
 import { jobHandlers as companies } from "@/modules/companies";
-import { jobHandlers as dealCore } from "@/modules/deal-core";
+import { jobHandlers as dealCore, onPaymentSettled } from "@/modules/deal-core";
 import { jobHandlers as documents } from "@/modules/documents";
 import { jobHandlers as files } from "@/modules/files";
 import { jobHandlers as identity } from "@/modules/identity";
 import { jobHandlers as notifications } from "@/modules/notifications";
 import { jobHandlers as operator } from "@/modules/operator";
-import { jobHandlers as payments } from "@/modules/payments";
+import { JOB_RESEND_PENDING, paymentJobHandlers } from "@/modules/payments";
 import { jobHandlers as requests } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { enqueueJob, type JobHandlers } from "@/platform/jobs";
@@ -25,12 +25,12 @@ export const jobHandlers: JobHandlers = {
   ...identity,
   ...notifications,
   ...operator,
-  ...payments,
+  ...paymentJobHandlers(onPaymentSettled),
   ...requests,
 };
 
 /** Обслуживающие задачи раз в сутки. Ставятся перед каждым проходом; повтор за те же сутки отсекает dedupeKey. */
-const DAILY = ["files.cleanupOrphans"] as const;
+const DAILY = ["files.cleanupOrphans", JOB_RESEND_PENDING] as const;
 
 export async function enqueueDailyJobs(now = new Date()): Promise<void> {
   const day = now.toISOString().slice(0, 10);
