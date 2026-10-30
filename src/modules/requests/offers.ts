@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
-import { publicExecutorView, publicExecutorViews } from "@/modules/companies";
+import { publicExecutorView, publicExecutorViews, sanitizeExecutorText } from "@/modules/companies";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
@@ -41,7 +41,7 @@ export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promi
           price: input.price,
           durationDays: input.durationDays,
           warrantyMonths: input.warrantyMonths,
-          comment: input.comment,
+          comment: input.comment ? (await sanitizeExecutorText(tx, executor.id, input.comment)).text : input.comment,
           measurementTerms: terms,
           measurementFee: fee ?? null,
         },

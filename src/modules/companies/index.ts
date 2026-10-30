@@ -29,6 +29,8 @@ export { catalogHref, parseCatalogFilter, PRICE_BUCKETS, type CatalogFilter, typ
 export { publicExecutorView, publicExecutorViews } from "./anonymity";
 export { recalculateRating } from "./rating";
 export { MASK, maskContacts, maskIdentity, type MaskResult } from "./mask";
+/** Текст исполнителя, который увидит заказчик: без контактов и без наименования/ФИО (до договора — анонимность). */
+export { sanitizePublicText as sanitizeExecutorText } from "./own";
 export {
   ABOUT_MAX_LENGTH,
   getOwnProfile,

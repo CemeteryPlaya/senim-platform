@@ -1,5 +1,6 @@
 import "server-only";
 import { recordAudit, SYSTEM } from "@/modules/audit";
+import { sanitizeExecutorText } from "@/modules/companies";
 import { createDeal } from "@/modules/deal-core";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
@@ -55,7 +56,8 @@ export async function completeMeasurement(user: CurrentUser, input: { measuremen
     const to = transition(MEASUREMENT_TRANSITIONS, "complete", m.status, "EXECUTOR");
     if (m.request.status !== "MEASURING") fail.conflict();
 
-    const data = { status: to, finalPrice: input.finalPrice, result: input.result || null, doneAt: new Date() };
+    const result = input.result ? (await sanitizeExecutorText(tx, executor.id, input.result)).text : null;
+    const data = { status: to, finalPrice: input.finalPrice, result, doneAt: new Date() };
     expectOneUpdated(await tx.measurement.updateMany({ where: { id: m.id, status: m.status }, data }));
     await auditByUser(tx, user, m.requestId, {
       action: "measurement.done",

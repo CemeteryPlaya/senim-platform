@@ -8,6 +8,7 @@ import { fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import { chatClosedReason } from "./chat-policy";
 import { maskContacts } from "./mask";
+import { sanitizePublicText } from "./own";
 
 /**
  * Чат отклика (ADR-003). Пишут только стороны отклика — заказчик заявки и исполнитель;
@@ -49,6 +50,7 @@ async function loadOffer(client: Db, offerId: string) {
       id: true,
       status: true,
       requestId: true,
+      executorId: true,
       executor: { select: { userId: true, publicNumber: true } },
       request: { select: { clientId: true, status: true } },
       deal: { select: { id: true, status: true } },
@@ -136,7 +138,8 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
   if (closed) return fail.conflict(closed);
   await enforceRateLimit(`chat:${user.id}`, SEND_RATE, t.errors.rateLimited);
 
-  const { text: safeText, masked } = maskContacts(body);
+  // Исполнитель — ещё и без своего наименования/ФИО (анонимность до договора); заказчик — без контактов.
+  const { text: safeText, masked } = party === "executor" ? await sanitizePublicText(db, offer.executorId, body) : maskContacts(body);
   const row = await transaction(async (tx) => {
     const message = await tx.message.create({ data: { offerId, senderId: user.id, body: safeText, wasMasked: masked } });
     await attachFiles(tx, user, message.id, fileIds);

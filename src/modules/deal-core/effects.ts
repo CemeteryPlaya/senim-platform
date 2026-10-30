@@ -4,8 +4,9 @@ import { notify } from "@/modules/notifications";
 import { requestOperation, type OperationRequest } from "@/modules/payments";
 import type { Tx } from "@/platform/db";
 import { enqueueJob } from "@/platform/jobs";
-import { createStageAct, recalculateRating } from "./ports";
+import { createStageAct, maskContacts, recalculateRating, sanitizeExecutorText } from "./ports";
 import { canMoveStage, moveDeal, moveStage, previousDone, type DealState, type StageState } from "./state";
+import type { Who } from "./transitions";
 
 /**
  * Последствия переходов — общие для действий сторон, решений оператора, автоприёмки и вебхуков банка.
@@ -24,6 +25,14 @@ const link = (dealId: string) => `/deals/${dealId}`;
 async function executorUserId(tx: Tx, deal: DealState): Promise<string> {
   const profile = await tx.executorProfile.findUniqueOrThrow({ where: { id: deal.executorId }, select: { userId: true } });
   return profile.userId;
+}
+
+/**
+ * Текст стороны, который увидит другая сторона (отчёт этапа, спор): без контактов, а у исполнителя —
+ * ещё и без наименования/ФИО. Правило то же, что в чате.
+ */
+export async function partyText(tx: Tx, deal: { executorId: string }, who: Who, text: string): Promise<string> {
+  return who === "EXECUTOR" ? (await sanitizeExecutorText(tx, deal.executorId, text)).text : maskContacts(text).text;
 }
 
 export async function notifyParty(

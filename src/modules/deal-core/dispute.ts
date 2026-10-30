@@ -6,7 +6,7 @@ import { escrowBalance } from "@/modules/payments";
 import { transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import type { ResolveDispute } from "./contracts";
-import { afterStageAccepted, notifyParty, requestMoney } from "./effects";
+import { afterStageAccepted, notifyParty, partyText, requestMoney } from "./effects";
 import { disputePositionSchema, openDisputeSchema, parseInput, resolveDisputeSchema } from "./schemas";
 import { settleDeal } from "./service";
 import { canMoveStage, lockDeal, moveDeal, moveStage, requireRole, scopeOf, type DealState } from "./state";
@@ -31,15 +31,16 @@ export async function openDispute(
     const who = requireRole(user, deal);
     await moveDeal(tx, deal, { event: "openDispute", who, actor: actorOf(user), audit: { action: "deal.dispute.opened", meta: { reason: input.reason } } });
     const stage = currentStage(deal);
+    const description = await partyText(tx, deal, who, input.description);
     const dispute = await tx.dispute.create({
       data: {
         dealId: deal.id,
         stageId: stage?.id,
         openedById: user.id,
         reason: input.reason,
-        description: input.description,
-        clientPosition: who === "CLIENT" ? input.description : null,
-        executorPosition: who === "EXECUTOR" ? input.description : null,
+        description,
+        clientPosition: who === "CLIENT" ? description : null,
+        executorPosition: who === "EXECUTOR" ? description : null,
       },
     });
     // Спор приостанавливает автоприёмку: задача увидит, что сделка не в работе, а срок сброшен.
@@ -76,9 +77,10 @@ export async function submitDisputePosition(user: CurrentUser, raw: { disputeId:
     const deal = await lockDeal(tx, ref.dealId);
     const who = requireRole(user, deal);
     if (who !== "CLIENT" && who !== "EXECUTOR") return fail.forbidden(ru.deal.errors.positionNotParty);
+    const position = await partyText(tx, deal, who, input.position);
     const updated = await tx.dispute.updateMany({
       where: { id: input.disputeId, status: "OPEN" },
-      data: who === "CLIENT" ? { clientPosition: input.position } : { executorPosition: input.position },
+      data: who === "CLIENT" ? { clientPosition: position } : { executorPosition: position },
     });
     expectOneUpdated(updated, ru.deal.errors.disputeResolved);
     await recordAudit(tx, {

@@ -15,7 +15,9 @@ export type MaskResult = { text: string; masked: boolean };
 
 type Span = readonly [start: number, end: number];
 
-export function maskContacts(text: string): MaskResult {
+export function maskContacts(input: string): MaskResult {
+  // Полноширинные цифры и латиница («７０１…», «ｗａ．ｍｅ») → обычные: маску не обойти ими. Полный NFKC не годится — он меняет «№».
+  const text = input.replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
   const spans = [...findEmails(text), ...findLinks(text), ...findNicks(text), ...findMessengers(text), ...findPhones(text)];
   if (spans.length === 0) return { text, masked: false };
   return { text: collapseMasks(replaceSpans(text, spans)), masked: true };

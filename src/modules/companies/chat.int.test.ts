@@ -57,6 +57,16 @@ describe("чат отклика: стороны", () => {
   });
 });
 
+describe("чат отклика: анонимность исполнителя", () => {
+  it("наименование исполнителя в его сообщении скрыто, у заказчика — только контакты", async () => {
+    const t = await makeOfferThread();
+    const { legalName } = await db.executorProfile.findUniqueOrThrow({ where: { userId: t.executor.id } });
+    const sent = await sendMessage(t.executor, t.offerId, `Это ${legalName}, сделаем за месяц`, []);
+    expect(sent.text).not.toContain(legalName.replace(/^ИП\s+/, ""));
+    expect(sent.masked).toBe(true);
+  });
+});
+
 describe("чат отклика: доступ (IDOR)", () => {
   it("чужой заказчик и чужой исполнитель не читают и не пишут — как будто чата нет", async () => {
     const t = await makeOfferThread();

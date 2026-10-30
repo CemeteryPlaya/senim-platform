@@ -29,6 +29,7 @@ import {
   notifyParty,
   requestMoney,
   tryCloseStage,
+  partyText,
 } from "./effects";
 import { createContract, recalculateRating } from "./ports";
 import {
@@ -233,7 +234,7 @@ export async function submitStage(user: CurrentUser, raw: { stageId: string; rep
       who,
       actor: actorOf(user),
       audit: { action: "deal.stage.submitted", meta: { photos: input.photoIds.length } },
-      data: { report: input.report, submittedAt, autoAcceptAt },
+      data: { report: await partyText(tx, deal, who, input.report), submittedAt, autoAcceptAt },
     });
     await attachStagePhotos(tx, user, stage.id, input.photoIds);
     await enqueueJob(tx, {
