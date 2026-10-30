@@ -54,6 +54,7 @@ next-env.d.ts
 /.claude/memory/
 /.claude/settings.local.json
 /.claude/worktrees/
+/.harness-worktrees/
 /.codebase-memory/
 /.remember/
 
