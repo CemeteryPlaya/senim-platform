@@ -51,6 +51,7 @@ const schema = z
     AI_TEXT_MODEL: optional,
     AI_IMAGE_MODEL: optional,
     AI_MAX_VISUALIZATIONS_PER_REQUEST: z.coerce.number().int().min(0).default(3),
+    AI_DAILY_BUDGET_USD: z.coerce.number().min(0).default(20),
 
     PAYMENT_RAIL: z.enum(["manual", "escrow-simulator", "bank"]).default("manual"),
     ESCROW_SIMULATOR_WEBHOOK_SECRET: optional,

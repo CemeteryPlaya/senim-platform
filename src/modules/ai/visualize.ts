@@ -15,7 +15,7 @@ import { aiEnabled, defaultDeps, ensureAiEnabled, type AiDeps } from "./deps";
 import { stampAiLabel } from "./label";
 import { scrubPii } from "./pii";
 import { visualizePromptSchema } from "./schema";
-import { recordUsage } from "./usage";
+import { ensureWithinDailyBudget, recordUsage } from "./usage";
 
 /**
  * ИИ-иллюстрация мебели на фото помещения. Запрос ставит Visualization в очередь и задачу
@@ -60,6 +60,7 @@ export async function requestVisualization(
   });
   if (!source) return fail.validation(ru.ai.errors.notRoomPhoto);
   await enforceRateLimit(`ai.visualize:${user.id}`, VISUALIZATIONS_PER_HOUR);
+  await ensureWithinDailyBudget();
 
   const limit = env().AI_MAX_VISUALIZATIONS_PER_REQUEST;
   const viz = await transaction(async (tx) => {
@@ -126,6 +127,8 @@ type Job = Visualization & { sourceFile: StoredFile; clientId: string };
 async function generate(viz: Job, deps: AiDeps): Promise<void> {
   const image = await (await storageByName(viz.sourceFile.provider)).get(viz.sourceFile.storageKey);
   if (!image) return fail.unavailable(ru.ai.errors.notRoomPhoto);
+  // Бюджет — и здесь: задача могла ждать в очереди, пока платформа тратила дневной лимит.
+  await ensureWithinDailyBudget();
   const provider = deps.provider();
   const result = await provider.visualizeRoom({ image, contentType: viz.sourceFile.contentType, prompt: viz.prompt });
   const cost = await recordUsage(db, {

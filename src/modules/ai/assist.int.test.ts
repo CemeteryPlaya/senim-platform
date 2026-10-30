@@ -30,6 +30,22 @@ beforeEach(async () => {
 });
 
 describe("assistRequest — «Опишите своими словами»", () => {
+  it("суточный бюджет ИИ платформы ($20 по умолчанию) исчерпан — UNAVAILABLE без вызова провайдера; вчерашний расход не считается", async () => {
+    const client = await makeClient();
+    const request = await makeRequest(client);
+    const spy = spyProvider();
+    const spend = (costUsdMicros: number, createdAt = new Date()) =>
+      db.aiUsage.create({ data: { provider: "gateway", operation: "request.assist", costUsdMicros, createdAt } });
+
+    await spend(50_000_000, new Date(Date.now() - 25 * 3600_000));
+    await spend(19_999_999);
+    await expect(assistRequest(client, request.id, TEXT, spy.deps)).resolves.toBeTruthy();
+
+    await spend(1_000_000);
+    await expect(assistRequest(client, request.id, TEXT, spy.deps)).rejects.toMatchObject({ code: "UNAVAILABLE", message: expect.stringMatching(/завтра/) });
+    expect(spy.seen).toHaveLength(1);
+  });
+
   it("разбирает текст в поля заявки, подсказывает сегмент и пишет учёт", async () => {
     const client = await makeClient();
     const request = await makeRequest(client);

@@ -20,6 +20,10 @@ import {
   VISUALIZE_JOB,
 } from "./visualize";
 
+/** Расход ИИ всей платформы за последние сутки (по умолчанию бюджет AI_DAILY_BUDGET_USD = 20 $). */
+const spendAi = (costUsdMicros: number, createdAt = new Date()) =>
+  db.aiUsage.create({ data: { provider: "gateway", operation: "request.assist", costUsdMicros, createdAt } });
+
 const ctx = (attempt = 1): JobContext => ({ jobId: "test", attempt, log: logger });
 
 function deps(visualizeRoom: AiProvider["visualizeRoom"]): AiDeps {
@@ -176,6 +180,22 @@ describe("задача ai.visualize", () => {
     expect(usage.costUsdMicros).toBeGreaterThan(0);
     const viz = await db.visualization.findUniqueOrThrow({ where: { id: view.id } });
     expect(viz.costUsdMicros).toBe(usage.costUsdMicros);
+  });
+
+  it("суточный бюджет ИИ платформы исчерпан — заказ отклонён, ждущая задача FAILED без вызова провайдера", async () => {
+    const { client, request, photo } = await setup();
+    const view = await requestVisualization(client, request.id, photo.id, "");
+    await spendAi(20_000_000);
+
+    await expect(requestVisualization(client, request.id, photo.id, "")).rejects.toMatchObject({ code: "UNAVAILABLE", message: expect.stringMatching(/завтра/) });
+    let called = false;
+    const spy = deps(async (input) => {
+      called = true;
+      return mockProvider.visualizeRoom(input);
+    });
+    await runVisualization({ visualizationId: view.id }, ctx(), spy);
+    expect(called).toBe(false);
+    expect(await db.visualization.findUniqueOrThrow({ where: { id: view.id } })).toMatchObject({ status: "FAILED", error: expect.stringMatching(/завтра/) });
   });
 
   it("если флаг выключили, пока задача ждала, — FAILED без вызова провайдера", async () => {

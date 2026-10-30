@@ -9,7 +9,7 @@ import { ownRequestIn } from "./access";
 import { defaultDeps, ensureAiEnabled, type AiDeps } from "./deps";
 import { scrubPii } from "./pii";
 import { assistTextSchema, parseDraftSuggestion, toDraft, type RequestDraft } from "./schema";
-import { recordUsage } from "./usage";
+import { ensureWithinDailyBudget, recordUsage } from "./usage";
 
 export type AssistResult = {
   /** Поля для мастера заявки в формате Request.details; заказчик подтверждает их перед переносом. */
@@ -35,6 +35,7 @@ export async function assistRequest(
   if (!parsedText.success) return fail.validation(parsedText.error.issues[0].message);
   await ownRequestIn(user, requestId, ["DRAFT"], ru.ai.errors.requestNotEditable);
   await enforceRateLimit(`ai.assist:${user.id}`, ASSISTS_PER_HOUR);
+  await ensureWithinDailyBudget();
 
   const furnitureTypes = await db.furnitureType.findMany({
     where: { active: true },

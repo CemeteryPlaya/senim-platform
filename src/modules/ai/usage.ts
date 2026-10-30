@@ -1,4 +1,7 @@
-import type { Db } from "@/platform/db";
+import { ru } from "@/i18n/ru";
+import { db, type Db } from "@/platform/db";
+import { env } from "@/platform/env";
+import { fail } from "@/platform/errors";
 import { costUsdMicros } from "./pricing";
 import type { AiProvider, AiUsageInfo } from "./provider";
 
@@ -27,4 +30,19 @@ export async function recordUsage(
     },
   });
   return cost;
+}
+
+const DAY_MS = 24 * 3600_000;
+
+/**
+ * Суточный потолок расходов ИИ на всю платформу (AI_DAILY_BUDGET_USD, скользящие 24 часа):
+ * защита от счёта провайдера при всплеске или злоупотреблении. Проверяется перед каждым вызовом провайдера.
+ */
+export async function ensureWithinDailyBudget(client: Db = db): Promise<void> {
+  const budgetMicros = Math.round(env().AI_DAILY_BUDGET_USD * 1_000_000);
+  const spent = await client.aiUsage.aggregate({
+    _sum: { costUsdMicros: true },
+    where: { createdAt: { gte: new Date(Date.now() - DAY_MS) } },
+  });
+  if ((spent._sum.costUsdMicros ?? 0) >= budgetMicros) fail.unavailable(ru.ai.errors.dailyBudget);
 }
