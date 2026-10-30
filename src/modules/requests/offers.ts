@@ -1,10 +1,9 @@
 import "server-only";
-import { Prisma } from "@/generated/prisma/client";
 import { publicExecutorView, publicExecutorViews, sanitizeExecutorText } from "@/modules/companies";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
-import { db, transaction } from "@/platform/db";
+import { db, isUniqueViolation, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { auditByUser, links, loadExecutor, loadOwnRequest, requestTitle, requireClient } from "./access";
 import { executorPortfolio, executorReviews, roomPhotos } from "./adapters";
@@ -15,10 +14,6 @@ import { visibleToExecutor } from "./visibility";
 
 const e = ru.requests.errors;
 const n = ru.requests.notify;
-
-function isUniqueViolation(err: unknown): boolean {
-  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
-}
 
 /** Отклик на видимую открытую заявку. Один на исполнителя: повтор и гонка — CONFLICT. */
 export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promise<{ offerId: string }> {

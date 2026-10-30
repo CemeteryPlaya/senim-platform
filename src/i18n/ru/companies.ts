@@ -15,7 +15,6 @@ export const companies = {
   errors: {
     executorNotFound: "Исполнитель не найден",
     executorOnly: "Раздел доступен только исполнителю",
-    invalid: "Проверьте заполнение полей",
     unknownFurnitureType: "Выберите тип мебели из списка",
   },
   photoAlt: (title: string, n: number) => `${title} — фото ${n}`,

@@ -1,5 +1,4 @@
 import "server-only";
-import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import type { Db } from "@/platform/db";
@@ -10,15 +9,6 @@ import { maskContacts, maskIdentity } from "./mask";
 export function requireExecutor(user: CurrentUser): { executorId: string } {
   if (user.role !== "EXECUTOR" || !user.executor) return fail.forbidden(ru.companies.errors.executorOnly);
   return { executorId: user.executor.id };
-}
-
-/** Разбор входа сервиса: первая ошибка — сообщением пользователю, остальные — по полям. */
-export function parseInput<S extends z.ZodType>(schema: S, input: unknown): z.infer<S> {
-  const parsed = schema.safeParse(input);
-  if (parsed.success) return parsed.data;
-  const flat = z.flattenError(parsed.error);
-  const first = flat.formErrors[0] ?? Object.values(flat.fieldErrors).flat()[0] ?? ru.companies.errors.invalid;
-  return fail.validation(String(first), { fieldErrors: flat.fieldErrors });
 }
 
 /** Публичный текст исполнителя без контактов и без его наименования/ФИО. */

@@ -5,7 +5,8 @@ import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { db, transaction } from "@/platform/db";
-import { assertActiveFurnitureTypes, parseInput, requireExecutor, sanitizePublicText } from "./own";
+import { parseInput } from "@/platform/validation";
+import { assertActiveFurnitureTypes, requireExecutor, sanitizePublicText } from "./own";
 
 const t = ru.companies.profile;
 

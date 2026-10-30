@@ -4,7 +4,7 @@ import type { StoredFile } from "@/generated/prisma/client";
 import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import { sha256Hex } from "@/platform/crypto";
-import { db, Prisma, type Db } from "@/platform/db";
+import { db, isUniqueViolation, Prisma, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { enforceRateLimit } from "@/platform/rate-limit";
@@ -85,10 +85,6 @@ function finalKeyBase(purpose: FilePurpose, at: Date, id: string) {
 
 async function toUploaded(file: StoredFile): Promise<UploadedFile> {
   return { id: file.id, url: await fileUrl(file), contentType: file.contentType, width: file.width, height: file.height };
-}
-
-function isUniqueViolation(e: unknown) {
-  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
 
 /**

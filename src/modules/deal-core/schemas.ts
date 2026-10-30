@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { DisputeDecision, DisputeReason } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { fail } from "@/platform/errors";
 
 /**
  * Входы deal-core. Те же схемы использует action() на экранах; сервис тоже разбирает вход,
@@ -87,9 +86,5 @@ export const retryOperationSchema = z.object({ idempotencyKey: z.string().trim()
 export const settlePayloadSchema = z.object({ idempotencyKey: z.string().min(1) });
 export const dealPayloadSchema = z.object({ dealId: id });
 
-/** Разбор входа сервиса: ошибка — VALIDATION с первым понятным сообщением. */
-export function parseInput<S extends z.ZodType>(schema: S, input: unknown): z.infer<S> {
-  const parsed = schema.safeParse(input);
-  if (!parsed.success) return fail.validation(parsed.error.issues[0]?.message ?? ru.common.errors.invalid);
-  return parsed.data;
-}
+/** Разбор входа сервиса — общий для модулей (platform/validation). */
+export { parseInput } from "@/platform/validation";

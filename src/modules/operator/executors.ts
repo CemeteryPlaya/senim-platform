@@ -4,7 +4,7 @@ import { recordAudit, scopeHistory } from "@/modules/audit";
 import { actorOf, reviewExecutorRegistration, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
-import { db, Prisma, transaction } from "@/platform/db";
+import { db, isUniqueViolation, Prisma, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { assertOperator } from "./access";
 import { toAuditView } from "./audit-view";
@@ -103,7 +103,7 @@ export async function addExecutor(user: CurrentUser, input: AddExecutorInput): P
     });
   } catch (e) {
     // Параллельное добавление того же телефона или ИИН/БИН: уникальный индекс сработал после нашей проверки.
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return fail.conflict(t.errors.duplicate);
+    if (isUniqueViolation(e)) return fail.conflict(t.errors.duplicate);
     throw e;
   }
 }

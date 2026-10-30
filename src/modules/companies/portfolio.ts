@@ -7,7 +7,8 @@ import { actorOf, type CurrentUser } from "@/modules/identity";
 import { db, transaction, type Db, type Prisma } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { STYLES, type StyleKey } from "@/verticals/furniture";
-import { assertActiveFurnitureTypes, parseInput, requireExecutor, sanitizePublicText } from "./own";
+import { parseInput } from "@/platform/validation";
+import { assertActiveFurnitureTypes, requireExecutor, sanitizePublicText } from "./own";
 import { PHOTO_SELECT, toPhotoViews } from "./photos";
 import type { PhotoView } from "./types";
 

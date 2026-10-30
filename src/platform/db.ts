@@ -32,6 +32,11 @@ export async function lockDealRow(tx: Tx, dealId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/** Нарушение уникального индекса (P2002): параллельный повтор того же действия — вызывающий отвечает CONFLICT. */
+export function isUniqueViolation(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+}
+
 /** Транзакция с уровнем изоляции по умолчанию (READ COMMITTED) и разумными таймаутами. */
 export function transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   return db.$transaction(fn, { maxWait: 5_000, timeout: 15_000 });
