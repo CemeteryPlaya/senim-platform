@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 import { recordAudit, scopeHistory } from "@/modules/audit";
 import { actorOf, reviewExecutorRegistration, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
-import { encryptPii, last4 } from "@/platform/crypto";
+import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db, Prisma, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { assertOperator } from "./access";
@@ -68,6 +68,7 @@ export async function addExecutor(user: CurrentUser, input: AddExecutorInput): P
   try {
     return await transaction(async (tx) => {
       if (await tx.user.findUnique({ where: { phone: input.phone }, select: { id: true } })) fail.conflict(t.errors.phoneTaken);
+      if (await tx.executorProfile.findUnique({ where: { binIinHash: hashPii(input.binIin) }, select: { id: true } })) fail.conflict(t.errors.binIinTaken);
       const created = await tx.user.create({
         data: {
           phone: input.phone,
@@ -78,6 +79,7 @@ export async function addExecutor(user: CurrentUser, input: AddExecutorInput): P
               legalForm: input.legalForm,
               legalName: input.legalName,
               binIinEnc: encryptPii(input.binIin),
+              binIinHash: hashPii(input.binIin),
               binIinLast4: last4(input.binIin),
               segment: input.segment,
               status: "APPROVED",
@@ -100,8 +102,8 @@ export async function addExecutor(user: CurrentUser, input: AddExecutorInput): P
       return { profileId };
     });
   } catch (e) {
-    // Параллельное добавление того же телефона: уникальный индекс сработал после нашей проверки.
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return fail.conflict(t.errors.phoneTaken);
+    // Параллельное добавление того же телефона или ИИН/БИН: уникальный индекс сработал после нашей проверки.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return fail.conflict(t.errors.duplicate);
     throw e;
   }
 }

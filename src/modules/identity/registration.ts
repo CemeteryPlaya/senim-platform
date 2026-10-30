@@ -1,8 +1,9 @@
 import "server-only";
 import { ru } from "@/i18n/ru";
+import { Prisma } from "@/generated/prisma/client";
 import { recordAudit } from "@/modules/audit";
 import { notify } from "@/modules/notifications";
-import { encryptPii, last4 } from "@/platform/crypto";
+import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import type { ReviewExecutorRegistration } from "./index";
@@ -21,6 +22,7 @@ function profileData(input: ExecutorRegistrationInput) {
     legalForm: input.legalForm,
     legalName: input.legalName,
     binIinEnc: encryptPii(input.binIin),
+    binIinHash: hashPii(input.binIin),
     binIinLast4: last4(input.binIin),
     city: input.city,
     yearsExperience: input.yearsExperience,
@@ -29,6 +31,8 @@ function profileData(input: ExecutorRegistrationInput) {
 
 /** Профиль: новый или повторная подача после отказа (тот же профиль снова PENDING). */
 async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegistrationInput): Promise<string> {
+  const sameBinIin = await tx.executorProfile.findUnique({ where: { binIinHash: hashPii(input.binIin) }, select: { userId: true } });
+  if (sameBinIin && sameBinIin.userId !== userId) return fail.conflict(t.errors.binIinTaken);
   const existing = await tx.executorProfile.findUnique({ where: { userId }, select: { id: true } });
   if (!existing) return (await tx.executorProfile.create({ data: { userId, ...profileData(input) }, select: { id: true } })).id;
   // Подать снова можно только после отказа: PENDING и APPROVED не обновятся — конфликт.
@@ -48,6 +52,14 @@ async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegis
 export async function registerExecutor(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
   if (user.role === "OPERATOR") return fail.forbidden(t.errors.operator);
 
+  return register(user, input).catch((e: unknown) => {
+    // Два разных номера одновременно с одним ИИН/БИН: проверку прошли оба, сработал уникальный индекс.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return fail.conflict(t.errors.binIinTaken);
+    throw e;
+  });
+}
+
+function register(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
   return transaction(async (tx) => {
     // Блокировка строки пользователя: двойная отправка формы выполняется последовательно.
     await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;

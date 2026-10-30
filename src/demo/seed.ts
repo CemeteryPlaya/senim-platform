@@ -336,6 +336,7 @@ async function seedExecutors(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog) {
         legalForm: spec.legalForm,
         legalName: spec.legalName,
         binIinEnc: encryptPii(binIin),
+        binIinHash: hashPii(binIin),
         binIinLast4: last4(binIin),
         segment: reg.status === "APPROVED" ? reg.segment : null,
         status: reg.status,

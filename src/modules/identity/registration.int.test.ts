@@ -82,6 +82,17 @@ describe("registerExecutor", () => {
     expect(await db.executorProfile.count()).toBe(1);
   });
 
+  it("тот же ИИН/БИН с другого номера — конфликт, в том числе при одновременной отправке", async () => {
+    await registerExecutor(await makeClient(), selfEmployed);
+    expect(await codeOf(registerExecutor(await makeClient(), selfEmployed))).toBe("CONFLICT");
+
+    const [a, b] = [await makeClient(), await makeClient()];
+    const tooInput = { ...selfEmployed, legalForm: "TOO" as const, legalName: "ТОО «Тест»", binIin: BIN };
+    const codes = await Promise.all([registerExecutor(a, tooInput), registerExecutor(b, tooInput)].map((p) => codeOf(p).catch(() => "OK")));
+    expect(codes.sort()).toEqual(["CONFLICT", "OK"]);
+    expect(await db.executorProfile.count()).toBe(2);
+  });
+
   it("номер, на котором уже есть заявки заказчика, не становится исполнителем", async () => {
     const user = await makeClient();
     await db.request.create({ data: { clientId: user.id, mode: "TENDER" } });

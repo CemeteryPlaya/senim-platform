@@ -30,6 +30,7 @@ export async function makeExecutor(
       legalForm: "IP",
       legalName: opts.legalName ?? `ИП Тестовый ${seq}`,
       binIinEnc: encryptPii(bin),
+      binIinHash: hashPii(bin),
       binIinLast4: last4(bin),
       segment: opts.segment ?? "COMFORT",
       status: opts.status ?? "APPROVED",

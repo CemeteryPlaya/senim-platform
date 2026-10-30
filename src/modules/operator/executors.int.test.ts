@@ -109,6 +109,15 @@ describe("ручное добавление исполнителя", () => {
     await expect(addExecutor(operator, { ...input, legalName: "Другое" })).rejects.toMatchObject({ code: "CONFLICT" });
     expect(await db.user.count({ where: { phone: input.phone } })).toBe(1);
   });
+
+  it("не создаёт второго исполнителя с тем же ИИН/БИН на другой телефон", async () => {
+    const operator = await makeOperator();
+    await addExecutor(operator, input);
+
+    const otherPhone = addExecutorSchema.parse({ ...input, phone: "+7 700 111 22 99" });
+    await expect(addExecutor(operator, otherPhone)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await db.executorProfile.count()).toBe(1);
+  });
 });
 
 describe("смена сегмента", () => {

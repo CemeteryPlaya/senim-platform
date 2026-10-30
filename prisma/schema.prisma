@@ -106,6 +106,7 @@ model ExecutorProfile {
   legalForm        LegalForm
   legalName        String // наименование ТОО/ИП или ФИО самозанятого; раскрывается только в договоре
   binIinEnc        String // ИИН/БИН, AES-256-GCM
+  binIinHash       String?            @unique // HMAC (hashPii): один профиль на ИИН/БИН без расшифровки
   binIinLast4      String
   segment          Segment? // ставит оператор; null — ещё не присвоен
   status           RegistrationStatus @default(PENDING)
