@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { testIin } from "@/demo/kz-id";
+import { ru } from "@/i18n/ru";
 import { decryptPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
+import { AppError } from "@/platform/errors";
 import { makeClient } from "../../../test/factories";
-import { makeMeasured } from "../../../test/factories/requests";
+import { makeMeasured, makeMeasuring, makeOpenRequest } from "../../../test/factories/requests";
 import { agreeToContract } from "./index";
 
 const IIN = testIin("850412", 4, 77);
 const code = (p: Promise<unknown>) => p.then(() => "OK", (e: { code?: string }) => e.code ?? String(e));
+async function errorOf(p: Promise<unknown>): Promise<AppError> {
+  const e = await p.then(
+    () => null,
+    (err: unknown) => err,
+  );
+  if (!(e instanceof AppError)) throw new Error(`ожидалась AppError, получено: ${String(e)}`);
+  return e;
+}
 
 /** Заказчик вошёл по SMS: ФИО и ИИН нет — их спрашивают перед договором (сторона договора, подпись ЭЦП). */
 async function smsClient() {
@@ -52,6 +62,35 @@ describe("ФИО и ИИН заказчика перед договором", ()
     expect(await code(agreeToContract(client, { requestId: m.requestId, template: "advance-50", identity: { fullName: "Пётр Иванов", iin: IIN } }))).toBe(
       "CONFLICT",
     );
+  });
+
+  it("«ИИН занят» не раскрывается, пока заявка не на шаге договора: сначала переход и замер, потом ИИН", async () => {
+    const owner = await smsClient();
+    const mo = await makeMeasured(owner);
+    await agreeToContract(owner, { requestId: mo.requestId, template: "advance-50", identity: { fullName: "Иван Петров", iin: IIN } });
+
+    const prober = await smsClient();
+    const identity = { fullName: "Пётр Иванов", iin: IIN };
+    // Заявка открыта (не MEASURING) — ответ о переходе, а не об ИИН.
+    const open = await makeOpenRequest(prober);
+    const notMeasuring = await errorOf(agreeToContract(prober, { requestId: open, template: "advance-50", identity }));
+    expect(notMeasuring.message).not.toBe(ru.identity.clientIdentity.iinTaken);
+    // Замер назначен, но не выполнен — ответ о замере.
+    const measuring = await makeMeasuring(prober);
+    const noResult = await errorOf(agreeToContract(prober, { requestId: measuring.requestId, template: "advance-50", identity }));
+    expect(noResult.message).toBe(ru.requests.errors.noMeasurementResult);
+  });
+
+  it("попытки указать ИИН ограничены: 5 в час на пользователя", async () => {
+    const owner = await smsClient();
+    const mo = await makeMeasured(owner);
+    await agreeToContract(owner, { requestId: mo.requestId, template: "advance-50", identity: { fullName: "Иван Петров", iin: IIN } });
+
+    const prober = await smsClient();
+    const m = await makeMeasured(prober);
+    const attempt = () => agreeToContract(prober, { requestId: m.requestId, template: "advance-50", identity: { fullName: "Пётр Иванов", iin: IIN } });
+    for (let i = 0; i < 5; i++) expect(await code(attempt())).toBe("CONFLICT");
+    expect(await code(attempt())).toBe("RATE_LIMITED");
   });
 
   it("данные уже есть — переданные повторно не перезаписывают их", async () => {

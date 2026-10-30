@@ -4,10 +4,12 @@ import { recordAudit } from "@/modules/audit";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db, isUniqueViolation, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
+import { enforceRateLimit } from "@/platform/rate-limit";
 import { isValidIin } from "./kz-id";
 import { actorOf, type CurrentUser } from "./session";
 
 const t = ru.identity.clientIdentity;
+const IIN_ATTEMPTS = { limit: 5, windowSec: 3600 };
 
 /** ФИО и ИИН заказчика — сторона договора. При входе по SMS их нет: заказчик указывает их перед договором. */
 export async function hasClientIdentity(userId: string): Promise<boolean> {
@@ -28,6 +30,9 @@ export async function recordClientIdentity(tx: Tx, user: CurrentUser, input: { f
   if (fullName.length < 5 || !fullName.includes(" ")) return fail.validation(t.fullNameInvalid, { fieldErrors: { fullName: [t.fullNameInvalid] } });
   if (!isValidIin(input.iin)) return fail.validation(t.iinInvalid, { fieldErrors: { iin: [t.iinInvalid] } });
 
+  // Ответ «ИИН занят» говорит, что у человека с этим ИИН есть аккаунт: перебор ограничен.
+  // Счётчик — вне транзакции вызывающего, поэтому откат после отказа его не сбрасывает.
+  await enforceRateLimit(`identity:iin:user:${user.id}`, IIN_ATTEMPTS, t.tooMany);
   const iinHash = hashPii(input.iin);
   const taken = await tx.user.findUnique({ where: { iinHash }, select: { id: true } });
   if (taken && taken.id !== user.id) return fail.conflict(t.iinTaken);

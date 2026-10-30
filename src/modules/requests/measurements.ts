@@ -171,11 +171,12 @@ export async function agreeToContract(
   requireClient(user);
   return transaction(async (tx) => {
     const r = await loadOwnRequest(tx, user, input.requestId);
-    // Сторона договора: без ФИО и ИИН договор не составить и не подписать ЭЦП.
-    await recordClientIdentity(tx, user, input.identity);
     const to = transition(REQUEST_TRANSITIONS, "agreeToContract", r.status, "CLIENT");
     const m = await tx.measurement.findFirst({ where: { requestId: r.id, status: "DONE", offer: { status: "ACCEPTED" } }, include: { offer: true } });
     if (!m || m.finalPrice === null) return fail.conflict(e.noMeasurementResult);
+    // Сторона договора: без ФИО и ИИН договор не составить и не подписать ЭЦП. После проверок шага:
+    // ответ «ИИН занят» — только на настоящем шаге договора, а не любому заказчику с любой заявкой.
+    await recordClientIdentity(tx, user, input.identity);
 
     expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: to } }));
     const title = requestTitle(r);
