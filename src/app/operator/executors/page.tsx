@@ -37,6 +37,7 @@ function ExecutorItem({ x }: { x: Row }) {
       </div>
       <ButtonLink href={`/operator/executors/${x.id}`} variant="secondary" className="self-start sm:self-center">
         {e.open}
+        <span className="sr-only">: {ru.common.executorLabel(x.publicNumber)}</span>
       </ButtonLink>
     </li>
   );
