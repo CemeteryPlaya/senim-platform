@@ -21,6 +21,8 @@ export const OTP_MAX_ATTEMPTS = 5;
  * Лимиты: повтор кода — раз в минуту; на номер — 5 кодов в час, 10 кодов и 20 проверок в сутки
  * (с любых IP: перебор кода с разных адресов упирается в номер); с одного IP — 20 запросов и 50 проверок в час.
  * IP неизвестен (ip: null) — лимиты по IP не применяются: общий ключ «unknown» дал бы один лимит на всех.
+ * Поверх всех — общий суточный потолок отправки (OTP_DAILY_GLOBAL_LIMIT): рассылка по множеству номеров
+ * с множества адресов упирается в него, а не в счёт за SMS.
  */
 const LIMITS = {
   phoneCooldown: { limit: 1, windowSec: 60 },
@@ -55,6 +57,8 @@ export async function requestOtp(input: { phone: string; ip: string | null }): P
   await enforceRateLimit(`otp:phone:${phone}:cooldown`, LIMITS.phoneCooldown, t.errors.tooOften);
   await enforceRateLimit(`otp:phone:${phone}`, LIMITS.phoneHourly, t.errors.tooManyRequests);
   await enforceRateLimit(`otp:phone:${phone}:day`, LIMITS.phoneDaily, t.errors.tooManyToday);
+  // Последним: запросы, отклонённые лимитами номера и IP, общий потолок не расходуют.
+  await enforceRateLimit("otp:global:day", { limit: env().OTP_DAILY_GLOBAL_LIMIT, windowSec: 86_400 }, t.errors.tooManyGlobal);
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60_000);

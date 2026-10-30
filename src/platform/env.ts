@@ -31,6 +31,8 @@ const schema = z
     SMS_HTTP_URL: optional,
     SMS_HTTP_TOKEN: optional,
     SMS_SENDER: z.string().default("SENIM"),
+    /** Сколько кодов входа платформа отправляет за сутки на все номера — потолок расходов на SMS при рассылке с разных IP. */
+    OTP_DAILY_GLOBAL_LIMIT: z.coerce.number().int().min(1).default(500),
 
     SIGNATURE_PROVIDER: z.enum(["mock", "sigex"]).default("mock"),
     SIGEX_BASE_URL: z.url().default("https://sigex.kz"),

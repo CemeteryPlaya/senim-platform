@@ -13,7 +13,7 @@ const IP = "203.0.113.7";
 
 beforeEach(() => {
   freshBrowser();
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock", OTP_DAILY_GLOBAL_LIMIT: undefined });
 });
 
 async function codeFor(phone = PHONE, ip = IP): Promise<string> {
@@ -80,6 +80,27 @@ describe("requestOtp", () => {
     const e = await errorOf(requestOtp({ phone: PHONE, ip: null }));
     expect(e.code).toBe("RATE_LIMITED");
     expect(e.message).toMatch(/сутки/);
+  });
+
+  it("общий суточный лимит кодов (OTP_DAILY_GLOBAL_LIMIT): рассылка по разным номерам с разных IP упирается в него", async () => {
+    setEnv({ OTP_DAILY_GLOBAL_LIMIT: "3" });
+    for (let i = 0; i < 3; i++) await requestOtp({ phone: `+770000080${i}0`, ip: `198.51.100.${i}` });
+
+    const e = await errorOf(requestOtp({ phone: "+77000008099", ip: "198.51.100.99" }));
+    expect(e.code).toBe("RATE_LIMITED");
+    expect(await db.otpCode.count()).toBe(3);
+  });
+
+  it("общий лимит по умолчанию — 500 кодов в сутки", async () => {
+    const { env } = await import("@/platform/env");
+    expect(env().OTP_DAILY_GLOBAL_LIMIT).toBe(500);
+  });
+
+  it("отказ по лимиту номера не расходует общий суточный лимит", async () => {
+    setEnv({ OTP_DAILY_GLOBAL_LIMIT: "2" });
+    await requestOtp({ phone: PHONE, ip: null });
+    for (let i = 0; i < 5; i++) await errorOf(requestOtp({ phone: PHONE, ip: null }));
+    await expect(requestOtp({ phone: "+77000008101", ip: null })).resolves.toBeTruthy();
   });
 
   it("действует только последний выданный код", async () => {
