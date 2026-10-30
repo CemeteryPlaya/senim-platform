@@ -142,7 +142,7 @@ describe("чат отклика: вложения", () => {
     await sendMessage(t.client, t.offerId, "первое", [used.id]);
 
     for (const fileId of [foreign.id, portfolioFile.id, used.id, "nope"]) {
-      await expect(sendMessage(t.client, t.offerId, "с файлом", [fileId])).rejects.toMatchObject({ code: "VALIDATION" });
+      await expect(sendMessage(t.client, t.offerId, "с файлом", [fileId])).rejects.toMatchObject({ code: "CONFLICT" });
     }
     expect(await db.message.count()).toBe(1);
   });

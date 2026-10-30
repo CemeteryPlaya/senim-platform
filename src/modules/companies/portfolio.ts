@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
+import { attachFiles } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { db, transaction, type Db, type Prisma } from "@/platform/db";
 import { fail } from "@/platform/errors";
@@ -156,8 +157,8 @@ export async function deletePortfolioItem(user: CurrentUser, itemId: string): Pr
 }
 
 /**
- * Прикрепить фото, загруженные исполнителем через uploader (purpose PORTFOLIO, ещё ни к чему не привязаны).
- * Условие владения — в самом UPDATE: повтор или гонка не привяжут файл дважды.
+ * Прикрепить фото, загруженные исполнителем через uploader: files.attachFiles (только свои, PORTFOLIO,
+ * ещё ни к чему не привязанные; дописываются в конец). Повтор или гонка не привяжут файл дважды.
  */
 export async function attachPortfolioPhotos(user: CurrentUser, itemId: string, fileIds: readonly string[]): Promise<void> {
   const { executorId } = requireExecutor(user);
@@ -167,24 +168,7 @@ export async function attachPortfolioPhotos(user: CurrentUser, itemId: string, f
     await requireOwnItem(tx, executorId, itemId);
     const already = await tx.storedFile.count({ where: { portfolioItemId: itemId } });
     if (already + ids.length > PORTFOLIO_MAX_PHOTOS) fail.validation(t.errors.tooManyPhotos(PORTFOLIO_MAX_PHOTOS));
-    const result = await tx.storedFile.updateMany({
-      where: {
-        id: { in: ids },
-        uploadedById: user.id,
-        purpose: "PORTFOLIO",
-        portfolioItemId: null,
-        messageId: null,
-        requestId: null,
-        stageId: null,
-        disputeId: null,
-        visualizationId: null,
-      },
-      data: { portfolioItemId: itemId },
-    });
-    if (result.count !== ids.length) fail.validation(t.errors.badPhoto);
-    for (const [i, id] of ids.entries()) {
-      await tx.storedFile.update({ where: { id }, data: { sortOrder: already + i } });
-    }
+    await attachFiles(tx, { fileIds: ids, uploadedById: user.id, owner: { portfolioItemId: itemId } });
     await recordAudit(tx, audit(user, executorId, itemId, "portfolio.photos_added", { count: ids.length }));
   });
 }

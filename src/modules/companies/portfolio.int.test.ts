@@ -91,8 +91,18 @@ describe("портфолио: фото", () => {
     await attachPortfolioPhotos(executor, item.id, [used.id]);
 
     for (const fileId of [foreign.id, chatFile.id, used.id]) {
-      await expect(attachPortfolioPhotos(executor, item.id, [fileId])).rejects.toMatchObject({ code: "VALIDATION" });
+      await expect(attachPortfolioPhotos(executor, item.id, [fileId])).rejects.toMatchObject({ code: "CONFLICT" });
     }
+  });
+
+  it("фото, добавленные позже, встают в конец", async () => {
+    const executor = await makeExecutor();
+    const item = await makePortfolioItem(executor, { photo: false });
+    const [a, b, c] = [await makeUploadedFile(executor), await makeUploadedFile(executor), await makeUploadedFile(executor)];
+    await attachPortfolioPhotos(executor, item.id, [a.id, b.id]);
+    await attachPortfolioPhotos(executor, item.id, [c.id]);
+    const photos = await db.storedFile.findMany({ where: { portfolioItemId: item.id }, orderBy: { sortOrder: "asc" } });
+    expect(photos.map((p) => p.id)).toEqual([a.id, b.id, c.id]);
   });
 
   it("не больше 10 фото у работы", async () => {

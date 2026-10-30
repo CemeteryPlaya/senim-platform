@@ -1,6 +1,7 @@
 import "server-only";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
+import { attachFiles } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { db, transaction, type Db } from "@/platform/db";
@@ -142,7 +143,7 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
   const { text: safeText, masked } = party === "executor" ? await sanitizePublicText(db, offer.executorId, body) : maskContacts(body);
   const row = await transaction(async (tx) => {
     const message = await tx.message.create({ data: { offerId, senderId: user.id, body: safeText, wasMasked: masked } });
-    await attachFiles(tx, user, message.id, fileIds);
+    if (fileIds.length > 0) await attachFiles(tx, { fileIds, uploadedById: user.id, owner: { messageId: message.id } });
     await notifyOtherParty(tx, party, offer, safeText);
     if (masked) {
       await recordAudit(tx, {
@@ -156,26 +157,6 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
     return tx.message.findUniqueOrThrow({ where: { id: message.id }, select: MESSAGE_SELECT });
   });
   return toView(row, user, offer);
-}
-
-/** Привязка только своих, ещё ни к чему не привязанных файлов чата; условие в самом UPDATE — без гонки. */
-async function attachFiles(tx: Db, user: CurrentUser, messageId: string, fileIds: string[]): Promise<void> {
-  if (fileIds.length === 0) return;
-  const result = await tx.storedFile.updateMany({
-    where: {
-      id: { in: fileIds },
-      uploadedById: user.id,
-      purpose: "MESSAGE",
-      messageId: null,
-      portfolioItemId: null,
-      requestId: null,
-      stageId: null,
-      disputeId: null,
-      visualizationId: null,
-    },
-    data: { messageId },
-  });
-  if (result.count !== fileIds.length) fail.validation(t.errors.badAttachment);
 }
 
 async function notifyOtherParty(tx: Db, sender: "client" | "executor", offer: OfferContext, text: string): Promise<void> {
