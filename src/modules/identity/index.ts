@@ -10,10 +10,18 @@ export {
   getCurrentUser,
   requireApprovedExecutor,
   requireUser,
+  requireUserPage,
   revokeAllSessions,
+  signOutEverywhere,
   startSession,
   type CurrentUser,
 } from "./session";
+export { OTP_MAX_ATTEMPTS, OTP_TTL_MIN, requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./otp";
+export { listDemoPersonas, loginAsDemoPersona, type DemoPersona } from "./demo";
+export { authorize, can, type ActionOn, type Resource } from "./rbac";
+export { EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, homePathFor, loginHref, safeReturnTo } from "./return-to";
+export { formatPhone, parsePhone, type Phone } from "./phone";
+export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id";
 
 export type RegistrationDecision = { approve: true; segment: Segment } | { approve: false; reason: string };
 
