@@ -150,8 +150,9 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
               <ul className="flex flex-col gap-2">
                 {d.attachments.map((a) => (
                   <li key={a.id} className="text-sm break-all text-ink-soft">
-                    {/* INTEGRATOR: ссылка на просмотр через files (подписанный URL), когда появится маршрут /api/files */}
-                    {c.attachment(a.contentType, Math.ceil(a.size / 1024), a.sha256)}
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-accent underline">
+                      {c.attachment(a.contentType, Math.ceil(a.size / 1024), a.sha256)}
+                    </a>
                   </li>
                 ))}
               </ul>

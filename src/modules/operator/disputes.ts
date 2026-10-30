@@ -1,5 +1,6 @@
 import { scopeHistory } from "@/modules/audit";
 import { resolveDispute as resolveDisputeInDealCore, type ResolveDisputeInput } from "@/modules/deal-core";
+import { fileUrl } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import { db } from "@/platform/db";
 import { fail } from "@/platform/errors";
@@ -44,7 +45,10 @@ export async function getDisputeCard(user: CurrentUser, disputeId: string) {
       openedBy: { select: { role: true } },
       resolvedBy: { select: { fullName: true } },
       stage: { select: { id: true, title: true, amount: true, status: true } },
-      attachments: { select: { id: true, contentType: true, size: true, sha256: true, createdAt: true }, orderBy: { sortOrder: "asc" } },
+      attachments: {
+        select: { id: true, contentType: true, size: true, sha256: true, createdAt: true, provider: true, storageKey: true },
+        orderBy: { sortOrder: "asc" },
+      },
       deal: {
         select: {
           id: true,
@@ -65,7 +69,11 @@ export async function getDisputeCard(user: CurrentUser, disputeId: string) {
   });
   if (!dispute) return fail.notFound();
   const history = (await scopeHistory(`deal:${dispute.deal.id}`)).map(toAuditView);
-  return { ...dispute, history };
+  // Подписанная ссылка на просмотр; ключ хранилища наружу не отдаём.
+  const attachments = await Promise.all(
+    dispute.attachments.map(async ({ provider, storageKey, ...a }) => ({ ...a, url: await fileUrl({ provider, storageKey }) })),
+  );
+  return { ...dispute, attachments, history };
 }
 
 export async function resolveDispute(user: CurrentUser, input: ResolveDisputeInput): Promise<void> {
