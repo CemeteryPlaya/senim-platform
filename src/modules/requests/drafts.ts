@@ -233,6 +233,23 @@ export async function getDraft(user: CurrentUser, requestId: string) {
 }
 export type Draft = Awaited<ReturnType<typeof getDraft>>;
 
+/**
+ * Активные типы мебели для первого шага мастера. Справочник ведёт оператор.
+ * INTEGRATOR: перенести в operator, если справочник появится в его index.ts.
+ */
+export async function listFurnitureTypes() {
+  return db.furnitureType.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, slug: true, name: true } });
+}
+
+/** Работа из портфолио для «Хочу похожее»: тип и исполнитель без личных данных. */
+export async function likeTarget(portfolioItemId: string) {
+  const item = await db.portfolioItem.findFirst({
+    where: { id: portfolioItemId, published: true },
+    select: { id: true, title: true, furnitureTypeId: true, style: true, executor: { select: { publicNumber: true, segment: true } } },
+  });
+  return item ?? fail.notFound(e.portfolioNotFound);
+}
+
 /** «Мои заявки»: свои заявки с числом действующих откликов. */
 export async function listMyRequests(user: CurrentUser) {
   requireClient(user);
