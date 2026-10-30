@@ -58,7 +58,13 @@ export async function requestOtp(input: { phone: string; ip: string }): Promise<
   return { phone, expiresAt, demoCode: showsDemoCode() ? code : null };
 }
 
-export type OtpVerified = { userId: string; role: Role; isNew: boolean };
+/** Кто вошёл: этого хватает, чтобы выбрать экран после входа (homePathFor). */
+export type OtpVerified = {
+  userId: string;
+  role: Role;
+  executor: { status: "PENDING" | "APPROVED" | "REJECTED" } | null;
+  isNew: boolean;
+};
 
 /**
  * Проверяет код и начинает сессию. Попытка засчитывается до сравнения (атомарно),
@@ -90,9 +96,9 @@ export async function verifyOtp(input: { phone: string; code: string; ip: string
     const consumed = await tx.otpCode.updateMany({ where: { id: otp.id, consumedAt: null }, data: { consumedAt: new Date() } });
     if (consumed.count !== 1) return fail.validation(t.errors.expired);
 
-    const existing = await tx.user.findUnique({ where: { phone } });
+    const existing = await tx.user.findUnique({ where: { phone }, include: { executorProfile: { select: { status: true } } } });
     if (existing?.blockedAt) return fail.forbidden(t.errors.blocked);
-    if (existing) return { userId: existing.id, role: existing.role, isNew: false };
+    if (existing) return { userId: existing.id, role: existing.role, executor: existing.executorProfile, isNew: false };
 
     const created = await tx.user.create({ data: { phone, role: "CLIENT" } });
     await recordAudit(tx, {
@@ -101,7 +107,7 @@ export async function verifyOtp(input: { phone: string; code: string; ip: string
       entity: { type: "user", id: created.id },
       after: { role: created.role },
     });
-    return { userId: created.id, role: created.role, isNew: true };
+    return { userId: created.id, role: created.role, executor: null, isNew: true };
   });
 
   await startSession(result.userId, input.userAgent);

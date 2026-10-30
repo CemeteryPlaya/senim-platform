@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
+import { makeExecutor } from "../../../test/factories";
 import { cookieValue, freshBrowser, setEnv } from "../../../test/factories/identity";
 import { requestOtp, verifyOtp } from "./otp";
 import { getCurrentUser, SESSION_COOKIE } from "./session";
@@ -91,6 +92,13 @@ describe("verifyOtp", () => {
     const code = await codeFor();
 
     expect(await verifyOtp({ phone: PHONE, code, ip: IP })).toMatchObject({ userId: operator.id, role: "OPERATOR", isNew: false });
+  });
+
+  it("исполнителю возвращает статус профиля — для выбора экрана после входа", async () => {
+    const ex = await makeExecutor({ status: "PENDING" });
+    const code = await codeFor(ex.phone);
+
+    expect(await verifyOtp({ phone: ex.phone, code, ip: IP })).toMatchObject({ role: "EXECUTOR", executor: { status: "PENDING" } });
   });
 
   it("неверный код: ошибка с числом оставшихся попыток, сессии нет", async () => {

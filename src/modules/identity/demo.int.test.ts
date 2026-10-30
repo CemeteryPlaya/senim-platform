@@ -33,7 +33,7 @@ describe("демо-персоны при DEMO_MODE=true", () => {
   it("вход персоной одним нажатием ставит сессию", async () => {
     const demo = await makeDemoPersona("OPERATOR", "+77000007003");
 
-    await loginAsDemoPersona(demo.id, "vitest");
+    expect(await loginAsDemoPersona(demo.id, "vitest")).toEqual({ id: demo.id, role: "OPERATOR", executor: null });
 
     expect(await getCurrentUser()).toMatchObject({ id: demo.id, role: "OPERATOR", isDemo: true });
   });
