@@ -10,12 +10,13 @@ export { paymentModeOf, railModeOf, RAIL_MODES } from "./modes";
 export { activeRailMode, setActiveRailMode, RAIL_SETTING_KEY } from "./settings";
 export {
   ensureEscrowAccount,
-  escrowBalance,
+  escrowAvailable,
   executeOperation,
   isFullyFunded,
   pendingOperationKeys,
   receiveWebhook,
   requestOperation,
+  stagesWithTranche,
   type OperationRequest,
   type SettledHook,
   type SettledOperation,

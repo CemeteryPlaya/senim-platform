@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { executeOperation, railFor, reconcile, requestOperation, simulatorDeposit, simulatorRedeliver } from "@/modules/payments";
 import { db, transaction } from "@/platform/db";
 import { makeOperator } from "../../../test/factories";
@@ -161,6 +161,34 @@ describe("эскроу-сделка в банк-симуляторе", () => {
 
     expect(await dealOf(f.dealId)).toMatchObject({ status: "TERMINATED" });
     expect(await accountOf(f.dealId)).toMatchObject({ released: 70_000, refunded: 30_000, status: "CLOSED" });
+    expect((await reconcile(f.dealId)).every((r) => r.status === "MATCHED")).toBe(true);
+  });
+
+  it("транш в пути: расторжение не возвращает транзитную сумму и не платит дважды", async () => {
+    const f = await signedEscrowDeal();
+    await deposit(f, 100_000);
+    const [advance, work, final] = await stagesOf(f.dealId);
+    await finishStage(f, advance.id);
+    await finishStage(f, work.id);
+    await startStage(f.executor, { stageId: final.id });
+    await submitStage(f.executor, { stageId: final.id, report: "Монтаж завершён", photoIds: [await makeStagePhoto(f.executor)] });
+    // Банк не ответил на раскрытие транша за приёмку: операция остаётся в пути (PENDING).
+    const down = vi.spyOn(railFor("escrow-simulator"), "releaseTranche").mockRejectedValueOnce(new Error("банк недоступен"));
+    await acceptStage(f.client, { stageId: final.id });
+    down.mockRestore();
+    expect(await db.paymentOperation.findUniqueOrThrow({ where: { idempotencyKey: `release:${final.id}` } })).toMatchObject({ status: "PENDING" });
+
+    const { disputeId } = await openDispute(f.client, { dealId: f.dealId, reason: "QUALITY", description: "Монтаж с перекосом дверей" });
+    const operator = await makeOperator();
+    // Неоплаченного не осталось: транш уже запрошен — частичное решение не может присудить его второй раз.
+    expect(
+      await code(resolveDispute(operator, { disputeId, decision: "PARTIAL", decisionAmount: 10_000, rationale: "Часть работы с браком" })),
+    ).toBe("VALIDATION");
+    await resolveDispute(operator, { disputeId, decision: "TERMINATE", rationale: "Стороны не договорились" });
+
+    expect(await db.paymentOperation.count({ where: { idempotencyKey: `dispute:${disputeId}:refund` } })).toBe(0);
+    expect(await db.paymentOperation.count({ where: { dealId: f.dealId, status: "FAILED" } })).toBe(0);
+    expect(await accountOf(f.dealId)).toMatchObject({ deposited: 100_000, released: 100_000, refunded: 0 });
     expect((await reconcile(f.dealId)).every((r) => r.status === "MATCHED")).toBe(true);
   });
 });

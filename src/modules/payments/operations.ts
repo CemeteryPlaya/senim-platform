@@ -233,10 +233,28 @@ async function recordDeposit(tx: Tx, dealId: string, event: RailWebhookEvent, on
   await onSettled(tx, { ...op, status: "SUCCEEDED" });
 }
 
-/** Сколько ещё лежит на счёте сделки (внесено − перечислено − возвращено). */
-export async function escrowBalance(tx: Tx, dealId: string): Promise<number> {
+/**
+ * Сколько на счёте сделки ещё можно распределить: внесено − перечислено − возвращено − операции в пути
+ * (RELEASE/REFUND в PENDING: банк их ещё не исполнил, но деньги уже обещаны). Без вычета в пути
+ * расторжение вернуло бы заказчику сумму транша, который вот-вот уйдёт исполнителю.
+ */
+export async function escrowAvailable(tx: Tx, dealId: string): Promise<number> {
   const account = await tx.escrowAccount.findUnique({ where: { dealId } });
-  return account ? account.deposited - account.released - account.refunded : 0;
+  if (!account) return 0;
+  const inFlight = await tx.paymentOperation.aggregate({
+    where: { dealId, status: "PENDING", kind: { in: ["RELEASE", "REFUND"] } },
+    _sum: { amount: true },
+  });
+  return account.deposited - account.released - account.refunded - (inFlight._sum.amount ?? 0);
+}
+
+/** Этапы, транш по которым уже запрошен или выполнен (PENDING или SUCCEEDED): их больше нельзя присудить. */
+export async function stagesWithTranche(tx: Tx, dealId: string): Promise<Set<string>> {
+  const ops = await tx.paymentOperation.findMany({
+    where: { dealId, kind: "RELEASE", status: { in: ["PENDING", "SUCCEEDED"] }, stageId: { not: null } },
+    select: { stageId: true },
+  });
+  return new Set(ops.flatMap((o) => (o.stageId ? [o.stageId] : [])));
 }
 
 /** Внесено ли на счёт не меньше суммы договора. */

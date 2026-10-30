@@ -3,7 +3,7 @@ import { recordAudit } from "@/modules/audit";
 import { attachFiles } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { notifyOperators } from "@/modules/notifications";
-import { escrowBalance } from "@/modules/payments";
+import { escrowAvailable, stagesWithTranche } from "@/modules/payments";
 import { transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import type { ResolveDispute } from "./contracts";
@@ -120,7 +120,7 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
     if (!ref) return fail.notFound(ru.deal.errors.disputeNotFound);
     const deal = await lockDeal(tx, ref.dealId);
     const actor = actorOf(operator);
-    const unpaid = deal.stages.reduce((sum, s) => sum + (s.payment && s.payment.status !== "CONFIRMED" ? s.payment.amount : 0), 0);
+    const unpaid = await unpaidAmount(tx, deal);
     if (input.decision === "PARTIAL" && (!input.decisionAmount || input.decisionAmount > unpaid)) {
       return fail.validation(ru.deal.errors.partialAmount);
     }
@@ -219,9 +219,18 @@ async function applyStageDecision(
   }
 }
 
-/** Расторжение в эскроу: исполнителю — присуждённое, заказчику — весь остаток счёта. */
+/** Сколько ещё не оплачено по этапам: без подтверждённых оплат и без этапов, транш по которым уже запрошен. */
+async function unpaidAmount(tx: Tx, deal: DealState): Promise<number> {
+  const requested = deal.paymentMode === "MANUAL" ? new Set<string>() : await stagesWithTranche(tx, deal.id);
+  return deal.stages.reduce(
+    (sum, s) => sum + (s.payment && s.payment.status !== "CONFIRMED" && !requested.has(s.id) ? s.payment.amount : 0),
+    0,
+  );
+}
+
+/** Расторжение в эскроу: исполнителю — присуждённое, заказчику — весь остаток счёта за вычетом операций в пути. */
 async function settleTermination(tx: Tx, deal: DealState, disputeId: string, toExecutor: number) {
-  const balance = await escrowBalance(tx, deal.id);
+  const balance = await escrowAvailable(tx, deal.id);
   const release = Math.min(toExecutor, balance);
   if (release > 0) await requestMoney(tx, { dealId: deal.id, kind: "RELEASE", amount: release, idempotencyKey: `dispute:${disputeId}:release` });
   if (balance - release > 0) {

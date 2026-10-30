@@ -6,7 +6,7 @@ import { actorOf, type CurrentUser } from "@/modules/identity";
 import {
   activeRailMode,
   ensureEscrowAccount,
-  escrowBalance,
+  escrowAvailable,
   executeOperation,
   isFullyFunded,
   paymentModeOf,
@@ -360,7 +360,7 @@ export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reaso
     await moveDeal(tx, deal, { event: "cancel", who, actor: actorOf(user), audit: { action: "deal.cancelled", meta: { reason: input.reason } }, data: { closedAt: new Date() } });
     await withdrawContract(tx, deal.id);
     await hooks.onCancelled(tx, deal.id);
-    const balance = deal.paymentMode === "MANUAL" ? 0 : await escrowBalance(tx, deal.id);
+    const balance = deal.paymentMode === "MANUAL" ? 0 : await escrowAvailable(tx, deal.id);
     if (balance > 0) await requestMoney(tx, { dealId: deal.id, kind: "REFUND", amount: balance, idempotencyKey: `cancel:${deal.id}:refund` });
     await notifyParty(tx, deal, who === "CLIENT" ? "EXECUTOR" : "CLIENT", "deal.cancelled", { title: t.cancelled.title, body: t.cancelled.body(deal.number) });
   });
