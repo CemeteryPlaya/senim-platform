@@ -2,6 +2,7 @@
 // Шрифты — отдельно (`@/ui/fonts`), их подключает только корневой layout.
 
 export { cn } from "./cn";
+export { focusFirstInvalid } from "./focus";
 export {
   formatDate,
   formatDateTime,

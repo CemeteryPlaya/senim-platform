@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { z } from "zod";
 import {
   COUNTERTOP_KEYS,
@@ -17,7 +17,7 @@ import {
   type WizardScreen,
 } from "@/modules/requests/client";
 import { ru } from "@/i18n/ru";
-import { Button, Checkbox, Input, RadioCards, Select, Textarea } from "@/ui";
+import { Button, Checkbox, focusFirstInvalid, Input, RadioCards, Select, Textarea } from "@/ui";
 import { COUNTERTOPS, FACADES, HARDWARE, SEGMENT_NAMES, STYLES } from "@/verticals/furniture";
 import { Uploader } from "@/app/_components/uploader";
 import { saveStepAction, submitRequestAction } from "../actions";
@@ -59,14 +59,31 @@ function StepHeading({ title, lead }: { title: string; lead: string }) {
   );
 }
 
-function StepForm({ onSubmit, children, actions }: { onSubmit: () => void; children: ReactNode; actions: ReactNode }) {
+/**
+ * Форма шага. После неудачной проверки фокус идёт на первое поле с ошибкой (диктор прочитает
+ * её текст); если такого поля нет (например, ошибка у фото) — на сводку над кнопками.
+ */
+function StepForm({ onSubmit, errors, children, actions }: { onSubmit: () => void; errors: Errors; children: ReactNode; actions: ReactNode }) {
+  const form = useRef<HTMLFormElement>(null);
+  const summary = useRef<HTMLParagraphElement>(null);
+  const invalid = Object.values(errors).some((list) => list && list.length > 0);
+  // errors — новый объект после каждой проверки, поэтому фокус переходит и при повторной ошибке.
+  useEffect(() => {
+    if (!invalid || !form.current) return;
+    if (!focusFirstInvalid(form.current)) summary.current?.focus();
+  }, [errors, invalid]);
   const handle = (e: FormEvent) => {
     e.preventDefault();
     onSubmit();
   };
   return (
-    <form noValidate onSubmit={handle} className="flex flex-col gap-8">
+    <form ref={form} noValidate onSubmit={handle} className="flex flex-col gap-8">
       {children}
+      {invalid && (
+        <p ref={summary} tabIndex={-1} className="text-base font-semibold text-danger">
+          {ru.common.errors.checkForm}
+        </p>
+      )}
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">{actions}</div>
     </form>
   );
@@ -92,6 +109,7 @@ export function TypeStep(props: StepBase & { types: { id: string; name: string }
   ];
   return (
     <StepForm
+      errors={errors}
       onSubmit={() =>
         submit({
           screen: "type",
@@ -137,6 +155,7 @@ export function StyleStep(props: StepBase & { initial: { style: string | null; s
   const style = choice && choice !== CUSTOM ? (choice as (typeof STYLE_KEYS)[number]) : null;
   return (
     <StepForm
+      errors={errors}
       onSubmit={() => submit({ screen: "style", style, styleNote: choice === CUSTOM ? note : "" })}
       actions={
         <>
@@ -172,6 +191,7 @@ export function RoomStep(props: StepBase & { photos: { id: string; src: string }
   const save = () => submit({ screen: "room", photoFileIds: photoIds });
   return (
     <StepForm
+      errors={errors}
       onSubmit={save}
       actions={
         <>
@@ -221,6 +241,7 @@ export function SizeStep(props: StepBase & { details: RequestDetails }) {
   );
   return (
     <StepForm
+      errors={errors}
       onSubmit={() =>
         submit({
           screen: "size",
@@ -291,6 +312,7 @@ export function MaterialsStep(props: StepBase & { details: RequestDetails }) {
   };
   return (
     <StepForm
+      errors={errors}
       onSubmit={() =>
         submit({
           screen: "materials",
@@ -375,6 +397,7 @@ export function SendStep(props: { draftId: string; initial: SendInitial; suggest
   const chosen = SEGMENTS.find((k) => k === form.segment);
   return (
     <StepForm
+      errors={errors}
       onSubmit={send}
       actions={
         <div className="flex w-full flex-col gap-2 sm:items-end">
