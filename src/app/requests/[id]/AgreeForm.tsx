@@ -3,18 +3,26 @@
 import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, RadioCards } from "@/ui";
+import { Button, Input, RadioCards } from "@/ui";
 import { DEFAULT_STAGE_TEMPLATE, STAGE_TEMPLATES, type StageTemplateKey } from "@/verticals/furniture";
 import { agreeToContractAction } from "../actions";
 import { FormError, useRunAction } from "../_parts/ActionButton";
 
 const t = ru.requests.request;
+const ci = ru.identity.clientIdentity;
 const KEYS = Object.keys(STAGE_TEMPLATES) as StageTemplateKey[];
 
-/** Согласие с итоговой ценой: заказчик выбирает порядок оплаты, сделку создаёт deal-core. */
-export function AgreeForm({ requestId }: { requestId: string }) {
+/**
+ * Согласие с итоговой ценой: заказчик выбирает порядок оплаты, сделку создаёт deal-core.
+ * needsIdentity — у заказчика ещё нет ФИО и ИИН (вход по SMS): они нужны в договоре, спрашиваем здесь один раз.
+ */
+export function AgreeForm({ requestId, needsIdentity }: { requestId: string; needsIdentity: boolean }) {
   const [template, setTemplate] = useState<StageTemplateKey>(DEFAULT_STAGE_TEMPLATE);
-  const { run, pending, error } = useRunAction(agreeToContractAction, (d) => `/deals/${d.dealId}`);
+  const [fullName, setFullName] = useState("");
+  const [iin, setIin] = useState("");
+  const { run, pending, error, fieldErrors } = useRunAction(agreeToContractAction, (d) => `/deals/${d.dealId}`);
+  const identity = needsIdentity ? { fullName, iin: iin.replace(/\s/g, "") } : undefined;
+
   return (
     <div className="flex flex-col gap-4">
       <RadioCards
@@ -25,7 +33,33 @@ export function AgreeForm({ requestId }: { requestId: string }) {
         onChange={(v) => setTemplate(KEYS.find((k) => k === v) ?? DEFAULT_STAGE_TEMPLATE)}
         options={KEYS.map((k) => ({ value: k, label: STAGE_TEMPLATES[k].name, description: STAGE_TEMPLATES[k].description }))}
       />
-      <Button loading={pending} iconEnd={<ArrowRight />} onClick={() => void run({ requestId, template })}>
+      {needsIdentity && (
+        <fieldset className="flex flex-col gap-4">
+          <legend className="mb-2 text-lg font-bold text-ink">{ci.title}</legend>
+          <p className="text-base text-ink-soft">{ci.lead}</p>
+          <Input
+            label={ci.fullName}
+            hint={ci.fullNameHint}
+            name="fullName"
+            autoComplete="name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            error={fieldErrors?.fullName?.[0]}
+          />
+          <Input
+            label={ci.iin}
+            hint={ci.iinHint}
+            name="iin"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={15}
+            value={iin}
+            onChange={(e) => setIin(e.target.value)}
+            error={fieldErrors?.iin?.[0]}
+          />
+        </fieldset>
+      )}
+      <Button loading={pending} iconEnd={<ArrowRight />} onClick={() => void run({ requestId, template, identity })}>
         {t.agree}
       </Button>
       <FormError message={error} />

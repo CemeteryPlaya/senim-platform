@@ -197,7 +197,13 @@ export const completeMeasurementSchema = z.strictObject({ measurementId: id, fin
 export const noDealSchema = z.strictObject({ measurementId: id, result: optionalText(1000) });
 
 /** Шаблон этапов из вертикали: заказчик выбирает порядок оплаты при согласии на договор. */
-export const agreeToContractSchema = z.strictObject({ requestId: id, template: z.enum(keysOf(STAGE_TEMPLATES)) });
+/** ФИО и ИИН заказчика — только если их ещё нет (проверяет identity.recordClientIdentity). */
+const clientIdentity = z.strictObject({ fullName: z.string().trim().max(120), iin: z.string().trim().regex(/^\d{12}$/) });
+export const agreeToContractSchema = z.strictObject({
+  requestId: id,
+  template: z.enum(keysOf(STAGE_TEMPLATES)),
+  identity: clientIdentity.optional(),
+});
 
 /** Номер экрана (с нуля). `Request.wizardStep` — сколько экранов уже сохранено. */
 export function screenIndex(screen: WizardScreen): number {

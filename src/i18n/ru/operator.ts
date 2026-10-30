@@ -251,6 +251,7 @@ export const operator = {
     /** Названия событий вне сделки; события сделки — в ru.deal.history.action. Неизвестный код показывается как есть. */
     actions: {
       "user.registered": "Зарегистрирован пользователь",
+      "user.identity.recorded": "Заказчик указал ФИО и ИИН для договора",
       "executor.registered": "Исполнитель подал заявку на регистрацию",
       "executor.approved": "Регистрация исполнителя подтверждена",
       "executor.rejected": "Регистрация исполнителя отклонена",

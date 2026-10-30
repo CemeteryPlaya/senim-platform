@@ -30,9 +30,16 @@ export function action<S extends z.ZodType, T>(name: string, schema: S, handler:
       return { ok: true, data: await handler(parsed.data) };
     } catch (e) {
       unstable_rethrow(e);
-      if (isAppError(e)) return { ok: false, code: e.code, error: e.message };
+      if (isAppError(e)) return { ok: false, code: e.code, error: e.message, ...fieldErrorsOf(e.details) };
       logger.error("action failed", { action: name, error: e });
       return { ok: false, code: "INTERNAL", error: INTERNAL_ERROR };
     }
   };
+}
+
+/** Ошибки по полям из сервиса (fail.validation(msg, { fieldErrors })) — чтобы форма показала их у полей. */
+function fieldErrorsOf(details: unknown): { fieldErrors?: Record<string, string[]> } {
+  if (typeof details !== "object" || details === null || !("fieldErrors" in details)) return {};
+  const fe = (details as { fieldErrors: unknown }).fieldErrors;
+  return typeof fe === "object" && fe !== null ? { fieldErrors: fe as Record<string, string[]> } : {};
 }

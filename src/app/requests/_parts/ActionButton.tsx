@@ -12,9 +12,11 @@ export function useRunAction<I, T>(action: ServerAction<I, T>, after?: (data: T)
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]> | undefined>();
   const run = (input: I) =>
     new Promise<ActionResult<T>>((resolve) => {
       setError(null);
+      setFieldErrors(undefined);
       startTransition(async () => {
         const result = await action(input);
         if (result.ok) {
@@ -23,11 +25,12 @@ export function useRunAction<I, T>(action: ServerAction<I, T>, after?: (data: T)
           else router.refresh();
         } else {
           setError(result.error);
+          setFieldErrors(result.fieldErrors);
         }
         resolve(result);
       });
     });
-  return { run, pending, error };
+  return { run, pending, error, fieldErrors };
 }
 
 export type ActionButtonProps<I, T> = {

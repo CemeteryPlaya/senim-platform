@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
 import { cache } from "react";
-import { getCurrentUser, type CurrentUser } from "@/modules/identity";
+import { getCurrentUser, hasClientIdentity, type CurrentUser } from "@/modules/identity";
 import { getClientRequest, listOffers, OFFER_SORTS, type ClientRequest, type OfferSort } from "@/modules/requests";
 import { isAppError } from "@/platform/errors";
 import { ru } from "@/i18n/ru";
@@ -56,6 +56,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
   if (request.status === "DRAFT") redirect(`/requests/new?draft=${id}`);
   const sort: OfferSort = OFFER_SORTS.find((s) => s === sp.sort) ?? "price";
   const offers = await listOffers(user, { requestId: id, sort });
+  const needsIdentity = request.status === "MEASURING" && !(await hasClientIdentity(user.id));
 
   return (
     <Container className="flex flex-col gap-8 pb-10">
@@ -76,7 +77,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
           {t.sentText}
         </Alert>
       )}
-      <StatusPanel request={request} />
+      <StatusPanel request={request} needsIdentity={needsIdentity} />
 
       <section aria-labelledby="offers-title" className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -153,7 +154,7 @@ function SortLinks({ requestId, current }: { requestId: string; current: OfferSo
 }
 
 /** Что происходит с заявкой сейчас и одно главное действие для этого шага. */
-function StatusPanel({ request }: { request: ClientRequest }) {
+function StatusPanel({ request, needsIdentity }: { request: ClientRequest; needsIdentity: boolean }) {
   const { chosen, measurement: m } = request;
   const fee = chosen?.measurementTerms === "FEE_IF_NO_DEAL" && chosen.measurementFee ? chosen.measurementFee : null;
   const noDeal = m && (
@@ -215,7 +216,7 @@ function StatusPanel({ request }: { request: ClientRequest }) {
                 {m.result}
               </p>
             )}
-            <AgreeForm requestId={request.id} />
+            <AgreeForm requestId={request.id} needsIdentity={needsIdentity} />
             <div className="self-start">{noDeal}</div>
           </section>
         );

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { recordAudit, SYSTEM } from "@/modules/audit";
 import { sanitizeExecutorText } from "@/modules/companies";
 import { createDeal } from "@/modules/deal-core";
-import type { CurrentUser } from "@/modules/identity";
+import { recordClientIdentity, type CurrentUser } from "@/modules/identity";
 import { notify, notifyTemplate } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
 import { db, transaction, type Db } from "@/platform/db";
@@ -164,10 +164,15 @@ export async function measurementNoDeal(user: CurrentUser, input: { measurementI
  * MEASURING → CONTRACTING: заказчик согласен с итоговой ценой замера и порядком оплаты.
  * Сделку создаёт deal-core в той же транзакции.
  */
-export async function agreeToContract(user: CurrentUser, input: { requestId: string; template: StageTemplateKey }): Promise<{ dealId: string }> {
+export async function agreeToContract(
+  user: CurrentUser,
+  input: { requestId: string; template: StageTemplateKey; identity?: { fullName: string; iin: string } },
+): Promise<{ dealId: string }> {
   requireClient(user);
   return transaction(async (tx) => {
     const r = await loadOwnRequest(tx, user, input.requestId);
+    // Сторона договора: без ФИО и ИИН договор не составить и не подписать ЭЦП.
+    await recordClientIdentity(tx, user, input.identity);
     const to = transition(REQUEST_TRANSITIONS, "agreeToContract", r.status, "CLIENT");
     const m = await tx.measurement.findFirst({ where: { requestId: r.id, status: "DONE", offer: { status: "ACCEPTED" } }, include: { offer: true } });
     if (!m || m.finalPrice === null) return fail.conflict(e.noMeasurementResult);
