@@ -36,6 +36,7 @@ export const OFFER_TRANSITIONS = [
   { action: "accept", from: ["SENT"], to: "ACCEPTED", who: ["CLIENT"] },
   { action: "decline", from: ["SENT"], to: "DECLINED", who: ["CLIENT"], guard: "выбран другой отклик или заявка отменена" },
   { action: "noDeal", from: ["ACCEPTED"], to: "DECLINED", who: ["CLIENT", "EXECUTOR"], guard: "замер без сделки" },
+  { action: "requestCancelled", from: ["ACCEPTED"], to: "DECLINED", who: ["CLIENT"], guard: "заказчик отменил заявку до договора" },
 ] as const satisfies Table<OfferStatus, string>;
 
 export const MEASUREMENT_TRANSITIONS = [

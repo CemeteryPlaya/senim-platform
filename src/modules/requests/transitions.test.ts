@@ -29,6 +29,7 @@ const OFFER_SPEC = [
   "decline: SENT → DECLINED (CLIENT)",
   "noDeal: ACCEPTED → DECLINED (CLIENT)",
   "noDeal: ACCEPTED → DECLINED (EXECUTOR)",
+  "requestCancelled: ACCEPTED → DECLINED (CLIENT)",
 ];
 
 const MEASUREMENT_SPEC = [

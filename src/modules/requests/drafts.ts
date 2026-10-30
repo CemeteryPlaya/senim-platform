@@ -19,7 +19,7 @@ import {
   type SaveDraftInput,
   type StepInput,
 } from "./schema";
-import { REQUEST_TRANSITIONS, transition } from "./transitions";
+import { MEASUREMENT_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
 
 const e = ru.requests.errors;
 const n = ru.requests.notify;
@@ -160,8 +160,9 @@ export async function publishRequest(user: CurrentUser, input: { requestId: stri
 }
 
 /**
- * Заказчик отменяет заявку до договора. Неотвеченные отклики отклоняются; замер до выезда отменяется,
- * а после выезда фиксируется как «без сделки» с платой за выезд по условиям отклика (только запись).
+ * Заказчик отменяет заявку до договора. Неотвеченные и выбранный отклики отклоняются; замер до выезда
+ * отменяется, а после выезда фиксируется как «без сделки» с платой за выезд по условиям отклика (только запись).
+ * Все переходы — по таблицам (transitions.ts); заявка меняется первой, поэтому двойной клик даст CONFLICT.
  */
 export async function cancelRequest(user: CurrentUser, input: { requestId: string; reason?: string }): Promise<void> {
   requireClient(user);
@@ -174,13 +175,13 @@ export async function cancelRequest(user: CurrentUser, input: { requestId: strin
       where: { requestId: r.id, status: { in: ["SENT", "ACCEPTED"] } },
       select: { id: true, status: true, measurementTerms: true, measurementFee: true, executor: { select: { userId: true } } },
     });
-    await tx.offer.updateMany({ where: { requestId: r.id, status: "SENT" }, data: { status: "DECLINED" } });
+    await tx.offer.updateMany({ where: { requestId: r.id, status: "SENT" }, data: { status: transition(OFFER_TRANSITIONS, "decline", "SENT", "CLIENT") } });
 
     const accepted = affected.find((o) => o.status === "ACCEPTED");
     if (accepted) {
-      const fee = accepted.measurementTerms === "FEE_IF_NO_DEAL" ? accepted.measurementFee : null;
-      await tx.measurement.updateMany({ where: { offerId: accepted.id, status: "SCHEDULED" }, data: { status: "CANCELLED" } });
-      await tx.measurement.updateMany({ where: { offerId: accepted.id, status: "DONE" }, data: { status: "NO_DEAL", feeAccrued: fee } });
+      const offerTo = transition(OFFER_TRANSITIONS, "requestCancelled", accepted.status, "CLIENT");
+      expectOneUpdated(await tx.offer.updateMany({ where: { id: accepted.id, status: accepted.status }, data: { status: offerTo } }));
+      await closeMeasurement(tx, accepted);
     }
 
     await auditByUser(tx, user, r.id, {
@@ -195,6 +196,17 @@ export async function cancelRequest(user: CurrentUser, input: { requestId: strin
       await notify(tx, { userId: o.executor.userId, kind: "request.cancelled", title: n.cancelled.title, body: n.cancelled.body(title), link: links.executor(r.id) });
     }
   });
+}
+
+/** Замер выбранного отклика при отмене заявки: до выезда — CANCELLED, после — NO_DEAL с платой за выезд (запись). */
+async function closeMeasurement(tx: Tx, offer: { id: string; measurementTerms: string; measurementFee: number | null }) {
+  const m = await tx.measurement.findFirst({ where: { offerId: offer.id, status: { in: ["SCHEDULED", "DONE"] } }, select: { id: true, status: true } });
+  if (!m) return;
+  const data =
+    m.status === "SCHEDULED"
+      ? { status: transition(MEASUREMENT_TRANSITIONS, "cancel", m.status, "CLIENT") }
+      : { status: transition(MEASUREMENT_TRANSITIONS, "noDeal", m.status, "CLIENT"), feeAccrued: offer.measurementTerms === "FEE_IF_NO_DEAL" ? offer.measurementFee : null };
+  expectOneUpdated(await tx.measurement.updateMany({ where: { id: m.id, status: m.status }, data }));
 }
 
 // ─── чтение для экранов заказчика ────────────────────────────────────────────

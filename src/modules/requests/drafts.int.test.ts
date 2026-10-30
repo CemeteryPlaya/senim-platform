@@ -241,6 +241,15 @@ describe("отмена заявки → CANCELLED", () => {
     });
   });
 
+  it.each(["OFFER_CHOSEN", "MEASURING"] as const)("из %s выбранный отклик отклоняется — исполнитель больше не «выбран»", async (status) => {
+    const client = await makeClient();
+    const { requestId, offerId } = status === "OFFER_CHOSEN" ? await makeChosen(client) : await makeMeasuring(client);
+
+    await cancelRequest(client, { requestId });
+
+    expect((await db.offer.findUniqueOrThrow({ where: { id: offerId } })).status).toBe("DECLINED");
+  });
+
   it("после договора, повторно и чужим — запрещена", async () => {
     const client = await makeClient();
     const m = await makeMeasured(client);
