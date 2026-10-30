@@ -1,2 +1,0 @@
-{"schema_version":"guardrail-fire.v1","ts":"2026-10-27T14:30:30Z","host":"claude","tool":"Bash","rule_id":"RUNTIME_FLOOR:egress","category":"egress","decision":"deny","command_sha256":"8c990ab58ecdca996246571281fcdb8e76ca1cede9b05340cc564504205e92c1","command_len":1244}
-{"schema_version":"guardrail-fire.v1","ts":"2026-10-27T14:30:39Z","host":"claude","tool":"Bash","rule_id":"RUNTIME_FLOOR:secret-read","category":"secret-read","decision":"deny"}

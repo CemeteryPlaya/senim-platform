@@ -5,6 +5,7 @@ import "server-only";
 
 export type * from "./rail";
 export { railFor } from "./rails";
+export { PLATFORM_FEE_PERCENT } from "./fees";
 export { paymentModeOf, railModeOf, RAIL_MODES } from "./modes";
 export { activeRailMode, setActiveRailMode, RAIL_SETTING_KEY } from "./settings";
 export {

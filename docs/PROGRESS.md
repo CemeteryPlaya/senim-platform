@@ -13,17 +13,25 @@
 - [x] Сид: 19 пользователей (персоны isDemo), 10 исполнителей, 21 заявка во всех статусах, 14 сделок, 1 открытый спор, 385 событий аудита; `src/demo/` (resetDemo для «Сбросить демо»)
 - [x] Контракты провайдеров с моками: PaymentRail (manual, bank-заглушка), SignatureProvider (mock), StorageProvider (local), SmsProvider (mock), AiProvider (контракт)
 - [x] Вертикаль `furniture`: типы, стили, материалы, правила сегмента с «Почему?», шаблоны этапов (в том числе без предоплаты)
-- [ ] `ui-foundation`: токены, компоненты, оболочка, лендинг, витрина, проверка контраста
+- [x] `ui-foundation`: токены по 7 макетам, компоненты, оболочка, лендинг, `/ui-kit`, тест контраста (33 пары)
 - [x] CLAUDE.md, скилл `project-standards`, `.claude/agents/*.md`, `docs/agents/PHASE_B_RULES.md`, глоссарий, ADR-001…003
-- [ ] Коммит фазы A в main
+- [x] Коммит фазы A в main (`ed4b932`): 86 тестов, сборка проходит
 
-## Фаза B — модули (worktree)
-- [ ] deal-core-engineer · [ ] identity-engineer · [ ] marketplace-engineer · [ ] companies-engineer
-- [ ] documents-engineer · [ ] platform-engineer · [ ] operator-engineer · [ ] ai-engineer
+## Фаза B — модули
+- [x] deal-core-engineer · [x] identity-engineer · [x] marketplace-engineer · [x] companies-engineer
+- [x] documents-engineer · [x] platform-engineer · [x] operator-engineer · [x] ai-engineer
+- Все 8 агентов работали в одном worktree и одной ветке (harness выдал общий): ветка линейная, 48 коммитов, 927 тестов. Отчёты — в журнале ниже и в OPEN_QUESTIONS.
 
 ## Фаза C — интеграция
-- [ ] Слияние веток по одной, миграции, typecheck/lint/test после каждой
-- [ ] Обновить сид (документы, подписи, эскроу-сделка)
+- [x] Проверка общей ветки: typecheck, lint, 927 тестов, `next build`
+- [x] Dev-сервер в worktree (turbopack.root), шрифты PDF в трассировке Vercel
+- [x] Связи модулей: SMS по важным событиям; закрытие заявки при подписи договора; одно правило видимости заявки; фото через files; загрузка фото работы; вложения спора по ссылке; «Хочу похожее» только к видимому исполнителю
+- [x] Общие файлы: `binIinHash` (миграция), `platform/http`, `lockDealRow`, `platform/kz-id`, env (модели ИИ, секрет симулятора), шапка (колокольчик, «Выйти», меню оператора), уборка брошенных файлов, `saveFile` в транзакции
+- [x] Сид: договоры, акты, подписи, задача автоприёмки; `npm run jobs` и сид снова запускаются
+- [x] /bank-demo: одна кнопка «Войти как … и открыть» на шаг
+- [x] Ответы владельца: `.agents`/`.windsurf` вне git, комиссия 0% в коде
+- [ ] Эскроу-сделка в сиде — показывается переключением режима в демо (`/operator/demo`) и новой сделкой
+- [ ] ABAC: несколько ролей на пользователя (ответ владельца на вопрос №4) — ADR-004, после фазы D
 
 ## Фаза D — проверка
 - [ ] code-reviewer · [ ] security-reviewer · [ ] a11y-reviewer · [ ] qa-engineer (e2e)
@@ -48,3 +56,11 @@
 | A | Мок подписи без состояния | На Vercel запросы попадают на разные инстансы |
 | A | Cron на Vercel — раз в сутки | Hobby-план не позволяет чаще; см. OWNER_TODO |
 | A | `TEST_DATABASE_URL`/`E2E_DATABASE_URL` обязательны, без дефолта в коде | Хук запрещает креды в коде; пример — в `.env.example` |
+| C | Агенты фазы B оказались в одном worktree | harness выдал общий; ветка линейная, интеграция — проверка целиком и правки общих файлов, а не слияние веток |
+| C | Turbopack в worktree: `turbopack.root` = общий родитель проекта и `node_modules` | junction на основное дерево; `turbopackAdditionalRoots` не разрешает зависимости пакетов между собой |
+| C | `notify` сам ставит SMS для важных видов | модули пишут готовые тексты через `notify`; иначе SMS не уходила ни по одному событию |
+| C | Закрытие заявки — хук подписи (deal-core + requests в одной транзакции) | прямой вызов requests из deal-core дал бы цикл импорта |
+| C | `binIinHash` nullable | ключ HMAC только в приложении; заполнить старые строки SQL-ом нельзя |
+| C | Скрипты (сид, jobs) — хук `server-only` вместо `--conditions=react-server` | react-server ломает импорт `next/navigation` в модулях |
+| C | `prisma migrate reset` не запускался | Prisma требует явного согласия пользователя; демо пересеяно штатным `db seed` (resetDemo) |
+| C | Документы сида создаются после журнала сида | журнал только дописывается, seq должен идти по времени |

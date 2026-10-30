@@ -21,8 +21,15 @@
 | Исп. №9 | ТОО «Мебель Экспресс Астана» | +7 700 000 02 10 | REJECTED |
 | Исп. №10 | Алмас Тлеубаев | +7 700 000 02 09 | PENDING, без сегмента |
 
-## Заявки и сделки (все сделки — MANUAL, документов пока нет — фаза C)
+## Заявки и сделки (все сделки — MANUAL)
 
 - №21 DRAFT (шаг 2) · №19 OPEN тендер, 3 отклика, чат с маскированным контактом · №20 OPEN прямая · №13 OPEN после NO_DEAL (feeAccrued 10 000 ₸) · №18 OFFER_CHOSEN · №17 MEASURING · №16 CONTRACTING → сделка №14 AWAITING_SIGNATURES (no-prepayment) · №15 CANCELLED.
-- Сделка №13 IN_PROGRESS (three-part), аванс MARKED_PAID · №11 IN_PROGRESS (advance-50), этап SUBMITTED, автоприёмка через ~4 дня (задачу Job сид не ставит) · №12 DISPUTE · №7 COMPLETED с отзывом + 9 завершённых прошлых.
+- Сделка №13 IN_PROGRESS (three-part), аванс MARKED_PAID · №11 IN_PROGRESS (advance-50), этап SUBMITTED, автоприёмка через ~4 дня (задача `deal-core.autoAcceptStage` стоит в очереди) · №12 DISPUTE · №7 COMPLETED с отзывом + 9 завершённых прошлых.
 - Ссылки в уведомлениях: `/requests/:id`, `/executor/requests/:id`, `/deals/:id`, `/operator/executors/:id`, `/operator/disputes/:id`.
+
+## Документы (`src/demo/documents.ts`, через настоящий модуль documents)
+
+- Договор у каждой сделки (PDF, sha256, номер «Д-00NN/год»); у подписанных сделок — две подписи (метод MOCK) и статус SIGNED. Договор сделки №14 ждёт подписи — на нём показывается подпись.
+- Акт у каждого принятого этапа; у закрытых этапов акт подписан обеими сторонами.
+- Даты в PDF и у подписей — прошлые, как в истории сделки. События журнала `document.created` получают время запуска сида: модуль documents пишет журнал сам, а он только дописывается.
+- Сид и `npm run jobs` запускаются через `tsx --import ./scripts/server-only-hook.mjs` (пакет `server-only` подменяется пустым модулем, как в тестах).
