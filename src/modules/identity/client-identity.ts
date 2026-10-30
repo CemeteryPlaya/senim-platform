@@ -2,7 +2,7 @@ import "server-only";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
-import { db, type Tx } from "@/platform/db";
+import { db, isUniqueViolation, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { isValidIin } from "./kz-id";
 import { actorOf, type CurrentUser } from "./session";
@@ -32,11 +32,14 @@ export async function recordClientIdentity(tx: Tx, user: CurrentUser, input: { f
   const taken = await tx.user.findUnique({ where: { iinHash }, select: { id: true } });
   if (taken && taken.id !== user.id) return fail.conflict(t.iinTaken);
 
-  expectOneUpdated(
-    await tx.user.updateMany({
-      where: { id: user.id, iinHash: null },
-      data: { fullName, iinEnc: encryptPii(input.iin), iinHash, iinLast4: last4(input.iin) },
-    }),
-  );
+  // Уже указанное ФИО не меняем — только дополняем ИИН.
+  const data = { fullName: current.fullName ?? fullName, iinEnc: encryptPii(input.iin), iinHash, iinLast4: last4(input.iin) };
+  try {
+    expectOneUpdated(await tx.user.updateMany({ where: { id: user.id, iinHash: null }, data }));
+  } catch (e) {
+    // Тот же ИИН одновременно в другом аккаунте: проверку выше прошли оба, сработал уникальный индекс.
+    if (isUniqueViolation(e)) return fail.conflict(t.iinTaken);
+    throw e;
+  }
   await recordAudit(tx, { actor: actorOf(user), action: "user.identity.recorded", entity: { type: "user", id: user.id } });
 }

@@ -42,6 +42,7 @@
     ".agents",
     ".windsurf",
     ".claude",
+    ".harness-worktrees",
     "storage"
   ]
 }

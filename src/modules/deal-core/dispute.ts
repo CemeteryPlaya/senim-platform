@@ -7,7 +7,7 @@ import { escrowAvailable, stagesWithTranche } from "@/modules/payments";
 import { transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import type { ResolveDispute } from "./contracts";
-import { afterStageAccepted, notifyParty, partyText, pauseAutoAccept, requestMoney, resumeAutoAccept } from "./effects";
+import { afterStageAccepted, notifyParty, partyText, pauseAutoAccept, requestMoney, resumeAutoAccept, tryCompleteDeal } from "./effects";
 import { disputePositionSchema, openDisputeSchema, parseInput, resolveDisputeSchema } from "./schemas";
 import { settleDeal } from "./service";
 import { canMoveStage, lockDeal, moveDeal, moveStage, requireRole, scopeOf, type DealState, type StageState } from "./state";
@@ -156,6 +156,8 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
     });
     if (accepted && stage) await afterStageAccepted(tx, deal, stage);
     if (continues) await resumeAutoAccept(tx, deal, resolvedAt);
+    // Во время спора все этапы могли закрыться (акты подписаны, оплаты подтверждены) — тогда сделка завершается здесь.
+    if (continues) await tryCompleteDeal(tx, await lockDeal(tx, deal.id));
     if (!continues && deal.paymentMode !== "MANUAL") await settleTermination(tx, deal, ref.id, input.decisionAmount ?? 0);
 
     await recordAudit(tx, {

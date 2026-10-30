@@ -196,9 +196,12 @@ export const scheduleMeasurementSchema = z.strictObject({ offerId: id, scheduled
 export const completeMeasurementSchema = z.strictObject({ measurementId: id, finalPrice: money, result: optionalText(1000) });
 export const noDealSchema = z.strictObject({ measurementId: id, result: optionalText(1000) });
 
+/**
+ * ФИО и ИИН заказчика — только если их ещё нет. Формат и контрольную цифру проверяет
+ * identity.recordClientIdentity: её ошибки приходят к полям fullName и iin формы.
+ */
+const clientIdentity = z.strictObject({ fullName: z.string().trim().max(120), iin: z.string().trim().max(20) });
 /** Шаблон этапов из вертикали: заказчик выбирает порядок оплаты при согласии на договор. */
-/** ФИО и ИИН заказчика — только если их ещё нет (проверяет identity.recordClientIdentity). */
-const clientIdentity = z.strictObject({ fullName: z.string().trim().max(120), iin: z.string().trim().regex(/^\d{12}$/) });
 export const agreeToContractSchema = z.strictObject({
   requestId: id,
   template: z.enum(keysOf(STAGE_TEMPLATES)),

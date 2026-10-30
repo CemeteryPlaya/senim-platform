@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../test/factories";
-import { dealOf, makeDeal, makeStagePhoto, signContract, stagesOf, TEMPLATES } from "../../../test/factories/deal";
+import { dealOf, makeDeal, makeStagePhoto, signAct, signContract, stagesOf, TEMPLATES } from "../../../test/factories/deal";
 import {
   acceptStage,
   confirmStagePayment,
@@ -55,6 +55,24 @@ describe("спор", () => {
       decision: "FAVOR_EXECUTOR",
       resolvedById: f.operator.id,
     });
+  });
+
+  it("все этапы закрылись во время спора — после решения сделка завершается", async () => {
+    const f = await makeDeal({ template: TEMPLATES.single });
+    await signContract(f.dealId);
+    const [stage] = await stagesOf(f.dealId);
+    await startStage(f.executor, { stageId: stage.id });
+    await submitStage(f.executor, { stageId: stage.id, report: "Готово", photoIds: [await makeStagePhoto(f.executor)] });
+    await acceptStage(f.client, { stageId: stage.id });
+    const { disputeId } = await openDispute(f.client, { dealId: f.dealId, reason: "PAYMENT", description: "Спор об оплате" });
+    // Во время спора стороны договорились: оплата отмечена и подтверждена, акт подписан.
+    await markStagePaid(f.client, { stageId: stage.id });
+    await confirmStagePayment(f.executor, { stageId: stage.id });
+    await signAct(stage.id);
+    expect((await stagesOf(f.dealId))[0].status).toBe("CLOSED");
+
+    await resolveDispute(await makeOperator(), { disputeId, decision: "FAVOR_EXECUTOR", rationale: "Стороны договорились" });
+    expect(await dealOf(f.dealId)).toMatchObject({ status: "COMPLETED" });
   });
 
   it("в пользу заказчика: этап на доработку с обоснованием", async () => {

@@ -141,7 +141,7 @@ export async function measurementNoDeal(user: CurrentUser, input: { measurementI
       entity: { type: "measurement", id: m.id },
       before: { status: m.status },
       after: { status: measurementTo, feeAccrued },
-      meta: { note: "Плата за выезд оплачивается напрямую исполнителю; платформа только фиксирует запись" },
+      meta: { feePolicy: "direct" }, // плата за выезд — напрямую исполнителю, платформа только фиксирует
     });
     await auditByUser(tx, user, m.requestId, {
       action: "request.reopened",
