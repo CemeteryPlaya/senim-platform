@@ -1,7 +1,9 @@
-import { enqueueDailyJobs, jobHandlers } from "@/jobs";
+import { drainJobs, enqueueDailyJobs } from "@/jobs";
 import { safeEqual } from "@/platform/crypto";
 import { env } from "@/platform/env";
-import { runDueJobs } from "@/platform/jobs";
+
+/** Очередь разбирается до ~50 с (drainJobs) — запас до лимита функции. */
+export const maxDuration = 60;
 
 /** Vercel Cron вызывает GET с заголовком Authorization: Bearer <CRON_SECRET>. */
 export async function GET(request: Request) {
@@ -13,6 +15,6 @@ export async function GET(request: Request) {
     return new Response("CRON_SECRET is not configured", { status: 500 });
   }
   await enqueueDailyJobs();
-  const summary = await runDueJobs(jobHandlers);
+  const summary = await drainJobs();
   return Response.json(summary);
 }
