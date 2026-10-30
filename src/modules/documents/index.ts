@@ -13,6 +13,7 @@ export {
   getDocumentPdf,
   listDealDocuments,
   startSigning,
+  withdrawContract,
 } from "./service";
 export type { SigningDocumentView, StartedSigning } from "./views";
 

@@ -1,6 +1,6 @@
 import "server-only";
 import QRCode from "qrcode";
-import type { DocumentKind, DocumentStatus, SignMethod, SignParty } from "@/generated/prisma/enums";
+import type { DealStatus, DocumentKind, DocumentStatus, SignMethod, SignParty } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit, SYSTEM } from "@/modules/audit";
 import { saveFile, storageByName } from "@/modules/files";
@@ -133,15 +133,7 @@ export async function createContractIssuedAt(tx: Tx, dealId: string, issuedAt: D
     const same = await renderPdf(contractSpec(toContractData(deal, { number: current.number, version: current.version, issuedAt: current.createdAt })));
     if (sha256Hex(same) === current.sha256) return { documentId: current.id, sha256: current.sha256 };
     if (current.status === "SIGNED") fail.conflict(t.errors.signedContractChange);
-    expectOneUpdated(await tx.document.updateMany({ where: { id: current.id, status: "SIGNING" }, data: { status: "SUPERSEDED" } }));
-    await recordAudit(tx, {
-      actor: SYSTEM("documents"),
-      action: "document.superseded",
-      entity: { type: "document", id: current.id },
-      scope: scopeOf(dealId),
-      before: { status: current.status },
-      after: { status: "SUPERSEDED" },
-    });
+    await supersede(tx, { id: current.id, dealId });
   }
 
   const last = await tx.document.aggregate({ where: { dealId, kind: "CONTRACT" }, _max: { version: true } });
@@ -149,6 +141,30 @@ export async function createContractIssuedAt(tx: Tx, dealId: string, issuedAt: D
   const number = contractNumber(deal.number, yearIn(deal.createdAt));
   const bytes = await renderPdf(contractSpec(toContractData(deal, { number, version, issuedAt })));
   return storeDocument(tx, { dealId, kind: "CONTRACT", number, version, issuedAt, bytes });
+}
+
+/** Неподписанный документ больше не подписывается: SIGNING → SUPERSEDED с записью в журнале. */
+async function supersede(tx: Tx, doc: { id: string; dealId: string }, meta?: { reason: string }) {
+  expectOneUpdated(await tx.document.updateMany({ where: { id: doc.id, status: "SIGNING" }, data: { status: "SUPERSEDED" } }));
+  await recordAudit(tx, {
+    actor: SYSTEM("documents"),
+    action: "document.superseded",
+    entity: { type: "document", id: doc.id },
+    scope: scopeOf(doc.dealId),
+    before: { status: "SIGNING" },
+    after: { status: "SUPERSEDED" },
+    meta,
+  });
+}
+
+/**
+ * deal-core → documents: сделка отменена до подписи — неподписанный договор снимается с подписи
+ * (в той же транзакции, что и отмена). Подписанный договор остаётся как есть: это документ, а не черновик.
+ */
+export async function withdrawContract(tx: Tx, dealId: string): Promise<void> {
+  await lockDeal(tx, dealId);
+  const pending = await tx.document.findMany({ where: { dealId, kind: "CONTRACT", status: "SIGNING" }, select: { id: true } });
+  for (const doc of pending) await supersede(tx, { id: doc.id, dealId }, { reason: "deal.cancelled" });
 }
 
 /** deal-core → documents: акт после приёмки этапа. Один акт на этап; повтор возвращает тот же. */
@@ -222,6 +238,21 @@ async function signableBy(user: CurrentUser, documentId: string): Promise<{ doc:
   return { doc, party };
 }
 
+/**
+ * Подпись по шагу сделки: договор — пока сделка ждёт подписей, акт — пока сделка в работе или в споре.
+ * Отменённая или расторгнутая сделка документы больше не принимает.
+ */
+const SIGNABLE_WHILE: Record<DocumentKind, readonly DealStatus[]> = {
+  CONTRACT: ["AWAITING_SIGNATURES"],
+  STAGE_ACT: ["IN_PROGRESS", "DISPUTE"],
+};
+
+/** Проверяется под блокировкой сделки: отмена и подпись идут строго по очереди. */
+async function assertDealSignable(tx: Tx, dealId: string, kind: DocumentKind) {
+  const deal = await tx.deal.findUniqueOrThrow({ where: { id: dealId }, select: { status: true } });
+  if (!SIGNABLE_WHILE[kind].includes(deal.status)) fail.conflict(t.errors.dealNotSignable);
+}
+
 function assertSignable(status: DocumentStatus, signatures: { party: SignParty }[], party: SignParty) {
   if (status === "SUPERSEDED") fail.conflict(t.errors.superseded);
   if (status === "SIGNED") fail.conflict(t.errors.alreadySigned);
@@ -274,6 +305,7 @@ export const completeSigning: CompleteSigning = async (user, { documentId, sessi
   return transaction(async (tx) => {
     // Порядок блокировок как в createContract и deal-core: сначала сделка, потом документ.
     await lockDeal(tx, doc.dealId);
+    await assertDealSignable(tx, doc.dealId, doc.kind);
     const [locked] = await tx.$queryRaw<{ status: DocumentStatus; sha256: string }[]>`
       SELECT status, sha256 FROM "Document" WHERE id = ${documentId} FOR UPDATE`;
     const signatures = await tx.signature.findMany({ where: { documentId }, select: { party: true } });

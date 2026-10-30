@@ -31,7 +31,7 @@ import {
   tryCloseStage,
   partyText,
 } from "./effects";
-import { createContract, recalculateRating } from "./ports";
+import { createContract, recalculateRating, withdrawContract } from "./ports";
 import {
   autoAcceptPayloadSchema,
   cancelDealSchema,
@@ -351,13 +351,17 @@ export async function confirmStagePayment(user: CurrentUser, raw: { stageId: str
 
 // ─── Отмена и отзыв ──────────────────────────────────────────────────────────
 
-/** Отмена до начала работ. В эскроу внесённое возвращается заказчику (ключ cancel:<dealId>:refund). */
+/**
+ * Отмена до начала работ. Неподписанный договор снимается с подписи (documents.withdrawContract),
+ * в эскроу внесённое возвращается заказчику (ключ cancel:<dealId>:refund) — всё в одной транзакции.
+ */
 export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reason?: string }) {
   const input = parseInput(cancelDealSchema, raw);
   await transaction(async (tx) => {
     const deal = await lockDeal(tx, input.dealId);
     const who = requireRole(user, deal);
     await moveDeal(tx, deal, { event: "cancel", who, actor: actorOf(user), audit: { action: "deal.cancelled", meta: { reason: input.reason } }, data: { closedAt: new Date() } });
+    await withdrawContract(tx, deal.id);
     const balance = deal.paymentMode === "MANUAL" ? 0 : await escrowBalance(tx, deal.id);
     if (balance > 0) await requestMoney(tx, { dealId: deal.id, kind: "REFUND", amount: balance, idempotencyKey: `cancel:${deal.id}:refund` });
     await notifyParty(tx, deal, who === "CLIENT" ? "EXECUTOR" : "CLIENT", "deal.cancelled", { title: t.cancelled.title, body: t.cancelled.body(deal.number) });

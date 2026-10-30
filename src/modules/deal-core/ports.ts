@@ -5,5 +5,5 @@
  * documents получает deal-core.onDocumentSigned как хук (completeSigning(..., { onFullySigned })),
  * который передаёт экран (_components/signing), поэтому цикла не возникает и регистрация не нужна.
  */
-export { createContract, createStageAct } from "@/modules/documents";
+export { createContract, createStageAct, withdrawContract } from "@/modules/documents";
 export { maskContacts, recalculateRating, sanitizeExecutorText } from "@/modules/companies";

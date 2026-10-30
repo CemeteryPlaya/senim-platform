@@ -206,6 +206,31 @@ describe("подпись", () => {
     await expect(startSigning(client, v1.documentId, "EGOV_QR")).rejects.toMatchObject({ code: "CONFLICT" });
   });
 
+  it("договор по отменённой сделке не подписывается, даже если подпись начата до отмены", async () => {
+    const { deal, client } = await makeDeal();
+    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
+    const session = await startSigning(client, documentId, "EGOV_QR");
+    await db.deal.update({ where: { id: deal.id }, data: { status: "CANCELLED" } });
+
+    await expect(completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await db.signature.count()).toBe(0);
+  });
+
+  it("акт подписывается, только пока сделка в работе или в споре", async () => {
+    const { deal, client } = await makeDeal();
+    await transaction((tx) => createContract(tx, deal.id));
+    const stage = deal.stages[0];
+    await db.stage.update({ where: { id: stage.id }, data: { status: "ACCEPTED", acceptedAt: new Date() } });
+    const { documentId } = await transaction((tx) => createStageAct(tx, stage.id));
+
+    for (const status of ["TERMINATED", "CANCELLED", "AWAITING_SIGNATURES"] as const) {
+      await db.deal.update({ where: { id: deal.id }, data: { status } });
+      await expect(signAs(client, documentId)).rejects.toMatchObject({ code: "CONFLICT" });
+    }
+    await db.deal.update({ where: { id: deal.id }, data: { status: "DISPUTE" } });
+    expect(await signAs(client, documentId)).toEqual({ fullySigned: false });
+  });
+
   it("журнал: подписи сторон и полное подписание в scope сделки", async () => {
     const { deal, client, executor } = await makeDeal();
     const { documentId } = await transaction((tx) => createContract(tx, deal.id));
