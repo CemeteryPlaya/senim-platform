@@ -216,7 +216,7 @@ describe("доступ к чужим сделкам (IDOR)", () => {
     const [advance] = await stagesOf(f.dealId);
     await startStage(f.executor, { stageId: advance.id });
     const foreign = await makeStagePhoto(f.client);
-    expect(await code(submitStage(f.executor, { stageId: advance.id, report: "Готово полностью", photoIds: [foreign] }))).toBe("VALIDATION");
+    expect(await code(submitStage(f.executor, { stageId: advance.id, report: "Готово полностью", photoIds: [foreign] }))).toBe("CONFLICT");
     expect((await stagesOf(f.dealId))[0].status).toBe("IN_PROGRESS");
   });
 });

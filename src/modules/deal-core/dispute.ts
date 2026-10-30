@@ -1,5 +1,6 @@
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
+import { attachFiles } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { escrowBalance } from "@/modules/payments";
 import { transaction, type Tx } from "@/platform/db";
@@ -61,24 +62,9 @@ export async function openDispute(
   });
 }
 
+/** Вложения спора прикрепляет модуль files: только свои, DISPUTE, ещё не прикреплённые. */
 async function attachDisputeFiles(tx: Tx, user: CurrentUser, disputeId: string, ids: string[]) {
-  if (ids.length === 0) return;
-  const unique = [...new Set(ids)];
-  const owned = await tx.storedFile.updateMany({
-    where: {
-      id: { in: unique },
-      uploadedById: user.id,
-      purpose: "DISPUTE",
-      disputeId: null,
-      stageId: null,
-      portfolioItemId: null,
-      requestId: null,
-      messageId: null,
-      visualizationId: null,
-    },
-    data: { disputeId },
-  });
-  if (owned.count !== unique.length) fail.validation(ru.deal.errors.badPhotos);
+  if (ids.length > 0) await attachFiles(tx, { fileIds: [...new Set(ids)], uploadedById: user.id, owner: { disputeId } });
 }
 
 /** Сторона излагает (или уточняет) свою позицию, пока спор открыт. */

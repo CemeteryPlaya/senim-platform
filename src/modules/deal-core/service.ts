@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { ru } from "@/i18n/ru";
 import { recordAudit, SYSTEM } from "@/modules/audit";
+import { attachFiles } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import {
   activeRailMode,
@@ -246,24 +247,14 @@ export async function submitStage(user: CurrentUser, raw: { stageId: string; rep
   });
 }
 
-/** Фото этапа: только свои, с назначением STAGE_REPORT и ещё ни к чему другому не привязанные. */
+/**
+ * Фото этапа прикрепляет модуль files (только свои, STAGE_REPORT, ещё не прикреплённые).
+ * При повторной сдаче фото, уже прикреплённые к этому этапу, можно оставить.
+ */
 async function attachStagePhotos(tx: Tx, user: CurrentUser, stageId: string, ids: string[]) {
-  const unique = [...new Set(ids)];
-  const owned = await tx.storedFile.updateMany({
-    where: {
-      id: { in: unique },
-      uploadedById: user.id,
-      purpose: "STAGE_REPORT",
-      OR: [{ stageId: null }, { stageId }],
-      portfolioItemId: null,
-      requestId: null,
-      disputeId: null,
-      messageId: null,
-      visualizationId: null,
-    },
-    data: { stageId },
-  });
-  if (owned.count !== unique.length) fail.validation(ru.deal.errors.badPhotos);
+  const attached = new Set((await tx.storedFile.findMany({ where: { stageId }, select: { id: true } })).map((f) => f.id));
+  const fresh = [...new Set(ids)].filter((id) => !attached.has(id));
+  if (fresh.length > 0) await attachFiles(tx, { fileIds: fresh, uploadedById: user.id, owner: { stageId } });
 }
 
 export async function requestRework(user: CurrentUser, raw: { stageId: string; note: string }) {
