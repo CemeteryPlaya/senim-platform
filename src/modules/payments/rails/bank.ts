@@ -1,7 +1,8 @@
+import { ru } from "@/i18n/ru";
 import { fail } from "@/platform/errors";
 import type { PaymentRail } from "../rail";
 
-const notConnected = (): never => fail.unavailable("Эскроу-счёт банка-партнёра ещё не подключён");
+const notConnected = (): never => fail.unavailable(ru.payments.errors.bankNotConnected);
 
 /**
  * Эскроу банка-партнёра. Только контракт: API банка появится после соглашения.

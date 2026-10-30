@@ -1,8 +1,8 @@
+import { ru } from "@/i18n/ru";
 import { fail } from "@/platform/errors";
 import type { PaymentRail } from "../rail";
 
-const notApplicable = (): never =>
-  fail.conflict("В режиме прямой оплаты деньги не проходят через счёт: стороны отмечают оплату этапа");
+const notApplicable = (): never => fail.conflict(ru.payments.errors.manualNoAccount);
 
 /** Прямая оплата исполнителю. Денежных операций нет — только отметки сторон в deal-core. */
 export const manualRail: PaymentRail = {

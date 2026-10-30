@@ -1,10 +1,12 @@
 import { hmacHex, randomToken, safeEqual } from "@/platform/crypto";
 import type { SignMethod } from "@/generated/prisma/enums";
+import { ru } from "@/i18n/ru";
 import type { SignatureProvider } from "../signature";
 
 // Мок не даёт юридической силы: «CMS» — это JSON с HMAC под фиксированным ключом мока.
 // Без состояния: данные сессии зашиты в sessionId, поэтому работает на нескольких инстансах Vercel.
 const MOCK_KEY = "senim-mock-signature-not-a-secret";
+const c = ru.documents.signatureCheck;
 
 type SessionData = { sha256: string; method: SignMethod; subject: string; iinLast4?: string; exp: number };
 type MockCms = { v: 1; sha256: string; subject: string; serial: string; iinLast4?: string; ts: string; mac: string };
@@ -40,7 +42,7 @@ export const mockSignatureProvider: SignatureProvider = {
 
   async getResult(sessionId) {
     const s = unseal<SessionData>(sessionId);
-    if (!s || s.exp < Date.now()) return { status: "failed", error: "Сессия подписания не найдена или истекла" };
+    if (!s || s.exp < Date.now()) return { status: "failed", error: c.sessionExpired };
     const body = {
       v: 1 as const,
       sha256: s.sha256,
@@ -55,11 +57,11 @@ export const mockSignatureProvider: SignatureProvider = {
   async verify({ cms, sha256 }) {
     try {
       const { mac, ...body } = JSON.parse(Buffer.from(cms, "base64").toString("utf8")) as MockCms;
-      if (!safeEqual(mac, cmsMac(body))) return { valid: false, reason: "Подпись повреждена" };
-      if (body.sha256 !== sha256) return { valid: false, reason: "Подписан другой документ" };
+      if (!safeEqual(mac, cmsMac(body))) return { valid: false, reason: c.damaged };
+      if (body.sha256 !== sha256) return { valid: false, reason: c.otherDocument };
       return { valid: true, certSubject: body.subject, certSerial: body.serial, certIinLast4: body.iinLast4, signedAt: new Date(body.ts) };
     } catch {
-      return { valid: false, reason: "Не удалось прочитать подпись" };
+      return { valid: false, reason: c.unreadable };
     }
   },
 };

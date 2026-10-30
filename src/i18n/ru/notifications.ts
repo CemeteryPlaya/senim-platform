@@ -28,6 +28,9 @@ export const notifications = {
   },
   /** SMS: коротко, со ссылкой на событие. */
   sms: (title: string, url: string | null) => (url ? `Сенім: ${title}. ${url}` : `Сенім: ${title}`),
+  errors: {
+    smsNotConfigured: "SMS-шлюз не настроен",
+  },
   segments: { ECONOMY: "Эконом", COMFORT: "Комфорт", PREMIUM: "Премиум" },
   templates: {
     requestNew: (summary: string): Text => ({ title: "Новая заявка в вашем сегменте", body: summary }),

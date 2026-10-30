@@ -1,4 +1,5 @@
 import type { FilePurpose } from "@/generated/prisma/enums";
+import { ru } from "@/i18n/ru";
 import { db, Prisma } from "@/platform/db";
 import { fail } from "@/platform/errors";
 
@@ -22,7 +23,7 @@ export async function findSimilar(
   maxDistance = 6,
   opts: { excludeUploadedById?: string; purpose?: FilePurpose; limit?: number } = {},
 ): Promise<SimilarFile[]> {
-  if (!PHASH.test(phash)) return fail.validation("Некорректный перцептивный хэш");
+  if (!PHASH.test(phash)) return fail.validation(ru.files.errors.badPhash);
   const distance = Prisma.sql`bit_count(('x' || "phash")::bit(64) # ('x' || ${phash})::bit(64))`;
   const filters = [
     Prisma.sql`"phash" IS NOT NULL`,

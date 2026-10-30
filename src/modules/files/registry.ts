@@ -1,4 +1,5 @@
 import path from "node:path";
+import { ru } from "@/i18n/ru";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { createLocalStorage } from "./providers/local";
@@ -10,7 +11,7 @@ const remote = new Map<"s3" | "vercel-blob", Promise<StorageProvider>>();
 async function s3() {
   const e = env();
   if (!e.S3_ENDPOINT || !e.S3_REGION || !e.S3_BUCKET || !e.S3_ACCESS_KEY_ID || !e.S3_SECRET_ACCESS_KEY) {
-    return fail.unavailable("Хранилище S3 не настроено");
+    return fail.unavailable(ru.files.errors.s3NotConfigured);
   }
   const { s3StorageFromConfig } = await import("./providers/s3");
   return s3StorageFromConfig({
@@ -24,7 +25,7 @@ async function s3() {
 
 async function blob() {
   const token = env().BLOB_READ_WRITE_TOKEN;
-  if (!token) return fail.unavailable("Хранилище Vercel Blob не подключено");
+  if (!token) return fail.unavailable(ru.files.errors.blobNotConnected);
   const { blobStorageFromToken } = await import("./providers/blob");
   return blobStorageFromToken(token);
 }

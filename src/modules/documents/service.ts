@@ -27,7 +27,7 @@ const scopeOf = (dealId: string) => `deal:${dealId}`;
 
 /** Строка сделки под блокировкой: версии договора и акты одной сделки создаются строго по очереди. */
 async function lockDeal(tx: Tx, dealId: string) {
-  if (!(await lockDealRow(tx, dealId))) fail.notFound("Сделка не найдена");
+  if (!(await lockDealRow(tx, dealId))) fail.notFound(ru.deal.errors.notFound);
 }
 
 const yearIn = (d: Date) => Number(new Intl.DateTimeFormat("en", { year: "numeric", timeZone: TIME_ZONE }).format(d));
@@ -173,7 +173,7 @@ export const createStageAct: CreateStageAct = (tx, stageId) => createStageActIss
 /** То же с явной датой выпуска — для демо-данных с прошлыми датами. */
 export async function createStageActIssuedAt(tx: Tx, stageId: string, issuedAt: Date): Promise<CreatedDocument> {
   const ref = await tx.stage.findUnique({ where: { id: stageId }, select: { dealId: true } });
-  if (!ref) return fail.notFound("Этап не найден");
+  if (!ref) return fail.notFound(ru.deal.errors.stageNotFound);
   await lockDeal(tx, ref.dealId);
 
   const stage = await tx.stage.findUniqueOrThrow({ where: { id: stageId }, include: { deal: { include: { request: { select: { city: true } } } } } });

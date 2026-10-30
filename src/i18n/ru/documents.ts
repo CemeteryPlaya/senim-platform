@@ -55,6 +55,14 @@ export const documents = {
     ncalayerUnavailable: "Подпись через NCALayer пока недоступна. Выберите eGov Mobile",
   },
 
+  /** Ответы провайдера подписи (mock): причина отказа показывается пользователю. */
+  signatureCheck: {
+    sessionExpired: "Сессия подписания не найдена или истекла",
+    damaged: "Подпись повреждена",
+    otherDocument: "Подписан другой документ",
+    unreadable: "Не удалось прочитать подпись",
+  },
+
   notify: {
     signedByParty: {
       title: (kind: string) => `${kind}: вторая сторона подписала`,

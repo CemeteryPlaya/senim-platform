@@ -95,7 +95,7 @@ export function smsProvider(): SmsProvider {
       return mockSmsProvider;
     case "http":
       // env.ts требует SMS_HTTP_URL и SMS_HTTP_TOKEN при SMS_PROVIDER=http.
-      if (!e.SMS_HTTP_URL || !e.SMS_HTTP_TOKEN) return fail.unavailable("SMS-шлюз не настроен");
+      if (!e.SMS_HTTP_URL || !e.SMS_HTTP_TOKEN) return fail.unavailable(ru.notifications.errors.smsNotConfigured);
       return createHttpSmsProvider({ url: e.SMS_HTTP_URL, token: e.SMS_HTTP_TOKEN, sender: e.SMS_SENDER });
   }
 }

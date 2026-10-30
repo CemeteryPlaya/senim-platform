@@ -240,6 +240,19 @@ export const deal = {
     review: { title: "Новый отзыв", body: (rating: number) => `Заказчик поставил оценку ${rating} из 5.` },
   },
 
+  /** Сообщения разбора входа (schemas.ts). */
+  validation: {
+    tooLong: (max: number) => `Не больше ${max} символов`,
+    stageReport: "Опишите, что сделано на этапе",
+    stagePhotos: "Добавьте хотя бы одно фото этапа",
+    tooManyPhotos: (max: number) => `Не больше ${max} фото`,
+    reworkNote: "Опишите, что нужно исправить",
+    disputeDescription: "Опишите ситуацию подробнее — хотя бы 10 символов",
+    disputePosition: "Опишите позицию подробнее — хотя бы 10 символов",
+    rationale: "Обоснуйте решение — хотя бы 10 символов",
+    rating: "Оценка от 1 до 5",
+  },
+
   errors: {
     notFound: "Сделка не найдена",
     stageNotFound: "Этап не найден",
