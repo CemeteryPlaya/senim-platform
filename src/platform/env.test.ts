@@ -51,6 +51,10 @@ describe("env: production", () => {
   it("демо-стенд с паролем может работать на моках", () => {
     expect(problems(demoProduction)).toBe("");
   });
+
+  it("демо-стенд без пароля не запускается", () => {
+    expect(problems({ ...demoProduction, DEMO_ACCESS_PASSWORD: "" })).toMatch(/DEMO_ACCESS_PASSWORD/);
+  });
 });
 
 describe("env: разработка", () => {

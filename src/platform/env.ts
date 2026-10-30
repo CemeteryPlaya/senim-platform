@@ -20,6 +20,7 @@ const schema = z
     DATABASE_URL: z.string().min(1),
     APP_URL: z.url().default("http://localhost:3100"),
     DEMO_MODE: bool,
+    DEMO_ACCESS_PASSWORD: optional,
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
     PII_ENCRYPTION_KEY: optional.pipe(base64Key.optional()),
@@ -68,6 +69,8 @@ const schema = z
       require("FILE_URL_SECRET", "NODE_ENV=production");
       require("CRON_SECRET", "NODE_ENV=production");
     }
+    // Демо-стенд пускает в любую персону без SMS и умеет стирать базу: в production — только за паролем (src/proxy.ts).
+    if (env.NODE_ENV === "production" && env.DEMO_MODE) require("DEMO_ACCESS_PASSWORD", "DEMO_MODE=true в production");
     // Вне демо-стенда моки в production означают «код входа никуда не уходит» и «подпись не проверяется».
     if (env.NODE_ENV === "production" && !env.DEMO_MODE) {
       const forbidMock = (key: "SMS_PROVIDER" | "SIGNATURE_PROVIDER") => {
