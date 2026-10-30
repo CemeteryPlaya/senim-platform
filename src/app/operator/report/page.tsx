@@ -59,7 +59,7 @@ function Totals<S extends string>({ title, rows, label }: { title: string; rows:
 }
 
 export default async function ReportPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const user = await requireOperatorPage();
+  const user = await requireOperatorPage("/operator/report");
   const parsed = reportSchema.safeParse(flatParams(await searchParams));
   const { staleDays } = parsed.success ? parsed.data : { staleDays: 3 };
   const report = await buildReport(user, { staleDays });

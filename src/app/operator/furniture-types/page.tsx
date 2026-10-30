@@ -10,7 +10,7 @@ const t = ru.operator.types;
 export const metadata: Metadata = { title: t.title };
 
 export default async function FurnitureTypesPage() {
-  const user = await requireOperatorPage();
+  const user = await requireOperatorPage("/operator/furniture-types");
   const types = await listFurnitureTypes(user);
 
   return (

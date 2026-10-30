@@ -6,7 +6,7 @@ export { isDemoMode } from "./access";
 export { searchAudit } from "./audit-log";
 export type { AuditView } from "./audit-view";
 export { getBankDemo, type BankDemo } from "./bank-demo";
-export { getPaymentRailSetting, PAYMENTS_RAIL_SETTING, resetDemoData, setPaymentRail } from "./demo";
+export { getPaymentRailSetting, resetDemoData, setPaymentRail } from "./demo";
 export { getDisputeCard, listDisputes, resolveDispute } from "./disputes";
 export { addExecutor, changeSegment, getExecutorCard, listExecutors, listRegistrationQueue, reviewRegistration } from "./executors";
 export { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitureType, setFurnitureTypeActive } from "./furniture-types";

@@ -10,6 +10,7 @@ import { addExecutor, changeSegment, getExecutorCard, listExecutors, listRegistr
 import { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitureType, setFurnitureTypeActive } from "./furniture-types";
 import { buildCsv, buildReport } from "./report";
 import { listStaleRequests } from "./requests";
+import { addExecutorSchema } from "./schemas";
 
 // Каждое действие панели — только оператору. Сервис проверяет роль сам, не полагаясь на экран.
 const ACTIONS: Record<string, (u: CurrentUser) => Promise<unknown>> = {
@@ -17,7 +18,7 @@ const ACTIONS: Record<string, (u: CurrentUser) => Promise<unknown>> = {
   listExecutors: (u) => listExecutors(u),
   getExecutorCard: (u) => getExecutorCard(u, "x"),
   reviewRegistration: (u) => reviewRegistration(u, { profileId: "x", decision: { approve: true, segment: "ECONOMY" } }),
-  addExecutor: (u) => addExecutor(u, { phone: "+77009998877", legalForm: "IP", legalName: "ИП", binIin: "210140000016", segment: "ECONOMY" }),
+  addExecutor: (u) => addExecutor(u, addExecutorSchema.parse({ phone: "+77009998877", legalForm: "IP", legalName: "ИП Тест", binIin: "900101300017", segment: "ECONOMY" })),
   changeSegment: (u) => changeSegment(u, { profileId: "x", from: "ECONOMY", to: "COMFORT", reason: "причина" }),
   listFurnitureTypes: (u) => listFurnitureTypes(u),
   addFurnitureType: (u) => addFurnitureType(u, { name: "Тип" }),

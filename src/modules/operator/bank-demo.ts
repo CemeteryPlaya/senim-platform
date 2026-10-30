@@ -1,6 +1,6 @@
 import type { PaymentMode } from "@/generated/prisma/enums";
 import { scopeHistory } from "@/modules/audit";
-import { railFor, type RailMode, type StatementEntry } from "@/modules/payments";
+import { railFor, railModeOf, type StatementEntry } from "@/modules/payments";
 import { db, Prisma } from "@/platform/db";
 import { isAppError } from "@/platform/errors";
 import { assertDemoMode } from "./access";
@@ -13,8 +13,6 @@ import { buildScenario, type Persona, type ScenarioSnapshot } from "./scenario";
  * журнал выбранной сделки, документы с хэшами и подписями, счёт и выписка симулятора.
  * Роль не проверяется: ведущий переключает персоны по ходу показа, а в DEMO_MODE все данные тестовые.
  */
-
-const RAIL_OF: Record<PaymentMode, RailMode> = { MANUAL: "manual", ESCROW_SIMULATOR: "escrow-simulator", BANK: "bank" };
 
 const personUser = { fullName: true, phone: true, role: true } satisfies Prisma.UserSelect;
 type PersonUser = Prisma.UserGetPayload<{ select: typeof personUser }>;
@@ -86,7 +84,7 @@ async function pickDealId(number?: number): Promise<string | undefined> {
 
 async function statementOrNull(mode: PaymentMode, externalId: string): Promise<StatementEntry[] | null> {
   try {
-    return await railFor(RAIL_OF[mode]).getStatement(externalId);
+    return await railFor(railModeOf(mode)).getStatement(externalId);
   } catch (e) {
     if (isAppError(e)) return null; // рельс ещё не подключён — экран говорит «выписка недоступна»
     throw e;

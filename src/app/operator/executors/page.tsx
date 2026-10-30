@@ -43,7 +43,7 @@ function ExecutorItem({ x }: { x: Row }) {
 }
 
 export default async function ExecutorsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const user = await requireOperatorPage();
+  const user = await requireOperatorPage("/operator/executors");
   const status = statusFilter.parse(param((await searchParams).status));
   const [queue, all] = await Promise.all([listRegistrationQueue(user), listExecutors(user, { status })]);
 

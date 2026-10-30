@@ -23,8 +23,9 @@ async function loadCard(user: Awaited<ReturnType<typeof requireOperatorPage>>, i
 }
 
 export default async function ExecutorCardPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireOperatorPage();
-  const x = await loadCard(user, (await params).id);
+  const { id } = await params;
+  const user = await requireOperatorPage(`/operator/executors/${id}`);
+  const x = await loadCard(user, id);
 
   return (
     <Container>

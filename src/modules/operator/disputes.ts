@@ -1,11 +1,9 @@
 import { scopeHistory } from "@/modules/audit";
-import type { ResolveDisputeInput } from "@/modules/deal-core";
+import { resolveDispute as resolveDisputeInDealCore, type ResolveDisputeInput } from "@/modules/deal-core";
 import type { CurrentUser } from "@/modules/identity";
 import { db } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { assertOperator } from "./access";
-// INTEGRATOR: после слияния deal-core импортировать resolveDispute из "@/modules/deal-core".
-import { resolveDispute as resolveDisputeInDealCore } from "./adapters/resolve-dispute";
 import { toAuditView } from "./audit-view";
 
 /** Очередь споров: сначала открытые (по дате открытия), затем решённые. */

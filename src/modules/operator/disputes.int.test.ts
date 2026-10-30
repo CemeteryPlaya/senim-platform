@@ -49,7 +49,7 @@ describe("споры", () => {
     expect((await db.deal.findUniqueOrThrow({ where: { id: deal.id } })).status).toBe("IN_PROGRESS");
     expect((await db.stage.findUniqueOrThrow({ where: { id: deal.stages[0].id } })).status).toBe("ACCEPTED");
     expect(await db.auditEvent.findFirstOrThrow({ where: { action: "dispute.resolved" } })).toMatchObject({ scope: `deal:${deal.id}`, actorId: operator.id });
-    expect(await db.notification.count({ where: { userId: { in: [client.id, executor.id] } } })).toBe(2);
+    expect(await db.notification.count({ where: { kind: "deal.dispute.resolved", userId: { in: [client.id, executor.id] } } })).toBe(2);
   });
 
   it("в пользу заказчика: этап на доработку; расторжение: сделка расторгнута", async () => {
@@ -64,7 +64,7 @@ describe("споры", () => {
     expect((await db.deal.findUniqueOrThrow({ where: { id: b.deal.id } })).status).toBe("TERMINATED");
   });
 
-  it("частичное решение не больше суммы сделки", async () => {
+  it("частичное решение не больше неоплаченной части сделки", async () => {
     const operator = await makeOperator();
     const { dispute, deal } = await makeDispute();
     await expect(

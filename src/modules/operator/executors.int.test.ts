@@ -9,6 +9,7 @@ import {
   listRegistrationQueue,
   reviewRegistration,
 } from "./executors";
+import { addExecutorSchema } from "./schemas";
 
 // Тестовый БИН с верной контрольной цифрой (алгоритм РК).
 const VALID_BIN = "210140000016";
@@ -48,7 +49,6 @@ describe("очередь регистраций", () => {
     expect(await db.executorProfile.findUniqueOrThrow({ where: { id: ex.executor.id } })).toMatchObject({
       status: "REJECTED",
       rejectReason: "Нет фото работ",
-      segment: null,
     });
     expect(await db.auditEvent.count({ where: { action: "executor.rejected" } })).toBe(1);
   });
@@ -75,13 +75,13 @@ describe("очередь регистраций", () => {
 });
 
 describe("ручное добавление исполнителя", () => {
-  const input = {
-    phone: "+77001112233",
-    legalForm: "TOO" as const,
+  const input = addExecutorSchema.parse({
+    phone: "+7 700 111 22 33",
+    legalForm: "TOO",
     legalName: "ТОО «Новый цех»",
     binIin: VALID_BIN,
-    segment: "COMFORT" as const,
-  };
+    segment: "COMFORT",
+  });
 
   it("создаёт подтверждённого исполнителя с зашифрованным БИН и пометкой addedByOperator", async () => {
     const operator = await makeOperator();

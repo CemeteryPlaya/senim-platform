@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import type { RegistrationDecision } from "@/modules/identity";
+import { binIinKindFor, isValidBin, isValidIin, parsePhone, type RegistrationDecision } from "@/modules/identity";
 
 /**
  * Входные данные панели оператора. Разбираются один раз на границе (Server Action,
@@ -17,38 +17,19 @@ const id = z.string().trim().min(1).max(64);
 export const segmentSchema = z.enum(["ECONOMY", "COMFORT", "PREMIUM"]);
 export const legalFormSchema = z.enum(["SELF_EMPLOYED", "IP", "TOO"]);
 
-// ─── ИИН/БИН и телефон ───────────────────────────────────────────────────────
-
-const WEIGHTS_1 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-const WEIGHTS_2 = [3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2];
-
-/** ИИН/БИН РК: 12 цифр, последняя — контрольная (две серии весов). */
-export function isValidKzId(value: string): boolean {
-  if (!/^\d{12}$/.test(value)) return false;
-  const digits = [...value].map(Number);
-  const sum = (weights: number[]) => weights.reduce((acc, w, i) => acc + w * digits[i], 0) % 11;
-  let check = sum(WEIGHTS_1);
-  if (check === 10) check = sum(WEIGHTS_2);
-  return check !== 10 && check === digits[11];
-}
-
-/** Казахстанский мобильный номер в E.164 (+7XXXXXXXXXX) или null. */
-export function normalizePhone(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "");
-  const national = digits.length === 11 && (digits.startsWith("7") || digits.startsWith("8")) ? digits.slice(1) : null;
-  return national && /^7\d{9}$/.test(national) ? `+7${national}` : null;
-}
+// ─── ИИН/БИН и телефон: правила identity (одно место для алгоритма) ─────────
 
 const phoneSchema = z.string().transform((v, ctx) => {
-  const phone = normalizePhone(v);
-  if (!phone) ctx.addIssue({ code: "custom", message: t.phone });
-  return phone ?? "";
+  const phone = parsePhone(v);
+  if (phone) return phone;
+  ctx.addIssue({ code: "custom", message: t.phone });
+  return z.NEVER;
 });
 
-const kzIdSchema = z
+const digitsOnly = z
   .string()
   .transform((v) => v.replace(/\s/g, ""))
-  .refine(isValidKzId, t.kzId);
+  .refine((v) => /^\d{12}$/.test(v), t.kzId);
 
 // ─── исполнители ─────────────────────────────────────────────────────────────
 
@@ -63,13 +44,16 @@ export const reviewRegistrationSchema = z
   }));
 export type ReviewRegistrationInput = z.output<typeof reviewRegistrationSchema>;
 
-export const addExecutorSchema = z.object({
-  phone: phoneSchema,
-  legalForm: legalFormSchema,
-  legalName: z.string().trim().min(2, t.required).max(200),
-  binIin: kzIdSchema,
-  segment: segmentSchema,
-});
+/** Самозанятый и ИП — ИИН, ТОО — БИН (identity.binIinKindFor). */
+export const addExecutorSchema = z
+  .object({
+    phone: phoneSchema,
+    legalForm: legalFormSchema,
+    legalName: z.string().trim().min(2, t.required).max(200),
+    binIin: digitsOnly,
+    segment: segmentSchema,
+  })
+  .refine((v) => (binIinKindFor(v.legalForm) === "IIN" ? isValidIin : isValidBin)(v.binIin), { path: ["binIin"], message: t.kzId });
 export type AddExecutorInput = z.output<typeof addExecutorSchema>;
 
 export const changeSegmentSchema = z

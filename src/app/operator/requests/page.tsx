@@ -9,7 +9,7 @@ const t = ru.operator.requests;
 export const metadata: Metadata = { title: t.title };
 
 export default async function StaleRequestsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const user = await requireOperatorPage();
+  const user = await requireOperatorPage("/operator/requests");
   const parsed = staleRequestsSchema.safeParse(flatParams(await searchParams));
   const { hours } = parsed.success ? parsed.data : { hours: 24 };
   const rows = await listStaleRequests(user, { hours });

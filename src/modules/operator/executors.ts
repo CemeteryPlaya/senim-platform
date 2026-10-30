@@ -1,14 +1,12 @@
 import type { RegistrationStatus, Segment } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit, scopeHistory } from "@/modules/audit";
-import { actorOf, type CurrentUser } from "@/modules/identity";
+import { actorOf, reviewExecutorRegistration, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { encryptPii, last4 } from "@/platform/crypto";
 import { db, Prisma, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { assertOperator } from "./access";
-// INTEGRATOR: после слияния identity импортировать reviewExecutorRegistration из "@/modules/identity".
-import { reviewExecutorRegistration } from "./adapters/review-registration";
 import { toAuditView } from "./audit-view";
 import type { AddExecutorInput, ChangeSegmentInput, ReviewRegistrationInput } from "./schemas";
 

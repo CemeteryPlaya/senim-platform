@@ -1,30 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { addExecutorSchema, auditFilterSchema, isValidKzId, normalizePhone, resolveDisputeSchema } from "./schemas";
-
-describe("ИИН/БИН", () => {
-  it("принимает номер с верной контрольной цифрой", () => {
-    expect(isValidKzId("210140000016")).toBe(true);
-  });
-
-  it("отклоняет неверную контрольную цифру, буквы и неверную длину", () => {
-    expect(isValidKzId("210140000017")).toBe(false);
-    expect(isValidKzId("21014000001a")).toBe(false);
-    expect(isValidKzId("2101400000")).toBe(false);
-  });
-});
-
-describe("телефон", () => {
-  it("приводит казахстанский номер к +7XXXXXXXXXX", () => {
-    expect(normalizePhone("+7 (700) 111-22-33")).toBe("+77001112233");
-    expect(normalizePhone("87001112233")).toBe("+77001112233");
-  });
-
-  it("не принимает короткий или чужой номер", () => {
-    expect(normalizePhone("+7 700 111")).toBeNull();
-    expect(normalizePhone("+1 202 555 0100")).toBeNull();
-  });
-});
+import { addExecutorSchema, auditFilterSchema, resolveDisputeSchema } from "./schemas";
 
 describe("форма ручного добавления", () => {
   it("разбирает форму и чистит пробелы в ИИН/БИН", () => {
@@ -32,10 +8,17 @@ describe("форма ручного добавления", () => {
       phone: "8 700 111 22 33",
       legalForm: "IP",
       legalName: "  ИП Тест ",
-      binIin: "2101 4000 0016",
+      binIin: "9001 0130 0017",
       segment: "ECONOMY",
     });
-    expect(parsed).toEqual({ phone: "+77001112233", legalForm: "IP", legalName: "ИП Тест", binIin: "210140000016", segment: "ECONOMY" });
+    expect(parsed).toEqual({ phone: "+77001112233", legalForm: "IP", legalName: "ИП Тест", binIin: "900101300017", segment: "ECONOMY" });
+  });
+
+  it("ИП проверяется как ИИН, ТОО — как БИН", () => {
+    const base = { phone: "+77001112233", legalName: "Тест", segment: "ECONOMY" };
+    expect(addExecutorSchema.safeParse({ ...base, legalForm: "IP", binIin: "210140000016" }).success).toBe(false);
+    expect(addExecutorSchema.safeParse({ ...base, legalForm: "TOO", binIin: "210140000016" }).success).toBe(true);
+    expect(addExecutorSchema.safeParse({ ...base, legalForm: "TOO", binIin: "210140000017" }).success).toBe(false);
   });
 
   it("сообщает, какое поле неверно", () => {

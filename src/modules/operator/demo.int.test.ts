@@ -53,7 +53,7 @@ describe("режим оплаты для новых сделок", () => {
     await setPaymentRail(operator, { mode: "escrow-simulator" });
 
     expect(await getPaymentRailSetting()).toEqual({ mode: "escrow-simulator", source: "setting" });
-    expect(await db.auditEvent.findFirstOrThrow({ where: { action: "settings.payments_rail.changed" } })).toMatchObject({
+    expect(await db.auditEvent.findFirstOrThrow({ where: { action: "payments.rail.switched" } })).toMatchObject({
       before: { mode: "manual" },
       after: { mode: "escrow-simulator" },
     });

@@ -65,6 +65,16 @@ export async function makeDeal(
     },
     include: { stages: { orderBy: { order: "asc" } } },
   });
+  // Сделка после подписей всегда имеет подписанный договор: от него строятся акты этапов.
+  if (deal.status !== "AWAITING_SIGNATURES" && deal.status !== "CANCELLED") {
+    const sha256 = "c".repeat(64);
+    const file = await db.storedFile.create({
+      data: { storageKey: `test/contract-${deal.id}.pdf`, provider: "local", purpose: "DOCUMENT", contentType: "application/pdf", size: 1, sha256 },
+    });
+    await db.document.create({
+      data: { dealId: deal.id, kind: "CONTRACT", number: `Д-${deal.number}/2026`, fileId: file.id, sha256, status: "SIGNED", signedAt: new Date() },
+    });
+  }
   return { deal, client, executor };
 }
 

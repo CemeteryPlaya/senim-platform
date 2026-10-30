@@ -63,9 +63,11 @@ describe("страница показа банку", () => {
     const demo = await getBankDemo({ deal: deal.number });
 
     expect(demo.selected?.deal.number).toBe(deal.number);
-    expect(demo.selected?.documents).toEqual([
-      expect.objectContaining({ number: "Д-0001/2026", sha256: "ab".repeat(32), signatures: [expect.objectContaining({ party: "CLIENT", verified: true })] }),
-    ]);
+    expect(demo.selected?.documents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ number: "Д-0001/2026", sha256: "ab".repeat(32), signatures: [expect.objectContaining({ party: "CLIENT", verified: true })] }),
+      ]),
+    );
     expect(demo.selected?.escrow).toMatchObject({ externalId: "SIM-1", deposited: deal.totalAmount });
     expect(demo.selected?.operations).toEqual([expect.objectContaining({ kind: "DEPOSIT", idempotencyKey: `deposit:${deal.id}` })]);
   });

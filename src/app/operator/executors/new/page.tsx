@@ -9,7 +9,7 @@ const f = ru.operator.executors.form;
 export const metadata: Metadata = { title: f.title };
 
 export default async function NewExecutorPage() {
-  await requireOperatorPage();
+  await requireOperatorPage("/operator/executors/new");
   return (
     <Container size="form">
       <PageHeader title={f.title} description={f.description} back={{ href: "/operator/executors" }} />

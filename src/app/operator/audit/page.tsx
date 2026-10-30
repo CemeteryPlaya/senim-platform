@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: t.title };
 const FIELDS = ["entityType", "entityId", "scope", "action", "actorId", "from", "to"] as const;
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const user = await requireOperatorPage();
+  const user = await requireOperatorPage("/operator/audit");
   const raw = flatParams(await searchParams);
   const parsed = auditFilterSchema.safeParse(raw);
   const filter = parsed.success ? parsed.data : {};

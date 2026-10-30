@@ -1,18 +1,18 @@
 import "server-only";
-import { notFound, redirect } from "next/navigation";
-import { requireUser, type CurrentUser } from "@/modules/identity";
+import { redirect } from "next/navigation";
+import { loginHref, requireUser, type CurrentUser } from "@/modules/identity";
 import { isAppError } from "@/platform/errors";
 
 /**
  * Первая строка каждой страницы /operator/**: requireUser("OPERATOR").
- * Гость уходит на вход, чужая роль получает 404 — панель не выдаёт, что она существует.
+ * Гость уходит на вход с возвратом, чужая роль — на вход с пояснением «страница для другой роли».
  */
-export async function requireOperatorPage(): Promise<CurrentUser> {
+export async function requireOperatorPage(returnTo: string): Promise<CurrentUser> {
   try {
     return await requireUser("OPERATOR");
   } catch (e) {
-    if (isAppError(e) && e.code === "UNAUTHENTICATED") redirect("/login");
-    if (isAppError(e) && e.code === "FORBIDDEN") notFound();
+    if (isAppError(e) && e.code === "UNAUTHENTICATED") redirect(loginHref(returnTo));
+    if (isAppError(e) && e.code === "FORBIDDEN") redirect(loginHref(returnTo, "role"));
     throw e;
   }
 }

@@ -20,7 +20,7 @@ const SECTIONS = [
 ] as const;
 
 export default async function OperatorHome() {
-  const user = await requireOperatorPage();
+  const user = await requireOperatorPage("/operator");
   const [queue, disputes, stale] = await Promise.all([
     listRegistrationQueue(user),
     listDisputes(user),

@@ -1,13 +1,11 @@
 import { DealStatus, StagePaymentStatus, StageStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
-import type { ReconciliationRow } from "@/modules/payments";
+import { reconcile, type ReconciliationRow } from "@/modules/payments";
 import { db } from "@/platform/db";
 import { isAppError } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { assertOperator } from "./access";
-// INTEGRATOR: после слияния deal-core/payments импортировать reconcile из "@/modules/payments".
-import { reconcile } from "./adapters/reconcile";
 import { csvDateTime, toCsv, type CsvCell } from "./csv";
 import type { CsvKind } from "./schemas";
 

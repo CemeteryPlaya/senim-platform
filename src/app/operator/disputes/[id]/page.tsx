@@ -33,8 +33,9 @@ function Position({ title, text }: { title: string; text: string | null }) {
 }
 
 export default async function DisputeCardPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireOperatorPage();
-  const d = await loadCard(user, (await params).id);
+  const { id } = await params;
+  const user = await requireOperatorPage(`/operator/disputes/${id}`);
+  const d = await loadCard(user, id);
   const { deal } = d;
 
   return (

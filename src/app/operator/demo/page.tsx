@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: t.title };
 
 /** Демо-настройки: только при DEMO_MODE (иначе страницы нет). */
 export default async function DemoSettingsPage() {
-  await requireOperatorPage();
+  await requireOperatorPage("/operator/demo");
   if (!isDemoMode()) notFound();
   const rail = await getPaymentRailSetting();
   // В env может стоять bank — его оператор не переключает, форма начинает с «напрямую».

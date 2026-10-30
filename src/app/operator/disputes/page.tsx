@@ -10,7 +10,7 @@ const t = ru.operator.disputes;
 export const metadata: Metadata = { title: t.title };
 
 export default async function DisputesPage() {
-  const user = await requireOperatorPage();
+  const user = await requireOperatorPage("/operator/disputes");
   const disputes = await listDisputes(user);
 
   return (
