@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeChosen, makeDraft, makeFurnitureType, makeMeasured, makeMeasuring, makeOpenRequest, sendStep } from "../../../test/factories/requests";
-import { agreeToContract, cancelRequest, getDraft, listMyRequests, publishRequest, saveDraftStep } from "./index";
+import { agreeToContract, cancelRequest, getDraft, likeTarget, listMyRequests, publishRequest, saveDraftStep } from "./index";
 
 const code = (code: string) => expect.objectContaining({ code });
 
@@ -57,6 +57,20 @@ describe("черновик заявки", () => {
       targetExecutorId: executor.executor.id,
       portfolioItemId: item.id,
     });
+  });
+
+  it("«Хочу похожее» на работу неподтверждённого или заблокированного исполнителя — не найдено", async () => {
+    const client = await makeClient();
+    const type = await makeFurnitureType("Комод");
+    const rejected = await makeExecutor({ status: "REJECTED" });
+    const blocked = await makeExecutor();
+    await db.user.update({ where: { id: blocked.id }, data: { blockedAt: new Date() } });
+    for (const ex of [rejected, blocked]) {
+      const item = await db.portfolioItem.create({ data: { executorId: ex.executor.id, furnitureTypeId: type.id, style: "scandi", title: "Комод" } });
+      await expect(makeDraft(client, { like: item.id, typeId: type.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(likeTarget(item.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+    expect(await db.request.count()).toBe(0);
   });
 
   it("фото помещения: свои загруженные файлы прикрепляются, убранные открепляются, чужие — отказ", async () => {
@@ -140,10 +154,12 @@ describe("отправка заявки DRAFT → OPEN", () => {
 
   it("прямой запрос к неподтверждённому исполнителю не отправляется", async () => {
     const client = await makeClient();
-    const executor = await makeExecutor({ status: "REJECTED" });
+    const executor = await makeExecutor();
     const type = await makeFurnitureType();
     const item = await db.portfolioItem.create({ data: { executorId: executor.executor.id, furnitureTypeId: type.id, style: "modern", title: "Кухня" } });
     const requestId = await makeDraft(client, { like: item.id, typeId: type.id });
+    // Пока заказчик заполнял черновик, исполнителю отказали.
+    await db.executorProfile.update({ where: { id: executor.executor.id }, data: { status: "REJECTED" } });
     await expect(publishRequest(client, { requestId })).rejects.toThrow(code("CONFLICT"));
   });
 });

@@ -63,9 +63,12 @@ async function linkRoomPhotos(tx: Tx, user: CurrentUser, requestId: string, file
   if (fresh.length > 0) await attachFiles(tx, { fileIds: fresh, uploadedById: user.id, owner: { requestId } });
 }
 
+/** Работа доступна для «Хочу похожее», как в каталоге: опубликована, исполнитель подтверждён и не заблокирован. */
+const LIKEABLE = { published: true, executor: { status: "APPROVED", user: { blockedAt: null } } } satisfies Prisma.PortfolioItemWhereInput;
+
 async function createDraft(tx: Tx, user: CurrentUser, like: string | null | undefined): Promise<RequestWithType> {
   const item = like
-    ? await tx.portfolioItem.findFirst({ where: { id: like, published: true }, select: { id: true, executorId: true, style: true } })
+    ? await tx.portfolioItem.findFirst({ where: { id: like, ...LIKEABLE }, select: { id: true, executorId: true, style: true } })
     : null;
   if (like && !item) fail.notFound(e.portfolioNotFound);
   const r = await tx.request.create({
@@ -245,7 +248,7 @@ export async function listFurnitureTypes() {
 /** Работа из портфолио для «Хочу похожее»: тип и исполнитель без личных данных. */
 export async function likeTarget(portfolioItemId: string) {
   const item = await db.portfolioItem.findFirst({
-    where: { id: portfolioItemId, published: true },
+    where: { id: portfolioItemId, ...LIKEABLE },
     select: { id: true, title: true, furnitureTypeId: true, style: true, executor: { select: { publicNumber: true, segment: true } } },
   });
   return item ?? fail.notFound(e.portfolioNotFound);
