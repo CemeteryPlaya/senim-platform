@@ -38,15 +38,12 @@ const OPEN = [
   { title: "Замер", url: /\/executor\/measurements$/, heading: /^Замеры$/ },
   { title: "Договор", url: /\/deals\/[^/]+$/, heading: /^Сделка №14$/ },
   { title: "Этапы и транши", url: /\/deals\/[^/]+$/, heading: /^Сделка №\d+$/ },
-  // Дефект: шаг берёт последнюю завершённую сделку без фильтра демо-персон (сейчас №10 Армана, isDemo=false),
-  // вход за персону шага отвечает «Не найдено». Причина — src/modules/operator/bank-demo.ts, dealIn().
-  { title: "Закрытие", url: /\/deals\/[^/]+$/, heading: /^Сделка №\d+$/, defect: "закрытие: персона шага не демо-персона" },
+  { title: "Закрытие", url: /\/deals\/[^/]+$/, heading: /^Сделка №\d+$/ },
   { title: "Заявка", url: /\/requests\/new$/, heading: /^Что будем делать\?$/ },
 ] as const;
 
 for (const s of OPEN) {
   test(`шаг «${s.title}»: «Войти как … и открыть» ведёт на экран шага`, async ({ page }) => {
-    test.fail("defect" in s, "defect" in s ? s.defect : "");
     await page.context().clearCookies();
     await page.goto("/bank-demo");
     const item = step(page, s.title);
