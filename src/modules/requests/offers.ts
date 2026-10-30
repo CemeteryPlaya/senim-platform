@@ -259,6 +259,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
   if (!r) return fail.notFound(e.notFound);
   const mine = r.offers[0] ?? null;
   const chosen = mine?.status === "ACCEPTED";
+  const messages = mine ? await offerMessages(mine.id, user.id) : [];
   return {
     id: r.id,
     number: r.number,
@@ -276,6 +277,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     photos: r.photos.map((f) => ({ id: f.id, src: fileSrc(f) })),
     canOffer: r.status === "OPEN" && mine === null,
     defaults: { measurementTerms: executor.measurementTerms, measurementFee: executor.measurementFee },
+    messages,
     myOffer: mine && {
       id: mine.id,
       status: mine.status,
