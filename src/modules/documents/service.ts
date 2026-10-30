@@ -326,11 +326,12 @@ export const completeSigning: CompleteSigning = async (user, { documentId, sessi
   return transaction(async (tx) => {
     // Порядок блокировок как в createContract и deal-core: сначала сделка, потом документ.
     await lockDeal(tx, doc.dealId);
-    await assertDealSignable(tx, doc.dealId, doc.kind);
     const [locked] = await tx.$queryRaw<{ status: DocumentStatus; sha256: string }[]>`
       SELECT status, sha256 FROM "Document" WHERE id = ${documentId} FOR UPDATE`;
     const signatures = await tx.signature.findMany({ where: { documentId }, select: { party: true } });
+    // Сначала документ: повтор из второй вкладки после полной подписи — «уже подписан», а не «другой шаг сделки».
     assertSignable(locked.status, signatures, party);
+    await assertDealSignable(tx, doc.dealId, doc.kind);
     if (locked.sha256 !== doc.sha256) fail.conflict();
 
     await tx.signature.create({
