@@ -93,6 +93,13 @@ describe("registerExecutor", () => {
     expect(await db.executorProfile.count()).toBe(2);
   });
 
+  it("перебор ИИН/БИН упирается в лимит: не больше 5 попыток регистрации в час", async () => {
+    await registerExecutor(await makeClient(), selfEmployed);
+    const prober = await makeClient();
+    for (let i = 0; i < 5; i++) expect(await codeOf(registerExecutor(prober, selfEmployed))).toBe("CONFLICT");
+    expect(await codeOf(registerExecutor(prober, selfEmployed))).toBe("RATE_LIMITED");
+  });
+
   it("номер, на котором уже есть заявки заказчика, не становится исполнителем", async () => {
     const user = await makeClient();
     await db.request.create({ data: { clientId: user.id, mode: "TENDER" } });

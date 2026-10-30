@@ -6,6 +6,7 @@ import { notify } from "@/modules/notifications";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
+import { enforceRateLimit } from "@/platform/rate-limit";
 import type { ReviewExecutorRegistration } from "./index";
 import type { ExecutorRegistrationInput } from "./registration-schema";
 import { EXECUTOR_REGISTRATION_PATH } from "./return-to";
@@ -14,6 +15,9 @@ import { actorOf, type CurrentUser } from "./session";
 export { executorRegistrationSchema, type ExecutorRegistrationInput } from "./registration-schema";
 
 const t = ru.identity.registration;
+
+/** Ответ «ИИН/БИН уже зарегистрирован» раскрывает, кто исполнитель: перебор ограничен 5 попытками в час на пользователя. */
+const REGISTRATION_LIMIT = { limit: 5, windowSec: 3600 };
 
 const entityOf = (profileId: string) => ({ entity: { type: "executor", id: profileId }, scope: `executor:${profileId}` });
 
@@ -51,6 +55,7 @@ async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegis
  */
 export async function registerExecutor(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
   if (user.role === "OPERATOR") return fail.forbidden(t.errors.operator);
+  await enforceRateLimit(`registration:user:${user.id}`, REGISTRATION_LIMIT, t.errors.tooMany);
 
   return register(user, input).catch((e: unknown) => {
     // Два разных номера одновременно с одним ИИН/БИН: проверку прошли оба, сработал уникальный индекс.
