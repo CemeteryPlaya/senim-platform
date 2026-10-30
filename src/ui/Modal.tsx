@@ -21,9 +21,13 @@ export type ModalProps = {
  * Модальное окно на нативном <dialog>: браузер сам держит фокус внутри и делает
  * остальную страницу недоступной. После закрытия фокус возвращается туда, откуда открыли.
  */
+/** Клик по затемнению сразу после открытия — продолжение нажатия, открывшего окно, а не «закрыть». */
+const BACKDROP_GRACE_MS = 500;
+
 export function Modal({ open, onClose, title, description, footer, className, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<Element | null>(null);
+  const openedAt = useRef(0);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -33,6 +37,7 @@ export function Modal({ open, onClose, title, description, footer, className, ch
     if (open && !dialog.open) {
       opener.current = document.activeElement;
       dialog.showModal();
+      openedAt.current = performance.now();
     } else if (!open && dialog.open) {
       dialog.close();
       if (opener.current instanceof HTMLElement) opener.current.focus();
@@ -50,8 +55,9 @@ export function Modal({ open, onClose, title, description, footer, className, ch
         onClose();
       }}
       // Клик по затемнению попадает в сам <dialog>, клик по содержимому — во внутренний div.
+      // Второй клик двойного нажатия, открывшего окно, тоже попадает в затемнение — его не считаем.
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget && performance.now() - openedAt.current > BACKDROP_GRACE_MS) onClose();
       }}
       className={cn(
         "m-auto w-[calc(100%-2rem)] max-w-lg rounded-card border border-line bg-surface p-0 text-ink shadow-overlay",
