@@ -1,20 +1,18 @@
 import "server-only";
-import { env } from "@/platform/env";
-import { fail } from "@/platform/errors";
-import { mockSignatureProvider } from "./providers/mock-signature";
-import type { SignatureProvider } from "./signature";
 
+// Публичный API модуля documents: PDF договора и актов, хэши, подпись ЭЦП.
 export type * from "./signature";
-// Контракты для deal-core (createContract, createStageAct, completeSigning) — в ./contracts.
 export type { CompleteSigning, CreateContract, CreateStageAct, CreatedDocument } from "./contracts";
-
-export function signatureProvider(): SignatureProvider {
-  switch (env().SIGNATURE_PROVIDER) {
-    case "mock":
-      return mockSignatureProvider;
-    case "sigex":
-      return fail.unavailable("Подпись через SIGEX ещё не подключена");
-  }
-}
+export { signatureProvider } from "./providers";
+export {
+  completeSigning,
+  createContract,
+  createStageAct,
+  getDocumentPdf,
+  listDealDocuments,
+  startSigning,
+  type SigningDocumentView,
+  type StartedSigning,
+} from "./service";
 
 export const jobHandlers = {} as const;

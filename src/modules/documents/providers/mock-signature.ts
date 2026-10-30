@@ -1,11 +1,12 @@
 import { hmacHex, randomToken, safeEqual } from "@/platform/crypto";
+import type { SignMethod } from "@/generated/prisma/enums";
 import type { SignatureProvider } from "../signature";
 
 // Мок не даёт юридической силы: «CMS» — это JSON с HMAC под фиксированным ключом мока.
 // Без состояния: данные сессии зашиты в sessionId, поэтому работает на нескольких инстансах Vercel.
 const MOCK_KEY = "senim-mock-signature-not-a-secret";
 
-type SessionData = { sha256: string; subject: string; iinLast4?: string; exp: number };
+type SessionData = { sha256: string; method: SignMethod; subject: string; iinLast4?: string; exp: number };
 type MockCms = { v: 1; sha256: string; subject: string; serial: string; iinLast4?: string; ts: string; mac: string };
 
 const seal = (data: object) => {
@@ -27,7 +28,7 @@ export const mockSignatureProvider: SignatureProvider = {
 
   async startSigning({ sha256, method, signer }) {
     const expiresAt = new Date(Date.now() + 5 * 60_000);
-    const data: SessionData = { sha256, subject: signer.fullName, iinLast4: signer.iinLast4, exp: expiresAt.getTime() };
+    const data: SessionData = { sha256, method, subject: signer.fullName, iinLast4: signer.iinLast4, exp: expiresAt.getTime() };
     const sessionId = seal(data);
     return {
       sessionId,
@@ -48,7 +49,7 @@ export const mockSignatureProvider: SignatureProvider = {
       iinLast4: s.iinLast4,
       ts: new Date().toISOString(),
     };
-    return { status: "signed", cms: Buffer.from(JSON.stringify({ ...body, mac: cmsMac(body) })).toString("base64") };
+    return { status: "signed", method: s.method, cms: Buffer.from(JSON.stringify({ ...body, mac: cmsMac(body) })).toString("base64") };
   },
 
   async verify({ cms, sha256 }) {

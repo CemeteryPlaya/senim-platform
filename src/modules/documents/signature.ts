@@ -19,7 +19,10 @@ export type SigningSession = {
   expiresAt: Date;
 };
 
-export type SigningResult = { status: "pending" } | { status: "signed"; cms: string } | { status: "failed"; error: string };
+export type SigningResult =
+  | { status: "pending" }
+  | { status: "signed"; cms: string; /** Способ, которым подписали (сохраняется в Signature.method). */ method: SignMethod }
+  | { status: "failed"; error: string };
 
 export type VerifiedSignature =
   | { valid: true; certSubject: string; certSerial: string; certIinLast4?: string; signedAt: Date }

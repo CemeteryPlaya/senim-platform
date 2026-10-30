@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { plainText as rawText, type PdfSpec } from "../pdf/spec";
 import { contractSpec } from "./contract";
 import { stageActSpec } from "./stage-act";
+import { subjectDetails } from "./subject";
 import type { ContractData, StageActData } from "./types";
 
 // Суммы форматируются с неразрывными пробелами; в ожиданиях — обычные.
@@ -101,6 +102,24 @@ describe("договор подряда", () => {
 
   it("не содержит телефонов", () => {
     expect(plainText(contractSpec(contract()))).not.toMatch(/\+7|телефон/i);
+  });
+});
+
+describe("параметры заказа из заявки", () => {
+  it("переводит ключи каталога в названия и пропускает пустое", () => {
+    expect(
+      subjectDetails({
+        furnitureType: "Кухня",
+        style: "modern",
+        details: { widthCm: 320, depthCm: 60, facade: "mdf_enamel", unknown: ["countertop"], color: "белый" },
+        wishes: "  ",
+      }),
+    ).toEqual(["Тип мебели: Кухня", "Стиль: Современный", "Размеры: ширина 320 см, глубина 60 см", "Фасады: МДФ эмаль", "Цвет: белый"]);
+  });
+
+  it("неожиданный JSON не ломает договор", () => {
+    expect(subjectDetails({ furnitureType: null, style: null, details: { widthCm: "много" }, wishes: "Без ручек" })).toEqual(["Пожелания: Без ручек"]);
+    expect(subjectDetails({ furnitureType: null, style: null, details: null, wishes: "" })).toEqual([]);
   });
 });
 
