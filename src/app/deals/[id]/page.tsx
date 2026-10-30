@@ -11,7 +11,7 @@ import { isAppError } from "@/platform/errors";
 import { ButtonLink, Card, Container, DateText, Money, PageHeader, SimulatorBadge, StatusBadge } from "@/ui";
 import { ActionButton } from "../_parts/ActionButton";
 import { DEAL_TONE, PAYMENT_TONE, STAGE_TONE } from "../_parts/labels";
-import { cancelDealAction } from "./actions";
+import { cancelDealAction, retryOperationAction } from "./actions";
 import { DisputePositionForm, OpenDisputeForm } from "./_parts/DealForms";
 import { NextStepCard } from "./_parts/NextStepCard";
 
@@ -194,6 +194,16 @@ function EscrowAccount({ deal }: { deal: DealView }) {
                       <StatusBadge tone={op.status === "SUCCEEDED" ? "success" : op.status === "FAILED" ? "danger" : "info"}>
                         {p.operation.status[op.status]}
                       </StatusBadge>
+                      {op.retryKey && (
+                        <ActionButton
+                          action={retryOperationAction}
+                          input={{ idempotencyKey: op.retryKey }}
+                          variant="secondary"
+                          confirm={{ title: t.actions.retryTitle, text: t.actions.retryText, yes: t.actions.retryYes, no: t.actions.retryNo, tone: "primary" }}
+                        >
+                          {t.actions.retryOperation}
+                        </ActionButton>
+                      )}
                     </li>
                   ))}
                 </ul>

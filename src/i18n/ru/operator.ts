@@ -31,7 +31,6 @@ export const operator = {
     disputeResolved: "Спор уже решён. Обновите страницу",
     typeNameTaken: "Тип мебели с таким названием уже есть",
     amountTooBig: "Сумма больше суммы сделки",
-    escrowDisputeLater: "Решение спора по эскроу-сделке станет доступно после подключения модуля сделок",
   },
 
   validation: {

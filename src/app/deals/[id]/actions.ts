@@ -11,6 +11,8 @@ import {
   openDispute,
   openDisputeSchema,
   requestRework,
+  retryOperationSchema,
+  retryPaymentOperation,
   reviewSchema,
   reworkSchema,
   stageRefSchema,
@@ -74,4 +76,9 @@ export const disputePositionAction = action("deal.disputePosition", disputePosit
 export const reviewAction = action("deal.review", reviewSchema, async (input) => {
   const user = await requireUser("CLIENT");
   await leaveReview(user, input);
+});
+
+export const retryOperationAction = action("deal.retryOperation", retryOperationSchema, async (input) => {
+  const user = await requireUser("OPERATOR");
+  await retryPaymentOperation(user, input);
 });

@@ -173,7 +173,15 @@ export async function getDealView(user: CurrentUser, dealId: string, now = new D
       refunded: deal.escrow.refunded,
       requisites: deal.escrow.requisites as Record<string, string>,
     },
-    operations: deal.operations.map((o) => ({ id: o.id, kind: o.kind, amount: o.amount, status: o.status, createdAt: o.createdAt })),
+    operations: deal.operations.map((o) => ({
+      id: o.id,
+      kind: o.kind,
+      amount: o.amount,
+      status: o.status,
+      createdAt: o.createdAt,
+      // Ключ нужен только оператору — для повтора отклонённой операции.
+      retryKey: viewer === "OPERATOR" && o.status === "FAILED" && o.kind !== "DEPOSIT" ? o.idempotencyKey : null,
+    })),
     history: history.map((e) => ({ id: e.id, action: e.action, actorRole: e.actorRole, createdAt: e.createdAt })),
   };
   const next: NextStep = nextStep({

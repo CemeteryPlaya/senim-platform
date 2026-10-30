@@ -91,7 +91,7 @@ export async function resumeAutoAccept(tx: Tx, deal: DealState, resumedAt: Date)
  * Банк отклонил операцию: всем действующим операторам — in-app уведомление со ссылкой на сделку
  * (повторить можно с новым ключом — retryPaymentOperation). Запись в журнал делает payments
  * (payment.operation.failed) в той же транзакции.
- * INTEGRATOR: заменить на notifications.notifyOperators, когда появится шаблон «payment.failed».
+ * Готовым текстом, а не шаблоном: тело с номером сделки и суммой собирает deal-core.
  */
 export async function notifyOperatorsPaymentFailed(tx: Tx, deal: DealState, op: { kind: string; amount: number }) {
   const operators = await tx.user.findMany({ where: { role: "OPERATOR", blockedAt: null }, select: { id: true } });
