@@ -199,7 +199,7 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 7,
-    about: "Мастерская «Дала Мебель»: кухни, спальни и ТВ-зоны. Помогаем с проектом и подбираем материалы под бюджет.",
+    about: "Мастерская полного цикла: кухни, спальни и ТВ-зоны. Помогаем с проектом и подбираем материалы под бюджет.",
     specializations: ["kitchen", "bedroom", "living-room", "kids-room"],
     portfolio: [
       { key: "dala-bedroom", file: "bedroom-beige", type: "bedroom", style: "scandi", title: "Спальня с мягким изголовьем", description: "Кровать с изголовьем во всю стену и две прикроватные тумбы.", priceFrom: 560_000 },

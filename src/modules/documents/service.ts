@@ -118,7 +118,10 @@ async function storeDocument(
  * (PDF перестраивается с датой текущей версии и сравнивается по хэшу); изменились — новая версия,
  * старая SUPERSEDED. Подписанный договор не перевыпускается.
  */
-export const createContract: CreateContract = async (tx, dealId) => {
+export const createContract: CreateContract = (tx, dealId) => createContractIssuedAt(tx, dealId, new Date());
+
+/** То же с явной датой выпуска — для демо-данных с прошлыми датами. Экраны и deal-core зовут createContract. */
+export async function createContractIssuedAt(tx: Tx, dealId: string, issuedAt: Date): Promise<CreatedDocument> {
   await lockDeal(tx, dealId);
   const deal = await loadDealForContract(tx, dealId);
   const current = await tx.document.findFirst({
@@ -144,13 +147,15 @@ export const createContract: CreateContract = async (tx, dealId) => {
   const last = await tx.document.aggregate({ where: { dealId, kind: "CONTRACT" }, _max: { version: true } });
   const version = (last._max.version ?? 0) + 1;
   const number = contractNumber(deal.number, yearIn(deal.createdAt));
-  const issuedAt = new Date();
   const bytes = await renderPdf(contractSpec(toContractData(deal, { number, version, issuedAt })));
   return storeDocument(tx, { dealId, kind: "CONTRACT", number, version, issuedAt, bytes });
-};
+}
 
 /** deal-core → documents: акт после приёмки этапа. Один акт на этап; повтор возвращает тот же. */
-export const createStageAct: CreateStageAct = async (tx, stageId) => {
+export const createStageAct: CreateStageAct = (tx, stageId) => createStageActIssuedAt(tx, stageId, new Date());
+
+/** То же с явной датой выпуска — для демо-данных с прошлыми датами. */
+export async function createStageActIssuedAt(tx: Tx, stageId: string, issuedAt: Date): Promise<CreatedDocument> {
   const ref = await tx.stage.findUnique({ where: { id: stageId }, select: { dealId: true } });
   if (!ref) return fail.notFound("Этап не найден");
   await lockDeal(tx, ref.dealId);
@@ -168,7 +173,6 @@ export const createStageAct: CreateStageAct = async (tx, stageId) => {
   if (!contract) return fail.conflict(t.errors.noContract);
 
   const { deal } = stage;
-  const issuedAt = new Date();
   const number = stageActNumber(deal.number, stage.order);
   const bytes = await renderPdf(
     stageActSpec({
@@ -185,7 +189,7 @@ export const createStageAct: CreateStageAct = async (tx, stageId) => {
     }),
   );
   return storeDocument(tx, { dealId: stage.dealId, stageId, kind: "STAGE_ACT", number, version: 1, issuedAt, bytes });
-};
+}
 
 // ─── доступ ─────────────────────────────────────────────────────────────────
 

@@ -32,6 +32,7 @@ import {
   type RequestSpec,
   type StageStep,
 } from "./data";
+import { seedDocuments } from "./documents";
 import { PORTFOLIO_FILES } from "./portfolio-files";
 
 /**
@@ -308,10 +309,9 @@ async function fill(tx: Tx, now: number): Promise<SeedSummary> {
     }),
   });
 
-  // PHASE C: договоры и акты — Document и Signature для подписанных сделок и принятых этапов
-  // генерирует модуль documents (PDF, sha256, подписи сторон); сид их не создаёт.
-
   const auditEvents = await audit.flush(tx);
+  // Документы — после журнала сида: модуль documents сразу пишет свои события, и seq остаётся хронологическим.
+  await seedDocuments(tx);
   return {
     users: await tx.user.count(),
     executors: ids.executors.size,
