@@ -1,11 +1,24 @@
 import "server-only";
-import { env } from "@/platform/env";
 
+// Публичный API модуля ai. Всё под флагом AI_ENABLED: при false сервисы отвечают fail.unavailable,
+// экраны прячут кнопки по aiEnabled().
 export type * from "./provider";
-
-/** Все функции ИИ скрыты, если AI_ENABLED=false. Провайдеры и помощник — ai-engineer (фаза B). */
-export function aiEnabled(): boolean {
-  return env().AI_ENABLED;
-}
-
-export const jobHandlers = {} as const;
+export { aiEnabled } from "./deps";
+export { assistRequest, type AssistResult } from "./assist";
+export {
+  getVisualization,
+  jobHandlers,
+  listVisualizations,
+  requestVisualization,
+  VISUALIZE_JOB,
+  type VisualizationList,
+  type VisualizationView,
+} from "./visualize";
+export { scrubPii } from "./pii";
+export {
+  assistInputSchema,
+  visualizeInputSchema,
+  type DraftDetails,
+  type RequestDraft,
+  type RequestDraftSuggestion,
+} from "./schema";

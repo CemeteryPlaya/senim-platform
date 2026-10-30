@@ -189,6 +189,7 @@ async function toView(viz: Visualization & { results: StoredFile[] }): Promise<V
 
 /** Одна визуализация — для опроса статуса. Заказчик видит только свои, оператор — все. */
 export async function getVisualization(user: CurrentUser, visualizationId: string): Promise<VisualizationView> {
+  ensureAiEnabled();
   const viz = await db.visualization.findUnique({ where: { id: visualizationId }, include: { results: true } });
   if (!viz) return fail.notFound();
   await readableRequest(user, viz.requestId);
@@ -196,6 +197,7 @@ export async function getVisualization(user: CurrentUser, visualizationId: strin
 }
 
 export async function listVisualizations(user: CurrentUser, requestId: string): Promise<VisualizationList> {
+  ensureAiEnabled();
   await readableRequest(user, requestId);
   const items = await db.visualization.findMany({
     where: { requestId },

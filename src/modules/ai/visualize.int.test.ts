@@ -96,6 +96,7 @@ describe("requestVisualization — постановка в очередь и л�
     const { client, request, photo } = await setup();
     await useAiEnv({ AI_ENABLED: "false" });
     await expect(requestVisualization(client, request.id, photo.id, "")).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    await expect(listVisualizations(client, request.id)).rejects.toMatchObject({ code: "UNAVAILABLE" });
     expect(await db.visualization.count()).toBe(0);
     expect(await db.job.count()).toBe(0);
   });
