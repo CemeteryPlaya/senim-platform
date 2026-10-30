@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { createHttpSmsProvider } from "./sms";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createHttpSmsProvider, mockSmsProvider } from "./sms";
 
 type Call = { url: string; init: RequestInit };
 
@@ -45,5 +45,24 @@ describe("SmsProvider http (скелет под провайдера)", () => {
     expect(error).toBeInstanceOf(Error);
     expect(String(error)).toContain("500");
     expect(String(error)).not.toContain("1234");
+  });
+});
+
+describe("SmsProvider mock", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("пишет в лог только длину текста и хвост номера — без кода и номера целиком", async () => {
+    const out = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await mockSmsProvider.send({ phone: "+77001234567", text: "Код входа: 482913" });
+
+    expect(out).toHaveBeenCalledTimes(1);
+    const line = String(out.mock.calls[0]?.[0]);
+    expect(line).toContain("sms.mock.sent");
+    expect(line).not.toContain("482913");
+    expect(line).not.toContain("+7700123");
+    expect(JSON.parse(line)).toMatchObject({ length: 17, toLast4: "4567" });
   });
 });

@@ -68,6 +68,14 @@ const schema = z
       require("FILE_URL_SECRET", "NODE_ENV=production");
       require("CRON_SECRET", "NODE_ENV=production");
     }
+    // Вне демо-стенда моки в production означают «код входа никуда не уходит» и «подпись не проверяется».
+    if (env.NODE_ENV === "production" && !env.DEMO_MODE) {
+      const forbidMock = (key: "SMS_PROVIDER" | "SIGNATURE_PROVIDER") => {
+        if (env[key] === "mock") ctx.addIssue({ code: "custom", path: [key], message: "mock запрещён в production без DEMO_MODE" });
+      };
+      forbidMock("SMS_PROVIDER");
+      forbidMock("SIGNATURE_PROVIDER");
+    }
     if (env.SMS_PROVIDER === "http") {
       require("SMS_HTTP_URL", "SMS_PROVIDER=http");
       require("SMS_HTTP_TOKEN", "SMS_PROVIDER=http");
@@ -96,15 +104,19 @@ export type Env = z.infer<typeof schema>;
 
 let cached: Env | undefined;
 
-/** Переменные окружения, проверенные один раз при первом обращении. */
-export function env(): Env {
-  if (cached) return cached;
-  const parsed = schema.safeParse(process.env);
+/** Проверка набора переменных; бросает Error со списком всех проблем. */
+export function parseEnv(source: Record<string, string | undefined>): Env {
+  const parsed = schema.safeParse(source);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Некорректные переменные окружения:\n${issues}`);
   }
-  cached = parsed.data;
+  return parsed.data;
+}
+
+/** Переменные окружения, проверенные один раз при первом обращении. */
+export function env(): Env {
+  cached ??= parseEnv(process.env);
   return cached;
 }
 

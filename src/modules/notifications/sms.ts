@@ -9,9 +9,9 @@ export interface SmsProvider {
 
 export const mockSmsProvider: SmsProvider = {
   name: "mock",
-  async send({ text, idempotencyKey }) {
-    // Телефон в лог не пишем (logger скрывает phone); текст SMS в моке — это и есть демо-код.
-    logger.info("sms.mock.sent", { text });
+  async send({ phone, text, idempotencyKey }) {
+    // Ни текст (в нём код входа), ни номер целиком в лог не попадают: только длина и последние 4 цифры.
+    logger.info("sms.mock.sent", { length: text.length, toLast4: phone.slice(-4) });
     return { providerMessageId: idempotencyKey ? `mock-${idempotencyKey}` : `mock-${Date.now()}` };
   },
 };
