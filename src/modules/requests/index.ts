@@ -34,6 +34,7 @@ export {
   listMyMeasurements,
   measurementNoDeal,
   onContractSigned,
+  onDealDocumentSigned,
   scheduleMeasurement,
   type MeasurementListItem,
 } from "./measurements";

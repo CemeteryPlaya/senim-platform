@@ -4,7 +4,15 @@ import { z } from "zod";
 import { onDocumentSigned } from "@/modules/deal-core";
 import { completeSigning, startSigning } from "@/modules/documents";
 import { requireUser } from "@/modules/identity";
+import { onDealDocumentSigned } from "@/modules/requests";
 import { action } from "@/platform/action";
+import type { Tx } from "@/platform/db";
+
+/** Обе стороны подписали: сделка идёт дальше (deal-core), договор закрывает заявку (requests). */
+async function onFullySigned(tx: Tx, documentId: string) {
+  await onDocumentSigned(tx, documentId);
+  await onDealDocumentSigned(tx, documentId);
+}
 
 const documentId = z.string().min(1).max(64);
 
@@ -20,13 +28,13 @@ export const startSigningAction = action(
 
 /**
  * Завершить подпись: сервер сам проверяет CMS и хэш. Когда подписали обе стороны —
- * deal-core.onDocumentSigned в той же транзакции (договор → сделка в работу, акт → этап может закрыться).
+ * onFullySigned в той же транзакции (договор → сделка в работу и заявка закрыта, акт → этап может закрыться).
  */
 export const completeSigningAction = action(
   "documents.completeSigning",
   z.object({ documentId, sessionId: z.string().min(1).max(4000) }),
   async (input) => {
     const user = await requireUser("CLIENT", "EXECUTOR");
-    return completeSigning(user, input, { onFullySigned: onDocumentSigned });
+    return completeSigning(user, input, { onFullySigned });
   },
 );
