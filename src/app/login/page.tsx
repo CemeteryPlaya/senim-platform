@@ -50,7 +50,10 @@ export default async function LoginPage({ searchParams }: Props) {
                 {t.demoPersonas}
               </ButtonLink>
             )}
-            <Link href={EXECUTOR_REGISTRATION_PATH} className="text-base font-semibold text-primary underline underline-offset-4">
+            <Link
+                href={EXECUTOR_REGISTRATION_PATH}
+                className="inline-flex min-h-control-sm items-center self-start rounded-control text-base font-semibold text-primary underline underline-offset-4"
+              >
               {t.registerExecutor}
             </Link>
           </div>

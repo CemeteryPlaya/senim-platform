@@ -5,8 +5,8 @@ export const documents = {
   parties: { CLIENT: "Заказчик", EXECUTOR: "Исполнитель" },
   status: { SIGNING: "Ждёт подписей", SIGNED: "Подписан обеими сторонами", SUPERSEDED: "Заменён новой версией" },
   methods: {
-    EGOV_QR: { label: "eGov Mobile", description: "Отсканируйте QR-код в приложении eGov Mobile" },
-    NCALAYER: { label: "NCALayer", description: "Ключ ЭЦП на компьютере, программа NCALayer должна быть запущена" },
+    EGOV_QR: { label: "Через приложение eGov Mobile на телефоне", description: "Откройте приложение и наведите камеру на QR-код" },
+    NCALAYER: { label: "Ключом ЭЦП на компьютере", description: "На компьютере должна быть запущена программа NCALayer" },
     MOCK: { label: "Демо-подпись", description: "Имитация подписи для показа" },
   },
 
@@ -14,6 +14,7 @@ export const documents = {
     version: (n: number) => `версия ${n}`,
     openPdf: "Открыть PDF",
     openPdfHint: "Откроется в новой вкладке",
+    technical: "Технические подробности",
     hash: "Хэш SHA-256",
     hashHint: "Подписывается именно этот файл. Хэш совпадает у обеих сторон.",
     signaturesTitle: "Подписи сторон",

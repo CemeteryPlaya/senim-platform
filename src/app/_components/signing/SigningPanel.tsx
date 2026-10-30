@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Clock, FileText } from "lucide-react";
+import { CheckCircle2, ChevronDown, Clock, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useReducer } from "react";
 import type { SignParty } from "@/generated/prisma/enums";
@@ -64,11 +64,18 @@ export function SigningPanel({ document: doc, titleAs = "h2" }: SigningPanelProp
         <span className="sr-only"> ({t.panel.openPdfHint})</span>
       </a>
 
-      <div className="flex flex-col gap-1">
-        <p className="text-base font-semibold text-ink">{t.panel.hash}</p>
-        <p className="break-all font-mono text-base text-ink-soft">{doc.sha256}</p>
-        <p className="text-base text-muted">{t.panel.hashHint}</p>
-      </div>
+      {/* Хэш нужен юристу и банку, а не заказчику: спрятан, но доступен с клавиатуры. */}
+      <details className="group rounded-control border border-line">
+        <summary className="flex min-h-control-sm list-none items-center justify-between gap-3 rounded-control px-4 text-base font-semibold text-ink hover:bg-sunken [&::-webkit-details-marker]:hidden">
+          {t.panel.technical}
+          <ChevronDown aria-hidden className="size-5 shrink-0 group-open:rotate-180" />
+        </summary>
+        <div className="flex flex-col gap-1 px-4 pb-4">
+          <p className="text-base font-semibold text-ink">{t.panel.hash}</p>
+          <p className="break-all font-mono text-base text-ink-soft">{doc.sha256}</p>
+          <p className="text-base text-muted">{t.panel.hashHint}</p>
+        </div>
+      </details>
 
       <div className="flex flex-col gap-2">
         <p className="text-base font-semibold text-ink">{t.panel.signaturesTitle}</p>

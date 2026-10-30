@@ -88,7 +88,6 @@ export function LoginForm({ next }: { next: string | null }) {
           type="tel"
           inputMode="tel"
           autoComplete="tel"
-          placeholder="+7 700 000 00 00"
           required
         />
         <Button type="submit" loading={pending} fullWidth>
