@@ -30,7 +30,7 @@ export default async function MyRequestsPage() {
 
   return (
     <Container className="pb-10">
-      <PageHeader title={t.title} description={t.lead} actions={list.length > 0 ? create : undefined} />
+      <PageHeader title={t.title} description={t.lead} back={{ href: "/" }} actions={list.length > 0 ? create : undefined} />
       {list.length === 0 ? (
         <EmptyState icon={<ClipboardList />} title={t.emptyTitle} description={t.emptyText} action={create} />
       ) : (
@@ -45,13 +45,14 @@ export default async function MyRequestsPage() {
                     <StatusBadge tone={REQUEST_TONE[r.status]}>{ru.requests.status[r.status]}</StatusBadge>
                     {r.mode === "DIRECT" && <StatusBadge tone="accent">{ru.requests.mode.DIRECT}</StatusBadge>}
                   </div>
-                  <p className="text-base text-muted">
+                  {/* Метаданные переносятся целиком при крупном шрифте, а не вылезают за карточку. */}
+                  <p className="flex flex-wrap gap-x-4 text-base text-muted">
                     {draft ? (
                       t.draftProgress(Math.min(r.wizardStep, WIZARD_SCREENS.length), WIZARD_SCREENS.length)
                     ) : (
                       <>
-                        {r.segment && <span className="mr-4">{SEGMENT_NAMES[r.segment]}</span>}
-                        <span className="mr-4">{t.offers(r.offersCount)}</span>
+                        {r.segment && <span>{SEGMENT_NAMES[r.segment]}</span>}
+                        <span>{t.offers(r.offersCount)}</span>
                         <span>
                           {t.created} <DateText value={r.publishedAt ?? r.createdAt} format="relative" />
                         </span>
@@ -59,9 +60,13 @@ export default async function MyRequestsPage() {
                     )}
                   </p>
                 </div>
-                <ButtonLink href={draft ? `/requests/new?draft=${r.id}` : `/requests/${r.id}`} variant="secondary" className="shrink-0">
+                <ButtonLink
+                  href={draft ? `/requests/new?draft=${r.id}` : `/requests/${r.id}`}
+                  variant="secondary"
+                  className="shrink-0"
+                  aria-label={ru.common.ui.actionFor(draft ? t.continueDraft : t.open, ru.requests.requestTitle(r.number, r.title))}
+                >
                   {draft ? t.continueDraft : t.open}
-                  <span className="sr-only">: {ru.requests.requestTitle(r.number, r.title)}</span>
                 </ButtonLink>
               </li>
             );

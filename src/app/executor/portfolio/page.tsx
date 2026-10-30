@@ -22,7 +22,7 @@ export default async function PortfolioPage() {
 
   return (
     <Container className="flex flex-col gap-6 pb-12">
-      <PageHeader title={t.title} description={t.description} actions={items.length > 0 ? addButton : undefined} className="pb-0" />
+      <PageHeader title={t.title} description={t.description} back={{ href: "/" }} actions={items.length > 0 ? addButton : undefined} className="pb-0" />
 
       {items.length === 0 ? (
         <EmptyState icon={<ImageOff />} title={t.empty.title} description={t.empty.text} action={addButton} />

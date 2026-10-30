@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import type { ReactNode } from "react";
+import { cache, type ReactNode } from "react";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { SigningPanel } from "@/app/_components/signing";
 import { getDealView, type DealView } from "@/modules/deal-core";
 import { listDealDocuments, type SigningDocumentView } from "@/modules/documents";
-import { getCurrentUser } from "@/modules/identity";
+import { getCurrentUser, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
 import { ButtonLink, Card, Container, DateText, Money, PageHeader, SimulatorBadge, StatusBadge } from "@/ui";
@@ -18,9 +18,23 @@ import { NextStepCard } from "./_parts/NextStepCard";
 const t = ru.deal;
 const p = ru.payments;
 
-export const metadata: Metadata = { title: t.listTitle };
-
 type Props = { params: Promise<{ id: string }> };
+
+/** Один запрос сделки на заголовок вкладки и страницу (getCurrentUser тоже кэширован — тот же объект). */
+const loadDeal = cache((user: CurrentUser, id: string) => getDealView(user, id));
+
+/** Заголовок вкладки — «Сделка №N»; без доступа — общий «Сделки» (саму ошибку покажет страница). */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const user = await getCurrentUser();
+  if (!user) return { title: t.listTitle };
+  try {
+    return { title: t.number((await loadDeal(user, id)).number) };
+  } catch (e) {
+    if (isAppError(e)) return { title: t.listTitle };
+    throw e;
+  }
+}
 
 async function orNotFound<T>(promise: Promise<T>): Promise<T> {
   try {
@@ -36,7 +50,7 @@ export default async function DealPage({ params }: Props) {
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/deals/${id}`)}`);
-  const deal = await orNotFound(getDealView(user, id));
+  const deal = await orNotFound(loadDeal(user, id));
   const documents = await listDealDocuments(user, deal.id);
   const isParty = deal.viewer === "CLIENT" || deal.viewer === "EXECUTOR";
   const contract = documents.find((d) => d.kind === "CONTRACT");

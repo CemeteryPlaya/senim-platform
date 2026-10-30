@@ -24,7 +24,7 @@ export default async function MeasurementsPage() {
 
   return (
     <Container className="flex flex-col gap-8 pb-10">
-      <PageHeader title={t.title} description={t.lead} />
+      <PageHeader title={t.title} description={t.lead} back={{ href: "/" }} />
 
       {awaiting.length > 0 && (
         <section aria-labelledby="awaiting" className="flex flex-col gap-3">
@@ -40,9 +40,8 @@ export default async function MeasurementsPage() {
                     tone="accent"
                     title={title}
                     action={
-                      <ButtonLink href={`/executor/requests/${a.requestId}`}>
+                      <ButtonLink href={`/executor/requests/${a.requestId}`} aria-label={ru.common.ui.actionFor(ru.requests.executorRequest.schedule, title)}>
                         {ru.requests.executorRequest.schedule}
-                        <span className="sr-only">: {title}</span>
                       </ButtonLink>
                     }
                   >
@@ -102,9 +101,8 @@ export default async function MeasurementsPage() {
                       )}
                     </dl>
                   </div>
-                  <ButtonLink href={`/executor/requests/${m.request.id}`} variant="secondary" className="shrink-0">
+                  <ButtonLink href={`/executor/requests/${m.request.id}`} variant="secondary" className="shrink-0" aria-label={ru.common.ui.actionFor(t.open, title)}>
                     {t.open}
-                    <span className="sr-only">: {title}</span>
                   </ButtonLink>
                 </li>
               );

@@ -36,7 +36,7 @@ export default async function OperatorHome() {
 
   return (
     <Container>
-      <PageHeader title={t.title} description={t.description} />
+      <PageHeader title={t.title} description={t.description} back={{ href: "/" }} />
       <section aria-labelledby="todo" className="mb-8 flex flex-col gap-3">
         <h2 id="todo" className="text-xl font-bold text-ink">
           {t.dashboard.todo}

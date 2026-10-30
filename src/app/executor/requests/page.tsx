@@ -31,7 +31,7 @@ export default async function IncomingPage({ searchParams }: { searchParams: Pro
 
   return (
     <Container className="flex flex-col gap-6 pb-10">
-      <PageHeader title={t.title} description={t.lead} />
+      <PageHeader title={t.title} description={t.lead} back={{ href: "/" }} />
       <nav aria-label={t.filterLabel}>
         <ul className="flex flex-wrap gap-2">
           {FILTERS.map((f) => (
@@ -97,9 +97,8 @@ export default async function IncomingPage({ searchParams }: { searchParams: Pro
                   </dl>
                   <p className="text-base text-muted">{t.offers(r.offersCount)}</p>
                 </div>
-                <ButtonLink href={`/executor/requests/${r.id}`} variant="secondary" className="shrink-0">
+                <ButtonLink href={`/executor/requests/${r.id}`} variant="secondary" className="shrink-0" aria-label={ru.common.ui.actionFor(t.open, title)}>
                   {t.open}
-                  <span className="sr-only">: {title}</span>
                 </ButtonLink>
               </li>
             );

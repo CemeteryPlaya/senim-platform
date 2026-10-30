@@ -66,13 +66,11 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
           <span className="text-sm text-muted">{o.price}</span>
           <Money amount={offer.price} className="text-2xl font-extrabold text-ink" />
         </p>
-        <ButtonLink href={href} variant="secondary">
+        <ButtonLink href={href} variant="secondary" aria-label={ru.common.ui.actionFor(o.more, ex.label)}>
           {o.more}
-          <span className="sr-only">: {ex.label}</span>
         </ButtonLink>
-        <ButtonLink href={`${href}#chat`} variant="ghost" icon={<MessageCircle />}>
+        <ButtonLink href={`${href}#chat`} variant="ghost" icon={<MessageCircle />} aria-label={ru.common.ui.actionFor(o.write, ex.label)}>
           {o.write}
-          <span className="sr-only">: {ex.label}</span>
         </ButtonLink>
       </div>
     </article>

@@ -170,7 +170,7 @@ export default async function BankDemoPage({ searchParams }: { searchParams: Pro
 
   return (
     <Container>
-      <PageHeader title={t.title} description={t.description} />
+      <PageHeader title={t.title} description={t.description} back={{ href: "/" }} />
       <div className="flex flex-col gap-6">
         <Alert tone="info" title={<SimulatorBadge />}>
           {t.simulatorNote}

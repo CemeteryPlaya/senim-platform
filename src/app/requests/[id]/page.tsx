@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
+import { cache } from "react";
+import { getCurrentUser, type CurrentUser } from "@/modules/identity";
 import { getClientRequest, listOffers, OFFER_SORTS, type ClientRequest, type OfferSort } from "@/modules/requests";
+import { isAppError } from "@/platform/errors";
 import { ru } from "@/i18n/ru";
 import { Alert, ButtonLink, Container, EmptyState, Money, PageHeader, StatusBadge, cn, formatDateTime, formatMoney } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
@@ -16,9 +19,24 @@ import { OfferCard } from "./OfferCard";
 
 const t = ru.requests.request;
 
-export const metadata: Metadata = { title: ru.requests.untitled };
-
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ sort?: string; sent?: string }> };
+
+/** Один запрос заявки на заголовок вкладки и страницу. */
+const loadRequest = cache((user: CurrentUser, id: string) => getClientRequest(user, id));
+
+/** Заголовок вкладки — «Заявка №N: тип»; без доступа — общий «Заявка» (саму ошибку покажет страница). */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const user = await getCurrentUser();
+  if (user?.role !== "CLIENT") return { title: ru.requests.untitled };
+  try {
+    const request = await loadRequest(user, id);
+    return { title: ru.requests.requestTitle(request.number, request.title) };
+  } catch (e) {
+    if (isAppError(e)) return { title: ru.requests.untitled };
+    throw e;
+  }
+}
 
 const CANCELLABLE = new Set(["OPEN", "OFFER_CHOSEN", "MEASURING"]);
 
@@ -34,7 +52,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
       </Container>
     );
   }
-  const request = await orNotFound(getClientRequest(user, id));
+  const request = await orNotFound(loadRequest(user, id));
   if (request.status === "DRAFT") redirect(`/requests/new?draft=${id}`);
   const sort: OfferSort = OFFER_SORTS.find((s) => s === sp.sort) ?? "price";
   const offers = await listOffers(user, { requestId: id, sort });

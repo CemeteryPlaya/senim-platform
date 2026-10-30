@@ -85,9 +85,8 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
 function SendScreen({ draft, directNumber }: { draft: Draft; directNumber: number | null }) {
   const s = w.send;
   const edit = (screen: WizardScreen, label: string) => (
-    <Link href={hrefOf(draft.id, screen)} className="inline-flex min-h-control-sm items-center rounded-control px-2 font-semibold text-primary">
+    <Link href={hrefOf(draft.id, screen)} aria-label={ru.common.ui.actionFor(w.edit, label)} className="inline-flex min-h-control-sm items-center rounded-control px-2 font-semibold text-primary">
       {w.edit}
-      <span className="sr-only">: {label}</span>
     </Link>
   );
   const EDIT_SCREEN: Record<string, WizardScreen> = {

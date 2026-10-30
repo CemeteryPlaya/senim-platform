@@ -18,7 +18,7 @@ export default async function ExecutorProfilePage() {
 
   return (
     <Container size="form" className="flex flex-col gap-6 pb-12">
-      <PageHeader title={t.title} description={t.description} className="pb-0" />
+      <PageHeader title={t.title} description={t.description} back={{ href: "/" }} className="pb-0" />
 
       {profile.status === "PENDING" && <Alert tone="info">{t.status.PENDING}</Alert>}
       {profile.status === "REJECTED" && (
