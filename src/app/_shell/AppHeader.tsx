@@ -3,19 +3,22 @@ import { ShieldCheck } from "lucide-react";
 import type { CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, StatusBadge } from "@/ui";
+import { LogoutButton } from "../_components/auth/LogoutButton";
+import { NotificationBell } from "../_components/notifications";
 import { LOGIN_HREF, navFor } from "./nav";
-import { DesktopNav, MobileBell, MobileTabBar } from "./ShellNav";
+import { DesktopNav, MobileTabBar } from "./ShellNav";
 
 type Props = { user: CurrentUser | null; demoMode: boolean };
 
 /**
  * Шапка по макетам: знак и «Сенім / Мебель на заказ» слева; справа — меню (широкий экран),
- * колокольчик (телефон) и «Войти» для гостя. На телефоне меню — нижняя панель вкладок.
+ * колокольчик со счётчиком, «Выйти» (широкий экран) и «Войти» для гостя. На телефоне меню — нижняя панель
+ * вкладок, «Выйти» — в «Ещё».
  */
 export function AppHeader({ user, demoMode }: Props) {
   const items = navFor(user, demoMode);
-  const bell = items.find((item) => item.icon === "notifications");
-  const tabs = items.filter((item) => item !== bell);
+  // Уведомления — колокольчик со счётчиком в шапке на любой ширине (у оператора тоже), а не пункт меню.
+  const links = items.filter((item) => item.icon !== "notifications");
 
   return (
     <>
@@ -32,9 +35,19 @@ export function AppHeader({ user, demoMode }: Props) {
           </Link>
 
           <div className="flex shrink-0 items-center gap-2">
-            <DesktopNav items={items} />
-            {user && <StatusBadge className="hidden sm:inline-flex">{ru.common.roles[user.role]}</StatusBadge>}
-            <MobileBell item={bell} />
+            <DesktopNav items={links} />
+            {/* Видимость — на обёртке: cn не сливает классы, и inline-flex компонента перебил бы hidden. */}
+            {user && (
+              <span className="hidden sm:block">
+                <StatusBadge>{ru.common.roles[user.role]}</StatusBadge>
+              </span>
+            )}
+            {user && <NotificationBell userId={user.id} />}
+            {user && (
+              <span className="hidden lg:block">
+                <LogoutButton variant="ghost" />
+              </span>
+            )}
             {!user && (
               <ButtonLink href={LOGIN_HREF} variant="soft" shape="pill">
                 {ru.common.nav.login}
@@ -43,7 +56,7 @@ export function AppHeader({ user, demoMode }: Props) {
           </div>
         </div>
       </header>
-      <MobileTabBar items={tabs} />
+      <MobileTabBar items={links} extra={user ? <LogoutButton variant="ghost" fullWidth /> : undefined} />
     </>
   );
 }

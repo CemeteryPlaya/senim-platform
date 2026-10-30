@@ -9,7 +9,7 @@ describe("навигация по роли", () => {
   });
 
   it("гость в демо-режиме может выбрать демо-персону", () => {
-    expect(hrefs(null, true)).toEqual(["/catalog", "/demo"]);
+    expect(hrefs(null, true)).toEqual(["/catalog", "/bank-demo", "/demo"]);
   });
 
   it("заказчик: заявки, каталог, сделки, уведомления", () => {
@@ -36,8 +36,9 @@ describe("навигация по роли", () => {
   });
 
   it("оператор: панель оператора; показ банку и демо-персоны — только в демо-режиме", () => {
-    expect(hrefs({ role: "OPERATOR", executor: null }, false)).toEqual(["/operator"]);
-    expect(hrefs({ role: "OPERATOR", executor: null }, true)).toEqual(["/operator", "/bank-demo", "/demo"]);
+    expect(hrefs({ role: "OPERATOR", executor: null }, false)).toEqual(["/operator", "/deals"]);
+    expect(hrefs({ role: "OPERATOR", executor: null }, true)).toEqual(["/operator", "/deals", "/bank-demo", "/demo"]);
+    expect(hrefs({ role: "CLIENT", executor: null }, true)).toContain("/bank-demo");
   });
 
   it("у каждого пункта есть подпись и иконка", () => {

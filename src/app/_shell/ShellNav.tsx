@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   Bell,
@@ -71,26 +72,11 @@ export function DesktopNav({ items }: { items: readonly NavItem[] }) {
   );
 }
 
-/** Колокольчик уведомлений в шапке телефона (как в макете); на широком экране — обычная ссылка в меню. */
-export function MobileBell({ item }: { item: NavItem | undefined }) {
-  const { current } = useCurrent();
-  if (!item) return null;
-  return (
-    <Link
-      href={item.href}
-      aria-label={item.label}
-      aria-current={current(item.href)}
-      className="inline-flex size-12 items-center justify-center rounded-full text-ink hover:bg-sunken aria-[current=page]:bg-accent-soft aria-[current=page]:text-primary lg:hidden"
-    >
-      <Bell aria-hidden className="size-6" />
-    </Link>
-  );
-}
-
 /** Нижняя панель вкладок на телефоне (как в макете): иконка + подпись; лишние пункты — в «Ещё». */
-export function MobileTabBar({ items }: { items: readonly NavItem[] }) {
+export function MobileTabBar({ items, extra }: { items: readonly NavItem[]; extra?: ReactNode }) {
   const { pathname, current } = useCurrent();
-  const overflow = items.length > BAR_CELLS;
+  // «Ещё» есть всегда, когда есть что положить туда помимо ссылок (например, «Выйти»).
+  const overflow = items.length > BAR_CELLS || extra !== undefined;
   const inBar = overflow ? items.slice(0, BAR_CELLS - 1) : items;
   const inMore = overflow ? items.slice(BAR_CELLS - 1) : [];
   const moreActive = inMore.some((item) => current(item.href));
@@ -143,6 +129,7 @@ export function MobileTabBar({ items }: { items: readonly NavItem[] }) {
                     </li>
                   );
                 })}
+                {extra && <li className="border-t border-line pt-2">{extra}</li>}
               </ul>
             </details>
           </li>

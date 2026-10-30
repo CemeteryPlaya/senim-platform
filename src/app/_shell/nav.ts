@@ -54,17 +54,17 @@ function itemsFor(user: NavUser | null): NavItem[] {
         ? [ROUTES.incoming, ROUTES.measurements, ROUTES.deals, ROUTES.notifications, ROUTES.profile, ROUTES.portfolio]
         : [ROUTES.profile, ROUTES.portfolio, ROUTES.notifications];
     case "OPERATOR":
-      return [ROUTES.operator];
+      return [ROUTES.operator, ROUTES.deals];
   }
 }
 
 /**
  * Пункты меню для пользователя (null — гость), в порядке важности: на телефоне первые
- * пункты попадают в нижнюю панель, остальные — в «Ещё». Демо-пункты — только при DEMO_MODE.
+ * пункты попадают в нижнюю панель, остальные — в «Ещё». Демо-пункты — только при DEMO_MODE;
+ * показ банку — любой роли: ведущий переключает персоны по ходу показа.
  */
 export function navFor(user: NavUser | null, demoMode: boolean): NavItem[] {
   const items = itemsFor(user);
-  if (demoMode && user?.role === "OPERATOR") items.push(ROUTES.bankDemo);
-  if (demoMode) items.push(ROUTES.demo);
+  if (demoMode) items.push(ROUTES.bankDemo, ROUTES.demo);
   return items;
 }
