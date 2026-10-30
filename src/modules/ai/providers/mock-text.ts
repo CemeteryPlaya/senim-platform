@@ -131,16 +131,19 @@ function sizesOf(text: string): Sizes {
     const [, w, h, d, unit] = triple;
     return { widthCm: toCm(w, unit), heightCm: toCm(h, unit), depthCm: d ? toCm(d, unit) : null };
   }
-  const set = (word: string, value: string, unit: string | undefined) => {
+  const labeled: [number, number][] = [];
+  const set = (m: RegExpMatchArray, word: string, value: string, unit: string | undefined) => {
+    labeled.push([m.index ?? 0, (m.index ?? 0) + m[0].length]);
     const axis = firstMatch(word, AXIS_WORD);
     if (axis && sizes[axis] === null) sizes[axis] = toCm(value, unit);
   };
-  for (const m of text.matchAll(LABEL_FIRST)) set(m[1], m[2], m[3]);
-  for (const m of text.matchAll(VALUE_FIRST)) set(m[3], m[1], m[2]);
-  if (sizes.widthCm === null && sizes.heightCm === null && sizes.depthCm === null) {
-    const first = MEASURE.exec(text);
-    MEASURE.lastIndex = 0;
-    if (first) sizes.widthCm = toCm(first[1], first[2]);
+  for (const m of text.matchAll(LABEL_FIRST)) set(m, m[1], m[2], m[3]);
+  for (const m of text.matchAll(VALUE_FIRST)) set(m, m[3], m[1], m[2]);
+  // Первое значение с единицей вне подписанных — ширина: «кухня 3,2 м, высота 2,7 м».
+  if (sizes.widthCm === null) {
+    const isLabeled = (at: number) => labeled.some(([from, to]) => at >= from && at < to);
+    const free = [...text.matchAll(MEASURE)].find((m) => !isLabeled(m.index ?? 0));
+    if (free) sizes.widthCm = toCm(free[1], free[2]);
   }
   return sizes;
 }

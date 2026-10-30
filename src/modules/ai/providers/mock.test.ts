@@ -58,6 +58,11 @@ describe("mockProvider.structureRequest — детерминированный �
     expect(s).toMatchObject({ furnitureTypeSlug: "table", facade: "solid_wood", widthCm: 180, countertop: null });
   });
 
+  it("первое неподписанное значение — ширина, даже если высота подписана", async () => {
+    const s = await structure("кухня 3,2 м, высота 2,7 м");
+    expect(s).toMatchObject({ widthCm: 320, heightCm: 270, depthCm: null });
+  });
+
   it("неоклассика не путается с классикой", async () => {
     expect((await structure("гостиная, неоклассика")).style).toBe("neoclassic");
     expect((await structure("спальня в классическом стиле")).style).toBe("classic");

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ru } from "@/i18n/ru";
 import {
   COUNTERTOPS,
   FACADES,
@@ -17,7 +18,32 @@ import {
  * а явно отвечает «не знаю». Ответ провайдера — внешние данные: разбираются здесь один раз.
  */
 
-const keysOf = <K extends string>(record: Record<K, unknown>) => Object.keys(record) as [K, ...K[]];
+// ─── вход от пользователя ───────────────────────────────────────────────────
+
+export const ASSIST_TEXT_MIN = 10;
+export const ASSIST_TEXT_MAX = 1000;
+export const VISUALIZE_PROMPT_MAX = 300;
+
+const id = z.string().trim().min(1).max(64);
+
+export const assistTextSchema = z
+  .string()
+  .trim()
+  .min(ASSIST_TEXT_MIN, ru.ai.errors.textTooShort)
+  .max(ASSIST_TEXT_MAX, ru.ai.errors.textTooLong(ASSIST_TEXT_MAX));
+
+export const assistInputSchema = z.object({ requestId: id, text: assistTextSchema });
+
+export const visualizePromptSchema = z
+  .string()
+  .trim()
+  .max(VISUALIZE_PROMPT_MAX, ru.ai.errors.textTooLong(VISUALIZE_PROMPT_MAX));
+
+export const visualizeInputSchema = z.object({ requestId: id, sourceFileId: id, prompt: visualizePromptSchema.default("") });
+
+// ─── ответ провайдера ───────────────────────────────────────────────────────
+
+const keysOf =<K extends string>(record: Record<K, unknown>) => Object.keys(record) as [K, ...K[]];
 
 /** «Не знаю — подскажет исполнитель»: размер или конкретный материал (как в схеме requests). */
 export const DETAIL_UNKNOWN = ["size", "facade", "countertop", "hardware"] as const;
