@@ -17,6 +17,7 @@ export const operator = {
   legalForms: { SELF_EMPLOYED: "Самозанятый", IP: "ИП", TOO: "ТОО" },
   registration: { PENDING: "На проверке", APPROVED: "Подтверждён", REJECTED: "Отклонён" },
   noSegment: "Сегмент не присвоен",
+  none: "—",
   binIinMasked: (last4: string) => `ИИН/БИН: •••• ${last4}`,
   phoneMasked: (last4: string) => `Телефон: •••• ${last4}`,
 
@@ -203,6 +204,7 @@ export const operator = {
       stages: "Этапы сделки",
       attachments: "Вложения",
       noAttachments: "Вложений нет",
+      attachment: (contentType: string, sizeKb: number, sha256: string) => `${contentType}, ${sizeKb} КБ, SHA-256: ${sha256}`,
       history: "История сделки",
       parties: "Стороны",
       client: "Заказчик",
