@@ -1,5 +1,6 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { contentDisposition } from "../disposition";
 import type { StorageProvider } from "../storage";
 
 type S3Command = PutObjectCommand | GetObjectCommand | DeleteObjectCommand;
@@ -18,12 +19,6 @@ export type S3Config = {
   accessKeyId: string;
   secretAccessKey: string;
 };
-
-/** Content-Disposition с именем в UTF-8 (RFC 6266) и ASCII-запасным вариантом. */
-export function attachmentDisposition(fileName: string): string {
-  const ext = /\.[a-z0-9]{1,8}$/i.exec(fileName)?.[0] ?? "";
-  return `attachment; filename="file${ext}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
-}
 
 function isNotFound(e: unknown): boolean {
   const err = e as { name?: string; $metadata?: { httpStatusCode?: number } };
@@ -56,7 +51,7 @@ export function createS3Storage(deps: S3Deps): StorageProvider {
       const command = new GetObjectCommand({
         Bucket: bucket,
         Key: key,
-        ResponseContentDisposition: opts.fileName ? attachmentDisposition(opts.fileName) : undefined,
+        ResponseContentDisposition: opts.fileName ? contentDisposition(opts.fileName) : undefined,
       });
       return presign(command, { expiresIn: opts.expiresInSec });
     },
