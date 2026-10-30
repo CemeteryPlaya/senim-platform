@@ -91,6 +91,22 @@ describe("черновик заявки", () => {
     await expect(room([b.id, (await upload(stranger.id, 3)).id])).rejects.toThrow(code("CONFLICT"));
   });
 
+  it("фото помещения, добавленные позже, встают в конец — порядок не сбивается", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const upload = (n: number) =>
+      db.storedFile.create({
+        data: { storageKey: `test/room-order-${client.id}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById: client.id },
+      });
+    const [a, b, c] = [await upload(1), await upload(2), await upload(3)];
+    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds } });
+
+    await room([a.id, b.id]);
+    await room([a.id, b.id, c.id]);
+
+    expect((await getDraft(client, requestId)).photos.map((p) => p.id)).toEqual([a.id, b.id, c.id]);
+  });
+
   it("чужой черновик не виден и не меняется (IDOR)", async () => {
     const owner = await makeClient();
     const stranger = await makeClient();

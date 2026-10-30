@@ -188,15 +188,18 @@ export const UNATTACHED = {
 /**
  * Прикрепить загруженные файлы к сущности. Вызывает модуль-владелец в своей транзакции,
  * после своей проверки прав. Только свои, ещё не прикреплённые файлы подходящего назначения;
- * порядок списка становится sortOrder. Иначе CONFLICT — транзакция вызывающего откатится.
+ * они дописываются после уже прикреплённых к этой сущности в порядке списка (фото добавляют частями —
+ * порядок не сбивается). Иначе CONFLICT — транзакция вызывающего откатится.
  */
 export async function attachFiles(tx: Db, input: { fileIds: readonly string[]; uploadedById: string; owner: FileOwner }): Promise<void> {
   const [field, ownerId] = Object.entries(input.owner).find(([, v]) => v !== undefined) as [OwnerField, string];
   const purpose = OWNER_PURPOSE[field];
-  for (const [sortOrder, id] of input.fileIds.entries()) {
+  const last = await tx.storedFile.aggregate({ where: { [field]: ownerId }, _max: { sortOrder: true } });
+  const first = (last._max.sortOrder ?? -1) + 1;
+  for (const [i, id] of input.fileIds.entries()) {
     const result = await tx.storedFile.updateMany({
       where: { id, uploadedById: input.uploadedById, purpose, ...UNATTACHED },
-      data: { [field]: ownerId, sortOrder },
+      data: { [field]: ownerId, sortOrder: first + i },
     });
     expectOneUpdated(result, ru.files.errors.notOwn);
   }
