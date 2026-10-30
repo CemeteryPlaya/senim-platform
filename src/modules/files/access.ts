@@ -106,6 +106,12 @@ async function viewerOf(user: CurrentUser | null): Promise<Viewer> {
 /**
  * Права на файл по сущности-владельцу: портфолио — публично; фото помещения — заказчик и исполнители,
  * видящие заявку; этап, спор, документ, вложение чата — стороны; оператор — всё; гость — только портфолио.
+ *
+ * Правило для маршрутов «файл по id» без сущности-владельца на руках (ADR-003: право проверяется при
+ * выдаче ссылки). Сервисы, которые сейчас выдают fileUrl, уже проверяют доступ к своей сущности и
+ * сюда не ходят: фото помещения — requests (loadOwnRequest / visibleToExecutor), этапа — deal-core
+ * (loadView: сторона или оператор), спора — operator (assertOperator), визуализации — ai
+ * (readableRequest), портфолио — companies (опубликовано или своё). Вложения чата отдаются только id.
  */
 export async function canReadFile(user: CurrentUser | null, file: { id: string }): Promise<boolean> {
   const facts = await loadFacts(file.id, user?.executor?.id);

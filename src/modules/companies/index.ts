@@ -61,6 +61,4 @@ export {
 } from "./portfolio";
 export { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, getChat, sendMessage, type ChatMessageView, type ChatView } from "./chat";
 
-export { photoSrc } from "./photos";
-
 export const jobHandlers = {} as const;

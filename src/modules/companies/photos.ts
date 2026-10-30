@@ -4,7 +4,7 @@ import type { PhotoView } from "./types";
 type FileRow = { id: string; provider: string; storageKey: string };
 
 /** Адрес фото для <img>: подписанная ссылка хранилища (local/s3/vercel-blob) или путь в public/ для сида. */
-export function photoSrc(file: FileRow): Promise<string> {
+function photoSrc(file: FileRow): Promise<string> {
   return fileUrl(file);
 }
 

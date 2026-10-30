@@ -21,7 +21,6 @@ export { resolveDispute } from "./dispute";
 // Действия сторон
 export {
   acceptStage,
-  afterSigning,
   cancelDeal,
   confirmStagePayment,
   handleRailWebhook,

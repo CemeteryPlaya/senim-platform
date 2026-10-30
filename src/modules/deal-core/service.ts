@@ -15,7 +15,7 @@ import {
   type RailMode,
   type SettledHook,
 } from "@/modules/payments";
-import { db, transaction, type Tx } from "@/platform/db";
+import { transaction, type Tx } from "@/platform/db";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { enqueueJob } from "@/platform/jobs";
@@ -396,20 +396,3 @@ export async function leaveReview(user: CurrentUser, raw: { dealId: string; rati
   });
 }
 
-// ─── После полной подписи ────────────────────────────────────────────────────
-
-/**
- * После полной подписи (вне транзакции): открыть счёт сделки в эскроу и отправить операции в банк.
- * Не обязательно: то же делают задача deal-core.openEscrowAccount и экран сделки при показе,
- * но вызов сразу после completeSigning (fullySigned = true) убирает задержку для заказчика.
- */
-export async function afterSigning(documentId: string) {
-  const doc = await db.document.findUnique({ where: { id: documentId }, select: { dealId: true } });
-  if (!doc) return;
-  try {
-    await openEscrowAccount(doc.dealId);
-  } catch (error) {
-    logger.warn("escrow account postponed", { dealId: doc.dealId, error });
-  }
-  await settleDeal(doc.dealId);
-}

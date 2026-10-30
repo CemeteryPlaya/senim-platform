@@ -1,6 +1,6 @@
 import type { StageStatus } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
-import { afterSigning, createDeal, onDocumentSigned, type StageTemplate } from "@/modules/deal-core";
+import { createDeal, jobHandlers, onDocumentSigned, type StageTemplate } from "@/modules/deal-core";
 import type { RailMode } from "@/modules/payments";
 import { db, transaction } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
@@ -88,13 +88,17 @@ export async function withRail<T>(rail: RailMode, fn: () => Promise<T>): Promise
   }
 }
 
-/** Как documents: обе подписи есть → документ SIGNED → хук deal-core в той же транзакции. */
+/**
+ * Как documents: обе подписи есть → документ SIGNED → хук deal-core в той же транзакции.
+ * Затем — как планировщик: задача открытия счёта (эскроу) и отправки операций в банк, сразу.
+ */
 export async function signDocument(documentId: string) {
-  await transaction(async (tx) => {
-    await tx.document.update({ where: { id: documentId }, data: { status: "SIGNED", signedAt: new Date() } });
+  const { dealId } = await transaction(async (tx) => {
+    const doc = await tx.document.update({ where: { id: documentId }, data: { status: "SIGNED", signedAt: new Date() } });
     await onDocumentSigned(tx, documentId);
+    return doc;
   });
-  await afterSigning(documentId);
+  await jobHandlers["deal-core.openEscrowAccount"]({ dealId });
 }
 
 export async function signContract(dealId: string) {
