@@ -1,4 +1,16 @@
 // Тексты зоны «companies»: профиль исполнителя, портфолио, каталог, публичная страница, чат.
+
+/** Русское множественное число: plural(5, ["год", "года", "лет"]) → «лет». */
+function plural(n: number, forms: readonly [one: string, few: string, many: string]): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
+  return forms[2];
+}
+
+const money = (n: number) => `${n.toLocaleString("ru-RU")} ₸`;
+
 export const companies = {
   errors: {
     executorNotFound: "Исполнитель не найден",
@@ -7,14 +19,165 @@ export const companies = {
     unknownFurnitureType: "Выберите тип мебели из списка",
   },
   photoAlt: (title: string, n: number) => `${title} — фото ${n}`,
+  noPhoto: "Фото пока нет",
+
+  /** Как исполнитель выглядит для заказчика — общие подписи для каталога, страницы исполнителя и карточек. */
+  executor: {
+    rating: (avg: number) => avg.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+    ratingLabel: (avg: number, count: number) =>
+      count === 0 ? "Отзывов пока нет" : `Рейтинг ${avg.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} из 5`,
+    reviews: (n: number) => (n === 0 ? "нет отзывов" : `${n} ${plural(n, ["отзыв", "отзыва", "отзывов"])}`),
+    experience: (years: number) => (years === 0 ? "Опыт не указан" : `Опыт ${years} ${plural(years, ["год", "года", "лет"])}`),
+    completedDeals: (n: number) => `Завершено сделок на платформе: ${n}`,
+    segment: "Сегмент",
+    noSegment: "Сегмент не присвоен",
+    specializations: "Делает",
+    measurement: {
+      FREE: "Замер бесплатно",
+      INCLUDED: "Замер включён в стоимость заказа",
+      FEE_IF_NO_DEAL: (fee: number | null) =>
+        fee ? `${money(fee)} за выезд замерщика, если сделка не состоялась` : "Плата за выезд, если сделка не состоялась",
+    },
+    measurementNote: "Плата за выезд — напрямую исполнителю, платформа её не принимает.",
+  },
+
+  catalog: {
+    title: "Каталог работ",
+    description: "Найдите работу, которая нравится, — и закажите похожую у того же исполнителя.",
+    filters: {
+      label: "Фильтры",
+      type: "Что ищем",
+      style: "Стиль",
+      segment: "Сегмент",
+      price: "Цена",
+      any: "Любой",
+      anyPrice: "Любая",
+      apply: "Показать",
+      reset: "Сбросить фильтры",
+      prices: {
+        upto300: "до 300 тыс. ₸",
+        "300-700": "300–700 тыс. ₸",
+        "700-1500": "700 тыс. – 1,5 млн ₸",
+        from1500: "от 1,5 млн ₸",
+      },
+    },
+    found: (n: number) => `${n} ${plural(n, ["работа", "работы", "работ"])}`,
+    priceFrom: "от",
+    priceUnknown: "Цена по запросу",
+    wantSimilar: "Хочу похожее",
+    wantSimilarLabel: (title: string, label: string) => `Хочу похожее: «${title}», ${label}`,
+    aboutExecutor: (label: string) => `Подробнее: ${label}`,
+    empty: {
+      title: "По этим фильтрам работ нет",
+      text: "Попробуйте другой стиль или цену — или оставьте заявку, и исполнители сами предложат варианты.",
+      action: "Оставить заявку",
+    },
+    pagination: {
+      label: "Страницы каталога",
+      prev: "Предыдущая страница",
+      next: "Следующая страница",
+      page: (n: number, total: number) => `Страница ${n} из ${total}`,
+    },
+  },
+
+  publicPage: {
+    metaTitle: (label: string) => `${label} — Сенім`,
+    description: "Наименование и контакты исполнителя откроются только в договоре. Общение — во внутреннем чате.",
+    facts: "Об исполнителе",
+    about: "О себе",
+    aboutEmpty: "Исполнитель пока ничего о себе не написал.",
+    portfolio: "Работы",
+    portfolioEmpty: "Опубликованных работ пока нет.",
+    reviews: "Отзывы заказчиков",
+    reviewsEmpty: "Отзывов пока нет: они появляются после завершённых сделок.",
+    reviewRating: (n: number) => `Оценка ${n} из 5`,
+    back: "К каталогу",
+  },
+
   profile: {
+    title: "Профиль",
+    description: "Что видят заказчики: опыт, специализации и условия замера. Наименование и контакты им не показываются.",
+    publicAs: (label: string) => `Заказчики видят вас как «${label}»`,
+    openPublic: "Открыть публичную страницу",
+    status: {
+      PENDING: "Профиль на проверке у оператора. Пока можно заполнить профиль и портфолио — заявки начнут приходить после подтверждения.",
+      REJECTED: "Оператор отклонил регистрацию.",
+      rejectReason: (reason: string) => `Причина: ${reason}`,
+    },
+    segment: "Сегмент",
+    segmentHint: "Сегмент присваивает оператор по вашим работам и материалам.",
+    legalName: "Наименование для договора",
+    legalNameHint: "Видно только вам и в договоре с заказчиком.",
+    fields: {
+      about: "О себе",
+      aboutHint: "Как работаете, какие материалы любите, чем гордитесь. Телефоны, ссылки и наименование скроются автоматически.",
+      experience: "Опыт, лет",
+      specializations: "Что делаете",
+      specializationsHint: "Отметьте все типы мебели, за которые берётесь.",
+      measurement: "Условия замера",
+      measurementHint: "Можно уточнить в каждом отклике.",
+      fee: "Плата за выезд, ₸",
+      feeHint: "Заказчик платит её напрямую вам, только если сделка не состоялась.",
+    },
+    measurementOptions: {
+      FREE: { label: "Бесплатно", description: "Замерщик приезжает без оплаты" },
+      INCLUDED: { label: "Включён в стоимость", description: "Стоимость замера входит в цену заказа" },
+      FEE_IF_NO_DEAL: { label: "Плата, если сделки нет", description: "Например, 10 000 ₸ за выезд — напрямую вам" },
+    },
+    save: "Сохранить профиль",
+    saved: "Профиль сохранён",
+    aboutMasked: "Из текста «О себе» убраны контакты или наименование: заказчики общаются с вами только в чате.",
     errors: {
       aboutTooLong: (max: number) => `Расскажите о себе короче — до ${max} символов`,
       experience: "Укажите опыт целым числом лет, от 0 до 60",
       fee: (min: number, max: number) => `Укажите плату за выезд от ${min.toLocaleString("ru-RU")} до ${max.toLocaleString("ru-RU")} ₸`,
     },
   },
+
   portfolio: {
+    title: "Портфолио",
+    description: "По этим работам заказчики находят вас в каталоге и нажимают «Хочу похожее».",
+    add: "Добавить работу",
+    newTitle: "Новая работа",
+    editTitle: "Изменить работу",
+    back: "К портфолио",
+    published: "Опубликована",
+    hidden: "Скрыта",
+    publish: "Опубликовать",
+    unpublish: "Скрыть из каталога",
+    edit: "Изменить",
+    delete: "Удалить",
+    deleteConfirm: {
+      title: "Удалить работу?",
+      text: "Работа исчезнет из каталога и с вашей страницы. Это действие нельзя отменить.",
+      confirm: "Да, удалить",
+    },
+    empty: {
+      title: "Работ пока нет",
+      text: "Добавьте 3–5 лучших работ с фото — так заказчики быстрее выберут вас.",
+    },
+    fields: {
+      type: "Тип мебели",
+      style: "Стиль",
+      title: "Название",
+      titleHint: "Например: «Кухня с островом, фасады МДФ эмаль»",
+      description: "Описание",
+      descriptionHint: "Материалы, размеры, сроки. Контакты и наименование скроются автоматически.",
+      price: "Цена от, ₸",
+      priceHint: "Ориентир для заказчика. Можно оставить пустым.",
+      published: "Показывать в каталоге",
+    },
+    photos: {
+      title: "Фото работы",
+      hint: (max: number) => `До ${max} фото. Первое фото — обложка в каталоге.`,
+      remove: (n: number) => `Убрать фото ${n}`,
+      uploaderPending: "Загрузка фото появится здесь, когда подключат хранилище файлов.",
+      saveFirst: "Сначала сохраните работу — потом добавьте фото.",
+    },
+    save: "Сохранить",
+    create: "Добавить работу",
+    saved: "Сохранено",
+    masked: "Из названия или описания убраны контакты или наименование.",
     errors: {
       notFound: "Работа не найдена",
       type: "Выберите тип мебели",
@@ -28,11 +191,13 @@ export const companies = {
       photoNotFound: "Фото не найдено",
     },
   },
+
   chat: {
     /** Подставляется вместо телефона, e-mail, ссылки или мессенджера. Хранится в БД как часть текста. */
     maskPlaceholder: "[контакт скрыт]",
     title: "Чат с исполнителем",
     titleForExecutor: "Чат с заказчиком",
+    titleForOperator: "Переписка сторон",
     clientLabel: "Заказчик",
     operatorReadOnly: "Оператор видит переписку, но не пишет в неё",
     note: "Общение — только здесь. Телефоны, ссылки и e-mail скрываются автоматически.",
