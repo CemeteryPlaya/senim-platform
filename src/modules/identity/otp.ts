@@ -18,12 +18,15 @@ export const OTP_TTL_MIN = 5;
 export const OTP_MAX_ATTEMPTS = 5;
 
 /**
- * Лимиты: повтор кода — раз в минуту, 5 кодов в час на номер, 20 запросов и 50 проверок в час с одного IP.
+ * Лимиты: повтор кода — раз в минуту; на номер — 5 кодов в час, 10 кодов и 20 проверок в сутки
+ * (с любых IP: перебор кода с разных адресов упирается в номер); с одного IP — 20 запросов и 50 проверок в час.
  * IP неизвестен (ip: null) — лимиты по IP не применяются: общий ключ «unknown» дал бы один лимит на всех.
  */
 const LIMITS = {
   phoneCooldown: { limit: 1, windowSec: 60 },
   phoneHourly: { limit: 5, windowSec: 3600 },
+  phoneDaily: { limit: 10, windowSec: 86_400 },
+  verifyPhoneDaily: { limit: 20, windowSec: 86_400 },
   ipHourly: { limit: 20, windowSec: 3600 },
   verifyIpHourly: { limit: 50, windowSec: 3600 },
 } satisfies Record<string, RateLimitRule>;
@@ -51,6 +54,7 @@ export async function requestOtp(input: { phone: string; ip: string | null }): P
   if (input.ip) await enforceRateLimit(`otp:ip:${input.ip}`, LIMITS.ipHourly, t.errors.tooManyRequests);
   await enforceRateLimit(`otp:phone:${phone}:cooldown`, LIMITS.phoneCooldown, t.errors.tooOften);
   await enforceRateLimit(`otp:phone:${phone}`, LIMITS.phoneHourly, t.errors.tooManyRequests);
+  await enforceRateLimit(`otp:phone:${phone}:day`, LIMITS.phoneDaily, t.errors.tooManyToday);
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60_000);
@@ -77,6 +81,7 @@ export type OtpVerified = {
 export async function verifyOtp(input: { phone: string; code: string; ip: string | null; userAgent?: string }): Promise<OtpVerified> {
   const phone = phoneOrFail(input.phone);
   if (input.ip) await enforceRateLimit(`otp:verify:ip:${input.ip}`, LIMITS.verifyIpHourly);
+  await enforceRateLimit(`otp:verify:phone:${phone}:day`, LIMITS.verifyPhoneDaily, t.errors.tooManyToday);
 
   const otp = await db.otpCode.findFirst({
     where: { phone, consumedAt: null, expiresAt: { gt: new Date() } },

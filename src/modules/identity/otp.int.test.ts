@@ -71,6 +71,17 @@ describe("requestOtp", () => {
     expect((await errorOf(requestOtp({ phone: "+77000007000", ip: null }))).code).toBe("RATE_LIMITED");
   });
 
+  it("не больше 10 кодов в сутки на номер", async () => {
+    for (let i = 0; i < 10; i++) {
+      await requestOtp({ phone: PHONE, ip: null });
+      // Часовые окна и минутная пауза истекли — остаётся только суточное.
+      await db.rateLimitBucket.deleteMany({ where: { NOT: { key: { endsWith: ":day" } } } });
+    }
+    const e = await errorOf(requestOtp({ phone: PHONE, ip: null }));
+    expect(e.code).toBe("RATE_LIMITED");
+    expect(e.message).toMatch(/сутки/);
+  });
+
   it("действует только последний выданный код", async () => {
     const first = await codeFor();
     await db.rateLimitBucket.deleteMany();
@@ -125,6 +136,15 @@ describe("verifyOtp", () => {
 
     expect((await errorOf(verifyOtp({ phone: PHONE, code, ip: IP }))).code).toBe("RATE_LIMITED");
     expect(await db.user.count()).toBe(0);
+  });
+
+  it("не больше 20 проверок кода в сутки на номер — с любых IP", async () => {
+    for (let i = 0; i < 20; i++) {
+      expect((await errorOf(verifyOtp({ phone: PHONE, code: "000000", ip: `198.51.100.${i}` }))).code).toBe("VALIDATION");
+    }
+    const e = await errorOf(verifyOtp({ phone: PHONE, code: "000000", ip: "203.0.113.200" }));
+    expect(e.code).toBe("RATE_LIMITED");
+    expect(e.message).toMatch(/сутки/);
   });
 
   it("истёкший код не принимается", async () => {
