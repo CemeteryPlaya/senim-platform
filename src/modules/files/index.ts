@@ -14,6 +14,7 @@ export {
   type UploadedFile,
 } from "./upload";
 export { findSimilar, type SimilarFile } from "./similar";
+export { canReadFile } from "./access";
 export { PURPOSE_POLICY, type FileOwner } from "./policy";
 export { verifyDownload, openUploadToken } from "./signing";
 export { sniffType } from "./image";
