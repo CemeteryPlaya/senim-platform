@@ -35,7 +35,7 @@ export function AppHeader({ user, demoMode }: Props) {
             </span>
           </Link>
 
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
             <DesktopNav items={links} />
             {/* Видимость — на обёртке: cn не сливает классы, и inline-flex компонента перебил бы hidden. */}
             {user && (
