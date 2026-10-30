@@ -9,10 +9,9 @@ import type { RecalculateRating } from "./types";
  */
 export const recalculateRating: RecalculateRating = async (tx, executorId) => {
   await tx.$queryRaw`SELECT id FROM "ExecutorProfile" WHERE id = ${executorId} FOR NO KEY UPDATE`;
-  const [stats, completedDeals] = await Promise.all([
-    tx.review.aggregate({ where: { executorId }, _avg: { rating: true }, _count: { _all: true } }),
-    tx.deal.count({ where: { executorId, status: "COMPLETED" } }),
-  ]);
+  // Запросы в одной транзакции — по очереди: соединение одно, параллельные запросы на нём pg не поддерживает.
+  const stats = await tx.review.aggregate({ where: { executorId }, _avg: { rating: true }, _count: { _all: true } });
+  const completedDeals = await tx.deal.count({ where: { executorId, status: "COMPLETED" } });
   await tx.executorProfile.update({
     where: { id: executorId },
     data: { ratingAvg: round2(stats._avg.rating ?? 0), reviewsCount: stats._count._all, completedDeals },
