@@ -65,6 +65,12 @@ describe("requestOtp", () => {
     await expect(requestOtp({ phone: "+77000006099", ip: "198.51.100.1" })).resolves.toBeTruthy();
   });
 
+  it("неизвестный IP не даёт общего лимита на всех: работают лимиты по номеру", async () => {
+    for (let i = 0; i < 25; i++) await requestOtp({ phone: `+770000070${String(i).padStart(2, "0")}`, ip: null });
+    expect(await db.rateLimitBucket.count({ where: { key: { contains: "ip" } } })).toBe(0);
+    expect((await errorOf(requestOtp({ phone: "+77000007000", ip: null }))).code).toBe("RATE_LIMITED");
+  });
+
   it("действует только последний выданный код", async () => {
     const first = await codeFor();
     await db.rateLimitBucket.deleteMany();

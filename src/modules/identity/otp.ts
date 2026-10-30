@@ -17,7 +17,10 @@ const t = ru.identity.otp;
 export const OTP_TTL_MIN = 5;
 export const OTP_MAX_ATTEMPTS = 5;
 
-/** Лимиты: повтор кода — раз в минуту, 5 кодов в час на номер, 20 запросов и 50 проверок в час с одного IP. */
+/**
+ * Лимиты: повтор кода — раз в минуту, 5 кодов в час на номер, 20 запросов и 50 проверок в час с одного IP.
+ * IP неизвестен (ip: null) — лимиты по IP не применяются: общий ключ «unknown» дал бы один лимит на всех.
+ */
 const LIMITS = {
   phoneCooldown: { limit: 1, windowSec: 60 },
   phoneHourly: { limit: 5, windowSec: 3600 },
@@ -43,9 +46,9 @@ function showsDemoCode(): boolean {
 export type OtpRequested = { phone: Phone; expiresAt: Date; demoCode: string | null };
 
 /** Выдаёт новый код на номер и отправляет SMS. */
-export async function requestOtp(input: { phone: string; ip: string }): Promise<OtpRequested> {
+export async function requestOtp(input: { phone: string; ip: string | null }): Promise<OtpRequested> {
   const phone = phoneOrFail(input.phone);
-  await enforceRateLimit(`otp:ip:${input.ip}`, LIMITS.ipHourly, t.errors.tooManyRequests);
+  if (input.ip) await enforceRateLimit(`otp:ip:${input.ip}`, LIMITS.ipHourly, t.errors.tooManyRequests);
   await enforceRateLimit(`otp:phone:${phone}:cooldown`, LIMITS.phoneCooldown, t.errors.tooOften);
   await enforceRateLimit(`otp:phone:${phone}`, LIMITS.phoneHourly, t.errors.tooManyRequests);
 
@@ -71,9 +74,9 @@ export type OtpVerified = {
  * поэтому параллельный перебор не обходит лимит; код гасится условным update —
  * два одновременных входа с одним кодом дают одну сессию.
  */
-export async function verifyOtp(input: { phone: string; code: string; ip: string; userAgent?: string }): Promise<OtpVerified> {
+export async function verifyOtp(input: { phone: string; code: string; ip: string | null; userAgent?: string }): Promise<OtpVerified> {
   const phone = phoneOrFail(input.phone);
-  await enforceRateLimit(`otp:verify:ip:${input.ip}`, LIMITS.verifyIpHourly);
+  if (input.ip) await enforceRateLimit(`otp:verify:ip:${input.ip}`, LIMITS.verifyIpHourly);
 
   const otp = await db.otpCode.findFirst({
     where: { phone, consumedAt: null, expiresAt: { gt: new Date() } },

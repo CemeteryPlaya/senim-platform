@@ -22,6 +22,7 @@ const schema = z
     DEMO_MODE: bool,
     DEMO_ACCESS_PASSWORD: optional,
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+    TRUST_PROXY: bool,
 
     PII_ENCRYPTION_KEY: optional.pipe(base64Key.optional()),
     PII_HASH_KEY: optional.pipe(base64Key.optional()),
