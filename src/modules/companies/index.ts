@@ -10,5 +10,6 @@ export type { GetPublicExecutorView, PublicExecutorView, RecalculateRating } fro
 export { publicExecutorView, publicExecutorViews } from "./anonymity";
 export { recalculateRating } from "./rating";
 export { MASK, maskContacts, maskIdentity, type MaskResult } from "./mask";
+export { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, getChat, sendMessage, type ChatMessageView, type ChatView } from "./chat";
 
 export const jobHandlers = {} as const;
