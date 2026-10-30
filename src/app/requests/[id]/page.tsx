@@ -100,7 +100,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
             action={cancelRequestAction}
             input={{ requestId: id }}
             variant="ghost"
-            confirm={{ title: t.cancelConfirmTitle, text: t.cancelConfirmText, yes: t.cancelConfirm, no: t.keep }}
+            confirm={{ title: t.cancelConfirmTitle, text: t.cancelConfirmText, yes: t.cancelConfirm, no: ru.common.actions.dontCancel, tone: "danger" }}
           >
             {t.cancel}
           </ActionButton>
@@ -151,7 +151,8 @@ function StatusPanel({ request }: { request: ClientRequest }) {
           </>
         ),
         yes: t.noDeal,
-        no: t.keep,
+        no: ru.common.actions.dontCancel,
+        tone: "danger",
       }}
     >
       {t.noDeal}

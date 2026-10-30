@@ -72,7 +72,7 @@ export default async function DealPage({ params }: Props) {
             action={cancelDealAction}
             input={{ dealId: deal.id }}
             variant="ghost"
-            confirm={{ title: t.forms.cancelTitle, text: t.forms.cancelText, yes: t.actions.confirmCancel }}
+            confirm={{ title: t.forms.cancelTitle, text: t.forms.cancelText, yes: t.actions.confirmCancel, no: ru.common.actions.dontCancel, tone: "danger" }}
           >
             {t.actions.cancelDeal}
           </ActionButton>

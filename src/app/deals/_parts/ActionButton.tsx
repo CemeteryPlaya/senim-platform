@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ru } from "@/i18n/ru";
-import { Alert, Button, Modal, type ButtonVariant } from "@/ui";
+import { Alert, Button, ConfirmDialog, type ButtonVariant, type ConfirmSpec } from "@/ui";
 import { useRunAction, type ServerAction } from "./useRunAction";
 
 export type ActionButtonProps<I, T> = {
@@ -11,8 +10,8 @@ export type ActionButtonProps<I, T> = {
   children: ReactNode;
   variant?: ButtonVariant;
   fullWidth?: boolean;
-  /** Подтверждение перед необратимым действием. */
-  confirm?: { title: string; text: ReactNode; yes: string };
+  /** Подтверждение перед необратимым действием; цвет кнопки согласия — confirm.tone. */
+  confirm?: ConfirmSpec;
 };
 
 /** Кнопка одного действия сделки. Повторное нажатие во время запроса заблокировано (loading). */
@@ -35,23 +34,16 @@ export function ActionButton<I, T>({ action, input, children, variant = "primary
         </Alert>
       )}
       {confirm && (
-        <Modal
+        <ConfirmDialog
           open={asking}
-          onClose={() => setAsking(false)}
+          onCancel={() => setAsking(false)}
+          onConfirm={go}
           title={confirm.title}
-          footer={
-            <>
-              <Button variant="secondary" onClick={() => setAsking(false)}>
-                {ru.common.actions.cancel}
-              </Button>
-              <Button variant={variant === "danger" ? "danger" : "primary"} onClick={go}>
-                {confirm.yes}
-              </Button>
-            </>
-          }
-        >
-          <p className="text-base text-ink">{confirm.text}</p>
-        </Modal>
+          description={confirm.text}
+          confirmLabel={confirm.yes}
+          cancelLabel={confirm.no}
+          tone={confirm.tone}
+        />
       )}
     </div>
   );

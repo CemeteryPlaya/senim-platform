@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Uploader } from "@/app/_components/uploader";
 import { ru } from "@/i18n/ru";
-import { Alert, Button, Textarea } from "@/ui";
+import { Alert, Button, ConfirmDialog, Textarea } from "@/ui";
 import { useRunAction } from "../../_parts/useRunAction";
 import { acceptStageAction, reworkAction, submitStageAction } from "../actions";
 
@@ -51,13 +51,28 @@ export function ReviewStage({ stageId }: { stageId: string }) {
   const accept = useRunAction(acceptStageAction);
   const rework = useRunAction(reworkAction);
   const [showRework, setShowRework] = useState(false);
+  const [asking, setAsking] = useState(false);
   const [note, setNote] = useState("");
 
   return (
     <div className="flex flex-col gap-4">
-      <Button fullWidth loading={accept.pending} disabled={rework.pending} onClick={() => accept.run({ stageId })}>
+      <Button fullWidth loading={accept.pending} disabled={rework.pending} onClick={() => setAsking(true)}>
         {t.actions.accept}
       </Button>
+      {/* Приёмка необратима: сначала подтверждение с последствиями. */}
+      <ConfirmDialog
+        open={asking}
+        onCancel={() => setAsking(false)}
+        onConfirm={() => {
+          setAsking(false);
+          accept.run({ stageId });
+        }}
+        title={t.forms.acceptTitle}
+        description={t.forms.acceptText}
+        confirmLabel={t.forms.acceptConfirm}
+        cancelLabel={ru.common.actions.notNow}
+        tone="primary"
+      />
       {accept.error && (
         <Alert tone="danger" live="assertive">
           {accept.error}

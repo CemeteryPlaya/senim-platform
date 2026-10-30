@@ -129,7 +129,7 @@ function NextStep({ r }: { r: IncomingRequest }) {
           action={withdrawOfferAction}
           input={{ offerId: offer.id }}
           variant="ghost"
-          confirm={{ title: t.withdrawConfirmTitle, text: t.withdrawConfirmText, yes: t.withdrawConfirm, no: t.keep }}
+          confirm={{ title: t.withdrawConfirmTitle, text: t.withdrawConfirmText, yes: t.withdrawConfirm, no: t.keep, tone: "danger" }}
         >
           {t.withdraw}
         </ActionButton>
@@ -155,7 +155,7 @@ function NextStep({ r }: { r: IncomingRequest }) {
       action={executorNoDealAction}
       input={{ measurementId: m.id, result: "" }}
       variant="ghost"
-      confirm={{ title: t.noDealConfirmTitle, text: t.noDealConfirmText, yes: t.noDealConfirm, no: t.keep }}
+      confirm={{ title: t.noDealConfirmTitle, text: t.noDealConfirmText, yes: t.noDealConfirm, no: t.keep, tone: "danger" }}
     >
       {t.noDeal}
     </ActionButton>

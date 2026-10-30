@@ -20,6 +20,9 @@ export const common = {
     skip: "Пропустить",
     retry: "Попробовать ещё раз",
     why: "Почему?",
+    dontCancel: "Не отменять",
+    notNow: "Не сейчас",
+    home: "На главную",
   },
   unknown: "Не знаю — подскажет исполнитель",
   loading: "Загрузка…",
@@ -69,7 +72,7 @@ export const common = {
     stepper: {
       label: "Шаги",
       progress: (n: number, total: number) => `Шаг ${n} из ${total}`,
-      done: "пройден",
+      doneStep: (step: string) => `${step}: пройден`,
     },
     photo: {
       choose: "Загрузить фото",

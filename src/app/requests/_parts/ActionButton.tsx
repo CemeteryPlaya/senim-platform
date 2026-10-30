@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import type { ActionResult } from "@/platform/action";
-import { Alert, Button, Modal, type ButtonVariant } from "@/ui";
+import { Alert, Button, ConfirmDialog, type ButtonVariant, type ConfirmSpec } from "@/ui";
 
 export type ServerAction<I, T> = (input: I) => Promise<ActionResult<T>>;
 
@@ -38,8 +38,8 @@ export type ActionButtonProps<I, T> = {
   fullWidth?: boolean;
   /** Куда перейти после успеха; без него экран обновляется на месте. */
   href?: string;
-  /** Подтверждение перед необратимым действием. */
-  confirm?: { title: string; text: ReactNode; yes: string; no: string };
+  /** Подтверждение перед необратимым действием; цвет кнопки согласия — confirm.tone. */
+  confirm?: ConfirmSpec;
 };
 
 /** Кнопка одного действия (выбрать отклик, отменить заявку, отозвать отклик) с подтверждением и ошибкой. */
@@ -62,23 +62,16 @@ export function ActionButton<I, T>({ action, input, children, variant = "primary
         </Alert>
       )}
       {confirm && (
-        <Modal
+        <ConfirmDialog
           open={asking}
-          onClose={() => setAsking(false)}
+          onCancel={() => setAsking(false)}
+          onConfirm={go}
           title={confirm.title}
-          footer={
-            <>
-              <Button variant="secondary" onClick={() => setAsking(false)}>
-                {confirm.no}
-              </Button>
-              <Button variant={variant === "danger" ? "danger" : "primary"} onClick={go}>
-                {confirm.yes}
-              </Button>
-            </>
-          }
-        >
-          <p className="text-base text-ink">{confirm.text}</p>
-        </Modal>
+          description={confirm.text}
+          confirmLabel={confirm.yes}
+          cancelLabel={confirm.no}
+          tone={confirm.tone}
+        />
       )}
     </div>
   );

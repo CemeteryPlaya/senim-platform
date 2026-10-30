@@ -43,7 +43,11 @@ function PrimaryAction({ deal, action }: { deal: DealView; action: NonNullable<D
       ) : null;
     case "markPaid":
       return (
-        <ActionButton action={markPaidAction} input={{ stageId: action.stageId }}>
+        <ActionButton
+          action={markPaidAction}
+          input={{ stageId: action.stageId }}
+          confirm={{ title: t.forms.markPaidTitle, text: t.forms.markPaidText, yes: t.forms.markPaidConfirm, no: ru.common.actions.notNow, tone: "primary" }}
+        >
           {t.actions.markPaid}
         </ActionButton>
       );

@@ -58,5 +58,6 @@ export {
 } from "./display";
 export { Stepper, type StepperBack, type StepperProps } from "./Stepper";
 export { Modal, type ModalProps } from "./Modal";
+export { ConfirmDialog, type ConfirmDialogProps, type ConfirmSpec, type ConfirmTone } from "./ConfirmDialog";
 export { PhotoUpload, type PhotoItem, type PhotoUploadProps } from "./PhotoUpload";
 export { Chat, type ChatMessage, type ChatProps } from "./Chat";

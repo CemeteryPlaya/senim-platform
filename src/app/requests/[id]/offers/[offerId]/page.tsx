@@ -140,7 +140,13 @@ export default async function OfferPage({ params }: Props) {
 
       {offer.canChoose && (
         <div className="sticky bottom-4 z-10 rounded-card border border-line bg-surface p-4 shadow-card sm:self-end">
-          <ActionButton action={chooseOfferAction} input={{ offerId: offer.id }} href={`/requests/${id}`} fullWidth>
+          <ActionButton
+            action={chooseOfferAction}
+            input={{ offerId: offer.id }}
+            href={`/requests/${id}`}
+            fullWidth
+            confirm={{ title: o.chooseConfirmTitle(ex.publicNumber), text: o.chooseConfirmText, yes: o.chooseConfirm, no: ru.common.actions.notNow, tone: "primary" }}
+          >
             <span className="inline-flex items-center gap-2">
               {o.choose}
               <ArrowRight aria-hidden className="size-5" />
