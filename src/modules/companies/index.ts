@@ -10,6 +10,33 @@ export type { GetPublicExecutorView, PublicExecutorView, RecalculateRating } fro
 export { publicExecutorView, publicExecutorViews } from "./anonymity";
 export { recalculateRating } from "./rating";
 export { MASK, maskContacts, maskIdentity, type MaskResult } from "./mask";
+export {
+  ABOUT_MAX_LENGTH,
+  getOwnProfile,
+  listFurnitureTypes,
+  MEASUREMENT_FEE_MAX,
+  MEASUREMENT_FEE_MIN,
+  profileInputSchema,
+  updateProfile,
+  type OwnProfile,
+  type ProfileInput,
+} from "./profile";
+export {
+  attachPortfolioPhotos,
+  createPortfolioItem,
+  deletePortfolioItem,
+  getOwnPortfolioItem,
+  listOwnPortfolio,
+  PORTFOLIO_DESCRIPTION_MAX,
+  PORTFOLIO_MAX_PHOTOS,
+  PORTFOLIO_TITLE_MAX,
+  portfolioInputSchema,
+  removePortfolioPhoto,
+  setPortfolioPublished,
+  updatePortfolioItem,
+  type OwnPortfolioItem,
+  type PortfolioInput,
+} from "./portfolio";
 export { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, getChat, sendMessage, type ChatMessageView, type ChatView } from "./chat";
 
 export const jobHandlers = {} as const;
