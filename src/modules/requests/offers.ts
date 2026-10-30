@@ -6,23 +6,15 @@ import { notify } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
 import { db, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
-import { auditByUser, links, loadExecutor, loadOwnRequest, requestTitle, requireClient, type ExecutorRow } from "./access";
+import { auditByUser, links, loadExecutor, loadOwnRequest, requestTitle, requireClient } from "./access";
 import { executorPortfolio, executorReviews, roomPhotos } from "./adapters";
 import { parseDetails, type OfferSort, type SendOfferInput } from "./schema";
 import { sortOffers } from "./sort";
 import { OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
+import { visibleToExecutor } from "./visibility";
 
 const e = ru.requests.errors;
 const n = ru.requests.notify;
-
-/**
- * Единственное место, где решается видимость заявки исполнителю (ADR-003):
- * открытый тендер его сегмента или прямой запрос именно ему.
- */
-export function visibleToExecutor(executor: Pick<ExecutorRow, "id" | "segment">): Prisma.RequestWhereInput {
-  const tender: Prisma.RequestWhereInput[] = executor.segment ? [{ mode: "TENDER", segment: executor.segment }] : [];
-  return { status: "OPEN", OR: [...tender, { mode: "DIRECT", targetExecutorId: executor.id }] };
-}
 
 function isUniqueViolation(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";

@@ -1,5 +1,6 @@
 import type { RegistrationStatus, RequestMode, RequestStatus, Role, Segment } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
+import { executorSeesRequest } from "@/modules/requests/client";
 import { db } from "@/platform/db";
 
 /** Кто смотрит. Сегмент исполнителя нужен для тендеров (в CurrentUser его нет — догружаем). */
@@ -28,18 +29,6 @@ export type FileFacts = {
     | { kind: "parties"; userIds: readonly string[] }
     | { kind: "none" };
 };
-
-/**
- * Видит ли заявку исполнитель (ADR-003): тендер — подтверждённые исполнители сегмента заявки, пока она открыта;
- * прямая — только выбранный исполнитель; с откликом — всегда.
- * INTEGRATOR: заменить на правило модуля requests, когда оно появится в его index.ts.
- */
-function executorSeesRequest(executor: NonNullable<NonNullable<Viewer>["executor"]>, r: RequestFacts): boolean {
-  if (r.viewerHasOffer) return true;
-  if (executor.status !== "APPROVED") return false;
-  if (r.mode === "DIRECT") return r.targetExecutorId === executor.id && r.status !== "DRAFT" && r.status !== "CANCELLED";
-  return r.status === "OPEN" && r.segment !== null && r.segment === executor.segment;
-}
 
 /** Решение о доступе — чистая функция; загрузку фактов делает canReadFile. */
 export function decideFileAccess(viewer: Viewer, facts: FileFacts): boolean {
