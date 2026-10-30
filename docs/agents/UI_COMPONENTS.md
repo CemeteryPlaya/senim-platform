@@ -27,6 +27,11 @@
 | `Modal` (клиентский) | `open`, `onClose`, `title`, `description`, `footer`, `children`; нативный `<dialog>` | `<Modal open={o} onClose={close} title="Отменить заявку?" />` |
 | `PhotoUpload` (клиентский) | `label`, `hint`, `error`, `photos: {id,src,status,progress?,error?}[]`, `onAdd(files)`, `onRemove(id)`, `onRetry?(id)`, `max`, `accept`; только интерфейс | `<PhotoUpload label="Фото помещения" photos={p} onAdd={upload} onRemove={del} />` |
 | `Chat` (клиентский) | `messages: {id,kind:"own"\|"other"\|"system",author?,text,sentAt,masked?}[]`, `onSend(text)` (промис), `disabledReason`, `title`, `emptyText`, `maxLength` | `<Chat messages={msgs} onSend={send} />` |
-| Форматтеры | `formatMoney`, `formatDate`, `formatDateTime`, `formatTime`, `formatRelative(value, now?)`, `TIME_ZONE` (Asia/Almaty) | `formatMoney(10000)` → «10 000 ₸» |
+| `ConfirmDialog` (клиентский) | `open`, `onCancel`, `onConfirm`, `title`, `description` (последствия простыми словами — связан через `aria-describedby`), `confirmLabel`, `cancelLabel` (не «Отмена», а «Не отменять»/«Не сейчас»), `tone` (`primary`, `danger`), `loading`; для кнопок-действий — `ConfirmSpec` `{title,text,yes,no,tone}` | `<ConfirmDialog open={o} title="Принять этап?" description="…" confirmLabel="Принять" cancelLabel="Не сейчас" tone="primary" … />` |
+| `focusFirstInvalid(root)` | после неудачной проверки формы — фокус на первое поле с `aria-invalid`; `false`, если такого нет | `if (!focusFirstInvalid(form)) summary.focus()` |
+| `Button` `loading` | при загрузке `aria-disabled` + `aria-busy`, нажатие игнорируется; `disabled` не ставится, чтобы не терять фокус | `<Button loading={pending}>Отправить</Button>` |
+| Форматтеры | `formatMoney`, `formatDate`, `formatDateTime`, `formatTime`, `formatRelative(value, now?)`, `formatDays`, `formatMonths`, `formatYears` (полные слова со склонением), `TIME_ZONE` (Asia/Almaty) | `formatMoney(10000)` → «10 000 ₸»; `formatDays(35)` → «35 дней» |
+
+Необратимые действия (приёмка, оплата, выбор исполнителя, отмена) — только через подтверждение. Нижняя панель на телефоне задаёт `--tabbar-h`: закреплённые снизу блоки поднимаются на неё (`bottom-[calc(var(--tabbar-h)+1rem)] lg:bottom-4`).
 
 Навигация по ролям — `src/app/_shell/nav.ts` (`navFor`), её меняет только интегратор.

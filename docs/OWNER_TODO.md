@@ -16,7 +16,7 @@
 
 | # | Что сделать | Когда | Где используется |
 |---|-------------|-------|------------------|
-| 4 | Vercel: ключи `PII_ENCRYPTION_KEY`, `PII_HASH_KEY`, `FILE_URL_SECRET`, `CRON_SECRET` (генерация — в `.env.example`); без них в `NODE_ENV=production` приложение не стартует | при тестировании на Vercel | `src/platform/env.ts` |
+| 4 | Vercel: ключи `PII_ENCRYPTION_KEY`, `PII_HASH_KEY`, `FILE_URL_SECRET`, `CRON_SECRET`; для демо-стенда (`DEMO_MODE=true`) ещё `DEMO_ACCESS_PASSWORD` (пароль на весь сайт) и `ESCROW_SIMULATOR_WEBHOOK_SECRET`; `TRUST_PROXY=true`. Генерация и описание — в `.env.example`; без них в `NODE_ENV=production` приложение не стартует | при тестировании на Vercel | `src/platform/env.ts` |
 | 5 | Vercel Cron: на Hobby-плане — раз в сутки; для автоприёмки чаще — Pro и `*/15 * * * *` в `vercel.json` | при тестировании на Vercel | `vercel.json`, `/api/cron/run` |
 | 6 | Vercel Blob (`BLOB_READ_WRITE_TOKEN`, `STORAGE_PROVIDER=vercel-blob`) — на Vercel нет постоянного диска для фото | при тестировании на Vercel | модуль `files` |
 | 7 | SMS-провайдер РК: договор, токен, имя отправителя, документация API → `SMS_PROVIDER=http` | провайдер не выбран; сейчас `mock` (код показывается в демо-баннере) | модуль `notifications` |
