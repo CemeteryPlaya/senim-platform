@@ -31,4 +31,11 @@ describe("маршруты вебхуков", () => {
     const res = await bankWebhook(post("{}", { "content-type": "application/json" }));
     expect(res.status).toBe(503);
   });
+
+  it("тело больше 64 КБ — 413 до разбора и проверки подписи", async () => {
+    const huge = await simulatorWebhook(post("x".repeat(64 * 1024 + 1), { "content-type": "application/json" }));
+    expect(huge.status).toBe(413);
+    const declared = await simulatorWebhook(post("{}", { "content-length": String(10 * 1024 * 1024) }));
+    expect(declared.status).toBe(413);
+  });
 });

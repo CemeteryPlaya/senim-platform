@@ -1,7 +1,7 @@
 import { handleRailWebhook } from "@/modules/deal-core";
 import type { RailMode } from "@/modules/payments";
 import { isAppError } from "@/platform/errors";
-import { httpStatusOf } from "@/platform/http";
+import { httpStatusOf, readTextLimited } from "@/platform/http";
 import { logger } from "@/platform/logger";
 
 /**
@@ -12,8 +12,8 @@ import { logger } from "@/platform/logger";
 const MAX_BODY = 64 * 1024;
 
 export async function railWebhook(mode: RailMode, request: Request): Promise<Response> {
-  const rawBody = await request.text();
-  if (rawBody.length > MAX_BODY) return Response.json({ ok: false, error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
+  const rawBody = await readTextLimited(request, MAX_BODY);
+  if (rawBody === null) return Response.json({ ok: false, error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
   try {
     const outcome = await handleRailWebhook(mode, { headers: request.headers, rawBody });
     return Response.json({ ok: true, duplicate: outcome.duplicate, eventId: outcome.event.eventId });
