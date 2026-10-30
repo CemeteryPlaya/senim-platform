@@ -139,7 +139,8 @@ export default async function OfferPage({ params }: Props) {
       <OfferChat offerId={offer.id} title={o.chatWith(ex.publicNumber)} />
 
       {offer.canChoose && (
-        <div className="sticky bottom-4 z-10 rounded-card border border-line bg-surface p-4 shadow-card sm:self-end">
+        // Над нижней панелью телефона: --tabbar-h (на широком экране 0).
+        <div className="sticky bottom-[calc(var(--tabbar-h)+1rem)] z-10 rounded-card border border-line bg-surface p-4 shadow-card sm:self-end">
           <ActionButton
             action={chooseOfferAction}
             input={{ offerId: offer.id }}

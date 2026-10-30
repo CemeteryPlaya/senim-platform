@@ -68,3 +68,12 @@ export function navFor(user: NavUser | null, demoMode: boolean): NavItem[] {
   if (demoMode) items.push(ROUTES.bankDemo, ROUTES.demo);
   return items;
 }
+
+/**
+ * Делит пункты на видимые сразу и спрятанные в «Ещё», когда ячеек меньше, чем пунктов.
+ * withMore — «Ещё» нужен в любом случае (например, ради «Выйти»): под него уходит одна ячейка.
+ */
+export function splitNav<T>(items: readonly T[], cells: number, withMore = false): { shown: readonly T[]; more: readonly T[] } {
+  if (items.length <= cells && !withMore) return { shown: items, more: [] };
+  return { shown: items.slice(0, cells - 1), more: items.slice(cells - 1) };
+}

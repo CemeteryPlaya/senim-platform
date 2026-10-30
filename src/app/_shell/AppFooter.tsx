@@ -4,8 +4,8 @@ import { ru } from "@/i18n/ru";
 export function AppFooter() {
   return (
     <footer className="mt-auto border-t border-line bg-surface">
-      {/* Снизу запас под нижнюю панель вкладок телефона. */}
-      <div className="mx-auto flex max-w-page flex-col gap-2 px-4 pt-8 pb-32 sm:px-6 lg:pb-8">
+      {/* Снизу запас под нижнюю панель вкладок телефона (--tabbar-h; на широком экране 0). */}
+      <div className="mx-auto flex max-w-page flex-col gap-2 px-4 pt-8 pb-[calc(var(--tabbar-h)+2rem)] sm:px-6">
         <p className="text-lg font-bold text-ink">{ru.common.brand}</p>
         <p className="max-w-prose text-sm text-muted">{ru.common.shell.footerNote}</p>
       </div>

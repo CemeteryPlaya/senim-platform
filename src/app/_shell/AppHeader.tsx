@@ -23,18 +23,19 @@ export function AppHeader({ user, demoMode }: Props) {
   return (
     <>
       <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex min-h-18 max-w-page items-center justify-between gap-4 px-4 py-2 sm:px-6">
-          <Link href="/" aria-label={ru.common.shell.home} className="flex min-w-0 items-center gap-3 rounded-control no-underline">
+        {/* Контейнер: подзаголовок прячется, когда шапке тесно в em (крупный шрифт), а не обрезается. */}
+        <div className="@container mx-auto flex min-h-18 max-w-page flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2 sm:px-6">
+          <Link href="/" aria-label={ru.common.shell.home} className="flex shrink-0 items-center gap-3 rounded-control no-underline">
             <span aria-hidden className="inline-flex size-12 shrink-0 items-center justify-center rounded-control bg-primary text-on-primary">
               <ShieldCheck className="size-7" />
             </span>
-            <span className="flex min-w-0 flex-col">
+            <span className="flex flex-col">
               <span className="text-xl leading-tight font-extrabold text-ink">{ru.common.brand}</span>
-              <span className="truncate text-sm leading-tight text-muted">{ru.common.shell.subtitle}</span>
+              <span className="text-sm leading-tight text-muted @max-[19em]:hidden lg:@max-[56em]:hidden">{ru.common.shell.subtitle}</span>
             </span>
           </Link>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
             <DesktopNav items={links} />
             {/* Видимость — на обёртке: cn не сливает классы, и inline-flex компонента перебил бы hidden. */}
             {user && (
