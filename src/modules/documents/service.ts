@@ -61,7 +61,12 @@ function toContractData(deal: DealForContract, meta: { number: string; version: 
     city: request.city,
     paymentMode: deal.paymentMode,
     client: { fullName: deal.client.fullName ?? t.clientNameMissing, iin: deal.client.iinEnc ? decryptPii(deal.client.iinEnc) : null },
-    executor: { legalForm: deal.executor.legalForm, legalName: deal.executor.legalName, binIin: decryptPii(deal.executor.binIinEnc) },
+    executor: {
+      legalForm: deal.executor.legalForm,
+      legalName: deal.executor.legalName,
+      binIin: decryptPii(deal.executor.binIinEnc),
+      signerFullName: deal.executor.signerFullName,
+    },
     subject: {
       title: deal.title,
       details: subjectDetails({

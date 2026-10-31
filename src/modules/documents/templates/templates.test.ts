@@ -15,7 +15,7 @@ const contract = (over: Partial<ContractData> = {}): ContractData => ({
   city: "Астана",
   paymentMode: "MANUAL",
   client: { fullName: "Сапарова Айгерим Болатовна", iin: "900101300123" },
-  executor: { legalForm: "TOO", legalName: "ТОО «Ағаш Шебер»", binIin: "210140012345" },
+  executor: { legalForm: "TOO", legalName: "ТОО «Ағаш Шебер»", binIin: "210140012345", signerFullName: "Тулегенов Бауыржан Серикович" },
   subject: { title: "Кухня угловая", details: ["Ширина: 320 см", "Фасады: МДФ, эмаль"], address: "ул. Кенесары, 40, кв. 12" },
   totalAmount: 1_250_000,
   stages: [
@@ -51,8 +51,19 @@ describe("договор подряда", () => {
     expect(text).toContain("ИИН 900101300123");
   });
 
+  it("ТОО — в лице директора (ФИО подписанта из профиля), действующего на основании Устава", () => {
+    const text = plainText(contractSpec(contract()));
+    expect(text).toContain("ТОО «Ағаш Шебер», БИН 210140012345, в лице директора Тулегенов Бауыржан Серикович, действующего на основании Устава");
+  });
+
+  it("ИП и самозанятый — без «в лице»: сторона и есть подписант", () => {
+    const ip = plainText(contractSpec(contract({ executor: { legalForm: "IP", legalName: "ИП «Дала»", binIin: "850505300111", signerFullName: "Жумабаев Ерлан" } })));
+    expect(ip).toContain("ИП «Дала» (индивидуальный предприниматель), ИИН 850505300111");
+    expect(ip).not.toContain("в лице");
+  });
+
   it("для ИП и самозанятого пишет ИИН, а не БИН", () => {
-    const text = plainText(contractSpec(contract({ executor: { legalForm: "SELF_EMPLOYED", legalName: "Жумабаев Ерлан Серикович", binIin: "850505300111" } })));
+    const text = plainText(contractSpec(contract({ executor: { legalForm: "SELF_EMPLOYED", legalName: "Жумабаев Ерлан Серикович", binIin: "850505300111", signerFullName: "Жумабаев Ерлан Серикович" } })));
     expect(text).toContain("Жумабаев Ерлан Серикович");
     expect(text).toContain("ИИН 850505300111");
     expect(text).not.toContain("БИН");

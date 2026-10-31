@@ -18,8 +18,11 @@ export type ContractData = {
   paymentMode: PaymentMode;
   /** Заказчик: ФИО и ИИН (если указан при регистрации). Телефон в договор не попадает. */
   client: { fullName: string; iin: string | null };
-  /** Исполнитель раскрывается только здесь: наименование/ФИО и ИИН/БИН. Телефон — нигде. */
-  executor: { legalForm: LegalForm; legalName: string; binIin: string };
+  /**
+   * Исполнитель раскрывается только здесь: наименование/ФИО и ИИН/БИН. Телефон — нигде.
+   * signerFullName — подписант профиля: у ТОО директор («в лице директора …»); null — профиль до ADR-003.
+   */
+  executor: { legalForm: LegalForm; legalName: string; binIin: string; signerFullName: string | null };
   subject: { title: string; details: string[]; address: string | null };
   totalAmount: number;
   stages: DocStage[];

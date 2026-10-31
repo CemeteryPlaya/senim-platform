@@ -9,10 +9,13 @@ import type { ContractData } from "./types";
  * В режиме MANUAL нет слов «эскроу» и «безопасная оплата».
  */
 
-function executorParty({ legalForm, legalName, binIin }: ContractData["executor"]): string {
+/** ТОО действует через директора — он подписывает договор своей ЭЦП (подписант профиля, ADR-003). ИП и самозанятый — сами. */
+function executorParty({ legalForm, legalName, binIin, signerFullName }: ContractData["executor"]): string {
   switch (legalForm) {
     case "TOO":
-      return `${legalName}, БИН ${binIin}`;
+      return signerFullName
+        ? `${legalName}, БИН ${binIin}, в лице директора ${signerFullName}, действующего на основании Устава`
+        : `${legalName}, БИН ${binIin}`;
     case "IP":
       return `${legalName} (индивидуальный предприниматель), ИИН ${binIin}`;
     case "SELF_EMPLOYED":
