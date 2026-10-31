@@ -1,4 +1,3 @@
-import { Prisma } from "@/generated/prisma/client";
 import { ru } from "@/i18n/ru";
 import { recordAudit, SYSTEM } from "@/modules/audit";
 import { attachFiles } from "@/modules/files";
@@ -15,7 +14,7 @@ import {
   type RailMode,
   type SettledHook,
 } from "@/modules/payments";
-import { transaction, type Tx } from "@/platform/db";
+import { isUniqueViolation, transaction, type Tx } from "@/platform/db";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { enqueueJob } from "@/platform/jobs";
@@ -91,7 +90,7 @@ export const createDeal: CreateDeal = async (tx, raw) => {
     });
     dealId = deal.id;
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return fail.conflict(ru.deal.errors.dealExists);
+    if (isUniqueViolation(e)) return fail.conflict(ru.deal.errors.dealExists);
     throw e;
   }
 

@@ -70,6 +70,10 @@ describe("напоминание о замере", () => {
     expect(await db.job.count({ where: { kind: "notifications.sendSms", dedupeKey: { in: notes.map((n) => `sms:${n.id}`) } } })).toBe(2);
   });
 
+  it("битая полезная нагрузка задачи — VALIDATION с понятным текстом, а не исключение zod", async () => {
+    await expect(remind("")).rejects.toThrow(code("VALIDATION"));
+  });
+
   it("выполненный замер не напоминается", async () => {
     const client = await makeClient();
     const m = await makeMeasuring(client);

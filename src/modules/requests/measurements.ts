@@ -9,6 +9,7 @@ import { ru } from "@/i18n/ru";
 import { db, transaction, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enqueueJob, type JobHandler } from "@/platform/jobs";
+import { parseInput } from "@/platform/validation";
 import { STAGE_TEMPLATES, type StageTemplateKey } from "@/verticals/furniture";
 import { auditByUser, links, loadExecutor, loadOwnRequest, requestScope, requestTitle, requireClient } from "./access";
 import { MEASUREMENT_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
@@ -64,7 +65,7 @@ export async function scheduleMeasurement(user: CurrentUser, input: { offerId: s
  * Повтор безопасен: одна задача на замер (dedupeKey), а выполненный или отменённый замер не напоминается.
  */
 export const remindMeasurement: JobHandler = async (payload, ctx) => {
-  const { measurementId } = z.object({ measurementId: z.string().min(1) }).parse(payload);
+  const { measurementId } = parseInput(z.object({ measurementId: z.string().min(1) }), payload);
   await transaction(async (tx) => {
     const m = await tx.measurement.findUnique({
       where: { id: measurementId },
@@ -126,9 +127,9 @@ export async function measurementNoDeal(user: CurrentUser, input: { measurementI
     const requestTo = transition(REQUEST_TRANSITIONS, "measurementNoDeal", m.request.status, who);
     const offerTo = transition(OFFER_TRANSITIONS, "noDeal", m.offer.status, who);
     const feeAccrued = m.offer.measurementTerms === "FEE_IF_NO_DEAL" ? m.offer.measurementFee : null;
-
     // Итог видит другая сторона — без контактов (у исполнителя — и без наименования).
     const result = !input.result ? m.result : executorId ? (await sanitizeExecutorText(tx, executorId, input.result)).text : maskContacts(input.result).text;
+
     expectOneUpdated(
       await tx.measurement.updateMany({
         where: { id: m.id, status: m.status },
