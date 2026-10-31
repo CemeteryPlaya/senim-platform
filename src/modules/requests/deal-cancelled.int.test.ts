@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cancelDeal } from "@/modules/deal-core";
 import { db, transaction } from "@/platform/db";
-import { makeDeal } from "../../../test/factories/deal";
+import { makeDeal, signContract } from "../../../test/factories/deal";
 import { onDealCancelled } from "./index";
 
 describe("заявка закрывается, когда сделку отменили до начала работ", () => {
@@ -16,6 +16,20 @@ describe("заявка закрывается, когда сделку отме�
     expect(await db.auditEvent.count({ where: { action: "request.cancelled_with_deal", entityId: f.requestId } })).toBe(1);
   });
 
+  it("эскроу: договор подписан (заявка CLOSED), пополнения нет — отмена закрывает заявку CLOSED → CANCELLED", async () => {
+    const f = await makeDeal({ rail: "escrow-simulator" });
+    await signContract(f.dealId);
+    // Как requests.onDealDocumentSigned при подписи договора обеими сторонами.
+    await db.request.update({ where: { id: f.requestId }, data: { status: "CLOSED", closedAt: new Date() } });
+    expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("AWAITING_DEPOSIT");
+
+    await cancelDeal(f.client, { dealId: f.dealId, reason: "Передумали" }, { onCancelled: onDealCancelled });
+
+    expect((await db.request.findUniqueOrThrow({ where: { id: f.requestId } })).status).toBe("CANCELLED");
+    const audit = await db.auditEvent.findFirstOrThrow({ where: { action: "request.cancelled_with_deal", entityId: f.requestId } });
+    expect(audit.before).toEqual({ status: "CLOSED" });
+  });
+
   it("ошибка хука откатывает и отмену сделки", async () => {
     const f = await makeDeal();
     const failing = async () => {
@@ -25,15 +39,15 @@ describe("заявка закрывается, когда сделку отме�
     expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("AWAITING_SIGNATURES");
   });
 
-  it("повторный вызов и заявка не в CONTRACTING ничего не меняют", async () => {
+  it("повторный вызов и заявка не в CONTRACTING/CLOSED ничего не меняют", async () => {
     const f = await makeDeal();
     await cancelDeal(f.client, { dealId: f.dealId }, { onCancelled: onDealCancelled });
     await transaction((tx) => onDealCancelled(tx, f.dealId));
     expect(await db.auditEvent.count({ where: { action: "request.cancelled_with_deal", entityId: f.requestId } })).toBe(1);
 
     const g = await makeDeal();
-    await db.request.update({ where: { id: g.requestId }, data: { status: "CLOSED" } });
+    await db.request.update({ where: { id: g.requestId }, data: { status: "OPEN" } });
     await transaction((tx) => onDealCancelled(tx, g.dealId));
-    expect((await db.request.findUniqueOrThrow({ where: { id: g.requestId } })).status).toBe("CLOSED");
+    expect((await db.request.findUniqueOrThrow({ where: { id: g.requestId } })).status).toBe("OPEN");
   });
 });

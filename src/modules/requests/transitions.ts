@@ -27,7 +27,13 @@ export const REQUEST_TRANSITIONS = [
   { action: "agreeToContract", from: ["MEASURING"], to: "CONTRACTING", who: ["CLIENT"], guard: "замер DONE с итоговой ценой; создаётся сделка" },
   { action: "measurementNoDeal", from: ["MEASURING"], to: "OPEN", who: ["CLIENT", "EXECUTOR"], guard: "замер SCHEDULED или DONE" },
   { action: "contractSigned", from: ["CONTRACTING"], to: "CLOSED", who: ["SYSTEM"], guard: "договор подписан обеими сторонами" },
-  { action: "dealCancelled", from: ["CONTRACTING"], to: "CANCELLED", who: ["SYSTEM"], guard: "сделку отменили до начала работ" },
+  {
+    action: "dealCancelled",
+    from: ["CONTRACTING", "CLOSED"],
+    to: "CANCELLED",
+    who: ["SYSTEM"],
+    guard: "сделку отменили до начала работ: до подписи договора (CONTRACTING) или в эскроу до пополнения счёта (CLOSED)",
+  },
   { action: "cancel", from: ["DRAFT", "OPEN", "OFFER_CHOSEN", "MEASURING"], to: "CANCELLED", who: ["CLIENT"] },
 ] as const satisfies Table<RequestStatus, string>;
 
