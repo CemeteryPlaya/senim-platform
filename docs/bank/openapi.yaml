@@ -1,0 +1,297 @@
+openapi: 3.1.0
+info:
+  title: Сенім — вебхуки для банка
+  version: 0.1.0
+  summary: Эндпоинты платформы «Сенім», которые принимают уведомления банка по эскроу-счетам сделок.
+  description: |
+    Входящие уведомления «банк → платформа» по счетам сделок: пополнение счёта и итог операций
+    (транш исполнителю, возврат заказчику). Описание сверено с кодом:
+    `src/app/api/webhooks/_handle.ts`, `src/modules/payments/webhook-signature.ts`,
+    `src/modules/payments/rails/escrow-simulator.ts` (схема тела), `src/modules/payments/operations.ts`
+    (обработка).
+
+    Документ описывает **наши** эндпоинты и предлагаемую схему подписи. Это не описание API
+    какого-либо банка. Если у банка-партнёра свой формат уведомлений или своя схема подписи,
+    они разбираются в адаптере `bankRail.parseWebhook` (`src/modules/payments/rails/bank.ts`),
+    а остальная обработка не меняется. Требования и вопросы к банку — `docs/bank/03-escrow-integration.md`.
+
+    **Подпись.** `x-senim-signature: v1=<hex>`, где `hex` — HMAC-SHA256 с общим секретом от строки
+    `<x-senim-timestamp>.<тело запроса байт в байт>`. Метка времени — Unix-время в секундах; запрос
+    принимается, если она отличается от времени сервера не больше чем на 5 минут. Каждая доставка
+    подписывается заново с текущей меткой времени.
+
+    **Повторы.** Ответ 2xx — событие принято (в том числе повторная доставка уже обработанного события:
+    `duplicate: true`). Ответ 5xx — событие не принято, запись о нём откатилась; доставку нужно повторить.
+    Ответы 400 и 401 — тело или подпись неверны; повтор того же запроса не поможет.
+
+    **Идентификатор события.** `eventId` уникален у банка и одинаков во всех повторных доставках
+    одного события: по нему платформа отсекает дубли (уникальный `BankWebhookEvent.externalEventId`).
+  license:
+    name: Proprietary
+servers:
+  - url: http://localhost:3100
+    description: Локальная разработка
+  - url: https://{host}
+    description: Демо-стенд или рабочее окружение
+    variables:
+      host:
+        default: example.invalid
+        description: Адрес окружения выдаёт владелец проекта
+tags:
+  - name: webhooks
+    description: Уведомления банка по счетам сделок
+paths:
+  /api/webhooks/bank:
+    post:
+      tags: [webhooks]
+      operationId: bankWebhook
+      summary: Уведомление банка-партнёра
+      description: |
+        Точка приёма уведомлений банка-партнёра (`PAYMENT_RAIL=bank`).
+
+        **Сейчас банк не подключён:** `bankRail.parseWebhook` отвечает «ещё не подключён», и маршрут
+        возвращает **503** на любой запрос (кроме тела больше 64 КБ — 413). После подключения
+        подпись проверяется с секретом `BANK_WEBHOOK_SECRET`, а формат тела приводится к спецификации банка;
+        ниже описан формат, который платформа принимает сейчас от симулятора и предлагает по умолчанию.
+      parameters:
+        - $ref: '#/components/parameters/Timestamp'
+        - $ref: '#/components/parameters/Signature'
+      requestBody:
+        $ref: '#/components/requestBodies/RailEvent'
+      responses:
+        '200':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadPayload'
+        '401':
+          $ref: '#/components/responses/BadSignature'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/OtherError'
+      security:
+        - webhookSignature: []
+  /api/webhooks/escrow-simulator:
+    post:
+      tags: [webhooks]
+      operationId: escrowSimulatorWebhook
+      summary: Уведомление встроенного банк-симулятора
+      description: |
+        Тот же обработчик, что у `/api/webhooks/bank`, для режима `escrow-simulator`. Подпись проверяется
+        с секретом `ESCROW_SIMULATOR_WEBHOOK_SECRET`. В production без этого секрета маршрут отвечает 503.
+        Локально без секрета используется случайный секрет процесса, поэтому подписать запрос извне нельзя;
+        экран симулятора доставляет вебхук прямым вызовом того же обработчика (без HTTP-запроса к себе),
+        с той же проверкой подписи и дедупликацией.
+      parameters:
+        - $ref: '#/components/parameters/Timestamp'
+        - $ref: '#/components/parameters/Signature'
+      requestBody:
+        $ref: '#/components/requestBodies/RailEvent'
+      responses:
+        '200':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadPayload'
+        '401':
+          $ref: '#/components/responses/BadSignature'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        default:
+          $ref: '#/components/responses/OtherError'
+      security:
+        - webhookSignature: []
+components:
+  securitySchemes:
+    webhookSignature:
+      type: apiKey
+      in: header
+      name: x-senim-signature
+      description: |
+        HMAC-SHA256 от `<x-senim-timestamp>.<тело>` с общим секретом, в формате `v1=<hex>`.
+        Проверяется вместе с заголовком `x-senim-timestamp` (окно ±5 минут), сравнение за постоянное время.
+        Пароль демо-стенда на эти пути не распространяется.
+  parameters:
+    Timestamp:
+      name: x-senim-timestamp
+      in: header
+      required: true
+      description: Unix-время отправки в секундах. Входит в подписываемую строку.
+      schema:
+        type: string
+        pattern: '^[0-9]+$'
+      example: '1793438105'
+    Signature:
+      name: x-senim-signature
+      in: header
+      required: true
+      description: '`v1=` и HMAC-SHA256 (hex, нижний регистр) от строки `<x-senim-timestamp>.<тело запроса>`.'
+      schema:
+        type: string
+        pattern: '^v1=[0-9a-f]{64}$'
+      example: v1=08aabfce6a7de6ea6d36afea83697cdfaadc1f6fcfede84ca160b7d48013c0cf
+  requestBodies:
+    RailEvent:
+      required: true
+      description: Тело — JSON не больше 64 КБ. Подпись считается от тела байт в байт, как отправлено.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RailWebhookEvent'
+          examples:
+            deposit:
+              summary: Пополнение счёта сделки
+              value:
+                eventId: evt_3f9a1c2b7d4e5f60
+                type: DEPOSIT_RECEIVED
+                externalId: SIM-15-A1B2C3
+                amount: 460000
+                operationRef: SIMOP-9F8E7D6C5B
+                occurredAt: '2026-10-31T09:15:00.000Z'
+            releaseCompleted:
+              summary: Транш по этапу исполнен
+              value:
+                eventId: evt_77aa01bb02cc03dd
+                type: RELEASE_COMPLETED
+                externalId: SIM-15-A1B2C3
+                amount: 230000
+                operationRef: release:cmh1x2y3z0000abcd1234efgh
+                occurredAt: '2026-10-31T09:16:30.000Z'
+            operationFailed:
+              summary: Операция отклонена банком
+              value:
+                eventId: evt_00ff11ee22dd33cc
+                type: OPERATION_FAILED
+                externalId: SIM-15-A1B2C3
+                amount: 230000
+                operationRef: release:cmh1x2y3z0000abcd1234efgh
+                occurredAt: '2026-10-31T09:16:30.000Z'
+  schemas:
+    RailWebhookEvent:
+      type: object
+      description: |
+        Событие по счёту сделки. Схема совпадает с zod-схемой `webhookBodySchema`
+        (`src/modules/payments/rails/escrow-simulator.ts`) и типом `RailWebhookEvent` (`src/modules/payments/rail.ts`).
+        Обработка по типу:
+        - `DEPOSIT_RECEIVED` — зачисление на счёт: операция `DEPOSIT` с ключом `deposit:<eventId>`; когда внесена
+          вся сумма договора, сделка переходит из ожидания пополнения в работу; пополнение отменённой или
+          расторгнутой сделки возвращается заказчику автоматически;
+        - `RELEASE_COMPLETED`, `REFUND_COMPLETED` — операция, найденная по `operationRef`, становится выполненной;
+        - `OPERATION_FAILED` — операция становится отклонённой, операторы получают уведомление.
+        Событие по неизвестному счёту сохраняется с ошибкой и подтверждается ответом 200.
+      required: [eventId, type, externalId, amount, occurredAt]
+      properties:
+        eventId:
+          type: string
+          minLength: 1
+          description: Идентификатор события у банка. Одинаков во всех повторных доставках одного события.
+        type:
+          type: string
+          enum: [DEPOSIT_RECEIVED, RELEASE_COMPLETED, REFUND_COMPLETED, OPERATION_FAILED]
+        externalId:
+          type: string
+          minLength: 1
+          description: Номер счёта сделки у банка (`EscrowAccount.externalId`), выданный при открытии счёта.
+        amount:
+          type: integer
+          exclusiveMinimum: 0
+          description: Сумма в целых тенге.
+        operationRef:
+          type: string
+          description: |
+            Для `DEPOSIT_RECEIVED` — номер операции зачисления у банка (по нему сверяется выписка).
+            Для итогов операций — наш ключ идемпотентности операции (предпочтительно) или номер операции банка,
+            полученный в ответе на транш или возврат.
+        occurredAt:
+          type: string
+          format: date-time
+          description: Время события в UTC с суффиксом `Z` (смещение часового пояса не принимается), например `2026-10-31T09:15:00Z`.
+      additionalProperties: true
+    Accepted:
+      type: object
+      required: [ok, duplicate, eventId]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        duplicate:
+          type: boolean
+          description: true — событие с этим `eventId` уже было принято раньше; состояние не изменилось.
+        eventId:
+          type: string
+    Error:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: string
+          description: Код ошибки.
+          enum: [VALIDATION, UNAUTHENTICATED, NOT_FOUND, CONFLICT, PAYLOAD_TOO_LARGE, UNAVAILABLE, INTERNAL]
+  responses:
+    Accepted:
+      description: Событие принято и обработано, либо это повторная доставка уже принятого события.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Accepted'
+          examples:
+            first:
+              value: { ok: true, duplicate: false, eventId: evt_3f9a1c2b7d4e5f60 }
+            repeat:
+              value: { ok: true, duplicate: true, eventId: evt_3f9a1c2b7d4e5f60 }
+    BadPayload:
+      description: Тело не JSON или не соответствует схеме. Событие не записано.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { ok: false, error: VALIDATION }
+    BadSignature:
+      description: Нет заголовков подписи, подпись неверна или метка времени вне окна ±5 минут. Событие не записано.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { ok: false, error: UNAUTHENTICATED }
+    TooLarge:
+      description: Тело больше 64 КБ (по `content-length` или по факту чтения). Проверяется до разбора и подписи.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { ok: false, error: PAYLOAD_TOO_LARGE }
+    Internal:
+      description: Непредвиденная ошибка обработки. Транзакция откатилась вместе с записью события; доставку нужно повторить.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { ok: false, error: INTERNAL }
+    OtherError:
+      description: |
+        Другая ошибка приложения при обработке (например, 409 — конфликт состояния сделки). Транзакция откатилась
+        вместе с записью события; событие не принято, доставку можно повторить.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { ok: false, error: CONFLICT }
+    Unavailable:
+      description: |
+        Рельс недоступен: банк-партнёр ещё не подключён (`/api/webhooks/bank`) или в production не задан
+        секрет симулятора (`/api/webhooks/escrow-simulator`). Доставку нужно повторить позже.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example: { ok: false, error: UNAVAILABLE }
