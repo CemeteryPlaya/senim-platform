@@ -33,9 +33,9 @@ export function createSigexProvider(client: SigexClient): SignatureProvider {
   return {
     name: "sigex",
 
-    async startSigning({ documentId, sha256, method }) {
+    async startSigning({ description, sha256, method }) {
       if (method !== "EGOV_QR") fail.validation(ru.documents.errors.ncalayerUnavailable);
-      const op = await client.startQrSigning({ sha256, description: `Документ ${documentId}` });
+      const op = await client.startQrSigning({ sha256, description });
       return { sessionId: op.operationId, method, qrPayload: op.qrPayload, expiresAt: op.expiresAt };
     },
 

@@ -320,6 +320,7 @@ export async function startSigning(user: CurrentUser, documentId: string, method
   const provider = signatureProvider();
   const session = await provider.startSigning({
     documentId,
+    description: t.signingDescription(t.kinds[doc.kind], doc.number),
     sha256: doc.sha256,
     method,
     signer: { userId: user.id, fullName, iin },

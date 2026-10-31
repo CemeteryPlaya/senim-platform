@@ -165,6 +165,7 @@ describe("подпись", () => {
     const { deal, client } = await makeDeal();
     const { documentId } = await transaction((tx) => createContract(tx, deal.id));
     const forged = await mockSignatureProvider.startSigning({
+      description: "Договор",
       documentId,
       sha256: "0".repeat(64),
       method: "EGOV_QR",
@@ -192,6 +193,7 @@ describe("подпись", () => {
     const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
     const executorUser = await db.user.findUniqueOrThrow({ where: { id: executor.id } });
     const session = await mockSignatureProvider.startSigning({
+      description: "Договор",
       documentId,
       sha256,
       method: "EGOV_QR",
@@ -205,7 +207,7 @@ describe("подпись", () => {
     const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
     const own = decryptPii((await db.user.findUniqueOrThrow({ where: { id: client.id } })).iinEnc!);
     const lookalike = `${(Number(own[0]) + 1) % 10}${own.slice(1)}`;
-    const session = await mockSignatureProvider.startSigning({ documentId, sha256, method: "EGOV_QR", signer: { userId: client.id, fullName: "Двойник", iin: lookalike } });
+    const session = await mockSignatureProvider.startSigning({ description: "Договор", documentId, sha256, method: "EGOV_QR", signer: { userId: client.id, fullName: "Двойник", iin: lookalike } });
 
     await expect(completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
     expect(await db.signature.count()).toBe(0);
@@ -214,7 +216,7 @@ describe("подпись", () => {
   it("подписант привязан к стороне: заказчик — своим ИИН; нет ИИН — подписать нельзя", async () => {
     const { deal, client } = await makeDeal();
     const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
-    const noIin = await mockSignatureProvider.startSigning({ documentId, sha256, method: "EGOV_QR", signer: { userId: client.id, fullName: "Без ИИН" } });
+    const noIin = await mockSignatureProvider.startSigning({ description: "Договор", documentId, sha256, method: "EGOV_QR", signer: { userId: client.id, fullName: "Без ИИН" } });
     await expect(completeSigning(client, { documentId, sessionId: noIin.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
 
     await db.user.update({ where: { id: client.id }, data: { iinEnc: null, iinHash: null, iinLast4: null } });
@@ -236,6 +238,7 @@ describe("подпись", () => {
     expect(profile.user.iinHash).not.toBe(profile.binIinHash);
 
     const wrong = await mockSignatureProvider.startSigning({
+      description: "Договор",
       documentId,
       sha256,
       method: "EGOV_QR",
@@ -257,6 +260,7 @@ describe("подпись", () => {
     const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
     const account = await db.user.findUniqueOrThrow({ where: { id: executor.id } });
     const byAccountIin = await mockSignatureProvider.startSigning({
+      description: "Договор",
       documentId,
       sha256,
       method: "EGOV_QR",

@@ -38,7 +38,8 @@ export type VerifiedSignature =
 
 export interface SignatureProvider {
   readonly name: "mock" | "sigex";
-  startSigning(input: { documentId: string; sha256: string; method: SignMethod; signer: Signer }): Promise<SigningSession>;
+  /** description — что подписант увидит в приложении («Договор подряда № Д-0014/2026»); собирает сервис из ru.documents. */
+  startSigning(input: { documentId: string; description: string; sha256: string; method: SignMethod; signer: Signer }): Promise<SigningSession>;
   getResult(sessionId: string): Promise<SigningResult>;
   /** Проверяет, что CMS подписывает именно этот хэш и сертификат действителен. */
   verify(input: { cms: string; sha256: string }): Promise<VerifiedSignature>;

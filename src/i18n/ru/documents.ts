@@ -2,6 +2,8 @@
 // Текст самого договора — шаблон в src/modules/documents/templates (это документ, а не интерфейс).
 export const documents = {
   kinds: { CONTRACT: "Договор подряда", STAGE_ACT: "Акт приёмки этапа" },
+  /** Что подписант видит в приложении подписи (eGov Mobile): вид и номер документа. */
+  signingDescription: (kind: string, number: string) => `${kind} № ${number}`,
   parties: { CLIENT: "Заказчик", EXECUTOR: "Исполнитель" },
   status: { SIGNING: "Ждёт подписей", SIGNED: "Подписан обеими сторонами", SUPERSEDED: "Заменён новой версией" },
   methods: {
