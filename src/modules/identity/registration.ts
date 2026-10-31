@@ -1,10 +1,9 @@
 import "server-only";
 import { ru } from "@/i18n/ru";
-import { Prisma } from "@/generated/prisma/client";
 import { recordAudit } from "@/modules/audit";
 import { notify } from "@/modules/notifications";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
-import { db, transaction, type Tx } from "@/platform/db";
+import { db, isUniqueViolation, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import type { ReviewExecutorRegistration } from "./index";
@@ -71,7 +70,7 @@ export async function registerExecutor(user: CurrentUser, input: ExecutorRegistr
 
   return register(user, input).catch((e: unknown) => {
     // Два разных номера одновременно с одним ИИН/БИН: проверку прошли оба, сработал уникальный индекс.
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return fail.conflict(t.errors.binIinTaken);
+    if (isUniqueViolation(e)) return fail.conflict(t.errors.binIinTaken);
     throw e;
   });
 }

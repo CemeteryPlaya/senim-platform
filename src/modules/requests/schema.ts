@@ -198,7 +198,7 @@ export const noDealSchema = z.strictObject({ measurementId: id, result: optional
 
 /**
  * ФИО и ИИН заказчика — только если их ещё нет. Формат и контрольную цифру проверяет
- * identity.recordClientIdentity: её ошибки приходят к полям fullName и iin формы.
+ * identity.recordPersonIdentity: её ошибки приходят к полям fullName и iin формы.
  */
 const clientIdentity = z.strictObject({ fullName: z.string().trim().max(120), iin: z.string().trim().max(20) });
 /** Шаблон этапов из вертикали: заказчик выбирает порядок оплаты при согласии на договор. */
