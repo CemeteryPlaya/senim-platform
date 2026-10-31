@@ -257,3 +257,101 @@ describe("maskNameWords: ФИО владельца", () => {
     expect(maskNameWords("Я Ер​лан", "Ерлан Жумабаев")).toBe(`Я ${MASK}`);
   });
 });
+
+describe("maskContacts: обходы маски, круг 3", () => {
+  /** Номер скрыт целиком: вне маски не осталось двух цифр подряд. */
+  const expectPhoneMasked = (text: string) => {
+    const result = maskContacts(text);
+    expect(result.masked).toBe(true);
+    expect(result.text.replaceAll(MASK, "")).not.toMatch(/\d\D{0,3}\d/);
+  };
+
+  it.each(["87011234567 тг", "+77011234567 м", "8 701 123 45 67 см", "87011234567%", "+7 701 123 45 67 ₸", "701 123 45 67 мм"])(
+    "(а) единица после номера — не цена: %s",
+    (text) => expectPhoneMasked(`Мой номер ${text}`),
+  );
+
+  it.each([
+    ["=", "8=701=123=45=67"],
+    ["*", "8*701*123*45*67"],
+    ["~", "8~701~123~45~67"],
+    [":", "8:701:123:45:67"],
+    [";", "8;701;123;45;67"],
+    ["·", "8·701·123·45·67"],
+    ["кавычки", "8«701»123«45»67"],
+    ["длинные пробелы", "8      701      123      45      67"],
+    ["хвост как время", "8 701 123 12:34"],
+    ["em-пробел", "8\u2003701\u2003123\u200345\u200367"],
+    ["пустой символ Брайля", "8\u2800701\u2800123\u280045\u280067"],
+  ])("(б) разделитель номера %s", (_, phone) => expectPhoneMasked(`Номер ${phone} звоните`));
+
+  it.each([
+    ["надстрочные", "⁸⁷⁰¹¹²³⁴⁵⁶⁷"],
+    ["подстрочные", "₈₇₀₁₁₂₃₄₅₆₇"],
+    ["обведённые", "⑧⑦⓪①①②③④⑤⑥⑦"],
+    ["тёмные обведённые", "❽❼⓿❶❶❷❸❹❺❻❼"],
+    ["цифры в скобках", "⑻⑺⑴⑴⑵⑶⑷⑸⑹⑺⑴"],
+    ["латинская O между цифрами", "87O11234567"],
+    ["кириллическая О и о", "8 7ОО 123 45 67"],
+    ["строчная o", "8 7oo 123 45 67"],
+    ["l и I вместо единицы", "8 70l l23 45 67"],
+    ["I вместо единицы", "8 70I 123 45 67"],
+  ])("(в) цифры-двойники: %s", (_, phone) => expectPhoneMasked(`Номер ${phone} звоните`));
+
+  it.each([
+    ["t.mе/mebel_astana", "t.m\u0435/mebel_astana"],
+    ["wа.mе/77011234567", "w\u0430.m\u0435/77011234567"],
+    ["httрs://site.kz", "htt\u0440s://site.kz"],
+    ["mebel.кz", "mebel.\u043az"],
+    ["ivаn@gmаil.com", "iv\u0430n@gm\u0430il.com"],
+    ["whаtsapp", "wh\u0430tsapp"],
+    ["telegrаm", "telegr\u0430m"],
+    ["@mеbel_astana", "@m\u0435bel_astana"],
+    ["t . mе / mebel", "t . m\u0435 / mebel"],
+  ])("(г) кириллические двойники латиницы: %s", (_, contact) => {
+    expect(masked(`пишите в ${contact}, отвечу`)).toBe(`пишите в ${MASK}, отвечу`);
+  });
+
+  it.each([
+    ["@ nick", "@ mebel_astana"],
+    ["ig:", "ig: mebel_astana"],
+    ["IG без двоеточия", "IG mebel.astana"],
+    ["max:", "max: mebel_astana"],
+    ["Макс:", "Макс: mebel_astana"],
+    ["max @", "max @mebel_astana"],
+    ["wa:", "wa: mebel"],
+    ["tg @ nick", "tg @ mebel_astana"],
+    ["discord", "discord"],
+  ])("(д) ники и мессенджеры: %s", (_, contact) => {
+    expect(masked(`пишите в ${contact}, отвечу`)).toBe(`пишите в ${MASK}, отвечу`);
+  });
+
+  it.each([
+    "eight seven zero one one two three four five six seven",
+    "Eight seven hundred one one hundred twenty three forty five sixty seven",
+    "plus seven seven zero one one two three four five six seven",
+    "eight seven hundred eleven two hundred thirty forty five ninety nine",
+    "сегіз жеті жуз бiр екі жуз отыз төрт елу алты жетпіс сегіз",
+    "сегiз жетi нол нол бiр екi уш торт бес алты жетi",
+  ])("(е) числительные: %s", (text) => {
+    expect(masked(`Номер: ${text}. Жду`)).toBe(`Номер: ${MASK}. Жду`);
+  });
+
+  it.each([
+    "Размер 900 600 2400 мм",
+    "Размеры 780 900 2400 мм",
+    "Размер 900*600*2400 мм",
+    "Работаем 9:00-18:00, 9:00-17:00",
+    "Замер в 10:30, 11:45 или 19:15",
+    "Площадь 12 м², объём 3 м³",
+    "ООО «Мебель» работает 5 лет",
+    "Ширина max 2400 мм",
+    "Сделаю max за 20 дней",
+    "I have two kids and one dog",
+    "Т.е. сом и карп, т.к. рыба",
+    "Привет, @Иван, напишу позже",
+    "Цена 1 350 000 ₸, 18–25 дней",
+  ])("не трогает: %s", (text) => {
+    expect(maskContacts(text)).toEqual({ text, masked: false });
+  });
+});
