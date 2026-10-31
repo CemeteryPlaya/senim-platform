@@ -1,4 +1,5 @@
 import "server-only";
+import type { LegalForm } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import type { Db } from "@/platform/db";
@@ -11,14 +12,28 @@ export function requireExecutor(user: CurrentUser): { executorId: string } {
   return { executorId: user.executor.id };
 }
 
-/** Публичный текст исполнителя без контактов, без наименования/ФИО из профиля и без слов ФИО владельца аккаунта. */
+/**
+ * ФИО подписанта договора — его слова скрываются по отдельности: ТОО — директор, ИП и самозанятый — владелец
+ * (ADR-003). Профиль до ADR-003 без подписанта: у ИП и самозанятого — наименование без «ИП» и кавычек.
+ */
+function signerNameOf(p: { legalForm: LegalForm; legalName: string; signerFullName: string | null }): string | null {
+  if (p.signerFullName) return p.signerFullName;
+  if (p.legalForm === "TOO") return null;
+  return p.legalName.replace(/(?<!\p{L})ИП(?!\p{L})/gu, " ").replace(/[«»"“”„']/g, " ");
+}
+
+/**
+ * Публичный текст исполнителя без контактов, без наименования ТОО/ИП целиком (maskIdentity) и без отдельных
+ * слов ФИО подписанта из профиля и владельца аккаунта (maskNameWords).
+ */
 export async function sanitizePublicText(client: Db, executorId: string, text: string): Promise<{ text: string; masked: boolean }> {
-  const { legalName, user } = await client.executorProfile.findUniqueOrThrow({
+  const profile = await client.executorProfile.findUniqueOrThrow({
     where: { id: executorId },
-    select: { legalName: true, user: { select: { fullName: true } } },
+    select: { legalForm: true, legalName: true, signerFullName: true, user: { select: { fullName: true } } },
   });
   const contacts = maskContacts(text);
-  const clean = maskNameWords(maskIdentity(contacts.text, legalName), user.fullName);
+  const names = [signerNameOf(profile), profile.user.fullName].filter(Boolean).join(" ");
+  const clean = maskNameWords(maskIdentity(contacts.text, profile.legalName), names);
   return { text: clean, masked: contacts.masked || clean !== contacts.text };
 }
 

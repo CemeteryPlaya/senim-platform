@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { testBin, testIin } from "@/demo/kz-id";
+import { registerExecutor, type CurrentUser, type ExecutorRegistrationInput } from "@/modules/identity";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeFurnitureType } from "../../../test/factories/companies";
 import { getOwnProfile, MASK, updateProfile, type ProfileInput } from "./index";
+
+/** Исполнитель после анкеты: вошёл по SMS (в аккаунте нет ФИО), подписанта знает только профиль. */
+async function registeredExecutor(input: Omit<ExecutorRegistrationInput, "city" | "yearsExperience">): Promise<CurrentUser> {
+  const user = await makeClient();
+  await db.user.update({ where: { id: user.id }, data: { fullName: null, iinEnc: null, iinHash: null, iinLast4: null } });
+  const { profileId } = await registerExecutor(user, { ...input, city: "Астана", yearsExperience: 3 });
+  const profile = await db.executorProfile.findUniqueOrThrow({ where: { id: profileId } });
+  return { ...user, fullName: null, role: "EXECUTOR", executor: { id: profileId, publicNumber: profile.publicNumber, status: profile.status } };
+}
 
 const base: ProfileInput = { about: "Делаю кухни и шкафы", yearsExperience: 5, specializationIds: [], measurementTerms: "FREE", measurementFee: null };
 
@@ -58,6 +69,27 @@ describe("профиль исполнителя", () => {
     await db.user.update({ where: { id: executor.id }, data: { fullName: "Ерлан Жумабаев" } });
     const result = await updateProfile(executor, { ...base, about: "Директор — Ерлан Жума​баев, спросите Ерлана" });
     expect(result).toEqual({ aboutMasked: true, about: `Директор — ${MASK}, спросите ${MASK}` });
+  });
+
+  it("ИП, зарегистрированный через анкету: слова ФИО владельца скрываются по отдельности и в падежах", async () => {
+    const executor = await registeredExecutor({ legalForm: "IP", legalName: "ИП «Дала»", binIin: testIin("910803", 3, 81), signer: { fullName: "Жумабаев Ерлан", iin: null } });
+    const result = await updateProfile(executor, { ...base, about: "Спросите Жумабаева Ерлана или просто Ерлана" });
+    expect(result).toEqual({ aboutMasked: true, about: `Спросите ${MASK} или просто ${MASK}` });
+  });
+
+  it("ТОО, зарегистрированное через анкету: слова ФИО директора скрываются", async () => {
+    const signer = { fullName: "Тулегенов Бауыржан", iin: testIin("800215", 3, 81) };
+    const executor = await registeredExecutor({ legalForm: "TOO", legalName: "ТОО «Ағаш Шебер»", binIin: testBin("2101", 81), signer });
+    const result = await updateProfile(executor, { ...base, about: "Работы принимает Бауыржан Тулегенов лично" });
+    expect(result).toEqual({ aboutMasked: true, about: `Работы принимает ${MASK} лично` });
+  });
+
+  it("ИП без подписанта в профиле (до ADR-003): ФИО берётся из наименования без «ИП» и кавычек", async () => {
+    const executor = await makeExecutor({ legalName: "ИП «Жумабаев Ерлан»" });
+    await db.executorProfile.update({ where: { id: executor.executor.id }, data: { signerFullName: null } });
+    await db.user.update({ where: { id: executor.id }, data: { fullName: null } });
+    const result = await updateProfile(executor, { ...base, about: "Звоните Ерлану" });
+    expect(result).toEqual({ aboutMasked: true, about: `Звоните ${MASK}` });
   });
 
   it("сегмент не меняется из профиля — его ставит оператор", async () => {
