@@ -16,6 +16,7 @@ import { REQUEST_TONE } from "../_parts/labels";
 import { detailRows, FactList } from "../_parts/RequestFacts";
 import { AgreeForm } from "./AgreeForm";
 import { OfferCard } from "./OfferCard";
+import { NoAccess } from "@/app/_components/NoAccess";
 
 const t = ru.requests.request;
 
@@ -46,11 +47,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
   const sp = await searchParams;
   const user = await pageUser("CLIENT", `/requests/${id}`);
   if (!user) {
-    return (
-      <Container className="pt-6">
-        <EmptyState title={ru.common.errors.forbidden} description={ru.requests.noAccess} />
-      </Container>
-    );
+    return <NoAccess description={ru.requests.noAccess} />;
   }
   const request = await orNotFound(loadRequest(user, id));
   if (request.status === "DRAFT") redirect(`/requests/new?draft=${id}`);

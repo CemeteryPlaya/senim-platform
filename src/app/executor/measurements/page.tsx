@@ -5,6 +5,7 @@ import { ru } from "@/i18n/ru";
 import { Alert, ButtonLink, Container, DateText, EmptyState, Money, PageHeader, StatusBadge } from "@/ui";
 import { pageUser } from "@/app/requests/_parts/guard";
 import { MEASUREMENT_TONE } from "@/app/requests/_parts/labels";
+import { NoAccess } from "@/app/_components/NoAccess";
 
 const t = ru.requests.measurements;
 
@@ -14,11 +15,7 @@ export const metadata: Metadata = { title: t.metaTitle };
 export default async function MeasurementsPage() {
   const user = await pageUser("EXECUTOR", "/executor/measurements");
   if (!user) {
-    return (
-      <Container className="pt-6">
-        <EmptyState title={ru.common.errors.forbidden} description={ru.requests.noAccessExecutor} />
-      </Container>
-    );
+    return <NoAccess description={ru.requests.noAccessExecutor} />;
   }
   const [awaiting, list] = await Promise.all([listAwaitingMeasurement(user), listMyMeasurements(user)]);
 

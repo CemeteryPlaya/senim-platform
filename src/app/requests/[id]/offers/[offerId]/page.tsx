@@ -3,13 +3,14 @@ import { ArrowRight, Star } from "lucide-react";
 import type { ReactNode } from "react";
 import { getOfferForClient } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Container, DateText, EmptyState, formatDays, formatMonths, formatYears, Money, PageHeader, StatusBadge } from "@/ui";
+import { Container, DateText, formatDays, formatMonths, formatYears, Money, PageHeader, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { chooseOfferAction } from "../../../actions";
 import { ActionButton } from "../../../_parts/ActionButton";
 import { orNotFound, pageUser } from "../../../_parts/guard";
 import { OFFER_TONE, termsText } from "../../../_parts/labels";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
+import { NoAccess } from "@/app/_components/NoAccess";
 
 const o = ru.requests.offer;
 
@@ -25,11 +26,7 @@ export default async function OfferPage({ params }: Props) {
   const { id, offerId } = await params;
   const user = await pageUser("CLIENT", `/requests/${id}/offers/${offerId}`);
   if (!user) {
-    return (
-      <Container className="pt-6">
-        <EmptyState title={ru.common.errors.forbidden} description={ru.requests.noAccess} />
-      </Container>
-    );
+    return <NoAccess description={ru.requests.noAccess} />;
   }
   const offer = await orNotFound(getOfferForClient(user, { requestId: id, offerId }));
   const ex = offer.executor;

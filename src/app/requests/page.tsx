@@ -6,6 +6,7 @@ import { ButtonLink, Container, DateText, EmptyState, PageHeader, StatusBadge } 
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { pageUser } from "./_parts/guard";
 import { REQUEST_TONE } from "./_parts/labels";
+import { NoAccess } from "@/app/_components/NoAccess";
 
 const t = ru.requests.my;
 
@@ -15,11 +16,7 @@ export const metadata: Metadata = { title: t.metaTitle };
 export default async function MyRequestsPage() {
   const user = await pageUser("CLIENT", "/requests");
   if (!user) {
-    return (
-      <Container className="pt-6">
-        <EmptyState title={ru.common.errors.forbidden} description={ru.requests.noAccess} />
-      </Container>
-    );
+    return <NoAccess description={ru.requests.noAccess} />;
   }
   const list = await listMyRequests(user);
   const create = (

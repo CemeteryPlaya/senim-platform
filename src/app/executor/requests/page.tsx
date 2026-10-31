@@ -7,6 +7,7 @@ import { ButtonLink, Container, DateText, EmptyState, PageHeader, StatusBadge, c
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { pageUser } from "@/app/requests/_parts/guard";
 import { OFFER_TONE } from "@/app/requests/_parts/labels";
+import { NoAccess } from "@/app/_components/NoAccess";
 
 const t = ru.requests.incoming;
 
@@ -19,11 +20,7 @@ export default async function IncomingPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const user = await pageUser("EXECUTOR", "/executor/requests");
   if (!user) {
-    return (
-      <Container className="pt-6">
-        <EmptyState title={ru.common.errors.forbidden} description={ru.requests.noAccessExecutor} />
-      </Container>
-    );
+    return <NoAccess description={ru.requests.noAccessExecutor} />;
   }
   const mode = sp.mode === "TENDER" || sp.mode === "DIRECT" ? sp.mode : undefined;
   const list = await listIncomingRequests(user, { mode });

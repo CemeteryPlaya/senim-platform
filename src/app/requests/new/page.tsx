@@ -4,13 +4,14 @@ import { redirect } from "next/navigation";
 import { listFurnitureTypes } from "@/modules/companies";
 import { getDraft, likeTarget, segmentInputOf, WIZARD_SCREENS, type Draft, type WizardScreen } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Alert, Container, EmptyState, Stepper } from "@/ui";
+import { Alert, Container, Stepper } from "@/ui";
 import { orNotFound, pageUser } from "../_parts/guard";
 import { detailRows, FactList, type FactRow } from "../_parts/RequestFacts";
 import { VisualizationPanel, SegmentHint } from "@/app/_components/ai-assistant";
 import { aiEnabled, listVisualizations } from "@/modules/ai";
 import { AssistantApply } from "./AssistantApply";
 import { MaterialsStep, RoomStep, SendStep, SizeStep, StyleStep, TypeStep } from "./WizardSteps";
+import { NoAccess } from "@/app/_components/NoAccess";
 
 const w = ru.requests.wizard;
 
@@ -32,11 +33,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
   const query = new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string")).toString();
   const user = await pageUser("CLIENT", `/requests/new${query ? `?${query}` : ""}`);
   if (!user) {
-    return (
-      <Container size="form" className="pt-6">
-        <EmptyState title={ru.common.errors.forbidden} description={ru.requests.noAccess} />
-      </Container>
-    );
+    return <NoAccess description={ru.requests.noAccess} size="form" />;
   }
 
   const draft = sp.draft ? await orNotFound(getDraft(user, sp.draft)) : null;

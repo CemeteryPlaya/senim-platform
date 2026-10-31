@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { getIncomingRequest, type IncomingRequest } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Alert, ButtonLink, Container, EmptyState, Money, PageHeader, StatusBadge, formatDate, formatDateTime, formatDays, formatMoney, formatMonths } from "@/ui";
+import { Alert, ButtonLink, Container, Money, PageHeader, StatusBadge, formatDate, formatDateTime, formatDays, formatMoney, formatMonths } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { ActionButton } from "@/app/requests/_parts/ActionButton";
 import { orNotFound, pageUser } from "@/app/requests/_parts/guard";
@@ -11,6 +11,7 @@ import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { detailRows, FactList } from "@/app/requests/_parts/RequestFacts";
 import { executorNoDealAction, withdrawOfferAction } from "../actions";
 import { CompleteForm, OfferForm, ScheduleForm } from "../ExecutorForms";
+import { NoAccess } from "@/app/_components/NoAccess";
 
 const t = ru.requests.executorRequest;
 const f = ru.requests.facts;
@@ -22,11 +23,7 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
   const { id } = await params;
   const user = await pageUser("EXECUTOR", `/executor/requests/${id}`);
   if (!user) {
-    return (
-      <Container className="pt-6">
-        <EmptyState title={ru.common.errors.forbidden} description={ru.requests.noAccessExecutor} />
-      </Container>
-    );
+    return <NoAccess description={ru.requests.noAccessExecutor} />;
   }
   const r = await orNotFound(getIncomingRequest(user, id));
 
