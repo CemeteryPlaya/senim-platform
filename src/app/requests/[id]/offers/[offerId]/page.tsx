@@ -136,8 +136,9 @@ export default async function OfferPage({ params }: Props) {
       <OfferChat offerId={offer.id} title={o.chatWith(ex.publicNumber)} />
 
       {offer.canChoose && (
-        // Над нижней панелью телефона: --tabbar-h (на широком экране 0).
-        <div className="sticky bottom-[calc(var(--tabbar-h)+1rem)] z-10 rounded-card border border-line bg-surface p-4 shadow-card sm:self-end">
+        // Закреплён над нижней панелью телефона (--tabbar-h, на широком экране 0), только если экран выше 28em:
+        // блок ~6–7em, так он не займёт больше четверти экрана. При шрифте 200 % на телефоне — обычный блок в потоке.
+        <div className="bottom-[calc(var(--tabbar-h)+1rem)] z-10 rounded-card border border-line bg-surface p-4 shadow-card sm:self-end [@media(min-height:28em)]:sticky">
           <ActionButton
             action={chooseOfferAction}
             input={{ offerId: offer.id }}
