@@ -108,6 +108,11 @@ model ExecutorProfile {
   binIinEnc        String // ИИН/БИН, AES-256-GCM
   binIinHash       String?            @unique // HMAC (hashPii): один профиль на ИИН/БИН без расшифровки
   binIinLast4      String
+  // Подписант договора — свойство профиля, а не аккаунта (ADR-003): ТОО — директор (ФИО и ИИН),
+  // ИП и самозанятый — владелец (ФИО; его ИИН — binIin*). Без уникального индекса: один директор у нескольких ТОО.
+  signerFullName   String?
+  signerIinEnc     String? // ИИН директора ТОО, AES-256-GCM
+  signerIinHash    String? // HMAC: сверка с ИИН сертификата ЭЦП
   segment          Segment? // ставит оператор; null — ещё не присвоен
   status           RegistrationStatus @default(PENDING)
   rejectReason     String?

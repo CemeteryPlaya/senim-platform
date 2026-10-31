@@ -18,7 +18,7 @@ const ACTIONS: Record<string, (u: CurrentUser) => Promise<unknown>> = {
   listExecutors: (u) => listExecutors(u),
   getExecutorCard: (u) => getExecutorCard(u, "x"),
   reviewRegistration: (u) => reviewRegistration(u, { profileId: "x", decision: { approve: true, segment: "ECONOMY" } }),
-  addExecutor: (u) => addExecutor(u, addExecutorSchema.parse({ phone: "+77009998877", legalForm: "IP", legalName: "ИП Тест", binIin: "900101300017", segment: "ECONOMY" })),
+  addExecutor: (u) => addExecutor(u, addExecutorSchema.parse({ phone: "+77009998877", legalForm: "IP", legalName: "ИП Тест", ownerName: "Тестов Тест", binIin: "900101300017", segment: "ECONOMY" })),
   changeSegment: (u) => changeSegment(u, { profileId: "x", from: "ECONOMY", to: "COMFORT", reason: "причина" }),
   listFurnitureTypes: (u) => listFurnitureTypes(u),
   addFurnitureType: (u) => addFurnitureType(u, { name: "Тип" }),

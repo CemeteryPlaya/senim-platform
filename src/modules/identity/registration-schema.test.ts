@@ -7,7 +7,7 @@ const IIN = testIin("910803", 3, 21);
 const BIN = testBin("2101", 16);
 const DIRECTOR_IIN = testIin("800215", 3, 41);
 const director = { directorName: "Тулегенов Бауыржан", directorIin: DIRECTOR_IIN };
-const valid = { legalForm: "IP", legalName: "  ИП «Дала Мебель» ", binIin: IIN, city: "Астана", yearsExperience: "5" };
+const valid = { legalForm: "IP", legalName: "  ИП «Дала Мебель» ", ownerName: "Жумабаев Ерлан", binIin: IIN, city: "Астана", yearsExperience: "5" };
 
 function fieldErrors(input: unknown) {
   const parsed = executorRegistrationSchema.safeParse(input);
@@ -22,7 +22,7 @@ describe("executorRegistrationSchema", () => {
       binIin: IIN,
       city: "Астана",
       yearsExperience: 5,
-      director: null,
+      signer: { fullName: "Жумабаев Ерлан", iin: null },
     });
   });
 
@@ -44,15 +44,22 @@ describe("executorRegistrationSchema", () => {
     expect(fieldErrors({ ...tooBase, ...director, directorIin: broken })).toHaveProperty("directorIin");
     expect(fieldErrors({ ...tooBase, ...director, directorIin: BIN })).toHaveProperty("directorIin");
 
-    expect(executorRegistrationSchema.parse({ ...tooBase, directorName: "  Тулегенов   Бауыржан ", directorIin: DIRECTOR_IIN.replace(/(\d{4})/g, "$1 ") }).director).toEqual({
+    expect(executorRegistrationSchema.parse({ ...tooBase, directorName: "  Тулегенов   Бауыржан ", directorIin: DIRECTOR_IIN.replace(/(\d{4})/g, "$1 ") }).signer).toEqual({
       fullName: "Тулегенов Бауыржан",
       iin: DIRECTOR_IIN,
     });
   });
 
-  it("ИП и самозанятый — директор не нужен и игнорируется", () => {
-    expect(executorRegistrationSchema.parse({ ...valid, ...director }).director).toBeNull();
-    expect(executorRegistrationSchema.parse({ ...valid, directorName: "", directorIin: "" }).director).toBeNull();
+  it("ИП — подписывает владелец: его ФИО обязательно (наименование ИП бывает фирменным), ИИН — ИИН профиля", () => {
+    expect(fieldErrors({ ...valid, ownerName: "" })).toHaveProperty("ownerName");
+    expect(fieldErrors({ ...valid, ownerName: "Жумабаев" })).toHaveProperty("ownerName");
+    expect(executorRegistrationSchema.parse({ ...valid, ...director, ownerName: " Жумабаев  Ерлан " }).signer).toEqual({ fullName: "Жумабаев Ерлан", iin: null });
+  });
+
+  it("самозанятый — подписывает сам: наименование и есть его ФИО, директор и владелец игнорируются", () => {
+    const self = { ...valid, legalForm: "SELF_EMPLOYED", legalName: " Жумабаев  Ерлан Серикович ", ownerName: "", ...director };
+    expect(executorRegistrationSchema.parse(self).signer).toEqual({ fullName: "Жумабаев Ерлан Серикович", iin: null });
+    expect(fieldErrors({ ...self, legalName: "Ерлан" })).toHaveProperty("legalName");
   });
 
   it("неверная контрольная цифра — ошибка поля ИИН/БИН", () => {

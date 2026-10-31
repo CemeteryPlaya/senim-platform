@@ -13,7 +13,7 @@ const isLegalForm = (v: string): v is LegalForm => (LEGAL_FORMS as string[]).inc
 
 /**
  * Анкета исполнителя. Подписи имени и номера зависят от формы работы: ТОО — наименование и БИН,
- * плюс ФИО и ИИН директора — он подписывает договор своей ЭЦП.
+ * плюс ФИО и ИИН директора — он подписывает договор своей ЭЦП; ИП — ФИО владельца (подписывает он).
  */
 export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED" }: { defaultLegalForm?: LegalForm }) {
   const [legalForm, setLegalForm] = useState<LegalForm>(defaultLegalForm);
@@ -36,7 +36,8 @@ export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED" }:
         binIin: field("binIin"),
         city: field("city"),
         yearsExperience: field("yearsExperience"),
-        // Поля директора есть в форме только у ТОО; у остальных схема их игнорирует.
+        // Поля подписанта: директор — только у ТОО, владелец — только у ИП; лишние схема игнорирует.
+        ownerName: field("ownerName"),
         directorName: field("directorName"),
         directorIin: field("directorIin"),
       });
@@ -76,6 +77,21 @@ export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED" }:
         maxLength={15}
         required
       />
+      {legalForm === "IP" && (
+        <fieldset className="flex flex-col gap-4">
+          <legend className="mb-2 text-lg font-bold text-ink">{t.owner.title}</legend>
+          <p className="text-base text-ink-soft">{t.owner.lead}</p>
+          <Input
+            label={t.owner.nameLabel}
+            hint={t.owner.nameHint}
+            error={errors.ownerName?.[0]}
+            name="ownerName"
+            autoComplete="name"
+            maxLength={120}
+            required
+          />
+        </fieldset>
+      )}
       {legalForm === "TOO" && (
         <fieldset className="flex flex-col gap-4">
           <legend className="mb-2 text-lg font-bold text-ink">{t.director.title}</legend>

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import { binIinKindFor, isValidBin, isValidFullName, isValidIin, normalizeFullName, parsePhone, type RegistrationDecision } from "@/modules/identity";
+import { binIinKindFor, isValidBin, isValidIin, parsePhone, refineSigner, signerFields, signerOf, type RegistrationDecision } from "@/modules/identity";
 
 /**
  * Входные данные панели оператора. Разбираются один раз на границе (Server Action,
@@ -45,8 +45,9 @@ export const reviewRegistrationSchema = z
 export type ReviewRegistrationInput = z.output<typeof reviewRegistrationSchema>;
 
 /**
- * Самозанятый и ИП — ИИН, ТОО — БИН (identity.binIinKindFor). ТОО подписывает договор ЭЦП директора:
- * его ФИО и ИИН обязательны (director), у остальных подписывает владелец — director: null.
+ * Самозанятый и ИП — ИИН, ТОО — БИН (identity.binIinKindFor). Подписант договора — по тем же правилам,
+ * что в анкете исполнителя (identity.refineSigner): ТОО — ФИО и ИИН директора, ИП — ФИО владельца,
+ * самозанятый — наименование и есть ФИО.
  */
 export const addExecutorSchema = z
   .object({
@@ -54,22 +55,16 @@ export const addExecutorSchema = z
     legalForm: legalFormSchema,
     legalName: z.string().trim().min(2, t.required).max(200),
     binIin: digitsOnly,
-    directorName: z.string().optional(),
-    directorIin: z
-      .string()
-      .transform((v) => v.replace(/\s/g, ""))
-      .optional(),
+    ...signerFields,
     segment: segmentSchema,
   })
   .superRefine((v, ctx) => {
     if (!(binIinKindFor(v.legalForm) === "IIN" ? isValidIin : isValidBin)(v.binIin)) ctx.addIssue({ code: "custom", path: ["binIin"], message: t.kzId });
-    if (v.legalForm !== "TOO") return;
-    if (!isValidFullName(v.directorName ?? "")) ctx.addIssue({ code: "custom", path: ["directorName"], message: t.directorName });
-    if (!isValidIin(v.directorIin ?? "")) ctx.addIssue({ code: "custom", path: ["directorIin"], message: t.directorIin });
+    refineSigner(v, ctx);
   })
-  .transform(({ directorName, directorIin, ...rest }) => ({
+  .transform(({ ownerName, directorName, directorIin, ...rest }) => ({
     ...rest,
-    director: rest.legalForm === "TOO" ? { fullName: normalizeFullName(directorName ?? ""), iin: directorIin ?? "" } : null,
+    signer: signerOf({ ...rest, ownerName, directorName, directorIin }),
   }));
 export type AddExecutorInput = z.output<typeof addExecutorSchema>;
 

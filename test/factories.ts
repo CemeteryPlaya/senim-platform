@@ -33,6 +33,8 @@ export async function makeExecutor(
       binIinEnc: encryptPii(bin),
       binIinHash: hashPii(bin),
       binIinLast4: last4(bin),
+      // Подписант ИП — владелец: ФИО в профиле, ИИН — ИИН профиля (ADR-003).
+      signerFullName: user.fullName,
       segment: opts.segment ?? "COMFORT",
       status: opts.status ?? "APPROVED",
     },

@@ -7,12 +7,11 @@ import { db, isUniqueViolation, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import type { ReviewExecutorRegistration } from "./index";
-import { recordPersonIdentity } from "./person-identity";
-import type { ExecutorRegistrationInput } from "./registration-schema";
+import type { ExecutorRegistrationInput, ExecutorSigner } from "./registration-schema";
 import { EXECUTOR_REGISTRATION_PATH } from "./return-to";
 import { actorOf, type CurrentUser } from "./session";
 
-export { executorRegistrationSchema, type ExecutorRegistrationInput } from "./registration-schema";
+export { executorRegistrationSchema, type ExecutorRegistrationInput, type ExecutorSigner } from "./registration-schema";
 
 const t = ru.identity.registration;
 
@@ -21,6 +20,19 @@ const REGISTRATION_LIMIT = { limit: 5, windowSec: 3600 };
 
 const entityOf = (profileId: string) => ({ entity: { type: "executor", id: profileId }, scope: `executor:${profileId}` });
 
+/**
+ * Столбцы подписанта в профиле исполнителя (ADR-003). ИИН — только у директора ТОО: зашифрованный и HMAC
+ * для сверки с сертификатом ЭЦП, без уникальности (один директор у нескольких ТОО). У ИП и самозанятого
+ * null: они подписывают ИИН профиля. Повторная анкета перезаписывает подписанта целиком.
+ */
+export function signerColumns(signer: ExecutorSigner) {
+  return {
+    signerFullName: signer.fullName,
+    signerIinEnc: signer.iin === null ? null : encryptPii(signer.iin),
+    signerIinHash: signer.iin === null ? null : hashPii(signer.iin),
+  };
+}
+
 function profileData(input: ExecutorRegistrationInput) {
   return {
     legalForm: input.legalForm,
@@ -28,20 +40,10 @@ function profileData(input: ExecutorRegistrationInput) {
     binIinEnc: encryptPii(input.binIin),
     binIinHash: hashPii(input.binIin),
     binIinLast4: last4(input.binIin),
+    ...signerColumns(input.signer),
     city: input.city,
     yearsExperience: input.yearsExperience,
   };
-}
-
-/**
- * Кто подписывает договор от исполнителя — его ИИН в User (с ним сверяется сертификат ЭЦП):
- *  - ТОО — директор (представитель): ФИО и ИИН из анкеты, в повторной анкете могут смениться;
- *  - ИП и самозанятый — владелец: ИИН профиля и есть его ИИН, записывается, если в User пусто.
- */
-function recordSignerIdentity(tx: Tx, user: CurrentUser, input: ExecutorRegistrationInput): Promise<void> {
-  return input.legalForm === "TOO"
-    ? recordPersonIdentity(tx, user, input.director ?? undefined, "replace")
-    : recordPersonIdentity(tx, user, { fullName: null, iin: input.binIin }, "fill");
 }
 
 /** Профиль: новый или повторная подача после отказа (тот же профиль снова PENDING). */
@@ -60,8 +62,8 @@ async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegis
 }
 
 /**
- * Регистрация исполнителя: профиль PENDING, ИИН/БИН только зашифрованным, роль EXECUTOR,
- * уведомление каждому оператору. Свежий номер после входа — CLIENT; номер с заявками
+ * Регистрация исполнителя: профиль PENDING, ИИН/БИН и ИИН подписанта только зашифрованными, роль EXECUTOR,
+ * уведомление каждому оператору. ФИО и ИИН аккаунта не трогает: подписант — свойство профиля (ADR-003). Свежий номер после входа — CLIENT; номер с заявками
  * заказчика исполнителем не становится (иначе заявки и сделки потеряют владельца).
  */
 export async function registerExecutor(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
@@ -82,7 +84,6 @@ function register(user: CurrentUser, input: ExecutorRegistrationInput): Promise<
     if ((await tx.request.count({ where: { clientId: user.id } })) > 0) return fail.conflict(t.errors.clientHasRequests);
 
     const profileId = await upsertPendingProfile(tx, user.id, input);
-    await recordSignerIdentity(tx, user, input);
     await tx.user.update({ where: { id: user.id }, data: { role: "EXECUTOR" } });
 
     await recordAudit(tx, {

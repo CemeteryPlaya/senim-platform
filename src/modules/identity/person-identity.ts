@@ -12,11 +12,11 @@ import { actorOf, type CurrentUser } from "./session";
 const t = ru.identity.clientIdentity;
 const IIN_ATTEMPTS = { limit: 5, windowSec: 3600 };
 
-/** ФИО и ИИН человека, который подписывает договор ЭЦП. fullName: null — только ИИН (ИП: имя не спрашиваем). */
-export type PersonIdentity = { fullName: string | null; iin: string };
+/** ФИО и ИИН заказчика — стороны договора, которая подписывает его своей ЭЦП. */
+export type PersonIdentity = { fullName: string; iin: string };
 
 /** Столбцы ИИН в записи пользователя: зашифрованный, HMAC для уникальности и поиска, последние 4 цифры для показа. */
-export function iinColumns(iin: string) {
+function iinColumns(iin: string) {
   return { iinEnc: encryptPii(iin), iinHash: hashPii(iin), iinLast4: last4(iin) };
 }
 
@@ -27,18 +27,17 @@ export async function hasClientIdentity(userId: string): Promise<boolean> {
 }
 
 /**
- * Записывает ФИО и ИИН подписанта в User в транзакции вызывающего: заказчик перед договором
- * (requests.agreeToContract), директор ТОО и владелец ИП при регистрации исполнителя.
- * ИИН — только зашифрованным, с HMAC; один ИИН — один аккаунт.
- *  - "fill": ИИН уже есть — ничего не делает (заказчик: после договора данные не меняются);
- *  - "replace": записывает поверх (регистрация: до подтверждения сделок нет, а директор в повторной анкете мог смениться).
+ * Записывает ФИО и ИИН заказчика в User в транзакции вызывающего (requests.agreeToContract).
+ * ИИН — только зашифрованным, с HMAC; один ИИН — один аккаунт заказчика. Уже указанный ИИН
+ * не меняется: после договора данные стороны не переписываются. Подписант исполнителя сюда
+ * не пишется — он свойство профиля исполнителя (ADR-003).
  */
-export async function recordPersonIdentity(tx: Tx, user: CurrentUser, input: PersonIdentity | undefined, mode: "fill" | "replace" = "fill"): Promise<void> {
+export async function recordPersonIdentity(tx: Tx, user: CurrentUser, input: PersonIdentity | undefined): Promise<void> {
   const current = await tx.user.findUniqueOrThrow({ where: { id: user.id }, select: { fullName: true, iinHash: true } });
-  if (mode === "fill" && current.iinHash) return;
+  if (current.iinHash) return;
   if (!input) return fail.validation(t.required);
-  const fullName = input.fullName === null ? null : normalizeFullName(input.fullName);
-  if (fullName !== null && !isValidFullName(fullName)) return fail.validation(t.fullNameInvalid, { fieldErrors: { fullName: [t.fullNameInvalid] } });
+  const fullName = normalizeFullName(input.fullName);
+  if (!isValidFullName(fullName)) return fail.validation(t.fullNameInvalid, { fieldErrors: { fullName: [t.fullNameInvalid] } });
   if (!isValidIin(input.iin)) return fail.validation(t.iinInvalid, { fieldErrors: { iin: [t.iinInvalid] } });
 
   // Ответ «ИИН занят» говорит, что у человека с этим ИИН есть аккаунт: перебор ограничен.
@@ -48,8 +47,8 @@ export async function recordPersonIdentity(tx: Tx, user: CurrentUser, input: Per
   const taken = await tx.user.findUnique({ where: { iinHash: columns.iinHash }, select: { id: true } });
   if (taken && taken.id !== user.id) return fail.conflict(t.iinTaken);
 
-  // "fill" уже указанное ФИО не меняет — только дополняет ИИН; "replace" берёт новое, если оно есть.
-  const data = { ...columns, fullName: mode === "fill" ? (current.fullName ?? fullName) : (fullName ?? current.fullName) };
+  // Уже указанное ФИО не меняется — только дополняется ИИН.
+  const data = { ...columns, fullName: current.fullName ?? fullName };
   try {
     // Условие по прочитанному ИИН: параллельная запись между чтением и обновлением даст конфликт, а не перезапись.
     expectOneUpdated(await tx.user.updateMany({ where: { id: user.id, iinHash: current.iinHash }, data }));

@@ -1,6 +1,6 @@
 import "server-only";
 import QRCode from "qrcode";
-import type { DealStatus, DocumentKind, DocumentStatus, SignMethod, SignParty } from "@/generated/prisma/enums";
+import type { DealStatus, DocumentKind, DocumentStatus, LegalForm, SignMethod, SignParty } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit, SYSTEM } from "@/modules/audit";
 import { saveFile, storageByName } from "@/modules/files";
@@ -266,26 +266,44 @@ function assertSignable(status: DocumentStatus, signatures: { party: SignParty }
 
 // ─── подпись ────────────────────────────────────────────────────────────────
 
+type SignerSource = { fullName: string | null; iinEnc: string | null; iinHash: string | null };
+
 /**
- * ИИН, которым сторона обязана подписать: подписант привязан к стороне договора. Сверяется ИИН целиком
- * (HMAC сертификатного ИИН с хранимым), а не последние 4 цифры — их совпадение у чужого ИИН не редкость.
- *  - заказчик — свой ИИН (User.iinHash);
- *  - исполнитель ИП или самозанятый — ИИН владельца, он же ИИН/БИН профиля (ExecutorProfile.binIinHash);
- *  - исполнитель ТОО — подписывает директор (представитель) своим сертификатом: в нём ИИН директора,
- *    а не БИН организации, поэтому сверяем ИИН представителя (User.iinHash, его пишет регистрация).
+ * Подписант исполнителя — свойство профиля (ADR-003):
+ *  - ТОО — директор (представитель) своим сертификатом: в нём ИИН директора, а не БИН организации,
+ *    поэтому сверяем ИИН директора из профиля (signerIin*, его даёт анкета или оператор).
  *    TODO(ТОО): сверять и БИН организации из сертификата юрлица, когда провайдер подписи станет
- *    возвращать его (SignatureVerification.certBin) и будет проверено право подписи.
+ *    возвращать его (SignatureVerification.certBin) и будет проверено право подписи;
+ *  - ИП и самозанятый — владелец: ИИН профиля (binIin*) и есть его ИИН.
+ */
+function executorSigner(p: { legalForm: LegalForm; legalName: string; signerFullName: string | null; signerIinEnc: string | null; signerIinHash: string | null; binIinEnc: string; binIinHash: string | null }): SignerSource {
+  const fullName = p.signerFullName ?? (p.legalForm === "TOO" ? null : p.legalName);
+  return p.legalForm === "TOO"
+    ? { fullName, iinEnc: p.signerIinEnc, iinHash: p.signerIinHash }
+    : { fullName, iinEnc: p.binIinEnc, iinHash: p.binIinHash };
+}
+
+/**
+ * Кто обязан подписать за сторону: подписант привязан к стороне договора. Сверяется ИИН целиком
+ * (HMAC сертификатного ИИН с хранимым), а не последние 4 цифры — их совпадение у чужого ИИН не редкость.
+ * Заказчик — свой ИИН (User.iinHash); исполнитель — подписант профиля (executorSigner).
  * iin (расшифрованный) нужен провайдеру: мок выпускает по нему «сертификат». ИИН неизвестен — подписать нельзя.
  */
-async function expectedSigner(userId: string, party: SignParty): Promise<{ iin: string; iinHash: string }> {
+async function expectedSigner(userId: string, party: SignParty): Promise<{ fullName: string; iin: string; iinHash: string }> {
   const user = await db.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { iinEnc: true, iinHash: true, executorProfile: { select: { legalForm: true, binIinEnc: true, binIinHash: true } } },
+    select: {
+      fullName: true,
+      iinEnc: true,
+      iinHash: true,
+      executorProfile: {
+        select: { legalForm: true, legalName: true, signerFullName: true, signerIinEnc: true, signerIinHash: true, binIinEnc: true, binIinHash: true },
+      },
+    },
   });
-  const profile = party === "EXECUTOR" ? user.executorProfile : null;
-  const [enc, iinHash] = profile && profile.legalForm !== "TOO" ? [profile.binIinEnc, profile.binIinHash] : [user.iinEnc, user.iinHash];
-  if (!enc || !iinHash) return fail.validation(t.errors.signerIinMissing);
-  return { iin: decryptPii(enc), iinHash };
+  const signer = party === "EXECUTOR" && user.executorProfile ? executorSigner(user.executorProfile) : user;
+  if (!signer.iinEnc || !signer.iinHash) return fail.validation(t.errors.signerIinMissing);
+  return { fullName: signer.fullName ?? "", iin: decryptPii(signer.iinEnc), iinHash: signer.iinHash };
 }
 
 /** Начать подпись стороной сделки. Подписывается sha256 PDF, сохранённый в Document. */
@@ -293,14 +311,13 @@ export async function startSigning(user: CurrentUser, documentId: string, method
   const { doc, party } = await signableBy(user, documentId);
   // Расторгнутая или отменённая сделка: сессию у провайдера (QR eGov Mobile) не открываем.
   await assertDealSignable(db, doc.dealId, doc.kind);
-  const { iin } = await expectedSigner(user.id, party);
-  const me = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { fullName: true } });
+  const { fullName, iin } = await expectedSigner(user.id, party);
   const provider = signatureProvider();
   const session = await provider.startSigning({
     documentId,
     sha256: doc.sha256,
     method,
-    signer: { userId: user.id, fullName: me.fullName ?? "", iin },
+    signer: { userId: user.id, fullName, iin },
   });
   await recordAudit(db, {
     actor: actorOf(user),

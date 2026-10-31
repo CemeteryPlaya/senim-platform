@@ -69,8 +69,14 @@ type Registration =
   | { status: "PENDING" }
   | { status: "REJECTED"; rejectReason: string; reviewedDaysAgo: number };
 
+/**
+ * Форма работы и подписант договора (ADR-003): самозанятый — он сам (ФИО — наименование), ИП — владелец
+ * (ФИО — ownerName), у обоих ИИН/БИН профиля — ИИН владельца (person.iin). ТОО — директор: им в демо
+ * назначен владелец аккаунта (person — ФИО и тестовый ИИН с верной контрольной цифрой).
+ */
 type Legal =
-  | { legalForm: Extract<LegalForm, "SELF_EMPLOYED" | "IP">; legalName: string } // ИИН/БИН = ИИН владельца
+  | { legalForm: Extract<LegalForm, "SELF_EMPLOYED">; legalName: string }
+  | { legalForm: Extract<LegalForm, "IP">; legalName: string; ownerName: string }
   | { legalForm: Extract<LegalForm, "TOO">; legalName: string; bin: string };
 
 type Terms = { measurement: "FREE" } | { measurement: "INCLUDED" } | { measurement: "FEE_IF_NO_DEAL"; fee: number };
@@ -128,6 +134,7 @@ export const EXECUTORS = {
     person: { fullName: "Руслан Ким", phone: "+77000000203", iin: testIin("870921", 3, 23), isDemo: true, joinedDaysAgo: 250 },
     legalForm: "IP",
     legalName: "ИП Ким Руслан Владимирович",
+    ownerName: "Ким Руслан Владимирович",
     registration: { status: "APPROVED", segment: "COMFORT", reviewedDaysAgo: 249 },
     registeredDaysAgo: 250,
     measurement: "FEE_IF_NO_DEAL",
@@ -160,6 +167,7 @@ export const EXECUTORS = {
     person: { fullName: "Асель Нурланова", phone: "+77000000205", iin: testIin("960730", 4, 25), isDemo: true, joinedDaysAgo: 180 },
     legalForm: "IP",
     legalName: "ИП Нурланова Асель Ерлановна",
+    ownerName: "Нурланова Асель Ерлановна",
     registration: { status: "APPROVED", segment: "PREMIUM", reviewedDaysAgo: 179 },
     registeredDaysAgo: 180,
     measurement: "FEE_IF_NO_DEAL",
@@ -194,6 +202,7 @@ export const EXECUTORS = {
     person: { fullName: "Нурлан Абдрахманов", phone: "+77000000207", iin: testIin("880512", 3, 27), isDemo: true, joinedDaysAgo: 280 },
     legalForm: "IP",
     legalName: "ИП Абдрахманов Нурлан Канатович",
+    ownerName: "Абдрахманов Нурлан Канатович",
     registration: { status: "APPROVED", segment: "COMFORT", reviewedDaysAgo: 278 },
     registeredDaysAgo: 280,
     measurement: "FEE_IF_NO_DEAL",

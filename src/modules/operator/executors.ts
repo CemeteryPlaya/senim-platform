@@ -1,7 +1,7 @@
 import type { RegistrationStatus, Segment } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit, scopeHistory } from "@/modules/audit";
-import { actorOf, iinColumns, reviewExecutorRegistration, type CurrentUser } from "@/modules/identity";
+import { actorOf, reviewExecutorRegistration, signerColumns, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db, isUniqueViolation, Prisma, transaction } from "@/platform/db";
@@ -69,15 +69,11 @@ export async function addExecutor(user: CurrentUser, input: AddExecutorInput): P
     return await transaction(async (tx) => {
       if (await tx.user.findUnique({ where: { phone: input.phone }, select: { id: true } })) fail.conflict(t.errors.phoneTaken);
       if (await tx.executorProfile.findUnique({ where: { binIinHash: hashPii(input.binIin) }, select: { id: true } })) fail.conflict(t.errors.binIinTaken);
-      // Подписант договора — его ИИН в User, с ним сверяется сертификат ЭЦП: ТОО — директор, ИП и самозанятый — владелец (ИИН профиля).
-      const signer = iinColumns(input.director?.iin ?? input.binIin);
-      if (await tx.user.findUnique({ where: { iinHash: signer.iinHash }, select: { id: true } })) fail.conflict(t.errors.iinTaken);
+      // Подписант договора — свойство профиля, а не аккаунта (ADR-003): ФИО и ИИН аккаунта не заполняются.
       const created = await tx.user.create({
         data: {
           phone: input.phone,
           role: "EXECUTOR",
-          fullName: input.director?.fullName ?? (input.legalForm === "SELF_EMPLOYED" ? input.legalName : null),
-          ...signer,
           executorProfile: {
             create: {
               legalForm: input.legalForm,
@@ -85,6 +81,7 @@ export async function addExecutor(user: CurrentUser, input: AddExecutorInput): P
               binIinEnc: encryptPii(input.binIin),
               binIinHash: hashPii(input.binIin),
               binIinLast4: last4(input.binIin),
+              ...signerColumns(input.signer),
               segment: input.segment,
               status: "APPROVED",
               addedByOperator: true,
@@ -106,7 +103,7 @@ export async function addExecutor(user: CurrentUser, input: AddExecutorInput): P
       return { profileId };
     });
   } catch (e) {
-    // Параллельное добавление того же телефона, ИИН/БИН или ИИН подписанта: уникальный индекс сработал после нашей проверки.
+    // Параллельное добавление того же телефона или ИИН/БИН: уникальный индекс сработал после нашей проверки.
     if (isUniqueViolation(e)) return fail.conflict(t.errors.duplicate);
     throw e;
   }

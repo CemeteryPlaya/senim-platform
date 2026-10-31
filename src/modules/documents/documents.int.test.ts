@@ -247,48 +247,56 @@ describe("подпись", () => {
     expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ party: "EXECUTOR", certIinLast4: profile.binIinLast4 });
   });
 
-  it("исполнитель ТОО подписывает сертификатом представителя (его ИИН); без ИИН представителя — отказ", async () => {
+  it("исполнитель ТОО подписывает ИИН директора из профиля, а не ИИН аккаунта; без ИИН директора — отказ", async () => {
     const { deal, executor } = await makeDeal();
-    await db.executorProfile.update({ where: { id: executor.executor.id }, data: { legalForm: "TOO" } });
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    const user = await db.user.findUniqueOrThrow({ where: { id: executor.id } });
+    const directorIin = testIin("800215", 3, 72);
+    await db.executorProfile.update({
+      where: { id: executor.executor.id },
+      data: { legalForm: "TOO", signerFullName: "Тулегенов Бауыржан", signerIinEnc: encryptPii(directorIin), signerIinHash: hashPii(directorIin) },
+    });
+    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
+    const account = await db.user.findUniqueOrThrow({ where: { id: executor.id } });
+    const byAccountIin = await mockSignatureProvider.startSigning({
+      documentId,
+      sha256,
+      method: "EGOV_QR",
+      signer: { userId: executor.id, fullName: "Кто-то", iin: decryptPii(account.iinEnc!) },
+    });
+    await expect(completeSigning(executor, { documentId, sessionId: byAccountIin.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
 
     expect(await signAs(executor, documentId)).toEqual({ fullySigned: false });
-    expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ certIinLast4: user.iinLast4 });
+    expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ certIinLast4: directorIin.slice(-4) });
 
     const g = await makeDeal();
     await db.executorProfile.update({ where: { id: g.executor.executor.id }, data: { legalForm: "TOO" } });
-    await db.user.update({ where: { id: g.executor.id }, data: { iinEnc: null, iinHash: null, iinLast4: null } });
     const other = await transaction((tx) => createContract(tx, g.deal.id));
     await expect(startSigning(g.executor, other.documentId, "EGOV_QR")).rejects.toMatchObject({ code: "VALIDATION" });
   });
 
-  it("ТОО, зарегистрированное через анкету, подписывает договор ЭЦП директора", async () => {
+  it("ТОО, зарегистрированные через анкету, подписывают договор ЭЦП директора — и когда директор у них один", async () => {
     const directorIin = testIin("800215", 3, 51);
-    const user = await makeClient();
-    // Вошёл по SMS: ни ФИО, ни ИИН — их даёт только анкета регистрации.
-    await db.user.update({ where: { id: user.id }, data: { fullName: null, iinEnc: null, iinHash: null, iinLast4: null } });
-    const { profileId } = await registerExecutor(user, {
-      legalForm: "TOO",
-      legalName: "ТОО «Ағаш Шебер»",
-      binIin: testBin("2101", 51),
-      city: "Астана",
-      yearsExperience: 5,
-      director: { fullName: "Тулегенов Бауыржан", iin: directorIin },
-    });
-    await reviewExecutorRegistration(await makeOperator(), profileId, { approve: true, segment: "COMFORT" });
-    const profile = await db.executorProfile.findUniqueOrThrow({ where: { id: profileId } });
-    const executor = {
-      ...user,
-      role: "EXECUTOR" as const,
-      fullName: "Тулегенов Бауыржан",
-      executor: { id: profileId, publicNumber: profile.publicNumber, status: profile.status },
-    };
+    const operator = await makeOperator();
+    for (const n of [51, 52]) {
+      const user = await makeClient();
+      // Вошёл по SMS: ни ФИО, ни ИИН в аккаунте — подписанта даёт только анкета.
+      await db.user.update({ where: { id: user.id }, data: { fullName: null, iinEnc: null, iinHash: null, iinLast4: null } });
+      const { profileId } = await registerExecutor(user, {
+        legalForm: "TOO",
+        legalName: `ТОО «Ағаш Шебер ${n}»`,
+        binIin: testBin("2101", n),
+        city: "Астана",
+        yearsExperience: 5,
+        signer: { fullName: "Тулегенов Бауыржан", iin: directorIin },
+      });
+      await reviewExecutorRegistration(operator, profileId, { approve: true, segment: "COMFORT" });
+      const profile = await db.executorProfile.findUniqueOrThrow({ where: { id: profileId } });
+      const executor = { ...user, role: "EXECUTOR" as const, executor: { id: profileId, publicNumber: profile.publicNumber, status: profile.status } };
 
-    const { deal } = await makeDeal({ executor });
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    expect(await signAs(executor, documentId)).toEqual({ fullySigned: false });
-    expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ party: "EXECUTOR", certIinLast4: directorIin.slice(-4) });
+      const { deal } = await makeDeal({ executor });
+      const { documentId } = await transaction((tx) => createContract(tx, deal.id));
+      expect(await signAs(executor, documentId)).toEqual({ fullySigned: false });
+      expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ party: "EXECUTOR", certIinLast4: directorIin.slice(-4) });
+    }
   });
 
   it("заменённую версию подписать нельзя", async () => {

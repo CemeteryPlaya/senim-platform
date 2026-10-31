@@ -8,6 +8,7 @@ import type {
   StageStatus,
 } from "@/generated/prisma/enums";
 import { planStages, type PlannedStage } from "@/modules/deal-core/client";
+import { signerColumns, type ExecutorSigner } from "@/modules/identity";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { env } from "@/platform/env";
 import { DEFAULT_FURNITURE_TYPES, STAGE_TEMPLATES, suggestSegment } from "@/verticals/furniture";
@@ -253,6 +254,18 @@ type Ids = {
   requests: Map<string, { id: string; dealId?: string; disputeId?: string }>;
 };
 
+/** Подписант договора от исполнителя — как его дала бы анкета (identity.signerOf). */
+function signerOf(spec: ExecutorSpec): ExecutorSigner {
+  switch (spec.legalForm) {
+    case "SELF_EMPLOYED":
+      return { fullName: spec.legalName, iin: null };
+    case "IP":
+      return { fullName: spec.ownerName, iin: null };
+    case "TOO":
+      return { fullName: spec.person.fullName, iin: spec.person.iin };
+  }
+}
+
 function personData(p: PersonSpec, role: Role, clock: Clock) {
   return {
     role,
@@ -330,6 +343,7 @@ async function seedExecutors(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog) {
     const user = await tx.user.create({ data: personData(spec.person, "EXECUTOR", clock) });
     const binIin = spec.legalForm === "TOO" ? spec.bin : spec.person.iin;
     const reg = spec.registration;
+    const signer = signerOf(spec);
     const profile = await tx.executorProfile.create({
       data: {
         userId: user.id,
@@ -338,6 +352,7 @@ async function seedExecutors(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog) {
         binIinEnc: encryptPii(binIin),
         binIinHash: hashPii(binIin),
         binIinLast4: last4(binIin),
+        ...signerColumns(signer),
         segment: reg.status === "APPROVED" ? reg.segment : null,
         status: reg.status,
         rejectReason: reg.status === "REJECTED" ? reg.rejectReason : null,
