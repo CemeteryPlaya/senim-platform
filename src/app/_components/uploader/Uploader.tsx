@@ -5,7 +5,7 @@ import type { UploadPurpose } from "@/modules/files/client";
 import { ru } from "@/i18n/ru";
 import { PhotoUpload } from "@/ui";
 import { createUploadAction, discardUploadAction, finalizeUploadAction } from "./actions";
-import { doneFileIds, initialState, toPhotoItems, uploaderReducer } from "./state";
+import { doneFileIds, initialState, isUploading, toPhotoItems, uploaderReducer } from "./state";
 import { contentTypeOf, sendToTarget } from "./transfer";
 
 export type UploaderProps = {
@@ -23,6 +23,8 @@ export type UploaderProps = {
   initial?: readonly { id: string; url: string }[];
   /** id загруженных файлов в порядке на экране — при каждом изменении. */
   onChange?: (fileIds: string[]) => void;
+  /** Идёт ли загрузка хоть одного фото — при каждом изменении (форма не отправляет, пока true). */
+  onBusyChange?: (busy: boolean) => void;
   /** Если задано — скрытые поля <input name={name}> с id файлов для обычной отправки формы. */
   name?: string;
 };
@@ -34,7 +36,7 @@ const errorText = (e: unknown) => (e instanceof Error && e.message ? e.message :
  * createUpload (Server Action) → PUT байтов по подписанной цели → finalizeUpload (Server Action).
  * Наружу отдаёт только id файлов; прикрепляет их к заявке/этапу модуль-владелец (files.attachFiles).
  */
-export function Uploader({ purpose, initial = [], onChange, name, max, ...view }: UploaderProps) {
+export function Uploader({ purpose, initial = [], onChange, onBusyChange, name, max, ...view }: UploaderProps) {
   const [state, dispatch] = useReducer(uploaderReducer, initial, initialState);
   const files = useRef(new Map<string, File>());
   const previews = useRef(new Set<string>());
@@ -51,6 +53,15 @@ export function Uploader({ purpose, initial = [], onChange, name, max, ...view }
     reported.current = idsKey;
     onChangeRef.current?.(idsKey ? idsKey.split(",") : []);
   }, [idsKey]);
+
+  const busy = isUploading(state);
+  const onBusyRef = useRef(onBusyChange);
+  useEffect(() => {
+    onBusyRef.current = onBusyChange;
+  });
+  useEffect(() => {
+    onBusyRef.current?.(busy);
+  }, [busy]);
 
   useEffect(() => {
     const urls = previews.current;

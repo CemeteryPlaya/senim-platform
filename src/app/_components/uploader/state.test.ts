@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { doneFileIds, initialState, toPhotoItems, uploaderReducer as reduce, type UploaderState } from "./state";
+import { doneFileIds, initialState, isUploading, toPhotoItems, uploaderReducer as reduce, type UploaderState } from "./state";
 
 const add = (s: UploaderState, ...ids: string[]) => reduce(s, { type: "added", items: ids.map((localId) => ({ localId, src: `blob:${localId}` })) });
 
@@ -19,6 +19,17 @@ describe("состояние загрузчика", () => {
     s = reduce(s, { type: "done", localId: "l1", fileId: "f9", url: "/f9.jpg" });
     expect(toPhotoItems(s)[0]).toEqual({ id: "l1", src: "blob:l1", status: "done" });
     expect(doneFileIds(s)).toEqual(["f9"]);
+  });
+
+  it("«идёт загрузка», пока хоть одно фото не готово; ошибка загрузку не держит", () => {
+    let s = add(initialState([{ id: "f1", url: "/a.jpg" }]), "l1", "l2");
+    expect(isUploading(s)).toBe(true);
+    s = reduce(s, { type: "done", localId: "l1", fileId: "f2", url: "/f2.jpg" });
+    expect(isUploading(s)).toBe(true);
+    s = reduce(s, { type: "failed", localId: "l2", error: "Сбой сети" });
+    expect(isUploading(s)).toBe(false);
+    s = reduce(s, { type: "retrying", localId: "l2" });
+    expect(isUploading(s)).toBe(true);
   });
 
   it("ошибка показывается у фото, повтор снова запускает загрузку", () => {

@@ -14,13 +14,15 @@ export function SubmitStageForm({ stageId }: { stageId: string }) {
   const { run, pending, error, fieldErrors } = useRunAction(submitStageAction);
   const [report, setReport] = useState("");
   const [photoIds, setPhotoIds] = useState<string[]>([]);
+  // Пока фото загружается, его id ещё нет в photoIds: отправка дала бы «Добавьте хотя бы одно фото».
+  const [uploading, setUploading] = useState(false);
 
   return (
     <form
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
-        run({ stageId, report, photoIds });
+        if (!uploading) run({ stageId, report, photoIds });
       }}
     >
       <Textarea
@@ -33,15 +35,26 @@ export function SubmitStageForm({ stageId }: { stageId: string }) {
         rows={4}
         error={fieldErrors.report?.[0]}
       />
-      <Uploader purpose="STAGE_REPORT" label={t.forms.photosLabel} hint={t.forms.photosHint} max={12} onChange={setPhotoIds} error={fieldErrors.photoIds?.[0]} />
+      <Uploader
+        purpose="STAGE_REPORT"
+        label={t.forms.photosLabel}
+        hint={t.forms.photosHint}
+        max={12}
+        onChange={setPhotoIds}
+        onBusyChange={setUploading}
+        error={fieldErrors.photoIds?.[0]}
+      />
       {error && (
         <Alert tone="danger" live="assertive">
           {error}
         </Alert>
       )}
-      <Button type="submit" fullWidth loading={pending}>
+      <Button type="submit" fullWidth loading={pending || uploading} aria-describedby={uploading ? "stage-photos-wait" : undefined}>
         {t.actions.submit}
       </Button>
+      <p id="stage-photos-wait" className="text-base text-ink-soft" aria-live="polite">
+        {uploading ? t.forms.waitPhotos : ""}
+      </p>
     </form>
   );
 }

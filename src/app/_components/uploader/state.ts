@@ -57,6 +57,11 @@ export function toPhotoItems(state: UploaderState): PhotoItem[] {
   });
 }
 
+/** Есть фото в загрузке: форме рано отправлять id — в них ещё нет этих фото. */
+export function isUploading(state: UploaderState): boolean {
+  return state.items.some((item) => item.status === "uploading");
+}
+
 /** id готовых файлов в порядке на экране — это и отдаётся наружу через onChange. */
 export function doneFileIds(state: UploaderState): string[] {
   return state.items.flatMap((item) => (item.status === "done" ? [item.fileId] : []));
