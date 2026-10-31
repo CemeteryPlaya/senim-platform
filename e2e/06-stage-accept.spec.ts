@@ -125,6 +125,7 @@ test("приёмка этапа, акт, оплата этапа с подтве
   await signAct(page, dealPath, "Документ подписан обеими сторонами");
   await expect(nextStep(page).getByText(/^Заказчик отметил оплату этапа «/)).toBeVisible();
   await nextStep(page).getByRole("button", { name: "Получил оплату" }).click();
+  await confirmIn(page, "Деньги за этап пришли?", "Да, деньги пришли");
   await expect(stage(page, 3).getByText("Оплата получена")).toBeVisible();
   await expect(stage(page, 3).getByText("Закрыт", { exact: true })).toBeVisible();
   await expect(page.getByText("Завершена", { exact: true }).first()).toBeVisible();
