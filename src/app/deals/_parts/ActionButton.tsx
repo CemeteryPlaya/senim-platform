@@ -12,20 +12,24 @@ export type ActionButtonProps<I, T> = {
   fullWidth?: boolean;
   /** Подтверждение перед необратимым действием; цвет кнопки согласия — confirm.tone. */
   confirm?: ConfirmSpec;
+  /** id элемента, на который перевести фокус после успеха: кнопка после обновления экрана обычно исчезает. */
+  focusAfter?: string;
+  /** Доступное имя, когда видимого текста мало («Повторить операцию» — какую?). Начинается с видимого текста. */
+  ariaLabel?: string;
 };
 
 /** Кнопка одного действия сделки. Повторное нажатие во время запроса заблокировано (loading). */
-export function ActionButton<I, T>({ action, input, children, variant = "primary", fullWidth = true, confirm }: ActionButtonProps<I, T>) {
+export function ActionButton<I, T>({ action, input, children, variant = "primary", fullWidth = true, confirm, focusAfter, ariaLabel }: ActionButtonProps<I, T>) {
   const { run, pending, error } = useRunAction(action);
   const [asking, setAsking] = useState(false);
   const go = () => {
     setAsking(false);
-    run(input);
+    run(input, focusAfter ? () => document.getElementById(focusAfter)?.focus() : undefined);
   };
 
   return (
     <div className="flex flex-col gap-3">
-      <Button variant={variant} fullWidth={fullWidth} loading={pending} onClick={confirm ? () => setAsking(true) : go}>
+      <Button variant={variant} fullWidth={fullWidth} loading={pending} aria-label={ariaLabel} onClick={confirm ? () => setAsking(true) : go}>
         {children}
       </Button>
       {error && (
