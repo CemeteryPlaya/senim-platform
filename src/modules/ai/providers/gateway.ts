@@ -18,7 +18,15 @@ export type GatewayProviderOptions = {
   textModelId: string;
   imageModel: ImageModel;
   imageModelId: string;
+  /** Предел одного вызова (с повтором SDK), мс. По умолчанию AI_CALL_TIMEOUT_MS. */
+  timeoutMs?: number;
 };
+
+/**
+ * Предел вызова шлюза ИИ. Визуализация идёт фоновой задачей, а cron живёт 60 с: зависший ответ
+ * не должен держать функцию до её убийства (задача тогда висела бы RUNNING до снятия блокировки).
+ */
+export const AI_CALL_TIMEOUT_MS = 40_000;
 
 const list = (record: Record<string, { name: string }>) =>
   Object.entries(record)
@@ -59,6 +67,8 @@ export function createGatewayProvider(opts: GatewayProviderOptions): AiProvider 
     outputTokens: u.outputTokens,
   });
 
+  const abortSignal = () => AbortSignal.timeout(opts.timeoutMs ?? AI_CALL_TIMEOUT_MS);
+
   return {
     name: "gateway",
 
@@ -70,6 +80,7 @@ export function createGatewayProvider(opts: GatewayProviderOptions): AiProvider 
           prompt: text,
           output: Output.object({ schema: requestDraftSuggestionSchema }),
           maxRetries: 1,
+          abortSignal: abortSignal(),
         });
         return { raw: result.output, usage: textUsage(result.usage) };
       } catch (e) {
@@ -86,6 +97,7 @@ export function createGatewayProvider(opts: GatewayProviderOptions): AiProvider 
         prompt: { images: [image], text: visualizePrompt(prompt) },
         n: 1,
         maxRetries: 1,
+        abortSignal: abortSignal(),
       });
       return {
         images: result.images.map((img) => ({ data: img.uint8Array, contentType: img.mediaType })),

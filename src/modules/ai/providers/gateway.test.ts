@@ -87,6 +87,21 @@ describe("gateway-провайдер на AI SDK (модели подменен�
     expect(image.calls[0].prompt).toContain("светлая кухня");
   });
 
+  it("зависший ответ шлюза прерывается по пределу времени — и для текста, и для картинки", async () => {
+    // Модель отвечает только на отмену: без предела вызов висел бы бесконечно.
+    const hang = (options: { abortSignal?: AbortSignal }) =>
+      new Promise<never>((_, reject) => options.abortSignal?.addEventListener("abort", () => reject(options.abortSignal?.reason)));
+    const provider = createGatewayProvider({
+      textModel: new MockLanguageModelV4({ doGenerate: hang }),
+      textModelId: "vendor/text",
+      imageModel: new MockImageModelV4({ supportsFileInputs: true, doGenerate: hang }),
+      imageModelId: "vendor/image",
+      timeoutMs: 50,
+    });
+    await expect(provider.structureRequest({ text: "кухня", furnitureTypes })).rejects.toThrow();
+    await expect(provider.visualizeRoom({ image: PNG_1PX, contentType: "image/png", prompt: "" })).rejects.toThrow();
+  });
+
   it("модель без поддержки исходного изображения — сервис недоступен, а не картинка «из воздуха»", async () => {
     const provider = createGatewayProvider({ textModel: textModel("{}").model, textModelId: "vendor/text", imageModel: imageModel(false).model, imageModelId: "vendor/image" });
     await expect(provider.visualizeRoom({ image: PNG_1PX, contentType: "image/png", prompt: "" })).rejects.toMatchObject({ code: "UNAVAILABLE" });

@@ -61,35 +61,53 @@ function backoff(attempt: number): Date {
 
 export type RunSummary = { claimed: number; done: number; retried: number; failed: number };
 
-export async function runDueJobs(handlers: JobHandlers, opts: { limit?: number } = {}): Promise<RunSummary> {
-  const jobs = await claim(opts.limit ?? 25);
-  const summary: RunSummary = { claimed: jobs.length, done: 0, retried: 0, failed: 0 };
+export type RunOptions = {
+  limit?: number;
+  /** Момент (мс от эпохи), после которого новая задача не берётся: задача уже в работе доделывается. */
+  deadline?: number;
+  clock?: () => number;
+};
 
-  for (const job of jobs) {
-    const log = logger.child({ jobId: job.id, kind: job.kind, attempt: job.attempts });
-    const handler = handlers[job.kind];
-    try {
-      if (!handler) throw new Error(`Нет обработчика для задачи ${job.kind}`);
-      await handler(job.payload, { jobId: job.id, attempt: job.attempts, log });
-      await db.job.update({ where: { id: job.id }, data: { status: "DONE", finishedAt: new Date(), lastError: null } });
-      summary.done++;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      const final = !handler || job.attempts >= job.maxAttempts;
-      await db.job.update({
-        where: { id: job.id },
-        data: final
-          ? { status: "FAILED", finishedAt: new Date(), lastError: message }
-          : { status: "PENDING", runAt: backoff(job.attempts), lastError: message },
-      });
-      if (final) {
-        summary.failed++;
-        log.error("job failed", { error: e });
-      } else {
-        summary.retried++;
-        log.warn("job will retry", { error: message });
-      }
-    }
+/**
+ * Выполняет до `limit` готовых задач. Задачи забираются по одной: взятая, но не начатая задача
+ * висела бы RUNNING до снятия блокировки (10 минут), если функцию остановят по лимиту времени.
+ */
+export async function runDueJobs(handlers: JobHandlers, opts: RunOptions = {}): Promise<RunSummary> {
+  const limit = opts.limit ?? 25;
+  const clock = opts.clock ?? Date.now;
+  const summary: RunSummary = { claimed: 0, done: 0, retried: 0, failed: 0 };
+  while (summary.claimed < limit && (opts.deadline === undefined || clock() < opts.deadline)) {
+    const [job] = await claim(1);
+    if (!job) break;
+    summary.claimed++;
+    await runJob(handlers, job, summary);
   }
   return summary;
+}
+
+async function runJob(handlers: JobHandlers, job: Job, summary: RunSummary): Promise<void> {
+  const log = logger.child({ jobId: job.id, kind: job.kind, attempt: job.attempts });
+  const handler = handlers[job.kind];
+  try {
+    if (!handler) throw new Error(`Нет обработчика для задачи ${job.kind}`);
+    await handler(job.payload, { jobId: job.id, attempt: job.attempts, log });
+    await db.job.update({ where: { id: job.id }, data: { status: "DONE", finishedAt: new Date(), lastError: null } });
+    summary.done++;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    const final = !handler || job.attempts >= job.maxAttempts;
+    await db.job.update({
+      where: { id: job.id },
+      data: final
+        ? { status: "FAILED", finishedAt: new Date(), lastError: message }
+        : { status: "PENDING", runAt: backoff(job.attempts), lastError: message },
+    });
+    if (final) {
+      summary.failed++;
+      log.error("job failed", { error: e });
+    } else {
+      summary.retried++;
+      log.warn("job will retry", { error: message });
+    }
+  }
 }

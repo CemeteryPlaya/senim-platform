@@ -2,7 +2,7 @@ import { drainJobs, enqueueDailyJobs } from "@/jobs";
 import { safeEqual } from "@/platform/crypto";
 import { env } from "@/platform/env";
 
-/** Очередь разбирается до ~50 с (drainJobs) — запас до лимита функции. */
+/** Новые задачи берутся первые 15 с (drainJobs), самая долгая — до 40 с: запас до лимита функции. */
 export const maxDuration = 60;
 
 /** Vercel Cron вызывает GET с заголовком Authorization: Bearer <CRON_SECRET>. */

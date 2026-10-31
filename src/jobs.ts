@@ -37,13 +37,17 @@ export async function enqueueDailyJobs(now = new Date()): Promise<void> {
   for (const kind of DAILY) await enqueueJob(db, { kind, dedupeKey: `${kind}:${day}` });
 }
 
-/** Сколько cron-вызов разбирает очередь: функция на Vercel живёт до 60 с (maxDuration маршрута). */
-export const DRAIN_BUDGET_MS = 50_000;
+/**
+ * Сколько cron-вызов берёт новые задачи. Функция на Vercel живёт до 60 с (maxDuration маршрута),
+ * а самая долгая задача — визуализация с вызовом шлюза ИИ до 40 с (AI_CALL_TIMEOUT_MS) и запасом
+ * на фото: задача, взятая на 15-й секунде, успевает завершиться до остановки функции.
+ */
+export const DRAIN_BUDGET_MS = 15_000;
 
 /**
  * Разбирает очередь проходами по 25 задач, пока она не опустеет или не истечёт бюджет времени:
- * один проход за вызов cron не успевал за очередью. Задача, ушедшая на повтор, получает runAt
- * в будущем и в этом же вызове не берётся снова.
+ * один проход за вызов cron не успевал за очередью. После бюджета новая задача не берётся даже
+ * посреди прохода. Задача, ушедшая на повтор, получает runAt в будущем и в этом же вызове не берётся снова.
  */
 export async function drainJobs(
   handlers: JobHandlers = jobHandlers,
@@ -51,15 +55,15 @@ export async function drainJobs(
 ): Promise<RunSummary & { passes: number }> {
   const clock = opts.clock ?? Date.now;
   const budget = opts.budgetMs ?? DRAIN_BUDGET_MS;
-  const start = clock();
+  const deadline = clock() + budget;
   const total = { claimed: 0, done: 0, retried: 0, failed: 0, passes: 0 };
   for (;;) {
-    const pass = await runDueJobs(handlers);
+    const pass = await runDueJobs(handlers, { deadline, clock });
     total.passes++;
     total.claimed += pass.claimed;
     total.done += pass.done;
     total.retried += pass.retried;
     total.failed += pass.failed;
-    if (pass.claimed === 0 || clock() - start >= budget) return total;
+    if (pass.claimed === 0 || clock() >= deadline) return total;
   }
 }

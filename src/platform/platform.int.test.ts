@@ -43,6 +43,15 @@ describe("фоновые задачи", () => {
     expect((await db.job.findFirstOrThrow()).status).toBe("FAILED");
   });
 
+  it("после дедлайна задача не берётся и остаётся в очереди", async () => {
+    await enqueueJob(db, { kind: "test.echo", dedupeKey: "late" });
+    const calls: unknown[] = [];
+    const now = Date.now();
+    expect(await runDueJobs({ "test.echo": async (p) => void calls.push(p) }, { deadline: now - 1, clock: () => now })).toMatchObject({ claimed: 0 });
+    expect(calls).toEqual([]);
+    expect((await db.job.findFirstOrThrow()).status).toBe("PENDING");
+  });
+
   it("задача без обработчика сразу FAILED", async () => {
     await enqueueJob(db, { kind: "test.unknown" });
     expect(await runDueJobs({})).toMatchObject({ failed: 1 });
