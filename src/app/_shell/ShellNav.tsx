@@ -39,6 +39,14 @@ const ICONS: Record<NavIcon, LucideIcon> = {
 
 /** В нижней панели телефона — не больше 4 ячеек, чтобы подписи 16px помещались. */
 const BAR_CELLS = 4;
+/**
+ * Когда панель уже 20em (крупный системный шрифт): 3 ячейки с подписями, остальное — в «Ещё».
+ * Не одни значки: значок без подписи пожилой человек не узнаёт.
+ */
+const NARROW_BAR_CELLS = 3;
+/** Ширина панели (em её шрифта), с которой помещаются 4 ячейки. Классы ниже — с тем же порогом. */
+const NARROW_ONLY = "@min-[20em]:hidden";
+const WIDE_ONLY = "@max-[20em]:hidden";
 /** В шапке на широком экране — не больше 4 пунктов: остальное в «Ещё», иначе меню наезжает на название. */
 const HEADER_CELLS = 4;
 
@@ -99,11 +107,20 @@ function MoreMenu({ summary, summaryClassName, active, panelClassName, children 
   );
 }
 
-function MoreItems({ items, current }: { items: readonly NavItem[]; current: (href: string) => "page" | undefined }) {
+function MoreItems({
+  items,
+  current,
+  narrowOnly,
+}: {
+  items: readonly NavItem[];
+  current: (href: string) => "page" | undefined;
+  /** Пункты, которые на широкой панели стоят ячейкой, а в «Ещё» нужны только на узкой. */
+  narrowOnly?: ReadonlySet<string>;
+}) {
   return items.map((item) => {
     const Icon = ICONS[item.icon];
     return (
-      <li key={item.href}>
+      <li key={item.href} className={narrowOnly?.has(item.href) ? NARROW_ONLY : undefined}>
         <Link href={item.href} aria-current={current(item.href)} className={menuLink}>
           <Icon aria-hidden className="size-6 shrink-0" />
           {item.label}
@@ -180,19 +197,28 @@ function useTabBarHeight() {
 
 /**
  * Нижняя панель вкладок на телефоне (как в макете): иконка + подпись; лишние пункты — в «Ещё».
- * Когда панель уже 20em (em — от шрифта панели, 18px) (крупный системный шрифт), подписи остаются только для диктора.
+ * Когда панель уже 20em (em — от шрифта панели, 18px; крупный системный шрифт) — 3 ячейки вместо 4,
+ * подписи остаются видимыми. Переключение — контейнерным запросом, без скриптов: пункт, который на узкой
+ * панели уходит в «Ещё», отрисован и ячейкой (только широкая), и строкой меню (только узкая).
  */
 export function MobileTabBar({ items, extra }: { items: readonly NavItem[]; extra?: ReactNode }) {
   const { pathname, current } = useCurrent();
   const ref = useTabBarHeight();
   // «Ещё» есть всегда, когда есть что положить туда помимо ссылок (например, «Выйти»).
-  const { shown, more } = splitNav(items, BAR_CELLS, extra !== undefined);
-  const overflow = more.length > 0 || extra !== undefined;
+  const wide = splitNav(items, BAR_CELLS, extra !== undefined);
+  const narrow = splitNav(items, NARROW_BAR_CELLS, extra !== undefined);
+  const narrowShown = new Set(narrow.shown.map((item) => item.href));
+  const wideMore = new Set(wide.more.map((item) => item.href));
+  const narrowOnlyInMenu = new Set(narrow.more.filter((item) => !wideMore.has(item.href)).map((item) => item.href));
+  const wideOverflow = wide.more.length > 0 || extra !== undefined;
+  const narrowOverflow = narrow.more.length > 0 || extra !== undefined;
   const cell = cn(
-    "flex min-h-control w-full flex-col items-center justify-center gap-0.5 rounded-control px-1 py-1.5 text-center text-sm leading-tight font-semibold text-muted no-underline",
+    "flex min-h-control w-full flex-col items-center justify-center gap-0.5 rounded-control px-1 py-1.5 text-center text-sm leading-tight font-semibold text-muted no-underline @max-[20em]:px-0.5",
     "hover:bg-sunken aria-[current=page]:bg-accent-soft aria-[current=page]:text-primary",
   );
-  const label = "max-w-full break-normal hyphens-none @max-[20em]:sr-only";
+  // На узкой панели (это всегда крупный шрифт: 20em — от него) подпись на четверть мельче шрифта панели —
+  // всё равно в полтора раза крупнее обычной, зато слова раздела не рвутся посередине.
+  const label = "max-w-full hyphens-auto @max-[20em]:text-[0.75em]";
 
   return (
     <nav
@@ -200,11 +226,13 @@ export function MobileTabBar({ items, extra }: { items: readonly NavItem[]; extr
       aria-label={ru.common.shell.navLabel}
       className="@container fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] shadow-bar lg:hidden"
     >
-      <ul className="mx-auto grid max-w-page gap-1 px-2 py-1.5" style={{ gridTemplateColumns: `repeat(${shown.length + (overflow ? 1 : 0)}, minmax(0, 1fr))` }}>
-        {shown.map((item) => {
+      {/* Ячейки делят ширину поровну; скрытая (display: none) места не занимает. На узкой панели «Ещё»
+          берёт ширину по подписи, остальное — разделам, чтобы их подписи переносились только по словам. */}
+      <ul className="mx-auto flex max-w-page gap-1 px-2 py-1.5 @max-[20em]:px-1">
+        {wide.shown.map((item) => {
           const Icon = ICONS[item.icon];
           return (
-            <li key={item.href} className="flex min-w-0">
+            <li key={item.href} className={cn("flex min-w-0 flex-1 basis-0", !narrowShown.has(item.href) && WIDE_ONLY)}>
               <Link href={item.href} aria-current={current(item.href)} className={cell}>
                 <Icon aria-hidden className="size-6 shrink-0" />
                 <span className={label}>{item.label}</span>
@@ -212,11 +240,11 @@ export function MobileTabBar({ items, extra }: { items: readonly NavItem[]; extr
             </li>
           );
         })}
-        {overflow && (
-          <li className="flex min-w-0">
+        {(wideOverflow || narrowOverflow) && (
+          <li className={cn("flex min-w-0 flex-1 basis-0 @max-[20em]:flex-none @max-[20em]:basis-auto", !wideOverflow && NARROW_ONLY)}>
             <MoreMenu
               key={pathname}
-              active={more.some((item) => current(item.href))}
+              active={wide.more.some((item) => current(item.href))}
               summaryClassName={cell}
               panelClassName="fixed inset-x-2 bottom-[calc(var(--tabbar-h)+0.5rem)] max-h-[calc(100dvh-var(--tabbar-h)-1rem)] overflow-y-auto"
               summary={
@@ -226,7 +254,7 @@ export function MobileTabBar({ items, extra }: { items: readonly NavItem[]; extr
                 </>
               }
             >
-              <MoreItems items={more} current={current} />
+              <MoreItems items={narrow.more} current={current} narrowOnly={narrowOnlyInMenu} />
               {extra && <li className="border-t border-line pt-2">{extra}</li>}
             </MoreMenu>
           </li>
