@@ -5,6 +5,7 @@ import { Uploader } from "@/app/_components/uploader";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, ConfirmDialog, Textarea } from "@/ui";
 import { useRunAction } from "../../_parts/useRunAction";
+import { focusNextStep } from "./next-step";
 import { acceptStageAction, reworkAction, submitStageAction } from "../actions";
 
 const t = ru.deal;
@@ -22,7 +23,7 @@ export function SubmitStageForm({ stageId }: { stageId: string }) {
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!uploading) run({ stageId, report, photoIds });
+        if (!uploading) run({ stageId, report, photoIds }, focusNextStep);
       }}
     >
       <Textarea
@@ -78,7 +79,7 @@ export function ReviewStage({ stageId }: { stageId: string }) {
         onCancel={() => setAsking(false)}
         onConfirm={() => {
           setAsking(false);
-          accept.run({ stageId });
+          accept.run({ stageId }, focusNextStep);
         }}
         title={t.forms.acceptTitle}
         description={t.forms.acceptText}
@@ -100,7 +101,7 @@ export function ReviewStage({ stageId }: { stageId: string }) {
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            rework.run({ stageId, note });
+            rework.run({ stageId, note }, focusNextStep);
           }}
         >
           <Textarea

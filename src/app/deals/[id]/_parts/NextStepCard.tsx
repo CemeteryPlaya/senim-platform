@@ -4,6 +4,7 @@ import { Alert, ButtonLink, Card, formatDateTime } from "@/ui";
 import { ActionButton } from "../../_parts/ActionButton";
 import { confirmPaymentAction, markPaidAction, startStageAction } from "../actions";
 import { ReviewForm } from "./DealForms";
+import { NEXT_HEADING_ID } from "./next-step";
 import { ReviewStage, SubmitStageForm } from "./StageForms";
 
 const t = ru.deal;
@@ -14,7 +15,7 @@ export function NextStepCard({ deal }: { deal: DealView }) {
   const stage = action && "stageId" in action ? deal.stages.find((s) => s.id === action.stageId) : undefined;
 
   return (
-    <Card as="section" title={t.sections.next}>
+    <Card as="section" title={t.sections.next} titleId={NEXT_HEADING_ID}>
       <div className="flex flex-col gap-5">
         <p className="text-lg text-ink">{text}</p>
         {stage?.status === "SUBMITTED" && stage.autoAcceptAt && deal.viewer === "CLIENT" && (
@@ -46,6 +47,7 @@ function PrimaryAction({ deal, action }: { deal: DealView; action: NonNullable<D
         <ActionButton
           action={markPaidAction}
           input={{ stageId: action.stageId }}
+          focusAfter={NEXT_HEADING_ID}
           confirm={{ title: t.forms.markPaidTitle, text: t.forms.markPaidText, yes: t.forms.markPaidConfirm, no: ru.common.actions.notNow, tone: "primary" }}
         >
           {t.actions.markPaid}
@@ -53,13 +55,13 @@ function PrimaryAction({ deal, action }: { deal: DealView; action: NonNullable<D
       );
     case "confirmPayment":
       return (
-        <ActionButton action={confirmPaymentAction} input={{ stageId: action.stageId }}>
+        <ActionButton action={confirmPaymentAction} input={{ stageId: action.stageId }} focusAfter={NEXT_HEADING_ID}>
           {t.actions.confirmPayment}
         </ActionButton>
       );
     case "start":
       return (
-        <ActionButton action={startStageAction} input={{ stageId: action.stageId }}>
+        <ActionButton action={startStageAction} input={{ stageId: action.stageId }} focusAfter={NEXT_HEADING_ID}>
           {t.actions.start}
         </ActionButton>
       );

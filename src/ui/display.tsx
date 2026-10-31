@@ -75,6 +75,8 @@ export type CardProps = {
   title?: ReactNode;
   /** Уровень заголовка карточки (по умолчанию h2). */
   titleAs?: "h2" | "h3";
+  /** id заголовка: на него можно перевести фокус после действия (tabIndex=-1), карточка-section им подписана. */
+  titleId?: string;
   description?: ReactNode;
   /** Кнопки внизу карточки. */
   footer?: ReactNode;
@@ -83,12 +85,16 @@ export type CardProps = {
 };
 
 /** Карточка на поверхности с тонкой рамкой. Не вкладывайте карточку в карточку. */
-export function Card({ as: Tag = "div", title, titleAs: Title = "h2", description, footer, className, children }: CardProps) {
+export function Card({ as: Tag = "div", title, titleAs: Title = "h2", titleId, description, footer, className, children }: CardProps) {
   return (
-    <Tag className={cn("flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6", className)}>
+    <Tag aria-labelledby={title && titleId ? titleId : undefined} className={cn("flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6", className)}>
       {(title || description) && (
         <div className="flex flex-col gap-1">
-          {title && <Title className="text-xl font-bold text-ink">{title}</Title>}
+          {title && (
+            <Title id={titleId} tabIndex={titleId ? -1 : undefined} className="rounded-control text-xl font-bold text-ink">
+              {title}
+            </Title>
+          )}
           {description && <p className="text-base text-muted">{description}</p>}
         </div>
       )}

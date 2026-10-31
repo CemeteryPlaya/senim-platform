@@ -2,7 +2,7 @@
 
 import { CheckCircle2, ChevronDown, Clock, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useReducer } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import type { SignParty } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import type { SigningDocumentView } from "@/modules/documents/client";
@@ -152,6 +152,24 @@ function SignArea({
     );
   }
 
+  return <AwaitingArea state={state} onComplete={onComplete} onReset={onReset} />;
+}
+
+/**
+ * Ожидание подписи: QR или NCALayer. Кнопка «Подписать» исчезла — фокус переводим на подсказку,
+ * что делать дальше, иначе он падает в начало страницы и диктор молчит.
+ */
+function AwaitingArea({
+  state,
+  onComplete,
+  onReset,
+}: {
+  state: Extract<ReturnType<typeof signingReducer>, { step: "awaiting" | "completing" }>;
+  onComplete: () => void;
+  onReset: () => void;
+}) {
+  const hint = useRef<HTMLParagraphElement>(null);
+  useEffect(() => hint.current?.focus(), []);
   const { session } = state;
   return (
     <div className="flex flex-col gap-4">
@@ -161,7 +179,9 @@ function SignArea({
         // eslint-disable-next-line @next/next/no-img-element
         <img src={session.qrImage} alt={t.panel.qrAlt} width={288} height={288} className="mx-auto rounded-control border border-line bg-surface" />
       )}
-      <p className="text-base text-ink">{session.method === "EGOV_QR" ? t.panel.qrHint : t.panel.ncalayerHint}</p>
+      <p ref={hint} tabIndex={-1} className="rounded-control text-base text-ink">
+        {session.method === "EGOV_QR" ? t.panel.qrHint : t.panel.ncalayerHint}
+      </p>
       <p className="text-base text-muted">{t.panel.sessionExpires(formatTime(session.expiresAt))}</p>
       {state.step === "awaiting" && state.error && (
         <Alert tone="danger" live="assertive">
