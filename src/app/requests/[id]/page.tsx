@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
 import { cache } from "react";
 import { getCurrentUser, hasClientIdentity, type CurrentUser } from "@/modules/identity";
+import { activeRailMode, type RailMode } from "@/modules/payments";
 import { getClientRequest, listOffers, OFFER_SORTS, type ClientRequest, type OfferSort } from "@/modules/requests";
 import { isAppError } from "@/platform/errors";
 import { ru } from "@/i18n/ru";
@@ -54,6 +55,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
   const sort: OfferSort = OFFER_SORTS.find((s) => s === sp.sort) ?? "price";
   const offers = await listOffers(user, { requestId: id, sort });
   const needsIdentity = request.status === "MEASURING" && !(await hasClientIdentity(user.id));
+  const rail = await activeRailMode();
 
   return (
     <Container className="flex flex-col gap-8 pb-10">
@@ -74,7 +76,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
           {t.sentText}
         </Alert>
       )}
-      <StatusPanel request={request} needsIdentity={needsIdentity} />
+      <StatusPanel request={request} needsIdentity={needsIdentity} rail={rail} />
 
       <section aria-labelledby="offers-title" className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -151,7 +153,7 @@ function SortLinks({ requestId, current }: { requestId: string; current: OfferSo
 }
 
 /** Что происходит с заявкой сейчас и одно главное действие для этого шага. */
-function StatusPanel({ request, needsIdentity }: { request: ClientRequest; needsIdentity: boolean }) {
+function StatusPanel({ request, needsIdentity, rail }: { request: ClientRequest; needsIdentity: boolean; rail: RailMode }) {
   const { chosen, measurement: m } = request;
   const fee = chosen?.measurementTerms === "FEE_IF_NO_DEAL" && chosen.measurementFee ? chosen.measurementFee : null;
   const noDeal = m && (
@@ -213,7 +215,7 @@ function StatusPanel({ request, needsIdentity }: { request: ClientRequest; needs
                 {m.result}
               </p>
             )}
-            <AgreeForm requestId={request.id} needsIdentity={needsIdentity} />
+            <AgreeForm requestId={request.id} needsIdentity={needsIdentity} rail={rail} />
             <div className="self-start">{noDeal}</div>
           </section>
         );

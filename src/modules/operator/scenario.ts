@@ -12,7 +12,8 @@ export type ScenarioSnapshot = {
   tender?: Ref<"client"> & { offers: number };
   measuring?: Ref<"executor">;
   signing?: Ref<"client">;
-  deposit?: Ref<"client">;
+  /** accountId — счёт эскроу сделки: ссылка на экран симулятора банка /simulator/bank/<accountId>. */
+  deposit?: Ref<"client"> & { accountId: string | null };
   inProgress?: Ref<"executor">;
   completed?: Ref<"client">;
 };
@@ -45,7 +46,7 @@ export function buildScenario(s: ScenarioSnapshot): ScenarioStep[] {
     deposit: {
       key: "deposit",
       href: deal(s.deposit),
-      extraHref: s.deposit ? "/simulator" : undefined,
+      extraHref: s.deposit?.accountId ? `/simulator/bank/${s.deposit.accountId}` : undefined,
       persona: s.deposit?.client ?? null,
       number: s.deposit?.number,
       needsEscrow: !s.deposit,

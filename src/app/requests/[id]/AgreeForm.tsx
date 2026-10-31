@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import { Button, focusFirstInvalid, Input, RadioCards } from "@/ui";
 import { DEFAULT_STAGE_TEMPLATE, STAGE_TEMPLATES, type StageTemplateKey } from "@/verticals/furniture";
+import type { RailMode } from "@/modules/payments";
 import { agreeToContractAction } from "../actions";
 import { FormError, useRunAction } from "../_parts/ActionButton";
 
@@ -16,7 +17,7 @@ const KEYS = Object.keys(STAGE_TEMPLATES) as StageTemplateKey[];
  * Согласие с итоговой ценой: заказчик выбирает порядок оплаты, сделку создаёт deal-core.
  * needsIdentity — у заказчика ещё нет ФИО и ИИН (вход по SMS): они нужны в договоре, спрашиваем здесь один раз.
  */
-export function AgreeForm({ requestId, needsIdentity }: { requestId: string; needsIdentity: boolean }) {
+export function AgreeForm({ requestId, needsIdentity, rail }: { requestId: string; needsIdentity: boolean; rail: RailMode }) {
   const [template, setTemplate] = useState<StageTemplateKey>(DEFAULT_STAGE_TEMPLATE);
   const [fullName, setFullName] = useState("");
   const [iin, setIin] = useState("");
@@ -42,7 +43,7 @@ export function AgreeForm({ requestId, needsIdentity }: { requestId: string; nee
     >
       <RadioCards
         label={t.templateLabel}
-        hint={t.templateHint}
+        hint={rail === "escrow-simulator" ? t.templateHintEscrowSimulator : rail === "bank" ? t.templateHintBank : t.templateHint}
         name="template"
         value={template}
         onChange={(v) => setTemplate(KEYS.find((k) => k === v) ?? DEFAULT_STAGE_TEMPLATE)}

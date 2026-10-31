@@ -10,7 +10,7 @@ const full: ScenarioSnapshot = {
   tender: { id: "r19", number: 19, offers: 3, client },
   measuring: { id: "r17", number: 17, executor },
   signing: { id: "d14", number: 14, client },
-  deposit: { id: "d20", number: 20, client },
+  deposit: { id: "d20", number: 20, client, accountId: "acc20" },
   inProgress: { id: "d11", number: 11, executor },
   completed: { id: "d7", number: 7, client },
 };
@@ -26,7 +26,7 @@ describe("сценарий показа банку", () => {
     expect(steps.request).toMatchObject({ href: "/requests/new", persona: client });
     expect(steps.offers).toMatchObject({ href: "/requests/r19", persona: client, number: 19 });
     expect(steps.measurement).toMatchObject({ href: "/executor/measurements", persona: executor });
-    expect(steps.deposit).toMatchObject({ href: "/deals/d20", extraHref: "/simulator", needsEscrow: false });
+    expect(steps.deposit).toMatchObject({ href: "/deals/d20", extraHref: "/simulator/bank/acc20", needsEscrow: false });
     expect(steps.stages).toMatchObject({ href: "/deals/d11", persona: executor });
   });
 

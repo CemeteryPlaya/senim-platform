@@ -27,6 +27,7 @@ const dealForStep = {
   paymentMode: true,
   client: { select: personUser },
   executor: { select: { legalName: true, user: { select: personUser } } },
+  escrow: { select: { id: true } },
 } satisfies Prisma.DealSelect;
 
 /** Шаг показа — только с демо-персонами с обеих сторон: под другими войти из /demo нельзя. */
@@ -72,7 +73,7 @@ async function snapshot(): Promise<ScenarioSnapshot> {
         }
       : undefined,
     signing: withClient(signing),
-    deposit: withClient(deposit),
+    deposit: deposit && { ...withClient(deposit)!, accountId: deposit.escrow?.id ?? null },
     inProgress: withExecutor(inProgress),
     completed: withClient(completed),
   };
