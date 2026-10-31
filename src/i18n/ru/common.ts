@@ -103,6 +103,8 @@ export const common = {
       remove: (n: number) => `Удалить фото ${n}`,
       uploading: (percent: number) => `Загрузка: ${percent}%`,
       failed: "Не загрузилось",
+      /** Доступное имя кнопки повтора у фото с ошибкой: начинается с видимого текста (actions.retry) + какое фото. */
+      retry: (n: number) => `Попробовать ещё раз: фото ${n}`,
     },
     chat: {
       label: "Сообщения",

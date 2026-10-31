@@ -174,14 +174,22 @@ function PhotoTile({ photo, n, onRemove, onRetry, disabled }: TileProps) {
         )}
       </div>
       {photo.status === "uploading" && <p className="text-sm text-muted">{t.uploading(progress)}</p>}
+      {/* Область объявлений есть всегда (пустая не видна): появившаяся в ней ошибка будет прочитана — «Фото 2: Не загрузилось». */}
+      <p aria-live="polite" className="sr-only">
+        {photo.status === "error" && `${t.preview(n)}: ${photo.error ?? t.failed}`}
+      </p>
       {photo.status === "error" && (
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-semibold text-danger">{photo.error ?? t.failed}</p>
+          {/* Для диктора тот же текст уже есть в области объявлений выше. */}
+          <p aria-hidden className="text-sm font-semibold text-danger">
+            {photo.error ?? t.failed}
+          </p>
           {onRetry && (
             <button
               type="button"
               onClick={() => onRetry(photo.id)}
               disabled={disabled}
+              aria-label={t.retry(n)}
               className="inline-flex min-h-control-sm cursor-pointer items-center gap-2 self-start text-base font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-accent"
             >
               <RotateCw aria-hidden className="size-5 shrink-0" />
