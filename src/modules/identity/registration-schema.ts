@@ -69,7 +69,7 @@ export const executorRegistrationSchema = z
   })
   .superRefine((v, ctx) => {
     const kind = binIinKindFor(v.legalForm);
-    if (!isValidBinIin(kind, v.binIin)) ctx.addIssue({ code: "custom", path: ["binIin"], message: t.binIin[kind] });
+    if (!isValidBinIin(kind, v.binIin)) ctx.addIssue({ code: "custom", path: ["binIin"], message: (v.binIin ? t.binIin : t.binIinRequired)[kind] });
     refineSigner(v, ctx);
   })
   .transform(({ ownerName, directorName, directorIin, ...rest }) => ({

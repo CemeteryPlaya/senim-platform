@@ -62,6 +62,11 @@ describe("executorRegistrationSchema", () => {
     expect(fieldErrors({ ...self, legalName: "Ерлан" })).toHaveProperty("legalName");
   });
 
+  it("пустой ИИН/БИН — просьба указать номер, а не «проверьте контрольную цифру»", () => {
+    expect(fieldErrors({ ...valid, binIin: "  " }).binIin).toEqual(["Укажите ИИН"]);
+    expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: "" }).binIin).toEqual(["Укажите БИН"]);
+  });
+
   it("неверная контрольная цифра — ошибка поля ИИН/БИН", () => {
     const broken = IIN.slice(0, 11) + String((Number(IIN[11]) + 1) % 10);
     expect(fieldErrors({ ...valid, binIin: broken }).binIin?.[0]).toMatch(/ИИН/);
