@@ -3,12 +3,13 @@ import { randomInt } from "node:crypto";
 import type { Role } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { SYSTEM, recordAudit } from "@/modules/audit";
-import { smsProvider } from "@/modules/notifications";
+import { notifyOperators, smsProvider } from "@/modules/notifications";
 import { hashPii, safeEqual } from "@/platform/crypto";
 import { db, transaction } from "@/platform/db";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
-import { enforceRateLimit, type RateLimitRule } from "@/platform/rate-limit";
+import { logger } from "@/platform/logger";
+import { enforceRateLimit, hitRateLimit, type RateLimitRule } from "@/platform/rate-limit";
 import { parsePhone, type Phone } from "./phone";
 import { startSession } from "./session";
 
@@ -20,9 +21,12 @@ export const OTP_MAX_ATTEMPTS = 5;
 /**
  * Лимиты: повтор кода — раз в минуту; на номер — 5 кодов в час, 10 кодов и 20 проверок в сутки
  * (с любых IP: перебор кода с разных адресов упирается в номер); с одного IP — 20 запросов и 50 проверок в час.
- * IP неизвестен (ip: null) — лимиты по IP не применяются: общий ключ «unknown» дал бы один лимит на всех.
- * Поверх всех — общий суточный потолок отправки (OTP_DAILY_GLOBAL_LIMIT): рассылка по множеству номеров
- * с множества адресов упирается в него, а не в счёт за SMS.
+ * IP неизвестен (ip: null) — лимиты по IP не применяются: общий ключ «unknown» дал бы один лимит на всех
+ * (в production IP известен всегда — env.ts требует TRUST_PROXY=true).
+ * Номерам, которых нет среди пользователей (новые регистрации), — ещё суточные потолки на префикс номера
+ * (OTP_DAILY_PREFIX_LIMIT) и общий (OTP_DAILY_GLOBAL_LIMIT): рассылка по множеству номеров с множества
+ * адресов упирается в них, а не в счёт за SMS. Зарегистрированных потолки не касаются — рассылка по
+ * случайным номерам не закрывает вход тем, кто уже пользуется платформой.
  */
 const LIMITS = {
   phoneCooldown: { limit: 1, windowSec: 60 },
@@ -48,6 +52,32 @@ function showsDemoCode(): boolean {
   return e.DEMO_MODE && e.SMS_PROVIDER === "mock";
 }
 
+const DAY_SEC = 86_400;
+
+/** Первые 6 цифр номера («+77001234567» → «770012»): блок из ста тысяч соседних номеров. */
+const prefixOf = (phone: Phone) => phone.replace(/\D/g, "").slice(0, 6);
+
+/** Суточные потолки для номеров без пользователя: сначала префикс, затем общий. */
+async function enforceNewPhoneCeilings(phone: Phone): Promise<void> {
+  const e = env();
+  await enforceRateLimit(`otp:prefix:${prefixOf(phone)}:day`, { limit: e.OTP_DAILY_PREFIX_LIMIT, windowSec: DAY_SEC }, t.errors.tooManyGlobal);
+  const global = await hitRateLimit("otp:global:day", { limit: e.OTP_DAILY_GLOBAL_LIMIT, windowSec: DAY_SEC });
+  if (global.allowed) return;
+  await alertGlobalCeiling(e.OTP_DAILY_GLOBAL_LIMIT);
+  fail.rateLimited(t.errors.tooManyGlobal);
+}
+
+/**
+ * Первое за сутки достижение общего потолка — в журнал и операторам. Счётчик «один раз в сутки» — тот же
+ * атомарный rate-limit: из одновременных отказов оповещает ровно один.
+ */
+async function alertGlobalCeiling(limit: number): Promise<void> {
+  const first = await hitRateLimit("otp:global:day:alert", { limit: 1, windowSec: DAY_SEC });
+  if (!first.allowed) return;
+  logger.warn("otp.global_limit_reached", { limit });
+  await notifyOperators(db, "otp.global_limit", { limit });
+}
+
 export type OtpRequested = { phone: Phone; expiresAt: Date; demoCode: string | null };
 
 /** Выдаёт новый код на номер и отправляет SMS. */
@@ -57,8 +87,8 @@ export async function requestOtp(input: { phone: string; ip: string | null }): P
   await enforceRateLimit(`otp:phone:${phone}:cooldown`, LIMITS.phoneCooldown, t.errors.tooOften);
   await enforceRateLimit(`otp:phone:${phone}`, LIMITS.phoneHourly, t.errors.tooManyRequests);
   await enforceRateLimit(`otp:phone:${phone}:day`, LIMITS.phoneDaily, t.errors.tooManyToday);
-  // Последним: запросы, отклонённые лимитами номера и IP, общий потолок не расходуют.
-  await enforceRateLimit("otp:global:day", { limit: env().OTP_DAILY_GLOBAL_LIMIT, windowSec: 86_400 }, t.errors.tooManyGlobal);
+  // Последними: запросы, отклонённые лимитами номера и IP, потолки не расходуют.
+  if (!(await db.user.findUnique({ where: { phone }, select: { id: true } }))) await enforceNewPhoneCeilings(phone);
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const expiresAt = new Date(Date.now() + OTP_TTL_MIN * 60_000);

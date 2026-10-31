@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
-import { makeExecutor } from "../../../test/factories";
+import { makeExecutor, makeOperator } from "../../../test/factories";
 import { cookieValue, freshBrowser, setEnv } from "../../../test/factories/identity";
 import { requestOtp, verifyOtp } from "./otp";
 import { getCurrentUser, SESSION_COOKIE } from "./session";
@@ -13,7 +13,11 @@ const IP = "203.0.113.7";
 
 beforeEach(() => {
   freshBrowser();
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock", OTP_DAILY_GLOBAL_LIMIT: undefined });
+  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock", OTP_DAILY_GLOBAL_LIMIT: undefined, OTP_DAILY_PREFIX_LIMIT: undefined });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 async function codeFor(phone = PHONE, ip = IP): Promise<string> {
@@ -91,9 +95,50 @@ describe("requestOtp", () => {
     expect(await db.otpCode.count()).toBe(3);
   });
 
-  it("общий лимит по умолчанию — 500 кодов в сутки", async () => {
+  it("общий лимит по умолчанию — 500 кодов в сутки, на префикс номера — 50", async () => {
     const { env } = await import("@/platform/env");
     expect(env().OTP_DAILY_GLOBAL_LIMIT).toBe(500);
+    expect(env().OTP_DAILY_PREFIX_LIMIT).toBe(50);
+  });
+
+  it("общий лимит не закрывает вход зарегистрированным: они входят по лимитам своего номера", async () => {
+    setEnv({ OTP_DAILY_GLOBAL_LIMIT: "2" });
+    const user = await db.user.create({ data: { phone: "+77010008001", role: "CLIENT" } });
+    for (let i = 0; i < 2; i++) await requestOtp({ phone: `+770200080${i}0`, ip: null });
+    expect((await errorOf(requestOtp({ phone: "+77020008099", ip: null }))).code).toBe("RATE_LIMITED");
+
+    await expect(requestOtp({ phone: user.phone, ip: null })).resolves.toMatchObject({ phone: user.phone });
+    // Лимиты номера для зарегистрированного по-прежнему действуют.
+    expect((await errorOf(requestOtp({ phone: user.phone, ip: null }))).code).toBe("RATE_LIMITED");
+  });
+
+  it("первое за сутки достижение общего лимита — предупреждение в журнал и одно уведомление каждому оператору", async () => {
+    setEnv({ OTP_DAILY_GLOBAL_LIMIT: "1" });
+    const operator = await makeOperator();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await requestOtp({ phone: "+77020009000", ip: null });
+    for (let i = 1; i <= 3; i++) await errorOf(requestOtp({ phone: `+770200090${i}0`, ip: null }));
+
+    const notes = await db.notification.findMany({ where: { userId: operator.id, kind: "otp.global_limit" } });
+    expect(notes).toHaveLength(1);
+    expect(notes[0].body).toContain("1");
+    const warnings = warn.mock.calls.map((c) => String(c[0])).filter((l) => l.includes("otp.global_limit_reached"));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).not.toMatch(/770200090/);
+  });
+
+  it("лимит на префикс номера (первые 6 цифр) — для незарегистрированных номеров", async () => {
+    setEnv({ OTP_DAILY_PREFIX_LIMIT: "2" });
+    const user = await db.user.create({ data: { phone: "+77030001999", role: "CLIENT" } });
+    await requestOtp({ phone: "+77030001000", ip: null });
+    await requestOtp({ phone: "+77030002000", ip: null });
+
+    const e = await errorOf(requestOtp({ phone: "+77030003000", ip: null }));
+    expect(e.code).toBe("RATE_LIMITED");
+    expect(await db.otpCode.count({ where: { phone: "+77030003000" } })).toBe(0);
+    // Другой префикс и зарегистрированный номер того же префикса — проходят.
+    await expect(requestOtp({ phone: "+77040001000", ip: null })).resolves.toBeTruthy();
+    await expect(requestOtp({ phone: user.phone, ip: null })).resolves.toBeTruthy();
   });
 
   it("отказ по лимиту номера не расходует общий суточный лимит", async () => {

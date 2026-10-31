@@ -6,7 +6,8 @@ import { env } from "@/platform/env";
  * IP клиента — только за доверенным прокси (TRUST_PROXY=true): без прокси x-forwarded-for и x-real-ip
  * присылает сам клиент и подделывает их. Из x-forwarded-for берём правый адрес: его дописал наш прокси,
  * всё левее мог прислать клиент. Нет x-forwarded-for — x-real-ip (его ставит прокси).
- * Адреса нет — null: лимиты по IP тогда не применяются, остаются лимиты по номеру и общий суточный.
+ * Адреса нет — null: лимиты по IP тогда не применяются, остаются лимиты по номеру и суточные потолки
+ * для новых номеров. Поэтому в production env.ts требует TRUST_PROXY=true.
  */
 export function clientIpFrom(h: Headers, trustProxy: boolean): string | null {
   if (!trustProxy) return null;

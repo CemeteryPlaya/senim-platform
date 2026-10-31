@@ -31,8 +31,13 @@ const schema = z
     SMS_HTTP_URL: optional,
     SMS_HTTP_TOKEN: optional,
     SMS_SENDER: z.string().default("SENIM"),
-    /** Сколько кодов входа платформа отправляет за сутки на все номера — потолок расходов на SMS при рассылке с разных IP. */
+    /**
+     * Сколько кодов входа платформа отправляет за сутки на незарегистрированные номера — потолок расходов на SMS
+     * при рассылке с разных IP. Зарегистрированные входят по лимитам своего номера, потолок их не закрывает.
+     */
     OTP_DAILY_GLOBAL_LIMIT: z.coerce.number().int().min(1).default(500),
+    /** То же на префикс номера (первые 6 цифр, «770012…»): перебор соседних номеров не выбирает весь общий потолок. */
+    OTP_DAILY_PREFIX_LIMIT: z.coerce.number().int().min(1).default(50),
 
     SIGNATURE_PROVIDER: z.enum(["mock", "sigex"]).default("mock"),
     SIGEX_BASE_URL: z.url().default("https://sigex.kz"),
@@ -72,6 +77,10 @@ const schema = z
       require("PII_HASH_KEY", "NODE_ENV=production");
       require("FILE_URL_SECRET", "NODE_ENV=production");
       require("CRON_SECRET", "NODE_ENV=production");
+      // Без доверенного прокси IP клиента неизвестен, лимиты кодов входа по IP не работают — остаются номер и общий потолок.
+      if (!env.TRUST_PROXY) {
+        ctx.addIssue({ code: "custom", path: ["TRUST_PROXY"], message: "в production должна быть true: без IP клиента не работают лимиты входа по IP" });
+      }
     }
     // Демо-стенд пускает в любую персону без SMS и умеет стирать базу: в production — только за паролем (src/proxy.ts).
     if (env.NODE_ENV === "production" && env.DEMO_MODE) require("DEMO_ACCESS_PASSWORD", "DEMO_MODE=true в production");

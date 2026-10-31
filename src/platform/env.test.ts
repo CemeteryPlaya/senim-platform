@@ -15,6 +15,7 @@ const production = {
   SMS_HTTP_URL: "https://sms.example",
   SMS_HTTP_TOKEN: "t",
   SIGNATURE_PROVIDER: "sigex",
+  TRUST_PROXY: "true",
 };
 
 const demoProduction = {
@@ -38,6 +39,13 @@ function problems(source: Record<string, string>): string {
 describe("env: production", () => {
   it("рабочее окружение без моков проходит", () => {
     expect(problems(production)).toBe("");
+  });
+
+  it("TRUST_PROXY=true обязательна: без IP клиента лимиты кодов входа держатся только на общем потолке", () => {
+    expect(problems({ ...production, TRUST_PROXY: "" })).toMatch(/TRUST_PROXY/);
+    expect(problems({ ...production, TRUST_PROXY: "false" })).toMatch(/TRUST_PROXY/);
+    expect(problems({ ...demoProduction, TRUST_PROXY: "false" })).toMatch(/TRUST_PROXY/);
+    expect(problems({ ...production, NODE_ENV: "development", TRUST_PROXY: "false" })).toBe("");
   });
 
   it("без DEMO_MODE запрещает мок SMS", () => {
