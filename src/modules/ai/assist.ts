@@ -9,7 +9,7 @@ import { ownRequestIn } from "./access";
 import { defaultDeps, ensureAiEnabled, type AiDeps } from "./deps";
 import { scrubPii } from "./pii";
 import { assistTextSchema, parseDraftSuggestion, toDraft, type RequestDraft } from "./schema";
-import { ensureWithinDailyBudget, recordUsage } from "./usage";
+import { ensureWithinDailyBudget, reserveUsage, settleUsage } from "./usage";
 
 export type AssistResult = {
   /** Поля для мастера заявки в формате Request.details; заказчик подтверждает их перед переносом. */
@@ -43,8 +43,9 @@ export async function assistRequest(
     orderBy: { sortOrder: "asc" },
   });
   const provider = deps.provider();
+  const reservation = await reserveUsage({ provider: provider.name, operation: "request.assist", requestId, userId: user.id });
   const answer = await callProvider(() => provider.structureRequest({ text: scrubPii(parsedText.data), furnitureTypes }));
-  await recordUsage(db, { provider: provider.name, operation: "request.assist", usage: answer.usage, requestId, userId: user.id });
+  await settleUsage(reservation, answer.usage);
 
   const parsed = parseDraftSuggestion(answer.raw);
   if (!parsed.ok) {

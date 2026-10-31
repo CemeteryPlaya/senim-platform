@@ -46,6 +46,34 @@ describe("assistRequest — «Опишите своими словами»", () 
     expect(spy.seen).toHaveLength(1);
   });
 
+  it("бюджет резервируется до ответа провайдера: из двух одновременных вызовов на остаток бюджета проходит один", async () => {
+    const client = await makeClient();
+    const request = await makeRequest(client);
+    let calls = 0;
+    const slow: AiProvider = {
+      ...mockProvider,
+      name: "gateway",
+      async structureRequest(input) {
+        calls++;
+        await new Promise((r) => setTimeout(r, 300));
+        return { ...(await mockProvider.structureRequest(input)), usage: { model: "vendor/text-model", inputTokens: 10, outputTokens: 10 } };
+      },
+    };
+    // Остаток бюджета — на одну оценку вызова неизвестной модели (оценка сверху), но не на две.
+    await db.aiUsage.create({ data: { provider: "gateway", operation: "request.assist", costUsdMicros: 20_000_000 - 50_000 } });
+
+    const results = await Promise.allSettled([
+      assistRequest(client, request.id, TEXT, { provider: () => slow }),
+      assistRequest(client, request.id, TEXT, { provider: () => slow }),
+    ]);
+
+    expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(calls).toBe(1);
+    // Резерв уточнён фактическим расходом.
+    const row = await db.aiUsage.findFirstOrThrow({ where: { model: "vendor/text-model" } });
+    expect(row).toMatchObject({ inputTokens: 10, outputTokens: 10, costUsdMicros: costUsdMicros({ model: "vendor/text-model", inputTokens: 10, outputTokens: 10 }) });
+  });
+
   it("разбирает текст в поля заявки, подсказывает сегмент и пишет учёт", async () => {
     const client = await makeClient();
     const request = await makeRequest(client);

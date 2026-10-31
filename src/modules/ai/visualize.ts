@@ -15,7 +15,7 @@ import { aiEnabled, defaultDeps, ensureAiEnabled, type AiDeps } from "./deps";
 import { stampAiLabel } from "./label";
 import { scrubPii } from "./pii";
 import { visualizePromptSchema } from "./schema";
-import { ensureWithinDailyBudget, recordUsage } from "./usage";
+import { ensureWithinDailyBudget, reserveUsage, settleUsage } from "./usage";
 
 /**
  * ИИ-иллюстрация мебели на фото помещения. Запрос ставит Visualization в очередь и задачу
@@ -127,17 +127,11 @@ type Job = Visualization & { sourceFile: StoredFile; clientId: string };
 async function generate(viz: Job, deps: AiDeps): Promise<void> {
   const image = await (await storageByName(viz.sourceFile.provider)).get(viz.sourceFile.storageKey);
   if (!image) return fail.unavailable(ru.ai.errors.notRoomPhoto);
-  // Бюджет — и здесь: задача могла ждать в очереди, пока платформа тратила дневной лимит.
-  await ensureWithinDailyBudget();
+  // Бюджет — и здесь (резервом): задача могла ждать в очереди, пока платформа тратила дневной лимит.
   const provider = deps.provider();
+  const reservation = await reserveUsage({ provider: provider.name, operation: "request.visualize", requestId: viz.requestId, userId: viz.clientId });
   const result = await provider.visualizeRoom({ image, contentType: viz.sourceFile.contentType, prompt: viz.prompt });
-  const cost = await recordUsage(db, {
-    provider: provider.name,
-    operation: "request.visualize",
-    usage: result.usage,
-    requestId: viz.requestId,
-    userId: viz.clientId,
-  });
+  const cost = await settleUsage(reservation, result.usage);
   if (result.images.length === 0) return fail.unavailable(ru.ai.errors.visualizationFailed);
 
   const fileIds: string[] = [];
