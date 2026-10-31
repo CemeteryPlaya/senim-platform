@@ -9,10 +9,12 @@ const facts = (over: Partial<RetryFacts> = {}): RetryFacts => ({
 });
 const resolved = (decision: "TERMINATE" | "PARTIAL" | "FAVOR_EXECUTOR", decisionAmount: number | null = null) => ({
   id: "d1",
+  stageId: "s1",
   status: "RESOLVED" as const,
   decision,
   decisionAmount,
 });
+const open = (stageId: string | null) => ({ id: "d1", stageId, status: "OPEN" as const, decision: null, decisionAmount: null });
 const failed = (idempotencyKey: string, kind: RetryOp["kind"] = "RELEASE"): RetryOp => ({ idempotencyKey, kind, status: "FAILED" });
 
 describe("повтор транша этапа release:<stageId>", () => {
@@ -26,6 +28,20 @@ describe("повтор транша этапа release:<stageId>", () => {
     expect(stillDue("release:s1", "RELEASE", facts({ stages: [{ id: "s1", status: "REWORK", payment: { status: "DUE" } }] }))).toBe(false);
     expect(stillDue("release:s1", "RELEASE", facts({ stages: [{ id: "s1", status: "ACCEPTED", payment: { status: "CONFIRMED" } }] }))).toBe(false);
     expect(stillDue("release:s2", "RELEASE", facts())).toBe(false);
+  });
+
+  it("не нужен, пока по этому этапу открыт спор: решение может отдать деньги заказчику", () => {
+    expect(stillDue("release:s1", "RELEASE", facts({ dealStatus: "DISPUTE", dispute: open("s1") }))).toBe(false);
+    const op = failed("release:s1");
+    expect(retryVerdict(op, [op], facts({ dealStatus: "DISPUTE", dispute: open("s1") }))).toBe("notDue");
+    expect([...retryableKeys([op], facts({ dealStatus: "DISPUTE", dispute: open("s1") }))]).toEqual([]);
+    // Спор без этапа — о сделке целиком.
+    expect(stillDue("release:s1", "RELEASE", facts({ dealStatus: "DISPUTE", dispute: open(null) }))).toBe(false);
+  });
+
+  it("спор о другом этапе или уже решённый спор по этапу повтор не блокирует", () => {
+    expect(stillDue("release:s1", "RELEASE", facts({ dealStatus: "DISPUTE", dispute: open("s2") }))).toBe(true);
+    expect(stillDue("release:s1", "RELEASE", facts({ dispute: resolved("FAVOR_EXECUTOR") }))).toBe(true);
   });
 });
 

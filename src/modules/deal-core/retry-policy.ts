@@ -14,7 +14,8 @@ import type {
  *
  * Семейство ключей — исходный ключ и его повторы `<исходный>:retry:<n>`. Повтор разрешён, если в
  * семействе нет операции в пути или выполненной и операция всё ещё должна быть выполнена:
- *  release:<stageId> — сделка в работе или в споре, этап ACCEPTED, оплата этапа DUE;
+ *  release:<stageId> — сделка в работе или в споре, этап ACCEPTED, оплата этапа DUE и по этапу нет открытого
+ *    спора (решение по нему может вернуть деньги заказчику; спор без этапа — о сделке целиком);
  *  dispute:<id>:release | refund — спор решён и решение требует этой операции (сделка расторгнута);
  *  cancel:<dealId>:refund — сделка отменена; <ключ пополнения>:refund — сделка отменена или расторгнута.
  * Иначе (например, спор расторг сделку после отказа по траншу) повтор отправил бы деньги вопреки решению.
@@ -33,8 +34,8 @@ export type RetryOp = {
 export type RetryFacts = {
   dealStatus: DealStatus;
   stages: { id: string; status: StageStatus; payment: { status: StagePaymentStatus } | null }[];
-  /** Последний спор сделки: после решения с расторжением нового спора быть не может. */
-  dispute: { id: string; status: DisputeStatus; decision: DisputeDecision | null; decisionAmount: number | null } | null;
+  /** Последний спор сделки: после решения с расторжением нового спора быть не может. stageId — этап спора (null — вся сделка). */
+  dispute: { id: string; stageId: string | null; status: DisputeStatus; decision: DisputeDecision | null; decisionAmount: number | null } | null;
 };
 
 /** Должна ли операция семейства `family` всё ещё быть выполнена. */
@@ -48,7 +49,9 @@ export function stillDue(family: string, kind: PaymentOperationKind, facts: Retr
   if (release) {
     const stage = facts.stages.find((s) => s.id === release[1]);
     const dealActive = facts.dealStatus === "IN_PROGRESS" || facts.dealStatus === "DISPUTE";
-    return kind === "RELEASE" && dealActive && stage?.status === "ACCEPTED" && stage.payment?.status === "DUE";
+    const d = facts.dispute;
+    const disputed = d?.status === "OPEN" && (d.stageId === null || d.stageId === release[1]);
+    return kind === "RELEASE" && dealActive && !disputed && stage?.status === "ACCEPTED" && stage.payment?.status === "DUE";
   }
 
   if (kind !== "REFUND" || !family.endsWith(":refund")) return false;

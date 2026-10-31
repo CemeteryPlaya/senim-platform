@@ -102,6 +102,25 @@ describe("отклонённая банком операция", () => {
     expect(await code(retryPaymentOperation(operator, { idempotencyKey: `${key}:retry:1` }))).toBe("CONFLICT");
   });
 
+  it("транш отклонён, по этапу открыт спор: повтора нет до решения; решение в пользу исполнителя — повтор можно", async () => {
+    const operator = await makeOperator();
+    const f = await submittedEscrowStage();
+    vi.spyOn(rail(), "releaseTranche").mockResolvedValueOnce({ status: "FAILED", error: "Счёт заблокирован" });
+    await acceptStage(f.client, { stageId: f.stageId });
+    const release = `release:${f.stageId}`;
+
+    const { disputeId } = await openDispute(f.client, { dealId: f.dealId, reason: "QUALITY", description: "Работа не устроила" });
+    expect(await db.dispute.findUniqueOrThrow({ where: { id: disputeId } })).toMatchObject({ stageId: f.stageId });
+
+    expect((await getDealView(operator, f.dealId)).operations.every((o) => o.retryKey === null)).toBe(true);
+    expect(await code(retryPaymentOperation(operator, { idempotencyKey: release }))).toBe("CONFLICT");
+    expect(await db.paymentOperation.count({ where: { idempotencyKey: `${release}:retry:1` } })).toBe(0);
+
+    await resolveDispute(operator, { disputeId, decision: "FAVOR_EXECUTOR", rationale: "Работа принята" });
+    await retryPaymentOperation(operator, { idempotencyKey: release });
+    expect(await opOf(`${release}:retry:1`)).toMatchObject({ status: "SUCCEEDED", amount: 100_000 });
+  });
+
   it("транш отклонён, спор расторг сделку, возврат отклонён: повтор транша — CONFLICT, повтор возврата — можно", async () => {
     const operator = await makeOperator();
     const f = await submittedEscrowStage();
