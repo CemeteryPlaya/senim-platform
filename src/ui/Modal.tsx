@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
-import { isOpeningClick } from "./click-guard";
+import { isRepeatClick } from "./click-guard";
 import { cn } from "./cn";
 
 export type ModalProps = {
@@ -21,13 +21,12 @@ export type ModalProps = {
 /**
  * Модальное окно на нативном <dialog>: браузер сам держит фокус внутри и делает
  * остальную страницу недоступной. После закрытия фокус возвращается туда, откуда открыли.
- * Клики в первые полсекунды после открытия гасятся: второй клик двойного нажатия, открывшего окно,
+ * Повторные клики серии (detail > 1) гасятся: второй клик двойного нажатия, открывшего окно,
  * иначе попадает в «Да» или в затемнение (src/ui/click-guard.ts).
  */
 export function Modal({ open, onClose, title, description, footer, className, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<Element | null>(null);
-  const openedAt = useRef<number | null>(null);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -37,7 +36,6 @@ export function Modal({ open, onClose, title, description, footer, className, ch
     if (open && !dialog.open) {
       opener.current = document.activeElement;
       dialog.showModal();
-      openedAt.current = performance.now();
     } else if (!open && dialog.open) {
       dialog.close();
       if (opener.current instanceof HTMLElement) opener.current.focus();
@@ -54,9 +52,9 @@ export function Modal({ open, onClose, title, description, footer, className, ch
         event.preventDefault();
         onClose();
       }}
-      // Перехват до кнопок окна: клик сразу после открытия не доходит ни до «Да», ни до затемнения.
+      // Перехват до кнопок окна: повторный клик серии не доходит ни до «Да», ни до затемнения.
       onClickCapture={(event) => {
-        if (!isOpeningClick(openedAt.current, performance.now())) return;
+        if (!isRepeatClick(event.detail)) return;
         event.preventDefault();
         event.stopPropagation();
       }}
