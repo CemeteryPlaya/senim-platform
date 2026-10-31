@@ -31,7 +31,7 @@ export default async function ExecutorProfilePage() {
         <h2 id="public-as" className="text-lg font-bold text-ink">
           {t.publicAs(profile.label)}
         </h2>
-        <dl className="grid gap-4 sm:grid-cols-2">
+        <dl className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
             <dt className="text-sm text-muted">{t.segment}</dt>
             <dd className="flex flex-col items-start gap-1">

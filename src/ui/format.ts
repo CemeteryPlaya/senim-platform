@@ -22,6 +22,15 @@ export function formatMoney(amount: number): string {
   return `${grouped}${NBSP}${ru.common.currency}`;
 }
 
+/**
+ * Сумма по кускам, между которыми допустим перенос: после каждой группы разрядов.
+ * На узком экране при крупном шрифте «10 005 000 ₸» встаёт в две строки, а не уходит за край;
+ * знак валюты не отрывается от последней группы.
+ */
+export function moneyBreakParts(amount: number): string[] {
+  return formatMoney(amount).split(/(?<=\d\u00a0)(?=\d)/u);
+}
+
 /** «12 марта 2026». */
 export function formatDate(value: DateInput): string {
   // Intl добавляет « г.» после года — в интерфейсе он лишний.

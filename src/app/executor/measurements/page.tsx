@@ -72,7 +72,7 @@ export default async function MeasurementsPage() {
                       <h3 className="text-lg font-bold text-ink">{title}</h3>
                       <StatusBadge tone={MEASUREMENT_TONE[m.status]}>{ru.requests.measurementStatus[m.status]}</StatusBadge>
                     </div>
-                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-base">
+                    <dl className="facts gap-x-4 gap-y-1 text-base">
                       <dt className="text-muted">{t.when}</dt>
                       <dd className="text-ink">
                         <DateText value={m.scheduledAt} format="dateTime" />

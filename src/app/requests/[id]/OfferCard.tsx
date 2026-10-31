@@ -14,7 +14,7 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
   const [cover, ...rest] = offer.preview;
   const headingId = `offer-${offer.id}`;
   return (
-    <article aria-labelledby={headingId} className="grid gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] sm:p-6">
+    <article aria-labelledby={headingId} className="grid grid-cols-[minmax(0,1fr)] gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] sm:p-6">
       <div className="flex flex-col gap-2">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element -- иллюстрации портфолио из хранилища
@@ -45,7 +45,7 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
           <Star aria-hidden className="size-5 shrink-0 fill-current text-warning" />
           {ex.reviewsCount > 0 ? o.rating(ex.ratingAvg.toFixed(1), ex.reviewsCount) : o.noRating}
         </p>
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-base">
+        <dl className="facts gap-x-4 gap-y-1 text-base">
           {ex.segment && (
             <>
               <dt className="text-muted">{o.segment}</dt>

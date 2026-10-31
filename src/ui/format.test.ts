@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatDateTime, formatDays, formatMoney, formatMonths, formatRelative, formatTime, formatYears } from "./format";
+import { formatDate, formatDateTime, formatDays, formatMoney, formatMonths, formatRelative, formatTime, formatYears, moneyBreakParts } from "./format";
 
 const NBSP = " ";
 
@@ -19,6 +19,20 @@ describe("formatMoney", () => {
 
   it("отрицательная сумма — со знаком минус", () => {
     expect(formatMoney(-5_000)).toMatch(/^[-−]5\s000\s₸$/u);
+  });
+});
+
+describe("moneyBreakParts — где крупная сумма может перейти на новую строку", () => {
+  it("между группами разрядов; знак валюты остаётся с последней группой", () => {
+    expect(moneyBreakParts(1_250_000)).toEqual([`1${NBSP}`, `250${NBSP}`, `000${NBSP}₸`]);
+  });
+
+  it("короткая сумма — одним куском", () => {
+    expect(moneyBreakParts(950)).toEqual([`950${NBSP}₸`]);
+  });
+
+  it("куски вместе — ровно formatMoney", () => {
+    expect(moneyBreakParts(10_005_000).join("")).toBe(formatMoney(10_005_000));
   });
 });
 

@@ -264,7 +264,7 @@ export function SizeStep(props: StepBase & { details: RequestDetails }) {
         ]}
       />
       {mode === "known" && (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-3">
           {field("w", w.size.width, true)}
           {field("h", w.size.height, false)}
           {field("d", w.size.depth, false)}
@@ -328,7 +328,7 @@ export function MaterialsStep(props: StepBase & { details: RequestDetails }) {
     >
       <StepHeading title={m.title} lead={m.lead} />
       <p className="text-base font-semibold text-muted">{w.detailsPart(2)}</p>
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 sm:grid-cols-2">
         <Select label={m.facade} value={form.facade} onChange={(e) => set({ facade: e.target.value })} options={choiceOptions(FACADE_KEYS, FACADES)} error={first(errors, "facade")} />
         <Select
           label={m.countertop}
@@ -342,7 +342,7 @@ export function MaterialsStep(props: StepBase & { details: RequestDetails }) {
       </div>
       <fieldset className="flex min-w-0 flex-col gap-1">
         <legend className="mb-2 text-base font-semibold text-ink">{m.extras}</legend>
-        <div className="grid gap-x-6 sm:grid-cols-2">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-x-6 sm:grid-cols-2">
           {EXTRAS.map((x) => (
             <Checkbox key={x} label={ru.requests.extras[x]} checked={form.extras.has(x)} onChange={(e) => toggle(x, e.target.checked)} />
           ))}
@@ -418,7 +418,7 @@ export function SendStep(props: { draftId: string; initial: SendInitial; suggest
         <h2 id="send-more" className="text-xl font-bold text-ink">
           {s.more}
         </h2>
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 sm:grid-cols-2">
           <Input label={s.city} value={form.city} autoComplete="address-level2" onChange={(e) => set({ city: e.target.value })} error={first(errors, "city")} />
           <Input label={s.desiredDate} type="date" optional value={form.desiredDate} onChange={(e) => set({ desiredDate: e.target.value })} error={first(errors, "desiredDate")} />
         </div>

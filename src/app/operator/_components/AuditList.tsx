@@ -49,7 +49,7 @@ export function AuditList({ events, linkScopes = false }: { events: AuditView[];
               )}
             </p>
             {(before || after) && (
-              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-sm">
+              <dl className="facts gap-x-3 text-sm">
                 {before && (
                   <>
                     <dt className="text-muted">{t.before}</dt>

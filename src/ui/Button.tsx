@@ -31,6 +31,8 @@ type StyleOptions = {
 export function buttonClasses({ variant = "primary", fullWidth = false, shape = "default", className }: StyleOptions = {}): string {
   return cn(
     "inline-flex min-h-control items-center justify-center gap-2 border-2 px-6 py-2 active:translate-y-px",
+    // При крупном шрифте на телефоне длинное слово переносится внутри кнопки, а не выталкивает её за край.
+    "min-w-0 max-w-full break-words hyphens-auto",
     "text-center text-base font-semibold leading-snug no-underline transition-colors duration-150",
     "disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60",
     shape === "pill" ? "min-h-control-sm rounded-full px-5" : "rounded-control",

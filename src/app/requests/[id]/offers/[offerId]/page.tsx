@@ -55,7 +55,7 @@ export default async function OfferPage({ params }: Props) {
         <Fact label={o.deals}>{ex.completedDeals}</Fact>
       </dl>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         <Gallery photos={gallery.slice(0, 5)} />
         <section aria-labelledby="terms" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
           <h2 id="terms" className="sr-only">
@@ -121,7 +121,7 @@ export default async function OfferPage({ params }: Props) {
       </Section>
 
       <Section id="how" title={o.howTitle}>
-        <ol className="grid gap-4 sm:grid-cols-5">
+        <ol className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-5">
           {o.how.map((step, i) => (
             <li key={step.title} className="flex gap-3 sm:flex-col">
               <span aria-hidden className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-soft font-bold text-primary">

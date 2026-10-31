@@ -84,7 +84,7 @@ export function ProfileForm({ initial, types }: { initial: ProfileFormValues; ty
       <fieldset className="flex flex-col gap-1">
         <legend className="mb-1 text-base font-semibold text-ink">{t.fields.specializations}</legend>
         <p className="mb-2 text-sm text-muted">{t.fields.specializationsHint}</p>
-        <div className="grid gap-x-6 sm:grid-cols-2">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-x-6 sm:grid-cols-2">
           {types.map((type) => (
             <Checkbox key={type.id} label={type.name} checked={specs.has(type.id)} onChange={(e) => toggleSpec(type.id, e.target.checked)} />
           ))}

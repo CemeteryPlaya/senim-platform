@@ -129,7 +129,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 function Summary({ deal }: { deal: DealView }) {
   return (
     <Card as="section">
-      <dl className="grid gap-4 sm:grid-cols-2">
+      <dl className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
         <Fact label={t.total}>
           <Money amount={deal.totalAmount} />
         </Fact>
@@ -155,7 +155,7 @@ function EscrowAccount({ deal }: { deal: DealView }) {
         ) : (
           <>
             <StatusBadge tone={e.status === "OPENED" ? "info" : "success"}>{a.status[e.status]}</StatusBadge>
-            <dl className="grid gap-4 sm:grid-cols-2">
+            <dl className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
               <Fact label={a.deposited}>
                 <Money amount={e.deposited} />
               </Fact>
@@ -171,7 +171,7 @@ function EscrowAccount({ deal }: { deal: DealView }) {
             </dl>
             <div>
               <h3 className="mb-3 text-lg font-bold text-ink">{a.requisites}</h3>
-              <dl className="grid gap-3">
+              <dl className="grid grid-cols-[minmax(0,1fr)] gap-3">
                 <Fact label={a.bankName}>{e.requisites.bankName}</Fact>
                 <Fact label={a.iban}>
                   <span className="font-mono break-all">{e.requisites.iban}</span>
@@ -233,7 +233,7 @@ function Stages({ deal }: { deal: DealView }) {
                 {s.payment && <StatusBadge tone={PAYMENT_TONE[s.payment.status]}>{t.paymentStatus[s.payment.status]}</StatusBadge>}
                 {s.acceptedAutomatically && <StatusBadge tone="info">{t.stage.acceptedAuto}</StatusBadge>}
               </div>
-              <dl className="grid gap-3 sm:grid-cols-2">
+              <dl className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
                 <Fact label={t.stage.amount}>{s.amount > 0 ? <Money amount={s.amount} /> : t.stage.noAmount}</Fact>
                 {s.amount > 0 && <Fact label={t.stage.paymentWhen}>{t.paymentDue[s.paymentDue]}</Fact>}
                 {s.submittedAt && (
@@ -307,7 +307,7 @@ function Dispute({ deal, isParty }: { deal: DealView; isParty: boolean }) {
     <Card as="section" title={t.sections.dispute}>
       <div className="flex flex-col gap-4">
         <StatusBadge tone={d.status === "OPEN" ? "danger" : "neutral"}>{d.status === "OPEN" ? t.dispute.open : t.dispute.resolved}</StatusBadge>
-        <dl className="grid gap-3">
+        <dl className="grid grid-cols-[minmax(0,1fr)] gap-3">
           <Fact label={t.forms.disputeReason}>{t.dispute.reason[d.reason]}</Fact>
           <Fact label={t.dispute.openedAt}>
             <DateText value={d.createdAt} format="dateTime" />

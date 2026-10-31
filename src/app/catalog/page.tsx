@@ -26,7 +26,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
           {t.filters.label}
         </h2>
         <form method="get" action="/catalog" className="flex flex-col gap-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Select
               label={t.filters.type}
               name="type"

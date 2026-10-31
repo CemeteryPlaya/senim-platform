@@ -37,7 +37,7 @@ function row(label: string, value: string | null): FactRow | null {
 /** Список фактов заявки. */
 export function FactList({ rows }: { rows: readonly FactRow[] }) {
   return (
-    <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+    <dl className="facts gap-x-6 gap-y-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
       {rows.map((r) => (
         <div key={r.label} className="contents">
           <dt className="text-base text-muted">{r.label}</dt>

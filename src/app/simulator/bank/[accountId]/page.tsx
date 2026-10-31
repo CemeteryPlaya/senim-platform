@@ -42,7 +42,7 @@ export default async function SimulatorBankPage({ params }: Props) {
           <p className="text-lg text-ink">{t.warningText}</p>
 
           <Card as="section" title={a.title}>
-            <dl className="grid gap-4 sm:grid-cols-2">
+            <dl className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
               <Fact label={a.number}>
                 <span className="font-mono break-all">{account.externalId}</span>
               </Fact>

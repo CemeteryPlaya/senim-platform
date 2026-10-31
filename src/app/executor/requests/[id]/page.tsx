@@ -43,7 +43,7 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
         }
       />
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <section aria-labelledby="request-facts" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 sm:p-6">
           <h2 id="request-facts" className="text-xl font-bold text-ink">
             {ru.requests.request.detailsTitle}
@@ -87,7 +87,7 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
 function OfferSummary({ offer }: { offer: NonNullable<IncomingRequest["myOffer"]> }) {
   const o = ru.requests.offer;
   return (
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-base">
+    <dl className="facts gap-x-4 gap-y-2 text-base">
       <dt className="text-muted">{o.price}</dt>
       <dd className="font-semibold text-ink">
         <Money amount={offer.price} />

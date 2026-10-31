@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CheckCircle2, FlaskConical, Info, OctagonAlert, Sparkles } from "lucide-react";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { cn } from "./cn";
-import { formatDate, formatDateTime, formatMoney, formatRelative, formatTime, type DateInput } from "./format";
+import { formatDate, formatDateTime, formatRelative, formatTime, moneyBreakParts, type DateInput } from "./format";
 
 // Презентационные компоненты без состояния: работают и в серверных, и в клиентских компонентах.
 
@@ -208,9 +208,21 @@ export function EmptyState({ title, description, icon, action, titleAs: Title = 
 
 /* ── Деньги, даты, загрузка ────────────────────────────────── */
 
-/** Сумма в тенге: «1 250 000 ₸», цифры одной ширины, без переноса. */
+/**
+ * Сумма в тенге: «1 250 000 ₸», цифры одной ширины. Обычно в одну строку; если не помещается
+ * (крупный шрифт на телефоне) — переносится только между группами разрядов.
+ */
 export function Money({ amount, className }: { amount: number; className?: string }) {
-  return <span className={cn("whitespace-nowrap tabular-nums", className)}>{formatMoney(amount)}</span>;
+  return (
+    <span className={cn("tabular-nums", className)}>
+      {moneyBreakParts(amount).map((part, i) => (
+        <Fragment key={i}>
+          {i > 0 && <wbr />}
+          {part}
+        </Fragment>
+      ))}
+    </span>
+  );
 }
 
 export type DateTextProps = {

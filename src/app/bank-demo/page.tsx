@@ -102,7 +102,7 @@ function Escrow({ selected }: { selected: NonNullable<BankDemo["selected"]> }) {
   return (
     <div className="flex flex-col gap-4">
       <SimulatorBadge className="self-start" />
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+      <dl className="facts gap-x-4 gap-y-1">
         <dt className="text-muted">{t.account}</dt>
         <dd className="break-all">{escrow.externalId}</dd>
         <dt className="text-muted">{t.status}</dt>
@@ -221,7 +221,7 @@ export default async function BankDemoPage({ searchParams }: { searchParams: Pro
                 </div>
                 <div className="flex min-w-0 flex-col gap-6">
                   <Card title={t.summary}>
-                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+                    <dl className="facts gap-x-4 gap-y-1">
                       <dt className="text-muted">{t.dealLabel}</dt>
                       <dd className="break-words">
                         {t.deal(selected.deal.number)}, {selected.deal.title}

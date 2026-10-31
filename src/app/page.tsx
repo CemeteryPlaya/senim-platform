@@ -20,7 +20,7 @@ export default function HomePage() {
   return (
     <>
       <section className="pt-8 pb-10 sm:pt-14 sm:pb-16">
-        <Container className="flex flex-col gap-8">
+        <Container className="@container flex flex-col gap-8">
           <div className="flex max-w-3xl flex-col gap-4">
             <h1 className="text-display font-extrabold text-ink">
               {t.title} <span className="text-accent">{t.titleAccent}</span>
@@ -28,13 +28,14 @@ export default function HomePage() {
             <p className="max-w-prose text-lg text-muted">{t.lead}</p>
           </div>
 
-          <ul aria-label={t.features.label} className="grid grid-cols-3 gap-2 sm:max-w-2xl sm:gap-4">
+          {/* Три преимущества в ряд — только когда им хватает места при текущем размере шрифта. */}
+          <ul aria-label={t.features.label} className="grid grid-cols-[minmax(0,1fr)] gap-3 @min-[30em]:max-w-2xl @min-[30em]:grid-cols-3 @min-[30em]:gap-4">
             <Feature icon={<Wallet />}>{t.features.stages}</Feature>
             <Feature icon={<BadgeCheck />}>{t.features.verified}</Feature>
             <Feature icon={<ListChecks />}>{t.features.control}</Feature>
           </ul>
 
-          <ul aria-label={t.roles.label} className="grid gap-4 md:grid-cols-2">
+          <ul aria-label={t.roles.label} className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
             <RoleCard
               title={t.roles.client.title}
               text={t.roles.client.text}
@@ -69,7 +70,7 @@ export default function HomePage() {
           <h2 id="how" className="text-2xl font-extrabold text-ink sm:text-3xl">
             {t.how.title}
           </h2>
-          <ol className="grid gap-0 lg:grid-cols-4 lg:gap-6">
+          <ol className="grid grid-cols-[minmax(0,1fr)] gap-0 lg:grid-cols-4 lg:gap-6">
             {t.how.steps.map((step, i) => (
               <Step key={step.title} n={i + 1} first={i === 0} last={i === t.how.steps.length - 1} title={step.title} text={step.text} />
             ))}
@@ -96,7 +97,7 @@ export default function HomePage() {
 
 function Feature({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <li className="flex min-w-0 flex-col items-center gap-2 text-center">
+    <li className="flex min-w-0 items-center gap-3 @min-[30em]:flex-col @min-[30em]:gap-2 @min-[30em]:text-center">
       <span aria-hidden className="inline-flex size-14 items-center justify-center rounded-card bg-surface text-primary shadow-card [&_svg]:size-7">
         {icon}
       </span>
@@ -107,7 +108,7 @@ function Feature({ icon, children }: { icon: ReactNode; children: ReactNode }) {
 
 function RoleCard({ title, text, action }: { title: string; text: string; action: ReactNode }) {
   return (
-    <li className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+    <li className="flex min-w-0 flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
       <h2 className="text-2xl font-extrabold text-ink">{title}</h2>
       <p className="text-base text-muted">{text}</p>
       <div className="mt-auto">{action}</div>

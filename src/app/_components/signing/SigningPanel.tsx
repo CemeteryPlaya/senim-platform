@@ -66,8 +66,8 @@ export function SigningPanel({ document: doc, titleAs = "h2" }: SigningPanelProp
 
       {/* Хэш нужен юристу и банку, а не заказчику: спрятан, но доступен с клавиатуры. */}
       <details className="group rounded-control border border-line">
-        <summary className="flex min-h-control-sm list-none items-center justify-between gap-3 rounded-control px-4 text-base font-semibold text-ink hover:bg-sunken [&::-webkit-details-marker]:hidden">
-          {t.panel.technical}
+        <summary className="flex min-h-control-sm min-w-0 list-none items-center justify-between gap-3 rounded-control px-4 py-2 text-base font-semibold text-ink hover:bg-sunken [&::-webkit-details-marker]:hidden">
+          <span className="min-w-0">{t.panel.technical}</span>
           <ChevronDown aria-hidden className="size-5 shrink-0 group-open:rotate-180" />
         </summary>
         <div className="flex flex-col gap-1 px-4 pb-4">

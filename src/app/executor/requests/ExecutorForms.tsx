@@ -72,7 +72,7 @@ export function OfferForm({ requestId, defaults }: { requestId: string; defaults
       }
     >
       <Input label={t.price} hint={t.priceHint} inputMode="numeric" value={f.price} onChange={(e) => set({ price: e.target.value })} error={e1("price")} />
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 sm:grid-cols-2">
         <Input label={t.duration} inputMode="numeric" value={f.durationDays} onChange={(e) => set({ durationDays: e.target.value })} error={e1("durationDays")} />
         <Input label={t.warranty} inputMode="numeric" value={f.warrantyMonths} onChange={(e) => set({ warrantyMonths: e.target.value })} error={e1("warrantyMonths")} />
       </div>

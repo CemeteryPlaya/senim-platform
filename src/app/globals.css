@@ -2,17 +2,12 @@
  * hero: settled (landing) · nav: top bar on lg, bottom tab bar on phone · footer: one-line note · imagery: none yet (slots for owner photos) · signature: the stage stepper
  * axes: light/grotesk-sans/chromatic-green · posture: soft · contrast: pass (src/ui/contrast.test.ts) · fold: pass · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V3 · weakest: V, the mockups fix the look; kept them and raised text, contrast and control sizes to the accessibility floor */
-/* waive: 38iii (one green word in a head — the mockups' own device); 7b (pure white cards and text on green — taken from the mockups); controls 56px (project rule ≥48px beats app density 32–40px) */
+/* waive: 38iii (one green word in a head — the mockups' own device); 7b (pure white cards and text on green — taken from the mockups); controls 56px (project rule ≥48px beats app density 32–40px); 34 (no overflow-x: clip on html/body — an overflow must stay visible so it gets fixed, not hidden; checked at 360/390 px × 100/200 % font) */
 @import "tailwindcss";
 @import "../ui/tokens.css";
 
 /* Базовые стили. Значения — только из токенов (src/ui/tokens.css). */
 @layer base {
-  html,
-  body {
-    overflow-x: clip;
-  }
-
   /* Высота нижней панели вкладок (телефон). Точное значение ставит MobileTabBar; здесь — запас без скриптов. */
   :root {
     --tabbar-h: calc(4.25rem + 1px + env(safe-area-inset-bottom));
@@ -40,12 +35,23 @@
     font-size: var(--text-base);
     line-height: var(--text-base--line-height);
     -webkit-font-smoothing: antialiased;
+    /* Страховка для крупного шрифта на телефоне: слово длиннее строки переносится (с дефисом, где браузер
+       умеет), а не выталкивает страницу вбок. В обычной ширине ничего не меняет — переносы только по нужде. */
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+
+  /* Таблицы и суммы не рвём посреди числа: таблица прокручивается в своей области, сумма переносится
+     между группами разрядов (Money). */
+  table,
+  .tabular-nums {
+    overflow-wrap: normal;
+    hyphens: manual;
   }
 
   h1,
   h2,
   h3 {
-    overflow-wrap: break-word;
     min-width: 0;
     text-wrap: balance;
     letter-spacing: -0.01em;
@@ -75,6 +81,35 @@
   [role="button"]:not([aria-disabled="true"]),
   summary {
     cursor: pointer;
+  }
+}
+
+/*
+ * Список «подпись — значение» (<dl class="facts">): в ряд, когда хватает ширины, иначе подпись над значением.
+ * Ширина считается в em самого списка, поэтому при увеличенном шрифте он раньше переходит в столбик.
+ * Подписи и значения можно оборачивать в <div> — правило смотрит на dt/dd на любой глубине.
+ */
+@utility facts {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: --spacing(4);
+
+  & :where(dt, dd) {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  & :where(dt):not(:first-child) {
+    margin-top: --spacing(2);
+  }
+
+  @container (width >= 17em) {
+    & :where(dt, dd) {
+      grid-column: auto;
+    }
+    & :where(dt):not(:first-child) {
+      margin-top: 0;
+    }
   }
 }
 
