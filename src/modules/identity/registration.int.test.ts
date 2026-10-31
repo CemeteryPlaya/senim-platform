@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { testBin, testIin } from "@/demo/kz-id";
-import { decryptPii } from "@/platform/crypto";
+import { decryptPii, hashPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
@@ -8,6 +8,7 @@ import { registerExecutor, reviewExecutorRegistration, type ExecutorRegistration
 
 const IIN = testIin("910803", 3, 21);
 const BIN = testBin("2101", 16);
+const DIRECTOR_IIN = testIin("800215", 3, 41);
 
 const selfEmployed: ExecutorRegistrationInput = {
   legalForm: "SELF_EMPLOYED",
@@ -15,7 +16,23 @@ const selfEmployed: ExecutorRegistrationInput = {
   binIin: IIN,
   city: "Астана",
   yearsExperience: 7,
+  director: null,
 };
+
+const too: ExecutorRegistrationInput = {
+  ...selfEmployed,
+  legalForm: "TOO",
+  legalName: "ТОО «Ағаш»",
+  binIin: BIN,
+  director: { fullName: "Тулегенов Бауыржан", iin: DIRECTOR_IIN },
+};
+
+/** Вошёл по SMS: ни ФИО, ни ИИН в записи пользователя нет. */
+async function smsUser() {
+  const user = await makeClient();
+  await db.user.update({ where: { id: user.id }, data: { fullName: null, iinEnc: null, iinHash: null, iinLast4: null } });
+  return user;
+}
 
 async function codeOf(p: Promise<unknown>): Promise<string> {
   const e = await p.then(
@@ -59,7 +76,7 @@ describe("registerExecutor", () => {
 
   it("ТОО регистрируется по БИН", async () => {
     const user = await makeClient();
-    const { profileId } = await registerExecutor(user, { ...selfEmployed, legalForm: "TOO", legalName: "ТОО «Ағаш»", binIin: BIN });
+    const { profileId } = await registerExecutor(user, too);
     expect(decryptPii((await db.executorProfile.findUniqueOrThrow({ where: { id: profileId } })).binIinEnc)).toBe(BIN);
   });
 
@@ -87,8 +104,7 @@ describe("registerExecutor", () => {
     expect(await codeOf(registerExecutor(await makeClient(), selfEmployed))).toBe("CONFLICT");
 
     const [a, b] = [await makeClient(), await makeClient()];
-    const tooInput = { ...selfEmployed, legalForm: "TOO" as const, legalName: "ТОО «Тест»", binIin: BIN };
-    const codes = await Promise.all([registerExecutor(a, tooInput), registerExecutor(b, tooInput)].map((p) => codeOf(p).catch(() => "OK")));
+    const codes = await Promise.all([registerExecutor(a, too), registerExecutor(b, too)].map((p) => codeOf(p).catch(() => "OK")));
     expect(codes.sort()).toEqual(["CONFLICT", "OK"]);
     expect(await db.executorProfile.count()).toBe(2);
   });
@@ -126,6 +142,65 @@ describe("registerExecutor", () => {
       rejectReason: null,
       legalName: "Жумабаев Ерлан",
     });
+  });
+});
+
+describe("подписант договора от исполнителя записывается при регистрации", () => {
+  it("ТОО: ФИО и ИИН директора — в записи пользователя, ИИН только зашифрованным", async () => {
+    const user = await smsUser();
+    await registerExecutor(user, too);
+
+    const row = await db.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(row).toMatchObject({ fullName: "Тулегенов Бауыржан", iinHash: hashPii(DIRECTOR_IIN), iinLast4: DIRECTOR_IIN.slice(-4) });
+    expect(row.iinEnc).not.toContain(DIRECTOR_IIN);
+    expect(decryptPii(row.iinEnc!)).toBe(DIRECTOR_IIN);
+    const audit = await db.auditEvent.findMany({ where: { actorId: user.id } });
+    expect(audit.map((a) => a.action)).toContain("user.identity.recorded");
+    expect(JSON.stringify(audit.map((a) => [a.before, a.after, a.meta]))).not.toContain(DIRECTOR_IIN);
+  });
+
+  it("ТОО без директора или с неверным ИИН директора — VALIDATION, профиль не создан", async () => {
+    const user = await smsUser();
+    expect(await codeOf(registerExecutor(user, { ...too, director: null }))).toBe("VALIDATION");
+    const broken = DIRECTOR_IIN.slice(0, 11) + String((Number(DIRECTOR_IIN[11]) + 1) % 10);
+    expect(await codeOf(registerExecutor(user, { ...too, director: { fullName: "Тулегенов Бауыржан", iin: broken } }))).toBe("VALIDATION");
+    expect(await db.executorProfile.count()).toBe(0);
+    expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).role).toBe("CLIENT");
+  });
+
+  it("ТОО: ИИН директора уже указан в другом аккаунте — CONFLICT, профиль не создан", async () => {
+    const owner = await smsUser();
+    await registerExecutor(owner, too);
+    const other = await smsUser();
+    const err = registerExecutor(other, { ...too, binIin: testBin("2101", 17) });
+    expect(await codeOf(err)).toBe("CONFLICT");
+    expect(await db.executorProfile.count()).toBe(1);
+  });
+
+  it("повторная подача ТОО после отказа: новый директор заменяет прежнего", async () => {
+    const operator = await makeOperator();
+    const user = await smsUser();
+    const { profileId } = await registerExecutor(user, too);
+    await reviewExecutorRegistration(operator, profileId, { approve: false, reason: "Директор указан неверно" });
+
+    const newDirector = testIin("820304", 4, 42);
+    await registerExecutor({ ...user, role: "EXECUTOR" }, { ...too, director: { fullName: "Ахметова Сауле", iin: newDirector } });
+    expect(await db.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ fullName: "Ахметова Сауле", iinHash: hashPii(newDirector) });
+  });
+
+  it("ИП и самозанятый: ИИН профиля (ИИН владельца) записан в пользователя, если там пусто", async () => {
+    const user = await smsUser();
+    await registerExecutor(user, { ...selfEmployed, legalForm: "IP", legalName: "ИП «Дала»" });
+    const row = await db.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(row).toMatchObject({ iinHash: hashPii(IIN), iinLast4: IIN.slice(-4) });
+    expect(decryptPii(row.iinEnc!)).toBe(IIN);
+  });
+
+  it("ИП: уже записанный ИИН пользователя не перезаписывается", async () => {
+    const user = await makeClient();
+    const before = await db.user.findUniqueOrThrow({ where: { id: user.id } });
+    await registerExecutor(user, selfEmployed);
+    expect(await db.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ iinHash: before.iinHash, fullName: before.fullName });
   });
 });
 

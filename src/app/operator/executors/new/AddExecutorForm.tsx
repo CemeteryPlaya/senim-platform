@@ -27,6 +27,8 @@ export function AddExecutorForm() {
       />
       <Input label={f.legalName} hint={f.legalNameHint} name="legalName" required error={form.fieldError("legalName")} />
       <Input label={f.binIin} hint={f.binIinHint} name="binIin" inputMode="numeric" autoComplete="off" required error={form.fieldError("binIin")} />
+      <Input label={f.directorName} hint={f.directorHint} name="directorName" autoComplete="off" error={form.fieldError("directorName")} />
+      <Input label={f.directorIin} name="directorIin" inputMode="numeric" autoComplete="off" error={form.fieldError("directorIin")} />
       <Select
         label={f.segment}
         name="segment"

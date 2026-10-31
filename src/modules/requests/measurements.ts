@@ -3,7 +3,7 @@ import { z } from "zod";
 import { recordAudit, SYSTEM } from "@/modules/audit";
 import { maskContacts, sanitizeExecutorText } from "@/modules/companies";
 import { createDeal } from "@/modules/deal-core";
-import { recordClientIdentity, type CurrentUser } from "@/modules/identity";
+import { recordPersonIdentity, type CurrentUser } from "@/modules/identity";
 import { notify, notifyTemplate } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
 import { db, transaction, type Db } from "@/platform/db";
@@ -178,7 +178,7 @@ export async function agreeToContract(
     if (!m || m.finalPrice === null) return fail.conflict(e.noMeasurementResult);
     // Сторона договора: без ФИО и ИИН договор не составить и не подписать ЭЦП. После проверок шага:
     // ответ «ИИН занят» — только на настоящем шаге договора, а не любому заказчику с любой заявкой.
-    await recordClientIdentity(tx, user, input.identity);
+    await recordPersonIdentity(tx, user, input.identity);
 
     expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: to } }));
     const title = requestTitle(r);

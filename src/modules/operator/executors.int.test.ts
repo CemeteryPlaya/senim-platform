@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decryptPii } from "@/platform/crypto";
+import { testIin } from "@/demo/kz-id";
+import { decryptPii, hashPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import {
@@ -13,6 +14,7 @@ import { addExecutorSchema } from "./schemas";
 
 // Тестовый БИН с верной контрольной цифрой (алгоритм РК).
 const VALID_BIN = "210140000016";
+const DIRECTOR_IIN = testIin("800215", 3, 61);
 
 describe("очередь регистраций", () => {
   it("показывает только PENDING и раскрывает лишь последние 4 цифры ИИН/БИН", async () => {
@@ -75,13 +77,16 @@ describe("очередь регистраций", () => {
 });
 
 describe("ручное добавление исполнителя", () => {
-  const input = addExecutorSchema.parse({
+  const raw = {
     phone: "+7 700 111 22 33",
     legalForm: "TOO",
     legalName: "ТОО «Новый цех»",
     binIin: VALID_BIN,
+    directorName: "Тулегенов Бауыржан",
+    directorIin: DIRECTOR_IIN,
     segment: "COMFORT",
-  });
+  };
+  const input = addExecutorSchema.parse(raw);
 
   it("создаёт подтверждённого исполнителя с зашифрованным БИН и пометкой addedByOperator", async () => {
     const operator = await makeOperator();
@@ -102,6 +107,30 @@ describe("ручное добавление исполнителя", () => {
     expect(await db.auditEvent.count({ where: { action: "executor.added_by_operator", scope: `executor:${profileId}` } })).toBe(1);
   });
 
+  it("ТОО: ФИО и ИИН директора записаны в пользователя — им подписывается договор", async () => {
+    const { profileId } = await addExecutor(await makeOperator(), input);
+    const { user } = await db.executorProfile.findUniqueOrThrow({ where: { id: profileId }, include: { user: true } });
+    expect(user).toMatchObject({ fullName: "Тулегенов Бауыржан", iinHash: hashPii(DIRECTOR_IIN), iinLast4: DIRECTOR_IIN.slice(-4) });
+    expect(decryptPii(user.iinEnc!)).toBe(DIRECTOR_IIN);
+  });
+
+  it("ИП: ИИН профиля — ИИН владельца, записан в пользователя", async () => {
+    const iin = testIin("880512", 3, 62);
+    const ip = addExecutorSchema.parse({ phone: "+7 700 111 22 44", legalForm: "IP", legalName: "ИП Тестовый", binIin: iin, segment: "ECONOMY" });
+    const { profileId } = await addExecutor(await makeOperator(), ip);
+    const { user } = await db.executorProfile.findUniqueOrThrow({ where: { id: profileId }, include: { user: true } });
+    expect(user).toMatchObject({ iinHash: hashPii(iin), iinLast4: iin.slice(-4) });
+  });
+
+  it("ИИН подписанта уже в другом аккаунте — конфликт, исполнитель не создан", async () => {
+    const operator = await makeOperator();
+    const other = await makeClient();
+    await db.user.update({ where: { id: other.id }, data: { iinHash: hashPii(DIRECTOR_IIN) } });
+
+    await expect(addExecutor(operator, input)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await db.executorProfile.count()).toBe(0);
+  });
+
   it("не создаёт второго пользователя с тем же телефоном", async () => {
     const operator = await makeOperator();
     await addExecutor(operator, input);
@@ -114,7 +143,7 @@ describe("ручное добавление исполнителя", () => {
     const operator = await makeOperator();
     await addExecutor(operator, input);
 
-    const otherPhone = addExecutorSchema.parse({ ...input, phone: "+7 700 111 22 99" });
+    const otherPhone = addExecutorSchema.parse({ ...raw, phone: "+7 700 111 22 99" });
     await expect(addExecutor(operator, otherPhone)).rejects.toMatchObject({ code: "CONFLICT" });
     expect(await db.executorProfile.count()).toBe(1);
   });

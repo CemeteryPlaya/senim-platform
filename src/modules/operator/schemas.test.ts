@@ -11,14 +11,28 @@ describe("форма ручного добавления", () => {
       binIin: "9001 0130 0017",
       segment: "ECONOMY",
     });
-    expect(parsed).toEqual({ phone: "+77001112233", legalForm: "IP", legalName: "ИП Тест", binIin: "900101300017", segment: "ECONOMY" });
+    expect(parsed).toEqual({ phone: "+77001112233", legalForm: "IP", legalName: "ИП Тест", binIin: "900101300017", segment: "ECONOMY", director: null });
   });
 
   it("ИП проверяется как ИИН, ТОО — как БИН", () => {
-    const base = { phone: "+77001112233", legalName: "Тест", segment: "ECONOMY" };
+    const base = { phone: "+77001112233", legalName: "Тест", segment: "ECONOMY", directorName: "Тулегенов Бауыржан", directorIin: "900101300017" };
     expect(addExecutorSchema.safeParse({ ...base, legalForm: "IP", binIin: "210140000016" }).success).toBe(false);
     expect(addExecutorSchema.safeParse({ ...base, legalForm: "TOO", binIin: "210140000016" }).success).toBe(true);
     expect(addExecutorSchema.safeParse({ ...base, legalForm: "TOO", binIin: "210140000017" }).success).toBe(false);
+  });
+
+  it("ТОО — ФИО и ИИН директора обязательны и проверяются", () => {
+    const too = { phone: "+77001112233", legalForm: "TOO", legalName: "ТОО Тест", binIin: "210140000016", segment: "ECONOMY" };
+    const fields = (input: object) => {
+      const r = addExecutorSchema.safeParse(input);
+      return Object.keys(r.error ? z.flattenError(r.error).fieldErrors : {}).sort();
+    };
+    expect(fields(too)).toEqual(["directorIin", "directorName"]);
+    expect(fields({ ...too, directorName: "Тулегенов", directorIin: "900101300018" })).toEqual(["directorIin", "directorName"]);
+    expect(addExecutorSchema.parse({ ...too, directorName: " Тулегенов  Бауыржан ", directorIin: "9001 0130 0017" }).director).toEqual({
+      fullName: "Тулегенов Бауыржан",
+      iin: "900101300017",
+    });
   });
 
   it("сообщает, какое поле неверно", () => {

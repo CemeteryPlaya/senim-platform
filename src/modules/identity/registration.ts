@@ -8,6 +8,7 @@ import { db, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import type { ReviewExecutorRegistration } from "./index";
+import { recordPersonIdentity } from "./person-identity";
 import type { ExecutorRegistrationInput } from "./registration-schema";
 import { EXECUTOR_REGISTRATION_PATH } from "./return-to";
 import { actorOf, type CurrentUser } from "./session";
@@ -31,6 +32,17 @@ function profileData(input: ExecutorRegistrationInput) {
     city: input.city,
     yearsExperience: input.yearsExperience,
   };
+}
+
+/**
+ * Кто подписывает договор от исполнителя — его ИИН в User (с ним сверяется сертификат ЭЦП):
+ *  - ТОО — директор (представитель): ФИО и ИИН из анкеты, в повторной анкете могут смениться;
+ *  - ИП и самозанятый — владелец: ИИН профиля и есть его ИИН, записывается, если в User пусто.
+ */
+function recordSignerIdentity(tx: Tx, user: CurrentUser, input: ExecutorRegistrationInput): Promise<void> {
+  return input.legalForm === "TOO"
+    ? recordPersonIdentity(tx, user, input.director ?? undefined, "replace")
+    : recordPersonIdentity(tx, user, { fullName: null, iin: input.binIin }, "fill");
 }
 
 /** Профиль: новый или повторная подача после отказа (тот же профиль снова PENDING). */
@@ -71,6 +83,7 @@ function register(user: CurrentUser, input: ExecutorRegistrationInput): Promise<
     if ((await tx.request.count({ where: { clientId: user.id } })) > 0) return fail.conflict(t.errors.clientHasRequests);
 
     const profileId = await upsertPendingProfile(tx, user.id, input);
+    await recordSignerIdentity(tx, user, input);
     await tx.user.update({ where: { id: user.id }, data: { role: "EXECUTOR" } });
 
     await recordAudit(tx, {

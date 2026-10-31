@@ -2,13 +2,16 @@ import type { PaymentMode } from "@/generated/prisma/enums";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor } from "../factories";
 
+/** Исполнитель сделки: из фабрики или зарегистрированный через identity.registerExecutor. */
+type DealExecutor = Awaited<ReturnType<typeof makeExecutor>>;
+
 /**
  * Сделка в статусе AWAITING_SIGNATURES с двумя этапами — минимум для тестов documents.
  * Создаётся прямыми запросами (без requests/deal-core), чтобы тесты не зависели от чужих модулей.
  */
-export async function makeDeal(opts: { paymentMode?: PaymentMode; legalName?: string } = {}) {
+export async function makeDeal(opts: { paymentMode?: PaymentMode; legalName?: string; executor?: DealExecutor } = {}) {
   const client = await makeClient("Сапарова Айгерим Болатовна");
-  const executor = await makeExecutor({ legalName: opts.legalName ?? "ТОО «Ағаш Шебер»" });
+  const executor = opts.executor ?? (await makeExecutor({ legalName: opts.legalName ?? "ТОО «Ағаш Шебер»" }));
   const request = await db.request.create({
     data: {
       clientId: client.id,

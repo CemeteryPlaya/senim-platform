@@ -5,6 +5,8 @@ import { executorRegistrationSchema } from "./registration-schema";
 
 const IIN = testIin("910803", 3, 21);
 const BIN = testBin("2101", 16);
+const DIRECTOR_IIN = testIin("800215", 3, 41);
+const director = { directorName: "Тулегенов Бауыржан", directorIin: DIRECTOR_IIN };
 const valid = { legalForm: "IP", legalName: "  ИП «Дала Мебель» ", binIin: IIN, city: "Астана", yearsExperience: "5" };
 
 function fieldErrors(input: unknown) {
@@ -20,6 +22,7 @@ describe("executorRegistrationSchema", () => {
       binIin: IIN,
       city: "Астана",
       yearsExperience: 5,
+      director: null,
     });
   });
 
@@ -29,8 +32,27 @@ describe("executorRegistrationSchema", () => {
   });
 
   it("ТОО — по БИН, ИИН для него не подходит", () => {
-    expect(fieldErrors({ ...valid, legalForm: "TOO", binIin: BIN })).toEqual({});
-    expect(fieldErrors({ ...valid, legalForm: "TOO", binIin: IIN })).toHaveProperty("binIin");
+    expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: BIN })).toEqual({});
+    expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: IIN })).toHaveProperty("binIin");
+  });
+
+  it("ТОО — ФИО и ИИН директора обязательны: он подписывает договор своей ЭЦП", () => {
+    const tooBase = { ...valid, legalForm: "TOO", binIin: BIN };
+    expect(fieldErrors(tooBase)).toMatchObject({ directorName: expect.any(Array), directorIin: expect.any(Array) });
+    expect(fieldErrors({ ...tooBase, ...director, directorName: "Тулегенов" })).toHaveProperty("directorName");
+    const broken = DIRECTOR_IIN.slice(0, 11) + String((Number(DIRECTOR_IIN[11]) + 1) % 10);
+    expect(fieldErrors({ ...tooBase, ...director, directorIin: broken })).toHaveProperty("directorIin");
+    expect(fieldErrors({ ...tooBase, ...director, directorIin: BIN })).toHaveProperty("directorIin");
+
+    expect(executorRegistrationSchema.parse({ ...tooBase, directorName: "  Тулегенов   Бауыржан ", directorIin: DIRECTOR_IIN.replace(/(\d{4})/g, "$1 ") }).director).toEqual({
+      fullName: "Тулегенов Бауыржан",
+      iin: DIRECTOR_IIN,
+    });
+  });
+
+  it("ИП и самозанятый — директор не нужен и игнорируется", () => {
+    expect(executorRegistrationSchema.parse({ ...valid, ...director }).director).toBeNull();
+    expect(executorRegistrationSchema.parse({ ...valid, directorName: "", directorIin: "" }).director).toBeNull();
   });
 
   it("неверная контрольная цифра — ошибка поля ИИН/БИН", () => {

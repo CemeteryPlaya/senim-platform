@@ -21,7 +21,8 @@ export { authorize, can, type ActionOn, type Resource } from "./rbac";
 export { EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, homePathFor, loginHref, safeReturnTo } from "./return-to";
 export { formatPhone, parsePhone, type Phone } from "./phone";
 export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id";
-export { hasClientIdentity, recordClientIdentity } from "./client-identity";
+export { isValidFullName, normalizeFullName } from "./full-name";
+export { hasClientIdentity, iinColumns, recordPersonIdentity, type PersonIdentity } from "./person-identity";
 export {
   executorRegistrationSchema,
   getMyRegistration,
