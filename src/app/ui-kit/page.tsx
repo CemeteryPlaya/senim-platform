@@ -28,7 +28,7 @@ import {
   type ChatMessage,
   type Tone,
 } from "@/ui";
-import { ChatDemo, ModalDemo, PhotoDemo, StepperDemo } from "./KitDemos";
+import { ChatDemo, LoadingButtonDemo, ModalDemo, PhotoDemo, StepperDemo } from "./KitDemos";
 
 const k = ru.common.uiKit;
 const s = k.sample;
@@ -104,7 +104,7 @@ export default async function UiKitPage() {
           </Button>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button loading>{s.loading}</Button>
+          <LoadingButtonDemo />
           <Button variant="secondary" disabled>
             {s.disabled}
           </Button>

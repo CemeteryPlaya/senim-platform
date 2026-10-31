@@ -8,6 +8,11 @@ import { Button, Chat, Modal, PhotoUpload, Stepper, type ChatMessage, type Photo
 
 const s = ru.common.uiKit.sample;
 
+/** Кнопка в загрузке гасит нажатие своим обработчиком — поэтому она живёт в клиентском компоненте. */
+export function LoadingButtonDemo() {
+  return <Button loading>{s.loading}</Button>;
+}
+
 export function StepperDemo() {
   const [current, setCurrent] = useState(1);
   return (
