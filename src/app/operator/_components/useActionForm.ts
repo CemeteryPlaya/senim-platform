@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import type { ActionResult } from "@/platform/action";
+import { focusFirstInvalid } from "@/ui";
 
 export type FormFields = Record<string, string>;
 
@@ -31,6 +32,8 @@ export function useActionForm<T>(
       const result = await action(fields);
       if (!result.ok) {
         setState({ error: result.error, fieldErrors: result.fieldErrors });
+        // После отрисовки ошибок (aria-invalid) — фокус на первое неверное поле, а не на кнопке под ним.
+        if (result.fieldErrors) requestAnimationFrame(() => focusFirstInvalid(form));
         return;
       }
       setState({ done: true });

@@ -55,7 +55,12 @@ function PrimaryAction({ deal, action }: { deal: DealView; action: NonNullable<D
       );
     case "confirmPayment":
       return (
-        <ActionButton action={confirmPaymentAction} input={{ stageId: action.stageId }} focusAfter={NEXT_HEADING_ID}>
+        <ActionButton
+          action={confirmPaymentAction}
+          input={{ stageId: action.stageId }}
+          focusAfter={NEXT_HEADING_ID}
+          confirm={{ title: t.forms.confirmPaymentTitle, text: t.forms.confirmPaymentText, yes: t.forms.confirmPaymentYes, no: ru.common.actions.notNow, tone: "primary" }}
+        >
           {t.actions.confirmPayment}
         </ActionButton>
       );

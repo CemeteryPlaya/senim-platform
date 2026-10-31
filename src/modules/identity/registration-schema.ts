@@ -18,8 +18,8 @@ export type ExecutorSigner = { fullName: string; iin: string | null };
 
 /** Поля анкеты о подписанте. Формы присылают все; нужные форме работы проверяет refineSigner. */
 export const signerFields = {
-  ownerName: z.string().optional(),
-  directorName: z.string().optional(),
+  ownerName: z.string().max(200).optional(),
+  directorName: z.string().max(200).optional(),
   directorIin: digits.optional(),
 };
 
@@ -35,7 +35,9 @@ function signerIssues(v: SignerSource): Issue[] {
     case "TOO":
       return [
         ...(isValidFullName(v.directorName ?? "") ? [] : [{ path: ["directorName"], message: t.directorName }]),
-        ...(isValidIin(v.directorIin ?? "") ? [] : [{ path: ["directorIin"], message: t.directorIin }]),
+        ...(isValidIin(v.directorIin ?? "")
+          ? []
+          : [{ path: ["directorIin"], message: v.directorIin ? t.directorIin : t.directorIinRequired }]),
       ];
   }
 }

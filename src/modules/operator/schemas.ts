@@ -29,7 +29,8 @@ const phoneSchema = z.string().transform((v, ctx) => {
 const digitsOnly = z
   .string()
   .transform((v) => v.replace(/\s/g, ""))
-  .refine((v) => /^\d{12}$/.test(v), t.kzId);
+  .refine((v) => v.length > 0, t.kzIdRequired)
+  .refine((v) => v.length === 0 || /^\d{12}$/.test(v), t.kzId);
 
 // ─── исполнители ─────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ export const addExecutorSchema = z
   .object({
     phone: phoneSchema,
     legalForm: legalFormSchema,
-    legalName: z.string().trim().min(2, t.required).max(200),
+    legalName: z.string().trim().min(2, t.legalNameRequired).max(200),
     binIin: digitsOnly,
     ...signerFields,
     segment: segmentSchema,

@@ -119,8 +119,52 @@ function SignArea({
   onComplete: () => void;
   onReset: () => void;
 }) {
+  const area = useRef<HTMLDivElement>(null);
+  const prevStep = useRef(state.step);
+  // Кнопка, на которой стоял фокус, исчезает при смене шага: переводим фокус на итог подписи
+  // или (после «Выбрать другой способ») на выбранный способ — иначе он падает в начало страницы.
+  useEffect(() => {
+    const was = prevStep.current;
+    prevStep.current = state.step;
+    if (was === state.step) return;
+    const target =
+      state.step === "done"
+        ? area.current?.querySelector<HTMLElement>("[data-sign-result]")
+        : state.step === "choose" && (was === "awaiting" || was === "completing")
+          ? area.current?.querySelector<HTMLElement>("input[type=radio]:checked")
+          : null;
+    target?.focus();
+  }, [state.step]);
+  return (
+    <div ref={area}>
+      <SignStep doc={doc} state={state} onMethod={onMethod} onStart={onStart} onComplete={onComplete} onReset={onReset} />
+    </div>
+  );
+}
+
+function SignStep({
+  doc,
+  state,
+  onMethod,
+  onStart,
+  onComplete,
+  onReset,
+}: {
+  doc: SigningDocumentView;
+  state: ReturnType<typeof signingReducer>;
+  onMethod: (m: SignMethodChoice) => void;
+  onStart: () => void;
+  onComplete: () => void;
+  onReset: () => void;
+}) {
   if (state.step === "done") {
-    return <Alert tone="success" live="polite">{state.fullySigned ? t.panel.fullySigned : t.panel.signedOk}</Alert>;
+    return (
+      <div data-sign-result tabIndex={-1} className="rounded-control">
+        <Alert tone="success" live="polite">
+          {state.fullySigned ? t.panel.fullySigned : t.panel.signedOk}
+        </Alert>
+      </div>
+    );
   }
   if (doc.myParty === null) return <p className="text-base text-muted">{t.panel.operatorView}</p>;
   if (!doc.canSign) {
