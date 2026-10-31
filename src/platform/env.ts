@@ -75,6 +75,11 @@ const schema = z
     }
     // Демо-стенд пускает в любую персону без SMS и умеет стирать базу: в production — только за паролем (src/proxy.ts).
     if (env.NODE_ENV === "production" && env.DEMO_MODE) require("DEMO_ACCESS_PASSWORD", "DEMO_MODE=true в production");
+    if (env.DEMO_ACCESS_PASSWORD && env.DEMO_ACCESS_PASSWORD.length < 16) {
+      ctx.addIssue({ code: "custom", path: ["DEMO_ACCESS_PASSWORD"], message: "не короче 16 символов: пароль закрывает стенд с данными и сбросом демо" });
+    }
+    // За паролем показа /api/cron/run открыт без пароля (demo-gate) — его закрывает только CRON_SECRET.
+    if (env.DEMO_MODE && env.DEMO_ACCESS_PASSWORD) require("CRON_SECRET", "DEMO_MODE=true с паролем показа");
     // Вне демо-стенда моки в production означают «код входа никуда не уходит» и «подпись не проверяется».
     if (env.NODE_ENV === "production" && !env.DEMO_MODE) {
       const forbidMock = (key: "SMS_PROVIDER" | "SIGNATURE_PROVIDER") => {

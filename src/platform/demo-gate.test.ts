@@ -36,6 +36,13 @@ describe("demoGate", () => {
     expect(demoGate(path, null, closed)).toBe("pass");
   });
 
+  it.each(["/api/webhooks/other", "/api/webhooks/bank/extra", "/api/cron/other", "/api/webhooks/", "/api/cron/run/x"])(
+    "другие пути под вебхуками и cron закрыты: %s",
+    (path) => {
+      expect(demoGate(path, null, closed)).toBe("challenge");
+    },
+  );
+
   it("похожий на вебхук путь не исключение", () => {
     expect(demoGate("/api/webhooksX", null, closed)).toBe("challenge");
     expect(demoGate("/api/cronjob", null, closed)).toBe("challenge");

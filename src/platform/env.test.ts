@@ -23,7 +23,7 @@ const demoProduction = {
   SMS_PROVIDER: "mock",
   SIGNATURE_PROVIDER: "mock",
   ESCROW_SIMULATOR_WEBHOOK_SECRET: "w",
-  DEMO_ACCESS_PASSWORD: "пароль-показа",
+  DEMO_ACCESS_PASSWORD: "пароль-показа-банку",
 };
 
 function problems(source: Record<string, string>): string {
@@ -55,10 +55,26 @@ describe("env: production", () => {
   it("демо-стенд без пароля не запускается", () => {
     expect(problems({ ...demoProduction, DEMO_ACCESS_PASSWORD: "" })).toMatch(/DEMO_ACCESS_PASSWORD/);
   });
+
+  it("пароль показа — не короче 16 символов", () => {
+    expect(problems({ ...demoProduction, DEMO_ACCESS_PASSWORD: "короткий-пароль" })).toMatch(/DEMO_ACCESS_PASSWORD: не короче 16/);
+    expect(problems({ ...demoProduction, DEMO_ACCESS_PASSWORD: "ровно-16-символ!" })).toBe("");
+  });
+
+  it("демо-стенд без CRON_SECRET не запускается", () => {
+    expect(problems({ ...demoProduction, CRON_SECRET: "" })).toMatch(/CRON_SECRET/);
+  });
 });
 
 describe("env: разработка", () => {
   it("моки и демо без пароля разрешены", () => {
     expect(problems({ DATABASE_URL: "postgresql://x", DEMO_MODE: "true" })).toBe("");
+  });
+
+  it("демо за паролем показа требует CRON_SECRET и длинный пароль и при разработке", () => {
+    const demo = { DATABASE_URL: "postgresql://x", DEMO_MODE: "true", DEMO_ACCESS_PASSWORD: "пароль-показа-банку" };
+    expect(problems(demo)).toMatch(/CRON_SECRET/);
+    expect(problems({ ...demo, CRON_SECRET: "c" })).toBe("");
+    expect(problems({ ...demo, CRON_SECRET: "c", DEMO_ACCESS_PASSWORD: "123" })).toMatch(/DEMO_ACCESS_PASSWORD/);
   });
 });

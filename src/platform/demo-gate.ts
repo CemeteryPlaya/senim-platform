@@ -3,10 +3,11 @@ import { createHash, timingSafeEqual } from "node:crypto";
 /**
  * Демо-стенд (DEMO_MODE=true) пускает в любую персону без SMS, показывает код входа на экране
  * и умеет «Сбросить демо». Если задан DEMO_ACCESS_PASSWORD, весь сайт закрыт basic-auth
- * (src/proxy.ts). Без пароля не закрываются только вызовы извне: вебхуки банка и cron —
- * у них своя проверка подписи и секрета.
+ * (src/proxy.ts). Без пароля не закрываются только вызовы извне — точные пути вебхуков банка
+ * и cron, у них своя проверка подписи и секрета (CRON_SECRET при демо с паролем требует env.ts).
+ * Префикс не годится: любой новый маршрут под /api/webhooks/ оказался бы открыт без пароля.
  */
-const EXEMPT_PREFIXES = ["/api/webhooks/", "/api/cron/"];
+const EXEMPT_PATHS: ReadonlySet<string> = new Set(["/api/webhooks/bank", "/api/webhooks/escrow-simulator", "/api/cron/run"]);
 
 export type DemoGateConfig = { demoMode: boolean; password: string | undefined };
 
@@ -27,7 +28,7 @@ function basicPassword(authorization: string | null): string | null {
 
 export function demoGate(pathname: string, authorization: string | null, config: DemoGateConfig): "pass" | "challenge" {
   if (!config.demoMode || !config.password) return "pass";
-  if (EXEMPT_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return "pass";
+  if (EXEMPT_PATHS.has(pathname)) return "pass";
   const given = basicPassword(authorization);
   return given !== null && sameSecret(given, config.password) ? "pass" : "challenge";
 }
