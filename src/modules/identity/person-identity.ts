@@ -27,6 +27,19 @@ export async function hasClientIdentity(userId: string): Promise<boolean> {
 }
 
 /**
+ * Попытка указать ИИН (ответ «ИИН занят» говорит, что у человека с этим ИИН есть аккаунт): не больше 5 в час
+ * на пользователя. Вызывается ДО транзакции, в которой recordPersonIdentity: счётчик пишется отдельным
+ * соединением, откат после отказа его не сбрасывает, а открытая транзакция не ждёт второго соединения.
+ * Считается, только если ИИН передан и в аккаунте его ещё нет.
+ */
+export async function limitIdentityAttempts(user: CurrentUser, input: PersonIdentity | undefined): Promise<void> {
+  if (!input) return;
+  const current = await db.user.findUnique({ where: { id: user.id }, select: { iinHash: true } });
+  if (current?.iinHash) return;
+  await enforceRateLimit(`identity:iin:user:${user.id}`, IIN_ATTEMPTS, t.tooMany);
+}
+
+/**
  * Записывает ФИО и ИИН заказчика в User в транзакции вызывающего (requests.agreeToContract).
  * ИИН — только зашифрованным, с HMAC; один ИИН — один аккаунт заказчика. Уже указанный ИИН
  * не меняется: после договора данные стороны не переписываются. Подписант исполнителя сюда
@@ -40,9 +53,7 @@ export async function recordPersonIdentity(tx: Tx, user: CurrentUser, input: Per
   if (!isValidFullName(fullName)) return fail.validation(t.fullNameInvalid, { fieldErrors: { fullName: [t.fullNameInvalid] } });
   if (!isValidIin(input.iin)) return fail.validation(t.iinInvalid, { fieldErrors: { iin: [t.iinInvalid] } });
 
-  // Ответ «ИИН занят» говорит, что у человека с этим ИИН есть аккаунт: перебор ограничен.
-  // Счётчик — вне транзакции вызывающего, поэтому откат после отказа его не сбрасывает.
-  await enforceRateLimit(`identity:iin:user:${user.id}`, IIN_ATTEMPTS, t.tooMany);
+  // Перебор «ИИН занят» ограничен limitIdentityAttempts — вызывающий зовёт его до транзакции.
   const columns = iinColumns(input.iin);
   const taken = await tx.user.findUnique({ where: { iinHash: columns.iinHash }, select: { id: true } });
   if (taken && taken.id !== user.id) return fail.conflict(t.iinTaken);

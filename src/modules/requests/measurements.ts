@@ -3,7 +3,7 @@ import { z } from "zod";
 import { recordAudit, SYSTEM } from "@/modules/audit";
 import { maskContacts, sanitizeExecutorText } from "@/modules/companies";
 import { createDeal } from "@/modules/deal-core";
-import { recordPersonIdentity, type CurrentUser } from "@/modules/identity";
+import { limitIdentityAttempts, recordPersonIdentity, type CurrentUser } from "@/modules/identity";
 import { notify, notifyTemplate } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
 import { db, transaction, type Db } from "@/platform/db";
@@ -172,6 +172,7 @@ export async function agreeToContract(
   input: { requestId: string; template: StageTemplateKey; identity?: { fullName: string; iin: string } },
 ): Promise<{ dealId: string }> {
   requireClient(user);
+  await limitIdentityAttempts(user, input.identity);
   return transaction(async (tx) => {
     const r = await loadOwnRequest(tx, user, input.requestId);
     const to = transition(REQUEST_TRANSITIONS, "agreeToContract", r.status, "CLIENT");
