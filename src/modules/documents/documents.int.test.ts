@@ -309,6 +309,22 @@ describe("подпись", () => {
     expect(await db.signature.count()).toBe(0);
   });
 
+  it("в расторгнутой или отменённой сделке подпись не начинается: шаг проверяется до провайдера", async () => {
+    const { deal, client } = await makeDeal();
+    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
+    const provider = vi.spyOn(mockSignatureProvider, "startSigning");
+    try {
+      for (const status of ["TERMINATED", "CANCELLED"] as const) {
+        await db.deal.update({ where: { id: deal.id }, data: { status } });
+        await expect(startSigning(client, documentId, "EGOV_QR")).rejects.toMatchObject({ code: "CONFLICT" });
+      }
+      expect(provider).not.toHaveBeenCalled();
+      expect(await db.auditEvent.count({ where: { action: "document.signing.started" } })).toBe(0);
+    } finally {
+      provider.mockRestore();
+    }
+  });
+
   it("акт подписывается, только пока сделка в работе или в споре", async () => {
     const { deal, client } = await makeDeal();
     await transaction((tx) => createContract(tx, deal.id));
@@ -383,5 +399,22 @@ describe("доступ к PDF (IDOR)", () => {
     expect(forExecutor).toMatchObject({ myParty: "EXECUTOR", canSign: false });
 
     await expect(listDealDocuments(await makeClient(), deal.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("«Подписать» не предлагается, когда шаг сделки не принимает подпись (расторгнута, отменена, акт до работ)", async () => {
+    const { deal, client } = await makeDeal();
+    await transaction((tx) => createContract(tx, deal.id));
+    const stage = deal.stages[0];
+    await db.stage.update({ where: { id: stage.id }, data: { status: "ACCEPTED", acceptedAt: new Date() } });
+    await transaction((tx) => createStageAct(tx, stage.id));
+    const canSign = async () => Object.fromEntries((await listDealDocuments(client, deal.id)).map((d) => [d.kind, d.canSign]));
+
+    expect(await canSign()).toEqual({ CONTRACT: true, STAGE_ACT: false });
+    await db.deal.update({ where: { id: deal.id }, data: { status: "IN_PROGRESS" } });
+    expect(await canSign()).toEqual({ CONTRACT: false, STAGE_ACT: true });
+    for (const status of ["TERMINATED", "CANCELLED"] as const) {
+      await db.deal.update({ where: { id: deal.id }, data: { status } });
+      expect(await canSign()).toEqual({ CONTRACT: false, STAGE_ACT: false });
+    }
   });
 });

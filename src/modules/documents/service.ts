@@ -7,7 +7,7 @@ import { saveFile, storageByName } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { decryptPii, hashPii, last4, sha256Hex } from "@/platform/crypto";
-import { db, lockDealRow, transaction, type Tx } from "@/platform/db";
+import { db, lockDealRow, transaction, type Db, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { TIME_ZONE } from "@/ui/format";
@@ -247,10 +247,15 @@ const SIGNABLE_WHILE: Record<DocumentKind, readonly DealStatus[]> = {
   STAGE_ACT: ["IN_PROGRESS", "DISPUTE"],
 };
 
-/** Проверяется под блокировкой сделки: отмена и подпись идут строго по очереди. */
-async function assertDealSignable(tx: Tx, dealId: string, kind: DocumentKind) {
-  const deal = await tx.deal.findUniqueOrThrow({ where: { id: dealId }, select: { status: true } });
-  if (!SIGNABLE_WHILE[kind].includes(deal.status)) fail.conflict(t.errors.dealNotSignable);
+const signableAt = (kind: DocumentKind, dealStatus: DealStatus) => SIGNABLE_WHILE[kind].includes(dealStatus);
+
+/**
+ * Шаг сделки принимает подпись этого документа. В completeSigning — под блокировкой сделки (отмена
+ * и подпись идут строго по очереди); в startSigning — без неё, чтобы не звать провайдера зря.
+ */
+async function assertDealSignable(client: Db, dealId: string, kind: DocumentKind) {
+  const deal = await client.deal.findUniqueOrThrow({ where: { id: dealId }, select: { status: true } });
+  if (!signableAt(kind, deal.status)) fail.conflict(t.errors.dealNotSignable);
 }
 
 function assertSignable(status: DocumentStatus, signatures: { party: SignParty }[], party: SignParty) {
@@ -286,6 +291,8 @@ async function expectedSigner(userId: string, party: SignParty): Promise<{ iin: 
 /** Начать подпись стороной сделки. Подписывается sha256 PDF, сохранённый в Document. */
 export async function startSigning(user: CurrentUser, documentId: string, method: SignMethod): Promise<StartedSigning> {
   const { doc, party } = await signableBy(user, documentId);
+  // Расторгнутая или отменённая сделка: сессию у провайдера (QR eGov Mobile) не открываем.
+  await assertDealSignable(db, doc.dealId, doc.kind);
   const { iin } = await expectedSigner(user.id, party);
   const me = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { fullName: true } });
   const provider = signatureProvider();
@@ -401,7 +408,7 @@ export async function getDocumentPdf(user: CurrentUser, documentId: string): Pro
 
 /** Действующие документы сделки (без заменённых версий) для сторон и оператора. */
 export async function listDealDocuments(user: CurrentUser, dealId: string): Promise<SigningDocumentView[]> {
-  const deal = await db.deal.findUnique({ where: { id: dealId }, select: { clientId: true, executor: { select: { userId: true } } } });
+  const deal = await db.deal.findUnique({ where: { id: dealId }, select: { status: true, clientId: true, executor: { select: { userId: true } } } });
   if (!deal || !canRead(user, deal)) return fail.notFound(t.errors.notFound);
   const myParty = partyOf(user, deal);
   const docs = await db.document.findMany({
@@ -422,7 +429,7 @@ export async function listDealDocuments(user: CurrentUser, dealId: string): Prom
     signedAt: d.signedAt,
     pdfUrl: `/api/documents/${d.id}/pdf`,
     myParty,
-    canSign: myParty !== null && d.status === "SIGNING" && !d.signatures.some((s) => s.party === myParty),
+    canSign: myParty !== null && d.status === "SIGNING" && signableAt(d.kind, deal.status) && !d.signatures.some((s) => s.party === myParty),
     signatures: d.signatures,
   }));
 }
