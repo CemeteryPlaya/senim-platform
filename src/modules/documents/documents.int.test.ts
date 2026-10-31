@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db, transaction } from "@/platform/db";
-import { sha256Hex } from "@/platform/crypto";
+import { decryptPii, encryptPii, hashPii, last4, sha256Hex } from "@/platform/crypto";
 import { resetEnvCache } from "@/platform/env";
 import { onDocumentSigned } from "@/modules/deal-core";
 import { registerExecutor, reviewExecutorRegistration } from "@/modules/identity";
@@ -195,9 +195,20 @@ describe("подпись", () => {
       documentId,
       sha256,
       method: "EGOV_QR",
-      signer: { userId: executor.id, fullName: "Кто-то", iinLast4: executorUser.iinLast4 ?? undefined },
+      signer: { userId: executor.id, fullName: "Кто-то", iin: decryptPii(executorUser.iinEnc!) },
     });
     await expect(completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("сертификат с теми же последними 4 цифрами, но другим ИИН — отказ: сверяется ИИН целиком", async () => {
+    const { deal, client } = await makeDeal();
+    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
+    const own = decryptPii((await db.user.findUniqueOrThrow({ where: { id: client.id } })).iinEnc!);
+    const lookalike = `${(Number(own[0]) + 1) % 10}${own.slice(1)}`;
+    const session = await mockSignatureProvider.startSigning({ documentId, sha256, method: "EGOV_QR", signer: { userId: client.id, fullName: "Двойник", iin: lookalike } });
+
+    await expect(completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
+    expect(await db.signature.count()).toBe(0);
   });
 
   it("подписант привязан к стороне: заказчик — своим ИИН; нет ИИН — подписать нельзя", async () => {
@@ -206,7 +217,7 @@ describe("подпись", () => {
     const noIin = await mockSignatureProvider.startSigning({ documentId, sha256, method: "EGOV_QR", signer: { userId: client.id, fullName: "Без ИИН" } });
     await expect(completeSigning(client, { documentId, sessionId: noIin.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
 
-    await db.user.update({ where: { id: client.id }, data: { iinLast4: null } });
+    await db.user.update({ where: { id: client.id }, data: { iinEnc: null, iinHash: null, iinLast4: null } });
     await expect(startSigning(client, documentId, "EGOV_QR")).rejects.toMatchObject({ code: "VALIDATION" });
     expect(await db.signature.count()).toBe(0);
   });
@@ -215,19 +226,20 @@ describe("подпись", () => {
     const { deal, executor } = await makeDeal();
     const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
     // ИИН/БИН профиля ИП — ИИН владельца; личный ИИН в записи пользователя может отсутствовать или устареть.
+    const ownerIin = testIin("880512", 3, 71);
     const profile = await db.executorProfile.update({
       where: { id: executor.executor.id },
-      data: { binIinLast4: "4321" },
+      data: { binIinEnc: encryptPii(ownerIin), binIinHash: hashPii(ownerIin), binIinLast4: last4(ownerIin) },
       include: { user: true },
     });
     expect(profile.legalForm).toBe("IP");
-    expect(profile.user.iinLast4).not.toBe("4321");
+    expect(profile.user.iinHash).not.toBe(profile.binIinHash);
 
     const wrong = await mockSignatureProvider.startSigning({
       documentId,
       sha256,
       method: "EGOV_QR",
-      signer: { userId: executor.id, fullName: "Кто-то", iinLast4: profile.user.iinLast4 ?? undefined },
+      signer: { userId: executor.id, fullName: "Кто-то", iin: decryptPii(profile.user.iinEnc!) },
     });
     await expect(completeSigning(executor, { documentId, sessionId: wrong.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
 
@@ -246,7 +258,7 @@ describe("подпись", () => {
 
     const g = await makeDeal();
     await db.executorProfile.update({ where: { id: g.executor.executor.id }, data: { legalForm: "TOO" } });
-    await db.user.update({ where: { id: g.executor.id }, data: { iinLast4: null } });
+    await db.user.update({ where: { id: g.executor.id }, data: { iinEnc: null, iinHash: null, iinLast4: null } });
     const other = await transaction((tx) => createContract(tx, g.deal.id));
     await expect(startSigning(g.executor, other.documentId, "EGOV_QR")).rejects.toMatchObject({ code: "VALIDATION" });
   });

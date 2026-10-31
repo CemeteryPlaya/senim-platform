@@ -6,7 +6,7 @@ import { recordAudit, SYSTEM } from "@/modules/audit";
 import { saveFile, storageByName } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
-import { decryptPii, sha256Hex } from "@/platform/crypto";
+import { decryptPii, hashPii, last4, sha256Hex } from "@/platform/crypto";
 import { db, lockDealRow, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
@@ -50,8 +50,8 @@ function loadDealForContract(tx: Tx, dealId: string) {
 type DealForContract = Awaited<ReturnType<typeof loadDealForContract>>;
 
 /**
- * Данные договора. Здесь — единственное место, где расшифровывается ИИН/БИН исполнителя:
- * он попадает только в PDF договора. Заказчик в договоре — ФИО и ИИН (сторона договора
+ * Данные договора. ИИН/БИН исполнителя расшифровывается для PDF договора (и для провайдера
+ * подписи в expectedSigner) — на экраны он не попадает. Заказчик в договоре — ФИО и ИИН (сторона договора
  * должна быть определена так же, как исполнитель); телефонов в договоре нет.
  */
 function toContractData(deal: DealForContract, meta: { number: string; version: number; issuedAt: Date }): ContractData {
@@ -262,36 +262,38 @@ function assertSignable(status: DocumentStatus, signatures: { party: SignParty }
 // ─── подпись ────────────────────────────────────────────────────────────────
 
 /**
- * Последние 4 цифры ИИН, которым сторона обязана подписать: подписант привязан к стороне договора.
- *  - заказчик — свой ИИН (User.iinLast4);
- *  - исполнитель ИП или самозанятый — ИИН владельца, он же ИИН/БИН профиля (ExecutorProfile.binIinLast4);
+ * ИИН, которым сторона обязана подписать: подписант привязан к стороне договора. Сверяется ИИН целиком
+ * (HMAC сертификатного ИИН с хранимым), а не последние 4 цифры — их совпадение у чужого ИИН не редкость.
+ *  - заказчик — свой ИИН (User.iinHash);
+ *  - исполнитель ИП или самозанятый — ИИН владельца, он же ИИН/БИН профиля (ExecutorProfile.binIinHash);
  *  - исполнитель ТОО — подписывает директор (представитель) своим сертификатом: в нём ИИН директора,
- *    а не БИН организации, поэтому сверяем ИИН представителя (User.iinLast4).
- *    TODO(ТОО): сверять и БИН организации из сертификата юрлица (ExecutorProfile.binIinLast4), когда
- *    провайдер подписи станет возвращать его (SignatureVerification.certBin) и будет проверено право подписи.
- * ИИН неизвестен — подписать нельзя: иначе подпись не привязана ни к кому.
+ *    а не БИН организации, поэтому сверяем ИИН представителя (User.iinHash, его пишет регистрация).
+ *    TODO(ТОО): сверять и БИН организации из сертификата юрлица, когда провайдер подписи станет
+ *    возвращать его (SignatureVerification.certBin) и будет проверено право подписи.
+ * iin (расшифрованный) нужен провайдеру: мок выпускает по нему «сертификат». ИИН неизвестен — подписать нельзя.
  */
-async function expectedSignerIin(userId: string, party: SignParty): Promise<string> {
+async function expectedSigner(userId: string, party: SignParty): Promise<{ iin: string; iinHash: string }> {
   const user = await db.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { iinLast4: true, executorProfile: { select: { legalForm: true, binIinLast4: true } } },
+    select: { iinEnc: true, iinHash: true, executorProfile: { select: { legalForm: true, binIinEnc: true, binIinHash: true } } },
   });
   const profile = party === "EXECUTOR" ? user.executorProfile : null;
-  const iin = profile && profile.legalForm !== "TOO" ? profile.binIinLast4 : user.iinLast4;
-  return iin || fail.validation(t.errors.signerIinMissing);
+  const [enc, iinHash] = profile && profile.legalForm !== "TOO" ? [profile.binIinEnc, profile.binIinHash] : [user.iinEnc, user.iinHash];
+  if (!enc || !iinHash) return fail.validation(t.errors.signerIinMissing);
+  return { iin: decryptPii(enc), iinHash };
 }
 
 /** Начать подпись стороной сделки. Подписывается sha256 PDF, сохранённый в Document. */
 export async function startSigning(user: CurrentUser, documentId: string, method: SignMethod): Promise<StartedSigning> {
   const { doc, party } = await signableBy(user, documentId);
-  const iinLast4 = await expectedSignerIin(user.id, party);
+  const { iin } = await expectedSigner(user.id, party);
   const me = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { fullName: true } });
   const provider = signatureProvider();
   const session = await provider.startSigning({
     documentId,
     sha256: doc.sha256,
     method,
-    signer: { userId: user.id, fullName: me.fullName ?? "", iinLast4 },
+    signer: { userId: user.id, fullName: me.fullName ?? "", iin },
   });
   await recordAudit(db, {
     actor: actorOf(user),
@@ -320,8 +322,10 @@ export const completeSigning: CompleteSigning = async (user, { documentId, sessi
   const verified = await provider.verify({ cms: result.cms, sha256: doc.sha256 });
   if (!verified.valid) return fail.validation(t.errors.rejected(verified.reason));
 
-  // Сертификат без ИИН или с чужим ИИН — подпись не этой стороны.
-  if (verified.certIinLast4 !== (await expectedSignerIin(user.id, party))) return fail.validation(t.errors.otherSigner);
+  // Сертификат без ИИН или с чужим ИИН — подпись не этой стороны. Сравниваем HMAC полного ИИН.
+  const { certIin } = verified;
+  const expected = await expectedSigner(user.id, party);
+  if (!certIin || hashPii(certIin) !== expected.iinHash) return fail.validation(t.errors.otherSigner);
 
   return transaction(async (tx) => {
     // Порядок блокировок как в createContract и deal-core: сначала сделка, потом документ.
@@ -344,7 +348,7 @@ export const completeSigning: CompleteSigning = async (user, { documentId, sessi
         signature: result.cms,
         certSubject: verified.certSubject,
         certSerial: verified.certSerial,
-        certIinLast4: verified.certIinLast4,
+        certIinLast4: last4(certIin),
         verified: true,
         signedAt: verified.signedAt,
       },

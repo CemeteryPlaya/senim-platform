@@ -1,18 +1,38 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { resetEnvCache } from "@/platform/env";
 import { mockSignatureProvider } from "./mock-signature";
 import { createSigexProvider, type SigexClient } from "./sigex";
 
 const SHA = "a".repeat(64);
-const signer = { userId: "u1", fullName: "Сапарова Айгерим", iinLast4: "0123" };
+const IIN = "900101300123";
+
+// Мок шифрует ИИН ключом разработки (encryptPii), а env() требует строку подключения к базе — в модульном тесте её нет.
+beforeAll(() => {
+  vi.stubEnv("DATABASE_URL", "postgresql://unit-test");
+  resetEnvCache();
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+  resetEnvCache();
+});
+const signer = { userId: "u1", fullName: "Сапарова Айгерим", iin: IIN };
 
 describe("mock-провайдер подписи", () => {
-  it("подпись проходит проверку только для своего хэша и помнит способ", async () => {
+  it("подпись проходит проверку только для своего хэша, помнит способ и возвращает полный ИИН подписанта", async () => {
     const session = await mockSignatureProvider.startSigning({ documentId: "d1", sha256: SHA, method: "NCALAYER", signer });
     const result = await mockSignatureProvider.getResult(session.sessionId);
     if (result.status !== "signed") throw new Error("ожидали подпись");
     expect(result.method).toBe("NCALAYER");
-    expect(await mockSignatureProvider.verify({ cms: result.cms, sha256: SHA })).toMatchObject({ valid: true, certIinLast4: "0123" });
+    expect(await mockSignatureProvider.verify({ cms: result.cms, sha256: SHA })).toMatchObject({ valid: true, certIin: IIN });
     expect(await mockSignatureProvider.verify({ cms: result.cms, sha256: "b".repeat(64) })).toMatchObject({ valid: false });
+  });
+
+  it("ИИН не лежит открытым ни в sessionId (уходит в браузер), ни в CMS (хранится в БД)", async () => {
+    const session = await mockSignatureProvider.startSigning({ documentId: "d1", sha256: SHA, method: "EGOV_QR", signer });
+    const result = await mockSignatureProvider.getResult(session.sessionId);
+    if (result.status !== "signed") throw new Error("ожидали подпись");
+    const decoded = [Buffer.from(session.sessionId.split(".")[0], "base64url").toString("utf8"), Buffer.from(result.cms, "base64").toString("utf8")];
+    for (const text of decoded) expect(text).not.toContain(IIN);
   });
 
   it("подделанный sessionId не даёт подписи", async () => {
@@ -32,12 +52,12 @@ describe("SIGEX поверх порта SigexClient", () => {
   };
   const sigex = createSigexProvider(client);
 
-  it("QR eGov Mobile: сессия, результат и проверка; наружу только 4 цифры ИИН", async () => {
+  it("QR eGov Mobile: сессия, результат и проверка; ИИН сертификата целиком — для сверки по HMAC", async () => {
     const session = await sigex.startSigning({ documentId: "d1", sha256: SHA, method: "EGOV_QR", signer });
     expect(session).toMatchObject({ sessionId: "op-aaaa", qrPayload: "qr-data", method: "EGOV_QR" });
     expect(await sigex.getResult("op-aaaa")).toEqual({ status: "signed", cms: "cms", method: "EGOV_QR" });
     expect(await sigex.getResult("op-bbbb")).toEqual({ status: "pending" });
-    expect(await sigex.verify({ cms: "cms", sha256: SHA })).toMatchObject({ valid: true, certIinLast4: "0123" });
+    expect(await sigex.verify({ cms: "cms", sha256: SHA })).toMatchObject({ valid: true, certIin: "900101300123" });
     expect(await sigex.verify({ cms: "cms", sha256: "b".repeat(64) })).toMatchObject({ valid: false });
   });
 

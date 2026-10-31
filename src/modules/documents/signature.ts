@@ -7,7 +7,8 @@ import type { SignMethod } from "@/generated/prisma/enums";
  * Сервер всегда проверяет подпись сам (verify), не доверяя клиенту.
  */
 
-export type Signer = { userId: string; fullName: string; iinLast4?: string };
+/** Кто должен подписать: iin — ИИН, с которым сервер сверит сертификат (мок по нему выпускает «сертификат»; без него — сертификат без ИИН). */
+export type Signer = { userId: string; fullName: string; iin?: string };
 
 export type SigningSession = {
   sessionId: string;
@@ -25,7 +26,14 @@ export type SigningResult =
   | { status: "failed"; error: string };
 
 export type VerifiedSignature =
-  | { valid: true; certSubject: string; certSerial: string; certIinLast4?: string; signedAt: Date }
+  | {
+      valid: true;
+      certSubject: string;
+      certSerial: string;
+      /** ИИН из сертификата целиком: сервер сверяет его HMAC с ИИН стороны. Нет ИИН — подпись ничья. */
+      certIin?: string;
+      signedAt: Date;
+    }
   | { valid: false; reason: string };
 
 export interface SignatureProvider {

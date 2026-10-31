@@ -9,7 +9,7 @@ import type { SignatureProvider } from "../signature";
  * не удалось (сеть закрыта), а API внешних сервисов мы не выдумываем. Поэтому провайдер разделён:
  *  - SigexClient — наш порт: три операции, которые по смыслу нужны от SIGEX. HTTP-клиент
  *    по документации SIGEX пишется отдельно и реализует этот порт;
- *  - createSigexProvider — логика вокруг порта (без состояния, проверка хэша, только 4 цифры ИИН),
+ *  - createSigexProvider — логика вокруг порта (без состояния, проверка хэша, ИИН сертификата для сверки),
  *    она не зависит от формата API и проверена тестом с поддельным клиентом.
  * Пока клиента нет, signatureProvider() при SIGNATURE_PROVIDER=sigex отвечает «ещё не подключена».
  */
@@ -47,7 +47,7 @@ export function createSigexProvider(client: SigexClient): SignatureProvider {
     async verify({ cms, sha256 }) {
       const r = await client.verifyCms({ cms, sha256 });
       if (!r.valid) return r;
-      return { valid: true, certSubject: r.subject, certSerial: r.serial, certIinLast4: r.iin?.slice(-4), signedAt: r.signedAt };
+      return { valid: true, certSubject: r.subject, certSerial: r.serial, certIin: r.iin, signedAt: r.signedAt };
     },
   };
 }
