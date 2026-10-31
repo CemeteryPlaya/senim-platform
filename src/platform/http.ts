@@ -1,3 +1,4 @@
+import { ru } from "@/i18n/ru";
 import { isAppError, type ErrorCode } from "./errors";
 import { logger } from "./logger";
 
@@ -20,7 +21,7 @@ export function httpStatusOf(code: ErrorCode): number {
 export function errorResponse(e: unknown, route: string): Response {
   if (isAppError(e)) return Response.json({ code: e.code, error: e.message }, { status: STATUS[e.code] });
   logger.error("route failed", { route, error: e });
-  return Response.json({ code: "INTERNAL", error: "Что-то пошло не так. Попробуйте ещё раз" }, { status: 500 });
+  return Response.json({ code: "INTERNAL", error: ru.common.errors.generic }, { status: 500 });
 }
 
 /**

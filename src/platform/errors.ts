@@ -1,3 +1,5 @@
+import { ru } from "@/i18n/ru";
+
 /**
  * Ошибки приложения. `message` показывается пользователю как есть,
  * поэтому пишется по-русски и без технических подробностей.
@@ -22,26 +24,28 @@ export class AppError extends Error {
   }
 }
 
+const e = ru.common.errors;
+
 export const fail = {
   validation(message: string, details?: Record<string, unknown>): never {
     throw new AppError("VALIDATION", message, details);
   },
-  unauthenticated(message = "Войдите, чтобы продолжить"): never {
+  unauthenticated(message: string = e.unauthenticated): never {
     throw new AppError("UNAUTHENTICATED", message);
   },
-  forbidden(message = "Недостаточно прав для этого действия"): never {
+  forbidden(message: string = e.notAllowed): never {
     throw new AppError("FORBIDDEN", message);
   },
-  notFound(message = "Не найдено"): never {
+  notFound(message: string = e.notFoundShort): never {
     throw new AppError("NOT_FOUND", message);
   },
-  conflict(message = "Данные уже изменились. Обновите страницу"): never {
+  conflict(message: string = e.conflict): never {
     throw new AppError("CONFLICT", message);
   },
-  rateLimited(message = "Слишком много попыток. Попробуйте позже"): never {
+  rateLimited(message: string = e.rateLimited): never {
     throw new AppError("RATE_LIMITED", message);
   },
-  unavailable(message = "Сервис временно недоступен. Попробуйте позже"): never {
+  unavailable(message: string = e.unavailable): never {
     throw new AppError("UNAVAILABLE", message);
   },
 };

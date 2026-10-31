@@ -8,7 +8,7 @@ import { ru } from "@/i18n/ru";
  */
 
 const v = ru.deal.validation;
-const id = z.string().trim().min(1).max(64);
+const id = z.string().trim().min(1, v.badRef).max(64, v.badRef);
 const text = (min: number, max: number, tooShort: string) =>
   z.string().trim().min(min, tooShort).max(max, v.tooLong(max));
 
@@ -23,7 +23,7 @@ export const submitStageSchema = z.object({
 
 export const reworkSchema = z.object({ stageId: id, note: text(5, 1000, v.reworkNote) });
 
-export const cancelDealSchema = z.object({ dealId: id, reason: z.string().trim().max(500).default("") });
+export const cancelDealSchema = z.object({ dealId: id, reason: z.string().trim().max(500, v.tooLong(500)).default("") });
 
 export const openDisputeSchema = z.object({
   dealId: id,
@@ -47,7 +47,7 @@ export const resolveDisputeSchema = z.object({
 export const reviewSchema = z.object({
   dealId: id,
   rating: z.coerce.number().int().min(1, v.rating).max(5, v.rating),
-  text: z.string().trim().max(2000).default(""),
+  text: z.string().trim().max(2000, v.tooLong(2000)).default(""),
 });
 
 const stageTemplateSchema = z.object({
@@ -82,7 +82,7 @@ export const autoAcceptPayloadSchema = z.object({
   /** Задача поставлена заново после решения спора (срок — от решения). */
   resumedAt: z.iso.datetime().optional(),
 });
-export const retryOperationSchema = z.object({ idempotencyKey: z.string().trim().min(1).max(200) });
+export const retryOperationSchema = z.object({ idempotencyKey: z.string().trim().min(1, v.badRef).max(200, v.badRef) });
 export const settlePayloadSchema = z.object({ idempotencyKey: z.string().min(1) });
 export const dealPayloadSchema = z.object({ dealId: id });
 
