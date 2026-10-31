@@ -83,6 +83,8 @@ export const common = {
     actionFor: (action: string, target: string) => `${action}: ${target}`,
     optional: "необязательно",
     selectPlaceholder: "Выберите вариант",
+    /** Имя области с таблицей, которая на узком экране прокручивается вбок (фокус — Tab, прокрутка — стрелками). */
+    tableRegion: (title: string) => `Таблица «${title}»`,
     stepper: {
       label: "Шаги",
       progress: (n: number, total: number) => `Шаг ${n} из ${total}`,

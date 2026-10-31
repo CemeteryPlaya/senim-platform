@@ -15,45 +15,48 @@ function Totals<S extends string>({ title, rows, label }: { title: string; rows:
   const total = rows.reduce((acc, r) => ({ count: acc.count + r.count, sum: acc.sum + r.sum }), { count: 0, sum: 0 });
   return (
     <Card title={title}>
-      <table className="w-full text-left text-base">
-        <thead className="text-sm text-muted">
-          <tr>
-            <th scope="col" className="pb-2 font-semibold">
-              {t.status}
-            </th>
-            <th scope="col" className="pb-2 text-right font-semibold">
-              {t.count}
-            </th>
-            <th scope="col" className="pb-2 text-right font-semibold">
-              {t.sum}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.status} className="border-t border-line">
-              <th scope="row" className="py-2 pr-3 font-normal">
-                {label(r.status)}
+      {/* На узком экране и при крупном шрифте таблица прокручивается в своей области, а не двигает страницу. */}
+      <div className="-mx-1 overflow-x-auto px-1" tabIndex={0} role="region" aria-label={ru.common.ui.tableRegion(title)}>
+        <table className="w-full text-left text-base">
+          <thead className="text-sm text-muted">
+            <tr>
+              <th scope="col" className="pb-2 font-semibold">
+                {t.status}
               </th>
-              <td className="py-2 text-right tabular-nums">{r.count}</td>
+              <th scope="col" className="pb-2 text-right font-semibold">
+                {t.count}
+              </th>
+              <th scope="col" className="pb-2 text-right font-semibold">
+                {t.sum}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.status} className="border-t border-line">
+                <th scope="row" className="py-2 pr-3 font-normal">
+                  {label(r.status)}
+                </th>
+                <td className="py-2 text-right tabular-nums">{r.count}</td>
+                <td className="py-2 pl-3 text-right">
+                  <Money amount={r.sum} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-line-strong font-bold">
+              <th scope="row" className="py-2">
+                {t.total}
+              </th>
+              <td className="py-2 text-right tabular-nums">{total.count}</td>
               <td className="py-2 pl-3 text-right">
-                <Money amount={r.sum} />
+                <Money amount={total.sum} />
               </td>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t border-line-strong font-bold">
-            <th scope="row" className="py-2">
-              {t.total}
-            </th>
-            <td className="py-2 text-right tabular-nums">{total.count}</td>
-            <td className="py-2 pl-3 text-right">
-              <Money amount={total.sum} />
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+          </tfoot>
+        </table>
+      </div>
     </Card>
   );
 }
@@ -75,7 +78,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
           </Button>
         </form>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <Totals title={t.deals} rows={report.deals} label={(s) => o.dealStatus[s]} />
           <Totals title={t.stages} rows={report.stages} label={(s) => o.stageStatus[s]} />
           <Totals title={t.payments} rows={report.payments} label={(s) => o.paymentStatus[s]} />
