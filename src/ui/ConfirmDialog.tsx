@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Button } from "./Button";
+import { isRepeatClick } from "./click-guard";
 import { Modal } from "./Modal";
 
 /** primary — важное, но обычное действие (принять этап, отметить оплату); danger — отмена, удаление, отказ. */
@@ -43,7 +44,10 @@ export function ConfirmDialog({ open, onCancel, onConfirm, title, description, c
           <Button variant="secondary" onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button variant={tone} loading={loading} onClick={onConfirm}>
+          {/* Второй клик серии (двойное нажатие) — не новое согласие. */}
+          <Button variant={tone} loading={loading} onClick={(event) => {
+              if (!isRepeatClick(event.detail)) onConfirm();
+            }}>
             {confirmLabel}
           </Button>
         </>

@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
+import { isOpeningClick } from "./click-guard";
 import { cn } from "./cn";
 
 export type ModalProps = {
@@ -11,7 +12,7 @@ export type ModalProps = {
   onClose: () => void;
   title: ReactNode;
   description?: ReactNode;
-  /** Кнопки внизу: главное действие последним. */
+  /** Кнопки внизу: главное действие последним (и в коде, и на экране). */
   footer?: ReactNode;
   className?: string;
   children?: ReactNode;
@@ -20,14 +21,13 @@ export type ModalProps = {
 /**
  * Модальное окно на нативном <dialog>: браузер сам держит фокус внутри и делает
  * остальную страницу недоступной. После закрытия фокус возвращается туда, откуда открыли.
+ * Клики в первые полсекунды после открытия гасятся: второй клик двойного нажатия, открывшего окно,
+ * иначе попадает в «Да» или в затемнение (src/ui/click-guard.ts).
  */
-/** Клик по затемнению сразу после открытия — продолжение нажатия, открывшего окно, а не «закрыть». */
-const BACKDROP_GRACE_MS = 500;
-
 export function Modal({ open, onClose, title, description, footer, className, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<Element | null>(null);
-  const openedAt = useRef(0);
+  const openedAt = useRef<number | null>(null);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -54,10 +54,15 @@ export function Modal({ open, onClose, title, description, footer, className, ch
         event.preventDefault();
         onClose();
       }}
+      // Перехват до кнопок окна: клик сразу после открытия не доходит ни до «Да», ни до затемнения.
+      onClickCapture={(event) => {
+        if (!isOpeningClick(openedAt.current, performance.now())) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       // Клик по затемнению попадает в сам <dialog>, клик по содержимому — во внутренний div.
-      // Второй клик двойного нажатия, открывшего окно, тоже попадает в затемнение — его не считаем.
       onClick={(event) => {
-        if (event.target === event.currentTarget && performance.now() - openedAt.current > BACKDROP_GRACE_MS) onClose();
+        if (event.target === event.currentTarget) onClose();
       }}
       className={cn(
         "m-auto w-[calc(100%-2rem)] max-w-lg rounded-card border border-line bg-surface p-0 text-ink shadow-overlay",
@@ -85,7 +90,7 @@ export function Modal({ open, onClose, title, description, footer, className, ch
           </p>
         )}
         {children}
-        {footer && <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">{footer}</div>}
+        {footer && <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">{footer}</div>}
       </div>
     </dialog>
   );
