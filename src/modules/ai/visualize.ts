@@ -10,6 +10,7 @@ import { env } from "@/platform/env";
 import { expectOneUpdated, fail, isAppError } from "@/platform/errors";
 import { enqueueJob, type JobContext, type JobHandlers } from "@/platform/jobs";
 import { enforceRateLimit } from "@/platform/rate-limit";
+import { parseInput } from "@/platform/validation";
 import { ownRequestIn, readableRequest } from "./access";
 import { aiEnabled, defaultDeps, ensureAiEnabled, type AiDeps } from "./deps";
 import { stampAiLabel } from "./label";
@@ -100,7 +101,7 @@ const finished = (s: VisualizationStatus) => s === "DONE" || s === "FAILED";
  * запуск не прикрепит второй набор картинок.
  */
 export async function runVisualization(payload: unknown, ctx: JobContext, deps: AiDeps = defaultDeps): Promise<void> {
-  const { visualizationId: id } = payloadSchema.parse(payload);
+  const { visualizationId: id } = parseInput(payloadSchema, payload);
   const viz = await db.visualization.findUnique({
     where: { id },
     include: { request: { select: { clientId: true } }, sourceFile: true },

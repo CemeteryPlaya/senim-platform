@@ -78,6 +78,12 @@ describe("notifyTemplate", () => {
     expect(new Set(sent.map((s) => s.idempotencyKey)).size).toBe(1);
   });
 
+  it("испорченная задача — ошибка проверки (VALIDATION), а не сырой ZodError", async () => {
+    const { handlers } = recordingSms();
+    const ctx = { jobId: "j", attempt: 1, log: (await import("@/platform/logger")).logger };
+    await expect(handlers["notifications.sendSms"]({ notificationId: "" }, ctx)).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
   it("заблокированному пользователю SMS не уходит", async () => {
     const executor = await makeExecutor();
     await db.$transaction((tx) => notifyTemplate(tx, executor.id, "registration.rejected", { reason: "Фото не ваши." }));

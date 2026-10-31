@@ -131,6 +131,10 @@ describe("задача ai.visualize", () => {
     expect(usage[0]).toMatchObject({ provider: "mock", model: "mock/image", images: 1, requestId: request.id, userId: client.id });
   });
 
+  it("испорченная задача — ошибка проверки (VALIDATION), а не сырой ZodError", async () => {
+    await expect(runVisualization({ visualizationId: 42 }, ctx())).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
   it("повторный запуск после успеха ничего не меняет", async () => {
     const { client, request, photo } = await setup();
     const view = await requestVisualization(client, request.id, photo.id, "");

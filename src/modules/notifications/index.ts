@@ -6,6 +6,7 @@ import { db, type Db } from "@/platform/db";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { enqueueJob, type JobHandler } from "@/platform/jobs";
+import { parseInput } from "@/platform/validation";
 import { createHttpSmsProvider, mockSmsProvider, type SmsProvider } from "./sms";
 import { renderTemplate, TEMPLATES, type TemplateKey, type TemplateParams } from "./templates";
 
@@ -108,7 +109,7 @@ const smsPayload = z.object({ notificationId: z.string().min(1) });
  */
 export function createSendSmsHandler(provider: () => SmsProvider): JobHandler {
   return async (payload, ctx) => {
-    const { notificationId } = smsPayload.parse(payload);
+    const { notificationId } = parseInput(smsPayload, payload);
     const notification = await db.notification.findUnique({
       where: { id: notificationId },
       select: { title: true, link: true, user: { select: { phone: true, blockedAt: true } } },
