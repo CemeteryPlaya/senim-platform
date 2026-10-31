@@ -1,4 +1,4 @@
-import type { StartedSigning } from "@/modules/documents/client";
+import type { SigningDocumentView, StartedSigning } from "@/modules/documents/client";
 
 /** Способы, которые выбирает пользователь (MOCK — только внутри мок-провайдера). */
 export type SignMethodChoice = "EGOV_QR" | "NCALAYER";
@@ -23,6 +23,15 @@ export type SigningAction =
   | { type: "completed"; fullySigned: boolean }
   | { type: "failed"; error: string }
   | { type: "reset" };
+
+/**
+ * Что показать вместо «Подписать», если подписать нельзя: «Вы подписали» — только когда подпись этой
+ * стороны есть; документ на подписи, а подписи нет — шаг сделки её не принимает (расторгнута, отменена).
+ */
+export function signNotice(doc: Pick<SigningDocumentView, "status" | "myParty" | "canSign" | "signatures">): "youSigned" | "notSignable" | null {
+  if (doc.canSign || doc.status !== "SIGNING") return null;
+  return doc.signatures.some((s) => s.party === doc.myParty) ? "youSigned" : "notSignable";
+}
 
 export const initialSigningState: SigningState = { step: "choose", method: "EGOV_QR" };
 

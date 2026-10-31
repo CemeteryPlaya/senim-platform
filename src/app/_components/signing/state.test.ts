@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialSigningState, signingReducer, type SigningSessionView } from "./state";
+import { initialSigningState, signNotice, signingReducer, type SigningSessionView } from "./state";
 
 const session: SigningSessionView = { sessionId: "s1", method: "EGOV_QR", qrImage: "data:image/png;base64,AA", expiresAt: new Date(0), provider: "mock" };
 
@@ -38,5 +38,24 @@ describe("signingReducer", () => {
     const starting = signingReducer(initialSigningState, { type: "start" });
     expect(signingReducer(starting, { type: "start" })).toBe(starting);
     expect(signingReducer(initialSigningState, { type: "complete" })).toBe(initialSigningState);
+  });
+});
+
+describe("signNotice — что показать вместо «Подписать»", () => {
+  const signed = { party: "CLIENT" as const, signedAt: new Date(0), signedSha256: "a", method: "EGOV_QR" as const };
+  const doc = { status: "SIGNING" as const, myParty: "CLIENT" as const, canSign: false, signatures: [] as (typeof signed)[] };
+
+  it("моя подпись есть — «Вы подписали»", () => {
+    expect(signNotice({ ...doc, signatures: [signed] })).toBe("youSigned");
+  });
+
+  it("не подписывал, но шаг сделки подпись не принимает (расторгнута, отменена) — не «Вы подписали»", () => {
+    expect(signNotice(doc)).toBe("notSignable");
+    expect(signNotice({ ...doc, signatures: [{ ...signed, party: "EXECUTOR" }] })).toBe("notSignable");
+  });
+
+  it("подписать можно или документ уже не на подписи — без пометки", () => {
+    expect(signNotice({ ...doc, canSign: true })).toBeNull();
+    expect(signNotice({ ...doc, status: "SIGNED", signatures: [signed] })).toBeNull();
   });
 });

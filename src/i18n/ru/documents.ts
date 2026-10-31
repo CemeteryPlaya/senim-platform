@@ -22,6 +22,7 @@ export const documents = {
     notSigned: (party: string) => `${party}: ещё не подписал`,
     hashMatches: "Подписан этот же файл: хэш совпадает",
     youSigned: "Вы подписали документ",
+    notSignable: "Сделка не на шаге подписи этого документа — подписать его сейчас нельзя",
     methodLabel: "Способ подписи",
     sign: "Подписать",
     confirmSigned: "Я подписал — проверить",

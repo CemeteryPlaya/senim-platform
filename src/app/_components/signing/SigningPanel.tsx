@@ -8,7 +8,7 @@ import { ru } from "@/i18n/ru";
 import type { SigningDocumentView } from "@/modules/documents/client";
 import { Alert, Button, buttonClasses, Card, formatDateTime, formatTime, RadioCards, StatusBadge } from "@/ui";
 import { completeSigningAction, startSigningAction } from "./actions";
-import { initialSigningState, signingReducer, type SignMethodChoice } from "./state";
+import { initialSigningState, signNotice, signingReducer, type SignMethodChoice } from "./state";
 
 const t = ru.documents;
 const PARTIES: SignParty[] = ["CLIENT", "EXECUTOR"];
@@ -124,7 +124,9 @@ function SignArea({
   }
   if (doc.myParty === null) return <p className="text-base text-muted">{t.panel.operatorView}</p>;
   if (!doc.canSign) {
-    return doc.status === "SIGNING" ? <Alert tone="success">{t.panel.youSigned}</Alert> : null;
+    const notice = signNotice(doc);
+    if (notice === "youSigned") return <Alert tone="success">{t.panel.youSigned}</Alert>;
+    return notice === "notSignable" ? <p className="text-base text-muted">{t.panel.notSignable}</p> : null;
   }
 
   if (state.step === "choose" || state.step === "starting") {
