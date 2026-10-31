@@ -1,9 +1,9 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, Input, RadioCards } from "@/ui";
+import { Button, focusFirstInvalid, Input, RadioCards } from "@/ui";
 import { DEFAULT_STAGE_TEMPLATE, STAGE_TEMPLATES, type StageTemplateKey } from "@/verticals/furniture";
 import { agreeToContractAction } from "../actions";
 import { FormError, useRunAction } from "../_parts/ActionButton";
@@ -22,9 +22,24 @@ export function AgreeForm({ requestId, needsIdentity }: { requestId: string; nee
   const [iin, setIin] = useState("");
   const { run, pending, error, fieldErrors } = useRunAction(agreeToContractAction, (d) => `/deals/${d.dealId}`);
   const identity = needsIdentity ? { fullName, iin: iin.replace(/\s/g, "") } : undefined;
+  const form = useRef<HTMLFormElement>(null);
+
+  // После отказа сервера — фокус на первое поле с ошибкой (поля уже получили aria-invalid).
+  useEffect(() => {
+    if (fieldErrors && form.current) focusFirstInvalid(form.current);
+  }, [fieldErrors]);
 
   return (
-    <div className="flex flex-col gap-4">
+    // Форма: Enter в поле ФИО или ИИН отправляет согласие так же, как кнопка.
+    <form
+      ref={form}
+      noValidate
+      className="flex flex-col gap-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void run({ requestId, template, identity });
+      }}
+    >
       <RadioCards
         label={t.templateLabel}
         hint={t.templateHint}
@@ -59,10 +74,10 @@ export function AgreeForm({ requestId, needsIdentity }: { requestId: string; nee
           />
         </fieldset>
       )}
-      <Button loading={pending} iconEnd={<ArrowRight />} onClick={() => void run({ requestId, template, identity })}>
+      <Button type="submit" loading={pending} iconEnd={<ArrowRight />}>
         {t.agree}
       </Button>
       <FormError message={error} />
-    </div>
+    </form>
   );
 }

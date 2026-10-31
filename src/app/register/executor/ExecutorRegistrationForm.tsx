@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { Alert, Button, Input, RadioCards } from "@/ui";
+import { Alert, Button, focusFirstInvalid, Input, RadioCards } from "@/ui";
 import { registerExecutorAction } from "./actions";
 
 const t = ru.identity.registration;
@@ -21,6 +21,12 @@ export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED" }:
   const [formError, setFormError] = useState<string>();
   const [pending, startTransition] = useTransition();
   const idKind = legalForm === "TOO" ? "BIN" : "IIN";
+  const form = useRef<HTMLFormElement>(null);
+
+  // После неудачной отправки — фокус на первое поле с ошибкой (aria-invalid ставят сами поля).
+  useEffect(() => {
+    if (Object.keys(errors).length > 0 && form.current) focusFirstInvalid(form.current);
+  }, [errors]);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -48,7 +54,7 @@ export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED" }:
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
+    <form ref={form} onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
       <RadioCards
         label={t.legalForm}
         name="legalForm"
