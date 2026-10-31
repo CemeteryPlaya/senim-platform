@@ -27,9 +27,27 @@ const SECRET_KEY_PARTS = [
 ];
 const SECRET_KEY = new RegExp(SECRET_KEY_PARTS.join("|"), "i");
 
+// В тексте ошибки: 12 цифр подряд (ИИН/БИН) и телефоны (+7 700 123 45 67, 8(700)123-45-67, 87001234567).
+const SENSITIVE_IN_TEXT = [/(?<!\d)\d{12}(?!\d)/g, /(?<![\d+])(?:\+\s?\d{1,3}|[78])[\s\-()]*\d{3}[\s\-()]*\d{3}[\s-]*\d{2}[\s-]*\d{2}(?!\d)/g];
+const maskText = (text: string) => SENSITIVE_IN_TEXT.reduce((t, re) => t.replace(re, "[скрыто]"), text);
+
+/** Ошибки Prisma несут в message аргументы запроса (ИИН, телефон, тексты) — их не пишем вовсе. */
+const PRISMA_ERRORS_WITH_ARGS = new Set(["PrismaClientKnownRequestError", "PrismaClientValidationError"]);
+
+/** Только строки стека «at …»: первая строка стека повторяет message. */
+const stackFrames = (stack: string | undefined) => stack?.split("\n").filter((l) => /^\s+at\s/.test(l)).join("\n");
+
+function errorFields(error: Error): Record<string, unknown> {
+  if (PRISMA_ERRORS_WITH_ARGS.has(error.name)) {
+    const { code, meta } = error as Error & { code?: unknown; meta?: { target?: unknown } };
+    return { name: error.name, code, target: meta?.target, stack: stackFrames(error.stack) };
+  }
+  return { name: error.name, message: maskText(error.message), stack: error.stack && maskText(error.stack) };
+}
+
 function redact(value: unknown, depth = 0): unknown {
   if (depth > 5 || value === null || typeof value !== "object") return value;
-  if (value instanceof Error) return { name: value.name, message: value.message, stack: value.stack };
+  if (value instanceof Error) return errorFields(value);
   if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1));
   return Object.fromEntries(
     Object.entries(value).map(([k, v]) => [k, SECRET_KEY.test(k) ? "[скрыто]" : redact(v, depth + 1)]),
