@@ -1,6 +1,6 @@
 import type { Job } from "@/generated/prisma/client";
 import { db, Prisma, type Db } from "../db";
-import { logger, type Logger } from "../logger";
+import { errorMessage, logger, type Logger } from "../logger";
 
 /**
  * Фоновые задачи на таблице Job. Совместимо с Vercel: задачи забирает
@@ -94,7 +94,8 @@ async function runJob(handlers: JobHandlers, job: Job, summary: RunSummary): Pro
     await db.job.update({ where: { id: job.id }, data: { status: "DONE", finishedAt: new Date(), lastError: null } });
     summary.done++;
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    // Текст ошибки виден в панели оператора и в дампе БД — по тем же правилам, что лог (без ИИН, телефонов, аргументов Prisma).
+    const message = errorMessage(e);
     const final = !handler || job.attempts >= job.maxAttempts;
     await db.job.update({
       where: { id: job.id },
@@ -107,7 +108,7 @@ async function runJob(handlers: JobHandlers, job: Job, summary: RunSummary): Pro
       log.error("job failed", { error: e });
     } else {
       summary.retried++;
-      log.warn("job will retry", { error: message });
+      log.warn("job will retry", { error: e });
     }
   }
 }

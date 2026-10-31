@@ -71,7 +71,7 @@ async function reconcileOrNull(dealId: string): Promise<ReconciliationRow[] | nu
     return await reconcile(dealId);
   } catch (e) {
     if (!isAppError(e)) throw e;
-    logger.warn("reconcile unavailable", { dealId, error: e.message });
+    logger.warn("reconcile unavailable", { dealId, error: e });
     return null;
   }
 }

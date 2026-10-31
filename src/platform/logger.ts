@@ -31,22 +31,45 @@ const SECRET_KEY = new RegExp(SECRET_KEY_PARTS.join("|"), "i");
 const SENSITIVE_IN_TEXT = [/(?<!\d)\d{12}(?!\d)/g, /(?<![\d+])(?:\+\s?\d{1,3}|[78])[\s\-()]*\d{3}[\s\-()]*\d{3}[\s-]*\d{2}[\s-]*\d{2}(?!\d)/g];
 const maskText = (text: string) => SENSITIVE_IN_TEXT.reduce((t, re) => t.replace(re, "[скрыто]"), text);
 
-/** Ошибки Prisma несут в message аргументы запроса (ИИН, телефон, тексты) — их не пишем вовсе. */
-const PRISMA_ERRORS_WITH_ARGS = new Set(["PrismaClientKnownRequestError", "PrismaClientValidationError"]);
+/** Ошибки Prisma несут в message аргументы запроса и ответ базы (ИИН, телефон, тексты) — их не пишем вовсе. */
+const PRISMA_ERRORS_WITH_ARGS = new Set([
+  "PrismaClientKnownRequestError",
+  "PrismaClientValidationError",
+  "PrismaClientUnknownRequestError",
+  "PrismaClientRustPanicError",
+]);
+const prismaCode = (error: Error) => (error as Error & { code?: unknown }).code;
 
 /** Только строки стека «at …»: первая строка стека повторяет message. */
 const stackFrames = (stack: string | undefined) => stack?.split("\n").filter((l) => /^\s+at\s/.test(l)).join("\n");
 
 function errorFields(error: Error): Record<string, unknown> {
   if (PRISMA_ERRORS_WITH_ARGS.has(error.name)) {
-    const { code, meta } = error as Error & { code?: unknown; meta?: { target?: unknown } };
-    return { name: error.name, code, target: meta?.target, stack: stackFrames(error.stack) };
+    const { meta } = error as Error & { meta?: { target?: unknown } };
+    return { name: error.name, code: prismaCode(error), target: meta?.target, stack: stackFrames(error.stack) };
   }
   return { name: error.name, message: maskText(error.message), stack: error.stack && maskText(error.stack) };
 }
 
+/**
+ * Текст ошибки, который можно хранить (Job.lastError): у Prisma — только имя и код, у остальных —
+ * message (или строка) с маской 12 цифр и телефонов. Те же правила, что у логгера.
+ */
+export function errorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return maskText(String(error));
+  if (PRISMA_ERRORS_WITH_ARGS.has(error.name)) {
+    const code = prismaCode(error);
+    return typeof code === "string" ? `${error.name} ${code}` : error.name;
+  }
+  return maskText(error.message);
+}
+
+const MAX_DEPTH = 5;
+
 function redact(value: unknown, depth = 0): unknown {
-  if (depth > 5 || value === null || typeof value !== "object") return value;
+  // Глубже ключи уже не проверяются — такое значение не пишем вовсе.
+  if (depth > MAX_DEPTH) return "[скрыто]";
+  if (value === null || typeof value !== "object") return value;
   if (value instanceof Error) return errorFields(value);
   if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1));
   return Object.fromEntries(

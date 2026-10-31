@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@/generated/prisma/client";
-import { logger } from "./logger";
+import { errorMessage, logger } from "./logger";
 
 /** Что ушло в консоль одной строкой JSON. */
 function logged(fields: Record<string, unknown>): Record<string, unknown> {
@@ -79,7 +79,30 @@ describe("logger: скрытие персональных данных", () => {
     expect((line.error as { message: string }).message).toMatch(/заявка 42$/);
   });
 
+  it("глубже пяти уровней — «[скрыто]», а не сырой объект", () => {
+    const deep = { a: { b: { c: { d: { e: { f: { g: { phone: "+77001234567", note: "87001234567" } } } } } } } };
+    const text = JSON.stringify(logged(deep));
+    expect(text).toContain("[скрыто]");
+    expect(text).not.toMatch(/7001234567/);
+  });
+
   it("служебные поля остаются как есть", () => {
     expect(logged({ dealId: "d1", fileId: "f1", reason: "timeout" })).toMatchObject({ dealId: "d1", fileId: "f1", reason: "timeout" });
+  });
+});
+
+describe("errorMessage: текст ошибки для хранения (Job.lastError)", () => {
+  it("обычная ошибка — message с маской 12 цифр и телефонов", () => {
+    expect(errorMessage(new Error("ИИН 900101300123, звоните +7 (700) 123-45-67; заявка 42"))).toBe("ИИН [скрыто], звоните [скрыто]; заявка 42");
+  });
+
+  it("ошибка Prisma — только имя и код", () => {
+    const known = new Prisma.PrismaClientKnownRequestError("Unique constraint failed: phone +77001234567", { code: "P2002", clientVersion: "7" });
+    expect(errorMessage(known)).toBe("PrismaClientKnownRequestError P2002");
+    expect(errorMessage(new Prisma.PrismaClientValidationError("Argument `phone`: +77001234567", { clientVersion: "7" }))).toBe("PrismaClientValidationError");
+  });
+
+  it("не Error — строка с той же маской", () => {
+    expect(errorMessage("телефон 87001234567")).toBe("телефон [скрыто]");
   });
 });

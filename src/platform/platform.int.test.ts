@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { Prisma } from "@/generated/prisma/client";
 import { recordAudit, scopeHistory, SYSTEM } from "@/modules/audit";
 import { db } from "@/platform/db";
 import { enqueueJob, runDueJobs } from "@/platform/jobs";
@@ -50,6 +51,28 @@ describe("фоновые задачи", () => {
     expect(await runDueJobs({ "test.echo": async (p) => void calls.push(p) }, { deadline: now - 1, clock: () => now })).toMatchObject({ claimed: 0 });
     expect(calls).toEqual([]);
     expect((await db.job.findFirstOrThrow()).status).toBe("PENDING");
+  });
+
+  it("в lastError и в журнал не попадают ИИН, телефон и аргументы запроса Prisma", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const prisma = new Prisma.PrismaClientKnownRequestError("Unique constraint failed: phone +77001234567", { code: "P2002", clientVersion: "7" });
+    await enqueueJob(db, { kind: "test.pii", maxAttempts: 2, dedupeKey: "pii" });
+    await enqueueJob(db, { kind: "test.prisma", maxAttempts: 1, dedupeKey: "prisma" });
+    const handlers = {
+      "test.pii": async () => Promise.reject(new Error("ИИН 900101300123, телефон 8 700 123 45 67, заявка 42")),
+      "test.prisma": async () => Promise.reject(prisma),
+    };
+
+    expect(await runDueJobs(handlers)).toMatchObject({ retried: 1, failed: 1 });
+
+    const pii = await db.job.findFirstOrThrow({ where: { kind: "test.pii" } });
+    expect(pii.lastError).toBe("ИИН [скрыто], телефон [скрыто], заявка 42");
+    expect((await db.job.findFirstOrThrow({ where: { kind: "test.prisma" } })).lastError).toBe("PrismaClientKnownRequestError P2002");
+    const logged = [...warn.mock.calls, ...error.mock.calls].map((c) => String(c[0])).join("\n");
+    expect(logged).toMatch(/заявка 42/);
+    expect(logged).not.toMatch(/900101300123|123 45 67|7001234567|Unique constraint/);
+    vi.restoreAllMocks();
   });
 
   it("задача без обработчика сразу FAILED", async () => {
