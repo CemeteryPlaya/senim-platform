@@ -252,10 +252,23 @@ const PROTECTED = [
   // Сумма «1 350 000» или диапазон «700 000 – 1 000 000», за которой не идут ещё цифры (иначе это телефон «8 700 123 45 67»).
   new RegExp(`(?<![\\d+])(?<!\\d${GAP_SRC})${AMOUNT}(?:\\s*[-–—]\\s*${AMOUNT})?(?!${GAP_SRC}\\d)`, "gu"),
   /[№#]\s*\d+/gu,
-  // Размеры «900*600*2400», «2400х600», «проём 900/2100»: 2–3 числа по 2–4 цифры через *, x, х, ×, / — и дальше цифр нет.
-  // Номер так не записать (в нём 10–12 цифр в 4–5 группах), а размеры заказчики пишут постоянно.
-  /(?<![\d*xх×/])\d{2,4}(?:\s*[*xх×/]\s*\d{2,4}){1,2}(?!\s*[*xх×/]?\s*\d)/gu,
 ];
+
+/**
+ * Размеры «900*600*2400», «2400х600», «проём 900/2100»: 2–3 числа по 2–4 цифры через *, x, х, ×, / — и дальше цифр нет.
+ * Заказчики пишут их постоянно. Но «8701*123*4567» — номер в той же записи: такие цифры (kzMobileDigits) не закрываем.
+ */
+const DIMENSIONS = /(?<![\d*xх×/+])\d{2,4}(?:\s*[*xх×/]\s*\d{2,4}){1,2}(?!\s*[*xх×/]?\s*\d)/gu;
+
+/** Коды мобильных операторов Казахстана: 700–708, 747, 770–779 (с запасом на новые коды). */
+const KZ_MOBILE_CODE = /^7(?:0[0-8]|47|7\d)/;
+
+/** Цифры подряд похожи на казахстанский мобильный: 7/8 + код оператора + 7 цифр, или код оператора + 7 цифр. */
+export function kzMobileDigits(digits: string): boolean {
+  if (digits.length === 11) return /^[78]/.test(digits) && KZ_MOBILE_CODE.test(digits.slice(1));
+  if (digits.length === 10) return KZ_MOBILE_CODE.test(digits);
+  return false;
+}
 const PROTECTED_CHAR = "";
 
 /**
@@ -331,6 +344,7 @@ function protect(text: string): string {
   for (const re of PROTECTED) {
     scan = scan.replace(re, (m) => PROTECTED_CHAR.repeat(m.length));
   }
+  scan = scan.replace(DIMENSIONS, (m) => (kzMobileDigits(m.replace(/\D/g, "")) ? m : PROTECTED_CHAR.repeat(m.length)));
   return protectTimes(scan);
 }
 
@@ -478,6 +492,8 @@ function longestPhoneFrom(scan: string, chain: { plusAt: number | null; groups: 
  */
 function phoneShaped(part: NumberGroup[], hasPlus: boolean): boolean {
   if (hasPlus || part.length === 1 || part.some((g) => g.written === "words")) return true;
+  // «(701) 123 4567 см», «701-123-4567 мм»: 10–11 цифр с кодом оператора — номер, какая бы единица ни стояла после.
+  if (part.length <= 3 && kzMobileDigits(part.map((g) => g.digits).join(""))) return true;
   const lengths = part.map((g) => g.digits.length);
   return lengths[0] === 1 || (lengths.length >= 3 && lengths.at(-1) === 2 && lengths.at(-2) === 2);
 }
