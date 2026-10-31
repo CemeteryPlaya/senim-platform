@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeDeal, makeStagePhoto, signContract, stagesOf, TEMPLATES } from "../../../test/factories/deal";
-import { openDispute, startStage, submitStage, submitDisputePosition } from "./index";
+import { openDispute, requestRework, startStage, submitStage, submitDisputePosition } from "./index";
 
 /** Отчёт этапа и тексты спора видит другая сторона: без контактов, у исполнителя — и без наименования. */
 describe("тексты сторон в сделке", () => {
@@ -34,5 +34,21 @@ describe("тексты сторон в сделке", () => {
 
     await submitDisputePosition(f.executor, { disputeId: dispute.id, position: "Не согласен, наберите +7 701 123 45 67" });
     expect((await db.dispute.findUniqueOrThrow({ where: { id: dispute.id } })).executorPosition).not.toMatch(/701/);
+  });
+
+  it("замечание заказчика при доработке — без контактов", async () => {
+    const f = await makeDeal({ template: TEMPLATES.single });
+    await signContract(f.dealId);
+    const [first] = await stagesOf(f.dealId);
+    await startStage(f.executor, { stageId: first.id });
+    await submitStage(f.executor, { stageId: first.id, report: "Готово", photoIds: [await makeStagePhoto(f.executor)] });
+
+    await requestRework(f.client, { stageId: first.id, note: "Переделайте фасад, детали в WhatsApp +7 701 123 45 67" });
+
+    const [stage] = await stagesOf(f.dealId);
+    expect(stage.reworkNote).toContain("Переделайте фасад");
+    expect(stage.reworkNote).not.toMatch(/701|WhatsApp/);
+    const audit = await db.auditEvent.findFirstOrThrow({ where: { action: "deal.stage.rework", scope: `deal:${f.dealId}` } });
+    expect(JSON.stringify(audit.meta)).not.toMatch(/701/);
   });
 });

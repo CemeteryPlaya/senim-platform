@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { recordAudit, SYSTEM } from "@/modules/audit";
-import { sanitizeExecutorText } from "@/modules/companies";
+import { maskContacts, sanitizeExecutorText } from "@/modules/companies";
 import { createDeal } from "@/modules/deal-core";
 import { recordClientIdentity, type CurrentUser } from "@/modules/identity";
 import { notify, notifyTemplate } from "@/modules/notifications";
@@ -127,10 +127,12 @@ export async function measurementNoDeal(user: CurrentUser, input: { measurementI
     const offerTo = transition(OFFER_TRANSITIONS, "noDeal", m.offer.status, who);
     const feeAccrued = m.offer.measurementTerms === "FEE_IF_NO_DEAL" ? m.offer.measurementFee : null;
 
+    // Итог видит другая сторона — без контактов (у исполнителя — и без наименования).
+    const result = !input.result ? m.result : executorId ? (await sanitizeExecutorText(tx, executorId, input.result)).text : maskContacts(input.result).text;
     expectOneUpdated(
       await tx.measurement.updateMany({
         where: { id: m.id, status: m.status },
-        data: { status: measurementTo, feeAccrued, result: input.result || m.result, doneAt: m.doneAt ?? new Date() },
+        data: { status: measurementTo, feeAccrued, result, doneAt: m.doneAt ?? new Date() },
       }),
     );
     expectOneUpdated(await tx.offer.updateMany({ where: { id: m.offerId, status: m.offer.status }, data: { status: offerTo } }));

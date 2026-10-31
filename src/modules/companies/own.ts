@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import type { Db } from "@/platform/db";
 import { fail } from "@/platform/errors";
-import { maskContacts, maskIdentity } from "./mask";
+import { maskContacts, maskIdentity, maskNameWords } from "./mask";
 
 /** Исполнитель, действующий над своим профилем и портфолио. Подтверждения оператора не требуется: профиль заполняют до проверки. */
 export function requireExecutor(user: CurrentUser): { executorId: string } {
@@ -11,11 +11,14 @@ export function requireExecutor(user: CurrentUser): { executorId: string } {
   return { executorId: user.executor.id };
 }
 
-/** Публичный текст исполнителя без контактов и без его наименования/ФИО. */
+/** Публичный текст исполнителя без контактов, без наименования/ФИО из профиля и без слов ФИО владельца аккаунта. */
 export async function sanitizePublicText(client: Db, executorId: string, text: string): Promise<{ text: string; masked: boolean }> {
-  const { legalName } = await client.executorProfile.findUniqueOrThrow({ where: { id: executorId }, select: { legalName: true } });
+  const { legalName, user } = await client.executorProfile.findUniqueOrThrow({
+    where: { id: executorId },
+    select: { legalName: true, user: { select: { fullName: true } } },
+  });
   const contacts = maskContacts(text);
-  const clean = maskIdentity(contacts.text, legalName);
+  const clean = maskNameWords(maskIdentity(contacts.text, legalName), user.fullName);
   return { text: clean, masked: contacts.masked || clean !== contacts.text };
 }
 

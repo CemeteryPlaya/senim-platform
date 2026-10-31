@@ -16,8 +16,7 @@ export type MaskResult = { text: string; masked: boolean };
 type Span = readonly [start: number, end: number];
 
 export function maskContacts(input: string): MaskResult {
-  // Полноширинные цифры и латиница («７０１…», «ｗａ．ｍｅ») → обычные: маску не обойти ими. Полный NFKC не годится — он меняет «№».
-  const text = input.replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  const text = normalize(input);
   const spans = [...findEmails(text), ...findLinks(text), ...findNicks(text), ...findMessengers(text), ...findPhones(text)];
   if (spans.length === 0) return { text, masked: false };
   return { text: collapseMasks(replaceSpans(text, spans)), masked: true };
@@ -28,15 +27,64 @@ export function maskContacts(input: string): MaskResult {
  * Форма (ТОО, ИП) и кавычки отбрасываются; слишком короткое имя не ищем — будет ложное срабатывание.
  */
 export function maskIdentity(text: string, legalName: string): string {
-  const core = legalName
+  const core = stripInvisible(legalName)
     .replace(/(?<!\p{L})(?:ТОО|ИП|АО|ЧП|LLP|TOO)(?!\p{L})/gu, " ")
     .replace(/[«»"“”„']/g, " ")
     .trim()
-    .split(/\s+/)
+    .split(/[\s-]+/)
     .filter(Boolean);
-  if (core.join(" ").length < 4) return text;
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${core.map(escapeRegExp).join("\\s+")}(?![\\p{L}\\p{N}])`, "giu");
-  return text.replace(pattern, MASK);
+  const clean = stripInvisible(text);
+  if (core.join(" ").length < 4) return clean;
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${core.map(escapeRegExp).join("[\\s\\-]+")}(?![\\p{L}\\p{N}])`, "giu");
+  return clean.replace(pattern, MASK);
+}
+
+/**
+ * Скрывает слова ФИО владельца (от 4 букв) по отдельности: «Ерлан», «Жумабаев», и с короткими
+ * окончаниями падежей («Ерлану»). Короткие слова не ищем — будет ложное срабатывание.
+ */
+export function maskNameWords(text: string, fullName: string | null | undefined): string {
+  const words = stripInvisible(fullName ?? "")
+    .split(/[\s-]+/)
+    .filter((w) => (w.match(/\p{L}/gu)?.length ?? 0) >= 4);
+  const clean = stripInvisible(text);
+  if (words.length === 0) return clean;
+  // Имя и фамилия подряд — одна маска.
+  const word = `(?:${words.map(escapeRegExp).join("|")})\\p{L}{0,2}(?![\\p{L}\\p{N}])`;
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${word}(?:[\\s\\-]+${word})*`, "giu");
+  return clean.replace(pattern, MASK);
+}
+
+/* ── Нормализация: обходы маски невидимыми символами и «чужими» цифрами ── */
+
+/** Невидимые символы форматирования (U+200B, U+2060, U+00AD, U+FEFF…) — ими разбивают номер и имя. */
+const INVISIBLE = /\p{Cf}/gu;
+const stripInvisible = (text: string) => text.replace(INVISIBLE, "");
+
+const ANY_DIGIT = /\p{Nd}/u;
+/** Эмодзи-цифра «8️⃣»: цифра, (необязательный) селектор варианта и рамка клавиши. */
+const KEYCAP = /([0-9#*])️?⃣/gu;
+
+/**
+ * Значение цифры любой системы (арабско-индийской, деванагари, математической…): в Юникоде цифры
+ * \p{Nd} идут подряд блоками по десять, начиная с нуля, — значение равно числу цифр перед ней по модулю 10.
+ */
+function digitValue(ch: string): number {
+  const cp = ch.codePointAt(0)!;
+  let before = 0;
+  while (before < 60 && ANY_DIGIT.test(String.fromCodePoint(cp - before - 1))) before += 1;
+  return before % 10;
+}
+
+/**
+ * Текст, в котором ищутся контакты (он же сохраняется): без невидимых символов, полноширинные знаки
+ * («７０１…», «ｗａ．ｍｅ») и цифры любых систем — обычные. Полный NFKC не годится — он меняет «№».
+ */
+function normalize(input: string): string {
+  return stripInvisible(input)
+    .replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(KEYCAP, "$1")
+    .replace(/(?![0-9])\p{Nd}/gu, (d) => String(digitValue(d)));
 }
 
 /* ── Детекторы ─────────────────────────────────────────────────────────── */
@@ -45,11 +93,10 @@ const NOT_WORD_BEFORE = "(?<![\\p{L}\\p{N}_])";
 const NOT_WORD_AFTER = "(?![\\p{L}\\p{N}_])";
 
 const EMAIL = /[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+/giu;
-// Обход маски словами: «ivan собака gmail точка com», «ivan (at) mail (dot) ru».
-const EMAIL_SPELLED = new RegExp(
-  `${NOT_WORD_BEFORE}[a-z0-9._%+-]+\\s*(?:\\(at\\)|\\[at\\]|\\sat\\s|собака)\\s*[a-z0-9-]+\\s*(?:\\.|\\(dot\\)|\\[dot\\]|\\sdot\\s|точка)\\s*[a-z]{2,}${NOT_WORD_AFTER}`,
-  "giu",
-);
+// Обход маски словами и пробелами: «ivan собака gmail точка com», «ivan (at) mail (dot) ru», «ivan @ gmail . com».
+const AT = "\\s*(?:@|[(\\[]\\s*(?:at|собака)\\s*[)\\]]|\\sat\\s|собака)\\s*";
+const DOT = "\\s*(?:\\.|[(\\[]\\s*(?:dot|точка)\\s*[)\\]]|\\sdot\\s|точка)\\s*";
+const EMAIL_SPELLED = new RegExp(`${NOT_WORD_BEFORE}[a-z0-9._%+-]+${AT}[a-z0-9-]+(?:${DOT}[a-z0-9-]+)*${DOT}[a-z]{2,}${NOT_WORD_AFTER}`, "giu");
 
 function findEmails(text: string): Span[] {
   return [...matchAll(text, EMAIL), ...matchAll(text, EMAIL_SPELLED)];
@@ -61,10 +108,22 @@ const BARE_DOMAIN = new RegExp(
   `(?<![\\p{L}\\p{N}@._-])(?:[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?\\.)+(?:${TLD})(?![\\p{L}\\p{N}-])(?:\\/[^\\s<>"«»]*)?`,
   "giu",
 );
+// Домен с пробелами или словами вокруг точек и косой черты: «t . me / mebel», «mebel точка kz». Только латиница —
+// иначе «т. е.» и сокращения в русском тексте дадут ложные срабатывания. Первая часть — с буквой («Модель 3. Pro» —
+// не домен); редкий домен без пути («loft. Pro…») похож на конец предложения — нужен путь «/…».
+const LATIN_TLD = TLD.split("|").filter((t) => /^[a-z]+$/.test(t)).join("|");
+const COMMON_TLD = "com|kz|ru|me|org|net";
+const LABEL = "[a-z0-9](?:[a-z0-9-]*[a-z0-9])?";
+const TLD_END = "(?![\\p{L}\\p{N}-])";
+const SPACED_DOMAIN = new RegExp(
+  `(?<![\\p{L}\\p{N}@._-])(?=[a-z0-9-]*[a-z])${LABEL}(?:${DOT}${LABEL})*${DOT}` +
+    `(?:(?:${LATIN_TLD})${TLD_END}\\s*\\/\\s*[a-z0-9_.-]+|(?:${COMMON_TLD})${TLD_END})`,
+  "giu",
+);
 const TRAILING_PUNCTUATION = /[.,!?;:)»"']+$/u;
 
 function findLinks(text: string): Span[] {
-  return [...matchAll(text, URL_WITH_SCHEME), ...matchAll(text, BARE_DOMAIN)].map(([start, end]) => {
+  return [...matchAll(text, URL_WITH_SCHEME), ...matchAll(text, BARE_DOMAIN), ...matchAll(text, SPACED_DOMAIN)].map(([start, end]) => {
     const tail = TRAILING_PUNCTUATION.exec(text.slice(start, end));
     return [start, end - (tail?.[0].length ?? 0)] as const;
   });
@@ -106,27 +165,34 @@ const MESSENGER_WORDS = [
 // Латинский ник сразу после мессенджера («инст mebel_astana», «Telegram: mebel.astana») — тоже контакт.
 const HANDLE_AFTER = "(?:\\s*[:\\-–—]?\\s*@?[a-z0-9_.]{2,}[a-z0-9_])?";
 const MESSENGER = new RegExp(`${NOT_WORD_BEFORE}(?:${MESSENGER_WORDS.join("|")})${HANDLE_AFTER}${NOT_WORD_AFTER}`, "giu");
+// «тг»/«tg» — ещё и «тенге», поэтому контакт только вместе с ником, в котором есть буква: «тг mebel_astana», «tg: @mebel».
+const SHORT_MESSENGER = new RegExp(
+  `${NOT_WORD_BEFORE}(?:тг|tg)\\s*[:\\-–—]?\\s*@?(?=[a-z0-9_.]*[a-z_])[a-z0-9_.]{2,}[a-z0-9_]${NOT_WORD_AFTER}`,
+  "giu",
+);
 
 function findMessengers(text: string): Span[] {
-  return matchAll(text, MESSENGER);
+  return [...matchAll(text, MESSENGER), ...matchAll(text, SHORT_MESSENGER)];
 }
 
 /* ── Телефоны ──────────────────────────────────────────────────────────── */
 
 // Что заведомо не телефон: даты, суммы с разделителями тысяч (и их диапазоны), номера документов.
 const AMOUNT = "\\d{1,3}(?:[ \\u00A0\\u202F]\\d{3})+";
+// Разделители между частями номера: «8 700», «8-700», «8(700)», «8.700», «8,700», «8/700», «8_700», «8|700».
+const SEP = "\\s\\-–—().,/_|";
 const PROTECTED = [
   /(?<![\d.])(?:0?[1-9]|[12]\d|3[01])[./](?:0?[1-9]|1[0-2])[./](?:\d{4}|\d{2})(?!\d)/gu,
   /(?<!\d)\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?!\d)/gu,
   // Сумма «1 350 000» или диапазон «700 000 – 1 000 000», за которой не идут ещё цифры (иначе это телефон «8 700 123 45 67»).
-  new RegExp(`(?<![\\d+])(?<!\\d[\\s\\-–—().])${AMOUNT}(?:\\s*[-–—]\\s*${AMOUNT})?(?![\\s\\-–—().]{0,3}\\d)`, "gu"),
+  new RegExp(`(?<![\\d+])(?<!\\d[${SEP}])${AMOUNT}(?:\\s*[-–—]\\s*${AMOUNT})?(?![${SEP}]{0,3}\\d)`, "gu"),
   /[№#]\s*\d+/gu,
 ];
 const PROTECTED_CHAR = "";
 
 // После числа — валюта или единица измерения: это цена или размер.
 const UNIT_AFTER = /^[\s ]*(?:₸|тг|тенге|kzt|руб|р\.|₽|\$|usd|долл|eur|€|тыс|млн|млрд|мм|см|м(?!\p{L})|метр|кг|шт|%)/iu;
-const GAP = /^[\s\-–—().]{0,3}$/u;
+const GAP = new RegExp(`^[${SEP}]{0,3}$`, "u");
 const TOKEN = /\d+|\p{L}+/gu;
 
 type WordKind = "zero" | "unit" | "teen" | "ten" | "hundred";
@@ -142,12 +208,20 @@ const NUMBER_WORDS: Record<string, readonly [WordKind, number]> = {
   сто: ["hundred", 100], двести: ["hundred", 200], триста: ["hundred", 300], четыреста: ["hundred", 400],
   пятьсот: ["hundred", 500], шестьсот: ["hundred", 600], семьсот: ["hundred", 700], восемьсот: ["hundred", 800],
   девятьсот: ["hundred", 900],
+  // Казахские: «жеті жүз бір» — 701 (число сотен стоит перед «жүз»), «он бір» — 11.
+  нөл: ["zero", 0], нөль: ["zero", 0],
+  бір: ["unit", 1], екі: ["unit", 2], үш: ["unit", 3], төрт: ["unit", 4], бес: ["unit", 5],
+  алты: ["unit", 6], жеті: ["unit", 7], сегіз: ["unit", 8], тоғыз: ["unit", 9],
+  он: ["ten", 10], жиырма: ["ten", 20], отыз: ["ten", 30], қырық: ["ten", 40], елу: ["ten", 50],
+  алпыс: ["ten", 60], жетпіс: ["ten", 70], сексен: ["ten", 80], тоқсан: ["ten", 90],
+  жүз: ["hundred", 100],
 };
+const HUNDRED_MULTIPLIED = "жүз";
 const PLUS_WORD = "плюс";
 
 /** Число в цепочке: «87001234567», «семьсот один» (одна группа из нескольких слов) или «45». */
 type NumberGroup = { start: number; end: number; digits: string; written: "digits" | "words" };
-type Token = { start: number; end: number; text: string };
+type Token = { start: number; end: number; text: string; word?: readonly [WordKind, number] };
 
 function findPhones(text: string): Span[] {
   const scan = protect(text);
@@ -208,8 +282,8 @@ function groupTokens(tokens: Token[]): NumberGroup[] {
   const groups: NumberGroup[] = [];
   let open: { group: NumberGroup; value: number; has: Set<WordKind> } | null = null;
 
-  for (const token of tokens) {
-    const word = NUMBER_WORDS[token.text];
+  for (const token of mergeMultipliedHundreds(tokens)) {
+    const word = token.word ?? NUMBER_WORDS[token.text];
     if (!word) {
       groups.push({ start: token.start, end: token.end, digits: token.text, written: "digits" });
       open = null;
@@ -228,6 +302,21 @@ function groupTokens(tokens: Token[]): NumberGroup[] {
     open = kind === "zero" ? null : { group, value, has: new Set([kind]) };
   }
   return groups;
+}
+
+/** «жеті жүз» → одно слово-сотня 700: в казахском число сотен стоит перед «жүз». */
+function mergeMultipliedHundreds(tokens: Token[]): Token[] {
+  const out: Token[] = [];
+  for (const token of tokens) {
+    const prev = out.at(-1);
+    const prevWord = prev && !prev.word ? NUMBER_WORDS[prev.text] : undefined;
+    if (prev && token.text === HUNDRED_MULTIPLIED && prevWord?.[0] === "unit") {
+      out[out.length - 1] = { start: prev.start, end: token.end, text: token.text, word: ["hundred", prevWord[1] * 100] };
+      continue;
+    }
+    out.push(token);
+  }
+  return out;
 }
 
 function canExtend(has: Set<WordKind>, next: WordKind): boolean {

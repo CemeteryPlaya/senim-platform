@@ -124,6 +124,17 @@ describe("результат замера", () => {
     await expect(measurementNoDeal(client, { measurementId: m.measurementId, result: "" })).rejects.toThrow(code("CONFLICT"));
   });
 
+  it("итог замера без сделки — без контактов: и от заказчика, и от исполнителя", async () => {
+    const client = await makeClient();
+    const m = await makeMeasured(client);
+    await measurementNoDeal(client, { measurementId: m.measurementId, result: "Дорого, наберите 8 701 123 45 67" });
+    expect((await db.measurement.findUniqueOrThrow({ where: { id: m.measurementId } })).result).not.toMatch(/701/);
+
+    const other = await makeMeasuring(await makeClient(), "FREE");
+    await measurementNoDeal(other.executor, { measurementId: other.measurementId, result: "Передумали. Мой WhatsApp +7 702 765 43 21" });
+    expect((await db.measurement.findUniqueOrThrow({ where: { id: other.measurementId } })).result).not.toMatch(/702|WhatsApp/);
+  });
+
   it("чужие участники замер не меняют (IDOR)", async () => {
     const m = await makeMeasuring(await makeClient());
     await expect(measurementNoDeal(await makeClient(), { measurementId: m.measurementId, result: "" })).rejects.toThrow(code("NOT_FOUND"));

@@ -53,6 +53,13 @@ describe("профиль исполнителя", () => {
     expect((await getOwnProfile(executor)).about).toBe(`Мы ${MASK}. Звоните ${MASK}`);
   });
 
+  it("имя и фамилия владельца аккаунта в «о себе» скрываются, даже через невидимые символы", async () => {
+    const executor = await makeExecutor({ legalName: "ТОО «Ағаш Шебер»" });
+    await db.user.update({ where: { id: executor.id }, data: { fullName: "Ерлан Жумабаев" } });
+    const result = await updateProfile(executor, { ...base, about: "Директор — Ерлан Жума​баев, спросите Ерлана" });
+    expect(result).toEqual({ aboutMasked: true, about: `Директор — ${MASK}, спросите ${MASK}` });
+  });
+
   it("сегмент не меняется из профиля — его ставит оператор", async () => {
     const executor = await makeExecutor({ segment: "ECONOMY" });
     await updateProfile(executor, { ...base, segment: "PREMIUM" } as ProfileInput);

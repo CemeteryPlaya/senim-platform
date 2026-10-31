@@ -261,12 +261,14 @@ export async function requestRework(user: CurrentUser, raw: { stageId: string; n
   await transaction(async (tx) => {
     const { deal, stage } = await lockStage(tx, input.stageId);
     const who = requireRole(user, deal);
+    // Замечание видит исполнитель — без контактов, как остальные тексты сторон.
+    const note = await partyText(tx, deal, who, input.note);
     await moveStage(tx, deal, stage, {
       event: "requestRework",
       who,
       actor: actorOf(user),
-      audit: { action: "deal.stage.rework", meta: { note: input.note } },
-      data: { reworkNote: input.note, autoAcceptAt: null },
+      audit: { action: "deal.stage.rework", meta: { note } },
+      data: { reworkNote: note, autoAcceptAt: null },
     });
     await notifyParty(tx, deal, "EXECUTOR", "deal.stage.rework", { title: t.stageRework.title, body: t.stageRework.body(stage.title) });
   });
