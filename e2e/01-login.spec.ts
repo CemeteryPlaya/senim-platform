@@ -58,6 +58,6 @@ test("неверный номер — ошибка у поля номера", as
   const field = page.getByLabel("Номер телефона");
   await field.fill("12345");
   await page.getByRole("button", { name: "Получить код" }).click();
-  await expect(page.getByText("Введите казахстанский мобильный номер: +7 7XX XXX XX XX")).toBeVisible();
+  await expect(page.getByText("Введите казахстанский мобильный номер полностью. Например: +7 701 234 56 78")).toBeVisible();
   await expect(field).toHaveAttribute("aria-invalid", "true");
 });

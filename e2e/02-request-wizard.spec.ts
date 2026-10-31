@@ -45,7 +45,7 @@ test("заказчик проходит мастер с «Не знаю» и в�
   await expect(summary.getByText("Не знает — подскажите").first()).toBeVisible();
 
   // Без адреса — ошибка у поля, заявка не уходит
-  await choose(page.getByRole("radio", { name: /«Комфорт»/ }));
+  await choose(page.getByRole("radio", { name: /^Комфорт/ }));
   await page.getByLabel("Город").fill("Астана");
   await page.getByLabel("Адрес", { exact: true }).fill("");
   await page.getByRole("button", { name: "Отправить заявку" }).click();
