@@ -38,25 +38,30 @@ export type RetryFacts = {
   dispute: { id: string; stageId: string | null; status: DisputeStatus; decision: DisputeDecision | null; decisionAmount: number | null } | null;
 };
 
-/** Должна ли операция семейства `family` всё ещё быть выполнена. */
+/** Должна ли операция семейства `family` всё ещё быть выполнена. Пополнение (DEPOSIT) не повторяется: ни одна ветка его не допускает. */
 export function stillDue(family: string, kind: PaymentOperationKind, facts: RetryFacts): boolean {
-  if (kind === "DEPOSIT") return false;
-
   const dispute = /^dispute:(.+):(release|refund)$/.exec(family);
   if (dispute) return disputeRequires(facts, dispute[1], dispute[2] === "release" ? "RELEASE" : "REFUND", kind);
+  if (family.startsWith(RELEASE_PREFIX)) return kind === "RELEASE" && releaseDue(facts, family.slice(RELEASE_PREFIX.length));
+  return kind === "REFUND" && refundDue(family, facts.dealStatus);
+}
 
-  const release = /^release:(.+)$/.exec(family);
-  if (release) {
-    const stage = facts.stages.find((s) => s.id === release[1]);
-    const dealActive = facts.dealStatus === "IN_PROGRESS" || facts.dealStatus === "DISPUTE";
-    const d = facts.dispute;
-    const disputed = d?.status === "OPEN" && (d.stageId === null || d.stageId === release[1]);
-    return kind === "RELEASE" && dealActive && !disputed && stage?.status === "ACCEPTED" && stage.payment?.status === "DUE";
-  }
+const RELEASE_PREFIX = "release:";
 
-  if (kind !== "REFUND" || !family.endsWith(":refund")) return false;
-  if (family.startsWith("cancel:")) return facts.dealStatus === "CANCELLED";
-  return facts.dealStatus === "CANCELLED" || facts.dealStatus === "TERMINATED";
+/** Транш этапа: сделка в работе или в споре, этап принят, оплата DUE, по этапу (или сделке) нет открытого спора. */
+function releaseDue(facts: RetryFacts, stageId: string): boolean {
+  const stage = facts.stages.find((s) => s.id === stageId);
+  const dealActive = facts.dealStatus === "IN_PROGRESS" || facts.dealStatus === "DISPUTE";
+  const d = facts.dispute;
+  const disputed = d?.status === "OPEN" && (d.stageId === null || d.stageId === stageId);
+  return dealActive && !disputed && stage?.status === "ACCEPTED" && stage.payment?.status === "DUE";
+}
+
+/** Возврат: cancel:<dealId>:refund — по отменённой сделке; <ключ пополнения>:refund — по отменённой или расторгнутой. */
+function refundDue(family: string, dealStatus: DealStatus): boolean {
+  if (!family.endsWith(":refund")) return false;
+  if (family.startsWith("cancel:")) return dealStatus === "CANCELLED";
+  return dealStatus === "CANCELLED" || dealStatus === "TERMINATED";
 }
 
 function disputeRequires(facts: RetryFacts, disputeId: string, wanted: PaymentOperationKind, kind: PaymentOperationKind): boolean {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { retryableKeys, retryVerdict, stillDue, type RetryFacts, type RetryOp } from "./retry-policy";
+import { familyOf, retryableKeys, retryVerdict, stillDue, type RetryFacts, type RetryOp } from "./retry-policy";
 
 const facts = (over: Partial<RetryFacts> = {}): RetryFacts => ({
   dealStatus: "IN_PROGRESS",
@@ -7,7 +7,7 @@ const facts = (over: Partial<RetryFacts> = {}): RetryFacts => ({
   dispute: null,
   ...over,
 });
-const resolved = (decision: "TERMINATE" | "PARTIAL" | "FAVOR_EXECUTOR", decisionAmount: number | null = null) => ({
+const resolved = (decision: "TERMINATE" | "PARTIAL" | "FAVOR_EXECUTOR" | "FAVOR_CLIENT", decisionAmount: number | null = null) => ({
   id: "d1",
   stageId: "s1",
   status: "RESOLVED" as const,
@@ -90,5 +90,64 @@ describe("семейство ключей", () => {
     expect([...retryableKeys(ops, facts())]).toEqual(["release:s1:retry:1"]);
     expect([...retryableKeys(ops, facts({ dealStatus: "TERMINATED", dispute: resolved("TERMINATE") }))]).toEqual(["dispute:d1:refund"]);
     expect([...retryableKeys([...ops, { idempotencyKey: "release:s1:retry:2", kind: "RELEASE", status: "SUCCEEDED" }], facts())]).toEqual([]);
+  });
+});
+
+describe("граничные случаи правила повтора", () => {
+  const terminated = (d: RetryFacts["dispute"]) => facts({ dealStatus: "TERMINATED", dispute: d });
+
+  it("пополнение не повторяется ни в каком семействе", () => {
+    for (const key of ["release:s1", "dispute:d1:refund", "cancel:x:refund", "deposit:e1:refund"]) {
+      expect(stillDue(key, "DEPOSIT", terminated(resolved("TERMINATE")))).toBe(false);
+      expect(stillDue(key, "DEPOSIT", facts({ dealStatus: "CANCELLED" }))).toBe(false);
+      expect(stillDue(key, "DEPOSIT", facts())).toBe(false);
+    }
+  });
+
+  it("транш этапа: только RELEASE и только с оплатой DUE", () => {
+    expect(stillDue("release:s1", "REFUND", facts())).toBe(false);
+    expect(stillDue("release:s1", "RELEASE", facts({ stages: [{ id: "s1", status: "ACCEPTED", payment: null }] }))).toBe(false);
+    for (const dealStatus of ["AWAITING_SIGNATURES", "AWAITING_DEPOSIT", "COMPLETED", "CANCELLED"] as const) {
+      expect(stillDue("release:s1", "RELEASE", facts({ dealStatus }))).toBe(false);
+    }
+  });
+
+  it("ключ распознаётся только целиком", () => {
+    expect(stillDue("xrelease:s1", "RELEASE", facts())).toBe(false);
+    expect(stillDue("dispute:d1:releasex", "RELEASE", terminated(resolved("PARTIAL", 5_000)))).toBe(false);
+    // не ключ спора — значит, возврат пополнения: по отменённой сделке он нужен
+    expect(stillDue("xdispute:d1:refund", "REFUND", facts({ dealStatus: "CANCELLED", dispute: resolved("TERMINATE") }))).toBe(true);
+  });
+
+  it("решение по спору: вид операции, статус сделки и спора должны совпасть", () => {
+    expect(stillDue("dispute:d1:refund", "RELEASE", terminated(resolved("PARTIAL", 5_000)))).toBe(false);
+    expect(stillDue("dispute:d1:release", "REFUND", terminated(resolved("PARTIAL", 5_000)))).toBe(false);
+    expect(stillDue("dispute:d1:refund", "REFUND", facts({ dealStatus: "IN_PROGRESS", dispute: resolved("TERMINATE") }))).toBe(false);
+    expect(stillDue("dispute:d1:refund", "REFUND", terminated(null))).toBe(false);
+  });
+
+  it("перечисление по частичному решению: сумма должна быть больше нуля", () => {
+    expect(stillDue("dispute:d1:release", "RELEASE", terminated(resolved("PARTIAL", 0)))).toBe(false);
+    expect(stillDue("dispute:d1:release", "RELEASE", terminated(resolved("PARTIAL", null)))).toBe(false);
+    expect(stillDue("dispute:d1:release", "RELEASE", terminated(resolved("PARTIAL", 1)))).toBe(true);
+    expect(stillDue("dispute:d1:release", "RELEASE", terminated(resolved("TERMINATE", 5_000)))).toBe(false);
+  });
+
+  it("возврат по решению: только расторжение или частичное решение", () => {
+    expect(stillDue("dispute:d1:refund", "REFUND", terminated(resolved("FAVOR_CLIENT")))).toBe(false);
+    expect(stillDue("dispute:d1:refund", "REFUND", terminated(resolved("FAVOR_EXECUTOR")))).toBe(false);
+  });
+
+  it("возвраты: только REFUND, только ключ :refund; отмена — только по отменённой сделке", () => {
+    expect(stillDue("cancel:x:refund", "RELEASE", facts({ dealStatus: "CANCELLED" }))).toBe(false);
+    expect(stillDue("deposit:e1", "REFUND", facts({ dealStatus: "CANCELLED" }))).toBe(false);
+    expect(stillDue("cancel:x:refund", "REFUND", facts({ dealStatus: "TERMINATED" }))).toBe(false);
+    expect(stillDue("deposit:e1:refund", "REFUND", facts({ dealStatus: "CANCELLED" }))).toBe(true);
+  });
+
+  it("семейство: снимается только хвост :retry:<число> в конце ключа", () => {
+    expect(familyOf("release:s1:retry:12")).toBe("release:s1");
+    expect(familyOf("release:s1:retry:2x")).toBe("release:s1:retry:2x");
+    expect(familyOf("release:s1")).toBe("release:s1");
   });
 });

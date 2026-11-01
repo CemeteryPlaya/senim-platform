@@ -180,11 +180,11 @@ export function resolveTransition<S extends string, E extends string, C>(
   if (rows.length === 0) return { ok: false, reason: "notAllowedNow" };
   const permitted = rows.filter((t) => t.who.includes(q.who));
   if (permitted.length === 0) return { ok: false, reason: "notYourAction" };
-  let firstRefusal: Refusal | null = null;
+  const refusals: Refusal[] = [];
   for (const row of permitted) {
-    const refusal = row.guard?.(q.ctx) ?? null;
+    const refusal = row.guard?.(q.ctx);
     if (!refusal) return { ok: true, to: row.to };
-    firstRefusal ??= refusal;
+    refusals.push(refusal);
   }
-  return { ok: false, reason: firstRefusal ?? "notAllowedNow" };
+  return { ok: false, reason: refusals[0] };
 }

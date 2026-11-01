@@ -34,3 +34,35 @@ describe("suggestSegment", () => {
     expect(s.reasons).toEqual([]);
   });
 });
+
+describe("suggestSegment: объяснения и порог длины", () => {
+  it("каждый признак — своя строка объяснения, название строчными", () => {
+    expect(suggestSegment({ facade: "ldsp", countertop: "quartz", hardware: "soft_close" }).reasons).toEqual([
+      "Фасады: лдсп — недорогой и практичный материал",
+      "Столешница: кварцевый агломерат — очень прочный, дорогой материал",
+      "Фурнитура: с доводчиками — двери и ящики закрываются плавно",
+    ]);
+  });
+
+  it("одна фурнитура тоже даёт подсказку", () => {
+    expect(suggestSegment({ hardware: "premium" })).toEqual({
+      segment: "PREMIUM",
+      reasons: ["Фурнитура: премиальная (blum, hettich) — дорогая фурнитура с гарантией производителя"],
+    });
+  });
+
+  it("длина от 450 см поднимает эконом до комфорта и объясняет почему; короче — нет", () => {
+    expect(suggestSegment({ facade: "ldsp", widthCm: 450 })).toEqual({
+      segment: "COMFORT",
+      reasons: ["Фасады: лдсп — недорогой и практичный материал", "Длина 450 см — большой объём работы, обычно это уровень «Комфорт»"],
+    });
+    expect(suggestSegment({ facade: "ldsp", widthCm: 449 }).segment).toBe("ECONOMY");
+    expect(suggestSegment({ facade: "ldsp", widthCm: null }).segment).toBe("ECONOMY");
+  });
+
+  it("длина не трогает комфорт и премиум и без материалов подсказки не даёт", () => {
+    expect(suggestSegment({ facade: "acrylic", widthCm: 600 }).reasons).toHaveLength(1);
+    expect(suggestSegment({ facade: "veneer", widthCm: 600 }).segment).toBe("PREMIUM");
+    expect(suggestSegment({ widthCm: 600 })).toEqual({ segment: null, reasons: [] });
+  });
+});

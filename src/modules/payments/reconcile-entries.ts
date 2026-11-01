@@ -27,9 +27,8 @@ export type JournalOperation = {
 export function reconcileEntries(dealId: string, ops: JournalOperation[], statement: StatementEntry[]): ReconciliationRow[] {
   const unmatched = [...statement];
   const take = (op: JournalOperation) => {
-    const i = unmatched.findIndex(
-      (e) => e.idempotencyKey === op.idempotencyKey || (op.externalRef !== null && e.externalRef === op.externalRef),
-    );
+    // У записи выписки номер банка есть всегда: операция без номера (null) по нему не совпадёт.
+    const i = unmatched.findIndex((e) => e.idempotencyKey === op.idempotencyKey || e.externalRef === op.externalRef);
     return i === -1 ? undefined : unmatched.splice(i, 1)[0];
   };
 

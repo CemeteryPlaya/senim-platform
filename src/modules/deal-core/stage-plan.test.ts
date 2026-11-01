@@ -33,7 +33,33 @@ describe("planStages", () => {
     expect(() => planStages(broken, 100_000)).toThrow(/100/);
   });
 
-  it("отклоняет неположительную сумму", () => {
-    expect(() => planStages(advance, 0)).toThrow();
+  it("отклоняет неположительную и дробную сумму", () => {
+    for (const amount of [0, -100, 1.5]) expect(() => planStages(advance, amount)).toThrow("Сумма сделки должна быть положительной");
+    expect(planStages(advance, 1).map((s) => s.amount)).toEqual([0, 0, 1]);
+  });
+
+  it("остаток — последнему этапу с долей, даже если он не последний и его сумма округлилась до нуля", () => {
+    const paidFirst: StageTemplate = {
+      ...advance,
+      stages: [
+        { title: "Всё сразу", description: "", sharePercent: 100, paymentDue: "ON_START" },
+        { title: "Отчёт", description: "", sharePercent: 0, paymentDue: "ON_ACCEPTANCE" },
+      ],
+    };
+    expect(planStages(paidFirst, 7).map((s) => s.amount)).toEqual([7, 0]);
+    expect(planStages(advance, 2).map((s) => s.amount)).toEqual([0, 0, 2]);
+    const reportLast: StageTemplate = {
+      ...advance,
+      stages: [
+        { title: "Половина", description: "", sharePercent: 50, paymentDue: "ON_START" },
+        { title: "Вторая половина", description: "", sharePercent: 50, paymentDue: "ON_ACCEPTANCE" },
+        { title: "Отчёт", description: "", sharePercent: 0, paymentDue: "ON_ACCEPTANCE" },
+      ],
+    };
+    expect(planStages(reportLast, 3).map((s) => s.amount)).toEqual([1, 2, 0]);
+  });
+
+  it("в тексте ошибки шаблона — ключ шаблона и сумма долей", () => {
+    expect(() => planStages({ ...advance, stages: advance.stages.slice(0, 2) }, 100_000)).toThrow("Доли этапов шаблона «advance» дают 33%, а нужно 100%");
   });
 });

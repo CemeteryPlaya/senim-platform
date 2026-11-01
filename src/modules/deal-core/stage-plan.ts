@@ -39,7 +39,7 @@ export function planStages(template: StageTemplate, totalAmount: number): Planne
     paymentDue: s.paymentDue,
   }));
   const remainder = totalAmount - stages.reduce((sum, s) => sum + s.amount, 0);
-  const lastPaid = stages.findLast((s) => s.amount > 0 || template.stages[s.order - 1].sharePercent > 0);
-  if (lastPaid) lastPaid.amount += remainder;
+  // Доли дают 100%, значит оплачиваемый этап (доля больше нуля) есть всегда.
+  stages[template.stages.findLastIndex((s) => s.sharePercent > 0)].amount += remainder;
   return stages;
 }

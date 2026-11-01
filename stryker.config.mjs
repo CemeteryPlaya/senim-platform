@@ -6,7 +6,8 @@
 /** @type {import("@stryker-mutator/api/core").PartialStrykerOptions} */
 const config = {
   testRunner: "vitest",
-  vitest: { configFile: "scripts/quality/vitest.unit.config.mjs", related: false },
+  // related: только тесты, которые импортируют мутируемые файлы (быстрее и не зависит от чужих красных тестов).
+  vitest: { configFile: "scripts/quality/vitest.unit.config.mjs", related: true },
   plugins: ["@stryker-mutator/vitest-runner"],
   mutate: [
     // статусные машины и таблицы переходов
@@ -17,6 +18,10 @@ const config = {
     // деньги
     "src/modules/deal-core/retry-policy.ts",
     "src/modules/payments/fees.ts",
+    "src/modules/payments/escrow-status.ts",
+    "src/modules/payments/reconcile-entries.ts",
+    "src/modules/payments/webhook-signature.ts",
+    "src/modules/payments/modes.ts",
     // маскирование контактов, ИИН/БИН, проверки ввода
     "src/modules/companies/mask.ts",
     "src/platform/kz-id.ts",

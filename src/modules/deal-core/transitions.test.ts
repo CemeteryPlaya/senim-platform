@@ -4,6 +4,7 @@ import {
   DEAL_TRANSITIONS,
   PAYMENT_TRANSITIONS,
   STAGE_TRANSITIONS,
+  isPayable,
   resolveTransition,
   type DealContext,
   type PaymentContext,
@@ -188,5 +189,40 @@ describe("таблица переходов оплаты этапа: кажды�
   it("подтверждает получение исполнитель, а не заказчик", () => {
     const r = resolveTransition(PAYMENT_TRANSITIONS, { event: "confirm", from: "MARKED_PAID", who: "CLIENT", ctx: okPayment("MANUAL") });
     expect(r).toEqual({ ok: false, reason: "notYourAction" });
+  });
+});
+
+describe("решения спора и момент оплаты", () => {
+  it("решение по этапу — только во время спора", () => {
+    for (const event of ["disputeFavorExecutor", "disputeFavorClient"] as const) {
+      const r = (dealStatus: StageContext["dealStatus"]) =>
+        resolveTransition(STAGE_TRANSITIONS, { event, from: "SUBMITTED", who: "OPERATOR", ctx: okStage(dealStatus) });
+      expect(r("DISPUTE").ok).toBe(true);
+      expect(r("IN_PROGRESS")).toEqual({ ok: false, reason: "notAllowedNow" });
+    }
+  });
+
+  it("развилка по режиму: отказ — причина первой строки", () => {
+    const r = resolveTransition(DEAL_TRANSITIONS, { event: "depositReceived", from: "AWAITING_DEPOSIT", who: "SYSTEM", ctx: { ...okDeal, fullyFunded: false } });
+    expect(r).toEqual({ ok: false, reason: "notFullyFunded" });
+  });
+
+  const payable = (over: Partial<Parameters<typeof isPayable>[0]>) =>
+    isPayable({ dealStatus: "IN_PROGRESS", stageStatus: "ACCEPTED", paymentDue: "ON_ACCEPTANCE", previousDone: true, ...over });
+
+  it("к оплате только в работе или в споре", () => {
+    expect(payable({})).toBe(true);
+    expect(payable({ dealStatus: "DISPUTE" })).toBe(true);
+    for (const dealStatus of ["AWAITING_SIGNATURES", "AWAITING_DEPOSIT", "COMPLETED", "CANCELLED", "TERMINATED"] as const) {
+      expect(payable({ dealStatus })).toBe(false);
+      expect(payable({ dealStatus, paymentDue: "ON_START" })).toBe(false);
+    }
+  });
+
+  it("после приёмки: этап принят или закрыт; аванс: предыдущий этап готов", () => {
+    expect(payable({ stageStatus: "CLOSED" })).toBe(true);
+    for (const stageStatus of ["PENDING", "IN_PROGRESS", "SUBMITTED", "REWORK"] as const) expect(payable({ stageStatus })).toBe(false);
+    expect(payable({ paymentDue: "ON_START", stageStatus: "PENDING", previousDone: true })).toBe(true);
+    expect(payable({ paymentDue: "ON_START", stageStatus: "ACCEPTED", previousDone: false })).toBe(false);
   });
 });
