@@ -212,6 +212,16 @@ export function EmptyState({ title, description, icon, action, titleAs: Title = 
   );
 }
 
+/** Пара «название — значение» внутри <dl>. compact — мелкий текст (карточка отклика). */
+export function Fact({ label, compact = false, children }: { label: string; compact?: boolean; children: ReactNode }) {
+  return (
+    <div className={cn("flex flex-col", !compact && "gap-1")}>
+      <dt className={cn(compact ? "text-sm" : "text-base", "text-muted")}>{label}</dt>
+      <dd className={cn(compact ? "text-base font-semibold" : "text-lg", "text-ink")}>{children}</dd>
+    </div>
+  );
+}
+
 /* ── Деньги, даты, загрузка ────────────────────────────────── */
 
 /**

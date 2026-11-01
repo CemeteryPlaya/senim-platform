@@ -44,7 +44,8 @@ import {
   submitStageSchema,
 } from "./schemas";
 import { planStages } from "./stage-plan";
-import { lockDeal, lockStage, moveDeal, movePayment, moveStage, requireRole, scopeOf } from "./state";
+import { lockDeal, lockStage, moveDeal, movePayment, moveStage, requireRole, scopeOf, type DealState, type StageState } from "./state";
+import type { Who } from "./transitions";
 
 const t = ru.deal.notify;
 
@@ -214,11 +215,17 @@ export async function openEscrowAccount(dealId: string) {
 
 // ─── Этапы ───────────────────────────────────────────────────────────────────
 
+/** Шаг стороны над этапом: блокировка сделки, роль пользователя в ней (чужая сделка — «не найдено»), затем шаг. */
+function asStageParty<R>(user: CurrentUser, stageId: string, step: (tx: Tx, s: { deal: DealState; stage: StageState; who: Who }) => Promise<R>): Promise<R> {
+  return transaction(async (tx) => {
+    const { deal, stage } = await lockStage(tx, stageId);
+    return step(tx, { deal, stage, who: requireRole(user, deal) });
+  });
+}
+
 export async function startStage(user: CurrentUser, raw: { stageId: string }) {
   const input = parseInput(stageRefSchema, raw);
-  await transaction(async (tx) => {
-    const { deal, stage } = await lockStage(tx, input.stageId);
-    const who = requireRole(user, deal);
+  await asStageParty(user, input.stageId, async (tx, { deal, stage, who }) => {
     await moveStage(tx, deal, stage, { event: "start", who, actor: actorOf(user), audit: { action: "deal.stage.started" }, data: { startedAt: new Date() } });
     await notifyParty(tx, deal, "CLIENT", "deal.stage.started", { title: t.stageStarted.title, body: t.stageStarted.body(stage.title) });
   });
@@ -227,9 +234,7 @@ export async function startStage(user: CurrentUser, raw: { stageId: string }) {
 /** Исполнитель сдаёт этап с отчётом и фото (id StoredFile, загруженные им же). Ставится автоприёмка. */
 export async function submitStage(user: CurrentUser, raw: { stageId: string; report: string; photoIds: string[] }) {
   const input = parseInput(submitStageSchema, raw);
-  await transaction(async (tx) => {
-    const { deal, stage } = await lockStage(tx, input.stageId);
-    const who = requireRole(user, deal);
+  await asStageParty(user, input.stageId, async (tx, { deal, stage, who }) => {
     const submittedAt = new Date();
     const autoAcceptAt = new Date(submittedAt.getTime() + deal.autoAcceptDays * DAY_MS);
     await moveStage(tx, deal, stage, {
@@ -257,9 +262,7 @@ async function attachStagePhotos(tx: Tx, user: CurrentUser, stageId: string, ids
 
 export async function requestRework(user: CurrentUser, raw: { stageId: string; note: string }) {
   const input = parseInput(reworkSchema, raw);
-  await transaction(async (tx) => {
-    const { deal, stage } = await lockStage(tx, input.stageId);
-    const who = requireRole(user, deal);
+  await asStageParty(user, input.stageId, async (tx, { deal, stage, who }) => {
     // Замечание видит исполнитель — без контактов, как остальные тексты сторон.
     const note = await partyText(tx, deal, who, input.note);
     await moveStage(tx, deal, stage, {
@@ -276,9 +279,7 @@ export async function requestRework(user: CurrentUser, raw: { stageId: string; n
 /** Заказчик принимает этап. Двойной клик: второй вызов ждёт блокировку сделки и получает CONFLICT — второго транша нет. */
 export async function acceptStage(user: CurrentUser, raw: { stageId: string }) {
   const input = parseInput(stageRefSchema, raw);
-  const dealId = await transaction(async (tx) => {
-    const { deal, stage } = await lockStage(tx, input.stageId);
-    const who = requireRole(user, deal);
+  const dealId = await asStageParty(user, input.stageId, async (tx, { deal, stage, who }) => {
     await moveStage(tx, deal, stage, {
       event: "accept",
       who,
@@ -331,9 +332,7 @@ export async function autoAcceptStage(payload: unknown, now = new Date()): Promi
 
 export async function markStagePaid(user: CurrentUser, raw: { stageId: string }) {
   const input = parseInput(stageRefSchema, raw);
-  await transaction(async (tx) => {
-    const { deal, stage } = await lockStage(tx, input.stageId);
-    const who = requireRole(user, deal);
+  await asStageParty(user, input.stageId, async (tx, { deal, stage, who }) => {
     await movePayment(tx, deal, stage, { event: "markPaid", who, actor: actorOf(user), audit: { action: "deal.stage.payment.marked" }, data: { markedPaidAt: new Date() } });
     await notifyParty(tx, deal, "EXECUTOR", "deal.payment.marked", { title: t.paymentMarked.title, body: t.paymentMarked.body(stage.title) });
   });
@@ -341,9 +340,7 @@ export async function markStagePaid(user: CurrentUser, raw: { stageId: string })
 
 export async function confirmStagePayment(user: CurrentUser, raw: { stageId: string }) {
   const input = parseInput(stageRefSchema, raw);
-  await transaction(async (tx) => {
-    const { deal, stage } = await lockStage(tx, input.stageId);
-    const who = requireRole(user, deal);
+  await asStageParty(user, input.stageId, async (tx, { deal, stage, who }) => {
     await movePayment(tx, deal, stage, { event: "confirm", who, actor: actorOf(user), audit: { action: "deal.stage.payment.confirmed" }, data: { confirmedAt: new Date() } });
     await notifyParty(tx, deal, "CLIENT", "deal.payment.confirmed", { title: t.paymentConfirmed.title, body: t.paymentConfirmed.body(stage.title) });
     await tryCloseStage(tx, deal, stage);

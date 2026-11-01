@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Alert, Button, ConfirmDialog, type ButtonVariant, type ConfirmSpec } from "@/ui";
+import type { ReactNode } from "react";
+import { ConfirmButton, type ButtonVariant, type ConfirmSpec } from "@/ui";
 import { useRunAction, type ServerAction } from "./useRunAction";
 
 export type ActionButtonProps<I, T> = {
@@ -21,34 +21,10 @@ export type ActionButtonProps<I, T> = {
 /** Кнопка одного действия сделки. Повторное нажатие во время запроса заблокировано (loading). */
 export function ActionButton<I, T>({ action, input, children, variant = "primary", fullWidth = true, confirm, focusAfter, ariaLabel }: ActionButtonProps<I, T>) {
   const { run, pending, error } = useRunAction(action);
-  const [asking, setAsking] = useState(false);
-  const go = () => {
-    setAsking(false);
-    run(input, focusAfter ? () => document.getElementById(focusAfter)?.focus() : undefined);
-  };
-
+  const onRun = () => run(input, focusAfter ? () => document.getElementById(focusAfter)?.focus() : undefined);
   return (
-    <div className="flex flex-col gap-3">
-      <Button variant={variant} fullWidth={fullWidth} loading={pending} aria-label={ariaLabel} onClick={confirm ? () => setAsking(true) : go}>
-        {children}
-      </Button>
-      {error && (
-        <Alert tone="danger" live="assertive">
-          {error}
-        </Alert>
-      )}
-      {confirm && (
-        <ConfirmDialog
-          open={asking}
-          onCancel={() => setAsking(false)}
-          onConfirm={go}
-          title={confirm.title}
-          description={confirm.text}
-          confirmLabel={confirm.yes}
-          cancelLabel={confirm.no}
-          tone={confirm.tone}
-        />
-      )}
-    </div>
+    <ConfirmButton onRun={onRun} pending={pending} error={error} variant={variant} fullWidth={fullWidth} confirm={confirm} ariaLabel={ariaLabel}>
+      {children}
+    </ConfirmButton>
   );
 }

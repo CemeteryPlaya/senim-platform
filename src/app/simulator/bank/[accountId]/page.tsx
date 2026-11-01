@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/modules/identity";
 import { getSimulatorAccount } from "@/modules/payments";
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
-import { Banner, ButtonLink, Card, Container, DateText, Money, PageHeader, SimulatorBadge, StatusBadge } from "@/ui";
+import { Banner, ButtonLink, Card, Container, DateText, Fact, Money, PageHeader, SimulatorBadge, StatusBadge } from "@/ui";
 import { DepositForm, RedeliverButton } from "./SimulatorControls";
 
 const t = ru.payments.simulator;
@@ -118,11 +118,3 @@ export default async function SimulatorBankPage({ params }: Props) {
   );
 }
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-base text-muted">{label}</dt>
-      <dd className="text-lg text-ink">{children}</dd>
-    </div>
-  );
-}

@@ -40,6 +40,7 @@ export {
   DateText,
   DemoBanner,
   EmptyState,
+  Fact,
   Money,
   PageHeader,
   SimulatorBadge,
@@ -60,5 +61,6 @@ export {
 export { Stepper, type StepperBack, type StepperProps } from "./Stepper";
 export { Modal, type ModalProps } from "./Modal";
 export { ConfirmDialog, type ConfirmDialogProps, type ConfirmSpec, type ConfirmTone } from "./ConfirmDialog";
+export { ConfirmButton, FormError, type ConfirmButtonProps } from "./ConfirmButton";
 export { PhotoUpload, type PhotoItem, type PhotoUploadProps } from "./PhotoUpload";
 export { Chat, type ChatMessage, type ChatProps } from "./Chat";

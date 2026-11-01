@@ -3,22 +3,13 @@
 import { useState } from "react";
 import type { DisputeReason } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { Alert, Button, RadioCards, Select, Textarea } from "@/ui";
+import { Button, FormError, RadioCards, Select, Textarea } from "@/ui";
 import { useRunAction } from "../../_parts/useRunAction";
 import { disputePositionAction, openDisputeAction, reviewAction } from "../actions";
 
 const t = ru.deal;
 const REASONS = Object.entries(t.dispute.reason).map(([value, label]) => ({ value, label }));
 const RATINGS = [5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: t.forms.ratingOption(n) }));
-
-function FormError({ message }: { message: string | null }) {
-  if (!message) return null;
-  return (
-    <Alert tone="danger" live="assertive">
-      {message}
-    </Alert>
-  );
-}
 
 /** Открыть спор: причина и описание. Действие вторичное — экран прячет форму под раскрывающийся блок. */
 export function OpenDisputeForm({ dealId }: { dealId: string }) {

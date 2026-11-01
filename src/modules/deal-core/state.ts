@@ -102,6 +102,45 @@ export function paymentContext(deal: DealState, stage: StageState): PaymentConte
 
 type Audit = { action: string; meta?: Prisma.InputJsonValue };
 
+type Move = {
+  /** Результат updateMany с ожидаемым статусом: не одна строка — статус уже сменили, CONFLICT. */
+  updated: { count: number };
+  entity: { type: "deal" | "stage"; id: string };
+  dealId: string;
+  /** Ключ статуса в журнале: «status» — сделка или этап, «payment» — оплата этапа. */
+  field: "status" | "payment";
+  from: string;
+  to: string;
+  actor: Actor;
+  action: string;
+  meta?: Prisma.InputJsonValue;
+};
+
+/** Общий хвост перехода: проверка условного обновления и запись в журнал в той же транзакции. */
+async function commitMove(tx: Tx, m: Move): Promise<void> {
+  expectOneUpdated(m.updated, ru.deal.errors.notAllowedNow);
+  await recordAudit(tx, {
+    actor: m.actor,
+    action: m.action,
+    entity: m.entity,
+    scope: scopeOf(m.dealId),
+    before: { [m.field]: m.from },
+    after: { [m.field]: m.to },
+    meta: m.meta,
+  });
+}
+
+/** Журнал этапа: порядок, название и сумма этапа (или его оплаты) вместе с полями вызывающего. */
+function stageAudit(deal: DealState, stage: StageState, amount: number, q: { actor: Actor; audit: Audit }) {
+  return {
+    entity: { type: "stage", id: stage.id } as const,
+    dealId: deal.id,
+    actor: q.actor,
+    action: q.audit.action,
+    meta: { order: stage.order, title: stage.title, amount, ...(q.audit.meta as object | undefined) },
+  };
+}
+
 /**
  * Переход сделки по таблице. updateMany с ожидаемым статусом + expectOneUpdated:
  * если статус уже сменил кто-то другой, транзакция откатывается с CONFLICT.
@@ -120,20 +159,18 @@ export async function moveDeal(
   const r = resolveTransition(DEAL_TRANSITIONS, { event: q.event, from: deal.status, who: q.who, ctx });
   if (!r.ok) return refuse(r.reason);
   const from = deal.status;
-  expectOneUpdated(
-    await tx.deal.updateMany({ where: { id: deal.id, status: from }, data: { ...q.data, status: r.to } }),
-    ru.deal.errors.notAllowedNow,
-  );
-  deal.status = r.to;
-  await recordAudit(tx, {
+  await commitMove(tx, {
+    updated: await tx.deal.updateMany({ where: { id: deal.id, status: from }, data: { ...q.data, status: r.to } }),
+    entity: { type: "deal", id: deal.id },
+    dealId: deal.id,
+    field: "status",
+    from,
+    to: r.to,
     actor: q.actor,
     action: q.audit.action,
-    entity: { type: "deal", id: deal.id },
-    scope: scopeOf(deal.id),
-    before: { status: from },
-    after: { status: r.to },
     meta: q.audit.meta,
   });
+  deal.status = r.to;
   return r.to;
 }
 
@@ -146,20 +183,14 @@ export async function moveStage(
   const r = resolveTransition(STAGE_TRANSITIONS, { event: q.event, from: stage.status, who: q.who, ctx: stageContext(deal, stage, q.now) });
   if (!r.ok) return refuse(r.reason);
   const from = stage.status;
-  expectOneUpdated(
-    await tx.stage.updateMany({ where: { id: stage.id, status: from }, data: { ...q.data, status: r.to } }),
-    ru.deal.errors.notAllowedNow,
-  );
-  stage.status = r.to;
-  await recordAudit(tx, {
-    actor: q.actor,
-    action: q.audit.action,
-    entity: { type: "stage", id: stage.id },
-    scope: scopeOf(deal.id),
-    before: { status: from },
-    after: { status: r.to },
-    meta: { order: stage.order, title: stage.title, amount: stage.amount, ...(q.audit.meta as object | undefined) },
+  await commitMove(tx, {
+    updated: await tx.stage.updateMany({ where: { id: stage.id, status: from }, data: { ...q.data, status: r.to } }),
+    ...stageAudit(deal, stage, stage.amount, q),
+    field: "status",
+    from,
+    to: r.to,
   });
+  stage.status = r.to;
   return r.to;
 }
 
@@ -174,20 +205,14 @@ export async function movePayment(
   const r = resolveTransition(PAYMENT_TRANSITIONS, { event: q.event, from: payment.status, who: q.who, ctx: paymentContext(deal, stage) });
   if (!r.ok) return refuse(r.reason);
   const from = payment.status;
-  expectOneUpdated(
-    await tx.stagePayment.updateMany({ where: { id: payment.id, status: from }, data: { ...q.data, status: r.to } }),
-    ru.deal.errors.notAllowedNow,
-  );
-  payment.status = r.to;
-  await recordAudit(tx, {
-    actor: q.actor,
-    action: q.audit.action,
-    entity: { type: "stage", id: stage.id },
-    scope: scopeOf(deal.id),
-    before: { payment: from },
-    after: { payment: r.to },
-    meta: { order: stage.order, title: stage.title, amount: payment.amount, ...(q.audit.meta as object | undefined) },
+  await commitMove(tx, {
+    updated: await tx.stagePayment.updateMany({ where: { id: payment.id, status: from }, data: { ...q.data, status: r.to } }),
+    ...stageAudit(deal, stage, payment.amount, q),
+    field: "payment",
+    from,
+    to: r.to,
   });
+  payment.status = r.to;
   return r.to;
 }
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { readTextLimited } from "./http";
+import { ru } from "@/i18n/ru";
+import { isAppError } from "./errors";
+import { errorResponse, readTextLimited, routeId } from "./http";
 
 const URL_ = "http://localhost/api/webhooks/bank";
 
@@ -41,5 +43,29 @@ describe("readTextLimited", () => {
 
   it("пустое тело — пустая строка", async () => {
     expect(await readTextLimited(new Request(URL_, { method: "POST" }), 1024)).toBe("");
+  });
+});
+
+describe("routeId", () => {
+  it("возвращает id из параметров маршрута", async () => {
+    await expect(routeId(Promise.resolve({ id: "doc_1" }))).resolves.toBe("doc_1");
+  });
+
+  it("пустой, слишком длинный или отсутствующий id — NOT_FOUND с переданным текстом", async () => {
+    for (const params of [{ id: "" }, { id: "x".repeat(65) }, {}]) {
+      const err = await routeId(Promise.resolve(params), "нет такого").catch((e: unknown) => e);
+      expect(isAppError(err) && err.code === "NOT_FOUND" && err.message === "нет такого").toBe(true);
+    }
+  });
+
+  it("без текста — короткое «не найдено»; ответ маршрута — 404", async () => {
+    const err = await routeId(Promise.resolve({ id: "" })).catch((e: unknown) => e);
+    const res = errorResponse(err, "test");
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ code: "NOT_FOUND", error: ru.common.errors.notFoundShort });
+  });
+
+  it("id длиной 64 допустим", async () => {
+    await expect(routeId(Promise.resolve({ id: "x".repeat(64) }))).resolves.toHaveLength(64);
   });
 });

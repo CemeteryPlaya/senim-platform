@@ -3,7 +3,7 @@ import { ArrowRight, Star } from "lucide-react";
 import type { ReactNode } from "react";
 import { getOfferForClient } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Container, DateText, formatDays, formatMonths, formatYears, Money, PageHeader, StatusBadge } from "@/ui";
+import { Container, DateText, Fact, formatDays, formatMonths, formatYears, Money, PageHeader, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { chooseOfferAction } from "../../../actions";
 import { ActionButton } from "../../../_parts/ActionButton";
@@ -41,15 +41,15 @@ export default async function OfferPage({ params }: Props) {
       />
 
       <dl className="flex flex-wrap gap-x-8 gap-y-3 text-base">
-        <Fact label={o.reviews}>
+        <Fact compact label={o.reviews}>
           <span className="inline-flex items-center gap-2">
             <Star aria-hidden className="size-5 fill-current text-warning" />
             {ex.reviewsCount > 0 ? o.rating(ex.ratingAvg.toFixed(1), ex.reviewsCount) : o.noRating}
           </span>
         </Fact>
-        {ex.segment && <Fact label={o.segment}>{SEGMENT_NAMES[ex.segment]}</Fact>}
-        <Fact label={o.experience}>{formatYears(ex.yearsExperience)}</Fact>
-        <Fact label={o.deals}>{ex.completedDeals}</Fact>
+        {ex.segment && <Fact compact label={o.segment}>{SEGMENT_NAMES[ex.segment]}</Fact>}
+        <Fact compact label={o.experience}>{formatYears(ex.yearsExperience)}</Fact>
+        <Fact compact label={o.deals}>{ex.completedDeals}</Fact>
       </dl>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
@@ -64,9 +64,9 @@ export default async function OfferPage({ params }: Props) {
             <span className="text-base text-ink-soft">{o.priceNote}</span>
           </p>
           <dl className="flex flex-col gap-3 border-t border-line pt-4 text-base">
-            <Fact label={o.duration}>{formatDays(offer.durationDays)}</Fact>
-            <Fact label={o.warranty}>{formatMonths(offer.warrantyMonths)}</Fact>
-            <Fact label={o.measurement}>{termsText(offer.measurementTerms, offer.measurementFee)}</Fact>
+            <Fact compact label={o.duration}>{formatDays(offer.durationDays)}</Fact>
+            <Fact compact label={o.warranty}>{formatMonths(offer.warrantyMonths)}</Fact>
+            <Fact compact label={o.measurement}>{termsText(offer.measurementTerms, offer.measurementFee)}</Fact>
           </dl>
           {offer.comment && (
             <p className="border-t border-line pt-4 text-base text-ink">
@@ -154,15 +154,6 @@ export default async function OfferPage({ params }: Props) {
         </div>
       )}
     </Container>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="text-base font-semibold text-ink">{children}</dd>
-    </div>
   );
 }
 

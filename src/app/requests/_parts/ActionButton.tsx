@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import type { ActionResult } from "@/platform/action";
-import { Alert, Button, ConfirmDialog, type ButtonVariant, type ConfirmSpec } from "@/ui";
+import { ConfirmButton, type ButtonVariant, type ConfirmSpec } from "@/ui";
 
 export type ServerAction<I, T> = (input: I) => Promise<ActionResult<T>>;
 
@@ -48,44 +48,11 @@ export type ActionButtonProps<I, T> = {
 /** Кнопка одного действия (выбрать отклик, отменить заявку, отозвать отклик) с подтверждением и ошибкой. */
 export function ActionButton<I, T>({ action, input, children, variant = "primary", fullWidth, href, confirm }: ActionButtonProps<I, T>) {
   const { run, pending, error } = useRunAction(action, () => href);
-  const [asking, setAsking] = useState(false);
-  const go = () => {
-    setAsking(false);
-    void run(input);
-  };
-
   return (
-    <div className="flex flex-col gap-3">
-      <Button variant={variant} fullWidth={fullWidth} loading={pending} onClick={confirm ? () => setAsking(true) : go}>
-        {children}
-      </Button>
-      {error && (
-        <Alert tone="danger" live="assertive">
-          {error}
-        </Alert>
-      )}
-      {confirm && (
-        <ConfirmDialog
-          open={asking}
-          onCancel={() => setAsking(false)}
-          onConfirm={go}
-          title={confirm.title}
-          description={confirm.text}
-          confirmLabel={confirm.yes}
-          cancelLabel={confirm.no}
-          tone={confirm.tone}
-        />
-      )}
-    </div>
+    <ConfirmButton onRun={() => void run(input)} pending={pending} error={error} variant={variant} fullWidth={fullWidth} confirm={confirm}>
+      {children}
+    </ConfirmButton>
   );
 }
 
-/** Ошибка формы целиком (сервер отказал); ошибки полей показывают сами поля. */
-export function FormError({ message }: { message: string | null }) {
-  if (!message) return null;
-  return (
-    <Alert tone="danger" live="assertive">
-      {message}
-    </Alert>
-  );
-}
+export { FormError } from "@/ui";

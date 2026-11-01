@@ -1,5 +1,6 @@
+import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import { isAppError, type ErrorCode } from "./errors";
+import { fail, isAppError, type ErrorCode } from "./errors";
 import { logger } from "./logger";
 
 const STATUS: Record<ErrorCode, number> = {
@@ -22,6 +23,14 @@ export function errorResponse(e: unknown, route: string): Response {
   if (isAppError(e)) return Response.json({ code: e.code, error: e.message }, { status: STATUS[e.code] });
   logger.error("route failed", { route, error: e });
   return Response.json({ code: "INTERNAL", error: ru.common.errors.generic }, { status: 500 });
+}
+
+const idParams = z.object({ id: z.string().min(1).max(64) });
+
+/** id из параметров маршрута `[id]`. Неверный id — NOT_FOUND, как у несуществующего объекта. */
+export async function routeId(params: Promise<unknown>, notFoundMessage?: string): Promise<string> {
+  const parsed = idParams.safeParse(await params);
+  return parsed.success ? parsed.data.id : fail.notFound(notFoundMessage);
 }
 
 /**

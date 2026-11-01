@@ -104,21 +104,17 @@ export function SigningPanel({ document: doc, titleAs = "h2" }: SigningPanelProp
   );
 }
 
-function SignArea({
-  doc,
-  state,
-  onMethod,
-  onStart,
-  onComplete,
-  onReset,
-}: {
+type SignAreaProps = {
   doc: SigningDocumentView;
   state: ReturnType<typeof signingReducer>;
   onMethod: (m: SignMethodChoice) => void;
   onStart: () => void;
   onComplete: () => void;
   onReset: () => void;
-}) {
+};
+
+function SignArea(props: SignAreaProps) {
+  const { state } = props;
   const area = useRef<HTMLDivElement>(null);
   const prevStep = useRef(state.step);
   // Кнопка, на которой стоял фокус, исчезает при смене шага: переводим фокус на итог подписи
@@ -137,26 +133,12 @@ function SignArea({
   }, [state.step]);
   return (
     <div ref={area}>
-      <SignStep doc={doc} state={state} onMethod={onMethod} onStart={onStart} onComplete={onComplete} onReset={onReset} />
+      <SignStep {...props} />
     </div>
   );
 }
 
-function SignStep({
-  doc,
-  state,
-  onMethod,
-  onStart,
-  onComplete,
-  onReset,
-}: {
-  doc: SigningDocumentView;
-  state: ReturnType<typeof signingReducer>;
-  onMethod: (m: SignMethodChoice) => void;
-  onStart: () => void;
-  onComplete: () => void;
-  onReset: () => void;
-}) {
+function SignStep({ doc, state, onMethod, onStart, onComplete, onReset }: SignAreaProps) {
   if (state.step === "done") {
     return (
       <div data-sign-result tabIndex={-1} className="rounded-control">

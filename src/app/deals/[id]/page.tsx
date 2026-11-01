@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { SigningPanel } from "@/app/_components/signing";
@@ -8,7 +8,8 @@ import { listDealDocuments, type SigningDocumentView } from "@/modules/documents
 import { getCurrentUser, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
-import { ButtonLink, Card, Container, DateText, formatMoney, Money, PageHeader, SimulatorBadge, StatusBadge } from "@/ui";
+import { ButtonLink, Card, Container, DateText, Fact, formatMoney, Money, PageHeader, SimulatorBadge, StatusBadge } from "@/ui";
+import { orNotFound } from "@/app/requests/_parts/guard";
 import { ActionButton } from "../_parts/ActionButton";
 import { DEAL_TONE, PAYMENT_TONE, STAGE_TONE } from "../_parts/labels";
 import { cancelDealAction, retryOperationAction } from "./actions";
@@ -32,15 +33,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: t.number((await loadDeal(user, id)).number) };
   } catch (e) {
     if (isAppError(e)) return { title: t.listTitle };
-    throw e;
-  }
-}
-
-async function orNotFound<T>(promise: Promise<T>): Promise<T> {
-  try {
-    return await promise;
-  } catch (e) {
-    if (isAppError(e) && e.code === "NOT_FOUND") notFound();
     throw e;
   }
 }
@@ -113,15 +105,6 @@ function DocumentPanel({ doc }: { doc: SigningDocumentView }) {
   return (
     <div id={`doc-${doc.id}`} className="scroll-mt-6">
       <SigningPanel document={doc} titleAs="h3" />
-    </div>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-base text-muted">{label}</dt>
-      <dd className="text-lg text-ink">{children}</dd>
     </div>
   );
 }
