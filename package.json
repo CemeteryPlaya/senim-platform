@@ -21,6 +21,9 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force && prisma db seed",
     "check": "npm run typecheck && npm run lint && npm test",
+    "quality:crap": "node scripts/quality/crap.mjs",
+    "quality:dup": "jscpd --config .jscpd.json",
+    "quality:mutate": "stryker run stryker.config.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -46,6 +49,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
+    "@stryker-mutator/core": "10.1.1",
+    "@stryker-mutator/vitest-runner": "10.1.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
@@ -55,6 +60,7 @@
     "@vitest/coverage-v8": "^5.0.5",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "jscpd": "5.4.2",
     "prisma": "^7.10.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",

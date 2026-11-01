@@ -1,0 +1,20 @@
+{
+  "path": ["src"],
+  "format": ["typescript", "tsx"],
+  "ignore": [
+    "src/generated/**",
+    "src/i18n/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.int.test.ts"
+  ],
+  "minTokens": 50,
+  "minLines": 5,
+  "mode": "mild",
+  "similarity": 0.8,
+  "minNodes": 40,
+  "reporters": ["console", "json", "markdown"],
+  "output": "reports/quality/dup",
+  "noTips": true,
+  "exitCode": 0
+}

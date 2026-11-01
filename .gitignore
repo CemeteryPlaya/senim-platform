@@ -72,3 +72,7 @@ next-env.d.ts
 # Скиллы сторонних инструментов — только локально (решение владельца, OPEN_QUESTIONS №1)
 /.agents/
 /.windsurf/
+
+# отчёты инструментов качества (npm run quality:*)
+/reports/
+/.stryker-tmp/
