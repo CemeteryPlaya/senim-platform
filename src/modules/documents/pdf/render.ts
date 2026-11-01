@@ -1,35 +1,62 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, type Color, type PDFFont, type PDFPage } from "pdf-lib";
 import type { Block, PdfSpec, TableColumn } from "./spec";
 
 /*
- * Шрифт — Lora (Regular, Bold) под SIL Open Font License 1.1, лицензия — fonts/OFL.txt.
- * Источник: Google Fonts (github.com/cyrealtype/Lora-Cyrillic), копия из набора OFL-шрифтов на машине разработчика,
- * потому что сеть в окружении агента закрыта. Есть кириллица, казахские буквы и знак ₸.
- * На Vercel папку fonts нужно включить в трассировку (outputFileTracingIncludes) — см. отчёт интегратору.
+ * Шрифт — Tinos (Regular, Bold) под SIL Open Font License 1.1, лицензия — fonts/OFL-Tinos.txt,
+ * источник — github.com/googlefonts/tinos. Есть кириллица, все казахские буквы и знак ₸.
+ *
+ * Почему не Times New Roman. Владелец просил Times New Roman 14 pt, как в правилах оформления документов РК.
+ * Times New Roman принадлежит Monotype и поставляется с Windows: его лицензия не разрешает класть файл
+ * в репозиторий и раздавать с сервера. Tinos метрически совместим с Times New Roman — ширина каждого
+ * символа та же, поэтому переносы строк и число страниц совпадают, а на вид шрифты почти не отличаются.
+ *
+ * Как заменить на лицензионный Times New Roman (нужна лицензия Monotype на встраивание в PDF):
+ * положить times.ttf и timesbd.ttf в fonts/ и поменять два имени файла в FONT_FILES ниже.
+ * Вёрстка не изменится: метрики одинаковые. На Vercel папка fonts включена в трассировку
+ * (outputFileTracingIncludes в next.config.ts).
  */
+const FONT_FILES = { regular: "Tinos-Regular.ttf", bold: "Tinos-Bold.ttf" } as const;
 const FONT_DIR = path.join(process.cwd(), "src", "modules", "documents", "fonts");
+
+/** Имя шрифта в PDF — имя файла без расширения: фиксированное, чтобы одинаковый spec давал одинаковые байты. */
+const fontName = (file: string) => path.basename(file, path.extname(file));
 
 let fontBytes: Promise<{ regular: Uint8Array; bold: Uint8Array }> | undefined;
 function loadFonts() {
-  fontBytes ??= Promise.all([readFile(path.join(FONT_DIR, "Lora-Regular.ttf")), readFile(path.join(FONT_DIR, "Lora-Bold.ttf"))]).then(
+  fontBytes ??= Promise.all([readFile(path.join(FONT_DIR, FONT_FILES.regular)), readFile(path.join(FONT_DIR, FONT_FILES.bold))]).then(
     ([regular, bold]) => ({ regular: new Uint8Array(regular), bold: new Uint8Array(bold) }),
   );
   return fontBytes;
 }
 
+const MM = 72 / 25.4;
 const PAGE = { width: 595.28, height: 841.89 }; // A4
-const MARGIN = { x: 56, top: 56, bottom: 72 };
-const CONTENT_WIDTH = PAGE.width - 2 * MARGIN.x;
+/** Поля по правилам оформления документов: левое 30 мм (под подшивку), правое 15 мм, верхнее и нижнее 20 мм. */
+const MARGIN = { left: 30 * MM, right: 15 * MM, top: 20 * MM, bottom: 20 * MM };
+const RIGHT_EDGE = PAGE.width - MARGIN.right;
+const CONTENT_WIDTH = RIGHT_EDGE - MARGIN.left;
 const INK = rgb(0.1, 0.1, 0.12);
 const MUTED = rgb(0.35, 0.35, 0.4);
-const SIZE = { title: 15, subtitle: 10.5, heading: 12, body: 10.5, table: 9.5, footer: 8 };
-const LEADING = 1.4;
-const CELL_PAD = 4;
+/** Основной текст и заголовки — 14 pt (заголовки полужирные); подзаголовок, таблица, подписи и колонтитул — 12 pt, не мельче. */
+const SIZE = { title: 14, heading: 14, body: 14, subtitle: 12, table: 12, caption: 12, footer: 12 } as const;
+/*
+ * Межстрочный интервал — 1,15 кегля. Это «одинарный» интервал Word для Times New Roman
+ * (ascent + descent + lineGap шрифта = 1,15 em), которого требуют правила оформления документов,
+ * поэтому PDF выглядит как привычный договор из Word. При кегле 14 строки и так крупные;
+ * 1,5 растянул бы договор на лишние страницы. Читаемость добавляет отбивка 6 pt между абзацами.
+ */
+const LEADING = 1.15;
+const PARAGRAPH_GAP = 6;
+const CELL_PAD = 5;
+const SIGNATURE_CAPTION = "Подпись: ЭЦП НУЦ РК (в электронной форме)";
+/** Допуск сравнения координат в pt (погрешность плавающей точки). */
+const EPS = 0.01;
 
 type Fonts = { regular: PDFFont; bold: PDFFont };
+type TextStyle = { font: PDFFont; size: number; color?: Color };
 
 /** Разбивает текст на строки по ширине. Неразрывные пробелы (суммы) не разрываются. */
 export function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -57,6 +84,18 @@ export function wrapText(text: string, font: PDFFont, size: number, maxWidth: nu
   return lines;
 }
 
+/**
+ * Единственное место, где рисуется текст. Строка за полями — ошибка вёрстки: лучше не выпустить
+ * документ, чем выпустить договор с обрезанным текстом. Сам текст в ошибку не попадает (в нём ИИН и ФИО).
+ */
+function put(page: PDFPage, text: string, x: number, baseline: number, style: TextStyle) {
+  const right = x + style.font.widthOfTextAtSize(text, style.size);
+  if (x < MARGIN.left - EPS || right > RIGHT_EDGE + EPS) {
+    throw new Error(`PDF: строка выходит за поля (x=${x.toFixed(1)}, правый край=${right.toFixed(1)}, кегль=${style.size})`);
+  }
+  page.drawText(text, { x, y: baseline, size: style.size, font: style.font, color: style.color ?? INK });
+}
+
 /** Курсор по страницам: сам добавляет новую страницу, когда место кончилось. */
 class Cursor {
   page: PDFPage;
@@ -75,13 +114,13 @@ class Cursor {
     this.y = PAGE.height - MARGIN.top;
   }
 
-  lines(lines: string[], opts: { font: PDFFont; size: number; align?: "left" | "center"; color?: ReturnType<typeof rgb> }) {
-    const step = opts.size * LEADING;
+  lines(lines: string[], style: TextStyle & { align?: "left" | "center" }) {
+    const step = style.size * LEADING;
     for (const line of lines) {
       this.ensure(step);
-      const width = opts.font.widthOfTextAtSize(line, opts.size);
-      const x = opts.align === "center" ? (PAGE.width - width) / 2 : MARGIN.x;
-      this.page.drawText(line, { x, y: this.y - opts.size, size: opts.size, font: opts.font, color: opts.color ?? INK });
+      const width = style.font.widthOfTextAtSize(line, style.size);
+      const x = style.align === "center" ? MARGIN.left + (CONTENT_WIDTH - width) / 2 : MARGIN.left;
+      put(this.page, line, x, this.y - style.size, style);
       this.y -= step;
     }
   }
@@ -97,13 +136,13 @@ function drawTable(c: Cursor, columns: TableColumn[], rows: string[][]) {
     const wrapped = cells.map((cell, i) => wrapText(cell, font, size, widths[i] - 2 * CELL_PAD));
     const height = Math.max(...wrapped.map((l) => l.length)) * step + 2 * CELL_PAD;
     c.ensure(height);
-    let x = MARGIN.x;
+    let x = MARGIN.left;
     wrapped.forEach((lines, i) => {
       c.page.drawRectangle({ x, y: c.y - height, width: widths[i], height, borderColor: MUTED, borderWidth: 0.5 });
       lines.forEach((line, n) => {
         const textWidth = font.widthOfTextAtSize(line, size);
         const tx = columns[i].align === "right" ? x + widths[i] - CELL_PAD - textWidth : x + CELL_PAD;
-        c.page.drawText(line, { x: tx, y: c.y - CELL_PAD - size - n * step + 1, size, font, color: INK });
+        put(c.page, line, tx, c.y - CELL_PAD - size - n * step + 1, { font, size });
       });
       x += widths[i];
     });
@@ -112,29 +151,36 @@ function drawTable(c: Cursor, columns: TableColumn[], rows: string[][]) {
 
   drawRow(columns.map((col) => col.header), bold);
   for (const row of rows) drawRow(row, regular);
-  c.y -= SIZE.body * 0.6;
+  c.y -= PARAGRAPH_GAP;
 }
 
 function drawSignatures(c: Cursor, parties: { role: string; name: string }[]) {
   const { regular, bold } = c.fonts;
   const colWidth = CONTENT_WIDTH / parties.length;
+  const textWidth = colWidth - 12;
+  const bodyStep = SIZE.body * LEADING;
+  const captionStep = SIZE.caption * LEADING;
   const blocks = parties.map((p) => ({
-    role: p.role,
-    name: wrapText(p.name, regular, SIZE.body, colWidth - 12),
+    role: wrapText(p.role, bold, SIZE.body, textWidth),
+    name: wrapText(p.name, regular, SIZE.body, textWidth),
+    caption: wrapText(SIGNATURE_CAPTION, regular, SIZE.caption, textWidth),
   }));
-  const step = SIZE.body * LEADING;
-  const height = (Math.max(...blocks.map((b) => b.name.length)) + 3) * step;
+  const gap = bodyStep * 0.5;
+  const height = Math.max(...blocks.map((b) => (b.role.length + b.name.length) * bodyStep + gap + b.caption.length * captionStep));
   c.ensure(height);
   blocks.forEach((b, i) => {
-    const x = MARGIN.x + i * colWidth;
-    let y = c.y - SIZE.body;
-    c.page.drawText(b.role, { x, y, size: SIZE.body, font: bold, color: INK });
-    for (const line of b.name) {
-      y -= step;
-      c.page.drawText(line, { x, y, size: SIZE.body, font: regular, color: INK });
-    }
-    y -= step * 1.5;
-    c.page.drawText("Подпись: ЭЦП НУЦ РК (в электронной форме)", { x, y, size: SIZE.footer, font: regular, color: MUTED });
+    const x = MARGIN.left + i * colWidth;
+    let top = c.y;
+    const column = (lines: string[], style: TextStyle) => {
+      for (const line of lines) {
+        put(c.page, line, x, top - style.size, style);
+        top -= style.size * LEADING;
+      }
+    };
+    column(b.role, { font: bold, size: SIZE.body });
+    column(b.name, { font: regular, size: SIZE.body });
+    top -= gap;
+    column(b.caption, { font: regular, size: SIZE.caption, color: MUTED });
   });
   c.y -= height;
 }
@@ -150,14 +196,14 @@ function drawBlock(c: Cursor, block: Block) {
       c.y -= SIZE.body;
       return;
     case "heading":
-      c.y -= SIZE.body * 0.5;
+      c.y -= PARAGRAPH_GAP;
       c.ensure(SIZE.heading * LEADING + SIZE.body * LEADING * 2); // заголовок не остаётся один внизу страницы
       c.lines(wrapText(block.text, bold, SIZE.heading, CONTENT_WIDTH), { font: bold, size: SIZE.heading });
       return;
     case "paragraph": {
       const font = block.bold ? bold : regular;
       c.lines(wrapText(block.text, font, SIZE.body, CONTENT_WIDTH), { font, size: SIZE.body });
-      c.y -= SIZE.body * 0.4;
+      c.y -= PARAGRAPH_GAP;
       return;
     }
     case "table":
@@ -169,6 +215,17 @@ function drawBlock(c: Cursor, block: Block) {
   }
 }
 
+/** Колонтитул в нижнем поле: текст слева, «стр. X из Y» справа на первой строке. */
+function drawFooter(page: PDFPage, font: PDFFont, footer: string, pageLabel: string) {
+  const style = { font, size: SIZE.footer, color: MUTED };
+  const labelWidth = font.widthOfTextAtSize(pageLabel, SIZE.footer);
+  const firstBaseline = MARGIN.bottom - 6 - SIZE.footer;
+  wrapText(footer, font, SIZE.footer, CONTENT_WIDTH - labelWidth - 12).forEach((line, n) => {
+    put(page, line, MARGIN.left, firstBaseline - n * SIZE.footer * LEADING, style);
+  });
+  put(page, pageLabel, RIGHT_EDGE - labelWidth, firstBaseline, style);
+}
+
 /**
  * PDF из описания. Детерминирован: одинаковый spec — одинаковые байты
  * (даты в свойствах = issuedAt, имена шрифтов фиксированы), поэтому хэш стабилен.
@@ -177,9 +234,11 @@ export async function renderPdf(spec: PdfSpec): Promise<Uint8Array> {
   const bytes = await loadFonts();
   const doc = await PDFDocument.create({ updateMetadata: false });
   doc.registerFontkit(fontkit);
+  // Шрифт встраивается целиком: подмножество pdf-lib теряет составные глифы, а в Tinos кириллица
+  // собрана из латинских (А = A, О = O) — буквы пропадали со страницы. Цена — ≈ 0,6 МБ на документ.
   const fonts: Fonts = {
-    regular: await doc.embedFont(bytes.regular, { subset: true, customName: "Lora-Regular" }),
-    bold: await doc.embedFont(bytes.bold, { subset: true, customName: "Lora-Bold" }),
+    regular: await doc.embedFont(bytes.regular, { subset: false, customName: fontName(FONT_FILES.regular) }),
+    bold: await doc.embedFont(bytes.bold, { subset: false, customName: fontName(FONT_FILES.bold) }),
   };
   doc.setTitle(spec.title);
   doc.setLanguage("ru-RU");
@@ -192,15 +251,7 @@ export async function renderPdf(spec: PdfSpec): Promise<Uint8Array> {
   for (const block of spec.blocks) drawBlock(cursor, block);
 
   const pages = doc.getPages();
-  pages.forEach((page, i) => {
-    const pageLabel = `стр. ${i + 1} из ${pages.length}`;
-    const footerLines = wrapText(spec.footer, fonts.regular, SIZE.footer, CONTENT_WIDTH - 80);
-    footerLines.forEach((line, n) => {
-      page.drawText(line, { x: MARGIN.x, y: 40 - n * SIZE.footer * LEADING, size: SIZE.footer, font: fonts.regular, color: MUTED });
-    });
-    const w = fonts.regular.widthOfTextAtSize(pageLabel, SIZE.footer);
-    page.drawText(pageLabel, { x: PAGE.width - MARGIN.x - w, y: 40, size: SIZE.footer, font: fonts.regular, color: MUTED });
-  });
+  pages.forEach((page, i) => drawFooter(page, fonts.regular, spec.footer, `стр. ${i + 1} из ${pages.length}`));
 
   return doc.save({ useObjectStreams: false });
 }

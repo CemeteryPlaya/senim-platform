@@ -26,3 +26,4 @@
 | 11 | Облако в РК: Postgres, S3-совместимое хранилище, резервные копии | перед выкаткой демонстрации банкам | `docs/bank/04-security-and-data.md` |
 | 13 | Фото для лендинга из макета 719 отдельными файлами: `public/landing/hero.jpg`, `client.jpg`, `executor.jpg` | когда будут исходники | `src/app/page.tsx` (место отмечено `INTEGRATOR:`) |
 | 12 | Юридическая проверка договора подряда и акта | позже; пока используется текущий шаблон из модуля `documents` | модуль `documents` |
+| 14 | Если нужен именно Times New Roman, а не метрически совместимый Tinos: лицензия Monotype на встраивание шрифта в PDF на сервере. Затем положить `times.ttf` и `timesbd.ttf` в `src/modules/documents/fonts/` и заменить два имени файла в `FONT_FILES` (`src/modules/documents/pdf/render.ts`); вёрстка не изменится | по желанию; Tinos выглядит так же и даёт те же переносы | модуль `documents` |
