@@ -68,7 +68,7 @@ test("выбор отклика → замер → итоговая цена →
   // 6. Согласие с ценой проекта и порядком оплаты → сделка
   const measured = page.getByRole("region", { name: "Замер выполнен" });
   await expect(measured).toBeVisible();
-  await expect(measured.getByText("1 090 000")).toBeVisible();
+  await expect(measured.getByText("1 090 000").first()).toBeVisible();
   await expect(measured.getByText("Стена 3,4 м, добавили карниз и подсветку.")).toBeVisible();
   await choose(measured.getByRole("radio", { name: /^Аванс 50% на материалы/ }));
   await measured.getByRole("button", { name: "Согласен, перейти к договору" }).click();

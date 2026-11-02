@@ -68,5 +68,5 @@ test("заказчик проходит мастер с «Не знаю» и в�
   await expect(item).toBeVisible();
   await expect(item.getByText("Ждёт откликов")).toBeVisible();
   await expect(item.getByText("Комфорт")).toBeVisible();
-  await expect(item.getByRole("link", { name: new RegExp(`^Открыть ?: Заявка №${number}: Кухня$`) })).toBeVisible();
+  await expect(item.getByRole("link", { name: new RegExp(`^Заявка №${number}: Кухня$`) })).toBeVisible();
 });

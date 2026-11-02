@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { ArrowRight, Star } from "lucide-react";
+import { ArrowRight, Award, BadgeCheck, MapPin, Ruler, Star } from "lucide-react";
 import type { ReactNode } from "react";
 import { getOfferForClient } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Container, DateText, Fact, formatDays, formatMonths, formatYears, Money, PageHeader, StatusBadge } from "@/ui";
+import { Container, DateText, formatYears, PageHeader, PhotoCard, SectionTitle, Stat, StatusBadge, Timeline } from "@/ui";
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { chooseOfferAction } from "../../../actions";
 import { ActionButton } from "../../../_parts/ActionButton";
 import { orNotFound, pageUser } from "../../../_parts/guard";
 import { OFFER_TONE, termsText } from "../../../_parts/labels";
+import { CostSummary } from "@/app/_components/pre-contract/CostSummary";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { NoAccess } from "@/app/_components/NoAccess";
 
@@ -19,7 +20,8 @@ export const metadata: Metadata = { title: o.metaTitle };
 type Props = { params: Promise<{ id: string; offerId: string }> };
 
 /**
- * Карточка отклика (макет 823): вместо пяти вкладок — одна длинная страница.
+ * Карточка отклика (макеты 823 и 13–14): вместо вкладок — одна длинная страница. Галерея работ, условия
+ * (цена крупно, плитки срока и гарантии), об исполнителе, «Как проходит работа», работы, отзывы, чат.
  * Исполнитель — только «Исполнитель №N» (publicExecutorView); главное действие — выбрать и перейти к замеру.
  */
 export default async function OfferPage({ params }: Props) {
@@ -37,62 +39,86 @@ export default async function OfferPage({ params }: Props) {
       <PageHeader
         back={{ href: `/requests/${id}`, label: ru.requests.requestTitle(offer.request.number, offer.request.title) }}
         title={o.title(ex.labelGen)}
-        description={offer.status !== "SENT" ? <StatusBadge tone={OFFER_TONE[offer.status]}>{ru.requests.offerStatus[offer.status]}</StatusBadge> : undefined}
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            {offer.status !== "SENT" && <StatusBadge tone={OFFER_TONE[offer.status]}>{ru.requests.offerStatus[offer.status]}</StatusBadge>}
+            {ex.segment && <StatusBadge tone="accent">{SEGMENT_NAMES[ex.segment]}</StatusBadge>}
+          </span>
+        }
+        className="pb-0"
       />
 
-      <dl className="flex flex-wrap gap-x-8 gap-y-3 text-base">
-        <Fact compact label={o.reviews}>
-          <span className="inline-flex items-center gap-2">
-            <Star aria-hidden className="size-5 fill-current text-warning" />
-            {ex.reviewsCount > 0 ? o.rating(ex.ratingAvg.toFixed(1), ex.reviewsCount) : o.noRating}
-          </span>
-        </Fact>
-        {ex.segment && <Fact compact label={o.segment}>{SEGMENT_NAMES[ex.segment]}</Fact>}
-        <Fact compact label={o.experience}>{formatYears(ex.yearsExperience)}</Fact>
-        <Fact compact label={o.deals}>{ex.completedDeals}</Fact>
-        {ex.address && <Fact compact label={ru.companies.identity.address}>{ex.address}</Fact>}
-      </dl>
-
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
-        <Gallery photos={gallery.slice(0, 5)} />
-        <section aria-labelledby="terms" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
-          <h2 id="terms" className="sr-only">
-            {o.price}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
+        <Gallery photos={gallery.slice(0, 5)} label={o.photos(ex.labelGen)} />
+        <section aria-labelledby="terms-title" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+          <h2 id="terms-title" className="text-xl font-bold text-ink">
+            {o.termsTitle}
           </h2>
-          <p className="flex flex-col gap-1">
-            <span className="text-base text-muted">{o.price}</span>
-            <Money amount={offer.price} className="text-3xl font-extrabold text-ink" />
-            <span className="text-base text-ink-soft">{o.priceNote}</span>
+          <CostSummary total={offer.price} totalLabel={o.price} durationDays={offer.durationDays} warrantyMonths={offer.warrantyMonths} />
+          <p className="text-base text-ink-soft">{o.priceNote}</p>
+          <p className="flex items-start gap-3 text-base text-ink">
+            <Ruler aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
+            <span className="flex min-w-0 flex-col">
+              <span className="text-sm text-muted">{o.measurement}</span>
+              {termsText(offer.measurementTerms, offer.measurementFee)}
+            </span>
           </p>
-          <dl className="flex flex-col gap-3 border-t border-line pt-4 text-base">
-            <Fact compact label={o.duration}>{formatDays(offer.durationDays)}</Fact>
-            <Fact compact label={o.warranty}>{formatMonths(offer.warrantyMonths)}</Fact>
-            <Fact compact label={o.measurement}>{termsText(offer.measurementTerms, offer.measurementFee)}</Fact>
-          </dl>
           {offer.comment && (
-            <p className="border-t border-line pt-4 text-base text-ink">
-              <span className="block text-muted">{o.comment}</span>
+            <p className="rounded-control bg-sunken p-4 text-base text-ink">
+              <span className="block text-sm text-muted">{o.comment}</span>
               {offer.comment}
             </p>
           )}
         </section>
       </div>
 
+      <Section id="executor" title={ex.label}>
+        <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3">
+          {/* Рейтинг — только по настоящим отзывам; без них плитки нет (в разделе «Отзывы» — «Отзывов пока нет»). */}
+          {ex.reviewsCount > 0 && (
+            <li className="flex">
+              <Stat className="flex-1" icon={<Star />} value={ex.ratingAvg.toFixed(1)} label={o.ratingValue(ex.reviewsCount)} />
+            </li>
+          )}
+          <li className="flex">
+            <Stat className="flex-1" icon={<Award />} value={formatYears(ex.yearsExperience)} label={o.yearsLabel} />
+          </li>
+          <li className="flex">
+            <Stat className="flex-1" icon={<BadgeCheck />} value={ex.completedDeals} label={o.dealsLabel} />
+          </li>
+        </ul>
+        {ex.address && (
+          <p className="flex items-start gap-3 text-base text-ink">
+            <MapPin aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
+            <span className="flex min-w-0 flex-col">
+              <span className="text-sm text-muted">{ru.companies.identity.address}</span>
+              {ex.address}
+            </span>
+          </p>
+        )}
+      </Section>
+
+      <Section id="how" title={o.howTitle}>
+        <Timeline
+          label={o.howTitle}
+          items={o.how.map((step, i) => ({ title: step.title, description: step.text, state: offer.status === "ACCEPTED" && i === 0 ? "done" : "todo" }))}
+        />
+      </Section>
+
       <Section id="portfolio" title={o.portfolio}>
         {offer.portfolio.length === 0 ? (
           <p className="text-base text-ink-soft">{o.portfolioEmpty}</p>
         ) : (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,14rem),1fr))] gap-4">
-              {offer.portfolio.map((item) => (
-                <li key={item.id} className="flex flex-col gap-2">
-                  {item.photos[0] && (
-                    // eslint-disable-next-line @next/next/no-img-element -- иллюстрации портфолио из хранилища
-                    <img src={item.photos[0].src} alt={item.photos[0].alt} className="aspect-[4/3] w-full rounded-card border border-line object-cover" />
-                  )}
-                  <span className="text-base font-semibold text-ink">{item.title}</span>
-                  <span className="text-sm text-muted">{STYLES[item.style as StyleKey]?.name}</span>
-                </li>
-              ))}
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-4">
+            {offer.portfolio.map((item) => (
+              <PhotoCard
+                as="li"
+                key={item.id}
+                image={item.photos[0] ?? null}
+                title={item.title}
+                meta={STYLES[item.style as StyleKey] ? [{ text: STYLES[item.style as StyleKey].name }] : undefined}
+              />
+            ))}
           </ul>
         )}
       </Section>
@@ -101,10 +127,10 @@ export default async function OfferPage({ params }: Props) {
         {offer.reviews.length === 0 ? (
           <p className="text-base text-ink-soft">{o.reviewsEmpty}</p>
         ) : (
-          <ul className="flex flex-col gap-4">
+          <ul className="flex flex-col gap-3">
             {offer.reviews.map((r) => (
-              <li key={r.id} className="flex flex-col gap-1 border-b border-line pb-4 last:border-b-0">
-                <p className="flex flex-wrap items-center gap-3 text-base">
+              <li key={r.id} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-card sm:p-5">
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-base">
                   <span className="inline-flex items-center gap-1 font-semibold text-ink">
                     <Star aria-hidden className="size-5 fill-current text-warning" />
                     {o.reviewRating(r.rating)}
@@ -118,28 +144,12 @@ export default async function OfferPage({ params }: Props) {
         )}
       </Section>
 
-      <Section id="how" title={o.howTitle}>
-        <ol className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-5">
-          {o.how.map((step, i) => (
-            <li key={step.title} className="flex gap-3 sm:flex-col">
-              <span aria-hidden className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-soft font-bold text-primary">
-                {i + 1}
-              </span>
-              <span className="flex flex-col">
-                <span className="text-base font-semibold text-ink">{step.title}</span>
-                <span className="text-sm text-muted">{step.text}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-      </Section>
-
       <OfferChat offerId={offer.id} title={o.chatWith(ex.labelDat)} />
 
       {offer.canChoose && (
         // Закреплён над нижней панелью телефона (--tabbar-h, на широком экране 0), только если экран выше 28em:
         // блок ~6–7em, так он не займёт больше четверти экрана. При шрифте 200 % на телефоне — обычный блок в потоке.
-        <div className="bottom-[calc(var(--tabbar-h)+1rem)] z-10 rounded-card border border-line bg-surface p-4 shadow-card sm:self-end [@media(min-height:28em)]:sticky">
+        <div className="bottom-[calc(var(--tabbar-h)+1rem)] z-10 rounded-card border border-line bg-surface p-4 shadow-raised sm:self-end [@media(min-height:28em)]:sticky">
           <ActionButton
             action={chooseOfferAction}
             input={{ offerId: offer.id }}
@@ -161,31 +171,30 @@ export default async function OfferPage({ params }: Props) {
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="flex scroll-mt-24 flex-col gap-4">
-      <h2 id={`${id}-title`} className="text-2xl font-bold text-ink">
-        {title}
-      </h2>
+      <SectionTitle id={`${id}-title`} title={title} />
       {children}
     </section>
   );
 }
 
-function Gallery({ photos }: { photos: { src: string; alt: string }[] }) {
+/** Галерея работ исполнителя: крупное фото и миниатюры. Нет работ — заглушка того же размера. */
+function Gallery({ photos, label }: { photos: { src: string; alt: string }[]; label: string }) {
   if (photos.length === 0) return <div aria-hidden className="aspect-[4/3] w-full rounded-card bg-sunken" />;
   const [main, ...rest] = photos;
   return (
-    <div className="flex flex-col gap-3">
+    <figure aria-label={label} className="flex flex-col gap-3">
       {/* eslint-disable-next-line @next/next/no-img-element -- иллюстрации портфолио из хранилища */}
-      <img src={main.src} alt={main.alt} className="aspect-[4/3] w-full rounded-card border border-line bg-sunken object-cover" />
+      <img src={main.src} alt={main.alt} className="aspect-[4/3] w-full rounded-card bg-sunken object-cover shadow-card" />
       {rest.length > 0 && (
         <ul className="grid grid-cols-4 gap-3">
           {rest.map((p, i) => (
             <li key={`${p.src}-${i}`}>
               {/* eslint-disable-next-line @next/next/no-img-element -- иллюстрации портфолио из хранилища */}
-              <img src={p.src} alt={p.alt} className="aspect-square w-full rounded-control border border-line object-cover" />
+              <img src={p.src} alt={p.alt} loading="lazy" className="aspect-square w-full rounded-control bg-sunken object-cover" />
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </figure>
   );
 }

@@ -1,4 +1,4 @@
-import { MessageCircle, Star } from "lucide-react";
+import { CalendarDays, ChevronRight, MessageCircle, Ruler, ShieldCheck, Sofa, Star } from "lucide-react";
 import type { OfferListItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, formatDays, formatMonths, Money, StatusBadge } from "@/ui";
@@ -7,69 +7,64 @@ import { OFFER_TONE, termsText } from "../_parts/labels";
 
 const o = ru.requests.offer;
 
-/** Карточка отклика в списке (макет 783): фото работ, «Исполнитель №N», рейтинг, срок, цена, гарантия. */
+/**
+ * Карточка отклика в списке (макеты 7 и 783, стиль 12–15): фото работы слева, «Исполнитель №N», рейтинг,
+ * срок, гарантия, замер, цена крупно. «Подробнее» — карточка отклика, «Написать» — чат на ней.
+ */
 export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestId: string }) {
   const href = `/requests/${requestId}/offers/${offer.id}`;
   const ex = offer.executor;
-  const [cover, ...rest] = offer.preview;
+  const cover = offer.preview[0];
   const headingId = `offer-${offer.id}`;
+  const facts = [
+    { icon: <Star className="fill-current text-warning" />, text: ex.reviewsCount > 0 ? o.rating(ex.ratingAvg.toFixed(1), ex.reviewsCount) : o.noRating },
+    { icon: <CalendarDays />, text: `${o.duration}: ${formatDays(offer.durationDays)}` },
+    { icon: <ShieldCheck />, text: `${o.warranty}: ${formatMonths(offer.warrantyMonths)}` },
+    { icon: <Ruler />, text: termsText(offer.measurementTerms, offer.measurementFee) },
+  ];
   return (
-    <article aria-labelledby={headingId} className="grid grid-cols-[minmax(0,1fr)] gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] sm:p-6">
-      <div className="flex flex-col gap-2">
+    <article
+      aria-labelledby={headingId}
+      className="flex min-w-0 flex-col gap-4 rounded-card border border-line bg-surface p-3 shadow-card sm:p-4"
+    >
+      <div className="@container/card flex min-w-0 gap-3 sm:gap-4">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element -- иллюстрации портфолио из хранилища
-          <img src={cover.src} alt={cover.alt} className="aspect-[4/3] w-full rounded-control border border-line bg-sunken object-cover" />
+          <img src={cover.src} alt={cover.alt} loading="lazy" className="aspect-square w-24 shrink-0 self-start rounded-control bg-sunken object-cover @max-[18em]/card:hidden sm:w-36" />
         ) : (
-          <div aria-hidden className="aspect-[4/3] w-full rounded-control bg-sunken" />
+          <div aria-hidden className="flex aspect-square w-24 shrink-0 items-center justify-center self-start rounded-control bg-sunken text-muted @max-[18em]/card:hidden sm:w-36">
+            <Sofa className="size-10" />
+          </div>
         )}
-        {rest.length > 0 && (
-          <ul className="grid grid-cols-3 gap-2" aria-label={o.photos(ex.labelGen)}>
-            {rest.slice(0, 3).map((p, i) => (
-              <li key={`${p.src}-${i}`}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- иллюстрации портфолио из хранилища */}
-                <img src={p.src} alt={p.alt} className="aspect-square w-full rounded-control border border-line object-cover" />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
+            <h3 id={headingId} className="min-w-0 text-lg leading-snug font-bold text-ink">
+              {ex.label}
+            </h3>
+            {offer.status !== "SENT" && <StatusBadge tone={OFFER_TONE[offer.status]}>{ru.requests.offerStatus[offer.status]}</StatusBadge>}
+          </div>
+          {ex.segment && <p className="text-base text-muted">{SEGMENT_NAMES[ex.segment]}</p>}
+          <ul className="flex flex-col gap-1 text-base text-ink-soft">
+            {facts.map((f, i) => (
+              <li key={i} className="flex min-w-0 items-start gap-2">
+                <span aria-hidden className="mt-0.5 inline-flex shrink-0 text-muted [&_svg]:size-5">
+                  {f.icon}
+                </span>
+                <span className="min-w-0">{f.text}</span>
               </li>
             ))}
           </ul>
-        )}
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 id={headingId} className="text-xl font-bold text-ink">
-            {ex.label}
-          </h3>
-          {offer.status !== "SENT" && <StatusBadge tone={OFFER_TONE[offer.status]}>{ru.requests.offerStatus[offer.status]}</StatusBadge>}
+          <p className="mt-1 flex flex-col">
+            <span className="text-sm text-muted">{o.price}</span>
+            <Money amount={offer.price} className="text-2xl font-extrabold text-ink" />
+          </p>
         </div>
-        <p className="flex items-center gap-2 text-base text-ink">
-          <Star aria-hidden className="size-5 shrink-0 fill-current text-warning" />
-          {ex.reviewsCount > 0 ? o.rating(ex.ratingAvg.toFixed(1), ex.reviewsCount) : o.noRating}
-        </p>
-        <dl className="facts gap-x-4 gap-y-1 text-base">
-          {ex.segment && (
-            <>
-              <dt className="text-muted">{o.segment}</dt>
-              <dd className="text-ink">{SEGMENT_NAMES[ex.segment]}</dd>
-            </>
-          )}
-          <dt className="text-muted">{o.duration}</dt>
-          <dd className="text-ink">{formatDays(offer.durationDays)}</dd>
-          <dt className="text-muted">{o.warranty}</dt>
-          <dd className="text-ink">{formatMonths(offer.warrantyMonths)}</dd>
-          <dt className="text-muted">{o.measurement}</dt>
-          <dd className="text-ink">{termsText(offer.measurementTerms, offer.measurementFee)}</dd>
-        </dl>
       </div>
-
-      <div className="flex flex-col gap-3 sm:min-w-52 sm:items-stretch">
-        <p className="flex flex-col">
-          <span className="text-sm text-muted">{o.price}</span>
-          <Money amount={offer.price} className="text-2xl font-extrabold text-ink" />
-        </p>
-        <ButtonLink href={href} variant="secondary" aria-label={ru.common.ui.actionFor(o.more, ex.label)}>
+      <div className="flex flex-wrap gap-3">
+        <ButtonLink href={href} variant="secondary" iconEnd={<ChevronRight />} className="flex-1 sm:flex-none" aria-label={ru.common.ui.actionFor(o.more, ex.label)}>
           {o.more}
         </ButtonLink>
-        <ButtonLink href={`${href}#chat`} variant="ghost" icon={<MessageCircle />} aria-label={ru.common.ui.actionFor(o.write, ex.label)}>
+        <ButtonLink href={`${href}#chat`} variant="soft" icon={<MessageCircle />} className="flex-1 sm:flex-none" aria-label={ru.common.ui.actionFor(o.write, ex.label)}>
           {o.write}
         </ButtonLink>
       </div>

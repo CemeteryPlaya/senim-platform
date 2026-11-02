@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import { Button, focusFirstInvalid, Input, RadioCards } from "@/ui";
@@ -41,6 +41,11 @@ export function AgreeForm({ requestId, needsIdentity, rail }: { requestId: strin
         void run({ requestId, template, identity });
       }}
     >
+      {/* Как платить — словами режима: «под контролем» в ручном, «безопасная оплата» — только когда есть банк. */}
+      <p className="flex items-center gap-2 text-lg font-bold text-ink">
+        <ShieldCheck aria-hidden className="size-6 shrink-0 text-primary" />
+        {t.payment[rail]}
+      </p>
       <RadioCards
         label={t.templateLabel}
         hint={rail === "escrow-simulator" ? t.templateHintEscrowSimulator : rail === "bank" ? t.templateHintBank : t.templateHint}
@@ -75,7 +80,7 @@ export function AgreeForm({ requestId, needsIdentity, rail }: { requestId: strin
           />
         </fieldset>
       )}
-      <Button type="submit" loading={pending} iconEnd={<ArrowRight />}>
+      <Button type="submit" loading={pending} iconEnd={<ArrowRight />} className="sm:self-start">
         {t.agree}
       </Button>
       <FormError message={error} />

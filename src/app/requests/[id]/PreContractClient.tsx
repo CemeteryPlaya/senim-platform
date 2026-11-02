@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import type { ClientRequest } from "@/modules/requests";
+import { MapPin } from "lucide-react";
 import { Alert, formatMoney } from "@/ui";
+import { CostSummary } from "@/app/_components/pre-contract/CostSummary";
 import { ActionButton } from "../_parts/ActionButton";
 import { markDepositPaidAction } from "@/app/_components/pre-contract/actions";
 import { ProjectDecision } from "@/app/_components/pre-contract/ProjectDecision";
@@ -94,5 +96,31 @@ export function ContractTerms({ pre }: { pre: Pre }) {
       )}
       {pre.firstStageTitle && pre.rules.projectBeforeContract && <p className="text-base text-ink-soft">{p.agree.firstStage(pre.firstStageTitle)}</p>}
     </>
+  );
+}
+
+/**
+ * Итоговая стоимость перед договором (макет 9, экран 1): по утверждённому проекту — расшифровка, срок и гарантия,
+ * иначе — одна цена (замера или предложения с допуском). Адрес монтажа — свой, его видит только выбранный исполнитель.
+ */
+export function ContractSummary({ pre, price, priceLabel, address }: { pre: Pre; price: number; priceLabel: string; address: string | null }) {
+  const project = pre.approvedProject;
+  return (
+    <div className="flex flex-col gap-4">
+      {project ? (
+        <CostSummary lines={project.costLines} total={project.totalPrice} totalLabel={p.agree.projectPrice} durationDays={project.durationDays} warrantyMonths={project.warrantyMonths} />
+      ) : (
+        <CostSummary total={price} totalLabel={priceLabel} />
+      )}
+      {address && (
+        <p className="flex items-start gap-3 text-base">
+          <MapPin aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
+          <span className="flex min-w-0 flex-col">
+            <span className="text-sm text-muted">{p.agree.address}</span>
+            <span className="text-ink">{address}</span>
+          </span>
+        </p>
+      )}
+    </div>
   );
 }

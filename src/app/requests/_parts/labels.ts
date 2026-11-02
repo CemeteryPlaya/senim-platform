@@ -14,6 +14,26 @@ export const REQUEST_TONE: Record<RequestStatus, Tone> = {
   CANCELLED: "neutral",
 };
 
+/** Разделы «Моих заявок» (чипы-фильтры): статус заявки → раздел. */
+export const REQUEST_GROUPS = ["draft", "waiting", "chosen", "contract", "cancelled"] as const;
+export type RequestGroup = (typeof REQUEST_GROUPS)[number];
+
+export const REQUEST_GROUP: Record<RequestStatus, RequestGroup> = {
+  DRAFT: "draft",
+  PLATFORM_MEASURING: "waiting",
+  OPEN: "waiting",
+  OFFER_CHOSEN: "chosen",
+  MEASURING: "chosen",
+  CONTRACTING: "contract",
+  CLOSED: "contract",
+  CANCELLED: "cancelled",
+};
+
+/** Раздел из адреса (`?status=`): неизвестное значение — «Все». */
+export function groupOf(value: string | undefined): RequestGroup | "all" {
+  return REQUEST_GROUPS.find((g) => g === value) ?? "all";
+}
+
 export const OFFER_TONE: Record<OfferStatus, Tone> = {
   SENT: "info",
   WITHDRAWN: "neutral",

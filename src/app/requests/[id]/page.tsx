@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Inbox } from "lucide-react";
-import { cache } from "react";
+import { CalendarDays, Inbox, Star, Wallet } from "lucide-react";
+import { cache, type ReactNode } from "react";
 import { getCurrentUser, hasClientIdentity, type CurrentUser } from "@/modules/identity";
 import { activeRailMode, type RailMode } from "@/modules/payments";
-import { getClientRequest, listOffers, OFFER_SORTS, type ClientRequest, type OfferSort } from "@/modules/requests";
+import { getClientRequest, listOffers, OFFER_SORTS, type ClientRequest, type OfferListItem, type OfferSort } from "@/modules/requests";
 import { isAppError } from "@/platform/errors";
 import { ru } from "@/i18n/ru";
-import { Alert, ButtonLink, Container, EmptyState, Money, PageHeader, StatusBadge, cn, formatDateTime, formatMoney } from "@/ui";
+import { Alert, ButtonLink, Container, EmptyState, FilterChips, Money, PageHeader, SectionTitle, Stat, StatusBadge, formatDateTime, formatDays, formatMoney } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { cancelRequestAction, clientNoDealAction } from "../actions";
 import { ActionButton } from "../_parts/ActionButton";
+import { compareOffers } from "../_parts/compare";
 import { orNotFound, pageUser } from "../_parts/guard";
 import { REQUEST_TONE } from "../_parts/labels";
 import { detailRows, FactList } from "../_parts/RequestFacts";
 import { AgreeForm } from "./AgreeForm";
-import { ClientProject, ContractTerms, DepositClient, SiteWait } from "./PreContractClient";
+import { ClientProject, ContractSummary, ContractTerms, DepositClient, SiteWait } from "./PreContractClient";
 import { FlowSteps } from "@/app/_components/pre-contract/FlowSteps";
 import { SizesBasis, siteRows } from "@/app/_components/pre-contract/SizesBasis";
 import { OfferCard } from "./OfferCard";
@@ -45,7 +45,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 const CANCELLABLE = new Set(["OPEN", "OFFER_CHOSEN", "MEASURING"]);
 
-/** Заявка заказчика: состояние (выбор, замер, договор) и отклики с сортировкой (макет 783). */
+/**
+ * Заявка заказчика (макеты 7–9): шкала этапов сценария, мятная плашка «что сейчас» с одним главным действием,
+ * отклики с сортировкой чипами и сравнением, справа (на телефоне — ниже) — что в заявке.
+ */
 export default async function RequestPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
@@ -61,7 +64,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
   const rail = await activeRailMode();
 
   return (
-    <Container className="flex flex-col gap-8 pb-10">
+    <Container className="flex flex-col gap-6 pb-10">
       <PageHeader
         back={{ href: "/requests", label: ru.requests.my.title }}
         title={ru.requests.requestTitle(request.number, request.title)}
@@ -72,6 +75,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
             {request.mode === "DIRECT" && <StatusBadge tone="accent">{ru.requests.mode.DIRECT}</StatusBadge>}
           </span>
         }
+        className="pb-0"
       />
 
       <FlowSteps flow={request.pre.flow} steps={request.pre.steps} current={request.pre.current} />
@@ -80,81 +84,106 @@ export default async function RequestPage({ params, searchParams }: Props) {
           {t.sentText}
         </Alert>
       )}
-      <StatusPanel request={request} needsIdentity={needsIdentity} rail={rail} />
 
-      <section aria-labelledby="offers-title" className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <h2 id="offers-title" className="text-2xl font-bold text-ink">
-            {t.offersTitle} <span className="text-muted">({offers.length})</span>
-          </h2>
-          <SizesBasis pre={request.pre} />
-          {offers.length > 1 && <SortLinks requestId={id} current={sort} />}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-8">
+          <StatusPanel request={request} needsIdentity={needsIdentity} rail={rail} />
+          <Offers requestId={id} pre={request.pre} offers={offers} sort={sort} />
         </div>
-        {offers.length === 0 ? (
-          <EmptyState icon={<Inbox />} title={t.offersEmptyTitle} description={t.offersEmptyText} titleAs="h3" />
-        ) : (
-          <ul className="flex flex-col gap-4">
-            {offers.map((offer) => (
-              <li key={offer.id}>
-                <OfferCard offer={offer} requestId={id} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
 
-      <section aria-labelledby="details-title" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 sm:p-6">
-        <h2 id="details-title" className="text-xl font-bold text-ink">
-          {t.detailsTitle}
-        </h2>
-        <FactList
-          rows={[
-            ...detailRows({ title: request.title, style: request.style, details: request.details }),
-            ...siteRows(request.pre),
-            { label: ru.requests.facts.city, value: request.city },
-            ...(request.address ? [{ label: ru.requests.facts.address, value: request.address }] : []),
-            ...(request.wishes ? [{ label: ru.requests.facts.wishes, value: request.wishes }] : []),
-          ]}
-        />
-      </section>
-
-      {CANCELLABLE.has(request.status) && (
-        <div className="self-start">
-          <ActionButton
-            action={cancelRequestAction}
-            input={{ requestId: id }}
-            variant="ghost"
-            confirm={{ title: t.cancelConfirmTitle, text: t.cancelConfirmText, yes: t.cancelConfirm, no: ru.common.actions.dontCancel, tone: "danger" }}
-          >
-            {t.cancel}
-          </ActionButton>
-        </div>
-      )}
+        <aside aria-labelledby="details-title" className="flex min-w-0 flex-col gap-4">
+          <section className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+            <h2 id="details-title" className="text-xl font-bold text-ink">
+              {t.detailsTitle}
+            </h2>
+            <FactList
+              rows={[
+                ...detailRows({ title: request.title, style: request.style, details: request.details }),
+                ...siteRows(request.pre),
+                { label: ru.requests.facts.city, value: request.city },
+                ...(request.address ? [{ label: ru.requests.facts.address, value: request.address }] : []),
+                ...(request.wishes ? [{ label: ru.requests.facts.wishes, value: request.wishes }] : []),
+              ]}
+            />
+          </section>
+          {CANCELLABLE.has(request.status) && (
+            <div className="self-start">
+              <ActionButton
+                action={cancelRequestAction}
+                input={{ requestId: id }}
+                variant="ghost"
+                confirm={{ title: t.cancelConfirmTitle, text: t.cancelConfirmText, yes: t.cancelConfirm, no: ru.common.actions.dontCancel, tone: "danger" }}
+              >
+                {t.cancel}
+              </ActionButton>
+            </div>
+          )}
+        </aside>
+      </div>
     </Container>
   );
 }
 
-function SortLinks({ requestId, current }: { requestId: string; current: OfferSort }) {
+/** Отклики: чипы сортировки, сравнение (от двух откликов), карточки. */
+function Offers({ requestId, pre, offers, sort }: { requestId: string; pre: ClientRequest["pre"]; offers: OfferListItem[]; sort: OfferSort }) {
   return (
-    <nav aria-label={t.sortLabel}>
-      <ul className="flex flex-wrap gap-2">
-        {OFFER_SORTS.map((s) => (
-          <li key={s}>
-            <Link
-              href={`/requests/${requestId}?sort=${s}`}
-              aria-current={s === current ? "true" : undefined}
-              scroll={false}
-              className={cn(
-                "inline-flex min-h-control-sm items-center rounded-full border px-4 text-base font-semibold no-underline",
-                s === current ? "border-primary bg-accent-soft text-primary" : "border-line-strong bg-surface text-ink hover:bg-sunken",
-              )}
-            >
-              {t.sort[s]}
-            </Link>
+    <section aria-labelledby="offers-title" className="flex flex-col gap-4">
+      <SectionTitle
+        id="offers-title"
+        title={
+          <>
+            {t.offersTitle} <span className="text-muted">({offers.length})</span>
+          </>
+        }
+      />
+      <SizesBasis pre={pre} />
+      {offers.length > 1 && (
+        <FilterChips
+          label={t.sortLabel}
+          current={sort}
+          chips={OFFER_SORTS.map((s) => ({ key: s, label: t.sort[s], href: `/requests/${requestId}?sort=${s}` }))}
+        />
+      )}
+      <Comparison offers={offers} />
+      {offers.length === 0 ? (
+        <EmptyState icon={<Inbox />} title={t.offersEmptyTitle} description={t.offersEmptyText} titleAs="h3" />
+      ) : (
+        <ul className="flex flex-col gap-4">
+          {offers.map((offer) => (
+            <li key={offer.id}>
+              <OfferCard offer={offer} requestId={requestId} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Сравнение откликов плитками: лучшая цена, самый короткий срок, высший рейтинг — только настоящие данные. */
+function Comparison({ offers }: { offers: OfferListItem[] }) {
+  const c = compareOffers(offers);
+  if (!c) return null;
+  const tiles: { key: string; icon: ReactNode; value: ReactNode; label: string }[] = [
+    { key: "price", icon: <Wallet />, value: <Money amount={c.cheapest.value} />, label: t.compareWho(t.compare.cheapest, c.cheapest.label) },
+    { key: "days", icon: <CalendarDays />, value: formatDays(c.fastest.value), label: t.compareWho(t.compare.fastest, c.fastest.label) },
+    ...(c.topRated
+      ? [{ key: "rating", icon: <Star />, value: c.topRated.value.toFixed(1), label: t.compareWho(t.compare.topRated, c.topRated.label) }]
+      : []),
+  ];
+  return (
+    <section aria-labelledby="compare-title" className="flex flex-col gap-3">
+      <h3 id="compare-title" className="text-lg font-bold text-ink">
+        {t.compareTitle}
+      </h3>
+      <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3">
+        {tiles.map((tile) => (
+          <li key={tile.key} className="flex">
+            <Stat icon={tile.icon} value={tile.value} label={tile.label} className="flex-1" />
           </li>
         ))}
       </ul>
-    </nav>
+    </section>
   );
 }
 
@@ -187,23 +216,26 @@ function NoDealButton({ request }: { request: ClientRequest }) {
   );
 }
 
-/** Согласие на договор без выезда исполнителя: цена утверждённого проекта или отклика с допуском, порядок оплаты. */
+function Panel({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+      <h2 id={id} className="text-xl font-bold text-ink">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+/** Согласие на договор без выезда исполнителя (макет 9, экран 1): итоговая стоимость, адрес, порядок оплаты. */
 function AgreePanel({ request, needsIdentity, rail }: PanelProps) {
   const { pre } = request;
   return (
-    <section aria-labelledby="agree" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
-      <h2 id="agree" className="text-xl font-bold text-ink">
-        {ru.requests.pre.steps.contract}
-      </h2>
+    <Panel id="agree" title={ru.requests.pre.steps.contract}>
       <ContractTerms pre={pre} />
-      {pre.approvedProject && (
-        <p className="flex flex-col">
-          <span className="text-base text-muted">{ru.requests.pre.agree.projectPrice}</span>
-          <Money amount={pre.approvedProject.totalPrice} className="text-3xl font-extrabold text-ink" />
-        </p>
-      )}
+      <ContractSummary pre={pre} price={pre.tolerance?.price ?? request.chosen?.price ?? 0} priceLabel={ru.requests.offer.price} address={request.address} />
       <AgreeForm requestId={request.id} needsIdentity={needsIdentity} rail={rail} />
-    </section>
+    </Panel>
   );
 }
 
@@ -224,11 +256,7 @@ function ChosenPanel(props: PanelProps) {
         <Alert
           tone="accent"
           title={t.chosenTitle(chosen.executorLabelGen)}
-          action={
-            <ButtonLink href={`/requests/${request.id}/offers/${chosen.id}#chat`} variant="secondary">
-              {t.openChosen}
-            </ButtonLink>
-          }
+          action={<ButtonLink href={`/requests/${request.id}/offers/${chosen.id}#chat`}>{t.openChosen}</ButtonLink>}
         >
           {pre.deposit?.status === "CONFIRMED" ? ru.requests.pre.deposit.confirmedClient : t.chosenText}
         </Alert>
@@ -236,41 +264,42 @@ function ChosenPanel(props: PanelProps) {
   }
 }
 
-/** Замер исполнителем: назначен → выполнен → проект → согласие на договор. */
+/** Замер исполнителем: назначен → выполнен → проект → согласие на договор (макеты 7–9). */
 function MeasuringPanel(props: PanelProps) {
   const { request } = props;
   const { measurement: m, pre } = request;
   if (!m) return null;
   if (m.status !== "DONE" || m.finalPrice === null) {
     return (
-      <Alert tone="info" title={t.scheduledTitle} action={<NoDealButton request={request} />}>
+      <Alert tone="accent" title={t.scheduledTitle} action={<NoDealButton request={request} />}>
         {t.scheduledText(formatDateTime(m.scheduledAt))}
       </Alert>
     );
   }
-  const approved = pre.current === "contract" ? pre.approvedProject : null;
+  const ready = pre.current === "contract";
   return (
     <>
-      <section aria-labelledby="measured" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
-        <h2 id="measured" className="text-xl font-bold text-ink">
-          {t.measuredTitle}
-        </h2>
-        <p className="flex flex-col">
-          <span className="text-base text-muted">{approved ? ru.requests.pre.agree.projectPrice : t.finalPrice}</span>
-          <Money amount={approved ? approved.totalPrice : m.finalPrice} className="text-3xl font-extrabold text-ink" />
-        </p>
+      <Panel id="measured" title={t.measuredTitle}>
+        {ready ? (
+          <ContractSummary pre={pre} price={m.finalPrice} priceLabel={t.finalPrice} address={request.address} />
+        ) : (
+          <p className="flex flex-col">
+            <span className="text-base text-muted">{t.finalPrice}</span>
+            <Money amount={m.finalPrice} className="text-3xl font-extrabold text-ink" />
+          </p>
+        )}
         {m.result && (
-          <p className="text-base text-ink">
+          <p className="rounded-control bg-sunken p-4 text-base text-ink">
             <span className="text-muted">{t.measurementResult}: </span>
             {m.result}
           </p>
         )}
-        {approved && <AgreeForm requestId={request.id} needsIdentity={props.needsIdentity} rail={props.rail} />}
+        {ready && <AgreeForm requestId={request.id} needsIdentity={props.needsIdentity} rail={props.rail} />}
         <div className="self-start">
           <NoDealButton request={request} />
         </div>
-      </section>
-      {!approved && <ClientProject pre={pre} />}
+      </Panel>
+      {!ready && <ClientProject pre={pre} />}
     </>
   );
 }

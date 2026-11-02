@@ -46,11 +46,16 @@ export function ProjectDecision({ projectId, afterContract }: { projectId: strin
       </form>
     );
   }
+  // Как в макете 8: «Внести изменения» и «Утвердить проект» рядом, главное действие — справа (на телефоне — ниже).
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
+      <Button variant="secondary" fullWidth onClick={() => setChanging(true)}>
+        {t.changes}
+      </Button>
       <ActionButton
         action={approveProjectAction}
         input={{ projectId }}
+        fullWidth
         confirm={{
           title: t.approveConfirmTitle,
           text: afterContract ? t.approveConfirmTextAfterContract : t.approveConfirmText,
@@ -61,9 +66,6 @@ export function ProjectDecision({ projectId, afterContract }: { projectId: strin
       >
         {t.approve}
       </ActionButton>
-      <Button variant="secondary" onClick={() => setChanging(true)}>
-        {t.changes}
-      </Button>
     </div>
   );
 }

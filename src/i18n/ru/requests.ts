@@ -171,6 +171,18 @@ export const requests = {
     offers: (n: number) => `Откликов: ${n}`,
     draftProgress: (done: number, total: number) => `Заполнено шагов: ${done} из ${total}`,
     created: "Создана",
+    filterLabel: "Показать заявки",
+    filter: {
+      all: "Все",
+      draft: "Черновики",
+      waiting: "Ждут откликов",
+      chosen: "Выбран исполнитель",
+      contract: "Договор",
+      cancelled: "Отменённые",
+    },
+    filterEmptyTitle: "Здесь заявок нет",
+    filterEmptyText: "Выберите другой раздел или покажите все заявки.",
+    showAll: "Показать все",
   },
 
   request: {
@@ -212,6 +224,15 @@ export const requests = {
     sortLabel: "Сортировка",
     sort: { price: "Сначала дешевле", duration: "Сначала быстрее", rating: "Выше рейтинг" },
     detailsTitle: "Что в заявке",
+    compareTitle: "Сравнение откликов",
+    compare: { cheapest: "Лучшая цена", fastest: "Быстрее всех", topRated: "Выше рейтинг" },
+    compareWho: (what: string, who: string) => `${what}: ${who}`,
+    agreeTitle: "Итоговая стоимость",
+    payment: {
+      manual: "Оплата по этапам под контролем",
+      bank: "Безопасная оплата через банк",
+      "escrow-simulator": "Оплата через симулятор банка",
+    },
   },
 
   offer: {
@@ -250,6 +271,10 @@ export const requests = {
     more: "Подробнее",
     write: "Написать",
     photos: (whoseGen: string) => `Работы ${whoseGen}`,
+    ratingValue: (count: number) => `Рейтинг, отзывов: ${count}`,
+    yearsLabel: "Опыт работы",
+    dealsLabel: "Завершено сделок на Сенім",
+    termsTitle: "Условия",
   },
 
   incoming: {

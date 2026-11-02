@@ -68,7 +68,7 @@ export async function openDeal(page: Page, n: number): Promise<string> {
 /** Открыть заявку заказчика по номеру из «Мои заявки». */
 export async function openMyRequest(page: Page, n: number): Promise<string> {
   await page.goto("/requests");
-  await page.getByRole("link", { name: new RegExp(`^Открыть ?: Заявка №${n}:`) }).click();
+  await page.getByRole("link", { name: new RegExp(`^Заявка №${n}:`) }).click();
   await page.waitForURL(/\/requests\/[^/?]+/);
   await expect(page.getByRole("heading", { level: 1, name: new RegExp(`^Заявка №${n}:`) })).toBeVisible();
   return new URL(page.url()).pathname;
