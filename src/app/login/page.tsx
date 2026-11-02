@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ru } from "@/i18n/ru";
 import { EXECUTOR_REGISTRATION_PATH, getCurrentUser, homePathFor, safeReturnTo } from "@/modules/identity";
 import { env } from "@/platform/env";
-import { Alert, ButtonLink, Card, Container, PageHeader } from "@/ui";
+import { Alert, ButtonLink, Container, PageHeader } from "@/ui";
 import { LogoutButton } from "../_components/auth/LogoutButton";
 import { LoginForm } from "./LoginForm";
 
@@ -25,7 +25,7 @@ export default async function LoginPage({ searchParams }: Props) {
       <PageHeader title={t.metaTitle} back={{ href: "/" }} />
       <div className="flex flex-col gap-6">
         {user ? (
-          <Card>
+          <div className="flex flex-col gap-4">
             {wrongRole && (
               <Alert tone="warning" live="polite">
                 {t.wrongRole}
@@ -36,17 +36,15 @@ export default async function LoginPage({ searchParams }: Props) {
               <ButtonLink href={homePathFor(user)}>{t.goHome}</ButtonLink>
               <LogoutButton variant="secondary" />
             </div>
-          </Card>
+          </div>
         ) : (
-          <Card>
-            <LoginForm next={next} />
-          </Card>
+          <LoginForm next={next} />
         )}
 
         {!user && (
           <div className="flex flex-col gap-3">
             {demoMode && (
-              <ButtonLink href="/demo" variant="soft" fullWidth>
+              <ButtonLink href="/demo" variant="secondary" fullWidth>
                 {t.demoPersonas}
               </ButtonLink>
             )}

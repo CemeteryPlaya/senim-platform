@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronRight, MessageCircle, Ruler, ShieldCheck, Sofa, Star } from "lucide-react";
+import { CalendarDays, Ruler, ShieldCheck, Sofa, Star } from "lucide-react";
 import type { OfferListItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, formatDays, formatMonths, Money, StatusBadge } from "@/ui";
@@ -25,7 +25,7 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
   return (
     <article
       aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-4 rounded-card border border-line bg-surface p-3 shadow-card sm:p-4"
+      className="flex min-w-0 flex-col gap-4 rounded-card border border-line bg-surface p-3 sm:p-4"
     >
       <div className="@container/card flex min-w-0 gap-3 sm:gap-4">
         {cover ? (
@@ -60,11 +60,12 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
           </p>
         </div>
       </div>
-      <div className="flex flex-wrap gap-3">
-        <ButtonLink href={href} variant="secondary" iconEnd={<ChevronRight />} className="flex-1 sm:flex-none" aria-label={ru.common.ui.actionFor(o.more, ex.label)}>
+      {/* Без значков и растягивания: на телефоне две кнопки в ряд резали слова переносом. */}
+      <div className="flex flex-wrap gap-2">
+        <ButtonLink href={href} variant="secondary" shape="pill" aria-label={ru.common.ui.actionFor(o.more, ex.label)}>
           {o.more}
         </ButtonLink>
-        <ButtonLink href={`${href}#chat`} variant="soft" icon={<MessageCircle />} className="flex-1 sm:flex-none" aria-label={ru.common.ui.actionFor(o.write, ex.label)}>
+        <ButtonLink href={`${href}#chat`} variant="ghost" shape="pill" aria-label={ru.common.ui.actionFor(o.write, ex.label)}>
           {o.write}
         </ButtonLink>
       </div>

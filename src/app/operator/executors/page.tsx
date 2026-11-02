@@ -50,7 +50,6 @@ export default async function ExecutorsPage({ searchParams }: { searchParams: Pr
     <Container className="pb-10">
       <PageHeader
         title={e.title}
-        description={e.description}
         back={{ href: "/operator", label: t.backToPanel }}
         actions={
           <ButtonLink href="/operator/executors/new" variant="secondary" icon={<Plus />}>

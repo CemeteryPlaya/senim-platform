@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { CalendarDays, Inbox, Star, Wallet } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { cache, type ReactNode } from "react";
 import { getCurrentUser, hasClientIdentity, type CurrentUser } from "@/modules/identity";
 import { activeRailMode, type RailMode } from "@/modules/payments";
 import { getClientRequest, listOffers, OFFER_SORTS, type ClientRequest, type OfferListItem, type OfferSort } from "@/modules/requests";
 import { isAppError } from "@/platform/errors";
 import { ru } from "@/i18n/ru";
-import { Alert, ButtonLink, Container, EmptyState, FilterChips, Money, PageHeader, SectionTitle, Stat, StatusBadge, formatDateTime, formatDays, formatMoney } from "@/ui";
+import { Alert, ButtonLink, Container, EmptyState, FilterChips, Money, PageHeader, SectionTitle, StatusBadge, formatDateTime, formatMoney } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { cancelRequestAction, clientNoDealAction } from "../actions";
 import { ActionButton } from "../_parts/ActionButton";
-import { compareOffers } from "../_parts/compare";
 import { orNotFound, pageUser } from "../_parts/guard";
 import { REQUEST_TONE } from "../_parts/labels";
 import { detailRows, FactList } from "../_parts/RequestFacts";
@@ -92,7 +91,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
         </div>
 
         <aside aria-labelledby="details-title" className="flex min-w-0 flex-col gap-4">
-          <section className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+          <section className="flex flex-col gap-4 border-t border-line pt-6 lg:border-t-0 lg:pt-0">
             <h2 id="details-title" className="text-xl font-bold text-ink">
               {t.detailsTitle}
             </h2>
@@ -124,7 +123,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
   );
 }
 
-/** Отклики: чипы сортировки, сравнение (от двух откликов), карточки. */
+/** Отклики: чипы сортировки (сравнение — ими же: дешевле, быстрее, рейтинг) и карточки. */
 function Offers({ requestId, pre, offers, sort }: { requestId: string; pre: ClientRequest["pre"]; offers: OfferListItem[]; sort: OfferSort }) {
   return (
     <section aria-labelledby="offers-title" className="flex flex-col gap-4">
@@ -144,7 +143,6 @@ function Offers({ requestId, pre, offers, sort }: { requestId: string; pre: Clie
           chips={OFFER_SORTS.map((s) => ({ key: s, label: t.sort[s], href: `/requests/${requestId}?sort=${s}` }))}
         />
       )}
-      <Comparison offers={offers} />
       {offers.length === 0 ? (
         <EmptyState icon={<Inbox />} title={t.offersEmptyTitle} description={t.offersEmptyText} titleAs="h3" />
       ) : (
@@ -156,33 +154,6 @@ function Offers({ requestId, pre, offers, sort }: { requestId: string; pre: Clie
           ))}
         </ul>
       )}
-    </section>
-  );
-}
-
-/** Сравнение откликов плитками: лучшая цена, самый короткий срок, высший рейтинг — только настоящие данные. */
-function Comparison({ offers }: { offers: OfferListItem[] }) {
-  const c = compareOffers(offers);
-  if (!c) return null;
-  const tiles: { key: string; icon: ReactNode; value: ReactNode; label: string }[] = [
-    { key: "price", icon: <Wallet />, value: <Money amount={c.cheapest.value} />, label: t.compareWho(t.compare.cheapest, c.cheapest.label) },
-    { key: "days", icon: <CalendarDays />, value: formatDays(c.fastest.value), label: t.compareWho(t.compare.fastest, c.fastest.label) },
-    ...(c.topRated
-      ? [{ key: "rating", icon: <Star />, value: c.topRated.value.toFixed(1), label: t.compareWho(t.compare.topRated, c.topRated.label) }]
-      : []),
-  ];
-  return (
-    <section aria-labelledby="compare-title" className="flex flex-col gap-3">
-      <h3 id="compare-title" className="text-lg font-bold text-ink">
-        {t.compareTitle}
-      </h3>
-      <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3">
-        {tiles.map((tile) => (
-          <li key={tile.key} className="flex">
-            <Stat icon={tile.icon} value={tile.value} label={tile.label} className="flex-1" />
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
@@ -218,7 +189,7 @@ function NoDealButton({ request }: { request: ClientRequest }) {
 
 function Panel({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+    <section aria-labelledby={id} className="flex flex-col gap-5 rounded-card border border-line p-5 sm:p-6">
       <h2 id={id} className="text-xl font-bold text-ink">
         {title}
       </h2>
@@ -289,7 +260,7 @@ function MeasuringPanel(props: PanelProps) {
           </p>
         )}
         {m.result && (
-          <p className="rounded-control bg-sunken p-4 text-base text-ink">
+          <p className="border-l-2 border-line pl-4 text-base text-ink">
             <span className="text-muted">{t.measurementResult}: </span>
             {m.result}
           </p>
@@ -311,11 +282,8 @@ function StatusPanel(props: PanelProps) {
     case "PLATFORM_MEASURING":
       return <SiteWait pre={request.pre} />;
     case "OPEN":
-      return (
-        <Alert tone="accent" title={t.waitingTitle}>
-          {t.waitingText}
-        </Alert>
-      );
+      // Ждём откликов: это видно по статусу у заголовка и по списку ниже — плашка не нужна.
+      return null;
     case "OFFER_CHOSEN":
       return <ChosenPanel {...props} />;
     case "MEASURING":

@@ -8,8 +8,8 @@ import { currentStageIndex, stageDate, stageState } from "./order-view";
 const t = ru.deal;
 const states = ru.common.ui.timeline;
 
-/** id раздела этапов: на него ведёт «Посмотреть этапы». */
-export const STAGES_ID = "stages";
+/** id раздела этапов (якорь). */
+const STAGES_ID = "stages";
 
 /**
  * Этапы изготовления вертикальной шкалой (макет 10, экран 2): кружок с галочкой у пройденных, выделенный
@@ -23,8 +23,7 @@ export function StageTimeline({ deal }: { deal: DealView }) {
       <h2 id={`${STAGES_ID}-title`} className="text-xl font-extrabold text-ink">
         {t.sections.stages}
       </h2>
-      {deal.viewer === "CLIENT" && <p className="text-base text-muted">{t.view.stagesNoteClient}</p>}
-      <ol className="flex flex-col rounded-card border border-line bg-surface p-4 shadow-card sm:p-5">
+      <ol className="flex flex-col">
         {deal.stages.map((s, i) => {
           const state = stageState(s, i, current);
           const date = stageDate(s);

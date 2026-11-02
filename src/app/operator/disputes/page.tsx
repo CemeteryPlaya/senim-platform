@@ -16,7 +16,7 @@ export default async function DisputesPage() {
 
   return (
     <Container className="pb-10">
-      <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: ru.operator.backToPanel }} />
+      <PageHeader title={t.title} back={{ href: "/operator", label: ru.operator.backToPanel }} />
       {disputes.length === 0 ? (
         <EmptyState icon={<Scale />} title={t.empty} description={t.emptyHint} />
       ) : (

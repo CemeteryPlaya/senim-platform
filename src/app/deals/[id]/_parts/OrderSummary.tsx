@@ -1,17 +1,18 @@
-import { CalendarClock, ListOrdered, MapPin, MessageCircle, UserRound } from "lucide-react";
+import { MapPin, MessageCircle, UserRound } from "lucide-react";
 import { daysLeft, type DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
-import { Alert, ButtonLink, DateText, Fact, formatDays, formatMonths, Money, PhotoCard, Stepper } from "@/ui";
+import { ButtonLink, DateText, Fact, formatDays, formatMonths, Money, PhotoCard, StatusBadge, Stepper } from "@/ui";
 import { illustrationFor } from "@/app/_home/illustration";
 import { currentStageIndex, heroImage } from "./order-view";
-import { STAGES_ID } from "./StageTimeline";
+import { DEAL_TONE } from "../../_parts/labels";
 
 const t = ru.deal;
 const v = t.view;
 
 /**
- * Верх экрана «Мой заказ» (макет 10, экран 1): фото и название, исполнитель, плашка статуса, ключевые данные,
- * шкала этапов, «Осталось N дней», переходы к этапам и чату. Главное действие — в «Что дальше» ниже.
+ * Верх экрана «Мой заказ» (макет 10, экран 1), минималистично: фото и название со статусом, исполнитель, ключевые
+ * данные, шкала этапов (она же говорит, какой этап сейчас), «Осталось N дней», переход к чату. Главное действие —
+ * в «Что дальше» ниже.
  */
 export function OrderSummary({ deal, now }: { deal: DealView; now: Date }) {
   const current = currentStageIndex(deal.status, deal.stages);
@@ -26,17 +27,17 @@ export function OrderSummary({ deal, now }: { deal: DealView; now: Date }) {
         image={image ? { src: image } : null}
         title={deal.title}
         titleAs="h2"
+        badge={<StatusBadge tone={DEAL_TONE[deal.status]}>{t.status[deal.status]}</StatusBadge>}
         meta={[
           { icon: <UserRound />, text: deal.executorLabel },
           ...(deal.executorAddress ? [{ icon: <MapPin />, text: deal.executorAddress }] : []),
         ]}
       />
 
-      <Alert tone={deal.status === "DISPUTE" ? "danger" : "accent"} title={t.status[deal.status]}>
-        {stage ? v.stageNow(stage.order, deal.stages.length, stage.title) : v.statusText[deal.status]}
-      </Alert>
+      {/* Пока этапы не начались, шкалы нет — статус поясняется словами. */}
+      {!stage && <p className="text-base text-ink-soft">{v.statusText[deal.status]}</p>}
 
-      <section aria-label={v.summary} className="flex flex-col gap-5 rounded-card border border-line bg-surface p-4 shadow-card sm:p-5">
+      <section aria-label={v.summary} className="flex flex-col gap-5 border-t border-line pt-5">
         <dl className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
           <Fact label={t.total}>
             <Money amount={deal.totalAmount} />
@@ -59,25 +60,14 @@ export function OrderSummary({ deal, now }: { deal: DealView; now: Date }) {
         {current !== null && <Stepper steps={deal.stages.map((s) => s.title)} current={current} label={v.stagesScale} />}
 
         {left !== null && (
-          <div className="flex items-center gap-3 rounded-control bg-sunken p-4">
-            <CalendarClock aria-hidden className="size-8 shrink-0 text-primary" />
-            <p className="flex flex-col">
-              <span className="text-lg font-bold text-ink">{v.daysLeft(formatDays(left))}</span>
-              <span className="text-base text-muted">{v.daysLeftHint}</span>
-            </p>
-          </div>
+          <p className="text-lg font-bold text-ink">{v.daysLeft(formatDays(left))}</p>
         )}
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <ButtonLink href={`#${STAGES_ID}`} variant="secondary" icon={<ListOrdered />} className="sm:flex-1">
-            {v.viewStages}
+        {isParty && (
+          <ButtonLink href="#chat" variant="secondary" icon={<MessageCircle />} className="self-start">
+            {v.writeTo[deal.viewer as "CLIENT" | "EXECUTOR"]}
           </ButtonLink>
-          {isParty && (
-            <ButtonLink href="#chat" variant="secondary" icon={<MessageCircle />} className="sm:flex-1">
-              {v.writeTo[deal.viewer as "CLIENT" | "EXECUTOR"]}
-            </ButtonLink>
-          )}
-        </div>
+        )}
       </section>
     </div>
   );

@@ -64,7 +64,7 @@ export default async function OfferPage({ params }: Props) {
             </span>
           </p>
           {offer.comment && (
-            <p className="rounded-control bg-sunken p-4 text-base text-ink">
+            <p className="border-l-2 border-line pl-4 text-base text-ink">
               <span className="block text-sm text-muted">{o.comment}</span>
               {offer.comment}
             </p>

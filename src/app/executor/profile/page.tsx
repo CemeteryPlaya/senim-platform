@@ -20,7 +20,7 @@ export default async function ExecutorProfilePage() {
 
   return (
     <Container size="form" className="flex flex-col gap-6 pb-12">
-      <PageHeader title={t.title} description={t.description} back={{ href: "/" }} className="pb-0" />
+      <PageHeader title={t.title} back={{ href: "/" }} className="pb-0" />
 
       {profile.status === "PENDING" && <Alert tone="info">{t.status.PENDING}</Alert>}
       {profile.status === "REJECTED" && (
@@ -29,9 +29,9 @@ export default async function ExecutorProfilePage() {
         </Alert>
       )}
 
-      <section aria-labelledby="public-as" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+      <section aria-labelledby="public-as" className="flex flex-col gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          <span aria-hidden className="inline-flex size-16 shrink-0 items-center justify-center rounded-full bg-accent-soft text-primary [&_svg]:size-8">
+          <span aria-hidden className="inline-flex size-16 shrink-0 items-center justify-center rounded-full bg-sunken text-ink-soft [&_svg]:size-8">
             <Store />
           </span>
           <div className="flex min-w-0 flex-col gap-1">
@@ -51,7 +51,6 @@ export default async function ExecutorProfilePage() {
             <dt className="text-sm text-muted">{t.segment}</dt>
             <dd className="flex flex-col items-start gap-1">
               <SegmentBadge segment={profile.segment} />
-              <span className="text-sm text-muted">{t.segmentHint}</span>
             </dd>
           </div>
           <div className="flex flex-col gap-1">
@@ -68,7 +67,7 @@ export default async function ExecutorProfilePage() {
         <nav aria-label={x.sections}>
           <LinkList
             items={[
-              { href: `/executors/${profile.publicNumber}`, label: x.publicProfile, description: x.publicHint, icon: <Eye /> },
+              { href: `/executors/${profile.publicNumber}`, label: x.publicProfile, icon: <Eye /> },
               { href: "/executor/portfolio", label: x.portfolio, icon: <Images /> },
               { href: "/executor/finance", label: x.finance, icon: <Wallet /> },
             ]}
@@ -76,7 +75,7 @@ export default async function ExecutorProfilePage() {
         </nav>
       )}
 
-      <section aria-labelledby="profile-edit" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+      <section aria-labelledby="profile-edit" className="flex flex-col gap-5 border-t border-line pt-6">
         <h2 id="profile-edit" className="text-xl font-bold text-ink">
           {x.edit}
         </h2>

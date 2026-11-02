@@ -51,7 +51,6 @@ export default async function NotificationsPage() {
     <Container size="form">
       <PageHeader
         title={t.title}
-        description={t.description}
         back={{ href: "/" }}
         actions={
           hasUnread && (

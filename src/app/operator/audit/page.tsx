@@ -27,7 +27,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
 
   return (
     <Container className="pb-10">
-      <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: ru.operator.backToPanel }} />
+      <PageHeader title={t.title} back={{ href: "/operator", label: ru.operator.backToPanel }} />
       <div className="flex flex-col gap-6">
         <details open={active > 0} className="group rounded-card border border-line bg-surface shadow-card">
           <summary className="flex min-h-control min-w-0 cursor-pointer list-none items-center gap-3 rounded-card px-5 py-3 text-lg font-bold text-ink hover:bg-sunken [&::-webkit-details-marker]:hidden">

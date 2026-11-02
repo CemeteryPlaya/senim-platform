@@ -37,7 +37,7 @@ export default async function MyRequestsPage({ searchParams }: Props) {
 
   return (
     <Container className="flex flex-col gap-6 pb-10">
-      <PageHeader title={t.title} description={t.lead} back={{ href: "/" }} actions={list.length > 0 ? create : undefined} className="pb-0" />
+      <PageHeader title={t.title} back={{ href: "/" }} actions={list.length > 0 ? create : undefined} className="pb-0" />
       {list.length === 0 ? (
         <EmptyState icon={<ClipboardList />} title={t.emptyTitle} description={t.emptyText} action={create} />
       ) : (

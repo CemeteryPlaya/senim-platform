@@ -10,7 +10,6 @@ const plural = (n: number, one: string, few: string, many: string) => {
 
 export const operator = {
   title: "Панель оператора",
-  description: "Модерация исполнителей, справочники, споры, журнал и сверка.",
   backToPanel: "К панели оператора",
 
   segments: { ECONOMY: "Эконом", COMFORT: "Комфорт", PREMIUM: "Премиум" },
@@ -84,15 +83,10 @@ export const operator = {
     allClearHint: "Новые регистрации, споры и заявки без откликов появятся здесь.",
     todo: "Что требует внимания",
     sections: "Разделы",
-    stats: "Показатели",
-    statPending: "Регистрации на проверке",
-    statDisputes: "Открытые споры",
-    statStale: "Заявки без откликов дольше суток",
   },
 
   executors: {
     title: "Исполнители",
-    description: "Подтверждение регистраций, сегменты и ручное добавление.",
     queueTitle: "Очередь регистраций",
     queueEmpty: "Новых регистраций нет",
     queueEmptyHint: "Когда исполнитель зарегистрируется, он появится здесь.",
@@ -164,7 +158,6 @@ export const operator = {
 
   types: {
     title: "Типы мебели",
-    description: "Что заказчик выбирает на первом шаге заявки. Скрытые типы не видны в новых заявках.",
     addLabel: "Новый тип",
     addHint: "Например: «Мебель для балкона»",
     add: "Добавить",
@@ -183,7 +176,6 @@ export const operator = {
 
   requests: {
     title: "Заявки без откликов",
-    description: "Открытые заявки, на которые никто не откликнулся. Можно позвонить заказчику или подсказать исполнителям.",
     hoursFilter: "Сколько ждут откликов",
     hoursPresets: { "24": "Дольше суток", "72": "Дольше 3 суток", "168": "Дольше недели", "720": "Дольше месяца" } as Record<string, string>,
     hoursCustom: (h: number) => `Дольше ${h} ${plural(h, "часа", "часов", "часов")}`,
@@ -200,7 +192,6 @@ export const operator = {
 
   disputes: {
     title: "Споры",
-    description: "Сначала открытые, по дате открытия.",
     empty: "Споров нет",
     emptyHint: "Когда сторона откроет спор, он появится здесь.",
     status: { OPEN: "Открыт", RESOLVED: "Решён" },
@@ -312,7 +303,6 @@ export const operator = {
       "demo.reset": "Демо-данные сброшены",
     } as Record<string, string>,
     title: "Журнал аудита",
-    description: "Каждое действие на платформе. Записи не изменяются и не удаляются.",
     filters: "Фильтры",
     filtersActive: (n: number) => `выбрано: ${n}`,
     entityType: "Сущность",
@@ -345,7 +335,6 @@ export const operator = {
 
   report: {
     title: "Отчёт и сверка",
-    description: "Сделки, этапы и оплаты. Расхождения — оплаты, отмеченные заказчиком, но не подтверждённые исполнителем.",
     staleDaysLabel: "Отметка без подтверждения дольше, дней",
     apply: "Пересчитать",
     deals: "Сделки по статусам",

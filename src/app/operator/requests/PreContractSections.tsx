@@ -15,7 +15,7 @@ function Section({ id, title, lead, empty, children }: { id: string; title: stri
         <SectionTitle id={id} title={title} />
         <p className="max-w-prose text-base text-ink-soft">{lead}</p>
       </div>
-      {empty ? <p className="rounded-card border border-line bg-surface p-5 text-base text-muted shadow-card">{empty}</p> : children}
+      {empty ? <p className="text-base text-muted">{empty}</p> : children}
     </section>
   );
 }

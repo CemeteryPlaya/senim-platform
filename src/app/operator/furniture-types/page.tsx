@@ -16,7 +16,7 @@ export default async function FurnitureTypesPage() {
 
   return (
     <Container size="form" className="pb-10">
-      <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: ru.operator.backToPanel }} />
+      <PageHeader title={t.title} back={{ href: "/operator", label: ru.operator.backToPanel }} />
       <div className="flex flex-col gap-6">
         <Card>
           <AddTypeForm />

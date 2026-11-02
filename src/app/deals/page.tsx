@@ -28,7 +28,7 @@ export default async function DealsPage() {
 
   return (
     <Container size="form">
-      <PageHeader title={t.listTitle} description={t.listDescription} back={{ href: "/" }} />
+      <PageHeader title={t.listTitle} back={{ href: "/" }} />
       {deals.length === 0 ? (
         <EmptyState
           icon={<Handshake aria-hidden className="size-8" />}

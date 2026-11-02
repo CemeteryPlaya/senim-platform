@@ -29,7 +29,7 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
 
   return (
     <Container className="flex flex-col gap-6 pb-12">
-      <PageHeader title={t.title} description={t.description} back={{ href: "/" }} className="pb-0" />
+      <PageHeader title={t.title} back={{ href: "/" }} className="pb-0" />
 
       <section aria-labelledby="inspiration-filters" className="flex flex-col gap-4">
         <h2 id="inspiration-filters" className="sr-only">

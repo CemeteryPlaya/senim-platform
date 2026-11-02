@@ -17,15 +17,11 @@ export const executor = {
     photosLabel: "Фото помещения",
     photoAlt: (n: number) => `Фото помещения ${n}`,
     illustration: "Иллюстрация вида мебели — заказчик не приложил фото",
-    keyFacts: "Коротко о заявке",
-    fact: { type: "Что нужно", segment: "Уровень", city: "Город", desired: "Желаемый срок", published: "Опубликована", offers: "Откликов" },
-    noDate: "Не указан",
   },
 
   offers: {
     metaTitle: "Мои отклики",
     title: "Мои отклики",
-    lead: "Все отправленные предложения и ответы заказчиков.",
     chipsLabel: "Показать отклики",
     chips: { all: "Все", waiting: "Ждут ответа", chosen: "Выбраны", closed: "Отклонены и отозваны" },
     status: {
@@ -60,7 +56,6 @@ export const executor = {
   profile: {
     sections: "Разделы",
     publicProfile: "Публичная страница",
-    publicHint: "Как вас видят заказчики",
     portfolio: "Портфолио",
     finance: "Финансы",
     edit: "Данные профиля",

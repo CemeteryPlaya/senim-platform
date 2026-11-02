@@ -123,7 +123,7 @@ export default async function InspirationItemPage({ params }: Props) {
               <p className="text-base text-muted">{user ? d.wantSimilarHint : d.guestHint}</p>
             </div>
           )}
-          {item.own && <p className="rounded-control bg-sunken p-4 text-base text-ink">{d.own}</p>}
+          {item.own && <p className="border-l-2 border-line pl-4 text-base text-ink">{d.own}</p>}
           {item.canFeature && <FeatureToggle itemId={item.id} featured={item.featured} />}
         </div>
       </div>

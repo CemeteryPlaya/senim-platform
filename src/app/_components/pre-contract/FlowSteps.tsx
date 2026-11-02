@@ -15,7 +15,7 @@ export type FlowStepsProps = { flow: PreContractFlow; steps: readonly FlowStep[]
 export function FlowSteps({ flow, steps, current }: FlowStepsProps) {
   if (current === null) return null;
   return (
-    <section aria-label={t.progressLabel} className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 sm:p-5">
+    <section aria-label={t.progressLabel} className="flex flex-col gap-3">
       <p className="text-base text-ink-soft">{t.flowLabel(t.flowNames[flow])}</p>
       <Stepper steps={steps.map((s) => t.steps[s])} current={steps.indexOf(current)} label={t.progressLabel} />
     </section>

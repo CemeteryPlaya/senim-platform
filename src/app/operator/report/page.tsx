@@ -70,7 +70,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
 
   return (
     <Container className="pb-10">
-      <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: o.backToPanel }} />
+      <PageHeader title={t.title} back={{ href: "/operator", label: o.backToPanel }} />
       <div className="flex flex-col gap-8">
         <ul aria-label={t.stats} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-3">
           <li className="flex">

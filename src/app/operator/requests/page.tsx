@@ -27,7 +27,7 @@ export default async function StaleRequestsPage({ searchParams }: { searchParams
 
   return (
     <Container className="pb-10">
-      <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: ru.operator.backToPanel }} />
+      <PageHeader title={t.title} back={{ href: "/operator", label: ru.operator.backToPanel }} />
       <div className="flex flex-col gap-10">
         <div className="flex flex-col gap-4">
           <FilterChips label={t.hoursFilter} current={String(hours)} chips={hoursChips(hours)} />

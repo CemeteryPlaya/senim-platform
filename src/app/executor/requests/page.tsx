@@ -54,7 +54,6 @@ export default async function IncomingPage({ searchParams }: { searchParams: Pro
     <Container className="flex flex-col gap-6 pb-10">
       <PageHeader
         title={t.title}
-        description={t.lead}
         back={{ href: "/" }}
         actions={
           <ButtonLink href="/executor/offers" variant="secondary" icon={<Send />}>
@@ -70,7 +69,7 @@ export default async function IncomingPage({ searchParams }: { searchParams: Pro
         <>
           <FilterChips label={x.chipsLabel} current={current.key} chips={chipsFor(list)} />
           {shown.length === 0 ? (
-            <p className="rounded-card border border-line bg-surface p-5 text-base text-ink-soft shadow-card">{x.emptyFilter}</p>
+            <p className="text-base text-muted">{x.emptyFilter}</p>
           ) : (
             <ul className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
               {shown.map((r) => (

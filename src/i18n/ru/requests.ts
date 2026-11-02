@@ -166,7 +166,6 @@ export const requests = {
   my: {
     metaTitle: "Мои заявки",
     title: "Мои заявки",
-    lead: "Отклики, замеры и договоры по вашим заявкам.",
     create: "Оставить заявку",
     emptyTitle: "Заявок пока нет",
     emptyText: "Опишите, какая мебель нужна, — исполнители пришлют предложения с ценой и сроком.",
@@ -192,8 +191,6 @@ export const requests = {
   request: {
     sentTitle: "Заявка отправлена",
     sentText: "Исполнители получили заявку и готовят предложения. Мы уведомим вас о новых откликах.",
-    waitingTitle: "Получайте предложения",
-    waitingText: "Мы уведомим вас, когда появятся новые отклики.",
     chosenTitle: (whomGen: string) => `Вы выбрали ${whomGen}`,
     chosenText: "Адрес передан исполнителю. Договоритесь о замере в чате — исполнитель назначит время.",
     openChosen: "Открыть отклик и чат",
@@ -228,9 +225,6 @@ export const requests = {
     sortLabel: "Сортировка",
     sort: { price: "Сначала дешевле", duration: "Сначала быстрее", rating: "Выше рейтинг" },
     detailsTitle: "Что в заявке",
-    compareTitle: "Сравнение откликов",
-    compare: { cheapest: "Лучшая цена", fastest: "Быстрее всех", topRated: "Выше рейтинг" },
-    compareWho: (what: string, who: string) => `${what}: ${who}`,
     agreeTitle: "Итоговая стоимость",
     payment: {
       manual: "Оплата по этапам под контролем",
@@ -284,7 +278,6 @@ export const requests = {
   incoming: {
     metaTitle: "Заявки",
     title: "Заявки",
-    lead: "Тендеры вашего уровня и прямые запросы к вам.",
     filter: { all: "Все", TENDER: "Тендер", DIRECT: "Прямые" },
     filterLabel: "Показать",
     emptyTitle: "Новых заявок нет",
@@ -340,7 +333,6 @@ export const requests = {
   measurements: {
     metaTitle: "Замеры",
     title: "Замеры",
-    lead: "Назначенные выезды и итоговые цены.",
     awaitingTitle: "Назначьте замер",
     awaitingText: "Заказчик выбрал ваш отклик. Договоритесь о времени и назначьте выезд.",
     listTitle: "Все замеры",

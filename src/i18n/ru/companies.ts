@@ -82,7 +82,6 @@ export const companies = {
 
   catalog: {
     title: "Каталог работ",
-    description: "Найдите работу, которая нравится, — и закажите похожую у того же исполнителя.",
     filters: {
       label: "Фильтры",
       type: "Что ищем",
@@ -138,7 +137,6 @@ export const companies = {
 
   profile: {
     title: "Профиль",
-    description: "Что видят заказчики: опыт, специализации и условия замера. Наименование и контакты им не показываются.",
     publicAs: (label: string) => `Заказчики видят вас как «${label}»`,
     openPublic: "Открыть публичную страницу",
     status: {
@@ -147,7 +145,6 @@ export const companies = {
       rejectReason: (reason: string) => `Причина: ${reason}`,
     },
     segment: "Сегмент",
-    segmentHint: "Сегмент присваивает оператор по вашим работам и материалам.",
     legalName: "Наименование для договора",
     legalNameHint: "Видно только вам и в договоре с заказчиком.",
     fields: {
@@ -178,7 +175,6 @@ export const companies = {
 
   portfolio: {
     title: "Портфолио",
-    description: "По этим работам заказчики находят вас в каталоге и нажимают «Хочу похожее».",
     add: "Добавить работу",
     newTitle: "Новая работа",
     editTitle: "Изменить работу",

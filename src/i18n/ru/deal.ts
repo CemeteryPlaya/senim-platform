@@ -3,7 +3,6 @@
 
 export const deal = {
   listTitle: "Сделки",
-  listDescription: "Договор, этапы, оплата по этапам и акты — всё в одном месте.",
   listEmptyTitle: "Сделок пока нет",
   listEmptyClient: "Сделка появится, когда вы согласуете итоговую цену после замера.",
   listEmptyExecutor: "Сделка появится, когда заказчик выберет ваш отклик и согласует цену.",
@@ -71,18 +70,14 @@ export const deal = {
       CANCELLED: "Работы по договору не ведутся.",
       TERMINATED: "Работы по договору не ведутся.",
     },
-    stageNow: (n: number, total: number, title: string) => `Сейчас этап ${n} из ${total}: «${title}»`,
     plannedReady: "Плановая готовность",
     plannedHint: "Срок договора считается с подписания",
     duration: "Срок изготовления",
     warranty: "Гарантия",
     signedAt: "Договор подписан",
     daysLeft: (days: string) => `Осталось ${days}`,
-    daysLeftHint: "До плановой готовности",
     stagesScale: "Этапы заказа",
-    viewStages: "Посмотреть этапы",
     writeTo: { CLIENT: "Написать исполнителю", EXECUTOR: "Написать заказчику" },
-    stagesNoteClient: "Исполнитель прикладывает фото и отчёт к каждому этапу. Мы пришлём уведомление, когда этап будет сдан.",
     stageDate: {
       started: (d: string) => `Начат ${d}`,
       submitted: (d: string) => `Сдан ${d}`,

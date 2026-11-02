@@ -32,8 +32,8 @@ export default async function ProfilePage() {
     <Container size="form" className="flex flex-col gap-6 pb-10">
       <PageHeader title={t.title} back={{ href: "/" }} />
 
-      <section aria-label={t.title} className="flex items-center gap-4 rounded-card border border-line bg-surface p-5 shadow-card">
-        <span aria-hidden className="inline-flex size-16 shrink-0 items-center justify-center rounded-full bg-accent-soft text-primary">
+      <section aria-label={t.title} className="flex items-center gap-4">
+        <span aria-hidden className="inline-flex size-16 shrink-0 items-center justify-center rounded-full bg-sunken text-ink-soft">
           <UserRound className="size-8" />
         </span>
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -46,7 +46,6 @@ export default async function ProfilePage() {
       {targets.length > 0 && (
         <section aria-labelledby="account-role" className="flex flex-col gap-3">
           <SectionTitle id="account-role" title={t.roleTitle} />
-          <p className="text-base text-ink-soft">{t.roleText}</p>
           <div role="group" aria-label={ru.identity.switchRole.switcherLabel} className="flex flex-col gap-2">
             {targets.map((role) => (
               <SwitchRoleButton key={role} role={role} variant="soft" fullWidth />
@@ -64,9 +63,9 @@ export default async function ProfilePage() {
 
       <section aria-labelledby="account-app" className="flex flex-col gap-3">
         <SectionTitle id="account-app" title={t.app} />
-        <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-2 shadow-card">
+        <div className="flex flex-col items-start gap-2">
           <InstallMenuItem />
-          <LogoutButton variant="ghost" fullWidth />
+          <LogoutButton variant="ghost" />
         </div>
       </section>
     </Container>

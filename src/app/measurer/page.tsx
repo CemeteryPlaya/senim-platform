@@ -26,7 +26,7 @@ export default async function MeasurerPage({ searchParams }: { searchParams: Pro
 
   return (
     <Container className="flex flex-col gap-6 pb-10">
-      <PageHeader title={t.title} description={t.lead} className="pb-0" />
+      <PageHeader title={t.title} className="pb-0" />
       {rows.length === 0 ? (
         <EmptyState icon={<Ruler />} title={t.emptyTitle} description={t.emptyText} />
       ) : (
@@ -37,7 +37,7 @@ export default async function MeasurerPage({ searchParams }: { searchParams: Pro
             chips={GROUPS.map((g) => ({ key: g, label: x.chips[g], count: count(g), href: `/measurer?show=${g}` }))}
           />
           {shown.length === 0 ? (
-            <p className="rounded-card border border-line bg-surface p-5 text-base text-ink-soft shadow-card">{x.emptyFilter}</p>
+            <p className="text-base text-muted">{x.emptyFilter}</p>
           ) : (
             <ul className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
               {shown.map((m) => {

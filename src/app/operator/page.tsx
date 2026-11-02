@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ChartColumn, ChevronRight, FlaskConical, Inbox, Ruler, Scale, ScrollText, Sofa, TriangleAlert, UserCheck } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { isDemoMode, listDisputes, listRegistrationQueue, listStaleRequests } from "@/modules/operator";
-import { Alert, Container, LinkList, PageHeader, SectionTitle, Stat, type LinkListItem } from "@/ui";
+import { Alert, Container, LinkList, PageHeader, SectionTitle, type LinkListItem } from "@/ui";
 import { requireOperatorPage } from "./_lib/guard";
 
 const t = ru.operator;
@@ -12,7 +12,7 @@ const d = t.dashboard;
 export const metadata: Metadata = { title: t.title };
 
 /**
- * Главная оператора по макету кабинета (стр. 12): показатели — только настоящие числа, ведут в разделы;
+ * Главная оператора по макету кабинета (стр. 12), минималистично: числа — справа в строках меню разделов;
  * что требует внимания — жёлтые плашки; разделы — меню со значками, зелёный пункт — первый, где есть дела.
  */
 export default async function OperatorHome() {
@@ -45,20 +45,9 @@ export default async function OperatorHome() {
 
   return (
     <Container className="pb-10">
-      <PageHeader title={t.title} description={t.description} back={{ href: "/" }} />
+      <PageHeader title={t.title} back={{ href: "/" }} />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-8">
-          <ul aria-label={d.stats} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-3">
-            <li className="flex">
-              <Stat className="flex-1" href="/operator/executors" icon={<UserCheck />} value={queue.length} label={d.statPending} />
-            </li>
-            <li className="flex">
-              <Stat className="flex-1" href="/operator/disputes" icon={<Scale />} value={openDisputes} label={d.statDisputes} />
-            </li>
-            <li className="col-span-full flex sm:col-span-1">
-              <Stat className="flex-1" href="/operator/requests" icon={<Inbox />} value={stale.length} label={d.statStale} />
-            </li>
-          </ul>
           <section aria-labelledby="todo" className="flex min-w-0 flex-col gap-3">
             <SectionTitle id="todo" title={d.todo} />
             {todo.length === 0 ? (

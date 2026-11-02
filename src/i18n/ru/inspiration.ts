@@ -2,7 +2,6 @@
 
 export const inspiration = {
   title: "Вдохновение",
-  description: "Работы исполнителей Сенім. Понравилась — откройте и нажмите «Хочу похожее».",
   filters: {
     label: "Фильтры",
     type: "Что ищем",

@@ -15,7 +15,6 @@ export function days(n: number): string {
 export const notifications = {
   page: {
     title: "Уведомления",
-    description: "Новые события по заявкам и сделкам",
     markAllRead: "Отметить все прочитанными",
     empty: "Уведомлений пока нет",
     emptyHint: "Здесь появятся отклики, этапы сделок и решения оператора",

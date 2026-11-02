@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { CalendarClock, Gem, MapPin, Sofa } from "lucide-react";
 import { getIncomingRequest, type IncomingRequest } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { Alert, ButtonLink, Container, Money, PageHeader, StatusBadge, formatDate, formatDateTime, formatDays, formatMoney, formatMonths } from "@/ui";
@@ -53,7 +52,6 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:grid-rows-[auto_1fr] lg:gap-x-8">
         <div className="flex min-w-0 flex-col gap-6">
           <Gallery title={r.title} photos={r.photos} />
-          <KeyFacts r={r} />
         </div>
 
         <section aria-labelledby="next-step" className="flex min-w-0 flex-col gap-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
@@ -63,7 +61,7 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
           <NextStep r={r} />
         </section>
 
-        <section aria-labelledby="request-facts" className="flex min-w-0 flex-col gap-4 self-start rounded-card border border-line bg-surface p-5 shadow-card sm:p-6 lg:col-start-1">
+        <section aria-labelledby="request-facts" className="flex min-w-0 flex-col gap-4 self-start border-t border-line pt-6 lg:col-start-1">
           <h2 id="request-facts" className="text-xl font-bold text-ink">
             {ru.requests.request.detailsTitle}
           </h2>
@@ -111,32 +109,6 @@ function Gallery({ title, photos }: { title: string; photos: IncomingRequest["ph
   );
 }
 
-/** Плитки «коротко о заявке» (макет 13): что нужно, уровень, город, срок. */
-function KeyFacts({ r }: { r: IncomingRequest }) {
-  const fx = x.fact;
-  const tiles: { icon: ReactNode; label: string; value: ReactNode }[] = [
-    { icon: <Sofa />, label: fx.type, value: r.title },
-    ...(r.segment ? [{ icon: <Gem />, label: fx.segment, value: SEGMENT_NAMES[r.segment] }] : []),
-    { icon: <MapPin />, label: fx.city, value: r.city },
-    { icon: <CalendarClock />, label: fx.desired, value: r.desiredDate ? formatDate(r.desiredDate) : x.noDate },
-  ];
-  return (
-    <dl aria-label={x.keyFacts} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3">
-      {tiles.map((tile) => (
-        <div key={tile.label} className="flex min-w-0 flex-col items-start gap-2 rounded-card border border-line bg-surface p-4 shadow-card">
-          <span aria-hidden className="inline-flex size-10 shrink-0 items-center justify-center rounded-control bg-accent-soft text-primary [&_svg]:size-5">
-            {tile.icon}
-          </span>
-          <div className="flex min-w-0 flex-col">
-            <dt className="text-sm text-muted">{tile.label}</dt>
-            <dd className="text-base font-semibold break-words text-ink">{tile.value}</dd>
-          </div>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 function OfferSummary({ offer }: { offer: NonNullable<IncomingRequest["myOffer"]> }) {
   const o = ru.requests.offer;
   const rows: [string, ReactNode][] = [
@@ -163,7 +135,7 @@ function NextStep({ r }: { r: IncomingRequest }) {
   const offer = r.myOffer;
   if (!offer) {
     return r.canOffer ? (
-      <div className="rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+      <div className="rounded-card border border-line p-5 sm:p-6">
         <OfferForm requestId={r.id} defaults={r.defaults} />
       </div>
     ) : (
@@ -172,7 +144,7 @@ function NextStep({ r }: { r: IncomingRequest }) {
   }
   const m = offer.measurement;
   const card = (children: ReactNode) => (
-    <div className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+    <div className="flex flex-col gap-4 rounded-card border border-line p-5 sm:p-6">
       <StatusBadge tone={m ? MEASUREMENT_TONE[m.status] : OFFER_TONE[offer.status]}>
         {m ? ru.requests.measurementStatus[m.status] : ru.requests.offerStatus[offer.status]}
       </StatusBadge>
@@ -204,7 +176,7 @@ function NextStep({ r }: { r: IncomingRequest }) {
         <Alert tone="accent" title={ru.requests.pre.retry.allowedTitle}>
           {ru.requests.pre.retry.allowedText}
         </Alert>
-        <div className="rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+        <div className="rounded-card border border-line p-5 sm:p-6">
           <OfferForm requestId={r.id} defaults={r.defaults} />
         </div>
       </>

@@ -21,14 +21,14 @@ export function ProjectView({ project }: { project: ProjectVersion }) {
       </p>
       <div className="flex flex-col gap-2">
         <h3 className="text-lg font-bold text-ink">{t.materials}</h3>
-        <p className="rounded-control bg-sunken p-4 text-base whitespace-pre-line text-ink">{project.materials}</p>
+        <p className="border-l-2 border-line pl-4 text-base whitespace-pre-line text-ink">{project.materials}</p>
       </div>
       <div className="flex flex-col gap-2">
         <h3 className="text-lg font-bold text-ink">{t.costTitle}</h3>
         <CostSummary lines={project.costLines} total={project.totalPrice} durationDays={project.durationDays} warrantyMonths={project.warrantyMonths} />
       </div>
       {project.changeNote && (
-        <p className="rounded-control bg-sunken p-4 text-base text-ink">
+        <p className="border-l-2 border-line pl-4 text-base text-ink">
           <span className="font-semibold">{t.clientComment}: </span>
           {project.changeNote}
         </p>
