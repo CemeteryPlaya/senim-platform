@@ -39,7 +39,7 @@ const OPEN = [
   { title: "Договор", url: /\/deals\/[^/]+$/, heading: /^Сделка №14$/ },
   { title: "Этапы и транши", url: /\/deals\/[^/]+$/, heading: /^Сделка №\d+$/ },
   { title: "Закрытие", url: /\/deals\/[^/]+$/, heading: /^Сделка №\d+$/ },
-  { title: "Заявка", url: /\/requests\/new$/, heading: /^Что будем делать\?$/ },
+  { title: "Заявка", url: /\/requests\/new$/, heading: /^Что нужно\?$/ },
 ] as const;
 
 for (const s of OPEN) {

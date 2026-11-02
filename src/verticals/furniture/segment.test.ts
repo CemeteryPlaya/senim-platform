@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestSegment } from "./segment";
+import { segmentMaterials, suggestSegment } from "./segment";
 
 describe("suggestSegment", () => {
   it("ЛДСП без дорогих деталей — эконом", () => {
@@ -64,5 +64,13 @@ describe("suggestSegment: объяснения и порог длины", () => 
     expect(suggestSegment({ facade: "acrylic", widthCm: 600 }).reasons).toHaveLength(1);
     expect(suggestSegment({ facade: "veneer", widthCm: 600 }).segment).toBe("PREMIUM");
     expect(suggestSegment({ widthCm: 600 })).toEqual({ segment: null, reasons: [] });
+  });
+});
+
+describe("segmentMaterials", () => {
+  it("раскладывает справочники по уровням — те же правила, что у подсказки", () => {
+    expect(segmentMaterials("ECONOMY")).toEqual({ facades: ["ЛДСП"], countertops: ["ЛДСП-столешница"], hardware: ["Стандартная"] });
+    expect(segmentMaterials("PREMIUM").facades).toEqual(["Шпон", "Массив дерева"]);
+    expect(segmentMaterials("COMFORT").hardware).toEqual(["С доводчиками"]);
   });
 });

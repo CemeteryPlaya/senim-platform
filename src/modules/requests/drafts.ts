@@ -41,17 +41,18 @@ async function fieldsOf(tx: Tx, step: StepInput): Promise<Prisma.RequestUpdateMa
     }
     case "style":
       return { style: step.style };
-    case "send":
+    case "segment":
+      return { segment: step.segment };
+    case "place":
       return {
-        segment: step.segment,
         city: step.city,
         address: step.address,
         desiredDate: step.desiredDate ? new Date(`${step.desiredDate}T00:00:00Z`) : null,
-        wishes: step.wishes,
       };
     case "room":
     case "size":
     case "materials":
+    case "send":
       return {};
   }
 }

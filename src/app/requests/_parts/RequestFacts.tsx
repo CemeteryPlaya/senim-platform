@@ -7,13 +7,17 @@ const f = ru.requests.facts;
 
 export type FactRow = { label: string; value: ReactNode; edit?: ReactNode };
 
-/** Ответы мастера списком «название — значение»; «не знаю» показано явно. Без хуков: годится и серверу, и клиенту. */
-export function detailRows(input: { title: string; style: string | null; details: RequestDetails }): FactRow[] {
+/**
+ * Ответы мастера списком «название — значение»; «не знаю» показано явно. Без хуков: годится и серверу, и клиенту.
+ * `unknownText` — как назвать «не знаю»: исполнителю «Не знает — подскажите», самому заказчику — его же ответ.
+ */
+export function detailRows(input: { title: string; style: string | null; details: RequestDetails; unknownText?: string }): FactRow[] {
   const { details: d } = input;
+  const unknownText = input.unknownText ?? f.unknown;
   const unknown = new Set(d.unknown ?? []);
   const material = (key: "facade" | "countertop" | "hardware", value: string | undefined, names: Record<string, { name: string }>) =>
-    unknown.has(key) ? f.unknown : value ? names[value].name : null;
-  const size = unknown.has("size") ? f.unknown : d.widthCm || d.heightCm || d.depthCm ? f.sizeValue(d.widthCm, d.heightCm, d.depthCm) : null;
+    unknown.has(key) ? unknownText : value ? names[value].name : null;
+  const size = unknown.has("size") ? unknownText : d.widthCm || d.heightCm || d.depthCm ? f.sizeValue(d.widthCm, d.heightCm, d.depthCm) : null;
 
   const rows: (FactRow | null)[] = [
     { label: f.type, value: input.title },

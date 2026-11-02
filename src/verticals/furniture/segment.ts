@@ -45,3 +45,15 @@ export function suggestSegment(input: SegmentInput): SegmentSuggestion {
   }
   return { segment, reasons };
 }
+
+export type SegmentMaterials = { facades: string[]; countertops: string[]; hardware: string[] };
+
+const namesOf = (catalog: Record<string, { name: string; segment: Segment }>, segment: Segment) =>
+  Object.values(catalog)
+    .filter((o) => o.segment === segment)
+    .map((o) => o.name);
+
+/** Материалы уровня по справочникам — «чем отличаются уровни» по тем же правилам, что и подсказка «Почему?». */
+export function segmentMaterials(segment: Segment): SegmentMaterials {
+  return { facades: namesOf(FACADES, segment), countertops: namesOf(COUNTERTOPS, segment), hardware: namesOf(HARDWARE, segment) };
+}

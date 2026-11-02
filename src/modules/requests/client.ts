@@ -4,3 +4,4 @@ export * from "./schema";
 export * from "./flows";
 export * from "./pre-contract-schema";
 export { executorSeesRequest, visibleToExecutor, type RequestVisibilityFacts } from "./visibility";
+export * from "./price-range";

@@ -90,8 +90,12 @@ export function segmentInputOf(d: RequestDetails): SegmentInput {
 
 // ─── шаги мастера ────────────────────────────────────────────────────────────
 
-/** Экраны мастера по порядку. «Детали» — два экрана: размеры и материалы. */
-export const WIZARD_SCREENS = ["type", "style", "room", "size", "materials", "send"] as const;
+/**
+ * Экраны мастера по порядку — для человека, который не разбирается в мебели (встреча 31.10, п. 1):
+ * что нужно → какой примерно вид → размеры (можно «не знаю») → уровень → фото и описание → адрес и срок → проверка.
+ * Материалов в мастере нет: их может перенести помощник ИИ (шаг `materials`, не экран), иначе подскажет исполнитель.
+ */
+export const WIZARD_SCREENS = ["type", "style", "size", "segment", "room", "place", "send"] as const;
 export type WizardScreen = (typeof WIZARD_SCREENS)[number];
 
 const optionalText = (max: number) => z.string().trim().max(max, t.tooLong(max)).default("");
@@ -116,6 +120,8 @@ const styleStep = z.strictObject({
 const roomStep = z.strictObject({
   screen: z.literal("room"),
   photoFileIds: z.array(z.string().min(1)).max(LIMITS.photos),
+  /** Описание своими словами. */
+  description: optionalText(LIMITS.description),
 });
 
 const sizeStep = z.strictObject({
@@ -128,6 +134,7 @@ const sizeStep = z.strictObject({
 
 const choice = <T extends readonly [string, ...string[]]>(keys: T) => z.enum([...keys, "unknown"], { error: t.chooseOrUnknown });
 
+/** Материалы и фурнитура — не экран мастера: шаг сохраняет то, что распознал помощник ИИ. */
 const materialsStep = z.strictObject({
   screen: z.literal("materials"),
   facade: choice(FACADE_KEYS),
@@ -138,16 +145,22 @@ const materialsStep = z.strictObject({
   description: optionalText(LIMITS.description),
 });
 
-const sendStep = z.strictObject({
-  screen: z.literal("send"),
+const segmentStep = z.strictObject({
+  screen: z.literal("segment"),
   segment: z.enum(SEGMENTS, { error: t.segmentRequired }),
+});
+
+const placeStep = z.strictObject({
+  screen: z.literal("place"),
   city: z.string().trim().min(2, t.cityRequired).max(LIMITS.city),
   address: z.string().trim().min(5, t.addressRequired).max(LIMITS.address, t.tooLong(LIMITS.address)),
   desiredDate: z.iso.date(t.date).nullable(),
-  wishes: optionalText(LIMITS.wishes),
 });
 
-export const stepInputSchema = z.discriminatedUnion("screen", [typeStep, styleStep, roomStep, sizeStep, materialsStep, sendStep]);
+/** Проверка и отправка: всё уже сохранено на прошлых экранах. */
+const sendStep = z.strictObject({ screen: z.literal("send") });
+
+export const stepInputSchema = z.discriminatedUnion("screen", [typeStep, styleStep, sizeStep, segmentStep, roomStep, placeStep, sendStep, materialsStep]);
 export type StepInput = z.output<typeof stepInputSchema>;
 export type StepFormInput = z.input<typeof stepInputSchema>;
 
@@ -208,9 +221,26 @@ export const agreeToContractSchema = z.strictObject({
   identity: clientIdentity.optional(),
 });
 
-/** Номер экрана (с нуля). `Request.wizardStep` — сколько экранов уже сохранено. */
-export function screenIndex(screen: WizardScreen): number {
-  return WIZARD_SCREENS.indexOf(screen);
+/** Номер экрана (с нуля); -1 — шаг не экран мастера (материалы). `Request.wizardStep` — сколько экранов уже сохранено. */
+export function screenIndex(screen: StepInput["screen"]): number {
+  return (WIZARD_SCREENS as readonly string[]).indexOf(screen);
+}
+
+/**
+ * Экран, на который открыть мастер: запрошенный в адресе, если он не дальше сохранённого прогресса, иначе последний
+ * сохранённый. Черновик прежнего мастера (уровень и адрес раньше сохранялись при отправке) возвращается к экрану,
+ * где их не хватает, — иначе отправка упадёт с «заполните все шаги».
+ */
+export function resumeIndex(
+  draft: { wizardStep: number; segment: string | null; address: string | null } | null,
+  asked: string | undefined,
+): number {
+  if (!draft) return 0;
+  let reached = Math.min(draft.wizardStep, WIZARD_SCREENS.length - 1);
+  if (!draft.segment) reached = Math.min(reached, screenIndex("segment"));
+  if (!draft.address) reached = Math.min(reached, screenIndex("place"));
+  const index = asked === undefined ? -1 : screenIndex(asked as WizardScreen);
+  return index >= 0 && index <= reached ? index : reached;
 }
 
 function withUnknown(d: RequestDetails, key: UnknownKey, isUnknown: boolean): UnknownKey[] | undefined {
@@ -231,6 +261,8 @@ export function applyStep(d: RequestDetails, step: StepInput): RequestDetails {
   switch (step.screen) {
     case "style":
       return compact({ ...d, styleNote: step.styleNote });
+    case "room":
+      return compact({ ...d, description: step.description });
     case "size": {
       const known = step.size.mode === "known" ? step.size : null;
       return compact({
@@ -253,7 +285,8 @@ export function applyStep(d: RequestDetails, step: StepInput): RequestDetails {
       return compact(next);
     }
     case "type":
-    case "room":
+    case "segment":
+    case "place":
     case "send":
       return d;
   }

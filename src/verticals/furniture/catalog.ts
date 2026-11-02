@@ -19,6 +19,9 @@ export const DEFAULT_FURNITURE_TYPES = [
   { slug: "dresser", name: "Комод и тумбы" },
 ] as const;
 
+/** Плитки первого экрана мастера заявки (встреча 31.10, п. 1): частые заказы; остальные типы — под «Другое». */
+export const POPULAR_FURNITURE_TYPES = ["kitchen", "wardrobe", "walk-in-closet", "hallway", "bathroom"] as const;
+
 export const STYLES = {
   modern: { name: "Современный", hint: "Простые формы, ровные фасады без рисунка" },
   minimalism: { name: "Минимализм", hint: "Без ручек, скрытая фурнитура, однотонные цвета" },

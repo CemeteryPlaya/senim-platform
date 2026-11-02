@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
-import { makeChosen, makeDraft, makeFurnitureType, makeMeasured, makeMeasuring, makeOpenRequest, sendStep } from "../../../test/factories/requests";
+import { makeChosen, makeDraft, makeFurnitureType, makeMeasured, makeMeasuring, makeOpenRequest, segmentStep } from "../../../test/factories/requests";
 import { agreeToContract, cancelRequest, getDraft, likeTarget, listMyRequests, publishRequest, saveDraftStep } from "./index";
 
 const code = (code: string) => expect.objectContaining({ code });
@@ -21,15 +21,32 @@ describe("черновик заявки", () => {
 
     expect(second.requestId).toBe(first.requestId);
     const draft = await getDraft(client, first.requestId);
-    expect(draft).toMatchObject({ status: "DRAFT", mode: "TENDER", furnitureTypeId: type.id, style: "loft", wizardStep: 4 });
+    expect(draft).toMatchObject({ status: "DRAFT", mode: "TENDER", furnitureTypeId: type.id, style: "loft", wizardStep: 3 });
     expect(draft.details).toEqual({ widthCm: 240, depthCm: 60 });
+  });
+
+  it("уровень, описание, адрес и срок сохраняются на своих экранах; материалы помощника прогресс не двигают", async () => {
+    const client = await makeClient();
+    const type = await makeFurnitureType();
+    const { requestId } = await saveDraftStep(client, { requestId: null, step: { screen: "type", furnitureTypeId: type.id, customType: null } });
+    const step = (s: Parameters<typeof saveDraftStep>[1]["step"]) => saveDraftStep(client, { requestId, step: s });
+
+    const afterMaterials = await step({ screen: "materials", facade: "ldsp", countertop: "none", hardware: "unknown", color: "", extras: [], description: "" });
+    expect(afterMaterials.wizardStep).toBe(1);
+    await step(segmentStep("ECONOMY"));
+    await step({ screen: "room", photoFileIds: [], description: "Кухня до потолка, есть газовая труба" });
+    await step({ screen: "place", city: "Алматы", address: "мкр Самал-2, 10", desiredDate: "2026-12-20" });
+
+    const draft = await getDraft(client, requestId);
+    expect(draft).toMatchObject({ segment: "ECONOMY", city: "Алматы", address: "мкр Самал-2, 10", desiredDate: new Date("2026-12-20T00:00:00Z") });
+    expect(draft.details).toMatchObject({ facade: "ldsp", description: "Кухня до потолка, есть газовая труба", unknown: ["hardware"] });
   });
 
   it("возврат на ранний шаг не откатывает прогресс мастера", async () => {
     const client = await makeClient();
     const requestId = await makeDraft(client);
     const saved = await saveDraftStep(client, { requestId, step: { screen: "style", style: "classic", styleNote: "" } });
-    expect(saved.wizardStep).toBe(6);
+    expect(saved.wizardStep).toBe(7);
   });
 
   it("подсказка сегмента пересчитывается по материалам", async () => {
@@ -94,7 +111,7 @@ describe("черновик заявки", () => {
         data: { storageKey: `test/room-${uploadedById}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById },
       });
     const [a, b] = [await upload(client.id, 1), await upload(client.id, 2)];
-    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds } });
+    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "" } });
 
     await room([a.id, b.id]);
     expect((await getDraft(client, requestId)).photos.map((p) => p.id)).toEqual([a.id, b.id]);
@@ -111,7 +128,7 @@ describe("черновик заявки", () => {
         data: { storageKey: `test/room-order-${client.id}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById: client.id },
       });
     const [a, b, c] = [await upload(1), await upload(2), await upload(3)];
-    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds } });
+    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "" } });
 
     await room([a.id, b.id]);
     await room([a.id, b.id, c.id]);
@@ -141,7 +158,7 @@ describe("черновик заявки", () => {
   it("отправленную заявку мастер больше не меняет", async () => {
     const client = await makeClient();
     const requestId = await makeOpenRequest(client);
-    await expect(saveDraftStep(client, { requestId, step: sendStep("PREMIUM") })).rejects.toThrow(code("CONFLICT"));
+    await expect(saveDraftStep(client, { requestId, step: segmentStep("PREMIUM") })).rejects.toThrow(code("CONFLICT"));
   });
 });
 
@@ -285,7 +302,7 @@ describe("мои заявки", () => {
         data: { storageKey: `test/cover-${client.id}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById: client.id },
       });
     const [a, b] = [await upload(1), await upload(2)];
-    await saveDraftStep(client, { requestId: withPhotos, step: { screen: "room", photoFileIds: [a.id, b.id] } });
+    await saveDraftStep(client, { requestId: withPhotos, step: { screen: "room", photoFileIds: [a.id, b.id], description: "" } });
 
     const list = await listMyRequests(client);
     const cover = (id: string) => list.find((r) => r.id === id)?.cover;

@@ -2,57 +2,59 @@ import { expect, test } from "@playwright/test";
 import { choose, loginAs, P } from "./support";
 
 /**
- * Мастер заявки до отправки с ответами «Не знаю». Сценарий только добавляет новую заявку,
- * поэтому пересев не нужен: номер заявки берём с экрана.
+ * Простой мастер заявки (встреча 31.10, п. 1) до отправки: тип плиткой, вид пропущен, размеры «не знаю»,
+ * уровень, без фото, адрес. Сценарий только добавляет новую заявку, поэтому пересев не нужен: номер заявки берём с экрана.
  */
 
-const UNKNOWN = "Не знаю — подскажет исполнитель";
-
-test("заказчик проходит мастер с «Не знаю» и видит заявку в «Мои заявки»", async ({ page }) => {
+test("заказчик проходит мастер, ничего не зная о мебели, и видит заявку в «Мои заявки»", async ({ page }) => {
   await loginAs(page, P.daniyar);
   await page.goto("/requests/new");
 
-  // 1. Что делаем
-  await expect(page.getByRole("heading", { level: 1, name: "Что будем делать?" })).toBeVisible();
-  await choose(page.getByRole("group", { name: "Тип мебели" }).getByRole("radio", { name: "Кухня", exact: true }));
+  // 1. Что нужно? — плитка с картинкой
+  await expect(page.getByRole("heading", { level: 1, name: "Что нужно?" })).toBeVisible();
+  await choose(page.getByRole("group", { name: "Что заказать" }).getByRole("radio", { name: "Кухня", exact: true }));
   await page.getByRole("button", { name: "Далее" }).click();
 
-  // 2. Стиль — пропускаем: исполнитель предложит
-  await expect(page.getByRole("heading", { level: 1, name: "Какой стиль вам нравится?" })).toBeVisible();
+  // 2. Какой примерно вид — пропускаем: исполнитель предложит
+  await expect(page.getByRole("heading", { level: 1, name: "Какой примерно вид?" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Пример, который нравится" }).getByRole("radio")).toHaveCount(6);
   await page.getByRole("button", { name: "Пропустить" }).click();
 
-  // 3. Помещение — без фото
-  await expect(page.getByRole("heading", { level: 1, name: "Покажите помещение" })).toBeVisible();
-  await page.getByRole("button", { name: "Пропустить" }).click();
-
-  // 4. Размеры — «Не знаю»
+  // 3. Размеры — по умолчанию «Не знаю — уточнит замер»
   await expect(page.getByRole("heading", { level: 1, name: "Размеры" })).toBeVisible();
-  await choose(page.getByRole("radio", { name: new RegExp(`^${UNKNOWN}`) }));
+  await expect(page.getByRole("radio", { name: /^Не знаю — уточнит замер/ })).toBeChecked();
   await expect(page.getByLabel("Ширина, см")).toHaveCount(0);
   await page.getByRole("button", { name: "Далее" }).click();
 
-  // 5. Материалы — «Не знаю» во всех списках
-  await expect(page.getByRole("heading", { level: 1, name: "Материалы и фурнитура" })).toBeVisible();
-  for (const label of ["Фасады", "Столешница", "Фурнитура"]) {
-    await page.getByLabel(label, { exact: true }).selectOption({ label: UNKNOWN });
-  }
+  // 4. Уровень — с объяснением; без выбора дальше не пускает
+  await expect(page.getByRole("heading", { level: 1, name: "Какой уровень?" })).toBeVisible();
+  await page.getByRole("button", { name: "Далее" }).click();
+  await expect(page.getByText("Выберите уровень мебели")).toBeVisible();
+  await choose(page.getByRole("radio", { name: /^Комфорт/ }));
   await page.getByRole("button", { name: "Далее" }).click();
 
-  // 6. Уровень и отправка
-  await expect(page.getByRole("heading", { level: 1, name: "Отправьте заявку" })).toBeVisible();
-  const summary = page.getByRole("region", { name: "Проверьте заявку" });
-  await expect(summary.getByText("Кухня")).toBeVisible();
-  await expect(summary.getByText("Не знает — подскажите").first()).toBeVisible();
+  // 5. Фото и описание — без фото
+  await expect(page.getByRole("heading", { level: 1, name: "Фото и описание" })).toBeVisible();
+  await page.getByLabel("Опишите своими словами").fill("Кухня до потолка, нужна посудомойка");
+  await page.getByRole("button", { name: "Далее" }).click();
 
-  // Без адреса — ошибка у поля, заявка не уходит
-  await choose(page.getByRole("radio", { name: /^Комфорт/ }));
+  // 6. Где и когда — без адреса ошибка у поля
+  await expect(page.getByRole("heading", { level: 1, name: "Где и когда" })).toBeVisible();
   await page.getByLabel("Город").fill("Астана");
-  await page.getByLabel("Адрес", { exact: true }).fill("");
-  await page.getByRole("button", { name: "Отправить заявку" }).click();
+  await page.getByLabel("Адрес или район").fill("");
+  await page.getByRole("button", { name: "Далее" }).click();
   await expect(page.getByText("Укажите адрес: его увидит только выбранный исполнитель")).toBeVisible();
-  await expect(page.getByLabel("Адрес", { exact: true })).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByLabel("Адрес или район")).toHaveAttribute("aria-invalid", "true");
+  await page.getByLabel("Адрес или район").fill("Астана, ул. Тестовая, 1, кв. 1");
+  await page.getByRole("button", { name: "Далее" }).click();
 
-  await page.getByLabel("Адрес", { exact: true }).fill("Астана, ул. Тестовая, 1, кв. 1");
+  // 7. Проверка и отправка
+  await expect(page.getByRole("heading", { level: 1, name: "Проверьте и отправьте" })).toBeVisible();
+  const summary = page.getByRole("region", { name: "Ваша заявка" });
+  await expect(summary.getByText("Кухня", { exact: true })).toBeVisible();
+  await expect(summary.getByText("Не знаю — подскажет исполнитель")).toBeVisible();
+  await expect(summary.getByText("Кухня до потолка, нужна посудомойка")).toBeVisible();
+  await expect(summary.getByText("Комфорт")).toBeVisible();
   await page.getByRole("button", { name: "Отправить заявку" }).click();
 
   await page.waitForURL(/\/requests\/[^/]+\?sent=1$/);

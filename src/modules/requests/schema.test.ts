@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyStep, parseDetails, requestDetailsSchema, segmentInputOf, stepInputSchema } from "./schema";
+import { applyStep, parseDetails, requestDetailsSchema, resumeIndex, screenIndex, segmentInputOf, stepInputSchema, WIZARD_SCREENS } from "./schema";
 
 describe("схема details", () => {
   it("принимает формат сида, включая групповое «не знаю» по материалам", () => {
@@ -82,11 +82,61 @@ describe("шаги мастера", () => {
     });
   });
 
-  it("отправка: сегмент и адрес обязательны", () => {
-    const base = { screen: "send", segment: "COMFORT", city: "Астана", address: "ул. Тестовая, 1", desiredDate: null, wishes: "" };
+  it("уровень обязателен и только из списка", () => {
+    expect(stepInputSchema.safeParse({ screen: "segment", segment: "COMFORT" }).success).toBe(true);
+    expect(stepInputSchema.safeParse({ screen: "segment", segment: null }).success).toBe(false);
+    expect(stepInputSchema.safeParse({ screen: "segment", segment: "GOLD" }).success).toBe(false);
+  });
+
+  it("помещение: фото и описание своими словами, описание попадает в details", () => {
+    const step = stepInputSchema.parse({ screen: "room", photoFileIds: [], description: "  Угловая, до потолка  " });
+    expect(applyStep(parseDetails({ widthCm: 300 }), step)).toEqual({ widthCm: 300, description: "Угловая, до потолка" });
+    const empty = stepInputSchema.parse({ screen: "room", photoFileIds: [] });
+    expect(applyStep(parseDetails({ description: "старое" }), empty)).toEqual({});
+  });
+
+  it("адрес: город и адрес обязательны, дата — по желанию", () => {
+    const base = { screen: "place", city: "Астана", address: "ул. Тестовая, 1", desiredDate: null };
     expect(stepInputSchema.safeParse(base).success).toBe(true);
-    expect(stepInputSchema.safeParse({ ...base, segment: null }).success).toBe(false);
     expect(stepInputSchema.safeParse({ ...base, address: "" }).success).toBe(false);
+    expect(stepInputSchema.safeParse({ ...base, city: "" }).success).toBe(false);
     expect(stepInputSchema.safeParse({ ...base, desiredDate: "31.12.2026" }).success).toBe(false);
+  });
+
+  it("отправка — без полей: всё уже сохранено на прошлых экранах", () => {
+    expect(stepInputSchema.safeParse({ screen: "send" }).success).toBe(true);
+    expect(stepInputSchema.safeParse({ screen: "send", segment: "COMFORT" }).success).toBe(false);
+  });
+
+  it("материалы — не экран мастера: их приносит помощник, прогресс мастера они не двигают", () => {
+    expect(WIZARD_SCREENS).not.toContain("materials");
+    expect(screenIndex("materials")).toBe(-1);
+    expect(screenIndex("send")).toBe(WIZARD_SCREENS.length - 1);
+  });
+});
+
+describe("с какого экрана продолжить черновик", () => {
+  const full = { wizardStep: WIZARD_SCREENS.length, segment: "COMFORT", address: "ул. Тестовая, 1" };
+  const at = (screen: (typeof WIZARD_SCREENS)[number]) => WIZARD_SCREENS.indexOf(screen);
+
+  it("новый черновик — первый экран", () => {
+    expect(resumeIndex(null, undefined)).toBe(0);
+  });
+
+  it("без запроса — последний сохранённый экран; дальше сохранённого не пускает", () => {
+    expect(resumeIndex({ ...full, wizardStep: 2, segment: null, address: null }, undefined)).toBe(2);
+    expect(resumeIndex({ ...full, wizardStep: 2, segment: null, address: null }, "place")).toBe(2);
+    expect(resumeIndex({ ...full, wizardStep: 2, segment: null, address: null }, "type")).toBe(0);
+    expect(resumeIndex(full, undefined)).toBe(at("send"));
+    expect(resumeIndex(full, "style")).toBe(at("style"));
+  });
+
+  it("неизвестный экран в адресе — последний сохранённый", () => {
+    expect(resumeIndex(full, "materials")).toBe(at("send"));
+  });
+
+  it("черновик прежнего мастера без уровня или адреса возвращается к этому экрану", () => {
+    expect(resumeIndex({ wizardStep: 6, segment: null, address: null }, undefined)).toBe(at("segment"));
+    expect(resumeIndex({ wizardStep: 6, segment: "ECONOMY", address: null }, "send")).toBe(at("place"));
   });
 });

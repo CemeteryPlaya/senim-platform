@@ -53,19 +53,3 @@ export function termsText(terms: MeasurementTerms, fee: number | null): string {
   const t = ru.requests.terms;
   return terms === "FEE_IF_NO_DEAL" ? t.FEE_IF_NO_DEAL(formatMoney(fee ?? 0)) : t[terms];
 }
-
-/** Картинки-примеры для плиток стиля и уровня (демо-иллюстрации из public/). */
-export const STYLE_IMAGES: Record<string, string> = {
-  modern: "/demo/portfolio/kitchen-sage.svg",
-  minimalism: "/demo/portfolio/wardrobe-white.svg",
-  scandi: "/demo/portfolio/tv-zone-scandi.svg",
-  loft: "/demo/portfolio/shelving-loft.svg",
-  neoclassic: "/demo/portfolio/kitchen-neoclassic.svg",
-  classic: "/demo/portfolio/office-walnut.svg",
-};
-
-export const SEGMENT_IMAGES = {
-  ECONOMY: "/demo/portfolio/wardrobe-oak.svg",
-  COMFORT: "/demo/portfolio/kitchen-sage.svg",
-  PREMIUM: "/demo/portfolio/kitchen-island-oak.svg",
-} as const;

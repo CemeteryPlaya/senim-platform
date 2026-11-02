@@ -30,20 +30,24 @@ export async function makeFurnitureType(name = "Кухня") {
 
 export type DraftOpts = { segment?: Segment; like?: string; typeId?: string };
 
-export function sendStep(segment: Segment = "COMFORT"): StepInput {
-  return { screen: "send", segment, city: "Астана", address: "ул. Тестовая, 1, кв. 2", desiredDate: null, wishes: "" };
+export function segmentStep(segment: Segment = "COMFORT"): StepInput {
+  return { screen: "segment", segment };
 }
 
-/** Заполненный мастер (все шесть экранов), но ещё не отправленный. */
+export const placeStep: StepInput = { screen: "place", city: "Астана", address: "ул. Тестовая, 1, кв. 2", desiredDate: null };
+
+/** Заполненный мастер (все экраны и материалы от помощника), но ещё не отправленный. */
 export async function makeDraft(client: CurrentUser, opts: DraftOpts = {}): Promise<string> {
   const typeId = opts.typeId ?? (await makeFurnitureType()).id;
   const steps: StepInput[] = [
     { screen: "type", furnitureTypeId: typeId, customType: null },
     { screen: "style", style: "modern", styleNote: "" },
-    { screen: "room", photoFileIds: [] },
     { screen: "size", size: { mode: "known", widthCm: 300, heightCm: 250, depthCm: 60 } },
     { screen: "materials", facade: "mdf_film", countertop: "unknown", hardware: "soft_close", color: "", extras: [], description: "" },
-    sendStep(opts.segment),
+    segmentStep(opts.segment),
+    { screen: "room", photoFileIds: [], description: "" },
+    placeStep,
+    { screen: "send" },
   ];
   let requestId: string | null = null;
   for (const step of steps) {
