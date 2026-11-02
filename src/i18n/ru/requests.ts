@@ -89,7 +89,7 @@ export const requests = {
       customHint: "Например: кровать-чердак с рабочим местом",
       customOption: "Свой вариант",
       customOptionHint: "Впишите своими словами",
-      direct: (n: number) => `Заявку получит только Исполнитель №${n} — автор понравившейся работы.`,
+      direct: (who: string) => `Заявку получит только ${who} — автор понравившейся работы.`,
     },
     style: {
       title: "Какой стиль вам нравится?",
@@ -134,7 +134,7 @@ export const requests = {
     send: {
       title: "Отправьте заявку",
       lead: "Выберите уровень мебели. Заявку увидят только проверенные исполнители этого уровня.",
-      leadDirect: (n: number) => `Заявку увидит только Исполнитель №${n}.`,
+      leadDirect: (who: string) => `Заявку увидит только ${who}.`,
       segmentLabel: "Уровень мебели",
       segmentHint: {
         ECONOMY: "Практичные решения по доступной цене",
@@ -151,7 +151,7 @@ export const requests = {
       wishesHint: "Например: встроить посудомойку, шкафы до потолка",
       submit: "Отправить заявку",
       footnote: (segment: string) => `Заявку увидят только проверенные исполнители уровня «${segment}».`,
-      footnoteDirect: (n: number) => `Заявку увидит только Исполнитель №${n}.`,
+      footnoteDirect: (who: string) => `Заявку увидит только ${who}.`,
     },
   },
 
@@ -174,7 +174,7 @@ export const requests = {
     sentText: "Исполнители получили заявку и готовят предложения. Мы уведомим вас о новых откликах.",
     waitingTitle: "Получайте предложения",
     waitingText: "Мы уведомим вас, когда появятся новые отклики.",
-    chosenTitle: (n: number) => `Вы выбрали Исполнителя №${n}`,
+    chosenTitle: (whomGen: string) => `Вы выбрали ${whomGen}`,
     chosenText: "Адрес передан исполнителю. Договоритесь о замере в чате — исполнитель назначит время.",
     openChosen: "Открыть отклик и чат",
     scheduledTitle: "Замер назначен",
@@ -211,7 +211,7 @@ export const requests = {
   },
 
   offer: {
-    title: (n: number) => `Предложение Исполнителя №${n}`,
+    title: (whoseGen: string) => `Предложение ${whoseGen}`,
     metaTitle: "Предложение",
     rating: (r: string, count: number) => `Рейтинг ${r}, отзывов: ${count}`,
     noRating: "Пока без отзывов",
@@ -237,15 +237,15 @@ export const requests = {
       { title: "Договор", text: "Подписываете электронной подписью." },
       { title: "Изготовление и монтаж", text: "Оплата по этапам напрямую исполнителю." },
     ],
-    chatWith: (n: number) => `Написать Исполнителю №${n}`,
+    chatWith: (toDat: string) => `Написать ${toDat}`,
     choose: "Выбрать и перейти к замеру",
-    chooseConfirmTitle: (n: number) => `Выбрать Исполнителя №${n}?`,
+    chooseConfirmTitle: (whomGen: string) => `Выбрать ${whomGen}?`,
     chooseConfirmText:
       "Исполнитель увидит адрес и договорится с вами о замере в чате. Выбрать другого исполнителя можно будет, только если после замера сделка не состоится.",
     chooseConfirm: "Да, выбрать",
     more: "Подробнее",
     write: "Написать",
-    photos: (n: number) => `Работы Исполнителя №${n}`,
+    photos: (whoseGen: string) => `Работы ${whoseGen}`,
   },
 
   incoming: {
@@ -356,8 +356,8 @@ export const requests = {
   notify: {
     newRequest: { title: "Новая заявка", body: (title: string) => `Заявка «${title}» ждёт вашего отклика.` },
     directRequest: { title: "Прямой запрос", body: (title: string) => `Заказчик хочет похожую работу: «${title}».` },
-    offerReceived: { title: "Новый отклик на заявку", body: (title: string, n: number) => `На заявку «${title}» откликнулся Исполнитель №${n}.` },
-    offerWithdrawn: { title: "Отклик отозван", body: (title: string, n: number) => `Исполнитель №${n} отозвал отклик на заявку «${title}».` },
+    offerReceived: { title: "Новый отклик на заявку", body: (title: string, who: string) => `На заявку «${title}» откликнулся ${who}.` },
+    offerWithdrawn: { title: "Отклик отозван", body: (title: string, who: string) => `${who} отозвал отклик на заявку «${title}».` },
     offerChosen: {
       title: "Ваш отклик выбран",
       body: (title: string) => `Заказчик выбрал вас по заявке «${title}». Адрес открыт — договоритесь о замере в чате и назначьте время.`,

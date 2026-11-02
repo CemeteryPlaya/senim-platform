@@ -1,6 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import { findLikeablePortfolioItem } from "@/modules/companies";
+import { executorDisplayOf, findLikeablePortfolioItem } from "@/modules/companies";
 import { attachFiles } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
@@ -227,6 +227,8 @@ export async function getDraft(user: CurrentUser, requestId: string) {
   const target = r.targetExecutorId
     ? await db.executorProfile.findUnique({ where: { id: r.targetExecutorId }, select: { publicNumber: true, segment: true } })
     : null;
+  // Подпись исполнителя прямой заявки — по режиму «имя скрыто / показано» (companies, №6).
+  const targetLabel = r.targetExecutorId ? (await executorDisplayOf(db, r.targetExecutorId)).label : null;
   return {
     id: r.id,
     number: r.number,
@@ -246,6 +248,7 @@ export async function getDraft(user: CurrentUser, requestId: string) {
     title: requestTitle(r),
     photos: await roomPhotos(photos),
     target,
+    targetLabel,
   };
 }
 export type Draft = Awaited<ReturnType<typeof getDraft>>;
@@ -255,7 +258,8 @@ export type Draft = Awaited<ReturnType<typeof getDraft>>;
 export async function likeTarget(portfolioItemId: string, user: Pick<CurrentUser, "id">) {
   const item = await findLikeablePortfolioItem(db, portfolioItemId, user.id);
   if (!item) return fail.notFound(e.portfolioNotFound);
-  return { id: item.id, title: item.title, furnitureTypeId: item.furnitureTypeId, style: item.style, executor: item.executor };
+  const { label } = await executorDisplayOf(db, item.executorId);
+  return { id: item.id, title: item.title, furnitureTypeId: item.furnitureTypeId, style: item.style, executor: { ...item.executor, label } };
 }
 
 /** «Мои заявки»: свои заявки с числом действующих откликов. */
@@ -314,6 +318,7 @@ export async function getClientRequest(user: CurrentUser, requestId: string) {
     chosen: chosen && {
       id: chosen.id,
       executorNumber: chosen.executor.publicNumber,
+      executorLabelGen: (await executorDisplayOf(db, chosen.executorId)).labelGen,
       price: chosen.price,
       measurementTerms: chosen.measurementTerms,
       measurementFee: chosen.measurementFee,

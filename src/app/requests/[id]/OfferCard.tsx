@@ -23,7 +23,7 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
           <div aria-hidden className="aspect-[4/3] w-full rounded-control bg-sunken" />
         )}
         {rest.length > 0 && (
-          <ul className="grid grid-cols-3 gap-2" aria-label={o.photos(ex.publicNumber)}>
+          <ul className="grid grid-cols-3 gap-2" aria-label={o.photos(ex.labelGen)}>
             {rest.slice(0, 3).map((p, i) => (
               <li key={`${p.src}-${i}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- иллюстрации портфолио из хранилища */}

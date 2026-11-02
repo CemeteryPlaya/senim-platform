@@ -366,7 +366,7 @@ export function MaterialsStep(props: StepBase & { details: RequestDetails }) {
 
 export type SendInitial = { segment: string; city: string; address: string; desiredDate: string; wishes: string };
 
-export function SendStep(props: { draftId: string; initial: SendInitial; suggestion: ReactNode; summary: ReactNode; directNumber: number | null }) {
+export function SendStep(props: { draftId: string; initial: SendInitial; suggestion: ReactNode; summary: ReactNode; directLabel: string | null }) {
   const s = w.send;
   const [form, setForm] = useState(props.initial);
   const [errors, setErrors] = useState<Errors>({});
@@ -402,15 +402,15 @@ export function SendStep(props: { draftId: string; initial: SendInitial; suggest
       actions={
         <div className="flex w-full flex-col gap-2 sm:items-end">
           <NextButton pending={pending} label={s.submit} />
-          {props.directNumber !== null ? (
-            <p className="text-sm text-muted">{s.footnoteDirect(props.directNumber)}</p>
+          {props.directLabel !== null ? (
+            <p className="text-sm text-muted">{s.footnoteDirect(props.directLabel)}</p>
           ) : (
             chosen && <p className="text-sm text-muted">{s.footnote(SEGMENT_NAMES[chosen])}</p>
           )}
         </div>
       }
     >
-      <StepHeading title={s.title} lead={props.directNumber !== null ? s.leadDirect(props.directNumber) : s.lead} />
+      <StepHeading title={s.title} lead={props.directLabel !== null ? s.leadDirect(props.directLabel) : s.lead} />
       {props.suggestion}
       <RadioCards label={s.segmentLabel} name="segment" options={options} value={form.segment} onChange={(v) => set({ segment: v })} columns={3} error={first(errors, "segment")} />
       {props.summary}

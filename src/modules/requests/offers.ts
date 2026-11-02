@@ -1,5 +1,5 @@
 import "server-only";
-import { publicExecutorView, publicExecutorViews, sanitizeExecutorText } from "@/modules/companies";
+import { executorDisplayOf, publicExecutorView, publicExecutorViews, sanitizeExecutorText } from "@/modules/companies";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
@@ -51,7 +51,7 @@ export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promi
         userId: r.clientId,
         kind: "offer.received",
         title: n.offerReceived.title,
-        body: n.offerReceived.body(title, executor.publicNumber),
+        body: n.offerReceived.body(title, (await executorDisplayOf(tx, executor.id)).label),
         link: links.client(r.id),
       });
       return { offerId: offer.id };
@@ -84,7 +84,7 @@ export async function withdrawOffer(user: CurrentUser, input: { offerId: string 
       userId: offer.request.clientId,
       kind: "offer.withdrawn",
       title: n.offerWithdrawn.title,
-      body: n.offerWithdrawn.body(requestTitle(offer.request), executor.publicNumber),
+      body: n.offerWithdrawn.body(requestTitle(offer.request), (await executorDisplayOf(tx, executor.id)).label),
       link: links.client(offer.requestId),
     });
   });

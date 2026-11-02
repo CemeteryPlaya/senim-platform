@@ -36,7 +36,7 @@ export default async function OfferPage({ params }: Props) {
     <Container className="flex flex-col gap-10 pb-10">
       <PageHeader
         back={{ href: `/requests/${id}`, label: ru.requests.requestTitle(offer.request.number, offer.request.title) }}
-        title={o.title(ex.publicNumber)}
+        title={o.title(ex.labelGen)}
         description={offer.status !== "SENT" ? <StatusBadge tone={OFFER_TONE[offer.status]}>{ru.requests.offerStatus[offer.status]}</StatusBadge> : undefined}
       />
 
@@ -50,6 +50,7 @@ export default async function OfferPage({ params }: Props) {
         {ex.segment && <Fact compact label={o.segment}>{SEGMENT_NAMES[ex.segment]}</Fact>}
         <Fact compact label={o.experience}>{formatYears(ex.yearsExperience)}</Fact>
         <Fact compact label={o.deals}>{ex.completedDeals}</Fact>
+        {ex.address && <Fact compact label={ru.companies.identity.address}>{ex.address}</Fact>}
       </dl>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
@@ -133,7 +134,7 @@ export default async function OfferPage({ params }: Props) {
         </ol>
       </Section>
 
-      <OfferChat offerId={offer.id} title={o.chatWith(ex.publicNumber)} />
+      <OfferChat offerId={offer.id} title={o.chatWith(ex.labelDat)} />
 
       {offer.canChoose && (
         // Закреплён над нижней панелью телефона (--tabbar-h, на широком экране 0), только если экран выше 28em:
@@ -144,7 +145,7 @@ export default async function OfferPage({ params }: Props) {
             input={{ offerId: offer.id }}
             href={`/requests/${id}`}
             fullWidth
-            confirm={{ title: o.chooseConfirmTitle(ex.publicNumber), text: o.chooseConfirmText, yes: o.chooseConfirm, no: ru.common.actions.notNow, tone: "primary" }}
+            confirm={{ title: o.chooseConfirmTitle(ex.labelGen), text: o.chooseConfirmText, yes: o.chooseConfirm, no: ru.common.actions.notNow, tone: "primary" }}
           >
             <span className="inline-flex items-center gap-2">
               {o.choose}

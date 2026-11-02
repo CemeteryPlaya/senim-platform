@@ -47,7 +47,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
   const next = WIZARD_SCREENS[index + 1] ?? null;
   const back = index === 0 || !draft ? "/requests" : hrefOf(draft.id, WIZARD_SCREENS[index - 1]);
   const base = { draftId: draft?.id ?? null, like: like?.id ?? null, next };
-  const directNumber = draft?.target?.publicNumber ?? like?.executor.publicNumber ?? null;
+  const directLabel = draft?.targetLabel ?? like?.executor.label ?? null;
 
   return (
     <Container size="form" className="flex flex-col gap-8 pt-4 pb-10">
@@ -57,7 +57,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
           {...base}
           types={await listFurnitureTypes()}
           initial={{ furnitureTypeId: draft?.furnitureTypeId ?? like?.furnitureTypeId ?? null, customType: draft?.customType ?? null }}
-          note={directNumber !== null ? <Alert tone="accent">{w.type.direct(directNumber)}</Alert> : undefined}
+          note={directLabel !== null ? <Alert tone="accent">{w.type.direct(directLabel)}</Alert> : undefined}
         />
       )}
       {screen === "style" && draft && <StyleStep {...base} initial={{ style: draft.style, styleNote: draft.details.styleNote ?? "" }} />}
@@ -75,12 +75,12 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
       )}
       {screen === "size" && draft && <SizeStep {...base} details={draft.details} />}
       {screen === "materials" && draft && <MaterialsStep {...base} details={draft.details} />}
-      {screen === "send" && draft && <SendScreen draft={draft} directNumber={directNumber} />}
+      {screen === "send" && draft && <SendScreen draft={draft} directLabel={directLabel} />}
     </Container>
   );
 }
 
-function SendScreen({ draft, directNumber }: { draft: Draft; directNumber: number | null }) {
+function SendScreen({ draft, directLabel }: { draft: Draft; directLabel: string | null }) {
   const s = w.send;
   const edit = (screen: WizardScreen, label: string) => (
     <Link href={hrefOf(draft.id, screen)} aria-label={ru.common.ui.actionFor(w.edit, label)} className="inline-flex min-h-control-sm items-center rounded-control px-2 font-semibold text-primary">
@@ -101,7 +101,7 @@ function SendScreen({ draft, directNumber }: { draft: Draft; directNumber: numbe
   return (
     <SendStep
       draftId={draft.id}
-      directNumber={directNumber}
+      directLabel={directLabel}
       initial={{
         segment: draft.segment ?? draft.segmentSuggested ?? draft.target?.segment ?? "",
         city: draft.city,

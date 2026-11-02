@@ -188,7 +188,7 @@ function StatusPanel({ request, needsIdentity, rail }: { request: ClientRequest;
       return chosen ? (
         <Alert
           tone="accent"
-          title={t.chosenTitle(chosen.executorNumber)}
+          title={t.chosenTitle(chosen.executorLabelGen)}
           action={
             <ButtonLink href={`/requests/${request.id}/offers/${chosen.id}#chat`} variant="secondary">
               {t.openChosen}
