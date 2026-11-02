@@ -4,6 +4,7 @@ import { common } from "./ru/common";
 import { companies } from "./ru/companies";
 import { deal } from "./ru/deal";
 import { documents } from "./ru/documents";
+import { executor } from "./ru/executor";
 import { files } from "./ru/files";
 import { identity } from "./ru/identity";
 import { landing } from "./ru/landing";
@@ -22,6 +23,7 @@ export const ru = {
   identity,
   companies,
   requests,
+  executor,
   deal,
   payments,
   documents,
