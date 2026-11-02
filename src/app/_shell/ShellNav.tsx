@@ -197,7 +197,7 @@ function TabCell({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
       </span>
       {/* На узкой панели (это всегда крупный шрифт: 22em — от него) подпись на четверть мельче шрифта панели —
           всё равно крупнее обычной, зато слова раздела не рвутся посередине. */}
-      <span className="max-w-full @max-[22em]:text-[0.75em]">{label}</span>
+      <span className="max-w-full tracking-tight @max-[22em]:text-[0.75em]">{label}</span>
     </>
   );
 }
@@ -232,7 +232,8 @@ export function MobileTabBar({ items }: { items: readonly NavItem[] }) {
     >
       {/* Ячейки делят ширину поровну; скрытая (display: none) места не занимает. На узкой панели «Ещё»
           берёт ширину по подписи, остальное — разделам, чтобы их подписи переносились только по словам. */}
-      <ul className="mx-auto flex max-w-page px-0.5 py-1">
+      {/* Между ячейками зазор: на 390 px «Мои заявки» и «Вдохновение» иначе почти сливаются. */}
+      <ul className="mx-auto flex max-w-page gap-1 px-1 py-1">
         {wide.shown.map((item) => (
           <li key={item.href} className={cn("flex min-w-0 flex-1 basis-0", !narrowShown.has(item.href) && WIDE_ONLY)}>
             <Link href={item.href} aria-current={current(item)} className={cell}>
