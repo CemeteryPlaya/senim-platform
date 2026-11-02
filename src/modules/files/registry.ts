@@ -3,6 +3,7 @@ import { ru } from "@/i18n/ru";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { createLocalStorage } from "./providers/local";
+import { PURPOSE_POLICY } from "./policy";
 import { createStaticStorage } from "./providers/static";
 import type { StorageName, StorageProvider } from "./storage";
 
@@ -65,18 +66,15 @@ export function storage(): Promise<StorageProvider> {
   return storageByName(env().STORAGE_PROVIDER);
 }
 
-/** Срок жизни ссылки для экрана: хватает на просмотр страницы и открытие фото. */
 const SCREEN_URL_TTL_SEC = 60 * 60;
-/**
- * Фото сделки, споров, чата и документы — 15 минут: пересланная ссылка быстро перестаёт работать.
- * Портфолио, фото помещения и визуализации — час (их и так видит больше людей).
- */
 const PRIVATE_URL_TTL_SEC = 15 * 60;
-const PRIVATE_PURPOSES = new Set(["stage_report", "dispute", "message", "document"]);
+const SHORT_LINK_KEYS = new Set(
+  Object.entries(PURPOSE_POLICY).flatMap(([purpose, policy]) => (policy.shortLink ? [purpose.toLowerCase()] : [])),
+);
 
 /** Назначение — первый сегмент ключа: <purpose>/<yyyy>/<mm>/<id>.<ext> (finalKeyBase в upload.ts). */
 function screenUrlTtlSec(storageKey: string): number {
-  return PRIVATE_PURPOSES.has(storageKey.split("/")[0] ?? "") ? PRIVATE_URL_TTL_SEC : SCREEN_URL_TTL_SEC;
+  return SHORT_LINK_KEYS.has(storageKey.split("/")[0] ?? "") ? PRIVATE_URL_TTL_SEC : SCREEN_URL_TTL_SEC;
 }
 
 /**

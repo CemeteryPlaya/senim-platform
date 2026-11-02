@@ -3,6 +3,7 @@ export const files = {
   errors: {
     notImage: "Это не фото. Выберите снимок в формате JPEG, HEIC, PNG или WEBP",
     notImageOrPdf: "Подходят только фото (JPEG, HEIC, PNG, WEBP) и документы PDF",
+    notPng: "Подпись должна быть картинкой PNG",
     broken: "Файл повреждён или не открывается. Выберите другой",
     tooLarge: (mb: number) => `Файл больше ${mb} МБ. Выберите файл поменьше`,
     notUploaded: "Файл не дошёл до хранилища. Попробуйте загрузить ещё раз",

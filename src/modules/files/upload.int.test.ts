@@ -27,7 +27,7 @@ const scene = (fill: string, x: number) =>
     .toBuffer();
 
 /** Как браузер: createUpload → PUT байтов по цели → finalizeUpload. Для local цель — наш маршрут, здесь кладём напрямую. */
-async function upload(user: Awaited<ReturnType<typeof makeClient>>, purpose: "REQUEST_ROOM" | "PORTFOLIO", bytes: Uint8Array, contentType = "image/jpeg") {
+async function upload(user: Awaited<ReturnType<typeof makeClient>>, purpose: "REQUEST_ROOM" | "PORTFOLIO" | "HAND_SIGNATURE", bytes: Uint8Array, contentType = "image/jpeg") {
   const { token, target } = await createUpload(user, { purpose, contentType, size: bytes.length });
   expect(target.kind).toBe("http");
   const stagingKey = JSON.parse(Buffer.from(token.split(".")[0]!, "base64url").toString()).stagingKey as string;
@@ -104,6 +104,26 @@ describe("загрузка по подписанной цели", () => {
     const error = await finalizeUpload(client, { token }).catch((e: unknown) => e);
     expect(isAppError(error) && error.message).toMatch(/больше 25 МБ/);
     expect(await (await storage()).get(stagingKey)).toBeNull();
+  });
+
+  it("рисунок подписи: PNG с прозрачностью и без метаданных; JPEG и PDF — нет", async () => {
+    const client = await makeClient();
+    const drawn = await sharp({ create: { width: 600, height: 200, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="200"><path d="M20 150 C 150 20, 300 180, 580 40" stroke="#000" stroke-width="6" fill="none"/></svg>') }])
+      .png()
+      .withExifMerge({ IFD0: { Software: "Phone" } })
+      .toBuffer();
+    const { result } = await upload(client, "HAND_SIGNATURE", new Uint8Array(drawn), "image/png");
+
+    const file = await db.storedFile.findUniqueOrThrow({ where: { id: result.id } });
+    expect(file).toMatchObject({ purpose: "HAND_SIGNATURE", contentType: "image/png", width: 600, height: 200, phash: null });
+    expect(file.storageKey).toMatch(/^hand_signature\/.+\.png$/);
+    const meta = await sharp(Buffer.from((await (await storage()).get(file.storageKey))!)).metadata();
+    expect(meta).toMatchObject({ format: "png", hasAlpha: true });
+    expect(meta.exif).toBeUndefined();
+
+    expect(await code(createUpload(client, { purpose: "HAND_SIGNATURE", contentType: "image/jpeg", size: 100 }))).toBe("VALIDATION");
+    expect(await code(upload(client, "HAND_SIGNATURE", new Uint8Array(await scene("#000", 10)), "image/png"))).toBe("VALIDATION");
   });
 
   it("назначение ограничено ролью: заказчик не загружает в портфолио", async () => {
@@ -195,7 +215,11 @@ describe("fileUrl", () => {
   });
 
   it.each([
-    ["stage_report/2026/10/a.jpg", 15 * 60],
+    ["progress_report/2026/10/a.jpg", 15 * 60],
+    ["delivery/2026/10/a.jpg", 15 * 60],
+    ["kyc_id/2026/10/a.pdf", 15 * 60],
+    ["bank_document/2026/10/a.pdf", 15 * 60],
+    ["hand_signature/2026/10/a.png", 15 * 60],
     ["dispute/2026/10/a.jpg", 15 * 60],
     ["message/2026/10/a.jpg", 15 * 60],
     ["document/2026/10/a.pdf", 15 * 60],
