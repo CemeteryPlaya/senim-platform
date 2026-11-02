@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { Download, Handshake, TriangleAlert, Wallet } from "lucide-react";
+import Link from "next/link";
+import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
-import { buildReport, CSV_KINDS, reportSchema, type StatusTotal } from "@/modules/operator";
-import { Alert, Button, buttonClasses, Card, Container, DateText, Input, Money, PageHeader, SectionTitle, Stat, StatusBadge } from "@/ui";
+import { buildReport, CSV_KINDS, reportSchema } from "@/modules/operator";
+import { Alert, Button, buttonClasses, Card, Container, DateText, Input, PageHeader, SectionTitle, Stat } from "@/ui";
+import { formatTiyn } from "@/ui/format";
 import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
 
@@ -11,17 +14,19 @@ const t = o.report;
 
 export const metadata: Metadata = { title: t.title };
 
-function Totals<S extends string>({ title, rows, label }: { title: string; rows: StatusTotal<S>[]; label: (s: S) => string }) {
-  const total = rows.reduce((acc, r) => ({ count: acc.count + r.count, sum: acc.sum + r.sum }), { count: 0, sum: 0 });
+type Row = { key: string; label: ReactNode; count: number; sumTiyn: bigint };
+
+/** Таблица «что — сколько — на какую сумму» с итогом; на узком экране прокручивается в своей области. */
+function Totals({ title, head, rows }: { title: string; head: string; rows: Row[] }) {
+  const total = rows.reduce((acc, r) => ({ count: acc.count + r.count, sum: acc.sum + r.sumTiyn }), { count: 0, sum: 0n });
   return (
     <Card title={title}>
-      {/* На узком экране и при крупном шрифте таблица прокручивается в своей области, а не двигает страницу. */}
       <div className="-mx-1 overflow-x-auto px-1" tabIndex={0} role="region" aria-label={ru.common.ui.tableRegion(title)}>
         <table className="w-full text-left text-base">
           <thead className="text-sm text-muted">
             <tr>
               <th scope="col" className="pb-2 font-semibold">
-                {t.status}
+                {head}
               </th>
               <th scope="col" className="pb-2 text-right font-semibold">
                 {t.count}
@@ -33,14 +38,12 @@ function Totals<S extends string>({ title, rows, label }: { title: string; rows:
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.status} className="border-t border-line">
+              <tr key={r.key} className="border-t border-line">
                 <th scope="row" className="py-2 pr-3 font-normal">
-                  {label(r.status)}
+                  {r.label}
                 </th>
                 <td className="py-2 text-right tabular-nums">{r.count}</td>
-                <td className="py-2 pl-3 text-right">
-                  <Money amount={r.sum} />
-                </td>
+                <td className="py-2 pl-3 text-right tabular-nums">{formatTiyn(r.sumTiyn)}</td>
               </tr>
             ))}
           </tbody>
@@ -50,9 +53,7 @@ function Totals<S extends string>({ title, rows, label }: { title: string; rows:
                 {t.total}
               </th>
               <td className="py-2 text-right tabular-nums">{total.count}</td>
-              <td className="py-2 pl-3 text-right">
-                <Money amount={total.sum} />
-              </td>
+              <td className="py-2 pl-3 text-right tabular-nums">{formatTiyn(total.sum)}</td>
             </tr>
           </tfoot>
         </table>
@@ -61,16 +62,25 @@ function Totals<S extends string>({ title, rows, label }: { title: string; rows:
   );
 }
 
+/** Отчёт оператора из журнала денег (ADR-009): сделки по статусам, операции, расхождения manual, CSV. */
 export default async function ReportPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireOperatorPage("/operator/report");
   const parsed = reportSchema.safeParse(flatParams(await searchParams));
   const { staleDays } = parsed.success ? parsed.data : { staleDays: 3 };
   const report = await buildReport(user, { staleDays });
-  const deals = report.deals.reduce((acc, r) => ({ count: acc.count + r.count, sum: acc.sum + r.sum }), { count: 0, sum: 0 });
+  const deals = report.deals.reduce((acc, r) => ({ count: acc.count + r.count, sum: acc.sum + r.sumTiyn }), { count: 0, sum: 0n });
 
   return (
     <Container className="pb-10">
-      <PageHeader title={t.title} back={{ href: "/operator", label: o.backToPanel }} />
+      <PageHeader
+        title={t.title}
+        back={{ href: "/operator", label: o.backToPanel }}
+        actions={
+          <Link href="/operator/income" className={buttonClasses({ variant: "secondary" })}>
+            {t.incomeLink}
+          </Link>
+        }
+      />
       <div className="flex flex-col gap-8">
         <ul aria-label={t.stats} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-3">
           <li className="flex">
@@ -80,14 +90,22 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
             <Stat className="flex-1" icon={<TriangleAlert />} value={report.discrepancies.length} label={t.statDiscrepancies} />
           </li>
           <li className="col-span-full flex sm:col-span-1">
-            <Stat className="flex-1" icon={<Wallet />} value={<Money amount={deals.sum} />} label={t.statSum} />
+            <Stat className="flex-1" icon={<Wallet />} value={formatTiyn(deals.sum)} label={t.statPrice} />
           </li>
         </ul>
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-6">
-          <Totals title={t.deals} rows={report.deals} label={(s) => o.dealStatus[s]} />
-          <Totals title={t.stages} rows={report.stages} label={(s) => o.stageStatus[s]} />
-          <Totals title={t.payments} rows={report.payments} label={(s) => o.paymentStatus[s]} />
+          <Totals title={t.deals} head={t.status} rows={report.deals.map((r) => ({ key: r.status, label: o.dealStatus[r.status], count: r.count, sumTiyn: r.sumTiyn }))} />
+          <Totals
+            title={t.operations}
+            head={t.type}
+            rows={report.operations.map((r) => ({
+              key: `${r.type}-${r.status}`,
+              label: `${o.money.types[r.type]}: ${o.money.status[r.status].toLowerCase()}`,
+              count: r.count,
+              sumTiyn: r.sumTiyn,
+            }))}
+          />
         </div>
 
         <section aria-labelledby="discrepancies" className="flex flex-col gap-4">
@@ -107,58 +125,21 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
             <ul className={LIST_GRID}>
               {report.discrepancies.map((d) => (
                 <ListCard
-                  key={`${d.dealId}-${d.stageTitle}`}
-                  href={`/deals/${d.dealId}`}
-                  title={`${o.disputes.deal(d.dealNumber)}: ${d.dealTitle}`}
+                  key={d.transactionId}
+                  href={`/operator/deals/${d.dealId}`}
+                  title={o.money.deal(d.dealNumber, d.dealTitle)}
                   meta={[
-                    <span key="stage" className="text-ink-soft">
-                      {d.stageTitle}
-                    </span>,
-                    <span key="marked">
-                      {t.markedAt} <DateText value={d.markedPaidAt} format="dateTime" />
+                    o.money.types[d.type],
+                    <span key="at">
+                      {t.createdAt} <DateText value={d.createdAt} format="dateTime" />, {o.money.waiting(d.daysWaiting).toLowerCase()}
                     </span>,
                   ]}
-                  aside={<Money amount={d.amount} />}
+                  aside={formatTiyn(d.amountTiyn)}
                 />
               ))}
             </ul>
           )}
         </section>
-
-        <Card title={t.reconciliation}>
-          {report.reconciliation.length === 0 ? (
-            <p className="text-base text-ink-soft">{t.reconciliationEmpty}</p>
-          ) : (
-            report.reconciliation.map((r) => (
-              <section key={r.dealId} aria-label={o.disputes.deal(r.dealNumber)} className="flex flex-col gap-2 border-b border-line pb-4 last:border-b-0">
-                <h3 className="text-lg font-bold text-ink">
-                  {o.disputes.deal(r.dealNumber)}: {r.title}
-                </h3>
-                {r.rows === null ? (
-                  <Alert tone="warning">{t.statementUnavailable}</Alert>
-                ) : (
-                  <ul className="flex flex-col gap-2">
-                    {r.rows.map((row, i) => (
-                      <li key={`${row.idempotencyKey ?? row.externalRef}-${i}`} className="flex flex-wrap items-center gap-2 text-base">
-                        <StatusBadge tone={row.status === "MATCHED" ? "success" : "danger"}>{t.reconStatus[row.status]}</StatusBadge>
-                        <span>{t.opKinds[row.kind]}</span>
-                        <span className="text-ink-soft">
-                          {t.ours}: {row.ourAmount === null ? o.none : <Money amount={row.ourAmount} />}
-                        </span>
-                        <span className="text-ink-soft">
-                          {t.bank}: {row.bankAmount === null ? o.none : <Money amount={row.bankAmount} />}
-                        </span>
-                        <span className="text-sm break-all text-muted">
-                          {t.key}: {row.idempotencyKey ?? o.none}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            ))
-          )}
-        </Card>
 
         <Card title={t.downloads} description={t.downloadsHint}>
           <div className="flex flex-wrap gap-3">

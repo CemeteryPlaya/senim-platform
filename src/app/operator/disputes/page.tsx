@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Scale } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { listDisputes } from "@/modules/operator";
-import { Container, DateText, EmptyState, Money, PageHeader, StatusBadge } from "@/ui";
+import { Container, DateText, EmptyState, PageHeader, StatusBadge } from "@/ui";
+import { formatTiyn } from "@/ui/format";
 import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { requireOperatorPage } from "../_lib/guard";
 
@@ -30,16 +31,17 @@ export default async function DisputesPage() {
               badges={
                 <>
                   <StatusBadge tone={d.status === "OPEN" ? "danger" : "success"}>{t.status[d.status]}</StatusBadge>
-                  {d.decision && <StatusBadge tone="neutral">{t.decisions[d.decision]}</StatusBadge>}
+                  {d.outcome && <StatusBadge tone="neutral">{t.outcomes[d.outcome]}</StatusBadge>}
                 </>
               }
               meta={[
-                d.stage ? `${t.reasons[d.reason]}, ${d.stage.title}` : t.reasons[d.reason],
+                t.reasons[d.reason],
+                t.openedIn(ru.operator.dealStatus[d.openedInStatus].toLowerCase()),
                 <>
                   {t.openedAt} <DateText value={d.createdAt} />
                 </>,
               ]}
-              aside={<Money amount={d.deal.totalAmount} />}
+              aside={formatTiyn(d.deal.priceTiyn)}
             />
           ))}
         </ul>

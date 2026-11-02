@@ -4,6 +4,7 @@ import { ru } from "@/i18n/ru";
 import { listStaleRequests, staleRequestsSchema } from "@/modules/operator";
 import { Container, DateText, EmptyState, FilterChips, PageHeader, StatusBadge, type FilterChip } from "@/ui";
 import { LIST_GRID, ListCard } from "../_components/ListCard";
+import { isEnabled } from "@/platform/features";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
 import { OfferRetrySection, SiteMeasurerSection } from "./PreContractSections";
 
@@ -69,8 +70,13 @@ export default async function StaleRequestsPage({ searchParams }: { searchParams
             </ul>
           )}
         </div>
-        <SiteMeasurerSection user={user} />
-        <OfferRetrySection user={user} />
+        {/* Сценарии до оферты (замерщик площадки, повтор отклика) — Фаза 2, флаг preContractFlows (ADR-009). */}
+        {isEnabled("preContractFlows") && (
+          <>
+            <SiteMeasurerSection user={user} />
+            <OfferRetrySection user={user} />
+          </>
+        )}
       </div>
     </Container>
   );

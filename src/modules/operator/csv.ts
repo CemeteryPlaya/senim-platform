@@ -33,3 +33,8 @@ export function csvDateTime(value: Date | null | undefined): string {
     minute: "2-digit",
   }).format(value);
 }
+
+/** Тиыны → тенге с двумя знаками после запятой («1530000,00»): Excel в русской локали читает как число. Суммы журнала — положительные. */
+export function csvTiyn(tiyn: bigint): string {
+  return `${tiyn / 100n},${String(tiyn % 100n).padStart(2, "0")}`;
+}

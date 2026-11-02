@@ -1,46 +1,85 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, Input, RadioCards, Textarea } from "@/ui";
+import { Alert, Button, Fact, Input, RadioCards, Textarea } from "@/ui";
 import { FormStatus } from "../../_components/FormStatus";
 import { useActionForm } from "../../_components/useActionForm";
-import { resolveDisputeAction } from "../actions";
+import { previewSplitAction, resolveDisputeAction } from "../actions";
 
 const t = ru.operator.disputes;
 const c = t.card;
-const DECISIONS = ["FAVOR_CLIENT", "FAVOR_EXECUTOR", "PARTIAL", "TERMINATE"] as const;
-type Decision = (typeof DECISIONS)[number];
+const OUTCOMES = ["CONTINUE", "FULL_REFUND", "PARTIAL_SPLIT"] as const;
+type Outcome = (typeof OUTCOMES)[number];
+type Preview = { master: string; platform: string; refund: string };
 
-/** Решение по структуре спора: исход, сумма (только для частичного), обоснование. */
-export function ResolveForm({ disputeId, maxAmount }: { disputeId: string; maxAmount: number }) {
-  const [decision, setDecision] = useState<Decision>("FAVOR_CLIENT");
+/** Расчёт раздела заранее: сервер считает payments.computeSplit — формула не дублируется в браузере. */
+function SplitPreview({ disputeId, share }: { disputeId: string; share: string }) {
+  const [preview, setPreview] = useState<Preview>();
+  const [error, setError] = useState<string>();
+  const [pending, startTransition] = useTransition();
+  const calc = () =>
+    startTransition(async () => {
+      const result = await previewSplitAction({ disputeId, masterShareKzt: share });
+      if (result.ok) {
+        setPreview(result.data);
+        setError(undefined);
+      } else {
+        setPreview(undefined);
+        setError(result.fieldErrors?.masterShareKzt?.[0] ?? result.error);
+      }
+    });
+  return (
+    <section aria-label={c.preview} aria-live="polite" className="flex flex-col gap-3 rounded-card bg-sunken p-4">
+      <Button type="button" variant="secondary" loading={pending} onClick={calc} className="self-start">
+        {c.previewButton}
+      </Button>
+      {error && <Alert tone="danger">{error}</Alert>}
+      {preview ? (
+        <dl className="flex flex-col gap-3">
+          <Fact label={c.previewMaster}>{preview.master}</Fact>
+          <Fact label={c.previewPlatform}>{preview.platform}</Fact>
+          <Fact label={c.previewRefund}>{preview.refund}</Fact>
+        </dl>
+      ) : (
+        !error && <p className="text-base text-muted">{c.previewWaiting}</p>
+      )}
+    </section>
+  );
+}
+
+/** Решение по спору (ADR-009 раздел 3): итог, сумма мастеру для раздела, обоснование — обязательно. */
+export function ResolveForm({ disputeId, maxShare }: { disputeId: string; maxShare: string }) {
+  const [outcome, setOutcome] = useState<Outcome>("CONTINUE");
+  const [share, setShare] = useState("");
   const form = useActionForm(resolveDisputeAction);
 
   return (
     <form onSubmit={form.onSubmit} noValidate className="flex flex-col gap-4">
       <input type="hidden" name="disputeId" value={disputeId} />
       <RadioCards
-        label={c.decisionLabel}
-        name="decision"
-        value={decision}
-        onChange={(v) => setDecision(DECISIONS.find((d) => d === v) ?? "FAVOR_CLIENT")}
-        options={DECISIONS.map((d) => ({ value: d, label: t.decisions[d], description: t.decisionHints[d] }))}
-        columns={2}
-        error={form.fieldError("decision")}
+        label={c.outcomeLabel}
+        name="outcome"
+        value={outcome}
+        onChange={(v) => setOutcome(OUTCOMES.find((o) => o === v) ?? "CONTINUE")}
+        options={OUTCOMES.map((o) => ({ value: o, label: t.outcomes[o], description: t.outcomeHints[o] }))}
+        error={form.fieldError("outcome")}
       />
-      {decision === "PARTIAL" && (
-        <Input
-          label={c.amountLabel}
-          hint={c.amountHint}
-          name="decisionAmount"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={maxAmount}
-          required
-          error={form.fieldError("decisionAmount")}
-        />
+      {outcome === "PARTIAL_SPLIT" && (
+        <>
+          <Input
+            label={c.shareLabel}
+            hint={c.shareHint(maxShare)}
+            name="masterShareKzt"
+            inputMode="numeric"
+            autoComplete="off"
+            required
+            value={share}
+            onChange={(e) => setShare(e.target.value)}
+            error={form.fieldError("masterShareKzt") ?? form.fieldError("masterShareTiyn")}
+          />
+          <SplitPreview disputeId={disputeId} share={share} />
+        </>
       )}
       <Textarea label={c.rationaleLabel} hint={c.rationaleHint} name="rationale" required maxLength={2000} rows={5} error={form.fieldError("rationale")} />
       <FormStatus error={form.error} done={form.done} doneText={c.resolved} />
