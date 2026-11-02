@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFullySigned, missingOf, requiredSignatures } from "./requirements";
+import { isFullySigned, isSignable, missingOf, requiredSignatures } from "./requirements";
 
 const off = { executorHandSignsAct: false };
 const on = { executorHandSignsAct: true };
@@ -49,5 +49,10 @@ describe("чего не хватает стороне", () => {
     expect(missingOf("ACCEPTANCE_ACT", off, "EXECUTOR", { hand: [], ecp: [] })).toEqual({ hand: false, ecp: true });
     expect(missingOf("ACCEPTANCE_ACT", on, "EXECUTOR", { hand: [], ecp: [] })).toEqual({ hand: true, ecp: true });
     expect(missingOf("CONTRACT", off, null, { hand: [], ecp: [] })).toEqual({ hand: false, ecp: false });
+    expect(missingOf("MONEY_STATEMENT", off, "CLIENT", { hand: [], ecp: [] })).toEqual({ hand: false, ecp: false });
+  });
+
+  it("в приложении подписываются только оферта и акт", () => {
+    expect(["CONTRACT", "ACCEPTANCE_ACT", "MONEY_STATEMENT", "RELEASE_RECEIPT"].map((k) => isSignable(k as Parameters<typeof isSignable>[0]))).toEqual([true, true, false, false]);
   });
 });

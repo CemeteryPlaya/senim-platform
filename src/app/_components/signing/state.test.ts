@@ -34,6 +34,16 @@ describe("signingReducer", () => {
     expect(signingReducer(awaiting, { type: "reset" })).toEqual({ step: "choose", method: "EGOV_QR" });
   });
 
+  it("ошибка и сброс вне своих шагов ничего не меняют; сброс из выбора убирает ошибку", () => {
+    const awaiting = signingReducer(signingReducer(initialSigningState, { type: "start" }), { type: "started", session });
+    expect(signingReducer(awaiting, { type: "failed", error: "x" })).toBe(awaiting);
+    expect(signingReducer(initialSigningState, { type: "failed", error: "x" })).toBe(initialSigningState);
+    const starting = signingReducer(initialSigningState, { type: "start" });
+    expect(signingReducer(starting, { type: "reset" })).toBe(starting);
+    const withError = signingReducer(starting, { type: "failed", error: "Нет связи" });
+    expect(signingReducer(withError, { type: "reset" })).toEqual({ step: "choose", method: "EGOV_QR" });
+  });
+
   it("действия не по порядку игнорируются (двойное нажатие)", () => {
     const starting = signingReducer(initialSigningState, { type: "start" });
     expect(signingReducer(starting, { type: "start" })).toBe(starting);
@@ -65,6 +75,16 @@ describe("signStep — какой шаг подписи показать сто�
     expect(signStep({ ...doc, parties: [sig("CLIENT", true, true), sig("EXECUTOR", false, false)] })).toBe("youSigned");
     expect(signStep(doc)).toBe("notSignable");
     expect(signStep({ ...doc, parties: [sig("CLIENT", false, false), sig("EXECUTOR", true, true)] })).toBe("notSignable");
+  });
+
+  it("подпись, которая стороне не требуется, не мешает «Вы поставили все подписи» (мастер на акте)", () => {
+    const executor = { ...sig("EXECUTOR", false, true), required: { hand: false, ecp: true } };
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [sig("CLIENT", false, false), executor] })).toBe("youSigned");
+    const noEcp = { ...sig("EXECUTOR", true, false), required: { hand: true, ecp: false } };
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [noEcp] })).toBe("youSigned");
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [sig("EXECUTOR", true, false)] })).toBe("notSignable");
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [sig("EXECUTOR", false, true)] })).toBe("notSignable");
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [] })).toBe("notSignable");
   });
 
   it("оператор, документ без подписи и закрытая версия — без кнопок подписи", () => {

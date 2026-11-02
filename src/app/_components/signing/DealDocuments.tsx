@@ -6,7 +6,7 @@ import { ru } from "@/i18n/ru";
 import type { SharedLink, SigningDocumentView } from "@/modules/documents/client";
 import { Alert, Button, buttonClasses, formatDateTime, StatusBadge } from "@/ui";
 import { shareDocumentAction } from "./actions";
-import { signatureProgress, signStep } from "./state";
+import { documentBadge, signStep } from "./state";
 
 const t = ru.documents;
 
@@ -43,15 +43,8 @@ export function DealDocuments({ documents, linkTtlHours, signHref, titleAs: Titl
   );
 }
 
-function statusOf(doc: SigningDocumentView): { tone: "success" | "warning" | "neutral"; text: string } {
-  if (!doc.signable) return { tone: "neutral", text: t.status.NOT_REQUIRED };
-  if (doc.status === "SIGNED") return { tone: "success", text: t.status.SIGNED };
-  const { done, total } = signatureProgress(doc);
-  return { tone: "warning", text: t.section.signaturesOf(done, total) };
-}
-
 function DocumentRow({ doc, linkTtlHours, signHref }: { doc: SigningDocumentView; linkTtlHours: number; signHref?: DealDocumentsProps["signHref"] }) {
-  const status = statusOf(doc);
+  const status = documentBadge(doc);
   const step = signStep(doc);
   const canSign = step === "hand" || step === "ecp";
   return (

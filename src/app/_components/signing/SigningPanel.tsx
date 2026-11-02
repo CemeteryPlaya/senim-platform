@@ -9,7 +9,7 @@ import { Alert, Button, buttonClasses, Card, formatDateTime, formatTime, RadioCa
 import { completeSigningAction, signByHandAction, startSigningAction } from "./actions";
 import { HandSignaturePad } from "./HandSignaturePad";
 import type { HandPayload } from "./hand-state";
-import { focusTargetAfter, initialSigningState, signingReducer, signStep, type SignMethodChoice } from "./state";
+import { documentBadge, focusTargetAfter, initialSigningState, signingReducer, signStep, type SignMethodChoice } from "./state";
 
 const t = ru.documents;
 const METHODS: SignMethodChoice[] = ["EGOV_QR", "NCALAYER"];
@@ -28,16 +28,7 @@ export type SigningPanelProps = {
  * После каждой подписи обновляет экран (router.refresh).
  */
 export function SigningPanel({ document: doc, titleAs = "h2", signerName }: SigningPanelProps) {
-  const router = useRouter();
-  const step = signStep(doc);
-
-  async function signHand(payload: HandPayload) {
-    const res = await signByHandAction("imageDataUrl" in payload ? { documentId: doc.id, imageDataUrl: payload.imageDataUrl } : { documentId: doc.id, typedName: payload.typedName });
-    if (!res.ok) return res.error;
-    router.refresh();
-    return null;
-  }
-
+  const badge = documentBadge(doc);
   return (
     <Card
       as="section"
@@ -46,7 +37,7 @@ export function SigningPanel({ document: doc, titleAs = "h2", signerName }: Sign
       description={
         <span className="flex flex-wrap items-center gap-2">
           <span>{t.panel.version(doc.version)}</span>
-          <StatusBadge tone={doc.status === "SIGNED" ? "success" : doc.signable ? "warning" : "neutral"}>{doc.signable ? t.status[doc.status] : t.status.NOT_REQUIRED}</StatusBadge>
+          <StatusBadge tone={badge.tone}>{badge.text}</StatusBadge>
         </span>
       }
     >
@@ -74,19 +65,41 @@ export function SigningPanel({ document: doc, titleAs = "h2", signerName }: Sign
 
       {doc.signable && <PartiesStatus doc={doc} />}
 
-      {step === "hand" && (
+      <StepArea doc={doc} signerName={signerName} />
+    </Card>
+  );
+}
+
+/** Что показать под подписями: шаг 1 (от руки), шаг 2 (ЭЦП) или пояснение, почему подписывать нечего. */
+function StepArea({ doc, signerName }: { doc: SigningDocumentView; signerName?: string }) {
+  const router = useRouter();
+  async function signHand(payload: HandPayload) {
+    const res = await signByHandAction("imageDataUrl" in payload ? { documentId: doc.id, imageDataUrl: payload.imageDataUrl } : { documentId: doc.id, typedName: payload.typedName });
+    if (!res.ok) return res.error;
+    router.refresh();
+    return null;
+  }
+  switch (signStep(doc)) {
+    case "hand":
+      return (
         <section aria-label={t.panel.stepHand} className="flex flex-col gap-2">
           <p className="text-base font-semibold text-muted">{t.panel.stepHand}</p>
           <HandSignaturePad onSubmit={signHand} defaultName={signerName} />
         </section>
-      )}
-      {step === "ecp" && <EcpArea doc={doc} />}
-      {step === "youSigned" && <Alert tone="success">{t.panel.youSigned}</Alert>}
-      {step === "notSignable" && <p className="text-base text-muted">{t.panel.notSignable}</p>}
-      {step === "operator" && doc.signable && <p className="text-base text-muted">{t.panel.operatorView}</p>}
-      {step === "closed" && doc.status === "SUPERSEDED" && <Alert tone="warning">{t.panel.superseded}</Alert>}
-    </Card>
-  );
+      );
+    case "ecp":
+      return <EcpArea doc={doc} />;
+    case "youSigned":
+      return <Alert tone="success">{t.panel.youSigned}</Alert>;
+    case "notSignable":
+      return <p className="text-base text-muted">{t.panel.notSignable}</p>;
+    case "operator":
+      return doc.signable ? <p className="text-base text-muted">{t.panel.operatorView}</p> : null;
+    case "closed":
+      return doc.status === "SUPERSEDED" ? <Alert tone="warning">{t.panel.superseded}</Alert> : null;
+    case "notRequired":
+      return null;
+  }
 }
 
 /** Подписи обеих сторон: что требуется, что поставлено, когда и тот ли хэш. */

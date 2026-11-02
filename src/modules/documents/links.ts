@@ -8,9 +8,9 @@ import { env } from "@/platform/env";
  * в адресе — только id документа и срок. Кто получил ссылку (например, переслали в WhatsApp), тот видит
  * документ до срока: срок короткий, каждое открытие пишется в аудит.
  *
- * Секрет — FILE_URL_SECRET; подпись отделена от ссылок files префиксом payload. В production без секрета
- * ссылки не выпускаются (env.ts тоже требует его); в разработке — случайный секрет процесса: ссылки
- * живут до перезапуска сервера, подделать их по исходному коду нельзя.
+ * Секрет — FILE_URL_SECRET; подпись отделена от ссылок files префиксом payload. В production env.ts
+ * без него не запускается; в разработке — случайный секрет процесса: ссылки живут до перезапуска
+ * сервера, подделать их по исходному коду нельзя (литерального запасного ключа нет).
  */
 export const LINK_TTL_SEC = 72 * 3600;
 
@@ -18,9 +18,8 @@ const ID = /^[a-z0-9]{1,64}$/;
 let processSecret: string | undefined;
 
 function linkSecret(): string {
-  const e = env();
-  if (e.FILE_URL_SECRET) return e.FILE_URL_SECRET;
-  if (e.NODE_ENV === "production") throw new Error("FILE_URL_SECRET не задан: ссылки на документы не выпускаются");
+  const configured = env().FILE_URL_SECRET;
+  if (configured) return configured;
   processSecret ??= randomBytes(32).toString("hex");
   return processSecret;
 }

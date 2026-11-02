@@ -1,3 +1,4 @@
+import { ru } from "@/i18n/ru";
 import type { SigningDocumentView, StartedSigning } from "@/modules/documents/client";
 
 /** Способы, которые выбирает пользователь (MOCK — только внутри мок-провайдера). */
@@ -103,4 +104,13 @@ export function signatureProgress(doc: Pick<SigningDocumentView, "parties">): { 
     done += Number(p.required.hand && p.hand !== null) + Number(p.required.ecp && p.ecp !== null);
   }
   return { done, total };
+}
+
+/** Метка документа: без подписи — «Подпись не нужна», подписан — «Подписан», иначе «Подписи: N из M». */
+export function documentBadge(doc: Pick<SigningDocumentView, "signable" | "status" | "parties">): { tone: "success" | "warning" | "neutral"; text: string } {
+  const t = ru.documents;
+  if (!doc.signable) return { tone: "neutral", text: t.status.NOT_REQUIRED };
+  if (doc.status !== "SIGNING") return { tone: doc.status === "SIGNED" ? "success" : "neutral", text: t.status[doc.status] };
+  const { done, total } = signatureProgress(doc);
+  return { tone: "warning", text: t.section.signaturesOf(done, total) };
 }
