@@ -88,6 +88,8 @@ export type ExecutorSpec = Legal &
     registeredDaysAgo: number;
     about: string;
     yearsExperience: number;
+    /** Адрес мастерской (№6): район и улица — тестовые, без реальных данных; город — Астана по умолчанию. */
+    workshop: { district: string; street: string };
     specializations: readonly FurnitureSlug[];
     portfolio: readonly PortfolioSpec[];
     /** Также заказчик на том же аккаунте (ADR-004): роли EXECUTOR и CLIENT. */
@@ -105,6 +107,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 302,
     measurement: "FREE",
     yearsExperience: 9,
+    workshop: { district: "Есильский район", street: "ул. Тестовая, 1 (демо)" },
     about:
       "Делаю корпусную мебель 9 лет, небольшой цех на левом берегу. ЛДСП Egger и Kronospan, фурнитура Blum и Hettich. Замер и 3D-проект бесплатно.",
     specializations: ["kitchen", "wardrobe", "hallway"],
@@ -123,6 +126,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 400,
     measurement: "INCLUDED",
     yearsExperience: 12,
+    workshop: { district: "Алматинский район", street: "ул. Тестовая, 2 (демо)" },
     about:
       "Мебельное производство полного цикла: цех 1 200 м², станки с ЧПУ, три бригады монтажников. Шпон, массив, кварцевые столешницы. Гарантия 3 года.",
     specializations: ["kitchen", "walk-in-closet", "table", "bathroom"],
@@ -142,6 +146,7 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 6,
+    workshop: { district: "Сарыаркинский район", street: "ул. Тестовая, 3 (демо)" },
     about:
       "Детская и корпусная мебель. Материалы класса E0.5, закруглённые кромки, мягкие доводчики. Выезд на замер — 10 000 ₸, только если сделка не состоится.",
     specializations: ["kids-room", "wardrobe", "office"],
@@ -158,6 +163,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 200,
     measurement: "FREE",
     yearsExperience: 5,
+    workshop: { district: "район Байконыр", street: "ул. Тестовая, 4 (демо)" },
     about: "Шкафы-купе и гардеробные из ЛДСП. Профиль Aristo, зеркала с пескоструйным рисунком. Работаю быстро, замер бесплатно.",
     specializations: ["wardrobe", "walk-in-closet", "hallway"],
     portfolio: [
@@ -175,6 +181,7 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 4,
+    workshop: { district: "район Нура", street: "ул. Тестовая, 5 (демо)" },
     about: "Столярная мастерская: столы, комоды и тумбы для ванной из массива карагача, дуба и ореха. Масло-воск, ручная работа.",
     specializations: ["table", "bathroom", "dresser"],
     portfolio: [
@@ -192,6 +199,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 350,
     measurement: "INCLUDED",
     yearsExperience: 8,
+    workshop: { district: "Есильский район", street: "ул. Тестовая, 6 (демо)" },
     about:
       "Корпусная мебель для дома и офиса. Своё производство в промзоне Астаны, замер включён в стоимость заказа. Работаем с физлицами и компаниями.",
     specializations: ["office", "kitchen", "shelving", "living-room"],
@@ -211,6 +219,7 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 7,
+    workshop: { district: "Алматинский район", street: "ул. Тестовая, 7 (демо)" },
     about: "Мастерская полного цикла: кухни, спальни и ТВ-зоны. Помогаем с проектом и подбираем материалы под бюджет.",
     specializations: ["kitchen", "bedroom", "living-room", "kids-room"],
     portfolio: [
@@ -227,6 +236,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 30,
     measurement: "FREE",
     yearsExperience: 2,
+    workshop: { district: "Сарыаркинский район", street: "ул. Тестовая, 8 (демо)" },
     about: "Начинающий мастер: прихожие, шкафы и комоды из ЛДСП. Работаю аккуратно и недорого.",
     specializations: ["hallway", "wardrobe", "dresser"],
     portfolio: [
@@ -242,6 +252,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 1.5,
     measurement: "FREE",
     yearsExperience: 3,
+    workshop: { district: "район Байконыр", street: "ул. Тестовая, 9 (демо)" },
     about: "Три года работал в мебельном цехе, теперь беру заказы сам: кухни и прихожие.",
     specializations: ["kitchen", "hallway"],
     portfolio: [],
@@ -259,6 +270,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 14,
     measurement: "FREE",
     yearsExperience: 1,
+    workshop: { district: "район Нура", street: "ул. Тестовая, 10 (демо)" },
     about: "Мебель по низким ценам за 7 дней.",
     specializations: ["wardrobe", "kitchen"],
     portfolio: [],

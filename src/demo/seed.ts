@@ -369,6 +369,8 @@ async function seedExecutors(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog) {
         rejectReason: reg.status === "REJECTED" ? reg.rejectReason : null,
         about: spec.about,
         yearsExperience: spec.yearsExperience,
+        district: spec.workshop.district,
+        streetAddress: spec.workshop.street,
         measurementTerms: spec.measurement,
         measurementFee: spec.measurement === "FEE_IF_NO_DEAL" ? spec.fee : null,
         reviewedAt: reg.status === "PENDING" ? null : clock.ago(reg.reviewedDaysAgo),

@@ -39,6 +39,15 @@ describe("демо-данные", () => {
     expect(profile.binIinLast4).toBe(spec.bin.slice(-4));
   });
 
+  it("у каждого исполнителя есть тестовый адрес мастерской (№6)", async () => {
+    const profiles = await db.executorProfile.findMany({ select: { district: true, streetAddress: true } });
+    expect(profiles.length).toBe(Object.keys(EXECUTORS).length);
+    for (const p of profiles) {
+      expect(p.district).not.toBe("");
+      expect(p.streetAddress).toMatch(/\(демо\)$/);
+    }
+  });
+
   it("содержат ровно один открытый спор со структурой позиций", async () => {
     const open = await db.dispute.findMany({ where: { status: "OPEN" }, include: { deal: true } });
     expect(open).toHaveLength(1);
