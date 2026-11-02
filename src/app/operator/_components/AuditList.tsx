@@ -16,7 +16,17 @@ export function describeJson(value: unknown): string {
     .join(", ");
 }
 
-/** Записи журнала: номер, время, автор, действие, сущность, изменения. Общий для журнала, споров и показа банку. */
+/** Откуда (ТЗ п. 11): IP и устройство; у системных действий их нет. */
+function Origin({ e }: { e: AuditView }) {
+  if (!e.ip && !e.userAgent) return e.actorRole === "SYSTEM" ? null : <p className="text-sm text-muted">{t.noOrigin}</p>;
+  return (
+    <p className="text-sm break-words text-ink-soft">
+      {t.origin}: {[e.ip && t.ip(e.ip), e.userAgent && t.device(e.userAgent)].filter(Boolean).join(", ")}
+    </p>
+  );
+}
+
+/** Записи журнала: номер, время, автор, действие, сущность, изменения, откуда. Общий для журнала, споров и показа банку. */
 export function AuditList({ events, linkScopes = false }: { events: AuditView[]; linkScopes?: boolean }) {
   return (
     <ol className="flex flex-col">
@@ -65,6 +75,7 @@ export function AuditList({ events, linkScopes = false }: { events: AuditView[];
               </dl>
             )}
             {meta && <p className="text-sm break-words text-ink-soft">{meta}</p>}
+            <Origin e={e} />
           </li>
         );
       })}

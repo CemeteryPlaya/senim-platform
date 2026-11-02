@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { getPaymentRailSetting, isDemoMode } from "@/modules/operator";
-import { Alert, ButtonLink, Card, Container, PageHeader } from "@/ui";
+import { isDemoMode } from "@/modules/operator";
+import { ButtonLink, Card, Container, PageHeader } from "@/ui";
+import { isEnabled } from "@/platform/features";
 import { requireOperatorPage } from "../_lib/guard";
-import { RailForm, ResetDemo } from "./DemoControls";
+import { ResetDemo } from "./DemoControls";
 import { ExecutorIdentitySection } from "./ExecutorIdentitySection";
 import { PreContractFlowSection } from "./PreContractFlowSection";
 
@@ -12,13 +13,10 @@ const t = ru.operator.demo;
 
 export const metadata: Metadata = { title: t.title };
 
-/** Демо-настройки: только при DEMO_MODE (иначе страницы нет). */
+/** Демо-настройки: только при DEMO_MODE (иначе страницы нет). Провайдер оплаты задаёт env (ADR-009), не оператор. */
 export default async function DemoSettingsPage() {
   await requireOperatorPage("/operator/demo");
   if (!isDemoMode()) notFound();
-  const rail = await getPaymentRailSetting();
-  // В env может стоять bank — его оператор не переключает, форма начинает с «напрямую».
-  const current = rail.mode === "escrow-simulator" ? "escrow-simulator" : "manual";
 
   return (
     <Container size="form">
@@ -33,12 +31,8 @@ export default async function DemoSettingsPage() {
         }
       />
       <div className="flex flex-col gap-6">
-        <Card>
-          {rail.source === "env" && <Alert tone="info">{t.railFromEnv(ru.bankDemo.railModes[rail.mode] ?? rail.mode)}</Alert>}
-          <RailForm current={current} />
-        </Card>
         <ExecutorIdentitySection />
-        <PreContractFlowSection />
+        {isEnabled("preContractFlows") && <PreContractFlowSection />}
         <Card title={t.resetTitle} description={t.resetHint}>
           <ResetDemo />
         </Card>

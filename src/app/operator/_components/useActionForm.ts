@@ -5,7 +5,8 @@ import { useState, useTransition, type FormEvent } from "react";
 import type { ActionResult } from "@/platform/action";
 import { focusFirstInvalid } from "@/ui";
 
-export type FormFields = Record<string, string>;
+/** Поля формы: строки и выбранные файлы (пустое поле файла не передаётся). */
+export type FormFields = Record<string, string | File>;
 
 type State = { error?: string; fieldErrors?: Record<string, string[]>; done?: boolean };
 
@@ -27,6 +28,7 @@ export function useActionForm<T>(
     const fields: FormFields = {};
     new FormData(form).forEach((value, key) => {
       if (typeof value === "string") fields[key] = value;
+      else if (value.size > 0) fields[key] = value;
     });
     startTransition(async () => {
       const result = await action(fields);

@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { getDisputeCard } from "@/modules/operator";
 import { isAppError } from "@/platform/errors";
-import { ButtonLink, Card, Container, DateText, Fact, Money, PageHeader, StatusBadge, Timeline, type TimelineItem, type TimelineState } from "@/ui";
+import { Alert, ButtonLink, Card, Container, DateText, Fact, PageHeader, StatusBadge } from "@/ui";
+import { formatTiyn } from "@/ui/format";
 import { AuditList } from "../../_components/AuditList";
+import { MoneyBlockView } from "../../_components/MoneyJournal";
 import { requireOperatorPage } from "../../_lib/guard";
 import { ResolveForm } from "./ResolveForm";
 
@@ -24,30 +26,6 @@ async function loadCard(user: Awaited<ReturnType<typeof requireOperatorPage>>, i
 }
 
 type DisputeCard = Awaited<ReturnType<typeof loadCard>>;
-type Stage = DisputeCard["deal"]["stages"][number];
-
-const DONE: ReadonlySet<Stage["status"]> = new Set(["ACCEPTED", "CLOSED"]);
-const ACTIVE: ReadonlySet<Stage["status"]> = new Set(["IN_PROGRESS", "SUBMITTED", "REWORK"]);
-
-/** Этапы сделки как ход дела: принятые — пройдены, этап спора (или идущий, если спор не по этапу) — текущий. */
-function stageSteps(d: DisputeCard): TimelineItem[] {
-  const state = (s: Stage): TimelineState => {
-    if (DONE.has(s.status)) return "done";
-    if (d.stage ? d.stage.id === s.id : ACTIVE.has(s.status)) return "current";
-    return "todo";
-  };
-  return d.deal.stages.map((s) => ({
-    title: `${s.order}. ${s.title}`,
-    description: (
-      <span className="flex flex-wrap items-center gap-2">
-        {s.payment ? `${o.stageStatus[s.status]}, ${o.paymentStatus[s.payment.status].toLowerCase()}` : o.stageStatus[s.status]}
-        {d.stage?.id === s.id && <StatusBadge tone="danger">{c.stage}</StatusBadge>}
-      </span>
-    ),
-    meta: <Money amount={s.amount} />,
-    state: state(s),
-  }));
-}
 
 function Position({ title, text }: { title: string; text: string | null }) {
   return (
@@ -55,6 +33,57 @@ function Position({ title, text }: { title: string; text: string | null }) {
       <h3 className="text-lg font-bold text-ink">{title}</h3>
       <p className={text ? "text-base break-words whitespace-pre-line text-ink-soft" : "text-base text-muted"}>{text ?? c.noPosition}</p>
     </div>
+  );
+}
+
+/** Деньги сделки из журнала: блок денег и история операций (ТЗ п. 4.1). */
+function DealMoney({ d }: { d: DisputeCard }) {
+  return (
+    <Card title={c.money}>
+      <MoneyBlockView money={d.money} />
+      <h3 className="text-lg font-bold text-ink">{c.moneyHistory}</h3>
+      {d.moneyHistory.length === 0 ? (
+        <p className="text-base text-muted">{c.moneyEmpty}</p>
+      ) : (
+        <ol className="flex flex-col">
+          {d.moneyHistory.map((h) => (
+            <li key={h.id} className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-line py-2 text-base last:border-b-0">
+              <span className="min-w-0 break-words text-ink">
+                {o.money.types[h.type]}, {o.money.status[h.status].toLowerCase()}
+              </span>
+              <span className="tabular-nums">{formatTiyn(h.amountTiyn)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Card>
+  );
+}
+
+function Decision({ d }: { d: DisputeCard }) {
+  if (d.status === "OPEN") {
+    return (
+      <Card title={c.decisionTitle}>
+        {d.aiHintEnabled && <Alert tone="info" title={c.aiHint}>{c.aiHintText}</Alert>}
+        <ResolveForm disputeId={d.id} maxShare={formatTiyn(d.deal.priceTiyn)} />
+      </Card>
+    );
+  }
+  return (
+    <Card title={c.resolvedBy}>
+      <dl className="flex flex-col gap-4">
+        <Fact label={c.outcomeLabel}>{d.outcome && t.outcomes[d.outcome]}</Fact>
+        {d.masterShareTiyn !== null && <Fact label={c.masterShare}>{formatTiyn(d.masterShareTiyn)}</Fact>}
+        <Fact label={c.rationale}>
+          <span className="break-words whitespace-pre-line">{d.rationale}</span>
+        </Fact>
+        {d.resolvedAt && (
+          <Fact label={t.status.RESOLVED}>
+            <DateText value={d.resolvedAt} format="dateTime" /> {d.resolvedBy?.fullName}
+          </Fact>
+        )}
+      </dl>
+    </Card>
   );
 }
 
@@ -71,7 +100,7 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
         description={deal.title}
         back={{ href: "/operator/disputes" }}
         actions={
-          <ButtonLink href={`/deals/${deal.id}`} variant="secondary">
+          <ButtonLink href={`/operator/deals/${deal.id}`} variant="secondary">
             {c.openDeal}
           </ButtonLink>
         }
@@ -85,59 +114,28 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
               <StatusBadge tone="info">{o.dealStatus[deal.status]}</StatusBadge>
             </div>
             <p className="text-base text-muted">
-              {t.openedAt} <DateText value={d.createdAt} format="dateTime" />
+              {t.openedAt} <DateText value={d.createdAt} format="dateTime" />. {t.openedIn(o.dealStatus[d.openedInStatus].toLowerCase())}
             </p>
             <Position title={c.description} text={d.description} />
             <Position title={c.clientPosition} text={d.clientPosition} />
             <Position title={c.executorPosition} text={d.executorPosition} />
           </Card>
-
-          {d.status === "OPEN" ? (
-            <Card title={c.decisionTitle}>
-              <ResolveForm disputeId={d.id} maxAmount={deal.totalAmount} />
-            </Card>
-          ) : (
-            <Card title={c.resolvedBy}>
-              <dl className="flex flex-col gap-4">
-                <Fact label={c.decisionLabel}>{d.decision && t.decisions[d.decision]}</Fact>
-                {d.decisionAmount !== null && (
-                  <Fact label={c.decisionAmount}>
-                    <Money amount={d.decisionAmount} />
-                  </Fact>
-                )}
-                <Fact label={c.rationale}>
-                  <span className="break-words whitespace-pre-line">{d.rationale}</span>
-                </Fact>
-                {d.resolvedAt && (
-                  <Fact label={t.status.RESOLVED}>
-                    <DateText value={d.resolvedAt} format="dateTime" /> {d.resolvedBy?.fullName}
-                  </Fact>
-                )}
-              </dl>
-            </Card>
-          )}
+          <Decision d={d} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-6 lg:row-span-2">
+          <DealMoney d={d} />
           <Card title={c.parties}>
             <dl className="flex flex-col gap-4">
-              <Fact label={c.client}>{deal.client.fullName}</Fact>
+              <Fact label={c.client}>{deal.client.fullName ?? o.none}</Fact>
               <Fact label={c.executor}>
-                <span className="break-words">
-                  {ru.common.executorLabel(deal.executor.publicNumber)}: {deal.executor.legalName}
-                </span>
+                <span className="break-words">{o.deals.card.executorValue(deal.executor.publicNumber, deal.executor.legalName)}</span>
               </Fact>
-              <Fact label={c.amount}>
-                <Money amount={deal.totalAmount} />
-              </Fact>
-              <Fact label={c.paymentMode}>{o.paymentModes[deal.paymentMode]}</Fact>
+              <Fact label={c.price}>{formatTiyn(deal.priceTiyn)}</Fact>
+              <Fact label={c.paid}>{formatTiyn(deal.buyerTotalTiyn)}</Fact>
+              <Fact label={c.provider}>{o.providers[deal.paymentProvider]}</Fact>
             </dl>
           </Card>
-
-          <Card title={c.stages}>
-            <Timeline label={c.stages} items={stageSteps(d)} />
-          </Card>
-
           <Card title={c.attachments}>
             {d.attachments.length === 0 ? (
               <p className="text-base text-muted">{c.noAttachments}</p>
@@ -155,7 +153,7 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
           </Card>
         </div>
 
-        {/* История длинная: на телефоне — в самом конце, после сторон и этапов; на компьютере — под решением. */}
+        {/* История длинная: на телефоне — в самом конце; на компьютере — под решением. */}
         <Card title={c.history} className="min-w-0 lg:col-start-1">
           <AuditList events={d.history} />
         </Card>

@@ -2,35 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { ru } from "@/i18n/ru";
-import { Alert, Button, Modal, RadioCards } from "@/ui";
-import { FormStatus } from "../_components/FormStatus";
-import { useActionForm } from "../_components/useActionForm";
-import { resetDemoAction, setPaymentRailAction } from "./actions";
+import { Alert, Button, Modal } from "@/ui";
+import { resetDemoAction } from "./actions";
 
 const t = ru.operator.demo;
-const MODES = ["manual", "escrow-simulator"] as const;
-
-export function RailForm({ current }: { current: (typeof MODES)[number] }) {
-  const form = useActionForm(setPaymentRailAction);
-  return (
-    <form onSubmit={form.onSubmit} noValidate className="flex flex-col gap-4">
-      <RadioCards
-        label={t.railTitle}
-        hint={t.railHint}
-        name="mode"
-        defaultValue={current}
-        options={MODES.map((m) => ({ value: m, label: t.railModes[m], description: t.railModeHints[m] }))}
-        columns={2}
-        error={form.fieldError("mode")}
-      />
-      <FormStatus error={form.error} done={form.done} doneText={t.railSaved} />
-      <Button type="submit" loading={form.pending} className="self-start">
-        {t.railSave}
-      </Button>
-    </form>
-  );
-}
-
 /**
  * «Сбросить демо» с подтверждением. После сброса сессии очищены — сервер удаляет cookie
  * и переводит на выбор демо-персоны (/demo); модалка предупреждает об этом.
