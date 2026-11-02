@@ -102,3 +102,20 @@ describe("экраны сделки: доступ и анонимность", ()
     expect(actions.indexOf("deal.signed")).toBeGreaterThan(0);
   });
 });
+
+describe("«Мой заказ»: что заказано и когда готово", () => {
+  it("детали и стиль заявки — как есть, срок и гарантия — из отклика, плановая готовность — от подписания", async () => {
+    const f = await makeDeal();
+    await db.request.update({ where: { id: f.requestId }, data: { style: "modern", details: { widthCm: 320, unknown: ["facade"] } } });
+
+    const before = await getDealView(f.client, f.dealId);
+    expect(before.plannedReadyAt).toBeNull();
+    expect(before.subject).toEqual({ style: "modern", details: { widthCm: 320, unknown: ["facade"] }, typeSlug: null, roomPhotos: [] });
+    expect([before.durationDays, before.warrantyMonths]).toEqual([30, 12]);
+
+    await signContract(f.dealId);
+    const after = await getDealView(f.executor, f.dealId);
+    const signedAt = (await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).signedAt;
+    expect(after.plannedReadyAt?.getTime()).toBe((signedAt?.getTime() ?? 0) + 30 * 24 * 60 * 60 * 1000);
+  });
+});

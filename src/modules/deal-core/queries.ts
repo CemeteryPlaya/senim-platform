@@ -9,6 +9,7 @@ import { logger } from "@/platform/logger";
 import { nextStep, type NextStep } from "./next-step";
 import { executorDisplayOf, executorDisplays } from "./ports";
 import { retryableKeys } from "./retry-policy";
+import { plannedReadyAt } from "./schedule";
 import { openEscrowAccount } from "./service";
 import { roleIn, scopeOf } from "./state";
 
@@ -84,6 +85,16 @@ export async function listDeals(user: CurrentUser): Promise<DealListItem[]> {
 
 const viewInclude = {
   executor: { select: { publicNumber: true } },
+  offer: { select: { durationDays: true, warrantyMonths: true } },
+  // Предмет заказа для экрана «Мой заказ»: deal-core не разбирает мебельные поля — отдаёт их как есть.
+  request: {
+    select: {
+      style: true,
+      details: true,
+      furnitureType: { select: { slug: true } },
+      photos: { where: { purpose: "REQUEST_ROOM" }, orderBy: { sortOrder: "asc" }, select: { id: true, provider: true, storageKey: true } },
+    },
+  },
   stages: {
     orderBy: { order: "asc" },
     include: { payment: true, photos: { orderBy: { sortOrder: "asc" }, select: { id: true, provider: true, storageKey: true } } },
@@ -148,7 +159,9 @@ async function stageView(deal: Loaded, s: Loaded["stages"][number], now: Date) {
     status: s.status,
     report: s.report,
     reworkNote: s.reworkNote,
+    startedAt: s.startedAt,
     submittedAt: s.submittedAt,
+    closedAt: s.closedAt,
     // Срок показываем, только пока он впереди и сделка в работе: прошедший ждёт задачу, а не человека.
     autoAcceptAt: deal.status === "IN_PROGRESS" && s.autoAcceptAt && s.autoAcceptAt > now ? s.autoAcceptAt : null,
     acceptedAt: s.acceptedAt,
@@ -180,6 +193,26 @@ export async function getDealView(user: CurrentUser, dealId: string, now = new D
     totalAmount: deal.totalAmount,
     createdAt: deal.createdAt,
     signedAt: deal.signedAt,
+    completedAt: deal.completedAt,
+    durationDays: deal.offer.durationDays,
+    warrantyMonths: deal.offer.warrantyMonths,
+    plannedReadyAt: plannedReadyAt({
+      paymentMode: deal.paymentMode,
+      signedAt: deal.signedAt,
+      durationDays: deal.offer.durationDays,
+      totalAmount: deal.totalAmount,
+      deposits: deal.operations.filter((o) => o.kind === "DEPOSIT"),
+    }),
+    /**
+     * Что заказано — из заявки: стиль, детали (JSON заявки, разбирает модуль requests), тип и фото помещения.
+     * Мебельных полей deal-core не толкует.
+     */
+    subject: {
+      style: deal.request.style,
+      details: deal.request.details as unknown,
+      typeSlug: deal.request.furnitureType?.slug ?? null,
+      roomPhotos: await photoUrls(deal.request.photos),
+    },
     viewer,
     executorLabel: shown.label,
     executorAddress: shown.address,
