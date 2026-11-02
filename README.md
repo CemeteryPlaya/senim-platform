@@ -45,8 +45,12 @@ npm run check        # typecheck + lint + все тесты Vitest
 npm run test:unit    # только модульные
 npm run test:int     # только интеграционные (на реальной БД)
 npm run test:e2e     # Playwright: мобильный и десктопный профиль
+npm run quality:crap   # CRAP функций: покрытие полным прогоном + сложность (нужна TEST_DATABASE_URL)
+npm run quality:dup    # дубли кода jscpd: клоны и похожие функции со сходством ≥ 0,8
+npm run quality:mutate # мутационное тестирование Stryker чистой логики
 ```
 
+- Инструменты качества (эквиваленты crapper, dryer и mutator из `SKILL.md`), пороги и базовая линия — [docs/quality/README.md](docs/quality/README.md). Отчёты — в `reports/quality/` (не в git).
 - Интеграционным тестам нужна `TEST_DATABASE_URL` (база с «test» в имени), сквозным — `E2E_DATABASE_URL` (база с «e2e» в имени). Примеры — в `.env.example`.
 - Playwright сам поднимает сервер на порту 3110 с `DEMO_MODE=true` и моками, накатывает миграции и сид на базу e2e.
 - Переходы статусных машин проверяются тестами на каждый разрешённый и запрещённый переход на реальной тестовой БД. Итоги прогонов по фазам — [docs/PROGRESS.md](docs/PROGRESS.md).
