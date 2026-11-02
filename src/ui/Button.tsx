@@ -5,18 +5,22 @@ import { ru } from "@/i18n/ru";
 import { cn } from "./cn";
 
 /**
- * primary — зелёная кнопка главного действия («Далее», «Отправить заявку»); одна на экран.
- * secondary — белая с рамкой («Назад»). soft — мятная («Я мастер», «Изменить»).
- * ghost — текстовая ссылка-кнопка. danger — необратимое действие.
+ * По макетам 7–19:
+ * primary — зелёная кнопка главного действия («Подтвердить дату замера»); одна на экран.
+ * secondary — белая с зелёной рамкой и зелёным текстом («Внести изменения», «Есть проблема»).
+ * soft — мятная с зелёным текстом («Редактировать предложение», «Я мастер»).
+ * ghost — текстовая ссылка-кнопка. danger — белая с красной рамкой («Открыть спор», «Отменить предложение»).
+ * dangerSolid — красная заливка: согласие на необратимое в окне подтверждения.
  */
-export type ButtonVariant = "primary" | "secondary" | "soft" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "soft" | "ghost" | "danger" | "dangerSolid";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "border-primary bg-primary text-on-primary hover:border-primary-hover hover:bg-primary-hover",
-  secondary: "border-primary bg-surface text-ink hover:bg-sunken",
-  soft: "border-accent-soft bg-accent-soft text-primary hover:border-accent-soft-hover hover:bg-accent-soft-hover",
+  secondary: "border-primary bg-surface text-primary hover:bg-accent-soft",
+  soft: "border-accent-soft bg-accent-soft text-primary hover:border-accent-soft-hover hover:bg-accent-soft-hover hover:text-primary-hover",
   ghost: "border-transparent bg-transparent text-primary underline decoration-line-strong underline-offset-4 hover:bg-accent-soft hover:decoration-primary",
-  danger: "border-danger bg-danger text-on-primary hover:border-danger-hover hover:bg-danger-hover",
+  danger: "border-danger bg-surface text-danger hover:bg-danger-soft",
+  dangerSolid: "border-danger bg-danger text-on-primary hover:border-danger-hover hover:bg-danger-hover",
 };
 
 type StyleOptions = {
@@ -33,7 +37,7 @@ export function buttonClasses({ variant = "primary", fullWidth = false, shape = 
     "inline-flex min-h-control items-center justify-center gap-2 border-2 px-6 py-2 active:translate-y-px",
     // При крупном шрифте на телефоне длинное слово переносится внутри кнопки, а не выталкивает её за край.
     "min-w-0 max-w-full break-words hyphens-auto",
-    "text-center text-base font-semibold leading-snug no-underline transition-colors duration-150",
+    "text-center text-base font-bold leading-snug no-underline transition-colors duration-150",
     "disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60",
     shape === "pill" ? "min-h-control-sm rounded-full px-5" : "rounded-control",
     VARIANTS[variant],

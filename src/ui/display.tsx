@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, CheckCircle2, FlaskConical, Info, OctagonAlert, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, FlaskConical, Info, OctagonAlert, Sparkles } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { cn } from "./cn";
@@ -47,13 +47,13 @@ export type PageHeaderProps = {
 /** Заголовок экрана: «Назад», h1, пояснение, действия. На странице — ровно один. */
 export function PageHeader({ title, description, back, actions, className }: PageHeaderProps) {
   return (
-    <header className={cn("flex flex-col gap-4 pt-4 pb-6 sm:pt-6", className)}>
+    <header className={cn("flex flex-col gap-3 pt-3 pb-6 sm:pt-6", className)}>
       {back && (
         <Link
           href={back.href}
-          className="-ml-2 inline-flex min-h-control-sm items-center gap-2 self-start rounded-control px-2 text-base font-semibold text-ink no-underline hover:bg-sunken"
+          className="-ml-2 inline-flex min-h-control-sm items-center gap-1 self-start rounded-control pr-3 pl-1 text-base font-semibold text-ink no-underline hover:bg-surface"
         >
-          <ArrowLeft aria-hidden className="size-5 shrink-0" />
+          <ChevronLeft aria-hidden className="size-6 shrink-0" />
           {back.label ?? ru.common.actions.back}
         </Link>
       )}
@@ -112,7 +112,7 @@ export type StatusBadgeProps = { tone?: Tone; icon?: ReactNode; className?: stri
 export function StatusBadge({ tone = "neutral", icon, className, children }: StatusBadgeProps) {
   return (
     // max-w-full и перенос по словам: при крупном системном шрифте метка не вылезает за карточку.
-    <span className={cn("inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-0.5 text-sm font-semibold break-words", TONE_SOFT[tone], className)}>
+    <span className={cn("inline-flex max-w-full items-center gap-1.5 rounded-badge px-2.5 py-0.5 text-sm font-semibold break-words", TONE_SOFT[tone], className)}>
       {icon && <span aria-hidden className="inline-flex shrink-0 [&_svg]:size-4">{icon}</span>}
       <span className="min-w-0">{children}</span>
     </span>
@@ -122,11 +122,11 @@ export function StatusBadge({ tone = "neutral", icon, className, children }: Sta
 export type AlertTone = Exclude<Tone, "neutral">;
 
 const ALERT_ICON: Record<AlertTone, ReactNode> = {
-  accent: <Sparkles aria-hidden className="size-6 shrink-0" />,
-  info: <Info aria-hidden className="size-6 shrink-0" />,
-  success: <CheckCircle2 aria-hidden className="size-6 shrink-0" />,
-  warning: <AlertTriangle aria-hidden className="size-6 shrink-0" />,
-  danger: <OctagonAlert aria-hidden className="size-6 shrink-0" />,
+  accent: <Sparkles aria-hidden className="mt-0.5 size-7 shrink-0" />,
+  info: <Info aria-hidden className="mt-0.5 size-7 shrink-0" />,
+  success: <CheckCircle2 aria-hidden className="mt-0.5 size-7 shrink-0" />,
+  warning: <AlertTriangle aria-hidden className="mt-0.5 size-7 shrink-0" />,
+  danger: <OctagonAlert aria-hidden className="mt-0.5 size-7 shrink-0" />,
 };
 
 export type AlertProps = {
@@ -143,15 +143,18 @@ export type AlertProps = {
   children: ReactNode;
 };
 
-/** Сообщение в потоке страницы: подсказка, успех, предупреждение, ошибка. */
+/**
+ * Сообщение в потоке страницы — плашка из макетов: «В производстве», «Получайте предложения»,
+ * «Мы свяжемся с вами». Иконка — цвета тона, заголовок и текст — тёмные: цвет не единственный носитель смысла.
+ */
 export function Alert({ tone = "info", title, action, live, className, children }: AlertProps) {
   const role = live === "assertive" ? "alert" : live === "polite" ? "status" : undefined;
   return (
-    <div role={role} className={cn("flex gap-3 rounded-card p-4", TONE_SOFT[tone], className)}>
+    <div role={role} className={cn("flex gap-3 rounded-card p-4 sm:gap-4 sm:p-5", TONE_SOFT[tone], className)}>
       {ALERT_ICON[tone]}
       <div className="flex min-w-0 flex-col gap-1">
-        {title && <p className="text-base font-bold">{title}</p>}
-        <div className="text-base text-ink">{children}</div>
+        {title && <p className="text-base font-bold text-ink">{title}</p>}
+        <div className="text-base text-ink-soft">{children}</div>
         {action && <div className="mt-2">{action}</div>}
       </div>
     </div>
@@ -200,11 +203,15 @@ export type EmptyStateProps = {
   className?: string;
 };
 
-/** Пустой список: что здесь будет и что сделать первым. */
+/** Пустой список: что здесь будет и что сделать первым. Белая карточка, значок в мятном круге. */
 export function EmptyState({ title, description, icon, action, titleAs: Title = "h2", className }: EmptyStateProps) {
   return (
-    <div className={cn("flex flex-col items-start gap-3 rounded-card bg-sunken p-6 sm:p-8", className)}>
-      {icon && <span aria-hidden className="inline-flex text-muted [&_svg]:size-8">{icon}</span>}
+    <div className={cn("flex flex-col items-start gap-3 rounded-card border border-line bg-surface p-6 shadow-card sm:p-8", className)}>
+      {icon && (
+        <span aria-hidden className="inline-flex size-16 items-center justify-center rounded-full bg-accent-soft text-primary [&_svg]:size-8">
+          {icon}
+        </span>
+      )}
       <Title className="text-xl font-bold text-ink">{title}</Title>
       {description && <p className="max-w-prose text-base text-ink-soft">{description}</p>}
       {action && <div className="mt-2">{action}</div>}

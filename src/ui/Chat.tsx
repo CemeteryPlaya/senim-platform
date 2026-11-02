@@ -152,7 +152,7 @@ function MessageItem({ message: m }: { message: ChatMessage }) {
         <span className="font-semibold text-ink-soft">{own ? ru.common.ui.chat.you : m.author}</span>{" "}
         <DateText value={m.sentAt} format="time" />
       </p>
-      <p className={cn("rounded-card px-4 py-2.5 text-base whitespace-pre-wrap break-words text-ink", own ? "bg-accent-soft" : "bg-sunken")}>{m.text}</p>
+      <p className={cn("rounded-card px-4 py-2.5 text-base whitespace-pre-wrap break-words text-ink", own ? "rounded-br-badge bg-accent-soft" : "rounded-bl-badge bg-sunken")}>{m.text}</p>
       {m.masked && (
         <p className="flex items-center gap-1.5 text-sm text-muted">
           <ShieldCheck aria-hidden className="size-4 shrink-0" />

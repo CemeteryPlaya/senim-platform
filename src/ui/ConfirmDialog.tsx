@@ -45,7 +45,7 @@ export function ConfirmDialog({ open, onCancel, onConfirm, title, description, c
             {cancelLabel}
           </Button>
           {/* Второй клик серии (двойное нажатие) — не новое согласие. */}
-          <Button variant={tone} loading={loading} onClick={(event) => {
+          <Button variant={tone === "danger" ? "dangerSolid" : "primary"} loading={loading} onClick={(event) => {
               if (!isRepeatClick(event.detail)) onConfirm();
             }}>
             {confirmLabel}
