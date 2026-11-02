@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChartColumn, ChevronRight, FlaskConical, Inbox, Scale, ScrollText, Sofa, TriangleAlert, UserCheck } from "lucide-react";
+import { ChartColumn, ChevronRight, FlaskConical, Inbox, Ruler, Scale, ScrollText, Sofa, TriangleAlert, UserCheck } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { isDemoMode, listDisputes, listRegistrationQueue, listStaleRequests } from "@/modules/operator";
 import { Alert, Container, LinkList, PageHeader, SectionTitle, Stat, type LinkListItem } from "@/ui";
@@ -34,6 +34,7 @@ export default async function OperatorHome() {
     { href: "/operator/disputes", label: t.nav.disputes, description: t.nav.disputesHint, icon: <Scale />, meta: openDisputes || undefined },
     { href: "/operator/requests", label: t.nav.requests, description: t.nav.requestsHint, icon: <Inbox />, meta: stale.length || undefined },
     { href: "/operator/furniture-types", label: t.nav.types, description: t.nav.typesHint, icon: <Sofa /> },
+    { href: "/operator/materials", label: ru.materials.nav, description: ru.materials.navHint, icon: <Ruler /> },
     { href: "/operator/audit", label: t.nav.audit, description: t.nav.auditHint, icon: <ScrollText /> },
     { href: "/operator/report", label: t.nav.report, description: t.nav.reportHint, icon: <ChartColumn /> },
     ...(isDemoMode() ? [{ href: "/operator/demo", label: t.nav.demo, description: t.nav.demoHint, icon: <FlaskConical /> }] : []),

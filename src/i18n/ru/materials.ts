@@ -51,8 +51,6 @@ export const materials = {
   save: "Сохранить",
   archive: "В архив",
   restore: "Вернуть",
-  sectionCount: (n: number) => `${n}`,
-  emptyCategory: "Материалов пока нет",
   empty: "Справочник пуст. Добавьте первый материал",
   archiveTitle: "Архив",
   archiveHint: "Материалы из архива не входят в расчёт вилки.",
