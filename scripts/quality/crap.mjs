@@ -19,6 +19,16 @@ const root = process.cwd();
 const reportDir = path.join(root, "reports", "quality");
 const coverageDir = path.join(reportDir, "coverage");
 const coverageFile = path.join(coverageDir, "coverage-final.json");
+/** Время начала прогона: файл, изменённый позже, не совпадает с картой покрытия по строкам. */
+const startedFile = path.join(coverageDir, "started-at.txt");
+
+function coverageStartedAt() {
+  try {
+    return Number(fs.readFileSync(startedFile, "utf8"));
+  } catch {
+    return fs.statSync(coverageFile).mtimeMs;
+  }
+}
 
 /** Что не анализируем: сгенерированный клиент, тесты, тексты, типы. */
 const EXCLUDE = [/^src\/generated\//, /\.test\.tsx?$/, /\.d\.ts$/, /^src\/i18n\//];
@@ -41,6 +51,7 @@ function runCoverage() {
     throw new Error("Нужен TEST_DATABASE_URL: покрытие собирается полным прогоном (unit + integration)");
   }
   fs.rmSync(coverageDir, { recursive: true, force: true });
+  const startedAt = Date.now();
   const vitest = path.join(root, "node_modules", "vitest", "vitest.mjs");
   const res = spawnSync(
     process.execPath,
@@ -58,6 +69,7 @@ function runCoverage() {
     { stdio: "inherit" },
   );
   if (!fs.existsSync(coverageFile)) throw new Error("Покрытие не собрано: нет coverage-final.json");
+  fs.writeFileSync(startedFile, String(startedAt));
   if (res.status !== 0) process.stdout.write("\nВнимание: часть тестов упала — покрытие может быть занижено.\n\n");
 }
 
@@ -230,6 +242,8 @@ function main() {
     (f) => args.only.length === 0 || args.only.some((p) => f.startsWith(p)),
   );
 
+  const startedAt = coverageStartedAt();
+  const stale = new Set(files.filter((f) => fs.statSync(path.join(root, f)).mtimeMs > startedAt));
   const all = [];
   for (const rel of files) {
     const cov = coverage.get(normKey(rel));
@@ -242,6 +256,7 @@ function main() {
         complexity: fn.complexity,
         coverage: Math.round(c * 1000) / 10,
         crap: Math.round(crap(fn.complexity, c) * 10) / 10,
+        ...(stale.has(rel) && { stale: true }),
       });
     }
   }
@@ -252,7 +267,7 @@ function main() {
   fs.writeFileSync(
     path.join(reportDir, "crap.json"),
     JSON.stringify(
-      { generatedAt: new Date().toISOString(), threshold: args.threshold, files: files.length, functions: all.length, overThreshold: over.length, byArea, over },
+      { generatedAt: new Date().toISOString(), threshold: args.threshold, files: files.length, functions: all.length, overThreshold: over.length, staleFiles: [...stale], byArea, over },
       null,
       2,
     ),
@@ -262,7 +277,10 @@ function main() {
   out.push(`CRAP ≥ ${args.threshold}: ${over.length} из ${all.length} функций (${files.length} файлов)\n`);
   if (over.length > 0) {
     out.push(`${pad("CRAP", 8)}${pad("сложн.", 8)}${pad("покр.%", 8)}функция\n`);
-    for (const f of over) out.push(`${pad(f.crap, 8)}${pad(f.complexity, 8)}${pad(f.coverage, 8)}${f.file}:${f.line} ${f.name}\n`);
+    for (const f of over) out.push(`${pad(f.crap, 8)}${pad(f.complexity, 8)}${pad(f.coverage, 8)}${f.stale ? "* " : ""}${f.file}:${f.line} ${f.name}\n`);
+  }
+  if (stale.size > 0) {
+    out.push(`\n* файл изменён после замера покрытия (${stale.size}): строки не совпадают, его CRAP недостоверен — перезапустите без --reuse\n`);
   }
   if (over.length > 0) {
     out.push(`\nПо зонам (логика .ts / компоненты .tsx):\n`);

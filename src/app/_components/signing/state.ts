@@ -39,20 +39,28 @@ export const initialSigningState: SigningState = { step: "choose", method: "EGOV
 export function signingReducer(state: SigningState, action: SigningAction): SigningState {
   switch (action.type) {
     case "method":
-      return state.step === "choose" ? { step: "choose", method: action.method } : state;
+      return from(state, "choose", () => ({ step: "choose", method: action.method }));
     case "start":
-      return state.step === "choose" ? { step: "starting", method: state.method } : state;
+      return from(state, "choose", (s) => ({ step: "starting", method: s.method }));
     case "started":
-      return state.step === "starting" ? { step: "awaiting", method: state.method, session: action.session } : state;
+      return from(state, "starting", (s) => ({ step: "awaiting", method: s.method, session: action.session }));
     case "complete":
-      return state.step === "awaiting" ? { step: "completing", method: state.method, session: state.session } : state;
+      return from(state, "awaiting", (s) => ({ step: "completing", method: s.method, session: s.session }));
     case "completed":
-      return state.step === "completing" ? { step: "done", fullySigned: action.fullySigned } : state;
+      return from(state, "completing", () => ({ step: "done", fullySigned: action.fullySigned }));
     case "failed":
       return failed(state, action.error);
     case "reset":
       return reset(state);
   }
+}
+
+type Step = SigningState["step"];
+const isStep = <K extends Step>(state: SigningState, step: K): state is Extract<SigningState, { step: K }> => state.step === step;
+
+/** Переход только из шага `step`; из любого другого действие не к месту — состояние то же. */
+function from<K extends Step>(state: SigningState, step: K, next: (s: Extract<SigningState, { step: K }>) => SigningState): SigningState {
+  return isStep(state, step) ? next(state) : state;
 }
 
 /** Ошибка начала — обратно к выбору способа; ошибка проверки — снова ждём подпись в той же сессии. */

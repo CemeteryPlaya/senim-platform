@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ru } from "@/i18n/ru";
 import { executeOperation, railFor, reconcile, requestOperation, simulatorDeposit, simulatorRedeliver } from "@/modules/payments";
+import { hmacHex } from "@/platform/crypto";
 import { db, transaction } from "@/platform/db";
+import { resetEnvCache } from "@/platform/env";
 import { makeOperator } from "../../../test/factories";
 import { dealOf, makeDeal, makeStagePhoto, noCancelHooks, signAct, signContract, stagesOf, type DealFixture } from "../../../test/factories/deal";
 import {
@@ -190,5 +193,65 @@ describe("эскроу-сделка в банк-симуляторе", () => {
     expect(await db.paymentOperation.count({ where: { dealId: f.dealId, status: "FAILED" } })).toBe(0);
     expect(await accountOf(f.dealId)).toMatchObject({ deposited: 100_000, released: 100_000, refunded: 0 });
     expect((await reconcile(f.dealId)).every((r) => r.status === "MATCHED")).toBe(true);
+  });
+});
+
+describe("вебхук банка об итоге операции", () => {
+  const SECRET = "test-webhook-secret";
+  beforeEach(() => {
+    vi.stubEnv("ESCROW_SIMULATOR_WEBHOOK_SECRET", SECRET);
+    resetEnvCache();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetEnvCache();
+  });
+
+  /** Банк сообщает итог операции, отправленной раньше (ответ банка был «в обработке»). */
+  async function result(f: DealFixture, type: "REFUND_COMPLETED" | "OPERATION_FAILED", operationRef: string) {
+    const account = await accountOf(f.dealId);
+    const rawBody = JSON.stringify({ eventId: `evt_${operationRef}_${type}`, type, externalId: account.externalId, amount: 10_000, operationRef, occurredAt: new Date().toISOString() });
+    const ts = String(Math.floor(Date.now() / 1000));
+    const headers = new Headers({ "x-senim-timestamp": ts, "x-senim-signature": `v1=${hmacHex(SECRET, `${ts}.${rawBody}`)}` });
+    return handleRailWebhook("escrow-simulator", { headers, rawBody });
+  }
+
+  async function pending(f: DealFixture, key: string) {
+    await transaction((tx) => requestOperation(tx, { dealId: f.dealId, kind: "REFUND", amount: 10_000, idempotencyKey: key }));
+  }
+
+  it("успех: операция выполнена, сумма учтена на счёте, номер банка — ключ из события", async () => {
+    const f = await signedEscrowDeal();
+    await deposit(f, 100_000);
+    await pending(f, "test:refund-ok");
+
+    expect(await result(f, "REFUND_COMPLETED", "test:refund-ok")).toMatchObject({ duplicate: false, dealId: f.dealId });
+    expect(await db.paymentOperation.findUniqueOrThrow({ where: { idempotencyKey: "test:refund-ok" } })).toMatchObject({ status: "SUCCEEDED", externalRef: "test:refund-ok" });
+    expect(await accountOf(f.dealId)).toMatchObject({ refunded: 10_000 });
+  });
+
+  it("отказ: операция отклонена с понятным текстом, деньги на счёте не двигаются", async () => {
+    const f = await signedEscrowDeal();
+    await deposit(f, 100_000);
+    await pending(f, "test:refund-failed");
+
+    await result(f, "OPERATION_FAILED", "test:refund-failed");
+    expect(await db.paymentOperation.findUniqueOrThrow({ where: { idempotencyKey: "test:refund-failed" } })).toMatchObject({
+      status: "FAILED",
+      error: ru.payments.errors.railUnavailable,
+    });
+    expect(await accountOf(f.dealId)).toMatchObject({ refunded: 0 });
+  });
+
+  it("итог неизвестной операции принимается и чужую операцию не закрывает", async () => {
+    const f = await signedEscrowDeal();
+    await deposit(f, 100_000);
+    await pending(f, "test:refund-other");
+
+    expect(await result(f, "REFUND_COMPLETED", "test:unknown")).toMatchObject({ duplicate: false, dealId: f.dealId });
+    // Операцию отправил в банк обычный проход после вебхука (номер банка симулятора), а не это событие.
+    const op = await db.paymentOperation.findUniqueOrThrow({ where: { idempotencyKey: "test:refund-other" } });
+    expect(op.externalRef).toMatch(/^SIMOP-/);
+    expect(await db.bankWebhookEvent.count({ where: { externalEventId: "evt_test:unknown_REFUND_COMPLETED", processedAt: { not: null } } })).toBe(1);
   });
 });
