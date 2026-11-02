@@ -6,6 +6,7 @@ import { Alert, Button, Checkbox, focusFirstInvalid, Input, RadioCards } from "@
 import { registerExecutorAction } from "./actions";
 
 const t = ru.identity.registration;
+const addr = ru.companies.address;
 
 type LegalForm = keyof typeof t.legalForms;
 const LEGAL_FORMS = Object.keys(t.legalForms) as LegalForm[];
@@ -50,6 +51,8 @@ export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED", o
         binIin: field("binIin"),
         ownIin,
         city: field("city"),
+        district: field("district"),
+        streetAddress: field("streetAddress"),
         yearsExperience: field("yearsExperience"),
         // Поля подписанта: директор — только у ТОО, владелец — только у ИП; лишние схема игнорирует.
         ownerName: field("ownerName"),
@@ -151,7 +154,13 @@ export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED", o
           />
         </fieldset>
       )}
-      <Input label={t.cityLabel} error={errors.city?.[0]} name="city" defaultValue={t.defaultCity} autoComplete="address-level2" required />
+      <fieldset className="flex flex-col gap-4">
+        <legend className="mb-2 text-lg font-bold text-ink">{addr.title}</legend>
+        <p className="text-base text-ink-soft">{addr.lead}</p>
+        <Input label={t.cityLabel} error={errors.city?.[0]} name="city" defaultValue={t.defaultCity} autoComplete="address-level2" required />
+        <Input label={addr.district} hint={addr.districtHint} error={errors.district?.[0]} name="district" autoComplete="address-level3" maxLength={100} optional />
+        <Input label={addr.street} hint={addr.streetHint} error={errors.streetAddress?.[0]} name="streetAddress" autoComplete="street-address" maxLength={200} optional />
+      </fieldset>
       <Input
         label={t.experienceLabel}
         error={errors.yearsExperience?.[0]}

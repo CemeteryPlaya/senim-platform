@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { LegalForm, MeasurementTerms, RegistrationStatus, Segment } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
-import { actorOf, type CurrentUser } from "@/modules/identity";
+import { actorOf, addressFields, type CurrentUser } from "@/modules/identity";
 import { db, transaction } from "@/platform/db";
 import { parseInput } from "@/platform/validation";
 import { assertActiveFurnitureTypes, requireExecutor, sanitizePublicText } from "./own";
@@ -17,6 +17,7 @@ export const MEASUREMENT_FEE_MAX = 200_000;
 /**
  * Что исполнитель меняет сам. Сегмента здесь нет — его ставит оператор;
  * лишние поля zod отбрасывает. Плата за выезд — только при FEE_IF_NO_DEAL.
+ * Адрес мастерской (№6) — те же поля, что в анкете регистрации.
  */
 export const profileInputSchema = z
   .object({
@@ -25,6 +26,7 @@ export const profileInputSchema = z
     specializationIds: z.array(z.string().min(1)).max(30),
     measurementTerms: z.enum(["FREE", "INCLUDED", "FEE_IF_NO_DEAL"]),
     measurementFee: z.number().int().nullable(),
+    ...addressFields,
   })
   .superRefine((v, ctx) => {
     if (v.measurementTerms !== "FEE_IF_NO_DEAL") return;
@@ -37,6 +39,8 @@ export const profileInputSchema = z
     ...v,
     specializationIds: [...new Set(v.specializationIds)],
     measurementFee: v.measurementTerms === "FEE_IF_NO_DEAL" ? v.measurementFee : null,
+    district: v.district ?? "",
+    streetAddress: v.streetAddress ?? "",
   }));
 
 export type ProfileInput = z.input<typeof profileInputSchema>;
@@ -54,6 +58,9 @@ export type OwnProfile = {
   specializationIds: string[];
   measurementTerms: MeasurementTerms;
   measurementFee: number | null;
+  city: string;
+  district: string;
+  streetAddress: string;
   ratingAvg: number;
   reviewsCount: number;
   completedDeals: number;
@@ -79,6 +86,9 @@ export async function getOwnProfile(user: CurrentUser): Promise<OwnProfile> {
     specializationIds: p.specializations.map((s) => s.id),
     measurementTerms: p.measurementTerms,
     measurementFee: p.measurementFee,
+    city: p.city,
+    district: p.district,
+    streetAddress: p.streetAddress,
     ratingAvg: p.ratingAvg,
     reviewsCount: p.reviewsCount,
     completedDeals: p.completedDeals,
@@ -95,7 +105,15 @@ export async function updateProfile(user: CurrentUser, raw: ProfileInput): Promi
     const about = await sanitizePublicText(tx, executorId, input.about);
     const before = await tx.executorProfile.findUniqueOrThrow({
       where: { id: executorId },
-      select: { yearsExperience: true, measurementTerms: true, measurementFee: true, specializations: { select: { id: true } } },
+      select: {
+        yearsExperience: true,
+        measurementTerms: true,
+        measurementFee: true,
+        city: true,
+        district: true,
+        streetAddress: true,
+        specializations: { select: { id: true } },
+      },
     });
     await tx.executorProfile.update({
       where: { id: executorId },
@@ -104,6 +122,9 @@ export async function updateProfile(user: CurrentUser, raw: ProfileInput): Promi
         yearsExperience: input.yearsExperience,
         measurementTerms: input.measurementTerms,
         measurementFee: input.measurementFee,
+        city: input.city,
+        district: input.district,
+        streetAddress: input.streetAddress,
         specializations: { set: input.specializationIds.map((id) => ({ id })) },
       },
     });
@@ -118,6 +139,9 @@ export async function updateProfile(user: CurrentUser, raw: ProfileInput): Promi
         measurementTerms: input.measurementTerms,
         measurementFee: input.measurementFee,
         specializations: input.specializationIds,
+        city: input.city,
+        district: input.district,
+        streetAddress: input.streetAddress,
         aboutMasked: about.masked,
       },
     });

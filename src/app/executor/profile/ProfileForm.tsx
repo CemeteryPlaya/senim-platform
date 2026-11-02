@@ -7,6 +7,7 @@ import { Alert, Button, Checkbox, Input, RadioCards, Textarea } from "@/ui";
 import { saveProfile } from "./actions";
 
 const t = ru.companies.profile;
+const addr = ru.companies.address;
 const TERMS: MeasurementTerms[] = ["FREE", "INCLUDED", "FEE_IF_NO_DEAL"];
 
 export type ProfileFormValues = {
@@ -15,6 +16,9 @@ export type ProfileFormValues = {
   specializationIds: string[];
   measurementTerms: MeasurementTerms;
   measurementFee: number | null;
+  city: string;
+  district: string;
+  streetAddress: string;
 };
 
 type Notice = { tone: "success" | "danger"; text: string; extra?: string } | null;
@@ -31,6 +35,8 @@ export function ProfileForm({ initial, types }: { initial: ProfileFormValues; ty
   const [specs, setSpecs] = useState<Set<string>>(new Set(initial.specializationIds));
   const [terms, setTerms] = useState<MeasurementTerms>(initial.measurementTerms);
   const [fee, setFee] = useState(initial.measurementFee === null ? "" : String(initial.measurementFee));
+  const [address, setAddress] = useState({ city: initial.city, district: initial.district, streetAddress: initial.streetAddress });
+  const setAddressPart = (key: keyof typeof address) => (e: { target: { value: string } }) => setAddress((prev) => ({ ...prev, [key]: e.target.value }));
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [notice, setNotice] = useState<Notice>(null);
   const [pending, startTransition] = useTransition();
@@ -53,6 +59,7 @@ export function ProfileForm({ initial, types }: { initial: ProfileFormValues; ty
         specializationIds: [...specs],
         measurementTerms: terms,
         measurementFee: terms === "FEE_IF_NO_DEAL" ? toNumber(fee) : null,
+        ...address,
       });
       if (!result.ok) {
         setErrors(result.fieldErrors ?? {});
@@ -115,6 +122,32 @@ export function ProfileForm({ initial, types }: { initial: ProfileFormValues; ty
           className="max-w-60"
         />
       )}
+
+      <fieldset className="flex flex-col gap-4">
+        <legend className="mb-1 text-base font-semibold text-ink">{addr.title}</legend>
+        <p className="text-sm text-muted">{addr.lead}</p>
+        <Input label={addr.city} value={address.city} onChange={setAddressPart("city")} error={err("city")} autoComplete="address-level2" maxLength={100} />
+        <Input
+          label={addr.district}
+          hint={addr.districtHint}
+          value={address.district}
+          onChange={setAddressPart("district")}
+          error={err("district")}
+          autoComplete="address-level3"
+          maxLength={100}
+          optional
+        />
+        <Input
+          label={addr.street}
+          hint={addr.streetHint}
+          value={address.streetAddress}
+          onChange={setAddressPart("streetAddress")}
+          error={err("streetAddress")}
+          autoComplete="street-address"
+          maxLength={200}
+          optional
+        />
+      </fieldset>
 
       {notice && (
         <Alert tone={notice.tone} live={notice.tone === "danger" ? "assertive" : "polite"}>

@@ -62,6 +62,9 @@ export default async function ExecutorProfilePage() {
           specializationIds: profile.specializationIds,
           measurementTerms: profile.measurementTerms,
           measurementFee: profile.measurementFee,
+          city: profile.city,
+          district: profile.district,
+          streetAddress: profile.streetAddress,
         }}
         types={types}
       />

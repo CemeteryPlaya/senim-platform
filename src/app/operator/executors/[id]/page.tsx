@@ -48,6 +48,8 @@ export default async function ExecutorCardPage({ params }: { params: Promise<{ i
             </dd>
             <dt className="text-muted">{t.executors.specializations}</dt>
             <dd>{x.specializations.map((s) => s.name).join(", ") || t.none}</dd>
+            <dt className="text-muted">{ru.companies.address.title}</dt>
+            <dd className="break-words">{[x.city, x.district, x.streetAddress].filter(Boolean).join(", ")}</dd>
             <dt className="text-muted">{t.executors.about}</dt>
             <dd className="break-words">{x.about || t.none}</dd>
             {x.rejectReason && (

@@ -42,6 +42,8 @@ function profileData(input: ExecutorRegistrationInput) {
     binIinLast4: last4(input.binIin),
     ...signerColumns(input.signer),
     city: input.city,
+    district: input.district ?? "",
+    streetAddress: input.streetAddress ?? "",
     yearsExperience: input.yearsExperience,
   };
 }

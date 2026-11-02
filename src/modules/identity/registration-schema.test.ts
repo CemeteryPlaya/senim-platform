@@ -26,6 +26,15 @@ describe("executorRegistrationSchema", () => {
     });
   });
 
+  it("адрес мастерской (№6): район и улица необязательны, пробелы обрезаются, длина ограничена", () => {
+    expect(executorRegistrationSchema.parse({ ...valid, district: " Есильский район ", streetAddress: " ул. Сыганак, 10 " })).toMatchObject({
+      district: "Есильский район",
+      streetAddress: "ул. Сыганак, 10",
+    });
+    expect(fieldErrors({ ...valid, district: "р".repeat(101) })).toHaveProperty("district");
+    expect(fieldErrors({ ...valid, streetAddress: "у".repeat(201) })).toHaveProperty("streetAddress");
+  });
+
   it("ИП и самозанятый — по ИИН, БИН для них не подходит", () => {
     expect(fieldErrors({ ...valid, binIin: BIN })).toHaveProperty("binIin");
     expect(fieldErrors({ ...valid, legalForm: "SELF_EMPLOYED", binIin: BIN })).toHaveProperty("binIin");

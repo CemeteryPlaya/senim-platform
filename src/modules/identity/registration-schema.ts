@@ -5,6 +5,9 @@ import { isValidFullName, normalizeFullName } from "./full-name";
 import { binIinKindFor, isValidBinIin, isValidIin } from "./kz-id";
 
 const t = ru.identity.registration.errors;
+const a = ru.companies.address.errors;
+const DISTRICT_MAX = 100;
+const STREET_MAX = 200;
 const digits = z.string().transform((v) => v.replace(/\s/g, ""));
 
 /**
@@ -15,6 +18,16 @@ const digits = z.string().transform((v) => v.replace(/\s/g, ""));
  * У ИП и самозанятого iin: null — подписывают ИИН профиля (ИИН/БИН), он и есть ИИН владельца.
  */
 export type ExecutorSigner = { fullName: string; iin: string | null };
+
+/**
+ * Адрес мастерской или офиса (№6) — общие поля анкеты и профиля (companies): город обязателен,
+ * район и улица — нет. Что из адреса видит заказчик, решает companies.executorDisplay.
+ */
+export const addressFields = {
+  city: z.string().trim().min(2, t.city).max(100, t.city),
+  district: z.string().trim().max(DISTRICT_MAX, a.district(DISTRICT_MAX)).optional(),
+  streetAddress: z.string().trim().max(STREET_MAX, a.street(STREET_MAX)).optional(),
+};
 
 /** Поля анкеты о подписанте. Формы присылают все; нужные форме работы проверяет refineSigner. */
 export const signerFields = {
@@ -75,7 +88,7 @@ export const executorRegistrationSchema = z
     legalName: z.string().trim().min(2, t.legalName).max(200, t.legalName),
     binIin: digits,
     ownIin: z.boolean().optional(),
-    city: z.string().trim().min(2, t.city).max(100, t.city),
+    ...addressFields,
     yearsExperience: z.coerce.number({ error: t.experience }).int(t.experience).min(0, t.experience).max(60, t.experience),
     ...signerFields,
   })

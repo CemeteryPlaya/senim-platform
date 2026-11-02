@@ -28,7 +28,7 @@ export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id"
 export { isValidFullName, normalizeFullName } from "./full-name";
 export { hasClientIdentity, limitIdentityAttempts, recordOwnIdentity, recordPersonIdentity, type PersonIdentity } from "./person-identity";
 export { INTRODUCTION_PATH, introductionHref, needsIntroduction } from "./introduction";
-export { refineSigner, signerFields, signerOf } from "./registration-schema";
+export { addressFields, refineSigner, signerFields, signerOf } from "./registration-schema";
 export {
   executorRegistrationSchema,
   getMyRegistration,
