@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { RequestStatus } from "@/generated/prisma/enums";
 import { decryptPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
+import { segmentPriceHints } from "@/modules/requests";
+import { typicalEstimateSchema } from "@/verticals/furniture";
 import { DEAL_SHOWCASES, EXECUTORS } from "./data";
 import { PORTFOLIO_FILES } from "./portfolio-files";
 import { resetDemo, seedDemo } from "./seed";
@@ -96,6 +98,21 @@ describe("демо-данные", () => {
     expect(deals).toHaveLength(DEAL_SHOWCASES.length);
     expect(deals.filter((d) => d.portfolioItem).map((d) => d.portfolioItem!.dealPhotos.length)).toEqual([2]);
     expect(await db.portfolioItem.count({ where: { featured: true } })).toBeGreaterThanOrEqual(4);
+  });
+
+  it("справочник цен материалов и типовые расчёты — демо; по ним считается вилка всех уровней (ADR-007)", async () => {
+    const prices = await db.materialPrice.findMany();
+    expect(prices.length).toBeGreaterThan(0);
+    expect(prices.every((p) => p.isDemo && p.active && p.priceKzt > 0 && p.segments.length > 0)).toBe(true);
+    const estimates = await db.typicalEstimate.findMany({ include: { furnitureType: { select: { slug: true } } } });
+    expect(estimates.map((e) => e.furnitureType.slug).sort()).toEqual(["hallway", "kitchen", "wardrobe"]);
+    for (const e of estimates) {
+      expect(e.isDemo).toBe(true);
+      const { productUnit, typicalWidthCm, typicalHeightCm, markup, perUnit } = e;
+      expect(typicalEstimateSchema.safeParse({ productUnit, typicalWidthCm, typicalHeightCm, markup, perUnit }).success).toBe(true);
+      const hints = await segmentPriceHints(e.furnitureTypeId);
+      for (const hint of Object.values(hints)) expect(hint).toMatchObject({ source: "materials", demo: true });
+    }
   });
 
   it("не дают засеять непустую базу повторно, а resetDemo пересоздаёт её с теми же объёмами", async () => {

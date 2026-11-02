@@ -40,6 +40,7 @@ import {
   type StageStep,
 } from "./data";
 import { seedDocuments } from "./documents";
+import { seedMaterialPrices } from "./materials";
 import { PORTFOLIO_FILES } from "./portfolio-files";
 
 /**
@@ -301,6 +302,8 @@ async function fill(tx: Tx, now: number): Promise<SeedSummary> {
 
   await tx.furnitureType.createMany({ data: DEFAULT_FURNITURE_TYPES.map((t, i) => ({ slug: t.slug, name: t.name, sortOrder: i })) });
   const types = new Map((await tx.furnitureType.findMany()).map((t) => [t.slug as FurnitureSlug, t.id]));
+  // Демо-цены материалов и типовые расчёты (ADR-007): помечены isDemo, оператор заменит реальными.
+  await seedMaterialPrices(tx, types);
 
   const operator = await tx.user.create({ data: personData(OPERATOR, "OPERATOR", clock) });
   const clients = new Map<ClientKey, string>();
