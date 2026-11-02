@@ -27,6 +27,29 @@ export {
 } from "./catalog";
 export { catalogHref, parseCatalogFilter, PRICE_BUCKETS, type CatalogFilter, type PriceBucket, type SearchParams } from "./catalog-filter";
 
+export {
+  INSPIRATION_MAX,
+  INSPIRATION_STEP,
+  inspirationHref,
+  parseInspirationFilter,
+  type InspirationFilter,
+} from "./inspiration-filter";
+export { getInspirationItem, listInspiration, type InspirationDetail, type InspirationTile } from "./inspiration";
+export {
+  applyPortfolioConsent,
+  consentSchema,
+  createPortfolioFromDeal,
+  featuredSchema,
+  fromDealInputSchema,
+  getDealPortfolioDraft,
+  getDealPortfolioPanel,
+  setPortfolioConsent,
+  setPortfolioFeatured,
+  type DealPortfolioDraft,
+  type DealPortfolioPanel,
+  type FromDealInput,
+} from "./deal-portfolio";
+
 export { executorDisplayOf, executorDisplays, publicExecutorView, publicExecutorViews } from "./anonymity";
 export { EXECUTOR_IDENTITY_MODES, type ExecutorDisplay, type ExecutorIdentityMode } from "./display";
 export { getExecutorIdentityMode, setExecutorIdentityMode } from "./identity-mode";
@@ -54,6 +77,7 @@ export {
   PORTFOLIO_DESCRIPTION_MAX,
   PORTFOLIO_MAX_PHOTOS,
   PORTFOLIO_TITLE_MAX,
+  PLACE_MAX,
   portfolioInputSchema,
   removePortfolioPhoto,
   setPortfolioPublished,

@@ -41,6 +41,14 @@ export type PortfolioCard = {
   furnitureType: { slug: string; name: string };
   style: { key: string; name: string };
   priceFrom: number | null;
+  /** Где делали: город, район или ЖК; пустая строка — не указано. */
+  place: string;
+  /** «Подборка Сенім» во «Вдохновении». */
+  featured: boolean;
+  /** Работа из завершённой сделки на площадке — пометка «Выполнено на Сенім». */
+  doneOnPlatform: boolean;
+  /** Отзыв заказчика по этой сделке (якорь на странице исполнителя). */
+  reviewId: string | null;
   photos: PhotoView[];
   executor: Pick<PublicExecutorView, "id" | "publicNumber" | "label" | "segment" | "ratingAvg" | "reviewsCount">;
 };

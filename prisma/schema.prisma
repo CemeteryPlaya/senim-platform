@@ -173,12 +173,33 @@ model PortfolioItem {
   description     String          @default("")
   priceFrom       Int? // ориентир цены, ₸
   published       Boolean         @default(true)
+  // Где делали: город, район или ЖК — не точный адрес (встреча 31.10, п. 3).
+  place           String          @default("")
+  // «Подборка Сенім» во «Вдохновении»: отмечает оператор.
+  featured        Boolean         @default(false)
+  // Работа из завершённой сделки на площадке: одна на сделку. Видна заказчикам только при Deal.portfolioConsentAt.
+  dealId          String?         @unique
+  deal            Deal?           @relation(fields: [dealId], references: [id], onDelete: Cascade)
   createdAt       DateTime        @default(now())
 
-  photos   StoredFile[]
-  requests Request[]
+  photos     StoredFile[]
+  dealPhotos PortfolioDealPhoto[]
+  requests   Request[]
 
   @@index([furnitureTypeId, style])
+}
+
+/// Фото отчёта сделки в работе портфолио: ссылка, а не копия — файл остаётся файлом этапа
+/// (права сторон сделки на него не меняются), удаление работы фото этапа не трогает.
+model PortfolioDealPhoto {
+  portfolioItemId String
+  portfolioItem   PortfolioItem @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)
+  fileId          String
+  file            StoredFile    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  sortOrder       Int           @default(0)
+
+  @@id([portfolioItemId, fileId])
+  @@index([fileId])
 }
 
 model Review {
@@ -468,6 +489,9 @@ model Deal {
   disputes      Dispute[]
   review        Review?
   escrow        EscrowAccount?
+  // Согласие заказчика показать фото мебели в портфолио исполнителя (без адреса); null — нет или отозвано.
+  portfolioConsentAt DateTime?
+  portfolioItem PortfolioItem?
   operations    PaymentOperation[]
 
   @@index([clientId, status])
@@ -740,6 +764,7 @@ model StoredFile {
 
   document          Document?      @relation("DocumentFile")
   visualizationSrc  Visualization[] @relation("VisualizationSource")
+  portfolioDealPhotos PortfolioDealPhoto[]
 
   @@index([phash])
 }

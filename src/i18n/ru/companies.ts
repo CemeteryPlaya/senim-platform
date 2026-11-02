@@ -1,5 +1,7 @@
 // Тексты зоны «companies»: профиль исполнителя, портфолио, каталог, публичная страница, чат.
 
+import { dealPortfolio, inspiration } from "./inspiration";
+
 /** Русское множественное число: plural(5, ["год", "года", "лет"]) → «лет». */
 function plural(n: number, forms: readonly [one: string, few: string, many: string]): string {
   const mod10 = n % 10;
@@ -12,6 +14,8 @@ function plural(n: number, forms: readonly [one: string, few: string, many: stri
 const money = (n: number) => `${n.toLocaleString("ru-RU")} ₸`;
 
 export const companies = {
+  inspiration,
+  dealPortfolio,
   errors: {
     executorNotFound: "Исполнитель не найден",
     executorOnly: "Раздел доступен только исполнителю",
@@ -204,6 +208,8 @@ export const companies = {
       price: "Цена от, ₸",
       priceHint: "Ориентир для заказчика. Можно оставить пустым.",
       published: "Показывать в каталоге",
+      place: "Где делали",
+      placeHint: "Город, район или ЖК — без улицы, дома и квартиры. Можно оставить пустым.",
     },
     photos: {
       title: "Фото работы",

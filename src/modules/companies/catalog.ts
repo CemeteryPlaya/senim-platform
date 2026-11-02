@@ -6,7 +6,7 @@ import { priceRange, type CatalogFilter } from "./catalog-filter";
 import type { ExecutorIdentityMode } from "./display";
 import { getExecutorIdentityMode } from "./identity-mode";
 import { maskContacts, maskIdentity } from "./mask";
-import { PHOTO_SELECT, toPhotoViews } from "./photos";
+import { DEAL_PHOTOS, itemFiles, OWN_PHOTOS, toPhotoViews } from "./photos";
 import { styleView } from "./portfolio";
 import type { PortfolioCard, PublicExecutorPage, PublicExecutorView, PublicReview } from "./types";
 
@@ -19,24 +19,39 @@ export const CATALOG_PAGE_SIZE = 12;
 const PUBLIC_PAGE_PORTFOLIO_LIMIT = 24;
 const REVIEWS_LIMIT = 20;
 
-const VISIBLE_EXECUTOR = { status: "APPROVED", user: { blockedAt: null } } satisfies Prisma.ExecutorProfileWhereInput;
-const VISIBLE_ITEM = { published: true, executor: VISIBLE_EXECUTOR, furnitureType: { active: true } } satisfies Prisma.PortfolioItemWhereInput;
+export const VISIBLE_EXECUTOR = { status: "APPROVED", user: { blockedAt: null } } satisfies Prisma.ExecutorProfileWhereInput;
+/**
+ * Работа из сделки (dealId) — только с согласием заказчика сделки (встреча 31.10, п. 3): без него это черновик исполнителя.
+ * Единственное правило видимости: каталог, страница исполнителя, «Вдохновение» и «Хочу похожее» берут его отсюда.
+ */
+export const VISIBLE_ITEM = {
+  published: true,
+  executor: VISIBLE_EXECUTOR,
+  furnitureType: { active: true },
+  OR: [{ dealId: null }, { deal: { portfolioConsentAt: { not: null } } }],
+} satisfies Prisma.PortfolioItemWhereInput;
 
-const CARD_SELECT = {
+export const CARD_SELECT = {
   id: true,
   title: true,
   description: true,
   style: true,
   priceFrom: true,
+  place: true,
+  featured: true,
+  dealId: true,
+  executorId: true,
   furnitureTypeId: true,
   furnitureType: { select: { slug: true, name: true } },
-  photos: { select: PHOTO_SELECT, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+  photos: OWN_PHOTOS,
+  dealPhotos: DEAL_PHOTOS,
+  deal: { select: { review: { select: { id: true, rating: true, text: true } } } },
   executor: { select: PUBLIC_EXECUTOR_SELECT },
 } satisfies Prisma.PortfolioItemSelect;
 
-type CardRow = Prisma.PortfolioItemGetPayload<{ select: typeof CARD_SELECT }>;
+export type CardRow = Prisma.PortfolioItemGetPayload<{ select: typeof CARD_SELECT }>;
 
-async function toCard(row: CardRow, mode: ExecutorIdentityMode): Promise<PortfolioCard> {
+export async function toCard(row: CardRow, mode: ExecutorIdentityMode): Promise<PortfolioCard> {
   const view = toPublicView(row.executor, mode);
   return {
     id: row.id,
@@ -45,7 +60,11 @@ async function toCard(row: CardRow, mode: ExecutorIdentityMode): Promise<Portfol
     furnitureType: row.furnitureType,
     style: styleView(row.style),
     priceFrom: row.priceFrom,
-    photos: await toPhotoViews(row.photos, (n) => ru.companies.photoAlt(row.title, n)),
+    place: row.place,
+    featured: row.featured,
+    doneOnPlatform: row.dealId !== null,
+    reviewId: row.deal?.review?.id ?? null,
+    photos: await toPhotoViews(itemFiles(row), (n) => ru.companies.photoAlt(row.title, n)),
     executor: { id: view.id, publicNumber: view.publicNumber, label: view.label, segment: view.segment, ratingAvg: view.ratingAvg, reviewsCount: view.reviewsCount },
   };
 }

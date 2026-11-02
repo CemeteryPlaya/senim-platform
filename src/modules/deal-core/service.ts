@@ -32,7 +32,7 @@ import {
   scheduleAutoAccept,
   tryCloseStage,
 } from "./effects";
-import { createContract, recalculateRating, withdrawContract } from "./ports";
+import { applyPortfolioConsent, createContract, recalculateRating, withdrawContract } from "./ports";
 import {
   autoAcceptPayloadSchema,
   cancelDealSchema,
@@ -376,7 +376,7 @@ export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reaso
 }
 
 /** Отзыв: только заказчик, только по завершённой сделке, один на сделку. Рейтинг пересчитывает companies. */
-export async function leaveReview(user: CurrentUser, raw: { dealId: string; rating: number; text?: string }) {
+export async function leaveReview(user: CurrentUser, raw: { dealId: string; rating: number; text?: string; portfolioConsent?: boolean }) {
   const input = parseInput(reviewSchema, raw);
   await transaction(async (tx) => {
     const deal = await lockDeal(tx, input.dealId);
@@ -398,6 +398,8 @@ export async function leaveReview(user: CurrentUser, raw: { dealId: string; rati
       after: { rating: input.rating },
     });
     await recalculateRating(tx, deal.executorId);
+    // Согласие на показ фото — в той же транзакции: отзыв без согласия или согласие без отзыва не останутся наполовину.
+    if (input.portfolioConsent) await applyPortfolioConsent(tx, user, deal.id, true);
     await notifyParty(tx, deal, "EXECUTOR", "deal.review", { title: t.review.title, body: t.review.body(input.rating) });
   });
 }

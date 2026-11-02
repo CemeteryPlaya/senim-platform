@@ -119,3 +119,31 @@ export async function makeReview(executor: Executor, rating: number, text = "") 
     data: { dealId: thread.dealId!, executorId: executor.executor.id, authorId: thread.client.id, rating, text },
   });
 }
+
+/**
+ * Завершённая сделка с отчётом: два этапа, у последнего — фото исполнителя (STAGE_REPORT), у первого — одно своё фото.
+ * Заявка — с типом мебели, стилем и городом (их подставляет форма «Добавить в портфолио»).
+ */
+export async function makeDealWithReport(opts: { client?: CurrentUser; executor?: Executor; dealStatus?: DealStatus; photos?: number } = {}) {
+  const executor = opts.executor ?? (await makeExecutor());
+  const thread = await makeOfferThread({ client: opts.client, executor, dealStatus: opts.dealStatus ?? "COMPLETED", requestStatus: "CLOSED" });
+  const type = await makeFurnitureType({ name: "Кухня" });
+  await db.request.update({ where: { id: thread.requestId }, data: { furnitureTypeId: type.id, style: "scandi", city: "Астана", address: "ул. Тестовая, 1, кв. 2" } });
+  const dealId = thread.dealId!;
+  const photo = async () => {
+    n += 1;
+    return db.storedFile.create({
+      data: { storageKey: `stage_report/test/${n}.jpg`, provider: "local", purpose: "STAGE_REPORT", contentType: "image/jpeg", size: 1000, sha256: "2".repeat(64), uploadedById: executor.id },
+    });
+  };
+  const first = await db.stage.create({ data: { dealId, order: 1, title: "Изготовление", amount: 400_000, paymentDue: "ON_ACCEPTANCE", status: "ACCEPTED" } });
+  const last = await db.stage.create({ data: { dealId, order: 2, title: "Монтаж", amount: 500_000, paymentDue: "ON_ACCEPTANCE", status: "ACCEPTED" } });
+  const firstPhoto = await photo();
+  await db.storedFile.update({ where: { id: firstPhoto.id }, data: { stageId: first.id } });
+  const finalPhotos = [];
+  for (let i = 0; i < (opts.photos ?? 2); i++) {
+    const file = await photo();
+    finalPhotos.push((await db.storedFile.update({ where: { id: file.id }, data: { stageId: last.id, sortOrder: i } })).id);
+  }
+  return { ...thread, executor, dealId, furnitureTypeId: type.id, finalPhotoIds: finalPhotos, earlierPhotoId: firstPhoto.id };
+}

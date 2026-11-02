@@ -1,4 +1,5 @@
 import { fileUrl } from "@/modules/files";
+import type { Prisma } from "@/platform/db";
 import type { PhotoView } from "./types";
 
 type FileRow = { id: string; provider: string; storageKey: string };
@@ -13,3 +14,19 @@ export function toPhotoViews(files: readonly FileRow[], alt: (n: number) => stri
 }
 
 export const PHOTO_SELECT = { id: true, provider: true, storageKey: true } as const;
+
+/** Свои фото работы (загружены в портфолио) — и фото отчёта этапа: порядок, затем время загрузки. */
+export const OWN_PHOTOS = {
+  select: PHOTO_SELECT,
+  orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+} satisfies Prisma.PortfolioItem$photosArgs;
+/** Итоговые фото сделки, на которые ссылается работа (PortfolioDealPhoto): файлы этапа, не копии. */
+export const DEAL_PHOTOS = {
+  select: { file: { select: PHOTO_SELECT } },
+  orderBy: { sortOrder: "asc" },
+} satisfies Prisma.PortfolioItem$dealPhotosArgs;
+
+/** Все фото работы по порядку: сначала итоговые фото сделки, затем загруженные. Первое — обложка. */
+export function itemFiles(row: { photos: readonly FileRow[]; dealPhotos: readonly { file: FileRow }[] }): FileRow[] {
+  return [...row.dealPhotos.map((p) => p.file), ...row.photos];
+}

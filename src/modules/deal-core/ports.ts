@@ -6,4 +6,4 @@
  * который передаёт экран (_components/signing), поэтому цикла не возникает и регистрация не нужна.
  */
 export { createContract, createStageAct, withdrawContract } from "@/modules/documents";
-export { executorDisplayOf, executorDisplays, maskContacts, recalculateRating, sanitizeExecutorText } from "@/modules/companies";
+export { applyPortfolioConsent, executorDisplayOf, executorDisplays, maskContacts, recalculateRating, sanitizeExecutorText } from "@/modules/companies";

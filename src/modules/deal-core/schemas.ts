@@ -48,6 +48,8 @@ export const reviewSchema = z.object({
   dealId: id,
   rating: z.coerce.number().int().min(1, v.rating).max(5, v.rating),
   text: z.string().trim().max(2000, v.tooLong(2000)).default(""),
+  /** Галочка «Разрешаю показать фото моей мебели в портфолио исполнителя» (встреча 31.10, п. 3). */
+  portfolioConsent: z.boolean().default(false),
 });
 
 const stageTemplateSchema = z.object({
