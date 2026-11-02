@@ -80,6 +80,9 @@ const TEXT_PAIRS: [fg: string, bg: string][] = [
   ["muted", "success-soft"],
   ["muted", "warning-soft"],
   ["muted", "danger-soft"],
+  // Блок денег на карточке сделки (ТЗ п. 4.1): строки под заголовком — ink-soft на сером, зелёном и жёлтом.
+  ["ink-soft", "success-soft"],
+  ["ink-soft", "warning-soft"],
 ];
 
 /** Нетекстовые элементы (границы полей, кольцо фокуса): WCAG 1.4.11 — 3:1. */

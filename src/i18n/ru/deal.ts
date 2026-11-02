@@ -26,34 +26,157 @@ export const deal = {
   },
   disputeOpenBadge: "Открыт спор",
 
-  /** Одно главное действие на экране сделки (nextStep). */
+  /** Одно главное действие на экране сделки (nextStep): что сейчас происходит или что сделать. */
   next: {
-    signContract: "Подпишите оферту",
+    signContract: "Проверьте условия оферты и подпишите её",
     waitContractSignature: "Ждём подпись оферты другой стороной",
-    pay: "Оплатить",
+    pay: "Оферта заключена. Оплатите заказ — деньги будут под защитой банка",
     waitPayment: "Ждём оплату покупателя",
     waitPaymentConfirmation: "Банк подтверждает оплату",
-    startWork: "Начать работу",
+    startWork: "Деньги покупателя в банке — можно начинать работу",
     waitStart: "Мастер скоро начнёт работу",
-    submitReady: "Сдать работу",
+    submitReady: "Когда закончите, сдайте работу с фото результата",
     waitReady: "Мастер выполняет работу",
-    signAct: "Проверьте работу и подпишите акт",
+    signAct: "Мастер сдал работу. Проверьте её и подпишите акт приёмки",
     waitAct: "Покупатель проверяет работу",
     waitPayout: "Банк проводит выплату",
     waitRefund: "Банк возвращает деньги покупателю",
     waitDispute: "Оператор рассматривает спор",
-    resolveDispute: "Решить спор",
-    leaveReview: "Оставить отзыв",
+    resolveDispute: "Открыт спор — нужно решение оператора",
+    leaveReview: "Сделка завершена. Оцените мастера",
     done: "Сделка завершена",
     cancelled: "Сделка отменена",
     refunded: "Деньги возвращены покупателю",
     none: "Действий не требуется",
   },
 
+  /** Подписи кнопок действий сделки. */
+  actions: {
+    signContract: "Подписать оферту",
+    pay: (amount: string) => `Оплатить ${amount}`,
+    startWork: "Начать работу",
+    submitReady: "Сдать работу",
+    signAct: "Подписать акт",
+    resolveDispute: "Решить спор",
+    cancel: "Отменить сделку",
+    confirmCancel: "Да, отменить",
+    openDispute: "Открыть спор",
+    sendPosition: "Отправить позицию",
+    addProgress: "Добавить отчёт",
+    sendProgress: "Отправить отчёт",
+    sendReview: "Отправить отзыв",
+  },
+
+  sections: {
+    next: "Что дальше",
+    money: "Деньги",
+    details: "Подробнее о заказе",
+    progress: "Ход работ",
+    ready: "Сдача работы",
+    documents: "Документы",
+    contacts: "Контакты",
+    dispute: "Спор",
+    review: "Отзыв",
+    events: "История событий",
+  },
+
+  /** «Подробнее о заказе» — раскрывающийся блок под блоком денег. */
+  view: {
+    executor: "Мастер",
+    client: "Покупатель",
+    city: "Город",
+    plannedReady: "Плановая готовность",
+    duration: "Срок изготовления",
+    warranty: "Гарантия",
+    signedAt: "Оферта заключена",
+    daysLeft: (days: string) => `Осталось ${days}`,
+    stepsLabel: "Ход сделки",
+    steps: ["Оферта", "Оплата", "Работа", "Сдача", "Приёмка", "Выплата"],
+    roomPhotoAlt: (n: number) => `Фото помещения ${n}`,
+    operatorWatch: "Вы смотрите сделку как оператор",
+  },
+
+  pay: {
+    redirecting: "Открываем страницу оплаты…",
+    /** Провайдер manual (OPEN_QUESTIONS №47): реквизиты счёта в банке — в оферте, пока их нет в настройках оператора. */
+    manualHint: (amount: string) => `Переведите ${amount} по реквизитам из оферты. Когда банк подтвердит поступление, деньги будут под защитой.`,
+  },
+
+  cancel: {
+    title: "Отменить сделку?",
+    beforePayment: "Оферта не будет исполняться. Это действие нельзя отменить.",
+    afterPayment: "Деньги вернутся на вашу карту. Это действие нельзя отменить.",
+  },
+
+  /** Сдача работы (READY): фото обязательно, геолокация — мягкая проверка. */
   ready: {
+    photosLabel: "Фото результата",
+    photosHint: "Хотя бы одно фото: покупатель увидит его в акте приёмки.",
+    waitPhotos: "Дождитесь загрузки фото — потом работу можно сдать.",
+    locating: "Определяем местоположение…",
+    photoAlt: (n: number) => `Фото результата ${n}`,
+    submittedAt: "Сдано",
     gpsWarning: (distance: number, radius: number) => `Вы в ${distance} м от адреса заказа — дальше ${radius} м. Сдать можно, расстояние попадёт в акт.`,
+    gpsFar: (distance: number, radius: number) => `Сдано в ${distance} м от адреса заказа — дальше ${radius} м.`,
     gpsUnknown: "Без геолокации: расстояние до адреса в акте не указано.",
-    gpsOk: (distance: number) => `Вы у адреса заказа (${distance} м).`,
+    gpsOk: (distance: number) => `У адреса заказа (${distance} м).`,
+  },
+
+  /** «Ход работ»: необязательные фото-отчёты мастера, без денег и актов. */
+  progress: {
+    titleLabel: "Заголовок",
+    textLabel: "Что сделано",
+    photosLabel: "Фото",
+    photoAlt: (title: string, n: number) => `${title}: фото ${n}`,
+    untitled: "Отчёт",
+  },
+
+  documents: {
+    CONTRACT: (n: string) => `Оферта № ${n}`,
+    ACCEPTANCE_ACT: (n: string) => `Акт приёмки № ${n}`,
+    signed: "Подписан",
+    signing: "Ждёт подписи",
+    open: (title: string) => `Открыть PDF: ${title}`,
+  },
+
+  contacts: {
+    phone: "Телефон",
+    instagram: "Instagram",
+  },
+
+  dispute: {
+    reason: {
+      QUALITY: "Качество работы",
+      DEADLINE: "Сроки",
+      SCOPE: "Не соответствует оферте",
+      PAYMENT: "Оплата",
+      OTHER: "Другое",
+    },
+    outcome: {
+      CONTINUE: "Продолжить работу",
+      FULL_REFUND: "Полный возврат покупателю",
+      PARTIAL_SPLIT: "Частичный раздел",
+    },
+    open: "Спор открыт",
+    resolved: "Спор решён",
+    openedAt: "Открыт",
+    clientPosition: "Позиция покупателя",
+    executorPosition: "Позиция мастера",
+    noPosition: "Позиция ещё не отправлена",
+    masterShare: "Мастеру из цены заказа",
+    rationale: "Обоснование решения",
+    reasonLabel: "Причина спора",
+    descriptionLabel: "Опишите ситуацию",
+    hint: "Оператор прочитает позиции обеих сторон. Пишите по фактам: что, когда, сколько.",
+    positionLabel: "Ваша позиция",
+  },
+
+  review: {
+    ratingLabel: "Оценка",
+    ratingOption: (n: number) => `${n} из 5`,
+    textLabel: "Отзыв",
+    textHint: "Что понравилось, что можно улучшить.",
+    stars: (n: number) => `Оценка: ${n} из 5`,
   },
 
   history: {

@@ -1,66 +1,56 @@
 "use server";
 
 import {
-  acceptStage,
+  addProgressReport,
   cancelDeal,
   cancelDealSchema,
-  confirmStagePayment,
+  dealRefSchema,
   disputePositionSchema,
   leaveReview,
-  markStagePaid,
   openDispute,
   openDisputeSchema,
-  requestRework,
-  retryOperationSchema,
-  retryPaymentOperation,
+  payForDeal,
+  progressReportSchema,
   reviewSchema,
-  reworkSchema,
-  stageRefSchema,
-  startStage,
+  startWork,
   submitDisputePosition,
-  submitStage,
-  submitStageSchema,
+  submitReady,
+  submitReadySchema,
 } from "@/modules/deal-core";
 import { requireUser } from "@/modules/identity";
 import { onDealCancelled } from "@/modules/requests";
 import { action } from "@/platform/action";
 
-// Действия на экране сделки. Вход — zod-схема deal-core, первая строка — роль;
-// принадлежность сделки и допустимость перехода проверяет сервис (IDOR → «не найдено»).
+// Действия на экране сделки (ТЗ п. 9). Вход — zod-схема deal-core, первая строка — роль; принадлежность сделки,
+// допустимость перехода и двойной клик проверяет сервис (IDOR → «не найдено», повтор — та же операция).
 
-export const startStageAction = action("deal.startStage", stageRefSchema, async (input) => {
-  const user = await requireUser("EXECUTOR");
-  await startStage(user, input);
-});
-
-export const submitStageAction = action("deal.submitStage", submitStageSchema, async (input) => {
-  const user = await requireUser("EXECUTOR");
-  await submitStage(user, input);
-});
-
-export const acceptStageAction = action("deal.acceptStage", stageRefSchema, async (input) => {
+/** Оплата: mock — сразу под защитой банка; manual — «Оплата в обработке»; провайдер со страницей — redirectUrl. */
+export const payAction = action("deal.pay", dealRefSchema, async (input) => {
   const user = await requireUser("CLIENT");
-  await acceptStage(user, input);
+  const { status, redirectUrl } = await payForDeal(user, input);
+  return { status, redirectUrl };
 });
 
-export const reworkAction = action("deal.requestRework", reworkSchema, async (input) => {
-  const user = await requireUser("CLIENT");
-  await requestRework(user, input);
-});
-
-export const markPaidAction = action("deal.markStagePaid", stageRefSchema, async (input) => {
-  const user = await requireUser("CLIENT");
-  await markStagePaid(user, input);
-});
-
-export const confirmPaymentAction = action("deal.confirmStagePayment", stageRefSchema, async (input) => {
+export const startWorkAction = action("deal.startWork", dealRefSchema, async (input) => {
   const user = await requireUser("EXECUTOR");
-  await confirmStagePayment(user, input);
+  await startWork(user, input);
 });
 
+/** Сдача: фото обязательно; GPS — мягкая проверка, ответ с расстоянием для предупреждения. */
+export const submitReadyAction = action("deal.submitReady", submitReadySchema, async (input) => {
+  const user = await requireUser("EXECUTOR");
+  return submitReady(user, input);
+});
+
+export const progressReportAction = action("deal.progressReport", progressReportSchema, async (input) => {
+  const user = await requireUser("EXECUTOR");
+  await addProgressReport(user, input);
+});
+
+/** Отмена: до оплаты — любая сторона; после оплаты — покупатель (возврат на карту); дальше — только спор. */
 export const cancelDealAction = action("deal.cancel", cancelDealSchema, async (input) => {
   const user = await requireUser("CLIENT", "EXECUTOR");
-  await cancelDeal(user, input, { onCancelled: onDealCancelled });
+  return cancelDeal(user, input, { onCancelled: onDealCancelled });
 });
 
 export const openDisputeAction = action("deal.openDispute", openDisputeSchema, async (input) => {
@@ -76,9 +66,4 @@ export const disputePositionAction = action("deal.disputePosition", disputePosit
 export const reviewAction = action("deal.review", reviewSchema, async (input) => {
   const user = await requireUser("CLIENT");
   await leaveReview(user, input);
-});
-
-export const retryOperationAction = action("deal.retryOperation", retryOperationSchema, async (input) => {
-  const user = await requireUser("OPERATOR");
-  await retryPaymentOperation(user, input);
 });

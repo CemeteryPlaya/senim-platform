@@ -151,7 +151,6 @@ export const common = {
       allDeals: "Все заказы",
       offers: (n: number) => (n === 0 ? "Откликов пока нет" : `Откликов: ${n}`),
       draft: "Черновик — можно продолжить",
-      stages: (closed: number, total: number) => `Этапов принято: ${closed} из ${total}`,
       emptyTitle: "Заявок пока нет",
       emptyText: "Опишите, какая мебель нужна, — мастера пришлют цену, срок и условия замера.",
     },

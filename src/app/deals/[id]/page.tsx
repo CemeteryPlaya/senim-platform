@@ -1,26 +1,23 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { cache, type ReactNode } from "react";
+import { cache } from "react";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { DealPortfolioPanel } from "@/app/_components/deal-portfolio/DealPortfolioPanel";
-import { SigningPanel } from "@/app/_components/signing";
-import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import { DealFlowSteps } from "@/app/_components/pre-contract/DealFlowSteps";
+import { orNotFound } from "@/app/requests/_parts/guard";
+import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import { listDealDocuments, type SigningDocumentView } from "@/modules/documents";
 import { getCurrentUser, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
-import { Card, Container, DateText, Fact, Money, PageHeader, StatusBadge } from "@/ui";
-import { orNotFound } from "@/app/requests/_parts/guard";
-import { ActionButton } from "../_parts/ActionButton";
-import { cancelDealAction } from "./actions";
-import { DisputePositionForm, OpenDisputeForm } from "./_parts/DealForms";
-import { NextStepCard } from "./_parts/NextStepCard";
+import { isEnabled } from "@/platform/features";
+import { Container, PageHeader, StatusBadge } from "@/ui";
+import { DEAL_TONE } from "../_parts/labels";
+import { otherPartyContacts } from "./_parts/contacts";
+import { Estimate, MoneyBlock } from "./_parts/MoneyBlock";
+import { NextStep } from "./_parts/NextStep";
 import { OrderDetails } from "./_parts/OrderDetails";
-import { currentStageIndex } from "./_parts/order-view";
-import { OrderSummary } from "./_parts/OrderSummary";
-import { Payment } from "./_parts/Payment";
-import { StageTimeline } from "./_parts/StageTimeline";
+import { CancelDeal, ContactsSection, DisputeSection, DocumentsSection, EventsSection, ProgressSection, ReadySection, Section } from "./_parts/Sections";
 
 const t = ru.deal;
 
@@ -44,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /**
  * Сделка недоступна в активной роли, но человек — её сторона в другой своей роли (ADR-004):
- * на переключение роли с возвратом сюда. Иначе — как раньше (404 через orNotFound).
+ * на переключение роли с возвратом сюда. Иначе — 404 через orNotFound.
  */
 async function loadOrSwitchRole(user: CurrentUser, id: string): Promise<DealView> {
   const party = user.roles.length > 1 ? await dealPartyOf(user, id) : null;
@@ -52,10 +49,13 @@ async function loadOrSwitchRole(user: CurrentUser, id: string): Promise<DealView
   return orNotFound(loadDeal(user, id));
 }
 
+/** Панель подписи нужна, только когда смотрящему есть что подписать (оферта или акт). */
+const needsSigning = (deal: DealView) => deal.next.mine && (deal.next.action === "signContract" || deal.next.action === "signAct");
+
 /**
- * «Мой заказ» (макет 10) — одна длинная страница, общая для заказчика, исполнителя и оператора: фото и плашка
- * статуса, ключевые данные и шкала этапов, «Что дальше» с единственным главным действием, этапы с фотоотчётами,
- * детали, документы, оплата, чат, спор, отзыв, портфолио, история. Действия по роли решает deal-core (next-step).
+ * Карточка сделки (ТЗ п. 4.1, 9) — общая для покупателя, мастера и оператора. Первый блок — деньги из журнала
+ * (тап — «История денег»), до оплаты — смета; затем «Что дальше» с единственным главным действием (deal-core.nextStep);
+ * «Подробнее о заказе» свёрнуто. Ниже — сдача, ход работ, документы, контакты, чат, спор, история событий.
  */
 export default async function DealPage({ params }: Props) {
   const { id } = await params;
@@ -63,146 +63,50 @@ export default async function DealPage({ params }: Props) {
   if (!user) redirect(`/login?next=${encodeURIComponent(`/deals/${id}`)}`);
   requireIntroduced(user, `/deals/${id}`);
   const deal = await loadOrSwitchRole(user, id);
-  const documents = await listDealDocuments(user, deal.id);
-  const isParty = deal.viewer === "CLIENT" || deal.viewer === "EXECUTOR";
-  const contract = documents.find((d) => d.kind === "CONTRACT");
+  const [signable, contacts] = await Promise.all([
+    needsSigning(deal) ? listDealDocuments(user, deal.id) : Promise.resolve<SigningDocumentView[]>([]),
+    otherPartyContacts(deal),
+  ]);
+  const openDispute = deal.dispute?.status === "OPEN";
 
   return (
     <Container size="form">
-      <PageHeader title={t.number(deal.number)} back={{ href: "/deals" }} />
+      <PageHeader
+        title={t.number(deal.number)}
+        back={{ href: "/deals" }}
+        description={
+          <span className="flex flex-wrap gap-2">
+            <StatusBadge tone={DEAL_TONE[deal.status]}>{t.status[deal.status]}</StatusBadge>
+            {openDispute && <StatusBadge tone="warning">{t.disputeOpenBadge}</StatusBadge>}
+          </span>
+        }
+      />
       <div className="flex flex-col gap-6 pb-10">
-        {/* Шкала сценария до договора нужна, пока этапы не начались; дальше ход дела показывает шкала этапов. */}
-        {currentStageIndex(deal.status, deal.stages) === null && <DealFlowSteps user={user} offerId={deal.offerId} />}
-        <OrderSummary deal={deal} now={new Date()} />
-        <NextStepCard deal={deal} />
-        <StageTimeline deal={deal} />
-        <OrderDetails deal={deal} />
-        <Section id="documents" title={t.sections.documents} note={t.contract.revealNote}>
-          {contract && <DocumentPanel doc={contract} />}
-          <Acts deal={deal} documents={documents} />
-        </Section>
-        <Payment deal={deal} />
-        <OfferChat offerId={deal.offerId} />
-        <Dispute deal={deal} isParty={isParty} />
+        {deal.viewer === "OPERATOR" && <p className="text-base text-muted">{t.view.operatorWatch}</p>}
+        <MoneyBlock deal={deal} />
+        <Estimate deal={deal} />
+        <NextStep deal={deal} />
+        {/* Сценарии до договора (ADR-005) — под флагом preContractFlows, только пока оферта не исполняется. */}
+        {isEnabled("preContractFlows") && deal.status === "CREATED" && <DealFlowSteps user={user} offerId={deal.offerId} />}
+        <OrderDetails deal={deal} now={new Date()} />
+        <ReadySection deal={deal} />
+        <ProgressSection deal={deal} />
+        <DocumentsSection deal={deal} signable={signable} />
+        <ContactsSection contacts={contacts} />
+        <div className="border-t border-line pt-6">
+          <OfferChat offerId={deal.offerId} />
+        </div>
+        <DisputeSection deal={deal} />
         {deal.review && (
-          <Card as="section" title={t.sections.review}>
+          <Section id="review" title={t.sections.review}>
             <p className="text-lg font-semibold text-ink">{t.review.stars(deal.review.rating)}</p>
-            {deal.review.text && <p className="mt-2 text-base text-ink">{deal.review.text}</p>}
-          </Card>
+            {deal.review.text && <p className="text-base text-ink">{deal.review.text}</p>}
+          </Section>
         )}
         <DealPortfolioPanel user={user} dealId={deal.id} />
-        <History deal={deal} />
-        {isParty && (deal.status === "AWAITING_SIGNATURES" || deal.status === "AWAITING_DEPOSIT") && (
-          <ActionButton
-            action={cancelDealAction}
-            input={{ dealId: deal.id }}
-            variant="ghost"
-            confirm={{ title: t.forms.cancelTitle, text: t.forms.cancelText, yes: t.actions.confirmCancel, no: ru.common.actions.dontCancel, tone: "danger" }}
-          >
-            {t.actions.cancelDeal}
-          </ActionButton>
-        )}
+        <EventsSection deal={deal} />
+        <CancelDeal deal={deal} />
       </div>
     </Container>
-  );
-}
-
-function Section({ id, title, note, level = "h2", children }: { id: string; title: string; note?: string; level?: "h2" | "h3"; children: ReactNode }) {
-  const Heading = level;
-  return (
-    <section aria-labelledby={`${id}-title`} className="flex flex-col gap-4">
-      <Heading id={`${id}-title`} className={level === "h2" ? "text-xl font-extrabold text-ink" : "text-lg font-bold text-ink"}>
-        {title}
-      </Heading>
-      {note && <p className="text-base text-muted">{note}</p>}
-      {children}
-    </section>
-  );
-}
-
-/** Панель документа (documents-engineer): PDF, хэш, подписи сторон и подпись ЭЦП. Якорь — для «Перейти к подписи». */
-function DocumentPanel({ doc }: { doc: SigningDocumentView }) {
-  return (
-    <div id={`doc-${doc.id}`} className="scroll-mt-6">
-      <SigningPanel document={doc} titleAs="h3" />
-    </div>
-  );
-}
-
-function Acts({ deal, documents }: { deal: DealView; documents: SigningDocumentView[] }) {
-  const acts = deal.stages.flatMap((s) => {
-    const doc = documents.find((d) => d.kind === "STAGE_ACT" && d.stageId === s.id);
-    return doc ? [{ stage: s, doc }] : [];
-  });
-  return (
-    <Section id="acts" level="h3" title={t.sections.acts} note={acts.length === 0 ? t.contract.noActs : undefined}>
-      {acts.map(({ stage, doc }) => (
-        <div key={doc.id} className="flex flex-col gap-2">
-          <p className="text-base font-semibold text-muted">{t.contract.actFor(stage.order, stage.title)}</p>
-          <DocumentPanel doc={doc} />
-        </div>
-      ))}
-    </Section>
-  );
-}
-
-function Dispute({ deal, isParty }: { deal: DealView; isParty: boolean }) {
-  const d = deal.dispute;
-  if (!d) {
-    if (!isParty || deal.status !== "IN_PROGRESS") return null;
-    return (
-      <details className="rounded-card border border-line bg-surface p-5">
-        <summary className="min-h-control-sm cursor-pointer text-lg font-semibold text-ink">{t.actions.openDispute}</summary>
-        <div className="pt-4">
-          <OpenDisputeForm dealId={deal.id} />
-        </div>
-      </details>
-    );
-  }
-  const myPosition = deal.viewer === "CLIENT" ? d.clientPosition : deal.viewer === "EXECUTOR" ? d.executorPosition : "";
-  return (
-    <Card as="section" title={t.sections.dispute}>
-      <div className="flex flex-col gap-4">
-        <StatusBadge tone={d.status === "OPEN" ? "danger" : "neutral"}>{d.status === "OPEN" ? t.dispute.open : t.dispute.resolved}</StatusBadge>
-        <dl className="grid grid-cols-[minmax(0,1fr)] gap-3">
-          <Fact label={t.forms.disputeReason}>{t.dispute.reason[d.reason]}</Fact>
-          <Fact label={t.dispute.openedAt}>
-            <DateText value={d.createdAt} format="dateTime" />
-          </Fact>
-          <Fact label={t.dispute.clientPosition}>{d.clientPosition ?? t.dispute.noPosition}</Fact>
-          <Fact label={t.dispute.executorPosition}>{d.executorPosition ?? t.dispute.noPosition}</Fact>
-          {d.decision && <Fact label={t.dispute.resolved}>{t.dispute.decision[d.decision]}</Fact>}
-          {d.decisionAmount !== null && (
-            <Fact label={t.dispute.decisionAmount}>
-              <Money amount={d.decisionAmount} />
-            </Fact>
-          )}
-          {d.rationale && <Fact label={t.dispute.rationale}>{d.rationale}</Fact>}
-        </dl>
-        {isParty && d.status === "OPEN" && !myPosition && <DisputePositionForm disputeId={d.id} />}
-      </div>
-    </Card>
-  );
-}
-
-function History({ deal }: { deal: DealView }) {
-  const h = t.history;
-  return (
-    <Card as="section" title={t.sections.history}>
-      {deal.history.length === 0 ? (
-        <p className="text-base text-muted">{h.empty}</p>
-      ) : (
-        <ol className="flex flex-col gap-3">
-          {deal.history.map((e) => (
-            <li key={e.id} className="flex flex-col gap-1 border-b border-line pb-3 last:border-0 last:pb-0">
-              <span className="text-base text-ink">{h.action[e.action] ?? e.action}</span>
-              <span className="text-base text-muted">
-                {h.actor[e.actorRole as keyof typeof h.actor] ?? e.actorRole} · <DateText value={e.createdAt} format="dateTime" />
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </Card>
   );
 }

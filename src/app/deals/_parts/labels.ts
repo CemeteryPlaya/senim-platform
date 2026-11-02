@@ -1,29 +1,19 @@
-import type { DealStatus, StagePaymentStatus, StageStatus } from "@/generated/prisma/enums";
+import type { DealStatus } from "@/generated/prisma/enums";
 import type { Tone } from "@/ui";
 
-// Цвет статуса — одно место для списка сделок и экрана сделки.
+// Цвет статуса сделки (ТЗ п. 9) — одно место для списка сделок, главных экранов и карточки сделки.
+// Цвет только в помощь: у метки всегда есть текст ru.deal.status.
 
 export const DEAL_TONE: Record<DealStatus, Tone> = {
-  AWAITING_SIGNATURES: "info",
-  AWAITING_DEPOSIT: "info",
+  CREATED: "info",
+  PAID_HOLD: "accent",
   IN_PROGRESS: "accent",
-  DISPUTE: "danger",
-  COMPLETED: "success",
-  CANCELLED: "neutral",
-  TERMINATED: "neutral",
-};
-
-export const STAGE_TONE: Record<StageStatus, Tone> = {
-  PENDING: "neutral",
-  IN_PROGRESS: "accent",
-  SUBMITTED: "warning",
-  REWORK: "warning",
+  READY: "warning",
   ACCEPTED: "success",
-  CLOSED: "success",
+  SPLIT_PAYOUT: "success",
+  CANCELLED: "neutral",
+  REFUNDED: "neutral",
 };
 
-export const PAYMENT_TONE: Record<StagePaymentStatus, Tone> = {
-  DUE: "warning",
-  MARKED_PAID: "info",
-  CONFIRMED: "success",
-};
+/** Сделка ещё идёт: её показывают главные экраны. Завершённые, отменённые и с возвратом — в «Сделках». */
+export const ACTIVE_DEAL: ReadonlySet<DealStatus> = new Set(["CREATED", "PAID_HOLD", "IN_PROGRESS", "READY", "ACCEPTED"]);

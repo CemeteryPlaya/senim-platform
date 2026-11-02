@@ -12,15 +12,16 @@ export const payments = {
 
   /** Смета до оплаты (ТЗ п. 5): покупатель и мастер видят суммы и проценты заранее. */
   estimate: {
+    title: "Смета",
     CLIENT: { price: "Стоимость заказа", extra: "Защита сделки (2%)", total: "Итого к оплате" },
-    EXECUTOR: { price: "Сумма заказа", extra: "Гарантия оплаты и клиента (4%)", total: "К выплате" },
+    EXECUTOR: { price: "Сумма заказа", extra: "Гарантия оплаты (4%)", total: "К выплате" },
   },
 
-  /** Блок денег — первый блок карточки сделки (ТЗ п. 4.1, 4.2). */
+  /** Блок денег — первый блок карточки сделки (ТЗ п. 4.1, 4.2): строится из журнала, не из статуса. */
   block: {
-    awaiting: { title: "Ожидает оплаты", text: "Деньги ещё не внесены" },
-    awaitingPending: { title: "Оплата в обработке", text: "Банк подтверждает поступление денег" },
-    awaitingFailed: { title: "Оплата не прошла", text: "Деньги не списаны. Попробуйте оплатить ещё раз" },
+    awaiting: { title: "Ожидает оплаты", CLIENT: "Деньги ещё не внесены", EXECUTOR: "Деньги покупателя будут зарезервированы в банке до начала работ" },
+    pending: { title: "Оплата в обработке", text: "Банк подтверждает поступление денег" },
+    failed: { title: "Оплата не прошла", CLIENT: "Деньги не списаны. Попробуйте оплатить ещё раз", EXECUTOR: "Покупатель может оплатить ещё раз" },
     /** Зеркальный блок у мастера ещё в карточке заявки, до оплаты. */
     masterBeforePayment: "Деньги покупателя будут зарезервированы в банке до начала работ",
     protected: {
@@ -32,16 +33,17 @@ export const payments = {
     frozen: { title: "Выплата заморожена до решения спора", text: (amount: string) => `Сумма к выплате: ${amount}` },
     completed: {
       title: "Сделка завершена",
-      text: (paid: string, protection: string) => `Выплачено мастеру: ${paid} · Защита сделки: ${protection}`,
-      refunded: (amount: string) => `Возвращено покупателю: ${amount}`,
       pending: "Банк проводит выплату",
+      paid: { CLIENT: (amount: string) => `Выплачено мастеру: ${amount}`, EXECUTOR: (amount: string) => `Выплачено вам: ${amount}` } satisfies Record<Party, (amount: string) => string>,
+      toPay: { CLIENT: (amount: string) => `К выплате мастеру: ${amount}`, EXECUTOR: (amount: string) => `К выплате вам: ${amount}` } satisfies Record<Party, (amount: string) => string>,
+      protection: (amount: string) => `Защита сделки: ${amount}`,
+      refunded: (amount: string) => `Возвращено покупателю: ${amount}`,
     },
     refunded: {
-      title: "Деньги возвращены покупателю",
-      pending: "Деньги вернутся на вашу карту",
-      text: (amount: string) => `Сумма возврата: ${amount}`,
+      title: (amount: string) => `Деньги вернулись покупателю: ${amount}`,
+      pending: { CLIENT: "Деньги вернутся на вашу карту", EXECUTOR: "Банк возвращает деньги покупателю" } satisfies Record<Party, string>,
+      amount: (amount: string) => `Сумма возврата: ${amount}`,
     },
-    inBank: (amount: string) => `В банке: ${amount}`,
     testPayment: "Тестовый платёж — настоящие деньги не списываются",
     openHistory: "История денег",
   },
@@ -60,6 +62,17 @@ export const payments = {
     },
     status: { PENDING: "В обработке банком", SUCCEEDED: "Выполнено", FAILED: "Не прошло" },
     basis: "Документ-основание",
+    testMark: "тестовый платёж",
+    statement: "Печатаемая выписка (PDF)",
+  },
+
+  /** Печатаемая выписка по деньгам сделки (адаптер до PDF MONEY_STATEMENT от documents). */
+  statement: {
+    title: (n: number) => `Выписка по сделке №${n}`,
+    formedAt: (date: string) => `Сформирована ${date}`,
+    print: "Распечатать или сохранить PDF",
+    columns: { date: "Дата", operation: "Операция", amount: "Сумма", ref: "Номер операции" },
+    priceRow: "Цена по оферте",
   },
 
   /** Уведомления обеим сторонам на каждое изменение денег (onMoneyChanged). */
