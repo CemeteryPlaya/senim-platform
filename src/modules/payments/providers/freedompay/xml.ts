@@ -50,36 +50,46 @@ class Parser {
     if (!open) return null;
     this.pos += open[0].length;
     const name = open[1]!;
-    if (open[2] === "/") return { name, value: "" };
+    return open[2] === "/" ? { name, value: "" } : this.body(name);
+  }
+
+  /** Содержимое до `</name>`: текст (лист) или дочерние элементы; смешанное содержимое — null. */
+  body(name: string): Element | null {
     const children: Array<[string, FieldValue]> = [];
     let text = "";
-    for (;;) {
-      if (this.pos >= this.s.length) return null;
-      const rest = this.s.slice(this.pos);
-      if (rest.startsWith(`</${name}>`)) {
+    while (this.pos < this.s.length) {
+      if (this.s.startsWith(`</${name}>`, this.pos)) {
         this.pos += name.length + 3;
         if (children.length === 0) return { name, value: text };
         return text.trim() === "" ? { name, value: children } : null;
       }
-      if (rest.startsWith("<![CDATA[")) {
-        const end = this.s.indexOf("]]>", this.pos);
-        if (end < 0) return null;
-        text += this.s.slice(this.pos + 9, end);
-        this.pos = end + 3;
-      } else if (rest.startsWith("<!--")) {
-        this.skipTo("-->");
-      } else if (rest.startsWith("<")) {
-        const child = this.element();
-        if (!child) return null;
-        children.push([child.name, child.value]);
-      } else {
-        const next = this.s.indexOf("<", this.pos);
-        const chunk = decode(this.s.slice(this.pos, next < 0 ? this.s.length : next));
-        if (chunk === null) return null;
-        text += chunk;
-        this.pos = next < 0 ? this.s.length : next;
-      }
+      const part = this.part();
+      if (part === null) return null;
+      if (typeof part === "string") text += part;
+      else children.push([part.name, part.value]);
     }
+    return null;
+  }
+
+  /** Одна часть содержимого: текст, CDATA, комментарий (пустая строка) или элемент. */
+  part(): string | Element | null {
+    if (this.s.startsWith("<![CDATA[", this.pos)) {
+      const end = this.s.indexOf("]]>", this.pos);
+      if (end < 0) return null;
+      const text = this.s.slice(this.pos + 9, end);
+      this.pos = end + 3;
+      return text;
+    }
+    if (this.s.startsWith("<!--", this.pos)) {
+      this.skipTo("-->");
+      return "";
+    }
+    if (this.s.startsWith("<", this.pos)) return this.element();
+    const next = this.s.indexOf("<", this.pos);
+    const end = next < 0 ? this.s.length : next;
+    const text = decode(this.s.slice(this.pos, end));
+    this.pos = end;
+    return text;
   }
 }
 

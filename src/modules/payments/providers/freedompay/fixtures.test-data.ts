@@ -1,4 +1,4 @@
-import { signFields } from "./signature";
+import { signFields, type Fields } from "./signature";
 import { parseXmlFields } from "./xml";
 
 /**
@@ -114,4 +114,12 @@ export const RESULT_FAILED: ReadonlyArray<readonly [string, string]> = [
 export function resign(xml: string, script: string, key: string): string {
   const fields = parseXmlFields(xml)!.fields.filter(([k]) => k !== "pg_sig");
   return xml.replace(/<pg_sig>[0-9a-f]{32}<\/pg_sig>/, `<pg_sig>${signFields(script, fields, key)}</pg_sig>`);
+}
+
+/** Подписанный XML-ответ из полей (как отвечает Freedom Pay): подпись тем же скриптом и ключом. */
+export function signedXml(script: string, key: string, fields: Fields, root = "response"): string {
+  const all: Fields = [...fields, ["pg_salt", "srv-salt"]];
+  const xml = (list: Fields): string =>
+    list.map(([k, v]) => `<${k}>${typeof v === "string" ? v.replace(/&/g, "&amp;").replace(/</g, "&lt;") : xml(v)}</${k}>`).join("");
+  return `<?xml version="1.0" encoding="utf-8"?><${root}>${xml(all)}<pg_sig>${signFields(script, all, key)}</pg_sig></${root}>`;
 }

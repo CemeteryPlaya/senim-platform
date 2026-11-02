@@ -142,6 +142,10 @@ describe("проверка подписи входящих данных", () => 
     expect(verifyFields("result", tampered, KEY)).toBe(false);
   });
 
+  it("pg_sig верхнего уровня с вложенным значением — не подпись", () => {
+    expect(verifyFields("result", [...fields, ["pg_sig", [["x", signFields("result", fields, KEY)]]]], KEY)).toBe(false);
+  });
+
   it("вложенный pg_sig не считается подписью ответа", () => {
     expect(verifyFields("result", [...fields, ["x", [["pg_sig", signFields("result", fields, KEY)]]]], KEY)).toBe(false);
   });

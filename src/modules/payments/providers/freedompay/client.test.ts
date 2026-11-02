@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { amountToTiyn, createFreedomPayClient, tiynToAmount } from "./client";
-import { ERROR_UNSIGNED, INIT_PAYMENT_OK, PAYOUT_STATUS_OK, resign } from "./fixtures.test-data";
+import { amountToTiyn, createFreedomPayClient, defaultSalt, tiynToAmount } from "./client";
+import { ERROR_UNSIGNED, INIT_PAYMENT_OK, PAYOUT_STATUS_OK, resign, signedXml } from "./fixtures.test-data";
 import { signFields, verifyFields, type Fields } from "./signature";
 
 const KEY = "test_payment_key";
@@ -134,6 +134,43 @@ describe("HTTP-клиент Freedom Pay", () => {
     const out = await client(fn).call("/init_payment.php", [["pg_description", "Сделка №17"]], KEY);
     expect(JSON.stringify(out)).not.toContain(KEY);
     expect(JSON.stringify(out)).not.toContain("Сделка");
+  });
+
+  it("таймаут fetch — причина «таймаут», прочая ошибка — «сеть недоступна»", async () => {
+    const timeout = Object.assign(new Error("t"), { name: "TimeoutError" });
+    const abort = Object.assign(new Error("a"), { name: "AbortError" });
+    for (const [error, reason] of [[timeout, "таймаут"], [abort, "таймаут"], [new Error("x"), "сеть недоступна"]] as const) {
+      const { fn } = fakeFetch(error);
+      expect(await client(fn).call("/init_payment.php", [], KEY)).toEqual({ kind: "unknown", reason: `/init_payment.php: ${reason}` });
+    }
+  });
+
+  it("повторы статуса — с нарастающей паузой 500, 1000 мс; первая попытка без паузы", async () => {
+    const { fn } = fakeFetch(new Error("a"), new Error("b"), new Error("c"));
+    const sleeps: number[] = [];
+    const c = createFreedomPayClient(
+      { apiUrl: API, merchantId: "1", timeoutMs: 5000, statusRetries: 2 },
+      { fetch: fn, salt: () => "s", sleep: async (ms) => void sleeps.push(ms) },
+    );
+    await c.call("/get_status3.php", [], KEY, { idempotent: true });
+    expect(sleeps).toEqual([500, 1000]);
+  });
+
+  it("apiUrl с «/» на конце — без двойного слэша", async () => {
+    const { fn, calls } = fakeFetch(ERROR_UNSIGNED);
+    const c = createFreedomPayClient({ apiUrl: `${API}//`, merchantId: "1", timeoutMs: 5000, statusRetries: 0 }, { fetch: fn, salt: () => "s", sleep: async () => {} });
+    await c.call("/init_payment.php", [], KEY);
+    expect(calls[0]!.url).toBe(`${API}/init_payment.php`);
+  });
+
+  it("XML с другим корнем — исход неизвестен, даже с верной подписью", async () => {
+    const { fn } = fakeFetch(signedXml("init_payment.php", KEY, [["pg_status", "ok"]], "request"));
+    expect(await client(fn).call("/init_payment.php", [], KEY)).toMatchObject({ kind: "unknown" });
+  });
+
+  it("соль по умолчанию — латиница и цифры, каждый раз новая", () => {
+    expect(defaultSalt()).toMatch(/^[0-9a-f]{16}$/);
+    expect(defaultSalt()).not.toBe(defaultSalt());
   });
 
   it("таймаут передаётся в fetch как AbortSignal", async () => {

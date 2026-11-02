@@ -59,6 +59,13 @@ export function amountToTiyn(text: string): bigint | null {
   return m[1] ? -tiyn : tiyn;
 }
 
+/** Отказ: «pg_error_code» у неподписанных ошибок, «pg_failure_code» у подписанных (revoke, cancel, to_iban). */
+function declined(fields: Fields): ApiOutcome {
+  const code = fieldText(fields, "pg_error_code") ?? fieldText(fields, "pg_failure_code") ?? "";
+  const description = fieldText(fields, "pg_error_description") ?? fieldText(fields, "pg_failure_description") ?? "";
+  return { kind: "declined", code, description };
+}
+
 function interpret(path: string, text: string, key: string): ApiOutcome {
   const doc = parseXmlFields(text);
   if (!doc || doc.root !== "response") return { kind: "unknown", reason: `${path}: ответ не XML <response>` };
@@ -66,11 +73,7 @@ function interpret(path: string, text: string, key: string): ApiOutcome {
   if (signed && !verifyFields(scriptNameOf(path), doc.fields, key)) {
     return { kind: "unknown", reason: `${path}: подпись ответа не сошлась` };
   }
-  if (fieldText(doc.fields, "pg_status") === "error") {
-    const code = fieldText(doc.fields, "pg_error_code") ?? fieldText(doc.fields, "pg_failure_code") ?? "";
-    const description = fieldText(doc.fields, "pg_error_description") ?? fieldText(doc.fields, "pg_failure_description") ?? "";
-    return { kind: "declined", code, description };
-  }
+  if (fieldText(doc.fields, "pg_status") === "error") return declined(doc.fields);
   if (!signed) return { kind: "unknown", reason: `${path}: ответ без подписи` };
   return { kind: "ok", fields: doc.fields };
 }
