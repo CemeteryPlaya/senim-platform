@@ -1,4 +1,5 @@
 import "server-only";
+import type { Role } from "@/generated/prisma/enums";
 import { db, Prisma, type Db } from "@/platform/db";
 
 /**
@@ -8,7 +9,7 @@ import { db, Prisma, type Db } from "@/platform/db";
  */
 
 export type Actor =
-  | { kind: "user"; id: string; role: "CLIENT" | "EXECUTOR" | "OPERATOR" }
+  | { kind: "user"; id: string; role: Role }
   | { kind: "system"; name: string };
 
 export type AuditInput = {

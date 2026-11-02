@@ -16,7 +16,8 @@ const PHOTO_MAX = 25 * MB;
 
 export const PURPOSE_POLICY: Readonly<Record<FilePurpose, PurposePolicy>> = {
   PORTFOLIO: { roles: ["EXECUTOR"], accepts: "image", maxBytes: PHOTO_MAX },
-  REQUEST_ROOM: { roles: ["CLIENT"], accepts: "image", maxBytes: PHOTO_MAX },
+  // Фото помещения — заказчик в мастере и замерщик площадки (ADR-005).
+  REQUEST_ROOM: { roles: ["CLIENT", "MEASURER"], accepts: "image", maxBytes: PHOTO_MAX },
   STAGE_REPORT: { roles: ["EXECUTOR"], accepts: "image", maxBytes: PHOTO_MAX },
   DISPUTE: { roles: ["CLIENT", "EXECUTOR", "OPERATOR"], accepts: "image", maxBytes: PHOTO_MAX },
   MESSAGE: { roles: ["CLIENT", "EXECUTOR"], accepts: "image", maxBytes: PHOTO_MAX },

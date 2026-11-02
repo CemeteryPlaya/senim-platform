@@ -44,6 +44,8 @@ export function homePathFor(user: { role: Role; executor: { status: string } | n
       return "/requests";
     case "OPERATOR":
       return "/operator";
+    case "MEASURER":
+      return "/measurer";
     case "EXECUTOR":
       return user.executor?.status === "APPROVED" ? "/executor/requests" : EXECUTOR_REGISTRATION_PATH;
   }

@@ -23,7 +23,7 @@ export type DemoPersona = {
   executor: { publicNumber: number; legalForm: LegalForm; legalName: string; status: "PENDING" | "APPROVED" | "REJECTED" } | null;
 };
 
-const ROLE_ORDER: Record<Role, number> = { OPERATOR: 0, CLIENT: 1, EXECUTOR: 2 };
+const ROLE_ORDER: Record<Role, number> = { OPERATOR: 0, MEASURER: 1, CLIENT: 2, EXECUTOR: 3 };
 
 export async function listDemoPersonas(): Promise<DemoPersona[]> {
   if (!env().DEMO_MODE) return [];

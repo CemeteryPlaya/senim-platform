@@ -183,4 +183,17 @@ describe("ограничения БД", () => {
   it("оператор не совмещается с другими ролями", async () => {
     await expect(makeUser("OPERATOR", "Оператор-заказчик", ["OPERATOR", "CLIENT"])).rejects.toThrow();
   });
+
+  it("замерщик площадки не совмещается с другими ролями", async () => {
+    await expect(makeUser("MEASURER", "Замерщик-заказчик", ["MEASURER", "CLIENT"])).rejects.toThrow();
+    await expect(makeUser("CLIENT", "Заказчик-замерщик", ["CLIENT", "MEASURER"])).rejects.toThrow();
+    await expect(makeUser("MEASURER", "Замерщик")).resolves.toMatchObject({ roles: ["MEASURER"] });
+  });
+
+  it("замерщику роль заказчика не выдаётся", async () => {
+    const measurer = await makeUser("MEASURER", "Замерщик");
+    expect(await transaction((tx) => grantRole(tx, measurer, "CLIENT"))).toBe(false);
+    expect(await codeOf(transaction((tx) => grantRole(tx, measurer, "MEASURER")))).toBe("FORBIDDEN");
+    expect((await db.user.findUniqueOrThrow({ where: { id: measurer.id } })).roles).toEqual(["MEASURER"]);
+  });
 });

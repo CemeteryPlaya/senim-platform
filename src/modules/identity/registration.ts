@@ -10,6 +10,7 @@ import type { ReviewExecutorRegistration } from "./index";
 import { usesOwnIin, type ExecutorRegistrationInput, type ExecutorSigner } from "./registration-schema";
 import { EXECUTOR_REGISTRATION_PATH } from "./return-to";
 import { actorOf, grantRole, type CurrentUser } from "./session";
+import { isStaffRole } from "./roles";
 
 export { executorRegistrationSchema, type ExecutorRegistrationInput, type ExecutorSigner } from "./registration-schema";
 
@@ -70,7 +71,7 @@ async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegis
  * переключает вызывающий (switchRole) — сервис о cookie не знает.
  */
 export async function registerExecutor(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
-  if (user.role === "OPERATOR") return fail.forbidden(t.errors.operator);
+  if (isStaffRole(user.role)) return fail.forbidden(t.errors.operator);
   await enforceRateLimit(`registration:user:${user.id}`, REGISTRATION_LIMIT, t.errors.tooMany);
 
   return register(user, await withOwnIin(user, input)).catch((e: unknown) => {

@@ -18,6 +18,7 @@ enum Role {
   CLIENT
   EXECUTOR
   OPERATOR
+  MEASURER // замерщик площадки (ADR-005): сотрудник, как оператор, не совмещается с другими ролями
 }
 
 model User {
@@ -25,7 +26,7 @@ model User {
   phone     String   @unique // E.164: +77001234567
   /// Роль по умолчанию при следующем входе (последняя активная). Всегда одна из roles (CHECK в миграции).
   role      Role
-  /// Выданные роли (ADR-004). OPERATOR не совмещается с другими (CHECK в миграции).
+  /// Выданные роли (ADR-004). OPERATOR и MEASURER не совмещаются с другими (CHECK в миграции).
   roles     Role[]
   fullName  String?
   iinEnc    String? // ИИН, AES-256-GCM (platform/crypto)
@@ -47,6 +48,7 @@ model User {
   disputesOpened  Dispute[]        @relation("DisputeOpenedBy")
   disputesResolved Dispute[]       @relation("DisputeResolvedBy")
   files           StoredFile[]
+  siteMeasurements SiteMeasurement[] @relation("SiteMeasurements")
 }
 
 model Session {
@@ -199,8 +201,18 @@ enum RequestMode {
   DIRECT // только выбранный исполнитель («Хочу похожее»)
 }
 
+/// Сценарий до договора (ADR-005): снимок настройки площадки в момент отправки заявки.
+enum PreContractFlow {
+  EXECUTOR_MEASURE // 1. замер исполнителем после выбора
+  PLATFORM_MEASURER // 2. замерщик площадки до предложений
+  CONTRACT_FIRST // 3. договор до замера, цена с допуском
+  MEASURE_DEPOSIT // 4. залог за выезд напрямую исполнителю
+  SELF_MEASURE // 5. заказчик сам снимает размеры
+}
+
 enum RequestStatus {
   DRAFT
+  PLATFORM_MEASURING // сценарий 2: ждёт замерщика площадки, исполнителям ещё не видна
   OPEN
   OFFER_CHOSEN
   MEASURING
@@ -231,6 +243,7 @@ model Request {
   desiredDate       DateTime?
   wishes            String          @default("")
   status            RequestStatus   @default(DRAFT)
+  preContractFlow   PreContractFlow? // снимок сценария при отправке; null — черновик
   wizardStep        Int             @default(0) // последний сохранённый шаг мастера
   publishedAt       DateTime?
   closedAt          DateTime?
@@ -242,6 +255,9 @@ model Request {
   measurements   Measurement[]
   deal           Deal?
   visualizations Visualization[]
+  siteMeasurement SiteMeasurement?
+  projects       Project[]
+  offerRetries   OfferRetry[]
 
   @@index([status, segment, mode])
   @@index([clientId, status])
@@ -267,6 +283,8 @@ model Offer {
   measurementFee   Int?
   comment          String           @default("")
   status           OfferStatus      @default(SENT)
+  /// Попытка исполнителя на этой заявке: 1, а после разрешения оператора (OfferRetry, №16) — следующая.
+  round            Int              @default(1)
   // Чат отклика закрыт оператором (ответ №19): только чтение до повторного открытия.
   chatClosedAt     DateTime?
   chatClosedReason String?
@@ -276,8 +294,10 @@ model Offer {
   measurement Measurement?
   deal        Deal?
   messages    Message[]
+  projects    Project[]
+  deposit     MeasureDeposit?
 
-  @@unique([requestId, executorId]) // один отклик исполнителя на заявку
+  @@unique([requestId, executorId, round]) // один отклик исполнителя на заявку в каждой разрешённой попытке
 }
 
 enum MeasurementStatus {
@@ -301,6 +321,91 @@ model Measurement {
   doneAt      DateTime?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+}
+
+// ─── сценарии до договора (ADR-005) ──────────────────────────────────────────
+
+enum SiteMeasurementStatus {
+  ASSIGNED // оператор назначил замерщика площадки
+  DONE // размеры сняты: заявка открыта исполнителям
+}
+
+/// Замер площадки (сценарий 2): замерщик-сотрудник снимает размеры до предложений исполнителей.
+model SiteMeasurement {
+  id           String                @id @default(cuid())
+  requestId    String                @unique
+  request      Request               @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  measurerId   String
+  measurer     User                  @relation("SiteMeasurements", fields: [measurerId], references: [id])
+  assignedById String // оператор
+  status       SiteMeasurementStatus @default(ASSIGNED)
+  widthCm      Int?
+  heightCm     Int?
+  depthCm      Int?
+  notes        String                @default("")
+  assignedAt   DateTime              @default(now())
+  doneAt       DateTime?
+  updatedAt    DateTime              @updatedAt
+
+  @@index([measurerId, status])
+}
+
+enum ProjectStatus {
+  SUBMITTED // ждёт решения заказчика
+  APPROVED
+  CHANGES_REQUESTED // заказчик попросил изменить: исполнитель отправит новую версию
+}
+
+/// Версия проекта по выбранному отклику: материалы, расшифровка стоимости, срок, гарантия, итоговая цена.
+model Project {
+  id             String        @id @default(cuid())
+  requestId      String
+  request        Request       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  offerId        String
+  offer          Offer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  version        Int
+  status         ProjectStatus @default(SUBMITTED)
+  materials      String
+  costLines      Json // [{ title, amount }]: схема в requests/project-rules.ts
+  durationDays   Int
+  warrantyMonths Int
+  totalPrice     Int // ₸
+  changeNote     String? // комментарий заказчика «Внести изменения»
+  createdAt      DateTime      @default(now())
+  decidedAt      DateTime?
+
+  @@unique([offerId, version]) // гонка двух отправок одной версии — один успех
+  @@index([requestId])
+}
+
+enum DepositStatus {
+  MARKED_PAID // заказчик отметил «внёс залог исполнителю напрямую»
+  CONFIRMED // исполнитель подтвердил получение
+}
+
+/// Залог за выезд (сценарий 4). Деньги идут напрямую исполнителю: площадка только фиксирует отметки.
+model MeasureDeposit {
+  id          String        @id @default(cuid())
+  offerId     String        @unique
+  offer       Offer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  amount      Int // ₸
+  status      DepositStatus @default(MARKED_PAID)
+  markedAt    DateTime      @default(now())
+  confirmedAt DateTime?
+}
+
+/// Разрешение оператора откликнуться ещё раз (№16): следующая попытка исполнителя на заявке.
+model OfferRetry {
+  id         String   @id @default(cuid())
+  requestId  String
+  request    Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  executorId String // ExecutorProfile.id
+  round      Int // какую попытку разрешает
+  reason     String
+  operatorId String
+  createdAt  DateTime @default(now())
+
+  @@unique([requestId, executorId, round]) // двойной клик оператора — один эффект
 }
 
 // ─── deal-core ───────────────────────────────────────────────────────────────

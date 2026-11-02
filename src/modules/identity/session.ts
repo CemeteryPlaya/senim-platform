@@ -10,7 +10,7 @@ import { randomToken, sha256Hex } from "@/platform/crypto";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { loginHref } from "./return-to";
 import { introductionHref, needsIntroduction } from "./introduction";
-import { activeRoleOf, roleToSwitch, switchRoleHref } from "./roles";
+import { activeRoleOf, isStaffRole, roleToSwitch, STAFF_ROLES, switchRoleHref } from "./roles";
 
 export const SESSION_COOKIE = "senim_session";
 const SESSION_TTL_DAYS = 30;
@@ -182,9 +182,9 @@ export async function switchRole(user: Pick<CurrentUser, "id">, role: Role): Pro
  * Возвращает true, если роль выдана сейчас.
  */
 export async function grantRole(tx: Tx, user: Pick<CurrentUser, "id" | "role">, role: Role): Promise<boolean> {
-  if (role === "OPERATOR") return fail.forbidden();
+  if (isStaffRole(role)) return fail.forbidden();
   const granted = await tx.user.updateMany({
-    where: { id: user.id, NOT: [{ roles: { has: role } }, { roles: { has: "OPERATOR" } }] },
+    where: { id: user.id, NOT: [{ roles: { has: role } }, ...STAFF_ROLES.map((s) => ({ roles: { has: s } }))] },
     data: { roles: { push: role } },
   });
   if (granted.count === 0) return false;

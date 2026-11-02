@@ -29,6 +29,13 @@ describe("canGrant", () => {
     expect(canGrant(["OPERATOR"], "CLIENT")).toBe(false);
     expect(canGrant(["CLIENT"], "OPERATOR")).toBe(false);
   });
+
+  it("замерщик площадки — сотрудник, как оператор: не совмещается с другими ролями (ADR-005)", () => {
+    expect(canGrant(["MEASURER"], "CLIENT")).toBe(false);
+    expect(canGrant(["MEASURER"], "EXECUTOR")).toBe(false);
+    expect(canGrant(["CLIENT"], "MEASURER")).toBe(false);
+    expect(canGrant(["OPERATOR"], "MEASURER")).toBe(false);
+  });
 });
 
 describe("roleToSwitch", () => {

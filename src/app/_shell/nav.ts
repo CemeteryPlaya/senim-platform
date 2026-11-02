@@ -37,6 +37,7 @@ const ROUTES = {
   profile: { href: "/executor/profile", label: t.profile, icon: "profile" },
   portfolio: { href: "/executor/portfolio", label: t.portfolio, icon: "portfolio" },
   operator: { href: "/operator", label: t.operator, icon: "operator" },
+  measurer: { href: "/measurer", label: t.measurer, icon: "measurements" },
   bankDemo: { href: "/bank-demo", label: t.bankDemo, icon: "bank" },
   demo: { href: "/demo", label: t.demo, icon: "demo" },
 } satisfies Record<string, NavItem>;
@@ -55,6 +56,8 @@ function itemsFor(user: NavUser | null): NavItem[] {
         : [ROUTES.profile, ROUTES.portfolio, ROUTES.notifications];
     case "OPERATOR":
       return [ROUTES.operator, ROUTES.deals];
+    case "MEASURER":
+      return [ROUTES.measurer, ROUTES.notifications];
   }
 }
 

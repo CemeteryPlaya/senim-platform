@@ -19,10 +19,14 @@ export function activeRoleOf(granted: readonly Role[], defaultRole: Role, sessio
   return sessionRole !== null && granted.includes(sessionRole) ? sessionRole : defaultRole;
 }
 
-/** Можно ли выдать роль: ещё не выдана, и оператор не совмещается с другими ролями. */
+/** Сотрудники площадки (оператор, замерщик — ADR-004, ADR-005): роль не совмещается с другими. */
+export const STAFF_ROLES = ["OPERATOR", "MEASURER"] as const satisfies readonly Role[];
+export const isStaffRole = (role: Role): boolean => (STAFF_ROLES as readonly Role[]).includes(role);
+
+/** Можно ли выдать роль: ещё не выдана, и сотрудник площадки не совмещает роль с другими. */
 export function canGrant(granted: readonly Role[], role: Role): boolean {
   if (granted.includes(role)) return false;
-  return role !== "OPERATOR" && !granted.includes("OPERATOR");
+  return !isStaffRole(role) && !granted.some(isStaffRole);
 }
 
 /**
