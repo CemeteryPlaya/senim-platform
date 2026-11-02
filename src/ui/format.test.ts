@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatDateTime, formatDays, formatMoney, formatMonths, formatRelative, formatTime, formatYears, moneyBreakParts } from "./format";
+import { formatDate, formatDateTime, formatDays, formatMoney, formatMonths, formatRelative, formatTiyn, formatTime, formatYears, moneyBreakParts } from "./format";
 
 const NBSP = " ";
 
@@ -107,5 +107,20 @@ describe("сроки полными словами со склонением", (
     expect(formatYears(1)).toBe(`1${NBSP}год`);
     expect(formatYears(4)).toBe(`4${NBSP}года`);
     expect(formatYears(12)).toBe(`12${NBSP}лет`);
+  });
+});
+
+describe("formatTiyn — деньги сделки в тиынах", () => {
+  it("целые тенге — без тиынов, разряды неразрывным пробелом", () => {
+    expect(formatTiyn(153_000_000n)).toBe("1 530 000 ₸");
+  });
+
+  it("тиыны — после запятой двумя знаками", () => {
+    expect(formatTiyn(10_105n)).toBe("101,05 ₸");
+    expect(formatTiyn(7n)).toBe("0,07 ₸");
+  });
+
+  it("отрицательная сумма — со знаком минус", () => {
+    expect(formatTiyn(-150n)).toBe("−1,50 ₸");
   });
 });

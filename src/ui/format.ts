@@ -23,6 +23,19 @@ export function formatMoney(amount: number): string {
 }
 
 /**
+ * Сумма в тиынах (деньги сделки, ADR-009): «1 530 000 ₸», с тиынами — «101,05 ₸».
+ * bigint, чтобы не терять точность; тиыны показываются, только если они есть.
+ */
+export function formatTiyn(tiyn: bigint): string {
+  const sign = tiyn < 0n ? "−" : "";
+  const abs = tiyn < 0n ? -tiyn : tiyn;
+  const whole = moneyFormat.format(abs / 100n).replace(/\s/g, NBSP);
+  const cents = abs % 100n;
+  const fraction = cents === 0n ? "" : `,${cents.toString().padStart(2, "0")}`;
+  return `${sign}${whole}${fraction}${NBSP}${ru.common.currency}`;
+}
+
+/**
  * Сумма по кускам, между которыми допустим перенос: после каждой группы разрядов.
  * На узком экране при крупном шрифте «10 005 000 ₸» встаёт в две строки, а не уходит за край;
  * знак валюты не отрывается от последней группы.
