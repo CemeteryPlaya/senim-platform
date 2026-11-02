@@ -1,12 +1,7 @@
+import { brand } from "@/config/brand";
+
 /**
  * Цвета бренда для мест, где нет CSS: манифест, theme-color, офлайн-страница сервис-воркера.
- * Источник — tokens.css; совпадение проверяет brand.test.ts.
+ * Источник — src/config/brand.ts; совпадение с tokens.css проверяет brand.test.ts.
  */
-export const BRAND_COLORS = {
-  primary: "#007d50",
-  canvas: "#ffffff",
-  surface: "#ffffff",
-  ink: "#151a22",
-  muted: "#566070",
-  onPrimary: "#ffffff",
-} as const;
+export const BRAND_COLORS = brand.colors;

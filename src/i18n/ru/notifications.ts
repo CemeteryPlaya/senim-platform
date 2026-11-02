@@ -1,5 +1,6 @@
 // Тексты зоны «notifications»: страница уведомлений, колокольчик, шаблоны in-app и SMS.
 // Деньги и даты приходят уже отформатированными (formatMoney, formatDateTime).
+import { brand } from "@/config/brand";
 
 type Text = { title: string; body: string };
 
@@ -26,7 +27,7 @@ export const notifications = {
     labelUnread: (n: number) => `Уведомления: ${n} непрочитанных`,
   },
   /** SMS: коротко, со ссылкой на событие. */
-  sms: (title: string, url: string | null) => (url ? `Сенім: ${title}. ${url}` : `Сенім: ${title}`),
+  sms: (title: string, url: string | null) => (url ? `${brand.name}: ${title}. ${url}` : `${brand.name}: ${title}`),
   errors: {
     smsNotConfigured: "SMS-шлюз не настроен",
   },

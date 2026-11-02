@@ -1,7 +1,8 @@
 // Общие тексты интерфейса: оболочка, базовые компоненты (src/ui), витрина.
+import { brand } from "@/config/brand";
 export const common = {
-  brand: "Сенім",
-  tagline: "Мебель на заказ с оплатой по этапам под контролем",
+  brand: brand.name,
+  tagline: brand.tagline,
   currency: "₸",
   /** Формы слова для 1, 2–4 и 5+ (склонение — src/ui/format.ts). */
   units: {
@@ -57,12 +58,12 @@ export const common = {
 
   shell: {
     skipLink: "Перейти к содержанию",
-    home: "Сенім — на главную",
+    home: `${brand.name} — на главную`,
     more: "Ещё",
     navLabel: "Основное меню",
     menu: "Меню",
     signedInAs: (role: string) => `Вы вошли как: ${role.toLowerCase()}`,
-    about: "Как работает Сенім",
+    about: `Как работает ${brand.name}`,
   },
   nav: {
     home: "Главная",

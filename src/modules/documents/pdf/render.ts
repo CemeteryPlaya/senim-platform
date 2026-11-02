@@ -1,3 +1,4 @@
+import { brand } from "@/config/brand";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
@@ -242,8 +243,8 @@ export async function renderPdf(spec: PdfSpec): Promise<Uint8Array> {
   };
   doc.setTitle(spec.title);
   doc.setLanguage("ru-RU");
-  doc.setProducer("Сенім");
-  doc.setCreator("Сенім");
+  doc.setProducer(brand.name);
+  doc.setCreator(brand.name);
   doc.setCreationDate(spec.issuedAt);
   doc.setModificationDate(spec.issuedAt);
 

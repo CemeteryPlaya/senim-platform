@@ -1,4 +1,5 @@
 // Тексты зоны «companies»: «Вдохновение» и работы из сделок (встреча 31.10, п. 2 и 3). Подключены в companies.ts.
+import { brand } from "@/config/brand";
 
 export const inspiration = {
   title: "Вдохновение",
@@ -9,8 +10,8 @@ export const inspiration = {
     all: "Все",
     reset: "Сбросить фильтры",
   },
-  featured: "Подборка Сенім",
-  doneOnPlatform: "Выполнено на Сенім",
+  featured: `Подборка ${brand.name}`,
+  doneOnPlatform: `Выполнено на ${brand.name}`,
   more: "Показать ещё",
   shownOf: (shown: number) => `Показано работ: ${shown}`,
   openWork: (title: string) => `Открыть работу: ${title}`,
@@ -39,7 +40,7 @@ export const inspiration = {
   operator: {
     add: "В подборку",
     remove: "Убрать из подборки",
-    added: "Работа в подборке Сенім.",
+    added: `Работа в подборке ${brand.name}.`,
   },
   errors: {
     operatorOnly: "Подборку ведёт оператор",
@@ -56,7 +57,7 @@ export const dealPortfolio = {
     consentNotGiven: "Пока не разрешено — фото никто, кроме вас и исполнителя, не видит.",
     save: "Сохранить",
     revoke: "Отозвать разрешение",
-    executorText: "Добавьте итоговые фото в портфолио: работа получит пометку «Выполнено на Сенім» и ссылку на отзыв.",
+    executorText: `Добавьте итоговые фото в портфолио: работа получит пометку «Выполнено на ${brand.name}» и ссылку на отзыв.`,
     executorAdd: "Добавить в портфолио",
     executorAdded: "Работа уже в портфолио.",
     executorOpen: "Открыть работу",
@@ -81,7 +82,7 @@ export const dealPortfolio = {
   },
   /** Пометки в своём портфолио. */
   badges: {
-    fromDeal: "Выполнено на Сенім",
+    fromDeal: `Выполнено на ${brand.name}`,
     waitingConsent: "Ждёт разрешения заказчика",
   },
   reviewLink: "Отзыв заказчика",

@@ -1,3 +1,4 @@
+import { brand } from "@/config/brand";
 import type { DisputeReason, LegalForm, PreContractFlow, Segment } from "@/generated/prisma/enums";
 import type {
   CountertopKey,
@@ -1040,7 +1041,7 @@ export const DEAL_SHOWCASES: readonly DealShowcaseSpec[] = [
     consentDaysAgo: 59,
     item: {
       title: "Кухня 3,2 м под потолок",
-      description: "Фасады МДФ в эмали, верхние шкафы до потолка, фурнитура с доводчиками. Сделка прошла на Сенім, фото — из отчёта последнего этапа.",
+      description: `Фасады МДФ в эмали, верхние шкафы до потолка, фурнитура с доводчиками. Сделка прошла на ${brand.name}, фото — из отчёта последнего этапа.`,
       place: "Астана, Есильский район",
       daysAgo: 58,
     },

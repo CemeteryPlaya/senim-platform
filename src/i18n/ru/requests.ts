@@ -1,4 +1,5 @@
 // Тексты зоны «requests»: мастер заявки, мои заявки, отклики, замеры. Владелец — marketplace-engineer.
+import { brand } from "@/config/brand";
 import { preContract } from "./pre-contract";
 
 export const requests = {
@@ -124,7 +125,7 @@ export const requests = {
         COMFORT: "Больше цветов, плавные доводчики — золотая середина",
         PREMIUM: "Натуральное дерево, камень и дорогая фурнитура",
       },
-      price: (range: string) => `Обычно на Сенім: ${range}`,
+      price: (range: string) => `Обычно на ${brand.name}: ${range}`,
       priceRange: (from: string, to: string) => `${from} – ${to}`,
       noPrice: "Цену назовут исполнители в откликах",
       priceNote: (n: number) => `Вилка — по ${n} предложениям исполнителей на похожие заявки. Точную цену назовут исполнители.`,
@@ -263,7 +264,7 @@ export const requests = {
     photos: (whoseGen: string) => `Работы ${whoseGen}`,
     ratingValue: (count: number) => `Рейтинг, отзывов: ${count}`,
     yearsLabel: "Опыт работы",
-    dealsLabel: "Завершено сделок на Сенім",
+    dealsLabel: `Завершено сделок на ${brand.name}`,
     termsTitle: "Условия",
   },
 
