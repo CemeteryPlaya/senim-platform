@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ru } from "@/i18n/ru";
 import type { AuditView } from "@/modules/operator";
-import { DateText } from "@/ui";
+import { DateText, StatusBadge } from "@/ui";
 
 const t = ru.operator.audit;
 const actionLabel = (code: string) => t.actions[code] ?? ru.deal.history.action[code] ?? code;
@@ -26,13 +26,13 @@ export function AuditList({ events, linkScopes = false }: { events: AuditView[];
         const meta = describeJson(e.meta);
         return (
           <li key={e.seq} className="flex flex-col gap-1 border-b border-line py-3 last:border-b-0">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="text-sm text-muted tabular-nums">
                 {t.seq}
                 {e.seq}
               </span>
               <DateText value={e.createdAt} format="dateTime" className="text-sm text-muted" />
-              <span className="text-sm text-ink-soft">{t.roles[e.actorRole] ?? e.actorRole}</span>
+              <StatusBadge tone="neutral">{t.roles[e.actorRole] ?? e.actorRole}</StatusBadge>
             </div>
             <p className="font-semibold break-words text-ink">
               {actionLabel(e.action)} <span className="text-sm font-normal text-muted">({e.action})</span>
@@ -42,7 +42,7 @@ export function AuditList({ events, linkScopes = false }: { events: AuditView[];
               {linkScopes && e.scope && (
                 <>
                   {" "}
-                  <Link href={`/operator/audit?scope=${encodeURIComponent(e.scope)}`} className="text-accent underline">
+                  <Link href={`/operator/audit?scope=${encodeURIComponent(e.scope)}`} className="text-primary underline">
                     {t.showScope}
                   </Link>
                 </>
