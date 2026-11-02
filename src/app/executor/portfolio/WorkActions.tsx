@@ -9,8 +9,11 @@ import { deleteWork, setWorkPublished } from "./actions";
 
 const t = ru.companies.portfolio;
 
-/** Кнопки под карточкой своей работы: изменить, опубликовать/скрыть, удалить (с подтверждением). */
-export function WorkActions({ id, title, published }: { id: string; title: string; published: boolean }) {
+/**
+ * Кнопки под карточкой своей работы: опубликовать/скрыть, удалить (с подтверждением). «Изменить» — по ссылке
+ * самой карточки (заголовок), отдельной кнопкой — только если карточка не ссылка (withEdit).
+ */
+export function WorkActions({ id, title, published, withEdit = true }: { id: string; title: string; published: boolean; withEdit?: boolean }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,9 +35,11 @@ export function WorkActions({ id, title, published }: { id: string; title: strin
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-2">
-        <ButtonLink href={`/executor/portfolio/${id}`} variant="secondary" icon={<Pencil />} aria-label={`${t.edit}: ${title}`}>
-          {t.edit}
-        </ButtonLink>
+        {withEdit && (
+          <ButtonLink href={`/executor/portfolio/${id}`} variant="secondary" icon={<Pencil />} aria-label={`${t.edit}: ${title}`}>
+            {t.edit}
+          </ButtonLink>
+        )}
         <Button
           variant="soft"
           icon={published ? <EyeOff /> : <Eye />}
