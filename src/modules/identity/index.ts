@@ -30,6 +30,9 @@ export { hasClientIdentity, limitIdentityAttempts, recordOwnIdentity, recordPers
 export { INTRODUCTION_PATH, introductionHref, needsIntroduction } from "./introduction";
 export { INSTAGRAM_MAX, contactsInputSchema, instagramField, type ContactsInput } from "./instagram";
 export { getOwnContacts, updateContacts, type OwnContacts } from "./contacts-profile";
+export { ibanField, normalizeIban, parseKzIban, type IbanCheck } from "./iban";
+/** payoutRecipientOf — только серверный путь выплаты (deal-core, payments): IBAN не логировать и не показывать. */
+export { getOwnPayout, payoutInputSchema, payoutRecipientOf, setPayoutIban, type OwnPayout, type PayoutInput } from "./payout";
 export { addressFields, refineSigner, signerFields, signerOf } from "./registration-schema";
 export {
   executorRegistrationSchema,
