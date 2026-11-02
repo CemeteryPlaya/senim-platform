@@ -1,3 +1,6 @@
+import { signFields } from "./signature";
+import { parseXmlFields } from "./xml";
+
 /**
  * Ответы и уведомления из примеров документации docs.freedompay.kz (только для тестов).
  * Подписи ответов в примерах сделаны не ключом `test_secret_key` (сверка не сходится) —
@@ -106,3 +109,9 @@ export const RESULT_FAILED: ReadonlyArray<readonly [string, string]> = [
   ["pg_failure_description", "Неизвестная ошибка платежной системы"],
   ["pg_salt", "Kp3sW9dQ1xZ7mN2c"],
 ];
+
+/** Тот же ответ документации, переподписанный тестовым ключом (подписи примеров сделаны не тестовым ключом). */
+export function resign(xml: string, script: string, key: string): string {
+  const fields = parseXmlFields(xml)!.fields.filter(([k]) => k !== "pg_sig");
+  return xml.replace(/<pg_sig>[0-9a-f]{32}<\/pg_sig>/, `<pg_sig>${signFields(script, fields, key)}</pg_sig>`);
+}
