@@ -2,8 +2,9 @@ import { expect, test } from "@playwright/test";
 import { choose, loginAs, openMyRequest, P, reseed } from "./support";
 
 /**
- * Тендер №19: заказчик (Айгерим) выбирает отклик Исполнителя №3 (Ерлан) → исполнитель назначает замер
- * и вносит итоговую цену → заказчик соглашается на договор → создаётся сделка (ждёт подписей).
+ * Тендер №19 (сценарий 1 «Замер исполнителем», ADR-005): заказчик (Айгерим) выбирает отклик Исполнителя №3 (Ерлан) →
+ * исполнитель назначает замер, вносит итоговую цену и отправляет проект → заказчик утверждает проект и соглашается
+ * на договор → создаётся сделка (ждёт подписей).
  */
 
 test.beforeAll(() => {
@@ -18,7 +19,7 @@ function tomorrowAt11(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T11:00`;
 }
 
-test("выбор отклика → замер → итоговая цена → согласие → сделка", async ({ page }) => {
+test("выбор отклика → замер → итоговая цена → проект → согласие → сделка", async ({ page }) => {
   test.setTimeout(90_000);
 
   // 1. Заказчик выбирает отклик Исполнителя №3
@@ -47,11 +48,24 @@ test("выбор отклика → замер → итоговая цена →
   await page.getByLabel("Итоговая цена, ₸").fill("1 090 000");
   await page.getByLabel("Итог замера для заказчика").fill("Стена 3,4 м, добавили карниз и подсветку.");
   await page.getByRole("button", { name: "Внести итоговую цену" }).click();
-  await expect(page.getByText("Итоговая цена отправлена")).toBeVisible();
 
-  // 4. Заказчик соглашается с ценой и порядком оплаты → сделка
+  // 4. Проект: материалы и расшифровка стоимости; сумма строки по умолчанию — итоговая цена замера
+  await expect(page.getByRole("heading", { name: "Утверждение проекта" })).toBeVisible();
+  await page.getByLabel("Материалы").fill("ЛДСП Egger 16 мм, фасады МДФ в эмали, фурнитура Blum");
+  await page.getByLabel("Строка 1: что входит").fill("Изготовление, доставка и монтаж");
+  await expect(page.getByLabel("Строка 1: сумма, ₸")).toHaveValue("1090000");
+  await page.getByRole("button", { name: "Отправить проект" }).click();
+  await expect(page.getByText("Проект отправлен")).toBeVisible();
+
+  // 5. Заказчик утверждает проект
   await loginAs(page, P.aigerim);
   await openMyRequest(page, 19);
+  const project = page.getByRole("region", { name: "Утверждение проекта" });
+  await expect(project.getByText("Изготовление, доставка и монтаж")).toBeVisible();
+  await project.getByRole("button", { name: "Утвердить проект" }).click();
+  await page.getByRole("dialog", { name: "Утвердить проект?" }).getByRole("button", { name: "Утвердить проект" }).click();
+
+  // 6. Согласие с ценой проекта и порядком оплаты → сделка
   const measured = page.getByRole("region", { name: "Замер выполнен" });
   await expect(measured).toBeVisible();
   await expect(measured.getByText("1 090 000")).toBeVisible();

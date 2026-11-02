@@ -1,4 +1,4 @@
-import type { DisputeReason, LegalForm, Segment } from "@/generated/prisma/enums";
+import type { DisputeReason, LegalForm, PreContractFlow, Segment } from "@/generated/prisma/enums";
 import type {
   CountertopKey,
   DEFAULT_FURNITURE_TYPES,
@@ -37,6 +37,15 @@ export const OPERATOR = {
   isDemo: true,
   joinedDaysAgo: 420,
 } as const satisfies PersonSpec;
+
+/** Замерщик площадки (сценарий 2, ADR-005): сотрудник, как оператор, — только эта роль. */
+export const MEASURER: PersonSpec = {
+  fullName: "Нуржан Сейтказин",
+  phone: "+77000000401",
+  iin: testIin("900115", 3, 41),
+  isDemo: true,
+  joinedDaysAgo: 60,
+};
 
 export const CLIENTS = {
   aigerim: { fullName: "Айгерим Сапарова", phone: "+77000000101", iin: testIin("940512", 4, 11), isDemo: true, joinedDaysAgo: 40 },
@@ -361,6 +370,10 @@ export type RequestSpec = Targeting & {
   cancelled?: { daysAgo: number; reason: string };
   offers: OfferSpec[];
   deal?: DealSpec;
+  /** Сценарий до договора (ADR-005); по умолчанию — сценарий 1, замер исполнителем. */
+  flow?: PreContractFlow;
+  /** Сценарий 2: замер площадки назначен демо-замерщику. */
+  site?: { assignedDaysAgo: number };
 };
 
 const ADDR = {
@@ -912,6 +925,93 @@ export const DUAL_ROLE_REQUESTS: RequestSpec[] = [
     title: "Шкаф в прихожую для себя", price: 240_000, finalPrice: 250_000, template: "no-prepayment", startDaysAgo: 60, durationDays: 18,
     rating: 5, review: "Сам мебельщик, поэтому придирчив: собрано ровно, фурнитура как договаривались.",
   }),
+];
+
+/** Материалы проекта после замера в демо (шаг «Утверждение проекта», ADR-005). */
+export const PROJECT_MATERIALS = "Корпус — ЛДСП Egger 16 мм, фасады по заявке, кромка ПВХ 2 мм, фурнитура с доводчиками.";
+
+/**
+ * Сценарии до договора 2–5 (ADR-005): по одной заявке на шаге, с которого основатели проходят сценарий.
+ * Сеются последними — номера остальных заявок и сделок (на них опираются e2e) не сдвигаются.
+ */
+export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
+  {
+    key: "flow2-site-kitchen",
+    flow: "PLATFORM_MEASURER",
+    mode: "TENDER",
+    client: "madina",
+    type: "kitchen",
+    style: "modern",
+    details: { unknown: ["size"], facade: "mdf_film", hardware: "soft_close", color: "Белый и дуб" },
+    segment: "COMFORT",
+    address: ADDR.test2,
+    desiredInDays: 45,
+    wishes: "Кухня под потолок, встроенный холодильник.",
+    createdDaysAgo: 1.2,
+    publishedDaysAgo: 1.1,
+    wizardStep: 6,
+    site: { assignedDaysAgo: 0.8 },
+    offers: [],
+  },
+  {
+    key: "flow3-contract-wardrobe",
+    flow: "CONTRACT_FIRST",
+    mode: "TENDER",
+    client: "daniyar",
+    type: "wardrobe",
+    style: "minimalism",
+    details: { widthCm: 240, heightCm: 260, facade: "ldsp", hardware: "standard" },
+    segment: "ECONOMY",
+    address: ADDR.maket21,
+    desiredInDays: 30,
+    wishes: "Шкаф-купе в спальню, одна дверь — зеркало.",
+    createdDaysAgo: 3,
+    publishedDaysAgo: 2.9,
+    wizardStep: 6,
+    offers: [
+      { executor: "timur", price: 280_000, durationDays: 20, warrantyMonths: 12, comment: "Сделаю по вашим размерам, замер и проект — первым этапом договора.", sentDaysAgo: 2.5, chosen: { daysAgo: 0.4 } },
+      { executor: "samat", price: 260_000, durationDays: 25, warrantyMonths: 12, comment: "ЛДСП Egger, фурнитура стандартная.", sentDaysAgo: 2.2 },
+    ],
+  },
+  {
+    key: "flow4-deposit-hallway",
+    flow: "MEASURE_DEPOSIT",
+    mode: "TENDER",
+    client: "madina",
+    type: "hallway",
+    style: "modern",
+    details: { widthCm: 160, facade: "ldsp", hardware: "standard" },
+    segment: "ECONOMY",
+    address: ADDR.shablon15,
+    desiredInDays: 25,
+    wishes: "Прихожая с банкеткой и зеркалом.",
+    createdDaysAgo: 2.5,
+    publishedDaysAgo: 2.4,
+    wizardStep: 6,
+    offers: [
+      { executor: "samat", price: 150_000, durationDays: 14, warrantyMonths: 12, comment: "Похожую прихожую делал недавно, фото в портфолио.", sentDaysAgo: 2, chosen: { daysAgo: 0.3 } },
+    ],
+  },
+  {
+    key: "flow5-self-dresser",
+    flow: "SELF_MEASURE",
+    mode: "TENDER",
+    client: "daniyar",
+    type: "dresser",
+    style: "scandi",
+    details: { widthCm: 120, heightCm: 85, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Белый" },
+    segment: "COMFORT",
+    address: ADDR.probny7,
+    desiredInDays: 20,
+    wishes: "Комод в детскую, размеры снял сам по инструкции.",
+    createdDaysAgo: 1.5,
+    publishedDaysAgo: 1.4,
+    wizardStep: 6,
+    offers: [
+      { executor: "kim", price: 190_000, durationDays: 18, warrantyMonths: 18, comment: "Посчитал по вашим размерам, контрольный замер — первым этапом.", sentDaysAgo: 1 },
+      { executor: "erlan", price: 210_000, durationDays: 15, warrantyMonths: 24, comment: "Фасады МДФ, доводчики Blum.", sentDaysAgo: 0.8 },
+    ],
+  },
 ];
 
 /** Отчёты исполнителя при сдаче этапа — по названию этапа шаблона. */

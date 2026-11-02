@@ -16,8 +16,11 @@ import {
   CLIENTS,
   DUAL_ROLE_REQUESTS,
   EXECUTORS,
+  MEASURER,
   NOTIFICATIONS,
   OPERATOR,
+  PRE_CONTRACT_REQUESTS,
+  PROJECT_MATERIALS,
   REQUESTS,
   STAGE_REPORTS,
   type ClientKey,
@@ -106,6 +109,8 @@ function activeOffer(spec: RequestSpec): OfferSpec | undefined {
 export function requestStatusOf(spec: RequestSpec): RequestStatus {
   if (spec.cancelled) return "CANCELLED";
   if (spec.publishedDaysAgo === undefined) return "DRAFT";
+  // Сценарий 2: пока замерщик площадки не снял размеры, исполнители заявку не видят.
+  if (spec.flow === "PLATFORM_MEASURER" && spec.offers.length === 0) return "PLATFORM_MEASURING";
   if (spec.deal) return spec.deal.signedDaysAgo !== undefined ? "CLOSED" : "CONTRACTING";
   const active = activeOffer(spec);
   if (!active?.chosen) return "OPEN";
@@ -259,6 +264,8 @@ type Ids = {
   executors: Map<ExecutorKey, { userId: string; profileId: string }>;
   portfolio: Map<string, string>;
   requests: Map<string, { id: string; dealId?: string; disputeId?: string }>;
+  /** Демо-замерщик площадки (сценарий 2). */
+  measurer?: string;
 };
 
 /** Подписант договора от исполнителя — как его дала бы анкета (identity.signerOf). */
@@ -308,6 +315,9 @@ async function fill(tx: Tx, now: number): Promise<SeedSummary> {
   for (const spec of requests) await seedRequest(tx, ids, clock, audit, spec, reviews);
   // После остальных: номера заявок и сделок, на которые опираются e2e, не сдвигаются.
   for (const spec of DUAL_ROLE_REQUESTS) await seedRequest(tx, ids, clock, audit, spec, reviews);
+  // Сценарии до договора 2–5 (ADR-005) — тоже в конце.
+  ids.measurer = (await tx.user.create({ data: personData(MEASURER, "MEASURER", clock) })).id;
+  for (const spec of PRE_CONTRACT_REQUESTS) await seedRequest(tx, ids, clock, audit, spec, reviews);
 
   for (const [key, ratings] of reviews) {
     const avg = ratings.reduce((s, r) => s + r, 0) / ratings.length;
@@ -338,7 +348,7 @@ async function fill(tx: Tx, now: number): Promise<SeedSummary> {
   return {
     users: await tx.user.count(),
     executors: ids.executors.size,
-    requests: requests.length + DUAL_ROLE_REQUESTS.length,
+    requests: requests.length + DUAL_ROLE_REQUESTS.length + PRE_CONTRACT_REQUESTS.length,
     deals: await tx.deal.count(),
     auditEvents,
   };
@@ -459,6 +469,7 @@ async function seedRequest(
       desiredDate: spec.desiredInDays !== undefined ? clock.ahead(spec.desiredInDays, 12) : null,
       wishes: spec.wishes,
       status,
+      preContractFlow: spec.publishedDaysAgo !== undefined ? (spec.flow ?? "EXECUTOR_MEASURE") : null,
       wizardStep: spec.wizardStep,
       publishedAt: spec.publishedDaysAgo !== undefined ? clock.ago(spec.publishedDaysAgo) : null,
       closedAt: status === "CLOSED" ? signedAt : spec.cancelled ? clock.ago(spec.cancelled.daysAgo) : null,
@@ -474,8 +485,17 @@ async function seedRequest(
   if (spec.publishedDaysAgo !== undefined) {
     audit.add(clock.ago(spec.publishedDaysAgo), asClient, "request.published", reqEntity, scope, {
       before: { status: "DRAFT" },
-      after: { status: "OPEN" },
+      after: { status: status === "PLATFORM_MEASURING" ? status : "OPEN", preContractFlow: spec.flow ?? "EXECUTOR_MEASURE" },
       meta: { mode: spec.mode, segment: spec.segment },
+    });
+  }
+
+  if (spec.site && ids.measurer) {
+    const sm = await tx.siteMeasurement.create({
+      data: { requestId: request.id, measurerId: ids.measurer, assignedById: ids.operator, assignedAt: clock.ago(spec.site.assignedDaysAgo) },
+    });
+    audit.add(clock.ago(spec.site.assignedDaysAgo), { id: ids.operator, role: "OPERATOR" }, "site_measurement.assigned", { type: "siteMeasurement", id: sm.id }, scope, {
+      after: { status: "ASSIGNED", measurerId: ids.measurer },
     });
   }
 
@@ -556,7 +576,53 @@ async function seedOffer(
   const m = o.chosen.measurement;
   if (!m) return { id: offer.id };
   await seedMeasurement(tx, clock, audit, requestId, offer.id, asExecutor, m, fee);
+  if (m.status === "DONE") await seedProject(tx, clock, audit, { requestId, offerId: offer.id, asExecutor, asClient: { id: clientId, role: "CLIENT" }, o, m, approved: spec.deal !== undefined });
   return { id: offer.id, finalPrice: m.status === "DONE" ? m.finalPrice : undefined };
+}
+
+/**
+ * Проект после замера (сценарий 1, ADR-005): у заявок со сделкой — утверждён на итоговую цену,
+ * у заявок без сделки — ждёт решения заказчика (основатели проходят шаг «Утверждение проекта»).
+ */
+async function seedProject(
+  tx: Tx,
+  clock: Clock,
+  audit: AuditLog,
+  p: {
+    requestId: string;
+    offerId: string;
+    asExecutor: AuditActor;
+    asClient: AuditActor;
+    o: OfferSpec;
+    m: { visitDaysAgo: number; finalPrice: number };
+    approved: boolean;
+  },
+) {
+  const at = clock.ago(Math.max(p.m.visitDaysAgo - 0.1, 0));
+  const project = await tx.project.create({
+    data: {
+      requestId: p.requestId,
+      offerId: p.offerId,
+      version: 1,
+      status: p.approved ? "APPROVED" : "SUBMITTED",
+      materials: PROJECT_MATERIALS,
+      costLines: [
+        { title: "Материалы и фурнитура", amount: Math.round(p.m.finalPrice * 0.6) },
+        { title: "Изготовление, доставка и монтаж", amount: p.m.finalPrice - Math.round(p.m.finalPrice * 0.6) },
+      ],
+      durationDays: p.o.durationDays,
+      warrantyMonths: p.o.warrantyMonths,
+      totalPrice: p.m.finalPrice,
+      createdAt: at,
+      decidedAt: p.approved ? at : null,
+    },
+  });
+  const scope = `request:${p.requestId}`;
+  const entity = { type: "project", id: project.id };
+  audit.add(at, p.asExecutor, "project.submitted", entity, scope, { after: { status: "SUBMITTED", version: 1, totalPrice: p.m.finalPrice } });
+  if (p.approved) {
+    audit.add(at, p.asClient, "project.approved", entity, scope, { before: { status: "SUBMITTED" }, after: { status: "APPROVED", version: 1, totalPrice: p.m.finalPrice } });
+  }
 }
 
 async function seedMeasurement(

@@ -19,6 +19,29 @@ describe("демо-данные", () => {
     expect(groups.map((g) => g.status).sort()).toEqual(Object.values(RequestStatus).sort());
   });
 
+  it("сценарии до договора 2-5: по заявке на шаге, с которого их проходят; сеются последними; замерщик — демо-персона", async () => {
+    const flows = await db.request.findMany({ where: { preContractFlow: { notIn: ["EXECUTOR_MEASURE"] } }, orderBy: { number: "asc" } });
+    expect(Object.fromEntries(flows.map((r) => [r.preContractFlow, r.status]))).toEqual({
+      PLATFORM_MEASURER: "PLATFORM_MEASURING",
+      CONTRACT_FIRST: "OFFER_CHOSEN",
+      MEASURE_DEPOSIT: "OFFER_CHOSEN",
+      SELF_MEASURE: "OPEN",
+    });
+    const others = await db.request.aggregate({ where: { id: { notIn: flows.map((r) => r.id) } }, _max: { number: true } });
+    expect(flows[0]!.number).toBeGreaterThan(others._max.number!);
+    const measurer = await db.user.findFirstOrThrow({ where: { roles: { has: "MEASURER" } }, include: { siteMeasurements: true } });
+    expect(measurer).toMatchObject({ roles: ["MEASURER"], isDemo: true });
+    expect(measurer.siteMeasurements).toHaveLength(1);
+  });
+
+  it("проект после замера: у сделок — утверждён на сумму сделки", async () => {
+    const deals = await db.deal.findMany({ where: { request: { preContractFlow: "EXECUTOR_MEASURE" } }, select: { offerId: true, totalAmount: true } });
+    for (const deal of deals) {
+      const project = await db.project.findFirstOrThrow({ where: { offerId: deal.offerId } });
+      expect(project).toMatchObject({ status: "APPROVED", totalPrice: deal.totalAmount });
+    }
+  });
+
   it("у каждой сделки сумма этапов равна сумме сделки, оплата есть только у этапов с суммой", async () => {
     const deals = await db.deal.findMany({ include: { stages: { include: { payment: true } } } });
     expect(deals.length).toBeGreaterThan(0);

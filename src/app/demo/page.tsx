@@ -11,7 +11,7 @@ const t = ru.identity.demo;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
-const ROLES: Role[] = ["OPERATOR", "CLIENT", "EXECUTOR"];
+const ROLES: Role[] = ["OPERATOR", "MEASURER", "CLIENT", "EXECUTOR"];
 const STATUS_TONE: Record<NonNullable<DemoPersona["executor"]>["status"], Tone> = {
   PENDING: "warning",
   APPROVED: "success",
