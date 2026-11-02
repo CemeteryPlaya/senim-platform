@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { ArrowRight } from "lucide-react";
+import { Eye, Images, MapPin, Store, Wallet } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { getOwnProfile, listFurnitureTypes } from "@/modules/companies";
 import { canGrant, requireUserPage } from "@/modules/identity";
-import { Alert, ButtonLink, Card, Container, PageHeader } from "@/ui";
+import { Alert, Container, LinkList, PageHeader } from "@/ui";
 import { BecomeClientButton } from "../../_components/auth/RoleButtons";
 import { SegmentBadge } from "../../catalog/_components/executor-bits";
 import { ProfileForm } from "./ProfileForm";
 
 const t = ru.companies.profile;
+const x = ru.executor.profile;
 
 export const metadata: Metadata = { title: t.title };
 
@@ -28,11 +29,24 @@ export default async function ExecutorProfilePage() {
         </Alert>
       )}
 
-      <section aria-labelledby="public-as" className="flex flex-col gap-4 rounded-card bg-sunken p-5">
-        <h2 id="public-as" className="text-lg font-bold text-ink">
-          {t.publicAs(profile.label)}
-        </h2>
-        <dl className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
+      <section aria-labelledby="public-as" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+        <div className="flex min-w-0 items-center gap-4">
+          <span aria-hidden className="inline-flex size-16 shrink-0 items-center justify-center rounded-full bg-accent-soft text-primary [&_svg]:size-8">
+            <Store />
+          </span>
+          <div className="flex min-w-0 flex-col gap-1">
+            <h2 id="public-as" className="text-lg font-bold break-words text-ink">
+              {t.publicAs(profile.label)}
+            </h2>
+            {profile.city && (
+              <p className="flex items-center gap-1 text-base text-muted">
+                <MapPin aria-hidden className="size-5 shrink-0" />
+                {[profile.city, profile.district].filter(Boolean).join(", ")}
+              </p>
+            )}
+          </div>
+        </div>
+        <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-4 border-t border-line pt-4">
           <div className="flex flex-col gap-1">
             <dt className="text-sm text-muted">{t.segment}</dt>
             <dd className="flex flex-col items-start gap-1">
@@ -48,32 +62,44 @@ export default async function ExecutorProfilePage() {
             </dd>
           </div>
         </dl>
-        {profile.status === "APPROVED" && (
-          <ButtonLink href={`/executors/${profile.publicNumber}`} variant="secondary" iconEnd={<ArrowRight />} className="self-start">
-            {t.openPublic}
-          </ButtonLink>
-        )}
       </section>
 
-      <ProfileForm
-        initial={{
-          about: profile.about,
-          yearsExperience: profile.yearsExperience,
-          specializationIds: profile.specializationIds,
-          measurementTerms: profile.measurementTerms,
-          measurementFee: profile.measurementFee,
-          city: profile.city,
-          district: profile.district,
-          streetAddress: profile.streetAddress,
-        }}
-        types={types}
-      />
+      {profile.status === "APPROVED" && (
+        <nav aria-label={x.sections}>
+          <LinkList
+            items={[
+              { href: `/executors/${profile.publicNumber}`, label: x.publicProfile, description: x.publicHint, icon: <Eye /> },
+              { href: "/executor/portfolio", label: x.portfolio, icon: <Images /> },
+              { href: "/executor/finance", label: x.finance, icon: <Wallet /> },
+            ]}
+          />
+        </nav>
+      )}
+
+      <section aria-labelledby="profile-edit" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+        <h2 id="profile-edit" className="text-xl font-bold text-ink">
+          {x.edit}
+        </h2>
+        <ProfileForm
+          initial={{
+            about: profile.about,
+            yearsExperience: profile.yearsExperience,
+            specializationIds: profile.specializationIds,
+            measurementTerms: profile.measurementTerms,
+            measurementFee: profile.measurementFee,
+            city: profile.city,
+            district: profile.district,
+            streetAddress: profile.streetAddress,
+          }}
+          types={types}
+        />
+      </section>
 
       {/* Исполнитель может заказывать мебель на этом же номере (ADR-004): роль заказчика выдаётся сразу. */}
       {canGrant(user.roles, "CLIENT") && (
-        <Card title={ru.identity.becomeClient.title} titleAs="h2" description={ru.identity.becomeClient.text}>
-          <BecomeClientButton />
-        </Card>
+        <Alert tone="accent" title={ru.identity.becomeClient.title} action={<BecomeClientButton />}>
+          {ru.identity.becomeClient.text}
+        </Alert>
       )}
     </Container>
   );
