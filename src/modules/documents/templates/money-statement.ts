@@ -7,7 +7,7 @@ import type { MoneyStatementData, StatementEntry } from "./types";
 /*
  * Выписка по деньгам сделки (ТЗ п. 4.3, п. 7) — печатаемый таймлайн журнала операций. Строится только
  * из журнала (MoneyTransaction через deal-core.dealDocumentData), не из статуса сделки. Подписи не требует.
- * Выписку видят и покупатель, и мастер: в тексте нет слов «эскроу» и «комиссия».
+ * Выписку видят и покупатель, и мастер: в тексте только термины ТЗ п. 5 (запрещённые слова — ADR-009).
  */
 
 export const OPERATION_LABEL: Record<StatementEntry["type"], string> = {
