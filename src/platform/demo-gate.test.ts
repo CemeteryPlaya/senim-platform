@@ -43,6 +43,21 @@ describe("demoGate", () => {
     },
   );
 
+  // Браузер запрашивает манифест, значки и сервис-воркер без пароля basic-auth — иначе «Установить» не появится.
+  it.each(["/manifest.webmanifest", "/sw.js", "/offline", "/apple-icon.png", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png"])(
+    "файлы установки приложения проходят без пароля: %s",
+    (path) => {
+      expect(demoGate(path, null, closed)).toBe("pass");
+    },
+  );
+
+  it.each(["/icons/", "/icons/x.svg", "/icons/../deals", "/icons/a/b.png", "/icons/icon-192.png/x", "/offline/x", "/sw.js.map", "/manifest.json"])(
+    "похожие на файлы установки пути закрыты: %s",
+    (path) => {
+      expect(demoGate(path, null, closed)).toBe("challenge");
+    },
+  );
+
   it("похожий на вебхук путь не исключение", () => {
     expect(demoGate("/api/webhooksX", null, closed)).toBe("challenge");
     expect(demoGate("/api/cronjob", null, closed)).toBe("challenge");
