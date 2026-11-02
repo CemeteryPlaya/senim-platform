@@ -25,6 +25,7 @@
 
 - №21 DRAFT (шаг 2) · №19 OPEN тендер, 3 отклика, чат с маскированным контактом · №20 OPEN прямая · №13 OPEN после NO_DEAL (feeAccrued 10 000 ₸) · №18 OFFER_CHOSEN · №17 MEASURING · №16 CONTRACTING → сделка №14 AWAITING_SIGNATURES (no-prepayment) · №15 CANCELLED.
 - Сделка №13 IN_PROGRESS (three-part), аванс MARKED_PAID · №11 IN_PROGRESS (advance-50), этап SUBMITTED, автоприёмка через ~4 дня (задача `deal-core.autoAcceptStage` стоит в очереди) · №12 DISPUTE · №7 COMPLETED с отзывом + 9 завершённых прошлых.
+- Сценарии до договора (ADR-005), сеются последними (№23–26): кухня Мадины — сценарий 2, PLATFORM_MEASURING, назначен замерщик Нуржан Сейтказин (`+7 700 000 04 01`, роль MEASURER, `/measurer`) · шкаф Данияра — сценарий 3, OFFER_CHOSEN (Исп. №6 Тимур), можно сразу согласиться на договор · прихожая Мадины — сценарий 4, OFFER_CHOSEN (Исп. №8 Самат), ждёт залога · комод Данияра — сценарий 5, OPEN с размерами заказчика, 2 отклика. У всех прочих отправленных заявок — сценарий 1; замер DONE даёт проект версии 1 (утверждён у сделок).
 - Ссылки в уведомлениях: `/requests/:id`, `/executor/requests/:id`, `/deals/:id`, `/operator/executors/:id`, `/operator/disputes/:id`.
 
 ## Документы (`src/demo/documents.ts`, через настоящий модуль documents)
