@@ -131,3 +131,42 @@ describe("env: обязательные переменные выбранных 
   });
 });
 
+
+describe("env: контуры APP_ENV (ТЗ п. 11)", () => {
+  const prod = { ...production, APP_ENV: "prod" };
+
+  it("dev по умолчанию — провайдер mock", async () => {
+    const { resolvePaymentProvider } = await import("./env");
+    expect(resolvePaymentProvider(parseEnv({ DATABASE_URL: "postgresql://x" }))).toBe("mock");
+  });
+
+  it("prod без моков — провайдер manual", async () => {
+    const { resolvePaymentProvider } = await import("./env");
+    expect(problems(prod)).toBe("");
+    expect(resolvePaymentProvider(parseEnv(prod))).toBe("manual");
+  });
+
+  it.each([
+    ["DEMO_MODE", { DEMO_MODE: "true", DEMO_ACCESS_PASSWORD: "пароль-показа-банку", ESCROW_SIMULATOR_WEBHOOK_SECRET: "w" }],
+    ["SMS_PROVIDER", { SMS_PROVIDER: "mock" }],
+    ["SIGNATURE_PROVIDER", { SIGNATURE_PROVIDER: "mock" }],
+    ["PAYMENT_PROVIDER", { PAYMENT_PROVIDER: "mock" }],
+  ])("prod запрещает %s в демо- или мок-режиме", (key, extra) => {
+    expect(problems({ ...prod, ...extra })).toContain(`${key}:`);
+  });
+
+  it("freedompay запрещён вне staging, в том числе в prod", () => {
+    expect(problems({ ...prod, PAYMENT_PROVIDER: "freedompay" })).toContain("только при APP_ENV=staging");
+    expect(problems({ DATABASE_URL: "postgresql://x", PAYMENT_PROVIDER: "freedompay" })).toContain("только при APP_ENV=staging");
+  });
+
+  it("staging по умолчанию — песочница Freedom Pay, ей нужны ключи", () => {
+    const message = problems({ DATABASE_URL: "postgresql://x", APP_ENV: "staging" });
+    expect(message).toContain("FREEDOMPAY_MERCHANT_ID");
+    expect(message).toContain("FREEDOMPAY_SECRET_KEY");
+  });
+
+  it("ключи VAPID задаются вместе", () => {
+    expect(problems({ DATABASE_URL: "postgresql://x", VAPID_PUBLIC_KEY: "p" })).toContain("VAPID_PRIVATE_KEY");
+  });
+});

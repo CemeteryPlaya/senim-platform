@@ -17,6 +17,8 @@ const base64Key = z
 const base = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    /** Контур (ТЗ п. 11): dev — моки, staging — песочница Freedom Pay, prod — пилот на manual-провайдере. */
+    APP_ENV: z.enum(["dev", "staging", "prod"]).default("dev"),
     DATABASE_URL: z.string().min(1),
     APP_URL: z.url().default("http://localhost:3100"),
     DEMO_MODE: bool,
@@ -60,10 +62,37 @@ const base = z
     AI_MAX_VISUALIZATIONS_PER_REQUEST: z.coerce.number().int().min(0).default(3),
     AI_DAILY_BUDGET_USD: z.coerce.number().min(0).default(20),
 
+    /** Платёжный провайдер новых сделок (ADR-009); по умолчанию — по APP_ENV (DEFAULT_PAYMENT_PROVIDER). */
+    PAYMENT_PROVIDER: z.enum(["mock", "manual", "freedompay"]).optional(),
+    FREEDOMPAY_API_URL: optional,
+    FREEDOMPAY_MERCHANT_ID: optional,
+    FREEDOMPAY_SECRET_KEY: optional,
+    FREEDOMPAY_PAYOUT_SECRET_KEY: optional,
+    /** Устарело (ADR-009): режимы до ТЗ; удаляется вместе со старым модулем payments. */
     PAYMENT_RAIL: z.enum(["manual", "escrow-simulator", "bank"]).default("manual"),
     ESCROW_SIMULATOR_WEBHOOK_SECRET: optional,
     BANK_API_URL: optional,
     BANK_WEBHOOK_SECRET: optional,
+
+    /** Web push (VAPID): ключи выдаёт `npx web-push generate-vapid-keys`; без них push выключен, in-app работает. */
+    VAPID_PUBLIC_KEY: optional,
+    VAPID_PRIVATE_KEY: optional,
+    VAPID_SUBJECT: optional,
+    EMAIL_PROVIDER: z.enum(["mock"]).default("mock"),
+    EMAIL_FROM: optional,
+    GEOCODER_PROVIDER: z.enum(["mock"]).default("mock"),
+    /** Радиус мягкой проверки GPS при сдаче, метры (ТЗ п. 7). */
+    READY_GPS_RADIUS_M: z.coerce.number().int().min(50).max(5000).default(500),
+
+    // Флаги Фазы 1 (platform/features.ts): по умолчанию всё вне Фазы 1 выключено. ИИ — AI_ENABLED.
+    FEATURE_PRE_CONTRACT_FLOWS: bool,
+    FEATURE_MATERIALS_CALCULATOR: bool,
+    FEATURE_REVIEWS: bool,
+    FEATURE_DEAL_PORTFOLIO: bool,
+    FEATURE_INSPIRATION: bool,
+    FEATURE_PUBLIC_SHOWCASE: bool,
+    FEATURE_EXECUTOR_HAND_SIGNS_ACT: bool,
+    FEATURE_CLIENT_PHONE_CONSENT: bool,
 
     AUTO_ACCEPT_DAYS: z.coerce.number().int().min(1).max(30).default(5),
     CRON_SECRET: optional,
@@ -127,11 +156,43 @@ function paymentChecks({ env, require }: Checks) {
   }
 }
 
+/** prod — пилот с реальными деньгами: никаких моков, демо и песочницы; freedompay — только staging (ADR-009, OPEN_QUESTIONS №41). */
+function appEnvChecks({ env, issue }: Checks) {
+  if (env.PAYMENT_PROVIDER === "freedompay" && env.APP_ENV !== "staging") {
+    issue("PAYMENT_PROVIDER", "freedompay разрешён только при APP_ENV=staging: схема без зачисления на счёт ТОО не подтверждена");
+  }
+  if (env.APP_ENV !== "prod") return;
+  if (env.DEMO_MODE) issue("DEMO_MODE", "запрещён при APP_ENV=prod");
+  for (const key of ["SMS_PROVIDER", "SIGNATURE_PROVIDER"] as const) {
+    if (env[key] === "mock") issue(key, "mock запрещён при APP_ENV=prod");
+  }
+  if (env.PAYMENT_PROVIDER === "mock") issue("PAYMENT_PROVIDER", "mock запрещён при APP_ENV=prod");
+}
+
+function freedomPayChecks({ env, require }: Checks) {
+  if (resolvePaymentProvider(env) !== "freedompay") return;
+  for (const key of ["FREEDOMPAY_API_URL", "FREEDOMPAY_MERCHANT_ID", "FREEDOMPAY_SECRET_KEY"] as const) require(key, "PAYMENT_PROVIDER=freedompay");
+}
+
+function pushChecks({ env, require }: Checks) {
+  if (!env.VAPID_PUBLIC_KEY && !env.VAPID_PRIVATE_KEY) return;
+  for (const key of ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"] as const) require(key, "задан один из ключей VAPID");
+}
+
+/** Провайдер по умолчанию для контура: dev — mock, staging — песочница, prod — ручной режим с банком. */
+export const DEFAULT_PAYMENT_PROVIDER = { dev: "mock", staging: "freedompay", prod: "manual" } as const;
+
+export type PaymentProviderName = NonNullable<RawEnv["PAYMENT_PROVIDER"]>;
+
+export function resolvePaymentProvider(env: Pick<RawEnv, "APP_ENV" | "PAYMENT_PROVIDER">): PaymentProviderName {
+  return env.PAYMENT_PROVIDER ?? DEFAULT_PAYMENT_PROVIDER[env.APP_ENV];
+}
+
 /** Условные обязательные переменные: каждая группа правил — своя функция, порядок сообщений прежний. */
 const schema = base.superRefine((env, ctx) => {
   const issue = (key: keyof RawEnv, message: string) => ctx.addIssue({ code: "custom", path: [key], message });
   const checks: Checks = { env, issue, require: (key, when) => !env[key] && issue(key, `обязательна, когда ${when}`) };
-  for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, paymentChecks]) check(checks);
+  for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, paymentChecks, appEnvChecks, freedomPayChecks, pushChecks]) check(checks);
 });
 
 export type Env = z.infer<typeof schema>;
