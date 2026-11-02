@@ -218,8 +218,8 @@ export async function agreeToContract(user: CurrentUser, input: { requestId: str
 }
 
 /**
- * CONTRACTING → CLOSED: договор подписан обеими сторонами. Вызывает deal-core
- * в транзакции подписи (см. отчёт: «Нужно от интегратора»).
+ * CONTRACTING → CLOSED: оферта заключена (обе стороны подписали). Зовёт порт requests в deal-core
+ * (deal-hooks.ts onDealSigned) в транзакции подписи; из другого статуса — CONFLICT.
  */
 export async function onContractSigned(tx: Db, requestId: string): Promise<void> {
   const r = await tx.request.findUnique({ where: { id: requestId }, select: { id: true, status: true } });
@@ -234,19 +234,6 @@ export async function onContractSigned(tx: Db, requestId: string): Promise<void>
     before: { status: r.status },
     after: { status: to },
   });
-}
-
-/**
- * Хук подписи документа сделки (documents.completeSigning → onFullySigned): когда договор
- * подписан обеими сторонами, заявка CONTRACTING → CLOSED. Акты и заявки в другом статусе не трогает.
- */
-export async function onDealDocumentSigned(tx: Db, documentId: string): Promise<void> {
-  const doc = await tx.document.findUnique({
-    where: { id: documentId },
-    select: { kind: true, deal: { select: { requestId: true, request: { select: { status: true } } } } },
-  });
-  if (doc?.kind !== "CONTRACT" || doc.deal.request.status !== "CONTRACTING") return;
-  await onContractSigned(tx, doc.deal.requestId);
 }
 
 // ─── чтение: исполнитель ─────────────────────────────────────────────────────

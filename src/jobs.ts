@@ -11,6 +11,10 @@ import { JOB_POLL_PENDING, paymentJobHandlers } from "@/modules/payments";
 import { jobHandlers as requests } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { enqueueJob, runDueJobs, type JobHandlers, type RunSummary } from "@/platform/jobs";
+import { registerPorts } from "@/ports";
+
+// Процесс `npm run jobs` не выполняет instrumentation Next: без портов акт и оферта ушли бы без PDF.
+registerPorts();
 
 /**
  * Все обработчики фоновых задач. Каждый модуль экспортирует свои `jobHandlers`

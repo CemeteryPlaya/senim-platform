@@ -5,7 +5,6 @@ import { db } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
 import { addProgressReport, cancelDeal, dealPartyOf, getDealView, leaveReview, listDeals, openDispute, payForDeal, startWork, submitReady } from "./index";
 
-const noop = { onCancelled: async () => {} };
 
 afterEach(() => {
   delete process.env.FEATURE_REVIEWS;
@@ -21,7 +20,7 @@ describe("IDOR: чужая сделка — «не найдено», а не «�
       await expect(getDealView(stranger, f.dealId)).rejects.toMatchObject({ code: "NOT_FOUND" });
       await expect(payForDeal(stranger, { dealId: f.dealId })).rejects.toMatchObject({ code: "NOT_FOUND" });
       await expect(startWork(stranger, { dealId: f.dealId })).rejects.toMatchObject({ code: "NOT_FOUND" });
-      await expect(cancelDeal(stranger, { dealId: f.dealId }, noop)).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(cancelDeal(stranger, { dealId: f.dealId })).rejects.toMatchObject({ code: "NOT_FOUND" });
       await expect(openDispute(stranger, { dealId: f.dealId, reason: "OTHER", description: "Попытка чужого спора" })).rejects.toMatchObject({ code: "NOT_FOUND" });
       expect(await dealPartyOf(stranger, f.dealId)).toBeNull();
       expect(await listDeals(stranger)).toEqual([]);
@@ -54,7 +53,7 @@ describe("IDOR: чужая сделка — «не найдено», а не «�
     const f = await dealAt("PAID_HOLD");
     const operator = await makeOperator();
     await expect(startWork(operator, { dealId: f.dealId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(cancelDeal(operator, { dealId: f.dealId }, noop)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(cancelDeal(operator, { dealId: f.dealId })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 

@@ -8,7 +8,7 @@ import { parseInput } from "@/platform/validation";
 import type { ResolveDispute } from "./contracts";
 import { notifyBoth, notifyOperators, notifyParty, otherParty, partyText } from "./effects";
 import { freezePayout, processDealMoney, requestPayout, requestRefund, unfreezePayout } from "./money";
-import { attachOwnFiles } from "./ports";
+import { attachOwnFiles, requests } from "./ports";
 import { disputePositionSchema, openDisputeSchema, resolveDisputeSchema } from "./schemas";
 import { contextOf, lockDeal, refuse, requireRole, scopeOf, type DealState } from "./state";
 import { DISPUTABLE } from "./transitions";
@@ -92,7 +92,11 @@ export async function submitDisputePosition(user: CurrentUser, raw: { disputeId:
 /** Операции журнала по итогу спора; статус сделки двинут их подтверждения (onMoneySettled). */
 async function applyOutcome(tx: Tx, deal: DealState, disputeId: string, outcome: DisputeOutcome, share: bigint | undefined, operatorId: string): Promise<void> {
   await unfreezePayout(tx, deal, disputeId, operatorId);
-  if (outcome === "FULL_REFUND") await requestRefund(tx, deal, deal.money.heldEntry?.amountTiyn ?? deal.buyerTotalTiyn, { disputeId, actorId: operatorId });
+  if (outcome === "FULL_REFUND") {
+    await requestRefund(tx, deal, deal.money.heldEntry?.amountTiyn ?? deal.buyerTotalTiyn, { disputeId, actorId: operatorId });
+    // Полный возврат: работа не оплачена — заявка не исполнена, как при отмене.
+    await requests().onDealCancelled(tx, deal.id);
+  }
   if (outcome === "PARTIAL_SPLIT") await requestPayout(tx, deal, { basisDocumentId: null, disputeId, shareTiyn: share });
 }
 

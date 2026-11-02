@@ -18,7 +18,6 @@ import {
   submitReadySchema,
 } from "@/modules/deal-core";
 import { requireUser } from "@/modules/identity";
-import { onDealCancelled } from "@/modules/requests";
 import { action } from "@/platform/action";
 
 // Действия на экране сделки (ТЗ п. 9). Вход — zod-схема deal-core, первая строка — роль; принадлежность сделки,
@@ -50,7 +49,7 @@ export const progressReportAction = action("deal.progressReport", progressReport
 /** Отмена: до оплаты — любая сторона; после оплаты — покупатель (возврат на карту); дальше — только спор. */
 export const cancelDealAction = action("deal.cancel", cancelDealSchema, async (input) => {
   const user = await requireUser("CLIENT", "EXECUTOR");
-  return cancelDeal(user, input, { onCancelled: onDealCancelled });
+  return cancelDeal(user, input);
 });
 
 export const openDisputeAction = action("deal.openDispute", openDisputeSchema, async (input) => {

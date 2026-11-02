@@ -39,11 +39,10 @@ export {
   listMyMeasurements,
   measurementNoDeal,
   onContractSigned,
-  onDealDocumentSigned,
   scheduleMeasurement,
   type MeasurementListItem,
 } from "./measurements";
-export { onDealCancelled } from "./deal-cancelled";
+export { onDealCancelled, onDealSigned, requestsPort } from "./deal-hooks";
 export { activePreContractFlow, newRequestPath, PRE_CONTRACT_FLOW_KEY, setPreContractFlow, setPreContractFlowSchema } from "./flow-setting";
 export { approveProject, requestProjectChanges, submitProject, type ProjectVersion } from "./projects";
 export { confirmDeposit, markDepositPaid } from "./deposits";

@@ -1,15 +1,19 @@
 import type { FilePurpose } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
-import { createDeal, onDocumentSigned, payForDeal, startWork, submitReady } from "@/modules/deal-core";
+import { createDeal, onDocumentSigned, payForDeal, registerRequestsPort, startWork, submitReady } from "@/modules/deal-core";
+import { requestsPort } from "@/modules/requests";
 import { db, transaction } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
 import { makeClient, makeExecutor, makeOperator } from "../factories";
 
 /**
  * Фабрики сделок для тестов deal-core и payments (ADR-009). Сделка создаётся настоящим createDeal;
- * документы — временным адаптером deal-core (порт documents), подпись — как это сделает documents:
- * документ SIGNED → хук onDocumentSigned в той же транзакции.
+ * документы — записью без PDF (порт documents не зарегистрирован; PDF — useDocuments из ./documents), подпись —
+ * как это сделает documents: документ SIGNED → хук onDocumentSigned в той же транзакции.
+ * Порт заявок — как на сервере (src/ports.ts): оферта закрывает заявку, отмена — отменяет. Регистрация здесь,
+ * а не в setup-файле: импорт модулей там опередил бы vi.mock("next/headers") тестов маршрутов.
  */
+registerRequestsPort(requestsPort);
 
 export type Executor = CurrentUser & { executor: NonNullable<CurrentUser["executor"]> };
 export type DealFixture = { dealId: string; requestId: string; offerId: string; client: CurrentUser; executor: Executor };

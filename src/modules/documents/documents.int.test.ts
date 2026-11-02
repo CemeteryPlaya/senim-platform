@@ -87,7 +87,7 @@ describe("оферта: PDF, хэш, версии", () => {
   it("отменённая сделка оферту больше не принимает", async () => {
     const f = await makeDeal();
     const { id } = await latestDocument(f.dealId, "CONTRACT");
-    await cancelDeal(f.client, { dealId: f.dealId }, { onCancelled: async () => {} });
+    await cancelDeal(f.client, { dealId: f.dealId });
     await expect(signTyped(f.client, id)).rejects.toEqual(code("CONFLICT"));
     await expect(startSigning(f.client, id, "EGOV_QR")).rejects.toEqual(code("CONFLICT"));
   });

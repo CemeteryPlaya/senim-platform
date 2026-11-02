@@ -9,10 +9,10 @@ import { fail } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
 import { checkGps, type GpsCheck } from "@/platform/geo";
 import { parseInput } from "@/platform/validation";
-import type { CancelDealHooks, CreateDeal, OnDocumentSigned } from "./contracts";
+import type { CreateDeal, OnDocumentSigned } from "./contracts";
 import { notifyBoth, notifyParty, otherParty, partyText, SYSTEM_ACTOR } from "./effects";
 import { processDealMoney, requestHold, requestPayout, requestRefund } from "./money";
-import { applyPortfolioConsent, attachOwnFiles, documents, recalculateRating } from "./ports";
+import { applyPortfolioConsent, attachOwnFiles, documents, recalculateRating, requests } from "./ports";
 import { cancelDealSchema, createDealSchema, dealRefSchema, progressReportSchema, reviewSchema, submitReadySchema } from "./schemas";
 import { contextOf, lockDeal, moveDeal, refuse, requireParty, requireRole, scopeOf, type DealState } from "./state";
 
@@ -100,6 +100,7 @@ export async function onContractSigned(tx: Tx, documentId: string): Promise<void
   const result = await tx.deal.updateMany({ where: { id: deal.id, status: "CREATED", signedAt: null }, data: { signedAt } });
   if (result.count !== 1) return;
   await recordAudit(tx, { actor: SYSTEM_ACTOR, action: "deal.signed", entity: { type: "deal", id: deal.id }, scope: scopeOf(deal.id), after: { signedAt: signedAt.toISOString() }, meta: { documentId } });
+  await requests().onContractSigned(tx, deal.id);
   await notifyBoth(tx, deal, "deal.signed", {
     CLIENT: { title: t.signed.CLIENT.title, body: t.signed.CLIENT.body(deal.number) },
     EXECUTOR: { title: t.signed.EXECUTOR.title, body: t.signed.EXECUTOR.body(deal.number) },
@@ -224,9 +225,9 @@ export type CancelResult = { status: "CANCELLED" | "REFUND_REQUESTED" };
 /**
  * Отмена (ADR-009 раздел 2): CREATED — любая сторона, сразу CANCELLED (если оплата не в обработке);
  * PAID_HOLD — только покупатель: REFUND всего оплаченного, REFUNDED — по подтверждению банка;
- * после начала работ — только через спор. Хук requests закрывает заявку в той же транзакции.
+ * после начала работ — только через спор. Порт requests закрывает заявку в той же транзакции (в обоих случаях).
  */
-export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reason?: string }, hooks?: CancelDealHooks): Promise<CancelResult> {
+export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reason?: string }): Promise<CancelResult> {
   const input = parseInput(cancelDealSchema, raw);
   const result = await transaction(async (tx): Promise<CancelResult> => {
     const deal = await lockDeal(tx, input.dealId);
@@ -235,7 +236,7 @@ export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reaso
     const meta = { reason: await partyText(tx, deal, who, input.reason) };
     if (deal.status === "CREATED") {
       await moveDeal(tx, deal, { to: "CANCELLED", who, actor: actorOf(user), action: "deal.cancelled", data: { cancelledAt: new Date() }, meta });
-      await hooks?.onCancelled(tx, deal.id);
+      await requests().onDealCancelled(tx, deal.id);
       await notifyParty(tx, deal, otherParty(who), "deal.cancelled", { title: t.cancelled.title, body: t.cancelled.body(deal.number) });
       return { status: "CANCELLED" };
     }
@@ -246,7 +247,7 @@ export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reaso
     if (ctx.money.exitRequested || !deal.money.heldEntry) return refuse("moneyLeaving");
     await requestRefund(tx, deal, deal.money.heldEntry.amountTiyn, { actorId: user.id });
     await recordAudit(tx, { actor: actorOf(user), action: "deal.cancel.requested", entity: { type: "deal", id: deal.id }, scope: scopeOf(deal.id), meta });
-    await hooks?.onCancelled(tx, deal.id);
+    await requests().onDealCancelled(tx, deal.id);
     await notifyParty(tx, deal, "EXECUTOR", "deal.cancel.requested", { title: t.refundRequested.title, body: t.refundRequested.body(deal.number) });
     return { status: "REFUND_REQUESTED" };
   });

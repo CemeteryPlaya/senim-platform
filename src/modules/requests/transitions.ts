@@ -91,7 +91,7 @@ export const REQUEST_TRANSITIONS = [
     from: ["CONTRACTING", "CLOSED"],
     to: "CANCELLED",
     who: ["SYSTEM"],
-    guard: "сделку отменили до начала работ: до подписи оферты (CONTRACTING) или после подписи до начала работ (CLOSED)",
+    guard: "сделка закончилась без выплаты мастеру — отмена до или после оплаты, полный возврат по спору: до подписи оферты (CONTRACTING) или после (CLOSED)",
   },
   { action: "cancel", from: ["DRAFT", "PLATFORM_MEASURING", "OPEN", "OFFER_CHOSEN", "MEASURING"], to: "CANCELLED", who: ["CLIENT"] },
 ] as const satisfies Table<RequestStatus, string>;

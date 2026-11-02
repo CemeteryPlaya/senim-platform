@@ -4,13 +4,13 @@ import "server-only";
 // деньги — журнал payments (статус двигают подтверждённые операции через onMoneySettled).
 // Контракты для других модулей — ./contracts.ts; порт документов — ./ports.ts (registerDocumentsPort).
 
-export type { CancelDealHooks, CreateDeal, CreateDealInput, OnDealCancelled, OnDocumentSigned, ResolveDispute, ResolveDisputeInput } from "./contracts";
+export type { CreateDeal, CreateDealInput, OnDocumentSigned, ResolveDispute, ResolveDisputeInput } from "./contracts";
 export { DEAL_STATUSES, DEAL_TRANSITIONS, DISPUTABLE, checkTransition, type DealContext, type DealTransition, type Refusal, type Who } from "./transitions";
 
 // Контракты: requests → createDeal; documents → onDocumentSigned (или onContractSigned / onActSigned); operator → resolveDispute
 export { createDeal, onActSigned, onContractSigned, onDocumentSigned } from "./service";
 export { resolveDispute } from "./dispute";
-export { registerDocumentsPort, type CreatedDocument, type DocumentsPort } from "./ports";
+export { registerDocumentsPort, registerRequestsPort, type CreatedDocument, type DocumentsPort, type RequestsPort } from "./ports";
 // Какие подписи нужны оферте и акту — одна таблица для documents (полностью подписан) и deal-core («Что дальше»)
 export { isFullySigned, isSignable, missingOf, partiesDone, requiredSignatures, type Requirement, type SignedParties, type SigningFlags } from "./signatures";
 export { signingFlags } from "./signing-flags";
