@@ -8,7 +8,7 @@ const code = (p: Promise<unknown>) => p.then(() => "OK", (e: { code?: string }) 
 const REASON = "Сделка завершена, гарантийные вопросы — через поддержку";
 
 /** Завершённая сделка: чат по умолчанию открыт (гарантия), закрывает его оператор (ответ №19). */
-const completedDeal = () => makeOfferThread({ dealStatus: "COMPLETED", requestStatus: "CLOSED" });
+const completedDeal = () => makeOfferThread({ dealStatus: "SPLIT_PAYOUT", requestStatus: "CLOSED" });
 
 describe("закрытие чата оператором (№19): разрешённые переходы", () => {
   it("после завершения сделки чат открыт; оператор закрывает — стороны только читают и видят причину", async () => {

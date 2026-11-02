@@ -1,6 +1,9 @@
 import type { DealStatus, OfferStatus, RequestStatus } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
+import { computeDealMoney } from "@/modules/payments";
 import { db } from "@/platform/db";
+import { resetEnvCache } from "@/platform/env";
+import { FEATURE_ENV, type FeatureKey } from "@/platform/features";
 import { makeClient, makeExecutor } from "../factories";
 
 /**
@@ -9,7 +12,24 @@ import { makeClient, makeExecutor } from "../factories";
  */
 type Executor = Awaited<ReturnType<typeof makeExecutor>>;
 
+/** Временно включает или выключает флаг (env + сброс кэша env); прежнее значение возвращается и при ошибке. */
+export async function withFeature<T>(key: FeatureKey, on: boolean, fn: () => Promise<T>): Promise<T> {
+  const name: string = FEATURE_ENV[key];
+  const prev = process.env[name];
+  process.env[name] = on ? "true" : "false";
+  resetEnvCache();
+  try {
+    return await fn();
+  } finally {
+    if (prev === undefined) delete process.env[name];
+    else process.env[name] = prev;
+    resetEnvCache();
+  }
+}
+
 let n = 0;
+/** 900 000 ₸ в тиынах. */
+export const PRICE_TIYN = 900_000_00n;
 
 export async function makeFurnitureType(opts: { slug?: string; name?: string; active?: boolean } = {}) {
   n += 1;
@@ -75,6 +95,8 @@ export async function makeOfferThread(
     offerStatus?: OfferStatus;
     requestStatus?: RequestStatus;
     dealStatus?: DealStatus;
+    /** Оферта заключена (Deal.signedAt): открывает контакты сторон. По умолчанию — для сделок после CREATED. */
+    signed?: boolean;
   } = {},
 ) {
   const client = opts.client ?? (await makeClient());
@@ -86,7 +108,7 @@ export async function makeOfferThread(
     data: {
       requestId: request.id,
       executorId: executor.executor.id,
-      price: 900_000,
+      priceTiyn: PRICE_TIYN,
       durationDays: 20,
       warrantyMonths: 24,
       measurementTerms: "FREE",
@@ -101,11 +123,12 @@ export async function makeOfferThread(
           clientId: client.id,
           executorId: executor.executor.id,
           title: "Кухня",
-          totalAmount: 900_000,
-          paymentMode: "MANUAL",
+          ...computeDealMoney(PRICE_TIYN),
+          durationDays: 20,
+          warrantyMonths: 24,
+          paymentProvider: "MOCK",
           status: opts.dealStatus,
-          stageTemplate: "no-prepayment",
-          autoAcceptDays: 5,
+          signedAt: (opts.signed ?? opts.dealStatus !== "CREATED") ? new Date() : null,
         },
       })
     : null;
@@ -114,36 +137,32 @@ export async function makeOfferThread(
 
 /** Завершённая сделка с отзывом заказчика. */
 export async function makeReview(executor: Executor, rating: number, text = "") {
-  const thread = await makeOfferThread({ executor, dealStatus: "COMPLETED", requestStatus: "CLOSED" });
+  const thread = await makeOfferThread({ executor, dealStatus: "SPLIT_PAYOUT", requestStatus: "CLOSED" });
   return db.review.create({
     data: { dealId: thread.dealId!, executorId: executor.executor.id, authorId: thread.client.id, rating, text },
   });
 }
 
 /**
- * Завершённая сделка с отчётом: два этапа, у последнего — фото исполнителя (STAGE_REPORT), у первого — одно своё фото.
+ * Завершённая сделка с фото: фото сдачи мастера (DELIVERY) — итоговые, и одно фото «Хода работ» (PROGRESS_REPORT).
  * Заявка — с типом мебели, стилем и городом (их подставляет форма «Добавить в портфолио»).
  */
 export async function makeDealWithReport(opts: { client?: CurrentUser; executor?: Executor; dealStatus?: DealStatus; photos?: number } = {}) {
   const executor = opts.executor ?? (await makeExecutor());
-  const thread = await makeOfferThread({ client: opts.client, executor, dealStatus: opts.dealStatus ?? "COMPLETED", requestStatus: "CLOSED" });
+  const thread = await makeOfferThread({ client: opts.client, executor, dealStatus: opts.dealStatus ?? "SPLIT_PAYOUT", requestStatus: "CLOSED" });
   const type = await makeFurnitureType({ name: "Кухня" });
   await db.request.update({ where: { id: thread.requestId }, data: { furnitureTypeId: type.id, style: "scandi", city: "Астана", address: "ул. Тестовая, 1, кв. 2" } });
   const dealId = thread.dealId!;
-  const photo = async () => {
+  const photo = async (purpose: "DELIVERY" | "PROGRESS_REPORT", owner: { dealId: string } | { progressReportId: string }, sortOrder = 0) => {
     n += 1;
-    return db.storedFile.create({
-      data: { storageKey: `stage_report/test/${n}.jpg`, provider: "local", purpose: "STAGE_REPORT", contentType: "image/jpeg", size: 1000, sha256: "2".repeat(64), uploadedById: executor.id },
+    const file = await db.storedFile.create({
+      data: { storageKey: `${purpose.toLowerCase()}/test/${n}.jpg`, provider: "local", purpose, contentType: "image/jpeg", size: 1000, sha256: "2".repeat(64), uploadedById: executor.id, sortOrder, ...owner },
     });
+    return file.id;
   };
-  const first = await db.stage.create({ data: { dealId, order: 1, title: "Изготовление", amount: 400_000, paymentDue: "ON_ACCEPTANCE", status: "ACCEPTED" } });
-  const last = await db.stage.create({ data: { dealId, order: 2, title: "Монтаж", amount: 500_000, paymentDue: "ON_ACCEPTANCE", status: "ACCEPTED" } });
-  const firstPhoto = await photo();
-  await db.storedFile.update({ where: { id: firstPhoto.id }, data: { stageId: first.id } });
-  const finalPhotos = [];
-  for (let i = 0; i < (opts.photos ?? 2); i++) {
-    const file = await photo();
-    finalPhotos.push((await db.storedFile.update({ where: { id: file.id }, data: { stageId: last.id, sortOrder: i } })).id);
-  }
-  return { ...thread, executor, dealId, furnitureTypeId: type.id, finalPhotoIds: finalPhotos, earlierPhotoId: firstPhoto.id };
+  const report = await db.progressReport.create({ data: { dealId, authorId: executor.id, title: "Изготовление", text: "Корпус готов" } });
+  const earlierPhotoId = await photo("PROGRESS_REPORT", { progressReportId: report.id });
+  const finalPhotoIds: string[] = [];
+  for (let i = 0; i < (opts.photos ?? 2); i++) finalPhotoIds.push(await photo("DELIVERY", { dealId }, i));
+  return { ...thread, executor, dealId, furnitureTypeId: type.id, finalPhotoIds, earlierPhotoId };
 }

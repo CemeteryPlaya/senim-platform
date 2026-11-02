@@ -244,7 +244,7 @@ export const companies = {
       offerDeclined: "Отклик отклонён — чат закрыт",
       requestCancelled: "Заявка отменена — чат закрыт",
       dealCancelled: "Сделка отменена — чат закрыт",
-      dealTerminated: "Сделка расторгнута — чат закрыт",
+      dealRefunded: "Деньги вернулись покупателю — чат закрыт",
     },
     errors: {
       notFound: "Переписка не найдена",
@@ -292,7 +292,20 @@ export const companies = {
         share: "Телефон уже показан",
         revoke: "Телефон уже скрыт",
         notTalked: "Сначала обменяйтесь сообщениями в чате",
+        disabled: "Показ телефона до оферты выключен",
+        afterOffer: "Оферта заключена — контакты уже видны обеим сторонам",
       },
+    },
+    /** Контакты другой стороны после заключения оферты (ТЗ п. 3). */
+    contacts: {
+      titleOfExecutor: "Контакты исполнителя",
+      titleOfClient: "Контакты заказчика",
+      hint: "Оферта заключена — теперь вы видите контакты друг друга",
+      phone: "Телефон",
+      instagram: "Instagram",
+      call: (display: string) => `Позвонить ${display}`,
+      openInstagram: (name: string) => `Открыть Instagram @${name}`,
+      errors: { dealNotFound: "Сделка не найдена" },
     },
   },
 } as const;

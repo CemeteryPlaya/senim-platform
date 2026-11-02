@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Eye, Images, MapPin, Store, Wallet } from "lucide-react";
+import { AtSign, Eye, Images, Landmark, MapPin, ShieldCheck, Store, Wallet } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { getOwnProfile, listFurnitureTypes } from "@/modules/companies";
 import { canGrant, requireUserPage } from "@/modules/identity";
@@ -74,6 +74,17 @@ export default async function ExecutorProfilePage() {
           />
         </nav>
       )}
+
+      {/* Документы, счёт для выплаты и контакты — личное мастера, заказчикам не показывается. */}
+      <nav aria-label={ru.identity.kyc.title}>
+        <LinkList
+          items={[
+            { href: "/executor/profile/kyc", label: ru.identity.kyc.link, icon: <ShieldCheck /> },
+            { href: "/executor/profile/payout", label: ru.identity.payout.link, icon: <Landmark /> },
+            { href: "/profile/contacts", label: ru.identity.contacts.link, icon: <AtSign /> },
+          ]}
+        />
+      </nav>
 
       <section aria-labelledby="profile-edit" className="flex flex-col gap-5 border-t border-line pt-6">
         <h2 id="profile-edit" className="text-xl font-bold text-ink">

@@ -1,11 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/platform/db";
+import { resetEnvCache } from "@/platform/env";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeOfferThread } from "../../../test/factories/companies";
 import { getChat, revokeClientPhone, sendMessage, shareClientPhone } from "./index";
 
 /**
- * Телефон заказчика исполнителю (ответ №21, ADR-008): по согласию заказчика и только после
+ * Телефон заказчика исполнителю до оферты (ответ №21, ADR-008, флаг clientPhoneConsent): по согласию заказчика и только после
  * переписки в чате отклика. Видит только исполнитель этого отклика, пока согласие действует.
  */
 const code = (p: Promise<unknown>) => p.then(() => "OK", (e: { code?: string }) => e.code ?? String(e));
@@ -22,6 +23,17 @@ async function talkedThread(opts: Parameters<typeof makeOfferThread>[0] = {}) {
 const sharedAudit = (offerId: string) => db.auditEvent.findMany({ where: { entityId: offerId, action: { startsWith: "offer.client_phone" } } });
 
 afterEach(() => vi.restoreAllMocks());
+
+// Путь согласия до оферты — под флагом clientPhoneConsent (ТЗ п. 3 скрывает контакты до оферты);
+// положение «выключен» и поведение после оферты — contacts.int.test.ts.
+beforeAll(() => {
+  process.env.FEATURE_CLIENT_PHONE_CONSENT = "true";
+  resetEnvCache();
+});
+afterAll(() => {
+  delete process.env.FEATURE_CLIENT_PHONE_CONSENT;
+  resetEnvCache();
+});
 
 describe("показать телефон: правило «поговорили»", () => {
   it("без переписки показать нельзя, кнопки нет", async () => {
@@ -48,7 +60,7 @@ describe("показать телефон: кто видит", () => {
     const t = await talkedThread();
     const rival = await makeExecutor();
     const rivalOffer = await db.offer.create({
-      data: { requestId: t.requestId, executorId: rival.executor.id, price: 800_000, durationDays: 15, warrantyMonths: 12, measurementTerms: "FREE" },
+      data: { requestId: t.requestId, executorId: rival.executor.id, priceTiyn: 800_000_00n, durationDays: 15, warrantyMonths: 12, measurementTerms: "FREE" },
     });
     const operator = await makeOperator();
     expect((await getChat(t.executor, t.offerId)).clientPhone).toBeNull();
@@ -70,11 +82,17 @@ describe("показать телефон: кто видит", () => {
     expect(`${notice.title} ${notice.body}`).not.toContain(digits(t.client.phone).slice(-7));
   });
 
-  it("в сделке номер тоже виден исполнителю (тот же чат отклика)", async () => {
-    const t = await talkedThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+  it("в сделке до подписания оферты согласие действует (тот же чат отклика), журнал — со scope сделки", async () => {
+    const t = await talkedThread({ dealStatus: "CREATED", requestStatus: "CONTRACTING" });
     await shareClientPhone(t.client, t.offerId);
     expect((await getChat(t.executor, t.offerId)).clientPhone).toMatchObject({ for: "executor", phone: t.client.phone });
     expect((await sharedAudit(t.offerId))[0]?.scope).toBe(`deal:${t.dealId}`);
+  });
+
+  it("после оферты согласие не нужно: номер приходит в контактах сторон, а не через согласие", async () => {
+    const t = await talkedThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+    expect((await getChat(t.executor, t.offerId)).clientPhone).toBeNull();
+    expect((await getChat(t.executor, t.offerId)).contacts).toMatchObject({ of: "client", phone: t.client.phone });
   });
 
   it("скрыть — номер исчезает у исполнителя; показать снова можно", async () => {

@@ -6,22 +6,24 @@ describe("chatClosedReason: когда в чат больше нельзя пи�
     [{ offerStatus: "SENT", requestStatus: "OPEN", dealStatus: null }, null],
     [{ offerStatus: "ACCEPTED", requestStatus: "OFFER_CHOSEN", dealStatus: null }, null],
     [{ offerStatus: "ACCEPTED", requestStatus: "MEASURING", dealStatus: null }, null],
-    [{ offerStatus: "ACCEPTED", requestStatus: "CONTRACTING", dealStatus: "AWAITING_SIGNATURES" }, null],
+    [{ offerStatus: "ACCEPTED", requestStatus: "CONTRACTING", dealStatus: "CREATED" }, null],
+    [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "PAID_HOLD" }, null],
     [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "IN_PROGRESS" }, null],
-    [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "DISPUTE" }, null],
-    [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "COMPLETED" }, null],
+    [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "READY" }, null],
+    [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "ACCEPTED" }, null],
+    [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "SPLIT_PAYOUT" }, null],
     [{ offerStatus: "WITHDRAWN", requestStatus: "OPEN", dealStatus: null }, "offerWithdrawn"],
     [{ offerStatus: "DECLINED", requestStatus: "OFFER_CHOSEN", dealStatus: null }, "offerDeclined"],
     [{ offerStatus: "SENT", requestStatus: "CANCELLED", dealStatus: null }, "requestCancelled"],
     [{ offerStatus: "ACCEPTED", requestStatus: "CANCELLED", dealStatus: null }, "requestCancelled"],
     [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "CANCELLED" }, "dealCancelled"],
-    [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "TERMINATED" }, "dealTerminated"],
+    [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "REFUNDED" }, "dealRefunded"],
   ] as const)("%o → %s", (state, expected) => {
     expect(chatClosedReason({ ...state, closedByOperator: false })).toBe(expected);
   });
 
   it("закрыт оператором — закрыт при любом состоянии сделки, в том числе после завершения (№19)", () => {
-    expect(chatClosedReason({ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "COMPLETED", closedByOperator: true })).toBe("operatorClosed");
+    expect(chatClosedReason({ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "SPLIT_PAYOUT", closedByOperator: true })).toBe("operatorClosed");
     expect(chatClosedReason({ offerStatus: "SENT", requestStatus: "OPEN", dealStatus: null, closedByOperator: true })).toBe("operatorClosed");
   });
 });

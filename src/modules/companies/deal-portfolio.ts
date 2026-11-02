@@ -15,13 +15,15 @@ import type { PhotoView } from "./types";
 
 /**
  * Портфолио из итоговых фото сделки (встреча 31.10, п. 3).
- * - Исполнитель завершённой сделки добавляет работу: фото отчёта последнего этапа (ссылками, не копиями),
+ * - Исполнитель завершённой сделки добавляет работу: фото сдачи (ссылками, не копиями),
  *   тип и стиль из заявки, место — город, район или ЖК. Одна работа на сделку (уникальный dealId).
  * - Показ заказчикам — только с согласия заказчика сделки (Deal.portfolioConsentAt). Без него работа —
  *   черновик исполнителя; правило видимости — VISIBLE_ITEM в catalog.ts. Согласие можно отозвать.
  * Фото уже без EXIF и геометок: files.processImage пережимает каждое загруженное фото без метаданных.
  */
 const t = ru.companies.dealPortfolio;
+/** Сделка завершена — выплата мастеру проведена (ADR-009). */
+const DONE = "SPLIT_PAYOUT";
 const id = z.string().min(1).max(64);
 
 export const fromDealInputSchema = portfolioInputSchema.extend({
@@ -34,10 +36,9 @@ export type FromDealInput = z.input<typeof fromDealInputSchema>;
 export const consentSchema = z.object({ dealId: id, consent: z.boolean() });
 export const featuredSchema = z.object({ itemId: id, featured: z.boolean() });
 
-/** Итоговые фото — отчёт последнего этапа сделки. */
+/** Итоговые фото — фото сдачи (DELIVERY), которые мастер приложил при переходе в READY. */
 async function finalPhotos(client: Db, dealId: string) {
-  const stage = await client.stage.findFirst({ where: { dealId }, orderBy: { order: "desc" }, select: { photos: OWN_PHOTOS } });
-  return stage?.photos ?? [];
+  return client.storedFile.findMany({ where: { dealId, purpose: "DELIVERY" }, ...OWN_PHOTOS });
 }
 
 /** Сделка исполнителя. Чужая или несуществующая — одинаково NOT_FOUND. */
@@ -55,7 +56,7 @@ async function executorDeal(client: Db, executorId: string, dealId: string) {
     },
   });
   if (!deal) return fail.notFound(t.errors.dealNotFound);
-  if (deal.status !== "COMPLETED") return fail.conflict(t.errors.notCompleted);
+  if (deal.status !== DONE) return fail.conflict(t.errors.notCompleted);
   return deal;
 }
 
@@ -149,7 +150,7 @@ export async function applyPortfolioConsent(tx: Db, user: CurrentUser, dealId: s
     select: { id: true, number: true, status: true, executorId: true, executor: { select: { userId: true } } },
   });
   if (!deal) return fail.notFound(t.errors.dealNotFound);
-  if (deal.status !== "COMPLETED") return fail.conflict(t.errors.notCompleted);
+  if (deal.status !== DONE) return fail.conflict(t.errors.notCompleted);
 
   const result = await tx.deal.updateMany({
     where: { id: deal.id, portfolioConsentAt: consent ? null : { not: null } },
@@ -185,7 +186,7 @@ export async function getDealPortfolioPanel(user: CurrentUser, dealId: string): 
     where: { id: dealId },
     select: { status: true, clientId: true, executorId: true, portfolioConsentAt: true, portfolioItem: { select: { id: true } } },
   });
-  if (!deal || deal.status !== "COMPLETED") return null;
+  if (!deal || deal.status !== DONE) return null;
   const consent = deal.portfolioConsentAt !== null;
   if (user.role === "CLIENT" && deal.clientId === user.id) return { viewer: "CLIENT", consent };
   if (user.role === "EXECUTOR" && user.executor?.id === deal.executorId) {

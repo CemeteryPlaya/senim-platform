@@ -84,7 +84,7 @@ describe("чат отклика: доступ (IDOR)", () => {
     const t = await makeOfferThread();
     const rival = await makeExecutor();
     await db.offer.create({
-      data: { requestId: t.requestId, executorId: rival.executor.id, price: 1, durationDays: 1, warrantyMonths: 1, measurementTerms: "FREE" },
+      data: { requestId: t.requestId, executorId: rival.executor.id, priceTiyn: 100n, durationDays: 1, warrantyMonths: 1, measurementTerms: "FREE" },
     });
     await expect(getChat(rival, t.offerId)).rejects.toMatchObject({ code: "NOT_FOUND" });
   });

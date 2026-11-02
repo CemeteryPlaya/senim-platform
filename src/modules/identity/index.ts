@@ -28,6 +28,28 @@ export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id"
 export { isValidFullName, normalizeFullName } from "./full-name";
 export { hasClientIdentity, limitIdentityAttempts, recordOwnIdentity, recordPersonIdentity, type PersonIdentity } from "./person-identity";
 export { INTRODUCTION_PATH, introductionHref, needsIntroduction } from "./introduction";
+export { INSTAGRAM_MAX, contactsInputSchema, instagramField, type ContactsInput } from "./instagram";
+export { getOwnContacts, updateContacts, type OwnContacts } from "./contacts-profile";
+export { ibanField, normalizeIban, parseKzIban, type IbanCheck } from "./iban";
+/** payoutRecipientOf — только серверный путь выплаты (deal-core, payments): IBAN не логировать и не показывать. */
+export { getOwnPayout, payoutInputSchema, payoutRecipientOf, setPayoutIban, type OwnPayout, type PayoutInput } from "./payout";
+export { KYC_TRANSITIONS, kycTarget, kycView, type KycAction, type KycState } from "./kyc-policy";
+export {
+  KYC_MAX_FILES,
+  KYC_REASON_MAX,
+  KYC_REASON_MIN,
+  getOwnKyc,
+  kycQueue,
+  kycReviewSchema,
+  kycSubmitSchema,
+  reviewKyc,
+  submitKycDocuments,
+  type KycDocument,
+  type KycQueueItem,
+  type KycReviewInput,
+  type KycSubmitInput,
+  type OwnKyc,
+} from "./kyc";
 export { addressFields, refineSigner, signerFields, signerOf } from "./registration-schema";
 export {
   executorRegistrationSchema,
