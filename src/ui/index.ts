@@ -10,6 +10,7 @@ export {
   formatMoney,
   formatMonths,
   formatRelative,
+  formatTiyn,
   formatTime,
   formatYears,
   TIME_ZONE,

@@ -234,8 +234,9 @@ export function Fact({ label, compact = false, children }: { label: string; comp
 /**
  * Сумма в тенге: «1 250 000 ₸», цифры одной ширины. Обычно в одну строку; если не помещается
  * (крупный шрифт на телефоне) — переносится только между группами разрядов.
+ * number — тенге (суммы вне сделки), bigint — тиыны (деньги сделки, ADR-009).
  */
-export function Money({ amount, className }: { amount: number; className?: string }) {
+export function Money({ amount, className }: { amount: number | bigint; className?: string }) {
   return (
     <span className={cn("tabular-nums", className)}>
       {moneyBreakParts(amount).map((part, i) => (

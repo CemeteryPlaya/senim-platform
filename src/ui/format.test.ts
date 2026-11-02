@@ -34,6 +34,11 @@ describe("moneyBreakParts — где крупная сумма может пер
   it("куски вместе — ровно formatMoney", () => {
     expect(moneyBreakParts(10_005_000).join("")).toBe(formatMoney(10_005_000));
   });
+
+  it("сумма в тиынах (bigint) — те же места переноса, тиыны остаются со знаком валюты", () => {
+    expect(moneyBreakParts(102_000_050n)).toEqual([`1${NBSP}`, `020${NBSP}`, `000,50${NBSP}₸`]);
+    expect(moneyBreakParts(102_000_050n).join("")).toBe(formatTiyn(102_000_050n));
+  });
 });
 
 describe("даты по времени Астаны (UTC+5)", () => {

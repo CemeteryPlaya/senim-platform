@@ -38,10 +38,11 @@ export function formatTiyn(tiyn: bigint): string {
 /**
  * Сумма по кускам, между которыми допустим перенос: после каждой группы разрядов.
  * На узком экране при крупном шрифте «10 005 000 ₸» встаёт в две строки, а не уходит за край;
- * знак валюты не отрывается от последней группы.
+ * знак валюты не отрывается от последней группы. bigint — деньги сделки в тиынах (formatTiyn).
  */
-export function moneyBreakParts(amount: number): string[] {
-  return formatMoney(amount).split(/(?<=\d\u00a0)(?=\d)/u);
+export function moneyBreakParts(amount: number | bigint): string[] {
+  const text = typeof amount === "bigint" ? formatTiyn(amount) : formatMoney(amount);
+  return text.split(/(?<=\d\u00a0)(?=\d)/u);
 }
 
 /** «12 марта 2026». */
