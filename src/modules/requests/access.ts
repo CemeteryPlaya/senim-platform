@@ -1,7 +1,8 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import type { PreContractFlow } from "@/generated/prisma/enums";
+import type { OfferStatus, PreContractFlow } from "@/generated/prisma/enums";
 import { actorOf, type CurrentUser } from "@/modules/identity";
+import { notify } from "@/modules/notifications";
 import { recordAudit, type AuditInput } from "@/modules/audit";
 import { ru } from "@/i18n/ru";
 import type { Db } from "@/platform/db";
@@ -68,6 +69,23 @@ export const requestScope = (requestId: string) => `request:${requestId}`;
 /** Событие журнала заявки от имени пользователя. */
 export function auditByUser(tx: Db, user: CurrentUser, requestId: string, input: Omit<AuditInput, "actor" | "scope">) {
   return recordAudit(tx, { ...input, actor: actorOf(user), scope: requestScope(requestId) });
+}
+
+/**
+ * Заявка закрылась для остальных откликов (выбран отклик или принята цена): их отправленные отклики → `to`
+ * (статус — из таблицы переходов вызывающего), их мастерам — «выбран другой отклик». Возвращает id отклонённых.
+ */
+export async function declineOtherOffers(tx: Db, r: RequestWithType, keepOfferId: string, to: OfferStatus): Promise<string[]> {
+  const others = await tx.offer.findMany({
+    where: { requestId: r.id, status: "SENT", id: { not: keepOfferId } },
+    select: { id: true, executor: { select: { userId: true } } },
+  });
+  await tx.offer.updateMany({ where: { id: { in: others.map((o) => o.id) }, status: "SENT" }, data: { status: to } });
+  const n = ru.requests.notify.offerDeclined;
+  for (const o of others) {
+    await notify(tx, { userId: o.executor.userId, kind: "offer.declined", title: n.title, body: n.body(requestTitle(r)), link: links.executor(r.id) });
+  }
+  return others.map((o) => o.id);
 }
 
 /** Ссылки в уведомлениях (совпадают с маршрутами экранов и сидом). */

@@ -28,6 +28,7 @@ import {
   getClientRequest,
   getIncomingRequest,
   getSiteMeasurement,
+  listAwaitingSiteMeasurer,
   listIncomingRequests,
   markDepositPaid,
   publishRequest,
@@ -158,6 +159,12 @@ describe("сценарий 2: замерщик площадки", () => {
     expect(await listIncomingRequests(executor)).toHaveLength(0);
     await expect(sendOffer(executor, offerInput(requestId))).rejects.toThrow(code("NOT_FOUND"));
 
+    // Очередь оператора: заявка ждёт, замерщика ещё нет; замерщики — по имени.
+    expect(await listAwaitingSiteMeasurer(operator)).toEqual({
+      requests: [expect.objectContaining({ id: requestId, title: "Кухня", measurer: null })],
+      measurers: [{ id: measurer.id, name: "Замерщик Нуржан" }],
+    });
+    await expect(listAwaitingSiteMeasurer(client)).rejects.toThrow(code("FORBIDDEN"));
     await expect(assignSiteMeasurer(client, { requestId, measurerId: measurer.id })).rejects.toThrow(code("FORBIDDEN"));
     await expect(assignSiteMeasurer(operator, { requestId, measurerId: client.id })).rejects.toThrow(code("NOT_FOUND")); // не замерщик
     const assigned = await Promise.allSettled([
@@ -166,6 +173,7 @@ describe("сценарий 2: замерщик площадки", () => {
     ]);
     expect(one(assigned)).toBe(1);
     const sm = await db.siteMeasurement.findUniqueOrThrow({ where: { requestId } });
+    expect((await listAwaitingSiteMeasurer(operator)).requests[0]).toMatchObject({ measurer: "Замерщик Нуржан" });
 
     const otherMeasurer = await makeUser("MEASURER", "Другой замерщик");
     await expect(getSiteMeasurement(otherMeasurer, sm.id)).rejects.toThrow(code("NOT_FOUND"));

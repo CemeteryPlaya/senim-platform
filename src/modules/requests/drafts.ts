@@ -12,12 +12,13 @@ import { auditByUser, links, loadOwnRequest, requestTitle, requireClient, type R
 import { roomPhotos } from "./adapters";
 import { announceToExecutors, executorRecipients } from "./announce";
 import { newRequestPath } from "./flow-setting";
-import { flowRules, pathOf, selfMeasureComplete, TZ_PATH } from "./flows";
+import { flowRules, pathOf, selfMeasureComplete, TZ_PATH, type RequestPath } from "./flows";
 import { notifyOperatorsSiteMeasure } from "./site-measurements";
 import { preContractView } from "./pre-contract";
 import {
   applyStep,
   parseDetails,
+  pointOf,
   screenIndex,
   segmentInputOf,
   WIZARD_SCREENS,
@@ -135,6 +136,14 @@ export async function saveDraftStep(user: CurrentUser, input: SaveDraftInput): P
   });
 }
 
+/** Все экраны мастера сохранены; в онлайн-замере (сценарий 5) — ещё три размера и фото с рулеткой. */
+async function requireComplete(tx: Tx, r: RequestWithType, path: RequestPath): Promise<void> {
+  if (r.wizardStep < WIZARD_SCREENS.length || !r.segment || !r.address || !(r.furnitureTypeId || r.customType)) fail.validation(e.incomplete);
+  if (path === TZ_PATH || !flowRules(path).selfMeasure) return;
+  const photos = await tx.storedFile.count({ where: { requestId: r.id, purpose: "REQUEST_ROOM" } });
+  if (!selfMeasureComplete(parseDetails(r.details), photos)) fail.validation(ru.requests.pre.errors.selfMeasureIncomplete);
+}
+
 /**
  * Отправка заявки: DRAFT → OPEN, тендер видят исполнители сегмента, прямой запрос — только выбранный исполнитель.
  * Путь заявки запоминается при отправке: по умолчанию — путь ТЗ (торг → оферта); при флаге preContractFlows —
@@ -145,13 +154,7 @@ export async function publishRequest(user: CurrentUser, input: { requestId: stri
     const r = await loadOwnRequest(tx, user, input.requestId);
     const path = await newRequestPath(tx);
     const to = transition(REQUEST_TRANSITIONS, "publish", r.status, "CLIENT", path);
-    if (r.wizardStep < WIZARD_SCREENS.length || !r.segment || !r.address || !(r.furnitureTypeId || r.customType)) {
-      fail.validation(e.incomplete);
-    }
-    if (path !== TZ_PATH && flowRules(path).selfMeasure) {
-      const photos = await tx.storedFile.count({ where: { requestId: r.id, purpose: "REQUEST_ROOM" } });
-      if (!selfMeasureComplete(parseDetails(r.details), photos)) fail.validation(ru.requests.pre.errors.selfMeasureIncomplete);
-    }
+    await requireComplete(tx, r, path);
     // Прямой запрос недоступному исполнителю или себе — CONFLICT уже здесь, даже если заявка сначала ждёт замерщика.
     const recipients = await executorRecipients(tx, r);
 
@@ -247,7 +250,7 @@ export async function getDraft(user: CurrentUser, requestId: string) {
     segmentSuggested: r.segmentSuggested,
     city: r.city,
     address: r.address,
-    location: r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null,
+    location: pointOf(r),
     desiredDate: r.desiredDate,
     wishes: r.wishes,
     wizardStep: r.wizardStep,
@@ -326,7 +329,7 @@ export async function getClientRequest(user: CurrentUser, requestId: string) {
     details: parseDetails(r.details),
     city: r.city,
     address: r.address,
-    location: r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null,
+    location: pointOf(r),
     desiredDate: r.desiredDate,
     wishes: r.wishes,
     wizardStep: r.wizardStep,

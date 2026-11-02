@@ -167,6 +167,11 @@ export const geoPointSchema = z.strictObject({
 });
 export type GeoPoint = z.output<typeof geoPointSchema>;
 
+/** Точка адреса заявки из БД (CHECK держит «обе или ни одной»). */
+export function pointOf(r: { addressLat: number | null; addressLng: number | null }): GeoPoint | null {
+  return r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null;
+}
+
 const placeStep = z.strictObject({
   screen: z.literal("place"),
   city: z.string().trim().min(2, t.cityRequired).max(LIMITS.city),

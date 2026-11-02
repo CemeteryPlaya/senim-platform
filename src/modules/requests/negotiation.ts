@@ -9,8 +9,9 @@ import { ru } from "@/i18n/ru";
 import { db, isUniqueViolation, transaction, type Db, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { formatTiyn } from "@/ui/format";
-import { auditByUser, links, loadExecutor, requestTitle } from "./access";
+import { auditByUser, declineOtherOffers, links, loadExecutor, requestTitle } from "./access";
 import { pathOf, TZ_PATH } from "./flows";
+import { negotiationState } from "./negotiation-state";
 import type { ProposePriceInput } from "./schema";
 import { OFFER_TRANSITIONS, PROPOSAL_TRANSITIONS, REQUEST_TRANSITIONS, stored, transition, type ProposalWho } from "./transitions";
 
@@ -162,26 +163,17 @@ export async function acceptPrice(user: CurrentUser, input: { proposalId: string
     );
     expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: requestTo } }));
     expectOneUpdated(await tx.offer.updateMany({ where: { id: offer.id, status: offer.status }, data: { status: offerTo } }));
-    const others = await tx.offer.findMany({
-      where: { requestId: r.id, status: "SENT", id: { not: offer.id } },
-      select: { id: true, executor: { select: { userId: true } } },
-    });
-    const declined = transition(OFFER_TRANSITIONS, "closedForOthers", "SENT", "SYSTEM");
-    await tx.offer.updateMany({ where: { id: { in: others.map((o) => o.id) }, status: "SENT" }, data: { status: declined } });
+    const declined = await declineOtherOffers(tx, r, offer.id, transition(OFFER_TRANSITIONS, "closedForOthers", "SENT", "SYSTEM"));
 
-    const title = requestTitle(r);
     // Оферта — от имени принявшего; deal-core уведомляет обе стороны «Оферта готова».
-    const { dealId } = await createDeal(tx, { requestId: r.id, offerId: offer.id, priceTiyn: proposal.amountTiyn, title, actor: actorOf(user) });
+    const { dealId } = await createDeal(tx, { requestId: r.id, offerId: offer.id, priceTiyn: proposal.amountTiyn, title: requestTitle(r), actor: actorOf(user) });
     await auditByUser(tx, user, r.id, {
       action: "price.accepted",
       entity: { type: "priceProposal", id: proposal.id },
       before: { status: proposal.status, request: r.status, offer: offer.status },
       after: { status: to, request: requestTo, offer: offerTo, amountTiyn: String(proposal.amountTiyn), dealId },
-      meta: { offerId: offer.id, declined: others.map((o) => o.id) },
+      meta: { offerId: offer.id, declined },
     });
-    for (const o of others) {
-      await notify(tx, { userId: o.executor.userId, kind: "offer.declined", title: n.offerDeclined.title, body: n.offerDeclined.body(title), link: links.executor(r.id) });
-    }
     return { dealId };
   });
 }
@@ -196,20 +188,17 @@ export async function getNegotiation(user: CurrentUser, input: { offerId: string
   const { offer, party } = await partyOf(db, user, await loadOffer(db, input.offerId));
   const rows = await db.priceProposal.findMany({ where: { offerId: offer.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
   const live = isLive(offer);
-  const open = rows.find((p) => p.status === "PROPOSED") ?? null;
-  const accepted = rows.find((p) => p.status === "ACCEPTED") ?? null;
-  const priceTiyn = accepted?.amountTiyn ?? open?.amountTiyn ?? rows.at(-1)?.amountTiyn ?? offer.priceTiyn;
-  const deal = accepted ? await db.deal.findUnique({ where: { offerId: offer.id }, select: { id: true } }) : null;
-  const theirs = open !== null && open.party !== party;
+  const state = negotiationState(rows, party, live, offer.priceTiyn);
+  const deal = state.accepted ? await db.deal.findUnique({ where: { offerId: offer.id }, select: { id: true } }) : null;
   return {
     offerId: offer.id,
     party,
     live,
     rounds: rows.map((p) => ({ id: p.id, party: p.party, mine: p.party === party, amountTiyn: p.amountTiyn, status: p.status, createdAt: p.createdAt, decidedAt: p.decidedAt })),
-    open: open && { id: open.id, party: open.party, mine: !theirs, amountTiyn: open.amountTiyn },
-    can: { propose: live && !(open && !theirs), accept: live && theirs, withdraw: live && open !== null && !theirs },
-    priceTiyn,
-    estimate: partyEstimate(party, priceTiyn),
+    open: state.open,
+    can: state.can,
+    priceTiyn: state.priceTiyn,
+    estimate: partyEstimate(party, state.priceTiyn),
     dealId: deal?.id ?? null,
   };
 }

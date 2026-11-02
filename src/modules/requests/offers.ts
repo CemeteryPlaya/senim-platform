@@ -1,4 +1,5 @@
 import "server-only";
+import type { Measurement, Offer } from "@/generated/prisma/client";
 import { executorDisplayOf, publicExecutorView, publicExecutorViews, sanitizeExecutorText } from "@/modules/companies";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
@@ -7,9 +8,9 @@ import { ru } from "@/i18n/ru";
 import { db, isUniqueViolation, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
-import { auditByUser, links, loadExecutor, loadOwnRequest, preContractFlow, requestTitle, requireClient } from "./access";
+import { auditByUser, declineOtherOffers, links, loadExecutor, loadOwnRequest, preContractFlow, requestTitle, requireClient } from "./access";
 import { executorPortfolio, executorReviews, roomPhotos } from "./adapters";
-import { parseDetails, type OfferSort, type SendOfferInput } from "./schema";
+import { parseDetails, pointOf, type OfferSort, type SendOfferInput } from "./schema";
 import { sortOffers } from "./sort";
 import { OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
 import { visibleToExecutor } from "./visibility";
@@ -122,38 +123,22 @@ export async function chooseOffer(user: CurrentUser, input: { offerId: string })
 
     expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: requestTo } }));
     expectOneUpdated(await tx.offer.updateMany({ where: { id: offer.id, status: offer.status }, data: { status: offerTo } }));
-    const others = await tx.offer.findMany({
-      where: { requestId: r.id, status: "SENT", id: { not: offer.id } },
-      select: { id: true, executor: { select: { userId: true } } },
-    });
-    const declinedTo = transition(OFFER_TRANSITIONS, "decline", "SENT", "CLIENT");
-    await tx.offer.updateMany({ where: { id: { in: others.map((o) => o.id) }, status: "SENT" }, data: { status: declinedTo } });
+    const declined = await declineOtherOffers(tx, r, offer.id, transition(OFFER_TRANSITIONS, "decline", "SENT", "CLIENT"));
 
     await auditByUser(tx, user, r.id, {
       action: "offer.accepted",
       entity: { type: "offer", id: offer.id },
       before: { status: offer.status, request: r.status },
       after: { status: offerTo, request: requestTo },
-      meta: { declined: others.map((o) => o.id) },
+      meta: { declined },
     });
-
-    const title = requestTitle(r);
     await notify(tx, {
       userId: offer.executor.userId,
       kind: "offer.accepted",
       title: n.offerChosen.title,
-      body: n.offerChosen.body(title),
+      body: n.offerChosen.body(requestTitle(r)),
       link: links.executor(r.id),
     });
-    for (const o of others) {
-      await notify(tx, {
-        userId: o.executor.userId,
-        kind: "offer.declined",
-        title: n.offerDeclined.title,
-        body: n.offerDeclined.body(title),
-        link: links.executor(r.id),
-      });
-    }
   });
 }
 
@@ -282,7 +267,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     details: parseDetails(r.details),
     city: r.city,
     address: chosen ? r.address : null,
-    location: chosen && r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null,
+    location: chosen ? pointOf(r) : null,
     path: pathOf(r),
     desiredDate: r.desiredDate,
     wishes: r.wishes,
@@ -292,25 +277,24 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     retryAllowed,
     pre: await preContractView(db, r, mine),
     defaults: { measurementTerms: executor.measurementTerms, measurementFee: executor.measurementFee },
-    myOffer: mine && {
-      id: mine.id,
-      status: mine.status,
-      priceTiyn: mine.priceTiyn,
-      dealId: mine.deal?.id ?? null,
-      durationDays: mine.durationDays,
-      warrantyMonths: mine.warrantyMonths,
-      comment: mine.comment,
-      measurementTerms: mine.measurementTerms,
-      measurementFee: mine.measurementFee,
-      measurement: mine.measurement && {
-        id: mine.measurement.id,
-        status: mine.measurement.status,
-        scheduledAt: mine.measurement.scheduledAt,
-        finalPrice: mine.measurement.finalPrice,
-        feeAccrued: mine.measurement.feeAccrued,
-        result: mine.measurement.result,
-      },
-    },
+    myOffer: mine && myOfferView(mine),
+  };
+}
+
+/** Свой отклик мастера на экране заявки: условия, сделка (оферта) и замер сценария до договора. */
+function myOfferView(mine: Offer & { measurement: Measurement | null; deal: { id: string } | null }) {
+  const m = mine.measurement;
+  return {
+    id: mine.id,
+    status: mine.status,
+    priceTiyn: mine.priceTiyn,
+    dealId: mine.deal?.id ?? null,
+    durationDays: mine.durationDays,
+    warrantyMonths: mine.warrantyMonths,
+    comment: mine.comment,
+    measurementTerms: mine.measurementTerms,
+    measurementFee: mine.measurementFee,
+    measurement: m && { id: m.id, status: m.status, scheduledAt: m.scheduledAt, finalPrice: m.finalPrice, feeAccrued: m.feeAccrued, result: m.result },
   };
 }
 export type IncomingRequest = Awaited<ReturnType<typeof getIncomingRequest>>;
