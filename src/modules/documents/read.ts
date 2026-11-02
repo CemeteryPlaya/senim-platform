@@ -8,7 +8,7 @@ import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { canRead, partyOf } from "./access";
-import { signingFlags } from "./flags";
+import { signingFlags } from "@/modules/deal-core";
 import { ensureMoneyStatement, issueReleaseReceipt, scopeOf, type CreatedDocument } from "./issue";
 import { LINK_TTL_SEC, openDocumentLink, sealDocumentLink, whatsappShareUrl } from "./links";
 import { appendPages, renderPdf } from "./pdf/render";

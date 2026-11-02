@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { nextStep, type NextStepInput } from "./next-step";
 
-const base: NextStepInput = { status: "CREATED", viewer: "CLIENT", signed: false, contractSignedBy: [], hold: "none", openDispute: false, exitRequested: false, canReview: false };
+const base: NextStepInput = { status: "CREATED", viewer: "CLIENT", signed: false, contractSignedBy: [], actSignedBy: [], hold: "none", openDispute: false, exitRequested: false, canReview: false };
 const step = (patch: Partial<NextStepInput>) => nextStep({ ...base, ...patch });
 
 describe("«что дальше» — одно главное действие", () => {
@@ -23,8 +23,17 @@ describe("«что дальше» — одно главное действие",
     expect(step({ status: "PAID_HOLD" })).toEqual({ action: "waitStart", mine: false });
     expect(step({ status: "IN_PROGRESS", viewer: "EXECUTOR" })).toEqual({ action: "submitReady", mine: true });
     expect(step({ status: "IN_PROGRESS" })).toEqual({ action: "waitReady", mine: false });
+    expect(step({ status: "ACCEPTED", viewer: "EXECUTOR" })).toEqual({ action: "waitPayout", mine: false });
+  });
+
+  it("акт приёмки подписывают обе стороны в любом порядке: покупатель — акт, мастер — ЭЦП", () => {
     expect(step({ status: "READY" })).toEqual({ action: "signAct", mine: true });
-    expect(step({ status: "READY", viewer: "EXECUTOR" })).toEqual({ action: "waitAct", mine: false });
+    expect(step({ status: "READY", viewer: "EXECUTOR" })).toEqual({ action: "signActEcp", mine: true });
+    // Покупатель подписал — ждёт мастера; мастер подписал — ждёт покупателя.
+    expect(step({ status: "READY", actSignedBy: ["CLIENT"] })).toEqual({ action: "waitMasterActSignature", mine: false });
+    expect(step({ status: "READY", viewer: "EXECUTOR", actSignedBy: ["CLIENT"] })).toEqual({ action: "signActEcp", mine: true });
+    expect(step({ status: "READY", viewer: "EXECUTOR", actSignedBy: ["EXECUTOR"] })).toEqual({ action: "waitAct", mine: false });
+    expect(step({ status: "READY", actSignedBy: ["EXECUTOR"] })).toEqual({ action: "signAct", mine: true });
     expect(step({ status: "ACCEPTED", viewer: "EXECUTOR" })).toEqual({ action: "waitPayout", mine: false });
   });
 

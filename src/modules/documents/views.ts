@@ -1,5 +1,5 @@
 import type { DocumentKind, DocumentStatus, SignMethod, SignParty } from "@/generated/prisma/enums";
-import { missingOf, requiredSignatures, type SignedParties, type SigningFlags } from "./requirements";
+import { missingOf, requiredSignatures, type SignedParties, type SigningFlags } from "@/modules/deal-core/client";
 import type { SigningSession } from "./signature";
 
 /** Подписи одной стороны на экране: что требуется и что уже есть (время и подписанный хэш). */

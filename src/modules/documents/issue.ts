@@ -9,7 +9,7 @@ import { logger } from "@/platform/logger";
 import { actData, contractData, lastMoneyAt, numberFor, receiptData, statementData, type Meta } from "./data";
 import { renderPdf } from "./pdf/render";
 import type { PdfSpec } from "./pdf/spec";
-import { signingFlags } from "./flags";
+import { signingFlags } from "@/modules/deal-core";
 import { acceptanceActSpec } from "./templates/acceptance-act";
 import { contractSpec } from "./templates/contract";
 import { moneyStatementSpec } from "./templates/money-statement";

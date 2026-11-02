@@ -1,7 +1,9 @@
 import type { DocumentKind, SignParty } from "@/generated/prisma/enums";
 
 /**
- * Какие подписи нужны документу (ADR-009 раздел 6, решение владельца 2.2.4) — одно место.
+ * Какие подписи нужны документу (общая таблица: documents решает по ней «полностью подписан»,
+ * deal-core — кто из сторон уже подписал для «Что дальше»; documents импортирует её отсюда)
+ * (ADR-009 раздел 6, решение владельца 2.2.4) — одно место.
  *  - оферта: обе стороны — собственноручно (HandSignature) и ЭЦП (Signature);
  *  - акт приёмки: покупатель — собственноручно и ЭЦП, мастер — ЭЦП; собственноручно — только при флаге
  *    executorHandSignsAct (OPEN_QUESTIONS №39);
@@ -43,8 +45,15 @@ export function missingOf(kind: DocumentKind, flags: SigningFlags, party: SignPa
 export function isFullySigned(kind: DocumentKind, flags: SigningFlags, have: SignedParties): boolean {
   const req = requiredSignatures(kind, flags);
   if (req.length === 0) return false;
-  return req.every((r) => {
-    const missing = missingOf(kind, flags, r.party, have);
-    return !missing.hand && !missing.ecp;
-  });
+  return partiesDone(kind, flags, have).length === req.length;
+}
+
+/** Стороны, поставившие все свои требуемые подписи (порядок — как в таблице). */
+export function partiesDone(kind: DocumentKind, flags: SigningFlags, have: SignedParties): SignParty[] {
+  return requiredSignatures(kind, flags)
+    .filter((r) => {
+      const missing = missingOf(kind, flags, r.party, have);
+      return !missing.hand && !missing.ecp;
+    })
+    .map((r) => r.party);
 }

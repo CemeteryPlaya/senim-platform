@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFullySigned, isSignable, missingOf, requiredSignatures } from "./requirements";
+import { isFullySigned, isSignable, missingOf, partiesDone, requiredSignatures } from "./signatures";
 
 const off = { executorHandSignsAct: false };
 const on = { executorHandSignsAct: true };
@@ -54,5 +54,17 @@ describe("чего не хватает стороне", () => {
 
   it("в приложении подписываются только оферта и акт", () => {
     expect(["CONTRACT", "ACCEPTANCE_ACT", "MONEY_STATEMENT", "RELEASE_RECEIPT"].map((k) => isSignable(k as Parameters<typeof isSignable>[0]))).toEqual([true, true, false, false]);
+  });
+});
+
+describe("кто из сторон подписал документ полностью", () => {
+  it("сторона считается подписавшей, только когда есть все её требуемые подписи", () => {
+    expect(partiesDone("CONTRACT", off, { hand: ["CLIENT", "EXECUTOR"], ecp: ["EXECUTOR"] })).toEqual(["EXECUTOR"]);
+    expect(partiesDone("CONTRACT", off, { hand: ["CLIENT"], ecp: [] })).toEqual([]);
+  });
+
+  it("акт: мастеру без флага достаточно ЭЦП, с флагом — нужна и собственноручная", () => {
+    expect(partiesDone("ACCEPTANCE_ACT", off, { hand: [], ecp: ["EXECUTOR"] })).toEqual(["EXECUTOR"]);
+    expect(partiesDone("ACCEPTANCE_ACT", on, { hand: [], ecp: ["EXECUTOR"] })).toEqual([]);
   });
 });

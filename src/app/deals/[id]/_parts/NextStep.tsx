@@ -43,6 +43,8 @@ function PrimaryAction({ deal }: { deal: DealView }) {
       return <ReadyForm dealId={deal.id} />;
     case "signAct":
       return deal.act && <ButtonLink href={`#doc-${deal.act.id}`}>{t.actions.signAct}</ButtonLink>;
+    case "signActEcp":
+      return deal.act && <ButtonLink href={`#doc-${deal.act.id}`}>{t.actions.signActEcp}</ButtonLink>;
     case "resolveDispute":
       return deal.dispute && <ButtonLink href={`/operator/disputes/${deal.dispute.id}`}>{t.actions.resolveDispute}</ButtonLink>;
     case "leaveReview":

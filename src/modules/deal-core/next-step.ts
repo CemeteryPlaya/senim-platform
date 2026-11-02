@@ -16,7 +16,9 @@ export type NextAction =
   | "submitReady"
   | "waitReady"
   | "signAct"
+  | "signActEcp"
   | "waitAct"
+  | "waitMasterActSignature"
   | "waitPayout"
   | "waitRefund"
   | "waitDispute"
@@ -35,6 +37,8 @@ export type NextStepInput = {
   signed: boolean;
   /** Кто уже подписал действующую оферту. */
   contractSignedBy: readonly ("CLIENT" | "EXECUTOR")[];
+  /** Кто уже поставил все свои подписи на действующем акте приёмки. */
+  actSignedBy: readonly ("CLIENT" | "EXECUTOR")[];
   hold: "none" | "PENDING" | "SUCCEEDED" | "FAILED";
   openDispute: boolean;
   exitRequested: boolean;
@@ -50,10 +54,20 @@ function created(i: NextStepInput, party: "CLIENT" | "EXECUTOR"): NextStep {
   return party === "CLIENT" ? mine("pay") : wait("waitPayment");
 }
 
-const ACTIVE: Record<"PAID_HOLD" | "IN_PROGRESS" | "READY", Record<"CLIENT" | "EXECUTOR", NextStep>> = {
-  PAID_HOLD: { CLIENT: wait("waitStart"), EXECUTOR: mine("startWork") },
-  IN_PROGRESS: { CLIENT: wait("waitReady"), EXECUTOR: mine("submitReady") },
-  READY: { CLIENT: mine("signAct"), EXECUTOR: wait("waitAct") },
+/**
+ * Акт приёмки (решение 2.2.4): покупатель — собственноручно и ЭЦП, мастер — ЭЦП, в любом порядке; ACCEPTED —
+ * когда собраны все подписи. Своё не подписал — подписать; подписал — ждать другую сторону.
+ */
+function ready(i: NextStepInput, party: "CLIENT" | "EXECUTOR"): NextStep {
+  const signedByMe = i.actSignedBy.includes(party);
+  if (party === "CLIENT") return signedByMe ? wait("waitMasterActSignature") : mine("signAct");
+  return signedByMe ? wait("waitAct") : mine("signActEcp");
+}
+
+const ACTIVE: Record<"PAID_HOLD" | "IN_PROGRESS" | "READY", (i: NextStepInput, party: "CLIENT" | "EXECUTOR") => NextStep> = {
+  PAID_HOLD: (_i, party) => (party === "EXECUTOR" ? mine("startWork") : wait("waitStart")),
+  IN_PROGRESS: (_i, party) => (party === "EXECUTOR" ? mine("submitReady") : wait("waitReady")),
+  READY: ready,
 };
 
 const FINAL: Partial<Record<DealStatus, (i: NextStepInput) => NextStep>> = {
@@ -70,7 +84,7 @@ export function nextStep(i: NextStepInput): NextStep {
   if (i.status === "CREATED") return created(i, i.viewer);
   if (!isActive(i.status)) return wait("waitPayout"); // ACCEPTED: банк проводит выплату
   // Деньги уже уходят (отмена после оплаты, решение спора): ждём банк.
-  return i.exitRequested ? wait("waitRefund") : ACTIVE[i.status][i.viewer];
+  return i.exitRequested ? wait("waitRefund") : ACTIVE[i.status](i, i.viewer);
 }
 
 function isActive(status: DealStatus): status is keyof typeof ACTIVE {

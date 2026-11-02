@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { cancelDeal, payForDeal, startWork, submitReady } from "@/modules/deal-core";
+import { cancelDeal, getDealView, payForDeal, startWork, submitReady } from "@/modules/deal-core";
 import { sha256Hex } from "@/platform/crypto";
 import { db, transaction } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
@@ -167,6 +167,25 @@ describe("акт приёмки", () => {
     expect(types).toEqual(expect.arrayContaining(["HOLD", "RELEASE", "SPLIT_MASTER", "SPLIT_PLATFORM"]));
     const jobs = await db.job.findMany({ where: { kind: EMAIL_ACT_JOB } });
     expect(jobs).toHaveLength(1);
+  });
+
+  it("обратный порядок: покупатель подписал всё — READY и «ждём подпись мастера»; ЭЦП мастера → ACCEPTED", async () => {
+    const f = await dealAt("READY");
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    expect((await getDealView(f.executor, f.dealId)).next).toEqual({ action: "signActEcp", mine: true });
+
+    await signTyped(f.client, act.id);
+    // Одна подпись из двух требуемых — покупатель ещё не «подписал».
+    expect((await getDealView(f.client, f.dealId)).act?.signedBy).toEqual([]);
+    expect(await signEcp(f.client, act.id)).toEqual({ fullySigned: false });
+    expect((await dealOf(f.dealId)).status).toBe("READY");
+    const buyer = await getDealView(f.client, f.dealId);
+    expect(buyer.act?.signedBy).toEqual(["CLIENT"]);
+    expect(buyer.next).toEqual({ action: "waitMasterActSignature", mine: false });
+    expect((await getDealView(f.executor, f.dealId)).next).toEqual({ action: "signActEcp", mine: true });
+
+    expect(await signEcp(f.executor, act.id)).toEqual({ fullySigned: true });
+    expect((await dealOf(f.dealId)).status).toBe("ACCEPTED");
   });
 
   it("флаг executorHandSignsAct: без собственноручной подписи мастера акт не подписан полностью", async () => {

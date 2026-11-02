@@ -13,6 +13,8 @@ import { logger } from "@/platform/logger";
 import { nextStep, type NextStep } from "./next-step";
 import { executorDisplayOf, executorDisplays } from "./ports";
 import { plannedReadyAt } from "./schedule";
+import { partiesDone } from "./signatures";
+import { signingFlags } from "./signing-flags";
 import { roleIn, scopeOf } from "./state";
 import { checkTransition, DISPUTABLE, type DealContext } from "./transitions";
 
@@ -115,10 +117,12 @@ async function photoUrls(photos: { id: string; provider: string; storageKey: str
   return out;
 }
 
+/** signedBy — стороны, поставившие ВСЕ свои требуемые подписи (таблица signatures.ts), а не любую одну. */
 function docView(deal: Loaded, kind: "CONTRACT" | "ACCEPTANCE_ACT") {
   const doc = deal.documents.find((d) => d.kind === kind);
   if (!doc) return null;
-  const signedBy = [...new Set([...doc.signatures, ...doc.handSignatures].map((s) => s.party))];
+  const have = { hand: doc.handSignatures.map((s) => s.party), ecp: doc.signatures.map((s) => s.party) };
+  const signedBy = partiesDone(kind, signingFlags(), have);
   return { id: doc.id, number: doc.number, status: doc.status, version: doc.version, sha256: doc.sha256, signedBy };
 }
 
@@ -162,6 +166,7 @@ export async function getDealView(user: CurrentUser, dealId: string) {
   const facts = moneyFacts(entries);
   const lastDispute = deal.disputes[0] ?? null;
   const contract = docView(deal, "CONTRACT");
+  const act = docView(deal, "ACCEPTANCE_ACT");
   const ctx = viewContext(deal, facts);
   const [history, shown] = await Promise.all([scopeHistory(scopeOf(deal.id)), executorDisplayOf(db, deal.executorId)]);
   const next: NextStep = nextStep({
@@ -169,6 +174,7 @@ export async function getDealView(user: CurrentUser, dealId: string) {
     viewer,
     signed: ctx.signed,
     contractSignedBy: contract ? contract.signedBy : [],
+    actSignedBy: act ? act.signedBy : [],
     hold: facts.hold,
     openDispute: ctx.openDispute,
     exitRequested: facts.exitRequested,
@@ -223,7 +229,7 @@ export async function getDealView(user: CurrentUser, dealId: string) {
     executorLabel: shown.label,
     executorAddress: shown.address,
     contract,
-    act: docView(deal, "ACCEPTANCE_ACT"),
+    act,
     ready: deal.readyAt && {
       at: deal.readyAt,
       photos: await photoUrls(deal.deliveryPhotos),

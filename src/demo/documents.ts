@@ -1,5 +1,6 @@
 import type { DocumentKind, SignParty } from "@/generated/prisma/enums";
-import { createAcceptanceActIssuedAt, createContractIssuedAt, ensureMoneyStatement, requiredSignatures } from "@/modules/documents";
+import { createAcceptanceActIssuedAt, createContractIssuedAt, ensureMoneyStatement } from "@/modules/documents";
+import { requiredSignatures } from "@/modules/deal-core";
 import type { Tx } from "@/platform/db";
 
 /**

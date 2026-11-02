@@ -11,6 +11,9 @@ export { DEAL_STATUSES, DEAL_TRANSITIONS, DISPUTABLE, checkTransition, type Deal
 export { createDeal, onActSigned, onContractSigned, onDocumentSigned } from "./service";
 export { resolveDispute } from "./dispute";
 export { registerDocumentsPort, type CreatedDocument, type DocumentsPort } from "./ports";
+// Какие подписи нужны оферте и акту — одна таблица для documents (полностью подписан) и deal-core («Что дальше»)
+export { isFullySigned, isSignable, missingOf, partiesDone, requiredSignatures, type Requirement, type SignedParties, type SigningFlags } from "./signatures";
+export { signingFlags } from "./signing-flags";
 
 // Действия сторон
 export { addProgressReport, cancelDeal, leaveReview, payForDeal, startWork, submitReady, type CancelResult, type PayResult, type ReadyResult } from "./service";
