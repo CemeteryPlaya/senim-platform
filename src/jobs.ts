@@ -1,13 +1,13 @@
 import "server-only";
 import { jobHandlers as ai } from "@/modules/ai";
 import { jobHandlers as companies } from "@/modules/companies";
-import { jobHandlers as dealCore, onPaymentSettled } from "@/modules/deal-core";
+import { jobHandlers as dealCore, onMoneySettled } from "@/modules/deal-core";
 import { jobHandlers as documents } from "@/modules/documents";
 import { jobHandlers as files } from "@/modules/files";
 import { jobHandlers as identity } from "@/modules/identity";
 import { jobHandlers as notifications } from "@/modules/notifications";
 import { jobHandlers as operator } from "@/modules/operator";
-import { JOB_RESEND_PENDING, paymentJobHandlers } from "@/modules/payments";
+import { JOB_POLL_PENDING, paymentJobHandlers } from "@/modules/payments";
 import { jobHandlers as requests } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { enqueueJob, runDueJobs, type JobHandlers, type RunSummary } from "@/platform/jobs";
@@ -15,6 +15,7 @@ import { enqueueJob, runDueJobs, type JobHandlers, type RunSummary } from "@/pla
 /**
  * Все обработчики фоновых задач. Каждый модуль экспортирует свои `jobHandlers`
  * с ключами вида «<модуль>.<задача>», поэтому они не пересекаются.
+ * Задачи payments получают хук итога операции от deal-core: payments не импортирует deal-core.
  */
 export const jobHandlers: JobHandlers = {
   ...ai,
@@ -25,16 +26,20 @@ export const jobHandlers: JobHandlers = {
   ...identity,
   ...notifications,
   ...operator,
-  ...paymentJobHandlers(onPaymentSettled),
+  ...paymentJobHandlers(onMoneySettled),
   ...requests,
 };
 
 /** Обслуживающие задачи раз в сутки. Ставятся перед каждым проходом; повтор за те же сутки отсекает dedupeKey. */
-const DAILY = ["files.cleanupOrphans", JOB_RESEND_PENDING] as const;
+const DAILY = ["files.cleanupOrphans"] as const;
+/** Опрос ждущих операций провайдеров — раз в 10 минут (вебхук мог не дойти). */
+const POLL_BUCKET_MS = 10 * 60_000;
 
 export async function enqueueDailyJobs(now = new Date()): Promise<void> {
   const day = now.toISOString().slice(0, 10);
   for (const kind of DAILY) await enqueueJob(db, { kind, dedupeKey: `${kind}:${day}` });
+  const bucket = Math.floor(now.getTime() / POLL_BUCKET_MS);
+  await enqueueJob(db, { kind: JOB_POLL_PENDING, dedupeKey: `${JOB_POLL_PENDING}:${bucket}`, maxAttempts: 1 });
 }
 
 /**

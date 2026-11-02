@@ -29,9 +29,11 @@ describe("разбор очереди за один вызов cron", () => {
     expect(await db.job.count({ where: { status: "RUNNING" } })).toBe(0);
   });
 
-  it("ежедневные задачи включают досылку зависших денежных операций", async () => {
+  it("опрос ждущих денежных операций — не чаще раза в 10 минут", async () => {
     await enqueueDailyJobs(new Date("2026-10-31T10:00:00Z"));
-    await enqueueDailyJobs(new Date("2026-10-31T18:00:00Z"));
-    expect(await db.job.count({ where: { kind: "payments.resendPending" } })).toBe(1);
+    await enqueueDailyJobs(new Date("2026-10-31T10:09:00Z"));
+    expect(await db.job.count({ where: { kind: "payments.pollPending" } })).toBe(1);
+    await enqueueDailyJobs(new Date("2026-10-31T10:11:00Z"));
+    expect(await db.job.count({ where: { kind: "payments.pollPending" } })).toBe(2);
   });
 });
