@@ -12,7 +12,7 @@ async function daniyarLinks(page: Page): Promise<{ deal: string; request: string
   await page.goto("/deals");
   const deal = await page.getByRole("link", { name: "Открыть: Сделка №12", exact: true }).getAttribute("href");
   await page.goto("/requests");
-  const request = await page.getByRole("link", { name: /^Открыть ?: Заявка №20:/ }).getAttribute("href");
+  const request = await page.getByRole("link", { name: /^Заявка №20:/ }).getAttribute("href");
   if (!deal || !request) throw new Error("Не нашли ссылки Данияра");
   return { deal, request };
 }

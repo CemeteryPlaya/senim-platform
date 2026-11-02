@@ -52,7 +52,7 @@ test("заказчик проходит мастер, ничего не зная
   await expect(page.getByRole("heading", { level: 1, name: "Проверьте и отправьте" })).toBeVisible();
   const summary = page.getByRole("region", { name: "Ваша заявка" });
   await expect(summary.getByText("Кухня", { exact: true })).toBeVisible();
-  await expect(summary.getByText("Не знаю — подскажет исполнитель")).toBeVisible();
+  await expect(summary.getByText("Не знаю — уточнит замер")).toBeVisible();
   await expect(summary.getByText("Кухня до потолка, нужна посудомойка")).toBeVisible();
   await expect(summary.getByText("Комфорт")).toBeVisible();
   await page.getByRole("button", { name: "Отправить заявку" }).click();
