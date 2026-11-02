@@ -2,12 +2,12 @@ import "server-only";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { notify } from "@/modules/notifications";
-import { encryptPii, hashPii, last4 } from "@/platform/crypto";
+import { decryptPii, encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db, isUniqueViolation, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import type { ReviewExecutorRegistration } from "./index";
-import type { ExecutorRegistrationInput, ExecutorSigner } from "./registration-schema";
+import { usesOwnIin, type ExecutorRegistrationInput, type ExecutorSigner } from "./registration-schema";
 import { EXECUTOR_REGISTRATION_PATH } from "./return-to";
 import { actorOf, grantRole, type CurrentUser } from "./session";
 
@@ -71,11 +71,19 @@ export async function registerExecutor(user: CurrentUser, input: ExecutorRegistr
   if (user.role === "OPERATOR") return fail.forbidden(t.errors.operator);
   await enforceRateLimit(`registration:user:${user.id}`, REGISTRATION_LIMIT, t.errors.tooMany);
 
-  return register(user, input).catch((e: unknown) => {
+  return register(user, await withOwnIin(user, input)).catch((e: unknown) => {
     // Два разных номера одновременно с одним ИИН/БИН: проверку прошли оба, сработал уникальный индекс.
     if (isUniqueViolation(e)) return fail.conflict(t.errors.binIinTaken);
     throw e;
   });
+}
+
+/** ИП и самозанятый по ИИН из знакомства (№26): ИИН берётся из аккаунта, а не вводится второй раз. */
+async function withOwnIin(user: CurrentUser, input: ExecutorRegistrationInput): Promise<ExecutorRegistrationInput> {
+  if (!usesOwnIin(input)) return input;
+  const { iinEnc } = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { iinEnc: true } });
+  if (!iinEnc) return fail.validation(t.errors.ownIinMissing, { fieldErrors: { binIin: [t.errors.ownIinMissing] } });
+  return { ...input, binIin: decryptPii(iinEnc) };
 }
 
 function register(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {

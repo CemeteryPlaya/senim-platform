@@ -31,6 +31,14 @@ describe("executorRegistrationSchema", () => {
     expect(fieldErrors({ ...valid, legalForm: "SELF_EMPLOYED", binIin: BIN })).toHaveProperty("binIin");
   });
 
+  it("ИП и самозанятый по ИИН из знакомства: поле ИИН пустое, ошибки нет; ТОО флаг не освобождает от БИН", () => {
+    expect(fieldErrors({ ...valid, binIin: "", ownIin: true })).toEqual({});
+    expect(fieldErrors({ ...valid, legalForm: "SELF_EMPLOYED", legalName: "Жумабаев Ерлан", binIin: "", ownIin: true })).toEqual({});
+    expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: "", ownIin: true })).toHaveProperty("binIin");
+    // Подписант по-прежнему проверяется.
+    expect(fieldErrors({ ...valid, ownerName: "", binIin: "", ownIin: true })).toHaveProperty("ownerName");
+  });
+
   it("ТОО — по БИН, ИИН для него не подходит", () => {
     expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: BIN })).toEqual({});
     expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: IIN })).toHaveProperty("binIin");

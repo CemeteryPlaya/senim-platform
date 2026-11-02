@@ -16,7 +16,7 @@ export async function makeUser(role: Role, fullName = `Тест ${role} ${seq + 
   const user = await db.user.create({
     data: { role, roles, phone: nextPhone(), fullName, iinEnc: encryptPii(iin), iinHash: hashPii(iin), iinLast4: last4(iin) },
   });
-  return { id: user.id, role, roles, phone: user.phone, fullName, isDemo: false, executor: null };
+  return { id: user.id, role, roles, phone: user.phone, fullName, iinLast4: user.iinLast4, isDemo: false, executor: null };
 }
 
 export async function makeExecutor(

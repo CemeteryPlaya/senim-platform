@@ -59,18 +59,29 @@ export function signerOf(v: SignerSource): ExecutorSigner {
   }
 }
 
-/** Анкета регистрации исполнителя. ИИН/БИН проверяется по форме работы: ТОО — БИН, остальные — ИИН. */
+/** ИИН/БИН профиля — ИИН аккаунта: только ИП и самозанятый (у ТОО — БИН). */
+export function usesOwnIin(v: { legalForm: LegalForm; ownIin?: boolean }): boolean {
+  return v.ownIin === true && v.legalForm !== "TOO";
+}
+
+/**
+ * Анкета регистрации исполнителя. ИИН/БИН проверяется по форме работы: ТОО — БИН, остальные — ИИН.
+ * ownIin — ИП и самозанятый работают по ИИН, указанному при знакомстве (№26): второй раз его не вводят,
+ * сервис берёт ИИН из аккаунта. У ТОО флаг не действует — нужен БИН.
+ */
 export const executorRegistrationSchema = z
   .object({
     legalForm: z.enum(["SELF_EMPLOYED", "IP", "TOO"]),
     legalName: z.string().trim().min(2, t.legalName).max(200, t.legalName),
     binIin: digits,
+    ownIin: z.boolean().optional(),
     city: z.string().trim().min(2, t.city).max(100, t.city),
     yearsExperience: z.coerce.number({ error: t.experience }).int(t.experience).min(0, t.experience).max(60, t.experience),
     ...signerFields,
   })
   .superRefine((v, ctx) => {
     const kind = binIinKindFor(v.legalForm);
+    if (usesOwnIin(v)) return refineSigner(v, ctx);
     if (!isValidBinIin(kind, v.binIin)) ctx.addIssue({ code: "custom", path: ["binIin"], message: (v.binIin ? t.binIin : t.binIinRequired)[kind] });
     refineSigner(v, ctx);
   })
@@ -80,3 +91,4 @@ export const executorRegistrationSchema = z
   }));
 
 export type ExecutorRegistrationInput = z.infer<typeof executorRegistrationSchema>;
+

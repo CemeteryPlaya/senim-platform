@@ -10,6 +10,7 @@ export {
   endSession,
   getCurrentUser,
   requireUser,
+  requireIntroduced,
   requireUserPage,
   revokeAllSessions,
   signOutEverywhere,
@@ -25,7 +26,8 @@ export { EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, homePathFor, loginHref, safeRet
 export { formatPhone, parsePhone, type Phone } from "./phone";
 export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id";
 export { isValidFullName, normalizeFullName } from "./full-name";
-export { hasClientIdentity, limitIdentityAttempts, recordPersonIdentity, type PersonIdentity } from "./person-identity";
+export { hasClientIdentity, limitIdentityAttempts, recordOwnIdentity, recordPersonIdentity, type PersonIdentity } from "./person-identity";
+export { INTRODUCTION_PATH, introductionHref, needsIntroduction } from "./introduction";
 export { refineSigner, signerFields, signerOf } from "./registration-schema";
 export {
   executorRegistrationSchema,

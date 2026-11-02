@@ -9,6 +9,7 @@ import { db, transaction, type Tx } from "@/platform/db";
 import { randomToken, sha256Hex } from "@/platform/crypto";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { loginHref } from "./return-to";
+import { introductionHref, needsIntroduction } from "./introduction";
 import { activeRoleOf, roleToSwitch, switchRoleHref } from "./roles";
 
 export const SESSION_COOKIE = "senim_session";
@@ -24,6 +25,8 @@ export type CurrentUser = {
   roles: Role[];
   phone: string;
   fullName: string | null;
+  /** Последние 4 цифры ИИН аккаунта (сам ИИН — только зашифрованным в БД); null — знакомство не пройдено. */
+  iinLast4: string | null;
   isDemo: boolean;
   /**
    * Профиль исполнителя этого аккаунта, если он есть (в любой активной роли: экран регистрации
@@ -105,6 +108,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     roles: user.roles,
     phone: user.phone,
     fullName: user.fullName,
+    iinLast4: user.iinLast4,
     isDemo: user.isDemo,
     executor: user.executorProfile,
   };
@@ -131,7 +135,16 @@ export async function requireUserPage(returnTo: string, ...roles: Role[]): Promi
     const to = roleToSwitch(user, roles);
     redirect(to ? switchRoleHref(to, returnTo) : loginHref(returnTo, "role"));
   }
+  requireIntroduced(user, returnTo);
   return user;
+}
+
+/**
+ * Для страниц заказчика и исполнителя, которые берут пользователя через getCurrentUser: без пройденного
+ * знакомства (ФИО и ИИН, №26) — на знакомство с возвратом сюда.
+ */
+export function requireIntroduced(user: CurrentUser, returnTo: string): void {
+  if (needsIntroduction(user)) redirect(introductionHref(returnTo));
 }
 
 /**

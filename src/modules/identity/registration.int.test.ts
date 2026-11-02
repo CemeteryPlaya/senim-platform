@@ -211,6 +211,18 @@ describe("подписант договора — свойство профил�
     expect(await accountOf(me.id)).toMatchObject({ iinHash: hashPii(IIN), roles: ["CLIENT", "EXECUTOR"] });
   });
 
+  it("ИП по ИИН из знакомства: второй раз ИИН не вводится, в профиль идёт ИИН аккаунта (№26)", async () => {
+    const me = await smsUser();
+    await db.user.update({ where: { id: me.id }, data: { fullName: "Жумабаев Ерлан", iinEnc: encryptPii(IIN), iinHash: hashPii(IIN), iinLast4: last4(IIN) } });
+
+    const { profileId } = await registerExecutor(me, { ...ip, binIin: "", ownIin: true });
+    expect(await profileOf(profileId)).toMatchObject({ binIinHash: hashPii(IIN), binIinLast4: last4(IIN) });
+  });
+
+  it("ИИН из знакомства, а в аккаунте его нет — ошибка поля ИИН", async () => {
+    expect(await codeOf(registerExecutor(await smsUser(), { ...ip, binIin: "", ownIin: true }))).toBe("VALIDATION");
+  });
+
   it("директор ТОО с ИИН заказчика в том же аккаунте регистрирует ТОО (№28)", async () => {
     const me = await smsUser();
     await db.user.update({ where: { id: me.id }, data: { iinEnc: encryptPii(DIRECTOR_IIN), iinHash: hashPii(DIRECTOR_IIN), iinLast4: last4(DIRECTOR_IIN) } });

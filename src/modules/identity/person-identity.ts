@@ -2,7 +2,7 @@ import "server-only";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
-import { db, isUniqueViolation, type Tx } from "@/platform/db";
+import { db, isUniqueViolation, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import { isValidFullName, normalizeFullName } from "./full-name";
@@ -37,6 +37,24 @@ export async function limitIdentityAttempts(user: CurrentUser, input: PersonIden
   const current = await db.user.findUnique({ where: { id: user.id }, select: { iinHash: true } });
   if (current?.iinHash) return;
   await enforceRateLimit(`identity:iin:user:${user.id}`, IIN_ATTEMPTS, t.tooMany);
+}
+
+/**
+ * Знакомство (№26): ФИО и ИИН один раз сразу после первого входа. Уже указанные не меняются
+ * пользователем — повтор отвечает CONFLICT (смена — только оператором, OPEN_QUESTIONS №26).
+ * Перебор «ИИН занят» ограничен тем же лимитом, что и шаг перед договором.
+ */
+export async function recordOwnIdentity(user: CurrentUser, input: PersonIdentity): Promise<void> {
+  const current = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { iinHash: true } });
+  if (current.iinHash) return fail.conflict(t.alreadySet);
+  await limitIdentityAttempts(user, input);
+  await transaction(async (tx) => {
+    // Строка пользователя блокируется: двойная отправка формы не запишет ИИН дважды.
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+    const locked = await tx.user.findUniqueOrThrow({ where: { id: user.id }, select: { iinHash: true } });
+    if (locked.iinHash) return fail.conflict(t.alreadySet);
+    await recordPersonIdentity(tx, user, input);
+  });
 }
 
 /**
