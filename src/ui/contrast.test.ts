@@ -56,7 +56,7 @@ const TEXT_PAIRS: [fg: string, bg: string][] = [
   ["ink", "accent-soft"],
   ["accent", "accent-soft"],
   ["primary", "accent-soft"],
-  ["primary", "accent-soft-hover"],
+  ["primary-hover", "accent-soft-hover"], // кнопка soft при наведении темнеет целиком: и подложка, и текст
   ["muted", "accent-soft"],
   ["accent", "sunken"],
   ["info", "info-soft"],
@@ -68,6 +68,18 @@ const TEXT_PAIRS: [fg: string, bg: string][] = [
   ["ink", "info-soft"],
   ["ink", "warning-soft"],
   ["ink", "danger-soft"],
+  ["ink", "success-soft"],
+  // Зелёный текст (text-primary / text-accent) на всех светлых фонах: ссылки «Смотреть все», активная вкладка,
+  // мятные плашки и кнопка soft. В макете он светлее — здесь проверяем, что поднятый держит 4,5:1.
+  ["primary", "canvas"],
+  ["primary", "surface"],
+  ["primary", "sunken"],
+  ["accent-hover", "accent-soft-hover"],
+  // Вторичный текст внутри цветных плашек и бейджей.
+  ["muted", "info-soft"],
+  ["muted", "success-soft"],
+  ["muted", "warning-soft"],
+  ["muted", "danger-soft"],
 ];
 
 /** Нетекстовые элементы (границы полей, кольцо фокуса): WCAG 1.4.11 — 3:1. */
@@ -78,6 +90,10 @@ const UI_PAIRS: [fg: string, bg: string][] = [
   ["focus", "surface"],
   ["focus", "sunken"],
   ["line-strong", "sunken"],
+  ["focus", "accent-soft"],
+  // Заливка кнопки, выбранного чипа и пройденного шага видна на фоне (граница элемента — сама заливка).
+  ["primary", "canvas"],
+  ["primary", "surface"],
 ];
 
 describe("контраст дизайн-токенов", () => {
