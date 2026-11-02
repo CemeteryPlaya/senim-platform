@@ -230,12 +230,13 @@ export function MobileTabBar({ items }: { items: readonly NavItem[] }) {
       aria-label={ru.common.shell.navLabel}
       className="@container fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] text-sm [overflow-wrap:normal] [hyphens:manual] shadow-bar lg:hidden"
     >
-      {/* Ячейки делят ширину поровну; скрытая (display: none) места не занимает. На узкой панели «Ещё»
-          берёт ширину по подписи, остальное — разделам, чтобы их подписи переносились только по словам. */}
-      {/* Между ячейками зазор: на 390 px «Мои заявки» и «Вдохновение» иначе почти сливаются. */}
+      {/* Скрытая ячейка (display: none) места не занимает. На узкой панели «Ещё» берёт ширину по подписи,
+          остальное — разделам, чтобы их подписи переносились только по словам. */}
+      {/* Ячейка шириной по подписи плюс равная доля остатка: длинная «Вдохновение» не вылезает за свою ячейку
+          и не сливается с соседней; не хватает места — подписи переносятся по словам. Между ячейками зазор. */}
       <ul className="mx-auto flex max-w-page gap-1 px-1 py-1">
         {wide.shown.map((item) => (
-          <li key={item.href} className={cn("flex min-w-0 flex-1 basis-0", !narrowShown.has(item.href) && WIDE_ONLY)}>
+          <li key={item.href} className={cn("flex min-w-0 flex-auto", !narrowShown.has(item.href) && WIDE_ONLY)}>
             <Link href={item.href} aria-current={current(item)} className={cell}>
               <TabCell icon={ICONS[item.icon]} label={item.label} />
             </Link>
