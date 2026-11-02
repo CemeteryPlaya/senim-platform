@@ -71,6 +71,10 @@ export type PortfolioSpec = {
   title: string;
   description: string;
   priceFrom: number;
+  /** Где делали: город и район (встреча 31.10, п. 3) — не точный адрес. */
+  place: string;
+  /** «Подборка Сенім» во «Вдохновении». */
+  featured?: boolean;
 };
 
 type Registration =
@@ -121,9 +125,9 @@ export const EXECUTORS = {
       "Делаю корпусную мебель 9 лет, небольшой цех на левом берегу. ЛДСП Egger и Kronospan, фурнитура Blum и Hettich. Замер и 3D-проект бесплатно.",
     specializations: ["kitchen", "wardrobe", "hallway"],
     portfolio: [
-      { key: "erlan-kitchen", file: "kitchen-sage", type: "kitchen", style: "modern", title: "Кухня в новостройке, 3,4 м", description: "Фасады МДФ в эмали цвета шалфей, столешница под дуб, верхние шкафы до потолка.", priceFrom: 900_000 },
-      { key: "erlan-wardrobe", file: "wardrobe-oak", type: "wardrobe", style: "modern", title: "Шкаф-купе с зеркальной дверью", description: "Три двери, средняя — зеркало. Внутри штанга, полки и ящики с доводчиками.", priceFrom: 320_000 },
-      { key: "erlan-hallway", file: "hallway-graphite", type: "hallway", style: "loft", title: "Прихожая с банкеткой", description: "Закрытый шкаф для верхней одежды, открытая вешалка, мягкая банкетка и зеркало.", priceFrom: 240_000 },
+      { key: "erlan-kitchen", file: "kitchen-sage", type: "kitchen", style: "modern", title: "Кухня в новостройке, 3,4 м", description: "Фасады МДФ в эмали цвета шалфей, столешница под дуб, верхние шкафы до потолка.", priceFrom: 900_000, place: "Астана, Есильский район", featured: true },
+      { key: "erlan-wardrobe", file: "wardrobe-oak", type: "wardrobe", style: "modern", title: "Шкаф-купе с зеркальной дверью", description: "Три двери, средняя — зеркало. Внутри штанга, полки и ящики с доводчиками.", priceFrom: 320_000, place: "Астана, Алматинский район" },
+      { key: "erlan-hallway", file: "hallway-graphite", type: "hallway", style: "loft", title: "Прихожая с банкеткой", description: "Закрытый шкаф для верхней одежды, открытая вешалка, мягкая банкетка и зеркало.", priceFrom: 240_000, place: "Астана, Сарыаркинский район" },
     ],
   },
   agash: {
@@ -140,9 +144,9 @@ export const EXECUTORS = {
       "Мебельное производство полного цикла: цех 1 200 м², станки с ЧПУ, три бригады монтажников. Шпон, массив, кварцевые столешницы. Гарантия 3 года.",
     specializations: ["kitchen", "walk-in-closet", "table", "bathroom"],
     portfolio: [
-      { key: "agash-island", file: "kitchen-island-oak", type: "kitchen", style: "modern", title: "Кухня с островом, шпон дуба", description: "Остров с барной зоной, столешница из кварцевого агломерата, фурнитура Blum.", priceFrom: 2_400_000 },
-      { key: "agash-closet", file: "closet-walnut", type: "walk-in-closet", style: "classic", title: "Гардеробная под потолок, орех", description: "Открытые секции, штанги на двух уровнях, ящики с бархатными вставками.", priceFrom: 1_300_000 },
-      { key: "agash-neoclassic", file: "kitchen-neoclassic", type: "kitchen", style: "neoclassic", title: "Кухня в стиле неоклассика", description: "Фрезерованные фасады в эмали, латунные ручки, столешница из искусственного камня.", priceFrom: 2_100_000 },
+      { key: "agash-island", file: "kitchen-island-oak", type: "kitchen", style: "modern", title: "Кухня с островом, шпон дуба", description: "Остров с барной зоной, столешница из кварцевого агломерата, фурнитура Blum.", priceFrom: 2_400_000, place: "Астана, Есильский район", featured: true },
+      { key: "agash-closet", file: "closet-walnut", type: "walk-in-closet", style: "classic", title: "Гардеробная под потолок, орех", description: "Открытые секции, штанги на двух уровнях, ящики с бархатными вставками.", priceFrom: 1_300_000, place: "Косшы" },
+      { key: "agash-neoclassic", file: "kitchen-neoclassic", type: "kitchen", style: "neoclassic", title: "Кухня в стиле неоклассика", description: "Фрезерованные фасады в эмали, латунные ручки, столешница из искусственного камня.", priceFrom: 2_100_000, place: "Астана, район Нура" },
     ],
   },
   kim: {
@@ -160,8 +164,8 @@ export const EXECUTORS = {
       "Детская и корпусная мебель. Материалы класса E0.5, закруглённые кромки, мягкие доводчики. Выезд на замер — 10 000 ₸, только если сделка не состоится.",
     specializations: ["kids-room", "wardrobe", "office"],
     portfolio: [
-      { key: "kim-kids", file: "kids-bunk", type: "kids-room", style: "scandi", title: "Детская для двоих", description: "Двухъярусная кровать с ящиками, лестница-полки, письменный стол с тумбой.", priceFrom: 650_000 },
-      { key: "kim-office", file: "office-white", type: "office", style: "scandi", title: "Домашний кабинет со стеллажом", description: "Стеллаж с закрытыми ящиками внизу, стол с тумбой, всё в белом и дубе.", priceFrom: 420_000 },
+      { key: "kim-kids", file: "kids-bunk", type: "kids-room", style: "scandi", title: "Детская для двоих", description: "Двухъярусная кровать с ящиками, лестница-полки, письменный стол с тумбой.", priceFrom: 650_000, place: "Астана, район Байконыр", featured: true },
+      { key: "kim-office", file: "office-white", type: "office", style: "scandi", title: "Домашний кабинет со стеллажом", description: "Стеллаж с закрытыми ящиками внизу, стол с тумбой, всё в белом и дубе.", priceFrom: 420_000, place: "Астана, Алматинский район" },
     ],
   },
   timur: {
@@ -176,8 +180,8 @@ export const EXECUTORS = {
     about: "Шкафы-купе и гардеробные из ЛДСП. Профиль Aristo, зеркала с пескоструйным рисунком. Работаю быстро, замер бесплатно.",
     specializations: ["wardrobe", "walk-in-closet", "hallway"],
     portfolio: [
-      { key: "timur-wardrobe", file: "wardrobe-white", type: "wardrobe", style: "minimalism", title: "Шкаф-купе 2,8 м в нишу", description: "Белое ЛДСП, зеркальная дверь по центру, внутри полки под обувь.", priceFrom: 210_000 },
-      { key: "timur-closet", file: "closet-light", type: "walk-in-closet", style: "scandi", title: "Гардеробная в спальне", description: "Открытая система: штанги, полки, ящики. Светлый дуб.", priceFrom: 280_000 },
+      { key: "timur-wardrobe", file: "wardrobe-white", type: "wardrobe", style: "minimalism", title: "Шкаф-купе 2,8 м в нишу", description: "Белое ЛДСП, зеркальная дверь по центру, внутри полки под обувь.", priceFrom: 210_000, place: "Астана, Сарыаркинский район" },
+      { key: "timur-closet", file: "closet-light", type: "walk-in-closet", style: "scandi", title: "Гардеробная в спальне", description: "Открытая система: штанги, полки, ящики. Светлый дуб.", priceFrom: 280_000, place: "Астана, район Байконыр" },
     ],
   },
   asel: {
@@ -194,9 +198,9 @@ export const EXECUTORS = {
     about: "Столярная мастерская: столы, комоды и тумбы для ванной из массива карагача, дуба и ореха. Масло-воск, ручная работа.",
     specializations: ["table", "bathroom", "dresser"],
     portfolio: [
-      { key: "asel-table", file: "table-karagach", type: "table", style: "modern", title: "Обеденный стол из карагача", description: "Столешница из цельных ламелей карагача, масло-воск, ножки из массива.", priceFrom: 420_000 },
-      { key: "asel-vanity", file: "bathroom-walnut", type: "bathroom", style: "minimalism", title: "Тумба под раковину из ореха", description: "Подвесная тумба с влагостойкой пропиткой и круглое зеркало в раме.", priceFrom: 290_000 },
-      { key: "asel-dresser", file: "dresser-oak", type: "dresser", style: "scandi", title: "Комод из дуба на ножках", description: "Шесть ящиков на скрытых направляющих, ручки из латуни.", priceFrom: 360_000 },
+      { key: "asel-table", file: "table-karagach", type: "table", style: "modern", title: "Обеденный стол из карагача", description: "Столешница из цельных ламелей карагача, масло-воск, ножки из массива.", priceFrom: 420_000, place: "Астана, Есильский район", featured: true },
+      { key: "asel-vanity", file: "bathroom-walnut", type: "bathroom", style: "minimalism", title: "Тумба под раковину из ореха", description: "Подвесная тумба с влагостойкой пропиткой и круглое зеркало в раме.", priceFrom: 290_000, place: "Астана, район Нура" },
+      { key: "asel-dresser", file: "dresser-oak", type: "dresser", style: "scandi", title: "Комод из дуба на ножках", description: "Шесть ящиков на скрытых направляющих, ручки из латуни.", priceFrom: 360_000, place: "Астана, Алматинский район" },
     ],
   },
   qazaq: {
@@ -213,8 +217,8 @@ export const EXECUTORS = {
       "Корпусная мебель для дома и офиса. Своё производство в промзоне Астаны, замер включён в стоимость заказа. Работаем с физлицами и компаниями.",
     specializations: ["office", "kitchen", "shelving", "living-room"],
     portfolio: [
-      { key: "qazaq-office", file: "office-walnut", type: "office", style: "classic", title: "Кабинет руководителя", description: "Стеллаж под потолок из шпона ореха, стол с тумбой, скрытая проводка.", priceFrom: 750_000 },
-      { key: "qazaq-shelving", file: "shelving-loft", type: "shelving", style: "loft", title: "Стеллаж-перегородка в стиле лофт", description: "Металлический каркас, полки из массива сосны, зонирует комнату.", priceFrom: 230_000 },
+      { key: "qazaq-office", file: "office-walnut", type: "office", style: "classic", title: "Кабинет руководителя", description: "Стеллаж под потолок из шпона ореха, стол с тумбой, скрытая проводка.", priceFrom: 750_000, place: "Астана, Есильский район" },
+      { key: "qazaq-shelving", file: "shelving-loft", type: "shelving", style: "loft", title: "Стеллаж-перегородка в стиле лофт", description: "Металлический каркас, полки из массива сосны, зонирует комнату.", priceFrom: 230_000, place: "Астана, Сарыаркинский район", featured: true },
     ],
   },
   dala: {
@@ -232,9 +236,9 @@ export const EXECUTORS = {
     about: "Мастерская полного цикла: кухни, спальни и ТВ-зоны. Помогаем с проектом и подбираем материалы под бюджет.",
     specializations: ["kitchen", "bedroom", "living-room", "kids-room"],
     portfolio: [
-      { key: "dala-bedroom", file: "bedroom-beige", type: "bedroom", style: "scandi", title: "Спальня с мягким изголовьем", description: "Кровать с изголовьем во всю стену и две прикроватные тумбы.", priceFrom: 560_000 },
-      { key: "dala-tv", file: "tv-zone-scandi", type: "living-room", style: "scandi", title: "ТВ-зона с подвесными тумбами", description: "Реечная панель, подвесная тумба на всю стену, полки для декора.", priceFrom: 380_000 },
-      { key: "dala-kitchen", file: "kitchen-terracotta", type: "kitchen", style: "modern", title: "Кухня терракотового цвета, 3 м", description: "Фасады МДФ в плёнке, тёмная столешница, встроенная мойка.", priceFrom: 820_000 },
+      { key: "dala-bedroom", file: "bedroom-beige", type: "bedroom", style: "scandi", title: "Спальня с мягким изголовьем", description: "Кровать с изголовьем во всю стену и две прикроватные тумбы.", priceFrom: 560_000, place: "Астана, Алматинский район", featured: true },
+      { key: "dala-tv", file: "tv-zone-scandi", type: "living-room", style: "scandi", title: "ТВ-зона с подвесными тумбами", description: "Реечная панель, подвесная тумба на всю стену, полки для декора.", priceFrom: 380_000, place: "Астана, район Байконыр" },
+      { key: "dala-kitchen", file: "kitchen-terracotta", type: "kitchen", style: "modern", title: "Кухня терракотового цвета, 3 м", description: "Фасады МДФ в плёнке, тёмная столешница, встроенная мойка.", priceFrom: 820_000, place: "Косшы" },
     ],
   },
   samat: {
@@ -249,8 +253,8 @@ export const EXECUTORS = {
     about: "Начинающий мастер: прихожие, шкафы и комоды из ЛДСП. Работаю аккуратно и недорого.",
     specializations: ["hallway", "wardrobe", "dresser"],
     portfolio: [
-      { key: "samat-hallway", file: "hallway-sonoma", type: "hallway", style: "modern", title: "Прихожая в коридор", description: "Шкаф, открытая вешалка и банкетка в цвете дуб сонома.", priceFrom: 130_000 },
-      { key: "samat-dresser", file: "dresser-white", type: "dresser", style: "scandi", title: "Комод для детской", description: "Белый комод на шесть ящиков с голубыми ручками.", priceFrom: 75_000 },
+      { key: "samat-hallway", file: "hallway-sonoma", type: "hallway", style: "modern", title: "Прихожая в коридор", description: "Шкаф, открытая вешалка и банкетка в цвете дуб сонома.", priceFrom: 130_000, place: "Астана, район Нура" },
+      { key: "samat-dresser", file: "dresser-white", type: "dresser", style: "scandi", title: "Комод для детской", description: "Белый комод на шесть ящиков с голубыми ручками.", priceFrom: 75_000, place: "Астана, Сарыаркинский район" },
     ],
   },
   almas: {
@@ -1011,6 +1015,35 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
       { executor: "kim", price: 190_000, durationDays: 18, warrantyMonths: 18, comment: "Посчитал по вашим размерам, контрольный замер — первым этапом.", sentDaysAgo: 1 },
       { executor: "erlan", price: 210_000, durationDays: 15, warrantyMonths: 24, comment: "Фасады МДФ, доводчики Blum.", sentDaysAgo: 0.8 },
     ],
+  },
+];
+
+/**
+ * Портфолио из итоговых фото сделок (встреча 31.10, п. 3). Сеется в самом конце — номера заявок и сделок
+ * не сдвигаются. Фото — копии демо-SVG в public/demo/deals/<request>-<n>.svg (байты как у исходника в PORTFOLIO_FILES).
+ * - «kitchen-completed» (сделка №7, Данияр ↔ «Ағаш Шебер»): фото отчёта последнего этапа, заказчик разрешил
+ *   показ в отзыве; исполнитель может добавить работу сам.
+ * - «h-erlan-kitchen» (Ольга ↔ Ерлан): работа уже добавлена и видна во «Вдохновении» с пометкой «Выполнено на Сенім».
+ */
+export type DealShowcaseSpec = {
+  request: string;
+  photos: readonly PortfolioFileKey[];
+  consentDaysAgo: number;
+  item?: { title: string; description: string; place: string; daysAgo: number };
+};
+
+export const DEAL_SHOWCASES: readonly DealShowcaseSpec[] = [
+  { request: "kitchen-completed", photos: ["kitchen-neoclassic", "kitchen-island-oak"], consentDaysAgo: 11 },
+  {
+    request: "h-erlan-kitchen",
+    photos: ["kitchen-sage", "kitchen-terracotta"],
+    consentDaysAgo: 59,
+    item: {
+      title: "Кухня 3,2 м под потолок",
+      description: "Фасады МДФ в эмали, верхние шкафы до потолка, фурнитура с доводчиками. Сделка прошла на Сенім, фото — из отчёта последнего этапа.",
+      place: "Астана, Есильский район",
+      daysAgo: 58,
+    },
   },
 ];
 

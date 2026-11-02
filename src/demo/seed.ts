@@ -14,6 +14,7 @@ import { env } from "@/platform/env";
 import { DEFAULT_FURNITURE_TYPES, STAGE_TEMPLATES, suggestSegment } from "@/verticals/furniture";
 import {
   CLIENTS,
+  DEAL_SHOWCASES,
   DUAL_ROLE_REQUESTS,
   EXECUTORS,
   MEASURER,
@@ -318,6 +319,8 @@ async function fill(tx: Tx, now: number): Promise<SeedSummary> {
   // Сценарии до договора 2–5 (ADR-005) — тоже в конце.
   ids.measurer = (await tx.user.create({ data: personData(MEASURER, "MEASURER", clock) })).id;
   for (const spec of PRE_CONTRACT_REQUESTS) await seedRequest(tx, ids, clock, audit, spec, reviews);
+  // Портфолио из итоговых фото сделок (встреча 31.10, п. 3) — последним: новых заявок и сделок не создаёт.
+  await seedDealShowcases(tx, ids, clock, audit);
 
   for (const [key, ratings] of reviews) {
     const avg = ratings.reduce((s, r) => s + r, 0) / ratings.length;
@@ -419,6 +422,8 @@ async function seedExecutors(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog) {
           title: item.title,
           description: item.description,
           priceFrom: item.priceFrom,
+          place: item.place,
+          featured: item.featured ?? false,
           createdAt,
           photos: {
             create: {
@@ -836,6 +841,67 @@ async function seedDeal(
 }
 
 // ─── ссылки уведомлений ──────────────────────────────────────────────────────
+
+/**
+ * Итоговые фото последнего этапа завершённой сделки, согласие заказчика на показ и (если задано) уже
+ * добавленная работа со ссылками на эти фото. Файлы static — копии демо-SVG в public/demo/deals/.
+ */
+async function seedDealShowcases(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog) {
+  for (const spec of DEAL_SHOWCASES) {
+    const dealId = ids.requests.get(spec.request)?.dealId;
+    if (!dealId) throw new Error(`Сделка для витрины не найдена: ${spec.request}`);
+    const deal = await tx.deal.findUniqueOrThrow({
+      where: { id: dealId },
+      select: { clientId: true, executorId: true, executor: { select: { userId: true } }, request: { select: { furnitureTypeId: true, style: true } } },
+    });
+    const lastStage = await tx.stage.findFirstOrThrow({ where: { dealId }, orderBy: { order: "desc" }, select: { id: true, submittedAt: true } });
+    const uploadedAt = lastStage.submittedAt ?? clock.ago(spec.consentDaysAgo + 1);
+    const fileIds: string[] = [];
+    for (const [i, source] of spec.photos.entries()) {
+      const meta = PORTFOLIO_FILES[source];
+      const file = await tx.storedFile.create({
+        data: {
+          storageKey: `demo/deals/${spec.request}-${i + 1}.svg`,
+          provider: "static",
+          purpose: "STAGE_REPORT",
+          contentType: "image/svg+xml",
+          size: meta.size,
+          sha256: meta.sha256,
+          width: 400,
+          height: 300,
+          uploadedById: deal.executor.userId,
+          stageId: lastStage.id,
+          sortOrder: i,
+          createdAt: uploadedAt,
+        },
+      });
+      fileIds.push(file.id);
+    }
+
+    const consentAt = clock.ago(spec.consentDaysAgo);
+    await tx.deal.update({ where: { id: dealId }, data: { portfolioConsentAt: consentAt } });
+    audit.add(consentAt, { id: deal.clientId, role: "CLIENT" }, "portfolio.consent_given", { type: "deal", id: dealId }, `deal:${dealId}`, { after: { consent: true } });
+
+    if (!spec.item) continue;
+    const createdAt = clock.ago(spec.item.daysAgo);
+    const item = await tx.portfolioItem.create({
+      data: {
+        executorId: deal.executorId,
+        dealId,
+        furnitureTypeId: deal.request.furnitureTypeId!,
+        style: deal.request.style ?? "modern",
+        title: spec.item.title,
+        description: spec.item.description,
+        place: spec.item.place,
+        createdAt,
+        dealPhotos: { create: fileIds.map((fileId, sortOrder) => ({ fileId, sortOrder })) },
+      },
+    });
+    audit.add(createdAt, { id: deal.executor.userId, role: "EXECUTOR" }, "portfolio.created_from_deal", { type: "portfolio_item", id: item.id }, `executor:${deal.executorId}`, {
+      after: { dealId, photos: fileIds.length, published: true },
+    });
+  }
+}
 
 function resolvePerson(ids: Ids, p: PersonRef): string {
   if ("client" in p) return ids.clients.get(p.client)!;

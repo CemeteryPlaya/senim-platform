@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { RequestStatus } from "@/generated/prisma/enums";
 import { decryptPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
-import { EXECUTORS } from "./data";
+import { DEAL_SHOWCASES, EXECUTORS } from "./data";
 import { PORTFOLIO_FILES } from "./portfolio-files";
 import { resetDemo, seedDemo } from "./seed";
 
@@ -83,6 +83,19 @@ describe("демо-данные", () => {
       const bytes = readFileSync(path.resolve("public/demo/portfolio", `${name}.svg`));
       expect({ size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }, name).toEqual(meta);
     }
+  });
+
+  it("витрина из сделок: итоговые фото — копии демо-SVG, согласие заказчика, одна работа уже во «Вдохновении»", async () => {
+    for (const spec of DEAL_SHOWCASES) {
+      for (const [i, source] of spec.photos.entries()) {
+        const bytes = readFileSync(path.resolve("public/demo/deals", `${spec.request}-${i + 1}.svg`));
+        expect({ size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }, spec.request).toEqual(PORTFOLIO_FILES[source]);
+      }
+    }
+    const deals = await db.deal.findMany({ where: { portfolioConsentAt: { not: null } }, include: { portfolioItem: { include: { dealPhotos: true } } } });
+    expect(deals).toHaveLength(DEAL_SHOWCASES.length);
+    expect(deals.filter((d) => d.portfolioItem).map((d) => d.portfolioItem!.dealPhotos.length)).toEqual([2]);
+    expect(await db.portfolioItem.count({ where: { featured: true } })).toBeGreaterThanOrEqual(4);
   });
 
   it("не дают засеять непустую базу повторно, а resetDemo пересоздаёт её с теми же объёмами", async () => {
