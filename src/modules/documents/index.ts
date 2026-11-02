@@ -1,7 +1,8 @@
 import "server-only";
 import type { DocumentsPort } from "@/modules/deal-core";
 import { createAcceptanceAct, createContract } from "./issue";
-import { createEmailSignedActHandler, emailProvider, EMAIL_ACT_JOB, partyEmail } from "./email";
+import { sendEmail } from "@/modules/notifications";
+import { createEmailSignedActHandler, EMAIL_ACT_JOB, partyEmail } from "./email";
 import { signedCopyForEmail } from "./read";
 
 // Публичный API модуля documents: оферта, акт приёмки, выписка, расписка (PDF и версии), подписи
@@ -29,5 +30,5 @@ export type { PartySignaturesView, SharedLink, SigningDocumentView, StartedSigni
 export const documentsPort: DocumentsPort = { createContract, createAcceptanceAct };
 
 export const jobHandlers = {
-  [EMAIL_ACT_JOB]: createEmailSignedActHandler({ provider: emailProvider, emailOf: partyEmail, signedCopy: signedCopyForEmail }),
+  [EMAIL_ACT_JOB]: createEmailSignedActHandler({ send: (m) => sendEmail(m), emailOf: partyEmail, signedCopy: signedCopyForEmail }),
 } as const;

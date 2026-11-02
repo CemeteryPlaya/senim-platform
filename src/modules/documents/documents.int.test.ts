@@ -1,13 +1,15 @@
 import { PDFDocument } from "pdf-lib";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { cancelDeal, getDealView, payForDeal, startWork, submitReady } from "@/modules/deal-core";
+import { jobHandlers as filesJobs } from "@/modules/files";
+import { createMockEmailProvider, sendEmail, type EmailMessage, type EmailResult } from "@/modules/notifications";
 import { sha256Hex } from "@/platform/crypto";
 import { db, transaction } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { ADDRESS, dealAt, dealOf, journalOf, makeDeal, signContract } from "../../../test/factories/deal";
 import { latestDocument, signaturePng, signEcp, signTyped, storedPhoto, useDocuments } from "../../../test/factories/documents";
 import { setEnv } from "../../../test/factories/identity";
-import { createEmailSignedActHandler, EMAIL_ACT_JOB, type EmailMessage } from "./email";
+import { createEmailSignedActHandler, EMAIL_ACT_JOB, partyEmail } from "./email";
 import {
   createContract,
   createReleaseReceipt,
@@ -134,6 +136,18 @@ describe("гонки и чужие документы", () => {
     expect(await db.signature.count()).toBe(0);
   });
 
+  it("рисунок подписи сохраняет files (HAND_SIGNATURE); уборка сирот его не удаляет", async () => {
+    const f = await makeDeal();
+    const { id } = await latestDocument(f.dealId, "CONTRACT");
+    await signByHand(f.client, { documentId: id, image: await signaturePng() });
+    const hand = await db.handSignature.findFirstOrThrow({ where: { documentId: id }, include: { imageFile: true } });
+    expect(hand.imageFile).toMatchObject({ purpose: "HAND_SIGNATURE", contentType: "image/png", uploadedById: f.client.id, storageKey: expect.stringMatching(/^hand_signature\//) });
+
+    await db.storedFile.update({ where: { id: hand.imageFile!.id }, data: { createdAt: new Date(Date.now() - 2 * 24 * 3600_000) } });
+    await filesJobs["files.cleanupOrphans"]({}, { jobId: "j", attempt: 1, log: { info: () => {}, warn: () => {}, error: () => {} } as never });
+    expect(await db.storedFile.count({ where: { id: hand.imageFile!.id } })).toBe(1);
+  });
+
   it("рисунок подписи — только PNG разумного размера", async () => {
     const f = await makeDeal();
     const { id } = await latestDocument(f.dealId, "CONTRACT");
@@ -200,24 +214,44 @@ describe("акт приёмки", () => {
     expect((await dealOf(f.dealId)).status).toBe("ACCEPTED");
   });
 
-  it("письмо с подписанным актом — тем, у кого есть e-mail; нет адресов — не отправляем и не падаем", async () => {
+  it("письмо с подписанным актом — тем, у кого в профиле e-mail; ключ act:<документ>:<адресат> — повтор задачи второе письмо не шлёт", async () => {
     const f = await dealAt("READY");
+    await db.user.update({ where: { id: f.client.id }, data: { email: "buyer@example.kz" } });
     const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
     await signEcp(f.executor, act.id);
     await signTyped(f.client, act.id);
     await signEcp(f.client, act.id);
 
+    const provider = createMockEmailProvider();
+    const sent: (EmailMessage & EmailResult)[] = [];
+    const send = async (m: EmailMessage) => {
+      const result = await sendEmail(m, provider);
+      sent.push({ ...m, ...result });
+      return result;
+    };
+    const log = { info: () => {}, warn: () => {}, error: () => {} } as unknown as Parameters<ReturnType<typeof createEmailSignedActHandler>>[1]["log"];
+    const handler = createEmailSignedActHandler({ send, emailOf: partyEmail, signedCopy: signedCopyForEmail });
+    await handler({ documentId: act.id }, { jobId: "j", attempt: 1, log });
+    await handler({ documentId: act.id }, { jobId: "j", attempt: 2, log });
+
+    expect(sent.map((m) => [m.to, m.idempotencyKey, m.duplicate])).toEqual([
+      ["buyer@example.kz", `act:${act.id}:${f.client.id}`, false],
+      ["buyer@example.kz", `act:${act.id}:${f.client.id}`, true],
+    ]);
+    expect(sent[0].attachments?.[0]).toMatchObject({ contentType: "application/pdf", filename: expect.stringMatching(/\.pdf$/) });
+  });
+
+  it("e-mail сторон не указан — письмо не отправляем и не падаем", async () => {
+    const f = await dealAt("READY");
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await signEcp(f.executor, act.id);
+    await signTyped(f.client, act.id);
+    await signEcp(f.client, act.id);
     const sent: EmailMessage[] = [];
     const log = { info: () => {}, warn: () => {}, error: () => {} } as unknown as Parameters<ReturnType<typeof createEmailSignedActHandler>>[1]["log"];
-    const provider = () => ({ name: "mock" as const, send: async (m: EmailMessage) => (sent.push(m), { id: "1" }) });
-    const withEmail = createEmailSignedActHandler({ provider, emailOf: async (_db, id) => (id === f.client.id ? "buyer@example.kz" : null), signedCopy: signedCopyForEmail });
-    await withEmail({ documentId: act.id }, { jobId: "j", attempt: 1, log });
-    expect(sent.map((m) => m.to)).toEqual(["buyer@example.kz"]);
-    expect(sent[0].attachments?.[0].contentType).toBe("application/pdf");
-
-    const none = createEmailSignedActHandler({ provider, emailOf: async () => null, signedCopy: signedCopyForEmail });
+    const none = createEmailSignedActHandler({ send: async (m) => (sent.push(m), { providerMessageId: "x", duplicate: false }), emailOf: partyEmail, signedCopy: signedCopyForEmail });
     await expect(none({ documentId: act.id }, { jobId: "j", attempt: 1, log })).resolves.toBeUndefined();
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(0);
   });
 });
 
