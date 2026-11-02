@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { attachFiles } from "@/modules/files";
@@ -120,16 +121,8 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
     if (!ref) return fail.notFound(ru.deal.errors.disputeNotFound);
     const deal = await lockDeal(tx, ref.dealId);
     const actor = actorOf(operator);
-    const unpaid = await unpaidAmount(tx, deal);
-    if (input.decision === "PARTIAL" && (!input.decisionAmount || input.decisionAmount > unpaid)) {
-      return fail.validation(ru.deal.errors.partialAmount);
-    }
-
-    const stage = deal.stages.find((s) => s.id === ref.stageId) ?? null;
-    const decision = input.decision;
-    const continues = decision === "FAVOR_CLIENT" || decision === "FAVOR_EXECUTOR";
-    const stageMove = stage && continues ? stageOutcome(deal, stage, decision) : "keep";
-    if (stageMove === "refuse") return fail.conflict(ru.deal.errors.decisionNotApplicable(stage!.title));
+    if (input.decision === "PARTIAL") await assertPartialAmount(tx, deal, input.decisionAmount);
+    const plan = planDecision(deal, ref.stageId, input.decision);
 
     const resolvedAt = new Date();
     const resolved = await tx.dispute.updateMany({
@@ -145,20 +138,7 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
     });
     expectOneUpdated(resolved, ru.deal.errors.disputeResolved);
 
-    // Сначала этап (пока сделка ещё в споре — так в таблице), потом сделка, потом последствия приёмки.
-    const accepted = stage && continues && stageMove === "move" ? await applyStageDecision(tx, deal, stage, decision, input.rationale, actor) : false;
-    await moveDeal(tx, deal, {
-      event: continues ? "resolveContinue" : "resolveTerminate",
-      who: "OPERATOR",
-      actor,
-      audit: { action: continues ? "deal.dispute.continued" : "deal.terminated", meta: { disputeId: ref.id, decision: input.decision } },
-      data: continues ? undefined : { closedAt: new Date() },
-    });
-    if (accepted && stage) await afterStageAccepted(tx, deal, stage);
-    if (continues) await resumeAutoAccept(tx, deal, resolvedAt);
-    // Во время спора все этапы могли закрыться (акты подписаны, оплаты подтверждены) — тогда сделка завершается здесь.
-    if (continues) await tryCompleteDeal(tx, await lockDeal(tx, deal.id));
-    if (!continues && deal.paymentMode !== "MANUAL") await settleTermination(tx, deal, ref.id, input.decisionAmount ?? 0);
+    await applyDecision(tx, deal, plan, { disputeId: ref.id, input, actor, resolvedAt });
 
     await recordAudit(tx, {
       actor,
@@ -175,6 +155,52 @@ export const resolveDispute: ResolveDispute = async (operator, raw) => {
   });
   await settleDeal(dealId);
 };
+
+type Decision = z.infer<typeof resolveDisputeSchema>["decision"];
+
+/** Частичное решение: сумма исполнителю есть и не больше неоплаченного по этапам. */
+async function assertPartialAmount(tx: Tx, deal: DealState, amount: number | undefined) {
+  if (!amount || amount > (await unpaidAmount(tx, deal))) fail.validation(ru.deal.errors.partialAmount);
+}
+
+/**
+ * Что решение делает: сделка продолжается (в пользу стороны) или расторгается; при продолжении —
+ * двигать ли этап спора (move — переход по таблице, иначе этап уже там, где нужно).
+ */
+type DecisionPlan = { continues: false } | { continues: true; move: { stage: StageState; decision: StageDecision } | null };
+
+function planDecision(deal: DealState, stageId: string | null, decision: Decision): DecisionPlan {
+  if (decision !== "FAVOR_CLIENT" && decision !== "FAVOR_EXECUTOR") return { continues: false };
+  const stage = deal.stages.find((s) => s.id === stageId);
+  if (!stage) return { continues: true, move: null };
+  const outcome = stageOutcome(deal, stage, decision);
+  if (outcome === "refuse") return fail.conflict(ru.deal.errors.decisionNotApplicable(stage.title));
+  return { continues: true, move: outcome === "move" ? { stage, decision } : null };
+}
+
+type Resolution = { disputeId: string; input: z.infer<typeof resolveDisputeSchema>; actor: ReturnType<typeof actorOf>; resolvedAt: Date };
+
+/** Сначала этап (пока сделка ещё в споре — так в таблице), потом сделка, потом последствия. */
+async function applyDecision(tx: Tx, deal: DealState, plan: DecisionPlan, r: Resolution) {
+  const move = plan.continues ? plan.move : null;
+  const accepted = move ? await applyStageDecision(tx, deal, move.stage, move.decision, r.input.rationale, r.actor) : false;
+  await moveDeal(tx, deal, { ...dealMove(plan.continues, r.disputeId, r.input.decision), who: "OPERATOR", actor: r.actor });
+  if (!plan.continues) {
+    if (deal.paymentMode !== "MANUAL") await settleTermination(tx, deal, r.disputeId, r.input.decisionAmount ?? 0);
+    return;
+  }
+  if (accepted && move) await afterStageAccepted(tx, deal, move.stage);
+  await resumeAutoAccept(tx, deal, r.resolvedAt);
+  // Во время спора все этапы могли закрыться (акты подписаны, оплаты подтверждены) — тогда сделка завершается здесь.
+  await tryCompleteDeal(tx, await lockDeal(tx, deal.id));
+}
+
+function dealMove(continues: boolean, disputeId: string, decision: Decision) {
+  const meta = { disputeId, decision };
+  return continues
+    ? { event: "resolveContinue" as const, audit: { action: "deal.dispute.continued", meta } }
+    : { event: "resolveTerminate" as const, audit: { action: "deal.terminated", meta }, data: { closedAt: new Date() } };
+}
 
 type StageDecision = "FAVOR_CLIENT" | "FAVOR_EXECUTOR";
 const decisionEvent = (decision: StageDecision) => (decision === "FAVOR_EXECUTOR" ? "disputeFavorExecutor" : "disputeFavorClient");

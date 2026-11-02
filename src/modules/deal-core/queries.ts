@@ -115,44 +115,52 @@ async function photoUrls(photos: { id: string; provider: string; storageKey: str
   return out;
 }
 
-export async function getDealView(user: CurrentUser, dealId: string, now = new Date()) {
-  let deal = await loadView(user, dealId);
-  // Эскроу: счёт открывается задачей после подписи; если её ещё не было — открываем при показе.
-  if (deal.status === "AWAITING_DEPOSIT" && !deal.escrow) {
-    try {
-      await openEscrowAccount(deal.id);
-      deal = await loadView(user, dealId);
-    } catch (error) {
-      logger.warn("escrow account not ready", { dealId, error });
-    }
+/** Эскроу: счёт открывается задачей после подписи; если её ещё не было — открываем при показе. */
+async function loadShown(user: CurrentUser, dealId: string): Promise<Loaded> {
+  const deal = await loadView(user, dealId);
+  if (deal.status !== "AWAITING_DEPOSIT" || deal.escrow) return deal;
+  try {
+    await openEscrowAccount(deal.id);
+    return await loadView(user, dealId);
+  } catch (error) {
+    logger.warn("escrow account not ready", { dealId, error });
+    return deal;
   }
-  const viewer = roleIn(user, deal) as Party | "OPERATOR";
+}
 
-  const contract = deal.documents.find((d) => d.kind === "CONTRACT" && d.status !== "SUPERSEDED") ?? null;
-  const stages = await Promise.all(
-    deal.stages.map(async (s) => {
-      const act = deal.documents.find((d) => d.kind === "STAGE_ACT" && d.stageId === s.id && d.status !== "SUPERSEDED") ?? null;
-      return {
-        id: s.id,
-        order: s.order,
-        title: s.title,
-        description: s.description,
-        amount: s.amount,
-        paymentDue: s.paymentDue,
-        status: s.status,
-        report: s.report,
-        reworkNote: s.reworkNote,
-        submittedAt: s.submittedAt,
-        // Срок показываем, только пока он впереди и сделка в работе: прошедший ждёт задачу, а не человека.
-        autoAcceptAt: deal.status === "IN_PROGRESS" && s.autoAcceptAt && s.autoAcceptAt > now ? s.autoAcceptAt : null,
-        acceptedAt: s.acceptedAt,
-        acceptedAutomatically: s.acceptedBy === "system:auto-accept",
-        payment: s.payment ? { status: s.payment.status, amount: s.payment.amount, markedPaidAt: s.payment.markedPaidAt, confirmedAt: s.payment.confirmedAt } : null,
-        photos: await photoUrls(s.photos),
-        act: act ? docView(act) : null,
-      };
-    }),
-  );
+/** Действующий документ (не заменённый новой версией). */
+const currentDoc = (deal: Loaded, match: (d: Loaded["documents"][number]) => boolean) => {
+  const doc = deal.documents.find((d) => match(d) && d.status !== "SUPERSEDED");
+  return doc ? docView(doc) : null;
+};
+
+async function stageView(deal: Loaded, s: Loaded["stages"][number], now: Date) {
+  return {
+    id: s.id,
+    order: s.order,
+    title: s.title,
+    description: s.description,
+    amount: s.amount,
+    paymentDue: s.paymentDue,
+    status: s.status,
+    report: s.report,
+    reworkNote: s.reworkNote,
+    submittedAt: s.submittedAt,
+    // Срок показываем, только пока он впереди и сделка в работе: прошедший ждёт задачу, а не человека.
+    autoAcceptAt: deal.status === "IN_PROGRESS" && s.autoAcceptAt && s.autoAcceptAt > now ? s.autoAcceptAt : null,
+    acceptedAt: s.acceptedAt,
+    acceptedAutomatically: s.acceptedBy === "system:auto-accept",
+    payment: s.payment && { status: s.payment.status, amount: s.payment.amount, markedPaidAt: s.payment.markedPaidAt, confirmedAt: s.payment.confirmedAt },
+    photos: await photoUrls(s.photos),
+    act: currentDoc(deal, (d) => d.kind === "STAGE_ACT" && d.stageId === s.id),
+  };
+}
+
+export async function getDealView(user: CurrentUser, dealId: string, now = new Date()) {
+  const deal = await loadShown(user, dealId);
+  const viewer = roleIn(user, deal) as Party | "OPERATOR";
+  const contract = currentDoc(deal, (d) => d.kind === "CONTRACT");
+  const stages = await Promise.all(deal.stages.map((s) => stageView(deal, s, now)));
 
   const dispute = deal.disputes[0] ?? null;
   // Ключ повтора нужен только оператору; правило — то же, что у сервиса повтора.
@@ -171,7 +179,7 @@ export async function getDealView(user: CurrentUser, dealId: string, now = new D
     signedAt: deal.signedAt,
     viewer,
     executorLabel: ru.common.executorLabel(deal.executor.publicNumber),
-    contract: contract ? docView(contract) : null,
+    contract,
     stages,
     dispute: dispute && {
       id: dispute.id,

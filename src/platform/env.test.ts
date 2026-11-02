@@ -86,3 +86,48 @@ describe("env: разработка", () => {
     expect(problems({ ...demo, CRON_SECRET: "c", DEMO_ACCESS_PASSWORD: "123" })).toMatch(/DEMO_ACCESS_PASSWORD/);
   });
 });
+
+describe("env: обязательные переменные выбранных провайдеров", () => {
+  const dev = { DATABASE_URL: "postgresql://x" };
+  const lines = (source: Record<string, string>) =>
+    problems(source)
+      .split("\n")
+      .slice(1)
+      .map((l) => l.trim());
+
+  it("SMS по HTTP — адрес и токен", () => {
+    expect(lines({ ...dev, SMS_PROVIDER: "http" })).toEqual(["SMS_HTTP_URL: обязательна, когда SMS_PROVIDER=http", "SMS_HTTP_TOKEN: обязательна, когда SMS_PROVIDER=http"]);
+  });
+
+  it("S3 — все пять параметров; Vercel Blob — токен", () => {
+    expect(lines({ ...dev, STORAGE_PROVIDER: "s3" })).toEqual(
+      ["S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"].map((k) => `${k}: обязательна, когда STORAGE_PROVIDER=s3`),
+    );
+    expect(lines({ ...dev, STORAGE_PROVIDER: "vercel-blob" })).toEqual(["BLOB_READ_WRITE_TOKEN: обязательна, когда STORAGE_PROVIDER=vercel-blob"]);
+  });
+
+  it("ИИ через шлюз — ключ и модели, но только когда ИИ включён", () => {
+    expect(lines({ ...dev, AI_ENABLED: "true", AI_PROVIDER: "gateway" })).toEqual(
+      ["AI_GATEWAY_API_KEY", "AI_TEXT_MODEL", "AI_IMAGE_MODEL"].map((k) => `${k}: обязательна, когда AI_PROVIDER=gateway`),
+    );
+    expect(problems({ ...dev, AI_PROVIDER: "gateway" })).toBe("");
+  });
+
+  it("рельс банка — адрес API и секрет вебхуков", () => {
+    expect(lines({ ...dev, PAYMENT_RAIL: "bank" })).toEqual(["BANK_API_URL: обязательна, когда PAYMENT_RAIL=bank", "BANK_WEBHOOK_SECRET: обязательна, когда PAYMENT_RAIL=bank"]);
+  });
+
+  it("симулятор банка в production — постоянный секрет вебхуков; при разработке не нужен", () => {
+    expect(lines({ ...production, PAYMENT_RAIL: "escrow-simulator" })).toEqual([
+      "ESCROW_SIMULATOR_WEBHOOK_SECRET: обязательна, когда escrow-simulator или DEMO_MODE в production",
+    ]);
+    expect(problems({ ...dev, PAYMENT_RAIL: "escrow-simulator" })).toBe("");
+  });
+
+  it("production без секретов — по строке на каждый, в прежнем порядке", () => {
+    expect(lines({ NODE_ENV: "production", DATABASE_URL: "postgresql://x", TRUST_PROXY: "true", SMS_PROVIDER: "http", SMS_HTTP_URL: "u", SMS_HTTP_TOKEN: "t", SIGNATURE_PROVIDER: "sigex" })).toEqual(
+      ["PII_ENCRYPTION_KEY", "PII_HASH_KEY", "FILE_URL_SECRET", "CRON_SECRET"].map((k) => `${k}: обязательна, когда NODE_ENV=production`),
+    );
+  });
+});
+

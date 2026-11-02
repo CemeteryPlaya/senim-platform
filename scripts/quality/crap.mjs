@@ -120,6 +120,10 @@ function decisionPoints(node) {
 }
 
 function functionName(fn, sf) {
+  return rawName(fn, sf).replace(/\s+/g, " ");
+}
+
+function rawName(fn, sf) {
   if (fn.name) return fn.name.getText(sf);
   if (ts.isConstructorDeclaration(fn)) return "constructor";
   const p = fn.parent;
@@ -201,6 +205,18 @@ function functionCoverage(fn, cov) {
 
 const crap = (c, cov) => c * c * Math.pow(1 - cov, 3) + c;
 
+/** Сколько функций выше порога в каждой зоне: src/modules/<имя>, src/app/<раздел>, src/ui и т. д. */
+function summarize(over) {
+  const areas = {};
+  for (const f of over) {
+    const parts = f.file.split("/");
+    const area = parts.length > 3 ? parts.slice(0, 3).join("/") : parts.slice(0, 2).join("/");
+    areas[area] ??= { ts: 0, tsx: 0 };
+    areas[area][f.file.endsWith(".tsx") ? "tsx" : "ts"]++;
+  }
+  return Object.fromEntries(Object.entries(areas).sort((a, b) => b[1].ts + b[1].tsx - (a[1].ts + a[1].tsx)));
+}
+
 function pad(s, n) {
   s = String(s);
   return s.length >= n ? s : s + " ".repeat(n - s.length);
@@ -230,12 +246,13 @@ function main() {
     }
   }
   const over = all.filter((f) => f.crap >= args.threshold).sort((a, b) => b.crap - a.crap);
+  const byArea = summarize(over);
 
   fs.mkdirSync(reportDir, { recursive: true });
   fs.writeFileSync(
     path.join(reportDir, "crap.json"),
     JSON.stringify(
-      { generatedAt: new Date().toISOString(), threshold: args.threshold, files: files.length, functions: all.length, overThreshold: over.length, over },
+      { generatedAt: new Date().toISOString(), threshold: args.threshold, files: files.length, functions: all.length, overThreshold: over.length, byArea, over },
       null,
       2,
     ),
@@ -246,6 +263,10 @@ function main() {
   if (over.length > 0) {
     out.push(`${pad("CRAP", 8)}${pad("сложн.", 8)}${pad("покр.%", 8)}функция\n`);
     for (const f of over) out.push(`${pad(f.crap, 8)}${pad(f.complexity, 8)}${pad(f.coverage, 8)}${f.file}:${f.line} ${f.name}\n`);
+  }
+  if (over.length > 0) {
+    out.push(`\nПо зонам (логика .ts / компоненты .tsx):\n`);
+    for (const [area, n] of Object.entries(byArea)) out.push(`${pad(`${n.ts} / ${n.tsx}`, 10)}${area}\n`);
   }
   out.push(`\nОтчёт: ${path.relative(root, path.join(reportDir, "crap.json"))}\n`);
   process.stdout.write(out.join(""));

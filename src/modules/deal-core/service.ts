@@ -155,42 +155,43 @@ export const onDocumentSigned: OnDocumentSigned = async (tx, documentId) => {
 /** payments → deal-core: операция по счёту выполнена или отклонена (в транзакции payments, сделка уже заблокирована). */
 export const onPaymentSettled: SettledHook = async (tx, op) => {
   const deal = await lockDeal(tx, op.dealId);
-  if (op.status === "FAILED") {
-    await notifyOperatorsPaymentFailed(tx, deal, op);
-    return;
-  }
+  if (op.status === "FAILED") return notifyOperatorsPaymentFailed(tx, deal, op);
+  if (op.kind === "DEPOSIT") return onDeposit(tx, deal, op);
+  if (op.kind === "RELEASE" && op.stageId) return onRelease(tx, deal, op.stageId, op.idempotencyKey);
+};
 
-  if (op.kind === "DEPOSIT") {
-    if (deal.status === "AWAITING_DEPOSIT" && (await isFullyFunded(tx, deal.id, deal.totalAmount))) {
-      await moveDeal(tx, deal, {
-        event: "depositReceived",
-        who: "SYSTEM",
-        actor: SYSTEM("payments"),
-        audit: { action: "deal.started", meta: { operation: op.idempotencyKey } },
-        ctx: { fullyFunded: true },
-      });
-      await afterDealStarted(tx, deal);
-    } else if (deal.status === "CANCELLED" || deal.status === "TERMINATED") {
-      // Деньги пришли после отмены — возвращаем заказчику.
-      await requestMoney(tx, { dealId: deal.id, kind: "REFUND", amount: op.amount, idempotencyKey: `${op.idempotencyKey}:refund` });
-    }
-    return;
-  }
+type SettledOp = Parameters<SettledHook>[1];
 
-  if (op.kind === "RELEASE" && op.stageId) {
-    const stage = deal.stages.find((s) => s.id === op.stageId);
-    if (!stage?.payment || stage.payment.status !== "DUE") return;
-    await movePayment(tx, deal, stage, {
-      event: "release",
+/** Пополнение: вся сумма на счёте — работы начинаются; деньги пришли после отмены — возвращаем заказчику. */
+async function onDeposit(tx: Tx, deal: DealState, op: SettledOp) {
+  if (deal.status === "AWAITING_DEPOSIT" && (await isFullyFunded(tx, deal.id, deal.totalAmount))) {
+    await moveDeal(tx, deal, {
+      event: "depositReceived",
       who: "SYSTEM",
       actor: SYSTEM("payments"),
-      audit: { action: "deal.stage.payment.released", meta: { operation: op.idempotencyKey } },
-      data: { confirmedAt: new Date() },
+      audit: { action: "deal.started", meta: { operation: op.idempotencyKey } },
+      ctx: { fullyFunded: true },
     });
-    await notifyParty(tx, deal, "EXECUTOR", "deal.payment.released", { title: t.paymentReleased.title, body: t.paymentReleased.body(stage.title) });
-    await tryCloseStage(tx, deal, stage);
+    await afterDealStarted(tx, deal);
+  } else if (deal.status === "CANCELLED" || deal.status === "TERMINATED") {
+    await requestMoney(tx, { dealId: deal.id, kind: "REFUND", amount: op.amount, idempotencyKey: `${op.idempotencyKey}:refund` });
   }
-};
+}
+
+/** Транш этапа раскрыт банком: оплата этапа подтверждена, этап может закрыться. */
+async function onRelease(tx: Tx, deal: DealState, stageId: string, operation: string) {
+  const stage = deal.stages.find((s) => s.id === stageId);
+  if (stage?.payment?.status !== "DUE") return;
+  await movePayment(tx, deal, stage, {
+    event: "release",
+    who: "SYSTEM",
+    actor: SYSTEM("payments"),
+    audit: { action: "deal.stage.payment.released", meta: { operation } },
+    data: { confirmedAt: new Date() },
+  });
+  await notifyParty(tx, deal, "EXECUTOR", "deal.payment.released", { title: t.paymentReleased.title, body: t.paymentReleased.body(stage.title) });
+  await tryCloseStage(tx, deal, stage);
+}
 
 /**
  * Отправить в банк операции сделки, записанные в журнал. Вызывается после фиксации транзакции;

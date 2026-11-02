@@ -8,7 +8,7 @@ import { ru } from "@/i18n/ru";
 import type { SigningDocumentView } from "@/modules/documents/client";
 import { Alert, Button, buttonClasses, Card, formatDateTime, formatTime, RadioCards, StatusBadge } from "@/ui";
 import { completeSigningAction, startSigningAction } from "./actions";
-import { initialSigningState, signNotice, signingReducer, type SignMethodChoice } from "./state";
+import { focusTargetAfter, initialSigningState, signNotice, signingReducer, type SignMethodChoice } from "./state";
 
 const t = ru.documents;
 const PARTIES: SignParty[] = ["CLIENT", "EXECUTOR"];
@@ -104,6 +104,8 @@ export function SigningPanel({ document: doc, titleAs = "h2" }: SigningPanelProp
   );
 }
 
+const FOCUS_SELECTOR = { result: "[data-sign-result]", method: "input[type=radio]:checked" } as const;
+
 type SignAreaProps = {
   doc: SigningDocumentView;
   state: ReturnType<typeof signingReducer>;
@@ -120,16 +122,9 @@ function SignArea(props: SignAreaProps) {
   // Кнопка, на которой стоял фокус, исчезает при смене шага: переводим фокус на итог подписи
   // или (после «Выбрать другой способ») на выбранный способ — иначе он падает в начало страницы.
   useEffect(() => {
-    const was = prevStep.current;
+    const target = focusTargetAfter(prevStep.current, state.step);
     prevStep.current = state.step;
-    if (was === state.step) return;
-    const target =
-      state.step === "done"
-        ? area.current?.querySelector<HTMLElement>("[data-sign-result]")
-        : state.step === "choose" && (was === "awaiting" || was === "completing")
-          ? area.current?.querySelector<HTMLElement>("input[type=radio]:checked")
-          : null;
-    target?.focus();
+    if (target) area.current?.querySelector<HTMLElement>(FOCUS_SELECTOR[target])?.focus();
   }, [state.step]);
   return (
     <div ref={area}>

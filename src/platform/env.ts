@@ -14,7 +14,7 @@ const base64Key = z
   .string()
   .refine((v) => Buffer.from(v, "base64").length === 32, "нужно 32 байта в base64");
 
-const schema = z
+const base = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     DATABASE_URL: z.string().min(1),
@@ -67,59 +67,72 @@ const schema = z
 
     AUTO_ACCEPT_DAYS: z.coerce.number().int().min(1).max(30).default(5),
     CRON_SECRET: optional,
-  })
-  .superRefine((env, ctx) => {
-    const require = (key: keyof typeof env, when: string) => {
-      if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `обязательна, когда ${when}` });
-    };
-    if (env.NODE_ENV === "production") {
-      require("PII_ENCRYPTION_KEY", "NODE_ENV=production");
-      require("PII_HASH_KEY", "NODE_ENV=production");
-      require("FILE_URL_SECRET", "NODE_ENV=production");
-      require("CRON_SECRET", "NODE_ENV=production");
-      // Без доверенного прокси IP клиента неизвестен, лимиты кодов входа по IP не работают — остаются номер и общий потолок.
-      if (!env.TRUST_PROXY) {
-        ctx.addIssue({ code: "custom", path: ["TRUST_PROXY"], message: "в production должна быть true: без IP клиента не работают лимиты входа по IP" });
-      }
-    }
-    // Демо-стенд пускает в любую персону без SMS и умеет стирать базу: в production — только за паролем (src/proxy.ts).
-    if (env.NODE_ENV === "production" && env.DEMO_MODE) require("DEMO_ACCESS_PASSWORD", "DEMO_MODE=true в production");
-    if (env.DEMO_ACCESS_PASSWORD && env.DEMO_ACCESS_PASSWORD.length < 16) {
-      ctx.addIssue({ code: "custom", path: ["DEMO_ACCESS_PASSWORD"], message: "не короче 16 символов: пароль закрывает стенд с данными и сбросом демо" });
-    }
-    // За паролем показа /api/cron/run открыт без пароля (demo-gate) — его закрывает только CRON_SECRET.
-    if (env.DEMO_MODE && env.DEMO_ACCESS_PASSWORD) require("CRON_SECRET", "DEMO_MODE=true с паролем показа");
-    // Вне демо-стенда моки в production означают «код входа никуда не уходит» и «подпись не проверяется».
-    if (env.NODE_ENV === "production" && !env.DEMO_MODE) {
-      const forbidMock = (key: "SMS_PROVIDER" | "SIGNATURE_PROVIDER") => {
-        if (env[key] === "mock") ctx.addIssue({ code: "custom", path: [key], message: "mock запрещён в production без DEMO_MODE" });
-      };
-      forbidMock("SMS_PROVIDER");
-      forbidMock("SIGNATURE_PROVIDER");
-    }
-    if (env.SMS_PROVIDER === "http") {
-      require("SMS_HTTP_URL", "SMS_PROVIDER=http");
-      require("SMS_HTTP_TOKEN", "SMS_PROVIDER=http");
-    }
-    if (env.STORAGE_PROVIDER === "s3") {
-      for (const key of ["S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"] as const)
-        require(key, "STORAGE_PROVIDER=s3");
-    }
-    if (env.STORAGE_PROVIDER === "vercel-blob") require("BLOB_READ_WRITE_TOKEN", "STORAGE_PROVIDER=vercel-blob");
-    if (env.AI_ENABLED && env.AI_PROVIDER === "gateway") {
-      require("AI_GATEWAY_API_KEY", "AI_PROVIDER=gateway");
-      require("AI_TEXT_MODEL", "AI_PROVIDER=gateway");
-      require("AI_IMAGE_MODEL", "AI_PROVIDER=gateway");
-    }
-    // Симулятор банка в production (показ банку): вебхуки подписываются постоянным секретом, а не случайным секретом процесса.
-    if (env.NODE_ENV === "production" && (env.PAYMENT_RAIL === "escrow-simulator" || env.DEMO_MODE)) {
-      require("ESCROW_SIMULATOR_WEBHOOK_SECRET", "escrow-simulator или DEMO_MODE в production");
-    }
-    if (env.PAYMENT_RAIL === "bank") {
-      require("BANK_API_URL", "PAYMENT_RAIL=bank");
-      require("BANK_WEBHOOK_SECRET", "PAYMENT_RAIL=bank");
-    }
   });
+
+type RawEnv = z.output<typeof base>;
+type Checks = {
+  env: RawEnv;
+  /** Переменная обязательна при условии `when`. */
+  require: (key: keyof RawEnv, when: string) => void;
+  issue: (key: keyof RawEnv, message: string) => void;
+};
+
+/** Секреты в production; без доверенного прокси IP клиента неизвестен — лимиты кодов входа по IP не работают. */
+function productionChecks({ env, require, issue }: Checks) {
+  if (env.NODE_ENV !== "production") return;
+  for (const key of ["PII_ENCRYPTION_KEY", "PII_HASH_KEY", "FILE_URL_SECRET", "CRON_SECRET"] as const) require(key, "NODE_ENV=production");
+  if (!env.TRUST_PROXY) issue("TRUST_PROXY", "в production должна быть true: без IP клиента не работают лимиты входа по IP");
+}
+
+/** Демо-стенд пускает в любую персону без SMS и умеет стирать базу: в production — только за паролем (src/proxy.ts). */
+function demoChecks({ env, require, issue }: Checks) {
+  if (env.NODE_ENV === "production" && env.DEMO_MODE) require("DEMO_ACCESS_PASSWORD", "DEMO_MODE=true в production");
+  if (env.DEMO_ACCESS_PASSWORD && env.DEMO_ACCESS_PASSWORD.length < 16) {
+    issue("DEMO_ACCESS_PASSWORD", "не короче 16 символов: пароль закрывает стенд с данными и сбросом демо");
+  }
+  // За паролем показа /api/cron/run открыт без пароля (demo-gate) — его закрывает только CRON_SECRET.
+  if (env.DEMO_MODE && env.DEMO_ACCESS_PASSWORD) require("CRON_SECRET", "DEMO_MODE=true с паролем показа");
+}
+
+/** Вне демо-стенда моки в production означают «код входа никуда не уходит» и «подпись не проверяется». */
+function mockChecks({ env, issue }: Checks) {
+  if (env.NODE_ENV !== "production" || env.DEMO_MODE) return;
+  for (const key of ["SMS_PROVIDER", "SIGNATURE_PROVIDER"] as const) {
+    if (env[key] === "mock") issue(key, "mock запрещён в production без DEMO_MODE");
+  }
+}
+
+function providerChecks({ env, require }: Checks) {
+  if (env.SMS_PROVIDER === "http") {
+    require("SMS_HTTP_URL", "SMS_PROVIDER=http");
+    require("SMS_HTTP_TOKEN", "SMS_PROVIDER=http");
+  }
+  if (env.STORAGE_PROVIDER === "s3") {
+    for (const key of ["S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"] as const) require(key, "STORAGE_PROVIDER=s3");
+  }
+  if (env.STORAGE_PROVIDER === "vercel-blob") require("BLOB_READ_WRITE_TOKEN", "STORAGE_PROVIDER=vercel-blob");
+  if (env.AI_ENABLED && env.AI_PROVIDER === "gateway") {
+    for (const key of ["AI_GATEWAY_API_KEY", "AI_TEXT_MODEL", "AI_IMAGE_MODEL"] as const) require(key, "AI_PROVIDER=gateway");
+  }
+}
+
+function paymentChecks({ env, require }: Checks) {
+  // Симулятор банка в production (показ банку): вебхуки подписываются постоянным секретом, а не случайным секретом процесса.
+  if (env.NODE_ENV === "production" && (env.PAYMENT_RAIL === "escrow-simulator" || env.DEMO_MODE)) {
+    require("ESCROW_SIMULATOR_WEBHOOK_SECRET", "escrow-simulator или DEMO_MODE в production");
+  }
+  if (env.PAYMENT_RAIL === "bank") {
+    require("BANK_API_URL", "PAYMENT_RAIL=bank");
+    require("BANK_WEBHOOK_SECRET", "PAYMENT_RAIL=bank");
+  }
+}
+
+/** Условные обязательные переменные: каждая группа правил — своя функция, порядок сообщений прежний. */
+const schema = base.superRefine((env, ctx) => {
+  const issue = (key: keyof RawEnv, message: string) => ctx.addIssue({ code: "custom", path: [key], message });
+  const checks: Checks = { env, issue, require: (key, when) => !env[key] && issue(key, `обязательна, когда ${when}`) };
+  for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, paymentChecks]) check(checks);
+});
 
 export type Env = z.infer<typeof schema>;
 

@@ -66,7 +66,7 @@ function refundDue(family: string, dealStatus: DealStatus): boolean {
 
 function disputeRequires(facts: RetryFacts, disputeId: string, wanted: PaymentOperationKind, kind: PaymentOperationKind): boolean {
   const d = facts.dispute;
-  if (kind !== wanted || facts.dealStatus !== "TERMINATED" || !d || d.id !== disputeId || d.status !== "RESOLVED") return false;
+  if (kind !== wanted || facts.dealStatus !== "TERMINATED" || d?.id !== disputeId || d.status !== "RESOLVED") return false;
   if (wanted === "RELEASE") return d.decision === "PARTIAL" && (d.decisionAmount ?? 0) > 0;
   return d.decision === "TERMINATE" || d.decision === "PARTIAL";
 }

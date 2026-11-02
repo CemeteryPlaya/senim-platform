@@ -49,10 +49,30 @@ export function signingReducer(state: SigningState, action: SigningAction): Sign
     case "completed":
       return state.step === "completing" ? { step: "done", fullySigned: action.fullySigned } : state;
     case "failed":
-      if (state.step === "starting") return { step: "choose", method: state.method, error: action.error };
-      if (state.step === "completing") return { step: "awaiting", method: state.method, session: state.session, error: action.error };
-      return state;
+      return failed(state, action.error);
     case "reset":
-      return state.step === "awaiting" || state.step === "choose" ? { step: "choose", method: state.method } : state;
+      return reset(state);
   }
+}
+
+/** Ошибка начала — обратно к выбору способа; ошибка проверки — снова ждём подпись в той же сессии. */
+function failed(state: SigningState, error: string): SigningState {
+  if (state.step === "starting") return { step: "choose", method: state.method, error };
+  if (state.step === "completing") return { step: "awaiting", method: state.method, session: state.session, error };
+  return state;
+}
+
+/** «Выбрать другой способ»: из ожидания подписи или из выбора (сбросить ошибку). */
+function reset(state: SigningState): SigningState {
+  return state.step === "awaiting" || state.step === "choose" ? { step: "choose", method: state.method } : state;
+}
+
+/**
+ * Куда перевести фокус после смены шага: кнопка, на которой он стоял, исчезает. Итог подписи —
+ * на сообщение; возврат к выбору из ожидания — на выбранный способ; иначе фокус не трогаем.
+ */
+export function focusTargetAfter(was: SigningState["step"], now: SigningState["step"]): "result" | "method" | null {
+  if (was === now) return null;
+  if (now === "done") return "result";
+  return now === "choose" && (was === "awaiting" || was === "completing") ? "method" : null;
 }

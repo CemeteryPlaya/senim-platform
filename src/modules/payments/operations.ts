@@ -101,30 +101,29 @@ async function applyResult(tx: Tx, idempotencyKey: string, result: OperationResu
     await tx.paymentOperation.update({ where: { id: op.id }, data: { externalRef: result.externalRef } });
     return "PENDING" as const;
   }
+  const externalRef = result.externalRef ?? op.externalRef;
   const done = await tx.paymentOperation.updateMany({
     where: { id: op.id, status: "PENDING" },
-    data: {
-      status: result.status,
-      externalRef: result.externalRef ?? op.externalRef,
-      error: result.status === "FAILED" ? result.error : null,
-      completedAt: new Date(),
-    },
+    data: { status: result.status, externalRef, error: result.status === "FAILED" ? result.error : null, completedAt: new Date() },
   });
   if (done.count !== 1) return op.status;
 
-  if (result.status === "SUCCEEDED") {
-    await moveAccount(tx, op.dealId, op.kind === "RELEASE" ? { released: op.amount } : { refunded: op.amount });
-  }
+  await recordSettlement(tx, op, result);
+  await onSettled(tx, { ...op, status: result.status, externalRef });
+  return result.status;
+}
+
+/** Итог операции в суммах счёта (только успешной) и в журнале. */
+async function recordSettlement(tx: Tx, op: Omit<SettledOperation, "status">, result: Exclude<OperationResult, { status: "PENDING" }>) {
+  const succeeded = result.status === "SUCCEEDED";
+  if (succeeded) await moveAccount(tx, op.dealId, op.kind === "RELEASE" ? { released: op.amount } : { refunded: op.amount });
   await recordAudit(tx, {
     actor: ACTOR,
-    action: result.status === "SUCCEEDED" ? "payment.operation.succeeded" : "payment.operation.failed",
+    action: succeeded ? "payment.operation.succeeded" : "payment.operation.failed",
     entity: { type: "paymentOperation", id: op.idempotencyKey },
     scope: `deal:${op.dealId}`,
     after: { kind: op.kind, amount: op.amount, status: result.status, externalRef: result.externalRef ?? null },
   });
-  const settled: SettledOperation = { ...op, status: result.status, externalRef: result.externalRef ?? op.externalRef };
-  await onSettled(tx, settled);
-  return result.status;
 }
 
 /** Суммы движений по счёту и пересчёт статуса. */
@@ -199,23 +198,24 @@ export async function receiveWebhook(
       return { duplicate: false, event, dealId: null };
     }
 
-    if (event.type === "DEPOSIT_RECEIVED") {
-      await recordDeposit(tx, account.dealId, event, onSettled);
-    } else {
-      const op = await tx.paymentOperation.findFirst({
-        where: { dealId: account.dealId, OR: [{ idempotencyKey: event.operationRef }, { externalRef: event.operationRef }] },
-      });
-      if (op) {
-        const result: OperationResult =
-          event.type === "OPERATION_FAILED"
-            ? { status: "FAILED", externalRef: event.operationRef, error: ru.payments.errors.railUnavailable }
-            : { status: "SUCCEEDED", externalRef: event.operationRef ?? op.externalRef ?? event.eventId };
-        await applyResult(tx, op.idempotencyKey, result, onSettled);
-      }
-    }
+    if (event.type === "DEPOSIT_RECEIVED") await recordDeposit(tx, account.dealId, event, onSettled);
+    else await recordOperationEvent(tx, account.dealId, event, onSettled);
     await tx.bankWebhookEvent.update({ where: { externalEventId: event.eventId }, data: { processedAt: new Date() } });
     return { duplicate: false, event, dealId: account.dealId };
   });
+}
+
+/** Итог операции банка по вебхуку: операция ищется по ключу идемпотентности или номеру банка. */
+async function recordOperationEvent(tx: Tx, dealId: string, event: RailWebhookEvent, onSettled: SettledHook) {
+  const op = await tx.paymentOperation.findFirst({
+    where: { dealId, OR: [{ idempotencyKey: event.operationRef }, { externalRef: event.operationRef }] },
+  });
+  if (!op) return;
+  const result: OperationResult =
+    event.type === "OPERATION_FAILED"
+      ? { status: "FAILED", externalRef: event.operationRef, error: ru.payments.errors.railUnavailable }
+      : { status: "SUCCEEDED", externalRef: event.operationRef ?? op.externalRef ?? event.eventId };
+  await applyResult(tx, op.idempotencyKey, result, onSettled);
 }
 
 async function recordDeposit(tx: Tx, dealId: string, event: RailWebhookEvent, onSettled: SettledHook) {

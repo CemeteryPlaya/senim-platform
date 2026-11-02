@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialSigningState, signNotice, signingReducer, type SigningSessionView } from "./state";
+import { initialSigningState, focusTargetAfter, signNotice, signingReducer, type SigningSessionView } from "./state";
 
 const session: SigningSessionView = { sessionId: "s1", method: "EGOV_QR", qrImage: "data:image/png;base64,AA", expiresAt: new Date(0), provider: "mock" };
 
@@ -59,3 +59,23 @@ describe("signNotice — что показать вместо «Подписат
     expect(signNotice({ ...doc, status: "SIGNED", signatures: [signed] })).toBeNull();
   });
 });
+
+describe("focusTargetAfter — куда перевести фокус после смены шага", () => {
+  it("подпись готова — на сообщение об итоге", () => {
+    expect(focusTargetAfter("completing", "done")).toBe("result");
+  });
+
+  it("вернулись к выбору из ожидания или проверки — на выбранный способ", () => {
+    expect(focusTargetAfter("awaiting", "choose")).toBe("method");
+    expect(focusTargetAfter("completing", "choose")).toBe("method");
+  });
+
+  it("шаг не сменился или сменился без исчезнувшей кнопки — фокус не трогаем", () => {
+    expect(focusTargetAfter("done", "done")).toBeNull();
+    expect(focusTargetAfter("choose", "choose")).toBeNull();
+    expect(focusTargetAfter("starting", "choose")).toBeNull();
+    expect(focusTargetAfter("choose", "starting")).toBeNull();
+    expect(focusTargetAfter("starting", "awaiting")).toBeNull();
+  });
+});
+
