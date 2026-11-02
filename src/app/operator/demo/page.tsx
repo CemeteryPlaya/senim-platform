@@ -5,6 +5,7 @@ import { getPaymentRailSetting, isDemoMode } from "@/modules/operator";
 import { Alert, ButtonLink, Card, Container, PageHeader } from "@/ui";
 import { requireOperatorPage } from "../_lib/guard";
 import { RailForm, ResetDemo } from "./DemoControls";
+import { ExecutorIdentitySection } from "./ExecutorIdentitySection";
 
 const t = ru.operator.demo;
 
@@ -35,6 +36,7 @@ export default async function DemoSettingsPage() {
           {rail.source === "env" && <Alert tone="info">{t.railFromEnv(ru.bankDemo.railModes[rail.mode] ?? rail.mode)}</Alert>}
           <RailForm current={current} />
         </Card>
+        <ExecutorIdentitySection />
         <Card title={t.resetTitle} description={t.resetHint}>
           <ResetDemo />
         </Card>
