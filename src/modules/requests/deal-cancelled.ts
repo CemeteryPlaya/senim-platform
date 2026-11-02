@@ -7,10 +7,9 @@ import { REQUEST_TRANSITIONS, transition } from "./transitions";
 
 /**
  * Хук отмены сделки (deal-core.cancelDeal → hooks.onCancelled, в той же транзакции):
- * заявка, по которой готовился договор, CONTRACTING → CANCELLED; в эскроу договор уже подписан
- * (заявка CLOSED), а сделка ждёт пополнения — CLOSED → CANCELLED. Сделку отменяют только до начала
- * работ, поэтому CLOSED здесь — всегда «договор подписан, работы не начались». Заявку в другом
- * статусе и повторный вызов не трогает.
+ * заявка, по которой готовилась оферта, CONTRACTING → CANCELLED; оферта уже подписана (заявка CLOSED),
+ * а оплаты не было — CLOSED → CANCELLED. Хук зовётся только при отмене до оплаты (сделка CREATED → CANCELLED),
+ * поэтому CLOSED здесь — всегда «оферта подписана, денег нет». Заявку в другом статусе и повторный вызов не трогает.
  */
 export const onDealCancelled: OnDealCancelled = async (tx, dealId) => {
   const deal = await tx.deal.findUnique({ where: { id: dealId }, select: { requestId: true, request: { select: { status: true } } } });

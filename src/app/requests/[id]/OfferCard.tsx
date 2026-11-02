@@ -1,5 +1,5 @@
 import { CalendarDays, Ruler, ShieldCheck, Sofa, Star } from "lucide-react";
-import type { OfferListItem } from "@/modules/requests";
+import { wholeKzt, type OfferListItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, formatDays, formatMonths, Money, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
@@ -9,9 +9,10 @@ const o = ru.requests.offer;
 
 /**
  * Карточка отклика в списке (макеты 7 и 783, стиль 12–15): фото работы слева, «Исполнитель №N», рейтинг,
- * срок, гарантия, замер, цена крупно. «Подробнее» — карточка отклика, «Написать» — чат на ней.
+ * срок, гарантия, замер (только в сценарии до договора), цена крупно. «Подробнее» — карточка отклика с торгом,
+ * «Написать» — чат на ней.
  */
-export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestId: string }) {
+export function OfferCard({ offer, requestId, tz }: { offer: OfferListItem; requestId: string; tz: boolean }) {
   const href = `/requests/${requestId}/offers/${offer.id}`;
   const ex = offer.executor;
   const cover = offer.preview[0];
@@ -20,7 +21,7 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
     { icon: <Star className="fill-current text-warning" />, text: ex.reviewsCount > 0 ? o.rating(ex.ratingAvg.toFixed(1), ex.reviewsCount) : o.noRating },
     { icon: <CalendarDays />, text: `${o.duration}: ${formatDays(offer.durationDays)}` },
     { icon: <ShieldCheck />, text: `${o.warranty}: ${formatMonths(offer.warrantyMonths)}` },
-    { icon: <Ruler />, text: termsText(offer.measurementTerms, offer.measurementFee) },
+    ...(tz ? [] : [{ icon: <Ruler />, text: termsText(offer.measurementTerms, offer.measurementFee) }]),
   ];
   return (
     <article
@@ -55,8 +56,8 @@ export function OfferCard({ offer, requestId }: { offer: OfferListItem; requestI
             ))}
           </ul>
           <p className="mt-1 flex flex-col">
-            <span className="text-sm text-muted">{o.price}</span>
-            <Money amount={offer.price} className="text-2xl font-extrabold text-ink" />
+            <span className="text-sm text-muted">{tz ? o.priceTz : o.price}</span>
+            <Money amount={wholeKzt(offer.priceTiyn)} className="text-2xl font-extrabold text-ink" />
           </p>
         </div>
       </div>

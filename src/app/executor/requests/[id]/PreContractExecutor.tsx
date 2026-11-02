@@ -1,5 +1,5 @@
 import { ru } from "@/i18n/ru";
-import type { IncomingRequest } from "@/modules/requests";
+import { wholeKzt, type IncomingRequest, type PreContractView } from "@/modules/requests";
 import { Alert, formatMoney } from "@/ui";
 import { ActionButton } from "@/app/requests/_parts/ActionButton";
 import { confirmDepositAction } from "@/app/_components/pre-contract/actions";
@@ -9,7 +9,7 @@ import { ProjectView } from "@/app/_components/pre-contract/ProjectView";
 /** Шаги до договора на экране исполнителя выбранного отклика (ADR-005): залог и проект. */
 
 const p = ru.requests.pre;
-type Pre = IncomingRequest["pre"];
+type Pre = PreContractView;
 type MyOffer = NonNullable<IncomingRequest["myOffer"]>;
 
 /** Сценарий 4: заказчик вносит залог напрямую исполнителю, исполнитель подтверждает получение. */
@@ -46,7 +46,7 @@ export function ExecutorProject({ pre, offer }: { pre: Pre; offer: MyOffer }) {
     afterContract && pre.tolerance ? p.project.executorLeadAfterContract(formatMoney(pre.tolerance.min), formatMoney(pre.tolerance.max)) : p.project.executorLead;
 
   if (!latest || latest.status === "CHANGES_REQUESTED") {
-    const price = offer.measurement?.finalPrice ?? offer.price;
+    const price = offer.measurement?.finalPrice ?? wholeKzt(offer.priceTiyn);
     const initial = latest
       ? { materials: latest.materials, costLines: latest.costLines, durationDays: latest.durationDays, warrantyMonths: latest.warrantyMonths }
       : { materials: "", costLines: [{ title: "", amount: price }], durationDays: offer.durationDays, warrantyMonths: offer.warrantyMonths };

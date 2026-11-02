@@ -3,22 +3,19 @@
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, focusFirstInvalid, Input, RadioCards } from "@/ui";
-import { DEFAULT_STAGE_TEMPLATE, STAGE_TEMPLATES, type StageTemplateKey } from "@/verticals/furniture";
-import type { RailMode } from "@/modules/payments";
+import { Button, focusFirstInvalid, Input } from "@/ui";
 import { agreeToContractAction } from "../actions";
 import { FormError, useRunAction } from "../_parts/ActionButton";
 
 const t = ru.requests.request;
 const ci = ru.identity.clientIdentity;
-const KEYS = Object.keys(STAGE_TEMPLATES) as StageTemplateKey[];
 
 /**
- * Согласие с итоговой ценой: заказчик выбирает порядок оплаты, сделку создаёт deal-core.
- * needsIdentity — у заказчика ещё нет ФИО и ИИН (вход по SMS): они нужны в договоре, спрашиваем здесь один раз.
+ * Сценарий до договора (флаг preContractFlows): согласие с итоговой ценой, сделку с офертой создаёт deal-core.
+ * Оплата одна — в начале, деньги в банке под защитой до подписи акта (ADR-009).
+ * needsIdentity — у заказчика ещё нет ФИО и ИИН (вход по SMS): они нужны в оферте, спрашиваем здесь один раз.
  */
-export function AgreeForm({ requestId, needsIdentity, rail }: { requestId: string; needsIdentity: boolean; rail: RailMode }) {
-  const [template, setTemplate] = useState<StageTemplateKey>(DEFAULT_STAGE_TEMPLATE);
+export function AgreeForm({ requestId, needsIdentity }: { requestId: string; needsIdentity: boolean }) {
   const [fullName, setFullName] = useState("");
   const [iin, setIin] = useState("");
   const { run, pending, error, fieldErrors } = useRunAction(agreeToContractAction, (d) => `/deals/${d.dealId}`);
@@ -38,22 +35,13 @@ export function AgreeForm({ requestId, needsIdentity, rail }: { requestId: strin
       className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
-        void run({ requestId, template, identity });
+        void run({ requestId, identity });
       }}
     >
-      {/* Как платить — словами режима: «под контролем» в ручном, «безопасная оплата» — только когда есть банк. */}
-      <p className="flex items-center gap-2 text-lg font-bold text-ink">
-        <ShieldCheck aria-hidden className="size-6 shrink-0 text-primary" />
-        {t.payment[rail]}
+      <p className="flex items-start gap-2 text-lg font-bold text-ink">
+        <ShieldCheck aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
+        {t.paymentTz}
       </p>
-      <RadioCards
-        label={t.templateLabel}
-        hint={rail === "escrow-simulator" ? t.templateHintEscrowSimulator : rail === "bank" ? t.templateHintBank : t.templateHint}
-        name="template"
-        value={template}
-        onChange={(v) => setTemplate(KEYS.find((k) => k === v) ?? DEFAULT_STAGE_TEMPLATE)}
-        options={KEYS.map((k) => ({ value: k, label: STAGE_TEMPLATES[k].name, description: STAGE_TEMPLATES[k].description }))}
-      />
       {needsIdentity && (
         <fieldset className="flex flex-col gap-4">
           <legend className="mb-2 text-lg font-bold text-ink">{ci.title}</legend>

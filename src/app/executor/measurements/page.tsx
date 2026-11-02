@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { CalendarClock, MapPin, Ruler, Wallet } from "lucide-react";
 import type { MeasurementStatus } from "@/generated/prisma/enums";
 import { listAwaitingMeasurement, listMyMeasurements } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
+import { isEnabled } from "@/platform/features";
 import { Alert, ButtonLink, Container, DateText, EmptyState, FilterChips, Money, PageHeader, PhotoCard, SectionTitle, StatusBadge } from "@/ui";
 import { pageUser } from "@/app/requests/_parts/guard";
 import { MEASUREMENT_TONE } from "@/app/requests/_parts/labels";
@@ -23,6 +25,8 @@ const GROUP: Record<MeasurementStatus, Group> = { SCHEDULED: "upcoming", DONE: "
  * без сделки. Действия (назначить, итоговая цена, «замер без сделки», проект) — на экране заявки.
  */
 export default async function MeasurementsPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
+  // Замер до оферты — только сценарии до договора (флаг preContractFlows, решение 2.2.9).
+  if (!isEnabled("preContractFlows")) notFound();
   const sp = await searchParams;
   const user = await pageUser("EXECUTOR", "/executor/measurements");
   if (!user) {

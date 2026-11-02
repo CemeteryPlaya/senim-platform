@@ -3,8 +3,17 @@ import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
 import { cache, type ReactNode } from "react";
 import { getCurrentUser, hasClientIdentity, type CurrentUser } from "@/modules/identity";
-import { activeRailMode, type RailMode } from "@/modules/payments";
-import { getClientRequest, listOffers, OFFER_SORTS, type ClientRequest, type OfferListItem, type OfferSort } from "@/modules/requests";
+import {
+  getClientRequest,
+  listOffers,
+  OFFER_SORTS,
+  TZ_PATH,
+  wholeKzt,
+  type ClientRequest,
+  type OfferListItem,
+  type OfferSort,
+  type PreContractView,
+} from "@/modules/requests";
 import { isAppError } from "@/platform/errors";
 import { ru } from "@/i18n/ru";
 import { Alert, ButtonLink, Container, EmptyState, FilterChips, Money, PageHeader, SectionTitle, StatusBadge, formatDateTime, formatMoney } from "@/ui";
@@ -45,8 +54,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 const CANCELLABLE = new Set(["OPEN", "OFFER_CHOSEN", "MEASURING"]);
 
 /**
- * Заявка заказчика (макеты 7–9): шкала этапов сценария, мятная плашка «что сейчас» с одним главным действием,
- * отклики с сортировкой чипами и сравнением, справа (на телефоне — ниже) — что в заявке.
+ * Заявка заказчика (макеты 7–9): мятная плашка «что сейчас» с одним главным действием, отклики с сортировкой
+ * чипами и сравнением, справа (на телефоне — ниже) — что в заявке. На пути ТЗ цена согласуется в торге на карточке
+ * отклика; шкала этапов, замер, проект и согласие на договор — только в сценарии до договора (флаг preContractFlows).
  */
 export default async function RequestPage({ params, searchParams }: Props) {
   const { id } = await params;
@@ -59,8 +69,9 @@ export default async function RequestPage({ params, searchParams }: Props) {
   if (request.status === "DRAFT") redirect(`/requests/new?draft=${id}`);
   const sort: OfferSort = OFFER_SORTS.find((s) => s === sp.sort) ?? "price";
   const offers = await listOffers(user, { requestId: id, sort });
-  const needsIdentity = (request.status === "MEASURING" || request.status === "OFFER_CHOSEN") && !(await hasClientIdentity(user.id));
-  const rail = await activeRailMode();
+  const { pre } = request;
+  const needsIdentity = pre !== null && (request.status === "MEASURING" || request.status === "OFFER_CHOSEN") && !(await hasClientIdentity(user.id));
+  const tz = request.path === TZ_PATH;
 
   return (
     <Container className="flex flex-col gap-6 pb-10">
@@ -77,7 +88,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
         className="pb-0"
       />
 
-      <FlowSteps flow={request.pre.flow} steps={request.pre.steps} current={request.pre.current} />
+      {pre && <FlowSteps flow={pre.flow} steps={pre.steps} current={pre.current} />}
       {sp.sent === "1" && (request.status === "OPEN" || request.status === "PLATFORM_MEASURING") && (
         <Alert tone="success" live="polite" title={t.sentTitle}>
           {t.sentText}
@@ -86,8 +97,8 @@ export default async function RequestPage({ params, searchParams }: Props) {
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:items-start">
         <div className="flex min-w-0 flex-col gap-8">
-          <StatusPanel request={request} needsIdentity={needsIdentity} rail={rail} />
-          <Offers requestId={id} pre={request.pre} offers={offers} sort={sort} />
+          <StatusPanel request={request} pre={pre} needsIdentity={needsIdentity} tz={tz} hasOffers={offers.length > 0} />
+          <Offers requestId={id} pre={pre} offers={offers} sort={sort} tz={tz} />
         </div>
 
         <aside aria-labelledby="details-title" className="flex min-w-0 flex-col gap-4">
@@ -98,7 +109,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
             <FactList
               rows={[
                 ...detailRows({ title: request.title, style: request.style, details: request.details }),
-                ...siteRows(request.pre),
+                ...(pre ? siteRows(pre) : []),
                 { label: ru.requests.facts.city, value: request.city },
                 ...(request.address ? [{ label: ru.requests.facts.address, value: request.address }] : []),
                 ...(request.wishes ? [{ label: ru.requests.facts.wishes, value: request.wishes }] : []),
@@ -124,7 +135,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
 }
 
 /** Отклики: чипы сортировки (сравнение — ими же: дешевле, быстрее, рейтинг) и карточки. */
-function Offers({ requestId, pre, offers, sort }: { requestId: string; pre: ClientRequest["pre"]; offers: OfferListItem[]; sort: OfferSort }) {
+function Offers({ requestId, pre, offers, sort, tz }: { requestId: string; pre: PreContractView | null; offers: OfferListItem[]; sort: OfferSort; tz: boolean }) {
   return (
     <section aria-labelledby="offers-title" className="flex flex-col gap-4">
       <SectionTitle
@@ -135,7 +146,7 @@ function Offers({ requestId, pre, offers, sort }: { requestId: string; pre: Clie
           </>
         }
       />
-      <SizesBasis pre={pre} />
+      {pre && <SizesBasis pre={pre} />}
       {offers.length > 1 && (
         <FilterChips
           label={t.sortLabel}
@@ -149,7 +160,7 @@ function Offers({ requestId, pre, offers, sort }: { requestId: string; pre: Clie
         <ul className="flex flex-col gap-4">
           {offers.map((offer) => (
             <li key={offer.id}>
-              <OfferCard offer={offer} requestId={requestId} />
+              <OfferCard offer={offer} requestId={requestId} tz={tz} />
             </li>
           ))}
         </ul>
@@ -158,7 +169,8 @@ function Offers({ requestId, pre, offers, sort }: { requestId: string; pre: Clie
   );
 }
 
-type PanelProps = { request: ClientRequest; needsIdentity: boolean; rail: RailMode };
+/** Плашки шагов сценария до договора: у заявки на пути ТЗ их нет. */
+type PanelProps = { request: ClientRequest; pre: PreContractView; needsIdentity: boolean };
 
 /** «Сделка не состоится» после выезда исполнителя: отклик отклоняется, заявка снова открыта. */
 function NoDealButton({ request }: { request: ClientRequest }) {
@@ -199,21 +211,21 @@ function Panel({ id, title, children }: { id: string; title: string; children: R
 }
 
 /** Согласие на договор без выезда исполнителя (макет 9, экран 1): итоговая стоимость, адрес, порядок оплаты. */
-function AgreePanel({ request, needsIdentity, rail }: PanelProps) {
-  const { pre } = request;
+function AgreePanel({ request, pre, needsIdentity }: PanelProps) {
+  const price = pre.tolerance?.price ?? (request.chosen ? wholeKzt(request.chosen.priceTiyn) : 0);
   return (
     <Panel id="agree" title={ru.requests.pre.steps.contract}>
       <ContractTerms pre={pre} />
-      <ContractSummary pre={pre} price={pre.tolerance?.price ?? request.chosen?.price ?? 0} priceLabel={ru.requests.offer.price} address={request.address} />
-      <AgreeForm requestId={request.id} needsIdentity={needsIdentity} rail={rail} />
+      <ContractSummary pre={pre} price={price} priceLabel={ru.requests.offer.price} address={request.address} />
+      <AgreeForm requestId={request.id} needsIdentity={needsIdentity} />
     </Panel>
   );
 }
 
 /** Отклик выбран: следующий шаг по сценарию — залог, замер исполнителем, проект или договор. */
 function ChosenPanel(props: PanelProps) {
-  const { request } = props;
-  const { chosen, pre } = request;
+  const { request, pre } = props;
+  const { chosen } = request;
   if (!chosen) return null;
   switch (pre.current) {
     case "deposit":
@@ -237,8 +249,8 @@ function ChosenPanel(props: PanelProps) {
 
 /** Замер исполнителем: назначен → выполнен → проект → согласие на договор (макеты 7–9). */
 function MeasuringPanel(props: PanelProps) {
-  const { request } = props;
-  const { measurement: m, pre } = request;
+  const { request, pre } = props;
+  const { measurement: m } = request;
   if (!m) return null;
   if (m.status !== "DONE" || m.finalPrice === null) {
     return (
@@ -265,7 +277,7 @@ function MeasuringPanel(props: PanelProps) {
             {m.result}
           </p>
         )}
-        {ready && <AgreeForm requestId={request.id} needsIdentity={props.needsIdentity} rail={props.rail} />}
+        {ready && <AgreeForm requestId={request.id} needsIdentity={props.needsIdentity} />}
         <div className="self-start">
           <NoDealButton request={request} />
         </div>
@@ -276,18 +288,18 @@ function MeasuringPanel(props: PanelProps) {
 }
 
 /** Что происходит с заявкой сейчас и одно главное действие для этого шага. */
-function StatusPanel(props: PanelProps) {
-  const { request } = props;
+function StatusPanel(props: Omit<PanelProps, "pre"> & { pre: PreContractView | null; tz: boolean; hasOffers: boolean }) {
+  const { request, pre } = props;
   switch (request.status) {
     case "PLATFORM_MEASURING":
-      return <SiteWait pre={request.pre} />;
+      return pre && <SiteWait pre={pre} />;
     case "OPEN":
-      // Ждём откликов: это видно по статусу у заголовка и по списку ниже — плашка не нужна.
-      return null;
+      // Путь ТЗ: подсказка, где договориться о цене. Без откликов статус и пустой список говорят сами за себя.
+      return props.tz && props.hasOffers ? <Alert tone="accent">{t.negotiateText}</Alert> : null;
     case "OFFER_CHOSEN":
-      return <ChosenPanel {...props} />;
+      return pre && <ChosenPanel {...props} pre={pre} />;
     case "MEASURING":
-      return <MeasuringPanel {...props} />;
+      return pre && <MeasuringPanel {...props} pre={pre} />;
     case "CONTRACTING":
     case "CLOSED":
       return (
@@ -300,7 +312,7 @@ function StatusPanel(props: PanelProps) {
             {request.status === "CONTRACTING" ? t.contractingText : t.closedText}
           </Alert>
           {/* «Договор до замера»: проект утверждается уже по договору. */}
-          {!request.pre.rules.projectBeforeContract && <ClientProject pre={request.pre} />}
+          {pre && !pre.rules.projectBeforeContract && <ClientProject pre={pre} />}
         </>
       );
     case "CANCELLED":

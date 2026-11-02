@@ -28,6 +28,7 @@ export {
   type OfferListItem,
 } from "./offers";
 export { listMyOffers, type MyOfferItem } from "./my-offers";
+export { geocodeAddress, geocodeSchema, type Geocoder, type GeocodePrecision, type GeocodeResult } from "./geocoder";
 export { acceptPrice, getNegotiation, proposePrice, withdrawPrice, type NegotiationView } from "./negotiation";
 import { JOB_MEASUREMENT_REMINDER, remindMeasurement } from "./measurements";
 

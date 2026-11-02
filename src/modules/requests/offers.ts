@@ -262,7 +262,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     include: {
       furnitureType: { select: { name: true } },
       photos: { where: { purpose: "REQUEST_ROOM" }, orderBy: { sortOrder: "asc" }, select: { id: true, provider: true, storageKey: true } },
-      offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, include: { measurement: true } },
+      offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, include: { measurement: true, deal: { select: { id: true } } } },
       offerRetries: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, select: { round: true } },
     },
   });
@@ -296,6 +296,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
       id: mine.id,
       status: mine.status,
       priceTiyn: mine.priceTiyn,
+      dealId: mine.deal?.id ?? null,
       durationDays: mine.durationDays,
       warrantyMonths: mine.warrantyMonths,
       comment: mine.comment,
