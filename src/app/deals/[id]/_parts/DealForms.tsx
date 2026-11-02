@@ -8,8 +8,9 @@ import { useRunAction } from "../../_parts/useRunAction";
 import { disputePositionAction, openDisputeAction, reviewAction } from "../actions";
 
 const t = ru.deal;
-const REASONS = Object.entries(t.dispute.reason).map(([value, label]) => ({ value, label }));
-const RATINGS = [5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: t.forms.ratingOption(n) }));
+const d = t.dispute;
+const REASONS = Object.entries(d.reason).map(([value, label]) => ({ value, label }));
+const RATINGS = [5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: t.review.ratingOption(n) }));
 
 /** Открыть спор: причина и описание. Действие вторичное — экран прячет форму под раскрывающийся блок. */
 export function OpenDisputeForm({ dealId }: { dealId: string }) {
@@ -21,11 +22,11 @@ export function OpenDisputeForm({ dealId }: { dealId: string }) {
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
-        run({ dealId, reason: reason as DisputeReason, description, attachmentIds: [] });
+        run({ dealId, reason: reason as DisputeReason, description });
       }}
     >
       <Select
-        label={t.forms.disputeReason}
+        label={d.reasonLabel}
         name="reason"
         options={REASONS}
         placeholder={ru.common.ui.selectPlaceholder}
@@ -34,17 +35,17 @@ export function OpenDisputeForm({ dealId }: { dealId: string }) {
         error={fieldErrors.reason?.[0]}
       />
       <Textarea
-        label={t.forms.disputeDescription}
-        hint={t.forms.disputeHint}
+        label={d.descriptionLabel}
+        hint={d.hint}
         name="description"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
-        maxLength={3000}
+        maxLength={2000}
         rows={4}
         error={fieldErrors.description?.[0]}
       />
       <FormError message={error} />
-      <Button type="submit" variant="secondary" fullWidth loading={pending}>
+      <Button type="submit" variant="danger" fullWidth loading={pending}>
         {t.actions.openDispute}
       </Button>
     </form>
@@ -63,12 +64,12 @@ export function DisputePositionForm({ disputeId }: { disputeId: string }) {
       }}
     >
       <Textarea
-        label={t.forms.positionLabel}
-        hint={t.forms.disputeHint}
+        label={d.positionLabel}
+        hint={d.hint}
         name="position"
         value={position}
         onChange={(e) => setPosition(e.target.value)}
-        maxLength={3000}
+        maxLength={2000}
         rows={4}
         error={fieldErrors.position?.[0]}
       />
@@ -80,6 +81,7 @@ export function DisputePositionForm({ disputeId }: { disputeId: string }) {
   );
 }
 
+/** Отзыв — только при флаге reviews (действие показывает nextStep: leaveReview). */
 export function ReviewForm({ dealId }: { dealId: string }) {
   const { run, pending, error, fieldErrors } = useRunAction(reviewAction);
   const [rating, setRating] = useState("5");
@@ -93,10 +95,10 @@ export function ReviewForm({ dealId }: { dealId: string }) {
         run({ dealId, rating: Number(rating), text, portfolioConsent });
       }}
     >
-      <RadioCards label={t.forms.ratingLabel} name="rating" options={RATINGS} value={rating} onChange={setRating} columns={3} error={fieldErrors.rating?.[0]} />
+      <RadioCards label={t.review.ratingLabel} name="rating" options={RATINGS} value={rating} onChange={setRating} columns={3} error={fieldErrors.rating?.[0]} />
       <Textarea
-        label={t.forms.reviewText}
-        hint={t.forms.reviewHint}
+        label={t.review.textLabel}
+        hint={t.review.textHint}
         optional
         name="text"
         value={text}

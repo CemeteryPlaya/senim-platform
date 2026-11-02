@@ -42,10 +42,10 @@ export default async function DealsPage() {
               <div className="flex flex-col gap-3">
                 <StatusBadge tone={DEAL_TONE[d.status]}>{t.status[d.status]}</StatusBadge>
                 {showRole && d.myRole && <p className="text-lg font-semibold text-ink">{t.youAre[d.myRole]}</p>}
-                <p className="text-lg text-ink">
-                  <Money amount={d.totalAmount} /> · {(d.myRole ?? user.role) === "EXECUTOR" ? t.clientLabel : d.executorLabel}
+                <p className="text-lg font-semibold text-ink">
+                  <Money amount={d.estimate.totalTiyn} />
                 </p>
-                <p className="text-base text-muted">{t.progress(d.closedStages, d.totalStages)}</p>
+                <p className="text-base text-muted">{(d.myRole ?? user.role) === "EXECUTOR" ? t.clientLabel : d.executorLabel}</p>
                 <Link
                   href={dealHref(user, d)}
                   className="inline-flex min-h-control-sm items-center self-start rounded-control text-lg font-semibold text-accent underline-offset-4 hover:underline"
