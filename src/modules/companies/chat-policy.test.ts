@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatClosedReason } from "./chat-policy";
+import { chatClosedReason, CHAT_MODERATION, moderationTarget } from "./chat-policy";
 
 describe("chatClosedReason: когда в чат больше нельзя писать", () => {
   it.each([
@@ -17,6 +17,33 @@ describe("chatClosedReason: когда в чат больше нельзя пи�
     [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "CANCELLED" }, "dealCancelled"],
     [{ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "TERMINATED" }, "dealTerminated"],
   ] as const)("%o → %s", (state, expected) => {
-    expect(chatClosedReason(state)).toBe(expected);
+    expect(chatClosedReason({ ...state, closedByOperator: false })).toBe(expected);
+  });
+
+  it("закрыт оператором — закрыт при любом состоянии сделки, в том числе после завершения (№19)", () => {
+    expect(chatClosedReason({ offerStatus: "ACCEPTED", requestStatus: "CLOSED", dealStatus: "COMPLETED", closedByOperator: true })).toBe("operatorClosed");
+    expect(chatClosedReason({ offerStatus: "SENT", requestStatus: "OPEN", dealStatus: null, closedByOperator: true })).toBe("operatorClosed");
+  });
+});
+
+describe("закрытие чата оператором: таблица переходов", () => {
+  it("закрыть можно открытый, открыть снова — закрытый; только оператор", () => {
+    expect(CHAT_MODERATION).toEqual({
+      close: { from: "OPEN", to: "CLOSED", who: "OPERATOR" },
+      reopen: { from: "CLOSED", to: "OPEN", who: "OPERATOR" },
+    });
+    expect(moderationTarget("close", "OPEN", "OPERATOR")).toBe("CLOSED");
+    expect(moderationTarget("reopen", "CLOSED", "OPERATOR")).toBe("OPEN");
+  });
+
+  it.each([
+    ["close", "CLOSED", "OPERATOR", "CONFLICT"],
+    ["reopen", "OPEN", "OPERATOR", "CONFLICT"],
+    ["close", "OPEN", "CLIENT", "FORBIDDEN"],
+    ["close", "OPEN", "EXECUTOR", "FORBIDDEN"],
+    ["reopen", "CLOSED", "CLIENT", "FORBIDDEN"],
+    ["reopen", "CLOSED", "EXECUTOR", "FORBIDDEN"],
+  ] as const)("%s из %s ролью %s — %s", (action, from, who, code) => {
+    expect(() => moderationTarget(action, from, who)).toThrow(expect.objectContaining({ code }));
   });
 });

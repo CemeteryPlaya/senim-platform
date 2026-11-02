@@ -5,9 +5,10 @@ import { attachFiles } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { db, transaction, type Db } from "@/platform/db";
-import { fail } from "@/platform/errors";
+import { expectOneUpdated, fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
-import { chatClosedReason } from "./chat-policy";
+import { executorDisplayOf } from "./anonymity";
+import { chatClosedReason, moderationTarget, type ChatModerationAction } from "./chat-policy";
 import { maskContacts } from "./mask";
 import { sanitizePublicText } from "./own";
 
@@ -15,9 +16,12 @@ import { sanitizePublicText } from "./own";
  * Чат отклика (ADR-003). Пишут только стороны отклика — заказчик заявки и исполнитель;
  * оператор читает. Текст маскируется до записи, исходный не хранится; wasMasked фиксирует факт.
  * Чужой чат для пользователя «не существует» (NOT_FOUND), чтобы не раскрывать id.
+ * После завершения сделки чат открыт (гарантия); закрывает и открывает его оператор (ответ №19).
  */
 export const CHAT_MAX_LENGTH = 2000;
 export const CHAT_MAX_ATTACHMENTS = 5;
+export const CHAT_CLOSE_REASON_MIN = 3;
+export const CHAT_CLOSE_REASON_MAX = 500;
 const HISTORY_LIMIT = 500;
 const SEND_RATE = { limit: 30, windowSec: 60 };
 const NOTIFY_SNIPPET = 140;
@@ -40,6 +44,10 @@ export type ChatView = {
   canWrite: boolean;
   /** Почему писать нельзя (для поля ввода); null — можно. */
   closedReason: string | null;
+  /** Чат закрыт оператором (№19): причину видят обе стороны; null — не закрыт. */
+  closedByOperator: { reason: string; at: Date } | null;
+  /** Оператор: может закрыть или снова открыть чат. */
+  canModerate: boolean;
 };
 
 type Party = "client" | "executor" | "operator";
@@ -50,6 +58,8 @@ async function loadOffer(client: Db, offerId: string) {
     select: {
       id: true,
       status: true,
+      chatClosedAt: true,
+      chatClosedReason: true,
       requestId: true,
       executorId: true,
       executor: { select: { userId: true, publicNumber: true } },
@@ -67,30 +77,42 @@ function partyOf(user: CurrentUser, offer: OfferContext): Party | null {
   return null;
 }
 
-async function requireOffer(client: Db, user: CurrentUser, offerId: string): Promise<{ offer: OfferContext; party: Party }> {
+/** label — подпись исполнителя для заказчика (companies.executorDisplay, режим №6). */
+type Loaded = { offer: OfferContext; party: Party; label: string };
+
+async function requireOffer(client: Db, user: CurrentUser, offerId: string): Promise<Loaded> {
   const offer = await loadOffer(client, offerId);
   const party = offer ? partyOf(user, offer) : null;
   if (!offer || !party) return fail.notFound(t.errors.notFound);
-  return { offer, party };
+  return { offer, party, label: (await executorDisplayOf(client, offer.executorId)).label };
 }
 
 function closedReasonText(offer: OfferContext): string | null {
-  const reason = chatClosedReason({ offerStatus: offer.status, requestStatus: offer.request.status, dealStatus: offer.deal?.status ?? null });
+  const reason = chatClosedReason({
+    offerStatus: offer.status,
+    requestStatus: offer.request.status,
+    dealStatus: offer.deal?.status ?? null,
+    closedByOperator: offer.chatClosedAt !== null,
+  });
   return reason ? t.closed[reason] : null;
 }
 
-function authorLabel(senderId: string, offer: OfferContext): string {
-  return senderId === offer.executor.userId ? ru.common.executorLabel(offer.executor.publicNumber) : t.clientLabel;
+function closedByOperator(offer: OfferContext): ChatView["closedByOperator"] {
+  return offer.chatClosedAt ? { reason: offer.chatClosedReason ?? "", at: offer.chatClosedAt } : null;
+}
+
+function authorLabel(senderId: string, { offer, label }: Loaded): string {
+  return senderId === offer.executor.userId ? label : t.clientLabel;
 }
 
 type MessageRow = { id: string; senderId: string; body: string; wasMasked: boolean; createdAt: Date; attachments: { id: string }[] };
 
-function toView(row: MessageRow, viewer: CurrentUser, offer: OfferContext): ChatMessageView {
+function toView(row: MessageRow, viewer: CurrentUser, loaded: Loaded): ChatMessageView {
   const own = row.senderId === viewer.id;
   return {
     id: row.id,
     kind: own ? "own" : "other",
-    author: own ? ru.common.ui.chat.you : authorLabel(row.senderId, offer),
+    author: own ? ru.common.ui.chat.you : authorLabel(row.senderId, loaded),
     text: row.body,
     sentAt: row.createdAt,
     masked: row.wasMasked,
@@ -109,7 +131,8 @@ const MESSAGE_SELECT = {
 
 /** История переписки по отклику и право писать. Стороны отклика и оператор. */
 export async function getChat(user: CurrentUser, offerId: string): Promise<ChatView> {
-  const { offer, party } = await requireOffer(db, user, offerId);
+  const loaded = await requireOffer(db, user, offerId);
+  const { offer, party } = loaded;
   const rows = await db.message.findMany({
     where: { offerId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -119,9 +142,11 @@ export async function getChat(user: CurrentUser, offerId: string): Promise<ChatV
   const closed = party === "operator" ? t.operatorReadOnly : closedReasonText(offer);
   return {
     offerId,
-    messages: rows.reverse().map((row) => toView(row, user, offer)),
+    messages: rows.reverse().map((row) => toView(row, user, loaded)),
     canWrite: closed === null,
     closedReason: closed,
+    closedByOperator: closedByOperator(offer),
+    canModerate: party === "operator",
   };
 }
 
@@ -133,7 +158,8 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
   const fileIds = [...new Set(attachments)];
   if (fileIds.length > CHAT_MAX_ATTACHMENTS) return fail.validation(t.errors.tooManyAttachments(CHAT_MAX_ATTACHMENTS));
 
-  const { offer, party } = await requireOffer(db, user, offerId);
+  const loaded = await requireOffer(db, user, offerId);
+  const { offer, party } = loaded;
   if (party === "operator") return fail.forbidden(t.operatorReadOnly);
   const closed = closedReasonText(offer);
   if (closed) return fail.conflict(closed);
@@ -144,33 +170,102 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
   const row = await transaction(async (tx) => {
     const message = await tx.message.create({ data: { offerId, senderId: user.id, body: safeText, wasMasked: masked } });
     if (fileIds.length > 0) await attachFiles(tx, { fileIds, uploadedById: user.id, owner: { messageId: message.id } });
-    await notifyOtherParty(tx, party, offer, safeText);
+    await notifyOtherParty(tx, party, loaded, safeText);
     if (masked) {
       await recordAudit(tx, {
         actor: actorOf(user),
         action: "chat.contacts_masked",
         entity: { type: "message", id: message.id },
-        scope: offer.deal ? `deal:${offer.deal.id}` : `request:${offer.requestId}`,
+        scope: scopeOf(offer),
         meta: { offerId },
       });
     }
     return tx.message.findUniqueOrThrow({ where: { id: message.id }, select: MESSAGE_SELECT });
   });
-  return toView(row, user, offer);
+  return toView(row, user, loaded);
 }
 
-async function notifyOtherParty(tx: Db, sender: "client" | "executor", offer: OfferContext, text: string): Promise<void> {
+const scopeOf = (offer: OfferContext) => (offer.deal ? `deal:${offer.deal.id}` : `request:${offer.requestId}`);
+
+/** Куда ведёт уведомление стороне: сделка, если она есть, иначе заявка глазами заказчика или исполнителя. */
+function linkFor(offer: OfferContext, toClient: boolean): string {
+  if (offer.deal) return `/deals/${offer.deal.id}`;
+  return toClient ? `/requests/${offer.requestId}` : `/executor/requests/${offer.requestId}`;
+}
+
+async function notifyOtherParty(tx: Db, sender: "client" | "executor", { offer, label }: Loaded, text: string): Promise<void> {
   const toClient = sender === "executor";
-  const link = offer.deal
-    ? `/deals/${offer.deal.id}`
-    : toClient
-      ? `/requests/${offer.requestId}`
-      : `/executor/requests/${offer.requestId}`;
   await notify(tx, {
     userId: toClient ? offer.request.clientId : offer.executor.userId,
     kind: "chat.message",
-    title: t.notify.title(toClient ? ru.common.executorLabel(offer.executor.publicNumber) : t.clientLabel),
+    title: t.notify.title(toClient ? label : t.clientLabel),
     body: text.length > NOTIFY_SNIPPET ? `${text.slice(0, NOTIFY_SNIPPET - 1)}…` : text,
-    link,
+    link: linkFor(offer, toClient),
+  });
+}
+
+// ─── закрытие оператором (ответ №19) ─────────────────────────────────────────
+
+const m = t.moderation;
+
+async function notifyBothParties(tx: Db, offer: OfferContext, kind: string, title: string, body: string): Promise<void> {
+  await notify(tx, { userId: offer.request.clientId, kind, title, body, link: linkFor(offer, true) });
+  await notify(tx, { userId: offer.executor.userId, kind, title, body, link: linkFor(offer, false) });
+}
+
+/** Оператор и существующий отклик; проверка перехода по таблице CHAT_MODERATION. */
+async function moderated(user: CurrentUser, offerId: string, action: ChatModerationAction): Promise<OfferContext> {
+  if (user.role !== "OPERATOR") return fail.forbidden();
+  const { offer } = await requireOffer(db, user, offerId);
+  moderationTarget(action, offer.chatClosedAt ? "CLOSED" : "OPEN", user.role);
+  return offer;
+}
+
+/**
+ * Оператор закрывает чат с причиной: стороны только читают и видят причину. Переход — условным
+ * updateMany по «ещё открыт»: двойной клик и параллельный запрос дают ровно одно закрытие (второй — CONFLICT).
+ */
+export async function closeChat(user: CurrentUser, offerId: string, reasonRaw: string): Promise<void> {
+  if (user.role !== "OPERATOR") return fail.forbidden();
+  const reason = reasonRaw.trim();
+  if (reason.length < CHAT_CLOSE_REASON_MIN || reason.length > CHAT_CLOSE_REASON_MAX) {
+    return fail.validation(m.reasonRequired(CHAT_CLOSE_REASON_MIN, CHAT_CLOSE_REASON_MAX));
+  }
+  const offer = await moderated(user, offerId, "close");
+  await transaction(async (tx) => {
+    const closedAt = new Date();
+    expectOneUpdated(
+      await tx.offer.updateMany({ where: { id: offerId, chatClosedAt: null }, data: { chatClosedAt: closedAt, chatClosedReason: reason } }),
+      m.errors.close,
+    );
+    await recordAudit(tx, {
+      actor: actorOf(user),
+      action: "chat.closed",
+      entity: { type: "offer", id: offerId },
+      scope: scopeOf(offer),
+      before: { closed: false },
+      after: { closed: true, reason },
+    });
+    await notifyBothParties(tx, offer, "chat.closed", m.notify.closed.title, m.notify.closed.body(reason));
+  });
+}
+
+/** Оператор снова открывает закрытый им чат. Повтор — CONFLICT, без второй записи в журнале. */
+export async function reopenChat(user: CurrentUser, offerId: string): Promise<void> {
+  const offer = await moderated(user, offerId, "reopen");
+  await transaction(async (tx) => {
+    expectOneUpdated(
+      await tx.offer.updateMany({ where: { id: offerId, chatClosedAt: { not: null } }, data: { chatClosedAt: null, chatClosedReason: null } }),
+      m.errors.reopen,
+    );
+    await recordAudit(tx, {
+      actor: actorOf(user),
+      action: "chat.reopened",
+      entity: { type: "offer", id: offerId },
+      scope: scopeOf(offer),
+      before: { closed: true, reason: offer.chatClosedReason },
+      after: { closed: false },
+    });
+    await notifyBothParties(tx, offer, "chat.reopened", m.notify.reopened.title, m.notify.reopened.body);
   });
 }

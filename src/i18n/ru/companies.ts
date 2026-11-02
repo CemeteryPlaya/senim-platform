@@ -217,6 +217,7 @@ export const companies = {
     operatorReadOnly: "Оператор видит переписку, но не пишет в неё",
     note: "Общение — только здесь. Телефоны, ссылки и e-mail скрываются автоматически.",
     closed: {
+      operatorClosed: "Чат закрыт оператором — можно только читать",
       offerWithdrawn: "Исполнитель отозвал отклик — чат закрыт",
       offerDeclined: "Отклик отклонён — чат закрыт",
       requestCancelled: "Заявка отменена — чат закрыт",
@@ -232,6 +233,28 @@ export const companies = {
     },
     notify: {
       title: (from: string) => `Новое сообщение: ${from}`,
+    },
+    /** Оператор закрывает и открывает чат (ответ №19). */
+    moderation: {
+      closedTitle: "Чат закрыт оператором",
+      closedReason: (reason: string) => `Причина: ${reason}`,
+      closedHint: "Переписка сохранена, писать в неё нельзя. Вопрос по сделке — через спор или поддержку.",
+      close: "Закрыть чат",
+      closeTitle: "Закрыть чат для сторон?",
+      closeText: "Заказчик и исполнитель смогут только читать переписку. Открыть чат снова можно в любой момент.",
+      reasonLabel: "Причина закрытия",
+      reasonHint: "Её увидят обе стороны",
+      confirmClose: "Да, закрыть",
+      reopen: "Открыть чат снова",
+      reasonRequired: (min: number, max: number) => `Напишите причину — от ${min} до ${max} символов`,
+      notify: {
+        closed: { title: "Чат закрыт оператором", body: (reason: string) => `Причина: ${reason}` },
+        reopened: { title: "Чат снова открыт", body: "Оператор открыл переписку — можно писать." },
+      },
+      errors: {
+        close: "Чат уже закрыт",
+        reopen: "Чат уже открыт",
+      },
     },
   },
 } as const;

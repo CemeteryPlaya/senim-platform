@@ -61,6 +61,17 @@ export {
   type OwnPortfolioItem,
   type PortfolioInput,
 } from "./portfolio";
-export { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, getChat, sendMessage, type ChatMessageView, type ChatView } from "./chat";
+export {
+  CHAT_CLOSE_REASON_MAX,
+  CHAT_CLOSE_REASON_MIN,
+  CHAT_MAX_ATTACHMENTS,
+  CHAT_MAX_LENGTH,
+  closeChat,
+  getChat,
+  reopenChat,
+  sendMessage,
+  type ChatMessageView,
+  type ChatView,
+} from "./chat";
 
 export const jobHandlers = {} as const;

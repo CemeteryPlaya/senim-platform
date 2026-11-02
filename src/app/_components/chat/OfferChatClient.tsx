@@ -6,13 +6,16 @@ import { ru } from "@/i18n/ru";
 import type { ChatView } from "@/modules/companies";
 import { Alert, Chat, cn } from "@/ui";
 import { loadChat, sendChatMessage } from "./actions";
+import { ChatModeration } from "./ChatModeration";
 
 /** Как часто обновлять ленту, пока вкладка видна. */
 const POLL_MS = 5_000;
 
-type Props = { id: string; offerId: string; initial: ChatView; title: string; className?: string };
+type Props = { id: string; offerId: string; initial: ChatView; title: string; reasonMax: number; className?: string };
 
-export function OfferChatClient({ id, offerId, initial, title, className }: Props) {
+const m = ru.companies.chat.moderation;
+
+export function OfferChatClient({ id, offerId, initial, title, reasonMax, className }: Props) {
   const [chat, setChat] = useState(initial);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +49,12 @@ export function OfferChatClient({ id, offerId, initial, title, className }: Prop
 
   return (
     <div id={id} className={cn("flex scroll-mt-24 flex-col gap-3", className)}>
+      {chat.closedByOperator && (
+        <Alert tone="warning" title={m.closedTitle}>
+          <p>{m.closedReason(chat.closedByOperator.reason)}</p>
+          <p>{m.closedHint}</p>
+        </Alert>
+      )}
       <Chat
         title={title}
         messages={chat.messages}
@@ -63,6 +72,7 @@ export function OfferChatClient({ id, offerId, initial, title, className }: Prop
           {error}
         </Alert>
       )}
+      {chat.canModerate && <ChatModeration offerId={offerId} closed={chat.closedByOperator !== null} reasonMax={reasonMax} onChanged={refresh} />}
     </div>
   );
 }

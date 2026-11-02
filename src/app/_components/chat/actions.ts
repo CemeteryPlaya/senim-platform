@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { CHAT_MAX_LENGTH, getChat, sendMessage } from "@/modules/companies";
+import { CHAT_CLOSE_REASON_MAX, CHAT_MAX_LENGTH, closeChat, getChat, reopenChat, sendMessage } from "@/modules/companies";
 import { requireUser } from "@/modules/identity";
 import { action } from "@/platform/action";
 
@@ -22,3 +22,19 @@ export const sendChatMessage = action(
     return sendMessage(user, input.offerId, input.text, []);
   },
 );
+
+/** Оператор закрывает чат с причиной (ответ №19). Длину причины после trim проверяет companies.closeChat. */
+export const closeChatAction = action(
+  "companies.closeChat",
+  z.object({ offerId, reason: z.string().max(CHAT_CLOSE_REASON_MAX * 2) }),
+  async (input) => {
+    const user = await requireUser("OPERATOR");
+    await closeChat(user, input.offerId, input.reason);
+  },
+);
+
+/** Оператор снова открывает закрытый чат. */
+export const reopenChatAction = action("companies.reopenChat", z.object({ offerId }), async (input) => {
+  const user = await requireUser("OPERATOR");
+  await reopenChat(user, input.offerId);
+});

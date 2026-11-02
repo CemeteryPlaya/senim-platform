@@ -226,6 +226,8 @@ export const deal = {
       "document.signature.added": "Сторона подписала документ",
       "document.signed": "Документ подписан обеими сторонами",
       "document.superseded": "Документ заменён новой версией",
+      "chat.closed": "Оператор закрыл чат",
+      "chat.reopened": "Оператор снова открыл чат",
     } as Record<string, string>,
   },
 
