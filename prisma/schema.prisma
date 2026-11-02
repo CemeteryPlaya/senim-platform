@@ -124,6 +124,9 @@ model ExecutorProfile {
   about            String             @default("")
   yearsExperience  Int                @default(0)
   city             String             @default("Астана")
+  // Адрес мастерской или офиса (ответ №6): район видит заказчик всегда, улицу и дом — только в режиме «имя показано».
+  district         String             @default("")
+  streetAddress    String             @default("")
   measurementTerms MeasurementTerms   @default(FREE)
   measurementFee   Int? // ₸, только для FEE_IF_NO_DEAL
   ratingAvg        Float              @default(0)
@@ -264,6 +267,9 @@ model Offer {
   measurementFee   Int?
   comment          String           @default("")
   status           OfferStatus      @default(SENT)
+  // Чат отклика закрыт оператором (ответ №19): только чтение до повторного открытия.
+  chatClosedAt     DateTime?
+  chatClosedReason String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
