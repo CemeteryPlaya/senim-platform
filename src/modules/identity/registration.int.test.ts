@@ -5,7 +5,7 @@ import { decryptPii, encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
-import { makeMeasured } from "../../../test/factories/requests";
+import { makeMeasured, withPreContractFlows } from "../../../test/factories/requests";
 import { registerExecutor, reviewExecutorRegistration, type ExecutorRegistrationInput } from "./registration";
 
 const IIN = testIin("910803", 3, 21);
@@ -164,6 +164,9 @@ describe("registerExecutor", () => {
 });
 
 describe("подписант договора — свойство профиля, а не аккаунта", () => {
+  // Замер и согласие на договор — шаги сценариев до договора (флаг preContractFlows).
+  withPreContractFlows();
+
   const profileOf = (profileId: string) => db.executorProfile.findUniqueOrThrow({ where: { id: profileId } });
   const accountOf = (userId: string) => db.user.findUniqueOrThrow({ where: { id: userId } });
 
@@ -238,13 +241,13 @@ describe("подписант договора — свойство профил�
     await registerExecutor(me, ip);
     const m = await makeMeasured(me);
 
-    await agreeToContract(me, { requestId: m.requestId, template: "advance-50", identity: { fullName: "Жумабаев Ерлан", iin: IIN } });
+    await agreeToContract(me, { requestId: m.requestId, identity: { fullName: "Жумабаев Ерлан", iin: IIN } });
     expect(await accountOf(me.id)).toMatchObject({ iinHash: hashPii(IIN) });
 
     // Один ИИН заказчика — один аккаунт: для чужих правило остаётся.
     const other = await smsUser();
     const m2 = await makeMeasured(other);
-    expect(await codeOf(agreeToContract(other, { requestId: m2.requestId, template: "advance-50", identity: { fullName: "Жумабаев Ерлан", iin: IIN } }))).toBe("CONFLICT");
+    expect(await codeOf(agreeToContract(other, { requestId: m2.requestId, identity: { fullName: "Жумабаев Ерлан", iin: IIN } }))).toBe("CONFLICT");
   });
 
   it("чужой ИИН в анкете ТОО не мешает настоящему владельцу ИИН указать его перед договором", async () => {
@@ -253,7 +256,7 @@ describe("подписант договора — свойство профил�
     const owner = await smsUser();
     const m = await makeMeasured(owner);
 
-    await agreeToContract(owner, { requestId: m.requestId, template: "advance-50", identity: { fullName: "Тулегенов Бауыржан", iin: DIRECTOR_IIN } });
+    await agreeToContract(owner, { requestId: m.requestId, identity: { fullName: "Тулегенов Бауыржан", iin: DIRECTOR_IIN } });
     expect(await accountOf(owner.id)).toMatchObject({ iinHash: hashPii(DIRECTOR_IIN) });
   });
 
