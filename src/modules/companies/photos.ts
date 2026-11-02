@@ -15,12 +15,12 @@ export function toPhotoViews(files: readonly FileRow[], alt: (n: number) => stri
 
 export const PHOTO_SELECT = { id: true, provider: true, storageKey: true } as const;
 
-/** Свои фото работы (загружены в портфолио) — и фото отчёта этапа: порядок, затем время загрузки. */
+/** Свои фото работы (загружены в портфолио) — и фото сдачи: порядок, затем время загрузки. */
 export const OWN_PHOTOS = {
   select: PHOTO_SELECT,
   orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
 } satisfies Prisma.PortfolioItem$photosArgs;
-/** Итоговые фото сделки, на которые ссылается работа (PortfolioDealPhoto): файлы этапа, не копии. */
+/** Итоговые фото сделки, на которые ссылается работа (PortfolioDealPhoto): файлы сдачи, не копии. */
 export const DEAL_PHOTOS = {
   select: { file: { select: PHOTO_SELECT } },
   orderBy: { sortOrder: "asc" },

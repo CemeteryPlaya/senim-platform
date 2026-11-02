@@ -48,7 +48,7 @@ describe("показать телефон: кто видит", () => {
     const t = await talkedThread();
     const rival = await makeExecutor();
     const rivalOffer = await db.offer.create({
-      data: { requestId: t.requestId, executorId: rival.executor.id, price: 800_000, durationDays: 15, warrantyMonths: 12, measurementTerms: "FREE" },
+      data: { requestId: t.requestId, executorId: rival.executor.id, priceTiyn: 800_000_00n, durationDays: 15, warrantyMonths: 12, measurementTerms: "FREE" },
     });
     const operator = await makeOperator();
     expect((await getChat(t.executor, t.offerId)).clientPhone).toBeNull();

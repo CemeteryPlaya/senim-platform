@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { leaveReview } from "@/modules/deal-core";
 import { db } from "@/platform/db";
 import { actingAs, makeClient, makeExecutor, makeOperator, makeUser } from "../../../test/factories";
-import { makeDealWithReport, makePortfolioItem } from "../../../test/factories/companies";
+import { makeDealWithReport, makePortfolioItem, withFeature } from "../../../test/factories/companies";
 import {
   createPortfolioFromDeal,
   deletePortfolioItem,
@@ -37,7 +37,7 @@ const fromDeal = (d: Fixture, extra: Partial<Parameters<typeof createPortfolioFr
 const inFeed = async (itemId: string) => (await listInspiration({ limit: 96 })).items.some((i) => i.id === itemId);
 
 describe("портфолио из сделки: добавление исполнителем", () => {
-  it("форма подставляет тип, стиль и город из заявки; фото — только последнего этапа", async () => {
+  it("форма подставляет тип, стиль и город из заявки; фото — только фото сдачи", async () => {
     const d = await makeDealWithReport();
     const draft = await getDealPortfolioDraft(d.executor, d.dealId);
     expect(draft).toMatchObject({ furnitureTypeId: d.furnitureTypeId, style: "scandi", place: "Астана", existingItemId: null, consent: false });
@@ -46,7 +46,7 @@ describe("портфолио из сделки: добавление испол�
     expect(JSON.stringify(draft)).not.toContain("Тестовая");
   });
 
-  it("создаёт работу со ссылкой на сделку и фото этапа; повтор — та же работа, без второго журнала", async () => {
+  it("создаёт работу со ссылкой на сделку и фото сдачи; повтор — та же работа, без второго журнала", async () => {
     const d = await makeDealWithReport();
     const first = await fromDeal(d);
     const again = await fromDeal(d, { title: "Другое название" });
@@ -76,7 +76,7 @@ describe("портфолио из сделки: добавление испол�
     await expect(fromDeal(running)).rejects.toMatchObject({ code: "CONFLICT" });
   });
 
-  it("фото не из последнего этапа или чужое — отказ; адрес вместо места — отказ", async () => {
+  it("фото не из сдачи (ход работ) или чужое — отказ; адрес вместо места — отказ", async () => {
     const d = await makeDealWithReport();
     await expect(fromDeal(d, { fileIds: [d.earlierPhotoId] })).rejects.toMatchObject({ code: "VALIDATION" });
     const other = await makeDealWithReport();
@@ -85,7 +85,7 @@ describe("портфолио из сделки: добавление испол�
     expect(await db.portfolioItem.count({ where: { dealId: d.dealId } })).toBe(0);
   });
 
-  it("удаление работы не трогает фото этапа", async () => {
+  it("удаление работы не трогает фото сдачи", async () => {
     const d = await makeDealWithReport();
     const { id } = await fromDeal(d);
     await deletePortfolioItem(d.executor, id);
@@ -159,11 +159,11 @@ describe("согласие заказчика на показ", () => {
 
   it("галочка в отзыве даёт согласие в той же транзакции", async () => {
     const d = await makeDealWithReport();
-    await leaveReview(d.client, { dealId: d.dealId, rating: 5, text: "Отлично", portfolioConsent: true });
+    await withFeature("reviews", true, () => leaveReview(d.client, { dealId: d.dealId, rating: 5, text: "Отлично", portfolioConsent: true }));
     expect((await db.deal.findUniqueOrThrow({ where: { id: d.dealId } })).portfolioConsentAt).not.toBeNull();
 
     const other = await makeDealWithReport();
-    await leaveReview(other.client, { dealId: other.dealId, rating: 4 });
+    await withFeature("reviews", true, () => leaveReview(other.client, { dealId: other.dealId, rating: 4 }));
     expect((await db.deal.findUniqueOrThrow({ where: { id: other.dealId } })).portfolioConsentAt).toBeNull();
   });
 
@@ -247,7 +247,7 @@ describe("«Вдохновение»: подборка и карточка", () 
   it("у работы из сделки — отзыв заказчика без контактов", async () => {
     const d = await makeDealWithReport();
     const { id } = await fromDeal(d);
-    await leaveReview(d.client, { dealId: d.dealId, rating: 5, text: "Звоните мастеру +7 701 123 45 67", portfolioConsent: true });
+    await withFeature("reviews", true, () => leaveReview(d.client, { dealId: d.dealId, rating: 5, text: "Звоните мастеру +7 701 123 45 67", portfolioConsent: true }));
     const detail = await getInspirationItem(id, null);
     expect(detail).toMatchObject({ doneOnPlatform: true, review: { rating: 5 } });
     expect(detail!.review!.text).not.toContain("701");

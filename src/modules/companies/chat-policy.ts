@@ -12,12 +12,12 @@ export type ChatParty = "client" | "executor" | "operator";
 
 export type ChatState = { offerStatus: OfferStatus; requestStatus: RequestStatus; dealStatus: DealStatus | null; closedByOperator: boolean };
 
-export type ChatClosedReason = "operatorClosed" | "offerWithdrawn" | "offerDeclined" | "requestCancelled" | "dealCancelled" | "dealTerminated";
+export type ChatClosedReason = "operatorClosed" | "offerWithdrawn" | "offerDeclined" | "requestCancelled" | "dealCancelled" | "dealRefunded";
 
 export function chatClosedReason(state: ChatState): ChatClosedReason | null {
   if (state.closedByOperator) return "operatorClosed";
   if (state.dealStatus === "CANCELLED") return "dealCancelled";
-  if (state.dealStatus === "TERMINATED") return "dealTerminated";
+  if (state.dealStatus === "REFUNDED") return "dealRefunded";
   if (state.offerStatus === "WITHDRAWN") return "offerWithdrawn";
   if (state.offerStatus === "DECLINED") return "offerDeclined";
   if (state.requestStatus === "CANCELLED") return "requestCancelled";

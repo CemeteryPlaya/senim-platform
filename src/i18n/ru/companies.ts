@@ -244,7 +244,7 @@ export const companies = {
       offerDeclined: "Отклик отклонён — чат закрыт",
       requestCancelled: "Заявка отменена — чат закрыт",
       dealCancelled: "Сделка отменена — чат закрыт",
-      dealTerminated: "Сделка расторгнута — чат закрыт",
+      dealRefunded: "Деньги вернулись покупателю — чат закрыт",
     },
     errors: {
       notFound: "Переписка не найдена",

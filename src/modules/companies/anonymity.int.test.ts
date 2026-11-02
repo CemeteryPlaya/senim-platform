@@ -172,7 +172,7 @@ describe("recalculateRating", () => {
 
   it("параллельные отзывы не теряются", async () => {
     const executor = await makeExecutor();
-    const [a, b] = await Promise.all([makeOfferThread({ executor, dealStatus: "COMPLETED" }), makeOfferThread({ executor, dealStatus: "COMPLETED" })]);
+    const [a, b] = await Promise.all([makeOfferThread({ executor, dealStatus: "SPLIT_PAYOUT" }), makeOfferThread({ executor, dealStatus: "SPLIT_PAYOUT" })]);
 
     await Promise.all(
       [
