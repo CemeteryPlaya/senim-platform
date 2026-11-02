@@ -8,6 +8,7 @@ import { executor } from "./ru/executor";
 import { files } from "./ru/files";
 import { identity } from "./ru/identity";
 import { landing } from "./ru/landing";
+import { materials } from "./ru/materials";
 import { notifications } from "./ru/notifications";
 import { operator } from "./ru/operator";
 import { payments } from "./ru/payments";
@@ -30,6 +31,7 @@ export const ru = {
   files,
   notifications,
   operator,
+  materials,
   ai,
   landing,
   bankDemo,
