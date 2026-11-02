@@ -29,12 +29,70 @@ export type FinanceRow = {
   date: Date | null;
 };
 
+/** Месяц по времени Алматы: «2026-11». */
+export type MonthKey = `${number}-${"01" | "02" | "03" | "04" | "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12"}`;
+
+/** Заработок за месяц: полученное по дате подтверждения оплаты. */
+export type MonthEarnings = {
+  month: MonthKey;
+  received: number;
+  /** Получено в предыдущем месяце — для сравнения. */
+  previous: number;
+  /** Полученные в этом месяце оплаты, новые сверху. */
+  rows: FinanceRow[];
+  /** Соседние месяцы от первой оплаты до текущего; null — дальше идти некуда. */
+  prev: MonthKey | null;
+  next: MonthKey | null;
+};
+
 export type ExecutorFinance = {
   totals: Record<FinanceState, number>;
   rows: FinanceRow[];
   /** Есть сделки, где оплату раскрывает банк (эскроу): от этого зависят тексты экрана. */
   hasEscrow: boolean;
+  month: MonthEarnings;
 };
+
+/** Месяцы считаем по времени Алматы (UTC+5, без перехода на летнее время). */
+const MONTH_PARTS = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Almaty", year: "numeric", month: "2-digit" });
+
+export function monthOf(date: Date): MonthKey {
+  const part = (type: "year" | "month") => MONTH_PARTS.formatToParts(date).find((p) => p.type === type)!.value;
+  return `${part("year")}-${part("month")}` as MonthKey;
+}
+
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Месяц из адреса страницы: «ГГГГ-ММ», иначе null. */
+export function parseMonth(value: string | undefined): MonthKey | null {
+  return value && MONTH_RE.test(value) ? (value as MonthKey) : null;
+}
+
+function shiftMonth(month: MonthKey, by: number): MonthKey {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  const index = y * 12 + (m - 1) + by;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}` as MonthKey;
+}
+
+/**
+ * Заработок за месяц `wanted` (по умолчанию — текущий). Листать можно от месяца первой оплаты до текущего;
+ * месяц за этими краями — ближайший край. Ключи «ГГГГ-ММ» сравниваются как строки.
+ */
+export function monthEarnings(rows: readonly FinanceRow[], wanted: MonthKey | null | undefined, now: Date): MonthEarnings {
+  const received = rows.filter((r): r is FinanceRow & { date: Date } => r.state === "received" && r.date !== null);
+  const current = monthOf(now);
+  const first = received.reduce((min, r) => (monthOf(r.date) < min ? monthOf(r.date) : min), current);
+  const month = !wanted || wanted > current ? current : wanted < first ? first : wanted;
+  const sum = (m: MonthKey) => received.reduce((total, r) => (monthOf(r.date) === m ? total + r.amount : total), 0);
+  return {
+    month,
+    received: sum(month),
+    previous: sum(shiftMonth(month, -1)),
+    rows: received.filter((r) => monthOf(r.date) === month).sort((a, b) => b.date.getTime() - a.date.getTime()),
+    prev: month > first ? shiftMonth(month, -1) : null,
+    next: month < current ? shiftMonth(month, 1) : null,
+  };
+}
 
 const CLOSED_DEALS: ReadonlySet<DealStatus> = new Set(["CANCELLED", "TERMINATED"]);
 
@@ -65,8 +123,11 @@ function byPriority(a: FinanceRow, b: FinanceRow): number {
 
 const done = (s: StageStatus) => s === "ACCEPTED" || s === "CLOSED";
 
-/** Оплаты этапов своих сделок. Только исполнитель в активной роли; чужие сделки не видны. */
-export async function getExecutorFinance(user: CurrentUser): Promise<ExecutorFinance> {
+/**
+ * Оплаты этапов своих сделок и заработок за месяц `month` (по умолчанию — текущий на момент `now`).
+ * Только исполнитель в активной роли; чужие сделки не видны.
+ */
+export async function getExecutorFinance(user: CurrentUser, opts: { month?: MonthKey | null; now?: Date } = {}): Promise<ExecutorFinance> {
   if (user.role !== "EXECUTOR" || !user.executor) return fail.forbidden();
   const deals = await db.deal.findMany({
     where: { executorId: user.executor.id },
@@ -113,5 +174,5 @@ export async function getExecutorFinance(user: CurrentUser): Promise<ExecutorFin
 
   const totals: Record<FinanceState, number> = { received: 0, expected: 0, upcoming: 0 };
   for (const r of rows) totals[r.state] += r.amount;
-  return { totals, rows, hasEscrow: deals.some((d) => d.paymentMode !== "MANUAL") };
+  return { totals, rows, hasEscrow: deals.some((d) => d.paymentMode !== "MANUAL"), month: monthEarnings(rows, opts.month, opts.now ?? new Date()) };
 }

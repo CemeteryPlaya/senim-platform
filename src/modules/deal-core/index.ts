@@ -40,7 +40,7 @@ export { retryPaymentOperation } from "./retry";
 // Чтения для экранов
 export { dealPartyOf, getDealView, listDeals, type DealListItem, type DealView } from "./queries";
 export type { NextAction, NextStep } from "./next-step";
-export { getExecutorFinance, type ExecutorFinance, type FinanceRow, type FinanceState } from "./finance";
+export { getExecutorFinance, parseMonth, type ExecutorFinance, type FinanceRow, type FinanceState, type MonthEarnings, type MonthKey } from "./finance";
 
 // Схемы входа для Server Actions экранов
 export {
