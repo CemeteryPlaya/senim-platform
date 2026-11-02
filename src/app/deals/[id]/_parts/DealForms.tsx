@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { DisputeReason } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { Button, FormError, RadioCards, Select, Textarea } from "@/ui";
+import { Button, Checkbox, FormError, RadioCards, Select, Textarea } from "@/ui";
 import { useRunAction } from "../../_parts/useRunAction";
 import { disputePositionAction, openDisputeAction, reviewAction } from "../actions";
 
@@ -84,12 +84,13 @@ export function ReviewForm({ dealId }: { dealId: string }) {
   const { run, pending, error, fieldErrors } = useRunAction(reviewAction);
   const [rating, setRating] = useState("5");
   const [text, setText] = useState("");
+  const [portfolioConsent, setPortfolioConsent] = useState(false);
   return (
     <form
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
-        run({ dealId, rating: Number(rating), text });
+        run({ dealId, rating: Number(rating), text, portfolioConsent });
       }}
     >
       <RadioCards label={t.forms.ratingLabel} name="rating" options={RATINGS} value={rating} onChange={setRating} columns={3} error={fieldErrors.rating?.[0]} />
@@ -102,6 +103,12 @@ export function ReviewForm({ dealId }: { dealId: string }) {
         onChange={(e) => setText(e.target.value)}
         maxLength={2000}
         rows={3}
+      />
+      <Checkbox
+        label={ru.companies.dealPortfolio.reviewConsent}
+        hint={ru.companies.dealPortfolio.reviewConsentHint}
+        checked={portfolioConsent}
+        onChange={(e) => setPortfolioConsent(e.target.checked)}
       />
       <FormError message={error} />
       <Button type="submit" fullWidth loading={pending}>

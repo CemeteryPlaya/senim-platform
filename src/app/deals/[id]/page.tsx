@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
+import { DealPortfolioPanel } from "@/app/_components/deal-portfolio/DealPortfolioPanel";
 import { SigningPanel } from "@/app/_components/signing";
 import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import { DealFlowSteps } from "@/app/_components/pre-contract/DealFlowSteps";
@@ -85,6 +86,7 @@ export default async function DealPage({ params }: Props) {
             {deal.review.text && <p className="mt-2 text-base text-ink">{deal.review.text}</p>}
           </Card>
         )}
+        <DealPortfolioPanel user={user} dealId={deal.id} />
         <History deal={deal} />
         {isParty && (deal.status === "AWAITING_SIGNATURES" || deal.status === "AWAITING_DEPOSIT") && (
           <ActionButton

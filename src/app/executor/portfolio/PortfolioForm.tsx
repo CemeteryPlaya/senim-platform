@@ -7,6 +7,9 @@ import { Alert, Button, Checkbox, Input, RadioCards, Select, Textarea } from "@/
 import { STYLES, type StyleKey } from "@/verticals/furniture";
 import { createWork, updateWork } from "./actions";
 
+/** Как PLACE_MAX в companies (сервер проверяет сам; здесь — только ограничение поля). */
+const PLACE_MAX = 80;
+
 const t = ru.companies.portfolio;
 
 export type PortfolioFormValues = {
@@ -16,6 +19,7 @@ export type PortfolioFormValues = {
   description: string;
   priceFrom: number | null;
   published: boolean;
+  place: string;
 };
 
 type Props = {
@@ -49,6 +53,7 @@ export function PortfolioForm({ itemId, initial, types }: Props) {
       description: values.description,
       priceFrom: toPrice(values.price),
       published: values.published,
+      place: values.place,
     };
     startTransition(async () => {
       const result = itemId ? await updateWork({ id: itemId, ...input }) : await createWork(input);
@@ -97,6 +102,15 @@ export function PortfolioForm({ itemId, initial, types }: Props) {
         maxLength={2000}
         optional
         error={err("description")}
+      />
+      <Input
+        label={t.fields.place}
+        hint={t.fields.placeHint}
+        value={values.place}
+        onChange={(e) => set("place", e.target.value)}
+        maxLength={PLACE_MAX}
+        optional
+        error={err("place")}
       />
       <Input
         label={t.fields.price}

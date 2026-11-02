@@ -216,6 +216,8 @@ export const deal = {
       "dispute.position.submitted": "Сторона отправила позицию по спору",
       "dispute.resolved": "Оператор решил спор",
       "review.created": "Оставлен отзыв",
+      "portfolio.consent_given": "Заказчик разрешил показать фото в портфолио исполнителя",
+      "portfolio.consent_revoked": "Заказчик отозвал разрешение показывать фото",
       "payment.operation.requested": "Запрошена операция по счёту",
       "payment.operation.succeeded": "Операция по счёту выполнена",
       "payment.operation.failed": "Операция по счёту не прошла",

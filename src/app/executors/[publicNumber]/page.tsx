@@ -102,7 +102,7 @@ export default async function ExecutorPublicPage({ params }: Props) {
         ) : (
           <ul className="flex flex-col divide-y divide-line">
             {reviews.map((r) => (
-              <li key={r.id} className="flex flex-col gap-1 py-4">
+              <li key={r.id} id={`review-${r.id}`} className="flex scroll-mt-6 flex-col gap-1 py-4">
                 <p className="flex flex-wrap items-center gap-3">
                   <span className="inline-flex items-center gap-0.5" aria-label={t.reviewRating(r.rating)} role="img">
                     {Array.from({ length: 5 }, (_, i) => (

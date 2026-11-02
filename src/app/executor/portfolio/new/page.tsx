@@ -17,7 +17,7 @@ export default async function NewWorkPage() {
       <PageHeader title={t.newTitle} back={{ href: "/executor/portfolio", label: t.back }} className="pb-0" />
       <Alert tone="info">{t.photos.saveFirst}</Alert>
       <PortfolioForm
-        initial={{ furnitureTypeId: "", style: "", title: "", description: "", priceFrom: null, published: true }}
+        initial={{ furnitureTypeId: "", style: "", title: "", description: "", priceFrom: null, published: true, place: "" }}
         types={types}
       />
     </Container>

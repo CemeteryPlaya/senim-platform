@@ -7,6 +7,7 @@ import { isAppError } from "@/platform/errors";
 import { Container, PageHeader } from "@/ui";
 import type { StyleKey } from "@/verticals/furniture";
 import { PortfolioForm } from "../PortfolioForm";
+import { FromDealNote } from "../from-deal/FromDealNote";
 import { WorkPhotos } from "./WorkPhotos";
 
 const t = ru.companies.portfolio;
@@ -28,6 +29,7 @@ export default async function EditWorkPage({ params }: Props) {
   return (
     <Container size="form" className="flex flex-col gap-8 pb-12">
       <PageHeader title={t.editTitle} back={{ href: "/executor/portfolio", label: t.back }} className="pb-0" />
+      {item.fromDeal && <FromDealNote dealId={item.fromDeal.dealId} dealNumber={item.fromDeal.dealNumber} consent={item.fromDeal.consent} />}
 
       <WorkPhotos itemId={item.id} photos={item.photos} max={PORTFOLIO_MAX_PHOTOS} />
 
@@ -40,6 +42,7 @@ export default async function EditWorkPage({ params }: Props) {
           description: item.description,
           priceFrom: item.priceFrom,
           published: item.published,
+          place: item.place,
         }}
         types={types}
       />

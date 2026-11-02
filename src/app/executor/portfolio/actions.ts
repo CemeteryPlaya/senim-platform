@@ -3,7 +3,9 @@
 import { z } from "zod";
 import {
   attachPortfolioPhotos,
+  createPortfolioFromDeal,
   createPortfolioItem,
+  fromDealInputSchema,
   deletePortfolioItem,
   PORTFOLIO_MAX_PHOTOS,
   portfolioInputSchema,
@@ -55,3 +57,9 @@ export const attachWorkPhotos = action(
     return null;
   },
 );
+
+/** «Добавить в портфолио» из завершённой сделки: сделку, фото и повтор проверяет companies. */
+export const createWorkFromDeal = action("companies.createPortfolioFromDeal", fromDealInputSchema, async (input) => {
+  const user = await requireUser("EXECUTOR");
+  return createPortfolioFromDeal(user, input);
+});

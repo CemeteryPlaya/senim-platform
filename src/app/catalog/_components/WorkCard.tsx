@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ImageOff } from "lucide-react";
+import { ArrowRight, ImageOff, MapPin } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import type { PortfolioCard } from "@/modules/companies";
 import { ButtonLink, Money, StatusBadge } from "@/ui";
@@ -37,7 +37,22 @@ export function WorkCard({ card, showExecutor = true }: WorkCardProps) {
         <div className="flex flex-wrap gap-2">
           <StatusBadge tone="neutral">{card.furnitureType.name}</StatusBadge>
           <StatusBadge tone="neutral">{card.style.name}</StatusBadge>
+          {card.doneOnPlatform && <StatusBadge tone="success">{ru.companies.inspiration.doneOnPlatform}</StatusBadge>}
         </div>
+        {card.place && (
+          <p className="flex items-start gap-1 text-base text-muted">
+            <MapPin aria-hidden className="mt-1 size-4 shrink-0" />
+            {card.place}
+          </p>
+        )}
+        {card.reviewId && (
+          <Link
+            href={`/executors/${card.executor.publicNumber}#review-${card.reviewId}`}
+            className="inline-flex min-h-control-sm items-center self-start rounded-control text-base font-semibold text-primary underline underline-offset-4"
+          >
+            {ru.companies.dealPortfolio.reviewLink}
+          </Link>
+        )}
         <p className="text-lg font-semibold text-ink">
           {card.priceFrom !== null ? (
             <>
