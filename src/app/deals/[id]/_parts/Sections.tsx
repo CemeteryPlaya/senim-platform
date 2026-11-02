@@ -4,12 +4,12 @@ import { SigningPanel } from "@/app/_components/signing";
 import type { DealView } from "@/modules/deal-core";
 import type { SigningDocumentView } from "@/modules/documents";
 import { ru } from "@/i18n/ru";
-import { Alert, DateText, Money, StatusBadge } from "@/ui";
+import { Alert, DateText, StatusBadge } from "@/ui";
 import { ActionButton } from "../../_parts/ActionButton";
 import { cancelDealAction } from "../actions";
 import type { PartyContacts } from "./contacts";
 import { DisputePositionForm, OpenDisputeForm } from "./DealForms";
-import { gpsNote } from "./deal-view";
+import { disputeFacts, gpsNote, needsPosition } from "./deal-view";
 import { NEXT_HEADING_ID } from "./next-step";
 import { ProgressForm } from "./WorkForms";
 
@@ -168,19 +168,9 @@ export function ContactsSection({ contacts }: { contacts: PartyContacts | null }
   );
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1 py-2.5 first:pt-0">
-      <dt className="text-base text-muted">{label}</dt>
-      <dd className="text-base whitespace-pre-line text-ink">{children}</dd>
-    </div>
-  );
-}
-
 /** Спор: открыт — позиции сторон и форма своей позиции; решён — итог. Нет спора — «Открыть спор» свёрнуто. */
 export function DisputeSection({ deal }: { deal: DealView }) {
   const d = deal.dispute;
-  const isParty = deal.viewer === "CLIENT" || deal.viewer === "EXECUTOR";
   if (!d) {
     return deal.can.openDispute ? (
       <div className="border-t border-line pt-6">
@@ -191,30 +181,20 @@ export function DisputeSection({ deal }: { deal: DealView }) {
     ) : null;
   }
   const open = d.status === "OPEN";
-  const mine = deal.viewer === "CLIENT" ? d.clientPosition : deal.viewer === "EXECUTOR" ? d.executorPosition : null;
-  const s = t.dispute;
   return (
     <Section id="dispute" title={t.sections.dispute}>
       <StatusBadge tone={open ? "warning" : "neutral"} className="self-start">
-        {open ? s.open : s.resolved}
+        {open ? t.dispute.open : t.dispute.resolved}
       </StatusBadge>
       <dl className="flex flex-col divide-y divide-line">
-        <Row label={s.reasonLabel}>{s.reason[d.reason]}</Row>
-        <Row label={s.openedAt}>
-          <DateText value={d.createdAt} format="dateTime" />
-        </Row>
-        <Row label={s.descriptionLabel}>{d.description}</Row>
-        <Row label={s.clientPosition}>{d.clientPosition ?? s.noPosition}</Row>
-        <Row label={s.executorPosition}>{d.executorPosition ?? s.noPosition}</Row>
-        {d.outcome && <Row label={s.resolved}>{s.outcome[d.outcome]}</Row>}
-        {d.masterShareTiyn !== null && (
-          <Row label={s.masterShare}>
-            <Money amount={d.masterShareTiyn} />
-          </Row>
-        )}
-        {d.rationale && <Row label={s.rationale}>{d.rationale}</Row>}
+        {disputeFacts(d).map((f) => (
+          <div key={f.label} className="flex flex-col gap-1 py-2.5 first:pt-0">
+            <dt className="text-base text-muted">{f.label}</dt>
+            <dd className="text-base whitespace-pre-line text-ink">{f.value}</dd>
+          </div>
+        ))}
       </dl>
-      {isParty && open && !mine && <DisputePositionForm disputeId={d.id} />}
+      {needsPosition(deal.viewer, d) && <DisputePositionForm disputeId={d.id} />}
     </Section>
   );
 }

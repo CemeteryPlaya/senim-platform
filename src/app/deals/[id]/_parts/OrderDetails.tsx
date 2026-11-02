@@ -1,10 +1,9 @@
 import { ChevronDown } from "lucide-react";
-import type { ReactNode } from "react";
 import { daysLeft, type DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
-import { DateText, formatDays, formatMonths, Stepper } from "@/ui";
+import { formatDays, Stepper } from "@/ui";
 import { illustrationFor } from "@/app/_home/illustration";
-import { dealStep, heroImage } from "./deal-view";
+import { dealStep, heroImage, orderFacts } from "./deal-view";
 
 const v = ru.deal.view;
 
@@ -25,14 +24,15 @@ export function OrderDetails({ deal, now }: { deal: DealView; now: Date }) {
   const step = dealStep(deal.status, deal.dates.signedAt !== null);
   const planned = deal.dates.plannedReadyAt;
   const left = planned && COUNTING.has(deal.status) ? daysLeft(planned, now) : null;
-  const rows: { label: string; value: ReactNode }[] = [
-    deal.viewer === "EXECUTOR" ? { label: v.client, value: ru.deal.clientLabel } : { label: v.executor, value: deal.executorLabel },
-    ...(deal.subject.city ? [{ label: v.city, value: deal.subject.city }] : []),
-    ...(planned ? [{ label: v.plannedReady, value: <DateText value={planned} /> }] : []),
-    { label: v.duration, value: formatDays(deal.durationDays) },
-    { label: v.warranty, value: formatMonths(deal.warrantyMonths) },
-    ...(deal.dates.signedAt ? [{ label: v.signedAt, value: <DateText value={deal.dates.signedAt} /> }] : []),
-  ];
+  const rows = orderFacts({
+    viewer: deal.viewer,
+    executorLabel: deal.executorLabel,
+    city: deal.subject.city,
+    plannedReadyAt: planned,
+    signedAt: deal.dates.signedAt,
+    durationDays: deal.durationDays,
+    warrantyMonths: deal.warrantyMonths,
+  });
 
   return (
     <details className="group border-y border-line">
