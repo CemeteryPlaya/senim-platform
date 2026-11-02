@@ -13,6 +13,7 @@ import { OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transition
 import { visibleToExecutor } from "./visibility";
 import { allowedRound } from "./retries";
 import { preContractView } from "./pre-contract";
+import { coverPhoto, coversOf } from "./covers";
 
 const e = ru.requests.errors;
 const n = ru.requests.notify;
@@ -206,7 +207,7 @@ export type OfferDetail = Awaited<ReturnType<typeof getOfferForClient>>;
 
 // ─── чтение: исполнитель ─────────────────────────────────────────────────────
 
-/** Входящие: открытые заявки, видимые исполнителю (тендер его сегмента и прямые ему), с его откликом. */
+/** Входящие: открытые заявки, видимые исполнителю (тендер его сегмента и прямые ему), с его откликом и обложкой. */
 export async function listIncomingRequests(user: CurrentUser, filter: { mode?: "TENDER" | "DIRECT" } = {}) {
   const executor = await loadExecutor(db, user);
   const rows = await db.request.findMany({
@@ -217,10 +218,13 @@ export async function listIncomingRequests(user: CurrentUser, filter: { mode?: "
       // Последняя попытка исполнителя (повтор разрешает оператор, №16).
       offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, select: { status: true } },
       _count: { select: { offers: { where: { status: { not: "WITHDRAWN" } } } } },
+      photos: coverPhoto,
     },
   });
+  const cover = await coversOf(rows);
   return rows.map((r) => ({
     id: r.id,
+    cover: cover(r),
     number: r.number,
     title: requestTitle(r),
     mode: r.mode,
