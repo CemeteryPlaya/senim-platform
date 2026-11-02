@@ -2,10 +2,13 @@ import fontkit from "@pdf-lib/fontkit";
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFStream } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { sha256Hex } from "@/platform/crypto";
+import { acceptanceActSpec } from "../templates/acceptance-act";
 import { contractSpec } from "../templates/contract";
-import { stageActSpec } from "../templates/stage-act";
-import { renderPdf } from "./render";
+import { appendPages, renderPdf } from "./render";
 import type { PdfSpec } from "./spec";
+
+/** Минимальный PNG 1×1 (прозрачный пиксель). */
+const PNG_1X1 = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64"));
 
 const spec = (over: Partial<PdfSpec> = {}): PdfSpec => ({
   title: "Договор подряда № Д-0001/2026",
@@ -25,7 +28,13 @@ const spec = (over: Partial<PdfSpec> = {}): PdfSpec => ({
       ],
       rows: [["1", "Изготовление корпуса и фасадов с очень длинным описанием, которое переносится на несколько строк", "625 000 ₸"]],
     },
-    { kind: "signatures", parties: [{ role: "Заказчик", name: "Сапарова Айгерим" }, { role: "Исполнитель", name: "ТОО «Ағаш Шебер»" }] },
+    {
+      kind: "signatures",
+      parties: [
+        { role: "Заказчик", name: "Сапарова Айгерим", caption: "Подпись — в листе подписей" },
+        { role: "Исполнитель", name: "ТОО «Ағаш Шебер»", caption: "Подпись — в листе подписей" },
+      ],
+    },
   ],
   ...over,
 });
@@ -149,46 +158,71 @@ describe("renderPdf", () => {
     expect(Math.min(...body.map((op) => op.y))).toBeGreaterThanOrEqual(20 * mm);
   });
 
-  it("договор и акт с длинными наименованиями и крупными суммами раскладываются без выхода за поля", async () => {
+  it("оферта и акт с длинными наименованиями, крупными суммами и фото раскладываются без выхода за поля", async () => {
     const longName = "Товарищество с ограниченной ответственностью «Солтүстік Қазақстан Жиһаз Өндірісі және Монтаж Қызметі»";
+    const money = { priceTiyn: 99_999_999_99n, protectionTiyn: 2_000_000_00n, buyerTotalTiyn: 101_999_999_99n, guaranteeTiyn: 4_000_000_00n, payoutTiyn: 95_999_999_99n, platformIncomeTiyn: 6_000_000_00n };
     const contract = contractSpec({
       number: "Д-0014/2026",
       version: 3,
       issuedAt: new Date("2026-10-30T06:00:00Z"),
       city: "Өскемен",
-      paymentMode: "ESCROW_SIMULATOR",
       client: { fullName: "Сапарова-Нұрмағамбетова Айгерим Болатқызы", iin: "900101300123" },
       executor: { legalForm: "TOO", legalName: longName, binIin: "210140012345", signerFullName: "Тулегенов Бауыржан Серикович" },
       subject: { title: "Кухня угловая", details: ["Ширина: 320 см"], address: "ул. Кенесары, 40, кв. 12" },
-      totalAmount: 125_000_000,
-      stages: Array.from({ length: 6 }, (_, i) => ({
-        order: i + 1,
-        title: `Этап ${i + 1}: изготовление корпусов, фасадов и столешниц из массива дуба`,
-        description: "Включая доставку и подъём на этаж",
-        amount: 20_833_333,
-        paymentDue: i === 0 ? ("ON_START" as const) : ("ON_ACCEPTANCE" as const),
-      })),
+      money,
       durationDays: 45,
       warrantyMonths: 24,
-      autoAcceptDays: 5,
+      provider: "MOCK",
+      isDemo: true,
     });
-    const act = stageActSpec({
-      number: "А-0014-2",
+    const act = acceptanceActSpec({
+      number: "А-0014",
+      version: 1,
       issuedAt: new Date("2026-11-20T06:00:00Z"),
       city: "Өскемен",
-      paymentMode: "MANUAL",
       contractNumber: "Д-0014/2026",
       dealTitle: "Кухня угловая",
-      stage: { order: 2, title: "Изготовление и монтаж", description: "Монтаж на объекте", amount: 99_999_999, paymentDue: "ON_ACCEPTANCE" },
-      acceptedAt: new Date("2026-11-19T10:00:00Z"),
-      acceptedAutomatically: true,
-      autoAcceptDays: 5,
+      clientName: "Сапарова-Нұрмағамбетова Айгерим Болатқызы",
+      executorName: longName,
+      money,
+      readyAt: new Date("2026-11-19T10:00:00Z"),
+      photos: [{ image: { bytes: PNG_1X1, format: "png" }, sha256: "a".repeat(64) }, { image: null, sha256: "b".repeat(64) }, { image: { bytes: new Uint8Array([1, 2, 3]), format: "jpg" }, sha256: "c".repeat(64) }],
+      gps: { distanceM: 1800, withinRadius: false, radiusM: 500, accuracyM: 30 },
+      executorHandSigns: true,
+      isDemo: true,
     });
     // Рендер бросает исключение, если строка выходит за правое поле, — здесь его быть не должно.
     for (const doc of [contract, act]) {
       const pdf = await PDFDocument.load(await renderPdf(doc));
       expect(pdf.getPageCount()).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it("встраивает фото и подпись картинками; повреждённый файл не роняет документ", async () => {
+    const bytes = await renderPdf(
+      spec({
+        blocks: [
+          { kind: "photos", items: [{ image: { bytes: PNG_1X1, format: "png" }, caption: "Фото 1" }, { image: { bytes: new Uint8Array([9, 9]), format: "jpg" }, caption: "Фото 2" }] },
+          { kind: "image", image: { bytes: PNG_1X1, format: "png" }, maxHeight: 90, caption: "Подпись" },
+          { kind: "notice", text: "ШАБЛОН ТРЕБУЕТ ЮРИДИЧЕСКОЙ ПРОВЕРКИ" },
+        ],
+      }),
+    );
+    // У PNG с прозрачностью pdf-lib добавляет маску (тоже /Subtype /Image) — её не считаем.
+    const raw = Buffer.from(bytes).toString("latin1");
+    const count = (re: RegExp) => (raw.match(re) ?? []).length;
+    expect(count(/\/Subtype \/Image/g) - count(/\/SMask \d+ 0 R/g)).toBe(2);
+  });
+
+  it("подписанная копия: исходные страницы без изменений плюс лист; одинаковые данные — одинаковые байты", async () => {
+    const original = await renderPdf(spec());
+    const sheet = await renderPdf(spec({ title: "Лист подписей", blocks: [{ kind: "title", text: "ЛИСТ ПОДПИСЕЙ" }] }));
+    const at = new Date("2026-11-01T06:00:00Z");
+    const [a, b] = await Promise.all([appendPages(original, sheet, at), appendPages(original, sheet, at)]);
+    expect(sha256Hex(a)).toBe(sha256Hex(b));
+    const [orig, copy] = await Promise.all([PDFDocument.load(original), PDFDocument.load(a)]);
+    expect(copy.getPageCount()).toBe(orig.getPageCount() + 1);
+    expect(copy.getTitle()).toBe(orig.getTitle());
   });
 
   it("длинный текст переносится на следующие страницы", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialSigningState, focusTargetAfter, signNotice, signingReducer, type SigningSessionView } from "./state";
+import { initialSigningState, focusTargetAfter, signStep, signingReducer, type SigningSessionView } from "./state";
 
 const session: SigningSessionView = { sessionId: "s1", method: "EGOV_QR", qrImage: "data:image/png;base64,AA", expiresAt: new Date(0), provider: "mock" };
 
@@ -34,6 +34,16 @@ describe("signingReducer", () => {
     expect(signingReducer(awaiting, { type: "reset" })).toEqual({ step: "choose", method: "EGOV_QR" });
   });
 
+  it("ошибка и сброс вне своих шагов ничего не меняют; сброс из выбора убирает ошибку", () => {
+    const awaiting = signingReducer(signingReducer(initialSigningState, { type: "start" }), { type: "started", session });
+    expect(signingReducer(awaiting, { type: "failed", error: "x" })).toBe(awaiting);
+    expect(signingReducer(initialSigningState, { type: "failed", error: "x" })).toBe(initialSigningState);
+    const starting = signingReducer(initialSigningState, { type: "start" });
+    expect(signingReducer(starting, { type: "reset" })).toBe(starting);
+    const withError = signingReducer(starting, { type: "failed", error: "Нет связи" });
+    expect(signingReducer(withError, { type: "reset" })).toEqual({ step: "choose", method: "EGOV_QR" });
+  });
+
   it("действия не по порядку игнорируются (двойное нажатие)", () => {
     const starting = signingReducer(initialSigningState, { type: "start" });
     expect(signingReducer(starting, { type: "start" })).toBe(starting);
@@ -41,22 +51,47 @@ describe("signingReducer", () => {
   });
 });
 
-describe("signNotice — что показать вместо «Подписать»", () => {
-  const signed = { party: "CLIENT" as const, signedAt: new Date(0), signedSha256: "a", method: "EGOV_QR" as const };
-  const doc = { status: "SIGNING" as const, myParty: "CLIENT" as const, canSign: false, signatures: [] as (typeof signed)[] };
+describe("signStep — какой шаг подписи показать стороне", () => {
+  const sig = (party: "CLIENT" | "EXECUTOR", hand: boolean, ecp: boolean) => ({
+    party,
+    required: { hand: true, ecp: true },
+    hand: hand ? { signedAt: new Date(0), documentSha256: "a", typed: true } : null,
+    ecp: ecp ? { signedAt: new Date(0), signedSha256: "a", method: "EGOV_QR" as const } : null,
+  });
+  const doc = {
+    status: "SIGNING" as const,
+    signable: true,
+    myParty: "CLIENT" as const,
+    canSign: { hand: false, ecp: false },
+    parties: [sig("CLIENT", false, false), sig("EXECUTOR", false, false)],
+  };
 
-  it("моя подпись есть — «Вы подписали»", () => {
-    expect(signNotice({ ...doc, signatures: [signed] })).toBe("youSigned");
+  it("сначала собственноручная подпись, потом ЭЦП", () => {
+    expect(signStep({ ...doc, canSign: { hand: true, ecp: true } })).toBe("hand");
+    expect(signStep({ ...doc, canSign: { hand: false, ecp: true } })).toBe("ecp");
   });
 
-  it("не подписывал, но шаг сделки подпись не принимает (расторгнута, отменена) — не «Вы подписали»", () => {
-    expect(signNotice(doc)).toBe("notSignable");
-    expect(signNotice({ ...doc, signatures: [{ ...signed, party: "EXECUTOR" }] })).toBe("notSignable");
+  it("мои подписи все есть — «Вы поставили все подписи»; нет, а подписать нельзя — шаг сделки не тот", () => {
+    expect(signStep({ ...doc, parties: [sig("CLIENT", true, true), sig("EXECUTOR", false, false)] })).toBe("youSigned");
+    expect(signStep(doc)).toBe("notSignable");
+    expect(signStep({ ...doc, parties: [sig("CLIENT", false, false), sig("EXECUTOR", true, true)] })).toBe("notSignable");
   });
 
-  it("подписать можно или документ уже не на подписи — без пометки", () => {
-    expect(signNotice({ ...doc, canSign: true })).toBeNull();
-    expect(signNotice({ ...doc, status: "SIGNED", signatures: [signed] })).toBeNull();
+  it("подпись, которая стороне не требуется, не мешает «Вы поставили все подписи» (мастер на акте)", () => {
+    const executor = { ...sig("EXECUTOR", false, true), required: { hand: false, ecp: true } };
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [sig("CLIENT", false, false), executor] })).toBe("youSigned");
+    const noEcp = { ...sig("EXECUTOR", true, false), required: { hand: true, ecp: false } };
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [noEcp] })).toBe("youSigned");
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [sig("EXECUTOR", true, false)] })).toBe("notSignable");
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [sig("EXECUTOR", false, true)] })).toBe("notSignable");
+    expect(signStep({ ...doc, myParty: "EXECUTOR", parties: [] })).toBe("notSignable");
+  });
+
+  it("оператор, документ без подписи и закрытая версия — без кнопок подписи", () => {
+    expect(signStep({ ...doc, myParty: null })).toBe("operator");
+    expect(signStep({ ...doc, signable: false })).toBe("notRequired");
+    expect(signStep({ ...doc, status: "SIGNED" })).toBe("closed");
+    expect(signStep({ ...doc, status: "SUPERSEDED" })).toBe("closed");
   });
 });
 

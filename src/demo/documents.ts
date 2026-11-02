@@ -1,76 +1,78 @@
-import type { SignParty } from "@/generated/prisma/enums";
-import { createContractIssuedAt, createStageActIssuedAt } from "@/modules/documents";
+import type { DocumentKind, SignParty } from "@/generated/prisma/enums";
+import { createAcceptanceActIssuedAt, createContractIssuedAt, ensureMoneyStatement, requiredSignatures } from "@/modules/documents";
 import type { Tx } from "@/platform/db";
-import { enqueueJob } from "@/platform/jobs";
 
 /**
- * Документы демо-сделок через настоящий модуль documents (PDF, sha256, номера):
- * договор у каждой сделки (подписан обеими сторонами, если сделка подписана),
- * акт у каждого принятого этапа (подписан, если этап закрыт). Подписи — метод MOCK:
- * в демо ЭЦП имитируется, как и на экране подписи.
- * Плюс задача автоприёмки для сданных этапов — как ставит deal-core при сдаче.
+ * Документы демо-сделок через настоящий модуль documents (PDF, sha256, номера), с датами сделки:
+ *  - оферта у каждой сделки; если оферта заключена (signedAt) — подписана обеими сторонами;
+ *  - акт у каждой сданной сделки (readyAt); если принята (acceptedAt) — подписан;
+ *  - выписка по деньгам — по журналу (если операции были).
+ * Подписи — честно демонстрационные: ЭЦП методом MOCK («демо-подпись без юридической силы»),
+ * собственноручная — напечатанное имя. Повторный запуск не плодит версии: есть документ — не выпускаем.
  */
-export async function seedDocuments(tx: Tx): Promise<{ documents: number; jobs: number }> {
+export async function seedDocuments(tx: Tx): Promise<{ documents: number }> {
   const deals = await tx.deal.findMany({
     orderBy: { createdAt: "asc" },
-    include: {
+    select: {
+      id: true,
+      createdAt: true,
+      signedAt: true,
+      readyAt: true,
+      acceptedAt: true,
       client: { select: { id: true, fullName: true, iinLast4: true } },
-      executor: { select: { legalName: true, user: { select: { id: true, iinLast4: true } } } },
-      stages: { orderBy: { order: "asc" } },
+      executor: { select: { legalName: true, signerFullName: true, binIinLast4: true, user: { select: { id: true } } } },
+      documents: { where: { status: { not: "SUPERSEDED" } }, select: { kind: true } },
     },
   });
   let documents = 0;
-  let jobs = 0;
-
   for (const deal of deals) {
-    const parties: Party[] = [
-      { party: "CLIENT", userId: deal.client.id, subject: deal.client.fullName ?? "", iinLast4: deal.client.iinLast4 },
-      { party: "EXECUTOR", userId: deal.executor.user.id, subject: deal.executor.legalName, iinLast4: deal.executor.user.iinLast4 },
-    ];
+    const has = (kind: DocumentKind) => deal.documents.some((d) => d.kind === kind);
+    const parties: Record<SignParty, Party> = {
+      CLIENT: { userId: deal.client.id, name: deal.client.fullName ?? "", iinLast4: deal.client.iinLast4 },
+      EXECUTOR: { userId: deal.executor.user.id, name: deal.executor.signerFullName ?? deal.executor.legalName, iinLast4: deal.executor.binIinLast4 },
+    };
 
-    const contract = await createContractIssuedAt(tx, deal.id, deal.createdAt);
-    documents++;
-    if (deal.signedAt) await signByBoth(tx, contract.documentId, contract.sha256, parties, deal.signedAt);
-
-    for (const stage of deal.stages) {
-      if ((stage.status === "ACCEPTED" || stage.status === "CLOSED") && stage.acceptedAt) {
-        const act = await createStageActIssuedAt(tx, stage.id, stage.acceptedAt);
-        documents++;
-        if (stage.status === "CLOSED") await signByBoth(tx, act.documentId, act.sha256, parties, stage.closedAt ?? stage.acceptedAt);
-      }
-      if (stage.status === "SUBMITTED" && stage.autoAcceptAt && stage.submittedAt) {
-        await enqueueJob(tx, {
-          kind: "deal-core.autoAcceptStage",
-          payload: { stageId: stage.id, submittedAt: stage.submittedAt.toISOString() },
-          runAt: stage.autoAcceptAt,
-          dedupeKey: `auto-accept:${stage.id}:${stage.submittedAt.getTime()}`,
-        });
-        jobs++;
-      }
+    if (!has("CONTRACT")) {
+      const contract = await createContractIssuedAt(tx, deal.id, deal.createdAt);
+      documents++;
+      if (deal.signedAt) await signDemo(tx, contract, "CONTRACT", parties, deal.signedAt);
     }
+    if (deal.readyAt && !has("ACCEPTANCE_ACT")) {
+      const act = await createAcceptanceActIssuedAt(tx, deal.id, deal.readyAt);
+      documents++;
+      if (deal.acceptedAt) await signDemo(tx, act, "ACCEPTANCE_ACT", parties, deal.acceptedAt);
+    }
+    if (await ensureMoneyStatement(tx, deal.id)) documents++;
   }
-  return { documents, jobs };
+  return { documents };
 }
 
-type Party = { party: SignParty; userId: string; subject: string; iinLast4: string | null };
+type Party = { userId: string; name: string; iinLast4: string | null };
 
-async function signByBoth(tx: Tx, documentId: string, sha256: string, parties: Party[], at: Date) {
-  for (const [i, p] of parties.entries()) {
-    await tx.signature.create({
-      data: {
-        documentId,
-        userId: p.userId,
-        party: p.party,
-        method: "MOCK",
-        signedSha256: sha256,
-        signature: "demo",
-        certSubject: p.subject,
-        certSerial: `DEMO-${documentId.slice(-8)}-${i + 1}`,
-        certIinLast4: p.iinLast4,
-        verified: true,
-        signedAt: at,
-      },
-    });
+/** Все требуемые подписи документа (по той же таблице, что и в приложении) и статус SIGNED. */
+async function signDemo(tx: Tx, doc: { documentId: string; sha256: string }, kind: DocumentKind, parties: Record<SignParty, Party>, at: Date) {
+  for (const req of requiredSignatures(kind, { executorHandSignsAct: false })) {
+    const p = parties[req.party];
+    if (req.hand) {
+      await tx.handSignature.create({ data: { documentId: doc.documentId, userId: p.userId, party: req.party, typedName: p.name, documentSha256: doc.sha256, signedAt: at } });
+    }
+    if (req.ecp) {
+      await tx.signature.create({
+        data: {
+          documentId: doc.documentId,
+          userId: p.userId,
+          party: req.party,
+          method: "MOCK",
+          signedSha256: doc.sha256,
+          signature: "demo",
+          certSubject: p.name,
+          certSerial: `DEMO-${doc.documentId.slice(-8)}-${req.party}`,
+          certIinLast4: p.iinLast4,
+          verified: true,
+          signedAt: at,
+        },
+      });
+    }
   }
-  await tx.document.update({ where: { id: documentId }, data: { status: "SIGNED", signedAt: at } });
+  await tx.document.update({ where: { id: doc.documentId }, data: { status: "SIGNED", signedAt: at } });
 }
