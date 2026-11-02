@@ -1,38 +1,34 @@
 import "server-only";
 
-// Публичный API payments: PaymentRail (manual | escrow-simulator | bank), операции по счёту сделки
-// с идемпотентными ключами, вебхуки, сверка и банк-симулятор. Деньги клиентов не проходят через счёт платформы.
+// Публичный API payments (ADR-009): журнал денег — единственный источник правды; провайдеры за интерфейсом
+// PaymentProvider (mock, manual; freedompay — точка подключения в ./providers). Деньги клиентов не проходят
+// через счета платформы: HOLD резервирует их в банке. Итог операции двигает сделку через хук владельца
+// (SettledHook — deal-core.onMoneySettled), поэтому payments не импортирует deal-core.
 
-export type * from "./rail";
-export { railFor } from "./rails";
-export { PLATFORM_FEE_PERCENT } from "./fees";
-export { paymentModeOf, railModeOf, RAIL_MODES } from "./modes";
-export { activeRailMode, setActiveRailMode, RAIL_SETTING_KEY } from "./settings";
-export {
-  ensureEscrowAccount,
-  escrowAvailable,
-  executeOperation,
-  isFullyFunded,
-  pendingOperationKeys,
-  receiveWebhook,
-  requestOperation,
-  stagesWithTranche,
-  type OperationRequest,
-  type SettledHook,
-  type SettledOperation,
-  type WebhookOutcome,
-} from "./operations";
-export { JOB_RESEND_PENDING, paymentJobHandlers, RESEND_AFTER_MINUTES, resendPendingOperations } from "./resend";
-export { reconcile, type Reconcile } from "./reconcile";
-export type { ReconciliationRow } from "./reconcile-entries";
-export {
-  getSimulatorAccount,
-  simulatorAccountSchema,
-  simulatorDeposit,
-  simulatorDepositSchema,
-  simulatorRedeliver,
-} from "./simulator";
-export type { SignedDelivery } from "./rails/escrow-simulator";
-export { SIGNATURE_HEADER, TIMESTAMP_HEADER } from "./webhook-signature";
+export { computeDealMoney, computeSplit, kztToTiyn, GUARANTEE_PERCENT, MAX_PRICE_TIYN, PROTECTION_PERCENT, type DealMoney, type Split } from "./money";
+export { partyEstimate, type PartyEstimate } from "./estimate";
+export type * from "./provider";
+export { moneyKey } from "./keys";
 
-// Задачи payments собирает src/jobs.ts через paymentJobHandlers(deal-core.onPaymentSettled).
+// Журнал: запись, итог, проекции
+export { recordOperation, settle, trySettle, moneyFactsOf, moneyHistory, moneyView, ledgerEntries, LEDGER_INCLUDE, toLedgerEntry, type BankConfirmation, type Outcome, type RecordInput } from "./ledger";
+export { moneyFacts, moneyHistoryOf, projectMoney, type LedgerEntry, type MoneyBlock, type MoneyFacts, type MoneyHistoryItem, type MoneyView } from "./projection";
+
+// Провайдеры и исполнение
+export { isTestProvider, newDealProviderKind, providerFor, providerKindOf } from "./providers";
+export { mockProvider, signMockWebhook } from "./providers/mock";
+export {
+  confirmManualOperation,
+  confirmManualSchema,
+  failManualOperation,
+  failManualSchema,
+  listPendingManualOperations,
+  type PendingManualOperation,
+} from "./providers/manual";
+export { enqueueExecution, executeDealOperations, JOB_EXECUTE_DEAL, type SettledHook } from "./execute";
+export { receiveWebhook, type WebhookOutcome } from "./webhook";
+export { JOB_POLL_PENDING, pollPendingOperations } from "./poll";
+export { paymentJobHandlers } from "./jobs";
+
+// Отчёт оператора
+export { platformIncomeReport, type IncomeReport, type IncomeRow } from "./report";
