@@ -37,7 +37,7 @@ export { onPaymentSettled } from "./service";
 export { retryPaymentOperation } from "./retry";
 
 // Чтения для экранов
-export { getDealView, listDeals, type DealListItem, type DealView } from "./queries";
+export { dealPartyOf, getDealView, listDeals, type DealListItem, type DealView } from "./queries";
 export type { NextAction, NextStep } from "./next-step";
 
 // Схемы входа для Server Actions экранов

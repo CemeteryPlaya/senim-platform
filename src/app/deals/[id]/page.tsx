@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { SigningPanel } from "@/app/_components/signing";
-import { getDealView, type DealView } from "@/modules/deal-core";
+import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import { listDealDocuments, type SigningDocumentView } from "@/modules/documents";
-import { getCurrentUser, type CurrentUser } from "@/modules/identity";
+import { getCurrentUser, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
 import { ButtonLink, Card, Container, DateText, Fact, formatMoney, Money, PageHeader, SimulatorBadge, StatusBadge } from "@/ui";
@@ -37,12 +37,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
+/**
+ * Сделка недоступна в активной роли, но человек — её сторона в другой своей роли (ADR-004):
+ * на переключение роли с возвратом сюда. Иначе — как раньше (404 через orNotFound).
+ */
+async function loadOrSwitchRole(user: CurrentUser, id: string): Promise<DealView> {
+  const party = user.roles.length > 1 ? await dealPartyOf(user, id) : null;
+  if (party && party !== user.role && user.roles.includes(party)) redirect(switchRoleHref(party, `/deals/${id}`));
+  return orNotFound(loadDeal(user, id));
+}
+
 /** Сделка — одна длинная страница: что дальше, договор, этапы, оплата, акты, чат, спор, отзыв, история. */
 export default async function DealPage({ params }: Props) {
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/deals/${id}`)}`);
-  const deal = await orNotFound(loadDeal(user, id));
+  const deal = await loadOrSwitchRole(user, id);
   const documents = await listDealDocuments(user, deal.id);
   const isParty = deal.viewer === "CLIENT" || deal.viewer === "EXECUTOR";
   const contract = documents.find((d) => d.kind === "CONTRACT");

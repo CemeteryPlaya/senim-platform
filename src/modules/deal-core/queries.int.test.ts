@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
-import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
+import { actingAs, makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeDeal, signContract } from "../../../test/factories/deal";
-import { getDealView, listDeals } from "./index";
+import { dealPartyOf, getDealView, listDeals } from "./index";
 
 const code = (p: Promise<unknown>) => p.then(() => "OK", (e: { code?: string }) => e.code ?? String(e));
 
@@ -14,6 +14,33 @@ describe("экраны сделки: доступ и анонимность", ()
     expect((await listDeals(b.executor)).map((d) => d.id)).toEqual([b.dealId]);
     expect(await listDeals(await makeClient())).toEqual([]);
     expect((await listDeals(await makeOperator())).map((d) => d.id).sort()).toEqual([a.dealId, b.dealId].sort());
+  });
+
+  it("человек с двумя ролями видит в списке сделки обеих ролей с пометкой, а открывает — только в своей роли", async () => {
+    const person = await makeExecutor({ roles: ["EXECUTOR", "CLIENT"] });
+    const asExecutor = await makeDeal({ executor: person });
+    const asClient = await makeDeal({ client: actingAs(person, "CLIENT") });
+    await makeDeal();
+
+    for (const viewer of [person, actingAs(person, "CLIENT")]) {
+      const list = await listDeals(viewer);
+      expect(list.map((d) => [d.id, d.myRole]).sort()).toEqual(
+        [
+          [asExecutor.dealId, "EXECUTOR"],
+          [asClient.dealId, "CLIENT"],
+        ].sort(),
+      );
+    }
+    expect(await code(getDealView(person, asClient.dealId))).toBe("NOT_FOUND");
+    expect(await code(getDealView(actingAs(person, "CLIENT"), asClient.dealId))).toBe("OK");
+    expect(await dealPartyOf(person, asClient.dealId)).toBe("CLIENT");
+    expect(await dealPartyOf(person, asExecutor.dealId)).toBe("EXECUTOR");
+    expect(await dealPartyOf(await makeClient(), asClient.dealId)).toBeNull();
+  });
+
+  it("у оператора пометки роли нет", async () => {
+    await makeDeal();
+    expect((await listDeals(await makeOperator())).map((d) => d.myRole)).toEqual([null]);
   });
 
   it("чужая сделка — «не найдено» для заказчика и исполнителя", async () => {

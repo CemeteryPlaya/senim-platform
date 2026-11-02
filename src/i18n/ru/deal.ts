@@ -11,6 +11,8 @@ export const deal = {
   number: (n: number) => `Сделка №${n}`,
   progress: (closed: number, total: number) => `Этапов завершено: ${closed} из ${total}`,
   clientLabel: "Заказчик",
+  /** Пометка роли в общем списке сделок человека с двумя ролями (ADR-004). */
+  youAre: { CLIENT: "Вы — заказчик", EXECUTOR: "Вы — исполнитель" },
   total: "Сумма по договору",
   createdAt: "Создана",
 
@@ -286,6 +288,7 @@ export const deal = {
     reviewExists: "Отзыв по этой сделке уже оставлен",
     reviewOnlyCompleted: "Отзыв можно оставить после завершения сделки",
     onlyClientReviews: "Отзыв оставляет заказчик",
+    selfReview: "Нельзя оставить отзыв самому себе",
     disputeResolved: "Спор уже решён",
     partialAmount: "Укажите сумму в пользу исполнителя: больше нуля и не больше неоплаченной суммы",
     decisionNotApplicable: (stage: string) =>
@@ -298,6 +301,7 @@ export const deal = {
     amountOnlyPartial: "Сумма указывается только при частичном решении",
     dealExists: "Сделка по этой заявке уже создана",
     badDealInput: "Заявка, отклик и стороны сделки не совпадают",
+    selfDeal: "Нельзя заключить сделку с самим собой",
     positionNotParty: "Позицию отправляет сторона сделки",
   },
 } as const;

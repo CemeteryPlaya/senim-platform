@@ -19,10 +19,29 @@ import { roleIn, scopeOf } from "./state";
 
 type Party = "CLIENT" | "EXECUTOR";
 
-function dealsWhere(user: CurrentUser): Prisma.DealWhereInput | null {
+/**
+ * Список сделок: оператор — все; человек — свои в обеих ролях (ADR-004: история заказчика и исполнителя
+ * на одном аккаунте), с пометкой роли. Открыть сделку другой роли — после переключения роли.
+ */
+function dealsWhere(user: CurrentUser): Prisma.DealWhereInput {
   if (user.role === "OPERATOR") return {};
-  if (user.role === "CLIENT") return { clientId: user.id };
-  return user.executor ? { executorId: user.executor.id } : null;
+  const asExecutor: Prisma.DealWhereInput[] = user.executor ? [{ executorId: user.executor.id }] : [];
+  return { OR: [{ clientId: user.id }, ...asExecutor] };
+}
+
+/** Кем человек был в сделке — по самой сделке, а не по активной роли. Самосделок нет, роль одна. */
+function partyOf(userId: string, deal: { clientId: string; executor: { userId: string } }): Party | null {
+  if (deal.clientId === userId) return "CLIENT";
+  return deal.executor.userId === userId ? "EXECUTOR" : null;
+}
+
+/**
+ * Сторона сделки в любой роли (для перехода со страницы сделки на переключение роли).
+ * Чужая или несуществующая — null.
+ */
+export async function dealPartyOf(user: CurrentUser, dealId: string): Promise<Party | null> {
+  const deal = await db.deal.findUnique({ where: { id: dealId }, select: { clientId: true, executor: { select: { userId: true } } } });
+  return deal ? partyOf(user.id, deal) : null;
 }
 
 export type DealListItem = {
@@ -35,16 +54,16 @@ export type DealListItem = {
   closedStages: number;
   totalStages: number;
   updatedAt: Date;
+  /** Кем человек был в этой сделке; у оператора — null. */
+  myRole: Party | null;
 };
 
 export async function listDeals(user: CurrentUser): Promise<DealListItem[]> {
-  const where = dealsWhere(user);
-  if (!where) return [];
   const deals = await db.deal.findMany({
-    where,
+    where: dealsWhere(user),
     orderBy: { updatedAt: "desc" },
     take: 100,
-    include: { executor: { select: { publicNumber: true } }, stages: { select: { status: true } } },
+    include: { executor: { select: { publicNumber: true, userId: true } }, stages: { select: { status: true } } },
   });
   return deals.map((d) => ({
     id: d.id,
@@ -56,6 +75,7 @@ export async function listDeals(user: CurrentUser): Promise<DealListItem[]> {
     closedStages: d.stages.filter((s) => s.status === "CLOSED").length,
     totalStages: d.stages.length,
     updatedAt: d.updatedAt,
+    myRole: user.role === "OPERATOR" ? null : partyOf(user.id, d),
   }));
 }
 
