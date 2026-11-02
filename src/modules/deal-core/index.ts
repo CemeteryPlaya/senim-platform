@@ -38,4 +38,7 @@ export {
   submitReadySchema,
 } from "./schemas";
 
+// Публичная витрина (Фаза 2): фундамент — согласия сторон и обезличенная проекция под флагом publicShowcase
+export { getPublicDealView, grantPublicConsent, revokePublicConsent, type PublicDealView } from "./public-view";
+
 export { jobHandlers } from "./jobs";
