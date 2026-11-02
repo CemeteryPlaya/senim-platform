@@ -44,6 +44,8 @@ describe("телефон заказчика до оферты (ADR-008, флаг
     expect(clientPhoneTarget("revoke", { ...shown, chatClosed: "requestCancelled" }, "client")).toBe("HIDDEN");
     expect(clientPhoneTarget("revoke", { ...shown, stage: "AFTER_OFFER" }, "client")).toBe("HIDDEN");
     expect(clientPhoneTarget("revoke", { ...shown, consentEnabled: false }, "client")).toBe("HIDDEN");
+    // «Поговорили» нужно только для показа.
+    expect(clientPhoneTarget("revoke", { ...shown, talked: false }, "client")).toBe("HIDDEN");
   });
 });
 

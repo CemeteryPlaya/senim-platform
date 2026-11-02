@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { INSTAGRAM_MAX, instagramField } from "./instagram";
+import { contactsInputSchema, INSTAGRAM_MAX, instagramField } from "./instagram";
 
 const parse = (raw: string) => instagramField.safeParse(raw);
 
@@ -27,9 +27,15 @@ describe("Instagram: имя без «@» — латиница, цифры, то�
     ["дефис", "dala-mebel"],
     ["ссылка", "https://instagram.com/dala"],
     ["две «@»", "@@dala"],
+    ["«@» в середине", "dala@mebel"],
     ["длиннее 30", "x".repeat(INSTAGRAM_MAX + 1)],
   ])("%s — ошибка", (_, raw) => {
     expect(parse(raw).success).toBe(false);
+  });
+
+  it("форма контактов: поле instagram разбирается тем же правилом", () => {
+    expect(contactsInputSchema.parse({ instagram: "@dala" })).toEqual({ instagram: "dala" });
+    expect(contactsInputSchema.safeParse({}).success).toBe(false);
   });
 
   it("сообщение ошибки — понятное, под полем формы", () => {

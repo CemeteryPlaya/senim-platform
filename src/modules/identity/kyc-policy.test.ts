@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ru } from "@/i18n/ru";
 import { KYC_TRANSITIONS, kycTarget, kycView } from "./kyc-policy";
 
 const code = (run: () => unknown) => {
@@ -50,11 +51,29 @@ describe("KYC мастера (решение 2.2.8): таблица перехо
   });
 });
 
+describe("сообщения отказа — понятные мастеру и оператору", () => {
+  const message = (run: () => unknown) => {
+    try {
+      run();
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  };
+  it("загрузка поверх проверенных — «уже проверены», повторное решение — «уже рассмотрены», без документов — «не загрузил»", () => {
+    const errors = ru.identity.kyc.errors;
+    expect(message(() => kycTarget("submit", { status: "VERIFIED", hasDocuments: true }, "EXECUTOR"))).toBe(errors.alreadyVerified);
+    expect(message(() => kycTarget("verify", { status: "VERIFIED", hasDocuments: true }, "OPERATOR"))).toBe(errors.reviewed);
+    expect(message(() => kycTarget("reject", { status: "PENDING", hasDocuments: false }, "OPERATOR"))).toBe(errors.noDocuments);
+  });
+});
+
 describe("что видит мастер", () => {
   it("«на проверке» без документов — ещё не загружены; кнопка загрузки — пока документы не проверены", () => {
     expect(kycView({ status: "PENDING", hasDocuments: false })).toEqual({ state: "NOT_SUBMITTED", canSubmit: true });
     expect(kycView({ status: "PENDING", hasDocuments: true })).toEqual({ state: "PENDING", canSubmit: true });
     expect(kycView({ status: "REJECTED", hasDocuments: true })).toEqual({ state: "REJECTED", canSubmit: true });
+    expect(kycView({ status: "REJECTED", hasDocuments: false })).toEqual({ state: "REJECTED", canSubmit: true });
     expect(kycView({ status: "VERIFIED", hasDocuments: true })).toEqual({ state: "VERIFIED", canSubmit: false });
   });
 });
