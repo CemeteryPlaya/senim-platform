@@ -93,8 +93,11 @@ export {
   closeChat,
   getChat,
   reopenChat,
+  revokeClientPhone,
   sendMessage,
+  shareClientPhone,
   type ChatMessageView,
+  type ClientPhoneView,
   type ChatView,
 } from "./chat";
 

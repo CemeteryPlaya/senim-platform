@@ -7,6 +7,9 @@ import { fail } from "@/platform/errors";
  * Читать историю могут всегда — стороны и оператор; закрывается только запись.
  * После завершённой сделки чат открыт: стороны обсуждают гарантию. Закрывает его оператор (ответ №19).
  */
+/** Сторона чата отклика: заказчик заявки, исполнитель отклика или оператор (только читает). */
+export type ChatParty = "client" | "executor" | "operator";
+
 export type ChatState = { offerStatus: OfferStatus; requestStatus: RequestStatus; dealStatus: DealStatus | null; closedByOperator: boolean };
 
 export type ChatClosedReason = "operatorClosed" | "offerWithdrawn" | "offerDeclined" | "requestCancelled" | "dealCancelled" | "dealTerminated";

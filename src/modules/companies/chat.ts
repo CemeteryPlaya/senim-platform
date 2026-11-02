@@ -2,15 +2,16 @@ import "server-only";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { attachFiles } from "@/modules/files";
-import { actorOf, type CurrentUser } from "@/modules/identity";
+import { actorOf, formatPhone, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { db, transaction, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import { executorDisplayOf } from "./anonymity";
-import { chatClosedReason, moderationTarget, type ChatModerationAction } from "./chat-policy";
+import { chatClosedReason, moderationTarget, type ChatClosedReason, type ChatModerationAction, type ChatParty } from "./chat-policy";
 import { maskContacts } from "./mask";
 import { sanitizePublicText } from "./own";
+import { canShareClientPhone, clientPhoneTarget, executorSeesClientPhone, type ClientPhoneAction, type ClientPhoneFacts } from "./phone-policy";
 
 /**
  * Чат отклика (ADR-003). Пишут только стороны отклика — заказчик заявки и исполнитель;
@@ -48,9 +49,17 @@ export type ChatView = {
   closedByOperator: { reason: string; at: Date } | null;
   /** Оператор: может закрыть или снова открыть чат. */
   canModerate: boolean;
+  /** Телефон заказчика (№21): исполнителю — номер, заказчику — показать/скрыть; null — ничего. */
+  clientPhone: ClientPhoneView;
 };
 
-type Party = "client" | "executor" | "operator";
+/**
+ * executor — номер заказчика (E.164 для tel: и для показа), пока согласие действует и чат открыт;
+ * client — согласие дано или его можно дать (переписка была, чат открыт); null — не показывать ничего.
+ */
+export type ClientPhoneView = { for: "executor"; phone: string; display: string } | { for: "client"; shared: boolean } | null;
+
+type Party = ChatParty;
 
 async function loadOffer(client: Db, offerId: string) {
   return client.offer.findUnique({
@@ -60,6 +69,7 @@ async function loadOffer(client: Db, offerId: string) {
       status: true,
       chatClosedAt: true,
       chatClosedReason: true,
+      clientPhoneSharedAt: true,
       requestId: true,
       executorId: true,
       executor: { select: { userId: true, publicNumber: true } },
@@ -87,13 +97,17 @@ async function requireOffer(client: Db, user: CurrentUser, offerId: string): Pro
   return { offer, party, label: (await executorDisplayOf(client, offer.executorId)).label };
 }
 
-function closedReasonText(offer: OfferContext): string | null {
-  const reason = chatClosedReason({
+function closedReasonOf(offer: OfferContext): ChatClosedReason | null {
+  return chatClosedReason({
     offerStatus: offer.status,
     requestStatus: offer.request.status,
     dealStatus: offer.deal?.status ?? null,
     closedByOperator: offer.chatClosedAt !== null,
   });
+}
+
+function closedReasonText(offer: OfferContext): string | null {
+  const reason = closedReasonOf(offer);
   return reason ? t.closed[reason] : null;
 }
 
@@ -147,6 +161,7 @@ export async function getChat(user: CurrentUser, offerId: string): Promise<ChatV
     closedReason: closed,
     closedByOperator: closedByOperator(offer),
     canModerate: party === "operator",
+    clientPhone: await clientPhoneView(loaded),
   };
 }
 
@@ -268,4 +283,76 @@ export async function reopenChat(user: CurrentUser, offerId: string): Promise<vo
     });
     await notifyBothParties(tx, offer, "chat.reopened", m.notify.reopened.title, m.notify.reopened.body);
   });
+}
+
+// ─── телефон заказчика исполнителю (ответ №21, ADR-008) ──────────────────────
+
+const ph = t.phone;
+const phoneState = (offer: OfferContext) => (offer.clientPhoneSharedAt ? "SHOWN" : "HIDDEN");
+
+/** «Поговорили»: в чате отклика есть хотя бы одно сообщение заказчика и хотя бы одно исполнителя. */
+async function talked(offer: OfferContext): Promise<boolean> {
+  const senders = await db.message.findMany({
+    where: { offerId: offer.id, senderId: { in: [offer.request.clientId, offer.executor.userId] } },
+    distinct: ["senderId"],
+    select: { senderId: true },
+  });
+  return senders.length === 2;
+}
+
+async function clientPhoneView({ offer, party }: Loaded): Promise<ClientPhoneView> {
+  const state = phoneState(offer);
+  const chatClosed = closedReasonOf(offer);
+  if (party === "executor") {
+    if (!executorSeesClientPhone({ state, chatClosed })) return null;
+    const { phone } = await db.user.findUniqueOrThrow({ where: { id: offer.request.clientId }, select: { phone: true } });
+    return { for: "executor", phone, display: formatPhone(phone) };
+  }
+  if (party !== "client") return null;
+  if (state === "SHOWN") return { for: "client", shared: true };
+  const facts: ClientPhoneFacts = { state, chatClosed, talked: chatClosed === null && (await talked(offer)) };
+  return canShareClientPhone(facts) ? { for: "client", shared: false } : null;
+}
+
+/**
+ * Показать или скрыть телефон: только заказчик заявки (таблица CLIENT_PHONE). Переход — условным
+ * updateMany по ожидаемому состоянию: повтор, двойной клик и параллельный запрос дают один эффект,
+ * второй — CONFLICT. Номер не пишется ни в журнал, ни в уведомление. Если отклик закроется параллельно
+ * с согласием, номер всё равно не будет виден: видимость проверяется при каждом чтении.
+ */
+async function switchClientPhone(user: CurrentUser, offerId: string, action: ClientPhoneAction): Promise<void> {
+  const { offer, party } = await requireOffer(db, user, offerId);
+  const share = action === "share";
+  const facts: ClientPhoneFacts = { state: phoneState(offer), chatClosed: closedReasonOf(offer), talked: share && (await talked(offer)) };
+  clientPhoneTarget(action, facts, party);
+  await transaction(async (tx) => {
+    expectOneUpdated(
+      await tx.offer.updateMany({
+        where: { id: offerId, clientPhoneSharedAt: share ? null : { not: null } },
+        data: { clientPhoneSharedAt: share ? new Date() : null },
+      }),
+      ph.errors[action],
+    );
+    await recordAudit(tx, {
+      actor: actorOf(user),
+      action: share ? "offer.client_phone_shared" : "offer.client_phone_revoked",
+      entity: { type: "offer", id: offerId },
+      scope: scopeOf(offer),
+      before: { shared: !share },
+      after: { shared: share },
+    });
+    if (share) {
+      await notify(tx, { userId: offer.executor.userId, kind: "offer.client_phone_shared", title: ph.notify.title, body: ph.notify.body, link: linkFor(offer, false) });
+    }
+  });
+}
+
+/** Заказчик показывает свой телефон исполнителю отклика — только после переписки и пока чат открыт. */
+export async function shareClientPhone(user: CurrentUser, offerId: string): Promise<void> {
+  await switchClientPhone(user, offerId, "share");
+}
+
+/** Заказчик скрывает телефон; можно в любой момент, в том числе в закрытом чате. */
+export async function revokeClientPhone(user: CurrentUser, offerId: string): Promise<void> {
+  await switchClientPhone(user, offerId, "revoke");
 }
