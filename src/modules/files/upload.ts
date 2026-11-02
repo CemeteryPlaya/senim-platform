@@ -8,8 +8,8 @@ import { db, isUniqueViolation, Prisma, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { enforceRateLimit } from "@/platform/rate-limit";
-import { processImage, sniffType } from "./image";
-import { declaredTypeAllowed, OWNER_PURPOSE, PURPOSE_POLICY, type Accepts, type FileOwner, type OwnerField } from "./policy";
+import { processImage, processPng, sniffType } from "./image";
+import { declaredTypeAllowed, PURPOSE_POLICY, purposesOf, type Accepts, type FileOwner, type OwnerField } from "./policy";
 import { fileUrl, storage, storageByName } from "./registry";
 import { openUploadToken, sealUploadToken } from "./signing";
 import type { UploadTarget } from "./storage";
@@ -60,15 +60,26 @@ export async function createUpload(user: CurrentUser, input: CreateUploadInput):
   return { token, target };
 }
 
-function notAcceptedText(accepts: Accepts) {
-  return accepts === "image" ? ru.files.errors.notImage : ru.files.errors.notImageOrPdf;
-}
+const NOT_ACCEPTED_TEXT: Record<Accepts, string> = {
+  image: ru.files.errors.notImage,
+  imageOrPdf: ru.files.errors.notImageOrPdf,
+  png: ru.files.errors.notPng,
+};
+const notAcceptedText = (accepts: Accepts) => NOT_ACCEPTED_TEXT[accepts];
 
-type Processed = { bytes: Uint8Array; contentType: string; ext: "jpg" | "pdf"; width: number | null; height: number | null; phash: string | null };
+type Processed = { bytes: Uint8Array; contentType: string; ext: "jpg" | "png" | "pdf"; width: number | null; height: number | null; phash: string | null };
 
-/** Тип — по байтам: фото пережимаются в JPEG без EXIF, PDF сохраняется как есть (его хэш подписывают). */
+/**
+ * Тип — по байтам: фото пережимаются в JPEG без EXIF, PDF сохраняется как есть (его хэш подписывают),
+ * рисунок подписи — PNG без метаданных с сохранённой прозрачностью.
+ */
 async function processBytes(raw: Uint8Array, accepts: Accepts): Promise<Processed> {
   const type = sniffType(raw);
+  if (accepts === "png") {
+    if (type !== "png") return fail.validation(notAcceptedText(accepts));
+    const png = await processPng(raw);
+    return { ...png, ext: "png", phash: null };
+  }
   if (type === "pdf" && accepts === "imageOrPdf") {
     return { bytes: raw, contentType: "application/pdf", ext: "pdf", width: null, height: null, phash: null };
   }
@@ -171,34 +182,65 @@ export async function saveFile(input: {
   return persist(provider.name, finalKeyBase(input.purpose, new Date(), randomUUID()), input.purpose, processed, input);
 }
 
+/**
+ * Файл ещё ни к чему не прикреплён: пусты все поля-владельцы и нет ссылок с другой стороны
+ * (документ, операция журнала денег, рисунок подписи, визуализация, фото витрины сделки).
+ */
 export const UNATTACHED = {
   portfolioItemId: null,
   requestId: null,
-  stageId: null,
+  progressReportId: null,
+  dealId: null,
+  executorProfileId: null,
   disputeId: null,
   messageId: null,
   visualizationId: null,
   document: { is: null },
+  bankDocFor: { is: null },
+  handSignature: { is: null },
+  visualizationSrc: { none: {} },
+  portfolioDealPhotos: { none: {} },
 } satisfies Prisma.StoredFileWhereInput;
 
 /**
  * Прикрепить загруженные файлы к сущности. Вызывает модуль-владелец в своей транзакции,
- * после своей проверки прав. Только свои, ещё не прикреплённые файлы подходящего назначения;
- * они дописываются после уже прикреплённых к этой сущности в порядке списка (фото добавляют частями —
- * порядок не сбивается). Иначе CONFLICT — транзакция вызывающего откатится.
+ * после своей проверки прав (сторона сделки, свой профиль). Только свои, ещё не прикреплённые файлы
+ * подходящего назначения (PURPOSE_POLICY.attachTo); они дописываются после уже прикреплённых к этой
+ * сущности в порядке списка (фото добавляют частями — порядок не сбивается). Иначе CONFLICT —
+ * транзакция вызывающего откатится.
+ *
+ * deal-core: { dealId } — фото сдачи (DELIVERY), { progressReportId } — «Ход работ», { disputeId } — спор;
+ * identity: { executorProfileId } — KYC_ID и KYC_REGISTRATION.
  */
 export async function attachFiles(tx: Db, input: { fileIds: readonly string[]; uploadedById: string; owner: FileOwner }): Promise<void> {
   const [field, ownerId] = Object.entries(input.owner).find(([, v]) => v !== undefined) as [OwnerField, string];
-  const purpose = OWNER_PURPOSE[field];
+  const purposes = purposesOf(field);
   const last = await tx.storedFile.aggregate({ where: { [field]: ownerId }, _max: { sortOrder: true } });
   const first = (last._max.sortOrder ?? -1) + 1;
   for (const [i, id] of input.fileIds.entries()) {
     const result = await tx.storedFile.updateMany({
-      where: { id, uploadedById: input.uploadedById, purpose, ...UNATTACHED },
+      where: { id, uploadedById: input.uploadedById, purpose: { in: purposes }, ...UNATTACHED },
       data: { [field]: ownerId, sortOrder: first + i },
     });
     expectOneUpdated(result, ru.files.errors.notOwn);
   }
+}
+
+/** Назначения, которые привязываются ссылкой с другой стороны (уникальный внешний ключ чужой таблицы). */
+export type LinkedPurpose = "BANK_DOCUMENT" | "HAND_SIGNATURE";
+
+/**
+ * Проверка перед ссылкой на файл с другой стороны: скан банковского документа
+ * (payments: MoneyTransaction.bankDocFileId) и рисунок подписи (documents: HandSignature.imageFileId).
+ * Файл свой, нужного назначения и ещё ни к чему не прикреплён — иначе CONFLICT. Ссылку пишет вызывающий
+ * в той же транзакции; от двойной привязки параллельно защищает уникальный индекс внешнего ключа.
+ */
+export async function assertAttachable(tx: Db, input: { fileId: string; uploadedById: string; purpose: LinkedPurpose }): Promise<void> {
+  const file = await tx.storedFile.findFirst({
+    where: { id: input.fileId, uploadedById: input.uploadedById, purpose: input.purpose, ...UNATTACHED },
+    select: { id: true },
+  });
+  if (!file) return fail.conflict(ru.files.errors.notOwn);
 }
 
 /** Пользователь убрал фото из формы до сохранения: удаляем, только если файл свой и ещё не прикреплён. */

@@ -12,8 +12,12 @@ export type InstallMethod = "prompt" | "ios-hint" | "none";
  * (Instagram, Telegram) не пишут «Safari/» в user agent, и пункта «На экран „Домой“» у них нет.
  */
 export function canAddToHomeScreenOnIos(userAgent: string, maxTouchPoints: number): boolean {
-  const apple = /iPhone|iPad|iPod/.test(userAgent) || (/Macintosh/.test(userAgent) && maxTouchPoints > 1);
-  return apple && /Safari\//.test(userAgent);
+  return isAppleMobile(userAgent, maxTouchPoints) && /Safari\//.test(userAgent);
+}
+
+/** iPhone, iPad (iPadOS представляется как Mac — отличаем по сенсорному экрану), iPod. */
+export function isAppleMobile(userAgent: string, maxTouchPoints: number): boolean {
+  return /iPhone|iPad|iPod/.test(userAgent) || (/Macintosh/.test(userAgent) && maxTouchPoints > 1);
 }
 
 /** Уже открыто как установленное приложение. navigator.standalone — только у iOS. */

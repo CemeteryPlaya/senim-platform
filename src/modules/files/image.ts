@@ -84,6 +84,26 @@ export async function processImage(raw: Uint8Array): Promise<ProcessedImage> {
   }
 }
 
+/** Рисунок подписи: хватает для встраивания в PDF и не раздувает документ. */
+export const SIGNATURE_MAX_SIDE = 1200;
+
+/**
+ * Рисунок подписи → PNG без метаданных: прозрачный фон сохраняется (его кладут поверх строки подписи
+ * в PDF), размер ограничен. Перцептивный хэш не нужен — повторы подписи не ищем.
+ */
+export async function processPng(raw: Uint8Array): Promise<{ bytes: Uint8Array; contentType: "image/png"; width: number; height: number }> {
+  try {
+    const { data, info } = await sharp(raw, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+      .resize({ width: SIGNATURE_MAX_SIDE, height: SIGNATURE_MAX_SIDE, fit: "inside", withoutEnlargement: true })
+      .png({ compressionLevel: 9 })
+      .toBuffer({ resolveWithObject: true });
+    return { bytes: new Uint8Array(data), contentType: "image/png", width: info.width, height: info.height };
+  } catch (error) {
+    logger.warn("files.png.decode_failed", { error });
+    return fail.validation(ru.files.errors.broken);
+  }
+}
+
 /**
  * dHash: 9×8 в оттенках серого, бит = «пиксель ярче соседа справа». 64 бита → 16 hex.
  * Устойчив к пережатию и масштабу, поэтому находит одно и то же фото, загруженное разными людьми.

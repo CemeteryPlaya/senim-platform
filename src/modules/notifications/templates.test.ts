@@ -3,15 +3,33 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { NOTIFICATIONS } from "@/demo/data";
 import { days } from "@/i18n/ru/notifications";
-import { renderTemplate, TEMPLATES, type TemplateKey } from "./templates";
+import { renderTemplate, SMS_KINDS, TEMPLATES } from "./templates";
+
+/**
+ * INTEGRATOR: сид фазы A ещё содержит уведомления старой модели этапов. Убрать список, когда сид
+ * пересоберут под ТЗ (deal.offer.ready, deal.ready, money.* вместо этих видов).
+ */
+const LEGACY_DEMO_KINDS = new Set(["deal.contract.ready", "deal.payment.marked", "deal.stage.submitted"]);
+
+/** Исходники модулей (без тестов и самого notifications): где вид уведомления пишется строкой. */
+async function moduleSources(): Promise<string> {
+  const root = path.join(process.cwd(), "src/modules");
+  const files = (await readdir(root, { recursive: true })).filter(
+    (f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !f.startsWith(`notifications${path.sep}`),
+  );
+  return (await Promise.all(files.map((f) => readFile(path.join(root, f), "utf8")))).join("\n");
+}
+
+/** Вид шлют строкой. Те же строки бывают действиями журнала («action: "offer.accepted"») — они уведомление не шлют. */
+const sentBy = (source: string, kind: string) => new RegExp(`(?<!action: )"${kind.replace(/\./g, "\\.")}"`).test(source);
 
 /** formatMoney ставит неразрывные пробелы — сравниваем текст как его видит человек. */
 const plain = (s: string) => s.replace(/ /g, " ");
 
 describe("шаблоны уведомлений", () => {
-  it("покрывают все виды уведомлений из демо-данных", () => {
-    const keys = new Set(Object.keys(TEMPLATES));
-    const missing = [...new Set(NOTIFICATIONS.map((n) => n.kind))].filter((k) => !keys.has(k));
+  it("каждый вид уведомления из демо-данных — шаблон или вид, который шлёт модуль", async () => {
+    const source = await moduleSources();
+    const missing = [...new Set(NOTIFICATIONS.map((n) => n.kind))].filter((k) => !(k in TEMPLATES) && !sentBy(source, k) && !LEGACY_DEMO_KINDS.has(k));
     expect(missing).toEqual([]);
   });
 
@@ -24,7 +42,7 @@ describe("шаблоны уведомлений", () => {
 
   it("ссылки ведут на экран получателя", () => {
     expect(renderTemplate("offer.accepted", { requestId: "r1", requestTitle: "Шкаф" }).link).toBe("/executor/requests/r1");
-    expect(renderTemplate("deal.stage.submitted", { dealId: "d1", dealTitle: "Шкаф", stageTitle: "Сборка", autoAcceptDays: 5 }).link).toBe("/deals/d1");
+    expect(renderTemplate("dispute.resolved", { dealId: "d1", dealTitle: "Шкаф" }).link).toBe("/deals/d1");
     expect(renderTemplate("dispute.opened", { audience: "operator", disputeId: "s1", dealTitle: "Шкаф" }).link).toBe("/operator/disputes/s1");
     expect(renderTemplate("dispute.opened", { audience: "party", dealId: "d1", dealTitle: "Шкаф" }).link).toBe("/deals/d1");
     expect(renderTemplate("registration.pending", { profileId: "p1", summary: "ИП, кухни" }).link).toBe("/operator/executors/p1");
@@ -48,13 +66,10 @@ describe("шаблоны уведомлений", () => {
     expect(renderTemplate("registration.approved", { segment: "ECONOMY" }).body).toContain("«Эконом»");
   });
 
-  it("SMS только по важным событиям", () => {
-    const sms = (Object.keys(TEMPLATES) as TemplateKey[]).filter((k) => TEMPLATES[k].sms).sort();
-    expect(sms).toEqual([
-      "deal.contract.ready",
-      "deal.payment.marked",
-      "deal.stage.rework",
-      "deal.stage.submitted",
+  it("SMS только по важным событиям: ответ стороны по сделке, спор, замер, выбор отклика, регистрация", () => {
+    expect([...SMS_KINDS].sort()).toEqual([
+      "deal.offer.ready",
+      "deal.ready",
       "dispute.opened",
       "dispute.resolved",
       "measurement.reminder",
@@ -65,9 +80,9 @@ describe("шаблоны уведомлений", () => {
     ]);
   });
 
-  it("тексты не обещают эскроу и безопасную оплату", async () => {
-    const source = await readFile(path.join(process.cwd(), "src/i18n/ru/notifications.ts"), "utf8");
-    expect(source.toLowerCase()).not.toMatch(/эскроу|безопасн/);
+  it.each(["notifications", "files", "pwa"])("тексты зоны %s: без «эскроу», «комиссии» и обещания безопасной оплаты", async (zone) => {
+    const source = await readFile(path.join(process.cwd(), `src/i18n/ru/${zone}.ts`), "utf8");
+    expect(source.toLowerCase()).not.toMatch(/эскроу|комисси|безопасн/);
   });
 
   it("склонение дней", () => {
@@ -76,20 +91,8 @@ describe("шаблоны уведомлений", () => {
 });
 
 describe("важные уведомления доходят", () => {
-  /** Исходники модулей (без тестов и самого notifications): где вид уведомления пишется строкой. */
-  async function moduleSources(): Promise<string> {
-    const root = path.join(process.cwd(), "src/modules");
-    const files = (await readdir(root, { recursive: true })).filter(
-      (f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !f.startsWith(`notifications${path.sep}`),
-    );
-    return (await Promise.all(files.map((f) => readFile(path.join(root, f), "utf8")))).join("\n");
-  }
-
-  it("каждый шаблон с SMS кто-то из модулей шлёт под его ключом", async () => {
+  it("каждый вид с SMS кто-то из модулей шлёт под его ключом", async () => {
     const source = await moduleSources();
-    const sms = (Object.keys(TEMPLATES) as TemplateKey[]).filter((k) => TEMPLATES[k].sms);
-    // Те же строки бывают действиями журнала («action: "offer.accepted"») — они уведомление не шлют.
-    const sent = (key: string) => new RegExp(`(?<!action: )"${key.replace(/\./g, "\\.")}"`).test(source);
-    expect(sms.filter((key) => !sent(key))).toEqual([]);
+    expect([...SMS_KINDS].filter((key) => !sentBy(source, key))).toEqual([]);
   });
 });

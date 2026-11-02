@@ -1,7 +1,7 @@
 import type { RegistrationStatus, RequestMode, RequestStatus, Role, Segment } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
 import { executorSeesRequest } from "@/modules/requests/client";
-import { db } from "@/platform/db";
+import { db, type Prisma } from "@/platform/db";
 
 /** Кто смотрит. Сегмент исполнителя нужен для тендеров (в CurrentUser его нет — догружаем). */
 export type Viewer = {
@@ -67,35 +67,78 @@ function requestSelect(executorId: string | undefined) {
   } as const;
 }
 
-async function loadFacts(fileId: string, executorId: string | undefined): Promise<FileFacts | null> {
-  const req = requestSelect(executorId);
-  const f = await db.storedFile.findUnique({
-    where: { id: fileId },
-    select: {
-      uploadedById: true,
-      portfolioItem: { select: { published: true, executor: { select: { userId: true } } } },
-      request: req,
-      visualization: { select: { request: req } },
-      stage: { select: { deal: dealParties } },
-      dispute: { select: { deal: dealParties } },
-      document: { select: { deal: dealParties } },
-      message: { select: { offer: { select: { executor: { select: { userId: true } }, request: { select: { clientId: true } } } } } },
-    },
-  });
-  if (!f) return null;
-  const facts = (owner: FileFacts["owner"]): FileFacts => ({ uploadedById: f.uploadedById, owner });
-  const parties = (deal: { clientId: string; executor: { userId: string } }) => facts({ kind: "parties", userIds: [deal.clientId, deal.executor.userId] });
+type DealParties = { clientId: string; executor: { userId: string } };
+const partiesOf = (deal: DealParties) => [deal.clientId, deal.executor.userId];
 
-  if (f.portfolioItem) return facts({ kind: "portfolio", published: f.portfolioItem.published, ownerUserId: f.portfolioItem.executor.userId });
+function ownersSelect(executorId: string | undefined) {
+  const req = requestSelect(executorId);
+  return {
+    uploadedById: true,
+    portfolioItem: { select: { published: true, executor: { select: { userId: true } } } },
+    request: req,
+    visualization: { select: { request: req } },
+    deal: dealParties,
+    progressReport: { select: { deal: dealParties } },
+    dispute: { select: { deal: dealParties } },
+    document: { select: { deal: dealParties } },
+    message: { select: { offer: { select: { executor: { select: { userId: true } }, request: { select: { clientId: true } } } } } },
+    executorProfile: { select: { userId: true } },
+    handSignature: { select: { userId: true } },
+    bankDocFor: { select: { id: true } },
+  } as const satisfies Prisma.StoredFileSelect;
+}
+
+type LoadedOwners = Prisma.StoredFileGetPayload<{ select: ReturnType<typeof ownersSelect> }>;
+
+async function loadFacts(fileId: string, executorId: string | undefined): Promise<FileFacts | null> {
+  const f = await db.storedFile.findUnique({ where: { id: fileId }, select: ownersSelect(executorId) });
+  return f && { uploadedById: f.uploadedById, owner: ownerOf(f) };
+}
+
+/**
+ * Кто читает файл по его владельцу (оператор — всегда, см. decideFileAccess):
+ * фото сдачи, «Ход работ», спор, документ сделки, вложение чата — стороны; KYC — сам мастер;
+ * рисунок подписи — подписавший (другая сторона видит его в PDF документа); скан банковского
+ * документа — только оператор: в платёжке реквизиты счёта мастера и банка, стороны видят номер и
+ * дату документа в истории денег и в выписке (MONEY_STATEMENT).
+ */
+function ownerOf(f: LoadedOwners): FileFacts["owner"] {
+  return portfolioOwner(f) ?? requestOwner(f) ?? partiesOwner(f) ?? { kind: "none" };
+}
+
+function portfolioOwner({ portfolioItem: item }: LoadedOwners): FileFacts["owner"] | null {
+  return item && { kind: "portfolio", published: item.published, ownerUserId: item.executor.userId };
+}
+
+function requestOwner(f: LoadedOwners): FileFacts["owner"] | null {
   const request = f.request ?? f.visualization?.request;
-  if (request) {
-    const { offers, ...rest } = request;
-    return facts({ kind: "request", request: { ...rest, viewerHasOffer: offers.length > 0 } });
+  if (!request) return null;
+  const { offers, ...rest } = request;
+  return { kind: "request", request: { ...rest, viewerHasOffer: offers.length > 0 } };
+}
+
+/**
+ * Кому из людей файл виден по владельцу — по порядку, первый найденный владелец решает: стороны сделки
+ * (сдача, «Ход работ», спор, документ), стороны отклика (чат), мастер (KYC), подписавший (рисунок подписи),
+ * никто, кроме оператора (скан банковского документа).
+ */
+const PARTY_SOURCES: readonly ((f: LoadedOwners) => readonly string[] | null)[] = [
+  (f) => f.deal && partiesOf(f.deal),
+  (f) => f.progressReport && partiesOf(f.progressReport.deal),
+  (f) => f.dispute && partiesOf(f.dispute.deal),
+  (f) => f.document && partiesOf(f.document.deal),
+  (f) => f.message && [f.message.offer.request.clientId, f.message.offer.executor.userId],
+  (f) => f.executorProfile && [f.executorProfile.userId],
+  (f) => f.handSignature && [f.handSignature.userId],
+  (f) => f.bankDocFor && [],
+];
+
+function partiesOwner(f: LoadedOwners): FileFacts["owner"] | null {
+  for (const source of PARTY_SOURCES) {
+    const userIds = source(f);
+    if (userIds) return { kind: "parties", userIds };
   }
-  const deal = f.stage?.deal ?? f.dispute?.deal ?? f.document?.deal;
-  if (deal) return parties(deal);
-  if (f.message) return facts({ kind: "parties", userIds: [f.message.offer.request.clientId, f.message.offer.executor.userId] });
-  return facts({ kind: "none" });
+  return null;
 }
 
 async function viewerOf(user: CurrentUser | null): Promise<Viewer> {
@@ -107,11 +150,13 @@ async function viewerOf(user: CurrentUser | null): Promise<Viewer> {
 
 /**
  * Права на файл по сущности-владельцу: портфолио — публично; фото помещения — заказчик и исполнители,
- * видящие заявку; этап, спор, документ, вложение чата — стороны; оператор — всё; гость — только портфолио.
+ * видящие заявку; фото сдачи, «Ход работ», спор, документ, вложение чата — стороны; KYC — мастер;
+ * рисунок подписи — подписавший; скан банковского документа — оператор (ownerOf); оператор — всё;
+ * гость — только опубликованное портфолио.
  *
  * Правило для маршрутов «файл по id» без сущности-владельца на руках (ADR-003: право проверяется при
  * выдаче ссылки). Сервисы, которые сейчас выдают fileUrl, уже проверяют доступ к своей сущности и
- * сюда не ходят: фото помещения — requests (loadOwnRequest / visibleToExecutor), этапа — deal-core
+ * сюда не ходят: фото помещения — requests (loadOwnRequest / visibleToExecutor), сдачи и «Хода работ» — deal-core
  * (loadView: сторона или оператор), спора — operator (assertOperator), визуализации — ai
  * (readableRequest), портфолио — companies (опубликовано или своё). Вложения чата отдаются только id.
  */
