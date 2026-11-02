@@ -14,12 +14,14 @@ import { env } from "@/platform/env";
 import { DEFAULT_FURNITURE_TYPES, STAGE_TEMPLATES, suggestSegment } from "@/verticals/furniture";
 import {
   CLIENTS,
+  DUAL_ROLE_REQUESTS,
   EXECUTORS,
   NOTIFICATIONS,
   OPERATOR,
   REQUESTS,
   STAGE_REPORTS,
   type ClientKey,
+  type ClientRef,
   type DealProgress,
   type DealSpec,
   type ExecutorKey,
@@ -245,6 +247,11 @@ class AuditLog {
 
 // ─── сборка ──────────────────────────────────────────────────────────────────
 
+/** Заказчик заявки сида: персона-заказчик или исполнитель с ролью заказчика (ADR-004). */
+function clientIdOf(ids: Ids, ref: ClientRef): string {
+  return typeof ref === "string" ? ids.clients.get(ref)! : ids.executors.get(ref.executor)!.userId;
+}
+
 type Ids = {
   types: Map<FurnitureSlug, string>;
   operator: string;
@@ -266,9 +273,10 @@ function signerOf(spec: ExecutorSpec): ExecutorSigner {
   }
 }
 
-function personData(p: PersonSpec, role: Role, clock: Clock) {
+function personData(p: PersonSpec, role: Role, clock: Clock, roles: Role[] = [role]) {
   return {
     role,
+    roles,
     phone: p.phone,
     fullName: p.fullName,
     iinEnc: encryptPii(p.iin),
@@ -298,6 +306,8 @@ async function fill(tx: Tx, now: number): Promise<SeedSummary> {
   const requests = [...REQUESTS].sort((a, b) => b.createdDaysAgo - a.createdDaysAgo);
   const reviews = new Map<ExecutorKey, number[]>();
   for (const spec of requests) await seedRequest(tx, ids, clock, audit, spec, reviews);
+  // После остальных: номера заявок и сделок, на которые опираются e2e, не сдвигаются.
+  for (const spec of DUAL_ROLE_REQUESTS) await seedRequest(tx, ids, clock, audit, spec, reviews);
 
   for (const [key, ratings] of reviews) {
     const avg = ratings.reduce((s, r) => s + r, 0) / ratings.length;
@@ -328,7 +338,7 @@ async function fill(tx: Tx, now: number): Promise<SeedSummary> {
   return {
     users: await tx.user.count(),
     executors: ids.executors.size,
-    requests: requests.length,
+    requests: requests.length + DUAL_ROLE_REQUESTS.length,
     deals: await tx.deal.count(),
     auditEvents,
   };
@@ -340,7 +350,8 @@ async function seedExecutors(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog) {
     (a, b) => b[1].registeredDaysAgo - a[1].registeredDaysAgo,
   );
   for (const [key, spec] of entries) {
-    const user = await tx.user.create({ data: personData(spec.person, "EXECUTOR", clock) });
+    const roles: Role[] = spec.alsoClient ? ["EXECUTOR", "CLIENT"] : ["EXECUTOR"];
+    const user = await tx.user.create({ data: personData(spec.person, "EXECUTOR", clock, roles) });
     const binIin = spec.legalForm === "TOO" ? spec.bin : spec.person.iin;
     const reg = spec.registration;
     const signer = signerOf(spec);
@@ -426,7 +437,7 @@ async function seedRequest(
   spec: RequestSpec,
   reviews: Map<ExecutorKey, number[]>,
 ) {
-  const clientId = ids.clients.get(spec.client)!;
+  const clientId = clientIdOf(ids, spec.client);
   const asClient: AuditActor = { id: clientId, role: "CLIENT" };
   const status = requestStatusOf(spec);
   const signedAt = spec.deal?.signedDaysAgo !== undefined ? clock.ago(spec.deal.signedDaysAgo) : null;
@@ -522,7 +533,7 @@ async function seedOffer(
     after: { status: "SENT", price: o.price, durationDays: o.durationDays },
   });
 
-  const clientId = ids.clients.get(spec.client)!;
+  const clientId = clientIdOf(ids, spec.client);
   if (o.messages?.length) {
     await tx.message.createMany({
       data: o.messages.map((m) => ({
@@ -607,7 +618,7 @@ async function seedDeal(
   const template = STAGE_TEMPLATES[d.template];
   const planned = planStages(template, offer.finalPrice);
   const executor = ids.executors.get(offer.executor)!;
-  const clientId = ids.clients.get(spec.client)!;
+  const clientId = clientIdOf(ids, spec.client);
   const status = dealStatusOf(d);
   const createdAt = clock.ago(d.createdDaysAgo);
   const signedAt = d.signedDaysAgo !== undefined ? clock.ago(d.signedDaysAgo) : null;

@@ -94,7 +94,7 @@ export async function resumeAutoAccept(tx: Tx, deal: DealState, resumedAt: Date)
  * Готовым текстом, а не шаблоном: тело с номером сделки и суммой собирает deal-core.
  */
 export async function notifyOperatorsPaymentFailed(tx: Tx, deal: DealState, op: { kind: string; amount: number }) {
-  const operators = await tx.user.findMany({ where: { role: "OPERATOR", blockedAt: null }, select: { id: true } });
+  const operators = await tx.user.findMany({ where: { roles: { has: "OPERATOR" }, blockedAt: null }, select: { id: true } });
   const msg = { title: t.paymentFailed.title, body: t.paymentFailed.body(deal.number, formatMoney(op.amount)) };
   for (const { id } of operators) await notify(tx, { userId: id, kind: "payment.failed", ...msg, link: link(deal.id) });
 }

@@ -103,7 +103,7 @@ describe("requestOtp", () => {
 
   it("общий лимит не закрывает вход зарегистрированным: они входят по лимитам своего номера", async () => {
     setEnv({ OTP_DAILY_GLOBAL_LIMIT: "2" });
-    const user = await db.user.create({ data: { phone: "+77010008001", role: "CLIENT" } });
+    const user = await db.user.create({ data: { phone: "+77010008001", role: "CLIENT", roles: ["CLIENT"] } });
     for (let i = 0; i < 2; i++) await requestOtp({ phone: `+770200080${i}0`, ip: null });
     expect((await errorOf(requestOtp({ phone: "+77020008099", ip: null }))).code).toBe("RATE_LIMITED");
 
@@ -129,7 +129,7 @@ describe("requestOtp", () => {
 
   it("лимит на префикс номера (первые 6 цифр) — для незарегистрированных номеров", async () => {
     setEnv({ OTP_DAILY_PREFIX_LIMIT: "2" });
-    const user = await db.user.create({ data: { phone: "+77030001999", role: "CLIENT" } });
+    const user = await db.user.create({ data: { phone: "+77030001999", role: "CLIENT", roles: ["CLIENT"] } });
     await requestOtp({ phone: "+77030001000", ip: null });
     await requestOtp({ phone: "+77030002000", ip: null });
 
@@ -171,7 +171,7 @@ describe("verifyOtp", () => {
   });
 
   it("существующий пользователь входит со своей ролью", async () => {
-    const operator = await db.user.create({ data: { phone: PHONE, role: "OPERATOR" } });
+    const operator = await db.user.create({ data: { phone: PHONE, role: "OPERATOR", roles: ["OPERATOR"] } });
     const code = await codeFor();
 
     expect(await verifyOtp({ phone: PHONE, code, ip: IP })).toMatchObject({ userId: operator.id, role: "OPERATOR", isNew: false });
@@ -237,7 +237,7 @@ describe("verifyOtp", () => {
   });
 
   it("заблокированный пользователь не входит", async () => {
-    await db.user.create({ data: { phone: PHONE, role: "CLIENT", blockedAt: new Date() } });
+    await db.user.create({ data: { phone: PHONE, role: "CLIENT", roles: ["CLIENT"], blockedAt: new Date() } });
     const code = await codeFor();
 
     expect((await errorOf(verifyOtp({ phone: PHONE, code, ip: IP }))).code).toBe("FORBIDDEN");

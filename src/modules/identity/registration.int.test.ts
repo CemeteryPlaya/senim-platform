@@ -48,7 +48,7 @@ async function codeOf(p: Promise<unknown>): Promise<string> {
 }
 
 describe("registerExecutor", () => {
-  it("создаёт профиль PENDING с зашифрованным ИИН, меняет роль и уведомляет операторов", async () => {
+  it("создаёт профиль PENDING с зашифрованным ИИН, добавляет роль исполнителя и уведомляет операторов", async () => {
     const [op1, op2] = [await makeOperator(), await makeOperator()];
     const user = await makeClient();
 
@@ -67,7 +67,8 @@ describe("registerExecutor", () => {
     });
     expect(profile.binIinEnc).not.toContain(IIN);
     expect(decryptPii(profile.binIinEnc)).toBe(IIN);
-    expect(profile.user.role).toBe("EXECUTOR");
+    // Роль добавлена к выданным, заказчик остаётся заказчиком (ADR-004); активную роль переключает экран.
+    expect(profile.user.roles).toEqual(["CLIENT", "EXECUTOR"]);
 
     const audit = await db.auditEvent.findFirstOrThrow({ where: { action: "executor.registered" } });
     expect(audit).toMatchObject({ actorId: user.id, scope: `executor:${profileId}`, entityType: "executor", entityId: profileId });
@@ -120,12 +121,23 @@ describe("registerExecutor", () => {
     expect(await codeOf(registerExecutor(prober, selfEmployed))).toBe("RATE_LIMITED");
   });
 
-  it("номер, на котором уже есть заявки заказчика, не становится исполнителем", async () => {
+  it("заказчик с заявками становится исполнителем на том же номере: роль CLIENT и заявки остаются", async () => {
     const user = await makeClient();
-    await db.request.create({ data: { clientId: user.id, mode: "TENDER" } });
+    const request = await db.request.create({ data: { clientId: user.id, mode: "TENDER" } });
 
-    expect(await codeOf(registerExecutor(user, selfEmployed))).toBe("CONFLICT");
-    expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).role).toBe("CLIENT");
+    await registerExecutor(user, selfEmployed);
+
+    expect(await db.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ role: "CLIENT", roles: ["CLIENT", "EXECUTOR"] });
+    expect(await db.request.findUniqueOrThrow({ where: { id: request.id } })).toMatchObject({ clientId: user.id });
+  });
+
+  it("повторная подача после отказа не дублирует роль исполнителя", async () => {
+    const user = await makeClient();
+    const { profileId } = await registerExecutor(user, selfEmployed);
+    await reviewExecutorRegistration(await makeOperator(), profileId, { approve: false, reason: "Опечатка" });
+    await registerExecutor({ ...user, role: "EXECUTOR" }, selfEmployed);
+
+    expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).roles).toEqual(["CLIENT", "EXECUTOR"]);
   });
 
   it("оператор не может зарегистрироваться исполнителем", async () => {
@@ -187,6 +199,38 @@ describe("подписант договора — свойство профил�
     const { profileId } = await registerExecutor(await smsUser(), ip);
     expect(await profileOf(profileId)).toMatchObject({ binIinHash: hashPii(IIN), status: "PENDING" });
     expect(await accountOf(asClient.id)).toMatchObject({ iinHash: hashPii(IIN) });
+  });
+
+  it("заказчик с ИИН в аккаунте регистрирует ИП на свой же ИИН на том же номере — без «ИИН занят» (№28)", async () => {
+    const me = await smsUser();
+    await db.user.update({ where: { id: me.id }, data: { fullName: "Жумабаев Ерлан", iinEnc: encryptPii(IIN), iinHash: hashPii(IIN), iinLast4: last4(IIN) } });
+
+    const { profileId } = await registerExecutor(me, ip);
+
+    expect(await profileOf(profileId)).toMatchObject({ userId: me.id, binIinHash: hashPii(IIN), status: "PENDING" });
+    expect(await accountOf(me.id)).toMatchObject({ iinHash: hashPii(IIN), roles: ["CLIENT", "EXECUTOR"] });
+  });
+
+  it("директор ТОО с ИИН заказчика в том же аккаунте регистрирует ТОО (№28)", async () => {
+    const me = await smsUser();
+    await db.user.update({ where: { id: me.id }, data: { iinEnc: encryptPii(DIRECTOR_IIN), iinHash: hashPii(DIRECTOR_IIN), iinLast4: last4(DIRECTOR_IIN) } });
+
+    const { profileId } = await registerExecutor(me, too);
+    expect(await profileOf(profileId)).toMatchObject({ signerIinHash: hashPii(DIRECTOR_IIN) });
+  });
+
+  it("исполнитель-ИП, ставший заказчиком, указывает перед договором тот же ИИН, что у профиля; чужой аккаунт с этим ИИН — нет", async () => {
+    const me = await smsUser();
+    await registerExecutor(me, ip);
+    const m = await makeMeasured(me);
+
+    await agreeToContract(me, { requestId: m.requestId, template: "advance-50", identity: { fullName: "Жумабаев Ерлан", iin: IIN } });
+    expect(await accountOf(me.id)).toMatchObject({ iinHash: hashPii(IIN) });
+
+    // Один ИИН заказчика — один аккаунт: для чужих правило остаётся.
+    const other = await smsUser();
+    const m2 = await makeMeasured(other);
+    expect(await codeOf(agreeToContract(other, { requestId: m2.requestId, template: "advance-50", identity: { fullName: "Жумабаев Ерлан", iin: IIN } }))).toBe("CONFLICT");
   });
 
   it("чужой ИИН в анкете ТОО не мешает настоящему владельцу ИИН указать его перед договором", async () => {

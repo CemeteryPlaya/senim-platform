@@ -90,6 +90,8 @@ export type ExecutorSpec = Legal &
     yearsExperience: number;
     specializations: readonly FurnitureSlug[];
     portfolio: readonly PortfolioSpec[];
+    /** Также заказчик на том же аккаунте (ADR-004): роли EXECUTOR и CLIENT. */
+    alsoClient?: true;
   };
 
 const FEE = 10_000;
@@ -204,6 +206,7 @@ export const EXECUTORS = {
     legalName: "ИП Абдрахманов Нурлан Канатович",
     ownerName: "Абдрахманов Нурлан Канатович",
     registration: { status: "APPROVED", segment: "COMFORT", reviewedDaysAgo: 278 },
+    alsoClient: true,
     registeredDaysAgo: 280,
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
@@ -325,9 +328,12 @@ export type DealSpec = {
 
 type Targeting = { mode: "TENDER" } | { mode: "DIRECT"; target: ExecutorKey; portfolioItem: string };
 
+/** Заказчик заявки: персона-заказчик или исполнитель, который заказывал как заказчик (ADR-004). */
+export type ClientRef = ClientKey | { executor: ExecutorKey };
+
 export type RequestSpec = Targeting & {
   key: string;
-  client: ClientKey;
+  client: ClientRef;
   type: FurnitureSlug;
   style: StyleKey;
   details: RequestDetails;
@@ -763,7 +769,7 @@ const ACTIVE: RequestSpec[] = [
 
 type CompletedInput = {
   key: string;
-  client: ClientKey;
+  client: ClientRef;
   executor: ExecutorKey;
   type: FurnitureSlug;
   style: StyleKey;
@@ -881,6 +887,20 @@ const HISTORY: RequestSpec[] = [
 ];
 
 export const REQUESTS: RequestSpec[] = [...HISTORY, ...ACTIVE];
+
+/**
+ * Исполнитель «Дала» (ИП Абдрахманов) сам заказывал шкаф как заказчик (ADR-004): одна завершённая сделка
+ * в роли заказчика. Сеется после REQUESTS — номера остальных заявок и сделок (на них опираются e2e) не сдвигаются.
+ * ИИН заказчика в аккаунте и ИИН профиля ИП совпадают — это один человек (OPEN_QUESTIONS №28).
+ */
+export const DUAL_ROLE_REQUESTS: RequestSpec[] = [
+  completed({
+    key: "h-dala-as-client-wardrobe", client: { executor: "dala" }, executor: "timur", type: "wardrobe", style: "modern",
+    details: { widthCm: 180, facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.sample4,
+    title: "Шкаф в прихожую для себя", price: 240_000, finalPrice: 250_000, template: "no-prepayment", startDaysAgo: 60, durationDays: 18,
+    rating: 5, review: "Сам мебельщик, поэтому придирчив: собрано ровно, фурнитура как договаривались.",
+  }),
+];
 
 /** Отчёты исполнителя при сдаче этапа — по названию этапа шаблона. */
 export const STAGE_REPORTS: Record<string, string> = {

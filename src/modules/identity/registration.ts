@@ -9,7 +9,7 @@ import { enforceRateLimit } from "@/platform/rate-limit";
 import type { ReviewExecutorRegistration } from "./index";
 import type { ExecutorRegistrationInput, ExecutorSigner } from "./registration-schema";
 import { EXECUTOR_REGISTRATION_PATH } from "./return-to";
-import { actorOf, type CurrentUser } from "./session";
+import { actorOf, grantRole, type CurrentUser } from "./session";
 
 export { executorRegistrationSchema, type ExecutorRegistrationInput, type ExecutorSigner } from "./registration-schema";
 
@@ -62,9 +62,10 @@ async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegis
 }
 
 /**
- * Регистрация исполнителя: профиль PENDING, ИИН/БИН и ИИН подписанта только зашифрованными, роль EXECUTOR,
- * уведомление каждому оператору. ФИО и ИИН аккаунта не трогает: подписант — свойство профиля (ADR-003). Свежий номер после входа — CLIENT; номер с заявками
- * заказчика исполнителем не становится (иначе заявки и сделки потеряют владельца).
+ * Регистрация исполнителя: профиль PENDING, ИИН/БИН и ИИН подписанта только зашифрованными, роль EXECUTOR
+ * добавляется к выданным (заказчик остаётся заказчиком, ADR-004), уведомление каждому оператору.
+ * ФИО и ИИН аккаунта не трогает: подписант — свойство профиля (ADR-003). Активную роль сессии
+ * переключает вызывающий (switchRole) — сервис о cookie не знает.
  */
 export async function registerExecutor(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
   if (user.role === "OPERATOR") return fail.forbidden(t.errors.operator);
@@ -81,10 +82,10 @@ function register(user: CurrentUser, input: ExecutorRegistrationInput): Promise<
   return transaction(async (tx) => {
     // Блокировка строки пользователя: двойная отправка формы выполняется последовательно.
     await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
-    if ((await tx.request.count({ where: { clientId: user.id } })) > 0) return fail.conflict(t.errors.clientHasRequests);
 
     const profileId = await upsertPendingProfile(tx, user.id, input);
-    await tx.user.update({ where: { id: user.id }, data: { role: "EXECUTOR" } });
+    // Роль добавляется к выданным: CLIENT и вся история заказчика остаются (ADR-004).
+    await grantRole(tx, user, "EXECUTOR");
 
     await recordAudit(tx, {
       actor: actorOf({ id: user.id, role: "EXECUTOR" }),
@@ -92,7 +93,7 @@ function register(user: CurrentUser, input: ExecutorRegistrationInput): Promise<
       ...entityOf(profileId),
       after: { status: "PENDING", legalForm: input.legalForm },
     });
-    const operators = await tx.user.findMany({ where: { role: "OPERATOR", blockedAt: null }, select: { id: true } });
+    const operators = await tx.user.findMany({ where: { roles: { has: "OPERATOR" }, blockedAt: null }, select: { id: true } });
     for (const op of operators) {
       await notify(tx, {
         userId: op.id,

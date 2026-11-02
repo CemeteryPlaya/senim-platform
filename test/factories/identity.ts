@@ -47,5 +47,5 @@ export function setEnv(vars: Record<string, string | undefined>) {
 
 /** Пользователь с флагом демо-персоны. */
 export async function makeDemoPersona(role: "CLIENT" | "EXECUTOR" | "OPERATOR", phone: string, isDemo = true) {
-  return db.user.create({ data: { role, phone, fullName: `Демо ${phone}`, isDemo } });
+  return db.user.create({ data: { role, roles: [role], phone, fullName: `Демо ${phone}`, isDemo } });
 }

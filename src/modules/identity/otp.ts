@@ -142,7 +142,7 @@ export async function verifyOtp(input: { phone: string; code: string; ip: string
     if (existing?.blockedAt) return fail.forbidden(t.errors.blocked);
     if (existing) return { userId: existing.id, role: existing.role, executor: existing.executorProfile, isNew: false };
 
-    const created = await tx.user.create({ data: { phone, role: "CLIENT" } });
+    const created = await tx.user.create({ data: { phone, role: "CLIENT", roles: ["CLIENT"] } });
     await recordAudit(tx, {
       actor: SYSTEM("identity.otp"),
       action: "user.registered",

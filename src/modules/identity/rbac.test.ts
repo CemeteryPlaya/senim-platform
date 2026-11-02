@@ -73,6 +73,29 @@ describe("can: платформа", () => {
   });
 });
 
+describe("can: две роли у одного человека (ADR-004) — права только активной роли", () => {
+  // Один аккаунт: заказчик заявки c1 и исполнитель ex1.
+  const both = ["CLIENT", "EXECUTOR"] as const satisfies CurrentUser["roles"];
+  const asClient = user("c1", "CLIENT", { id: "ex1", publicNumber: 1, status: "APPROVED" }, [...both]);
+  const asExecutor = { ...asClient, role: "EXECUTOR" as const };
+
+  it("в роли заказчика — права заказчика, но не исполнителя", () => {
+    expect(can(asClient, "manage", request)).toBe(true);
+    expect(can(asClient, "edit", profile)).toBe(false);
+  });
+
+  it("в роли исполнителя — права исполнителя, но не заказчика", () => {
+    expect(can(asExecutor, "edit", profile)).toBe(true);
+    expect(can(asExecutor, "manage", request)).toBe(false);
+  });
+
+  it("сделку, где он сторона в другой роли, видит только в той роли", () => {
+    const asClientDeal = { kind: "deal", clientId: "c1", executorId: "ex2" } as const;
+    expect(can(asClient, "view", asClientDeal)).toBe(true);
+    expect(can(asExecutor, "view", asClientDeal)).toBe(false);
+  });
+});
+
 describe("authorize", () => {
   it("молчит, если можно, и бросает FORBIDDEN, если нельзя", () => {
     expect(() => authorize(client, "view", request)).not.toThrow();
@@ -85,6 +108,6 @@ describe("authorize", () => {
   });
 });
 
-function user(id: string, role: CurrentUser["role"], executorProfile: CurrentUser["executor"] = null): CurrentUser {
-  return { id, role, phone: "+77000000000", fullName: null, isDemo: false, executor: executorProfile };
+function user(id: string, role: CurrentUser["role"], executorProfile: CurrentUser["executor"] = null, roles: CurrentUser["roles"] = [role]): CurrentUser {
+  return { id, role, roles, phone: "+77000000000", fullName: null, isDemo: false, executor: executorProfile };
 }

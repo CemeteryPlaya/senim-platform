@@ -3,11 +3,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import type { Role } from "@/generated/prisma/enums";
-import { db } from "@/platform/db";
+import { ru } from "@/i18n/ru";
+import { recordAudit, type Actor } from "@/modules/audit";
+import { db, transaction, type Tx } from "@/platform/db";
 import { randomToken, sha256Hex } from "@/platform/crypto";
-import { fail } from "@/platform/errors";
-import type { Actor } from "@/modules/audit";
+import { expectOneUpdated, fail } from "@/platform/errors";
 import { loginHref } from "./return-to";
+import { activeRoleOf, roleToSwitch, switchRoleHref } from "./roles";
 
 export const SESSION_COOKIE = "senim_session";
 const SESSION_TTL_DAYS = 30;
@@ -16,11 +18,17 @@ const LAST_SEEN_THROTTLE_MIN = 10;
 
 export type CurrentUser = {
   id: string;
+  /** Активная роль: в ней человек действует в этой сессии. Все проверки прав — по ней (ADR-004). */
   role: Role;
+  /** Выданные роли; активная — одна из них. */
+  roles: Role[];
   phone: string;
   fullName: string | null;
   isDemo: boolean;
-  /** Профиль исполнителя, если role = EXECUTOR. */
+  /**
+   * Профиль исполнителя этого аккаунта, если он есть (в любой активной роли: экран регистрации
+   * и история сделок). Права исполнителя — только при role = EXECUTOR.
+   */
   executor: { id: string; publicNumber: number; status: "PENDING" | "APPROVED" | "REJECTED" } | null;
 };
 
@@ -34,15 +42,17 @@ async function revokeToken(token: string): Promise<void> {
 
 /**
  * Создаёт сессию и ставит httpOnly-cookie. Прежняя сессия этого браузера отзывается.
- * Вызывать из Server Action или route handler.
+ * Активная роль сессии фиксируется ролью по умолчанию на момент входа: переключение роли
+ * на другом устройстве не меняет роль этой сессии. Вызывать из Server Action или route handler.
  */
 export async function startSession(userId: string, userAgent?: string): Promise<void> {
   const previous = await currentToken();
   if (previous) await revokeToken(previous);
 
+  const { role } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
   const token = randomToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000);
-  await db.session.create({ data: { userId, tokenHash: sha256Hex(token), expiresAt, userAgent: userAgent?.slice(0, 300) } });
+  await db.session.create({ data: { userId, activeRole: role, tokenHash: sha256Hex(token), expiresAt, userAgent: userAgent?.slice(0, 300) } });
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -91,7 +101,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const { user } = session;
   return {
     id: user.id,
-    role: user.role,
+    role: activeRoleOf(user.roles, user.role, session.activeRole),
+    roles: user.roles,
     phone: user.phone,
     fullName: user.fullName,
     isDemo: user.isDemo,
@@ -109,14 +120,73 @@ export async function requireUser(...roles: Role[]): Promise<CurrentUser> {
 
 /**
  * Для страниц: пользователь с одной из ролей, иначе переход на /login с возвратом на `returnTo`
- * (адрес текущей страницы — страница знает свои params). Другая роль — тот же переход
- * с reason=role: экран входа предложит выйти и войти под нужным номером.
+ * (адрес текущей страницы — страница знает свои params). Нужная роль у человека есть, но не активна —
+ * на страницу переключения роли с тем же возвратом. Роли нет вовсе — вход с reason=role:
+ * экран входа предложит выйти и войти под нужным номером.
  */
 export async function requireUserPage(returnTo: string, ...roles: Role[]): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect(loginHref(returnTo));
-  if (roles.length > 0 && !roles.includes(user.role)) redirect(loginHref(returnTo, "role"));
+  if (roles.length > 0 && !roles.includes(user.role)) {
+    const to = roleToSwitch(user, roles);
+    redirect(to ? switchRoleHref(to, returnTo) : loginHref(returnTo, "role"));
+  }
   return user;
+}
+
+/**
+ * Переключение активной роли этой сессии (ADR-004). Роль должна быть выдана (проверка по БД, а не по сессии:
+ * отозванную роль не выбрать). Роль по умолчанию для следующего входа — тоже она. Строка пользователя
+ * блокируется: двойной клик выполняется последовательно, второй вызов видит роль уже активной и ничего не меняет.
+ */
+export async function switchRole(user: Pick<CurrentUser, "id">, role: Role): Promise<void> {
+  const token = await currentToken();
+  if (!token) return fail.unauthenticated();
+  await transaction(async (tx) => {
+    const [row] = await tx.$queryRaw<{ role: Role; roles: Role[] }[]>`
+      SELECT role, roles::text[] AS roles FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+    if (!row || !row.roles.includes(role)) return fail.forbidden(ru.identity.switchRole.notGranted);
+    const session = await tx.session.findUnique({ where: { tokenHash: sha256Hex(token) }, select: { id: true, userId: true, activeRole: true } });
+    if (!session || session.userId !== user.id) return fail.unauthenticated();
+
+    const current = activeRoleOf(row.roles, row.role, session.activeRole);
+    if (current === role) return;
+    expectOneUpdated(await tx.session.updateMany({ where: { id: session.id, activeRole: session.activeRole }, data: { activeRole: role } }));
+    await tx.user.update({ where: { id: user.id }, data: { role } });
+    await recordAudit(tx, {
+      actor: actorOf({ id: user.id, role: current }),
+      action: "user.role_switched",
+      entity: { type: "user", id: user.id },
+      before: { role: current },
+      after: { role },
+    });
+  });
+}
+
+/**
+ * Выдаёт роль в транзакции вызывающего (анкета исполнителя, «Стать заказчиком»). Уже выданная — без изменений
+ * (условие в where делает вызов идемпотентным при двойной отправке); оператору роли не добавляются.
+ * Возвращает true, если роль выдана сейчас.
+ */
+export async function grantRole(tx: Tx, user: Pick<CurrentUser, "id" | "role">, role: Role): Promise<boolean> {
+  if (role === "OPERATOR") return fail.forbidden();
+  const granted = await tx.user.updateMany({
+    where: { id: user.id, NOT: [{ roles: { has: role } }, { roles: { has: "OPERATOR" } }] },
+    data: { roles: { push: role } },
+  });
+  if (granted.count === 0) return false;
+  await recordAudit(tx, { actor: actorOf(user), action: "user.role_granted", entity: { type: "user", id: user.id }, after: { role } });
+  return true;
+}
+
+/**
+ * «Стать заказчиком» из профиля исполнителя (ADR-004): у роли заказчика нет привилегий над чужими данными,
+ * поэтому она выдаётся сразу, без модерации, и сессия переходит в неё. Повтор ничего не меняет.
+ */
+export async function becomeClient(user: CurrentUser): Promise<void> {
+  if (user.role !== "EXECUTOR") return fail.forbidden();
+  await transaction((tx) => grantRole(tx, user, "CLIENT"));
+  await switchRole(user, "CLIENT");
 }
 
 export function actorOf(user: Pick<CurrentUser, "id" | "role">): Actor {

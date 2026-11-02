@@ -74,6 +74,7 @@ export async function addExecutor(user: CurrentUser, input: AddExecutorInput): P
         data: {
           phone: input.phone,
           role: "EXECUTOR",
+          roles: ["EXECUTOR"],
           executorProfile: {
             create: {
               legalForm: input.legalForm,

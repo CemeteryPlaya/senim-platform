@@ -59,7 +59,7 @@ export async function notifyTemplate<K extends TemplateKey>(tx: Db, userId: stri
  * Вызывать в транзакции события (например, открытия спора).
  */
 export async function notifyOperators<K extends TemplateKey>(tx: Db, key: K, params: TemplateParams<K>): Promise<void> {
-  const operators = await tx.user.findMany({ where: { role: "OPERATOR", blockedAt: null }, select: { id: true } });
+  const operators = await tx.user.findMany({ where: { roles: { has: "OPERATOR" }, blockedAt: null }, select: { id: true } });
   const rendered = renderTemplate(key, params);
   for (const { id } of operators) await create(tx, { userId: id, kind: key, ...rendered }, false);
 }

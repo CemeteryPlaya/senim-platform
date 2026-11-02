@@ -23,7 +23,10 @@ enum Role {
 model User {
   id        String   @id @default(cuid())
   phone     String   @unique // E.164: +77001234567
+  /// Роль по умолчанию при следующем входе (последняя активная). Всегда одна из roles (CHECK в миграции).
   role      Role
+  /// Выданные роли (ADR-004). OPERATOR не совмещается с другими (CHECK в миграции).
+  roles     Role[]
   fullName  String?
   iinEnc    String? // ИИН, AES-256-GCM (platform/crypto)
   iinHash   String? @unique // HMAC для поиска без расшифровки
@@ -52,6 +55,8 @@ model Session {
   userId     String
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userAgent  String?
+  /// Роль, в которой человек действует в этой сессии (ADR-004); null или отозванная — User.role.
+  activeRole Role?
   createdAt  DateTime  @default(now())
   lastSeenAt DateTime  @default(now())
   expiresAt  DateTime
