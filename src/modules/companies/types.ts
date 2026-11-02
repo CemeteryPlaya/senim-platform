@@ -3,13 +3,17 @@ import type { Tx } from "@/platform/db";
 
 /**
  * Контракты companies (зафиксированы в фазе A) и типы публичных представлений.
- * Анонимность: заказчику исполнитель доступен только как PublicExecutorView —
- * без наименования, ФИО, телефона и ИИН/БИН.
+ * Анонимность: заказчику исполнитель доступен только как PublicExecutorView — без телефона и ИИН/БИН;
+ * наименование и улица — только в режиме «имя показано» (ответ №6, ADR-006).
  */
 export type PublicExecutorView = {
   id: string; // ExecutorProfile.id — для ссылок и форм; личность не раскрывает
   publicNumber: number;
-  label: string; // «Исполнитель №17»
+  label: string; // «Исполнитель №17» или наименование (режим «имя показано»)
+  labelGen: string; // «Исполнителя №17»
+  labelDat: string; // «Исполнителю №17»
+  address: string; // город и район; в режиме «имя показано» — с улицей и домом
+  nameShown: boolean;
   segment: Segment | null;
   ratingAvg: number;
   reviewsCount: number;
@@ -20,7 +24,7 @@ export type PublicExecutorView = {
   specializations: { slug: string; name: string }[];
 };
 
-/** Публичное представление исполнителя без наименования, ФИО, телефона и ИИН/БИН. */
+/** Публичное представление исполнителя без телефона и ИИН/БИН; наименование — по режиму №6. */
 export type GetPublicExecutorView = (executorId: string) => Promise<PublicExecutorView>;
 
 /** deal-core → companies: пересчитать рейтинг после отзыва (в той же транзакции). */

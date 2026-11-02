@@ -3,6 +3,8 @@ import { ru } from "@/i18n/ru";
 import { db, type Db, type Prisma } from "@/platform/db";
 import { PUBLIC_EXECUTOR_SELECT, toPublicView } from "./anonymity";
 import { priceRange, type CatalogFilter } from "./catalog-filter";
+import type { ExecutorIdentityMode } from "./display";
+import { getExecutorIdentityMode } from "./identity-mode";
 import { maskContacts, maskIdentity } from "./mask";
 import { PHOTO_SELECT, toPhotoViews } from "./photos";
 import { styleView } from "./portfolio";
@@ -11,7 +13,7 @@ import type { PortfolioCard, PublicExecutorPage, PublicExecutorView, PublicRevie
 /**
  * Публичная часть: каталог работ, страница исполнителя, отзывы, работа для «Хочу похожее».
  * Видно только опубликованное у подтверждённых и не заблокированных исполнителей, по включённым типам мебели.
- * Исполнитель везде — через PUBLIC_EXECUTOR_SELECT (без наименования, ФИО, телефона, ИИН/БИН).
+ * Исполнитель везде — через toPublicView (без телефона и ИИН/БИН; наименование — по режиму №6).
  */
 export const CATALOG_PAGE_SIZE = 12;
 const PUBLIC_PAGE_PORTFOLIO_LIMIT = 24;
@@ -34,8 +36,8 @@ const CARD_SELECT = {
 
 type CardRow = Prisma.PortfolioItemGetPayload<{ select: typeof CARD_SELECT }>;
 
-async function toCard(row: CardRow): Promise<PortfolioCard> {
-  const view = toPublicView(row.executor);
+async function toCard(row: CardRow, mode: ExecutorIdentityMode): Promise<PortfolioCard> {
+  const view = toPublicView(row.executor, mode);
   return {
     id: row.id,
     title: row.title,
@@ -58,17 +60,21 @@ export async function listCatalog(filter: CatalogFilter): Promise<{ items: Portf
     furnitureType: { active: true, slug: filter.type },
     executor: { ...VISIBLE_EXECUTOR, segment: filter.segment },
   };
-  const [total, rows] = await Promise.all([
+  const [total, rows, mode] = await Promise.all([
     db.portfolioItem.count({ where }),
     db.portfolioItem.findMany({ where, orderBy: ORDER, skip: (filter.page - 1) * CATALOG_PAGE_SIZE, take: CATALOG_PAGE_SIZE, select: CARD_SELECT }),
+    getExecutorIdentityMode(),
   ]);
-  return { items: await Promise.all(rows.map(toCard)), total, page: filter.page, pageCount: Math.max(1, Math.ceil(total / CATALOG_PAGE_SIZE)) };
+  return { items: await Promise.all(rows.map((row) => toCard(row, mode))), total, page: filter.page, pageCount: Math.max(1, Math.ceil(total / CATALOG_PAGE_SIZE)) };
 }
 
 /** Опубликованные работы исполнителя — для публичной страницы и миниатюр в карточке отклика. */
 export async function listPublicPortfolio(executorId: string, limit = PUBLIC_PAGE_PORTFOLIO_LIMIT): Promise<PortfolioCard[]> {
-  const rows = await db.portfolioItem.findMany({ where: { ...VISIBLE_ITEM, executorId }, orderBy: ORDER, take: limit, select: CARD_SELECT });
-  return Promise.all(rows.map(toCard));
+  const [rows, mode] = await Promise.all([
+    db.portfolioItem.findMany({ where: { ...VISIBLE_ITEM, executorId }, orderBy: ORDER, take: limit, select: CARD_SELECT }),
+    getExecutorIdentityMode(),
+  ]);
+  return Promise.all(rows.map((row) => toCard(row, mode)));
 }
 
 /** Отзывы об исполнителе: оценка, текст без контактов, дата. Автор не показывается. */
@@ -86,13 +92,13 @@ export async function listExecutorReviews(executorId: string, limit = REVIEWS_LI
 export async function getPublicExecutorPage(publicNumber: number): Promise<PublicExecutorPage | null> {
   const row = await db.executorProfile.findFirst({
     where: { publicNumber, ...VISIBLE_EXECUTOR },
-    select: { ...PUBLIC_EXECUTOR_SELECT, about: true, legalName: true },
+    select: { ...PUBLIC_EXECUTOR_SELECT, about: true },
   });
   if (!row) return null;
-  const { about, legalName, ...publicRow } = row;
-  const [portfolio, reviews] = await Promise.all([listPublicPortfolio(row.id), listExecutorReviews(row.id)]);
+  const { about, ...publicRow } = row;
+  const [portfolio, reviews, mode] = await Promise.all([listPublicPortfolio(row.id), listExecutorReviews(row.id), getExecutorIdentityMode()]);
   // «О себе» сохраняется уже очищенным, но демо-данные и старые записи могли обойти форму — чистим и при показе.
-  return { view: toPublicView(publicRow), about: maskIdentity(maskContacts(about).text, legalName), portfolio, reviews };
+  return { view: toPublicView(publicRow, mode), about: maskIdentity(maskContacts(about).text, row.legalName), portfolio, reviews };
 }
 
 export type PortfolioForRequest = PortfolioCard & { furnitureTypeId: string; executor: PublicExecutorView };
@@ -102,9 +108,12 @@ export type PortfolioForRequest = PortfolioCard & { furnitureTypeId: string; exe
  * null — работы нет, она снята с публикации или исполнитель не подтверждён.
  */
 export async function getPortfolioForRequest(portfolioItemId: string): Promise<PortfolioForRequest | null> {
-  const row = await db.portfolioItem.findFirst({ where: { id: portfolioItemId, ...VISIBLE_ITEM }, select: CARD_SELECT });
+  const [row, mode] = await Promise.all([
+    db.portfolioItem.findFirst({ where: { id: portfolioItemId, ...VISIBLE_ITEM }, select: CARD_SELECT }),
+    getExecutorIdentityMode(),
+  ]);
   if (!row) return null;
-  return { ...(await toCard(row)), furnitureTypeId: row.furnitureTypeId, executor: toPublicView(row.executor) };
+  return { ...(await toCard(row, mode)), furnitureTypeId: row.furnitureTypeId, executor: toPublicView(row.executor, mode) };
 }
 
 /**

@@ -27,7 +27,9 @@ export {
 } from "./catalog";
 export { catalogHref, parseCatalogFilter, PRICE_BUCKETS, type CatalogFilter, type PriceBucket, type SearchParams } from "./catalog-filter";
 
-export { publicExecutorView, publicExecutorViews } from "./anonymity";
+export { executorDisplayOf, executorDisplays, publicExecutorView, publicExecutorViews } from "./anonymity";
+export { EXECUTOR_IDENTITY_MODES, type ExecutorDisplay, type ExecutorIdentityMode } from "./display";
+export { getExecutorIdentityMode, setExecutorIdentityMode } from "./identity-mode";
 export { recalculateRating } from "./rating";
 export { MASK, maskContacts, maskIdentity, type MaskResult } from "./mask";
 /** Текст исполнителя, который увидит заказчик: без контактов и без наименования/ФИО (до договора — анонимность). */
