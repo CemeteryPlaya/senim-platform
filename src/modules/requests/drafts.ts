@@ -259,7 +259,7 @@ export async function likeTarget(portfolioItemId: string, user: Pick<CurrentUser
   return { id: item.id, title: item.title, furnitureTypeId: item.furnitureTypeId, style: item.style, executor: { ...item.executor, label } };
 }
 
-/** «Мои заявки»: свои заявки с числом действующих откликов. */
+/** «Мои заявки»: свои заявки с числом действующих откликов и обложкой — первым фото помещения. */
 export async function listMyRequests(user: CurrentUser) {
   requireClient(user);
   const rows = await db.request.findMany({
@@ -268,9 +268,18 @@ export async function listMyRequests(user: CurrentUser) {
     include: {
       furnitureType: { select: { name: true } },
       _count: { select: { offers: { where: { status: { not: "WITHDRAWN" } } } } },
+      photos: {
+        where: { purpose: "REQUEST_ROOM" },
+        orderBy: { sortOrder: "asc" },
+        take: 1,
+        select: { id: true, provider: true, storageKey: true },
+      },
     },
   });
+  const covers = await roomPhotos(rows.flatMap((r) => r.photos));
+  const coverOf = new Map(covers.map((c) => [c.id, c]));
   return rows.map((r) => ({
+    cover: r.photos[0] ? (coverOf.get(r.photos[0].id) ?? null) : null,
     id: r.id,
     number: r.number,
     title: requestTitle(r),

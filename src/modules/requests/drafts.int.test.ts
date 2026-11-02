@@ -275,4 +275,22 @@ describe("мои заявки", () => {
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ status: "OFFER_CHOSEN", offersCount: 1, title: "Кухня" });
   });
+
+  it("обложка карточки — первое фото помещения; без фото — null", async () => {
+    const client = await makeClient();
+    const withPhotos = await makeDraft(client);
+    const without = await makeDraft(client);
+    const upload = (n: number) =>
+      db.storedFile.create({
+        data: { storageKey: `test/cover-${client.id}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById: client.id },
+      });
+    const [a, b] = [await upload(1), await upload(2)];
+    await saveDraftStep(client, { requestId: withPhotos, step: { screen: "room", photoFileIds: [a.id, b.id] } });
+
+    const list = await listMyRequests(client);
+    const cover = (id: string) => list.find((r) => r.id === id)?.cover;
+
+    expect(cover(withPhotos)).toMatchObject({ id: a.id, src: expect.any(String) });
+    expect(cover(without)).toBeNull();
+  });
 });
