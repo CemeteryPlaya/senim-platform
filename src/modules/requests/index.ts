@@ -54,7 +54,7 @@ export {
 } from "./site-measurements";
 export { allowOfferRetry, listRetryCandidates } from "./retries";
 export { getFlowProgress, type FlowProgress } from "./progress";
-export { segmentPriceHints, type SegmentPriceHints } from "./price-hints";
+export { segmentPriceHints, type PriceHint, type SegmentPriceHints } from "./price-hints";
 export type { PriceRange } from "./price-range";
 export type { PreContractView } from "./pre-contract";
 export * from "./flows";

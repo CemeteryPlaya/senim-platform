@@ -88,7 +88,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
         <SegmentStep
           {...base}
           initial={draft.segment ?? draft.segmentSuggested ?? draft.target?.segment ?? ""}
-          prices={await segmentPriceHints(draft.furnitureTypeId)}
+          prices={await segmentPriceHints(draft.furnitureTypeId, draft.details)}
           directLabel={directLabel}
           hint={suggestSegment(segmentInputOf(draft.details)).segment ? <SegmentHint details={segmentInputOf(draft.details)} /> : undefined}
         />

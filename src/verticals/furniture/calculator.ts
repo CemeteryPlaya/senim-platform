@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Segment } from "@/generated/prisma/enums";
-import { MATERIAL_CATEGORIES, MATERIAL_UNITS, PRODUCT_UNITS, type MaterialCategory, type MaterialUnit, type ProductUnit } from "./materials";
+import { isMaterialCategory, isMaterialUnit, MATERIAL_CATEGORIES, MATERIAL_UNITS, PRODUCT_UNITS, type MaterialCategory, type MaterialUnit, type ProductUnit } from "./materials";
 
 /**
  * Калькулятор стоимости по материалам (ADR-007). Чистые функции: на вход — перечень материалов
@@ -19,6 +19,12 @@ export type MaterialPrice = {
   priceKzt: number;
   segments: readonly Segment[];
 };
+
+/** Строка из базы → строка калькулятора. Неизвестная категория или единица — null (в расчёт не входит). */
+export function materialPriceOf(row: { name: string; category: string; unit: string; priceKzt: number; segments: readonly Segment[] }): MaterialPrice | null {
+  const { name, category, unit, priceKzt, segments } = row;
+  return isMaterialCategory(category) && isMaterialUnit(unit) ? { name, category, unit, priceKzt, segments } : null;
+}
 
 /**
  * Позиция перечня: сколько нужно материала категории в единице. Материал подбирается по категории

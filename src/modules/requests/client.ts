@@ -5,3 +5,5 @@ export * from "./flows";
 export * from "./pre-contract-schema";
 export { executorSeesRequest, visibleToExecutor, type RequestVisibilityFacts } from "./visibility";
 export * from "./price-range";
+// Только тип: price-hints читает базу, в клиентский бандл код не попадает.
+export type { PriceHint } from "./price-hints";

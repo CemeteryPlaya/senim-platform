@@ -2,7 +2,7 @@
 
 import { Gem, PiggyBank, Sofa } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { LIMITS, SEGMENTS, type PriceRange } from "@/modules/requests/client";
+import { LIMITS, SEGMENTS, type PriceHint } from "@/modules/requests/client";
 import type { Segment } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { formatMoney, Input, RadioCards } from "@/ui";
@@ -124,8 +124,29 @@ export function StyleStep(props: StepBase & { examples: readonly StyleExample[];
 
 const SEGMENT_ICONS: Record<Segment, ReactNode> = { ECONOMY: <PiggyBank />, COMFORT: <Sofa />, PREMIUM: <Gem /> };
 
-function priceLine(range: PriceRange | null): string {
-  return range ? w.segment.price(w.segment.priceRange(formatMoney(range.from), formatMoney(range.to))) : w.segment.noPrice;
+const m = ru.materials.hint;
+
+/** Строка цены уровня: по материалам (ADR-007), по откликам или «назовут исполнители». */
+function priceLine(hint: PriceHint | null): string {
+  if (!hint) return w.segment.noPrice;
+  const range = w.segment.priceRange(formatMoney(hint.from), formatMoney(hint.to));
+  return hint.source === "materials" ? m.price(range) : w.segment.price(range);
+}
+
+/** Откуда вилки: по скольким откликам, по материалам, для типового размера, демо-цифры. */
+function priceNote(prices: Record<Segment, PriceHint | null>): string | undefined {
+  const hints = SEGMENTS.flatMap((k) => (prices[k] ? [prices[k]] : []));
+  const offers = hints.reduce((n, h) => n + (h.source === "offers" ? h.count : 0), 0);
+  const materials = hints.flatMap((h) => (h.source === "materials" ? [h] : []));
+  const typical = materials.find((h) => h.typical)?.typical;
+  const notes = [
+    materials.length > 0 && m.note,
+    typical && m.typicalSize(typical.productUnit === "lm" ? m.sizeLm(typical.widthCm) : m.sizeFront(typical.widthCm, typical.heightCm)),
+    materials.some((h) => h.demo) && m.demo,
+    // Фраза о точной цене уже есть в пояснении про отклики.
+    offers > 0 ? w.segment.priceNote(offers) : materials.length > 0 && m.exact,
+  ].filter((x): x is string => typeof x === "string");
+  return notes.length > 0 ? notes.join(" ") : undefined;
 }
 
 /** Чем отличаются уровни: материалы из справочников вертикали — те же правила, что у подсказки «Почему?». */
@@ -159,12 +180,11 @@ function SegmentDifferences() {
 }
 
 export function SegmentStep(
-  props: StepBase & { initial: string; prices: Record<Segment, PriceRange | null>; directLabel: string | null; hint?: ReactNode },
+  props: StepBase & { initial: string; prices: Record<Segment, PriceHint | null>; directLabel: string | null; hint?: ReactNode },
 ) {
   const { submit, pending, error, errors } = useStep(props);
   const [segment, setSegment] = useState(props.initial);
   const s = w.segment;
-  const counted = SEGMENTS.map((k) => props.prices[k]?.count ?? 0).reduce((a, b) => a + b, 0);
   return (
     <StepForm errors={errors} onSubmit={() => submit({ screen: "segment", segment: segment || undefined })} actions={<NextButton pending={pending} />}>
       <StepHeading title={s.title} lead={props.directLabel !== null ? s.leadDirect(props.directLabel) : s.lead} />
@@ -174,7 +194,7 @@ export function SegmentStep(
         name="segment"
         value={segment}
         onChange={setSegment}
-        hint={counted > 0 ? s.priceNote(counted) : undefined}
+        hint={priceNote(props.prices)}
         error={first(errors, "segment")}
         options={SEGMENTS.map((key) => ({
           value: key,
