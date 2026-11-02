@@ -9,7 +9,7 @@ import { navFor } from "../_shell/nav";
  */
 export async function NoAccess({ description, size }: { description: string; size?: "page" | "form" }) {
   const user = await getCurrentUser();
-  const home = navFor(user, false)[0]?.href ?? "/";
+  const home = navFor(user, false).tabs[0]?.href ?? "/";
   return (
     <Container size={size} className="pb-10">
       <PageHeader title={ru.common.errors.forbidden} description={description} back={{ href: "/" }} />
