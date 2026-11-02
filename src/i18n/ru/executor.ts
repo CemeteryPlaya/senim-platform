@@ -3,6 +3,69 @@
 // никогда через площадку; в режиме manual нет слов «эскроу» и «безопасная оплата». Комиссии нет (№3).
 
 export const executor = {
+  incoming: {
+    myOffers: "Мои отклики",
+    chipsLabel: "Показать заявки",
+    chips: { all: "Все", new: "Без отклика", direct: "Прямые мне" },
+    direct: "Прямой запрос",
+    offers: (n: number) => (n === 0 ? "Откликов пока нет — будьте первым" : `Откликов: ${n}`),
+    myOffer: (status: string) => `Ваш отклик: ${status}`,
+    emptyFilter: "В этом разделе заявок нет.",
+  },
+
+  request: {
+    photosLabel: "Фото помещения",
+    photoAlt: (n: number) => `Фото помещения ${n}`,
+    illustration: "Иллюстрация вида мебели — заказчик не приложил фото",
+    keyFacts: "Коротко о заявке",
+    fact: { type: "Что нужно", segment: "Уровень", city: "Город", desired: "Желаемый срок", published: "Опубликована", offers: "Откликов" },
+    noDate: "Не указан",
+  },
+
+  offers: {
+    metaTitle: "Мои отклики",
+    title: "Мои отклики",
+    lead: "Все отправленные предложения и ответы заказчиков.",
+    chipsLabel: "Показать отклики",
+    chips: { all: "Все", waiting: "Ждут ответа", chosen: "Выбраны", closed: "Отклонены и отозваны" },
+    status: {
+      SENT: "Ждёт ответа",
+      chosen: "Выбран",
+      measuring: "Замер назначен",
+      measured: "Замер выполнен",
+      contract: "Договор",
+      DECLINED: "Отклонён",
+      WITHDRAWN: "Отозван",
+    },
+    sent: (when: string) => `Отправлен ${when}`,
+    measurementAt: (when: string) => `Замер ${when}`,
+    emptyTitle: "Откликов пока нет",
+    emptyText: "Откройте новые заявки и предложите свою цену и срок.",
+    emptyAction: "Смотреть заявки",
+    emptyFilter: "В этом разделе откликов нет.",
+  },
+
+  measurements: {
+    chipsLabel: "Показать замеры",
+    chips: { upcoming: "Предстоящие", done: "Выполненные", other: "Без сделки и отменённые" },
+    emptyFilter: "В этом разделе замеров нет.",
+    awaitingCount: (n: number) => `Ждут назначения: ${n}`,
+  },
+
+  portfolio: {
+    count: (n: number) => `Работ: ${n}`,
+    fromDeals: "Фото из завершённых заказов можно добавить кнопкой «Добавить в портфолио» на странице заказа.",
+  },
+
+  profile: {
+    sections: "Разделы",
+    publicProfile: "Публичная страница",
+    publicHint: "Как вас видят заказчики",
+    portfolio: "Портфолио",
+    finance: "Финансы",
+    edit: "Данные профиля",
+  },
+
   finance: {
     metaTitle: "Финансы",
     title: "Финансы",

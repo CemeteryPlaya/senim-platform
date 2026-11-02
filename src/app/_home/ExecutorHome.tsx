@@ -1,4 +1,4 @@
-import { CalendarClock, Images, Inbox, MapPin, Package, Ruler, Store, Wallet } from "lucide-react";
+import { CalendarClock, Images, Inbox, MapPin, Package, Ruler, Send, Store, Wallet } from "lucide-react";
 import type { DealStatus } from "@/generated/prisma/enums";
 import { listDeals } from "@/modules/deal-core";
 import { listIncomingRequests } from "@/modules/requests";
@@ -51,8 +51,10 @@ export async function ExecutorHome({ user }: { user: CurrentUser }) {
             <LinkList
               items={[
                 { href: "/executor/requests", label: e.newRequests, icon: <Inbox />, meta: fresh.length, highlight: true },
+                { href: "/executor/offers", label: ru.executor.offers.title, icon: <Send /> },
                 { href: "/deals", label: nav.orders, icon: <Package />, meta: active.length },
                 { href: "/executor/measurements", label: nav.measurements, icon: <Ruler /> },
+                { href: "/executor/finance", label: nav.finance, icon: <Wallet /> },
                 { href: "/executor/portfolio", label: nav.portfolio, icon: <Images /> },
                 { href: "/executor/profile", label: nav.company, icon: <Store /> },
               ]}
@@ -72,7 +74,7 @@ export async function ExecutorHome({ user }: { user: CurrentUser }) {
                   key={r.id}
                   layout="row"
                   href={`/executor/requests/${r.id}`}
-                  image={photo(r.title)}
+                  image={r.cover ?? photo(r.title)}
                   title={ru.requests.requestTitle(r.number, r.title)}
                   badge={r.segment ? <StatusBadge tone="info">{SEGMENT_NAMES[r.segment]}</StatusBadge> : undefined}
                   meta={[

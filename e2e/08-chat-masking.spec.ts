@@ -42,7 +42,7 @@ test("контакты в сообщениях скрываются у обеи�
 
   // Исполнитель видит сообщение уже замаскированным и отвечает своими контактами
   await loginAs(page, P.erlan);
-  await page.getByRole("link", { name: /^Открыть заявку ?: Заявка №19:/ }).click();
+  await page.getByRole("link", { name: /^Заявка №19:/ }).click();
   await expect(page.getByRole("heading", { name: "Чат с заказчиком" })).toBeVisible();
   await expect(page.getByRole("log")).toContainText("Позвоните мне:");
   await expectMasked(page);

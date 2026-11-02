@@ -1,107 +1,114 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Inbox } from "lucide-react";
-import { listIncomingRequests } from "@/modules/requests";
+import { CalendarClock, Inbox, MapPin, Send, Users } from "lucide-react";
+import { listIncomingRequests, type IncomingListItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { ButtonLink, Container, DateText, EmptyState, PageHeader, StatusBadge, cn } from "@/ui";
+import { ButtonLink, Container, DateText, EmptyState, FilterChips, PageHeader, PhotoCard, StatusBadge, type FilterChip } from "@/ui";
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { pageUser } from "@/app/requests/_parts/guard";
 import { OFFER_TONE } from "@/app/requests/_parts/labels";
 import { NoAccess } from "@/app/_components/NoAccess";
+import { photo } from "@/app/_home/illustration";
 
 const t = ru.requests.incoming;
+const x = ru.executor.incoming;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
-const FILTERS = ["all", "TENDER", "DIRECT"] as const;
+type Search = { f?: string; type?: string };
 
-/** Входящие исполнителя: тендеры его уровня и прямые запросы к нему. */
-export default async function IncomingPage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
+/** Выбранный чип из адреса: раздел (без отклика, прямые) или тип мебели; неизвестное — «Все». */
+function selected(sp: Search, list: readonly IncomingListItem[]): { key: string; keep: (r: IncomingListItem) => boolean } {
+  if (sp.type && list.some((r) => r.title === sp.type)) return { key: `type:${sp.type}`, keep: (r) => r.title === sp.type };
+  if (sp.f === "new") return { key: "new", keep: (r) => r.myOfferStatus === null };
+  if (sp.f === "direct") return { key: "direct", keep: (r) => r.mode === "DIRECT" };
+  return { key: "all", keep: () => true };
+}
+
+function chipsFor(list: readonly IncomingListItem[]): FilterChip[] {
+  const base = "/executor/requests";
+  const count = (keep: (r: IncomingListItem) => boolean) => list.filter(keep).length;
+  const types = [...new Set(list.map((r) => r.title))];
+  const direct = count((r) => r.mode === "DIRECT");
+  return [
+    { key: "all", label: x.chips.all, count: list.length, href: base },
+    { key: "new", label: x.chips.new, count: count((r) => r.myOfferStatus === null), href: `${base}?f=new` },
+    ...(direct > 0 ? [{ key: "direct", label: x.chips.direct, count: direct, href: `${base}?f=direct` }] : []),
+    ...(types.length > 1
+      ? types.map((type) => ({ key: `type:${type}`, label: type, count: count((r) => r.title === type), href: `${base}?type=${encodeURIComponent(type)}` }))
+      : []),
+  ];
+}
+
+/** Входящие исполнителя по макету 13: тендеры его уровня и прямые запросы к нему — карточки с фото. */
+export default async function IncomingPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const user = await pageUser("EXECUTOR", "/executor/requests");
   if (!user) {
     return <NoAccess description={ru.requests.noAccessExecutor} />;
   }
-  const mode = sp.mode === "TENDER" || sp.mode === "DIRECT" ? sp.mode : undefined;
-  const list = await listIncomingRequests(user, { mode });
-  const current = mode ?? "all";
+  const list = await listIncomingRequests(user);
+  const current = selected(sp, list);
+  const shown = list.filter(current.keep);
 
   return (
     <Container className="flex flex-col gap-6 pb-10">
-      <PageHeader title={t.title} description={t.lead} back={{ href: "/" }} />
-      <nav aria-label={t.filterLabel}>
-        <ul className="flex flex-wrap gap-2">
-          {FILTERS.map((f) => (
-            <li key={f}>
-              <Link
-                href={f === "all" ? "/executor/requests" : `/executor/requests?mode=${f}`}
-                aria-current={f === current ? "page" : undefined}
-                className={cn(
-                  "inline-flex min-h-control-sm items-center rounded-full border px-4 text-base font-semibold no-underline",
-                  f === current ? "border-primary bg-accent-soft text-primary" : "border-line-strong bg-surface text-ink hover:bg-sunken",
-                )}
-              >
-                {t.filter[f]}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <PageHeader
+        title={t.title}
+        description={t.lead}
+        back={{ href: "/" }}
+        actions={
+          <ButtonLink href="/executor/offers" variant="secondary" icon={<Send />}>
+            {x.myOffers}
+          </ButtonLink>
+        }
+        className="pb-0"
+      />
 
       {list.length === 0 ? (
         <EmptyState icon={<Inbox />} title={t.emptyTitle} description={t.emptyText} />
       ) : (
-        <ul className="flex flex-col gap-4">
-          {list.map((r) => {
-            const title = ru.requests.requestTitle(r.number, r.title);
-            return (
-              <li key={r.id} className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:flex-row sm:items-center sm:justify-between sm:p-6">
-                <div className="flex min-w-0 flex-col gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-bold text-ink">{title}</h2>
-                    {r.mode === "DIRECT" && <StatusBadge tone="accent">{ru.requests.mode.DIRECT}</StatusBadge>}
-                    {r.myOfferStatus && (
-                      <StatusBadge tone={OFFER_TONE[r.myOfferStatus]}>
-                        {t.myOffer}: {ru.requests.offerStatus[r.myOfferStatus].toLowerCase()}
-                      </StatusBadge>
-                    )}
-                  </div>
-                  <dl className="flex flex-wrap gap-x-6 gap-y-1 text-base">
-                    {r.segment && (
-                      <div className="flex gap-2">
-                        <dt className="text-muted">{ru.requests.facts.segment}</dt>
-                        <dd className="text-ink">{SEGMENT_NAMES[r.segment]}</dd>
-                      </div>
-                    )}
-                    {r.style && (
-                      <div className="flex gap-2">
-                        <dt className="text-muted">{ru.requests.facts.style}</dt>
-                        <dd className="text-ink">{STYLES[r.style as StyleKey]?.name ?? r.style}</dd>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <dt className="text-muted">{ru.requests.facts.city}</dt>
-                      <dd className="text-ink">{r.city}</dd>
-                    </div>
-                    {r.publishedAt && (
-                      <div className="flex gap-2">
-                        <dt className="text-muted">{t.published}</dt>
-                        <dd className="text-ink">
-                          <DateText value={r.publishedAt} format="relative" />
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-                  <p className="text-base text-muted">{t.offers(r.offersCount)}</p>
-                </div>
-                <ButtonLink href={`/executor/requests/${r.id}`} variant="secondary" className="shrink-0" aria-label={ru.common.ui.actionFor(t.open, title)}>
-                  {t.open}
-                </ButtonLink>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <FilterChips label={x.chipsLabel} current={current.key} chips={chipsFor(list)} />
+          {shown.length === 0 ? (
+            <p className="rounded-card border border-line bg-surface p-5 text-base text-ink-soft shadow-card">{x.emptyFilter}</p>
+          ) : (
+            <ul className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
+              {shown.map((r) => (
+                <IncomingCard key={r.id} r={r} />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </Container>
+  );
+}
+
+function IncomingCard({ r }: { r: IncomingListItem }) {
+  const style = r.style ? (STYLES[r.style as StyleKey]?.name ?? r.style) : null;
+  return (
+    <PhotoCard
+      as="li"
+      layout="row"
+      href={`/executor/requests/${r.id}`}
+      image={r.cover ?? photo(r.title)}
+      title={ru.requests.requestTitle(r.number, r.title)}
+      badge={
+        <span className="flex flex-wrap gap-2">
+          {r.segment && <StatusBadge tone="info">{SEGMENT_NAMES[r.segment]}</StatusBadge>}
+          {r.mode === "DIRECT" && <StatusBadge tone="accent">{x.direct}</StatusBadge>}
+        </span>
+      }
+      meta={[
+        { icon: <MapPin />, text: style ? `${r.city} · ${style}` : r.city },
+        ...(r.publishedAt ? [{ icon: <CalendarClock />, text: <DateText value={r.publishedAt} format="relative" /> }] : []),
+        { icon: <Users />, text: x.offers(r.offersCount) },
+      ]}
+      aside={
+        r.myOfferStatus ? (
+          <StatusBadge tone={OFFER_TONE[r.myOfferStatus]}>{x.myOffer(ru.requests.offerStatus[r.myOfferStatus].toLowerCase())}</StatusBadge>
+        ) : undefined
+      }
+    />
   );
 }

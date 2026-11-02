@@ -16,7 +16,7 @@ const LEAKS = [/Ким/, /Руслан/, /7\s*\(?700\)?\s*000\s*02\s*03/, /70000
 test("исполнитель откликается на тендер, заказчик видит его анонимно", async ({ page }) => {
   await loginAs(page, P.kim);
   await expect(page).toHaveURL(/\/executor\/requests$/);
-  await page.getByRole("link", { name: /^Открыть заявку ?: Заявка №19:/ }).click();
+  await page.getByRole("link", { name: /^Заявка №19:/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: /^Заявка №19:/ })).toBeVisible();
   // До выбора отклика адрес скрыт
   await expect(page.getByText("Откроется после выбора вашего отклика")).toBeVisible();

@@ -1,112 +1,118 @@
 import type { Metadata } from "next";
-import { Ruler } from "lucide-react";
+import { CalendarClock, MapPin, Ruler, Wallet } from "lucide-react";
+import type { MeasurementStatus } from "@/generated/prisma/enums";
 import { listAwaitingMeasurement, listMyMeasurements } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Alert, ButtonLink, Container, DateText, EmptyState, Money, PageHeader, StatusBadge } from "@/ui";
+import { Alert, ButtonLink, Container, DateText, EmptyState, FilterChips, Money, PageHeader, PhotoCard, SectionTitle, StatusBadge } from "@/ui";
 import { pageUser } from "@/app/requests/_parts/guard";
 import { MEASUREMENT_TONE } from "@/app/requests/_parts/labels";
 import { NoAccess } from "@/app/_components/NoAccess";
+import { photo } from "@/app/_home/illustration";
 
 const t = ru.requests.measurements;
+const x = ru.executor.measurements;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
-/** Замеры исполнителя: кому назначить выезд, ближайшие выезды и итоговые цены. Действия — на экране заявки. */
-export default async function MeasurementsPage() {
+const GROUPS = ["upcoming", "done", "other"] as const;
+type Group = (typeof GROUPS)[number];
+const GROUP: Record<MeasurementStatus, Group> = { SCHEDULED: "upcoming", DONE: "done", NO_DEAL: "other", CANCELLED: "other" };
+
+/**
+ * Замеры исполнителя по макету 15: кому назначить выезд, затем выезды чипами — предстоящие, выполненные,
+ * без сделки. Действия (назначить, итоговая цена, «замер без сделки», проект) — на экране заявки.
+ */
+export default async function MeasurementsPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
+  const sp = await searchParams;
   const user = await pageUser("EXECUTOR", "/executor/measurements");
   if (!user) {
     return <NoAccess description={ru.requests.noAccessExecutor} />;
   }
   const [awaiting, list] = await Promise.all([listAwaitingMeasurement(user), listMyMeasurements(user)]);
+  const count = (g: Group) => list.filter((m) => GROUP[m.status] === g).length;
+  // По умолчанию — первый непустой раздел: обычно это предстоящие выезды.
+  const show: Group = GROUPS.find((g) => g === sp.show) ?? GROUPS.find((g) => count(g) > 0) ?? "upcoming";
+  const shown = list.filter((m) => GROUP[m.status] === show);
+  // Предстоящие — ближайший сверху; остальные — последние сверху (как отдаёт сервис).
+  if (show === "upcoming") shown.reverse();
 
   return (
     <Container className="flex flex-col gap-8 pb-10">
-      <PageHeader title={t.title} description={t.lead} back={{ href: "/" }} />
+      <PageHeader title={t.title} description={t.lead} back={{ href: "/" }} className="pb-0" />
 
       {awaiting.length > 0 && (
-        <section aria-labelledby="awaiting" className="flex flex-col gap-3">
-          <h2 id="awaiting" className="text-xl font-bold text-ink">
-            {t.awaitingTitle}
-          </h2>
-          <ul className="flex flex-col gap-3">
+        <section aria-labelledby="awaiting" className="flex flex-col gap-4">
+          <SectionTitle id="awaiting" title={t.awaitingTitle} />
+          <Alert tone="accent">{t.awaitingText}</Alert>
+          <ul className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
             {awaiting.map((a) => {
               const title = ru.requests.requestTitle(a.number, a.title);
               return (
-                <li key={a.offerId}>
-                  <Alert
-                    tone="accent"
-                    title={title}
-                    action={
-                      <ButtonLink href={`/executor/requests/${a.requestId}`} aria-label={ru.common.ui.actionFor(ru.requests.executorRequest.schedule, title)}>
-                        {ru.requests.executorRequest.schedule}
-                      </ButtonLink>
-                    }
-                  >
-                    {a.address && <span className="block">{a.address}</span>}
-                    {t.awaitingText}
-                  </Alert>
-                </li>
+                <PhotoCard
+                  key={a.offerId}
+                  as="li"
+                  layout="row"
+                  image={photo(a.title)}
+                  title={title}
+                  meta={a.address ? [{ icon: <MapPin />, text: a.address }] : undefined}
+                  footer={
+                    <ButtonLink href={`/executor/requests/${a.requestId}`} aria-label={ru.common.ui.actionFor(ru.requests.executorRequest.schedule, title)}>
+                      {ru.requests.executorRequest.schedule}
+                    </ButtonLink>
+                  }
+                />
               );
             })}
           </ul>
         </section>
       )}
 
-      <section aria-labelledby="all-measurements" className="flex flex-col gap-3">
-        <h2 id="all-measurements" className="text-xl font-bold text-ink">
-          {t.listTitle}
-        </h2>
+      <section aria-labelledby="all-measurements" className="flex flex-col gap-4">
+        <SectionTitle id="all-measurements" title={t.listTitle} />
         {list.length === 0 ? (
           <EmptyState icon={<Ruler />} title={t.emptyTitle} description={t.emptyText} titleAs="h3" />
         ) : (
-          <ul className="flex flex-col gap-4">
-            {list.map((m) => {
-              const title = ru.requests.requestTitle(m.request.number, m.request.title);
-              return (
-                <li key={m.id} className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:flex-row sm:items-center sm:justify-between sm:p-6">
-                  <div className="flex min-w-0 flex-col gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-bold text-ink">{title}</h3>
-                      <StatusBadge tone={MEASUREMENT_TONE[m.status]}>{ru.requests.measurementStatus[m.status]}</StatusBadge>
-                    </div>
-                    <dl className="facts gap-x-4 gap-y-1 text-base">
-                      <dt className="text-muted">{t.when}</dt>
-                      <dd className="text-ink">
-                        <DateText value={m.scheduledAt} format="dateTime" />
-                      </dd>
-                      {m.request.address && (
-                        <>
-                          <dt className="text-muted">{ru.requests.facts.address}</dt>
-                          <dd className="text-ink">{m.request.address}</dd>
-                        </>
-                      )}
-                      {m.finalPrice !== null && (
-                        <>
-                          <dt className="text-muted">{t.finalPrice}</dt>
-                          <dd className="font-semibold text-ink">
-                            <Money amount={m.finalPrice} />
-                          </dd>
-                        </>
-                      )}
-                      {m.feeAccrued !== null && (
-                        <>
-                          <dt className="text-muted">{t.fee}</dt>
-                          <dd className="text-ink">
-                            <Money amount={m.feeAccrued} />
-                          </dd>
-                        </>
-                      )}
-                    </dl>
-                  </div>
-                  <ButtonLink href={`/executor/requests/${m.request.id}`} variant="secondary" className="shrink-0" aria-label={ru.common.ui.actionFor(t.open, title)}>
-                    {t.open}
-                  </ButtonLink>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <FilterChips
+              label={x.chipsLabel}
+              current={show}
+              chips={GROUPS.map((g) => ({ key: g, label: x.chips[g], count: count(g), href: `/executor/measurements?show=${g}` }))}
+            />
+            {shown.length === 0 ? (
+              <p className="rounded-card border border-line bg-surface p-5 text-base text-ink-soft shadow-card">{x.emptyFilter}</p>
+            ) : (
+              <ul className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
+                {shown.map((m) => (
+                  <PhotoCard
+                    key={m.id}
+                    as="li"
+                    layout="row"
+                    href={`/executor/requests/${m.request.id}`}
+                    image={photo(m.request.title)}
+                    title={ru.requests.requestTitle(m.request.number, m.request.title)}
+                    titleAs="h3"
+                    badge={<StatusBadge tone={MEASUREMENT_TONE[m.status]}>{ru.requests.measurementStatus[m.status]}</StatusBadge>}
+                    meta={[
+                      { icon: <CalendarClock />, text: <DateText value={m.scheduledAt} format="dateTime" /> },
+                      ...(m.request.address ? [{ icon: <MapPin />, text: m.request.address }] : []),
+                      ...(m.feeAccrued !== null ? [{ icon: <Wallet />, text: <FeeText amount={m.feeAccrued} /> }] : []),
+                    ]}
+                    aside={m.finalPrice !== null ? <Money amount={m.finalPrice} /> : undefined}
+                  />
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </section>
     </Container>
+  );
+}
+
+function FeeText({ amount }: { amount: number }) {
+  return (
+    <>
+      {t.fee}: <Money amount={amount} />
+    </>
   );
 }
