@@ -3,6 +3,7 @@ import { ru } from "@/i18n/ru";
 import { listStaleRequests, staleRequestsSchema } from "@/modules/operator";
 import { Button, Container, DateText, EmptyState, Input, PageHeader, StatusBadge } from "@/ui";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
+import { OfferRetrySection, SiteMeasurerSection } from "./PreContractSections";
 
 const t = ru.operator.requests;
 
@@ -17,6 +18,8 @@ export default async function StaleRequestsPage({ searchParams }: { searchParams
   return (
     <Container>
       <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: ru.operator.backToPanel }} />
+      <SiteMeasurerSection user={user} />
+      <OfferRetrySection user={user} />
       <form method="get" className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end">
         <Input label={t.hoursLabel} name="hours" type="number" inputMode="numeric" min={1} max={720} defaultValue={hours} className="sm:w-48" />
         <Button type="submit" variant="secondary">

@@ -6,6 +6,7 @@ import { Alert, ButtonLink, Card, Container, PageHeader } from "@/ui";
 import { requireOperatorPage } from "../_lib/guard";
 import { RailForm, ResetDemo } from "./DemoControls";
 import { ExecutorIdentitySection } from "./ExecutorIdentitySection";
+import { PreContractFlowSection } from "./PreContractFlowSection";
 
 const t = ru.operator.demo;
 
@@ -37,6 +38,7 @@ export default async function DemoSettingsPage() {
           <RailForm current={current} />
         </Card>
         <ExecutorIdentitySection />
+        <PreContractFlowSection />
         <Card title={t.resetTitle} description={t.resetHint}>
           <ResetDemo />
         </Card>
