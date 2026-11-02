@@ -32,6 +32,9 @@ export type FinanceRow = {
 /** Месяц по времени Алматы: «2026-11». */
 export type MonthKey = `${number}-${"01" | "02" | "03" | "04" | "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12"}`;
 
+/** Полученная оплата: дата подтверждения есть всегда. */
+export type ReceivedRow = FinanceRow & { date: Date };
+
 /** Заработок за месяц: полученное по дате подтверждения оплаты. */
 export type MonthEarnings = {
   month: MonthKey;
@@ -39,7 +42,7 @@ export type MonthEarnings = {
   /** Получено в предыдущем месяце — для сравнения. */
   previous: number;
   /** Полученные в этом месяце оплаты, новые сверху. */
-  rows: FinanceRow[];
+  rows: ReceivedRow[];
   /** Соседние месяцы от первой оплаты до текущего; null — дальше идти некуда. */
   prev: MonthKey | null;
   next: MonthKey | null;
@@ -79,7 +82,7 @@ function shiftMonth(month: MonthKey, by: number): MonthKey {
  * месяц за этими краями — ближайший край. Ключи «ГГГГ-ММ» сравниваются как строки.
  */
 export function monthEarnings(rows: readonly FinanceRow[], wanted: MonthKey | null | undefined, now: Date): MonthEarnings {
-  const received = rows.filter((r): r is FinanceRow & { date: Date } => r.state === "received" && r.date !== null);
+  const received = rows.filter((r): r is ReceivedRow => r.state === "received" && r.date !== null);
   const current = monthOf(now);
   const first = received.reduce((min, r) => (monthOf(r.date) < min ? monthOf(r.date) : min), current);
   const month = !wanted || wanted > current ? current : wanted < first ? first : wanted;
