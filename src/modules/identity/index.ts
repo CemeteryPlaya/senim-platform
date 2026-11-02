@@ -33,6 +33,23 @@ export { getOwnContacts, updateContacts, type OwnContacts } from "./contacts-pro
 export { ibanField, normalizeIban, parseKzIban, type IbanCheck } from "./iban";
 /** payoutRecipientOf — только серверный путь выплаты (deal-core, payments): IBAN не логировать и не показывать. */
 export { getOwnPayout, payoutInputSchema, payoutRecipientOf, setPayoutIban, type OwnPayout, type PayoutInput } from "./payout";
+export { KYC_TRANSITIONS, kycTarget, kycView, type KycAction, type KycState } from "./kyc-policy";
+export {
+  KYC_MAX_FILES,
+  KYC_REASON_MAX,
+  KYC_REASON_MIN,
+  getOwnKyc,
+  kycQueue,
+  kycReviewSchema,
+  kycSubmitSchema,
+  reviewKyc,
+  submitKycDocuments,
+  type KycDocument,
+  type KycQueueItem,
+  type KycReviewInput,
+  type KycSubmitInput,
+  type OwnKyc,
+} from "./kyc";
 export { addressFields, refineSigner, signerFields, signerOf } from "./registration-schema";
 export {
   executorRegistrationSchema,
