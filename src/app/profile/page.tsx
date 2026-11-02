@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { UserRound } from "lucide-react";
+import { AtSign, UserRound } from "lucide-react";
 import { getCurrentUser, loginHref, switchTargets } from "@/modules/identity";
 import { env } from "@/platform/env";
 import { ru } from "@/i18n/ru";
@@ -52,6 +52,12 @@ export default async function ProfilePage() {
             ))}
           </div>
         </section>
+      )}
+
+      {(user.role === "CLIENT" || user.role === "EXECUTOR") && (
+        <nav aria-label={ru.identity.contacts.title}>
+          <LinkList items={[{ href: "/profile/contacts", label: ru.identity.contacts.link, icon: <AtSign /> }]} />
+        </nav>
       )}
 
       {sections.length > 0 && (

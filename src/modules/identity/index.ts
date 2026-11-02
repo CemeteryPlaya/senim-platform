@@ -28,6 +28,8 @@ export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id"
 export { isValidFullName, normalizeFullName } from "./full-name";
 export { hasClientIdentity, limitIdentityAttempts, recordOwnIdentity, recordPersonIdentity, type PersonIdentity } from "./person-identity";
 export { INTRODUCTION_PATH, introductionHref, needsIntroduction } from "./introduction";
+export { INSTAGRAM_MAX, contactsInputSchema, instagramField, type ContactsInput } from "./instagram";
+export { getOwnContacts, updateContacts, type OwnContacts } from "./contacts-profile";
 export { addressFields, refineSigner, signerFields, signerOf } from "./registration-schema";
 export {
   executorRegistrationSchema,
