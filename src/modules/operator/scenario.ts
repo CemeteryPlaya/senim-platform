@@ -38,10 +38,22 @@ const deal = (ref: { id: string } | undefined) => (ref ? `/deals/${ref.id}` : nu
 
 /** Сценарий: заявка → отклики → замер → договор → пополнение эскроу → этапы с траншами → закрытие. */
 export function buildScenario(s: ScenarioSnapshot): ScenarioStep[] {
-  const steps: Record<ScenarioStepKey, ScenarioStep> = {
+  const steps: Record<ScenarioStepKey, ScenarioStep> = { ...requestSteps(s), ...dealSteps(s) };
+  return SCENARIO_STEPS.map((key) => steps[key]);
+}
+
+/** Шаги до сделки: заявка, отклики, замер. */
+function requestSteps(s: ScenarioSnapshot) {
+  return {
     request: { key: "request", href: "/requests/new", persona: s.newRequest?.client ?? null },
     offers: { key: "offers", href: s.tender ? `/requests/${s.tender.id}` : null, persona: s.tender?.client ?? null, number: s.tender?.number },
     measurement: { key: "measurement", href: s.measuring ? "/executor/measurements" : null, persona: s.measuring?.executor ?? null, number: s.measuring?.number },
+  } satisfies Partial<Record<ScenarioStepKey, ScenarioStep>>;
+}
+
+/** Шаги сделки: договор, пополнение (только эскроу), этапы, закрытие. */
+function dealSteps(s: ScenarioSnapshot) {
+  return {
     contract: { key: "contract", href: deal(s.signing), persona: s.signing?.client ?? null, number: s.signing?.number },
     deposit: {
       key: "deposit",
@@ -53,6 +65,5 @@ export function buildScenario(s: ScenarioSnapshot): ScenarioStep[] {
     },
     stages: { key: "stages", href: deal(s.inProgress), persona: s.inProgress?.executor ?? null, number: s.inProgress?.number },
     closing: { key: "closing", href: deal(s.completed), persona: s.completed?.client ?? null, number: s.completed?.number },
-  };
-  return SCENARIO_STEPS.map((key) => steps[key]);
+  } satisfies Partial<Record<ScenarioStepKey, ScenarioStep>>;
 }

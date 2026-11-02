@@ -110,9 +110,9 @@ function isKnown(key: DetailUnknown, d: DraftDetails): boolean {
   return d[key] !== undefined;
 }
 
-/** Маппинг проверенного ответа в формат заявки; тип мебели — только из справочника оператора. */
-export function toDraft(s: RequestDraftSuggestion, furnitureSlugs: readonly string[]): RequestDraft {
-  const details: DraftDetails = {
+/** null в ответе — «не сказано»: такое поле в черновик не попадает. */
+function draftDetails(s: RequestDraftSuggestion): DraftDetails {
+  return {
     ...(s.widthCm !== null && { widthCm: s.widthCm }),
     ...(s.heightCm !== null && { heightCm: s.heightCm }),
     ...(s.depthCm !== null && { depthCm: s.depthCm }),
@@ -121,6 +121,11 @@ export function toDraft(s: RequestDraftSuggestion, furnitureSlugs: readonly stri
     ...(s.hardware !== null && { hardware: s.hardware }),
     ...(s.color !== null && { color: s.color }),
   };
+}
+
+/** Маппинг проверенного ответа в формат заявки; тип мебели — только из справочника оператора. */
+export function toDraft(s: RequestDraftSuggestion, furnitureSlugs: readonly string[]): RequestDraft {
+  const details = draftDetails(s);
   const unknown = [...new Set(s.unknown)].filter((k) => !isKnown(k, details));
   if (unknown.length > 0) details.unknown = unknown;
   const known = s.furnitureTypeSlug !== null && furnitureSlugs.includes(s.furnitureTypeSlug);

@@ -40,23 +40,23 @@ export function previewRows(draft: RequestDraft, furnitureNames: Readonly<Record
 
 /** Черновик только с отмеченными полями: снятое не переносится в заявку. */
 export function pickFields(draft: RequestDraft, keys: ReadonlySet<PreviewKey>): RequestDraft {
-  const d = draft.details;
   const has = (k: PreviewKey) => keys.has(k);
-  const details: DraftDetails = {
-    ...(has("size") && d.widthCm !== undefined && { widthCm: d.widthCm }),
-    ...(has("size") && d.heightCm !== undefined && { heightCm: d.heightCm }),
-    ...(has("size") && d.depthCm !== undefined && { depthCm: d.depthCm }),
-    ...(has("facade") && d.facade && { facade: d.facade }),
-    ...(has("countertop") && d.countertop && { countertop: d.countertop }),
-    ...(has("hardware") && d.hardware && { hardware: d.hardware }),
-    ...(has("color") && d.color && { color: d.color }),
-    ...(has("unknown") && d.unknown && { unknown: d.unknown }),
-  };
   return {
     furnitureTypeSlug: has("furnitureType") ? draft.furnitureTypeSlug : null,
     customType: has("customType") ? draft.customType : null,
     style: has("style") ? draft.style : null,
-    details,
+    details: pickDetails(draft.details, has),
     wishes: has("wishes") ? draft.wishes : "",
   };
+}
+
+/** Размеры — одной галочкой «size» (0 — тоже размер); остальные поля — своей галочкой, пустые не переносятся. */
+function pickDetails(d: DraftDetails, has: (k: PreviewKey) => boolean): DraftDetails {
+  const details: DraftDetails = {};
+  const copy = <K extends keyof DraftDetails>(key: K, keep: boolean) => {
+    if (keep) details[key] = d[key];
+  };
+  for (const key of ["widthCm", "heightCm", "depthCm"] as const) copy(key, has("size") && d[key] !== undefined);
+  for (const key of ["facade", "countertop", "hardware", "color", "unknown"] as const) copy(key, has(key) && Boolean(d[key]));
+  return details;
 }

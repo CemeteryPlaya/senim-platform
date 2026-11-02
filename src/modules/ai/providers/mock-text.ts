@@ -99,15 +99,15 @@ const UNIT = "(мм|миллиметр\\p{L}*|см|сантиметр\\p{L}*|м�
 
 /** Перевод в сантиметры; без единицы — по величине: до 10 — метры, от 1000 — миллиметры. */
 function toCm(value: string, unit: string | undefined): number | null {
-  const n = Number(value.replace(",", "."));
-  const u = unit?.toLowerCase() ?? "";
-  let cm: number;
-  if (u.startsWith("мм") || u.startsWith("милли")) cm = n / 10;
-  else if (u.startsWith("см") || u.startsWith("санти")) cm = n;
-  else if (u.startsWith("м")) cm = n * 100;
-  else cm = n < 10 ? n * 100 : n >= 1000 ? n / 10 : n;
-  const rounded = Math.round(cm);
+  const rounded = Math.round(inCm(Number(value.replace(",", ".")), unit?.toLowerCase() ?? ""));
   return rounded >= SIZE_MIN_CM && rounded <= SIZE_MAX_CM ? rounded : null;
+}
+
+function inCm(n: number, unit: string): number {
+  if (unit.startsWith("мм") || unit.startsWith("милли")) return n / 10;
+  if (unit.startsWith("см") || unit.startsWith("санти")) return n;
+  if (unit.startsWith("м")) return n * 100;
+  return n < 10 ? n * 100 : n >= 1000 ? n / 10 : n;
 }
 
 type Sizes = { widthCm: number | null; heightCm: number | null; depthCm: number | null };

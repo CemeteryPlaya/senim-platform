@@ -11,13 +11,17 @@ function ascii(bytes: Uint8Array, from: number, to: number): string {
   return String.fromCharCode(...bytes.subarray(from, to));
 }
 
+/** Сигнатуры по порядку проверки: первая совпавшая определяет тип. */
+const SIGNATURES: readonly [SniffedType, (b: Uint8Array) => boolean][] = [
+  ["jpeg", (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff],
+  ["png", (b) => b.length >= 8 && ascii(b, 0, 8) === "\x89PNG\r\n\x1a\n"],
+  ["webp", (b) => b.length >= 12 && ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP"],
+  ["heic", (b) => b.length >= 12 && ascii(b, 4, 8) === "ftyp" && HEIF_BRANDS.has(ascii(b, 8, 12))],
+  ["pdf", (b) => b.length >= 5 && ascii(b, 0, 5) === "%PDF-"],
+];
+
 export function sniffType(bytes: Uint8Array): SniffedType | null {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
-  if (bytes.length >= 8 && ascii(bytes, 0, 8) === "\x89PNG\r\n\x1a\n") return "png";
-  if (bytes.length >= 12 && ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 12) === "WEBP") return "webp";
-  if (bytes.length >= 12 && ascii(bytes, 4, 8) === "ftyp" && HEIF_BRANDS.has(ascii(bytes, 8, 12))) return "heic";
-  if (bytes.length >= 5 && ascii(bytes, 0, 5) === "%PDF-") return "pdf";
-  return null;
+  return SIGNATURES.find(([, matches]) => matches(bytes))?.[0] ?? null;
 }
 
 /** Длинная сторона после сжатия: хватает для просмотра на экране и для акта в PDF. */

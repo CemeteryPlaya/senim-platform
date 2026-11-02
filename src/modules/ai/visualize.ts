@@ -114,13 +114,21 @@ export async function runVisualization(payload: unknown, ctx: JobContext, deps: 
   try {
     await generate({ ...viz, sourceFile: viz.sourceFile, clientId: viz.request.clientId }, deps);
   } catch (e) {
-    const now = await db.visualization.findUnique({ where: { id }, select: { status: true } });
-    if (!now || finished(now.status)) return; // параллельный запуск уже закончил
-    const last = isAppError(e) || ctx.attempt >= VISUALIZE_ATTEMPTS;
-    if (!last) throw e;
-    ctx.log.warn("ai.visualize.failed", { visualizationId: id, error: e });
-    await markFailed(id, isAppError(e) ? e.message : ru.ai.errors.visualizationFailed);
+    await onGenerateFailed(id, e, ctx);
   }
+}
+
+/**
+ * Сбой генерации: параллельный запуск уже закончил — ничего; ошибка приложения или последняя
+ * попытка — визуализация FAILED с понятным текстом; иначе — бросаем, задачу повторит очередь.
+ */
+async function onGenerateFailed(id: string, e: unknown, ctx: JobContext): Promise<void> {
+  const now = await db.visualization.findUnique({ where: { id }, select: { status: true } });
+  if (!now || finished(now.status)) return;
+  const last = isAppError(e) || ctx.attempt >= VISUALIZE_ATTEMPTS;
+  if (!last) throw e;
+  ctx.log.warn("ai.visualize.failed", { visualizationId: id, error: e });
+  await markFailed(id, isAppError(e) ? e.message : ru.ai.errors.visualizationFailed);
 }
 
 type Job = Visualization & { sourceFile: StoredFile; clientId: string };

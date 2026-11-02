@@ -27,4 +27,18 @@ describe("action()", () => {
     })({ title: "Шкаф", price: 1 });
     expect(crash).toEqual({ ok: false, code: "INTERNAL", error: ru.common.errors.generic });
   });
+
+  it("ошибки полей из сервиса доходят до формы; без них или не объектом — не передаются", async () => {
+    const withFields = action("test", schema, async () => fail.validation("Проверьте поля", { fieldErrors: { title: ["Слишком коротко"] } }));
+    expect(await withFields({ title: "Шкаф", price: 1 })).toEqual({
+      ok: false,
+      code: "VALIDATION",
+      error: "Проверьте поля",
+      fieldErrors: { title: ["Слишком коротко"] },
+    });
+    for (const details of [undefined, { other: 1 }, { fieldErrors: "строка" }, { fieldErrors: null }]) {
+      const result = await action("test", schema, async () => fail.validation("Нет", details))({ title: "Шкаф", price: 1 });
+      expect(result).toEqual({ ok: false, code: "VALIDATION", error: "Нет" });
+    }
+  });
 });

@@ -20,16 +20,29 @@ export function subjectDetails(request: {
   wishes: string;
 }): string[] {
   const d = detailsSchema.parse(request.details ?? {});
-  const size = [d.widthCm && `ширина ${d.widthCm} см`, d.heightCm && `высота ${d.heightCm} см`, d.depthCm && `глубина ${d.depthCm} см`].filter(Boolean);
-  const lines: (string | null | undefined | false)[] = [
+  const lines: Line[] = [
     request.furnitureType && `Тип мебели: ${request.furnitureType}`,
     request.style && `Стиль: ${label(STYLES, request.style)}`,
-    size.length > 0 && `Размеры: ${size.join(", ")}`,
+    sizeLine(d),
+    ...materialLines(d),
+    request.wishes.trim() && `Пожелания: ${request.wishes.trim()}`,
+  ];
+  return lines.filter((l): l is string => typeof l === "string" && l.length > 0);
+}
+
+type Line = string | null | undefined | false;
+type Details = z.infer<typeof detailsSchema>;
+
+function sizeLine(d: Details): Line {
+  const size = [d.widthCm && `ширина ${d.widthCm} см`, d.heightCm && `высота ${d.heightCm} см`, d.depthCm && `глубина ${d.depthCm} см`].filter(Boolean);
+  return size.length > 0 && `Размеры: ${size.join(", ")}`;
+}
+
+function materialLines(d: Details): Line[] {
+  return [
     d.facade && `Фасады: ${label(FACADES, d.facade)}`,
     d.countertop && `Столешница: ${label(COUNTERTOPS, d.countertop)}`,
     d.hardware && `Фурнитура: ${label(HARDWARE, d.hardware)}`,
     d.color && `Цвет: ${d.color}`,
-    request.wishes.trim() && `Пожелания: ${request.wishes.trim()}`,
   ];
-  return lines.filter((l): l is string => typeof l === "string" && l.length > 0);
 }

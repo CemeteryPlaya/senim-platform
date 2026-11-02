@@ -38,6 +38,35 @@ describe("отчёт", () => {
   });
 });
 
+describe("CSV по видам выгрузки", () => {
+  it("этапы, оплаты, зависшие отметки и сверка — строка заголовка и строки данных", async () => {
+    const operator = await makeOperator();
+    const { deal } = await makeDeal({
+      stages: [
+        { amount: 100_000, status: "CLOSED", payment: "CONFIRMED" },
+        { amount: 50_000, status: "ACCEPTED", payment: "MARKED_PAID", markedPaidDaysAgo: 5 },
+      ],
+    });
+    const rows = async (kind: "stages" | "payments" | "discrepancies" | "reconciliation") =>
+      (await buildCsv(operator, { kind, staleDays: 3 })).trim().split("\r\n");
+
+    const stages = await rows("stages");
+    expect(stages).toHaveLength(3);
+    expect(stages[1]).toContain(`${deal.number};Этап 1;1;`);
+
+    const payments = await rows("payments");
+    expect(payments).toHaveLength(3);
+    expect(payments[2]).toContain(`${deal.number};Этап 2;50000;`);
+
+    const discrepancies = await rows("discrepancies");
+    expect(discrepancies).toHaveLength(2);
+    expect(discrepancies[1]).toMatch(new RegExp(`^${deal.number};Этап 2;50000;.*;5$`));
+
+    // manual-сделки банк не сверяет: только заголовок
+    expect(await rows("reconciliation")).toHaveLength(1);
+  });
+});
+
 describe("журнал аудита", () => {
   it("фильтрует по scope, сущности и действию и листает по seq", async () => {
     const operator = await makeOperator();

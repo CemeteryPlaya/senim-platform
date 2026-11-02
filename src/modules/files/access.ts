@@ -35,16 +35,18 @@ export function decideFileAccess(viewer: Viewer, facts: FileFacts): boolean {
   const { owner } = facts;
   if (owner.kind === "portfolio" && owner.published) return true;
   if (!viewer) return false;
-  if (viewer.role === "OPERATOR") return true;
-  if (facts.uploadedById === viewer.id) return true;
+  return viewer.role === "OPERATOR" || facts.uploadedById === viewer.id || ownerAllows(viewer, owner);
+}
+
+/** Доступ по владельцу файла: автор портфолио, стороны сделки, заказчик заявки или исполнитель, который её видит. */
+function ownerAllows(viewer: NonNullable<Viewer>, owner: FileFacts["owner"]): boolean {
   switch (owner.kind) {
     case "portfolio":
       return owner.ownerUserId === viewer.id;
     case "parties":
       return owner.userIds.includes(viewer.id);
     case "request":
-      if (owner.request.clientId === viewer.id) return true;
-      return viewer.executor !== null && executorSeesRequest(viewer.executor, owner.request);
+      return owner.request.clientId === viewer.id || (viewer.executor !== null && executorSeesRequest(viewer.executor, owner.request));
     case "none":
       return false;
   }
