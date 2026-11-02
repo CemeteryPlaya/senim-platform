@@ -49,32 +49,34 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
       />
       <FlowSteps flow={r.pre.flow} steps={r.pre.steps} current={r.pre.current} />
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-8">
+      {/* Телефон: фото и факты, затем следующий шаг, затем подробности. Компьютер: шаг — справа во всю высоту. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-x-8">
         <div className="flex min-w-0 flex-col gap-6">
           <Gallery title={r.title} photos={r.photos} />
           <KeyFacts r={r} />
-          <section aria-labelledby="request-facts" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
-            <h2 id="request-facts" className="text-xl font-bold text-ink">
-              {ru.requests.request.detailsTitle}
-            </h2>
-            <FactList
-              rows={[
-                ...detailRows({ title: r.title, style: r.style, details: r.details }),
-                ...siteRows(r.pre),
-                { label: f.city, value: r.city },
-                { label: f.address, value: r.address ?? <span className="text-muted">{f.addressHidden}</span> },
-                ...(r.desiredDate ? [{ label: f.desiredDate, value: formatDate(r.desiredDate) }] : []),
-                ...(r.wishes ? [{ label: f.wishes, value: r.wishes }] : []),
-              ]}
-            />
-          </section>
         </div>
 
-        <section aria-labelledby="next-step" className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
+        <section aria-labelledby="next-step" className="flex min-w-0 flex-col gap-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <h2 id="next-step" className="text-xl font-bold text-ink">
             {t.offerTitle}
           </h2>
           <NextStep r={r} />
+        </section>
+
+        <section aria-labelledby="request-facts" className="flex min-w-0 flex-col gap-4 self-start rounded-card border border-line bg-surface p-5 shadow-card sm:p-6 lg:col-start-1">
+          <h2 id="request-facts" className="text-xl font-bold text-ink">
+            {ru.requests.request.detailsTitle}
+          </h2>
+          <FactList
+            rows={[
+              ...detailRows({ title: r.title, style: r.style, details: r.details }),
+              ...siteRows(r.pre),
+              { label: f.city, value: r.city },
+              { label: f.address, value: r.address ?? <span className="text-muted">{f.addressHidden}</span> },
+              ...(r.desiredDate ? [{ label: f.desiredDate, value: formatDate(r.desiredDate) }] : []),
+              ...(r.wishes ? [{ label: f.wishes, value: r.wishes }] : []),
+            ]}
+          />
         </section>
       </div>
 
@@ -119,9 +121,9 @@ function KeyFacts({ r }: { r: IncomingRequest }) {
     { icon: <CalendarClock />, label: fx.desired, value: r.desiredDate ? formatDate(r.desiredDate) : x.noDate },
   ];
   return (
-    <dl aria-label={x.keyFacts} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))] gap-3">
+    <dl aria-label={x.keyFacts} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3">
       {tiles.map((tile) => (
-        <div key={tile.label} className="flex min-w-0 items-start gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
+        <div key={tile.label} className="flex min-w-0 flex-col items-start gap-2 rounded-card border border-line bg-surface p-4 shadow-card">
           <span aria-hidden className="inline-flex size-10 shrink-0 items-center justify-center rounded-control bg-accent-soft text-primary [&_svg]:size-5">
             {tile.icon}
           </span>
@@ -137,18 +139,21 @@ function KeyFacts({ r }: { r: IncomingRequest }) {
 
 function OfferSummary({ offer }: { offer: NonNullable<IncomingRequest["myOffer"]> }) {
   const o = ru.requests.offer;
+  const rows: [string, ReactNode][] = [
+    [o.price, <Money key="p" amount={offer.price} className="font-semibold" />],
+    [o.duration, formatDays(offer.durationDays)],
+    [o.warranty, formatMonths(offer.warrantyMonths)],
+    [o.measurement, termsText(offer.measurementTerms, offer.measurementFee)],
+  ];
+  // Строки «подпись — значение»: длинное значение переносится под подпись, а не сжимается в узкий столбец.
   return (
-    <dl className="facts gap-x-4 gap-y-2 text-base">
-      <dt className="text-muted">{o.price}</dt>
-      <dd className="font-semibold text-ink">
-        <Money amount={offer.price} />
-      </dd>
-      <dt className="text-muted">{o.duration}</dt>
-      <dd className="text-ink">{formatDays(offer.durationDays)}</dd>
-      <dt className="text-muted">{o.warranty}</dt>
-      <dd className="text-ink">{formatMonths(offer.warrantyMonths)}</dd>
-      <dt className="text-muted">{o.measurement}</dt>
-      <dd className="text-ink">{termsText(offer.measurementTerms, offer.measurementFee)}</dd>
+    <dl className="flex flex-col divide-y divide-line text-base">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0">
+          <dt className="text-muted">{label}</dt>
+          <dd className="text-ink">{value}</dd>
+        </div>
+      ))}
     </dl>
   );
 }
@@ -157,7 +162,13 @@ function OfferSummary({ offer }: { offer: NonNullable<IncomingRequest["myOffer"]
 function NextStep({ r }: { r: IncomingRequest }) {
   const offer = r.myOffer;
   if (!offer) {
-    return r.canOffer ? <OfferForm requestId={r.id} defaults={r.defaults} /> : <Alert tone="info">{ru.requests.status[r.status]}</Alert>;
+    return r.canOffer ? (
+      <div className="rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+        <OfferForm requestId={r.id} defaults={r.defaults} />
+      </div>
+    ) : (
+      <Alert tone="info">{ru.requests.status[r.status]}</Alert>
+    );
   }
   const m = offer.measurement;
   const card = (children: ReactNode) => (
@@ -193,7 +204,9 @@ function NextStep({ r }: { r: IncomingRequest }) {
         <Alert tone="accent" title={ru.requests.pre.retry.allowedTitle}>
           {ru.requests.pre.retry.allowedText}
         </Alert>
-        <OfferForm requestId={r.id} defaults={r.defaults} />
+        <div className="rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+          <OfferForm requestId={r.id} defaults={r.defaults} />
+        </div>
       </>
     );
   }
