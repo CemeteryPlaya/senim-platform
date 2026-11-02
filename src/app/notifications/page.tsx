@@ -5,6 +5,7 @@ import { ru } from "@/i18n/ru";
 import { getCurrentUser, requireIntroduced } from "@/modules/identity";
 import { listNotifications } from "@/modules/notifications";
 import { Button, cn, Container, DateText, EmptyState, PageHeader, StatusBadge } from "@/ui";
+import { EnablePush } from "@/app/_components/notifications";
 import { markAllReadForm, openNotificationForm } from "./actions";
 
 const t = ru.notifications.page;
@@ -62,6 +63,9 @@ export default async function NotificationsPage() {
           )
         }
       />
+      <div className="pb-4">
+        <EnablePush />
+      </div>
       {items.length === 0 ? (
         <EmptyState icon={<Bell />} title={t.empty} description={t.emptyHint} />
       ) : (
