@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
+import { MATERIAL_CATEGORIES, MATERIAL_UNITS } from "@/verticals/furniture";
 import { binIinKindFor, isValidBin, isValidIin, parsePhone, refineSigner, signerFields, signerOf, type RegistrationDecision } from "@/modules/identity";
 
 /**
@@ -142,3 +143,40 @@ export type AuditFilterInput = z.output<typeof auditFilterSchema>;
 export const DEMO_RAIL_MODES = ["manual", "escrow-simulator"] as const;
 export const paymentRailSchema = z.object({ mode: z.enum(DEMO_RAIL_MODES) });
 export type DemoRailMode = (typeof DEMO_RAIL_MODES)[number];
+
+// ─── справочник цен материалов (ADR-007) ─────────────────────────────────────
+
+const m = ru.materials.validation;
+
+/** Целые тенге из поля формы: пробелы между разрядами допустимы, копейки — нет. */
+const tenge = z.preprocess(
+  (v) => (typeof v === "string" ? v.replace(/[\s  ]/g, "") : v),
+  z.coerce.number({ error: m.price }).int(m.price).min(1, m.price).max(100_000_000, m.price),
+);
+
+/** Флажки уровней приходят из формы полями `segment_<УРОВЕНЬ>`; сервисы и тесты передают массив `segments`. */
+const segmentsFromForm = (v: unknown) => {
+  if (!v || typeof v !== "object" || "segments" in v) return v;
+  const fields = v as Record<string, unknown>;
+  return { ...fields, segments: segmentSchema.options.filter((s) => typeof fields[`segment_${s}`] === "string" && fields[`segment_${s}`] !== "") };
+};
+
+export const addMaterialPriceSchema = z.preprocess(
+  segmentsFromForm,
+  z.object({
+    category: z.enum(MATERIAL_CATEGORIES, { error: m.category }),
+    name: z.string().trim().min(2, m.name).max(80, m.name),
+    unit: z.enum(MATERIAL_UNITS, { error: m.unit }),
+    priceKzt: tenge,
+    segments: z.array(segmentSchema).min(1, m.segments),
+  }),
+);
+export type AddMaterialPriceInput = z.output<typeof addMaterialPriceSchema>;
+
+/** `from` — цена, которую видел оператор: если её уже изменили, сохранение не перезапишет чужое. */
+export const changeMaterialPriceSchema = z
+  .object({ id, from: tenge, to: tenge })
+  .refine((v) => v.from !== v.to, { path: ["to"], message: m.price });
+export type ChangeMaterialPriceInput = z.output<typeof changeMaterialPriceSchema>;
+
+export const setMaterialPriceActiveSchema = z.object({ id, active: z.boolean() });

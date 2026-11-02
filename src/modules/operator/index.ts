@@ -11,6 +11,7 @@ export { getDisputeCard, listDisputes, resolveDispute } from "./disputes";
 export { addExecutor, changeSegment, getExecutorCard, listExecutors, listRegistrationQueue, reviewRegistration } from "./executors";
 export { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitureType, setFurnitureTypeActive } from "./furniture-types";
 export { buildCsv, buildReport, type EscrowReconciliation, type StatusTotal } from "./report";
+export { addMaterialPrice, changeMaterialPrice, listMaterialPrices, setMaterialPriceActive, type MaterialPriceRow } from "./material-prices";
 export { listStaleRequests } from "./requests";
 export type { Persona, ScenarioStep, ScenarioStepKey } from "./scenario";
 export * from "./schemas";
