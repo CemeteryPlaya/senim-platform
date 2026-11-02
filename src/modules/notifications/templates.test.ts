@@ -80,9 +80,9 @@ describe("шаблоны уведомлений", () => {
     ]);
   });
 
-  it("тексты не обещают эскроу и безопасную оплату", async () => {
-    const source = await readFile(path.join(process.cwd(), "src/i18n/ru/notifications.ts"), "utf8");
-    expect(source.toLowerCase()).not.toMatch(/эскроу|безопасн/);
+  it.each(["notifications", "files", "pwa"])("тексты зоны %s: без «эскроу», «комиссии» и обещания безопасной оплаты", async (zone) => {
+    const source = await readFile(path.join(process.cwd(), `src/i18n/ru/${zone}.ts`), "utf8");
+    expect(source.toLowerCase()).not.toMatch(/эскроу|комисси|безопасн/);
   });
 
   it("склонение дней", () => {

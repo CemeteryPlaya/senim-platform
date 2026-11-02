@@ -19,17 +19,17 @@ async function currentRegistration(): Promise<ServiceWorkerRegistration> {
   return navigator.serviceWorker.ready;
 }
 
+const hasPushApi = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+
 async function readState(): Promise<PushState> {
   const nav = navigator as Navigator & { standalone?: boolean };
-  const pushApi = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  const subscription = pushApi ? await (await currentRegistration()).pushManager.getSubscription() : null;
-  return pushState({
+  const device = {
     appleMobile: isAppleMobile(nav.userAgent, nav.maxTouchPoints),
     standalone: isStandalone({ displayModeStandalone: window.matchMedia("(display-mode: standalone)").matches, navigatorStandalone: nav.standalone }),
-    pushApi,
-    permission: pushApi ? Notification.permission : "default",
-    subscribed: subscription !== null,
-  });
+  };
+  if (!hasPushApi()) return pushState({ ...device, pushApi: false, permission: "default", subscribed: false });
+  const subscription = await (await currentRegistration()).pushManager.getSubscription();
+  return pushState({ ...device, pushApi: true, permission: Notification.permission, subscribed: subscription !== null });
 }
 
 async function send(method: "POST" | "DELETE", body: unknown): Promise<void> {
@@ -86,42 +86,51 @@ export function PushButton({ publicKey }: PushButtonProps) {
   }
 
   if (state === null || state === "unsupported") return null;
-  if (state === "ios-install") {
-    return (
-      <Alert title={t.iosInstall.title}>
-        <span className="flex items-start gap-3">
-          <Share aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
-          <span>{t.iosInstall.body}</span>
-        </span>
-      </Alert>
-    );
-  }
+  if (state === "ios-install") return <IosInstallHint />;
   if (state === "denied") return <Alert tone="warning">{t.denied}</Alert>;
-
   return (
     <div className="flex flex-col gap-2">
-      {state === "on" ? (
-        <>
-          <p className="text-base text-ink" role="status">
-            {t.enabled}
-          </p>
-          <Button variant="ghost" icon={<BellOff />} loading={busy} onClick={() => void run(disable)}>
-            {t.disable}
-          </Button>
-        </>
-      ) : (
-        <>
-          <Button variant="soft" icon={<Bell />} loading={busy} onClick={() => void run(() => enable(publicKey))}>
-            {busy ? t.enabling : t.enable}
-          </Button>
-          <p className="text-base text-ink-soft">{t.hint}</p>
-        </>
-      )}
+      {state === "on" ? <EnabledControls busy={busy} onDisable={() => void run(disable)} /> : <EnableControls busy={busy} onEnable={() => void run(() => enable(publicKey))} />}
       {error && (
         <Alert tone="danger" live="assertive">
           {error}
         </Alert>
       )}
     </div>
+  );
+}
+
+function IosInstallHint() {
+  return (
+    <Alert title={t.iosInstall.title}>
+      <span className="flex items-start gap-3">
+        <Share aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
+        <span>{t.iosInstall.body}</span>
+      </span>
+    </Alert>
+  );
+}
+
+function EnabledControls({ busy, onDisable }: { busy: boolean; onDisable: () => void }) {
+  return (
+    <>
+      <p className="text-base text-ink" role="status">
+        {t.enabled}
+      </p>
+      <Button variant="ghost" icon={<BellOff />} loading={busy} onClick={onDisable}>
+        {t.disable}
+      </Button>
+    </>
+  );
+}
+
+function EnableControls({ busy, onEnable }: { busy: boolean; onEnable: () => void }) {
+  return (
+    <>
+      <Button variant="soft" icon={<Bell />} loading={busy} onClick={onEnable}>
+        {busy ? t.enabling : t.enable}
+      </Button>
+      <p className="text-base text-ink-soft">{t.hint}</p>
+    </>
   );
 }

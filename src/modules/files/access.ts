@@ -103,19 +103,42 @@ async function loadFacts(fileId: string, executorId: string | undefined): Promis
  * дату документа в истории денег и в выписке (MONEY_STATEMENT).
  */
 function ownerOf(f: LoadedOwners): FileFacts["owner"] {
-  if (f.portfolioItem) return { kind: "portfolio", published: f.portfolioItem.published, ownerUserId: f.portfolioItem.executor.userId };
+  return portfolioOwner(f) ?? requestOwner(f) ?? partiesOwner(f) ?? { kind: "none" };
+}
+
+function portfolioOwner({ portfolioItem: item }: LoadedOwners): FileFacts["owner"] | null {
+  return item && { kind: "portfolio", published: item.published, ownerUserId: item.executor.userId };
+}
+
+function requestOwner(f: LoadedOwners): FileFacts["owner"] | null {
   const request = f.request ?? f.visualization?.request;
-  if (request) {
-    const { offers, ...rest } = request;
-    return { kind: "request", request: { ...rest, viewerHasOffer: offers.length > 0 } };
+  if (!request) return null;
+  const { offers, ...rest } = request;
+  return { kind: "request", request: { ...rest, viewerHasOffer: offers.length > 0 } };
+}
+
+/**
+ * Кому из людей файл виден по владельцу — по порядку, первый найденный владелец решает: стороны сделки
+ * (сдача, «Ход работ», спор, документ), стороны отклика (чат), мастер (KYC), подписавший (рисунок подписи),
+ * никто, кроме оператора (скан банковского документа).
+ */
+const PARTY_SOURCES: readonly ((f: LoadedOwners) => readonly string[] | null)[] = [
+  (f) => f.deal && partiesOf(f.deal),
+  (f) => f.progressReport && partiesOf(f.progressReport.deal),
+  (f) => f.dispute && partiesOf(f.dispute.deal),
+  (f) => f.document && partiesOf(f.document.deal),
+  (f) => f.message && [f.message.offer.request.clientId, f.message.offer.executor.userId],
+  (f) => f.executorProfile && [f.executorProfile.userId],
+  (f) => f.handSignature && [f.handSignature.userId],
+  (f) => f.bankDocFor && [],
+];
+
+function partiesOwner(f: LoadedOwners): FileFacts["owner"] | null {
+  for (const source of PARTY_SOURCES) {
+    const userIds = source(f);
+    if (userIds) return { kind: "parties", userIds };
   }
-  const deal = f.deal ?? f.progressReport?.deal ?? f.dispute?.deal ?? f.document?.deal;
-  if (deal) return { kind: "parties", userIds: partiesOf(deal) };
-  if (f.message) return { kind: "parties", userIds: [f.message.offer.request.clientId, f.message.offer.executor.userId] };
-  const own = f.executorProfile ?? f.handSignature;
-  if (own) return { kind: "parties", userIds: [own.userId] };
-  if (f.bankDocFor) return { kind: "parties", userIds: [] };
-  return { kind: "none" };
+  return null;
 }
 
 async function viewerOf(user: CurrentUser | null): Promise<Viewer> {
