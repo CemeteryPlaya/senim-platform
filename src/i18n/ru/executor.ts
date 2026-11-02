@@ -66,6 +66,16 @@ export const executor = {
     edit: "Данные профиля",
   },
 
+  /** Экраны замерщика площадки (роль MEASURER, ADR-005) — в том же стиле, что и замеры исполнителя. */
+  measurer: {
+    chipsLabel: "Показать замеры",
+    chips: { assigned: "Назначены", done: "Выполнены" },
+    assignedAt: (when: string) => `Назначен ${when}`,
+    doneAt: (when: string) => `Выполнен ${when}`,
+    emptyFilter: "В этом разделе замеров нет.",
+    visit: "Адрес выезда",
+  },
+
   finance: {
     metaTitle: "Финансы",
     title: "Финансы",
