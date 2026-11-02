@@ -50,7 +50,7 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
       <FlowSteps flow={r.pre.flow} steps={r.pre.steps} current={r.pre.current} />
 
       {/* Телефон: фото и факты, затем следующий шаг, затем подробности. Компьютер: шаг — справа во всю высоту. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-x-8">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:grid-rows-[auto_1fr] lg:gap-x-8">
         <div className="flex min-w-0 flex-col gap-6">
           <Gallery title={r.title} photos={r.photos} />
           <KeyFacts r={r} />
