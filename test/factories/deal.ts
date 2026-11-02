@@ -38,10 +38,15 @@ export type DealFixture = {
   executor: CurrentUser & { executor: NonNullable<CurrentUser["executor"]> };
 };
 
-/** Заявка в CONTRACTING, принятый отклик и сделка через настоящий createDeal. */
-export async function makeDeal(opts: { template?: StageTemplate; total?: number; rail?: RailMode } = {}): Promise<DealFixture> {
-  const client = await makeClient();
-  const executor = await makeExecutor();
+/**
+ * Заявка в CONTRACTING, принятый отклик и сделка через настоящий createDeal.
+ * client/executor — готовые стороны (например, человек с двумя ролями, ADR-004).
+ */
+export async function makeDeal(
+  opts: { template?: StageTemplate; total?: number; rail?: RailMode; client?: CurrentUser; executor?: DealFixture["executor"] } = {},
+): Promise<DealFixture> {
+  const client = opts.client ?? (await makeClient());
+  const executor = opts.executor ?? (await makeExecutor());
   const total = opts.total ?? 100_000;
   const request = await db.request.create({ data: { clientId: client.id, mode: "TENDER", status: "CONTRACTING" } });
   const offer = await db.offer.create({

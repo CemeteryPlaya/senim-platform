@@ -111,10 +111,12 @@ export async function getPortfolioForRequest(portfolioItemId: string): Promise<P
  * Работа для «Хочу похожее» по тому же правилу видимости, что и каталог (опубликована, исполнитель
  * подтверждён и не заблокирован, тип мебели включён). client — транзакция вызывающего или db.
  * executorId — только для серверной записи заявки; на экран идёт executor (номер и сегмент).
+ * viewerId — кто заказывает: своя работа (тот же человек в роли исполнителя, ADR-004) не найдётся —
+ * самосделка запрещена.
  */
-export async function findLikeablePortfolioItem(client: Db, portfolioItemId: string) {
+export async function findLikeablePortfolioItem(client: Db, portfolioItemId: string, viewerId: string) {
   return client.portfolioItem.findFirst({
-    where: { id: portfolioItemId, ...VISIBLE_ITEM },
+    where: { id: portfolioItemId, ...VISIBLE_ITEM, AND: [{ executor: { userId: { not: viewerId } } }] },
     select: { id: true, title: true, style: true, furnitureTypeId: true, executorId: true, executor: { select: { publicNumber: true, segment: true } } },
   });
 }

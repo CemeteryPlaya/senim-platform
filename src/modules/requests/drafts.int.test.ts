@@ -68,7 +68,7 @@ describe("черновик заявки", () => {
     for (const ex of [rejected, blocked]) {
       const item = await db.portfolioItem.create({ data: { executorId: ex.executor.id, furnitureTypeId: type.id, style: "scandi", title: "Комод" } });
       await expect(makeDraft(client, { like: item.id, typeId: type.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
-      await expect(likeTarget(item.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+      await expect(likeTarget(item.id, client)).rejects.toMatchObject({ code: "NOT_FOUND" });
     }
     expect(await db.request.count()).toBe(0);
   });
@@ -80,7 +80,7 @@ describe("черновик заявки", () => {
     const item = await db.portfolioItem.create({ data: { executorId: executor.executor.id, furnitureTypeId: type.id, style: "scandi", title: "Шкаф", published: true } });
     await db.furnitureType.update({ where: { id: type.id }, data: { active: false } });
 
-    await expect(likeTarget(item.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(likeTarget(item.id, client)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(makeDraft(client, { like: item.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(await db.request.count()).toBe(0);
   });

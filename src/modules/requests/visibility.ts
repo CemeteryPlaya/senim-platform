@@ -4,11 +4,12 @@ import type { RegistrationStatus, RequestMode, RequestStatus, Segment } from "@/
 /**
  * Единственное место, где решается видимость заявки исполнителю (ADR-003):
  * открытый тендер его сегмента или прямой запрос именно ему. Заявку, на которую
- * он уже откликнулся, исполнитель видит всегда.
+ * он уже откликнулся, исполнитель видит всегда. Свои заявки (тот же человек в роли заказчика, ADR-004)
+ * не видит никогда: самосделка запрещена.
  */
-export function visibleToExecutor(executor: { id: string; segment: Segment | null }): Prisma.RequestWhereInput {
+export function visibleToExecutor(executor: { id: string; userId: string; segment: Segment | null }): Prisma.RequestWhereInput {
   const tender: Prisma.RequestWhereInput[] = executor.segment ? [{ mode: "TENDER", segment: executor.segment }] : [];
-  return { status: "OPEN", OR: [...tender, { mode: "DIRECT", targetExecutorId: executor.id }] };
+  return { status: "OPEN", clientId: { not: executor.userId }, OR: [...tender, { mode: "DIRECT", targetExecutorId: executor.id }] };
 }
 
 export type RequestVisibilityFacts = {

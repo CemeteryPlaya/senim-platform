@@ -65,7 +65,7 @@ async function linkRoomPhotos(tx: Tx, user: CurrentUser, requestId: string, file
 }
 
 async function createDraft(tx: Tx, user: CurrentUser, like: string | null | undefined): Promise<RequestWithType> {
-  const item = like ? await findLikeablePortfolioItem(tx, like) : null;
+  const item = like ? await findLikeablePortfolioItem(tx, like, user.id) : null;
   if (like && !item) fail.notFound(e.portfolioNotFound);
   const r = await tx.request.create({
     data: {
@@ -136,9 +136,14 @@ export async function publishRequest(user: CurrentUser, input: { requestId: stri
         ? await tx.executorProfile.findFirst({ where: { id: r.targetExecutorId, status: "APPROVED" }, select: { userId: true } })
         : null;
       if (!target) return fail.conflict(e.targetUnavailable);
+      if (target.userId === user.id) return fail.conflict(e.selfDeal);
       recipients = [target.userId];
     } else {
-      const executors = await tx.executorProfile.findMany({ where: { status: "APPROVED", segment: r.segment }, select: { userId: true } });
+      // Себе (тот же человек в роли исполнителя) тендер не рассылается — он его и не увидит.
+      const executors = await tx.executorProfile.findMany({
+        where: { status: "APPROVED", segment: r.segment, userId: { not: user.id } },
+        select: { userId: true },
+      });
       recipients = executors.map((x) => x.userId);
     }
 
@@ -246,8 +251,9 @@ export async function getDraft(user: CurrentUser, requestId: string) {
 export type Draft = Awaited<ReturnType<typeof getDraft>>;
 
 /** Работа из портфолио для «Хочу похожее»: тип и исполнитель без личных данных. */
-export async function likeTarget(portfolioItemId: string) {
-  const item = await findLikeablePortfolioItem(db, portfolioItemId);
+/** Работа для «Хочу похожее» глазами заказчика: своя работа не найдётся (самосделка запрещена). */
+export async function likeTarget(portfolioItemId: string, user: Pick<CurrentUser, "id">) {
+  const item = await findLikeablePortfolioItem(db, portfolioItemId, user.id);
   if (!item) return fail.notFound(e.portfolioNotFound);
   return { id: item.id, title: item.title, furnitureTypeId: item.furnitureTypeId, style: item.style, executor: item.executor };
 }

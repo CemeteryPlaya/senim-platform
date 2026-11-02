@@ -38,7 +38,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
 
   const draft = sp.draft ? await orNotFound(getDraft(user, sp.draft)) : null;
   if (draft && draft.status !== "DRAFT") redirect(`/requests/${draft.id}`);
-  const like = !draft && sp.like ? await orNotFound(likeTarget(sp.like)) : null;
+  const like = !draft && sp.like ? await orNotFound(likeTarget(sp.like, user)) : null;
 
   const reached = draft ? Math.min(draft.wizardStep, WIZARD_SCREENS.length - 1) : 0;
   const asked = WIZARD_SCREENS.indexOf(sp.step as WizardScreen);

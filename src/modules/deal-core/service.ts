@@ -57,10 +57,15 @@ const t = ru.deal.notify;
  */
 export const createDeal: CreateDeal = async (tx, raw) => {
   const input = parseInput(createDealSchema, raw);
-  const offer = await tx.offer.findUnique({ where: { id: input.offerId }, include: { request: { select: { clientId: true } } } });
+  const offer = await tx.offer.findUnique({
+    where: { id: input.offerId },
+    include: { request: { select: { clientId: true } }, executor: { select: { userId: true } } },
+  });
   if (!offer || offer.requestId !== input.requestId || offer.executorId !== input.executorId || offer.request.clientId !== input.clientId) {
     return fail.validation(ru.deal.errors.badDealInput);
   }
+  // Самосделка: заказчик и исполнитель — один человек в двух ролях (ADR-004).
+  if (offer.executor.userId === input.clientId) return fail.conflict(ru.deal.errors.selfDeal);
   const planned = planStages(input.template, input.totalAmount);
   const paymentMode = paymentModeOf(await activeRailMode());
 
@@ -376,6 +381,8 @@ export async function leaveReview(user: CurrentUser, raw: { dealId: string; rati
     const deal = await lockDeal(tx, input.dealId);
     const who = requireRole(user, deal);
     if (who !== "CLIENT") return fail.forbidden(ru.deal.errors.onlyClientReviews);
+    const executor = await tx.executorProfile.findUniqueOrThrow({ where: { id: deal.executorId }, select: { userId: true } });
+    if (executor.userId === user.id) return fail.forbidden(ru.deal.errors.selfReview);
     if (deal.status !== "COMPLETED") return fail.conflict(ru.deal.errors.reviewOnlyCompleted);
     const created = await tx.review.createMany({
       data: [{ dealId: deal.id, executorId: deal.executorId, authorId: user.id, rating: input.rating, text: input.text }],
