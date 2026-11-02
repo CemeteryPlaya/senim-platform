@@ -49,8 +49,7 @@ const ROUTES = {
   myRequests: { href: "/requests", label: t.myRequests, icon: "requests" },
   deals: { href: "/deals", label: t.deals, icon: "deals" },
   orders: { href: "/deals", label: t.orders, icon: "orders" },
-  // Экрана «Финансы» пока нет: ближайший — список сделок с суммами и этапами оплаты (docs/design/README.md).
-  finance: { href: "/deals?view=finance", label: t.finance, icon: "finance" },
+  finance: { href: "/executor/finance", label: t.finance, icon: "finance" },
   notifications: { href: "/notifications", label: t.notifications, icon: "notifications" },
   incoming: { href: "/executor/requests", label: t.incoming, icon: "incoming" },
   measurements: { href: "/executor/measurements", label: t.measurements, icon: "measurements" },
@@ -101,8 +100,8 @@ function matchScore(item: NavItem, pathname: string, search: URLSearchParams): n
 }
 
 /**
- * Активный пункт меню для адреса (для aria-current="page"): самый точный из подходящих. Так «/deals» — это
- * «Заказы», а «/deals?view=finance» — «Финансы»; «/» подсвечивается только на самой главной.
+ * Активный пункт меню для адреса (для aria-current="page"): самый точный из подходящих (длиннее путь, совпал
+ * параметр адреса); «/» подсвечивается только на самой главной.
  */
 export function currentItem<T extends NavItem>(items: readonly T[], pathname: string, search: URLSearchParams): T | undefined {
   let best: T | undefined;

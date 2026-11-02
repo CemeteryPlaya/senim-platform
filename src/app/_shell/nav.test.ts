@@ -23,7 +23,7 @@ describe("вкладки по роли (макеты 7–19)", () => {
   });
 
   it("исполнитель: Главная / Заявки / Заказы / Финансы / Профиль", () => {
-    expect(tabs(EXECUTOR, false)).toEqual(["/", "/executor/requests", "/deals", "/deals?view=finance", "/profile"]);
+    expect(tabs(EXECUTOR, false)).toEqual(["/", "/executor/requests", "/deals", "/executor/finance", "/profile"]);
     expect(more(EXECUTOR, false)).toEqual(["/executor/measurements", "/executor/profile", "/executor/portfolio", "/notifications"]);
   });
 
@@ -62,9 +62,9 @@ describe("currentItem: какая вкладка активна (aria-current)",
     expect(active("/catalog")).toBeUndefined();
   });
 
-  it("«Заказы» и «Финансы» ведут на один список: различаются параметром адреса", () => {
+  it("«Заказы» — список сделок, «Финансы» — свой экран", () => {
     expect(active("/deals")).toBe("/deals");
-    expect(active("/deals", "view=finance")).toBe("/deals?view=finance");
+    expect(active("/executor/finance")).toBe("/executor/finance");
   });
 
   it("вложенная страница подсвечивает свой раздел", () => {
