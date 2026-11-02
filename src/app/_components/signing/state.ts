@@ -24,13 +24,22 @@ export type SigningAction =
   | { type: "failed"; error: string }
   | { type: "reset" };
 
+export type SignStep = "hand" | "ecp" | "youSigned" | "notSignable" | "operator" | "notRequired" | "closed";
+
 /**
- * Что показать вместо «Подписать», если подписать нельзя: «Вы подписали» — только когда подпись этой
- * стороны есть; документ на подписи, а подписи нет — шаг сделки её не принимает (расторгнута, отменена).
+ * Какой шаг подписи показать: сначала собственноручная подпись, затем ЭЦП (решение 2.2.4).
+ * «Вы поставили все подписи» — только когда есть все требуемые подписи этой стороны; подписи нет,
+ * а подписать нельзя — шаг сделки её не принимает (отменена, ещё не сдана, открыт спор).
  */
-export function signNotice(doc: Pick<SigningDocumentView, "status" | "myParty" | "canSign" | "signatures">): "youSigned" | "notSignable" | null {
-  if (doc.canSign || doc.status !== "SIGNING") return null;
-  return doc.signatures.some((s) => s.party === doc.myParty) ? "youSigned" : "notSignable";
+export function signStep(doc: Pick<SigningDocumentView, "status" | "signable" | "myParty" | "canSign" | "parties">): SignStep {
+  if (doc.myParty === null) return "operator";
+  if (!doc.signable) return "notRequired";
+  if (doc.status !== "SIGNING") return "closed";
+  if (doc.canSign.hand) return "hand";
+  if (doc.canSign.ecp) return "ecp";
+  const mine = doc.parties.find((p) => p.party === doc.myParty);
+  const done = mine && (!mine.required.hand || mine.hand) && (!mine.required.ecp || mine.ecp);
+  return done ? "youSigned" : "notSignable";
 }
 
 export const initialSigningState: SigningState = { step: "choose", method: "EGOV_QR" };
@@ -83,4 +92,15 @@ export function focusTargetAfter(was: SigningState["step"], now: SigningState["s
   if (was === now) return null;
   if (now === "done") return "result";
   return now === "choose" && (was === "awaiting" || was === "completing") ? "method" : null;
+}
+
+/** Подписи: «2 из 4» по требуемым подписям обеих сторон. */
+export function signatureProgress(doc: Pick<SigningDocumentView, "parties">): { done: number; total: number } {
+  let done = 0;
+  let total = 0;
+  for (const p of doc.parties) {
+    total += Number(p.required.hand) + Number(p.required.ecp);
+    done += Number(p.required.hand && p.hand !== null) + Number(p.required.ecp && p.ecp !== null);
+  }
+  return { done, total };
 }
