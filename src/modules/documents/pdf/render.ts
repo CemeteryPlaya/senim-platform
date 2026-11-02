@@ -2,7 +2,8 @@ import { brand } from "@/config/brand";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, rgb, type Color, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, rgb, type Color, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import type { PdfImage } from "../templates/types";
 import type { Block, PdfSpec, TableColumn } from "./spec";
 
 /*
@@ -52,7 +53,9 @@ const SIZE = { title: 14, heading: 14, body: 14, subtitle: 12, table: 12, captio
 const LEADING = 1.15;
 const PARAGRAPH_GAP = 6;
 const CELL_PAD = 5;
-const SIGNATURE_CAPTION = "Подпись: ЭЦП НУЦ РК (в электронной форме)";
+const PHOTO_GAP = 12;
+/** Фото в акте — 4:3 в половину ширины строки. */
+const PHOTO_RATIO = 3 / 4;
 /** Допуск сравнения координат в pt (погрешность плавающей точки). */
 const EPS = 0.01;
 
@@ -155,7 +158,7 @@ function drawTable(c: Cursor, columns: TableColumn[], rows: string[][]) {
   c.y -= PARAGRAPH_GAP;
 }
 
-function drawSignatures(c: Cursor, parties: { role: string; name: string }[]) {
+function drawSignatures(c: Cursor, parties: { role: string; name: string; caption: string }[]) {
   const { regular, bold } = c.fonts;
   const colWidth = CONTENT_WIDTH / parties.length;
   const textWidth = colWidth - 12;
@@ -164,7 +167,7 @@ function drawSignatures(c: Cursor, parties: { role: string; name: string }[]) {
   const blocks = parties.map((p) => ({
     role: wrapText(p.role, bold, SIZE.body, textWidth),
     name: wrapText(p.name, regular, SIZE.body, textWidth),
-    caption: wrapText(SIGNATURE_CAPTION, regular, SIZE.caption, textWidth),
+    caption: wrapText(p.caption, regular, SIZE.caption, textWidth),
   }));
   const gap = bodyStep * 0.5;
   const height = Math.max(...blocks.map((b) => (b.role.length + b.name.length) * bodyStep + gap + b.caption.length * captionStep));
@@ -186,9 +189,88 @@ function drawSignatures(c: Cursor, parties: { role: string; name: string }[]) {
   c.y -= height;
 }
 
-function drawBlock(c: Cursor, block: Block) {
+/** Рамка с крупным полужирным текстом: пометка, которую нельзя пропустить. */
+function drawNotice(c: Cursor, text: string) {
+  const { bold } = c.fonts;
+  const step = SIZE.title * LEADING;
+  const lines = wrapText(text, bold, SIZE.title, CONTENT_WIDTH - 2 * CELL_PAD - 4);
+  const height = lines.length * step + 2 * CELL_PAD + 4;
+  c.ensure(height);
+  c.page.drawRectangle({ x: MARGIN.left, y: c.y - height, width: CONTENT_WIDTH, height, borderColor: INK, borderWidth: 1.5 });
+  lines.forEach((line, n) => {
+    const width = bold.widthOfTextAtSize(line, SIZE.title);
+    put(c.page, line, MARGIN.left + (CONTENT_WIDTH - width) / 2, c.y - CELL_PAD - 2 - SIZE.title - n * step + 1, { font: bold, size: SIZE.title });
+  });
+  c.y -= height + PARAGRAPH_GAP;
+}
+
+/** Встроить картинку; повреждённый файл — null (вместо фото будет рамка с подписью, документ всё равно выходит). */
+async function embed(doc: PDFDocument, image: PdfImage): Promise<PDFImage | null> {
+  try {
+    return image.format === "png" ? await doc.embedPng(image.bytes) : await doc.embedJpg(image.bytes);
+  } catch {
+    return null;
+  }
+}
+
+/** Вписать картинку в рамку с сохранением пропорций, по центру рамки. */
+function fit(img: PDFImage, box: { x: number; y: number; width: number; height: number }) {
+  const scale = Math.min(box.width / img.width, box.height / img.height);
+  const width = img.width * scale;
+  const height = img.height * scale;
+  return { x: box.x + (box.width - width) / 2, y: box.y + (box.height - height) / 2, width, height };
+}
+
+async function drawPhotos(c: Cursor, doc: PDFDocument, items: { image: PdfImage | null; caption: string }[]) {
+  const cell = (CONTENT_WIDTH - PHOTO_GAP) / 2;
+  const boxHeight = cell * PHOTO_RATIO;
+  const captionStep = SIZE.caption * LEADING;
+  for (let i = 0; i < items.length; i += 2) {
+    const row = await Promise.all(
+      items.slice(i, i + 2).map(async (item) => ({
+        img: item.image ? await embed(doc, item.image) : null,
+        caption: wrapText(item.caption, c.fonts.regular, SIZE.caption, cell),
+      })),
+    );
+    const height = boxHeight + 4 + Math.max(...row.map((r) => r.caption.length)) * captionStep;
+    c.ensure(height);
+    row.forEach((r, n) => {
+      const x = MARGIN.left + n * (cell + PHOTO_GAP);
+      const box = { x, y: c.y - boxHeight, width: cell, height: boxHeight };
+      if (r.img) c.page.drawImage(r.img, fit(r.img, box));
+      else c.page.drawRectangle({ ...box, borderColor: MUTED, borderWidth: 0.5 });
+      r.caption.forEach((line, k) => put(c.page, line, x, c.y - boxHeight - 4 - SIZE.caption - k * captionStep, { font: c.fonts.regular, size: SIZE.caption, color: MUTED }));
+    });
+    c.y -= height + PARAGRAPH_GAP;
+  }
+}
+
+async function drawImage(c: Cursor, doc: PDFDocument, block: Extract<Block, { kind: "image" }>) {
+  const img = await embed(doc, block.image);
+  const caption = wrapText(block.caption, c.fonts.regular, SIZE.caption, CONTENT_WIDTH);
+  const boxHeight = img ? Math.min(block.maxHeight, (img.height * CONTENT_WIDTH) / img.width) : 0;
+  const height = boxHeight + 4 + caption.length * SIZE.caption * LEADING;
+  c.ensure(height);
+  if (img) {
+    const placed = fit(img, { x: MARGIN.left, y: c.y - boxHeight, width: CONTENT_WIDTH, height: boxHeight });
+    c.page.drawImage(img, { ...placed, x: MARGIN.left });
+  }
+  caption.forEach((line, k) => put(c.page, line, MARGIN.left, c.y - boxHeight - 4 - SIZE.caption - k * SIZE.caption * LEADING, { font: c.fonts.regular, size: SIZE.caption, color: MUTED }));
+  c.y -= height + PARAGRAPH_GAP;
+}
+
+async function drawBlock(c: Cursor, doc: PDFDocument, block: Block) {
   const { regular, bold } = c.fonts;
   switch (block.kind) {
+    case "notice":
+      drawNotice(c, block.text);
+      return;
+    case "photos":
+      await drawPhotos(c, doc, block.items);
+      return;
+    case "image":
+      await drawImage(c, doc, block);
+      return;
     case "title":
       c.lines(wrapText(block.text, bold, SIZE.title, CONTENT_WIDTH), { font: bold, size: SIZE.title, align: "center" });
       return;
@@ -228,6 +310,18 @@ function drawFooter(page: PDFPage, font: PDFFont, footer: string, pageLabel: str
 }
 
 /**
+ * Подписанная копия: страницы исходного PDF без изменений плюс страницы приложения (лист подписей).
+ * Дата изменения — время последней подписи: одинаковые подписи — одинаковые байты копии.
+ */
+export async function appendPages(original: Uint8Array, appendix: Uint8Array, modifiedAt: Date): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(original, { updateMetadata: false });
+  const extra = await PDFDocument.load(appendix, { updateMetadata: false });
+  for (const page of await doc.copyPages(extra, extra.getPageIndices())) doc.addPage(page);
+  doc.setModificationDate(modifiedAt);
+  return doc.save({ useObjectStreams: false });
+}
+
+/**
  * PDF из описания. Детерминирован: одинаковый spec — одинаковые байты
  * (даты в свойствах = issuedAt, имена шрифтов фиксированы), поэтому хэш стабилен.
  */
@@ -249,7 +343,7 @@ export async function renderPdf(spec: PdfSpec): Promise<Uint8Array> {
   doc.setModificationDate(spec.issuedAt);
 
   const cursor = new Cursor(doc, fonts);
-  for (const block of spec.blocks) drawBlock(cursor, block);
+  for (const block of spec.blocks) await drawBlock(cursor, doc, block);
 
   const pages = doc.getPages();
   pages.forEach((page, i) => drawFooter(page, fonts.regular, spec.footer, `стр. ${i + 1} из ${pages.length}`));

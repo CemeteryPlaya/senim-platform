@@ -1,432 +1,251 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { PDFDocument } from "pdf-lib";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { cancelDeal, payForDeal, startWork, submitReady } from "@/modules/deal-core";
+import { sha256Hex } from "@/platform/crypto";
 import { db, transaction } from "@/platform/db";
-import { decryptPii, encryptPii, hashPii, last4, sha256Hex } from "@/platform/crypto";
-import { resetEnvCache } from "@/platform/env";
-import { onDocumentSigned } from "@/modules/deal-core";
-import { registerExecutor, reviewExecutorRegistration } from "@/modules/identity";
-import { testBin, testIin } from "@/demo/kz-id";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
-import { makeDeal } from "../../../test/factories/documents";
-import { mockSignatureProvider } from "./providers/mock-signature";
+import { ADDRESS, dealAt, dealOf, journalOf, makeDeal, signContract } from "../../../test/factories/deal";
+import { latestDocument, signaturePng, signEcp, signTyped, storedPhoto, useDocuments } from "../../../test/factories/documents";
+import { setEnv } from "../../../test/factories/identity";
+import { createEmailSignedActHandler, EMAIL_ACT_JOB, type EmailMessage } from "./email";
 import {
-  completeSigning,
   createContract,
-  createStageAct,
+  createReleaseReceipt,
   getDocumentPdf,
+  getSharedDocumentPdf,
   listDealDocuments,
+  openSharedDocument,
+  shareDocument,
+  signByHand,
   startSigning,
-} from "./service";
+  completeSigning,
+} from "./index";
+import { signedCopyForEmail } from "./read";
 
-let storageDir: string;
+const code = (c: string) => expect.objectContaining({ code: c });
 
+let cleanup: () => Promise<void>;
 beforeAll(async () => {
-  storageDir = await mkdtemp(path.join(os.tmpdir(), "senim-documents-"));
-  process.env.STORAGE_PROVIDER = "local";
-  process.env.STORAGE_LOCAL_DIR = storageDir;
-  process.env.SIGNATURE_PROVIDER = "mock";
-  resetEnvCache();
+  cleanup = await useDocuments();
 });
+afterAll(() => cleanup());
+afterEach(() => setEnv({ FEATURE_EXECUTOR_HAND_SIGNS_ACT: undefined }));
 
-afterAll(async () => {
-  await rm(storageDir, { recursive: true, force: true });
-});
-
-type Hooks = Parameters<typeof completeSigning>[2];
-const noHooks: Hooks = { onFullySigned: async () => {} };
-
-async function signAs(user: Parameters<typeof startSigning>[0], documentId: string, hooks: Hooks = noHooks) {
-  const session = await startSigning(user, documentId, "EGOV_QR");
-  return completeSigning(user, { documentId, sessionId: session.sessionId }, hooks);
+/** Все подписи оферты: обе стороны собственноручно и ЭЦП. */
+async function signContractFully(f: Awaited<ReturnType<typeof makeDeal>>, documentId: string) {
+  await signTyped(f.client, documentId);
+  await signEcp(f.client, documentId);
+  await signByHand(f.executor, { documentId, image: await signaturePng() });
+  return signEcp(f.executor, documentId);
 }
 
-describe("createContract", () => {
-  it("сохраняет PDF в хранилище, sha256 документа — хэш байтов файла", async () => {
-    const { deal, client } = await makeDeal();
-    const created = await transaction((tx) => createContract(tx, deal.id));
-
-    const doc = await db.document.findUniqueOrThrow({ where: { id: created.documentId }, include: { file: true } });
-    expect(doc).toMatchObject({ kind: "CONTRACT", version: 1, status: "SIGNING", sha256: created.sha256 });
+describe("оферта: PDF, хэш, версии", () => {
+  it("createDeal выпускает оферту PDF через порт; хэш документа — хэш байтов; повтор — та же версия", async () => {
+    const f = await makeDeal();
+    const doc = await latestDocument(f.dealId, "CONTRACT");
     expect(doc.number).toMatch(/^Д-\d{4}\/\d{4}$/);
-    expect(doc.file).toMatchObject({ purpose: "DOCUMENT", contentType: "application/pdf", sha256: created.sha256 });
-
-    const pdf = await getDocumentPdf(client, doc.id);
-    expect(sha256Hex(pdf.bytes)).toBe(created.sha256);
-
-    const audit = await db.auditEvent.findMany({ where: { scope: `deal:${deal.id}`, action: "document.created" } });
-    expect(audit).toHaveLength(1);
+    const pdf = await getDocumentPdf(f.client, doc.id, "original");
+    expect(Buffer.from(pdf.bytes.subarray(0, 5)).toString()).toBe("%PDF-");
+    expect(sha256Hex(pdf.bytes)).toBe(doc.sha256);
+    expect(await transaction((tx) => createContract(tx, f.dealId))).toEqual({ documentId: doc.id, sha256: doc.sha256 });
+    expect(await db.document.count({ where: { dealId: f.dealId, kind: "CONTRACT" } })).toBe(1);
   });
 
-  it("повторный вызов без изменения условий возвращает тот же документ", async () => {
-    const { deal } = await makeDeal();
-    const a = await transaction((tx) => createContract(tx, deal.id));
-    const b = await transaction((tx) => createContract(tx, deal.id));
-    expect(b).toEqual(a);
-    expect(await db.document.count({ where: { dealId: deal.id } })).toBe(1);
-  });
-
-  it("изменение условий — новая версия, старая SUPERSEDED", async () => {
-    const { deal } = await makeDeal();
-    const v1 = await transaction((tx) => createContract(tx, deal.id));
-    await db.deal.update({ where: { id: deal.id }, data: { totalAmount: 1_300_000 } });
-    await db.stage.update({ where: { id: deal.stages[1].id }, data: { amount: 675_000 } });
-    const v2 = await transaction((tx) => createContract(tx, deal.id));
-
-    expect(v2.documentId).not.toBe(v1.documentId);
-    expect(v2.sha256).not.toBe(v1.sha256);
-    const docs = await db.document.findMany({ where: { dealId: deal.id }, orderBy: { version: "asc" } });
-    expect(docs.map((d) => [d.version, d.status])).toEqual([
-      [1, "SUPERSEDED"],
-      [2, "SIGNING"],
+  it("подпись обеими сторонами (собственноручно + ЭЦП) → документ SIGNED и Deal.signedAt; до последней подписи — нет", async () => {
+    const f = await makeDeal();
+    const { id } = await latestDocument(f.dealId, "CONTRACT");
+    await signTyped(f.client, id);
+    await signEcp(f.client, id);
+    expect(await signByHand(f.executor, { documentId: id, image: await signaturePng() })).toEqual({ fullySigned: false });
+    expect((await dealOf(f.dealId)).signedAt).toBeNull();
+    expect(await signEcp(f.executor, id)).toEqual({ fullySigned: true });
+    expect((await db.document.findUniqueOrThrow({ where: { id } })).status).toBe("SIGNED");
+    expect((await dealOf(f.dealId)).signedAt).not.toBeNull();
+    const hand = await db.handSignature.findMany({ where: { documentId: id }, orderBy: { party: "asc" } });
+    expect(hand.map((h) => [h.party, h.typedName !== null, h.imageFileId !== null])).toEqual([
+      ["CLIENT", true, false],
+      ["EXECUTOR", false, true],
     ]);
+    const image = await db.storedFile.findUniqueOrThrow({ where: { id: hand[1].imageFileId! } });
+    expect(image.purpose).toBe("HAND_SIGNATURE");
   });
 
-  it("подписанный договор не перевыпускается при изменении условий", async () => {
-    const { deal, client, executor } = await makeDeal();
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    await signAs(client, documentId);
-    await signAs(executor, documentId);
-    await db.deal.update({ where: { id: deal.id }, data: { totalAmount: 1_300_000 } });
-    await expect(transaction((tx) => createContract(tx, deal.id))).rejects.toMatchObject({ code: "CONFLICT" });
+  it("подписанная копия = исходные страницы + лист подписей; исходный файл не меняется", async () => {
+    const f = await makeDeal();
+    const { id, sha256 } = await latestDocument(f.dealId, "CONTRACT");
+    await signContractFully(f, id);
+    const original = await getDocumentPdf(f.client, id, "original");
+    const signed = await getDocumentPdf(f.executor, id);
+    expect(sha256Hex(original.bytes)).toBe(sha256);
+    expect(signed.sha256).toBe(sha256);
+    const [a, b] = await Promise.all([PDFDocument.load(original.bytes), PDFDocument.load(signed.bytes)]);
+    expect(b.getPageCount()).toBe(a.getPageCount() + 1);
+    // Копия детерминирована: те же подписи — те же байты.
+    expect(sha256Hex((await getDocumentPdf(f.client, id)).bytes)).toBe(sha256Hex(signed.bytes));
+  });
+
+  it("отменённая сделка оферту больше не принимает", async () => {
+    const f = await makeDeal();
+    const { id } = await latestDocument(f.dealId, "CONTRACT");
+    await cancelDeal(f.client, { dealId: f.dealId }, { onCancelled: async () => {} });
+    await expect(signTyped(f.client, id)).rejects.toEqual(code("CONFLICT"));
+    await expect(startSigning(f.client, id, "EGOV_QR")).rejects.toEqual(code("CONFLICT"));
   });
 });
 
-describe("подпись", () => {
-  it("обе стороны подписали — SIGNED и вызов onFullySigned в той же транзакции", async () => {
-    const { deal, client, executor } = await makeDeal();
-    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
-    const onFullySigned = vi.fn(async () => {});
+describe("гонки и чужие документы", () => {
+  it("двойной клик: собственноручная подпись и ЭЦП — по одной записи", async () => {
+    const f = await makeDeal();
+    const { id } = await latestDocument(f.dealId, "CONTRACT");
+    const hand = await Promise.allSettled([signTyped(f.client, id), signTyped(f.client, id)]);
+    expect(hand.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(await db.handSignature.count({ where: { documentId: id } })).toBe(1);
 
-    expect(await signAs(client, documentId, { onFullySigned })).toEqual({ fullySigned: false });
-    expect(onFullySigned).not.toHaveBeenCalled();
-    expect(await signAs(executor, documentId, { onFullySigned })).toEqual({ fullySigned: true });
-    expect(onFullySigned).toHaveBeenCalledWith(expect.anything(), documentId);
-
-    const doc = await db.document.findUniqueOrThrow({ where: { id: documentId }, include: { signatures: true } });
-    expect(doc.status).toBe("SIGNED");
-    expect(doc.signedAt).toBeInstanceOf(Date);
-    expect(doc.signatures.map((s) => s.party).sort()).toEqual(["CLIENT", "EXECUTOR"]);
-    for (const s of doc.signatures) expect(s).toMatchObject({ verified: true, signedSha256: sha256, method: "EGOV_QR" });
+    const [s1, s2] = await Promise.all([startSigning(f.client, id, "EGOV_QR"), startSigning(f.client, id, "EGOV_QR")]);
+    const ecp = await Promise.allSettled([completeSigning(f.client, { documentId: id, sessionId: s1.sessionId }), completeSigning(f.client, { documentId: id, sessionId: s2.sessionId })]);
+    expect(ecp.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(await db.signature.count({ where: { documentId: id } })).toBe(1);
+    await expect(signTyped(f.client, id)).rejects.toEqual(code("CONFLICT"));
   });
 
-  it("с deal-core.onDocumentSigned: подписанный договор переводит сделку в работу", async () => {
-    const { deal, client, executor } = await makeDeal({ paymentMode: "MANUAL" });
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    await signAs(client, documentId, { onFullySigned: onDocumentSigned });
-    await signAs(executor, documentId, { onFullySigned: onDocumentSigned });
-    expect(await db.deal.findUniqueOrThrow({ where: { id: deal.id } })).toMatchObject({ status: "IN_PROGRESS", signedAt: expect.any(Date) });
-  });
-
-  it("ошибка в onFullySigned откатывает подпись второй стороны", async () => {
-    const { deal, client, executor } = await makeDeal();
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    await signAs(client, documentId);
-    await expect(
-      signAs(executor, documentId, {
-        onFullySigned: async () => {
-          throw new Error("deal-core упал");
-        },
-      }),
-    ).rejects.toThrow("deal-core упал");
-    const doc = await db.document.findUniqueOrThrow({ where: { id: documentId }, include: { signatures: true } });
-    expect(doc.status).toBe("SIGNING");
-    expect(doc.signatures).toHaveLength(1);
-  });
-
-  it("двойное нажатие «Подписать» — одна подпись", async () => {
-    const { deal, client } = await makeDeal();
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    const session = await startSigning(client, documentId, "EGOV_QR");
-    const results = await Promise.allSettled([
-      completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks),
-      completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks),
-    ]);
-    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    expect(results.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
-    expect(await db.signature.count({ where: { documentId } })).toBe(1);
-  });
-
-  it("сессия, начатая для другого документа, отклоняется", async () => {
-    const { deal, client } = await makeDeal();
-    const v1 = await transaction((tx) => createContract(tx, deal.id));
-    const session = await startSigning(client, v1.documentId, "EGOV_QR");
-    await db.deal.update({ where: { id: deal.id }, data: { totalAmount: 1_300_000 } });
-    const v2 = await transaction((tx) => createContract(tx, deal.id));
-
-    await expect(completeSigning(client, { documentId: v2.documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({
-      code: "VALIDATION",
-    });
-    expect(await db.signature.count()).toBe(0);
-  });
-
-  it("подпись неверного хэша отклоняется", async () => {
-    const { deal, client } = await makeDeal();
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    const forged = await mockSignatureProvider.startSigning({
-      description: "Договор",
-      documentId,
-      sha256: "0".repeat(64),
-      method: "EGOV_QR",
-      signer: { userId: client.id, fullName: client.fullName ?? "" },
-    });
-    await expect(completeSigning(client, { documentId, sessionId: forged.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
-    expect(await db.signature.count()).toBe(0);
-  });
-
-  it("чужой пользователь не может начать или завершить подпись", async () => {
-    const { deal, client } = await makeDeal();
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
+  it("чужой документ: не сторона — «не найден» на подпись, PDF и ссылку; оператор видит, но не подписывает", async () => {
+    const f = await makeDeal();
+    const { id } = await latestDocument(f.dealId, "CONTRACT");
     const stranger = await makeClient();
+    await expect(signTyped(stranger, id)).rejects.toEqual(code("NOT_FOUND"));
+    await expect(startSigning(stranger, id, "EGOV_QR")).rejects.toEqual(code("NOT_FOUND"));
+    await expect(getDocumentPdf(stranger, id)).rejects.toEqual(code("NOT_FOUND"));
+    await expect(shareDocument(stranger, id)).rejects.toEqual(code("NOT_FOUND"));
+    await expect(listDealDocuments(stranger, f.dealId)).rejects.toEqual(code("NOT_FOUND"));
     const otherExecutor = await makeExecutor();
-    await expect(startSigning(stranger, documentId, "EGOV_QR")).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(startSigning(otherExecutor, documentId, "NCALAYER")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(signEcp(otherExecutor, id)).rejects.toEqual(code("NOT_FOUND"));
 
-    const session = await startSigning(client, documentId, "EGOV_QR");
-    await expect(completeSigning(stranger, { documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(await db.signature.count()).toBe(0);
-  });
-
-  it("подпись чужим сертификатом (другой ИИН) отклоняется", async () => {
-    const { deal, client, executor } = await makeDeal();
-    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
-    const executorUser = await db.user.findUniqueOrThrow({ where: { id: executor.id } });
-    const session = await mockSignatureProvider.startSigning({
-      description: "Договор",
-      documentId,
-      sha256,
-      method: "EGOV_QR",
-      signer: { userId: executor.id, fullName: "Кто-то", iin: decryptPii(executorUser.iinEnc!) },
-    });
-    await expect(completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
-  });
-
-  it("сертификат с теми же последними 4 цифрами, но другим ИИН — отказ: сверяется ИИН целиком", async () => {
-    const { deal, client } = await makeDeal();
-    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
-    const own = decryptPii((await db.user.findUniqueOrThrow({ where: { id: client.id } })).iinEnc!);
-    const lookalike = `${(Number(own[0]) + 1) % 10}${own.slice(1)}`;
-    const session = await mockSignatureProvider.startSigning({ description: "Договор", documentId, sha256, method: "EGOV_QR", signer: { userId: client.id, fullName: "Двойник", iin: lookalike } });
-
-    await expect(completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
-    expect(await db.signature.count()).toBe(0);
-  });
-
-  it("подписант привязан к стороне: заказчик — своим ИИН; нет ИИН — подписать нельзя", async () => {
-    const { deal, client } = await makeDeal();
-    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
-    const noIin = await mockSignatureProvider.startSigning({ description: "Договор", documentId, sha256, method: "EGOV_QR", signer: { userId: client.id, fullName: "Без ИИН" } });
-    await expect(completeSigning(client, { documentId, sessionId: noIin.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
-
-    await db.user.update({ where: { id: client.id }, data: { iinEnc: null, iinHash: null, iinLast4: null } });
-    await expect(startSigning(client, documentId, "EGOV_QR")).rejects.toMatchObject({ code: "VALIDATION" });
-    expect(await db.signature.count()).toBe(0);
-  });
-
-  it("исполнитель ИП подписывает ИИН из профиля (ИИН/БИН), а не любым ИИН", async () => {
-    const { deal, executor } = await makeDeal();
-    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
-    // ИИН/БИН профиля ИП — ИИН владельца; личный ИИН в записи пользователя может отсутствовать или устареть.
-    const ownerIin = testIin("880512", 3, 71);
-    const profile = await db.executorProfile.update({
-      where: { id: executor.executor.id },
-      data: { binIinEnc: encryptPii(ownerIin), binIinHash: hashPii(ownerIin), binIinLast4: last4(ownerIin) },
-      include: { user: true },
-    });
-    expect(profile.legalForm).toBe("IP");
-    expect(profile.user.iinHash).not.toBe(profile.binIinHash);
-
-    const wrong = await mockSignatureProvider.startSigning({
-      description: "Договор",
-      documentId,
-      sha256,
-      method: "EGOV_QR",
-      signer: { userId: executor.id, fullName: "Кто-то", iin: decryptPii(profile.user.iinEnc!) },
-    });
-    await expect(completeSigning(executor, { documentId, sessionId: wrong.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
-
-    expect(await signAs(executor, documentId)).toEqual({ fullySigned: false });
-    expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ party: "EXECUTOR", certIinLast4: profile.binIinLast4 });
-  });
-
-  it("исполнитель ТОО подписывает ИИН директора из профиля, а не ИИН аккаунта; без ИИН директора — отказ", async () => {
-    const { deal, executor } = await makeDeal();
-    const directorIin = testIin("800215", 3, 72);
-    await db.executorProfile.update({
-      where: { id: executor.executor.id },
-      data: { legalForm: "TOO", signerFullName: "Тулегенов Бауыржан", signerIinEnc: encryptPii(directorIin), signerIinHash: hashPii(directorIin) },
-    });
-    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
-    const account = await db.user.findUniqueOrThrow({ where: { id: executor.id } });
-    const byAccountIin = await mockSignatureProvider.startSigning({
-      description: "Договор",
-      documentId,
-      sha256,
-      method: "EGOV_QR",
-      signer: { userId: executor.id, fullName: "Кто-то", iin: decryptPii(account.iinEnc!) },
-    });
-    await expect(completeSigning(executor, { documentId, sessionId: byAccountIin.sessionId }, noHooks)).rejects.toMatchObject({ code: "VALIDATION" });
-
-    expect(await signAs(executor, documentId)).toEqual({ fullySigned: false });
-    expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ certIinLast4: directorIin.slice(-4) });
-
-    const g = await makeDeal();
-    await db.executorProfile.update({ where: { id: g.executor.executor.id }, data: { legalForm: "TOO" } });
-    const other = await transaction((tx) => createContract(tx, g.deal.id));
-    await expect(startSigning(g.executor, other.documentId, "EGOV_QR")).rejects.toMatchObject({ code: "VALIDATION" });
-  });
-
-  it("ТОО, зарегистрированные через анкету, подписывают договор ЭЦП директора — и когда директор у них один", async () => {
-    const directorIin = testIin("800215", 3, 51);
     const operator = await makeOperator();
-    for (const n of [51, 52]) {
-      const user = await makeClient();
-      // Вошёл по SMS: ни ФИО, ни ИИН в аккаунте — подписанта даёт только анкета.
-      await db.user.update({ where: { id: user.id }, data: { fullName: null, iinEnc: null, iinHash: null, iinLast4: null } });
-      const { profileId } = await registerExecutor(user, {
-        legalForm: "TOO",
-        legalName: `ТОО «Ағаш Шебер ${n}»`,
-        binIin: testBin("2101", n),
-        city: "Астана",
-        yearsExperience: 5,
-        signer: { fullName: "Тулегенов Бауыржан", iin: directorIin },
-      });
-      await reviewExecutorRegistration(operator, profileId, { approve: true, segment: "COMFORT" });
-      const profile = await db.executorProfile.findUniqueOrThrow({ where: { id: profileId } });
-      const executor = { ...user, role: "EXECUTOR" as const, executor: { id: profileId, publicNumber: profile.publicNumber, status: profile.status } };
-
-      const { deal } = await makeDeal({ executor });
-      const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-      expect(await signAs(executor, documentId)).toEqual({ fullySigned: false });
-      expect(await db.signature.findFirstOrThrow({ where: { documentId } })).toMatchObject({ party: "EXECUTOR", certIinLast4: directorIin.slice(-4) });
-    }
+    expect((await getDocumentPdf(operator, id)).sha256).toBeTruthy();
+    await expect(signTyped(operator, id)).rejects.toEqual(code("FORBIDDEN"));
   });
 
-  it("заменённую версию подписать нельзя", async () => {
-    const { deal, client } = await makeDeal();
-    const v1 = await transaction((tx) => createContract(tx, deal.id));
-    await db.deal.update({ where: { id: deal.id }, data: { totalAmount: 1_300_000 } });
-    await transaction((tx) => createContract(tx, deal.id));
-    await expect(startSigning(client, v1.documentId, "EGOV_QR")).rejects.toMatchObject({ code: "CONFLICT" });
-  });
-
-  it("договор по отменённой сделке не подписывается, даже если подпись начата до отмены", async () => {
-    const { deal, client } = await makeDeal();
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    const session = await startSigning(client, documentId, "EGOV_QR");
-    await db.deal.update({ where: { id: deal.id }, data: { status: "CANCELLED" } });
-
-    await expect(completeSigning(client, { documentId, sessionId: session.sessionId }, noHooks)).rejects.toMatchObject({ code: "CONFLICT" });
+  it("подпись чужого документа сессией другого документа (неверный хэш) отклоняется", async () => {
+    const f = await makeDeal();
+    const g = await makeDeal({ client: f.client });
+    const [a, b] = await Promise.all([latestDocument(f.dealId, "CONTRACT"), latestDocument(g.dealId, "CONTRACT")]);
+    const session = await startSigning(f.client, a.id, "EGOV_QR");
+    await expect(completeSigning(f.client, { documentId: b.id, sessionId: session.sessionId })).rejects.toEqual(code("VALIDATION"));
     expect(await db.signature.count()).toBe(0);
   });
 
-  it("в расторгнутой или отменённой сделке подпись не начинается: шаг проверяется до провайдера", async () => {
-    const { deal, client } = await makeDeal();
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    const provider = vi.spyOn(mockSignatureProvider, "startSigning");
-    try {
-      for (const status of ["TERMINATED", "CANCELLED"] as const) {
-        await db.deal.update({ where: { id: deal.id }, data: { status } });
-        await expect(startSigning(client, documentId, "EGOV_QR")).rejects.toMatchObject({ code: "CONFLICT" });
-      }
-      expect(provider).not.toHaveBeenCalled();
-      expect(await db.auditEvent.count({ where: { action: "document.signing.started" } })).toBe(0);
-    } finally {
-      provider.mockRestore();
-    }
-  });
-
-  it("акт подписывается, только пока сделка в работе или в споре", async () => {
-    const { deal, client } = await makeDeal();
-    await transaction((tx) => createContract(tx, deal.id));
-    const stage = deal.stages[0];
-    await db.stage.update({ where: { id: stage.id }, data: { status: "ACCEPTED", acceptedAt: new Date() } });
-    const { documentId } = await transaction((tx) => createStageAct(tx, stage.id));
-
-    for (const status of ["TERMINATED", "CANCELLED", "AWAITING_SIGNATURES"] as const) {
-      await db.deal.update({ where: { id: deal.id }, data: { status } });
-      await expect(signAs(client, documentId)).rejects.toMatchObject({ code: "CONFLICT" });
-    }
-    await db.deal.update({ where: { id: deal.id }, data: { status: "DISPUTE" } });
-    expect(await signAs(client, documentId)).toEqual({ fullySigned: false });
-  });
-
-  it("журнал: подписи сторон и полное подписание в scope сделки", async () => {
-    const { deal, client, executor } = await makeDeal();
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    await signAs(client, documentId);
-    await signAs(executor, documentId);
-    const actions = (await db.auditEvent.findMany({ where: { scope: `deal:${deal.id}` }, orderBy: { seq: "asc" } })).map((e) => e.action);
-    expect(actions).toEqual(expect.arrayContaining(["document.signature.added", "document.signed"]));
-    expect(actions.filter((a) => a === "document.signature.added")).toHaveLength(2);
+  it("рисунок подписи — только PNG разумного размера", async () => {
+    const f = await makeDeal();
+    const { id } = await latestDocument(f.dealId, "CONTRACT");
+    await expect(signByHand(f.client, { documentId: id, image: new Uint8Array([1, 2, 3]) })).rejects.toEqual(code("VALIDATION"));
+    await expect(signByHand(f.client, { documentId: id, typedName: " " })).rejects.toEqual(code("VALIDATION"));
+    expect(await db.handSignature.count()).toBe(0);
   });
 });
 
-describe("акт этапа", () => {
-  it("создаётся после приёмки этапа, повтор — тот же акт", async () => {
-    const { deal } = await makeDeal();
-    await transaction((tx) => createContract(tx, deal.id));
-    const stage = deal.stages[0];
-    await expect(transaction((tx) => createStageAct(tx, stage.id))).rejects.toMatchObject({ code: "CONFLICT" });
+describe("акт приёмки", () => {
+  it("сдача → акт с фото и GPS; ЭЦП мастера, затем покупатель собственноручно и ЭЦП → ACCEPTED и выплата в журнале", async () => {
+    const f = await makeDeal();
+    await signContract(f.dealId);
+    await payForDeal(f.client, { dealId: f.dealId });
+    await startWork(f.executor, { dealId: f.dealId });
+    await submitReady(f.executor, { dealId: f.dealId, photoIds: [await storedPhoto(f.executor)], ...ADDRESS, accuracyM: 10 });
 
-    await db.stage.update({ where: { id: stage.id }, data: { status: "ACCEPTED", acceptedAt: new Date(), acceptedBy: "system:auto-accept" } });
-    const a = await transaction((tx) => createStageAct(tx, stage.id));
-    const b = await transaction((tx) => createStageAct(tx, stage.id));
-    expect(b).toEqual(a);
-    const doc = await db.document.findUniqueOrThrow({ where: { id: a.documentId } });
-    expect(doc).toMatchObject({ kind: "STAGE_ACT", stageId: stage.id, status: "SIGNING" });
-    expect(doc.number).toMatch(/^А-\d{4}-1$/);
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    expect(act.number).toMatch(/^А-\d{4}$/);
+    expect(sha256Hex((await getDocumentPdf(f.client, act.id, "original")).bytes)).toBe(act.sha256);
+
+    // Без флага собственноручная подпись мастера на акте не нужна.
+    await expect(signTyped(f.executor, act.id)).rejects.toEqual(code("CONFLICT"));
+    expect(await signEcp(f.executor, act.id)).toEqual({ fullySigned: false });
+    await signByHand(f.client, { documentId: act.id, image: await signaturePng() });
+    expect((await dealOf(f.dealId)).status).toBe("READY");
+    expect(await signEcp(f.client, act.id)).toEqual({ fullySigned: true });
+
+    expect((await dealOf(f.dealId)).status).toBe("ACCEPTED");
+    const types = (await journalOf(f.dealId)).map((e) => e.type);
+    expect(types).toEqual(expect.arrayContaining(["HOLD", "RELEASE", "SPLIT_MASTER", "SPLIT_PLATFORM"]));
+    const jobs = await db.job.findMany({ where: { kind: EMAIL_ACT_JOB } });
+    expect(jobs).toHaveLength(1);
+  });
+
+  it("флаг executorHandSignsAct: без собственноручной подписи мастера акт не подписан полностью", async () => {
+    setEnv({ FEATURE_EXECUTOR_HAND_SIGNS_ACT: "true" });
+    const f = await dealAt("READY");
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await signEcp(f.executor, act.id);
+    await signTyped(f.client, act.id);
+    expect(await signEcp(f.client, act.id)).toEqual({ fullySigned: false });
+    expect((await dealOf(f.dealId)).status).toBe("READY");
+    expect(await signTyped(f.executor, act.id)).toEqual({ fullySigned: true });
+    expect((await dealOf(f.dealId)).status).toBe("ACCEPTED");
+  });
+
+  it("письмо с подписанным актом — тем, у кого есть e-mail; нет адресов — не отправляем и не падаем", async () => {
+    const f = await dealAt("READY");
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await signEcp(f.executor, act.id);
+    await signTyped(f.client, act.id);
+    await signEcp(f.client, act.id);
+
+    const sent: EmailMessage[] = [];
+    const log = { info: () => {}, warn: () => {}, error: () => {} } as unknown as Parameters<ReturnType<typeof createEmailSignedActHandler>>[1]["log"];
+    const provider = () => ({ name: "mock" as const, send: async (m: EmailMessage) => (sent.push(m), { id: "1" }) });
+    const withEmail = createEmailSignedActHandler({ provider, emailOf: async (_db, id) => (id === f.client.id ? "buyer@example.kz" : null), signedCopy: signedCopyForEmail });
+    await withEmail({ documentId: act.id }, { jobId: "j", attempt: 1, log });
+    expect(sent.map((m) => m.to)).toEqual(["buyer@example.kz"]);
+    expect(sent[0].attachments?.[0].contentType).toBe("application/pdf");
+
+    const none = createEmailSignedActHandler({ provider, emailOf: async () => null, signedCopy: signedCopyForEmail });
+    await expect(none({ documentId: act.id }, { jobId: "j", attempt: 1, log })).resolves.toBeUndefined();
+    expect(sent).toHaveLength(1);
   });
 });
 
-describe("доступ к PDF (IDOR)", () => {
-  it("стороны и оператор получают PDF, чужие — NOT_FOUND", async () => {
-    const { deal, client, executor } = await makeDeal();
-    const { documentId, sha256 } = await transaction((tx) => createContract(tx, deal.id));
+describe("выписка, расписка, ссылки", () => {
+  it("выписка по деньгам появляется с первой операцией журнала и обновляется версией при изменении журнала", async () => {
+    const f = await makeDeal();
+    expect((await listDealDocuments(f.client, f.dealId)).map((d) => d.kind)).toEqual(["CONTRACT"]);
+    await signContract(f.dealId);
+    await payForDeal(f.client, { dealId: f.dealId });
+    const first = (await listDealDocuments(f.client, f.dealId)).find((d) => d.kind === "MONEY_STATEMENT");
+    expect(first).toMatchObject({ signable: false, number: expect.stringMatching(/^В-\d{4}$/) });
+    expect((await listDealDocuments(f.executor, f.dealId)).find((d) => d.kind === "MONEY_STATEMENT")?.id).toBe(first?.id);
+
+    await startWork(f.executor, { dealId: f.dealId });
+    await db.moneyTransaction.updateMany({ where: { dealId: f.dealId }, data: { settledAt: new Date(Date.now() + 60_000) } });
+    const second = (await listDealDocuments(f.client, f.dealId)).find((d) => d.kind === "MONEY_STATEMENT");
+    expect(second?.id).not.toBe(first?.id);
+    expect((await db.document.findUniqueOrThrow({ where: { id: first!.id } })).status).toBe("SUPERSEDED");
+  });
+
+  it("расписка на раскрытие: только оператор и только после запроса раскрытия", async () => {
+    const f = await dealAt("READY");
     const operator = await makeOperator();
-
-    for (const user of [client, executor, operator]) {
-      const pdf = await getDocumentPdf(user, documentId);
-      expect(sha256Hex(pdf.bytes)).toBe(sha256);
-      expect(pdf.fileName).toMatch(/\.pdf$/);
-    }
-    for (const user of [await makeClient(), await makeExecutor()]) {
-      await expect(getDocumentPdf(user, documentId)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    }
-    await expect(getDocumentPdf(client, "no-such-document")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(createReleaseReceipt(f.client, f.dealId)).rejects.toEqual(code("FORBIDDEN"));
+    await expect(createReleaseReceipt(operator, f.dealId)).rejects.toEqual(code("CONFLICT"));
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await signEcp(f.executor, act.id);
+    await signTyped(f.client, act.id);
+    await signEcp(f.client, act.id);
+    const receipt = await createReleaseReceipt(operator, f.dealId);
+    expect(await createReleaseReceipt(operator, f.dealId)).toEqual(receipt);
+    // Сторонам расписка в списке не показывается — это бумага для банка.
+    expect((await listDealDocuments(f.client, f.dealId)).map((d) => d.kind)).not.toContain("RELEASE_RECEIPT");
+    expect((await listDealDocuments(operator, f.dealId)).map((d) => d.kind)).toContain("RELEASE_RECEIPT");
   });
 
-  it("список документов сделки: только стороны и оператор, без сведений сертификата", async () => {
-    const { deal, client, executor } = await makeDeal();
-    const { documentId } = await transaction((tx) => createContract(tx, deal.id));
-    await signAs(executor, documentId);
-
-    const [doc] = await listDealDocuments(client, deal.id);
-    expect(doc).toMatchObject({ id: documentId, myParty: "CLIENT", canSign: true, pdfUrl: `/api/documents/${documentId}/pdf` });
-    expect(doc.signatures).toEqual([{ party: "EXECUTOR", signedAt: expect.any(Date), signedSha256: doc.sha256, method: "EGOV_QR" }]);
-    expect(JSON.stringify(doc)).not.toContain("Ағаш");
-
-    const [forExecutor] = await listDealDocuments(executor, deal.id);
-    expect(forExecutor).toMatchObject({ myParty: "EXECUTOR", canSign: false });
-
-    await expect(listDealDocuments(await makeClient(), deal.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-
-  it("«Подписать» не предлагается, когда шаг сделки не принимает подпись (расторгнута, отменена, акт до работ)", async () => {
-    const { deal, client } = await makeDeal();
-    await transaction((tx) => createContract(tx, deal.id));
-    const stage = deal.stages[0];
-    await db.stage.update({ where: { id: stage.id }, data: { status: "ACCEPTED", acceptedAt: new Date() } });
-    await transaction((tx) => createStageAct(tx, stage.id));
-    const canSign = async () => Object.fromEntries((await listDealDocuments(client, deal.id)).map((d) => [d.kind, d.canSign]));
-
-    expect(await canSign()).toEqual({ CONTRACT: true, STAGE_ACT: false });
-    await db.deal.update({ where: { id: deal.id }, data: { status: "IN_PROGRESS" } });
-    expect(await canSign()).toEqual({ CONTRACT: false, STAGE_ACT: true });
-    for (const status of ["TERMINATED", "CANCELLED"] as const) {
-      await db.deal.update({ where: { id: deal.id }, data: { status } });
-      expect(await canSign()).toEqual({ CONTRACT: false, STAGE_ACT: false });
-    }
+  it("ссылка «Поделиться»: открывает документ без входа, подделка — нет; WhatsApp без персональных данных", async () => {
+    const f = await makeDeal();
+    const { id, sha256 } = await latestDocument(f.dealId, "CONTRACT");
+    const link = await shareDocument(f.client, id);
+    const token = new URL(link.url).pathname.split("/").at(-1)!;
+    expect(token.startsWith(id)).toBe(true);
+    expect(decodeURIComponent(link.whatsappUrl)).not.toMatch(new RegExp(f.client.fullName ?? "—"));
+    expect(await openSharedDocument(token)).toMatchObject({ kind: "CONTRACT", sha256 });
+    expect((await getSharedDocumentPdf(token, "original")).sha256).toBe(sha256);
+    expect(await openSharedDocument(`${token.slice(0, -2)}xx`)).toBeNull();
+    await expect(getSharedDocumentPdf(`${token.slice(0, -2)}xx`)).rejects.toEqual(code("NOT_FOUND"));
+    expect(await db.auditEvent.count({ where: { action: "document.link.opened" } })).toBe(1);
   });
 });

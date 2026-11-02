@@ -2,25 +2,19 @@ import { ru } from "@/i18n/ru";
 import { getDocumentPdf } from "@/modules/documents";
 import { requireUser } from "@/modules/identity";
 import { routeId } from "@/platform/http";
-import { errorResponse, pdfDisposition } from "../../http";
+import { errorResponse, isDownload, pdfResponse, variantOf } from "../../http";
 
 /**
- * PDF договора или акта. Только стороны сделки и оператор (проверяет documents.getDocumentPdf);
- * чужим — 404, чтобы не раскрывать, что документ существует. Байты сверяются с Document.sha256.
+ * PDF документа сделки. Только стороны сделки и оператор (проверяет documents.getDocumentPdf);
+ * чужим — 404, чтобы не раскрывать, что документ существует. Байты исходного файла сверяются с Document.sha256.
+ * По умолчанию — подписанная копия (исходный PDF + лист подписей); ?original=1 — исходный файл; ?download=1 — скачать.
  */
-export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
-    const pdf = await getDocumentPdf(user, await routeId(ctx.params, ru.documents.errors.notFound));
-    return new Response(new Uint8Array(pdf.bytes), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": pdfDisposition(pdf.fileName),
-        "Cache-Control": "private, no-store",
-        "X-Content-Type-Options": "nosniff",
-        "X-Document-SHA256": pdf.sha256,
-      },
-    });
+    const url = new URL(request.url);
+    const pdf = await getDocumentPdf(user, await routeId(ctx.params, ru.documents.errors.notFound), variantOf(url));
+    return pdfResponse(pdf, isDownload(url));
   } catch (e) {
     return errorResponse(e, "documents.pdf");
   }
