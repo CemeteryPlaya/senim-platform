@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CalendarClock, MapPin, Send } from "lucide-react";
-import { listMyOffers, type MyOfferItem } from "@/modules/requests";
+import { listMyOffers, wholeKzt, type MyOfferItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, Container, EmptyState, FilterChips, Money, PageHeader, PhotoCard, StatusBadge, formatDateTime, formatRelative, type Tone } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
@@ -90,7 +90,7 @@ export default async function MyOffersPage({ searchParams }: { searchParams: Pro
                         text: measuring && o.measurement ? t.measurementAt(formatDateTime(o.measurement.scheduledAt)) : t.sent(formatRelative(o.createdAt)),
                       },
                     ]}
-                    aside={<Money amount={o.measurement?.finalPrice ?? o.price} />}
+                    aside={<Money amount={o.measurement?.finalPrice ?? wholeKzt(o.priceTiyn)} />}
                   />
                 );
               })}
