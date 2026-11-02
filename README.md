@@ -1,10 +1,10 @@
 # Сенім
 
-Платформа сделок на мебель на заказ (Астана, интерфейс на русском). Заказчик описывает заявку, исполнители — частные мастера, ИП и ТОО — присылают отклики, стороны подписывают договор ЭЦП и ведут работу по этапам: этап сдаётся с фото, принимается заказчиком и закрывается актом. Споры разбирает оператор.
+Платформа безопасных сделок на мебель на заказ (PWA, интерфейс на русском). Путь сделки по ТЗ MVP v1.0: заказ → отклики и торг → оферта → оплата → работа → сдача с фото → акт приёмки → выплата. Статусы: `CREATED → PAID_HOLD → IN_PROGRESS → READY → ACCEPTED → SPLIT_PAYOUT`, отмена и возврат — `CANCELLED`, `REFUNDED`. Споры разбирает оператор.
 
-**Оплата сейчас — напрямую исполнителю по этапам** (режим `manual`): платформа фиксирует отметки сторон «Я оплатил» / «Получил оплату» и не принимает и не хранит деньги клиентов. Эскроу-счёт банка на сделку — цель переговоров с банком; в коде есть точка подключения (`PaymentRail`) и встроенный симулятор банка для показа полного цикла. Подробно — [docs/bank/01-overview.md](docs/bank/01-overview.md).
+**Деньги клиентов никогда не проходят через счета ТОО.** Покупатель вносит цену X + защиту сделки 2% на эскроу-счёт сделки в банке. После подписанного акта банк выплачивает мастеру X − гарантию оплаты и клиента 4% и перечисляет доход платформы. Возврат — при отмене после оплаты и по спору. Журнал денег (`MoneyTransaction`) — единственный источник правды; суммы — тиыны целыми числами. Банк подключается через интерфейс `PaymentProvider`. Подробно — [docs/bank/01-overview.md](docs/bank/01-overview.md), решение — [ADR-009](docs/adr/009-tz-v1-money-model.md).
 
-Состояние: MVP для показа банку на тестовых данных. Внешние сервисы (SMS, ЭЦП, банк, ИИ) работают на моках за интерфейсами; реальные подключаются переменными окружения после выбора провайдеров ([docs/OWNER_TODO.md](docs/OWNER_TODO.md)).
+Состояние: Фаза 1 ТЗ на тестовых данных; модули переводятся на модель ADR-009. Внешние сервисы (SMS, ЭЦП, платежи, e-mail, геокодер, ИИ) работают на моках за интерфейсами; реальные подключаются переменными окружения после выбора провайдеров ([docs/OWNER_TODO.md](docs/OWNER_TODO.md)).
 
 ## Стек
 
@@ -33,8 +33,10 @@ DEMO_MODE=true npx prisma db seed     # непустую базу сид пер�
 
 - `/demo` — вход под демо-персоной одним нажатием (только при `DEMO_MODE=true`);
 - `/login` — обычный вход по номеру и SMS-коду; в демо с `SMS_PROVIDER=mock` код показывается на экране;
-- `/bank-demo` — сценарий показа банку;
-- `/operator/demo` — «Сбросить демо» и режим оплаты для новых сделок.
+- `/bank-demo` — страница показа банку (только при `DEMO_MODE=true`);
+- `/operator/demo` — «Сбросить демо».
+
+Платёжный провайдер новых сделок задаёт `PAYMENT_PROVIDER` (по умолчанию для `APP_ENV=dev` — `mock`). Для показа пути пилота: `PAYMENT_PROVIDER=manual npm run dev`.
 
 Порт 3100 выбран потому, что 3000 на машине разработки занят. Демо-персоны и данные сида — [docs/agents/DEMO_DATA.md](docs/agents/DEMO_DATA.md).
 
@@ -58,7 +60,7 @@ npm run quality:mutate # мутационное тестирование Stryker
 
 ## Фоновые задачи
 
-Очередь — таблица `Job`; обработчики идемпотентны (автоприёмка этапа, отправка денежных операций в банк, открытие счёта сделки, досылка зависших операций, SMS, напоминания о замере, уборка брошенных файлов, иллюстрации ИИ).
+Очередь — таблица `Job`; обработчики идемпотентны (повтор операций провайдера с тем же ключом и проверка их статуса, push и SMS, напоминания, уборка брошенных файлов, иллюстрации ИИ под флагом).
 
 ```bash
 npm run jobs                 # один проход очереди
@@ -74,17 +76,19 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 | Группа | Переменные | Примечание |
 |---|---|---|
 | База | `DATABASE_URL`, `TEST_DATABASE_URL`, `E2E_DATABASE_URL` | Тестовые базы — отдельные |
-| Приложение | `APP_URL`, `DEMO_MODE`, `DEMO_ACCESS_PASSWORD`, `LOG_LEVEL`, `TRUST_PROXY` | `DEMO_MODE=true` включает демо-персоны, сброс демо, `/bank-demo`, переключатель режима оплаты. В рабочем окружении — `false` |
-| Персональные данные | `PII_ENCRYPTION_KEY`, `PII_HASH_KEY` | 32 байта в base64 каждый, разные. Шифрование ИИН/БИН (AES-256-GCM) и HMAC для поиска |
+| Приложение | `APP_ENV`, `APP_URL`, `DEMO_MODE`, `DEMO_ACCESS_PASSWORD`, `LOG_LEVEL`, `TRUST_PROXY` | `APP_ENV`: `dev` (моки), `staging` (песочница Freedom Pay), `prod` (пилот на `manual`; моки, `freedompay` и `DEMO_MODE` запрещены). `DEMO_MODE=true` включает демо-персоны, сброс демо, `/bank-demo` |
+| Персональные данные | `PII_ENCRYPTION_KEY`, `PII_HASH_KEY` | 32 байта в base64 каждый, разные. Шифрование ИИН/БИН и IBAN мастера (AES-256-GCM) и HMAC для поиска |
 | Вход по SMS | `SMS_PROVIDER`, `SMS_HTTP_URL`, `SMS_HTTP_TOKEN`, `SMS_SENDER`, `OTP_DAILY_GLOBAL_LIMIT`, `OTP_DAILY_PREFIX_LIMIT` | Суточные потолки кодов на новые номера |
 | Подпись ЭЦП | `SIGNATURE_PROVIDER`, `SIGEX_BASE_URL` | |
 | Файлы | `STORAGE_PROVIDER`, `STORAGE_LOCAL_DIR`, `FILE_URL_SECRET`, `S3_*`, `BLOB_READ_WRITE_TOKEN` | Ссылки на файлы подписываются `FILE_URL_SECRET` |
 | ИИ | `AI_ENABLED`, `AI_PROVIDER`, `AI_GATEWAY_API_KEY`, `AI_TEXT_MODEL`, `AI_IMAGE_MODEL`, `AI_MAX_VISUALIZATIONS_PER_REQUEST`, `AI_DAILY_BUDGET_USD` | По умолчанию выключен |
-| Оплата | `PAYMENT_RAIL`, `ESCROW_SIMULATOR_WEBHOOK_SECRET`, `BANK_API_URL`, `BANK_WEBHOOK_SECRET` | См. «Режимы провайдеров» |
-| Сделки | `AUTO_ACCEPT_DAYS` | Автоприёмка сданного этапа, по умолчанию 5 дней |
+| Платежи | `PAYMENT_PROVIDER`, `FREEDOMPAY_API_URL`, `FREEDOMPAY_MERCHANT_ID`, `FREEDOMPAY_SECRET_KEY`, `FREEDOMPAY_PAYOUT_SECRET_KEY` | См. «Режимы провайдеров». `PAYMENT_RAIL`, `ESCROW_SIMULATOR_WEBHOOK_SECRET`, `BANK_API_URL`, `BANK_WEBHOOK_SECRET` и `AUTO_ACCEPT_DAYS` устарели (ADR-009) и удаляются вместе со старым кодом |
+| Уведомления | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `EMAIL_PROVIDER`, `EMAIL_FROM` | Без ключей VAPID web push выключен, уведомления в приложении работают |
+| Сдача | `GEOCODER_PROVIDER`, `READY_GPS_RADIUS_M` | Радиус мягкой проверки GPS, по умолчанию 500 м |
+| Флаги Фазы 1 | `AI_ENABLED`, `FEATURE_PRE_CONTRACT_FLOWS`, `FEATURE_MATERIALS_CALCULATOR`, `FEATURE_REVIEWS`, `FEATURE_DEAL_PORTFOLIO`, `FEATURE_INSPIRATION`, `FEATURE_PUBLIC_SHOWCASE`, `FEATURE_EXECUTOR_HAND_SIGNS_ACT`, `FEATURE_CLIENT_PHONE_CONSENT` | Всё вне Фазы 1 по умолчанию выключено (`src/platform/features.ts`) |
 | Фоновые задачи | `CRON_SECRET` | Секрет `/api/cron/run` |
 
-В `NODE_ENV=production` обязательны `PII_ENCRYPTION_KEY`, `PII_HASH_KEY`, `FILE_URL_SECRET`, `CRON_SECRET` и `TRUST_PROXY=true`; при `DEMO_MODE=true` — ещё `DEMO_ACCESS_PASSWORD` (весь сайт под паролем, кроме вебхуков и cron) и `ESCROW_SIMULATOR_WEBHOOK_SECRET`; без демо-режима моки SMS и подписи запрещены. Локально ключи можно не задавать: используются ключи разработки.
+В `NODE_ENV=production` обязательны `PII_ENCRYPTION_KEY`, `PII_HASH_KEY`, `FILE_URL_SECRET`, `CRON_SECRET` и `TRUST_PROXY=true`; при `DEMO_MODE=true` — ещё `DEMO_ACCESS_PASSWORD` (весь сайт под паролем, кроме путей уведомлений провайдеров и cron); без демо-режима моки SMS и подписи запрещены. При `APP_ENV=prod` запрещены `DEMO_MODE`, моки SMS, подписи и платежей; `PAYMENT_PROVIDER=freedompay` разрешён только при `APP_ENV=staging`. Локально ключи можно не задавать: используются ключи разработки.
 
 ## Режимы провайдеров
 
@@ -92,19 +96,21 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 
 | Сервис | Переменная | Мок / по умолчанию | Реальная реализация |
 |---|---|---|---|
-| Оплата (`PaymentRail`) | `PAYMENT_RAIL` | `manual` — прямая оплата исполнителю; `escrow-simulator` — встроенный симулятор банка для показа | `bank` — только интерфейс: методы отвечают «не подключён», вебхук `/api/webhooks/bank` — 503. Требования к банку — [03-escrow-integration.md](docs/bank/03-escrow-integration.md) |
+| Платежи (`PaymentProvider`) | `PAYMENT_PROVIDER` | `mock` — тестовые платежи, подтверждаются сразу, в интерфейсе «тестовый платёж» (по умолчанию в `dev`) | `manual` — мост к эскроу Freedom Bank: оператор подтверждает каждую операцию номером, датой и сканом банковского документа (по умолчанию в `prod`); `freedompay` — только песочница в `staging` ([07](docs/bank/07-freedompay-integration.md)); `bcc` — интерфейс и TODO. Требования к банку — [03-escrow-integration.md](docs/bank/03-escrow-integration.md) |
 | SMS | `SMS_PROVIDER` | `mock` — код не отправляется, в демо показывается на экране | `http` — каркас под SMS-шлюз РК; формат уточняется по документации провайдера |
 | Подпись ЭЦП | `SIGNATURE_PROVIDER` | `mock` — подпись имитируется, интерфейс предупреждает | `sigex` — порт и проверка готовы, HTTP-клиент SIGEX — после получения документации и доступа |
 | Хранилище файлов | `STORAGE_PROVIDER` | `local` — папка `./storage` | `s3` (любое S3-совместимое, в том числе облако РК), `vercel-blob` (демо на Vercel, приватное) |
 | ИИ-помощник | `AI_ENABLED`, `AI_PROVIDER` | выключен; `mock` — детерминированные ответы | `gateway` — по ключу и моделям владельца |
+| E-mail акта | `EMAIL_PROVIDER` | `mock` | выбирает владелец |
+| Геокодер адреса | `GEOCODER_PROVIDER` | `mock`; покупатель может указать «моё местоположение» | выбирает владелец |
 
-В демо-режиме оператор может переключить режим оплаты для **новых** сделок на `/operator/demo` (`manual` ↔ `escrow-simulator`); режим фиксируется в сделке при её создании.
+Провайдер платежей фиксируется в сделке при её создании (`Deal.paymentProvider`): смена `PAYMENT_PROVIDER` влияет только на новые сделки.
 
 ## Сценарий показа банку
 
-Показ на 10 минут по странице `/bank-demo`: заявка и анонимные отклики, договор с хэшем SHA-256 и ЭЦП, этапы с фото и автоприёмкой, эскроу в симуляторе (пополнение по реквизитам, подписанный вебхук, повторная доставка без двойного эффекта, транш по этапу), журнал аудита только на добавление, сверка с выпиской. Подготовка, реплики и запасной план — [docs/bank/05-demo-script.md](docs/bank/05-demo-script.md).
+Показ на 10 минут: одна полная сделка тремя участниками на провайдере `manual` (`DEMO_MODE=true`, `PAYMENT_PROVIDER=manual`). Покупатель Айгерим Сапарова (+7 700 000 01 01) и мастер Ерлан Жумабаев (+7 700 000 02 01) торгуются и подписывают оферту; смета показывает защиту сделки 2% и гарантию оплаты и клиента 4%. Оператор Динара Абенова (+7 700 000 00 01) подтверждает «Деньги поступили на счёт в банке» тестовым документом; мастер сдаёт работу с фото и GPS; покупатель подписывает акт; оператор подтверждает «Выплачено мастеру» и «Доход платформы получен». Затем — история денег из журнала, журнал аудита, спор с заморозкой выплаты и возврат. Подготовка, реплики и запасной план — [docs/bank/05-demo-script.md](docs/bank/05-demo-script.md).
 
-Перед показом: оператор (Динара Абенова, +7 700 000 00 01) → `/operator/demo` → «Сбросить демо».
+Перед показом: Динара → `/operator/demo` → «Сбросить демо».
 
 ## Установка на телефон
 
@@ -125,13 +131,15 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 
 | Документ | О чём |
 |---|---|
-| [docs/bank/01-overview.md](docs/bank/01-overview.md) | Продукт, роли, путь заявки и сделки, режимы оплаты |
-| [docs/bank/02-architecture.md](docs/bank/02-architecture.md) | Модули, потоки данных, статусные машины, фоновые задачи |
-| [docs/bank/03-escrow-integration.md](docs/bank/03-escrow-integration.md) | Что нужно от банка: операции, идемпотентность, подписи, статусы, сбои, сверка |
-| [docs/bank/04-security-and-data.md](docs/bank/04-security-and-data.md) | Вход, роли, шифрование ИИН, журнал аудита, хранение данных в РК, резервные копии |
+| [docs/bank/01-overview.md](docs/bank/01-overview.md) | Продукт, роли, путь сделки, модель денег, провайдеры, флаги |
+| [docs/bank/02-architecture.md](docs/bank/02-architecture.md) | Модули, потоки данных, статусная машина, журнал денег, контуры |
+| [docs/bank/03-escrow-integration.md](docs/bank/03-escrow-integration.md) | Что нужно от банка: операции, `manual` для Freedom Bank, идемпотентность, подписи, статусы, сбои |
+| [docs/bank/04-security-and-data.md](docs/bank/04-security-and-data.md) | Вход, роли, шифрование ИИН и IBAN, деньги, журнал аудита, хранение данных в РК, резервные копии |
 | [docs/bank/05-demo-script.md](docs/bank/05-demo-script.md) | Показ на 10 минут |
-| [docs/bank/openapi.yaml](docs/bank/openapi.yaml) | Вебхук-эндпоинты для банка (OpenAPI 3.1) |
-| [docs/adr/](docs/adr/) | Архитектурные решения: модульный монолит, путь сделки и PaymentRail, путь заявки и анонимность |
+| [docs/bank/06-bank-api-landscape.md](docs/bank/06-bank-api-landscape.md) | Банки и API эскроу в РК, вопросы к банку |
+| [docs/bank/07-freedompay-integration.md](docs/bank/07-freedompay-integration.md) | Freedom Pay в песочнице |
+| [docs/bank/openapi.yaml](docs/bank/openapi.yaml) | Предлагаемый контракт с банком (OpenAPI 3.1; предложение платформы, не API банка) |
+| [docs/adr/](docs/adr/) | Архитектурные решения; модель денег, статусы и провайдеры — ADR-009 |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Термины |
 | [docs/PROGRESS.md](docs/PROGRESS.md), [docs/OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md), [docs/OWNER_TODO.md](docs/OWNER_TODO.md) | Прогресс, открытые вопросы, шаги владельца |
 | [CLAUDE.md](CLAUDE.md), [SKILL.md](SKILL.md) | Правила работы с кодом |

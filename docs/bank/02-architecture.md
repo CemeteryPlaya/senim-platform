@@ -1,264 +1,213 @@
 # 02. Архитектура
 
-Модульный монолит на Next.js 16 (App Router, Server Actions), TypeScript, PostgreSQL через Prisma 7. Один деплой; модули разделены границами, которые проверяет линтер. Решение и его причины — [ADR-001](../adr/001-modular-monolith.md).
+Модульный монолит на Next.js 16 (App Router, Server Actions), TypeScript, PostgreSQL через Prisma 7. Одно приложение, один деплой; модули разделены границами, которые проверяет линтер. Решение и его причины — [ADR-001](../adr/001-modular-monolith.md); модель денег, статусы и провайдеры — [ADR-009](../adr/009-tz-v1-money-model.md).
 
 ## Стек
 
 | Слой | Что используется |
 |---|---|
-| Приложение | Next.js 16.4, React 19, TypeScript 5, Tailwind CSS 4 |
-| Данные | PostgreSQL 17 (локально — Docker, порт 5442), Prisma 7 с `@prisma/adapter-pg`, клиент генерируется в `src/generated/prisma` |
+| Приложение | Next.js 16, React 19, TypeScript 5, Tailwind CSS 4; PWA (манифест, сервис-воркер, web push) |
+| Данные | PostgreSQL 17 (локально — Docker, порт 5442), Prisma 7 с `@prisma/adapter-pg`; клиент генерируется в `src/generated/prisma` |
 | Проверка входа | zod 4 — на каждом входе на сервер и для переменных окружения |
+| Деньги | `BigInt`, тиыны; формулы — одна функция `computeDealMoney` |
 | Документы | `pdf-lib` + `@pdf-lib/fontkit` (кириллица), SHA-256 байтов PDF |
-| Фото | `sharp`: пережатие в JPEG без метаданных (EXIF с геолокацией отбрасывается) |
-| Тесты | Vitest (модульные и интеграционные на отдельной БД), Playwright (сквозные сценарии) |
-| CI | GitHub Actions: `npm ci`, `typecheck`, `lint`, `test` (`.github/workflows/check.yml`) |
-| Развёртывание | Демо — Vercel (функции, Cron, Blob); рабочее окружение — облако в РК (план в [04](04-security-and-data.md)) |
+| Фото | `sharp`: пережатие в JPEG без метаданных |
+| Тесты | Vitest (модульные, property-тесты fast-check, интеграционные на отдельной БД), Playwright (сквозные сценарии) |
+| CI | GitHub Actions: `npm ci`, `typecheck`, `lint`, `test` |
 
 ## Структура кода
 
 ```
 src/app/                    маршруты и экраны, без бизнес-логики
 src/modules/<имя>/          модуль; наружу — только index.ts (и client.ts для клиентских компонентов)
-src/verticals/furniture/    всё мебельное: типы, стили, шаблоны этапов, правила сегмента
-src/platform/               db, env, errors, logger, crypto, jobs, rate-limit, action, http, demo-gate
+src/verticals/furniture/    всё мебельное: типы, стили, правила сегмента
+src/platform/               db, env (zod, контуры APP_ENV), features (флаги), errors, logger, crypto, jobs, rate-limit, action
+src/config/brand.ts         название продукта, подпись, цвета — одно место
 src/ui/                     дизайн-токены и базовые компоненты
 src/i18n/ru/                тексты интерфейса по зонам
 src/jobs.ts                 сборка обработчиков фоновых задач из модулей
-src/proxy.ts                пароль демо-стенда (бывший middleware)
 ```
 
-Правила границ (`eslint.config.mjs`, правило `no-restricted-imports`):
+Правила границ (`eslint.config.mjs`, `no-restricted-imports`):
 
-- импорт из другого модуля — только через его `index.ts`; внутренности чужого модуля недоступны;
+- импорт из другого модуля — только через его `index.ts`;
 - модули не импортируют экраны (`src/app`);
-- `deal-core` не импортирует `src/verticals`: шаблоны этапов получает параметром, поэтому ядро сделки не знает, что это мебель, и переносится в другую вертикаль без изменений.
+- `deal-core` не импортирует `src/verticals`: ядро сделки не знает, что это мебель.
 
-Межмодульные вызовы — функции из `index.ts`; транзакция передаётся параметром `tx`, поэтому действие, затрагивающее несколько модулей, фиксируется целиком или не фиксируется вовсе.
+Межмодульные вызовы — функции из `index.ts`; транзакция передаётся параметром `tx`. Действие, затрагивающее несколько модулей, фиксируется целиком или не фиксируется вовсе.
 
 ## Модули
 
-| Модуль | Ответственность | Наружу (основное) |
-|---|---|---|
-| `identity` | Вход по SMS-коду, сессии, роли и проверки прав, регистрация исполнителя, демо-персоны, ФИО и ИИН заказчика перед договором | `requireUser`, `requestOtp`, `verifyOtp`, `can`/`authorize`, `actorOf` |
-| `companies` | Профиль исполнителя, портфолио, каталог, анонимность («Исполнитель №N»), чат с маской контактов, отзывы и рейтинг | `publicExecutorView`, `maskContacts`, `recalculateRating` |
-| `requests` | Заявки (тендер и прямой запрос), отклики, выбор, замер, переход к договору | `agreeToContract` (вызывает `deal-core.createDeal`) |
-| `deal-core` | Сделка, этапы, оплата этапа, акты, споры, автоприёмка, повтор денежных операций. Не знает про мебель | `createDeal`, `onDocumentSigned`, `resolveDispute`, `handleRailWebhook`, `onPaymentSettled`, `DEAL_TRANSITIONS` и др. |
-| `payments` | `PaymentRail` (`manual` / `escrow-simulator` / `bank`), журнал денежных операций, вебхуки, досылка, сверка, банк-симулятор | `requestOperation`, `executeOperation`, `receiveWebhook`, `reconcile`, `activeRailMode` |
-| `documents` | PDF договора и актов, хэши, версии, подпись ЭЦП (`SignatureProvider`: `mock`, порт `sigex`), проверка подписи на сервере | `createContract`, `createStageAct`, `completeSigning`, `withdrawContract` |
-| `files` | `StorageProvider` (`local`, `s3`, `vercel-blob`), загрузка по подписанной ссылке, пережатие фото, перцептивный хэш | `fileUrl`, `attachFiles`, `canReadFile` |
-| `notifications` | Уведомления в приложении, `SmsProvider` (`mock`, `http`), SMS по важным событиям | `notify`, `notifyOperators`, `smsProvider` |
-| `operator` | Модерация, справочники, сегменты, споры, журнал аудита, отчёт и сверка, сброс демо, переключатель режима оплаты, страница показа банку | `getBankDemo`, `setPaymentRail`, `resetDemoData` |
-| `ai` | Помощник по заявке и иллюстрация помещения (`AiProvider`: `mock`, `gateway`), вычистка персональных данных до отправки, лимиты и учёт расхода | — |
-| `audit` | Журнал событий только на добавление | `recordAudit`, `listAuditEvents`, `scopeHistory` |
+| Модуль | Ответственность |
+|---|---|
+| `identity` | Вход по SMS-коду, сессии, роли и проверки прав, регистрация мастера, KYC-статус, ФИО и ИИН покупателя, демо-персоны |
+| `companies` | Профиль мастера, реквизиты выплаты (KZ IBAN, зашифрован), Instagram, режим показа имени, чат с маской контактов до оферты |
+| `requests` | Заказ (стиль и тип комнаты, «Для продвинутых»), отклики, торг раундами цен (`PriceProposal`), акцепт → сделка |
+| `deal-core` | Сделка и её статусная машина (ТЗ п. 9), оферта, оплата, сдача с фото и GPS, акт, выплата, отмена, спор, «Ход работ», публичная проекция (фундамент витрины). Не знает про мебель |
+| `payments` | Формулы денег (`money.ts`), интерфейс `PaymentProvider` и провайдеры, журнал денег и его проекции (блок денег, история денег, выписка), приём уведомлений провайдера |
+| `documents` | PDF оферты, акта приёмки, выписки по деньгам и расписки на раскрытие; хэши; собственноручная подпись; ЭЦП (`SignatureProvider`) и её проверка на сервере |
+| `files` | `StorageProvider` (`local`, `s3`, `vercel-blob`), загрузка по подписанной ссылке, фото сдачи, сканы банковских документов, KYC-документы |
+| `notifications` | Уведомления в приложении, web push, SMS, e-mail акта; уведомление обеим сторонам на каждое изменение денег |
+| `operator` | Модерация и KYC, кнопки `manual`-провайдера с банковскими документами, пакет на раскрытие, споры, журнал аудита, отчёт по схеме 2% + 4%, флаги (только чтение) |
+| `audit` | Журнал событий только на добавление: кто, что, когда, откуда |
+| `ai` | Помощник и подсказки ИИ — под флагом `ai`, по умолчанию выключен |
 
-`payments` не импортирует `deal-core`: об итоге денежной операции он сообщает через хук `SettledHook`, который передаёт вызывающая сторона (`deal-core.onPaymentSettled`). Так `PaymentRail` можно заменить или вынести, не трогая ядро сделки.
+`payments` не импортирует `deal-core`: об итоге операции журнала он сообщает через обработчик, который передаёт ядро сделки. Провайдера можно заменить, не трогая ядро.
 
 ## Компоненты и потоки данных
 
 ```mermaid
 flowchart LR
-  subgraph Clients["Пользователи"]
-    C["Заказчик"]
-    E["Исполнитель"]
+  subgraph Users["Пользователи"]
+    C["Покупатель"]
+    M["Мастер"]
     O["Оператор"]
   end
 
-  subgraph App["Next.js: src/app"]
+  subgraph App["Приложение «Сенім»"]
     UI["Экраны и Server Actions"]
-    WH["Вебхуки банка<br/>api/webhooks/bank<br/>api/webhooks/escrow-simulator"]
-    CR["Cron: api/cron/run"]
-    FL["Файлы и PDF: api/files, api/documents"]
-  end
-
-  subgraph Modules["src/modules"]
-    ID["identity"]
-    CO["companies"]
-    RQ["requests"]
-    DC["deal-core"]
-    PM["payments"]
-    DO["documents"]
-    FI["files"]
-    NO["notifications"]
-    OP["operator"]
+    WH["Уведомления провайдера<br/>api/webhooks/провайдер"]
+    DC["deal-core<br/>статусы сделки"]
+    PM["payments<br/>журнал денег, PaymentProvider"]
+    DO["documents<br/>оферта, акт, выписка, расписка"]
     AU["audit"]
+    NO["notifications"]
+    DB[("PostgreSQL")]
   end
 
-  subgraph Ext["Внешние сервисы за интерфейсами"]
-    BANK["Банк-партнёр<br/>PaymentRail bank"]
-    SIM["Банк-симулятор<br/>escrow-simulator"]
-    SMS["SMS-шлюз"]
-    SIG["SIGEX / НУЦ РК"]
-    ST["S3 / Vercel Blob"]
+  subgraph Bank["Банк"]
+    ESC["Эскроу-счёт сделки<br/>деньги покупателя"]
   end
 
-  DB[("PostgreSQL")]
+  TOO["Расчётный счёт ТОО<br/>только доход платформы после акта"]
+  RULE["Деньги покупателя не проходят через счета ТОО:<br/>приложение хранит записи об операциях, а не деньги"]
 
   C --> UI
-  E --> UI
+  M --> UI
   O --> UI
-  UI --> ID
-  UI --> RQ
   UI --> DC
   UI --> DO
-  UI --> OP
-  RQ -->|"createDeal"| DC
-  DO -->|"onDocumentSigned"| DC
-  OP -->|"resolveDispute"| DC
-  OP -->|"reconcile"| PM
-  DC -->|"requestOperation, executeOperation"| PM
-  PM -->|"SettledHook"| DC
-  DC --> NO
+  DC --> PM
+  PM -->|"итог операции"| DC
   DC --> AU
   PM --> AU
-  PM --> BANK
-  PM --> SIM
-  WH -->|"handleRailWebhook"| DC
-  CR -->|"фоновые задачи"| DC
-  NO --> SMS
-  DO --> SIG
-  FI --> ST
-  FL --> FI
-  ID --> DB
+  DC --> NO
   DC --> DB
   PM --> DB
-  AU --> DB
+  PM -.->|"hold, release, split, refund:<br/>API банка или пакет документов в manual"| ESC
+  ESC -.->|"уведомление или банковский документ"| WH
+  WH --> PM
+  C ==>|"X + 2%"| ESC
+  ESC ==>|"X − 4%"| M
+  ESC ==>|"доход платформы"| TOO
+  ESC ==>|"возврат"| C
+  RULE -.- ESC
 ```
+
+Двойные стрелки — движение денег; оно идёт только в банке. Пунктир — распоряжения и уведомления.
 
 Основные потоки:
 
-1. **Заявка → сделка.** `requests.agreeToContract` в одной транзакции переводит заявку в `CONTRACTING` и вызывает `deal-core.createDeal`: создаются сделка, этапы, оплаты этапов, PDF договора (`documents.createContract`), запись в журнал и уведомления сторонам. Режим оплаты берётся из `payments.activeRailMode()` и фиксируется в сделке.
-2. **Подпись → начало работ.** Когда обе стороны подписали договор, `documents` вызывает хук `deal-core.onDocumentSigned` и `requests.onDealDocumentSigned` в одной транзакции: сделка уходит в работу (`manual`) или в ожидание пополнения (эскроу), заявка закрывается.
-3. **Действие стороны → деньги.** Приёмка этапа, автоприёмка, решение по спору и отмена создают денежную операцию в журнале (`payments.requestOperation`) в транзакции перехода; вызов банка идёт после фиксации (`payments.executeOperation`). Подробно — [03](03-escrow-integration.md).
-4. **Банк → платформа.** Вебхук приходит в `/api/webhooks/<режим>`, проверяется подпись, событие записывается с уникальным `externalEventId` и обрабатывается в той же транзакции; итог передаётся в `deal-core.onPaymentSettled`.
-5. **Уведомления.** `notifications.notify` вызывается в той же транзакции, что и изменение; для важных видов событий там же ставится задача отправки SMS.
+1. **Торг → сделка.** Акцепт встречной цены в `requests` в одной транзакции фиксирует X, вызывает `deal-core.createDeal`: сделка в `CREATED` с суммами `computeDealMoney(X)`, провайдером из `PAYMENT_PROVIDER` и PDF оферты.
+2. **Оферта → оплата.** Вторая подпись оферты заполняет `Deal.signedAt` (открывает контакты) и создаёт операцию `HOLD` в `PENDING`. Провайдер получает `hold` с ключом `hold:<dealId>`.
+3. **Итог операции → статус.** Итог приходит от провайдера (ответ, уведомление, `getStatus`) или от оператора (`manual`). Обработчик в одной транзакции переводит операцию журнала из `PENDING` в итог, сделку — в следующий статус, пишет аудит и уведомляет обе стороны.
+4. **Акт → выплата.** Подпись акта покупателем: `READY → ACCEPTED`, операции `RELEASE`, `SPLIT_MASTER`, `SPLIT_PLATFORM` в `PENDING`. Подтверждение обеих частей раздела: `ACCEPTED → SPLIT_PAYOUT`.
+5. **Спор.** Открытие пишет `FREEZE`, решение — `UNFREEZE` и операции исхода.
+6. **Уведомления.** `notifications.notify` вызывается в той же транзакции, что и изменение; push и SMS отправляет фоновая задача.
 
 ## Правила изменения состояния
 
-Каждое действие, меняющее сделку или заявку, устроено одинаково (`docs/agents/PHASE_B_RULES.md`, `src/modules/deal-core/state.ts`):
+Каждое действие, меняющее сделку, заказ или журнал денег (`CLAUDE.md`, «Definition of Done»):
 
-1. Вход на сервер (Server Action или route handler) разбирается zod-схемой (`action()` из `src/platform/action.ts`), первой строкой обработчика — `requireUser(...роли)`.
-2. Транзакция (`transaction()`, ожидание до 5 с, таймаут 15 с) начинается с блокировки строки сделки `SELECT … FOR UPDATE` (`lockDealRow`). Её берут `deal-core`, `payments` и `documents`, поэтому изменения одной сделки идут строго по очереди.
-3. Переход ищется в таблице переходов (`resolveTransition`): событие, из каких статусов, в какой, кто может, условие. Нет строки — «сейчас нельзя»; не та роль — «не ваше действие».
-4. Условное обновление `updateMany({ where: { id, status: <ожидаемый> } })` с проверкой, что изменена ровно одна строка (`expectOneUpdated`). Двойной клик даёт один переход: второй запрос получает «состояние уже изменилось».
-5. В той же транзакции — `recordAudit()` и уведомления.
+1. Вход на сервер разбирается zod-схемой (`action()` из `src/platform/action.ts`); первая строка обработчика — `requireUser(...роли)`.
+2. Изменение — через сервис модуля в `transaction()`.
+3. Переход ищется в таблице переходов (`from`, `to`, кто, условие). Нет строки — «сейчас нельзя»; не та роль — «не ваше действие».
+4. Условное обновление `updateMany({ where: { id, status: <ожидаемый> } })` + `expectOneUpdated()` или `SELECT … FOR UPDATE`. Двойной клик даёт один переход.
+5. В той же транзакции — `recordAudit()` (кто, что, когда, откуда) и уведомления.
 
-## Статусные машины
+## Статусная машина сделки (ТЗ п. 9)
 
-Таблицы — `src/modules/deal-core/transitions.ts` (`DEAL_TRANSITIONS`, `STAGE_TRANSITIONS`, `PAYMENT_TRANSITIONS`). Ниже — те же таблицы в виде диаграмм; в подписи стрелки — событие и кто его вызывает.
-
-### Сделка
+Таблица переходов — данные в коде `deal-core`. Тест на каждый разрешённый и каждый запрещённый переход идёт на реальной тестовой БД.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> AWAITING_SIGNATURES: createDeal
-  AWAITING_SIGNATURES --> IN_PROGRESS: contractSigned, SYSTEM, только manual
-  AWAITING_SIGNATURES --> AWAITING_DEPOSIT: contractSigned, SYSTEM, только эскроу
-  AWAITING_DEPOSIT --> IN_PROGRESS: depositReceived, SYSTEM, внесена вся сумма
-  AWAITING_SIGNATURES --> CANCELLED: cancel, CLIENT или EXECUTOR
-  AWAITING_DEPOSIT --> CANCELLED: cancel, CLIENT или EXECUTOR
-  IN_PROGRESS --> DISPUTE: openDispute, CLIENT или EXECUTOR
-  DISPUTE --> IN_PROGRESS: resolveContinue, OPERATOR
-  DISPUTE --> TERMINATED: resolveTerminate, OPERATOR
-  IN_PROGRESS --> COMPLETED: complete, SYSTEM, все этапы CLOSED
-  COMPLETED --> [*]
+  [*] --> CREATED: акцепт цены, оферта
+  CREATED --> PAID_HOLD: HOLD подтверждён, SYSTEM
+  PAID_HOLD --> IN_PROGRESS: начать работу, мастер
+  IN_PROGRESS --> READY: сдать, мастер, фото обязательно, GPS мягко
+  READY --> ACCEPTED: подписать акт, покупатель
+  ACCEPTED --> SPLIT_PAYOUT: SPLIT_MASTER и SPLIT_PLATFORM подтверждены, SYSTEM
+  CREATED --> CANCELLED: отмена до оплаты, любая сторона
+  PAID_HOLD --> REFUNDED: отмена покупателем, REFUND подтверждён
+  PAID_HOLD --> REFUNDED: спор, полный возврат
+  IN_PROGRESS --> REFUNDED: спор, полный возврат
+  READY --> REFUNDED: спор, полный возврат
+  PAID_HOLD --> SPLIT_PAYOUT: спор, частичный раздел
+  IN_PROGRESS --> SPLIT_PAYOUT: спор, частичный раздел
+  READY --> SPLIT_PAYOUT: спор, частичный раздел
+  SPLIT_PAYOUT --> [*]
   CANCELLED --> [*]
-  TERMINATED --> [*]
+  REFUNDED --> [*]
+  note right of PAID_HOLD
+    Деньги покупателя на эскроу-счёте в банке,
+    не на счетах ТОО
+  end note
 ```
 
-Решение по спору: `FAVOR_CLIENT` и `FAVOR_EXECUTOR` — сделка продолжается (`resolveContinue`); `TERMINATE` и `PARTIAL` — расторжение (`resolveTerminate`). Переход `DISPUTE → COMPLETED` не используется: сделка завершается обычным путём, когда закрыты все этапы (ADR-002, «Уточнения»).
+- `CREATED` включает подписание оферты: оплата доступна, когда оферту подписали обе стороны.
+- `CREATED → PAID_HOLD` и `ACCEPTED → SPLIT_PAYOUT` выполняет обработчик подтверждения операции журнала, а не кнопка стороны.
+- Конечные статусы: `SPLIT_PAYOUT`, `CANCELLED`, `REFUNDED`.
 
-### Этап
+### Спор
 
-```mermaid
-stateDiagram-v2
-  [*] --> PENDING
-  PENDING --> IN_PROGRESS: start, EXECUTOR, предыдущий принят и аванс подтверждён
-  IN_PROGRESS --> SUBMITTED: submit, EXECUTOR, фото и отчёт
-  REWORK --> SUBMITTED: submit, EXECUTOR
-  SUBMITTED --> REWORK: requestRework, CLIENT
-  SUBMITTED --> ACCEPTED: accept, CLIENT
-  SUBMITTED --> ACCEPTED: autoAccept, SYSTEM, срок вышел
-  IN_PROGRESS --> ACCEPTED: disputeFavorExecutor, OPERATOR
-  REWORK --> ACCEPTED: disputeFavorExecutor, OPERATOR
-  IN_PROGRESS --> REWORK: disputeFavorClient, OPERATOR
-  SUBMITTED --> REWORK: disputeFavorClient, OPERATOR
-  ACCEPTED --> CLOSED: close, SYSTEM, акт подписан и оплата CONFIRMED
-  CLOSED --> [*]
-```
+`Dispute` открывает любая сторона в `PAID_HOLD`, `IN_PROGRESS` или `READY`. Одновременно открыт не больше одного спора на сделку (частичный уникальный индекс `Dispute_one_open_per_deal`). Пока спор открыт, все переходы сделки, кроме решения спора, запрещены. Решает оператор; подсказка ИИ — только под флагом `ai`.
 
-`SUBMITTED → ACCEPTED` решением спора (`disputeFavorExecutor`) тоже разрешён; на диаграмме он совпадает со стрелкой `accept`. Действия сторон над этапом возможны, только пока сделка `IN_PROGRESS`; решения оператора — только пока сделка в `DISPUTE`. Этап без суммы закрывается по одному подписанному акту.
+| Итог | Статус сделки после | Операции журнала |
+|---|---|---|
+| `CONTINUE` — продолжить работу | статус на момент открытия | `UNFREEZE` |
+| `FULL_REFUND` — полный возврат | `REFUNDED` | `UNFREEZE`, `REFUND` на всё оплаченное |
+| `PARTIAL_SPLIT` — мастеру Y из X | `SPLIT_PAYOUT` | `UNFREEZE`, `RELEASE`, `SPLIT_MASTER`, `SPLIT_PLATFORM` (формула от Y), `REFUND` остатка |
 
-### Оплата этапа
+## Журнал денег и его проекции
 
-```mermaid
-stateDiagram-v2
-  [*] --> DUE
-  DUE --> MARKED_PAID: markPaid, CLIENT, только manual
-  MARKED_PAID --> CONFIRMED: confirm, EXECUTOR, только manual
-  DUE --> CONFIRMED: release, SYSTEM, только эскроу, транш выполнен
-  CONFIRMED --> [*]
-```
+`MoneyTransaction` — единственный источник правды о деньгах. Из него строятся:
 
-Момент оплаты (`isPayable`): аванс (`ON_START`) — когда этап может начаться (сделка в работе, предыдущий этап принят); оплата после приёмки (`ON_ACCEPTANCE`) — после `ACCEPTED`. В тот же момент в эскроу-режимах `deal-core` запрашивает транш с ключом `release:<stageId>`. Отметки «Я оплатил» и «Получил оплату» во время спора разрешены: спор об оплате может разрешиться сам.
+- **блок денег** — первый блок карточки сделки у покупателя и мастера (ТЗ п. 4.1, 4.2);
+- **история денег** — таймлайн «Зарезервировано → Удержано на время спора → Выплачено» со ссылками на документы (ТЗ п. 4.3);
+- **выписка по деньгам** — PDF (`MONEY_STATEMENT`);
+- **отчёт оператора** — по схеме 2% + 4%.
 
-### Счёт сделки (эскроу)
-
-Статус счёта `EscrowAccount.status` не хранится как отдельная машина переходов, а вычисляется из сумм движений одной функцией `escrowStatusOf` (`src/modules/payments/escrow-status.ts`):
-
-| Условие | Статус |
-|---|---|
-| ничего не раскрыто, внесено меньше суммы договора | `OPENED` |
-| ничего не раскрыто, внесено не меньше суммы договора | `FUNDED` |
-| есть раскрытые транши, остаток больше нуля | `PARTIALLY_RELEASED` |
-| внесено больше нуля, остаток ≤ 0, были транши | `CLOSED` |
-| внесено больше нуля, остаток ≤ 0, траншей не было | `REFUNDED` |
+Типы, статусы, ключи и защита журнала — [03-escrow-integration.md](03-escrow-integration.md), разделы 2 и 6.
 
 ## Данные
 
-Основные таблицы (`prisma/schema.prisma`): `User`, `Session`, `OtpCode`, `ExecutorProfile`, `Request`, `Offer`, `Measurement`, `Deal`, `Stage`, `StagePayment`, `Dispute`, `Document`, `Signature`, `StoredFile`, `Message`, `Notification`, `EscrowAccount`, `PaymentOperation`, `BankWebhookEvent`, `AuditEvent`, `Job`, `RateLimitBucket`, `PlatformSetting`.
+Таблицы, важные для банка (`prisma/schema.prisma`):
 
-Таблицы, важные для банка:
-
-| Таблица | Назначение | Ключевые ограничения |
+| Таблица | Назначение | Ограничения |
 |---|---|---|
-| `EscrowAccount` | Счёт сделки у рельса: номер у банка (`externalId`), реквизиты, суммы внесено / раскрыто / возвращено, статус | один счёт на сделку (`dealId` уникален) |
-| `PaymentOperation` | Журнал денежных операций платформы: `DEPOSIT`, `RELEASE`, `REFUND`; статус `PENDING`/`SUCCEEDED`/`FAILED`; ссылка банка `externalRef` | `idempotencyKey` уникален |
-| `BankWebhookEvent` | Входящие события банка: тело, время приёма и обработки, ошибка | `externalEventId` уникален |
-| `AuditEvent` | Журнал аудита: кто, что, над чем, до и после, `scope` | только добавление (триггер БД), сквозной номер `seq` |
+| `Deal` | Сделка: цена X и производные суммы в тиынах, провайдер, статус, время каждого шага, GPS сдачи, публичный идентификатор | CHECK `Deal_money_formula`: `buyerTotal = price + protection`, `guarantee = price − payout`, `buyerTotal = payout + platformIncome` |
+| `MoneyTransaction` | Журнал денег: тип, статус, сумма в тиынах, ключ, провайдер, признак теста, родительская операция, спор, номер у банка, документ-основание, реквизиты и скан банковского документа, кто запросил и подтвердил | `idempotencyKey` уникален; сумма ≥ 0; триггер `money_transaction_no_delete_rewrite` — только добавление, итог меняется только из `PENDING` |
+| `PaymentWebhookEvent` | Входящие уведомления провайдера: провайдер, тело, время приёма и обработки, ошибка | `externalEventId` уникален |
+| `Dispute` | Спор: статус сделки при открытии, причина, позиции сторон, итог, доля мастера в тиынах, обоснование | один открытый на сделку; доля мастера только при `PARTIAL_SPLIT` |
+| `Document`, `Signature`, `HandSignature` | Документы, ЭЦП и собственноручные подписи (хэш документа, время, IP, устройство) | одна собственноручная подпись стороны на документ |
+| `AuditEvent` | Журнал аудита: кто, что, над чем, до и после, `scope`, IP, устройство | только добавление (триггер), сквозной номер `seq` |
 
-Деньги хранятся целыми тенге (`Int`). Миграции — `prisma/migrations/`.
+Все суммы сделки — `BigInt` в тиынах. Суммы вне платёжного пути (справочник цен материалов и сценарии под флагом `preContractFlows`) хранятся в целых тенге и в деньги сделки не входят.
 
 ## Фоновые задачи
 
-Очередь — таблица `Job` (`src/platform/jobs/index.ts`). Задача ставится в той же транзакции, что и изменение, которое её порождает; повторная постановка с тем же `dedupeKey` не создаёт дубль. Задачи забираются атомарно (`FOR UPDATE SKIP LOCKED`), зависшая дольше 10 минут забирается снова. При ошибке — повтор с паузой 30 с × 2^(n−1), но не больше часа; по умолчанию 5 попыток, затем статус `FAILED` с текстом ошибки без персональных данных. Все обработчики идемпотентны.
+Очередь — таблица `Job` (`src/platform/jobs`). Задача ставится в той же транзакции, что и изменение, которое её порождает; повторная постановка с тем же `dedupeKey` не создаёт дубль. Задачи забираются атомарно (`FOR UPDATE SKIP LOCKED`); при ошибке — повтор с растущей паузой. Все обработчики идемпотентны.
 
-| Задача | Когда ставится | Что делает |
-|---|---|---|
-| `deal-core.autoAcceptStage` | при сдаче этапа, на срок `AUTO_ACCEPT_DAYS` | принимает этап, если заказчик молчит; при споре, повторной сдаче или досрочной приёмке ничего не делает |
-| `deal-core.settlePayment` | при записи денежной операции | отправляет операцию в банк; сбой банка — повтор планировщиком |
-| `deal-core.openEscrowAccount` | после подписи договора в эскроу-режиме | открывает счёт сделки у рельса |
-| `payments.resendPending` | ежедневно | досылает в банк `RELEASE`/`REFUND`, зависшие в `PENDING` дольше 15 минут |
-| `files.cleanupOrphans` | ежедневно | удаляет загруженные, но не прикреплённые файлы |
-| `notifications.sendSms` | при важном уведомлении | отправляет SMS |
-| `requests.measurementReminder` | при назначении замера | напоминание о замере |
-| `ai.visualize` | по запросу заказчика | иллюстрация помещения |
+Для денег очередь нужна на случай сбоя: повтор вызова провайдера с тем же ключом и опрос `getStatus` для операций, долго ждущих итога. Отправка push и SMS тоже идёт через очередь. Запуск — `GET /api/cron/run` с `Authorization: Bearer <CRON_SECRET>` по расписанию хостинга (для рабочего режима — не реже раза в 15 минут) или локально `npm run jobs`.
 
-Запуск очереди:
+## Окружения (`APP_ENV`)
 
-- **Vercel:** `vercel.json` вызывает `GET /api/cron/run` раз в сутки (`0 2 * * *`, план Hobby не позволяет чаще). Маршрут проверяет `Authorization: Bearer <CRON_SECRET>`, ставит ежедневные задачи и разбирает очередь проходами в пределах 15 секунд (лимит функции — 60 с). Для автоприёмки и досылки в рабочем режиме нужен запуск чаще — например, `*/15 * * * *` на плане Pro или cron в облаке РК (`docs/OWNER_TODO.md`, п. 5).
-- **Локально:** `npm run jobs` (один проход) или `npm run jobs -- --watch` (каждые 10 секунд).
-
-Деньги не ждут cron: после фиксации действия операция отправляется в банк сразу в том же запросе (`settleDeal`), а задача `deal-core.settlePayment` нужна на случай сбоя.
-
-## Окружения
-
-| | Локально | Демо (Vercel) | Рабочее (облако в РК, план) |
+| | `dev` | `staging` | `prod` (пилот) |
 |---|---|---|---|
-| База | Postgres в Docker, порт 5442 | Postgres провайдера | Управляемый Postgres в РК |
-| Файлы | `local` (папка `./storage`) | `vercel-blob` (приватное хранилище) | `s3` (S3-совместимое хранилище в РК) |
-| Фоновые задачи | `npm run jobs` | Vercel Cron → `/api/cron/run` | cron облака → `/api/cron/run` |
-| `DEMO_MODE` | `true` | `true`, сайт под паролем | `false` |
-| Оплата | `manual` или симулятор | `manual`, симулятор для показа | `manual`; `bank` — после соглашения с банком |
+| Платёжный провайдер по умолчанию | `mock` | `freedompay` (песочница) | `manual` (Freedom Bank) |
+| Моки SMS, подписи, платежей | разрешены | разрешены | **запрещены** проверкой `env.ts` |
+| `freedompay` | запрещён | разрешён | **запрещён** |
+| `DEMO_MODE` | можно | можно | **запрещён** |
+| Данные | тестовые | тестовые | реальные, только в облаке в РК ([04](04-security-and-data.md), раздел 10) |
 
-Код один для всех окружений; различаются только переменные окружения (полный список — `.env.example` и раздел «Переменные окружения» в `README.md`). В `NODE_ENV=production` приложение не стартует без ключей шифрования, секретов ссылок и cron, без `TRUST_PROXY=true`, а вне демо-режима — с моками SMS и подписи (`src/platform/env.ts`).
+Код один для всех контуров; различаются только переменные окружения (полный список — `.env.example` и раздел «Переменные окружения» в `README.md`). При ошибке конфигурации приложение не стартует и перечисляет все проблемы.
