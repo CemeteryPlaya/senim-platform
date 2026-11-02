@@ -19,9 +19,9 @@ test("гость: лента, фильтр чипом, карточка и «Х�
   await page.goto("/inspiration");
   await expect(page.getByRole("heading", { level: 1, name: "Вдохновение" })).toBeVisible();
 
-  await page.getByRole("group", { name: "Что ищем" }).getByRole("link", { name: "Кухня", exact: true }).click();
+  await page.getByRole("navigation", { name: "Что ищем" }).getByRole("link", { name: "Кухня", exact: true }).click();
   await page.waitForURL(/type=kitchen/);
-  await expect(page.getByRole("group", { name: "Что ищем" }).getByRole("link", { name: "Кухня", exact: true })).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("navigation", { name: "Что ищем" }).getByRole("link", { name: "Кухня", exact: true })).toHaveAttribute("aria-current", "page");
 
   await page.getByRole("link", { name: /Кухня 3,2 м под потолок/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Кухня 3,2 м под потолок" })).toBeVisible();

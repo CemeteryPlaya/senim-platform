@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import { SearchX } from "lucide-react";
+import { MapPin, SearchX } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { getCatalogFacets, INSPIRATION_STEP, inspirationHref, listInspiration, parseInspirationFilter, type InspirationFilter, type SearchParams } from "@/modules/companies";
-import { ButtonLink, Container, EmptyState, PageHeader } from "@/ui";
+import { ButtonLink, Container, EmptyState, FilterChips, PageHeader, PhotoCard, StatusBadge, type FilterChip } from "@/ui";
 import { STYLES, type StyleKey } from "@/verticals/furniture";
-import { FilterChips, type Chip } from "./_parts/FilterChips";
-import { InspirationTile } from "./_parts/InspirationTile";
 
 const t = ru.companies.inspiration;
 
@@ -20,18 +18,13 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
   const [{ items, hasMore }, facets] = await Promise.all([listInspiration(filter), getCatalogFacets()]);
   // Сменили фильтр — снова первая порция.
   const chipHref = (patch: Partial<InspirationFilter>) => inspirationHref({ ...filter, ...patch, limit: INSPIRATION_STEP });
-  const typeChips: Chip[] = [
-    { key: "all", label: t.filters.all, href: chipHref({ type: undefined }), selected: !filter.type },
-    ...facets.types.map((ft) => ({ key: ft.slug, label: ft.name, href: chipHref({ type: ft.slug }), selected: filter.type === ft.slug })),
+  const typeChips: FilterChip[] = [
+    { key: "all", label: t.filters.all, href: chipHref({ type: undefined }) },
+    ...facets.types.map((ft) => ({ key: ft.slug, label: ft.name, href: chipHref({ type: ft.slug }) })),
   ];
-  const styleChips: Chip[] = [
-    { key: "all", label: t.filters.all, href: chipHref({ style: undefined }), selected: !filter.style },
-    ...(Object.entries(STYLES) as [StyleKey, (typeof STYLES)[StyleKey]][]).map(([key, s]) => ({
-      key,
-      label: s.name,
-      href: chipHref({ style: key }),
-      selected: filter.style === key,
-    })),
+  const styleChips: FilterChip[] = [
+    { key: "all", label: t.filters.all, href: chipHref({ style: undefined }) },
+    ...(Object.entries(STYLES) as [StyleKey, (typeof STYLES)[StyleKey]][]).map(([key, s]) => ({ key, label: s.name, href: chipHref({ style: key }) })),
   ];
 
   return (
@@ -42,8 +35,19 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
         <h2 id="inspiration-filters" className="sr-only">
           {t.filters.label}
         </h2>
-        <FilterChips id="filter-type" label={t.filters.type} chips={typeChips} />
-        <FilterChips id="filter-style" label={t.filters.style} chips={styleChips} />
+        {/* Подпись ряда видна глазами; для диктора её даёт aria-label навигации чипов. */}
+        <div className="flex flex-col gap-2">
+          <p aria-hidden className="text-base font-semibold text-ink">
+            {t.filters.type}
+          </p>
+          <FilterChips label={t.filters.type} chips={typeChips} current={filter.type ?? "all"} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <p aria-hidden className="text-base font-semibold text-ink">
+            {t.filters.style}
+          </p>
+          <FilterChips label={t.filters.style} chips={styleChips} current={filter.style ?? "all"} />
+        </div>
       </section>
 
       {items.length === 0 ? (
@@ -68,9 +72,21 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
           {/* Колонки от ширины в rem: при крупном шрифте их становится меньше, плитки не сжимаются. */}
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(10rem,100%),1fr))] gap-3 sm:gap-4 lg:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]">
             {items.map((tile) => (
-              <li key={tile.id} className="min-w-0">
-                <InspirationTile tile={tile} />
-              </li>
+              <PhotoCard
+                key={tile.id}
+                as="li"
+                href={`/inspiration/${tile.id}`}
+                image={tile.cover?.src ? { src: tile.cover.src } : null}
+                title={tile.title}
+                badge={tile.featured ? <StatusBadge tone="accent">{t.featured}</StatusBadge> : undefined}
+                meta={[
+                  { text: `${tile.furnitureType.name}, ${tile.style.name.toLowerCase()}` },
+                  ...(tile.place ? [{ icon: <MapPin />, text: tile.place }] : []),
+                  { text: tile.executorLabel },
+                  ...(tile.doneOnPlatform ? [{ text: <StatusBadge tone="success">{t.doneOnPlatform}</StatusBadge> }] : []),
+                ]}
+                className="h-full"
+              />
             ))}
           </ul>
           <p className="text-base text-muted" aria-live="polite">
