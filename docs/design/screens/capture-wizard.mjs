@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3120";
-const OUT = path.dirname(fileURLToPath(import.meta.url));
+const OUT = process.env.OUT_DIR ? path.resolve(process.env.OUT_DIR) : path.dirname(fileURLToPath(import.meta.url));
 const PERSONA = process.env.PERSONA ?? "Данияр Ахметов";
 // Нижняя панель на снимке всей страницы легла бы поверх середины экрана — на снимках мастера её скрываем.
 const HIDE_DEV = "nextjs-portal { display: none !important; } nav.shadow-bar { display: none !important; }";

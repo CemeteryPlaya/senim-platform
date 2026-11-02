@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3120";
-const OUT = path.dirname(fileURLToPath(import.meta.url));
+const OUT = process.env.OUT_DIR ? path.resolve(process.env.OUT_DIR) : path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Экраны: кто входит (имя на кнопке «Войти: …» страницы /demo; null — гость), адрес, ссылка, по которой перейти
@@ -16,6 +16,8 @@ const OUT = path.dirname(fileURLToPath(import.meta.url));
 const ONLY = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
 const SCREENS = [
   { name: "landing", persona: null, url: "/" },
+  { name: "login", persona: null, url: "/login" },
+  { name: "about", persona: null, url: "/about", full: true },
   { name: "client-home", persona: "Айгерим Сапарова", url: "/" },
   { name: "client-requests", persona: "Айгерим Сапарова", url: "/requests" },
   { name: "client-profile", persona: "Айгерим Сапарова", url: "/profile" },
@@ -74,14 +76,18 @@ try {
       await page.screenshot({ path: path.join(OUT, `${screen.name}-${width.label}.png`), fullPage: full });
       process.stdout.write(`${screen.name}-${width.label}.png\n`);
     }
-    // Системный шрифт 200 %: главная заказчика и нижняя панель на телефоне.
-    if (width.mobile && (!ONLY || ONLY.test("client-home"))) {
-      await login(page, "Айгерим Сапарова");
+    // Системный шрифт 200 %: стартовый экран (страница целиком) и главная заказчика с нижней панелью на телефоне.
+    for (const shot of [
+      { name: "landing", persona: null, full: true },
+      { name: "client-home", persona: "Айгерим Сапарова", full: false },
+    ]) {
+      if (!width.mobile || (ONLY && !ONLY.test(shot.name))) continue;
+      await login(page, shot.persona);
       await page.goto(`${BASE}/`);
-      await page.addStyleTag({ content: `html { font-size: 200% !important; } ${HIDE_DEV}` });
+      await page.addStyleTag({ content: `html { font-size: 200% !important; } ${HIDE_DEV} ${shot.full ? HIDE_BAR : ""}` });
       await page.waitForTimeout(300);
-      await page.screenshot({ path: path.join(OUT, "client-home-390-font200.png"), fullPage: false });
-      process.stdout.write("client-home-390-font200.png\n");
+      await page.screenshot({ path: path.join(OUT, `${shot.name}-390-font200.png`), fullPage: shot.full });
+      process.stdout.write(`${shot.name}-390-font200.png\n`);
     }
     await context.close();
   }

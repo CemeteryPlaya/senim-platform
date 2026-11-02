@@ -1,6 +1,6 @@
 # Компоненты интерфейса (`import { … } from "@/ui"`)
 
-Стили — только классы токенов: `bg-canvas`, `bg-surface`, `bg-sunken`, `text-ink`, `text-ink-soft`, `text-muted`, `text-accent`, `border-line`, `border-line-strong`, `rounded-card`, `rounded-control`, `rounded-chip`, `rounded-badge`, `shadow-card`, `shadow-raised`, `min-h-control` (56 px), `min-h-control-sm` (48 px), `max-w-page`/`max-w-form`/`max-w-prose`. Стандартная палитра Tailwind отключена (`bg-blue-500` не соберётся).
+Стили — только классы токенов: `bg-canvas`, `bg-surface`, `bg-sunken`, `text-ink`, `text-ink-soft`, `text-muted`, `text-accent`, `border-line`, `border-line-strong`, `rounded-card`, `rounded-control`, `rounded-button` (кнопки-«таблетки»), `rounded-chip`, `rounded-badge`, `shadow-card` (плоская — прозрачная), `shadow-raised`, `min-h-control` (56 px), `min-h-control-sm` (48 px), `max-w-page`/`max-w-form`/`max-w-prose`. Стандартная палитра Tailwind отключена (`bg-blue-500` не соберётся). Вид — минималистичный (стиль приложения Upwork): правила для новых экранов — раздел «Минимализм» в `docs/design/README.md`.
 
 **Корневой layout уже даёт `<main id="content">`.** Страницы не рендерят свой `<main>`; ширину задают через `<Container>`. Один `h1` на странице — через `PageHeader`.
 

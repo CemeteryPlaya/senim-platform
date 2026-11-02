@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3125";
-const OUT = path.dirname(fileURLToPath(import.meta.url));
+const OUT = process.env.OUT_DIR ? path.resolve(process.env.OUT_DIR) : path.dirname(fileURLToPath(import.meta.url));
 
 const ERLAN = "Жумабаев Ерлан Серикович"; // Исп. №3: сделки №11 и №14, отклики, портфолио
 const KIM = "ИП Ким Руслан Владимирович"; // Исп. №5: ещё не откликался на тендер №19
