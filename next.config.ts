@@ -44,6 +44,16 @@ const nextConfig: NextConfig = {
       // Заголовок из next.config побеждает заголовок обработчика, а /api/files/* отдаёт загруженные
       // файлы со своим, более строгим CSP (default-src 'none'; sandbox) — его не перетираем.
       { source: "/((?!api/files/).*)", headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'none'" }] },
+      // Сервис-воркер (по руководству Next по PWA): браузер всегда сверяет свежую версию, а сам воркер
+      // ходит только на свой домен. Правило последнее — его CSP заменяет общий для этого пути.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'; frame-ancestors 'none'" },
+        ],
+      },
     ];
   },
   // Приложение почти полностью динамическое (роль из cookie, данные из БД),

@@ -10,6 +10,7 @@ import { landing } from "./ru/landing";
 import { notifications } from "./ru/notifications";
 import { operator } from "./ru/operator";
 import { payments } from "./ru/payments";
+import { pwa } from "./ru/pwa";
 import { requests } from "./ru/requests";
 
 /**
@@ -30,4 +31,5 @@ export const ru = {
   ai,
   landing,
   bankDemo,
+  pwa,
 } as const;
