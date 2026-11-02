@@ -20,7 +20,7 @@ export type WorkCardProps = {
 export function WorkCard({ card, showExecutor = true }: WorkCardProps) {
   const cover = card.photos.find((p) => p.src);
   return (
-    <article className="flex h-full min-w-0 flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card">
+    <article className="flex h-full min-w-0 flex-col overflow-hidden rounded-card border border-line bg-surface">
       {cover?.src ? (
         // Демо-фото — SVG из public/, оптимизатор next/image для них не нужен.
         // eslint-disable-next-line @next/next/no-img-element

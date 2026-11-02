@@ -29,7 +29,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     <Container className="pb-10">
       <PageHeader title={t.title} back={{ href: "/operator", label: ru.operator.backToPanel }} />
       <div className="flex flex-col gap-6">
-        <details open={active > 0} className="group rounded-card border border-line bg-surface shadow-card">
+        <details open={active > 0} className="group rounded-card border border-line bg-surface">
           <summary className="flex min-h-control min-w-0 cursor-pointer list-none items-center gap-3 rounded-card px-5 py-3 text-lg font-bold text-ink hover:bg-sunken [&::-webkit-details-marker]:hidden">
             <SlidersHorizontal aria-hidden className="size-6 shrink-0 text-primary" />
             <span className="min-w-0 flex-1">
@@ -60,7 +60,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         {events.length === 0 ? (
           <EmptyState icon={<ScrollText />} title={t.empty} description={t.emptyHint} />
         ) : (
-          <section aria-label={t.title} className="rounded-card border border-line bg-surface px-5 shadow-card">
+          <section aria-label={t.title} className="rounded-card border border-line bg-surface px-5">
             <AuditList events={events} linkScopes />
           </section>
         )}

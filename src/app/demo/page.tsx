@@ -56,7 +56,7 @@ function PersonaCard({ persona }: { persona: DemoPersona }) {
   const { executor } = persona;
   const name = executor ? executor.legalName : (persona.fullName ?? ru.common.roles[persona.role]);
   return (
-    <li className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card sm:flex-row sm:items-center sm:justify-between">
+    <li className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 flex-col gap-1">
         <p className="text-lg font-bold text-ink">{name}</p>
         {executor && (

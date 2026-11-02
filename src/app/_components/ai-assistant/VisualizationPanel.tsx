@@ -51,7 +51,7 @@ export function VisualizationPanel({ requestId, photos, initial, pollIntervalMs 
   }
 
   return (
-    <section aria-labelledby="ai-visualization-title" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card">
+    <section aria-labelledby="ai-visualization-title" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5">
       <h2 id="ai-visualization-title" className="flex items-center gap-2 text-xl font-semibold text-ink">
         <Wand2 aria-hidden className="size-6 shrink-0 text-primary" />
         {t.title}

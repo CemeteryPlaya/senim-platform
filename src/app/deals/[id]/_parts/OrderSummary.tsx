@@ -1,7 +1,7 @@
 import { MapPin, MessageCircle, UserRound } from "lucide-react";
 import { daysLeft, type DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
-import { ButtonLink, DateText, Fact, formatDays, formatMonths, Money, PhotoCard, StatusBadge, Stepper } from "@/ui";
+import { ButtonLink, DateText, formatDays, formatMonths, Money, PhotoCard, StatusBadge, Stepper } from "@/ui";
 import { illustrationFor } from "@/app/_home/illustration";
 import { currentStageIndex, heroImage } from "./order-view";
 import { DEAL_TONE } from "../../_parts/labels";
@@ -38,23 +38,21 @@ export function OrderSummary({ deal, now }: { deal: DealView; now: Date }) {
       {!stage && <p className="text-base text-ink-soft">{v.statusText[deal.status]}</p>}
 
       <section aria-label={v.summary} className="flex flex-col gap-5 border-t border-line pt-5">
-        <dl className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
-          <Fact label={t.total}>
-            <Money amount={deal.totalAmount} />
-          </Fact>
-          {deal.plannedReadyAt && (
-            <Fact label={v.plannedReady}>
-              <DateText value={deal.plannedReadyAt} format="date" />
-            </Fact>
-          )}
-          <Fact label={v.duration}>{formatDays(deal.durationDays)}</Fact>
-          <Fact label={v.warranty}>{formatMonths(deal.warrantyMonths)}</Fact>
-          {deal.signedAt && (
-            <Fact label={v.signedAt}>
-              <DateText value={deal.signedAt} format="date" />
-            </Fact>
-          )}
-          <Fact label={t.paymentLabel}>{deal.paymentMode === "MANUAL" ? t.paymentModeManual : ru.payments.mode[deal.paymentMode]}</Fact>
+        {/* Строки «подпись — значение» с тонкими разделителями; длинное значение переносится под подпись. */}
+        <dl className="flex flex-col divide-y divide-line">
+          {[
+            { label: t.total, value: <Money amount={deal.totalAmount} className="font-bold" /> },
+            ...(deal.plannedReadyAt ? [{ label: v.plannedReady, value: <DateText value={deal.plannedReadyAt} format="date" /> }] : []),
+            { label: v.duration, value: formatDays(deal.durationDays) },
+            { label: v.warranty, value: formatMonths(deal.warrantyMonths) },
+            ...(deal.signedAt ? [{ label: v.signedAt, value: <DateText value={deal.signedAt} format="date" /> }] : []),
+            { label: t.paymentLabel, value: deal.paymentMode === "MANUAL" ? t.paymentModeManual : ru.payments.mode[deal.paymentMode] },
+          ].map((row) => (
+            <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5 text-base first:pt-0">
+              <dt className="text-muted">{row.label}</dt>
+              <dd className="text-ink">{row.value}</dd>
+            </div>
+          ))}
         </dl>
 
         {current !== null && <Stepper steps={deal.stages.map((s) => s.title)} current={current} label={v.stagesScale} />}

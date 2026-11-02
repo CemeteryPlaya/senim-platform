@@ -1,8 +1,8 @@
-/* Hallmark · shape: app screen · genre: editorial · theme: locked to founders' mockups 7–19 (docs/design/mockups, docs/design/README.md), deal 3/3 seed 35-65-c4a1·4bb02c5d·2026-10-30·r0 superseded · job: sign up
- * hero: settled (landing) · nav: top bar on lg, bottom tab bar on phone · footer: one-line note · imagery: furniture illustrations in photo slots (public/img, owner photos replace) · signature: the stage stepper and the bottom tab bar
- * axes: light/grotesk-sans/chromatic-green · posture: soft · contrast: pass (src/ui/contrast.test.ts) · fold: pass · v2.0.0 */
-/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V3 · weakest: V, the mockups fix the look; kept them and raised text, contrast and control sizes to the accessibility floor */
-/* waive: 38iii (one green word in a head — the mockups' own device); 7b (pure white cards and text on green — taken from the mockups); controls 56px (project rule ≥48px beats app density 32–40px); 34 (no overflow-x: clip on html/body — an overflow must stay visible so it gets fixed, not hidden; checked at 360/390 px × 100/200 % font); 26b (:active lives in Tailwind classes of src/ui/Button.tsx, not in this file) */
+/* Hallmark · shape: app screen · genre: editorial · theme: locked to founders' mockups 7–19 (green), restyled minimal like the Upwork mobile app by owner request 02.11 (docs/design/README.md) · job: sign up
+ * hero: photo collage + two-line head + one action and «Войти» (landing) · nav: top bar on lg, bottom tab bar on phone · footer: one line, link to /about · imagery: four generated interior photos in public/landing (owner photos replace by file name) · signature: the photo collage on the start screen
+ * axes: light/grotesk-sans/chromatic-green · posture: flat · contrast: pass (src/ui/contrast.test.ts) · fold: pass (390 and 1280) · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: E, the photos are generated stand-ins until the owner sends real ones */
+/* waive: 7b (pure white page, cards and text on green — the owner asked for a white Upwork-like background); controls 56px (project rule ≥48px beats app density 32–40px); 34 (no overflow-x: clip on html/body — an overflow must stay visible so it gets fixed, not hidden; checked at 360/390 px × 100/200 % font); 26b (:active lives in Tailwind classes of src/ui/Button.tsx, not in this file) */
 @import "tailwindcss";
 @import "../ui/tokens.css";
 

@@ -26,7 +26,7 @@ export default async function FurnitureTypesPage() {
           {types.length === 0 ? (
             <EmptyState icon={<Sofa />} title={t.empty} titleAs="h3" />
           ) : (
-            <ol className="rounded-card border border-line bg-surface px-5 shadow-card">
+            <ol className="rounded-card border border-line bg-surface px-5">
               {types.map((type, i) => (
                 <TypeItem
                   key={type.id}

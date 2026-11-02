@@ -27,7 +27,7 @@ export function ListCard({ title, href, titleAs: Title = "h3", badges, meta, asi
   return (
     <li
       className={cn(
-        "relative flex min-w-0 flex-col gap-4 rounded-card border border-line bg-surface p-4 shadow-card sm:p-5",
+        "relative flex min-w-0 flex-col gap-4 rounded-card border border-line bg-surface p-4 sm:p-5",
         href && "transition-shadow duration-150 hover:shadow-raised has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus",
       )}
     >

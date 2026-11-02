@@ -23,7 +23,7 @@ function NotificationCard({ n }: { n: Item }) {
         type="submit"
         className={cn(
           "flex min-h-control w-full cursor-pointer items-start gap-3 rounded-card border p-5 text-left transition-colors duration-150 hover:border-primary",
-          unread ? "border-line-strong bg-surface shadow-card" : "border-line bg-sunken",
+          unread ? "border-line-strong bg-surface" : "border-line bg-sunken",
         )}
       >
         <span className="flex min-w-0 flex-1 flex-col gap-1.5">

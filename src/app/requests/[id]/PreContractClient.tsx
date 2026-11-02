@@ -16,7 +16,7 @@ type Pre = ClientRequest["pre"];
 
 function Panel({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+    <section aria-labelledby={id} className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 sm:p-6">
       <h2 id={id} className="text-xl font-bold text-ink">
         {title}
       </h2>

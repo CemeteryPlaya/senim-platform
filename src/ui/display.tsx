@@ -47,7 +47,7 @@ export type PageHeaderProps = {
 /** Заголовок экрана: «Назад», h1, пояснение, действия. На странице — ровно один. */
 export function PageHeader({ title, description, back, actions, className }: PageHeaderProps) {
   return (
-    <header className={cn("flex flex-col gap-3 pt-3 pb-6 sm:pt-6", className)}>
+    <header className={cn("flex flex-col gap-3 pt-3 pb-4 sm:pt-6", className)}>
       {back && (
         <Link
           href={back.href}

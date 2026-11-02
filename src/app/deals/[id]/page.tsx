@@ -17,6 +17,7 @@ import { cancelDealAction } from "./actions";
 import { DisputePositionForm, OpenDisputeForm } from "./_parts/DealForms";
 import { NextStepCard } from "./_parts/NextStepCard";
 import { OrderDetails } from "./_parts/OrderDetails";
+import { currentStageIndex } from "./_parts/order-view";
 import { OrderSummary } from "./_parts/OrderSummary";
 import { Payment } from "./_parts/Payment";
 import { StageTimeline } from "./_parts/StageTimeline";
@@ -70,7 +71,8 @@ export default async function DealPage({ params }: Props) {
     <Container size="form">
       <PageHeader title={t.number(deal.number)} back={{ href: "/deals" }} />
       <div className="flex flex-col gap-6 pb-10">
-        <DealFlowSteps user={user} offerId={deal.offerId} />
+        {/* Шкала сценария до договора нужна, пока этапы не начались; дальше ход дела показывает шкала этапов. */}
+        {currentStageIndex(deal.status, deal.stages) === null && <DealFlowSteps user={user} offerId={deal.offerId} />}
         <OrderSummary deal={deal} now={new Date()} />
         <NextStepCard deal={deal} />
         <StageTimeline deal={deal} />

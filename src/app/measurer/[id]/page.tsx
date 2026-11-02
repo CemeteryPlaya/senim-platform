@@ -40,7 +40,7 @@ export default async function SiteMeasurementPage({ params }: { params: Promise<
           </div>
         </section>
       )}
-      <section aria-labelledby="request-facts" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+      <section aria-labelledby="request-facts" className="flex flex-col gap-4 border-t border-line pt-6">
         <h2 id="request-facts" className="text-xl font-bold text-ink">
           {ru.requests.request.detailsTitle}
         </h2>
@@ -53,7 +53,7 @@ export default async function SiteMeasurementPage({ params }: { params: Promise<
           ]}
         />
       </section>
-      <section aria-labelledby="site-result" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+      <section aria-labelledby="site-result" className="flex flex-col gap-4 rounded-card border border-line p-5 sm:p-6">
         <h2 id="site-result" className="text-xl font-bold text-ink">
           {t.formTitle}
         </h2>

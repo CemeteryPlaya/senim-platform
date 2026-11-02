@@ -159,7 +159,7 @@ function SendScreen({ draft, directLabel }: { draft: Draft; directLabel: string 
       directLabel={directLabel}
       footnote={footnote}
       summary={
-        <section aria-labelledby="send-summary" className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card sm:p-6">
+        <section aria-labelledby="send-summary" className="flex flex-col gap-4 rounded-card border border-line p-5 sm:p-6">
           <h2 id="send-summary" className="text-xl font-bold text-ink">
             {w.send.summary}
           </h2>

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { ArrowRight, Award, BadgeCheck, MapPin, Ruler, Star } from "lucide-react";
+import { ArrowRight, Ruler, Star } from "lucide-react";
 import type { ReactNode } from "react";
 import { getOfferForClient } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Container, DateText, formatYears, PageHeader, PhotoCard, SectionTitle, Stat, StatusBadge, Timeline } from "@/ui";
+import { Container, DateText, formatYears, PageHeader, PhotoCard, SectionTitle, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { chooseOfferAction } from "../../../actions";
 import { ActionButton } from "../../../_parts/ActionButton";
@@ -21,7 +21,7 @@ type Props = { params: Promise<{ id: string; offerId: string }> };
 
 /**
  * Карточка отклика (макеты 823 и 13–14): вместо вкладок — одна длинная страница. Галерея работ, условия
- * (цена крупно, плитки срока и гарантии), об исполнителе, «Как проходит работа», работы, отзывы, чат.
+ * (цена крупно, срок и гарантия строками), об исполнителе строками, работы, отзывы, чат.
  * Исполнитель — только «Исполнитель №N» (publicExecutorView); главное действие — выбрать и перейти к замеру.
  */
 export default async function OfferPage({ params }: Props) {
@@ -50,7 +50,7 @@ export default async function OfferPage({ params }: Props) {
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start">
         <Gallery photos={gallery.slice(0, 5)} label={o.photos(ex.labelGen)} />
-        <section aria-labelledby="terms-title" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+        <section aria-labelledby="terms-title" className="flex flex-col gap-5 rounded-card border border-line p-5 sm:p-6">
           <h2 id="terms-title" className="text-xl font-bold text-ink">
             {o.termsTitle}
           </h2>
@@ -73,36 +73,20 @@ export default async function OfferPage({ params }: Props) {
       </div>
 
       <Section id="executor" title={ex.label}>
-        <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3">
-          {/* Рейтинг — только по настоящим отзывам; без них плитки нет (в разделе «Отзывы» — «Отзывов пока нет»). */}
-          {ex.reviewsCount > 0 && (
-            <li className="flex">
-              <Stat className="flex-1" icon={<Star />} value={ex.ratingAvg.toFixed(1)} label={o.ratingValue(ex.reviewsCount)} />
-            </li>
-          )}
-          <li className="flex">
-            <Stat className="flex-1" icon={<Award />} value={formatYears(ex.yearsExperience)} label={o.yearsLabel} />
-          </li>
-          <li className="flex">
-            <Stat className="flex-1" icon={<BadgeCheck />} value={ex.completedDeals} label={o.dealsLabel} />
-          </li>
-        </ul>
-        {ex.address && (
-          <p className="flex items-start gap-3 text-base text-ink">
-            <MapPin aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
-            <span className="flex min-w-0 flex-col">
-              <span className="text-sm text-muted">{ru.companies.identity.address}</span>
-              {ex.address}
-            </span>
-          </p>
-        )}
-      </Section>
-
-      <Section id="how" title={o.howTitle}>
-        <Timeline
-          label={o.howTitle}
-          items={o.how.map((step, i) => ({ title: step.title, description: step.text, state: offer.status === "ACCEPTED" && i === 0 ? "done" : "todo" }))}
-        />
+        {/* Рейтинг — только по настоящим отзывам; без них строки нет (в разделе «Отзывы» — «Отзывов пока нет»). */}
+        <dl className="flex flex-col divide-y divide-line border-y border-line">
+          {[
+            ...(ex.reviewsCount > 0 ? [{ label: o.ratingValue(ex.reviewsCount), value: ex.ratingAvg.toFixed(1) }] : []),
+            { label: o.yearsLabel, value: formatYears(ex.yearsExperience) },
+            { label: o.dealsLabel, value: String(ex.completedDeals) },
+            ...(ex.address ? [{ label: ru.companies.identity.address, value: ex.address }] : []),
+          ].map((row) => (
+            <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3 text-base">
+              <dt className="text-muted">{row.label}</dt>
+              <dd className="font-semibold text-ink">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
       </Section>
 
       <Section id="portfolio" title={o.portfolio}>
@@ -127,9 +111,9 @@ export default async function OfferPage({ params }: Props) {
         {offer.reviews.length === 0 ? (
           <p className="text-base text-ink-soft">{o.reviewsEmpty}</p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col divide-y divide-line border-y border-line">
             {offer.reviews.map((r) => (
-              <li key={r.id} className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 shadow-card sm:p-5">
+              <li key={r.id} className="flex flex-col gap-2 py-4">
                 <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-base">
                   <span className="inline-flex items-center gap-1 font-semibold text-ink">
                     <Star aria-hidden className="size-5 fill-current text-warning" />
@@ -184,7 +168,7 @@ function Gallery({ photos, label }: { photos: { src: string; alt: string }[]; la
   return (
     <figure aria-label={label} className="flex flex-col gap-3">
       {/* eslint-disable-next-line @next/next/no-img-element -- иллюстрации портфолио из хранилища */}
-      <img src={main.src} alt={main.alt} className="aspect-[4/3] w-full rounded-card bg-sunken object-cover shadow-card" />
+      <img src={main.src} alt={main.alt} className="aspect-[4/3] w-full rounded-card bg-sunken object-cover" />
       {rest.length > 0 && (
         <ul className="grid grid-cols-4 gap-3">
           {rest.map((p, i) => (
