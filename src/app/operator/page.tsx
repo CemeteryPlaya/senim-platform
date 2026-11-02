@@ -1,24 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ChartColumn, ChevronRight, FlaskConical, Inbox, Scale, ScrollText, Sofa, TriangleAlert, UserCheck } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { isDemoMode, listDisputes, listRegistrationQueue, listStaleRequests } from "@/modules/operator";
-import { Alert, Container, PageHeader } from "@/ui";
+import { Alert, Container, LinkList, PageHeader, SectionTitle, Stat, type LinkListItem } from "@/ui";
 import { requireOperatorPage } from "./_lib/guard";
 
 const t = ru.operator;
+const d = t.dashboard;
 
 export const metadata: Metadata = { title: t.title };
 
-const SECTIONS = [
-  { href: "/operator/executors", label: t.nav.executors, hint: t.nav.executorsHint },
-  { href: "/operator/disputes", label: t.nav.disputes, hint: t.nav.disputesHint },
-  { href: "/operator/requests", label: t.nav.requests, hint: t.nav.requestsHint },
-  { href: "/operator/furniture-types", label: t.nav.types, hint: t.nav.typesHint },
-  { href: "/operator/audit", label: t.nav.audit, hint: t.nav.auditHint },
-  { href: "/operator/report", label: t.nav.report, hint: t.nav.reportHint },
-] as const;
-
+/**
+ * Главная оператора по макету кабинета (стр. 12): показатели — только настоящие числа, ведут в разделы;
+ * что требует внимания — жёлтые плашки; разделы — меню со значками, зелёный пункт — первый, где есть дела.
+ */
 export default async function OperatorHome() {
   const user = await requireOperatorPage("/operator");
   const [queue, disputes, stale] = await Promise.all([
@@ -26,57 +22,79 @@ export default async function OperatorHome() {
     listDisputes(user),
     listStaleRequests(user, { hours: 24 }),
   ]);
-  const openDisputes = disputes.filter((d) => d.status === "OPEN").length;
+  const openDisputes = disputes.filter((x) => x.status === "OPEN").length;
   const todo = [
-    queue.length > 0 && { href: "/operator/executors", text: t.dashboard.pending(queue.length) },
-    openDisputes > 0 && { href: "/operator/disputes", text: t.dashboard.disputes(openDisputes) },
-    stale.length > 0 && { href: "/operator/requests", text: t.dashboard.stale(stale.length) },
+    queue.length > 0 && { href: "/operator/executors", text: d.pending(queue.length) },
+    openDisputes > 0 && { href: "/operator/disputes", text: d.disputes(openDisputes) },
+    stale.length > 0 && { href: "/operator/requests", text: d.stale(stale.length) },
   ].filter((x): x is { href: string; text: string } => Boolean(x));
-  const sections = isDemoMode() ? [...SECTIONS, { href: "/operator/demo", label: t.nav.demo, hint: t.nav.demoHint }] : SECTIONS;
+
+  const sections: LinkListItem[] = [
+    { href: "/operator/executors", label: t.nav.executors, description: t.nav.executorsHint, icon: <UserCheck />, meta: queue.length || undefined },
+    { href: "/operator/disputes", label: t.nav.disputes, description: t.nav.disputesHint, icon: <Scale />, meta: openDisputes || undefined },
+    { href: "/operator/requests", label: t.nav.requests, description: t.nav.requestsHint, icon: <Inbox />, meta: stale.length || undefined },
+    { href: "/operator/furniture-types", label: t.nav.types, description: t.nav.typesHint, icon: <Sofa /> },
+    { href: "/operator/audit", label: t.nav.audit, description: t.nav.auditHint, icon: <ScrollText /> },
+    { href: "/operator/report", label: t.nav.report, description: t.nav.reportHint, icon: <ChartColumn /> },
+    ...(isDemoMode() ? [{ href: "/operator/demo", label: t.nav.demo, description: t.nav.demoHint, icon: <FlaskConical /> }] : []),
+  ];
+  // Главный пункт — первый раздел, где ждут дела; если дел нет — «Исполнители».
+  const main = todo[0]?.href ?? "/operator/executors";
+  const items = sections.map((s) => ({ ...s, highlight: s.href === main }));
 
   return (
-    <Container>
+    <Container className="pb-10">
       <PageHeader title={t.title} description={t.description} back={{ href: "/" }} />
-      <section aria-labelledby="todo" className="mb-8 flex flex-col gap-3">
-        <h2 id="todo" className="text-xl font-bold text-ink">
-          {t.dashboard.todo}
-        </h2>
-        {todo.length === 0 ? (
-          <Alert tone="success">{t.dashboard.allClear}</Alert>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {todo.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="flex min-h-control items-center justify-between gap-3 rounded-control bg-warning-soft px-4 font-semibold text-ink no-underline hover:underline"
-                >
-                  {item.text}
-                  <ArrowRight aria-hidden className="size-5 shrink-0" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <section aria-labelledby="sections" className="flex flex-col gap-3">
-        <h2 id="sections" className="text-xl font-bold text-ink">
-          {t.dashboard.sections}
-        </h2>
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {sections.map((s) => (
-            <li key={s.href}>
-              <Link
-                href={s.href}
-                className="flex h-full flex-col gap-1 rounded-card border border-line bg-surface p-5 no-underline shadow-card hover:border-line-strong"
-              >
-                <span className="text-lg font-bold text-ink">{s.label}</span>
-                <span className="text-base text-ink-soft">{s.hint}</span>
-              </Link>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-8">
+          <ul aria-label={d.stats} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-3">
+            <li className="flex">
+              <Stat className="flex-1" href="/operator/executors" icon={<UserCheck />} value={queue.length} label={d.statPending} />
             </li>
-          ))}
-        </ul>
-      </section>
+            <li className="flex">
+              <Stat className="flex-1" href="/operator/disputes" icon={<Scale />} value={openDisputes} label={d.statDisputes} />
+            </li>
+            <li className="col-span-full flex sm:col-span-1">
+              <Stat className="flex-1" href="/operator/requests" icon={<Inbox />} value={stale.length} label={d.statStale} />
+            </li>
+          </ul>
+          <section aria-labelledby="todo" className="flex min-w-0 flex-col gap-3">
+            <SectionTitle id="todo" title={d.todo} />
+            {todo.length === 0 ? (
+              <Alert tone="accent" title={d.allClear}>
+                {d.allClearHint}
+              </Alert>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {todo.map((item) => (
+                  <li key={item.href}>
+                    <TodoLink href={item.href} text={item.text} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        <nav aria-labelledby="sections" className="flex min-w-0 flex-col gap-3">
+          <SectionTitle id="sections" title={d.sections} />
+          <LinkList items={items} />
+        </nav>
+      </div>
     </Container>
+  );
+}
+
+/** Жёлтая плашка-ссылка «1 открытый спор →»: значок, текст, стрелка; вся плашка нажимается. */
+function TodoLink({ href, text }: { href: string; text: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex min-h-control items-center gap-3 rounded-card bg-warning-soft px-4 py-3 text-base font-semibold text-ink no-underline transition-colors duration-150 hover:underline"
+    >
+      <TriangleAlert aria-hidden className="size-6 shrink-0 text-warning" />
+      <span className="min-w-0 flex-1">{text}</span>
+      <ChevronRight aria-hidden className="size-5 shrink-0 text-ink-soft" />
+    </Link>
   );
 }

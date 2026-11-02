@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Download } from "lucide-react";
+import { Download, Handshake, TriangleAlert, Wallet } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { buildReport, CSV_KINDS, reportSchema, type StatusTotal } from "@/modules/operator";
-import { Alert, Button, buttonClasses, Card, Container, DateText, Input, Money, PageHeader, StatusBadge } from "@/ui";
+import { Alert, Button, buttonClasses, Card, Container, DateText, Input, Money, PageHeader, SectionTitle, Stat, StatusBadge } from "@/ui";
+import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
 
 const o = ru.operator;
@@ -66,49 +66,68 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
   const parsed = reportSchema.safeParse(flatParams(await searchParams));
   const { staleDays } = parsed.success ? parsed.data : { staleDays: 3 };
   const report = await buildReport(user, { staleDays });
+  const deals = report.deals.reduce((acc, r) => ({ count: acc.count + r.count, sum: acc.sum + r.sum }), { count: 0, sum: 0 });
 
   return (
-    <Container>
+    <Container className="pb-10">
       <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: o.backToPanel }} />
-      <div className="flex flex-col gap-6">
-        <form method="get" className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <Input label={t.staleDaysLabel} name="staleDays" type="number" inputMode="numeric" min={1} max={60} defaultValue={staleDays} className="sm:w-48" />
-          <Button type="submit" variant="secondary">
-            {t.apply}
-          </Button>
-        </form>
+      <div className="flex flex-col gap-8">
+        <ul aria-label={t.stats} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-3">
+          <li className="flex">
+            <Stat className="flex-1" icon={<Handshake />} value={deals.count} label={t.statDeals} />
+          </li>
+          <li className="flex">
+            <Stat className="flex-1" icon={<TriangleAlert />} value={report.discrepancies.length} label={t.statDiscrepancies} />
+          </li>
+          <li className="col-span-full flex sm:col-span-1">
+            <Stat className="flex-1" icon={<Wallet />} value={<Money amount={deals.sum} />} label={t.statSum} />
+          </li>
+        </ul>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-6">
           <Totals title={t.deals} rows={report.deals} label={(s) => o.dealStatus[s]} />
           <Totals title={t.stages} rows={report.stages} label={(s) => o.stageStatus[s]} />
           <Totals title={t.payments} rows={report.payments} label={(s) => o.paymentStatus[s]} />
         </div>
 
-        <Card title={t.discrepancies} description={t.discrepanciesHint(staleDays)}>
+        <section aria-labelledby="discrepancies" className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <SectionTitle id="discrepancies" title={t.discrepancies} />
+            <p className="max-w-prose text-base text-ink-soft">{t.discrepanciesHint(staleDays)}</p>
+          </div>
+          <form method="get" className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <Input label={t.staleDaysLabel} name="staleDays" type="number" inputMode="numeric" min={1} max={60} defaultValue={staleDays} className="sm:w-48" />
+            <Button type="submit" variant="secondary">
+              {t.apply}
+            </Button>
+          </form>
           {report.discrepancies.length === 0 ? (
             <Alert tone="success">{t.discrepanciesEmpty}</Alert>
           ) : (
-            <ul className="flex flex-col">
+            <ul className={LIST_GRID}>
               {report.discrepancies.map((d) => (
-                <li key={`${d.dealId}-${d.stageTitle}`} className="flex flex-col gap-1 border-b border-line py-3 last:border-b-0">
-                  <Link href={`/deals/${d.dealId}`} className="font-semibold text-ink">
-                    {o.disputes.deal(d.dealNumber)}: {d.dealTitle}
-                  </Link>
-                  <span className="text-ink-soft">
-                    {d.stageTitle}, <Money amount={d.amount} />
-                  </span>
-                  <span className="text-sm text-muted">
-                    {t.markedAt} <DateText value={d.markedPaidAt} format="dateTime" />
-                  </span>
-                </li>
+                <ListCard
+                  key={`${d.dealId}-${d.stageTitle}`}
+                  href={`/deals/${d.dealId}`}
+                  title={`${o.disputes.deal(d.dealNumber)}: ${d.dealTitle}`}
+                  meta={[
+                    <span key="stage" className="text-ink-soft">
+                      {d.stageTitle}
+                    </span>,
+                    <span key="marked">
+                      {t.markedAt} <DateText value={d.markedPaidAt} format="dateTime" />
+                    </span>,
+                  ]}
+                  aside={<Money amount={d.amount} />}
+                />
               ))}
             </ul>
           )}
-        </Card>
+        </section>
 
         <Card title={t.reconciliation}>
           {report.reconciliation.length === 0 ? (
-            <p className="text-ink-soft">{t.reconciliationEmpty}</p>
+            <p className="text-base text-ink-soft">{t.reconciliationEmpty}</p>
           ) : (
             report.reconciliation.map((r) => (
               <section key={r.dealId} aria-label={o.disputes.deal(r.dealNumber)} className="flex flex-col gap-2 border-b border-line pb-4 last:border-b-0">
@@ -120,7 +139,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
                 ) : (
                   <ul className="flex flex-col gap-2">
                     {r.rows.map((row, i) => (
-                      <li key={`${row.idempotencyKey ?? row.externalRef}-${i}`} className="flex flex-wrap items-center gap-2 text-sm">
+                      <li key={`${row.idempotencyKey ?? row.externalRef}-${i}`} className="flex flex-wrap items-center gap-2 text-base">
                         <StatusBadge tone={row.status === "MATCHED" ? "success" : "danger"}>{t.reconStatus[row.status]}</StatusBadge>
                         <span>{t.opKinds[row.kind]}</span>
                         <span className="text-ink-soft">
@@ -129,7 +148,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
                         <span className="text-ink-soft">
                           {t.bank}: {row.bankAmount === null ? o.none : <Money amount={row.bankAmount} />}
                         </span>
-                        <span className="break-all text-muted">
+                        <span className="text-sm break-all text-muted">
                           {t.key}: {row.idempotencyKey ?? o.none}
                         </span>
                       </li>

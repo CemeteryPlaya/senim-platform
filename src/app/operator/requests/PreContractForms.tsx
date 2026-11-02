@@ -18,16 +18,15 @@ export function AssignMeasurerForm({ requestId, measurers }: { requestId: string
     void run({ requestId, measurerId });
   };
   return (
-    <form noValidate onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+    <form noValidate onSubmit={onSubmit} className="flex flex-col gap-3">
       <Select
         label={t.measurer}
         placeholder={false}
         value={measurerId}
         onChange={(e) => setMeasurerId(e.target.value)}
         options={measurers.map((m) => ({ value: m.id, label: m.name }))}
-        className="sm:w-72"
       />
-      <Button type="submit" loading={pending}>
+      <Button type="submit" loading={pending} className="self-start">
         {t.assign}
       </Button>
       <FormError message={error} />

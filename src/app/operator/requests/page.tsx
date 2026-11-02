@@ -1,13 +1,23 @@
 import type { Metadata } from "next";
+import { Inbox } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { listStaleRequests, staleRequestsSchema } from "@/modules/operator";
-import { Button, Container, DateText, EmptyState, Input, PageHeader, StatusBadge } from "@/ui";
+import { Container, DateText, EmptyState, FilterChips, PageHeader, StatusBadge, type FilterChip } from "@/ui";
+import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
 import { OfferRetrySection, SiteMeasurerSection } from "./PreContractSections";
 
 const t = ru.operator.requests;
 
 export const metadata: Metadata = { title: t.title };
+
+/** Чипы «Дольше суток · 3 суток · недели · месяца»; значение не из списка (из адреса) — своим чипом. */
+function hoursChips(current: number): FilterChip[] {
+  const presets = Object.entries(t.hoursPresets).map(([h, label]) => ({ key: h, label, href: `/operator/requests?hours=${h}` }));
+  return presets.some((p) => p.key === String(current))
+    ? presets
+    : [...presets, { key: String(current), label: t.hoursCustom(current), href: `/operator/requests?hours=${current}` }];
+}
 
 export default async function StaleRequestsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireOperatorPage("/operator/requests");
@@ -16,50 +26,52 @@ export default async function StaleRequestsPage({ searchParams }: { searchParams
   const rows = await listStaleRequests(user, { hours });
 
   return (
-    <Container>
+    <Container className="pb-10">
       <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: ru.operator.backToPanel }} />
-      <SiteMeasurerSection user={user} />
-      <OfferRetrySection user={user} />
-      <form method="get" className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end">
-        <Input label={t.hoursLabel} name="hours" type="number" inputMode="numeric" min={1} max={720} defaultValue={hours} className="sm:w-48" />
-        <Button type="submit" variant="secondary">
-          {t.apply}
-        </Button>
-      </form>
-      {rows.length === 0 ? (
-        <EmptyState title={t.empty} description={t.emptyHint} />
-      ) : (
-        <ul className="rounded-card border border-line bg-surface px-5">
-          {rows.map((r) => (
-            <li key={r.id} className="flex flex-col gap-2 border-b border-line py-4 last:border-b-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-bold text-ink">{t.request(r.number)}</h2>
-                <StatusBadge tone="neutral">{t.mode[r.mode]}</StatusBadge>
-                {r.segment && <StatusBadge tone="accent">{ru.operator.segments[r.segment]}</StatusBadge>}
-                <StatusBadge tone="warning">
-                  {t.waiting} {t.hours(r.waitingHours)}
-                </StatusBadge>
-              </div>
-              <p className="text-base text-ink-soft">{r.furnitureType?.name ?? r.customType}</p>
-              <p className="text-base text-ink-soft">
-                {t.client}: {r.client.fullName}{" "}
-                <a href={`tel:${r.client.phone}`} className="text-accent underline">
-                  {r.client.phone}
-                </a>
-              </p>
-              <p className="text-sm text-muted">
-                {t.published} <DateText value={r.publishedAt} format="dateTime" />
-                {r.declinedOffers > 0 && (
-                  <>
-                    <br />
-                    {t.declinedBefore(r.declinedOffers)}
-                  </>
-                )}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="flex flex-col gap-10">
+        <div className="flex flex-col gap-4">
+          <FilterChips label={t.hoursFilter} current={String(hours)} chips={hoursChips(hours)} />
+          {rows.length === 0 ? (
+            <EmptyState icon={<Inbox />} title={t.empty} description={t.emptyHint} />
+          ) : (
+            <ul className={LIST_GRID}>
+              {rows.map((r) => (
+                <ListCard
+                  key={r.id}
+                  titleAs="h2"
+                  title={t.request(r.number)}
+                  badges={
+                    <>
+                      <StatusBadge tone="warning">
+                        {t.waiting} {t.hours(r.waitingHours)}
+                      </StatusBadge>
+                      <StatusBadge tone="neutral">{t.mode[r.mode]}</StatusBadge>
+                      {r.segment && <StatusBadge tone="accent">{ru.operator.segments[r.segment]}</StatusBadge>}
+                    </>
+                  }
+                  meta={[
+                    <span key="type" className="text-ink-soft">
+                      {r.furnitureType?.name ?? r.customType}
+                    </span>,
+                    <>
+                      {t.client}: {r.client.fullName}{" "}
+                      <a href={`tel:${r.client.phone}`} className="inline-flex min-h-control-sm items-center text-primary underline">
+                        {r.client.phone}
+                      </a>
+                    </>,
+                    <>
+                      {t.published} <DateText value={r.publishedAt} format="dateTime" />
+                    </>,
+                    r.declinedOffers > 0 ? t.declinedBefore(r.declinedOffers) : null,
+                  ]}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+        <SiteMeasurerSection user={user} />
+        <OfferRetrySection user={user} />
+      </div>
     </Container>
   );
 }
