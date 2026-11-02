@@ -1,25 +1,22 @@
 import { CalendarClock, ClipboardList, Plus, UserRound } from "lucide-react";
-import type { DealStatus } from "@/generated/prisma/enums";
 import { listDeals } from "@/modules/deal-core";
 import { listMyRequests } from "@/modules/requests";
 import type { CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, Container, DateText, EmptyState, Money, PhotoCard, SectionTitle, StatusBadge } from "@/ui";
-import { DEAL_TONE } from "../deals/_parts/labels";
+import { ACTIVE_DEAL, DEAL_TONE } from "../deals/_parts/labels";
 import { REQUEST_TONE } from "../requests/_parts/labels";
 import { photo } from "./illustration";
 
 const t = ru.common.home;
 const c = t.client;
 
-/** Сделка ещё идёт: её показываем на главной. Завершённые и отменённые — в «Сделках». */
-const ACTIVE_DEAL: ReadonlySet<DealStatus> = new Set(["AWAITING_SIGNATURES", "AWAITING_DEPOSIT", "IN_PROGRESS", "DISPUTE"]);
 /** Сколько карточек каждого вида на главной: остальное — по ссылке «Все…». */
 const SHOWN = 3;
 
 /**
  * Главная заказчика по макетам 7 и 10, минималистично: приветствие, одно главное действие «Оставить заявку»,
- * карточки текущих дел — заказы в работе (статус, этапы, сумма) и последние заявки (статус, отклики).
+ * карточки текущих дел — заказы в работе (статус, сумма к оплате) и последние заявки (статус, отклики).
  */
 export async function ClientHome({ user }: { user: CurrentUser }) {
   const [requests, deals] = await Promise.all([listMyRequests(user), listDeals(user)]);
@@ -52,8 +49,8 @@ export async function ClientHome({ user }: { user: CurrentUser }) {
                 image={photo(d.title)}
                 title={ru.deal.number(d.number)}
                 badge={<StatusBadge tone={DEAL_TONE[d.status]}>{ru.deal.status[d.status]}</StatusBadge>}
-                meta={[{ text: d.title }, { icon: <UserRound />, text: d.executorLabel }, { text: c.stages(d.closedStages, d.totalStages) }]}
-                aside={<Money amount={d.totalAmount} />}
+                meta={[{ text: d.title }, { icon: <UserRound />, text: d.executorLabel }]}
+                aside={<Money amount={d.estimate.totalTiyn} />}
               />
             ))}
           </ul>

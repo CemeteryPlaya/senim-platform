@@ -1,19 +1,17 @@
 import { CalendarClock, Images, Inbox, MapPin, Package, Ruler, Send, Store, Wallet } from "lucide-react";
-import type { DealStatus } from "@/generated/prisma/enums";
 import { listDeals } from "@/modules/deal-core";
 import { listIncomingRequests } from "@/modules/requests";
 import type { CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { Container, DateText, LinkList, Money, PhotoCard, SectionTitle, Stat, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
+import { ACTIVE_DEAL } from "../deals/_parts/labels";
 import { photo } from "./illustration";
 
 const t = ru.common.home;
 const e = t.executor;
 const nav = ru.common.nav;
 
-/** Заказ в работе: договор подписывается, идут этапы или открыт спор. */
-const ACTIVE_DEAL: ReadonlySet<DealStatus> = new Set(["AWAITING_SIGNATURES", "AWAITING_DEPOSIT", "IN_PROGRESS", "DISPUTE"]);
 const SHOWN = 3;
 
 /**
@@ -24,7 +22,8 @@ export async function ExecutorHome({ user }: { user: CurrentUser }) {
   const [incoming, deals] = await Promise.all([listIncomingRequests(user), listDeals(user)]);
   const fresh = incoming.filter((r) => r.myOfferStatus === null);
   const active = deals.filter((d) => d.myRole === "EXECUTOR" && ACTIVE_DEAL.has(d.status));
-  const inWork = active.reduce((sum, d) => sum + d.totalAmount, 0);
+  // Мастеру своя смета — к выплате (цена минус гарантия оплаты 4%).
+  const inWork = active.reduce((sum, d) => sum + d.estimate.totalTiyn, 0n);
 
   return (
     <Container className="flex flex-col gap-8 pt-4 pb-10 sm:pt-8">
