@@ -32,11 +32,11 @@ describe("demoGate", () => {
     expect(demoGate("/", authorization, closed)).toBe("challenge");
   });
 
-  it.each(["/api/webhooks/bank", "/api/webhooks/escrow-simulator", "/api/cron/run"])("вебхуки и cron проходят без пароля: %s", (path) => {
+  it.each(["/api/webhooks/payments/mock", "/api/webhooks/payments/freedompay", "/api/cron/run"])("вебхуки и cron проходят без пароля: %s", (path) => {
     expect(demoGate(path, null, closed)).toBe("pass");
   });
 
-  it.each(["/api/webhooks/other", "/api/webhooks/bank/extra", "/api/cron/other", "/api/webhooks/", "/api/cron/run/x"])(
+  it.each(["/api/webhooks/other", "/api/webhooks/payments/mock/extra", "/api/webhooks/payments/manual", "/api/cron/other", "/api/webhooks/", "/api/cron/run/x"])(
     "другие пути под вебхуками и cron закрыты: %s",
     (path) => {
       expect(demoGate(path, null, closed)).toBe("challenge");

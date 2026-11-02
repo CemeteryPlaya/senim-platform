@@ -23,7 +23,6 @@ const demoProduction = {
   DEMO_MODE: "true",
   SMS_PROVIDER: "mock",
   SIGNATURE_PROVIDER: "mock",
-  ESCROW_SIMULATOR_WEBHOOK_SECRET: "w",
   DEMO_ACCESS_PASSWORD: "пароль-показа-банку",
 };
 
@@ -113,17 +112,6 @@ describe("env: обязательные переменные выбранных 
     expect(problems({ ...dev, AI_PROVIDER: "gateway" })).toBe("");
   });
 
-  it("рельс банка — адрес API и секрет вебхуков", () => {
-    expect(lines({ ...dev, PAYMENT_RAIL: "bank" })).toEqual(["BANK_API_URL: обязательна, когда PAYMENT_RAIL=bank", "BANK_WEBHOOK_SECRET: обязательна, когда PAYMENT_RAIL=bank"]);
-  });
-
-  it("симулятор банка в production — постоянный секрет вебхуков; при разработке не нужен", () => {
-    expect(lines({ ...production, PAYMENT_RAIL: "escrow-simulator" })).toEqual([
-      "ESCROW_SIMULATOR_WEBHOOK_SECRET: обязательна, когда escrow-simulator или DEMO_MODE в production",
-    ]);
-    expect(problems({ ...dev, PAYMENT_RAIL: "escrow-simulator" })).toBe("");
-  });
-
   it("production без секретов — по строке на каждый, в прежнем порядке", () => {
     expect(lines({ NODE_ENV: "production", DATABASE_URL: "postgresql://x", TRUST_PROXY: "true", SMS_PROVIDER: "http", SMS_HTTP_URL: "u", SMS_HTTP_TOKEN: "t", SIGNATURE_PROVIDER: "sigex" })).toEqual(
       ["PII_ENCRYPTION_KEY", "PII_HASH_KEY", "FILE_URL_SECRET", "CRON_SECRET"].map((k) => `${k}: обязательна, когда NODE_ENV=production`),
@@ -147,7 +135,7 @@ describe("env: контуры APP_ENV (ТЗ п. 11)", () => {
   });
 
   it.each([
-    ["DEMO_MODE", { DEMO_MODE: "true", DEMO_ACCESS_PASSWORD: "пароль-показа-банку", ESCROW_SIMULATOR_WEBHOOK_SECRET: "w" }],
+    ["DEMO_MODE", { DEMO_MODE: "true", DEMO_ACCESS_PASSWORD: "пароль-показа-банку" }],
     ["SMS_PROVIDER", { SMS_PROVIDER: "mock" }],
     ["SIGNATURE_PROVIDER", { SIGNATURE_PROVIDER: "mock" }],
     ["PAYMENT_PROVIDER", { PAYMENT_PROVIDER: "mock" }],

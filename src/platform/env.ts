@@ -68,11 +68,6 @@ const base = z
     FREEDOMPAY_MERCHANT_ID: optional,
     FREEDOMPAY_SECRET_KEY: optional,
     FREEDOMPAY_PAYOUT_SECRET_KEY: optional,
-    /** Устарело (ADR-009): режимы до ТЗ; удаляется вместе со старым модулем payments. */
-    PAYMENT_RAIL: z.enum(["manual", "escrow-simulator", "bank"]).default("manual"),
-    ESCROW_SIMULATOR_WEBHOOK_SECRET: optional,
-    BANK_API_URL: optional,
-    BANK_WEBHOOK_SECRET: optional,
 
     /** Web push (VAPID): ключи выдаёт `npx web-push generate-vapid-keys`; без них push выключен, in-app работает. */
     VAPID_PUBLIC_KEY: optional,
@@ -94,7 +89,6 @@ const base = z
     FEATURE_EXECUTOR_HAND_SIGNS_ACT: bool,
     FEATURE_CLIENT_PHONE_CONSENT: bool,
 
-    AUTO_ACCEPT_DAYS: z.coerce.number().int().min(1).max(30).default(5),
     CRON_SECRET: optional,
   });
 
@@ -145,17 +139,6 @@ function providerChecks({ env, require }: Checks) {
   }
 }
 
-function paymentChecks({ env, require }: Checks) {
-  // Симулятор банка в production (показ банку): вебхуки подписываются постоянным секретом, а не случайным секретом процесса.
-  if (env.NODE_ENV === "production" && (env.PAYMENT_RAIL === "escrow-simulator" || env.DEMO_MODE)) {
-    require("ESCROW_SIMULATOR_WEBHOOK_SECRET", "escrow-simulator или DEMO_MODE в production");
-  }
-  if (env.PAYMENT_RAIL === "bank") {
-    require("BANK_API_URL", "PAYMENT_RAIL=bank");
-    require("BANK_WEBHOOK_SECRET", "PAYMENT_RAIL=bank");
-  }
-}
-
 /** prod — пилот с реальными деньгами: никаких моков, демо и песочницы; freedompay — только staging (ADR-009, OPEN_QUESTIONS №41). */
 function appEnvChecks({ env, issue }: Checks) {
   if (env.PAYMENT_PROVIDER === "freedompay" && env.APP_ENV !== "staging") {
@@ -192,7 +175,7 @@ export function resolvePaymentProvider(env: Pick<RawEnv, "APP_ENV" | "PAYMENT_PR
 const schema = base.superRefine((env, ctx) => {
   const issue = (key: keyof RawEnv, message: string) => ctx.addIssue({ code: "custom", path: [key], message });
   const checks: Checks = { env, issue, require: (key, when) => !env[key] && issue(key, `обязательна, когда ${when}`) };
-  for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, paymentChecks, appEnvChecks, freedomPayChecks, pushChecks]) check(checks);
+  for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, appEnvChecks, freedomPayChecks, pushChecks]) check(checks);
 });
 
 export type Env = z.infer<typeof schema>;

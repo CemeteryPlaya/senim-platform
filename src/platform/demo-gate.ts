@@ -9,8 +9,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
  * Префикс не годится: любой новый маршрут под /api/webhooks/ оказался бы открыт без пароля.
  */
 const EXEMPT_PATHS: ReadonlySet<string> = new Set([
-  "/api/webhooks/bank",
-  "/api/webhooks/escrow-simulator",
+  "/api/webhooks/payments/mock",
+  "/api/webhooks/payments/freedompay",
   "/api/cron/run",
   // Установка приложения: браузер запрашивает манифест, значки и сервис-воркер без пароля basic-auth.
   // Данных стенда в них нет — название, цвета, значки и страница «Нет связи».
