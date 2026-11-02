@@ -26,7 +26,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
 type StyleOptions = {
   variant?: ButtonVariant;
   fullWidth?: boolean;
-  /** pill — круглые края, как у «Войти» в шапке. */
+  /** pill — компактная кнопка (48px), как «Войти» в шапке. Края у всех кнопок — «таблетка» (rounded-button). */
   shape?: "default" | "pill";
   className?: string;
 };
@@ -39,7 +39,8 @@ export function buttonClasses({ variant = "primary", fullWidth = false, shape = 
     "min-w-0 max-w-full break-words hyphens-auto",
     "text-center text-base font-bold leading-snug no-underline transition-colors duration-150",
     "disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60",
-    shape === "pill" ? "min-h-control-sm rounded-full px-5" : "rounded-control",
+    "rounded-button",
+    shape === "pill" && "min-h-control-sm px-5",
     VARIANTS[variant],
     fullWidth && "w-full",
     className,

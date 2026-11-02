@@ -84,10 +84,10 @@ export type CardProps = {
   children?: ReactNode;
 };
 
-/** Карточка на поверхности с тонкой рамкой. Не вкладывайте карточку в карточку. */
+/** Плоская карточка с тонкой рамкой, без тени. Не вкладывайте карточку в карточку. */
 export function Card({ as: Tag = "div", title, titleAs: Title = "h2", titleId, description, footer, className, children }: CardProps) {
   return (
-    <Tag aria-labelledby={title && titleId ? titleId : undefined} className={cn("flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6", className)}>
+    <Tag aria-labelledby={title && titleId ? titleId : undefined} className={cn("flex flex-col gap-4 rounded-card border border-line bg-surface p-5 sm:p-6", className)}>
       {(title || description) && (
         <div className="flex flex-col gap-1">
           {title && (
@@ -122,11 +122,11 @@ export function StatusBadge({ tone = "neutral", icon, className, children }: Sta
 export type AlertTone = Exclude<Tone, "neutral">;
 
 const ALERT_ICON: Record<AlertTone, ReactNode> = {
-  accent: <Sparkles aria-hidden className="mt-0.5 size-7 shrink-0" />,
-  info: <Info aria-hidden className="mt-0.5 size-7 shrink-0" />,
-  success: <CheckCircle2 aria-hidden className="mt-0.5 size-7 shrink-0" />,
-  warning: <AlertTriangle aria-hidden className="mt-0.5 size-7 shrink-0" />,
-  danger: <OctagonAlert aria-hidden className="mt-0.5 size-7 shrink-0" />,
+  accent: <Sparkles aria-hidden className="mt-0.5 size-6 shrink-0" />,
+  info: <Info aria-hidden className="mt-0.5 size-6 shrink-0" />,
+  success: <CheckCircle2 aria-hidden className="mt-0.5 size-6 shrink-0" />,
+  warning: <AlertTriangle aria-hidden className="mt-0.5 size-6 shrink-0" />,
+  danger: <OctagonAlert aria-hidden className="mt-0.5 size-6 shrink-0" />,
 };
 
 export type AlertProps = {
@@ -150,7 +150,7 @@ export type AlertProps = {
 export function Alert({ tone = "info", title, action, live, className, children }: AlertProps) {
   const role = live === "assertive" ? "alert" : live === "polite" ? "status" : undefined;
   return (
-    <div role={role} className={cn("flex gap-3 rounded-card p-4 sm:gap-4 sm:p-5", TONE_SOFT[tone], className)}>
+    <div role={role} className={cn("flex gap-3 rounded-card p-4", TONE_SOFT[tone], className)}>
       {ALERT_ICON[tone]}
       <div className="flex min-w-0 flex-col gap-1">
         {title && <p className="text-base font-bold text-ink">{title}</p>}
@@ -203,12 +203,12 @@ export type EmptyStateProps = {
   className?: string;
 };
 
-/** Пустой список: что здесь будет и что сделать первым. Белая карточка, значок в мятном круге. */
+/** Пустой список: что здесь будет и что сделать первым. Без рамки и фона — значок, заголовок, одно действие. */
 export function EmptyState({ title, description, icon, action, titleAs: Title = "h2", className }: EmptyStateProps) {
   return (
-    <div className={cn("flex flex-col items-start gap-3 rounded-card border border-line bg-surface p-6 shadow-card sm:p-8", className)}>
+    <div className={cn("flex flex-col items-start gap-3 py-6 sm:py-8", className)}>
       {icon && (
-        <span aria-hidden className="inline-flex size-16 items-center justify-center rounded-full bg-accent-soft text-primary [&_svg]:size-8">
+        <span aria-hidden className="inline-flex text-primary [&_svg]:size-10">
           {icon}
         </span>
       )}

@@ -41,8 +41,8 @@ export function PhotoCard({ href, linkLabel, image, title, titleAs: Title = "h3"
   return (
     <Tag
       className={cn(
-        "group/card relative flex min-w-0 flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card",
-        href && "transition-shadow duration-150 hover:shadow-raised has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus",
+        "group/card relative flex min-w-0 flex-col overflow-hidden rounded-card border border-line bg-surface",
+        href && "transition-colors duration-150 hover:border-line-strong has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus",
         className,
       )}
     >
@@ -180,32 +180,33 @@ export type LinkListItem = {
   highlight?: boolean;
 };
 
-/** Список разделов в белой карточке (макеты 12 и 19): значок, подпись, число справа, стрелка. */
+/**
+ * Список разделов (макеты 12 и 19) в духе приложения Upwork: строки с тонкими разделителями, без карточки и
+ * заливки; значок, подпись, число справа, стрелка. Главный пункт — зелёная жирная подпись.
+ */
 export function LinkList({ items, label, className }: { items: readonly LinkListItem[]; label?: string; className?: string }) {
   return (
-    <ul aria-label={label} className={cn("flex flex-col overflow-hidden rounded-card border border-line bg-surface p-1.5 shadow-card", className)}>
-      {items.map((item, i) => (
-        <li key={item.href} className={cn(i > 0 && !item.highlight && !items[i - 1]?.highlight && "border-t border-line")}>
+    <ul aria-label={label} className={cn("flex flex-col divide-y divide-line border-y border-line", className)}>
+      {items.map((item) => (
+        <li key={item.href}>
           <Link
             href={item.href}
             className={cn(
-              "flex min-h-control items-center gap-3 rounded-control px-3 py-2 no-underline transition-colors duration-150",
-              item.highlight ? "bg-primary text-on-primary hover:bg-primary-hover" : "text-ink hover:bg-sunken",
+              "flex min-h-control items-center gap-3 px-1 py-2 no-underline transition-colors duration-150 hover:bg-sunken",
+              item.highlight ? "text-primary" : "text-ink",
             )}
           >
             {item.icon && (
-              <span aria-hidden className={cn("inline-flex shrink-0 [&_svg]:size-6", item.highlight ? "text-on-primary" : "text-primary")}>
+              <span aria-hidden className="inline-flex shrink-0 text-primary [&_svg]:size-6">
                 {item.icon}
               </span>
             )}
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-base font-semibold">{item.label}</span>
-              {item.description && <span className={cn("text-sm", item.highlight ? "text-on-primary" : "text-muted")}>{item.description}</span>}
+              <span className={cn("text-base", item.highlight ? "font-bold" : "font-semibold")}>{item.label}</span>
+              {item.description && <span className="text-sm text-muted">{item.description}</span>}
             </span>
-            {item.meta !== undefined && (
-              <span className={cn("shrink-0 text-base font-semibold tabular-nums", item.highlight ? "text-on-primary" : "text-ink-soft")}>{item.meta}</span>
-            )}
-            <ChevronRight aria-hidden className={cn("size-5 shrink-0", item.highlight ? "text-on-primary" : "text-muted")} />
+            {item.meta !== undefined && <span className="shrink-0 text-base font-semibold text-ink-soft tabular-nums">{item.meta}</span>}
+            <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
           </Link>
         </li>
       ))}
@@ -232,7 +233,7 @@ export function Stat({ value, label, icon, href, className }: StatProps) {
   const body = (
     <>
       {icon && (
-        <span aria-hidden className="inline-flex size-10 shrink-0 items-center justify-center rounded-control bg-accent-soft text-primary [&_svg]:size-5">
+        <span aria-hidden className="inline-flex shrink-0 pt-1 text-primary [&_svg]:size-6">
           {icon}
         </span>
       )}
@@ -242,9 +243,9 @@ export function Stat({ value, label, icon, href, className }: StatProps) {
       </span>
     </>
   );
-  const box = "flex min-w-0 items-start gap-3 rounded-card border border-line bg-surface p-4 shadow-card";
+  const box = "flex min-w-0 items-start gap-3 rounded-card border border-line bg-surface p-4";
   return href ? (
-    <Link href={href} className={cn(box, "no-underline transition-shadow duration-150 hover:shadow-raised", className)}>
+    <Link href={href} className={cn(box, "no-underline transition-colors duration-150 hover:border-line-strong", className)}>
       {body}
     </Link>
   ) : (

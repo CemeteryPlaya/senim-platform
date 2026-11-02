@@ -47,7 +47,7 @@ function SourceButton({ icon, title, text, disabled, onClick }: SourceButtonProp
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex min-h-control flex-col items-start gap-3 rounded-card border border-line bg-surface p-5 text-left shadow-card",
+        "flex min-h-control flex-col items-start gap-3 rounded-card border border-line bg-surface p-5 text-left",
         "transition-colors duration-150 hover:border-primary disabled:cursor-not-allowed disabled:opacity-60",
       )}
     >

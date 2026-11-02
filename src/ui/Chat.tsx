@@ -77,7 +77,7 @@ export function Chat({ messages, onSend, disabledReason, title = ru.common.ui.ch
   };
 
   return (
-    <section aria-labelledby={titleId} className={cn("flex flex-col rounded-card border border-line bg-surface shadow-card", className)}>
+    <section aria-labelledby={titleId} className={cn("flex flex-col rounded-card border border-line bg-surface", className)}>
       <h2 id={titleId} className="border-b border-line px-4 py-3 text-lg font-semibold text-ink">
         {title}
       </h2>

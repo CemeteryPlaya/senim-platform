@@ -238,7 +238,7 @@ export function RadioCards({ label, hint, error, optional, name, options, value,
           <label
             key={o.value}
             className={cn(
-              "group relative flex min-h-control min-w-0 cursor-pointer flex-col overflow-hidden rounded-card border-2 bg-surface shadow-card",
+              "group relative flex min-h-control min-w-0 cursor-pointer flex-col overflow-hidden rounded-card border-2 bg-surface",
               "transition-colors duration-150 hover:border-line-strong",
               error ? "border-danger" : "border-line",
               "has-checked:border-primary",

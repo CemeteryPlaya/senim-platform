@@ -4,7 +4,7 @@
  */
 export const BRAND_COLORS = {
   primary: "#007d50",
-  canvas: "#f1f5f9",
+  canvas: "#ffffff",
   surface: "#ffffff",
   ink: "#151a22",
   muted: "#566070",
