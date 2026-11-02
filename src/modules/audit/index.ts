@@ -1,6 +1,9 @@
 import "server-only";
 import type { Role } from "@/generated/prisma/enums";
 import { db, Prisma, type Db } from "@/platform/db";
+import { NO_ORIGIN, requestOrigin, type Origin } from "./origin";
+
+export { clientIpFrom, NO_ORIGIN, originFrom, requestOrigin, type Origin } from "./origin";
 
 /**
  * Неизменяемый журнал событий, общий для всех модулей.
@@ -22,12 +25,19 @@ export type AuditInput = {
   before?: Prisma.InputJsonValue;
   after?: Prisma.InputJsonValue;
   meta?: Prisma.InputJsonValue;
+  /**
+   * Откуда (ТЗ п. 11). Не задан — для действия человека берётся из заголовков текущего запроса
+   * (requestOrigin: IP с учётом TRUST_PROXY и User-Agent), вызывающему передавать ничего не нужно;
+   * для системы — null. Задан явно — как есть (например, запрос пришёл не через Next).
+   */
+  origin?: Origin;
 };
 
 export const SYSTEM = (name: string): Actor => ({ kind: "system", name });
 
 export async function recordAudit(tx: Db, input: AuditInput): Promise<void> {
   const { actor } = input;
+  const origin = input.origin ?? (actor.kind === "user" ? await requestOrigin() : NO_ORIGIN);
   await tx.auditEvent.create({
     data: {
       actorId: actor.kind === "user" ? actor.id : null,
@@ -39,6 +49,8 @@ export async function recordAudit(tx: Db, input: AuditInput): Promise<void> {
       before: input.before,
       after: input.after,
       meta: actor.kind === "system" ? { system: actor.name, ...(asObject(input.meta) ?? {}) } : input.meta,
+      ip: origin.ip,
+      userAgent: origin.userAgent,
     },
   });
 }
