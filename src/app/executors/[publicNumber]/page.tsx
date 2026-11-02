@@ -25,7 +25,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: page ? page.view.label : ru.common.errors.notFound };
 }
 
-/** Публичная страница исполнителя: анонимно — «Исполнитель №N», без наименования, ФИО, телефона и ИИН/БИН. */
+/**
+ * Публичная страница исполнителя: по умолчанию «Исполнитель №N», город и район; в режиме «имя показано» (№6) —
+ * наименование и полный адрес. Телефона и ИИН/БИН нет ни в одном режиме.
+ */
 export default async function ExecutorPublicPage({ params }: Props) {
   const page = await loadPage((await params).publicNumber);
   if (!page) notFound();
@@ -33,7 +36,7 @@ export default async function ExecutorPublicPage({ params }: Props) {
 
   return (
     <Container className="flex flex-col gap-8 pb-12">
-      <PageHeader title={view.label} description={t.description} back={{ href: "/catalog", label: t.back }} className="pb-0" />
+      <PageHeader title={view.label} description={t.description[view.nameShown ? "shown" : "hidden"]} back={{ href: "/catalog", label: t.back }} className="pb-0" />
 
       <section aria-labelledby="facts" className="flex flex-col gap-4">
         <h2 id="facts" className="sr-only">
@@ -44,6 +47,7 @@ export default async function ExecutorPublicPage({ params }: Props) {
           <SegmentBadge segment={view.segment} />
         </div>
         <ul className="flex flex-col gap-2 text-base text-ink-soft">
+          {view.address && <li>{ru.companies.identity.address}: {view.address}</li>}
           <li>{e.experience(view.yearsExperience)}</li>
           <li>{e.completedDeals(view.completedDeals)}</li>
           <li>
