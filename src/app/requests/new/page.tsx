@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { listFurnitureTypes } from "@/modules/companies";
-import { getDraft, likeTarget, segmentInputOf, WIZARD_SCREENS, type Draft, type WizardScreen } from "@/modules/requests";
+import { activePreContractFlow, flowRules, getDraft, likeTarget, segmentInputOf, WIZARD_SCREENS, type Draft, type WizardScreen } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { Alert, Container, Stepper } from "@/ui";
 import { orNotFound, pageUser } from "../_parts/guard";
@@ -48,6 +48,8 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
   const back = index === 0 || !draft ? "/requests" : hrefOf(draft.id, WIZARD_SCREENS[index - 1]);
   const base = { draftId: draft?.id ?? null, like: like?.id ?? null, next };
   const directLabel = draft?.targetLabel ?? like?.executor.label ?? null;
+  // Сценарий площадки для новой заявки: в онлайн-замере размеры и фото с рулеткой обязательны (ADR-005).
+  const selfMeasure = flowRules(await activePreContractFlow()).selfMeasure;
 
   return (
     <Container size="form" className="flex flex-col gap-8 pt-4 pb-10">
@@ -66,6 +68,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
         <RoomStep
           {...base}
           photos={draft.photos}
+          selfMeasure={selfMeasure}
           aiSlot={
             aiEnabled() && draft.photos.length > 0 ? (
               <VisualizationPanel requestId={draft.id} photos={draft.photos} initial={await listVisualizations(user, draft.id)} />
@@ -73,7 +76,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
           }
         />
       )}
-      {screen === "size" && draft && <SizeStep {...base} details={draft.details} />}
+      {screen === "size" && draft && <SizeStep {...base} details={draft.details} selfMeasure={selfMeasure} />}
       {screen === "materials" && draft && <MaterialsStep {...base} details={draft.details} />}
       {screen === "send" && draft && <SendScreen draft={draft} directLabel={directLabel} />}
     </Container>

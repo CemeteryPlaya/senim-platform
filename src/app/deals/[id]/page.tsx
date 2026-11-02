@@ -4,6 +4,7 @@ import { cache, type ReactNode } from "react";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { SigningPanel } from "@/app/_components/signing";
 import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
+import { DealFlowSteps } from "@/app/_components/pre-contract/DealFlowSteps";
 import { listDealDocuments, type SigningDocumentView } from "@/modules/documents";
 import { getCurrentUser, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
@@ -67,6 +68,7 @@ export default async function DealPage({ params }: Props) {
         actions={<StatusBadge tone={DEAL_TONE[deal.status]}>{t.status[deal.status]}</StatusBadge>}
       />
       <div className="flex flex-col gap-6">
+        <DealFlowSteps user={user} offerId={deal.offerId} />
         <NextStepCard deal={deal} />
         <Summary deal={deal} />
         <Section id="contract" title={t.sections.contract} note={t.contract.revealNote}>

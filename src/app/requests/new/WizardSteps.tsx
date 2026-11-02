@@ -185,7 +185,7 @@ export function StyleStep(props: StepBase & { initial: { style: string | null; s
 
 // ─── 3. Помещение ────────────────────────────────────────────────────────────
 
-export function RoomStep(props: StepBase & { photos: { id: string; src: string }[]; aiSlot?: ReactNode }) {
+export function RoomStep(props: StepBase & { photos: { id: string; src: string }[]; aiSlot?: ReactNode; selfMeasure?: boolean }) {
   const { submit, pending, error, errors } = useStep(props);
   const [photoIds, setPhotoIds] = useState(props.photos.map((p) => p.id));
   const save = () => submit({ screen: "room", photoFileIds: photoIds });
@@ -206,7 +206,7 @@ export function RoomStep(props: StepBase & { photos: { id: string; src: string }
       <Uploader
         purpose="REQUEST_ROOM"
         label={w.room.photosLabel}
-        hint={w.room.hint}
+        hint={props.selfMeasure ? ru.requests.pre.selfMeasure.roomHint : w.room.hint}
         max={LIMITS.photos}
         initial={props.photos.map((p) => ({ id: p.id, url: p.src }))}
         onChange={setPhotoIds}
@@ -222,12 +222,31 @@ export function RoomStep(props: StepBase & { photos: { id: string; src: string }
 
 const toCm = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
 
-export function SizeStep(props: StepBase & { details: RequestDetails }) {
+/** Онлайн-замер (сценарий 5, ADR-005): как снять размеры самому — по шагам. */
+function SelfMeasureGuide() {
+  const s = ru.requests.pre.selfMeasure;
+  return (
+    <section aria-labelledby="self-measure" className="flex flex-col gap-3 rounded-card bg-accent-soft p-5">
+      <h3 id="self-measure" className="text-lg font-bold text-ink">
+        {s.howTitle}
+      </h3>
+      <ol className="flex list-decimal flex-col gap-2 pl-6 text-base text-ink">
+        {s.how.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+export function SizeStep(props: StepBase & { details: RequestDetails; selfMeasure?: boolean }) {
   const { submit, pending, error, errors } = useStep(props);
   const d = props.details;
-  const [mode, setMode] = useState<"known" | "unknown">(d.unknown?.includes("size") ? "unknown" : "known");
+  const self = props.selfMeasure === true;
+  const [mode, setMode] = useState<"known" | "unknown">(!self && d.unknown?.includes("size") ? "unknown" : "known");
   const [size, setSize] = useState({ w: d.widthCm?.toString() ?? "", h: d.heightCm?.toString() ?? "", d: d.depthCm?.toString() ?? "" });
-  const sizeError = first(errors, "size");
+  const [localError, setLocalError] = useState<string>();
+  const sizeError = localError ?? first(errors, "size");
   const field = (key: "w" | "h" | "d", label: string, required: boolean) => (
     <Input
       label={label}
@@ -242,16 +261,21 @@ export function SizeStep(props: StepBase & { details: RequestDetails }) {
   return (
     <StepForm
       errors={errors}
-      onSubmit={() =>
+      onSubmit={() => {
+        // Онлайн-замер: нужны все три размера — по ним исполнители считают цену.
+        if (self && (!size.w.trim() || !size.h.trim() || !size.d.trim())) return setLocalError(ru.requests.pre.errors.selfMeasureIncomplete);
+        setLocalError(undefined);
         submit({
           screen: "size",
           size: mode === "unknown" ? { mode } : { mode, widthCm: toCm(size.w), heightCm: toCm(size.h), depthCm: toCm(size.d) },
-        })
-      }
+        });
+      }}
       actions={<NextButton pending={pending} />}
     >
-      <StepHeading title={w.size.title} lead={w.size.lead} />
+      <StepHeading title={self ? ru.requests.pre.selfMeasure.title : w.size.title} lead={self ? ru.requests.pre.selfMeasure.lead : w.size.lead} />
       <p className="text-base font-semibold text-muted">{w.detailsPart(1)}</p>
+      {self && <SelfMeasureGuide />}
+      {!self && (
       <RadioCards
         label={w.size.modeLabel}
         name="sizeMode"
@@ -263,11 +287,12 @@ export function SizeStep(props: StepBase & { details: RequestDetails }) {
           { value: "unknown", label: w.unknown, description: w.size.unknownHint },
         ]}
       />
+      )}
       {mode === "known" && (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-3">
           {field("w", w.size.width, true)}
-          {field("h", w.size.height, false)}
-          {field("d", w.size.depth, false)}
+          {field("h", w.size.height, self)}
+          {field("d", w.size.depth, self)}
         </div>
       )}
       <FormError message={error} />

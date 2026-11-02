@@ -16,6 +16,9 @@ import { orNotFound, pageUser } from "../_parts/guard";
 import { REQUEST_TONE } from "../_parts/labels";
 import { detailRows, FactList } from "../_parts/RequestFacts";
 import { AgreeForm } from "./AgreeForm";
+import { ClientProject, ContractTerms, DepositClient, SiteWait } from "./PreContractClient";
+import { FlowSteps } from "@/app/_components/pre-contract/FlowSteps";
+import { SizesBasis, siteRows } from "@/app/_components/pre-contract/SizesBasis";
 import { OfferCard } from "./OfferCard";
 import { NoAccess } from "@/app/_components/NoAccess";
 
@@ -54,7 +57,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
   if (request.status === "DRAFT") redirect(`/requests/new?draft=${id}`);
   const sort: OfferSort = OFFER_SORTS.find((s) => s === sp.sort) ?? "price";
   const offers = await listOffers(user, { requestId: id, sort });
-  const needsIdentity = request.status === "MEASURING" && !(await hasClientIdentity(user.id));
+  const needsIdentity = (request.status === "MEASURING" || request.status === "OFFER_CHOSEN") && !(await hasClientIdentity(user.id));
   const rail = await activeRailMode();
 
   return (
@@ -71,7 +74,8 @@ export default async function RequestPage({ params, searchParams }: Props) {
         }
       />
 
-      {sp.sent === "1" && request.status === "OPEN" && (
+      <FlowSteps flow={request.pre.flow} steps={request.pre.steps} current={request.pre.current} />
+      {sp.sent === "1" && (request.status === "OPEN" || request.status === "PLATFORM_MEASURING") && (
         <Alert tone="success" live="polite" title={t.sentTitle}>
           {t.sentText}
         </Alert>
@@ -83,6 +87,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
           <h2 id="offers-title" className="text-2xl font-bold text-ink">
             {t.offersTitle} <span className="text-muted">({offers.length})</span>
           </h2>
+          <SizesBasis pre={request.pre} />
           {offers.length > 1 && <SortLinks requestId={id} current={sort} />}
         </div>
         {offers.length === 0 ? (
@@ -105,6 +110,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
         <FactList
           rows={[
             ...detailRows({ title: request.title, style: request.style, details: request.details }),
+            ...siteRows(request.pre),
             { label: ru.requests.facts.city, value: request.city },
             ...(request.address ? [{ label: ru.requests.facts.address, value: request.address }] : []),
             ...(request.wishes ? [{ label: ru.requests.facts.wishes, value: request.wishes }] : []),
@@ -152,11 +158,14 @@ function SortLinks({ requestId, current }: { requestId: string; current: OfferSo
   );
 }
 
-/** Что происходит с заявкой сейчас и одно главное действие для этого шага. */
-function StatusPanel({ request, needsIdentity, rail }: { request: ClientRequest; needsIdentity: boolean; rail: RailMode }) {
+type PanelProps = { request: ClientRequest; needsIdentity: boolean; rail: RailMode };
+
+/** «Сделка не состоится» после выезда исполнителя: отклик отклоняется, заявка снова открыта. */
+function NoDealButton({ request }: { request: ClientRequest }) {
   const { chosen, measurement: m } = request;
+  if (!m) return null;
   const fee = chosen?.measurementTerms === "FEE_IF_NO_DEAL" && chosen.measurementFee ? chosen.measurementFee : null;
-  const noDeal = m && (
+  return (
     <ActionButton
       action={clientNoDealAction}
       input={{ measurementId: m.id, result: "" }}
@@ -176,16 +185,42 @@ function StatusPanel({ request, needsIdentity, rail }: { request: ClientRequest;
       {t.noDeal}
     </ActionButton>
   );
+}
 
-  switch (request.status) {
-    case "OPEN":
+/** Согласие на договор без выезда исполнителя: цена утверждённого проекта или отклика с допуском, порядок оплаты. */
+function AgreePanel({ request, needsIdentity, rail }: PanelProps) {
+  const { pre } = request;
+  return (
+    <section aria-labelledby="agree" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+      <h2 id="agree" className="text-xl font-bold text-ink">
+        {ru.requests.pre.steps.contract}
+      </h2>
+      <ContractTerms pre={pre} />
+      {pre.approvedProject && (
+        <p className="flex flex-col">
+          <span className="text-base text-muted">{ru.requests.pre.agree.projectPrice}</span>
+          <Money amount={pre.approvedProject.totalPrice} className="text-3xl font-extrabold text-ink" />
+        </p>
+      )}
+      <AgreeForm requestId={request.id} needsIdentity={needsIdentity} rail={rail} />
+    </section>
+  );
+}
+
+/** Отклик выбран: следующий шаг по сценарию — залог, замер исполнителем, проект или договор. */
+function ChosenPanel(props: PanelProps) {
+  const { request } = props;
+  const { chosen, pre } = request;
+  if (!chosen) return null;
+  switch (pre.current) {
+    case "deposit":
+      return <DepositClient pre={pre} offerId={chosen.id} />;
+    case "project":
+      return <ClientProject pre={pre} />;
+    case "contract":
+      return <AgreePanel {...props} />;
+    default:
       return (
-        <Alert tone="accent" title={t.waitingTitle}>
-          {t.waitingText}
-        </Alert>
-      );
-    case "OFFER_CHOSEN":
-      return chosen ? (
         <Alert
           tone="accent"
           title={t.chosenTitle(chosen.executorLabelGen)}
@@ -195,46 +230,81 @@ function StatusPanel({ request, needsIdentity, rail }: { request: ClientRequest;
             </ButtonLink>
           }
         >
-          {t.chosenText}
+          {pre.deposit?.status === "CONFIRMED" ? ru.requests.pre.deposit.confirmedClient : t.chosenText}
         </Alert>
-      ) : null;
+      );
+  }
+}
+
+/** Замер исполнителем: назначен → выполнен → проект → согласие на договор. */
+function MeasuringPanel(props: PanelProps) {
+  const { request } = props;
+  const { measurement: m, pre } = request;
+  if (!m) return null;
+  if (m.status !== "DONE" || m.finalPrice === null) {
+    return (
+      <Alert tone="info" title={t.scheduledTitle} action={<NoDealButton request={request} />}>
+        {t.scheduledText(formatDateTime(m.scheduledAt))}
+      </Alert>
+    );
+  }
+  const approved = pre.current === "contract" ? pre.approvedProject : null;
+  return (
+    <>
+      <section aria-labelledby="measured" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
+        <h2 id="measured" className="text-xl font-bold text-ink">
+          {t.measuredTitle}
+        </h2>
+        <p className="flex flex-col">
+          <span className="text-base text-muted">{approved ? ru.requests.pre.agree.projectPrice : t.finalPrice}</span>
+          <Money amount={approved ? approved.totalPrice : m.finalPrice} className="text-3xl font-extrabold text-ink" />
+        </p>
+        {m.result && (
+          <p className="text-base text-ink">
+            <span className="text-muted">{t.measurementResult}: </span>
+            {m.result}
+          </p>
+        )}
+        {approved && <AgreeForm requestId={request.id} needsIdentity={props.needsIdentity} rail={props.rail} />}
+        <div className="self-start">
+          <NoDealButton request={request} />
+        </div>
+      </section>
+      {!approved && <ClientProject pre={pre} />}
+    </>
+  );
+}
+
+/** Что происходит с заявкой сейчас и одно главное действие для этого шага. */
+function StatusPanel(props: PanelProps) {
+  const { request } = props;
+  switch (request.status) {
+    case "PLATFORM_MEASURING":
+      return <SiteWait pre={request.pre} />;
+    case "OPEN":
+      return (
+        <Alert tone="accent" title={t.waitingTitle}>
+          {t.waitingText}
+        </Alert>
+      );
+    case "OFFER_CHOSEN":
+      return <ChosenPanel {...props} />;
     case "MEASURING":
-      if (m?.status === "DONE" && m.finalPrice !== null) {
-        return (
-          <section aria-labelledby="measured" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-6">
-            <h2 id="measured" className="text-xl font-bold text-ink">
-              {t.measuredTitle}
-            </h2>
-            <p className="flex flex-col">
-              <span className="text-base text-muted">{t.finalPrice}</span>
-              <Money amount={m.finalPrice} className="text-3xl font-extrabold text-ink" />
-            </p>
-            {m.result && (
-              <p className="text-base text-ink">
-                <span className="text-muted">{t.measurementResult}: </span>
-                {m.result}
-              </p>
-            )}
-            <AgreeForm requestId={request.id} needsIdentity={needsIdentity} rail={rail} />
-            <div className="self-start">{noDeal}</div>
-          </section>
-        );
-      }
-      return m ? (
-        <Alert tone="info" title={t.scheduledTitle} action={noDeal}>
-          {t.scheduledText(formatDateTime(m.scheduledAt))}
-        </Alert>
-      ) : null;
+      return <MeasuringPanel {...props} />;
     case "CONTRACTING":
     case "CLOSED":
       return (
-        <Alert
-          tone="success"
-          title={request.status === "CONTRACTING" ? t.contractingTitle : undefined}
-          action={request.deal && <ButtonLink href={`/deals/${request.deal.id}`}>{t.openDeal}</ButtonLink>}
-        >
-          {request.status === "CONTRACTING" ? t.contractingText : t.closedText}
-        </Alert>
+        <>
+          <Alert
+            tone="success"
+            title={request.status === "CONTRACTING" ? t.contractingTitle : undefined}
+            action={request.deal && <ButtonLink href={`/deals/${request.deal.id}`}>{t.openDeal}</ButtonLink>}
+          >
+            {request.status === "CONTRACTING" ? t.contractingText : t.closedText}
+          </Alert>
+          {/* «Договор до замера»: проект утверждается уже по договору. */}
+          {!request.pre.rules.projectBeforeContract && <ClientProject pre={request.pre} />}
+        </>
       );
     case "CANCELLED":
       return <Alert tone="info">{t.cancelledText}</Alert>;

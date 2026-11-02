@@ -6,24 +6,23 @@ import { fail } from "@/platform/errors";
 import { preContractView } from "./pre-contract";
 
 /**
- * Шкала шагов заявки для экрана сделки: сценарий до договора и текущий шаг.
- * Видят заказчик заявки, исполнитель выбранного отклика и оператор; остальным — «не найдено» (IDOR).
+ * Шкала шагов заявки для экрана сделки (у сделки есть offerId): сценарий до договора и текущий шаг.
+ * Видят заказчик заявки, исполнитель отклика и оператор; остальным — «не найдено» (IDOR).
  */
-export async function getFlowProgress(user: CurrentUser, requestId: string) {
-  const r = await db.request.findUnique({
-    where: { id: requestId },
+export async function getFlowProgress(user: CurrentUser, input: { offerId: string }) {
+  const offer = await db.offer.findUnique({
+    where: { id: input.offerId },
     select: {
       id: true,
+      price: true,
       status: true,
-      preContractFlow: true,
-      clientId: true,
-      offers: { where: { status: "ACCEPTED" }, select: { id: true, price: true, status: true, executor: { select: { userId: true } } }, take: 1 },
+      executor: { select: { userId: true } },
+      request: { select: { id: true, status: true, preContractFlow: true, clientId: true } },
     },
   });
-  const chosen = r?.offers[0] ?? null;
-  const allowed = r && (user.role === "OPERATOR" || r.clientId === user.id || chosen?.executor.userId === user.id);
-  if (!r || !allowed) return fail.notFound(ru.requests.errors.notFound);
-  const view = await preContractView(db, r, chosen);
+  const allowed = offer && (user.role === "OPERATOR" || offer.request.clientId === user.id || offer.executor.userId === user.id);
+  if (!offer || !allowed) return fail.notFound(ru.requests.errors.notFound);
+  const view = await preContractView(db, offer.request, offer);
   return { flow: view.flow, steps: view.steps, current: view.current };
 }
 export type FlowProgress = Awaited<ReturnType<typeof getFlowProgress>>;

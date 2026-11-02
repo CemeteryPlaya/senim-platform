@@ -12,6 +12,9 @@ import { detailRows, FactList } from "@/app/requests/_parts/RequestFacts";
 import { executorNoDealAction, withdrawOfferAction } from "../actions";
 import { CompleteForm, OfferForm, ScheduleForm } from "../ExecutorForms";
 import { NoAccess } from "@/app/_components/NoAccess";
+import { FlowSteps } from "@/app/_components/pre-contract/FlowSteps";
+import { SizesBasis, siteRows } from "@/app/_components/pre-contract/SizesBasis";
+import { DepositExecutor, ExecutorProject } from "./PreContractExecutor";
 
 const t = ru.requests.executorRequest;
 const f = ru.requests.facts;
@@ -36,9 +39,11 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
           <span className="flex flex-wrap items-center gap-2">
             {r.segment && <StatusBadge>{SEGMENT_NAMES[r.segment]}</StatusBadge>}
             {r.mode === "DIRECT" && <StatusBadge tone="accent">{ru.requests.mode.DIRECT}</StatusBadge>}
+            <SizesBasis pre={r.pre} />
           </span>
         }
       />
+      <FlowSteps flow={r.pre.flow} steps={r.pre.steps} current={r.pre.current} />
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <section aria-labelledby="request-facts" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 sm:p-6">
@@ -48,6 +53,7 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
           <FactList
             rows={[
               ...detailRows({ title: r.title, style: r.style, details: r.details }),
+              ...siteRows(r.pre),
               { label: f.city, value: r.city },
               { label: f.address, value: r.address ?? <span className="text-muted">{f.addressHidden}</span> },
               ...(r.desiredDate ? [{ label: f.desiredDate, value: formatDate(r.desiredDate) }] : []),
@@ -133,6 +139,16 @@ function NextStep({ r }: { r: IncomingRequest }) {
       </>,
     );
   }
+  if (r.retryAllowed && r.canOffer) {
+    return (
+      <>
+        <Alert tone="accent" title={ru.requests.pre.retry.allowedTitle}>
+          {ru.requests.pre.retry.allowedText}
+        </Alert>
+        <OfferForm requestId={r.id} defaults={r.defaults} />
+      </>
+    );
+  }
   if (offer.status === "WITHDRAWN") return card(<p className="text-base text-ink-soft">{t.withdrawnText}</p>);
   if (offer.status === "DECLINED") {
     return card(
@@ -157,7 +173,19 @@ function NextStep({ r }: { r: IncomingRequest }) {
       {t.noDeal}
     </ActionButton>
   );
-  if (!m) {
+  if (r.status === "CONTRACTING" || r.status === "CLOSED") {
+    return card(
+      <>
+        <Alert tone="success" action={<ButtonLink href="/deals">{ru.common.nav.deals}</ButtonLink>}>
+          {t.contractingText}
+        </Alert>
+        {/* «Договор до замера»: проект — уже по договору, цена в пределах допуска. */}
+        {!r.pre.rules.projectBeforeContract && <ExecutorProject pre={r.pre} offer={offer} />}
+      </>,
+    );
+  }
+  if (r.pre.current === "deposit") return card(<DepositExecutor pre={r.pre} offerId={offer.id} />);
+  if (!m && r.pre.current === "measure") {
     return card(
       <>
         <Alert tone="accent" title={t.chosenTitle}>
@@ -167,7 +195,7 @@ function NextStep({ r }: { r: IncomingRequest }) {
       </>,
     );
   }
-  if (m.status === "SCHEDULED") {
+  if (m?.status === "SCHEDULED") {
     return card(
       <>
         <p className="text-base font-semibold text-ink">{t.scheduledTitle(formatDateTime(m.scheduledAt))}</p>
@@ -176,23 +204,24 @@ function NextStep({ r }: { r: IncomingRequest }) {
       </>,
     );
   }
-  if (r.status === "CONTRACTING" || r.status === "CLOSED") {
+  if (r.pre.current === "project") {
     return card(
-      <Alert tone="success" action={<ButtonLink href="/deals">{ru.common.nav.deals}</ButtonLink>}>
-        {t.contractingText}
-      </Alert>,
+      <>
+        <ExecutorProject pre={r.pre} offer={offer} />
+        {noDeal}
+      </>,
     );
   }
+  // Шаг договора: ждём согласия заказчика (проект утверждён или — в «договоре до замера» — сразу после выбора).
   return card(
     <>
-      <Alert tone="info" title={t.doneTitle}>
-        {m.finalPrice !== null && (
-          <>
-            {ru.requests.measurements.finalPrice}: <Money amount={m.finalPrice} />.{" "}
-          </>
-        )}
-        {t.doneText}
-      </Alert>
+      {r.pre.approvedProject ? (
+        <ExecutorProject pre={r.pre} offer={offer} />
+      ) : (
+        <Alert tone="info" title={ru.requests.pre.agree.contractFirstTitle}>
+          {ru.requests.pre.agree.executorWaitContract}
+        </Alert>
+      )}
       {noDeal}
     </>,
   );

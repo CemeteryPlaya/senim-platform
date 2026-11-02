@@ -12,8 +12,11 @@ export type StepperProps = {
   steps: readonly string[];
   /** Текущий шаг, считая с нуля. */
   current: number;
-  /** «Назад» есть на каждом шаге: ссылка или обработчик. На первом шаге — выход из мастера. */
-  back: StepperBack;
+  /**
+   * «Назад» есть на каждом шаге мастера: ссылка или обработчик. На первом шаге — выход из мастера.
+   * Без back — только шкала шагов (этапы заявки на экране, где «Назад» уже есть в заголовке).
+   */
+  back?: StepperBack;
   backLabel?: string;
   /** Подпись навигации для диктора. */
   label?: string;
@@ -38,7 +41,7 @@ export function Stepper({ steps, current, back, backLabel = ru.common.actions.ba
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
-      {"href" in back ? (
+      {back === undefined ? null : "href" in back ? (
         <Link href={back.href} className={backClass}>
           {backContent}
         </Link>
