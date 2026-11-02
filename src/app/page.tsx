@@ -3,6 +3,7 @@ import { ArrowRight, BadgeCheck, ListChecks, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, cn, Container } from "@/ui";
+import { InstallBanner } from "./_components/install";
 import { LOGIN_HREF } from "./_shell/nav";
 
 const t = ru.landing;
@@ -62,6 +63,8 @@ export default function HomePage() {
               {t.login}
             </Link>
           </p>
+
+          <InstallBanner />
         </Container>
       </section>
 

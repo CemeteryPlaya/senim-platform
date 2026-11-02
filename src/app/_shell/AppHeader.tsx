@@ -5,6 +5,7 @@ import { ru } from "@/i18n/ru";
 import { ButtonLink, StatusBadge } from "@/ui";
 import { LogoutButton } from "../_components/auth/LogoutButton";
 import { SwitchRoleButton } from "../_components/auth/RoleButtons";
+import { InstallMenuItem } from "../_components/install";
 import { NotificationBell } from "../_components/notifications";
 import { LOGIN_HREF, navFor } from "./nav";
 import { DesktopNav, MobileTabBar } from "./ShellNav";
@@ -71,6 +72,7 @@ export function AppHeader({ user, demoMode }: Props) {
           user ? (
             <>
               {targets.length > 0 && <RoleSwitcher targets={targets} fullWidth />}
+              <InstallMenuItem />
               <LogoutButton variant="ghost" fullWidth />
             </>
           ) : undefined
