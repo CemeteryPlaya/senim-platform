@@ -1,7 +1,16 @@
 "use server";
 
 import { z } from "zod";
-import { CHAT_CLOSE_REASON_MAX, CHAT_MAX_LENGTH, closeChat, getChat, reopenChat, sendMessage } from "@/modules/companies";
+import {
+  CHAT_CLOSE_REASON_MAX,
+  CHAT_MAX_LENGTH,
+  closeChat,
+  getChat,
+  reopenChat,
+  revokeClientPhone,
+  sendMessage,
+  shareClientPhone,
+} from "@/modules/companies";
 import { requireUser } from "@/modules/identity";
 import { action } from "@/platform/action";
 
@@ -37,4 +46,16 @@ export const closeChatAction = action(
 export const reopenChatAction = action("companies.reopenChat", z.object({ offerId }), async (input) => {
   const user = await requireUser("OPERATOR");
   await reopenChat(user, input.offerId);
+});
+
+/** Заказчик показывает свой телефон исполнителю отклика (№21): только после переписки, проверяет companies. */
+export const shareClientPhoneAction = action("companies.shareClientPhone", z.object({ offerId }), async (input) => {
+  const user = await requireUser("CLIENT");
+  await shareClientPhone(user, input.offerId);
+});
+
+/** Заказчик скрывает свой телефон от исполнителя отклика. */
+export const revokeClientPhoneAction = action("companies.revokeClientPhone", z.object({ offerId }), async (input) => {
+  const user = await requireUser("CLIENT");
+  await revokeClientPhone(user, input.offerId);
 });

@@ -7,6 +7,7 @@ import type { ChatView } from "@/modules/companies";
 import { Alert, Chat, cn } from "@/ui";
 import { loadChat, sendChatMessage } from "./actions";
 import { ChatModeration } from "./ChatModeration";
+import { ClientPhone } from "./ClientPhone";
 
 /** Как часто обновлять ленту, пока вкладка видна. */
 const POLL_MS = 5_000;
@@ -61,6 +62,7 @@ export function OfferChatClient({ id, offerId, initial, title, reasonMax, classN
         onSend={send}
         disabledReason={chat.canWrite ? undefined : chat.closedReason}
       />
+      {chat.clientPhone && <ClientPhone offerId={offerId} view={chat.clientPhone} onChanged={refresh} />}
       {chat.canWrite && (
         <p className="flex items-start gap-2 text-sm text-muted">
           <ShieldCheck aria-hidden className="mt-0.5 size-4 shrink-0" />
