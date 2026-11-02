@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ArrowLeft, ArrowRight, Inbox } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarClock, Images, Inbox, MapPin, Package, Ruler, Store } from "lucide-react";
 import type { ReactNode } from "react";
 import { env } from "@/platform/env";
 import { ru } from "@/i18n/ru";
@@ -16,19 +16,24 @@ import {
   DemoBanner,
   EmptyState,
   Input,
+  LinkList,
   Money,
   PageHeader,
+  PhotoCard,
   RadioCards,
+  SectionTitle,
   Select,
   SimulatorBadge,
   Skeleton,
+  Stat,
   StatusBadge,
   Stepper,
   Textarea,
+  Timeline,
   type ChatMessage,
   type Tone,
 } from "@/ui";
-import { ChatDemo, LoadingButtonDemo, ModalDemo, PhotoDemo, StepperDemo } from "./KitDemos";
+import { ChatDemo, ChipsDemo, LoadingButtonDemo, ModalDemo, PhotoDemo, StepperDemo } from "./KitDemos";
 
 const k = ru.common.uiKit;
 const s = k.sample;
@@ -49,10 +54,16 @@ const SWATCHES = [
   ["accent", "bg-accent"],
   ["accent-soft", "bg-accent-soft"],
   ["info", "bg-info"],
+  ["info-soft", "bg-info-soft"],
   ["success", "bg-success"],
   ["warning", "bg-warning"],
+  ["warning-soft", "bg-warning-soft"],
   ["danger", "bg-danger"],
+  ["danger-soft", "bg-danger-soft"],
 ] as const;
+
+/** Плитки с картинками: иллюстрации из public/img (места под фото). */
+const TILE_KEYS = ["kitchen", "wardrobe", "closet", "hallway"] as const;
 
 const TONES: Tone[] = ["neutral", "accent", "info", "success", "warning", "danger"];
 
@@ -67,7 +78,7 @@ export default async function UiKitPage() {
   return (
     <Container className="flex flex-col gap-12 pb-8">
       <PageHeader title={k.title} description={k.description} back={{ href: "/" }} />
-      <Alert tone="warning">{k.tokensNote}</Alert>
+      <Alert tone="accent">{k.tokensNote}</Alert>
 
       <KitSection title={k.sections.colors}>
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -99,6 +110,7 @@ export default async function UiKitPage() {
           <Button variant="soft">{s.soft}</Button>
           <Button variant="ghost">{s.ghost}</Button>
           <Button variant="danger">{s.danger}</Button>
+          <Button variant="dangerSolid">{s.danger}</Button>
           <Button variant="soft" shape="pill">
             {s.login}
           </Button>
@@ -128,6 +140,13 @@ export default async function UiKitPage() {
       <KitSection title={k.sections.choice}>
         <div className="flex flex-col gap-6">
           <RadioCards label={s.materialLabel} name="material" options={s.materialOptions} defaultValue="mdf" columns={3} />
+          <RadioCards
+            label={s.tilesLabel}
+            name="tiles"
+            columns={3}
+            defaultValue="kitchen"
+            options={TILE_KEYS.map((key, i) => ({ value: key, label: s.tiles[i], image: { src: `/img/${key}.svg` } }))}
+          />
           <RadioCards label={s.materialLabel} name="material-error" options={s.materialOptions} error={s.agreeError} />
           <Checkbox label={s.agree} name="agree" defaultChecked />
           <Checkbox label={s.agree} name="agree-error" error={s.agreeError} />
@@ -162,6 +181,72 @@ export default async function UiKitPage() {
         </div>
       </KitSection>
 
+      <KitSection title={k.sections.photoCards}>
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
+          <PhotoCard
+            layout="row"
+            href="/ui-kit"
+            image={{ src: "/img/kitchen.svg" }}
+            title={s.photoTitle}
+            badge={<StatusBadge tone="info">{s.chips.comfort}</StatusBadge>}
+            meta={[
+              { icon: <MapPin />, text: s.photoCity },
+              { icon: <CalendarClock />, text: s.photoDate },
+            ]}
+            aside={<Money amount={1_650_000} />}
+          />
+          <PhotoCard layout="row" title={s.photoNoImage} meta={[{ icon: <MapPin />, text: s.photoCity }]} badge={<StatusBadge tone="warning">{s.badges.warning}</StatusBadge>} />
+        </div>
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))] lg:grid-cols-[repeat(3,minmax(0,1fr))]">
+          <PhotoCard
+            as="li"
+            image={{ src: "/img/closet.svg" }}
+            title={s.photoTitle}
+            meta={[{ text: s.photoSize }]}
+            footer={<Button fullWidth>{s.offerAction}</Button>}
+          />
+          <PhotoCard as="li" href="/ui-kit" image={{ src: "/img/hallway.svg" }} title={s.photoNoImage} meta={[{ icon: <MapPin />, text: s.photoCity }]} />
+          <PhotoCard as="li" title={s.photoNoImage} meta={[{ text: s.photoDate }]} />
+        </ul>
+      </KitSection>
+
+      <KitSection title={k.sections.chips}>
+        <ChipsDemo />
+      </KitSection>
+
+      <KitSection title={k.sections.lists}>
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
+          <div className="flex flex-col gap-4">
+            <SectionTitle title={s.sectionTitle} as="h3" action={{ href: "/ui-kit", label: s.seeAll }} />
+            <ul className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3">
+              <li className="flex">
+                <Stat className="flex-1" icon={<Inbox />} value={12} label={s.statRequests} />
+              </li>
+              <li className="flex">
+                <Stat className="flex-1" icon={<Package />} value={5} label={s.statDeals} href="/ui-kit" />
+              </li>
+            </ul>
+          </div>
+          <LinkList
+            items={[
+              { href: "/ui-kit", label: s.listRequests, icon: <Inbox />, meta: 12, highlight: true },
+              { href: "/ui-kit/#offers", label: s.listOffers, icon: <Ruler />, meta: 3 },
+              { href: "/ui-kit/#portfolio", label: s.listPortfolio, icon: <Images />, meta: 24 },
+              { href: "/ui-kit/#settings", label: s.listSettings, icon: <Store /> },
+            ]}
+          />
+        </div>
+      </KitSection>
+
+      <KitSection title={k.sections.timeline}>
+        <div className="max-w-form rounded-card border border-line bg-surface p-5 shadow-card">
+          <Timeline
+            label={s.timelineLabel}
+            items={s.timeline.map((item, i) => ({ ...item, state: i < 2 ? "done" : i === 2 ? "current" : "todo" }))}
+          />
+        </div>
+      </KitSection>
+
       <KitSection title={k.sections.alerts}>
         <div className="flex flex-col gap-3">
           <Alert tone="accent" title={s.alertAccentTitle}>
@@ -185,6 +270,9 @@ export default async function UiKitPage() {
         </div>
         <div className="max-w-form">
           <Stepper steps={s.steps} current={4} back={{ href: "/ui-kit" }} />
+        </div>
+        <div className="max-w-form">
+          <Stepper steps={s.steps.slice(1)} current={1} />
         </div>
       </KitSection>
 
