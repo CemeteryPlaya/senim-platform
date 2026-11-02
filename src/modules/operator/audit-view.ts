@@ -13,6 +13,9 @@ export type AuditView = {
   before: unknown;
   after: unknown;
   meta: unknown;
+  /** Откуда (ТЗ п. 11): IP с учётом TRUST_PROXY и устройство (User-Agent); у системных событий — нет. */
+  ip: string | null;
+  userAgent: string | null;
 };
 
 export function toAuditView(e: AuditEvent): AuditView {
@@ -28,5 +31,7 @@ export function toAuditView(e: AuditEvent): AuditView {
     before: e.before,
     after: e.after,
     meta: e.meta,
+    ip: e.ip,
+    userAgent: e.userAgent,
   };
 }

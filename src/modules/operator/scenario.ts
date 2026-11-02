@@ -1,70 +1,71 @@
 import type { Role } from "@/generated/prisma/enums";
-import type { RailMode } from "@/modules/payments";
 
 /** Демо-персона, под которой показывать шаг: имя и телефон для входа на /demo. */
 export type Persona = { userId: string; name: string; role: Role; phone: string };
 
-type Ref<P extends "client" | "executor"> = { id: string; number: number } & Record<P, Persona>;
+type Ref = { id: string; number: number };
+type WithParty<P extends "client" | "executor"> = Ref & Record<P, Persona>;
 
-/** Что сейчас есть в базе для каждого шага полного цикла (берётся из demo-данных). */
+/**
+ * Что сейчас есть в базе для каждого шага показа (docs/bank/05-demo-script.md): одна сделка на провайдере
+ * manual — оферта, оплата по банковскому документу, работа, акт, выплата, итог.
+ */
 export type ScenarioSnapshot = {
-  railMode: RailMode;
+  operator: Persona | null;
   newRequest?: { client: Persona };
-  tender?: Ref<"client"> & { offers: number };
-  measuring?: Ref<"executor">;
-  signing?: Ref<"client">;
-  /** accountId — счёт эскроу сделки: ссылка на экран симулятора банка /simulator/bank/<accountId>. */
-  deposit?: Ref<"client"> & { accountId: string | null };
-  inProgress?: Ref<"executor">;
-  completed?: Ref<"client">;
+  tender?: WithParty<"client">;
+  /** Оферта на подписи. */
+  signing?: WithParty<"client">;
+  /** Оферта заключена, оплата ждёт банковского документа (HOLD в PENDING). */
+  payment?: Ref;
+  /** Деньги под защитой: мастер начинает и сдаёт работу. */
+  work?: WithParty<"executor">;
+  /** Работа сдана: покупатель подписывает акт. */
+  act?: WithParty<"client">;
+  /** Акт подписан: пакет на раскрытие и подтверждение выплаты. */
+  payout?: Ref;
+  completed?: WithParty<"client">;
 };
 
-export const SCENARIO_STEPS = ["request", "offers", "measurement", "contract", "deposit", "stages", "closing"] as const;
+export const SCENARIO_STEPS = ["request", "offers", "contract", "payment", "work", "act", "payout", "closing"] as const;
 export type ScenarioStepKey = (typeof SCENARIO_STEPS)[number];
 
 export type ScenarioStep = {
   key: ScenarioStepKey;
   /** Экран шага; null — в базе нет подходящей заявки или сделки. */
   href: string | null;
-  /** Второй экран шага (симулятор банка для пополнения). */
-  extraHref?: string;
   persona: Persona | null;
   /** Номер заявки или сделки, которую показываем. */
   number?: number;
-  /** Шаг существует только в эскроу-режиме, а эскроу-сделки ещё нет. */
-  needsEscrow?: boolean;
 };
 
-const deal = (ref: { id: string } | undefined) => (ref ? `/deals/${ref.id}` : null);
+const party = (key: ScenarioStepKey, ref: WithParty<"client"> | WithParty<"executor"> | undefined, href: (r: Ref) => string): ScenarioStep => ({
+  key,
+  href: ref ? href(ref) : null,
+  persona: ref ? ("client" in ref ? ref.client : ref.executor) : null,
+  number: ref?.number,
+});
 
-/** Сценарий: заявка → отклики → замер → договор → пополнение эскроу → этапы с траншами → закрытие. */
+const byOperator = (key: ScenarioStepKey, ref: Ref | undefined, operator: Persona | null): ScenarioStep => ({
+  key,
+  href: ref ? `/operator/deals/${ref.id}` : null,
+  persona: ref ? operator : null,
+  number: ref?.number,
+});
+
+const dealHref = (r: Ref) => `/deals/${r.id}`;
+
+/** Сценарий: заявка → торг → оферта → оплата → работа → акт → выплата → итог. */
 export function buildScenario(s: ScenarioSnapshot): ScenarioStep[] {
-  const steps: Record<ScenarioStepKey, ScenarioStep> = { ...requestSteps(s), ...dealSteps(s) };
-  return SCENARIO_STEPS.map((key) => steps[key]);
-}
-
-/** Шаги до сделки: заявка, отклики, замер. */
-function requestSteps(s: ScenarioSnapshot) {
-  return {
+  const steps: Record<ScenarioStepKey, ScenarioStep> = {
     request: { key: "request", href: "/requests/new", persona: s.newRequest?.client ?? null },
-    offers: { key: "offers", href: s.tender ? `/requests/${s.tender.id}` : null, persona: s.tender?.client ?? null, number: s.tender?.number },
-    measurement: { key: "measurement", href: s.measuring ? "/executor/measurements" : null, persona: s.measuring?.executor ?? null, number: s.measuring?.number },
-  } satisfies Partial<Record<ScenarioStepKey, ScenarioStep>>;
-}
-
-/** Шаги сделки: договор, пополнение (только эскроу), этапы, закрытие. */
-function dealSteps(s: ScenarioSnapshot) {
-  return {
-    contract: { key: "contract", href: deal(s.signing), persona: s.signing?.client ?? null, number: s.signing?.number },
-    deposit: {
-      key: "deposit",
-      href: deal(s.deposit),
-      extraHref: s.deposit?.accountId ? `/simulator/bank/${s.deposit.accountId}` : undefined,
-      persona: s.deposit?.client ?? null,
-      number: s.deposit?.number,
-      needsEscrow: !s.deposit,
-    },
-    stages: { key: "stages", href: deal(s.inProgress), persona: s.inProgress?.executor ?? null, number: s.inProgress?.number },
-    closing: { key: "closing", href: deal(s.completed), persona: s.completed?.client ?? null, number: s.completed?.number },
-  } satisfies Partial<Record<ScenarioStepKey, ScenarioStep>>;
+    offers: party("offers", s.tender, (r) => `/requests/${r.id}`),
+    contract: party("contract", s.signing, dealHref),
+    payment: byOperator("payment", s.payment, s.operator),
+    work: party("work", s.work, dealHref),
+    act: party("act", s.act, dealHref),
+    payout: byOperator("payout", s.payout, s.operator),
+    closing: party("closing", s.completed, dealHref),
+  };
+  return SCENARIO_STEPS.map((key) => steps[key]);
 }

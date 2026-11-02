@@ -1,85 +1,95 @@
-import { DealStatus, StagePaymentStatus, StageStatus } from "@/generated/prisma/enums";
+import { DealStatus, MoneyTransactionStatus, MoneyTransactionType } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
-import { reconcile, type ReconciliationRow } from "@/modules/payments";
+import { platformIncomeReport, type IncomeReport } from "@/modules/payments";
 import { db } from "@/platform/db";
-import { isAppError } from "@/platform/errors";
-import { logger } from "@/platform/logger";
 import { assertOperator } from "./access";
-import { csvDateTime, toCsv, type CsvCell } from "./csv";
-import type { CsvKind } from "./schemas";
+import { csvDateTime, csvTiyn, toCsv, type CsvCell } from "./csv";
+import type { CsvKind, IncomePeriod } from "./schemas";
+
+/**
+ * Отчёт оператора (ADR-009): сделки по статусам и операции журнала денег по типам и статусам.
+ * Расхождения — операции manual, которые ждут банковского документа дольше N дней: деньги в банке
+ * уже могли двинуться, а журнал об этом не знает. Суммы — тиыны (BigInt).
+ */
 
 const DAY = 86_400_000;
 const t = ru.operator;
 
-export type StatusTotal<S extends string> = { status: S; count: number; sum: number };
+export type StatusTotal<S extends string> = { status: S; count: number; sumTiyn: bigint };
+export type OperationTotal = { type: MoneyTransactionType; status: MoneyTransactionStatus; count: number; sumTiyn: bigint };
 
-/** Все статусы перечисления по порядку, с нулями для отсутствующих. */
-function totals<S extends string>(all: Record<string, S>, groups: { status: S; count: number; sum: number | null }[]): StatusTotal<S>[] {
+/** Все значения перечисления по порядку, с нулями для отсутствующих. */
+function totals<S extends string>(all: Record<string, S>, groups: { status: S; count: number; sum: bigint | null }[]): StatusTotal<S>[] {
   return Object.values(all).map((status) => {
     const g = groups.find((x) => x.status === status);
-    return { status, count: g?.count ?? 0, sum: g?.sum ?? 0 };
+    return { status, count: g?.count ?? 0, sumTiyn: g?.sum ?? 0n };
   });
 }
 
-export type EscrowReconciliation = {
-  dealId: string;
-  dealNumber: number;
-  title: string;
-  /** null — выписку получить не удалось (рельс недоступен). */
-  rows: ReconciliationRow[] | null;
-};
+async function staleOperations(staleDays: number, now: Date) {
+  const rows = await db.moneyTransaction.findMany({
+    where: { provider: "MANUAL", status: "PENDING", createdAt: { lt: new Date(now.getTime() - staleDays * DAY) } },
+    orderBy: { seq: "asc" },
+    select: { id: true, type: true, amountTiyn: true, createdAt: true, idempotencyKey: true, deal: { select: { id: true, number: true, title: true } } },
+  });
+  return rows.map((r) => ({
+    transactionId: r.id,
+    type: r.type,
+    amountTiyn: r.amountTiyn,
+    createdAt: r.createdAt,
+    idempotencyKey: r.idempotencyKey,
+    dealId: r.deal.id,
+    dealNumber: r.deal.number,
+    dealTitle: r.deal.title,
+    daysWaiting: Math.floor((now.getTime() - r.createdAt.getTime()) / DAY),
+  }));
+}
 
 export async function buildReport(user: CurrentUser, input: { staleDays: number }, now = new Date()) {
   assertOperator(user);
-  const [deals, stages, payments, stale, escrowDeals] = await Promise.all([
-    db.deal.groupBy({ by: ["status"], _count: { _all: true }, _sum: { totalAmount: true } }),
-    db.stage.groupBy({ by: ["status"], _count: { _all: true }, _sum: { amount: true } }),
-    db.stagePayment.groupBy({ by: ["status"], _count: { _all: true }, _sum: { amount: true } }),
-    db.stagePayment.findMany({
-      where: { status: "MARKED_PAID", markedPaidAt: { lt: new Date(now.getTime() - input.staleDays * DAY) } },
-      orderBy: { markedPaidAt: "asc" },
-      select: { amount: true, markedPaidAt: true, stage: { select: { title: true, deal: { select: { id: true, number: true, title: true } } } } },
-    }),
-    db.deal.findMany({ where: { paymentMode: { not: "MANUAL" } }, orderBy: { number: "asc" }, select: { id: true, number: true, title: true } }),
+  const [deals, operations, discrepancies] = await Promise.all([
+    db.deal.groupBy({ by: ["status"], _count: { _all: true }, _sum: { priceTiyn: true } }),
+    db.moneyTransaction.groupBy({ by: ["type", "status"], _count: { _all: true }, _sum: { amountTiyn: true } }),
+    staleOperations(input.staleDays, now),
   ]);
-
-  const reconciliation: EscrowReconciliation[] = [];
-  for (const deal of escrowDeals) {
-    reconciliation.push({ dealId: deal.id, dealNumber: deal.number, title: deal.title, rows: await reconcileOrNull(deal.id) });
-  }
-
+  const ops: OperationTotal[] = Object.values(MoneyTransactionType).flatMap((type) =>
+    Object.values(MoneyTransactionStatus).map((status) => {
+      const g = operations.find((x) => x.type === type && x.status === status);
+      return { type, status, count: g?._count._all ?? 0, sumTiyn: g?._sum.amountTiyn ?? 0n };
+    }),
+  );
   return {
-    deals: totals(DealStatus, deals.map((g) => ({ status: g.status, count: g._count._all, sum: g._sum.totalAmount }))),
-    stages: totals(StageStatus, stages.map((g) => ({ status: g.status, count: g._count._all, sum: g._sum.amount }))),
-    payments: totals(StagePaymentStatus, payments.map((g) => ({ status: g.status, count: g._count._all, sum: g._sum.amount }))),
-    discrepancies: stale.map((p) => ({
-      dealId: p.stage.deal.id,
-      dealNumber: p.stage.deal.number,
-      dealTitle: p.stage.deal.title,
-      stageTitle: p.stage.title,
-      amount: p.amount,
-      markedPaidAt: p.markedPaidAt!,
-      daysWaiting: Math.floor((now.getTime() - p.markedPaidAt!.getTime()) / DAY),
-    })),
-    reconciliation,
+    deals: totals(DealStatus, deals.map((g) => ({ status: g.status, count: g._count._all, sum: g._sum.priceTiyn }))),
+    operations: ops.filter((o) => o.count > 0),
+    discrepancies,
   };
 }
 
-async function reconcileOrNull(dealId: string): Promise<ReconciliationRow[] | null> {
-  try {
-    return await reconcile(dealId);
-  } catch (e) {
-    if (!isAppError(e)) throw e;
-    logger.warn("reconcile unavailable", { dealId, error: e });
-    return null;
-  }
+/** Доход платформы за период — только из журнала (payments.platformIncomeReport). */
+export async function incomeReport(user: CurrentUser, period: IncomePeriod): Promise<IncomeReport> {
+  assertOperator(user);
+  return platformIncomeReport(user, period);
 }
 
 /** Выгрузка для Excel: разделитель «;», BOM, защита от формул (см. csv.ts). */
 export async function buildCsv(user: CurrentUser, input: { kind: CsvKind; staleDays: number }): Promise<string> {
   assertOperator(user);
   return toCsv(t.csvHeaders[input.kind], await csvRows(user, input));
+}
+
+export async function buildIncomeCsv(user: CurrentUser, period: IncomePeriod): Promise<string> {
+  const report = await incomeReport(user, period);
+  const rows: CsvCell[][] = report.rows.map((r) => [
+    r.dealNumber,
+    csvDateTime(r.settledAt),
+    csvTiyn(r.protectionTiyn),
+    csvTiyn(r.guaranteeTiyn),
+    csvTiyn(r.totalTiyn),
+    r.isTest ? t.income.testMark : "",
+  ]);
+  rows.push([t.income.total, "", csvTiyn(report.protectionTiyn), csvTiyn(report.guaranteeTiyn), csvTiyn(report.totalTiyn), ""]);
+  return toCsv(t.csvHeaders.income, rows);
 }
 
 async function csvRows(user: CurrentUser, input: { kind: CsvKind; staleDays: number }): Promise<CsvCell[][]> {
@@ -89,29 +99,28 @@ async function csvRows(user: CurrentUser, input: { kind: CsvKind; staleDays: num
         d.number,
         d.title,
         t.dealStatus[d.status],
-        t.paymentModes[d.paymentMode],
-        d.totalAmount,
+        t.providers[d.paymentProvider],
+        csvTiyn(d.priceTiyn),
+        csvTiyn(d.buyerTotalTiyn),
+        csvTiyn(d.payoutTiyn),
         csvDateTime(d.createdAt),
         csvDateTime(d.completedAt),
       ]);
-    case "stages":
+    case "operations":
       return (
-        await db.stage.findMany({ orderBy: [{ deal: { number: "asc" } }, { order: "asc" }], include: { deal: { select: { number: true } }, payment: true } })
-      ).map((s) => [s.deal.number, s.title, s.order, t.stageStatus[s.status], s.amount, t.paymentDue[s.paymentDue], s.payment ? t.paymentStatus[s.payment.status] : ""]);
-    case "payments":
-      return (
-        await db.stagePayment.findMany({
-          orderBy: [{ stage: { deal: { number: "asc" } } }, { stage: { order: "asc" } }],
-          include: { stage: { select: { title: true, deal: { select: { number: true } } } } },
-        })
-      ).map((p) => [p.stage.deal.number, p.stage.title, p.amount, t.paymentStatus[p.status], csvDateTime(p.markedPaidAt), csvDateTime(p.confirmedAt)]);
+        await db.moneyTransaction.findMany({ orderBy: { seq: "asc" }, include: { deal: { select: { number: true } } } })
+      ).map((m) => [
+        m.seq.toString(),
+        m.deal.number,
+        t.money.types[m.type],
+        t.money.status[m.status],
+        csvTiyn(m.amountTiyn),
+        m.idempotencyKey,
+        m.bankDocNumber ?? m.externalRef,
+        csvDateTime(m.createdAt),
+        csvDateTime(m.settledAt),
+      ]);
     case "discrepancies":
-      return (await buildReport(user, input)).discrepancies.map((d) => [d.dealNumber, d.stageTitle, d.amount, csvDateTime(d.markedPaidAt), d.daysWaiting]);
-    case "reconciliation":
-      return (await buildReport(user, input)).reconciliation.flatMap((r) =>
-        r.rows === null
-          ? [[r.dealNumber, "", "", "", "", "", t.report.statementUnavailable]]
-          : r.rows.map((row) => [r.dealNumber, t.report.opKinds[row.kind], row.idempotencyKey, row.externalRef, row.ourAmount, row.bankAmount, t.report.reconStatus[row.status]]),
-      );
+      return (await buildReport(user, input)).discrepancies.map((d) => [d.dealNumber, t.money.types[d.type], csvTiyn(d.amountTiyn), csvDateTime(d.createdAt), d.daysWaiting]);
   }
 }

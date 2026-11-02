@@ -86,24 +86,62 @@ export const moveFurnitureTypeSchema = z.object({ id, direction: z.enum(["up", "
 // ─── заявки, отчёт ───────────────────────────────────────────────────────────
 
 export const staleRequestsSchema = z.object({ hours: z.coerce.number().int().min(1).max(720).default(24) });
+/** staleDays — сколько дней операция manual может ждать банковского документа, прежде чем попасть в расхождения. */
 export const reportSchema = z.object({ staleDays: z.coerce.number().int().min(1).max(60).default(3) });
-export const CSV_KINDS = ["deals", "stages", "payments", "discrepancies", "reconciliation"] as const;
+export const CSV_KINDS = ["deals", "operations", "discrepancies"] as const;
 export const csvSchema = reportSchema.extend({ kind: z.enum(CSV_KINDS) });
 export type CsvKind = (typeof CSV_KINDS)[number];
 
+/** Период отчёта о доходе: даты из <input type="date">, «по» включительно (граница дня по Астане). */
+export const incomePeriodSchema = z
+  .object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t.period), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t.period) })
+  .transform(({ from, to }) => ({ from: new Date(`${from}T00:00:00.000+05:00`), to: new Date(new Date(`${to}T00:00:00.000+05:00`).getTime() + 86_400_000) }))
+  .refine((p) => p.from < p.to, { message: t.period, path: ["to"] });
+export type IncomePeriod = z.output<typeof incomePeriodSchema>;
+
 // ─── споры ───────────────────────────────────────────────────────────────────
 
-export const DISPUTE_DECISIONS = ["FAVOR_CLIENT", "FAVOR_EXECUTOR", "PARTIAL", "TERMINATE"] as const;
+export const DISPUTE_OUTCOMES = ["CONTINUE", "FULL_REFUND", "PARTIAL_SPLIT"] as const;
+
+/** Сумма мастеру Y в целых тенге из поля формы (пробелы между разрядами допустимы) → тиыны. */
+const shareKztRequired = z.preprocess(
+  (v) => (typeof v === "string" ? v.replace(/[\s  ]/g, "") : v),
+  z.coerce.number({ error: t.amount }).int(t.amount).positive(t.amount).max(1_000_000_000, t.amount),
+);
+const shareKzt = z.preprocess(emptyToUndefined, shareKztRequired.optional());
+
+export const splitPreviewSchema = z.object({ disputeId: id, masterShareKzt: shareKztRequired });
 
 export const resolveDisputeSchema = z
   .object({
     disputeId: id,
-    decision: z.enum(DISPUTE_DECISIONS),
-    decisionAmount: z.preprocess(emptyToUndefined, z.coerce.number().int().positive(t.amount).optional()),
+    outcome: z.enum(DISPUTE_OUTCOMES, { error: t.outcome }),
+    masterShareKzt: shareKzt,
     rationale: z.string().trim().min(10, t.rationale).max(2000),
   })
-  .refine((v) => v.decision !== "PARTIAL" || v.decisionAmount !== undefined, { path: ["decisionAmount"], message: t.amount })
-  .transform(({ decisionAmount, ...v }) => (v.decision === "PARTIAL" ? { ...v, decisionAmount } : v));
+  .refine((v) => v.outcome !== "PARTIAL_SPLIT" || v.masterShareKzt !== undefined, { path: ["masterShareKzt"], message: t.amount })
+  .transform(({ masterShareKzt, ...v }) =>
+    v.outcome === "PARTIAL_SPLIT" && masterShareKzt !== undefined ? { ...v, masterShareTiyn: BigInt(masterShareKzt) * 100n } : v,
+  );
+export type ResolveDisputeFormInput = z.output<typeof resolveDisputeSchema>;
+
+// ─── деньги: подтверждения manual по банковским документам ───────────────────
+
+/** Поля формы подтверждения; скан приходит файлом рядом и сохраняется до вызова payments. */
+export const bankConfirmFieldsSchema = z.object({
+  transactionId: id,
+  bankDocNumber: z.string().trim().min(1, ru.payments.validation.bankDocNumber).max(100),
+  bankDocDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, ru.payments.validation.bankDocDate).transform((d) => new Date(`${d}T00:00:00.000+05:00`)),
+});
+export const bankFailSchema = z.object({ transactionId: id, reason: z.string().trim().min(5, ru.payments.validation.failReason).max(500) });
+
+// ─── KYC ─────────────────────────────────────────────────────────────────────
+
+export const reviewKycSchema = z.discriminatedUnion("decision", [
+  z.object({ profileId: id, decision: z.literal("VERIFIED") }),
+  z.object({ profileId: id, decision: z.literal("REJECTED"), reason: z.string().trim().min(5, t.reason).max(500) }),
+]);
+export type ReviewKycInput = z.output<typeof reviewKycSchema>;
 
 // ─── журнал аудита ───────────────────────────────────────────────────────────
 
@@ -119,6 +157,8 @@ const astanaDay = (edge: "start" | "end") =>
   );
 
 export const auditFilterSchema = z.object({
+  /** Номер сделки: вся её история (scope deal:<id>). */
+  deal: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
   entityType: optionalText,
   entityId: optionalText,
   scope: optionalText,
@@ -136,13 +176,6 @@ export const auditFilterSchema = z.object({
   ),
 });
 export type AuditFilterInput = z.output<typeof auditFilterSchema>;
-
-// ─── демо ────────────────────────────────────────────────────────────────────
-
-/** Режимы, которые оператор может включить для новых сделок в демо (bank — только через env). */
-export const DEMO_RAIL_MODES = ["manual", "escrow-simulator"] as const;
-export const paymentRailSchema = z.object({ mode: z.enum(DEMO_RAIL_MODES) });
-export type DemoRailMode = (typeof DEMO_RAIL_MODES)[number];
 
 // ─── справочник цен материалов (ADR-007) ─────────────────────────────────────
 
