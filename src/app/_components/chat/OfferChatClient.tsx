@@ -8,6 +8,7 @@ import { Alert, Chat, cn } from "@/ui";
 import { loadChat, sendChatMessage } from "./actions";
 import { ChatModeration } from "./ChatModeration";
 import { ClientPhone } from "./ClientPhone";
+import { PartyContacts } from "./PartyContacts";
 
 /** Как часто обновлять ленту, пока вкладка видна. */
 const POLL_MS = 5_000;
@@ -63,7 +64,9 @@ export function OfferChatClient({ id, offerId, initial, title, reasonMax, classN
         disabledReason={chat.canWrite ? undefined : chat.closedReason}
       />
       {chat.clientPhone && <ClientPhone offerId={offerId} view={chat.clientPhone} onChanged={refresh} />}
-      {chat.canWrite && (
+      {chat.contacts && <PartyContacts contacts={chat.contacts} compact />}
+      {/* Подсказка про маску — только до оферты: после неё контакты не скрываются (contacts-policy.ts). */}
+      {chat.canWrite && !chat.contacts && (
         <p className="flex items-start gap-2 text-sm text-muted">
           <ShieldCheck aria-hidden className="mt-0.5 size-4 shrink-0" />
           {ru.companies.chat.note}

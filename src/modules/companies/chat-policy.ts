@@ -10,6 +10,17 @@ import { fail } from "@/platform/errors";
 /** Сторона чата отклика: заказчик заявки, исполнитель отклика или оператор (только читает). */
 export type ChatParty = "client" | "executor" | "operator";
 
+/**
+ * Сторона отклика или сделки по активной роли (ADR-004): заказчик заявки в роли CLIENT, исполнитель
+ * в роли EXECUTOR, оператор; остальные — null (для них чата и контактов «нет» — NOT_FOUND).
+ */
+export function chatPartyOf(user: { id: string; role: Role }, sides: { clientId: string; executorUserId: string }): ChatParty | null {
+  if (user.role === "OPERATOR") return "operator";
+  if (user.role === "CLIENT" && sides.clientId === user.id) return "client";
+  if (user.role === "EXECUTOR" && sides.executorUserId === user.id) return "executor";
+  return null;
+}
+
 export type ChatState = { offerStatus: OfferStatus; requestStatus: RequestStatus; dealStatus: DealStatus | null; closedByOperator: boolean };
 
 export type ChatClosedReason = "operatorClosed" | "offerWithdrawn" | "offerDeclined" | "requestCancelled" | "dealCancelled" | "dealRefunded";

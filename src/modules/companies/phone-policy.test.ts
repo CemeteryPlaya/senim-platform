@@ -10,10 +10,10 @@ const code = (run: () => unknown) => {
   }
 };
 
-/** Поговорили, чат открыт, телефон скрыт — исходное состояние, из которого показать можно. */
-const ready: ClientPhoneFacts = { state: "HIDDEN", talked: true, chatClosed: null };
+/** Флаг включён, до оферты, поговорили, чат открыт, телефон скрыт — исходное состояние, из которого показать можно. */
+const ready: ClientPhoneFacts = { state: "HIDDEN", talked: true, chatClosed: null, consentEnabled: true, stage: "BEFORE_OFFER" };
 
-describe("телефон заказчика (№21): таблица переходов", () => {
+describe("телефон заказчика до оферты (ADR-008, флаг clientPhoneConsent): таблица переходов", () => {
   it("показать — из «скрыт», скрыть — из «показан»; только заказчик заявки", () => {
     expect(CLIENT_PHONE).toEqual({
       share: { from: "HIDDEN", to: "SHOWN", who: "client" },
@@ -28,6 +28,8 @@ describe("телефон заказчика (№21): таблица перехо
     ["share", ready, "operator", "FORBIDDEN"],
     ["revoke", { ...ready, state: "SHOWN" }, "executor", "FORBIDDEN"],
     ["revoke", { ...ready, state: "SHOWN" }, "operator", "FORBIDDEN"],
+    ["share", { ...ready, consentEnabled: false }, "client", "FORBIDDEN"],
+    ["share", { ...ready, stage: "AFTER_OFFER" }, "client", "CONFLICT"],
     ["share", { ...ready, state: "SHOWN" }, "client", "CONFLICT"],
     ["revoke", ready, "client", "CONFLICT"],
     ["share", { ...ready, talked: false }, "client", "CONFLICT"],
@@ -37,23 +39,33 @@ describe("телефон заказчика (№21): таблица перехо
     expect(code(() => clientPhoneTarget(action, facts, who))).toBe(expected);
   });
 
-  it("скрыть можно и в закрытом чате: отзыв согласия не зависит от состояния отклика", () => {
-    expect(clientPhoneTarget("revoke", { state: "SHOWN", talked: true, chatClosed: "requestCancelled" }, "client")).toBe("HIDDEN");
+  it("скрыть можно всегда: в закрытом чате, после оферты и при выключенном флаге", () => {
+    const shown = { ...ready, state: "SHOWN" } as const;
+    expect(clientPhoneTarget("revoke", { ...shown, chatClosed: "requestCancelled" }, "client")).toBe("HIDDEN");
+    expect(clientPhoneTarget("revoke", { ...shown, stage: "AFTER_OFFER" }, "client")).toBe("HIDDEN");
+    expect(clientPhoneTarget("revoke", { ...shown, consentEnabled: false }, "client")).toBe("HIDDEN");
   });
 });
 
-describe("кнопка «Показать телефон» и видимость номера", () => {
+describe("кнопка «Показать телефон» и видимость номера до оферты", () => {
   it("кнопка есть, только когда показать можно", () => {
     expect(canShareClientPhone(ready)).toBe(true);
+    expect(canShareClientPhone({ ...ready, consentEnabled: false })).toBe(false);
+    expect(canShareClientPhone({ ...ready, stage: "AFTER_OFFER" })).toBe(false);
     expect(canShareClientPhone({ ...ready, talked: false })).toBe(false);
     expect(canShareClientPhone({ ...ready, chatClosed: "offerWithdrawn" })).toBe(false);
     expect(canShareClientPhone({ ...ready, state: "SHOWN" })).toBe(false);
   });
 
-  it("исполнитель видит номер, пока согласие действует и чат открыт", () => {
-    expect(executorSeesClientPhone({ state: "SHOWN", chatClosed: null })).toBe(true);
-    expect(executorSeesClientPhone({ state: "HIDDEN", chatClosed: null })).toBe(false);
-    expect(executorSeesClientPhone({ state: "SHOWN", chatClosed: "offerDeclined" })).toBe(false);
-    expect(executorSeesClientPhone({ state: "SHOWN", chatClosed: "operatorClosed" })).toBe(false);
+  it("исполнитель видит номер по согласию, пока флаг включён, оферты нет и чат открыт", () => {
+    const shown = { state: "SHOWN", chatClosed: null, consentEnabled: true, stage: "BEFORE_OFFER" } as const;
+    expect(executorSeesClientPhone(shown)).toBe(true);
+    expect(executorSeesClientPhone({ ...shown, state: "HIDDEN" })).toBe(false);
+    expect(executorSeesClientPhone({ ...shown, chatClosed: "offerDeclined" })).toBe(false);
+    expect(executorSeesClientPhone({ ...shown, chatClosed: "operatorClosed" })).toBe(false);
+    // Флаг выключили после согласия — номер больше не виден до оферты.
+    expect(executorSeesClientPhone({ ...shown, consentEnabled: false })).toBe(false);
+    // После оферты номер приходит через контакты сторон, а не через согласие.
+    expect(executorSeesClientPhone({ ...shown, stage: "AFTER_OFFER" })).toBe(false);
   });
 });

@@ -6,16 +6,20 @@ import { actorOf, formatPhone, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { db, transaction, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
+import { isEnabled } from "@/platform/features";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import { executorDisplayOf } from "./anonymity";
-import { chatClosedReason, moderationTarget, type ChatClosedReason, type ChatModerationAction, type ChatParty } from "./chat-policy";
+import { chatClosedReason, chatPartyOf, moderationTarget, type ChatClosedReason, type ChatModerationAction, type ChatParty } from "./chat-policy";
+import { partyContactsFor, type DealSides, type PartyContacts } from "./contacts";
+import { chatTextRule, contactStage, type ChatTextRule, type ContactStage } from "./contacts-policy";
 import { maskContacts } from "./mask";
 import { sanitizePublicText } from "./own";
-import { canShareClientPhone, clientPhoneTarget, executorSeesClientPhone, type ClientPhoneAction, type ClientPhoneFacts } from "./phone-policy";
+import { canShareClientPhone, clientPhoneTarget, consentPathOpen, executorSeesClientPhone, type ClientPhoneAction, type ClientPhoneFacts, type ClientPhoneState } from "./phone-policy";
 
 /**
  * Чат отклика (ADR-003). Пишут только стороны отклика — заказчик заявки и исполнитель;
- * оператор читает. Текст маскируется до записи, исходный не хранится; wasMasked фиксирует факт.
+ * оператор читает. До заключения оферты текст маскируется до записи, исходный не хранится; wasMasked
+ * фиксирует факт. После оферты маски нет, а стороны видят контакты друг друга (contacts-policy.ts).
  * Чужой чат для пользователя «не существует» (NOT_FOUND), чтобы не раскрывать id.
  * После завершения сделки чат открыт (гарантия); закрывает и открывает его оператор (ответ №19).
  */
@@ -49,8 +53,10 @@ export type ChatView = {
   closedByOperator: { reason: string; at: Date } | null;
   /** Оператор: может закрыть или снова открыть чат. */
   canModerate: boolean;
-  /** Телефон заказчика (№21): исполнителю — номер, заказчику — показать/скрыть; null — ничего. */
+  /** Телефон заказчика до оферты по согласию (№21, флаг clientPhoneConsent): исполнителю — номер, заказчику — показать/скрыть; null — ничего. */
   clientPhone: ClientPhoneView;
+  /** Контакты другой стороны после заключения оферты (ТЗ п. 3); null — до оферты, у оператора и без сделки. */
+  contacts: PartyContacts | null;
 };
 
 /**
@@ -74,27 +80,26 @@ async function loadOffer(client: Db, offerId: string) {
       executorId: true,
       executor: { select: { userId: true, publicNumber: true } },
       request: { select: { clientId: true, status: true } },
-      deal: { select: { id: true, status: true } },
+      deal: { select: { id: true, status: true, signedAt: true } },
     },
   });
 }
 type OfferContext = NonNullable<Awaited<ReturnType<typeof loadOffer>>>;
 
-function partyOf(user: CurrentUser, offer: OfferContext): Party | null {
-  if (user.role === "OPERATOR") return "operator";
-  if (user.role === "CLIENT" && offer.request.clientId === user.id) return "client";
-  if (user.role === "EXECUTOR" && offer.executor.userId === user.id) return "executor";
-  return null;
-}
+const sidesOf = (offer: OfferContext): DealSides => ({
+  clientId: offer.request.clientId,
+  executorUserId: offer.executor.userId,
+  signedAt: offer.deal?.signedAt ?? null,
+});
 
-/** label — подпись исполнителя для заказчика (companies.executorDisplay, режим №6). */
-type Loaded = { offer: OfferContext; party: Party; label: string };
+/** label — подпись исполнителя для заказчика (companies.executorDisplay, режим №6); stage — заключена ли оферта. */
+type Loaded = { offer: OfferContext; party: Party; label: string; stage: ContactStage };
 
 async function requireOffer(client: Db, user: CurrentUser, offerId: string): Promise<Loaded> {
   const offer = await loadOffer(client, offerId);
-  const party = offer ? partyOf(user, offer) : null;
+  const party = offer ? chatPartyOf(user, sidesOf(offer)) : null;
   if (!offer || !party) return fail.notFound(t.errors.notFound);
-  return { offer, party, label: (await executorDisplayOf(client, offer.executorId)).label };
+  return { offer, party, label: (await executorDisplayOf(client, offer.executorId)).label, stage: contactStage(offer.deal) };
 }
 
 function closedReasonOf(offer: OfferContext): ChatClosedReason | null {
@@ -162,7 +167,15 @@ export async function getChat(user: CurrentUser, offerId: string): Promise<ChatV
     closedByOperator: closedByOperator(offer),
     canModerate: party === "operator",
     clientPhone: await clientPhoneView(loaded),
+    contacts: await partyContactsFor(db, party, sidesOf(offer)),
   };
+}
+
+/** Текст перед записью по правилу CONTACTS: до оферты — маска (у исполнителя и наименование/ФИО), после — как есть. */
+async function applyTextRule(rule: ChatTextRule, executorId: string, body: string): Promise<{ text: string; masked: boolean }> {
+  if (rule === "maskContactsAndName") return sanitizePublicText(db, executorId, body);
+  if (rule === "maskContacts") return maskContacts(body);
+  return { text: body, masked: false };
 }
 
 /** Сообщение в чат отклика: маска контактов, вложения (свои загруженные файлы), уведомление второй стороне. */
@@ -180,8 +193,7 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
   if (closed) return fail.conflict(closed);
   await enforceRateLimit(`chat:${user.id}`, SEND_RATE, t.errors.rateLimited);
 
-  // Исполнитель — ещё и без своего наименования/ФИО (анонимность до договора); заказчик — без контактов.
-  const { text: safeText, masked } = party === "executor" ? await sanitizePublicText(db, offer.executorId, body) : maskContacts(body);
+  const { text: safeText, masked } = await applyTextRule(chatTextRule(loaded.stage, party), offer.executorId, body);
   const row = await transaction(async (tx) => {
     const message = await tx.message.create({ data: { offerId, senderId: user.id, body: safeText, wasMasked: masked } });
     if (fileIds.length > 0) await attachFiles(tx, { fileIds, uploadedById: user.id, owner: { messageId: message.id } });
@@ -288,7 +300,7 @@ export async function reopenChat(user: CurrentUser, offerId: string): Promise<vo
 // ─── телефон заказчика исполнителю (ответ №21, ADR-008) ──────────────────────
 
 const ph = t.phone;
-const phoneState = (offer: OfferContext) => (offer.clientPhoneSharedAt ? "SHOWN" : "HIDDEN");
+const phoneState = (offer: OfferContext): ClientPhoneState => (offer.clientPhoneSharedAt ? "SHOWN" : "HIDDEN");
 
 /** «Поговорили»: в чате отклика есть хотя бы одно сообщение заказчика и хотя бы одно исполнителя. */
 async function talked(offer: OfferContext): Promise<boolean> {
@@ -300,17 +312,26 @@ async function talked(offer: OfferContext): Promise<boolean> {
   return senders.length === 2;
 }
 
-async function clientPhoneView({ offer, party }: Loaded): Promise<ClientPhoneView> {
-  const state = phoneState(offer);
-  const chatClosed = closedReasonOf(offer);
+/** Факты для правила CLIENT_PHONE без «поговорили» (его считаем, только когда нужно: лишний запрос). */
+const phoneFacts = ({ offer, stage }: Loaded): Omit<ClientPhoneFacts, "talked"> => ({
+  state: phoneState(offer),
+  chatClosed: closedReasonOf(offer),
+  consentEnabled: isEnabled("clientPhoneConsent"),
+  stage,
+});
+
+async function clientPhoneView(loaded: Loaded): Promise<ClientPhoneView> {
+  const { offer, party } = loaded;
+  const base = phoneFacts(loaded);
+  const { state, chatClosed } = base;
   if (party === "executor") {
-    if (!executorSeesClientPhone({ state, chatClosed })) return null;
+    if (!executorSeesClientPhone(base)) return null;
     const { phone } = await db.user.findUniqueOrThrow({ where: { id: offer.request.clientId }, select: { phone: true } });
     return { for: "executor", phone, display: formatPhone(phone) };
   }
-  if (party !== "client") return null;
+  if (party !== "client" || !consentPathOpen(base)) return null;
   if (state === "SHOWN") return { for: "client", shared: true };
-  const facts: ClientPhoneFacts = { state, chatClosed, talked: chatClosed === null && (await talked(offer)) };
+  const facts: ClientPhoneFacts = { ...base, talked: chatClosed === null && (await talked(offer)) };
   return canShareClientPhone(facts) ? { for: "client", shared: false } : null;
 }
 
@@ -321,9 +342,10 @@ async function clientPhoneView({ offer, party }: Loaded): Promise<ClientPhoneVie
  * с согласием, номер всё равно не будет виден: видимость проверяется при каждом чтении.
  */
 async function switchClientPhone(user: CurrentUser, offerId: string, action: ClientPhoneAction): Promise<void> {
-  const { offer, party } = await requireOffer(db, user, offerId);
+  const loaded = await requireOffer(db, user, offerId);
+  const { offer, party } = loaded;
   const share = action === "share";
-  const facts: ClientPhoneFacts = { state: phoneState(offer), chatClosed: closedReasonOf(offer), talked: share && (await talked(offer)) };
+  const facts: ClientPhoneFacts = { ...phoneFacts(loaded), talked: share && (await talked(offer)) };
   clientPhoneTarget(action, facts, party);
   await transaction(async (tx) => {
     expectOneUpdated(
@@ -347,7 +369,7 @@ async function switchClientPhone(user: CurrentUser, offerId: string, action: Cli
   });
 }
 
-/** Заказчик показывает свой телефон исполнителю отклика — только после переписки и пока чат открыт. */
+/** Заказчик показывает свой телефон исполнителю отклика до оферты — под флагом clientPhoneConsent, после переписки и пока чат открыт. */
 export async function shareClientPhone(user: CurrentUser, offerId: string): Promise<void> {
   await switchClientPhone(user, offerId, "share");
 }

@@ -100,5 +100,7 @@ export {
   type ClientPhoneView,
   type ChatView,
 } from "./chat";
+export { dealContacts, type PartyContacts } from "./contacts";
+export { CONTACTS, contactStage, type ContactStage } from "./contacts-policy";
 
 export const jobHandlers = {} as const;

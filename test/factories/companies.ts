@@ -14,7 +14,7 @@ type Executor = Awaited<ReturnType<typeof makeExecutor>>;
 
 /** Временно включает или выключает флаг (env + сброс кэша env); прежнее значение возвращается и при ошибке. */
 export async function withFeature<T>(key: FeatureKey, on: boolean, fn: () => Promise<T>): Promise<T> {
-  const name = FEATURE_ENV[key];
+  const name: string = FEATURE_ENV[key];
   const prev = process.env[name];
   process.env[name] = on ? "true" : "false";
   resetEnvCache();
