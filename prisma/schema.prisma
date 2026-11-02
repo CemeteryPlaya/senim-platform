@@ -49,6 +49,7 @@ model User {
   disputesResolved Dispute[]       @relation("DisputeResolvedBy")
   files           StoredFile[]
   siteMeasurements SiteMeasurement[] @relation("SiteMeasurements")
+  materialPrices  MaterialPrice[]  @relation("MaterialPriceUpdatedBy")
 }
 
 model Session {
@@ -160,6 +161,46 @@ model FurnitureType {
   executors ExecutorProfile[]
   portfolio PortfolioItem[]
   requests  Request[]
+  typicalEstimate TypicalEstimate?
+}
+
+/// Справочник средних рыночных цен материалов (ADR-007): из него калькулятор считает вилку по уровням.
+/// category и unit — ключи вертикали (verticals/furniture/materials.ts), проверяются zod на входе.
+model MaterialPrice {
+  id          String    @id @default(cuid())
+  category    String
+  name        String
+  unit        String
+  /// Средняя рыночная цена за единицу, целые тенге.
+  priceKzt    Int
+  /// Уровни, к которым относится материал: один или несколько.
+  segments    Segment[]
+  active      Boolean   @default(true)
+  /// Демонстрационная цифра из сида; снимается, когда оператор меняет цену.
+  isDemo      Boolean   @default(false)
+  updatedById String?
+  updatedBy   User?     @relation("MaterialPriceUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([category, active])
+}
+
+/// Типовой расчёт материалов на единицу изделия для типа мебели (ADR-007). Форма perUnit и единиц —
+/// verticals/furniture/calculator.ts (typicalEstimateSchema). Пока заполняется только демо-сидом.
+model TypicalEstimate {
+  furnitureTypeId String        @id
+  furnitureType   FurnitureType @relation(fields: [furnitureTypeId], references: [id], onDelete: Cascade)
+  /// lm — погонный метр (по ширине), front_m2 — м² фасада (ширина × высота).
+  productUnit     String
+  typicalWidthCm  Int
+  typicalHeightCm Int
+  /// Коэффициент от стоимости материалов к цене заказа: работа, доставка, монтаж.
+  markup          Float
+  /// Материалы на единицу изделия: [{ category, unit, quantity }].
+  perUnit         Json
+  isDemo          Boolean       @default(false)
+  updatedAt       DateTime      @updatedAt
 }
 
 model PortfolioItem {
@@ -309,6 +350,9 @@ model Offer {
   // Чат отклика закрыт оператором (ответ №19): только чтение до повторного открытия.
   chatClosedAt     DateTime?
   chatClosedReason String?
+  /// Заказчик открыл свой телефон исполнителю этого отклика (ответ №21, ADR-008); null — скрыт.
+  /// Согласие даёт и отзывает только заказчик заявки; история — в журнале (offer.client_phone_shared / _revoked).
+  clientPhoneSharedAt DateTime?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
