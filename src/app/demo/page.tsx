@@ -65,6 +65,13 @@ function PersonaCard({ persona }: { persona: DemoPersona }) {
             <StatusBadge tone={STATUS_TONE[executor.status]}>{t.executorStatus[executor.status]}</StatusBadge>
           </div>
         )}
+        {persona.roles
+          .filter((r) => r !== persona.role)
+          .map((r) => (
+            <p key={r} className="text-base text-ink">
+              {t.alsoRole(ru.common.roles[r])}
+            </p>
+          ))}
       </div>
       <div className="sm:w-40 sm:shrink-0">
         <PersonaButton userId={persona.id} name={name} />

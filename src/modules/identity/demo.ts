@@ -14,7 +14,10 @@ import { startSession } from "./session";
 
 export type DemoPersona = {
   id: string;
+  /** Роль по умолчанию: в ней персона входит и по ней группируется на /demo. */
   role: Role;
+  /** Выданные роли (ADR-004): у персоны с двумя ролями в шапке есть переключатель. */
+  roles: Role[];
   fullName: string | null;
   phone: string;
   executor: { publicNumber: number; legalForm: LegalForm; legalName: string; status: "PENDING" | "APPROVED" | "REJECTED" } | null;
@@ -29,6 +32,7 @@ export async function listDemoPersonas(): Promise<DemoPersona[]> {
     select: {
       id: true,
       role: true,
+      roles: true,
       fullName: true,
       phone: true,
       executorProfile: { select: { publicNumber: true, legalForm: true, legalName: true, status: true } },

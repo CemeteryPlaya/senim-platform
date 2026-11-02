@@ -56,6 +56,7 @@ async function ForUser({ user }: { user: CurrentUser }) {
     return (
       <div className="flex flex-col gap-6">
         <p className="max-w-prose text-lg text-muted">{t.lead}</p>
+        {user.roles.includes("CLIENT") && <p className="max-w-prose text-lg text-ink">{t.keepsClient}</p>}
         <ExecutorRegistrationForm />
       </div>
     );

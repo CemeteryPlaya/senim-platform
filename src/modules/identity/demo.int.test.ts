@@ -61,9 +61,13 @@ describe("демо-персоны при DEMO_MODE=true", () => {
     for (const persona of personas) {
       freshBrowser();
       await loginAsDemoPersona(persona.id);
-      expect(await getCurrentUser()).toMatchObject({ id: persona.id });
+      expect(await getCurrentUser()).toMatchObject({ id: persona.id, role: persona.role, roles: persona.roles });
     }
-  });
+    // Одна персона с двумя ролями (ADR-004): исполнитель, который заказывал как заказчик.
+    const dual = personas.filter((p) => p.roles.length > 1);
+    expect(dual.map((p) => [p.role, p.roles])).toEqual([["EXECUTOR", ["EXECUTOR", "CLIENT"]]]);
+    expect(await db.deal.count({ where: { clientId: dual[0].id, status: "COMPLETED" } })).toBe(1);
+  }, 120_000);
 });
 
 describe("демо-персоны при DEMO_MODE=false", () => {

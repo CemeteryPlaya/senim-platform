@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { getOwnProfile, listFurnitureTypes } from "@/modules/companies";
-import { requireUserPage } from "@/modules/identity";
-import { Alert, ButtonLink, Container, PageHeader } from "@/ui";
+import { canGrant, requireUserPage } from "@/modules/identity";
+import { Alert, ButtonLink, Card, Container, PageHeader } from "@/ui";
+import { BecomeClientButton } from "../../_components/auth/RoleButtons";
 import { SegmentBadge } from "../../catalog/_components/executor-bits";
 import { ProfileForm } from "./ProfileForm";
 
@@ -64,6 +65,13 @@ export default async function ExecutorProfilePage() {
         }}
         types={types}
       />
+
+      {/* Исполнитель может заказывать мебель на этом же номере (ADR-004): роль заказчика выдаётся сразу. */}
+      {canGrant(user.roles, "CLIENT") && (
+        <Card title={ru.identity.becomeClient.title} titleAs="h2" description={ru.identity.becomeClient.text}>
+          <BecomeClientButton />
+        </Card>
+      )}
     </Container>
   );
 }
