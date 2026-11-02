@@ -57,7 +57,7 @@ describe("демо-персоны при DEMO_MODE=true", () => {
     await seedDemo(db);
     const personas = await listDemoPersonas();
 
-    expect(personas).toHaveLength(14);
+    expect(personas).toHaveLength(15); // с замерщиком площадки (ADR-005)
     for (const persona of personas) {
       freshBrowser();
       await loginAsDemoPersona(persona.id);
