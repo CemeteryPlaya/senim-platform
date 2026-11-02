@@ -11,8 +11,8 @@ import { suggestSegment } from "@/verticals/furniture";
 import { auditByUser, links, loadOwnRequest, requestTitle, requireClient, type RequestWithType } from "./access";
 import { roomPhotos } from "./adapters";
 import { announceToExecutors, executorRecipients } from "./announce";
-import { activePreContractFlow } from "./flow-setting";
-import { flowRules, selfMeasureComplete } from "./flows";
+import { newRequestPath } from "./flow-setting";
+import { flowRules, pathOf, selfMeasureComplete, TZ_PATH } from "./flows";
 import { notifyOperatorsSiteMeasure } from "./site-measurements";
 import { preContractView } from "./pre-contract";
 import {
@@ -30,15 +30,20 @@ const e = ru.requests.errors;
 const n = ru.requests.notify;
 
 /** Поля заявки, которые меняет шаг мастера (кроме details). */
+async function typeFields(tx: Tx, step: { furnitureTypeId: string | null; customType: string | null }) {
+  if (step.furnitureTypeId) {
+    const known = await tx.furnitureType.findFirst({ where: { id: step.furnitureTypeId, active: true }, select: { id: true } });
+    if (!known) fail.validation(e.unknownType);
+  }
+  return { furnitureTypeId: step.furnitureTypeId, customType: step.customType || null };
+}
+
 async function fieldsOf(tx: Tx, step: StepInput): Promise<Prisma.RequestUpdateManyMutationInput & { furnitureTypeId?: string | null }> {
   switch (step.screen) {
-    case "type": {
-      if (step.furnitureTypeId) {
-        const known = await tx.furnitureType.findFirst({ where: { id: step.furnitureTypeId, active: true }, select: { id: true } });
-        if (!known) fail.validation(e.unknownType);
-      }
-      return { furnitureTypeId: step.furnitureTypeId, customType: step.customType || null };
-    }
+    case "start":
+      return { ...(await typeFields(tx, step)), style: step.style };
+    case "type":
+      return typeFields(tx, step);
     case "style":
       return { style: step.style };
     case "segment":
@@ -48,6 +53,9 @@ async function fieldsOf(tx: Tx, step: StepInput): Promise<Prisma.RequestUpdateMa
         city: step.city,
         address: step.address,
         desiredDate: step.desiredDate ? new Date(`${step.desiredDate}T00:00:00Z`) : null,
+        // Точка адреса — обе координаты или ни одной (CHECK в БД); без точки адрес сохраняется как есть.
+        addressLat: step.location?.lat ?? null,
+        addressLng: step.location?.lng ?? null,
       };
     case "room":
     case "size":
@@ -103,7 +111,7 @@ export async function saveDraftStep(user: CurrentUser, input: SaveDraftInput): P
     if (input.requestId) {
       r = await loadOwnRequest(tx, user, input.requestId);
     } else {
-      if (step.screen !== "type") fail.validation(e.startFromFirst);
+      if (step.screen !== "start" && step.screen !== "type") fail.validation(e.startFromFirst);
       r = await createDraft(tx, user, input.like);
     }
     if (r.status !== "DRAFT") fail.conflict(e.notDraft);
@@ -128,33 +136,32 @@ export async function saveDraftStep(user: CurrentUser, input: SaveDraftInput): P
 }
 
 /**
- * Отправка заявки. Сценарий до договора берётся из настройки площадки и запоминается в заявке (ADR-005).
- * Обычно DRAFT → OPEN: тендер видят исполнители сегмента, прямой запрос — только выбранный исполнитель.
- * Сценарий «замерщик площадки»: DRAFT → PLATFORM_MEASURING, исполнители увидят заявку после замера.
+ * Отправка заявки: DRAFT → OPEN, тендер видят исполнители сегмента, прямой запрос — только выбранный исполнитель.
+ * Путь заявки запоминается при отправке: по умолчанию — путь ТЗ (торг → оферта); при флаге preContractFlows —
+ * сценарий до договора из настройки площадки (ADR-005). «Замерщик площадки»: DRAFT → PLATFORM_MEASURING.
  */
 export async function publishRequest(user: CurrentUser, input: { requestId: string }): Promise<void> {
   await transaction(async (tx) => {
     const r = await loadOwnRequest(tx, user, input.requestId);
-    const flow = await activePreContractFlow(tx);
-    const to = transition(REQUEST_TRANSITIONS, "publish", r.status, "CLIENT", flow);
+    const path = await newRequestPath(tx);
+    const to = transition(REQUEST_TRANSITIONS, "publish", r.status, "CLIENT", path);
     if (r.wizardStep < WIZARD_SCREENS.length || !r.segment || !r.address || !(r.furnitureTypeId || r.customType)) {
       fail.validation(e.incomplete);
     }
-    if (flowRules(flow).selfMeasure) {
+    if (path !== TZ_PATH && flowRules(path).selfMeasure) {
       const photos = await tx.storedFile.count({ where: { requestId: r.id, purpose: "REQUEST_ROOM" } });
       if (!selfMeasureComplete(parseDetails(r.details), photos)) fail.validation(ru.requests.pre.errors.selfMeasureIncomplete);
     }
     // Прямой запрос недоступному исполнителю или себе — CONFLICT уже здесь, даже если заявка сначала ждёт замерщика.
     const recipients = await executorRecipients(tx, r);
 
-    expectOneUpdated(
-      await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: to, preContractFlow: flow, publishedAt: new Date() } }),
-    );
+    const preContractFlow = path === TZ_PATH ? null : path;
+    expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: to, preContractFlow, publishedAt: new Date() } }));
     await auditByUser(tx, user, r.id, {
       action: "request.published",
       entity: { type: "request", id: r.id },
       before: { status: r.status },
-      after: { status: to, preContractFlow: flow },
+      after: { status: to, path },
       meta: { mode: r.mode, segment: r.segment, recipients: to === "OPEN" ? recipients.length : 0 },
     });
     if (to === "OPEN") await announceToExecutors(tx, r, recipients);
@@ -240,9 +247,11 @@ export async function getDraft(user: CurrentUser, requestId: string) {
     segmentSuggested: r.segmentSuggested,
     city: r.city,
     address: r.address,
+    location: r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null,
     desiredDate: r.desiredDate,
     wishes: r.wishes,
     wizardStep: r.wizardStep,
+    typeChosen: r.furnitureTypeId !== null || r.customType !== null,
     title: requestTitle(r),
     photos: await roomPhotos(photos),
     target,
@@ -317,16 +326,18 @@ export async function getClientRequest(user: CurrentUser, requestId: string) {
     details: parseDetails(r.details),
     city: r.city,
     address: r.address,
+    location: r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null,
     desiredDate: r.desiredDate,
     wishes: r.wishes,
     wizardStep: r.wizardStep,
     publishedAt: r.publishedAt,
+    path: pathOf(r),
     offersCount,
     chosen: chosen && {
       id: chosen.id,
       executorNumber: chosen.executor.publicNumber,
       executorLabelGen: (await executorDisplayOf(db, chosen.executorId)).labelGen,
-      price: chosen.price,
+      priceTiyn: chosen.priceTiyn,
       measurementTerms: chosen.measurementTerms,
       measurementFee: chosen.measurementFee,
     },

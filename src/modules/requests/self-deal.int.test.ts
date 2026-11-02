@@ -3,7 +3,8 @@ import { createDeal, leaveReview } from "@/modules/deal-core";
 import { db, transaction } from "@/platform/db";
 import { actingAs, makeClient, makeExecutor } from "../../../test/factories";
 import { makePortfolioItem } from "../../../test/factories/companies";
-import { makeDeal, TEMPLATES } from "../../../test/factories/deal";
+import { makeDeal } from "../../../test/factories/deal";
+import { setEnv } from "../../../test/factories/identity";
 import { makeDraft, makeOpenRequest, offerInput } from "../../../test/factories/requests";
 import { getIncomingRequest, likeTarget, listIncomingRequests, publishRequest, sendOffer } from "./index";
 
@@ -59,21 +60,11 @@ describe("самосделка запрещена", () => {
     const me = await person();
     const request = await db.request.create({ data: { clientId: me.client.id, mode: "TENDER", status: "CONTRACTING" } });
     const offer = await db.offer.create({
-      data: { requestId: request.id, executorId: me.executor.executor.id, price: 100_000, durationDays: 10, warrantyMonths: 12, measurementTerms: "FREE", status: "ACCEPTED" },
+      data: { requestId: request.id, executorId: me.executor.executor.id, priceTiyn: 100_000_00n, durationDays: 10, warrantyMonths: 12, measurementTerms: "FREE", status: "ACCEPTED" },
     });
 
     await expect(
-      transaction((tx) =>
-        createDeal(tx, {
-          requestId: request.id,
-          offerId: offer.id,
-          clientId: me.client.id,
-          executorId: me.executor.executor.id,
-          title: "Сам себе",
-          totalAmount: 100_000,
-          template: TEMPLATES.single,
-        }),
-      ),
+      transaction((tx) => createDeal(tx, { requestId: request.id, offerId: offer.id, title: "Сам себе", priceTiyn: 100_000_00n })),
     ).rejects.toThrow(code("CONFLICT"));
     expect(await db.deal.count()).toBe(0);
   });
@@ -82,9 +73,15 @@ describe("самосделка запрещена", () => {
     const me = await person();
     const { dealId } = await makeDeal({ executor: me.executor });
     // Сделка, где заказчик — сам исполнитель (в обход createDeal, как данные до правила).
-    await db.deal.update({ where: { id: dealId }, data: { clientId: me.client.id, status: "COMPLETED" } });
+    await db.deal.update({ where: { id: dealId }, data: { clientId: me.client.id, status: "SPLIT_PAYOUT" } });
 
-    await expect(leaveReview(me.client, { dealId, rating: 5 })).rejects.toThrow(code("FORBIDDEN"));
+    // Отзывы — под флагом reviews: включаем, чтобы отказ был именно из-за самосделки.
+    setEnv({ FEATURE_REVIEWS: "true" });
+    try {
+      await expect(leaveReview(me.client, { dealId, rating: 5 })).rejects.toThrow(code("FORBIDDEN"));
+    } finally {
+      setEnv({ FEATURE_REVIEWS: undefined });
+    }
     expect(await db.review.count()).toBe(0);
   });
 });

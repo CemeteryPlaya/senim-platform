@@ -1,6 +1,7 @@
 import "server-only";
 
-// Публичный API модуля requests: заявки (тендер и прямой запрос), отклики, выбор, замер (ADR-003).
+// Публичный API модуля requests: заявки (тендер и прямой запрос), отклики, торг → оферта (путь ТЗ, ADR-009),
+// сценарии до договора — выбор, замер, проект, залог, замерщик площадки (ADR-005, только при флаге preContractFlows).
 // Каждая функция принимает CurrentUser и сама проверяет права (IDOR: чужое — «не найдено»).
 export {
   cancelRequest,
@@ -27,6 +28,7 @@ export {
   type OfferListItem,
 } from "./offers";
 export { listMyOffers, type MyOfferItem } from "./my-offers";
+export { acceptPrice, getNegotiation, proposePrice, withdrawPrice, type NegotiationView } from "./negotiation";
 import { JOB_MEASUREMENT_REMINDER, remindMeasurement } from "./measurements";
 
 export {
@@ -41,7 +43,7 @@ export {
   type MeasurementListItem,
 } from "./measurements";
 export { onDealCancelled } from "./deal-cancelled";
-export { activePreContractFlow, PRE_CONTRACT_FLOW_KEY, setPreContractFlow, setPreContractFlowSchema } from "./flow-setting";
+export { activePreContractFlow, newRequestPath, PRE_CONTRACT_FLOW_KEY, setPreContractFlow, setPreContractFlowSchema } from "./flow-setting";
 export { approveProject, requestProjectChanges, submitProject, type ProjectVersion } from "./projects";
 export { confirmDeposit, markDepositPaid } from "./deposits";
 export {
@@ -60,6 +62,6 @@ export type { PreContractView } from "./pre-contract";
 export * from "./flows";
 export * from "./pre-contract-schema";
 export * from "./schema";
-export { MEASUREMENT_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS } from "./transitions";
+export { MEASUREMENT_TRANSITIONS, OFFER_TRANSITIONS, PROPOSAL_TRANSITIONS, REQUEST_TRANSITIONS } from "./transitions";
 
 export const jobHandlers = { [JOB_MEASUREMENT_REMINDER]: remindMeasurement } as const;

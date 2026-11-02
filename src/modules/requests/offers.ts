@@ -2,10 +2,12 @@ import "server-only";
 import { executorDisplayOf, publicExecutorView, publicExecutorViews, sanitizeExecutorText } from "@/modules/companies";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
+import { kztToTiyn } from "@/modules/payments";
 import { ru } from "@/i18n/ru";
 import { db, isUniqueViolation, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
-import { auditByUser, links, loadExecutor, loadOwnRequest, requestTitle, requireClient } from "./access";
+import { isEnabled } from "@/platform/features";
+import { auditByUser, links, loadExecutor, loadOwnRequest, preContractFlow, requestTitle, requireClient } from "./access";
 import { executorPortfolio, executorReviews, roomPhotos } from "./adapters";
 import { parseDetails, type OfferSort, type SendOfferInput } from "./schema";
 import { sortOffers } from "./sort";
@@ -14,11 +16,16 @@ import { visibleToExecutor } from "./visibility";
 import { allowedRound } from "./retries";
 import { preContractView } from "./pre-contract";
 import { coverPhoto, coversOf } from "./covers";
+import { pathOf, TZ_PATH } from "./flows";
+import { openNegotiation } from "./negotiation";
 
 const e = ru.requests.errors;
 const n = ru.requests.notify;
 
-/** Отклик на видимую открытую заявку. Один на исполнителя: повтор и гонка — CONFLICT. */
+/**
+ * Отклик на видимую открытую заявку. Один на исполнителя: повтор и гонка — CONFLICT.
+ * На пути ТЗ цена отклика — первое предложение торга (решение 2.2.3).
+ */
 export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promise<{ offerId: string }> {
   try {
     return await transaction(async (tx) => {
@@ -38,7 +45,7 @@ export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promi
         data: {
           requestId: r.id,
           executorId: executor.id,
-          price: input.price,
+          priceTiyn: kztToTiyn(input.priceKzt),
           durationDays: input.durationDays,
           warrantyMonths: input.warrantyMonths,
           comment: input.comment ? (await sanitizeExecutorText(tx, executor.id, input.comment)).text : input.comment,
@@ -50,8 +57,9 @@ export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promi
       await auditByUser(tx, user, r.id, {
         action: "offer.sent",
         entity: { type: "offer", id: offer.id },
-        after: { status: offer.status, price: offer.price, durationDays: offer.durationDays, measurementTerms: terms, round },
+        after: { status: offer.status, priceTiyn: String(offer.priceTiyn), durationDays: offer.durationDays, measurementTerms: terms, round },
       });
+      if (pathOf(r) === TZ_PATH) await openNegotiation(tx, offer, user.id);
       const title = requestTitle(r);
       await notify(tx, {
         userId: r.clientId,
@@ -96,7 +104,10 @@ export async function withdrawOffer(user: CurrentUser, input: { offerId: string 
   });
 }
 
-/** OPEN → OFFER_CHOSEN: выбранный отклик ACCEPTED, остальные отправленные — DECLINED. */
+/**
+ * Сценарии до договора (флаг preContractFlows): OPEN → OFFER_CHOSEN, выбранный отклик ACCEPTED, остальные — DECLINED.
+ * На пути ТЗ выбора без торга нет: отклик выбирается акцептом цены (negotiation.acceptPrice).
+ */
 export async function chooseOffer(user: CurrentUser, input: { offerId: string }): Promise<void> {
   requireClient(user);
   await transaction(async (tx) => {
@@ -106,7 +117,7 @@ export async function chooseOffer(user: CurrentUser, input: { offerId: string })
     });
     if (!offer) return fail.notFound(e.offerNotFound);
     const r = await loadOwnRequest(tx, user, offer.requestId);
-    const requestTo = transition(REQUEST_TRANSITIONS, "chooseOffer", r.status, "CLIENT");
+    const requestTo = transition(REQUEST_TRANSITIONS, "chooseOffer", r.status, "CLIENT", preContractFlow(r));
     const offerTo = transition(OFFER_TRANSITIONS, "accept", offer.status, "CLIENT");
 
     expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: requestTo } }));
@@ -160,7 +171,7 @@ export async function listOffers(user: CurrentUser, input: { requestId: string; 
       return {
         id: o.id,
         status: o.status,
-        price: o.price,
+        priceTiyn: o.priceTiyn,
         durationDays: o.durationDays,
         warrantyMonths: o.warrantyMonths,
         measurementTerms: o.measurementTerms,
@@ -189,15 +200,16 @@ export async function getOfferForClient(user: CurrentUser, input: { requestId: s
   return {
     id: o.id,
     status: o.status,
-    price: o.price,
+    priceTiyn: o.priceTiyn,
     durationDays: o.durationDays,
     warrantyMonths: o.warrantyMonths,
     measurementTerms: o.measurementTerms,
     measurementFee: o.measurementFee,
     comment: o.comment,
     createdAt: o.createdAt,
-    canChoose: r.status === "OPEN" && o.status === "SENT",
-    request: { id: r.id, number: r.number, title: requestTitle(r), status: r.status },
+    /** Выбор без торга — только в сценарии до договора; на пути ТЗ отклик выбирается акцептом цены в торге. */
+    canChoose: r.status === "OPEN" && o.status === "SENT" && pathOf(r) !== TZ_PATH && isEnabled("preContractFlows"),
+    request: { id: r.id, number: r.number, title: requestTitle(r), status: r.status, path: pathOf(r) },
     executor,
     portfolio,
     reviews,
@@ -241,7 +253,7 @@ export type IncomingListItem = Awaited<ReturnType<typeof listIncomingRequests>>[
 
 /**
  * Заявка для исполнителя: видимая ему или та, где есть его отклик.
- * Адрес — только если выбран именно его отклик.
+ * Адрес и точка — только если выбран именно его отклик (на пути ТЗ — принята цена и создана оферта).
  */
 export async function getIncomingRequest(user: CurrentUser, requestId: string) {
   const executor = await loadExecutor(db, user);
@@ -270,6 +282,8 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     details: parseDetails(r.details),
     city: r.city,
     address: chosen ? r.address : null,
+    location: chosen && r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null,
+    path: pathOf(r),
     desiredDate: r.desiredDate,
     wishes: r.wishes,
     publishedAt: r.publishedAt,
@@ -281,7 +295,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     myOffer: mine && {
       id: mine.id,
       status: mine.status,
-      price: mine.price,
+      priceTiyn: mine.priceTiyn,
       durationDays: mine.durationDays,
       warrantyMonths: mine.warrantyMonths,
       comment: mine.comment,

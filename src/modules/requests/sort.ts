@@ -1,10 +1,10 @@
 import type { OfferSort } from "./schema";
 
-export type Sortable = { price: number; durationDays: number; createdAt: Date; executor: { ratingAvg: number; reviewsCount: number } };
+export type Sortable = { priceTiyn: bigint; durationDays: number; createdAt: Date; executor: { ratingAvg: number; reviewsCount: number } };
 
 type Compare = (a: Sortable, b: Sortable) => number;
 
-const byPrice: Compare = (a, b) => a.price - b.price;
+const byPrice: Compare = (a, b) => (a.priceTiyn < b.priceTiyn ? -1 : a.priceTiyn > b.priceTiyn ? 1 : 0);
 const byDuration: Compare = (a, b) => a.durationDays - b.durationDays;
 const byRating: Compare = (a, b) => b.executor.ratingAvg - a.executor.ratingAvg || b.executor.reviewsCount - a.executor.reviewsCount;
 const byTime: Compare = (a, b) => a.createdAt.getTime() - b.createdAt.getTime();

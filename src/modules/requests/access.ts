@@ -1,10 +1,12 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
+import type { PreContractFlow } from "@/generated/prisma/enums";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { recordAudit, type AuditInput } from "@/modules/audit";
 import { ru } from "@/i18n/ru";
 import type { Db } from "@/platform/db";
 import { fail } from "@/platform/errors";
+import { isEnabled } from "@/platform/features";
 
 /**
  * Права и общие помощники сервиса. Защита от IDOR: заказчик находит только свои заявки,
@@ -15,6 +17,15 @@ const e = ru.requests.errors;
 
 export function requireClient(user: CurrentUser): void {
   if (user.role !== "CLIENT") fail.forbidden();
+}
+
+/**
+ * Сценарий до договора заявки — для его шагов (выбор без торга, замер, залог, проект, замер площадки, ADR-005).
+ * Флаг preContractFlows выключен — шагов нет (FORBIDDEN); заявка идёт путём ТЗ (торг → оферта) — CONFLICT.
+ */
+export function preContractFlow(r: { preContractFlow: PreContractFlow | null }): PreContractFlow {
+  if (!isEnabled("preContractFlows")) return fail.forbidden(e.preContractOff);
+  return r.preContractFlow ?? fail.conflict(e.notPreContract);
 }
 
 export type ExecutorRow = {
@@ -62,5 +73,6 @@ export function auditByUser(tx: Db, user: CurrentUser, requestId: string, input:
 /** Ссылки в уведомлениях (совпадают с маршрутами экранов и сидом). */
 export const links = {
   client: (requestId: string) => `/requests/${requestId}`,
+  offer: (requestId: string, offerId: string) => `/requests/${requestId}/offers/${offerId}`,
   executor: (requestId: string) => `/executor/requests/${requestId}`,
 };

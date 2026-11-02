@@ -4,37 +4,41 @@ import type {
   OfferStatus,
   PreContractFlow,
   ProjectStatus,
+  ProposalStatus,
   RequestStatus,
   SiteMeasurementStatus,
 } from "@/generated/prisma/enums";
 import { fail } from "@/platform/errors";
+import type { RequestPath } from "./flows";
 
 /**
- * Статусные машины заявки, отклика, замера и шагов до договора (ADR-003, ADR-005) — данными.
+ * Статусные машины заявки, отклика, торга, замера и шагов до договора (ADR-003, ADR-005, ADR-009) — данными.
  * Сервис спрашивает у таблицы, куда ведёт действие, и делает условное обновление
  * `updateMany({ where: { id, status: from } })`: гонка даёт ровно один успех.
- * Правило с `flows` действует только в этих сценариях до договора; без `flows` — во всех.
+ * Правило с `flows` действует только на этих путях заявки (путь ТЗ или сценарий до договора); без `flows` — на всех.
  */
 
 export type Who = "CLIENT" | "EXECUTOR" | "OPERATOR" | "MEASURER" | "SYSTEM";
 
-export type Rule<S extends string, A extends string> = {
+export type Rule<S extends string, A extends string, W extends string = Who> = {
   action: A;
   from: readonly S[];
   to: S;
-  who: readonly Who[];
+  who: readonly W[];
   /** Условие, которое проверяет сервис (для чтения людьми и для журнала). */
   guard?: string;
-  /** Только в этих сценариях до договора. */
-  flows?: readonly PreContractFlow[];
+  /** Только на этих путях заявки. */
+  flows?: readonly RequestPath[];
 };
 
-export type Table<S extends string, A extends string> = readonly Rule<S, A>[];
+export type Table<S extends string, A extends string, W extends string = Who> = readonly Rule<S, A, W>[];
 
 /** Сценарии, где до договора исполнитель выезжает на замер (и возможен «замер без сделки»). */
 const EXECUTOR_VISIT = ["EXECUTOR_MEASURE", "MEASURE_DEPOSIT"] as const satisfies readonly PreContractFlow[];
 /** Сценарии, где после выбора отклика договор заключается без выезда исполнителя. */
 const NO_VISIT = ["PLATFORM_MEASURER", "CONTRACT_FIRST", "SELF_MEASURE"] as const satisfies readonly PreContractFlow[];
+/** Все сценарии до договора (флаг preContractFlows): там заказчик сначала выбирает отклик, цена — после замера или проекта. */
+const PRE_CONTRACT = [...EXECUTOR_VISIT, ...NO_VISIT] as const satisfies readonly PreContractFlow[];
 
 export const REQUEST_TRANSITIONS = [
   {
@@ -43,7 +47,7 @@ export const REQUEST_TRANSITIONS = [
     to: "OPEN",
     who: ["CLIENT"],
     guard: "все экраны мастера сохранены; для DIRECT исполнитель подтверждён; в SELF_MEASURE — три размера и фото с рулеткой",
-    flows: ["EXECUTOR_MEASURE", "CONTRACT_FIRST", "MEASURE_DEPOSIT", "SELF_MEASURE"],
+    flows: ["TZ", "EXECUTOR_MEASURE", "CONTRACT_FIRST", "MEASURE_DEPOSIT", "SELF_MEASURE"],
   },
   {
     action: "publish",
@@ -54,7 +58,15 @@ export const REQUEST_TRANSITIONS = [
     flows: ["PLATFORM_MEASURER"],
   },
   { action: "siteMeasured", from: ["PLATFORM_MEASURING"], to: "OPEN", who: ["MEASURER"], guard: "замер назначен этому замерщику, размеры внесены", flows: ["PLATFORM_MEASURER"] },
-  { action: "chooseOffer", from: ["OPEN"], to: "OFFER_CHOSEN", who: ["CLIENT"], guard: "отклик в статусе SENT" },
+  {
+    action: "priceAccepted",
+    from: ["OPEN"],
+    to: "CONTRACTING",
+    who: ["CLIENT", "EXECUTOR"],
+    guard: "сторона отклика приняла открытую цену другой стороны; в той же транзакции создаётся сделка с офертой",
+    flows: ["TZ"],
+  },
+  { action: "chooseOffer", from: ["OPEN"], to: "OFFER_CHOSEN", who: ["CLIENT"], guard: "отклик в статусе SENT", flows: PRE_CONTRACT },
   {
     action: "scheduleMeasurement",
     from: ["OFFER_CHOSEN"],
@@ -73,24 +85,41 @@ export const REQUEST_TRANSITIONS = [
     flows: NO_VISIT,
   },
   { action: "measurementNoDeal", from: ["MEASURING"], to: "OPEN", who: ["CLIENT", "EXECUTOR"], guard: "замер SCHEDULED или DONE", flows: EXECUTOR_VISIT },
-  { action: "contractSigned", from: ["CONTRACTING"], to: "CLOSED", who: ["SYSTEM"], guard: "договор подписан обеими сторонами" },
+  { action: "contractSigned", from: ["CONTRACTING"], to: "CLOSED", who: ["SYSTEM"], guard: "оферта подписана обеими сторонами" },
   {
     action: "dealCancelled",
     from: ["CONTRACTING", "CLOSED"],
     to: "CANCELLED",
     who: ["SYSTEM"],
-    guard: "сделку отменили до начала работ: до подписи договора (CONTRACTING) или в эскроу до пополнения счёта (CLOSED)",
+    guard: "сделку отменили до начала работ: до подписи оферты (CONTRACTING) или после подписи до начала работ (CLOSED)",
   },
   { action: "cancel", from: ["DRAFT", "PLATFORM_MEASURING", "OPEN", "OFFER_CHOSEN", "MEASURING"], to: "CANCELLED", who: ["CLIENT"] },
 ] as const satisfies Table<RequestStatus, string>;
 
 export const OFFER_TRANSITIONS = [
   { action: "withdraw", from: ["SENT"], to: "WITHDRAWN", who: ["EXECUTOR"], guard: "заявка ещё OPEN" },
-  { action: "accept", from: ["SENT"], to: "ACCEPTED", who: ["CLIENT"] },
+  { action: "accept", from: ["SENT"], to: "ACCEPTED", who: ["CLIENT"], guard: "выбор отклика в сценарии до договора" },
+  { action: "priceAccepted", from: ["SENT"], to: "ACCEPTED", who: ["CLIENT", "EXECUTOR"], guard: "принята цена торга по этому отклику" },
   { action: "decline", from: ["SENT"], to: "DECLINED", who: ["CLIENT"], guard: "выбран другой отклик или заявка отменена" },
+  { action: "closedForOthers", from: ["SENT"], to: "DECLINED", who: ["SYSTEM"], guard: "по заявке принята цена другого отклика" },
   { action: "noDeal", from: ["ACCEPTED"], to: "DECLINED", who: ["CLIENT", "EXECUTOR"], guard: "замер без сделки" },
   { action: "requestCancelled", from: ["ACCEPTED"], to: "DECLINED", who: ["CLIENT"], guard: "заказчик отменил заявку до договора" },
 ] as const satisfies Table<OfferStatus, string>;
+
+/**
+ * Торг по отклику (решение 2.2.3, ТЗ п. 9): раунды PriceProposal. Роль — относительно открытого (PROPOSED) предложения:
+ * AUTHOR — его автор, OTHER — другая сторона отклика; при NONE (открытого нет) действующий становится автором.
+ * Встречная цена — counter (прежнее SUPERSEDED) и новое PROPOSED в той же транзакции. Открытое — одно на отклик
+ * (частичный уникальный индекс PriceProposal_one_open_per_offer).
+ */
+export type ProposalState = "NONE" | ProposalStatus;
+export type ProposalWho = "AUTHOR" | "OTHER";
+export const PROPOSAL_TRANSITIONS = [
+  { action: "propose", from: ["NONE"], to: "PROPOSED", who: ["AUTHOR"], guard: "отклик SENT, заявка OPEN на пути ТЗ; открытого предложения нет" },
+  { action: "counter", from: ["PROPOSED"], to: "SUPERSEDED", who: ["OTHER"], guard: "встречная цена: в той же транзакции новое PROPOSED" },
+  { action: "withdraw", from: ["PROPOSED"], to: "WITHDRAWN", who: ["AUTHOR"] },
+  { action: "accept", from: ["PROPOSED"], to: "ACCEPTED", who: ["OTHER"], guard: "фиксирует цену X; сделка (оферта) создаётся в той же транзакции" },
+] as const satisfies Table<ProposalState, string, ProposalWho>;
 
 export const MEASUREMENT_TRANSITIONS = [
   { action: "complete", from: ["SCHEDULED"], to: "DONE", who: ["EXECUTOR"], guard: "итоговая цена указана" },
@@ -136,16 +165,24 @@ export const SITE_MEASUREMENT_TRANSITIONS = [
 export type RequestAction = (typeof REQUEST_TRANSITIONS)[number]["action"];
 export type OfferAction = (typeof OFFER_TRANSITIONS)[number]["action"];
 export type MeasurementAction = (typeof MEASUREMENT_TRANSITIONS)[number]["action"];
+export type ProposalAction = (typeof PROPOSAL_TRANSITIONS)[number]["action"];
 
 /**
- * Куда ведёт действие из текущего статуса в сценарии `flow`. Неверный статус или сценарий — CONFLICT
- * (состояние уже изменилось: повтор или гонка; или шаг не из этого сценария), чужая роль — FORBIDDEN.
+ * Куда ведёт действие из текущего статуса на пути заявки `path`. Неверный статус или путь — CONFLICT
+ * (состояние уже изменилось: повтор или гонка; или шаг не с этого пути), чужая роль — FORBIDDEN.
  */
-export function transition<S extends string, A extends string>(table: Table<S, A>, action: A, from: S, who: Who, flow?: PreContractFlow): S {
+export function transition<S extends string, A extends string, W extends string>(
+  table: Table<S, A, W>,
+  action: A,
+  from: S,
+  who: W,
+  path?: RequestPath,
+  message?: string,
+): S {
   const rules = table.filter((r) => r.action === action);
-  if (!rules.some((r) => r.who.includes(who))) return fail.forbidden();
-  const inFlow = (r: Rule<S, A>) => !r.flows || (flow !== undefined && r.flows.includes(flow));
-  const rule = rules.find((r) => r.who.includes(who) && r.from.includes(from) && inFlow(r));
+  if (!rules.some((r) => r.who.includes(who))) return fail.forbidden(message);
+  const inPath = (r: Rule<S, A, W>) => !r.flows || (path !== undefined && r.flows.includes(path));
+  const rule = rules.find((r) => r.who.includes(who) && r.from.includes(from) && inPath(r));
   if (!rule) return fail.conflict();
   return rule.to;
 }

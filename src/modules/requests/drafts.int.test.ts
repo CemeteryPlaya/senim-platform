@@ -1,28 +1,54 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
-import { makeChosen, makeDraft, makeFurnitureType, makeMeasured, makeMeasuring, makeOpenRequest, segmentStep } from "../../../test/factories/requests";
+import {
+  makeChosen,
+  makeDraft,
+  makeFurnitureType,
+  makeMeasured,
+  makeMeasuring,
+  makeOpenRequest,
+  POINT,
+  segmentStep,
+  withPreContractFlows,
+} from "../../../test/factories/requests";
 import { agreeToContract, cancelRequest, getDraft, likeTarget, listMyRequests, publishRequest, saveDraftStep } from "./index";
 
 const code = (code: string) => expect.objectContaining({ code });
 
 describe("черновик заявки", () => {
-  it("создаётся на первом шаге и сохраняется на каждом следующем", async () => {
+  it("создаётся на первом экране (тип и стиль); блок «Для продвинутых» — по желанию", async () => {
     const client = await makeClient();
     const type = await makeFurnitureType("Шкаф-купе");
 
-    const first = await saveDraftStep(client, { requestId: null, step: { screen: "type", furnitureTypeId: type.id, customType: null } });
+    const first = await saveDraftStep(client, { requestId: null, step: { screen: "start", furnitureTypeId: type.id, customType: null, style: "loft", advanced: null } });
     expect(first.wizardStep).toBe(1);
-    const second = await saveDraftStep(client, { requestId: first.requestId, step: { screen: "style", style: "loft", styleNote: "" } });
-    await saveDraftStep(client, {
+    expect((await getDraft(client, first.requestId)).details).toEqual({});
+    const second = await saveDraftStep(client, {
       requestId: first.requestId,
-      step: { screen: "size", size: { mode: "known", widthCm: 240, heightCm: null, depthCm: 60 } },
+      step: {
+        screen: "start",
+        furnitureTypeId: type.id,
+        customType: null,
+        style: "loft",
+        advanced: { size: { mode: "known", widthCm: 240, heightCm: null, depthCm: 60 }, facade: "ldsp", countertop: "none", hardware: "unknown" },
+      },
     });
 
     expect(second.requestId).toBe(first.requestId);
     const draft = await getDraft(client, first.requestId);
-    expect(draft).toMatchObject({ status: "DRAFT", mode: "TENDER", furnitureTypeId: type.id, style: "loft", wizardStep: 3 });
-    expect(draft.details).toEqual({ widthCm: 240, depthCm: 60 });
+    expect(draft).toMatchObject({ status: "DRAFT", mode: "TENDER", furnitureTypeId: type.id, style: "loft", wizardStep: 1, typeChosen: true });
+    expect(draft.details).toEqual({ widthCm: 240, depthCm: 60, facade: "ldsp", unknown: ["hardware"] });
+  });
+
+  it("помощник ИИ может начать черновик шагом типа; прогресс мастера он не двигает", async () => {
+    const client = await makeClient();
+    const type = await makeFurnitureType();
+    const { requestId, wizardStep } = await saveDraftStep(client, { requestId: null, step: { screen: "type", furnitureTypeId: type.id, customType: null } });
+    expect(wizardStep).toBe(0);
+    await saveDraftStep(client, { requestId, step: { screen: "size", size: { mode: "unknown" } } });
+    expect(await getDraft(client, requestId)).toMatchObject({ wizardStep: 0, details: { unknown: ["size"] } });
+    await expect(saveDraftStep(client, { requestId: null, step: segmentStep() })).rejects.toThrow(code("VALIDATION"));
   });
 
   it("уровень, описание, адрес и срок сохраняются на своих экранах; материалы помощника прогресс не двигают", async () => {
@@ -32,13 +58,13 @@ describe("черновик заявки", () => {
     const step = (s: Parameters<typeof saveDraftStep>[1]["step"]) => saveDraftStep(client, { requestId, step: s });
 
     const afterMaterials = await step({ screen: "materials", facade: "ldsp", countertop: "none", hardware: "unknown", color: "", extras: [], description: "" });
-    expect(afterMaterials.wizardStep).toBe(1);
+    expect(afterMaterials.wizardStep).toBe(0);
     await step(segmentStep("ECONOMY"));
     await step({ screen: "room", photoFileIds: [], description: "Кухня до потолка, есть газовая труба" });
-    await step({ screen: "place", city: "Алматы", address: "мкр Самал-2, 10", desiredDate: "2026-12-20" });
+    await step({ screen: "place", city: "Алматы", address: "мкр Самал-2, 10", desiredDate: "2026-12-20", location: POINT });
 
     const draft = await getDraft(client, requestId);
-    expect(draft).toMatchObject({ segment: "ECONOMY", city: "Алматы", address: "мкр Самал-2, 10", desiredDate: new Date("2026-12-20T00:00:00Z") });
+    expect(draft).toMatchObject({ segment: "ECONOMY", city: "Алматы", address: "мкр Самал-2, 10", desiredDate: new Date("2026-12-20T00:00:00Z"), location: POINT });
     expect(draft.details).toMatchObject({ facade: "ldsp", description: "Кухня до потолка, есть газовая труба", unknown: ["hardware"] });
   });
 
@@ -46,7 +72,16 @@ describe("черновик заявки", () => {
     const client = await makeClient();
     const requestId = await makeDraft(client);
     const saved = await saveDraftStep(client, { requestId, step: { screen: "style", style: "classic", styleNote: "" } });
-    expect(saved.wizardStep).toBe(7);
+    expect(saved.wizardStep).toBe(5);
+  });
+
+  it("точка адреса: обе координаты или ни одной; без точки адрес сохраняется, повторное сохранение без точки её стирает", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const place = { screen: "place" as const, city: "Астана", address: "ул. Тестовая, 1", desiredDate: null };
+    expect(await db.request.findUniqueOrThrow({ where: { id: requestId } })).toMatchObject({ addressLat: POINT.lat, addressLng: POINT.lng });
+    await saveDraftStep(client, { requestId, step: { ...place, location: null } });
+    expect(await db.request.findUniqueOrThrow({ where: { id: requestId } })).toMatchObject({ address: "ул. Тестовая, 1", addressLat: null, addressLng: null });
   });
 
   it("подсказка сегмента пересчитывается по материалам", async () => {
@@ -223,7 +258,9 @@ describe("отправка заявки DRAFT → OPEN", () => {
   });
 });
 
-describe("отмена заявки → CANCELLED", () => {
+describe("отмена заявки → CANCELLED (сценарии до договора)", () => {
+  withPreContractFlows();
+
   it.each(["DRAFT", "OPEN", "OFFER_CHOSEN", "MEASURING"] as const)("из %s разрешена заказчику", async (status) => {
     const client = await makeClient();
     const requestId =
@@ -270,7 +307,7 @@ describe("отмена заявки → CANCELLED", () => {
   it("после договора, повторно и чужим — запрещена", async () => {
     const client = await makeClient();
     const m = await makeMeasured(client);
-    await agreeToContract(client, { requestId: m.requestId, template: "advance-50" });
+    await agreeToContract(client, { requestId: m.requestId });
     await expect(cancelRequest(client, { requestId: m.requestId })).rejects.toThrow(code("CONFLICT"));
 
     const other = await makeOpenRequest(client);
@@ -282,6 +319,8 @@ describe("отмена заявки → CANCELLED", () => {
 });
 
 describe("мои заявки", () => {
+  withPreContractFlows();
+
   it("показывают только свои, с числом откликов", async () => {
     const client = await makeClient();
     await makeChosen(client);

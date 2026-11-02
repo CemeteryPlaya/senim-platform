@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentFlowStep, FLOW_STEPS, flowOf, flowRules, toleranceRange, withinTolerance, type FlowFacts } from "./flows";
+import { currentFlowStep, FLOW_STEPS, flowRules, pathOf, toleranceRange, withinTolerance, type FlowFacts } from "./flows";
 
 const facts = (patch: Partial<FlowFacts>): FlowFacts => ({
   status: "OPEN",
@@ -27,9 +27,9 @@ describe("сценарии до договора: правила из табли
     expect(flowRules("SELF_MEASURE")).toEqual({ executorVisit: false, deposit: false, siteMeasure: false, selfMeasure: true, projectBeforeContract: true });
   });
 
-  it("черновик и старые заявки без снимка — сценарий 1", () => {
-    expect(flowOf({ preContractFlow: null })).toBe("EXECUTOR_MEASURE");
-    expect(flowOf({ preContractFlow: "SELF_MEASURE" })).toBe("SELF_MEASURE");
+  it("заявка без снимка сценария идёт путём ТЗ (торг → оферта); со снимком — своим сценарием", () => {
+    expect(pathOf({ preContractFlow: null })).toBe("TZ");
+    expect(pathOf({ preContractFlow: "SELF_MEASURE" })).toBe("SELF_MEASURE");
   });
 });
 

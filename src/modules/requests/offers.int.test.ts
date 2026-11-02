@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor } from "../../../test/factories";
 import {
-  makeChosen,
+  makeAccepted,
   makeDraft,
   makeExecutorWithTerms,
   makeFurnitureType,
   makeOpenRequest,
   offerInput,
+  POINT,
+  withPreContractFlows,
 } from "../../../test/factories/requests";
 import {
   chooseOffer,
@@ -51,15 +53,15 @@ describe("видимость заявок исполнителю", () => {
     expect(await listIncomingRequests(sameSegment)).toEqual([]);
   });
 
-  it("адрес заказчика раскрывается только после выбора отклика этого исполнителя", async () => {
+  it("адрес и точка заказчика раскрываются только мастеру, чью цену приняли (оферта создана)", async () => {
     const client = await makeClient();
-    const { requestId, executor } = await makeChosen(client);
+    const { requestId, executor } = await makeAccepted(client);
     const loser = await makeExecutor({ segment: "COMFORT" });
     const open = await makeOpenRequest(client, { segment: "COMFORT" });
     await sendOffer(loser, offerInput(open));
 
-    expect((await getIncomingRequest(executor, requestId)).address).toBe("ул. Тестовая, 1, кв. 2");
-    expect((await getIncomingRequest(loser, open)).address).toBeNull();
+    expect(await getIncomingRequest(executor, requestId)).toMatchObject({ address: "ул. Тестовая, 1, кв. 2", location: POINT });
+    expect(await getIncomingRequest(loser, open)).toMatchObject({ address: null, location: null });
     await expect(getIncomingRequest(loser, requestId)).rejects.toThrow(code("NOT_FOUND"));
   });
 });
@@ -74,7 +76,7 @@ describe("отклик исполнителя", () => {
 
     expect(await db.offer.findUniqueOrThrow({ where: { id: offerId } })).toMatchObject({
       status: "SENT",
-      price: 700_000,
+      priceTiyn: 700_000_00n,
       measurementTerms: "FEE_IF_NO_DEAL",
       measurementFee: 10_000,
     });
@@ -107,7 +109,7 @@ describe("отклик исполнителя", () => {
     const draft = await makeDraft(client);
     const premium = await makeOpenRequest(client, { segment: "PREMIUM" });
     const executor = await makeExecutor({ segment: "COMFORT" });
-    const { requestId: chosen } = await makeChosen(client);
+    const { requestId: chosen } = await makeAccepted(client);
 
     await expect(sendOffer(executor, offerInput(draft))).rejects.toThrow(code("NOT_FOUND"));
     await expect(sendOffer(executor, offerInput(premium))).rejects.toThrow(code("NOT_FOUND"));
@@ -129,8 +131,8 @@ describe("отклик исполнителя", () => {
     await expect(sendOffer(executor, offerInput(requestId))).rejects.toThrow(code("CONFLICT"));
   });
 
-  it("выбранный отклик отозвать нельзя", async () => {
-    const { executor, offerId } = await makeChosen(await makeClient());
+  it("отклик с принятой ценой отозвать нельзя", async () => {
+    const { executor, offerId } = await makeAccepted(await makeClient());
     await expect(withdrawOffer(executor, { offerId })).rejects.toThrow(code("CONFLICT"));
   });
 });
@@ -166,7 +168,7 @@ describe("список откликов и сортировка", () => {
     const { client, requestId, ids } = await threeOffers();
     const offer = await getOfferForClient(client, { requestId, offerId: ids.a });
     expect(offer.executor.label).toMatch(/^Исполнитель №\d+$/);
-    expect(JSON.stringify(offer)).not.toMatch(/ИП Тестовый|\+7700/);
+    expect(JSON.stringify(offer, (_k, v: unknown) => (typeof v === "bigint" ? String(v) : v))).not.toMatch(/ИП Тестовый|\+7700/);
   });
 
   it("чужие отклики не видны (IDOR)", async () => {
@@ -177,7 +179,9 @@ describe("список откликов и сортировка", () => {
   });
 });
 
-describe("выбор отклика OPEN → OFFER_CHOSEN", () => {
+describe("выбор отклика OPEN → OFFER_CHOSEN (сценарии до договора)", () => {
+  withPreContractFlows();
+
   it("выбранный ACCEPTED, остальные DECLINED, обе стороны уведомлены", async () => {
     const client = await makeClient();
     const requestId = await makeOpenRequest(client);

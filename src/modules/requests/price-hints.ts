@@ -1,6 +1,7 @@
 import "server-only";
 import type { Segment } from "@/generated/prisma/enums";
 import { db } from "@/platform/db";
+import { isEnabled } from "@/platform/features";
 import { logger } from "@/platform/logger";
 import {
   estimateOrder,
@@ -12,12 +13,13 @@ import {
   type ProductUnit,
   type TypicalEstimate,
 } from "@/verticals/furniture";
+import { wholeKzt } from "./flows";
 import { priceRange, roundOutward } from "./price-range";
 import { SEGMENTS } from "./schema";
 
 /**
  * Подсказка цены уровня на экране «Уровень» мастера. Источник виден заказчику:
- * - `materials` — по ценам материалов из справочника оператора и типовому расчёту (ADR-007);
+ * - `materials` — по ценам материалов из справочника оператора и типовому расчёту (ADR-007), только при флаге materialsCalculator;
  *   `typical` — размеров в заявке нет, посчитано для типового размера; `demo` — в расчёт вошли демо-цифры;
  * - `offers` — по настоящим откликам на заявки того же типа мебели.
  */
@@ -79,11 +81,11 @@ function materialsHint(book: Book, segment: Segment, order: OrderEstimate): Pric
 async function offerRanges(furnitureTypeId: string): Promise<SegmentPriceHints> {
   const offers = await db.offer.findMany({
     where: { status: { not: "WITHDRAWN" }, request: { furnitureTypeId, segment: { not: null } } },
-    select: { price: true, request: { select: { segment: true } } },
+    select: { priceTiyn: true, request: { select: { segment: true } } },
   });
   return Object.fromEntries(
     SEGMENTS.map((segment) => {
-      const range = priceRange(offers.filter((o) => o.request.segment === segment).map((o) => o.price));
+      const range = priceRange(offers.filter((o) => o.request.segment === segment).map((o) => wholeKzt(o.priceTiyn)));
       return [segment, range && { source: "offers", ...range }];
     }),
   ) as SegmentPriceHints;
@@ -96,7 +98,7 @@ async function offerRanges(furnitureTypeId: string): Promise<SegmentPriceHints> 
  */
 export async function segmentPriceHints(furnitureTypeId: string | null, size: ProductSize = {}): Promise<SegmentPriceHints> {
   if (!furnitureTypeId) return EMPTY;
-  const [book, offers] = await Promise.all([loadBook(furnitureTypeId), offerRanges(furnitureTypeId)]);
+  const [book, offers] = await Promise.all([isEnabled("materialsCalculator") ? loadBook(furnitureTypeId) : null, offerRanges(furnitureTypeId)]);
   const orders = book ? estimateOrder(book.estimate, size, book.prices) : null;
   return Object.fromEntries(
     SEGMENTS.map((segment) => {

@@ -6,10 +6,9 @@ import { recordAudit } from "@/modules/audit";
 import { ru } from "@/i18n/ru";
 import { db, isUniqueViolation, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
-import { links, requestScope, requestTitle, type RequestWithType } from "./access";
+import { links, preContractFlow, requestScope, requestTitle, type RequestWithType } from "./access";
 import { roomPhotos } from "./adapters";
 import { announceToExecutors, executorRecipients } from "./announce";
-import { flowOf } from "./flows";
 import type { CompleteSiteMeasurementInput } from "./pre-contract-schema";
 import { parseDetails } from "./schema";
 import { REQUEST_TRANSITIONS, SITE_MEASUREMENT_TRANSITIONS, stored, transition } from "./transitions";
@@ -45,7 +44,7 @@ export async function assignSiteMeasurer(operator: CurrentUser, input: { request
     await transaction(async (tx) => {
       const r = await tx.request.findUnique({ where: { id: input.requestId }, include: { ...withType, siteMeasurement: true } });
       if (!r) return fail.notFound(ru.requests.errors.notFound);
-      const to = stored(transition(SITE_MEASUREMENT_TRANSITIONS, "assign", r.siteMeasurement?.status ?? "NONE", "OPERATOR", flowOf(r)));
+      const to = stored(transition(SITE_MEASUREMENT_TRANSITIONS, "assign", r.siteMeasurement?.status ?? "NONE", "OPERATOR", preContractFlow(r)));
       if (r.status !== "PLATFORM_MEASURING") fail.conflict();
       const measurer = await tx.user.findFirst({ where: { id: input.measurerId, roles: { has: "MEASURER" }, blockedAt: null }, select: { id: true, fullName: true } });
       if (!measurer) return fail.notFound(pe.measurerNotFound);
@@ -71,7 +70,7 @@ export async function completeSiteMeasurement(measurer: CurrentUser, input: Comp
     const sm = await tx.siteMeasurement.findFirst({ where: { id: input.siteMeasurementId, measurerId: measurer.id }, include: { request: { include: withType } } });
     if (!sm) return fail.notFound(pe.siteNotFound);
     const r = sm.request;
-    const flow = flowOf(r);
+    const flow = preContractFlow(r);
     const smTo = stored(transition(SITE_MEASUREMENT_TRANSITIONS, "complete", sm.status, "MEASURER", flow));
     const requestTo = transition(REQUEST_TRANSITIONS, "siteMeasured", r.status, "MEASURER", flow);
     const recipients = await executorRecipients(tx, r);

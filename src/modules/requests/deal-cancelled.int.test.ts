@@ -16,12 +16,12 @@ describe("заявка закрывается, когда сделку отме�
     expect(await db.auditEvent.count({ where: { action: "request.cancelled_with_deal", entityId: f.requestId } })).toBe(1);
   });
 
-  it("эскроу: договор подписан (заявка CLOSED), пополнения нет — отмена закрывает заявку CLOSED → CANCELLED", async () => {
-    const f = await makeDeal({ rail: "escrow-simulator" });
+  it("оферта подписана (заявка CLOSED), оплаты нет — отмена закрывает заявку CLOSED → CANCELLED", async () => {
+    const f = await makeDeal();
     await signContract(f.dealId);
-    // Как requests.onDealDocumentSigned при подписи договора обеими сторонами.
+    // Как requests.onDealDocumentSigned при подписи оферты обеими сторонами.
     await db.request.update({ where: { id: f.requestId }, data: { status: "CLOSED", closedAt: new Date() } });
-    expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("AWAITING_DEPOSIT");
+    expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("CREATED");
 
     await cancelDeal(f.client, { dealId: f.dealId, reason: "Передумали" }, { onCancelled: onDealCancelled });
 
@@ -36,7 +36,7 @@ describe("заявка закрывается, когда сделку отме�
       throw new Error("requests упал");
     };
     await expect(cancelDeal(f.client, { dealId: f.dealId }, { onCancelled: failing })).rejects.toThrow("requests упал");
-    expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("AWAITING_SIGNATURES");
+    expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("CREATED");
   });
 
   it("повторный вызов и заявка не в CONTRACTING/CLOSED ничего не меняют", async () => {
