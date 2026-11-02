@@ -1,8 +1,13 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
+import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
 import { dHash, hammingHex, processImage, sniffType } from "./image";
+
+const IPHONE_HEIC = new Uint8Array(readFileSync(path.join(process.cwd(), "test/fixtures/heic/rotated-exif-gps.heic")));
 
 const svg = (body: string, w = 320, h = 240) =>
   Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#f4efe6"/>${body}</svg>`);
@@ -70,10 +75,42 @@ describe("обработка фото", () => {
     expect([small.width, small.height]).toEqual([320, 240]);
   });
 
-  it("HEIC, который сервер не может раскодировать, — понятная ошибка для пользователя", async () => {
+  it("HEIC как с iPhone → JPEG: поворот из irot применён один раз, EXIF с геолокацией и моделью удалён", async () => {
+    // Пиксели 128×96 «лёжа», irot — 90° по часовой, рядом EXIF Orientation=6 (см. test/fixtures/heic/README.md).
+    expect(sniffType(IPHONE_HEIC)).toBe("heic");
+    expect(Buffer.from(IPHONE_HEIC).includes(Buffer.from("Phone"))).toBe(true);
+
+    const out = await processImage(IPHONE_HEIC);
+    const meta = await sharp(Buffer.from(out.bytes)).metadata();
+    expect(meta.format).toBe("jpeg");
+    expect(out.contentType).toBe("image/jpeg");
+    expect(meta.exif).toBeUndefined();
+    expect(meta.orientation).toBeUndefined();
+    expect(Buffer.from(out.bytes).includes(Buffer.from("Phone"))).toBe(false);
+    // Портрет: повёрнуто ровно раз (двойной поворот по irot и EXIF дал бы снова 128×96).
+    expect([out.width, out.height]).toEqual([96, 128]);
+    // Тёмная левая половина исходника после поворота по часовой — сверху.
+    const { data } = await sharp(Buffer.from(out.bytes)).grayscale().raw().toBuffer({ resolveWithObject: true });
+    expect(data[10 * 96 + 48]).toBeLessThan(80);
+    expect(data[118 * 96 + 48]).toBeGreaterThan(180);
+    expect(out.phash).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it("битый HEIC — понятная ошибка «файл повреждён»", async () => {
     const fake = new Uint8Array([0, 0, 0, 0x18, ...new TextEncoder().encode("ftypheic"), ...new Uint8Array(64)]);
     const error = await processImage(fake).catch((e: unknown) => e);
-    expect(isAppError(error) && error.code).toBe("VALIDATION");
+    expect(isAppError(error) && [error.code, error.message]).toEqual(["VALIDATION", ru.files.errors.broken]);
+    const truncated = await processImage(IPHONE_HEIC.subarray(0, 400)).catch((e: unknown) => e);
+    expect(isAppError(truncated) && [truncated.code, truncated.message]).toEqual(["VALIDATION", ru.files.errors.broken]);
+  });
+
+  it("HEIC, заявивший больше 50 млн пикселей, отклоняется до раскодирования", async () => {
+    const huge = Buffer.from(IPHONE_HEIC);
+    const ispe = huge.indexOf("ispe") + 8; // тип, затем версия и флаги
+    huge.writeUInt32BE(10_000, ispe);
+    huge.writeUInt32BE(10_000, ispe + 4);
+    const error = await processImage(new Uint8Array(huge)).catch((e: unknown) => e);
+    expect(isAppError(error) && [error.code, error.message]).toEqual(["VALIDATION", ru.files.errors.broken]);
   });
 
   it("картинка-бомба: маленький файл на 64 млн пикселей отклоняется, не раскодируясь", async () => {

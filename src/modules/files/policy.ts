@@ -26,7 +26,8 @@ export const PURPOSE_POLICY: Readonly<Record<FilePurpose, PurposePolicy>> = {
   VISUALIZATION: { roles: [], accepts: "image", maxBytes: PHOTO_MAX },
 };
 
-export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
+// HEIC/HEIF — фото iPhone и части Android: сервер раскодирует их сам (image.ts, decodeHeif).
+export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"] as const;
 export const PDF_TYPE = "application/pdf";
 
 /** Заявленный браузером тип: первая проверка. Окончательная — по байтам в finalizeUpload. */

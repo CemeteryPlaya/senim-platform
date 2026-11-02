@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -56,6 +56,20 @@ describe("загрузка по подписанной цели", () => {
     expect((await sharp(Buffer.from(stored)).metadata()).exif).toBeUndefined();
     expect(await (await storage()).get(stagingKey)).toBeNull();
     expect(result.url).toMatch(/^\/api\/files\/request_room\/.+\?exp=\d+&sig=[0-9a-f]+$/);
+  });
+
+  it("фото iPhone в HEIC принимается: сохраняется JPEG без EXIF, повёрнутый по irot", async () => {
+    const client = await makeClient();
+    const heic = new Uint8Array(await readFile(path.join(process.cwd(), "test/fixtures/heic/rotated-exif-gps.heic")));
+    const { result } = await upload(client, "REQUEST_ROOM", heic, "image/heic");
+
+    const file = await db.storedFile.findUniqueOrThrow({ where: { id: result.id } });
+    expect(file).toMatchObject({ contentType: "image/jpeg", width: 96, height: 128 });
+    expect(file.storageKey).toMatch(/\.jpg$/);
+    expect(file.phash).toMatch(/^[0-9a-f]{16}$/);
+    const stored = Buffer.from((await (await storage()).get(file.storageKey))!);
+    expect((await sharp(stored).metadata()).exif).toBeUndefined();
+    expect(stored.includes(Buffer.from("Phone"))).toBe(false);
   });
 
   it("повторный finalize того же токена возвращает тот же файл (идемпотентно)", async () => {

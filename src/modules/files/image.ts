@@ -1,6 +1,7 @@
-import sharp from "sharp";
+import sharp, { type SharpOptions } from "sharp";
 import { ru } from "@/i18n/ru";
 import { fail } from "@/platform/errors";
+import { logger } from "@/platform/logger";
 
 /** Тип по сигнатуре байтов. Заявленному браузером типу и расширению не доверяем. */
 export type SniffedType = "jpeg" | "png" | "webp" | "heic" | "pdf";
@@ -42,14 +43,34 @@ export type ProcessedImage = {
 };
 
 /**
+ * HEIC/HEIF (фото iPhone): готовая сборка sharp не декодирует HEVC, поэтому раскодируем libheif (WASM,
+ * пакет heic-decode) в пиксели RGBA и дальше обрабатываем их как любое фото. Поворот из коробок
+ * irot/imir libheif применяет сам, а EXIF в пиксели не попадает — повторного поворота нет.
+ * Размер проверяем до раскодирования: декодер синхронный и держит весь кадр в памяти.
+ */
+async function decodeHeif(input: Uint8Array): Promise<{ input: Uint8Array; options: SharpOptions }> {
+  // Загружаем по требованию: 2 МБ WASM нужны только когда пришёл HEIC.
+  const { default: heic } = await import("heic-decode");
+  const images = await heic.all({ buffer: input });
+  try {
+    const first = images[0];
+    if (!first || first.width * first.height > MAX_INPUT_PIXELS) throw new Error("heif: no image or too many pixels");
+    const { width, height, data } = await first.decode();
+    return { input: new Uint8Array(data.buffer, data.byteOffset, data.byteLength), options: { raw: { width, height, channels: 4 } } };
+  } finally {
+    images.dispose();
+  }
+}
+
+/**
  * Фото → JPEG без метаданных: ориентация из EXIF применяется к пикселям (autoOrient),
  * затем все метаданные (геолокация, модель телефона) отбрасываются — sharp не пишет их без withMetadata.
  * JPEG — потому что его встраивает pdf-lib в акты и понимает любой браузер.
  */
-export async function processImage(input: Uint8Array): Promise<ProcessedImage> {
-  const heic = sniffType(input) === "heic";
+export async function processImage(raw: Uint8Array): Promise<ProcessedImage> {
   try {
-    const { data, info } = await sharp(input, { failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
+    const { input, options } = sniffType(raw) === "heic" ? await decodeHeif(raw) : { input: raw, options: {} };
+    const { data, info } = await sharp(input, { ...options, failOn: "error", limitInputPixels: MAX_INPUT_PIXELS })
       .autoOrient()
       .resize({ width: MAX_SIDE, height: MAX_SIDE, fit: "inside", withoutEnlargement: true })
       .flatten({ background: "#ffffff" })
@@ -57,9 +78,9 @@ export async function processImage(input: Uint8Array): Promise<ProcessedImage> {
       .toBuffer({ resolveWithObject: true });
     const bytes = new Uint8Array(data);
     return { bytes, contentType: "image/jpeg", width: info.width, height: info.height, phash: await dHash(bytes) };
-  } catch {
-    // Готовая сборка sharp не декодирует HEVC (HEIC с iPhone); Safari обычно сам отдаёт JPEG.
-    return fail.validation(heic ? ru.files.errors.heicUnsupported : ru.files.errors.broken);
+  } catch (error) {
+    logger.warn("files.image.decode_failed", { error });
+    return fail.validation(ru.files.errors.broken);
   }
 }
 
