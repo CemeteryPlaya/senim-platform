@@ -18,7 +18,7 @@ export const notifications = {
     title: "Уведомления",
     markAllRead: "Отметить все прочитанными",
     empty: "Уведомлений пока нет",
-    emptyHint: "Здесь появятся отклики, этапы сделок и решения оператора",
+    emptyHint: "Здесь появятся отклики, события сделок и решения оператора",
     unread: "Новое",
     open: "Открыть",
   },
@@ -30,6 +30,26 @@ export const notifications = {
   sms: (title: string, url: string | null) => (url ? `${brand.name}: ${title}. ${url}` : `${brand.name}: ${title}`),
   errors: {
     smsNotConfigured: "SMS-шлюз не настроен",
+  },
+  /** Push на телефон: на экране блокировки — только заголовок события и общий текст, без сумм и имён. */
+  push: {
+    body: "Откройте, чтобы посмотреть подробности",
+    enable: "Включить уведомления",
+    enabling: "Включаем…",
+    disable: "Выключить уведомления на этом устройстве",
+    enabled: "Уведомления на этом устройстве включены",
+    hint: "Сообщим о деньгах и шагах сделки, даже когда приложение закрыто",
+    denied: "Уведомления запрещены в настройках браузера. Разрешите их для этого сайта и попробуйте снова",
+    unsupported: "Этот браузер не умеет присылать уведомления",
+    failed: "Не удалось включить уведомления. Попробуйте ещё раз",
+    iosInstall: {
+      title: "Уведомления на iPhone",
+      body: "На iPhone и iPad уведомления приходят только в установленном приложении (iOS 16.4 и новее). Нажмите «Поделиться», затем «На экран „Домой“», откройте приложение с экрана «Домой» и включите уведомления там.",
+    },
+    errors: {
+      badEndpoint: "Неизвестный адрес push-сервиса",
+      badSubscription: "Некорректная подписка на уведомления",
+    },
   },
   segments: { ECONOMY: "Эконом", COMFORT: "Комфорт", PREMIUM: "Премиум" },
   templates: {
@@ -67,40 +87,6 @@ export const notifications = {
       body: fee
         ? `По заявке «${requestTitle}» сделка не состоялась. Плата за выезд — ${fee}, оплачивается напрямую исполнителю. Заявка снова открыта для откликов.`
         : `По заявке «${requestTitle}» сделка не состоялась. Заявка снова открыта для откликов.`,
-    }),
-    contractReady: (dealTitle: string): Text => ({
-      title: "Договор готов к подписи",
-      body: `Сделка «${dealTitle}»: проверьте договор и подпишите ЭЦП.`,
-    }),
-    contractSigned: (dealTitle: string): Text => ({
-      title: "Договор подписан",
-      body: `Обе стороны подписали договор по сделке «${dealTitle}». Можно начинать работу.`,
-    }),
-    stageSubmitted: (dealTitle: string, stageTitle: string, autoAcceptDays: number): Text => ({
-      title: "Этап сдан — проверьте работу",
-      body: `Исполнитель сдал этап «${stageTitle}» по сделке «${dealTitle}». Если не ответить в течение ${days(autoAcceptDays)}, этап примется автоматически.`,
-    }),
-    stageAccepted: (dealTitle: string, stageTitle: string, auto: boolean): Text => ({
-      title: "Этап принят",
-      body: auto
-        ? `Этап «${stageTitle}» по сделке «${dealTitle}» принят автоматически: заказчик не ответил в срок.`
-        : `Заказчик принял этап «${stageTitle}» по сделке «${dealTitle}».`,
-    }),
-    stageRework: (dealTitle: string, stageTitle: string): Text => ({
-      title: "Этап вернули на доработку",
-      body: `Заказчик вернул этап «${stageTitle}» по сделке «${dealTitle}». Замечания — в сделке.`,
-    }),
-    paymentMarked: (dealTitle: string, stageTitle: string, amount: string): Text => ({
-      title: "Заказчик отметил оплату",
-      body: `Этап «${stageTitle}», ${amount} по сделке «${dealTitle}». Проверьте поступление и подтвердите получение.`,
-    }),
-    paymentConfirmed: (dealTitle: string, stageTitle: string, amount: string): Text => ({
-      title: "Исполнитель подтвердил оплату",
-      body: `Этап «${stageTitle}», ${amount} по сделке «${dealTitle}»: получение подтверждено.`,
-    }),
-    dealCompleted: (dealTitle: string): Text => ({
-      title: "Сделка завершена",
-      body: `Все этапы по сделке «${dealTitle}» закрыты.`,
     }),
     disputeOpened: (dealTitle: string): Text => ({
       title: "Открыт спор",

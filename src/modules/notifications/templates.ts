@@ -28,7 +28,6 @@ const requestLink = (p: RequestAudience) => (p.audience === "client" ? links.req
 const template = <P>(sms: boolean, render: (params: P) => Rendered): Template<P> => ({ sms, render });
 
 type DealRef = { dealId: string; dealTitle: string };
-type StageRef = DealRef & { stageTitle: string };
 
 export const TEMPLATES = {
   // ─── заявки и отклики ───
@@ -65,27 +64,7 @@ export const TEMPLATES = {
     link: links.request(p.requestId),
   })),
 
-  // ─── сделка ───
-  "deal.contract.ready": template<DealRef>(true, (p) => ({ ...t.contractReady(p.dealTitle), link: links.deal(p.dealId) })),
-  "deal.contract.signed": template<DealRef>(false, (p) => ({ ...t.contractSigned(p.dealTitle), link: links.deal(p.dealId) })),
-  "deal.stage.submitted": template<StageRef & { autoAcceptDays: number }>(true, (p) => ({
-    ...t.stageSubmitted(p.dealTitle, p.stageTitle, p.autoAcceptDays),
-    link: links.deal(p.dealId),
-  })),
-  "deal.stage.accepted": template<StageRef & { auto: boolean }>(false, (p) => ({
-    ...t.stageAccepted(p.dealTitle, p.stageTitle, p.auto),
-    link: links.deal(p.dealId),
-  })),
-  "deal.stage.rework": template<StageRef>(true, (p) => ({ ...t.stageRework(p.dealTitle, p.stageTitle), link: links.deal(p.dealId) })),
-  "deal.payment.marked": template<StageRef & { amount: number }>(true, (p) => ({
-    ...t.paymentMarked(p.dealTitle, p.stageTitle, formatMoney(p.amount)),
-    link: links.deal(p.dealId),
-  })),
-  "deal.payment.confirmed": template<StageRef & { amount: number }>(false, (p) => ({
-    ...t.paymentConfirmed(p.dealTitle, p.stageTitle, formatMoney(p.amount)),
-    link: links.deal(p.dealId),
-  })),
-  "deal.completed": template<DealRef>(false, (p) => ({ ...t.dealCompleted(p.dealTitle), link: links.deal(p.dealId) })),
+  // Сделка и деньги шлёт deal-core готовым текстом (ru.deal.notify, ru.payments.notify) — см. SMS_TEXT_KINDS.
 
   // ─── споры и отзывы ───
   "dispute.opened": template<{ audience: "party"; dealId: string; dealTitle: string } | { audience: "operator"; disputeId: string; dealTitle: string }>(
@@ -110,6 +89,19 @@ export const TEMPLATES = {
 } as const;
 
 export type TemplateKey = keyof typeof TEMPLATES;
+
+/**
+ * Важные виды, которые модули шлют готовым текстом (notify), а не шаблоном: тоже дублируются SMS.
+ * deal-core: оферта ждёт подписи, работа сдана — нужен ответ стороны. Деньги (money.*) идут
+ * push и in-app на каждое изменение (ТЗ п. 4.3); SMS по ним не шлём — это дорого и дублирует push.
+ */
+export const SMS_TEXT_KINDS = ["deal.offer.ready", "deal.ready"] as const;
+
+/** Все виды уведомлений, которые дублируются SMS: шаблоны с sms: true и SMS_TEXT_KINDS. */
+export const SMS_KINDS: ReadonlySet<string> = new Set<string>([
+  ...(Object.keys(TEMPLATES) as TemplateKey[]).filter((key) => TEMPLATES[key].sms),
+  ...SMS_TEXT_KINDS,
+]);
 export type TemplateParams<K extends TemplateKey> = Parameters<(typeof TEMPLATES)[K]["render"]>[0];
 
 export function renderTemplate<K extends TemplateKey>(key: K, params: TemplateParams<K>): Rendered {

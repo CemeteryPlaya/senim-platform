@@ -7,18 +7,36 @@ import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { enqueueJob, type JobHandler } from "@/platform/jobs";
 import { parseInput } from "@/platform/validation";
+import { deliverAfterResponse } from "./dispatch";
+import { safeLink } from "./links";
+import { pushJobKey, SEND_PUSH, sendPushHandler, vapidConfig } from "./push";
 import { createHttpSmsProvider, mockSmsProvider, type SmsProvider } from "./sms";
-import { renderTemplate, TEMPLATES, type TemplateKey, type TemplateParams } from "./templates";
+import { renderTemplate, SMS_KINDS, type TemplateKey, type TemplateParams } from "./templates";
 
 export type { SmsProvider } from "./sms";
-export { renderTemplate, TEMPLATES, type TemplateKey, type TemplateParams } from "./templates";
+export { renderTemplate, SMS_KINDS, TEMPLATES, type TemplateKey, type TemplateParams } from "./templates";
+export {
+  createSendPushHandler,
+  pushEndpointSchema,
+  pushJobKey,
+  pushPublicKey,
+  pushSubscriptionSchema,
+  subscribePush,
+  unsubscribePush,
+  type PushMessage,
+  type PushResult,
+  type PushSender,
+  type PushSubscriptionInput,
+} from "./push";
+export { runQueuedNow } from "./dispatch";
+export { createMockEmailProvider, emailProvider, sendEmail, type EmailAttachment, type EmailMessage, type EmailProvider, type EmailResult } from "./email";
 
 export type NotifyInput = {
   userId: string;
   /**
-   * Вид события. Для событий из templates.ts — ровно ключ шаблона («offer.accepted», «dispute.opened»):
-   * по нему решается, дублировать ли SMS. Синонимов нет — templates.test.ts проверяет, что каждый
-   * шаблон с SMS кто-то шлёт.
+   * Вид события: ключ шаблона из templates.ts («offer.accepted», «dispute.opened») или вид готового
+   * текста модуля («deal.ready», «money.hold.succeeded»). По нему решается, дублировать ли SMS (SMS_KINDS);
+   * templates.test.ts проверяет, что каждый вид с SMS кто-то шлёт.
    */
   kind: string;
   title: string;
@@ -27,19 +45,34 @@ export type NotifyInput = {
 };
 
 const SEND_SMS = "notifications.sendSms";
-const TEMPLATES_WITH_SMS = new Set<string>(Object.entries(TEMPLATES).flatMap(([key, t]) => (t.sms ? [key] : [])));
 
-/** Запись уведомления; для важного вида (sms: true в шаблоне) — ещё и задача SMS, одна на уведомление. */
+/**
+ * Запись уведомления и задачи доставки в транзакции события: SMS для важного вида (одна на уведомление)
+ * и push на каждое устройство получателя (одна на пару, если включён VAPID). Откат убирает всё вместе.
+ * Доставка начинается сразу после ответа (deliverAfterResponse) — не ждёт прохода очереди.
+ */
 async function create(tx: Db, input: NotifyInput, sms: boolean): Promise<void> {
   const notification = await tx.notification.create({ data: input, select: { id: true } });
-  if (sms && TEMPLATES_WITH_SMS.has(input.kind)) {
-    await enqueueJob(tx, { kind: SEND_SMS, payload: { notificationId: notification.id }, dedupeKey: `sms:${notification.id}` });
+  const keys: string[] = [];
+  if (sms && SMS_KINDS.has(input.kind)) {
+    const dedupeKey = `sms:${notification.id}`;
+    await enqueueJob(tx, { kind: SEND_SMS, payload: { notificationId: notification.id }, dedupeKey });
+    keys.push(dedupeKey);
   }
+  if (vapidConfig()) {
+    const devices = await tx.pushSubscription.findMany({ where: { userId: input.userId }, select: { id: true } });
+    for (const { id } of devices) {
+      const dedupeKey = pushJobKey(notification.id, id);
+      await enqueueJob(tx, { kind: SEND_PUSH, payload: { notificationId: notification.id, subscriptionId: id }, dedupeKey, maxAttempts: 3 });
+      keys.push(dedupeKey);
+    }
+  }
+  deliverAfterResponse(() => jobHandlers, keys);
 }
 
 /**
  * In-app уведомление с готовым текстом. Вызывать в той же транзакции, что и изменение состояния.
- * Если вид совпадает с важным шаблоном (sms: true), ставит и задачу SMS — как notifyTemplate.
+ * Дублируется push на все устройства получателя; для важного вида (SMS_KINDS) — ещё и SMS.
  */
 export async function notify(tx: Db, input: NotifyInput): Promise<void> {
   await create(tx, input, true);
@@ -55,7 +88,7 @@ export async function notifyTemplate<K extends TemplateKey>(tx: Db, userId: stri
 }
 
 /**
- * Всем действующим операторам — только in-app: операторы работают в панели, SMS получают стороны.
+ * Всем действующим операторам — in-app и push, без SMS: операторы работают в панели, SMS получают стороны.
  * Вызывать в транзакции события (например, открытия спора).
  */
 export async function notifyOperators<K extends TemplateKey>(tx: Db, key: K, params: TemplateParams<K>): Promise<void> {
@@ -74,11 +107,6 @@ export async function unreadCount(userId: string) {
 
 export async function markAllRead(userId: string) {
   await db.notification.updateMany({ where: { userId, readAt: null }, data: { readAt: new Date() } });
-}
-
-/** Только внутренние пути: «/deals/…». Внешние и «//host» — на страницу уведомлений (без открытого редиректа). */
-function safeLink(link: string | null): string {
-  return link && link.startsWith("/") && !link.startsWith("//") && !link.startsWith("/\\") ? link : "/notifications";
 }
 
 /** Открыть своё уведомление: отметить прочитанным (повтор безопасен) и вернуть, куда перейти. */
@@ -130,4 +158,5 @@ export function createSendSmsHandler(provider: () => SmsProvider): JobHandler {
 
 export const jobHandlers = {
   [SEND_SMS]: createSendSmsHandler(smsProvider),
+  [SEND_PUSH]: sendPushHandler,
 } as const;
