@@ -58,12 +58,11 @@ export const common = {
   shell: {
     skipLink: "Перейти к содержанию",
     home: "Сенім — на главную",
-    subtitle: "Мебель на заказ",
     more: "Ещё",
     navLabel: "Основное меню",
     menu: "Меню",
     signedInAs: (role: string) => `Вы вошли как: ${role.toLowerCase()}`,
-    footerNote: "Деньги за работу идут напрямую исполнителю. Платформа хранит договор, акты и историю этапов.",
+    about: "Как работает Сенім",
   },
   nav: {
     home: "Главная",
@@ -136,7 +135,6 @@ export const common = {
     sections: "Разделы",
     app: "Приложение и вход",
     roleTitle: "Другая роль",
-    roleText: "У вашего аккаунта есть ещё одна роль. Переключиться можно в любой момент.",
   },
 
   /** Главные экраны ролей («/» после входа). */
@@ -145,7 +143,6 @@ export const common = {
     executorMeta: "Кабинет исполнителя",
     hello: (name: string | null) => (name ? `Здравствуйте, ${name}!` : "Здравствуйте!"),
     client: {
-      lead: "Здесь — ваши заявки и заказы. Новую заявку можно оставить за несколько минут.",
       newRequest: "Оставить заявку",
       dealsTitle: "Мои заказы",
       requestsTitle: "Заявки",
@@ -156,14 +153,9 @@ export const common = {
       stages: (closed: number, total: number) => `Этапов принято: ${closed} из ${total}`,
       emptyTitle: "Заявок пока нет",
       emptyText: "Опишите, какая мебель нужна, — мастера пришлют цену, срок и условия замера.",
-      inspireTitle: "Не знаете, с чего начать?",
-      inspireText: "Посмотрите готовые работы мастеров и выберите, что нравится.",
-      inspireAction: "Смотреть примеры",
     },
     executor: {
-      lead: "Новые заявки вашего уровня, заказы в работе и оплаты по этапам.",
       newRequests: "Новые заявки",
-      activeDeals: "Заказы в работе",
       inWork: "Сумма заказов в работе",
       allRequests: "Все заявки",
       requestsTitle: "Новые заявки",

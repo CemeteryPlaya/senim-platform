@@ -1,4 +1,4 @@
-import { CalendarClock, ClipboardList, Plus, Sparkles, UserRound } from "lucide-react";
+import { CalendarClock, ClipboardList, Plus, UserRound } from "lucide-react";
 import type { DealStatus } from "@/generated/prisma/enums";
 import { listDeals } from "@/modules/deal-core";
 import { listMyRequests } from "@/modules/requests";
@@ -18,8 +18,8 @@ const ACTIVE_DEAL: ReadonlySet<DealStatus> = new Set(["AWAITING_SIGNATURES", "AW
 const SHOWN = 3;
 
 /**
- * Главная заказчика по макетам 7 и 10: приветствие, одно главное действие «Оставить заявку», карточки текущих
- * дел — заказы в работе (статус, этапы, сумма) и последние заявки (статус, отклики), подсказка «Вдохновение».
+ * Главная заказчика по макетам 7 и 10, минималистично: приветствие, одно главное действие «Оставить заявку»,
+ * карточки текущих дел — заказы в работе (статус, этапы, сумма) и последние заявки (статус, отклики).
  */
 export async function ClientHome({ user }: { user: CurrentUser }) {
   const [requests, deals] = await Promise.all([listMyRequests(user), listDeals(user)]);
@@ -31,10 +31,7 @@ export async function ClientHome({ user }: { user: CurrentUser }) {
   return (
     <Container className="flex flex-col gap-8 pt-4 pb-10 sm:pt-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex min-w-0 flex-col gap-2">
-          <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">{t.hello(user.fullName)}</h1>
-          <p className="max-w-prose text-lg text-muted">{c.lead}</p>
-        </div>
+        <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">{t.hello(user.fullName)}</h1>
         <ButtonLink href="/requests/new" icon={<Plus />} className="sm:shrink-0">
           {c.newRequest}
         </ButtonLink>
@@ -89,20 +86,6 @@ export async function ClientHome({ user }: { user: CurrentUser }) {
         </section>
       )}
 
-      <section aria-labelledby="home-inspire" className="flex flex-col items-start gap-3 rounded-card bg-accent-soft p-5 sm:flex-row sm:items-center sm:p-6">
-        <span aria-hidden className="inline-flex size-12 shrink-0 items-center justify-center rounded-card bg-surface text-primary">
-          <Sparkles className="size-6" />
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h2 id="home-inspire" className="text-lg font-bold text-ink">
-            {c.inspireTitle}
-          </h2>
-          <p className="text-base text-ink-soft">{c.inspireText}</p>
-        </div>
-        <ButtonLink href="/inspiration" variant="secondary" className="sm:shrink-0">
-          {c.inspireAction}
-        </ButtonLink>
-      </section>
     </Container>
   );
 }

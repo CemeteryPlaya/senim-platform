@@ -17,9 +17,8 @@ const ACTIVE_DEAL: ReadonlySet<DealStatus> = new Set(["AWAITING_SIGNATURES", "AW
 const SHOWN = 3;
 
 /**
- * Главная исполнителя по макету 12 («Кабинет производителя»): приветствие, показатели (только настоящие
- * числа: новые заявки, заказы в работе, их сумма), список разделов с главным пунктом «Новые заявки»
- * и карточки новых заявок с фото.
+ * Главная исполнителя по макету 12 («Кабинет производителя»), минималистично: приветствие, сумма заказов в работе
+ * (настоящее число), список разделов с числами и главным пунктом «Новые заявки», карточки новых заявок с фото.
  */
 export async function ExecutorHome({ user }: { user: CurrentUser }) {
   const [incoming, deals] = await Promise.all([listIncomingRequests(user), listDeals(user)]);
@@ -29,24 +28,12 @@ export async function ExecutorHome({ user }: { user: CurrentUser }) {
 
   return (
     <Container className="flex flex-col gap-8 pt-4 pb-10 sm:pt-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">{t.hello(user.fullName)}</h1>
-        <p className="max-w-prose text-lg text-muted">{e.lead}</p>
-      </header>
+      <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">{t.hello(user.fullName)}</h1>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <div className="flex min-w-0 flex-col gap-4">
-          <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-3">
-            <li className="flex">
-              <Stat className="flex-1" icon={<Inbox />} value={fresh.length} label={e.newRequests} />
-            </li>
-            <li className="flex">
-              <Stat className="flex-1" icon={<Package />} value={active.length} label={e.activeDeals} />
-            </li>
-            <li className="col-span-full flex">
-              <Stat className="flex-1" icon={<Wallet />} value={<Money amount={inWork} />} label={e.inWork} />
-            </li>
-          </ul>
+          {/* Числа новых заявок и заказов — справа в строках списка; отдельной плиткой — только сумма. */}
+          <Stat icon={<Wallet />} value={<Money amount={inWork} />} label={e.inWork} />
           <nav aria-label={e.sections}>
             <LinkList
               items={[
@@ -65,7 +52,7 @@ export async function ExecutorHome({ user }: { user: CurrentUser }) {
         <section aria-labelledby="home-incoming" className="flex min-w-0 flex-col gap-4">
           <SectionTitle id="home-incoming" title={e.requestsTitle} action={{ href: "/executor/requests", label: e.allRequests }} />
           {fresh.length === 0 ? (
-            <p className="rounded-card border border-line bg-surface p-5 text-base text-ink-soft shadow-card">{e.noRequests}</p>
+            <p className="text-base text-muted">{e.noRequests}</p>
           ) : (
             <ul className="flex flex-col gap-4">
               {fresh.slice(0, SHOWN).map((r) => (
