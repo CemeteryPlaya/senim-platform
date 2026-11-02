@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Handshake } from "lucide-react";
 import { listDeals, type DealListItem } from "@/modules/deal-core";
-import { getCurrentUser, switchRoleHref, type CurrentUser } from "@/modules/identity";
+import { getCurrentUser, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { Card, Container, EmptyState, Money, PageHeader, StatusBadge } from "@/ui";
 import { DEAL_TONE } from "./_parts/labels";
@@ -22,6 +22,7 @@ function dealHref(user: CurrentUser, d: DealListItem): string {
 export default async function DealsPage() {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent("/deals")}`);
+  requireIntroduced(user, "/deals");
   const deals = await listDeals(user);
   const showRole = user.roles.length > 1;
 

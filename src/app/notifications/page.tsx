@@ -2,7 +2,7 @@ import { Bell, ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { getCurrentUser } from "@/modules/identity";
+import { getCurrentUser, requireIntroduced } from "@/modules/identity";
 import { listNotifications } from "@/modules/notifications";
 import { Button, cn, Container, DateText, EmptyState, PageHeader, StatusBadge } from "@/ui";
 import { markAllReadForm, openNotificationForm } from "./actions";
@@ -43,6 +43,7 @@ function NotificationCard({ n }: { n: Item }) {
 export default async function NotificationsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  requireIntroduced(user, "/notifications");
   const items = await listNotifications(user.id, 50);
   const hasUnread = items.some((n) => !n.readAt);
 

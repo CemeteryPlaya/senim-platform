@@ -5,7 +5,7 @@ import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { SigningPanel } from "@/app/_components/signing";
 import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import { listDealDocuments, type SigningDocumentView } from "@/modules/documents";
-import { getCurrentUser, switchRoleHref, type CurrentUser } from "@/modules/identity";
+import { getCurrentUser, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
 import { ButtonLink, Card, Container, DateText, Fact, formatMoney, Money, PageHeader, SimulatorBadge, StatusBadge } from "@/ui";
@@ -52,6 +52,7 @@ export default async function DealPage({ params }: Props) {
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/deals/${id}`)}`);
+  requireIntroduced(user, `/deals/${id}`);
   const deal = await loadOrSwitchRole(user, id);
   const documents = await listDealDocuments(user, deal.id);
   const isParty = deal.viewer === "CLIENT" || deal.viewer === "EXECUTOR";

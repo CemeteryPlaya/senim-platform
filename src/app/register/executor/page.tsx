@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Clock } from "lucide-react";
 import { ru } from "@/i18n/ru";
-import { EXECUTOR_REGISTRATION_PATH, getCurrentUser, getMyRegistration, LOGIN_PATH, loginHref, type CurrentUser } from "@/modules/identity";
+import {
+  EXECUTOR_REGISTRATION_PATH,
+  getCurrentUser,
+  getMyRegistration,
+  LOGIN_PATH,
+  loginHref,
+  requireIntroduced,
+  type CurrentUser,
+} from "@/modules/identity";
 import { Alert, ButtonLink, Card, Container, PageHeader, StatusBadge } from "@/ui";
 import { ExecutorRegistrationForm } from "./ExecutorRegistrationForm";
 
@@ -16,6 +24,8 @@ export const metadata: Metadata = { title: t.metaTitle };
  */
 export default async function ExecutorRegistrationPage() {
   const user = await getCurrentUser();
+  // Анкета — после знакомства: ФИО и ИИН человека уже есть, ИП и самозанятому их не вводить второй раз.
+  if (user) requireIntroduced(user, EXECUTOR_REGISTRATION_PATH);
 
   return (
     <Container size="form">
@@ -57,7 +67,7 @@ async function ForUser({ user }: { user: CurrentUser }) {
       <div className="flex flex-col gap-6">
         <p className="max-w-prose text-lg text-muted">{t.lead}</p>
         {user.roles.includes("CLIENT") && <p className="max-w-prose text-lg text-ink">{t.keepsClient}</p>}
-        <ExecutorRegistrationForm />
+        <ExecutorRegistrationForm owner={{ fullName: user.fullName, iinLast4: user.iinLast4 }} />
       </div>
     );
   }
@@ -91,7 +101,7 @@ async function ForUser({ user }: { user: CurrentUser }) {
             {registration.rejectReason && <p>{t.rejected.reason(registration.rejectReason)}</p>}
             <p>{t.rejected.text}</p>
           </Alert>
-          <ExecutorRegistrationForm defaultLegalForm={registration.legalForm} />
+          <ExecutorRegistrationForm defaultLegalForm={registration.legalForm} owner={{ fullName: user.fullName, iinLast4: user.iinLast4 }} />
         </div>
       );
   }

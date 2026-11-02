@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { Alert, Button, focusFirstInvalid, Input, RadioCards } from "@/ui";
+import { Alert, Button, Checkbox, focusFirstInvalid, Input, RadioCards } from "@/ui";
 import { registerExecutorAction } from "./actions";
 
 const t = ru.identity.registration;
@@ -11,12 +11,20 @@ type LegalForm = keyof typeof t.legalForms;
 const LEGAL_FORMS = Object.keys(t.legalForms) as LegalForm[];
 const isLegalForm = (v: string): v is LegalForm => (LEGAL_FORMS as string[]).includes(v);
 
+/** ФИО и последние 4 цифры ИИН из знакомства (№26): ИП и самозанятому не вводить их второй раз. */
+export type RegistrationOwner = { fullName: string | null; iinLast4: string | null };
+
 /**
  * Анкета исполнителя. Подписи имени и номера зависят от формы работы: ТОО — наименование и БИН,
  * плюс ФИО и ИИН директора — он подписывает договор своей ЭЦП; ИП — ФИО владельца (подписывает он).
+ * ИП и самозанятый по умолчанию работают по ИИН из знакомства — поле ИИН появляется, если снять отметку.
  */
-export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED" }: { defaultLegalForm?: LegalForm }) {
+export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED", owner }: { defaultLegalForm?: LegalForm; owner?: RegistrationOwner }) {
   const [legalForm, setLegalForm] = useState<LegalForm>(defaultLegalForm);
+  const [ownIinChecked, setOwnIinChecked] = useState(true);
+  const ownIinLast4 = owner?.iinLast4 ?? null;
+  const ownIin = ownIinLast4 !== null && legalForm !== "TOO" && ownIinChecked;
+  const ownName = owner?.fullName ?? undefined;
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [formError, setFormError] = useState<string>();
   const [pending, startTransition] = useTransition();
@@ -40,6 +48,7 @@ export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED" }:
         legalForm,
         legalName: field("legalName"),
         binIin: field("binIin"),
+        ownIin,
         city: field("city"),
         yearsExperience: field("yearsExperience"),
         // Поля подписанта: директор — только у ТОО, владелец — только у ИП; лишние схема игнорирует.
@@ -71,18 +80,36 @@ export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED" }:
         name="legalName"
         autoComplete={legalForm === "SELF_EMPLOYED" ? "name" : "organization"}
         maxLength={200}
+        // Самозанятый: наименование — его ФИО из знакомства (подставляется один раз, введённое не стирается).
+        defaultValue={defaultLegalForm === "SELF_EMPLOYED" ? ownName : undefined}
         required
       />
-      <Input
-        label={t.binIinLabel[idKind]}
-        hint={t.binIinHint}
-        error={errors.binIin?.[0]}
-        name="binIin"
-        inputMode="numeric"
-        autoComplete="off"
-        maxLength={15}
-        required
-      />
+      {ownIinLast4 !== null && legalForm !== "TOO" && (
+        <Checkbox
+          label={t.ownIin(ownIinLast4)}
+          hint={t.ownIinHint}
+          name="ownIin"
+          checked={ownIinChecked}
+          onChange={(e) => setOwnIinChecked(e.target.checked)}
+        />
+      )}
+      {!ownIin && (
+        <Input
+          label={t.binIinLabel[idKind]}
+          hint={t.binIinHint}
+          error={errors.binIin?.[0]}
+          name="binIin"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={15}
+          required
+        />
+      )}
+      {ownIin && errors.binIin?.[0] && (
+        <Alert tone="danger" live="assertive">
+          {errors.binIin[0]}
+        </Alert>
+      )}
       {legalForm === "IP" && (
         <fieldset className="flex flex-col gap-4">
           <legend className="mb-2 text-lg font-bold text-ink">{t.owner.title}</legend>
@@ -94,6 +121,7 @@ export function ExecutorRegistrationForm({ defaultLegalForm = "SELF_EMPLOYED" }:
             name="ownerName"
             autoComplete="name"
             maxLength={120}
+            defaultValue={ownName}
             required
           />
         </fieldset>
