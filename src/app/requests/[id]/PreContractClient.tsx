@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
-import type { ClientRequest } from "@/modules/requests";
+import type { PreContractView } from "@/modules/requests";
 import { MapPin } from "lucide-react";
 import { Alert, formatMoney } from "@/ui";
 import { CostSummary } from "@/app/_components/pre-contract/CostSummary";
@@ -12,7 +12,7 @@ import { ProjectView } from "@/app/_components/pre-contract/ProjectView";
 /** Шаги до договора на экране заказчика (ADR-005): замер площадки, залог, проект, условия договора по сценарию. */
 
 const p = ru.requests.pre;
-type Pre = ClientRequest["pre"];
+type Pre = PreContractView;
 
 function Panel({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
@@ -85,7 +85,7 @@ export function ClientProject({ pre, children }: { pre: Pre; children?: ReactNod
   );
 }
 
-/** Что сказать о договоре по сценарию: первый этап и, для «договора до замера», цена с допуском. */
+/** Что сказать о договоре по сценарию: для «договора до замера» — цена с допуском. */
 export function ContractTerms({ pre }: { pre: Pre }) {
   return (
     <>
@@ -94,7 +94,6 @@ export function ContractTerms({ pre }: { pre: Pre }) {
           {p.agree.contractFirstText(formatMoney(pre.tolerance.price), formatMoney(pre.tolerance.min), formatMoney(pre.tolerance.max))}
         </Alert>
       )}
-      {pre.firstStageTitle && pre.rules.projectBeforeContract && <p className="text-base text-ink-soft">{p.agree.firstStage(pre.firstStageTitle)}</p>}
     </>
   );
 }

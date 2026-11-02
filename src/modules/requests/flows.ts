@@ -21,7 +21,7 @@ export type FlowStep =
   | "measure" // замер исполнителем
   | "project" // утверждение проекта
   | "contract" // договор
-  | "work"; // работа и оплата по этапам
+  | "work"; // оплата, работа, сдача и приёмка в сделке
 
 export const FLOW_STEPS = {
   EXECUTOR_MEASURE: ["request", "offers", "measure", "project", "contract", "work"],
@@ -51,9 +51,22 @@ export const flowRules = (flow: PreContractFlow) => ({
   projectBeforeContract: before(flow, "project", "contract"),
 });
 
-/** Сценарий заявки: снимок при отправке; у черновика и старых заявок — сценарий по умолчанию. */
-export function flowOf(r: { preContractFlow: PreContractFlow | null }): PreContractFlow {
-  return r.preContractFlow ?? DEFAULT_FLOW;
+/**
+ * Путь заявки до сделки (решение 2.2.9). «TZ» — единственный путь ТЗ: отклики и торг → акцепт цены → оферта.
+ * Сценарии до договора (ADR-005) — только под флагом preContractFlows. Путь — снимок при отправке:
+ * смена флага или настройки не меняет заявки, которые уже идут.
+ */
+export const TZ_PATH = "TZ";
+export type RequestPath = typeof TZ_PATH | PreContractFlow;
+
+/** Путь отправленной заявки: снимок сценария при отправке; без снимка — путь ТЗ. */
+export function pathOf(r: { preContractFlow: PreContractFlow | null }): RequestPath {
+  return r.preContractFlow ?? TZ_PATH;
+}
+
+/** Сценарий до договора заявки или null (путь ТЗ): шаги замера, залога и проекта есть только у сценария. */
+export function flowOf(r: { preContractFlow: PreContractFlow | null }): PreContractFlow | null {
+  return r.preContractFlow;
 }
 
 /** Факты заявки, по которым видно, на каком она шаге. */
@@ -118,4 +131,12 @@ export const MEASURE_DEPOSIT_AMOUNT = 10_000;
 /** Онлайн-замер готов: заказчик указал ширину, высоту и глубину и приложил хотя бы одно фото стены с рулеткой. */
 export function selfMeasureComplete(d: { widthCm?: number; heightCm?: number; depthCm?: number }, photos: number): boolean {
   return Boolean(d.widthCm && d.heightCm && d.depthCm) && photos > 0;
+}
+
+/**
+ * Суммы сценариев до договора (проект, допуск, плата за выезд) — в целых тенге (ADR-009, п. 1): они под флагом
+ * и в деньги сделки не входят. Цена отклика и сделки — тиыны; на границе — целые тенге (тиыны отбрасываются).
+ */
+export function wholeKzt(tiyn: bigint): number {
+  return Number(tiyn / 100n);
 }

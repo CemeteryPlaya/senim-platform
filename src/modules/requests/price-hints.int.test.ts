@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Segment } from "@/generated/prisma/enums";
 import { db } from "@/platform/db";
 import type { TypicalEstimate } from "@/verticals/furniture";
 import { makeClient } from "../../../test/factories";
+import { setEnv } from "../../../test/factories/identity";
 import { makeExecutorWithTerms, makeFurnitureType, makeOpenRequest, offerInput } from "../../../test/factories/requests";
 import { segmentPriceHints, sendOffer, withdrawOffer } from "./index";
 
@@ -67,7 +68,16 @@ async function kitchenWithBook(opts: { demo?: boolean } = {}) {
   return { kitchen, economyFacade };
 }
 
+describe("калькулятор материалов выключен (флаг materialsCalculator по умолчанию)", () => {
+  it("вилка по материалам не считается, даже если справочник и типовой расчёт есть", async () => {
+    const { kitchen } = await kitchenWithBook();
+    expect(await segmentPriceHints(kitchen.id, { widthCm: 200 })).toEqual({ ECONOMY: null, COMFORT: null, PREMIUM: null });
+  });
+});
+
 describe("вилка по ценам материалов и типовому расчёту", () => {
+  beforeEach(() => setEnv({ FEATURE_MATERIALS_CALCULATOR: "true" }));
+  afterEach(() => setEnv({ FEATURE_MATERIALS_CALCULATOR: undefined }));
   it("размер известен: считает калькулятор, вилка округлена наружу до 10 000 ₸", async () => {
     const { kitchen } = await kitchenWithBook();
     const hints = await segmentPriceHints(kitchen.id, { widthCm: 200 });

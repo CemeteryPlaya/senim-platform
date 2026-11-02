@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
-import { getIncomingRequest, type IncomingRequest } from "@/modules/requests";
+import { getIncomingRequest, TZ_PATH, wholeKzt, type IncomingRequest } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { Alert, ButtonLink, Container, Money, PageHeader, StatusBadge, formatDate, formatDateTime, formatDays, formatMoney, formatMonths } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
@@ -8,6 +9,7 @@ import { ActionButton } from "@/app/requests/_parts/ActionButton";
 import { orNotFound, pageUser } from "@/app/requests/_parts/guard";
 import { MEASUREMENT_TONE, OFFER_TONE, termsText } from "@/app/requests/_parts/labels";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
+import { Negotiation } from "@/app/_components/negotiation/Negotiation";
 import { detailRows, FactList } from "@/app/requests/_parts/RequestFacts";
 import { executorNoDealAction, withdrawOfferAction } from "../actions";
 import { CompleteForm, OfferForm, ScheduleForm } from "../ExecutorForms";
@@ -23,7 +25,14 @@ const x = ru.executor.request;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
-/** Заявка для исполнителя: что нужно заказчику и следующий шаг (отклик, замер, итоговая цена). */
+/** Заявка уже ушла в оферту или закрыта: зеркальный блок «деньги будут зарезервированы» больше не нужен. */
+const AFTER_OFFER = new Set(["CONTRACTING", "CLOSED", "CANCELLED"]);
+
+/**
+ * Заявка для мастера: что нужно заказчику и следующий шаг. На пути ТЗ — отклик, затем торг над чатом
+ * («Принять N ₸» → оферта); в сценарии до договора (флаг preContractFlows) — замер, итоговая цена, проект.
+ * До оферты — зеркальный блок денег (ТЗ п. 4.2): деньги покупателя будут зарезервированы в банке до начала работ.
+ */
 export default async function ExecutorRequestPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await pageUser("EXECUTOR", `/executor/requests/${id}`);
@@ -41,12 +50,18 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
           <span className="flex flex-wrap items-center gap-2">
             {r.segment && <StatusBadge tone="info">{SEGMENT_NAMES[r.segment]}</StatusBadge>}
             {r.mode === "DIRECT" && <StatusBadge tone="accent">{ru.requests.mode.DIRECT}</StatusBadge>}
-            <SizesBasis pre={r.pre} />
+            {r.pre && <SizesBasis pre={r.pre} />}
           </span>
         }
         className="pb-0"
       />
-      <FlowSteps flow={r.pre.flow} steps={r.pre.steps} current={r.pre.current} />
+      {r.pre && <FlowSteps flow={r.pre.flow} steps={r.pre.steps} current={r.pre.current} />}
+      {!AFTER_OFFER.has(r.status) && (
+        <p className="flex items-start gap-3 rounded-card bg-sunken p-4 text-base font-semibold text-ink">
+          <Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
+          {ru.payments.block.masterBeforePayment}
+        </p>
+      )}
 
       {/* Телефон: фото и факты, затем следующий шаг, затем подробности. Компьютер: шаг — справа во всю высоту. */}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:grid-rows-[auto_1fr] lg:gap-x-8">
@@ -68,9 +83,10 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
           <FactList
             rows={[
               ...detailRows({ title: r.title, style: r.style, details: r.details }),
-              ...siteRows(r.pre),
+              ...(r.pre ? siteRows(r.pre) : []),
               { label: f.city, value: r.city },
               { label: f.address, value: r.address ?? <span className="text-muted">{f.addressHidden}</span> },
+              ...(r.location ? [{ label: f.location, value: f.locationValue(r.location.lat.toFixed(5), r.location.lng.toFixed(5)) }] : []),
               ...(r.desiredDate ? [{ label: f.desiredDate, value: formatDate(r.desiredDate) }] : []),
               ...(r.wishes ? [{ label: f.wishes, value: r.wishes }] : []),
             ]}
@@ -78,6 +94,8 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
         </section>
       </div>
 
+      {/* Торг — над чатом отклика (ТЗ п. 9): раунды цены и смета «Сумма заказа · Гарантия оплаты · К выплате». */}
+      {r.myOffer && r.path === TZ_PATH && <Negotiation offerId={r.myOffer.id} />}
       {r.myOffer && <OfferChat offerId={r.myOffer.id} />}
     </Container>
   );
@@ -109,13 +127,13 @@ function Gallery({ title, photos }: { title: string; photos: IncomingRequest["ph
   );
 }
 
-function OfferSummary({ offer }: { offer: NonNullable<IncomingRequest["myOffer"]> }) {
+function OfferSummary({ offer, tz }: { offer: NonNullable<IncomingRequest["myOffer"]>; tz: boolean }) {
   const o = ru.requests.offer;
   const rows: [string, ReactNode][] = [
-    [o.price, <Money key="p" amount={offer.price} className="font-semibold" />],
+    [tz ? t.myPrice : o.price, <Money key="p" amount={wholeKzt(offer.priceTiyn)} className="font-semibold" />],
     [o.duration, formatDays(offer.durationDays)],
     [o.warranty, formatMonths(offer.warrantyMonths)],
-    [o.measurement, termsText(offer.measurementTerms, offer.measurementFee)],
+    ...(tz ? [] : ([[o.measurement, termsText(offer.measurementTerms, offer.measurementFee)]] as [string, ReactNode][])),
   ];
   // Строки «подпись — значение»: длинное значение переносится под подпись, а не сжимается в узкий столбец.
   return (
@@ -133,10 +151,11 @@ function OfferSummary({ offer }: { offer: NonNullable<IncomingRequest["myOffer"]
 /** Один следующий шаг исполнителя по состоянию его отклика и замера. */
 function NextStep({ r }: { r: IncomingRequest }) {
   const offer = r.myOffer;
+  const tz = r.path === TZ_PATH;
   if (!offer) {
     return r.canOffer ? (
       <div className="rounded-card border border-line p-5 sm:p-6">
-        <OfferForm requestId={r.id} defaults={r.defaults} />
+        <OfferForm requestId={r.id} defaults={r.defaults} tz={tz} />
       </div>
     ) : (
       <Alert tone="info">{ru.requests.status[r.status]}</Alert>
@@ -148,7 +167,7 @@ function NextStep({ r }: { r: IncomingRequest }) {
       <StatusBadge tone={m ? MEASUREMENT_TONE[m.status] : OFFER_TONE[offer.status]}>
         {m ? ru.requests.measurementStatus[m.status] : ru.requests.offerStatus[offer.status]}
       </StatusBadge>
-      <OfferSummary offer={offer} />
+      <OfferSummary offer={offer} tz={tz} />
       {children}
     </div>
   );
@@ -157,7 +176,7 @@ function NextStep({ r }: { r: IncomingRequest }) {
     return card(
       <>
         <Alert tone="success" title={t.sentTitle}>
-          {t.sentText}
+          {tz ? t.sentTextTz : t.sentText}
         </Alert>
         <ActionButton
           action={withdrawOfferAction}
@@ -177,7 +196,7 @@ function NextStep({ r }: { r: IncomingRequest }) {
           {ru.requests.pre.retry.allowedText}
         </Alert>
         <div className="rounded-card border border-line p-5 sm:p-6">
-          <OfferForm requestId={r.id} defaults={r.defaults} />
+          <OfferForm requestId={r.id} defaults={r.defaults} tz={tz} />
         </div>
       </>
     );
@@ -209,14 +228,16 @@ function NextStep({ r }: { r: IncomingRequest }) {
   if (r.status === "CONTRACTING" || r.status === "CLOSED") {
     return card(
       <>
-        <Alert tone="success" action={<ButtonLink href="/deals">{ru.common.nav.deals}</ButtonLink>}>
+        <Alert tone="success" action={<ButtonLink href={offer.dealId ? `/deals/${offer.dealId}` : "/deals"}>{t.openOffer}</ButtonLink>}>
           {t.contractingText}
         </Alert>
         {/* «Договор до замера»: проект — уже по договору, цена в пределах допуска. */}
-        {!r.pre.rules.projectBeforeContract && <ExecutorProject pre={r.pre} offer={offer} />}
+        {r.pre && !r.pre.rules.projectBeforeContract && <ExecutorProject pre={r.pre} offer={offer} />}
       </>,
     );
   }
+  // Дальше — только шаги сценария до договора (флаг preContractFlows).
+  if (!r.pre) return card(<p className="text-base text-ink-soft">{ru.requests.status[r.status]}</p>);
   if (r.pre.current === "deposit") return card(<DepositExecutor pre={r.pre} offerId={offer.id} />);
   if (!m && r.pre.current === "measure") {
     return card(

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator, makeUser } from "../../../test/factories";
 import { setEnv } from "../../../test/factories/identity";
@@ -13,6 +13,7 @@ import {
   makeOpenRequest,
   offerInput,
   projectInput,
+  withPreContractFlows,
   withFlow,
 } from "../../../test/factories/requests";
 import {
@@ -27,6 +28,7 @@ import {
   getClientRequest,
   getIncomingRequest,
   getSiteMeasurement,
+  listAwaitingSiteMeasurer,
   listIncomingRequests,
   markDepositPaid,
   publishRequest,
@@ -41,7 +43,11 @@ const code = (c: string) => expect.objectContaining({ code: c });
 const statusOf = async (requestId: string) => (await db.request.findUniqueOrThrow({ where: { id: requestId } })).status;
 const one = (results: PromiseSettledResult<unknown>[]) => results.filter((r) => r.status === "fulfilled").length;
 
-afterEach(() => setEnv({ DEMO_MODE: undefined }));
+// Сценарии до договора — под флагом preContractFlows (ADR-009, п. 8); флаг и DEMO_MODE сбрасываются после теста.
+withPreContractFlows();
+
+/** Сделка по согласию на договор: одна оплата по цене (тиыны), оферта, этапов нет (ADR-009). */
+const dealOf = (dealId: string) => db.deal.findUniqueOrThrow({ where: { id: dealId } });
 
 describe("настройка «Сценарий до договора»", () => {
   it("меняет только оператор и только в демо-режиме; смена пишется в журнал", async () => {
@@ -67,7 +73,7 @@ describe("настройка «Сценарий до договора»", () => 
     const requestId = await makeOpenRequest(client);
     await withFlow("MEASURE_DEPOSIT");
     expect((await db.request.findUniqueOrThrow({ where: { id: requestId } })).preContractFlow).toBe("CONTRACT_FIRST");
-    expect((await getClientRequest(client, requestId)).pre.flow).toBe("CONTRACT_FIRST");
+    expect((await getClientRequest(client, requestId)).pre?.flow).toBe("CONTRACT_FIRST");
   });
 });
 
@@ -77,18 +83,16 @@ describe("утверждение проекта (сценарий 1)", () => {
     const m = await makeMeasuring(client);
     await expect(submitProject(m.executor, projectInput(m.offerId))).rejects.toThrow(code("CONFLICT")); // замер ещё не выполнен
     await completeMeasurement(m.executor, { measurementId: m.measurementId, finalPrice: 600_000, result: "" });
-    await expect(agreeToContract(client, { requestId: m.requestId, template: "advance-50" })).rejects.toThrow(code("CONFLICT"));
+    await expect(agreeToContract(client, { requestId: m.requestId })).rejects.toThrow(code("CONFLICT"));
 
     const { projectId } = await submitProject(m.executor, projectInput(m.offerId, 650_000));
-    expect((await getClientRequest(client, m.requestId)).pre.current).toBe("project");
-    await expect(agreeToContract(client, { requestId: m.requestId, template: "advance-50" })).rejects.toThrow(code("CONFLICT"));
+    expect((await getClientRequest(client, m.requestId)).pre?.current).toBe("project");
+    await expect(agreeToContract(client, { requestId: m.requestId })).rejects.toThrow(code("CONFLICT"));
     await approveProject(client, { projectId });
-    expect((await getClientRequest(client, m.requestId)).pre.current).toBe("contract");
+    expect((await getClientRequest(client, m.requestId)).pre?.current).toBe("contract");
 
-    const { dealId } = await agreeToContract(client, { requestId: m.requestId, template: "advance-50" });
-    const deal = await db.deal.findUniqueOrThrow({ where: { id: dealId }, include: { stages: { orderBy: { order: "asc" } } } });
-    expect(deal.totalAmount).toBe(650_000);
-    expect(deal.stages[0]!.title).toBe("Аванс на материалы"); // сценарий 1: этапы шаблона без изменений
+    const { dealId } = await agreeToContract(client, { requestId: m.requestId });
+    expect((await dealOf(dealId)).priceTiyn).toBe(650_000_00n);
     expect(await db.auditEvent.count({ where: { action: { in: ["project.submitted", "project.approved"] } } })).toBe(2);
   });
 
@@ -155,6 +159,12 @@ describe("сценарий 2: замерщик площадки", () => {
     expect(await listIncomingRequests(executor)).toHaveLength(0);
     await expect(sendOffer(executor, offerInput(requestId))).rejects.toThrow(code("NOT_FOUND"));
 
+    // Очередь оператора: заявка ждёт, замерщика ещё нет; замерщики — по имени.
+    expect(await listAwaitingSiteMeasurer(operator)).toEqual({
+      requests: [expect.objectContaining({ id: requestId, title: "Кухня", measurer: null })],
+      measurers: [{ id: measurer.id, name: "Замерщик Нуржан" }],
+    });
+    await expect(listAwaitingSiteMeasurer(client)).rejects.toThrow(code("FORBIDDEN"));
     await expect(assignSiteMeasurer(client, { requestId, measurerId: measurer.id })).rejects.toThrow(code("FORBIDDEN"));
     await expect(assignSiteMeasurer(operator, { requestId, measurerId: client.id })).rejects.toThrow(code("NOT_FOUND")); // не замерщик
     const assigned = await Promise.allSettled([
@@ -163,6 +173,7 @@ describe("сценарий 2: замерщик площадки", () => {
     ]);
     expect(one(assigned)).toBe(1);
     const sm = await db.siteMeasurement.findUniqueOrThrow({ where: { requestId } });
+    expect((await listAwaitingSiteMeasurer(operator)).requests[0]).toMatchObject({ measurer: "Замерщик Нуржан" });
 
     const otherMeasurer = await makeUser("MEASURER", "Другой замерщик");
     await expect(getSiteMeasurement(otherMeasurer, sm.id)).rejects.toThrow(code("NOT_FOUND"));
@@ -174,11 +185,11 @@ describe("сценарий 2: замерщик площадки", () => {
     expect(await statusOf(requestId)).toBe("OPEN");
     expect(await listIncomingRequests(executor)).toHaveLength(1);
     const incoming = await getIncomingRequest(executor, requestId);
-    expect(incoming.pre.site).toMatchObject({ status: "DONE", widthCm: 320, notes: "Труба в углу" });
+    expect(incoming.pre?.site).toMatchObject({ status: "DONE", widthCm: 320, notes: "Труба в углу" });
     expect(await db.notification.count({ where: { userId: executor.id, kind: "request.new" } })).toBe(1);
   });
 
-  it("после выбора — проект и договор без выезда исполнителя; первый этап — контрольный замер", async () => {
+  it("после выбора — проект и договор без выезда исполнителя; цена договора — цена проекта", async () => {
     const { client, requestId, operator, measurer, executor } = await platformRequest();
     await assignSiteMeasurer(operator, { requestId, measurerId: measurer.id });
     const sm = await db.siteMeasurement.findUniqueOrThrow({ where: { requestId } });
@@ -188,10 +199,8 @@ describe("сценарий 2: замерщик площадки", () => {
     await expect(scheduleMeasurement(executor, { offerId, scheduledAt: inDays(2) })).rejects.toThrow(code("CONFLICT"));
     await makeApprovedProject(client, executor, offerId, 710_000);
 
-    const { dealId } = await agreeToContract(client, { requestId, template: "advance-50" });
-    const stages = await db.stage.findMany({ where: { dealId }, orderBy: { order: "asc" } });
-    expect(stages[0]).toMatchObject({ title: "Контрольный замер", amount: 0 });
-    expect(stages.reduce((s, x) => s + x.amount, 0)).toBe(710_000);
+    const { dealId } = await agreeToContract(client, { requestId });
+    expect((await dealOf(dealId)).priceTiyn).toBe(710_000_00n);
   });
 });
 
@@ -202,10 +211,8 @@ describe("сценарий 3: договор до замера", () => {
     const { requestId, executor, offerId } = await makeChosen(client); // цена отклика 500 000
     await expect(submitProject(executor, projectInput(offerId))).rejects.toThrow(code("CONFLICT")); // до договора проекта нет
 
-    const { dealId } = await agreeToContract(client, { requestId, template: "advance-50" });
-    const deal = await db.deal.findUniqueOrThrow({ where: { id: dealId }, include: { stages: { orderBy: { order: "asc" } } } });
-    expect(deal.totalAmount).toBe(500_000);
-    expect(deal.stages[0]).toMatchObject({ title: "Замер и проект", amount: 50_000 });
+    const { dealId } = await agreeToContract(client, { requestId });
+    expect((await dealOf(dealId)).priceTiyn).toBe(500_000_00n);
 
     await expect(submitProject(executor, projectInput(offerId, 575_001))).rejects.toThrow(code("VALIDATION"));
     await expect(submitProject(executor, projectInput(offerId, 424_999))).rejects.toThrow(code("VALIDATION"));
@@ -242,7 +249,7 @@ describe("сценарий 4: залог за выезд", () => {
 });
 
 describe("сценарий 5: онлайн-замер", () => {
-  it("без трёх размеров и фото с рулеткой заявка не отправляется; договор — с контрольным замером первым этапом", async () => {
+  it("без трёх размеров и фото с рулеткой заявка не отправляется; договор — по цене проекта", async () => {
     await withFlow("SELF_MEASURE");
     const client = await makeClient();
     const requestId = await makeDraft(client);
@@ -255,9 +262,7 @@ describe("сценарий 5: онлайн-замер", () => {
     const { offerId } = await sendOffer(executor, offerInput(requestId));
     await chooseOffer(client, { offerId });
     await makeApprovedProject(client, executor, offerId, 480_000);
-    const { dealId } = await agreeToContract(client, { requestId, template: "no-prepayment" });
-    const first = await db.stage.findFirstOrThrow({ where: { dealId }, orderBy: { order: "asc" } });
-    expect(first.title).toBe("Контрольный замер");
-    expect(first.description).toContain("5 %");
+    const { dealId } = await agreeToContract(client, { requestId });
+    expect((await dealOf(dealId)).priceTiyn).toBe(480_000_00n);
   });
 });

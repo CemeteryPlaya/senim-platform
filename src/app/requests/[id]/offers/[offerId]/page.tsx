@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ArrowRight, Ruler, Star } from "lucide-react";
 import type { ReactNode } from "react";
-import { getOfferForClient } from "@/modules/requests";
+import { getOfferForClient, TZ_PATH, wholeKzt } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { Container, DateText, formatYears, PageHeader, PhotoCard, SectionTitle, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
@@ -11,6 +11,7 @@ import { orNotFound, pageUser } from "../../../_parts/guard";
 import { OFFER_TONE, termsText } from "../../../_parts/labels";
 import { CostSummary } from "@/app/_components/pre-contract/CostSummary";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
+import { Negotiation } from "@/app/_components/negotiation/Negotiation";
 import { NoAccess } from "@/app/_components/NoAccess";
 
 const o = ru.requests.offer;
@@ -22,7 +23,8 @@ type Props = { params: Promise<{ id: string; offerId: string }> };
 /**
  * Карточка отклика (макеты 823 и 13–14): вместо вкладок — одна длинная страница. Галерея работ, условия
  * (цена крупно, срок и гарантия строками), об исполнителе строками, работы, отзывы, чат.
- * Исполнитель — только «Исполнитель №N» (publicExecutorView); главное действие — выбрать и перейти к замеру.
+ * Исполнитель — только «Исполнитель №N» (publicExecutorView). На пути ТЗ главное действие — в торге над чатом
+ * («Принять N ₸» → оферта); в сценарии до договора (флаг preContractFlows) — «Выбрать и перейти к замеру».
  */
 export default async function OfferPage({ params }: Props) {
   const { id, offerId } = await params;
@@ -33,6 +35,7 @@ export default async function OfferPage({ params }: Props) {
   const offer = await orNotFound(getOfferForClient(user, { requestId: id, offerId }));
   const ex = offer.executor;
   const gallery = offer.portfolio.flatMap((item) => item.photos.slice(0, 1));
+  const tz = offer.request.path === TZ_PATH;
 
   return (
     <Container className="flex flex-col gap-10 pb-10">
@@ -54,15 +57,22 @@ export default async function OfferPage({ params }: Props) {
           <h2 id="terms-title" className="text-xl font-bold text-ink">
             {o.termsTitle}
           </h2>
-          <CostSummary total={offer.price} totalLabel={o.price} durationDays={offer.durationDays} warrantyMonths={offer.warrantyMonths} />
-          <p className="text-base text-ink-soft">{o.priceNote}</p>
-          <p className="flex items-start gap-3 text-base text-ink">
-            <Ruler aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
-            <span className="flex min-w-0 flex-col">
-              <span className="text-sm text-muted">{o.measurement}</span>
-              {termsText(offer.measurementTerms, offer.measurementFee)}
-            </span>
-          </p>
+          <CostSummary
+            total={wholeKzt(offer.priceTiyn)}
+            totalLabel={tz ? o.priceTz : o.price}
+            durationDays={offer.durationDays}
+            warrantyMonths={offer.warrantyMonths}
+          />
+          <p className="text-base text-ink-soft">{tz ? o.priceNoteTz : o.priceNote}</p>
+          {!tz && (
+            <p className="flex items-start gap-3 text-base text-ink">
+              <Ruler aria-hidden className="mt-0.5 size-6 shrink-0 text-primary" />
+              <span className="flex min-w-0 flex-col">
+                <span className="text-sm text-muted">{o.measurement}</span>
+                {termsText(offer.measurementTerms, offer.measurementFee)}
+              </span>
+            </p>
+          )}
           {offer.comment && (
             <p className="border-l-2 border-line pl-4 text-base text-ink">
               <span className="block text-sm text-muted">{o.comment}</span>
@@ -128,6 +138,8 @@ export default async function OfferPage({ params }: Props) {
         )}
       </Section>
 
+      {/* Торг — над чатом отклика: обе стороны видят раунды цены и смету до оплаты. */}
+      {tz && <Negotiation offerId={offer.id} />}
       <OfferChat offerId={offer.id} title={o.chatWith(ex.labelDat)} />
 
       {offer.canChoose && (

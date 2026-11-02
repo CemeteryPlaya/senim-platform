@@ -4,8 +4,8 @@ import { notify } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
 import { isUniqueViolation, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
-import { auditByUser, links, loadExecutor, requestTitle, requireClient } from "./access";
-import { flowOf, MEASURE_DEPOSIT_AMOUNT } from "./flows";
+import { auditByUser, links, loadExecutor, preContractFlow, requestTitle, requireClient } from "./access";
+import { MEASURE_DEPOSIT_AMOUNT } from "./flows";
 import { DEPOSIT_TRANSITIONS, stored, transition } from "./transitions";
 
 /**
@@ -27,7 +27,7 @@ export async function markDepositPaid(user: CurrentUser, input: { offerId: strin
         include: { ...withRequest, deposit: true, executor: { select: { userId: true } } },
       });
       if (!offer) return fail.notFound(ru.requests.errors.offerNotFound);
-      const to = stored(transition(DEPOSIT_TRANSITIONS, "markPaid", offer.deposit?.status ?? "NONE", "CLIENT", flowOf(offer.request)));
+      const to = stored(transition(DEPOSIT_TRANSITIONS, "markPaid", offer.deposit?.status ?? "NONE", "CLIENT", preContractFlow(offer.request)));
       if (offer.status !== "ACCEPTED" || offer.request.status !== "OFFER_CHOSEN") return fail.conflict();
 
       const deposit = await tx.measureDeposit.create({ data: { offerId: offer.id, amount: MEASURE_DEPOSIT_AMOUNT, status: to } });
@@ -52,7 +52,7 @@ export async function confirmDeposit(user: CurrentUser, input: { offerId: string
     const executor = await loadExecutor(tx, user);
     const offer = await tx.offer.findFirst({ where: { id: input.offerId, executorId: executor.id }, include: { ...withRequest, deposit: true } });
     if (!offer) return fail.notFound(ru.requests.errors.offerNotFound);
-    const to = stored(transition(DEPOSIT_TRANSITIONS, "confirm", offer.deposit?.status ?? "NONE", "EXECUTOR", flowOf(offer.request)));
+    const to = stored(transition(DEPOSIT_TRANSITIONS, "confirm", offer.deposit?.status ?? "NONE", "EXECUTOR", preContractFlow(offer.request)));
     if (!offer.deposit || offer.status !== "ACCEPTED") return fail.conflict();
     const from = offer.deposit.status;
 

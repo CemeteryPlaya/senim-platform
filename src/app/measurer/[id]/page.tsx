@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
+import { isEnabled } from "@/platform/features";
 import { requireUserPage } from "@/modules/identity";
 import { getSiteMeasurement } from "@/modules/requests";
 import { MapPin } from "lucide-react";
@@ -17,6 +19,7 @@ export const metadata: Metadata = { title: t.metaTitle };
 
 /** Замер площадки: что в заявке, адрес выезда и форма результата (размеры, заметки, фото). */
 export default async function SiteMeasurementPage({ params }: { params: Promise<{ id: string }> }) {
+  if (!isEnabled("preContractFlows")) notFound();
   const { id } = await params;
   const user = await requireUserPage(`/measurer/${id}`, "MEASURER");
   const sm = await orNotFound(getSiteMeasurement(user, id));

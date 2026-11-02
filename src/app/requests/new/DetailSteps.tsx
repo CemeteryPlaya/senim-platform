@@ -1,22 +1,22 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { LIMITS, type RequestDetails } from "@/modules/requests/client";
+import { LocateFixed, MapPin } from "lucide-react";
+import { useState, useTransition, type ReactNode } from "react";
+import { LIMITS, type GeoPoint } from "@/modules/requests/client";
 import { ru } from "@/i18n/ru";
-import { Input, RadioCards, Textarea } from "@/ui";
+import { Button, Input, Textarea } from "@/ui";
 import { Uploader } from "@/app/_components/uploader";
+import { locateAddressAction } from "../actions";
 import { FormError } from "../_parts/ActionButton";
 import { first, NextButton, SkipButton, StepForm, StepHeading, useStep, type StepBase } from "./StepForm";
 
 const w = ru.requests.wizard;
 const pre = ru.requests.pre;
 
-// ─── 3. Размеры ──────────────────────────────────────────────────────────────
+// ─── Онлайн-замер (сценарий 5) ───────────────────────────────────────────────
 
-const toCm = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
-
-/** Онлайн-замер (сценарий 5, ADR-005): как снять размеры самому — по шагам. */
-function SelfMeasureGuide() {
+/** Онлайн-замер (сценарий 5, ADR-005): как снять размеры самому — по шагам. Показывается в «Для продвинутых». */
+export function SelfMeasureGuide() {
   const s = pre.selfMeasure;
   return (
     <section aria-labelledby="self-measure" className="flex flex-col gap-3 rounded-card bg-accent-soft p-5">
@@ -32,71 +32,7 @@ function SelfMeasureGuide() {
   );
 }
 
-/**
- * Размеры необязательны: по умолчанию «Не знаю — уточнит замер». В онлайн-замере (сценарий 5) — инструкция
- * и три обязательных размера: по ним исполнители считают цену.
- */
-export function SizeStep(props: StepBase & { details: RequestDetails; selfMeasure: boolean }) {
-  const { submit, pending, error, errors } = useStep(props);
-  const d = props.details;
-  const self = props.selfMeasure;
-  const [mode, setMode] = useState<"known" | "unknown">(self || d.widthCm ? "known" : "unknown");
-  const [size, setSize] = useState({ w: d.widthCm?.toString() ?? "", h: d.heightCm?.toString() ?? "", d: d.depthCm?.toString() ?? "" });
-  const [localError, setLocalError] = useState<string>();
-  const sizeError = localError ?? first(errors, "size");
-  const field = (key: "w" | "h" | "d", label: string, required: boolean) => (
-    <Input
-      label={label}
-      optional={!required}
-      inputMode="numeric"
-      autoComplete="off"
-      value={size[key]}
-      onChange={(e) => setSize({ ...size, [key]: e.target.value })}
-      error={key === "w" ? sizeError : undefined}
-    />
-  );
-  return (
-    <StepForm
-      errors={errors}
-      onSubmit={() => {
-        if (self && (!size.w.trim() || !size.h.trim() || !size.d.trim())) return setLocalError(pre.errors.selfMeasureIncomplete);
-        setLocalError(undefined);
-        submit({
-          screen: "size",
-          size: mode === "unknown" ? { mode } : { mode, widthCm: toCm(size.w), heightCm: toCm(size.h), depthCm: toCm(size.d) },
-        });
-      }}
-      actions={<NextButton pending={pending} />}
-    >
-      <StepHeading title={self ? pre.selfMeasure.title : w.size.title} lead={self ? pre.selfMeasure.lead : w.size.lead} />
-      {self ? (
-        <SelfMeasureGuide />
-      ) : (
-        <RadioCards
-          label={w.size.modeLabel}
-          name="sizeMode"
-          value={mode}
-          onChange={(v) => setMode(v === "known" ? "known" : "unknown")}
-          columns={2}
-          options={[
-            { value: "unknown", label: w.size.unknown, description: w.size.unknownHint },
-            { value: "known", label: w.size.known, description: w.size.knownHint },
-          ]}
-        />
-      )}
-      {mode === "known" && (
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-3">
-          {field("w", w.size.width, true)}
-          {field("h", w.size.height, self)}
-          {field("d", w.size.depth, self)}
-        </div>
-      )}
-      <FormError message={error} />
-    </StepForm>
-  );
-}
-
-// ─── 5. Фото и описание ──────────────────────────────────────────────────────
+// ─── 3. Фото и описание ──────────────────────────────────────────────────────
 
 /** Фото места и описание своими словами. Необязательно, кроме онлайн-замера: там нужно фото стены с рулеткой. */
 export function RoomStep(props: StepBase & { photos: { id: string; src: string }[]; description: string; selfMeasure: boolean; aiSlot?: ReactNode }) {
@@ -149,19 +85,104 @@ export function RoomStep(props: StepBase & { photos: { id: string; src: string }
   );
 }
 
-// ─── 6. Где и когда ──────────────────────────────────────────────────────────
+// ─── 4. Где и когда ──────────────────────────────────────────────────────────
 
-export type PlaceInitial = { city: string; address: string; desiredDate: string };
+export type PlaceInitial = { city: string; address: string; desiredDate: string; location: GeoPoint | null };
+
+type LocateState =
+  | { kind: "idle" }
+  | { kind: "busy" }
+  | { kind: "gps"; accuracyM: number }
+  | { kind: "geocoded"; precision: "address" | "city" }
+  | { kind: "error"; message: string };
+
+const coords = (p: GeoPoint) => `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
+
+/**
+ * Точка адреса (решение 2.2.5): «Указать моё местоположение» (геолокация браузера, с точностью в метрах) или
+ * «Найти по адресу» (геокодер за интерфейсом, сейчас мок). Отказ в доступе — понятное сообщение; адрес
+ * сохраняется и без точки. Точку и адрес мастер увидит только после оферты.
+ */
+function LocationField({ value, onChange, city, address }: { value: GeoPoint | null; onChange: (p: GeoPoint | null) => void; city: string; address: string }) {
+  const l = w.place.location;
+  const [state, setState] = useState<LocateState>({ kind: "idle" });
+  const [, startTransition] = useTransition();
+
+  const locate = () => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return setState({ kind: "error", message: l.unsupported });
+    setState({ kind: "busy" });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        onChange({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setState({ kind: "gps", accuracyM: Math.round(pos.coords.accuracy) });
+      },
+      (err) => setState({ kind: "error", message: err.code === err.PERMISSION_DENIED ? l.denied : l.unavailable }),
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
+    );
+  };
+
+  const geocode = () =>
+    startTransition(async () => {
+      setState({ kind: "busy" });
+      const result = await locateAddressAction({ city, address });
+      if (!result.ok) return setState({ kind: "error", message: result.error });
+      if (!result.data) return setState({ kind: "error", message: l.notFound });
+      onChange({ lat: result.data.lat, lng: result.data.lng });
+      setState({ kind: "geocoded", precision: result.data.precision });
+    });
+
+  const status =
+    state.kind === "error"
+      ? state.message
+      : state.kind === "gps"
+        ? l.accuracy(state.accuracyM)
+        : state.kind === "geocoded" && state.precision === "city"
+          ? l.cityOnly
+          : null;
+  return (
+    <fieldset className="flex flex-col gap-3">
+      <legend className="mb-1 text-lg font-bold text-ink">{l.title}</legend>
+      <p className="text-base text-ink-soft">{l.hint}</p>
+      {value && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-base text-ink">
+          <MapPin aria-hidden className="size-5 shrink-0 text-primary" />
+          <span>{l.set(coords(value))}</span>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              onChange(null);
+              setState({ kind: "idle" });
+            }}
+          >
+            {l.clear}
+          </Button>
+        </p>
+      )}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Button variant="secondary" loading={state.kind === "busy"} icon={<LocateFixed />} onClick={locate}>
+          {l.locate}
+        </Button>
+        <Button variant="ghost" disabled={state.kind === "busy" || city.trim().length < 2} onClick={geocode}>
+          {l.byAddress}
+        </Button>
+      </div>
+      <p role="status" className="text-base text-ink-soft">
+        {status}
+      </p>
+    </fieldset>
+  );
+}
 
 export function PlaceStep(props: StepBase & { initial: PlaceInitial }) {
   const { submit, pending, error, errors } = useStep(props);
   const [form, setForm] = useState(props.initial);
-  const set = (patch: Partial<PlaceInitial>) => setForm({ ...form, ...patch });
+  // Функциональное обновление: точка от геокодера приходит позже и не должна стереть то, что ввели за это время.
+  const set = (patch: Partial<PlaceInitial>) => setForm((f) => ({ ...f, ...patch }));
   const p = w.place;
   return (
     <StepForm
       errors={errors}
-      onSubmit={() => submit({ screen: "place", city: form.city, address: form.address, desiredDate: form.desiredDate || null })}
+      onSubmit={() => submit({ screen: "place", city: form.city, address: form.address, desiredDate: form.desiredDate || null, location: form.location })}
       actions={<NextButton pending={pending} />}
     >
       <StepHeading title={p.title} lead={p.lead} />
@@ -175,6 +196,7 @@ export function PlaceStep(props: StepBase & { initial: PlaceInitial }) {
         onChange={(e) => set({ address: e.target.value })}
         error={first(errors, "address")}
       />
+      <LocationField value={form.location} onChange={(location) => set({ location })} city={form.city} address={form.address} />
       <Input
         label={p.desiredDate}
         hint={p.desiredDateHint}
@@ -184,7 +206,7 @@ export function PlaceStep(props: StepBase & { initial: PlaceInitial }) {
         onChange={(e) => set({ desiredDate: e.target.value })}
         error={first(errors, "desiredDate")}
       />
-      <FormError message={error} />
+      <FormError message={error ?? first(errors, "location")} />
     </StepForm>
   );
 }

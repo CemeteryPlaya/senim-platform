@@ -6,8 +6,8 @@ import { ru } from "@/i18n/ru";
 import { isUniqueViolation, transaction, type Db, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { formatMoney } from "@/ui/format";
-import { auditByUser, links, loadExecutor, requestTitle, requireClient } from "./access";
-import { flowOf, flowRules, toleranceRange, withinTolerance } from "./flows";
+import { auditByUser, links, loadExecutor, preContractFlow, requestTitle, requireClient } from "./access";
+import { flowRules, toleranceRange, wholeKzt, withinTolerance } from "./flows";
 import { costLinesSchema, type SubmitProjectInput } from "./pre-contract-schema";
 import { PROJECT_TRANSITIONS, stored, transition, type ProjectState } from "./transitions";
 import type { PreContractFlow, RequestStatus } from "@/generated/prisma/enums";
@@ -35,8 +35,8 @@ async function latestVersion(tx: Db, offerId: string) {
 
 /** Цена договора, от которой считается допуск в «договоре до замера». */
 async function contractPrice(tx: Db, requestId: string): Promise<number | null> {
-  const deal = await tx.deal.findUnique({ where: { requestId }, select: { totalAmount: true } });
-  return deal?.totalAmount ?? null;
+  const deal = await tx.deal.findUnique({ where: { requestId }, select: { priceTiyn: true } });
+  return deal ? wholeKzt(deal.priceTiyn) : null;
 }
 
 async function checkTolerance(tx: Tx, flow: PreContractFlow, requestId: string, total: number) {
@@ -60,7 +60,7 @@ export async function submitProject(user: CurrentUser, input: SubmitProjectInput
       });
       if (!offer) return fail.notFound(ru.requests.errors.offerNotFound);
       const r = offer.request;
-      const flow = flowOf(r);
+      const flow = preContractFlow(r);
       if (offer.status !== "ACCEPTED" || !projectStepOpen(flow, r.status, offer.measurement?.status === "DONE")) return fail.conflict(pe.projectNotNow);
       const latest = await latestVersion(tx, offer.id);
       const to = stored(transition(PROJECT_TRANSITIONS, "submit", latest?.status ?? "NONE", "EXECUTOR", flow));
@@ -109,7 +109,7 @@ async function decide(user: CurrentUser, projectId: string, decision: Decision):
       include: { request: { include: { furnitureType: { select: { name: true } } } }, offer: { select: { status: true, executor: { select: { userId: true } } } } },
     });
     if (!p) return fail.notFound(pe.projectNotFound);
-    const flow = flowOf(p.request);
+    const flow = preContractFlow(p.request);
     const to = stored(transition(PROJECT_TRANSITIONS, decision.action, p.status as ProjectState, "CLIENT", flow));
     if (p.offer.status !== "ACCEPTED" || p.request.status === "CANCELLED") return fail.conflict();
     const changeNote = decision.comment === undefined ? null : maskContacts(decision.comment).text;

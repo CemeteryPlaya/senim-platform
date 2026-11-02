@@ -34,7 +34,7 @@ export async function listMyOffers(user: CurrentUser) {
     requestStatus: o.request.status,
     cover: cover(o.request),
     status: o.status,
-    price: o.price,
+    priceTiyn: o.priceTiyn,
     durationDays: o.durationDays,
     createdAt: o.createdAt,
     measurement: o.measurement,

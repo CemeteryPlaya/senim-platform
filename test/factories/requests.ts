@@ -1,6 +1,8 @@
+import { afterEach, beforeEach } from "vitest";
 import type { MeasurementTerms, PreContractFlow, Segment } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
 import {
+  acceptPrice,
   approveProject,
   chooseOffer,
   completeMeasurement,
@@ -34,16 +36,21 @@ export function segmentStep(segment: Segment = "COMFORT"): StepInput {
   return { screen: "segment", segment };
 }
 
-export const placeStep: StepInput = { screen: "place", city: "Астана", address: "ул. Тестовая, 1, кв. 2", desiredDate: null };
+/** Байтерек (Астана): точка адреса заявки. */
+export const POINT = { lat: 51.128207, lng: 71.430411 };
+export const placeStep: StepInput = { screen: "place", city: "Астана", address: "ул. Тестовая, 1, кв. 2", desiredDate: null, location: POINT };
 
-/** Заполненный мастер (все экраны и материалы от помощника), но ещё не отправленный. */
+/** Заполненный мастер (все экраны, «Для продвинутых» открыт), но ещё не отправленный. */
 export async function makeDraft(client: CurrentUser, opts: DraftOpts = {}): Promise<string> {
   const typeId = opts.typeId ?? (await makeFurnitureType()).id;
   const steps: StepInput[] = [
-    { screen: "type", furnitureTypeId: typeId, customType: null },
-    { screen: "style", style: "modern", styleNote: "" },
-    { screen: "size", size: { mode: "known", widthCm: 300, heightCm: 250, depthCm: 60 } },
-    { screen: "materials", facade: "mdf_film", countertop: "unknown", hardware: "soft_close", color: "", extras: [], description: "" },
+    {
+      screen: "start",
+      furnitureTypeId: typeId,
+      customType: null,
+      style: "modern",
+      advanced: { size: { mode: "known", widthCm: 300, heightCm: 250, depthCm: 60 }, facade: "mdf_film", countertop: "unknown", hardware: "soft_close" },
+    },
     segmentStep(opts.segment),
     { screen: "room", photoFileIds: [], description: "" },
     placeStep,
@@ -69,15 +76,48 @@ export async function makeExecutorWithTerms(segment: Segment, terms: Measurement
   return executor;
 }
 
-export const offerInput = (requestId: string, price = 500_000, extra: { durationDays?: number; warrantyMonths?: number } = {}) => ({
+/** Отклик; цена — в тенге (в БД — тиыны). */
+export const offerInput = (requestId: string, priceKzt = 500_000, extra: { durationDays?: number; warrantyMonths?: number } = {}) => ({
   requestId,
-  price,
+  priceKzt,
   durationDays: extra.durationDays ?? 30,
   warrantyMonths: extra.warrantyMonths ?? 24,
   comment: "",
 });
 
-/** Открытая заявка с выбранным откликом исполнителя (по умолчанию — 10 000 ₸ за выезд). */
+/** Открытое предложение цены по отклику (после отправки — цена отклика от мастера). */
+export const openProposal = (offerId: string) => db.priceProposal.findFirstOrThrow({ where: { offerId, status: "PROPOSED" } });
+
+/** Путь ТЗ: заявка, отклик мастера и акцепт его цены покупателем — заявка CONTRACTING, сделка с офертой создана. */
+export async function makeAccepted(client: CurrentUser, priceKzt = 500_000) {
+  const requestId = await makeOpenRequest(client, { segment: "COMFORT" });
+  const executor = await makeExecutorWithTerms("COMFORT");
+  const { offerId } = await sendOffer(executor, offerInput(requestId, priceKzt));
+  const { dealId } = await acceptPrice(client, { proposalId: (await openProposal(offerId)).id });
+  return { requestId, executor, offerId, dealId };
+}
+
+/**
+ * Сценарии до договора (флаг preContractFlows) в тестах файла или describe: флаг включён перед каждым тестом,
+ * после — флаг и DEMO_MODE сброшены (env процесса общий для файла).
+ */
+export function withPreContractFlows(): void {
+  beforeEach(() => setEnv({ FEATURE_PRE_CONTRACT_FLOWS: "true" }));
+  afterEach(() => setEnv({ FEATURE_PRE_CONTRACT_FLOWS: undefined, DEMO_MODE: undefined }));
+}
+
+/** Флаг на время одного вызова (тест «в обоих положениях флага»). */
+export async function withFeature<T>(name: "FEATURE_PRE_CONTRACT_FLOWS" | "FEATURE_MATERIALS_CALCULATOR", on: boolean, fn: () => Promise<T>): Promise<T> {
+  const prev = process.env[name];
+  setEnv({ [name]: on ? "true" : "false" });
+  try {
+    return await fn();
+  } finally {
+    setEnv({ [name]: prev });
+  }
+}
+
+/** Открытая заявка с выбранным откликом исполнителя (по умолчанию — 10 000 ₸ за выезд). Нужен флаг preContractFlows. */
 export async function makeChosen(client: CurrentUser, terms: MeasurementTerms = "FEE_IF_NO_DEAL") {
   const requestId = await makeOpenRequest(client, { segment: "COMFORT" });
   const executor = await makeExecutorWithTerms("COMFORT", terms, terms === "FEE_IF_NO_DEAL" ? 10_000 : null);

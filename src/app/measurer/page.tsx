@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { CalendarClock, MapPin, Ruler } from "lucide-react";
 import { ru } from "@/i18n/ru";
+import { isEnabled } from "@/platform/features";
 import { requireUserPage } from "@/modules/identity";
 import { listMySiteMeasurements } from "@/modules/requests";
 import { Container, EmptyState, FilterChips, PageHeader, PhotoCard, StatusBadge, formatDateTime } from "@/ui";
@@ -16,6 +18,8 @@ type Group = (typeof GROUPS)[number];
 
 /** Замерщик площадки (ADR-005): назначенные оператором замеры карточками с фото, чипы «Назначены / Выполнены». */
 export default async function MeasurerPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
+  // Замерщик площадки — сценарий 2 (флаг preContractFlows, решение 2.2.9).
+  if (!isEnabled("preContractFlows")) notFound();
   const sp = await searchParams;
   const user = await requireUserPage("/measurer", "MEASURER");
   const rows = await listMySiteMeasurements(user);

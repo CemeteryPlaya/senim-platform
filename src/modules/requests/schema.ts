@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import { COUNTERTOPS, FACADES, HARDWARE, STAGE_TEMPLATES, STYLES, type SegmentInput } from "@/verticals/furniture";
+import { COUNTERTOPS, FACADES, HARDWARE, STYLES, type SegmentInput } from "@/verticals/furniture";
 
 /**
  * Данные заявки на входе и в БД (`Request.details`). Разбираются один раз — здесь;
@@ -91,25 +91,25 @@ export function segmentInputOf(d: RequestDetails): SegmentInput {
 // ─── шаги мастера ────────────────────────────────────────────────────────────
 
 /**
- * Экраны мастера по порядку — для человека, который не разбирается в мебели (встреча 31.10, п. 1):
- * что нужно → какой примерно вид → размеры (можно «не знаю») → уровень → фото и описание → адрес и срок → проверка.
- * Материалов в мастере нет: их может перенести помощник ИИ (шаг `materials`, не экран), иначе подскажет исполнитель.
+ * Экраны мастера по порядку (ТЗ п. 3, решение 2.2.11): на первом — только тип и стиль; всё техническое
+ * (размеры, ЛДСП/МДФ, фурнитура) — в свёрнутом блоке «Для продвинутых» первого экрана, у каждого поля «не знаю».
+ * Дальше — уровень → фото (можно пропустить) → адрес и точка → проверка.
+ * Шаги `type`, `style`, `size`, `materials` — не экраны: их сохраняет помощник ИИ при переносе черновика.
  */
-export const WIZARD_SCREENS = ["type", "style", "size", "segment", "room", "place", "send"] as const;
+export const WIZARD_SCREENS = ["start", "segment", "room", "place", "send"] as const;
 export type WizardScreen = (typeof WIZARD_SCREENS)[number];
 
 const optionalText = (max: number) => z.string().trim().max(max, t.tooLong(max)).default("");
 
-const typeStep = z
-  .strictObject({
-    screen: z.literal("type"),
-    furnitureTypeId: z.string().min(1).nullable(),
-    customType: z.string().trim().max(LIMITS.customType, t.tooLong(LIMITS.customType)).nullable(),
-  })
-  .refine((s) => (s.furnitureTypeId === null) !== (s.customType === null || s.customType === ""), {
-    message: t.typeRequired,
-    path: ["furnitureTypeId"],
-  });
+const typeFields = {
+  furnitureTypeId: z.string().min(1).nullable(),
+  customType: z.string().trim().max(LIMITS.customType, t.tooLong(LIMITS.customType)).nullable(),
+};
+/** Тип — либо из справочника, либо свой текст. */
+const oneType = (s: { furnitureTypeId: string | null; customType: string | null }) => (s.furnitureTypeId === null) !== (s.customType === null || s.customType === "");
+const typeRefine = { message: t.typeRequired, path: ["furnitureTypeId"] };
+
+const typeStep = z.strictObject({ screen: z.literal("type"), ...typeFields }).refine(oneType, typeRefine);
 
 const styleStep = z.strictObject({
   screen: z.literal("style"),
@@ -124,22 +124,32 @@ const roomStep = z.strictObject({
   description: optionalText(LIMITS.description),
 });
 
-const sizeStep = z.strictObject({
-  screen: z.literal("size"),
-  size: z.discriminatedUnion("mode", [
-    z.strictObject({ mode: z.literal("known"), widthCm: cm, heightCm: cm.nullable(), depthCm: cm.nullable() }),
-    z.strictObject({ mode: z.literal("unknown") }),
-  ]),
-});
+const sizeInput = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("known"), widthCm: cm, heightCm: cm.nullable(), depthCm: cm.nullable() }),
+  z.strictObject({ mode: z.literal("unknown") }),
+]);
+const sizeStep = z.strictObject({ screen: z.literal("size"), size: sizeInput });
 
 const choice = <T extends readonly [string, ...string[]]>(keys: T) => z.enum([...keys, "unknown"], { error: t.chooseOrUnknown });
+const facadeChoice = choice(FACADE_KEYS);
+const countertopChoice = z.enum([...COUNTERTOP_KEYS, "unknown", "none"], { error: t.chooseOrUnknown });
+const hardwareChoice = choice(HARDWARE_KEYS);
+
+/** Блок «Для продвинутых» первого экрана: размеры и материалы, у каждого — «Не знаю — подскажет исполнитель». */
+export const advancedSchema = z.strictObject({ size: sizeInput, facade: facadeChoice, countertop: countertopChoice, hardware: hardwareChoice });
+export type AdvancedInput = z.output<typeof advancedSchema>;
+
+/** Первый экран (ТЗ п. 3): только тип и стиль; блок «Для продвинутых» — null, если его не открывали. */
+const startStep = z
+  .strictObject({ screen: z.literal("start"), ...typeFields, style: z.enum(STYLE_KEYS).nullable(), advanced: advancedSchema.nullable().default(null) })
+  .refine(oneType, typeRefine);
 
 /** Материалы и фурнитура — не экран мастера: шаг сохраняет то, что распознал помощник ИИ. */
 const materialsStep = z.strictObject({
   screen: z.literal("materials"),
-  facade: choice(FACADE_KEYS),
-  countertop: z.enum([...COUNTERTOP_KEYS, "unknown", "none"], { error: t.chooseOrUnknown }),
-  hardware: choice(HARDWARE_KEYS),
+  facade: facadeChoice,
+  countertop: countertopChoice,
+  hardware: hardwareChoice,
   color: optionalText(LIMITS.color),
   extras: z.array(z.enum(EXTRAS)).default([]),
   description: optionalText(LIMITS.description),
@@ -150,17 +160,40 @@ const segmentStep = z.strictObject({
   segment: z.enum(SEGMENTS, { error: t.segmentRequired }),
 });
 
+/** Точка адреса (решение 2.2.5): обе координаты или ни одной — как CHECK в БД. Нужна для GPS-проверки сдачи. */
+export const geoPointSchema = z.strictObject({
+  lat: z.number({ error: t.location }).min(-90, t.location).max(90, t.location),
+  lng: z.number({ error: t.location }).min(-180, t.location).max(180, t.location),
+});
+export type GeoPoint = z.output<typeof geoPointSchema>;
+
+/** Точка адреса заявки из БД (CHECK держит «обе или ни одной»). */
+export function pointOf(r: { addressLat: number | null; addressLng: number | null }): GeoPoint | null {
+  return r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null;
+}
+
 const placeStep = z.strictObject({
   screen: z.literal("place"),
   city: z.string().trim().min(2, t.cityRequired).max(LIMITS.city),
   address: z.string().trim().min(5, t.addressRequired).max(LIMITS.address, t.tooLong(LIMITS.address)),
   desiredDate: z.iso.date(t.date).nullable(),
+  location: geoPointSchema.nullable().default(null),
 });
 
 /** Проверка и отправка: всё уже сохранено на прошлых экранах. */
 const sendStep = z.strictObject({ screen: z.literal("send") });
 
-export const stepInputSchema = z.discriminatedUnion("screen", [typeStep, styleStep, sizeStep, segmentStep, roomStep, placeStep, sendStep, materialsStep]);
+export const stepInputSchema = z.discriminatedUnion("screen", [
+  startStep,
+  segmentStep,
+  roomStep,
+  placeStep,
+  sendStep,
+  typeStep,
+  styleStep,
+  sizeStep,
+  materialsStep,
+]);
 export type StepInput = z.output<typeof stepInputSchema>;
 export type StepFormInput = z.input<typeof stepInputSchema>;
 
@@ -185,13 +218,15 @@ export type OfferSort = (typeof OFFER_SORTS)[number];
 export const listOffersSchema = z.strictObject({ requestId: id, sort: z.enum(OFFER_SORTS).default("price") });
 export const offerDetailSchema = z.strictObject({ requestId: id, offerId: id });
 
+/** Сумма в целых тенге: цена отклика и торга (на сервере → kztToTiyn), суммы сценариев до договора. */
 const money = z.number({ error: t.price }).int(t.price).min(1, t.price).max(100_000_000, t.price);
 const MEASUREMENT_TERMS = ["FREE", "INCLUDED", "FEE_IF_NO_DEAL"] as const;
 
 export const sendOfferSchema = z
   .strictObject({
     requestId: id,
-    price: money,
+    /** Цена отклика в тенге — первое предложение торга; в БД — тиыны. */
+    priceKzt: money,
     durationDays: z.number({ error: t.days }).int(t.days).min(1, t.days).max(365, t.days),
     warrantyMonths: z.number({ error: t.warranty }).int(t.warranty).min(0, t.warranty).max(120, t.warranty),
     comment: optionalText(1000),
@@ -214,12 +249,16 @@ export const noDealSchema = z.strictObject({ measurementId: id, result: optional
  * identity.recordPersonIdentity: её ошибки приходят к полям fullName и iin формы.
  */
 const clientIdentity = z.strictObject({ fullName: z.string().trim().max(120), iin: z.string().trim().max(20) });
-/** Шаблон этапов из вертикали: заказчик выбирает порядок оплаты при согласии на договор. */
+/** Согласие на договор в сценарии до договора (флаг preContractFlows): цена — из замера или проекта. */
 export const agreeToContractSchema = z.strictObject({
   requestId: id,
-  template: z.enum(keysOf(STAGE_TEMPLATES)),
   identity: clientIdentity.optional(),
 });
+
+/** Торг (решение 2.2.3): своя цена или встречная — в целых тенге; принять и отозвать — по id предложения. */
+export const proposePriceSchema = z.strictObject({ offerId: id, amountKzt: money });
+export type ProposePriceInput = z.output<typeof proposePriceSchema>;
+export const proposalRefSchema = z.strictObject({ proposalId: id });
 
 /** Номер экрана (с нуля); -1 — шаг не экран мастера (материалы). `Request.wizardStep` — сколько экранов уже сохранено. */
 export function screenIndex(screen: StepInput["screen"]): number {
@@ -232,11 +271,12 @@ export function screenIndex(screen: StepInput["screen"]): number {
  * где их не хватает, — иначе отправка упадёт с «заполните все шаги».
  */
 export function resumeIndex(
-  draft: { wizardStep: number; segment: string | null; address: string | null } | null,
+  draft: { wizardStep: number; segment: string | null; address: string | null; typeChosen: boolean } | null,
   asked: string | undefined,
 ): number {
   if (!draft) return 0;
   let reached = Math.min(draft.wizardStep, WIZARD_SCREENS.length - 1);
+  if (!draft.typeChosen) reached = 0;
   if (!draft.segment) reached = Math.min(reached, screenIndex("segment"));
   if (!draft.address) reached = Math.min(reached, screenIndex("place"));
   const index = asked === undefined ? -1 : screenIndex(asked as WizardScreen);
@@ -256,34 +296,42 @@ function compact(d: RequestDetails): RequestDetails {
   ) as RequestDetails;
 }
 
+function applySize(d: RequestDetails, size: z.output<typeof sizeInput>): RequestDetails {
+  const known = size.mode === "known" ? size : null;
+  return compact({
+    ...d,
+    widthCm: known?.widthCm,
+    heightCm: known?.heightCm ?? undefined,
+    depthCm: known?.depthCm ?? undefined,
+    unknown: withUnknown(d, "size", known === null),
+  });
+}
+
+/** Фасады, столешница, фурнитура: значение или «не знаю»; столешница может быть не нужна. */
+function applyMaterials(d: RequestDetails, m: Pick<AdvancedInput, "facade" | "countertop" | "hardware">): RequestDetails {
+  let next: RequestDetails = { ...d, facade: m.facade === "unknown" ? undefined : m.facade, unknown: withUnknown(d, "facade", m.facade === "unknown") };
+  next = {
+    ...next,
+    countertop: m.countertop === "unknown" || m.countertop === "none" ? undefined : m.countertop,
+    unknown: withUnknown(next, "countertop", m.countertop === "unknown"),
+  };
+  next = { ...next, hardware: m.hardware === "unknown" ? undefined : m.hardware, unknown: withUnknown(next, "hardware", m.hardware === "unknown") };
+  return compact(next);
+}
+
 /** Новые `details` после шага мастера. Шаги без технических полей details не меняют. */
 export function applyStep(d: RequestDetails, step: StepInput): RequestDetails {
   switch (step.screen) {
+    case "start":
+      return step.advanced ? applyMaterials(applySize(d, step.advanced.size), step.advanced) : d;
     case "style":
       return compact({ ...d, styleNote: step.styleNote });
     case "room":
       return compact({ ...d, description: step.description });
-    case "size": {
-      const known = step.size.mode === "known" ? step.size : null;
-      return compact({
-        ...d,
-        widthCm: known?.widthCm,
-        heightCm: known?.heightCm ?? undefined,
-        depthCm: known?.depthCm ?? undefined,
-        unknown: withUnknown(d, "size", known === null),
-      });
-    }
-    case "materials": {
-      let next: RequestDetails = { ...d, color: step.color, extras: step.extras, description: step.description };
-      next = { ...next, facade: step.facade === "unknown" ? undefined : step.facade, unknown: withUnknown(next, "facade", step.facade === "unknown") };
-      next = {
-        ...next,
-        countertop: step.countertop === "unknown" || step.countertop === "none" ? undefined : step.countertop,
-        unknown: withUnknown(next, "countertop", step.countertop === "unknown"),
-      };
-      next = { ...next, hardware: step.hardware === "unknown" ? undefined : step.hardware, unknown: withUnknown(next, "hardware", step.hardware === "unknown") };
-      return compact(next);
-    }
+    case "size":
+      return applySize(d, step.size);
+    case "materials":
+      return applyMaterials(compact({ ...d, color: step.color, extras: step.extras, description: step.description }), step);
     case "type":
     case "segment":
     case "place":

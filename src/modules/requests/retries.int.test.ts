@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../test/factories";
-import { makeMeasuring, offerInput } from "../../../test/factories/requests";
+import { makeMeasuring, offerInput, withPreContractFlows } from "../../../test/factories/requests";
 import { allowOfferRetry, getIncomingRequest, listRetryCandidates, measurementNoDeal, sendOffer } from "./index";
 
 const code = (c: string) => expect.objectContaining({ code: c });
+
+// Повтор после «замера без сделки» — заявка снова открыта только в сценариях до договора (флаг preContractFlows).
+withPreContractFlows();
 const one = (results: PromiseSettledResult<unknown>[]) => results.filter((r) => r.status === "fulfilled").length;
 
 /** Замер без сделки: отклик исполнителя отклонён, заявка снова открыта. */
@@ -45,7 +48,7 @@ describe("повторный отклик по разрешению операт
       [1, "DECLINED"],
       [2, "SENT"],
     ]);
-    expect((await getIncomingRequest(executor, requestId)).myOffer).toMatchObject({ status: "SENT", price: 450_000 });
+    expect((await getIncomingRequest(executor, requestId)).myOffer).toMatchObject({ status: "SENT", priceTiyn: 450_000_00n });
   });
 
   it("только оператор и только после отклонённого отклика по открытой заявке", async () => {

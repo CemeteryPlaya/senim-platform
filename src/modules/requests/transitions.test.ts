@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { PreContractFlow } from "@/generated/prisma/enums";
 import { isAppError } from "@/platform/errors";
-import { PRE_CONTRACT_FLOWS } from "./flows";
+import { PRE_CONTRACT_FLOWS, TZ_PATH, type RequestPath } from "./flows";
 import {
+  PROPOSAL_TRANSITIONS,
   DEPOSIT_TRANSITIONS,
   MEASUREMENT_TRANSITIONS,
   OFFER_TRANSITIONS,
@@ -24,7 +24,6 @@ const SITE_STATES = ["NONE", "ASSIGNED", "DONE"] as const;
 
 /** Спецификация ADR-003 и ADR-005, записанная независимо от таблиц: «действие: из → в (кто)» для каждого сценария. */
 const REQUEST_COMMON = [
-  "chooseOffer: OPEN → OFFER_CHOSEN (CLIENT)",
   "contractSigned: CONTRACTING → CLOSED (SYSTEM)",
   "dealCancelled: CONTRACTING → CANCELLED (SYSTEM)",
   "dealCancelled: CLOSED → CANCELLED (SYSTEM)",
@@ -34,6 +33,15 @@ const REQUEST_COMMON = [
   "cancel: OFFER_CHOSEN → CANCELLED (CLIENT)",
   "cancel: MEASURING → CANCELLED (CLIENT)",
 ];
+/** Путь ТЗ (решение 2.2.9): торг в отклике, акцепт цены любой стороной сразу порождает оферту. */
+const TZ_SPEC = [
+  ...REQUEST_COMMON,
+  "publish: DRAFT → OPEN (CLIENT)",
+  "priceAccepted: OPEN → CONTRACTING (CLIENT)",
+  "priceAccepted: OPEN → CONTRACTING (EXECUTOR)",
+];
+/** Сценарии до договора (флаг preContractFlows): заказчик выбирает отклик, цена — после замера или проекта. */
+const PRE_COMMON = [...REQUEST_COMMON, "chooseOffer: OPEN → OFFER_CHOSEN (CLIENT)"];
 /** Выезд исполнителя до договора: сценарии 1 и 4. */
 const EXECUTOR_VISIT = [
   "publish: DRAFT → OPEN (CLIENT)",
@@ -42,23 +50,27 @@ const EXECUTOR_VISIT = [
   "measurementNoDeal: MEASURING → OPEN (CLIENT)",
   "measurementNoDeal: MEASURING → OPEN (EXECUTOR)",
 ];
-const REQUEST_SPEC: Record<PreContractFlow, string[]> = {
-  EXECUTOR_MEASURE: [...REQUEST_COMMON, ...EXECUTOR_VISIT],
-  MEASURE_DEPOSIT: [...REQUEST_COMMON, ...EXECUTOR_VISIT],
+const REQUEST_SPEC: Record<RequestPath, string[]> = {
+  TZ: TZ_SPEC,
+  EXECUTOR_MEASURE: [...PRE_COMMON, ...EXECUTOR_VISIT],
+  MEASURE_DEPOSIT: [...PRE_COMMON, ...EXECUTOR_VISIT],
   PLATFORM_MEASURER: [
-    ...REQUEST_COMMON,
+    ...PRE_COMMON,
     "publish: DRAFT → PLATFORM_MEASURING (CLIENT)",
     "siteMeasured: PLATFORM_MEASURING → OPEN (MEASURER)",
     "agreeToContract: OFFER_CHOSEN → CONTRACTING (CLIENT)",
   ],
-  CONTRACT_FIRST: [...REQUEST_COMMON, "publish: DRAFT → OPEN (CLIENT)", "agreeToContract: OFFER_CHOSEN → CONTRACTING (CLIENT)"],
-  SELF_MEASURE: [...REQUEST_COMMON, "publish: DRAFT → OPEN (CLIENT)", "agreeToContract: OFFER_CHOSEN → CONTRACTING (CLIENT)"],
+  CONTRACT_FIRST: [...PRE_COMMON, "publish: DRAFT → OPEN (CLIENT)", "agreeToContract: OFFER_CHOSEN → CONTRACTING (CLIENT)"],
+  SELF_MEASURE: [...PRE_COMMON, "publish: DRAFT → OPEN (CLIENT)", "agreeToContract: OFFER_CHOSEN → CONTRACTING (CLIENT)"],
 };
 
 const OFFER_SPEC = [
   "withdraw: SENT → WITHDRAWN (EXECUTOR)",
   "accept: SENT → ACCEPTED (CLIENT)",
+  "priceAccepted: SENT → ACCEPTED (CLIENT)",
+  "priceAccepted: SENT → ACCEPTED (EXECUTOR)",
   "decline: SENT → DECLINED (CLIENT)",
+  "closedForOthers: SENT → DECLINED (SYSTEM)",
   "noDeal: ACCEPTED → DECLINED (CLIENT)",
   "noDeal: ACCEPTED → DECLINED (EXECUTOR)",
   "requestCancelled: ACCEPTED → DECLINED (CLIENT)",
@@ -73,6 +85,15 @@ const MEASUREMENT_SPEC = [
   "cancel: SCHEDULED → CANCELLED (CLIENT)",
 ];
 
+/** Торг (решение 2.2.3): роль — относительно открытого предложения; для «нет предложения» действующий станет автором. */
+const PROPOSAL_STATES = ["NONE", "PROPOSED", "SUPERSEDED", "WITHDRAWN", "ACCEPTED"] as const;
+const PROPOSAL_SPEC = [
+  "propose: NONE → PROPOSED (AUTHOR)",
+  "counter: PROPOSED → SUPERSEDED (OTHER)",
+  "withdraw: PROPOSED → WITHDRAWN (AUTHOR)",
+  "accept: PROPOSED → ACCEPTED (OTHER)",
+];
+
 const PROJECT_SPEC = [
   "submit: NONE → SUBMITTED (EXECUTOR)",
   "submit: CHANGES_REQUESTED → SUBMITTED (EXECUTOR)",
@@ -80,14 +101,19 @@ const PROJECT_SPEC = [
   "requestChanges: SUBMITTED → CHANGES_REQUESTED (CLIENT)",
 ];
 
-function allowedCombos<S extends string, A extends string>(table: Table<S, A>, statuses: readonly S[], flow?: PreContractFlow): string[] {
+function allowedCombos<S extends string, A extends string, W extends string = Who>(
+  table: Table<S, A, W>,
+  statuses: readonly S[],
+  flow?: RequestPath,
+  who: readonly W[] = WHO as unknown as readonly W[],
+): string[] {
   const actions = [...new Set(table.map((r) => r.action))];
   const out: string[] = [];
   for (const action of actions)
     for (const from of statuses)
-      for (const who of WHO) {
+      for (const w of who) {
         try {
-          out.push(`${action}: ${from} → ${transition(table, action, from, who, flow)} (${who})`);
+          out.push(`${action}: ${from} → ${transition(table, action, from, w, flow)} (${w})`);
         } catch (e) {
           if (!isAppError(e)) throw e;
         }
@@ -96,7 +122,7 @@ function allowedCombos<S extends string, A extends string>(table: Table<S, A>, s
 }
 
 describe("таблицы переходов", () => {
-  it.each(PRE_CONTRACT_FLOWS)("заявка, сценарий %s: разрешены ровно переходы из спецификации", (flow) => {
+  it.each<RequestPath>([TZ_PATH, ...PRE_CONTRACT_FLOWS])("заявка, путь %s: разрешены ровно переходы из спецификации", (flow) => {
     expect(allowedCombos(REQUEST_TRANSITIONS as Table<string, string>, REQUEST_STATUSES, flow).sort()).toEqual([...REQUEST_SPEC[flow]].sort());
   });
 
@@ -109,6 +135,12 @@ describe("таблицы переходов", () => {
     ["замер", MEASUREMENT_TRANSITIONS, MEASUREMENT_STATUSES, MEASUREMENT_SPEC],
   ] as const)("%s: разрешены ровно переходы из спецификации, все остальные запрещены", (_name, table, statuses, spec) => {
     expect(allowedCombos(table as Table<string, string>, statuses).sort()).toEqual([...spec].sort());
+  });
+
+  it("предложение цены: встречная, отзыв и акцепт — по роли относительно открытого предложения; чужое принять нельзя", () => {
+    expect(allowedCombos(PROPOSAL_TRANSITIONS, PROPOSAL_STATES, undefined, ["AUTHOR", "OTHER"] as const).sort()).toEqual([...PROPOSAL_SPEC].sort());
+    expect(() => transition(PROPOSAL_TRANSITIONS, "accept", "PROPOSED", "AUTHOR")).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
+    expect(() => transition(PROPOSAL_TRANSITIONS, "accept", "SUPERSEDED", "OTHER")).toThrow(expect.objectContaining({ code: "CONFLICT" }));
   });
 
   it("залог — только в сценарии 4: отметка заказчика, затем подтверждение исполнителя", () => {
@@ -126,7 +158,7 @@ describe("таблицы переходов", () => {
   });
 
   it("неверный статус — конфликт (данные уже изменились), чужая роль — нет прав", () => {
-    expect(() => transition(REQUEST_TRANSITIONS, "chooseOffer", "OFFER_CHOSEN", "CLIENT")).toThrow(
+    expect(() => transition(REQUEST_TRANSITIONS, "chooseOffer", "OFFER_CHOSEN", "CLIENT", "EXECUTOR_MEASURE")).toThrow(
       expect.objectContaining({ code: "CONFLICT" }),
     );
     expect(() => transition(REQUEST_TRANSITIONS, "chooseOffer", "OPEN", "EXECUTOR")).toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
@@ -137,5 +169,8 @@ describe("таблицы переходов", () => {
       expect.objectContaining({ code: "CONFLICT" }),
     );
     expect(() => transition(REQUEST_TRANSITIONS, "publish", "DRAFT", "CLIENT")).toThrow(expect.objectContaining({ code: "CONFLICT" }));
+    // Выбор отклика без торга и цена из торга — каждое только на своём пути.
+    expect(() => transition(REQUEST_TRANSITIONS, "chooseOffer", "OPEN", "CLIENT", TZ_PATH)).toThrow(expect.objectContaining({ code: "CONFLICT" }));
+    expect(() => transition(REQUEST_TRANSITIONS, "priceAccepted", "OPEN", "CLIENT", "EXECUTOR_MEASURE")).toThrow(expect.objectContaining({ code: "CONFLICT" }));
   });
 });

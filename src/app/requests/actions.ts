@@ -7,6 +7,8 @@ import {
   cancelRequest,
   cancelRequestSchema,
   chooseOffer,
+  geocodeAddress,
+  geocodeSchema,
   measurementNoDeal,
   noDealSchema,
   offerRefSchema,
@@ -53,4 +55,10 @@ export const agreeToContractAction = action("requests.agreeToContract", agreeToC
 export const clientNoDealAction = action("requests.measurementNoDeal", noDealSchema, async (input) => {
   const user = await requireUser("CLIENT");
   await measurementNoDeal(user, input);
+});
+
+/** «Найти по адресу» на шаге адреса: точка от геокодера (сейчас — мок, только центр города). */
+export const locateAddressAction = action("requests.locateAddress", geocodeSchema, async (input) => {
+  const user = await requireUser("CLIENT");
+  return geocodeAddress(user, input);
 });

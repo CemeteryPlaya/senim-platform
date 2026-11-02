@@ -43,8 +43,11 @@ function Form({ onSubmit, children }: { onSubmit: () => void; children: ReactNod
 
 type Terms = "FREE" | "INCLUDED" | "FEE_IF_NO_DEAL";
 
-/** Форма отклика. Условия замера по умолчанию — из профиля исполнителя. */
-export function OfferForm({ requestId, defaults }: { requestId: string; defaults: { measurementTerms: Terms; measurementFee: number | null } }) {
+/**
+ * Форма отклика. На пути ТЗ цена — первое предложение торга, условий замера нет (замера до оферты нет);
+ * в сценарии до договора — предварительная цена и условия замера (по умолчанию — из профиля исполнителя).
+ */
+export function OfferForm({ requestId, defaults, tz }: { requestId: string; defaults: { measurementTerms: Terms; measurementFee: number | null }; tz: boolean }) {
   const { submit, pending, error, errors } = useSchemaForm(sendOfferSchema, sendOfferAction);
   const [f, setF] = useState({
     price: "",
@@ -55,36 +58,45 @@ export function OfferForm({ requestId, defaults }: { requestId: string; defaults
     comment: "",
   });
   const set = (patch: Partial<typeof f>) => setF({ ...f, ...patch });
-  const fee = f.measurementTerms === "FEE_IF_NO_DEAL";
+  const fee = !tz && f.measurementTerms === "FEE_IF_NO_DEAL";
   const e1 = (k: string) => errors[k]?.[0];
   return (
     <Form
       onSubmit={() =>
         submit({
           requestId,
-          price: num(f.price),
+          priceKzt: num(f.price),
           durationDays: num(f.durationDays),
           warrantyMonths: num(f.warrantyMonths),
           comment: f.comment,
-          measurementTerms: f.measurementTerms,
+          measurementTerms: tz ? undefined : f.measurementTerms,
           measurementFee: fee ? (num(f.measurementFee) ?? null) : null,
         })
       }
     >
-      <Input label={t.price} hint={t.priceHint} inputMode="numeric" value={f.price} onChange={(e) => set({ price: e.target.value })} error={e1("price")} />
+      <Input
+        label={tz ? t.priceTz : t.price}
+        hint={tz ? t.priceHintTz : t.priceHint}
+        inputMode="numeric"
+        value={f.price}
+        onChange={(e) => set({ price: e.target.value })}
+        error={e1("priceKzt")}
+      />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 sm:grid-cols-2">
         <Input label={t.duration} inputMode="numeric" value={f.durationDays} onChange={(e) => set({ durationDays: e.target.value })} error={e1("durationDays")} />
         <Input label={t.warranty} inputMode="numeric" value={f.warrantyMonths} onChange={(e) => set({ warrantyMonths: e.target.value })} error={e1("warrantyMonths")} />
       </div>
-      <Select
-        label={t.terms}
-        hint={t.termsHint}
-        placeholder={false}
-        value={f.measurementTerms}
-        onChange={(e) => set({ measurementTerms: e.target.value })}
-        options={(["FREE", "INCLUDED", "FEE_IF_NO_DEAL"] as const).map((v) => ({ value: v, label: ru.requests.termsOption[v] }))}
-        error={e1("measurementTerms")}
-      />
+      {!tz && (
+        <Select
+          label={t.terms}
+          hint={t.termsHint}
+          placeholder={false}
+          value={f.measurementTerms}
+          onChange={(e) => set({ measurementTerms: e.target.value })}
+          options={(["FREE", "INCLUDED", "FEE_IF_NO_DEAL"] as const).map((v) => ({ value: v, label: ru.requests.termsOption[v] }))}
+          error={e1("measurementTerms")}
+        />
+      )}
       {fee && <Input label={t.fee} inputMode="numeric" value={f.measurementFee} onChange={(e) => set({ measurementFee: e.target.value })} error={e1("measurementFee")} />}
       <Textarea label={t.comment} hint={t.commentHint} optional value={f.comment} maxLength={1000} onChange={(e) => set({ comment: e.target.value })} error={e1("comment")} />
       <Button type="submit" loading={pending}>

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { logger } from "@/platform/logger";
 import { makeClient, makeExecutor } from "../../../test/factories";
-import { inDays, makeChosen, makeMeasured, makeMeasuring, makeOpenRequest, offerInput } from "../../../test/factories/requests";
+import { inDays, makeChosen, makeMeasured, makeMeasuring, makeOpenRequest, offerInput, withPreContractFlows } from "../../../test/factories/requests";
 import {
   agreeToContract,
   completeMeasurement,
@@ -16,6 +16,9 @@ import {
 } from "./index";
 
 const code = (code: string) => expect.objectContaining({ code });
+
+// Замер до договора — сценарий 1 (флаг preContractFlows, ADR-005); путь ТЗ — negotiation.int.test.ts.
+withPreContractFlows();
 const statusOf = async (requestId: string) => (await db.request.findUniqueOrThrow({ where: { id: requestId } })).status;
 
 describe("назначение замера OFFER_CHOSEN → MEASURING", () => {
@@ -149,16 +152,16 @@ describe("результат замера", () => {
 });
 
 describe("согласие с договором MEASURING → CONTRACTING → CLOSED", () => {
-  it("создаёт сделку по итоговой цене и шаблону этапов", async () => {
+  it("создаёт сделку с офертой по итоговой цене (в тиынах, без этапов)", async () => {
     const client = await makeClient();
     const m = await makeMeasured(client, 600_001);
 
-    const { dealId } = await agreeToContract(client, { requestId: m.requestId, template: "advance-50" });
+    const { dealId } = await agreeToContract(client, { requestId: m.requestId });
 
     expect(await statusOf(m.requestId)).toBe("CONTRACTING");
-    const deal = await db.deal.findUniqueOrThrow({ where: { id: dealId }, include: { stages: true } });
-    expect(deal).toMatchObject({ totalAmount: 600_001, offerId: m.offerId, clientId: client.id, executorId: m.executor.executor.id, stageTemplate: "advance-50" });
-    expect(deal.stages.reduce((s, st) => s + st.amount, 0)).toBe(600_001);
+    const deal = await db.deal.findUniqueOrThrow({ where: { id: dealId } });
+    expect(deal).toMatchObject({ priceTiyn: 600_001_00n, status: "CREATED", offerId: m.offerId, clientId: client.id, executorId: m.executor.executor.id });
+    expect(await db.document.count({ where: { dealId, kind: "CONTRACT" } })).toBe(1);
     expect(await db.notification.findFirst({ where: { userId: m.executor.id, kind: "request.contracting" } })).not.toBeNull();
 
     await onContractSigned(db, m.requestId);
@@ -169,15 +172,15 @@ describe("согласие с договором MEASURING → CONTRACTING → C
   it("до результата замера согласиться нельзя", async () => {
     const client = await makeClient();
     const m = await makeMeasuring(client);
-    await expect(agreeToContract(client, { requestId: m.requestId, template: "advance-50" })).rejects.toThrow(code("CONFLICT"));
+    await expect(agreeToContract(client, { requestId: m.requestId })).rejects.toThrow(code("CONFLICT"));
   });
 
   it("двойной клик даёт одну сделку", async () => {
     const client = await makeClient();
     const m = await makeMeasured(client);
     const results = await Promise.allSettled([
-      agreeToContract(client, { requestId: m.requestId, template: "no-prepayment" }),
-      agreeToContract(client, { requestId: m.requestId, template: "no-prepayment" }),
+      agreeToContract(client, { requestId: m.requestId }),
+      agreeToContract(client, { requestId: m.requestId }),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(await db.deal.count({ where: { requestId: m.requestId } })).toBe(1);
@@ -186,8 +189,8 @@ describe("согласие с договором MEASURING → CONTRACTING → C
   it("соглашается только заказчик-владелец", async () => {
     const client = await makeClient();
     const m = await makeMeasured(client);
-    await expect(agreeToContract(await makeClient(), { requestId: m.requestId, template: "advance-50" })).rejects.toThrow(code("NOT_FOUND"));
-    await expect(agreeToContract(m.executor, { requestId: m.requestId, template: "advance-50" })).rejects.toThrow(code("FORBIDDEN"));
+    await expect(agreeToContract(await makeClient(), { requestId: m.requestId })).rejects.toThrow(code("NOT_FOUND"));
+    await expect(agreeToContract(m.executor, { requestId: m.requestId })).rejects.toThrow(code("FORBIDDEN"));
   });
 
   it("исполнитель видит адрес и итоговую цену в своей заявке", async () => {

@@ -3,17 +3,19 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { listFurnitureTypes } from "@/modules/companies";
 import {
-  activePreContractFlow,
   flowRules,
   getDraft,
   likeTarget,
+  newRequestPath,
   resumeIndex,
   segmentInputOf,
   segmentPriceHints,
+  TZ_PATH,
   WIZARD_SCREENS,
   type Draft,
   type WizardScreen,
 } from "@/modules/requests";
+import { isEnabled } from "@/platform/features";
 import { ru } from "@/i18n/ru";
 import { Alert, Container, formatDate, Stepper } from "@/ui";
 import { SEGMENT_NAMES, suggestSegment } from "@/verticals/furniture";
@@ -23,9 +25,9 @@ import { NoAccess } from "@/app/_components/NoAccess";
 import { orNotFound, pageUser } from "../_parts/guard";
 import { detailRows, FactList, type FactRow } from "../_parts/RequestFacts";
 import { AssistantApply } from "./AssistantApply";
-import { SegmentStep, StyleStep, TypeStep } from "./ChoiceSteps";
-import { PlaceStep, RoomStep, SizeStep } from "./DetailSteps";
-import { styleExamples } from "./examples";
+import { SegmentStep, StartStep } from "./ChoiceSteps";
+import { PlaceStep, RoomStep } from "./DetailSteps";
+import { styleExamples, type StyleExample } from "./examples";
 import { SendStep } from "./SendStep";
 
 const w = ru.requests.wizard;
@@ -37,9 +39,10 @@ type Search = Promise<{ draft?: string; step?: string; like?: string }>;
 const hrefOf = (draftId: string, screen: WizardScreen) => `/requests/new?draft=${draftId}&step=${screen}`;
 
 /**
- * Мастер заявки для человека, который не разбирается в мебели (встреча 31.10, п. 1): по экрану на вопрос,
- * картинки вместо терминов, размеры и фото по желанию. Черновик сохраняется на каждом экране
- * (`?draft=<id>&step=<экран>`); вперёд дальше сохранённого перейти нельзя. `?like=<работа>` — прямой запрос.
+ * Мастер заявки для человека, который не разбирается в мебели (ТЗ п. 3, решение 2.2.11): на первом экране — только
+ * тип и стиль картинками, всё техническое — в свёрнутом «Для продвинутых»; дальше уровень, фото (можно пропустить),
+ * адрес с точкой и проверка. Черновик сохраняется на каждом экране (`?draft=<id>&step=<экран>`); вперёд дальше
+ * сохранённого перейти нельзя. `?like=<работа>` — прямой запрос.
  */
 export default async function NewRequestPage({ searchParams }: { searchParams: Search }) {
   const sp = await searchParams;
@@ -59,31 +62,32 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
   const back = index === 0 || !draft ? "/requests" : hrefOf(draft.id, WIZARD_SCREENS[index - 1]);
   const base = { draftId: draft?.id ?? null, like: like?.id ?? null, next };
   const directLabel = draft?.targetLabel ?? like?.executor.label ?? null;
-  // Сценарий площадки для новой заявки: в онлайн-замере размеры и фото с рулеткой обязательны (ADR-005).
-  const selfMeasure = flowRules(await activePreContractFlow()).selfMeasure;
+  // Путь новой заявки: в онлайн-замере (сценарий 5, только при флаге preContractFlows) нужны размеры и фото с рулеткой.
+  const path = await newRequestPath();
+  const selfMeasure = path !== TZ_PATH && flowRules(path).selfMeasure;
   const types = await listFurnitureTypes();
 
   return (
     <Container size="form" className="flex flex-col gap-8 pt-4 pb-10">
       <Stepper steps={w.steps} current={index} back={{ href: back }} />
-      {screen === "type" && (
-        <TypeStep
+      {screen === "start" && (
+        <StartStep
           {...base}
           types={types}
-          initial={{ furnitureTypeId: draft?.furnitureTypeId ?? like?.furnitureTypeId ?? null, customType: draft?.customType ?? null }}
+          examples={await examplesByType(types)}
+          initial={{
+            furnitureTypeId: draft?.furnitureTypeId ?? like?.furnitureTypeId ?? null,
+            customType: draft?.customType ?? null,
+            style: draft?.style ?? like?.style ?? null,
+            details: draft?.details ?? {},
+          }}
           note={directLabel !== null ? <Alert tone="accent">{w.type.direct(directLabel)}</Alert> : undefined}
-        />
-      )}
-      {screen === "style" && draft && (
-        <StyleStep
-          {...base}
-          examples={await styleExamples(types.find((t) => t.id === draft.furnitureTypeId)?.slug ?? null)}
-          initial={{ style: draft.style, styleNote: draft.details.styleNote ?? "" }}
+          calculator={isEnabled("materialsCalculator")}
+          selfMeasure={selfMeasure}
         />
       )}
       {/* Помощник — своя форма, поэтому рядом с формой шага, а не внутри. */}
-      {screen === "style" && draft && aiEnabled() && <AssistantApply draftId={draft.id} types={types} reviewScreen="style" />}
-      {screen === "size" && draft && <SizeStep {...base} details={draft.details} selfMeasure={selfMeasure} />}
+      {screen === "start" && draft && aiEnabled() && <AssistantApply draftId={draft.id} types={types} reviewScreen="start" />}
       {screen === "segment" && draft && (
         <SegmentStep
           {...base}
@@ -109,7 +113,12 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
       {screen === "place" && draft && (
         <PlaceStep
           {...base}
-          initial={{ city: draft.city, address: draft.address ?? "", desiredDate: draft.desiredDate ? draft.desiredDate.toISOString().slice(0, 10) : "" }}
+          initial={{
+            city: draft.city,
+            address: draft.address ?? "",
+            desiredDate: draft.desiredDate ? draft.desiredDate.toISOString().slice(0, 10) : "",
+            location: draft.location,
+          }}
         />
       )}
       {screen === "send" && draft && <SendScreen draft={draft} directLabel={directLabel} />}
@@ -117,13 +126,23 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
   );
 }
 
-/** Строки сводки → экран, где их поменять. Материалы приносит помощник — экрана для них нет. */
+/** Примеры стиля для каждого типа справочника (и без типа): первый экран меняет их сразу, без запроса. */
+async function examplesByType(types: readonly { id: string; slug: string }[]): Promise<Record<string, StyleExample[]>> {
+  const entries = await Promise.all([["", null] as const, ...types.map((t) => [t.id, t.slug] as const)].map(async ([id, slug]) => [id, await styleExamples(slug)] as const));
+  return Object.fromEntries(entries);
+}
+
+/** Строки сводки → экран, где их поменять: тип, стиль и всё техническое — на первом экране. */
+const f0 = ru.requests.facts;
 const EDIT_SCREEN: Record<string, WizardScreen> = {
-  [ru.requests.facts.type]: "type",
-  [ru.requests.facts.style]: "style",
-  [ru.requests.facts.styleNote]: "style",
-  [ru.requests.facts.size]: "size",
-  [ru.requests.facts.description]: "room",
+  [f0.type]: "start",
+  [f0.style]: "start",
+  [f0.styleNote]: "start",
+  [f0.size]: "start",
+  [f0.facade]: "start",
+  [f0.countertop]: "start",
+  [f0.hardware]: "start",
+  [f0.description]: "room",
 };
 
 function SendScreen({ draft, directLabel }: { draft: Draft; directLabel: string | null }) {

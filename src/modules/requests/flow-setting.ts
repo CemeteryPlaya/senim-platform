@@ -7,7 +7,8 @@ import { ru } from "@/i18n/ru";
 import { db, transaction, type Db } from "@/platform/db";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
-import { DEFAULT_FLOW, PRE_CONTRACT_FLOWS } from "./flows";
+import { isEnabled } from "@/platform/features";
+import { DEFAULT_FLOW, PRE_CONTRACT_FLOWS, TZ_PATH, type RequestPath } from "./flows";
 
 /**
  * Настройка «Сценарий до договора» (ADR-005): PlatformSetting["requests.preContractFlow"].
@@ -23,6 +24,14 @@ export async function activePreContractFlow(tx: Db = db): Promise<PreContractFlo
   if (!env().DEMO_MODE) return DEFAULT_FLOW;
   const row = await tx.platformSetting.findUnique({ where: { key: PRE_CONTRACT_FLOW_KEY } });
   return preContractFlowSchema.safeParse(row?.value).data ?? DEFAULT_FLOW;
+}
+
+/**
+ * Путь новой заявки (решение 2.2.9): по умолчанию — путь ТЗ (торг → оферта); сценарий до договора — только
+ * при включённом флаге preContractFlows. Запоминается в заявке при отправке.
+ */
+export async function newRequestPath(tx: Db = db): Promise<RequestPath> {
+  return isEnabled("preContractFlows") ? activePreContractFlow(tx) : TZ_PATH;
 }
 
 /** Оператор выбирает сценарий для новых заявок. Повтор того же значения ничего не пишет. */

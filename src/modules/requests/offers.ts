@@ -1,24 +1,32 @@
 import "server-only";
+import type { Measurement, Offer } from "@/generated/prisma/client";
 import { executorDisplayOf, publicExecutorView, publicExecutorViews, sanitizeExecutorText } from "@/modules/companies";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
+import { kztToTiyn } from "@/modules/payments";
 import { ru } from "@/i18n/ru";
 import { db, isUniqueViolation, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
-import { auditByUser, links, loadExecutor, loadOwnRequest, requestTitle, requireClient } from "./access";
+import { isEnabled } from "@/platform/features";
+import { auditByUser, declineOtherOffers, links, loadExecutor, loadOwnRequest, preContractFlow, requestTitle, requireClient } from "./access";
 import { executorPortfolio, executorReviews, roomPhotos } from "./adapters";
-import { parseDetails, type OfferSort, type SendOfferInput } from "./schema";
+import { parseDetails, pointOf, type OfferSort, type SendOfferInput } from "./schema";
 import { sortOffers } from "./sort";
 import { OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
 import { visibleToExecutor } from "./visibility";
 import { allowedRound } from "./retries";
 import { preContractView } from "./pre-contract";
 import { coverPhoto, coversOf } from "./covers";
+import { pathOf, TZ_PATH } from "./flows";
+import { openNegotiation } from "./negotiation";
 
 const e = ru.requests.errors;
 const n = ru.requests.notify;
 
-/** Отклик на видимую открытую заявку. Один на исполнителя: повтор и гонка — CONFLICT. */
+/**
+ * Отклик на видимую открытую заявку. Один на исполнителя: повтор и гонка — CONFLICT.
+ * На пути ТЗ цена отклика — первое предложение торга (решение 2.2.3).
+ */
 export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promise<{ offerId: string }> {
   try {
     return await transaction(async (tx) => {
@@ -38,7 +46,7 @@ export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promi
         data: {
           requestId: r.id,
           executorId: executor.id,
-          price: input.price,
+          priceTiyn: kztToTiyn(input.priceKzt),
           durationDays: input.durationDays,
           warrantyMonths: input.warrantyMonths,
           comment: input.comment ? (await sanitizeExecutorText(tx, executor.id, input.comment)).text : input.comment,
@@ -50,8 +58,9 @@ export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promi
       await auditByUser(tx, user, r.id, {
         action: "offer.sent",
         entity: { type: "offer", id: offer.id },
-        after: { status: offer.status, price: offer.price, durationDays: offer.durationDays, measurementTerms: terms, round },
+        after: { status: offer.status, priceTiyn: String(offer.priceTiyn), durationDays: offer.durationDays, measurementTerms: terms, round },
       });
+      if (pathOf(r) === TZ_PATH) await openNegotiation(tx, offer, user.id);
       const title = requestTitle(r);
       await notify(tx, {
         userId: r.clientId,
@@ -96,7 +105,10 @@ export async function withdrawOffer(user: CurrentUser, input: { offerId: string 
   });
 }
 
-/** OPEN → OFFER_CHOSEN: выбранный отклик ACCEPTED, остальные отправленные — DECLINED. */
+/**
+ * Сценарии до договора (флаг preContractFlows): OPEN → OFFER_CHOSEN, выбранный отклик ACCEPTED, остальные — DECLINED.
+ * На пути ТЗ выбора без торга нет: отклик выбирается акцептом цены (negotiation.acceptPrice).
+ */
 export async function chooseOffer(user: CurrentUser, input: { offerId: string }): Promise<void> {
   requireClient(user);
   await transaction(async (tx) => {
@@ -106,43 +118,27 @@ export async function chooseOffer(user: CurrentUser, input: { offerId: string })
     });
     if (!offer) return fail.notFound(e.offerNotFound);
     const r = await loadOwnRequest(tx, user, offer.requestId);
-    const requestTo = transition(REQUEST_TRANSITIONS, "chooseOffer", r.status, "CLIENT");
+    const requestTo = transition(REQUEST_TRANSITIONS, "chooseOffer", r.status, "CLIENT", preContractFlow(r));
     const offerTo = transition(OFFER_TRANSITIONS, "accept", offer.status, "CLIENT");
 
     expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: requestTo } }));
     expectOneUpdated(await tx.offer.updateMany({ where: { id: offer.id, status: offer.status }, data: { status: offerTo } }));
-    const others = await tx.offer.findMany({
-      where: { requestId: r.id, status: "SENT", id: { not: offer.id } },
-      select: { id: true, executor: { select: { userId: true } } },
-    });
-    const declinedTo = transition(OFFER_TRANSITIONS, "decline", "SENT", "CLIENT");
-    await tx.offer.updateMany({ where: { id: { in: others.map((o) => o.id) }, status: "SENT" }, data: { status: declinedTo } });
+    const declined = await declineOtherOffers(tx, r, offer.id, transition(OFFER_TRANSITIONS, "decline", "SENT", "CLIENT"));
 
     await auditByUser(tx, user, r.id, {
       action: "offer.accepted",
       entity: { type: "offer", id: offer.id },
       before: { status: offer.status, request: r.status },
       after: { status: offerTo, request: requestTo },
-      meta: { declined: others.map((o) => o.id) },
+      meta: { declined },
     });
-
-    const title = requestTitle(r);
     await notify(tx, {
       userId: offer.executor.userId,
       kind: "offer.accepted",
       title: n.offerChosen.title,
-      body: n.offerChosen.body(title),
+      body: n.offerChosen.body(requestTitle(r)),
       link: links.executor(r.id),
     });
-    for (const o of others) {
-      await notify(tx, {
-        userId: o.executor.userId,
-        kind: "offer.declined",
-        title: n.offerDeclined.title,
-        body: n.offerDeclined.body(title),
-        link: links.executor(r.id),
-      });
-    }
   });
 }
 
@@ -160,7 +156,7 @@ export async function listOffers(user: CurrentUser, input: { requestId: string; 
       return {
         id: o.id,
         status: o.status,
-        price: o.price,
+        priceTiyn: o.priceTiyn,
         durationDays: o.durationDays,
         warrantyMonths: o.warrantyMonths,
         measurementTerms: o.measurementTerms,
@@ -189,15 +185,16 @@ export async function getOfferForClient(user: CurrentUser, input: { requestId: s
   return {
     id: o.id,
     status: o.status,
-    price: o.price,
+    priceTiyn: o.priceTiyn,
     durationDays: o.durationDays,
     warrantyMonths: o.warrantyMonths,
     measurementTerms: o.measurementTerms,
     measurementFee: o.measurementFee,
     comment: o.comment,
     createdAt: o.createdAt,
-    canChoose: r.status === "OPEN" && o.status === "SENT",
-    request: { id: r.id, number: r.number, title: requestTitle(r), status: r.status },
+    /** Выбор без торга — только в сценарии до договора; на пути ТЗ отклик выбирается акцептом цены в торге. */
+    canChoose: r.status === "OPEN" && o.status === "SENT" && pathOf(r) !== TZ_PATH && isEnabled("preContractFlows"),
+    request: { id: r.id, number: r.number, title: requestTitle(r), status: r.status, path: pathOf(r) },
     executor,
     portfolio,
     reviews,
@@ -241,7 +238,7 @@ export type IncomingListItem = Awaited<ReturnType<typeof listIncomingRequests>>[
 
 /**
  * Заявка для исполнителя: видимая ему или та, где есть его отклик.
- * Адрес — только если выбран именно его отклик.
+ * Адрес и точка — только если выбран именно его отклик (на пути ТЗ — принята цена и создана оферта).
  */
 export async function getIncomingRequest(user: CurrentUser, requestId: string) {
   const executor = await loadExecutor(db, user);
@@ -250,7 +247,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     include: {
       furnitureType: { select: { name: true } },
       photos: { where: { purpose: "REQUEST_ROOM" }, orderBy: { sortOrder: "asc" }, select: { id: true, provider: true, storageKey: true } },
-      offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, include: { measurement: true } },
+      offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, include: { measurement: true, deal: { select: { id: true } } } },
       offerRetries: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, select: { round: true } },
     },
   });
@@ -270,6 +267,8 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     details: parseDetails(r.details),
     city: r.city,
     address: chosen ? r.address : null,
+    location: chosen ? pointOf(r) : null,
+    path: pathOf(r),
     desiredDate: r.desiredDate,
     wishes: r.wishes,
     publishedAt: r.publishedAt,
@@ -278,24 +277,24 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     retryAllowed,
     pre: await preContractView(db, r, mine),
     defaults: { measurementTerms: executor.measurementTerms, measurementFee: executor.measurementFee },
-    myOffer: mine && {
-      id: mine.id,
-      status: mine.status,
-      price: mine.price,
-      durationDays: mine.durationDays,
-      warrantyMonths: mine.warrantyMonths,
-      comment: mine.comment,
-      measurementTerms: mine.measurementTerms,
-      measurementFee: mine.measurementFee,
-      measurement: mine.measurement && {
-        id: mine.measurement.id,
-        status: mine.measurement.status,
-        scheduledAt: mine.measurement.scheduledAt,
-        finalPrice: mine.measurement.finalPrice,
-        feeAccrued: mine.measurement.feeAccrued,
-        result: mine.measurement.result,
-      },
-    },
+    myOffer: mine && myOfferView(mine),
+  };
+}
+
+/** Свой отклик мастера на экране заявки: условия, сделка (оферта) и замер сценария до договора. */
+function myOfferView(mine: Offer & { measurement: Measurement | null; deal: { id: string } | null }) {
+  const m = mine.measurement;
+  return {
+    id: mine.id,
+    status: mine.status,
+    priceTiyn: mine.priceTiyn,
+    dealId: mine.deal?.id ?? null,
+    durationDays: mine.durationDays,
+    warrantyMonths: mine.warrantyMonths,
+    comment: mine.comment,
+    measurementTerms: mine.measurementTerms,
+    measurementFee: mine.measurementFee,
+    measurement: m && { id: m.id, status: m.status, scheduledAt: m.scheduledAt, finalPrice: m.finalPrice, feeAccrued: m.feeAccrued, result: m.result },
   };
 }
 export type IncomingRequest = Awaited<ReturnType<typeof getIncomingRequest>>;

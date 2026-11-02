@@ -3,7 +3,7 @@ import { sortOffers } from "./sort";
 
 const offer = (id: string, price: number, durationDays: number, ratingAvg: number, reviewsCount = 10, minute = 0) => ({
   id,
-  price,
+  priceTiyn: BigInt(price) * 100n,
   durationDays,
   createdAt: new Date(2026, 0, 1, 0, minute),
   executor: { ratingAvg, reviewsCount },

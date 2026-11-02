@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { actingAs, makeClient, makeExecutor } from "../../../test/factories";
-import { makeChosen, makeOpenRequest, offerInput } from "../../../test/factories/requests";
+import { makeAccepted, makeOpenRequest, offerInput } from "../../../test/factories/requests";
 import { listIncomingRequests, listMyOffers, sendOffer, withdrawOffer } from "./index";
 
 const code = (p: Promise<unknown>) => p.then(() => "OK", (e: { code?: string }) => e.code ?? String(e));
@@ -44,18 +44,18 @@ describe("мои отклики исполнителя", () => {
 
     const mine = await listMyOffers(me);
 
-    expect(mine.map((o) => ({ requestId: o.requestId, price: o.price, status: o.status }))).toEqual([
-      { requestId: second, price: 450_000, status: "WITHDRAWN" },
-      { requestId: first, price: 400_000, status: "SENT" },
+    expect(mine.map((o) => ({ requestId: o.requestId, priceTiyn: o.priceTiyn, status: o.status }))).toEqual([
+      { requestId: second, priceTiyn: 450_000_00n, status: "WITHDRAWN" },
+      { requestId: first, priceTiyn: 400_000_00n, status: "SENT" },
     ]);
     expect(mine[0]).toMatchObject({ number: expect.any(Number), title: "Кухня", city: "Астана", requestStatus: "OPEN", cover: null, measurement: null });
   });
 
-  it("выбранный отклик остаётся в списке после того, как заявка закрылась для других", async () => {
+  it("отклик с принятой ценой остаётся в списке после того, как заявка закрылась для других", async () => {
     const client = await makeClient();
-    const { requestId, executor } = await makeChosen(client);
+    const { requestId, executor, dealId } = await makeAccepted(client);
 
-    expect(await listMyOffers(executor)).toEqual([expect.objectContaining({ requestId, status: "ACCEPTED", requestStatus: "OFFER_CHOSEN" })]);
+    expect(await listMyOffers(executor)).toEqual([expect.objectContaining({ requestId, status: "ACCEPTED", requestStatus: "CONTRACTING", dealId })]);
   });
 
   it("заказчику и исполнителю в роли заказчика — отказ", async () => {
