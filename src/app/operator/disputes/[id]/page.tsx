@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { getDisputeCard } from "@/modules/operator";
 import { isAppError } from "@/platform/errors";
-import { ButtonLink, Card, Container, DateText, Money, PageHeader, StatusBadge } from "@/ui";
+import { ButtonLink, Card, Container, DateText, Fact, Money, PageHeader, StatusBadge, Timeline, type TimelineItem, type TimelineState } from "@/ui";
 import { AuditList } from "../../_components/AuditList";
 import { requireOperatorPage } from "../../_lib/guard";
 import { ResolveForm } from "./ResolveForm";
@@ -23,11 +23,37 @@ async function loadCard(user: Awaited<ReturnType<typeof requireOperatorPage>>, i
   }
 }
 
+type DisputeCard = Awaited<ReturnType<typeof loadCard>>;
+type Stage = DisputeCard["deal"]["stages"][number];
+
+const DONE: ReadonlySet<Stage["status"]> = new Set(["ACCEPTED", "CLOSED"]);
+const ACTIVE: ReadonlySet<Stage["status"]> = new Set(["IN_PROGRESS", "SUBMITTED", "REWORK"]);
+
+/** Этапы сделки как ход дела: принятые — пройдены, этап спора (или идущий, если спор не по этапу) — текущий. */
+function stageSteps(d: DisputeCard): TimelineItem[] {
+  const state = (s: Stage): TimelineState => {
+    if (DONE.has(s.status)) return "done";
+    if (d.stage ? d.stage.id === s.id : ACTIVE.has(s.status)) return "current";
+    return "todo";
+  };
+  return d.deal.stages.map((s) => ({
+    title: `${s.order}. ${s.title}`,
+    description: (
+      <span className="flex flex-wrap items-center gap-2">
+        {s.payment ? `${o.stageStatus[s.status]}, ${o.paymentStatus[s.payment.status].toLowerCase()}` : o.stageStatus[s.status]}
+        {d.stage?.id === s.id && <StatusBadge tone="danger">{c.stage}</StatusBadge>}
+      </span>
+    ),
+    meta: <Money amount={s.amount} />,
+    state: state(s),
+  }));
+}
+
 function Position({ title, text }: { title: string; text: string | null }) {
   return (
     <div className="flex flex-col gap-1">
       <h3 className="text-lg font-bold text-ink">{title}</h3>
-      <p className={text ? "break-words whitespace-pre-line text-ink-soft" : "text-muted"}>{text ?? c.noPosition}</p>
+      <p className={text ? "text-base break-words whitespace-pre-line text-ink-soft" : "text-base text-muted"}>{text ?? c.noPosition}</p>
     </div>
   );
 }
@@ -39,7 +65,7 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
   const { deal } = d;
 
   return (
-    <Container>
+    <Container className="pb-10">
       <PageHeader
         title={c.title(deal.number)}
         description={deal.title}
@@ -50,7 +76,7 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
           </ButtonLink>
         }
       />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-w-0 flex-col gap-6">
           <Card>
             <div className="flex flex-wrap gap-2">
@@ -58,7 +84,7 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
               <StatusBadge tone="neutral">{t.reasons[d.reason]}</StatusBadge>
               <StatusBadge tone="info">{o.dealStatus[deal.status]}</StatusBadge>
             </div>
-            <p className="text-sm text-muted">
+            <p className="text-base text-muted">
               {t.openedAt} <DateText value={d.createdAt} format="dateTime" />
             </p>
             <Position title={c.description} text={d.description} />
@@ -72,85 +98,54 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
             </Card>
           ) : (
             <Card title={c.resolvedBy}>
-              <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)]">
-                <dt className="text-muted">{c.decisionLabel}</dt>
-                <dd>{d.decision && t.decisions[d.decision]}</dd>
+              <dl className="flex flex-col gap-4">
+                <Fact label={c.decisionLabel}>{d.decision && t.decisions[d.decision]}</Fact>
                 {d.decisionAmount !== null && (
-                  <>
-                    <dt className="text-muted">{c.decisionAmount}</dt>
-                    <dd>
-                      <Money amount={d.decisionAmount} />
-                    </dd>
-                  </>
+                  <Fact label={c.decisionAmount}>
+                    <Money amount={d.decisionAmount} />
+                  </Fact>
                 )}
-                <dt className="text-muted">{c.rationale}</dt>
-                <dd className="break-words whitespace-pre-line">{d.rationale}</dd>
+                <Fact label={c.rationale}>
+                  <span className="break-words whitespace-pre-line">{d.rationale}</span>
+                </Fact>
                 {d.resolvedAt && (
-                  <>
-                    <dt className="text-muted">{t.status.RESOLVED}</dt>
-                    <dd>
-                      <DateText value={d.resolvedAt} format="dateTime" /> {d.resolvedBy?.fullName}
-                    </dd>
-                  </>
+                  <Fact label={t.status.RESOLVED}>
+                    <DateText value={d.resolvedAt} format="dateTime" /> {d.resolvedBy?.fullName}
+                  </Fact>
                 )}
               </dl>
             </Card>
           )}
-
-          <Card title={c.history}>
-            <AuditList events={d.history} />
-          </Card>
         </div>
 
-        <div className="flex min-w-0 flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6 lg:row-span-2">
           <Card title={c.parties}>
-            <dl className="grid grid-cols-1 gap-y-2">
-              <dt className="text-muted">{c.client}</dt>
-              <dd>{deal.client.fullName}</dd>
-              <dt className="text-muted">{c.executor}</dt>
-              <dd className="break-words">
-                {ru.common.executorLabel(deal.executor.publicNumber)}: {deal.executor.legalName}
-              </dd>
-              <dt className="text-muted">{c.amount}</dt>
-              <dd>
+            <dl className="flex flex-col gap-4">
+              <Fact label={c.client}>{deal.client.fullName}</Fact>
+              <Fact label={c.executor}>
+                <span className="break-words">
+                  {ru.common.executorLabel(deal.executor.publicNumber)}: {deal.executor.legalName}
+                </span>
+              </Fact>
+              <Fact label={c.amount}>
                 <Money amount={deal.totalAmount} />
-              </dd>
-              <dt className="text-muted">{c.paymentMode}</dt>
-              <dd>{o.paymentModes[deal.paymentMode]}</dd>
+              </Fact>
+              <Fact label={c.paymentMode}>{o.paymentModes[deal.paymentMode]}</Fact>
             </dl>
           </Card>
 
           <Card title={c.stages}>
-            <ol className="flex flex-col">
-              {deal.stages.map((s) => (
-                <li key={s.id} className="flex flex-col gap-1 border-b border-line py-3 last:border-b-0">
-                  <span className="font-semibold text-ink">
-                    {s.order}. {s.title}
-                    {d.stage?.id === s.id && (
-                      <>
-                        {" "}
-                        <StatusBadge tone="danger">{c.stage}</StatusBadge>
-                      </>
-                    )}
-                  </span>
-                  <span className="flex flex-wrap gap-2 text-sm text-ink-soft">
-                    <Money amount={s.amount} />
-                    <StatusBadge tone="neutral">{o.stageStatus[s.status]}</StatusBadge>
-                    {s.payment && <StatusBadge tone="neutral">{o.paymentStatus[s.payment.status]}</StatusBadge>}
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <Timeline label={c.stages} items={stageSteps(d)} />
           </Card>
 
           <Card title={c.attachments}>
             {d.attachments.length === 0 ? (
-              <p className="text-muted">{c.noAttachments}</p>
+              <p className="text-base text-muted">{c.noAttachments}</p>
             ) : (
               <ul className="flex flex-col gap-2">
                 {d.attachments.map((a) => (
                   <li key={a.id} className="text-sm break-all text-ink-soft">
-                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-accent underline">
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
                       {c.attachment(a.contentType, Math.ceil(a.size / 1024), a.sha256)}
                     </a>
                   </li>
@@ -159,6 +154,11 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
             )}
           </Card>
         </div>
+
+        {/* История длинная: на телефоне — в самом конце, после сторон и этапов; на компьютере — под решением. */}
+        <Card title={c.history} className="min-w-0 lg:col-start-1">
+          <AuditList events={d.history} />
+        </Card>
       </div>
     </Container>
   );

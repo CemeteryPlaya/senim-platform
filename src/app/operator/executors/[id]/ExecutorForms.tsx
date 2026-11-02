@@ -17,7 +17,7 @@ export function ReviewForms({ profileId }: { profileId: string }) {
   const reject = useActionForm(reviewRegistrationAction);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4">
       <Card title={c.approveTitle}>
         <form onSubmit={approve.onSubmit} noValidate className="flex flex-col gap-4">
           <input type="hidden" name="profileId" value={profileId} />
