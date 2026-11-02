@@ -18,10 +18,14 @@ export function NextStep({ deal }: { deal: DealView }) {
   return (
     <Card as="section" title={t.sections.next} titleId={NEXT_HEADING_ID}>
       <p className="text-lg text-ink">{t.next[action]}</p>
+      {manualTransfer(deal) && <p className="text-base text-ink-soft">{t.pay.manualHint(formatTiyn(deal.estimate.totalTiyn))}</p>}
       {mine && <PrimaryAction deal={deal} />}
     </Card>
   );
 }
+
+/** manual: оплата создана и ждёт банк — покупателю сказать, куда переводить (реквизиты — в оферте). */
+const manualTransfer = (deal: DealView) => deal.viewer === "CLIENT" && deal.paymentProvider === "MANUAL" && deal.next.action === "waitPaymentConfirmation";
 
 function PrimaryAction({ deal }: { deal: DealView }) {
   switch (deal.next.action) {
