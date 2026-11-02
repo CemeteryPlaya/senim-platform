@@ -1,10 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
+import { resetEnvCache } from "@/platform/env";
 import { actingAs, makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeDeal, signContract } from "../../../test/factories/deal";
 import { dealPartyOf, getDealView, listDeals } from "./index";
 
 const code = (p: Promise<unknown>) => p.then(() => "OK", (e: { code?: string }) => e.code ?? String(e));
+
+afterEach(() => {
+  delete process.env.DEMO_MODE;
+  resetEnvCache();
+});
 
 describe("экраны сделки: доступ и анонимность", () => {
   it("каждый видит только свои сделки, оператор — все", async () => {
@@ -58,11 +64,33 @@ describe("экраны сделки: доступ и анонимность", ()
     const json = JSON.stringify(view);
 
     expect(view.executorLabel).toBe(`Исполнитель №${profile.publicNumber}`);
+    expect(view.executorAddress).toBe(profile.city);
     expect(json).not.toContain(profile.legalName);
     expect(json).not.toContain(profile.user.phone);
     expect(json).not.toContain(profile.binIinLast4 + '"');
     expect(view.viewer).toBe("CLIENT");
     expect(view.next.action).toMatchObject({ kind: "markPaid" });
+  });
+
+  it("режим «имя показано» (№6): наименование и полный адрес, но не телефон и не ИИН/БИН", async () => {
+    const f = await makeDeal();
+    await db.executorProfile.update({
+      where: { id: f.executor.executor.id },
+      data: { city: "Алматы", district: "Бостандыкский район", streetAddress: "ул. Тестовая, 1" },
+    });
+    process.env.DEMO_MODE = "true";
+    resetEnvCache();
+    await db.platformSetting.create({ data: { key: "companies.executorIdentity", value: "SHOWN" } });
+    const profile = await db.executorProfile.findUniqueOrThrow({ where: { id: f.executor.executor.id }, include: { user: true } });
+
+    const view = await getDealView(f.client, f.dealId);
+    const json = JSON.stringify(view);
+
+    expect(view.executorLabel).toBe(profile.legalName);
+    expect(view.executorAddress).toBe("Алматы, Бостандыкский район, ул. Тестовая, 1");
+    expect((await listDeals(f.client))[0]?.executorLabel).toBe(profile.legalName);
+    expect(json).not.toContain(profile.user.phone);
+    expect(json).not.toContain(profile.binIinEnc);
   });
 
   it("история сделки собрана из журнала аудита по порядку", async () => {

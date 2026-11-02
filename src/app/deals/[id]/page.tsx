@@ -128,6 +128,7 @@ function Summary({ deal }: { deal: DealView }) {
           <Money amount={deal.totalAmount} />
         </Fact>
         <Fact label={ru.common.roles.EXECUTOR}>{deal.executorLabel}</Fact>
+        {deal.executorAddress && <Fact label={ru.companies.identity.address}>{deal.executorAddress}</Fact>}
         <Fact label={t.createdAt}>
           <DateText value={deal.createdAt} format="date" />
         </Fact>

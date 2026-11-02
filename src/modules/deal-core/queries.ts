@@ -7,14 +7,16 @@ import { db } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { nextStep, type NextStep } from "./next-step";
+import { executorDisplayOf, executorDisplays } from "./ports";
 import { retryableKeys } from "./retry-policy";
 import { openEscrowAccount } from "./service";
 import { roleIn, scopeOf } from "./state";
 
 /**
  * Чтения для экранов /deals и /deals/[id]. Доступ: заказчик — свои сделки, исполнитель — свои,
- * оператор — все; чужая сделка — «не найдено». Заказчик видит исполнителя только как «Исполнитель №N»:
- * наименование и ИИН/БИН есть только в договоре, телефона нет нигде.
+ * оператор — все; чужая сделка — «не найдено». Подпись и адрес исполнителя — из companies.executorDisplay:
+ * по умолчанию «Исполнитель №N», город и район; наименование — только в режиме «имя показано» (№6, ADR-006).
+ * ИИН/БИН есть только в договоре, телефона нет нигде.
  */
 
 type Party = "CLIENT" | "EXECUTOR";
@@ -65,13 +67,14 @@ export async function listDeals(user: CurrentUser): Promise<DealListItem[]> {
     take: 100,
     include: { executor: { select: { publicNumber: true, userId: true } }, stages: { select: { status: true } } },
   });
+  const shown = await executorDisplays(db, deals.map((d) => d.executorId));
   return deals.map((d) => ({
     id: d.id,
     number: d.number,
     title: d.title,
     status: d.status,
     totalAmount: d.totalAmount,
-    executorLabel: ru.common.executorLabel(d.executor.publicNumber),
+    executorLabel: shown.get(d.executorId)?.label ?? ru.common.executorLabel(d.executor.publicNumber),
     closedStages: d.stages.filter((s) => s.status === "CLOSED").length,
     totalStages: d.stages.length,
     updatedAt: d.updatedAt,
@@ -165,7 +168,7 @@ export async function getDealView(user: CurrentUser, dealId: string, now = new D
   const dispute = deal.disputes[0] ?? null;
   // Ключ повтора нужен только оператору; правило — то же, что у сервиса повтора.
   const retryable = viewer === "OPERATOR" ? retryableKeys(deal.operations, { dealStatus: deal.status, stages: deal.stages, dispute }) : new Set<string>();
-  const history = await scopeHistory(scopeOf(deal.id));
+  const [history, shown] = await Promise.all([scopeHistory(scopeOf(deal.id)), executorDisplayOf(db, deal.executorId)]);
   const base = {
     id: deal.id,
     number: deal.number,
@@ -178,7 +181,8 @@ export async function getDealView(user: CurrentUser, dealId: string, now = new D
     createdAt: deal.createdAt,
     signedAt: deal.signedAt,
     viewer,
-    executorLabel: ru.common.executorLabel(deal.executor.publicNumber),
+    executorLabel: shown.label,
+    executorAddress: shown.address,
     contract,
     stages,
     dispute: dispute && {
