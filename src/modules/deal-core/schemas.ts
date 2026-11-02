@@ -32,7 +32,8 @@ export const submitReadySchema = z
     photoIds: photos(1, v.deliveryPhotos),
     lat: z.number().min(-90).max(90).optional(),
     lng: z.number().min(-180).max(180).optional(),
-    accuracyM: z.number().int().min(0).max(100_000).optional(),
+    // Браузер может вернуть грубую точность (километры): не отказываем в сдаче, а ограничиваем 100 км.
+    accuracyM: z.number().int().min(0).transform((m) => Math.min(m, 100_000)).optional(),
   })
   .refine((x) => (x.lat === undefined) === (x.lng === undefined), { message: v.coordsPair, path: ["lat"] });
 

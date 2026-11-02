@@ -76,8 +76,6 @@ export const deal = {
     details: "Подробнее о заказе",
     progress: "Ход работ",
     ready: "Сдача работы",
-    documents: "Документы",
-    contacts: "Контакты",
     dispute: "Спор",
     review: "Отзыв",
     events: "История событий",
@@ -132,19 +130,6 @@ export const deal = {
     photosLabel: "Фото",
     photoAlt: (title: string, n: number) => `${title}: фото ${n}`,
     untitled: "Отчёт",
-  },
-
-  documents: {
-    CONTRACT: (n: string) => `Оферта № ${n}`,
-    ACCEPTANCE_ACT: (n: string) => `Акт приёмки № ${n}`,
-    signed: "Подписан",
-    signing: "Ждёт подписи",
-    open: (title: string) => `Открыть PDF: ${title}`,
-  },
-
-  contacts: {
-    phone: "Телефон",
-    instagram: "Instagram",
   },
 
   dispute: {

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useGeolocation } from "@/app/_components/geolocation";
 import { Uploader } from "@/app/_components/uploader";
 import { ru } from "@/i18n/ru";
 import { Button, ConfirmButton, FormError, Input, Textarea } from "@/ui";
 import { useRunAction } from "../../_parts/useRunAction";
 import { payAction, progressReportAction, submitReadyAction } from "../actions";
-import { currentPosition } from "./geolocation";
 import { focusNextStep } from "./next-step";
 
 const t = ru.deal;
@@ -52,13 +52,12 @@ export function ReadyForm({ dealId }: { dealId: string }) {
   const [photoIds, setPhotoIds] = useState<string[]>([]);
   // Пока фото загружается, его id ещё нет в photoIds: отправка дала бы «Добавьте хотя бы одно фото».
   const [uploading, setUploading] = useState(false);
-  const [locating, setLocating] = useState(false);
-  const busy = uploading || locating;
+  // Мягкая проверка: отказ, нет GPS или таймаут — request() вернёт null, сдаём без координат.
+  const geo = useGeolocation();
+  const busy = uploading || geo.state.status === "locating";
 
   async function submit() {
-    setLocating(true);
-    const point = await currentPosition();
-    setLocating(false);
+    const point = await geo.request();
     run({ dealId, photoIds, ...(point ?? {}) }, focusNextStep);
   }
 
@@ -84,7 +83,7 @@ export function ReadyForm({ dealId }: { dealId: string }) {
         {t.actions.submitReady}
       </Button>
       <p id="ready-wait" className="text-base text-ink-soft" aria-live="polite">
-        {uploading ? t.ready.waitPhotos : locating ? t.ready.locating : ""}
+        {uploading ? t.ready.waitPhotos : geo.state.status === "locating" ? t.ready.locating : ""}
       </p>
     </form>
   );

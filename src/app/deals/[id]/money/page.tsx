@@ -3,11 +3,11 @@ import { redirect } from "next/navigation";
 import { FileText } from "lucide-react";
 import { orNotFound } from "@/app/requests/_parts/guard";
 import { getDealView } from "@/modules/deal-core";
+import { listDealDocuments } from "@/modules/documents";
 import { getCurrentUser, requireIntroduced } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, Container, DateText, Money, PageHeader } from "@/ui";
 import { MoneyBlock } from "../_parts/MoneyBlock";
-import { statementHref } from "./statement-link";
 
 const h = ru.payments.history;
 
@@ -23,6 +23,8 @@ export default async function MoneyHistoryPage({ params }: { params: Promise<{ i
   if (!user) redirect(`/login?next=${encodeURIComponent(`/deals/${id}/money`)}`);
   requireIntroduced(user, `/deals/${id}/money`);
   const deal = await orNotFound(getDealView(user, id));
+  // Выписка MONEY_STATEMENT (PDF) — documents выпускает её по журналу; до первой операции её нет.
+  const statement = (await listDealDocuments(user, deal.id)).find((d) => d.kind === "MONEY_STATEMENT");
 
   return (
     <Container size="form" className="flex flex-col gap-6 pb-10">
@@ -54,9 +56,11 @@ export default async function MoneyHistoryPage({ params }: { params: Promise<{ i
           ))}
         </ol>
       )}
-      <ButtonLink href={statementHref(deal.id)} variant="secondary" icon={<FileText />}>
-        {h.statement}
-      </ButtonLink>
+      {statement && (
+        <ButtonLink href={statement.pdfUrl} variant="secondary" icon={<FileText />}>
+          {h.statement}
+        </ButtonLink>
+      )}
     </Container>
   );
 }

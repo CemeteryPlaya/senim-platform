@@ -1,23 +1,24 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { DealContacts } from "@/app/_components/chat/DealContacts";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { DealPortfolioPanel } from "@/app/_components/deal-portfolio/DealPortfolioPanel";
 import { DealFlowSteps } from "@/app/_components/pre-contract/DealFlowSteps";
+import { DealDocuments, SigningPanel } from "@/app/_components/signing";
 import { orNotFound } from "@/app/requests/_parts/guard";
 import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
-import { listDealDocuments, type SigningDocumentView } from "@/modules/documents";
+import { LINK_TTL_HOURS, listDealDocuments } from "@/modules/documents";
 import { getCurrentUser, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
 import { Container, PageHeader, StatusBadge } from "@/ui";
 import { DEAL_TONE } from "../_parts/labels";
-import { otherPartyContacts } from "./_parts/contacts";
 import { Estimate, MoneyBlock } from "./_parts/MoneyBlock";
 import { NextStep } from "./_parts/NextStep";
 import { OrderDetails } from "./_parts/OrderDetails";
-import { CancelDeal, ContactsSection, DisputeSection, DocumentsSection, EventsSection, ProgressSection, ReadySection, Section } from "./_parts/Sections";
+import { CancelDeal, DisputeSection, EventsSection, ProgressSection, ReadySection, Section } from "./_parts/Sections";
 
 const t = ru.deal;
 
@@ -49,9 +50,6 @@ async function loadOrSwitchRole(user: CurrentUser, id: string): Promise<DealView
   return orNotFound(loadDeal(user, id));
 }
 
-/** Панель подписи нужна, только когда смотрящему есть что подписать (оферта или акт). */
-const needsSigning = (deal: DealView) => deal.next.mine && (deal.next.action === "signContract" || deal.next.action === "signAct");
-
 /**
  * Карточка сделки (ТЗ п. 4.1, 9) — общая для покупателя, мастера и оператора. Первый блок — деньги из журнала
  * (тап — «История денег»), до оплаты — смета; затем «Что дальше» с единственным главным действием (deal-core.nextStep);
@@ -63,10 +61,7 @@ export default async function DealPage({ params }: Props) {
   if (!user) redirect(`/login?next=${encodeURIComponent(`/deals/${id}`)}`);
   requireIntroduced(user, `/deals/${id}`);
   const deal = await loadOrSwitchRole(user, id);
-  const [signable, contacts] = await Promise.all([
-    needsSigning(deal) ? listDealDocuments(user, deal.id) : Promise.resolve<SigningDocumentView[]>([]),
-    otherPartyContacts(deal),
-  ]);
+  const docs = await listDealDocuments(user, deal.id);
   const openDispute = deal.dispute?.status === "OPEN";
 
   return (
@@ -91,8 +86,18 @@ export default async function DealPage({ params }: Props) {
         <OrderDetails deal={deal} now={new Date()} />
         <ReadySection deal={deal} />
         <ProgressSection deal={deal} />
-        <DocumentsSection deal={deal} signable={signable} />
-        <ContactsSection contacts={contacts} />
+        {/* Документы (ТЗ п. 7): список с «Открыть / Скачать / Поделиться» и панели подписи — якорь #doc-<id> для «Подписать». */}
+        <div className="flex flex-col gap-6 border-t border-line pt-6">
+          <DealDocuments documents={docs} linkTtlHours={LINK_TTL_HOURS} signHref={(d) => `#doc-${d.id}`} />
+          {docs
+            .filter((d) => d.signable)
+            .map((d) => (
+              <div id={`doc-${d.id}`} key={d.id} className="scroll-mt-6">
+                <SigningPanel document={d} titleAs="h3" signerName={user.fullName ?? undefined} />
+              </div>
+            ))}
+        </div>
+        <DealContacts dealId={deal.id} className="border-t border-line pt-6" />
         <div className="border-t border-line pt-6">
           <OfferChat offerId={deal.offerId} />
         </div>

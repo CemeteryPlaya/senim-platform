@@ -1,13 +1,10 @@
-import { ChevronDown, FileText } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
-import { SigningPanel } from "@/app/_components/signing";
 import type { DealView } from "@/modules/deal-core";
-import type { SigningDocumentView } from "@/modules/documents";
 import { ru } from "@/i18n/ru";
 import { Alert, DateText, StatusBadge } from "@/ui";
 import { ActionButton } from "../../_parts/ActionButton";
 import { cancelDealAction } from "../actions";
-import type { PartyContacts } from "./contacts";
 import { DisputePositionForm, OpenDisputeForm } from "./DealForms";
 import { disputeFacts, gpsNote, needsPosition } from "./deal-view";
 import { NEXT_HEADING_ID } from "./next-step";
@@ -100,70 +97,6 @@ export function ProgressSection({ deal }: { deal: DealView }) {
           <ProgressForm dealId={deal.id} />
         </Disclosure>
       )}
-    </Section>
-  );
-}
-
-const pdfHref = (id: string) => `/api/documents/${id}/pdf`;
-
-/**
- * Документы сделки: документ, который смотрящий должен подписать сейчас, — панель подписи documents
- * (якорь #doc-<id> для «Подписать»); остальные — строки со ссылкой на PDF.
- */
-export function DocumentsSection({ deal, signable }: { deal: DealView; signable: SigningDocumentView[] }) {
-  const docs = [
-    ...(deal.contract ? [{ ...deal.contract, kind: "CONTRACT" as const }] : []),
-    ...(deal.act ? [{ ...deal.act, kind: "ACCEPTANCE_ACT" as const }] : []),
-  ];
-  if (docs.length === 0) return null;
-  return (
-    <Section id="documents" title={t.sections.documents}>
-      <ul className="flex flex-col gap-4">
-        {docs.map((doc) => {
-          const panel = signable.find((s) => s.id === doc.id && s.canSign);
-          const title = t.documents[doc.kind](doc.number);
-          return (
-            <li key={doc.id} id={`doc-${doc.id}`} className="scroll-mt-6">
-              {panel ? (
-                <SigningPanel document={panel} titleAs="h3" />
-              ) : (
-                <a href={pdfHref(doc.id)} aria-label={t.documents.open(title)} className="flex min-h-control items-center gap-3 text-ink no-underline">
-                  <FileText aria-hidden className="size-6 shrink-0 text-ink-soft" />
-                  <span className="flex min-w-0 grow flex-col">
-                    <span className="text-lg font-semibold break-words">{title}</span>
-                    <span className="text-base text-muted">{doc.status === "SIGNED" ? t.documents.signed : t.documents.signing}</span>
-                  </span>
-                </a>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </Section>
-  );
-}
-
-/** Контакты другой стороны — после заключения оферты (до неё функция возвращает null, блока нет). */
-export function ContactsSection({ contacts }: { contacts: PartyContacts | null }) {
-  if (!contacts) return null;
-  return (
-    <Section id="contacts" title={t.sections.contacts}>
-      <dl className="flex flex-col divide-y divide-line">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5 text-base first:pt-0">
-          <dt className="text-muted">{t.contacts.phone}</dt>
-          <dd>
-            <a href={`tel:${contacts.phone.replace(/\s/g, "")}`} className="text-lg font-semibold text-primary tabular-nums">
-              {contacts.phone}
-            </a>
-          </dd>
-        </div>
-        {contacts.instagram && (
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5 text-base">
-            <dt className="text-muted">{t.contacts.instagram}</dt>
-            <dd className="text-lg text-ink">@{contacts.instagram}</dd>
-          </div>
-        )}
-      </dl>
     </Section>
   );
 }

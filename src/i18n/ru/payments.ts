@@ -63,16 +63,7 @@ export const payments = {
     status: { PENDING: "В обработке банком", SUCCEEDED: "Выполнено", FAILED: "Не прошло" },
     basis: "Документ-основание",
     testMark: "тестовый платёж",
-    statement: "Печатаемая выписка (PDF)",
-  },
-
-  /** Печатаемая выписка по деньгам сделки (адаптер до PDF MONEY_STATEMENT от documents). */
-  statement: {
-    title: (n: number) => `Выписка по сделке №${n}`,
-    formedAt: (date: string) => `Сформирована ${date}`,
-    print: "Распечатать или сохранить PDF",
-    columns: { date: "Дата", operation: "Операция", amount: "Сумма", ref: "Номер операции" },
-    priceRow: "Цена по оферте",
+    statement: "Выписка по сделке (PDF)",
   },
 
   /** Уведомления обеим сторонам на каждое изменение денег (onMoneyChanged). */
