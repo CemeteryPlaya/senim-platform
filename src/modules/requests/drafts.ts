@@ -10,6 +10,11 @@ import { expectOneUpdated, fail } from "@/platform/errors";
 import { suggestSegment } from "@/verticals/furniture";
 import { auditByUser, links, loadOwnRequest, requestTitle, requireClient, type RequestWithType } from "./access";
 import { roomPhotos } from "./adapters";
+import { announceToExecutors, executorRecipients } from "./announce";
+import { activePreContractFlow } from "./flow-setting";
+import { flowRules, selfMeasureComplete } from "./flows";
+import { notifyOperatorsSiteMeasure } from "./site-measurements";
+import { preContractView } from "./pre-contract";
 import {
   applyStep,
   parseDetails,
@@ -121,46 +126,38 @@ export async function saveDraftStep(user: CurrentUser, input: SaveDraftInput): P
   });
 }
 
-/** DRAFT → OPEN. Тендер видят исполнители сегмента, прямой запрос — только выбранный исполнитель. */
+/**
+ * Отправка заявки. Сценарий до договора берётся из настройки площадки и запоминается в заявке (ADR-005).
+ * Обычно DRAFT → OPEN: тендер видят исполнители сегмента, прямой запрос — только выбранный исполнитель.
+ * Сценарий «замерщик площадки»: DRAFT → PLATFORM_MEASURING, исполнители увидят заявку после замера.
+ */
 export async function publishRequest(user: CurrentUser, input: { requestId: string }): Promise<void> {
   await transaction(async (tx) => {
     const r = await loadOwnRequest(tx, user, input.requestId);
-    const to = transition(REQUEST_TRANSITIONS, "publish", r.status, "CLIENT");
+    const flow = await activePreContractFlow(tx);
+    const to = transition(REQUEST_TRANSITIONS, "publish", r.status, "CLIENT", flow);
     if (r.wizardStep < WIZARD_SCREENS.length || !r.segment || !r.address || !(r.furnitureTypeId || r.customType)) {
       fail.validation(e.incomplete);
     }
-
-    let recipients: string[];
-    if (r.mode === "DIRECT") {
-      const target = r.targetExecutorId
-        ? await tx.executorProfile.findFirst({ where: { id: r.targetExecutorId, status: "APPROVED" }, select: { userId: true } })
-        : null;
-      if (!target) return fail.conflict(e.targetUnavailable);
-      if (target.userId === user.id) return fail.conflict(e.selfDeal);
-      recipients = [target.userId];
-    } else {
-      // Себе (тот же человек в роли исполнителя) тендер не рассылается — он его и не увидит.
-      const executors = await tx.executorProfile.findMany({
-        where: { status: "APPROVED", segment: r.segment, userId: { not: user.id } },
-        select: { userId: true },
-      });
-      recipients = executors.map((x) => x.userId);
+    if (flowRules(flow).selfMeasure) {
+      const photos = await tx.storedFile.count({ where: { requestId: r.id, purpose: "REQUEST_ROOM" } });
+      if (!selfMeasureComplete(parseDetails(r.details), photos)) fail.validation(ru.requests.pre.errors.selfMeasureIncomplete);
     }
+    // Прямой запрос недоступному исполнителю или себе — CONFLICT уже здесь, даже если заявка сначала ждёт замерщика.
+    const recipients = await executorRecipients(tx, r);
 
-    expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: to, publishedAt: new Date() } }));
+    expectOneUpdated(
+      await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: to, preContractFlow: flow, publishedAt: new Date() } }),
+    );
     await auditByUser(tx, user, r.id, {
       action: "request.published",
       entity: { type: "request", id: r.id },
       before: { status: r.status },
-      after: { status: to },
-      meta: { mode: r.mode, segment: r.segment, recipients: recipients.length },
+      after: { status: to, preContractFlow: flow },
+      meta: { mode: r.mode, segment: r.segment, recipients: to === "OPEN" ? recipients.length : 0 },
     });
-
-    const title = requestTitle(r);
-    const [kind, text] = r.mode === "DIRECT" ? (["request.direct", n.directRequest] as const) : (["request.new", n.newRequest] as const);
-    for (const userId of recipients) {
-      await notify(tx, { userId, kind, title: text.title, body: text.body(title), link: links.executor(r.id) });
-    }
+    if (to === "OPEN") await announceToExecutors(tx, r, recipients);
+    else await notifyOperatorsSiteMeasure(tx, r);
   });
 }
 
@@ -325,6 +322,7 @@ export async function getClientRequest(user: CurrentUser, requestId: string) {
     },
     measurement: m && { id: m.id, status: m.status, scheduledAt: m.scheduledAt, finalPrice: m.finalPrice, result: m.result },
     deal,
+    pre: await preContractView(db, r, chosen),
   };
 }
 export type ClientRequest = Awaited<ReturnType<typeof getClientRequest>>;

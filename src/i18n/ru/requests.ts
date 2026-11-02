@@ -1,5 +1,8 @@
 // Тексты зоны «requests»: мастер заявки, мои заявки, отклики, замеры. Владелец — marketplace-engineer.
+import { preContract } from "./pre-contract";
+
 export const requests = {
+  pre: preContract,
   untitled: "Заявка",
   requestTitle: (n: number, title: string) => `Заявка №${n}: ${title}`,
   noAccess: "Этот раздел — для заказчиков. Войдите как заказчик, чтобы оставить заявку.",
@@ -7,6 +10,7 @@ export const requests = {
 
   status: {
     DRAFT: "Черновик",
+    PLATFORM_MEASURING: "Замер площадки",
     OPEN: "Ждёт откликов",
     OFFER_CHOSEN: "Отклик выбран",
     MEASURING: "Замер",

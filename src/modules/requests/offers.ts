@@ -11,6 +11,8 @@ import { parseDetails, type OfferSort, type SendOfferInput } from "./schema";
 import { sortOffers } from "./sort";
 import { OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
 import { visibleToExecutor } from "./visibility";
+import { allowedRound } from "./retries";
+import { preContractView } from "./pre-contract";
 
 const e = ru.requests.errors;
 const n = ru.requests.notify;
@@ -26,7 +28,9 @@ export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promi
       });
       if (!r) return fail.notFound(e.notFound);
 
-      // Второй отклик того же исполнителя упирается в уникальный индекс (requestId, executorId) → CONFLICT ниже.
+      // Второй отклик в той же попытке упирается в уникальный индекс (requestId, executorId, round) → CONFLICT ниже.
+      // Следующую попытку разрешает только оператор (№16, retries.ts).
+      const round = await allowedRound(tx, r.id, executor.id);
       const terms = input.measurementTerms ?? executor.measurementTerms;
       const fee = terms === "FEE_IF_NO_DEAL" ? (input.measurementTerms ? input.measurementFee : executor.measurementFee) : null;
       const offer = await tx.offer.create({
@@ -39,12 +43,13 @@ export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promi
           comment: input.comment ? (await sanitizeExecutorText(tx, executor.id, input.comment)).text : input.comment,
           measurementTerms: terms,
           measurementFee: fee ?? null,
+          round,
         },
       });
       await auditByUser(tx, user, r.id, {
         action: "offer.sent",
         entity: { type: "offer", id: offer.id },
-        after: { status: offer.status, price: offer.price, durationDays: offer.durationDays, measurementTerms: terms },
+        after: { status: offer.status, price: offer.price, durationDays: offer.durationDays, measurementTerms: terms, round },
       });
       const title = requestTitle(r);
       await notify(tx, {
@@ -209,7 +214,8 @@ export async function listIncomingRequests(user: CurrentUser, filter: { mode?: "
     orderBy: { publishedAt: "desc" },
     include: {
       furnitureType: { select: { name: true } },
-      offers: { where: { executorId: executor.id }, select: { status: true } },
+      // Последняя попытка исполнителя (повтор разрешает оператор, №16).
+      offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, select: { status: true } },
       _count: { select: { offers: { where: { status: { not: "WITHDRAWN" } } } } },
     },
   });
@@ -240,12 +246,15 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     include: {
       furnitureType: { select: { name: true } },
       photos: { where: { purpose: "REQUEST_ROOM" }, orderBy: { sortOrder: "asc" }, select: { id: true, provider: true, storageKey: true } },
-      offers: { where: { executorId: executor.id }, include: { measurement: true } },
+      offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, include: { measurement: true } },
+      offerRetries: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, select: { round: true } },
     },
   });
   if (!r) return fail.notFound(e.notFound);
   const mine = r.offers[0] ?? null;
   const chosen = mine?.status === "ACCEPTED";
+  // Оператор разрешил следующую попытку после отклонённого отклика (№16).
+  const retryAllowed = mine !== null && (r.offerRetries[0]?.round ?? 1) > mine.round;
   return {
     id: r.id,
     number: r.number,
@@ -261,7 +270,9 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     wishes: r.wishes,
     publishedAt: r.publishedAt,
     photos: await roomPhotos(r.photos),
-    canOffer: r.status === "OPEN" && mine === null,
+    canOffer: r.status === "OPEN" && (mine === null || retryAllowed),
+    retryAllowed,
+    pre: await preContractView(db, r, mine),
     defaults: { measurementTerms: executor.measurementTerms, measurementFee: executor.measurementFee },
     myOffer: mine && {
       id: mine.id,

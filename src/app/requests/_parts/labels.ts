@@ -5,6 +5,7 @@ import { formatMoney, type Tone } from "@/ui";
 /** Тон метки статуса. Текст метки — из ru.requests.*Status; цвет не единственный носитель смысла. */
 export const REQUEST_TONE: Record<RequestStatus, Tone> = {
   DRAFT: "neutral",
+  PLATFORM_MEASURING: "accent",
   OPEN: "info",
   OFFER_CHOSEN: "accent",
   MEASURING: "accent",

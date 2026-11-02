@@ -1,16 +1,20 @@
-import type { MeasurementTerms, Segment } from "@/generated/prisma/enums";
+import type { MeasurementTerms, PreContractFlow, Segment } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
 import {
+  approveProject,
   chooseOffer,
   completeMeasurement,
   publishRequest,
   saveDraftStep,
   scheduleMeasurement,
   sendOffer,
+  setPreContractFlow,
+  submitProject,
   type StepInput,
 } from "@/modules/requests";
 import { db } from "@/platform/db";
-import { makeExecutor } from "../factories";
+import { makeExecutor, makeUser } from "../factories";
+import { setEnv } from "./identity";
 
 /**
  * Фабрики заявок строят состояние через сервис requests — так же, как это делает пользователь.
@@ -86,8 +90,50 @@ export async function makeMeasuring(client: CurrentUser, terms: MeasurementTerms
   return { ...chosen, measurementId };
 }
 
+/** Проект на сумму `total` одной строкой расшифровки. */
+export const projectInput = (offerId: string, total = 600_000) => ({
+  offerId,
+  materials: "ЛДСП Egger 16 мм, фасады МДФ в плёнке, фурнитура Blum",
+  costLines: [{ title: "Изготовление и монтаж", amount: total }],
+  durationDays: 30,
+  warrantyMonths: 24,
+  totalPrice: total,
+});
+
+/** Исполнитель отправляет проект, заказчик утверждает (ADR-005). */
+export async function makeApprovedProject(client: CurrentUser, executor: CurrentUser, offerId: string, total = 600_000) {
+  const { projectId } = await submitProject(executor, projectInput(offerId, total));
+  await approveProject(client, { projectId });
+  return projectId;
+}
+
+/** Замер выполнен, проект на итоговую цену утверждён: заявка готова к согласию на договор (сценарий 1). */
 export async function makeMeasured(client: CurrentUser, finalPrice = 600_000) {
   const m = await makeMeasuring(client);
   await completeMeasurement(m.executor, { measurementId: m.measurementId, finalPrice, result: "Замер выполнен" });
-  return m;
+  const projectId = await makeApprovedProject(client, m.executor, m.offerId, finalPrice);
+  return { ...m, projectId };
+}
+
+/** Сценарий до договора для следующих заявок (ADR-005): DEMO_MODE и настройка площадки от имени оператора. */
+export async function withFlow(flow: PreContractFlow): Promise<void> {
+  setEnv({ DEMO_MODE: "true" });
+  const operator = await makeUser("OPERATOR", "Оператор сценария");
+  await setPreContractFlow(operator, { flow });
+}
+
+/** Фото помещения, прикреплённое к заявке (как после загрузки в мастере или замерщиком). */
+export async function attachRoomPhoto(requestId: string, uploadedById: string) {
+  return db.storedFile.create({
+    data: {
+      storageKey: `test/room/${requestId}/${Math.random().toString(36).slice(2)}.jpg`,
+      provider: "local",
+      purpose: "REQUEST_ROOM",
+      contentType: "image/jpeg",
+      size: 1000,
+      sha256: "0".repeat(64),
+      uploadedById,
+      requestId,
+    },
+  });
 }

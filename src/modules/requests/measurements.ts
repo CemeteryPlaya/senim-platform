@@ -6,12 +6,15 @@ import { createDeal } from "@/modules/deal-core";
 import { limitIdentityAttempts, recordPersonIdentity, type CurrentUser } from "@/modules/identity";
 import { notify, notifyTemplate } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
-import { db, transaction, type Db } from "@/platform/db";
+import { db, transaction, type Db, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enqueueJob, type JobHandler } from "@/platform/jobs";
 import { parseInput } from "@/platform/validation";
-import { STAGE_TEMPLATES, type StageTemplateKey } from "@/verticals/furniture";
+import type { PreContractFlow } from "@/generated/prisma/enums";
+import { STAGE_TEMPLATES, templateForFlow, type StageTemplateKey } from "@/verticals/furniture";
 import { auditByUser, links, loadExecutor, loadOwnRequest, requestScope, requestTitle, requireClient } from "./access";
+import { flowOf, flowRules } from "./flows";
+import { approvedProject } from "./projects";
 import { MEASUREMENT_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
 
 const e = ru.requests.errors;
@@ -28,12 +31,14 @@ const REMINDER_LEAD_MS = 24 * 60 * 60 * 1000;
 export async function scheduleMeasurement(user: CurrentUser, input: { offerId: string; scheduledAt: Date }): Promise<{ measurementId: string }> {
   return transaction(async (tx) => {
     const executor = await loadExecutor(tx, user);
-    const offer = await tx.offer.findFirst({ where: { id: input.offerId, executorId: executor.id }, include: withRequest });
+    const offer = await tx.offer.findFirst({ where: { id: input.offerId, executorId: executor.id }, include: { ...withRequest, deposit: true } });
     if (!offer) return fail.notFound(e.offerNotFound);
     if (input.scheduledAt.getTime() <= Date.now()) fail.validation(v.futureDate);
     const r = offer.request;
-    const to = transition(REQUEST_TRANSITIONS, "scheduleMeasurement", r.status, "EXECUTOR");
+    const flow = flowOf(r);
+    const to = transition(REQUEST_TRANSITIONS, "scheduleMeasurement", r.status, "EXECUTOR", flow);
     if (offer.status !== "ACCEPTED") fail.conflict();
+    if (flowRules(flow).deposit && offer.deposit?.status !== "CONFIRMED") fail.conflict(ru.requests.pre.errors.depositFirst);
 
     expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: to } }));
     const m = await tx.measurement.create({ data: { offerId: offer.id, requestId: r.id, scheduledAt: input.scheduledAt } });
@@ -124,7 +129,7 @@ export async function measurementNoDeal(user: CurrentUser, input: { measurementI
     });
     if (!m) return fail.notFound(e.measurementNotFound);
     const measurementTo = transition(MEASUREMENT_TRANSITIONS, "noDeal", m.status, who);
-    const requestTo = transition(REQUEST_TRANSITIONS, "measurementNoDeal", m.request.status, who);
+    const requestTo = transition(REQUEST_TRANSITIONS, "measurementNoDeal", m.request.status, who, flowOf(m.request));
     const offerTo = transition(OFFER_TRANSITIONS, "noDeal", m.offer.status, who);
     const feeAccrued = m.offer.measurementTerms === "FEE_IF_NO_DEAL" ? m.offer.measurementFee : null;
     // Итог видит другая сторона — без контактов (у исполнителя — и без наименования).
@@ -164,8 +169,23 @@ export async function measurementNoDeal(user: CurrentUser, input: { measurementI
 }
 
 /**
- * MEASURING → CONTRACTING: заказчик согласен с итоговой ценой замера и порядком оплаты.
- * Сделку создаёт deal-core в той же транзакции.
+ * Цена договора по сценарию (ADR-005): цена утверждённого проекта, а в «договоре до замера» — цена отклика
+ * (проект потом фиксирует её в пределах допуска). В сценариях с выездом исполнителя проект возможен только после замера.
+ */
+async function contractPriceOf(tx: Tx, flow: PreContractFlow, offer: { id: string; price: number }): Promise<number> {
+  const rules = flowRules(flow);
+  if (!rules.projectBeforeContract) return offer.price;
+  if (rules.executorVisit) {
+    const m = await tx.measurement.findUnique({ where: { offerId: offer.id }, select: { status: true } });
+    if (m?.status !== "DONE") return fail.conflict(e.noMeasurementResult);
+  }
+  const project = await approvedProject(tx, offer.id);
+  return project?.totalPrice ?? fail.conflict(ru.requests.pre.errors.projectNotApproved);
+}
+
+/**
+ * Согласие на договор → CONTRACTING: заказчик согласен с ценой (утверждённого проекта или отклика с допуском)
+ * и порядком оплаты. Сделку создаёт deal-core в той же транзакции; первый этап — по сценарию до договора.
  */
 export async function agreeToContract(
   user: CurrentUser,
@@ -175,9 +195,11 @@ export async function agreeToContract(
   await limitIdentityAttempts(user, input.identity);
   return transaction(async (tx) => {
     const r = await loadOwnRequest(tx, user, input.requestId);
-    const to = transition(REQUEST_TRANSITIONS, "agreeToContract", r.status, "CLIENT");
-    const m = await tx.measurement.findFirst({ where: { requestId: r.id, status: "DONE", offer: { status: "ACCEPTED" } }, include: { offer: true } });
-    if (!m || m.finalPrice === null) return fail.conflict(e.noMeasurementResult);
+    const flow = flowOf(r);
+    const to = transition(REQUEST_TRANSITIONS, "agreeToContract", r.status, "CLIENT", flow);
+    const offer = await tx.offer.findFirst({ where: { requestId: r.id, status: "ACCEPTED" }, select: { id: true, price: true, executorId: true } });
+    if (!offer) return fail.conflict(e.noMeasurementResult);
+    const totalAmount = await contractPriceOf(tx, flow, offer);
     // Сторона договора: без ФИО и ИИН договор не составить и не подписать ЭЦП. После проверок шага:
     // ответ «ИИН занят» — только на настоящем шаге договора, а не любому заказчику с любой заявкой.
     await recordPersonIdentity(tx, user, input.identity);
@@ -186,20 +208,20 @@ export async function agreeToContract(
     const title = requestTitle(r);
     const { dealId } = await createDeal(tx, {
       requestId: r.id,
-      offerId: m.offerId,
+      offerId: offer.id,
       clientId: user.id,
-      executorId: m.offer.executorId,
+      executorId: offer.executorId,
       title,
-      totalAmount: m.finalPrice,
-      template: STAGE_TEMPLATES[input.template],
+      totalAmount,
+      template: templateForFlow(STAGE_TEMPLATES[input.template], flow),
     });
     await auditByUser(tx, user, r.id, {
       action: "request.contracting",
       entity: { type: "request", id: r.id },
       before: { status: r.status },
-      after: { status: to, dealId, totalAmount: m.finalPrice, template: input.template },
+      after: { status: to, dealId, totalAmount, template: input.template, preContractFlow: flow },
     });
-    const executor = await tx.executorProfile.findUniqueOrThrow({ where: { id: m.offer.executorId }, select: { userId: true } });
+    const executor = await tx.executorProfile.findUniqueOrThrow({ where: { id: offer.executorId }, select: { userId: true } });
     await notify(tx, { userId: executor.userId, kind: "request.contracting", title: n.contracting.title, body: n.contracting.body(title), link: `/deals/${dealId}` });
     return { dealId };
   });
