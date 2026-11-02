@@ -33,6 +33,8 @@ model User {
   iinLast4  String?
   /// Instagram без «@»: виден другой стороне сделки только после заключения оферты (ТЗ п. 3).
   instagram String?
+  /// E-mail для копии подписанного акта (ТЗ п. 7); необязательный, не уникальный, в журнал аудита не пишется.
+  email     String?
   isDemo    Boolean  @default(false) // демо-персона, доступна только при DEMO_MODE
   blockedAt DateTime?
   createdAt DateTime @default(now())

@@ -9,8 +9,8 @@ const t = ru.identity.contacts;
 export const metadata: Metadata = { title: t.title };
 
 /**
- * Контакты профиля заказчика и мастера: телефон входа и Instagram (ТЗ п. 3). Другая сторона сделки видит их
- * только после заключения оферты — об этом подсказка над формой.
+ * Контакты профиля заказчика и мастера: телефон входа и Instagram (ТЗ п. 3) — другая сторона сделки видит их
+ * только после заключения оферты (подсказка над формой); e-mail — для копии подписанного акта (ТЗ п. 7).
  */
 export default async function ContactsPage() {
   const user = await requireUserPage("/profile/contacts", "CLIENT", "EXECUTOR");
@@ -23,7 +23,7 @@ export default async function ContactsPage() {
           <span className="tabular-nums">{formatPhone(contacts.phone)}</span>
         </Fact>
       </dl>
-      <ContactsForm initial={contacts.instagram ?? ""} max={INSTAGRAM_MAX} />
+      <ContactsForm initial={{ instagram: contacts.instagram ?? "", email: contacts.email ?? "" }} max={INSTAGRAM_MAX} />
     </Container>
   );
 }
