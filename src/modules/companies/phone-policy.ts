@@ -36,12 +36,18 @@ const t = ru.companies.chat;
 export function clientPhoneTarget(action: ClientPhoneAction, facts: ClientPhoneFacts, who: ChatParty): ClientPhoneState {
   const rule = CLIENT_PHONE[action];
   if (who !== rule.who) return fail.forbidden();
-  if (action === "share" && !facts.consentEnabled) return fail.forbidden(t.phone.errors.disabled);
-  if (action === "share" && facts.stage === "AFTER_OFFER") return fail.conflict(t.phone.errors.afterOffer);
-  if (facts.state !== rule.from) return fail.conflict(t.phone.errors[action]);
-  if (action === "share" && facts.chatClosed) return fail.conflict(t.closed[facts.chatClosed]);
-  if (action === "share" && !facts.talked) return fail.conflict(t.phone.errors.notTalked);
+  if (action === "share") assertCanShare(facts);
+  else if (facts.state !== rule.from) return fail.conflict(t.phone.errors.revoke);
   return rule.to;
+}
+
+/** Условия показа номера по порядку: флаг, оферта, состояние, открытый чат, переписка. */
+function assertCanShare(facts: ClientPhoneFacts): void {
+  if (!facts.consentEnabled) fail.forbidden(t.phone.errors.disabled);
+  if (facts.stage === "AFTER_OFFER") fail.conflict(t.phone.errors.afterOffer);
+  if (facts.state !== CLIENT_PHONE.share.from) fail.conflict(t.phone.errors.share);
+  if (facts.chatClosed) fail.conflict(t.closed[facts.chatClosed]);
+  if (!facts.talked) fail.conflict(t.phone.errors.notTalked);
 }
 
 /** Путь согласия вообще действует: флаг включён и оферта ещё не заключена. */
