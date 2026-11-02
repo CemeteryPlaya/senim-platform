@@ -38,6 +38,23 @@ describe("демо-персоны при DEMO_MODE=true", () => {
     expect(await getCurrentUser()).toMatchObject({ id: demo.id, role: "OPERATOR", isDemo: true });
   });
 
+  it("вход в указанной роли — шаг показа банку открывается сразу в нужной роли (ADR-004)", async () => {
+    const demo = await makeDemoPersona("EXECUTOR", "+77000007008");
+    await db.user.update({ where: { id: demo.id }, data: { roles: ["EXECUTOR", "CLIENT"] } });
+
+    expect(await loginAsDemoPersona(demo.id, "vitest", "CLIENT")).toMatchObject({ id: demo.id, role: "CLIENT" });
+    expect(await getCurrentUser()).toMatchObject({ id: demo.id, role: "CLIENT", roles: ["EXECUTOR", "CLIENT"] });
+    // Роль по умолчанию не меняется: это вход ведущего, а не выбор пользователя.
+    expect((await db.user.findUniqueOrThrow({ where: { id: demo.id } })).role).toBe("EXECUTOR");
+  });
+
+  it("невыданная роль при входе отклоняется, сессия не создаётся", async () => {
+    const demo = await makeDemoPersona("CLIENT", "+77000007009");
+
+    expect(await codeOf(loginAsDemoPersona(demo.id, "vitest", "OPERATOR"))).toBe("FORBIDDEN");
+    expect(await db.session.count()).toBe(0);
+  });
+
   it("не-демо пользователь недоступен, даже если знать его id", async () => {
     const real = await makeDemoPersona("CLIENT", "+77000007004", false);
 

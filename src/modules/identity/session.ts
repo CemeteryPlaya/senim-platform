@@ -46,16 +46,19 @@ async function revokeToken(token: string): Promise<void> {
 /**
  * Создаёт сессию и ставит httpOnly-cookie. Прежняя сессия этого браузера отзывается.
  * Активная роль сессии фиксируется ролью по умолчанию на момент входа: переключение роли
- * на другом устройстве не меняет роль этой сессии. Вызывать из Server Action или route handler.
+ * на другом устройстве не меняет роль этой сессии. asRole — войти сразу в другую выданную роль
+ * (демо-вход шага показа банку); невыданная роль — FORBIDDEN. Вызывать из Server Action или route handler.
  */
-export async function startSession(userId: string, userAgent?: string): Promise<void> {
+export async function startSession(userId: string, userAgent?: string, asRole?: Role): Promise<void> {
+  const { role, roles } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true, roles: true } });
+  if (asRole && !roles.includes(asRole)) return fail.forbidden(ru.identity.switchRole.notGranted);
+
   const previous = await currentToken();
   if (previous) await revokeToken(previous);
 
-  const { role } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true } });
   const token = randomToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000);
-  await db.session.create({ data: { userId, activeRole: role, tokenHash: sha256Hex(token), expiresAt, userAgent: userAgent?.slice(0, 300) } });
+  await db.session.create({ data: { userId, activeRole: asRole ?? role, tokenHash: sha256Hex(token), expiresAt, userAgent: userAgent?.slice(0, 300) } });
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,

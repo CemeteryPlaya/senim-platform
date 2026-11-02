@@ -44,10 +44,11 @@ export async function listDemoPersonas(): Promise<DemoPersona[]> {
     .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || (a.executor?.publicNumber ?? 0) - (b.executor?.publicNumber ?? 0));
 }
 
-/** Вход персоной; возвращает роль и статус профиля — чтобы выбрать экран после входа. */
+/** Вход персоной (asRole — в указанной выданной роли); возвращает роль и статус профиля — чтобы выбрать экран после входа. */
 export async function loginAsDemoPersona(
   userId: string,
   userAgent?: string,
+  asRole?: Role,
 ): Promise<Pick<DemoPersona, "id" | "role"> & { executor: { status: "PENDING" | "APPROVED" | "REJECTED" } | null }> {
   if (!env().DEMO_MODE) return fail.forbidden(ru.identity.demo.disabled);
   const persona = await db.user.findFirst({
@@ -55,6 +56,6 @@ export async function loginAsDemoPersona(
     select: { id: true, role: true, executorProfile: { select: { status: true } } },
   });
   if (!persona) return fail.notFound();
-  await startSession(persona.id, userAgent);
-  return { id: persona.id, role: persona.role, executor: persona.executorProfile };
+  await startSession(persona.id, userAgent, asRole);
+  return { id: persona.id, role: asRole ?? persona.role, executor: persona.executorProfile };
 }

@@ -33,7 +33,7 @@ function Step({ step, index }: { step: ScenarioStep; index: number }) {
       {step.href ? (
         <div className="flex flex-wrap gap-3">
           {step.persona ? (
-            <PersonaButton userId={step.persona.userId} name={step.persona.name} next={step.href} label={t.openAs(step.persona.name)} />
+            <PersonaButton userId={step.persona.userId} name={step.persona.name} next={step.href} label={t.openAs(step.persona.name)} role={step.persona.role} />
           ) : (
             <ButtonLink href={step.href} variant="secondary">
               {t.open}

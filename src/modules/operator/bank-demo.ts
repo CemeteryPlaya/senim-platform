@@ -14,11 +14,12 @@ import { buildScenario, type Persona, type ScenarioSnapshot } from "./scenario";
  * Роль не проверяется: ведущий переключает персоны по ходу показа, а в DEMO_MODE все данные тестовые.
  */
 
-const personUser = { id: true, fullName: true, phone: true, role: true } satisfies Prisma.UserSelect;
+const personUser = { id: true, fullName: true, phone: true } satisfies Prisma.UserSelect;
 type PersonUser = Prisma.UserGetPayload<{ select: typeof personUser }>;
 
-function persona(user: PersonUser, fallbackName = ""): Persona {
-  return { userId: user.id, name: user.fullName ?? fallbackName, role: user.role, phone: user.phone };
+/** role — роль шага, а не роль по умолчанию: у персоны с двумя ролями (ADR-004) вход сразу в нужной. */
+function persona(user: PersonUser, role: "CLIENT" | "EXECUTOR", fallbackName = ""): Persona {
+  return { userId: user.id, name: user.fullName ?? fallbackName, role, phone: user.phone };
 }
 
 const dealForStep = {
@@ -58,18 +59,18 @@ async function snapshot(): Promise<ScenarioSnapshot> {
     dealIn("COMPLETED"),
   ]);
   const tender = tenders.sort((a, b) => b._count.offers - a._count.offers)[0];
-  const withClient = (d: typeof signing) => d && { id: d.id, number: d.number, client: persona(d.client) };
-  const withExecutor = (d: typeof signing) => d && { id: d.id, number: d.number, executor: persona(d.executor.user, d.executor.legalName) };
+  const withClient = (d: typeof signing) => d && { id: d.id, number: d.number, client: persona(d.client, "CLIENT") };
+  const withExecutor = (d: typeof signing) => d && { id: d.id, number: d.number, executor: persona(d.executor.user, "EXECUTOR", d.executor.legalName) };
 
   return {
     railMode: rail.mode,
-    newRequest: client ? { client: persona(client) } : undefined,
-    tender: tender && { id: tender.id, number: tender.number, offers: tender._count.offers, client: persona(tender.client) },
+    newRequest: client ? { client: persona(client, "CLIENT") } : undefined,
+    tender: tender && { id: tender.id, number: tender.number, offers: tender._count.offers, client: persona(tender.client, "CLIENT") },
     measuring: measurement
       ? {
           id: measurement.request.id,
           number: measurement.request.number,
-          executor: persona(measurement.offer.executor.user, measurement.offer.executor.legalName),
+          executor: persona(measurement.offer.executor.user, "EXECUTOR", measurement.offer.executor.legalName),
         }
       : undefined,
     signing: withClient(signing),
