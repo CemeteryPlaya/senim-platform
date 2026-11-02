@@ -1,190 +1,91 @@
-import type { DealStatus, PaymentDue, PaymentMode, StagePaymentStatus, StageStatus } from "@/generated/prisma/enums";
+import type { DealStatus, DisputeOutcome } from "@/generated/prisma/enums";
 
 /**
- * Статусные машины сделки, этапа и оплаты этапа (ADR-002) — данными, а не ветками кода.
- * Строка таблицы: событие, из каких статусов, в какой, кто может, условие.
- * Сервис только находит строку (resolveTransition) и делает условное обновление в БД.
+ * Статусная машина сделки (ТЗ п. 9, ADR-009 раздел 2) — данные: из какого статуса, в какой, кто, при каком условии.
+ * Пары, которых нет в таблице, запрещены — в том числе любые перескоки. Пока открыт спор, запрещены все
+ * переходы (решение спора не меняет статус само — статус двигают подтверждённые операции журнала).
+ * Статус вторичен: CREATED → PAID_HOLD, ACCEPTED → SPLIT_PAYOUT и переходы в REFUNDED/SPLIT_PAYOUT по спору
+ * выполняет обработчик итога операции журнала (SYSTEM), а не кнопка.
  */
 
 export type Who = "CLIENT" | "EXECUTOR" | "OPERATOR" | "SYSTEM";
 
-/** Почему переход невозможен. Тексты — ru.deal.errors[<причина>]. */
-export type Refusal =
-  | "notAllowedNow"
-  | "notYourAction"
-  | "notFullyFunded"
-  | "stagesNotClosed"
-  | "dealNotActive"
-  | "previousStageOpen"
-  | "advanceNotConfirmed"
-  | "autoAcceptNotDue"
-  | "actNotSigned"
-  | "paymentNotConfirmed"
-  | "escrowNoMarks"
-  | "manualNoRelease"
-  | "notPayableYet";
+export const DEAL_STATUSES = ["CREATED", "PAID_HOLD", "IN_PROGRESS", "READY", "ACCEPTED", "SPLIT_PAYOUT", "CANCELLED", "REFUNDED"] as const satisfies readonly DealStatus[];
+/** Статусы, в которых можно открыть спор. */
+export const DISPUTABLE: readonly DealStatus[] = ["PAID_HOLD", "IN_PROGRESS", "READY"];
 
-type Guard<C> = (ctx: C) => Refusal | null;
-
-export type Transition<S extends string, E extends string, C> = {
-  readonly event: E;
-  readonly from: readonly S[];
-  readonly to: S;
-  readonly who: readonly Who[];
-  readonly guard?: Guard<C>;
-};
-
-/** Первое невыполненное условие или null. */
-const all =
-  <C>(...guards: Guard<C>[]): Guard<C> =>
-  (ctx) => {
-    for (const g of guards) {
-      const r = g(ctx);
-      if (r) return r;
-    }
-    return null;
-  };
-
-// ─── Сделка ──────────────────────────────────────────────────────────────────
-
-export type DealContext = { mode: PaymentMode; fullyFunded: boolean; allStagesClosed: boolean };
-export type DealEvent =
-  | "contractSigned"
-  | "depositReceived"
-  | "cancel"
-  | "openDispute"
-  | "resolveContinue"
-  | "resolveTerminate"
-  | "complete";
-
-const isManual = (mode: PaymentMode) => mode === "MANUAL";
-
-export const DEAL_TRANSITIONS = [
-  // manual: после подписи сразу работы; эскроу: сначала пополнение счёта
-  { event: "contractSigned", from: ["AWAITING_SIGNATURES"], to: "IN_PROGRESS", who: ["SYSTEM"], guard: (c) => (isManual(c.mode) ? null : "notAllowedNow") },
-  { event: "contractSigned", from: ["AWAITING_SIGNATURES"], to: "AWAITING_DEPOSIT", who: ["SYSTEM"], guard: (c) => (isManual(c.mode) ? "notAllowedNow" : null) },
-  { event: "depositReceived", from: ["AWAITING_DEPOSIT"], to: "IN_PROGRESS", who: ["SYSTEM"], guard: (c) => (c.fullyFunded ? null : "notFullyFunded") },
-  { event: "cancel", from: ["AWAITING_SIGNATURES", "AWAITING_DEPOSIT"], to: "CANCELLED", who: ["CLIENT", "EXECUTOR"] },
-  { event: "openDispute", from: ["IN_PROGRESS"], to: "DISPUTE", who: ["CLIENT", "EXECUTOR"] },
-  { event: "resolveContinue", from: ["DISPUTE"], to: "IN_PROGRESS", who: ["OPERATOR"] },
-  { event: "resolveTerminate", from: ["DISPUTE"], to: "TERMINATED", who: ["OPERATOR"] },
-  { event: "complete", from: ["IN_PROGRESS"], to: "COMPLETED", who: ["SYSTEM"], guard: (c) => (c.allStagesClosed ? null : "stagesNotClosed") },
-] as const satisfies readonly Transition<DealStatus, DealEvent, DealContext>[];
-
-// ─── Этап ────────────────────────────────────────────────────────────────────
-
-export type StageContext = {
-  dealStatus: DealStatus;
-  /** Предыдущий этап принят или закрыт (для первого этапа — true). */
-  previousDone: boolean;
-  paymentDue: PaymentDue;
-  /** У этапа есть сумма (и StagePayment). */
-  hasPayment: boolean;
-  paymentStatus: StagePaymentStatus | null;
-  /** Акт этапа подписан обеими сторонами. */
+/** Всё, от чего зависят условия переходов. Деньги — факты журнала (payments.moneyFacts), не статус. */
+export type DealContext = {
+  /** Оферта подписана обеими сторонами (Deal.signedAt). */
+  signed: boolean;
+  /** Акт приёмки подписан (документ ACCEPTANCE_ACT в статусе SIGNED). */
   actSigned: boolean;
-  /** Срок автоприёмки вышел. */
-  autoAcceptDue: boolean;
+  openDispute: boolean;
+  /** Итог последнего решённого спора; null — споров не было. */
+  disputeOutcome: DisputeOutcome | null;
+  money: {
+    hold: "none" | "PENDING" | "SUCCEEDED" | "FAILED";
+    exitRequested: boolean;
+    payoutSettled: boolean;
+    refundSettled: boolean;
+  };
 };
-export type StageEvent =
-  | "start"
-  | "submit"
-  | "requestRework"
-  | "accept"
-  | "autoAccept"
-  | "close"
-  | "disputeFavorExecutor"
-  | "disputeFavorClient";
 
-const dealActive: Guard<StageContext> = (c) => (c.dealStatus === "IN_PROGRESS" ? null : "dealNotActive");
-const dealInDispute: Guard<StageContext> = (c) => (c.dealStatus === "DISPUTE" ? null : "notAllowedNow");
-const paymentSettled = (c: { hasPayment: boolean; paymentStatus: StagePaymentStatus | null }) =>
-  !c.hasPayment || c.paymentStatus === "CONFIRMED";
+export type Refusal =
+  | "notAllowedNow" // такого перехода нет в таблице
+  | "notYourAction"
+  | "disputeOpen"
+  | "notSigned"
+  | "holdNotSettled"
+  | "holdPending"
+  | "moneyLeaving"
+  | "actNotSigned"
+  | "payoutNotSettled"
+  | "refundNotSettled";
 
-export const STAGE_TRANSITIONS = [
-  {
-    event: "start",
-    from: ["PENDING"],
-    to: "IN_PROGRESS",
-    who: ["EXECUTOR"],
-    guard: all<StageContext>(
-      dealActive,
-      (c) => (c.previousDone ? null : "previousStageOpen"),
-      (c) => (c.paymentDue === "ON_START" && !paymentSettled(c) ? "advanceNotConfirmed" : null),
-    ),
-  },
-  { event: "submit", from: ["IN_PROGRESS", "REWORK"], to: "SUBMITTED", who: ["EXECUTOR"], guard: dealActive },
-  { event: "requestRework", from: ["SUBMITTED"], to: "REWORK", who: ["CLIENT"], guard: dealActive },
-  { event: "accept", from: ["SUBMITTED"], to: "ACCEPTED", who: ["CLIENT"], guard: dealActive },
-  {
-    event: "autoAccept",
-    from: ["SUBMITTED"],
-    to: "ACCEPTED",
-    who: ["SYSTEM"],
-    guard: all<StageContext>(dealActive, (c) => (c.autoAcceptDue ? null : "autoAcceptNotDue")),
-  },
-  {
-    event: "close",
-    from: ["ACCEPTED"],
-    to: "CLOSED",
-    who: ["SYSTEM"],
-    guard: (c) => (!c.actSigned ? "actNotSigned" : paymentSettled(c) ? null : "paymentNotConfirmed"),
-  },
-  // Решения по спору: оператор двигает этап, о котором спор.
-  { event: "disputeFavorExecutor", from: ["IN_PROGRESS", "SUBMITTED", "REWORK"], to: "ACCEPTED", who: ["OPERATOR"], guard: dealInDispute },
-  { event: "disputeFavorClient", from: ["IN_PROGRESS", "SUBMITTED"], to: "REWORK", who: ["OPERATOR"], guard: dealInDispute },
-] as const satisfies readonly Transition<StageStatus, StageEvent, StageContext>[];
-
-// ─── Оплата этапа ────────────────────────────────────────────────────────────
-
-export type PaymentContext = {
-  mode: PaymentMode;
-  dealStatus: DealStatus;
-  stageStatus: StageStatus;
-  paymentDue: PaymentDue;
-  previousDone: boolean;
+export type DealTransition = {
+  from: DealStatus;
+  to: DealStatus;
+  who: readonly Who[];
+  /** Когда происходит — для людей (ADR, экран оператора). */
+  when: string;
+  guard: (c: DealContext) => Refusal | null;
 };
-export type PaymentEvent = "markPaid" | "confirm" | "release";
 
-/**
- * Когда оплата этапа становится к оплате: аванс (ON_START) — как только этап может начаться
- * (сделка в работе, предыдущий этап принят); после приёмки (ON_ACCEPTANCE) — после ACCEPTED.
- * Тот же момент в эскроу запускает раскрытие транша.
- */
-export function isPayable(c: Pick<PaymentContext, "dealStatus" | "stageStatus" | "paymentDue" | "previousDone">): boolean {
-  if (c.dealStatus !== "IN_PROGRESS" && c.dealStatus !== "DISPUTE") return false;
-  return c.paymentDue === "ON_START" ? c.previousDone : c.stageStatus === "ACCEPTED" || c.stageStatus === "CLOSED";
+const signedAndHeld = (c: DealContext): Refusal | null => (!c.signed ? "notSigned" : c.money.hold !== "SUCCEEDED" ? "holdNotSettled" : null);
+const noHoldInFlight = (c: DealContext): Refusal | null => (c.money.hold === "PENDING" || c.money.hold === "SUCCEEDED" ? "holdPending" : null);
+const moneyStays = (c: DealContext): Refusal | null => (c.money.exitRequested ? "moneyLeaving" : null);
+const actSigned = (c: DealContext): Refusal | null => moneyStays(c) ?? (c.actSigned ? null : "actNotSigned");
+const payoutSettled = (c: DealContext): Refusal | null => (c.money.payoutSettled ? null : "payoutNotSettled");
+const refundSettled = (c: DealContext): Refusal | null => (c.money.refundSettled ? null : "refundNotSettled");
+/** Деньги ушли из банка по решению спора — только с таким итогом спора. */
+const byDispute = (outcome: DisputeOutcome, settled: (c: DealContext) => Refusal | null) => (c: DealContext) =>
+  c.disputeOutcome !== outcome ? "notAllowedNow" : settled(c);
+
+export const DEAL_TRANSITIONS: readonly DealTransition[] = [
+  { from: "CREATED", to: "PAID_HOLD", who: ["SYSTEM"], when: "HOLD подтверждён (после подписи оферты обеими сторонами)", guard: signedAndHeld },
+  { from: "CREATED", to: "CANCELLED", who: ["CLIENT", "EXECUTOR"], when: "отмена любой стороной до оплаты", guard: noHoldInFlight },
+  { from: "PAID_HOLD", to: "IN_PROGRESS", who: ["EXECUTOR"], when: "мастер начал работу", guard: moneyStays },
+  { from: "PAID_HOLD", to: "REFUNDED", who: ["SYSTEM"], when: "REFUND подтверждён: отмена покупателем или спор с полным возвратом", guard: refundSettled },
+  { from: "PAID_HOLD", to: "SPLIT_PAYOUT", who: ["SYSTEM"], when: "спор: частичный раздел, операции подтверждены", guard: byDispute("PARTIAL_SPLIT", payoutSettled) },
+  { from: "IN_PROGRESS", to: "READY", who: ["EXECUTOR"], when: "мастер сдал: фото обязательно, GPS — мягкая проверка", guard: moneyStays },
+  { from: "IN_PROGRESS", to: "REFUNDED", who: ["SYSTEM"], when: "спор: полный возврат подтверждён", guard: byDispute("FULL_REFUND", refundSettled) },
+  { from: "IN_PROGRESS", to: "SPLIT_PAYOUT", who: ["SYSTEM"], when: "спор: частичный раздел, операции подтверждены", guard: byDispute("PARTIAL_SPLIT", payoutSettled) },
+  { from: "READY", to: "ACCEPTED", who: ["SYSTEM"], when: "покупатель подписал акт приёмки (хук documents)", guard: actSigned },
+  { from: "READY", to: "REFUNDED", who: ["SYSTEM"], when: "спор: полный возврат подтверждён", guard: byDispute("FULL_REFUND", refundSettled) },
+  { from: "READY", to: "SPLIT_PAYOUT", who: ["SYSTEM"], when: "спор: частичный раздел, операции подтверждены", guard: byDispute("PARTIAL_SPLIT", payoutSettled) },
+  { from: "ACCEPTED", to: "SPLIT_PAYOUT", who: ["SYSTEM"], when: "SPLIT_MASTER и SPLIT_PLATFORM подтверждены", guard: payoutSettled },
+];
+
+export function findTransition(from: DealStatus, to: DealStatus): DealTransition | undefined {
+  return DEAL_TRANSITIONS.find((t) => t.from === from && t.to === to);
 }
 
-const manualOnly: Guard<PaymentContext> = (c) => (isManual(c.mode) ? null : "escrowNoMarks");
-
-export const PAYMENT_TRANSITIONS = [
-  { event: "markPaid", from: ["DUE"], to: "MARKED_PAID", who: ["CLIENT"], guard: all<PaymentContext>(manualOnly, (c) => (isPayable(c) ? null : "notPayableYet")) },
-  { event: "confirm", from: ["MARKED_PAID"], to: "CONFIRMED", who: ["EXECUTOR"], guard: manualOnly },
-  { event: "release", from: ["DUE"], to: "CONFIRMED", who: ["SYSTEM"], guard: (c) => (isManual(c.mode) ? "manualNoRelease" : null) },
-] as const satisfies readonly Transition<StagePaymentStatus, PaymentEvent, PaymentContext>[];
-
-// ─── Поиск перехода ──────────────────────────────────────────────────────────
-
-export type Resolution<S> = { ok: true; to: S } | { ok: false; reason: Refusal };
-
-/**
- * Находит переход по событию и текущему статусу. Если строк несколько (развилка по режиму),
- * берётся первая, чьё условие выполнено; иначе — причина отказа первой подходящей.
- */
-export function resolveTransition<S extends string, E extends string, C>(
-  table: readonly Transition<S, E, C>[],
-  q: { event: E; from: S; who: Who; ctx: C },
-): Resolution<S> {
-  const rows = table.filter((t) => t.event === q.event && t.from.includes(q.from));
-  if (rows.length === 0) return { ok: false, reason: "notAllowedNow" };
-  const permitted = rows.filter((t) => t.who.includes(q.who));
-  if (permitted.length === 0) return { ok: false, reason: "notYourAction" };
-  const refusals: Refusal[] = [];
-  for (const row of permitted) {
-    const refusal = row.guard?.(q.ctx);
-    if (!refusal) return { ok: true, to: row.to };
-    refusals.push(refusal);
-  }
-  return { ok: false, reason: refusals[0] };
+/** null — переход разрешён; иначе причина отказа. Порядок проверок: таблица → кто → спор → условие. */
+export function checkTransition(from: DealStatus, to: DealStatus, who: Who, ctx: DealContext): Refusal | null {
+  const t = findTransition(from, to);
+  if (!t) return "notAllowedNow";
+  if (!t.who.includes(who)) return "notYourAction";
+  if (ctx.openDispute) return "disputeOpen";
+  return t.guard(ctx);
 }

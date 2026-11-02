@@ -1,48 +1,50 @@
-import type { DisputeDecision } from "@/generated/prisma/enums";
+import type { DisputeOutcome } from "@/generated/prisma/enums";
+import type { Actor } from "@/modules/audit";
 import type { CurrentUser } from "@/modules/identity";
 import type { Tx } from "@/platform/db";
-import type { StageTemplate } from "./stage-plan";
 
 /**
- * Межмодульные контракты deal-core (фаза A): сигнатуры функций, которые
- * deal-core-engineer экспортирует из index.ts. Меняются только через интегратора.
+ * Межмодульные контракты deal-core (ADR-009): сигнатуры функций, которые другие модули вызывают у deal-core.
+ * Меняются только через интегратора.
  */
 
-/** requests → deal-core: заказчик согласился с итоговой ценой после замера. */
+/** requests → deal-core: акцепт цены в торге фиксирует X и порождает оферту (сделку в CREATED). */
 export type CreateDealInput = {
   requestId: string;
   offerId: string;
-  clientId: string;
-  executorId: string; // ExecutorProfile.id
+  /** Цена X по итогу торга, тиыны (bigint или строка цифр). */
+  priceTiyn: bigint | string;
   title: string;
-  totalAmount: number; // ₸, итоговая цена после замера
-  template: StageTemplate; // из verticals/furniture
+  /** Кто принял цену (аудит «deal.created»); по умолчанию — система. */
+  actor?: Actor;
 };
 
 /**
- * Создаёт сделку в транзакции перехода заявки в CONTRACTING.
- * Режим оплаты deal-core берёт сам из payments.activeRailMode().
+ * Создаёт сделку в транзакции акцепта цены: снимок денег computeDealMoney(X), провайдер из env
+ * (resolvePaymentProvider), признак демо — от покупателя; оферта — через порт documents.createContract.
  */
 export type CreateDeal = (tx: Tx, input: CreateDealInput) => Promise<{ dealId: string }>;
 
 /**
- * documents вызывает, когда документ подписали обе стороны (в той же транзакции).
- * Экран передаёт эту функцию в documents.completeSigning как onFullySigned — без циклического импорта.
+ * documents → deal-core: документ подписан полностью (в той же транзакции). Экран передаёт эту функцию
+ * в documents.completeSigning как onFullySigned — без циклического импорта. Разбирает вид документа:
+ * оферта → onContractSigned, акт приёмки → onActSigned. Повтор по уже обработанному документу ничего не меняет.
  */
 export type OnDocumentSigned = (tx: Tx, documentId: string) => Promise<void>;
 
 /**
- * Хук отмены сделки (в той же транзакции): requests закрывает заявку CONTRACTING → CANCELLED.
- * Экран передаёт requests.onDealCancelled в cancelDeal — requests сам импортирует deal-core, цикла нет.
+ * Хук отмены (в той же транзакции): requests закрывает заявку. Экран передаёт requests.onDealCancelled
+ * в cancelDeal — requests сам импортирует deal-core, цикла нет.
  */
 export type OnDealCancelled = (tx: Tx, dealId: string) => Promise<void>;
 export type CancelDealHooks = { onCancelled: OnDealCancelled };
 
-/** operator → deal-core: решение по спору. */
+/** operator → deal-core: решение по спору (ADR-009 раздел 3). */
 export type ResolveDisputeInput = {
   disputeId: string;
-  decision: DisputeDecision;
-  decisionAmount?: number; // ₸ в пользу исполнителя при PARTIAL
+  outcome: DisputeOutcome;
+  /** Доля мастера Y из цены X, тиыны — только при PARTIAL_SPLIT. */
+  masterShareTiyn?: bigint | string;
   rationale: string;
 };
 

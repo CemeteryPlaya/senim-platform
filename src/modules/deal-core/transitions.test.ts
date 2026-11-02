@@ -1,228 +1,116 @@
 import { describe, expect, it } from "vitest";
-import { DealStatus, StagePaymentStatus, StageStatus } from "@/generated/prisma/enums";
-import {
-  DEAL_TRANSITIONS,
-  PAYMENT_TRANSITIONS,
-  STAGE_TRANSITIONS,
-  isPayable,
-  resolveTransition,
-  type DealContext,
-  type PaymentContext,
-  type StageContext,
-} from "./transitions";
+import { checkTransition, DEAL_STATUSES, DEAL_TRANSITIONS, DISPUTABLE, findTransition, type DealContext, type Who } from "./transitions";
 
-// Контекст, в котором все условия выполнены: проверяем только «откуда» и «кто».
-const okDeal: DealContext = { mode: "MANUAL", fullyFunded: true, allStagesClosed: true };
-const okStage = (dealStatus: StageContext["dealStatus"]): StageContext => ({
-  dealStatus,
-  previousDone: true,
-  paymentDue: "ON_ACCEPTANCE",
-  hasPayment: true,
-  paymentStatus: "CONFIRMED",
-  actSigned: true,
-  autoAcceptDue: true,
-});
-const okPayment = (mode: PaymentContext["mode"]): PaymentContext => ({
-  mode,
-  dealStatus: "IN_PROGRESS",
-  stageStatus: "ACCEPTED",
-  paymentDue: "ON_ACCEPTANCE",
-  previousDone: true,
-});
+const WHO: Who[] = ["CLIENT", "EXECUTOR", "OPERATOR", "SYSTEM"];
 
-describe("таблица переходов сделки: каждый статус × каждое событие", () => {
-  const events = [...new Set(DEAL_TRANSITIONS.map((t) => t.event))];
-  for (const event of events) {
-    const rows = DEAL_TRANSITIONS.filter((t) => t.event === event);
-    for (const from of Object.values(DealStatus)) {
-      const row = rows.find((r) => (r.from as readonly string[]).includes(from));
-      const who = row?.who[0] ?? rows[0].who[0];
-      const ctx = { ...okDeal, mode: event === "contractSigned" && row?.to === "AWAITING_DEPOSIT" ? "ESCROW_SIMULATOR" : "MANUAL" } as const;
-      it(`${event} из ${from}: ${row ? `→ ${row.to}` : "запрещён"}`, () => {
-        const result = resolveTransition(DEAL_TRANSITIONS, { event, from, who, ctx });
-        if (row) expect(result).toEqual({ ok: true, to: row.to });
-        else expect(result).toEqual({ ok: false, reason: "notAllowedNow" });
+const base: DealContext = {
+  signed: true,
+  actSigned: false,
+  openDispute: false,
+  disputeOutcome: null,
+  money: { hold: "none", exitRequested: false, payoutSettled: false, refundSettled: false },
+};
+type Patch = Omit<Partial<DealContext>, "money"> & { money?: Partial<DealContext["money"]> };
+const ctx = (patch: Patch = {}): DealContext => ({ ...base, ...patch, money: { ...base.money, ...patch.money } });
+
+/** Контекст, при котором условие разрешённого перехода выполнено. */
+const SATISFIED: Record<string, DealContext> = {
+  "CREATED>PAID_HOLD": ctx({ money: { hold: "SUCCEEDED" } }),
+  "CREATED>CANCELLED": ctx(),
+  "PAID_HOLD>IN_PROGRESS": ctx({ money: { hold: "SUCCEEDED" } }),
+  "PAID_HOLD>REFUNDED": ctx({ money: { hold: "SUCCEEDED", exitRequested: true, refundSettled: true } }),
+  "PAID_HOLD>SPLIT_PAYOUT": ctx({ disputeOutcome: "PARTIAL_SPLIT", money: { hold: "SUCCEEDED", exitRequested: true, payoutSettled: true } }),
+  "IN_PROGRESS>READY": ctx({ money: { hold: "SUCCEEDED" } }),
+  "IN_PROGRESS>REFUNDED": ctx({ disputeOutcome: "FULL_REFUND", money: { hold: "SUCCEEDED", exitRequested: true, refundSettled: true } }),
+  "IN_PROGRESS>SPLIT_PAYOUT": ctx({ disputeOutcome: "PARTIAL_SPLIT", money: { hold: "SUCCEEDED", exitRequested: true, payoutSettled: true } }),
+  "READY>ACCEPTED": ctx({ actSigned: true, money: { hold: "SUCCEEDED" } }),
+  "READY>REFUNDED": ctx({ disputeOutcome: "FULL_REFUND", money: { hold: "SUCCEEDED", exitRequested: true, refundSettled: true } }),
+  "READY>SPLIT_PAYOUT": ctx({ disputeOutcome: "PARTIAL_SPLIT", money: { hold: "SUCCEEDED", exitRequested: true, payoutSettled: true } }),
+  "ACCEPTED>SPLIT_PAYOUT": ctx({ actSigned: true, money: { hold: "SUCCEEDED", exitRequested: true, payoutSettled: true } }),
+};
+
+/** Таблица ADR-009 раздел 2 — кто выполняет каждый разрешённый переход. */
+const ADR_WHO: Record<string, Who[]> = {
+  "CREATED>PAID_HOLD": ["SYSTEM"],
+  "CREATED>CANCELLED": ["CLIENT", "EXECUTOR"],
+  "PAID_HOLD>IN_PROGRESS": ["EXECUTOR"],
+  "PAID_HOLD>REFUNDED": ["SYSTEM"],
+  "PAID_HOLD>SPLIT_PAYOUT": ["SYSTEM"],
+  "IN_PROGRESS>READY": ["EXECUTOR"],
+  "IN_PROGRESS>REFUNDED": ["SYSTEM"],
+  "IN_PROGRESS>SPLIT_PAYOUT": ["SYSTEM"],
+  "READY>ACCEPTED": ["SYSTEM"],
+  "READY>REFUNDED": ["SYSTEM"],
+  "READY>SPLIT_PAYOUT": ["SYSTEM"],
+  "ACCEPTED>SPLIT_PAYOUT": ["SYSTEM"],
+};
+
+describe("таблица переходов сделки — ровно ADR-009", () => {
+  it("12 разрешённых пар, кто — по ADR, у каждой есть описание и проверенный контекст", () => {
+    expect(Object.fromEntries(DEAL_TRANSITIONS.map((t) => [`${t.from}>${t.to}`, [...t.who]]))).toEqual(ADR_WHO);
+    expect(Object.keys(SATISFIED).sort()).toEqual(Object.keys(ADR_WHO).sort());
+    for (const t of DEAL_TRANSITIONS) expect(t.when.length).toBeGreaterThan(10);
+  });
+
+  it("спор открывается с PAID_HOLD по READY включительно", () => {
+    expect(DISPUTABLE).toEqual(["PAID_HOLD", "IN_PROGRESS", "READY"]);
+  });
+
+  describe.each(DEAL_STATUSES.flatMap((from) => DEAL_STATUSES.map((to) => [from, to] as const)))("%s → %s", (from, to) => {
+    const row = findTransition(from, to);
+    if (!row) {
+      it("запрещён для всех при любом контексте", () => {
+        for (const who of WHO) for (const c of Object.values(SATISFIED)) expect(checkTransition(from, to, who, c)).toBe("notAllowedNow");
       });
+      return;
     }
-  }
-
-  it("договор подписан: manual сразу в работу, эскроу — ждём пополнения", () => {
-    const signed = (mode: DealContext["mode"]) =>
-      resolveTransition(DEAL_TRANSITIONS, { event: "contractSigned", from: "AWAITING_SIGNATURES", who: "SYSTEM", ctx: { ...okDeal, mode } });
-    expect(signed("MANUAL")).toEqual({ ok: true, to: "IN_PROGRESS" });
-    expect(signed("ESCROW_SIMULATOR")).toEqual({ ok: true, to: "AWAITING_DEPOSIT" });
-    expect(signed("BANK")).toEqual({ ok: true, to: "AWAITING_DEPOSIT" });
-  });
-
-  it("пополнение не на всю сумму не запускает работы", () => {
-    const r = resolveTransition(DEAL_TRANSITIONS, {
-      event: "depositReceived",
-      from: "AWAITING_DEPOSIT",
-      who: "SYSTEM",
-      ctx: { ...okDeal, mode: "ESCROW_SIMULATOR", fullyFunded: false },
+    const ok = SATISFIED[`${from}>${to}`];
+    it(`разрешён: ${row.who.join(", ")}`, () => {
+      for (const who of row.who) expect(checkTransition(from, to, who, ok)).toBeNull();
     });
-    expect(r).toEqual({ ok: false, reason: "notFullyFunded" });
-  });
-
-  it("сделка завершается, только когда все этапы закрыты", () => {
-    const r = resolveTransition(DEAL_TRANSITIONS, {
-      event: "complete",
-      from: "IN_PROGRESS",
-      who: "SYSTEM",
-      ctx: { ...okDeal, allStagesClosed: false },
+    it("другим — «не ваше действие»", () => {
+      for (const who of WHO.filter((w) => !row.who.includes(w))) expect(checkTransition(from, to, who, ok)).toBe("notYourAction");
     });
-    expect(r).toEqual({ ok: false, reason: "stagesNotClosed" });
-  });
-
-  it("отменить сделку может сторона, но не оператор и не система", () => {
-    const cancel = (who: "CLIENT" | "EXECUTOR" | "OPERATOR" | "SYSTEM") =>
-      resolveTransition(DEAL_TRANSITIONS, { event: "cancel", from: "AWAITING_SIGNATURES", who, ctx: okDeal });
-    expect(cancel("CLIENT").ok).toBe(true);
-    expect(cancel("EXECUTOR").ok).toBe(true);
-    expect(cancel("OPERATOR")).toEqual({ ok: false, reason: "notYourAction" });
-    expect(cancel("SYSTEM")).toEqual({ ok: false, reason: "notYourAction" });
-  });
-
-  it("спор решает только оператор", () => {
-    const r = resolveTransition(DEAL_TRANSITIONS, { event: "resolveContinue", from: "DISPUTE", who: "CLIENT", ctx: okDeal });
-    expect(r).toEqual({ ok: false, reason: "notYourAction" });
+    it("при открытом споре — запрещён", () => {
+      expect(checkTransition(from, to, row.who[0], { ...ok, openDispute: true })).toBe("disputeOpen");
+    });
+    it("без своего условия — запрещён", () => {
+      // Ни одно условие не выполнено: оферта не подписана, оплата в банке, деньги уходят, акта нет, итогов нет.
+      expect(checkTransition(from, to, row.who[0], ctx({ signed: false, money: { hold: "PENDING", exitRequested: true } }))).not.toBeNull();
+    });
   });
 });
 
-describe("таблица переходов этапа: каждый статус × каждое событие", () => {
-  const events = [...new Set(STAGE_TRANSITIONS.map((t) => t.event))];
-  for (const event of events) {
-    const row = STAGE_TRANSITIONS.find((t) => t.event === event)!;
-    const dealStatus = event.startsWith("dispute") ? "DISPUTE" : "IN_PROGRESS";
-    for (const from of Object.values(StageStatus)) {
-      const allowed = (row.from as readonly string[]).includes(from);
-      it(`${event} из ${from}: ${allowed ? `→ ${row.to}` : "запрещён"}`, () => {
-        const result = resolveTransition(STAGE_TRANSITIONS, { event, from, who: row.who[0], ctx: okStage(dealStatus) });
-        expect(result).toEqual(allowed ? { ok: true, to: row.to } : { ok: false, reason: "notAllowedNow" });
-      });
-    }
-  }
-
-  const start = (ctx: Partial<StageContext>) =>
-    resolveTransition(STAGE_TRANSITIONS, { event: "start", from: "PENDING", who: "EXECUTOR", ctx: { ...okStage("IN_PROGRESS"), ...ctx } });
-
-  it("этап не начинается, пока предыдущий не принят", () => {
-    expect(start({ previousDone: false })).toEqual({ ok: false, reason: "previousStageOpen" });
+describe("условия", () => {
+  it("оплата не двигает сделку без подписанной оферты", () => {
+    expect(checkTransition("CREATED", "PAID_HOLD", "SYSTEM", ctx({ signed: false, money: { hold: "SUCCEEDED" } }))).toBe("notSigned");
+    expect(checkTransition("CREATED", "PAID_HOLD", "SYSTEM", ctx({ money: { hold: "PENDING" } }))).toBe("holdNotSettled");
   });
 
-  it("этап с авансом не начинается, пока оплата не подтверждена", () => {
-    expect(start({ paymentDue: "ON_START", paymentStatus: "MARKED_PAID" })).toEqual({ ok: false, reason: "advanceNotConfirmed" });
-    expect(start({ paymentDue: "ON_START", paymentStatus: "CONFIRMED" })).toEqual({ ok: true, to: "IN_PROGRESS" });
-    expect(start({ paymentDue: "ON_START", hasPayment: false, paymentStatus: null })).toEqual({ ok: true, to: "IN_PROGRESS" });
+  it("отмена до оплаты — нельзя, пока оплата в обработке; отклонённая оплата не мешает", () => {
+    expect(checkTransition("CREATED", "CANCELLED", "CLIENT", ctx({ money: { hold: "PENDING" } }))).toBe("holdPending");
+    expect(checkTransition("CREATED", "CANCELLED", "CLIENT", ctx({ money: { hold: "SUCCEEDED" } }))).toBe("holdPending");
+    expect(checkTransition("CREATED", "CANCELLED", "EXECUTOR", ctx({ money: { hold: "FAILED" } }))).toBeNull();
   });
 
-  it("во время спора стороны не двигают этапы", () => {
-    expect(start({ dealStatus: "DISPUTE" })).toEqual({ ok: false, reason: "dealNotActive" });
-    const accept = resolveTransition(STAGE_TRANSITIONS, {
-      event: "accept",
-      from: "SUBMITTED",
-      who: "CLIENT",
-      ctx: okStage("DISPUTE"),
-    });
-    expect(accept).toEqual({ ok: false, reason: "dealNotActive" });
+  it("деньги уходят (возврат/выплата запрошены) — начать и сдать нельзя", () => {
+    expect(checkTransition("PAID_HOLD", "IN_PROGRESS", "EXECUTOR", ctx({ money: { exitRequested: true } }))).toBe("moneyLeaving");
+    expect(checkTransition("IN_PROGRESS", "READY", "EXECUTOR", ctx({ money: { exitRequested: true } }))).toBe("moneyLeaving");
   });
 
-  it("автоприёмка — только когда срок вышел", () => {
-    const r = resolveTransition(STAGE_TRANSITIONS, {
-      event: "autoAccept",
-      from: "SUBMITTED",
-      who: "SYSTEM",
-      ctx: { ...okStage("IN_PROGRESS"), autoAcceptDue: false },
-    });
-    expect(r).toEqual({ ok: false, reason: "autoAcceptNotDue" });
+  it("приёмка — только с подписанным актом", () => {
+    expect(checkTransition("READY", "ACCEPTED", "SYSTEM", ctx())).toBe("actNotSigned");
   });
 
-  it("этап закрывается, только когда акт подписан и оплата подтверждена (или суммы нет)", () => {
-    const close = (ctx: Partial<StageContext>) =>
-      resolveTransition(STAGE_TRANSITIONS, { event: "close", from: "ACCEPTED", who: "SYSTEM", ctx: { ...okStage("IN_PROGRESS"), ...ctx } });
-    expect(close({ actSigned: false })).toEqual({ ok: false, reason: "actNotSigned" });
-    expect(close({ paymentStatus: "MARKED_PAID" })).toEqual({ ok: false, reason: "paymentNotConfirmed" });
-    expect(close({ hasPayment: false, paymentStatus: null })).toEqual({ ok: true, to: "CLOSED" });
+  it("возврат из работы — только по решению спора «полный возврат»", () => {
+    const refunded = { money: { exitRequested: true, refundSettled: true } };
+    expect(checkTransition("IN_PROGRESS", "REFUNDED", "SYSTEM", ctx(refunded))).toBe("notAllowedNow");
+    expect(checkTransition("READY", "REFUNDED", "SYSTEM", ctx({ ...refunded, disputeOutcome: "PARTIAL_SPLIT" }))).toBe("notAllowedNow");
+    expect(checkTransition("READY", "REFUNDED", "SYSTEM", ctx({ disputeOutcome: "FULL_REFUND", money: { exitRequested: true } }))).toBe("refundNotSettled");
   });
 
-  it("принимает этап заказчик, сдаёт — исполнитель", () => {
-    const accept = resolveTransition(STAGE_TRANSITIONS, { event: "accept", from: "SUBMITTED", who: "EXECUTOR", ctx: okStage("IN_PROGRESS") });
-    const submit = resolveTransition(STAGE_TRANSITIONS, { event: "submit", from: "IN_PROGRESS", who: "CLIENT", ctx: okStage("IN_PROGRESS") });
-    expect(accept).toEqual({ ok: false, reason: "notYourAction" });
-    expect(submit).toEqual({ ok: false, reason: "notYourAction" });
-  });
-});
-
-describe("таблица переходов оплаты этапа: каждый статус × каждое событие", () => {
-  const events = [...new Set(PAYMENT_TRANSITIONS.map((t) => t.event))];
-  for (const event of events) {
-    const row = PAYMENT_TRANSITIONS.find((t) => t.event === event)!;
-    const mode = event === "release" ? "ESCROW_SIMULATOR" : "MANUAL";
-    for (const from of Object.values(StagePaymentStatus)) {
-      const allowed = (row.from as readonly string[]).includes(from);
-      it(`${event} из ${from}: ${allowed ? `→ ${row.to}` : "запрещён"}`, () => {
-        const result = resolveTransition(PAYMENT_TRANSITIONS, { event, from, who: row.who[0], ctx: okPayment(mode) });
-        expect(result).toEqual(allowed ? { ok: true, to: row.to } : { ok: false, reason: "notAllowedNow" });
-      });
-    }
-  }
-
-  const mark = (ctx: Partial<PaymentContext>) =>
-    resolveTransition(PAYMENT_TRANSITIONS, { event: "markPaid", from: "DUE", who: "CLIENT", ctx: { ...okPayment("MANUAL"), ...ctx } });
-
-  it("в эскроу отметок сторон нет — деньги раскрывает банк", () => {
-    expect(mark({ mode: "ESCROW_SIMULATOR" })).toEqual({ ok: false, reason: "escrowNoMarks" });
-    const release = resolveTransition(PAYMENT_TRANSITIONS, { event: "release", from: "DUE", who: "SYSTEM", ctx: okPayment("MANUAL") });
-    expect(release).toEqual({ ok: false, reason: "manualNoRelease" });
-  });
-
-  it("оплата после приёмки доступна только после приёмки этапа", () => {
-    expect(mark({ stageStatus: "SUBMITTED" })).toEqual({ ok: false, reason: "notPayableYet" });
-    expect(mark({ stageStatus: "ACCEPTED" })).toEqual({ ok: true, to: "MARKED_PAID" });
-  });
-
-  it("аванс доступен, когда предыдущий этап принят", () => {
-    expect(mark({ paymentDue: "ON_START", stageStatus: "PENDING", previousDone: false })).toEqual({ ok: false, reason: "notPayableYet" });
-    expect(mark({ paymentDue: "ON_START", stageStatus: "PENDING", previousDone: true })).toEqual({ ok: true, to: "MARKED_PAID" });
-  });
-
-  it("подтверждает получение исполнитель, а не заказчик", () => {
-    const r = resolveTransition(PAYMENT_TRANSITIONS, { event: "confirm", from: "MARKED_PAID", who: "CLIENT", ctx: okPayment("MANUAL") });
-    expect(r).toEqual({ ok: false, reason: "notYourAction" });
-  });
-});
-
-describe("решения спора и момент оплаты", () => {
-  it("решение по этапу — только во время спора", () => {
-    for (const event of ["disputeFavorExecutor", "disputeFavorClient"] as const) {
-      const r = (dealStatus: StageContext["dealStatus"]) =>
-        resolveTransition(STAGE_TRANSITIONS, { event, from: "SUBMITTED", who: "OPERATOR", ctx: okStage(dealStatus) });
-      expect(r("DISPUTE").ok).toBe(true);
-      expect(r("IN_PROGRESS")).toEqual({ ok: false, reason: "notAllowedNow" });
-    }
-  });
-
-  it("развилка по режиму: отказ — причина первой строки", () => {
-    const r = resolveTransition(DEAL_TRANSITIONS, { event: "depositReceived", from: "AWAITING_DEPOSIT", who: "SYSTEM", ctx: { ...okDeal, fullyFunded: false } });
-    expect(r).toEqual({ ok: false, reason: "notFullyFunded" });
-  });
-
-  const payable = (over: Partial<Parameters<typeof isPayable>[0]>) =>
-    isPayable({ dealStatus: "IN_PROGRESS", stageStatus: "ACCEPTED", paymentDue: "ON_ACCEPTANCE", previousDone: true, ...over });
-
-  it("к оплате только в работе или в споре", () => {
-    expect(payable({})).toBe(true);
-    expect(payable({ dealStatus: "DISPUTE" })).toBe(true);
-    for (const dealStatus of ["AWAITING_SIGNATURES", "AWAITING_DEPOSIT", "COMPLETED", "CANCELLED", "TERMINATED"] as const) {
-      expect(payable({ dealStatus })).toBe(false);
-      expect(payable({ dealStatus, paymentDue: "ON_START" })).toBe(false);
-    }
-  });
-
-  it("после приёмки: этап принят или закрыт; аванс: предыдущий этап готов", () => {
-    expect(payable({ stageStatus: "CLOSED" })).toBe(true);
-    for (const stageStatus of ["PENDING", "IN_PROGRESS", "SUBMITTED", "REWORK"] as const) expect(payable({ stageStatus })).toBe(false);
-    expect(payable({ paymentDue: "ON_START", stageStatus: "PENDING", previousDone: true })).toBe(true);
-    expect(payable({ paymentDue: "ON_START", stageStatus: "ACCEPTED", previousDone: false })).toBe(false);
+  it("выплата — только подтверждённая", () => {
+    expect(checkTransition("ACCEPTED", "SPLIT_PAYOUT", "SYSTEM", ctx({ money: { exitRequested: true } }))).toBe("payoutNotSettled");
+    expect(checkTransition("READY", "SPLIT_PAYOUT", "SYSTEM", ctx({ disputeOutcome: "PARTIAL_SPLIT" }))).toBe("payoutNotSettled");
   });
 });

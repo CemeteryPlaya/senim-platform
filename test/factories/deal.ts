@@ -1,129 +1,77 @@
-import type { StageStatus } from "@/generated/prisma/enums";
+import type { FilePurpose } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
-import { createDeal, jobHandlers, onDocumentSigned, type StageTemplate } from "@/modules/deal-core";
-import type { RailMode } from "@/modules/payments";
+import { createDeal, onDocumentSigned, payForDeal, startWork, submitReady } from "@/modules/deal-core";
 import { db, transaction } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
-import { makeClient, makeExecutor } from "../factories";
+import { makeClient, makeExecutor, makeOperator } from "../factories";
 
 /**
- * Фабрики сделок для тестов deal-core и payments. Шаблоны этапов — обезличенные:
- * ядро не знает про мебель, мебельные шаблоны живут в verticals/furniture.
+ * Фабрики сделок для тестов deal-core и payments (ADR-009). Сделка создаётся настоящим createDeal;
+ * документы — временным адаптером deal-core (порт documents), подпись — как это сделает documents:
+ * документ SIGNED → хук onDocumentSigned в той же транзакции.
  */
-export const TEMPLATES = {
-  /** Аванс 50% до начала, этап без оплаты, остаток после приёмки. */
-  advance: {
-    key: "test-advance",
-    name: "Аванс",
-    description: "",
-    stages: [
-      { title: "Аванс", description: "", sharePercent: 50, paymentDue: "ON_START" },
-      { title: "Работа", description: "", sharePercent: 0, paymentDue: "ON_ACCEPTANCE" },
-      { title: "Сдача", description: "", sharePercent: 50, paymentDue: "ON_ACCEPTANCE" },
-    ],
-  },
-  /** Один этап с оплатой после приёмки. */
-  single: {
-    key: "test-single",
-    name: "Один этап",
-    description: "",
-    stages: [{ title: "Работа целиком", description: "", sharePercent: 100, paymentDue: "ON_ACCEPTANCE" }],
-  },
-} as const satisfies Record<string, StageTemplate>;
 
-export type DealFixture = {
-  dealId: string;
-  requestId: string;
-  client: CurrentUser;
-  executor: CurrentUser & { executor: NonNullable<CurrentUser["executor"]> };
-};
+export type Executor = CurrentUser & { executor: NonNullable<CurrentUser["executor"]> };
+export type DealFixture = { dealId: string; requestId: string; offerId: string; client: CurrentUser; executor: Executor };
 
-/**
- * Заявка в CONTRACTING, принятый отклик и сделка через настоящий createDeal.
- * client/executor — готовые стороны (например, человек с двумя ролями, ADR-004).
- */
-export async function makeDeal(
-  opts: { template?: StageTemplate; total?: number; rail?: RailMode; client?: CurrentUser; executor?: DealFixture["executor"] } = {},
-): Promise<DealFixture> {
-  const client = opts.client ?? (await makeClient());
-  const executor = opts.executor ?? (await makeExecutor());
-  const total = opts.total ?? 100_000;
-  const request = await db.request.create({ data: { clientId: client.id, mode: "TENDER", status: "CONTRACTING" } });
-  const offer = await db.offer.create({
-    data: {
-      requestId: request.id,
-      executorId: executor.executor.id,
-      price: total,
-      durationDays: 30,
-      warrantyMonths: 12,
-      measurementTerms: "FREE",
-      status: "ACCEPTED",
-    },
-  });
-  const { dealId } = await withRail(opts.rail ?? "manual", () =>
-    transaction((tx) =>
-      createDeal(tx, {
-        requestId: request.id,
-        offerId: offer.id,
-        clientId: client.id,
-        executorId: executor.executor.id,
-        title: "Тестовый заказ",
-        totalAmount: total,
-        template: opts.template ?? TEMPLATES.advance,
-      }),
-    ),
-  );
-  return { dealId, requestId: request.id, client, executor };
-}
+/** Байтерек (Астана): адрес заказа в тестах с GPS. */
+export const ADDRESS = { lat: 51.128207, lng: 71.430411 };
+export const PRICE = 100_000_00n; // 100 000 ₸
 
-/** Хук отмены для тестов deal-core: заявку закрывает requests (его тест — requests/deal-cancelled.int.test.ts). */
-export const noCancelHooks = { onCancelled: async () => {} };
-
-/** Временно меняет PAYMENT_RAIL (режим новой сделки). */
-export async function withRail<T>(rail: RailMode, fn: () => Promise<T>): Promise<T> {
-  const prev = process.env.PAYMENT_RAIL;
-  process.env.PAYMENT_RAIL = rail;
+/** Временно меняет PAYMENT_PROVIDER (провайдер новой сделки). */
+export async function withProvider<T>(provider: "mock" | "manual", fn: () => Promise<T>): Promise<T> {
+  const prev = process.env.PAYMENT_PROVIDER;
+  process.env.PAYMENT_PROVIDER = provider;
   resetEnvCache();
   try {
     return await fn();
   } finally {
-    if (prev === undefined) delete process.env.PAYMENT_RAIL;
-    else process.env.PAYMENT_RAIL = prev;
+    if (prev === undefined) delete process.env.PAYMENT_PROVIDER;
+    else process.env.PAYMENT_PROVIDER = prev;
     resetEnvCache();
   }
 }
 
-/**
- * Как documents: обе подписи есть → документ SIGNED → хук deal-core в той же транзакции.
- * Затем — как планировщик: задача открытия счёта (эскроу) и отправки операций в банк, сразу.
- */
-export async function signDocument(documentId: string) {
-  const { dealId } = await transaction(async (tx) => {
-    const doc = await tx.document.update({ where: { id: documentId }, data: { status: "SIGNED", signedAt: new Date() } });
-    await onDocumentSigned(tx, documentId);
-    return doc;
+/** Заявка с адресом, отклик мастера и сделка (оферта) через настоящий createDeal. */
+export async function makeDeal(
+  opts: { priceTiyn?: bigint; provider?: "mock" | "manual"; client?: CurrentUser; executor?: Executor; address?: { lat: number; lng: number } | null } = {},
+): Promise<DealFixture> {
+  const client = opts.client ?? (await makeClient());
+  const executor = opts.executor ?? (await makeExecutor());
+  const address = opts.address === undefined ? ADDRESS : opts.address;
+  const priceTiyn = opts.priceTiyn ?? PRICE;
+  const request = await db.request.create({
+    data: { clientId: client.id, mode: "TENDER", status: "CONTRACTING", addressLat: address?.lat ?? null, addressLng: address?.lng ?? null },
   });
-  await jobHandlers["deal-core.openEscrowAccount"]({ dealId });
+  const offer = await db.offer.create({
+    data: { requestId: request.id, executorId: executor.executor.id, priceTiyn, durationDays: 30, warrantyMonths: 12, measurementTerms: "FREE", status: "ACCEPTED" },
+  });
+  const { dealId } = await withProvider(opts.provider ?? "mock", () =>
+    transaction((tx) => createDeal(tx, { requestId: request.id, offerId: offer.id, priceTiyn, title: "Тестовый заказ" })),
+  );
+  return { dealId, requestId: request.id, offerId: offer.id, client, executor };
 }
 
-export async function signContract(dealId: string) {
-  const doc = await db.document.findFirstOrThrow({ where: { dealId, kind: "CONTRACT" }, orderBy: { version: "desc" } });
-  await signDocument(doc.id);
+async function signLatest(dealId: string, kind: "CONTRACT" | "ACCEPTANCE_ACT") {
+  const doc = await db.document.findFirstOrThrow({ where: { dealId, kind }, orderBy: { version: "desc" } });
+  await transaction(async (tx) => {
+    await tx.document.update({ where: { id: doc.id }, data: { status: "SIGNED", signedAt: new Date() } });
+    await onDocumentSigned(tx, doc.id);
+  });
+  return doc.id;
 }
 
-export async function signAct(stageId: string) {
-  const doc = await db.document.findFirstOrThrow({ where: { stageId, kind: "STAGE_ACT" }, orderBy: { version: "desc" } });
-  await signDocument(doc.id);
-}
+export const signContract = (dealId: string) => signLatest(dealId, "CONTRACT");
+export const signAct = (dealId: string) => signLatest(dealId, "ACCEPTANCE_ACT");
 
-/** Фото этапа, загруженное пользователем (как это сделает модуль files). */
-export async function makeStagePhoto(user: CurrentUser, purpose: "STAGE_REPORT" | "DISPUTE" = "STAGE_REPORT") {
+/** Фото, загруженное пользователем (как это сделает модуль files), ещё не прикреплённое. */
+export async function makePhoto(user: CurrentUser, purpose: FilePurpose = "DELIVERY") {
   const file = await db.storedFile.create({
     data: {
       storageKey: `test/${purpose}/${Math.random().toString(36).slice(2)}.jpg`,
       provider: "local",
       purpose,
-      contentType: "image/jpeg",
+      contentType: purpose === "BANK_DOCUMENT" ? "application/pdf" : "image/jpeg",
       size: 1024,
       sha256: "0".repeat(64),
       uploadedById: user.id,
@@ -132,12 +80,30 @@ export async function makeStagePhoto(user: CurrentUser, purpose: "STAGE_REPORT" 
   return file.id;
 }
 
-export const stagesOf = (dealId: string) =>
-  db.stage.findMany({ where: { dealId }, orderBy: { order: "asc" }, include: { payment: true } });
-
 export const dealOf = (dealId: string) => db.deal.findUniqueOrThrow({ where: { id: dealId } });
+export const journalOf = (dealId: string) => db.moneyTransaction.findMany({ where: { dealId }, orderBy: { seq: "asc" } });
 
-/** Принудительно ставит статус этапа (для перебора «каждый статус × действие»). */
-export async function forceStageStatus(stageId: string, status: StageStatus, extra: { autoAcceptAt?: Date | null } = {}) {
-  await db.stage.update({ where: { id: stageId }, data: { status, ...extra } });
+/** Сделка на нужном шаге настоящим путём: подпись оферты → оплата → начало → сдача. */
+export async function dealAt(step: "SIGNED" | "PAID_HOLD" | "IN_PROGRESS" | "READY", opts: Parameters<typeof makeDeal>[0] = {}): Promise<DealFixture> {
+  const f = await makeDeal(opts);
+  await signContract(f.dealId);
+  if (step === "SIGNED") return f;
+  await payForDeal(f.client, { dealId: f.dealId });
+  if ((opts.provider ?? "mock") === "manual") await confirmPending(f.dealId, "HOLD");
+  if (step === "PAID_HOLD") return f;
+  await startWork(f.executor, { dealId: f.dealId });
+  if (step === "IN_PROGRESS") return f;
+  await submitReady(f.executor, { dealId: f.dealId, photoIds: [await makePhoto(f.executor)], ...ADDRESS, accuracyM: 10 });
+  return f;
+}
+
+let operator: CurrentUser | null = null;
+
+/** manual: оператор подтверждает ждущие операции типа банковским документом. */
+export async function confirmPending(dealId: string, type: "HOLD" | "RELEASE" | "SPLIT_MASTER" | "SPLIT_PLATFORM" | "REFUND") {
+  const { confirmManualOperation } = await import("@/modules/payments");
+  const { onMoneySettled } = await import("@/modules/deal-core");
+  operator = operator && (await db.user.findUnique({ where: { id: operator.id } })) ? operator : await makeOperator();
+  const op = await db.moneyTransaction.findFirstOrThrow({ where: { dealId, type, status: "PENDING" } });
+  await confirmManualOperation(operator, { transactionId: op.id, bankDocNumber: `П-${op.seq}`, bankDocDate: new Date(), bankDocFileId: await makePhoto(operator, "BANK_DOCUMENT") }, onMoneySettled);
 }

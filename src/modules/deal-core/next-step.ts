@@ -1,132 +1,78 @@
-import type { DealStatus, DocumentStatus, PaymentDue, PaymentMode, StagePaymentStatus, StageStatus } from "@/generated/prisma/enums";
-import { ru } from "@/i18n/ru";
-import { isPayable } from "./transitions";
+import type { DealStatus } from "@/generated/prisma/enums";
 
 /**
- * «Что дальше» на экране сделки: одна подсказка и не больше одного главного действия
- * для того, кто смотрит. Чистая функция от состояния сделки.
+ * «Что дальше» — одно главное действие экрана сделки для того, кто смотрит (чистая функция).
+ * Подписи — ru.deal.next[action]. mine: true — действие этого человека (кнопка), false — ждём другого.
  */
 
-type Party = "CLIENT" | "EXECUTOR";
-type Doc = { id: string; status: DocumentStatus; signedBy: Party[] };
+export type NextAction =
+  | "signContract"
+  | "waitContractSignature"
+  | "pay"
+  | "waitPayment"
+  | "waitPaymentConfirmation"
+  | "startWork"
+  | "waitStart"
+  | "submitReady"
+  | "waitReady"
+  | "signAct"
+  | "waitAct"
+  | "waitPayout"
+  | "waitRefund"
+  | "waitDispute"
+  | "resolveDispute"
+  | "leaveReview"
+  | "done"
+  | "cancelled"
+  | "refunded"
+  | "none";
+
+export type NextStep = { action: NextAction; mine: boolean };
 
 export type NextStepInput = {
   status: DealStatus;
-  paymentMode: PaymentMode;
-  viewer: Party | "OPERATOR";
-  contract: Doc | null;
-  hasReview: boolean;
-  escrowAccountId: string | null;
-  stages: {
-    id: string;
-    order: number;
-    title: string;
-    status: StageStatus;
-    paymentDue: PaymentDue;
-    payment: { status: StagePaymentStatus } | null;
-    act: Doc | null;
-  }[];
+  viewer: "CLIENT" | "EXECUTOR" | "OPERATOR";
+  signed: boolean;
+  /** Кто уже подписал действующую оферту. */
+  contractSignedBy: readonly ("CLIENT" | "EXECUTOR")[];
+  hold: "none" | "PENDING" | "SUCCEEDED" | "FAILED";
+  openDispute: boolean;
+  exitRequested: boolean;
+  canReview: boolean;
 };
 
-export type NextAction =
-  | { kind: "signDocument"; documentId: string }
-  | { kind: "deposit"; accountId: string | null }
-  | { kind: "markPaid" | "confirmPayment" | "start" | "submit" | "accept"; stageId: string }
-  | { kind: "review" };
+const mine = (action: NextAction): NextStep => ({ action, mine: true });
+const wait = (action: NextAction): NextStep => ({ action, mine: false });
 
-export type NextStep = { text: string; action: NextAction | null };
-
-const n = ru.deal.next;
-
-/** Шаг, ожидающий одну из сторон. */
-type Pending = { by: Party; mine: NextStep; theirs: string };
-type StageInput = NextStepInput["stages"][number];
-
-/** Сделка остановлена: подсказка без действия. */
-const STOPPED = { DISPUTE: n.dispute, CANCELLED: n.cancelled, TERMINATED: n.terminated } as const;
-
-export function nextStep(d: NextStepInput): NextStep {
-  if (d.viewer === "OPERATOR") return { text: n.watch, action: null };
-  switch (d.status) {
-    case "AWAITING_SIGNATURES":
-      return contractStep(d.contract, d.viewer);
-    case "AWAITING_DEPOSIT":
-      return depositStep(d.viewer, d.escrowAccountId);
-    case "COMPLETED":
-      return completedStep(d.viewer, d.hasReview);
-    case "IN_PROGRESS":
-      return pick(d.viewer, pendingInProgress(d), d.stages[0]?.title ?? "");
-    default:
-      return { text: STOPPED[d.status], action: null };
-  }
+function created(i: NextStepInput, party: "CLIENT" | "EXECUTOR"): NextStep {
+  if (!i.signed) return i.contractSignedBy.includes(party) ? wait("waitContractSignature") : mine("signContract");
+  if (i.hold === "PENDING") return wait("waitPaymentConfirmation");
+  return party === "CLIENT" ? mine("pay") : wait("waitPayment");
 }
 
-function contractStep(contract: Doc | null, viewer: Party): NextStep {
-  if (!contract || contract.signedBy.includes(viewer)) return { text: n.waitSignature, action: null };
-  return { text: n.signContract, action: { kind: "signDocument", documentId: contract.id } };
+const ACTIVE: Record<"PAID_HOLD" | "IN_PROGRESS" | "READY", Record<"CLIENT" | "EXECUTOR", NextStep>> = {
+  PAID_HOLD: { CLIENT: wait("waitStart"), EXECUTOR: mine("startWork") },
+  IN_PROGRESS: { CLIENT: wait("waitReady"), EXECUTOR: mine("submitReady") },
+  READY: { CLIENT: mine("signAct"), EXECUTOR: wait("waitAct") },
+};
+
+const FINAL: Partial<Record<DealStatus, (i: NextStepInput) => NextStep>> = {
+  CANCELLED: () => wait("cancelled"),
+  REFUNDED: () => wait("refunded"),
+  SPLIT_PAYOUT: (i) => (i.viewer === "CLIENT" && i.canReview ? mine("leaveReview") : wait("done")),
+};
+
+export function nextStep(i: NextStepInput): NextStep {
+  const final = FINAL[i.status];
+  if (final) return final(i);
+  if (i.openDispute) return i.viewer === "OPERATOR" ? mine("resolveDispute") : wait("waitDispute");
+  if (i.viewer === "OPERATOR") return wait("none");
+  if (i.status === "CREATED") return created(i, i.viewer);
+  if (!isActive(i.status)) return wait("waitPayout"); // ACCEPTED: банк проводит выплату
+  // Деньги уже уходят (отмена после оплаты, решение спора): ждём банк.
+  return i.exitRequested ? wait("waitRefund") : ACTIVE[i.status][i.viewer];
 }
 
-function depositStep(viewer: Party, accountId: string | null): NextStep {
-  return viewer === "CLIENT" ? { text: n.deposit, action: { kind: "deposit", accountId } } : { text: n.waitDeposit, action: null };
-}
-
-function completedStep(viewer: Party, hasReview: boolean): NextStep {
-  return viewer === "CLIENT" && !hasReview ? { text: n.leaveReview, action: { kind: "review" } } : { text: n.completed, action: null };
-}
-
-/** Мой первый шаг; если моих нет — чего ждём от другой стороны. */
-function pick(viewer: Party, items: Pending[], firstStageTitle: string): NextStep {
-  const mine = items.find((i) => i.by === viewer);
-  if (mine) return mine.mine;
-  return { text: items[0]?.theirs ?? n.waitSubmit(firstStageTitle), action: null };
-}
-
-function pendingInProgress(d: NextStepInput): Pending[] {
-  const escrow = d.paymentMode !== "MANUAL";
-  return d.stages.flatMap((s, i) => stageItems(d.status, s, previousDone(d.stages[i - 1]), escrow));
-}
-
-const previousDone = (prev: StageInput | undefined) => !prev || prev.status === "ACCEPTED" || prev.status === "CLOSED";
-
-function stageItems(dealStatus: DealStatus, s: StageInput, prevDone: boolean, escrow: boolean): Pending[] {
-  const items = actItems(s);
-  const payable = isPayable({ dealStatus, stageStatus: s.status, paymentDue: s.paymentDue, previousDone: prevDone });
-  if (s.payment && payable && s.payment.status !== "CONFIRMED") {
-    // Аванс: этап не начнётся до оплаты. Оплата после приёмки: этап уже принят, работы по нему нет.
-    items.push(paymentItem(s.id, s.title, s.payment.status, escrow));
-    return items;
-  }
-  const work = prevDone ? workItem(s) : null;
-  return work ? [...items, work] : items;
-}
-
-/** Акт принятого этапа: сначала подписи. */
-function actItems(s: StageInput): Pending[] {
-  const act = s.act;
-  if (act?.status !== "SIGNING") return [];
-  return (["CLIENT", "EXECUTOR"] as const)
-    .filter((by) => !act.signedBy.includes(by))
-    .map((by) => ({ by, mine: { text: n.signAct(s.title), action: { kind: "signDocument", documentId: act.id } }, theirs: n.waitAct(s.title) }));
-}
-
-/** Оплата этапа, когда она к оплате: в эскроу раскрывает банк, в manual — отметка и подтверждение. */
-function paymentItem(stageId: string, title: string, status: StagePaymentStatus, escrow: boolean): Pending {
-  if (escrow) return { by: "CLIENT", mine: { text: n.waitRelease(title), action: null }, theirs: n.waitRelease(title) };
-  if (status === "DUE") return { by: "CLIENT", mine: { text: n.markPaid(title), action: { kind: "markPaid", stageId } }, theirs: n.waitMarkPaid(title) };
-  return { by: "EXECUTOR", mine: { text: n.confirmPayment(title), action: { kind: "confirmPayment", stageId } }, theirs: n.waitConfirm(title) };
-}
-
-/** Работа над этапом, когда предыдущий принят. */
-function workItem(s: StageInput): Pending | null {
-  switch (s.status) {
-    case "PENDING":
-      return { by: "EXECUTOR", mine: { text: n.start(s.title), action: { kind: "start", stageId: s.id } }, theirs: n.waitStart(s.title) };
-    case "IN_PROGRESS":
-    case "REWORK":
-      return { by: "EXECUTOR", mine: { text: n.submit(s.title), action: { kind: "submit", stageId: s.id } }, theirs: n.waitSubmit(s.title) };
-    case "SUBMITTED":
-      return { by: "CLIENT", mine: { text: n.review(s.title), action: { kind: "accept", stageId: s.id } }, theirs: n.waitReview(s.title) };
-    default:
-      return null;
-  }
+function isActive(status: DealStatus): status is keyof typeof ACTIVE {
+  return status in ACTIVE;
 }

@@ -1,181 +1,61 @@
-import type { DealStatus, PaymentDue, PaymentMode, StagePaymentStatus, StageStatus } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
+import { moneyFacts, type LedgerEntry } from "@/modules/payments";
 import { db } from "@/platform/db";
 import { fail } from "@/platform/errors";
-import { isPayable } from "./transitions";
 
 /**
- * «Финансы» исполнителя — только чтение оплат этапов его сделок. Новых денежных операций нет:
- * деньги идут от заказчика исполнителю напрямую (manual) или раскрываются банком (эскроу).
- * Комиссии нет (ответ №3), поэтому сумма к получению — сумма этапа.
+ * «Финансы мастера» — только из журнала денег: получено = подтверждённые SPLIT_MASTER по месяцам
+ * (время Казахстана, UTC+5); зарезервировано = сделки, где деньги покупателя в банке, а выплаты ещё нет.
  */
 
-/** received — получено; expected — этап пора оплатить (аванс или принятая работа); upcoming — ещё впереди по идущей сделке. */
-export type FinanceState = "received" | "expected" | "upcoming";
+export type MonthKey = `${number}-${string}`;
+export type MonthEarnings = { month: MonthKey; receivedTiyn: bigint; deals: number };
+export type FinanceRow = { dealId: string; dealNumber: number; title: string; amountTiyn: bigint; at: Date; state: "received" | "reserved" };
+export type ExecutorFinance = { months: MonthEarnings[]; reservedTiyn: bigint; receivedTiyn: bigint; rows: FinanceRow[] };
 
-export type FinanceRow = {
-  stageId: string;
-  dealId: string;
-  dealNumber: number;
-  dealTitle: string;
-  stageOrder: number;
-  stageTitle: string;
-  amount: number;
-  paymentDue: PaymentDue;
-  payment: StagePaymentStatus;
-  mode: PaymentMode;
-  state: FinanceState;
-  /** Получено — когда подтверждено; отмечено заказчиком — когда отмечено; иначе null. */
-  date: Date | null;
-};
+const KZ_OFFSET_MS = 5 * 3600 * 1000;
 
-/** Месяц по времени Алматы: «2026-11». */
-export type MonthKey = `${number}-${"01" | "02" | "03" | "04" | "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12"}`;
-
-/** Полученная оплата: дата подтверждения есть всегда. */
-export type ReceivedRow = FinanceRow & { date: Date };
-
-/** Заработок за месяц: полученное по дате подтверждения оплаты. */
-export type MonthEarnings = {
-  month: MonthKey;
-  received: number;
-  /** Получено в предыдущем месяце — для сравнения. */
-  previous: number;
-  /** Полученные в этом месяце оплаты, новые сверху. */
-  rows: ReceivedRow[];
-  /** Соседние месяцы от первой оплаты до текущего; null — дальше идти некуда. */
-  prev: MonthKey | null;
-  next: MonthKey | null;
-};
-
-export type ExecutorFinance = {
-  totals: Record<FinanceState, number>;
-  rows: FinanceRow[];
-  /** Есть сделки, где оплату раскрывает банк (эскроу): от этого зависят тексты экрана. */
-  hasEscrow: boolean;
-  month: MonthEarnings;
-};
-
-/** Месяцы считаем по времени Алматы (UTC+5, без перехода на летнее время). */
-const MONTH_PARTS = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Almaty", year: "numeric", month: "2-digit" });
-
-export function monthOf(date: Date): MonthKey {
-  const part = (type: "year" | "month") => MONTH_PARTS.formatToParts(date).find((p) => p.type === type)!.value;
-  return `${part("year")}-${part("month")}` as MonthKey;
+export function monthOf(at: Date): MonthKey {
+  const local = new Date(at.getTime() + KZ_OFFSET_MS);
+  return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+type FinanceDeal = { id: string; number: number; title: string; payoutTiyn: bigint; entries: LedgerEntry[] };
 
-/** Месяц из адреса страницы: «ГГГГ-ММ», иначе null. */
-export function parseMonth(value: string | undefined): MonthKey | null {
-  return value && MONTH_RE.test(value) ? (value as MonthKey) : null;
+/** Строки одной сделки: каждая подтверждённая выплата и, пока деньги в банке без выплаты, — резерв. */
+function rowsOf(d: FinanceDeal): FinanceRow[] {
+  const row = (amountTiyn: bigint, at: Date, state: FinanceRow["state"]): FinanceRow => ({ dealId: d.id, dealNumber: d.number, title: d.title, amountTiyn, at, state });
+  const received = d.entries.filter((e) => e.type === "SPLIT_MASTER" && e.status === "SUCCEEDED").map((e) => row(e.amountTiyn, e.settledAt ?? e.createdAt, "received"));
+  // Резерв — деньги в банке, выплаты ещё не было и возврат не запрошен (выплата в банке — тоже резерв).
+  const { heldEntry, refundEntry } = moneyFacts(d.entries);
+  return heldEntry && received.length === 0 && !refundEntry ? [...received, row(d.payoutTiyn, heldEntry.settledAt ?? heldEntry.createdAt, "reserved")] : received;
 }
 
-function shiftMonth(month: MonthKey, by: number): MonthKey {
-  const [y, m] = month.split("-").map(Number) as [number, number];
-  const index = y * 12 + (m - 1) + by;
-  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}` as MonthKey;
+function byMonth(rows: FinanceRow[]): MonthEarnings[] {
+  const months = new Map<MonthKey, MonthEarnings>();
+  for (const r of rows) {
+    const key = monthOf(r.at);
+    const m = months.get(key) ?? { month: key, receivedTiyn: 0n, deals: 0 };
+    m.receivedTiyn += r.amountTiyn;
+    m.deals += 1;
+    months.set(key, m);
+  }
+  return [...months.values()].sort((a, b) => (a.month < b.month ? 1 : -1));
 }
 
-/**
- * Заработок за месяц `wanted` (по умолчанию — текущий). Листать можно от месяца первой оплаты до текущего;
- * месяц за этими краями — ближайший край. Ключи «ГГГГ-ММ» сравниваются как строки.
- */
-export function monthEarnings(rows: readonly FinanceRow[], wanted: MonthKey | null | undefined, now: Date): MonthEarnings {
-  const received = rows.filter((r): r is ReceivedRow => r.state === "received" && r.date !== null);
-  const current = monthOf(now);
-  const first = received.reduce((min, r) => (monthOf(r.date) < min ? monthOf(r.date) : min), current);
-  const month = !wanted || wanted > current ? current : wanted < first ? first : wanted;
-  const sum = (m: MonthKey) => received.reduce((total, r) => (monthOf(r.date) === m ? total + r.amount : total), 0);
-  return {
-    month,
-    received: sum(month),
-    previous: sum(shiftMonth(month, -1)),
-    rows: received.filter((r) => monthOf(r.date) === month).sort((a, b) => b.date.getTime() - a.date.getTime()),
-    prev: month > first ? shiftMonth(month, -1) : null,
-    next: month < current ? shiftMonth(month, 1) : null,
-  };
+/** Чистая сборка по записям журнала сделок мастера. */
+export function financeOf(deals: FinanceDeal[]): ExecutorFinance {
+  const rows = deals.flatMap(rowsOf).sort((a, b) => b.at.getTime() - a.at.getTime());
+  const received = rows.filter((r) => r.state === "received");
+  const total = (list: FinanceRow[]) => list.reduce((a, r) => a + r.amountTiyn, 0n);
+  return { months: byMonth(received), reservedTiyn: total(rows.filter((r) => r.state === "reserved")), receivedTiyn: total(received), rows };
 }
 
-const CLOSED_DEALS: ReadonlySet<DealStatus> = new Set(["CANCELLED", "TERMINATED"]);
-
-/**
- * Состояние оплаты этапа для исполнителя. Полученное остаётся полученным при любом исходе сделки;
- * неоплаченное по отменённой или расторгнутой сделке не ждём (null — в список не попадает).
- */
-export function financeState(f: {
-  payment: StagePaymentStatus;
-  dealStatus: DealStatus;
-  stageStatus: StageStatus;
-  paymentDue: PaymentDue;
-  previousDone: boolean;
-}): FinanceState | null {
-  if (f.payment === "CONFIRMED") return "received";
-  if (CLOSED_DEALS.has(f.dealStatus)) return null;
-  return isPayable(f) ? "expected" : "upcoming";
-}
-
-const ORDER: Record<FinanceState, number> = { expected: 0, upcoming: 1, received: 2 };
-
-/** Сначала то, что ждёт оплаты, затем будущее (по сделке и этапу), затем полученное (новые сверху). */
-function byPriority(a: FinanceRow, b: FinanceRow): number {
-  if (a.state !== b.state) return ORDER[a.state] - ORDER[b.state];
-  if (a.state === "received") return (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0);
-  return b.dealNumber - a.dealNumber || a.stageOrder - b.stageOrder;
-}
-
-const done = (s: StageStatus) => s === "ACCEPTED" || s === "CLOSED";
-
-/**
- * Оплаты этапов своих сделок и заработок за месяц `month` (по умолчанию — текущий на момент `now`).
- * Только исполнитель в активной роли; чужие сделки не видны.
- */
-export async function getExecutorFinance(user: CurrentUser, opts: { month?: MonthKey | null; now?: Date } = {}): Promise<ExecutorFinance> {
+export async function getExecutorFinance(user: CurrentUser): Promise<ExecutorFinance> {
   if (user.role !== "EXECUTOR" || !user.executor) return fail.forbidden();
   const deals = await db.deal.findMany({
-    where: { executorId: user.executor.id },
-    select: {
-      id: true,
-      number: true,
-      title: true,
-      status: true,
-      paymentMode: true,
-      stages: { orderBy: { order: "asc" }, select: { id: true, order: true, title: true, status: true, paymentDue: true, payment: true } },
-    },
+    where: { executorId: user.executor.id, transactions: { some: {} } },
+    select: { id: true, number: true, title: true, payoutTiyn: true, transactions: { orderBy: { seq: "asc" } } },
   });
-
-  const rows: FinanceRow[] = [];
-  for (const deal of deals) {
-    deal.stages.forEach((stage, i) => {
-      if (!stage.payment) return;
-      const previous = deal.stages[i - 1];
-      const state = financeState({
-        payment: stage.payment.status,
-        dealStatus: deal.status,
-        stageStatus: stage.status,
-        paymentDue: stage.paymentDue,
-        previousDone: !previous || done(previous.status),
-      });
-      if (!state) return;
-      rows.push({
-        stageId: stage.id,
-        dealId: deal.id,
-        dealNumber: deal.number,
-        dealTitle: deal.title,
-        stageOrder: stage.order,
-        stageTitle: stage.title,
-        amount: stage.payment.amount,
-        paymentDue: stage.paymentDue,
-        payment: stage.payment.status,
-        mode: deal.paymentMode,
-        state,
-        date: stage.payment.confirmedAt ?? stage.payment.markedPaidAt,
-      });
-    });
-  }
-  rows.sort(byPriority);
-
-  const totals: Record<FinanceState, number> = { received: 0, expected: 0, upcoming: 0 };
-  for (const r of rows) totals[r.state] += r.amount;
-  return { totals, rows, hasEscrow: deals.some((d) => d.paymentMode !== "MANUAL"), month: monthEarnings(rows, opts.month, opts.now ?? new Date()) };
+  return financeOf(deals.map(({ transactions, ...d }) => ({ ...d, entries: transactions.map((t) => ({ ...t, disputeShareTiyn: null })) })));
 }
