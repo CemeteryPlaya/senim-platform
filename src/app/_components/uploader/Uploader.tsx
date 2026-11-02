@@ -6,7 +6,7 @@ import { ru } from "@/i18n/ru";
 import { PhotoUpload } from "@/ui";
 import { createUploadAction, discardUploadAction, finalizeUploadAction } from "./actions";
 import { doneFileIds, initialState, isUploading, toPhotoItems, uploaderReducer } from "./state";
-import { contentTypeOf, sendToTarget } from "./transfer";
+import { contentTypeOf, isHeic, PHOTO_ACCEPT, sendToTarget } from "./transfer";
 
 export type UploaderProps = {
   /** Назначение файлов: от него зависят права, лимиты и куда их потом прикрепит модуль-владелец. */
@@ -77,7 +77,7 @@ export function Uploader({ purpose, initial = [], onChange, onBusyChange, name, 
       await sendToTarget(created.data.target, file, (progress) => dispatch({ type: "progress", localId, progress }));
       const saved = await finalizeUploadAction({ token: created.data.token });
       if (!saved.ok) throw new Error(saved.error);
-      dispatch({ type: "done", localId, fileId: saved.data.id, url: saved.data.url });
+      dispatch({ type: "done", localId, fileId: saved.data.id, url: saved.data.url, serverPreview: isHeic(file) });
     } catch (e) {
       // Сетевые ошибки браузера — общий текст; ошибки проверки сервера — его понятный текст.
       dispatch({ type: "failed", localId, error: e instanceof TypeError ? ru.files.uploader.failed : errorText(e) });
@@ -117,7 +117,7 @@ export function Uploader({ purpose, initial = [], onChange, onBusyChange, name, 
 
   return (
     <>
-      <PhotoUpload {...view} max={max} photos={toPhotoItems(state)} onAdd={add} onRemove={remove} onRetry={retry} />
+      <PhotoUpload {...view} accept={PHOTO_ACCEPT} max={max} photos={toPhotoItems(state)} onAdd={add} onRemove={remove} onRetry={retry} />
       {name && ids.map((id) => <input key={id} type="hidden" name={name} value={id} />)}
     </>
   );

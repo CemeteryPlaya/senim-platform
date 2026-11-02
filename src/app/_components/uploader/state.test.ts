@@ -21,6 +21,12 @@ describe("состояние загрузчика", () => {
     expect(doneFileIds(s)).toEqual(["f9"]);
   });
 
+  it("HEIC: браузер (кроме Safari) не показывает его превью — после загрузки превью из готового JPEG сервера", () => {
+    let s = add(initialState([]), "l1");
+    s = reduce(s, { type: "done", localId: "l1", fileId: "f9", url: "/f9.jpg", serverPreview: true });
+    expect(toPhotoItems(s)[0]).toEqual({ id: "l1", src: "/f9.jpg", status: "done" });
+  });
+
   it("«идёт загрузка», пока хоть одно фото не готово; ошибка загрузку не держит", () => {
     let s = add(initialState([{ id: "f1", url: "/a.jpg" }]), "l1", "l2");
     expect(isUploading(s)).toBe(true);
