@@ -8,7 +8,6 @@ import { useRunAction } from "../../_parts/useRunAction";
 import { payAction, progressReportAction, submitReadyAction } from "../actions";
 import { currentPosition } from "./geolocation";
 import { focusNextStep } from "./next-step";
-import { DELIVERY_PURPOSE, PROGRESS_PURPOSE } from "./upload-purpose";
 
 const t = ru.deal;
 
@@ -72,7 +71,7 @@ export function ReadyForm({ dealId }: { dealId: string }) {
       }}
     >
       <Uploader
-        purpose={DELIVERY_PURPOSE}
+        purpose="DELIVERY"
         label={t.ready.photosLabel}
         hint={t.ready.photosHint}
         max={12}
@@ -118,7 +117,7 @@ export function ProgressForm({ dealId }: { dealId: string }) {
     >
       <Input label={t.progress.titleLabel} optional name="title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} error={fieldErrors.title?.[0]} />
       <Textarea label={t.progress.textLabel} name="text" value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} rows={3} error={fieldErrors.text?.[0]} />
-      <Uploader purpose={PROGRESS_PURPOSE} label={t.progress.photosLabel} max={12} onChange={setPhotoIds} onBusyChange={setUploading} error={fieldErrors.photoIds?.[0]} />
+      <Uploader purpose="PROGRESS_REPORT" label={t.progress.photosLabel} max={12} onChange={setPhotoIds} onBusyChange={setUploading} error={fieldErrors.photoIds?.[0]} />
       <FormError message={error} />
       <Button type="submit" variant="secondary" fullWidth loading={pending || uploading}>
         {t.actions.sendProgress}

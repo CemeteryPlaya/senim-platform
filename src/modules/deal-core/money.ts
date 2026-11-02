@@ -101,7 +101,7 @@ function messagesFor(t: MoneyTransaction, dealNumber: number) {
 /**
  * Единая точка «изменились деньги» (ТЗ п. 4, решение владельца 2.1.8): in-app уведомление ОБЕИМ сторонам
  * на каждую операцию с итогом; отказ банка (кроме оплаты) — ещё и операторам.
- * INTEGRATOR: сюда же платформа вешает web push (PushSubscription) — та же транзакция, тот же текст.
+ * Web push дублирует каждое уведомление сам (notifications.notify): отдельной отправки здесь нет.
  */
 export async function onMoneyChanged(tx: Tx, dealId: string, transaction: MoneyTransaction): Promise<void> {
   const deal = await tx.deal.findUniqueOrThrow({ where: { id: dealId }, select: { id: true, number: true, clientId: true, executor: { select: { userId: true } } } });

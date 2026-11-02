@@ -13,8 +13,8 @@ import type { Tx } from "@/platform/db";
  * Пока documents не умеет новые виды документов, работает временный адаптер ниже.
  */
 export { applyPortfolioConsent, executorDisplayOf, executorDisplays, maskContacts, recalculateRating, sanitizeExecutorText } from "@/modules/companies";
-// INTEGRATOR: заменить на files.attachFiles, когда files узнает владельцев dealId (DELIVERY) и progressReportId (PROGRESS_REPORT).
-export { attachOwnFiles } from "./attach";
+// Фото сдачи, «Хода работ» и спора прикрепляет files: свой файл, нужного назначения, ещё ничей.
+export { attachFiles as attachOwnFiles } from "@/modules/files";
 
 export type CreatedDocument = { documentId: string; sha256: string };
 
