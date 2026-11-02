@@ -10,16 +10,18 @@ import { listDealDocuments, type SigningDocumentView } from "@/modules/documents
 import { getCurrentUser, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
-import { ButtonLink, Card, Container, DateText, Fact, formatMoney, Money, PageHeader, SimulatorBadge, StatusBadge } from "@/ui";
+import { Card, Container, DateText, Fact, Money, PageHeader, StatusBadge } from "@/ui";
 import { orNotFound } from "@/app/requests/_parts/guard";
 import { ActionButton } from "../_parts/ActionButton";
-import { DEAL_TONE, PAYMENT_TONE, STAGE_TONE } from "../_parts/labels";
-import { cancelDealAction, retryOperationAction } from "./actions";
+import { cancelDealAction } from "./actions";
 import { DisputePositionForm, OpenDisputeForm } from "./_parts/DealForms";
 import { NextStepCard } from "./_parts/NextStepCard";
+import { OrderDetails } from "./_parts/OrderDetails";
+import { OrderSummary } from "./_parts/OrderSummary";
+import { Payment } from "./_parts/Payment";
+import { StageTimeline } from "./_parts/StageTimeline";
 
 const t = ru.deal;
-const p = ru.payments;
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -49,7 +51,11 @@ async function loadOrSwitchRole(user: CurrentUser, id: string): Promise<DealView
   return orNotFound(loadDeal(user, id));
 }
 
-/** Сделка — одна длинная страница: что дальше, договор, этапы, оплата, акты, чат, спор, отзыв, история. */
+/**
+ * «Мой заказ» (макет 10) — одна длинная страница, общая для заказчика, исполнителя и оператора: фото и плашка
+ * статуса, ключевые данные и шкала этапов, «Что дальше» с единственным главным действием, этапы с фотоотчётами,
+ * детали, документы, оплата, чат, спор, отзыв, портфолио, история. Действия по роли решает deal-core (next-step).
+ */
 export default async function DealPage({ params }: Props) {
   const { id } = await params;
   const user = await getCurrentUser();
@@ -62,22 +68,18 @@ export default async function DealPage({ params }: Props) {
 
   return (
     <Container size="form">
-      <PageHeader
-        title={t.number(deal.number)}
-        description={deal.title}
-        back={{ href: "/deals" }}
-        actions={<StatusBadge tone={DEAL_TONE[deal.status]}>{t.status[deal.status]}</StatusBadge>}
-      />
-      <div className="flex flex-col gap-6">
+      <PageHeader title={t.number(deal.number)} back={{ href: "/deals" }} />
+      <div className="flex flex-col gap-6 pb-10">
         <DealFlowSteps user={user} offerId={deal.offerId} />
+        <OrderSummary deal={deal} now={new Date()} />
         <NextStepCard deal={deal} />
-        <Summary deal={deal} />
-        <Section id="contract" title={t.sections.contract} note={t.contract.revealNote}>
+        <StageTimeline deal={deal} />
+        <OrderDetails deal={deal} />
+        <Section id="documents" title={t.sections.documents} note={t.contract.revealNote}>
           {contract && <DocumentPanel doc={contract} />}
+          <Acts deal={deal} documents={documents} />
         </Section>
-        {deal.paymentMode !== "MANUAL" && <EscrowAccount deal={deal} />}
-        <Stages deal={deal} />
-        <Acts deal={deal} documents={documents} />
+        <Payment deal={deal} />
         <OfferChat offerId={deal.offerId} />
         <Dispute deal={deal} isParty={isParty} />
         {deal.review && (
@@ -103,12 +105,13 @@ export default async function DealPage({ params }: Props) {
   );
 }
 
-function Section({ id, title, note, children }: { id: string; title: string; note?: string; children: ReactNode }) {
+function Section({ id, title, note, level = "h2", children }: { id: string; title: string; note?: string; level?: "h2" | "h3"; children: ReactNode }) {
+  const Heading = level;
   return (
     <section aria-labelledby={`${id}-title`} className="flex flex-col gap-4">
-      <h2 id={`${id}-title`} className="text-xl font-extrabold text-ink">
+      <Heading id={`${id}-title`} className={level === "h2" ? "text-xl font-extrabold text-ink" : "text-lg font-bold text-ink"}>
         {title}
-      </h2>
+      </Heading>
       {note && <p className="text-base text-muted">{note}</p>}
       {children}
     </section>
@@ -124,165 +127,13 @@ function DocumentPanel({ doc }: { doc: SigningDocumentView }) {
   );
 }
 
-function Summary({ deal }: { deal: DealView }) {
-  return (
-    <Card as="section">
-      <dl className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
-        <Fact label={t.total}>
-          <Money amount={deal.totalAmount} />
-        </Fact>
-        <Fact label={ru.common.roles.EXECUTOR}>{deal.executorLabel}</Fact>
-        {deal.executorAddress && <Fact label={ru.companies.identity.address}>{deal.executorAddress}</Fact>}
-        <Fact label={t.createdAt}>
-          <DateText value={deal.createdAt} format="date" />
-        </Fact>
-        <Fact label={t.paymentLabel}>{deal.paymentMode === "MANUAL" ? t.paymentModeManual : p.mode[deal.paymentMode]}</Fact>
-      </dl>
-    </Card>
-  );
-}
-
-function EscrowAccount({ deal }: { deal: DealView }) {
-  const e = deal.escrow;
-  const a = p.account;
-  return (
-    <Card as="section" title={a.title} description={a.description}>
-      <div className="flex flex-col gap-5">
-        {deal.paymentMode === "ESCROW_SIMULATOR" && <SimulatorBadge />}
-        {!e ? (
-          <p className="text-base text-muted">{a.preparing}</p>
-        ) : (
-          <>
-            <StatusBadge tone={e.status === "OPENED" ? "info" : "success"}>{a.status[e.status]}</StatusBadge>
-            <dl className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
-              <Fact label={a.deposited}>
-                <Money amount={e.deposited} />
-              </Fact>
-              <Fact label={a.released}>
-                <Money amount={e.released} />
-              </Fact>
-              <Fact label={a.refunded}>
-                <Money amount={e.refunded} />
-              </Fact>
-              <Fact label={a.balance}>
-                <Money amount={e.deposited - e.released - e.refunded} />
-              </Fact>
-            </dl>
-            <div>
-              <h3 className="mb-3 text-lg font-bold text-ink">{a.requisites}</h3>
-              <dl className="grid grid-cols-[minmax(0,1fr)] gap-3">
-                <Fact label={a.bankName}>{e.requisites.bankName}</Fact>
-                <Fact label={a.iban}>
-                  <span className="font-mono break-all">{e.requisites.iban}</span>
-                </Fact>
-                <Fact label={a.bik}>{e.requisites.bik}</Fact>
-                <Fact label={a.beneficiary}>{e.requisites.beneficiary}</Fact>
-                <Fact label={a.purpose}>{e.requisites.paymentPurpose}</Fact>
-              </dl>
-            </div>
-            <div>
-              <h3 className="mb-3 text-lg font-bold text-ink">{a.operations}</h3>
-              {deal.operations.length === 0 ? (
-                <p className="text-base text-muted">{a.noOperations}</p>
-              ) : (
-                <ul className="flex flex-col gap-2">
-                  {deal.operations.map((op) => {
-                    const kind = p.operation.kind[op.kind];
-                    const amount = formatMoney(op.amount);
-                    return (
-                      <li key={op.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2 text-base">
-                        <span className="text-ink">{kind}</span>
-                        <Money amount={op.amount} />
-                        <StatusBadge tone={op.status === "SUCCEEDED" ? "success" : op.status === "FAILED" ? "danger" : "info"}>
-                          {p.operation.status[op.status]}
-                        </StatusBadge>
-                        {op.retryKey && (
-                          <ActionButton
-                            action={retryOperationAction}
-                            input={{ idempotencyKey: op.retryKey }}
-                            variant="secondary"
-                            ariaLabel={t.actions.retryOperationFor(kind, amount)}
-                            confirm={{ title: t.actions.retryTitle, text: t.actions.retryText(kind, amount), yes: t.actions.retryYes, no: t.actions.retryNo, tone: "primary" }}
-                          >
-                            {t.actions.retryOperation}
-                          </ActionButton>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-            {deal.paymentMode === "ESCROW_SIMULATOR" && (
-              <ButtonLink href={`/simulator/bank/${e.accountId}`} variant="secondary" fullWidth>
-                {t.actions.toBank}
-              </ButtonLink>
-            )}
-          </>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-function Stages({ deal }: { deal: DealView }) {
-  return (
-    <Section id="stages" title={t.sections.stages}>
-      <ol className="flex flex-col gap-4">
-        {deal.stages.map((s) => (
-          <Card as="li" key={s.id} titleAs="h3" title={`${t.stage.order(s.order)}. ${s.title}`} description={s.description || undefined}>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap gap-2">
-                <StatusBadge tone={STAGE_TONE[s.status]}>{t.stageStatus[s.status]}</StatusBadge>
-                {s.payment && <StatusBadge tone={PAYMENT_TONE[s.payment.status]}>{t.paymentStatus[s.payment.status]}</StatusBadge>}
-                {s.acceptedAutomatically && <StatusBadge tone="info">{t.stage.acceptedAuto}</StatusBadge>}
-              </div>
-              <dl className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
-                <Fact label={t.stage.amount}>{s.amount > 0 ? <Money amount={s.amount} /> : t.stage.noAmount}</Fact>
-                {s.amount > 0 && <Fact label={t.stage.paymentWhen}>{t.paymentDue[s.paymentDue]}</Fact>}
-                {s.submittedAt && (
-                  <Fact label={t.stage.submittedAt}>
-                    <DateText value={s.submittedAt} format="dateTime" />
-                  </Fact>
-                )}
-              </dl>
-              {s.status === "REWORK" && s.reworkNote && (
-                <div className="rounded-control bg-warning-soft p-4">
-                  <p className="text-base font-semibold text-ink">{t.stage.reworkNote}</p>
-                  <p className="text-base text-ink">{s.reworkNote}</p>
-                </div>
-              )}
-              {s.report && (
-                <div>
-                  <p className="text-base font-semibold text-ink">{t.stage.report}</p>
-                  <p className="text-base whitespace-pre-line text-ink">{s.report}</p>
-                </div>
-              )}
-              {s.photos.length > 0 && (
-                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label={t.stage.photos}>
-                  {s.photos.map((photo, i) => (
-                    <li key={photo.id}>
-                      {/* eslint-disable-next-line @next/next/no-img-element -- подписанные ссылки хранилища, не статические ассеты */}
-                      <img src={photo.src} alt={t.stage.photoAlt(s.title, i + 1)} className="aspect-square w-full rounded-control object-cover" />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </Card>
-        ))}
-      </ol>
-    </Section>
-  );
-}
-
 function Acts({ deal, documents }: { deal: DealView; documents: SigningDocumentView[] }) {
   const acts = deal.stages.flatMap((s) => {
     const doc = documents.find((d) => d.kind === "STAGE_ACT" && d.stageId === s.id);
     return doc ? [{ stage: s, doc }] : [];
   });
   return (
-    <Section id="acts" title={t.sections.acts} note={acts.length === 0 ? t.contract.noActs : undefined}>
+    <Section id="acts" level="h3" title={t.sections.acts} note={acts.length === 0 ? t.contract.noActs : undefined}>
       {acts.map(({ stage, doc }) => (
         <div key={doc.id} className="flex flex-col gap-2">
           <p className="text-base font-semibold text-muted">{t.contract.actFor(stage.order, stage.title)}</p>
