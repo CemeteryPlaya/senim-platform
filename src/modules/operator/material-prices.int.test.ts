@@ -1,12 +1,37 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../test/factories";
+import { withFeature } from "../../../test/factories/companies";
+import { setEnv } from "../../../test/factories/identity";
 import { addMaterialPrice, changeMaterialPrice, listMaterialPrices, setMaterialPriceActive } from "./material-prices";
 import { addMaterialPriceSchema, changeMaterialPriceSchema, type AddMaterialPriceInput } from "./schemas";
 
 const LDSP: AddMaterialPriceInput = { category: "carcass", name: "ЛДСП 16 мм", unit: "m2", priceKzt: 4_500, segments: ["ECONOMY"] };
 
 const audit = (action: string) => db.auditEvent.findMany({ where: { action }, orderBy: { seq: "asc" } });
+
+// Справочник — за флагом materialsCalculator (ADR-009): в этом файле включён; выключенный — отдельный блок.
+let prevFlag: string | undefined;
+beforeAll(() => {
+  prevFlag = process.env.FEATURE_MATERIALS_CALCULATOR;
+  setEnv({ FEATURE_MATERIALS_CALCULATOR: "true" });
+});
+afterAll(() => setEnv({ FEATURE_MATERIALS_CALCULATOR: prevFlag }));
+
+describe("справочник цен материалов: флаг materialsCalculator выключен", () => {
+  it("список, добавление, смена цены и архив — FORBIDDEN, справочник не меняется", async () => {
+    const operator = await makeOperator();
+    const { id } = await addMaterialPrice(operator, LDSP);
+    const forbidden = expect.objectContaining({ code: "FORBIDDEN" });
+    await withFeature("materialsCalculator", false, async () => {
+      await expect(listMaterialPrices(operator)).rejects.toEqual(forbidden);
+      await expect(addMaterialPrice(operator, { ...LDSP, name: "МДФ 18 мм" })).rejects.toEqual(forbidden);
+      await expect(changeMaterialPrice(operator, { id, from: 4_500, to: 5_000 })).rejects.toEqual(forbidden);
+      await expect(setMaterialPriceActive(operator, { id, active: false })).rejects.toEqual(forbidden);
+    });
+    expect(await db.materialPrice.findMany({ select: { name: true, priceKzt: true, active: true } })).toEqual([{ name: "ЛДСП 16 мм", priceKzt: 4_500, active: true }]);
+  });
+});
 
 describe("справочник цен материалов", () => {
   it("добавляет материал, показывает его в списке с автором и пишет аудит", async () => {

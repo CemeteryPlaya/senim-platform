@@ -62,6 +62,12 @@ describe("разделы за флагами", () => {
     expect(more(EXECUTOR, false, OFF)).toEqual(["/executor/profile", "/executor/portfolio", "/notifications"]);
     expect(more(EXECUTOR, true, OFF)).toEqual(["/executor/profile", "/executor/portfolio", "/notifications", "/bank-demo", "/demo"]);
   });
+
+  it("замерщик: «Замеры» — только при сценариях до договора (иначе страница — 404)", () => {
+    const MEASURER = { role: "MEASURER", executor: null } as const;
+    expect(tabs(MEASURER, false, OFF)).toEqual(["/profile"]);
+    expect(tabs(MEASURER, false, ON)).toEqual(["/measurer", "/profile"]);
+  });
 });
 
 describe("currentItem: какая вкладка активна (aria-current)", () => {

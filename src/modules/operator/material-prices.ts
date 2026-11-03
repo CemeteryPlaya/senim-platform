@@ -4,6 +4,7 @@ import { recordAudit } from "@/modules/audit";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { db, transaction, type Tx } from "@/platform/db";
 import { fail } from "@/platform/errors";
+import { isEnabled } from "@/platform/features";
 import { isMaterialCategory, isMaterialUnit, MATERIAL_CATEGORIES, type MaterialCategory, type MaterialUnit } from "@/verticals/furniture";
 import { assertOperator } from "./access";
 import type { AddMaterialPriceInput, ChangeMaterialPriceInput } from "./schemas";
@@ -15,6 +16,12 @@ import type { AddMaterialPriceInput, ChangeMaterialPriceInput } from "./schemas"
 
 const t = ru.materials.errors;
 const entity = (id: string) => ({ type: "material_price", id });
+
+/** Справочник — часть калькулятора материалов (флаг materialsCalculator, ADR-009): выключен — оператору FORBIDDEN. */
+function assertBookOperator(user: CurrentUser): void {
+  if (!isEnabled("materialsCalculator")) fail.forbidden(t.off);
+  assertOperator(user);
+}
 
 export type MaterialPriceRow = {
   id: string;
@@ -40,7 +47,7 @@ function keysOf(row: { id: string; category: string; unit: string }): { category
 
 /** Все строки: по разделам в порядке вертикали, внутри — по названию. Архив — с active: false. */
 export async function listMaterialPrices(user: CurrentUser): Promise<MaterialPriceRow[]> {
-  assertOperator(user);
+  assertBookOperator(user);
   const rows = await db.materialPrice.findMany({
     orderBy: [{ name: "asc" }, { unit: "asc" }],
     select: {
@@ -65,7 +72,7 @@ export async function listMaterialPrices(user: CurrentUser): Promise<MaterialPri
 const lockBook = (tx: Tx) => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('MaterialPrice'))`;
 
 export async function addMaterialPrice(user: CurrentUser, input: AddMaterialPriceInput): Promise<{ id: string }> {
-  assertOperator(user);
+  assertBookOperator(user);
   return transaction(async (tx) => {
     await lockBook(tx);
     const taken = await tx.materialPrice.count({
@@ -88,7 +95,7 @@ export async function addMaterialPrice(user: CurrentUser, input: AddMaterialPric
  * ничего не делает, а цену, уже изменённую другим, не перезаписывает. Пометка «демо» снимается.
  */
 export async function changeMaterialPrice(user: CurrentUser, input: ChangeMaterialPriceInput): Promise<void> {
-  assertOperator(user);
+  assertBookOperator(user);
   await transaction(async (tx) => {
     const [current] = await tx.$queryRaw<{ priceKzt: number; active: boolean; isDemo: boolean }[]>`
       SELECT "priceKzt", "active", "isDemo" FROM "MaterialPrice" WHERE "id" = ${input.id} FOR UPDATE`;
@@ -110,7 +117,7 @@ export async function changeMaterialPrice(user: CurrentUser, input: ChangeMateri
 
 /** В архив или обратно. Материал в архиве не входит в расчёт. Повтор того же действия ничего не меняет. */
 export async function setMaterialPriceActive(user: CurrentUser, input: { id: string; active: boolean }): Promise<void> {
-  assertOperator(user);
+  assertBookOperator(user);
   await transaction(async (tx) => {
     const updated = await tx.materialPrice.updateMany({ where: { id: input.id, active: !input.active }, data: { active: input.active, updatedById: user.id } });
     if (updated.count === 0) {

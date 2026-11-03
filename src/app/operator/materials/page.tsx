@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { Ruler } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { isDemoMode, listMaterialPrices, type MaterialPriceRow } from "@/modules/operator";
+import { isEnabled } from "@/platform/features";
 import { Alert, Card, Container, EmptyState, PageHeader, SectionTitle } from "@/ui";
 import { MATERIAL_CATEGORIES } from "@/verticals/furniture";
 import { requireOperatorPage } from "../_lib/guard";
@@ -26,6 +28,7 @@ function MaterialList({ rows }: { rows: MaterialPriceRow[] }) {
  * В демо-режиме — пометка, что цифры демонстрационные и их нужно заменить.
  */
 export default async function MaterialPricesPage() {
+  if (!isEnabled("materialsCalculator")) notFound();
   const user = await requireOperatorPage("/operator/materials");
   const rows = await listMaterialPrices(user);
   const active = rows.filter((r) => r.active);

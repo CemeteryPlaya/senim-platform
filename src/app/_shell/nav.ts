@@ -67,10 +67,11 @@ const ROUTES = {
 
 const R = ROUTES;
 
-/** Пункты за выключенным флагом: «Вдохновение» (inspiration), «Замеры» мастера (сценарии до договора). */
+/** Пункты за выключенным флагом: «Вдохновение» (inspiration), «Замеры» мастера и замерщика (сценарии до договора). */
 const FLAGGED: Partial<Record<NavItem["href"], keyof NavFeatures>> = {
   [R.inspiration.href]: "inspiration",
   [R.measurements.href]: "preContractFlows",
+  [R.measurer.href]: "preContractFlows",
 };
 
 const allowed = (features: NavFeatures) => (item: NavItem) => {
