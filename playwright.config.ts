@@ -14,6 +14,9 @@ export default defineConfig({
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
+  // next dev собирает страницу при первом заходе: первые шаги сценария медленнее обычного.
+  timeout: 60_000,
+  expect: { timeout: 30_000 },
   globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL: `http://localhost:${PORT}`,
@@ -23,13 +26,24 @@ export default defineConfig({
   },
   projects: [
     { name: "mobile", use: { ...devices["Pixel 7"] } }, // основной экран — мобильный
-    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    // Длинные сценарии денег (@flow) сами открывают мобильные контексты — на десктопе их не повторяем.
+    { name: "desktop", use: { ...devices["Desktop Chrome"] }, grepInvert: /@flow/ },
   ],
   webServer: {
     command: process.env.CI ? `npm run build && npx next start -p ${PORT}` : `npx next dev -p ${PORT}`,
     port: PORT,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
-    env: { DATABASE_URL: E2E_DATABASE_URL, DEMO_MODE: "true", SMS_PROVIDER: "mock", SIGNATURE_PROVIDER: "mock" },
+    // NEXT_DIST_DIR — своя папка сборки: иначе `next dev` не стартует рядом с `npm run dev` (блокировка на папку).
+    // PAYMENT_PROVIDER=manual — новые сделки e2e идут по пути пилота (ТЗ п. 10): операции подтверждает оператор;
+    // сделки сида сохраняют своего провайдера (mock или manual).
+    env: {
+      DATABASE_URL: E2E_DATABASE_URL,
+      NEXT_DIST_DIR: ".next-e2e",
+      DEMO_MODE: "true",
+      SMS_PROVIDER: "mock",
+      SIGNATURE_PROVIDER: "mock",
+      PAYMENT_PROVIDER: "manual",
+    },
   },
 });

@@ -37,6 +37,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Своя папка сборки для e2e (NEXT_DIST_DIR=.next-e2e в playwright.config.ts): блокировка `next dev`
+  // берётся на папку сборки, и без этого e2e-сервер не стартует рядом с `npm run dev`.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
   async headers() {
     return [
