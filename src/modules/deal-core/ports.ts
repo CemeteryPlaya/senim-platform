@@ -1,5 +1,6 @@
 import type { DocumentKind } from "@/generated/prisma/enums";
 import { sha256Hex } from "@/platform/crypto";
+import { env } from "@/platform/env";
 import type { Tx } from "@/platform/db";
 import { logger } from "@/platform/logger";
 
@@ -37,8 +38,9 @@ export type RequestsPort = {
 };
 
 /**
- * Без регистрации (точка сборки src/ports.ts не вызвана — юнит-тесты, скрипты): оферта и акт — запись документа
- * без PDF (хэш условий сделки), заявка не трогается (предупреждение в журнал).
+ * Без регистрации — только в тестах (NODE_ENV=test): оферта и акт — запись документа без PDF (хэш условий сделки),
+ * заявка не трогается (предупреждение в журнал). Вне тестов незарегистрированный порт — ошибка: сервер, задачи
+ * и сид регистрируют порты (src/ports.ts), а молча пропущенная отмена заявки или оферта без PDF — дефект.
  */
 async function documentWithoutPdf(tx: Tx, dealId: string, kind: DocumentKind, prefix: string): Promise<CreatedDocument> {
   const deal = await tx.deal.findUniqueOrThrow({
@@ -76,7 +78,13 @@ export function registerRequestsPort(port: RequestsPort): void {
   registry.senimRequestsPort = port;
 }
 
-export const documents = (): DocumentsPort => registry.senimDocumentsPort ?? unregisteredDocuments;
+/** Порт не зарегистрирован: заглушка — только в тестах. */
+function fallback<T>(name: string, stub: T): T {
+  if (env().NODE_ENV === "test") return stub;
+  throw new Error(`deal-core: порт ${name} не зарегистрирован — вызовите registerPorts() из src/ports.ts`);
+}
+
+export const documents = (): DocumentsPort => registry.senimDocumentsPort ?? fallback("documents", unregisteredDocuments);
 
 export const requests = (): RequestsPort =>
-  registry.senimRequestsPort ?? { onContractSigned: unregisteredRequests("onContractSigned"), onDealCancelled: unregisteredRequests("onDealCancelled") };
+  registry.senimRequestsPort ?? fallback("requests", { onContractSigned: unregisteredRequests("onContractSigned"), onDealCancelled: unregisteredRequests("onDealCancelled") });
