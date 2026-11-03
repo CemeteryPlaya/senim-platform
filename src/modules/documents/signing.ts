@@ -2,7 +2,7 @@ import QRCode from "qrcode";
 import type { DocumentKind, DocumentStatus, SignMethod, SignParty } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit, requestOrigin } from "@/modules/audit";
-import { isFullySigned, isSignable, missingOf, onDocumentSigned, signingFlags, type SignedParties } from "@/modules/deal-core";
+import { isFullySigned, isSignable, missingOf, onDocumentSigned, processDealMoney, signingFlags, type SignedParties } from "@/modules/deal-core";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { decryptPii, hashPii, last4 } from "@/platform/crypto";
@@ -130,6 +130,16 @@ async function afterSignature(tx: Tx, doc: LoadedDocument, user: CurrentUser, pa
   return { fullySigned: true };
 }
 
+/**
+ * После коммита подписи: акт подписан полностью — распоряжение о выплате (его записал deal-core в транзакции подписи)
+ * исполняется сразу, как оплата в payForDeal: mock завершает сделку, manual оставляет операции оператору.
+ * Сбой провайдера здесь подпись не отменяет — операцию доведёт задача payments.
+ */
+async function afterCommit(doc: LoadedDocument, result: { fullySigned: boolean }): Promise<{ fullySigned: boolean }> {
+  if (result.fullySigned && doc.kind === "ACCEPTANCE_ACT") await processDealMoney(doc.dealId);
+  return result;
+}
+
 // ─── собственноручная подпись ───────────────────────────────────────────────
 
 export type HandSignatureInput = { documentId: string } & ({ image: Uint8Array; typedName?: undefined } | { typedName: string; image?: undefined });
@@ -148,7 +158,7 @@ export async function signByHand(user: CurrentUser, input: HandSignatureInput): 
   if (!missingOf(doc.kind, signingFlags(), party, { hand: [], ecp: [] }).hand) fail.conflict(t.errors.handNotRequired);
   const origin = await requestOrigin();
 
-  return transaction(async (tx) => {
+  return afterCommit(doc, await transaction(async (tx) => {
     const { sha256, have } = await lockedState(tx, doc);
     if (have.hand.includes(party)) fail.conflict(t.errors.alreadySignedByYou);
     const image = input.image ? await storeHandImage(tx, input.image, user.id) : null;
@@ -169,7 +179,7 @@ export async function signByHand(user: CurrentUser, input: HandSignatureInput): 
       origin,
     });
     return afterSignature(tx, doc, user, party);
-  });
+  }));
 }
 
 // ─── ЭЦП ────────────────────────────────────────────────────────────────────
@@ -235,7 +245,7 @@ export async function completeSigning(user: CurrentUser, input: { documentId: st
   const expected = await expectedSigner(user.id, party);
   if (!certIin || hashPii(certIin) !== expected.iinHash) return fail.validation(t.errors.otherSigner);
 
-  return transaction(async (tx) => {
+  return afterCommit(doc, await transaction(async (tx) => {
     const { sha256, have } = await lockedState(tx, doc);
     if (have.ecp.includes(party)) fail.conflict(t.errors.alreadySignedByYou);
     try {
@@ -266,5 +276,5 @@ export async function completeSigning(user: CurrentUser, input: { documentId: st
       after: { party, method: result.method, signedSha256: sha256, certSerial: verified.certSerial },
     });
     return afterSignature(tx, doc, user, party);
-  });
+  }));
 }

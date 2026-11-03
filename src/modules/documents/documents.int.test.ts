@@ -177,9 +177,10 @@ describe("акт приёмки", () => {
     expect((await dealOf(f.dealId)).status).toBe("READY");
     expect(await signEcp(f.client, act.id)).toEqual({ fullySigned: true });
 
-    expect((await dealOf(f.dealId)).status).toBe("ACCEPTED");
-    const types = (await journalOf(f.dealId)).map((e) => e.type);
-    expect(types).toEqual(expect.arrayContaining(["HOLD", "RELEASE", "SPLIT_MASTER", "SPLIT_PLATFORM"]));
+    // mock: распоряжение о выплате исполняется сразу после подписи (как оплата) — сделка завершена.
+    expect((await dealOf(f.dealId)).status).toBe("SPLIT_PAYOUT");
+    const journal = await journalOf(f.dealId);
+    expect(journal.map((e) => [e.type, e.status])).toEqual(expect.arrayContaining([["RELEASE", "SUCCEEDED"], ["SPLIT_MASTER", "SUCCEEDED"], ["SPLIT_PLATFORM", "SUCCEEDED"]]));
     const jobs = await db.job.findMany({ where: { kind: EMAIL_ACT_JOB } });
     expect(jobs).toHaveLength(1);
   });
@@ -200,7 +201,17 @@ describe("акт приёмки", () => {
     expect((await getDealView(f.executor, f.dealId)).next).toEqual({ action: "signActEcp", mine: true });
 
     expect(await signEcp(f.executor, act.id)).toEqual({ fullySigned: true });
+    expect((await dealOf(f.dealId)).status).toBe("SPLIT_PAYOUT");
+  });
+
+  it("manual: после подписи акта выплата ждёт оператора — сделка ACCEPTED", async () => {
+    const f = await dealAt("READY", { provider: "manual" });
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await signEcp(f.executor, act.id);
+    await signTyped(f.client, act.id);
+    await signEcp(f.client, act.id);
     expect((await dealOf(f.dealId)).status).toBe("ACCEPTED");
+    expect((await journalOf(f.dealId)).filter((e) => e.status === "PENDING").map((e) => e.type)).toEqual(expect.arrayContaining(["RELEASE"]));
   });
 
   it("флаг executorHandSignsAct: без собственноручной подписи мастера акт не подписан полностью", async () => {
@@ -212,7 +223,7 @@ describe("акт приёмки", () => {
     expect(await signEcp(f.client, act.id)).toEqual({ fullySigned: false });
     expect((await dealOf(f.dealId)).status).toBe("READY");
     expect(await signTyped(f.executor, act.id)).toEqual({ fullySigned: true });
-    expect((await dealOf(f.dealId)).status).toBe("ACCEPTED");
+    expect((await dealOf(f.dealId)).status).toBe("SPLIT_PAYOUT");
   });
 
   it("письмо с подписанным актом — тем, у кого в профиле e-mail; ключ act:<документ>:<адресат> — повтор задачи второе письмо не шлёт", async () => {
