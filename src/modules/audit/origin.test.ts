@@ -8,6 +8,9 @@ vi.mock("next/headers", () => ({
   },
 }));
 
+// env() требует DATABASE_URL; без него requestOrigin молча отдал бы «неизвестно», и тест зависел бы от окружения.
+vi.stubEnv("DATABASE_URL", process.env.DATABASE_URL ?? "postgresql://unit-test");
+
 const { clientIpFrom, requestOrigin } = await import("./origin");
 const { resetEnvCache } = await import("@/platform/env");
 
