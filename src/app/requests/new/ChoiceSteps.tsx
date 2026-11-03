@@ -1,6 +1,6 @@
 "use client";
 
-import { Gem, PiggyBank, Sofa } from "lucide-react";
+import { ChevronDown, Gem, PiggyBank, Sofa } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { LIMITS, SEGMENTS, type PriceHint, type RequestDetails } from "@/modules/requests/client";
 import type { Segment } from "@/generated/prisma/enums";
@@ -120,9 +120,13 @@ function Advanced(props: {
   const [openAtStart] = useState(props.selfMeasure || s.sizeKnown || s.facade !== UNKNOWN || s.hardware !== UNKNOWN);
   return (
     <details className="group rounded-card border border-line bg-surface p-4 sm:p-5" open={openAtStart}>
-      <summary className="flex min-h-control-sm cursor-pointer flex-col justify-center">
-        <span className="text-lg font-bold text-primary">{a.title}</span>
-        <span className="text-base text-ink-soft">{a.hint}</span>
+      <summary className="flex min-h-control-sm cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 flex-col justify-center">
+          <span className="text-lg font-bold text-primary">{a.title}</span>
+          <span className="text-base text-ink-soft">{a.hint}</span>
+        </span>
+        {/* Свёрнуто или раскрыто — видно по стрелке, как у остальных раскрывающихся блоков. */}
+        <ChevronDown aria-hidden className="size-6 shrink-0 text-primary transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
       </summary>
       <div className="mt-5 flex flex-col gap-5">
         {props.selfMeasure && <SelfMeasureGuide />}
