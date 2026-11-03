@@ -10,25 +10,28 @@ const config = {
   vitest: { configFile: "scripts/quality/vitest.unit.config.mjs", related: true },
   plugins: ["@stryker-mutator/vitest-runner"],
   mutate: [
-    // статусные машины и таблицы переходов
+    // статусные машины, таблицы переходов и «что дальше»
     "src/modules/deal-core/transitions.ts",
     "src/modules/deal-core/next-step.ts",
-    "src/modules/deal-core/stage-plan.ts",
+    "src/modules/deal-core/signatures.ts",
     "src/modules/requests/transitions.ts",
-    // деньги
-    "src/modules/deal-core/retry-policy.ts",
-    "src/modules/payments/fees.ts",
-    "src/modules/payments/escrow-status.ts",
-    "src/modules/payments/reconcile-entries.ts",
-    "src/modules/payments/webhook-signature.ts",
-    "src/modules/payments/modes.ts",
-    // маскирование контактов, ИИН/БИН, проверки ввода
+    "src/modules/requests/negotiation-state.ts",
+    "src/modules/identity/kyc-policy.ts",
+    // деньги: формулы ADR-009, смета, проекция журнала, подпись уведомлений Freedom Pay
+    "src/modules/payments/money.ts",
+    "src/modules/payments/estimate.ts",
+    "src/modules/payments/projection.ts",
+    "src/modules/payments/providers/freedompay/signature.ts",
+    // GPS сдачи работы
+    "src/platform/geo.ts",
+    // маскирование и показ контактов, ИИН/БИН, проверки ввода
     "src/modules/companies/mask.ts",
+    "src/modules/companies/contacts-policy.ts",
     "src/platform/kz-id.ts",
     "src/platform/validation.ts",
     // правила мебельной вертикали
     "src/verticals/furniture/segment.ts",
-    "src/verticals/furniture/stage-templates.ts",
+    "src/modules/requests/price-range.ts",
   ],
   ignorePatterns: ["reports", "coverage", "test-results", "playwright-report", ".next", "storage", "docs", "e2e", ".claude", ".agents", ".windsurf", ".playwright-mcp", ".remember", ".harness-worktrees", ".codebase-memory"],
   coverageAnalysis: "perTest",
