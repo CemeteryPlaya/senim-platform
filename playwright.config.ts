@@ -39,6 +39,8 @@ export default defineConfig({
     // сделки сида сохраняют своего провайдера (mock или manual).
     env: {
       DATABASE_URL: E2E_DATABASE_URL,
+      // В CI сервер — `next start` (NODE_ENV=production): env.ts требует явный APP_ENV (OPEN_QUESTIONS №62).
+      APP_ENV: "dev",
       NEXT_DIST_DIR: ".next-e2e",
       DEMO_MODE: "true",
       SMS_PROVIDER: "mock",
