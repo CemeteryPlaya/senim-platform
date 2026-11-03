@@ -5,43 +5,46 @@ const tabs = (...args: Parameters<typeof navFor>) => navFor(...args).tabs.map((i
 const more = (...args: Parameters<typeof navFor>) => navFor(...args).more.map((item) => item.href);
 
 const CLIENT = { role: "CLIENT", executor: null } as const;
+/** По умолчанию в тестах флаги включены — проверяем полное меню; выключенные — отдельным тестом. */
+const ON = { preContractFlows: true, inspiration: true };
+const OFF = { preContractFlows: false, inspiration: false };
 const EXECUTOR = { role: "EXECUTOR", executor: { status: "APPROVED" } } as const;
 
 describe("вкладки по роли (макеты 7–19)", () => {
   it("гость: главная, каталог, вдохновение; «Войти» — в шапке", () => {
-    expect(tabs(null, false)).toEqual(["/", "/catalog", "/inspiration"]);
-    expect(more(null, false)).toEqual([]);
+    expect(tabs(null, false, ON)).toEqual(["/", "/catalog", "/inspiration"]);
+    expect(more(null, false, ON)).toEqual([]);
   });
 
   it("гость в демо-режиме может выбрать демо-персону (в «Ещё»)", () => {
-    expect(more(null, true)).toEqual(["/bank-demo", "/demo"]);
+    expect(more(null, true, ON)).toEqual(["/bank-demo", "/demo"]);
   });
 
   it("заказчик: Главная / Мои заявки / Вдохновение / Профиль; сделки и каталог — в профиле и «Ещё»", () => {
-    expect(tabs(CLIENT, false)).toEqual(["/", "/requests", "/inspiration", "/profile"]);
-    expect(more(CLIENT, false)).toEqual(["/deals", "/catalog", "/notifications"]);
+    expect(tabs(CLIENT, false, ON)).toEqual(["/", "/requests", "/inspiration", "/profile"]);
+    expect(more(CLIENT, false, ON)).toEqual(["/deals", "/catalog", "/notifications"]);
   });
 
   it("исполнитель: Главная / Заявки / Заказы / Финансы / Профиль", () => {
-    expect(tabs(EXECUTOR, false)).toEqual(["/", "/executor/requests", "/deals", "/executor/finance", "/profile"]);
-    expect(more(EXECUTOR, false)).toEqual(["/executor/measurements", "/executor/profile", "/executor/portfolio", "/notifications"]);
+    expect(tabs(EXECUTOR, false, ON)).toEqual(["/", "/executor/requests", "/deals", "/executor/finance", "/profile"]);
+    expect(more(EXECUTOR, false, ON)).toEqual(["/executor/measurements", "/executor/profile", "/executor/portfolio", "/notifications"]);
   });
 
   it("исполнитель на проверке: анкета, портфолио и профиль", () => {
-    expect(tabs({ role: "EXECUTOR", executor: { status: "PENDING" } }, false)).toEqual(["/executor/profile", "/executor/portfolio", "/profile"]);
+    expect(tabs({ role: "EXECUTOR", executor: { status: "PENDING" } }, false, ON)).toEqual(["/executor/profile", "/executor/portfolio", "/profile"]);
   });
 
   it("оператор и замерщик — прежние меню и профиль; показ банку и демо — только в демо-режиме", () => {
-    expect(tabs({ role: "OPERATOR", executor: null }, false)).toEqual(["/operator", "/deals", "/profile"]);
-    expect(more({ role: "OPERATOR", executor: null }, false)).toEqual([]);
-    expect(more({ role: "OPERATOR", executor: null }, true)).toEqual(["/bank-demo", "/demo"]);
-    expect(tabs({ role: "MEASURER", executor: null }, false)).toEqual(["/measurer", "/profile"]);
-    expect(more(CLIENT, true)).toContain("/bank-demo");
+    expect(tabs({ role: "OPERATOR", executor: null }, false, ON)).toEqual(["/operator", "/deals", "/profile"]);
+    expect(more({ role: "OPERATOR", executor: null }, false, ON)).toEqual([]);
+    expect(more({ role: "OPERATOR", executor: null }, true, ON)).toEqual(["/bank-demo", "/demo"]);
+    expect(tabs({ role: "MEASURER", executor: null }, false, ON)).toEqual(["/measurer", "/profile"]);
+    expect(more(CLIENT, true, ON)).toContain("/bank-demo");
   });
 
   it("у каждого пункта есть подпись и иконка, подписи в одной роли не повторяются", () => {
     for (const user of [null, CLIENT, EXECUTOR] as const) {
-      const { tabs: t, more: m } = navFor(user, true);
+      const { tabs: t, more: m } = navFor(user, true, ON);
       const all = [...t, ...m];
       for (const item of all) {
         expect(item.label.length).toBeGreaterThan(0);
@@ -52,8 +55,17 @@ describe("вкладки по роли (макеты 7–19)", () => {
   });
 });
 
+describe("разделы за флагами", () => {
+  it("флаги выключены: нет «Вдохновения» (гость, заказчик) и «Замеров» мастера", () => {
+    expect(tabs(null, false, OFF)).toEqual(["/", "/catalog"]);
+    expect(tabs(CLIENT, false, OFF)).toEqual(["/", "/requests", "/profile"]);
+    expect(more(EXECUTOR, false, OFF)).toEqual(["/executor/profile", "/executor/portfolio", "/notifications"]);
+    expect(more(EXECUTOR, true, OFF)).toEqual(["/executor/profile", "/executor/portfolio", "/notifications", "/bank-demo", "/demo"]);
+  });
+});
+
 describe("currentItem: какая вкладка активна (aria-current)", () => {
-  const { tabs: t, more: m } = navFor(EXECUTOR, false);
+  const { tabs: t, more: m } = navFor(EXECUTOR, false, ON);
   const all: NavItem[] = [...t, ...m];
   const active = (path: string, query = "") => currentItem(all, path, new URLSearchParams(query))?.href;
 
@@ -79,7 +91,7 @@ describe("currentItem: какая вкладка активна (aria-current)",
 });
 
 describe("splitNav: что видно сразу, что — в «Ещё»", () => {
-  const items = navFor(EXECUTOR, true).tabs;
+  const items = navFor(EXECUTOR, true, ON).tabs;
   const href = (list: readonly { href: string }[]) => list.map((i) => i.href);
 
   it("помещается — «Ещё» нет", () => {

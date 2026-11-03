@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { MapPin, SearchX } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { getCatalogFacets, INSPIRATION_STEP, inspirationHref, listInspiration, parseInspirationFilter, type InspirationFilter, type SearchParams } from "@/modules/companies";
+import { isEnabled } from "@/platform/features";
 import { ButtonLink, Container, EmptyState, FilterChips, PageHeader, PhotoCard, StatusBadge, type FilterChip } from "@/ui";
 import { STYLES, type StyleKey } from "@/verticals/furniture";
 
@@ -14,6 +16,8 @@ export const metadata: Metadata = { title: t.title };
  * Доступна гостю и заказчику. Фильтры-чипы и «Показать ещё» — ссылки в адресе: работают без JavaScript.
  */
 export default async function InspirationPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  // «Вдохновение» — Фаза 2 (флаг inspiration, ADR-009 раздел 8): выключено — страницы нет.
+  if (!isEnabled("inspiration")) notFound();
   const filter = parseInspirationFilter(await searchParams);
   const [{ items, hasMore }, facets] = await Promise.all([listInspiration(filter), getCatalogFacets()]);
   // Сменили фильтр — снова первая порция.

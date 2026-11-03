@@ -6,6 +6,7 @@ import { ArrowRight, ImageOff, Star } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { getInspirationItem } from "@/modules/companies";
 import { getCurrentUser } from "@/modules/identity";
+import { isEnabled } from "@/platform/features";
 import { ButtonLink, Card, Container, Fact, Money, PageHeader, StatusBadge } from "@/ui";
 import { Rating, SegmentBadge } from "../../catalog/_components/executor-bits";
 import { wantSimilarHref } from "../../catalog/_components/WorkCard";
@@ -29,6 +30,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * одно главное действие — «Хочу похожее» (черновик заявки с этим примером; гостя — через вход и обратно).
  */
 export default async function InspirationItemPage({ params }: Props) {
+  // «Вдохновение» — Фаза 2 (флаг inspiration, ADR-009 раздел 8): выключено — страницы нет.
+  if (!isEnabled("inspiration")) notFound();
   const item = await load((await params).id);
   if (!item) notFound();
   const user = await getCurrentUser();

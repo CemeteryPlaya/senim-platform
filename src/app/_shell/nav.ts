@@ -34,6 +34,9 @@ export type NavUser = {
   executor: { status: "PENDING" | "APPROVED" | "REJECTED" } | null;
 };
 
+/** Флаги (platform/features), от которых зависят пункты меню: выключенный раздел в меню не показывается. */
+export type NavFeatures = { preContractFlows: boolean; inspiration: boolean };
+
 const t = ru.common.nav;
 
 /** Страница профиля: аккаунт, роль, установка приложения, «Выйти» и разделы, которых нет во вкладках. */
@@ -64,6 +67,17 @@ const ROUTES = {
 
 const R = ROUTES;
 
+/** Пункты за выключенным флагом: «Вдохновение» (inspiration), «Замеры» мастера (сценарии до договора). */
+const FLAGGED: Partial<Record<NavItem["href"], keyof NavFeatures>> = {
+  [R.inspiration.href]: "inspiration",
+  [R.measurements.href]: "preContractFlows",
+};
+
+const allowed = (features: NavFeatures) => (item: NavItem) => {
+  const flag = FLAGGED[item.href];
+  return flag === undefined || features[flag];
+};
+
 function roleNav(user: NavUser | null): RoleNav {
   if (!user) return { tabs: [R.home, R.catalog, R.inspiration], more: [] };
   switch (user.role) {
@@ -83,10 +97,12 @@ function roleNav(user: NavUser | null): RoleNav {
 /**
  * Меню пользователя (null — гость). Вкладки — в порядке макетов; демо-пункты — только при DEMO_MODE
  * и всегда в «Ещё»: показ банку — любой роли, ведущий переключает персоны по ходу показа.
+ * Разделы за выключенными флагами (features) в меню не попадают.
  */
-export function navFor(user: NavUser | null, demoMode: boolean): RoleNav {
+export function navFor(user: NavUser | null, demoMode: boolean, features: NavFeatures): RoleNav {
   const nav = roleNav(user);
-  return { tabs: [...nav.tabs], more: demoMode ? [...nav.more, R.bankDemo, R.demo] : [...nav.more] };
+  const shown = allowed(features);
+  return { tabs: nav.tabs.filter(shown), more: [...nav.more.filter(shown), ...(demoMode ? [R.bankDemo, R.demo] : [])] };
 }
 
 /** Насколько пункт подходит к адресу: -1 — не подходит; больше — точнее (длиннее путь, совпал параметр). */

@@ -3,11 +3,13 @@ import { redirect } from "next/navigation";
 import { AtSign, UserRound } from "lucide-react";
 import { getCurrentUser, loginHref, switchTargets } from "@/modules/identity";
 import { env } from "@/platform/env";
+import { features } from "@/platform/features";
 import { ru } from "@/i18n/ru";
 import { Container, LinkList, PageHeader, SectionTitle } from "@/ui";
 import { LogoutButton } from "../_components/auth/LogoutButton";
 import { SwitchRoleButton } from "../_components/auth/RoleButtons";
 import { InstallMenuItem } from "../_components/install";
+import { EnablePush } from "../_components/notifications";
 import { NAV_ICONS } from "../_shell/icons";
 import { ACCOUNT_HREF, navFor } from "../_shell/nav";
 
@@ -23,7 +25,7 @@ export const metadata: Metadata = { title: t.metaTitle };
 export default async function ProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect(loginHref(ACCOUNT_HREF));
-  const { tabs, more } = navFor(user, env().DEMO_MODE);
+  const { tabs, more } = navFor(user, env().DEMO_MODE, features());
   // Вкладки и так на виду; здесь — остальные разделы роли (у исполнителя — профиль компании, портфолио, замеры).
   const sections = more.filter((item) => !tabs.some((tab) => tab.href === item.href));
   const targets = switchTargets(user);
@@ -71,6 +73,7 @@ export default async function ProfilePage() {
         <SectionTitle id="account-app" title={t.app} />
         <div className="flex flex-col items-start gap-2">
           <InstallMenuItem />
+          <EnablePush />
           <LogoutButton variant="ghost" />
         </div>
       </section>

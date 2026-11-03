@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import type { CurrentUser } from "@/modules/identity";
+import { features } from "@/platform/features";
 import { ru } from "@/i18n/ru";
 import { ButtonLink } from "@/ui";
 import { NotificationBell } from "../_components/notifications";
@@ -15,7 +16,7 @@ type Props = { user: CurrentUser | null; demoMode: boolean };
  * вкладок. «Выйти», переключатель роли и установка приложения — на странице «Профиль» (последняя вкладка).
  */
 export function AppHeader({ user, demoMode }: Props) {
-  const { tabs, more } = navFor(user, demoMode);
+  const { tabs, more } = navFor(user, demoMode, features());
   const all = [...tabs, ...more];
   // Уведомления — колокольчик со счётчиком в шапке на любой ширине, а не пункт меню.
   const menu = all.filter((item) => item.href !== ACCOUNT_HREF && item.icon !== "notifications");
