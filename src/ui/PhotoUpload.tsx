@@ -79,7 +79,7 @@ export function PhotoUpload({ label, hint, error, photos, onAdd, onRemove, onRet
   };
 
   return (
-    <div role="group" aria-labelledby={`${id}-label`} aria-describedby={describedBy} className="flex flex-col gap-3">
+    <div role="group" aria-labelledby={`${id}-label`} aria-describedby={describedBy} data-invalid={error ? "" : undefined} className="flex flex-col gap-3">
       <p id={`${id}-label`} className="text-base font-semibold text-ink">
         {label}
       </p>

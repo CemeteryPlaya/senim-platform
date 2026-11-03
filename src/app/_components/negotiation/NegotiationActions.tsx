@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { proposePriceSchema } from "@/modules/requests/client";
 import { ru } from "@/i18n/ru";
-import { Button, ConfirmButton, FormError, Input } from "@/ui";
+import { Button, ConfirmButton, FormError, Input, useFocusInvalid } from "@/ui";
 import { useRunAction } from "@/app/requests/_parts/ActionButton";
 import { acceptPriceAction, proposePriceAction, withdrawPriceAction } from "./actions";
 
@@ -31,6 +31,8 @@ export function NegotiationActions({ offerId, accept, withdrawId, canPropose, pa
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [amountError, setAmountError] = useState<string>();
+  const { ref: formRef, focusInvalid } = useFocusInvalid();
+  const proposeButton = useRef<HTMLButtonElement>(null);
   const accepting = useRunAction(acceptPriceAction, (d) => `/deals/${d.dealId}`);
   const withdrawing = useRunAction(withdrawPriceAction);
   const proposing = useRunAction(proposePriceAction, () => {
@@ -38,11 +40,21 @@ export function NegotiationActions({ offerId, accept, withdrawId, canPropose, pa
     setAmount("");
   });
 
-  const send = () => {
+  const send = async () => {
     const parsed = proposePriceSchema.safeParse({ offerId, amountKzt: toKzt(amount) });
-    if (!parsed.success) return setAmountError(ru.requests.validation.price);
+    if (!parsed.success) {
+      setAmountError(ru.requests.validation.price);
+      return focusInvalid();
+    }
     setAmountError(undefined);
-    void proposing.run(parsed.data);
+    const result = await proposing.run(parsed.data);
+    if (!result.ok && result.fieldErrors) focusInvalid();
+  };
+
+  // Форма закрылась — кнопка «Предложить цену» появляется снова: фокус на неё, а не в начало страницы.
+  const close = () => {
+    setOpen(false);
+    requestAnimationFrame(() => proposeButton.current?.focus());
   };
 
   return (
@@ -66,17 +78,18 @@ export function NegotiationActions({ offerId, accept, withdrawId, canPropose, pa
       )}
 
       {canPropose && !open && (
-        <Button variant={accept ? "secondary" : "primary"} onClick={() => setOpen(true)} className="sm:self-start">
+        <Button ref={proposeButton} variant={accept ? "secondary" : "primary"} onClick={() => setOpen(true)} className="sm:self-start">
           {accept ? t.counter : t.propose}
         </Button>
       )}
       {canPropose && open && (
         <form
+          ref={formRef}
           noValidate
           className="flex flex-col gap-3"
           onSubmit={(e) => {
             e.preventDefault();
-            send();
+            void send();
           }}
         >
           <Input
@@ -90,7 +103,7 @@ export function NegotiationActions({ offerId, accept, withdrawId, canPropose, pa
             error={amountError ?? proposing.fieldErrors?.amountKzt?.[0]}
           />
           <div className="flex flex-col-reverse gap-3 sm:flex-row">
-            <Button variant="ghost" disabled={proposing.pending} onClick={() => setOpen(false)}>
+            <Button variant="ghost" disabled={proposing.pending} onClick={close}>
               {t.cancelInput}
             </Button>
             <Button type="submit" loading={proposing.pending}>

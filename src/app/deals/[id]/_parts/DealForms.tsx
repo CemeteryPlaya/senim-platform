@@ -14,11 +14,12 @@ const RATINGS = [5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: t.review.
 
 /** Открыть спор: причина и описание. Действие вторичное — экран прячет форму под раскрывающийся блок. */
 export function OpenDisputeForm({ dealId }: { dealId: string }) {
-  const { run, pending, error, fieldErrors } = useRunAction(openDisputeAction);
+  const { run, pending, error, fieldErrors, formRef } = useRunAction(openDisputeAction);
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
   return (
     <form
+      ref={formRef}
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
@@ -53,10 +54,11 @@ export function OpenDisputeForm({ dealId }: { dealId: string }) {
 }
 
 export function DisputePositionForm({ disputeId }: { disputeId: string }) {
-  const { run, pending, error, fieldErrors } = useRunAction(disputePositionAction);
+  const { run, pending, error, fieldErrors, formRef } = useRunAction(disputePositionAction);
   const [position, setPosition] = useState("");
   return (
     <form
+      ref={formRef}
       className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
@@ -83,12 +85,13 @@ export function DisputePositionForm({ disputeId }: { disputeId: string }) {
 
 /** Отзыв — только при флаге reviews (действие показывает nextStep: leaveReview). */
 export function ReviewForm({ dealId }: { dealId: string }) {
-  const { run, pending, error, fieldErrors } = useRunAction(reviewAction);
+  const { run, pending, error, fieldErrors, formRef } = useRunAction(reviewAction);
   const [rating, setRating] = useState("5");
   const [text, setText] = useState("");
   const [portfolioConsent, setPortfolioConsent] = useState(false);
   return (
     <form
+      ref={formRef}
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();

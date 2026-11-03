@@ -3,12 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ActionResult } from "@/platform/action";
+import { useFocusInvalid } from "@/ui";
 
 export type ServerAction<I, T> = (input: I) => Promise<ActionResult<T>>;
 
-/** Запуск Server Action: «Подождите…» на кнопке, ошибка рядом, после успеха — обновление экрана. */
+/**
+ * Запуск Server Action: «Подождите…» на кнопке, ошибка рядом, после успеха — обновление экрана.
+ * Форма с полями вешает formRef на <form>: при ошибках полей фокус переходит на первое неверное поле.
+ */
 export function useRunAction<I, T>(action: ServerAction<I, T>) {
   const router = useRouter();
+  const { ref: formRef, focusInvalid } = useFocusInvalid();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -24,8 +29,9 @@ export function useRunAction<I, T>(action: ServerAction<I, T>) {
       } else {
         setError(result.error);
         setFieldErrors(result.fieldErrors ?? {});
+        if (result.fieldErrors) focusInvalid();
       }
     });
   };
-  return { run, pending, error, fieldErrors };
+  return { run, pending, error, fieldErrors, formRef };
 }

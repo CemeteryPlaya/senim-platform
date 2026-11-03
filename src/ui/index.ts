@@ -3,6 +3,7 @@
 
 export { cn } from "./cn";
 export { focusFirstInvalid } from "./focus";
+export { useFocusInvalid } from "./use-focus-invalid";
 export {
   formatDate,
   formatDateTime,

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { Alert, Button, Input } from "@/ui";
+import { Alert, Button, Input, useFocusInvalid } from "@/ui";
 import { savePayoutIban } from "./actions";
 
 const t = ru.identity.payout;
@@ -19,6 +19,7 @@ export function PayoutForm() {
   const [error, setError] = useState<string | undefined>();
   const [notice, setNotice] = useState<Notice>(null);
   const [pending, startTransition] = useTransition();
+  const { ref, focusInvalid } = useFocusInvalid();
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -28,6 +29,8 @@ export function PayoutForm() {
       if (!result.ok) {
         setError(result.fieldErrors?.iban?.[0] ?? result.error);
         setNotice({ tone: "danger", text: result.error });
+        // Ошибка показана у поля IBAN — фокус туда, чтобы исправить сразу.
+        focusInvalid();
         return;
       }
       setError(undefined);
@@ -38,7 +41,7 @@ export function PayoutForm() {
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-6" noValidate>
+    <form ref={ref} onSubmit={submit} className="flex flex-col gap-6" noValidate>
       <Input
         label={t.iban}
         hint={t.ibanHint}

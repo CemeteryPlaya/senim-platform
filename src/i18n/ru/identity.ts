@@ -249,6 +249,7 @@ export const identity = {
     registrationLabel: "Регистрация ИП или ТОО",
     registrationHint: "Талон о регистрации ИП или справка о регистрации ТОО",
     submit: "Отправить на проверку",
+    waitUploads: "Дождитесь загрузки файлов — потом документы можно отправить.",
     submitted: "Документы отправлены на проверку",
     reasonLength: (min: number, max: number) => `Причина отказа — от ${min} до ${max} символов`,
     errors: {

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import type { UploadPurpose } from "@/modules/files/client";
-import { Alert, Button } from "@/ui";
+import { Alert, Button, useFocusInvalid } from "@/ui";
 import { Uploader } from "../../../_components/uploader";
 import { submitKyc } from "./actions";
 
@@ -21,15 +21,20 @@ export function KycForm({ max }: { max: number }) {
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [notice, setNotice] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
+  const { ref, focusInvalid } = useFocusInvalid();
+  const uploading = busy.id || busy.registration;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (uploading) return;
     setNotice(null);
     startTransition(async () => {
       const result = await submitKyc({ idFileIds, registrationFileIds });
       if (!result.ok) {
         setErrors(result.fieldErrors ?? {});
         setNotice({ tone: "danger", text: result.error });
+        // Нет удостоверения или регистрации — фокус на загрузку, которой не хватает.
+        if (result.fieldErrors) focusInvalid();
         return;
       }
       setErrors({});
@@ -39,7 +44,7 @@ export function KycForm({ max }: { max: number }) {
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-6" noValidate>
+    <form ref={ref} onSubmit={submit} className="flex flex-col gap-6" noValidate>
       <Uploader
         purpose={KYC_PURPOSE.id}
         label={t.idLabel}
@@ -63,10 +68,14 @@ export function KycForm({ max }: { max: number }) {
           {notice.text}
         </Alert>
       )}
-      <div>
-        <Button type="submit" loading={pending} disabled={busy.id || busy.registration}>
+      {/* loading, а не disabled: кнопка не теряет фокус, а причина ожидания — в описании кнопки. */}
+      <div className="flex flex-col gap-2">
+        <Button type="submit" loading={pending || uploading} aria-describedby="kyc-wait" className="self-start">
           {t.submit}
         </Button>
+        <p id="kyc-wait" className="text-base text-ink-soft" aria-live="polite">
+          {uploading ? t.waitUploads : ""}
+        </p>
       </div>
     </form>
   );
