@@ -7,6 +7,7 @@ import { db, transaction } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
 import { parseInput } from "@/platform/validation";
+import { maskContacts } from "./ports";
 import { dealRefSchema } from "./schemas";
 import { roleIn, scopeOf } from "./state";
 
@@ -59,7 +60,8 @@ export function projectPublicDeal(deal: PublicSource): PublicDealView | null {
   if (!deal.publicId || deal.status !== "SPLIT_PAYOUT" || !bothConsented(deal.publicConsents)) return null;
   return {
     publicId: deal.publicId,
-    title: deal.title,
+    // Название сделки — из заявки, где «свой тип» мебели пишет покупатель: на витрине — через маску контактов.
+    title: maskContacts(deal.title).text,
     status: deal.status,
     priceTiyn: deal.priceTiyn,
     protectionTiyn: deal.protectionTiyn,

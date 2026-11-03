@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { dealAt, dealOf, signAct } from "../../../test/factories/deal";
+import { MASK } from "@/modules/companies";
+import { db } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
 import { processDealMoney } from "./money";
 import { getPublicDealView, grantPublicConsent, revokePublicConsent } from "./public-view";
@@ -39,6 +41,15 @@ describe("публичная витрина сделки (фундамент, Т
     expect(view!.money.map((m) => m.type)).toContain("HOLD");
     const text = JSON.stringify(view, (_k, v: unknown) => (typeof v === "bigint" ? v.toString() : v));
     for (const secret of [f.client.phone, f.executor.phone, f.client.id, f.executor.id, f.dealId]) expect(text).not.toContain(secret);
+  });
+
+  it("название на витрине — без контактов", async () => {
+    const f = await completedDeal();
+    await db.deal.update({ where: { id: f.dealId }, data: { title: "Шкаф, звоните 87012345678 или ivan_mebel в инстаграм" } });
+    await grantPublicConsent(f.client, { dealId: f.dealId });
+    const { publicId } = await grantPublicConsent(f.executor, { dealId: f.dealId });
+    showcase(true);
+    expect((await getPublicDealView(publicId!))?.title).toBe(`Шкаф, звоните ${MASK} или ${MASK}`);
   });
 
   it("отзыв согласия одной стороной закрывает витрину", async () => {
