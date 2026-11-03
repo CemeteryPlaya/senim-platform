@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Landmark } from "lucide-react";
 import { ru } from "@/i18n/ru";
-import { listMoneyQueue } from "@/modules/operator";
+import { listFailedMoney, listMoneyQueue } from "@/modules/operator";
 import { Alert, Container, EmptyState, PageHeader, StatusBadge } from "@/ui";
 import { formatTiyn } from "@/ui/format";
 import { DecisionQueue } from "../_components/DecisionQueue";
 import { ListCard } from "../_components/ListCard";
 import { requireOperatorPage } from "../_lib/guard";
+import { FailedOperations } from "./FailedOperations";
 import { OperationActions } from "./OperationForms";
 
 const t = ru.operator.money;
@@ -20,6 +21,7 @@ const EMPTY_TITLE_ID = "money-queue-empty";
 export default async function MoneyQueuePage() {
   const user = await requireOperatorPage("/operator/money");
   const queue = await listMoneyQueue(user);
+  const failed = await listFailedMoney(user);
 
   return (
     <Container size="form" className="pb-10">
@@ -53,6 +55,7 @@ export default async function MoneyQueuePage() {
             </>
           )}
         </DecisionQueue>
+        <FailedOperations items={failed} />
       </div>
     </Container>
   );

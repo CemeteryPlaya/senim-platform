@@ -4,7 +4,7 @@ import { db } from "@/platform/db";
 import { makeOperator } from "../../../test/factories";
 import { dealAt, dealOf, journalOf, makePhoto, signAct } from "../../../test/factories/deal";
 import { getOperatorDeal } from "./deals";
-import { confirmBankOperation, failBankOperation, listMoneyQueue, saveBankDocument } from "./money";
+import { confirmBankOperation, failBankOperation, listFailedMoney, listMoneyQueue, retryBankOperation, saveBankDocument } from "./money";
 
 const PDF = new TextEncoder().encode("%PDF-1.4\n% тестовый документ\n");
 
@@ -106,5 +106,31 @@ describe("деньги в банке: кнопки провайдера manual",
       confirmBankOperation(operator, { transactionId: op.id, bankDocNumber: "1", bankDocDate: new Date(), bankDocFileId: await makePhoto(other, "BANK_DOCUMENT") }),
     ).rejects.toMatchObject({ code: "VALIDATION" });
     expect(await db.moneyTransaction.findUniqueOrThrow({ where: { id: op.id } })).toMatchObject({ status: "PENDING" });
+  });
+});
+
+describe("деньги в банке: отказ банка и повтор", () => {
+  it("отклонённый возврат уходит из очереди в «Отклонены банком»; «Повторить операцию» возвращает его в очередь новой попыткой", async () => {
+    const operator = await makeOperator();
+    const f = await dealAt("PAID_HOLD", { provider: "manual" });
+    const { cancelDeal } = await import("@/modules/deal-core");
+    await cancelDeal(f.client, { dealId: f.dealId });
+    const [refund] = await listMoneyQueue(operator);
+    await failBankOperation(operator, { transactionId: refund.id, reason: "Неверные реквизиты карты" });
+
+    expect(await listMoneyQueue(operator)).toEqual([]);
+    const [failed] = await listFailedMoney(operator);
+    expect(failed).toMatchObject({ id: refund.id, type: "REFUND", dealId: f.dealId, error: "Неверные реквизиты карты" });
+
+    expect(await retryBankOperation(operator, { transactionId: refund.id })).toEqual({ created: true });
+    expect(await retryBankOperation(operator, { transactionId: refund.id })).toEqual({ created: false });
+    expect(await listFailedMoney(operator)).toEqual([]);
+    expect(await listMoneyQueue(operator)).toMatchObject([{ type: "REFUND", dealId: f.dealId }]);
+  });
+
+  it("не оператор — FORBIDDEN", async () => {
+    const f = await dealAt("PAID_HOLD", { provider: "manual" });
+    await expect(listFailedMoney(f.client)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(retryBankOperation(f.client, { transactionId: "x" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

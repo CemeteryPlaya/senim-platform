@@ -3,7 +3,8 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { requireUser } from "@/modules/identity";
-import { bankConfirmFieldsSchema, bankFailSchema, confirmBankOperation, failBankOperation, saveBankDocument } from "@/modules/operator";
+import { bankConfirmFieldsSchema, bankFailSchema, confirmBankOperation, failBankOperation, retryBankOperation, saveBankDocument } from "@/modules/operator";
+import { retryOperationSchema } from "@/modules/payments";
 import { action } from "@/platform/action";
 
 const scan = z.instanceof(Blob, { message: ru.payments.validation.bankDocFile });
@@ -21,4 +22,10 @@ export const confirmBankOperationAction = action("operator.confirmBankOperation"
 export const failBankOperationAction = action("operator.failBankOperation", z.unknown().pipe(bankFailSchema), async (input) => {
   const user = await requireUser("OPERATOR");
   await failBankOperation(user, input);
+});
+
+/** «Повторить операцию» после отказа банка: новая попытка; двойной клик второй попытки не создаёт. */
+export const retryBankOperationAction = action("operator.retryBankOperation", z.unknown().pipe(retryOperationSchema), async (input) => {
+  const user = await requireUser("OPERATOR");
+  await retryBankOperation(user, input);
 });

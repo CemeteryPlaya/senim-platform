@@ -3,7 +3,15 @@ import { ru } from "@/i18n/ru";
 import { onMoneySettled } from "@/modules/deal-core";
 import { saveFile } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
-import { confirmManualOperation, failManualOperation, listPendingManualOperations, type PendingManualOperation } from "@/modules/payments";
+import {
+  confirmManualOperation,
+  failManualOperation,
+  listPendingManualOperations,
+  listRetriableOperations,
+  retryFailedOperation,
+  type FailedOperation,
+  type PendingManualOperation,
+} from "@/modules/payments";
 import { fail } from "@/platform/errors";
 import { assertOperator } from "./access";
 
@@ -40,6 +48,18 @@ export async function confirmBankOperation(
 export async function failBankOperation(operator: CurrentUser, input: { transactionId: string; reason: string }): Promise<void> {
   assertOperator(operator);
   await failManualOperation(operator, input, onMoneySettled);
+}
+
+/** Отклонённые банком операции, которые можно повторить (любой провайдер): раскрытие, части выплаты, возврат. */
+export async function listFailedMoney(operator: CurrentUser): Promise<FailedOperation[]> {
+  assertOperator(operator);
+  return listRetriableOperations(operator);
+}
+
+/** «Повторить операцию»: новая попытка в журнале; двойной клик — одна попытка (payments.retryFailedOperation). */
+export async function retryBankOperation(operator: CurrentUser, input: { transactionId: string }): Promise<{ created: boolean }> {
+  assertOperator(operator);
+  return retryFailedOperation(operator, input, onMoneySettled);
 }
 
 // ─── скан банковского документа ──────────────────────────────────────────────

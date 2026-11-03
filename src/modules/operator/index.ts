@@ -12,7 +12,17 @@ export { getDisputeCard, listDisputes, previewDisputeSplit, resolveDispute } fro
 export { addExecutor, changeSegment, getExecutorCard, listExecutors, listRegistrationQueue, reviewRegistration } from "./executors";
 export { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitureType, setFurnitureTypeActive } from "./furniture-types";
 export { kycQueue, kycReviewSchema, reviewKyc, type KycDocument, type KycQueueItem, type KycReviewInput } from "./kyc";
-export { confirmBankOperation, failBankOperation, isManualType, listMoneyQueue, saveBankDocument, type ManualOperationType, type MoneyQueueItem } from "./money";
+export {
+  confirmBankOperation,
+  failBankOperation,
+  isManualType,
+  listFailedMoney,
+  listMoneyQueue,
+  retryBankOperation,
+  saveBankDocument,
+  type ManualOperationType,
+  type MoneyQueueItem,
+} from "./money";
 export { buildCsv, buildIncomeCsv, buildReport, incomeReport, type OperationTotal, type StatusTotal } from "./report";
 export { addMaterialPrice, changeMaterialPrice, listMaterialPrices, setMaterialPriceActive, type MaterialPriceRow } from "./material-prices";
 export { listStaleRequests } from "./requests";
