@@ -20,7 +20,10 @@ async function sources(dir: string): Promise<string[]> {
   return files.filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f)).map((f) => path.join(dir, f));
 }
 
-describe("тексты интерфейса — только из ru", () => {
+/** Тест читает весь src/modules и src/app: на полном прогоне под нагрузкой 5 с по умолчанию не хватает. */
+const SCAN_TIMEOUT_MS = 30_000;
+
+describe("тексты интерфейса — только из ru", { timeout: SCAN_TIMEOUT_MS }, () => {
   it("в модулях и маршрутах нет строк для пользователя мимо ru", async () => {
     const files = [...(await sources("src/modules")), ...(await sources("src/app"))];
     const found: string[] = [];
