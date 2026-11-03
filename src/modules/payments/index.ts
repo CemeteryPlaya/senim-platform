@@ -26,6 +26,7 @@ export {
   type PendingManualOperation,
 } from "./providers/manual";
 export { enqueueExecution, executeDealOperations, JOB_EXECUTE_DEAL, type SettledHook } from "./execute";
+export { assertPayoutIbanChangeable, hasPendingPayout } from "./payout-lock";
 export { listRetriableOperations, retryFailedOperation, retryOperationSchema, type FailedOperation } from "./retry";
 export { receiveWebhook, type WebhookOutcome } from "./webhook";
 export { JOB_POLL_PENDING, pollPendingOperations } from "./poll";
