@@ -2,6 +2,12 @@ import type { DocumentKind, DocumentStatus, SignMethod, SignParty } from "@/gene
 import { missingOf, requiredSignatures, type SignedParties, type SigningFlags } from "@/modules/deal-core/client";
 import type { SigningSession } from "./signature";
 
+/**
+ * Что можно переслать подписанной ссылкой (её откроет любой, у кого она есть): акт, выписка, расписка.
+ * Оферта — нет: в ней полные ИИН/БИН сторон (CLAUDE.md — раскрываются только в договоре); стороны её скачивают.
+ */
+export const isShareable = (kind: DocumentKind): boolean => kind !== "CONTRACT";
+
 /** Подписи одной стороны на экране: что требуется и что уже есть (время и подписанный хэш). */
 export type PartySignaturesView = {
   party: SignParty;
@@ -32,6 +38,8 @@ export type SigningDocumentView = {
   originalPdfUrl: string;
   /** Документ подписывается в приложении (оферта, акт); выписка и расписка — нет. */
   signable: boolean;
+  /** Можно выпустить ссылку «Поделиться» (WhatsApp): акт и выписка — да; оферта — нет (полные ИИН/БИН). */
+  shareable: boolean;
   /** Сторона текущего пользователя; null — оператор. */
   myParty: SignParty | null;
   /** Чего не хватает от текущего пользователя, и можно ли подписать сейчас (шаг сделки, версия). */
@@ -85,6 +93,7 @@ export function toSigningView(row: Row, ctx: { myParty: SignParty | null; flags:
     signedAt: row.signedAt,
     ...pdfUrls(row.id),
     signable: requiredSignatures(row.kind, ctx.flags).length > 0,
+    shareable: isShareable(row.kind),
     myParty: ctx.myParty,
     canSign: { hand: open && missing.hand, ecp: open && missing.ecp },
     parties: requiredSignatures(row.kind, ctx.flags).map((r) => {

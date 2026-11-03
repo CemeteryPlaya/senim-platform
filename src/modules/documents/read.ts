@@ -15,7 +15,7 @@ import { appendPages, renderPdf } from "./pdf/render";
 import { dealAcceptsSignature, readableDocument } from "./signing";
 import { signatureSheetSpec } from "./templates/signature-sheet";
 import type { PdfImage, SignatureSheetData } from "./templates/types";
-import { toSigningView, type SharedLink, type SigningDocumentView } from "./views";
+import { isShareable, toSigningView, type SharedLink, type SigningDocumentView } from "./views";
 
 const t = ru.documents;
 
@@ -125,9 +125,10 @@ export async function listDealDocuments(user: CurrentUser, dealId: string): Prom
 
 // ─── ссылки «Поделиться» ────────────────────────────────────────────────────
 
-/** Подписанная ссылка на документ для пересылки (WhatsApp): стороны сделки и оператор. */
+/** Подписанная ссылка на документ для пересылки (WhatsApp): стороны сделки и оператор; оферте — нет (isShareable). */
 export async function shareDocument(user: CurrentUser, documentId: string): Promise<SharedLink> {
   const doc = await readableDocument(user, documentId);
+  if (!isShareable(doc.kind)) return fail.forbidden(t.errors.notShareable);
   const { token, expiresAt } = sealDocumentLink(doc.id);
   const url = new URL(`/d/${token}`, env().APP_URL).toString();
   await recordAudit(db, { actor: actorOf(user), action: "document.link.created", entity: { type: "document", id: doc.id }, scope: scopeOf(doc.dealId), meta: { expiresAt: expiresAt.toISOString() } });
@@ -143,7 +144,8 @@ export async function openSharedDocument(token: string): Promise<SharedDocumentV
   const link = openDocumentLink(token);
   if (!link) return null;
   const doc = await loadFull(link.documentId);
-  if (!doc) return null;
+  // Ссылка на оферту, выпущенная до запрета, не открывается.
+  if (!doc || !isShareable(doc.kind)) return null;
   await recordAudit(db, { actor: SYSTEM("documents.link"), action: "document.link.opened", entity: { type: "document", id: doc.id }, scope: scopeOf(doc.dealId) });
   return { kind: doc.kind, number: doc.number, version: doc.version, status: doc.status, sha256: doc.sha256, expiresAt: link.expiresAt, signedCount: doc.handSignatures.length + doc.signatures.length };
 }
@@ -152,7 +154,7 @@ export async function openSharedDocument(token: string): Promise<SharedDocumentV
 export async function getSharedDocumentPdf(token: string, variant: PdfVariant = "signed"): Promise<PdfFile> {
   const link = openDocumentLink(token);
   const doc = link && (await loadFull(link.documentId));
-  if (!doc) return fail.notFound(t.errors.notFound);
+  if (!doc || !isShareable(doc.kind)) return fail.notFound(t.errors.notFound);
   return pdfOf(doc, variant);
 }
 

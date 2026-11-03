@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { shareDocument } from "@/modules/documents";
 import { sha256Hex } from "@/platform/crypto";
-import { makeDeal } from "../../../../../test/factories/deal";
+import { dealAt } from "../../../../../test/factories/deal";
 import { latestDocument, useDocuments } from "../../../../../test/factories/documents";
 import { GET } from "./route";
 
@@ -15,8 +15,8 @@ const call = (token: string, query = "") => GET(new Request(`http://localhost/d/
 
 describe("GET /d/[token]/pdf — документ по подписанной ссылке", () => {
   it("действующая ссылка отдаёт PDF без входа; подделанная — 404", async () => {
-    const f = await makeDeal();
-    const { id, sha256 } = await latestDocument(f.dealId, "CONTRACT");
+    const f = await dealAt("READY");
+    const { id, sha256 } = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
     const token = new URL((await shareDocument(f.client, id)).url).pathname.split("/").at(-1)!;
 
     const res = await call(token, "?original=1&download=1");

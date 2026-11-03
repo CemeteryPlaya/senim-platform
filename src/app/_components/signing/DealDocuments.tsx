@@ -22,7 +22,8 @@ export type DealDocumentsProps = {
 
 /**
  * Раздел «Документы» карточки сделки (ТЗ п. 7): у каждого документа — статус подписи, «Открыть»,
- * «Скачать» и «Поделиться в WhatsApp» (подписанная ссылка с ограниченным сроком, без персональных данных).
+ * «Скачать» и «Поделиться в WhatsApp» (подписанная ссылка с ограниченным сроком, без персональных данных;
+ * оферте ссылка не выдаётся — doc.shareable).
  */
 export function DealDocuments({ documents, linkTtlHours, signHref, titleAs: Title = "h2" }: DealDocumentsProps) {
   return (
@@ -77,7 +78,7 @@ function DocumentRow({ doc, linkTtlHours, signHref }: { doc: SigningDocumentView
           {t.section.download}
         </a>
       </div>
-      <ShareArea documentId={doc.id} linkTtlHours={linkTtlHours} />
+      {doc.shareable && <ShareArea documentId={doc.id} linkTtlHours={linkTtlHours} />}
     </li>
   );
 }

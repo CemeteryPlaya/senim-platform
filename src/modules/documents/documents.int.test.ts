@@ -22,6 +22,7 @@ import {
   startSigning,
   completeSigning,
 } from "./index";
+import { sealDocumentLink } from "./links";
 import { signedCopyForEmail } from "./read";
 
 const code = (c: string) => expect.objectContaining({ code: c });
@@ -288,17 +289,33 @@ describe("выписка, расписка, ссылки", () => {
     expect((await listDealDocuments(operator, f.dealId)).map((d) => d.kind)).toContain("RELEASE_RECEIPT");
   });
 
-  it("ссылка «Поделиться»: открывает документ без входа, подделка — нет; WhatsApp без персональных данных", async () => {
-    const f = await makeDeal();
-    const { id, sha256 } = await latestDocument(f.dealId, "CONTRACT");
+  it("ссылка «Поделиться» (акт): открывает документ без входа, подделка — нет; WhatsApp без персональных данных", async () => {
+    const f = await dealAt("READY");
+    const { id, sha256 } = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
     const link = await shareDocument(f.client, id);
     const token = new URL(link.url).pathname.split("/").at(-1)!;
     expect(token.startsWith(id)).toBe(true);
     expect(decodeURIComponent(link.whatsappUrl)).not.toMatch(new RegExp(f.client.fullName ?? "—"));
-    expect(await openSharedDocument(token)).toMatchObject({ kind: "CONTRACT", sha256 });
+    expect(await openSharedDocument(token)).toMatchObject({ kind: "ACCEPTANCE_ACT", sha256 });
     expect((await getSharedDocumentPdf(token, "original")).sha256).toBe(sha256);
     expect(await openSharedDocument(`${token.slice(0, -2)}xx`)).toBeNull();
     await expect(getSharedDocumentPdf(`${token.slice(0, -2)}xx`)).rejects.toEqual(code("NOT_FOUND"));
     expect(await db.auditEvent.count({ where: { action: "document.link.opened" } })).toBe(1);
+  });
+
+  it("оферта (полные ИИН/БИН) по ссылке не выдаётся: ни ссылки, ни открытия старой; скачать сторона может; акт и выписка — можно", async () => {
+    const f = await dealAt("PAID_HOLD");
+    const contract = await latestDocument(f.dealId, "CONTRACT");
+    await expect(shareDocument(f.client, contract.id)).rejects.toEqual(code("FORBIDDEN"));
+    await expect(shareDocument(await makeOperator(), contract.id)).rejects.toEqual(code("FORBIDDEN"));
+    const { token } = sealDocumentLink(contract.id);
+    expect(await openSharedDocument(token)).toBeNull();
+    await expect(getSharedDocumentPdf(token)).rejects.toEqual(code("NOT_FOUND"));
+    expect((await getDocumentPdf(f.client, contract.id)).bytes.length).toBeGreaterThan(0);
+
+    const docs = await listDealDocuments(f.client, f.dealId);
+    expect(Object.fromEntries(docs.map((d) => [d.kind, d.shareable]))).toEqual({ CONTRACT: false, MONEY_STATEMENT: true });
+    const statement = docs.find((d) => d.kind === "MONEY_STATEMENT")!;
+    expect((await shareDocument(f.client, statement.id)).url).toContain("/d/");
   });
 });
