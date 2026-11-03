@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Prisma } from "@/generated/prisma/client";
 import { recordAudit, scopeHistory, SYSTEM } from "@/modules/audit";
 import { db } from "@/platform/db";
-import { enqueueJob, runDueJobs } from "@/platform/jobs";
+import { enqueueJob, runDueJobs, runJobNow } from "@/platform/jobs";
 import { hitRateLimit } from "@/platform/rate-limit";
 import { decryptPii, encryptPii, hashPii } from "@/platform/crypto";
 
@@ -78,6 +78,22 @@ describe("фоновые задачи", () => {
   it("задача без обработчика сразу FAILED", async () => {
     await enqueueJob(db, { kind: "test.unknown" });
     expect(await runDueJobs({})).toMatchObject({ failed: 1 });
+  });
+
+  it("runJobNow: своя задача по dedupeKey — сразу, один раз даже при двух параллельных вызовах; сбой — повтор очередью", async () => {
+    const calls: unknown[] = [];
+    await enqueueJob(db, { kind: "test.echo", payload: { n: 7 }, dedupeKey: "now-1", runAt: new Date(Date.now() + 3600_000) });
+    const echo = { "test.echo": async (p: unknown) => void calls.push(p) };
+    expect(await Promise.all([runJobNow(echo, "now-1"), runJobNow(echo, "now-1")])).toEqual(expect.arrayContaining([true, false]));
+    expect(calls).toEqual([{ n: 7 }]);
+    expect(await db.job.findFirstOrThrow({ where: { dedupeKey: "now-1" } })).toMatchObject({ status: "DONE", attempts: 1 });
+    expect(await runJobNow(echo, "нет-такой")).toBe(false);
+
+    await enqueueJob(db, { kind: "test.boom", dedupeKey: "now-2", maxAttempts: 3 });
+    expect(await runJobNow({ "test.boom": async () => Promise.reject(new Error("сбой")) }, "now-2")).toBe(true);
+    const failed = await db.job.findFirstOrThrow({ where: { dedupeKey: "now-2" } });
+    expect(failed).toMatchObject({ status: "PENDING", attempts: 1, lastError: "сбой" });
+    expect(failed.runAt.getTime()).toBeGreaterThan(Date.now());
   });
 });
 

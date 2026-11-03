@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CurrentUser } from "@/modules/identity";
 import { db, transaction } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
-import { runDueJobs } from "@/platform/jobs";
+import { runDueJobs, runJobNow } from "@/platform/jobs";
 import { makeClient, makeExecutor } from "../../../test/factories";
-import { createSendPushHandler, notify, pushJobKey, runQueuedNow, subscribePush, unsubscribePush, type PushMessage, type PushResult } from "./index";
+import { createSendPushHandler, notify, pushJobKey, subscribePush, unsubscribePush, type PushMessage, type PushResult } from "./index";
 
 const VAPID = { VAPID_PUBLIC_KEY: "BPublicKeyForTests", VAPID_PRIVATE_KEY: "privateKeyForTests", VAPID_SUBJECT: "mailto:dev@example.com" } as const;
 const setVapid = (on: boolean) => {
@@ -68,7 +68,7 @@ describe("web push к каждому уведомлению", () => {
     }).catch(() => undefined);
 
     const push = recordingPush();
-    await runQueuedNow(push.handlers, [pushJobKey(notificationId, subscription.id)]);
+    await runJobNow(push.handlers, pushJobKey(notificationId, subscription.id));
     await runDueJobs(push.handlers);
     expect(push.sent).toEqual([]);
     expect(await db.job.count()).toBe(0);
@@ -83,7 +83,7 @@ describe("web push к каждому уведомлению", () => {
     const key = pushJobKey(notification.id, subscription.id);
 
     const push = recordingPush();
-    await Promise.all([runQueuedNow(push.handlers, [key]), runQueuedNow(push.handlers, [key])]);
+    await Promise.all([runJobNow(push.handlers, key), runJobNow(push.handlers, key)]);
     await runDueJobs(push.handlers);
     expect(push.sent).toHaveLength(1);
     expect(await db.job.findUniqueOrThrow({ where: { dedupeKey: key } })).toMatchObject({ status: "DONE" });

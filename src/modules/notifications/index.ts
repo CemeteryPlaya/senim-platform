@@ -28,7 +28,6 @@ export {
   type PushSender,
   type PushSubscriptionInput,
 } from "./push";
-export { runQueuedNow } from "./dispatch";
 export { createMockEmailProvider, emailProvider, sendEmail, type EmailAttachment, type EmailMessage, type EmailProvider, type EmailResult } from "./email";
 
 export type NotifyInput = {

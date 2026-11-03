@@ -85,6 +85,22 @@ export async function runDueJobs(handlers: JobHandlers, opts: RunOptions = {}): 
   return summary;
 }
 
+/**
+ * Выполнить одну задачу сейчас, не дожидаясь прохода очереди (например, доставка SMS и push сразу после ответа).
+ * Берётся только PENDING-задача с этим dedupeKey (срок runAt не важен): параллельный вызов или проход очереди
+ * второй раз её не возьмут. Учёт попыток, ошибок и повторов — тот же, что у runDueJobs.
+ * true — задача взята и выполнена (или ушла на повтор); false — брать нечего.
+ */
+export async function runJobNow(handlers: JobHandlers, dedupeKey: string): Promise<boolean> {
+  const [job] = await db.job.updateManyAndReturn({
+    where: { dedupeKey, status: "PENDING" },
+    data: { status: "RUNNING", lockedAt: new Date(), attempts: { increment: 1 } },
+  });
+  if (!job) return false;
+  await runJob(handlers, job, { claimed: 1, done: 0, retried: 0, failed: 0 });
+  return true;
+}
+
 async function runJob(handlers: JobHandlers, job: Job, summary: RunSummary): Promise<void> {
   const log = logger.child({ jobId: job.id, kind: job.kind, attempt: job.attempts });
   const handler = handlers[job.kind];
