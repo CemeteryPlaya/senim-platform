@@ -53,7 +53,7 @@ describe("страница показа банку", () => {
     const f = await dealAt("READY", { provider: "manual" });
     await signAct(f.dealId);
     for (const type of ["RELEASE", "SPLIT_MASTER", "SPLIT_PLATFORM"] as const) await confirmPending(f.dealId, type);
-    const { number } = await db.deal.findUniqueOrThrow({ where: { id: f.dealId } });
+    const { number } = await db.deal.update({ where: { id: f.dealId }, data: { isDemo: true }, select: { number: true } });
 
     const demo = await getBankDemo({});
 
@@ -71,5 +71,16 @@ describe("страница показа банку", () => {
     expect(demo.deals.map((d) => d.number)).toContain(number);
 
     expect((await getBankDemo({ deal: 999_999 })).selected).toBeNull();
+  });
+
+  it("настоящая (не тестовая) сделка на страницу не попадает — ни в список, ни по номеру", async () => {
+    setDemoMode(true);
+    const real = await dealAt("READY", { provider: "manual" });
+    const { number } = await db.deal.findUniqueOrThrow({ where: { id: real.dealId }, select: { number: true } });
+
+    const demo = await getBankDemo({});
+    expect(demo.deals.map((d) => d.number)).not.toContain(number);
+    expect(demo.selected).toBeNull();
+    expect((await getBankDemo({ deal: number })).selected).toBeNull();
   });
 });

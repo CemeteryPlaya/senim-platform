@@ -74,10 +74,16 @@ async function snapshot(): Promise<ScenarioSnapshot> {
   };
 }
 
+/**
+ * Страница открыта без проверки роли, поэтому разбирает только тестовые сделки (Deal.isDemo): настоящая сделка
+ * со стенда, где включили DEMO_MODE, сюда не попадает — ни в список, ни по номеру.
+ */
+const DEMO_DEAL = { isDemo: true } satisfies Prisma.DealWhereInput;
+
 /** Сделка для разбора: заданная номером, иначе завершённая на manual, иначе завершённая, иначе последняя. */
 async function pickDealId(number?: number): Promise<string | undefined> {
-  if (number !== undefined) return (await db.deal.findUnique({ where: { number }, select: { id: true } }))?.id;
-  const deals = await db.deal.findMany({ orderBy: { updatedAt: "desc" }, take: 200, select: { id: true, status: true, paymentProvider: true } });
+  if (number !== undefined) return (await db.deal.findFirst({ where: { number, ...DEMO_DEAL }, select: { id: true } }))?.id;
+  const deals = await db.deal.findMany({ where: DEMO_DEAL, orderBy: { updatedAt: "desc" }, take: 200, select: { id: true, status: true, paymentProvider: true } });
   const done = deals.filter((d) => d.status === "SPLIT_PAYOUT");
   return (done.find((d) => d.paymentProvider === "MANUAL") ?? done[0] ?? deals[0])?.id;
 }
@@ -86,7 +92,7 @@ export async function getBankDemo(input: { deal?: number }) {
   assertDemoMode();
   const [snap, deals, dealId] = await Promise.all([
     snapshot(),
-    db.deal.findMany({ orderBy: { number: "desc" }, take: 200, select: { number: true, title: true, status: true } }),
+    db.deal.findMany({ where: DEMO_DEAL, orderBy: { number: "desc" }, take: 200, select: { number: true, title: true, status: true } }),
     pickDealId(input.deal),
   ]);
   const selected = dealId
