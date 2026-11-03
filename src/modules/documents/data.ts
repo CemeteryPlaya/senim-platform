@@ -52,7 +52,9 @@ async function currentNumber(client: Db, dealId: string, kind: "CONTRACT" | "ACC
 }
 
 export async function contractData(client: Db, dealId: string, meta: Meta): Promise<ContractData> {
-  const [d, p] = await Promise.all([dealDocumentData(client, dealId), parties(client, dealId)]);
+  // client — часто транзакция: запросы по одному соединению идут только последовательно.
+  const d = await dealDocumentData(client, dealId);
+  const p = await parties(client, dealId);
   return {
     ...meta,
     city: d.address.city,
@@ -127,12 +129,15 @@ export async function lastMoneyAt(client: Db, dealId: string): Promise<Date | nu
 }
 
 export async function receiptData(client: Db, dealId: string, meta: Meta): Promise<ReleaseReceiptData> {
-  const [d, p] = await Promise.all([dealDocumentData(client, dealId), parties(client, dealId)]);
+  // client — часто транзакция: запросы по одному соединению идут только последовательно.
+  const d = await dealDocumentData(client, dealId);
+  const p = await parties(client, dealId);
   const sum = (type: "SPLIT_MASTER" | "SPLIT_PLATFORM" | "REFUND") =>
     d.moneyHistory.filter((e) => e.type === type && e.status !== "FAILED").reduce((s, e) => s + e.amountTiyn, 0n);
   const release = { masterTiyn: sum("SPLIT_MASTER"), platformTiyn: sum("SPLIT_PLATFORM"), refundTiyn: sum("REFUND") };
   if (release.masterTiyn + release.platformTiyn === 0n) return fail.conflict(t.errors.noRelease);
-  const [contract, act] = await Promise.all([currentNumber(client, dealId, "CONTRACT"), currentNumber(client, dealId, "ACCEPTANCE_ACT")]);
+  const contract = await currentNumber(client, dealId, "CONTRACT");
+  const act = await currentNumber(client, dealId, "ACCEPTANCE_ACT");
   if (!contract) return fail.conflict(t.errors.noContract);
   const signedAct = act && (await client.document.findFirst({ where: { dealId, kind: "ACCEPTANCE_ACT", status: "SIGNED" }, select: { number: true, sha256: true } }));
   return {
