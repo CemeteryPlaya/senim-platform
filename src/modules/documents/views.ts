@@ -3,10 +3,13 @@ import { missingOf, requiredSignatures, type SignedParties, type SigningFlags } 
 import type { SigningSession } from "./signature";
 
 /**
- * Что можно переслать подписанной ссылкой (её откроет любой, у кого она есть): акт, выписка, расписка.
+ * Что можно переслать подписанной ссылкой (её откроет любой, у кого она есть) — белый список: акт и выписка.
  * Оферта — нет: в ней полные ИИН/БИН сторон (CLAUDE.md — раскрываются только в договоре); стороны её скачивают.
+ * Расписка на раскрытие — нет: полные ИИН/БИН и IBAN, её видит только оператор. Новый вид документа
+ * по умолчанию не пересылается.
  */
-export const isShareable = (kind: DocumentKind): boolean => kind !== "CONTRACT";
+const SHAREABLE: ReadonlySet<DocumentKind> = new Set<DocumentKind>(["ACCEPTANCE_ACT", "MONEY_STATEMENT"]);
+export const isShareable = (kind: DocumentKind): boolean => SHAREABLE.has(kind);
 
 /** Подписи одной стороны на экране: что требуется и что уже есть (время и подписанный хэш). */
 export type PartySignaturesView = {

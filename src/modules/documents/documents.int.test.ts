@@ -298,6 +298,19 @@ describe("выписка, расписка, ссылки", () => {
     // Сторонам расписка в списке не показывается — это бумага для банка.
     expect((await listDealDocuments(f.client, f.dealId)).map((d) => d.kind)).not.toContain("RELEASE_RECEIPT");
     expect((await listDealDocuments(operator, f.dealId)).map((d) => d.kind)).toContain("RELEASE_RECEIPT");
+
+    // В расписке полные ИИН/БИН и IBAN: сторона не откроет её по id, ссылку не выпустит никто,
+    // старая ссылка (выпущенная до запрета) не открывается.
+    const receiptId = receipt.documentId;
+    await expect(getDocumentPdf(f.client, receiptId)).rejects.toEqual(code("NOT_FOUND"));
+    await expect(getDocumentPdf(f.executor, receiptId)).rejects.toEqual(code("NOT_FOUND"));
+    await expect(shareDocument(f.client, receiptId)).rejects.toEqual(code("NOT_FOUND"));
+    await expect(shareDocument(operator, receiptId)).rejects.toEqual(code("FORBIDDEN"));
+    const { token } = sealDocumentLink(receiptId);
+    expect(await openSharedDocument(token)).toBeNull();
+    await expect(getSharedDocumentPdf(token)).rejects.toEqual(code("NOT_FOUND"));
+    expect((await getDocumentPdf(operator, receiptId)).bytes.length).toBeGreaterThan(0);
+    expect((await listDealDocuments(operator, f.dealId)).find((d) => d.kind === "RELEASE_RECEIPT")?.shareable).toBe(false);
   });
 
   it("ссылка «Поделиться» (акт): открывает документ без входа, подделка — нет; WhatsApp без персональных данных", async () => {

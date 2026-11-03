@@ -7,7 +7,7 @@ import { db, transaction } from "@/platform/db";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
-import { canRead, partyOf } from "./access";
+import { canRead, partyOf, readableKinds } from "./access";
 import { signingFlags } from "@/modules/deal-core";
 import { ensureMoneyStatement, issueReleaseReceipt, scopeOf, type CreatedDocument } from "./issue";
 import { LINK_TTL_SEC, openDocumentLink, sealDocumentLink, whatsappShareUrl } from "./links";
@@ -113,7 +113,7 @@ export async function listDealDocuments(user: CurrentUser, dealId: string): Prom
   const myParty = partyOf(user, deal);
   const flags = signingFlags();
   const docs = await db.document.findMany({
-    where: { dealId, status: { not: "SUPERSEDED" }, kind: { in: user.role === "OPERATOR" ? ["CONTRACT", "ACCEPTANCE_ACT", "MONEY_STATEMENT", "RELEASE_RECEIPT"] : ["CONTRACT", "ACCEPTANCE_ACT", "MONEY_STATEMENT"] } },
+    where: { dealId, status: { not: "SUPERSEDED" }, kind: { in: [...readableKinds(user)] } },
     include: {
       signatures: { select: { party: true, signedAt: true, signedSha256: true, method: true }, orderBy: { signedAt: "asc" } },
       handSignatures: { select: { party: true, signedAt: true, documentSha256: true, imageFileId: true }, orderBy: { signedAt: "asc" } },
@@ -125,7 +125,7 @@ export async function listDealDocuments(user: CurrentUser, dealId: string): Prom
 
 // ─── ссылки «Поделиться» ────────────────────────────────────────────────────
 
-/** Подписанная ссылка на документ для пересылки (WhatsApp): стороны сделки и оператор; оферте — нет (isShareable). */
+/** Подписанная ссылка на документ для пересылки (WhatsApp): стороны сделки и оператор; только акт и выписка (isShareable). */
 export async function shareDocument(user: CurrentUser, documentId: string): Promise<SharedLink> {
   const doc = await readableDocument(user, documentId);
   if (!isShareable(doc.kind)) return fail.forbidden(t.errors.notShareable);
@@ -144,7 +144,7 @@ export async function openSharedDocument(token: string): Promise<SharedDocumentV
   const link = openDocumentLink(token);
   if (!link) return null;
   const doc = await loadFull(link.documentId);
-  // Ссылка на оферту, выпущенная до запрета, не открывается.
+  // Ссылка на оферту или расписку, выпущенная до запрета, не открывается.
   if (!doc || !isShareable(doc.kind)) return null;
   await recordAudit(db, { actor: SYSTEM("documents.link"), action: "document.link.opened", entity: { type: "document", id: doc.id }, scope: scopeOf(doc.dealId) });
   return { kind: doc.kind, number: doc.number, version: doc.version, status: doc.status, sha256: doc.sha256, expiresAt: link.expiresAt, signedCount: doc.handSignatures.length + doc.signatures.length };

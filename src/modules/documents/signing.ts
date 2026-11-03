@@ -9,7 +9,7 @@ import { decryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db, isUniqueViolation, transaction, type Db, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enqueueJob } from "@/platform/jobs";
-import { canRead, partyOf } from "./access";
+import { canReadDocument, partyOf } from "./access";
 import { EMAIL_ACT_JOB } from "./email";
 import { assertHandImage, storeHandImage } from "./hand-image";
 import { lockDeal, scopeOf } from "./issue";
@@ -41,7 +41,7 @@ const signedParties = (doc: { signatures: { party: SignParty }[]; handSignatures
 /** Документ, который пользователь вправе видеть; иначе «не найден» (не раскрываем, что он существует). */
 export async function readableDocument(user: CurrentUser, documentId: string): Promise<LoadedDocument> {
   const doc = await loadDocument(db, documentId);
-  if (!doc || !canRead(user, doc.deal)) return fail.notFound(t.errors.notFound);
+  if (!doc || !canReadDocument(user, doc)) return fail.notFound(t.errors.notFound);
   return doc;
 }
 
