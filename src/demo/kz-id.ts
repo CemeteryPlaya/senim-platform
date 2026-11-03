@@ -24,3 +24,14 @@ export function testIin(birthYymmdd: string, centuryGender: 3 | 4 | 5 | 6, n: nu
 export function testBin(registeredYymm: string, n: number): string {
   return withCheckDigit(`${registeredYymm}40${String(n).padStart(5, "0")}`);
 }
+
+/**
+ * Тестовый KZ IBAN для выплат мастеру: код банка 000 (не выдан банкам) и «DEMO» в номере счёта,
+ * контрольные цифры — по ISO 13616 (mod-97), чтобы IBAN проходил проверку формы.
+ */
+export function testIban(n: number): string {
+  const bban = `000DEMO${String(n).padStart(9, "0")}`;
+  const digits = [...`${bban}KZ00`].map((ch) => (/[A-Z]/.test(ch) ? String(ch.charCodeAt(0) - 55) : ch)).join("");
+  const mod = [...digits].reduce((acc, d) => (acc * 10 + Number(d)) % 97, 0);
+  return `KZ${String(98 - mod).padStart(2, "0")}${bban}`;
+}

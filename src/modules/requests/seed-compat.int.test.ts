@@ -1,12 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { seedDemo } from "@/demo/seed";
 import { db } from "@/platform/db";
+import { useSeedStorage } from "../../../test/factories/documents";
 import { requestDetailsSchema } from "./schema";
 import { getClientRequest, getIncomingRequest, listIncomingRequests, listMyRequests, listOffers } from "./index";
 
 /** Демо-данные сида читаются сервисом requests без поправок: формат details и состояния совпадают. */
+let cleanup: () => Promise<void>;
+beforeAll(async () => {
+  cleanup = await useSeedStorage();
+});
+afterAll(() => cleanup());
+
 describe("совместимость с демо-данными", () => {
-  it("каждая заявка сида проходит схему details, а экраны заказчика и исполнителя их читают", async () => {
+  it("каждая заявка сида проходит схему details, а экраны заказчика и исполнителя их читают", { timeout: 120_000 }, async () => {
     await seedDemo(db);
 
     const requests = await db.request.findMany({ include: { client: true } });

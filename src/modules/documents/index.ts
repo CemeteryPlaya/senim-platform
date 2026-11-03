@@ -24,6 +24,9 @@ export {
   type SharedDocumentView,
 } from "./read";
 export { HAND_IMAGE_MAX_BYTES } from "./hand-image";
+// Рендер PDF по описанию (кириллица, колонтитул): служебные файлы вне документов сделки — тестовые сканы сида.
+export { renderPdf } from "./pdf/render";
+export type { PdfSpec } from "./pdf/spec";
 export type { PartySignaturesView, SharedLink, SigningDocumentView, StartedSigning } from "./views";
 
 /** Реализация порта документов deal-core: регистрируется в src/instrumentation.ts (и в точках сборки задач и сида). */

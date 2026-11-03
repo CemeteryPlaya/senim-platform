@@ -1,12 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { seedDemo } from "@/demo/seed";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
+import { useSeedStorage } from "../../../test/factories/documents";
 import { cookieValue, freshBrowser, makeDemoPersona, setEnv } from "../../../test/factories/identity";
 import { listDemoPersonas, loginAsDemoPersona } from "./demo";
 import { getCurrentUser, SESSION_COOKIE } from "./session";
 
 vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);
+
+let cleanup: () => Promise<void>;
+beforeAll(async () => {
+  cleanup = await useSeedStorage();
+});
+afterAll(() => cleanup());
 
 beforeEach(() => {
   freshBrowser();

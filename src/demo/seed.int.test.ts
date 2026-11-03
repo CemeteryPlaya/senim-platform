@@ -1,106 +1,146 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-import { RequestStatus } from "@/generated/prisma/enums";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { DealStatus, RequestStatus } from "@/generated/prisma/enums";
+import { computeDealMoney, computeSplit, moneyFacts, ledgerEntries } from "@/modules/payments";
+import { segmentPriceHints } from "@/modules/requests";
 import { decryptPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
-import { segmentPriceHints } from "@/modules/requests";
 import { typicalEstimateSchema } from "@/verticals/furniture";
-import { DEAL_SHOWCASES, EXECUTORS } from "./data";
+import { useSeedStorage } from "../../test/factories/documents";
+import { setEnv } from "../../test/factories/identity";
+import { EXECUTORS } from "./data";
 import { PORTFOLIO_FILES } from "./portfolio-files";
 import { resetDemo, seedDemo } from "./seed";
 
-describe("демо-данные", () => {
-  beforeEach(async () => {
-    await seedDemo(db);
-  });
+let cleanup: () => Promise<void>;
+beforeAll(async () => {
+  cleanup = await useSeedStorage();
+});
+afterAll(() => cleanup());
 
-  it("содержат заявки во всех статусах", async () => {
+const sum = (rows: { type: string; status: string; amountTiyn: bigint }[], type: string) =>
+  rows.filter((r) => r.type === type && r.status === "SUCCEEDED").reduce((a, r) => a + r.amountTiyn, 0n);
+
+// Сид дорогой (сделки идут сервисами, документы — PDF): одна засевка на тест, проверки сгруппированы.
+describe("демо-данные", () => {
+  it("заявки и торг: все статусы заявок; путь ТЗ — без сценария до договора, у живого отклика открытая цена", { timeout: 120_000 }, async () => {
+    await seedDemo(db);
+
     const groups = await db.request.groupBy({ by: ["status"], _count: true });
     expect(groups.map((g) => g.status).sort()).toEqual(Object.values(RequestStatus).sort());
-  });
 
-  it("сценарии до договора 2-5: по заявке на шаге, с которого их проходят; сеются последними; замерщик — демо-персона", async () => {
-    const flows = await db.request.findMany({ where: { preContractFlow: { notIn: ["EXECUTOR_MEASURE"] } }, orderBy: { number: "asc" } });
-    expect(Object.fromEntries(flows.map((r) => [r.preContractFlow, r.status]))).toEqual({
-      PLATFORM_MEASURER: "PLATFORM_MEASURING",
-      CONTRACT_FIRST: "OFFER_CHOSEN",
-      MEASURE_DEPOSIT: "OFFER_CHOSEN",
-      SELF_MEASURE: "OPEN",
-    });
-    const others = await db.request.aggregate({ where: { id: { notIn: flows.map((r) => r.id) } }, _max: { number: true } });
+    const tz = await db.request.findMany({ where: { preContractFlow: null, status: { not: "DRAFT" } }, include: { offers: { include: { proposals: true, deal: true } } } });
+    expect(tz.length).toBeGreaterThan(10);
+    for (const r of tz) {
+      for (const o of r.offers.filter((o) => o.status === "SENT" || o.status === "ACCEPTED")) {
+        const open = o.proposals.filter((p) => p.status === "PROPOSED");
+        const accepted = o.proposals.filter((p) => p.status === "ACCEPTED");
+        expect(open.length + accepted.length, `заявка №${r.number}`).toBe(1);
+        if (accepted.length) expect(o.deal?.priceTiyn).toBe(accepted[0]!.amountTiyn);
+      }
+    }
+    // Торг в разных раундах: встречная цена покупателя ждёт мастера, третий раунд ждёт покупателя.
+    const parties = (await db.priceProposal.findMany({ where: { status: "PROPOSED" }, select: { party: true } })).map((p) => p.party);
+    expect(new Set(parties)).toEqual(new Set(["CLIENT", "EXECUTOR"]));
+    expect(await db.priceProposal.count({ where: { status: "SUPERSEDED" } })).toBeGreaterThan(3);
+
+    const flows = await db.request.findMany({ where: { preContractFlow: { not: null } }, orderBy: { number: "asc" } });
+    const others = await db.request.aggregate({ where: { preContractFlow: null }, _max: { number: true } });
     expect(flows[0]!.number).toBeGreaterThan(others._max.number!);
     const measurer = await db.user.findFirstOrThrow({ where: { roles: { has: "MEASURER" } }, include: { siteMeasurements: true } });
     expect(measurer).toMatchObject({ roles: ["MEASURER"], isDemo: true });
     expect(measurer.siteMeasurements).toHaveLength(1);
   });
 
-  it("проект после замера: у сделок — утверждён на сумму сделки", async () => {
-    const deals = await db.deal.findMany({ where: { request: { preContractFlow: "EXECUTOR_MEASURE" } }, select: { offerId: true, totalAmount: true } });
-    for (const deal of deals) {
-      const project = await db.project.findFirstOrThrow({ where: { offerId: deal.offerId } });
-      expect(project).toMatchObject({ status: "APPROVED", totalPrice: deal.totalAmount });
-    }
-  });
+  it("сделки: все статусы ТЗ на mock и manual, тестовые; журнал сходится с формулами до тиына", { timeout: 120_000 }, async () => {
+    await seedDemo(db);
+    const deals = await db.deal.findMany({ include: { transactions: true, disputes: true, documents: true, progressReports: true } });
 
-  it("у каждой сделки сумма этапов равна сумме сделки, оплата есть только у этапов с суммой", async () => {
-    const deals = await db.deal.findMany({ include: { stages: { include: { payment: true } } } });
-    expect(deals.length).toBeGreaterThan(0);
-    for (const deal of deals) {
-      expect(deal.stages.reduce((sum, s) => sum + s.amount, 0), deal.title).toBe(deal.totalAmount);
-      for (const stage of deal.stages) {
-        expect(stage.payment?.amount ?? 0, `${deal.title} / ${stage.title}`).toBe(stage.amount);
+    expect([...new Set(deals.map((d) => d.status))].sort()).toEqual(Object.values(DealStatus).sort());
+    expect(new Set(deals.map((d) => d.paymentProvider))).toEqual(new Set(["MOCK", "MANUAL"]));
+    expect(deals.every((d) => d.isDemo)).toBe(true);
+    expect(deals.flatMap((d) => d.transactions).every((t) => t.isTest)).toBe(true);
+
+    for (const d of deals) {
+      const money = computeDealMoney(d.priceTiyn);
+      expect({ buyer: d.buyerTotalTiyn, payout: d.payoutTiyn, income: d.platformIncomeTiyn }, `сделка №${d.number}`).toEqual({
+        buyer: money.buyerTotalTiyn,
+        payout: money.payoutTiyn,
+        income: money.platformIncomeTiyn,
+      });
+      const t = d.transactions;
+      const facts = moneyFacts(await ledgerEntries(db, d.id));
+      expect(sum(t, "HOLD") - sum(t, "SPLIT_MASTER") - sum(t, "SPLIT_PLATFORM") - sum(t, "REFUND"), `остаток сделки №${d.number}`).toBe(facts.bankBalanceTiyn);
+      const resolved = d.disputes.find((x) => x.status === "RESOLVED");
+      if (d.status === "SPLIT_PAYOUT" && !resolved) {
+        expect([sum(t, "HOLD"), sum(t, "SPLIT_MASTER"), sum(t, "SPLIT_PLATFORM"), sum(t, "REFUND")]).toEqual([money.buyerTotalTiyn, money.payoutTiyn, money.platformIncomeTiyn, 0n]);
       }
+      if (d.status === "SPLIT_PAYOUT" && resolved) {
+        const split = computeSplit(d.priceTiyn, resolved.masterShareTiyn!);
+        expect([sum(t, "SPLIT_MASTER"), sum(t, "SPLIT_PLATFORM"), sum(t, "REFUND")]).toEqual([split.masterTiyn, split.platformTiyn, split.refundTiyn]);
+        expect(split.refundTiyn).toBeGreaterThan(0n);
+      }
+      if (d.status === "REFUNDED") expect(sum(t, "REFUND")).toBe(money.buyerTotalTiyn);
+      if (["SPLIT_PAYOUT", "REFUNDED"].includes(d.status)) expect(facts.bankBalanceTiyn).toBe(0n);
+      // Оферта — настоящий PDF documents у каждой сделки; акт — у каждой сданной.
+      expect(d.documents.some((doc) => doc.kind === "CONTRACT"), `оферта сделки №${d.number}`).toBe(true);
+      if (d.readyAt) expect(d.documents.some((doc) => doc.kind === "ACCEPTANCE_ACT"), `акт сделки №${d.number}`).toBe(true);
     }
+    const pdfFiles = await db.storedFile.findMany({ where: { document: { isNot: null } }, select: { provider: true, size: true } });
+    expect(pdfFiles.every((f) => f.provider === "local" && f.size > 1000)).toBe(true);
+
+    // manual: есть операции, ждущие оператора, и подтверждённые банковским документом (номер, дата, тестовый скан).
+    const manual = deals.filter((d) => d.paymentProvider === "MANUAL").flatMap((d) => d.transactions);
+    expect(manual.some((t) => t.status === "PENDING")).toBe(true);
+    const confirmed = manual.filter((t) => t.status === "SUCCEEDED" && t.bankDocFileId);
+    expect(confirmed.length).toBeGreaterThan(3);
+    expect(confirmed.every((t) => t.bankDocNumber?.startsWith("ТЕСТ-") && t.bankDocDate)).toBe(true);
+    expect(manual.filter((t) => t.status === "SUCCEEDED" && ["HOLD", "SPLIT_MASTER", "SPLIT_PLATFORM", "REFUND"].includes(t.type)).every((t) => t.bankDocFileId)).toBe(true);
+
+    // Споры: открытые в PAID_HOLD и READY; решённые — раздел и полный возврат.
+    const open = deals.filter((d) => d.disputes.some((x) => x.status === "OPEN"));
+    expect(open.map((d) => d.status).sort()).toEqual(["PAID_HOLD", "READY"]);
+    expect(open.every((d) => d.disputes[0]!.clientPosition && d.disputes[0]!.executorPosition)).toBe(true);
+    expect(deals.flatMap((d) => d.disputes).filter((x) => x.status === "RESOLVED").map((x) => x.outcome).sort()).toEqual(["FULL_REFUND", "PARTIAL_SPLIT"]);
+
+    // Сдача: одна в радиусе, одна вне; «Ход работ» с фото у сделки в работе.
+    const ready = deals.filter((d) => d.status === "READY");
+    expect(new Set(ready.map((d) => d.readyWithinRadius))).toEqual(new Set([true, false]));
+    expect(deals.find((d) => d.status === "IN_PROGRESS")!.progressReports.length).toBeGreaterThanOrEqual(2);
+    expect(await db.storedFile.count({ where: { purpose: "DELIVERY", dealId: { not: null } } })).toBeGreaterThan(5);
+
+    // Уведомления сделок и денег — от сервисов.
+    const kinds = new Set((await db.notification.findMany({ select: { kind: true } })).map((n) => n.kind));
+    for (const kind of ["deal.offer.ready", "deal.ready", "deal.signed"]) expect(kinds.has(kind), kind).toBe(true);
+    expect([...kinds].some((k) => k.startsWith("money."))).toBe(true);
   });
 
-  it("не хранит БИН исполнителя-ТОО открытым текстом", async () => {
+  it("люди: мастера с тестовыми адресами, KYC во всех статусах, БИН ТОО зашифрован; справочник цен — демо", { timeout: 120_000 }, async () => {
+    await seedDemo(db);
     const spec = EXECUTORS.agash;
     const profile = await db.executorProfile.findFirstOrThrow({ where: { legalName: spec.legalName }, include: { user: true } });
     expect(profile.legalForm).toBe("TOO");
     expect(JSON.stringify(profile)).not.toContain(spec.bin);
     expect(decryptPii(profile.binIinEnc)).toBe(spec.bin);
     expect(profile.binIinLast4).toBe(spec.bin.slice(-4));
-  });
 
-  it("у каждого исполнителя есть тестовый адрес мастерской (№6)", async () => {
-    const profiles = await db.executorProfile.findMany({ select: { district: true, streetAddress: true } });
+    const profiles = await db.executorProfile.findMany({ select: { district: true, streetAddress: true, kycStatus: true, status: true, payoutIbanEnc: true, kycDocuments: { select: { purpose: true } } } });
     expect(profiles.length).toBe(Object.keys(EXECUTORS).length);
     for (const p of profiles) {
       expect(p.district).not.toBe("");
       expect(p.streetAddress).toMatch(/\(демо\)$/);
+      if (p.status === "APPROVED") expect(decryptPii(p.payoutIbanEnc!)).toMatch(/^KZ\d{2}000DEMO/);
     }
-  });
+    expect(new Set(profiles.filter((p) => p.kycDocuments.length > 0).map((p) => p.kycStatus))).toEqual(new Set(["VERIFIED", "PENDING", "REJECTED"]));
+    expect(await db.user.count({ where: { role: "OPERATOR", isDemo: true } })).toBe(1);
 
-  it("содержат ровно один открытый спор со структурой позиций", async () => {
-    const open = await db.dispute.findMany({ where: { status: "OPEN" }, include: { deal: true } });
-    expect(open).toHaveLength(1);
-    expect(open[0]).toMatchObject({ reason: "QUALITY", clientPosition: expect.any(String), executorPosition: expect.any(String) });
-    expect(open[0].deal.status).toBe("DISPUTE");
-  });
-
-  it("описывают фото портфолио размером и sha256 реальных файлов", async () => {
     for (const [name, meta] of Object.entries(PORTFOLIO_FILES)) {
       const bytes = readFileSync(path.resolve("public/demo/portfolio", `${name}.svg`));
       expect({ size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }, name).toEqual(meta);
     }
-  });
 
-  it("витрина из сделок: итоговые фото — копии демо-SVG, согласие заказчика, одна работа уже во «Вдохновении»", async () => {
-    for (const spec of DEAL_SHOWCASES) {
-      for (const [i, source] of spec.photos.entries()) {
-        const bytes = readFileSync(path.resolve("public/demo/deals", `${spec.request}-${i + 1}.svg`));
-        expect({ size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }, spec.request).toEqual(PORTFOLIO_FILES[source]);
-      }
-    }
-    const deals = await db.deal.findMany({ where: { portfolioConsentAt: { not: null } }, include: { portfolioItem: { include: { dealPhotos: true } } } });
-    expect(deals).toHaveLength(DEAL_SHOWCASES.length);
-    expect(deals.filter((d) => d.portfolioItem).map((d) => d.portfolioItem!.dealPhotos.length)).toEqual([2]);
-    expect(await db.portfolioItem.count({ where: { featured: true } })).toBeGreaterThanOrEqual(4);
-  });
-
-  it("справочник цен материалов и типовые расчёты — демо; по ним считается вилка всех уровней (ADR-007)", async () => {
     const prices = await db.materialPrice.findMany();
     expect(prices.length).toBeGreaterThan(0);
     expect(prices.every((p) => p.isDemo && p.active && p.priceKzt > 0 && p.segments.length > 0)).toBe(true);
@@ -110,16 +150,19 @@ describe("демо-данные", () => {
       expect(e.isDemo).toBe(true);
       const { productUnit, typicalWidthCm, typicalHeightCm, markup, perUnit } = e;
       expect(typicalEstimateSchema.safeParse({ productUnit, typicalWidthCm, typicalHeightCm, markup, perUnit }).success).toBe(true);
-      const hints = await segmentPriceHints(e.furnitureTypeId);
+      // Вилка по справочнику — функция калькулятора материалов (флаг materialsCalculator).
+      setEnv({ FEATURE_MATERIALS_CALCULATOR: "true" });
+      const hints = await segmentPriceHints(e.furnitureTypeId).finally(() => setEnv({ FEATURE_MATERIALS_CALCULATOR: undefined }));
       for (const hint of Object.values(hints)) expect(hint).toMatchObject({ source: "materials", demo: true });
     }
   });
 
-  it("не дают засеять непустую базу повторно, а resetDemo пересоздаёт её с теми же объёмами", async () => {
-    const before = { users: await db.user.count(), deals: await db.deal.count(), audit: await db.auditEvent.count() };
+  it("не дают засеять непустую базу повторно, а resetDemo пересоздаёт её с теми же объёмами", { timeout: 240_000 }, async () => {
+    await seedDemo(db);
+    const before = { users: await db.user.count(), deals: await db.deal.count(), requests: await db.request.count(), money: await db.moneyTransaction.count() };
     await expect(seedDemo(db)).rejects.toThrow(/не пуста/);
     await resetDemo(db);
-    expect({ users: await db.user.count(), deals: await db.deal.count(), audit: await db.auditEvent.count() }).toEqual(before);
+    expect({ users: await db.user.count(), deals: await db.deal.count(), requests: await db.request.count(), money: await db.moneyTransaction.count() }).toEqual(before);
     expect((await db.request.findFirstOrThrow({ orderBy: { number: "asc" } })).number).toBe(1);
   });
 });

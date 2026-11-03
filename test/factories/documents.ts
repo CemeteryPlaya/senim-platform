@@ -28,6 +28,19 @@ export async function useDocuments(): Promise<() => Promise<void>> {
   };
 }
 
+/**
+ * Для тестов сида (src/demo): хранилище во временной папке (сид загружает фото, сканы и PDF через files);
+ * сид сам регистрирует порты (src/ports.ts) — после файла порт документов снимается.
+ */
+export async function useSeedStorage(): Promise<() => Promise<void>> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "senim-seed-"));
+  setEnv({ STORAGE_PROVIDER: "local", STORAGE_LOCAL_DIR: dir, SIGNATURE_PROVIDER: "mock" });
+  return async () => {
+    delete registry.senimDocumentsPort;
+    await rm(dir, { recursive: true, force: true });
+  };
+}
+
 /** Рисунок подписи как с холста: PNG 300×100 с росчерком. */
 export async function signaturePng(): Promise<Uint8Array> {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100"><path d="M10 70 C 60 10, 110 90, 160 40 S 260 60, 290 30" stroke="#151a22" stroke-width="4" fill="none"/></svg>`;

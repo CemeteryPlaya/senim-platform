@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { kzCheckDigit, testBin, testIin } from "./kz-id";
+import { parseKzIban } from "@/modules/identity";
+import { kzCheckDigit, testBin, testIban, testIin } from "./kz-id";
 
 describe("контрольная цифра ИИН/БИН", () => {
   it("считает первый проход с весами 1…11", () => {
@@ -16,5 +17,16 @@ describe("контрольная цифра ИИН/БИН", () => {
   it("собирает 12-значные тестовые номера с нулевой порядковой частью", () => {
     expect(testIin("900101", 3, 1)).toBe("900101300017");
     expect(testBin("1806", 1)).toMatch(/^18064000001\d$/);
+  });
+});
+
+describe("тестовый IBAN выплат", () => {
+  it("верный KZ IBAN (mod-97) с явной пометкой DEMO; разные номера — разные счета", () => {
+    for (const n of [1, 7, 42]) {
+      const iban = testIban(n);
+      expect(iban).toMatch(/^KZ\d{2}000DEMO\d{9}$/);
+      expect(parseKzIban(iban)).toEqual({ ok: true, iban });
+    }
+    expect(testIban(1)).not.toBe(testIban(2));
   });
 });

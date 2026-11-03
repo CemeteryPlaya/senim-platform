@@ -5,12 +5,6 @@ import { NOTIFICATIONS } from "@/demo/data";
 import { days } from "@/i18n/ru/notifications";
 import { renderTemplate, SMS_KINDS, TEMPLATES } from "./templates";
 
-/**
- * INTEGRATOR: сид фазы A ещё содержит уведомления старой модели этапов. Убрать список, когда сид
- * пересоберут под ТЗ (deal.offer.ready, deal.ready, money.* вместо этих видов).
- */
-const LEGACY_DEMO_KINDS = new Set(["deal.contract.ready", "deal.payment.marked", "deal.stage.submitted"]);
-
 /** Исходники модулей (без тестов и самого notifications): где вид уведомления пишется строкой. */
 async function moduleSources(): Promise<string> {
   const root = path.join(process.cwd(), "src/modules");
@@ -29,7 +23,7 @@ const plain = (s: string) => s.replace(/ /g, " ");
 describe("шаблоны уведомлений", () => {
   it("каждый вид уведомления из демо-данных — шаблон или вид, который шлёт модуль", async () => {
     const source = await moduleSources();
-    const missing = [...new Set(NOTIFICATIONS.map((n) => n.kind))].filter((k) => !(k in TEMPLATES) && !sentBy(source, k) && !LEGACY_DEMO_KINDS.has(k));
+    const missing = [...new Set(NOTIFICATIONS.map((n) => n.kind))].filter((k) => !(k in TEMPLATES) && !sentBy(source, k));
     expect(missing).toEqual([]);
   });
 

@@ -1,13 +1,5 @@
-import { brand } from "@/config/brand";
-import type { DisputeReason, LegalForm, PreContractFlow, Segment } from "@/generated/prisma/enums";
-import type {
-  CountertopKey,
-  DEFAULT_FURNITURE_TYPES,
-  FacadeKey,
-  HardwareKey,
-  StageTemplateKey,
-  StyleKey,
-} from "@/verticals/furniture";
+import type { DisputeReason, KycStatus, LegalForm, PreContractFlow, Segment } from "@/generated/prisma/enums";
+import type { CountertopKey, DEFAULT_FURNITURE_TYPES, FacadeKey, HardwareKey, StyleKey } from "@/verticals/furniture";
 import { testBin, testIin } from "./kz-id";
 import type { PortfolioFileKey } from "./portfolio-files";
 
@@ -15,8 +7,8 @@ import type { PortfolioFileKey } from "./portfolio-files";
  * Демо-данные «Сенім» — только описание. Логика вставки — в seed.ts.
  * Все сроки — «дней назад» (или «через N дней») от момента сида, чтобы демо не устаревало.
  * Телефоны +7 700 000 XX XX, ИИН/БИН с нулевым порядковым номером, адреса вымышленные.
- * Статусы заявок, откликов и сделок не задаются, а выводятся из фактов (seed.ts),
- * поэтому описать несогласованную историю нельзя.
+ * Статусы заявок и откликов не задаются, а выводятся из фактов (seed.ts); сделки проходят свой путь
+ * настоящими сервисами (deals.ts) — описать несогласованную историю нельзя.
  */
 
 export type FurnitureSlug = (typeof DEFAULT_FURNITURE_TYPES)[number]["slug"];
@@ -293,7 +285,24 @@ export const EXECUTORS = {
 
 export type ExecutorKey = keyof typeof EXECUTORS;
 
-// ─── заявки, отклики, замеры, сделки ─────────────────────────────────────────
+// ─── проверка документов мастеров (KYC, решение 2.2.8) ───────────────────────
+
+/** Документы — тестовые PDF «ТЕСТОВЫЙ ДОКУМЕНТ» (seed.ts); нет записи — мастер документов не загружал. */
+export type KycSpec = { status: Extract<KycStatus, "VERIFIED">; reviewedDaysAgo: number } | { status: "PENDING"; uploadedDaysAgo: number } | { status: "REJECTED"; reason: string; reviewedDaysAgo: number };
+
+export const KYC: Partial<Record<ExecutorKey, KycSpec>> = {
+  erlan: { status: "VERIFIED", reviewedDaysAgo: 290 },
+  agash: { status: "VERIFIED", reviewedDaysAgo: 390 },
+  kim: { status: "VERIFIED", reviewedDaysAgo: 240 },
+  asel: { status: "VERIFIED", reviewedDaysAgo: 170 },
+  qazaq: { status: "VERIFIED", reviewedDaysAgo: 340 },
+  dala: { status: "VERIFIED", reviewedDaysAgo: 270 },
+  // В очереди оператора: документы загружены, решения нет.
+  samat: { status: "PENDING", uploadedDaysAgo: 0.5 },
+  timur: { status: "REJECTED", reason: "Фото удостоверения нечитаемо: загрузите снимок без бликов, обе стороны", reviewedDaysAgo: 3 },
+};
+
+// ─── заявки и отклики ────────────────────────────────────────────────────────
 
 /** Ответы мастера заявки. Ключи материалов совпадают со справочником вертикали. */
 export type RequestDetails = {
@@ -309,53 +318,36 @@ export type RequestDetails = {
 
 export type MessageSpec = { from: "client" | "executor"; text: string; daysAgo: number; masked?: true };
 
+/** Замер исполнителем — только сценарии до договора (флаг preContractFlows). */
 export type MeasurementSpec =
   | { status: "SCHEDULED"; bookedDaysAgo: number; inDays: number }
   | { status: "DONE"; bookedDaysAgo: number; visitDaysAgo: number; result: string; finalPrice: number }
   | { status: "NO_DEAL"; bookedDaysAgo: number; visitDaysAgo: number; result: string };
 
+/** Ход торга после цены отклика (её мастер предлагает первым): кто и какую цену предложил следом. */
+export type RoundSpec = { by: "client" | "executor"; priceKzt: number; daysAgo: number };
+
 export type OfferSpec = {
   executor: ExecutorKey;
+  /** Цена отклика в тенге — первое предложение торга (путь ТЗ). */
   price: number;
   durationDays: number;
   warrantyMonths: number;
   comment: string;
   sentDaysAgo: number;
-  /** Заказчик выбрал этот отклик. Остальные отклики, присланные раньше, отклоняются в этот момент. */
+  /** Путь ТЗ: встречные цены по порядку; последняя ждёт ответа другой стороны (её и принимают в deals.ts). */
+  rounds?: readonly RoundSpec[];
+  /** Сценарии до договора: заказчик выбрал отклик. Остальные отклики, присланные раньше, отклоняются в этот момент. */
   chosen?: { daysAgo: number; measurement?: MeasurementSpec };
   messages?: MessageSpec[];
-};
-
-/** Докуда дошла сделка: последний выполненный шаг этапа или «всё сделано». */
-export type StageStep = "paymentMarked" | "paymentConfirmed" | "started" | "submitted" | "accepted" | "closed";
-export type DealProgress = "done" | { stage: number; step: StageStep };
-
-export type DisputeSpec = {
-  daysAgo: number;
-  reason: DisputeReason;
-  description: string;
-  clientPosition: string;
-  executorPosition: string;
-};
-
-export type DealSpec = {
-  title: string;
-  template: StageTemplateKey;
-  createdDaysAgo: number;
-  /** Договор подписан обеими сторонами (подписи и PDF добавит фаза C). */
-  signedDaysAgo?: number;
-  progress?: DealProgress;
-  /** Когда сделан последний шаг из progress (для «done» — дата завершения). */
-  lastStepDaysAgo?: number;
-  review?: { rating: 1 | 2 | 3 | 4 | 5; text: string; daysAgo: number };
-  /** Спор по этапу, на котором остановилась сделка. */
-  dispute?: DisputeSpec;
 };
 
 type Targeting = { mode: "TENDER" } | { mode: "DIRECT"; target: ExecutorKey; portfolioItem: string };
 
 /** Заказчик заявки: персона-заказчик или исполнитель, который заказывал как заказчик (ADR-004). */
 export type ClientRef = ClientKey | { executor: ExecutorKey };
+
+export type GeoPoint = { lat: number; lng: number };
 
 export type RequestSpec = Targeting & {
   key: string;
@@ -365,7 +357,7 @@ export type RequestSpec = Targeting & {
   details: RequestDetails;
   /** Выбор заказчика; null — ещё не выбран (черновик). */
   segment: Segment | null;
-  address: string | null;
+  address: Address | null;
   desiredInDays?: number;
   wishes: string;
   createdDaysAgo: number;
@@ -374,27 +366,79 @@ export type RequestSpec = Targeting & {
   publishedDaysAgo?: number;
   cancelled?: { daysAgo: number; reason: string };
   offers: OfferSpec[];
-  deal?: DealSpec;
-  /** Сценарий до договора (ADR-005); по умолчанию — сценарий 1, замер исполнителем. */
+  /** Сценарий до договора (флаг preContractFlows, ADR-005); нет — путь ТЗ: торг и оферта. */
   flow?: PreContractFlow;
   /** Сценарий 2: замер площадки назначен демо-замерщику. */
   site?: { assignedDaysAgo: number };
 };
 
-const ADDR = {
-  demo12: "Астана, ул. Демонстрационная, 12, кв. 45",
-  primer8: "Астана, пр. Примерный, 8, кв. 101",
-  obrazets3: "Астана, ул. Образцовая, 3, кв. 17",
-  test2: "Астана, мкр. Тестовый-2, д. 5, кв. 30",
-  maket21: "Астана, ул. Макетная, 21, кв. 9",
-  sample4: "Астана, пр. Условный, 4, кв. 66",
-  probny7: "Астана, ул. Пробная, 7, кв. 112",
-  shablon15: "Астана, ул. Шаблонная, 15, кв. 3",
-  chernovik9: "Астана, мкр. Черновой, д. 9, кв. 54",
-} as const;
+/** Тестовые адреса с координатами (центр Астаны): по ним — мягкая GPS-проверка сдачи работы. */
+type Address = { text: string; point: GeoPoint };
 
-/** Активные истории демо-персон: каждая показывает свой шаг пути заявки и сделки. */
-const ACTIVE: RequestSpec[] = [
+const ADDR = {
+  demo12: { text: "Астана, ул. Демонстрационная, 12, кв. 45", point: { lat: 51.128207, lng: 71.430411 } },
+  primer8: { text: "Астана, пр. Примерный, 8, кв. 101", point: { lat: 51.0905, lng: 71.4187 } },
+  obrazets3: { text: "Астана, ул. Образцовая, 3, кв. 17", point: { lat: 51.1605, lng: 71.4704 } },
+  test2: { text: "Астана, мкр. Тестовый-2, д. 5, кв. 30", point: { lat: 51.1477, lng: 71.3915 } },
+  maket21: { text: "Астана, ул. Макетная, 21, кв. 9", point: { lat: 51.1098, lng: 71.4022 } },
+  sample4: { text: "Астана, пр. Условный, 4, кв. 66", point: { lat: 51.1283, lng: 71.4606 } },
+  probny7: { text: "Астана, ул. Пробная, 7, кв. 112", point: { lat: 51.1696, lng: 71.4248 } },
+  shablon15: { text: "Астана, ул. Шаблонная, 15, кв. 3", point: { lat: 51.0767, lng: 71.4469 } },
+  chernovik9: { text: "Астана, мкр. Черновой, д. 9, кв. 54", point: { lat: 51.1352, lng: 71.3611 } },
+} as const satisfies Record<string, Address>;
+
+/** Заявка пути ТЗ с одним откликом — под сделку (deals.ts принимает последнюю цену торга). */
+function dealRequest(o: {
+  key: string;
+  client: ClientRef;
+  executor: ExecutorKey;
+  type: FurnitureSlug;
+  style: StyleKey;
+  details: RequestDetails;
+  segment: Segment;
+  address: Address;
+  wishes: string;
+  daysAgo: number;
+  price: number;
+  durationDays: number;
+  comment: string;
+  rounds?: readonly RoundSpec[];
+  messages?: MessageSpec[];
+  /** Другие отклики: при акцепте цены их отклоняет requests.acceptPrice. */
+  others?: OfferSpec[];
+}): RequestSpec {
+  return {
+    key: o.key,
+    mode: "TENDER",
+    client: o.client,
+    type: o.type,
+    style: o.style,
+    details: o.details,
+    segment: o.segment,
+    address: o.address,
+    desiredInDays: 30,
+    wishes: o.wishes,
+    createdDaysAgo: o.daysAgo,
+    publishedDaysAgo: o.daysAgo - 0.1,
+    wizardStep: 6,
+    offers: [
+      {
+        executor: o.executor,
+        price: o.price,
+        durationDays: o.durationDays,
+        warrantyMonths: 24,
+        comment: o.comment,
+        sentDaysAgo: o.daysAgo - 0.5,
+        rounds: o.rounds,
+        messages: o.messages,
+      },
+      ...(o.others ?? []),
+    ],
+  };
+}
+
+/** Заявки без сделки: черновик, тендер с торгом в разных раундах, прямой запрос, отменённая. */
+const OPEN_REQUESTS: RequestSpec[] = [
   {
     key: "draft-closet",
     mode: "TENDER",
@@ -425,23 +469,26 @@ const ACTIVE: RequestSpec[] = [
     wizardStep: 6,
     offers: [
       {
+        // Встречная цена покупателя ждёт ответа мастера.
         executor: "erlan",
         price: 1_050_000,
         durationDays: 30,
         warrantyMonths: 24,
         comment: "Сделаю фасады в эмали, фурнитура Blum. Замер бесплатно, 3D-проект покажу на замере.",
         sentDaysAgo: 2.9,
+        rounds: [{ by: "client", priceKzt: 980_000, daysAgo: 2.3 }],
         messages: [
           { from: "client", text: "Здравствуйте! Можно сделать фасады без ручек?", daysAgo: 2.5 },
           { from: "executor", text: "Да, с профилем Gola — это плюс 40 000 ₸. Образцы покажу на замере.", daysAgo: 2.4 },
         ],
       },
       {
+        // Цена отклика ждёт ответа покупателя.
         executor: "qazaq",
         price: 1_180_000,
         durationDays: 25,
         warrantyMonths: 24,
-        comment: "Своё производство, срок фиксируем в договоре. Замер входит в стоимость.",
+        comment: "Своё производство, срок фиксируем в оферте. Замер входит в стоимость.",
         sentDaysAgo: 2.1,
         messages: [
           { from: "executor", text: "Добрый день! Удобнее обсудить по телефону: [контакт скрыт]", daysAgo: 2.0, masked: true },
@@ -450,12 +497,17 @@ const ACTIVE: RequestSpec[] = [
         ],
       },
       {
+        // Третий раунд: мастер ответил на встречную цену своей — ждёт покупателя.
         executor: "dala",
-        price: 980_000,
+        price: 1_020_000,
         durationDays: 35,
         warrantyMonths: 18,
-        comment: "Фасады МДФ эмаль, столешница компакт-плита. Выезд на замер 10 000 ₸, только если не договоримся.",
+        comment: "Фасады МДФ эмаль, столешница компакт-плита.",
         sentDaysAgo: 1.2,
+        rounds: [
+          { by: "client", priceKzt: 940_000, daysAgo: 1.0 },
+          { by: "executor", priceKzt: 990_000, daysAgo: 0.7 },
+        ],
       },
     ],
   },
@@ -478,16 +530,152 @@ const ACTIVE: RequestSpec[] = [
     offers: [],
   },
   {
-    key: "chosen-wardrobe",
+    key: "cancelled-dresser",
+    mode: "TENDER",
+    client: "madina",
+    type: "dresser",
+    style: "scandi",
+    details: { widthCm: 120, heightCm: 90, depthCm: 45, facade: "ldsp" },
+    segment: "ECONOMY",
+    address: ADDR.obrazets3,
+    wishes: "Комод в детскую на шесть ящиков.",
+    createdDaysAgo: 12,
+    publishedDaysAgo: 11.9,
+    cancelled: { daysAgo: 9, reason: "Купили готовый комод" },
+    wizardStep: 6,
+    offers: [{ executor: "samat", price: 85_000, durationDays: 10, warrantyMonths: 12, comment: "Сделаю за 10 дней.", sentDaysAgo: 11 }],
+  },
+];
+
+/** Заявки под сделки (deals.ts): по одной на каждый шаг пути сделки ТЗ. */
+const DEAL_REQUESTS: RequestSpec[] = [
+  dealRequest({
+    key: "deal-offer-hallway", client: "aigerim", executor: "erlan", type: "hallway", style: "minimalism",
+    details: { widthCm: 220, heightCm: 250, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Графит" }, segment: "COMFORT", address: ADDR.demo12,
+    wishes: "Нужна антресоль над входной дверью.", daysAgo: 6, price: 330_000, durationDays: 21, comment: "Антресоль над дверью сделаю в цвет шкафа.",
+    rounds: [
+      { by: "client", priceKzt: 300_000, daysAgo: 5 },
+      { by: "executor", priceKzt: 315_000, daysAgo: 4.5 },
+    ],
+    others: [{ executor: "kim", price: 340_000, durationDays: 18, warrantyMonths: 24, comment: "Сделаю с доводчиками и подсветкой.", sentDaysAgo: 5.2 }],
+  }),
+  dealRequest({
+    key: "deal-signed-shelving", client: "madina", executor: "qazaq", type: "shelving", style: "loft",
+    details: { widthCm: 260, heightCm: 240, facade: "mdf_film" }, segment: "COMFORT", address: ADDR.test2,
+    wishes: "Стеллаж-перегородка между кухней и гостиной.", daysAgo: 8, price: 260_000, durationDays: 20, comment: "Металлический каркас, полки из массива сосны.",
+  }),
+  dealRequest({
+    key: "deal-manual-hold-office", client: "daniyar", executor: "kim", type: "office", style: "modern",
+    details: { widthCm: 300, heightCm: 270, facade: "mdf_film", countertop: "compact", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.primer8,
+    wishes: "Стеллаж до потолка и стол для двух мониторов.", daysAgo: 10, price: 600_000, durationDays: 25, comment: "Стеллаж под потолок и стол с тумбой.",
+    rounds: [{ by: "client", priceKzt: 580_000, daysAgo: 8 }],
+  }),
+  dealRequest({
+    key: "deal-paid-wardrobe", client: "aigerim", executor: "timur", type: "wardrobe", style: "modern",
+    details: { widthCm: 240, heightCm: 260, depthCm: 60, facade: "ldsp", hardware: "standard", color: "Белый, одна дверь — зеркало" }, segment: "ECONOMY", address: ADDR.demo12,
+    wishes: "Шкаф в прихожую, внутри полки под обувь.", daysAgo: 9, price: 290_000, durationDays: 14, comment: "Профиль Aristo, зеркало серебро.",
+    others: [{ executor: "samat", price: 260_000, durationDays: 18, warrantyMonths: 12, comment: "Сделаю недорого и аккуратно.", sentDaysAgo: 8.2 }],
+  }),
+  dealRequest({
+    key: "deal-paid-dispute-bedroom", client: "zhanna", executor: "dala", type: "bedroom", style: "scandi",
+    details: { facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.chernovik9,
+    wishes: "Кровать с мягким изголовьем во всю стену и две тумбы.", daysAgo: 20, price: 640_000, durationDays: 30, comment: "Изголовье в ткани на выбор, тумбы с доводчиками.",
+  }),
+  dealRequest({
+    key: "deal-progress-kitchen", client: "aigerim", executor: "erlan", type: "kitchen", style: "modern",
+    details: { widthCm: 320, heightCm: 270, depthCm: 60, facade: "mdf_enamel", countertop: "ldsp", hardware: "soft_close", color: "Шалфей" }, segment: "COMFORT", address: ADDR.demo12,
+    wishes: "Кухня 3,2 м под потолок.", daysAgo: 25, price: 1_050_000, durationDays: 35, comment: "Фасады МДФ в эмали, верхние шкафы до потолка.",
+    rounds: [
+      { by: "client", priceKzt: 1_000_000, daysAgo: 23 },
+      { by: "executor", priceKzt: 1_020_000, daysAgo: 22.5 },
+    ],
+  }),
+  dealRequest({
+    key: "deal-ready-closet", client: "daniyar", executor: "agash", type: "walk-in-closet", style: "classic",
+    details: { facade: "veneer", hardware: "premium" }, segment: "PREMIUM", address: ADDR.primer8,
+    wishes: "Гардеробная под потолок, открытые секции.", daysAgo: 40, price: 1_450_000, durationDays: 30, comment: "Шпон ореха, ящики с бархатными вставками.",
+  }),
+  dealRequest({
+    key: "deal-ready-far-tv", client: "madina", executor: "dala", type: "living-room", style: "scandi",
+    details: { widthCm: 320, heightCm: 260, facade: "mdf_film", hardware: "soft_close", color: "Светлое дерево и белый" }, segment: "COMFORT", address: ADDR.obrazets3,
+    wishes: "Реечная панель за телевизором и подвесная тумба.", daysAgo: 30, price: 460_000, durationDays: 21, comment: "Похожую ТВ-зону делали в прошлом месяце, фото в портфолио.",
+  }),
+  dealRequest({
+    key: "deal-ready-dispute-kids", client: "daniyar", executor: "kim", type: "kids-room", style: "scandi",
+    details: { facade: "mdf_film", hardware: "soft_close", color: "Белый и голубой", unknown: ["size"] }, segment: "COMFORT", address: ADDR.primer8,
+    wishes: "Двухъярусная кровать с ящиками, шкаф и стол для двоих детей.", daysAgo: 35, price: 720_000, durationDays: 28, comment: "Двухъярусная кровать, лестница-полки, стол с тумбой.",
+  }),
+  dealRequest({
+    key: "deal-accepted-manual-kitchen", client: "olga", executor: "agash", type: "kitchen", style: "neoclassic",
+    details: { widthCm: 420, heightCm: 280, depthCm: 60, facade: "veneer", countertop: "quartz", hardware: "premium", color: "Натуральный дуб, столешница белый мрамор" }, segment: "PREMIUM", address: ADDR.maket21,
+    wishes: "Остров с барной зоной, встроенная техника.", daysAgo: 60, price: 2_750_000, durationDays: 40, comment: "Кухня 4,2 м и остров 1,8 м, шпон дуба.",
+  }),
+  dealRequest({
+    key: "deal-done-table", client: "olga", executor: "asel", type: "table", style: "modern",
+    details: { widthCm: 180, facade: "solid_wood" }, segment: "PREMIUM", address: ADDR.maket21,
+    wishes: "Обеденный стол из карагача на шесть человек.", daysAgo: 50, price: 450_000, durationDays: 30, comment: "Ламели карагача, масло-воск.",
+  }),
+  dealRequest({
+    key: "deal-done-manual-wardrobe", client: "arman", executor: "timur", type: "wardrobe", style: "minimalism",
+    details: { widthCm: 200, facade: "mdf_film", hardware: "soft_close" }, segment: "ECONOMY", address: ADDR.sample4,
+    wishes: "Шкаф-купе в нишу.", daysAgo: 70, price: 360_000, durationDays: 20, comment: "Двери на алюминиевом профиле, внутри штанга и полки.",
+  }),
+  dealRequest({
+    key: "deal-split-office", client: "erbolat", executor: "kim", type: "office", style: "scandi",
+    details: { facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.shablon15,
+    wishes: "Домашний кабинет: стол, стеллаж, тумба.", daysAgo: 45, price: 520_000, durationDays: 25, comment: "Стеллаж с закрытыми ящиками внизу, стол с тумбой.",
+  }),
+  dealRequest({
+    key: "deal-cancelled-dresser", client: "saule", executor: "samat", type: "dresser", style: "scandi",
+    details: { widthCm: 100, facade: "ldsp" }, segment: "ECONOMY", address: ADDR.probny7,
+    wishes: "Комод на пять ящиков.", daysAgo: 15, price: 85_000, durationDays: 10, comment: "Белый комод, ручки на выбор.",
+  }),
+  dealRequest({
+    key: "deal-refunded-hallway", client: "arman", executor: "samat", type: "hallway", style: "modern",
+    details: { facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.sample4,
+    wishes: "Прихожая со шкафом и банкеткой.", daysAgo: 18, price: 180_000, durationDays: 14, comment: "Шкаф, вешалка и банкетка в цвете дуб сонома.",
+  }),
+  dealRequest({
+    key: "deal-refund-dispute-wardrobe", client: "zhanna", executor: "erlan", type: "wardrobe", style: "modern",
+    details: { widthCm: 260, facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.chernovik9,
+    wishes: "Шкаф-купе в спальню.", daysAgo: 28, price: 360_000, durationDays: 20, comment: "Зеркальная дверь по центру.",
+  }),
+];
+
+export const REQUESTS: RequestSpec[] = [...OPEN_REQUESTS, ...DEAL_REQUESTS];
+
+/**
+ * Исполнитель «Дала» (ИП Абдрахманов) сам заказывает шкаф как заказчик (ADR-004). Сеется после REQUESTS.
+ * ИИН заказчика в аккаунте и ИИН профиля ИП совпадают — это один человек (OPEN_QUESTIONS №28).
+ */
+export const DUAL_ROLE_REQUESTS: RequestSpec[] = [
+  dealRequest({
+    key: "deal-dual-role-wardrobe", client: { executor: "dala" }, executor: "timur", type: "wardrobe", style: "modern",
+    details: { widthCm: 180, facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.sample4,
+    wishes: "Шкаф в прихожую для себя.", daysAgo: 40, price: 250_000, durationDays: 18, comment: "ЛДСП Egger, фурнитура стандартная.",
+  }),
+];
+
+/** Материалы проекта после замера (сценарии до договора, ADR-005). */
+export const PROJECT_MATERIALS = "Корпус — ЛДСП Egger 16 мм, фасады по заявке, кромка ПВХ 2 мм, фурнитура с доводчиками.";
+
+/**
+ * Сценарии до договора 1–5 (флаг preContractFlows, ADR-005): по одной заявке на шаге, с которого основатели
+ * проходят сценарий. При выключенном флаге экраны их читают, но новых шагов не предлагают. Сеются последними.
+ */
+export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
+  {
+    key: "flow1-chosen-wardrobe",
+    flow: "EXECUTOR_MEASURE",
     mode: "TENDER",
     client: "madina",
     type: "wardrobe",
     style: "modern",
-    details: { widthCm: 240, heightCm: 260, depthCm: 60, facade: "ldsp", hardware: "standard", color: "Белый, одна дверь — зеркало" },
+    details: { widthCm: 240, heightCm: 260, depthCm: 60, facade: "ldsp", hardware: "standard", color: "Белый" },
     segment: "ECONOMY",
     address: ADDR.obrazets3,
     desiredInDays: 30,
-    wishes: "Шкаф в прихожую, внутри полки под обувь.",
+    wishes: "Шкаф в спальню, внутри полки под бельё.",
     createdDaysAgo: 4.5,
     publishedDaysAgo: 4.4,
     wizardStep: 6,
@@ -509,26 +697,27 @@ const ACTIVE: RequestSpec[] = [
     ],
   },
   {
-    key: "measuring-tv",
+    key: "flow1-measuring-tv",
+    flow: "EXECUTOR_MEASURE",
     mode: "TENDER",
     client: "daniyar",
     type: "living-room",
     style: "scandi",
-    details: { widthCm: 320, heightCm: 260, facade: "mdf_film", hardware: "soft_close", color: "Светлое дерево и белый" },
+    details: { widthCm: 300, heightCm: 260, facade: "mdf_film", hardware: "soft_close", color: "Светлое дерево" },
     segment: "COMFORT",
     address: ADDR.primer8,
     desiredInDays: 35,
-    wishes: "Реечная панель за телевизором и подвесная тумба.",
+    wishes: "ТВ-зона в спальне.",
     createdDaysAgo: 6,
     publishedDaysAgo: 5.9,
     wizardStep: 6,
     offers: [
       {
         executor: "dala",
-        price: 460_000,
+        price: 420_000,
         durationDays: 21,
         warrantyMonths: 18,
-        comment: "Похожую ТВ-зону делали в прошлом месяце, фото в портфолио.",
+        comment: "Приеду с образцами.",
         sentDaysAgo: 5.2,
         chosen: { daysAgo: 2.0, measurement: { status: "SCHEDULED", bookedDaysAgo: 1.8, inDays: 2 } },
         messages: [{ from: "executor", text: "Приеду на замер послезавтра в 11:00, возьму образцы реек.", daysAgo: 1.8 }],
@@ -537,225 +726,8 @@ const ACTIVE: RequestSpec[] = [
     ],
   },
   {
-    key: "contracting-hallway",
-    mode: "TENDER",
-    client: "aigerim",
-    type: "hallway",
-    style: "minimalism",
-    details: { widthCm: 220, heightCm: 250, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Графит" },
-    segment: "COMFORT",
-    address: ADDR.demo12,
-    desiredInDays: 25,
-    wishes: "Нужна антресоль над входной дверью.",
-    createdDaysAgo: 9,
-    publishedDaysAgo: 8.9,
-    wizardStep: 6,
-    offers: [
-      {
-        executor: "erlan",
-        price: 300_000,
-        durationDays: 21,
-        warrantyMonths: 24,
-        comment: "Без предоплаты: оплата после монтажа и приёмки.",
-        sentDaysAgo: 8.3,
-        chosen: {
-          daysAgo: 7.0,
-          measurement: { status: "DONE", bookedDaysAgo: 6.8, visitDaysAgo: 5.0, result: "Ниша 2,2 м, добавили антресоль над дверью. Итог — 315 000 ₸.", finalPrice: 315_000 },
-        },
-      },
-      { executor: "kim", price: 340_000, durationDays: 18, warrantyMonths: 24, comment: "Сделаю с доводчиками и подсветкой.", sentDaysAgo: 7.9 },
-    ],
-    deal: { title: "Прихожая с антресолью", template: "no-prepayment", createdDaysAgo: 4.0 },
-  },
-  {
-    key: "office-advance",
-    mode: "TENDER",
-    client: "madina",
-    type: "office",
-    style: "modern",
-    details: { widthCm: 300, heightCm: 270, facade: "mdf_film", countertop: "compact", hardware: "soft_close" },
-    segment: "COMFORT",
-    address: ADDR.test2,
-    desiredInDays: 20,
-    wishes: "Стеллаж до потолка и стол для двух мониторов.",
-    createdDaysAgo: 16,
-    publishedDaysAgo: 15.9,
-    wizardStep: 6,
-    offers: [
-      {
-        executor: "qazaq",
-        price: 560_000,
-        durationDays: 25,
-        warrantyMonths: 24,
-        comment: "Своё производство, замер включён.",
-        sentDaysAgo: 15.0,
-        chosen: {
-          daysAgo: 13.0,
-          measurement: { status: "DONE", bookedDaysAgo: 12.8, visitDaysAgo: 11.0, result: "Стена 3 м: стеллаж до потолка и стол с тумбой. Итог — 580 000 ₸.", finalPrice: 580_000 },
-        },
-        messages: [{ from: "client", text: "Аванс перевела на Kaspi, отметила в сделке.", daysAgo: 0.3 }],
-      },
-      { executor: "erlan", price: 540_000, durationDays: 28, warrantyMonths: 24, comment: "Сделаю в шпоне под орех.", sentDaysAgo: 14.5 },
-    ],
-    deal: {
-      title: "Кабинет со стеллажом до потолка",
-      template: "three-part",
-      createdDaysAgo: 10,
-      signedDaysAgo: 2,
-      progress: { stage: 1, step: "paymentMarked" },
-      lastStepDaysAgo: 0.3,
-    },
-  },
-  {
-    key: "wardrobe-submitted",
-    mode: "TENDER",
-    client: "aigerim",
-    type: "wardrobe",
-    style: "modern",
-    details: { widthCm: 280, heightCm: 260, depthCm: 60, facade: "mdf_film", hardware: "soft_close", color: "Дуб и белый глянец" },
-    segment: "COMFORT",
-    address: ADDR.demo12,
-    desiredInDays: 5,
-    wishes: "Шкаф-купе в спальню на всю стену.",
-    createdDaysAgo: 30,
-    publishedDaysAgo: 29.9,
-    wizardStep: 6,
-    offers: [
-      {
-        executor: "erlan",
-        price: 420_000,
-        durationDays: 18,
-        warrantyMonths: 24,
-        comment: "Аванс 50% на материалы, остальное после монтажа.",
-        sentDaysAgo: 29.0,
-        chosen: {
-          daysAgo: 27.0,
-          measurement: { status: "DONE", bookedDaysAgo: 26.8, visitDaysAgo: 25.0, result: "Стена 2,8 м, потолок 2,6 м. Добавили выдвижные ящики. Итог — 440 000 ₸.", finalPrice: 440_000 },
-        },
-        messages: [
-          { from: "executor", text: "Корпуса и двери готовы, фото в отчёте этапа. Монтаж можем в четверг.", daysAgo: 0.9 },
-          { from: "client", text: "Спасибо, посмотрю фото вечером.", daysAgo: 0.8 },
-        ],
-      },
-      { executor: "kim", price: 450_000, durationDays: 20, warrantyMonths: 24, comment: "Двери с алюминиевым профилем.", sentDaysAgo: 28.5 },
-    ],
-    deal: {
-      title: "Шкаф-купе в спальню, 2,8 м",
-      template: "advance-50",
-      createdDaysAgo: 24,
-      signedDaysAgo: 22,
-      progress: { stage: 2, step: "submitted" },
-      lastStepDaysAgo: 1,
-    },
-  },
-  {
-    key: "kitchen-completed",
-    mode: "TENDER",
-    client: "daniyar",
-    type: "kitchen",
-    style: "neoclassic",
-    details: { widthCm: 420, heightCm: 280, depthCm: 60, facade: "veneer", countertop: "quartz", hardware: "premium", color: "Натуральный дуб, столешница белый мрамор" },
-    segment: "PREMIUM",
-    address: ADDR.primer8,
-    wishes: "Остров с барной зоной, встроенная техника.",
-    createdDaysAgo: 62,
-    publishedDaysAgo: 61.9,
-    wizardStep: 6,
-    offers: [
-      {
-        executor: "agash",
-        price: 2_600_000,
-        durationDays: 40,
-        warrantyMonths: 36,
-        comment: "Шпон дуба, столешница из кварцевого агломерата, фурнитура Blum. Замер и проект входят в стоимость.",
-        sentDaysAgo: 61,
-        chosen: {
-          daysAgo: 59,
-          measurement: { status: "DONE", bookedDaysAgo: 58.8, visitDaysAgo: 57, result: "Кухня 4,2 м и остров 1,8 м. Итог — 2 750 000 ₸.", finalPrice: 2_750_000 },
-        },
-      },
-    ],
-    deal: {
-      title: "Кухня с островом, шпон дуба",
-      template: "three-part",
-      createdDaysAgo: 56,
-      signedDaysAgo: 54,
-      progress: "done",
-      lastStepDaysAgo: 12,
-      review: {
-        rating: 4,
-        text: "Кухня отличная, всё по проекту. Монтаж затянулся на три дня, но бригада предупредила заранее. Удобно, что оплата шла по этапам.",
-        daysAgo: 11,
-      },
-    },
-  },
-  {
-    key: "kids-dispute",
-    mode: "TENDER",
-    client: "daniyar",
-    type: "kids-room",
-    style: "scandi",
-    details: { facade: "mdf_film", hardware: "soft_close", color: "Белый и голубой", unknown: ["size"] },
-    segment: "COMFORT",
-    address: ADDR.primer8,
-    wishes: "Двухъярусная кровать с ящиками, шкаф и стол для двоих детей.",
-    createdDaysAgo: 26,
-    publishedDaysAgo: 25.9,
-    wizardStep: 6,
-    offers: [
-      {
-        executor: "kim",
-        price: 690_000,
-        durationDays: 28,
-        warrantyMonths: 24,
-        comment: "Материалы E0.5, закруглённые кромки.",
-        sentDaysAgo: 25,
-        chosen: {
-          daysAgo: 23,
-          measurement: { status: "DONE", bookedDaysAgo: 22.8, visitDaysAgo: 21, result: "Комната 3,2 × 3,8 м. Добавили полки над столом. Итог — 720 000 ₸.", finalPrice: 720_000 },
-        },
-        messages: [
-          { from: "client", text: "Фасады не того цвета, посмотрите фото в отчёте.", daysAgo: 2.2 },
-          { from: "executor", text: "Цвет по образцу из договора. Могу приехать с каталогом RAL.", daysAgo: 2.1 },
-        ],
-      },
-      { executor: "dala", price: 650_000, durationDays: 30, warrantyMonths: 18, comment: "Сделаем в ЛДСП с ПВХ-кромкой 2 мм.", sentDaysAgo: 24.5 },
-    ],
-    deal: {
-      title: "Детская для двоих: кровать, шкаф и стол",
-      template: "advance-50",
-      createdDaysAgo: 20,
-      signedDaysAgo: 18,
-      progress: { stage: 2, step: "submitted" },
-      lastStepDaysAgo: 3,
-      dispute: {
-        daysAgo: 2,
-        reason: "QUALITY",
-        description: "Цвет фасадов не совпадает с согласованным проектом: вместо голубого — серо-синий. На двух деталях отходит кромка.",
-        clientPosition: "Прошу переделать фасады в согласованный цвет и заменить детали с кромкой. Принимать этап в таком виде не готов.",
-        executorPosition:
-          "Цвет соответствует образцу RAL 5024 из договора, на фото оттенок искажён. Кромку переклеим по гарантии, перекрашивать фасады за свой счёт не согласен.",
-      },
-    },
-  },
-  {
-    key: "cancelled-dresser",
-    mode: "TENDER",
-    client: "madina",
-    type: "dresser",
-    style: "scandi",
-    details: { widthCm: 120, heightCm: 90, depthCm: 45, facade: "ldsp" },
-    segment: "ECONOMY",
-    address: ADDR.obrazets3,
-    wishes: "Комод в детскую на шесть ящиков.",
-    createdDaysAgo: 12,
-    publishedDaysAgo: 11.9,
-    cancelled: { daysAgo: 9, reason: "Купили готовый комод" },
-    wizardStep: 6,
-    offers: [{ executor: "samat", price: 85_000, durationDays: 10, warrantyMonths: 12, comment: "Сделаю за 10 дней.", sentDaysAgo: 11 }],
-  },
-  {
-    key: "bathroom-no-deal",
+    key: "flow1-no-deal-bathroom",
+    flow: "EXECUTOR_MEASURE",
     mode: "TENDER",
     client: "aigerim",
     type: "bathroom",
@@ -773,173 +745,16 @@ const ACTIVE: RequestSpec[] = [
         price: 330_000,
         durationDays: 20,
         warrantyMonths: 24,
-        comment: "Орех с влагостойкой пропиткой. Выезд на замер 10 000 ₸, только если не договоримся.",
+        comment: "Тумба из ореха с влагостойкой пропиткой.",
         sentDaysAgo: 19,
         chosen: {
           daysAgo: 17,
-          measurement: {
-            status: "NO_DEAL",
-            bookedDaysAgo: 16.8,
-            visitDaysAgo: 15,
-            result: "Ниша нестандартная, цена после замера — 410 000 ₸. Заказчик не согласился. Плата за выезд — 10 000 ₸.",
-          },
+          measurement: { status: "NO_DEAL", bookedDaysAgo: 16.8, visitDaysAgo: 15, result: "Ниша нестандартная, цена после замера — 410 000 ₸. Заказчик не согласился." },
         },
       },
-      {
-        executor: "agash",
-        price: 390_000,
-        durationDays: 25,
-        warrantyMonths: 36,
-        comment: "Сделаем в шпоне, замер включён в стоимость.",
-        sentDaysAgo: 6,
-      },
+      { executor: "agash", price: 390_000, durationDays: 25, warrantyMonths: 36, comment: "Сделаем в шпоне, гарантия 3 года.", sentDaysAgo: 6 },
     ],
   },
-];
-
-type CompletedInput = {
-  key: string;
-  client: ClientRef;
-  executor: ExecutorKey;
-  type: FurnitureSlug;
-  style: StyleKey;
-  details: RequestDetails;
-  segment: Segment;
-  address: string;
-  title: string;
-  price: number;
-  finalPrice: number;
-  template: StageTemplateKey;
-  startDaysAgo: number;
-  durationDays: number;
-  rating: 1 | 2 | 3 | 4 | 5;
-  review: string;
-};
-
-/** Завершённая сделка прошлых месяцев: из них складываются рейтинг и отзывы исполнителей. */
-function completed(o: CompletedInput): RequestSpec {
-  const s = o.startDaysAgo;
-  const done = s - o.durationDays;
-  return {
-    key: o.key,
-    mode: "TENDER",
-    client: o.client,
-    type: o.type,
-    style: o.style,
-    details: o.details,
-    segment: o.segment,
-    address: o.address,
-    wishes: "",
-    createdDaysAgo: s,
-    publishedDaysAgo: s - 0.1,
-    wizardStep: 6,
-    offers: [
-      {
-        executor: o.executor,
-        price: o.price,
-        durationDays: o.durationDays,
-        warrantyMonths: 24,
-        comment: "",
-        sentDaysAgo: s - 0.7,
-        chosen: {
-          daysAgo: s - 1.5,
-          measurement: { status: "DONE", bookedDaysAgo: s - 1.7, visitDaysAgo: s - 3, result: "Замер выполнен, проект согласован.", finalPrice: o.finalPrice },
-        },
-      },
-    ],
-    deal: {
-      title: o.title,
-      template: o.template,
-      createdDaysAgo: s - 3.5,
-      signedDaysAgo: s - 5,
-      progress: "done",
-      lastStepDaysAgo: done,
-      review: { rating: o.rating, text: o.review, daysAgo: done - 0.6 },
-    },
-  };
-}
-
-const HISTORY: RequestSpec[] = [
-  completed({
-    key: "h-erlan-kitchen", client: "olga", executor: "erlan", type: "kitchen", style: "modern",
-    details: { widthCm: 320, facade: "mdf_enamel", countertop: "ldsp", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.maket21,
-    title: "Кухня 3,2 м под потолок", price: 1_050_000, finalPrice: 1_100_000, template: "advance-50", startDaysAgo: 95, durationDays: 35,
-    rating: 5, review: "Кухню сделали за пять недель, как договаривались. Фотоотчёты по каждому этапу — в цех ездить не пришлось.",
-  }),
-  completed({
-    key: "h-erlan-wardrobe", client: "arman", executor: "erlan", type: "wardrobe", style: "minimalism",
-    details: { widthCm: 200, facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.sample4,
-    title: "Шкаф-купе в нишу", price: 350_000, finalPrice: 360_000, template: "no-prepayment", startDaysAgo: 70, durationDays: 20,
-    rating: 5, review: "Аккуратный монтаж, убрали за собой. Двери катаются бесшумно.",
-  }),
-  completed({
-    key: "h-agash-closet", client: "saule", executor: "agash", type: "walk-in-closet", style: "classic",
-    details: { facade: "veneer", hardware: "premium" }, segment: "PREMIUM", address: ADDR.probny7,
-    title: "Гардеробная под потолок", price: 1_400_000, finalPrice: 1_450_000, template: "three-part", startDaysAgo: 120, durationDays: 40,
-    rating: 5, review: "Гардеробная под потолок, монтаж за один день. Оплата по этапам — спокойно для обеих сторон.",
-  }),
-  completed({
-    key: "h-kim-office", client: "erbolat", executor: "kim", type: "office", style: "scandi",
-    details: { facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.shablon15,
-    title: "Домашний кабинет", price: 500_000, finalPrice: 520_000, template: "advance-50", startDaysAgo: 80, durationDays: 25,
-    rating: 4, review: "Кабинет удобный. Срок сдвинули на четыре дня из-за фасадов, но предупредили заранее.",
-  }),
-  completed({
-    key: "h-timur-wardrobe", client: "zhanna", executor: "timur", type: "wardrobe", style: "modern",
-    details: { widthCm: 260, facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.chernovik9,
-    title: "Шкаф-купе в спальню", price: 230_000, finalPrice: 240_000, template: "no-prepayment", startDaysAgo: 75, durationDays: 15,
-    rating: 5, review: "Быстро и недорого. Замер бесплатно, всё точно по размеру.",
-  }),
-  completed({
-    key: "h-timur-hallway", client: "arman", executor: "timur", type: "hallway", style: "modern",
-    details: { facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.sample4,
-    title: "Прихожая со шкафом", price: 170_000, finalPrice: 180_000, template: "advance-50", startDaysAgo: 40, durationDays: 14,
-    rating: 4, review: "Прихожая хорошая, но монтажника пришлось ждать два дня.",
-  }),
-  completed({
-    key: "h-asel-table", client: "olga", executor: "asel", type: "table", style: "modern",
-    details: { widthCm: 180, facade: "solid_wood" }, segment: "PREMIUM", address: ADDR.maket21,
-    title: "Обеденный стол из карагача", price: 430_000, finalPrice: 450_000, template: "advance-50", startDaysAgo: 50, durationDays: 30,
-    rating: 5, review: "Стол из карагача — очень красиво. Масло-воск, ручная работа, всё по эскизу.",
-  }),
-  completed({
-    key: "h-qazaq-shelving", client: "saule", executor: "qazaq", type: "shelving", style: "loft",
-    details: { facade: "mdf_film" }, segment: "COMFORT", address: ADDR.probny7,
-    title: "Стеллаж-перегородка", price: 250_000, finalPrice: 260_000, template: "three-part", startDaysAgo: 45, durationDays: 20,
-    rating: 4, review: "Стеллаж крепкий, всё ровно. Менеджер иногда долго отвечал.",
-  }),
-  completed({
-    key: "h-dala-bedroom", client: "zhanna", executor: "dala", type: "bedroom", style: "scandi",
-    details: { facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.chernovik9,
-    title: "Спальня с мягким изголовьем", price: 620_000, finalPrice: 640_000, template: "advance-50", startDaysAgo: 100, durationDays: 30,
-    rating: 5, review: "Спальня с мягким изголовьем — всё как на эскизе, тумбы с доводчиками.",
-  }),
-];
-
-export const REQUESTS: RequestSpec[] = [...HISTORY, ...ACTIVE];
-
-/**
- * Исполнитель «Дала» (ИП Абдрахманов) сам заказывал шкаф как заказчик (ADR-004): одна завершённая сделка
- * в роли заказчика. Сеется после REQUESTS — номера остальных заявок и сделок (на них опираются e2e) не сдвигаются.
- * ИИН заказчика в аккаунте и ИИН профиля ИП совпадают — это один человек (OPEN_QUESTIONS №28).
- */
-export const DUAL_ROLE_REQUESTS: RequestSpec[] = [
-  completed({
-    key: "h-dala-as-client-wardrobe", client: { executor: "dala" }, executor: "timur", type: "wardrobe", style: "modern",
-    details: { widthCm: 180, facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.sample4,
-    title: "Шкаф в прихожую для себя", price: 240_000, finalPrice: 250_000, template: "no-prepayment", startDaysAgo: 60, durationDays: 18,
-    rating: 5, review: "Сам мебельщик, поэтому придирчив: собрано ровно, фурнитура как договаривались.",
-  }),
-];
-
-/** Материалы проекта после замера в демо (шаг «Утверждение проекта», ADR-005). */
-export const PROJECT_MATERIALS = "Корпус — ЛДСП Egger 16 мм, фасады по заявке, кромка ПВХ 2 мм, фурнитура с доводчиками.";
-
-/**
- * Сценарии до договора 2–5 (ADR-005): по одной заявке на шаге, с которого основатели проходят сценарий.
- * Сеются последними — номера остальных заявок и сделок (на них опираются e2e) не сдвигаются.
- */
-export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
   {
     key: "flow2-site-kitchen",
     flow: "PLATFORM_MEASURER",
@@ -1019,49 +834,184 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
   },
 ];
 
+// ─── сделки: путь ТЗ настоящими сервисами (deals.ts) ─────────────────────────
+
+/** Фото сдачи и «Хода работ» — из демо-SVG портфолио (seed переводит их в JPEG и загружает через files). */
+export type ProgressSpec = { title: string; text: string; photos: readonly PortfolioFileKey[] };
+
+export type DisputeSpec = {
+  by: "client" | "executor";
+  reason: DisputeReason;
+  description: string;
+  clientPosition: string;
+  executorPosition: string;
+};
+
+/** Итог спора (ADR-009 раздел 3); masterShareKzt — доля мастера Y из цены X при разделе. */
+export type ResolutionSpec = { outcome: "FULL_REFUND"; rationale: string } | { outcome: "PARTIAL_SPLIT"; masterShareKzt: number; rationale: string };
+
 /**
- * Портфолио из итоговых фото сделок (встреча 31.10, п. 3). Сеется в самом конце — номера заявок и сделок
- * не сдвигаются. Фото — копии демо-SVG в public/demo/deals/<request>-<n>.svg (байты как у исходника в PORTFOLIO_FILES).
- * - «kitchen-completed» (сделка №7, Данияр ↔ «Ағаш Шебер»): фото отчёта последнего этапа, заказчик разрешил
- *   показ в отзыве; исполнитель может добавить работу сам.
- * - «h-erlan-kitchen» (Ольга ↔ Ерлан): работа уже добавлена и видна во «Вдохновении» с пометкой «Выполнено на Сенім».
+ * Шаги сделки по порядку — ровно те действия, что делают люди в приложении:
+ *  sign — обе стороны подписывают оферту (собственноручно и ЭЦП mock); pay — покупатель оплачивает;
+ *  bank — оператор подтверждает ждущие операции manual банковским документом (тестовый скан);
+ *  start, progress, ready (фото и место сдачи: у адреса или в ~2 км), signAct (обе стороны), signActClient
+ *  (только покупатель — ждём ЭЦП мастера), cancel, dispute, resolve.
  */
-export type DealShowcaseSpec = {
+export type DealStep =
+  | "sign"
+  | "pay"
+  | "bank"
+  | "start"
+  | { progress: ProgressSpec }
+  | { ready: { at: "address" | "far"; photos: readonly PortfolioFileKey[] } }
+  | "signAct"
+  | "signActClient"
+  | { cancel: "client" | "executor"; reason: string }
+  | { dispute: DisputeSpec }
+  | { resolve: ResolutionSpec };
+
+export type DealPlan = {
+  /** Ключ заявки из REQUESTS / DUAL_ROLE_REQUESTS: принимается последняя цена торга её первого отклика. */
   request: string;
-  photos: readonly PortfolioFileKey[];
-  consentDaysAgo: number;
-  item?: { title: string; description: string; place: string; daysAgo: number };
+  provider: "mock" | "manual";
+  steps: readonly DealStep[];
 };
 
-export const DEAL_SHOWCASES: readonly DealShowcaseSpec[] = [
-  { request: "kitchen-completed", photos: ["kitchen-neoclassic", "kitchen-island-oak"], consentDaysAgo: 11 },
+const READY_PHOTOS = {
+  closet: ["closet-walnut", "closet-light"],
+  tv: ["tv-zone-scandi"],
+  kids: ["kids-bunk"],
+  kitchen: ["kitchen-neoclassic", "kitchen-island-oak"],
+  table: ["table-karagach"],
+  wardrobe: ["wardrobe-oak"],
+  office: ["office-white"],
+} as const satisfies Record<string, readonly PortfolioFileKey[]>;
+
+const KIDS_DISPUTE: DisputeSpec = {
+  by: "client",
+  reason: "QUALITY",
+  description: "Цвет фасадов не совпадает с согласованным: вместо голубого — серо-синий. На двух деталях отходит кромка.",
+  clientPosition: "Прошу переделать фасады в согласованный цвет и заменить детали с кромкой. Подписывать акт в таком виде не готов.",
+  executorPosition: "Цвет соответствует образцу RAL 5024 из оферты, на фото оттенок искажён. Кромку переклеим по гарантии, перекрашивать фасады за свой счёт не согласен.",
+};
+
+/** Сделки во всех статусах ТЗ (п. 9) — на mock и на manual. Порядок задаёт номера сделок. */
+export const DEALS: readonly DealPlan[] = [
+  // CREATED: оферта ещё не подписана.
+  { request: "deal-offer-hallway", provider: "mock", steps: [] },
+  // CREATED: оферта заключена, ждёт оплаты.
+  { request: "deal-signed-shelving", provider: "mock", steps: ["sign"] },
+  // CREATED на manual: оплата ждёт подтверждения оператора по выписке банка.
+  { request: "deal-manual-hold-office", provider: "manual", steps: ["sign", "pay"] },
+  // PAID_HOLD: деньги в банке под защитой, мастер ещё не начал.
+  { request: "deal-paid-wardrobe", provider: "mock", steps: ["sign", "pay"] },
+  // PAID_HOLD + открытый спор: мастер не выходит на связь.
   {
-    request: "h-erlan-kitchen",
-    photos: ["kitchen-sage", "kitchen-terracotta"],
-    consentDaysAgo: 59,
-    item: {
-      title: "Кухня 3,2 м под потолок",
-      description: `Фасады МДФ в эмали, верхние шкафы до потолка, фурнитура с доводчиками. Сделка прошла на ${brand.name}, фото — из отчёта последнего этапа.`,
-      place: "Астана, Есильский район",
-      daysAgo: 58,
-    },
+    request: "deal-paid-dispute-bedroom",
+    provider: "mock",
+    steps: [
+      "sign",
+      "pay",
+      {
+        dispute: {
+          by: "client",
+          reason: "DEADLINE",
+          description: "Мастер две недели не начинает работу и не отвечает в чате.",
+          clientPosition: "Прошу вернуть деньги: сроки сорваны, договориться не получается.",
+          executorPosition: "Задержали ткань для изголовья у поставщика, готовы начать на следующей неделе.",
+        },
+      },
+    ],
   },
+  // IN_PROGRESS с «Ходом работ».
+  {
+    request: "deal-progress-kitchen",
+    provider: "mock",
+    steps: [
+      "sign",
+      "pay",
+      "start",
+      { progress: { title: "Материалы закуплены", text: "Плиты, кромка и фурнитура Blum на складе цеха.", photos: ["kitchen-sage"] } },
+      { progress: { title: "Корпуса собраны", text: "Корпуса нижних шкафов собраны, фасады ушли в покраску.", photos: ["kitchen-terracotta"] } },
+    ],
+  },
+  // READY: работа сдана у адреса заказа, акт ждёт подписей.
+  { request: "deal-ready-closet", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.closet } }] },
+  // READY: сдано вдали от адреса (предупреждение), покупатель подписал акт — ждём ЭЦП мастера.
+  { request: "deal-ready-far-tv", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "far", photos: READY_PHOTOS.tv } }, "signActClient"] },
+  // READY + открытый спор по качеству.
+  { request: "deal-ready-dispute-kids", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.kids } }, { dispute: KIDS_DISPUTE }] },
+  // ACCEPTED на manual: акт подписан, выплата ждёт подтверждения оператора.
+  {
+    request: "deal-accepted-manual-kitchen",
+    provider: "manual",
+    steps: ["sign", "pay", "bank", "start", { ready: { at: "address", photos: READY_PHOTOS.kitchen } }, "signAct"],
+  },
+  // SPLIT_PAYOUT: обычная выплата (mock).
+  { request: "deal-done-table", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.table } }, "signAct"] },
+  // SPLIT_PAYOUT на manual: все операции подтверждены банковскими документами.
+  {
+    request: "deal-done-manual-wardrobe",
+    provider: "manual",
+    steps: ["sign", "pay", "bank", "start", { ready: { at: "address", photos: READY_PHOTOS.wardrobe } }, "signAct", "bank"],
+  },
+  // SPLIT_PAYOUT по спору: раздел — мастеру часть, остаток — покупателю (REFUND).
+  {
+    request: "deal-split-office",
+    provider: "mock",
+    steps: [
+      "sign",
+      "pay",
+      "start",
+      { ready: { at: "address", photos: READY_PHOTOS.office } },
+      {
+        dispute: {
+          by: "client",
+          reason: "SCOPE",
+          description: "Стеллаж не установлен: мастер сдал только стол и тумбу.",
+          clientPosition: "Готов заплатить за стол и тумбу, стеллаж закажу у другого мастера.",
+          executorPosition: "Стеллаж не встал из-за кривой стены; стол и тумба сделаны по оферте.",
+        },
+      },
+      { resolve: { outcome: "PARTIAL_SPLIT", masterShareKzt: 300_000, rationale: "Стол и тумба сданы и приняты по фото, стеллаж не изготовлен: мастеру — 300 000 ₸ из 520 000 ₸." } },
+    ],
+  },
+  // CANCELLED: покупатель отменил до оплаты.
+  { request: "deal-cancelled-dresser", provider: "mock", steps: ["sign", { cancel: "client", reason: "Нашли готовый комод" }] },
+  // REFUNDED: отмена после оплаты — деньги вернулись на карту.
+  { request: "deal-refunded-hallway", provider: "mock", steps: ["sign", "pay", { cancel: "client", reason: "Переезжаем, прихожая не нужна" }] },
+  // REFUNDED по спору на manual: полный возврат подтверждён оператором.
+  {
+    request: "deal-refund-dispute-wardrobe",
+    provider: "manual",
+    steps: [
+      "sign",
+      "pay",
+      "bank",
+      "start",
+      {
+        dispute: {
+          by: "client",
+          reason: "QUALITY",
+          description: "Двери не закрываются, корпус перекошен.",
+          clientPosition: "Прошу вернуть деньги и забрать шкаф.",
+          executorPosition: "Согласен на возврат: переделать в срок не успеем.",
+        },
+      },
+      { resolve: { outcome: "FULL_REFUND", rationale: "Обе стороны согласны на возврат; работа не принята." } },
+      "bank",
+    ],
+  },
+  // Мастер «Дала» в роли покупателя (ADR-004): завершённая сделка.
+  { request: "deal-dual-role-wardrobe", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.wardrobe } }, "signAct"] },
 ];
-
-/** Отчёты исполнителя при сдаче этапа — по названию этапа шаблона. */
-export const STAGE_REPORTS: Record<string, string> = {
-  "Аванс на материалы": "Материалы закуплены: плиты, кромка, фурнитура. Чеки и фото во вложении.",
-  Изготовление: "Корпуса собраны, фасады получены из покраски. Фото из цеха во вложении.",
-  "Доставка, монтаж и сдача": "Мебель установлена, фасады отрегулированы, мусор вывезли.",
-};
 
 // ─── уведомления ─────────────────────────────────────────────────────────────
 
+/** Уведомления до сделок (регистрация, отклики, замеры). Уведомления сделок и денег шлют сами сервисы (deals.ts). */
 export type PersonRef = { client: ClientKey } | { executor: ExecutorKey } | { operator: true };
 
-export type LinkRef =
-  | { to: "request" | "executorRequest" | "deal" | "operatorDispute"; request: string }
-  | { to: "operatorExecutor"; executor: ExecutorKey };
+export type LinkRef = { to: "request" | "executorRequest"; request: string } | { to: "operatorExecutor"; executor: ExecutorKey };
 
 export type NotificationSpec = {
   user: PersonRef;
@@ -1074,32 +1024,16 @@ export type NotificationSpec = {
 };
 
 export const NOTIFICATIONS: NotificationSpec[] = [
-  // Айгерим
-  { user: { client: "aigerim" }, kind: "offer.received", title: "Новый отклик на заявку", body: "На заявку «Кухня» пришёл третий отклик: 980 000 ₸, срок 35 дней.", link: { to: "request", request: "tender-kitchen" }, daysAgo: 1.2 },
-  { user: { client: "aigerim" }, kind: "deal.stage.submitted", title: "Этап сдан — проверьте работу", body: "Исполнитель сдал этап «Изготовление» по сделке «Шкаф-купе в спальню, 2,8 м». Если не ответить в течение 5 дней после сдачи, этап примется автоматически.", link: { to: "deal", request: "wardrobe-submitted" }, daysAgo: 1 },
-  { user: { client: "aigerim" }, kind: "deal.contract.ready", title: "Договор готов к подписи", body: "Сделка «Прихожая с антресолью»: проверьте договор и подпишите ЭЦП.", link: { to: "deal", request: "contracting-hallway" }, daysAgo: 4 },
-  { user: { client: "aigerim" }, kind: "measurement.no_deal", title: "Замер завершён без сделки", body: "По заявке «Мебель для ванной» сделка не состоялась. Плата за выезд — 10 000 ₸, оплачивается напрямую исполнителю. Заявка снова открыта для откликов.", link: { to: "request", request: "bathroom-no-deal" }, daysAgo: 15, read: true },
-  // Данияр
-  { user: { client: "daniyar" }, kind: "measurement.scheduled", title: "Замер назначен", body: "Исполнитель приедет на замер по заявке «ТВ-зона» через 2 дня в 11:00.", link: { to: "request", request: "measuring-tv" }, daysAgo: 1.8 },
-  { user: { client: "daniyar" }, kind: "dispute.opened", title: "Спор открыт", body: "Оператор рассмотрит спор по сделке «Детская для двоих» и позиции обеих сторон.", link: { to: "deal", request: "kids-dispute" }, daysAgo: 2, read: true },
-  { user: { client: "daniyar" }, kind: "deal.completed", title: "Сделка завершена", body: "Все этапы по сделке «Кухня с островом, шпон дуба» закрыты. Спасибо за отзыв!", link: { to: "deal", request: "kitchen-completed" }, daysAgo: 12, read: true },
-  // Мадина
-  { user: { client: "madina" }, kind: "offer.chosen", title: "Отклик выбран", body: "Адрес передан исполнителю по заявке «Шкаф-купе». Договоритесь о замере в чате.", link: { to: "request", request: "chosen-wardrobe" }, daysAgo: 0.6 },
-  { user: { client: "madina" }, kind: "deal.payment.marked", title: "Оплата отмечена", body: "Вы отметили оплату аванса 174 000 ₸. Ждём, когда исполнитель подтвердит получение.", link: { to: "deal", request: "office-advance" }, daysAgo: 0.3, read: true },
-  // Исполнители
-  { user: { executor: "erlan" }, kind: "deal.contract.ready", title: "Договор готов к подписи", body: "Сделка «Прихожая с антресолью» на 315 000 ₸: подпишите договор ЭЦП.", link: { to: "deal", request: "contracting-hallway" }, daysAgo: 4 },
+  { user: { client: "aigerim" }, kind: "offer.received", title: "Новый отклик на заявку", body: "На заявку «Кухня» пришёл отклик: 1 020 000 ₸, срок 35 дней.", link: { to: "request", request: "tender-kitchen" }, daysAgo: 1.2 },
+  { user: { client: "aigerim" }, kind: "measurement.no_deal", title: "Замер завершён без сделки", body: "По заявке «Мебель для ванной» сделка не состоялась. Плата за выезд — 10 000 ₸, оплачивается напрямую исполнителю. Заявка снова открыта для откликов.", link: { to: "request", request: "flow1-no-deal-bathroom" }, daysAgo: 15, read: true },
+  { user: { client: "daniyar" }, kind: "measurement.scheduled", title: "Замер назначен", body: "Исполнитель приедет на замер по заявке «ТВ-зона» через 2 дня в 11:00.", link: { to: "request", request: "flow1-measuring-tv" }, daysAgo: 1.8 },
+  { user: { client: "madina" }, kind: "offer.chosen", title: "Отклик выбран", body: "Адрес передан исполнителю по заявке «Шкаф». Договоритесь о замере в чате.", link: { to: "request", request: "flow1-chosen-wardrobe" }, daysAgo: 0.6 },
   { user: { executor: "erlan" }, kind: "request.new", title: "Новая заявка в вашем сегменте", body: "Кухня 3,4 м, сегмент «Комфорт», Астана.", link: { to: "executorRequest", request: "tender-kitchen" }, daysAgo: 3.2, read: true },
-  { user: { executor: "erlan" }, kind: "offer.declined", title: "Заказчик выбрал другой отклик", body: "По заявке «Кабинет» выбран другой исполнитель.", link: { to: "executorRequest", request: "office-advance" }, daysAgo: 13, read: true },
-  { user: { executor: "qazaq" }, kind: "deal.payment.marked", title: "Заказчик отметил оплату", body: "Аванс 174 000 ₸ по сделке «Кабинет со стеллажом до потолка». Проверьте поступление и подтвердите.", link: { to: "deal", request: "office-advance" }, daysAgo: 0.3 },
-  { user: { executor: "kim" }, kind: "dispute.opened", title: "Заказчик открыл спор", body: "Сделка «Детская для двоих»: оператор рассмотрит позиции обеих сторон.", link: { to: "deal", request: "kids-dispute" }, daysAgo: 2, read: true },
-  { user: { executor: "dala" }, kind: "measurement.reminder", title: "Замер через 2 дня", body: "Заявка «ТВ-зона»: замер в 11:00. Если сделка не состоится, плата за выезд — 10 000 ₸.", link: { to: "executorRequest", request: "measuring-tv" }, daysAgo: 1.8 },
+  { user: { executor: "dala" }, kind: "measurement.reminder", title: "Замер через 2 дня", body: "Заявка «ТВ-зона»: замер в 11:00. Если сделка не состоится, плата за выезд — 10 000 ₸.", link: { to: "executorRequest", request: "flow1-measuring-tv" }, daysAgo: 1.8 },
   { user: { executor: "asel" }, kind: "request.direct", title: "Заказчик хочет похожее", body: "Новая заявка по вашей работе «Обеденный стол из карагача».", link: { to: "executorRequest", request: "direct-table" }, daysAgo: 1 },
-  { user: { executor: "timur" }, kind: "offer.accepted", title: "Ваш отклик выбран", body: "Адрес заказчика открыт. Договоритесь о замере в чате.", link: { to: "executorRequest", request: "chosen-wardrobe" }, daysAgo: 0.6 },
-  { user: { executor: "agash" }, kind: "review.received", title: "Новый отзыв", body: "Оценка 4 из 5 по сделке «Кухня с островом, шпон дуба».", link: { to: "deal", request: "kitchen-completed" }, daysAgo: 11, read: true },
+  { user: { executor: "timur" }, kind: "offer.accepted", title: "Ваш отклик выбран", body: "Адрес заказчика открыт. Договоритесь о замере в чате.", link: { to: "executorRequest", request: "flow1-chosen-wardrobe" }, daysAgo: 0.6 },
   { user: { executor: "samat" }, kind: "registration.approved", title: "Профиль подтверждён", body: "Вам присвоен сегмент «Эконом». Теперь вы видите заявки этого сегмента.", daysAgo: 28, read: true },
   { user: { executor: "almas" }, kind: "registration.received", title: "Заявка на регистрацию принята", body: "Оператор проверит данные в течение рабочего дня.", daysAgo: 1.5 },
   { user: { executor: "express" }, kind: "registration.rejected", title: "Регистрация отклонена", body: "Фотографии портфолио найдены на сторонних сайтах. Загрузите фото собственных работ и подайте заявку снова.", daysAgo: 12 },
-  // Оператор
   { user: { operator: true }, kind: "registration.pending", title: "Новая регистрация исполнителя", body: "Самозанятый, кухни и прихожие. Проверьте данные и присвойте сегмент.", link: { to: "operatorExecutor", executor: "almas" }, daysAgo: 1.5 },
-  { user: { operator: true }, kind: "dispute.opened", title: "Открыт спор", body: "Сделка «Детская для двоих»: качество фасадов. Позиции сторон заполнены.", link: { to: "operatorDispute", request: "kids-dispute" }, daysAgo: 2 },
 ];
