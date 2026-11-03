@@ -1,6 +1,8 @@
 import "server-only";
 import { z } from "zod";
+import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
+import { notify } from "@/modules/notifications";
 import { decryptPii, encryptPii, last4 } from "@/platform/crypto";
 import { db, transaction, type Db } from "@/platform/db";
 import { parseInput } from "@/platform/validation";
@@ -23,9 +25,29 @@ export async function getOwnPayout(user: CurrentUser): Promise<OwnPayout> {
   return { last4: row.payoutIbanLast4 };
 }
 
+const n = ru.identity.payout.notify;
+
+/** Мастеру и операторам — о новом счёте (последние 4): подмену счёта после захвата входа заметят сразу. */
+async function notifyPayoutChanged(tx: Db, user: CurrentUser, executorId: string, first: boolean, ibanLast4: string) {
+  await notify(tx, { userId: user.id, kind: "executor.payout_iban_changed", title: n.title(first), body: n.body(ibanLast4), link: "/executor/profile/payout" });
+  const { legalName } = await tx.executorProfile.findUniqueOrThrow({ where: { id: executorId }, select: { legalName: true } });
+  const operators = await tx.user.findMany({ where: { roles: { has: "OPERATOR" }, blockedAt: null }, select: { id: true } });
+  for (const op of operators) {
+    await notify(tx, {
+      userId: op.id,
+      kind: "executor.payout_iban_changed",
+      title: n.title(first),
+      body: n.operatorBody(legalName, first, ibanLast4),
+      link: `/operator/executors/${executorId}`,
+    });
+  }
+}
+
 /**
  * Указать или сменить счёт. Строка профиля берётся FOR UPDATE: параллельная смена ждёт, и «тот же счёт ещё
- * раз» (двойной клик) распознаётся надёжно — журнал второй раз не пишется. Журнал — без значения.
+ * раз» (двойной клик) распознаётся надёжно — журнал и уведомления второй раз не пишутся. Журнал — без значения.
+ * Запрет смены при ждущей выплате (SPLIT_MASTER в PENDING) — не здесь: у payments нет публичного запроса
+ * «ждёт ли мастер выплату», а identity не может зависеть от payments (payments берёт получателя из identity).
  */
 export async function setPayoutIban(user: CurrentUser, raw: PayoutInput): Promise<OwnPayout> {
   const executorId = ownExecutorId(user);
@@ -44,6 +66,7 @@ export async function setPayoutIban(user: CurrentUser, raw: PayoutInput): Promis
       before: { set: previous !== null },
       after: { set: true },
     });
+    await notifyPayoutChanged(tx, user, executorId, previous === null, last4(iban));
     return { last4: last4(iban) };
   });
 }

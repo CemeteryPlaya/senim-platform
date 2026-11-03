@@ -39,6 +39,20 @@ describe("мастер указывает счёт для выплаты", () =>
     for (const part of ["KZ", "0100", "5004", "2069"]) expect(text).not.toContain(part);
   });
 
+  it("указание и смена счёта — уведомление мастеру и операторам с последними 4; повтор того же — без уведомлений", async () => {
+    const operator = await makeOperator();
+    const executor = await makeExecutor();
+    await setPayoutIban(executor, { iban: IBAN });
+    await setPayoutIban(executor, { iban: IBAN });
+    await setPayoutIban(executor, { iban: OTHER });
+    const notes = await db.notification.findMany({ where: { kind: "executor.payout_iban_changed" }, orderBy: { createdAt: "asc" } });
+    expect(notes.filter((x) => x.userId === executor.id).map((x) => x.title)).toEqual(["Счёт для выплаты указан", "Счёт для выплаты изменён"]);
+    expect(notes.filter((x) => x.userId === operator.id)).toHaveLength(2);
+    const text = JSON.stringify(notes.map((x) => [x.title, x.body]));
+    expect(text).toContain("KZ… 0100");
+    for (const part of ["KZ86", "KZ75", "5004", "2069"]) expect(text).not.toContain(part);
+  });
+
   it("неверный IBAN — VALIDATION, прежний счёт не меняется", async () => {
     const executor = await makeExecutor();
     await setPayoutIban(executor, { iban: IBAN });
