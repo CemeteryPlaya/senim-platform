@@ -2,9 +2,10 @@ import { z } from "zod";
 import type { MoneyTransactionType } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
+import { assertAttachable } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
 import { db, isUniqueViolation, lockDealRow, transaction, type Tx } from "@/platform/db";
-import { fail } from "@/platform/errors";
+import { fail, isAppError } from "@/platform/errors";
 import { parseInput } from "@/platform/validation";
 import type { SettledHook } from "../execute";
 import { settle, type BankConfirmation, type Outcome } from "../ledger";
@@ -60,13 +61,17 @@ async function lockPendingManual(tx: Tx, transactionId: string) {
   return op;
 }
 
-/** Скан — свой, назначения BANK_DOCUMENT и ещё ни к одной операции не приложен (уникальный индекс). */
+/**
+ * Скан — свой, назначения BANK_DOCUMENT и ещё ни к одной операции не приложен (files.assertAttachable).
+ * Для формы оператора — ошибка поля скана (VALIDATION), а не общий CONFLICT.
+ */
 async function assertBankDoc(tx: Tx, operator: CurrentUser, fileId: string): Promise<void> {
-  const file = await tx.storedFile.findFirst({
-    where: { id: fileId, purpose: "BANK_DOCUMENT", uploadedById: operator.id, bankDocFor: null },
-    select: { id: true },
-  });
-  if (!file) fail.validation(ru.payments.errors.bankDocInvalid, { fieldErrors: { bankDocFileId: [ru.payments.errors.bankDocInvalid] } });
+  try {
+    await assertAttachable(tx, { fileId, uploadedById: operator.id, purpose: "BANK_DOCUMENT" });
+  } catch (e) {
+    if (isAppError(e) && e.code === "CONFLICT") fail.validation(ru.payments.errors.bankDocInvalid, { fieldErrors: { bankDocFileId: [ru.payments.errors.bankDocInvalid] } });
+    throw e;
+  }
 }
 
 async function finish(tx: Tx, operator: CurrentUser, op: { id: string; dealId: string; type: MoneyTransactionType }, outcome: Outcome, confirmation: BankConfirmation | undefined, onSettled: SettledHook) {
