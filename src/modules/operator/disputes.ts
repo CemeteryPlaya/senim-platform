@@ -2,7 +2,7 @@ import { scopeHistory } from "@/modules/audit";
 import { resolveDispute as resolveDisputeInDealCore } from "@/modules/deal-core";
 import { fileUrl } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
-import { computeSplit, moneyHistory, moneyView, type Split } from "@/modules/payments";
+import { computeSplit, kztToTiyn, moneyHistory, moneyView, type Split } from "@/modules/payments";
 import { ru } from "@/i18n/ru";
 import { db } from "@/platform/db";
 import { fail } from "@/platform/errors";
@@ -94,7 +94,7 @@ export async function previewDisputeSplit(user: CurrentUser, input: { disputeId:
   assertOperator(user);
   const dispute = await db.dispute.findUnique({ where: { id: input.disputeId }, select: { deal: { select: { priceTiyn: true } } } });
   if (!dispute) return fail.notFound();
-  const shareTiyn = BigInt(input.masterShareKzt) * 100n;
+  const shareTiyn = kztToTiyn(input.masterShareKzt);
   if (shareTiyn > dispute.deal.priceTiyn) {
     const msg = ru.operator.errors.amountTooBig;
     return fail.validation(msg, { fieldErrors: { masterShareKzt: [msg] } });

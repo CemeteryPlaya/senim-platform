@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { ru } from "@/i18n/ru";
+import { MAX_PRICE_TIYN } from "@/modules/payments";
 import { addExecutorSchema, auditFilterSchema, bankConfirmFieldsSchema, incomePeriodSchema, resolveDisputeSchema } from "./schemas";
 
 describe("форма ручного добавления", () => {
@@ -68,6 +70,15 @@ describe("решение по спору", () => {
       resolveDisputeSchema.parse({ disputeId: "d", outcome: "PARTIAL_SPLIT", masterShareKzt: "750 000", rationale: "Работа выполнена наполовину" }),
     ).toEqual({ disputeId: "d", outcome: "PARTIAL_SPLIT", masterShareTiyn: 75_000_000n, rationale: "Работа выполнена наполовину" });
     expect(resolveDisputeSchema.safeParse({ disputeId: "d", outcome: "PARTIAL_SPLIT", masterShareKzt: "100,5", rationale: "Работа выполнена наполовину" }).success).toBe(false);
+  });
+
+  it("потолок суммы — потолок цены сделки (MAX_PRICE_TIYN); правила решения — схемы deal-core", () => {
+    const base = { disputeId: "d", outcome: "PARTIAL_SPLIT", rationale: "Работа выполнена наполовину" };
+    const max = Number(MAX_PRICE_TIYN / 100n);
+    expect(resolveDisputeSchema.parse({ ...base, masterShareKzt: String(max) })).toMatchObject({ masterShareTiyn: MAX_PRICE_TIYN });
+    expect(resolveDisputeSchema.safeParse({ ...base, masterShareKzt: String(max + 1) }).success).toBe(false);
+    const short = resolveDisputeSchema.safeParse({ ...base, masterShareKzt: "1", rationale: "мало" });
+    expect(short.error?.issues).toEqual([expect.objectContaining({ path: ["rationale"], message: ru.deal.validation.rationale })]);
   });
 
   it("для других итогов сумму не передаёт; обоснование обязательно", () => {

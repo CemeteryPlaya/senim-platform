@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { MATERIAL_CATEGORIES, MATERIAL_UNITS } from "@/verticals/furniture";
+import type { DisputeOutcome } from "@/generated/prisma/enums";
+import { resolveDisputeSchema as dealResolveDisputeSchema } from "@/modules/deal-core";
 import { binIinKindFor, isValidBin, isValidIin, parsePhone, refineSigner, signerFields, signerOf, type RegistrationDecision } from "@/modules/identity";
+import { confirmManualSchema, failManualSchema, kztToTiyn, MAX_PRICE_TIYN } from "@/modules/payments";
 
 /**
  * Входные данные панели оператора. Разбираются один раз на границе (Server Action,
@@ -101,39 +104,45 @@ export type IncomePeriod = z.output<typeof incomePeriodSchema>;
 
 // ─── споры ───────────────────────────────────────────────────────────────────
 
-export const DISPUTE_OUTCOMES = ["CONTINUE", "FULL_REFUND", "PARTIAL_SPLIT"] as const;
+export const DISPUTE_OUTCOMES = ["CONTINUE", "FULL_REFUND", "PARTIAL_SPLIT"] as const satisfies readonly DisputeOutcome[];
 
-/** Сумма мастеру Y в целых тенге из поля формы (пробелы между разрядами допустимы) → тиыны. */
+/** Сумма мастеру Y в целых тенге из поля формы (пробелы между разрядами допустимы); потолок — потолок цены сделки. */
 const shareKztRequired = z.preprocess(
-  (v) => (typeof v === "string" ? v.replace(/[\s  ]/g, "") : v),
-  z.coerce.number({ error: t.amount }).int(t.amount).positive(t.amount).max(1_000_000_000, t.amount),
+  (v) => (typeof v === "string" ? v.replace(/[\s  ]/g, "") : v),
+  z.coerce.number({ error: t.amount }).int(t.amount).positive(t.amount).max(Number(MAX_PRICE_TIYN / 100n), t.amount),
 );
 const shareKzt = z.preprocess(emptyToUndefined, shareKztRequired.optional());
 
 export const splitPreviewSchema = z.object({ disputeId: id, masterShareKzt: shareKztRequired });
 
+/**
+ * Форма решения спора → вход deal-core.resolveDispute. Здесь — только разбор полей формы (итог из списка,
+ * сумма в тенге → тиыны через kztToTiyn); правила решения (обоснование, сумма только при разделе) — в схеме
+ * владельца (deal-core.resolveDisputeSchema), которой форма передаёт результат.
+ */
 export const resolveDisputeSchema = z
   .object({
     disputeId: id,
     outcome: z.enum(DISPUTE_OUTCOMES, { error: t.outcome }),
     masterShareKzt: shareKzt,
-    rationale: z.string().trim().min(10, t.rationale).max(2000),
+    rationale: z.string(),
   })
   .refine((v) => v.outcome !== "PARTIAL_SPLIT" || v.masterShareKzt !== undefined, { path: ["masterShareKzt"], message: t.amount })
-  .transform(({ masterShareKzt, ...v }) =>
-    v.outcome === "PARTIAL_SPLIT" && masterShareKzt !== undefined ? { ...v, masterShareTiyn: BigInt(masterShareKzt) * 100n } : v,
-  );
+  .transform(({ masterShareKzt, ...v }) => (v.outcome === "PARTIAL_SPLIT" && masterShareKzt !== undefined ? { ...v, masterShareTiyn: kztToTiyn(masterShareKzt) } : v))
+  .pipe(dealResolveDisputeSchema);
 export type ResolveDisputeFormInput = z.output<typeof resolveDisputeSchema>;
 
 // ─── деньги: подтверждения manual по банковским документам ───────────────────
 
-/** Поля формы подтверждения; скан приходит файлом рядом и сохраняется до вызова payments. */
-export const bankConfirmFieldsSchema = z.object({
-  transactionId: id,
-  bankDocNumber: z.string().trim().min(1, ru.payments.validation.bankDocNumber).max(100),
+/**
+ * Поля формы подтверждения — схема payments (владелец подтверждения manual) без скана: скан приходит файлом
+ * рядом и сохраняется до вызова payments. Дата из <input type="date"> — начало дня по Астане.
+ */
+export const bankConfirmFieldsSchema = confirmManualSchema.omit({ bankDocFileId: true }).extend({
   bankDocDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, ru.payments.validation.bankDocDate).transform((d) => new Date(`${d}T00:00:00.000+05:00`)),
 });
-export const bankFailSchema = z.object({ transactionId: id, reason: z.string().trim().min(5, ru.payments.validation.failReason).max(500) });
+/** «Отклонено банком» — та же схема, что у payments.failManualOperation. */
+export const bankFailSchema = failManualSchema;
 
 // ─── KYC ─────────────────────────────────────────────────────────────────────
 
