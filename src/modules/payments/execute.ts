@@ -115,7 +115,8 @@ async function callProvider(provider: PaymentProvider, deal: DealForProvider, op
 
 /**
  * Отправляет провайдеру все ждущие операции сделки по порядку журнала. Части выплаты — только после
- * подтверждённого раскрытия. Сбой провайдера не роняет вызывающего: операция остаётся PENDING до опроса.
+ * подтверждённого раскрытия. Сбой провайдера не роняет вызывающего: операция остаётся PENDING до опроса;
+ * сбой записи итога — роняет (см. executeOne).
  * Возвращает ответы провайдера по id операции (страница оплаты для HOLD — redirectUrl).
  */
 export async function executeDealOperations(dealId: string, onSettled: SettledHook): Promise<Map<string, ProviderResult>> {
@@ -142,16 +143,29 @@ type Run = {
   succeeded: Set<string>;
 };
 
+/**
+ * Одна ждущая операция. Сбой вызова провайдера (сеть, таймаут) — предупреждение: операция остаётся PENDING,
+ * её подберут задача и опрос. Сбой записи итога или хука владельца сделки — ошибка и проброс: провайдер операцию
+ * провёл, а журнал нет — задача payments.executeDeal должна упасть и повториться (тот же ключ, итог только из PENDING).
+ */
 async function executeOne(run: Run, op: MoneyTransaction): Promise<void> {
   if (op.status !== "PENDING" || run.results.has(op.id)) return;
   if (op.parentId && !run.succeeded.has(op.parentId)) return;
+  let calls: [MoneyTransaction, ProviderResult][];
   try {
-    for (const [target, result] of await callProvider(run.provider, run.deal, op, run.all)) {
-      run.results.set(target.id, result);
-      const settled = await applyResult(target, result, run.onSettled);
-      if (settled?.status === "SUCCEEDED") run.succeeded.add(settled.id);
-    }
+    calls = await callProvider(run.provider, run.deal, op, run.all);
   } catch (error) {
     logger.warn("payment provider call failed", { dealId: run.deal.id, idempotencyKey: op.idempotencyKey, error });
+    return;
+  }
+  for (const [target, result] of calls) {
+    run.results.set(target.id, result);
+    try {
+      const settled = await applyResult(target, result, run.onSettled);
+      if (settled?.status === "SUCCEEDED") run.succeeded.add(settled.id);
+    } catch (error) {
+      logger.error("payment outcome not recorded", { dealId: run.deal.id, idempotencyKey: target.idempotencyKey, status: result.status, error });
+      throw error;
+    }
   }
 }

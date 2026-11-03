@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { onMoneySettled, payForDeal, startWork, submitReady } from "@/modules/deal-core";
-import { db } from "@/platform/db";
+import { db, transaction } from "@/platform/db";
 import { makeOperator } from "../../../test/factories";
-import { ADDRESS, confirmPending, dealAt, makePhoto, signAct } from "../../../test/factories/deal";
+import { ADDRESS, confirmPending, dealAt, dealOf, makeDeal, makePhoto, signAct, signContract } from "../../../test/factories/deal";
+import { executeDealOperations } from "./execute";
+import { moneyKey } from "./keys";
+import { recordOperation } from "./ledger";
 import { failManualOperation, manualProvider } from "./providers/manual";
+import { mockProvider } from "./providers/mock";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -35,5 +39,35 @@ describe("исполнение: раскрытие и возврат идут п
     const { cancelDeal } = await import("@/modules/deal-core");
     await cancelDeal(f.client, { dealId: f.dealId });
     expect(refund).toHaveBeenCalledWith(expect.objectContaining({ hold: { idempotencyKey: held.idempotencyKey, externalRef: held.externalRef } }));
+  });
+});
+
+describe("исполнение: что роняет задачу, а что нет", () => {
+  async function pendingMockHold() {
+    const f = await makeDeal();
+    await signContract(f.dealId);
+    const deal = await dealOf(f.dealId);
+    const { entry } = await transaction((tx) =>
+      recordOperation(tx, { dealId: f.dealId, type: "HOLD", amountTiyn: deal.buyerTotalTiyn, idempotencyKey: moneyKey.hold(f.dealId), provider: "MOCK", isTest: true }),
+    );
+    return { ...f, op: entry };
+  }
+
+  it("сбой вызова провайдера — не роняет: операция ждёт опроса", async () => {
+    const { op } = await pendingMockHold();
+    vi.spyOn(mockProvider, "hold").mockRejectedValueOnce(new Error("сеть"));
+    await expect(executeDealOperations(op.dealId, onMoneySettled)).resolves.toBeInstanceOf(Map);
+    expect(await db.moneyTransaction.findUniqueOrThrow({ where: { id: op.id } })).toMatchObject({ status: "PENDING" });
+  });
+
+  it("сбой записи итога (хук сделки) — роняет, итог откатывается; повтор задачи проводит операцию", async () => {
+    const { op, dealId } = await pendingMockHold();
+    const broken = async () => {
+      throw new Error("хук упал");
+    };
+    await expect(executeDealOperations(dealId, broken)).rejects.toThrow("хук упал");
+    expect(await db.moneyTransaction.findUniqueOrThrow({ where: { id: op.id } })).toMatchObject({ status: "PENDING" });
+    await executeDealOperations(dealId, onMoneySettled);
+    expect(await dealOf(dealId)).toMatchObject({ status: "PAID_HOLD" });
   });
 });
