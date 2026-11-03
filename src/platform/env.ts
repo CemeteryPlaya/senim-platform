@@ -14,11 +14,17 @@ const base64Key = z
   .string()
   .refine((v) => Buffer.from(v, "base64").length === 32, "нужно 32 байта в base64");
 
+const APP_ENVS = ["dev", "staging", "prod"] as const;
+type AppEnv = (typeof APP_ENVS)[number];
+
 const base = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-    /** Контур (ТЗ п. 11): dev — моки, staging — песочница Freedom Pay, prod — пилот на manual-провайдере. */
-    APP_ENV: z.enum(["dev", "staging", "prod"]).default("dev"),
+    /**
+     * Контур (ТЗ п. 11): dev — моки, staging — песочница Freedom Pay, prod — пилот на manual-провайдере.
+     * Пусто — dev, но в NODE_ENV=production контур задаётся явно (appEnvChecks): забытый APP_ENV не даёт тестовых платежей.
+     */
+    APP_ENV: optional.pipe(z.enum(APP_ENVS).optional()),
     DATABASE_URL: z.string().min(1),
     APP_URL: z.url().default("http://localhost:3100"),
     DEMO_MODE: bool,
@@ -92,19 +98,26 @@ const base = z
     CRON_SECRET: optional,
   });
 
-type RawEnv = z.output<typeof base>;
+/** Переменные после разбора; APP_ENV — с контуром по умолчанию (dev), как его видят проверки и приложение. */
+type RawEnv = Omit<z.output<typeof base>, "APP_ENV"> & { APP_ENV: AppEnv };
 type Checks = {
   env: RawEnv;
+  /** APP_ENV задан в окружении явно (а не взят по умолчанию). */
+  appEnvExplicit: boolean;
   /** Переменная обязательна при условии `when`. */
   require: (key: keyof RawEnv, when: string) => void;
   issue: (key: keyof RawEnv, message: string) => void;
 };
 
-/** Секреты в production; без доверенного прокси IP клиента неизвестен — лимиты кодов входа по IP не работают. */
+/**
+ * Секреты в production и в контуре prod (пилот с реальными деньгами — даже если сервер собран не production-сборкой);
+ * без доверенного прокси IP клиента неизвестен — лимиты кодов входа по IP не работают.
+ */
 function productionChecks({ env, require, issue }: Checks) {
-  if (env.NODE_ENV !== "production") return;
-  for (const key of ["PII_ENCRYPTION_KEY", "PII_HASH_KEY", "FILE_URL_SECRET", "CRON_SECRET"] as const) require(key, "NODE_ENV=production");
-  if (!env.TRUST_PROXY) issue("TRUST_PROXY", "в production должна быть true: без IP клиента не работают лимиты входа по IP");
+  const when = env.NODE_ENV === "production" ? "NODE_ENV=production" : env.APP_ENV === "prod" ? "APP_ENV=prod" : null;
+  if (!when) return;
+  for (const key of ["PII_ENCRYPTION_KEY", "PII_HASH_KEY", "FILE_URL_SECRET", "CRON_SECRET"] as const) require(key, when);
+  if (env.NODE_ENV === "production" && !env.TRUST_PROXY) issue("TRUST_PROXY", "в production должна быть true: без IP клиента не работают лимиты входа по IP");
 }
 
 /** Демо-стенд пускает в любую персону без SMS и умеет стирать базу: в production — только за паролем (src/proxy.ts). */
@@ -117,12 +130,16 @@ function demoChecks({ env, require, issue }: Checks) {
   if (env.DEMO_MODE && env.DEMO_ACCESS_PASSWORD) require("CRON_SECRET", "DEMO_MODE=true с паролем показа");
 }
 
-/** Вне демо-стенда моки в production означают «код входа никуда не уходит» и «подпись не проверяется». */
+/**
+ * Вне демо-стенда моки в production означают «код входа никуда не уходит», «подпись не проверяется» и
+ * «оплата подтверждается без денег» (провайдер mock — явный или по умолчанию контура dev).
+ */
 function mockChecks({ env, issue }: Checks) {
   if (env.NODE_ENV !== "production" || env.DEMO_MODE) return;
   for (const key of ["SMS_PROVIDER", "SIGNATURE_PROVIDER"] as const) {
     if (env[key] === "mock") issue(key, "mock запрещён в production без DEMO_MODE");
   }
+  if (resolvePaymentProvider(env) === "mock") issue("PAYMENT_PROVIDER", "mock запрещён в production без DEMO_MODE");
 }
 
 function providerChecks({ env, require }: Checks) {
@@ -140,7 +157,8 @@ function providerChecks({ env, require }: Checks) {
 }
 
 /** prod — пилот с реальными деньгами: никаких моков, демо и песочницы; freedompay — только staging (ADR-009, OPEN_QUESTIONS №41). */
-function appEnvChecks({ env, issue }: Checks) {
+function appEnvChecks({ env, appEnvExplicit, issue }: Checks) {
+  if (env.NODE_ENV === "production" && !appEnvExplicit) issue("APP_ENV", "обязательна, когда NODE_ENV=production: dev, staging или prod");
   if (env.PAYMENT_PROVIDER === "freedompay" && env.APP_ENV !== "staging") {
     issue("PAYMENT_PROVIDER", "freedompay разрешён только при APP_ENV=staging: схема без зачисления на счёт ТОО не подтверждена");
   }
@@ -172,13 +190,18 @@ export function resolvePaymentProvider(env: Pick<RawEnv, "APP_ENV" | "PAYMENT_PR
 }
 
 /** Условные обязательные переменные: каждая группа правил — своя функция, порядок сообщений прежний. */
-const schema = base.superRefine((env, ctx) => {
-  const issue = (key: keyof RawEnv, message: string) => ctx.addIssue({ code: "custom", path: [key], message });
-  const checks: Checks = { env, issue, require: (key, when) => !env[key] && issue(key, `обязательна, когда ${when}`) };
-  for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, appEnvChecks, freedomPayChecks, pushChecks]) check(checks);
-});
+const withAppEnv = (raw: z.output<typeof base>): RawEnv => ({ ...raw, APP_ENV: raw.APP_ENV ?? "dev" });
 
-export type Env = z.infer<typeof schema>;
+const schema = base
+  .superRefine((raw, ctx) => {
+    const env = withAppEnv(raw);
+    const issue = (key: keyof RawEnv, message: string) => ctx.addIssue({ code: "custom", path: [key], message });
+    const checks: Checks = { env, appEnvExplicit: raw.APP_ENV !== undefined, issue, require: (key, when) => !env[key] && issue(key, `обязательна, когда ${when}`) };
+    for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, appEnvChecks, freedomPayChecks, pushChecks]) check(checks);
+  })
+  .transform(withAppEnv);
+
+export type Env = z.output<typeof schema>;
 
 let cached: Env | undefined;
 

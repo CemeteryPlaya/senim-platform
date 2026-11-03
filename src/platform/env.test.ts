@@ -3,9 +3,10 @@ import { parseEnv } from "./env";
 
 const KEY = Buffer.alloc(32, 1).toString("base64");
 
-/** Минимальное рабочее окружение production без демо: реальные SMS и ЭЦП. */
+/** Минимальное рабочее окружение production без демо: пилот (APP_ENV=prod, manual), реальные SMS и ЭЦП. */
 const production = {
   NODE_ENV: "production",
+  APP_ENV: "prod",
   DATABASE_URL: "postgresql://x",
   PII_ENCRYPTION_KEY: KEY,
   PII_HASH_KEY: KEY,
@@ -18,8 +19,10 @@ const production = {
   TRUST_PROXY: "true",
 };
 
+/** Демо-стенд на Vercel: production-сборка, контур dev, моки за паролем показа. */
 const demoProduction = {
   ...production,
+  APP_ENV: "dev",
   DEMO_MODE: "true",
   SMS_PROVIDER: "mock",
   SIGNATURE_PROVIDER: "mock",
@@ -71,6 +74,28 @@ describe("env: production", () => {
   it("демо-стенд без CRON_SECRET не запускается", () => {
     expect(problems({ ...demoProduction, CRON_SECRET: "" })).toMatch(/CRON_SECRET/);
   });
+
+  it("APP_ENV задаётся явно: забытый контур в production не превращается в dev с тестовыми платежами", () => {
+    const withoutAppEnv = Object.fromEntries(Object.entries(production).filter(([key]) => key !== "APP_ENV"));
+    expect(problems(withoutAppEnv)).toMatch(/APP_ENV: обязательна, когда NODE_ENV=production/);
+    expect(problems({ ...production, NODE_ENV: "development", APP_ENV: "" })).not.toMatch(/APP_ENV/);
+  });
+
+  it("без DEMO_MODE запрещает мок платежей — явный и по умолчанию контура dev", () => {
+    expect(problems({ ...production, APP_ENV: "dev" })).toMatch(/PAYMENT_PROVIDER: mock запрещён в production без DEMO_MODE/);
+    expect(problems({ ...production, APP_ENV: "dev", PAYMENT_PROVIDER: "manual" })).toBe("");
+    expect(problems({ ...demoProduction, PAYMENT_PROVIDER: "mock" })).toBe("");
+  });
+});
+
+describe("env: APP_ENV=prod без NODE_ENV=production", () => {
+  it("секреты обязательны и при контуре prod", () => {
+    const source = { DATABASE_URL: "postgresql://x", APP_ENV: "prod", SMS_PROVIDER: "http", SMS_HTTP_URL: "u", SMS_HTTP_TOKEN: "t", SIGNATURE_PROVIDER: "sigex" };
+    for (const key of ["PII_ENCRYPTION_KEY", "PII_HASH_KEY", "FILE_URL_SECRET", "CRON_SECRET"]) {
+      expect(problems(source)).toContain(`${key}: обязательна, когда APP_ENV=prod`);
+    }
+    expect(problems({ ...source, PII_ENCRYPTION_KEY: KEY, PII_HASH_KEY: KEY, FILE_URL_SECRET: "s", CRON_SECRET: "c" })).toBe("");
+  });
 });
 
 describe("env: разработка", () => {
@@ -113,7 +138,7 @@ describe("env: обязательные переменные выбранных 
   });
 
   it("production без секретов — по строке на каждый, в прежнем порядке", () => {
-    expect(lines({ NODE_ENV: "production", DATABASE_URL: "postgresql://x", TRUST_PROXY: "true", SMS_PROVIDER: "http", SMS_HTTP_URL: "u", SMS_HTTP_TOKEN: "t", SIGNATURE_PROVIDER: "sigex" })).toEqual(
+    expect(lines({ NODE_ENV: "production", APP_ENV: "prod", DATABASE_URL: "postgresql://x", TRUST_PROXY: "true", SMS_PROVIDER: "http", SMS_HTTP_URL: "u", SMS_HTTP_TOKEN: "t", SIGNATURE_PROVIDER: "sigex" })).toEqual(
       ["PII_ENCRYPTION_KEY", "PII_HASH_KEY", "FILE_URL_SECRET", "CRON_SECRET"].map((k) => `${k}: обязательна, когда NODE_ENV=production`),
     );
   });
