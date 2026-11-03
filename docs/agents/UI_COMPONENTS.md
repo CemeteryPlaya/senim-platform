@@ -20,7 +20,7 @@
 | `StatusBadge` | `tone` (`neutral`, `accent`, `info`, `success`, `warning`, `danger`), `icon`, текст обязателен | `<StatusBadge tone="warning">Ждёт оплаты</StatusBadge>` |
 | `Alert` | `tone`, `title`, `action`, `live` (`polite`, `assertive`) | `<Alert tone="danger" live="assertive">{msg}</Alert>` |
 | `Banner`, `DemoBanner`, `SimulatorBadge` | полоса во всю ширину; демо-полоса; метка «Симулятор банка» | `{rail === "escrow-simulator" && <SimulatorBadge />}` |
-| `EmptyState` | `title`, `description`, `icon`, `action`, `titleAs` | `<EmptyState title="Заявок пока нет" />` |
+| `EmptyState` | `title`, `description`, `icon`, `action`, `titleAs`, `titleId` (заголовок принимает фокус: tabIndex=-1) | `<EmptyState title="Заявок пока нет" />` |
 | `Money` | `amount` (целые ₸) | `<Money amount={deal.totalAmount} />` |
 | `DateText` | `value`, `format` (`date`, `dateTime`, `time`, `relative`) | `<DateText value={m.createdAt} format="relative" />` |
 | `Skeleton` | `lines`; рядом нужен `aria-busy` или «Загрузка…» | `<Skeleton lines={3} />` |
@@ -34,7 +34,8 @@
 | `Stat` | `value`, `label`, `icon`, `href?`; только настоящие числа | `<Stat icon={<Package />} value={2} label="Заказы в работе" />` |
 | `Timeline` | `label`, `items: {title,description?,meta?,state:"done"\|"current"\|"todo"}[]` — ход дела сверху вниз | `<Timeline label="Ход заказа" items={steps} />` |
 | `SectionTitle` | `title`, `id`, `as`, `action?: {href,label,ariaLabel?}` («Смотреть все») | `<SectionTitle id="deals" title="Мои заказы" action={{ href: "/deals", label: "Все заказы" }} />` |
-| `focusFirstInvalid(root)` | после неудачной проверки формы — фокус на первое поле с `aria-invalid`; `false`, если такого нет | `if (!focusFirstInvalid(form)) summary.focus()` |
+| `focusFirstInvalid(root)` | после неудачной проверки формы — фокус на первое поле с `aria-invalid` (или группу `data-invalid`, как у `PhotoUpload` — фокус на первый элемент внутри); `false`, если такого нет | `if (!focusFirstInvalid(form)) summary.focus()` |
+| `useFocusInvalid()` (клиентский) | `{ ref, focusInvalid }`: `ref` — на `<form>`, `focusInvalid()` — вместе с записью ошибок в состояние; фокус ставится после отрисовки, каждая попытка заново | `if (!res.ok) { setErrors(res.fieldErrors); focusInvalid(); }` |
 | `Button` `loading` | при загрузке `aria-disabled` + `aria-busy`, нажатие игнорируется; `disabled` не ставится, чтобы не терять фокус | `<Button loading={pending}>Отправить</Button>` |
 | Форматтеры | `formatMoney`, `formatDate`, `formatDateTime`, `formatTime`, `formatRelative(value, now?)`, `formatDays`, `formatMonths`, `formatYears` (полные слова со склонением), `TIME_ZONE` (Asia/Almaty) | `formatMoney(10000)` → «10 000 ₸»; `formatDays(35)` → «35 дней» |
 
