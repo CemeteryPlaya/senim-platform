@@ -1,7 +1,7 @@
 import "server-only";
 import { jobHandlers as ai } from "@/modules/ai";
 import { jobHandlers as companies } from "@/modules/companies";
-import { jobHandlers as dealCore, onMoneySettled } from "@/modules/deal-core";
+import { onMoneySettled } from "@/modules/deal-core";
 import { jobHandlers as documents } from "@/modules/documents";
 import { jobHandlers as files } from "@/modules/files";
 import { jobHandlers as identity } from "@/modules/identity";
@@ -24,7 +24,6 @@ registerPorts();
 export const jobHandlers: JobHandlers = {
   ...ai,
   ...companies,
-  ...dealCore,
   ...documents,
   ...files,
   ...identity,
