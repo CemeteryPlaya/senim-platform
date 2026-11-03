@@ -33,7 +33,8 @@ export function ListCard({ title, href, titleAs: Title = "h3", badges, meta, asi
     >
       <div className="flex min-w-0 items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <Title className="min-w-0 text-lg leading-snug font-bold break-words text-ink">
+          {/* Без ссылки заголовок принимает фокус программно (tabIndex=-1): очередь переводит его сюда после решения. */}
+          <Title tabIndex={href ? undefined : -1} className="min-w-0 rounded-control text-lg leading-snug font-bold break-words text-ink">
             {href ? (
               <Link
                 href={href}

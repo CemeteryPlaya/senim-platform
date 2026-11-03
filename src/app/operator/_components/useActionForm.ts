@@ -16,7 +16,8 @@ type State = { error?: string; fieldErrors?: Record<string, string[]>; done?: bo
  */
 export function useActionForm<T>(
   action: (fields: FormFields) => Promise<ActionResult<T>>,
-  opts: { reset?: boolean; onSuccess?: (data: T) => void } = {},
+  /** onSuccess получает и форму: очередь решений (DecisionQueue) находит по ней карточку. */
+  opts: { reset?: boolean; onSuccess?: (data: T, form: HTMLFormElement) => void } = {},
 ) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -40,7 +41,7 @@ export function useActionForm<T>(
       }
       setState({ done: true });
       if (opts.reset) form.reset();
-      opts.onSuccess?.(result.data);
+      opts.onSuccess?.(result.data, form);
       router.refresh();
     });
   };

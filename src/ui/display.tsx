@@ -200,11 +200,13 @@ export type EmptyStateProps = {
   /** Одно главное действие: обычно <ButtonLink>. */
   action?: ReactNode;
   titleAs?: "h2" | "h3";
+  /** id заголовка: на него переводят фокус, когда список опустел (заголовок получает tabIndex=-1). */
+  titleId?: string;
   className?: string;
 };
 
 /** Пустой список: что здесь будет и что сделать первым. Без рамки и фона — значок, заголовок, одно действие. */
-export function EmptyState({ title, description, icon, action, titleAs: Title = "h2", className }: EmptyStateProps) {
+export function EmptyState({ title, description, icon, action, titleAs: Title = "h2", titleId, className }: EmptyStateProps) {
   return (
     <div className={cn("flex flex-col items-start gap-3 py-6 sm:py-8", className)}>
       {icon && (
@@ -212,7 +214,9 @@ export function EmptyState({ title, description, icon, action, titleAs: Title = 
           {icon}
         </span>
       )}
-      <Title className="text-xl font-bold text-ink">{title}</Title>
+      <Title id={titleId} tabIndex={titleId ? -1 : undefined} className="rounded-control text-xl font-bold text-ink">
+        {title}
+      </Title>
       {description && <p className="max-w-prose text-base text-ink-soft">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>

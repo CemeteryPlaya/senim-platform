@@ -3,6 +3,7 @@
 import { ru } from "@/i18n/ru";
 import type { ManualOperationType } from "@/modules/operator";
 import { Button, Input, Textarea } from "@/ui";
+import { useQueueDecision } from "../_components/DecisionQueue";
 import { FormStatus } from "../_components/FormStatus";
 import { useActionForm } from "../_components/useActionForm";
 import { confirmBankOperationAction, failBankOperationAction } from "./actions";
@@ -17,7 +18,9 @@ const today = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Almaty" }
  * Пока запрос идёт, кнопка заблокирована; повтор всё равно не создаст второго подтверждения (payments).
  */
 export function ConfirmOperationForm({ transactionId, type }: { transactionId: string; type: ManualOperationType }) {
-  const form = useActionForm(confirmBankOperationAction, { reset: true });
+  // В очереди карточка после решения исчезает: итог объявляет очередь, а не форма.
+  const decided = useQueueDecision();
+  const form = useActionForm(confirmBankOperationAction, { reset: true, onSuccess: (_, el) => decided?.(t.confirmed, el) });
   return (
     <form onSubmit={form.onSubmit} noValidate className="flex flex-col gap-4">
       <input type="hidden" name="transactionId" value={transactionId} />
@@ -34,7 +37,7 @@ export function ConfirmOperationForm({ transactionId, type }: { transactionId: s
         accept="application/pdf,image/jpeg,image/png"
         error={form.fieldError("scan") ?? form.fieldError("bankDocFileId")}
       />
-      <FormStatus error={form.error} done={form.done} doneText={t.confirmed} />
+      <FormStatus error={form.error} done={form.done && !decided} doneText={t.confirmed} />
       <Button type="submit" loading={form.pending} className="self-start">
         {t.confirm[type]}
       </Button>
@@ -44,12 +47,13 @@ export function ConfirmOperationForm({ transactionId, type }: { transactionId: s
 
 /** «Отклонено банком»: причина обязательна, её увидят стороны сделки. */
 export function FailOperationForm({ transactionId }: { transactionId: string }) {
-  const form = useActionForm(failBankOperationAction);
+  const decided = useQueueDecision();
+  const form = useActionForm(failBankOperationAction, { onSuccess: (_, el) => decided?.(t.failed, el) });
   return (
     <form onSubmit={form.onSubmit} noValidate className="flex flex-col gap-4">
       <input type="hidden" name="transactionId" value={transactionId} />
       <Textarea label={t.failReason} hint={t.failReasonHint} name="reason" required maxLength={500} rows={3} error={form.fieldError("reason")} />
-      <FormStatus error={form.error} done={form.done} doneText={t.failed} />
+      <FormStatus error={form.error} done={form.done && !decided} doneText={t.failed} />
       <Button type="submit" variant="secondary" loading={form.pending} className="self-start">
         {t.failSubmit}
       </Button>
