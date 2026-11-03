@@ -2,14 +2,15 @@
 
 import { CheckCircle2, ChevronDown, Clock, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import type { SigningDocumentView } from "@/modules/documents/client";
 import { Alert, Button, buttonClasses, Card, formatDateTime, formatTime, RadioCards, StatusBadge } from "@/ui";
 import { completeSigningAction, signByHandAction, startSigningAction } from "./actions";
+import { signingTitleId } from "./anchors";
 import { HandSignaturePad } from "./HandSignaturePad";
 import type { HandPayload } from "./hand-state";
-import { documentBadge, focusTargetAfter, initialSigningState, signingReducer, signStep, type SignMethodChoice } from "./state";
+import { documentBadge, focusTargetAfter, initialSigningState, signedAnnouncement, signingReducer, signStep, type SignMethodChoice } from "./state";
 
 const t = ru.documents;
 const METHODS: SignMethodChoice[] = ["EGOV_QR", "NCALAYER"];
@@ -25,14 +26,25 @@ export type SigningPanelProps = {
 /**
  * Оферта или акт: просмотр PDF, хэш, подписи сторон (собственноручная и ЭЦП — время и хэш) и подпись:
  * шаг 1 — собственноручно (холст или напечатанное имя), шаг 2 — ЭЦП (eGov Mobile по QR или NCALayer).
- * После каждой подписи обновляет экран (router.refresh).
+ * После каждой подписи обновляет экран (router.refresh): шаг с кнопкой, на которой стоял фокус, исчезает.
+ * Поэтому объявление — в области role="status" самой панели (переживает смену шага), а фокус — на заголовок документа.
  */
 export function SigningPanel({ document: doc, titleAs = "h2", signerName }: SigningPanelProps) {
   const badge = documentBadge(doc);
+  const titleId = signingTitleId(doc.id);
+  const [announcement, setAnnouncement] = useState("");
+  const onSigned = useCallback(
+    (kind: "hand" | "ecp", fullySigned: boolean) => {
+      setAnnouncement(signedAnnouncement(kind, fullySigned));
+      document.getElementById(titleId)?.focus();
+    },
+    [titleId],
+  );
   return (
     <Card
       as="section"
       titleAs={titleAs}
+      titleId={titleId}
       title={`${t.kinds[doc.kind]} № ${doc.number}`}
       description={
         <span className="flex flex-wrap items-center gap-2">
@@ -65,17 +77,23 @@ export function SigningPanel({ document: doc, titleAs = "h2", signerName }: Sign
 
       {doc.signable && <PartiesStatus doc={doc} />}
 
-      <StepArea doc={doc} signerName={signerName} />
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
+      <StepArea doc={doc} signerName={signerName} onSigned={onSigned} />
     </Card>
   );
 }
 
 /** Что показать под подписями: шаг 1 (от руки), шаг 2 (ЭЦП) или пояснение, почему подписывать нечего. */
-function StepArea({ doc, signerName }: { doc: SigningDocumentView; signerName?: string }) {
+type OnSigned = (kind: "hand" | "ecp", fullySigned: boolean) => void;
+
+function StepArea({ doc, signerName, onSigned }: { doc: SigningDocumentView; signerName?: string; onSigned: OnSigned }) {
   const router = useRouter();
   async function signHand(payload: HandPayload) {
     const res = await signByHandAction("imageDataUrl" in payload ? { documentId: doc.id, imageDataUrl: payload.imageDataUrl } : { documentId: doc.id, typedName: payload.typedName });
     if (!res.ok) return res.error;
+    onSigned("hand", res.data.fullySigned);
     router.refresh();
     return null;
   }
@@ -88,9 +106,13 @@ function StepArea({ doc, signerName }: { doc: SigningDocumentView; signerName?: 
         </section>
       );
     case "ecp":
-      return <EcpArea doc={doc} />;
+      return <EcpArea doc={doc} onSigned={onSigned} />;
     case "youSigned":
-      return <Alert tone="success">{t.panel.youSigned}</Alert>;
+      return (
+        <Alert tone="success" live="polite">
+          {t.panel.youSigned}
+        </Alert>
+      );
     case "notSignable":
       return <p className="text-base text-muted">{t.panel.notSignable}</p>;
     case "operator":
@@ -133,15 +155,15 @@ function SignatureLine({ label, required, signed, sha256 }: { label: string; req
   );
 }
 
-const FOCUS_SELECTOR = { result: "[data-sign-result]", method: "input[type=radio]:checked" } as const;
+const FOCUS_SELECTOR = { method: "input[type=radio]:checked" } as const;
 
 /** Шаг 2: ЭЦП через провайдера подписи (mock / SIGEX) — выбор способа, QR или NCALayer, проверка на сервере. */
-function EcpArea({ doc }: { doc: SigningDocumentView }) {
+function EcpArea({ doc, onSigned }: { doc: SigningDocumentView; onSigned: OnSigned }) {
   const router = useRouter();
   const [state, dispatch] = useReducer(signingReducer, initialSigningState);
   const area = useRef<HTMLDivElement>(null);
   const prevStep = useRef(state.step);
-  // Кнопка, на которой стоял фокус, исчезает при смене шага: переводим фокус на итог или на выбранный способ.
+  // Кнопка, на которой стоял фокус, исчезает при смене шага: при возврате к выбору — фокус на выбранный способ.
   useEffect(() => {
     const target = focusTargetAfter(prevStep.current, state.step);
     prevStep.current = state.step;
@@ -161,6 +183,7 @@ function EcpArea({ doc }: { doc: SigningDocumentView }) {
     const res = await completeSigningAction({ documentId: doc.id, sessionId: state.session.sessionId });
     if (!res.ok) return dispatch({ type: "failed", error: res.error });
     dispatch({ type: "completed", fullySigned: res.data.fullySigned });
+    onSigned("ecp", res.data.fullySigned);
     router.refresh();
   }
 
@@ -168,11 +191,8 @@ function EcpArea({ doc }: { doc: SigningDocumentView }) {
     <section ref={area} aria-label={t.panel.stepEcp} className="flex flex-col gap-4">
       <p className="text-base font-semibold text-muted">{t.panel.stepEcp}</p>
       {state.step === "done" ? (
-        <div data-sign-result tabIndex={-1} className="rounded-control">
-          <Alert tone="success" live="polite">
-            {state.fullySigned ? t.panel.fullySigned : t.panel.signedOk}
-          </Alert>
-        </div>
+        // Видно до обновления экрана; диктору итог объявляет панель документа.
+        <Alert tone="success">{state.fullySigned ? t.panel.fullySigned : t.panel.signedOk}</Alert>
       ) : state.step === "choose" || state.step === "starting" ? (
         <>
           <RadioCards

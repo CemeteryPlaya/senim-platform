@@ -86,13 +86,23 @@ function reset(state: SigningState): SigningState {
 }
 
 /**
- * Куда перевести фокус после смены шага: кнопка, на которой он стоял, исчезает. Итог подписи —
- * на сообщение; возврат к выбору из ожидания — на выбранный способ; иначе фокус не трогаем.
+ * Куда перевести фокус после смены шага внутри ЭЦП: кнопка, на которой он стоял, исчезает. Возврат к выбору
+ * из ожидания — на выбранный способ. Итог подписи («done») — не сюда: следом router.refresh() заменяет шаг ЭЦП
+ * плашкой «Вы поставили все свои подписи», поэтому фокус и объявление ставит панель документа (signedAnnouncement).
  */
-export function focusTargetAfter(was: SigningState["step"], now: SigningState["step"]): "result" | "method" | null {
+export function focusTargetAfter(was: SigningState["step"], now: SigningState["step"]): "method" | null {
   if (was === now) return null;
-  if (now === "done") return "result";
   return now === "choose" && (was === "awaiting" || was === "completing") ? "method" : null;
+}
+
+/**
+ * Что объявить диктору после принятой подписи (область role="status" панели документа переживает смену шага).
+ * Тексты разные для шагов: одинаковый текст второй раз диктор не прочитал бы.
+ */
+export function signedAnnouncement(kind: "hand" | "ecp", fullySigned: boolean): string {
+  const t = ru.documents.panel;
+  if (fullySigned) return t.fullySigned;
+  return kind === "hand" ? t.handSignedOk : t.signedOk;
 }
 
 /** Подписи: «2 из 4» по требуемым подписям обеих сторон. */

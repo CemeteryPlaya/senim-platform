@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { initialSigningState, focusTargetAfter, signStep, signingReducer, type SigningSessionView } from "./state";
+import { ru } from "@/i18n/ru";
+import { initialSigningState, focusTargetAfter, signedAnnouncement, signStep, signingReducer, type SigningSessionView } from "./state";
 
 const session: SigningSessionView = { sessionId: "s1", method: "EGOV_QR", qrImage: "data:image/png;base64,AA", expiresAt: new Date(0), provider: "mock" };
 
@@ -96,8 +97,8 @@ describe("signStep — какой шаг подписи показать сто�
 });
 
 describe("focusTargetAfter — куда перевести фокус после смены шага", () => {
-  it("подпись готова — на сообщение об итоге", () => {
-    expect(focusTargetAfter("completing", "done")).toBe("result");
+  it("подпись готова — не внутри шага ЭЦП: шаг сейчас исчезнет, фокус ставит панель документа", () => {
+    expect(focusTargetAfter("completing", "done")).toBeNull();
   });
 
   it("вернулись к выбору из ожидания или проверки — на выбранный способ", () => {
@@ -114,3 +115,18 @@ describe("focusTargetAfter — куда перевести фокус после
   });
 });
 
+
+describe("signedAnnouncement — что услышит диктор после подписи", () => {
+  const p = ru.documents.panel;
+
+  it("собственноручная и ЭЦП — разные тексты: второе одинаковое объявление диктор бы пропустил", () => {
+    expect(signedAnnouncement("hand", false)).toBe(p.handSignedOk);
+    expect(signedAnnouncement("ecp", false)).toBe(p.signedOk);
+    expect(p.handSignedOk).not.toBe(p.signedOk);
+  });
+
+  it("последняя требуемая подпись — «Документ подписан всеми сторонами» на любом шаге", () => {
+    expect(signedAnnouncement("ecp", true)).toBe(p.fullySigned);
+    expect(signedAnnouncement("hand", true)).toBe(p.fullySigned);
+  });
+});

@@ -1,3 +1,4 @@
+import { SignLink } from "@/app/_components/signing";
 import type { DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, Card, formatTiyn } from "@/ui";
@@ -30,7 +31,7 @@ const manualTransfer = (deal: DealView) => deal.viewer === "CLIENT" && deal.paym
 function PrimaryAction({ deal }: { deal: DealView }) {
   switch (deal.next.action) {
     case "signContract":
-      return deal.contract && <ButtonLink href={`#doc-${deal.contract.id}`}>{t.actions.signContract}</ButtonLink>;
+      return deal.contract && <SignLink documentId={deal.contract.id}>{t.actions.signContract}</SignLink>;
     case "pay":
       return <PayButton dealId={deal.id} amount={formatTiyn(deal.estimate.totalTiyn)} />;
     case "startWork":
@@ -42,9 +43,9 @@ function PrimaryAction({ deal }: { deal: DealView }) {
     case "submitReady":
       return <ReadyForm dealId={deal.id} />;
     case "signAct":
-      return deal.act && <ButtonLink href={`#doc-${deal.act.id}`}>{t.actions.signAct}</ButtonLink>;
+      return deal.act && <SignLink documentId={deal.act.id}>{t.actions.signAct}</SignLink>;
     case "signActEcp":
-      return deal.act && <ButtonLink href={`#doc-${deal.act.id}`}>{t.actions.signActEcp}</ButtonLink>;
+      return deal.act && <SignLink documentId={deal.act.id}>{t.actions.signActEcp}</SignLink>;
     case "resolveDispute":
       return deal.dispute && <ButtonLink href={`/operator/disputes/${deal.dispute.id}`}>{t.actions.resolveDispute}</ButtonLink>;
     case "leaveReview":

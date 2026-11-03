@@ -6,6 +6,7 @@ import { ru } from "@/i18n/ru";
 import type { SharedLink, SigningDocumentView } from "@/modules/documents/client";
 import { Alert, Button, buttonClasses, formatDateTime, StatusBadge } from "@/ui";
 import { shareDocumentAction } from "./actions";
+import { SignLink } from "./SignLink";
 import { documentBadge, signStep } from "./state";
 
 const t = ru.documents;
@@ -15,8 +16,8 @@ export type DealDocumentsProps = {
   documents: SigningDocumentView[];
   /** Срок ссылки «Поделиться» в часах — documents.LINK_TTL_HOURS. */
   linkTtlHours: number;
-  /** Куда ведёт «Перейти к подписи» (например, якорь панели подписи на экране сделки); нет — кнопки нет. */
-  signHref?: (doc: SigningDocumentView) => string;
+  /** Панели подписи (SigningPanel) — на этом же экране: у документа, который можно подписать, — «Подписать» к его панели. */
+  signLinks?: boolean;
   titleAs?: "h2" | "h3";
 };
 
@@ -25,7 +26,7 @@ export type DealDocumentsProps = {
  * «Скачать» и «Поделиться в WhatsApp» (подписанная ссылка с ограниченным сроком, без персональных данных;
  * оферте ссылка не выдаётся — doc.shareable).
  */
-export function DealDocuments({ documents, linkTtlHours, signHref, titleAs: Title = "h2" }: DealDocumentsProps) {
+export function DealDocuments({ documents, linkTtlHours, signLinks = false, titleAs: Title = "h2" }: DealDocumentsProps) {
   return (
     <section aria-labelledby="deal-documents-title" className="flex flex-col gap-4">
       <Title id="deal-documents-title" className="text-xl font-semibold text-ink">
@@ -36,7 +37,7 @@ export function DealDocuments({ documents, linkTtlHours, signHref, titleAs: Titl
       ) : (
         <ul className="flex flex-col divide-y divide-line">
           {documents.map((doc) => (
-            <DocumentRow key={doc.id} doc={doc} linkTtlHours={linkTtlHours} signHref={signHref} />
+            <DocumentRow key={doc.id} doc={doc} linkTtlHours={linkTtlHours} signLinks={signLinks} />
           ))}
         </ul>
       )}
@@ -44,7 +45,7 @@ export function DealDocuments({ documents, linkTtlHours, signHref, titleAs: Titl
   );
 }
 
-function DocumentRow({ doc, linkTtlHours, signHref }: { doc: SigningDocumentView; linkTtlHours: number; signHref?: DealDocumentsProps["signHref"] }) {
+function DocumentRow({ doc, linkTtlHours, signLinks }: { doc: SigningDocumentView; linkTtlHours: number; signLinks: boolean }) {
   const status = documentBadge(doc);
   const step = signStep(doc);
   const canSign = step === "hand" || step === "ecp";
@@ -61,11 +62,11 @@ function DocumentRow({ doc, linkTtlHours, signHref }: { doc: SigningDocumentView
           <StatusBadge tone={status.tone}>{status.text}</StatusBadge>
         </p>
       </div>
-      {canSign && signHref && (
-        <a href={signHref(doc)} className={buttonClasses({ fullWidth: true })}>
-          <PenLine aria-hidden className="size-5" />
+      {/* Вторичная: главное действие экрана — «Подписать оферту / акт» в «Что дальше». */}
+      {canSign && signLinks && (
+        <SignLink documentId={doc.id} variant="secondary" fullWidth icon={<PenLine />}>
           {t.section.sign}
-        </a>
+        </SignLink>
       )}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <a href={doc.pdfUrl} target="_blank" rel="noopener" className={buttonClasses({ variant: "secondary" })}>
@@ -136,7 +137,7 @@ function ShareArea({ documentId, linkTtlHours }: { documentId: string; linkTtlHo
         <input readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} className="min-h-12 rounded-control border border-line bg-surface px-3 font-mono text-base text-ink" />
       </label>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <a href={link.whatsappUrl} target="_blank" rel="noopener noreferrer" className={buttonClasses({})}>
+        <a href={link.whatsappUrl} target="_blank" rel="noopener noreferrer" className={buttonClasses({ variant: "secondary" })}>
           <MessageCircle aria-hidden className="size-5" />
           {t.section.share}
         </a>

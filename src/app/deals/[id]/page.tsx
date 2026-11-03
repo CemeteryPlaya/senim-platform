@@ -5,7 +5,7 @@ import { DealContacts } from "@/app/_components/chat/DealContacts";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { DealPortfolioPanel } from "@/app/_components/deal-portfolio/DealPortfolioPanel";
 import { DealFlowSteps } from "@/app/_components/pre-contract/DealFlowSteps";
-import { DealDocuments, SigningPanel } from "@/app/_components/signing";
+import { DealDocuments, SigningPanel, signingAnchorId } from "@/app/_components/signing";
 import { orNotFound } from "@/app/requests/_parts/guard";
 import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import { LINK_TTL_HOURS, listDealDocuments } from "@/modules/documents";
@@ -88,11 +88,11 @@ export default async function DealPage({ params }: Props) {
         <ProgressSection deal={deal} />
         {/* Документы (ТЗ п. 7): список с «Открыть / Скачать / Поделиться» и панели подписи — якорь #doc-<id> для «Подписать». */}
         <div className="flex flex-col gap-6 border-t border-line pt-6">
-          <DealDocuments documents={docs} linkTtlHours={LINK_TTL_HOURS} signHref={(d) => `#doc-${d.id}`} />
+          <DealDocuments documents={docs} linkTtlHours={LINK_TTL_HOURS} signLinks />
           {docs
             .filter((d) => d.signable)
             .map((d) => (
-              <div id={`doc-${d.id}`} key={d.id} className="scroll-mt-6">
+              <div id={signingAnchorId(d.id)} key={d.id} className="scroll-mt-6">
                 <SigningPanel document={d} titleAs="h3" signerName={user.fullName ?? undefined} />
               </div>
             ))}
