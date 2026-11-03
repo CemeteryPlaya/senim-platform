@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MASK } from "@/modules/companies";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import {
@@ -66,6 +67,24 @@ describe("черновик заявки", () => {
     const draft = await getDraft(client, requestId);
     expect(draft).toMatchObject({ segment: "ECONOMY", city: "Алматы", address: "мкр Самал-2, 10", desiredDate: new Date("2026-12-20T00:00:00Z"), location: POINT });
     expect(draft.details).toMatchObject({ facade: "ldsp", description: "Кухня до потолка, есть газовая труба", unknown: ["hardware"] });
+  });
+
+  it("контакты в свободном тексте заявки маскируются при сохранении: свой тип, стиль, описание, цвет, город", async () => {
+    const client = await makeClient();
+    const phone = "звоните 87012345678";
+    const { requestId } = await saveDraftStep(client, { requestId: null, step: { screen: "start", furnitureTypeId: null, customType: `Шкаф, ${phone}`, style: null, advanced: null } });
+    const step = (s: Parameters<typeof saveDraftStep>[1]["step"]) => saveDraftStep(client, { requestId, step: s });
+    await step({ screen: "style", style: "loft", styleNote: "как в инсте ivan_mebel" });
+    await step({ screen: "materials", facade: "ldsp", countertop: "none", hardware: "unknown", color: `белый, ${phone}`, extras: [], description: "" });
+    await step({ screen: "room", photoFileIds: [], description: `Кухня до потолка, ${phone}` });
+    await step({ screen: "place", city: "Алматы 8 701 234 56 78", address: "мкр Самал-2, 10", desiredDate: null, location: null });
+
+    const row = await db.request.findUniqueOrThrow({ where: { id: requestId }, select: { customType: true, city: true, details: true } });
+    const stored = JSON.stringify(row);
+    expect(stored).not.toMatch(/87012345678|8 701 234 56 78|ivan_mebel/);
+    expect(row.customType).toBe(`Шкаф, звоните ${MASK}`);
+    expect(row.city).toBe(`Алматы ${MASK}`);
+    expect(row.details).toMatchObject({ description: `Кухня до потолка, звоните ${MASK}`, color: `белый, звоните ${MASK}`, styleNote: `как в ${MASK}` });
   });
 
   it("возврат на ранний шаг не откатывает прогресс мастера", async () => {

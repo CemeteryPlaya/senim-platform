@@ -1,6 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import { executorDisplayOf, findLikeablePortfolioItem } from "@/modules/companies";
+import { executorDisplayOf, findLikeablePortfolioItem, maskContacts } from "@/modules/companies";
 import { attachFiles } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
@@ -79,6 +79,32 @@ async function linkRoomPhotos(tx: Tx, user: CurrentUser, requestId: string, file
   if (fresh.length > 0) await attachFiles(tx, { fileIds: fresh, uploadedById: user.id, owner: { requestId } });
 }
 
+const masked = (text: string) => maskContacts(text).text;
+
+/**
+ * Свободный текст заявки видят все мастера сегмента до отклика — контакты в нём маскируются при сохранении
+ * (как тексты мастера): «свой тип», пожелания к стилю, описание, цвет, город. Исходный текст не хранится.
+ */
+function maskStepTexts(step: StepInput): StepInput {
+  switch (step.screen) {
+    case "start":
+    case "type":
+      return { ...step, customType: step.customType === null ? null : masked(step.customType) };
+    case "style":
+      return { ...step, styleNote: masked(step.styleNote) };
+    case "room":
+      return { ...step, description: masked(step.description) };
+    case "materials":
+      return { ...step, color: masked(step.color), description: masked(step.description) };
+    case "place":
+      return { ...step, city: masked(step.city) };
+    case "segment":
+    case "size":
+    case "send":
+      return step;
+  }
+}
+
 async function createDraft(tx: Tx, user: CurrentUser, like: string | null | undefined): Promise<RequestWithType> {
   const item = like ? await findLikeablePortfolioItem(tx, like, user.id) : null;
   if (like && !item) fail.notFound(e.portfolioNotFound);
@@ -106,7 +132,7 @@ async function createDraft(tx: Tx, user: CurrentUser, like: string | null | unde
  */
 export async function saveDraftStep(user: CurrentUser, input: SaveDraftInput): Promise<{ requestId: string; wizardStep: number }> {
   requireClient(user);
-  const { step } = input;
+  const step = maskStepTexts(input.step);
   return transaction(async (tx) => {
     let r: RequestWithType;
     if (input.requestId) {
