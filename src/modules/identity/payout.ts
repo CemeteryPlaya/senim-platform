@@ -46,8 +46,8 @@ async function notifyPayoutChanged(tx: Db, user: CurrentUser, executorId: string
 /**
  * Указать или сменить счёт. Строка профиля берётся FOR UPDATE: параллельная смена ждёт, и «тот же счёт ещё
  * раз» (двойной клик) распознаётся надёжно — журнал и уведомления второй раз не пишутся. Журнал — без значения.
- * Запрет смены при ждущей выплате (SPLIT_MASTER в PENDING) — не здесь: у payments нет публичного запроса
- * «ждёт ли мастер выплату», а identity не может зависеть от payments (payments берёт получателя из identity).
+ * Запрет смены при ждущей выплате (SPLIT_MASTER в PENDING) — не здесь, а в Server Action `savePayoutIban`
+ * (payments.assertPayoutIbanChangeable): identity не может зависеть от payments, payments берёт получателя отсюда.
  */
 export async function setPayoutIban(user: CurrentUser, raw: PayoutInput): Promise<OwnPayout> {
   const executorId = ownExecutorId(user);
