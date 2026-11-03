@@ -43,6 +43,9 @@ describe("logger: скрытие персональных данных", () => {
     "report",
     "description",
     "position",
+    "iban",
+    "payoutIban",
+    "ibanEnc",
   ])("значение ключа %s не попадает в лог", (key) => {
     const line = logged({ [key]: "+77001234567" });
     expect(line[key]).toBe("[скрыто]");
@@ -77,6 +80,14 @@ describe("logger: скрытие персональных данных", () => {
     const text = JSON.stringify(line);
     expect(text).not.toMatch(/900101300123|123-45-67|87011234567/);
     expect((line.error as { message: string }).message).toMatch(/заявка 42$/);
+  });
+
+  it("в тексте ошибки скрыт IBAN — слитно и группами по 4", () => {
+    const line = logged({ error: new Error("IBAN KZ86125KZT5004100100 отклонён; повтор KZ86 125K ZT50 0410 0100, kz86125kzt5004100100; заявка 42") });
+    const text = JSON.stringify(line);
+    expect(text).not.toMatch(/125KZT|125K ZT50|125kzt|4100100|0410 0100/i);
+    expect((line.error as { message: string }).message).toMatch(/заявка 42$/);
+    expect(errorMessage("IBAN KZ86125KZT5004100100")).toBe("IBAN [скрыто]");
   });
 
   it("глубже пяти уровней — «[скрыто]», а не сырой объект", () => {
