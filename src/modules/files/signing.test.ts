@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { localDownloadUrl, openUploadToken, sealUploadToken, verifyDownload, type UploadClaims } from "./signing";
+import { createHash } from "node:crypto";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { resetEnvCache } from "@/platform/env";
+import { fileSecret, localDownloadUrl, openUploadToken, sealUploadToken, verifyDownload, type UploadClaims } from "./signing";
 
 const SECRET = "test-secret";
 const NOW = 1_800_000_000_000;
@@ -63,5 +65,25 @@ describe("токен загрузки", () => {
     expect(openUploadToken(`${forged}.${sig}`, { now: NOW, secret: SECRET })).toBeNull();
     expect(openUploadToken(`${body}`, { now: NOW, secret: SECRET })).toBeNull();
     expect(openUploadToken("", { now: NOW, secret: SECRET })).toBeNull();
+  });
+});
+
+describe("секрет подписи вне production", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetEnvCache();
+  });
+
+  it("без FILE_URL_SECRET — случайный ключ процесса, а не литерал из исходного кода; задан — берётся он", () => {
+    vi.stubEnv("DATABASE_URL", "postgresql://unit-test");
+    vi.stubEnv("FILE_URL_SECRET", "");
+    resetEnvCache();
+    const secret = fileSecret();
+    expect(secret).toMatch(/^[0-9a-f]{64}$/);
+    expect(secret).not.toBe(createHash("sha256").update("senim-dev-file-url").digest("hex"));
+    expect(fileSecret()).toBe(secret);
+    vi.stubEnv("FILE_URL_SECRET", "configured-secret-value-1234567890");
+    resetEnvCache();
+    expect(fileSecret()).toBe("configured-secret-value-1234567890");
   });
 });

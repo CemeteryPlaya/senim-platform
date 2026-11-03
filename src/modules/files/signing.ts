@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { FilePurpose } from "@/generated/prisma/enums";
 import { hmacHex, safeEqual } from "@/platform/crypto";
@@ -8,15 +8,23 @@ import { env } from "@/platform/env";
  * Подписи HMAC-SHA256 для файлов:
  *  - ссылка на скачивание из local-хранилища (`/api/files/<ключ>?exp&sig`);
  *  - токен загрузки: что, кто и куда загружает (без таблицы «ожидающих загрузок»).
- * Секрет — FILE_URL_SECRET; в production env.ts требует его, в разработке — фиксированный dev-секрет.
+ * Секрет — FILE_URL_SECRET; в production env.ts без него не запускается. В разработке — случайный секрет
+ * процесса (как у ссылок documents/links.ts): литерального запасного ключа нет, подделать ссылку или токен
+ * загрузки по исходному коду нельзя. Ключ лежит в globalThis — переживает горячую перезагрузку модулей
+ * и общий для всех слоёв сборки в одном процессе; после перезапуска сервера старые ссылки недействительны.
  */
 
-const DEV_SECRET = createHash("sha256").update("senim-dev-file-url").digest("hex");
+const PROCESS_SECRET = Symbol.for("senim.files.processSecret");
+type WithSecret = typeof globalThis & { [PROCESS_SECRET]?: string };
 
 export type SignOpts = { now: number; secret: string };
 
 export function fileSecret(): string {
-  return env().FILE_URL_SECRET ?? DEV_SECRET;
+  const configured = env().FILE_URL_SECRET;
+  if (configured) return configured;
+  const g = globalThis as WithSecret;
+  g[PROCESS_SECRET] ??= randomBytes(32).toString("hex");
+  return g[PROCESS_SECRET];
 }
 
 const defaults = (): SignOpts => ({ now: Date.now(), secret: fileSecret() });
