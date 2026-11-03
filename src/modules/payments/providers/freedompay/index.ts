@@ -1,10 +1,14 @@
 import { z } from "zod";
+import { ru } from "@/i18n/ru";
 import type { HoldRequest, PaymentProvider, ProviderResult, RefundRequest, ReleaseRequest, SplitRequest, StatusRequest } from "../../provider";
 import { amountToTiyn, createFreedomPayClient, defaultSalt, defaultSleep, tiynToAmount, type ApiOutcome, type ClientDeps } from "./client";
 import type { Fields } from "./signature";
 import { formatRef, notOk, operationResult, parseRef, statusResult, type Ref } from "./status";
 import { handleFreedomPayWebhook } from "./webhook";
 import { fieldText } from "./xml";
+
+/** Причины отказа операции (MoneyTransaction.error) — их видит оператор. */
+const t = ru.payments.freedompay;
 
 /**
  * Провайдер Freedom Pay для песочницы (ADR-009, раздел 5): только `APP_ENV=staging`, только тестовые платежи
@@ -152,7 +156,7 @@ export function createFreedomPayProvider(input: FreedomPayConfig, deps: FreedomP
         if (outcome.kind !== "ok") return notOk(outcome, externalRef);
         if (ref.kind === "payment") return paymentResult(outcome.fields, ref.paymentId);
         if (ref.kind === "capture") {
-          return fieldText(outcome.fields, "pg_captured") === "1" ? { status: "SUCCEEDED", externalRef } : { status: "FAILED", error: "Оплата не списана (pg_captured=0)" };
+          return fieldText(outcome.fields, "pg_captured") === "1" ? { status: "SUCCEEDED", externalRef } : { status: "FAILED", error: t.notCaptured };
         }
         return operationResult(outcome.fields, ref);
       }
@@ -204,7 +208,7 @@ export function createFreedomPayProvider(input: FreedomPayConfig, deps: FreedomP
       if (outcome.kind !== "ok") return notOk(outcome, externalRef);
       const cleared = amountToTiyn(fieldText(outcome.fields, "pg_clearing_amount") ?? "");
       // «A pg_clearing_amount of 0 means nothing was captured».
-      return cleared !== null && cleared > 0n ? { status: "SUCCEEDED", externalRef } : { status: "FAILED", error: "Freedom Pay не списал сумму (pg_clearing_amount = 0)" };
+      return cleared !== null && cleared > 0n ? { status: "SUCCEEDED", externalRef } : { status: "FAILED", error: t.nothingCleared };
     },
 
     async split(request: SplitRequest) {
@@ -236,7 +240,7 @@ export function createFreedomPayProvider(input: FreedomPayConfig, deps: FreedomP
       if (payment.kind === "ok") return paymentResult(payment.fields);
       if (payment.kind === "unknown" || payment.code !== PAYMENT_NOT_FOUND) return notOk(payment);
       const payout = await payoutStatus(["pg_order_id", request.idempotencyKey]);
-      if (payout.kind !== "ok") return payout.kind === "unknown" ? { status: "PENDING" } : { status: "FAILED", error: "Операция не найдена в Freedom Pay ни среди платежей, ни среди выплат" };
+      if (payout.kind !== "ok") return payout.kind === "unknown" ? { status: "PENDING" } : { status: "FAILED", error: t.operationUnknown };
       const payoutId = fieldText(payout.fields, "pg_payment_id") ?? "";
       return statusResult(fieldText(payout.fields, "pg_payment_status"), payout.fields, formatRef({ kind: "payout", payoutId }));
     },
@@ -251,7 +255,7 @@ export function createFreedomPayProvider(input: FreedomPayConfig, deps: FreedomP
   /** https://docs.freedompay.kz/11621007e0 — POST /cancel разблокирует всю несписанную сумму; частично — нельзя. */
   async function cancelHold(hold: Hold, request: RefundRequest): Promise<ProviderResult> {
     if (hold.amountTiyn !== request.amountTiyn) {
-      return { status: "FAILED", error: "Частичный возврат несписанной оплаты невозможен: revoke сперва списал бы всю сумму. Спишите долю мастера и платформы (release) — остаток разблокируется" };
+      return { status: "FAILED", error: t.partialRefundOfUncaptured };
     }
     const outcome = await client.call(PATH.cancel, [["pg_payment_id", hold.paymentId], ["pg_idempotency_key", request.idempotencyKey]], payKey);
     if (outcome.kind !== "ok") return notOk(outcome);
@@ -279,7 +283,7 @@ export function createFreedomPayProvider(input: FreedomPayConfig, deps: FreedomP
    * TODO(freedompay): у reg2nonreg нет pg_testing_mode — подтвердить, что выплаты тестового мерчанта не двигают деньги.
    */
   async function payoutToMaster(master: SplitRequest["master"]): Promise<ProviderResult> {
-    if (!config.payoutSecretKey) return { status: "FAILED", error: "Выплаты Freedom Pay не настроены: нет выплатного ключа" };
+    if (!config.payoutSecretKey) return { status: "FAILED", error: t.payoutsNotConfigured };
     const problem = orderIdProblem(master.idempotencyKey);
     if (problem) return problem;
     const deadline = new Date(now().getTime() + config.payoutLinkHours * 3_600_000);

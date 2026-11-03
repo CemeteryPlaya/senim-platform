@@ -117,4 +117,16 @@ export const payments = {
     providerNotConnected: "Платёжный провайдер не подключён",
     badWebhook: "Уведомление провайдера не принято",
   },
+
+  /** Freedom Pay (только staging): причины отказа операции и разбора уведомления — их видит оператор. */
+  freedompay: {
+    declined: (code: string, description: string) => `Freedom Pay отказал${code ? ` (код ${code})` : ""}${description ? `: ${description}` : ""}`,
+    notCaptured: "Оплата не списана (pg_captured=0)",
+    nothingCleared: "Freedom Pay не списал сумму (pg_clearing_amount = 0)",
+    operationUnknown: "Операция не найдена в Freedom Pay ни среди платежей, ни среди выплат",
+    partialRefundOfUncaptured:
+      "Частичный возврат несписанной оплаты невозможен: revoke сперва списал бы всю сумму. Спишите долю мастера и платформы (release) — остаток разблокируется",
+    payoutsNotConfigured: "Выплаты Freedom Pay не настроены: нет выплатного ключа",
+    notTestPayment: "не тестовый платёж (нет pg_testing_mode=1) — на стенде не принимается, нужен разбор оператором",
+  },
 } as const;

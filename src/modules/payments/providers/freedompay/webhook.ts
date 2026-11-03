@@ -1,3 +1,4 @@
+import { ru } from "@/i18n/ru";
 import type { WebhookInput, WebhookResponse, WebhookResult } from "../../provider";
 import { scriptNameOf, verifyFields, type Fields } from "./signature";
 import { declinedText, formatRef, statusResult } from "./status";
@@ -53,7 +54,7 @@ function resultNotify(fields: Fields): WebhookResult {
   const externalEventId = `freedompay:result:${paymentId}:${result}`;
   // Стенд работает только с тестовыми деньгами: живой платёж не подтверждаем, но и не отклоняем (это был бы возврат).
   if (fieldText(fields, "pg_testing_mode") !== "1") {
-    return { kind: "ignored", externalEventId, reason: "не тестовый платёж (нет pg_testing_mode=1) — на стенде не принимается, нужен разбор оператором", response: RESULT_OK };
+    return { kind: "ignored", externalEventId, reason: ru.payments.freedompay.notTestPayment, response: RESULT_OK };
   }
   // TODO(freedompay): сверку суммы и валюты с операцией журнала («check the order: pg_order_id, amount, and currency»)
   // делает вызывающий — WebhookResult не несёт сумму; уточнить при подключении к deal-core.

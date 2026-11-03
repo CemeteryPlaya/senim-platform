@@ -1,3 +1,4 @@
+import { ru } from "@/i18n/ru";
 import type { ProviderResult } from "../../provider";
 import type { ApiOutcome } from "./client";
 import type { Fields } from "./signature";
@@ -47,8 +48,7 @@ export function parseRef(text: string): Ref | null {
   return null;
 }
 
-export const declinedText = (code: string, description: string) =>
-  `Freedom Pay отказал${code ? ` (код ${code})` : ""}${description ? `: ${description}` : ""}`;
+export const declinedText = (code: string, description: string) => ru.payments.freedompay.declined(code, description);
 
 /** Отказ или неизвестный исход вызова → ProviderResult; неизвестный исход — PENDING: итог уточнит getStatus. */
 export function notOk(outcome: Exclude<ApiOutcome, { kind: "ok" }>, externalRef?: string): ProviderResult {
