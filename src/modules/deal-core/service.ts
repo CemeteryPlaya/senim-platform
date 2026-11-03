@@ -225,7 +225,8 @@ export type CancelResult = { status: "CANCELLED" | "REFUND_REQUESTED" };
 /**
  * Отмена (ADR-009 раздел 2): CREATED — любая сторона, сразу CANCELLED (если оплата не в обработке);
  * PAID_HOLD — только покупатель: REFUND всего оплаченного, REFUNDED — по подтверждению банка;
- * после начала работ — только через спор. Порт requests закрывает заявку в той же транзакции (в обоих случаях).
+ * после начала работ — только через спор. Порт requests отменяет заявку: в CREATED — в той же транзакции,
+ * после оплаты — когда банк подтвердил возврат (onMoneySettled → REFUNDED).
  */
 export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reason?: string }): Promise<CancelResult> {
   const input = parseInput(cancelDealSchema, raw);
@@ -247,7 +248,6 @@ export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reaso
     if (ctx.money.exitRequested || !deal.money.heldEntry) return refuse("moneyLeaving");
     await requestRefund(tx, deal, deal.money.heldEntry.amountTiyn, { actorId: user.id });
     await recordAudit(tx, { actor: actorOf(user), action: "deal.cancel.requested", entity: { type: "deal", id: deal.id }, scope: scopeOf(deal.id), meta });
-    await requests().onDealCancelled(tx, deal.id);
     await notifyParty(tx, deal, "EXECUTOR", "deal.cancel.requested", { title: t.refundRequested.title, body: t.refundRequested.body(deal.number) });
     return { status: "REFUND_REQUESTED" };
   });

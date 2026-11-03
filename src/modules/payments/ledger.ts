@@ -55,17 +55,24 @@ export type BankConfirmation = { confirmedById: string; bankDocNumber: string; b
  * одновременных итогов (вебхук и опрос, двойной клик оператора) проходит один. null — итог уже был.
  */
 export async function trySettle(tx: Tx, id: string, outcome: Outcome, confirmation?: BankConfirmation): Promise<MoneyTransaction | null> {
+  const settledAt = new Date();
   const result = await tx.moneyTransaction.updateMany({
     where: { id, status: "PENDING" },
     data: {
       status: outcome.status,
-      settledAt: new Date(),
+      settledAt,
       error: outcome.status === "FAILED" ? outcome.error : null,
       ...(outcome.externalRef ? { externalRef: outcome.externalRef } : {}),
       ...confirmation,
     },
   });
-  return result.count === 1 ? tx.moneyTransaction.findUniqueOrThrow({ where: { id } }) : null;
+  if (result.count !== 1) return null;
+  const settled = await tx.moneyTransaction.findUniqueOrThrow({ where: { id } });
+  // Банк отклонил раскрытие — его части не отправлялись и уже не будут: повтор раскрытия создаст новые (retry.ts).
+  if (settled.type === "RELEASE" && settled.status === "FAILED") {
+    await tx.moneyTransaction.updateMany({ where: { parentId: id, status: "PENDING" }, data: { status: "FAILED", settledAt, error: ru.payments.errors.parentFailed } });
+  }
+  return settled;
 }
 
 /** То же, но повтор — ошибка CONFLICT: для действий человека (оператор подтверждает операцию). */

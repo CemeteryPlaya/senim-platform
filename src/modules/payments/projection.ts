@@ -39,6 +39,7 @@ export type MoneyFacts = {
   /**
    * Деньги начали уходить из банка (выплата или возврат запрошены, в любом статусе): дальше сделка
    * может только завершиться — начать работу, сдать, открыть спор или отменить уже нельзя.
+   * Отказ банка решение не отменяет: оператор повторяет операцию (retryCheck), сделка ждёт.
    */
   exitRequested: boolean;
   /** Выплата завершена: раскрытие и все его части подтверждены, а возврат остатка (если есть) — тоже. */
@@ -56,7 +57,7 @@ export type MoneyFacts = {
 const sum = (entries: LedgerEntry[], type: MoneyTransactionType) =>
   entries.filter((e) => e.type === type && e.status === "SUCCEEDED").reduce((acc, e) => acc + e.amountTiyn, 0n);
 
-const lastOf = (entries: LedgerEntry[], type: MoneyTransactionType) => entries.filter((e) => e.type === type).at(-1) ?? null;
+const lastOf = <T extends Pick<LedgerEntry, "type">>(entries: readonly T[], type: MoneyTransactionType) => entries.filter((e) => e.type === type).at(-1) ?? null;
 
 /** Последняя операция типа, если она не отклонена банком: отклонённая не считается запрошенной. */
 const liveOf = (entries: LedgerEntry[], type: MoneyTransactionType) => {
@@ -70,11 +71,16 @@ function openFreeze(entries: LedgerEntry[]): LedgerEntry | null {
   return entries.filter((e) => e.type === "FREEZE" && !unfrozen.has(e.disputeId)).at(-1) ?? null;
 }
 
-const bySeq = (entries: readonly LedgerEntry[]) => [...entries].sort((a, b) => (a.seq < b.seq ? -1 : 1));
+const bySeq = <T extends Pick<LedgerEntry, "seq">>(entries: readonly T[]) => [...entries].sort((a, b) => (a.seq < b.seq ? -1 : 1));
+
+/** Части раскрытия — последняя попытка каждой (повтор после отказа банка — та же часть с новым ключом). */
+export function partsOf<T extends Pick<LedgerEntry, "type" | "parentId">>(entries: readonly T[], release: { id: string }): T[] {
+  return (["SPLIT_MASTER", "SPLIT_PLATFORM"] as const).flatMap((type) => entries.filter((e) => e.parentId === release.id && e.type === type).slice(-1));
+}
 
 function payoutDone(entries: LedgerEntry[], release: LedgerEntry | null, refund: LedgerEntry | null): boolean {
   if (release?.status !== "SUCCEEDED") return false;
-  const parts = entries.filter((e) => e.parentId === release.id);
+  const parts = partsOf(entries, release);
   const partsDone = parts.some((e) => e.type === "SPLIT_MASTER") && parts.every((e) => e.status === "SUCCEEDED");
   return partsDone && (refund === null || refund.status === "SUCCEEDED");
 }
@@ -99,13 +105,32 @@ function factsOf(list: LedgerEntry[]): MoneyFacts {
     refundEntry,
     exitRequested: list.some((e) => e.type === "RELEASE" || e.type === "REFUND"),
     payoutSettled: payoutDone(list, releaseEntry, refundEntry),
-    refundSettled: releaseEntry === null && refundEntry?.status === "SUCCEEDED",
+    // Раскрытия не было ни в одной попытке: отклонённое раскрытие при разделе по спору ждёт повтора, это не возврат целиком.
+    refundSettled: lastOf(list, "RELEASE") === null && refundEntry?.status === "SUCCEEDED",
     paidToMasterTiyn,
     platformTiyn,
     refundedTiyn,
     bankBalanceTiyn: sum(list, "HOLD") - paidToMasterTiyn - platformTiyn - refundedTiyn,
     isTest: list.some((e) => e.isTest),
   };
+}
+
+/**
+ * Можно ли повторить операцию после отказа банка (ADR-009, «Повторы операций»): только отклонённую, только
+ * раскрытие, его части и возврат, только последнюю попытку своего типа (иначе её уже повторили), а часть
+ * выплаты — только при подтверждённом раскрытии (отклонённое раскрытие повторяется целиком, с частями).
+ */
+export type RetryCheck = "retriable" | "superseded" | "notFailed" | "notRetriable" | "parentNotSettled";
+
+type RetryFields = Pick<LedgerEntry, "id" | "seq" | "type" | "status" | "parentId">;
+
+export function retryCheck(entries: readonly RetryFields[], op: Omit<RetryFields, "seq">): RetryCheck {
+  if (op.status !== "FAILED") return "notFailed";
+  if (op.type === "HOLD" || op.type === "FREEZE" || op.type === "UNFREEZE") return "notRetriable";
+  const list = bySeq(entries);
+  if (lastOf(list, op.type)?.id !== op.id) return "superseded";
+  if (op.parentId && list.find((e) => e.id === op.parentId)?.status !== "SUCCEEDED") return "parentNotSettled";
+  return "retriable";
 }
 
 /**
@@ -134,8 +159,8 @@ function protectionOf(release: LedgerEntry, priceTiyn: bigint): bigint {
 function viewOf(facts: MoneyFacts, list: LedgerEntry[], priceTiyn: bigint): MoneyView {
   const { releaseEntry: release, refundEntry: refund } = facts;
   if (release) {
-    const parts = list.filter((e) => e.parentId === release.id);
-    const masterTiyn = parts.filter((e) => e.type === "SPLIT_MASTER").reduce((a, e) => a + e.amountTiyn, 0n);
+    const parts = partsOf(list, release);
+    const masterTiyn = parts.find((e) => e.type === "SPLIT_MASTER")?.amountTiyn ?? 0n;
     return {
       kind: "completed",
       paidToMasterTiyn: masterTiyn,
@@ -145,7 +170,8 @@ function viewOf(facts: MoneyFacts, list: LedgerEntry[], priceTiyn: bigint): Mone
       completedAt: facts.payoutSettled ? [release, ...parts, ...(refund ? [refund] : [])].map(at).reduce((a, b) => (a > b ? a : b)) : null,
     };
   }
-  if (refund) return { kind: "refunded", amountTiyn: refund.amountTiyn, settled: refund.status === "SUCCEEDED", refundedAt: refund.settledAt };
+  // Возврат целиком — только без раскрытия: при разделе по спору отклонённое раскрытие ждёт повтора.
+  if (refund && !list.some((e) => e.type === "RELEASE")) return { kind: "refunded", amountTiyn: refund.amountTiyn, settled: refund.status === "SUCCEEDED", refundedAt: refund.settledAt };
   if (facts.frozenEntry) return { kind: "frozen", amountTiyn: facts.frozenEntry.amountTiyn, frozenAt: facts.frozenEntry.createdAt };
   if (facts.heldEntry) return { kind: "protected", amountTiyn: facts.heldEntry.amountTiyn, reservedAt: at(facts.heldEntry), operationRef: facts.heldEntry.externalRef };
   return { kind: "awaiting", payment: facts.hold === "SUCCEEDED" ? "none" : facts.hold };

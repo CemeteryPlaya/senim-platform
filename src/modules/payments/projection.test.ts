@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MoneyTransactionStatus, MoneyTransactionType } from "@/generated/prisma/enums";
 import { computeDealMoney, computeSplit } from "./money";
-import { moneyFacts, moneyHistoryOf, projectMoney, type LedgerEntry } from "./projection";
+import { moneyFacts, moneyHistoryOf, projectMoney, retryCheck, type LedgerEntry } from "./projection";
 
 const X = 100_000_00n; // 100 000 ₸
 const money = computeDealMoney(X);
@@ -206,6 +206,56 @@ describe("факты: что считается запрошенным и зав
     const hold = entry("HOLD", money.buyerTotalTiyn);
     expect(view([hold])).toMatchObject({ reservedAt: hold.settledAt });
     expect(hold.settledAt).not.toEqual(hold.createdAt);
+  });
+});
+
+describe("повторы после отказа банка — по последней попытке", () => {
+  const hold = () => entry("HOLD", money.buyerTotalTiyn);
+
+  it("часть мастеру отклонена и повторена под тем же раскрытием — выплата завершена, сумма не задвоена", () => {
+    const [release, master, platform] = payout();
+    const failed = { ...master, status: "FAILED" as const };
+    const retried = entry("SPLIT_MASTER", master.amountTiyn, "SUCCEEDED", { parentId: release.id });
+    const entries = [hold(), release, failed, platform, retried];
+    expect(moneyFacts(entries)).toMatchObject({ payoutSettled: true, paidToMasterTiyn: money.payoutTiyn });
+    expect(view(entries)).toMatchObject({ kind: "completed", settled: true, paidToMasterTiyn: money.payoutTiyn, bankBalanceTiyn: 0n });
+    expect(moneyFacts([hold(), release, failed, platform]).payoutSettled).toBe(false);
+  });
+
+  it("раскрытие отклонено и повторено целиком — завершение по новому раскрытию и его частям", () => {
+    const first = entry("RELEASE", money.buyerTotalTiyn, "FAILED");
+    const firstParts = [entry("SPLIT_MASTER", money.payoutTiyn, "FAILED", { parentId: first.id }), entry("SPLIT_PLATFORM", money.platformIncomeTiyn, "FAILED", { parentId: first.id })];
+    expect(moneyFacts([hold(), first, ...firstParts])).toMatchObject({ releaseEntry: null, payoutSettled: false, exitRequested: true });
+    expect(moneyFacts([hold(), first, ...firstParts, ...payout()])).toMatchObject({ payoutSettled: true, bankBalanceTiyn: 0n });
+  });
+
+  it("раздел по спору: раскрытие отклонено, остаток возвращён — это не «возврат целиком»", () => {
+    const entries = [hold(), entry("RELEASE", 1n, "FAILED"), entry("REFUND", 1n)];
+    expect(moneyFacts(entries)).toMatchObject({ refundSettled: false, payoutSettled: false });
+    expect(view(entries).kind).not.toBe("refunded");
+  });
+
+  it("возврат отклонён и повторён — refundSettled по последней попытке", () => {
+    const failed = entry("REFUND", money.buyerTotalTiyn, "FAILED");
+    expect(moneyFacts([hold(), failed]).refundSettled).toBe(false);
+    expect(moneyFacts([hold(), failed, entry("REFUND", money.buyerTotalTiyn)])).toMatchObject({ refundSettled: true, refundedTiyn: money.buyerTotalTiyn });
+  });
+
+  it("что можно повторить: отклонённую последнюю попытку; часть — при подтверждённом раскрытии", () => {
+    const [release, master] = payout();
+    const failedMaster = { ...master, status: "FAILED" as const };
+    const failedRefund = entry("REFUND", 1n, "FAILED");
+    const entries = [hold(), release, failedMaster, failedRefund];
+    expect(retryCheck(entries, failedMaster)).toBe("retriable");
+    expect(retryCheck(entries, failedRefund)).toBe("retriable");
+    expect(retryCheck(entries, release)).toBe("notFailed");
+    expect(retryCheck([entry("HOLD", 1n, "FAILED")], { id: "x", type: "HOLD", status: "FAILED", parentId: null })).toBe("notRetriable");
+    const again = entry("SPLIT_MASTER", master.amountTiyn, "PENDING", { parentId: release.id });
+    expect(retryCheck([...entries, again], failedMaster)).toBe("superseded");
+    const failedRelease = entry("RELEASE", 1n, "FAILED");
+    const orphan = entry("SPLIT_MASTER", 1n, "FAILED", { parentId: failedRelease.id });
+    expect(retryCheck([hold(), failedRelease, orphan], orphan)).toBe("parentNotSettled");
+    expect(retryCheck([hold(), failedRelease, orphan], failedRelease)).toBe("retriable");
   });
 });
 

@@ -83,9 +83,10 @@ async function callProvider(provider: PaymentProvider, deal: DealForProvider, op
       return [[op, await provider.refund({ ...base, reason: ru.payments.refundReason(deal.number) })]];
     case "SPLIT_MASTER":
     case "SPLIT_PLATFORM": {
-      // Выплата мастеру и доход платформы — одним вызовом split по родительскому раскрытию.
-      const master = all.find((t) => t.parentId === op.parentId && t.type === "SPLIT_MASTER");
-      const platform = all.find((t) => t.parentId === op.parentId && t.type === "SPLIT_PLATFORM");
+      // Выплата мастеру и доход платформы — одним вызовом split по родительскому раскрытию; после повтора —
+      // последние попытки (уже проведённая часть с прежним ключом провайдером не повторяется, итог не перезапишется).
+      const master = all.findLast((t) => t.parentId === op.parentId && t.type === "SPLIT_MASTER");
+      const platform = all.findLast((t) => t.parentId === op.parentId && t.type === "SPLIT_PLATFORM");
       if (!master || !platform) return [];
       const iban = deal.executor.payoutIbanEnc ? decryptPii(deal.executor.payoutIbanEnc) : null;
       const r = await provider.split({

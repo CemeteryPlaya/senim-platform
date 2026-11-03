@@ -8,11 +8,11 @@ import "server-only";
 export { computeDealMoney, computeSplit, kztToTiyn, GUARANTEE_PERCENT, MAX_PRICE_TIYN, PROTECTION_PERCENT, type DealMoney, type Split } from "./money";
 export { partyEstimate, type PartyEstimate } from "./estimate";
 export type * from "./provider";
-export { moneyKey } from "./keys";
+export { moneyKey, RETRIABLE_TYPES, type RetriableType } from "./keys";
 
 // Журнал: запись, итог, проекции
 export { recordOperation, settle, trySettle, moneyFactsOf, moneyHistory, moneyView, ledgerEntries, LEDGER_INCLUDE, toLedgerEntry, type BankConfirmation, type Outcome, type RecordInput } from "./ledger";
-export { moneyFacts, moneyHistoryOf, projectMoney, type LedgerEntry, type MoneyBlock, type MoneyFacts, type MoneyHistoryItem, type MoneyView } from "./projection";
+export { moneyFacts, moneyHistoryOf, projectMoney, retryCheck, type RetryCheck, type LedgerEntry, type MoneyBlock, type MoneyFacts, type MoneyHistoryItem, type MoneyView } from "./projection";
 
 // Провайдеры и исполнение
 export { isTestProvider, newDealProviderKind, providerFor, providerKindOf } from "./providers";
@@ -26,6 +26,7 @@ export {
   type PendingManualOperation,
 } from "./providers/manual";
 export { enqueueExecution, executeDealOperations, JOB_EXECUTE_DEAL, type SettledHook } from "./execute";
+export { listRetriableOperations, retryFailedOperation, retryOperationSchema, type FailedOperation } from "./retry";
 export { receiveWebhook, type WebhookOutcome } from "./webhook";
 export { JOB_POLL_PENDING, pollPendingOperations } from "./poll";
 export { paymentJobHandlers } from "./jobs";

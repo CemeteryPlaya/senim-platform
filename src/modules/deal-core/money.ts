@@ -15,6 +15,7 @@ import type { Tx } from "@/platform/db";
 import { logger } from "@/platform/logger";
 import { formatTiyn } from "@/ui/format";
 import { dealLink, notifyBoth, notifyOperators, SYSTEM_ACTOR } from "./effects";
+import { requests } from "./ports";
 import { canMove, lockDeal, moveDeal, type DealState } from "./state";
 
 /**
@@ -131,6 +132,8 @@ async function finishIfSettled(tx: Tx, deal: DealState): Promise<void> {
   }
   if (canMove(deal, "REFUNDED", "SYSTEM")) {
     await moveDeal(tx, deal, { to: "REFUNDED", who: "SYSTEM", actor: SYSTEM_ACTOR, action: "deal.refunded", data: { cancelledAt: new Date() } });
+    // Заявка отменяется, когда деньги вернулись, а не при запросе возврата: отказ банка повторяет оператор.
+    await requests().onDealCancelled(tx, deal.id);
   }
 }
 

@@ -7,6 +7,7 @@ import { actorOf, type CurrentUser } from "@/modules/identity";
 import { db, isUniqueViolation, lockDealRow, transaction, type Tx } from "@/platform/db";
 import { fail, isAppError } from "@/platform/errors";
 import { parseInput } from "@/platform/validation";
+import { requireOperator } from "../access";
 import type { SettledHook } from "../execute";
 import { settle, type BankConfirmation, type Outcome } from "../ledger";
 import type { PaymentProvider, ProviderResult } from "../provider";
@@ -46,10 +47,6 @@ export const failManualSchema = z.object({ transactionId: id, reason: z.string()
 
 const DAY_MS = 24 * 3600 * 1000;
 
-function requireOperator(user: CurrentUser): void {
-  if (user.role !== "OPERATOR") fail.forbidden();
-}
-
 /** Операция manual, ждущая итога, под блокировкой строки сделки (тот же порядок блокировок, что у deal-core). */
 async function lockPendingManual(tx: Tx, transactionId: string) {
   const ref = await tx.moneyTransaction.findUnique({ where: { id: transactionId }, select: { dealId: true } });
@@ -59,6 +56,13 @@ async function lockPendingManual(tx: Tx, transactionId: string) {
   if (op.provider !== "MANUAL") return fail.conflict(ru.payments.errors.notManual);
   if (op.status !== "PENDING") return fail.conflict(ru.payments.errors.notPending);
   return op;
+}
+
+/** Часть выплаты подтверждается после раскрытия: без принятого банком распоряжения выплаты не было. */
+async function assertParentConfirmed(tx: Tx, parentId: string | null): Promise<void> {
+  if (!parentId) return;
+  const parent = await tx.moneyTransaction.findUniqueOrThrow({ where: { id: parentId }, select: { status: true } });
+  if (parent.status !== "SUCCEEDED") fail.conflict(ru.payments.errors.releaseNotConfirmed);
 }
 
 /**
@@ -102,6 +106,7 @@ export async function confirmManualOperation(operator: CurrentUser, raw: z.input
   try {
     await transaction(async (tx) => {
       const op = await lockPendingManual(tx, input.transactionId);
+      await assertParentConfirmed(tx, op.parentId);
       await assertBankDoc(tx, operator, input.bankDocFileId);
       const confirmation = { confirmedById: operator.id, bankDocNumber: input.bankDocNumber, bankDocDate: input.bankDocDate, bankDocFileId: input.bankDocFileId };
       await finish(tx, operator, op, { status: "SUCCEEDED", externalRef: input.bankDocNumber }, confirmation, onSettled);
