@@ -1,5 +1,6 @@
 import { ru } from "@/i18n/ru";
 import type { WebhookInput, WebhookResponse, WebhookResult } from "../../provider";
+import { amountToTiyn } from "./client";
 import { scriptNameOf, verifyFields, type Fields } from "./signature";
 import { declinedText, formatRef, statusResult } from "./status";
 import { fieldText, parseXmlFields } from "./xml";
@@ -47,6 +48,12 @@ function requiredFields(fields: Fields, valueField: string) {
   return orderId && paymentId && /^\d+$/.test(paymentId) && value ? { orderId, paymentId, value } : null;
 }
 
+/** Сумма уведомления в тиынах; поля нет — undefined (сверять нечего), не разобрано — null (отказ). */
+function amountOf(fields: Fields, name: string): bigint | undefined | null {
+  const text = fieldText(fields, name);
+  return text === undefined ? undefined : amountToTiyn(text);
+}
+
 function resultNotify(fields: Fields): WebhookResult {
   const required = requiredFields(fields, "pg_result");
   if (!required) return rejected("Result notify без pg_order_id, pg_payment_id или pg_result");
@@ -56,11 +63,13 @@ function resultNotify(fields: Fields): WebhookResult {
   if (fieldText(fields, "pg_testing_mode") !== "1") {
     return { kind: "ignored", externalEventId, reason: ru.payments.freedompay.notTestPayment, response: RESULT_OK };
   }
-  // TODO(freedompay): сверку суммы и валюты с операцией журнала («check the order: pg_order_id, amount, and currency»)
-  // делает вызывающий — WebhookResult не несёт сумму; уточнить при подключении к deal-core.
+  // «Check the order: pg_order_id, amount, and currency» — сумму и валюту сверяет receiveWebhook с операцией журнала.
+  const amount = amountOf(fields, "pg_amount");
+  if (amount === null) return rejected("Result notify: pg_amount не разобран");
+  const reported = { amountTiyn: amount, currency: fieldText(fields, "pg_currency") };
   const externalRef = formatRef({ kind: "payment", paymentId });
-  if (result === "1") return { kind: "settled", externalEventId, idempotencyKey: orderId, result: { status: "SUCCEEDED", externalRef }, response: RESULT_OK };
-  if (result === "0") return { kind: "settled", externalEventId, idempotencyKey: orderId, result: { status: "FAILED", error: failureText(fields) }, response: RESULT_OK };
+  if (result === "1") return { kind: "settled", externalEventId, idempotencyKey: orderId, result: { status: "SUCCEEDED", externalRef }, ...reported, response: RESULT_OK };
+  if (result === "0") return { kind: "settled", externalEventId, idempotencyKey: orderId, result: { status: "FAILED", error: failureText(fields) }, ...reported, response: RESULT_OK };
   // pg_result=2 — «not completed (sent only if enabled for your merchant)»: итог придёт позже.
   return { kind: "ignored", externalEventId, reason: `pg_result=${result}: платёж не завершён`, response: RESULT_OK };
 }
@@ -72,7 +81,9 @@ function payoutNotify(fields: Fields): WebhookResult {
   const externalEventId = `freedompay:payout:${payoutId}:${status}`;
   const result = statusResult(status, fields, formatRef({ kind: "payout", payoutId }));
   if (result.status === "PENDING") return { kind: "ignored", externalEventId, reason: `выплата в статусе ${status}`, response: PAYOUT_OK };
-  return { kind: "settled", externalEventId, idempotencyKey: orderId, result, response: PAYOUT_OK };
+  const amountTiyn = amountOf(fields, "pg_payment_amount");
+  if (amountTiyn === null) return rejected("Payout notify: pg_payment_amount не разобран");
+  return { kind: "settled", externalEventId, idempotencyKey: orderId, result, amountTiyn, response: PAYOUT_OK };
 }
 
 type Notification = { kind: "payout" | "result"; fields: Fields };

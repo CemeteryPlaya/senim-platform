@@ -243,15 +243,15 @@ describe("getStatus", () => {
     expect((await p.getStatus({ idempotencyKey: "release:d1", externalRef: "capture:777" })).status).toBe("FAILED");
   });
 
-  it("неизвестный pg_payment_status — FAILED с этим статусом", async () => {
-    const { p } = provider({ "/get_status3.php": [status([["pg_payment_id", "777"], ["pg_payment_status", "partial"]])] });
-    expect(await p.getStatus({ idempotencyKey: "hold:d1", externalRef: "payment:777" })).toEqual({ status: "FAILED", error: expect.stringContaining("partial") });
-  });
-
   it.each(["xpayment:1", "payment:1x", "payment:", "payout:1:2", "refund:1", "cancel:1:2x", "retained:"])("ссылка «%s» не разбирается — FAILED", async (ref) => {
     const { p, sent } = provider({});
     expect((await p.getStatus({ idempotencyKey: "k", externalRef: ref })).status).toBe("FAILED");
     expect(sent).toHaveLength(0);
+  });
+
+  it("статус вне документации (new, waiting, process, success, error) — PENDING, а не отказ: итог уточнит следующий опрос", async () => {
+    const odd = status([["pg_payment_id", "777"], ["pg_payment_status", "partial_refunded"]]);
+    expect(await provider({ "/get_status3.php": [odd] }).p.getStatus({ idempotencyKey: "hold:d1", externalRef: "payment:777" })).toEqual({ status: "PENDING", externalRef: "payment:777" });
   });
 
   it("незнакомая ссылка — FAILED без запроса", async () => {
@@ -405,8 +405,15 @@ describe("handleWebhook", () => {
       externalEventId: "freedompay:result:1022123804618:1",
       idempotencyKey: "hold:d1",
       result: { status: "SUCCEEDED", externalRef: "payment:1022123804618" },
+      amountTiyn: 100_000n,
+      currency: "KZT",
       response: { status: 200, contentType: "text/xml; charset=utf-8", body: OK_XML },
     });
+  });
+
+  it("сумма уведомления не разбирается — rejected: сверить с журналом нечем", async () => {
+    const bad: Fields = testOk.map(([k, v]): [string, string] => [k, k === "pg_amount" ? "сто" : String(v)]);
+    expect((await provider({}).p.handleWebhook(input(signedResult(bad)))).kind).toBe("rejected");
   });
 
   it("повтор того же уведомления — тот же externalEventId", async () => {
@@ -464,6 +471,7 @@ describe("handleWebhook", () => {
       externalEventId: "freedompay:payout:4102:success",
       idempotencyKey: "split-master:d1",
       result: { status: "SUCCEEDED", externalRef: "payout:4102" },
+      amountTiyn: 1_440_000n,
       response: { status: 200, contentType: "text/xml; charset=utf-8", body: '<?xml version="1.0" encoding="utf-8"?>\n<pg_status>ok</pg_status>' },
     });
   });

@@ -1,4 +1,5 @@
 import { ru } from "@/i18n/ru";
+import { logger } from "@/platform/logger";
 import type { ProviderResult } from "../../provider";
 import type { ApiOutcome } from "./client";
 import type { Fields } from "./signature";
@@ -61,6 +62,8 @@ const failure = (fields: Fields) => declinedText(fieldText(fields, "pg_failure_c
 /**
  * Статус операции по документации: платёж (get_status3.php) — new, waiting, process, success, error;
  * выплата (payment_status2) — new, process, success, error; элементы списков возвратов — success, process, error.
+ * Других значений документация не описывает. Незнакомый статус — не отказ банка: PENDING (операция остаётся
+ * ждущей, итог уточнит следующий опрос или уведомление) и предупреждение в журнал — разбирает оператор.
  */
 export function statusResult(paymentStatus: string | undefined, fields: Fields, externalRef: string): ProviderResult {
   switch (paymentStatus) {
@@ -73,7 +76,8 @@ export function statusResult(paymentStatus: string | undefined, fields: Fields, 
     case "process":
       return { status: "PENDING", externalRef };
     default:
-      return { status: "FAILED", error: `Freedom Pay вернул неизвестный статус «${paymentStatus ?? ""}»` };
+      logger.warn("freedompay: статус вне документации — операция остаётся ждущей", { paymentStatus: paymentStatus ?? null, externalRef });
+      return { status: "PENDING", externalRef };
   }
 }
 

@@ -8,7 +8,7 @@ import type { PaymentProvider, ProviderResult, WebhookResult } from "../provider
  * операции помечены «тестовый платёж» (isTest). Заменяет прежний симулятор эскроу.
  *
  * Вебхуки mock сам не шлёт; формат нужен тестам и показу повторной доставки: JSON
- * `{ eventId, idempotencyKey, status, externalRef?, error? }`, подпись HMAC-SHA256 от «<время>.<тело>»
+ * `{ eventId, idempotencyKey, status, externalRef?, error?, amountTiyn? }`, подпись HMAC-SHA256 от «<время>.<тело>»
  * секретом процесса (снаружи его не подобрать, а в другом процессе подпись не сойдётся — и не должна).
  */
 
@@ -44,6 +44,8 @@ const eventSchema = z.object({
   status: z.enum(["SUCCEEDED", "FAILED"]),
   externalRef: z.string().max(200).optional(),
   error: z.string().max(500).optional(),
+  /** Сумма операции в тиынах — если задана, receiveWebhook сверяет её с журналом (как у Freedom Pay). */
+  amountTiyn: z.string().regex(/^\d{1,15}$/).optional(),
 });
 
 const ACK = { status: 200, contentType: "application/json", body: '{"ok":true}' };
@@ -71,6 +73,6 @@ export const mockProvider: PaymentProvider = {
     const e = parsed.data;
     const result: ProviderResult =
       e.status === "SUCCEEDED" ? { status: "SUCCEEDED", externalRef: e.externalRef ?? refOf(e.idempotencyKey) } : { status: "FAILED", error: e.error ?? "declined" };
-    return { kind: "settled", externalEventId: `mock:${e.eventId}`, idempotencyKey: e.idempotencyKey, result, response: ACK };
+    return { kind: "settled", externalEventId: `mock:${e.eventId}`, idempotencyKey: e.idempotencyKey, result, ...(e.amountTiyn ? { amountTiyn: BigInt(e.amountTiyn) } : {}), response: ACK };
   },
 };

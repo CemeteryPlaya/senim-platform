@@ -162,7 +162,9 @@ createFreedomPayProvider({
 
 ### г) Что остаётся вызывающему коду (deal-core)
 
-- После подписи сверить сумму и валюту из уведомления с операцией журнала. Документация требует: «check the order: `pg_order_id`, amount, and currency». `WebhookResult` сумму не несёт: `TODO(freedompay)` в `webhook.ts`.
+- Сумма и валюта уведомления сверяются с операцией журнала («check the order: `pg_order_id`, amount, and currency»): адаптер кладёт `pg_amount`/`pg_currency` (Result notify) и `pg_payment_amount` (Payout notify) в `WebhookResult.settled`, `payments/webhook.ts` сравнивает их с `MoneyTransaction.amountTiyn` и KZT. Расхождение — итог не записывается, событие сохраняется с ошибкой, операторы получают уведомление; Freedom Pay получает обычный `ok` (ответ `rejected` вернул бы деньги клиенту).
+- Итог, противоречащий уже записанному (успех после отказа и наоборот), журнал не меняет: событие с ошибкой «итог после …» и уведомление операторам — сверка с банком вручную.
+- Статус платежа или выплаты вне описанных в документации (`new`, `waiting`, `process`, `success`, `error`) — не отказ: операция остаётся `PENDING`, в журнал приложения пишется предупреждение.
 - `release` и `refund` получают подтверждённую оплату из журнала (`ReleaseRequest.hold`, `RefundRequest.hold`: ключ и `externalRef` последнего SUCCEEDED HOLD) и ищут платёж по `pg_payment_id` из ссылки, а без ссылки — по `pg_order_id` этой попытки. После отклонённой первой оплаты это `hold:<dealId>:2`, а не `hold:<dealId>`.
 - Порядок возврата при споре с двухстадийной оплатой: сначала `release` на долю мастера и платформы, после чего остаток разблокируется сам. Последующий `refund` на этот остаток возвращает `SUCCEEDED` без второго возврата (`released:<id>`). Частичный `refund` несписанной оплаты — `FAILED`: `revoke` сперва списал бы всю сумму.
 

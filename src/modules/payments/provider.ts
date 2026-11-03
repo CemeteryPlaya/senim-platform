@@ -57,8 +57,11 @@ export type StatusRequest = { idempotencyKey: string; externalRef: string | null
 export type WebhookInput = { headers: Headers; body: string };
 
 export type WebhookResult =
-  /** Провайдер сообщил итог операции журнала; responseBody — ответ, которого ждёт провайдер (подписанный, если нужно). */
-  | { kind: "settled"; externalEventId: string; idempotencyKey: string; result: ProviderResult; response: WebhookResponse }
+  /**
+   * Провайдер сообщил итог операции журнала; response — ответ, которого ждёт провайдер (подписанный, если нужно).
+   * amountTiyn и currency — если провайдер их сообщил: receiveWebhook сверяет их с операцией до записи итога.
+   */
+  | { kind: "settled"; externalEventId: string; idempotencyKey: string; result: ProviderResult; amountTiyn?: bigint; currency?: string; response: WebhookResponse }
   /** Подпись верна, но событие нам не нужно (неизвестная операция, служебный пинг). */
   | { kind: "ignored"; externalEventId: string | null; reason: string; response: WebhookResponse }
   /** Подпись неверна или тело не разобрать — 4xx, событие не сохраняем. */

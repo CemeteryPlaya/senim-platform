@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeOperator } from "../../../test/factories";
 import { dealOf, makeDeal, signContract } from "../../../test/factories/deal";
 import { onMoneySettled } from "@/modules/deal-core";
 import { db, transaction } from "@/platform/db";
@@ -53,6 +54,37 @@ describe("вебхук mock", () => {
     expect(await db.moneyTransaction.findUniqueOrThrow({ where: { id: op.id } })).toMatchObject({ status: "SUCCEEDED" });
     expect(await dealOf(dealId)).toMatchObject({ status: "PAID_HOLD" });
     expect(await db.paymentWebhookEvent.count()).toBe(2);
+  });
+
+  it("успех после записанного отказа — журнал не меняется, событие с ошибкой, операторам уведомление", async () => {
+    const { dealId, op } = await pendingHold();
+    const operator = await makeOperator();
+    await deliver(event(op.idempotencyKey, "e-fail", "FAILED"));
+    expect(await deliver(event(op.idempotencyKey, "e-late", "SUCCEEDED"))).toMatchObject({ processed: "conflict", response: { status: 200 } });
+    expect(await db.moneyTransaction.findUniqueOrThrow({ where: { id: op.id } })).toMatchObject({ status: "FAILED" });
+    expect(await dealOf(dealId)).toMatchObject({ status: "CREATED" });
+    const late = await db.paymentWebhookEvent.findUniqueOrThrow({ where: { externalEventId: "mock:e-late" } });
+    expect(late.error).toContain("SUCCEEDED");
+    expect(late.processedAt).not.toBeNull();
+    expect(await db.notification.count({ where: { userId: operator.id, kind: "money.webhook.conflict" } })).toBe(1);
+    // Повторная доставка того же события — дубль, второго уведомления нет.
+    expect(await deliver(event(op.idempotencyKey, "e-late", "SUCCEEDED"))).toMatchObject({ processed: "duplicate" });
+    expect(await db.notification.count({ where: { kind: "money.webhook.conflict" } })).toBe(1);
+  });
+
+  it("сумма в уведомлении не совпадает с операцией — итог не записан, событие с ошибкой, операторам уведомление", async () => {
+    const { dealId, op } = await pendingHold();
+    await makeOperator();
+    const body = JSON.stringify({ eventId: "e-sum", idempotencyKey: op.idempotencyKey, status: "SUCCEEDED", amountTiyn: "100" });
+    expect(await deliver(body)).toMatchObject({ processed: "mismatch", response: { status: 200 } });
+    expect(await db.moneyTransaction.findUniqueOrThrow({ where: { id: op.id } })).toMatchObject({ status: "PENDING" });
+    expect(await dealOf(dealId)).toMatchObject({ status: "CREATED" });
+    expect((await db.paymentWebhookEvent.findUniqueOrThrow({ where: { externalEventId: "mock:e-sum" } })).error).toContain("не совпадает");
+    expect(await db.notification.count({ where: { kind: "money.webhook.conflict" } })).toBe(1);
+
+    const right = JSON.stringify({ eventId: "e-sum-2", idempotencyKey: op.idempotencyKey, status: "SUCCEEDED", amountTiyn: String(op.amountTiyn) });
+    expect(await deliver(right)).toMatchObject({ processed: "settled" });
+    expect(await dealOf(dealId)).toMatchObject({ status: "PAID_HOLD" });
   });
 
   it("неверная или старая подпись — 400, событие не сохраняется", async () => {
