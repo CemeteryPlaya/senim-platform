@@ -59,10 +59,22 @@ PAID_HOLD | IN_PROGRESS | READY ─(спор: частичный раздел)�
 | `SPLIT_PLATFORM` | доход платформы | — |
 | `REFUND` | возврат покупателю | — |
 
-Статусы операции: `PENDING → SUCCEEDED | FAILED`. Остаток в банке = `HOLD − SPLIT_MASTER − SPLIT_PLATFORM − REFUND` по подтверждённым. Блок денег, история денег, выписка PDF, отчёт оператора — проекции журнала (`payments/ledger.ts`), не статуса сделки. Ключ идемпотентности уникален: `hold:<dealId>`, `release:<dealId>`, `split-master:<dealId>`, `split-platform:<dealId>`, `refund:<dealId>`, `freeze:<disputeId>`, `unfreeze:<disputeId>`.
+Статусы операции: `PENDING → SUCCEEDED | FAILED`. Остаток в банке = `HOLD − SPLIT_MASTER − SPLIT_PLATFORM − REFUND` по подтверждённым. Блок денег, история денег, выписка PDF, отчёт оператора — проекции журнала (`payments/ledger.ts`), не статуса сделки. Ключ идемпотентности уникален: `hold:<dealId>`, `release:<dealId>`, `split-master:<dealId>`, `split-platform:<dealId>`, `refund:<dealId>`, `freeze:<disputeId>`, `unfreeze:<disputeId>`; повтор после отказа банка — тот же ключ с номером попытки (`hold:<dealId>:2`, `refund:<dealId>:3`), см. 4а.
+
+После итога операция заморожена (триггер): кроме статуса не меняются реквизиты подтверждения (`bankDoc*`, `confirmedById`), `externalRef`, `error`, `isTest` и связи (`parentId`, `disputeId`, `basisDocumentId`). CHECK `Deal_money_formula` держит и проценты: `protectionTiyn = (priceTiyn×2 + 99) / 100`, `payoutTiyn = priceTiyn×96 / 100` (целочисленное деление, X > 0).
+
+### 4а. Повторы операций после отказа банка
+Банк может отклонить любую операцию (`FAILED` — кнопка «Отклонено банком» в `manual`, ответ или вебхук провайдера). Отказ — факт журнала, а не отмена решения:
+- **Оплата (HOLD)** — повторяет покупатель кнопкой «Оплатить»: новая попытка `hold:<dealId>:N`.
+- **Раскрытие, части выплаты, возврат** — повторяет оператор: «Повторить операцию» в разделе «Отклонены банком» на `/operator/money` (`payments.retryFailedOperation`, под блокировкой строки сделки, `recordAudit` «payment.operation.retried»). Повтор — новая строка журнала с ключом следующей попытки, той же суммой, основанием и спором; прежняя FAILED остаётся. Повтор считается по последней попытке типа: двойной клик и второй оператор новую попытку не создают; повтор не отклонённой операции — CONFLICT.
+- **Раскрытие отклонено** — его ждущие части отклоняются вместе с ним («не отправлялась»); повторяется раскрытие целиком: новый RELEASE и новые SPLIT_MASTER/SPLIT_PLATFORM с `parentId` нового раскрытия. Часть отклонённого раскрытия отдельно не повторяется.
+- **Часть выплаты отклонена при подтверждённом раскрытии** (например, неверный IBAN мастера) — повторяется только она, под тем же RELEASE: распоряжение банк принял, отказ был по выплате. Повторно проведённая часть не задваивает сумму: блок денег и «выплата завершена» смотрят на последнюю попытку каждой части.
+- **Решение остаётся в силе.** `exitRequested` (выплата или возврат запрошены, в любом статусе) после отказа не снимается: начать работу, сдать, открыть спор или отменить нельзя, сделка ждёт повтора. Конечный статус ставит подтверждение новой попытки, как обычно (`OPEN_QUESTIONS.md` №59).
+- `requests.onDealCancelled` (заявка → CANCELLED) после оплаты вызывается, когда возврат подтверждён (переход в REFUNDED), а не при запросе возврата (№48).
+- Уведомление провайдера, противоречащее журналу (успех после записанного отказа и наоборот, сумма или валюта не те), журнал не меняет: событие `PaymentWebhookEvent` с ошибкой, уведомление операторам, сверка с банком вручную (№61). Статус провайдера вне документации — `PENDING`, а не отказ.
 
 ### 5. Провайдеры (ТЗ п. 10)
-Интерфейс `PaymentProvider` (`payments/provider.ts`): `hold`, `release`, `split`, `refund`, `getStatus`, `handleWebhook`; каждая операция — с ключом идемпотентности. Провайдер фиксируется в сделке при создании (`Deal.paymentProvider`) из `PAYMENT_PROVIDER`.
+Интерфейс `PaymentProvider` (`payments/provider.ts`): `hold`, `release`, `split`, `refund`, `getStatus`, `handleWebhook`; каждая операция — с ключом идемпотентности. `release` и `refund` получают подтверждённую оплату журнала (`hold`: ключ и `externalRef` последнего SUCCEEDED HOLD) — после отказа первой оплаты это вторая попытка. Провайдер фиксируется в сделке при создании (`Deal.paymentProvider`) из `PAYMENT_PROVIDER`.
 
 | Провайдер | Окружение | Поведение |
 |---|---|---|
@@ -83,7 +95,7 @@ PAID_HOLD | IN_PROGRESS | READY ─(спор: частичный раздел)�
 Флаги — env с zod и значениями по умолчанию; оператор видит их только для чтения. По умолчанию выключены: `ai`, `preContractFlows` (сценарии 2–5, замерщик площадки, залог за выезд, проект, замер), `materialsCalculator`, `reviews`, `dealPortfolio`, `inspiration`, `publicShowcase` (маршрут витрины), `executorHandSignsAct`, `clientPhoneConsent`. Код за флагами не удаляется.
 
 ### 9. Окружения
-`APP_ENV`: `dev` (провайдер `mock`), `staging` (песочница Freedom Pay), `prod` (`manual`). В `prod` запрещены `mock` SMS и подписи, `freedompay` и `mock`-платежи, `DEMO_MODE`.
+`APP_ENV`: `dev` (провайдер `mock`), `staging` (песочница Freedom Pay), `prod` (`manual`). В `prod` запрещены `mock` SMS и подписи, `freedompay` и `mock`-платежи, `DEMO_MODE`; ключи ПДн, `FILE_URL_SECRET` и `CRON_SECRET` обязательны и без `NODE_ENV=production`. При `NODE_ENV=production` `APP_ENV` задаётся явно (пустой не превращается в `dev`), а `mock`-платежи без `DEMO_MODE` запрещены, как `mock` SMS и подписи; демо-стенд — `APP_ENV=dev` с `DEMO_MODE=true` (№62).
 
 ### 10. Публичный доступ к сделке (фундамент)
 `Deal.publicId` (случайный, не номер), согласия сторон `DealPublicConsent`; проекция `deal-core/public-view.ts` без имён, телефонов, адреса, ИИН/БИН и IBAN. Маршрут — под флагом `publicShowcase`; страница — Фаза 2.
