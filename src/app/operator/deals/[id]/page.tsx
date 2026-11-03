@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { getOperatorDeal, type OperatorDeal, type ReleasePackage } from "@/modules/operator";
@@ -10,6 +9,7 @@ import { DealDocuments } from "../../_components/DealDocuments";
 import { MoneyBlockView, MoneyJournal } from "../../_components/MoneyJournal";
 import { requireOperatorPage } from "../../_lib/guard";
 import { OperationActions } from "../../money/OperationForms";
+import { ReceiptForm } from "./ReceiptForm";
 
 const o = ru.operator;
 const t = o.deals;
@@ -51,10 +51,7 @@ function ReleasePackageCard({ dealId, pack }: { dealId: string; pack: ReleasePac
                 {r.openPdf}: {pack.receipt.number}
               </a>
             ) : (
-              // INTEGRATOR: documents.createReleaseReceipt (RELEASE_RECEIPT, PDF) — до этого шаблон для печати.
-              <Link href={`/operator/deals/${dealId}/receipt`} className="text-primary underline">
-                {r.receiptDraft}
-              </Link>
+              <ReceiptForm dealId={dealId} />
             )}
             <StatusBadge tone="warning" className="self-start">
               {r.legalReview}
