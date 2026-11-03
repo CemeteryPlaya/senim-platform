@@ -58,6 +58,40 @@ describe("журнал только на добавление (триггер Б
     await expect(db.moneyTransaction.update({ where: { id: op.id }, data: { status: "FAILED" } })).rejects.toThrow(/settled operation/);
     expect(await db.moneyTransaction.findUniqueOrThrow({ where: { id: op.id } })).toMatchObject({ amountTiyn: money.buyerTotalTiyn, status: "SUCCEEDED" });
   });
+
+  it("после итога реквизиты подтверждения и связи операции не меняются; у ждущей — меняются", async () => {
+    const f = await dealAt("PAID_HOLD");
+    const op = await db.moneyTransaction.findFirstOrThrow({ where: { dealId: f.dealId } });
+    for (const data of [{ externalRef: "другой" }, { bankDocNumber: "ПП-1" }, { bankDocDate: new Date() }, { isTest: !op.isTest }, { parentId: op.id }, { basisDocumentId: null }, { error: "x" }]) {
+      await expect(db.moneyTransaction.update({ where: { id: op.id }, data })).rejects.toThrow(/frozen/);
+    }
+    const pending = await makeDeal();
+    const { entry } = await transaction((tx) => recordOperation(tx, hold(pending.dealId)));
+    await db.moneyTransaction.update({ where: { id: entry.id }, data: { externalRef: "MOCK-2" } });
+  });
+});
+
+describe("формулы денег сделки в базе (CHECK Deal_money_formula)", () => {
+  it("суммы, согласованные между собой, но не по процентам ТЗ, — ошибка БД", async () => {
+    const f = await makeDeal();
+    const deal = await db.deal.findUniqueOrThrow({ where: { id: f.dealId } });
+    // Защита на тиын больше: buyerTotal и доход сдвинуты так же — прежний CHECK это пропускал.
+    await expect(
+      db.deal.update({
+        where: { id: f.dealId },
+        data: { protectionTiyn: deal.protectionTiyn + 1n, buyerTotalTiyn: deal.buyerTotalTiyn + 1n, platformIncomeTiyn: deal.platformIncomeTiyn + 1n },
+      }),
+    ).rejects.toThrow(/Deal_money_formula/);
+    await expect(
+      db.deal.update({ where: { id: f.dealId }, data: { payoutTiyn: deal.payoutTiyn - 1n, guaranteeTiyn: deal.guaranteeTiyn + 1n, platformIncomeTiyn: deal.platformIncomeTiyn + 1n } }),
+    ).rejects.toThrow(/Deal_money_formula/);
+  });
+
+  it("CHECK совпадает с computeDealMoney на границах округления", async () => {
+    for (const priceTiyn of [1n, 49n, 50n, 99n, 101n, 12_345_67n, 100_000_000_000n]) {
+      await makeDeal({ priceTiyn });
+    }
+  });
 });
 
 describe("опрос ждущих операций", () => {
