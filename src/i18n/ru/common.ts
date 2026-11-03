@@ -54,7 +54,6 @@ export const common = {
   },
   executorLabel: (n: number) => `Исполнитель №${n}`,
   demoBadge: "Демо-режим: тестовые данные",
-  simulatorBadge: "Симулятор банка — не настоящие деньги",
 
   shell: {
     skipLink: "Перейти к содержанию",

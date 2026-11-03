@@ -184,15 +184,6 @@ export function DemoBanner() {
   );
 }
 
-/** Метка «Симулятор банка — не настоящие деньги» рядом с суммами в режиме escrow-simulator. */
-export function SimulatorBadge({ className }: { className?: string }) {
-  return (
-    <StatusBadge tone="info" icon={<FlaskConical />} className={className}>
-      {ru.common.simulatorBadge}
-    </StatusBadge>
-  );
-}
-
 export type EmptyStateProps = {
   title: ReactNode;
   description?: ReactNode;

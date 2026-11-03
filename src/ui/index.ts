@@ -45,7 +45,6 @@ export {
   Fact,
   Money,
   PageHeader,
-  SimulatorBadge,
   Skeleton,
   StatusBadge,
   type AlertProps,

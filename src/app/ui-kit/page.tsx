@@ -23,7 +23,6 @@ import {
   RadioCards,
   SectionTitle,
   Select,
-  SimulatorBadge,
   Skeleton,
   Stat,
   StatusBadge,
@@ -176,7 +175,6 @@ export default async function UiKitPage() {
                 {s.badges[tone]}
               </StatusBadge>
             ))}
-            <SimulatorBadge />
           </div>
         </div>
       </KitSection>
