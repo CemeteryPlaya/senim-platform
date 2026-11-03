@@ -83,6 +83,15 @@ describe("manual: оплата и выплата по банковским до�
     expect(await moneyView(f.dealId)).toMatchObject({ kind: "completed", settled: true, bankBalanceTiyn: 0n });
   });
 
+  it("демо-сделка (покупатель — демо-персона) на manual: операции журнала тестовые, блок денег помечен", async () => {
+    const f = await dealAt("SIGNED", { provider: "manual" });
+    await db.user.update({ where: { id: f.client.id }, data: { isDemo: true } });
+    await db.deal.update({ where: { id: f.dealId }, data: { isDemo: true } });
+    await payForDeal(f.client, { dealId: f.dealId });
+    expect((await journalOf(f.dealId)).map((e) => e.isTest)).toEqual([true]);
+    expect(await moneyView(f.dealId)).toMatchObject({ isTest: true });
+  });
+
   it("mock-операцию оператор не подтверждает", async () => {
     const f = await dealAt("PAID_HOLD");
     const operator = await makeOperator();
