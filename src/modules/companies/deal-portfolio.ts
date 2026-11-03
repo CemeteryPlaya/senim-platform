@@ -6,6 +6,7 @@ import { actorOf, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { db, transaction, type Db } from "@/platform/db";
 import { fail } from "@/platform/errors";
+import { isEnabled } from "@/platform/features";
 import { parseInput } from "@/platform/validation";
 import { STYLES, type StyleKey } from "@/verticals/furniture";
 import { assertActiveFurnitureTypes, requireExecutor } from "./own";
@@ -35,6 +36,11 @@ export type FromDealInput = z.input<typeof fromDealInputSchema>;
 
 export const consentSchema = z.object({ dealId: id, consent: z.boolean() });
 export const featuredSchema = z.object({ itemId: id, featured: z.boolean() });
+
+/** Портфолио из сделок — возможность Фазы 2 (флаг dealPortfolio, ADR-009): выключена — все входы FORBIDDEN. */
+function requireDealPortfolio(): void {
+  if (!isEnabled("dealPortfolio")) fail.forbidden(t.errors.off);
+}
 
 /** Итоговые фото — фото сдачи (DELIVERY), которые мастер приложил при переходе в READY. */
 async function finalPhotos(client: Db, dealId: string) {
@@ -75,6 +81,7 @@ export type DealPortfolioDraft = {
 
 /** Данные формы «Добавить в портфолио»: тип, стиль и город подставлены из заявки. */
 export async function getDealPortfolioDraft(user: CurrentUser, dealId: string): Promise<DealPortfolioDraft> {
+  requireDealPortfolio();
   const { executorId } = requireExecutor(user);
   const deal = await executorDeal(db, executorId, dealId);
   const style = deal.request.style;
@@ -96,6 +103,7 @@ export async function getDealPortfolioDraft(user: CurrentUser, dealId: string): 
  * второй запрос получает ту же работу с created: false и журнал не пишет.
  */
 export async function createPortfolioFromDeal(user: CurrentUser, raw: FromDealInput): Promise<{ id: string; created: boolean }> {
+  requireDealPortfolio();
   const { executorId } = requireExecutor(user);
   const input = parseInput(fromDealInputSchema, raw);
   return transaction(async (tx) => {
@@ -144,6 +152,7 @@ export async function createPortfolioFromDeal(user: CurrentUser, raw: FromDealIn
  * и журнал второй раз не пишут.
  */
 export async function applyPortfolioConsent(tx: Db, user: CurrentUser, dealId: string, consent: boolean): Promise<{ changed: boolean }> {
+  requireDealPortfolio();
   if (user.role !== "CLIENT") return fail.forbidden(t.errors.onlyClient);
   const deal = await tx.deal.findFirst({
     where: { id: dealId, clientId: user.id },
@@ -171,6 +180,7 @@ export async function applyPortfolioConsent(tx: Db, user: CurrentUser, dealId: s
 }
 
 export async function setPortfolioConsent(user: CurrentUser, raw: z.input<typeof consentSchema>): Promise<{ changed: boolean }> {
+  requireDealPortfolio();
   const input = parseInput(consentSchema, raw);
   return transaction((tx) => applyPortfolioConsent(tx, user, input.dealId, input.consent));
 }
@@ -182,6 +192,7 @@ export type DealPortfolioPanel = { viewer: "CLIENT"; consent: boolean } | { view
  * Остальным и до завершения — null (блока нет, о сделке ничего не раскрывается).
  */
 export async function getDealPortfolioPanel(user: CurrentUser, dealId: string): Promise<DealPortfolioPanel | null> {
+  requireDealPortfolio();
   const deal = await db.deal.findUnique({
     where: { id: dealId },
     select: { status: true, clientId: true, executorId: true, portfolioConsentAt: true, portfolioItem: { select: { id: true } } },
@@ -197,6 +208,7 @@ export async function getDealPortfolioPanel(user: CurrentUser, dealId: string): 
 
 /** «В подборку» / «Убрать из подборки» — только оператор. Повтор того же состояния журнал не пишет. */
 export async function setPortfolioFeatured(user: CurrentUser, raw: z.input<typeof featuredSchema>): Promise<void> {
+  if (!isEnabled("inspiration")) return fail.forbidden(ru.companies.inspiration.errors.off);
   if (user.role !== "OPERATOR") return fail.forbidden(ru.companies.inspiration.errors.operatorOnly);
   const input = parseInput(featuredSchema, raw);
   await transaction(async (tx) => {

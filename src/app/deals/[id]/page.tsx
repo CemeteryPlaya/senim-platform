@@ -108,7 +108,7 @@ export default async function DealPage({ params }: Props) {
             {deal.review.text && <p className="text-base text-ink">{deal.review.text}</p>}
           </Section>
         )}
-        <DealPortfolioPanel user={user} dealId={deal.id} />
+        {isEnabled("dealPortfolio") && <DealPortfolioPanel user={user} dealId={deal.id} />}
         <EventsSection deal={deal} />
         <CancelDeal deal={deal} />
       </div>

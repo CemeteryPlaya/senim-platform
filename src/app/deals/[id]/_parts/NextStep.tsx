@@ -1,6 +1,7 @@
 import { SignLink } from "@/app/_components/signing";
 import type { DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
+import { isEnabled } from "@/platform/features";
 import { Alert, ButtonLink, Card, formatTiyn } from "@/ui";
 import { ActionButton } from "../../_parts/ActionButton";
 import { startWorkAction } from "../actions";
@@ -53,7 +54,7 @@ function PrimaryAction({ deal }: { deal: DealView }) {
     case "resolveDispute":
       return deal.dispute && <ButtonLink href={`/operator/disputes/${deal.dispute.id}`}>{t.actions.resolveDispute}</ButtonLink>;
     case "leaveReview":
-      return <ReviewForm dealId={deal.id} />;
+      return <ReviewForm dealId={deal.id} portfolioConsent={isEnabled("dealPortfolio")} />;
     default:
       return null;
   }

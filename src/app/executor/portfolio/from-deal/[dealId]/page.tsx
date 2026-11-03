@@ -4,6 +4,7 @@ import { ru } from "@/i18n/ru";
 import { getDealPortfolioDraft, listFurnitureTypes } from "@/modules/companies";
 import { requireUserPage } from "@/modules/identity";
 import { isAppError } from "@/platform/errors";
+import { isEnabled } from "@/platform/features";
 import { Alert, ButtonLink, Container, PageHeader } from "@/ui";
 import { FromDealForm } from "../FromDealForm";
 import { FromDealNote } from "../FromDealNote";
@@ -15,10 +16,11 @@ export const metadata: Metadata = { title: t.form.title };
 type Props = { params: Promise<{ dealId: string }> };
 
 /**
- * «Добавить в портфолио» из завершённой сделки (встреча 31.10, п. 3): итоговые фото последнего этапа,
+ * «Добавить в портфолио» из завершённой сделки (встреча 31.10, п. 3): итоговые фото сдачи работы,
  * тип и стиль из заявки, место — город, район или ЖК. Чужая сделка — 404; незавершённая — объяснение.
  */
 export default async function FromDealPage({ params }: Props) {
+  if (!isEnabled("dealPortfolio")) notFound();
   const { dealId } = await params;
   const user = await requireUserPage(`/executor/portfolio/from-deal/${dealId}`, "EXECUTOR");
   const result = await getDealPortfolioDraft(user, dealId).then(

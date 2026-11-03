@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { leaveReview } from "@/modules/deal-core";
 import { db } from "@/platform/db";
 import { actingAs, makeClient, makeExecutor, makeOperator, makeUser } from "../../../test/factories";
 import { makeDealWithReport, makePortfolioItem, withFeature } from "../../../test/factories/companies";
+import { setEnv } from "../../../test/factories/identity";
 import {
   createPortfolioFromDeal,
   deletePortfolioItem,
@@ -33,6 +34,15 @@ const fromDeal = (d: Fixture, extra: Partial<Parameters<typeof createPortfolioFr
     published: true,
     ...extra,
   });
+
+// Портфолио из сделок и «Вдохновение» — за флагами (ADR-009): в этом файле включены; выключенные — блок в конце.
+let restoreFlags: () => void;
+beforeAll(() => {
+  const prev = { FEATURE_DEAL_PORTFOLIO: process.env.FEATURE_DEAL_PORTFOLIO, FEATURE_INSPIRATION: process.env.FEATURE_INSPIRATION };
+  setEnv({ FEATURE_DEAL_PORTFOLIO: "true", FEATURE_INSPIRATION: "true" });
+  restoreFlags = () => setEnv(prev);
+});
+afterAll(() => restoreFlags());
 
 const inFeed = async (itemId: string) => (await listInspiration({ limit: 96 })).items.some((i) => i.id === itemId);
 
@@ -251,5 +261,35 @@ describe("«Вдохновение»: подборка и карточка", () 
     const detail = await getInspirationItem(id, null);
     expect(detail).toMatchObject({ doneOnPlatform: true, review: { rating: 5 } });
     expect(detail!.review!.text).not.toContain("701");
+  });
+});
+
+describe("флаги выключены: портфолио из сделок и подборка недоступны", () => {
+  it("dealPortfolio выключен — форма, добавление, согласие и блок на сделке FORBIDDEN, в БД ничего не меняется", async () => {
+    const d = await makeDealWithReport();
+    const forbidden = expect.objectContaining({ code: "FORBIDDEN" });
+    await withFeature("dealPortfolio", false, async () => {
+      await expect(getDealPortfolioDraft(d.executor, d.dealId)).rejects.toEqual(forbidden);
+      await expect(fromDeal(d)).rejects.toEqual(forbidden);
+      await expect(setPortfolioConsent(d.client, { dealId: d.dealId, consent: true })).rejects.toEqual(forbidden);
+      await expect(getDealPortfolioPanel(d.client, d.dealId)).rejects.toEqual(forbidden);
+      await expect(withFeature("reviews", true, () => leaveReview(d.client, { dealId: d.dealId, rating: 5, portfolioConsent: true }))).rejects.toEqual(forbidden);
+    });
+    expect(await db.portfolioItem.count({ where: { dealId: d.dealId } })).toBe(0);
+    expect(await db.review.count({ where: { dealId: d.dealId } })).toBe(0);
+    expect((await db.deal.findUniqueOrThrow({ where: { id: d.dealId } })).portfolioConsentAt).toBeNull();
+    // Включён — те же вызовы работают.
+    expect((await getDealPortfolioPanel(d.client, d.dealId))?.viewer).toBe("CLIENT");
+    expect((await fromDeal(d)).created).toBe(true);
+  });
+
+  it("inspiration выключен — «В подборку» FORBIDDEN, включён — работает", async () => {
+    const d = await makeDealWithReport();
+    const { id } = await fromDeal(d);
+    const operator = await makeOperator();
+    await expect(withFeature("inspiration", false, () => setPortfolioFeatured(operator, { itemId: id, featured: true }))).rejects.toEqual(expect.objectContaining({ code: "FORBIDDEN" }));
+    expect((await db.portfolioItem.findUniqueOrThrow({ where: { id } })).featured).toBe(false);
+    await setPortfolioFeatured(operator, { itemId: id, featured: true });
+    expect((await db.portfolioItem.findUniqueOrThrow({ where: { id } })).featured).toBe(true);
   });
 });

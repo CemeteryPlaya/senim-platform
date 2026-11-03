@@ -83,8 +83,8 @@ export function DisputePositionForm({ disputeId }: { disputeId: string }) {
   );
 }
 
-/** Отзыв — только при флаге reviews (действие показывает nextStep: leaveReview). */
-export function ReviewForm({ dealId }: { dealId: string }) {
+/** Отзыв — только при флаге reviews (действие показывает nextStep: leaveReview); галочка портфолио — при флаге dealPortfolio. */
+export function ReviewForm({ dealId, portfolioConsent: consentShown }: { dealId: string; portfolioConsent: boolean }) {
   const { run, pending, error, fieldErrors, formRef } = useRunAction(reviewAction);
   const [rating, setRating] = useState("5");
   const [text, setText] = useState("");
@@ -109,12 +109,14 @@ export function ReviewForm({ dealId }: { dealId: string }) {
         maxLength={2000}
         rows={3}
       />
-      <Checkbox
-        label={ru.companies.dealPortfolio.reviewConsent}
-        hint={ru.companies.dealPortfolio.reviewConsentHint}
-        checked={portfolioConsent}
-        onChange={(e) => setPortfolioConsent(e.target.checked)}
-      />
+      {consentShown && (
+        <Checkbox
+          label={ru.companies.dealPortfolio.reviewConsent}
+          hint={ru.companies.dealPortfolio.reviewConsentHint}
+          checked={portfolioConsent}
+          onChange={(e) => setPortfolioConsent(e.target.checked)}
+        />
+      )}
       <FormError message={error} />
       <Button type="submit" fullWidth loading={pending}>
         {t.actions.sendReview}
