@@ -210,11 +210,15 @@ export const UNATTACHED = {
  * транзакция вызывающего откатится.
  *
  * deal-core: { dealId } — фото сдачи (DELIVERY), { progressReportId } — «Ход работ», { disputeId } — спор;
- * identity: { executorProfileId } — KYC_ID и KYC_REGISTRATION.
+ * identity: { executorProfileId } — KYC_ID и KYC_REGISTRATION (с purpose — каждое своим списком).
  */
-export async function attachFiles(tx: Db, input: { fileIds: readonly string[]; uploadedById: string; owner: FileOwner }): Promise<void> {
+export async function attachFiles(
+  tx: Db,
+  input: { fileIds: readonly string[]; uploadedById: string; owner: FileOwner; purpose?: FilePurpose },
+): Promise<void> {
   const [field, ownerId] = Object.entries(input.owner).find(([, v]) => v !== undefined) as [OwnerField, string];
-  const purposes = purposesOf(field);
+  // У одного владельца бывает несколько назначений (KYC: удостоверение и свидетельство) — purpose сужает до одного.
+  const purposes = purposesOf(field).filter((p) => input.purpose === undefined || p === input.purpose);
   const last = await tx.storedFile.aggregate({ where: { [field]: ownerId }, _max: { sortOrder: true } });
   const first = (last._max.sortOrder ?? -1) + 1;
   for (const [i, id] of input.fileIds.entries()) {

@@ -62,6 +62,16 @@ describe("attachFiles: новые владельцы", () => {
     const another = await makeExecutor();
     expect(await code(attach([id], executor.id, { executorProfileId: another.executor.id }))).toBe("CONFLICT");
   });
+
+  it("KYC: с назначением — только файлы этого назначения (удостоверение не сойдёт за свидетельство)", async () => {
+    const executor = await makeExecutor();
+    const owner = { executorProfileId: executor.executor.id };
+    const id = await upload(executor.id, "KYC_ID");
+    const narrow = (fileIds: string[], purpose: "KYC_ID" | "KYC_REGISTRATION") => code(transaction((tx) => attachFiles(tx, { fileIds, uploadedById: executor.id, owner, purpose })));
+    expect(await narrow([id], "KYC_REGISTRATION")).toBe("CONFLICT");
+    expect(await narrow([id], "KYC_ID")).toBeUndefined();
+    expect(await db.storedFile.count({ where: owner })).toBe(1);
+  });
 });
 
 describe("assertAttachable: файлы, на которые ссылаются с другой стороны", () => {

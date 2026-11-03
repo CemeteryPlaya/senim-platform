@@ -3,15 +3,17 @@ import { z } from "zod";
 import type { KycStatus, LegalForm } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
-import { fileUrl } from "@/modules/files";
+import { attachFiles, fileUrl } from "@/modules/files";
 import { notify } from "@/modules/notifications";
 import { db, transaction, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { parseInput } from "@/platform/validation";
 import { ownExecutorId } from "./executor-guard";
-import { attachKycFiles, type KycPurpose } from "./kyc-files";
 import { kycTarget, kycView, type KycFacts, type KycState } from "./kyc-policy";
 import { actorOf, type CurrentUser } from "./session";
+
+/** Назначения файлов KYC (files.PURPOSE_POLICY): удостоверение и регистрация ИП/ТОО. */
+export type KycPurpose = "KYC_ID" | "KYC_REGISTRATION";
 
 /**
  * KYC мастера (решение 2.2.8): загрузка документов мастером и решение оператора. Правило переходов —
@@ -92,8 +94,9 @@ export async function submitKycDocuments(user: CurrentUser, raw: KycSubmitInput)
       }),
       t.errors.alreadyVerified,
     );
-    await attachKycFiles(tx, { fileIds: [...new Set(input.idFileIds)], uploadedById: user.id, executorProfileId: executorId, purpose: "KYC_ID" });
-    await attachKycFiles(tx, { fileIds: [...new Set(input.registrationFileIds)], uploadedById: user.id, executorProfileId: executorId, purpose: "KYC_REGISTRATION" });
+    const owner = { executorProfileId: executorId };
+    await attachFiles(tx, { fileIds: [...new Set(input.idFileIds)], uploadedById: user.id, owner, purpose: "KYC_ID" });
+    await attachFiles(tx, { fileIds: [...new Set(input.registrationFileIds)], uploadedById: user.id, owner, purpose: "KYC_REGISTRATION" });
     await recordAudit(tx, {
       actor: actorOf(user),
       action: "executor.kyc_submitted",

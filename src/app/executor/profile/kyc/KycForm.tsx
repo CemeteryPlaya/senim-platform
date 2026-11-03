@@ -10,13 +10,7 @@ import { submitKyc } from "./actions";
 
 const t = ru.identity.kyc;
 
-/**
- * INTEGRATOR: platform параллельно добавляет KYC_ID и KYC_REGISTRATION в UploadPurpose и PURPOSE_POLICY.
- * До слияния тип их не знает (и сервер загрузку не примет), поэтому одно сужение string → UploadPurpose здесь.
- * После слияния заменить на `const KYC_PURPOSE = { id: "KYC_ID", registration: "KYC_REGISTRATION" } as const satisfies Record<…, UploadPurpose>`.
- */
-const asUploadPurpose = (purpose: string) => purpose as UploadPurpose;
-const KYC_PURPOSE = { id: asUploadPurpose("KYC_ID"), registration: asUploadPurpose("KYC_REGISTRATION") };
+const KYC_PURPOSE = { id: "KYC_ID", registration: "KYC_REGISTRATION" } as const satisfies Record<string, UploadPurpose>;
 
 /** Загрузка удостоверения и регистрации ИП/ТОО и отправка на проверку — одно главное действие экрана. */
 export function KycForm({ max }: { max: number }) {
