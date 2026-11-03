@@ -65,6 +65,10 @@ const liveOf = (entries: LedgerEntry[], type: MoneyTransactionType) => {
   return last && last.status !== "FAILED" ? last : null;
 };
 
+/** Подтверждённая оплата — последняя успешная попытка HOLD по порядку журнала. */
+export const heldOf = <T extends Pick<LedgerEntry, "type" | "status" | "seq">>(entries: readonly T[]): T | null =>
+  bySeq(entries).filter((e) => e.type === "HOLD" && e.status === "SUCCEEDED").at(-1) ?? null;
+
 /** FREEZE и UNFREEZE записываются сразу выполненными: заморозка открыта, пока нет UNFREEZE того же спора. */
 function openFreeze(entries: LedgerEntry[]): LedgerEntry | null {
   const unfrozen = new Set(entries.filter((e) => e.type === "UNFREEZE").map((e) => e.disputeId));
@@ -99,7 +103,7 @@ function factsOf(list: LedgerEntry[]): MoneyFacts {
   const refundedTiyn = sum(list, "REFUND");
   return {
     hold: lastHold?.status ?? "none",
-    heldEntry: list.filter((e) => e.type === "HOLD" && e.status === "SUCCEEDED").at(-1) ?? null,
+    heldEntry: heldOf(list),
     frozenEntry: openFreeze(list),
     releaseEntry,
     refundEntry,

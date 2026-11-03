@@ -30,7 +30,13 @@ export type HoldRequest = Base & {
   returnUrl: string;
 };
 
-export type ReleaseRequest = Base;
+/**
+ * Подтверждённая оплата сделки (последний SUCCEEDED HOLD журнала): раскрытие и возврат идут по ней.
+ * После отклонённой первой оплаты это вторая попытка (`hold:<dealId>:2`), поэтому ключ передаётся, а не выводится.
+ */
+export type HeldPayment = { idempotencyKey: string; externalRef: string | null };
+
+export type ReleaseRequest = Base & { hold: HeldPayment };
 
 export type PayoutRecipient = {
   /** Расшифрованный IBAN мастера: только для передачи провайдеру, в журнал и логи не пишется. */
@@ -44,7 +50,7 @@ export type SplitRequest = {
   platform: Base;
 };
 
-export type RefundRequest = Base & { reason: string };
+export type RefundRequest = Base & { reason: string; hold: HeldPayment };
 
 export type StatusRequest = { idempotencyKey: string; externalRef: string | null };
 

@@ -261,8 +261,10 @@ describe("getStatus", () => {
   });
 });
 
+const REFUND = { dealId: "d1", idempotencyKey: "refund:d1", amountTiyn: 1_530_000n, reason: "отмена" };
+
 describe("release → клиринг двухстадийной оплаты", () => {
-  const request = { dealId: "d1", idempotencyKey: "release:d1", amountTiyn: 1_530_000n };
+  const request = { dealId: "d1", idempotencyKey: "release:d1", amountTiyn: 1_530_000n, hold: { idempotencyKey: "hold:d1", externalRef: null } };
 
   it("не списано — do_capture.php на сумму; pg_clearing_amount > 0 → SUCCEEDED", async () => {
     const capture = signedXml("do_capture.php", PAY_KEY, [["pg_status", "ok"], ["pg_amount", "15300"], ["pg_clearing_amount", "15300"]]);
@@ -282,6 +284,17 @@ describe("release → клиринг двухстадийной оплаты", (
     const capture = signedXml("do_capture.php", PAY_KEY, [["pg_status", "ok"], ["pg_amount", "15300"], ["pg_clearing_amount", "0"]]);
     const { p } = provider({ "/get_status3.php": [holdStatus("0")], "/do_capture.php": [capture] });
     expect((await p.release(request)).status).toBe("FAILED");
+  });
+
+  it("платёж ищется по подтверждённой оплате журнала: по номеру платежа, без номера — по ключу прошедшей попытки", async () => {
+    const byRef = provider({ "/get_status3.php": [holdStatus("1")] });
+    await byRef.p.release({ ...request, hold: { idempotencyKey: "hold:d1:2", externalRef: "payment:777" } });
+    expect(Object.fromEntries(byRef.sent[0]!.params)).toMatchObject({ pg_payment_id: "777" });
+    expect(byRef.sent[0]!.params.get("pg_order_id")).toBeNull();
+
+    const byKey = provider({ "/get_status3.php": [holdStatus("1")] });
+    await byKey.p.refund({ ...REFUND, hold: { idempotencyKey: "hold:d1:2", externalRef: null } });
+    expect(byKey.sent[0]!.params.get("pg_order_id")).toBe("hold:d1:2");
   });
 
   it("оплата не найдена — FAILED; оплата ещё не прошла — PENDING", async () => {
@@ -338,7 +351,7 @@ describe("split → выплата мастеру reg2nonreg; доход пла�
 });
 
 describe("refund", () => {
-  const request = { dealId: "d1", idempotencyKey: "refund:d1", amountTiyn: 1_530_000n, reason: "спор" };
+  const request = { dealId: "d1", idempotencyKey: "refund:d1", amountTiyn: 1_530_000n, reason: "спор", hold: { idempotencyKey: "hold:d1", externalRef: null } };
 
   it("двухстадийная, не списана, полная сумма — cancel (разблокировка)", async () => {
     const cancel = signedXml("cancel", PAY_KEY, [["pg_status", "ok"], ["pg_cancel_payment_id", "778"]]);

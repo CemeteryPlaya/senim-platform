@@ -7,7 +7,8 @@ import { env } from "@/platform/env";
 import { enqueueJob } from "@/platform/jobs";
 import { logger } from "@/platform/logger";
 import { rememberExternalRef, trySettle, type Outcome } from "./ledger";
-import type { PaymentProvider, ProviderResult } from "./provider";
+import { heldOf } from "./projection";
+import type { HeldPayment, PaymentProvider, ProviderResult } from "./provider";
 import { providerFor } from "./providers";
 
 /**
@@ -72,15 +73,23 @@ export async function settleFromProvider(
 
 type DealForProvider = { id: string; number: number; executor: { legalName: string; payoutIbanEnc: string | null } };
 
+/** Подтверждённая оплата сделки для раскрытия и возврата; без неё деньгам нечего раскрывать или возвращать. */
+function heldPayment(all: MoneyTransaction[]): HeldPayment | ProviderResult {
+  const held = heldOf(all);
+  return held ? { idempotencyKey: held.idempotencyKey, externalRef: held.externalRef } : { status: "FAILED", error: ru.payments.errors.noConfirmedHold };
+}
+
 async function callProvider(provider: PaymentProvider, deal: DealForProvider, op: MoneyTransaction, all: MoneyTransaction[]): Promise<[MoneyTransaction, ProviderResult][]> {
   const base = { dealId: deal.id, idempotencyKey: op.idempotencyKey, amountTiyn: op.amountTiyn };
   switch (op.type) {
     case "HOLD":
       return [[op, await provider.hold({ ...base, description: ru.payments.purpose(deal.number), returnUrl: `${env().APP_URL}/deals/${deal.id}` })]];
     case "RELEASE":
-      return [[op, await provider.release(base)]];
-    case "REFUND":
-      return [[op, await provider.refund({ ...base, reason: ru.payments.refundReason(deal.number) })]];
+    case "REFUND": {
+      const hold = heldPayment(all);
+      if ("status" in hold) return [[op, hold]];
+      return [[op, op.type === "RELEASE" ? await provider.release({ ...base, hold }) : await provider.refund({ ...base, hold, reason: ru.payments.refundReason(deal.number) })]];
+    }
     case "SPLIT_MASTER":
     case "SPLIT_PLATFORM": {
       // Выплата мастеру и доход платформы — одним вызовом split по родительскому раскрытию; после повтора —

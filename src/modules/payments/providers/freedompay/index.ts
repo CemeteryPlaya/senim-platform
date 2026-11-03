@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import type { HoldRequest, PaymentProvider, ProviderResult, RefundRequest, ReleaseRequest, SplitRequest, StatusRequest } from "../../provider";
+import type { HeldPayment, HoldRequest, PaymentProvider, ProviderResult, RefundRequest, ReleaseRequest, SplitRequest, StatusRequest } from "../../provider";
 import { amountToTiyn, createFreedomPayClient, defaultSalt, defaultSleep, tiynToAmount, type ApiOutcome, type ClientDeps } from "./client";
 import type { Fields } from "./signature";
 import { formatRef, notOk, operationResult, parseRef, statusResult, type Ref } from "./status";
@@ -62,8 +62,6 @@ const configSchema = z.object({
   payoutBackUrl: z.url(),
   /** two-stage — `pg_auto_clearing=0` (блокировка, затем клиринг); one-stage — `1` (списание сразу). */
   clearing: z.enum(["two-stage", "one-stage"]).default("two-stage"),
-  /** Ключ операции hold сделки: release и refund находят по нему платёж (`pg_order_id`). */
-  holdKeyOf: z.custom<(dealId: string) => string>((v) => typeof v === "function").default(() => (dealId: string) => `hold:${dealId}`),
   /** pg_lifetime страницы оплаты, секунды: «60 to 604800, default 86400». */
   paymentLifetimeSec: z.number().int().min(60).max(604_800).default(86_400),
   /** Срок ссылки на выплату (pg_order_time_limit), часы. */
@@ -126,9 +124,14 @@ export function createFreedomPayProvider(input: FreedomPayConfig, deps: FreedomP
 
   type Hold = { paymentId: string; captured: boolean; amountTiyn: bigint | null; clearingTiyn: bigint | null };
 
-  /** Платёж hold сделки; не найден, не оплачен или исход неизвестен — готовый ProviderResult. */
-  async function findHold(dealId: string): Promise<Hold | ProviderResult> {
-    const outcome = await paymentStatus(["pg_order_id", config.holdKeyOf(dealId)]);
+  /**
+   * Платёж подтверждённой оплаты сделки (HeldPayment из журнала): по pg_payment_id из её ссылки, а без ссылки —
+   * по pg_order_id = ключу той попытки, что прошла (после отказа первой — `hold:<dealId>:2`).
+   * Не найден, не оплачен или исход неизвестен — готовый ProviderResult.
+   */
+  async function findHold(held: HeldPayment): Promise<Hold | ProviderResult> {
+    const ref = held.externalRef ? parseRef(held.externalRef) : null;
+    const outcome = await paymentStatus(ref?.kind === "payment" ? ["pg_payment_id", ref.paymentId] : ["pg_order_id", held.idempotencyKey]);
     const state = outcome.kind === "ok" ? paymentResult(outcome.fields) : notOk(outcome);
     if (state.status === "FAILED") return { status: "FAILED", error: `Оплата сделки не найдена или не прошла: ${state.error}` };
     if (outcome.kind !== "ok" || state.status === "PENDING") return { status: "PENDING" };
@@ -200,7 +203,7 @@ export function createFreedomPayProvider(input: FreedomPayConfig, deps: FreedomP
 
     /** https://docs.freedompay.kz/11621002e0 — POST /do_capture.php; повтор не списывает второй раз. */
     async release(request: ReleaseRequest): Promise<ProviderResult> {
-      const hold = await findHold(request.dealId);
+      const hold = await findHold(request.hold);
       if (!isHold(hold)) return hold;
       const externalRef = formatRef({ kind: "capture", paymentId: hold.paymentId });
       if (hold.captured) return { status: "SUCCEEDED", externalRef };
@@ -220,7 +223,7 @@ export function createFreedomPayProvider(input: FreedomPayConfig, deps: FreedomP
     },
 
     async refund(request: RefundRequest): Promise<ProviderResult> {
-      const hold = await findHold(request.dealId);
+      const hold = await findHold(request.hold);
       if (!isHold(hold)) return hold;
       if (!hold.captured) return cancelHold(hold, request);
       // Частичный клиринг: «The rest is released to the client» — этот остаток уже вернулся, второй возврат был бы лишним.

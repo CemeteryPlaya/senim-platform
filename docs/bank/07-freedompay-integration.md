@@ -163,7 +163,7 @@ createFreedomPayProvider({
 ### г) Что остаётся вызывающему коду (deal-core)
 
 - После подписи сверить сумму и валюту из уведомления с операцией журнала. Документация требует: «check the order: `pg_order_id`, amount, and currency». `WebhookResult` сумму не несёт: `TODO(freedompay)` в `webhook.ts`.
-- `release` ищет платёж сделки по ключу `hold:<dealId>` (настройка `holdKeyOf`): ключ hold в deal-core должен совпадать.
+- `release` и `refund` получают подтверждённую оплату из журнала (`ReleaseRequest.hold`, `RefundRequest.hold`: ключ и `externalRef` последнего SUCCEEDED HOLD) и ищут платёж по `pg_payment_id` из ссылки, а без ссылки — по `pg_order_id` этой попытки. После отклонённой первой оплаты это `hold:<dealId>:2`, а не `hold:<dealId>`.
 - Порядок возврата при споре с двухстадийной оплатой: сначала `release` на долю мастера и платформы, после чего остаток разблокируется сам. Последующий `refund` на этот остаток возвращает `SUCCEEDED` без второго возврата (`released:<id>`). Частичный `refund` несписанной оплаты — `FAILED`: `revoke` сперва списал бы всю сумму.
 
 ## 7. Проверка
