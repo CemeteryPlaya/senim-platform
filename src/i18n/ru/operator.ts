@@ -422,18 +422,12 @@ export const operator = {
     executor: (n: number, name: string) => `Исполнитель №${n}: ${name}`,
     submitted: "Документы загружены",
     purposes: { KYC_ID: "Удостоверение личности", KYC_REGISTRATION: "Регистрация ИП или ТОО" },
-    noDocuments: "Документов нет",
     verify: "Документы в порядке",
     verified: "Документы подтверждены",
     reason: "Причина отказа",
     reasonHint: "Мастер увидит её в уведомлении",
     reject: "Отклонить документы",
     rejected: "Документы отклонены",
-    alreadyReviewed: "Документы уже проверили. Обновите страницу",
-    verifiedTitle: "Документы проверены",
-    verifiedBody: "Оператор проверил ваши документы.",
-    rejectedTitle: "Документы не приняты",
-    rejectedBody: (reason: string) => `Причина: ${reason}. Загрузите документы заново.`,
   },
 
   settings: {

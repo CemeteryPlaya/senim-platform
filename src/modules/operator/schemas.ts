@@ -137,11 +137,6 @@ export const bankFailSchema = z.object({ transactionId: id, reason: z.string().t
 
 // ─── KYC ─────────────────────────────────────────────────────────────────────
 
-export const reviewKycSchema = z.discriminatedUnion("decision", [
-  z.object({ profileId: id, decision: z.literal("VERIFIED") }),
-  z.object({ profileId: id, decision: z.literal("REJECTED"), reason: z.string().trim().min(5, t.reason).max(500) }),
-]);
-export type ReviewKycInput = z.output<typeof reviewKycSchema>;
 
 // ─── журнал аудита ───────────────────────────────────────────────────────────
 

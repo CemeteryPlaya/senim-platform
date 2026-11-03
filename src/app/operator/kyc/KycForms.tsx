@@ -9,13 +9,13 @@ import { reviewKycAction } from "./actions";
 const t = ru.operator.kyc;
 
 /** Решение по KYC: «Документы в порядке» — главное действие; отказ с причиной — свёрнут ниже. */
-export function KycForms({ profileId }: { profileId: string }) {
+export function KycForms({ executorId }: { executorId: string }) {
   const verify = useActionForm(reviewKycAction);
   const reject = useActionForm(reviewKycAction);
   return (
     <div className="flex flex-col gap-4">
       <form onSubmit={verify.onSubmit} noValidate className="flex flex-col gap-3">
-        <input type="hidden" name="profileId" value={profileId} />
+        <input type="hidden" name="executorId" value={executorId} />
         <input type="hidden" name="decision" value="VERIFIED" />
         <FormStatus error={verify.error} done={verify.done} doneText={t.verified} />
         <Button type="submit" loading={verify.pending} className="self-start">
@@ -25,7 +25,7 @@ export function KycForms({ profileId }: { profileId: string }) {
       <details className="rounded-control border border-line p-4">
         <summary className="min-h-control cursor-pointer content-center text-base font-semibold text-ink">{t.reject}</summary>
         <form onSubmit={reject.onSubmit} noValidate className="flex flex-col gap-4 pt-4">
-          <input type="hidden" name="profileId" value={profileId} />
+          <input type="hidden" name="executorId" value={executorId} />
           <input type="hidden" name="decision" value="REJECTED" />
           <Textarea label={t.reason} hint={t.reasonHint} name="reason" required maxLength={500} rows={3} error={reject.fieldError("reason")} />
           <FormStatus error={reject.error} done={reject.done} doneText={t.rejected} />

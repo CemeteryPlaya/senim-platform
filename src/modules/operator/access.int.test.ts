@@ -49,7 +49,7 @@ const ACTIONS: Record<string, (u: CurrentUser) => Promise<unknown>> = {
   listOperatorDeals: (u) => listOperatorDeals(u),
   getOperatorDeal: (u) => getOperatorDeal(u, "x"),
   kycQueue: (u) => kycQueue(u),
-  reviewKyc: (u) => reviewKyc(u, { profileId: "x", decision: "VERIFIED" }),
+  reviewKyc: (u) => reviewKyc(u, { executorId: "x", decision: "VERIFIED" }),
   platformSettings: async (u) => platformSettings(u),
 };
 

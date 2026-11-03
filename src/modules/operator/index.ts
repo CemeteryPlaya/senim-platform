@@ -11,7 +11,7 @@ export { resetDemoData } from "./demo";
 export { getDisputeCard, listDisputes, previewDisputeSplit, resolveDispute } from "./disputes";
 export { addExecutor, changeSegment, getExecutorCard, listExecutors, listRegistrationQueue, reviewRegistration } from "./executors";
 export { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitureType, setFurnitureTypeActive } from "./furniture-types";
-export { kycQueue, reviewKyc, type KycDocumentView, type KycQueueItem } from "./kyc";
+export { kycQueue, kycReviewSchema, reviewKyc, type KycDocument, type KycQueueItem, type KycReviewInput } from "./kyc";
 export { confirmBankOperation, failBankOperation, isManualType, listMoneyQueue, saveBankDocument, type ManualOperationType, type MoneyQueueItem } from "./money";
 export { buildCsv, buildIncomeCsv, buildReport, incomeReport, type OperationTotal, type StatusTotal } from "./report";
 export { addMaterialPrice, changeMaterialPrice, listMaterialPrices, setMaterialPriceActive, type MaterialPriceRow } from "./material-prices";

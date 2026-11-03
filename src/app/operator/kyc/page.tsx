@@ -26,13 +26,13 @@ export default async function KycPage() {
         <ul className="flex flex-col gap-4">
           {queue.map((item) => (
             <ListCard
-              key={item.profileId}
+              key={item.executorId}
               titleAs="h2"
               title={t.executor(item.publicNumber, item.legalName)}
               meta={[
                 `${o.legalForms[item.legalForm]}, ${o.binIinMasked(item.binIinLast4)}`,
                 <>
-                  {t.submitted} <DateText value={item.submittedAt} format="dateTime" />
+                  {t.submitted} <DateText value={item.lastUploadAt} format="dateTime" />
                 </>,
               ]}
             >
@@ -45,7 +45,7 @@ export default async function KycPage() {
                   </li>
                 ))}
               </ul>
-              <KycForms profileId={item.profileId} />
+              <KycForms executorId={item.executorId} />
             </ListCard>
           ))}
         </ul>
