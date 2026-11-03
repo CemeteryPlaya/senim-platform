@@ -233,8 +233,24 @@ const SHORT_MESSENGER = new RegExp(`${NOT_WORD_BEFORE}(?:тг|tg|ig|wa|tt)\\s*[:
 // «max»/«макс» (мессенджер MAX) — ещё и «максимум» («max ширина»): нужен ещё и знак «:» или «@» перед ником.
 const LABELED_MESSENGER = new RegExp(`${NOT_WORD_BEFORE}(?:max|макс)\\s*(?::\\s*|(?=@))${HANDLE}${NOT_WORD_AFTER}`, "giu");
 
+// Ник перед мессенджером: «ivan_mebel в инстаграм», «mebel.astana insta», «ivan_mebel — телеграм».
+const VIA = "\\s*(?:[:\\-–—]\\s*)?(?:(?:в|во|на|по|in|on|at)\\s+)?";
+const HANDLE_BEFORE_MESSENGER = new RegExp(`${NOT_WORD_BEFORE}@?(?=[a-z0-9_.]*[a-z_])[a-z0-9_.]{2,}[a-z0-9_]${VIA}(?:${MESSENGER_WORDS.join("|")})${NOT_WORD_AFTER}`, "giu");
+// Перед сокращением («тг» — ещё и «тенге») ник должен быть явно ником: с «_», «.» или цифрой, либо от 5 знаков.
+const NICK_LIKE = "@?(?=[a-z0-9_.]*[a-z])(?:(?=[a-z0-9_.]*[_.0-9])[a-z0-9_.]{2,}[a-z0-9_]|[a-z0-9_.]{4,}[a-z0-9_])";
+const HANDLE_BEFORE_SHORT = new RegExp(`${NOT_WORD_BEFORE}${NICK_LIKE}${VIA}(?:тг|tg|ig|wa|tt)${NOT_WORD_AFTER}`, "giu");
+// Ссылка без точки: «t me ivanmebel», «t, me / ivan», «wa me 7701…».
+const SPACED_ME_LINK = /(?<![\p{L}\p{N}_])(?:t|wa)(?:\s*[,·]\s*|\s+)me\s*(?:\/\s*)?@?[a-z0-9_+]{3,}(?![\p{L}\p{N}_])/giu;
+
 function findMessengers(text: string): Span[] {
-  return [...matchAll(text, MESSENGER), ...matchAll(text, SHORT_MESSENGER), ...matchAll(text, LABELED_MESSENGER)];
+  return [
+    ...matchAll(text, MESSENGER),
+    ...matchAll(text, SHORT_MESSENGER),
+    ...matchAll(text, LABELED_MESSENGER),
+    ...matchAll(text, HANDLE_BEFORE_MESSENGER),
+    ...matchAll(text, HANDLE_BEFORE_SHORT),
+    ...matchAll(text, SPACED_ME_LINK),
+  ];
 }
 
 /* ── Телефоны ──────────────────────────────────────────────────────────── */
@@ -249,10 +265,20 @@ const GAP_SRC = `\\s*(?:${SEP_MARK}\\s*){0,3}`;
 const PROTECTED = [
   /(?<![\d.])(?:0?[1-9]|[12]\d|3[01])[./](?:0?[1-9]|1[0-2])[./](?:\d{4}|\d{2})(?!\d)/gu,
   /(?<!\d)\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?!\d)/gu,
-  // Сумма «1 350 000» или диапазон «700 000 – 1 000 000», за которой не идут ещё цифры (иначе это телефон «8 700 123 45 67»).
-  new RegExp(`(?<![\\d+])(?<!\\d${GAP_SRC})${AMOUNT}(?:\\s*[-–—]\\s*${AMOUNT})?(?!${GAP_SRC}\\d)`, "gu"),
   /[№#]\s*\d+/gu,
 ];
+// Сумма «1 350 000» или диапазон «700 000 – 1 000 000», за которой не идут ещё цифры (иначе это телефон «8 700 123 45 67»).
+// Если дальше числительное («8 701 два три…») или связка после некруглого числа («8 701 и 234…») — это начало
+// номера, а не сумма. Круглая сумма перед связкой («770 000 и 1200 за доставку») остаётся суммой.
+const PROTECTED_AMOUNT = new RegExp(`(?<![\\d+])(?<!\\d${GAP_SRC})${AMOUNT}(?:\\s*[-–—]\\s*${AMOUNT})?(?!${GAP_SRC}\\d)`, "gu");
+const WORD_AFTER = new RegExp(`^${GAP_SRC}(\\p{L}+)`, "u");
+const ROUND = /000$/;
+
+function amountIsPhoneStart(amount: string, scan: string, end: number): boolean {
+  const word = WORD_AFTER.exec(scan.slice(end))?.[1].toLowerCase();
+  if (word === undefined) return false;
+  return numberWord(word) !== undefined || (BRIDGE_WORDS.has(word) && !ROUND.test(amount));
+}
 
 /**
  * Размеры «900*600*2400», «2400х600», «проём 900/2100»: 2–3 числа по 2–4 цифры через *, x, х, ×, / — и дальше цифр нет.
@@ -272,11 +298,13 @@ export function kzMobileDigits(digits: string): boolean {
 const PROTECTED_CHAR = "";
 
 /**
- * Буквы-двойники цифр рядом с цифрами: «87O1…», «7ОО» (латинская и кириллическая O) → 0, «70l», «I23» → 1.
- * Только в копии для поиска телефонов (буква — цифра, позиции те же); слово из таких букв («ООО») не трогаем.
+ * Буквы-двойники цифр рядом с цифрами: «87O1…», «7ОО» (латинская и кириллическая O) → 0, «70l», «I23» → 1,
+ * «2З4» (кириллическая З) → 3, «5б» → 6. Только в копии для поиска телефонов (буква — цифра, позиции те же);
+ * слово из таких букв («ООО», «Збс») не трогаем — буква должна стоять вплотную к цифре.
  */
-const DIGIT_LOOKALIKE = /(?<=\d)[OoОоlI]+(?!\p{L})|(?<!\p{L})[OoОоlI]+(?=\d)/gu;
-const lookalikesAsDigits = (text: string) => text.replace(DIGIT_LOOKALIKE, (m) => m.replace(/[OoОо]/g, "0").replace(/[lI]/g, "1"));
+const DIGIT_OF: Record<string, string> = { O: "0", o: "0", О: "0", о: "0", l: "1", I: "1", З: "3", з: "3", б: "6" };
+const DIGIT_LOOKALIKE = /(?<=\d)[OoОоlIЗзб]+(?!\p{L})|(?<!\p{L})[OoОоlIЗзб]+(?=\d)/gu;
+const lookalikesAsDigits = (text: string) => text.replace(DIGIT_LOOKALIKE, (m) => m.replace(/./gu, (c) => DIGIT_OF[c]));
 
 // После числа — валюта или единица измерения: это цена или размер, если число не похоже на номер (phoneShaped).
 const UNIT_AFTER = /^[\s ]*(?:₸|тг|тенге|kzt|руб|р\.|₽|\$|usd|долл|eur|€|тыс|млн|млрд|мм|см|м(?!\p{L})|метр|кг|шт|%)/iu;
@@ -326,15 +354,26 @@ const numberWord = (word: string) => NUMBER_WORD.get(plainWord(word));
 /** Слова «сотня», перед которыми стоит число сотен: «жеті жүз», «seven hundred». */
 const MULTIPLIED_HUNDREDS = new Set(["жүз", "hundred"].map(plainWord));
 const PLUS_WORDS = new Set(["плюс", "plus"]);
+/**
+ * Короткие связки, которыми номер делят на части: «8701234 и 5678», «8701, остальные 234 56 78», «8701 + 2345678».
+ * Цепочка через связку засчитывается только как казахстанский мобильный (kzMobileDigits) — так «780, 900 и 2400»
+ * и «бюджет 500 и 700 тыс» номером не становятся.
+ */
+const BRIDGE_WORDS = new Set(["и", "а", "потом", "затем", "дальше", "далее", "остальные", "остальное", "оставшиеся", "ещё", "еще", "and", "then", "және", "сосын"]);
+const MAX_BRIDGE_WORDS = 2;
+const PLUS_GAP = /^\s*\+[\s(]*$/u;
 
-/** Число в цепочке: «87001234567», «семьсот один» (одна группа из нескольких слов) или «45». */
-type NumberGroup = { start: number; end: number; digits: string; written: "digits" | "words" };
-type Token = { start: number; end: number; text: string; word?: readonly [WordKind, number] };
+/**
+ * Число в цепочке: «87001234567», «семьсот один» (одна группа из нескольких слов) или «45».
+ * bridged — перед группой связка; plusAt — перед группой «+» (начало международного номера или связка).
+ */
+type NumberGroup = { start: number; end: number; digits: string; written: "digits" | "words"; bridged: boolean; plusAt: number | null };
+type Token = { start: number; end: number; text: string; word?: readonly [WordKind, number]; bridged: boolean; plusAt: number | null };
 
 function findPhones(text: string): Span[] {
   const scan = protect(lookalikesAsDigits(text));
   const spans: Span[] = [];
-  for (const chain of numberChains(scan)) spans.push(...phonesInChain(scan, chain));
+  for (const groups of numberChains(scan)) spans.push(...phonesInChain(scan, groups));
   return spans;
 }
 
@@ -344,6 +383,7 @@ function protect(text: string): string {
   for (const re of PROTECTED) {
     scan = scan.replace(re, (m) => PROTECTED_CHAR.repeat(m.length));
   }
+  scan = scan.replace(PROTECTED_AMOUNT, (m: string, at: number, whole: string) => (amountIsPhoneStart(m, whole, at + m.length) ? m : PROTECTED_CHAR.repeat(m.length)));
   scan = scan.replace(DIMENSIONS, (m) => (kzMobileDigits(m.replace(/\D/g, "")) ? m : PROTECTED_CHAR.repeat(m.length)));
   return protectTimes(scan);
 }
@@ -365,34 +405,50 @@ function protectTimes(scan: string): string {
   return out;
 }
 
-/** Цепочки идущих подряд чисел (цифрами или словами) с короткими разделителями между ними. */
-function numberChains(scan: string): { plusAt: number | null; groups: NumberGroup[] }[] {
-  const chains: { plusAt: number | null; groups: NumberGroup[] }[] = [];
+type Pending = { bridged: boolean; plusAt: number | null; bridgeWords: number };
+const nothingPending = (): Pending => ({ bridged: false, plusAt: null, bridgeWords: 0 });
+
+/**
+ * Цепочки идущих подряд чисел (цифрами или словами) с короткими разделителями между ними. Связки («и», «потом»,
+ * «остальные», «+», «плюс») цепочку не рвут, а помечают следующую группу (bridged).
+ */
+function numberChains(scan: string): NumberGroup[][] {
+  const chains: NumberGroup[][] = [];
   let tokens: Token[] = [];
-  let plusAt: number | null = null;
+  let pending = nothingPending();
+  let cursor = 0;
 
   const flush = () => {
-    if (tokens.length > 0) chains.push({ plusAt, groups: groupTokens(tokens) });
+    if (tokens.length > 0) chains.push(groupTokens(tokens));
     tokens = [];
-    plusAt = null;
+    pending = nothingPending();
   };
 
   for (const m of scan.matchAll(TOKEN)) {
-    const token = { start: m.index, end: m.index + m[0].length, text: m[0].toLowerCase() };
-    const isNumber = /^\d+$/.test(token.text) || numberWord(token.text) !== undefined;
-    const last = tokens.at(-1);
-    if (last && !GAP.test(scan.slice(last.end, token.start))) flush();
-    if (PLUS_WORDS.has(token.text)) {
+    const start = m.index;
+    const text = m[0].toLowerCase();
+    const gap = scan.slice(cursor, start);
+    if (tokens.length > 0 && pending.plusAt === null && PLUS_GAP.test(gap)) {
+      pending.bridged = true;
+      pending.plusAt = cursor + gap.indexOf("+");
+    } else if ((tokens.length > 0 || pending.plusAt !== null) && !GAP.test(gap)) {
       flush();
-      plusAt = token.start;
-      continue;
     }
-    if (!isNumber) {
+    cursor = start + m[0].length;
+    if (/^\d+$/.test(text) || numberWord(text) !== undefined) {
+      if (tokens.length === 0 && pending.plusAt === null) pending.plusAt = plusSignBefore(scan, start);
+      tokens.push({ start, end: cursor, text, bridged: pending.bridged, plusAt: pending.plusAt });
+      pending = nothingPending();
+    } else if (PLUS_WORDS.has(text)) {
+      if (tokens.length === 0) flush();
+      pending.bridged = tokens.length > 0;
+      pending.plusAt = start;
+    } else if (tokens.length > 0 && BRIDGE_WORDS.has(text) && pending.bridgeWords < MAX_BRIDGE_WORDS) {
+      pending.bridged = true;
+      pending.bridgeWords += 1;
+    } else {
       flush();
-      continue;
     }
-    if (tokens.length === 0 && plusAt === null) plusAt = plusSignBefore(scan, token.start);
-    tokens.push(token);
   }
   flush();
   return chains;
@@ -410,20 +466,21 @@ function groupTokens(tokens: Token[]): NumberGroup[] {
 
   for (const token of mergeMultipliedHundreds(tokens)) {
     const word = token.word ?? numberWord(token.text);
+    const from = { start: token.start, end: token.end, bridged: token.bridged, plusAt: token.plusAt };
     if (!word) {
-      groups.push({ start: token.start, end: token.end, digits: token.text, written: "digits" });
+      groups.push({ ...from, digits: token.text, written: "digits" });
       open = null;
       continue;
     }
     const [kind, value] = word;
-    if (open && canExtend(open.has, kind)) {
+    if (open && !joined(token) && canExtend(open.has, kind)) {
       open.value += value;
       open.has.add(kind);
       open.group.end = token.end;
       open.group.digits = String(open.value);
       continue;
     }
-    const group: NumberGroup = { start: token.start, end: token.end, digits: String(value), written: "words" };
+    const group: NumberGroup = { ...from, digits: String(value), written: "words" };
     groups.push(group);
     open = kind === "zero" ? null : { group, value, has: new Set([kind]) };
   }
@@ -436,14 +493,17 @@ function mergeMultipliedHundreds(tokens: Token[]): Token[] {
   for (const token of tokens) {
     const prev = out.at(-1);
     const prevWord = prev && !prev.word ? numberWord(prev.text) : undefined;
-    if (prev && MULTIPLIED_HUNDREDS.has(plainWord(token.text)) && prevWord?.[0] === "unit") {
-      out[out.length - 1] = { start: prev.start, end: token.end, text: token.text, word: ["hundred", prevWord[1] * 100] };
+    if (prev && !joined(token) && MULTIPLIED_HUNDREDS.has(plainWord(token.text)) && prevWord?.[0] === "unit") {
+      out[out.length - 1] = { ...prev, end: token.end, text: token.text, word: ["hundred", prevWord[1] * 100] };
       continue;
     }
     out.push(token);
   }
   return out;
 }
+
+/** Перед словом стоит связка или «+»: «семьсот и один» — два числа, а не 701. */
+const joined = (token: Token) => token.bridged || token.plusAt !== null;
 
 function canExtend(has: Set<WordKind>, next: WordKind): boolean {
   if (has.has("unit") || has.has("teen")) return false;
@@ -453,31 +513,29 @@ function canExtend(has: Set<WordKind>, next: WordKind): boolean {
 }
 
 /** Внутри цепочки ищем самые длинные подряд идущие группы, похожие на телефон; остальное не трогаем. */
-function phonesInChain(scan: string, chain: { plusAt: number | null; groups: NumberGroup[] }): Span[] {
-  const { groups } = chain;
+function phonesInChain(scan: string, groups: NumberGroup[]): Span[] {
   const spans: Span[] = [];
   let i = 0;
   while (i < groups.length) {
-    const found = longestPhoneFrom(scan, chain, i);
+    const found = longestPhoneFrom(scan, groups, i);
     if (found === null) {
       i += 1;
       continue;
     }
-    const start = i === 0 && chain.plusAt !== null ? chain.plusAt : groups[i].start;
-    spans.push([start, groups[found].end]);
+    spans.push([groups[i].plusAt ?? groups[i].start, groups[found].end]);
     i = found + 1;
   }
   return spans;
 }
 
-function longestPhoneFrom(scan: string, chain: { plusAt: number | null; groups: NumberGroup[] }, i: number): number | null {
-  const { groups } = chain;
+function longestPhoneFrom(scan: string, groups: NumberGroup[], i: number): number | null {
   for (let j = groups.length - 1; j >= i; j--) {
     const part = groups.slice(i, j + 1);
     const digits = part.map((g) => g.digits).join("");
     const solid = part.length === 1 && part[0].written === "digits";
-    const hasPlus = i === 0 && chain.plusAt !== null;
+    const hasPlus = part[0].plusAt !== null;
     if (!looksLikePhone(digits, hasPlus, solid)) continue;
+    if (part.slice(1).some((g) => g.bridged) && !bridgedPhone(part, digits)) continue;
     if (!phoneShaped(part, hasPlus) && UNIT_AFTER.test(scan.slice(groups[j].end))) continue;
     if (isRoundRange(part)) continue;
     return j;
@@ -496,6 +554,11 @@ function phoneShaped(part: NumberGroup[], hasPlus: boolean): boolean {
   if (part.length <= 3 && kzMobileDigits(part.map((g) => g.digits).join(""))) return true;
   const lengths = part.map((g) => g.digits.length);
   return lengths[0] === 1 || (lengths.length >= 3 && lengths.at(-1) === 2 && lengths.at(-2) === 2);
+}
+
+/** Номер, собранный через связку: только казахстанский мобильный и без круглых чисел («770000 и 1200» — цены). */
+function bridgedPhone(part: NumberGroup[], digits: string): boolean {
+  return kzMobileDigits(digits) && !part.some((g) => g.digits.length >= 4 && ROUND.test(g.digits));
 }
 
 /** «70000-800000»: два круглых числа подряд — это вилка цены, а не номер. */

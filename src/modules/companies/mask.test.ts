@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import fc from "fast-check";
 import { MASK, maskContacts, maskIdentity, maskNameWords } from "./mask";
 
 const masked = (text: string) => maskContacts(text).text;
@@ -366,5 +367,93 @@ describe("maskContacts: обходы маски, круг 3", () => {
     "Цена 1 350 000 ₸, 18–25 дней",
   ])("не трогает: %s", (text) => {
     expect(maskContacts(text)).toEqual({ text, masked: false });
+  });
+});
+
+describe("maskContacts: обходы маски, круг 4", () => {
+  const expectPhoneMasked = (text: string) => {
+    const result = maskContacts(text);
+    expect(result.masked).toBe(true);
+    expect(result.text.replaceAll(MASK, "")).not.toMatch(/\d\D{0,3}\d/);
+    expect(result.text).not.toMatch(/два|три|четыре|пять|шесть|семь|восемь/);
+  };
+
+  it.each([
+    ["цифры и числительные", "8 701 два три четыре пять шесть семь восемь"],
+    ["кириллическая З вместо 3", "8 701 2З4 56 78"],
+    ["б вместо 6", "8 701 234 5б 78"],
+    ["связка «и»", "8701234 и 5678"],
+    ["связка «потом»", "8701234 потом 5678"],
+    ["связка «+»", "8701 + 2345678"],
+    ["связка «плюс»", "8701 плюс 2345678"],
+    ["«остальные»", "первые цифры 8701, остальные 234 56 78"],
+    ["сумма-образный префикс и связка", "8 701 и 234 56 78"],
+  ])("номер по частям: %s", (_, phone) => expectPhoneMasked(`Звоните ${phone}`));
+
+  it.each([
+    ["ник перед «в инстаграм»", "ivan_mebel в инстаграм"],
+    ["ник перед «insta»", "ivan.mebel insta"],
+    ["ник перед «в тг»", "ivan_mebel в тг"],
+    ["ник перед «телеграм»", "ivan_mebel — телеграм"],
+    ["ник перед «whatsapp»", "ivanmebel в whatsapp"],
+    ["t me без точки", "t me ivanmebel"],
+    ["wa me без точки", "wa me 77012345678"],
+  ])("скрывает %s", (_, contact) => {
+    const result = maskContacts(`пишите: ${contact}, отвечу`);
+    expect(result).toEqual({ text: `пишите: ${MASK}, отвечу`, masked: true });
+  });
+
+  it.each([
+    "1 500 000 ₸",
+    "150 тыс",
+    "2400×600 мм",
+    "30 дней",
+    "Цена 1 500 000 ₸ и 150 тыс за доставку",
+    "Шкаф 2400×600 мм, срок 30 дней",
+    "Ширина 2400, высота 2700 и глубина 600",
+    "Ящики 400 и 500 и 600 мм",
+    "Размеры 780, 900 и 2400",
+    "Бюджет 500 и 700 тыс",
+    "Сделаю за 30 дней, потом ещё 10 дней",
+    "Доставка 8 000 и сборка 15 000",
+    "Стоимость 750 000 и ещё 120 000 за монтаж",
+    "Цена 770 000 и 1200 за доставку",
+    "Цена 770000 и 1200 за доставку",
+    "Работаем с 9 и до 18",
+    "Блок 5б и 6а, кв 12",
+    "Збс, обе двери",
+    "курс usd в тг",
+    "let me know",
+    "в 2024 году и 2025 году",
+  ])("не трогает: %s", (text) => {
+    expect(maskContacts(text)).toEqual({ text, masked: false });
+  });
+
+  const codes = ["700", "701", "702", "705", "707", "747", "771", "775", "777", "778"];
+  const bridges = [" и ", " потом ", ", остальные ", " + ", " ", "-"];
+
+  // Часть от 4 цифр, кончающаяся на «000», через связку не склеивается (так «770000 и 1200» — цены): такие номера
+  // разрезом через связку остаются видны — осознанный компромисс против ложных срабатываний на суммах.
+  const roundPart = (digits: string, cut: number) => [digits.slice(0, cut), digits.slice(cut)].some((p) => p.length >= 4 && p.endsWith("000"));
+
+  it("свойство: казахстанский мобильный, разрезанный связкой в любом месте, скрыт целиком", () => {
+    fc.assert(
+      fc.property(fc.constantFrom("8", "7", "+7 "), fc.constantFrom(...codes), fc.stringMatching(/^\d{7}$/), fc.integer({ min: 1, max: 9 }), fc.constantFrom(...bridges), (prefix, code, rest, cut, bridge) => {
+        const digits = `${code}${rest}`;
+        fc.pre(!roundPart(`${prefix.trim()}${digits}`.replace("+", ""), cut + prefix.trim().replace("+", "").length));
+        const phone = `${prefix}${digits.slice(0, cut)}${bridge}${digits.slice(cut)}`;
+        const result = maskContacts(`звоните ${phone} вечером`);
+        expect(result.text).toBe(`звоните ${MASK} вечером`);
+      }),
+    );
+  });
+
+  it("свойство: цены, размеры и сроки не маскируются", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 1, max: 99_999_999 }), fc.integer({ min: 10, max: 9999 }), fc.integer({ min: 10, max: 9999 }), fc.integer({ min: 1, max: 365 }), (price, w, h, days) => {
+        const text = `Цена ${price.toLocaleString("ru-RU")} ₸ и ${Math.ceil(price / 1000)} тыс, размер ${w}×${h} мм, срок ${days} дней`;
+        expect(maskContacts(text).masked).toBe(false);
+      }),
+    );
   });
 });
