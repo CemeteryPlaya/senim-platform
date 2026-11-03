@@ -1,0 +1,16 @@
+# `vercel deploy` из локальной папки: без этого файла CLI загружает и .env с локальными ключами.
+.env*
+!.env.example
+node_modules
+.next
+.next-e2e
+storage
+.harness-worktrees
+.worktrees
+.remember
+.claude
+.playwright-mcp
+test-results
+playwright-report
+coverage
+reports
