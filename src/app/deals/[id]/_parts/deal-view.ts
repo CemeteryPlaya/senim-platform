@@ -1,3 +1,4 @@
+import type { GeolocationState } from "@/app/_components/geolocation";
 import type { DealStatus } from "@/generated/prisma/enums";
 import type { PartyEstimate } from "@/modules/payments";
 import { ru } from "@/i18n/ru";
@@ -44,6 +45,25 @@ export function gpsNote(r: { distanceM: number | null; withinRadius: boolean | n
   const t = ru.deal.ready;
   if (r.distanceM === null) return { tone: "unknown", text: t.gpsUnknown };
   return r.withinRadius ? { tone: "ok", text: t.gpsOk(r.distanceM) } : { tone: "warning", text: t.gpsFar(r.distanceM, r.radiusM) };
+}
+
+type ReadyGps = { distanceM: number | null; withinRadius: boolean | null; radiusM: number };
+
+/**
+ * Мастер только что сдал работу дальше радиуса: «Что дальше» говорит об этом сразу (live), а не только
+ * плашкой в разделе «Сдача» ниже. Сдача не блокируется — расстояние попадает в акт.
+ */
+export function readyFarWarning(d: { viewer: "CLIENT" | "EXECUTOR" | "OPERATOR"; status: DealStatus; ready: ReadyGps | null }): string | null {
+  const r = d.ready;
+  if (d.viewer !== "EXECUTOR" || d.status !== "READY" || !r || r.withinRadius !== false || r.distanceM === null) return null;
+  return ru.deal.ready.gpsWarning(r.distanceM, r.radiusM);
+}
+
+/** Строка под «Сдать работу» (aria-live): ждём фото, определяем место или почему места не будет (сдача идёт и так). */
+export function readyWaitText(s: { uploading: boolean; geo: GeolocationState }): string {
+  if (s.uploading) return ru.deal.ready.waitPhotos;
+  if (s.geo.status === "locating") return ru.deal.ready.locating;
+  return s.geo.status === "failed" ? s.geo.error.message : "";
 }
 
 export type Fact = { label: string; value: string };

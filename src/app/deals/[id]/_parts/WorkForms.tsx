@@ -7,6 +7,7 @@ import { ru } from "@/i18n/ru";
 import { Button, ConfirmButton, FormError, Input, Textarea } from "@/ui";
 import { useRunAction } from "../../_parts/useRunAction";
 import { payAction, progressReportAction, submitReadyAction } from "../actions";
+import { readyWaitText } from "./deal-view";
 import { focusNextStep } from "./next-step";
 
 const t = ru.deal;
@@ -45,10 +46,11 @@ export function PayButton({ dealId, amount }: { dealId: string; amount: string }
 
 /**
  * Мастер сдаёт работу: фото результата обязательно (загрузчик files, назначение DELIVERY); при отправке —
- * геолокация браузера. Нет ответа или отказ — сдаём без координат; дальше радиуса — предупреждение после сдачи.
+ * геолокация браузера (о запросе разрешения сказано над кнопкой). Нет ответа или отказ — сдаём без координат,
+ * причина — в строке #ready-wait; дальше радиуса — предупреждение в «Что дальше» после сдачи.
  */
 export function ReadyForm({ dealId }: { dealId: string }) {
-  const { run, pending, error, fieldErrors } = useRunAction(submitReadyAction);
+  const { run, pending, error, fieldErrors, formRef } = useRunAction(submitReadyAction);
   const [photoIds, setPhotoIds] = useState<string[]>([]);
   // Пока фото загружается, его id ещё нет в photoIds: отправка дала бы «Добавьте хотя бы одно фото».
   const [uploading, setUploading] = useState(false);
@@ -63,6 +65,7 @@ export function ReadyForm({ dealId }: { dealId: string }) {
 
   return (
     <form
+      ref={formRef}
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
@@ -79,11 +82,14 @@ export function ReadyForm({ dealId }: { dealId: string }) {
         error={fieldErrors.photoIds?.[0]}
       />
       <FormError message={error} />
-      <Button type="submit" fullWidth loading={pending || busy} aria-describedby="ready-wait">
+      <p id="ready-geo" className="text-base text-ink-soft">
+        {t.ready.geoNotice}
+      </p>
+      <Button type="submit" fullWidth loading={pending || busy} aria-describedby="ready-geo ready-wait">
         {t.actions.submitReady}
       </Button>
       <p id="ready-wait" className="text-base text-ink-soft" aria-live="polite">
-        {uploading ? t.ready.waitPhotos : geo.state.status === "locating" ? t.ready.locating : ""}
+        {readyWaitText({ uploading, geo: geo.state })}
       </p>
     </form>
   );
@@ -91,7 +97,7 @@ export function ReadyForm({ dealId }: { dealId: string }) {
 
 /** «Ход работ»: необязательный фото-отчёт мастера, без денег и актов. */
 export function ProgressForm({ dealId }: { dealId: string }) {
-  const { run, pending, error, fieldErrors } = useRunAction(progressReportAction);
+  const { run, pending, error, fieldErrors, formRef } = useRunAction(progressReportAction);
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [photoIds, setPhotoIds] = useState<string[]>([]);
@@ -101,6 +107,7 @@ export function ProgressForm({ dealId }: { dealId: string }) {
 
   return (
     <form
+      ref={formRef}
       key={round}
       className="flex flex-col gap-5"
       onSubmit={(e) => {

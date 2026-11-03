@@ -64,7 +64,14 @@ export function ReadySection({ deal }: { deal: DealView }) {
         {t.ready.submittedAt} <DateText value={r.at} format="dateTime" />
       </p>
       <Photos photos={r.photos} alt={t.ready.photoAlt} />
-      {gps.tone === "warning" ? <Alert tone="warning">{gps.text}</Alert> : <p className="text-base text-ink-soft">{gps.text}</p>}
+      {/* Вне радиуса — role="status": после сдачи диктор услышит, что расстояние попадёт в акт. */}
+      {gps.tone === "warning" ? (
+        <Alert tone="warning" live="polite">
+          {gps.text}
+        </Alert>
+      ) : (
+        <p className="text-base text-ink-soft">{gps.text}</p>
+      )}
     </Section>
   );
 }
