@@ -36,7 +36,10 @@ export function meshTransport(): Transport {
   const e = env();
   if (!e.V2_ENABLED) throw new Error("Платформа v2 выключена: V2_ENABLED не равна true");
   if (!e.MESH_URL) throw new Error("Не задана переменная MESH_URL: адрес mesh для gRPC");
-  const tls = e.MESH_URL.startsWith("https:")
+  const https = e.MESH_URL.startsWith("https://");
+  // Defence in depth: вне dev открытый текст к mesh недопустим, даже если env-проверка обойдена.
+  if (e.APP_ENV !== "dev" && !https) throw new Error(`MESH_URL должен начинаться с https:// при APP_ENV=${e.APP_ENV}`);
+  const tls = https
     ? {
         cert: readFile("MESH_TLS_CERT_FILE", e.MESH_TLS_CERT_FILE),
         key: readFile("MESH_TLS_KEY_FILE", e.MESH_TLS_KEY_FILE),

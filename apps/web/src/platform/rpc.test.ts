@@ -1,5 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
 import { resetEnvCache } from "./env";
@@ -53,5 +56,26 @@ describe("meshTransport", () => {
   it("https-адрес без файлов сертификатов — ошибка с именем переменной", () => {
     setup({ MESH_URL: "https://mesh:9443" });
     expect(() => meshTransport()).toThrow(/MESH_TLS_CERT_FILE/);
+  });
+
+  it("при APP_ENV=staging http-адрес — ошибка конфигурации", () => {
+    setup({ APP_ENV: "staging", MESH_URL: "http://mesh:9443" });
+    expect(() => meshTransport()).toThrow(/https:\/\//);
+  });
+
+  it("https и три файла: транспорт собирается, файлы читаются", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "mesh-"));
+    const file = (name: string) => {
+      const full = path.join(dir, name);
+      writeFileSync(full, "x");
+      return full;
+    };
+    setup({ MESH_URL: "https://mesh:9443", MESH_TLS_CERT_FILE: file("file-a"), MESH_TLS_KEY_FILE: file("file-b"), MESH_TLS_CA_FILE: file("file-c") });
+    expect(meshTransport()).toBe(meshTransport());
+  });
+
+  it("https и несуществующий файл — ошибка чтения", () => {
+    setup({ MESH_URL: "https://mesh:9443", MESH_TLS_CERT_FILE: "/нет/c", MESH_TLS_KEY_FILE: "/нет/k", MESH_TLS_CA_FILE: "/нет/ca" });
+    expect(() => meshTransport()).toThrow();
   });
 });

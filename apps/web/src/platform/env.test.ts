@@ -217,4 +217,15 @@ describe("v2: MESH_* и V2_ENABLED", () => {
   it("APP_ENV=prod без V2_ENABLED не требует MESH_*", () => {
     expect(problems(production)).toBe("");
   });
+
+  it("APP_ENV=prod и http-адрес mesh — ошибка по MESH_URL", () => {
+    const msg = problems({ ...production, V2_ENABLED: "true", MESH_URL: "http://mesh:9443", MESH_TLS_CERT_FILE: "/c", MESH_TLS_KEY_FILE: "/k", MESH_TLS_CA_FILE: "/ca" });
+    expect(msg).toContain("MESH_URL");
+    expect(msg).toContain("https://");
+  });
+
+  it("APP_ENV=staging без файла сертификата — ошибка", () => {
+    const msg = problems({ DATABASE_URL: "postgresql://x", APP_ENV: "staging", V2_ENABLED: "true", MESH_URL: "https://mesh:9443", MESH_TLS_KEY_FILE: "/k", MESH_TLS_CA_FILE: "/ca" });
+    expect(msg).toContain("MESH_TLS_CERT_FILE");
+  });
 });

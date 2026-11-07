@@ -187,9 +187,11 @@ function pushChecks({ env, require }: Checks) {
   for (const key of ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"] as const) require(key, "задан один из ключей VAPID");
 }
 
-function meshChecks({ env, require }: Checks) {
-  if (!env.V2_ENABLED || env.APP_ENV !== "prod") return;
-  for (const key of ["MESH_URL", "MESH_TLS_CERT_FILE", "MESH_TLS_KEY_FILE", "MESH_TLS_CA_FILE"] as const) require(key, "V2_ENABLED=true при APP_ENV=prod");
+function meshChecks({ env, require, issue }: Checks) {
+  if (!env.V2_ENABLED || env.APP_ENV === "dev") return;
+  const when = `V2_ENABLED=true при APP_ENV=${env.APP_ENV}`;
+  for (const key of ["MESH_URL", "MESH_TLS_CERT_FILE", "MESH_TLS_KEY_FILE", "MESH_TLS_CA_FILE"] as const) require(key, when);
+  if (env.MESH_URL && !env.MESH_URL.startsWith("https://")) issue("MESH_URL", `должен начинаться с https://: mTLS обязателен при APP_ENV=${env.APP_ENV}`);
 }
 
 /** Провайдер по умолчанию для контура: dev — mock, staging — песочница, prod — ручной режим с банком. */
