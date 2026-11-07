@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -24,10 +25,14 @@ const metricInterval = 15 * time.Second
 // An empty endpoint leaves the default no-op providers in place. Call shutdown on exit
 // to flush buffered data.
 func InitTelemetry(ctx context.Context, service string, endpoint string) (shutdown func(context.Context) error, err error) {
+	// Trace context must propagate even when nothing is exported.
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	if endpoint == "" {
 		return func(context.Context) error { return nil }, nil
 	}
-	res, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceName(service)))
+	host, _ := os.Hostname()
+	res, err := resource.Merge(resource.Default(), resource.NewSchemaless(
+		semconv.ServiceName(service), semconv.ServiceInstanceID(host)))
 	if err != nil {
 		return nil, fmt.Errorf("server: telemetry resource: %w", err)
 	}
@@ -46,7 +51,6 @@ func InitTelemetry(ctx context.Context, service string, endpoint string) (shutdo
 	)
 	otel.SetTracerProvider(tp)
 	otel.SetMeterProvider(mp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	return func(ctx context.Context) error {
 		return errors.Join(tp.Shutdown(ctx), mp.Shutdown(ctx))
 	}, nil

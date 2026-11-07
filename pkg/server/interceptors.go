@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"runtime/debug"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -35,6 +37,11 @@ func (c *checker) Check(ctx context.Context, _ *grpchealth.CheckRequest) (*grpch
 	return &grpchealth.CheckResponse{Status: c.status(ctx)}, nil
 }
 
+// isHealthProcedure reports gRPC health RPCs, which probes call constantly.
+func isHealthProcedure(procedure string) bool {
+	return strings.HasPrefix(procedure, "/grpc.health.v1.Health/")
+}
+
 // logInterceptor logs procedure, resulting code and duration of every RPC.
 func logInterceptor(log *slog.Logger) connect.ServerInterceptor {
 	return func(next connect.ServerFunc) connect.ServerFunc {
@@ -43,6 +50,9 @@ func logInterceptor(log *slog.Logger) connect.ServerInterceptor {
 			err := next(ctx, spec, stream)
 			// "result", not "code": the logging package masks "code" as a one-time SMS code.
 			codeName, level := "ok", slog.LevelInfo
+			if isHealthProcedure(spec.Procedure) && (err == nil || connect.CodeOf(err) != connect.CodeInternal) {
+				return err
+			}
 			if err != nil {
 				code := connect.CodeOf(err)
 				codeName, level = code.String(), slog.LevelWarn
@@ -71,6 +81,9 @@ func recoverInterceptor(log *slog.Logger) connect.ServerInterceptor {
 		return func(ctx context.Context, spec connect.Spec, stream connect.ServerStream) (err error) {
 			defer func() {
 				if r := recover(); r != nil {
+					if r == http.ErrAbortHandler { //nolint:errorlint,err113 // sentinel panic value, compared by identity
+						panic(r) // net/http uses it to abort a response on purpose
+					}
 					log.ErrorContext(ctx, "panic in handler",
 						"procedure", spec.Procedure, "panic", fmt.Sprint(r), "stack", string(debug.Stack()))
 					err = connect.NewError(connect.CodeInternal, "internal error")

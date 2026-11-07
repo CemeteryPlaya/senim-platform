@@ -26,6 +26,9 @@ import (
 
 const (
 	defaultShutdownTimeout = 20 * time.Second
+	defaultDrainDelay      = 5 * time.Second
+	grpcIdleTimeout        = 5 * time.Minute
+	probeIdleTimeout       = 60 * time.Second
 	readyCheckTimeout      = 2 * time.Second
 	headerReadTimeout      = 10 * time.Second
 
@@ -42,6 +45,7 @@ type Options struct {
 	KeyFile         string        // server private key
 	CAFile          string        // CA that signs client certificates
 	ShutdownTimeout time.Duration // graceful stop limit, default 20s
+	DrainDelay      time.Duration // time NOT_SERVING is visible with listeners still open before Shutdown, default 5s
 	Logger          *slog.Logger  // default: JSON to stderr
 }
 
@@ -49,6 +53,13 @@ type Options struct {
 // register adds the service handlers; ready reports whether dependencies (database, ...)
 // are usable. Health is SERVING only while ready returns nil, and NOT_SERVING once
 // shutdown starts. Run returns nil after a clean stop.
+//
+// ready is called on every probe and health check, possibly concurrently: it must be
+// safe for concurrent use, cheap, and respect ctx cancellation.
+//
+// On stop Run first reports NOT_SERVING for DrainDelay while still accepting connections
+// (so the balancer can take the replica out), then drains in-flight RPCs. A second
+// SIGTERM/Ctrl-C skips the delay.
 func Run(ctx context.Context, opt Options, register func(s *connect.Server) error, ready func(context.Context) error) error {
 	if opt.Name == "" {
 		return errors.New("server: Options.Name is required")
@@ -59,6 +70,9 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 	if opt.Logger == nil {
 		opt.Logger = logging.New(os.Stderr, opt.Name, slog.LevelInfo)
 	}
+	if opt.DrainDelay == 0 {
+		opt.DrainDelay = defaultDrainDelay
+	}
 	if ready == nil {
 		ready = func(context.Context) error { return nil }
 	}
@@ -68,7 +82,9 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}
-	traces, err := otelconnect.NewServerInterceptor()
+	traces, err := otelconnect.NewServerInterceptor(otelconnect.WithFilter(func(_ context.Context, spec connect.Spec) bool {
+		return !isHealthProcedure(spec.Procedure)
+	}))
 	if err != nil {
 		return fmt.Errorf("server: otel interceptor: %w", err)
 	}
@@ -98,7 +114,7 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 	grpcSrv := newGRPCServer(mux, tlsCfg)
 	probeSrv := newProbeServer(health)
 
-	ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, os.Interrupt)
+	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, os.Interrupt)
 	defer stop()
 
 	serveErr := make(chan error, 2)
@@ -108,13 +124,20 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 
 	var runErr error
 	select {
-	case <-ctx.Done():
+	case <-sigCtx.Done():
 	case runErr = <-serveErr:
 	}
 
+	stop() // restore default signal handling: a second SIGTERM/Ctrl-C kills the process
 	health.stopping.Store(true)
+	if runErr == nil {
+		select { // NOT_SERVING stays visible while listeners are still open
+		case <-time.After(opt.DrainDelay):
+		case runErr = <-serveErr:
+		}
+	}
 	log.Info("server stopping", "timeout", opt.ShutdownTimeout.String())
-	shutCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), opt.ShutdownTimeout)
+	shutCtx, cancel := context.WithTimeout(context.WithoutCancel(sigCtx), opt.ShutdownTimeout)
 	defer cancel()
 	// Drain RPCs first; probes stay up (readyz = 503) until the end.
 	for _, s := range []*http.Server{grpcSrv, probeSrv} {
@@ -142,6 +165,7 @@ func newGRPCServer(h http.Handler, tlsCfg *tls.Config) *http.Server {
 		TLSConfig:         tlsCfg,
 		Protocols:         protocols,
 		ReadHeaderTimeout: headerReadTimeout,
+		IdleTimeout:       grpcIdleTimeout,
 	}
 }
 
@@ -160,5 +184,5 @@ func newProbeServer(c *checker) *http.Server {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	return &http.Server{Handler: mux, ReadHeaderTimeout: headerReadTimeout}
+	return &http.Server{Handler: mux, ReadHeaderTimeout: headerReadTimeout, IdleTimeout: probeIdleTimeout}
 }

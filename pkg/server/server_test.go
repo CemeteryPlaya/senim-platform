@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,6 +28,8 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/pkg/server"
 	"github.com/CemeteryPlaya/senim-platform/pkg/tlsx"
 )
+
+const drainDelay = 500 * time.Millisecond
 
 const panicText = "secret-panic-text-42"
 
@@ -46,6 +51,7 @@ func (e *echoImpl) Echo(_ context.Context, req *testingv1.EchoRequest) (*testing
 
 type env struct {
 	grpcAddr, probeAddr string
+	caFile              string
 	transport           *http.Transport
 	cancel              context.CancelFunc
 	done                chan error
@@ -110,6 +116,7 @@ func start(t *testing.T, ready func(context.Context) error) *env {
 	}
 
 	e := &env{
+		caFile:    caFile,
 		grpcAddr:  freeAddr(t),
 		probeAddr: freeAddr(t),
 		transport: &http.Transport{TLSClientConfig: clientTLS, ForceAttemptHTTP2: true},
@@ -138,7 +145,8 @@ func start(t *testing.T, ready func(context.Context) error) *env {
 		KeyFile:         srvKey,
 		CAFile:          caFile,
 		ShutdownTimeout: 20 * time.Second,
-		Logger:          logging.New(e.logs, "test", -4),
+		DrainDelay:      drainDelay,
+		Logger:          logging.New(e.logs, "test", slog.LevelDebug),
 	}
 	go func() {
 		e.done <- server.Run(ctx, opt, func(s *connect.Server) error {
@@ -239,12 +247,36 @@ func TestGRPCPortRejectsPlainAndNoClientCert(t *testing.T) {
 			t.Fatalf("plain HTTP on the gRPC port got %d, want rejection", resp.StatusCode)
 		}
 	}
+	// HTTP/2 without a client certificate: the TLS handshake itself must be refused.
+	pool := x509.NewCertPool()
+	pem, err := os.ReadFile(e.caFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool.AppendCertsFromPEM(pem)
 	noCert := &http.Client{Timeout: 3 * time.Second, Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS13}, //nolint:gosec // test
+		ForceAttemptHTTP2: true,
+		TLSClientConfig:   &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS13, NextProtos: []string{"h2"}},
 	}}
-	if resp, err := noCert.Get("https://" + e.grpcAddr + "/"); err == nil { //nolint:noctx // test
+	resp, err := noCert.Get("https://" + e.grpcAddr + "/") //nolint:noctx // test
+	if err == nil {
 		_ = resp.Body.Close()
 		t.Fatal("connection without client certificate must fail")
+	}
+
+	// Raw TLS 1.3: the client finishes its handshake first, so the server's alert
+	// ("certificate required") shows up on the first read.
+	conn, err := tls.Dial("tcp", e.grpcAddr, &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS13, NextProtos: []string{"h2"}})
+	if err != nil {
+		if !strings.Contains(err.Error(), "certificate") {
+			t.Fatalf("want a TLS certificate error, got: %v", err)
+		}
+		return
+	}
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	if _, err := conn.Read(make([]byte, 1)); err == nil || !strings.Contains(err.Error(), "certificate") {
+		t.Fatalf("want a TLS certificate error on read, got: %v", err)
 	}
 }
 
@@ -365,5 +397,57 @@ func TestInitTelemetryEmptyEndpointIsNoop(t *testing.T) {
 	}
 	if err := shutdown(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNotServingVisibleDuringDrain(t *testing.T) {
+	e := start(t, func(context.Context) error { return nil })
+	hc := grpchealth.NewClient(e.rpc(e.transport))
+	if res, err := hc.Check(ctx5(t), &grpchealth.CheckRequest{}); err != nil || res.Status != grpchealth.StatusServing {
+		t.Fatalf("before stop: %v %v", res, err)
+	}
+	e.cancel()
+	time.Sleep(drainDelay / 5) // inside the delay window
+	res, err := hc.Check(ctx5(t), &grpchealth.CheckRequest{})
+	if err != nil {
+		t.Fatalf("health check during drain must still be answered: %v", err)
+	}
+	if res.Status != grpchealth.StatusNotServing {
+		t.Fatalf("status during drain = %v, want NOT_SERVING", res.Status)
+	}
+	if got := e.probe(t, "/readyz"); got != http.StatusServiceUnavailable {
+		t.Fatalf("/readyz during drain = %d, want 503", got)
+	}
+}
+
+func TestReadyTransition(t *testing.T) {
+	var ok atomic.Bool
+	e := start(t, func(context.Context) error {
+		if !ok.Load() {
+			return errors.New("warming up")
+		}
+		return nil
+	})
+	hc := grpchealth.NewClient(e.rpc(e.transport))
+	if res, _ := hc.Check(ctx5(t), &grpchealth.CheckRequest{}); res == nil || res.Status != grpchealth.StatusNotServing {
+		t.Fatalf("before ready: %v", res)
+	}
+	ok.Store(true)
+	res, err := hc.Check(ctx5(t), &grpchealth.CheckRequest{})
+	if err != nil || res.Status != grpchealth.StatusServing {
+		t.Fatalf("after ready: %v %v", res, err)
+	}
+	if got := e.probe(t, "/readyz"); got != http.StatusOK {
+		t.Fatalf("/readyz = %d", got)
+	}
+}
+
+func TestHealthChecksAreNotLogged(t *testing.T) {
+	e := start(t, func(context.Context) error { return nil })
+	if _, err := grpchealth.NewClient(e.rpc(e.transport)).Check(ctx5(t), &grpchealth.CheckRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(e.logs.String(), "grpc.health.v1") {
+		t.Fatalf("health RPC must not be logged: %s", e.logs.String())
 	}
 }
