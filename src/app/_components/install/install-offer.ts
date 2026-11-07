@@ -50,7 +50,7 @@ export function showBanner(method: InstallMethod, dismissed: boolean): boolean {
 }
 
 /** Пункт в шапке остаётся всегда, пока установить можно: «Скрыть» у плашки его не касается. */
-export function showHeaderItem(method: InstallMethod): boolean {
+export function showHeaderItem(method: InstallMethod): method is Exclude<InstallMethod, "none"> {
   return method !== "none";
 }
 

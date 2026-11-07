@@ -1,5 +1,6 @@
 import { ru } from "@/i18n/ru";
 import { ButtonLink, Container } from "@/ui";
+import { InstallBanner } from "../_components/install";
 import { LOGIN_HREF } from "../_shell/nav";
 
 const t = ru.landing;
@@ -61,6 +62,7 @@ export function Landing() {
           </div>
         </div>
       </Container>
+      <InstallBanner />
     </section>
   );
 }
