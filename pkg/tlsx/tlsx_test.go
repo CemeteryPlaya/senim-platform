@@ -2,8 +2,11 @@ package tlsx_test
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,8 +53,22 @@ func (p *pki) leaf(t *testing.T, name string) (certFile, keyFile string) {
 }
 
 type serverResult struct {
-	cn  string
-	err error
+	cn     string
+	err    error // handshake (or accept) error
+	noPeer bool  // handshake succeeded but the client presented no certificate
+}
+
+func mustContain(t *testing.T, err error, subs ...string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected error containing one of %q, got nil", subs)
+	}
+	for _, s := range subs {
+		if strings.Contains(err.Error(), s) {
+			return
+		}
+	}
+	t.Fatalf("error %q contains none of %q", err, subs)
 }
 
 // serve starts a TLS listener; the first connection's handshake result is sent on the channel.
@@ -80,7 +97,7 @@ func serve(t *testing.T, cfg *tls.Config) (addr string, res <-chan serverResult)
 		_, _ = tc.Read(make([]byte, 1))
 		peers := tc.ConnectionState().PeerCertificates
 		if len(peers) == 0 {
-			ch <- serverResult{err: os.ErrInvalid}
+			ch <- serverResult{noPeer: true}
 			return
 		}
 		ch <- serverResult{cn: peers[0].Subject.CommonName}
@@ -154,12 +171,12 @@ func TestRejectsClientWithoutCert(t *testing.T) {
 	}
 	ccfg.Certificates = nil // no client certificate
 	ccfg.ServerName = "identity"
-	if err := roundTrip(addr, ccfg); err == nil {
-		t.Fatal("client without certificate was accepted")
+	mustContain(t, roundTrip(addr, ccfg), "certificate required", "bad certificate")
+	r := <-res
+	if r.noPeer {
+		t.Fatal("server completed handshake without a client certificate")
 	}
-	if r := <-res; r.err == nil {
-		t.Fatal("server accepted handshake without client certificate")
-	}
+	mustContain(t, r.err, "client didn't provide a certificate")
 }
 
 func TestRejectsForeignCA(t *testing.T) {
@@ -173,10 +190,82 @@ func TestRejectsForeignCA(t *testing.T) {
 		t.Fatalf("ClientConfig: %v", err)
 	}
 	ccfg.ServerName = "identity"
-	if err := roundTrip(addr, ccfg); err == nil {
-		t.Fatal("client with foreign CA certificate was accepted")
+	mustContain(t, roundTrip(addr, ccfg), "bad certificate", "unknown certificate authority")
+	r := <-res
+	if r.noPeer || r.cn != "" {
+		t.Fatalf("server accepted foreign client certificate: %+v", r)
 	}
-	if r := <-res; r.err == nil {
-		t.Fatal("server accepted client certificate from a foreign CA")
+	mustContain(t, r.err, "unknown authority")
+}
+
+func TestClientRejectsForeignServerCert(t *testing.T) {
+	p := newPKI(t)
+	foreign := newPKI(t)
+	// Server presents a certificate issued by a foreign CA.
+	cert, key := foreign.leaf(t, "identity")
+	scfg, err := tlsx.ServerConfig(cert, key, p.caFile)
+	if err != nil {
+		t.Fatalf("ServerConfig: %v", err)
 	}
+	addr, res := serve(t, scfg)
+	ccert, ckey := p.leaf(t, "web")
+	ccfg, err := tlsx.ClientConfig(ccert, ckey, p.caFile)
+	if err != nil {
+		t.Fatalf("ClientConfig: %v", err)
+	}
+	ccfg.ServerName = "identity"
+	mustContain(t, roundTrip(addr, ccfg), "unknown authority")
+	r := <-res
+	if r.err == nil || r.cn != "" {
+		t.Fatalf("server handshake should fail after client rejection: %+v", r)
+	}
+}
+
+func TestIssueRejectsNonCA(t *testing.T) {
+	p := newPKI(t)
+	leafCert, leafKey, err := tlsx.Issue(p.caCert, p.caKey, "web", []string{"web"}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := tlsx.Issue(leafCert, leafKey, "x", []string{"x"}, time.Hour); err == nil {
+		t.Fatal("leaf certificate accepted as CA")
+	}
+}
+
+func TestIssueRejectsExpiredCA(t *testing.T) {
+	caCert, caKey, err := tlsx.NewCA("old", -time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := tlsx.Issue(caCert, caKey, "web", []string{"web"}, time.Hour); err == nil {
+		t.Fatal("expired CA accepted")
+	}
+}
+
+func TestIssueClampsToCAExpiry(t *testing.T) {
+	p := newPKI(t) // CA valid for one hour
+	c, _, err := tlsx.Issue(p.caCert, p.caKey, "web", []string{"web"}, 100*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, err := x509.ParseCertificate(mustDecode(t, c))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca, err := x509.ParseCertificate(mustDecode(t, p.caCert))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if leaf.NotAfter.After(ca.NotAfter) {
+		t.Fatalf("leaf NotAfter %v after CA NotAfter %v", leaf.NotAfter, ca.NotAfter)
+	}
+}
+
+func mustDecode(t *testing.T, b []byte) []byte {
+	t.Helper()
+	blk, _ := pem.Decode(b)
+	if blk == nil {
+		t.Fatal("not PEM")
+	}
+	return blk.Bytes
 }

@@ -91,6 +91,12 @@ func parseCA(caCertPEM, caKeyPEM []byte) (*x509.Certificate, *ecdsa.PrivateKey, 
 	if !ok {
 		return nil, nil, errors.New("tlsx: CA key is not ECDSA")
 	}
+	if !cert.IsCA || cert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return nil, nil, errors.New("tlsx: certificate is not a CA (IsCA and CertSign required)")
+	}
+	if time.Now().After(cert.NotAfter) {
+		return nil, nil, errors.New("tlsx: CA certificate has expired")
+	}
 	return cert, key, nil
 }
 
@@ -110,11 +116,15 @@ func Issue(caCertPEM, caKeyPEM []byte, name string, dnsNames []string, validFor 
 		return nil, nil, err
 	}
 	now := time.Now()
+	notAfter := now.Add(validFor)
+	if notAfter.After(caCert.NotAfter) {
+		notAfter = caCert.NotAfter
+	}
 	tmpl := &x509.Certificate{
 		SerialNumber:          sn,
 		Subject:               pkix.Name{CommonName: name},
 		NotBefore:             now.Add(-clockSkew),
-		NotAfter:              now.Add(validFor),
+		NotAfter:              notAfter,
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},

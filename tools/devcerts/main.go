@@ -38,7 +38,7 @@ func main() {
 }
 
 func run(dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
 	caCert, caKey, err := loadOrCreateCA(dir)
@@ -66,13 +66,17 @@ func loadOrCreateCA(dir string) (cert, key []byte, err error) {
 	certPath, keyPath := filepath.Join(dir, "ca"+certExt), filepath.Join(dir, "ca"+keySuffix)
 	cert, cerr := os.ReadFile(certPath)
 	key, kerr := os.ReadFile(keyPath)
-	if cerr == nil && kerr == nil {
+	switch {
+	case cerr == nil && kerr == nil:
 		return cert, key, nil
-	}
-	for _, e := range []error{cerr, kerr} {
-		if e != nil && !errors.Is(e, fs.ErrNotExist) {
-			return nil, nil, e
-		}
+	case errors.Is(cerr, fs.ErrNotExist) && errors.Is(kerr, fs.ErrNotExist):
+		// neither exists: create below
+	case cerr != nil && !errors.Is(cerr, fs.ErrNotExist):
+		return nil, nil, cerr
+	case kerr != nil && !errors.Is(kerr, fs.ErrNotExist):
+		return nil, nil, kerr
+	default:
+		return nil, nil, fmt.Errorf("incomplete CA in %s: remove both or restore the missing file", dir)
 	}
 	cert, key, err = tlsx.NewCA("senim-dev-ca", validFor)
 	if err != nil {
