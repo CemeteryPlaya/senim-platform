@@ -1,0 +1,9 @@
+.git
+.superpowers
+tmp
+apps/web/node_modules
+apps/web/.next*
+node_modules
+deploy/compose/certs
+docs
+**/*_test.go

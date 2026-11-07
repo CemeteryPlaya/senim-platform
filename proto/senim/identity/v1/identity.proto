@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package senim.identity.v1;
+
+// IdentityService — вход, сессии и роли. Методы появятся в плане 2;
+// пока сервис пустой, чтобы имя было зарегистрировано в проверке здоровья.
+service IdentityService {}
