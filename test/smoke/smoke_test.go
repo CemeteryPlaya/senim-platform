@@ -39,7 +39,7 @@ const (
 
 // Сервисы профиля core, которые работают постоянно (одноразовые migrate-сервисы к этому времени завершились).
 var coreServices = map[string]bool{
-	"postgres": true, "nats": true, "minio": true, "identity": true, "mesh": true, "web": true, "edge": true,
+	"postgres": true, "nats": true, "identity": true, "mesh": true, "web": true, "edge": true,
 }
 
 // Go-сервисы: на них отдельный бюджет памяти.
@@ -114,18 +114,7 @@ func TestMeshRejectsWithoutClientCert(t *testing.T) {
 	base := &tls.Config{RootCAs: pool, ServerName: "mesh", NextProtos: []string{"h2"}, MinVersion: tls.VersionTLS13}
 
 	t.Run("без сертификата — отказ", func(t *testing.T) {
-		err := readAfterHandshake(base)
-		if err == nil {
-			t.Fatal("mesh принял соединение без клиентского сертификата")
-		}
-		var netErr net.Error
-		if errors.As(err, &netErr) && netErr.Timeout() {
-			t.Fatalf("ожидался отказ TLS, получен тайм-аут: %v", err)
-		}
-		if !strings.Contains(err.Error(), "certificate") && !strings.Contains(err.Error(), "handshake") {
-			t.Fatalf("ожидалась ошибка рукопожатия или алерт о сертификате, получено: %v", err)
-		}
-		t.Logf("отказ: %v", err)
+		requireTLSRejection(t, readAfterHandshake(base), "без клиентского сертификата")
 	})
 
 	withCert := func(t *testing.T, name string) *tls.Config {
@@ -147,9 +136,7 @@ func TestMeshRejectsWithoutClientCert(t *testing.T) {
 
 	// edge — тоже сертификат нашего CA, но звать сервисы через mesh ему нельзя (список SAN в mesh.yaml).
 	t.Run("с сертификатом edge — отказ", func(t *testing.T) {
-		if err := readAfterHandshake(withCert(t, "edge")); err == nil {
-			t.Fatal("mesh принял клиента edge: его SAN не в списке допущенных")
-		}
+		requireTLSRejection(t, readAfterHandshake(withCert(t, "edge")), "клиента edge (SAN не в списке допущенных)")
 	})
 }
 
@@ -267,4 +254,23 @@ func parseMem(usage string) (int64, error) {
 		}
 	}
 	return 0, fmt.Errorf("память %q: неизвестная единица", usage)
+}
+
+// requireTLSRejection: mesh отказал именно на уровне TLS (алерт о сертификате или сбой рукопожатия),
+// а не тайм-аутом или закрытым портом — иначе тест «прошёл» бы на неработающем стенде.
+func requireTLSRejection(t *testing.T, err error, who string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("mesh принял соединение %s", who)
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		t.Fatalf("%s: ожидался отказ TLS, получен тайм-аут: %v", who, err)
+	}
+	msg := err.Error()
+	tlsAlert := strings.Contains(msg, "tls:") && (strings.Contains(msg, "certificate") || strings.Contains(msg, "handshake"))
+	if !tlsAlert {
+		t.Fatalf("%s: ожидался алерт TLS о сертификате или сбой рукопожатия, получено: %v", who, err)
+	}
+	t.Logf("%s — отказ: %v", who, err)
 }

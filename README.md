@@ -26,6 +26,14 @@ npm run v2:smoke           # сквозная проверка (тег smoke) н
 
 Часть команд заработает по мере выполнения плана 1 (`docs/superpowers/plans/`).
 
+## Локальный стенд (`deploy/compose`)
+
+- Путь запроса: браузер → edge `http://localhost:8180` → web → mesh (gRPC, mTLS) → identity ×2. Проверка — `npm run v2:certs && npm run v2:up && npm run v2:smoke`.
+- Профили: `core` — postgres, nats, identity, mesh, edge, web; `full` — плюс Grafana (otel-lgtm, `http://localhost:3300`, Explore → Tempo) и clamav; `storage` — MinIO (`9100`/`9101`), запускается отдельно и не входит в core: образ `minio/minio` больше не скачивается, S3-совместимый образ выбирает план 4 (files).
+- Все порты хоста — только на 127.0.0.1. OTLP `4317` наружу не публикуется: телеметрию шлют только контейнеры внутри сети compose.
+- Трасса в Grafana сейчас — edge → mesh (upstream `identity`): у web пока нет OTel SDK (он только передаёт `traceparent`), а вызовы gRPC-health identity не трассирует.
+- Docker Desktop на Windows иногда ломает bind mounts (`mkdir /run/desktop/mnt/host/d: file exists`) — лечится перезапуском Docker Desktop.
+
 ## Обновления web из демо
 
 `git subtree pull --prefix=apps/web D:/mvp-scale-arna main`

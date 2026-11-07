@@ -53,7 +53,10 @@ func run(dir string) error {
 		if err := write(filepath.Join(dir, name+certExt), cert, 0o644); err != nil {
 			return err
 		}
-		if err := write(filepath.Join(dir, name+keySuffix), key, 0o600); err != nil {
+		// 0644, а не 0600: ключ монтируется в контейнер, где процесс работает под своим uid
+		// (65532 distroless, 101 Envoy, 1000 node). Это одноразовые dev-ключи в каталоге из
+		// .gitignore; ключ CA остаётся 0600 и в контейнеры не монтируется.
+		if err := write(filepath.Join(dir, name+keySuffix), key, 0o644); err != nil {
 			return err
 		}
 	}

@@ -8,6 +8,14 @@ admin:
   address:
     socket_address: { address: 127.0.0.1, port_value: 9901 }
 
+# Потолок одновременных входящих соединений (без него Envoy предупреждает при старте).
+overload_manager:
+  resource_monitors:
+    - name: envoy.resource_monitors.global_downstream_max_connections
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.resource_monitors.downstream_connections.v3.DownstreamConnectionsConfig
+        max_active_downstream_connections: 10000
+
 static_resources:
   listeners:
     - name: mesh
@@ -67,31 +75,43 @@ static_resources:
                     - name: services
                       domains: ["*"]
                       routes:
+                        # Методы пакета: повтор только там, где он безопасен для любого метода
+                        # (unavailable — по соглашению gRPC вызов можно повторить; connect-failure и refused-stream — запрос не
+                        # отправлен или отвергнут до обработки). reset здесь нет: обрыв после отправки
+                        # повторил бы неидемпотентный метод. Правило: неидемпотентные методы не ретраятся.
                         - match:
                             prefix: /senim.identity.v1.
                             grpc: {}
-                          route: &identity_route
+                          route:
                             cluster: identity
                             timeout: 10s
                             retry_policy:
-                              # unavailable — ответ gRPC; connect-failure, reset и refused-stream — реплика
-                              # закрывает соединения в конце окна остановки (NOT_SERVING → GOAWAY).
-                              # Сейчас у identity только health. Спека: Envoy ретраит лишь методы,
-                              # помеченные идемпотентными, — остальным понадобится маршрут без reset.
-                              retry_on: unavailable,connect-failure,reset,refused-stream
+                              retry_on: unavailable,connect-failure,refused-stream
                               num_retries: 2
                               retry_host_predicate:
                                 - name: envoy.retry_host_predicates.previous_hosts
                                   typed_config:
                                     "@type": type.googleapis.com/envoy.extensions.retry.host.previous_hosts.v3.PreviousHostsPredicate
                               host_selection_retry_max_attempts: 3
+                        # gRPC-health только читает — повтор безопасен и при reset: реплика в конце окна
+                        # остановки (NOT_SERVING → GOAWAY) закрывает соединения.
                         - match:
                             prefix: /grpc.health.v1.Health/
                             grpc: {}
                             headers:
                               - name: x-senim-target
                                 string_match: { exact: identity }
-                          route: *identity_route
+                          route:
+                            cluster: identity
+                            timeout: 10s
+                            retry_policy:
+                              retry_on: unavailable,connect-failure,refused-stream,reset
+                              num_retries: 2
+                              retry_host_predicate:
+                                - name: envoy.retry_host_predicates.previous_hosts
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.retry.host.previous_hosts.v3.PreviousHostsPredicate
+                              host_selection_retry_max_attempts: 3
                 http_filters:
                   - name: envoy.filters.http.router
                     typed_config:
