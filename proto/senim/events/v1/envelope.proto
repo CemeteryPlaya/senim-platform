@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package senim.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Envelope — обёртка каждого события между сервисами (outbox → NATS JetStream → inbox).
+// Поток событий сервиса — SENIM_<SOURCE>, субъекты — senim.<source>.<event>.
+message Envelope {
+  // UUIDv7. Он же Nats-Msg-Id (дедупликация в потоке) и ключ inbox у получателя.
+  string event_id = 1;
+  // Полное имя protobuf-сообщения в payload, например "senim.identity.v1.UserRegistered".
+  string type = 2;
+  // Сервис-источник: второй токен субъекта (identity, deal, ...).
+  string source = 3;
+  // Время записи события в outbox.
+  google.protobuf.Timestamp occurred_at = 4;
+  // W3C traceparent исходного запроса; пусто, если трассировки не было.
+  string trace_parent = 5;
+  // Сериализованное protobuf-сообщение типа type.
+  bytes payload = 6;
+}

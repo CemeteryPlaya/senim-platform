@@ -3,9 +3,6 @@ package dbx_test
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -14,16 +11,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	tcpg "github.com/testcontainers/testcontainers-go/modules/postgres"
 
+	"github.com/CemeteryPlaya/senim-platform/internal/testdb"
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
 )
 
-const (
-	sqlInsufficientPrivilege = "42501"
-	superPassword            = "test-super"
-)
+const sqlInsufficientPrivilege = "42501"
 
 var testMigrations = fstest.MapFS{
 	"00001_init.sql": {Data: []byte(`-- +goose Up
@@ -49,52 +42,17 @@ DROP TABLE items;
 
 const platformSchema = `CREATE TABLE IF NOT EXISTS platform_outbox (id bigserial PRIMARY KEY, payload text NOT NULL);`
 
-type env struct {
-	host string
-	port string
-}
+// env — Postgres с настоящими ролями (internal/testdb).
+type env struct{ *testdb.Env }
 
-// startPostgres поднимает postgres:17 и применяет настоящий сгенерированный 00-roles.sql.
 func startPostgres(t *testing.T) env {
 	t.Helper()
-	ctx := context.Background()
-	rolesSQL, err := filepath.Abs("../../deploy/compose/postgres/init/00-roles.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(rolesSQL); err != nil {
-		t.Fatalf("нет сгенерированного 00-roles.sql: %v", err)
-	}
-	// Файл кладётся в initdb.d: контейнер выполняет его так же, как docker compose.
-	ctr, err := tcpg.Run(ctx, "postgres:17",
-		tcpg.WithPassword(superPassword),
-		testcontainers.WithFiles(testcontainers.ContainerFile{
-			HostFilePath:      rolesSQL,
-			ContainerFilePath: "/docker-entrypoint-initdb.d/00-roles.sql",
-			FileMode:          0o644,
-		}),
-		tcpg.BasicWaitStrategies(),
-	)
-	if err != nil {
-		t.Fatalf("старт postgres: %v", err)
-	}
-	t.Cleanup(func() { _ = testcontainers.TerminateContainer(ctr) })
-	host, err := ctr.Host(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	port, err := ctr.MappedPort(ctx, "5432/tcp")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return env{host: host, port: port.Port()}
+	return env{testdb.StartT(t)}
 }
 
-func (e env) dsn(user, pass, db string) string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", user, pass, e.host, e.port, db)
-}
+func (e env) dsn(user, pass, db string) string { return e.DSN(user, pass, db) }
 
-func (e env) ownerDSN() string { return e.dsn("identity_owner", "dev-identity-owner", "identity") }
+func (e env) ownerDSN() string { return e.OwnerDSN("identity") }
 
 func (e env) migrated(t *testing.T) *pgxpool.Pool {
 	t.Helper()
