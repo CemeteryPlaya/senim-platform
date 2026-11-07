@@ -29,3 +29,11 @@ npm run v2:smoke           # сквозная проверка (тег smoke) н
 ## Обновления web из демо
 
 `git subtree pull --prefix=apps/web D:/mvp-scale-arna main`
+
+## Контракты и кодогенерация
+
+- Схема лежит в `proto/senim/...`; сторонние протоколы — в `proto/thirdparty/` (отдельный модуль buf, не линтуется). Там лежит `grpc.health.v1`, скопированный из grpc/grpc-proto (Apache-2.0).
+- `npm run v2:gen` запускает два шаблона: `buf.gen.yaml` (свои схемы: Go в `gen/go`, TypeScript в `apps/web/src/gen`) и `buf.gen.thirdparty.yaml` (сторонние: только TypeScript; в Go health берётся из `connectrpc.com/grpchealth`, поэтому Go для него не генерируется — иначе конфликт в реестре protobuf).
+- Сгенерированный код коммитится; руками не править.
+- `protoc-gen-es` вызывается как `node apps/web/node_modules/@bufbuild/protoc-gen-es/bin/protoc-gen-es`, а не через `node_modules/.bin/...`: на Windows buf запускает плагин через `cmd`, и путь со слэшами ему не подходит (`.cmd`-обёртка тоже). Перед генерацией нужен `npm ci` в `apps/web`.
+- Перед `npm --prefix apps/web run typecheck` выполняйте `npx next typegen` в `apps/web`.

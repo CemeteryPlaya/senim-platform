@@ -1,0 +1,22 @@
+version: v2
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/CemeteryPlaya/senim-platform/gen/go
+inputs:
+  - directory: .
+    paths:
+      - proto/senim
+plugins:
+  - local: ["go", "tool", "protoc-gen-go"]
+    out: gen/go
+    opt: paths=source_relative
+  - local: ["go", "tool", "protoc-gen-connect-go"]
+    out: gen/go
+    opt: paths=source_relative
+  - local: ["node", "apps/web/node_modules/@bufbuild/protoc-gen-es/bin/protoc-gen-es"]
+    out: apps/web/src/gen
+    opt:
+      - target=ts
+    include_imports: true

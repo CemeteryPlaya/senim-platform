@@ -1,0 +1,19 @@
+version: v2
+modules:
+  # Своя схема. Сторонние протоколы лежат в отдельном модуле ниже.
+  - path: proto
+    excludes:
+      - proto/thirdparty
+  # Скопировано из grpc/grpc-proto как есть; не линтуется и не проверяется на совместимость.
+  - path: proto/thirdparty
+    lint:
+      use:
+        - MINIMAL
+      except:
+        - PACKAGE_DIRECTORY_MATCH
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

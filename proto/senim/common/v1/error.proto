@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package senim.common.v1;
+
+// ErrorDetail — единственный способ передать причину ошибки клиенту.
+// Сервисы возвращают коды, а не тексты; тексты живут в i18n веба.
+message ErrorDetail {
+  // Машинный код причины в snake_case, например "deal_not_found".
+  string code = 1;
+  // Параметры для подстановки в текст на стороне клиента.
+  map<string, string> params = 2;
+}
