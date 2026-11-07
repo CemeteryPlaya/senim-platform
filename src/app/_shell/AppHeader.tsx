@@ -25,7 +25,7 @@ export function AppHeader({ user, demoMode }: Props) {
 
   return (
     <>
-      <header className="border-b border-line bg-surface">
+      <header className="relative border-b border-line bg-surface">
         <div className="mx-auto flex min-h-16 max-w-page items-center justify-between gap-x-2 px-4 py-2 sm:gap-x-4 sm:px-6">
           <Link href="/" aria-label={ru.common.shell.home} className="flex shrink-0 items-center gap-2 rounded-control no-underline">
             <ShieldCheck aria-hidden className="size-7 shrink-0 text-primary" />

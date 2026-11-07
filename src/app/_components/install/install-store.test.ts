@@ -5,10 +5,13 @@ const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebK
 const IPHONE_INSTAGRAM = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 337.0.3.23.54";
 
 /** Подменяет window и navigator, затем заново подключает модуль: подписка на события идёт при импорте. */
-async function loadStore(env: { userAgent: string; standalone?: boolean; navigatorStandalone?: boolean }) {
+async function loadStore(env: { userAgent: string; standalone?: boolean; navigatorStandalone?: boolean; stored?: string }) {
   vi.resetModules();
   const handlers = new Map<string, (event: Event) => void>();
+  const data = new Map<string, string>(env.stored === undefined ? [] : [["senim.install.dismissed", env.stored]]);
+  const localStorage = { getItem: (name: string) => data.get(name) ?? null, setItem: (name: string, value: string) => void data.set(name, value) };
   vi.stubGlobal("window", {
+    localStorage,
     addEventListener: (type: string, fn: (event: Event) => void) => handlers.set(type, fn),
     matchMedia: () => ({ matches: env.standalone ?? false, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
   });
@@ -20,7 +23,7 @@ async function loadStore(env: { userAgent: string; standalone?: boolean; navigat
     handlers.get("beforeinstallprompt")!(event as unknown as Event);
     return event;
   };
-  return { store, handlers, prompt, beforeInstallPrompt };
+  return { store, handlers, prompt, beforeInstallPrompt, data };
 }
 
 describe("install-store", () => {
@@ -55,5 +58,21 @@ describe("install-store", () => {
   it("iPhone Safari — «ios-hint»; встроенный браузер Instagram — «open-in-browser»", async () => {
     expect((await loadStore({ userAgent: IPHONE })).store.currentInstallMethod()).toBe("ios-hint");
     expect((await loadStore({ userAgent: IPHONE_INSTAGRAM })).store.currentInstallMethod()).toBe("open-in-browser");
+  });
+
+  it("«Скрыть»: по умолчанию не скрыто, dismissBanner запоминает; новая загрузка читает сохранённое", async () => {
+    const { store, data } = await loadStore({ userAgent: ANDROID });
+    expect(store.isBannerDismissed()).toBe(false);
+    store.dismissBanner();
+    expect(store.isBannerDismissed()).toBe(true);
+    expect(data.get("senim.install.dismissed")).toBe("1");
+    expect((await loadStore({ userAgent: ANDROID, stored: "1" })).store.isBannerDismissed()).toBe(true);
+  });
+
+  it("«Скрыть» не трогает способ установки: пункт в шапке остаётся", async () => {
+    const { store, beforeInstallPrompt } = await loadStore({ userAgent: ANDROID });
+    beforeInstallPrompt();
+    store.dismissBanner();
+    expect(store.currentInstallMethod()).toBe("prompt");
   });
 });

@@ -73,7 +73,7 @@ export async function promptInstall(): Promise<void> {
  * на экране) читают одно значение. До гидратации считаем плашку закрытой — как и method = "none".
  */
 let bannerDismissed: boolean | null = null;
-const dismissedNow = () => (bannerDismissed ??= readDismissed(() => window.localStorage));
+export const isBannerDismissed = () => (bannerDismissed ??= readDismissed(() => window.localStorage));
 
 export function useBannerDismissed(): boolean {
   return useSyncExternalStore(
@@ -81,7 +81,7 @@ export function useBannerDismissed(): boolean {
       listeners.add(listener);
       return () => void listeners.delete(listener);
     },
-    dismissedNow,
+    isBannerDismissed,
     () => true,
   );
 }
