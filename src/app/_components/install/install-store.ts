@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { canAddToHomeScreenOnIos, installMethod, isStandalone, type InstallMethod } from "./install-offer";
+import { canAddToHomeScreenOnIos, installMethod, isInAppBrowser, isStandalone, type InstallMethod } from "./install-offer";
 
 /**
  * Состояние установки в браузере — одно на страницу: событие beforeinstallprompt приходит один раз,
@@ -41,12 +41,13 @@ function subscribe(listener: () => void) {
   };
 }
 
-function snapshot(): InstallMethod {
+export function currentInstallMethod(): InstallMethod {
   const nav = navigator as Navigator & { standalone?: boolean };
   return installMethod({
     standalone: isStandalone({ displayModeStandalone: window.matchMedia(STANDALONE_QUERY).matches, navigatorStandalone: nav.standalone }),
     promptReady: deferred !== null,
     ios: canAddToHomeScreenOnIos(nav.userAgent, nav.maxTouchPoints),
+    inApp: isInAppBrowser(nav.userAgent, nav.maxTouchPoints),
   });
 }
 
@@ -54,7 +55,7 @@ function snapshot(): InstallMethod {
 const serverSnapshot = (): InstallMethod => "none";
 
 export function useInstallMethod(): InstallMethod {
-  return useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  return useSyncExternalStore(subscribe, currentInstallMethod, serverSnapshot);
 }
 
 /** Показывает системный диалог установки. Событие одноразовое: после ответа кнопка прячется до следующего. */
