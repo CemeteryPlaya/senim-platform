@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package senim.testing.v1;
+
+// EchoService нужен только тестам pkg/server; в рабочих сервисах не используется.
+service EchoService {
+  rpc Echo(EchoRequest) returns (EchoResponse);
+}
+
+message EchoRequest {
+  string message = 1;
+}
+
+message EchoResponse {
+  string message = 1;
+}
