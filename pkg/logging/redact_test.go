@@ -126,3 +126,115 @@ func TestRedactFunc(t *testing.T) {
 		t.Fatalf("13 digits must stay: %q", got)
 	}
 }
+
+type reqStruct struct {
+	Phone string
+	Note  string
+	Deal  string `json:"deal_id"`
+}
+
+func TestAnyValuesWalked(t *testing.T) {
+	var buf bytes.Buffer
+	l := newTest(&buf)
+	l.Info("x",
+		"p", map[string]any{"phone": "+77011234567", "n": []string{"900101300123"}, "k": "fine"},
+		"s", reqStruct{Phone: "+77011234567", Note: "call 900101300123", Deal: "d1"},
+		"ptr", &reqStruct{Phone: "+77011234567"},
+		"list", []any{map[string]any{"email": "a@b.kz"}},
+	)
+	out := buf.String()
+	for _, leak := range []string{"+77011234567", "900101300123", "a@b.kz"} {
+		if strings.Contains(out, leak) {
+			t.Fatalf("leaked %q in %s", leak, out)
+		}
+	}
+	if !strings.Contains(out, `"k":"fine"`) || !strings.Contains(out, `"deal_id":"d1"`) {
+		t.Fatalf("ordinary data lost: %s", out)
+	}
+}
+
+func TestAnyDeepStructureFailsClosed(t *testing.T) {
+	var buf bytes.Buffer
+	deep := map[string]any{"a": map[string]any{"b": map[string]any{"c": map[string]any{"d": map[string]any{"e": map[string]any{"f": "+77011234567"}}}}}}
+	newTest(&buf).Info("x", "deep", deep)
+	if strings.Contains(buf.String(), "+77011234567") {
+		t.Fatalf("leaked: %s", buf.String())
+	}
+}
+
+func TestTraceIDWithTwelveDigitRunSurvives(t *testing.T) {
+	var buf bytes.Buffer
+	tid, _ := trace.TraceIDFromHex("ab123456789012cdab123456789012cd")
+	sid, _ := trace.SpanIDFromHex("ab123456789012cd")
+	sc := trace.NewSpanContext(trace.SpanContextConfig{TraceID: tid, SpanID: sid, TraceFlags: trace.FlagsSampled})
+	newTest(&buf).InfoContext(trace.ContextWithSpanContext(context.Background(), sc), "x")
+	out := buf.String()
+	if !strings.Contains(out, `"trace_id":"ab123456789012cdab123456789012cd"`) || !strings.Contains(out, `"span_id":"ab123456789012cd"`) {
+		t.Fatalf("trace ids corrupted: %s", out)
+	}
+}
+
+const uuidWithDigitRun = "0b9c7f2e-1d4a-4e5f-9a8b-123456789012"
+
+func TestUUIDUnderIDNameSurvives(t *testing.T) {
+	var buf bytes.Buffer
+	newTest(&buf).Info("x", "deal_id", uuidWithDigitRun, "dealId", uuidWithDigitRun)
+	if strings.Count(buf.String(), uuidWithDigitRun) != 2 {
+		t.Fatalf("id corrupted: %s", buf.String())
+	}
+}
+
+func TestUUIDInFreeTextMessageIsStillMasked(t *testing.T) {
+	var buf bytes.Buffer
+	newTest(&buf).Info("deal " + uuidWithDigitRun + " opened")
+	if strings.Contains(buf.String(), "123456789012") {
+		t.Fatalf("free text must be masked: %s", buf.String())
+	}
+}
+
+func TestIDSuffixedSensitiveNameStillMasked(t *testing.T) {
+	var buf bytes.Buffer
+	newTest(&buf).Info("x", "iin_id", "abc")
+	if strings.Contains(buf.String(), "abc") {
+		t.Fatalf("leaked: %s", buf.String())
+	}
+}
+
+func TestCallerStringNamedSourceIsPatternMasked(t *testing.T) {
+	var buf bytes.Buffer
+	newTest(&buf).Info("x", "source", "from +77011234567")
+	if strings.Contains(buf.String(), "+77011234567") {
+		t.Fatalf("leaked: %s", buf.String())
+	}
+	if !strings.Contains(buf.String(), `"level":"INFO"`) {
+		t.Fatalf("builtin level lost: %s", buf.String())
+	}
+}
+
+func TestNameVariantsForIPAndGPS(t *testing.T) {
+	var buf bytes.Buffer
+	newTest(&buf).Info("x", "clientip", "10.1.1.1", "remote_addr", "10.2.2.2", "IPAddr", "10.3.3.3", "latlng", "43.1,76.9", "zip", "050000")
+	out := buf.String()
+	for _, leak := range []string{"10.1.1.1", "10.2.2.2", "10.3.3.3", "43.1,76.9"} {
+		if strings.Contains(out, leak) {
+			t.Fatalf("leaked %q: %s", leak, out)
+		}
+	}
+	if !strings.Contains(out, `"zip":"050000"`) {
+		t.Fatalf("zip must stay: %s", out)
+	}
+}
+
+func TestMessageBoundaries(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"iin900101300123x", "iin[redacted]x"},
+		{"n 9001013001234 n", "n 9001013001234 n"},
+		{"tel 8 701 123 45 67 end", "tel [redacted] end"},
+		{"tel +7 (701) 123-45-67 end", "tel [redacted] end"},
+	}
+	for _, c := range cases {
+		if got := Redact(c.in); got != c.want {
+			t.Errorf("Redact(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
