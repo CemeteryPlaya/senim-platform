@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { canAddToHomeScreenOnIos, installMethod, isInAppBrowser, isStandalone, type InstallMethod } from "./install-offer";
+import { canAddToHomeScreenOnIos, installMethod, isInAppBrowser, isStandalone, readDismissed, saveDismissed, type InstallMethod } from "./install-offer";
 
 /**
  * Состояние установки в браузере — одно на страницу: событие beforeinstallprompt приходит один раз,
@@ -66,4 +66,28 @@ export async function promptInstall(): Promise<void> {
   emit();
   await event.prompt();
   await event.userChoice;
+}
+
+/**
+ * «Скрыть» у плашки на главной — одно на страницу: плашка и пункт в шапке (он прячется на главной, пока плашка
+ * на экране) читают одно значение. До гидратации считаем плашку закрытой — как и method = "none".
+ */
+let bannerDismissed: boolean | null = null;
+const dismissedNow = () => (bannerDismissed ??= readDismissed(() => window.localStorage));
+
+export function useBannerDismissed(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    dismissedNow,
+    () => true,
+  );
+}
+
+export function dismissBanner(): void {
+  saveDismissed(() => window.localStorage);
+  bannerDismissed = true;
+  emit();
 }
