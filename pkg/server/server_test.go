@@ -451,3 +451,22 @@ func TestHealthChecksAreNotLogged(t *testing.T) {
 		t.Fatalf("health RPC must not be logged: %s", e.logs.String())
 	}
 }
+
+func TestCheckReady(t *testing.T) {
+	ready := start(t, func(context.Context) error { return nil })
+	if err := server.CheckReady(ctx5(t), ready.probeAddr); err != nil {
+		t.Fatalf("ready server: %v", err)
+	}
+	_, port, _ := net.SplitHostPort(ready.probeAddr)
+	if err := server.CheckReady(ctx5(t), ":"+port); err != nil {
+		t.Fatalf("listen-style address %q: %v", ":"+port, err)
+	}
+
+	notReady := start(t, func(context.Context) error { return errors.New("db is down") })
+	if err := server.CheckReady(ctx5(t), notReady.probeAddr); err == nil {
+		t.Fatal("not ready server: want error")
+	}
+	if err := server.CheckReady(ctx5(t), freeAddr(t)); err == nil {
+		t.Fatal("closed port: want error")
+	}
+}

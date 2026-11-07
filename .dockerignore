@@ -7,3 +7,16 @@ node_modules
 deploy/compose/certs
 docs
 **/*_test.go
+# web: локальные файлы переменных окружения, кэши и отчёты инструментов; клиент Prisma генерируется в образе
+**/.[e]nv*
+apps/web/src/generated
+apps/web/storage
+apps/web/test-results
+apps/web/playwright-report
+apps/web/blob-report
+apps/web/coverage
+apps/web/reports
+apps/web/.claude
+apps/web/.stryker-tmp
+apps/web/.vercel
+apps/web/*.tsbuildinfo

@@ -178,3 +178,43 @@ func (s *syncBuf) String() string {
 	defer s.mu.Unlock()
 	return s.b.String()
 }
+
+func TestHealthcheckCommand(t *testing.T) {
+	status := http.StatusOK
+	var mu sync.Mutex
+	probe := &http.Server{ReadHeaderTimeout: time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		if r.URL.Path != "/readyz" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(status)
+	})}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { _ = probe.Serve(ln) }()
+	t.Cleanup(func() { _ = probe.Close() })
+
+	src := func(k string) (string, bool) {
+		switch k {
+		case "APP_ENV":
+			return "dev", true
+		case "IDENTITY_PROBE_ADDR":
+			return ln.Addr().String(), true
+		}
+		return "", false
+	}
+	var logs bytes.Buffer
+	if code := internal.Main(context.Background(), []string{"healthcheck"}, src, &logs); code != 0 {
+		t.Fatalf("готовый сервис: код %d\n%s", code, logs.String())
+	}
+	mu.Lock()
+	status = http.StatusServiceUnavailable
+	mu.Unlock()
+	if code := internal.Main(context.Background(), []string{"healthcheck"}, src, &logs); code == 0 {
+		t.Fatal("неготовый сервис: код 0")
+	}
+}

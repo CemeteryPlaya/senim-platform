@@ -34,7 +34,7 @@ func run(services, varsPath, outPath string) error {
 	if err != nil {
 		return fmt.Errorf("файл переменных: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	passwords, err := parseVars(f)
 	if err != nil {
 		return err

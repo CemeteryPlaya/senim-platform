@@ -1,0 +1,104 @@
+# edge: вход из браузера → web:3000. Начинает трассу (traceparent), web передаёт её в mesh.
+# Заголовки безопасности — базовые: если web уже поставил свой (более строгий) заголовок,
+# edge его не перетирает (ADD_IF_ABSENT). HSTS — только в prod: здесь edge его снимает.
+# Лимит запросов — token bucket 50 rps на соединение (dev-значение).
+admin:
+  address:
+    socket_address: { address: 127.0.0.1, port_value: 9901 }
+
+static_resources:
+  listeners:
+    - name: edge
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 8180 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: edge
+                codec_type: AUTO
+                # Адрес клиента — из соединения; web доверяет X-Forwarded-For только от edge (TRUST_PROXY).
+                use_remote_address: true
+                normalize_path: true
+                merge_slashes: true
+                server_header_transformation: PASS_THROUGH
+                common_http_protocol_options:
+                  headers_with_underscores_action: REJECT_REQUEST
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                tracing:
+                  random_sampling: { value: 100 }
+                  provider:
+                    name: envoy.tracers.opentelemetry
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.config.trace.v3.OpenTelemetryConfig
+                      service_name: edge
+                      grpc_service:
+                        envoy_grpc: { cluster_name: otel }
+                        timeout: 1s
+                route_config:
+                  name: edge
+                  response_headers_to_add:
+                    - header: { key: X-Content-Type-Options, value: nosniff }
+                      append_action: ADD_IF_ABSENT
+                    - header: { key: Referrer-Policy, value: strict-origin-when-cross-origin }
+                      append_action: ADD_IF_ABSENT
+                  # HSTS решает edge: web в образе (NODE_ENV=production) ставит его сам, а стенд — http.
+                  response_headers_to_remove: [strict-transport-security]
+                  virtual_hosts:
+                    - name: web
+                      domains: ["*"]
+                      routes:
+                        - match: { prefix: / }
+                          route:
+                            cluster: web
+                            timeout: 60s
+                http_filters:
+                  - name: envoy.filters.http.local_ratelimit
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                      stat_prefix: edge_rate_limit
+                      token_bucket:
+                        max_tokens: 50
+                        tokens_per_fill: 50
+                        fill_interval: 1s
+                      local_rate_limit_per_downstream_connection: true
+                      filter_enabled:
+                        default_value: { numerator: 100, denominator: HUNDRED }
+                      filter_enforced:
+                        default_value: { numerator: 100, denominator: HUNDRED }
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                      suppress_envoy_headers: true
+
+  clusters:
+    - name: web
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      connect_timeout: 2s
+      load_assignment:
+        cluster_name: web
+        endpoints:
+          - lb_endpoints:
+              - endpoint: { address: { socket_address: { address: web, port_value: 3000 } } }
+
+    # Приёмник трасс (профиль full, otel-lgtm). В профиле core имени нет в DNS — спаны отбрасываются.
+    - name: otel
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 1s
+      load_assignment:
+        cluster_name: otel
+        endpoints:
+          - lb_endpoints:
+              - endpoint: { address: { socket_address: { address: otel-lgtm, port_value: 4317 } } }
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}

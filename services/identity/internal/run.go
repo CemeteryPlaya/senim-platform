@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
 	"connectrpc.com/connect/v2"
 	"github.com/nats-io/nats.go"
@@ -20,7 +21,10 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/services/identity"
 )
 
-const usage = "использование: identity serve | identity migrate"
+const usage = "использование: identity serve | identity migrate | identity healthcheck"
+
+// healthcheckTimeout — сколько ждать ответа пробы; docker compose сам ограничивает проверку сверху.
+const healthcheckTimeout = 3 * time.Second
 
 // Main выполняет команду и возвращает код выхода процесса. Ошибки пишутся в stderr
 // через логгер; значения секретов в них не попадают.
@@ -36,6 +40,8 @@ func Main(ctx context.Context, args []string, src config.Source, stderr io.Write
 		err = Serve(ctx, src, log)
 	case "migrate":
 		err = Migrate(ctx, src, log)
+	case "healthcheck":
+		err = Healthcheck(ctx, src)
 	default:
 		log.Error(usage, "command", args[0])
 		return 2
@@ -62,6 +68,18 @@ func Migrate(ctx context.Context, src config.Source, log *slog.Logger) error {
 	}
 	log.Info("миграции применены")
 	return nil
+}
+
+// Healthcheck спрашивает /readyz у работающего в том же контейнере serve. Это healthcheck
+// docker compose: в образе distroless нет оболочки и curl, проверку выполняет сам бинарник.
+func Healthcheck(ctx context.Context, src config.Source) error {
+	cfg, err := LoadHealthcheck(src)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, healthcheckTimeout)
+	defer cancel()
+	return server.CheckReady(ctx, cfg.ProbeAddr)
 }
 
 // Serve запускает gRPC (mTLS), пробы и релей outbox; возвращается после остановки.

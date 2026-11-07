@@ -55,6 +55,21 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 	return c, nil
 }
 
+// HealthcheckConfig — настройки подкоманды healthcheck: только адрес проб serve.
+type HealthcheckConfig struct {
+	ProbeAddr string
+}
+
+// LoadHealthcheck читает переменные healthcheck.
+func LoadHealthcheck(src config.Source) (HealthcheckConfig, error) {
+	l := config.NewLoader(src)
+	c := HealthcheckConfig{ProbeAddr: l.String("IDENTITY_PROBE_ADDR", ":8081")}
+	if err := l.Err(); err != nil {
+		return HealthcheckConfig{}, fmt.Errorf("конфигурация: %w", err)
+	}
+	return c, nil
+}
+
 // LoadMigrate читает переменные migrate.
 func LoadMigrate(src config.Source) (MigrateConfig, error) {
 	l := config.NewLoader(src)

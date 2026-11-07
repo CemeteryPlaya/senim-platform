@@ -37,6 +37,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Образ для стенда v2 (apps/web/Dockerfile): .next/standalone — server.js и только нужные node_modules.
+  output: "standalone",
   // Своя папка сборки для e2e (NEXT_DIST_DIR=.next-e2e в playwright.config.ts): блокировка `next dev`
   // берётся на папку сборки, и без этого e2e-сервер не стартует рядом с `npm run dev`.
   distDir: process.env.NEXT_DIST_DIR || ".next",

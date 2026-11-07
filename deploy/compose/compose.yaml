@@ -1,0 +1,256 @@
+# Локальный стенд v2. Запуск только через npm-скрипты (они передают --env-file dev.vars):
+#   npm run v2:certs && npm run v2:up      профиль core
+#   npm run v2:up:full                     core + otel-lgtm (Grafana http://localhost:3300) + clamav
+#   npm run v2:smoke                       дымовой тест (test/smoke)
+#   npm run v2:down
+# Путь запроса: браузер → edge:8180 → web:3000 → mesh:9443 (gRPC, mTLS) → identity ×2.
+# Порты хоста — только на 127.0.0.1. Пароли — dev-заглушки из dev.vars.
+# Healthcheck есть у каждого долгоживущего сервиса, поэтому `up --wait` возвращается, когда путь
+# целиком готов: identity — подкоманда `identity healthcheck` (в distroless нет оболочки),
+# Envoy — envoy/healthcheck.sh через admin (mesh ждёт, пока обе реплики identity прошли проверку),
+# web — /api/v2/healthz изнутри контейнера (то есть web → mesh → identity).
+name: senim-v2
+
+x-identity-image: &identity-image
+  image: senim-v2-identity:dev
+  build:
+    context: ../..
+    dockerfile: services/identity/Dockerfile
+
+x-web-build: &web-build
+  context: ../..
+  dockerfile: apps/web/Dockerfile
+
+x-envoy: &envoy
+  image: envoyproxy/envoy:v1.39.6
+  restart: unless-stopped
+
+services:
+  postgres:
+    profiles: [core]
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?запускайте через npm run v2:up}
+    ports: ["127.0.0.1:5452:5432"]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # 00-roles.sql — tools/dbinit (базы и роли сервисов), 01-web.sql — база web.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # По TCP: во время init-скриптов временный сервер слушает только сокет.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+      start_interval: 1s
+
+  nats:
+    profiles: [core]
+    # Тот же nats 2; в варианте alpine есть wget для healthcheck.
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports: ["127.0.0.1:4222:4222"]
+    volumes: [nats-data:/data]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+      start_interval: 1s
+
+  minio:
+    profiles: [core]
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?запускайте через npm run v2:up}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?запускайте через npm run v2:up}
+    ports: ["127.0.0.1:9100:9000", "127.0.0.1:9101:9001"]
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+      start_interval: 1s
+
+  identity-migrate:
+    profiles: [core]
+    <<: *identity-image
+    command: ["migrate"]
+    restart: "no"
+    environment:
+      APP_ENV: dev
+      IDENTITY_OWNER_DSN: postgres://identity_owner:${IDENTITY_OWNER_PASSWORD:?запускайте через npm run v2:up}@postgres:5432/identity?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  identity:
+    profiles: [core]
+    <<: *identity-image
+    command: ["serve"]
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+    # Окно остановки: 5 с NOT_SERVING + до 20 с на завершение вызовов.
+    stop_grace_period: 30s
+    environment:
+      APP_ENV: dev
+      IDENTITY_APP_DSN: postgres://identity_app:${IDENTITY_APP_PASSWORD:?запускайте через npm run v2:up}@postgres:5432/identity?sslmode=disable
+      NATS_URL: nats://nats:4222
+      TLS_CERT_FILE: /certs/identity.pem
+      TLS_KEY_FILE: /certs/identity-key.pem
+      TLS_CA_FILE: /certs/ca.pem
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ./certs/ca.pem:/certs/ca.pem:ro
+      - ./certs/identity.pem:/certs/identity.pem:ro
+      - ./certs/identity-key.pem:/certs/identity-key.pem:ro
+    healthcheck:
+      test: ["CMD", "/identity", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+      start_interval: 1s
+    depends_on:
+      identity-migrate: { condition: service_completed_successfully }
+      nats: { condition: service_healthy }
+
+  mesh:
+    profiles: [core]
+    <<: *envoy
+    command: ["-c", "/etc/envoy/mesh.yaml", "--log-level", "warn"]
+    # Снаружи mesh доступен только с этой машины — для дымового теста mTLS.
+    ports: ["127.0.0.1:9443:9443"]
+    volumes:
+      - ./envoy/mesh.yaml:/etc/envoy/mesh.yaml:ro
+      - ./envoy/healthcheck.sh:/etc/envoy/healthcheck.sh:ro
+      - ./certs/ca.pem:/certs/ca.pem:ro
+      - ./certs/mesh.pem:/certs/mesh.pem:ro
+      - ./certs/mesh-key.pem:/certs/mesh-key.pem:ro
+    healthcheck:
+      # Готов, когда обе реплики identity (deploy.replicas) прошли активную проверку Envoy.
+      test: ["CMD", "bash", "/etc/envoy/healthcheck.sh", "identity", "2"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+      start_interval: 1s
+    depends_on:
+      identity: { condition: service_healthy }
+
+  web-migrate:
+    profiles: [core]
+    image: senim-v2-web-migrate:dev
+    build:
+      <<: *web-build
+      target: migrate
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://web:${WEB_DB_PASSWORD:?запускайте через npm run v2:up}@postgres:5432/web
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  web:
+    profiles: [core]
+    image: senim-v2-web:dev
+    build:
+      <<: *web-build
+      target: runner
+    restart: unless-stopped
+    environment:
+      # APP_ENV=dev: /api/v2/healthz отдаёт имя реплики identity (дымовой тест видит балансировку).
+      APP_ENV: dev
+      APP_URL: http://localhost:8180
+      DATABASE_URL: postgresql://web:${WEB_DB_PASSWORD:?запускайте через npm run v2:up}@postgres:5432/web
+      TRUST_PROXY: "true"
+      PII_ENCRYPTION_KEY: ${WEB_PII_ENCRYPTION_KEY:?запускайте через npm run v2:up}
+      PII_HASH_KEY: ${WEB_PII_HASH_KEY:?запускайте через npm run v2:up}
+      FILE_URL_SECRET: ${WEB_FILE_URL_SECRET:?запускайте через npm run v2:up}
+      CRON_SECRET: ${WEB_CRON_SECRET:?запускайте через npm run v2:up}
+      # Образ собран с NODE_ENV=production: моки SMS, подписи и оплаты там запрещены без DEMO_MODE,
+      # а DEMO_MODE в production закрывает весь сайт паролем. Стенд v2 проверяет путь до сервисов,
+      # а не вход в legacy-приложение, поэтому провайдеры — не-моки, никуда не подключённые.
+      SMS_PROVIDER: http
+      SMS_HTTP_URL: http://sms.invalid/send
+      SMS_HTTP_TOKEN: dev-unused
+      SIGNATURE_PROVIDER: sigex
+      PAYMENT_PROVIDER: manual
+      V2_ENABLED: "true"
+      MESH_URL: https://mesh:9443
+      MESH_TLS_CERT_FILE: /certs/web.pem
+      MESH_TLS_KEY_FILE: /certs/web-key.pem
+      MESH_TLS_CA_FILE: /certs/ca.pem
+    volumes:
+      - ./certs/ca.pem:/certs/ca.pem:ro
+      - ./certs/web.pem:/certs/web.pem:ro
+      - ./certs/web-key.pem:/certs/web-key.pem:ro
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v2/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 5s
+      timeout: 4s
+      retries: 20
+      start_period: 30s
+      start_interval: 1s
+    depends_on:
+      web-migrate: { condition: service_completed_successfully }
+      mesh: { condition: service_healthy }
+
+  edge:
+    profiles: [core]
+    <<: *envoy
+    command: ["-c", "/etc/envoy/edge.yaml", "--log-level", "warn"]
+    ports: ["127.0.0.1:8180:8180"]
+    volumes:
+      - ./envoy/edge.yaml:/etc/envoy/edge.yaml:ro
+      - ./envoy/healthcheck.sh:/etc/envoy/healthcheck.sh:ro
+    healthcheck:
+      test: ["CMD", "bash", "/etc/envoy/healthcheck.sh"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+      start_interval: 1s
+    depends_on:
+      web: { condition: service_healthy }
+
+  # ── Профиль full ─────────────────────────────────────────────────────────────
+  otel-lgtm:
+    profiles: [full]
+    image: grafana/otel-lgtm:0.40.0
+    restart: unless-stopped
+    # OTLP 4317 — только внутри сети compose; Grafana — на хосте 3300.
+    ports: ["127.0.0.1:3300:3000"]
+    volumes: [lgtm-data:/data]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+      start_interval: 2s
+
+  clamav:
+    profiles: [full]
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    volumes: [clamav-data:/var/lib/clamav]
+    # Healthcheck — из образа (clamdcheck.sh); первая загрузка баз занимает минуты.
+
+volumes:
+  pg-data:
+  nats-data:
+  minio-data:
+  lgtm-data:
+  clamav-data:
