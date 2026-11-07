@@ -1,0 +1,98 @@
+-- Сгенерировано tools/dbinit. Не править руками.
+\set ON_ERROR_STOP on
+
+-- identity
+CREATE ROLE identity_owner LOGIN PASSWORD 'dev-identity-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE identity_app LOGIN PASSWORD 'dev-identity-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE DATABASE identity OWNER identity_owner;
+REVOKE ALL ON DATABASE identity FROM PUBLIC;
+GRANT CONNECT ON DATABASE identity TO identity_owner, identity_app;
+\connect identity
+ALTER SCHEMA public OWNER TO identity_owner;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO identity_app;
+\connect postgres
+
+-- deal
+CREATE ROLE deal_owner LOGIN PASSWORD 'dev-deal-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE deal_app LOGIN PASSWORD 'dev-deal-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE DATABASE deal OWNER deal_owner;
+REVOKE ALL ON DATABASE deal FROM PUBLIC;
+GRANT CONNECT ON DATABASE deal TO deal_owner, deal_app;
+\connect deal
+ALTER SCHEMA public OWNER TO deal_owner;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO deal_app;
+\connect postgres
+
+-- marketplace
+CREATE ROLE marketplace_owner LOGIN PASSWORD 'dev-marketplace-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE marketplace_app LOGIN PASSWORD 'dev-marketplace-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE DATABASE marketplace OWNER marketplace_owner;
+REVOKE ALL ON DATABASE marketplace FROM PUBLIC;
+GRANT CONNECT ON DATABASE marketplace TO marketplace_owner, marketplace_app;
+\connect marketplace
+ALTER SCHEMA public OWNER TO marketplace_owner;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO marketplace_app;
+\connect postgres
+
+-- documents
+CREATE ROLE documents_owner LOGIN PASSWORD 'dev-documents-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE documents_app LOGIN PASSWORD 'dev-documents-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE DATABASE documents OWNER documents_owner;
+REVOKE ALL ON DATABASE documents FROM PUBLIC;
+GRANT CONNECT ON DATABASE documents TO documents_owner, documents_app;
+\connect documents
+ALTER SCHEMA public OWNER TO documents_owner;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO documents_app;
+\connect postgres
+
+-- files
+CREATE ROLE files_owner LOGIN PASSWORD 'dev-files-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE files_app LOGIN PASSWORD 'dev-files-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE DATABASE files OWNER files_owner;
+REVOKE ALL ON DATABASE files FROM PUBLIC;
+GRANT CONNECT ON DATABASE files TO files_owner, files_app;
+\connect files
+ALTER SCHEMA public OWNER TO files_owner;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO files_app;
+\connect postgres
+
+-- notify
+CREATE ROLE notify_owner LOGIN PASSWORD 'dev-notify-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE notify_app LOGIN PASSWORD 'dev-notify-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE DATABASE notify OWNER notify_owner;
+REVOKE ALL ON DATABASE notify FROM PUBLIC;
+GRANT CONNECT ON DATABASE notify TO notify_owner, notify_app;
+\connect notify
+ALTER SCHEMA public OWNER TO notify_owner;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO notify_app;
+\connect postgres
+
+-- operator
+CREATE ROLE operator_owner LOGIN PASSWORD 'dev-operator-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE operator_app LOGIN PASSWORD 'dev-operator-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE DATABASE operator OWNER operator_owner;
+REVOKE ALL ON DATABASE operator FROM PUBLIC;
+GRANT CONNECT ON DATABASE operator TO operator_owner, operator_app;
+\connect operator
+ALTER SCHEMA public OWNER TO operator_owner;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO operator_app;
+\connect postgres
+
+-- audit
+CREATE ROLE audit_owner LOGIN PASSWORD 'dev-audit-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE audit_app LOGIN PASSWORD 'dev-audit-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE DATABASE audit OWNER audit_owner;
+REVOKE ALL ON DATABASE audit FROM PUBLIC;
+GRANT CONNECT ON DATABASE audit TO audit_owner, audit_app;
+\connect audit
+ALTER SCHEMA public OWNER TO audit_owner;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO audit_app;
+\connect postgres
