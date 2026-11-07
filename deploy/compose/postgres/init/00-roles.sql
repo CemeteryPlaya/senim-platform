@@ -1,5 +1,6 @@
 -- Сгенерировано tools/dbinit. Не править руками.
 \set ON_ERROR_STOP on
+REVOKE CONNECT, TEMPORARY ON DATABASE postgres, template1 FROM PUBLIC;
 
 -- identity
 CREATE ROLE identity_owner LOGIN PASSWORD 'dev-identity-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;

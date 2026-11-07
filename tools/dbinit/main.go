@@ -13,10 +13,12 @@ import (
 	"strings"
 )
 
+const defaultServices = "identity,deal,marketplace,documents,files,notify,operator,audit"
+
 var identRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,30}$`)
 
 func main() {
-	services := flag.String("services", "identity,deal,marketplace,documents,files,notify,operator,audit", "список сервисов через запятую")
+	services := flag.String("services", defaultServices, "список сервисов через запятую")
 	out := flag.String("out", "deploy/compose/postgres/init/00-roles.sql", "куда писать SQL")
 	vars := flag.String("vars", "deploy/compose/dev.vars", "файл с паролями <SVC>_OWNER_PASSWORD и <SVC>_APP_PASSWORD")
 	flag.Parse()
@@ -67,6 +69,8 @@ func Generate(services []string, passwords map[string]string) (string, error) {
 	var b strings.Builder
 	b.WriteString("-- Сгенерировано tools/dbinit. Не править руками.\n")
 	b.WriteString(`\set ON_ERROR_STOP on` + "\n")
+	// Служебные базы по умолчанию доступны всем ролям; рабочим ролям там делать нечего.
+	b.WriteString("REVOKE CONNECT, TEMPORARY ON DATABASE postgres, template1 FROM PUBLIC;\n")
 	for _, s := range services {
 		s = strings.TrimSpace(s)
 		if !identRe.MatchString(s) {

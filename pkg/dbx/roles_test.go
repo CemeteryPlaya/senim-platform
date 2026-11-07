@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -265,5 +266,105 @@ func TestConnectSetsApplicationName(t *testing.T) {
 	}
 	if name != "identity" {
 		t.Fatalf("application_name = %q", name)
+	}
+}
+
+func TestMalformedAppendOnlyMarkerFails(t *testing.T) {
+	for _, marker := range []string{
+		"-- senim:append-only MoneyTransaction",
+		"-- senim:append-only money_tx -- журнал денег",
+		"-- senim:append-only public.ledger",
+		"-- senim:append-only a, b",
+		"-- senim:append-only",
+		"--senim:append-only:ledger",
+	} {
+		m := fstest.MapFS{"00001_x.sql": {Data: []byte("-- +goose Up\n" + marker + "\nCREATE TABLE ledger (id int);\n-- +goose Down\nDROP TABLE ledger;\n")}}
+		// DSN недостижим: разбор маркеров идёт до подключения.
+		err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", m)
+		if err == nil || !strings.Contains(err.Error(), "senim:append-only") {
+			t.Fatalf("маркер %q: ожидалась ошибка маркера, получено %v", marker, err)
+		}
+	}
+	// Тот же маркер в platformSchemas.
+	err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", fstest.MapFS{}, "-- senim:append-only Bad\nSELECT 1")
+	if err == nil || !strings.Contains(err.Error(), "senim:append-only") {
+		t.Fatalf("platformSchemas: %v", err)
+	}
+}
+
+func TestAppRoleCannotConnectToServiceDatabases(t *testing.T) {
+	e := startPostgres(t)
+	for _, db := range []string{"postgres", "template1"} {
+		_, err := dbx.Connect(context.Background(), e.dsn("identity_app", "dev-identity-app", db), "identity")
+		if err == nil {
+			t.Fatalf("identity_app подключился к %s", db)
+		}
+		requireSQLState(t, err, sqlInsufficientPrivilege)
+	}
+}
+
+func TestExactAppPrivileges(t *testing.T) {
+	e, _ := setup(t)
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, e.ownerDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	all := []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"}
+	want := map[string][]string{
+		"items":            {"SELECT", "INSERT", "UPDATE"},
+		"ledger":           {"SELECT", "INSERT"},
+		"platform_outbox":  {"SELECT", "INSERT", "UPDATE"},
+		"goose_db_version": {},
+	}
+	for table, exp := range want {
+		var got []string
+		for _, p := range all {
+			var ok bool
+			if err := conn.QueryRow(ctx, `SELECT has_table_privilege('identity_app', $1, $2)`, table, p).Scan(&ok); err != nil {
+				t.Fatal(err)
+			}
+			if ok {
+				got = append(got, p)
+			}
+		}
+		if strings.Join(got, ",") != strings.Join(exp, ",") {
+			t.Errorf("%s: права %v, ожидались %v", table, got, exp)
+		}
+	}
+	// Последовательности: рабочие доступны, goose — нет.
+	for seq, exp := range map[string]bool{"items_id_seq": true, "ledger_id_seq": true, "platform_outbox_id_seq": true, "goose_db_version_id_seq": false} {
+		var u, s bool
+		if err := conn.QueryRow(ctx, `SELECT has_sequence_privilege('identity_app', $1, 'USAGE'), has_sequence_privilege('identity_app', $1, 'SELECT')`, seq).Scan(&u, &s); err != nil {
+			t.Fatal(err)
+		}
+		if u != exp || s != exp {
+			t.Errorf("sequence %s: usage=%v select=%v, ожидалось %v", seq, u, s, exp)
+		}
+	}
+	// EXECUTE на функции схемы у PUBLIC отозван.
+	var pub bool
+	if err := conn.QueryRow(ctx, `SELECT has_function_privilege('identity_app', 'ledger_guard()', 'EXECUTE')`).Scan(&pub); err != nil {
+		t.Fatal(err)
+	}
+	if pub {
+		t.Error("identity_app имеет EXECUTE на ledger_guard() через PUBLIC")
+	}
+}
+
+func TestMigrateWithOnlyPlatformSchemas(t *testing.T) {
+	e := startPostgres(t)
+	ctx := context.Background()
+	if err := dbx.Migrate(ctx, e.ownerDSN(), "identity", fstest.MapFS{}, platformSchema); err != nil {
+		t.Fatalf("Migrate без миграций: %v", err)
+	}
+	pool, err := dbx.Connect(ctx, e.dsn("identity_app", "dev-identity-app", "identity"), "identity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if _, err := pool.Exec(ctx, `INSERT INTO platform_outbox (payload) VALUES ('x')`); err != nil {
+		t.Fatal(err)
 	}
 }
