@@ -268,7 +268,7 @@ func TestExactAppPrivileges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 	all := []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"}
 	want := map[string][]string{
 		"items":            {"SELECT", "INSERT", "UPDATE"},

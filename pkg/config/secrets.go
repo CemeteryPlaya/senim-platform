@@ -47,7 +47,7 @@ func (l *Loader) Distinct(keys ...string) {
 			continue
 		}
 		for j := i + 1; j < len(keys); j++ {
-			if values[j] == values[i] && !(reported[i] && reported[j]) {
+			if values[j] == values[i] && (!reported[i] || !reported[j]) {
 				l.fail("%s and %s: must be distinct but have the same value", keys[i], keys[j])
 				reported[i], reported[j] = true, true
 			}

@@ -1,0 +1,163 @@
+name: v2
+
+# Только проверки: деплоя здесь нет.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # buf breaking читает историю main
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      # protoc-gen-es запускается из apps/web/node_modules.
+      - name: npm ci (apps/web)
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
+      - name: buf lint
+        run: go tool buf lint
+      - name: Есть ли proto/ в main
+        id: base
+        run: |
+          if git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null \
+            && [ -n "$(git ls-tree -r --name-only refs/remotes/origin/main -- proto | head -n 1)" ]; then
+            echo "has_proto=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_proto=false" >> "$GITHUB_OUTPUT"
+            echo "В main ещё нет proto/ — buf breaking пропущен."
+          fi
+      - name: buf breaking
+        if: steps.base.outputs.has_proto == 'true'
+        run: go tool buf breaking --against '.git#ref=refs/remotes/origin/main'
+      - name: Сгенерированный код актуален
+        run: |
+          go tool buf generate
+          go tool buf generate --template buf.gen.thirdparty.yaml
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all -- gen apps/web/src/gen)"
+
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go tool golangci-lint run ./...
+      # testcontainers используют Docker раннера.
+      - run: go test -race ./...
+      - run: go tool govulncheck ./...
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: senim_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      # Тестовые креды одноразового контейнера CI, не секрет.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/senim_test?schema=public
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/senim_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npx next typegen
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: identity
+            dockerfile: services/identity/Dockerfile
+            target: ""
+          - name: web
+            dockerfile: apps/web/Dockerfile
+            target: runner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Сборка образа
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          load: true
+          push: false
+          tags: senim/${{ matrix.name }}:ci
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+      - name: SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: senim/${{ matrix.name }}:ci
+          format: spdx-json
+          artifact-name: sbom-${{ matrix.name }}.spdx.json
+          upload-artifact: true
+      - name: Уязвимости (падаем на critical)
+        uses: anchore/scan-action@v6
+        with:
+          image: senim/${{ matrix.name }}:ci
+          fail-build: true
+          severity-cutoff: critical
+
+  smoke:
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Профиль core; MinIO (профиль storage) в CI не поднимается.
+      - run: npm run v2:certs
+      - run: npm run v2:up
+      - run: npm run v2:smoke
+      - name: Логи compose при падении
+        if: failure()
+        run: docker compose -f deploy/compose/compose.yaml --env-file deploy/compose/dev.vars --profile core --profile full --profile storage logs --no-color --tail=300
+      - name: Остановка стенда
+        if: always()
+        run: npm run v2:down

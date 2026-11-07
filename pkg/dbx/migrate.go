@@ -68,7 +68,7 @@ func Migrate(ctx context.Context, ownerDSN string, service string, migrations fs
 	}
 	cfg.RuntimeParams["application_name"] = service + "-migrate"
 	db := stdlib.OpenDB(*cfg)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	for i, schema := range platformSchemas {
 		if _, err := db.ExecContext(ctx, schema); err != nil {

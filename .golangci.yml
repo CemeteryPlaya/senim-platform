@@ -1,0 +1,65 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - gosec
+    - revive
+    - bodyclose
+    - contextcheck
+    - forbidigo
+  settings:
+    forbidigo:
+      forbid:
+        - pattern: ^fmt\.Print(f|ln)?$
+          msg: "вывод только через логгер; fmt.Print* разрешён лишь в tools/ и тестах"
+        - pattern: ^log\.Print(f|ln)?$
+          msg: "вывод только через логгер; log.Print* разрешён лишь в tools/ и тестах"
+    gosec:
+      excludes:
+        - G304 # пути к файлам приходят из конфигурации оператора, не от пользователя
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: if-return
+        - name: increment-decrement
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+  exclusions:
+    generated: lax
+    rules:
+      - path: ^tools/
+        linters: [forbidigo]
+      - path: _test\.go$
+        linters: [forbidigo]
+      - path: ^tools/
+        linters: [gosec]
+        text: G306
+    paths:
+      - ^gen/
+      - ^apps/
+
+formatters:
+  enable:
+    - gofmt
