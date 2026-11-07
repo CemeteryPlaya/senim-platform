@@ -273,21 +273,53 @@ func TestAddEnvelope(t *testing.T) {
 func TestAddRejectsBadInput(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
-	for _, tc := range []struct{ subject, typ string }{
-		{"identity.created", eventType},
-		{"senim.created", eventType},
-		{"senim.Identity.created", eventType},
-		{"senim.identity.>", eventType},
-		{"senim.identity.*", eventType},
-		{"senim.identity.created", ""},
+	var nilStr *wrapperspb.StringValue
+	for _, tc := range []struct {
+		subject, typ string
+		payload      proto.Message
+	}{
+		{"identity.created", eventType, wrapperspb.String("x")},
+		{"senim.created", eventType, wrapperspb.String("x")},
+		{"senim.Identity.created", eventType, wrapperspb.String("x")},
+		{"senim.identity.>", eventType, wrapperspb.String("x")},
+		{"senim.identity.*", eventType, wrapperspb.String("x")},
+		{"senim.identity.created", "", wrapperspb.String("x")},
+		{"senim.identity.created", "google.protobuf.BytesValue", wrapperspb.String("x")},
+		{"senim.identity.created", eventType, nil},
+		{"senim.identity.created", eventType, nilStr},
 	} {
 		err := dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
-			_, err := outbox.Add(ctx, tx, tc.subject, tc.typ, wrapperspb.String("x"))
+			_, err := outbox.Add(ctx, tx, tc.subject, tc.typ, tc.payload)
 			return err
 		})
 		if err == nil {
-			t.Errorf("Add(%q, %q) без ошибки", tc.subject, tc.typ)
+			t.Errorf("Add(%q, %q, %v) без ошибки", tc.subject, tc.typ, tc.payload)
 		}
+	}
+	if n := f.count(t, "true"); n != 0 {
+		t.Fatalf("в outbox %d записей после отказов", n)
+	}
+}
+
+// Сообщение больше max_payload NATS (1 МБ) релей не опубликует никогда: отказ
+// должен прийти в транзакцию вызывающего.
+func TestAddRejectsOversizedEnvelope(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	add := func(size int) error {
+		return dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
+			_, err := outbox.Add(ctx, tx, f.subject(), "google.protobuf.BytesValue", wrapperspb.Bytes(make([]byte, size)))
+			return err
+		})
+	}
+	if err := add(1 << 20); err == nil {
+		t.Fatal("envelope больше 1 МБ принят")
+	}
+	if n := f.count(t, "true"); n != 0 {
+		t.Fatalf("в outbox %d записей после отказа", n)
+	}
+	if err := add(512 << 10); err != nil {
+		t.Fatalf("envelope 512 КБ отклонён: %v", err)
 	}
 }
 
@@ -389,21 +421,73 @@ func TestTwoRelaysNoDuplicates(t *testing.T) {
 	}
 }
 
-func TestRelayRollsBackWhenPublishFails(t *testing.T) {
+// Запись, которую нельзя опубликовать (нет потока), стоит в очереди первой, но не
+// задерживает следующую: та публикуется, а «ядовитая» откладывается с учётом попытки.
+func TestRelayPoisonRowDoesNotBlock(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
-	// Субъект без потока: публикация не подтверждается, отметки нет.
+	var bad string
 	err := dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
-		_, err := outbox.Add(ctx, tx, "senim.nostream"+f.source+".created", eventType, wrapperspb.String("x"))
+		var err error
+		bad, err = outbox.Add(ctx, tx, "senim.nostream"+f.source+".created", eventType, wrapperspb.String("x"))
 		return err
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := outbox.RunBatch(ctx, outbox.NewRelay(f.pool, f.js, nil)); err == nil {
-		t.Fatal("ожидалась ошибка публикации")
+	good := f.addCommitted(t, 1)[0]
+	if bad >= good {
+		t.Fatalf("ядовитая запись %s должна идти раньше %s", bad, good)
 	}
-	if n := f.count(t, "published_at IS NULL"); n != 1 {
-		t.Fatalf("запись отмечена без подтверждения публикации: неотмеченных %d", n)
+
+	r := outbox.NewRelay(f.pool, f.js, nil)
+	if _, err := outbox.RunBatch(ctx, r); err != nil {
+		t.Fatalf("батч: %v", err)
+	}
+	var published *time.Time
+	if err := f.owner.QueryRow(ctx, `SELECT published_at FROM outbox WHERE id = $1`, good).Scan(&published); err != nil {
+		t.Fatal(err)
+	}
+	if published == nil {
+		t.Fatal("исправная запись не опубликована из-за ядовитой")
+	}
+	if n := f.streamMsgs(t); n != 1 {
+		t.Fatalf("в потоке %d сообщений, ожидалось 1", n)
+	}
+	check := func(wantAttempts int) {
+		t.Helper()
+		var attempts int
+		var lastErr *string
+		var due bool
+		if err := f.owner.QueryRow(ctx, `SELECT attempts, last_error, published_at IS NULL AND next_attempt_at > now()
+			FROM outbox WHERE id = $1`, bad).Scan(&attempts, &lastErr, &due); err != nil {
+			t.Fatal(err)
+		}
+		if attempts != wantAttempts || lastErr == nil || *lastErr == "" || !due {
+			t.Fatalf("ядовитая запись: attempts=%d last_error=%v отложена=%v", attempts, lastErr, due)
+		}
+	}
+	check(1)
+	// Сразу после ошибки запись отложена: следующий батч её не трогает.
+	if _, err := outbox.RunBatch(ctx, r); err != nil {
+		t.Fatalf("второй батч: %v", err)
+	}
+	check(1)
+}
+
+// Если недоступен сам NATS, батч откатывается целиком и попытки не тратятся.
+func TestRelayOutageDoesNotBurnAttempts(t *testing.T) {
+	f := setup(t)
+	f.addCommitted(t, 2)
+	nc, js, err := natsEnv.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nc.Close()
+	if _, err := outbox.RunBatch(context.Background(), outbox.NewRelay(f.pool, js, nil)); err == nil {
+		t.Fatal("ожидалась ошибка при закрытом соединении")
+	}
+	if n := f.count(t, "published_at IS NULL AND attempts = 0 AND last_error IS NULL AND next_attempt_at <= now()"); n != 2 {
+		t.Fatalf("после сбоя связи нетронутых записей %d, ожидалось 2", n)
 	}
 }

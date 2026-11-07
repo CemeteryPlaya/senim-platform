@@ -1,5 +1,8 @@
 // Package inbox — обработка событий JetStream ровно один раз на получателя.
 //
+// Порядок событий не гарантирован (см. pkg/outbox): обработчик сверяет статус или
+// версию агрегата, а не полагается на очередность.
+//
 // JetStream доставляет «хотя бы один раз»: после сбоя Ack, истечения AckWait или
 // повторной публикации то же событие приходит снова. Handle записывает
 // (consumer, event_id) в таблицу inbox в одной транзакции с эффектом обработчика:
@@ -50,7 +53,7 @@ type Handler func(ctx context.Context, tx pgx.Tx, env *eventsv1.Envelope) error
 // NakWithDelay (1 с, 2 с, 4 с ... до 1 мин по числу доставок); возвращается ошибка.
 // Конверт, который не разбирается или без event_id, повтор не исправит — Term.
 // Если у ctx нет дедлайна, ставится 30 с.
-func Handle(ctx context.Context, pool *pgxpool.Pool, consumer string, msg jetstream.Msg, fn func(ctx context.Context, tx pgx.Tx, env *eventsv1.Envelope) error) error {
+func Handle(ctx context.Context, pool *pgxpool.Pool, consumer string, msg jetstream.Msg, fn Handler) error {
 	if consumer == "" {
 		return errors.New("inbox: пустое имя получателя")
 	}
