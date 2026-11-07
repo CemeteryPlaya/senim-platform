@@ -1,0 +1,125 @@
+/* Hallmark · shape: app screen · genre: editorial · theme: locked to founders' mockups 7–19 (green), restyled minimal like the Upwork mobile app by owner request 02.11 (docs/design/README.md) · job: sign up
+ * hero: photo collage + two-line head + one action and «Войти» (landing) · nav: top bar on lg, bottom tab bar on phone · footer: one line, link to /about · imagery: four generated interior photos in public/landing (owner photos replace by file name) · signature: the photo collage on the start screen
+ * axes: light/grotesk-sans/chromatic-green · posture: flat · contrast: pass (src/ui/contrast.test.ts) · fold: pass (390 and 1280) · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: E, the photos are generated stand-ins until the owner sends real ones */
+/* waive: 7b (pure white page, cards and text on green — the owner asked for a white Upwork-like background); controls 56px (project rule ≥48px beats app density 32–40px); 34 (no overflow-x: clip on html/body — an overflow must stay visible so it gets fixed, not hidden; checked at 360/390 px × 100/200 % font); 26b (:active lives in Tailwind classes of src/ui/Button.tsx, not in this file) */
+@import "tailwindcss";
+@import "../ui/tokens.css";
+
+/* Базовые стили. Значения — только из токенов (src/ui/tokens.css). */
+@layer base {
+  /* Высота нижней панели вкладок (телефон). Точное значение ставит MobileTabBar; здесь — запас без скриптов. */
+  :root {
+    --tabbar-h: calc(4.25rem + 1px + env(safe-area-inset-bottom));
+  }
+  @media (width >= 64rem) {
+    :root {
+      --tabbar-h: 0px;
+    }
+  }
+
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-padding-top: --spacing(20);
+    /* Фокус и якоря не уходят под нижнюю панель (на широком экране её нет и переменная равна 0). */
+    scroll-padding-bottom: calc(var(--tabbar-h) + 1rem);
+    scrollbar-color: var(--color-line-strong) var(--color-canvas);
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    -webkit-font-smoothing: antialiased;
+    /* Страховка для крупного шрифта на телефоне: слово длиннее строки переносится (с дефисом, где браузер
+       умеет), а не выталкивает страницу вбок. В обычной ширине ничего не меняет — переносы только по нужде. */
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+
+  /* Таблицы и суммы не рвём посреди числа: таблица прокручивается в своей области, сумма переносится
+     между группами разрядов (Money). */
+  table,
+  .tabular-nums {
+    overflow-wrap: normal;
+    hyphens: manual;
+  }
+
+  h1,
+  h2,
+  h3 {
+    min-width: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+  }
+
+  /* Кольцо фокуса — у всего интерактивного, появляется мгновенно. */
+  :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-soft);
+    color: var(--color-ink);
+  }
+
+  /* Кнопки в Tailwind 4 по умолчанию без указателя — возвращаем привычный. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
+}
+
+/*
+ * Список «подпись — значение» (<dl class="facts">): в ряд, когда хватает ширины, иначе подпись над значением.
+ * Ширина считается в em самого списка, поэтому при увеличенном шрифте он раньше переходит в столбик.
+ * Подписи и значения можно оборачивать в <div> — правило смотрит на dt/dd на любой глубине.
+ */
+@utility facts {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: --spacing(4);
+
+  & :where(dt, dd) {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  & :where(dt):not(:first-child) {
+    margin-top: --spacing(2);
+  }
+
+  @container (width >= 17em) {
+    & :where(dt, dd) {
+      grid-column: auto;
+    }
+    & :where(dt):not(:first-child) {
+      margin-top: 0;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

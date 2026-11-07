@@ -1,0 +1,79 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/.next-e2e/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+/src/generated/prisma
+
+# playwright
+/.playwright-mcp
+
+.vercel
+.env*
+
+# служебные файлы агентов и инструментов (не код проекта)
+**/.claude/state/
+/.claude/sessions/
+/.claude/memory/
+/.claude/settings.local.json
+/.claude/worktrees/
+/.harness-worktrees/
+/.codebase-memory/
+/.remember/
+
+# локальное хранилище файлов (StorageProvider=local)
+/storage/
+
+# тесты
+/test-results/
+/playwright-report/
+/blob-report/
+
+# пример переменных окружения — в git
+!.env.example
+
+# Скиллы сторонних инструментов — только локально (решение владельца, OPEN_QUESTIONS №1)
+/.agents/
+/.windsurf/
+
+# отчёты инструментов качества (npm run quality:*)
+/reports/
+/.stryker-tmp/

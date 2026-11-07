@@ -1,0 +1,51 @@
+// Мутационное тестирование: эквивалент инструмента `mutator` из SKILL.md.
+// npm run quality:mutate                                  — чистая логика по умолчанию (список ниже)
+// npm run quality:mutate -- --mutate src/modules/x/y.ts   — свой набор файлов
+// Отчёты: reports/quality/mutation/ (html и json). Подробнее — docs/quality/README.md.
+
+/** @type {import("@stryker-mutator/api/core").PartialStrykerOptions} */
+const config = {
+  testRunner: "vitest",
+  // related: только тесты, которые импортируют мутируемые файлы (быстрее и не зависит от чужих красных тестов).
+  vitest: { configFile: "scripts/quality/vitest.unit.config.mjs", related: true },
+  plugins: ["@stryker-mutator/vitest-runner"],
+  mutate: [
+    // статусные машины, таблицы переходов и «что дальше»
+    "src/modules/deal-core/transitions.ts",
+    "src/modules/deal-core/next-step.ts",
+    "src/modules/deal-core/signatures.ts",
+    "src/modules/requests/transitions.ts",
+    "src/modules/requests/negotiation-state.ts",
+    "src/modules/identity/kyc-policy.ts",
+    // деньги: формулы ADR-009, смета, проекция журнала, подпись уведомлений Freedom Pay
+    "src/modules/payments/money.ts",
+    "src/modules/payments/estimate.ts",
+    "src/modules/payments/projection.ts",
+    "src/modules/payments/providers/freedompay/signature.ts",
+    // GPS сдачи работы
+    "src/platform/geo.ts",
+    // маскирование и показ контактов, ИИН/БИН, проверки ввода
+    "src/modules/companies/mask.ts",
+    "src/modules/companies/contacts-policy.ts",
+    "src/platform/kz-id.ts",
+    "src/platform/validation.ts",
+    // правила мебельной вертикали
+    "src/verticals/furniture/segment.ts",
+    "src/modules/requests/price-range.ts",
+  ],
+  ignorePatterns: ["reports", "coverage", "test-results", "playwright-report", ".next", "storage", "docs", "e2e", ".claude", ".agents", ".windsurf", ".playwright-mcp", ".remember", ".harness-worktrees", ".codebase-memory"],
+  coverageAnalysis: "perTest",
+  reporters: ["clear-text", "progress", "html", "json"],
+  htmlReporter: { fileName: "reports/quality/mutation/index.html" },
+  jsonReporter: { fileName: "reports/quality/mutation/mutation.json" },
+  tempDirName: ".stryker-tmp",
+  // Песочница лежит внутри репозитория, node_modules находится подъёмом по каталогам.
+  // Ссылку (junction) не создаём: её удаление на Windows уже стирало пакеты.
+  symlinkNodeModules: false,
+  cleanTempDir: "always",
+  thresholds: { high: 90, low: 75, break: null },
+  timeoutMS: 20000,
+  concurrency: 4,
+};
+
+export default config;

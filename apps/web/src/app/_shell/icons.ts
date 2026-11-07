@@ -1,0 +1,40 @@
+import {
+  Bell,
+  ClipboardList,
+  FlaskConical,
+  Handshake,
+  House,
+  Images,
+  Inbox,
+  Landmark,
+  LayoutDashboard,
+  LayoutGrid,
+  Package,
+  Ruler,
+  Sparkles,
+  Store,
+  UserRound,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
+import type { NavIcon } from "./nav";
+
+/** Значки разделов: одни и те же в нижней панели, верхнем меню и на странице «Профиль». */
+export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
+  home: House,
+  catalog: LayoutGrid,
+  inspiration: Sparkles,
+  requests: ClipboardList,
+  deals: Handshake,
+  orders: Package,
+  finance: Wallet,
+  notifications: Bell,
+  incoming: Inbox,
+  measurements: Ruler,
+  account: UserRound,
+  company: Store,
+  portfolio: Images,
+  operator: LayoutDashboard,
+  bank: Landmark,
+  demo: FlaskConical,
+};

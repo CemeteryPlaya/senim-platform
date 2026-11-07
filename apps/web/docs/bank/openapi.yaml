@@ -1,0 +1,647 @@
+openapi: 3.1.0
+info:
+  title: Сенім — предлагаемый контракт с банком (предложение платформы, не API банка)
+  version: 0.2.0
+  summary: Операции, которые платформа «Сенім» ожидает от банка для эскроу-счёта сделки, и уведомления банка платформе.
+  description: |
+    **Это предложение платформы, а не API какого-либо банка.** Документ описывает, какие операции и в каком
+    виде нужны платформе, чтобы подключить банк с API к интерфейсу `PaymentProvider`
+    (`src/modules/payments/provider.ts`). Ни одна операция ниже не взята из документации Freedom Bank, БЦК
+    или другого банка. Если формат банка другой, его переводит адаптер провайдера, а журнал денег, статусы
+    сделки и экраны не меняются. Что известно о банках — `docs/bank/06-bank-api-landscape.md`; требования
+    и диаграммы — `docs/bank/03-escrow-integration.md`; решение — `docs/adr/009-tz-v1-money-model.md`.
+
+    **Железное правило.** Деньги покупателя никогда не проходят через счета ТОО «Сенім». Они поступают на
+    эскроу-счёт сделки в банке. С этого счёта банк выплачивает мастеру, перечисляет доход платформы
+    на расчётный счёт ТОО (только после подписанного акта) и возвращает деньги покупателю.
+
+    **Соответствие методам `PaymentProvider`.**
+
+    | Метод | Операция ниже | Операция журнала (`MoneyTransaction.type`) | Ключ идемпотентности |
+    |---|---|---|---|
+    | `hold` | `POST /holds` | `HOLD` | `hold:<dealId>` |
+    | `release` | `POST /releases` | `RELEASE` | `release:<dealId>` |
+    | `split` | `POST /splits` | `SPLIT_MASTER`, `SPLIT_PLATFORM` | `split-master:<dealId>`, `split-platform:<dealId>` |
+    | `refund` | `POST /refunds` | `REFUND` | `refund:<dealId>` |
+    | `getStatus` | `GET /operations/{idempotencyKey}` | любая | ключ операции |
+    | `handleWebhook` | уведомление `operationSettled` | любая | ключ операции |
+
+    `FREEZE` и `UNFREEZE` (спор) — записи платформы: деньги в банке не двигаются, вызова банка нет.
+    Платформа просто не отправляет распоряжение о раскрытии, пока спор открыт.
+
+    **Модель денег (ТЗ п. 6).** Цена по оферте X. Покупатель вносит X + защита сделки 2% (вверх до тиына).
+    Мастер получает X − гарантия оплаты и клиента 4% (вниз до тиына). Доход платформы = оплачено − выплата.
+    Все суммы — **тиыны, целые числа** (`amountTiyn`). Пример: X = 1 500 000 ₸ → `hold` 153 000 000 тиын,
+    `split`: мастеру 144 000 000, платформе 9 000 000.
+
+    **Идемпотентность.** Каждая операция несёт заголовок `Idempotency-Key` с нашим ключом. Повтор с тем же
+    ключом возвращает итог уже принятой операции и не двигает деньги второй раз. Ключ действует всё время
+    жизни счёта сделки.
+
+    **Итог операции.** `SUCCEEDED` — исполнена; `PENDING` — принята, итог придёт уведомлением или по
+    `getStatus`; `FAILED` — окончательный отказ (повтор с тем же ключом даст тот же отказ). Таймаут, обрыв
+    и 5xx платформа считает «итог неизвестен» и повторяет с тем же ключом.
+
+    **Авторизация и подпись** определит банк (ЭЦП юрлица, взаимный TLS, токен). Ниже — варианты, которые
+    платформа поддержит; для уведомлений банка предлагается схема HMAC, уже реализованная в проекте
+    (`src/modules/payments/webhook-signature.ts`).
+  license:
+    name: Proprietary
+servers:
+  - url: https://{bankHost}/{basePath}
+    description: API банка (адрес и путь выдаёт банк; значения ниже — заглушки)
+    variables:
+      bankHost:
+        default: bank.example.invalid
+        description: Адрес API банка
+      basePath:
+        default: escrow/v1
+        description: Базовый путь
+tags:
+  - name: operations
+    description: Распоряжения платформы банку по эскроу-счёту сделки (предложение платформы)
+  - name: status
+    description: Статус операции и выписка (предложение платформы)
+security:
+  - mutualTls: []
+  - bankToken: []
+paths:
+  /holds:
+    post:
+      tags: [operations]
+      operationId: hold
+      summary: Открыть эскроу-счёт сделки и принять оплату покупателя
+      description: |
+        Вызывается после того, как оферту подписали обе стороны. Банк открывает эскроу-счёт сделки (или
+        сопоставляет оплату со сделкой иным способом) и возвращает реквизиты для пополнения или ссылку на свою
+        страницу оплаты. Карточные данные через сервер платформы не проходят.
+
+        Итог обычно `PENDING`: деньги поступят позже, банк сообщит уведомлением `operationSettled`
+        с `operationType: HOLD`. После этого сделка переходит `CREATED → PAID_HOLD`.
+
+        Персональные данные покупателя платформа здесь не передаёт: идентификацию плательщика проводит банк
+        по своему порядку (вопрос к банку, `06-bank-api-landscape.md`, вопрос 9).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldRequest'
+            example:
+              dealRef: cmh1x2y3z0000abcd1234efgh
+              amountTiyn: 153000000
+              description: Сделка №17
+              returnUrl: https://example.invalid/deals/cmh1x2y3z0000abcd1234efgh
+      responses:
+        '200':
+          description: Операция принята или уже была принята с этим ключом
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldResult'
+              example:
+                idempotencyKey: hold:cmh1x2y3z0000abcd1234efgh
+                status: PENDING
+                externalRef: BANK-OP-000123
+                accountRef: ESC-000123
+                requisites:
+                  bankName: Банк-партнёр
+                  bik: XXXXKZKA
+                  iban: KZ000000000000000000
+                  beneficiary: Эскроу-счёт сделки №17
+                  paymentPurpose: Оплата по сделке №17
+        '4XX':
+          $ref: '#/components/responses/Rejected'
+        '5XX':
+          $ref: '#/components/responses/Unknown'
+  /releases:
+    post:
+      tags: [operations]
+      operationId: release
+      summary: Распоряжение о раскрытии эскроу-счёта
+      description: |
+        Вызывается после того, как покупатель подписал акт приёмки, если по сделке нет открытого спора.
+        Основание — акт приёмки с подписями (`basisDocumentRef`). Сумма — выплата мастеру плюс доход
+        платформы; разбивку передаёт `POST /splits` в том же действии. Если у банка раскрытие и раздел —
+        одна операция, адаптер объединит вызовы.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseRequest'
+            example:
+              dealRef: cmh1x2y3z0000abcd1234efgh
+              accountRef: ESC-000123
+              amountTiyn: 153000000
+              basisDocumentRef: act-cmh9q8w7e0000zyxw9876vuts
+      responses:
+        '200':
+          description: Операция принята или уже была принята с этим ключом
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResult'
+              example:
+                idempotencyKey: release:cmh1x2y3z0000abcd1234efgh
+                status: PENDING
+                externalRef: BANK-OP-000124
+        '4XX':
+          $ref: '#/components/responses/Rejected'
+        '5XX':
+          $ref: '#/components/responses/Unknown'
+  /splits:
+    post:
+      tags: [operations]
+      operationId: split
+      summary: Раздел раскрытия на мастера и платформу
+      description: |
+        Две части с отдельными ключами и отдельным итогом: выплата мастеру (`split-master:<dealId>`) и доход
+        платформы на расчётный счёт ТОО (`split-platform:<dealId>`). Сделка переходит `ACCEPTED → SPLIT_PAYOUT`,
+        когда обе части `SUCCEEDED`.
+
+        При частичном разделе по спору суммы считаются той же формулой от присуждённой мастеру части Y,
+        остаток возвращается покупателю через `POST /refunds`.
+
+        IBAN мастера хранится у платформы зашифрованным и передаётся только в этом запросе. Заголовок
+        `Idempotency-Key` содержит ключ части мастера; ключ каждой части — в теле.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SplitRequest'
+            example:
+              dealRef: cmh1x2y3z0000abcd1234efgh
+              accountRef: ESC-000123
+              master:
+                idempotencyKey: split-master:cmh1x2y3z0000abcd1234efgh
+                amountTiyn: 144000000
+                recipient:
+                  iban: KZ000000000000000000
+                  name: ИП «Пример»
+              platform:
+                idempotencyKey: split-platform:cmh1x2y3z0000abcd1234efgh
+                amountTiyn: 9000000
+      responses:
+        '200':
+          description: Итог по каждой части
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SplitResult'
+              example:
+                master:
+                  idempotencyKey: split-master:cmh1x2y3z0000abcd1234efgh
+                  status: SUCCEEDED
+                  externalRef: BANK-OP-000125
+                platform:
+                  idempotencyKey: split-platform:cmh1x2y3z0000abcd1234efgh
+                  status: PENDING
+                  externalRef: BANK-OP-000126
+        '4XX':
+          $ref: '#/components/responses/Rejected'
+        '5XX':
+          $ref: '#/components/responses/Unknown'
+  /refunds:
+    post:
+      tags: [operations]
+      operationId: refund
+      summary: Возврат покупателю
+      description: |
+        Отмена покупателем после оплаты (`PAID_HOLD`) — возврат всего оплаченного, X + 2%; доход платформы 0.
+        Решение спора `FULL_REFUND` — так же. Решение `PARTIAL_SPLIT` — возврат остатка после раздела.
+        Возврат — плательщику, на его карту или счёт (порядок — вопрос к банку).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequest'
+            example:
+              dealRef: cmh1x2y3z0000abcd1234efgh
+              accountRef: ESC-000123
+              amountTiyn: 153000000
+              reason: CANCELLED_BY_BUYER
+      responses:
+        '200':
+          description: Операция принята или уже была принята с этим ключом
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResult'
+              example:
+                idempotencyKey: refund:cmh1x2y3z0000abcd1234efgh
+                status: PENDING
+                externalRef: BANK-OP-000127
+        '4XX':
+          $ref: '#/components/responses/Rejected'
+        '5XX':
+          $ref: '#/components/responses/Unknown'
+  /operations/{idempotencyKey}:
+    get:
+      tags: [status]
+      operationId: getStatus
+      summary: Итог операции по нашему ключу
+      description: |
+        Нужен, когда операция долго в `PENDING`, а уведомление не пришло. Ответ — текущий итог; запрос
+        ничего не исполняет.
+      parameters:
+        - name: idempotencyKey
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/IdempotencyKey'
+          example: hold:cmh1x2y3z0000abcd1234efgh
+      responses:
+        '200':
+          description: Текущий итог операции
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResult'
+              example:
+                idempotencyKey: hold:cmh1x2y3z0000abcd1234efgh
+                status: SUCCEEDED
+                externalRef: BANK-OP-000123
+        '404':
+          description: Операции с таким ключом банк не получал — платформа отправит её снова с тем же ключом
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '5XX':
+          $ref: '#/components/responses/Unknown'
+  /accounts/{accountRef}/statement:
+    get:
+      tags: [status]
+      operationId: getStatement
+      summary: Выписка по эскроу-счёту сделки
+      description: |
+        Для сверки журнала денег платформы с банком. В интерфейсе `PaymentProvider` метода пока нет: он
+        добавится вместе с первым банком, у которого есть выписка через API.
+      parameters:
+        - name: accountRef
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ESC-000123
+      responses:
+        '200':
+          description: Движения по счёту
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StatementEntry'
+        '5XX':
+          $ref: '#/components/responses/Unknown'
+webhooks:
+  operationSettled:
+    post:
+      summary: Уведомление банка платформе об итоге операции
+      description: |
+        Банк отправляет на адрес платформы `POST https://<адрес платформы>/api/webhooks/<провайдер>`
+        (адрес выдаётся при подключении; маршрут добавляется вместе с адаптером банка).
+
+        Платформа проверяет подпись, записывает событие в `PaymentWebhookEvent` с уникальным `eventId`
+        и в той же транзакции переводит операцию журнала по `idempotencyKey` из `PENDING` в итог. Повторная
+        доставка того же `eventId` не меняет состояние.
+
+        Предлагаемая подпись (если у банка нет своей): `x-senim-signature: v1=<hex>`, где `hex` —
+        HMAC-SHA256 с общим секретом от строки `<x-senim-timestamp>.<тело запроса байт в байт>`. Метка
+        времени — Unix-время в секундах, окно ±5 минут, сравнение за постоянное время. Каждая доставка
+        подписывается заново. Тело — не больше 64 КБ.
+      parameters:
+        - $ref: '#/components/parameters/Timestamp'
+        - $ref: '#/components/parameters/Signature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperationSettledEvent'
+            examples:
+              holdSucceeded:
+                summary: Деньги покупателя поступили на эскроу-счёт
+                value:
+                  eventId: evt_3f9a1c2b7d4e5f60
+                  idempotencyKey: hold:cmh1x2y3z0000abcd1234efgh
+                  operationType: HOLD
+                  status: SUCCEEDED
+                  amountTiyn: 153000000
+                  accountRef: ESC-000123
+                  externalRef: BANK-OP-000123
+                  occurredAt: '2026-11-03T09:15:00Z'
+              splitMasterSucceeded:
+                summary: Выплата мастеру исполнена
+                value:
+                  eventId: evt_77aa01bb02cc03dd
+                  idempotencyKey: split-master:cmh1x2y3z0000abcd1234efgh
+                  operationType: SPLIT_MASTER
+                  status: SUCCEEDED
+                  amountTiyn: 144000000
+                  accountRef: ESC-000123
+                  externalRef: BANK-OP-000125
+                  occurredAt: '2026-11-20T11:02:00Z'
+              refundFailed:
+                summary: Возврат отклонён банком
+                value:
+                  eventId: evt_00ff11ee22dd33cc
+                  idempotencyKey: refund:cmh1x2y3z0000abcd1234efgh
+                  operationType: REFUND
+                  status: FAILED
+                  amountTiyn: 153000000
+                  accountRef: ESC-000123
+                  error: Реквизиты плательщика недействительны
+                  occurredAt: '2026-11-05T08:00:00Z'
+      responses:
+        '200':
+          description: Событие принято (в том числе повторная доставка уже принятого события)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAccepted'
+              examples:
+                first:
+                  value: { ok: true, duplicate: false, eventId: evt_3f9a1c2b7d4e5f60 }
+                repeat:
+                  value: { ok: true, duplicate: true, eventId: evt_3f9a1c2b7d4e5f60 }
+        '400':
+          description: Тело не JSON или не соответствует схеме; событие не записано, повтор того же запроса не поможет
+        '401':
+          description: Подпись неверна или метка времени вне окна; событие не записано
+        '413':
+          description: Тело больше 64 КБ
+        '5XX':
+          description: Событие не принято, запись откатилась; доставку нужно повторить
+components:
+  securitySchemes:
+    mutualTls:
+      type: mutualTLS
+      description: Вариант авторизации платформы в банке — сертификат клиента. Выбор за банком.
+    bankToken:
+      type: http
+      scheme: bearer
+      description: Вариант авторизации — токен, выданный банком. Если банк требует подпись запроса ЭЦП юрлица, она добавляется адаптером.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Наш ключ операции. Повтор с тем же ключом не создаёт вторую операцию.
+      schema:
+        $ref: '#/components/schemas/IdempotencyKey'
+      example: hold:cmh1x2y3z0000abcd1234efgh
+    Timestamp:
+      name: x-senim-timestamp
+      in: header
+      required: true
+      description: Unix-время отправки в секундах. Входит в подписываемую строку.
+      schema:
+        type: string
+        pattern: '^[0-9]+$'
+      example: '1793438105'
+    Signature:
+      name: x-senim-signature
+      in: header
+      required: true
+      description: '`v1=` и HMAC-SHA256 (hex, нижний регистр) от строки `<x-senim-timestamp>.<тело запроса>`.'
+      schema:
+        type: string
+        pattern: '^v1=[0-9a-f]{64}$'
+  schemas:
+    IdempotencyKey:
+      type: string
+      description: |
+        Ключ операции журнала: `hold:`, `release:`, `split-master:`, `split-platform:`, `refund:` и идентификатор
+        сделки. Символы `[a-z0-9:-]`. Если у банка другие ограничения, адаптер преобразует ключ детерминированно.
+      pattern: '^(hold|release|split-master|split-platform|refund):[a-z0-9]+$'
+      maxLength: 64
+    AmountTiyn:
+      type: integer
+      format: int64
+      minimum: 1
+      maximum: 102000000000
+      description: Сумма в тиынах (1 ₸ = 100 тиын), целое число. Верхняя граница — потолок цены сделки 1 млрд ₸ плюс защита 2%.
+    DealRef:
+      type: string
+      description: Идентификатор сделки на платформе. Персональных данных не содержит.
+    HoldRequest:
+      type: object
+      required: [dealRef, amountTiyn, description, returnUrl]
+      properties:
+        dealRef:
+          $ref: '#/components/schemas/DealRef'
+        amountTiyn:
+          $ref: '#/components/schemas/AmountTiyn'
+        description:
+          type: string
+          maxLength: 140
+          description: Назначение платежа без персональных данных, например «Сделка №17».
+        returnUrl:
+          type: string
+          format: uri
+          description: Куда вернуть покупателя со страницы оплаты банка.
+    ReleaseRequest:
+      type: object
+      required: [dealRef, accountRef, amountTiyn, basisDocumentRef]
+      properties:
+        dealRef:
+          $ref: '#/components/schemas/DealRef'
+        accountRef:
+          type: string
+          description: Номер эскроу-счёта сделки у банка (из ответа `hold`).
+        amountTiyn:
+          $ref: '#/components/schemas/AmountTiyn'
+        basisDocumentRef:
+          type: string
+          description: Идентификатор акта приёмки с подписями — основания раскрытия.
+    SplitPart:
+      type: object
+      required: [idempotencyKey, amountTiyn]
+      properties:
+        idempotencyKey:
+          $ref: '#/components/schemas/IdempotencyKey'
+        amountTiyn:
+          $ref: '#/components/schemas/AmountTiyn'
+    SplitRequest:
+      type: object
+      required: [dealRef, accountRef, master, platform]
+      properties:
+        dealRef:
+          $ref: '#/components/schemas/DealRef'
+        accountRef:
+          type: string
+        master:
+          allOf:
+            - $ref: '#/components/schemas/SplitPart'
+            - type: object
+              required: [recipient]
+              properties:
+                recipient:
+                  type: object
+                  required: [iban, name]
+                  properties:
+                    iban:
+                      type: string
+                      pattern: '^KZ[0-9]{2}[0-9A-Z]{16}$'
+                      description: KZ IBAN мастера; контрольная сумма проверена платформой при вводе.
+                    name:
+                      type: string
+                      description: Наименование ИП/ТОО или ФИО мастера.
+        platform:
+          allOf:
+            - $ref: '#/components/schemas/SplitPart'
+          description: Доход платформы. Получатель — расчётный счёт ТОО, закреплённый в договоре с банком.
+    RefundRequest:
+      type: object
+      required: [dealRef, accountRef, amountTiyn, reason]
+      properties:
+        dealRef:
+          $ref: '#/components/schemas/DealRef'
+        accountRef:
+          type: string
+        amountTiyn:
+          $ref: '#/components/schemas/AmountTiyn'
+        reason:
+          type: string
+          enum: [CANCELLED_BY_BUYER, DISPUTE_FULL_REFUND, DISPUTE_PARTIAL_SPLIT]
+    OperationStatus:
+      type: string
+      enum: [SUCCEEDED, PENDING, FAILED]
+    OperationResult:
+      type: object
+      required: [idempotencyKey, status]
+      properties:
+        idempotencyKey:
+          $ref: '#/components/schemas/IdempotencyKey'
+        status:
+          $ref: '#/components/schemas/OperationStatus'
+        externalRef:
+          type: string
+          description: Номер операции у банка. Обязателен для SUCCEEDED; для PENDING — если уже присвоен.
+        error:
+          type: string
+          description: Причина отказа для FAILED.
+    HoldResult:
+      allOf:
+        - $ref: '#/components/schemas/OperationResult'
+        - type: object
+          properties:
+            accountRef:
+              type: string
+              description: Номер эскроу-счёта сделки у банка.
+            redirectUrl:
+              type: string
+              format: uri
+              description: Страница оплаты банка, если оплата идёт через неё.
+            requisites:
+              $ref: '#/components/schemas/Requisites'
+    Requisites:
+      type: object
+      required: [bankName, bik, iban, beneficiary, paymentPurpose]
+      properties:
+        bankName:
+          type: string
+        bik:
+          type: string
+        iban:
+          type: string
+          description: IBAN эскроу-счёта сделки (не счёта ТОО).
+        beneficiary:
+          type: string
+        paymentPurpose:
+          type: string
+          description: Назначение платежа, по которому банк сопоставляет пополнение со сделкой.
+    SplitResult:
+      type: object
+      required: [master, platform]
+      properties:
+        master:
+          $ref: '#/components/schemas/OperationResult'
+        platform:
+          $ref: '#/components/schemas/OperationResult'
+    StatementEntry:
+      type: object
+      required: [externalRef, operationType, amountTiyn, occurredAt]
+      properties:
+        externalRef:
+          type: string
+        idempotencyKey:
+          $ref: '#/components/schemas/IdempotencyKey'
+        operationType:
+          type: string
+          enum: [HOLD, SPLIT_MASTER, SPLIT_PLATFORM, REFUND]
+        amountTiyn:
+          $ref: '#/components/schemas/AmountTiyn'
+        occurredAt:
+          type: string
+          format: date-time
+    OperationSettledEvent:
+      type: object
+      required: [eventId, idempotencyKey, operationType, status, amountTiyn, occurredAt]
+      properties:
+        eventId:
+          type: string
+          minLength: 1
+          description: Идентификатор события у банка; одинаков во всех повторных доставках (уникальный `PaymentWebhookEvent.externalEventId`).
+        idempotencyKey:
+          $ref: '#/components/schemas/IdempotencyKey'
+        operationType:
+          type: string
+          enum: [HOLD, RELEASE, SPLIT_MASTER, SPLIT_PLATFORM, REFUND]
+        status:
+          type: string
+          enum: [SUCCEEDED, FAILED]
+        amountTiyn:
+          $ref: '#/components/schemas/AmountTiyn'
+        accountRef:
+          type: string
+        externalRef:
+          type: string
+        error:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+          description: Время события в UTC с суффиксом `Z`.
+    WebhookAccepted:
+      type: object
+      required: [ok, duplicate, eventId]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        duplicate:
+          type: boolean
+          description: true — событие с этим `eventId` уже было принято; состояние не изменилось.
+        eventId:
+          type: string
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+  responses:
+    Rejected:
+      description: Окончательный отказ (неверный запрос, недостаточно средств, счёт закрыт). Платформа записывает операцию как FAILED; повтор с тем же ключом даст тот же отказ.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unknown:
+      description: Итог неизвестен. Платформа оставляет операцию в PENDING и повторяет запрос с тем же ключом или спрашивает getStatus.

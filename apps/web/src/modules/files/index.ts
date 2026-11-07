@@ -1,0 +1,28 @@
+import "server-only";
+import { cleanupOrphans } from "./cleanup";
+
+// Публичный API модуля files. Другие модули импортируют только отсюда.
+export type * from "./storage";
+export { fileUrl, storage, storageByName } from "./registry";
+export {
+  assertAttachable,
+  attachFiles,
+  type LinkedPurpose,
+  createUpload,
+  discardUpload,
+  finalizeUpload,
+  saveFile,
+  type CreateUploadInput,
+  type CreateUploadResult,
+  type UploadedFile,
+} from "./upload";
+export { findSimilar, type SimilarFile } from "./similar";
+export { canReadFile } from "./access";
+export { readLocalDownload, receiveLocalUpload } from "./local-transfer";
+export { PURPOSE_POLICY, type FileOwner, type OwnerField } from "./policy";
+export { verifyDownload, openUploadToken } from "./signing";
+export { MAX_INPUT_PIXELS, sniffType } from "./image";
+
+export const jobHandlers = {
+  "files.cleanupOrphans": cleanupOrphans,
+} as const;
