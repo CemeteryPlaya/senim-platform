@@ -1,0 +1,15 @@
+{
+  "name": "senim-platform",
+  "private": true,
+  "scripts": {
+    "web": "npm --prefix apps/web",
+    "v2:certs": "go run ./tools/devcerts -out deploy/compose/certs",
+    "v2:gen": "go tool buf generate && go tool buf generate --template buf.gen.thirdparty.yaml",
+    "v2:up": "docker compose -f deploy/compose/compose.yaml --profile core up -d --wait",
+    "v2:up:full": "docker compose -f deploy/compose/compose.yaml --profile core --profile full up -d --wait",
+    "v2:down": "docker compose -f deploy/compose/compose.yaml --profile core --profile full down",
+    "v2:test": "go test ./...",
+    "v2:lint": "go tool golangci-lint run ./... && go tool buf lint",
+    "v2:smoke": "go test -tags smoke ./test/smoke/..."
+  }
+}
