@@ -183,3 +183,38 @@ describe("env: контуры APP_ENV (ТЗ п. 11)", () => {
     expect(problems({ DATABASE_URL: "postgresql://x", VAPID_PUBLIC_KEY: "p" })).toContain("VAPID_PRIVATE_KEY");
   });
 });
+
+describe("v2: MESH_* и V2_ENABLED", () => {
+  const minimal = { DATABASE_URL: "postgresql://x" };
+
+  it("по умолчанию v2 выключен и MESH_* не нужны", () => {
+    const e = parseEnv(minimal);
+    expect(e.V2_ENABLED).toBe(false);
+    expect(e.MESH_URL).toBeUndefined();
+  });
+
+  it("V2_ENABLED=true вне prod не требует MESH_*", () => {
+    expect(parseEnv({ ...minimal, V2_ENABLED: "true" }).V2_ENABLED).toBe(true);
+  });
+
+  it("APP_ENV=prod и V2_ENABLED=true требуют все четыре MESH_*", () => {
+    const msg = problems({ ...production, V2_ENABLED: "true" });
+    for (const key of ["MESH_URL", "MESH_TLS_CERT_FILE", "MESH_TLS_KEY_FILE", "MESH_TLS_CA_FILE"]) expect(msg).toContain(key);
+  });
+
+  it("APP_ENV=prod с полным набором MESH_* проходит", () => {
+    const full = {
+      ...production,
+      V2_ENABLED: "true",
+      MESH_URL: "https://mesh:9443",
+      MESH_TLS_CERT_FILE: "/c.pem",
+      MESH_TLS_KEY_FILE: "/k.pem",
+      MESH_TLS_CA_FILE: "/ca.pem",
+    };
+    expect(problems(full)).toBe("");
+  });
+
+  it("APP_ENV=prod без V2_ENABLED не требует MESH_*", () => {
+    expect(problems(production)).toBe("");
+  });
+});

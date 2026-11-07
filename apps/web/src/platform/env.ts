@@ -96,6 +96,13 @@ const base = z
     FEATURE_CLIENT_PHONE_CONSENT: bool,
 
     CRON_SECRET: optional,
+
+    /** Платформа v2 (Go-сервисы за mesh): выключена по умолчанию; MESH_* нужны, когда v2 включён в контуре prod. */
+    V2_ENABLED: bool,
+    MESH_URL: optional,
+    MESH_TLS_CERT_FILE: optional,
+    MESH_TLS_KEY_FILE: optional,
+    MESH_TLS_CA_FILE: optional,
   });
 
 /** Переменные после разбора; APP_ENV — с контуром по умолчанию (dev), как его видят проверки и приложение. */
@@ -180,6 +187,11 @@ function pushChecks({ env, require }: Checks) {
   for (const key of ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"] as const) require(key, "задан один из ключей VAPID");
 }
 
+function meshChecks({ env, require }: Checks) {
+  if (!env.V2_ENABLED || env.APP_ENV !== "prod") return;
+  for (const key of ["MESH_URL", "MESH_TLS_CERT_FILE", "MESH_TLS_KEY_FILE", "MESH_TLS_CA_FILE"] as const) require(key, "V2_ENABLED=true при APP_ENV=prod");
+}
+
 /** Провайдер по умолчанию для контура: dev — mock, staging — песочница, prod — ручной режим с банком. */
 export const DEFAULT_PAYMENT_PROVIDER = { dev: "mock", staging: "freedompay", prod: "manual" } as const;
 
@@ -197,7 +209,7 @@ const schema = base
     const env = withAppEnv(raw);
     const issue = (key: keyof RawEnv, message: string) => ctx.addIssue({ code: "custom", path: [key], message });
     const checks: Checks = { env, appEnvExplicit: raw.APP_ENV !== undefined, issue, require: (key, when) => !env[key] && issue(key, `обязательна, когда ${when}`) };
-    for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, appEnvChecks, freedomPayChecks, pushChecks]) check(checks);
+    for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, appEnvChecks, freedomPayChecks, pushChecks, meshChecks]) check(checks);
   })
   .transform(withAppEnv);
 
