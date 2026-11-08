@@ -59,7 +59,9 @@ describe("DealProgress", () => {
     expect(html).toContain("<ol");
     expect(html.match(/<li/g)).toHaveLength(5);
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
-    expect(html).toContain(`${ru.common.ui.dealProgress.steps[3]}`);
+    const current = html.match(/<li[^>]*aria-current="step"[^>]*>.*?<\/li>/)?.[0] ?? "";
+    expect(current).toContain(ru.common.ui.dealProgress.steps[3]);
+    expect(current).toContain("Приёмка");
   });
   it("пройденные шаги озвучены скрытым текстом", () => {
     const html = renderToStaticMarkup(<DealProgress status="READY" hasOpenDispute={false} />);
@@ -68,7 +70,11 @@ describe("DealProgress", () => {
   it("спор: плашка и серые шаги", () => {
     const html = renderToStaticMarkup(<DealProgress status="PAID_HOLD" hasOpenDispute />);
     expect(html).toContain(ru.common.ui.dealProgress.dispute);
+    expect(html).toContain('data-muted="true"');
     expect(html).toContain("<ol");
+  });
+  it("без спора шаги не серые", () => {
+    expect(renderToStaticMarkup(<DealProgress status="PAID_HOLD" hasOpenDispute={false} />)).not.toContain("data-muted");
   });
   it("отмена и возврат — плашка без шагов", () => {
     const c = renderToStaticMarkup(<DealProgress status="CANCELLED" hasOpenDispute={false} />);
