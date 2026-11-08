@@ -442,3 +442,55 @@ func TestInboxTableIsAppendOnly(t *testing.T) {
 		}
 	}
 }
+
+// subjMsg — fakeMsg с заданным субъектом.
+type subjMsg struct {
+	fakeMsg
+	subject string
+}
+
+func (m subjMsg) Subject() string { return m.subject }
+
+// Событие с источником в конверте, не совпадающим с источником субъекта, — подделка или
+// ошибка публикатора: Term без вызова обработчика и без записи inbox.
+func TestInboxTermsSourceMismatch(t *testing.T) {
+	f := setup(t)
+	for _, tc := range []struct{ subject, source string }{
+		{"senim.deal.offer_concluded", "marketplace"}, // marketplace выдаёт себя за deal
+		{"senim.deal.offer_concluded", ""},
+		{"senim.deal.offer_concluded", "Deal"},
+		{"deal.offer_concluded", "deal"}, // субъект не senim.<source>.<event>
+		{"senim.deal", "deal"},
+	} {
+		data, err := proto.Marshal(newEnvelope(tc.source))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var c counters
+		called := false
+		fn := func(context.Context, pgx.Tx, *eventsv1.Envelope) error { called = true; return nil }
+		msg := subjMsg{fakeMsg: fakeMsg{data: data, c: &c}, subject: tc.subject}
+		if err := inbox.Handle(context.Background(), f.pool, consumer, msg, fn); err == nil {
+			t.Errorf("%+v: ожидалась ошибка", tc)
+		}
+		if called || c.terms.Load() != 1 || c.acks.Load() != 0 || c.naks.Load() != 0 {
+			t.Errorf("%+v: called=%v terms=%d acks=%d naks=%d", tc, called, c.terms.Load(), c.acks.Load(), c.naks.Load())
+		}
+	}
+	if n := f.count(t, "inbox"); n != 0 {
+		t.Fatalf("записей inbox %d, ожидалось 0", n)
+	}
+	// Совпадающий источник обрабатывается как обычно.
+	data, err := proto.Marshal(newEnvelope("deal"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c counters
+	msg := subjMsg{fakeMsg: fakeMsg{data: data, c: &c}, subject: "senim.deal.offer_concluded"}
+	if err := inbox.Handle(context.Background(), f.pool, consumer, msg, func(context.Context, pgx.Tx, *eventsv1.Envelope) error { return nil }); err != nil {
+		t.Fatalf("совпадающий источник: %v", err)
+	}
+	if c.acks.Load() != 1 {
+		t.Fatalf("acks=%d", c.acks.Load())
+	}
+}

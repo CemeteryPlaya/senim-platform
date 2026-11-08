@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	eventsv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/events/v1"
+	"github.com/CemeteryPlaya/senim-platform/pkg/outbox"
 )
 
 // Schema — таблица inbox. Идемпотентна; сервис передаёт её в dbx.Migrate.
@@ -51,7 +52,8 @@ type Handler func(ctx context.Context, tx pgx.Tx, env *eventsv1.Envelope) error
 // В одной транзакции: INSERT в inbox ... ON CONFLICT DO NOTHING; запись уже была —
 // Ack без вызова fn; иначе fn, коммит, Ack. Ошибка fn или коммита — откат и
 // NakWithDelay (1 с, 2 с, 4 с ... до 1 мин по числу доставок); возвращается ошибка.
-// Конверт, который не разбирается или без event_id, повтор не исправит — Term.
+// Конверт, который не разбирается, без event_id или с источником, не совпадающим с
+// субъектом senim.<source>.…, повтор не исправит — Term без вызова fn.
 // Если у ctx нет дедлайна, ставится 30 с.
 func Handle(ctx context.Context, pool *pgxpool.Pool, consumer string, msg jetstream.Msg, fn Handler) error {
 	if consumer == "" {
@@ -65,6 +67,14 @@ func Handle(ctx context.Context, pool *pgxpool.Pool, consumer string, msg jetstr
 	if env.GetEventId() == "" {
 		_ = msg.TermWithReason("inbox: envelope без event_id")
 		return fmt.Errorf("inbox: envelope без event_id (%s)", msg.Subject())
+	}
+	// За источник субъекта ручается NATS (публиковать в senim.<source>.> может только
+	// учётная запись <source>, ADR-012); источник в конверте пишет сам публикатор. Не
+	// совпали — подделка или ошибка, повтор не исправит: Term без обработчика.
+	if src, ok := outbox.SourceOf(msg.Subject()); !ok || env.GetSource() != src {
+		_ = msg.TermWithReason("inbox: источник конверта не совпадает с субъектом")
+		return fmt.Errorf("inbox: источник конверта %q не совпадает с субъектом %s (event_id %s)",
+			env.GetSource(), msg.Subject(), env.GetEventId())
 	}
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc

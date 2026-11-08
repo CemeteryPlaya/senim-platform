@@ -63,6 +63,17 @@ var (
 	subjectRe = regexp.MustCompile(`^senim\.([a-z][a-z0-9_]*)(\.[a-z0-9_]+)+$`)
 )
 
+// SourceOf возвращает источник из субъекта senim.<source>.<event>[.…]; ok = false, если
+// субъект не такой формы. Источник субъекта — то, за что ручается NATS (публиковать в
+// senim.<source>.> может только учётная запись <source>, ADR-012).
+func SourceOf(subject string) (source string, ok bool) {
+	m := subjectRe.FindStringSubmatch(subject)
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
+
 // StreamName — имя потока источника: SENIM_<SOURCE>.
 func StreamName(source string) string { return "SENIM_" + strings.ToUpper(source) }
 
@@ -91,8 +102,8 @@ func EnsureStream(ctx context.Context, js jetstream.JetStream, source string) (j
 // envelope не больше MaxEnvelopeBytes.
 // trace_parent — W3C traceparent из ctx (пусто, если трассировки нет).
 func Add(ctx context.Context, tx pgx.Tx, subject string, eventType string, payload proto.Message) (string, error) {
-	m := subjectRe.FindStringSubmatch(subject)
-	if m == nil {
+	source, ok := SourceOf(subject)
+	if !ok {
 		return "", fmt.Errorf("outbox: недопустимый субъект %q (нужно senim.<source>.<event>)", subject)
 	}
 	if payload == nil || !payload.ProtoReflect().IsValid() {
@@ -115,7 +126,7 @@ func Add(ctx context.Context, tx pgx.Tx, subject string, eventType string, paylo
 	env, err := proto.Marshal(&eventsv1.Envelope{
 		EventId:     id.String(),
 		Type:        eventType,
-		Source:      m[1],
+		Source:      source,
 		OccurredAt:  timestamppb.New(now),
 		TraceParent: carrier.Get("traceparent"),
 		Payload:     body,
