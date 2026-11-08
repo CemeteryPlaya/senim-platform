@@ -23,8 +23,8 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     scroll-padding-top: --spacing(20);
-    /* Фокус и якоря не уходят под нижнюю панель (на широком экране её нет и переменная равна 0). */
-    scroll-padding-bottom: calc(var(--tabbar-h) + 1rem);
+    /* Фокус и якоря не уходят под нижнюю панель и закреплённую кнопку StickyAction (--sticky-h) (на широком экране её нет и переменная равна 0). */
+    scroll-padding-bottom: calc(var(--tabbar-h) + var(--sticky-h, 0px) + 1rem);
     scrollbar-color: var(--color-line-strong) var(--color-canvas);
   }
 

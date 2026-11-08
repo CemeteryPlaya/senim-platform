@@ -120,6 +120,29 @@ test("детали: «Назад» видна, закреплённая кноп
   if (!isDesktop(page)) expect(stickyBox.y + stickyBox.height).toBeLessThanOrEqual((await box(bar)).y + 1);
 });
 
+test("фокус на поле не прячется под закреплённую кнопку", async ({ page }) => {
+  test.skip(isDesktop(page), "закрепление — только на телефоне и планшете");
+  await loginAs(page, P.aigerim);
+  await page.goto("/ui-kit");
+  const sticky = page.locator("[data-sticky-action]");
+  await expect(sticky).toBeVisible();
+  const input = page.locator("main input:not([type=checkbox]):not([type=radio]):not([type=file]), main textarea").first();
+  // Поле чуть ниже края окна; фокус с клавиатуры прокручивает «ближайшим» способом (как Tab): поле должно
+  // остановиться над закреплённой кнопкой, а не под ней (scroll-padding-bottom учитывает --sticky-h).
+  await input.evaluate((el) => {
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo(0, top - window.innerHeight + 20);
+  });
+  await input.evaluate((el) => (el as HTMLElement).focus({ preventScroll: true }));
+  await input.evaluate((el) => el.scrollIntoView({ block: "nearest" }));
+  await page.waitForTimeout(300);
+  const inputBox = await box(input);
+  const stickyBox = await box(sticky);
+  const bar = await box(page.getByRole("navigation", { name: NAV }));
+  expect(inputBox.y + inputBox.height).toBeLessThanOrEqual(stickyBox.y + 1);
+  expect(inputBox.y + inputBox.height).toBeLessThanOrEqual(bar.y + 1);
+});
+
 test("экран сделки: «Назад» видна, последний блок не под панелью", async ({ page }) => {
   await loginAs(page, P.aigerim);
   await page.goto("/deals");
