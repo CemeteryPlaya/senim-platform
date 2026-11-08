@@ -16,10 +16,12 @@ export default async function NewWorkPage() {
     <Container size="form" className="flex flex-col gap-6 pb-12">
       <PageHeader title={t.newTitle} back={{ href: "/executor/portfolio", label: t.back }} className="pb-0" />
       <Alert tone="info">{t.photos.saveFirst}</Alert>
-      <PortfolioForm
-        initial={{ furnitureTypeId: "", style: "", title: "", description: "", priceFrom: null, published: true, place: "" }}
-        types={types}
-      />
+      <div className="rounded-card border border-line bg-surface p-4 sm:p-5">
+        <PortfolioForm
+          initial={{ furnitureTypeId: "", style: "", title: "", description: "", priceFrom: null, published: true, place: "" }}
+          types={types}
+        />
+      </div>
     </Container>
   );
 }

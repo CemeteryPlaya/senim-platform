@@ -6,17 +6,28 @@ export const executor = {
   incoming: {
     myOffers: "Мои отклики",
     chipsLabel: "Показать заявки",
-    chips: { all: "Все", new: "Без отклика", direct: "Прямые мне" },
+    /** «Новые» — без отклика мастера (на карточке — метка «Новая»). */
+    chips: { all: "Все", new: "Новые", direct: "Прямые мне" },
     direct: "Прямой запрос",
-    offers: (n: number) => (n === 0 ? "Откликов пока нет — будьте первым" : `Откликов: ${n}`),
     myOffer: (status: string) => `Ваш отклик: ${status}`,
     emptyFilter: "В этом разделе заявок нет.",
+  },
+
+  /** Сводка мастера плитками (входящие и главная): числа из заявок, сделок и журнала выплат. */
+  stats: {
+    label: "Сводка",
+    fresh: "Новые заявки",
+    inWork: "В работе",
+    earned: (month: string) => `Заработок за ${month}`,
   },
 
   request: {
     photosLabel: "Фото помещения",
     photoAlt: (n: number) => `Фото помещения ${n}`,
     illustration: "Иллюстрация вида мебели — заказчик не приложил фото",
+    contactsHidden: "Контакты заказчика откроются после оферты",
+    moreTitle: "Подробнее о заявке",
+    published: "Опубликована",
   },
 
   offers: {
@@ -74,15 +85,23 @@ export const executor = {
   finance: {
     metaTitle: "Финансы",
     title: "Финансы",
-    /** Названия месяцев: «ноябрь 2026». */
+    /** Названия месяцев: «ноябрь 2026», «Заработок за ноябрь». */
     months: ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"],
-    received: "Получено",
-    reserved: "Зарезервировано в банке",
-    reservedTitle: "Получите после подписания акта",
-    byMonth: "По месяцам",
-    payoutsCount: (n: number) => `Выплат: ${n}`,
-    payoutsTitle: "Выплаты",
-    emptyPayouts: "Выплат пока не было.",
+    /** «+18% к октябрю». */
+    monthsTo: ["январю", "февралю", "марту", "апрелю", "маю", "июню", "июлю", "августу", "сентябрю", "октябрю", "ноябрю", "декабрю"],
+    monthLabel: "Месяц",
+    prevMonth: "Предыдущий месяц",
+    nextMonth: "Следующий месяц",
+    monthTotal: "Получено за месяц",
+    vsPrev: (percent: string, month: string) => `${percent} к ${month}`,
+    chartLabel: "Выплаты по месяцам",
+    chartRange: (from: string, to: string) => `${from} — ${to}`,
+    bar: (month: string, amount: string) => `${month}: ${amount}`,
+    monthPayouts: "Выплаты за месяц",
+    emptyMonth: "В этом месяце выплат не было.",
+    awaiting: "Ожидает выплаты после приёмки",
+    awaitingNote: "деньги в банке под защитой",
+    awaitingTitle: "Получите после подписания акта",
     rowLine: (deal: string, date: string) => `${deal}, ${date}`,
   },
 } as const;

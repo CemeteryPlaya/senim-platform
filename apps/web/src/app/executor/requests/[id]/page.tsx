@@ -3,16 +3,33 @@ import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { getIncomingRequest, TZ_PATH, wholeKzt, type IncomingRequest } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Alert, ButtonLink, Container, Money, PageHeader, StatusBadge, formatDate, formatDateTime, formatDays, formatMoney, formatMonths } from "@/ui";
+import {
+  Alert,
+  ButtonLink,
+  Container,
+  DetailColumns,
+  KeyValueList,
+  Money,
+  PageHeader,
+  StatusBadge,
+  TrustNote,
+  formatDate,
+  formatDateTime,
+  formatDays,
+  formatMoney,
+  formatMonths,
+  formatRelative,
+  type KeyValueRow,
+} from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { ActionButton } from "@/app/requests/_parts/ActionButton";
 import { orNotFound, pageUser } from "@/app/requests/_parts/guard";
 import { MEASUREMENT_TONE, OFFER_TONE, termsText } from "@/app/requests/_parts/labels";
 import { OfferChat } from "@/app/_components/chat/OfferChat";
 import { Negotiation } from "@/app/_components/negotiation/Negotiation";
-import { detailRows, FactList } from "@/app/requests/_parts/RequestFacts";
+import { detailRows } from "@/app/requests/_parts/RequestFacts";
 import { executorNoDealAction, withdrawOfferAction } from "../actions";
-import { CompleteForm, OfferForm, ScheduleForm } from "../ExecutorForms";
+import { CompleteForm, OfferComposer, ScheduleForm } from "../ExecutorForms";
 import { NoAccess } from "@/app/_components/NoAccess";
 import { FlowSteps } from "@/app/_components/pre-contract/FlowSteps";
 import { SizesBasis, siteRows } from "@/app/_components/pre-contract/SizesBasis";
@@ -29,9 +46,11 @@ export const metadata: Metadata = { title: t.metaTitle };
 const AFTER_OFFER = new Set(["CONTRACTING", "CLOSED", "CANCELLED"]);
 
 /**
- * Заявка для мастера: что нужно заказчику и следующий шаг. На пути ТЗ — отклик, затем торг над чатом
+ * Заявка для мастера (макет master-screens, экран 2): фото → параметры «метка — значение» → поле цены с расчётом
+ * «Вы получите после приёмки» → «Откликнуться» внизу. Десктоп — две колонки (DetailColumns): справа фото, параметры
+ * и отклик, слева подробности. После отклика на месте формы — его состояние; на пути ТЗ ниже — торг над чатом
  * («Принять N ₸» → оферта); в сценарии до договора (флаг preContractFlows) — замер, итоговая цена, проект.
- * До оферты — зеркальный блок денег (ТЗ п. 4.2): деньги покупателя будут зарезервированы в банке до начала работ.
+ * Контакты заказчика до оферты скрыты (адрес — только выбранному мастеру).
  */
 export default async function ExecutorRequestPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -40,6 +59,37 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
     return <NoAccess description={ru.requests.noAccessExecutor} />;
   }
   const r = await orNotFound(getIncomingRequest(user, id));
+  const tz = r.path === TZ_PATH;
+  // Форма отклика: откликов ещё не было или оператор разрешил новую попытку (№16).
+  const composing = r.canOffer && (!r.myOffer || r.retryAllowed);
+
+  const aside = (
+    <>
+      <Cover title={r.title} photos={r.photos} />
+      <p className="flex items-start gap-2 text-base text-ink-soft">
+        <Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
+        {x.contactsHidden}
+      </p>
+      <KeyValueList rows={keyRows(r)} className="rounded-card border border-line bg-surface px-4 py-1" />
+      {!AFTER_OFFER.has(r.status) && <TrustNote>{ru.payments.block.masterBeforePayment}</TrustNote>}
+      {composing && r.retryAllowed && (
+        <Alert tone="accent" title={ru.requests.pre.retry.allowedTitle}>
+          {ru.requests.pre.retry.allowedText}
+        </Alert>
+      )}
+    </>
+  );
+  const main = (
+    <>
+      <MorePhotos photos={r.photos} />
+      <section aria-labelledby="request-facts" className="flex min-w-0 flex-col gap-2 rounded-card border border-line bg-surface p-4 sm:p-5">
+        <h2 id="request-facts" className="text-xl font-bold text-ink">
+          {x.moreTitle}
+        </h2>
+        <KeyValueList rows={moreRows(r)} />
+      </section>
+    </>
+  );
 
   return (
     <Container className="flex flex-col gap-6 pb-10">
@@ -56,67 +106,77 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
         className="pb-0"
       />
       {r.pre && <FlowSteps flow={r.pre.flow} steps={r.pre.steps} current={r.pre.current} />}
-      {!AFTER_OFFER.has(r.status) && (
-        <p className="flex items-start gap-3 rounded-card border border-line bg-sunken p-4 text-base font-semibold text-ink">
-          <Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
-          {ru.payments.block.masterBeforePayment}
-        </p>
+
+      {composing ? (
+        <OfferComposer requestId={r.id} defaults={r.defaults} tz={tz} aside={aside} main={main} />
+      ) : (
+        <DetailColumns
+          aside={
+            <>
+              {aside}
+              <section aria-labelledby="next-step" className="flex min-w-0 flex-col gap-4">
+                <h2 id="next-step" className="text-xl font-bold text-ink">
+                  {t.offerTitle}
+                </h2>
+                <NextStep r={r} />
+              </section>
+              {/* Торг (ТЗ п. 9) — сразу под откликом: здесь главное действие мастера («Принять N ₸» или своя цена). */}
+              {r.myOffer && tz && <Negotiation offerId={r.myOffer.id} />}
+            </>
+          }
+          main={main}
+        />
       )}
 
-      {/* Телефон: фото и факты, затем следующий шаг, затем подробности. Компьютер: шаг — справа во всю высоту. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:grid-rows-[auto_1fr] lg:gap-x-8">
-        <div className="flex min-w-0 flex-col gap-6">
-          <Gallery title={r.title} photos={r.photos} />
-        </div>
-
-        <section aria-labelledby="next-step" className="flex min-w-0 flex-col gap-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <h2 id="next-step" className="text-xl font-bold text-ink">
-            {t.offerTitle}
-          </h2>
-          <NextStep r={r} />
-        </section>
-
-        <section aria-labelledby="request-facts" className="flex min-w-0 flex-col gap-4 self-start border-t border-line pt-6 lg:col-start-1">
-          <h2 id="request-facts" className="text-xl font-bold text-ink">
-            {ru.requests.request.detailsTitle}
-          </h2>
-          <FactList
-            rows={[
-              ...detailRows({ title: r.title, style: r.style, details: r.details }),
-              ...(r.pre ? siteRows(r.pre) : []),
-              { label: f.city, value: r.city },
-              { label: f.address, value: r.address ?? <span className="text-muted">{f.addressHidden}</span> },
-              ...(r.location ? [{ label: f.location, value: f.locationValue(r.location.lat.toFixed(5), r.location.lng.toFixed(5)) }] : []),
-              ...(r.desiredDate ? [{ label: f.desiredDate, value: formatDate(r.desiredDate) }] : []),
-              ...(r.wishes ? [{ label: f.wishes, value: r.wishes }] : []),
-            ]}
-          />
-        </section>
-      </div>
-
-      {/* Торг — над чатом отклика (ТЗ п. 9): раунды цены и смета «Сумма заказа · Гарантия оплаты · К выплате». */}
-      {r.myOffer && r.path === TZ_PATH && <Negotiation offerId={r.myOffer.id} />}
-      {r.myOffer && <OfferChat offerId={r.myOffer.id} />}
+      {/* Главное действие экрана — в торге или в шаге отклика; «Отправить» в чате — вторичная. */}
+      {r.myOffer && <OfferChat offerId={r.myOffer.id} sendVariant="secondary" />}
     </Container>
   );
 }
 
-/** Фото помещения крупно (макет 13): первое — во всю ширину, остальные — рядом. Нет фото — иллюстрация вида мебели. */
-function Gallery({ title, photos }: { title: string; photos: IncomingRequest["photos"] }) {
-  if (photos.length === 0) {
-    const src = illustrationFor(title);
-    return src ? (
-      // eslint-disable-next-line @next/next/no-img-element -- иллюстрация из public/img
-      <img src={src} alt={x.illustration} className="aspect-[16/9] w-full rounded-card border border-line bg-sunken object-cover" />
-    ) : null;
+/** Коротко о заявке (макет: «Стиль — Современный», «Замер — Нужен»): то, по чему мастер решает, откликаться ли. */
+function keyRows(r: IncomingRequest): KeyValueRow[] {
+  const style = detailRows({ title: r.title, style: r.style, details: r.details }).find((row) => row.label === f.style);
+  return [
+    ...(style ? [{ label: style.label, value: style.value }] : []),
+    ...(r.segment ? [{ label: f.segment, value: SEGMENT_NAMES[r.segment] }] : []),
+    { label: f.city, value: r.city },
+    ...(r.desiredDate ? [{ label: f.desiredDate, value: formatDate(r.desiredDate) }] : []),
+    ...(r.publishedAt ? [{ label: x.published, value: formatRelative(r.publishedAt) }] : []),
+  ];
+}
+
+/** Подробности: ответы заказчика (без типа и стиля — они выше), замеры площадки, адрес (до оферты — скрыт), пожелания. */
+function moreRows(r: IncomingRequest): KeyValueRow[] {
+  return [
+    ...detailRows({ title: r.title, style: r.style, details: r.details }).filter((row) => row.label !== f.type && row.label !== f.style),
+    ...(r.pre ? siteRows(r.pre) : []),
+    { label: f.address, value: r.address ?? <span className="font-normal text-muted">{f.addressHidden}</span> },
+    ...(r.location ? [{ label: f.location, value: f.locationValue(r.location.lat.toFixed(5), r.location.lng.toFixed(5)) }] : []),
+    ...(r.wishes ? [{ label: f.wishes, value: r.wishes }] : []),
+  ];
+}
+
+/** Главное фото помещения во всю ширину колонки; нет фото — иллюстрация вида мебели. */
+function Cover({ title, photos }: { title: string; photos: IncomingRequest["photos"] }) {
+  const first = photos[0];
+  if (first) {
+    // eslint-disable-next-line @next/next/no-img-element -- фото из хранилища
+    return <img src={first.src} alt={x.photoAlt(1)} className="aspect-[4/3] w-full rounded-card border border-line bg-sunken object-cover" />;
   }
-  const [first, ...rest] = photos;
+  const src = illustrationFor(title);
+  return src ? (
+    // eslint-disable-next-line @next/next/no-img-element -- иллюстрация из public/img
+    <img src={src} alt={x.illustration} className="aspect-[16/9] w-full rounded-card border border-line bg-sunken object-cover" />
+  ) : null;
+}
+
+/** Остальные фото помещения плиткой. */
+function MorePhotos({ photos }: { photos: IncomingRequest["photos"] }) {
+  const rest = photos.slice(1);
+  if (rest.length === 0) return null;
   return (
     <ul aria-label={x.photosLabel} className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,7rem),1fr))] gap-3">
-      <li className="col-span-full">
-        {/* eslint-disable-next-line @next/next/no-img-element -- фото из хранилища */}
-        <img src={first!.src} alt={x.photoAlt(1)} className="aspect-[4/3] w-full rounded-card border border-line bg-sunken object-cover sm:aspect-[16/9]" />
-      </li>
       {rest.map((p, i) => (
         <li key={p.id}>
           {/* eslint-disable-next-line @next/next/no-img-element -- фото из хранилища */}
@@ -129,42 +189,24 @@ function Gallery({ title, photos }: { title: string; photos: IncomingRequest["ph
 
 function OfferSummary({ offer, tz }: { offer: NonNullable<IncomingRequest["myOffer"]>; tz: boolean }) {
   const o = ru.requests.offer;
-  const rows: [string, ReactNode][] = [
-    [tz ? t.myPrice : o.price, <Money key="p" amount={wholeKzt(offer.priceTiyn)} className="font-semibold" />],
-    [o.duration, formatDays(offer.durationDays)],
-    [o.warranty, formatMonths(offer.warrantyMonths)],
-    ...(tz ? [] : ([[o.measurement, termsText(offer.measurementTerms, offer.measurementFee)]] as [string, ReactNode][])),
+  const rows: KeyValueRow[] = [
+    { label: tz ? t.myPrice : o.price, value: <Money amount={wholeKzt(offer.priceTiyn)} /> },
+    { label: o.duration, value: formatDays(offer.durationDays) },
+    { label: o.warranty, value: formatMonths(offer.warrantyMonths) },
+    ...(tz ? [] : [{ label: o.measurement, value: termsText(offer.measurementTerms, offer.measurementFee) }]),
   ];
-  // Строки «подпись — значение»: длинное значение переносится под подпись, а не сжимается в узкий столбец.
-  return (
-    <dl className="flex flex-col divide-y divide-line text-base">
-      {rows.map(([label, value]) => (
-        <div key={label} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 first:pt-0 last:pb-0">
-          <dt className="text-muted">{label}</dt>
-          <dd className="text-ink">{value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
+  return <KeyValueList rows={rows} />;
 }
 
-/** Один следующий шаг исполнителя по состоянию его отклика и замера. */
+/** Одно состояние отклика мастера по его отклику и замеру (форма отклика — в OfferComposer). */
 function NextStep({ r }: { r: IncomingRequest }) {
   const offer = r.myOffer;
   const tz = r.path === TZ_PATH;
-  if (!offer) {
-    return r.canOffer ? (
-      <div className="rounded-card border border-line p-5 sm:p-6">
-        <OfferForm requestId={r.id} defaults={r.defaults} tz={tz} />
-      </div>
-    ) : (
-      <Alert tone="info">{ru.requests.status[r.status]}</Alert>
-    );
-  }
+  if (!offer) return <Alert tone="info">{ru.requests.status[r.status]}</Alert>;
   const m = offer.measurement;
   const card = (children: ReactNode) => (
-    <div className="flex flex-col gap-4 rounded-card border border-line p-5 sm:p-6">
-      <StatusBadge tone={m ? MEASUREMENT_TONE[m.status] : OFFER_TONE[offer.status]}>
+    <div className="flex flex-col gap-4 rounded-card border border-line bg-surface p-4 sm:p-5">
+      <StatusBadge tone={m ? MEASUREMENT_TONE[m.status] : OFFER_TONE[offer.status]} className="self-start">
         {m ? ru.requests.measurementStatus[m.status] : ru.requests.offerStatus[offer.status]}
       </StatusBadge>
       <OfferSummary offer={offer} tz={tz} />
@@ -187,18 +229,6 @@ function NextStep({ r }: { r: IncomingRequest }) {
           {t.withdraw}
         </ActionButton>
       </>,
-    );
-  }
-  if (r.retryAllowed && r.canOffer) {
-    return (
-      <>
-        <Alert tone="accent" title={ru.requests.pre.retry.allowedTitle}>
-          {ru.requests.pre.retry.allowedText}
-        </Alert>
-        <div className="rounded-card border border-line p-5 sm:p-6">
-          <OfferForm requestId={r.id} defaults={r.defaults} tz={tz} />
-        </div>
-      </>
     );
   }
   if (offer.status === "WITHDRAWN") return card(<p className="text-base text-ink-soft">{t.withdrawnText}</p>);
@@ -228,7 +258,15 @@ function NextStep({ r }: { r: IncomingRequest }) {
   if (r.status === "CONTRACTING" || r.status === "CLOSED") {
     return card(
       <>
-        <Alert tone="success" action={<ButtonLink href={offer.dealId ? `/deals/${offer.dealId}` : "/deals"}>{t.openOffer}</ButtonLink>}>
+        {/* На пути ТЗ ссылку на сделку даёт и торг ниже — там она главная, здесь вторичная. */}
+        <Alert
+          tone="success"
+          action={
+            <ButtonLink href={offer.dealId ? `/deals/${offer.dealId}` : "/deals"} variant={tz ? "secondary" : "primary"}>
+              {t.openOffer}
+            </ButtonLink>
+          }
+        >
           {t.contractingText}
         </Alert>
         {/* «Договор до замера»: проект — уже по договору, цена в пределах допуска. */}

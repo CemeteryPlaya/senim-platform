@@ -7,6 +7,7 @@ import {
   confirmOperation,
   dealMoney,
   expectDealStatus,
+  expectNoHorizontalScrollAt320And200,
   expectOnePrimary,
   historyRow,
   loginAs,
@@ -69,10 +70,12 @@ test("полная сделка: покупатель, мастер и опер�
   await expect(master.getByRole("heading", { level: 1, name: new RegExp(`^Заявка №${requestNumber}:`) })).toBeVisible();
   await expect(master.getByRole("main")).not.toContainText("ул. Демонстрационная");
   await master.getByLabel("Ваша цена, ₸").fill(FIRST_PRICE);
+  // Зеркальный расчёт: мастер видит, сколько получит после приёмки, ещё до отправки.
+  await expect(master.getByRole("main").getByRole("note").filter({ hasText: "Вы получите после приёмки" })).toContainText(amount(dealMoney(1_600_000).payout));
   await master.getByLabel("Срок изготовления, дней").fill("30");
   await master.getByLabel("Гарантия, месяцев").fill("24");
   await master.getByLabel("Комментарий заказчику").fill("Фасады МДФ в эмали, фурнитура Blum, верхние шкафы до потолка.");
-  await master.getByRole("button", { name: "Отправить отклик" }).click();
+  await stepAction(master).getByRole("button", { name: "Откликнуться", exact: true }).click();
   await expect(master.getByText("Отклик отправлен")).toBeVisible();
   const masterPrice = master.getByRole("region", { name: "Цена", exact: true });
   await expect(masterPrice.getByText("Ваша цена отправлена. Ждём ответа")).toBeVisible();
@@ -254,6 +257,12 @@ test("полная сделка: покупатель, мастер и опер�
   for (const sum of [M.buyerTotal, M.payout, M.income]) expect(operations).toMatch(amount(sum));
   expect(bankBalance(operations)).toMatch(amount(0n));
 
+  // «Финансы» мастера: выплата этой сделки — в списке выплат текущего месяца.
+  await master.goto("/executor/finance");
+  // Сумма — отдельным элементом строки (в textContent ссылки она слипается с датой «…2026»).
+  const payoutRow = master.getByRole("region", { name: "Выплаты за месяц" }).getByRole("link", { name: new RegExp(`Сделка №${dealNumber},`) });
+  await expect(payoutRow.getByText(amount(M.payout))).toBeVisible();
+
   const masterRows = await openMoneyHistory(master, dealPath);
   await expect(historyRow(masterRows, "Выплачено мастеру")).toContainText(amount(M.payout));
 
@@ -271,6 +280,44 @@ test("полная сделка: покупатель, мастер и опер�
   await expect(journal).toContainText("E2E-PAY-1");
 
   await Promise.all([buyerCtx.close(), masterCtx.close(), operatorCtx.close()]);
+});
+
+/** Месяц по времени Казахстана (UTC+5), как в deal-core.monthOf: «2026-11» и заголовок «Ноябрь 2026». */
+function kzMonth(shift = 0): { ym: string; title: RegExp } {
+  const local = new Date(Date.now() + 5 * 3600 * 1000);
+  const d = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth() + shift, 1));
+  const names = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+  return { ym: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`, title: new RegExp(`^${names[d.getUTCMonth()]} ${d.getUTCFullYear()}$`) };
+}
+
+test("финансы мастера: месяц переключается стрелками, столбики по месяцам, ожидает выплаты", async ({ page }) => {
+  await loginAs(page, P.timur); // Исп. №6: выплаты по №12 и №17, деньги №4 в банке до приёмки
+  await page.goto("/executor/finance");
+  const main = page.getByRole("main");
+  const now = kzMonth();
+  const before = kzMonth(-1);
+  await expect(main.getByRole("heading", { level: 2, name: now.title })).toBeVisible();
+  // Будущих месяцев нет: на текущем — только стрелка назад.
+  await expect(main.getByRole("link", { name: "Следующий месяц" })).toHaveCount(0);
+  await expect(main.getByRole("list", { name: "Выплаты по месяцам" }).getByRole("listitem")).toHaveCount(6);
+  await expect(main.getByRole("note").filter({ hasText: "Ожидает выплаты после приёмки" })).toContainText("деньги в банке под защитой");
+
+  await main.getByRole("link", { name: "Предыдущий месяц" }).click();
+  await page.waitForURL(new RegExp(`/executor/finance\\?month=${before.ym}$`));
+  await expect(main.getByRole("heading", { level: 2, name: before.title })).toBeVisible();
+  await main.getByRole("link", { name: "Следующий месяц" }).click();
+  await page.waitForURL(new RegExp(`/executor/finance\\?month=${now.ym}$`));
+  await expect(main.getByRole("heading", { level: 2, name: now.title })).toBeVisible();
+
+  // Неверный месяц в адресе — текущий; будущий — тоже текущий.
+  await page.goto("/executor/finance?month=2026-13");
+  await expect(main.getByRole("heading", { level: 2, name: now.title })).toBeVisible();
+  await page.goto(`/executor/finance?month=${kzMonth(2).ym}`);
+  await expect(main.getByRole("heading", { level: 2, name: now.title })).toBeVisible();
+
+  await expect(main.locator("[data-primary-action]")).toHaveCount(0);
+  await expect(main).not.toContainText(/комисси|эскроу/i);
+  await expectNoHorizontalScrollAt320And200(page, "/executor/finance");
 });
 
 /** Мастер заявки до отправки: кухня, Комфорт, точка на карте — место телефона покупателя. Возвращает заголовок заявки. */

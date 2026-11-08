@@ -2,9 +2,10 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import { z } from "zod";
+import { computeDealMoney, kztToTiyn, MAX_PRICE_TIYN, type DealMoney } from "@/modules/payments/client";
 import { completeMeasurementSchema, scheduleMeasurementSchema, sendOfferSchema } from "@/modules/requests/client";
 import { ru } from "@/i18n/ru";
-import { Button, Input, Select, Textarea } from "@/ui";
+import { Button, DetailColumns, Input, MirrorPayout, Select, Textarea, useFocusInvalid } from "@/ui";
 import { FormError, useRunAction, type ServerAction } from "@/app/requests/_parts/ActionButton";
 import { completeMeasurementAction, scheduleMeasurementAction, sendOfferAction } from "./actions";
 
@@ -14,13 +15,14 @@ type Errors = Record<string, string[] | undefined>;
 const num = (v: string) => (v.trim() === "" ? undefined : Number(v.replace(/\s/g, "").replace(",", ".")));
 
 /** Проверка той же схемой, что и на сервере, затем вызов действия; ошибки полей — под полями. */
-function useSchemaForm<S extends z.ZodType, T>(schema: S, action: ServerAction<z.output<S>, T>) {
+function useSchemaForm<S extends z.ZodType, T>(schema: S, action: ServerAction<z.output<S>, T>, onInvalid?: () => void) {
   const [errors, setErrors] = useState<Errors>({});
   const { run, pending, error } = useRunAction(action);
   const submit = (raw: unknown) => {
     const parsed = schema.safeParse(raw);
     if (!parsed.success) {
       setErrors(z.flattenError(parsed.error).fieldErrors as Errors);
+      onInvalid?.();
       return;
     }
     setErrors({});
@@ -43,12 +45,33 @@ function Form({ onSubmit, children }: { onSubmit: () => void; children: ReactNod
 
 type Terms = "FREE" | "INCLUDED" | "FEE_IF_NO_DEAL";
 
+/** Деньги по введённой цене (ТЗ п. 6, payments.computeDealMoney); цена не введена или вне диапазона — null. */
+function moneyFor(price: string): DealMoney | null {
+  const kzt = num(price);
+  if (kzt === undefined || !Number.isSafeInteger(kzt) || kzt <= 0) return null;
+  const tiyn = kztToTiyn(kzt);
+  return tiyn > MAX_PRICE_TIYN ? null : computeDealMoney(tiyn);
+}
+
+export type OfferComposerProps = {
+  requestId: string;
+  defaults: { measurementTerms: Terms; measurementFee: number | null };
+  tz: boolean;
+  /** Начало правой колонки (на телефоне — сразу под шапкой): фото, параметры заявки. */
+  aside: ReactNode;
+  /** Левая колонка десктопа (на телефоне — под формой): остальные фото и подробности заявки. */
+  main: ReactNode;
+};
+
 /**
- * Форма отклика. На пути ТЗ цена — первое предложение торга, условий замера нет (замера до оферты нет);
- * в сценарии до договора — предварительная цена и условия замера (по умолчанию — из профиля исполнителя).
+ * Экран отклика (макет master-screens, экран 2): поле «Ваша цена», срок, гарантия, комментарий; внизу, в закреплённом
+ * слоте (StickyAction), — «Вы получите после приёмки» по введённой цене и «Откликнуться», единственная главная кнопка.
+ * Форма охватывает обе колонки, поэтому кнопка в закреплённом слоте отправляет её. На пути ТЗ цена — первое
+ * предложение торга, условий замера нет; в сценарии до договора — предварительная цена и условия замера.
  */
-export function OfferForm({ requestId, defaults, tz }: { requestId: string; defaults: { measurementTerms: Terms; measurementFee: number | null }; tz: boolean }) {
-  const { submit, pending, error, errors } = useSchemaForm(sendOfferSchema, sendOfferAction);
+export function OfferComposer({ requestId, defaults, tz, aside, main }: OfferComposerProps) {
+  const { ref: fields, focusInvalid } = useFocusInvalid<HTMLElement>();
+  const { submit, pending, error, errors } = useSchemaForm(sendOfferSchema, sendOfferAction, focusInvalid);
   const [f, setF] = useState({
     price: "",
     durationDays: "",
@@ -60,6 +83,7 @@ export function OfferForm({ requestId, defaults, tz }: { requestId: string; defa
   const set = (patch: Partial<typeof f>) => setF({ ...f, ...patch });
   const fee = !tz && f.measurementTerms === "FEE_IF_NO_DEAL";
   const e1 = (k: string) => errors[k]?.[0];
+  const money = moneyFor(f.price);
   return (
     <Form
       onSubmit={() =>
@@ -74,35 +98,55 @@ export function OfferForm({ requestId, defaults, tz }: { requestId: string; defa
         })
       }
     >
-      <Input
-        label={tz ? t.priceTz : t.price}
-        hint={tz ? t.priceHintTz : t.priceHint}
-        inputMode="numeric"
-        value={f.price}
-        onChange={(e) => set({ price: e.target.value })}
-        error={e1("priceKzt")}
+      <DetailColumns
+        aside={
+          <>
+            {aside}
+            <section ref={fields} aria-labelledby="next-step" className="flex flex-col gap-5 rounded-card border border-line bg-surface p-4 sm:p-5">
+              <h2 id="next-step" className="text-xl font-bold text-ink">
+                {t.offerTitle}
+              </h2>
+              <Input
+                label={tz ? t.priceTz : t.price}
+                hint={tz ? t.priceHintTz : t.priceHint}
+                inputMode="numeric"
+                autoComplete="off"
+                value={f.price}
+                onChange={(e) => set({ price: e.target.value })}
+                error={e1("priceKzt")}
+              />
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(min(12rem,100%),1fr))] gap-5">
+                <Input label={t.duration} inputMode="numeric" value={f.durationDays} onChange={(e) => set({ durationDays: e.target.value })} error={e1("durationDays")} />
+                <Input label={t.warranty} inputMode="numeric" value={f.warrantyMonths} onChange={(e) => set({ warrantyMonths: e.target.value })} error={e1("warrantyMonths")} />
+              </div>
+              {!tz && (
+                <Select
+                  label={t.terms}
+                  hint={t.termsHint}
+                  placeholder={false}
+                  value={f.measurementTerms}
+                  onChange={(e) => set({ measurementTerms: e.target.value })}
+                  options={(["FREE", "INCLUDED", "FEE_IF_NO_DEAL"] as const).map((v) => ({ value: v, label: ru.requests.termsOption[v] }))}
+                  error={e1("measurementTerms")}
+                />
+              )}
+              {fee && <Input label={t.fee} inputMode="numeric" value={f.measurementFee} onChange={(e) => set({ measurementFee: e.target.value })} error={e1("measurementFee")} />}
+              <Textarea label={t.comment} hint={t.commentHint} optional value={f.comment} maxLength={1000} onChange={(e) => set({ comment: e.target.value })} error={e1("comment")} />
+            </section>
+          </>
+        }
+        main={main}
+        action={
+          <>
+            {/* Расчёт — рядом с кнопкой: на телефоне он закреплён внизу и виден, пока мастер вводит цену. */}
+            {money && <MirrorPayout payoutTiyn={money.payoutTiyn} guaranteeTiyn={money.guaranteeTiyn} />}
+            <Button type="submit" loading={pending} fullWidth>
+              {t.send}
+            </Button>
+            <FormError message={error} />
+          </>
+        }
       />
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 sm:grid-cols-2">
-        <Input label={t.duration} inputMode="numeric" value={f.durationDays} onChange={(e) => set({ durationDays: e.target.value })} error={e1("durationDays")} />
-        <Input label={t.warranty} inputMode="numeric" value={f.warrantyMonths} onChange={(e) => set({ warrantyMonths: e.target.value })} error={e1("warrantyMonths")} />
-      </div>
-      {!tz && (
-        <Select
-          label={t.terms}
-          hint={t.termsHint}
-          placeholder={false}
-          value={f.measurementTerms}
-          onChange={(e) => set({ measurementTerms: e.target.value })}
-          options={(["FREE", "INCLUDED", "FEE_IF_NO_DEAL"] as const).map((v) => ({ value: v, label: ru.requests.termsOption[v] }))}
-          error={e1("measurementTerms")}
-        />
-      )}
-      {fee && <Input label={t.fee} inputMode="numeric" value={f.measurementFee} onChange={(e) => set({ measurementFee: e.target.value })} error={e1("measurementFee")} />}
-      <Textarea label={t.comment} hint={t.commentHint} optional value={f.comment} maxLength={1000} onChange={(e) => set({ comment: e.target.value })} error={e1("comment")} />
-      <Button type="submit" loading={pending}>
-        {t.send}
-      </Button>
-      <FormError message={error} />
     </Form>
   );
 }

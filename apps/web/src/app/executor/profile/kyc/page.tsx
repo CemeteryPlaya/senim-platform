@@ -21,7 +21,11 @@ export default async function KycPage() {
         {kyc.rejectReason && <p>{t.rejectReason(kyc.rejectReason)}</p>}
         {uploaded > 0 && <p>{t.uploaded(uploaded)}</p>}
       </Alert>
-      {kyc.canSubmit && <KycForm max={KYC_MAX_FILES} />}
+      {kyc.canSubmit && (
+        <div className="rounded-card border border-line bg-surface p-4 sm:p-5">
+          <KycForm max={KYC_MAX_FILES} />
+        </div>
+      )}
     </Container>
   );
 }

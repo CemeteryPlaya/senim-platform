@@ -194,13 +194,10 @@ export const common = {
       worksEmptyAction: "Создать заявку",
     },
     executor: {
-      newRequests: "Новые заявки",
-      inWork: "Сумма заказов в работе",
       allRequests: "Все заявки",
       requestsTitle: "Новые заявки",
       sections: "Разделы",
       noRequests: "Новых заявок пока нет. Как только заказчик вашего уровня отправит заявку, она появится здесь.",
-      noOffer: "Ждёт вашего отклика",
     },
   },
 

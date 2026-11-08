@@ -15,12 +15,14 @@ export default async function PayoutPage() {
   return (
     <Container size="form" className="flex flex-col gap-6 pb-12">
       <PageHeader title={t.title} description={t.intro} back={{ href: "/executor/profile" }} />
-      <dl>
-        <Fact label={t.iban}>
-          <span className="tabular-nums">{last4 ? t.current(last4) : t.none}</span>
-        </Fact>
-      </dl>
-      <PayoutForm />
+      <div className="flex flex-col gap-5 rounded-card border border-line bg-surface p-4 sm:p-5">
+        <dl>
+          <Fact label={t.iban}>
+            <span className="tabular-nums">{last4 ? t.current(last4) : t.none}</span>
+          </Fact>
+        </dl>
+        <PayoutForm />
+      </div>
     </Container>
   );
 }

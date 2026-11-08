@@ -27,25 +27,29 @@ export default async function EditWorkPage({ params }: Props) {
   const types = await listFurnitureTypes();
 
   return (
-    <Container size="form" className="flex flex-col gap-8 pb-12">
+    <Container size="form" className="flex flex-col gap-6 pb-12">
       <PageHeader title={t.editTitle} back={{ href: "/executor/portfolio", label: t.back }} className="pb-0" />
       {item.fromDeal && <FromDealNote dealId={item.fromDeal.dealId} dealNumber={item.fromDeal.dealNumber} consent={item.fromDeal.consent} />}
 
-      <WorkPhotos itemId={item.id} photos={item.photos} max={PORTFOLIO_MAX_PHOTOS} />
+      <div className="rounded-card border border-line bg-surface p-4 sm:p-5">
+        <WorkPhotos itemId={item.id} photos={item.photos} max={PORTFOLIO_MAX_PHOTOS} />
+      </div>
 
-      <PortfolioForm
-        itemId={item.id}
-        initial={{
-          furnitureTypeId: item.furnitureType.id,
-          style: item.style.key as StyleKey,
-          title: item.title,
-          description: item.description,
-          priceFrom: item.priceFrom,
-          published: item.published,
-          place: item.place,
-        }}
-        types={types}
-      />
+      <div className="rounded-card border border-line bg-surface p-4 sm:p-5">
+        <PortfolioForm
+          itemId={item.id}
+          initial={{
+            furnitureTypeId: item.furnitureType.id,
+            style: item.style.key as StyleKey,
+            title: item.title,
+            description: item.description,
+            priceFrom: item.priceFrom,
+            published: item.published,
+            place: item.place,
+          }}
+          types={types}
+        />
+      </div>
     </Container>
   );
 }

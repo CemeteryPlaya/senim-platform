@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { CalendarClock, MapPin, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { listMyOffers, wholeKzt, type MyOfferItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { ButtonLink, Container, EmptyState, LegacyFilterChips, Money, PageHeader, PhotoCard, StatusBadge, formatDateTime, formatRelative, type Tone } from "@/ui";
+import { ButtonLink, Container, EmptyState, FilterChips, PageHeader, RequestCard, StatusBadge, formatDateTime, formatMoney, formatRelative, type Tone } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { pageUser } from "@/app/requests/_parts/guard";
 import { NoAccess } from "@/app/_components/NoAccess";
-import { photo } from "@/app/_home/illustration";
+import { illustrationFor } from "@/app/_home/illustration";
 
 const t = ru.executor.offers;
 
@@ -35,7 +35,7 @@ function status(o: MyOfferItem): { tone: Tone; text: string } {
   }
 }
 
-/** «Мои отклики» по макету 14: все отправленные предложения со статусами, фильтр чипами. */
+/** «Мои отклики» (макет 14 в стиле «B + A»): все отправленные предложения карточками заявок со статусом и ценой, фильтр чипами. */
 export default async function MyOffersPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const sp = await searchParams;
   const user = await pageUser("EXECUTOR", "/executor/offers");
@@ -57,41 +57,38 @@ export default async function MyOffersPage({ searchParams }: { searchParams: Pro
         />
       ) : (
         <>
-          <LegacyFilterChips
+          <FilterChips
             label={t.chipsLabel}
-            current={show}
-            chips={GROUPS.map((g) => ({
-              key: g,
-              label: t.chips[g],
-              count: g === "all" ? list.length : list.filter((o) => groupOf(o) === g).length,
+            items={GROUPS.map((g) => ({
+              label: ru.requests.my.filterChip(t.chips[g], g === "all" ? list.length : list.filter((o) => groupOf(o) === g).length),
               href: g === "all" ? "/executor/offers" : `/executor/offers?show=${g}`,
+              active: g === show,
             }))}
           />
           {shown.length === 0 ? (
             <p className="text-base text-muted">{t.emptyFilter}</p>
           ) : (
-            <ul className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
+            <ul className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
               {shown.map((o) => {
                 const st = status(o);
                 const measuring = o.measurement?.status === "SCHEDULED" && o.status === "ACCEPTED" && !o.dealId;
+                const price = o.measurement?.finalPrice ?? wholeKzt(o.priceTiyn);
                 return (
-                  <PhotoCard
-                    key={o.id}
-                    as="li"
-                    layout="row"
-                    href={`/executor/requests/${o.requestId}`}
-                    image={o.cover ?? photo(o.title)}
-                    title={ru.requests.requestTitle(o.number, o.title)}
-                    badge={<StatusBadge tone={st.tone}>{st.text}</StatusBadge>}
-                    meta={[
-                      { icon: <MapPin />, text: o.segment ? `${o.city} · ${SEGMENT_NAMES[o.segment]}` : o.city },
-                      {
-                        icon: <CalendarClock />,
-                        text: measuring && o.measurement ? t.measurementAt(formatDateTime(o.measurement.scheduledAt)) : t.sent(formatRelative(o.createdAt)),
-                      },
-                    ]}
-                    aside={<Money amount={o.measurement?.finalPrice ?? wholeKzt(o.priceTiyn)} />}
-                  />
+                  <li key={o.id} className="flex">
+                    <RequestCard
+                      className="flex-1"
+                      href={`/executor/requests/${o.requestId}`}
+                      thumbUrl={o.cover?.src ?? illustrationFor(o.title)}
+                      title={ru.requests.requestTitle(o.number, o.title)}
+                      isNew={false}
+                      badges={<StatusBadge tone={st.tone}>{st.text}</StatusBadge>}
+                      meta={[
+                        formatMoney(price),
+                        o.segment ? `${o.city} · ${SEGMENT_NAMES[o.segment]}` : o.city,
+                        measuring && o.measurement ? t.measurementAt(formatDateTime(o.measurement.scheduledAt)) : t.sent(formatRelative(o.createdAt)),
+                      ]}
+                    />
+                  </li>
                 );
               })}
             </ul>
