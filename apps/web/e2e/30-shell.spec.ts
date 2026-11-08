@@ -104,7 +104,8 @@ test("детали: «Назад» видна, закреплённая кноп
   await page.evaluate(() => window.scrollTo(0, 0));
   const top = await box(sticky);
   if (isDesktop(page)) {
-    expect(top.y).toBeGreaterThan(viewport.height); // на десктопе — в потоке, а не закреплена
+    // На десктопе — обычный блок в потоке, а не закреплённый.
+    expect(await sticky.evaluate((el) => getComputedStyle(el).position)).toBe("static");
   } else {
     expect(top.y + top.height).toBeLessThanOrEqual((await box(bar)).y + 1);
     expect(top.y).toBeGreaterThanOrEqual(0);
