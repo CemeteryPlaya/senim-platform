@@ -259,6 +259,8 @@ export async function listChats(user: CurrentUser): Promise<ChatListItem[]> {
     }
     const last = offer.messages[0] ?? null;
     const beforeOffer = contactStage(offer.deal) === "BEFORE_OFFER";
+    // Намеренная защита в глубину: сообщения до оферты уже маскируются при записи (sendMessage), но превью не должно
+    // зависеть от того, что каждая строка попала в БД через сервис, — поэтому маска применяется второй раз.
     // Та же логика, что requestTitle в requests/access.ts: companies не может импортировать requests (requests сам зависит от companies — цикл).
     const type = offer.request.furnitureType?.name ?? offer.request.customType ?? ru.requests.untitled;
     const item: ChatListItem = {
