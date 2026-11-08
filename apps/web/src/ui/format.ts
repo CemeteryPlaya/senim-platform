@@ -92,5 +92,7 @@ function formatCount(n: number, unit: Unit): string {
 export const formatDays = (n: number): string => formatCount(n, "days");
 /** Срок в месяцах: «18 месяцев». */
 export const formatMonths = (n: number): string => formatCount(n, "months");
+/** Число сделок: «12 сделок». */
+export const formatDeals = (n: number): string => formatCount(n, "deals");
 /** Годы: «12 лет». */
 export const formatYears = (n: number): string => formatCount(n, "years");

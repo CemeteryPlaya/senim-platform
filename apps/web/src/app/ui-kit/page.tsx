@@ -16,7 +16,13 @@ import {
   DateText,
   DemoBanner,
   EmptyState,
+  DealProgress,
   FilterChips,
+  FullscreenStep,
+  MirrorPayout,
+  RequestCard,
+  SignedBadge,
+  WorkCard,
   Input,
   KeyValueList,
   LinkList,
@@ -264,6 +270,43 @@ export default async function UiKitPage() {
               { href: "/ui-kit#premium", label: s.chips.premium, active: false },
             ]}
           />
+        </div>
+      </KitSection>
+
+      <KitSection title={k.sections.componentsB}>
+        <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] gap-4">
+            <WorkCard href="/ui-kit#work" photoUrl="/img/kitchen.svg" title={s.workTitle} priceFrom={1_200_000} meta={s.workMeta} verified dealsCount={12} />
+            <WorkCard photoUrl={null} priceFrom={null} meta={s.workMeta.slice(0, 2)} dealsCount={1} />
+            <div className="flex flex-col gap-3">
+              <RequestCard href="/ui-kit#req" thumbUrl="/img/wardrobe.svg" title={s.requestTitle} meta={s.requestMeta} isNew offersCount={5} />
+              <RequestCard href="/ui-kit#req2" thumbUrl={null} title={s.requestTitle} meta={s.requestMeta} isNew={false} offersCount={0} />
+            </div>
+          </div>
+          <div className="flex max-w-form flex-col gap-4">
+            {(["CREATED", "IN_PROGRESS", "READY", "SPLIT_PAYOUT"] as const).map((status) => (
+              <DealProgress key={status} status={status} hasOpenDispute={false} />
+            ))}
+            <DealProgress status="READY" hasOpenDispute />
+            <DealProgress status="CANCELLED" hasOpenDispute={false} />
+            <DealProgress status="REFUNDED" hasOpenDispute={false} />
+            <MirrorPayout payoutTiyn={139_200_000n} guaranteeTiyn={5_800_000n} />
+            <SignedBadge signedAt={new Date("2026-11-12T10:00:00Z")} documentNumber="2026-1147" />
+          </div>
+          <div className="max-w-form rounded-card border border-line bg-surface p-5">
+            <FullscreenStep
+              title={s.fullscreenTitle}
+              back={{ href: "/ui-kit" }}
+              action={
+                <ButtonLink href="/ui-kit" fullWidth>
+                  {s.fullscreenAction}
+                </ButtonLink>
+              }
+              className="min-h-0"
+            >
+              <p className="text-base text-ink-soft">{s.fullscreenBody}</p>
+            </FullscreenStep>
+          </div>
         </div>
       </KitSection>
 

@@ -9,6 +9,7 @@ export const common = {
     days: ["день", "дня", "дней"],
     months: ["месяц", "месяца", "месяцев"],
     years: ["год", "года", "лет"],
+    deals: ["сделка", "сделки", "сделок"],
   },
   actions: {
     back: "Назад",
@@ -99,6 +100,32 @@ export const common = {
     timeline: { done: "пройдено", current: "сейчас", todo: "впереди" },
     /** Последняя плитка в CategoryTiles. */
     categoryTilesMore: "Все типы",
+    workCard: {
+      priceFrom: "от",
+      priceUnknown: "Цена по запросу",
+      verified: "Проверен",
+      noPhoto: "Фото пока нет",
+    },
+    requestCard: {
+      isNew: "Новая",
+      offers: (n: number) => (n === 0 ? "Откликов пока нет" : `Откликов: ${n}`),
+      noPhoto: "Без фото",
+    },
+    dealProgress: {
+      label: "Ход сделки",
+      steps: ["Оплата", "Работа", "Готово", "Приёмка", "Выплата"],
+      done: "пройдено",
+      current: "сейчас",
+      todo: "впереди",
+      dispute: "Спор открыт — выплата остановлена",
+      cancelled: "Сделка отменена",
+      refunded: "Деньги возвращены покупателю",
+    },
+    signed: {
+      title: "Договор подписан ЭЦП обеими сторонами",
+      meta: (date: string, number: string) => `${date} · документ № ${number}`,
+    },
+    fullscreen: { back: "Назад" },
     stepper: {
       label: "Шаги",
       progress: (n: number, total: number) => `Шаг ${n} из ${total}`,
@@ -192,6 +219,7 @@ export const common = {
       timeline: "Ход дела",
       tiles: "Выбор плиткой с картинкой",
       componentsA: "Плитки категорий, плашка, «метка — значение», сводка, чипы-ссылки",
+      componentsB: "Карточки работы и заявки, ход сделки, расчёт мастера, подпись, полноэкранный шаг",
     },
     sample: {
       heading: "Заголовок страницы",
@@ -267,6 +295,14 @@ export const common = {
         { label: "Срок", value: "14 дней" },
         { label: "Материал", value: "МДФ в плёнке" },
       ],
+      workMeta: ["Кухня, МДФ эмаль", "30 дней", "Алматы"],
+      workTitle: "Кухня с островом",
+      requestTitle: "Кухня 3,2 м с островом",
+      requestMeta: ["Алматы, Бостандыкский", "бюджет 1–1,5 млн ₸", "2 часа назад"],
+      progressStatuses: ["Оплата ждёт", "Работа идёт", "Сдача принята", "Всё готово", "Спор поверх «Готово»", "Отменена"],
+      fullscreenTitle: "Какой уровень?",
+      fullscreenBody: "Выберите, на что ориентироваться при подборе материалов.",
+      fullscreenAction: "Далее",
       statNew: "Новые заявки",
       statWork: "В работе",
       statHint: "за сегодня",

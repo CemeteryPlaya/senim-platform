@@ -7,12 +7,13 @@ import { cn } from "@/ui";
 import { estimateRows } from "./deal-view";
 import { moneyPanel, type MoneyIcon, type MoneyTone } from "./money-panel";
 
+// Вид v2: карточка с цветной рамкой и значком в круге; цвет — только в помощь, смысл несут значок и заголовок.
 const TONE: Record<MoneyTone, string> = {
-  neutral: "bg-sunken",
-  success: "bg-success-soft",
-  warning: "bg-warning-soft",
+  neutral: "border-line bg-surface",
+  success: "border-success bg-success-soft",
+  warning: "border-warning bg-warning-soft",
 };
-const ICON_TONE: Record<MoneyTone, string> = { neutral: "text-ink-soft", success: "text-success", warning: "text-warning" };
+const ICON_TONE: Record<MoneyTone, string> = { neutral: "bg-sunken text-ink-soft", success: "bg-surface text-success", warning: "bg-surface text-warning" };
 const ICON: Record<MoneyIcon, ReactNode> = {
   clock: <Clock />,
   alert: <AlertTriangle />,
@@ -30,14 +31,14 @@ export const partyOf = (deal: DealView): "CLIENT" | "EXECUTOR" => (deal.viewer =
  */
 export function MoneyBlock({ deal, linked = true }: { deal: DealView; linked?: boolean }) {
   const p = moneyPanel(deal.moneyBlock, partyOf(deal), deal.money.payoutTiyn);
-  const box = cn("flex gap-3 rounded-card p-5 text-ink", TONE[p.tone]);
+  const box = cn("flex gap-4 rounded-card border-2 p-5 text-ink", TONE[p.tone]);
   const body = (
     <>
-      <span aria-hidden className={cn("mt-0.5 shrink-0 [&_svg]:size-7", ICON_TONE[p.tone])}>
+      <span aria-hidden className={cn("flex size-12 shrink-0 items-center justify-center rounded-full [&_svg]:size-7", ICON_TONE[p.tone])}>
         {ICON[p.icon]}
       </span>
       <span className="flex min-w-0 grow flex-col gap-1">
-        <span className="text-lg font-bold break-words">{p.title}</span>
+        <span className="text-xl font-extrabold break-words">{p.title}</span>
         {p.lines.map((line) => (
           <span key={line} className="text-base text-ink-soft">
             {line}
