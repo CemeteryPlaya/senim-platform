@@ -30,6 +30,7 @@ npm run v2:smoke           # сквозная проверка (тег smoke) н
 ## Локальный стенд (`deploy/compose`)
 
 - Путь запроса: браузер → edge `http://localhost:8180` → web → mesh (gRPC, mTLS) → identity ×2. Проверка — `npm run v2:certs && npm run v2:up && npm run v2:smoke`.
+- Стенд, поднятый до финальной волны плана 1 (08.11.2026): выполните `npm run v2:down`, удалите тома `senim-v2_pg-data` и `senim-v2_nats-data` (`docker volume rm senim-v2_pg-data senim-v2_nats-data`) и снова `npm run v2:certs` — иначе роли БД останутся без тайм-аутов (`00-roles.sql` выполняется только на новом томе), а у NATS не будет сертификата `nats`.
 - Профили: `core` — postgres, nats, identity, mesh, edge, web; `full` — плюс Grafana (otel-lgtm, `http://localhost:3300`, Explore → Tempo) и clamav; `storage` — MinIO (`9100`/`9101`), запускается отдельно и не входит в core: образ `minio/minio` больше не скачивается, S3-совместимый образ выбирает план 4 (files).
 - Все порты хоста — только на 127.0.0.1. OTLP `4317` наружу не публикуется: телеметрию шлют только контейнеры внутри сети compose.
 - Трасса в Grafana сейчас — только спаны edge и mesh (`identity` — имя апстрима в спане mesh, не спан сервиса): у web пока нет OTel SDK (он только передаёт `traceparent`), а вызовы gRPC-health identity не трассирует. Спан RPC и метрики Go-сервиса проверит первый настоящий RPC плана 2.

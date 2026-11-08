@@ -82,6 +82,8 @@
 - MUST-FIX из журнала: `DEMO_MODE` через `strconv.ParseBool`, `Distinct` по байтам, стабильный тест маски, маркер append-only ловит регистр и опечатки, health — NotFound на чужое имя, детали инвариантов в `CLAUDE.md`.
 - Документация: правило «Unavailable только без побочного эффекта» (`pkg/server`), границы «ровно один раз» у inbox (`pkg/inbox`).
 
+Существующий dev-стенд после этой волны: `npm run v2:down`, удалить тома `senim-v2_pg-data` и `senim-v2_nats-data`, затем `npm run v2:certs` и `npm run v2:up` — иначе роли `<svc>_app` останутся без тайм-аутов, а NATS не получит сертификат `nats`.
+
 В план 2 (решение контроллера):
 
 - Конфиг сервиса в prod: `sslmode=verify-full` для Postgres и TLS для OTLP (M3).
