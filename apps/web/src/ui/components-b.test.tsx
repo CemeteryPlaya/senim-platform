@@ -50,6 +50,18 @@ describe("RequestCard", () => {
     expect(html).toContain("Откликов: 5");
     expect(html).toContain('href="/r/1"');
   });
+  it("название — первым в имени ссылки, метки — над ним визуально", () => {
+    const html = renderToStaticMarkup(<RequestCard href="/r/1" thumbUrl={null} title="Заявка №18: Кухня" meta={[]} isNew offersCount={0} badges={<span>Прямой запрос</span>} />);
+    const text = html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+    expect(text.indexOf("Заявка №18: Кухня")).toBeLessThan(text.indexOf(ru.common.ui.requestCard.isNew));
+    expect(html).toContain("order-first");
+    expect(html).toContain("Прямой запрос");
+  });
+  it("без числа откликов — без строки откликов", () => {
+    const html = renderToStaticMarkup(<RequestCard href="/r/1" thumbUrl={null} title="Т" meta={["Ждёт ответа"]} isNew={false} />);
+    expect(html).not.toContain("Откликов");
+    expect(html).not.toContain("order-first");
+  });
   it("не новая — без метки", () => {
     const html = renderToStaticMarkup(<RequestCard href="/r/1" thumbUrl={null} title="Т" meta={[]} isNew={false} offersCount={0} />);
     expect(html).not.toContain(ru.common.ui.requestCard.isNew);

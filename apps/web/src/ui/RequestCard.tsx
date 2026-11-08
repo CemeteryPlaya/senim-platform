@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ImageOff } from "lucide-react";
+import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { cn } from "./cn";
 import { StatusBadge } from "./display";
@@ -13,12 +14,18 @@ export type RequestCardProps = {
   /** Район, бюджет, время. */
   meta: readonly string[];
   isNew: boolean;
-  offersCount: number;
+  /** Число откликов; не задано — строки нет (например, в «Моих откликах»). */
+  offersCount?: number;
+  /** Метки рядом с «Новая»: статус, «Прямой запрос». */
+  badges?: ReactNode;
   className?: string;
 };
 
-/** Карточка заявки (Krisha): миниатюра, «Новая», название, параметры, число откликов. Вся карточка — одна ссылка. */
-export function RequestCard({ href, thumbUrl, title, meta, isNew, offersCount, className }: RequestCardProps) {
+/**
+ * Карточка заявки (Krisha): миниатюра, «Новая», название, параметры, число откликов. Вся карточка — одна ссылка.
+ * Название — первым в разметке (имя ссылки начинается с него), метки показаны над ним через order-first.
+ */
+export function RequestCard({ href, thumbUrl, title, meta, isNew, offersCount, badges, className }: RequestCardProps) {
   return (
     <Link
       href={href}
@@ -34,14 +41,15 @@ export function RequestCard({ href, thumbUrl, title, meta, isNew, offersCount, c
         </span>
       )}
       <span className="flex min-w-[min(12rem,100%)] flex-1 flex-col gap-1">
-        {isNew && (
-          <StatusBadge tone="warning" className="self-start">
-            {t.isNew}
-          </StatusBadge>
-        )}
         <span className="text-lg font-bold break-words">{title}</span>
+        {(isNew || badges) && (
+          <span className="order-first flex flex-wrap gap-2">
+            {isNew && <StatusBadge tone="warning">{t.isNew}</StatusBadge>}
+            {badges}
+          </span>
+        )}
         {meta.length > 0 && <span className="text-base break-words text-ink-soft">{meta.join(" · ")}</span>}
-        <span className="text-base font-semibold text-ink-soft">{t.offers(offersCount)}</span>
+        {offersCount !== undefined && <span className="text-base font-semibold text-ink-soft">{t.offers(offersCount)}</span>}
       </span>
     </Link>
   );

@@ -85,6 +85,22 @@ describe("StatTiles", () => {
     expect(html).toContain("auto-fit");
     expect(html).toContain("В работе");
   });
+  it("подпись списка и плитка только для десктопа", () => {
+    const html = renderToStaticMarkup(
+      <StatTiles
+        label="Сводка"
+        items={[
+          { label: "Новые заявки", value: "3" },
+          { label: "Заработок за ноябрь", value: "1 ₸", desktopOnly: true },
+        ]}
+      />,
+    );
+    expect(html).toContain('aria-label="Сводка"');
+    const tiles = html.match(/<li[^>]*>/g) ?? [];
+    expect(tiles).toHaveLength(2);
+    expect(tiles[0]).not.toContain("max-lg:hidden");
+    expect(tiles[1]).toContain("max-lg:hidden");
+  });
 });
 
 describe("FilterChips", () => {
