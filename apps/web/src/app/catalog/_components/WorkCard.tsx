@@ -16,13 +16,12 @@ export type WorkCardProps = {
   showExecutor?: boolean;
 };
 
-/** Карточка работы каталога: общий `WorkCard` из src/ui + строка анонимного исполнителя и «Хочу похожее» в нижнем слоте. */
+/** Карточка работы каталога (без своей ссылки: страницы работы пока нет, ссылка на исполнителя — в нижнем слоте): общий `WorkCard` из src/ui + строка анонимного исполнителя и «Хочу похожее» в нижнем слоте. */
 export function WorkCard({ card, showExecutor = true }: WorkCardProps) {
   const cover = card.photos.find((p) => p.src);
   const executorHref = `/executors/${card.executor.publicNumber}`;
   return (
     <UiWorkCard
-      href={showExecutor ? executorHref : undefined}
       photoUrl={cover?.src ?? null}
       photoAlt={cover?.alt}
       title={card.title}
