@@ -8,12 +8,15 @@ import { formatDeals } from "./format";
 
 const t = ru.common.ui.workCard;
 
-export type WorkCardProps = {
-  /** Куда ведёт карточка (заголовок — растянутая ссылка). Без href карточка не кликабельна. */
-  href?: string;
+type WorkCardLink =
+  /** Со ссылкой заголовок обязателен: имя ссылки — название работы, а не цена. */
+  | { href: string; title: string }
+  /** Без ссылки карточка не кликабельна (свои ссылки — в footer). */
+  | { href?: undefined; title?: string };
+
+export type WorkCardProps = WorkCardLink & {
   photoUrl: string | null;
   photoAlt?: string;
-  title?: string;
   /** Цена «от», тенге; null — «Цена по запросу». */
   priceFrom: number | null;
   /** 2–3 параметра: тип, срок, город. */
@@ -64,11 +67,7 @@ export function WorkCard({ href, photoUrl, photoAlt = "", title, priceFrom, meta
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
         <p className="text-xl font-extrabold text-ink">
-          {title || !href ? price : (
-            <Link href={href} className="text-ink no-underline after:absolute after:inset-0">
-              {price}
-            </Link>
-          )}
+          {price}
         </p>
         {heading && <h3 className="text-lg font-bold break-words text-ink">{heading}</h3>}
         {meta.length > 0 && <p className="text-base break-words text-ink-soft">{meta.join(" · ")}</p>}

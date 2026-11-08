@@ -33,8 +33,11 @@ describe("WorkCard", () => {
     expect(text).toContain("12 сделок");
     expect(html).toContain('href="/w/1"');
   });
+  it("имя ссылки — название работы, а не цена", () => {
+    expect(html).toMatch(/<a [^>]*href="\/w\/1"[^>]*>Кухня<\/a>/);
+  });
   it("без фото — заглушка, без цены — «по запросу»", () => {
-    const bare = renderToStaticMarkup(<WorkCard href="/w" photoUrl={null} priceFrom={null} meta={[]} />);
+    const bare = renderToStaticMarkup(<WorkCard href="/w" title="Работа" photoUrl={null} priceFrom={null} meta={[]} />);
     expect(bare).toContain(ru.common.ui.workCard.noPhoto);
     expect(bare).toContain(ru.common.ui.workCard.priceUnknown);
   });
@@ -112,7 +115,7 @@ describe("слова-табу", () => {
   it("ни один компонент не выводит «комиссия»/«эскроу»", () => {
     const parts = [
       renderToStaticMarkup(<MirrorPayout payoutTiyn={1n} guaranteeTiyn={1n} />),
-      renderToStaticMarkup(<WorkCard href="/" photoUrl={null} priceFrom={1} meta={[]} verified dealsCount={1} />),
+      renderToStaticMarkup(<WorkCard href="/" title="Работа" photoUrl={null} priceFrom={1} meta={[]} verified dealsCount={1} />),
       renderToStaticMarkup(<RequestCard href="/" thumbUrl={null} title="т" meta={[]} isNew offersCount={1} />),
       renderToStaticMarkup(<DealProgress status="PAID_HOLD" hasOpenDispute />),
       renderToStaticMarkup(<DealProgress status="CANCELLED" hasOpenDispute={false} />),
