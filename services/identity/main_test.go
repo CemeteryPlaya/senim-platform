@@ -209,7 +209,7 @@ func TestServeBecomesReady(t *testing.T) {
 	var eventID string
 	if err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
 		var err error
-		eventID, err = outbox.Add(ctx, tx, "senim.identity.test_event", "google.protobuf.StringValue", wrapperspb.String("x"))
+		eventID, err = outbox.Add(ctx, tx, "identity", "senim.identity.test_event", "google.protobuf.StringValue", wrapperspb.String("x"))
 		return err
 	}); err != nil {
 		t.Fatalf("outbox.Add: %v", err)

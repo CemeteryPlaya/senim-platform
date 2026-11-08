@@ -128,7 +128,7 @@ func (f *fixture) addCommitted(t *testing.T, n int) []string {
 	var ids []string
 	err := dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
 		for i := range n {
-			id, err := outbox.Add(ctx, tx, f.subject(), eventType, wrapperspb.String(fmt.Sprintf("e%d", i)))
+			id, err := outbox.Add(ctx, tx, f.source, f.subject(), eventType, wrapperspb.String(fmt.Sprintf("e%d", i)))
 			if err != nil {
 				return err
 			}
@@ -212,7 +212,7 @@ func TestAddIsPartOfTransaction(t *testing.T) {
 	ctx := context.Background()
 	boom := errors.New("boom")
 	err := dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
-		if _, err := outbox.Add(ctx, tx, f.subject(), eventType, wrapperspb.String("x")); err != nil {
+		if _, err := outbox.Add(ctx, tx, f.source, f.subject(), eventType, wrapperspb.String("x")); err != nil {
 			return err
 		}
 		return boom
@@ -236,7 +236,7 @@ func TestAddEnvelope(t *testing.T) {
 	before := time.Now().Add(-time.Second)
 	err := dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
 		var err error
-		id, err = outbox.Add(ctx, tx, f.subject(), eventType, wrapperspb.String("hello"))
+		id, err = outbox.Add(ctx, tx, f.source, f.subject(), eventType, wrapperspb.String("hello"))
 		return err
 	})
 	if err != nil {
@@ -294,7 +294,7 @@ func TestAddRejectsBadInput(t *testing.T) {
 		{"senim.identity.created", eventType, nilStr},
 	} {
 		err := dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
-			_, err := outbox.Add(ctx, tx, tc.subject, tc.typ, tc.payload)
+			_, err := outbox.Add(ctx, tx, "identity", tc.subject, tc.typ, tc.payload)
 			return err
 		})
 		if err == nil {
@@ -313,7 +313,7 @@ func TestAddRejectsOversizedEnvelope(t *testing.T) {
 	ctx := context.Background()
 	add := func(size int) error {
 		return dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
-			_, err := outbox.Add(ctx, tx, f.subject(), "google.protobuf.BytesValue", wrapperspb.Bytes(make([]byte, size)))
+			_, err := outbox.Add(ctx, tx, f.source, f.subject(), "google.protobuf.BytesValue", wrapperspb.Bytes(make([]byte, size)))
 			return err
 		})
 	}
@@ -434,7 +434,7 @@ func TestRelayPoisonRowDoesNotBlock(t *testing.T) {
 	var bad string
 	err := dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
 		var err error
-		bad, err = outbox.Add(ctx, tx, "senim.nostream"+f.source+".created", eventType, wrapperspb.String("x"))
+		bad, err = outbox.Add(ctx, tx, "nostream"+f.source, "senim.nostream"+f.source+".created", eventType, wrapperspb.String("x"))
 		return err
 	})
 	if err != nil {
@@ -600,4 +600,76 @@ func (s *syncBuf) Reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.b.Reset()
+}
+
+// Публикации, которые висят до тайм-аута (нет подтверждения — как при нарушении прав NATS),
+// стоят в очереди первыми. Батч не должен упираться в свой срок и откатываться целиком:
+// он берёт столько записей, сколько успевает, и фиксирует их неудачи с отсрочкой, а
+// исправная запись за ними публикуется за ограниченное число батчей.
+func TestRelayTimeoutsAtHeadDoNotStall(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	// Подписчик без ответа: у публикации JetStream есть получатель, но подтверждения нет.
+	hang := "senim.hang" + f.source
+	sub, err := f.nc.SubscribeSync(hang + ".>")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sub.Unsubscribe() })
+	if err := f.nc.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	const stuck = 6
+	var bad []string
+	for range stuck {
+		if err := dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
+			id, err := outbox.Add(ctx, tx, "hang"+f.source, hang+".created", eventType, wrapperspb.String("x"))
+			bad = append(bad, id)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	good := f.addCommitted(t, 1)[0]
+
+	// Масштаб времени теста: батч 1 с, публикация 200 мс, запас на учёт 200 мс —
+	// за батч успевают 3 зависшие записи (в боевых значениях — 20 с / 5 с / 2 с).
+	r := outbox.NewRelay(f.pool, f.js, nil)
+	outbox.SetTimeouts(r, time.Second, 200*time.Millisecond, 200*time.Millisecond)
+	published := func() bool {
+		var ok bool
+		if err := f.owner.QueryRow(ctx, `SELECT published_at IS NOT NULL FROM outbox WHERE id = $1`, good).Scan(&ok); err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	batches := 0
+	for ; batches < 4 && !published(); batches++ {
+		if _, err := outbox.RunBatch(ctx, r); err != nil {
+			t.Fatalf("батч %d: %v (зависшие публикации не должны откатывать батч)", batches+1, err)
+		}
+	}
+	if !published() {
+		t.Fatalf("исправная запись не опубликована за %d батчей", batches)
+	}
+	if n := f.count(t, fmt.Sprintf("id IN ('%s') AND attempts >= 1 AND last_error IS NOT NULL AND next_attempt_at > created_at", strings.Join(bad, "','"))); n != stuck {
+		t.Fatalf("зависших записей с учтённой попыткой и отсрочкой %d из %d", n, stuck)
+	}
+	t.Logf("исправная запись опубликована за %d батчей", batches)
+}
+
+// Источник субъекта должен совпадать с сервисом, который пишет событие.
+func TestAddRejectsForeignSource(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	err := dbx.InTx(ctx, f.pool, func(tx pgx.Tx) error {
+		_, err := outbox.Add(ctx, tx, f.source, "senim.deal.offer_concluded", eventType, wrapperspb.String("x"))
+		return err
+	})
+	if err == nil || !strings.Contains(err.Error(), "источник") {
+		t.Fatalf("чужой источник в субъекте: %v", err)
+	}
+	if n := f.count(t, "true"); n != 0 {
+		t.Fatalf("записей outbox %d", n)
+	}
 }

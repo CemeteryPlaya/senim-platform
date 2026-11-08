@@ -21,6 +21,8 @@ const (
 	// транзакция батча простаивает, пока идут публикации, и Postgres не должен оборвать её сам.
 	batchTimeout   = 20 * time.Second
 	publishTimeout = 5 * time.Second
+	// bookkeepingReserve — сколько срока батча оставить на отметки и коммит.
+	bookkeepingReserve = 2 * time.Second
 	// maxLastError — длина last_error в строке outbox.
 	maxLastError = 1000
 )
@@ -31,17 +33,20 @@ var errSimulatedCrash = errors.New("outbox: имитация падения по
 // Relay публикует неотправленные записи outbox в JetStream.
 //
 // Батч: в одной транзакции SELECT ... FOR UPDATE SKIP LOCKED (до 100 записей, у
-// которых наступил next_attempt_at, по порядку id), публикация каждой с
-// Nats-Msg-Id = event_id с ожиданием подтверждения, затем published_at = now() и
-// коммит. Несколько релеев (реплики сервиса) берут разные записи благодаря SKIP
+// которых наступил next_attempt_at, по сроку next_attempt_at, затем id: отложенная
+// после ошибки запись встаёт за теми, чей срок наступил раньше, и не держит голову
+// очереди), публикация каждой с Nats-Msg-Id = event_id с ожиданием подтверждения,
+// затем published_at = now() и коммит. Несколько релеев (реплики сервиса) берут разные записи благодаря SKIP
 // LOCKED. Падение между публикацией и коммитом даёт повторную публикацию, которую
 // поток отбросит по Nats-Msg-Id.
 //
 // Ошибка публикации одной записи (нет потока, слишком большое сообщение, поток
-// удалён) не останавливает остальные: у записи растут attempts, пишется last_error,
-// next_attempt_at сдвигается на min(2^attempts с, 5 мин), в лог уходит Error.
-// Если же недоступен сам NATS (соединение закрыто или разорвано) или истёк ctx —
-// батч откатывается целиком, попытки не тратятся.
+// удалён, нет подтверждения за publishTimeout при живом соединении) не останавливает
+// остальные: у записи растут attempts, пишется last_error, next_attempt_at сдвигается
+// на min(2^attempts с, 5 мин), в лог уходит Error. Батч берёт записи, пока его срока
+// хватает на ещё одну публикацию и учёт (см. publishBatch). Если же недоступен сам NATS
+// (соединение закрыто или разорвано) или релей останавливают — батч откатывается
+// целиком, попытки не тратятся.
 type Relay struct {
 	pool *pgxpool.Pool
 	js   jetstream.JetStream
@@ -49,6 +54,9 @@ type Relay struct {
 
 	crashAfterPublish bool // тестовый хук: вернуть ошибку до отметки published_at
 	failing           bool // предыдущий батч упал; только горутина Run
+
+	// Сроки (боевые — константы выше; тест меняет их через export_test.go).
+	batchTimeout, publishTimeout, reserve time.Duration
 }
 
 // NewRelay создаёт релей; log == nil — slog.Default().
@@ -56,7 +64,8 @@ func NewRelay(pool *pgxpool.Pool, js jetstream.JetStream, log *slog.Logger) *Rel
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Relay{pool: pool, js: js, log: log}
+	return &Relay{pool: pool, js: js, log: log,
+		batchTimeout: batchTimeout, publishTimeout: publishTimeout, reserve: bookkeepingReserve}
 }
 
 // Run публикует записи, пока ctx не отменён; при пустой очереди ждёт 200 мс, при
@@ -110,9 +119,16 @@ type failure struct {
 
 // publishBatch обрабатывает один батч и возвращает число записей, взятых из
 // очереди (опубликованных и отложенных после ошибки).
-func (r *Relay) publishBatch(ctx context.Context) (n int, err error) {
-	ctx, cancel := context.WithTimeout(ctx, batchTimeout)
+//
+// Срок батча делится на публикации и учёт: новая запись берётся, только пока до срока
+// остаётся не меньше publishTimeout + reserve. Остальные записи батча остаются нетронутыми
+// и уходят в следующий батч — так подряд идущие зависшие публикации (нет подтверждения,
+// например при нарушении прав NATS) не доводят батч до срока и отката, а получают учёт
+// попытки с отсрочкой, и очередь за ними движется.
+func (r *Relay) publishBatch(parent context.Context) (n int, err error) {
+	ctx, cancel := context.WithTimeout(parent, r.batchTimeout)
 	defer cancel()
+	deadline, _ := ctx.Deadline()
 
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -126,7 +142,7 @@ func (r *Relay) publishBatch(ctx context.Context) (n int, err error) {
 
 	rows, err := tx.Query(ctx, `SELECT id::text, subject, envelope FROM outbox
 		WHERE published_at IS NULL AND next_attempt_at <= now()
-		ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED`, batchSize)
+		ORDER BY next_attempt_at, id LIMIT $1 FOR UPDATE SKIP LOCKED`, batchSize)
 	if err != nil {
 		return 0, fmt.Errorf("outbox: выборка: %w", err)
 	}
@@ -144,12 +160,15 @@ func (r *Relay) publishBatch(ctx context.Context) (n int, err error) {
 	published := make([]string, 0, len(batch))
 	var failed []failure
 	for _, x := range batch {
+		if time.Until(deadline) < r.publishTimeout+r.reserve {
+			break // срока хватает только на учёт: остальное — следующему батчу
+		}
 		perr := r.publish(ctx, x)
 		if perr == nil {
 			published = append(published, x.id)
 			continue
 		}
-		if r.unavailable(ctx, perr) {
+		if r.unavailable(parent, perr) {
 			return 0, perr
 		}
 		failed = append(failed, failure{row: x, err: perr})
@@ -192,13 +211,14 @@ func (r *Relay) publishBatch(ctx context.Context) (n int, err error) {
 			slog.String("event_id", f.id), slog.String("subject", f.subject),
 			slog.Int("attempts", attempts[i]), slog.Any("err", f.err))
 	}
-	return len(batch), nil
+	return len(published) + len(failed), nil
 }
 
-// unavailable — ошибка не про запись, а про доступность NATS или конец ctx:
-// батч откатывается целиком, попытки записей не тратятся.
-func (r *Relay) unavailable(ctx context.Context, err error) bool {
-	if ctx.Err() != nil {
+// unavailable — ошибка не про запись, а про доступность NATS или остановку релея
+// (отменён parent — ctx Run, а не ctx батча): батч откатывается целиком, попытки записей
+// не тратятся. Тайм-аут одной публикации при живом соединении — неудача этой записи.
+func (r *Relay) unavailable(parent context.Context, err error) bool {
+	if parent.Err() != nil {
 		return true
 	}
 	if errors.Is(err, nats.ErrConnectionClosed) || errors.Is(err, nats.ErrDisconnected) ||
@@ -209,7 +229,7 @@ func (r *Relay) unavailable(ctx context.Context, err error) bool {
 }
 
 func (r *Relay) publish(ctx context.Context, x row) error {
-	ctx, cancel := context.WithTimeout(ctx, publishTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.publishTimeout)
 	defer cancel()
 	msg := &nats.Msg{Subject: x.subject, Data: x.env, Header: nats.Header{}}
 	msg.Header.Set(jetstream.MsgIDHeader, x.id)

@@ -96,15 +96,20 @@ func EnsureStream(ctx context.Context, js jetstream.JetStream, source string) (j
 }
 
 // Add записывает событие в outbox в транзакции tx и возвращает его event_id
-// (UUIDv7). Субъект — senim.<source>.<event>; source берётся из субъекта.
+// (UUIDv7). source — сервис, который пишет событие; субъект обязан быть
+// senim.<source>.<event>: событие с чужим источником NATS всё равно не примет
+// (ADR-012), а релей потратил бы на него попытку.
 // eventType обязан совпадать с полным именем payload (proto.MessageName) — защита
 // от опечатки, по которой получатель не разберёт событие. payload не nil;
 // envelope не больше MaxEnvelopeBytes.
 // trace_parent — W3C traceparent из ctx (пусто, если трассировки нет).
-func Add(ctx context.Context, tx pgx.Tx, subject string, eventType string, payload proto.Message) (string, error) {
-	source, ok := SourceOf(subject)
+func Add(ctx context.Context, tx pgx.Tx, source, subject string, eventType string, payload proto.Message) (string, error) {
+	got, ok := SourceOf(subject)
 	if !ok {
 		return "", fmt.Errorf("outbox: недопустимый субъект %q (нужно senim.<source>.<event>)", subject)
+	}
+	if got != source {
+		return "", fmt.Errorf("outbox: источник субъекта %q — %q, а пишет сервис %q", subject, got, source)
 	}
 	if payload == nil || !payload.ProtoReflect().IsValid() {
 		return "", errors.New("outbox: пустой payload")
