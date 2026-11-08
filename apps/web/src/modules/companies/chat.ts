@@ -8,7 +8,8 @@ import { db, transaction, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
 import { enforceRateLimit } from "@/platform/rate-limit";
-import { executorDisplayOf } from "./anonymity";
+import type { DealStatus, OfferStatus, RequestStatus } from "@/generated/prisma/enums";
+import { executorDisplayOf, executorDisplays } from "./anonymity";
 import { chatClosedReason, chatPartyOf, moderationTarget, type ChatClosedReason, type ChatModerationAction, type ChatParty } from "./chat-policy";
 import { partyContactsFor, type DealSides, type PartyContacts } from "./contacts";
 import { chatTextRule, contactStage, type ChatTextRule, type ContactStage } from "./contacts-policy";
@@ -102,7 +103,9 @@ async function requireOffer(client: Db, user: CurrentUser, offerId: string): Pro
   return { offer, party, label: (await executorDisplayOf(client, offer.executorId)).label, stage: contactStage(offer.deal) };
 }
 
-function closedReasonOf(offer: OfferContext): ChatClosedReason | null {
+type ClosedFacts = { status: OfferStatus; chatClosedAt: Date | null; request: { status: RequestStatus }; deal: { status: DealStatus } | null };
+
+function closedReasonOf(offer: ClosedFacts): ChatClosedReason | null {
   return chatClosedReason({
     offerStatus: offer.status,
     requestStatus: offer.request.status,
@@ -169,6 +172,76 @@ export async function getChat(user: CurrentUser, offerId: string): Promise<ChatV
     clientPhone: await clientPhoneView(loaded),
     contacts: await partyContactsFor(db, party, sidesOf(offer)),
   };
+}
+
+// ─── список диалогов (вкладка «Чат») ─────────────────────────────────────────
+
+/** Строка списка диалогов: один отклик, в котором пользователь — сторона. */
+export type ChatListItem = {
+  offerId: string;
+  /** Тип изделия и город из заявки. */
+  title: string;
+  /** Подпись собеседника: «Исполнитель №N» по режиму ADR-006 или «Заказчик». */
+  counterpart: string;
+  /** Последнее сообщение, уже замаскированное; null — переписки ещё нет. */
+  lastMessage: string | null;
+  lastAt: Date | null;
+  closed: boolean;
+  /** Существующий экран чата этого отклика. */
+  href: string;
+};
+
+const CHAT_ANCHOR = "#chat";
+
+function chatHref(offer: { id: string; requestId: string; deal: { id: string } | null }, party: "client" | "executor"): string {
+  if (offer.deal) return `/deals/${offer.deal.id}${CHAT_ANCHOR}`;
+  return party === "client" ? `/requests/${offer.requestId}/offers/${offer.id}${CHAT_ANCHOR}` : `/executor/requests/${offer.requestId}${CHAT_ANCHOR}`;
+}
+
+/**
+ * Диалоги пользователя: отклики своих заявок (заказчик) или свои отклики (исполнитель) по активной роли — то же
+ * правило владения, что у getChat (chatPartyOf). Оператор и замерщик получают пустой список. Текст превью —
+ * как в getChat; до оферты дополнительно проходит maskContacts (на случай строки, записанной в обход сервиса).
+ * Телефона, ФИО и наименования заказчика/исполнителя в строке нет, кроме подписи по режиму ADR-006.
+ */
+export async function listChats(user: CurrentUser): Promise<ChatListItem[]> {
+  const party = user.role === "CLIENT" ? "client" : user.role === "EXECUTOR" ? "executor" : null;
+  if (party === null) return [];
+  const offers = await db.offer.findMany({
+    where: party === "client" ? { request: { clientId: user.id } } : { executor: { userId: user.id } },
+    select: {
+      id: true,
+      status: true,
+      chatClosedAt: true,
+      requestId: true,
+      executorId: true,
+      createdAt: true,
+      request: { select: { status: true, city: true, customType: true, furnitureType: { select: { name: true } } } },
+      deal: { select: { id: true, status: true, signedAt: true } },
+      messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { body: true, createdAt: true } },
+    },
+  });
+  const labels = party === "client" ? await executorDisplays(db, offers.map((o) => o.executorId)) : null;
+  const items = offers.map((offer) => {
+    const last = offer.messages[0] ?? null;
+    const beforeOffer = contactStage(offer.deal) === "BEFORE_OFFER";
+    const type = offer.request.furnitureType?.name ?? offer.request.customType ?? ru.requests.untitled;
+    return {
+      createdAt: offer.createdAt,
+      item: {
+        offerId: offer.id,
+        title: [type, offer.request.city].filter((part) => part.length > 0).join(" · "),
+        counterpart: labels === null ? t.clientLabel : (labels.get(offer.executorId)?.label ?? fail.notFound(ru.companies.errors.executorNotFound)),
+        lastMessage: last ? (beforeOffer ? maskContacts(last.body).text : last.body) : null,
+        lastAt: last?.createdAt ?? null,
+        closed: closedReasonOf(offer) !== null,
+        href: chatHref(offer, party),
+      } satisfies ChatListItem,
+    };
+  });
+  return items
+    .sort((a, b) => (b.item.lastAt?.getTime() ?? -1) - (a.item.lastAt?.getTime() ?? -1) || b.createdAt.getTime() - a.createdAt.getTime())
+    .map(({ item }) => item);
 }
 
 /** Текст перед записью по правилу CONTACTS: до оферты — маска (у исполнителя и наименование/ФИО), после — как есть. */

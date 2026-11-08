@@ -1,5 +1,6 @@
 import { ai } from "./ru/ai";
 import { bankDemo } from "./ru/bankDemo";
+import { chats } from "./ru/chats";
 import { common } from "./ru/common";
 import { companies } from "./ru/companies";
 import { deal } from "./ru/deal";
@@ -36,4 +37,5 @@ export const ru = {
   landing,
   bankDemo,
   pwa,
+  chats,
 } as const;
