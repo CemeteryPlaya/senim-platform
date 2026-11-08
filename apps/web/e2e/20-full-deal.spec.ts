@@ -7,6 +7,7 @@ import {
   confirmOperation,
   dealMoney,
   expectDealStatus,
+  expectOnePrimary,
   historyRow,
   loginAs,
   moneyBlock,
@@ -129,6 +130,8 @@ test("полная сделка: покупатель, мастер и опер�
   await expect(buyerEstimate).toContainText(amount(M.protection));
   await expect(buyerEstimate).toContainText(amount(M.buyerTotal));
   await expect(nextStep(buyer)).toContainText("Проверьте условия оферты и подпишите её");
+  // Подпись оферты: заливная — только «Подписать оферту» в закреплённом слоте, панель подписи и чат вторичные.
+  await expectOnePrimary(buyer);
   await master.goto(dealPath);
   const masterEstimate = master.getByRole("region", { name: "Смета" });
   await expect(masterEstimate).toContainText(amount(M.guarantee));

@@ -104,12 +104,13 @@ export default async function DealPage({ params }: Props) {
                 .filter((d) => d.signable)
                 .map((d) => (
                   <div id={signingAnchorId(d.id)} key={d.id} className="scroll-mt-6">
-                    <SigningPanel document={d} titleAs="h3" signerName={user.fullName ?? undefined} />
+                    <SigningPanel document={d} titleAs="h3" signerName={user.fullName ?? undefined} actionVariant="secondary" />
                   </div>
                 ))}
             </div>
             <DealContacts dealId={deal.id} className={SECTION_CARD} />
-            <OfferChat offerId={deal.offerId} />
+            {/* Одна заливная кнопка на экран — действие шага в StickyAction; кнопки подписи и чата вторичные. */}
+            <OfferChat offerId={deal.offerId} sendVariant="secondary" />
             <DisputeSection deal={deal} />
             {deal.review && (
               <Section id="review" title={t.sections.review}>

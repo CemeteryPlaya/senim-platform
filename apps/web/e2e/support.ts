@@ -132,8 +132,12 @@ export async function expectNoHorizontalScroll(page: Page): Promise<void> {
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
-/** Узкий экран и крупный шрифт: 320 px и 200 % — страница не уезжает вбок. */
-export async function expectFitsAt320And200(page: Page, path: string): Promise<void> {
+/**
+ * Узкий экран и крупный шрифт: на 320 px и 200 % страница не прокручивается вбок. Проверяет только горизонтальную
+ * прокрутку; размер окна и шрифт после проверки возвращаются как были.
+ */
+export async function expectNoHorizontalScrollAt320And200(page: Page, path: string): Promise<void> {
+  const before = page.viewportSize();
   await page.setViewportSize({ width: 320, height: 640 });
   await page.goto(path);
   await page.evaluate(() => {
@@ -141,6 +145,15 @@ export async function expectFitsAt320And200(page: Page, path: string): Promise<v
   });
   await page.waitForTimeout(200);
   await expectNoHorizontalScroll(page);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "";
+  });
+  if (before) await page.setViewportSize(before);
+}
+
+/** Одно заливное главное действие на экране (data-primary-action ставят Button, ButtonLink и SignLink варианта primary). */
+export async function expectOnePrimary(page: Page): Promise<void> {
+  await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveCount(1);
 }
 
 /** Блок денег — первый блок карточки сделки (заголовок «Деньги» для диктора). */

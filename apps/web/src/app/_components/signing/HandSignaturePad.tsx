@@ -17,6 +17,8 @@ export type HandSignaturePadProps = {
   onSubmit: (payload: HandPayload) => Promise<string | null>;
   /** Подпись по умолчанию в режиме «Напечатать имя» — ФИО из профиля. */
   defaultName?: string;
+  /** Вид кнопки «Подписать»: secondary, когда главное действие экрана — в другом месте (StickyAction сделки). */
+  submitVariant?: "primary" | "secondary";
 };
 
 /**
@@ -25,7 +27,7 @@ export type HandSignaturePadProps = {
  * Кнопки ≥ 48 px (Button), у холста — подпись и описание для экранного диктора. Ошибка напечатанного имени —
  * у самого поля (aria-invalid, фокус на поле); плашка — только для холста.
  */
-export function HandSignaturePad({ onSubmit, defaultName = "" }: HandSignaturePadProps) {
+export function HandSignaturePad({ onSubmit, defaultName = "", submitVariant = "primary" }: HandSignaturePadProps) {
   const [mode, setMode] = useState<HandMode>("draw");
   const [hasInk, setHasInk] = useState(false);
   const [typedName, setTypedName] = useState(defaultName);
@@ -199,7 +201,7 @@ export function HandSignaturePad({ onSubmit, defaultName = "" }: HandSignaturePa
           {error}
         </Alert>
       )}
-      <Button fullWidth loading={busy} onClick={submit}>
+      <Button variant={submitVariant} fullWidth loading={busy} onClick={submit}>
         {t.submit}
       </Button>
     </div>

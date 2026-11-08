@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { choose, expectFitsAt320And200, loginAs, P, stepAction } from "./support";
+import { choose, expectNoHorizontalScrollAt320And200, loginAs, P, stepAction } from "./support";
 
 /**
  * Прямой запрос по работе из каталога («Хочу похожее»): заявку получает только автор работы (Исп. №7, ИП Нурланова),
@@ -62,5 +62,5 @@ test("карточка мастера: фото и цена работы, «ме
   await page.waitForURL(/\/requests\/new\?like=/);
   await expect(page.getByText("Заявку получит только Исполнитель №7 — автор понравившейся работы.")).toBeVisible();
 
-  await expectFitsAt320And200(page, "/executors/7");
+  await expectNoHorizontalScrollAt320And200(page, "/executors/7");
 });

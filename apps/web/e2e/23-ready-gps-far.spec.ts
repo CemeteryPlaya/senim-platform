@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { pdfText } from "./pdf-text";
-import { expectDealStatus, loginAs, nextStep, openDeal, P, phone, POINT, reseed, signFromNextStep, stepAction, submitReady } from "./support";
+import { expectDealStatus, expectOnePrimary, loginAs, nextStep, openDeal, P, phone, POINT, reseed, signFromNextStep, stepAction, submitReady } from "./support";
 
 /**
  * Критерий ТЗ 6: GPS вне радиуса предупреждает, но не блокирует сдачу. Сделка №6 сида — IN_PROGRESS,
@@ -21,6 +21,8 @@ test("сдача вдали от адреса: предупреждение, р�
   await loginAs(master, P.erlan);
   await openDeal(master, 6);
   await expectDealStatus(master, "Идут работы");
+  // Шаг-форма (сдача с фото): заливная — только «Сдать работу», отправка в чате вторичная.
+  await expectOnePrimary(master);
   await submitReady(master);
 
   const ready = master.getByRole("region", { name: "Сдача работы" });

@@ -4,7 +4,7 @@ import { ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { ru } from "@/i18n/ru";
 import type { ChatView } from "@/modules/companies";
-import { Alert, Chat, cn } from "@/ui";
+import { Alert, Chat, cn, type ButtonVariant } from "@/ui";
 import { loadChat, sendChatMessage } from "./actions";
 import { ChatModeration } from "./ChatModeration";
 import { ClientPhone } from "./ClientPhone";
@@ -13,11 +13,11 @@ import { PartyContacts } from "./PartyContacts";
 /** Как часто обновлять ленту, пока вкладка видна. */
 const POLL_MS = 5_000;
 
-type Props = { id: string; offerId: string; initial: ChatView; title: string; reasonMax: number; className?: string };
+type Props = { id: string; offerId: string; initial: ChatView; title: string; reasonMax: number; sendVariant?: ButtonVariant; className?: string };
 
 const m = ru.companies.chat.moderation;
 
-export function OfferChatClient({ id, offerId, initial, title, reasonMax, className }: Props) {
+export function OfferChatClient({ id, offerId, initial, title, reasonMax, sendVariant, className }: Props) {
   const [chat, setChat] = useState(initial);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +61,7 @@ export function OfferChatClient({ id, offerId, initial, title, reasonMax, classN
         title={title}
         messages={chat.messages}
         onSend={send}
+        sendVariant={sendVariant}
         disabledReason={chat.canWrite ? undefined : chat.closedReason}
       />
       {chat.clientPhone && <ClientPhone offerId={offerId} view={chat.clientPhone} onChanged={refresh} />}

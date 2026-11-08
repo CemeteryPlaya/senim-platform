@@ -4,7 +4,8 @@ import {
   choose,
   dealMoney,
   expectDealStatus,
-  expectFitsAt320And200,
+  expectNoHorizontalScrollAt320And200,
+  expectOnePrimary,
   historyRow,
   loginAs,
   moneyBlock,
@@ -129,6 +130,8 @@ test("экран сделки: ход сделки, деньги, подпись
   await expect(action.getByRole("link", { name: "Подписать акт", exact: true })).toBeVisible();
   await expect(action.locator("[data-primary-action]")).toHaveCount(1);
   await expect(nextStep(page).getByRole("link", { name: "Подписать акт", exact: true })).toHaveCount(0);
+  // Заливная — только она: панель подписи и отправка в чате на экране сделки вторичные.
+  await expectOnePrimary(page);
 
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("нет размера окна");
@@ -152,7 +155,7 @@ test("экран сделки: ход сделки, деньги, подпись
     expect(a.y).toBeGreaterThan(money.y);
   }
 
-  await expectFitsAt320And200(page, dealPath);
+  await expectNoHorizontalScrollAt320And200(page, dealPath);
 });
 
 test("отменённая сделка: вместо шагов — плашка, действия шага нет", async ({ page }) => {

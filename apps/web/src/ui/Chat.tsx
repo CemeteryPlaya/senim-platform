@@ -3,7 +3,7 @@
 import { Info, Send, ShieldCheck } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
-import { Button } from "./Button";
+import { Button, type ButtonVariant } from "./Button";
 import { cn } from "./cn";
 import { DateText } from "./display";
 import type { DateInput } from "./format";
@@ -30,11 +30,22 @@ export type ChatProps = {
   title?: string;
   emptyText?: ReactNode;
   maxLength?: number;
+  /** Вид кнопки «Отправить»: на экране, где главное действие другое (сделка), — secondary. */
+  sendVariant?: ButtonVariant;
   className?: string;
 };
 
 /** Презентационный чат: лента, своё/чужое/системное, поле ввода. Данные и отправка — через пропсы. */
-export function Chat({ messages, onSend, disabledReason, title = ru.common.ui.chat.label, emptyText = ru.common.ui.chat.empty, maxLength = 2000, className }: ChatProps) {
+export function Chat({
+  messages,
+  onSend,
+  disabledReason,
+  title = ru.common.ui.chat.label,
+  emptyText = ru.common.ui.chat.empty,
+  maxLength = 2000,
+  sendVariant = "primary",
+  className,
+}: ChatProps) {
   const t = ru.common.ui.chat;
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -117,7 +128,7 @@ export function Chat({ messages, onSend, disabledReason, title = ru.common.ui.ch
               <p id={`${inputId}-hint`} className="hidden text-sm text-muted sm:block">
                 {t.hint}
               </p>
-              <Button type="submit" loading={sending} disabled={!text.trim()} icon={<Send className="size-5" />}>
+              <Button type="submit" variant={sendVariant} loading={sending} disabled={!text.trim()} icon={<Send className="size-5" />}>
                 {sending ? t.sending : ru.common.actions.send}
               </Button>
             </div>

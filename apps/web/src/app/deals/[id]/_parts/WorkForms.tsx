@@ -37,7 +37,8 @@ export function PayButton({ dealId, amount }: { dealId: string; amount: string }
       >
         {t.actions.pay(amount)}
       </ConfirmButton>
-      <p className="text-base text-ink-soft" aria-live="polite">
+      {/* Область для диктора есть всегда, место в закреплённом слоте занимает только с текстом. */}
+      <p className={redirecting ? "text-base text-ink-soft" : "sr-only"} aria-live="polite">
         {redirecting ? t.pay.redirecting : ""}
       </p>
     </div>

@@ -21,7 +21,14 @@ export type SigningPanelProps = {
   titleAs?: "h2" | "h3";
   /** ФИО текущего пользователя — подставляется в «Напечатать имя». */
   signerName?: string;
+  /**
+   * Вид кнопок подписи («Подписать», «Подписать ЭЦП», «Я подписал — проверить»). На экране сделки главное действие —
+   * переход к подписи в StickyAction, поэтому там secondary; на странице документа по ссылке — primary.
+   */
+  actionVariant?: ActionVariant;
 };
+
+type ActionVariant = "primary" | "secondary";
 
 /**
  * Оферта или акт: просмотр PDF, хэш, подписи сторон (собственноручная и ЭЦП — время и хэш) и подпись:
@@ -29,7 +36,7 @@ export type SigningPanelProps = {
  * После каждой подписи обновляет экран (router.refresh): шаг с кнопкой, на которой стоял фокус, исчезает.
  * Поэтому объявление — в области role="status" самой панели (переживает смену шага), а фокус — на заголовок документа.
  */
-export function SigningPanel({ document: doc, titleAs = "h2", signerName }: SigningPanelProps) {
+export function SigningPanel({ document: doc, titleAs = "h2", signerName, actionVariant = "primary" }: SigningPanelProps) {
   const badge = documentBadge(doc);
   const titleId = signingTitleId(doc.id);
   const [announcement, setAnnouncement] = useState("");
@@ -80,7 +87,7 @@ export function SigningPanel({ document: doc, titleAs = "h2", signerName }: Sign
       <p role="status" className="sr-only">
         {announcement}
       </p>
-      <StepArea doc={doc} signerName={signerName} onSigned={onSigned} />
+      <StepArea doc={doc} signerName={signerName} onSigned={onSigned} variant={actionVariant} />
     </Card>
   );
 }
@@ -88,7 +95,7 @@ export function SigningPanel({ document: doc, titleAs = "h2", signerName }: Sign
 /** Что показать под подписями: шаг 1 (от руки), шаг 2 (ЭЦП) или пояснение, почему подписывать нечего. */
 type OnSigned = (kind: "hand" | "ecp", fullySigned: boolean) => void;
 
-function StepArea({ doc, signerName, onSigned }: { doc: SigningDocumentView; signerName?: string; onSigned: OnSigned }) {
+function StepArea({ doc, signerName, onSigned, variant }: { doc: SigningDocumentView; signerName?: string; onSigned: OnSigned; variant: ActionVariant }) {
   const router = useRouter();
   async function signHand(payload: HandPayload) {
     const res = await signByHandAction("imageDataUrl" in payload ? { documentId: doc.id, imageDataUrl: payload.imageDataUrl } : { documentId: doc.id, typedName: payload.typedName });
@@ -102,11 +109,11 @@ function StepArea({ doc, signerName, onSigned }: { doc: SigningDocumentView; sig
       return (
         <section aria-label={t.panel.stepHand} className="flex flex-col gap-2">
           <p className="text-base font-semibold text-muted">{t.panel.stepHand}</p>
-          <HandSignaturePad onSubmit={signHand} defaultName={signerName} />
+          <HandSignaturePad onSubmit={signHand} defaultName={signerName} submitVariant={variant} />
         </section>
       );
     case "ecp":
-      return <EcpArea doc={doc} onSigned={onSigned} />;
+      return <EcpArea doc={doc} onSigned={onSigned} variant={variant} />;
     case "youSigned":
       return (
         <Alert tone="success" live="polite">
@@ -158,7 +165,7 @@ function SignatureLine({ label, required, signed, sha256 }: { label: string; req
 const FOCUS_SELECTOR = { method: "input[type=radio]:checked" } as const;
 
 /** Шаг 2: ЭЦП через провайдера подписи (mock / SIGEX) — выбор способа, QR или NCALayer, проверка на сервере. */
-function EcpArea({ doc, onSigned }: { doc: SigningDocumentView; onSigned: OnSigned }) {
+function EcpArea({ doc, onSigned, variant }: { doc: SigningDocumentView; onSigned: OnSigned; variant: ActionVariant }) {
   const router = useRouter();
   const [state, dispatch] = useReducer(signingReducer, initialSigningState);
   const area = useRef<HTMLDivElement>(null);
@@ -208,12 +215,12 @@ function EcpArea({ doc, onSigned }: { doc: SigningDocumentView; onSigned: OnSign
               {state.error}
             </Alert>
           )}
-          <Button fullWidth loading={state.step === "starting"} onClick={start}>
+          <Button variant={variant} fullWidth loading={state.step === "starting"} onClick={start}>
             {t.panel.sign}
           </Button>
         </>
       ) : (
-        <AwaitingArea state={state} onComplete={complete} onReset={() => dispatch({ type: "reset" })} />
+        <AwaitingArea state={state} onComplete={complete} onReset={() => dispatch({ type: "reset" })} variant={variant} />
       )}
     </section>
   );
@@ -227,10 +234,12 @@ function AwaitingArea({
   state,
   onComplete,
   onReset,
+  variant,
 }: {
   state: Extract<ReturnType<typeof signingReducer>, { step: "awaiting" | "completing" }>;
   onComplete: () => void;
   onReset: () => void;
+  variant: ActionVariant;
 }) {
   const hint = useRef<HTMLParagraphElement>(null);
   useEffect(() => hint.current?.focus(), []);
@@ -252,7 +261,7 @@ function AwaitingArea({
           {state.error}
         </Alert>
       )}
-      <Button fullWidth loading={state.step === "completing"} onClick={onComplete}>
+      <Button variant={variant} fullWidth loading={state.step === "completing"} onClick={onComplete}>
         {t.panel.confirmSigned}
       </Button>
       <Button variant="ghost" fullWidth disabled={state.step === "completing"} onClick={onReset}>
