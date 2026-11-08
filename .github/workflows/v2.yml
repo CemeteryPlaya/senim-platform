@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # buf breaking читает историю main
+          fetch-depth: 0 # buf breaking читает коммит до пуша или базовую ветку PR
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -33,19 +33,38 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: buf lint
         run: go tool buf lint
-      - name: Есть ли proto/ в main
+      # База сравнения: на push — коммит до пуша (github.event.before), на PR — базовая ветка.
+      # Коммиты идут прямо в main, поэтому сравнение с origin/main на push сравнило бы коммит
+      # с самим собой и ничего не поймало. Новая ветка (before = нули), коммит, которого нет
+      # в клоне (force-push), или база без proto/ — сравнение пропускается с сообщением.
+      - name: База для buf breaking
         id: base
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          if git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null \
-            && [ -n "$(git ls-tree -r --name-only refs/remotes/origin/main -- proto | head -n 1)" ]; then
-            echo "has_proto=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_proto=false" >> "$GITHUB_OUTPUT"
-            echo "В main ещё нет proto/ — buf breaking пропущен."
+          ref=""
+          case "$EVENT" in
+            pull_request) ref="refs/remotes/origin/$BASE_REF" ;;
+            push)
+              if [ -n "$BEFORE" ] && [ -n "${BEFORE//0/}" ]; then ref="$BEFORE"; fi ;;
+          esac
+          if [ -z "$ref" ]; then
+            echo "Нет базы для сравнения ($EVENT, before=$BEFORE) — buf breaking пропущен."
+          elif ! git cat-file -e "$ref^{commit}" 2>/dev/null; then
+            echo "Коммита $ref нет в клоне — buf breaking пропущен."
+            ref=""
+          elif [ -z "$(git ls-tree -r --name-only "$ref" -- proto | head -n 1)" ]; then
+            echo "В $ref ещё нет proto/ — buf breaking пропущен."
+            ref=""
           fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - name: buf breaking
-        if: steps.base.outputs.has_proto == 'true'
-        run: go tool buf breaking --against '.git#ref=refs/remotes/origin/main'
+        if: steps.base.outputs.ref != ''
+        env:
+          REF: ${{ steps.base.outputs.ref }}
+        run: go tool buf breaking --against ".git#ref=$REF"
       - name: Сгенерированный код актуален
         run: |
           go tool buf generate
