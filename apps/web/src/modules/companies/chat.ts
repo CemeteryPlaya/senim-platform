@@ -4,7 +4,7 @@ import { recordAudit } from "@/modules/audit";
 import { attachFiles } from "@/modules/files";
 import { actorOf, formatPhone, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
-import { db, transaction, type Db } from "@/platform/db";
+import { db, transaction, type Db, type Prisma } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
 import { enforceRateLimit } from "@/platform/rate-limit";
@@ -198,17 +198,43 @@ function chatHref(offer: { id: string; requestId: string; deal: { id: string } |
   return party === "client" ? `/requests/${offer.requestId}/offers/${offer.id}${CHAT_ANCHOR}` : `/executor/requests/${offer.requestId}${CHAT_ANCHOR}`;
 }
 
+const CHAT_LIST_LIMIT = 100;
+
+/** До 100 откликов пользователя: сначала с перепиской по времени последнего сообщения, затем без неё по дате отклика. */
+async function latestOfferIds(owned: Prisma.OfferWhereInput): Promise<string[]> {
+  const active = await db.message.groupBy({
+    by: ["offerId"],
+    where: { offer: owned },
+    _max: { createdAt: true },
+    orderBy: { _max: { createdAt: "desc" } },
+    take: CHAT_LIST_LIMIT,
+  });
+  const ids = active.map((row) => row.offerId);
+  if (ids.length >= CHAT_LIST_LIMIT) return ids;
+  const silent = await db.offer.findMany({
+    where: { ...owned, messages: { none: {} } },
+    orderBy: { createdAt: "desc" },
+    take: CHAT_LIST_LIMIT - ids.length,
+    select: { id: true },
+  });
+  return [...ids, ...silent.map((o) => o.id)];
+}
+
 /**
  * Диалоги пользователя: отклики своих заявок (заказчик) или свои отклики (исполнитель) по активной роли — то же
  * правило владения, что у getChat (chatPartyOf). Оператор и замерщик получают пустой список. Текст превью —
  * как в getChat; до оферты дополнительно проходит maskContacts (на случай строки, записанной в обход сервиса).
  * Телефона, ФИО и наименования заказчика/исполнителя в строке нет, кроме подписи по режиму ADR-006.
+ * Не больше 100 диалогов. Запросов к БД: исполнителю 2–3 (группировка по времени последнего сообщения, добор откликов без
+ * переписки, если нет 100, отклики с последним сообщением вложенным take: 1); заказчику ещё 2 (профили и режим имени).
  */
 export async function listChats(user: CurrentUser): Promise<ChatListItem[]> {
   const party = user.role === "CLIENT" ? "client" : user.role === "EXECUTOR" ? "executor" : null;
   if (party === null) return [];
+  const owned: Prisma.OfferWhereInput = party === "client" ? { request: { clientId: user.id } } : { executor: { userId: user.id } };
+  const ids = await latestOfferIds(owned);
   const offers = await db.offer.findMany({
-    where: party === "client" ? { request: { clientId: user.id } } : { executor: { userId: user.id } },
+    where: { id: { in: ids } },
     select: {
       id: true,
       status: true,
@@ -218,6 +244,7 @@ export async function listChats(user: CurrentUser): Promise<ChatListItem[]> {
       createdAt: true,
       request: { select: { status: true, city: true, customType: true, furnitureType: { select: { name: true } } } },
       deal: { select: { id: true, status: true, signedAt: true } },
+      // Последнее сообщение — вложенный take: 1 по убыванию времени (один запрос на все отклики, без выборки истории).
       messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { body: true, createdAt: true } },
     },
   });

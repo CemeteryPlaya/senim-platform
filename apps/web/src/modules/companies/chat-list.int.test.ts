@@ -118,3 +118,17 @@ describe("список чатов: собеседник и заголовок", 
     expect(closed.get(byOperator.offerId)).toBe(true);
   });
 });
+
+describe("список чатов: предел", () => {
+  it("не больше 100 диалогов; с перепиской идут раньше пустых", async () => {
+    const client = await makeClient();
+    const threads = [];
+    for (let i = 0; i < 102; i += 1) threads.push(await makeOfferThread({ client }));
+    const talked = threads[0];
+    await db.message.create({ data: { offerId: talked.offerId, senderId: talked.executor.id, body: "Здравствуйте" } });
+
+    const list = await listChats(client);
+    expect(list).toHaveLength(100);
+    expect(list[0].offerId).toBe(talked.offerId);
+  }, 60_000);
+});
