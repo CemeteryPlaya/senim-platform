@@ -20,7 +20,8 @@ function ChatRow({ chat }: { chat: ChatListItem }) {
       >
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-            <span className="text-lg font-bold break-words">{chat.counterpart}</span>
+            {/* 320 px и 200 %: «Исполнитель» шире строки — аварийный перенос (без дефиса), иначе строка распирает страницу. */}
+            <span className="text-lg font-bold wrap-anywhere">{chat.counterpart}</span>
             {chat.lastAt && <DateText value={chat.lastAt} format="relative" className="text-sm text-muted" />}
           </span>
           <span className="text-base break-words text-ink-soft">{chat.title}</span>

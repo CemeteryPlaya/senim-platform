@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { choose, expectFitsAt320And200, loginAs, P } from "./support";
+import { choose, expectNoHorizontalScrollAt320And200, loginAs, P } from "./support";
 
 /**
  * Мастер заявки (ТЗ п. 3, решение 2.2.11) для человека, который не разбирается в мебели: тип и пример картинкой,
@@ -71,6 +71,9 @@ test("главная заказчика: плитки типов, «Моя сд�
   // У Айгерим идут сделки — карточка «Моя сделка» с ходом сделки.
   const deal = main.getByRole("region", { name: /^Моя сделка: / });
   await expect(deal.getByRole("list", { name: "Ход сделки" })).toBeVisible();
+  // Сделок несколько: заголовок ведёт в саму сделку, «Все сделки» — в список.
+  await expect(deal.getByRole("heading").getByRole("link")).toHaveAttribute("href", /^\/deals\/[^/]+$/);
+  await expect(deal.getByRole("link", { name: "Все сделки" })).toHaveAttribute("href", "/deals");
   await expect(main.getByRole("note").filter({ hasText: "Деньги в банке под защитой" })).toBeVisible();
   // Ровно одно заливное главное действие на экране.
   await expect(main.locator("[data-primary-action]")).toHaveCount(1);
@@ -85,5 +88,23 @@ test("главная заказчика: плитки типов, «Моя сд�
   await expect(main.getByRole("link", { name: /^Хочу похожее: / }).first()).toBeVisible();
   await expect(main.locator("[data-primary-action]")).toHaveCount(1);
 
-  for (const path of ["/", "/catalog", "/requests/new", "/requests"]) await expectFitsAt320And200(page, path);
+  for (const path of ["/", "/catalog", "/requests/new", "/requests"]) await expectNoHorizontalScrollAt320And200(page, path);
+});
+
+test("главная на 390 px: подписи плиток в одну строку, слова не рвутся дефисом", async ({ page }) => {
+  await loginAs(page, P.aigerim);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  // Переносы с дефисом посреди слова выключены во всём приложении (только аварийный перенос при 200 %).
+  expect(await page.evaluate(() => getComputedStyle(document.body).hyphens)).not.toBe("auto");
+  const labels = page.getByRole("navigation", { name: "Типы мебели" }).locator("a > span");
+  const n = await labels.count();
+  expect(n).toBeGreaterThanOrEqual(4);
+  for (let i = 0; i < n; i++) {
+    const label = labels.nth(i);
+    const box = await label.boundingBox();
+    if (!box) throw new Error("у подписи нет рамки");
+    const lineHeight = await label.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight));
+    expect(box.height, await label.textContent() ?? "").toBeLessThanOrEqual(lineHeight * 1.6);
+  }
 });
