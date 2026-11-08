@@ -117,6 +117,8 @@ export const common = {
       done: "пройдено",
       current: "сейчас",
       todo: "впереди",
+      caption: (n: number, total: number, name: string) => `Шаг ${n} из ${total}: ${name}`,
+      allDone: "Все шаги пройдены",
       dispute: "Спор открыт — выплата остановлена",
       cancelled: "Сделка отменена",
       refunded: "Деньги возвращены покупателю",

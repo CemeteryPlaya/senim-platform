@@ -11,6 +11,8 @@ export type FullscreenStepProps = {
   action: ReactNode;
   /** «Назад» видна всегда: ссылка или обработчик. */
   back: { href: string } | { onClick: () => void };
+  /** Шкала шагов между «Назад» и заголовком (мастер заявки, регистрация). */
+  progress?: ReactNode;
   className?: string;
 };
 
@@ -18,7 +20,7 @@ const backClass =
   "-ml-2 inline-flex min-h-control-sm items-center gap-1 self-start rounded-control pr-3 pl-1 text-base font-semibold text-ink no-underline hover:bg-surface";
 
 /** Один вопрос — одна кнопка (TikTok/Reels): «Назад», крупный заголовок, содержимое, действие внизу. */
-export function FullscreenStep({ title, children, action, back, className }: FullscreenStepProps) {
+export function FullscreenStep({ title, children, action, back, progress, className }: FullscreenStepProps) {
   const backContent = (
     <>
       <ChevronLeft aria-hidden className="size-6 shrink-0" />
@@ -36,7 +38,8 @@ export function FullscreenStep({ title, children, action, back, className }: Ful
           {backContent}
         </button>
       )}
-      <h1 className="text-2xl font-extrabold break-words text-ink">{title}</h1>
+      {progress}
+      <h1 className="text-2xl font-extrabold break-words text-ink sm:text-3xl">{title}</h1>
       <div className="flex min-w-0 flex-col gap-4">{children}</div>
       <div className="mt-auto flex flex-col gap-3 pt-2">{action}</div>
     </section>

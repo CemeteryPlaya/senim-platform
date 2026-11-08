@@ -10,9 +10,11 @@ export type DealProgressProps = { status: DealStatus; hasOpenDispute: boolean; c
 
 /**
  * Пять шагов сделки «Оплата → Работа → Готово → Приёмка → Выплата» (спека 8а).
- * Упорядоченный список; текущий шаг — aria-current="step"; пройденные озвучены скрытым текстом;
- * пять в один ряд, пока контейнеру хватает ширины (≥ 20rem — при крупном шрифте порог уходит), иначе вертикальный список;
- * смысл несут галочка, номер и подпись, а не цвет. Отмена и возврат — плашка вместо шагов.
+ * Упорядоченный список; текущий шаг — aria-current="step"; пройденные озвучены скрытым текстом. По ширине контейнера
+ * (пороги в rem — при крупном шрифте уходят раньше): узкий (< 20rem) — вертикальный список с подписями; средний
+ * (телефон, карточка «Моя сделка») — пять полосок в ряд и одна строка «Шаг N из 5: …» (подписи пяти шагов в ряд там
+ * не помещаются); широкий (≥ 34rem) — полоски с подписями под каждой. Смысл несут галочка, номер и подпись, а не цвет.
+ * Отмена и возврат — плашка вместо шагов.
  */
 export function DealProgress({ status, hasOpenDispute, className }: DealProgressProps) {
   const view = dealProgressView(status, hasOpenDispute);
@@ -34,7 +36,12 @@ export function DealProgress({ status, hasOpenDispute, className }: DealProgress
           return (
             <li key={name} aria-current={current ? "step" : undefined} className="flex min-w-0 flex-col gap-1.5">
               <span aria-hidden className={cn("block h-1.5 rounded-badge", done || current ? (view.muted ? "bg-muted" : "bg-primary") : "bg-line")} />
-              <span className={cn("flex flex-wrap items-center gap-x-1 text-sm break-words", current ? "font-bold text-ink" : done ? "text-ink-soft" : "text-muted")}>
+              <span
+                className={cn(
+                  "flex flex-wrap items-center gap-x-1 text-sm break-words @[20rem]:sr-only @[34rem]:not-sr-only",
+                  current ? "font-bold text-ink" : done ? "text-ink-soft" : "text-muted",
+                )}
+              >
                 {done ? <Check aria-hidden className="size-4 shrink-0" /> : <span aria-hidden>{i + 1}.</span>}
                 {name}
                 {done && <span className="sr-only">{t.done}</span>}
@@ -44,6 +51,10 @@ export function DealProgress({ status, hasOpenDispute, className }: DealProgress
           );
         })}
       </ol>
+      {/* Для глаз на средней ширине; диктор читает список выше. */}
+      <p aria-hidden className={cn("hidden text-base @[20rem]:block @[34rem]:hidden", view.muted ? "text-ink-soft" : "text-ink")}>
+        {view.current === 5 ? t.allDone : t.caption(view.current + 1, t.steps.length, t.steps[view.current])}
+      </p>
       {view.muted && (
         <p role="status" className="flex items-center gap-2 rounded-card bg-warning-soft p-4 text-base font-semibold text-warning">
           <AlertTriangle aria-hidden className="size-6 shrink-0" />

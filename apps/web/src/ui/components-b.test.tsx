@@ -70,6 +70,11 @@ describe("DealProgress", () => {
     const html = renderToStaticMarkup(<DealProgress status="READY" hasOpenDispute={false} />);
     expect(html.match(new RegExp(`sr-only">${ru.common.ui.dealProgress.done}`, "g"))).toHaveLength(3);
   });
+  it("средняя ширина: подпись текущего шага одной строкой («Шаг 4 из 5: Приёмка»), подписи в ряд — только на широком", () => {
+    const html = renderToStaticMarkup(<DealProgress status="READY" hasOpenDispute={false} />);
+    expect(html).toContain(ru.common.ui.dealProgress.caption(4, 5, "Приёмка"));
+    expect(renderToStaticMarkup(<DealProgress status="SPLIT_PAYOUT" hasOpenDispute={false} />)).toContain(ru.common.ui.dealProgress.allDone);
+  });
   it("спор: плашка и серые шаги", () => {
     const html = renderToStaticMarkup(<DealProgress status="PAID_HOLD" hasOpenDispute />);
     expect(html).toContain(ru.common.ui.dealProgress.dispute);

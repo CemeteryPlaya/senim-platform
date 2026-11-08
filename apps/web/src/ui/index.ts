@@ -20,6 +20,7 @@ export {
 } from "./format";
 
 export { StickyAction, type StickyActionProps } from "./StickyAction";
+export { DetailColumns, type DetailColumnsProps } from "./DetailColumns";
 export { Button, ButtonLink, buttonClasses, type ButtonLinkProps, type ButtonProps, type ButtonVariant } from "./Button";
 export {
   Checkbox,
