@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 )
 
 // AppEnv — окружение, в котором запущен сервис.
@@ -26,6 +27,7 @@ type Loader struct {
 	src     Source
 	errs    []error
 	env     AppEnv
+	demo    bool
 	envDone bool
 }
 
@@ -43,9 +45,11 @@ func (l *Loader) Err() error {
 	return errors.Join(l.errs...)
 }
 
-// Env читает обязательную APP_ENV. Неизвестное значение — ошибка.
-// DEMO_MODE=true при APP_ENV=prod — ошибка. Результат кэшируется,
-// ошибки по APP_ENV не дублируются.
+// Env читает обязательную APP_ENV и DEMO_MODE. Неизвестное значение APP_ENV — ошибка.
+// DEMO_MODE разбирается strconv.ParseBool (true, TRUE, 1, t ...); значение, которое не
+// разбирается (yes, on ...), — ошибка в любом окружении: опечатка не должна молча
+// включать или выключать демо-режим. Включённый DEMO_MODE при APP_ENV=prod — ошибка.
+// Результат кэшируется, ошибки по APP_ENV и DEMO_MODE не дублируются.
 func (l *Loader) Env() AppEnv {
 	if l.envDone {
 		return l.env
@@ -60,12 +64,25 @@ func (l *Loader) Env() AppEnv {
 	default:
 		l.fail("APP_ENV: unknown value (expected dev, staging or prod)")
 	}
-	if l.env == Prod {
-		if v, _ := l.src("DEMO_MODE"); v == "true" {
+	if v, ok := l.src("DEMO_MODE"); ok && v != "" {
+		demo, err := strconv.ParseBool(v)
+		switch {
+		case err != nil:
+			l.fail("DEMO_MODE: not a boolean (expected true or false)")
+		case demo && l.env == Prod:
 			l.fail("DEMO_MODE: must not be enabled when APP_ENV=prod")
+		default:
+			l.demo = demo
 		}
 	}
 	return l.env
+}
+
+// DemoMode сообщает, включён ли демо-режим (DEMO_MODE). При ошибке разбора или
+// запрете в prod — false, а ошибка уже в Err.
+func (l *Loader) DemoMode() bool {
+	l.Env()
+	return l.demo
 }
 
 // strict: правила prod/staging; при неверном или отсутствующем APP_ENV

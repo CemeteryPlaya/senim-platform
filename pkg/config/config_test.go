@@ -219,3 +219,57 @@ func TestDistinctDevAllowsDuplicates(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+func TestDemoModeParsedAsBool(t *testing.T) {
+	for _, v := range []string{"true", "TRUE", "True", "1", "t", "T"} {
+		l := NewLoader(mapSource(map[string]string{"APP_ENV": "prod", "DEMO_MODE": v}))
+		l.Env()
+		if err := l.Err(); err == nil || !strings.Contains(err.Error(), "DEMO_MODE") {
+			t.Errorf("DEMO_MODE=%q in prod: want error naming DEMO_MODE, got %v", v, err)
+		}
+	}
+	for _, v := range []string{"false", "FALSE", "0", ""} {
+		l := NewLoader(mapSource(map[string]string{"APP_ENV": "prod", "DEMO_MODE": v}))
+		l.Env()
+		if err := l.Err(); err != nil {
+			t.Errorf("DEMO_MODE=%q in prod: unexpected error %v", v, err)
+		}
+	}
+}
+
+func TestDemoModeUnparseableIsError(t *testing.T) {
+	for _, env := range []string{"prod", "staging", "dev"} {
+		for _, v := range []string{"yes", "on", "enabled", " true"} {
+			l := NewLoader(mapSource(map[string]string{"APP_ENV": env, "DEMO_MODE": v}))
+			l.Env()
+			err := l.Err()
+			if err == nil || !strings.Contains(err.Error(), "DEMO_MODE") {
+				t.Errorf("APP_ENV=%s DEMO_MODE=%q: want error naming DEMO_MODE, got %v", env, v, err)
+				continue
+			}
+			if strings.Contains(err.Error(), v) && v != " true" {
+				t.Errorf("error must not echo the value: %v", err)
+			}
+		}
+	}
+	// staging допускает демо-режим, если значение разбирается.
+	l := NewLoader(mapSource(map[string]string{"APP_ENV": "staging", "DEMO_MODE": "TRUE"}))
+	l.Env()
+	if err := l.Err(); err != nil {
+		t.Errorf("staging DEMO_MODE=TRUE: unexpected error %v", err)
+	}
+}
+
+func TestDemoModeAccessor(t *testing.T) {
+	l := NewLoader(mapSource(map[string]string{"APP_ENV": "dev", "DEMO_MODE": "1"}))
+	if !l.DemoMode() {
+		t.Error("DEMO_MODE=1 in dev: want true")
+	}
+	l = NewLoader(mapSource(map[string]string{"APP_ENV": "dev"}))
+	if l.DemoMode() {
+		t.Error("DEMO_MODE unset: want false")
+	}
+	if err := l.Err(); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
