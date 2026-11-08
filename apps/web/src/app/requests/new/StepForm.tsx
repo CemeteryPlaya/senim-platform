@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { z } from "zod";
 import { stepInputSchema, type WizardScreen } from "@/modules/requests/client";
 import { ru } from "@/i18n/ru";
-import { Button, focusFirstInvalid } from "@/ui";
+import { Button, focusFirstInvalid, FullscreenStep } from "@/ui";
 import { saveStepAction } from "../actions";
 import { useRunAction } from "../_parts/ActionButton";
 
@@ -13,7 +13,10 @@ import { useRunAction } from "../_parts/ActionButton";
 
 export type Errors = Record<string, string[] | undefined>;
 
-export type StepBase = { draftId: string | null; like: string | null; next: WizardScreen | null };
+/** Рамка полноэкранного шага: куда ведёт «Назад» и шкала шагов мастера. */
+export type StepFrame = { back: string; progress: ReactNode };
+
+export type StepBase = { draftId: string | null; like: string | null; next: WizardScreen | null; frame: StepFrame };
 
 export const first = (errors: Errors, key: string) => errors[key]?.[0];
 
@@ -34,21 +37,29 @@ export function useStep({ draftId, like, next }: StepBase) {
   return { submit, pending, error, errors, setErrors };
 }
 
-export function StepHeading({ title, lead }: { title: string; lead: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <h1 className="text-2xl font-extrabold break-words text-ink sm:text-3xl">{title}</h1>
-      <p className="text-lg text-ink-soft">{lead}</p>
-    </div>
-  );
-}
-
 /**
- * Форма шага. После неудачной проверки фокус идёт на первое поле с ошибкой (диктор прочитает
+ * Форма шага — полноэкранный шаг (FullscreenStep: один вопрос — одна кнопка): «Назад», шкала шагов, заголовок,
+ * пояснение, поля, кнопки внизу. После неудачной проверки фокус идёт на первое поле с ошибкой (диктор прочитает
  * её текст); если такого поля нет (например, ошибка у фото) — на сводку над кнопками.
  * Кнопки внизу: главная — справа на компьютере и сверху на телефоне.
  */
-export function StepForm({ onSubmit, errors, children, actions }: { onSubmit: () => void; errors: Errors; children: ReactNode; actions: ReactNode }) {
+export function StepForm({
+  onSubmit,
+  errors,
+  title,
+  lead,
+  frame,
+  children,
+  actions,
+}: {
+  onSubmit: () => void;
+  errors: Errors;
+  title: string;
+  lead: ReactNode;
+  frame: StepFrame;
+  children: ReactNode;
+  actions: ReactNode;
+}) {
   const form = useRef<HTMLFormElement>(null);
   const summary = useRef<HTMLParagraphElement>(null);
   const invalid = Object.values(errors).some((list) => list && list.length > 0);
@@ -62,14 +73,25 @@ export function StepForm({ onSubmit, errors, children, actions }: { onSubmit: ()
     onSubmit();
   };
   return (
-    <form ref={form} noValidate onSubmit={handle} className="flex flex-col gap-8">
-      {children}
-      {invalid && (
-        <p ref={summary} tabIndex={-1} className="text-base font-semibold text-danger">
-          {ru.common.errors.checkForm}
-        </p>
-      )}
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">{actions}</div>
+    <form ref={form} noValidate onSubmit={handle}>
+      <FullscreenStep
+        title={title}
+        back={{ href: frame.back }}
+        progress={frame.progress}
+        action={
+          <>
+            {invalid && (
+              <p ref={summary} tabIndex={-1} className="text-base font-semibold text-danger">
+                {ru.common.errors.checkForm}
+              </p>
+            )}
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">{actions}</div>
+          </>
+        }
+      >
+        <p className="text-lg text-ink-soft">{lead}</p>
+        <div className="flex flex-col gap-8">{children}</div>
+      </FullscreenStep>
     </form>
   );
 }

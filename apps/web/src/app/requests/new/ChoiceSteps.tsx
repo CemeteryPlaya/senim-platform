@@ -11,7 +11,7 @@ import { FormError } from "../_parts/ActionButton";
 import type { StyleExample } from "./examples";
 import { SelfMeasureGuide } from "./DetailSteps";
 import { OTHER_TYPE_IMAGE, TYPE_IMAGES } from "./images";
-import { first, NextButton, StepForm, StepHeading, useStep, type Errors, type StepBase } from "./StepForm";
+import { first, NextButton, StepForm, useStep, type Errors, type StepBase } from "./StepForm";
 
 const w = ru.requests.wizard;
 const OTHER = "__other";
@@ -195,6 +195,9 @@ export function StartStep(
   const s = advanced;
   return (
     <StepForm
+      title={w.start.title}
+      lead={w.start.lead}
+      frame={props.frame}
       errors={errors}
       onSubmit={() =>
         submit({
@@ -214,7 +217,6 @@ export function StartStep(
       }
       actions={<NextButton pending={pending} />}
     >
-      <StepHeading title={w.start.title} lead={w.start.lead} />
       {props.note}
       <TypeChoice types={props.types} {...type} onChange={(patch) => setType({ ...type, ...patch })} errors={errors} />
       <RadioCards
@@ -313,8 +315,14 @@ export function SegmentStep(
   const [segment, setSegment] = useState(props.initial);
   const s = w.segment;
   return (
-    <StepForm errors={errors} onSubmit={() => submit({ screen: "segment", segment: segment || undefined })} actions={<NextButton pending={pending} />}>
-      <StepHeading title={s.title} lead={props.directLabel !== null ? s.leadDirect(props.directLabel) : s.lead} />
+    <StepForm
+      title={s.title}
+      lead={props.directLabel !== null ? s.leadDirect(props.directLabel) : s.lead}
+      frame={props.frame}
+      errors={errors}
+      onSubmit={() => submit({ screen: "segment", segment: segment || undefined })}
+      actions={<NextButton pending={pending} />}
+    >
       {props.hint}
       <RadioCards
         label={s.label}

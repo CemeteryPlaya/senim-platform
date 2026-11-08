@@ -8,7 +8,7 @@ import { Button, Input, Textarea } from "@/ui";
 import { Uploader } from "@/app/_components/uploader";
 import { locateAddressAction } from "../actions";
 import { FormError } from "../_parts/ActionButton";
-import { first, NextButton, SkipButton, StepForm, StepHeading, useStep, type StepBase } from "./StepForm";
+import { first, NextButton, SkipButton, StepForm, useStep, type StepBase } from "./StepForm";
 
 const w = ru.requests.wizard;
 const pre = ru.requests.pre;
@@ -50,6 +50,9 @@ export function RoomStep(props: StepBase & { photos: { id: string; src: string }
   const r = w.room;
   return (
     <StepForm
+      title={r.title}
+      lead={props.selfMeasure ? pre.selfMeasure.roomHint : r.lead}
+      frame={props.frame}
       errors={errors}
       onSubmit={save}
       actions={
@@ -59,7 +62,6 @@ export function RoomStep(props: StepBase & { photos: { id: string; src: string }
         </>
       }
     >
-      <StepHeading title={r.title} lead={props.selfMeasure ? pre.selfMeasure.roomHint : r.lead} />
       <Uploader
         purpose="REQUEST_ROOM"
         label={r.photosLabel}
@@ -181,11 +183,13 @@ export function PlaceStep(props: StepBase & { initial: PlaceInitial }) {
   const p = w.place;
   return (
     <StepForm
+      title={p.title}
+      lead={p.lead}
+      frame={props.frame}
       errors={errors}
       onSubmit={() => submit({ screen: "place", city: form.city, address: form.address, desiredDate: form.desiredDate || null, location: form.location })}
       actions={<NextButton pending={pending} />}
     >
-      <StepHeading title={p.title} lead={p.lead} />
       <Input label={p.city} value={form.city} autoComplete="address-level2" maxLength={LIMITS.city} onChange={(e) => set({ city: e.target.value })} error={first(errors, "city")} />
       <Input
         label={p.address}

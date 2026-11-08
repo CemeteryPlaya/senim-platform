@@ -202,6 +202,8 @@ export const requests = {
     draftProgress: (done: number, total: number) => `Заполнено шагов: ${done} из ${total}`,
     created: "Создана",
     filterLabel: "Показать заявки",
+    /** Чип раздела с числом заявок: «Черновики · 2». */
+    filterChip: (label: string, n: number) => `${label} · ${n}`,
     filter: {
       all: "Все",
       draft: "Черновики",

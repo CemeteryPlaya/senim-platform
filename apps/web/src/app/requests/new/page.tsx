@@ -29,6 +29,7 @@ import { SegmentStep, StartStep } from "./ChoiceSteps";
 import { PlaceStep, RoomStep } from "./DetailSteps";
 import { styleExamples, type StyleExample } from "./examples";
 import { SendStep } from "./SendStep";
+import type { StepFrame } from "./StepForm";
 
 const w = ru.requests.wizard;
 
@@ -60,7 +61,9 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
   const screen = WIZARD_SCREENS[index];
   const next = WIZARD_SCREENS[index + 1] ?? null;
   const back = index === 0 || !draft ? "/requests" : hrefOf(draft.id, WIZARD_SCREENS[index - 1]);
-  const base = { draftId: draft?.id ?? null, like: like?.id ?? null, next };
+  // Полноэкранный шаг (FullscreenStep): «Назад» и шкала шагов — над заголовком шага.
+  const frame = { back, progress: <Stepper steps={w.steps} current={index} /> };
+  const base = { draftId: draft?.id ?? null, like: like?.id ?? null, next, frame };
   const directLabel = draft?.targetLabel ?? like?.executor.label ?? null;
   // Путь новой заявки: в онлайн-замере (сценарий 5, только при флаге preContractFlows) нужны размеры и фото с рулеткой.
   const path = await newRequestPath();
@@ -69,7 +72,6 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
 
   return (
     <Container size="form" className="flex flex-col gap-8 pt-4 pb-10">
-      <Stepper steps={w.steps} current={index} back={{ href: back }} />
       {screen === "start" && (
         <StartStep
           {...base}
@@ -121,7 +123,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
           }}
         />
       )}
-      {screen === "send" && draft && <SendScreen draft={draft} directLabel={directLabel} />}
+      {screen === "send" && draft && <SendScreen draft={draft} directLabel={directLabel} frame={frame} />}
     </Container>
   );
 }
@@ -145,7 +147,7 @@ const EDIT_SCREEN: Record<string, WizardScreen> = {
   [f0.description]: "room",
 };
 
-function SendScreen({ draft, directLabel }: { draft: Draft; directLabel: string | null }) {
+function SendScreen({ draft, directLabel, frame }: { draft: Draft; directLabel: string | null; frame: StepFrame }) {
   const f = ru.requests.facts;
   const edit = (screen: WizardScreen | undefined, label: string) =>
     screen && (
@@ -176,6 +178,7 @@ function SendScreen({ draft, directLabel }: { draft: Draft; directLabel: string 
     <SendStep
       draftId={draft.id}
       directLabel={directLabel}
+      frame={frame}
       footnote={footnote}
       summary={
         <section aria-labelledby="send-summary" className="flex flex-col gap-4 rounded-card border border-line p-5 sm:p-6">

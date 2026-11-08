@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CalendarClock, ClipboardList, Layers, MessageSquareText, Plus, Send } from "lucide-react";
 import { listMyRequests, WIZARD_SCREENS } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { ButtonLink, Container, DateText, EmptyState, LegacyFilterChips, PageHeader, PhotoCard, StatusBadge } from "@/ui";
+import { ButtonLink, Container, DateText, EmptyState, FilterChips, PageHeader, PhotoCard, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { photo } from "@/app/_home/illustration";
 import { pageUser } from "./_parts/guard";
@@ -42,17 +42,15 @@ export default async function MyRequestsPage({ searchParams }: Props) {
         <EmptyState icon={<ClipboardList />} title={t.emptyTitle} description={t.emptyText} action={create} />
       ) : (
         <>
-          <LegacyFilterChips
+          <FilterChips
             label={t.filterLabel}
-            current={group}
-            chips={[
-              { key: "all", label: t.filter.all, count: list.length, href: "/requests" },
+            items={[
+              { href: "/requests", label: t.filterChip(t.filter.all, list.length), active: group === "all" },
               // Пустые разделы не показываем: меньше чипов — проще выбор. Выбранный остаётся, даже если опустел.
               ...REQUEST_GROUPS.filter((g) => count(g) > 0 || g === group).map((g) => ({
-                key: g,
-                label: t.filter[g],
-                count: count(g),
                 href: `/requests?status=${g}`,
+                label: t.filterChip(t.filter[g], count(g)),
+                active: g === group,
               })),
             ]}
           />
