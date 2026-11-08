@@ -156,7 +156,7 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 		return fmt.Errorf("server: listen probes: %w", err)
 	}
 
-	grpcSrv := newGRPCServer(mux, tlsCfg)
+	grpcSrv := newGRPCServer(mux, tlsCfg, log)
 	probeSrv := newProbeServer(health)
 
 	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, os.Interrupt)
@@ -212,7 +212,9 @@ func serveResult(name string, err error) error {
 	return fmt.Errorf("server: serve %s: %w", name, err)
 }
 
-func newGRPCServer(h http.Handler, tlsCfg *tls.Config) *http.Server {
+// newGRPCServer: ошибки самого http.Server (в том числе отказ рукопожатия пиру не из
+// AllowedPeers) идут в JSON-лог сервиса, а не в stderr стандартного log.
+func newGRPCServer(h http.Handler, tlsCfg *tls.Config, log *slog.Logger) *http.Server {
 	protocols := new(http.Protocols)
 	protocols.SetHTTP2(true) // gRPC needs HTTP/2; HTTP/1 stays off
 	return &http.Server{
@@ -221,6 +223,7 @@ func newGRPCServer(h http.Handler, tlsCfg *tls.Config) *http.Server {
 		Protocols:         protocols,
 		ReadHeaderTimeout: headerReadTimeout,
 		IdleTimeout:       grpcIdleTimeout,
+		ErrorLog:          slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 	}
 }
 

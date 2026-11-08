@@ -587,6 +587,14 @@ func TestRejectsPeerOutsideAllowList(t *testing.T) {
 	if got, _, err := e.callerAs(t, "intruder"); err == nil {
 		t.Fatalf("intruder accepted as %q", got)
 	}
+	// Отказ виден в JSON-логе сервиса.
+	deadline := time.Now().Add(3 * time.Second)
+	for !strings.Contains(e.logs.String(), `not allowed`) {
+		if time.Now().After(deadline) {
+			t.Fatalf("отказ рукопожатия не попал в лог сервиса: %s", e.logs.String())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	// Сервер жив и обслуживает допущенных.
 	if got, _, err := e.callerAs(t, "web"); err != nil || got != "web" {
 		t.Fatalf("after intruder: %q %v", got, err)
