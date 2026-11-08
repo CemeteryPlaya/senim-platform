@@ -22,7 +22,7 @@ export function FullscreenStep({ title, children, action, back, className }: Ful
   const backContent = (
     <>
       <ChevronLeft aria-hidden className="size-6 shrink-0" />
-      {ru.common.ui.fullscreen.back}
+      {ru.common.actions.back}
     </>
   );
   return (

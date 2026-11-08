@@ -97,7 +97,7 @@ describe("FullscreenStep", () => {
     expect(html).toContain("Какой уровень?");
     expect(html).toContain("Содержимое");
     expect(html).toContain('href="/back"');
-    expect(html).toContain(ru.common.ui.fullscreen.back);
+    expect(html).toContain(ru.common.actions.back);
     expect(html.match(/data-primary-action/g)).toHaveLength(1);
   });
 });

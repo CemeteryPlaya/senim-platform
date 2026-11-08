@@ -125,7 +125,6 @@ export const common = {
       title: "Договор подписан ЭЦП обеими сторонами",
       meta: (date: string, number: string) => `${date} · документ № ${number}`,
     },
-    fullscreen: { back: "Назад" },
     stepper: {
       label: "Шаги",
       progress: (n: number, total: number) => `Шаг ${n} из ${total}`,
