@@ -52,6 +52,13 @@ const (
 
 	// InstanceHeader carries the replica hostname so tests can see load balancing.
 	InstanceHeader = "x-senim-instance"
+
+	// MaxMessageBytes is the platform limit for one request or response message of every
+	// handler (4 MiB, the gRPC default, set explicitly so a library change cannot lift it).
+	// A larger request is refused with ResourceExhausted before the handler runs. The mesh
+	// and edge Envoy limits (deploy/compose/envoy) match it. Files never travel through RPC:
+	// they go to object storage by signed URL.
+	MaxMessageBytes = 4 << 20
 )
 
 // Options configures Run.
@@ -121,7 +128,7 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 	grpchealth.Register(srv, health)
 
 	mux := http.NewServeMux()
-	connecthttp.Mount(mux, srv)
+	connecthttp.Mount(mux, srv, HandlerOptions()...)
 
 	grpcLn, err := net.Listen("tcp", opt.GRPCAddr)
 	if err != nil {
@@ -170,6 +177,16 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 	}
 	log.Info("server stopped")
 	return runErr
+}
+
+// HandlerOptions are the connect handler options Run applies to every handler: the
+// platform message size limit in both directions. A service that mounts handlers outside
+// Run (tests, tools) passes the same options.
+func HandlerOptions() []connecthttp.Option {
+	return []connecthttp.Option{
+		connecthttp.WithReadMaxBytes(MaxMessageBytes),
+		connecthttp.WithSendMaxBytes(MaxMessageBytes),
+	}
 }
 
 func serveResult(name string, err error) error {

@@ -53,6 +53,12 @@ static_resources:
                 "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                 stat_prefix: mesh
                 codec_type: HTTP2
+                # Пределы HTTP/2 входа: окно потока 1 МиБ и соединения 4 МиБ вместо 256 МиБ по
+                # умолчанию, не больше 100 одновременных вызовов на соединение.
+                http2_protocol_options:
+                  max_concurrent_streams: 100
+                  initial_stream_window_size: 1048576
+                  initial_connection_window_size: 4194304
                 # Клиентский сертификат вызывающего не передаётся дальше (XFCC вычищается).
                 forward_client_cert_details: SANITIZE
                 access_log:
@@ -115,6 +121,14 @@ static_resources:
                                     "@type": type.googleapis.com/envoy.extensions.retry.host.previous_hosts.v3.PreviousHostsPredicate
                               host_selection_retry_max_attempts: 3
                 http_filters:
+                  # Потолок запроса — как у сервисов (pkg/server.MaxMessageBytes = 4 МиБ) плюс 5 байт
+                  # кадра gRPC: больше — 413 от mesh, до сервиса не доходит. Фильтр буферизует запрос
+                  # целиком: годится для унарных вызовов. Для потокового метода (если появится) фильтр
+                  # отключают на его маршруте через typed_per_filter_config.
+                  - name: envoy.filters.http.buffer
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.Buffer
+                      max_request_bytes: 4194309
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

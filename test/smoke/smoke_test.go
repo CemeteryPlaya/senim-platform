@@ -22,6 +22,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"connectrpc.com/grpchealth/v2"
 )
 
 const (
@@ -162,6 +166,66 @@ func readAfterHandshake(cfg *tls.Config) error {
 		return fmt.Errorf("первый кадр типа %d, want SETTINGS", buf[3])
 	}
 	return nil
+}
+
+// meshHealth — gRPC-health identity через mesh с клиентским сертификатом name.
+func meshHealth(t *testing.T, name string) *grpchealth.Client {
+	t.Helper()
+	cfg := meshTLS(t)
+	cert, err := tls.LoadX509KeyPair(filepath.Join(certsDir, name+".pem"), filepath.Join(certsDir, name+"-key.pem"))
+	if err != nil {
+		t.Fatalf("сертификат %s: %v", name, err)
+	}
+	cfg.Certificates = []tls.Certificate{cert}
+	tr := &http.Transport{ForceAttemptHTTP2: true, TLSClientConfig: cfg}
+	t.Cleanup(tr.CloseIdleConnections)
+	return grpchealth.NewClient(connect.NewClient(connecthttp.NewTransport(
+		&http.Client{Transport: tr, Timeout: ioTimeout}, "https://"+meshAddr, connecthttp.WithGRPC())))
+}
+
+// meshTLS — доверие нашему CA и имя сервера mesh, без клиентского сертификата.
+func meshTLS(t *testing.T) *tls.Config {
+	t.Helper()
+	pool := x509.NewCertPool()
+	caPEM, err := os.ReadFile(filepath.Join(certsDir, "ca.pem"))
+	if err != nil {
+		t.Fatalf("CA: %v (npm run v2:certs)", err)
+	}
+	if !pool.AppendCertsFromPEM(caPEM) {
+		t.Fatal("CA: нет сертификатов в ca.pem")
+	}
+	return &tls.Config{RootCAs: pool, ServerName: "mesh", NextProtos: []string{"h2"}, MinVersion: tls.VersionTLS13}
+}
+
+// identityCtx — контекст вызова с маршрутом mesh до identity (в пути health нет имени сервиса).
+func identityCtx(t *testing.T) (context.Context, *connect.CallInfo) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), ioTimeout)
+	t.Cleanup(cancel)
+	ctx, info := connect.NewClientContext(ctx)
+	info.RequestHeader().Set("x-senim-target", "identity")
+	return ctx, info
+}
+
+// TestMeshRejectsOversizedMessage: запрос больше 4 МиБ отвергает сам mesh (буфер-фильтр), обычный — проходит.
+func TestMeshRejectsOversizedMessage(t *testing.T) {
+	hc := meshHealth(t, "web")
+	ctx, _ := identityCtx(t)
+	res, err := hc.Check(ctx, &grpchealth.CheckRequest{Service: "senim.identity.v1.IdentityService"})
+	if err != nil || res.Status != grpchealth.StatusServing {
+		t.Fatalf("обычный запрос через mesh: %v %v", res, err)
+	}
+	ctx, _ = identityCtx(t)
+	_, err = hc.Check(ctx, &grpchealth.CheckRequest{Service: strings.Repeat("a", 4<<20+1)})
+	if err == nil {
+		t.Fatal("запрос больше 4 МиБ прошёл через mesh")
+	}
+	// Отказ самого identity был бы resource_exhausted (или not_found для чужого имени);
+	// mesh отвечает своим кодом (413 → unknown).
+	if code := connect.CodeOf(err); code == connect.CodeResourceExhausted || code == connect.CodeNotFound {
+		t.Fatalf("запрос дошёл до identity (%v), а должен остановиться на mesh", err)
+	}
+	t.Logf("отказ mesh: %v", err)
 }
 
 type dockerStat struct {

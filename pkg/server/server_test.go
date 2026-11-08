@@ -518,3 +518,24 @@ func TestInitTelemetryEndpointMustBeURL(t *testing.T) {
 	defer cancel()
 	_ = shutdown(ctx) // коллектора нет: ошибка отправки ожидаема
 }
+
+// Потолок сообщения платформы — 4 МиБ: больше — отказ до обработчика, а не память сервиса.
+func TestMessageSizeLimit(t *testing.T) {
+	e := start(t, func(context.Context) error { return nil })
+	client := e.echoClient()
+	if server.MaxMessageBytes != 4<<20 {
+		t.Fatalf("MaxMessageBytes = %d, want 4 MiB", server.MaxMessageBytes)
+	}
+	ok := strings.Repeat("a", 1<<20)
+	if res, err := client.Echo(ctx5(t), &testingv1.EchoRequest{Message: ok}); err != nil || len(res.GetMessage()) != len(ok) {
+		t.Fatalf("1 MiB: %v", err)
+	}
+	_, err := client.Echo(ctx5(t), &testingv1.EchoRequest{Message: strings.Repeat("a", server.MaxMessageBytes)})
+	if got := connect.CodeOf(err); got != connect.CodeResourceExhausted {
+		t.Fatalf("> 4 MiB: code %v (%v), want resource_exhausted", got, err)
+	}
+	// Сервер жив и обслуживает дальше.
+	if _, err := client.Echo(ctx5(t), &testingv1.EchoRequest{Message: "after"}); err != nil {
+		t.Fatalf("after oversized: %v", err)
+	}
+}
