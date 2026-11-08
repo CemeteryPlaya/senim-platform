@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
@@ -21,14 +22,19 @@ import (
 const metricInterval = 15 * time.Second
 
 // InitTelemetry installs global OpenTelemetry trace and metric providers that export over
-// OTLP/gRPC to endpoint ("host:port" inside the trusted compose network, so without TLS).
-// An empty endpoint leaves the default no-op providers in place. Call shutdown on exit
-// to flush buffered data.
+// OTLP/gRPC to endpoint. endpoint is a URL, as the standard OTEL_EXPORTER_OTLP_ENDPOINT
+// requires: "http://otel-lgtm:4317" (plain, inside the trusted compose network) or
+// "https://..." (TLS). A bare "host:port" is an error — the OTel SDKs (Go and, later,
+// web) would read it differently. An empty endpoint leaves the default no-op providers
+// in place. Call shutdown on exit to flush buffered data.
 func InitTelemetry(ctx context.Context, service string, endpoint string) (shutdown func(context.Context) error, err error) {
 	// Trace context must propagate even when nothing is exported.
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	if endpoint == "" {
 		return func(context.Context) error { return nil }, nil
+	}
+	if err := checkEndpointURL(endpoint); err != nil {
+		return nil, err
 	}
 	host, _ := os.Hostname()
 	res, err := resource.Merge(resource.Default(), resource.NewSchemaless(
@@ -36,11 +42,11 @@ func InitTelemetry(ctx context.Context, service string, endpoint string) (shutdo
 	if err != nil {
 		return nil, fmt.Errorf("server: telemetry resource: %w", err)
 	}
-	traceExp, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpoint(endpoint), otlptracegrpc.WithInsecure())
+	traceExp, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpointURL(endpoint))
 	if err != nil {
 		return nil, fmt.Errorf("server: trace exporter: %w", err)
 	}
-	metricExp, err := otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithEndpoint(endpoint), otlpmetricgrpc.WithInsecure())
+	metricExp, err := otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithEndpointURL(endpoint))
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("server: metric exporter: %w", err), traceExp.Shutdown(ctx))
 	}
@@ -54,4 +60,14 @@ func InitTelemetry(ctx context.Context, service string, endpoint string) (shutdo
 	return func(ctx context.Context) error {
 		return errors.Join(tp.Shutdown(ctx), mp.Shutdown(ctx))
 	}, nil
+}
+
+// checkEndpointURL accepts only http(s)://host[:port]: the exporter silently falls back
+// to its default for a URL it cannot parse.
+func checkEndpointURL(endpoint string) error {
+	u, err := url.Parse(endpoint)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return errors.New("server: OTLP endpoint must be a URL like http://otel-lgtm:4317")
+	}
+	return nil
 }

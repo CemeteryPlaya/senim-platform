@@ -501,3 +501,20 @@ func TestHealthUnknownServiceIsNotFound(t *testing.T) {
 		}
 	}
 }
+
+// OTEL_EXPORTER_OTLP_ENDPOINT — стандартная переменная OTel, её значение — URL.
+// Голое host:port экспортёр молча заменил бы на значение по умолчанию; это ошибка.
+func TestInitTelemetryEndpointMustBeURL(t *testing.T) {
+	for _, bad := range []string{"otel-lgtm:4317", "grpc://otel:4317", "http://", "://x"} {
+		if _, err := server.InitTelemetry(context.Background(), "test", bad); err == nil {
+			t.Errorf("endpoint %q: want error", bad)
+		}
+	}
+	shutdown, err := server.InitTelemetry(context.Background(), "test", "http://127.0.0.1:1")
+	if err != nil {
+		t.Fatalf("URL endpoint: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_ = shutdown(ctx) // коллектора нет: ошибка отправки ожидаема
+}
