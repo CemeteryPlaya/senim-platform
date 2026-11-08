@@ -7,7 +7,7 @@ export const brand = {
   tagline: "Мебель на заказ — деньги в банке под защитой",
   colors: {
     primary: "#007d50",
-    canvas: "#ffffff",
+    canvas: "#f3f5f7",
     surface: "#ffffff",
     ink: "#151a22",
     muted: "#566070",

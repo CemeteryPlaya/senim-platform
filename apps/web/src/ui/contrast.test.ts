@@ -83,6 +83,11 @@ const TEXT_PAIRS: [fg: string, bg: string][] = [
   // Блок денег на карточке сделки (ТЗ п. 4.1): строки под заголовком — ink-soft на сером, зелёном и жёлтом.
   ["ink-soft", "success-soft"],
   ["ink-soft", "warning-soft"],
+  // v2: серый фон страницы и белые карточки (спека 4.1); «Новое» — янтарный бейдж.
+  ["ink-soft", "canvas"],
+  ["new", "new-soft"],
+  ["ink", "new-soft"],
+  ["muted", "new-soft"],
 ];
 
 /** Нетекстовые элементы (границы полей, кольцо фокуса): WCAG 1.4.11 — 3:1. */
@@ -94,6 +99,7 @@ const UI_PAIRS: [fg: string, bg: string][] = [
   ["focus", "sunken"],
   ["line-strong", "sunken"],
   ["focus", "accent-soft"],
+  ["line-strong", "new-soft"],
   // Заливка кнопки, выбранного чипа и пройденного шага видна на фоне (граница элемента — сама заливка).
   ["primary", "canvas"],
   ["primary", "surface"],
