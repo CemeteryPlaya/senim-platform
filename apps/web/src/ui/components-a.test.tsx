@@ -98,7 +98,9 @@ describe("FilterChips", () => {
 
   it("aria-current=page только у активного", () => {
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*>Все<|<a[^>]*href="\/\?c=all"[^>]*aria-current="page"/);
+    const current = (html.match(/<a [^>]*>/g) ?? []).filter((tag) => tag.includes('aria-current="page"'));
+    expect(current).toHaveLength(1);
+    expect(current[0]).toContain('href="/?c=all"');
   });
 
   it("чипы — ссылки не ниже 48 px", () => {

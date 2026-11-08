@@ -12,7 +12,7 @@ export function FilterChips({ items, label, className }: { items: readonly Filte
     <nav aria-label={label} className={className}>
       <ul className="flex flex-wrap gap-2">
         {items.map((item) => (
-          <li key={item.href}>
+          <li key={`${item.href}|${item.label}`}>
             <Link
               href={item.href}
               aria-current={item.active ? "page" : undefined}
