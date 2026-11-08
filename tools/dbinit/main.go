@@ -63,6 +63,16 @@ func parseVars(r io.Reader) (map[string]string, error) {
 	return res, sc.Err()
 }
 
+// Тайм-ауты рабочей роли <svc>_app. statement_timeout обрывает зависший запрос;
+// idle_in_transaction_session_timeout — сессию, забывшую открытую транзакцию (держит
+// блокировки и соединение). Релей outbox держит транзакцию батча не дольше 20 с
+// (pkg/outbox, batchTimeout) — меньше idle-предела. Миграции идут ролью <svc>_owner,
+// у неё тайм-аутов нет: долгий CREATE INDEX не обрывается.
+const (
+	appStatementTimeout = "15s"
+	appIdleInTxTimeout  = "30s"
+)
+
 // Generate строит SQL. Скрипт выполняется суперпользователем postgres при инициализации;
 // \connect — мета-команда psql, поэтому файл подходит для docker-entrypoint-initdb.d.
 func Generate(services []string, passwords map[string]string) (string, error) {
@@ -86,6 +96,8 @@ func Generate(services []string, passwords map[string]string) (string, error) {
 -- %[1]s
 CREATE ROLE %[1]s_owner LOGIN PASSWORD '%[2]s' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE %[1]s_app LOGIN PASSWORD '%[3]s' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE %[1]s_app SET statement_timeout = '%[4]s';
+ALTER ROLE %[1]s_app SET idle_in_transaction_session_timeout = '%[5]s';
 CREATE DATABASE %[1]s OWNER %[1]s_owner;
 REVOKE ALL ON DATABASE %[1]s FROM PUBLIC;
 GRANT CONNECT ON DATABASE %[1]s TO %[1]s_owner, %[1]s_app;
@@ -94,7 +106,7 @@ ALTER SCHEMA public OWNER TO %[1]s_owner;
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO %[1]s_app;
 \connect postgres
-`, s, owner, app)
+`, s, owner, app, appStatementTimeout, appIdleInTxTimeout)
 	}
 	return b.String(), nil
 }

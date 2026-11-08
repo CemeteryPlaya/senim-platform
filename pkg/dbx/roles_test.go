@@ -61,7 +61,7 @@ func (e env) migrated(t *testing.T) *pgxpool.Pool {
 	if err := dbx.Migrate(ctx, e.ownerDSN(), "identity", testMigrations, platformSchema); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	pool, err := dbx.Connect(ctx, e.dsn("identity_app", "dev-identity-app", "identity"), "identity")
+	pool, err := dbx.Connect(ctx, e.dsn("identity_app", "dev-identity-app", "identity"), "identity", dbx.DefaultMaxConns)
 	if err != nil {
 		t.Fatalf("Connect: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestMigrateRejectsUnknownAppendOnlyTable(t *testing.T) {
 
 func TestNoCrossServiceAccess(t *testing.T) {
 	e := startPostgres(t)
-	_, err := dbx.Connect(context.Background(), e.dsn("identity_app", "dev-identity-app", "deal"), "identity")
+	_, err := dbx.Connect(context.Background(), e.dsn("identity_app", "dev-identity-app", "deal"), "identity", dbx.DefaultMaxConns)
 	if err == nil {
 		t.Fatal("identity_app подключился к базе deal")
 	}
@@ -253,7 +253,7 @@ func TestMalformedAppendOnlyMarkerFails(t *testing.T) {
 func TestAppRoleCannotConnectToServiceDatabases(t *testing.T) {
 	e := startPostgres(t)
 	for _, db := range []string{"postgres", "template1"} {
-		_, err := dbx.Connect(context.Background(), e.dsn("identity_app", "dev-identity-app", db), "identity")
+		_, err := dbx.Connect(context.Background(), e.dsn("identity_app", "dev-identity-app", db), "identity", dbx.DefaultMaxConns)
 		if err == nil {
 			t.Fatalf("identity_app подключился к %s", db)
 		}
@@ -317,7 +317,7 @@ func TestMigrateWithOnlyPlatformSchemas(t *testing.T) {
 	if err := dbx.Migrate(ctx, e.ownerDSN(), "identity", fstest.MapFS{}, platformSchema); err != nil {
 		t.Fatalf("Migrate без миграций: %v", err)
 	}
-	pool, err := dbx.Connect(ctx, e.dsn("identity_app", "dev-identity-app", "identity"), "identity")
+	pool, err := dbx.Connect(ctx, e.dsn("identity_app", "dev-identity-app", "identity"), "identity", dbx.DefaultMaxConns)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,5 +359,40 @@ func TestAppendOnlyInProseIsNotAMarker(t *testing.T) {
 	err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", m)
 	if err == nil || strings.Contains(err.Error(), "senim:append-only") {
 		t.Fatalf("комментарий-фраза не маркер: ожидалась только ошибка подключения, получено %v", err)
+	}
+}
+
+// Размер пула задаётся явно (POOL_MAX_CONNS), а не max(4, NumCPU) pgxpool.
+func TestConnectPoolSize(t *testing.T) {
+	e := startPostgres(t)
+	dsn := e.dsn("identity_app", "dev-identity-app", "identity")
+	pool, err := dbx.Connect(context.Background(), dsn, "identity", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if got := pool.Config().MaxConns; got != 3 {
+		t.Fatalf("MaxConns = %d, want 3", got)
+	}
+	if _, err := dbx.Connect(context.Background(), dsn, "identity", 0); err == nil {
+		t.Fatal("maxConns = 0: want error")
+	}
+}
+
+// dbinit ставит рабочей роли тайм-ауты: зависший запрос и забытая транзакция не держат
+// соединение и блокировки бесконечно.
+func TestAppRoleTimeouts(t *testing.T) {
+	_, pool := setup(t)
+	for setting, want := range map[string]string{
+		"statement_timeout":                   "15s",
+		"idle_in_transaction_session_timeout": "30s",
+	} {
+		var got string
+		if err := pool.QueryRow(context.Background(), "SHOW "+setting).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("%s = %q, want %q", setting, got, want)
+		}
 	}
 }

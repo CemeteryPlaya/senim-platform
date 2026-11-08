@@ -296,3 +296,23 @@ func TestDistinctComparesDecodedBytes(t *testing.T) {
 		t.Fatalf("distinct keys: unexpected error %v", err)
 	}
 }
+
+func TestInt(t *testing.T) {
+	l := NewLoader(mapSource(map[string]string{"APP_ENV": "dev", "N": "7"}))
+	if got := l.Int("N", 4, 1, 100); got != 7 {
+		t.Errorf("N = %d", got)
+	}
+	if got := l.Int("MISSING", 4, 1, 100); got != 4 {
+		t.Errorf("default = %d", got)
+	}
+	if err := l.Err(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, bad := range []string{"x", "0", "101", "-1", "4.5"} {
+		l := NewLoader(mapSource(map[string]string{"APP_ENV": "dev", "N": bad}))
+		l.Int("N", 4, 1, 100)
+		if err := l.Err(); err == nil || !strings.Contains(err.Error(), "N") {
+			t.Errorf("N=%q: want error naming N, got %v", bad, err)
+		}
+	}
+}

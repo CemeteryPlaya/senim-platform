@@ -88,7 +88,7 @@ func setup(t *testing.T) *fixture {
 	if _, err := owner.Exec(ctx, `TRUNCATE outbox`); err != nil {
 		t.Fatal(err)
 	}
-	pool, err := dbx.Connect(ctx, pgEnv.AppDSN(service), service)
+	pool, err := dbx.Connect(ctx, pgEnv.AppDSN(service), service, dbx.DefaultMaxConns)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -99,6 +99,25 @@ func (l *Loader) String(key, def string) string {
 	return def
 }
 
+// Int возвращает целое из [lo, hi] или def, если переменная не задана. Не число или
+// вне диапазона — ошибка.
+func (l *Loader) Int(key string, def, lo, hi int) int {
+	v, ok := l.src(key)
+	if !ok || v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		l.fail("%s: not an integer", key)
+		return def
+	}
+	if n < lo || n > hi {
+		l.fail("%s: out of range [%d, %d]", key, lo, hi)
+		return def
+	}
+	return n
+}
+
 // Required возвращает значение; отсутствие — ошибка.
 func (l *Loader) Required(key string) string {
 	v, ok := l.src(key)

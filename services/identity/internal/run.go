@@ -94,7 +94,7 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	}
 	defer func() { _ = shutdownTelemetry(context.WithoutCancel(ctx)) }()
 
-	pool, err := dbx.Connect(ctx, cfg.AppDSN, Service)
+	pool, err := dbx.Connect(ctx, cfg.AppDSN, Service, cfg.PoolMaxConns)
 	if err != nil {
 		return err
 	}

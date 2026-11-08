@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/CemeteryPlaya/senim-platform/pkg/config"
+	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
 )
 
 // Service — имя сервиса в логах, трассах и ролях базы.
@@ -27,6 +28,8 @@ type ServeConfig struct {
 	OTLP      string
 	GRPCAddr  string
 	ProbeAddr string
+	// PoolMaxConns — размер пула соединений с базой (POOL_MAX_CONNS, по умолчанию 4).
+	PoolMaxConns int32
 }
 
 // MigrateConfig — настройки подкоманды migrate.
@@ -48,6 +51,8 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 		OTLP:      l.String("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 		GRPCAddr:  l.String("IDENTITY_GRPC_ADDR", ":8443"),
 		ProbeAddr: l.String("IDENTITY_PROBE_ADDR", ":8081"),
+		// Верх 50: 8 сервисов × 2 реплики × пул должны уместиться в max_connections Postgres.
+		PoolMaxConns: int32(l.Int("POOL_MAX_CONNS", dbx.DefaultMaxConns, 1, 50)), //nolint:gosec // диапазон проверен
 	}
 	if err := l.Err(); err != nil {
 		return ServeConfig{}, fmt.Errorf("конфигурация: %w", err)

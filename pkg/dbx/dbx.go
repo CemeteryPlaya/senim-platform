@@ -16,13 +16,24 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Connect открывает пул с application_name = service и трассировкой запросов.
-// Соединение проверяется сразу: ошибка прав на базу возвращается отсюда.
-func Connect(ctx context.Context, dsn string, service string) (*pgxpool.Pool, error) {
+// DefaultMaxConns — размер пула по умолчанию (POOL_MAX_CONNS). pgxpool сам взял бы
+// max(4, NumCPU): в контейнере без лимита CPU на 16 потоках это 16 соединений на реплику,
+// а 8 сервисов × 2 реплики × 16 больше max_connections = 100 у Postgres.
+const DefaultMaxConns = 4
+
+// Connect открывает пул из maxConns соединений с application_name = service и
+// трассировкой запросов. Соединение проверяется сразу: ошибка прав на базу
+// возвращается отсюда. Тайм-ауты запросов и транзакций рабочей роли задаёт tools/dbinit
+// (ALTER ROLE ... SET), а не DSN.
+func Connect(ctx context.Context, dsn string, service string, maxConns int32) (*pgxpool.Pool, error) {
+	if maxConns <= 0 {
+		return nil, fmt.Errorf("dbx: размер пула %d, нужен ≥ 1", maxConns)
+	}
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("dbx: разбор DSN: %w", err)
 	}
+	cfg.MaxConns = maxConns
 	cfg.ConnConfig.RuntimeParams["application_name"] = service
 	cfg.ConnConfig.Tracer = &tracer{tr: otel.Tracer("pkg/dbx")}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)

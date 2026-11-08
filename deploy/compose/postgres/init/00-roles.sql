@@ -5,6 +5,8 @@ REVOKE CONNECT, TEMPORARY ON DATABASE postgres, template1 FROM PUBLIC;
 -- identity
 CREATE ROLE identity_owner LOGIN PASSWORD 'dev-identity-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE identity_app LOGIN PASSWORD 'dev-identity-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE identity_app SET statement_timeout = '15s';
+ALTER ROLE identity_app SET idle_in_transaction_session_timeout = '30s';
 CREATE DATABASE identity OWNER identity_owner;
 REVOKE ALL ON DATABASE identity FROM PUBLIC;
 GRANT CONNECT ON DATABASE identity TO identity_owner, identity_app;
@@ -17,6 +19,8 @@ GRANT USAGE ON SCHEMA public TO identity_app;
 -- deal
 CREATE ROLE deal_owner LOGIN PASSWORD 'dev-deal-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE deal_app LOGIN PASSWORD 'dev-deal-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE deal_app SET statement_timeout = '15s';
+ALTER ROLE deal_app SET idle_in_transaction_session_timeout = '30s';
 CREATE DATABASE deal OWNER deal_owner;
 REVOKE ALL ON DATABASE deal FROM PUBLIC;
 GRANT CONNECT ON DATABASE deal TO deal_owner, deal_app;
@@ -29,6 +33,8 @@ GRANT USAGE ON SCHEMA public TO deal_app;
 -- marketplace
 CREATE ROLE marketplace_owner LOGIN PASSWORD 'dev-marketplace-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE marketplace_app LOGIN PASSWORD 'dev-marketplace-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE marketplace_app SET statement_timeout = '15s';
+ALTER ROLE marketplace_app SET idle_in_transaction_session_timeout = '30s';
 CREATE DATABASE marketplace OWNER marketplace_owner;
 REVOKE ALL ON DATABASE marketplace FROM PUBLIC;
 GRANT CONNECT ON DATABASE marketplace TO marketplace_owner, marketplace_app;
@@ -41,6 +47,8 @@ GRANT USAGE ON SCHEMA public TO marketplace_app;
 -- documents
 CREATE ROLE documents_owner LOGIN PASSWORD 'dev-documents-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE documents_app LOGIN PASSWORD 'dev-documents-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE documents_app SET statement_timeout = '15s';
+ALTER ROLE documents_app SET idle_in_transaction_session_timeout = '30s';
 CREATE DATABASE documents OWNER documents_owner;
 REVOKE ALL ON DATABASE documents FROM PUBLIC;
 GRANT CONNECT ON DATABASE documents TO documents_owner, documents_app;
@@ -53,6 +61,8 @@ GRANT USAGE ON SCHEMA public TO documents_app;
 -- files
 CREATE ROLE files_owner LOGIN PASSWORD 'dev-files-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE files_app LOGIN PASSWORD 'dev-files-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE files_app SET statement_timeout = '15s';
+ALTER ROLE files_app SET idle_in_transaction_session_timeout = '30s';
 CREATE DATABASE files OWNER files_owner;
 REVOKE ALL ON DATABASE files FROM PUBLIC;
 GRANT CONNECT ON DATABASE files TO files_owner, files_app;
@@ -65,6 +75,8 @@ GRANT USAGE ON SCHEMA public TO files_app;
 -- notify
 CREATE ROLE notify_owner LOGIN PASSWORD 'dev-notify-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE notify_app LOGIN PASSWORD 'dev-notify-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE notify_app SET statement_timeout = '15s';
+ALTER ROLE notify_app SET idle_in_transaction_session_timeout = '30s';
 CREATE DATABASE notify OWNER notify_owner;
 REVOKE ALL ON DATABASE notify FROM PUBLIC;
 GRANT CONNECT ON DATABASE notify TO notify_owner, notify_app;
@@ -77,6 +89,8 @@ GRANT USAGE ON SCHEMA public TO notify_app;
 -- operator
 CREATE ROLE operator_owner LOGIN PASSWORD 'dev-operator-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE operator_app LOGIN PASSWORD 'dev-operator-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE operator_app SET statement_timeout = '15s';
+ALTER ROLE operator_app SET idle_in_transaction_session_timeout = '30s';
 CREATE DATABASE operator OWNER operator_owner;
 REVOKE ALL ON DATABASE operator FROM PUBLIC;
 GRANT CONNECT ON DATABASE operator TO operator_owner, operator_app;
@@ -89,6 +103,8 @@ GRANT USAGE ON SCHEMA public TO operator_app;
 -- audit
 CREATE ROLE audit_owner LOGIN PASSWORD 'dev-audit-owner' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE audit_app LOGIN PASSWORD 'dev-audit-app' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ALTER ROLE audit_app SET statement_timeout = '15s';
+ALTER ROLE audit_app SET idle_in_transaction_session_timeout = '30s';
 CREATE DATABASE audit OWNER audit_owner;
 REVOKE ALL ON DATABASE audit FROM PUBLIC;
 GRANT CONNECT ON DATABASE audit TO audit_owner, audit_app;
