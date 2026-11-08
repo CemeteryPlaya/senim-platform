@@ -5,7 +5,7 @@ import { ru } from "@/i18n/ru";
 import { isEnabled } from "@/platform/features";
 import { requireUserPage } from "@/modules/identity";
 import { listMySiteMeasurements } from "@/modules/requests";
-import { Container, EmptyState, FilterChips, PageHeader, PhotoCard, StatusBadge, formatDateTime } from "@/ui";
+import { Container, EmptyState, LegacyFilterChips, PageHeader, PhotoCard, StatusBadge, formatDateTime } from "@/ui";
 import { photo } from "@/app/_home/illustration";
 
 const t = ru.requests.pre.measurer;
@@ -35,7 +35,7 @@ export default async function MeasurerPage({ searchParams }: { searchParams: Pro
         <EmptyState icon={<Ruler />} title={t.emptyTitle} description={t.emptyText} />
       ) : (
         <>
-          <FilterChips
+          <LegacyFilterChips
             label={x.chipsLabel}
             current={show}
             chips={GROUPS.map((g) => ({ key: g, label: x.chips[g], count: count(g), href: `/measurer?show=${g}` }))}

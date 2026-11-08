@@ -102,7 +102,7 @@ function Photo({ image, className }: { image: PhotoCardProps["image"]; className
 
 /* ── Чипы-фильтры ──────────────────────────────────────────── */
 
-export type FilterChip = {
+export type LegacyFilterChip = {
   key: string;
   label: string;
   /** Число в чипе: «Все 12». */
@@ -111,10 +111,10 @@ export type FilterChip = {
   href?: string;
 };
 
-export type FilterChipsProps = {
+export type LegacyFilterChipsProps = {
   /** Подпись группы для диктора: «Показать заявки». */
   label: string;
-  chips: readonly FilterChip[];
+  chips: readonly LegacyFilterChip[];
   /** key выбранного чипа. */
   current: string;
   /** Для чипов без href (клиентский компонент). */
@@ -127,7 +127,7 @@ export type FilterChipsProps = {
  * в кружке. Переносятся на новую строку, а не прокручиваются вбок: при крупном шрифте всё остаётся на виду.
  * Ссылки отмечают выбранный aria-current="page", кнопки — aria-pressed.
  */
-export function FilterChips({ label, chips, current, onSelect, className }: FilterChipsProps) {
+export function LegacyFilterChips({ label, chips, current, onSelect, className }: LegacyFilterChipsProps) {
   const chipClass = (selected: boolean) =>
     cn(
       "inline-flex min-h-control-sm items-center gap-2 rounded-chip border px-4 text-base font-semibold no-underline transition-colors duration-150",
@@ -135,7 +135,7 @@ export function FilterChips({ label, chips, current, onSelect, className }: Filt
     );
   const countClass = (selected: boolean) =>
     cn("inline-flex min-w-7 justify-center rounded-full px-2 text-sm leading-6 tabular-nums", selected ? "bg-surface text-primary" : "bg-sunken text-ink");
-  const body = (chip: FilterChip, selected: boolean) => (
+  const body = (chip: LegacyFilterChip, selected: boolean) => (
     <>
       <span>{chip.label}</span>
       {chip.count !== undefined && <span className={countClass(selected)}>{chip.count}</span>}

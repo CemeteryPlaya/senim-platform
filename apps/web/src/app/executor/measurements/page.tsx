@@ -5,7 +5,7 @@ import type { MeasurementStatus } from "@/generated/prisma/enums";
 import { listAwaitingMeasurement, listMyMeasurements } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { isEnabled } from "@/platform/features";
-import { Alert, ButtonLink, Container, DateText, EmptyState, FilterChips, Money, PageHeader, PhotoCard, SectionTitle, StatusBadge } from "@/ui";
+import { Alert, ButtonLink, Container, DateText, EmptyState, LegacyFilterChips, Money, PageHeader, PhotoCard, SectionTitle, StatusBadge } from "@/ui";
 import { pageUser } from "@/app/requests/_parts/guard";
 import { MEASUREMENT_TONE } from "@/app/requests/_parts/labels";
 import { NoAccess } from "@/app/_components/NoAccess";
@@ -77,7 +77,7 @@ export default async function MeasurementsPage({ searchParams }: { searchParams:
           <EmptyState icon={<Ruler />} title={t.emptyTitle} description={t.emptyText} titleAs="h3" />
         ) : (
           <>
-            <FilterChips
+            <LegacyFilterChips
               label={x.chipsLabel}
               current={show}
               chips={GROUPS.map((g) => ({ key: g, label: x.chips[g], count: count(g), href: `/executor/measurements?show=${g}` }))}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ArrowLeft, ArrowRight, CalendarClock, Images, Inbox, MapPin, Package, Ruler, Store } from "lucide-react";
+import { ArrowLeft, ArrowRight, Armchair, BedDouble, CalendarClock, ChefHat, DoorClosed, Images, Inbox, MapPin, Package, Ruler, Store } from "lucide-react";
 import type { ReactNode } from "react";
 import { env } from "@/platform/env";
 import { ru } from "@/i18n/ru";
@@ -11,11 +11,14 @@ import {
   ButtonLink,
   Card,
   Checkbox,
+  CategoryTiles,
   Container,
   DateText,
   DemoBanner,
   EmptyState,
+  FilterChips,
   Input,
+  KeyValueList,
   LinkList,
   Money,
   PageHeader,
@@ -25,11 +28,13 @@ import {
   Select,
   Skeleton,
   Stat,
+  StatTiles,
   StatusBadge,
   Stepper,
   StickyAction,
   Textarea,
   Timeline,
+  TrustNote,
   type ChatMessage,
   type Tone,
 } from "@/ui";
@@ -232,6 +237,31 @@ export default async function UiKitPage() {
               { href: "/ui-kit/#offers", label: s.listOffers, icon: <Ruler />, meta: 3 },
               { href: "/ui-kit/#portfolio", label: s.listPortfolio, icon: <Images />, meta: 24 },
               { href: "/ui-kit/#settings", label: s.listSettings, icon: <Store /> },
+            ]}
+          />
+        </div>
+      </KitSection>
+
+      <KitSection title={k.sections.componentsA}>
+        <div className="flex max-w-form flex-col gap-6">
+          <CategoryTiles
+            moreHref="/ui-kit"
+            items={[ChefHat, DoorClosed, Armchair, BedDouble].map((icon, i) => ({ href: `/ui-kit#cat-${i}`, label: s.categories[i], icon }))}
+          />
+          <TrustNote>{s.trustNote}</TrustNote>
+          <StatTiles
+            items={[
+              { label: s.statNew, value: "3", hint: s.statHint },
+              { label: s.statWork, value: "5" },
+            ]}
+          />
+          <KeyValueList rows={s.keyValueRows} />
+          <FilterChips
+            label={s.chipsLabel}
+            items={[
+              { href: "/ui-kit", label: s.chips.all, active: true },
+              { href: "/ui-kit#comfort", label: s.chips.comfort, active: false },
+              { href: "/ui-kit#premium", label: s.chips.premium, active: false },
             ]}
           />
         </div>

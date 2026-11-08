@@ -4,7 +4,7 @@ import { MapPin, SearchX } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { getCatalogFacets, INSPIRATION_STEP, inspirationHref, listInspiration, parseInspirationFilter, type InspirationFilter, type SearchParams } from "@/modules/companies";
 import { isEnabled } from "@/platform/features";
-import { ButtonLink, Container, EmptyState, FilterChips, PageHeader, PhotoCard, StatusBadge, type FilterChip } from "@/ui";
+import { ButtonLink, Container, EmptyState, LegacyFilterChips, PageHeader, PhotoCard, StatusBadge, type LegacyFilterChip } from "@/ui";
 import { STYLES, type StyleKey } from "@/verticals/furniture";
 
 const t = ru.companies.inspiration;
@@ -22,11 +22,11 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
   const [{ items, hasMore }, facets] = await Promise.all([listInspiration(filter), getCatalogFacets()]);
   // Сменили фильтр — снова первая порция.
   const chipHref = (patch: Partial<InspirationFilter>) => inspirationHref({ ...filter, ...patch, limit: INSPIRATION_STEP });
-  const typeChips: FilterChip[] = [
+  const typeChips: LegacyFilterChip[] = [
     { key: "all", label: t.filters.all, href: chipHref({ type: undefined }) },
     ...facets.types.map((ft) => ({ key: ft.slug, label: ft.name, href: chipHref({ type: ft.slug }) })),
   ];
-  const styleChips: FilterChip[] = [
+  const styleChips: LegacyFilterChip[] = [
     { key: "all", label: t.filters.all, href: chipHref({ style: undefined }) },
     ...(Object.entries(STYLES) as [StyleKey, (typeof STYLES)[StyleKey]][]).map(([key, s]) => ({ key, label: s.name, href: chipHref({ style: key }) })),
   ];
@@ -44,13 +44,13 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
           <p aria-hidden className="text-base font-semibold text-ink">
             {t.filters.type}
           </p>
-          <FilterChips label={t.filters.type} chips={typeChips} current={filter.type ?? "all"} />
+          <LegacyFilterChips label={t.filters.type} chips={typeChips} current={filter.type ?? "all"} />
         </div>
         <div className="flex flex-col gap-2">
           <p aria-hidden className="text-base font-semibold text-ink">
             {t.filters.style}
           </p>
-          <FilterChips label={t.filters.style} chips={styleChips} current={filter.style ?? "all"} />
+          <LegacyFilterChips label={t.filters.style} chips={styleChips} current={filter.style ?? "all"} />
         </div>
       </section>
 

@@ -97,6 +97,8 @@ export const common = {
     /** Имя области с таблицей, которая на узком экране прокручивается вбок (фокус — Tab, прокрутка — стрелками). */
     tableRegion: (title: string) => `Таблица «${title}»`,
     timeline: { done: "пройдено", current: "сейчас", todo: "впереди" },
+    /** Последняя плитка в CategoryTiles. */
+    categoryTilesMore: "Все типы",
     stepper: {
       label: "Шаги",
       progress: (n: number, total: number) => `Шаг ${n} из ${total}`,
@@ -189,6 +191,7 @@ export const common = {
       lists: "Список разделов и показатели",
       timeline: "Ход дела",
       tiles: "Выбор плиткой с картинкой",
+      componentsA: "Плитки категорий, плашка, «метка — значение», сводка, чипы-ссылки",
     },
     sample: {
       heading: "Заголовок страницы",
@@ -256,6 +259,17 @@ export const common = {
       dateTime: "Дата и время",
       relative: "Относительное время",
       chipsLabel: "Показать заявки",
+      categoriesLabel: "Типы мебели",
+      categories: ["Кухни", "Шкафы", "Гардеробные", "Детские"],
+      trustNote: "Деньги в банке под защитой, пока вы не примете работу.",
+      keyValueRows: [
+        { label: "Город", value: "Астана" },
+        { label: "Срок", value: "14 дней" },
+        { label: "Материал", value: "МДФ в плёнке" },
+      ],
+      statNew: "Новые заявки",
+      statWork: "В работе",
+      statHint: "за сегодня",
       chips: { all: "Все", economy: "Эконом", comfort: "Комфорт", premium: "Премиум" },
       photoTitle: "Кухня угловая",
       photoCity: "Астана, ЖК «Пример»",

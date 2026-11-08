@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CalendarClock, MapPin, Send } from "lucide-react";
 import { listMyOffers, wholeKzt, type MyOfferItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { ButtonLink, Container, EmptyState, FilterChips, Money, PageHeader, PhotoCard, StatusBadge, formatDateTime, formatRelative, type Tone } from "@/ui";
+import { ButtonLink, Container, EmptyState, LegacyFilterChips, Money, PageHeader, PhotoCard, StatusBadge, formatDateTime, formatRelative, type Tone } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { pageUser } from "@/app/requests/_parts/guard";
 import { NoAccess } from "@/app/_components/NoAccess";
@@ -57,7 +57,7 @@ export default async function MyOffersPage({ searchParams }: { searchParams: Pro
         />
       ) : (
         <>
-          <FilterChips
+          <LegacyFilterChips
             label={t.chipsLabel}
             current={show}
             chips={GROUPS.map((g) => ({

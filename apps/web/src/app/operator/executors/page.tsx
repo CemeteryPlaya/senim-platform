@@ -3,7 +3,7 @@ import { Plus, UserCheck, Users } from "lucide-react";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { listExecutors, listRegistrationQueue } from "@/modules/operator";
-import { ButtonLink, Container, DateText, EmptyState, FilterChips, PageHeader, SectionTitle, StatusBadge, type Tone } from "@/ui";
+import { ButtonLink, Container, DateText, EmptyState, LegacyFilterChips, PageHeader, SectionTitle, StatusBadge, type Tone } from "@/ui";
 import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { param, requireOperatorPage } from "../_lib/guard";
 
@@ -74,7 +74,7 @@ export default async function ExecutorsPage({ searchParams }: { searchParams: Pr
 
         <section aria-labelledby="all" className="flex flex-col gap-4">
           <SectionTitle id="all" title={e.allTitle} />
-          <FilterChips
+          <LegacyFilterChips
             label={e.filterLabel}
             current={status ?? "all"}
             chips={[

@@ -16,7 +16,7 @@ import {
 } from "@/modules/requests";
 import { isAppError } from "@/platform/errors";
 import { ru } from "@/i18n/ru";
-import { Alert, ButtonLink, Container, EmptyState, FilterChips, Money, PageHeader, SectionTitle, StatusBadge, formatDateTime, formatMoney } from "@/ui";
+import { Alert, ButtonLink, Container, EmptyState, LegacyFilterChips, Money, PageHeader, SectionTitle, StatusBadge, formatDateTime, formatMoney } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { cancelRequestAction, clientNoDealAction } from "../actions";
 import { ActionButton } from "../_parts/ActionButton";
@@ -148,7 +148,7 @@ function Offers({ requestId, pre, offers, sort, tz }: { requestId: string; pre: 
       />
       {pre && <SizesBasis pre={pre} />}
       {offers.length > 1 && (
-        <FilterChips
+        <LegacyFilterChips
           label={t.sortLabel}
           current={sort}
           chips={OFFER_SORTS.map((s) => ({ key: s, label: t.sort[s], href: `/requests/${requestId}?sort=${s}` }))}

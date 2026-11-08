@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CalendarClock, ClipboardList, Layers, MessageSquareText, Plus, Send } from "lucide-react";
 import { listMyRequests, WIZARD_SCREENS } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { ButtonLink, Container, DateText, EmptyState, FilterChips, PageHeader, PhotoCard, StatusBadge } from "@/ui";
+import { ButtonLink, Container, DateText, EmptyState, LegacyFilterChips, PageHeader, PhotoCard, StatusBadge } from "@/ui";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { photo } from "@/app/_home/illustration";
 import { pageUser } from "./_parts/guard";
@@ -42,7 +42,7 @@ export default async function MyRequestsPage({ searchParams }: Props) {
         <EmptyState icon={<ClipboardList />} title={t.emptyTitle} description={t.emptyText} action={create} />
       ) : (
         <>
-          <FilterChips
+          <LegacyFilterChips
             label={t.filterLabel}
             current={group}
             chips={[

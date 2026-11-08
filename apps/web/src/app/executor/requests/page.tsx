@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CalendarClock, Inbox, MapPin, Send, Users } from "lucide-react";
 import { listIncomingRequests, type IncomingListItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { ButtonLink, Container, DateText, EmptyState, FilterChips, PageHeader, PhotoCard, StatusBadge, type FilterChip } from "@/ui";
+import { ButtonLink, Container, DateText, EmptyState, LegacyFilterChips, PageHeader, PhotoCard, StatusBadge, type LegacyFilterChip } from "@/ui";
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { pageUser } from "@/app/requests/_parts/guard";
 import { OFFER_TONE } from "@/app/requests/_parts/labels";
@@ -24,7 +24,7 @@ function selected(sp: Search, list: readonly IncomingListItem[]): { key: string;
   return { key: "all", keep: () => true };
 }
 
-function chipsFor(list: readonly IncomingListItem[]): FilterChip[] {
+function chipsFor(list: readonly IncomingListItem[]): LegacyFilterChip[] {
   const base = "/executor/requests";
   const count = (keep: (r: IncomingListItem) => boolean) => list.filter(keep).length;
   const types = [...new Set(list.map((r) => r.title))];
@@ -67,7 +67,7 @@ export default async function IncomingPage({ searchParams }: { searchParams: Pro
         <EmptyState icon={<Inbox />} title={t.emptyTitle} description={t.emptyText} />
       ) : (
         <>
-          <FilterChips label={x.chipsLabel} current={current.key} chips={chipsFor(list)} />
+          <LegacyFilterChips label={x.chipsLabel} current={current.key} chips={chipsFor(list)} />
           {shown.length === 0 ? (
             <p className="text-base text-muted">{x.emptyFilter}</p>
           ) : (

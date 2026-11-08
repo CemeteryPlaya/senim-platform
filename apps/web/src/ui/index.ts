@@ -60,6 +60,11 @@ export {
   type StatusBadgeProps,
   type Tone,
 } from "./display";
+export { CategoryTiles, type CategoryTileItem } from "./CategoryTiles";
+export { TrustNote } from "./TrustNote";
+export { KeyValueList, type KeyValueRow } from "./KeyValueList";
+export { StatTiles, type StatTileItem } from "./StatTiles";
+export { FilterChips, type FilterChipItem } from "./FilterChips";
 export { Stepper, type StepperBack, type StepperProps } from "./Stepper";
 export { Modal, type ModalProps } from "./Modal";
 export { ConfirmDialog, type ConfirmDialogProps, type ConfirmSpec, type ConfirmTone } from "./ConfirmDialog";
@@ -67,14 +72,14 @@ export { ConfirmButton, FormError, type ConfirmButtonProps } from "./ConfirmButt
 export { PhotoUpload, type PhotoItem, type PhotoUploadProps } from "./PhotoUpload";
 export { Chat, type ChatMessage, type ChatProps } from "./Chat";
 export {
-  FilterChips,
+  LegacyFilterChips,
   LinkList,
   PhotoCard,
   SectionTitle,
   Stat,
   Timeline,
-  type FilterChip,
-  type FilterChipsProps,
+  type LegacyFilterChip,
+  type LegacyFilterChipsProps,
   type LinkListItem,
   type PhotoCardProps,
   type SectionTitleProps,

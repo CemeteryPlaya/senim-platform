@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, Chat, FilterChips, Modal, PhotoUpload, Stepper, type ChatMessage, type PhotoItem } from "@/ui";
+import { Button, Chat, LegacyFilterChips, Modal, PhotoUpload, Stepper, type ChatMessage, type PhotoItem } from "@/ui";
 
 // Живые примеры для витрины: состояние хранится здесь, компоненты — презентационные.
 
@@ -31,7 +31,7 @@ export function ChipsDemo() {
   const c = s.chips;
   return (
     <div className="flex flex-col gap-4">
-      <FilterChips
+      <LegacyFilterChips
         label={s.chipsLabel}
         current={current}
         onSelect={setCurrent}
@@ -42,7 +42,7 @@ export function ChipsDemo() {
           { key: "premium", label: c.premium, count: 3 },
         ]}
       />
-      <FilterChips
+      <LegacyFilterChips
         label={s.chipsLabel}
         current="comfort"
         chips={[
