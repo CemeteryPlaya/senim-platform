@@ -142,7 +142,6 @@ export const companies = {
       experienceUnknown: "не указан",
       deals: "Сделок на платформе",
       measurement: "Замер",
-      segment: "Сегмент",
     },
     trustNote: "Оплата хранится в банке, мастер получит деньги после вашей приёмки.",
   },

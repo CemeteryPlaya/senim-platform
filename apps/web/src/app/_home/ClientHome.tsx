@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Bath, ClipboardList, CookingPot, DoorClosed, DoorOpen, Plus, Shirt, Sofa, type LucideIcon } from "lucide-react";
 import { catalogHref, getCatalogFacets, listCatalog, PRICE_BUCKETS, type CatalogFilter, type PriceBucket } from "@/modules/companies";
 import { listDeals, type DealListItem } from "@/modules/deal-core";
@@ -19,13 +20,14 @@ import {
 } from "@/ui";
 import { POPULAR_FURNITURE_TYPES } from "@/verticals/furniture";
 import { WorkCard } from "../catalog/_components/WorkCard";
+import { homeDealMoney } from "../deals/[id]/_parts/home-deal-money";
 import { ACTIVE_DEAL } from "../deals/_parts/labels";
 import { illustrationFor } from "./illustration";
 
 const t = ru.common.home;
 const c = t.client;
 
-/** Плиток типов на главной (последняя — «Все типы»): 4 + 1 ровно ложатся в 3 колонки телефона и в ряд на десктопе. */
+/** Плиток типов на главной (последняя — «Все типы», во всю ширину на телефоне): 2 + 2 + 1 на телефоне, 5 в ряд на десктопе. */
 const TILES = 4;
 /** Работ в ленте главной; остальное — «Все работы» в каталоге с тем же фильтром. */
 const WORKS = 6;
@@ -80,7 +82,8 @@ export async function ClientHome({ user, price }: { user: CurrentUser; price: Pr
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
         {active[0] && <MyDeal deal={active[0]} more={active.length - 1} />}
-        <TrustNote className="lg:items-center">{c.trustNote}</TrustNote>
+        {/* Плашка не тянется на высоту карточки сделки; без сделки — во всю ширину. */}
+        <TrustNote className={active[0] ? "lg:self-start" : "lg:col-span-2"}>{c.trustNote}</TrustNote>
       </div>
 
       {open.length > 0 && (
@@ -137,24 +140,34 @@ export async function ClientHome({ user, price }: { user: CurrentUser; price: Pr
 }
 
 /**
- * «Моя сделка»: название, статус, деньги и ход сделки. Сумма «в банке» — только из журнала (money.kind protected
- * или frozen), до оплаты — смета «к оплате». Спор поверх шагов — по журналу: открытый спор замораживает выплату.
+ * «Моя сделка»: название (ссылка в саму сделку), статус, деньги и ход сделки. Деньги — только из журнала
+ * (homeDealMoney); спор поверх шагов — по журналу: открытый спор замораживает выплату. Сделок несколько —
+ * рядом «Все сделки».
  */
 function MyDeal({ deal, more }: { deal: DealListItem; more: number }) {
-  const m = deal.money;
-  const inBank = m.kind === "protected" || m.kind === "frozen" ? m.amountTiyn : null;
+  const money = homeDealMoney(deal.money, deal.estimate);
   return (
     <section aria-labelledby="home-deal" className="flex min-w-0 flex-col gap-3 rounded-card border border-line bg-surface p-4">
       <SectionTitle
         id="home-deal"
-        title={c.dealCard(deal.title)}
         as="h2"
-        action={{ href: more > 0 ? "/deals" : `/deals/${deal.id}`, label: more > 0 ? c.allDeals : ru.deal.listOpen, ariaLabel: more > 0 ? undefined : `${ru.deal.listOpen}: ${ru.deal.number(deal.number)}` }}
+        title={
+          <Link href={`/deals/${deal.id}`} className="rounded-control text-ink no-underline hover:underline">
+            {c.dealCard(deal.title)}
+          </Link>
+        }
+        action={more > 0 ? { href: "/deals", label: c.allDeals } : undefined}
       />
       <p className="text-base text-ink-soft">
-        {ru.deal.status[deal.status]} · <Money amount={inBank ?? deal.estimate.totalTiyn} className="font-semibold text-ink" /> {inBank !== null ? c.inBank : c.toPay}
+        {ru.deal.status[deal.status]} ·{" "}
+        {money.amountTiyn !== null && (
+          <>
+            <Money amount={money.amountTiyn} className="font-semibold text-ink" />{" "}
+          </>
+        )}
+        {money.label}
       </p>
-      <DealProgress status={deal.status} hasOpenDispute={m.kind === "frozen"} />
+      <DealProgress status={deal.status} hasOpenDispute={deal.money.kind === "frozen"} />
     </section>
   );
 }
