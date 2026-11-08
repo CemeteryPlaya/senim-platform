@@ -13,7 +13,8 @@
 //
 // Ключ дедупликации — (consumer, event_id), без источника. Это безопасно, потому что
 // event_id — UUIDv7 из outbox.Add, а источник проверен до записи: Handle делает Term,
-// если источник конверта не совпадает с источником субъекта senim.<source>.…, а
+// если источник конверта не совпадает с источником субъекта senim.<source>.… или
+// сообщение пришло не из потока SENIM_<SOURCE>, а
 // публиковать в senim.<source>.> NATS разрешает только учётной записи <source>
 // (ADR-012). Без этих двух условий чужое событие с известным event_id могло бы занять
 // ключ раньше настоящего, и настоящее было бы молча подтверждено без обработки.
@@ -78,8 +79,9 @@ type Handler func(ctx context.Context, tx pgx.Tx, env *eventsv1.Envelope) error
 // В одной транзакции: INSERT в inbox ... ON CONFLICT DO NOTHING; запись уже была —
 // Ack без вызова fn; иначе fn, коммит, Ack. Ошибка fn или коммита — откат и
 // NakWithDelay (1 с, 2 с, 4 с ... до 1 мин по числу доставок); возвращается ошибка.
-// Конверт, который не разбирается, без event_id или с источником, не совпадающим с
-// субъектом senim.<source>.…, повтор не исправит — Term без вызова fn.
+// Конверт, который не разбирается, без event_id, с источником, не совпадающим с
+// субъектом senim.<source>.…, или сообщение не из потока SENIM_<SOURCE> повтор не
+// исправит — Term без вызова fn.
 // Если у ctx нет дедлайна, ставится 30 с.
 func Handle(ctx context.Context, pool *pgxpool.Pool, consumer string, msg jetstream.Msg, fn Handler) error {
 	if consumer == "" {
@@ -97,10 +99,18 @@ func Handle(ctx context.Context, pool *pgxpool.Pool, consumer string, msg jetstr
 	// За источник субъекта ручается NATS (публиковать в senim.<source>.> может только
 	// учётная запись <source>, ADR-012); источник в конверте пишет сам публикатор. Не
 	// совпали — подделка или ошибка, повтор не исправит: Term без обработчика.
-	if src, ok := outbox.SourceOf(msg.Subject()); !ok || env.GetSource() != src {
+	src, ok := outbox.SourceOf(msg.Subject())
+	if !ok || env.GetSource() != src {
 		_ = msg.TermWithReason("inbox: источник конверта не совпадает с субъектом")
 		return fmt.Errorf("inbox: источник конверта %q не совпадает с субъектом %s (event_id %s)",
 			env.GetSource(), msg.Subject(), env.GetEventId())
+	}
+	// Субъект источника — ещё не доказательство: каждый сервис может менять конфиг своего
+	// потока (STREAM.UPDATE, ADR-012) и сложить в него чужие субъекты (subject_transform,
+	// sources). Событие источника src принимается только из его потока SENIM_<SRC>.
+	if md, err := msg.Metadata(); err != nil || md.Stream != outbox.StreamName(src) {
+		_ = msg.TermWithReason("inbox: событие не из потока своего источника")
+		return fmt.Errorf("inbox: событие %s (%s) не из потока %s", env.GetEventId(), msg.Subject(), outbox.StreamName(src))
 	}
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc

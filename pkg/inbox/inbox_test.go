@@ -326,7 +326,7 @@ func (m fakeMsg) NakWithDelay(time.Duration) error { m.c.naks.Add(1); return nil
 func (m fakeMsg) Term() error                      { m.c.terms.Add(1); return nil }
 func (m fakeMsg) TermWithReason(string) error      { m.c.terms.Add(1); return nil }
 func (m fakeMsg) Metadata() (*jetstream.MsgMetadata, error) {
-	return &jetstream.MsgMetadata{NumDelivered: 1}, nil
+	return &jetstream.MsgMetadata{NumDelivered: 1, Stream: outbox.StreamName("fake")}, nil
 }
 
 func TestInboxConcurrentDuplicates(t *testing.T) {
@@ -447,9 +447,20 @@ func TestInboxTableIsAppendOnly(t *testing.T) {
 type subjMsg struct {
 	fakeMsg
 	subject string
+	stream  string
 }
 
 func (m subjMsg) Subject() string { return m.subject }
+
+// Metadata — поток источника субъекта (или stream, если задан явно).
+func (m subjMsg) Metadata() (*jetstream.MsgMetadata, error) {
+	stream := m.stream
+	if stream == "" {
+		src, _ := outbox.SourceOf(m.subject)
+		stream = outbox.StreamName(src)
+	}
+	return &jetstream.MsgMetadata{NumDelivered: 1, Stream: stream}, nil
+}
 
 // Событие с источником в конверте, не совпадающим с источником субъекта, — подделка или
 // ошибка публикатора: Term без вызова обработчика и без записи inbox.
@@ -492,5 +503,30 @@ func TestInboxTermsSourceMismatch(t *testing.T) {
 	}
 	if c.acks.Load() != 1 {
 		t.Fatalf("acks=%d", c.acks.Load())
+	}
+}
+
+// Субъект и источник конверта совпали, но сообщение пришло из чужого потока (например,
+// сервис сложил senim.deal.* в свой поток через subject_transform или sources): Term.
+func TestInboxTermsForeignStream(t *testing.T) {
+	f := setup(t)
+	data, err := proto.Marshal(newEnvelope("deal"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stream := range []string{"SENIM_MARKETPLACE", "SENIM_DEALX", "deal"} {
+		var c counters
+		called := false
+		fn := func(context.Context, pgx.Tx, *eventsv1.Envelope) error { called = true; return nil }
+		msg := subjMsg{fakeMsg: fakeMsg{data: data, c: &c}, subject: "senim.deal.offer_concluded", stream: stream}
+		if err := inbox.Handle(context.Background(), f.pool, consumer, msg, fn); err == nil {
+			t.Errorf("поток %s: ожидалась ошибка", stream)
+		}
+		if called || c.terms.Load() != 1 || c.acks.Load() != 0 {
+			t.Errorf("поток %s: called=%v terms=%d acks=%d", stream, called, c.terms.Load(), c.acks.Load())
+		}
+	}
+	if n := f.count(t, "inbox"); n != 0 {
+		t.Fatalf("записей inbox %d, ожидалось 0", n)
 	}
 }
