@@ -1,5 +1,23 @@
 // Package server is the shared skeleton of every Senim gRPC service: connect-go over
 // HTTP/2 with mutual TLS, gRPC health, HTTP probes, telemetry and graceful shutdown.
+//
+// # Unavailable is a promise that nothing happened
+//
+// The mesh (deploy/compose/envoy/mesh.yaml) retries every method of a service package
+// on gRPC UNAVAILABLE, not only methods marked idempotent. That is safe only under this
+// rule, which every handler must follow:
+//
+//   - A handler returns connect.CodeUnavailable only when it has made no side effect:
+//     nothing committed, no event in the outbox, no call to another service or provider
+//     that may have acted.
+//     "Try again" must be literally true.
+//   - After a side effect, a failure is CodeInternal, CodeAborted or another code —
+//     never Unavailable — even when the cause is a broken dependency.
+//   - Errors from dependencies are not passed through as is: a downstream Unavailable
+//     returned after this handler's own commit would make the mesh repeat the commit.
+//
+// Mutating methods additionally take idempotency_key (CLAUDE.md), so a retry that slips
+// through still returns the stored result instead of a second effect.
 package server
 
 import (
