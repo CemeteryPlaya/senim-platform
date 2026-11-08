@@ -30,6 +30,11 @@ describe("CategoryTiles", () => {
     expect(html).toContain(`>${ru.common.ui.categoryTilesMore}<`);
   });
 
+  it("сетка растягивает плитки: auto-fit, а не auto-fill", () => {
+    expect(html).toContain("auto-fit");
+    expect(html).not.toContain("auto-fill");
+  });
+
   it("без moreHref плитки «Все типы» нет", () => {
     const none = renderToStaticMarkup(<CategoryTiles items={[{ href: "/a", label: "Кухни", icon: Sofa }]} />);
     expect(none).not.toContain(ru.common.ui.categoryTilesMore);
@@ -77,6 +82,7 @@ describe("StatTiles", () => {
     expect(html).toContain("Новые заявки");
     expect(html).toContain(">3<");
     expect(html).toContain("за сегодня");
+    expect(html).toContain("auto-fit");
     expect(html).toContain("В работе");
   });
 });
