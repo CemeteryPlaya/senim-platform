@@ -89,6 +89,8 @@
 - Конфиг сервиса в prod: `sslmode=verify-full` для Postgres и TLS для OTLP (M3).
 - Права app-роли на DELETE и EXECUTE (маркер или отдельная роль для очистки, M7).
 - `pkg/rpcclient` — Go-клиент mesh (mTLS из `TLS_*`, дедлайн, traceparent).
+- Потоки JetStream в prod создаёт инфраструктура, а не сервис: сейчас у сервиса есть `STREAM.CREATE|UPDATE` на свой поток (план 7; до него — защита в inbox по имени потока).
+- Первый запуск CI: убедиться, что `go version` в job печатает 1.27.3 (иначе задать `go-version: 1.27.3`), и что `-race` зелёный.
 - События: у потребителя нет `MaxDeliver`/`BackOff` и пути в мёртвые письма; нет очистки потока, outbox и inbox (порядок сроков — в документации `pkg/inbox`); права консьюмеров NATS добавить в `tools/natsconf` вместе с первым получателем.
 - Спан RPC identity и метрика `rpc.server.duration` в Grafana — проверить на первом настоящем RPC.
 
