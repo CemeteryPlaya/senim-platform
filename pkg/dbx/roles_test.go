@@ -396,3 +396,22 @@ func TestAppRoleTimeouts(t *testing.T) {
 		}
 	}
 }
+
+// Строка-комментарий со словами senim и append в любом порядке и написании, не совпавшая
+// со строгой формой, — тоже ошибка (повторное ревью, M-a).
+func TestAppendOnlyMarkerSeparatorTyposFail(t *testing.T) {
+	for _, marker := range []string{
+		"-- senim append-only ledger",
+		"-- senim-append-only ledger",
+		"-- senim.append-only ledger",
+		"-- SENIM APPEND ONLY ledger",
+		"-- append-only senim ledger",
+		"-- ledger: senim append",
+	} {
+		m := fstest.MapFS{"00001_x.sql": {Data: []byte("-- +goose Up\n" + marker + "\nCREATE TABLE ledger (id int);\n-- +goose Down\nDROP TABLE ledger;\n")}}
+		err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", m)
+		if err == nil || !strings.Contains(err.Error(), "senim:append-only") {
+			t.Errorf("маркер %q: ожидалась ошибка маркера, получено %v", marker, err)
+		}
+	}
+}

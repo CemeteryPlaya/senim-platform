@@ -27,12 +27,14 @@ import (
 // Разбор двухступенчатый и закрыт по умолчанию: свободный регистронезависимый шаблон
 // находит любую строку-комментарий, похожую на директиву, — «senim:» в любом
 // регистре и с пробелами («SENIM:APPEND-ONLY», «senim :append-only», «senim:readonly»),
-// а также строку, начинающуюся с append-only/append_only/appendonly. Каждая такая
+// строку, начинающуюся с append-only/append_only/appendonly, а также любую строку-
+// комментарий, где есть и senim, и append («senim append-only», «senim.append-only»).
+// Каждая такая
 // строка обязана точно совпасть со строгой формой (маленькие буквы, одно имя таблицы
 // без схемы, запятых и комментариев). Иначе — ошибка, а не обычная таблица с UPDATE.
 // Слово append-only внутри обычной фразы маркером не считается.
 var (
-	suspectRe = regexp.MustCompile(`(?im)^[ \t]*--[ \t]*(?:senim[ \t]*:|append[ \t_-]*only\b|\w+[ \t]*:[ \t]*append[ \t_-]*only).*$`)
+	suspectRe = regexp.MustCompile(`(?im)^[ \t]*--[ \t]*(?:senim[ \t]*:|append[ \t_-]*only\b|\w+[ \t]*:[ \t]*append[ \t_-]*only|.*senim.*append|.*append.*senim).*$`)
 	markerRe  = regexp.MustCompile(`^[ \t]*--[ \t]*senim:append-only[ \t]+([a-z_][a-z0-9_]*)[ \t]*\r?$`)
 	serviceRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,30}$`)
 )
