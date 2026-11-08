@@ -11,8 +11,8 @@ const USER_TEXT = /(fail\.[a-zA-Z]+\(|\berror: |\breason: |\?\? |\.(?:min|max)\(
 
 /** В platform пользовательских текстов нет вовсе: любая русская строка вне комментария — мимо ru. */
 const PLATFORM_TEXT = /^(?!\s*(?:\/\/|\*|\/\*)).*["`][^"`]*[А-Яа-яЁё]/;
-/** Тексты не для пользователя: проверка env, внутренние ошибки, метка скрытых секретов в журнале. */
-const PLATFORM_NOT_USER_FACING = ["src/platform/env.ts", "src/platform/crypto.ts", "src/platform/kz-id.ts", "src/platform/logger.ts", "src/platform/jobs/"];
+/** Тексты не для пользователя: проверка env и настройки mesh (rpc.ts), внутренние ошибки, метка скрытых секретов в журнале. */
+const PLATFORM_NOT_USER_FACING = ["src/platform/env.ts", "src/platform/crypto.ts", "src/platform/kz-id.ts", "src/platform/logger.ts", "src/platform/rpc.ts", "src/platform/jobs/"];
 
 async function sources(dir: string): Promise<string[]> {
   const root = path.join(process.cwd(), dir);
