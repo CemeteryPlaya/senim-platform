@@ -16,7 +16,6 @@ function ChatRow({ chat }: { chat: ChatListItem }) {
     <li>
       <Link
         href={chat.href}
-        aria-label={t.openChat(chat.counterpart, chat.title)}
         className="flex min-h-control min-w-0 items-start gap-3 rounded-card border border-line bg-surface p-4 text-ink no-underline transition-colors duration-150 hover:border-primary"
       >
         <span className="flex min-w-0 flex-1 flex-col gap-1">

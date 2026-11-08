@@ -75,3 +75,25 @@ test.describe("320 px и шрифт 200 %", () => {
     });
   }
 });
+
+test("доступное имя ссылки — это её содержимое: собеседник, превью и «Чат закрыт»", async ({ page }) => {
+  await loginAs(page, P.aigerim);
+  await page.goto("/chats");
+  const links = page.getByRole("list", { name: "Диалоги" }).getByRole("link");
+  const count = await links.count();
+  expect(count).toBeGreaterThan(0);
+  let closed = 0;
+  for (let i = 0; i < count; i++) {
+    const link = links.nth(i);
+    await expect(link).toHaveAccessibleName(/Исполнитель №\d+/);
+    if ((await link.innerText()).includes("Чат закрыт")) {
+      closed += 1;
+      await expect(link).toHaveAccessibleName(/Чат закрыт/);
+    }
+  }
+  // Превью первого диалога входит в имя (раньше его перекрывал aria-label).
+  const preview = (await links.first().locator("span.line-clamp-2").innerText()).trim().slice(0, 12);
+  // Знаки препинания заменяем «любым символом»: preview идёт в регулярное выражение.
+  await expect(links.first()).toHaveAccessibleName(new RegExp(preview.replace(/[^\p{L}\p{N} ]/gu, ".")));
+  expect(closed).toBeGreaterThan(0);
+});

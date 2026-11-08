@@ -5,7 +5,6 @@ export const chats = {
   listLabel: "Диалоги",
   noMessages: "Пока без сообщений",
   closed: "Чат закрыт",
-  openChat: (counterpart: string, title: string) => `Открыть чат: ${counterpart}, ${title}`,
   empty: {
     title: "Диалогов пока нет",
     client: { description: "Чат с мастером появится, когда придёт первый отклик на вашу заявку.", action: "Создать заявку" },
