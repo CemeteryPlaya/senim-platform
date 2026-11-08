@@ -43,7 +43,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <div className="flex min-h-dvh flex-1 flex-col lg:pl-60">
           {demoMode && <DemoBanner />}
           <AppHeader user={user} demoMode={demoMode} />
-          <main id={MAIN_ID} tabIndex={-1} className="flex flex-1 flex-col pb-16 outline-none">
+          <main id={MAIN_ID} tabIndex={-1} className="flex flex-1 flex-col pb-[calc(var(--tabbar-h)+1rem)] outline-none">
             {children}
           </main>
           <AppFooter />

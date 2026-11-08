@@ -131,6 +131,9 @@ test("экран сделки: «Назад» видна, последний б�
   if (!isDesktop(page)) {
     const bar = await box(page.getByRole("navigation", { name: NAV }));
     expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(bar.y + 1);
+    // Подвал тоже над панелью: его ссылку видно целиком.
+    const footerLink = await box(page.locator("footer").getByRole("link"));
+    expect(footerLink.y + footerLink.height).toBeLessThanOrEqual(bar.y + 1);
   }
 });
 
