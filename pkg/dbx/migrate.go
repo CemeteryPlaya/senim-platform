@@ -24,13 +24,17 @@ import (
 // Роль <svc>_app получает на такую таблицу только SELECT и INSERT. Если таблицы с
 // таким именем нет после миграций — Migrate возвращает ошибку (защита от опечаток).
 //
-// Разбор двухступенчатый: любая строка, начинающаяся с маркера, находится свободным
-// шаблоном, а её хвост проверяется строго (одно имя в нижнем регистре, без схемы,
-// запятых и комментариев). Неверная форма — ошибка, а не обычная таблица с UPDATE.
+// Разбор двухступенчатый и закрыт по умолчанию: свободный регистронезависимый шаблон
+// находит любую строку-комментарий, похожую на директиву, — «senim:» в любом
+// регистре и с пробелами («SENIM:APPEND-ONLY», «senim :append-only», «senim:readonly»),
+// а также строку, начинающуюся с append-only/append_only/appendonly. Каждая такая
+// строка обязана точно совпасть со строгой формой (маленькие буквы, одно имя таблицы
+// без схемы, запятых и комментариев). Иначе — ошибка, а не обычная таблица с UPDATE.
+// Слово append-only внутри обычной фразы маркером не считается.
 var (
-	markerRe     = regexp.MustCompile(`(?m)^[ \t]*--[ \t]*senim:append-only\b(.*)$`)
-	markerTailRe = regexp.MustCompile(`^[ \t]+([a-z_][a-z0-9_]*)[ \t]*\r?$`)
-	serviceRe    = regexp.MustCompile(`^[a-z][a-z0-9_]{0,30}$`)
+	suspectRe = regexp.MustCompile(`(?im)^[ \t]*--[ \t]*(?:senim[ \t]*:|append[ \t_-]*only\b|\w+[ \t]*:[ \t]*append[ \t_-]*only).*$`)
+	markerRe  = regexp.MustCompile(`^[ \t]*--[ \t]*senim:append-only[ \t]+([a-z_][a-z0-9_]*)[ \t]*\r?$`)
+	serviceRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,30}$`)
 )
 
 // advisoryLockID — один ключ у goose (сессионная блокировка) и у транзакции выдачи
@@ -98,10 +102,10 @@ func findAppendOnly(migrations fs.FS, extra []string) (map[string]bool, error) {
 	res := map[string]bool{}
 	var bad []string
 	add := func(where, src string) {
-		for _, m := range markerRe.FindAllStringSubmatch(src, -1) {
-			t := markerTailRe.FindStringSubmatch(m[1])
+		for _, line := range suspectRe.FindAllString(src, -1) {
+			t := markerRe.FindStringSubmatch(line)
 			if t == nil {
-				bad = append(bad, fmt.Sprintf("%s: %q", where, strings.TrimSpace(m[0])))
+				bad = append(bad, fmt.Sprintf("%s: %q", where, strings.TrimSpace(line)))
 				continue
 			}
 			res[t[1]] = true

@@ -326,3 +326,38 @@ func TestMigrateWithOnlyPlatformSchemas(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Опечатки и другой регистр маркера не должны молча оставлять журнал изменяемым:
+// каждая такая строка — ошибка Migrate до подключения к базе.
+func TestAppendOnlyMarkerTyposFail(t *testing.T) {
+	for _, marker := range []string{
+		"-- SENIM:APPEND-ONLY ledger",
+		"-- Senim:Append-Only ledger",
+		"-- senim:append_only ledger",
+		"-- senim:appendonly ledger",
+		"-- senim:append only ledger",
+		"-- senim: append-only ledger",
+		"-- senim :append-only ledger",
+		"-- senim:apend-only ledger",
+		"-- senim:append-onyl ledger",
+		"-- senim:readonly ledger",
+		"--  SENIM:append-only ledger",
+		"-- append-only ledger",
+		"-- append_only: ledger",
+	} {
+		m := fstest.MapFS{"00001_x.sql": {Data: []byte("-- +goose Up\n" + marker + "\nCREATE TABLE ledger (id int);\n-- +goose Down\nDROP TABLE ledger;\n")}}
+		err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", m)
+		if err == nil || !strings.Contains(err.Error(), "senim:append-only") {
+			t.Errorf("маркер %q: ожидалась ошибка маркера, получено %v", marker, err)
+		}
+	}
+}
+
+// Обычные комментарии, где слово append-only стоит внутри фразы, маркером не считаются.
+func TestAppendOnlyInProseIsNotAMarker(t *testing.T) {
+	m := fstest.MapFS{"00001_x.sql": {Data: []byte("-- +goose Up\n-- журнал хранит записи, таблица по смыслу append-only\n-- TODO: append rows in batches\nCREATE TABLE t (id int);\n-- +goose Down\nDROP TABLE t;\n")}}
+	err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", m)
+	if err == nil || strings.Contains(err.Error(), "senim:append-only") {
+		t.Fatalf("комментарий-фраза не маркер: ожидалась только ошибка подключения, получено %v", err)
+	}
+}
