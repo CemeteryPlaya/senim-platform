@@ -7,6 +7,7 @@ import { notify } from "@/modules/notifications";
 import { db, transaction, type Db, type Prisma } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
+import { logger } from "@/platform/logger";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import type { DealStatus, OfferStatus, RequestStatus } from "@/generated/prisma/enums";
 import { executorDisplayOf, executorDisplays } from "./anonymity";
@@ -249,23 +250,27 @@ export async function listChats(user: CurrentUser): Promise<ChatListItem[]> {
     },
   });
   const labels = party === "client" ? await executorDisplays(db, offers.map((o) => o.executorId)) : null;
-  const items = offers.map((offer) => {
+  const items = offers.flatMap((offer) => {
+    const counterpart = labels === null ? t.clientLabel : labels.get(offer.executorId)?.label;
+    if (counterpart === undefined) {
+      // Нет профиля исполнителя: одна строка не должна ронять весь список, а подпись выдумывать нельзя.
+      logger.warn("chats.list.executor_missing", { offerId: offer.id, executorId: offer.executorId });
+      return [];
+    }
     const last = offer.messages[0] ?? null;
     const beforeOffer = contactStage(offer.deal) === "BEFORE_OFFER";
     // Та же логика, что requestTitle в requests/access.ts: companies не может импортировать requests (requests сам зависит от companies — цикл).
     const type = offer.request.furnitureType?.name ?? offer.request.customType ?? ru.requests.untitled;
-    return {
-      createdAt: offer.createdAt,
-      item: {
-        offerId: offer.id,
-        title: [type, offer.request.city].filter((part) => part.length > 0).join(" · "),
-        counterpart: labels === null ? t.clientLabel : (labels.get(offer.executorId)?.label ?? fail.notFound(ru.companies.errors.executorNotFound)),
-        lastMessage: last ? (beforeOffer ? maskContacts(last.body).text : last.body) : null,
-        lastAt: last?.createdAt ?? null,
-        closed: closedReasonOf(offer) !== null,
-        href: chatHref(offer, party),
-      } satisfies ChatListItem,
+    const item: ChatListItem = {
+      offerId: offer.id,
+      title: [type, offer.request.city].filter((part) => part.length > 0).join(" · "),
+      counterpart,
+      lastMessage: last ? (beforeOffer ? maskContacts(last.body).text : last.body) : null,
+      lastAt: last?.createdAt ?? null,
+      closed: closedReasonOf(offer) !== null,
+      href: chatHref(offer, party),
     };
+    return [{ createdAt: offer.createdAt, item }];
   });
   return items
     .sort((a, b) => (b.item.lastAt?.getTime() ?? -1) - (a.item.lastAt?.getTime() ?? -1) || b.createdAt.getTime() - a.createdAt.getTime())
