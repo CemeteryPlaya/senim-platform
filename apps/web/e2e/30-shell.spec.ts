@@ -164,24 +164,62 @@ test("экран сделки: «Назад» видна, последний б�
 test.describe("320 px и шрифт 200 %", () => {
   test.use({ viewport: { width: 320, height: 640 } });
 
+  /** Ничего не вылезает вбок: страница, нижняя панель (справа в окне), подписи вкладок (текст в своей ячейке). */
+  async function expectNoOverflow(page: Page) {
+    const overflow = await page.evaluate(() => {
+      const el = document.scrollingElement;
+      return el ? el.scrollWidth - window.innerWidth : 0;
+    });
+    expect(overflow).toBeLessThanOrEqual(0);
+
+    const bar = page.getByRole("navigation", { name: NAV });
+    if ((await bar.count()) === 0) return;
+    const b = await box(bar);
+    expect(b.x).toBeGreaterThanOrEqual(-1);
+    expect(b.x + b.width).toBeLessThanOrEqual(320 + 1);
+    const cells = bar.locator(":scope > ul > li > a, :scope > ul > li > details > summary");
+    const n = await cells.count();
+    expect(n).toBeGreaterThan(0);
+    for (let i = 0; i < n; i++) {
+      const cell = cells.nth(i);
+      if (!(await cell.isVisible())) continue; // ячейка, ушедшая в «Ещё» на узкой панели, не рисуется
+      const label = cell.locator("span").last();
+      await expect(label).toBeVisible();
+      const lb = await box(label);
+      expect(lb.x).toBeGreaterThanOrEqual(-1);
+      expect(lb.x + lb.width).toBeLessThanOrEqual(320 + 1);
+      expect(await label.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    }
+  }
+
   for (const [title, persona, path] of [
+    ["гость, главная", null, "/"],
     ["заказчик", P.aigerim, "/"],
     ["заказчик, сделки", P.aigerim, "/deals"],
     ["мастер", P.erlan, "/executor/requests"],
     ["оператор", P.dinara, "/operator"],
   ] as const) {
     test(`${title}: нет горизонтальной прокрутки`, async ({ page }) => {
-      await loginAs(page, persona);
+      if (persona) await loginAs(page, persona);
+      else await page.context().clearCookies();
       await page.goto(path);
       await page.evaluate(() => {
         document.documentElement.style.fontSize = "200%";
       });
       await page.waitForTimeout(200);
-      const overflow = await page.evaluate(() => {
-        const el = document.scrollingElement;
-        return el ? el.scrollWidth - window.innerWidth : 0;
-      });
-      expect(overflow).toBeLessThanOrEqual(0);
+      await expectNoOverflow(page);
+
+      // Раскрытое «Ещё» (нижняя панель) или «Меню» (оператор): список в окне и страница не поехала вбок.
+      const opener = page.locator("nav summary").first();
+      if (await opener.isVisible()) {
+        await opener.click();
+        const panel = page.locator("nav details[open] > ul");
+        await expect(panel).toBeVisible();
+        const pb = await box(panel);
+        expect(pb.x).toBeGreaterThanOrEqual(-1);
+        expect(pb.x + pb.width).toBeLessThanOrEqual(320 + 1);
+        await expectNoOverflow(page);
+      }
     });
   }
 });

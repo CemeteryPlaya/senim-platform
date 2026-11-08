@@ -35,7 +35,22 @@ const menuLink =
  * Раскрывающееся «Ещё» на <details>: работает и без скриптов, а со скриптами закрывается
  * по Escape (фокус возвращается на «Ещё»), по нажатию вне меню и когда фокус ушёл из меню.
  */
-function MoreMenu({ summary, summaryClassName, active, panelClassName, children }: { summary: ReactNode; summaryClassName: string; active: boolean; panelClassName: string; children: ReactNode }) {
+function MoreMenu({
+  summary,
+  summaryClassName,
+  active,
+  panelClassName,
+  detailsClassName = "relative",
+  children,
+}: {
+  summary: ReactNode;
+  summaryClassName: string;
+  active: boolean;
+  panelClassName: string;
+  /** Положение для списка: по умолчанию он привязан к самому <details>; "static" — к ближайшему предку с relative. */
+  detailsClassName?: string;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDetailsElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -68,7 +83,7 @@ function MoreMenu({ summary, summaryClassName, active, panelClassName, children 
   }, [open]);
 
   return (
-    <details ref={ref} onToggle={(event) => setOpen(event.currentTarget.open)} className="group relative flex w-full">
+    <details ref={ref} onToggle={(event) => setOpen(event.currentTarget.open)} className={cn("group flex w-full", detailsClassName)}>
       <summary aria-current={active ? "page" : undefined} className={cn(summaryClassName, "list-none [&::-webkit-details-marker]:hidden")}>
         {summary}
       </summary>
@@ -113,7 +128,9 @@ export function MobileMenu({ items }: { items: readonly NavItem[] }) {
         key={pathname}
         active={false}
         summaryClassName="inline-flex min-h-control-sm cursor-pointer items-center gap-2 rounded-chip border-2 border-line px-4 text-base font-semibold text-ink hover:bg-sunken"
-        panelClassName="absolute top-full right-0 mt-2 w-max min-w-64 max-w-[calc(100vw-2rem)]"
+        // Список привязан к шапке (relative), а не к кнопке: при крупном шрифте он на всю ширину окна и не уезжает за левый край.
+        detailsClassName="static"
+        panelClassName="absolute inset-x-2 top-full mt-2 max-h-[calc(100dvh-5rem)] overflow-y-auto sm:inset-x-auto sm:right-4 sm:w-max sm:min-w-64 sm:max-w-[calc(100vw-2rem)]"
         summary={
           <>
             <Menu aria-hidden className="size-6 shrink-0" />
