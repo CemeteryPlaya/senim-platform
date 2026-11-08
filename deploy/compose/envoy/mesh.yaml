@@ -126,6 +126,11 @@ static_resources:
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
       connect_timeout: 2s
+      # Шаблон для каждого кластера сервиса: без «режима паники». По умолчанию при 50% нездоровых
+      # хостов Envoy шлёт запросы на все, в том числе NOT_SERVING (останавливающиеся, неготовые).
+      # С порогом 0 нездоровая реплика не получает запросов никогда; если здоровых нет — 503.
+      common_lb_config:
+        healthy_panic_threshold: { value: 0 }
       load_assignment:
         cluster_name: identity
         endpoints:

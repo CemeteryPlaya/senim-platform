@@ -50,6 +50,17 @@ describe("GET /api/v2/healthz", () => {
     expect(await (await GET()).json()).toEqual({ identity: "SERVING" });
   });
 
+  it("503, когда identity отвечает не SERVING (healthcheck контейнера смотрит на r.ok)", async () => {
+    set({ V2_ENABLED: "true", APP_ENV: "dev" });
+    for (const status of [0, 2, 3]) {
+      check.mockResolvedValueOnce({ status });
+      const res = await GET();
+      expect(res.status).toBe(503);
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect((await res.json()).identity).not.toBe("SERVING");
+    }
+  });
+
   it("503 только с кодом, без текста ошибки, с no-store", async () => {
     set({ V2_ENABLED: "true", APP_ENV: "dev" });
     check.mockRejectedValue(new ConnectError("секретный текст host=10.0.0.1", Code.Unavailable));

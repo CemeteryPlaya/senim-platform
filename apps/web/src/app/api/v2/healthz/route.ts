@@ -11,7 +11,7 @@ const HEADERS = { "Cache-Control": "no-store" };
 
 const SERVICE = "senim.identity.v1.IdentityService";
 
-/** Проверка пути web → mesh → identity. Отвечает кодами, текст ошибки наружу не отдаёт. */
+/** Проверка пути web → mesh → identity: 200 только при SERVING, иначе 503. Отвечает кодами, текст ошибки наружу не отдаёт. */
 export async function GET() {
   if (!env().V2_ENABLED) return new Response(null, { status: 404, headers: HEADERS });
   try {
@@ -25,6 +25,11 @@ export async function GET() {
     // Имя инстанса — внутренняя топология; публичный маршрут отдаёт его только в dev.
     const body: { identity: string; instance?: string } = { identity: HealthCheckResponse_ServingStatus[res.status] };
     if (env().APP_ENV === "dev") body.instance = instance;
+    // Healthcheck контейнера и балансировщики смотрят на код ответа: здоров только SERVING.
+    if (res.status !== HealthCheckResponse_ServingStatus.SERVING) {
+      logger.warn("v2 healthz: identity не готов", { status: body.identity });
+      return Response.json(body, { status: 503, headers: HEADERS });
+    }
     return Response.json(body, { headers: HEADERS });
   } catch (err) {
     const code = rpcErrorCode(err) ?? rpcStatusName(err);
