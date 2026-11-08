@@ -3,8 +3,11 @@
  * (user agent, display-mode, событие beforeinstallprompt, localStorage) передаётся параметрами.
  */
 
-/** prompt — Chrome, Edge, Samsung Internet прислали beforeinstallprompt; ios-hint — подсказка про «Поделиться». */
-export type InstallMethod = "prompt" | "ios-hint" | "none";
+/**
+ * prompt — Chrome, Edge, Samsung Internet прислали beforeinstallprompt; ios-hint — подсказка про «Поделиться»;
+ * open-in-browser — встроенный браузер (Instagram, Telegram): установить можно только из Safari или Chrome.
+ */
+export type InstallMethod = "prompt" | "ios-hint" | "open-in-browser" | "none";
 
 /**
  * iPhone и iPad: добавить на экран «Домой» можно из меню «Поделиться» (Safari, а с iOS 16.4 и Chrome).
@@ -25,15 +28,30 @@ export function isStandalone(state: { displayModeStandalone: boolean; navigatorS
   return state.displayModeStandalone || state.navigatorStandalone === true;
 }
 
-export function installMethod(state: { standalone: boolean; promptReady: boolean; ios: boolean }): InstallMethod {
-  if (state.standalone) return "none";
-  if (state.promptReady) return "prompt";
-  return state.ios ? "ios-hint" : "none";
+/**
+ * Встроенный браузер приложения (Instagram, Facebook, Telegram, WebView Android): в нём нет ни
+ * beforeinstallprompt, ни «На экран „Домой“». На iPhone это любой браузер без «Safari/» в user agent.
+ */
+export function isInAppBrowser(userAgent: string, maxTouchPoints: number): boolean {
+  if (/Instagram|FBAN|FBAV|FB_IAB|Telegram|Snapchat|musical_ly|TikTok|; wv\)/i.test(userAgent)) return true;
+  return isAppleMobile(userAgent, maxTouchPoints) && !/Safari\//.test(userAgent);
 }
 
-/** Плашка на главной закрывается «Скрыть»; пункт в меню остаётся всегда, пока установить можно. */
+export function installMethod(state: { standalone: boolean; promptReady: boolean; ios: boolean; inApp: boolean }): InstallMethod {
+  if (state.standalone) return "none";
+  if (state.promptReady) return "prompt";
+  if (state.ios) return "ios-hint";
+  return state.inApp ? "open-in-browser" : "none";
+}
+
+/** Плашка на главной закрывается «Скрыть». */
 export function showBanner(method: InstallMethod, dismissed: boolean): boolean {
   return method !== "none" && !dismissed;
+}
+
+/** Пункт в шапке остаётся всегда, пока установить можно: «Скрыть» у плашки его не касается. */
+export function showHeaderItem(method: InstallMethod): method is Exclude<InstallMethod, "none"> {
+  return method !== "none";
 }
 
 export const DISMISS_KEY = "senim.install.dismissed";
