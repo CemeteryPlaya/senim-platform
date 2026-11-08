@@ -84,7 +84,6 @@ const TEXT_PAIRS: [fg: string, bg: string][] = [
   ["ink-soft", "success-soft"],
   ["ink-soft", "warning-soft"],
   // v2: серый фон страницы и белые карточки (спека 4.1); «Новое» — янтарный бейдж.
-  ["ink-soft", "canvas"],
   ["new", "new-soft"],
   ["ink", "new-soft"],
   ["muted", "new-soft"],
