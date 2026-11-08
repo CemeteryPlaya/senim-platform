@@ -5,7 +5,8 @@
 #   npm run v2:down                        останавливает все профили (core, full, storage)
 # OTLP 4317 наружу не публикуется: телеметрию шлют только сервисы внутри сети compose.
 # Путь запроса: браузер → edge:8180 → web:3000 → mesh:9443 (gRPC, mTLS) → identity ×2.
-# Порты хоста — только на 127.0.0.1. Пароли — dev-заглушки из dev.vars.
+# Порты хоста — только на 127.0.0.1. Пароли — dev-заглушки из dev.vars. NATS — только TLS и с учётной
+# записью сервиса (nats/nats.conf из tools/natsconf, ADR-012).
 # Healthcheck есть у каждого долгоживущего сервиса, поэтому `up --wait` возвращается, когда путь
 # целиком готов: identity — подкоманда `identity healthcheck` (в distroless нет оболочки),
 # Envoy — envoy/healthcheck.sh через admin (mesh ждёт, пока обе реплики identity прошли проверку),
@@ -52,9 +53,17 @@ services:
     # Тот же nats 2; в варианте alpine есть wget для healthcheck.
     image: nats:2-alpine
     restart: unless-stopped
-    command: ["-js", "-sd", "/data", "-m", "8222"]
+    # Конфиг — tools/natsconf (ADR-012): TLS с клиентским сертификатом нашего CA, учётная запись
+    # на сервис, публикация только в senim.<сервис>.>; JetStream в /data; мониторинг — только
+    # 127.0.0.1 внутри контейнера (healthcheck).
+    command: ["-c", "/etc/nats/nats.conf"]
     ports: ["127.0.0.1:4222:4222"]
-    volumes: [nats-data:/data]
+    volumes:
+      - nats-data:/data
+      - ./nats/nats.conf:/etc/nats/nats.conf:ro
+      - ./certs/ca.pem:/certs/ca.pem:ro
+      - ./certs/nats.pem:/certs/nats.pem:ro
+      - ./certs/nats-key.pem:/certs/nats-key.pem:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]
       interval: 5s
@@ -86,7 +95,10 @@ services:
     environment:
       APP_ENV: dev
       IDENTITY_APP_DSN: postgres://identity_app:${IDENTITY_APP_PASSWORD:?запускайте через npm run v2:up}@postgres:5432/identity?sslmode=disable
-      NATS_URL: nats://nats:4222
+      # Клиентский сертификат NATS — тот же TLS_* сервиса.
+      NATS_URL: tls://nats:4222
+      NATS_USER: identity
+      NATS_PASSWORD: ${IDENTITY_NATS_PASSWORD:?запускайте через npm run v2:up}
       TLS_CERT_FILE: /certs/identity.pem
       TLS_KEY_FILE: /certs/identity-key.pem
       TLS_CA_FILE: /certs/ca.pem

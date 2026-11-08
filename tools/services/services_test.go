@@ -125,7 +125,7 @@ func TestMeshClustersMatchList(t *testing.T) {
 	}
 }
 
-// dev.vars содержит dev-пароли каждого сервиса из списка (их читает dbinit).
+// dev.vars содержит dev-пароли каждого сервиса из списка (их читают dbinit и natsconf).
 func TestDevVarsMatchList(t *testing.T) {
 	f, err := os.Open(filepath.Join(root, "deploy", "compose", "dev.vars"))
 	if err != nil {
@@ -144,7 +144,7 @@ func TestDevVarsMatchList(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, s := range Go {
-		for _, suffix := range []string{"_OWNER_PASSWORD", "_APP_PASSWORD"} {
+		for _, suffix := range []string{"_OWNER_PASSWORD", "_APP_PASSWORD", "_NATS_PASSWORD"} {
 			if key := strings.ToUpper(s) + suffix; !vars[key] {
 				t.Errorf("dev.vars: нет %s", key)
 			}

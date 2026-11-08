@@ -16,6 +16,7 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
 	"github.com/CemeteryPlaya/senim-platform/pkg/inbox"
 	"github.com/CemeteryPlaya/senim-platform/pkg/logging"
+	"github.com/CemeteryPlaya/senim-platform/pkg/natsx"
 	"github.com/CemeteryPlaya/senim-platform/pkg/outbox"
 	"github.com/CemeteryPlaya/senim-platform/pkg/server"
 	"github.com/CemeteryPlaya/senim-platform/services/identity"
@@ -100,9 +101,9 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	}
 	defer pool.Close()
 
-	nc, err := nats.Connect(cfg.NATSURL, nats.Name(Service), nats.MaxReconnects(-1))
+	nc, err := natsx.Connect(cfg.NATS, Service, log)
 	if err != nil {
-		return fmt.Errorf("nats: подключение: %w", err)
+		return err
 	}
 	defer nc.Close()
 	js, err := jetstream.New(nc)

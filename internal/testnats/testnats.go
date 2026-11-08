@@ -6,6 +6,9 @@ package testnats
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -34,6 +37,53 @@ func Start(ctx context.Context) (*Env, error) {
 		return nil, fmt.Errorf("testnats: адрес: %w", err)
 	}
 	return &Env{URL: url, ctr: ctr}, nil
+}
+
+// StartSecure поднимает nats:2 с настоящим конфигом стенда deploy/compose/nats/nats.conf
+// (TLS с клиентским сертификатом, учётные записи и права ADR-012). certDir — каталог с
+// ca.pem, nats.pem и nats-key.pem: тест выпускает их своим CA (серверный сертификат — на
+// имена nats и localhost). URL — tls://host:port.
+func StartSecure(ctx context.Context, certDir string) (*Env, error) {
+	conf, err := confFile()
+	if err != nil {
+		return nil, err
+	}
+	files := []testcontainers.ContainerFile{{HostFilePath: conf, ContainerFilePath: "/etc/nats/nats.conf", FileMode: 0o644}}
+	for _, name := range []string{"ca", "nats", "nats-key"} {
+		files = append(files, testcontainers.ContainerFile{
+			HostFilePath:      filepath.Join(certDir, name+".pem"),
+			ContainerFilePath: "/certs/" + name + ".pem",
+			FileMode:          0o644,
+		})
+	}
+	ctr, err := tcnats.Run(ctx, "nats:2",
+		testcontainers.WithFiles(files...),
+		testcontainers.WithCmd("-c", "/etc/nats/nats.conf"),
+	)
+	if err != nil {
+		if ctr != nil {
+			_ = testcontainers.TerminateContainer(ctr)
+		}
+		return nil, fmt.Errorf("testnats: старт nats с TLS: %w", err)
+	}
+	endpoint, err := ctr.PortEndpoint(ctx, "4222/tcp", "tls")
+	if err != nil {
+		_ = testcontainers.TerminateContainer(ctr)
+		return nil, fmt.Errorf("testnats: адрес: %w", err)
+	}
+	return &Env{URL: endpoint, ctr: ctr}, nil
+}
+
+func confFile() (string, error) {
+	_, self, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("testnats: не найден путь пакета")
+	}
+	p := filepath.Join(filepath.Dir(self), "..", "..", "deploy", "compose", "nats", "nats.conf")
+	if _, err := os.Stat(p); err != nil {
+		return "", fmt.Errorf("testnats: нет сгенерированного nats.conf: %w", err)
+	}
+	return p, nil
 }
 
 // Terminate останавливает контейнер.

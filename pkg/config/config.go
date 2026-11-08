@@ -40,6 +40,12 @@ func (l *Loader) fail(format string, args ...any) {
 	l.errs = append(l.errs, fmt.Errorf(format, args...))
 }
 
+// Invalid записывает нарушение по переменной key — для проверок, которые делает
+// вызывающий пакет. reason не должен содержать значение переменной.
+func (l *Loader) Invalid(key, reason string) {
+	l.fail("%s: %s", key, reason)
+}
+
 // Err возвращает все накопленные ошибки разом или nil.
 func (l *Loader) Err() error {
 	return errors.Join(l.errs...)

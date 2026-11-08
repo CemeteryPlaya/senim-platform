@@ -2,7 +2,7 @@
 
 Репозиторий v2: Go-микросервисы + `apps/web` (Next.js 16, импортирован с историей из `mvp-scale-arna@main` через `git subtree`).
 
-1. Спека: `docs/superpowers/specs/2026-11-08-platform-v2-architecture-design.md`; планы — `docs/superpowers/plans/`; решения — `docs/adr/` (ADR-010 — микросервисы и gRPC, ADR-011 — удостоверение сервиса через mesh); правовые материалы — `docs/legal/`.
+1. Спека: `docs/superpowers/specs/2026-11-08-platform-v2-architecture-design.md`; планы — `docs/superpowers/plans/`; решения — `docs/adr/` (ADR-010 — микросервисы и gRPC, ADR-011 — удостоверение сервиса через mesh, ADR-012 — учётные записи и права NATS); правовые материалы — `docs/legal/`.
 2. Работа внутри `apps/web` — по `apps/web/CLAUDE.md`, `apps/web/SKILL.md` и `apps/web/AGENTS.md` (Next.js 16 отличается от того, что ты знаешь: `apps/web/node_modules/next/dist/docs/`).
 3. Подтягивать обновления демо: `git subtree pull --prefix=apps/web D:/mvp-scale-arna main` — часто и небольшими порциями.
 
@@ -28,6 +28,7 @@ deploy/compose/            docker compose, профили core и full
 - **Кто вызвал — `server.Caller(ctx)`** (ADR-011): за mesh — из XFCC, который ставит Envoy; сервис принимает TLS только от `server.Options.AllowedPeers` (шаблон: `server.MeshPeer` и сам сервис). Новый сервис — в `tools/services` (тест сверит mesh.yaml и dev.vars).
 - **Изменяющий метод принимает `idempotency_key`**; сервис хранит ключ и результат, повтор даёт тот же результат. Envoy ретраит только идемпотентные методы: неидемпотентный метод не ретраится — для пакета сервиса в `mesh.yaml` повтор только на `unavailable,connect-failure,refused-stream`, без `reset`.
 - **Событие пишется в `outbox` в той же транзакции**, что и изменение данных; получатель пишет `event_id` в `inbox` и обрабатывает один раз. Аудит — тоже событие в outbox.
+- **NATS — только TLS и своя учётная запись** (ADR-012, `pkg/natsx`): сервис публикует только в `senim.<сервис>.>`; права — в `tools/natsconf` (конфиг стенда генерируется: `npm run v2:config`).
 - Ни одного вызова без дедлайна; дедлайн по умолчанию в `web` — 5 с, дальше передаётся.
 - Сервисы возвращают коды ошибок, не тексты: деталь — `senim.common.v1.ErrorDetail`. Тексты — только русские, только в `apps/web` (`ru`).
 - `operator` — оркестратор: изменения чужих данных только вызовом сервиса-владельца.

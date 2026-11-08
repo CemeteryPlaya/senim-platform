@@ -6,6 +6,7 @@ import (
 
 	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
+	"github.com/CemeteryPlaya/senim-platform/pkg/natsx"
 )
 
 // Service — имя сервиса в логах, трассах и ролях базы.
@@ -19,9 +20,10 @@ const ServiceName = "senim.identity.v1.IdentityService"
 
 // ServeConfig — настройки подкоманды serve.
 type ServeConfig struct {
-	Env       config.AppEnv
-	AppDSN    string
-	NATSURL   string
+	Env    config.AppEnv
+	AppDSN string
+	// NATS — подключение к NATS: учётная запись identity, TLS с сертификатом сервиса (ADR-012).
+	NATS      natsx.Config
 	CertFile  string
 	KeyFile   string
 	CAFile    string
@@ -44,7 +46,6 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 	c := ServeConfig{
 		Env:       l.Env(),
 		AppDSN:    l.Required("IDENTITY_APP_DSN"),
-		NATSURL:   l.Required("NATS_URL"),
 		CertFile:  l.Required("TLS_CERT_FILE"),
 		KeyFile:   l.Required("TLS_KEY_FILE"),
 		CAFile:    l.Required("TLS_CA_FILE"),
@@ -54,6 +55,7 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 		// Верх 50: 8 сервисов × 2 реплики × пул должны уместиться в max_connections Postgres.
 		PoolMaxConns: int32(l.Int("POOL_MAX_CONNS", dbx.DefaultMaxConns, 1, 50)), //nolint:gosec // диапазон проверен
 	}
+	c.NATS = natsx.Load(l, c.CertFile, c.KeyFile, c.CAFile)
 	if err := l.Err(); err != nil {
 		return ServeConfig{}, fmt.Errorf("конфигурация: %w", err)
 	}

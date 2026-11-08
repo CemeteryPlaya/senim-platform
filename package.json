@@ -4,6 +4,7 @@
   "scripts": {
     "web": "npm --prefix apps/web",
     "v2:certs": "go run ./tools/devcerts -out deploy/compose/certs",
+    "v2:config": "go run ./tools/dbinit && go run ./tools/natsconf",
     "v2:gen": "go tool buf generate && go tool buf generate --template buf.gen.thirdparty.yaml",
     "v2:up": "docker compose -f deploy/compose/compose.yaml --env-file deploy/compose/dev.vars --profile core up -d --build --wait",
     "v2:up:full": "docker compose -f deploy/compose/compose.yaml --env-file deploy/compose/dev.vars --env-file deploy/compose/full.vars --profile core --profile full up -d --build --wait",

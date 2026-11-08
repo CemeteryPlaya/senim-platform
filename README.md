@@ -15,6 +15,7 @@
 ```bash
 npm run web -- <команда>   # npm --prefix apps/web, напр.: npm run web -- run typecheck
 npm run v2:certs           # dev-сертификаты mTLS в deploy/compose/certs
+npm run v2:config          # перегенерировать 00-roles.sql (dbinit) и nats/nats.conf (natsconf) из dev.vars
 npm run v2:gen             # buf generate (Go + TypeScript)
 npm run v2:up              # docker compose, профиль core
 npm run v2:up:full         # профили core и full

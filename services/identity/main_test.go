@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -34,13 +35,25 @@ func freeAddr(t *testing.T) string {
 	return l.Addr().String()
 }
 
-func TestServeBecomesReady(t *testing.T) {
-	pg := testdb.StartT(t)
-	nt, err := testnats.Start(context.Background())
+// natsPassword — пароль учётной записи identity из dev.vars: NATS в тесте поднят с
+// закоммиченным конфигом стенда (deploy/compose/nats/nats.conf).
+func natsPassword(t *testing.T) string {
+	t.Helper()
+	data, err := os.ReadFile("../../deploy/compose/dev.vars")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(nt.Terminate)
+	for line := range strings.Lines(string(data)) {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "IDENTITY_NATS_PASSWORD="); ok {
+			return v
+		}
+	}
+	t.Fatal("dev.vars: нет IDENTITY_NATS_PASSWORD")
+	return ""
+}
+
+func TestServeBecomesReady(t *testing.T) {
+	pg := testdb.StartT(t)
 
 	dir := t.TempDir()
 	caCert, caKey, err := tlsx.NewCA("test-ca", time.Hour)
@@ -60,9 +73,16 @@ func TestServeBecomesReady(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return write(name+".pem", c), write(name+".key", k)
+		return write(name+".pem", c), write(name+"-key.pem", k)
 	}
 	srvCert, srvKey := issue("identity")
+	// NATS с конфигом стенда: TLS с клиентским сертификатом и учётные записи (ADR-012).
+	issue("nats")
+	nt, err := testnats.StartSecure(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(nt.Terminate)
 	clientAs := func(name string) *http.Transport {
 		cert, key := issue(name)
 		cfg, err := tlsx.ClientConfig(cert, key, caFile)
@@ -80,6 +100,8 @@ func TestServeBecomesReady(t *testing.T) {
 		"IDENTITY_OWNER_DSN":  pg.OwnerDSN("identity"),
 		"IDENTITY_APP_DSN":    pg.AppDSN("identity"),
 		"NATS_URL":            nt.URL,
+		"NATS_USER":           "identity",
+		"NATS_PASSWORD":       natsPassword(t),
 		"TLS_CERT_FILE":       srvCert,
 		"TLS_KEY_FILE":        srvKey,
 		"TLS_CA_FILE":         caFile,
