@@ -17,7 +17,7 @@ const today = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Almaty" }
  * Подтверждение операции по банковскому документу: номер, дата, скан — и одна кнопка с тем, что сделал банк.
  * Пока запрос идёт, кнопка заблокирована; повтор всё равно не создаст второго подтверждения (payments).
  */
-export function ConfirmOperationForm({ transactionId, type }: { transactionId: string; type: ManualOperationType }) {
+export function ConfirmOperationForm({ transactionId, type, primary }: { transactionId: string; type: ManualOperationType; primary: boolean }) {
   // В очереди карточка после решения исчезает: итог объявляет очередь, а не форма.
   const decided = useQueueDecision();
   const form = useActionForm(confirmBankOperationAction, { reset: true, onSuccess: (_, el) => decided?.(t.confirmed, el) });
@@ -38,7 +38,7 @@ export function ConfirmOperationForm({ transactionId, type }: { transactionId: s
         error={form.fieldError("scan") ?? form.fieldError("bankDocFileId")}
       />
       <FormStatus error={form.error} done={form.done && !decided} doneText={t.confirmed} />
-      <Button type="submit" loading={form.pending} className="self-start">
+      <Button type="submit" variant={primary ? "primary" : "secondary"} loading={form.pending} className="self-start">
         {t.confirm[type]}
       </Button>
     </form>
@@ -61,11 +61,14 @@ export function FailOperationForm({ transactionId }: { transactionId: string }) 
   );
 }
 
-/** Карточка ждущей операции: подтверждение по документу и, свёрнуто, отказ банка. */
-export function OperationActions({ transactionId, type }: { transactionId: string; type: ManualOperationType }) {
+/**
+ * Карточка ждущей операции: подтверждение по документу и, свёрнуто, отказ банка. primary — заливная кнопка
+ * подтверждения: на экране она одна, у первой (самой старой) операции очереди; у остальных — обводка.
+ */
+export function OperationActions({ transactionId, type, primary }: { transactionId: string; type: ManualOperationType; primary: boolean }) {
   return (
     <div className="flex flex-col gap-4">
-      <ConfirmOperationForm transactionId={transactionId} type={type} />
+      <ConfirmOperationForm transactionId={transactionId} type={type} primary={primary} />
       <details className="group rounded-control border border-line p-4">
         <summary className="min-h-control cursor-pointer content-center text-base font-semibold text-ink">{t.failTitle}</summary>
         <div className="pt-4">

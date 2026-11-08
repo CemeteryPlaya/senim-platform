@@ -6,7 +6,7 @@ import { listFailedMoney, listMoneyQueue } from "@/modules/operator";
 import { Alert, Container, EmptyState, PageHeader, StatusBadge } from "@/ui";
 import { formatTiyn } from "@/ui/format";
 import { DecisionQueue } from "../_components/DecisionQueue";
-import { ListCard } from "../_components/ListCard";
+import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { requireOperatorPage } from "../_lib/guard";
 import { FailedOperations } from "./FailedOperations";
 import { OperationActions } from "./OperationForms";
@@ -17,25 +17,30 @@ export const metadata: Metadata = { title: t.title };
 
 const EMPTY_TITLE_ID = "money-queue-empty";
 
-/** Очередь операций manual, ждущих банковского документа (ТЗ п. 10): старые сверху. */
+/**
+ * Очередь операций manual, ждущих банковского документа (ТЗ п. 10): старые сверху. Карточки с формами — сеткой
+ * (на десктопе в две колонки); главное действие экрана — подтверждение самой старой операции.
+ */
 export default async function MoneyQueuePage() {
   const user = await requireOperatorPage("/operator/money");
   const queue = await listMoneyQueue(user);
   const failed = await listFailedMoney(user);
 
   return (
-    <Container size="form" className="pb-10">
+    <Container className="pb-10">
       <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: ru.operator.backToPanel }} />
       <div className="flex flex-col gap-6">
-        <Alert tone="info">{t.rule}</Alert>
+        <Alert tone="info" className="max-w-prose">
+          {t.rule}
+        </Alert>
         <DecisionQueue count={queue.length} emptyTitleId={EMPTY_TITLE_ID}>
           {queue.length === 0 ? (
             <EmptyState icon={<Landmark />} title={t.empty} titleId={EMPTY_TITLE_ID} description={t.emptyHint} />
           ) : (
             <>
               <p className="text-base text-ink-soft">{t.once}</p>
-              <ul data-queue className="flex flex-col gap-4">
-                {queue.map((op) => (
+              <ul data-queue className={LIST_GRID}>
+                {queue.map((op, i) => (
                   <ListCard
                     key={op.id}
                     titleAs="h2"
@@ -48,7 +53,7 @@ export default async function MoneyQueuePage() {
                     ]}
                     aside={formatTiyn(op.amountTiyn)}
                   >
-                    <OperationActions transactionId={op.id} type={op.type} />
+                    <OperationActions transactionId={op.id} type={op.type} primary={i === 0} />
                   </ListCard>
                 ))}
               </ul>

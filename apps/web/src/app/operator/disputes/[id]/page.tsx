@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { getDisputeCard } from "@/modules/operator";
 import { isAppError } from "@/platform/errors";
-import { Alert, ButtonLink, Card, Container, DateText, Fact, PageHeader, StatusBadge } from "@/ui";
+import { Alert, ButtonLink, Card, Container, DateText, Fact, KeyValueList, PageHeader, StatusBadge } from "@/ui";
 import { formatTiyn } from "@/ui/format";
 import { AuditList } from "../../_components/AuditList";
 import { MoneyBlockView } from "../../_components/MoneyJournal";
@@ -126,15 +126,15 @@ export default async function DisputeCardPage({ params }: { params: Promise<{ id
         <div className="flex min-w-0 flex-col gap-6 lg:row-span-2">
           <DealMoney d={d} />
           <Card title={c.parties}>
-            <dl className="flex flex-col gap-4">
-              <Fact label={c.client}>{deal.client.fullName ?? o.none}</Fact>
-              <Fact label={c.executor}>
-                <span className="break-words">{o.deals.card.executorValue(deal.executor.publicNumber, deal.executor.legalName)}</span>
-              </Fact>
-              <Fact label={c.price}>{formatTiyn(deal.priceTiyn)}</Fact>
-              <Fact label={c.paid}>{formatTiyn(deal.buyerTotalTiyn)}</Fact>
-              <Fact label={c.provider}>{o.providers[deal.paymentProvider]}</Fact>
-            </dl>
+            <KeyValueList
+              rows={[
+                { label: c.client, value: deal.client.fullName ?? o.none },
+                { label: c.executor, value: <span className="break-words">{o.deals.card.executorValue(deal.executor.publicNumber, deal.executor.legalName)}</span> },
+                { label: c.price, value: <span className="tabular-nums">{formatTiyn(deal.priceTiyn)}</span> },
+                { label: c.paid, value: <span className="tabular-nums">{formatTiyn(deal.buyerTotalTiyn)}</span> },
+                { label: c.provider, value: o.providers[deal.paymentProvider] },
+              ]}
+            />
           </Card>
           <Card title={c.attachments}>
             {d.attachments.length === 0 ? (

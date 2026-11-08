@@ -78,7 +78,8 @@ export function TypeItem({ type }: { type: TypeRow }) {
           <div className="flex-1">
             <Input label={t.renameLabel(type.name)} name="name" defaultValue={type.name} required maxLength={60} error={rename.fieldError("name")} />
           </div>
-          <Button type="submit" loading={rename.pending} className="sm:mt-8">
+          {/* Обводка: заливная кнопка экрана — «Добавить» вверху, она одна. */}
+          <Button type="submit" variant="secondary" loading={rename.pending} className="sm:mt-8">
             {t.save}
           </Button>
         </form>

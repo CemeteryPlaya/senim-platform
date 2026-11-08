@@ -119,7 +119,8 @@ export function MaterialItem({ row }: { row: MaterialPriceRow }) {
               error={change.fieldError("to")}
             />
           </div>
-          <Button type="submit" loading={change.pending} className="sm:mt-8">
+          {/* Обводка: заливная кнопка экрана — «Добавить» вверху, она одна. */}
+          <Button type="submit" variant="secondary" loading={change.pending} className="sm:mt-8">
             {t.save}
           </Button>
         </form>

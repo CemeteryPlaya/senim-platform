@@ -4,7 +4,7 @@ import { ru } from "@/i18n/ru";
 import { kycQueue } from "@/modules/operator";
 import { Container, DateText, EmptyState, PageHeader } from "@/ui";
 import { DecisionQueue } from "../_components/DecisionQueue";
-import { ListCard } from "../_components/ListCard";
+import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { requireOperatorPage } from "../_lib/guard";
 import { KycForms } from "./KycForms";
 
@@ -21,14 +21,14 @@ export default async function KycPage() {
   const queue = await kycQueue(user);
 
   return (
-    <Container size="form" className="pb-10">
+    <Container className="pb-10">
       <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: o.backToPanel }} />
       <DecisionQueue count={queue.length} emptyTitleId={EMPTY_TITLE_ID}>
         {queue.length === 0 ? (
           <EmptyState icon={<IdCard />} title={t.empty} titleId={EMPTY_TITLE_ID} description={t.emptyHint} />
         ) : (
-          <ul data-queue className="flex flex-col gap-4">
-            {queue.map((item) => (
+          <ul data-queue className={LIST_GRID}>
+            {queue.map((item, i) => (
               <ListCard
                 key={item.executorId}
                 titleAs="h2"
@@ -49,7 +49,7 @@ export default async function KycPage() {
                     </li>
                   ))}
                 </ul>
-                <KycForms executorId={item.executorId} />
+                <KycForms executorId={item.executorId} primary={i === 0} />
               </ListCard>
             ))}
           </ul>

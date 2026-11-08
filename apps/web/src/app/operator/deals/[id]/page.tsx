@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { getOperatorDeal, type OperatorDeal, type ReleasePackage } from "@/modules/operator";
 import { isAppError } from "@/platform/errors";
-import { Alert, ButtonLink, Card, Container, Fact, PageHeader, StatusBadge } from "@/ui";
+import { Alert, ButtonLink, Card, Container, Fact, KeyValueList, PageHeader, StatusBadge } from "@/ui";
 import { formatTiyn } from "@/ui/format";
 import { DealDocuments } from "../../_components/DealDocuments";
 import { MoneyBlockView, MoneyJournal } from "../../_components/MoneyJournal";
@@ -66,18 +66,18 @@ function ReleasePackageCard({ dealId, pack }: { dealId: string; pack: ReleasePac
 function Summary({ deal }: { deal: OperatorDeal["deal"] }) {
   return (
     <Card title={c.summary}>
-      <dl className="flex flex-col gap-4">
-        <Fact label={c.client}>{deal.clientName ?? o.none}</Fact>
-        <Fact label={c.executor}>
-          <span className="break-words">{c.executorValue(deal.executorNumber, deal.executorName)}</span>
-        </Fact>
-        <Fact label={c.offer}>{deal.signedAt ? c.offerSigned : c.offerNotSigned}</Fact>
-        <Fact label={c.price}>{formatTiyn(deal.priceTiyn)}</Fact>
-        <Fact label={c.buyerTotal}>{formatTiyn(deal.buyerTotalTiyn)}</Fact>
-        <Fact label={c.payout}>{formatTiyn(deal.payoutTiyn)}</Fact>
-        <Fact label={c.platformIncome}>{formatTiyn(deal.platformIncomeTiyn)}</Fact>
-        <Fact label={c.provider}>{o.providers[deal.provider]}</Fact>
-      </dl>
+      <KeyValueList
+        rows={[
+          { label: c.client, value: deal.clientName ?? o.none },
+          { label: c.executor, value: <span className="break-words">{c.executorValue(deal.executorNumber, deal.executorName)}</span> },
+          { label: c.offer, value: deal.signedAt ? c.offerSigned : c.offerNotSigned },
+          { label: c.price, value: <span className="tabular-nums">{formatTiyn(deal.priceTiyn)}</span> },
+          { label: c.buyerTotal, value: <span className="tabular-nums">{formatTiyn(deal.buyerTotalTiyn)}</span> },
+          { label: c.payout, value: <span className="tabular-nums">{formatTiyn(deal.payoutTiyn)}</span> },
+          { label: c.platformIncome, value: <span className="tabular-nums">{formatTiyn(deal.platformIncomeTiyn)}</span> },
+          { label: c.provider, value: o.providers[deal.provider] },
+        ]}
+      />
     </Card>
   );
 }
@@ -119,13 +119,13 @@ export default async function OperatorDealPage({ params }: { params: Promise<{ i
           {card.pending.length > 0 && (
             <Card title={c.pendingTitle}>
               <ul className="flex flex-col gap-6">
-                {card.pending.map((op) => (
+                {card.pending.map((op, i) => (
                   <li key={op.id} className="flex flex-col gap-3 border-b border-line pb-6 last:border-b-0 last:pb-0">
                     <h3 className="flex flex-wrap justify-between gap-x-3 text-lg font-bold text-ink">
                       <span>{o.money.types[op.type]}</span>
                       <span className="tabular-nums">{formatTiyn(op.amountTiyn)}</span>
                     </h3>
-                    <OperationActions transactionId={op.id} type={op.type} />
+                    <OperationActions transactionId={op.id} type={op.type} primary={i === 0} />
                   </li>
                 ))}
               </ul>

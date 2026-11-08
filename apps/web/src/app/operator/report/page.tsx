@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Download, Handshake, TriangleAlert, Wallet } from "lucide-react";
+import { Download } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { buildReport, CSV_KINDS, reportSchema } from "@/modules/operator";
-import { Alert, Button, buttonClasses, Card, Container, DateText, Input, PageHeader, SectionTitle, Stat } from "@/ui";
+import { Alert, Button, buttonClasses, Card, Container, DateText, Input, PageHeader, SectionTitle, StatTiles } from "@/ui";
 import { formatTiyn } from "@/ui/format";
+import { DataTable, TD_NUM, TH, TH_ROW } from "../_components/DataTable";
 import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
 
@@ -20,45 +21,41 @@ type Row = { key: string; label: ReactNode; count: number; sumTiyn: bigint };
 function Totals({ title, head, rows }: { title: string; head: string; rows: Row[] }) {
   const total = rows.reduce((acc, r) => ({ count: acc.count + r.count, sum: acc.sum + r.sumTiyn }), { count: 0, sum: 0n });
   return (
-    <Card title={title}>
-      <div className="-mx-1 overflow-x-auto px-1" tabIndex={0} role="region" aria-label={ru.common.ui.tableRegion(title)}>
-        <table className="w-full text-left text-base">
-          <thead className="text-sm text-muted">
-            <tr>
-              <th scope="col" className="pb-2 font-semibold">
-                {head}
-              </th>
-              <th scope="col" className="pb-2 text-right font-semibold">
-                {t.count}
-              </th>
-              <th scope="col" className="pb-2 text-right font-semibold">
-                {t.sum}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key} className="border-t border-line">
-                <th scope="row" className="py-2 pr-3 font-normal">
-                  {r.label}
-                </th>
-                <td className="py-2 text-right tabular-nums">{r.count}</td>
-                <td className="py-2 pl-3 text-right tabular-nums">{formatTiyn(r.sumTiyn)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-line-strong font-bold">
-              <th scope="row" className="py-2">
-                {t.total}
-              </th>
-              <td className="py-2 text-right tabular-nums">{total.count}</td>
-              <td className="py-2 pl-3 text-right tabular-nums">{formatTiyn(total.sum)}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </Card>
+    <DataTable caption={title}>
+      <thead>
+        <tr>
+          <th scope="col" className={TH}>
+            {head}
+          </th>
+          <th scope="col" className={`${TH} text-right`}>
+            {t.count}
+          </th>
+          <th scope="col" className={`${TH} text-right`}>
+            {t.sum}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.key}>
+            <th scope="row" className={`${TH_ROW} min-w-44`}>
+              {r.label}
+            </th>
+            <td className={TD_NUM}>{r.count}</td>
+            <td className={TD_NUM}>{formatTiyn(r.sumTiyn)}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr className="font-bold">
+          <th scope="row" className={`${TH_ROW} font-bold`}>
+            {t.total}
+          </th>
+          <td className={TD_NUM}>{total.count}</td>
+          <td className={TD_NUM}>{formatTiyn(total.sum)}</td>
+        </tr>
+      </tfoot>
+    </DataTable>
   );
 }
 
@@ -82,19 +79,16 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
         }
       />
       <div className="flex flex-col gap-8">
-        <ul aria-label={t.stats} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-3">
-          <li className="flex">
-            <Stat className="flex-1" icon={<Handshake />} value={deals.count} label={t.statDeals} />
-          </li>
-          <li className="flex">
-            <Stat className="flex-1" icon={<TriangleAlert />} value={report.discrepancies.length} label={t.statDiscrepancies} />
-          </li>
-          <li className="col-span-full flex sm:col-span-1">
-            <Stat className="flex-1" icon={<Wallet />} value={formatTiyn(deals.sum)} label={t.statPrice} />
-          </li>
-        </ul>
+        <StatTiles
+          label={t.stats}
+          items={[
+            { label: t.statDeals, value: String(deals.count) },
+            { label: t.statDiscrepancies, value: String(report.discrepancies.length) },
+            { label: t.statPrice, value: formatTiyn(deals.sum) },
+          ]}
+        />
 
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-6">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,26rem),1fr))] items-start gap-6">
           <Totals title={t.deals} head={t.status} rows={report.deals.map((r) => ({ key: r.status, label: o.dealStatus[r.status], count: r.count, sumTiyn: r.sumTiyn }))} />
           <Totals
             title={t.operations}

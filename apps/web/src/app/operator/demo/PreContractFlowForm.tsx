@@ -38,7 +38,8 @@ export function PreContractFlowForm({ current }: { current: PreContractFlow }) {
           {t.setting.saved}
         </Alert>
       )}
-      <Button type="submit" loading={pending} className="self-start">
+      {/* Обводка: на экране демо-настроек заливная кнопка одна — сохранение режима имени исполнителя. */}
+      <Button type="submit" variant="secondary" loading={pending} className="self-start">
         {t.setting.save}
       </Button>
       <FormError message={error} />

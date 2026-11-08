@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Plus, UserCheck, Users } from "lucide-react";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { listExecutors, listRegistrationQueue } from "@/modules/operator";
-import { ButtonLink, Container, DateText, EmptyState, LegacyFilterChips, PageHeader, SectionTitle, StatusBadge, type Tone } from "@/ui";
+import { ButtonLink, Container, DateText, EmptyState, FilterChips, PageHeader, SectionTitle, StatusBadge, type Tone } from "@/ui";
+import { DataTable, TD, TH, TH_ROW } from "../_components/DataTable";
 import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { param, requireOperatorPage } from "../_lib/guard";
 
@@ -15,8 +17,48 @@ export const metadata: Metadata = { title: e.title };
 const STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
 const STATUS_TONE: Record<(typeof STATUSES)[number], Tone> = { PENDING: "warning", APPROVED: "success", REJECTED: "danger" };
 const statusFilter = z.enum(STATUSES).optional().catch(undefined);
+const chip = ru.requests.my.filterChip;
 
 type Row = Awaited<ReturnType<typeof listExecutors>>[number];
+const col = e.columns;
+
+/** Все исполнители таблицей: на десктопе — строка на исполнителя, на телефоне таблица прокручивается в своей области. */
+function ExecutorTable({ rows }: { rows: readonly Row[] }) {
+  return (
+    <DataTable caption={e.allTitle} hideCaption>
+      <thead>
+        <tr>
+          {[col.executor, col.registration, col.segment, col.legal, col.registered].map((label) => (
+            <th key={label} scope="col" className={TH}>
+              {label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((x) => (
+          <tr key={x.id}>
+            <th scope="row" className={`${TH_ROW} min-w-56`}>
+              <Link href={`/operator/executors/${x.id}`} className="font-semibold break-words text-primary underline">
+                {`${ru.common.executorLabel(x.publicNumber)}: ${x.legalName}`}
+              </Link>
+            </th>
+            <td className={TD}>
+              <StatusBadge tone={STATUS_TONE[x.status]}>{t.registration[x.status]}</StatusBadge>
+            </td>
+            <td className={TD}>
+              <StatusBadge tone={x.segment ? "accent" : "neutral"}>{x.segment ? t.segments[x.segment] : t.noSegment}</StatusBadge>
+            </td>
+            <td className={`${TD} min-w-48 text-ink-soft`}>{`${t.legalForms[x.legalForm]}, ${t.binIinMasked(x.binIinLast4)}`}</td>
+            <td className={`${TD} whitespace-nowrap text-ink-soft`}>
+              <DateText value={x.createdAt} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </DataTable>
+  );
+}
 
 function ExecutorItem({ x }: { x: Row }) {
   return (
@@ -74,22 +116,17 @@ export default async function ExecutorsPage({ searchParams }: { searchParams: Pr
 
         <section aria-labelledby="all" className="flex flex-col gap-4">
           <SectionTitle id="all" title={e.allTitle} />
-          <LegacyFilterChips
+          <FilterChips
             label={e.filterLabel}
-            current={status ?? "all"}
-            chips={[
-              { key: "all", label: e.filter.all, count: all.length, href: "/operator/executors" },
-              ...STATUSES.map((s) => ({ key: s, label: e.filter[s], count: count(s), href: `/operator/executors?status=${s}` })),
+            items={[
+              { label: chip(e.filter.all, all.length), href: "/operator/executors", active: !status },
+              ...STATUSES.map((s) => ({ label: chip(e.filter[s], count(s)), href: `/operator/executors?status=${s}`, active: s === status })),
             ]}
           />
           {shown.length === 0 ? (
             <EmptyState icon={<Users />} title={e.filterEmpty} description={e.filterEmptyHint} titleAs="h3" />
           ) : (
-            <ul className={LIST_GRID}>
-              {shown.map((x) => (
-                <ExecutorItem key={x.id} x={x} />
-              ))}
-            </ul>
+            <ExecutorTable rows={shown} />
           )}
         </section>
       </div>

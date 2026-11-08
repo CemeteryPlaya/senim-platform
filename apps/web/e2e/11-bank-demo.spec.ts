@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { amount, dealMoney, reseed } from "./support";
+import { amount, dealMoney, expectNoHorizontalScrollAt320And200, expectOnePrimary, loginAs, P, reseed } from "./support";
 
 /**
  * /bank-demo (только DEMO_MODE): восемь шагов пути ТЗ, у шагов — «Войти как … и открыть», провайдер новых
@@ -54,3 +54,20 @@ for (const title of ["Заказ", "Отклик и торг", "Оферта", "
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   });
 }
+
+test("оператор: демо-настройки — в меню демо-режима рядом с «Показ банку», одна заливная кнопка", async ({ page }) => {
+  await loginAs(page, P.dinara);
+  await page.goto("/operator/demo");
+  await expect(page.getByRole("heading", { level: 1, name: "Демо-режим" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "К панели оператора" })).toBeVisible();
+  await expectOnePrimary(page);
+
+  const desktop = (page.viewportSize()?.width ?? 0) >= 1024;
+  if (!desktop) await page.locator("summary", { hasText: "Меню" }).click();
+  const nav = page.getByRole("navigation", { name: desktop ? "Основное меню" : "Меню" });
+  const reference = nav.getByRole("list", { name: "Справочники и настройки" });
+  await expect(reference.getByRole("link", { name: "Демо-режим", exact: true })).toHaveAttribute("aria-current", "page");
+  for (const label of ["Показ банку", "Демо-персоны"]) await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
+
+  await expectNoHorizontalScrollAt320And200(page, "/operator/demo");
+});

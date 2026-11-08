@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { platformSettings } from "@/modules/operator";
-import { Card, Container, Fact, PageHeader, StatusBadge } from "@/ui";
+import { Card, Container, KeyValueList, PageHeader, StatusBadge } from "@/ui";
+import { DataTable, TD, TH, TH_ROW } from "../_components/DataTable";
 import { requireOperatorPage } from "../_lib/guard";
 
 const o = ru.operator;
@@ -15,35 +16,60 @@ export default async function SettingsPage() {
   const s = platformSettings(user);
 
   return (
-    <Container size="form" className="pb-10">
+    <Container className="pb-10">
       <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: o.backToPanel }} />
-      <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <Card title={t.environment}>
-          <dl className="flex flex-col gap-4">
-            <Fact label={t.appEnv}>{`${s.appEnv}: ${t.appEnvValues[s.appEnv]}`}</Fact>
-            <Fact label={t.demoMode}>{s.demoMode ? t.yes : t.no}</Fact>
-            <Fact label={t.provider}>
-              <span className="flex flex-col gap-1">
-                <span className="font-semibold">{t.providerNames[s.newDealProvider]}</span>
-                <span className="text-sm text-muted">{s.providerFromDefault ? t.providerDefault : t.providerEnv}</span>
-                <span className="text-sm text-muted">{t.providerNote}</span>
-              </span>
-            </Fact>
-          </dl>
+          <KeyValueList
+            rows={[
+              { label: t.appEnv, value: `${s.appEnv}: ${t.appEnvValues[s.appEnv]}` },
+              { label: t.demoMode, value: s.demoMode ? t.yes : t.no },
+              {
+                label: t.provider,
+                value: (
+                  <span className="flex flex-col gap-1">
+                    <span>{t.providerNames[s.newDealProvider]}</span>
+                    <span className="text-sm font-normal text-muted">{s.providerFromDefault ? t.providerDefault : t.providerEnv}</span>
+                    <span className="text-sm font-normal text-muted">{t.providerNote}</span>
+                  </span>
+                ),
+              },
+            ]}
+          />
         </Card>
-        <Card title={t.flags} description={t.flagsHint}>
-          <ul className="flex flex-col">
-            {s.flags.map((f) => (
-              <li key={f.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line py-3 last:border-b-0">
-                <span className="flex min-w-0 flex-col">
-                  <span className="text-base font-semibold text-ink">{t.flagNames[f.key]}</span>
-                  <code className="text-sm break-all text-muted">{f.envVar}</code>
-                </span>
-                <StatusBadge tone={f.enabled ? "success" : "neutral"}>{f.enabled ? t.on : t.off}</StatusBadge>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <div className="flex min-w-0 flex-col gap-3">
+          <DataTable caption={t.flags}>
+            <thead>
+              <tr>
+                <th scope="col" className={TH}>
+                  {t.columns.flag}
+                </th>
+                <th scope="col" className={TH}>
+                  {t.columns.envVar}
+                </th>
+                <th scope="col" className={TH}>
+                  {t.columns.state}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.flags.map((f) => (
+                <tr key={f.key}>
+                  <th scope="row" className={`${TH_ROW} min-w-52 font-semibold`}>
+                    {t.flagNames[f.key]}
+                  </th>
+                  <td className={TD}>
+                    <code className="text-sm break-all text-muted">{f.envVar}</code>
+                  </td>
+                  <td className={TD}>
+                    <StatusBadge tone={f.enabled ? "success" : "neutral"}>{f.enabled ? t.on : t.off}</StatusBadge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+          <p className="text-base text-ink-soft">{t.flagsHint}</p>
+        </div>
       </div>
     </Container>
   );

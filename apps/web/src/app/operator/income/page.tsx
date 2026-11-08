@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { Download, Wallet } from "lucide-react";
+import { Download } from "lucide-react";
 import Link from "next/link";
 import { ru } from "@/i18n/ru";
 import { incomePeriodSchema, incomeReport } from "@/modules/operator";
-import { Button, buttonClasses, Card, Container, DateText, EmptyState, Input, PageHeader, Stat, StatusBadge } from "@/ui";
+import { Button, buttonClasses, Container, DateText, EmptyState, Input, PageHeader, StatTiles, StatusBadge } from "@/ui";
 import { formatTiyn } from "@/ui/format";
+import { DataTable, TD, TD_NUM, TH, TH_ROW } from "../_components/DataTable";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
 
 const o = ru.operator;
@@ -33,7 +34,7 @@ export default async function IncomePage({ searchParams }: { searchParams: Promi
     <Container className="pb-10">
       <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: o.backToPanel }} />
       <div className="flex flex-col gap-8">
-        <form method="get" className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <form method="get" className="flex flex-col gap-4 rounded-card border border-line bg-surface p-4 sm:flex-row sm:flex-wrap sm:items-end sm:p-5">
           <Input label={t.from} name="from" type="date" defaultValue={shown.from} error={parsed.success ? undefined : o.validation.period} />
           <Input label={t.to} name="to" type="date" defaultValue={shown.to} />
           <Button type="submit" variant="secondary">
@@ -41,48 +42,60 @@ export default async function IncomePage({ searchParams }: { searchParams: Promi
           </Button>
         </form>
 
-        <ul aria-label={t.title} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3">
-          <li className="flex">
-            <Stat className="flex-1" value={formatTiyn(report.protectionTiyn)} label={t.protection} />
-          </li>
-          <li className="flex">
-            <Stat className="flex-1" value={formatTiyn(report.guaranteeTiyn)} label={t.guarantee} />
-          </li>
-          <li className="flex">
-            <Stat className="flex-1" icon={<Wallet />} value={formatTiyn(report.totalTiyn)} label={t.total} />
-          </li>
-        </ul>
+        <StatTiles
+          label={t.title}
+          items={[
+            { label: t.protection, value: formatTiyn(report.protectionTiyn) },
+            { label: t.guarantee, value: formatTiyn(report.guaranteeTiyn) },
+            { label: t.total, value: formatTiyn(report.totalTiyn) },
+          ]}
+        />
 
-        <Card title={t.byDeal}>
-          {report.rows.length === 0 ? (
-            <EmptyState title={t.empty} titleAs="h3" />
-          ) : (
-            <ul className="flex flex-col">
+        {report.rows.length === 0 ? (
+          <EmptyState title={t.empty} />
+        ) : (
+          <DataTable caption={t.byDeal}>
+            <thead>
+              <tr>
+                <th scope="col" className={TH}>
+                  {t.dealColumn}
+                </th>
+                <th scope="col" className={TH}>
+                  {t.settledAt}
+                </th>
+                <th scope="col" className={`${TH} text-right`}>
+                  {t.protection}
+                </th>
+                <th scope="col" className={`${TH} text-right`}>
+                  {t.guarantee}
+                </th>
+                <th scope="col" className={`${TH} text-right`}>
+                  {t.total}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
               {report.rows.map((r) => (
-                <li key={r.transactionId} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line py-3 last:border-b-0">
-                  <span className="flex min-w-0 flex-col gap-1">
-                    <Link href={`/operator/deals/${r.dealId}`} className="font-semibold text-primary underline">
-                      {t.deal(r.dealNumber)}
-                    </Link>
-                    <span className="text-sm text-muted">
-                      {t.settledAt} <DateText value={r.settledAt} format="dateTime" />
+                <tr key={r.transactionId}>
+                  <th scope="row" className={`${TH_ROW} min-w-36`}>
+                    <span className="flex flex-col items-start gap-1">
+                      <Link href={`/operator/deals/${r.dealId}`} className="font-semibold text-primary underline">
+                        {t.deal(r.dealNumber)}
+                      </Link>
+                      {r.isTest && <StatusBadge tone="neutral">{t.testMark}</StatusBadge>}
                     </span>
-                    {r.isTest && <StatusBadge tone="neutral" className="self-start">{t.testMark}</StatusBadge>}
-                  </span>
-                  <span className="flex flex-col items-end text-base tabular-nums">
-                    <span className="font-bold text-ink">{formatTiyn(r.totalTiyn)}</span>
-                    <span className="text-sm text-ink-soft">
-                      {t.protection}: {formatTiyn(r.protectionTiyn)}
-                    </span>
-                    <span className="text-sm text-ink-soft">
-                      {t.guarantee}: {formatTiyn(r.guaranteeTiyn)}
-                    </span>
-                  </span>
-                </li>
+                  </th>
+                  <td className={`${TD} whitespace-nowrap text-ink-soft`}>
+                    <DateText value={r.settledAt} format="dateTime" />
+                  </td>
+                  <td className={TD_NUM}>{formatTiyn(r.protectionTiyn)}</td>
+                  <td className={TD_NUM}>{formatTiyn(r.guaranteeTiyn)}</td>
+                  <td className={`${TD_NUM} font-bold`}>{formatTiyn(r.totalTiyn)}</td>
+                </tr>
               ))}
-            </ul>
-          )}
-        </Card>
+            </tbody>
+          </DataTable>
+        )}
 
         <a href={csvHref} className={buttonClasses({ variant: "secondary", className: "self-start" })} download>
           <Download aria-hidden className="size-5" />

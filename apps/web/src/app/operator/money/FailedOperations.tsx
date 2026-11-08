@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 import type { FailedOperation } from "@/modules/payments";
 import { StatusBadge } from "@/ui";
 import { formatDate, formatTiyn } from "@/ui/format";
-import { ListCard } from "../_components/ListCard";
+import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { RetryOperationForm } from "./RetryOperationForm";
 
 const t = ru.operator.money;
@@ -17,7 +17,7 @@ export function FailedOperations({ items }: { items: FailedOperation[] }) {
         {t.failedTitle}
       </h2>
       <p className="text-base text-ink-soft">{t.failedHint}</p>
-      <ul className="flex flex-col gap-4">
+      <ul className={LIST_GRID}>
         {items.map((op) => (
           <ListCard
             key={op.id}

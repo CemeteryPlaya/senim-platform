@@ -168,6 +168,25 @@ test("отменённая сделка: вместо шагов — плашк�
   await expect(stepAction(page)).toHaveCount(0);
 });
 
+test("оператор: споры таблицей; экран спора — одна заливная кнопка, страница не прокручивается вбок", async ({ page }) => {
+  await loginAs(page, P.dinara);
+  await page.goto("/operator/disputes");
+  const table = page.getByRole("region", { name: "Таблица «Споры»" }).getByRole("table", { name: "Споры" });
+  // Строка таблицы: сделка (ссылка в спор), статус, причина, этап, дата, цена. Открытый спор сида — с «Открыт».
+  const open = table.locator("tbody tr").filter({ has: page.getByText("Открыт", { exact: true }) }).first();
+  await expect(open.getByRole("cell").last()).toContainText("₸");
+  await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveCount(0);
+  await expectNoHorizontalScrollAt320And200(page, "/operator/disputes");
+
+  await open.getByRole("link", { name: /^Сделка №\d+:/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Спор по сделке №\d+$/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Назад" })).toBeVisible();
+  // Заливная — только «Принять решение»; «Рассчитать раздел» и «Открыть сделку» — обводкой.
+  await expectOnePrimary(page);
+  await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveText("Принять решение");
+  await expectNoHorizontalScrollAt320And200(page, new URL(page.url()).pathname);
+});
+
 /** Покупатель открывает спор (с проверкой обязательного поля), мастер отправляет позицию. Возвращает адрес сделки. */
 async function openDisputeAsBuyer(page: Page, c: Case): Promise<string> {
   await loginAs(page, c.buyer);

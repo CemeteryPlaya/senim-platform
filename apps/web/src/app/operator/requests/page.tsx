@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inbox } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { listStaleRequests, staleRequestsSchema } from "@/modules/operator";
-import { Container, DateText, EmptyState, LegacyFilterChips, PageHeader, StatusBadge, type LegacyFilterChip } from "@/ui";
+import { Container, DateText, EmptyState, FilterChips, PageHeader, StatusBadge, type FilterChipItem } from "@/ui";
 import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { isEnabled } from "@/platform/features";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
@@ -13,11 +13,10 @@ const t = ru.operator.requests;
 export const metadata: Metadata = { title: t.title };
 
 /** Чипы «Дольше суток · 3 суток · недели · месяца»; значение не из списка (из адреса) — своим чипом. */
-function hoursChips(current: number): LegacyFilterChip[] {
-  const presets = Object.entries(t.hoursPresets).map(([h, label]) => ({ key: h, label, href: `/operator/requests?hours=${h}` }));
-  return presets.some((p) => p.key === String(current))
-    ? presets
-    : [...presets, { key: String(current), label: t.hoursCustom(current), href: `/operator/requests?hours=${current}` }];
+function hoursChips(current: number): FilterChipItem[] {
+  const chip = (hours: string, label: string) => ({ label, href: `/operator/requests?hours=${hours}`, active: hours === String(current) });
+  const presets = Object.entries(t.hoursPresets).map(([h, label]) => chip(h, label));
+  return presets.some((p) => p.active) ? presets : [...presets, chip(String(current), t.hoursCustom(current))];
 }
 
 export default async function StaleRequestsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -31,7 +30,7 @@ export default async function StaleRequestsPage({ searchParams }: { searchParams
       <PageHeader title={t.title} back={{ href: "/operator", label: ru.operator.backToPanel }} />
       <div className="flex flex-col gap-10">
         <div className="flex flex-col gap-4">
-          <LegacyFilterChips label={t.hoursFilter} current={String(hours)} chips={hoursChips(hours)} />
+          <FilterChips label={t.hoursFilter} items={hoursChips(hours)} />
           {rows.length === 0 ? (
             <EmptyState icon={<Inbox />} title={t.empty} description={t.emptyHint} />
           ) : (

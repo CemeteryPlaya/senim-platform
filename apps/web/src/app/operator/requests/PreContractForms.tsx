@@ -26,7 +26,8 @@ export function AssignMeasurerForm({ requestId, measurers }: { requestId: string
         onChange={(e) => setMeasurerId(e.target.value)}
         options={measurers.map((m) => ({ value: m.id, label: m.name }))}
       />
-      <Button type="submit" loading={pending} className="self-start">
+      {/* Обводка, не заливка: форм назначения на экране столько, сколько заявок, а заливная кнопка — одна на экран. */}
+      <Button type="submit" variant="secondary" loading={pending} className="self-start">
         {t.assign}
       </Button>
       <FormError message={error} />
