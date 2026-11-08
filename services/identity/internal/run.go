@@ -131,6 +131,7 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 		KeyFile:   cfg.KeyFile,
 		CAFile:    cfg.CAFile,
 		Logger:    log,
+		Services:  []string{ServiceName},
 	}, func(*connect.Server) error { return nil }, ready)
 
 	stopRelay()

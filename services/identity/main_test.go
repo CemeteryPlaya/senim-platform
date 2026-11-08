@@ -120,6 +120,14 @@ func TestServeBecomesReady(t *testing.T) {
 		}
 	}
 
+	// Чужое имя сервиса — NotFound, а не SERVING.
+	rctx, rcancel := context.WithTimeout(ctx, 2*time.Second)
+	_, err = hc.Check(rctx, &grpchealth.CheckRequest{Service: "senim.deal.v1.DealService"})
+	rcancel()
+	if connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("health чужого сервиса: %v, want not_found", err)
+	}
+
 	resp, err := http.Get("http://" + probeAddr + "/readyz") //nolint:noctx // test
 	if err != nil {
 		t.Fatal(err)

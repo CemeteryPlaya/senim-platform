@@ -17,7 +17,16 @@ import (
 // checker answers gRPC health from the live readiness probe.
 type checker struct {
 	ready    func(context.Context) error
+	services map[string]bool
 	stopping atomic.Bool
+}
+
+func newChecker(ready func(context.Context) error, services []string) *checker {
+	c := &checker{ready: ready, services: map[string]bool{}}
+	for _, s := range services {
+		c.services[s] = true
+	}
+	return c
 }
 
 func (c *checker) status(ctx context.Context) grpchealth.Status {
@@ -32,8 +41,13 @@ func (c *checker) status(ctx context.Context) grpchealth.Status {
 	return grpchealth.StatusServing
 }
 
-// Check implements grpchealth.Checker; every service name shares the process status.
-func (c *checker) Check(ctx context.Context, _ *grpchealth.CheckRequest) (*grpchealth.CheckResponse, error) {
+// Check implements grpchealth.Checker: "" and every name in Options.Services share the
+// process status; an unknown name is NotFound (as in grpc-go), so a typo in a balancer's
+// health check never reads as SERVING.
+func (c *checker) Check(ctx context.Context, req *grpchealth.CheckRequest) (*grpchealth.CheckResponse, error) {
+	if req.Service != "" && !c.services[req.Service] {
+		return nil, connect.NewError(connect.CodeNotFound, "unknown service")
+	}
 	return &grpchealth.CheckResponse{Status: c.status(ctx)}, nil
 }
 

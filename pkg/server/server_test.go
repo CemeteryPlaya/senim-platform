@@ -33,6 +33,8 @@ const drainDelay = 500 * time.Millisecond
 
 const panicText = "secret-panic-text-42"
 
+const echoService = "senim.testing.v1.EchoService"
+
 type echoImpl struct {
 	started chan struct{}
 	sleep   time.Duration
@@ -87,6 +89,12 @@ func freeAddr(t *testing.T) string {
 }
 
 func start(t *testing.T, ready func(context.Context) error) *env {
+	t.Helper()
+	return startWith(t, ready, nil)
+}
+
+// startWith запускает сервер; tune меняет Options перед Run.
+func startWith(t *testing.T, ready func(context.Context) error, tune func(*server.Options)) *env {
 	t.Helper()
 	dir := t.TempDir()
 	caCert, caKey, err := tlsx.NewCA("test-ca", time.Hour)
@@ -147,6 +155,10 @@ func start(t *testing.T, ready func(context.Context) error) *env {
 		ShutdownTimeout: 20 * time.Second,
 		DrainDelay:      drainDelay,
 		Logger:          logging.New(e.logs, "test", slog.LevelDebug),
+		Services:        []string{echoService},
+	}
+	if tune != nil {
+		tune(&opt)
 	}
 	go func() {
 		e.done <- server.Run(ctx, opt, func(s *connect.Server) error {
@@ -468,5 +480,24 @@ func TestCheckReady(t *testing.T) {
 	}
 	if err := server.CheckReady(ctx5(t), freeAddr(t)); err == nil {
 		t.Fatal("closed port: want error")
+	}
+}
+
+// Health знает только перечисленные в Options.Services имена (и пустое — весь процесс);
+// на чужое имя — NotFound, как у grpc-go: иначе SERVING для опечатки ничего не значит.
+func TestHealthUnknownServiceIsNotFound(t *testing.T) {
+	e := start(t, func(context.Context) error { return nil })
+	hc := grpchealth.NewClient(e.rpc(e.transport))
+	for _, name := range []string{"", echoService} {
+		res, err := hc.Check(ctx5(t), &grpchealth.CheckRequest{Service: name})
+		if err != nil || res.Status != grpchealth.StatusServing {
+			t.Fatalf("health %q: %v %v, want SERVING", name, res, err)
+		}
+	}
+	for _, name := range []string{"senim.deal.v1.DealService", "senim.testing.v1.EchoServic", "x"} {
+		_, err := hc.Check(ctx5(t), &grpchealth.CheckRequest{Service: name})
+		if got := connect.CodeOf(err); got != connect.CodeNotFound {
+			t.Fatalf("health %q: code %v (%v), want not_found", name, got, err)
+		}
 	}
 }

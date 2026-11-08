@@ -47,6 +47,10 @@ type Options struct {
 	ShutdownTimeout time.Duration // graceful stop limit, default 20s
 	DrainDelay      time.Duration // time NOT_SERVING is visible with listeners still open before Shutdown, default 5s
 	Logger          *slog.Logger  // default: JSON to stderr
+	// Services — полные имена gRPC-сервисов процесса для health (например
+	// "senim.identity.v1.IdentityService"). Check с пустым именем — состояние процесса;
+	// с именем из списка — то же состояние; с любым другим — NotFound.
+	Services []string
 }
 
 // Run serves until ctx is cancelled or SIGTERM/SIGINT arrives, then stops gracefully.
@@ -95,7 +99,7 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 	if err := register(srv); err != nil {
 		return fmt.Errorf("server: register: %w", err)
 	}
-	health := &checker{ready: ready}
+	health := newChecker(ready, opt.Services)
 	grpchealth.Register(srv, health)
 
 	mux := http.NewServeMux()
