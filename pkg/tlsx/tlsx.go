@@ -158,20 +158,30 @@ func loadPool(caFile string) (*x509.CertPool, error) {
 // localhost is in every dev certificate (devcerts) and never identifies a peer.
 const localhost = "localhost"
 
-// PeerName returns the peer identity of cert: its first DNS SAN that is in allowed.
-// The service name is a DNS SAN of every platform certificate (devcerts issues
-// [name, localhost]); the CN is not used. "localhost" never matches.
+// PeerName returns the peer identity of cert: its only DNS SAN other than "localhost",
+// provided that name is in allowed. A platform certificate carries exactly one identity
+// (devcerts issues [name, localhost]); the CN is not used. A certificate with no name or
+// with two or more names (say web and mesh) has no identity and is rejected, so it can
+// never pass as the more privileged one.
 func PeerName(cert *x509.Certificate, allowed []string) (string, bool) {
+	name := ""
 	for _, dns := range cert.DNSNames {
-		if dns != localhost && slices.Contains(allowed, dns) {
-			return dns, true
+		if dns == localhost {
+			continue
 		}
+		if name != "" {
+			return "", false
+		}
+		name = dns
 	}
-	return "", false
+	if name == "" || !slices.Contains(allowed, name) {
+		return "", false
+	}
+	return name, true
 }
 
 // ServerConfig requires and verifies client certificates issued by the CA in caFile and
-// accepts only clients whose DNS SAN is in allowedPeers (see PeerName): any other holder of
+// accepts only clients whose single DNS SAN is in allowedPeers (see PeerName): any other holder of
 // a certificate from the same CA is refused during the handshake. allowedPeers must not be
 // empty.
 func ServerConfig(certFile, keyFile, caFile string, allowedPeers []string) (*tls.Config, error) {

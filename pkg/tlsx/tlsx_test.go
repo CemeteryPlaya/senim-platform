@@ -321,3 +321,33 @@ func TestServerConfigRequiresAllowedPeers(t *testing.T) {
 		}
 	}
 }
+
+// Удостоверение — единственный DNS SAN кроме localhost. Сертификат с двумя именами
+// (например web и mesh) не принимается ни под одним из них: иначе он прошёл бы как mesh,
+// и сервис поверил бы его XFCC.
+func TestPeerNameRequiresSingleIdentity(t *testing.T) {
+	p := newPKI(t)
+	parse := func(names ...string) *x509.Certificate {
+		t.Helper()
+		c, _, err := tlsx.Issue(p.caCert, p.caKey, "x", names, time.Hour)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cert, err := x509.ParseCertificate(mustDecode(t, c))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cert
+	}
+	allowed := []string{"mesh", "web"}
+	for _, names := range [][]string{{"web", "mesh"}, {"mesh", "web", "localhost"}, {"localhost"}, nil, {"web", "deal"}} {
+		if name, ok := tlsx.PeerName(parse(names...), allowed); ok {
+			t.Errorf("SAN %v: принят как %q", names, name)
+		}
+	}
+	for _, names := range [][]string{{"web"}, {"localhost", "web"}, {"web", "localhost"}} {
+		if name, ok := tlsx.PeerName(parse(names...), allowed); !ok || name != "web" {
+			t.Errorf("SAN %v: %q %v, want web", names, name, ok)
+		}
+	}
+}

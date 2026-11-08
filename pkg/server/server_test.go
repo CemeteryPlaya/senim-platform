@@ -646,6 +646,7 @@ func TestMalformedXFCCFromMeshRejected(t *testing.T) {
 		{`DNS=`},                              // пустое имя
 		{`DNS=Web!`},                          // не имя сервиса
 		{`DNS=web;;Hash=1`},                   // пустая пара
+		{`Hash=1;DNS=web;DNS=mesh`},           // два удостоверения в одном сертификате
 		{``},                                  // пустой заголовок
 	} {
 		_, _, err := e.callerAs(t, "mesh", xfcc...)

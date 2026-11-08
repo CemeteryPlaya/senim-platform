@@ -93,9 +93,10 @@ var xfccKeys = map[string]bool{"By": true, "Hash": true, "Cert": true, "Chain": 
 
 // xfccCaller parses the XFCC value the mesh sets with forward_client_cert_details:
 // SANITIZE_SET — exactly one element, the current hop: key=value pairs split by ';',
-// values optionally in double quotes (with \" inside). It returns the first DNS value that
+// values optionally in double quotes (with \" inside). It returns the only DNS value that
 // is not localhost. Anything else — a second element, an unknown key, an empty pair, an
-// unterminated quote, no usable DNS — is an error: the service never guesses.
+// unterminated quote, no usable DNS or more than one (tlsx.PeerName: one identity per
+// certificate) — is an error: the service never guesses.
 func xfccCaller(value string) (string, error) {
 	pairs, err := splitXFCC(value)
 	if err != nil {
@@ -111,8 +112,11 @@ func xfccCaller(value string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("%s: %s: %w", xfccHeader, k, err)
 		}
-		if k != "DNS" || caller != "" || v == "localhost" {
+		if k != "DNS" || v == "localhost" {
 			continue
+		}
+		if caller != "" {
+			return "", fmt.Errorf("%s: more than one DNS identity", xfccHeader)
 		}
 		if !serviceNameRe.MatchString(v) {
 			return "", fmt.Errorf("%s: DNS %q is not a service name", xfccHeader, v)
