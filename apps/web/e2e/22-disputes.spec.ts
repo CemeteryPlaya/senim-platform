@@ -1,5 +1,19 @@
 import { expect, test, type Page } from "@playwright/test";
-import { amount, choose, dealMoney, expectDealStatus, historyRow, loginAs, moneyBlock, nextStep, openDeal, openMoneyHistory, P } from "./support";
+import {
+  amount,
+  choose,
+  dealMoney,
+  expectDealStatus,
+  expectFitsAt320And200,
+  historyRow,
+  loginAs,
+  moneyBlock,
+  nextStep,
+  openDeal,
+  openMoneyHistory,
+  P,
+  stepAction,
+} from "./support";
 import { reseed } from "./support";
 
 /**
@@ -38,7 +52,7 @@ for (const c of CASES) {
     await expect(page.getByRole("region", { name: "Спор" })).toContainText("Продолжить работу");
     await expect(moneyBlock(page)).toContainText("под защитой банка");
     await expect(moneyBlock(page)).toContainText(amount(X.buyerTotal));
-    if (c.status === "READY") await expect(nextStep(page).getByRole("link", { name: "Подписать акт" })).toBeVisible();
+    if (c.status === "READY") await expect(stepAction(page).getByRole("link", { name: "Подписать акт" })).toBeVisible();
 
     const rows = await openMoneyHistory(page, dealPath);
     await expect(historyRow(rows, "Выплата удержана на время спора")).toContainText(amount(X.payout));
@@ -49,8 +63,8 @@ for (const c of CASES) {
     await loginAs(page, c.master);
     await page.goto(dealPath);
     await expectDealStatus(page, c.statusText);
-    if (c.status === "PAID_HOLD") await expect(nextStep(page).getByRole("button", { name: "Начать работу" })).toBeVisible();
-    else await expect(nextStep(page).getByRole("link", { name: "Подписать акт ЭЦП" })).toBeVisible();
+    if (c.status === "PAID_HOLD") await expect(stepAction(page).getByRole("button", { name: "Начать работу" })).toBeVisible();
+    else await expect(stepAction(page).getByRole("link", { name: "Подписать акт ЭЦП" })).toBeVisible();
   });
 
   test(`спор на ${c.status}: «Полный возврат» — покупателю всё оплаченное, включая 2%`, { tag: "@flow" }, async ({ page }) => {
@@ -96,6 +110,60 @@ for (const c of CASES) {
     await expect(moneyBlock(page)).toContainText(amount(Y.payout));
   });
 }
+
+test("экран сделки: ход сделки, деньги, подпись ЭЦП и одно действие шага в закреплённом слоте", async ({ page }) => {
+  const c = CASES[1]; // №7 READY: покупатель подписывает акт
+  await loginAs(page, c.buyer);
+  const dealPath = await openDeal(page, c.deal);
+  const main = page.getByRole("main");
+  await expect(page.getByRole("link", { name: "Назад" })).toBeVisible();
+
+  // Ход сделки по спеке 8а: READY — «Приёмка» текущий шаг.
+  await expect(main.getByRole("list", { name: "Ход сделки" }).locator("li[aria-current=step]")).toContainText("Приёмка");
+  await expect(moneyBlock(page)).toContainText(amount(dealMoney(c.price).buyerTotal));
+  await expect(main.getByText("Договор подписан ЭЦП обеими сторонами")).toBeVisible();
+
+  // Единственное действие шага — в StickyAction, и оно главное (заливное).
+  const action = stepAction(page);
+  await expect(action).toHaveCount(1);
+  await expect(action.getByRole("link", { name: "Подписать акт", exact: true })).toBeVisible();
+  await expect(action.locator("[data-primary-action]")).toHaveCount(1);
+  await expect(nextStep(page).getByRole("link", { name: "Подписать акт", exact: true })).toHaveCount(0);
+
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("нет размера окна");
+  const box = async (l: ReturnType<typeof stepAction>) => {
+    const b = await l.boundingBox();
+    if (!b) throw new Error("у элемента нет рамки");
+    return b;
+  };
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const a = await box(action);
+  const money = await box(moneyBlock(page));
+  if (viewport.width >= 1024) {
+    // Десктоп: две колонки — деньги и действие справа, события слева.
+    const events = await box(nextStep(page));
+    expect(money.x).toBeGreaterThan(events.x + events.width - 1);
+    expect(Math.abs(a.x - money.x)).toBeLessThanOrEqual(1);
+    expect(a.y).toBeGreaterThanOrEqual(money.y + money.height - 1);
+  } else {
+    // Телефон: действие закреплено у нижнего края — видно сразу, без прокрутки.
+    expect(a.y + a.height).toBeLessThanOrEqual(viewport.height);
+    expect(a.y).toBeGreaterThan(money.y);
+  }
+
+  await expectFitsAt320And200(page, dealPath);
+});
+
+test("отменённая сделка: вместо шагов — плашка, действия шага нет", async ({ page }) => {
+  // №14 сида — CANCELLED до оплаты (Сауле ↔ Исп. №8); оператор видит все сделки.
+  await loginAs(page, P.dinara);
+  await openDeal(page, 14);
+  const main = page.getByRole("main");
+  await expect(main.getByRole("list", { name: "Ход сделки" })).toHaveCount(0);
+  await expect(main.getByRole("status").filter({ hasText: "Сделка отменена" })).toBeVisible();
+  await expect(stepAction(page)).toHaveCount(0);
+});
 
 /** Покупатель открывает спор (с проверкой обязательного поля), мастер отправляет позицию. Возвращает адрес сделки. */
 async function openDisputeAsBuyer(page: Page, c: Case): Promise<string> {

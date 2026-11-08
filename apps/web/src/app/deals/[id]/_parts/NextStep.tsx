@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { SignLink } from "@/app/_components/signing";
 import type { DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
@@ -13,8 +14,8 @@ import { PayButton, ReadyForm } from "./WorkForms";
 const t = ru.deal;
 
 /**
- * «Что дальше»: одна строка о том, что происходит, и единственное главное действие смотрящего (deal-core.nextStep).
- * Подпись оферты и акта — в панели документа ниже (компонент documents), сюда — переход к ней.
+ * «Что дальше» — текущее событие сделки: одна строка о том, что происходит, предупреждения шага и, если действие —
+ * форма (сдача работы, отзыв), сама форма. Действие одной кнопкой — в StickyAction (stepAction ниже).
  */
 export function NextStep({ deal }: { deal: DealView }) {
   const { action, mine } = deal.next;
@@ -25,7 +26,8 @@ export function NextStep({ deal }: { deal: DealView }) {
       {/* Сразу под заголовком, на который после сдачи переходит фокус; объявляет плашка раздела «Сдача». */}
       {far && <Alert tone="warning">{far}</Alert>}
       {manualTransfer(deal) && <p className="text-base text-ink-soft">{t.pay.manualHint(formatTiyn(deal.estimate.totalTiyn))}</p>}
-      {mine && <PrimaryAction deal={deal} />}
+      {mine && action === "submitReady" && <ReadyForm dealId={deal.id} />}
+      {mine && action === "leaveReview" && <ReviewForm dealId={deal.id} portfolioConsent={isEnabled("dealPortfolio")} />}
     </Card>
   );
 }
@@ -33,10 +35,15 @@ export function NextStep({ deal }: { deal: DealView }) {
 /** manual: оплата создана и ждёт банк — покупателю сказать, куда переводить (реквизиты — в оферте). */
 const manualTransfer = (deal: DealView) => deal.viewer === "CLIENT" && deal.paymentProvider === "MANUAL" && deal.next.action === "waitPaymentConfirmation";
 
-function PrimaryAction({ deal }: { deal: DealView }) {
+/**
+ * Единственное главное действие шага смотрящего (deal-core.nextStep) — содержимое StickyAction; null — действия нет
+ * (ждём другую сторону или банк) или оно — форма в «Что дальше». Подпись — переход к панели документа ниже.
+ */
+export function stepAction(deal: DealView): ReactNode {
+  if (!deal.next.mine) return null;
   switch (deal.next.action) {
     case "signContract":
-      return deal.contract && <SignLink documentId={deal.contract.id}>{t.actions.signContract}</SignLink>;
+      return deal.contract && <SignLink documentId={deal.contract.id} fullWidth>{t.actions.signContract}</SignLink>;
     case "pay":
       return <PayButton dealId={deal.id} amount={formatTiyn(deal.estimate.totalTiyn)} />;
     case "startWork":
@@ -45,16 +52,12 @@ function PrimaryAction({ deal }: { deal: DealView }) {
           {t.actions.startWork}
         </ActionButton>
       );
-    case "submitReady":
-      return <ReadyForm dealId={deal.id} />;
     case "signAct":
-      return deal.act && <SignLink documentId={deal.act.id}>{t.actions.signAct}</SignLink>;
+      return deal.act && <SignLink documentId={deal.act.id} fullWidth>{t.actions.signAct}</SignLink>;
     case "signActEcp":
-      return deal.act && <SignLink documentId={deal.act.id}>{t.actions.signActEcp}</SignLink>;
+      return deal.act && <SignLink documentId={deal.act.id} fullWidth>{t.actions.signActEcp}</SignLink>;
     case "resolveDispute":
-      return deal.dispute && <ButtonLink href={`/operator/disputes/${deal.dispute.id}`}>{t.actions.resolveDispute}</ButtonLink>;
-    case "leaveReview":
-      return <ReviewForm dealId={deal.id} portfolioConsent={isEnabled("dealPortfolio")} />;
+      return deal.dispute && <ButtonLink href={`/operator/disputes/${deal.dispute.id}`} fullWidth>{t.actions.resolveDispute}</ButtonLink>;
     default:
       return null;
   }

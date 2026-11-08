@@ -5,7 +5,7 @@ import { Handshake } from "lucide-react";
 import { listDeals, type DealListItem } from "@/modules/deal-core";
 import { getCurrentUser, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
-import { Card, Container, EmptyState, Money, PageHeader, StatusBadge } from "@/ui";
+import { Card, Container, DealProgress, EmptyState, Money, PageHeader, StatusBadge } from "@/ui";
 import { DEAL_TONE } from "./_parts/labels";
 
 const t = ru.deal;
@@ -18,7 +18,7 @@ function dealHref(user: CurrentUser, d: DealListItem): string {
   return d.myRole && d.myRole !== user.role ? switchRoleHref(d.myRole, path) : path;
 }
 
-/** Список сделок: человек видит свои в обеих ролях (с пометкой, если ролей две), оператор — все. */
+/** Список сделок: карточки с ходом сделки; человек видит свои в обеих ролях (с пометкой, если ролей две), оператор — все. */
 export default async function DealsPage() {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent("/deals")}`);
@@ -27,7 +27,7 @@ export default async function DealsPage() {
   const showRole = user.roles.length > 1;
 
   return (
-    <Container size="form">
+    <Container>
       <PageHeader title={t.listTitle} back={{ href: "/" }} />
       {deals.length === 0 ? (
         <EmptyState
@@ -36,19 +36,23 @@ export default async function DealsPage() {
           description={user.role === "EXECUTOR" ? t.listEmptyExecutor : t.listEmptyClient}
         />
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-4 pb-10 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
           {deals.map((d) => (
             <Card as="li" key={d.id} titleAs="h2" title={t.number(d.number)} description={d.title}>
               <div className="flex flex-col gap-3">
-                <StatusBadge tone={DEAL_TONE[d.status]}>{t.status[d.status]}</StatusBadge>
+                <StatusBadge tone={DEAL_TONE[d.status]} className="self-start">
+                  {t.status[d.status]}
+                </StatusBadge>
+                {/* Открытый спор — по журналу денег: он замораживает выплату. */}
+                <DealProgress status={d.status} hasOpenDispute={d.money.kind === "frozen"} />
                 {showRole && d.myRole && <p className="text-lg font-semibold text-ink">{t.youAre[d.myRole]}</p>}
-                <p className="text-lg font-semibold text-ink">
-                  <Money amount={d.estimate.totalTiyn} />
+                <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <span className="text-base text-muted">{(d.myRole ?? user.role) === "EXECUTOR" ? t.clientLabel : d.executorLabel}</span>
+                  <Money amount={d.estimate.totalTiyn} className="text-lg font-bold text-ink" />
                 </p>
-                <p className="text-base text-muted">{(d.myRole ?? user.role) === "EXECUTOR" ? t.clientLabel : d.executorLabel}</p>
                 <Link
                   href={dealHref(user, d)}
-                  className="inline-flex min-h-control-sm items-center self-start rounded-control text-lg font-semibold text-accent underline-offset-4 hover:underline"
+                  className="inline-flex min-h-control-sm items-center self-start rounded-control text-lg font-semibold text-primary underline-offset-4 hover:underline"
                   aria-label={`${t.listOpen}: ${t.number(d.number)}`}
                 >
                   {t.listOpen}

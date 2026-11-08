@@ -5,17 +5,9 @@ import { ru } from "@/i18n/ru";
 import { formatDate, formatDateTime, formatDays, formatMonths, formatTiyn } from "@/ui/format";
 
 /**
- * Чистые правила экрана сделки: шаг шкалы «Ход сделки», смета до оплаты, главное фото, строка геолокации сдачи.
+ * Чистые правила экрана сделки: смета до оплаты, главное фото, строка геолокации сдачи.
  * Без React — проверяются юнит-тестом.
  */
-
-/** Шаги ru.deal.view.steps: оферта, оплата, работа, сдача, приёмка, выплата. Конечные отмена и возврат — без шкалы. */
-const STEP: Partial<Record<DealStatus, number>> = { PAID_HOLD: 2, IN_PROGRESS: 3, READY: 4, ACCEPTED: 5, SPLIT_PAYOUT: 5 };
-
-export function dealStep(status: DealStatus, signed: boolean): number | null {
-  if (status === "CREATED") return signed ? 1 : 0;
-  return STEP[status] ?? null;
-}
 
 export type EstimateRow = { label: string; value: string; total: boolean };
 

@@ -118,6 +118,31 @@ export function nextStep(page: Page): Locator {
   return page.locator("section").filter({ has: page.getByRole("heading", { name: "Что дальше", exact: true }) });
 }
 
+/**
+ * Единственное действие текущего шага сделки (StickyAction): на телефоне закреплено у нижнего края,
+ * на десктопе — в правой колонке под деньгами. Формы шага (сдача работы, отзыв) остаются в «Что дальше».
+ */
+export function stepAction(page: Page): Locator {
+  return page.getByRole("main").locator("[data-sticky-action]");
+}
+
+/** Нет горизонтальной прокрутки страницы. */
+export async function expectNoHorizontalScroll(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+}
+
+/** Узкий экран и крупный шрифт: 320 px и 200 % — страница не уезжает вбок. */
+export async function expectFitsAt320And200(page: Page, path: string): Promise<void> {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(path);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  await page.waitForTimeout(200);
+  await expectNoHorizontalScroll(page);
+}
+
 /** Блок денег — первый блок карточки сделки (заголовок «Деньги» для диктора). */
 export function moneyBlock(page: Page): Locator {
   return page.getByRole("region", { name: "Деньги", exact: true });
@@ -153,12 +178,12 @@ export function amount(tiyn: bigint): RegExp {
 // ── Подписи ──
 
 /**
- * Подпись документа сделки: ссылка главного действия («Подписать оферту», «Подписать акт», «Подписать акт ЭЦП»)
- * ведёт к панели документа. Шаг 1 (если нужен) — собственноручно, «Напечатать имя»; шаг 2 — ЭЦП через мок eGov QR.
+ * Подпись документа сделки: ссылка главного действия шага в StickyAction («Подписать оферту», «Подписать акт»,
+ * «Подписать акт ЭЦП») ведёт к панели документа. Шаг 1 (если нужен) — собственноручно, «Напечатать имя»; шаг 2 — ЭЦП через мок eGov QR.
  * dblclick — двойное нажатие на каждой кнопке подписи. Возвращает панель документа.
  */
 export async function signFromNextStep(page: Page, link: string, opts: { doubleClick?: boolean; expectHand?: boolean } = {}): Promise<Locator> {
-  const go = nextStep(page).getByRole("link", { name: link, exact: true });
+  const go = stepAction(page).getByRole("link", { name: link, exact: true });
   const anchor = await go.getAttribute("href");
   if (!anchor?.startsWith("#doc-")) throw new Error(`Неожиданная ссылка на документ: ${anchor}`);
   await go.click();

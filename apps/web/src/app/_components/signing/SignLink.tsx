@@ -21,6 +21,8 @@ export function SignLink({ documentId, variant = "primary", fullWidth = false, i
     <a
       href={`#${signingAnchorId(documentId)}`}
       className={buttonClasses({ variant, fullWidth })}
+      // Как у Button: заливная главная кнопка помечена для проверки «одно главное действие на экране».
+      data-primary-action={variant === "primary" ? true : undefined}
       onClick={() => requestAnimationFrame(() => document.getElementById(signingTitleId(documentId))?.focus({ preventScroll: true }))}
     >
       {icon && (

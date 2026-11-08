@@ -1,26 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { GeolocationError } from "@/app/_components/geolocation";
 import { ru } from "@/i18n/ru";
-import { dealStep, disputeFacts, estimateRows, gpsNote, heroImage, needsPosition, orderFacts, readyFarWarning, readyWaitText } from "./deal-view";
+import { disputeFacts, estimateRows, gpsNote, heroImage, needsPosition, orderFacts, readyFarWarning, readyWaitText } from "./deal-view";
 
 const plain = (s: string) => s.replace(/ /g, " ");
-
-describe("шкала хода сделки в «Подробнее о заказе»", () => {
-  it("оферта, оплата, работа, сдача, приёмка, выплата — по статусу и подписи оферты", () => {
-    expect(dealStep("CREATED", false)).toBe(0);
-    expect(dealStep("CREATED", true)).toBe(1);
-    expect(dealStep("PAID_HOLD", true)).toBe(2);
-    expect(dealStep("IN_PROGRESS", true)).toBe(3);
-    expect(dealStep("READY", true)).toBe(4);
-    expect(dealStep("ACCEPTED", true)).toBe(5);
-    expect(dealStep("SPLIT_PAYOUT", true)).toBe(5);
-  });
-
-  it("отменённая сделка и возврат — без шкалы", () => {
-    expect(dealStep("CANCELLED", false)).toBeNull();
-    expect(dealStep("REFUNDED", true)).toBeNull();
-  });
-});
 
 describe("смета до оплаты (ТЗ п. 5)", () => {
   it("покупатель: стоимость заказа, защита сделки 2%, итого к оплате", () => {

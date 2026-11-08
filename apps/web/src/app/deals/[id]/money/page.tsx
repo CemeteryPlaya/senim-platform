@@ -35,9 +35,9 @@ export default async function MoneyHistoryPage({ params }: { params: Promise<{ i
           {ru.deal.view.moneyOperations}
         </h2>
         {deal.moneyHistory.length === 0 ? (
-          <p className="text-base text-muted">{h.empty}</p>
+          <p className="rounded-card border border-line bg-surface p-4 text-base text-muted">{h.empty}</p>
         ) : (
-          <ol className="flex flex-col divide-y divide-line border-y border-line">
+          <ol className="flex flex-col divide-y divide-line rounded-card border border-line bg-surface px-4 sm:px-5">
             {deal.moneyHistory.map((item) => (
               <li key={item.id} className="flex flex-col gap-1 py-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">

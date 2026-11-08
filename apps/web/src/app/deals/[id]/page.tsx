@@ -13,12 +13,12 @@ import { getCurrentUser, requireIntroduced, switchRoleHref, type CurrentUser } f
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
-import { Container, PageHeader, StatusBadge } from "@/ui";
+import { Container, DealProgress, DetailColumns, PageHeader, SignedBadge, StatusBadge } from "@/ui";
 import { DEAL_TONE } from "../_parts/labels";
 import { Estimate, MoneyBlock } from "./_parts/MoneyBlock";
-import { NextStep } from "./_parts/NextStep";
+import { NextStep, stepAction } from "./_parts/NextStep";
 import { OrderDetails } from "./_parts/OrderDetails";
-import { CancelDeal, DisputeSection, EventsSection, ProgressSection, ReadySection, Section } from "./_parts/Sections";
+import { CancelDeal, DisputeSection, EventsSection, ProgressSection, ReadySection, Section, SECTION_CARD } from "./_parts/Sections";
 
 const t = ru.deal;
 
@@ -51,9 +51,10 @@ async function loadOrSwitchRole(user: CurrentUser, id: string): Promise<DealView
 }
 
 /**
- * Карточка сделки (ТЗ п. 4.1, 9) — общая для покупателя, мастера и оператора. Первый блок — деньги из журнала
- * (тап — «История денег»), до оплаты — смета; затем «Что дальше» с единственным главным действием (deal-core.nextStep);
- * «Подробнее о заказе» свёрнуто. Ниже — сдача, ход работ, документы, контакты, чат, спор, история событий.
+ * Карточка сделки (ТЗ п. 4.1, 9; макет b-plus-a, экран 3) — общая для покупателя, мастера и оператора. Сверху — ход
+ * сделки (5 шагов; отмена и возврат — плашка), затем деньги из журнала (тап — «История денег»; до оплаты — смета),
+ * подпись оферты ЭЦП, текущее событие «Что дальше» и сдача работы; ниже — ход работ, документы, контакты, чат, спор,
+ * история событий. Единственное действие шага — в StickyAction (на десктопе — правая колонка под деньгами).
  */
 export default async function DealPage({ params }: Props) {
   const { id } = await params;
@@ -65,7 +66,7 @@ export default async function DealPage({ params }: Props) {
   const openDispute = deal.dispute?.status === "OPEN";
 
   return (
-    <Container size="form">
+    <Container className="pb-10">
       <PageHeader
         title={t.number(deal.number)}
         back={{ href: "/deals" }}
@@ -76,42 +77,53 @@ export default async function DealPage({ params }: Props) {
           </span>
         }
       />
-      <div className="flex flex-col gap-6 pb-10">
-        {deal.viewer === "OPERATOR" && <p className="text-base text-muted">{t.view.operatorWatch}</p>}
-        <MoneyBlock deal={deal} />
-        <Estimate deal={deal} />
-        <NextStep deal={deal} />
-        {/* Сценарии до договора (ADR-005) — под флагом preContractFlows, только пока оферта не исполняется. */}
-        {isEnabled("preContractFlows") && deal.status === "CREATED" && <DealFlowSteps user={user} offerId={deal.offerId} />}
-        <OrderDetails deal={deal} now={new Date()} />
-        <ReadySection deal={deal} />
-        <ProgressSection deal={deal} />
-        {/* Документы (ТЗ п. 7): список с «Открыть / Скачать / Поделиться» и панели подписи — якорь #doc-<id> для «Подписать». */}
-        <div className="flex flex-col gap-6 border-t border-line pt-6">
-          <DealDocuments documents={docs} linkTtlHours={LINK_TTL_HOURS} signLinks />
-          {docs
-            .filter((d) => d.signable)
-            .map((d) => (
-              <div id={signingAnchorId(d.id)} key={d.id} className="scroll-mt-6">
-                <SigningPanel document={d} titleAs="h3" signerName={user.fullName ?? undefined} />
+      <DetailColumns
+        lead={<DealProgress status={deal.status} hasOpenDispute={openDispute} />}
+        aside={
+          <>
+            <MoneyBlock deal={deal} />
+            <Estimate deal={deal} />
+          </>
+        }
+        main={
+          <>
+            {deal.viewer === "OPERATOR" && <p className="text-base text-muted">{t.view.operatorWatch}</p>}
+            {deal.dates.signedAt && deal.contract && <SignedBadge signedAt={deal.dates.signedAt} documentNumber={deal.contract.number} />}
+            <NextStep deal={deal} />
+            <ReadySection deal={deal} />
+            {/* Сценарии до договора (ADR-005) — под флагом preContractFlows, только пока оферта не исполняется. */}
+            {isEnabled("preContractFlows") && deal.status === "CREATED" && <DealFlowSteps user={user} offerId={deal.offerId} />}
+            <OrderDetails deal={deal} now={new Date()} />
+            <ProgressSection deal={deal} />
+            {/* Документы (ТЗ п. 7): список с «Открыть / Скачать / Поделиться» и панели подписи — якорь #doc-<id> для «Подписать». */}
+            <div className="flex flex-col gap-6">
+              <div className={SECTION_CARD}>
+                <DealDocuments documents={docs} linkTtlHours={LINK_TTL_HOURS} signLinks />
               </div>
-            ))}
-        </div>
-        <DealContacts dealId={deal.id} className="border-t border-line pt-6" />
-        <div className="border-t border-line pt-6">
-          <OfferChat offerId={deal.offerId} />
-        </div>
-        <DisputeSection deal={deal} />
-        {deal.review && (
-          <Section id="review" title={t.sections.review}>
-            <p className="text-lg font-semibold text-ink">{t.review.stars(deal.review.rating)}</p>
-            {deal.review.text && <p className="text-base text-ink">{deal.review.text}</p>}
-          </Section>
-        )}
-        {isEnabled("dealPortfolio") && <DealPortfolioPanel user={user} dealId={deal.id} />}
-        <EventsSection deal={deal} />
-        <CancelDeal deal={deal} />
-      </div>
+              {docs
+                .filter((d) => d.signable)
+                .map((d) => (
+                  <div id={signingAnchorId(d.id)} key={d.id} className="scroll-mt-6">
+                    <SigningPanel document={d} titleAs="h3" signerName={user.fullName ?? undefined} />
+                  </div>
+                ))}
+            </div>
+            <DealContacts dealId={deal.id} className={SECTION_CARD} />
+            <OfferChat offerId={deal.offerId} />
+            <DisputeSection deal={deal} />
+            {deal.review && (
+              <Section id="review" title={t.sections.review}>
+                <p className="text-lg font-semibold text-ink">{t.review.stars(deal.review.rating)}</p>
+                {deal.review.text && <p className="text-base text-ink">{deal.review.text}</p>}
+              </Section>
+            )}
+            {isEnabled("dealPortfolio") && <DealPortfolioPanel user={user} dealId={deal.id} />}
+            <EventsSection deal={deal} />
+            <CancelDeal deal={deal} />
+          </>
+        }
+        action={stepAction(deal)}
+      />
     </Container>
   );
 }

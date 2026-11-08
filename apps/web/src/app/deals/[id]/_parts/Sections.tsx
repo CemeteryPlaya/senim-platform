@@ -2,7 +2,7 @@ import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 import type { DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
-import { Alert, DateText, StatusBadge } from "@/ui";
+import { Alert, cn, DateText, StatusBadge } from "@/ui";
 import { ActionButton } from "../../_parts/ActionButton";
 import { cancelDealAction } from "../actions";
 import { DisputePositionForm, OpenDisputeForm } from "./DealForms";
@@ -12,9 +12,12 @@ import { ProgressForm } from "./WorkForms";
 
 const t = ru.deal;
 
+/** Белая карточка блока сделки на сером фоне (вид «B + A»). */
+export const SECTION_CARD = "rounded-card border border-line bg-surface p-4 sm:p-5";
+
 export function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={`${id}-title`} className="flex flex-col gap-4 border-t border-line pt-6">
+    <section aria-labelledby={`${id}-title`} className={cn("flex flex-col gap-4", SECTION_CARD)}>
       <h2 id={`${id}-title`} className="text-xl font-bold text-ink">
         {title}
       </h2>
@@ -113,7 +116,7 @@ export function DisputeSection({ deal }: { deal: DealView }) {
   const d = deal.dispute;
   if (!d) {
     return deal.can.openDispute ? (
-      <div className="border-t border-line pt-6">
+      <div className={SECTION_CARD}>
         <Disclosure summary={t.actions.openDispute}>
           <OpenDisputeForm dealId={deal.id} />
         </Disclosure>
@@ -160,7 +163,7 @@ export function CancelDeal({ deal }: { deal: DealView }) {
 export function EventsSection({ deal }: { deal: DealView }) {
   const h = t.history;
   return (
-    <div className="border-t border-line pt-6">
+    <div className={SECTION_CARD}>
       <Disclosure summary={t.sections.events}>
         {deal.history.length === 0 ? (
           <p className="text-base text-muted">{h.empty}</p>

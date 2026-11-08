@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { pdfText } from "./pdf-text";
-import { expectDealStatus, loginAs, nextStep, openDeal, P, phone, POINT, reseed, signFromNextStep, submitReady } from "./support";
+import { expectDealStatus, loginAs, nextStep, openDeal, P, phone, POINT, reseed, signFromNextStep, stepAction, submitReady } from "./support";
 
 /**
  * Критерий ТЗ 6: GPS вне радиуса предупреждает, но не блокирует сдачу. Сделка №6 сида — IN_PROGRESS,
@@ -26,7 +26,7 @@ test("сдача вдали от адреса: предупреждение, р�
   const ready = master.getByRole("region", { name: "Сдача работы" });
   await expect(ready.getByRole("alert").or(ready.getByRole("status")).first()).toContainText(/Сдано в \d[\d\s]* м от адреса заказа — дальше 500 м\./);
   await expectDealStatus(master, "Работа сдана, ждёт приёмки");
-  await expect(nextStep(master).getByRole("link", { name: "Подписать акт ЭЦП" })).toBeVisible();
+  await expect(stepAction(master).getByRole("link", { name: "Подписать акт ЭЦП" })).toBeVisible();
   await ctx.close();
 });
 
@@ -35,7 +35,7 @@ test("покупатель видит предупреждение о расст
   const dealPath = await openDeal(page, 6);
   await expectDealStatus(page, "Работа сдана, ждёт приёмки");
   await expect(page.getByRole("region", { name: "Сдача работы" })).toContainText(/Сдано в \d[\d\s]* м от адреса заказа — дальше 500 м\./);
-  await expect(nextStep(page).getByRole("link", { name: "Подписать акт" })).toBeVisible();
+  await expect(stepAction(page).getByRole("link", { name: "Подписать акт" })).toBeVisible();
   const act = page.getByRole("region", { name: /^Акт приёмки № / });
   const href = await act.getByRole("link", { name: /^Открыть PDF/ }).getAttribute("href");
   const res = await page.request.get(href ?? "");

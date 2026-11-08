@@ -19,6 +19,7 @@ import {
   replay,
   reseed,
   signFromNextStep,
+  stepAction,
   submitReady,
 } from "./support";
 
@@ -148,7 +149,7 @@ test("полная сделка: покупатель, мастер и опер�
   // ── 7. Оплата двойным кликом: одна операция HOLD в обработке ──
   await buyer.goto(dealPath);
   await expect(nextStep(buyer)).toContainText("Оферта заключена. Оплатите заказ");
-  const pay = nextStep(buyer).getByRole("button", { name: /^Оплатить/ });
+  const pay = stepAction(buyer).getByRole("button", { name: /^Оплатить/ });
   await expect(pay).toContainText(amount(M.buyerTotal));
   const payRequest = await captureAction(buyer, () => pay.dblclick());
   await expect(moneyBlock(buyer)).toContainText("Оплата в обработке");
@@ -184,7 +185,7 @@ test("полная сделка: покупатель, мастер и опер�
 
   // ── 9. Мастер начинает работу ──
   await expect(nextStep(master)).toContainText("Деньги покупателя в банке — можно начинать работу");
-  await nextStep(master).getByRole("button", { name: "Начать работу" }).dblclick();
+  await stepAction(master).getByRole("button", { name: "Начать работу" }).dblclick();
   await expect(nextStep(master)).toContainText("Когда закончите, сдайте работу с фото результата");
   await buyer.goto(dealPath);
   await expectDealStatus(buyer, "Идут работы");

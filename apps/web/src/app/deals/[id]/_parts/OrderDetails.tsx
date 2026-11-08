@@ -1,9 +1,9 @@
 import { ChevronDown } from "lucide-react";
 import { daysLeft, type DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
-import { formatDays, Stepper } from "@/ui";
+import { formatDays, KeyValueList } from "@/ui";
 import { illustrationFor } from "@/app/_home/illustration";
-import { dealStep, heroImage, orderFacts } from "./deal-view";
+import { heroImage, orderFacts } from "./deal-view";
 
 const v = ru.deal.view;
 
@@ -11,8 +11,8 @@ const v = ru.deal.view;
 const COUNTING = new Set<DealView["status"]>(["PAID_HOLD", "IN_PROGRESS"]);
 
 /**
- * «Подробнее о заказе» (решение 2.1.5): всё, что раньше стояло наверху — фото, мастер, сроки, гарантия, шкала хода
- * сделки, «Осталось N дней», — свёрнуто под блоком денег. Нативный <details>: клавиатура и диктор без скриптов.
+ * «Подробнее о заказе» (решение 2.1.5): фото, мастер, сроки, гарантия, «Осталось N дней» — свёрнуто под текущим
+ * событием (ход сделки — DealProgress наверху экрана). Нативный <details>: клавиатура и диктор без скриптов.
  */
 export function OrderDetails({ deal, now }: { deal: DealView; now: Date }) {
   const image = heroImage({
@@ -21,7 +21,6 @@ export function OrderDetails({ deal, now }: { deal: DealView; now: Date }) {
     room: deal.subject.roomPhotos,
     illustration: illustrationFor(deal.title),
   });
-  const step = dealStep(deal.status, deal.dates.signedAt !== null);
   const planned = deal.dates.plannedReadyAt;
   const left = planned && COUNTING.has(deal.status) ? daysLeft(planned, now) : null;
   const rows = orderFacts({
@@ -35,7 +34,7 @@ export function OrderDetails({ deal, now }: { deal: DealView; now: Date }) {
   });
 
   return (
-    <details className="group border-y border-line">
+    <details className="group rounded-card border border-line bg-surface px-4">
       <summary className="flex min-h-control cursor-pointer list-none items-center justify-between gap-3 py-3 text-lg font-bold text-ink [&::-webkit-details-marker]:hidden">
         {ru.deal.sections.details}
         <ChevronDown aria-hidden className="size-6 shrink-0 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
@@ -48,15 +47,7 @@ export function OrderDetails({ deal, now }: { deal: DealView; now: Date }) {
         )}
         <h3 className="text-xl font-bold break-words text-ink">{deal.title}</h3>
         {left !== null && <p className="text-lg font-bold text-ink">{v.daysLeft(formatDays(left))}</p>}
-        {step !== null && <Stepper steps={v.steps} current={step} label={v.stepsLabel} />}
-        <dl className="flex flex-col divide-y divide-line">
-          {rows.map((row) => (
-            <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5 text-base">
-              <dt className="text-muted">{row.label}</dt>
-              <dd className="text-ink">{row.value}</dd>
-            </div>
-          ))}
-        </dl>
+        <KeyValueList rows={rows} />
       </div>
     </details>
   );
