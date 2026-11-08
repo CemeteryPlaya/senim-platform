@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	batchSize      = 100
-	idleDelay      = 200 * time.Millisecond
-	errorDelay     = time.Second
+	batchSize  = 100
+	idleDelay  = 200 * time.Millisecond
+	errorDelay = time.Second
 	// batchTimeout меньше idle_in_transaction_session_timeout рабочей роли (30 с, tools/dbinit):
 	// транзакция батча простаивает, пока идут публикации, и Postgres не должен оборвать её сам.
 	batchTimeout   = 20 * time.Second
