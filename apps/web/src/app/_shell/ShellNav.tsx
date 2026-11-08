@@ -8,6 +8,7 @@ import { ru } from "@/i18n/ru";
 import { cn } from "@/ui";
 import { NAV_ICONS as ICONS } from "./icons";
 import { currentItem, splitNav, type NavItem } from "./nav";
+import { NavGroupItems } from "./NavGroupItems";
 
 /** Нижняя панель: все вкладки роли (до 5, как в макетах), пока каждой хватает ширины на подпись. */
 const BAR_CELLS = 5;
@@ -138,7 +139,21 @@ export function MobileMenu({ items }: { items: readonly NavItem[] }) {
           </>
         }
       >
-        <MoreItems items={items} current={current} />
+        {/* Те же группы, что в боковом меню десктопа. */}
+        <NavGroupItems
+          items={items}
+          renderItem={(item) => {
+            const Icon = ICONS[item.icon];
+            return (
+              <li key={item.href}>
+                <Link href={item.href} aria-current={current(item)} className={menuLink}>
+                  <Icon aria-hidden className="size-6 shrink-0" />
+                  {item.label}
+                </Link>
+              </li>
+            );
+          }}
+        />
       </MoreMenu>
     </nav>
   );

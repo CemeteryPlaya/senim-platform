@@ -7,6 +7,7 @@ import { ru } from "@/i18n/ru";
 import { ButtonLink } from "@/ui";
 import { NAV_ICONS as ICONS } from "./icons";
 import { currentItem, type NavItem } from "./nav";
+import { NavGroupItems } from "./NavGroupItems";
 
 const itemClass =
   "flex min-h-control items-center gap-3 rounded-control px-4 text-base font-semibold text-ink no-underline hover:bg-sunken aria-[current=page]:bg-accent-soft aria-[current=page]:text-primary";
@@ -14,7 +15,7 @@ const itemClass =
 /**
  * Боковое меню на десктопе (≥ 1024 px): фиксированная колонка 240 px — логотип, вкладки роли, остальные разделы
  * и кнопка главного действия роли внизу списка. До 1024 px скрыто: там нижняя панель (MobileTabBar).
- * items — вкладки, more — остальные разделы, primary — действие роли (у заказчика «Заявка»).
+ * items — вкладки, more — остальные разделы (с группами, если они заданы), primary — действие роли (у заказчика «Заявка»).
  */
 export function SideNav({ items, more, primary }: { items: readonly NavItem[]; more: readonly NavItem[]; primary?: NavItem }) {
   const pathname = usePathname();
@@ -24,18 +25,17 @@ export function SideNav({ items, more, primary }: { items: readonly NavItem[]; m
 
   const PrimaryIcon = ICONS[primary?.icon ?? "plus"];
 
-  const list = (entries: readonly NavItem[]) =>
-    entries.map((item) => {
-      const Icon = ICONS[item.icon];
-      return (
-        <li key={item.href}>
-          <Link href={item.href} aria-current={item === active ? "page" : undefined} className={itemClass}>
-            <Icon aria-hidden className="size-6 shrink-0" />
-            {item.label}
-          </Link>
-        </li>
-      );
-    });
+  const entry = (item: NavItem) => {
+    const Icon = ICONS[item.icon];
+    return (
+      <li key={item.href}>
+        <Link href={item.href} aria-current={item === active ? "page" : undefined} className={itemClass}>
+          <Icon aria-hidden className="size-6 shrink-0" />
+          {item.label}
+        </Link>
+      </li>
+    );
+  };
 
   return (
     <nav
@@ -46,8 +46,13 @@ export function SideNav({ items, more, primary }: { items: readonly NavItem[]; m
         <ShieldCheck aria-hidden className="size-7 shrink-0 text-primary" />
         <span className="text-xl leading-tight font-extrabold text-ink">{ru.common.brand}</span>
       </Link>
-      <ul className="flex flex-col gap-1">{list(items)}</ul>
-      {more.length > 0 && <ul className={`flex flex-col gap-1 ${items.length > 0 ? "border-t border-line pt-4" : ""}`}>{list(more)}</ul>}
+      {items.length > 0 && <ul className="flex flex-col gap-1">{items.map(entry)}</ul>}
+      {/* Остальные разделы; у оператора — по группам с подписями (NavItem.group). */}
+      {more.length > 0 && (
+        <ul className={`flex flex-col gap-1 ${items.length > 0 ? "border-t border-line pt-4" : ""}`}>
+          <NavGroupItems items={more} renderItem={entry} />
+        </ul>
+      )}
       {primary && (
         <div className="mt-auto pt-2">
           {/* Мятная, не заливная: заливная главная кнопка на экране одна — своя у каждой страницы (data-primary-action). */}

@@ -24,10 +24,25 @@ export type NavIcon =
   | "demo"
   | "chat"
   | "plus"
-  | "login";
+  | "login"
+  | "money"
+  | "kyc"
+  | "executors"
+  | "disputes"
+  | "staleRequests"
+  | "types"
+  | "materials"
+  | "audit"
+  | "income"
+  | "report"
+  | "settings"
+  | "reset";
 
-/** primary — центральное действие нижней панели (у заказчика — «Заявка»); не более одного на роль. */
-export type NavItem = { href: string; label: string; icon: NavIcon; primary?: true };
+/** Группа разделов в меню (у оператора их много): подпись группы — над её пунктами. */
+export type NavGroup = "queues" | "dealsReports" | "reference";
+
+/** primary — центральное действие нижней панели (у заказчика — «Заявка»); не более одного на роль. group — группа в меню. */
+export type NavItem = { href: string; label: string; icon: NavIcon; primary?: true; group?: NavGroup };
 
 /** Вкладки — на виду всегда; more — в «Ещё» на компьютере и списком на странице профиля. */
 export type RoleNav = { tabs: NavItem[]; more: NavItem[] };
@@ -39,9 +54,13 @@ export type NavUser = {
 };
 
 /** Флаги (platform/features), от которых зависят пункты меню: выключенный раздел в меню не показывается. */
-export type NavFeatures = { preContractFlows: boolean; inspiration: boolean };
+export type NavFeatures = { preContractFlows: boolean; inspiration: boolean; materialsCalculator: boolean };
 
 const t = ru.common.nav;
+const op = ru.operator.nav;
+
+/** Подписи групп меню. */
+export const NAV_GROUP_LABELS: Record<NavGroup, string> = ru.operator.navGroups;
 
 /** Страница профиля: аккаунт, роль, установка приложения, «Выйти» и разделы, которых нет во вкладках. */
 export const ACCOUNT_HREF = "/profile";
@@ -71,6 +90,20 @@ const ROUTES = {
   newRequest: { href: "/requests/new", label: t.newRequest, icon: "plus", primary: true },
   // Раздел чатов делает отдельная задача; пока вкладка ведёт на будущий адрес.
   chat: { href: "/chats", label: t.chat, icon: "chat" },
+  // Разделы оператора: рабочее место — десктоп, всё в боковом меню по группам.
+  opMoney: { href: "/operator/money", label: op.money, icon: "money", group: "queues" },
+  opKyc: { href: "/operator/kyc", label: op.kyc, icon: "kyc", group: "queues" },
+  opExecutors: { href: "/operator/executors", label: op.executors, icon: "executors", group: "queues" },
+  opDisputes: { href: "/operator/disputes", label: op.disputes, icon: "disputes", group: "queues" },
+  opRequests: { href: "/operator/requests", label: op.requests, icon: "staleRequests", group: "queues" },
+  opDeals: { href: "/operator/deals", label: op.deals, icon: "deals", group: "dealsReports" },
+  opIncome: { href: "/operator/income", label: op.income, icon: "income", group: "dealsReports" },
+  opReport: { href: "/operator/report", label: op.report, icon: "report", group: "dealsReports" },
+  opAudit: { href: "/operator/audit", label: op.audit, icon: "audit", group: "dealsReports" },
+  opTypes: { href: "/operator/furniture-types", label: op.types, icon: "types", group: "reference" },
+  opMaterials: { href: "/operator/materials", label: ru.materials.nav, icon: "materials", group: "reference" },
+  opSettings: { href: "/operator/settings", label: op.settings, icon: "settings", group: "reference" },
+  opDemo: { href: "/operator/demo", label: op.demo, icon: "reset", group: "reference" },
 } satisfies Record<string, NavItem>;
 
 const R = ROUTES;
@@ -80,7 +113,11 @@ const FLAGGED: Partial<Record<NavItem["href"], keyof NavFeatures>> = {
   [R.inspiration.href]: "inspiration",
   [R.measurements.href]: "preContractFlows",
   [R.measurer.href]: "preContractFlows",
+  [R.opMaterials.href]: "materialsCalculator",
 };
+
+/** Пункты только для демо-режима (DEMO_MODE): страницы без него отдают 404. */
+const DEMO_ONLY: ReadonlySet<NavItem["href"]> = new Set([R.opDemo.href]);
 
 const allowed = (features: NavFeatures) => (item: NavItem) => {
   const flag = FLAGGED[item.href];
@@ -100,8 +137,17 @@ function roleNav(user: NavUser | null): RoleNav {
         ? { tabs: [R.incoming, R.orders, R.chat, R.finance, R.account], more: [R.measurements, R.company, R.portfolio, R.notifications] }
         : { tabs: [R.company, R.portfolio, R.account], more: [R.notifications] };
     case "OPERATOR":
-      // Вкладок нет: все разделы — в боковом меню.
-      return { tabs: [], more: [R.operator, R.deals, R.account] };
+      // Вкладок нет: все разделы — в боковом меню (на телефоне — «Меню» в шапке), по группам.
+      return {
+        tabs: [],
+        more: [
+          R.operator,
+          ...[R.opMoney, R.opKyc, R.opExecutors, R.opDisputes, R.opRequests],
+          ...[R.opDeals, R.opIncome, R.opReport, R.opAudit],
+          ...[R.opTypes, R.opMaterials, R.opSettings, R.opDemo],
+          R.account,
+        ],
+      };
     case "MEASURER":
       return { tabs: [R.measurer, R.chat, R.account], more: [R.notifications] };
   }
@@ -114,8 +160,20 @@ function roleNav(user: NavUser | null): RoleNav {
  */
 export function navFor(user: NavUser | null, demoMode: boolean, features: NavFeatures): RoleNav {
   const nav = roleNav(user);
-  const shown = allowed(features);
+  const flagOk = allowed(features);
+  const shown = (item: NavItem) => flagOk(item) && (demoMode || !DEMO_ONLY.has(item.href));
   return { tabs: nav.tabs.filter(shown), more: [...nav.more.filter(shown), ...(demoMode ? [R.bankDemo, R.demo] : [])] };
+}
+
+/** Подряд идущие пункты одной группы — вместе: меню рисует группу списком с подписью, пункты без группы — как есть. */
+export function groupNav<T extends NavItem>(items: readonly T[]): { group?: NavGroup; items: T[] }[] {
+  const runs: { group?: NavGroup; items: T[] }[] = [];
+  for (const item of items) {
+    const last = runs.at(-1);
+    if (last && last.group === item.group) last.items.push(item);
+    else runs.push({ group: item.group, items: [item] });
+  }
+  return runs;
 }
 
 /** Насколько пункт подходит к адресу: -1 — не подходит; больше — точнее (длиннее путь, совпал параметр). */

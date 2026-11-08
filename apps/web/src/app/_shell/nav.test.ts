@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { currentItem, navFor, splitNav, type NavItem } from "./nav";
+import { currentItem, groupNav, navFor, splitNav, type NavItem } from "./nav";
 
 const tabs = (...args: Parameters<typeof navFor>) => navFor(...args).tabs.map((item) => item.href);
 const more = (...args: Parameters<typeof navFor>) => navFor(...args).more.map((item) => item.href);
 
 const CLIENT = { role: "CLIENT", executor: null } as const;
 /** По умолчанию в тестах флаги включены — проверяем полное меню; выключенные — отдельным тестом. */
-const ON = { preContractFlows: true, inspiration: true };
-const OFF = { preContractFlows: false, inspiration: false };
+const ON = { preContractFlows: true, inspiration: true, materialsCalculator: true };
+const OFF = { preContractFlows: false, inspiration: false, materialsCalculator: false };
 const EXECUTOR = { role: "EXECUTOR", executor: { status: "APPROVED" } } as const;
 
 const MEASURER = { role: "MEASURER", executor: null } as const;
@@ -56,11 +56,38 @@ describe("вкладки по роли («B + A»)", () => {
     expect(navFor(MEASURER, false, ON).tabs[0].label).toBe("Замеры");
   });
 
+  const OPERATOR_SECTIONS = [
+    "/operator/money",
+    "/operator/kyc",
+    "/operator/executors",
+    "/operator/disputes",
+    "/operator/requests",
+    "/operator/deals",
+    "/operator/income",
+    "/operator/report",
+    "/operator/audit",
+    "/operator/furniture-types",
+    "/operator/materials",
+    "/operator/settings",
+  ];
+
   it("оператор: вкладок нет, все разделы — в боковом меню; показ банку и демо — только в демо-режиме", () => {
     expect(tabs(OPERATOR, false, ON)).toEqual([]);
-    expect(more(OPERATOR, false, ON)).toEqual(["/operator", "/deals", "/profile"]);
-    expect(more(OPERATOR, true, ON)).toEqual(["/operator", "/deals", "/profile", "/bank-demo", "/demo"]);
+    expect(more(OPERATOR, false, ON)).toEqual(["/operator", ...OPERATOR_SECTIONS, "/profile"]);
+    expect(more(OPERATOR, true, ON)).toEqual(["/operator", ...OPERATOR_SECTIONS, "/operator/demo", "/profile", "/bank-demo", "/demo"]);
     expect(more(CLIENT, true, ON)).toContain("/bank-demo");
+    expect(more(CLIENT, true, ON)).not.toContain("/operator/demo");
+  });
+
+  it("оператор: разделы по группам — очереди, сделки и отчёты, справочники; «Оператор» и «Профиль» вне групп", () => {
+    const runs = groupNav(navFor(OPERATOR, true, ON).more).map((run) => [run.group ?? null, run.items.map((item) => item.href)]);
+    expect(runs).toEqual([
+      [null, ["/operator"]],
+      ["queues", OPERATOR_SECTIONS.slice(0, 5)],
+      ["dealsReports", OPERATOR_SECTIONS.slice(5, 9)],
+      ["reference", [...OPERATOR_SECTIONS.slice(9), "/operator/demo"]],
+      [null, ["/profile", "/bank-demo", "/demo"]],
+    ]);
   });
 
   it("у каждого пункта есть подпись и иконка, подписи в одной роли не повторяются", () => {
@@ -83,6 +110,11 @@ describe("разделы за флагами", () => {
     expect(more(CLIENT, false, OFF)).toEqual(["/requests", "/catalog", "/notifications"]);
     expect(more(EXECUTOR, false, OFF)).toEqual(["/executor/profile", "/executor/portfolio", "/notifications"]);
     expect(more(EXECUTOR, true, OFF)).toEqual(["/executor/profile", "/executor/portfolio", "/notifications", "/bank-demo", "/demo"]);
+  });
+
+  it("оператор: справочник цен материалов — только с калькулятором материалов", () => {
+    expect(more(OPERATOR, false, OFF)).not.toContain("/operator/materials");
+    expect(more(OPERATOR, false, ON)).toContain("/operator/materials");
   });
 
   it("замерщик: «Замеры» — только при сценариях до договора (иначе страница — 404)", () => {

@@ -62,29 +62,24 @@ export const operator = {
 
   nav: {
     executors: "Исполнители",
-    executorsHint: "Очередь регистраций, сегменты, ручное добавление",
     kyc: "Проверка документов мастеров",
-    kycHint: "Удостоверение и регистрация ИП или ТОО",
     money: "Деньги в банке",
-    moneyHint: "Подтверждение операций по банковским документам",
     deals: "Сделки",
-    dealsHint: "Деньги, документы и пакет на раскрытие",
     income: "Доход платформы",
-    incomeHint: "Защита сделки 2% и гарантия оплаты 4% за период",
     settings: "Флаги и окружение",
-    settingsHint: "Что включено — только просмотр",
     types: "Типы мебели",
-    typesHint: "Справочник для заявок и портфолио",
     requests: "Заявки без откликов",
-    requestsHint: "Кому из заказчиков нужна помощь",
     disputes: "Споры",
-    disputesHint: "Очередь и решения",
     audit: "Журнал аудита",
-    auditHint: "Кто, что, когда и откуда",
     report: "Отчёт",
-    reportHint: "Сделки и операции журнала денег, расхождения",
     demo: "Демо-режим",
-    demoHint: "Сброс демо-данных",
+  },
+
+  /** Группы разделов в боковом меню и в «Меню» на телефоне. */
+  navGroups: {
+    queues: "Очереди",
+    dealsReports: "Сделки и отчёты",
+    reference: "Справочники и настройки",
   },
 
   dashboard: {
@@ -96,7 +91,14 @@ export const operator = {
     kyc: (n: number) => `${n} ${plural(n, "мастер ждёт", "мастера ждут", "мастеров ждут")} проверки документов`,
     allClearHint: "Операции банка, регистрации, споры и заявки без откликов появятся здесь.",
     todo: "Что требует внимания",
-    sections: "Разделы",
+    summary: "Сводка",
+    tiles: {
+      money: "Операций ждут документа банка",
+      registrations: "Регистраций на проверке",
+      disputes: "Открытых споров",
+      kyc: "Мастеров ждут проверки документов",
+      stale: "Заявок без откликов дольше суток",
+    },
   },
 
   executors: {
@@ -111,6 +113,7 @@ export const operator = {
     filter: { all: "Все", PENDING: "На проверке", APPROVED: "Подтверждённые", REJECTED: "Отклонённые" },
     filterEmpty: "Таких исполнителей нет",
     filterEmptyHint: "Выберите другой фильтр.",
+    columns: { executor: "Исполнитель", registration: "Регистрация", segment: "Сегмент", legal: "Форма и ИИН/БИН", registered: "Зарегистрирован" },
     experience: (years: number) => `Опыт: ${years} ${plural(years, "год", "года", "лет")}`,
     specializations: "Специализация",
     about: "О себе",
@@ -223,6 +226,7 @@ export const operator = {
     deal: (n: number) => `Сделка №${n}`,
     open: "Открыть",
     openedAt: "Открыт",
+    columns: { deal: "Сделка", status: "Статус", reason: "Причина", openedIn: "Этап при открытии", openedAt: "Открыт", price: "Цена по оферте" },
     openedIn: (status: string) => `Этап сделки при открытии: ${status}`,
     card: {
       title: (n: number) => `Спор по сделке №${n}`,
@@ -337,6 +341,7 @@ export const operator = {
     emptyHint: "Сделка появится, когда покупатель и мастер договорятся о цене.",
     disputeOpen: "Открыт спор",
     pending: (n: number) => `Ждут документа банка: ${n}`,
+    columns: { deal: "Сделка", status: "Статус", provider: "Провайдер оплаты", createdAt: "Создана" },
     card: {
       title: (n: number) => `Сделка №${n}`,
       summary: "Сделка",
@@ -438,6 +443,7 @@ export const operator = {
     providerNames: { mock: "тестовый (mock)", manual: "ручной: оператор по банковским документам", freedompay: "Freedom Pay, песочница" },
     providerNote: "Идущие сделки остаются со своим провайдером.",
     flags: "Флаги",
+    columns: { flag: "Флаг", envVar: "Переменная окружения", state: "Состояние" },
     flagsHint: "Выключенный флаг не удаляет код: он просто не показывается.",
     on: "включён",
     off: "выключен",
@@ -466,6 +472,7 @@ export const operator = {
     guarantee: "Гарантия оплаты 4%",
     total: "Итого доход",
     byDeal: "По сделкам",
+    dealColumn: "Сделка",
     empty: "За период подтверждённого дохода нет",
     deal: (n: number) => `Сделка №${n}`,
     settledAt: "Получен",
