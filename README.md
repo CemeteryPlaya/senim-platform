@@ -4,7 +4,7 @@
 
 ## Требования
 
-- Go (нижняя граница задана в `go.mod`; проверено на 1.27). Инструменты (`buf`, `sqlc`, `goose`, `golangci-lint`, `govulncheck`, генераторы protobuf и connect-go) подключены как `tool` в `go.mod`, отдельно ставить не нужно: `go tool buf ...`.
+- Go: минимум 1.26.7 (директива `go` в `go.mod`), сборка и CI — на `toolchain go1.27.3` из `go.mod` (Go сам скачает этот toolchain); образы сервисов собираются на `golang:1.27.3-bookworm` — тот же патч. Инструменты (`buf`, `sqlc`, `goose`, `golangci-lint`, `govulncheck`, генераторы protobuf и connect-go) подключены как `tool` в `go.mod`, отдельно ставить не нужно: `go tool buf ...`.
 - Docker с Compose v2.
 - Node.js и npm для `apps/web` (`npm --prefix apps/web ci`).
 

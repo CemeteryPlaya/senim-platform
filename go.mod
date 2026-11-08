@@ -2,6 +2,9 @@ module github.com/CemeteryPlaya/senim-platform
 
 go 1.26.7
 
+// Сборка, тесты, -race и govulncheck в CI и образы сервисов — на одном toolchain (Dockerfile: golang:1.27.3-bookworm).
+toolchain go1.27.3
+
 tool (
 	connectrpc.com/connect/v2/cmd/protoc-gen-connect-go
 	github.com/bufbuild/buf/cmd/buf
