@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect/v2"
-	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel"
 
 	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
@@ -118,12 +118,18 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	relayDone := make(chan error, 1)
 	go func() { relayDone <- outbox.NewRelay(pool, js, log).Run(relayCtx) }()
 
-	ready := func(ctx context.Context) error {
-		if nc.Status() != nats.CONNECTED {
-			return errors.New("nats: нет соединения")
-		}
-		return pool.Ping(ctx)
+	// Отставание outbox — метрики senim.outbox.* (алерт «события не уходят»).
+	unobserve, err := outbox.ObserveBacklog(pool, otel.Meter("github.com/CemeteryPlaya/senim-platform/pkg/outbox"))
+	if err != nil {
+		stopRelay()
+		return errors.Join(err, <-relayDone)
 	}
+	defer func() { _ = unobserve() }()
+
+	// Готовность — только база. NATS для синхронного пути не нужен: события копятся в
+	// outbox и уходят, когда NATS вернётся; потеря и возврат соединения — в лог (natsx),
+	// отставание — в метриках (правило ready — в документации server.Run).
+	ready := func(ctx context.Context) error { return pool.Ping(ctx) }
 	runErr := server.Run(ctx, server.Options{
 		Name:      Service,
 		GRPCAddr:  cfg.GRPCAddr,

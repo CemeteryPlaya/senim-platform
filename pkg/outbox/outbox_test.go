@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,6 +18,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -24,6 +28,7 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/internal/testdb"
 	"github.com/CemeteryPlaya/senim-platform/internal/testnats"
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
+	"github.com/CemeteryPlaya/senim-platform/pkg/logging"
 	"github.com/CemeteryPlaya/senim-platform/pkg/outbox"
 )
 
@@ -490,4 +495,109 @@ func TestRelayOutageDoesNotBurnAttempts(t *testing.T) {
 	if n := f.count(t, "published_at IS NULL AND attempts = 0 AND last_error IS NULL AND next_attempt_at <= now()"); n != 2 {
 		t.Fatalf("после сбоя связи нетронутых записей %d, ожидалось 2", n)
 	}
+}
+
+// Отставание outbox видно в метриках: число неопубликованных и возраст самой старой.
+func TestBacklogMetrics(t *testing.T) {
+	f := setup(t)
+	reader := sdkmetric.NewManualReader()
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = mp.Shutdown(context.Background()) })
+	unregister, err := outbox.ObserveBacklog(f.pool, mp.Meter("test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unregister() })
+
+	collect := func() (pending int64, age float64) {
+		t.Helper()
+		var rm metricdata.ResourceMetrics
+		if err := reader.Collect(context.Background(), &rm); err != nil {
+			t.Fatal(err)
+		}
+		for _, sm := range rm.ScopeMetrics {
+			for _, m := range sm.Metrics {
+				switch d := m.Data.(type) {
+				case metricdata.Gauge[int64]:
+					if m.Name == outbox.MetricPending {
+						pending = d.DataPoints[0].Value
+					}
+				case metricdata.Gauge[float64]:
+					if m.Name == outbox.MetricOldestAge {
+						age = d.DataPoints[0].Value
+					}
+				}
+			}
+		}
+		return pending, age
+	}
+	if p, a := collect(); p != 0 || a != 0 {
+		t.Fatalf("пустой outbox: pending=%d age=%v", p, a)
+	}
+	f.addCommitted(t, 3)
+	if _, err := f.owner.Exec(context.Background(), `UPDATE outbox SET created_at = now() - interval '90 seconds' WHERE id = (SELECT id FROM outbox ORDER BY id LIMIT 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if p, a := collect(); p != 3 || a < 89 || a > 120 {
+		t.Fatalf("три неопубликованных, старейшей 90 с: pending=%d age=%v", p, a)
+	}
+	if _, err := outbox.RunBatch(context.Background(), outbox.NewRelay(f.pool, f.js, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if p, a := collect(); p != 0 || a != 0 {
+		t.Fatalf("после публикации: pending=%d age=%v", p, a)
+	}
+}
+
+// Сбой NATS пишется в лог один раз, восстановление — одной записью; не раз в секунду.
+func TestRelayLogsStateChangesOnly(t *testing.T) {
+	f := setup(t)
+	f.addCommitted(t, 1)
+	nc, js, err := natsEnv.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var logs syncBuf
+	log := logging.New(&logs, "test", slog.LevelInfo)
+	nc.Close() // релей видит закрытое соединение: каждый батч — ошибка
+	stop := runRelay(t, outbox.NewRelay(f.pool, js, log))
+	time.Sleep(3500 * time.Millisecond) // ≥ 3 попытки с паузой 1 с
+	stop()
+	if n := strings.Count(logs.String(), "outbox: батч не опубликован"); n != 1 {
+		t.Fatalf("ошибок батча в логе %d, want 1 (только смена состояния):\n%s", n, logs.String())
+	}
+
+	// Тот же релей на живом соединении: восстановление — одной записью Info.
+	logs.Reset()
+	r := outbox.NewRelay(f.pool, f.js, log)
+	outbox.SetFailing(r)
+	stop = runRelay(t, r)
+	f.waitPublished(t)
+	stop()
+	if n := strings.Count(logs.String(), "outbox: публикация восстановлена"); n != 1 {
+		t.Fatalf("записей о восстановлении %d, want 1:\n%s", n, logs.String())
+	}
+}
+
+type syncBuf struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuf) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+func (s *syncBuf) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.b.Reset()
 }

@@ -90,6 +90,14 @@ type Options struct {
 // ready is called on every probe and health check, possibly concurrently: it must be
 // safe for concurrent use, cheap, and respect ctx cancellation.
 //
+// ready covers only what the synchronous path needs — normally the database ping. It
+// must not depend on NATS or the outbox relay: the outbox exists so that writes do not
+// need the broker, and a NATS restart must not take every replica of every service out
+// of the balancer (in Kubernetes a failed readiness removes all pods). Broker state goes
+// to the log on change (pkg/natsx) and relay lag to metrics (outbox.ObserveBacklog) for
+// an alert. A service that truly cannot work without NATS (a pure consumer) opts in
+// explicitly and says why.
+//
 // On stop Run first reports NOT_SERVING for DrainDelay while still accepting connections
 // (so the balancer can take the replica out), then drains in-flight RPCs. A second
 // SIGTERM/Ctrl-C skips the delay.

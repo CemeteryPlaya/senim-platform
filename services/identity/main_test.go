@@ -17,9 +17,15 @@ import (
 	"connectrpc.com/connect/v2/connecthttp"
 	"connectrpc.com/grpchealth/v2"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go/jetstream"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/CemeteryPlaya/senim-platform/internal/testdb"
 	"github.com/CemeteryPlaya/senim-platform/internal/testnats"
+	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
+	"github.com/CemeteryPlaya/senim-platform/pkg/natsx"
+	"github.com/CemeteryPlaya/senim-platform/pkg/outbox"
 	"github.com/CemeteryPlaya/senim-platform/pkg/server"
 	"github.com/CemeteryPlaya/senim-platform/pkg/tlsx"
 	"github.com/CemeteryPlaya/senim-platform/services/identity/internal"
@@ -83,6 +89,9 @@ func TestServeBecomesReady(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(nt.Terminate)
+	// identity ходит в NATS через прокси: тест обрывает и возвращает связь, сервер NATS и
+	// поток при этом живы (как перезапуск NATS или сетевой сбой).
+	proxy := startProxy(t, strings.TrimPrefix(nt.URL, "tls://"))
 	clientAs := func(name string) *http.Transport {
 		cert, key := issue(name)
 		cfg, err := tlsx.ClientConfig(cert, key, caFile)
@@ -99,7 +108,7 @@ func TestServeBecomesReady(t *testing.T) {
 		"APP_ENV":             "dev",
 		"IDENTITY_OWNER_DSN":  pg.OwnerDSN("identity"),
 		"IDENTITY_APP_DSN":    pg.AppDSN("identity"),
-		"NATS_URL":            nt.URL,
+		"NATS_URL":            "tls://" + proxy.addr,
 		"NATS_USER":           "identity",
 		"NATS_PASSWORD":       natsPassword(t),
 		"TLS_CERT_FILE":       srvCert,
@@ -178,28 +187,182 @@ func TestServeBecomesReady(t *testing.T) {
 		t.Fatalf("health чужого сервиса: %v, want not_found", err)
 	}
 
-	resp, err := http.Get("http://" + probeAddr + "/readyz") //nolint:noctx // test
+	if code := probe(t, probeAddr); code != http.StatusOK {
+		t.Fatalf("/readyz = %d", code)
+	}
+
+	// outbox/inbox созданы миграцией и доступны рабочей роли.
+	pool, err := dbx.Connect(ctx, vars["IDENTITY_APP_DSN"], "identity-test", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	for _, table := range []string{"outbox", "inbox"} {
+		var n int
+		if err := pool.QueryRow(ctx, "SELECT count(*) FROM "+table).Scan(&n); err != nil {
+			t.Fatalf("таблица %s: %v", table, err)
+		}
+	}
+
+	// Сбой NATS не снимает готовность: запись идёт в outbox, релей догонит (ADR-012, I3).
+	proxy.down()
+	var eventID string
+	if err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
+		var err error
+		eventID, err = outbox.Add(ctx, tx, "senim.identity.test_event", "google.protobuf.StringValue", wrapperspb.String("x"))
+		return err
+	}); err != nil {
+		t.Fatalf("outbox.Add: %v", err)
+	}
+	for range 5 {
+		if code := probe(t, probeAddr); code != http.StatusOK {
+			t.Fatalf("/readyz при недоступном NATS = %d, want 200\n%s", code, serveLogs.String())
+		}
+		rctx, rcancel := context.WithTimeout(ctx, 2*time.Second)
+		res, err := hc.Check(rctx, &grpchealth.CheckRequest{Service: internal.ServiceName})
+		rcancel()
+		if err != nil || res.Status != grpchealth.StatusServing {
+			t.Fatalf("health при недоступном NATS: %v %v", res, err)
+		}
+		time.Sleep(400 * time.Millisecond)
+	}
+	if published(t, pool, eventID) {
+		t.Fatal("событие опубликовано, хотя NATS недоступен: прокси не оборвал связь")
+	}
+
+	// Связь вернулась — релей публикует отложенную запись в поток identity.
+	proxy.up()
+	deadline = time.Now().Add(20 * time.Second)
+	for !published(t, pool, eventID) {
+		if time.Now().After(deadline) {
+			t.Fatalf("релей не опубликовал событие за 20 с после возврата NATS\n%s", serveLogs.String())
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if msgs := streamMsgs(t, nt.URL, dir); msgs < 1 {
+		t.Fatalf("в потоке %s сообщений %d, want ≥ 1", outbox.StreamName("identity"), msgs)
+	}
+	for _, want := range []string{"nats: соединение потеряно", "nats: соединение восстановлено"} {
+		if !strings.Contains(serveLogs.String(), want) {
+			t.Errorf("нет записи %q в логе serve:\n%s", want, serveLogs.String())
+		}
+	}
+}
+
+func probe(t *testing.T, addr string) int {
+	t.Helper()
+	resp, err := http.Get("http://" + addr + "/readyz") //nolint:noctx // test
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("/readyz = %d", resp.StatusCode)
-	}
+	return resp.StatusCode
+}
 
-	// Релей работает на созданном потоке, outbox/inbox созданы миграцией.
-	conn, err := pgx.Connect(ctx, vars["IDENTITY_APP_DSN"])
+func published(t *testing.T, pool *pgxpool.Pool, id string) bool {
+	t.Helper()
+	var ok bool
+	if err := pool.QueryRow(context.Background(), `SELECT published_at IS NOT NULL FROM outbox WHERE id = $1`, id).Scan(&ok); err != nil {
+		t.Fatal(err)
+	}
+	return ok
+}
+
+// streamMsgs — число сообщений в потоке identity (STREAM.INFO разрешён учётной записи identity).
+func streamMsgs(t *testing.T, url, dir string) uint64 {
+	t.Helper()
+	nc, err := natsx.Connect(natsx.Config{
+		URL: url, User: "identity", Password: natsPassword(t),
+		CertFile: filepath.Join(dir, "identity.pem"), KeyFile: filepath.Join(dir, "identity-key.pem"), CAFile: filepath.Join(dir, "ca.pem"),
+	}, "identity", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = conn.Close(ctx) }()
-	for _, table := range []string{"outbox", "inbox"} {
-		var n int
-		if err := conn.QueryRow(ctx, "SELECT count(*) FROM "+table).Scan(&n); err != nil {
-			t.Fatalf("таблица %s: %v", table, err)
-		}
+	defer nc.Close()
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatal(err)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	st, err := js.Stream(ctx, outbox.StreamName("identity"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := st.Info(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.State.Msgs
+}
+
+// tcpProxy — TCP-прокси до NATS: down закрывает порт и рвёт соединения, up открывает тот же порт.
+type tcpProxy struct {
+	t      *testing.T
+	addr   string
+	target string
+	mu     sync.Mutex
+	ln     net.Listener
+	conns  []net.Conn
+}
+
+func startProxy(t *testing.T, target string) *tcpProxy {
+	t.Helper()
+	p := &tcpProxy{t: t, target: target}
+	ln, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.addr = ln.Addr().String()
+	p.serve(ln)
+	t.Cleanup(p.down)
+	return p
+}
+
+func (p *tcpProxy) serve(ln net.Listener) {
+	p.mu.Lock()
+	p.ln = ln
+	p.mu.Unlock()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			u, err := net.Dial("tcp", p.target)
+			if err != nil {
+				_ = c.Close()
+				continue
+			}
+			p.mu.Lock()
+			p.conns = append(p.conns, c, u)
+			p.mu.Unlock()
+			go func() { _, _ = io.Copy(u, c); _ = u.Close() }()
+			go func() { _, _ = io.Copy(c, u); _ = c.Close() }()
+		}
+	}()
+}
+
+func (p *tcpProxy) down() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.ln != nil {
+		_ = p.ln.Close()
+		p.ln = nil
+	}
+	for _, c := range p.conns {
+		_ = c.Close()
+	}
+	p.conns = nil
+}
+
+func (p *tcpProxy) up() {
+	ln, err := net.Listen("tcp", p.addr)
+	if err != nil {
+		p.t.Fatalf("прокси: снова слушать %s: %v", p.addr, err)
+	}
+	p.serve(ln)
 }
 
 func TestMissingConfigFailsClearly(t *testing.T) {

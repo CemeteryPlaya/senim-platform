@@ -48,6 +48,7 @@ type Relay struct {
 	log  *slog.Logger
 
 	crashAfterPublish bool // тестовый хук: вернуть ошибку до отметки published_at
+	failing           bool // предыдущий батч упал; только горутина Run
 }
 
 // NewRelay создаёт релей; log == nil — slog.Default().
@@ -59,7 +60,11 @@ func NewRelay(pool *pgxpool.Pool, js jetstream.JetStream, log *slog.Logger) *Rel
 }
 
 // Run публикует записи, пока ctx не отменён; при пустой очереди ждёт 200 мс, при
-// ошибке батча пишет её в лог и повторяет через 1 с. Возвращает nil после отмены ctx.
+// ошибке батча повторяет через 1 с. Возвращает nil после отмены ctx.
+//
+// В лог — смена состояния, а не каждая попытка: первая ошибка батча — Error, повторные
+// ошибки подряд — Debug, первая удачная после них — Info «публикация восстановлена».
+// Отставание видно в метриках ObserveBacklog; готовность сервиса от релея не зависит.
 func (r *Relay) Run(ctx context.Context) error {
 	for {
 		n, err := r.publishBatch(ctx)
@@ -68,11 +73,19 @@ func (r *Relay) Run(ctx context.Context) error {
 		}
 		delay := time.Duration(0)
 		switch {
+		case err != nil && !r.failing:
+			r.failing = true
+			r.log.ErrorContext(ctx, "outbox: батч не опубликован, повтор каждую секунду", slog.Any("err", err))
+			delay = errorDelay
 		case err != nil:
-			r.log.ErrorContext(ctx, "outbox: батч не опубликован", slog.Any("err", err))
+			r.log.DebugContext(ctx, "outbox: батч снова не опубликован", slog.Any("err", err))
 			delay = errorDelay
 		case n == 0:
 			delay = idleDelay
+		}
+		if err == nil && r.failing {
+			r.failing = false
+			r.log.InfoContext(ctx, "outbox: публикация восстановлена")
 		}
 		if delay > 0 {
 			select {

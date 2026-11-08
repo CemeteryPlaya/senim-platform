@@ -10,3 +10,7 @@ func CrashAfterPublish(r *Relay) { r.crashAfterPublish = true }
 
 // RunBatch выполняет один батч релея.
 func RunBatch(ctx context.Context, r *Relay) (int, error) { return r.publishBatch(ctx) }
+
+// SetFailing ставит релей в состояние «предыдущий батч упал» — для проверки записи о
+// восстановлении.
+func SetFailing(r *Relay) { r.failing = true }
