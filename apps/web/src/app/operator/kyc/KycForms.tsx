@@ -10,10 +10,10 @@ import { reviewKycAction } from "./actions";
 const t = ru.operator.kyc;
 
 /**
- * Решение по KYC: «Документы в порядке» — главное действие; отказ с причиной — свёрнут ниже.
- * primary — заливная кнопка: на экране она одна, у первой карточки очереди; у остальных — обводка.
+ * Решение по KYC: «Документы в порядке» и, свёрнуто, отказ с причиной. Карточки очереди равноправны — заливной
+ * кнопки на экране нет, «Документы в порядке» — обводкой.
  */
-export function KycForms({ executorId, primary }: { executorId: string; primary: boolean }) {
+export function KycForms({ executorId }: { executorId: string }) {
   // В очереди карточка после решения исчезает: итог объявляет очередь, а не форма.
   const decided = useQueueDecision();
   const verify = useActionForm(reviewKycAction, { onSuccess: (_, el) => decided?.(t.verified, el) });
@@ -24,7 +24,7 @@ export function KycForms({ executorId, primary }: { executorId: string; primary:
         <input type="hidden" name="executorId" value={executorId} />
         <input type="hidden" name="decision" value="VERIFIED" />
         <FormStatus error={verify.error} done={verify.done && !decided} doneText={t.verified} />
-        <Button type="submit" variant={primary ? "primary" : "secondary"} loading={verify.pending} className="self-start">
+        <Button type="submit" variant="secondary" loading={verify.pending} className="self-start">
           {t.verify}
         </Button>
       </form>

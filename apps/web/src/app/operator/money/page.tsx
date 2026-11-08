@@ -19,7 +19,7 @@ const EMPTY_TITLE_ID = "money-queue-empty";
 
 /**
  * Очередь операций manual, ждущих банковского документа (ТЗ п. 10): старые сверху. Карточки с формами — сеткой
- * (на десктопе в две колонки); главное действие экрана — подтверждение самой старой операции.
+ * (на десктопе в две колонки). Карточки равноправны: заливной кнопки нет, подтверждение — обводкой у каждой.
  */
 export default async function MoneyQueuePage() {
   const user = await requireOperatorPage("/operator/money");
@@ -40,7 +40,7 @@ export default async function MoneyQueuePage() {
             <>
               <p className="text-base text-ink-soft">{t.once}</p>
               <ul data-queue className={LIST_GRID}>
-                {queue.map((op, i) => (
+                {queue.map((op) => (
                   <ListCard
                     key={op.id}
                     titleAs="h2"
@@ -53,7 +53,7 @@ export default async function MoneyQueuePage() {
                     ]}
                     aside={formatTiyn(op.amountTiyn)}
                   >
-                    <OperationActions transactionId={op.id} type={op.type} primary={i === 0} />
+                    <OperationActions transactionId={op.id} type={op.type} primary={false} />
                   </ListCard>
                 ))}
               </ul>

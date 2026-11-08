@@ -63,7 +63,8 @@ export function FailOperationForm({ transactionId }: { transactionId: string }) 
 
 /**
  * Карточка ждущей операции: подтверждение по документу и, свёрнуто, отказ банка. primary — заливная кнопка
- * подтверждения: на экране она одна, у первой (самой старой) операции очереди; у остальных — обводка.
+ * подтверждения: только на карточке сделки у первой ждущей операции (у одной сделки операции идут по порядку);
+ * в общей очереди «Деньги в банке» карточки равноправны — везде обводка.
  */
 export function OperationActions({ transactionId, type, primary }: { transactionId: string; type: ManualOperationType; primary: boolean }) {
   return (

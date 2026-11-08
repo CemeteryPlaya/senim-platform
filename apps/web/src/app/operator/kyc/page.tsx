@@ -28,7 +28,7 @@ export default async function KycPage() {
           <EmptyState icon={<IdCard />} title={t.empty} titleId={EMPTY_TITLE_ID} description={t.emptyHint} />
         ) : (
           <ul data-queue className={LIST_GRID}>
-            {queue.map((item, i) => (
+            {queue.map((item) => (
               <ListCard
                 key={item.executorId}
                 titleAs="h2"
@@ -49,7 +49,7 @@ export default async function KycPage() {
                     </li>
                   ))}
                 </ul>
-                <KycForms executorId={item.executorId} primary={i === 0} />
+                <KycForms executorId={item.executorId} />
               </ListCard>
             ))}
           </ul>

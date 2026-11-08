@@ -51,6 +51,12 @@ test("оператор на телефоне 390 px: деньги в банке 
   await page.goto("/operator/money");
   await expect(page.getByRole("heading", { level: 1, name: "Деньги в банке" })).toBeVisible();
   await expectNoHorizontalScroll(page);
+  // Очереди решений: карточки равноправны — ни одна кнопка подтверждения не заливная.
+  await expect(page.getByRole("button", { name: "Деньги поступили на счёт в банке" }).first()).toBeVisible();
+  await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveCount(0);
+  await page.goto("/operator/kyc");
+  await expect(page.getByRole("heading", { level: 2 }).first()).toBeVisible();
+  await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveCount(0);
 
   // Сводка на главной оператора — плитками.
   await page.goto("/operator");
