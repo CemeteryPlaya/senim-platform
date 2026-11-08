@@ -16,6 +16,9 @@ describe("месяцы «Финансов»", () => {
     expect(selectedMonth("2026-1", "2026-11")).toBe("2026-11");
     expect(selectedMonth(["2026-10"], "2026-11")).toBe("2026-11");
     expect(selectedMonth("2027-01", "2026-11")).toBe("2026-11");
+    expect(selectedMonth("0050-01", "2026-11")).toBe("2026-11");
+    expect(selectedMonth("1999-12", "2026-11")).toBe("2026-11");
+    expect(selectedMonth("2000-01", "2026-11")).toBe("2000-01");
   });
 
   it("окно столбиков — шесть месяцев до выбранного, пустые — нули", () => {

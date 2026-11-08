@@ -43,7 +43,7 @@ test("входящие мастера: сводка, чипы и карточк�
   await expectNoHorizontalScrollAt320And200(page, path);
 });
 
-test("мастер откликается на тендер, покупатель видит его анонимно и смету", async ({ page }) => {
+test("мастер откликается на тендер, покупатель видит его анонимно и смету", async ({ page }, info) => {
   await loginAs(page, P.kim);
   await expect(page).toHaveURL(/\/executor\/requests$/);
   await page.getByRole("link", { name: /^Заявка №18:/ }).first().click();
@@ -52,8 +52,13 @@ test("мастер откликается на тендер, покупател�
 
   // Зеркальный расчёт до отправки: «Вы получите после приёмки» = цена − гарантия 4% (оракул ТЗ п. 6, не computeDealMoney).
   const m = dealMoney(1_120_000);
-  const mirror = page.getByRole("main").getByRole("note").filter({ hasText: "Вы получите после приёмки" });
-  await page.getByLabel("Ваша цена, ₸").fill("1 120 000");
+  // Расчёт — в закреплённом слоте рядом с «Откликнуться»: виден, пока поле цены в фокусе (на телефоне — в окне).
+  const mirror = stepAction(page).getByRole("note").filter({ hasText: "Вы получите после приёмки" });
+  const price = page.getByLabel("Ваша цена, ₸");
+  await price.fill("1 120 000");
+  await expect(price).toBeFocused();
+  await expect(mirror).toBeVisible();
+  if (info.project.name === "mobile") await expect(mirror).toBeInViewport();
   await expect(mirror).toContainText(amount(m.payout));
   await expect(mirror).toContainText("Гарантия оплаты и клиента (4%)");
   await expect(mirror).toContainText(amount(m.guarantee));
@@ -83,4 +88,14 @@ test("мастер откликается на тендер, покупател�
   await expect(estimate).toContainText(amount(m.protection));
   await expect(estimate).toContainText(amount(m.buyerTotal));
   await expect(page.getByRole("main")).not.toContainText(/комисси|эскроу/i);
+});
+
+test("профиль и портфолио мастера: одна заливная кнопка", async ({ page }) => {
+  await loginAs(page, P.kim);
+  await page.goto("/executor/profile");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expectOnePrimary(page); // «Сохранить профиль»
+  await page.goto("/executor/portfolio");
+  await expect(page.getByRole("heading", { level: 1, name: "Портфолио" })).toBeVisible();
+  await expectOnePrimary(page); // «Добавить работу»
 });

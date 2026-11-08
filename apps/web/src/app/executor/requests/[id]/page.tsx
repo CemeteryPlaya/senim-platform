@@ -63,15 +63,20 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
   // Форма отклика: откликов ещё не было или оператор разрешил новую попытку (№16).
   const composing = r.canOffer && (!r.myOffer || r.retryAllowed);
 
+  // До оферты контакты скрыты и деньги ещё не в банке; после — обе строки не нужны (контакты — в сделке).
+  const beforeOffer = !AFTER_OFFER.has(r.status);
+
   const aside = (
     <>
       <Cover title={r.title} photos={r.photos} />
-      <p className="flex items-start gap-2 text-base text-ink-soft">
-        <Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
-        {x.contactsHidden}
-      </p>
+      {beforeOffer && (
+        <p className="flex items-start gap-2 text-base text-ink-soft">
+          <Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
+          {x.contactsHidden}
+        </p>
+      )}
       <KeyValueList rows={keyRows(r)} className="rounded-card border border-line bg-surface px-4 py-1" />
-      {!AFTER_OFFER.has(r.status) && <TrustNote>{ru.payments.block.masterBeforePayment}</TrustNote>}
+      {beforeOffer && <TrustNote>{ru.payments.block.masterBeforePayment}</TrustNote>}
       {composing && r.retryAllowed && (
         <Alert tone="accent" title={ru.requests.pre.retry.allowedTitle}>
           {ru.requests.pre.retry.allowedText}

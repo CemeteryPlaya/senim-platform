@@ -7,7 +7,13 @@ const t = ru.executor.finance;
 /** Месяцев в столбиках «Финансов»: выбранный и пять до него. */
 export const CHART_MONTHS = 6;
 
-const monthParam = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+/** Первый год, с которого месяц в адресе имеет смысл: раньше выплат быть не может («0050-01» — опечатка или подбор). */
+export const FIRST_YEAR = 2000;
+
+const monthParam = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+  .refine((v) => Number(v.slice(0, 4)) >= FIRST_YEAR);
 
 const parts = (key: MonthKey): [number, number] => key.split("-").map(Number) as [number, number];
 
@@ -18,7 +24,7 @@ export function shiftMonth(key: MonthKey, by: number): MonthKey {
 }
 
 /**
- * Месяц из адреса (?month=YYYY-MM). Неверное значение и будущий месяц — текущий: выплат из будущего нет.
+ * Месяц из адреса (?month=YYYY-MM). Неверное значение, год раньше FIRST_YEAR и будущий месяц — текущий: выплат из будущего нет.
  * Ключи одной длины сравниваются как строки.
  */
 export function selectedMonth(param: unknown, current: MonthKey): MonthKey {
@@ -48,9 +54,7 @@ export function barPercent(value: bigint, max: bigint): number {
 export function versusPrevious(current: bigint, previous: bigint, previousMonth: MonthKey): string | null {
   if (previous === 0n) return null;
   const percent = ((current - previous) * 100n) / previous;
-  const sign = percent > 0n ? "+" : percent < 0n ? "−" : "";
-  const abs = percent < 0n ? -percent : percent;
-  return t.vsPrev(`${sign}${abs}%`, t.monthsTo[parts(previousMonth)[1] - 1]!);
+  return t.vsPrev(percent, t.monthsTo[parts(previousMonth)[1] - 1]!);
 }
 
 /** «ноябрь». */

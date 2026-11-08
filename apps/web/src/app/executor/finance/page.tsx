@@ -60,7 +60,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
               <li key={b.month} className="flex h-full min-w-0 flex-1 items-end">
                 <span
                   aria-hidden
-                  className={cn("w-full rounded-t-control", b.month === month ? "bg-primary" : "bg-line-strong/50")}
+                  className={cn("w-full rounded-t-control", b.month === month ? "bg-primary" : "bg-line-strong")}
                   style={{ height: `max(0.25rem, ${barPercent(b.receivedTiyn, max)}%)` }}
                 />
                 <span className="sr-only">{t.bar(monthTitle(b.month), formatTiyn(b.receivedTiyn))}</span>
@@ -78,7 +78,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
       {reserved.length > 0 && (
         <div className="flex flex-col gap-3">
           <TrustNote>
-            {t.awaiting}: <Money amount={finance.reservedTiyn} className="font-extrabold" /> — {t.awaitingNote}
+            {t.awaitingLine(formatTiyn(finance.reservedTiyn))}
           </TrustNote>
           <Rows id="fin-reserved" title={t.awaitingTitle} rows={reserved} />
         </div>

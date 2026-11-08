@@ -125,6 +125,11 @@ test("полная сделка: покупатель, мастер и опер�
   await expect(buyer.getByRole("link", { name: `Открыть: Сделка №${dealNumber}`, exact: true })).toHaveCount(1);
   await expect(buyer.getByRole("link", { name: /^Открыть: Сделка №/ })).toHaveCount(3); // №2, №8 сида и новая
 
+  // Заявка мастера после оферты: строки «контакты откроются после оферты» больше нет.
+  await master.goto(requestPath.replace("/requests/", "/executor/requests/"));
+  await expect(master.getByRole("heading", { level: 1, name: new RegExp(`^Заявка №${requestNumber}:`) })).toBeVisible();
+  await expect(master.getByRole("main")).not.toContainText("Контакты заказчика откроются после оферты");
+
   // Оферта: смета у обеих сторон, контакты ещё скрыты
   await buyer.goto(dealPath);
   await expectDealStatus(buyer, "Оферта: подпись и оплата");
@@ -302,12 +307,22 @@ test("финансы мастера: месяц переключается ст�
   await expect(main.getByRole("list", { name: "Выплаты по месяцам" }).getByRole("listitem")).toHaveCount(6);
   await expect(main.getByRole("note").filter({ hasText: "Ожидает выплаты после приёмки" })).toContainText("деньги в банке под защитой");
 
+  // Данные следуют за месяцем: выплаты сида — в текущем, в прошлом их нет (итог 0 ₸ и пустой список).
+  const monthTotal = main.getByText("Получено за месяц", { exact: true }).locator("xpath=..");
+  const payouts = main.getByRole("region", { name: "Выплаты за месяц" });
+  await expect(payouts.getByRole("link")).not.toHaveCount(0);
+  await expect(monthTotal).not.toContainText(amount(0n));
+
   await main.getByRole("link", { name: "Предыдущий месяц" }).click();
   await page.waitForURL(new RegExp(`/executor/finance\\?month=${before.ym}$`));
   await expect(main.getByRole("heading", { level: 2, name: before.title })).toBeVisible();
+  await expect(payouts).toContainText("В этом месяце выплат не было.");
+  await expect(payouts.getByRole("link")).toHaveCount(0);
+  await expect(monthTotal).toContainText(amount(0n));
   await main.getByRole("link", { name: "Следующий месяц" }).click();
   await page.waitForURL(new RegExp(`/executor/finance\\?month=${now.ym}$`));
   await expect(main.getByRole("heading", { level: 2, name: now.title })).toBeVisible();
+  await expect(payouts.getByRole("link")).not.toHaveCount(0);
 
   // Неверный месяц в адресе — текущий; будущий — тоже текущий.
   await page.goto("/executor/finance?month=2026-13");
