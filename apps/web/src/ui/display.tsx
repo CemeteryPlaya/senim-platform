@@ -278,7 +278,7 @@ export function Skeleton({ lines = 1, className }: SkeletonProps) {
       {Array.from({ length: lines }, (_, i) => (
         <div
           key={i}
-          className={cn("h-[1lh] rounded-control bg-sunken animate-pulse motion-reduce:animate-none", i === lines - 1 && lines > 1 && "w-2/3")}
+          className={cn("h-[1lh] rounded-control border border-line bg-sunken animate-pulse motion-reduce:animate-none", i === lines - 1 && lines > 1 && "w-2/3")}
         />
       ))}
     </div>

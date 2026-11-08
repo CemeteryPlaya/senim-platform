@@ -57,7 +57,7 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
       />
       {r.pre && <FlowSteps flow={r.pre.flow} steps={r.pre.steps} current={r.pre.current} />}
       {!AFTER_OFFER.has(r.status) && (
-        <p className="flex items-start gap-3 rounded-card bg-sunken p-4 text-base font-semibold text-ink">
+        <p className="flex items-start gap-3 rounded-card border border-line bg-sunken p-4 text-base font-semibold text-ink">
           <Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-primary" />
           {ru.payments.block.masterBeforePayment}
         </p>

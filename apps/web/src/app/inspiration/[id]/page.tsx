@@ -47,7 +47,7 @@ export default async function InspirationItemPage({ params }: Props) {
             {d.photos}
           </h2>
           {photos.length === 0 ? (
-            <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-card bg-sunken text-muted">
+            <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-card border border-line bg-sunken text-muted">
               <ImageOff aria-hidden className="size-10" />
               <span className="text-base">{ru.companies.noPhoto}</span>
             </div>

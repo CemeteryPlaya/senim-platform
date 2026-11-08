@@ -30,7 +30,7 @@ function SplitPreview({ disputeId, share }: { disputeId: string; share: string }
       }
     });
   return (
-    <section aria-label={c.preview} aria-live="polite" className="flex flex-col gap-3 rounded-card bg-sunken p-4">
+    <section aria-label={c.preview} aria-live="polite" className="flex flex-col gap-3 rounded-card border border-line bg-sunken p-4">
       <Button type="button" variant="secondary" loading={pending} onClick={calc} className="self-start">
         {c.previewButton}
       </Button>

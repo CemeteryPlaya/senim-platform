@@ -7,7 +7,7 @@ const t = ru.companies.dealPortfolio;
 /** Пометка работы из сделки: «Выполнено на Сенім», разрешение заказчика и ссылка на сделку. */
 export function FromDealNote({ dealId, dealNumber, consent }: { dealId: string; dealNumber: number; consent: boolean }) {
   return (
-    <div className="flex flex-col gap-2 rounded-card bg-sunken p-4">
+    <div className="flex flex-col gap-2 rounded-card border border-line bg-sunken p-4">
       <div className="flex flex-wrap gap-2">
         <StatusBadge tone="success">{t.badges.fromDeal}</StatusBadge>
         {!consent && <StatusBadge tone="warning">{t.badges.waitingConsent}</StatusBadge>}

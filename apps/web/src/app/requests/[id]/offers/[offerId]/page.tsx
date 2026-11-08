@@ -175,7 +175,7 @@ function Section({ id, title, children }: { id: string; title: string; children:
 
 /** Галерея работ исполнителя: крупное фото и миниатюры. Нет работ — заглушка того же размера. */
 function Gallery({ photos, label }: { photos: { src: string; alt: string }[]; label: string }) {
-  if (photos.length === 0) return <div aria-hidden className="aspect-[4/3] w-full rounded-card bg-sunken" />;
+  if (photos.length === 0) return <div aria-hidden className="aspect-[4/3] w-full rounded-card border border-line bg-sunken" />;
   const [main, ...rest] = photos;
   return (
     <figure aria-label={label} className="flex flex-col gap-3">

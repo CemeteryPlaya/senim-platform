@@ -21,7 +21,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     <Container className="flex flex-col gap-6 pb-12">
       <PageHeader title={t.title} back={{ href: "/" }} className="pb-0" />
 
-      <section aria-labelledby="catalog-filters" className="rounded-card bg-sunken p-4 sm:p-5">
+      <section aria-labelledby="catalog-filters" className="rounded-card border border-line bg-sunken p-4 sm:p-5">
         <h2 id="catalog-filters" className="sr-only">
           {t.filters.label}
         </h2>
