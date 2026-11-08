@@ -3,6 +3,7 @@ package logging
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"strings"
 	"testing"
@@ -17,24 +18,30 @@ func newTest(buf *bytes.Buffer) *slog.Logger {
 func TestRedactsSensitiveKeys(t *testing.T) {
 	var buf bytes.Buffer
 	newTest(&buf).Info("x", "iin", "900101300123", "email", "a@b.kz", "lat", 43.2)
-	out := buf.String()
-	for _, leak := range []string{"900101300123", "a@b.kz", "43.2"} {
-		if strings.Contains(out, leak) {
-			t.Fatalf("leaked %q in %s", leak, out)
-		}
+	// По разобранному JSON: «43.2» может оказаться во времени записи (…:43.2…).
+	var rec map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &rec); err != nil {
+		t.Fatalf("log line is not JSON: %v\n%s", err, buf.String())
 	}
-	if !strings.Contains(out, `"[redacted]"`) {
-		t.Fatalf("no redaction marker in %s", out)
+	for _, key := range []string{"iin", "email", "lat"} {
+		if got := rec[key]; got != "[redacted]" {
+			t.Errorf("%s = %#v, want \"[redacted]\"", key, got)
+		}
 	}
 }
 
+// Проверка по разобранному JSON, а не поиском подстроки: время в записи может
+// содержать те же цифры (например 888), и тест мигал.
 func TestRedactsKeysCaseInsensitiveAndSubstring(t *testing.T) {
 	var buf bytes.Buffer
 	newTest(&buf).Info("x", "clientPhone", "777", "binIinEnc", "888", "Client_IP", "10.0.0.7", "Instagram", "@who", "lng", 76.9)
-	out := buf.String()
-	for _, leak := range []string{"777", "888", "10.0.0.7", "@who", "76.9"} {
-		if strings.Contains(out, leak) {
-			t.Fatalf("leaked %q in %s", leak, out)
+	var rec map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &rec); err != nil {
+		t.Fatalf("log line is not JSON: %v\n%s", err, buf.String())
+	}
+	for _, key := range []string{"clientPhone", "binIinEnc", "Client_IP", "Instagram", "lng"} {
+		if got, ok := rec[key]; !ok || got != "[redacted]" {
+			t.Errorf("%s = %#v, want \"[redacted]\"", key, got)
 		}
 	}
 }
