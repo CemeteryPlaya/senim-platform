@@ -22,7 +22,7 @@ export function RequestCard({ href, thumbUrl, title, meta, isNew, offersCount, c
   return (
     <Link
       href={href}
-      className={cn("flex min-w-0 gap-3 rounded-card border border-line bg-surface p-3 text-ink no-underline hover:border-line-strong", className)}
+      className={cn("flex min-w-0 flex-wrap gap-3 rounded-card border border-line bg-surface p-3 text-ink no-underline hover:border-line-strong", className)}
     >
       {thumbUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -33,7 +33,7 @@ export function RequestCard({ href, thumbUrl, title, meta, isNew, offersCount, c
           <span className="sr-only">{t.noPhoto}</span>
         </span>
       )}
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
+      <span className="flex min-w-[min(12rem,100%)] flex-1 flex-col gap-1">
         {isNew && (
           <StatusBadge tone="warning" className="self-start">
             {t.isNew}
