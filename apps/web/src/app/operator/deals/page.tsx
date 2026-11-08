@@ -4,7 +4,7 @@ import { Handshake } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { listOperatorDeals } from "@/modules/operator";
 import { Container, DateText, EmptyState, PageHeader, StatusBadge } from "@/ui";
-import { DataTable, TD, TH, TH_ROW } from "../_components/DataTable";
+import { COL_MID, COL_NARROW, COL_WIDE, DataTable, TD, TH, TH_ROW } from "../_components/DataTable";
 import { requireOperatorPage } from "../_lib/guard";
 
 const o = ru.operator;
@@ -44,12 +44,12 @@ export default async function OperatorDealsPage() {
           <tbody>
             {deals.map((d) => (
               <tr key={d.id}>
-                <th scope="row" className={`${TH_ROW} min-w-56`}>
+                <th scope="row" className={`${TH_ROW} ${COL_WIDE}`}>
                   <Link href={`/operator/deals/${d.id}`} className="font-semibold break-words text-primary underline">
                     {`${t.card.title(d.number)}: ${d.title}`}
                   </Link>
                 </th>
-                <td className={`${TD} min-w-48`}>
+                <td className={`${TD} ${COL_MID}`}>
                   <span className="flex flex-wrap gap-2">
                     <StatusBadge tone="info">{o.dealStatus[d.status]}</StatusBadge>
                     {d.disputeOpen && <StatusBadge tone="danger">{t.disputeOpen}</StatusBadge>}
@@ -57,7 +57,7 @@ export default async function OperatorDealsPage() {
                     {d.isDemo && <StatusBadge tone="neutral">{o.testMark}</StatusBadge>}
                   </span>
                 </td>
-                <td className={`${TD} min-w-40 text-ink-soft`}>{o.providers[d.provider]}</td>
+                <td className={`${TD} text-ink-soft ${COL_NARROW}`}>{o.providers[d.provider]}</td>
                 <td className={`${TD} whitespace-nowrap text-ink-soft`}>
                   <DateText value={d.createdAt} />
                 </td>

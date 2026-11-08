@@ -5,7 +5,7 @@ import { ru } from "@/i18n/ru";
 import { incomePeriodSchema, incomeReport } from "@/modules/operator";
 import { Button, buttonClasses, Container, DateText, EmptyState, Input, PageHeader, StatTiles, StatusBadge } from "@/ui";
 import { formatTiyn } from "@/ui/format";
-import { DataTable, TD, TD_NUM, TH, TH_ROW } from "../_components/DataTable";
+import { COL_NARROW, DataTable, TD, TD_NUM, TH, TH_ROW } from "../_components/DataTable";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
 
 const o = ru.operator;
@@ -77,7 +77,7 @@ export default async function IncomePage({ searchParams }: { searchParams: Promi
             <tbody>
               {report.rows.map((r) => (
                 <tr key={r.transactionId}>
-                  <th scope="row" className={`${TH_ROW} min-w-36`}>
+                  <th scope="row" className={`${TH_ROW} ${COL_NARROW}`}>
                     <span className="flex flex-col items-start gap-1">
                       <Link href={`/operator/deals/${r.dealId}`} className="font-semibold text-primary underline">
                         {t.deal(r.dealNumber)}

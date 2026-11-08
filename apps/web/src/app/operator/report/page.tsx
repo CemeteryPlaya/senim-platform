@@ -6,7 +6,7 @@ import { ru } from "@/i18n/ru";
 import { buildReport, CSV_KINDS, reportSchema } from "@/modules/operator";
 import { Alert, Button, buttonClasses, Card, Container, DateText, Input, PageHeader, SectionTitle, StatTiles } from "@/ui";
 import { formatTiyn } from "@/ui/format";
-import { DataTable, TD_NUM, TH, TH_ROW } from "../_components/DataTable";
+import { COL_MID, DataTable, TD_NUM, TH, TH_ROW } from "../_components/DataTable";
 import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { flatParams, requireOperatorPage } from "../_lib/guard";
 
@@ -38,7 +38,7 @@ function Totals({ title, head, rows }: { title: string; head: string; rows: Row[
       <tbody>
         {rows.map((r) => (
           <tr key={r.key}>
-            <th scope="row" className={`${TH_ROW} min-w-44`}>
+            <th scope="row" className={`${TH_ROW} ${COL_MID}`}>
               {r.label}
             </th>
             <td className={TD_NUM}>{r.count}</td>

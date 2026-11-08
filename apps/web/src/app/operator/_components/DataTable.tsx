@@ -8,6 +8,13 @@ export const TH = "px-4 py-3 text-left align-bottom text-sm font-semibold whites
 export const TH_ROW = "px-4 py-3 text-left align-top font-normal";
 /** Ячейка данных. */
 export const TD = "px-4 py-3 align-top";
+/**
+ * Минимальная ширина столбца с длинным текстом — не больше доли окна: при 320 px и шрифте 200 % первый столбец
+ * помещается на экран, а не уезжает за край области прокрутки. WIDE — первый столбец (сделка, исполнитель).
+ */
+export const COL_WIDE = "min-w-[min(14rem,70vw)]";
+export const COL_MID = "min-w-[min(12rem,60vw)]";
+export const COL_NARROW = "min-w-[min(9rem,50vw)]";
 /** Ячейка с суммой или числом: справа, цифры одной ширины, без переноса. */
 export const TD_NUM = "px-4 py-3 text-right align-top whitespace-nowrap tabular-nums";
 

@@ -60,7 +60,7 @@ export default async function MyOffersPage({ searchParams }: { searchParams: Pro
           <FilterChips
             label={t.chipsLabel}
             items={GROUPS.map((g) => ({
-              label: ru.requests.my.filterChip(t.chips[g], g === "all" ? list.length : list.filter((o) => groupOf(o) === g).length),
+              label: ru.common.ui.filterChip(t.chips[g], g === "all" ? list.length : list.filter((o) => groupOf(o) === g).length),
               href: g === "all" ? "/executor/offers" : `/executor/offers?show=${g}`,
               active: g === show,
             }))}

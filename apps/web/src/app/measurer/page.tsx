@@ -40,7 +40,7 @@ export default async function MeasurerPage({ searchParams }: { searchParams: Pro
         <>
           <FilterChips
             label={x.chipsLabel}
-            items={GROUPS.map((g) => ({ label: ru.requests.my.filterChip(x.chips[g], count(g)), href: `/measurer?show=${g}`, active: g === show }))}
+            items={GROUPS.map((g) => ({ label: ru.common.ui.filterChip(x.chips[g], count(g)), href: `/measurer?show=${g}`, active: g === show }))}
           />
           {shown.length === 0 ? (
             <p className="text-base text-muted">{x.emptyFilter}</p>

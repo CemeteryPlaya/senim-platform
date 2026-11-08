@@ -45,11 +45,11 @@ export default async function MyRequestsPage({ searchParams }: Props) {
           <FilterChips
             label={t.filterLabel}
             items={[
-              { href: "/requests", label: t.filterChip(t.filter.all, list.length), active: group === "all" },
+              { href: "/requests", label: ru.common.ui.filterChip(t.filter.all, list.length), active: group === "all" },
               // Пустые разделы не показываем: меньше чипов — проще выбор. Выбранный остаётся, даже если опустел.
               ...REQUEST_GROUPS.filter((g) => count(g) > 0 || g === group).map((g) => ({
                 href: `/requests?status=${g}`,
-                label: t.filterChip(t.filter[g], count(g)),
+                label: ru.common.ui.filterChip(t.filter[g], count(g)),
                 active: g === group,
               })),
             ]}

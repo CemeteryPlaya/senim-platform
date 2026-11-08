@@ -10,7 +10,7 @@ import { executorSummary } from "../_parts/summary";
 
 const t = ru.requests.incoming;
 const x = ru.executor.incoming;
-const chip = ru.requests.my.filterChip;
+const chip = ru.common.ui.filterChip;
 
 export const metadata: Metadata = { title: t.metaTitle };
 

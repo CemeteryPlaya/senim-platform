@@ -5,7 +5,7 @@ import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { listExecutors, listRegistrationQueue } from "@/modules/operator";
 import { ButtonLink, Container, DateText, EmptyState, FilterChips, PageHeader, SectionTitle, StatusBadge, type Tone } from "@/ui";
-import { DataTable, TD, TH, TH_ROW } from "../_components/DataTable";
+import { COL_MID, COL_WIDE, DataTable, TD, TH, TH_ROW } from "../_components/DataTable";
 import { LIST_GRID, ListCard } from "../_components/ListCard";
 import { param, requireOperatorPage } from "../_lib/guard";
 
@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: e.title };
 const STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
 const STATUS_TONE: Record<(typeof STATUSES)[number], Tone> = { PENDING: "warning", APPROVED: "success", REJECTED: "danger" };
 const statusFilter = z.enum(STATUSES).optional().catch(undefined);
-const chip = ru.requests.my.filterChip;
+const chip = ru.common.ui.filterChip;
 
 type Row = Awaited<ReturnType<typeof listExecutors>>[number];
 const col = e.columns;
@@ -38,7 +38,7 @@ function ExecutorTable({ rows }: { rows: readonly Row[] }) {
       <tbody>
         {rows.map((x) => (
           <tr key={x.id}>
-            <th scope="row" className={`${TH_ROW} min-w-56`}>
+            <th scope="row" className={`${TH_ROW} ${COL_WIDE}`}>
               <Link href={`/operator/executors/${x.id}`} className="font-semibold break-words text-primary underline">
                 {`${ru.common.executorLabel(x.publicNumber)}: ${x.legalName}`}
               </Link>
@@ -49,7 +49,7 @@ function ExecutorTable({ rows }: { rows: readonly Row[] }) {
             <td className={TD}>
               <StatusBadge tone={x.segment ? "accent" : "neutral"}>{x.segment ? t.segments[x.segment] : t.noSegment}</StatusBadge>
             </td>
-            <td className={`${TD} min-w-48 text-ink-soft`}>{`${t.legalForms[x.legalForm]}, ${t.binIinMasked(x.binIinLast4)}`}</td>
+            <td className={`${TD} text-ink-soft ${COL_MID}`}>{`${t.legalForms[x.legalForm]}, ${t.binIinMasked(x.binIinLast4)}`}</td>
             <td className={`${TD} whitespace-nowrap text-ink-soft`}>
               <DateText value={x.createdAt} />
             </td>

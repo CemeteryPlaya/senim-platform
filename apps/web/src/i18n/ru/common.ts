@@ -97,6 +97,8 @@ export const common = {
     selectPlaceholder: "Выберите вариант",
     /** Имя области с таблицей, которая на узком экране прокручивается вбок (фокус — Tab, прокрутка — стрелками). */
     tableRegion: (title: string) => `Таблица «${title}»`,
+    /** Чип фильтра с числом в разделе: «Черновики · 2», «Назначены · 1». Общий для всех ролей. */
+    filterChip: (label: string, n: number) => `${label} · ${n}`,
     timeline: { done: "пройдено", current: "сейчас", todo: "впереди" },
     /** Последняя плитка в CategoryTiles. */
     categoryTilesMore: "Все типы",

@@ -5,7 +5,7 @@ import { ru } from "@/i18n/ru";
 import { listDisputes } from "@/modules/operator";
 import { Container, DateText, EmptyState, PageHeader, StatusBadge } from "@/ui";
 import { formatTiyn } from "@/ui/format";
-import { DataTable, TD, TD_NUM, TH, TH_ROW } from "../_components/DataTable";
+import { COL_MID, COL_NARROW, COL_WIDE, DataTable, TD, TD_NUM, TH, TH_ROW } from "../_components/DataTable";
 import { requireOperatorPage } from "../_lib/guard";
 
 const t = ru.operator.disputes;
@@ -50,19 +50,19 @@ export default async function DisputesPage() {
           <tbody>
             {disputes.map((d) => (
               <tr key={d.id}>
-                <th scope="row" className={`${TH_ROW} min-w-56`}>
+                <th scope="row" className={`${TH_ROW} ${COL_WIDE}`}>
                   <Link href={`/operator/disputes/${d.id}`} className="font-semibold break-words text-primary underline">
                     {`${t.deal(d.deal.number)}: ${d.deal.title}`}
                   </Link>
                 </th>
-                <td className={`${TD} min-w-40`}>
+                <td className={`${TD} ${COL_NARROW}`}>
                   <span className="flex flex-wrap gap-2">
                     <StatusBadge tone={d.status === "OPEN" ? "danger" : "success"}>{t.status[d.status]}</StatusBadge>
                     {d.outcome && <StatusBadge tone="neutral">{t.outcomes[d.outcome]}</StatusBadge>}
                   </span>
                 </td>
-                <td className={`${TD} min-w-36 text-ink-soft`}>{t.reasons[d.reason]}</td>
-                <td className={`${TD} min-w-44 text-ink-soft`}>{ru.operator.dealStatus[d.openedInStatus]}</td>
+                <td className={`${TD} text-ink-soft ${COL_NARROW}`}>{t.reasons[d.reason]}</td>
+                <td className={`${TD} text-ink-soft ${COL_MID}`}>{ru.operator.dealStatus[d.openedInStatus]}</td>
                 <td className={`${TD} whitespace-nowrap text-ink-soft`}>
                   <DateText value={d.createdAt} />
                 </td>

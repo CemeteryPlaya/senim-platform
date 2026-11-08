@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { platformSettings } from "@/modules/operator";
 import { Card, Container, KeyValueList, PageHeader, StatusBadge } from "@/ui";
-import { DataTable, TD, TH, TH_ROW } from "../_components/DataTable";
+import { COL_MID, DataTable, TD, TH, TH_ROW } from "../_components/DataTable";
 import { requireOperatorPage } from "../_lib/guard";
 
 const o = ru.operator;
@@ -55,7 +55,7 @@ export default async function SettingsPage() {
             <tbody>
               {s.flags.map((f) => (
                 <tr key={f.key}>
-                  <th scope="row" className={`${TH_ROW} min-w-52 font-semibold`}>
+                  <th scope="row" className={`${TH_ROW} font-semibold ${COL_MID}`}>
                     {t.flagNames[f.key]}
                   </th>
                   <td className={TD}>
