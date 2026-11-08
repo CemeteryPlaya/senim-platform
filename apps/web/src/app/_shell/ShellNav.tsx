@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, Ellipsis, UserRound, type LucideIcon } from "lucide-react";
+import { Ellipsis, Menu, type LucideIcon } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { cn } from "@/ui";
 import { NAV_ICONS as ICONS } from "./icons";
@@ -19,8 +19,6 @@ const NARROW_BAR_CELLS = 3;
 /** Ширина панели (em её шрифта), с которой помещаются все вкладки. Классы ниже — с тем же порогом. */
 const NARROW_ONLY = "@min-[22em]:hidden";
 const WIDE_ONLY = "@max-[22em]:hidden";
-/** В шапке на широком экране — не больше 5 ячеек: остальное в «Ещё», иначе меню наезжает на название. */
-const HEADER_CELLS = 5;
 
 /** aria-current для пункта: активен самый точный по адресу (см. currentItem в nav.ts). */
 function useCurrent(items: readonly NavItem[]) {
@@ -103,62 +101,29 @@ function MoreItems({
 }
 
 /**
- * Строка ссылок в шапке на широком экране (lg+): вкладки роли, затем остальные разделы — в «Ещё».
- * Профиль — отдельной ссылкой справа (AccountLink), поэтому здесь его нет.
+ * Кнопка «Меню» в шапке на телефоне и планшете: для роли без нижней панели (оператор) раскрывает её разделы.
+ * На десктопе скрыта: там те же разделы стоят в боковом меню (SideNav).
  */
-export function DesktopNav({ items, all }: { items: readonly NavItem[]; all: readonly NavItem[] }) {
-  const { pathname, current } = useCurrent(all);
-  const { shown, more } = splitNav(items, HEADER_CELLS);
-  const pill = cn(
-    "flex min-h-control-sm items-center gap-1 rounded-chip px-4 text-base font-semibold text-ink no-underline transition-colors duration-150",
-    "hover:bg-sunken aria-[current=page]:bg-accent-soft aria-[current=page]:text-primary group-open:bg-sunken",
-  );
+export function MobileMenu({ items }: { items: readonly NavItem[] }) {
+  const { pathname, current } = useCurrent(items);
   return (
-    <nav aria-label={ru.common.shell.navLabel} className="hidden min-w-0 lg:block">
-      <ul className="flex flex-wrap items-center justify-end gap-1">
-        {shown.map((item) => (
-          <li key={item.href}>
-            <Link href={item.href} aria-current={current(item)} className={pill}>
-              {item.label}
-            </Link>
-          </li>
-        ))}
-        {more.length > 0 && (
-          <li>
-            {/* key по адресу: после перехода меню закрывается само (layout не перемонтируется). */}
-            <MoreMenu
-              key={pathname}
-              active={more.some((item) => current(item))}
-              summaryClassName={pill}
-              panelClassName="absolute top-full right-0 mt-2 w-max min-w-64"
-              summary={
-                <>
-                  {ru.common.shell.more}
-                  <ChevronDown aria-hidden className="size-5 shrink-0 group-open:rotate-180" />
-                </>
-              }
-            >
-              <MoreItems items={more} current={current} />
-            </MoreMenu>
-          </li>
-        )}
-      </ul>
+    <nav aria-label={ru.common.shell.menu} className="lg:hidden">
+      {/* key по адресу: после перехода меню закрывается само (layout не перемонтируется). */}
+      <MoreMenu
+        key={pathname}
+        active={false}
+        summaryClassName="inline-flex min-h-control-sm cursor-pointer items-center gap-2 rounded-chip border-2 border-line px-4 text-base font-semibold text-ink hover:bg-sunken"
+        panelClassName="absolute top-full right-0 mt-2 w-max min-w-64 max-w-[calc(100vw-2rem)]"
+        summary={
+          <>
+            <Menu aria-hidden className="size-6 shrink-0" />
+            {ru.common.shell.menu}
+          </>
+        }
+      >
+        <MoreItems items={items} current={current} />
+      </MoreMenu>
     </nav>
-  );
-}
-
-/** «Профиль» в шапке на широком экране: значок и подпись, активен на странице профиля. */
-export function AccountLink({ item, all }: { item: NavItem; all: readonly NavItem[] }) {
-  const { current } = useCurrent(all);
-  return (
-    <Link
-      href={item.href}
-      aria-current={current(item)}
-      className="hidden min-h-control-sm items-center gap-2 rounded-chip px-3 text-base font-semibold text-ink no-underline hover:bg-sunken aria-[current=page]:bg-accent-soft aria-[current=page]:text-primary lg:inline-flex"
-    >
-      <UserRound aria-hidden className="size-6 shrink-0" />
-      {item.label}
-    </Link>
   );
 }
 
@@ -186,12 +151,16 @@ function useTabBarHeight() {
 }
 
 /** Ячейка панели: значок в «таблетке» (у активной — мятная), под ним подпись. */
-function TabCell({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+function TabCell({ icon: Icon, label, primary = false }: { icon: LucideIcon; label: string; primary?: boolean }) {
   return (
     <>
+      {/* Действие роли («Заявка») — заливная зелёная «таблетка» всегда, а не только у активной вкладки. */}
       <span
         aria-hidden
-        className="inline-flex h-8 w-14 shrink-0 items-center justify-center rounded-full transition-colors duration-150 group-aria-[current=page]/cell:bg-accent-soft @max-[22em]:w-10"
+        className={cn(
+          "inline-flex h-8 w-14 shrink-0 items-center justify-center rounded-full transition-colors duration-150 @max-[22em]:w-10",
+          primary ? "bg-primary text-on-primary group-hover/cell:bg-primary-hover" : "group-aria-[current=page]/cell:bg-accent-soft",
+        )}
       >
         <Icon className="size-6" />
       </span>
@@ -200,6 +169,15 @@ function TabCell({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
       <span className="max-w-full tracking-tight @max-[22em]:text-[0.75em]">{label}</span>
     </>
   );
+}
+
+/** Разбиение для узкой панели: действие роли остаётся ячейкой, а не уходит в «Ещё» (уходят соседние вкладки). */
+function narrowSplit(items: readonly NavItem[]) {
+  const base = splitNav(items, NARROW_BAR_CELLS);
+  const primary = items.find((item) => item.primary);
+  if (!primary || base.shown.includes(primary)) return base;
+  const shown = [...base.shown.slice(0, -1), primary];
+  return { shown, more: items.filter((item) => !shown.includes(item)) };
 }
 
 /**
@@ -213,10 +191,11 @@ export function MobileTabBar({ items }: { items: readonly NavItem[] }) {
   const { pathname, current } = useCurrent(items);
   const ref = useTabBarHeight();
   const wide = splitNav(items, BAR_CELLS);
-  const narrow = splitNav(items, NARROW_BAR_CELLS);
+  const narrow = narrowSplit(items);
   const narrowShown = new Set(narrow.shown.map((item) => item.href));
   const wideMore = new Set(wide.more.map((item) => item.href));
   const narrowOnlyInMenu = new Set(narrow.more.filter((item) => !wideMore.has(item.href)).map((item) => item.href));
+  if (items.length === 0) return null;
   const wideOverflow = wide.more.length > 0;
   const narrowOverflow = narrow.more.length > 0;
   const cell = cn(
@@ -237,8 +216,8 @@ export function MobileTabBar({ items }: { items: readonly NavItem[] }) {
       <ul className="mx-auto flex max-w-page gap-1 px-1 py-1">
         {wide.shown.map((item) => (
           <li key={item.href} className={cn("flex min-w-0 flex-auto", !narrowShown.has(item.href) && WIDE_ONLY)}>
-            <Link href={item.href} aria-current={current(item)} className={cell}>
-              <TabCell icon={ICONS[item.icon]} label={item.label} />
+            <Link href={item.href} aria-current={current(item)} data-primary-tab={item.primary ? "true" : undefined} className={cell}>
+              <TabCell icon={ICONS[item.icon]} label={item.label} primary={item.primary} />
             </Link>
           </li>
         ))}

@@ -18,6 +18,7 @@ export {
   type DateInput,
 } from "./format";
 
+export { StickyAction, type StickyActionProps } from "./StickyAction";
 export { Button, ButtonLink, buttonClasses, type ButtonLinkProps, type ButtonProps, type ButtonVariant } from "./Button";
 export {
   Checkbox,

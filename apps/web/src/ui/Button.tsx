@@ -23,6 +23,12 @@ const VARIANTS: Record<ButtonVariant, string> = {
   dangerSolid: "border-danger bg-danger text-on-primary hover:border-danger-hover hover:bg-danger-hover",
 };
 
+/**
+ * Метка главного действия экрана: атрибут data-primary-action ставят все кнопки варианта primary (он по умолчанию),
+ * по нему тесты считают «одна главная кнопка на экран» (`main [data-primary-action]`).
+ */
+const isPrimary = (variant: ButtonVariant = "primary") => (variant === "primary" ? true : undefined);
+
 type StyleOptions = {
   variant?: ButtonVariant;
   fullWidth?: boolean;
@@ -81,6 +87,7 @@ export function Button({ variant, fullWidth, shape, className, loading = false, 
       disabled={disabled}
       aria-disabled={loading || undefined}
       aria-busy={loading || undefined}
+      data-primary-action={isPrimary(variant)}
       // preventDefault у submit-кнопки отменяет и отправку формы (в том числе по Enter в поле).
       // Без loading обработчик — только переданный: кнопку используют и серверные компоненты (без функций в пропсах).
       onClick={loading ? (event) => event.preventDefault() : onClick}
@@ -103,7 +110,7 @@ export type ButtonLinkProps = ComponentProps<typeof Link> & StyleOptions & IconP
 /** Ссылка, которая выглядит как кнопка (переход на другую страницу). */
 export function ButtonLink({ variant, fullWidth, shape, className, icon, iconEnd, children, ...rest }: ButtonLinkProps) {
   return (
-    <Link className={buttonClasses({ variant, fullWidth, shape, className })} {...rest}>
+    <Link className={buttonClasses({ variant, fullWidth, shape, className })} data-primary-action={isPrimary(variant)} {...rest}>
       {icon && <Icon>{icon}</Icon>}
       <span>{children}</span>
       {iconEnd && <Icon>{iconEnd}</Icon>}

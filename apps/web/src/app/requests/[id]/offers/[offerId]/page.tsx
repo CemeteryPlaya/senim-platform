@@ -3,7 +3,7 @@ import { ArrowRight, Ruler, Star } from "lucide-react";
 import type { ReactNode } from "react";
 import { getOfferForClient, TZ_PATH, wholeKzt } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
-import { Container, DateText, formatYears, PageHeader, PhotoCard, SectionTitle, StatusBadge } from "@/ui";
+import { Container, DateText, formatYears, PageHeader, PhotoCard, SectionTitle, StatusBadge, StickyAction } from "@/ui";
 import { SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { chooseOfferAction } from "../../../actions";
 import { ActionButton } from "../../../_parts/ActionButton";
@@ -143,9 +143,7 @@ export default async function OfferPage({ params }: Props) {
       <OfferChat offerId={offer.id} title={o.chatWith(ex.labelDat)} />
 
       {offer.canChoose && (
-        // Закреплён над нижней панелью телефона (--tabbar-h, на широком экране 0), только если экран выше 28em:
-        // блок ~6–7em, так он не займёт больше четверти экрана. При шрифте 200 % на телефоне — обычный блок в потоке.
-        <div className="bottom-[calc(var(--tabbar-h)+1rem)] z-10 rounded-card border border-line bg-surface p-4 shadow-raised sm:self-end [@media(min-height:28em)]:sticky">
+        <StickyAction className="sm:self-end">
           <ActionButton
             action={chooseOfferAction}
             input={{ offerId: offer.id }}
@@ -158,7 +156,7 @@ export default async function OfferPage({ params }: Props) {
               <ArrowRight aria-hidden className="size-5" />
             </span>
           </ActionButton>
-        </div>
+        </StickyAction>
       )}
     </Container>
   );

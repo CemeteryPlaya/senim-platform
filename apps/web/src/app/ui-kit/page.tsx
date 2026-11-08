@@ -27,6 +27,7 @@ import {
   Stat,
   StatusBadge,
   Stepper,
+  StickyAction,
   Textarea,
   Timeline,
   type ChatMessage,
@@ -318,6 +319,11 @@ export default async function UiKitPage() {
           <Skeleton lines={3} />
         </div>
       </KitSection>
+
+      {/* Закреплённая кнопка экрана деталей: на телефоне над нижней панелью, на десктопе в потоке. Всегда последний в экране. */}
+      <StickyAction>
+        <Button fullWidth>{s.primary}</Button>
+      </StickyAction>
     </Container>
   );
 }

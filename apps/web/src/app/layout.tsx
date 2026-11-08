@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { getCurrentUser } from "@/modules/identity";
 import { env } from "@/platform/env";
+import { features } from "@/platform/features";
 import { ru } from "@/i18n/ru";
 import { DemoBanner } from "@/ui";
 import { BRAND_COLORS } from "@/ui/brand";
@@ -8,6 +9,7 @@ import { fontVariables } from "@/ui/fonts";
 import { PwaSetup } from "./_components/install";
 import { AppFooter } from "./_shell/AppFooter";
 import { AppHeader } from "./_shell/AppHeader";
+import { navFor } from "./_shell/nav";
 import { MAIN_ID, SkipLink } from "./_shell/SkipLink";
 import "./globals.css";
 
@@ -30,17 +32,22 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const user = await getCurrentUser();
   const demoMode = env().DEMO_MODE;
+  // Роль без нижней панели (оператор): запас под панель не нужен.
+  const noBar = navFor(user, demoMode, features()).tabs.length === 0;
 
   return (
-    <html lang="ru" className={fontVariables}>
+    <html lang="ru" className={fontVariables} style={noBar ? ({ "--tabbar-h": "0px" } as React.CSSProperties) : undefined}>
       <body className="flex min-h-dvh flex-col">
         <SkipLink />
-        {demoMode && <DemoBanner />}
-        <AppHeader user={user} demoMode={demoMode} />
-        <main id={MAIN_ID} tabIndex={-1} className="flex flex-1 flex-col pb-16 outline-none">
-          {children}
-        </main>
-        <AppFooter />
+        {/* На десктопе слева боковое меню (SideNav, fixed, 240 px): всё содержимое сдвинуто на его ширину. */}
+        <div className="flex min-h-dvh flex-1 flex-col lg:pl-60">
+          {demoMode && <DemoBanner />}
+          <AppHeader user={user} demoMode={demoMode} />
+          <main id={MAIN_ID} tabIndex={-1} className="flex flex-1 flex-col pb-16 outline-none">
+            {children}
+          </main>
+          <AppFooter />
+        </div>
         <PwaSetup />
       </body>
     </html>
