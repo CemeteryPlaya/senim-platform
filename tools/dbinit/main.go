@@ -11,25 +11,28 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/CemeteryPlaya/senim-platform/tools/services"
 )
 
-const defaultServices = "identity,deal,marketplace,documents,files,notify,operator,audit"
+// defaultServices — Go-сервисы из единого списка tools/services.
+var defaultServices = strings.Join(services.Go, ",")
 
 var identRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,30}$`)
 
 func main() {
-	services := flag.String("services", defaultServices, "список сервисов через запятую")
+	list := flag.String("services", defaultServices, "список сервисов через запятую")
 	out := flag.String("out", "deploy/compose/postgres/init/00-roles.sql", "куда писать SQL")
 	vars := flag.String("vars", "deploy/compose/dev.vars", "файл с паролями <SVC>_OWNER_PASSWORD и <SVC>_APP_PASSWORD")
 	flag.Parse()
 
-	if err := run(*services, *vars, *out); err != nil {
+	if err := run(*list, *vars, *out); err != nil {
 		fmt.Fprintln(os.Stderr, "dbinit:", err)
 		os.Exit(1)
 	}
 }
 
-func run(services, varsPath, outPath string) error {
+func run(list, varsPath, outPath string) error {
 	f, err := os.Open(varsPath)
 	if err != nil {
 		return fmt.Errorf("файл переменных: %w", err)
@@ -39,7 +42,7 @@ func run(services, varsPath, outPath string) error {
 	if err != nil {
 		return err
 	}
-	sql, err := Generate(strings.Split(services, ","), passwords)
+	sql, err := Generate(strings.Split(list, ","), passwords)
 	if err != nil {
 		return err
 	}
@@ -75,13 +78,13 @@ const (
 
 // Generate строит SQL. Скрипт выполняется суперпользователем postgres при инициализации;
 // \connect — мета-команда psql, поэтому файл подходит для docker-entrypoint-initdb.d.
-func Generate(services []string, passwords map[string]string) (string, error) {
+func Generate(names []string, passwords map[string]string) (string, error) {
 	var b strings.Builder
 	b.WriteString("-- Сгенерировано tools/dbinit. Не править руками.\n")
 	b.WriteString(`\set ON_ERROR_STOP on` + "\n")
 	// Служебные базы по умолчанию доступны всем ролям; рабочим ролям там делать нечего.
 	b.WriteString("REVOKE CONNECT, TEMPORARY ON DATABASE postgres, template1 FROM PUBLIC;\n")
-	for _, s := range services {
+	for _, s := range names {
 		s = strings.TrimSpace(s)
 		if !identRe.MatchString(s) {
 			return "", fmt.Errorf("недопустимое имя сервиса %q", s)

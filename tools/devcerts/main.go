@@ -11,12 +11,11 @@ import (
 	"time"
 
 	"github.com/CemeteryPlaya/senim-platform/pkg/tlsx"
+	"github.com/CemeteryPlaya/senim-platform/tools/services"
 )
 
-var services = []string{
-	"edge", "mesh", "web", "identity", "deal", "marketplace",
-	"documents", "files", "notify", "operator", "audit",
-}
+// names — кому выпускается сертификат; список — tools/services.
+var names = services.Certs()
 
 const (
 	validFor  = 365 * 24 * time.Hour
@@ -45,7 +44,7 @@ func run(dir string) error {
 	if err != nil {
 		return err
 	}
-	for _, name := range services {
+	for _, name := range names {
 		cert, key, err := tlsx.Issue(caCert, caKey, name, []string{name, "localhost"}, validFor)
 		if err != nil {
 			return err
@@ -60,7 +59,7 @@ func run(dir string) error {
 			return err
 		}
 	}
-	fmt.Printf("devcerts: %d services in %s\n", len(services), dir)
+	fmt.Printf("devcerts: %d certificates in %s\n", len(names), dir)
 	return nil
 }
 

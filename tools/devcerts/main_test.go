@@ -71,7 +71,7 @@ func TestKeyModes(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]os.FileMode{"ca" + keySuffix: 0o600}
-	for _, name := range services {
+	for _, name := range names {
 		want[name+keySuffix] = 0o644
 		want[name+certExt] = 0o644
 	}
