@@ -39,6 +39,9 @@ test("заказчик: на телефоне нижняя панель из 5 �
     expect(b.width).toBeGreaterThanOrEqual(238);
     expect(b.width).toBeLessThanOrEqual(242);
     await expect(nav.getByRole("link", { name: "Заявка" })).toBeVisible();
+    // Заливная главная кнопка на экране одна — кнопка бокового меню мятная и без data-primary-action.
+    await expect(nav.locator("[data-primary-action]")).toHaveCount(0);
+    await expect(page.locator("[data-primary-action]")).toHaveCount(1);
     await expect(nav.getByRole("link", { name: "Главная" })).toHaveAttribute("aria-current", "page");
     return;
   }

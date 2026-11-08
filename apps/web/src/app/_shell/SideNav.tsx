@@ -28,7 +28,7 @@ export function SideNav({ items, more, primary }: { items: readonly NavItem[]; m
     entries.map((item) => {
       const Icon = ICONS[item.icon];
       return (
-        <li key={item.href + item.label}>
+        <li key={item.href}>
           <Link href={item.href} aria-current={item === active ? "page" : undefined} className={itemClass}>
             <Icon aria-hidden className="size-6 shrink-0" />
             {item.label}
@@ -50,7 +50,8 @@ export function SideNav({ items, more, primary }: { items: readonly NavItem[]; m
       {more.length > 0 && <ul className={`flex flex-col gap-1 ${items.length > 0 ? "border-t border-line pt-4" : ""}`}>{list(more)}</ul>}
       {primary && (
         <div className="mt-auto pt-2">
-          <ButtonLink href={primary.href} fullWidth icon={<PrimaryIcon />}>
+          {/* Мятная, не заливная: заливная главная кнопка на экране одна — своя у каждой страницы (data-primary-action). */}
+          <ButtonLink href={primary.href} variant="soft" fullWidth icon={<PrimaryIcon />}>
             {primary.label}
           </ButtonLink>
         </div>
