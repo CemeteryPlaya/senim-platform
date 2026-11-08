@@ -252,6 +252,7 @@ export async function listChats(user: CurrentUser): Promise<ChatListItem[]> {
   const items = offers.map((offer) => {
     const last = offer.messages[0] ?? null;
     const beforeOffer = contactStage(offer.deal) === "BEFORE_OFFER";
+    // Та же логика, что requestTitle в requests/access.ts: companies не может импортировать requests (requests сам зависит от companies — цикл).
     const type = offer.request.furnitureType?.name ?? offer.request.customType ?? ru.requests.untitled;
     return {
       createdAt: offer.createdAt,
