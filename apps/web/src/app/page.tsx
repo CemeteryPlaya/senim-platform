@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { parseCatalogFilter, type SearchParams } from "@/modules/companies";
 import { getCurrentUser, homePathFor, requireIntroduced } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { ClientHome } from "./_home/ClientHome";
@@ -18,12 +19,13 @@ export async function generateMetadata(): Promise<Metadata> {
  * по макетам 7–19. У остальных ролей вкладки «Главная» нет: оператор, замерщик и исполнитель на проверке
  * попадают в свой первый раздел (тот же адрес, что после входа).
  */
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await getCurrentUser();
   if (!user) return <Landing />;
   if (user.role === "CLIENT") {
     requireIntroduced(user, "/");
-    return <ClientHome user={user} />;
+    // Чипы цены ленты работ живут в адресе (/?price=…), как фильтры каталога.
+    return <ClientHome user={user} price={parseCatalogFilter(await searchParams).price} />;
   }
   if (user.role === "EXECUTOR" && user.executor?.status === "APPROVED") {
     requireIntroduced(user, "/");

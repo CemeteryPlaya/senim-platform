@@ -85,6 +85,7 @@ export const companies = {
     filters: {
       label: "Фильтры",
       type: "Что ищем",
+      allTypes: "Все типы",
       style: "Стиль",
       segment: "Сегмент",
       price: "Цена",
@@ -133,6 +134,17 @@ export const companies = {
     reviewsEmpty: "Отзывов пока нет: они появляются после завершённых сделок.",
     reviewRating: (n: number) => `Оценка ${n} из 5`,
     back: "К каталогу",
+    /** Работа наверху страницы (макет b-plus-a, «карточка работы мастера»): последняя опубликованная. */
+    heroWork: "Последняя работа",
+    kv: {
+      address: "Где работает",
+      experience: "Опыт",
+      experienceUnknown: "не указан",
+      deals: "Сделок на платформе",
+      measurement: "Замер",
+      segment: "Сегмент",
+    },
+    trustNote: "Оплата хранится в банке, мастер получит деньги после вашей приёмки.",
   },
 
   profile: {

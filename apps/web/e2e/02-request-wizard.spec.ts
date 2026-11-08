@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { choose, loginAs, P } from "./support";
+import { choose, expectFitsAt320And200, loginAs, P } from "./support";
 
 /**
  * Мастер заявки (ТЗ п. 3, решение 2.2.11) для человека, который не разбирается в мебели: тип и пример картинкой,
@@ -18,8 +18,10 @@ test("покупатель проходит мастер и видит заяв�
   await expect(page.getByRole("group", { name: "Пример, который нравится" }).getByRole("radio").first()).toBeVisible();
   await page.getByRole("button", { name: "Далее" }).click();
 
-  // 2. Уровень — без выбора дальше не пускает
+  // 2. Уровень — без выбора дальше не пускает. Шаг — полноэкранный: «Назад» видна, одна главная кнопка.
   await expect(page.getByRole("heading", { level: 1, name: "Какой уровень?" })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("link", { name: "Назад" })).toBeVisible();
+  await expect(page.locator("main [data-primary-action]")).toHaveCount(1);
   await page.getByRole("button", { name: "Далее" }).click();
   await expect(page.getByText("Выберите уровень мебели")).toBeVisible();
   await choose(page.getByRole("radio", { name: /^Комфорт/ }));
@@ -57,4 +59,31 @@ test("покупатель проходит мастер и видит заяв�
   const item = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: `Заявка №${number}: Кухня` }) });
   await expect(item).toBeVisible();
   await expect(item.getByText("Комфорт")).toBeVisible();
+});
+
+test("главная заказчика: плитки типов, «Моя сделка», плашка защиты, чипы и лента работ; одна главная кнопка", async ({ page }) => {
+  await loginAs(page, P.aigerim);
+  await page.goto("/");
+  const main = page.getByRole("main");
+  const tiles = main.getByRole("navigation", { name: "Типы мебели" });
+  await expect(tiles.getByRole("link", { name: "Кухня" })).toHaveAttribute("href", "/catalog?type=kitchen");
+  await expect(tiles.getByRole("link", { name: "Все типы" })).toBeVisible();
+  // У Айгерим идут сделки — карточка «Моя сделка» с ходом сделки.
+  const deal = main.getByRole("region", { name: /^Моя сделка: / });
+  await expect(deal.getByRole("list", { name: "Ход сделки" })).toBeVisible();
+  await expect(main.getByRole("note").filter({ hasText: "Деньги в банке под защитой" })).toBeVisible();
+  // Ровно одно заливное главное действие на экране.
+  await expect(main.locator("[data-primary-action]")).toHaveCount(1);
+  await expect(main.locator("[data-primary-action]")).toHaveText("Оставить заявку");
+
+  // Чипы цены фильтруют ленту в адресе; карточки — из каталога, «Хочу похожее» вторичная.
+  const chips = main.getByRole("navigation", { name: "Цена работы" });
+  await expect(chips.getByRole("link", { name: "Все" })).toHaveAttribute("aria-current", "page");
+  await chips.getByRole("link", { name: "до 300 тыс. ₸" }).click();
+  await page.waitForURL(/\/\?price=upto300$/);
+  await expect(chips.getByRole("link", { name: "до 300 тыс. ₸" })).toHaveAttribute("aria-current", "page");
+  await expect(main.getByRole("link", { name: /^Хочу похожее: / }).first()).toBeVisible();
+  await expect(main.locator("[data-primary-action]")).toHaveCount(1);
+
+  for (const path of ["/", "/catalog", "/requests/new", "/requests"]) await expectFitsAt320And200(page, path);
 });

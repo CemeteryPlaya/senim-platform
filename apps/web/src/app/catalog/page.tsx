@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, SearchX } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { catalogHref, getCatalogFacets, listCatalog, parseCatalogFilter, PRICE_BUCKETS, type CatalogFilter, type SearchParams } from "@/modules/companies";
-import { Button, ButtonLink, Container, EmptyState, PageHeader, Select } from "@/ui";
+import { Button, ButtonLink, Container, EmptyState, FilterChips, PageHeader, Select } from "@/ui";
 import { SEGMENT_NAMES, STYLES } from "@/verticals/furniture";
 import { WorkCard } from "./_components/WorkCard";
 
@@ -11,7 +11,10 @@ const t = ru.companies.catalog;
 
 export const metadata: Metadata = { title: t.title };
 
-/** Каталог работ: фильтры в адресе (форма GET работает без JavaScript), карточки с «Хочу похожее». Доступен и гостю. */
+/**
+ * Каталог работ (макет b-plus-a): тип — чипами, остальные фильтры — формой GET (работает без JavaScript); всё в адресе.
+ * Карточки с «Хочу похожее». Доступен и гостю.
+ */
 export default async function CatalogPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const filter = parseCatalogFilter(await searchParams);
   const [{ items, total, page, pageCount }, facets] = await Promise.all([listCatalog(filter), getCatalogFacets()]);
@@ -21,19 +24,22 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     <Container className="flex flex-col gap-6 pb-12">
       <PageHeader title={t.title} back={{ href: "/" }} className="pb-0" />
 
-      <section aria-labelledby="catalog-filters" className="rounded-card border border-line bg-sunken p-4 sm:p-5">
+      <FilterChips
+        label={t.filters.type}
+        items={[
+          { href: catalogHref({ ...filter, type: undefined, page: 1 }), label: t.filters.allTypes, active: !filter.type },
+          ...facets.types.map((ft) => ({ href: catalogHref({ ...filter, type: ft.slug, page: 1 }), label: ft.name, active: filter.type === ft.slug })),
+        ]}
+      />
+
+      <section aria-labelledby="catalog-filters" className="rounded-card border border-line bg-surface p-4 sm:p-5">
         <h2 id="catalog-filters" className="sr-only">
           {t.filters.label}
         </h2>
         <form method="get" action="/catalog" className="flex flex-col gap-4">
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Select
-              label={t.filters.type}
-              name="type"
-              defaultValue={filter.type ?? ""}
-              placeholder={t.filters.any}
-              options={facets.types.map((ft) => ({ value: ft.slug, label: ft.name }))}
-            />
+          {/* Тип выбран чипами выше — форма его сохраняет. */}
+          {filter.type && <input type="hidden" name="type" value={filter.type} />}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(14rem,100%),1fr))] gap-4">
             <Select
               label={t.filters.style}
               name="style"
@@ -56,8 +62,11 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
               options={PRICE_BUCKETS.map((value) => ({ value, label: t.filters.prices[value] }))}
             />
           </div>
+          {/* Вторичная: заливная главная кнопка на экране одна — «Оставить заявку» в пустом состоянии. */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button type="submit">{t.filters.apply}</Button>
+            <Button type="submit" variant="secondary">
+              {t.filters.apply}
+            </Button>
             {filtered && (
               <ButtonLink href="/catalog" variant="ghost">
                 {t.filters.reset}
