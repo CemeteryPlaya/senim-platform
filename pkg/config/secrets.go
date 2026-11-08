@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/base64"
 )
 
@@ -33,24 +34,44 @@ func (l *Loader) Secret(key string, minBytes int) []byte {
 // Distinct требует, чтобы секреты по этим ключам были попарно различны.
 // Проверяется в prod/staging; в dev повторы допустимы. Незаданные ключи
 // пропускаются (о них сообщает Secret/Required).
+//
+// Сравниваются байты ключа, а не строки: у каждого значения два прочтения — сырые
+// байты и результат base64-декодирования (если строка им разбирается). Два значения
+// совпадают, если совпало любое прочтение, — так ловится один ключ, записанный в
+// одной переменной в base64, а в другой сырым.
 func (l *Loader) Distinct(keys ...string) {
 	if !l.strict() {
 		return
 	}
-	values := make([]string, len(keys))
+	readings := make([][][]byte, len(keys))
 	for i, k := range keys {
-		values[i], _ = l.src(k)
+		v, _ := l.src(k)
+		if v == "" {
+			continue
+		}
+		readings[i] = [][]byte{[]byte(v)}
+		if decoded, err := base64.StdEncoding.DecodeString(v); err == nil && len(decoded) > 0 {
+			readings[i] = append(readings[i], decoded)
+		}
 	}
 	reported := make(map[int]bool)
 	for i := range keys {
-		if values[i] == "" {
-			continue
-		}
 		for j := i + 1; j < len(keys); j++ {
-			if values[j] == values[i] && (!reported[i] || !reported[j]) {
+			if sameKey(readings[i], readings[j]) && (!reported[i] || !reported[j]) {
 				l.fail("%s and %s: must be distinct but have the same value", keys[i], keys[j])
 				reported[i], reported[j] = true, true
 			}
 		}
 	}
+}
+
+func sameKey(a, b [][]byte) bool {
+	for _, x := range a {
+		for _, y := range b {
+			if bytes.Equal(x, y) {
+				return true
+			}
+		}
+	}
+	return false
 }

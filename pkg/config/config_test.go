@@ -273,3 +273,26 @@ func TestDemoModeAccessor(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+// Один и тот же ключ в base64 и сырым видом — повтор, даже если строки разные.
+func TestDistinctComparesDecodedBytes(t *testing.T) {
+	raw := strings.Repeat("k", 32)
+	for _, env := range []string{"prod", "staging"} {
+		l := NewLoader(mapSource(map[string]string{"APP_ENV": env, "KEY_A": base64.StdEncoding.EncodeToString([]byte(raw)), "KEY_B": raw}))
+		l.Env()
+		l.Distinct("KEY_A", "KEY_B")
+		err := l.Err()
+		if err == nil || !strings.Contains(err.Error(), "KEY_A") || !strings.Contains(err.Error(), "KEY_B") {
+			t.Fatalf("%s: base64 and raw form of one key must be caught, got %v", env, err)
+		}
+		if strings.Contains(err.Error(), raw) {
+			t.Fatalf("error must not contain the secret value: %v", err)
+		}
+	}
+	l := NewLoader(mapSource(map[string]string{"APP_ENV": "prod", "KEY_A": b64(32, 'a'), "KEY_B": b64(32, 'b')}))
+	l.Env()
+	l.Distinct("KEY_A", "KEY_B")
+	if err := l.Err(); err != nil {
+		t.Fatalf("distinct keys: unexpected error %v", err)
+	}
+}
