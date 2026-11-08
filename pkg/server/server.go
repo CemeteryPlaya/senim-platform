@@ -63,12 +63,16 @@ const (
 
 // Options configures Run.
 type Options struct {
-	Name            string        // service name, used in logs and traces
-	GRPCAddr        string        // mTLS gRPC listener, e.g. ":8443"
-	ProbeAddr       string        // plain HTTP /healthz and /readyz, e.g. ":8081"
-	CertFile        string        // server certificate
-	KeyFile         string        // server private key
-	CAFile          string        // CA that signs client certificates
+	Name      string // service name, used in logs and traces
+	GRPCAddr  string // mTLS gRPC listener, e.g. ":8443"
+	ProbeAddr string // plain HTTP /healthz and /readyz, e.g. ":8081"
+	CertFile  string // server certificate
+	KeyFile   string // server private key
+	CAFile    string // CA that signs client certificates
+	// AllowedPeers — DNS SAN клиентских сертификатов, которым разрешено соединение
+	// (обязательно). Обычно MeshPeer и сам сервис (его реплики и подкоманды); любой другой
+	// сертификат того же CA отвергается при рукопожатии. Вызывающий за mesh — Caller(ctx).
+	AllowedPeers    []string
 	ShutdownTimeout time.Duration // graceful stop limit, default 20s
 	DrainDelay      time.Duration // time NOT_SERVING is visible with listeners still open before Shutdown, default 5s
 	Logger          *slog.Logger  // default: JSON to stderr
@@ -93,6 +97,9 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 	if opt.Name == "" {
 		return errors.New("server: Options.Name is required")
 	}
+	if len(opt.AllowedPeers) == 0 {
+		return errors.New("server: Options.AllowedPeers is required")
+	}
 	if opt.ShutdownTimeout <= 0 {
 		opt.ShutdownTimeout = defaultShutdownTimeout
 	}
@@ -107,7 +114,7 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 	}
 	log := opt.Logger
 
-	tlsCfg, err := tlsx.ServerConfig(opt.CertFile, opt.KeyFile, opt.CAFile)
+	tlsCfg, err := tlsx.ServerConfig(opt.CertFile, opt.KeyFile, opt.CAFile, opt.AllowedPeers)
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}
@@ -119,8 +126,9 @@ func Run(ctx context.Context, opt Options, register func(s *connect.Server) erro
 	}
 	host, _ := os.Hostname()
 
-	// Outermost first: trace -> log -> panic recovery -> instance header.
-	srv := connect.NewServer(traces, logInterceptor(log), recoverInterceptor(log), instanceInterceptor(host))
+	// Outermost first: trace -> caller identity -> log -> panic recovery -> instance header.
+	srv := connect.NewServer(traces, callerInterceptor(log, opt.AllowedPeers), logInterceptor(log),
+		recoverInterceptor(log), instanceInterceptor(host))
 	if err := register(srv); err != nil {
 		return fmt.Errorf("server: register: %w", err)
 	}

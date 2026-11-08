@@ -21,8 +21,7 @@ const Mesh = "mesh"
 // Go-сервисы. edge сюда не входит.
 func MeshClients() []string { return append([]string{Web}, Go...) }
 
-// Edge — Envoy на входе из браузера.
-const Edge = "edge"
-
-// Certs — кому devcerts выпускает сертификат внутреннего CA.
-func Certs() []string { return append([]string{Edge, Mesh, Web}, Go...) }
+// Certs — кому devcerts выпускает сертификат внутреннего CA. edge (Envoy на входе из
+// браузера) его не получает: он говорит с web по HTTP внутри сети стенда и не звонит ни в
+// mesh, ни в сервисы; лишний сертификат CA был бы обходом списков допущенных (ADR-011).
+func Certs() []string { return append([]string{Mesh, Web}, Go...) }

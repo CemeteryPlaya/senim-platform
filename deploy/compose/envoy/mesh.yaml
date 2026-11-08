@@ -1,6 +1,7 @@
 # mesh-gateway: единственный путь синхронных вызовов между web и сервисами.
 # Вход — gRPC поверх HTTP/2 с mTLS: клиентский сертификат нашего CA обязателен, и это сертификат
-# web или сервиса (edge и прочие владельцы сертификатов CA сюда не допускаются).
+# web или сервиса (прочие владельцы сертификатов CA сюда не допускаются). Кто вызывает, сервис узнаёт
+# из XFCC, который ставит mesh (ADR-011): к сервису mesh идёт со своим сертификатом.
 # Маршрут по пакету: /senim.identity.v1.* → identity. У gRPC-health нет имени сервиса в пути —
 # его маршрутизирует заголовок x-senim-target. Балансировка — по запросам (ROUND_ROBIN поверх
 # HTTP/2), активная gRPC-проверка здоровья выводит реплику из ротации на время её остановки.
@@ -59,8 +60,13 @@ static_resources:
                   max_concurrent_streams: 100
                   initial_stream_window_size: 1048576
                   initial_connection_window_size: 4194304
-                # Клиентский сертификат вызывающего не передаётся дальше (XFCC вычищается).
-                forward_client_cert_details: SANITIZE
+                # Удостоверение вызывающего (ADR-011): входящий XFCC отбрасывается, Envoy пишет свой —
+                # одно звено с DNS SAN (и URI) проверенного клиентского сертификата. Сервис читает XFCC
+                # только от соединения с сертификатом mesh (pkg/server.Caller).
+                forward_client_cert_details: SANITIZE_SET
+                set_current_client_cert_details:
+                  uri: true
+                  dns: true
                 access_log:
                   - name: envoy.access_loggers.stdout
                     typed_config:

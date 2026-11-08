@@ -85,3 +85,21 @@ func TestKeyModes(t *testing.T) {
 		}
 	}
 }
+
+// edge внутреннему CA не нужен (ADR-011): devcerts ему сертификат не выпускает.
+func TestNoCertForEdge(t *testing.T) {
+	dir := t.TempDir()
+	if err := run(dir); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"edge" + certExt, "edge" + keySuffix} {
+		if _, err := os.Stat(filepath.Join(dir, f)); !os.IsNotExist(err) {
+			t.Errorf("%s: devcerts не должен выпускать сертификат edge (err=%v)", f, err)
+		}
+	}
+	for _, name := range []string{"mesh", "web", "identity"} {
+		if _, err := os.Stat(filepath.Join(dir, name+certExt)); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

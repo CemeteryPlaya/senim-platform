@@ -74,8 +74,10 @@ func logInterceptor(log *slog.Logger) connect.ServerInterceptor {
 					level = slog.LevelError
 				}
 			}
+			caller, _ := Caller(ctx)
 			attrs := []slog.Attr{
 				slog.String("procedure", spec.Procedure),
+				slog.String("caller", caller),
 				slog.String("result", codeName),
 				slog.Float64("duration_ms", float64(time.Since(began).Microseconds())/1000),
 			}

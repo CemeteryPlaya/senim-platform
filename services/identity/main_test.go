@@ -19,6 +19,7 @@ import (
 
 	"github.com/CemeteryPlaya/senim-platform/internal/testdb"
 	"github.com/CemeteryPlaya/senim-platform/internal/testnats"
+	"github.com/CemeteryPlaya/senim-platform/pkg/server"
 	"github.com/CemeteryPlaya/senim-platform/pkg/tlsx"
 	"github.com/CemeteryPlaya/senim-platform/services/identity/internal"
 )
@@ -55,17 +56,22 @@ func TestServeBecomesReady(t *testing.T) {
 	}
 	caFile := write("ca.pem", caCert)
 	issue := func(name string) (string, string) {
-		c, k, err := tlsx.Issue(caCert, caKey, name, []string{"localhost"}, time.Hour)
+		c, k, err := tlsx.Issue(caCert, caKey, name, []string{name, "localhost"}, time.Hour)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return write(name+".pem", c), write(name+".key", k)
 	}
-	srvCert, srvKey := issue("server")
-	cliCert, cliKey := issue("client")
-	clientTLS, err := tlsx.ClientConfig(cliCert, cliKey, caFile)
-	if err != nil {
-		t.Fatal(err)
+	srvCert, srvKey := issue("identity")
+	clientAs := func(name string) *http.Transport {
+		cert, key := issue(name)
+		cfg, err := tlsx.ClientConfig(cert, key, caFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tr := &http.Transport{TLSClientConfig: cfg, ForceAttemptHTTP2: true}
+		t.Cleanup(tr.CloseIdleConnections)
+		return tr
 	}
 
 	grpcAddr, probeAddr := freeAddr(t), freeAddr(t)
@@ -100,9 +106,11 @@ func TestServeBecomesReady(t *testing.T) {
 		}
 	})
 
-	tr := &http.Transport{TLSClientConfig: clientTLS, ForceAttemptHTTP2: true}
-	t.Cleanup(tr.CloseIdleConnections)
-	hc := grpchealth.NewClient(connect.NewClient(connecthttp.NewTransport(&http.Client{Transport: tr}, "https://"+grpcAddr, connecthttp.WithGRPC())))
+	healthAs := func(tr *http.Transport) *grpchealth.Client {
+		return grpchealth.NewClient(connect.NewClient(connecthttp.NewTransport(&http.Client{Transport: tr}, "https://"+grpcAddr, connecthttp.WithGRPC())))
+	}
+	// identity принимает только mesh и самого себя (ADR-011).
+	hc := healthAs(clientAs("mesh"))
 
 	deadline := time.Now().Add(10 * time.Second)
 	for _, name := range []string{"", internal.ServiceName} {
@@ -117,6 +125,26 @@ func TestServeBecomesReady(t *testing.T) {
 				t.Fatalf("health %q не SERVING за 10 с: %v\n%s", name, err, serveLogs.String())
 			}
 			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	// web (и любой другой сертификат того же CA) напрямую не допускается: только через mesh.
+	for _, name := range []string{"web", "deal"} {
+		rctx, rcancel := context.WithTimeout(ctx, 2*time.Second)
+		_, err := healthAs(clientAs(name)).Check(rctx, &grpchealth.CheckRequest{})
+		rcancel()
+		if err == nil {
+			t.Fatalf("сертификат %s принят identity напрямую", name)
+		}
+	}
+	// Своя реплика допускается; вызывающий виден в ответе.
+	{
+		rctx, rcancel := context.WithTimeout(ctx, 2*time.Second)
+		rctx, info := connect.NewClientContext(rctx)
+		res, err := healthAs(clientAs("identity")).Check(rctx, &grpchealth.CheckRequest{})
+		rcancel()
+		if err != nil || res.Status != grpchealth.StatusServing || info.ResponseHeader().Get(server.CallerHeader) != "identity" {
+			t.Fatalf("identity → identity: %v %v caller=%q", res, err, info.ResponseHeader().Get(server.CallerHeader))
 		}
 	}
 

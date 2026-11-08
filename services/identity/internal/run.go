@@ -132,6 +132,9 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 		CAFile:    cfg.CAFile,
 		Logger:    log,
 		Services:  []string{ServiceName},
+		// Только mesh (за ним — вызывающий из XFCC) и свои реплики; web и другие сервисы
+		// напрямую не допускаются (ADR-011).
+		AllowedPeers: []string{server.MeshPeer, Service},
 	}, func(*connect.Server) error { return nil }, ready)
 
 	stopRelay()

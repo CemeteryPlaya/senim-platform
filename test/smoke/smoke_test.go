@@ -26,6 +26,8 @@ import (
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
 	"connectrpc.com/grpchealth/v2"
+
+	"github.com/CemeteryPlaya/senim-platform/pkg/tlsx"
 )
 
 const (
@@ -103,45 +105,146 @@ func checkEdgeHeaders(t *testing.T, h http.Header) {
 	}
 }
 
-// TestMeshRejectsWithoutClientCert: mesh не принимает соединение без клиентского сертификата нашего CA.
-// В TLS 1.3 сервер проверяет сертификат клиента после рукопожатия на его стороне — отказ приходит
-// алертом при первом чтении. Контроль: тот же запрос с сертификатом web получает SETTINGS от HTTP/2.
+// TestMeshRejectsWithoutClientCert: mesh не принимает соединение без клиентского сертификата нашего CA
+// и с сертификатом нашего CA, чей SAN не в списке допущенных. В TLS 1.3 сервер проверяет сертификат
+// клиента после рукопожатия на его стороне — отказ приходит алертом при первом чтении. Контроль: тот же
+// запрос с сертификатом web получает SETTINGS от HTTP/2.
 func TestMeshRejectsWithoutClientCert(t *testing.T) {
-	pool := x509.NewCertPool()
-	caPEM, err := os.ReadFile(filepath.Join(certsDir, "ca.pem"))
-	if err != nil {
-		t.Fatalf("CA: %v (npm run v2:certs)", err)
-	}
-	if !pool.AppendCertsFromPEM(caPEM) {
-		t.Fatal("CA: нет сертификатов в ca.pem")
-	}
-	base := &tls.Config{RootCAs: pool, ServerName: "mesh", NextProtos: []string{"h2"}, MinVersion: tls.VersionTLS13}
+	base := meshTLS(t)
 
 	t.Run("без сертификата — отказ", func(t *testing.T) {
 		requireTLSRejection(t, readAfterHandshake(base), "без клиентского сертификата")
 	})
 
-	withCert := func(t *testing.T, name string) *tls.Config {
-		t.Helper()
-		cert, err := tls.LoadX509KeyPair(filepath.Join(certsDir, name+".pem"), filepath.Join(certsDir, name+"-key.pem"))
-		if err != nil {
-			t.Fatalf("сертификат %s: %v", name, err)
-		}
-		cfg := base.Clone()
-		cfg.Certificates = []tls.Certificate{cert}
-		return cfg
-	}
-
 	t.Run("с сертификатом web — принято", func(t *testing.T) {
-		if err := readAfterHandshake(withCert(t, "web")); err != nil {
+		cfg := base.Clone()
+		cfg.Certificates = []tls.Certificate{loadCert(t, "web")}
+		if err := readAfterHandshake(cfg); err != nil {
 			t.Fatalf("mesh отверг клиента web с сертификатом нашего CA: %v", err)
 		}
 	})
 
-	// edge — тоже сертификат нашего CA, но звать сервисы через mesh ему нельзя (список SAN в mesh.yaml).
-	t.Run("с сертификатом edge — отказ", func(t *testing.T) {
-		requireTLSRejection(t, readAfterHandshake(withCert(t, "edge")), "клиента edge (SAN не в списке допущенных)")
+	// Сертификат нашего CA с SAN не из списка (так выглядел бы сертификат edge, который devcerts
+	// больше не выпускает): звать сервисы через mesh ему нельзя.
+	t.Run("с чужим SAN нашего CA — отказ", func(t *testing.T) {
+		cfg := base.Clone()
+		cfg.Certificates = []tls.Certificate{strangerCert(t, "edge")}
+		requireTLSRejection(t, readAfterHandshake(cfg), "клиента edge (SAN не в списке допущенных)")
 	})
+}
+
+// loadCert читает пару сертификат/ключ из deploy/compose/certs.
+func loadCert(t *testing.T, name string) tls.Certificate {
+	t.Helper()
+	cert, err := tls.LoadX509KeyPair(filepath.Join(certsDir, name+".pem"), filepath.Join(certsDir, name+"-key.pem"))
+	if err != nil {
+		t.Fatalf("сертификат %s: %v (npm run v2:certs)", name, err)
+	}
+	return cert
+}
+
+// strangerCert выпускает dev-CA сертификат на имя, которого нет ни в одном списке допущенных.
+func strangerCert(t *testing.T, name string) tls.Certificate {
+	t.Helper()
+	caCert, err := os.ReadFile(filepath.Join(certsDir, "ca.pem"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	caKey, err := os.ReadFile(filepath.Join(certsDir, "ca-key.pem"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	certPEM, keyPEM, err := tlsx.Issue(caCert, caKey, name, []string{name, "localhost"}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cert
+}
+
+// TestCallerSurvivesMesh: identity видит вызывающего за mesh (XFCC от Envoy, ADR-011), а не сам mesh,
+// и подделанный клиентом XFCC mesh вычищает.
+func TestCallerSurvivesMesh(t *testing.T) {
+	hc := meshHealth(t, "web")
+	ctx, info := identityCtx(t)
+	info.RequestHeader().Set("x-forwarded-client-cert", "Hash=forged;DNS=operator")
+	res, err := hc.Check(ctx, &grpchealth.CheckRequest{Service: "senim.identity.v1.IdentityService"})
+	if err != nil || res.Status != grpchealth.StatusServing {
+		t.Fatalf("health через mesh: %v %v", res, err)
+	}
+	if got := info.ResponseHeader().Get("x-senim-caller"); got != "web" {
+		t.Fatalf("identity видит вызывающего %q, want web", got)
+	}
+}
+
+// TestIdentityRefusesDirectWeb: порт identity наружу не опубликован, поэтому проверка идёт изнутри
+// контейнера web — с его настоящим сертификатом. identity обязан отказать (только mesh и свои
+// реплики), а mesh с тем же сертификатом — принять (контроль того, что скрипт видит успех).
+func TestIdentityRefusesDirectWeb(t *testing.T) {
+	web := composeContainer(t, "web")
+	if out, code := nodeTLS(t, web, "identity", 8443); code != 0 {
+		t.Fatalf("web → identity:8443 напрямую: код %d, %s (ожидался отказ TLS)", code, out)
+	} else {
+		t.Logf("web → identity напрямую — отказ: %s", out)
+	}
+	if out, code := nodeTLS(t, web, "mesh", 9443); code != 1 {
+		t.Fatalf("web → mesh:9443: код %d, %s (ожидалось принятие)", code, out)
+	}
+}
+
+// composeContainer — имя запущенного контейнера сервиса compose.
+func composeContainer(t *testing.T, service string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), statsTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", "ps", //nolint:gosec // тест: аргументы — константы теста
+		"--filter", "label=com.docker.compose.project="+project,
+		"--filter", "label=com.docker.compose.service="+service,
+		"--format", "{{.Names}}").Output()
+	if err != nil {
+		t.Fatalf("docker ps: %v", err)
+	}
+	name, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	if name == "" {
+		t.Fatalf("контейнер %s не запущен (npm run v2:up)", service)
+	}
+	return name
+}
+
+// nodeTLSScript: mTLS-соединение с сертификатом web, преамбула HTTP/2, ждём первый кадр.
+// Выход: 0 — отказ TLS (алерт о сертификате), 1 — принято (SETTINGS), 2 — иное.
+const nodeTLSScript = `
+const tls = require("node:tls"), fs = require("node:fs");
+const [host, port] = process.argv.slice(1);
+const s = tls.connect({ host, port: Number(port), servername: host, ALPNProtocols: ["h2"],
+  minVersion: "TLSv1.3", ca: fs.readFileSync("/certs/ca.pem"),
+  cert: fs.readFileSync("/certs/web.pem"), key: fs.readFileSync("/certs/web-key.pem") });
+const done = (code, msg) => { console.log(msg); s.destroy(); process.exit(code); };
+s.setTimeout(5000, () => done(2, "timeout"));
+s.on("secureConnect", () => s.write("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"));
+s.on("data", (b) => done(b[3] === 4 ? 1 : 2, "frame type " + b[3]));
+s.on("error", (e) => done(/ALERT|certificate/i.test(String(e.code) + e.message) ? 0 : 2, String(e.code) + " " + e.message));
+s.on("end", () => done(2, "closed without alert"));
+`
+
+func nodeTLS(t *testing.T, container, host string, port int) (string, int) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), statsTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", "exec", container, "node", "-e", nodeTLSScript, host, strconv.Itoa(port)).CombinedOutput() //nolint:gosec // тест: контейнер из docker ps, остальное — константы
+	var exitErr *exec.ExitError
+	switch {
+	case err == nil:
+		return strings.TrimSpace(string(out)), 0
+	case errors.As(err, &exitErr):
+		return strings.TrimSpace(string(out)), exitErr.ExitCode()
+	default:
+		t.Fatalf("docker exec: %v", err)
+		return "", -1
+	}
 }
 
 // readAfterHandshake подключается к mesh, отправляет преамбулу HTTP/2 и читает первый ответ сервера.
@@ -172,11 +275,7 @@ func readAfterHandshake(cfg *tls.Config) error {
 func meshHealth(t *testing.T, name string) *grpchealth.Client {
 	t.Helper()
 	cfg := meshTLS(t)
-	cert, err := tls.LoadX509KeyPair(filepath.Join(certsDir, name+".pem"), filepath.Join(certsDir, name+"-key.pem"))
-	if err != nil {
-		t.Fatalf("сертификат %s: %v", name, err)
-	}
-	cfg.Certificates = []tls.Certificate{cert}
+	cfg.Certificates = []tls.Certificate{loadCert(t, name)}
 	tr := &http.Transport{ForceAttemptHTTP2: true, TLSClientConfig: cfg}
 	t.Cleanup(tr.CloseIdleConnections)
 	return grpchealth.NewClient(connect.NewClient(connecthttp.NewTransport(

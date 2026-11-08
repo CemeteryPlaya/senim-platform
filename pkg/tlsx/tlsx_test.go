@@ -124,7 +124,7 @@ func roundTrip(addr string, cfg *tls.Config) error {
 func serverCfg(t *testing.T, p *pki) *tls.Config {
 	t.Helper()
 	cert, key := p.leaf(t, "identity")
-	cfg, err := tlsx.ServerConfig(cert, key, p.caFile)
+	cfg, err := tlsx.ServerConfig(cert, key, p.caFile, []string{"web", "mesh"})
 	if err != nil {
 		t.Fatalf("ServerConfig: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestClientRejectsForeignServerCert(t *testing.T) {
 	foreign := newPKI(t)
 	// Server presents a certificate issued by a foreign CA.
 	cert, key := foreign.leaf(t, "identity")
-	scfg, err := tlsx.ServerConfig(cert, key, p.caFile)
+	scfg, err := tlsx.ServerConfig(cert, key, p.caFile, []string{"web"})
 	if err != nil {
 		t.Fatalf("ServerConfig: %v", err)
 	}
@@ -268,4 +268,56 @@ func mustDecode(t *testing.T, b []byte) []byte {
 		t.Fatal("not PEM")
 	}
 	return blk.Bytes
+}
+
+// Сертификат нашего же CA, но с SAN не из списка допущенных: сервер рвёт рукопожатие.
+// Так вызывающий не обходит mesh прямым звонком на порт сервиса.
+func TestRejectsCASignedPeerNotAllowed(t *testing.T) {
+	p := newPKI(t)
+	addr, res := serve(t, serverCfg(t, p))
+	cert, key := p.leaf(t, "edge")
+	ccfg, err := tlsx.ClientConfig(cert, key, p.caFile)
+	if err != nil {
+		t.Fatalf("ClientConfig: %v", err)
+	}
+	ccfg.ServerName = "identity"
+	mustContain(t, roundTrip(addr, ccfg), "bad certificate")
+	r := <-res
+	if r.noPeer || r.cn != "" {
+		t.Fatalf("server accepted a peer outside the allow-list: %+v", r)
+	}
+	mustContain(t, r.err, "not allowed")
+}
+
+// localhost есть в каждом dev-сертификате и удостоверением не считается.
+func TestPeerNameIgnoresLocalhost(t *testing.T) {
+	p := newPKI(t)
+	certFile, _ := p.leaf(t, "web")
+	data, err := os.ReadFile(certFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := x509.ParseCertificate(mustDecode(t, data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name, ok := tlsx.PeerName(cert, []string{"mesh", "web"}); !ok || name != "web" {
+		t.Fatalf("PeerName = %q, %v; want web", name, ok)
+	}
+	if _, ok := tlsx.PeerName(cert, []string{"localhost"}); ok {
+		t.Fatal("localhost must never identify a peer")
+	}
+	if _, ok := tlsx.PeerName(cert, []string{"mesh"}); ok {
+		t.Fatal("web is not mesh")
+	}
+}
+
+func TestServerConfigRequiresAllowedPeers(t *testing.T) {
+	p := newPKI(t)
+	cert, key := p.leaf(t, "identity")
+	for _, peers := range [][]string{nil, {}, {""}, {"localhost"}} {
+		if _, err := tlsx.ServerConfig(cert, key, p.caFile, peers); err == nil {
+			t.Errorf("allowed peers %q: want error", peers)
+		}
+	}
 }

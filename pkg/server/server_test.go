@@ -40,13 +40,19 @@ type echoImpl struct {
 	sleep   time.Duration
 }
 
-func (e *echoImpl) Echo(_ context.Context, req *testingv1.EchoRequest) (*testingv1.EchoResponse, error) {
+func (e *echoImpl) Echo(ctx context.Context, req *testingv1.EchoRequest) (*testingv1.EchoResponse, error) {
 	switch req.GetMessage() {
 	case "panic":
 		panic(panicText)
 	case "slow":
 		close(e.started)
 		time.Sleep(e.sleep)
+	case "caller":
+		name, ok := server.Caller(ctx)
+		if !ok {
+			return &testingv1.EchoResponse{Message: "<none>"}, nil
+		}
+		return &testingv1.EchoResponse{Message: name}, nil
 	}
 	return &testingv1.EchoResponse{Message: req.GetMessage()}, nil
 }
@@ -55,6 +61,7 @@ type env struct {
 	grpcAddr, probeAddr string
 	caFile              string
 	transport           *http.Transport
+	as                  map[string]*http.Transport // клиент с сертификатом по имени
 	cancel              context.CancelFunc
 	done                chan error
 	logs                *syncBuffer
@@ -110,24 +117,33 @@ func startWith(t *testing.T, ready func(context.Context) error, tune func(*serve
 	}
 	caFile := write("ca.pem", caCert)
 	issue := func(name string) (string, string) {
-		c, k, err := tlsx.Issue(caCert, caKey, name, []string{"localhost"}, time.Hour)
+		c, k, err := tlsx.Issue(caCert, caKey, name, []string{name, "localhost"}, time.Hour)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return write(name+".pem", c), write(name+".key", k)
 	}
 	srvCert, srvKey := issue("server")
-	cliCert, cliKey := issue("client")
-	clientTLS, err := tlsx.ClientConfig(cliCert, cliKey, caFile)
-	if err != nil {
-		t.Fatal(err)
+	// Клиенты: web (по умолчанию), mesh (ему доверяется XFCC) и intruder — сертификат того же
+	// CA, но не из AllowedPeers.
+	transports := map[string]*http.Transport{}
+	for _, name := range []string{"web", "mesh", "intruder"} {
+		cert, key := issue(name)
+		cfg, err := tlsx.ClientConfig(cert, key, caFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tr := &http.Transport{TLSClientConfig: cfg, ForceAttemptHTTP2: true}
+		t.Cleanup(tr.CloseIdleConnections)
+		transports[name] = tr
 	}
 
 	e := &env{
 		caFile:    caFile,
 		grpcAddr:  freeAddr(t),
 		probeAddr: freeAddr(t),
-		transport: &http.Transport{TLSClientConfig: clientTLS, ForceAttemptHTTP2: true},
+		transport: transports["web"],
+		as:        transports,
 		done:      make(chan error, 1),
 		logs:      &syncBuffer{},
 		echo:      &echoImpl{started: make(chan struct{}), sleep: 2 * time.Second},
@@ -156,6 +172,7 @@ func startWith(t *testing.T, ready func(context.Context) error, tune func(*serve
 		DrainDelay:      drainDelay,
 		Logger:          logging.New(e.logs, "test", slog.LevelDebug),
 		Services:        []string{echoService},
+		AllowedPeers:    []string{server.MeshPeer, "web"},
 	}
 	if tune != nil {
 		tune(&opt)
@@ -537,5 +554,106 @@ func TestMessageSizeLimit(t *testing.T) {
 	// Сервер жив и обслуживает дальше.
 	if _, err := client.Echo(ctx5(t), &testingv1.EchoRequest{Message: "after"}); err != nil {
 		t.Fatalf("after oversized: %v", err)
+	}
+}
+
+// callerAs вызывает Echo("caller") с сертификатом name и заголовками XFCC (каждый — отдельное
+// значение заголовка) и возвращает имя вызывающего, которое увидел обработчик, и заголовок ответа.
+func (e *env) callerAs(t *testing.T, name string, xfcc ...string) (string, string, error) {
+	t.Helper()
+	ctx, info := connect.NewClientContext(ctx5(t))
+	for _, v := range xfcc {
+		info.RequestHeader().Add("x-forwarded-client-cert", v)
+	}
+	res, err := testingv1connect.NewEchoServiceClient(e.rpc(e.as[name])).Echo(ctx, &testingv1.EchoRequest{Message: "caller"})
+	if err != nil {
+		return "", "", err
+	}
+	return res.GetMessage(), info.ResponseHeader().Get(server.CallerHeader), nil
+}
+
+// Прямой вызов: удостоверение — SAN сертификата TLS; обработчик и ответ видят одно имя.
+func TestCallerFromTLSPeer(t *testing.T) {
+	e := start(t, func(context.Context) error { return nil })
+	got, header, err := e.callerAs(t, "web")
+	if err != nil || got != "web" || header != "web" {
+		t.Fatalf("caller = %q, header %q, err %v; want web", got, header, err)
+	}
+}
+
+// Сертификат нашего CA, но не из AllowedPeers, не проходит рукопожатие.
+func TestRejectsPeerOutsideAllowList(t *testing.T) {
+	e := start(t, func(context.Context) error { return nil })
+	if got, _, err := e.callerAs(t, "intruder"); err == nil {
+		t.Fatalf("intruder accepted as %q", got)
+	}
+	// Сервер жив и обслуживает допущенных.
+	if got, _, err := e.callerAs(t, "web"); err != nil || got != "web" {
+		t.Fatalf("after intruder: %q %v", got, err)
+	}
+}
+
+// Через mesh: удостоверение вызывающего — из XFCC текущего звена, который ставит Envoy.
+func TestCallerFromXFCCViaMesh(t *testing.T) {
+	e := start(t, func(context.Context) error { return nil })
+	for xfcc, want := range map[string]string{
+		`Hash=4d5f6a;DNS=web;DNS=localhost`:                                              "web",
+		`By=spiffe://senim/mesh;Hash=4d5f6a;Subject="CN=operator,O=x";URI=;DNS=operator`: "operator",
+		`Hash=4d5f6a;DNS="deal";DNS=localhost`:                                           "deal",
+	} {
+		got, header, err := e.callerAs(t, "mesh", xfcc)
+		if err != nil || got != want || header != want {
+			t.Errorf("XFCC %q: caller %q, header %q, err %v; want %s", xfcc, got, header, err, want)
+		}
+	}
+	// Без XFCC вызывает сам mesh (активная проверка здоровья Envoy).
+	if got, _, err := e.callerAs(t, "mesh"); err != nil || got != server.MeshPeer {
+		t.Fatalf("mesh without XFCC: %q %v", got, err)
+	}
+}
+
+// XFCC от кого-то кроме mesh не значит ничего: вызывающий — по его собственному сертификату.
+func TestForgedXFCCFromNonMeshIgnored(t *testing.T) {
+	e := start(t, func(context.Context) error { return nil })
+	got, _, err := e.callerAs(t, "web", `Hash=1;DNS=operator`)
+	if err != nil || got != "web" {
+		t.Fatalf("forged XFCC from web: caller %q, err %v; want web", got, err)
+	}
+	// Даже битый XFCC от не-mesh не мешает: заголовок просто не читается.
+	if got, _, err := e.callerAs(t, "web", `DNS=a,DNS=b`); err != nil || got != "web" {
+		t.Fatalf("garbage XFCC from web: %q %v", got, err)
+	}
+}
+
+// Неразборчивый XFCC от mesh — отказ PermissionDenied, а не догадка о вызывающем.
+func TestMalformedXFCCFromMeshRejected(t *testing.T) {
+	e := start(t, func(context.Context) error { return nil })
+	for _, xfcc := range [][]string{
+		{`DNS=web,DNS=deal`},                  // два звена: SANITIZE_SET оставляет одно
+		{`Hash=1;DNS=web`, `Hash=2;DNS=deal`}, // два заголовка
+		{`Hash=1`},                            // нет DNS
+		{`Hash=1;DNS=localhost`},              // только localhost
+		{`Foo=bar;DNS=web`},                   // неизвестный ключ
+		{`DNS="web`},                          // незакрытая кавычка
+		{`DNS=`},                              // пустое имя
+		{`DNS=Web!`},                          // не имя сервиса
+		{`DNS=web;;Hash=1`},                   // пустая пара
+		{``},                                  // пустой заголовок
+	} {
+		_, _, err := e.callerAs(t, "mesh", xfcc...)
+		if got := connect.CodeOf(err); got != connect.CodePermissionDenied {
+			t.Errorf("XFCC %q: code %v (%v), want permission_denied", xfcc, got, err)
+		}
+	}
+	if !strings.Contains(e.logs.String(), "x-forwarded-client-cert") {
+		t.Errorf("rejection must be logged: %s", e.logs.String())
+	}
+}
+
+func TestRunRequiresAllowedPeers(t *testing.T) {
+	err := server.Run(context.Background(), server.Options{Name: "x", GRPCAddr: "127.0.0.1:0", ProbeAddr: "127.0.0.1:0"},
+		func(*connect.Server) error { return nil }, nil)
+	if err == nil || !strings.Contains(err.Error(), "AllowedPeers") {
+		t.Fatalf("Run without AllowedPeers: %v", err)
 	}
 }

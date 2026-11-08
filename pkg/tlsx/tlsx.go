@@ -15,6 +15,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"slices"
 	"time"
 )
 
@@ -154,8 +155,35 @@ func loadPool(caFile string) (*x509.CertPool, error) {
 	return pool, nil
 }
 
-// ServerConfig requires and verifies client certificates issued by the CA in caFile.
-func ServerConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
+// localhost is in every dev certificate (devcerts) and never identifies a peer.
+const localhost = "localhost"
+
+// PeerName returns the peer identity of cert: its first DNS SAN that is in allowed.
+// The service name is a DNS SAN of every platform certificate (devcerts issues
+// [name, localhost]); the CN is not used. "localhost" never matches.
+func PeerName(cert *x509.Certificate, allowed []string) (string, bool) {
+	for _, dns := range cert.DNSNames {
+		if dns != localhost && slices.Contains(allowed, dns) {
+			return dns, true
+		}
+	}
+	return "", false
+}
+
+// ServerConfig requires and verifies client certificates issued by the CA in caFile and
+// accepts only clients whose DNS SAN is in allowedPeers (see PeerName): any other holder of
+// a certificate from the same CA is refused during the handshake. allowedPeers must not be
+// empty.
+func ServerConfig(certFile, keyFile, caFile string, allowedPeers []string) (*tls.Config, error) {
+	peers := make([]string, 0, len(allowedPeers))
+	for _, p := range allowedPeers {
+		if p != "" && p != localhost {
+			peers = append(peers, p)
+		}
+	}
+	if len(peers) == 0 {
+		return nil, errors.New("tlsx: allowed peers are required")
+	}
 	pair, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, fmt.Errorf("tlsx: load key pair: %w", err)
@@ -170,6 +198,16 @@ func ServerConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    pool,
 		NextProtos:   []string{"h2"},
+		// Runs after chain verification: the leaf is signed by our CA; now check who it is.
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			if len(cs.PeerCertificates) == 0 {
+				return errors.New("tlsx: no client certificate")
+			}
+			if _, ok := PeerName(cs.PeerCertificates[0], peers); !ok {
+				return fmt.Errorf("tlsx: client %q is not allowed", cs.PeerCertificates[0].Subject.CommonName)
+			}
+			return nil
+		},
 	}, nil
 }
 
