@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ChevronRight, MessageSquareText } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { listChats, type ChatListItem } from "@/modules/companies";
-import { getCurrentUser, requireIntroduced } from "@/modules/identity";
+import { requireUserPage } from "@/modules/identity";
 import { ButtonLink, Container, DateText, EmptyState, PageHeader, StatusBadge } from "@/ui";
 
 const t = ru.chats;
@@ -53,9 +52,8 @@ function Empty({ role }: { role: string }) {
 
 /** Вкладка «Чат»: диалоги по откликам, где человек — заказчик заявки или исполнитель. Владение проверяет сервис. */
 export default async function ChatsPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect(`/login?next=${encodeURIComponent("/chats")}`);
-  requireIntroduced(user, "/chats");
+  // Без списка ролей: оператор и замерщик тоже открывают вкладку и видят пустой список.
+  const user = await requireUserPage("/chats");
   const chats = await listChats(user);
 
   return (
