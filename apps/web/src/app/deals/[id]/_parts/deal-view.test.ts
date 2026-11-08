@@ -36,7 +36,7 @@ describe("смета до оплаты (ТЗ п. 5)", () => {
     const rows = estimateRows({ party: "EXECUTOR", priceTiyn: 10_000_000n, extraTiyn: 400_000n, totalTiyn: 9_600_000n });
     expect(rows.map((r) => [r.label, plain(r.value)])).toEqual([
       ["Сумма заказа", "100 000 ₸"],
-      ["Гарантия оплаты (4%)", "−4 000 ₸"],
+      ["Гарантия оплаты и клиента (4%)", "−4 000 ₸"],
       ["К выплате", "96 000 ₸"],
     ]);
   });

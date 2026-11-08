@@ -2,7 +2,7 @@ import { computeDealMoney } from "./money";
 
 /**
  * Смета стороны до оплаты (ТЗ п. 5): покупатель — «Стоимость заказа · Защита сделки (2%) · Итого к оплате»,
- * мастер — «Сумма заказа · Гарантия оплаты (4%) · К выплате». Подписи — ru.payments.estimate[party].
+ * мастер — «Сумма заказа · Гарантия оплаты и клиента (4%) · К выплате». Подписи — ru.payments.estimate[party].
  */
 export type PartyEstimate = { party: "CLIENT" | "EXECUTOR"; priceTiyn: bigint; extraTiyn: bigint; totalTiyn: bigint };
 
