@@ -27,7 +27,7 @@ export default async function ProfilePage() {
   if (!user) redirect(loginHref(ACCOUNT_HREF));
   const { tabs, more } = navFor(user, env().DEMO_MODE, features());
   // Вкладки и так на виду; здесь — остальные разделы роли (у исполнителя — профиль компании, портфолио, замеры).
-  const sections = more.filter((item) => !tabs.some((tab) => tab.href === item.href));
+  const sections = more.filter((item) => item.href !== ACCOUNT_HREF && !tabs.some((tab) => tab.href === item.href));
   const targets = switchTargets(user);
 
   return (

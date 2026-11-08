@@ -21,7 +21,7 @@ export function AppHeader({ user, demoMode }: Props) {
   const all = [...tabs, ...more];
   // Уведомления — колокольчик со счётчиком в шапке на любой ширине, а не пункт меню.
   const menu = all.filter((item) => item.href !== ACCOUNT_HREF && item.icon !== "notifications");
-  const account = tabs.find((item) => item.href === ACCOUNT_HREF);
+  const account = all.find((item) => item.href === ACCOUNT_HREF);
 
   return (
     <>

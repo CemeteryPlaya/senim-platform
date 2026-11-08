@@ -66,7 +66,7 @@ export const common = {
   },
   nav: {
     home: "Главная",
-    catalog: "Каталог работ",
+    catalog: "Работы",
     inspiration: "Вдохновение",
     /** В макете — «Мои обращения»; оставлено слово глоссария и заголовка страницы (docs/design/README.md). */
     myRequests: "Мои заявки",
@@ -80,10 +80,12 @@ export const common = {
     company: "Профиль компании",
     portfolio: "Портфолио",
     operator: "Оператор",
-    measurer: "Мои замеры",
+    measurer: "Замеры",
     bankDemo: "Показ банку",
     demo: "Демо-персоны",
     login: "Войти",
+    newRequest: "Заявка",
+    chat: "Чат",
   },
 
   ui: {

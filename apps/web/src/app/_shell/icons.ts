@@ -9,7 +9,10 @@ import {
   Landmark,
   LayoutDashboard,
   LayoutGrid,
+  LogIn,
+  MessageCircle,
   Package,
+  Plus,
   Ruler,
   Sparkles,
   Store,
@@ -37,4 +40,7 @@ export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   operator: LayoutDashboard,
   bank: Landmark,
   demo: FlaskConical,
+  chat: MessageCircle,
+  plus: Plus,
+  login: LogIn,
 };

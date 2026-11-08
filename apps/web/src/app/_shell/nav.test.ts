@@ -10,9 +10,12 @@ const ON = { preContractFlows: true, inspiration: true };
 const OFF = { preContractFlows: false, inspiration: false };
 const EXECUTOR = { role: "EXECUTOR", executor: { status: "APPROVED" } } as const;
 
-describe("вкладки по роли (макеты 7–19)", () => {
-  it("гость: главная, каталог, вдохновение; «Войти» — в шапке", () => {
-    expect(tabs(null, false, ON)).toEqual(["/", "/catalog", "/inspiration"]);
+const MEASURER = { role: "MEASURER", executor: null } as const;
+const OPERATOR = { role: "OPERATOR", executor: null } as const;
+
+describe("вкладки по роли («B + A»)", () => {
+  it("гость: Главная / Работы / Войти", () => {
+    expect(tabs(null, false, ON)).toEqual(["/", "/catalog", "/login"]);
     expect(more(null, false, ON)).toEqual([]);
   });
 
@@ -20,13 +23,27 @@ describe("вкладки по роли (макеты 7–19)", () => {
     expect(more(null, true, ON)).toEqual(["/bank-demo", "/demo"]);
   });
 
-  it("заказчик: Главная / Мои заявки / Вдохновение / Профиль; сделки и каталог — в профиле и «Ещё»", () => {
-    expect(tabs(CLIENT, false, ON)).toEqual(["/", "/requests", "/inspiration", "/profile"]);
-    expect(more(CLIENT, false, ON)).toEqual(["/deals", "/catalog", "/notifications"]);
+  it("заказчик: Главная / Сделки / Заявка / Чат / Профиль; остальное — в «Ещё»", () => {
+    expect(tabs(CLIENT, false, ON)).toEqual(["/", "/deals", "/requests/new", "/chats", "/profile"]);
+    expect(more(CLIENT, false, ON)).toEqual(["/requests", "/catalog", "/inspiration", "/notifications"]);
   });
 
-  it("исполнитель: Главная / Заявки / Заказы / Финансы / Профиль", () => {
-    expect(tabs(EXECUTOR, false, ON)).toEqual(["/", "/executor/requests", "/deals", "/executor/finance", "/profile"]);
+  it("у заказчика ровно одно центральное действие — «Заявка»", () => {
+    const primary = navFor(CLIENT, false, ON).tabs.filter((item) => item.primary);
+    expect(primary.map((item) => item.href)).toEqual(["/requests/new"]);
+    expect(primary[0].label).toBe("Заявка");
+    expect(navFor(CLIENT, false, ON).tabs[2]).toBe(primary[0]);
+  });
+
+  it("у остальных ролей центрального действия нет", () => {
+    for (const user of [null, EXECUTOR, MEASURER, OPERATOR]) {
+      const nav = navFor(user, true, ON);
+      expect([...nav.tabs, ...nav.more].some((item) => item.primary)).toBe(false);
+    }
+  });
+
+  it("исполнитель: Заявки / Заказы / Чат / Финансы / Профиль", () => {
+    expect(tabs(EXECUTOR, false, ON)).toEqual(["/executor/requests", "/deals", "/chats", "/executor/finance", "/profile"]);
     expect(more(EXECUTOR, false, ON)).toEqual(["/executor/measurements", "/executor/profile", "/executor/portfolio", "/notifications"]);
   });
 
@@ -34,16 +51,20 @@ describe("вкладки по роли (макеты 7–19)", () => {
     expect(tabs({ role: "EXECUTOR", executor: { status: "PENDING" } }, false, ON)).toEqual(["/executor/profile", "/executor/portfolio", "/profile"]);
   });
 
-  it("оператор и замерщик — прежние меню и профиль; показ банку и демо — только в демо-режиме", () => {
-    expect(tabs({ role: "OPERATOR", executor: null }, false, ON)).toEqual(["/operator", "/deals", "/profile"]);
-    expect(more({ role: "OPERATOR", executor: null }, false, ON)).toEqual([]);
-    expect(more({ role: "OPERATOR", executor: null }, true, ON)).toEqual(["/bank-demo", "/demo"]);
-    expect(tabs({ role: "MEASURER", executor: null }, false, ON)).toEqual(["/measurer", "/profile"]);
+  it("замерщик: Замеры / Чат / Профиль", () => {
+    expect(tabs(MEASURER, false, ON)).toEqual(["/measurer", "/chats", "/profile"]);
+    expect(navFor(MEASURER, false, ON).tabs[0].label).toBe("Замеры");
+  });
+
+  it("оператор: вкладок нет, все разделы — в боковом меню; показ банку и демо — только в демо-режиме", () => {
+    expect(tabs(OPERATOR, false, ON)).toEqual([]);
+    expect(more(OPERATOR, false, ON)).toEqual(["/operator", "/deals", "/profile"]);
+    expect(more(OPERATOR, true, ON)).toEqual(["/operator", "/deals", "/profile", "/bank-demo", "/demo"]);
     expect(more(CLIENT, true, ON)).toContain("/bank-demo");
   });
 
   it("у каждого пункта есть подпись и иконка, подписи в одной роли не повторяются", () => {
-    for (const user of [null, CLIENT, EXECUTOR] as const) {
+    for (const user of [null, CLIENT, EXECUTOR, MEASURER, OPERATOR] as const) {
       const { tabs: t, more: m } = navFor(user, true, ON);
       const all = [...t, ...m];
       for (const item of all) {
@@ -56,17 +77,17 @@ describe("вкладки по роли (макеты 7–19)", () => {
 });
 
 describe("разделы за флагами", () => {
-  it("флаги выключены: нет «Вдохновения» (гость, заказчик) и «Замеров» мастера", () => {
-    expect(tabs(null, false, OFF)).toEqual(["/", "/catalog"]);
-    expect(tabs(CLIENT, false, OFF)).toEqual(["/", "/requests", "/profile"]);
+  it("флаги выключены: нет «Вдохновения» у заказчика и «Замеров» мастера", () => {
+    expect(tabs(null, false, OFF)).toEqual(["/", "/catalog", "/login"]);
+    expect(tabs(CLIENT, false, OFF)).toEqual(["/", "/deals", "/requests/new", "/chats", "/profile"]);
+    expect(more(CLIENT, false, OFF)).toEqual(["/requests", "/catalog", "/notifications"]);
     expect(more(EXECUTOR, false, OFF)).toEqual(["/executor/profile", "/executor/portfolio", "/notifications"]);
     expect(more(EXECUTOR, true, OFF)).toEqual(["/executor/profile", "/executor/portfolio", "/notifications", "/bank-demo", "/demo"]);
   });
 
   it("замерщик: «Замеры» — только при сценариях до договора (иначе страница — 404)", () => {
-    const MEASURER = { role: "MEASURER", executor: null } as const;
-    expect(tabs(MEASURER, false, OFF)).toEqual(["/profile"]);
-    expect(tabs(MEASURER, false, ON)).toEqual(["/measurer", "/profile"]);
+    expect(tabs(MEASURER, false, OFF)).toEqual(["/chats", "/profile"]);
+    expect(tabs(MEASURER, false, ON)).toEqual(["/measurer", "/chats", "/profile"]);
   });
 });
 
@@ -76,7 +97,11 @@ describe("currentItem: какая вкладка активна (aria-current)",
   const active = (path: string, query = "") => currentItem(all, path, new URLSearchParams(query))?.href;
 
   it("главная — только на самой главной, а не на любой странице", () => {
-    expect(active("/")).toBe("/");
+    const client = navFor(CLIENT, false, ON);
+    const clientActive = (path: string) => currentItem([...client.tabs, ...client.more], path, new URLSearchParams())?.href;
+    expect(clientActive("/")).toBe("/");
+    expect(clientActive("/requests/new")).toBe("/requests/new");
+    expect(active("/")).toBeUndefined();
     expect(active("/catalog")).toBeUndefined();
   });
 

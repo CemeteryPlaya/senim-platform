@@ -21,9 +21,13 @@ export type NavIcon =
   | "portfolio"
   | "operator"
   | "bank"
-  | "demo";
+  | "demo"
+  | "chat"
+  | "plus"
+  | "login";
 
-export type NavItem = { href: string; label: string; icon: NavIcon };
+/** primary — центральное действие нижней панели (у заказчика — «Заявка»); не более одного на роль. */
+export type NavItem = { href: string; label: string; icon: NavIcon; primary?: true };
 
 /** Вкладки — на виду всегда; more — в «Ещё» на компьютере и списком на странице профиля. */
 export type RoleNav = { tabs: NavItem[]; more: NavItem[] };
@@ -63,6 +67,10 @@ const ROUTES = {
   measurer: { href: "/measurer", label: t.measurer, icon: "measurements" },
   bankDemo: { href: "/bank-demo", label: t.bankDemo, icon: "bank" },
   demo: { href: "/demo", label: t.demo, icon: "demo" },
+  login: { href: LOGIN_HREF, label: t.login, icon: "login" },
+  newRequest: { href: "/requests/new", label: t.newRequest, icon: "plus", primary: true },
+  // Раздел чатов делает отдельная задача; пока вкладка ведёт на будущий адрес.
+  chat: { href: "/chats", label: t.chat, icon: "chat" },
 } satisfies Record<string, NavItem>;
 
 const R = ROUTES;
@@ -80,18 +88,22 @@ const allowed = (features: NavFeatures) => (item: NavItem) => {
 };
 
 function roleNav(user: NavUser | null): RoleNav {
-  if (!user) return { tabs: [R.home, R.catalog, R.inspiration], more: [] };
+  if (!user) return { tabs: [R.home, R.catalog, R.login], more: [] };
   switch (user.role) {
     case "CLIENT":
-      return { tabs: [R.home, R.myRequests, R.inspiration, R.account], more: [R.deals, R.catalog, R.notifications] };
+      return {
+        tabs: [R.home, R.deals, R.newRequest, R.chat, R.account],
+        more: [R.myRequests, R.catalog, R.inspiration, R.notifications],
+      };
     case "EXECUTOR":
       return user.executor?.status === "APPROVED"
-        ? { tabs: [R.home, R.incoming, R.orders, R.finance, R.account], more: [R.measurements, R.company, R.portfolio, R.notifications] }
+        ? { tabs: [R.incoming, R.orders, R.chat, R.finance, R.account], more: [R.measurements, R.company, R.portfolio, R.notifications] }
         : { tabs: [R.company, R.portfolio, R.account], more: [R.notifications] };
     case "OPERATOR":
-      return { tabs: [R.operator, R.deals, R.account], more: [] };
+      // Вкладок нет: все разделы — в боковом меню.
+      return { tabs: [], more: [R.operator, R.deals, R.account] };
     case "MEASURER":
-      return { tabs: [R.measurer, R.account], more: [R.notifications] };
+      return { tabs: [R.measurer, R.chat, R.account], more: [R.notifications] };
   }
 }
 
