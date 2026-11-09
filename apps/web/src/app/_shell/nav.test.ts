@@ -151,6 +151,16 @@ describe("currentItem: какая вкладка активна (aria-current)",
     expect(active("/executor/profile")).toBe("/executor/profile");
     expect(active("/profile")).toBe("/profile");
   });
+
+  it("оператор на общем экране сделок (/deals, /deals/[id]) — активен раздел «Сделки»", () => {
+    const op = navFor(OPERATOR, true, ON).more;
+    const opActive = (path: string) => currentItem(op, path, new URLSearchParams())?.href;
+    expect(opActive("/deals")).toBe("/operator/deals");
+    expect(opActive("/deals/abc")).toBe("/operator/deals");
+    expect(opActive("/operator/deals")).toBe("/operator/deals");
+    expect(opActive("/operator")).toBe("/operator");
+    expect(opActive("/dealsx")).toBeUndefined();
+  });
 });
 
 describe("splitNav: что видно сразу, что — в «Ещё»", () => {

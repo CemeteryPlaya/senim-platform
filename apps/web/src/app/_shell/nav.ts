@@ -41,8 +41,11 @@ export type NavIcon =
 /** Группа разделов в меню (у оператора их много): подпись группы — над её пунктами. */
 export type NavGroup = "queues" | "dealsReports" | "reference";
 
-/** primary — центральное действие нижней панели (у заказчика — «Заявка»); не более одного на роль. group — группа в меню. */
-export type NavItem = { href: string; label: string; icon: NavIcon; primary?: true; group?: NavGroup };
+/**
+ * primary — центральное действие нижней панели (у заказчика — «Заявка»); не более одного на роль. group — группа в меню.
+ * alsoActive — другие адреса (с вложенными), на которых пункт тоже активен: общий экран сделки у оператора — «Сделки».
+ */
+export type NavItem = { href: string; label: string; icon: NavIcon; primary?: true; group?: NavGroup; alsoActive?: readonly string[] };
 
 /** Вкладки — на виду всегда; more — в «Ещё» на компьютере и списком на странице профиля. */
 export type RoleNav = { tabs: NavItem[]; more: NavItem[] };
@@ -96,7 +99,8 @@ const ROUTES = {
   opExecutors: { href: "/operator/executors", label: op.executors, icon: "executors", group: "queues" },
   opDisputes: { href: "/operator/disputes", label: op.disputes, icon: "disputes", group: "queues" },
   opRequests: { href: "/operator/requests", label: op.requests, icon: "staleRequests", group: "queues" },
-  opDeals: { href: "/operator/deals", label: op.deals, icon: "deals", group: "dealsReports" },
+  // Карточка сделки у оператора — общий экран /deals/[id] (как у сторон); «Сделки» подсвечены и там.
+  opDeals: { href: "/operator/deals", label: op.deals, icon: "deals", group: "dealsReports", alsoActive: ["/deals"] },
   opIncome: { href: "/operator/income", label: op.income, icon: "income", group: "dealsReports" },
   opReport: { href: "/operator/report", label: op.report, icon: "report", group: "dealsReports" },
   opAudit: { href: "/operator/audit", label: op.audit, icon: "audit", group: "dealsReports" },
@@ -179,11 +183,11 @@ export function groupNav<T extends NavItem>(items: readonly T[]): { group?: NavG
 /** Насколько пункт подходит к адресу: -1 — не подходит; больше — точнее (длиннее путь, совпал параметр). */
 function matchScore(item: NavItem, pathname: string, search: URLSearchParams): number {
   const url = new URL(item.href, "http://x");
-  const path = url.pathname;
-  const pathOk = path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
-  if (!pathOk) return -1;
   for (const [key, value] of url.searchParams) if (search.get(key) !== value) return -1;
-  return path.length * 10 + url.searchParams.size;
+  const under = (path: string) => (path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`));
+  const paths = [url.pathname, ...(item.alsoActive ?? [])].filter(under);
+  if (paths.length === 0) return -1;
+  return Math.max(...paths.map((p) => p.length)) * 10 + url.searchParams.size;
 }
 
 /**

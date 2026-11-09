@@ -43,7 +43,7 @@ test("оператор подтверждает регистрацию с сег
 
 /** Главное меню оператора: на десктопе — боковое, на телефоне — кнопка «Меню» в шапке (у оператора нет вкладок). */
 const NAV = "Основное меню";
-const SECTIONS = ["Деньги в банке", "Исполнители", "Проверка документов мастеров", "Споры", "Заявки без откликов", "Сделки", "Доход платформы", "Отчёт", "Журнал аудита", "Типы мебели", "Флаги и окружение"];
+const SECTIONS = ["Деньги в банке", "Исполнители", "Документы мастеров", "Споры", "Заявки без откликов", "Сделки", "Доход платформы", "Отчёт", "Журнал аудита", "Типы мебели", "Флаги и окружение"];
 
 test("оператор на телефоне 390 px: деньги в банке и таблицы без прокрутки страницы вбок", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -98,4 +98,14 @@ test("оператор на десктопе 1440 px: боковое меню с
   await page.goto("/operator/deals");
   await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveCount(0);
   await expectNoHorizontalScroll(page);
+  // Последний пункт меню достижим (меню прокручивается внутри колонки).
+  const last = nav.getByRole("link").last();
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toBeInViewport();
+  // Общий список и экран сделки (/deals, /deals/[id]) — в меню оператора активны «Сделки».
+  await page.goto("/deals");
+  await expect(nav.getByRole("link", { name: "Сделки", exact: true })).toHaveAttribute("aria-current", "page");
+  await page.getByRole("link", { name: /^Открыть: Сделка №\d+/ }).first().click();
+  await page.waitForURL(/\/deals\/[^/]+$/);
+  await expect(nav.getByRole("link", { name: "Сделки", exact: true })).toHaveAttribute("aria-current", "page");
 });
