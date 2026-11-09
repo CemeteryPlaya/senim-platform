@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Hammer, Sofa } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { CategoryTiles, FilterChips, KeyValueList, StatTiles, TrustNote } from "./index";
+import { CategoryTiles, FilterChips, formatTiyn, KeyValueList, StatTiles, TrustNote } from "./index";
 
 describe("CategoryTiles", () => {
   const html = renderToStaticMarkup(
@@ -49,6 +49,13 @@ describe("TrustNote", () => {
     expect(html).toContain("bg-accent-soft");
     expect(html).toContain('aria-hidden="true"');
   });
+  it("узкая плашка ставит значок над текстом (контейнерный запрос), без переносов с дефисом", () => {
+    const html = renderToStaticMarkup(<TrustNote>Деньги в банке под защитой</TrustNote>);
+    expect(html).toContain("@container/trust");
+    expect(html).toContain("flex-col");
+    expect(html).toContain("@[14em]/trust:flex-row");
+    expect(html).not.toContain("hyphens");
+  });
 });
 
 describe("KeyValueList", () => {
@@ -84,6 +91,13 @@ describe("StatTiles", () => {
     expect(html).toContain("за сегодня");
     expect(html).toContain("auto-fit");
     expect(html).toContain("В работе");
+  });
+  it("сумма переносится только между группами разрядов, «₸» остаётся с последней группой", () => {
+    const html = renderToStaticMarkup(<StatTiles items={[{ label: "Итого доход", value: formatTiyn(139_200_000n) }]} />);
+    const NB = " ";
+    expect(html).toContain(`1${NB}<wbr/>392${NB}<wbr/>000${NB}₸`);
+    // Без аварийного переноса в любом месте: иначе «₸» уходит на свою строку.
+    expect(html).not.toContain("break-words");
   });
   it("подпись списка и плитка только для десктопа", () => {
     const html = renderToStaticMarkup(

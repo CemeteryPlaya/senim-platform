@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatDateTime, formatDays, formatMoney, formatMonths, formatRelative, formatTiyn, formatTime, formatYears, moneyBreakParts } from "./format";
+import { digitGroupParts, formatDate, formatDateTime, formatDays, formatMoney, formatMonths, formatRelative, formatTiyn, formatTime, formatYears, moneyBreakParts } from "./format";
 
 const NBSP = " ";
 
@@ -33,6 +33,11 @@ describe("moneyBreakParts — где крупная сумма может пер
 
   it("куски вместе — ровно formatMoney", () => {
     expect(moneyBreakParts(10_005_000).join("")).toBe(formatMoney(10_005_000));
+  });
+
+  it("готовая строка formatTiyn режется так же — «₸» не отрывается от последней группы", () => {
+    expect(digitGroupParts(formatTiyn(139_200_000n))).toEqual([`1${NBSP}`, `392${NBSP}`, `000${NBSP}₸`]);
+    expect(digitGroupParts("17")).toEqual(["17"]);
   });
 
   it("сумма в тиынах (bigint) — те же места переноса, тиыны остаются со знаком валюты", () => {
