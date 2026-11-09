@@ -58,7 +58,7 @@ export function SideNav({ items, more, primary }: { items: readonly NavItem[]; m
       {primary && (
         <div className="mt-auto pt-2">
           {/* Мятная, не заливная: заливная главная кнопка на экране одна — своя у каждой страницы (data-primary-action). */}
-          <ButtonLink href={primary.href} variant="soft" fullWidth icon={<PrimaryIcon />}>
+          <ButtonLink href={primary.href} variant="soft" fullWidth icon={<PrimaryIcon />} aria-current={primary === active ? "page" : undefined}>
             {primary.label}
           </ButtonLink>
         </div>

@@ -43,6 +43,10 @@ test("заказчик: на телефоне нижняя панель из 5 �
     await expect(nav.locator("[data-primary-action]")).toHaveCount(0);
     await expect(page.locator("[data-primary-action]")).toHaveCount(1);
     await expect(nav.getByRole("link", { name: "Главная" })).toHaveAttribute("aria-current", "page");
+    // На экране самого действия роли текущий пункт меню — кнопка «Заявка».
+    await page.goto("/requests/new");
+    await expect(nav.getByRole("link", { name: "Заявка" })).toHaveAttribute("aria-current", "page");
+    await expect(nav.locator("[aria-current=page]")).toHaveCount(1);
     return;
   }
 
