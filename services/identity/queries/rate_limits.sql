@@ -9,3 +9,7 @@ ON CONFLICT (key) DO UPDATE SET
     count        = CASE WHEN rate_limits.window_start < sqlc.arg(now)::timestamptz - make_interval(secs => sqlc.arg(window_secs)::float8)
                         THEN 1 ELSE rate_limits.count + 1 END
 RETURNING count;
+
+-- Сброс стенда (ResetDemo): таблица rate_limits помечена senim:app-delete.
+-- name: DeleteAllRateLimits :execrows
+DELETE FROM rate_limits;

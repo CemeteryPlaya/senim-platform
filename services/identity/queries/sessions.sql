@@ -25,3 +25,7 @@ UPDATE sessions SET revoked_at = $2 WHERE user_id = $1 AND revoked_at IS NULL;
 
 -- name: SetSessionActiveRole :one
 UPDATE sessions SET active_role = $2 WHERE id = $1 RETURNING *;
+
+-- Сброс стенда (ResetDemo): таблица sessions помечена senim:app-delete.
+-- name: DeleteAllSessions :execrows
+DELETE FROM sessions;

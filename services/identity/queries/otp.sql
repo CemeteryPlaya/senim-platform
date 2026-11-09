@@ -20,3 +20,7 @@ RETURNING attempts;
 -- Условный UPDATE: из двух одновременных вводов одного кода погасит ровно один.
 UPDATE otp_codes SET consumed_at = sqlc.arg(now)::timestamptz
 WHERE id = $1 AND consumed_at IS NULL;
+
+-- Сброс стенда (ResetDemo): таблица otp_codes помечена senim:app-delete.
+-- name: DeleteAllOtpCodes :execrows
+DELETE FROM otp_codes;

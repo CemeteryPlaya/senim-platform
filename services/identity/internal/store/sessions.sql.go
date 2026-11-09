@@ -12,6 +12,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteAllSessions = `-- name: DeleteAllSessions :execrows
+DELETE FROM sessions
+`
+
+// Сброс стенда (ResetDemo): таблица sessions помечена senim:app-delete.
+func (q *Queries) DeleteAllSessions(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAllSessions)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
 SELECT id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at FROM sessions WHERE token_hash = $1
 `

@@ -157,3 +157,50 @@ func (q *Queries) SetUserDefaultRole(ctx context.Context, arg SetUserDefaultRole
 	)
 	return i, err
 }
+
+const upsertSeedUser = `-- name: UpsertSeedUser :one
+INSERT INTO users (phone, roles, default_role, is_demo, created_at, updated_at)
+VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, $6::timestamptz), $6::timestamptz)
+ON CONFLICT (phone) DO UPDATE SET
+    roles        = EXCLUDED.roles,
+    default_role = EXCLUDED.default_role,
+    is_demo      = EXCLUDED.is_demo,
+    created_at   = COALESCE($5::timestamptz, users.created_at),
+    blocked_at   = NULL,
+    updated_at   = $6::timestamptz
+RETURNING id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at
+`
+
+type UpsertSeedUserParams struct {
+	Phone       string
+	Roles       []string
+	DefaultRole string
+	IsDemo      bool
+	CreatedAt   pgtype.Timestamptz
+	Now         pgtype.Timestamptz
+}
+
+// Сид демо-пользователей: upsert по телефону. created_at не задан — при вставке now(),
+// при обновлении остаётся прежним. Блокировка снимается.
+func (q *Queries) UpsertSeedUser(ctx context.Context, arg UpsertSeedUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, upsertSeedUser,
+		arg.Phone,
+		arg.Roles,
+		arg.DefaultRole,
+		arg.IsDemo,
+		arg.CreatedAt,
+		arg.Now,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.Roles,
+		&i.DefaultRole,
+		&i.IsDemo,
+		&i.BlockedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

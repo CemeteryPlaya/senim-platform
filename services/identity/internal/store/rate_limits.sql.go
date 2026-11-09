@@ -11,6 +11,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteAllRateLimits = `-- name: DeleteAllRateLimits :execrows
+DELETE FROM rate_limits
+`
+
+// Сброс стенда (ResetDemo): таблица rate_limits помечена senim:app-delete.
+func (q *Queries) DeleteAllRateLimits(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAllRateLimits)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const hitRateLimit = `-- name: HitRateLimit :one
 INSERT INTO rate_limits (key, window_start, count)
 VALUES ($1, $2::timestamptz, 1)

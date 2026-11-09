@@ -51,6 +51,19 @@ func (q *Queries) CountOtpAttempt(ctx context.Context, arg CountOtpAttemptParams
 	return attempts, err
 }
 
+const deleteAllOtpCodes = `-- name: DeleteAllOtpCodes :execrows
+DELETE FROM otp_codes
+`
+
+// Сброс стенда (ResetDemo): таблица otp_codes помечена senim:app-delete.
+func (q *Queries) DeleteAllOtpCodes(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAllOtpCodes)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getActiveOtp = `-- name: GetActiveOtp :one
 SELECT id, phone, code_hash, attempts, expires_at, consumed_at, created_at FROM otp_codes
 WHERE phone = $1 AND consumed_at IS NULL AND expires_at > $2::timestamptz
