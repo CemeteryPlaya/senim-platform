@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { ArrowLeft, ArrowRight, Armchair, BedDouble, CalendarClock, ChefHat, DoorClosed, Images, Inbox, MapPin, Package, Ruler, Store } from "lucide-react";
+import { ArrowLeft, ArrowRight, Armchair, BedDouble, CalendarClock, ChefHat, DoorClosed, Images, Inbox, MapPin, Ruler, Store } from "lucide-react";
 import type { ReactNode } from "react";
 import { env } from "@/platform/env";
 import { ru } from "@/i18n/ru";
@@ -34,7 +34,6 @@ import {
   SectionTitle,
   Select,
   Skeleton,
-  Stat,
   StatTiles,
   StatusBadge,
   Stepper,
@@ -240,14 +239,6 @@ export default async function UiKitPage() {
         <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
           <div className="flex flex-col gap-4">
             <SectionTitle title={s.sectionTitle} as="h3" action={{ href: "/ui-kit", label: s.seeAll }} />
-            <ul className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3">
-              <li className="flex">
-                <Stat className="flex-1" icon={<Inbox />} value={12} label={s.statRequests} />
-              </li>
-              <li className="flex">
-                <Stat className="flex-1" icon={<Package />} value={5} label={s.statDeals} href="/ui-kit" />
-              </li>
-            </ul>
           </div>
           <LinkList
             items={[

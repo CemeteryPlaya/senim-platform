@@ -178,16 +178,4 @@ describe("splitNav: что видно сразу, что — в «Ещё»", () 
     expect(href(shown)).toEqual(href(items.slice(0, 2)));
     expect(href(rest)).toEqual(href(items.slice(2)));
   });
-
-  it("«Ещё» нужен ради другого содержимого — под него освобождается ячейка", () => {
-    const { shown, more: rest } = splitNav(items.slice(0, 4), 4, true);
-    expect(shown).toHaveLength(3);
-    expect(href(rest)).toEqual([items[3].href]);
-  });
-
-  it("пунктов мало, а «Ещё» нужен — все пункты видны", () => {
-    const { shown, more: rest } = splitNav(items.slice(0, 2), 4, true);
-    expect(shown).toHaveLength(2);
-    expect(rest).toEqual([]);
-  });
 });

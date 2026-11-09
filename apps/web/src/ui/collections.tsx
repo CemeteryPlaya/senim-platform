@@ -216,45 +216,6 @@ export function LinkList({ items, label, className }: { items: readonly LinkList
   );
 }
 
-/* ── Показатель ────────────────────────────────────────────── */
-
-export type StatProps = {
-  value: ReactNode;
-  label: ReactNode;
-  icon?: ReactNode;
-  /** Плитка целиком ведёт в раздел. */
-  href?: string;
-  className?: string;
-};
-
-/**
- * Плитка-показатель из макета 12: крупное число и подпись. Только настоящие данные — никаких выдуманных цифр.
- * Порядок для диктора: число, затем подпись («3 Новые заявки»).
- */
-export function Stat({ value, label, icon, href, className }: StatProps) {
-  const body = (
-    <>
-      {icon && (
-        <span aria-hidden className="inline-flex shrink-0 pt-1 text-primary [&_svg]:size-6">
-          {icon}
-        </span>
-      )}
-      <span className="flex min-w-0 flex-col">
-        <span className="text-2xl leading-tight font-extrabold text-ink tabular-nums">{value}</span>
-        <span className="text-sm text-muted">{label}</span>
-      </span>
-    </>
-  );
-  const box = "flex min-w-0 items-start gap-3 rounded-card border border-line bg-surface p-4";
-  return href ? (
-    <Link href={href} className={cn(box, "no-underline transition-colors duration-150 hover:border-line-strong", className)}>
-      {body}
-    </Link>
-  ) : (
-    <div className={cn(box, className)}>{body}</div>
-  );
-}
-
 /* ── Вертикальная шкала ────────────────────────────────────── */
 
 export type TimelineState = "done" | "current" | "todo";

@@ -44,6 +44,7 @@ export default async function InspirationPage({ searchParams }: { searchParams: 
           <p aria-hidden className="text-base font-semibold text-ink">
             {t.filters.type}
           </p>
+          {/* Старые чипы оставлены: лента «Вдохновение» за флагом inspiration (выключен в Фазе 1), её не перерисовывали. */}
           <LegacyFilterChips label={t.filters.type} chips={typeChips} current={filter.type ?? "all"} />
         </div>
         <div className="flex flex-col gap-2">

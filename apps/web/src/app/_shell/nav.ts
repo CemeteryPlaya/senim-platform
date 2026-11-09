@@ -1,8 +1,8 @@
 import type { Role } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 
-// Навигация оболочки по макетам 7–19: у каждой роли — вкладки нижней панели (телефон) и верхнего меню
-// (компьютер) и остальные разделы — в профиле и «Ещё». Маршруты — по таблице владения в
+// Навигация оболочки по макетам 7–19 и «B + A»: у каждой роли — вкладки нижней панели (телефон и планшет) и
+// бокового меню (компьютер), остальные разделы — в «Ещё», боковом меню и на странице профиля. Маршруты — по таблице владения в
 // docs/agents/PHASE_B_RULES.md. Иконка — ключ, компонент выбирает ShellNav.
 
 export type NavIcon =
@@ -91,7 +91,6 @@ const ROUTES = {
   demo: { href: "/demo", label: t.demo, icon: "demo" },
   login: { href: LOGIN_HREF, label: t.login, icon: "login" },
   newRequest: { href: "/requests/new", label: t.newRequest, icon: "plus", primary: true },
-  // Раздел чатов делает отдельная задача; пока вкладка ведёт на будущий адрес.
   chat: { href: "/chats", label: t.chat, icon: "chat" },
   // Разделы оператора: рабочее место — десктоп, всё в боковом меню по группам.
   opMoney: { href: "/operator/money", label: op.money, icon: "money", group: "queues" },
@@ -207,11 +206,8 @@ export function currentItem<T extends NavItem>(items: readonly T[], pathname: st
   return best;
 }
 
-/**
- * Делит пункты на видимые сразу и спрятанные в «Ещё», когда ячеек меньше, чем пунктов.
- * withMore — «Ещё» нужен в любом случае (есть что положить туда помимо этих пунктов): под него уходит одна ячейка.
- */
-export function splitNav<T>(items: readonly T[], cells: number, withMore = false): { shown: readonly T[]; more: readonly T[] } {
-  if (items.length <= cells && !withMore) return { shown: items, more: [] };
+/** Делит пункты на видимые сразу и спрятанные в «Ещё», когда ячеек меньше, чем пунктов («Ещё» берёт последнюю ячейку). */
+export function splitNav<T>(items: readonly T[], cells: number): { shown: readonly T[]; more: readonly T[] } {
+  if (items.length <= cells) return { shown: items, more: [] };
   return { shown: items.slice(0, cells - 1), more: items.slice(cells - 1) };
 }

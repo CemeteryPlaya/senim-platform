@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import type { NavIcon } from "./nav";
 
-/** Значки разделов: одни и те же в нижней панели, верхнем меню и на странице «Профиль». */
+/** Значки разделов: одни и те же в нижней панели, боковом меню и на странице «Профиль». */
 export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   home: House,
   catalog: LayoutGrid,
