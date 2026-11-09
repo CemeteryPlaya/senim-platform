@@ -4,7 +4,7 @@ import { cache } from "react";
 import { BadgeCheck, Star } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { getPublicExecutorPage, type PortfolioCard, type PublicExecutorView } from "@/modules/companies";
-import { ButtonLink, Container, DateText, DetailColumns, formatDeals, formatYears, KeyValueList, Money, PageHeader, StatusBadge, TrustNote } from "@/ui";
+import { ButtonLink, Container, DateText, DetailColumns, formatYears, KeyValueList, Money, PageHeader, StatusBadge, TrustNote } from "@/ui";
 import { measurementText, Rating, SegmentBadge } from "../../catalog/_components/executor-bits";
 import { wantSimilarHref, WorkCard } from "../../catalog/_components/WorkCard";
 
@@ -99,7 +99,6 @@ function Summary({ view, hero }: { view: PublicExecutorView; hero: PortfolioCard
         <StatusBadge tone="success" icon={<BadgeCheck />}>
           {ru.common.ui.workCard.verified}
         </StatusBadge>
-        <StatusBadge tone="neutral">{formatDeals(view.completedDeals)}</StatusBadge>
         <SegmentBadge segment={view.segment} />
       </div>
       <Rating avg={view.ratingAvg} count={view.reviewsCount} />

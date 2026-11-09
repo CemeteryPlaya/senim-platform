@@ -53,6 +53,8 @@ test("карточка мастера: фото и цена работы, «ме
   await expect(main.getByRole("link", { name: "К каталогу" })).toBeVisible();
   await expect(main.getByRole("heading", { level: 1, name: "Исполнитель №7" })).toBeVisible();
   await expect(main.getByRole("term").filter({ hasText: "Сделок на платформе" })).toBeVisible();
+  // Число сделок — один раз, строкой «метка — значение»; отдельного бейджа «N сделок» нет.
+  await expect(main.getByText(/^\d+\s(сделка|сделки|сделок)$/)).toHaveCount(0);
   await expect(main.getByRole("note").filter({ hasText: "мастер получит деньги после вашей приёмки" })).toBeVisible();
   const action = stepAction(page);
   await expect(action).toHaveCount(1);
