@@ -12,6 +12,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
+SELECT id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at FROM sessions WHERE token_hash = $1
+`
+
+func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (Session, error) {
+	row := q.db.QueryRow(ctx, getSessionByTokenHash, tokenHash)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.TokenHash,
+		&i.UserID,
+		&i.ActiveRole,
+		&i.UserAgent,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const insertSession = `-- name: InsertSession :one
 INSERT INTO sessions (token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at)
 VALUES ($1, $2, $3, $4, $5, $5, $6)
@@ -51,6 +72,61 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) (S
 	return i, err
 }
 
+const lockSessionByTokenHash = `-- name: LockSessionByTokenHash :one
+SELECT id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at FROM sessions WHERE token_hash = $1 FOR UPDATE
+`
+
+func (q *Queries) LockSessionByTokenHash(ctx context.Context, tokenHash []byte) (Session, error) {
+	row := q.db.QueryRow(ctx, lockSessionByTokenHash, tokenHash)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.TokenHash,
+		&i.UserID,
+		&i.ActiveRole,
+		&i.UserAgent,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const revokeSessionByTokenHash = `-- name: RevokeSessionByTokenHash :execrows
+UPDATE sessions SET revoked_at = $2 WHERE token_hash = $1 AND revoked_at IS NULL
+`
+
+type RevokeSessionByTokenHashParams struct {
+	TokenHash []byte
+	RevokedAt pgtype.Timestamptz
+}
+
+func (q *Queries) RevokeSessionByTokenHash(ctx context.Context, arg RevokeSessionByTokenHashParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeSessionByTokenHash, arg.TokenHash, arg.RevokedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeUserSessions = `-- name: RevokeUserSessions :execrows
+UPDATE sessions SET revoked_at = $2 WHERE user_id = $1 AND revoked_at IS NULL
+`
+
+type RevokeUserSessionsParams struct {
+	UserID    uuid.UUID
+	RevokedAt pgtype.Timestamptz
+}
+
+func (q *Queries) RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeUserSessions, arg.UserID, arg.RevokedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const sessionTokenExists = `-- name: SessionTokenExists :one
 SELECT EXISTS (SELECT 1 FROM sessions WHERE token_hash = $1)
 `
@@ -60,4 +136,50 @@ func (q *Queries) SessionTokenExists(ctx context.Context, tokenHash []byte) (boo
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const setSessionActiveRole = `-- name: SetSessionActiveRole :one
+UPDATE sessions SET active_role = $2 WHERE id = $1 RETURNING id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at
+`
+
+type SetSessionActiveRoleParams struct {
+	ID         uuid.UUID
+	ActiveRole string
+}
+
+func (q *Queries) SetSessionActiveRole(ctx context.Context, arg SetSessionActiveRoleParams) (Session, error) {
+	row := q.db.QueryRow(ctx, setSessionActiveRole, arg.ID, arg.ActiveRole)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.TokenHash,
+		&i.UserID,
+		&i.ActiveRole,
+		&i.UserAgent,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const touchSession = `-- name: TouchSession :execrows
+UPDATE sessions SET last_seen_at = $1
+WHERE id = $2 AND revoked_at IS NULL AND last_seen_at < $3
+`
+
+type TouchSessionParams struct {
+	Now    pgtype.Timestamptz
+	ID     uuid.UUID
+	Before pgtype.Timestamptz
+}
+
+// Обновляет last_seen_at не чаще раза в throttle: before = now - throttle.
+func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, touchSession, arg.Now, arg.ID, arg.Before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

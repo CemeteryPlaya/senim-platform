@@ -9,7 +9,34 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const addUserRole = `-- name: AddUserRole :one
+UPDATE users SET roles = array_append(roles, $1::text), updated_at = $2 WHERE id = $3 RETURNING id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at
+`
+
+type AddUserRoleParams struct {
+	Role string
+	Now  pgtype.Timestamptz
+	ID   uuid.UUID
+}
+
+func (q *Queries) AddUserRole(ctx context.Context, arg AddUserRoleParams) (User, error) {
+	row := q.db.QueryRow(ctx, addUserRole, arg.Role, arg.Now, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.Roles,
+		&i.DefaultRole,
+		&i.IsDemo,
+		&i.BlockedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (phone, roles, default_role, is_demo)
@@ -71,6 +98,52 @@ SELECT id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_
 
 func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByPhone, phone)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.Roles,
+		&i.DefaultRole,
+		&i.IsDemo,
+		&i.BlockedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const lockUser = `-- name: LockUser :one
+SELECT id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at FROM users WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockUser(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, lockUser, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.Roles,
+		&i.DefaultRole,
+		&i.IsDemo,
+		&i.BlockedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const setUserDefaultRole = `-- name: SetUserDefaultRole :one
+UPDATE users SET default_role = $2, updated_at = $3 WHERE id = $1 RETURNING id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at
+`
+
+type SetUserDefaultRoleParams struct {
+	ID          uuid.UUID
+	DefaultRole string
+	UpdatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) SetUserDefaultRole(ctx context.Context, arg SetUserDefaultRoleParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUserDefaultRole, arg.ID, arg.DefaultRole, arg.UpdatedAt)
 	var i User
 	err := row.Scan(
 		&i.ID,
