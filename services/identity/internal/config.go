@@ -12,8 +12,8 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/pkg/natsx"
 )
 
-// Service — имя сервиса в логах, трассах и ролях базы.
-const Service = "identity"
+// ServiceID — имя сервиса в логах, трассах и ролях базы.
+const ServiceID = "identity"
 
 // Stream — поток JetStream, в который релей публикует события identity.
 const Stream = "SENIM_IDENTITY"

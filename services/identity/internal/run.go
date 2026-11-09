@@ -31,7 +31,7 @@ const healthcheckTimeout = 3 * time.Second
 // Main выполняет команду и возвращает код выхода процесса. Ошибки пишутся в stderr
 // через логгер; значения секретов в них не попадают.
 func Main(ctx context.Context, args []string, src config.Source, stderr io.Writer) int {
-	log := logging.New(stderr, Service, slog.LevelInfo)
+	log := logging.New(stderr, ServiceID, slog.LevelInfo)
 	if len(args) != 1 {
 		log.Error(usage)
 		return 2
@@ -65,7 +65,7 @@ func Migrate(ctx context.Context, src config.Source, log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("миграции: %w", err)
 	}
-	if err := dbx.Migrate(ctx, cfg.OwnerDSN, Service, migrations, outbox.Schema, inbox.Schema, idem.Schema); err != nil {
+	if err := dbx.Migrate(ctx, cfg.OwnerDSN, ServiceID, migrations, outbox.Schema, inbox.Schema, idem.Schema); err != nil {
 		return err
 	}
 	log.Info("миграции применены")
@@ -90,19 +90,19 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	shutdownTelemetry, err := server.InitTelemetry(ctx, Service, cfg.OTLP)
+	shutdownTelemetry, err := server.InitTelemetry(ctx, ServiceID, cfg.OTLP)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = shutdownTelemetry(context.WithoutCancel(ctx)) }()
 
-	pool, err := dbx.Connect(ctx, cfg.AppDSN, Service, cfg.PoolMaxConns)
+	pool, err := dbx.Connect(ctx, cfg.AppDSN, ServiceID, cfg.PoolMaxConns)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
 
-	nc, err := natsx.Connect(cfg.NATS, Service, log)
+	nc, err := natsx.Connect(cfg.NATS, ServiceID, log)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("nats: jetstream: %w", err)
 	}
-	if _, err := outbox.EnsureStream(ctx, js, Service); err != nil {
+	if _, err := outbox.EnsureStream(ctx, js, ServiceID); err != nil {
 		return err
 	}
 
@@ -132,7 +132,7 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	// отставание — в метриках (правило ready — в документации server.Run).
 	ready := func(ctx context.Context) error { return pool.Ping(ctx) }
 	runErr := server.Run(ctx, server.Options{
-		Name:      Service,
+		Name:      ServiceID,
 		GRPCAddr:  cfg.GRPCAddr,
 		ProbeAddr: cfg.ProbeAddr,
 		CertFile:  cfg.CertFile,
@@ -142,7 +142,7 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 		Services:  []string{ServiceName},
 		// Только mesh (за ним — вызывающий из XFCC) и свои реплики; web и другие сервисы
 		// напрямую не допускаются (ADR-011).
-		AllowedPeers: []string{server.MeshPeer, Service},
+		AllowedPeers: []string{server.MeshPeer, ServiceID},
 	}, func(*connect.Server) error { return nil }, ready)
 
 	stopRelay()
