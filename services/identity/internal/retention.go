@@ -204,7 +204,7 @@ func retentionLoop(ctx context.Context, pool *pgxpool.Pool, cfg RetentionConfig,
 		}
 		res, err := runRetention(ctx, pool, cfg, time.Now())
 		m.record(context.WithoutCancel(ctx), res)
-		if err != nil {
+		if err != nil && ctx.Err() == nil { // при остановке сервиса отменённый запрос ошибкой не считается
 			log.Error("срок хранения: очистка не завершена", "err", err)
 		}
 		if res.Total() > 0 {

@@ -18,7 +18,9 @@ WHERE id IN (
 
 -- name: DeleteOldRateLimits :execrows
 DELETE FROM rate_limits
-WHERE key IN (SELECT r.key FROM rate_limits r WHERE r.window_start < sqlc.arg(cutoff)::timestamptz LIMIT sqlc.arg(batch_size)::int);
+-- Условие повторено снаружи: строку, которую лимитер успел сбросить между подзапросом и удалением, не трогаем.
+WHERE window_start < sqlc.arg(cutoff)::timestamptz
+  AND key IN (SELECT r.key FROM rate_limits r WHERE r.window_start < sqlc.arg(cutoff)::timestamptz LIMIT sqlc.arg(batch_size)::int);
 
 -- name: DeleteOldIdempotency :execrows
 DELETE FROM idempotency

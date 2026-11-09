@@ -90,7 +90,8 @@ func (q *Queries) DeleteOldPublishedOutbox(ctx context.Context, arg DeleteOldPub
 
 const deleteOldRateLimits = `-- name: DeleteOldRateLimits :execrows
 DELETE FROM rate_limits
-WHERE key IN (SELECT r.key FROM rate_limits r WHERE r.window_start < $1::timestamptz LIMIT $2::int)
+WHERE window_start < $1::timestamptz
+  AND key IN (SELECT r.key FROM rate_limits r WHERE r.window_start < $1::timestamptz LIMIT $2::int)
 `
 
 type DeleteOldRateLimitsParams struct {
@@ -98,6 +99,7 @@ type DeleteOldRateLimitsParams struct {
 	BatchSize int32
 }
 
+// Условие повторено снаружи: строку, которую лимитер успел сбросить между подзапросом и удалением, не трогаем.
 func (q *Queries) DeleteOldRateLimits(ctx context.Context, arg DeleteOldRateLimitsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteOldRateLimits, arg.Cutoff, arg.BatchSize)
 	if err != nil {

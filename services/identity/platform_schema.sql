@@ -20,3 +20,6 @@ CREATE TABLE idempotency (
     created_at   timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (method, key)
 );
+
+-- Индексы не влияют на генерацию sqlc; для сверки с pkg/outbox.Schema:
+CREATE INDEX outbox_published_idx ON outbox (published_at) WHERE published_at IS NOT NULL;
