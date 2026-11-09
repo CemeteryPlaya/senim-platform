@@ -187,19 +187,24 @@ function useTabBarHeight() {
 function TabCell({ icon: Icon, label, primary = false }: { icon: LucideIcon; label: string; primary?: boolean }) {
   return (
     <>
-      {/* Действие роли («Заявка») — заливная зелёная «таблетка» всегда, а не только у активной вкладки. */}
+      {/* Действие роли («Заявка») — обведённая зелёная «таблетка» всегда: белая с рамкой 2 px и зелёным «+».
+          Не заливная — заливная главная кнопка на экране одна, своя у страницы (как кнопка бокового меню, R8);
+          и не мятная — мятная у активной вкладки. Вернуть заливку: «bg-primary text-on-primary» вместо
+          «border-2 border-primary bg-surface text-primary» ниже. */}
       <span
         aria-hidden
         className={cn(
           "inline-flex h-8 w-14 shrink-0 items-center justify-center rounded-full transition-colors duration-150 @max-[22em]:w-10",
-          primary ? "bg-primary text-on-primary group-hover/cell:bg-primary-hover" : "group-aria-[current=page]/cell:bg-accent-soft",
+          primary
+            ? "border-2 border-primary bg-surface text-primary group-hover/cell:bg-accent-soft group-aria-[current=page]/cell:bg-accent-soft"
+            : "group-aria-[current=page]/cell:bg-accent-soft",
         )}
       >
         <Icon className="size-6" />
       </span>
       {/* На узкой панели (это всегда крупный шрифт: 22em — от него) подпись на четверть мельче шрифта панели —
           всё равно крупнее обычной, зато слова раздела не рвутся посередине. */}
-      <span className="max-w-full tracking-tight @max-[22em]:text-[0.75em]">{label}</span>
+      <span className={cn("max-w-full tracking-tight @max-[22em]:text-[0.75em]", primary && "font-semibold text-primary")}>{label}</span>
     </>
   );
 }

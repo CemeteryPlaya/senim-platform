@@ -66,6 +66,53 @@ test("заказчик: на телефоне нижняя панель из 5 �
   await expect(links.nth(0)).toHaveAttribute("aria-current", "page");
 });
 
+/**
+ * Сколько видимых кнопок и ссылок залито главным зелёным (фон = --color-primary) в main и нижней панели.
+ * Заливка внутри ссылки (значок «Заявка» в панели) считается за её ссылку. Выбранный чип фильтра в main
+ * (aria-current / aria-pressed) — состояние, а не действие: не считается.
+ */
+async function filledPrimaryCount(page: Page): Promise<number> {
+  return page.evaluate((nav) => {
+    const probe = document.createElement("div");
+    probe.style.backgroundColor = "var(--color-primary)";
+    document.body.append(probe);
+    const primary = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    // main и видимое «Основное меню» (на телефоне это нижняя панель; боковое меню скрыто — его элементы без размеров).
+    const roots = [document.querySelector("main"), ...document.querySelectorAll(`nav[aria-label="${nav}"]`)].filter((r): r is Element => r !== null);
+    const hits = new Set<Element>();
+    for (const root of roots) {
+      for (const el of root.querySelectorAll("*")) {
+        if (getComputedStyle(el).backgroundColor !== primary) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        const control = el.closest("a, button");
+        if (!control) continue;
+        const selected = control.getAttribute("aria-pressed") === "true" || control.hasAttribute("aria-current");
+        if (root.tagName === "MAIN" && selected) continue;
+        hits.add(control);
+      }
+    }
+    return hits.size;
+  }, NAV);
+}
+
+test("телефон: заливная зелёная кнопка на экране одна — «+ Заявка» в панели обведена, а не залита", async ({ page }) => {
+  test.skip(isDesktop(page), "нижняя панель — только на телефоне и планшете");
+  await loginAs(page, P.aigerim);
+  for (const path of ["/", "/requests/new", "/deals"]) {
+    await page.goto(path);
+    if (path === "/deals") {
+      await page.getByRole("link", { name: /^Открыть: Сделка №\d+/ }).first().click();
+      await page.waitForURL(/\/deals\/[^/]+$/);
+    }
+    await expect(page.getByRole("navigation", { name: NAV })).toBeVisible();
+    const own = await page.getByRole("main").locator("[data-primary-action]").count();
+    expect(own).toBeLessThanOrEqual(1);
+    expect(await filledPrimaryCount(page), path).toBe(own);
+  }
+});
+
 test("мастер: вкладки роли", async ({ page }) => {
   await loginAs(page, P.erlan);
   await page.goto("/executor/requests");
