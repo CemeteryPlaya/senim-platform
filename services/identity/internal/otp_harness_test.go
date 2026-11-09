@@ -249,6 +249,10 @@ func (h *harness) mustRequest(phone, ip string) *identityv1.RequestOtpResponse {
 // registered создаёт пользователя с телефоном phone.
 func (h *harness) registered(phone string) string {
 	h.t.Helper()
+	// База общая и переживает -count=2: пользователь с этим номером мог остаться с прошлого прогона.
+	if _, err := h.q.GetUserByPhone(context.Background(), phone); err == nil {
+		return phone
+	}
 	if _, err := h.q.CreateUser(context.Background(), store.CreateUserParams{Phone: phone, Roles: []string{"CLIENT"}, DefaultRole: "CLIENT"}); err != nil {
 		h.t.Fatal(err)
 	}

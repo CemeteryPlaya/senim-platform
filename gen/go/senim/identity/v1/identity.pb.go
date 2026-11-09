@@ -384,10 +384,12 @@ func (x *SeedUser) GetCreatedAt() *timestamppb.Timestamp {
 }
 
 type RequestOtpRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Phone          string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
-	ClientIp       string                 `protobuf:"bytes,2,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
-	IdempotencyKey string                 `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Phone string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
+	// IP-адрес клиента как есть («203.0.113.7», «2001:db8::1»): без порта, не список.
+	// Пусто — неизвестен, лимиты по IP не применяются.
+	ClientIp       string `protobuf:"bytes,2,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
+	IdempotencyKey string `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -505,11 +507,12 @@ func (x *RequestOtpResponse) GetDemoCode() string {
 }
 
 type VerifyOtpRequest struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	Phone     string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
-	Code      string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
-	ClientIp  string                 `protobuf:"bytes,3,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
-	UserAgent string                 `protobuf:"bytes,4,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Phone string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
+	Code  string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	// IP-адрес клиента как есть: без порта, не список. Пусто — неизвестен.
+	ClientIp  string `protobuf:"bytes,3,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
+	UserAgent string `protobuf:"bytes,4,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
 	// Токен сессии, сгенерированный вызывающим: base64url без "=" от 32 случайных байт (43 символа).
 	SessionToken   string `protobuf:"bytes,5,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
 	IdempotencyKey string `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`

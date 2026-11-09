@@ -57,6 +57,19 @@ const (
 // RequestOtp выдаёт новый код на номер и отправляет его. Порядок: вызывающий, повтор по
 // ключу, лимиты (отдельными командами: отказанный запрос тоже засчитывается), затем
 // транзакция с кодом, отправкой и ответом.
+//
+// Повтор того же ключа при действующем cooldown: лимиты стоят после Lookup, поэтому при
+// отказе по лимиту (ResourceExhausted) Lookup повторяется ещё раз — если первый вызов с
+// этим ключом успел завершиться, возвращается его сохранённый ответ, а не отказ.
+// Остаётся окно: два вызова с одним ключом одновременно в фазе лимитов (оба прошли первый
+// Lookup, ни один не дошёл до Do). Это допустимо: один ключ параллельно бывает только при
+// повторе web после дедлайна, двойной клик даёт разные ключи, а двойного эффекта быть не
+// может (Do выполняет fn один раз на ключ); худший исход — отказ по лимиту вместо ответа.
+//
+// Сбой отправки: транзакция откатывается (кода нет, ключ свободен), но счётчики лимитов уже
+// засчитаны, поэтому немедленный повтор с тем же ключом получает otp_too_often, а через
+// 61 с проходит. Обратный случай — Send удалась, а коммит не прошёл: SMS ушла, кода в базе
+// нет; человек запрашивает код заново (через минуту).
 func (s *Service) RequestOtp(ctx context.Context, req *identityv1.RequestOtpRequest) (*identityv1.RequestOtpResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return nil, err
@@ -95,6 +108,12 @@ func (s *Service) RequestOtp(ctx context.Context, req *identityv1.RequestOtpRequ
 	}
 
 	if err := s.enforceLimits(ctx, phone, ip); err != nil {
+		if connect.CodeOf(err) == connect.CodeResourceExhausted {
+			again := &identityv1.RequestOtpResponse{}
+			if found, lerr := idem.Lookup(ctx, s.pool, method, key, req, again); lerr == nil && found {
+				return again, nil
+			}
+		}
 		return nil, err
 	}
 
@@ -206,6 +225,10 @@ func (s *Service) enforceLimits(ctx context.Context, phone, ip string) error {
 // «Один раз в сутки» — тот же атомарный счётчик с лимитом 1, в одной транзакции с
 // событием: из одновременных отказов оповещает ровно один, а сбой записи события не
 // оставляет счётчик погашенным. Сбой оповещения отказ не меняет.
+//
+// Окно счётчика оповещения не выровнено с окном общего счётчика (у каждого ключа окно
+// начинается с его первого попадания), как и в otp.ts: событие приходит раз в сутки от
+// первого отказа, а не от начала окна потолка.
 func (s *Service) alertGlobalCeiling(ctx context.Context, lim limiter) {
 	limit := s.cfg.OTPDailyGlobalLimit
 	first := false

@@ -19,9 +19,9 @@ type limiter struct{ now func() time.Time }
 // остаётся и при откате вызывающей транзакции) или транзакция.
 func (l limiter) hit(ctx context.Context, db store.DBTX, key string, limit int, window time.Duration) (allowed bool, err error) {
 	count, err := store.New(db).HitRateLimit(ctx, store.HitRateLimitParams{
-		Key:     key,
-		Column2: pgtype.Timestamptz{Time: l.now(), Valid: true},
-		Column3: window.Seconds(),
+		Key:        key,
+		Now:        pgtype.Timestamptz{Time: l.now(), Valid: true},
+		WindowSecs: window.Seconds(),
 	})
 	if err != nil {
 		return false, fmt.Errorf("счётчик лимита: %w", err)

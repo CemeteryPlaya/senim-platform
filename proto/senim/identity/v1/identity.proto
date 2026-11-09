@@ -55,6 +55,8 @@ message SeedUser {
 
 message RequestOtpRequest {
   string phone = 1;
+  // IP-адрес клиента как есть («203.0.113.7», «2001:db8::1»): без порта, не список.
+  // Пусто — неизвестен, лимиты по IP не применяются.
   string client_ip = 2;
   string idempotency_key = 3;
 }
@@ -69,6 +71,7 @@ message RequestOtpResponse {
 message VerifyOtpRequest {
   string phone = 1;
   string code = 2;
+  // IP-адрес клиента как есть: без порта, не список. Пусто — неизвестен.
   string client_ip = 3;
   string user_agent = 4;
   // Токен сессии, сгенерированный вызывающим: base64url без "=" от 32 случайных байт (43 символа).
@@ -174,7 +177,8 @@ message GetSigningKeysResponse {
 //   otp_global_limit, otp_expired, otp_wrong_code (params.left — осталось попыток),
 //   otp_attempts_exhausted, user_blocked, session_invalid, session_token_invalid,
 //   role_not_granted, role_forbidden, demo_disabled, user_not_found,
-//   caller_forbidden, idempotency_key_reused.
+//   caller_forbidden, idempotency_key_reused,
+//   invalid_request (idempotency_key пуст или длиннее 128 символов; client_ip не IP-адрес).
 service IdentityService {
   rpc RequestOtp(RequestOtpRequest) returns (RequestOtpResponse);
   rpc VerifyOtp(VerifyOtpRequest) returns (VerifyOtpResponse);

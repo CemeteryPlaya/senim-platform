@@ -23,16 +23,15 @@ RETURNING count
 `
 
 type HitRateLimitParams struct {
-	Key     string
-	Column2 pgtype.Timestamptz
-	Column3 float64
+	Key        string
+	Now        pgtype.Timestamptz
+	WindowSecs float64
 }
 
 // Фиксированное окно: атомарно, один INSERT ... ON CONFLICT на попытку. Время передаёт
 // вызывающий (часы сервиса), чтобы окна проверялись без ожидания.
-// $1 — ключ, $2 — текущее время, $3 — длина окна в секундах.
 func (q *Queries) HitRateLimit(ctx context.Context, arg HitRateLimitParams) (int32, error) {
-	row := q.db.QueryRow(ctx, hitRateLimit, arg.Key, arg.Column2, arg.Column3)
+	row := q.db.QueryRow(ctx, hitRateLimit, arg.Key, arg.Now, arg.WindowSecs)
 	var count int32
 	err := row.Scan(&count)
 	return count, err

@@ -185,6 +185,9 @@ export type RequestOtpRequest = Message<"senim.identity.v1.RequestOtpRequest"> &
   phone: string;
 
   /**
+   * IP-адрес клиента как есть («203.0.113.7», «2001:db8::1»): без порта, не список.
+   * Пусто — неизвестен, лимиты по IP не применяются.
+   *
    * @generated from field: string client_ip = 2;
    */
   clientIp: string;
@@ -246,6 +249,8 @@ export type VerifyOtpRequest = Message<"senim.identity.v1.VerifyOtpRequest"> & {
   code: string;
 
   /**
+   * IP-адрес клиента как есть: без порта, не список. Пусто — неизвестен.
+   *
    * @generated from field: string client_ip = 3;
    */
   clientIp: string;
@@ -727,7 +732,8 @@ export const RoleSchema: GenEnum<Role> = /*@__PURE__*/
  *   otp_global_limit, otp_expired, otp_wrong_code (params.left — осталось попыток),
  *   otp_attempts_exhausted, user_blocked, session_invalid, session_token_invalid,
  *   role_not_granted, role_forbidden, demo_disabled, user_not_found,
- *   caller_forbidden, idempotency_key_reused.
+ *   caller_forbidden, idempotency_key_reused,
+ *   invalid_request (idempotency_key пуст или длиннее 128 символов; client_ip не IP-адрес).
  *
  * @generated from service senim.identity.v1.IdentityService
  */

@@ -315,12 +315,64 @@ func TestRequestOtpKeyRequired(t *testing.T) {
 	h := newHarness(t, nil)
 	for _, key := range []string{"", strings.Repeat("k", 129)} {
 		_, err := h.callAs("web", &identityv1.RequestOtpRequest{Phone: newPhone(), IdempotencyKey: key})
-		if code := connect.CodeOf(err); code != connect.CodeInvalidArgument {
-			t.Fatalf("ключ длиной %d: код %v, want invalid_argument", len(key), code)
-		}
+		h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
 	}
 	if len(h.sender.sent()) != 0 {
 		t.Fatal("SMS ушла при неверном ключе")
+	}
+}
+
+func TestRequestOtpRejectsBadClientIP(t *testing.T) {
+	h := newHarness(t, nil)
+	for _, ip := range []string{"203.0.113.7:443", "203.0.113.7, 198.51.100.1", "not-an-ip", "203.0.113.256"} {
+		_, err := h.callAs("web", &identityv1.RequestOtpRequest{Phone: newPhone(), ClientIp: ip, IdempotencyKey: "bad-ip-" + ip})
+		h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+	}
+	if n := h.count(`SELECT count(*) FROM rate_limits`); n != 0 || len(h.sender.sent()) != 0 {
+		t.Fatalf("счётчиков %d, отправок %d, want 0", n, len(h.sender.sent()))
+	}
+}
+
+func TestIPRefusalDoesNotSpendCeilings(t *testing.T) {
+	h := newHarness(t, nil)
+	const ip = "203.0.113.9"
+	for i := range 20 {
+		h.mustRequest(fmt.Sprintf("+770000900%02d", i), ip)
+	}
+	var global, prefix int
+	if err := h.pool.QueryRow(context.Background(), `SELECT count FROM rate_limits WHERE key = 'otp:global:day'`).Scan(&global); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.pool.QueryRow(context.Background(), `SELECT count FROM rate_limits WHERE key = 'otp:prefix:770000:day'`).Scan(&prefix); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.request("+77000090099", ip)
+	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_many_requests")
+	if got := h.count(`SELECT count FROM rate_limits WHERE key = 'otp:global:day'`); got != global {
+		t.Fatalf("общий потолок %d -> %d: отказ по IP его расходует", global, got)
+	}
+	if got := h.count(`SELECT count FROM rate_limits WHERE key = 'otp:prefix:770000:day'`); got != prefix {
+		t.Fatalf("потолок префикса %d -> %d: отказ по IP его расходует", prefix, got)
+	}
+}
+
+// Тот же ключ и тот же запрос при действующем cooldown: сохранённый ответ, а не otp_too_often.
+func TestSameKeyDuringCooldownReturnsSavedResponse(t *testing.T) {
+	h := newHarness(t, nil)
+	req := &identityv1.RequestOtpRequest{Phone: newPhone(), IdempotencyKey: "cooldown-replay-1"}
+	first, err := h.callAs("web", req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Другой ключ в те же секунды — действительно отказ cooldown.
+	_, err = h.request(req.GetPhone(), "")
+	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_often")
+	again, err := h.callAs("web", proto.Clone(req).(*identityv1.RequestOtpRequest))
+	if err != nil {
+		t.Fatalf("тот же ключ при cooldown: %v", err)
+	}
+	if !again.GetExpiresAt().AsTime().Equal(first.GetExpiresAt().AsTime()) {
+		t.Fatal("вернулся не сохранённый ответ")
 	}
 }
 
@@ -358,6 +410,9 @@ func TestSendFailureLeavesNoCodeAndKeyIsReusable(t *testing.T) {
 		t.Fatal("код остался после неудачной отправки")
 	}
 	h.sender.failWith(nil)
+	// Счётчики уже засчитаны: немедленный повтор того же ключа упирается в cooldown.
+	_, err = h.callAs("web", req)
+	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_often")
 	h.clock.advance(61 * time.Second)
 	if _, err := h.callAs("web", req); err != nil {
 		t.Fatalf("повтор того же ключа после сбоя: %v", err)
