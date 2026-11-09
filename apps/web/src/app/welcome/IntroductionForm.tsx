@@ -2,13 +2,17 @@
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { Alert, Button, focusFirstInvalid, Input } from "@/ui";
+import { Alert, Button, focusFirstInvalid, FullscreenStep, Input } from "@/ui";
+import { LogoutButton } from "../_components/auth/LogoutButton";
 import { introduceAction } from "./actions";
 
 const t = ru.identity.introduction;
 const ci = ru.identity.clientIdentity;
 
-/** ФИО и ИИН один раз. next — куда вернуться после сохранения (проверяет сервер). */
+/**
+ * Знакомство — полноэкранный шаг: ФИО и ИИН один раз, одна главная кнопка; «Выйти» — второстепенная под ней.
+ * next — куда вернуться после сохранения (проверяет сервер).
+ */
 export function IntroductionForm({ next, defaultFullName }: { next: string | null; defaultFullName: string | null }) {
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [formError, setFormError] = useState<string>();
@@ -34,26 +38,37 @@ export function IntroductionForm({ next, defaultFullName }: { next: string | nul
   }
 
   return (
-    <form ref={form} onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
-      <Input
-        label={ci.fullName}
-        hint={ci.fullNameHint}
-        name="fullName"
-        autoComplete="name"
-        maxLength={200}
-        defaultValue={defaultFullName ?? undefined}
-        error={errors.fullName?.[0]}
-        required
-      />
-      <Input label={ci.iin} hint={ci.iinHint} name="iin" inputMode="numeric" autoComplete="off" maxLength={15} error={errors.iin?.[0]} required />
-      {formError && (
-        <Alert tone="danger" live="assertive">
-          {formError}
-        </Alert>
-      )}
-      <Button type="submit" loading={pending} fullWidth>
-        {t.submit}
-      </Button>
+    <form ref={form} onSubmit={onSubmit} noValidate>
+      <FullscreenStep
+        title={t.title}
+        back={{ href: "/" }}
+        action={
+          <>
+            {formError && (
+              <Alert tone="danger" live="assertive">
+                {formError}
+              </Alert>
+            )}
+            <Button type="submit" loading={pending} fullWidth>
+              {t.submit}
+            </Button>
+            <LogoutButton variant="secondary" fullWidth />
+          </>
+        }
+      >
+        <p className="max-w-prose text-lg text-ink-soft">{t.lead}</p>
+        <Input
+          label={ci.fullName}
+          hint={ci.fullNameHint}
+          name="fullName"
+          autoComplete="name"
+          maxLength={200}
+          defaultValue={defaultFullName ?? undefined}
+          error={errors.fullName?.[0]}
+          required
+        />
+        <Input label={ci.iin} hint={ci.iinHint} name="iin" inputMode="numeric" autoComplete="off" maxLength={15} error={errors.iin?.[0]} required />
+      </FullscreenStep>
     </form>
   );
 }

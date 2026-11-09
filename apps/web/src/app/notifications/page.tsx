@@ -23,8 +23,9 @@ function NotificationCard({ n }: { n: Item }) {
       <button
         type="submit"
         className={cn(
-          "flex min-h-control w-full cursor-pointer items-start gap-3 rounded-card border p-5 text-left transition-colors duration-150 hover:border-primary",
-          unread ? "border-line-strong bg-surface" : "border-line bg-sunken",
+          // Белые карточки на сером фоне; непрочитанное — зелёная рамка слева и метка «Новое».
+          "flex min-h-control w-full cursor-pointer items-start gap-3 rounded-card border bg-surface p-5 text-left transition-colors duration-150 hover:border-primary",
+          unread ? "border-line border-l-4 border-l-primary" : "border-line",
         )}
       >
         <span className="flex min-w-0 flex-1 flex-col gap-1.5">

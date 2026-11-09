@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { getBankDemo, isDemoMode, type ScenarioStep } from "@/modules/operator";
-import { Alert, Button, ButtonLink, Card, Container, EmptyState, Fact, PageHeader, Select, StatusBadge } from "@/ui";
+import { Alert, Button, ButtonLink, Card, Container, EmptyState, KeyValueList, PageHeader, Select, StatusBadge } from "@/ui";
 import { formatTiyn } from "@/ui/format";
 import { PersonaButton } from "../demo/PersonaButton";
 import { AuditList } from "../operator/_components/AuditList";
@@ -118,13 +118,19 @@ export default async function BankDemoPage({ searchParams }: { searchParams: Pro
                       <StatusBadge tone="info">{o.dealStatus[selected.card.deal.status]}</StatusBadge>
                       <StatusBadge tone="neutral">{o.providers[selected.card.deal.provider]}</StatusBadge>
                     </div>
-                    <dl className="flex flex-col gap-4">
-                      <Fact label={t.dealLabel}>{o.money.deal(selected.card.deal.number, selected.card.deal.title)}</Fact>
-                      <Fact label={o.deals.card.price}>{formatTiyn(selected.card.deal.priceTiyn)}</Fact>
-                      <Fact label={o.deals.card.buyerTotal}>{formatTiyn(selected.card.deal.buyerTotalTiyn)}</Fact>
-                      <Fact label={o.deals.card.payout}>{formatTiyn(selected.card.deal.payoutTiyn)}</Fact>
-                      <Fact label={o.deals.card.platformIncome}>{formatTiyn(selected.card.deal.platformIncomeTiyn)}</Fact>
-                    </dl>
+                    <KeyValueList
+                      rows={[
+                        { label: t.dealLabel, value: o.money.deal(selected.card.deal.number, selected.card.deal.title) },
+                        ...(
+                          [
+                            [o.deals.card.price, selected.card.deal.priceTiyn],
+                            [o.deals.card.buyerTotal, selected.card.deal.buyerTotalTiyn],
+                            [o.deals.card.payout, selected.card.deal.payoutTiyn],
+                            [o.deals.card.platformIncome, selected.card.deal.platformIncomeTiyn],
+                          ] as const
+                        ).map(([label, tiyn]) => ({ label, value: <span className="tabular-nums">{formatTiyn(tiyn)}</span> })),
+                      ]}
+                    />
                   </Card>
                   <Card title={t.documents}>
                     <DealDocuments documents={selected.card.documents} />

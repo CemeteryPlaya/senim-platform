@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AtSign, UserRound } from "lucide-react";
-import { getCurrentUser, loginHref, switchTargets } from "@/modules/identity";
+import type { ReactNode } from "react";
+import { formatPhone, getCurrentUser, loginHref, switchTargets } from "@/modules/identity";
 import { env } from "@/platform/env";
 import { features } from "@/platform/features";
 import { ru } from "@/i18n/ru";
-import { Container, LinkList, PageHeader, SectionTitle } from "@/ui";
+import { Container, KeyValueList, LinkList, PageHeader } from "@/ui";
 import { LogoutButton } from "../_components/auth/LogoutButton";
 import { SwitchRoleButton } from "../_components/auth/RoleButtons";
 import { InstallMenuItem } from "../_components/install";
@@ -18,9 +19,10 @@ const t = ru.common.account;
 export const metadata: Metadata = { title: t.metaTitle };
 
 /**
- * «Профиль» — последняя вкладка нижней панели любой роли (макеты 7, 12, 19): кто вошёл, переключение роли
- * (ADR-004), разделы, которых нет во вкладках, установка приложения и «Выйти». На телефоне это заменяет
- * прежнее меню «Ещё» — всё видно сразу, без раскрывающихся списков.
+ * «Профиль» — последняя вкладка нижней панели любой роли: кто вошёл («метка — значение»), переключение роли
+ * (ADR-004), разделы роли, которых нет во вкладках (из той же модели меню navFor — здесь ссылки не задаются),
+ * установка приложения и «Выйти». Белые карточки на сером фоне; на десктопе — две колонки. Заливной кнопки нет:
+ * у экрана нет одного главного действия.
  */
 export default async function ProfilePage() {
   const user = await getCurrentUser();
@@ -29,55 +31,91 @@ export default async function ProfilePage() {
   // Вкладки и так на виду; здесь — остальные разделы роли (у исполнителя — профиль компании, портфолио, замеры).
   const sections = more.filter((item) => item.href !== ACCOUNT_HREF && !tabs.some((tab) => tab.href === item.href));
   const targets = switchTargets(user);
+  const role = ru.common.roles[user.role];
 
   return (
-    <Container size="form" className="flex flex-col gap-6 pb-10">
+    <Container className="flex flex-col gap-4 pb-10">
       <PageHeader title={t.title} back={{ href: "/" }} />
 
-      <section aria-label={t.title} className="flex items-center gap-4">
-        <span aria-hidden className="inline-flex size-16 shrink-0 items-center justify-center rounded-full bg-sunken text-ink-soft">
-          <UserRound className="size-8" />
-        </span>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <p className="text-xl font-bold text-ink">{user.fullName ?? t.noName}</p>
-          <p className="text-base text-muted">{t.roleLine(ru.common.roles[user.role])}</p>
-          <p className="text-base text-muted tabular-nums">{user.phone}</p>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(26rem,100%),1fr))] items-start gap-4 lg:gap-6">
+        <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
+          <Panel labelledBy="account-who" title={t.who} lead={<UserBadge />}>
+            <KeyValueList
+              rows={[
+                { label: t.rows.name, value: user.fullName ?? t.noName },
+                { label: t.rows.role, value: role },
+                { label: t.rows.phone, value: <span className="tabular-nums">{formatPhone(user.phone)}</span> },
+              ]}
+            />
+            {(user.role === "CLIENT" || user.role === "EXECUTOR") && (
+              <LinkList className="border-b-0" label={ru.identity.contacts.title} items={[{ href: "/profile/contacts", label: ru.identity.contacts.link, icon: <AtSign /> }]} />
+            )}
+          </Panel>
+
+          {targets.length > 0 && (
+            <Panel labelledBy="account-role" title={t.roleTitle}>
+              <div role="group" aria-label={ru.identity.switchRole.switcherLabel} className="flex flex-col gap-2">
+                {targets.map((target) => (
+                  <SwitchRoleButton key={target} role={target} variant="soft" fullWidth />
+                ))}
+              </div>
+            </Panel>
+          )}
         </div>
-      </section>
 
-      {targets.length > 0 && (
-        <section aria-labelledby="account-role" className="flex flex-col gap-3">
-          <SectionTitle id="account-role" title={t.roleTitle} />
-          <div role="group" aria-label={ru.identity.switchRole.switcherLabel} className="flex flex-col gap-2">
-            {targets.map((role) => (
-              <SwitchRoleButton key={role} role={role} variant="soft" fullWidth />
-            ))}
-          </div>
-        </section>
-      )}
+        <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
+          {sections.length > 0 && (
+            <Panel labelledBy="account-sections" title={t.sections} as="nav">
+              <LinkList className="border-b-0" items={sections.map((item) => ({ href: item.href, label: item.label, icon: <Icon of={item.icon} /> }))} />
+            </Panel>
+          )}
 
-      {(user.role === "CLIENT" || user.role === "EXECUTOR") && (
-        <nav aria-label={ru.identity.contacts.title}>
-          <LinkList items={[{ href: "/profile/contacts", label: ru.identity.contacts.link, icon: <AtSign /> }]} />
-        </nav>
-      )}
-
-      {sections.length > 0 && (
-        <section aria-labelledby="account-sections" className="flex flex-col gap-3">
-          <SectionTitle id="account-sections" title={t.sections} />
-          <LinkList items={sections.map((item) => ({ href: item.href, label: item.label, icon: <Icon of={item.icon} /> }))} />
-        </section>
-      )}
-
-      <section aria-labelledby="account-app" className="flex flex-col gap-3">
-        <SectionTitle id="account-app" title={t.app} />
-        <div className="flex flex-col items-start gap-2">
-          <InstallMenuItem />
-          <EnablePush />
-          <LogoutButton variant="ghost" />
+          <Panel labelledBy="account-app" title={t.app}>
+            <div className="flex flex-col items-start gap-2">
+              <InstallMenuItem />
+              <EnablePush />
+              <LogoutButton variant="ghost" />
+            </div>
+          </Panel>
         </div>
-      </section>
+      </div>
     </Container>
+  );
+}
+
+/** Белая карточка раздела профиля с заголовком h2 (подпись области для диктора). */
+function Panel({
+  labelledBy,
+  title,
+  lead,
+  as: Tag = "section",
+  children,
+}: {
+  labelledBy: string;
+  title: string;
+  lead?: ReactNode;
+  as?: "section" | "nav";
+  children: ReactNode;
+}) {
+  return (
+    <Tag aria-labelledby={labelledBy} className="flex min-w-0 flex-col gap-3 rounded-card border border-line bg-surface p-4 sm:p-6">
+      {/* При крупном шрифте заголовок уходит под значок, а не сжимается до буквы в строке. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {lead}
+        <h2 id={labelledBy} className="min-w-[min(10rem,100%)] flex-1 text-xl font-bold break-words text-ink">
+          {title}
+        </h2>
+      </div>
+      {children}
+    </Tag>
+  );
+}
+
+function UserBadge() {
+  return (
+    <span aria-hidden className="inline-flex size-14 shrink-0 items-center justify-center rounded-full bg-accent-soft text-primary">
+      <UserRound className="size-7" />
+    </span>
   );
 }
 

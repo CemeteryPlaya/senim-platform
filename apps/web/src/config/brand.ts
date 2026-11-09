@@ -11,6 +11,7 @@ export const brand = {
     surface: "#ffffff",
     ink: "#151a22",
     muted: "#566070",
+    line: "#e4e8e6",
     onPrimary: "#ffffff",
   },
 } as const;

@@ -13,6 +13,7 @@ describe("цвета бренда вне CSS", () => {
     ["surface", BRAND_COLORS.surface],
     ["ink", BRAND_COLORS.ink],
     ["muted", BRAND_COLORS.muted],
+    ["line", BRAND_COLORS.line],
     ["on-primary", BRAND_COLORS.onPrimary],
   ])("совпадают с токеном --color-%s", (name, value) => {
     expect(value).toBe(token(name));

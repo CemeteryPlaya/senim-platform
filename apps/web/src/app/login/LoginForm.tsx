@@ -1,9 +1,8 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
-import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
-import { Alert, Button, Input } from "@/ui";
+import { Alert, Button, FullscreenStep, Input } from "@/ui";
 import { requestCodeAction, verifyCodeAction } from "./actions";
 
 const t = ru.identity.login;
@@ -11,8 +10,12 @@ const t = ru.identity.login;
 type Step = { kind: "phone" } | { kind: "code"; phone: string; demoCode: string | null };
 type Message = { tone: "danger" | "success"; text: string } | null;
 
-/** Два шага на одном экране: номер → код из SMS. После верного кода сервер сам переводит на нужную страницу. */
-export function LoginForm({ next }: { next: string | null }) {
+/**
+ * Два полноэкранных шага (FullscreenStep): номер → код из SMS. «Назад» на шаге кода возвращает к номеру.
+ * После верного кода сервер сам переводит на нужную страницу. extra — второстепенные пути под главной кнопкой
+ * шага номера (демо-персоны, регистрация мастера).
+ */
+export function LoginForm({ next, extra }: { next: string | null; extra?: ReactNode }) {
   const [step, setStep] = useState<Step>({ kind: "phone" });
   const [phoneError, setPhoneError] = useState<string>();
   const [codeError, setCodeError] = useState<string>();
@@ -75,65 +78,76 @@ export function LoginForm({ next }: { next: string | null }) {
 
   if (step.kind === "phone") {
     return (
-      <form onSubmit={onPhoneSubmit} noValidate className="flex flex-col gap-5">
-        <h2 ref={headingRef} tabIndex={-1} className="text-xl font-bold text-ink outline-none">
-          {t.title}
-        </h2>
-        <p className="text-lg text-muted">{t.lead}</p>
-        <Input
-          label={t.phoneLabel}
-          hint={t.phoneHint}
-          error={phoneError}
-          name="phone"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          required
-        />
-        <Button type="submit" loading={pending} fullWidth>
-          {t.getCode}
-        </Button>
+      <form onSubmit={onPhoneSubmit} noValidate>
+        <FullscreenStep
+          title={t.title}
+          back={{ href: "/" }}
+          titleRef={headingRef}
+          action={
+            <>
+              <Button type="submit" loading={pending} fullWidth>
+                {t.getCode}
+              </Button>
+              {extra}
+            </>
+          }
+        >
+          <p className="text-lg text-ink-soft">{t.lead}</p>
+          <Input
+            label={t.phoneLabel}
+            hint={t.phoneHint}
+            error={phoneError}
+            name="phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            required
+          />
+        </FullscreenStep>
       </form>
     );
   }
 
   return (
-    <form onSubmit={onCodeSubmit} noValidate className="flex flex-col gap-5">
-      <h2 className="text-xl font-bold text-ink">{t.codeTitle}</h2>
-      <p className="text-lg text-muted">{t.codeSentTo(step.phone)}</p>
-      {step.demoCode && (
-        <Alert tone="warning" live="polite">
-          {t.demoCode(step.demoCode)}
-        </Alert>
-      )}
-      {message && (
-        <Alert tone={message.tone} live={message.tone === "danger" ? "assertive" : "polite"}>
-          {message.text}
-        </Alert>
-      )}
-      <Input
-        ref={codeRef}
-        label={t.codeLabel}
-        hint={t.codeHint}
-        error={codeError}
-        name="code"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        pattern="\d{6}"
-        maxLength={6}
-        required
-      />
-      <Button type="submit" loading={pending} fullWidth>
-        {t.signIn}
-      </Button>
-      <div className="flex flex-wrap gap-3">
-        <Button variant="ghost" icon={<ArrowLeft />} onClick={changePhone} disabled={pending}>
-          {t.changePhone}
-        </Button>
-        <Button variant="secondary" onClick={() => sendCode(step.phone, true)} disabled={pending}>
-          {t.resend}
-        </Button>
-      </div>
+    <form onSubmit={onCodeSubmit} noValidate>
+      <FullscreenStep
+        title={t.codeTitle}
+        back={{ onClick: changePhone }}
+        action={
+          <>
+            <Button type="submit" loading={pending} fullWidth>
+              {t.signIn}
+            </Button>
+            <Button variant="secondary" fullWidth onClick={() => sendCode(step.phone, true)} disabled={pending}>
+              {t.resend}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-lg text-ink-soft">{t.codeSentTo(step.phone)}</p>
+        {step.demoCode && (
+          <Alert tone="warning" live="polite">
+            {t.demoCode(step.demoCode)}
+          </Alert>
+        )}
+        {message && (
+          <Alert tone={message.tone} live={message.tone === "danger" ? "assertive" : "polite"}>
+            {message.text}
+          </Alert>
+        )}
+        <Input
+          ref={codeRef}
+          label={t.codeLabel}
+          hint={t.codeHint}
+          error={codeError}
+          name="code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="\d{6}"
+          maxLength={6}
+          required
+        />
+      </FullscreenStep>
     </form>
   );
 }

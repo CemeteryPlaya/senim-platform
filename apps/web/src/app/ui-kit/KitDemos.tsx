@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, Chat, LegacyFilterChips, Modal, PhotoUpload, Stepper, type ChatMessage, type PhotoItem } from "@/ui";
+import { Button, Chat, Modal, PhotoUpload, Stepper, type ChatMessage, type PhotoItem } from "@/ui";
 
 // Живые примеры для витрины: состояние хранится здесь, компоненты — презентационные.
 
@@ -21,35 +21,6 @@ export function StepperDemo() {
       <Button variant="secondary" className="self-start" onClick={() => setCurrent((c) => Math.min(c + 1, s.steps.length - 1))}>
         {ru.common.actions.next}
       </Button>
-    </div>
-  );
-}
-
-/** Чипы-фильтры: кнопки (выбор в состоянии) и ссылки (выбор в адресе). */
-export function ChipsDemo() {
-  const [current, setCurrent] = useState("all");
-  const c = s.chips;
-  return (
-    <div className="flex flex-col gap-4">
-      <LegacyFilterChips
-        label={s.chipsLabel}
-        current={current}
-        onSelect={setCurrent}
-        chips={[
-          { key: "all", label: c.all, count: 12 },
-          { key: "economy", label: c.economy, count: 4 },
-          { key: "comfort", label: c.comfort, count: 5 },
-          { key: "premium", label: c.premium, count: 3 },
-        ]}
-      />
-      <LegacyFilterChips
-        label={s.chipsLabel}
-        current="comfort"
-        chips={[
-          { key: "all", label: c.all, href: "/ui-kit" },
-          { key: "comfort", label: c.comfort, href: "/ui-kit?segment=comfort" },
-        ]}
-      />
     </div>
   );
 }

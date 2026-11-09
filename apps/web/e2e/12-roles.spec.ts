@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { loginAs, P, reseed } from "./support";
+import { expectNoHorizontalScrollAt320And200, expectOnePrimary, loginAs, P, reseed } from "./support";
 
 /**
  * Две роли на одном аккаунте (ADR-004): мастер «Дала» (Исп. №4) заказывал шкаф как покупатель (сделка №17).
@@ -12,6 +12,47 @@ test.beforeAll(() => {
   reseed();
 });
 
+test("профиль: «метка — значение» и разделы роли из меню, без заливной кнопки", async ({ page }) => {
+  await loginAs(page, P.aigerim);
+  await page.goto("/profile");
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { level: 1, name: "Профиль" })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Назад", exact: true })).toBeVisible();
+  // Кто вошёл — список «метка — значение».
+  for (const term of ["Имя", "Роль", "Телефон"]) await expect(main.getByRole("term").filter({ hasText: term })).toHaveCount(1);
+  await expect(main.getByRole("definition").filter({ hasText: /^Заказчик$/ })).toHaveCount(1);
+  // Разделы — те же, что в меню роли (кроме вкладок): у заказчика в демо-режиме.
+  const sections = main.getByRole("navigation", { name: "Разделы" }).getByRole("link");
+  await expect(sections).toHaveText(["Мои заявки", "Работы", "Уведомления", "Показ банку", "Демо-персоны"]);
+  await expect(main.locator("[data-primary-action]")).toHaveCount(0);
+  await expect(main.getByRole("button", { name: "Выйти" })).toBeVisible();
+  await expectNoHorizontalScrollAt320And200(page, "/profile");
+
+  // Две роли (ADR-004): у мастера «Дала» — переключатель в роль заказчика и разделы мастера.
+  await loginAs(page, P.dala);
+  await page.goto("/profile");
+  await expect(main.getByRole("button", { name: "Перейти в роль «Заказчик»" })).toBeVisible();
+  await expect(main.getByRole("navigation", { name: "Разделы" }).getByRole("link")).toHaveText([
+    "Профиль компании",
+    "Портфолио",
+    "Уведомления",
+    "Показ банку",
+    "Демо-персоны",
+  ]);
+  await expect(main.locator("[data-primary-action]")).toHaveCount(0);
+});
+
+test("переключение роли: одна главная кнопка, «Назад», без прокрутки вбок", async ({ page }) => {
+  await loginAs(page, P.dala);
+  const path = "/switch-role?to=CLIENT&returnTo=%2Fdeals";
+  await page.goto(path);
+  await expect(page.getByRole("main").getByRole("link", { name: "Назад", exact: true })).toBeVisible();
+  await expectOnePrimary(page);
+  await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveText("Перейти в роль «Заказчик»");
+  await expectNoHorizontalScrollAt320And200(page, path);
+});
+
+// Последним: переключение роли сохраняется у пользователя — тесты выше видят «Дала» мастером, как в сиде.
 test("сделка в роли покупателя открывается после переключения роли", async ({ page }) => {
   await loginAs(page, P.dala);
   await expect(page).toHaveURL(/\/executor\/requests$/);

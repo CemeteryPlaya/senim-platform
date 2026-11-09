@@ -17,6 +17,7 @@ import {
   DemoBanner,
   EmptyState,
   DealProgress,
+  DetailColumns,
   FilterChips,
   FullscreenStep,
   MirrorPayout,
@@ -44,14 +45,14 @@ import {
   type ChatMessage,
   type Tone,
 } from "@/ui";
-import { ChatDemo, ChipsDemo, LoadingButtonDemo, ModalDemo, PhotoDemo, StepperDemo } from "./KitDemos";
+import { ChatDemo, LoadingButtonDemo, ModalDemo, PhotoDemo, StepperDemo } from "./KitDemos";
 
 const k = ru.common.uiKit;
 const s = k.sample;
 
 export const metadata: Metadata = { title: k.title, robots: { index: false, follow: false } };
 
-// Классы перечислены целиком, чтобы Tailwind их нашёл.
+// РљР»Р°СЃСЃС‹ РїРµСЂРµС‡РёСЃР»РµРЅС‹ С†РµР»РёРєРѕРј, С‡С‚РѕР±С‹ Tailwind РёС… РЅР°С€С‘Р».
 const SWATCHES = [
   ["canvas", "bg-canvas"],
   ["surface", "bg-surface"],
@@ -73,12 +74,12 @@ const SWATCHES = [
   ["danger-soft", "bg-danger-soft"],
 ] as const;
 
-/** Плитки с картинками: иллюстрации из public/img (места под фото). */
+/** РџР»РёС‚РєРё СЃ РєР°СЂС‚РёРЅРєР°РјРё: РёР»Р»СЋСЃС‚СЂР°С†РёРё РёР· public/img (РјРµСЃС‚Р° РїРѕРґ С„РѕС‚Рѕ). */
 const TILE_KEYS = ["kitchen", "wardrobe", "closet", "hallway"] as const;
 
 const TONES: Tone[] = ["neutral", "accent", "info", "success", "warning", "danger"];
 
-/** Витрина компонентов: только в разработке и в демо-режиме. */
+/** Р’РёС‚СЂРёРЅР° РєРѕРјРїРѕРЅРµРЅС‚РѕРІ: С‚РѕР»СЊРєРѕ РІ СЂР°Р·СЂР°Р±РѕС‚РєРµ Рё РІ РґРµРјРѕ-СЂРµР¶РёРјРµ. */
 export default async function UiKitPage() {
   await connection();
   const { DEMO_MODE, NODE_ENV } = env();
@@ -165,7 +166,7 @@ export default async function UiKitPage() {
       </KitSection>
 
       <KitSection title={k.sections.cards}>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
           <Card
             title={s.cardTitle}
             titleAs="h3"
@@ -221,7 +222,18 @@ export default async function UiKitPage() {
       </KitSection>
 
       <KitSection title={k.sections.chips}>
-        <ChipsDemo />
+        {/* Р’С‹Р±РѕСЂ Р¶РёРІС‘С‚ РІ Р°РґСЂРµСЃРµ: С‡РёРї вЂ” СЃСЃС‹Р»РєР°, Р°РєС‚РёРІРЅС‹Р№ вЂ” aria-current. Р§РёСЃР»Рѕ вЂ” РІ РїРѕРґРїРёСЃРё (В«РљРѕРјС„РѕСЂС‚ В· 5В»). */}
+        <FilterChips
+          label={s.chipsLabel}
+          items={(
+            [
+              ["all", 12],
+              ["economy", 4],
+              ["comfort", 5],
+              ["premium", 3],
+            ] as const
+          ).map(([key, n]) => ({ href: `/ui-kit?segment=${key}`, label: ru.common.ui.filterChip(s.chips[key], n), active: key === "comfort" }))}
+        />
       </KitSection>
 
       <KitSection title={k.sections.lists}>
@@ -310,8 +322,29 @@ export default async function UiKitPage() {
         </div>
       </KitSection>
 
+      <KitSection title={k.sections.detailColumns}>
+        {/* Р‘РµР· action: РіР»Р°РІРЅРѕРµ РґРµР№СЃС‚РІРёРµ РІРёС‚СЂРёРЅС‹ вЂ” РѕРґРёРЅ StickyAction РІ РєРѕРЅС†Рµ СЃС‚СЂР°РЅРёС†С‹. */}
+        <DetailColumns
+          lead={<DealProgress status="IN_PROGRESS" hasOpenDispute={false} />}
+          aside={
+            <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+              <h3 className="text-lg font-bold text-ink">{s.detailAsideTitle}</h3>
+              <KeyValueList rows={s.keyValueRows} />
+              <TrustNote>{s.trustNote}</TrustNote>
+            </div>
+          }
+          main={
+            <div className="flex flex-col gap-3 rounded-card border border-line bg-surface p-5">
+              <h3 className="text-lg font-bold text-ink">{s.detailMainTitle}</h3>
+              <p className="text-base text-ink-soft">{s.detailMain}</p>
+              <p className="text-base text-muted">{s.detailLead}</p>
+            </div>
+          }
+        />
+      </KitSection>
+
       <KitSection title={k.sections.timeline}>
-        <div className="max-w-form rounded-card border border-line bg-surface p-5 shadow-card">
+        <div className="max-w-form rounded-card border border-line bg-surface p-5">
           <Timeline
             label={s.timelineLabel}
             items={s.timeline.map((item, i) => ({ ...item, state: i < 2 ? "done" : i === 2 ? "current" : "todo" }))}
@@ -393,7 +426,7 @@ export default async function UiKitPage() {
         </div>
       </KitSection>
 
-      {/* Закреплённая кнопка экрана деталей: на телефоне над нижней панелью, на десктопе в потоке. Всегда последний в экране. */}
+      {/* Р—Р°РєСЂРµРїР»С‘РЅРЅР°СЏ РєРЅРѕРїРєР° СЌРєСЂР°РЅР° РґРµС‚Р°Р»РµР№: РЅР° С‚РµР»РµС„РѕРЅРµ РЅР°Рґ РЅРёР¶РЅРµР№ РїР°РЅРµР»СЊСЋ, РЅР° РґРµСЃРєС‚РѕРїРµ РІ РїРѕС‚РѕРєРµ. Р’СЃРµРіРґР° РїРѕСЃР»РµРґРЅРёР№ РІ СЌРєСЂР°РЅРµ. */}
       <StickyAction>
         <Button fullWidth>{s.primary}</Button>
       </StickyAction>
@@ -401,7 +434,7 @@ export default async function UiKitPage() {
   );
 }
 
-/** Примеры дат относительно момента запроса. */
+/** РџСЂРёРјРµСЂС‹ РґР°С‚ РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕ РјРѕРјРµРЅС‚Р° Р·Р°РїСЂРѕСЃР°. */
 function sampleData(): { sample: Date; chat: ChatMessage[] } {
   const now = Date.now();
   const ago = (minutes: number) => new Date(now - minutes * 60_000);
@@ -419,7 +452,7 @@ function sampleData(): { sample: Date; chat: ChatMessage[] } {
 function KitSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-5 border-t border-line pt-6">
-      <h2 className="text-2xl font-extrabold text-ink">{title}</h2>
+      <h2 className="text-xl font-extrabold text-ink sm:text-2xl">{title}</h2>
       {children}
     </section>
   );

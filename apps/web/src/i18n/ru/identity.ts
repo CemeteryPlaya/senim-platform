@@ -34,7 +34,6 @@ export const identity = {
     codeLabel: "Код из SMS",
     codeHint: "6 цифр",
     signIn: "Войти",
-    changePhone: "Изменить номер",
     resend: "Отправить код ещё раз",
     resent: "Новый код отправлен",
     demoCode: (code: string) => `Демо-режим: SMS не отправляется. Ваш код — ${code}`,
@@ -217,7 +216,8 @@ export const identity = {
   /** Контакты пользователя: Instagram видит другая сторона сделки только после оферты (ТЗ п. 3). */
   contacts: {
     title: "Контакты",
-    link: "Контакты, Instagram и e-mail",
+    // Неразрывный дефис (U+2011): «e‑mail» не переносится по дефису на узком экране.
+    link: "Контакты, Instagram и e‑mail",
     hint: "Телефон и Instagram увидит только другая сторона сделки — после того, как вы оба подпишете оферту.",
     phone: "Телефон",
     instagram: "Instagram",

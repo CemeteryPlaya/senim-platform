@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { getCurrentUser, homePathFor, introductionHref, loginHref, needsIntroduction, safeReturnTo } from "@/modules/identity";
-import { Card, Container, PageHeader } from "@/ui";
-import { LogoutButton } from "../_components/auth/LogoutButton";
+import { Container } from "@/ui";
 import { IntroductionForm } from "./IntroductionForm";
 
 const t = ru.identity.introduction;
@@ -24,15 +23,8 @@ export default async function WelcomePage({ searchParams }: Props) {
   if (!needsIntroduction(user)) redirect(next ?? homePathFor(user));
 
   return (
-    <Container size="form">
-      <PageHeader title={t.title} back={{ href: "/" }} />
-      <div className="flex flex-col gap-6">
-        <p className="max-w-prose text-lg text-ink">{t.lead}</p>
-        <Card>
-          <IntroductionForm next={next} defaultFullName={user.fullName} />
-        </Card>
-        <LogoutButton variant="secondary" />
-      </div>
+    <Container size="form" className="pt-3 pb-8 sm:pt-6">
+      <IntroductionForm next={next} defaultFullName={user.fullName} />
     </Container>
   );
 }

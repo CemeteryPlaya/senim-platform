@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { PHONE } from "./support";
+import { expectNoHorizontalScrollAt320And200, expectOnePrimary, PHONE } from "./support";
 
 /**
  * Вход по SMS-коду (SMS_PROVIDER=mock показывает код в демо-баннере).
@@ -22,8 +22,12 @@ async function requestCode(page: Page, phone: string): Promise<string> {
   await page.goto("/login");
   await page.getByLabel("Номер телефона").fill(phone);
   await page.getByRole("button", { name: "Получить код" }).click();
-  await expect(page.getByRole("heading", { name: "Введите код из SMS" })).toBeVisible();
+  // Шаг кода — тоже полноэкранный шаг: свой заголовок, «Назад» к номеру и одна главная кнопка «Войти».
+  await expect(page.getByRole("heading", { level: 1, name: "Введите код из SMS" })).toBeVisible();
   await expect(page.getByLabel("Код из SMS")).toBeFocused();
+  await expect(page.getByRole("main").getByRole("button", { name: "Назад", exact: true })).toBeVisible();
+  await expectOnePrimary(page);
+  await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveText("Войти");
   const banner = page.getByText(/Демо-режим: SMS не отправляется\. Ваш код — \d{6}/);
   await expect(banner).toBeVisible();
   const code = (await banner.textContent())?.match(/\d{6}/)?.[0];
@@ -50,6 +54,30 @@ test("неверный код — понятная ошибка у поля, в�
   await expect(page.getByText("Неверный код. Осталось попыток: 4")).toBeVisible();
   await expect(field).toHaveAttribute("aria-invalid", "true");
   await expect(page).toHaveURL(/\/login/);
+});
+
+test("вход — полноэкранный шаг: «Назад», заголовок шага, одна главная кнопка; 320 px и 200 %", async ({ page }) => {
+  await page.context().clearCookies();
+  await page.goto("/login");
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { level: 1, name: "Вход по номеру телефона" })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Назад", exact: true })).toBeVisible();
+  await expectOnePrimary(page);
+  await expect(main.locator("[data-primary-action]")).toHaveText("Получить код");
+  // Демо-персоны и регистрация мастера — второстепенные, под главной кнопкой.
+  await expect(main.getByRole("link", { name: "Войти демо-персоной" })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Я мастер — зарегистрироваться" })).toBeVisible();
+  await expectNoHorizontalScrollAt320And200(page, "/login");
+});
+
+test("регистрация мастера гостем — полноэкранный шаг с одной главной кнопкой", async ({ page }) => {
+  await page.context().clearCookies();
+  await page.goto("/register/executor");
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { level: 1, name: "Регистрация исполнителя" })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Назад", exact: true })).toBeVisible();
+  await expectOnePrimary(page);
+  await expectNoHorizontalScrollAt320And200(page, "/register/executor");
 });
 
 test("неверный номер — ошибка у поля номера", async ({ page }) => {

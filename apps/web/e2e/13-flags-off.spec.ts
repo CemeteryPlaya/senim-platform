@@ -19,6 +19,11 @@ test("«Вдохновение» выключено: 404 и гостю, и по�
   expect(res?.status()).toBe(404);
   await page.goto("/");
   await expect(page.getByRole("navigation", { name: "Основное меню" }).getByRole("link", { name: "Вдохновение" })).toHaveCount(0);
+  // Разделы профиля берутся из той же модели меню: выключенного раздела нет и там.
+  await page.goto("/profile");
+  const sections = page.getByRole("main").getByRole("navigation", { name: "Разделы" });
+  await expect(sections.getByRole("link", { name: "Мои заявки" })).toBeVisible();
+  await expect(sections.getByRole("link", { name: "Вдохновение" })).toHaveCount(0);
 });
 
 test("публичная витрина сделки выключена: 404", async ({ page }) => {

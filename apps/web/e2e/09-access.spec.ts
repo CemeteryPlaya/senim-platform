@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { loginAs, openDeal, P, reseed } from "./support";
+import { expectNoHorizontalScrollAt320And200, expectOnePrimary, loginAs, openDeal, P, reseed } from "./support";
 
 /**
  * Доступ к чужим данным (IDOR): чужие заявка, отклик с чатом, сделка, история денег, документ PDF и файл —
@@ -91,6 +91,32 @@ test("гость уходит на вход с адресом возврата; 
   const pdf = await page.request.get(links.pdf);
   expect([401, 403, 404]).toContain(pdf.status());
   expect(pdf.headers()["content-type"] ?? "").not.toContain("application/pdf");
+});
+
+test("документ по ссылке: открывается без входа, «метка — значение», одна главная кнопка; чужая ссылка — без данных", async ({ page }) => {
+  await loginAs(page, P.daniyar);
+  await openDeal(page, 7);
+  const statement = page.getByRole("listitem").filter({ hasText: /^Выписка по деньгам № / });
+  await statement.getByRole("button", { name: "Поделиться в WhatsApp" }).click();
+  const url = await statement.getByLabel("Ссылка на документ").inputValue();
+  const path = new URL(url).pathname;
+
+  await page.context().clearCookies();
+  await page.goto(path);
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { level: 1, name: /^Выписка по деньгам № / })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Назад", exact: true })).toBeVisible();
+  for (const term of ["Версия", "Статус", "Ссылка действует до"]) await expect(main.getByRole("term").filter({ hasText: term })).toHaveCount(1);
+  await expectOnePrimary(page);
+  await expect(main.locator("[data-primary-action]")).toContainText("Открыть");
+  await expect(main).not.toContainText(LEAK);
+  await expectNoHorizontalScrollAt320And200(page, path);
+
+  // Подделанная ссылка: только предупреждение, без данных и без кнопок документа.
+  await page.goto(`${path}x`);
+  await expect(main.getByText("Ссылка недействительна или срок её действия истёк. Попросите прислать новую.")).toBeVisible();
+  await expect(main.locator("[data-primary-action]")).toHaveCount(0);
+  await expect(main).not.toContainText(LEAK);
 });
 
 test("мастер и покупатель не попадают в раздел оператора", async ({ page }) => {

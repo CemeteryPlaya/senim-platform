@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { formatPhone, getOwnContacts, INSTAGRAM_MAX, requireUserPage } from "@/modules/identity";
-import { Container, Fact, PageHeader } from "@/ui";
+import { Container, KeyValueList, PageHeader } from "@/ui";
 import { ContactsForm } from "./ContactsForm";
 
 const t = ru.identity.contacts;
@@ -18,12 +18,10 @@ export default async function ContactsPage() {
   return (
     <Container size="form" className="flex flex-col gap-6 pb-12">
       <PageHeader title={t.title} description={t.hint} back={{ href: "/profile" }} />
-      <dl>
-        <Fact label={t.phone}>
-          <span className="tabular-nums">{formatPhone(contacts.phone)}</span>
-        </Fact>
-      </dl>
-      <ContactsForm initial={{ instagram: contacts.instagram ?? "", email: contacts.email ?? "" }} max={INSTAGRAM_MAX} />
+      <div className="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 sm:p-6">
+        <KeyValueList rows={[{ label: t.phone, value: <span className="tabular-nums">{formatPhone(contacts.phone)}</span> }]} />
+        <ContactsForm initial={{ instagram: contacts.instagram ?? "", email: contacts.email ?? "" }} max={INSTAGRAM_MAX} />
+      </div>
     </Container>
   );
 }
