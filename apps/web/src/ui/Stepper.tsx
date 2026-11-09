@@ -73,7 +73,8 @@ export function Stepper({ steps, current, back, backLabel = ru.common.actions.ba
                 <span
                   aria-hidden
                   className={cn(
-                    "relative z-10 inline-flex size-8 items-center justify-center rounded-full text-sm leading-none font-bold tabular-nums",
+                    // Узкий экран и шрифт 200 %: кружок не шире своей колонки (квадрат по ширине), а не 2rem насильно.
+                    "relative z-10 inline-flex aspect-square w-8 max-w-full items-center justify-center rounded-full text-sm leading-none font-bold tabular-nums",
                     done && "bg-primary text-on-primary",
                     active && "bg-primary text-on-primary ring-4 ring-accent-soft",
                     !done && !active && "border-2 border-line-strong bg-surface text-muted",

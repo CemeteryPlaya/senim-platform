@@ -183,10 +183,12 @@ export type LinkListItem = {
 /**
  * Список разделов (макеты 12 и 19) в духе приложения Upwork: строки с тонкими разделителями, без карточки и
  * заливки; значок, подпись, число справа, стрелка. Главный пункт — зелёная жирная подпись.
+ * Узкий список при крупном шрифте (уже 15em — например, 320 px и 200 %): значок и стрелка прячутся, место — подписи,
+ * иначе она рвётся по букве.
  */
 export function LinkList({ items, label, className }: { items: readonly LinkListItem[]; label?: string; className?: string }) {
   return (
-    <ul aria-label={label} className={cn("flex flex-col divide-y divide-line border-y border-line", className)}>
+    <ul aria-label={label} className={cn("@container/links flex flex-col divide-y divide-line border-y border-line", className)}>
       {items.map((item) => (
         <li key={item.href}>
           <Link
@@ -197,7 +199,7 @@ export function LinkList({ items, label, className }: { items: readonly LinkList
             )}
           >
             {item.icon && (
-              <span aria-hidden className="inline-flex shrink-0 text-primary [&_svg]:size-6">
+              <span aria-hidden className="inline-flex shrink-0 text-primary @max-[15em]/links:hidden [&_svg]:size-6">
                 {item.icon}
               </span>
             )}
@@ -206,7 +208,7 @@ export function LinkList({ items, label, className }: { items: readonly LinkList
               {item.description && <span className="text-sm text-muted">{item.description}</span>}
             </span>
             {item.meta !== undefined && <span className="shrink-0 text-base font-semibold text-ink-soft tabular-nums">{item.meta}</span>}
-            <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
+            <ChevronRight aria-hidden className="size-5 shrink-0 text-muted @max-[15em]/links:hidden" />
           </Link>
         </li>
       ))}
