@@ -104,9 +104,6 @@ func TestReplayReturnsSavedResponse(t *testing.T) {
 	if err != nil || found {
 		t.Fatalf("Lookup чужого ключа: %v %v", found, err)
 	}
-	if _, err = idem.Lookup(ctx, pool, "/svc/Method", "k1", wrapperspb.String("other"), got); !errors.Is(err, idem.ErrKeyReused) {
-		t.Fatalf("Lookup с другим запросом: %v", err)
-	}
 }
 
 func TestKeyReusedWithOtherRequest(t *testing.T) {

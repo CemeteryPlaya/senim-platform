@@ -462,8 +462,9 @@ func TestDeleteDeniedWithoutMarker(t *testing.T) {
 func TestAppDeleteUnknownTableFails(t *testing.T) {
 	e := startPostgres(t)
 	m := fstest.MapFS{"00001_x.sql": {Data: []byte("-- +goose Up\n-- senim:app-delete nope\nCREATE TABLE t (id int);\n-- +goose Down\nDROP TABLE t;\n")}}
-	if err := dbx.Migrate(context.Background(), e.ownerDSN(), "identity", m); err == nil {
-		t.Fatal("ожидалась ошибка для несуществующей app-delete таблицы")
+	err := dbx.Migrate(context.Background(), e.ownerDSN(), "identity", m)
+	if err == nil || !strings.Contains(err.Error(), "несуществующие таблицы") {
+		t.Fatalf("ожидалась ошибка «несуществующие таблицы», получено %v", err)
 	}
 }
 
