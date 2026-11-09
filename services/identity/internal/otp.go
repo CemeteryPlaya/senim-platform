@@ -82,13 +82,9 @@ func (s *Service) RequestOtp(ctx context.Context, req *identityv1.RequestOtpRequ
 	if !ok {
 		return nil, rpcError(connect.CodeInvalidArgument, "invalid_phone", nil)
 	}
-	ip := strings.TrimSpace(req.GetClientIp())
-	if ip != "" {
-		addr, err := netip.ParseAddr(ip)
-		if err != nil {
-			return nil, rpcError(connect.CodeInvalidArgument, "invalid_request", nil)
-		}
-		ip = addr.Unmap().String()
+	ip, ok := parseClientIP(req.GetClientIp())
+	if !ok {
+		return nil, rpcError(connect.CodeInvalidArgument, "invalid_request", nil)
 	}
 
 	// Повтор после успеха возвращает сохранённый ответ и не упирается в лимиты.
@@ -159,6 +155,20 @@ func (s *Service) RequestOtp(ctx context.Context, req *identityv1.RequestOtpRequ
 	out, _ := proto.Clone(resp).(*identityv1.RequestOtpResponse)
 	out.DemoCode = demoCode
 	return out, nil
+}
+
+// parseClientIP приводит client_ip к каноническому виду; пустой остаётся пустым («IP
+// неизвестен»), нераспознанный — не годится.
+func parseClientIP(raw string) (string, bool) {
+	ip := strings.TrimSpace(raw)
+	if ip == "" {
+		return "", true
+	}
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return "", false
+	}
+	return addr.Unmap().String(), true
 }
 
 // showsDemoCode — код возвращается в ответе только в демо с мок-провайдером: настоящая SMS

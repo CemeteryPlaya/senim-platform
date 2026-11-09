@@ -8,8 +8,76 @@ package store
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const consumeOtp = `-- name: ConsumeOtp :execrows
+UPDATE otp_codes SET consumed_at = $2::timestamptz
+WHERE id = $1 AND consumed_at IS NULL
+`
+
+type ConsumeOtpParams struct {
+	ID  uuid.UUID
+	Now pgtype.Timestamptz
+}
+
+// Условный UPDATE: из двух одновременных вводов одного кода погасит ровно один.
+func (q *Queries) ConsumeOtp(ctx context.Context, arg ConsumeOtpParams) (int64, error) {
+	result, err := q.db.Exec(ctx, consumeOtp, arg.ID, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const countOtpAttempt = `-- name: CountOtpAttempt :one
+UPDATE otp_codes SET attempts = attempts + 1
+WHERE id = $1 AND consumed_at IS NULL AND attempts < $2::int
+RETURNING attempts
+`
+
+type CountOtpAttemptParams struct {
+	ID          uuid.UUID
+	MaxAttempts int32
+}
+
+// Засчитывает попытку до сравнения кода (атомарно: параллельный перебор не обходит
+// предел). Нет строки в ответе — попытки исчерпаны или код уже погашен.
+func (q *Queries) CountOtpAttempt(ctx context.Context, arg CountOtpAttemptParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countOtpAttempt, arg.ID, arg.MaxAttempts)
+	var attempts int32
+	err := row.Scan(&attempts)
+	return attempts, err
+}
+
+const getActiveOtp = `-- name: GetActiveOtp :one
+SELECT id, phone, code_hash, attempts, expires_at, consumed_at, created_at FROM otp_codes
+WHERE phone = $1 AND consumed_at IS NULL AND expires_at > $2::timestamptz
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetActiveOtpParams struct {
+	Phone string
+	Now   pgtype.Timestamptz
+}
+
+// Самый свежий непогашенный и неистёкший код номера: действует только последний выданный.
+func (q *Queries) GetActiveOtp(ctx context.Context, arg GetActiveOtpParams) (OtpCode, error) {
+	row := q.db.QueryRow(ctx, getActiveOtp, arg.Phone, arg.Now)
+	var i OtpCode
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.CodeHash,
+		&i.Attempts,
+		&i.ExpiresAt,
+		&i.ConsumedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
 
 const insertOtpCode = `-- name: InsertOtpCode :exec
 INSERT INTO otp_codes (phone, code_hash, expires_at, created_at)
