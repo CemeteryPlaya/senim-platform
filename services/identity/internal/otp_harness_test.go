@@ -126,6 +126,7 @@ func newHarness(t *testing.T, tune func(*ServeConfig)) *harness {
 	cfg := ServeConfig{
 		DemoMode: true, OTPProvider: "mock", OTPHMACKey: testHMACKey,
 		OTPDailyGlobalLimit: 500, OTPDailyPrefixLimit: 50,
+		TokenSigningKey: testSigningKey, TokenKID: testKID,
 	}
 	if tune != nil {
 		tune(&cfg)

@@ -204,9 +204,8 @@ func TestAuthenticateReturnsUserAndSession(t *testing.T) {
 	if !res.GetSession().GetIdleExpiresAt().AsTime().Equal(h.clock.now().Add(idleTimeout)) {
 		t.Fatalf("idle_expires_at = %v", res.GetSession().GetIdleExpiresAt().AsTime())
 	}
-	// Подпись внутреннего токена появится в Task 7.
-	if res.GetAccessToken() != "" || res.GetAccessExpiresAt() != nil {
-		t.Fatalf("access_token пока пуст: %q %v", res.GetAccessToken(), res.GetAccessExpiresAt())
+	if res.GetAccessToken() == "" || res.GetAccessExpiresAt() == nil {
+		t.Fatalf("внутренний токен не выдан: %q %v", res.GetAccessToken(), res.GetAccessExpiresAt())
 	}
 }
 

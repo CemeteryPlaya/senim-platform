@@ -65,12 +65,6 @@ func sessionView(sess store.Session, user store.User) *identityv1.Session {
 	return sessionProto(sess, idleTimeout)
 }
 
-// issueAccessToken — шов для Task 7: внутренний токен (Ed25519, 5 мин). Пока токена нет:
-// пустая строка и нулевое время; Task 7 заменяет только тело.
-func (s *Service) issueAccessToken(_ context.Context, _ store.User, _ store.Session) (token string, expiresAt time.Time, err error) {
-	return "", time.Time{}, nil
-}
-
 // Authenticate — чтение: по токену сессии возвращает пользователя, сессию и внутренний
 // токен. Неверный формат, неизвестный, отозванный, истёкший (срок или простой) токен и
 // заблокированный пользователь дают одно и то же: Unauthenticated / session_invalid.
@@ -109,11 +103,10 @@ func (s *Service) Authenticate(ctx context.Context, req *identityv1.Authenticate
 		s.log.ErrorContext(ctx, "authenticate: внутренний токен", "err", err)
 		return nil, internalError()
 	}
-	resp := &identityv1.AuthenticateResponse{User: userProto(user), Session: sessionView(sess, user), AccessToken: access}
-	if access != "" {
-		resp.AccessExpiresAt = timestamppb.New(accessExp)
-	}
-	return resp, nil
+	return &identityv1.AuthenticateResponse{
+		User: userProto(user), Session: sessionView(sess, user),
+		AccessToken: access, AccessExpiresAt: timestamppb.New(accessExp),
+	}, nil
 }
 
 // idempotent выполняет изменяющий вызов по схеме VerifyOtp: повтор по ключу (Lookup ждёт
