@@ -21,6 +21,8 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	identityv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
+	"github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1/identityv1connect"
 	"github.com/CemeteryPlaya/senim-platform/internal/testdb"
 	"github.com/CemeteryPlaya/senim-platform/internal/testnats"
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
@@ -180,6 +182,25 @@ func TestServeBecomesReady(t *testing.T) {
 		rcancel()
 		if err != nil || res.Status != grpchealth.StatusServing || info.ResponseHeader().Get(server.CallerHeader) != "identity" {
 			t.Fatalf("identity → identity: %v %v caller=%q", res, err, info.ResponseHeader().Get(server.CallerHeader))
+		}
+	}
+
+	// IdentityService зарегистрирован: своя реплика (сервис из tools/services) читает ключи подписи,
+	// а Authenticate с её именем отвечает отказом по вызывающему, а не Unimplemented.
+	{
+		idc := identityv1connect.NewIdentityServiceClient(connect.NewClient(connecthttp.NewTransport(
+			&http.Client{Transport: clientAs("identity")}, "https://"+grpcAddr, connecthttp.WithGRPC())))
+		rctx, rcancel := context.WithTimeout(ctx, 2*time.Second)
+		keys, err := idc.GetSigningKeys(rctx, &identityv1.GetSigningKeysRequest{})
+		rcancel()
+		if err != nil || len(keys.GetKeys()) == 0 || keys.GetKeys()[0].GetKid() != "test-1" {
+			t.Fatalf("GetSigningKeys своей репликой: %v %v", keys, err)
+		}
+		rctx, rcancel = context.WithTimeout(ctx, 2*time.Second)
+		_, err = idc.Authenticate(rctx, &identityv1.AuthenticateRequest{})
+		rcancel()
+		if connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("Authenticate от identity: %v, want permission_denied (только web)", err)
 		}
 	}
 

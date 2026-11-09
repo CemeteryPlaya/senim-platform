@@ -6,6 +6,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY pkg ./pkg
 COPY gen ./gen
+# Список сервисов платформы: какие Go-сервисы могут читать ключи подписи (requireCaller).
+COPY tools/services ./tools/services
 COPY services/identity ./services/identity
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/identity ./services/identity/cmd/identity
 

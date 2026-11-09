@@ -12,6 +12,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"go.opentelemetry.io/otel"
 
+	"github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1/identityv1connect"
 	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
 	"github.com/CemeteryPlaya/senim-platform/pkg/idem"
@@ -84,7 +85,27 @@ func Healthcheck(ctx context.Context, src config.Source) error {
 	return server.CheckReady(ctx, cfg.ProbeAddr)
 }
 
+// newSender выбирает отправителя кодов по IDENTITY_OTP_PROVIDER. Конфиг уже проверил значение,
+// но неизвестное не должно молча превратиться в мок.
+func newSender(provider string, log *slog.Logger) (OtpSender, error) {
+	switch provider {
+	case "mock":
+		return mockSender{log: log}, nil
+	default:
+		return nil, fmt.Errorf("IDENTITY_OTP_PROVIDER: нет отправителя для %q", provider)
+	}
+}
+
 // Serve запускает gRPC (mTLS), пробы и релей outbox; возвращается после остановки.
+//
+// Кто может звать методы IdentityService (каждый обработчик проверяет это первой строкой через
+// requireCaller; тест TestCallerPolicyCoversEveryRPC обходит все RPC дескриптора):
+//
+//	RequestOtp, VerifyOtp, Authenticate, SignOut, SignOutEverywhere,
+//	SwitchRole, GrantRole, StartDemoSession, SeedUsers, ResetDemo  — только web
+//	GetSigningKeys                                                 — Go-сервисы из tools/services
+//
+// Новый RPC без решения в этой таблице и в тесте не принимается.
 func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	cfg, err := LoadServe(src)
 	if err != nil {
@@ -96,6 +117,10 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	}
 	defer func() { _ = shutdownTelemetry(context.WithoutCancel(ctx)) }()
 
+	sender, err := newSender(cfg.OTPProvider, log)
+	if err != nil {
+		return err
+	}
 	pool, err := dbx.Connect(ctx, cfg.AppDSN, ServiceID, cfg.PoolMaxConns)
 	if err != nil {
 		return err
@@ -157,7 +182,10 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 		// Только mesh (за ним — вызывающий из XFCC) и свои реплики; web и другие сервисы
 		// напрямую не допускаются (ADR-011).
 		AllowedPeers: []string{server.MeshPeer, ServiceID},
-	}, func(*connect.Server) error { return nil }, ready)
+	}, func(s *connect.Server) error {
+		identityv1connect.RegisterIdentityServiceHandler(s, NewService(pool, cfg, sender, log))
+		return nil
+	}, ready)
 
 	stopRelay()
 	return errors.Join(runErr, <-relayDone)
