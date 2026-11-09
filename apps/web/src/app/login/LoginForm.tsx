@@ -71,6 +71,8 @@ export function LoginForm({ next, extra }: { next: string | null; extra?: ReactN
   }
 
   function changePhone() {
+    // Пока идёт запрос (вход или повторный код), «Назад» не срабатывает — как прежняя кнопка с disabled.
+    if (pending) return;
     setStep({ kind: "phone" });
     setCodeError(undefined);
     setMessage(null);

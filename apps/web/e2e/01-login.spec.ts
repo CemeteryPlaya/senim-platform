@@ -70,6 +70,18 @@ test("вход — полноэкранный шаг: «Назад», загол
   await expectNoHorizontalScrollAt320And200(page, "/login");
 });
 
+test("«Назад» на шаге кода возвращает к номеру: фокус на заголовке, код можно запросить снова", async ({ page }, info) => {
+  // Свои номера: один номер получает код раз в минуту.
+  const [first, second] = info.project.name === "desktop" ? ["+7 700 000 09 23", "+7 700 000 09 24"] : ["+7 700 000 09 21", "+7 700 000 09 22"];
+  await requestCode(page, first);
+  await page.getByRole("main").getByRole("button", { name: "Назад", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Вход по номеру телефона" })).toBeFocused();
+  await page.getByLabel("Номер телефона").fill(second);
+  await page.getByRole("button", { name: "Получить код" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Введите код из SMS" })).toBeVisible();
+  await expect(page.getByText(/Отправили код на \+77000000922|Отправили код на \+77000000924/)).toBeVisible();
+});
+
 test("регистрация мастера гостем — полноэкранный шаг с одной главной кнопкой", async ({ page }) => {
   await page.context().clearCookies();
   await page.goto("/register/executor");

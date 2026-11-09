@@ -12,6 +12,33 @@ test.beforeAll(() => {
   reseed();
 });
 
+test("сделка в роли покупателя открывается после переключения роли", async ({ page }) => {
+  await loginAs(page, P.dala);
+  await expect(page).toHaveURL(/\/executor\/requests$/);
+
+  await page.goto("/deals");
+  const asClient = page.getByRole("listitem").filter({ hasText: "Вы — покупатель" });
+  await expect(asClient).toHaveCount(1);
+  await expect(page.getByRole("listitem").filter({ hasText: "Вы — мастер" })).toHaveCount(2); // №5 и №8
+
+  await asClient.getByRole("link", { name: /^Открыть/ }).click();
+  await page.waitForURL(/\/switch-role\?/);
+  const main = page.getByRole("main");
+  await expect(main.getByText("Эта страница открывается в роли «Заказчик».")).toBeVisible();
+  await main.getByRole("button", { name: "Перейти в роль «Заказчик»" }).click();
+
+  await page.waitForURL(/\/deals\/[^/?]+$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Сделка №17" })).toBeVisible();
+  await expect(page.getByRole("main").getByText("Завершена", { exact: true }).first()).toBeVisible();
+
+  // Роль сохраняется у пользователя: вернуть «Дала» мастером, как в сиде, — следующие тесты от этого не зависят.
+  await page.goto("/switch-role?to=EXECUTOR");
+  await page.getByRole("main").getByRole("button", { name: "Перейти в роль «Исполнитель»" }).click();
+  await page.waitForURL((u) => u.pathname !== "/switch-role");
+  await page.goto("/profile");
+  await expect(page.getByRole("main").getByRole("definition").filter({ hasText: /^Исполнитель$/ })).toHaveCount(1);
+});
+
 test("профиль: «метка — значение» и разделы роли из меню, без заливной кнопки", async ({ page }) => {
   await loginAs(page, P.aigerim);
   await page.goto("/profile");
@@ -50,25 +77,4 @@ test("переключение роли: одна главная кнопка, �
   await expectOnePrimary(page);
   await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveText("Перейти в роль «Заказчик»");
   await expectNoHorizontalScrollAt320And200(page, path);
-});
-
-// Последним: переключение роли сохраняется у пользователя — тесты выше видят «Дала» мастером, как в сиде.
-test("сделка в роли покупателя открывается после переключения роли", async ({ page }) => {
-  await loginAs(page, P.dala);
-  await expect(page).toHaveURL(/\/executor\/requests$/);
-
-  await page.goto("/deals");
-  const asClient = page.getByRole("listitem").filter({ hasText: "Вы — покупатель" });
-  await expect(asClient).toHaveCount(1);
-  await expect(page.getByRole("listitem").filter({ hasText: "Вы — мастер" })).toHaveCount(2); // №5 и №8
-
-  await asClient.getByRole("link", { name: /^Открыть/ }).click();
-  await page.waitForURL(/\/switch-role\?/);
-  const main = page.getByRole("main");
-  await expect(main.getByText("Эта страница открывается в роли «Заказчик».")).toBeVisible();
-  await main.getByRole("button", { name: "Перейти в роль «Заказчик»" }).click();
-
-  await page.waitForURL(/\/deals\/[^/?]+$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Сделка №17" })).toBeVisible();
-  await expect(page.getByRole("main").getByText("Завершена", { exact: true }).first()).toBeVisible();
 });
