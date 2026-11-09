@@ -24,6 +24,16 @@ import (
 // Роль <svc>_app получает на такую таблицу только SELECT и INSERT. Если таблицы с
 // таким именем нет после миграций — Migrate возвращает ошибку (защита от опечаток).
 //
+// Второй маркер — право удаления:
+//
+//	-- senim:app-delete sessions
+//
+// Роль <svc>_app получает на такую таблицу ещё и DELETE (для очистки по сроку хранения
+// и сброса демо). Без маркера DELETE запрещён. Разбор тот же, что у append-only:
+// опечатки («senim:app_delete», «SENIM:APP-DELETE», «senim app-delete», ...) и
+// несуществующая таблица — ошибка. Таблица с обоими маркерами — ошибка: append-only
+// означает отсутствие UPDATE и DELETE.
+//
 // Разбор двухступенчатый и закрыт по умолчанию: свободный регистронезависимый шаблон
 // находит любую строку-комментарий, похожую на директиву, — «senim:» в любом
 // регистре и с пробелами («SENIM:APPEND-ONLY», «senim :append-only», «senim:readonly»),
@@ -34,8 +44,9 @@ import (
 // без схемы, запятых и комментариев). Иначе — ошибка, а не обычная таблица с UPDATE.
 // Слово append-only внутри обычной фразы маркером не считается.
 var (
-	suspectRe = regexp.MustCompile(`(?im)^[ \t]*--[ \t]*(?:senim[ \t]*:|append[ \t_-]*only\b|\w+[ \t]*:[ \t]*append[ \t_-]*only|.*senim.*append|.*append.*senim).*$`)
+	suspectRe = regexp.MustCompile(`(?im)^[ \t]*--[ \t]*(?:senim[ \t]*:|append[ \t_-]*only\b|\w+[ \t]*:[ \t]*append[ \t_-]*only|.*senim.*append|.*append.*senim|app[ \t_-]*delete\b|\w+[ \t]*:[ \t]*app[ \t_-]*delete|.*senim.*delete|.*delete.*senim).*$`)
 	markerRe  = regexp.MustCompile(`^[ \t]*--[ \t]*senim:append-only[ \t]+([a-z_][a-z0-9_]*)[ \t]*\r?$`)
+	deleteRe  = regexp.MustCompile(`^[ \t]*--[ \t]*senim:app-delete[ \t]+([a-z_][a-z0-9_]*)[ \t]*\r?$`)
 	serviceRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,30}$`)
 )
 
@@ -49,7 +60,8 @@ const gooseTable = "goose_db_version"
 // Migrate применяет миграции сервиса от имени владельца базы (ownerDSN, роль
 // <service>_owner) и выдаёт рабочей роли <service>_app минимально нужные права.
 //
-// Права: SELECT, INSERT, UPDATE на таблицы public (SELECT, INSERT на append-only),
+// Права: SELECT, INSERT, UPDATE на таблицы public (SELECT, INSERT на append-only,
+// плюс DELETE на таблицы с маркером senim:app-delete),
 // USAGE и SELECT на последовательности, кроме goose. У PUBLIC отзывается EXECUTE на
 // функции схемы public: функции, нужные app-роли, выдаются явно. Представления прав
 // не получают. Права, выданные кем-то помимо Migrate на таблицы public, пересчёт
@@ -63,7 +75,7 @@ func Migrate(ctx context.Context, ownerDSN string, service string, migrations fs
 	if !serviceRe.MatchString(service) {
 		return fmt.Errorf("dbx: недопустимое имя сервиса %q", service)
 	}
-	appendOnly, err := findAppendOnly(migrations, platformSchemas)
+	markers, err := findMarkers(migrations, platformSchemas)
 	if err != nil {
 		return err
 	}
@@ -97,20 +109,24 @@ func Migrate(ctx context.Context, ownerDSN string, service string, migrations fs
 			return fmt.Errorf("dbx: миграции %s: %w", service, err)
 		}
 	}
-	return grant(ctx, db, service+"_app", appendOnly)
+	return grant(ctx, db, service+"_app", markers)
 }
 
-func findAppendOnly(migrations fs.FS, extra []string) (map[string]bool, error) {
-	res := map[string]bool{}
+// markers — таблицы с маркерами из миграций.
+type markers struct{ appendOnly, appDelete map[string]bool }
+
+func findMarkers(migrations fs.FS, extra []string) (markers, error) {
+	res := markers{appendOnly: map[string]bool{}, appDelete: map[string]bool{}}
 	var bad []string
 	add := func(where, src string) {
 		for _, line := range suspectRe.FindAllString(src, -1) {
-			t := markerRe.FindStringSubmatch(line)
-			if t == nil {
+			if t := markerRe.FindStringSubmatch(line); t != nil {
+				res.appendOnly[t[1]] = true
+			} else if t := deleteRe.FindStringSubmatch(line); t != nil {
+				res.appDelete[t[1]] = true
+			} else {
 				bad = append(bad, fmt.Sprintf("%s: %q", where, strings.TrimSpace(line)))
-				continue
 			}
-			res[t[1]] = true
 		}
 	}
 	for i, s := range extra {
@@ -128,15 +144,25 @@ func findAppendOnly(migrations fs.FS, extra []string) (map[string]bool, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("dbx: чтение миграций: %w", err)
+		return markers{}, fmt.Errorf("dbx: чтение миграций: %w", err)
 	}
 	if len(bad) > 0 {
-		return nil, fmt.Errorf("dbx: неверный маркер senim:append-only (нужно «-- senim:append-only <таблица>»): %s", strings.Join(bad, "; "))
+		return markers{}, fmt.Errorf("dbx: неверный маркер senim:append-only или senim:app-delete (нужно «-- senim:append-only <таблица>» или «-- senim:app-delete <таблица>»): %s", strings.Join(bad, "; "))
+	}
+	var both []string
+	for t := range res.appendOnly {
+		if res.appDelete[t] {
+			both = append(both, t)
+		}
+	}
+	if len(both) > 0 {
+		sort.Strings(both)
+		return markers{}, fmt.Errorf("dbx: таблица помечена и senim:append-only, и senim:app-delete (append-only запрещает DELETE): %s", strings.Join(both, ", "))
 	}
 	return res, nil
 }
 
-func grant(ctx context.Context, db *sql.DB, appRole string, appendOnly map[string]bool) error {
+func grant(ctx context.Context, db *sql.DB, appRole string, mk markers) error {
 	rows, err := db.QueryContext(ctx,
 		`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> $1 ORDER BY tablename`, gooseTable)
 	if err != nil {
@@ -160,15 +186,20 @@ func grant(ctx context.Context, db *sql.DB, appRole string, appendOnly map[strin
 	for _, t := range tables {
 		existing[t] = true
 	}
-	var missing []string
-	for t := range appendOnly {
-		if !existing[t] {
-			missing = append(missing, t)
+	for _, kind := range []struct {
+		name   string
+		tables map[string]bool
+	}{{"senim:append-only", mk.appendOnly}, {"senim:app-delete", mk.appDelete}} {
+		var missing []string
+		for t := range kind.tables {
+			if !existing[t] {
+				missing = append(missing, t)
+			}
 		}
-	}
-	if len(missing) > 0 {
-		sort.Strings(missing)
-		return fmt.Errorf("dbx: senim:append-only указывает на несуществующие таблицы: %s", strings.Join(missing, ", "))
+		if len(missing) > 0 {
+			sort.Strings(missing)
+			return fmt.Errorf("dbx: %s указывает на несуществующие таблицы: %s", kind.name, strings.Join(missing, ", "))
+		}
 	}
 
 	role := pgx.Identifier{appRole}.Sanitize()
@@ -207,8 +238,11 @@ func grant(ctx context.Context, db *sql.DB, appRole string, appendOnly map[strin
 	}
 	for _, t := range tables {
 		privs := "SELECT, INSERT, UPDATE"
-		if appendOnly[t] {
+		switch {
+		case mk.appendOnly[t]:
 			privs = "SELECT, INSERT"
+		case mk.appDelete[t]:
+			privs = "SELECT, INSERT, UPDATE, DELETE"
 		}
 		stmts = append(stmts, fmt.Sprintf("GRANT %s ON TABLE %s TO %s", privs, pgx.Identifier{"public", t}.Sanitize(), role))
 	}

@@ -415,3 +415,105 @@ func TestAppendOnlyMarkerSeparatorTyposFail(t *testing.T) {
 		}
 	}
 }
+
+const appDeleteMigrations = "-- +goose Up\n-- senim:app-delete sessions\nCREATE TABLE sessions (id bigserial PRIMARY KEY, name text NOT NULL);\nCREATE TABLE plain (id bigserial PRIMARY KEY, name text NOT NULL);\n-- +goose Down\nDROP TABLE plain;\nDROP TABLE sessions;\n"
+
+func appDeletePool(t *testing.T, e env, schemas ...string) *pgxpool.Pool {
+	t.Helper()
+	ctx := context.Background()
+	m := fstest.MapFS{"00001_x.sql": {Data: []byte(appDeleteMigrations)}}
+	if err := dbx.Migrate(ctx, e.ownerDSN(), "identity", m, schemas...); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	pool, err := dbx.Connect(ctx, e.dsn("identity_app", "dev-identity-app", "identity"), "identity", dbx.DefaultMaxConns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+func TestAppDeleteMarkerGrantsDelete(t *testing.T) {
+	e := startPostgres(t)
+	ctx := context.Background()
+	pf := "-- senim:app-delete pf\nCREATE TABLE IF NOT EXISTS pf (id int);"
+	pool := appDeletePool(t, e, pf)
+	for _, stmt := range []string{`INSERT INTO sessions (name) VALUES ('a')`, `UPDATE sessions SET name = 'b'`, `DELETE FROM sessions`, `DELETE FROM pf`} {
+		if _, err := pool.Exec(ctx, stmt); err != nil {
+			t.Fatalf("%q: %v", stmt, err)
+		}
+	}
+	// Повторный Migrate сохраняет право.
+	m := fstest.MapFS{"00001_x.sql": {Data: []byte(appDeleteMigrations)}}
+	if err := dbx.Migrate(ctx, e.ownerDSN(), "identity", m, pf); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM sessions`); err != nil {
+		t.Fatalf("DELETE после повторного Migrate: %v", err)
+	}
+}
+
+func TestDeleteDeniedWithoutMarker(t *testing.T) {
+	pool := appDeletePool(t, startPostgres(t))
+	_, err := pool.Exec(context.Background(), `DELETE FROM plain`)
+	requireSQLState(t, err, sqlInsufficientPrivilege)
+}
+
+func TestAppDeleteUnknownTableFails(t *testing.T) {
+	e := startPostgres(t)
+	m := fstest.MapFS{"00001_x.sql": {Data: []byte("-- +goose Up\n-- senim:app-delete nope\nCREATE TABLE t (id int);\n-- +goose Down\nDROP TABLE t;\n")}}
+	if err := dbx.Migrate(context.Background(), e.ownerDSN(), "identity", m); err == nil {
+		t.Fatal("ожидалась ошибка для несуществующей app-delete таблицы")
+	}
+}
+
+// Append-only запрещает UPDATE и DELETE: сочетание с app-delete — ошибка до подключения.
+func TestAppendOnlyAndAppDeleteConflict(t *testing.T) {
+	m := fstest.MapFS{"00001_x.sql": {Data: []byte("-- +goose Up\n-- senim:append-only t\n-- senim:app-delete t\nCREATE TABLE t (id int);\n-- +goose Down\nDROP TABLE t;\n")}}
+	err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", m)
+	if err == nil || !strings.Contains(err.Error(), "append-only") || !strings.Contains(err.Error(), "app-delete") {
+		t.Fatalf("ожидалась ошибка конфликта маркеров, получено %v", err)
+	}
+}
+
+func TestAppDeleteMarkerTyposFail(t *testing.T) {
+	for _, marker := range []string{
+		"-- SENIM:APP-DELETE t",
+		"-- Senim:App-Delete t",
+		"-- senim:app_delete t",
+		"-- senim:appdelete t",
+		"-- senim:app delete t",
+		"-- senim: app-delete t",
+		"-- senim :app-delete t",
+		"-- senim:app-delet t",
+		"-- senim:app-delete",
+		"-- senim:app-delete public.t",
+		"-- senim:app-delete a, b",
+		"-- senim:app-delete t -- why",
+		"--senim:app-delete:t",
+		"-- senim app-delete t",
+		"-- senim.app-delete t",
+		"-- app-delete t",
+		"-- app_delete: t",
+		"-- delete senim t",
+		"-- senim:delete t",
+	} {
+		m := fstest.MapFS{"00001_x.sql": {Data: []byte("-- +goose Up\n" + marker + "\nCREATE TABLE t (id int);\n-- +goose Down\nDROP TABLE t;\n")}}
+		err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", m)
+		if err == nil || !strings.Contains(err.Error(), "senim:app-delete") {
+			t.Errorf("маркер %q: ожидалась ошибка маркера, получено %v", marker, err)
+		}
+	}
+	err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", fstest.MapFS{}, "-- senim:app-delete Bad\nSELECT 1")
+	if err == nil || !strings.Contains(err.Error(), "senim:app-delete") {
+		t.Fatalf("platformSchemas: %v", err)
+	}
+}
+
+func TestAppDeleteInProseIsNotAMarker(t *testing.T) {
+	m := fstest.MapFS{"00001_x.sql": {Data: []byte("-- +goose Up\n-- строки можно delete через app позже\n-- TODO: delete old rows\nCREATE TABLE t (id int);\n-- +goose Down\nDROP TABLE t;\n")}}
+	err := dbx.Migrate(context.Background(), "postgres://x:y@127.0.0.1:1/z", "identity", m)
+	if err == nil || strings.Contains(err.Error(), "senim:app-delete") {
+		t.Fatalf("комментарий-фраза не маркер: ожидалась только ошибка подключения, получено %v", err)
+	}
+}
