@@ -152,6 +152,7 @@ func TestKeysCachedUntilRefreshInterval(t *testing.T) {
 	if _, err := v.Verify(ctx, sign(t, priv, "k1", c.now())); err != nil {
 		t.Fatal(err)
 	}
+	settle(t, v) // обновление просроченного кэша идёт в фоне: ждём его конца
 	if n := f.calls.Load(); n != 2 {
 		t.Fatalf("после 10 мин обращений %d, ждали 2", n)
 	}
@@ -171,6 +172,7 @@ func TestStaleKeysServedWhenRefreshFails(t *testing.T) {
 	if _, err := v.Verify(ctx, sign(t, priv, "k1", c.now())); err != nil {
 		t.Fatalf("известный kid при сбое обновления: %v", err)
 	}
+	settle(t, v) // фоновое обновление завершилось
 	// неизвестный kid при недоступном identity — ошибка источника ключей, не «токен неверен»
 	_, priv2 := genKey(t)
 	c.add(time.Minute)
