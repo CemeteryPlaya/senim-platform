@@ -192,14 +192,24 @@ describe("гонки", () => {
     expect(await db.deal.count({ where: { requestId } })).toBe(1);
   });
 
+  it("база не даёт второго открытого предложения по отклику (частичный уникальный индекс)", async () => {
+    const { client, offerId } = await offered();
+    await proposePrice(client, { offerId, amountKzt: 400_000 });
+    const second = db.priceProposal.create({ data: { offerId, authorId: client.id, party: "CLIENT", amountTiyn: 41_000_000n } });
+    await expect(second).rejects.toMatchObject({ code: "P2002" });
+  });
+
   it("две встречные цены одновременно — одна PROPOSED", async () => {
     const { client, executor, offerId } = await offered();
     await proposePrice(client, { offerId, amountKzt: 400_000 });
     await withdrawPrice(client, { proposalId: (await openProposal(offerId)).id });
 
-    // Открытого нет: обе стороны предлагают сразу — частичный уникальный индекс пускает одно предложение.
+    // Открытого нет: обе стороны предлагают сразу. Вызовы пересеклись — частичный уникальный индекс пускает одно, второе — CONFLICT;
+    // не пересеклись (медленная машина) — второе законно становится встречным. В обоих случаях открытое предложение одно.
     const fresh = await Promise.allSettled([proposePrice(client, { offerId, amountKzt: 410_000 }), proposePrice(executor, { offerId, amountKzt: 480_000 })]);
-    expect(one(fresh)).toBe(1);
+    expect(one(fresh)).toBeGreaterThanOrEqual(1);
+    for (const r of fresh) if (r.status === "rejected") expect(r.reason).toEqual(code("CONFLICT"));
+    expect(await db.priceProposal.count({ where: { offerId, status: "PROPOSED" } })).toBe(1);
 
     // Открытое есть: две встречные на него (другая сторона жмёт дважды) — одна.
     const open = await openProposal(offerId);

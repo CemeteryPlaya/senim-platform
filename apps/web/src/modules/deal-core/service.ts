@@ -142,7 +142,9 @@ export async function payForDeal(user: CurrentUser, raw: { dealId: string }): Pr
     const deal = await lockDeal(tx, dealId);
     requireParty(user, deal, "CLIENT");
     if (contextOf(deal).openDispute) return refuse("disputeOpen");
-    if (deal.status !== "CREATED") return fail.conflict(e.notAllowedNow);
+    // Второй клик, пришедший после того, как первый уже довёл сделку до PAID_HOLD, — та же операция, не ошибка.
+    const paidAlready = deal.status === "PAID_HOLD" && deal.money.hold === "SUCCEEDED";
+    if (deal.status !== "CREATED" && !paidAlready) return fail.conflict(e.notAllowedNow);
     if (!deal.signedAt) return refuse("notSigned");
     if (deal.money.hold === "PENDING" || deal.money.hold === "SUCCEEDED") {
       return tx.moneyTransaction.findFirstOrThrow({ where: { dealId, type: "HOLD" }, orderBy: { seq: "desc" } });

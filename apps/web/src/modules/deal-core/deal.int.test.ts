@@ -92,6 +92,17 @@ describe("гонки: двойной клик не даёт двойного э�
     expect(await dealOf(f.dealId)).toMatchObject({ status: "PAID_HOLD" });
   });
 
+  it("повтор оплаты после успеха — та же операция, а не CONFLICT", async () => {
+    // На медленной машине второй клик приходит, когда первый уже довёл сделку до PAID_HOLD.
+    const f = await dealAt("SIGNED");
+    const first = await payForDeal(f.client, { dealId: f.dealId });
+    expect(await dealOf(f.dealId)).toMatchObject({ status: "PAID_HOLD" });
+    const again = await payForDeal(f.client, { dealId: f.dealId });
+    expect(again).toEqual({ ...first, status: "SUCCEEDED", redirectUrl: null });
+    expect(await db.moneyTransaction.count({ where: { dealId: f.dealId, type: "HOLD" } })).toBe(1);
+    expect(await db.auditEvent.count({ where: { action: "deal.payment.requested", entityId: f.dealId } })).toBe(1);
+  });
+
   it("двойная выплата — один RELEASE, один SPLIT_MASTER, грейд +1", async () => {
     const f = await dealAt("READY");
     await signAct(f.dealId);
