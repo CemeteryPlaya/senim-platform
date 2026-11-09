@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bath, ClipboardList, CookingPot, DoorClosed, DoorOpen, Plus, Shirt, Sofa, type LucideIcon } from "lucide-react";
+import { Bath, ChevronRight, ClipboardList, CookingPot, DoorClosed, DoorOpen, Plus, Shirt, Sofa, type LucideIcon } from "lucide-react";
 import { catalogHref, getCatalogFacets, listCatalog, PRICE_BUCKETS, type CatalogFilter, type PriceBucket } from "@/modules/companies";
 import { listDeals, type DealListItem } from "@/modules/deal-core";
 import { listMyRequests } from "@/modules/requests";
@@ -152,8 +152,13 @@ function MyDeal({ deal, more }: { deal: DealListItem; more: number }) {
         id="home-deal"
         as="h2"
         title={
-          <Link href={`/deals/${deal.id}`} className="rounded-control text-ink no-underline hover:underline">
+          // Вид ссылки, как у остальных ссылок приложения: подчёркивание и стрелка; при наведении — зелёный.
+          <Link
+            href={`/deals/${deal.id}`}
+            className="rounded-control text-ink underline decoration-line-strong underline-offset-4 hover:text-primary hover:decoration-primary"
+          >
             {c.dealCard(deal.title)}
+            <ChevronRight aria-hidden className="ml-1 inline-block size-5 align-middle text-primary" />
           </Link>
         }
         action={more > 0 ? { href: "/deals", label: c.allDeals } : undefined}
