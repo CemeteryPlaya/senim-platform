@@ -52,7 +52,7 @@ const s = k.sample;
 
 export const metadata: Metadata = { title: k.title, robots: { index: false, follow: false } };
 
-// РљР»Р°СЃСЃС‹ РїРµСЂРµС‡РёСЃР»РµРЅС‹ С†РµР»РёРєРѕРј, С‡С‚РѕР±С‹ Tailwind РёС… РЅР°С€С‘Р».
+// Классы перечислены целиком, чтобы Tailwind их нашёл.
 const SWATCHES = [
   ["canvas", "bg-canvas"],
   ["surface", "bg-surface"],
@@ -74,12 +74,12 @@ const SWATCHES = [
   ["danger-soft", "bg-danger-soft"],
 ] as const;
 
-/** РџР»РёС‚РєРё СЃ РєР°СЂС‚РёРЅРєР°РјРё: РёР»Р»СЋСЃС‚СЂР°С†РёРё РёР· public/img (РјРµСЃС‚Р° РїРѕРґ С„РѕС‚Рѕ). */
+/** Плитки с картинками: иллюстрации из public/img (места под фото). */
 const TILE_KEYS = ["kitchen", "wardrobe", "closet", "hallway"] as const;
 
 const TONES: Tone[] = ["neutral", "accent", "info", "success", "warning", "danger"];
 
-/** Р’РёС‚СЂРёРЅР° РєРѕРјРїРѕРЅРµРЅС‚РѕРІ: С‚РѕР»СЊРєРѕ РІ СЂР°Р·СЂР°Р±РѕС‚РєРµ Рё РІ РґРµРјРѕ-СЂРµР¶РёРјРµ. */
+/** Витрина компонентов: только в разработке и в демо-режиме. */
 export default async function UiKitPage() {
   await connection();
   const { DEMO_MODE, NODE_ENV } = env();
@@ -222,7 +222,7 @@ export default async function UiKitPage() {
       </KitSection>
 
       <KitSection title={k.sections.chips}>
-        {/* Р’С‹Р±РѕСЂ Р¶РёРІС‘С‚ РІ Р°РґСЂРµСЃРµ: С‡РёРї вЂ” СЃСЃС‹Р»РєР°, Р°РєС‚РёРІРЅС‹Р№ вЂ” aria-current. Р§РёСЃР»Рѕ вЂ” РІ РїРѕРґРїРёСЃРё (В«РљРѕРјС„РѕСЂС‚ В· 5В»). */}
+        {/* Выбор живёт в адресе: чип — ссылка, активный — aria-current. Число — в подписи («Комфорт · 5»). */}
         <FilterChips
           label={s.chipsLabel}
           items={(
@@ -323,7 +323,7 @@ export default async function UiKitPage() {
       </KitSection>
 
       <KitSection title={k.sections.detailColumns}>
-        {/* Р‘РµР· action: РіР»Р°РІРЅРѕРµ РґРµР№СЃС‚РІРёРµ РІРёС‚СЂРёРЅС‹ вЂ” РѕРґРёРЅ StickyAction РІ РєРѕРЅС†Рµ СЃС‚СЂР°РЅРёС†С‹. */}
+        {/* Без action: главное действие витрины — один StickyAction в конце страницы. */}
         <DetailColumns
           lead={<DealProgress status="IN_PROGRESS" hasOpenDispute={false} />}
           aside={
@@ -426,7 +426,7 @@ export default async function UiKitPage() {
         </div>
       </KitSection>
 
-      {/* Р—Р°РєСЂРµРїР»С‘РЅРЅР°СЏ РєРЅРѕРїРєР° СЌРєСЂР°РЅР° РґРµС‚Р°Р»РµР№: РЅР° С‚РµР»РµС„РѕРЅРµ РЅР°Рґ РЅРёР¶РЅРµР№ РїР°РЅРµР»СЊСЋ, РЅР° РґРµСЃРєС‚РѕРїРµ РІ РїРѕС‚РѕРєРµ. Р’СЃРµРіРґР° РїРѕСЃР»РµРґРЅРёР№ РІ СЌРєСЂР°РЅРµ. */}
+      {/* Закреплённая кнопка экрана деталей: на телефоне над нижней панелью, на десктопе в потоке. Всегда последний в экране. */}
       <StickyAction>
         <Button fullWidth>{s.primary}</Button>
       </StickyAction>
@@ -434,7 +434,7 @@ export default async function UiKitPage() {
   );
 }
 
-/** РџСЂРёРјРµСЂС‹ РґР°С‚ РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕ РјРѕРјРµРЅС‚Р° Р·Р°РїСЂРѕСЃР°. */
+/** Примеры дат относительно момента запроса. */
 function sampleData(): { sample: Date; chat: ChatMessage[] } {
   const now = Date.now();
   const ago = (minutes: number) => new Date(now - minutes * 60_000);
