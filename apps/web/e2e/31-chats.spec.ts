@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { loginAs, P, reseed } from "./support";
+import { expectNoHorizontalScroll, loginAs, P, reseed } from "./support";
 
 /**
  * Вкладка «Чат»: список диалогов по откликам. Тендер №18 сида: Айгерим ↔ Исполнитель №3 (Ерлан).
@@ -16,11 +16,6 @@ async function openTab(page: Page) {
   await page.getByRole("navigation", { name: "Основное меню" }).getByRole("link", { name: "Чат", exact: true }).click();
   await page.waitForURL(/\/chats$/);
   await expect(page.getByRole("heading", { level: 1, name: "Чат" })).toBeVisible();
-}
-
-async function expectNoHorizontalScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(0);
 }
 
 test("заказчик: вкладка «Чат» показывает диалоги и ведёт в чат отклика", async ({ page }) => {

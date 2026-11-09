@@ -43,6 +43,35 @@ test("входящие мастера: сводка, чипы и карточк�
   await expectNoHorizontalScrollAt320And200(page, path);
 });
 
+test("телефон: поле цены в фокусе не уходит под закреплённый слот, расчёт «Вы получите» виден", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile", "закреплённый слот — только на телефоне и планшете");
+  await loginAs(page, P.kim);
+  await page.getByRole("link", { name: /^Заявка №18:/ }).first().click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Заявка №18:/ })).toBeVisible();
+  const price = page.getByLabel("Ваша цена, ₸");
+  await price.fill("1 120 000");
+  const slot = stepAction(page);
+  const mirror = slot.getByRole("note").filter({ hasText: "Вы получите после приёмки" });
+  await expect(mirror).toBeVisible();
+  // Поле чуть ниже края окна; фокус с клавиатуры прокручивает «ближайшим» способом (как Tab): поле должно
+  // встать над закреплённым слотом (scroll-padding-bottom учитывает --sticky-h), а не под ним.
+  await price.evaluate((el) => {
+    el.blur();
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo(0, top - window.innerHeight + 20);
+  });
+  await price.evaluate((el) => (el as HTMLElement).focus({ preventScroll: true }));
+  await price.evaluate((el) => el.scrollIntoView({ block: "nearest" }));
+  await page.waitForTimeout(300);
+  const field = await price.boundingBox();
+  const pinned = await slot.boundingBox();
+  if (!field || !pinned) throw new Error("нет рамки поля или слота");
+  expect(field.y + field.height).toBeLessThanOrEqual(pinned.y + 1);
+  await expect(price).toBeFocused();
+  await expect(price).toBeInViewport();
+  await expect(mirror).toBeInViewport();
+});
+
 test("мастер откликается на тендер, покупатель видит его анонимно и смету", async ({ page }, info) => {
   await loginAs(page, P.kim);
   await expect(page).toHaveURL(/\/executor\/requests$/);
