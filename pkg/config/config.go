@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"time"
 )
 
 // AppEnv — окружение, в котором запущен сервис.
@@ -122,6 +123,25 @@ func (l *Loader) Int(key string, def, lo, hi int) int {
 		return def
 	}
 	return n
+}
+
+// Duration возвращает длительность из [lo, hi] в синтаксисе Go (24h, 90m) или def, если
+// переменная не задана. Не длительность или вне диапазона — ошибка с именем переменной.
+func (l *Loader) Duration(key string, def, lo, hi time.Duration) time.Duration {
+	v, ok := l.src(key)
+	if !ok || v == "" {
+		return def
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		l.fail("%s: not a duration (expected Go syntax, for example 24h or 90m)", key)
+		return def
+	}
+	if d < lo || d > hi {
+		l.fail("%s: out of range [%s, %s]", key, lo, hi)
+		return def
+	}
+	return d
 }
 
 // Required возвращает значение; отсутствие — ошибка.

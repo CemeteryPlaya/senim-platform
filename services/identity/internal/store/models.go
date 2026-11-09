@@ -9,6 +9,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Idempotency struct {
+	Method      string
+	Key         string
+	RequestHash []byte
+	Response    []byte
+	CreatedAt   pgtype.Timestamptz
+}
+
 type OtpCode struct {
 	ID         uuid.UUID
 	Phone      string
@@ -17,6 +25,17 @@ type OtpCode struct {
 	ExpiresAt  pgtype.Timestamptz
 	ConsumedAt pgtype.Timestamptz
 	CreatedAt  pgtype.Timestamptz
+}
+
+type Outbox struct {
+	ID            uuid.UUID
+	Subject       string
+	Envelope      []byte
+	CreatedAt     pgtype.Timestamptz
+	PublishedAt   pgtype.Timestamptz
+	Attempts      int32
+	LastError     pgtype.Text
+	NextAttemptAt pgtype.Timestamptz
 }
 
 type RateLimit struct {

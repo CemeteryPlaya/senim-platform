@@ -2,8 +2,10 @@ package config
 
 import (
 	"encoding/base64"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func mapSource(m map[string]string) Source {
@@ -313,6 +315,35 @@ func TestInt(t *testing.T) {
 		l.Int("N", 4, 1, 100)
 		if err := l.Err(); err == nil || !strings.Contains(err.Error(), "N") {
 			t.Errorf("N=%q: want error naming N, got %v", bad, err)
+		}
+	}
+}
+
+func TestDurationConfigBounds(t *testing.T) {
+	const lo, hi = time.Hour, 48 * time.Hour
+	l := NewLoader(mapSource(map[string]string{"APP_ENV": "dev", "D": "24h", "E": "90m"}))
+	if got := l.Duration("D", 2*time.Hour, lo, hi); got != 24*time.Hour {
+		t.Errorf("D = %v", got)
+	}
+	if got := l.Duration("E", 2*time.Hour, lo, hi); got != 90*time.Minute {
+		t.Errorf("E = %v", got)
+	}
+	if got := l.Duration("MISSING", 3*time.Hour, lo, hi); got != 3*time.Hour {
+		t.Errorf("default = %v", got)
+	}
+	// Границы включительно.
+	l2 := NewLoader(mapSource(map[string]string{"APP_ENV": "dev", "A": "1h", "B": "48h"}))
+	if l2.Duration("A", lo, lo, hi) != lo || l2.Duration("B", lo, lo, hi) != hi {
+		t.Error("границы диапазона должны входить")
+	}
+	if err := errors.Join(l.Err(), l2.Err()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, bad := range []string{"x", "24", "59m", "49h", "-1h", "0s", "1d"} {
+		l := NewLoader(mapSource(map[string]string{"APP_ENV": "dev", "D": bad}))
+		l.Duration("D", 2*time.Hour, lo, hi)
+		if err := l.Err(); err == nil || !strings.Contains(err.Error(), "D") {
+			t.Errorf("D=%q: want error naming D, got %v", bad, err)
 		}
 	}
 }

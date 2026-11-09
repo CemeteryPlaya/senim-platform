@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
@@ -54,6 +55,8 @@ type ServeConfig struct {
 	OTLP      string
 	GRPCAddr  string
 	ProbeAddr string
+	// Retention — сроки хранения временных данных и период очистки.
+	Retention RetentionConfig
 	// PoolMaxConns — размер пула соединений с базой (POOL_MAX_CONNS, по умолчанию 4).
 	PoolMaxConns int32
 }
@@ -93,6 +96,7 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 			l.Invalid("IDENTITY_TOKEN_SIGNING_KEY", fmt.Sprintf("must be exactly %d bytes (base64)", ed25519.SeedSize))
 		}
 	}
+	c.Retention = loadRetention(l)
 	l.Distinct("IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY")
 	c.TokenPreviousKey = previousKey(l, "IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY", c.TokenKID, c.TokenSigningKey)
 	c.NATS = natsx.Load(l, c.CertFile, c.KeyFile, c.CAFile)
@@ -100,6 +104,24 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 		return ServeConfig{}, fmt.Errorf("конфигурация: %w", err)
 	}
 	return c, nil
+}
+
+// loadRetention читает сроки хранения. Верх везде год; нижние границы защищают живые
+// данные: коду нужно пять минут, а суточные лимиты живут сутки, поэтому окна лимитов
+// хранятся не меньше 24 ч.
+func loadRetention(l *config.Loader) RetentionConfig {
+	const (
+		hour = time.Hour
+		year = 365 * 24 * time.Hour
+	)
+	return RetentionConfig{
+		RetainOTP:         l.Duration("IDENTITY_RETAIN_OTP", 24*hour, hour, year),
+		RetainSessions:    l.Duration("IDENTITY_RETAIN_SESSIONS", 720*hour, hour, year),
+		RetainRateLimits:  l.Duration("IDENTITY_RETAIN_RATE_LIMITS", 48*hour, 24*hour, year),
+		RetainIdempotency: l.Duration("IDENTITY_RETAIN_IDEMPOTENCY", 48*hour, hour, year),
+		RetainOutbox:      l.Duration("IDENTITY_RETAIN_OUTBOX", 168*hour, hour, year),
+		Every:             l.Duration("IDENTITY_RETENTION_EVERY", hour, time.Minute, 24*hour),
+	}
 }
 
 // previousKey читает необязательный прежний публичный ключ вида «kid:base64(32 байта)».

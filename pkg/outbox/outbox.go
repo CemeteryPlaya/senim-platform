@@ -35,8 +35,11 @@ import (
 // Schema — таблица outbox. Идемпотентна; сервис передаёт её в dbx.Migrate.
 // Рабочей роли нужен UPDATE (published_at, учёт попыток), поэтому таблица не
 // append-only. attempts, last_error и next_attempt_at — учёт неудачных публикаций:
-// запись с ошибкой откладывается и не задерживает остальные.
-const Schema = `CREATE TABLE IF NOT EXISTS outbox (
+// запись с ошибкой откладывается и не задерживает остальные. DELETE рабочей роли
+// разрешён маркером senim:app-delete: сервис сам чистит опубликованные записи по сроку
+// хранения (запрос обязан ограничиваться published_at IS NOT NULL).
+const Schema = `-- senim:app-delete outbox
+CREATE TABLE IF NOT EXISTS outbox (
   id              uuid        PRIMARY KEY,
   subject         text        NOT NULL,
   envelope        bytea       NOT NULL,

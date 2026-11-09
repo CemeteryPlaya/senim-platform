@@ -1,7 +1,9 @@
 version: "2"
 sql:
   - engine: postgresql
-    schema: migrations
+    schema:
+      - migrations
+      - platform_schema.sql
     queries: queries
     gen:
       go:

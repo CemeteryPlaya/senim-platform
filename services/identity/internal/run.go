@@ -127,6 +127,20 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	}
 	defer func() { _ = unobserve() }()
 
+	// Очистка по срокам хранения: первый раз через период после старта; ошибки в лог.
+	metrics, err := newRetentionMetrics(otel.Meter("github.com/CemeteryPlaya/senim-platform/services/identity"))
+	if err != nil {
+		stopRelay()
+		return errors.Join(err, <-relayDone)
+	}
+	retentionCtx, stopRetention := context.WithCancel(ctx)
+	retentionDone := make(chan struct{})
+	go func() {
+		defer close(retentionDone)
+		retentionLoop(retentionCtx, pool, cfg.Retention, metrics, log)
+	}()
+	defer func() { stopRetention(); <-retentionDone }()
+
 	// Готовность — только база. NATS для синхронного пути не нужен: события копятся в
 	// outbox и уходят, когда NATS вернётся; потеря и возврат соединения — в лог (natsx),
 	// отставание — в метриках (правило ready — в документации server.Run).

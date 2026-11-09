@@ -215,7 +215,7 @@ func (s *Service) ResetDemo(ctx context.Context, req *identityv1.ResetDemoReques
 		if _, err := q.DeleteAllRateLimits(ctx); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `DELETE FROM idempotency WHERE NOT (method = $1 AND key = $2)`, method, req.GetIdempotencyKey())
+		_, err := q.DeleteIdempotencyExcept(ctx, store.DeleteIdempotencyExceptParams{Method: method, Key: req.GetIdempotencyKey()})
 		return err
 	})
 	if err != nil {
