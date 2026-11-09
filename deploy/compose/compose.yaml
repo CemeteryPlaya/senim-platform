@@ -103,6 +103,12 @@ services:
       TLS_KEY_FILE: /certs/identity-key.pem
       TLS_CA_FILE: /certs/ca.pem
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # Демо-код входа нужен e2e и дымовому тесту; в prod DEMO_MODE запрещён конфигом.
+      DEMO_MODE: ${IDENTITY_DEMO_MODE:?запускайте через npm run v2:up}
+      IDENTITY_OTP_PROVIDER: mock
+      IDENTITY_OTP_HMAC_KEY: ${IDENTITY_OTP_HMAC_KEY:?запускайте через npm run v2:up}
+      IDENTITY_TOKEN_SIGNING_KEY: ${IDENTITY_TOKEN_SIGNING_KEY:?запускайте через npm run v2:up}
+      IDENTITY_TOKEN_KID: ${IDENTITY_TOKEN_KID:?запускайте через npm run v2:up}
     volumes:
       - ./certs/ca.pem:/certs/ca.pem:ro
       - ./certs/identity.pem:/certs/identity.pem:ro

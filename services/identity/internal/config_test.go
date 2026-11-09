@@ -1,0 +1,182 @@
+package internal
+
+import (
+	"crypto/ed25519"
+	"encoding/base64"
+	"strings"
+	"testing"
+)
+
+func b64(n int, fill byte) string {
+	return base64.StdEncoding.EncodeToString([]byte(strings.Repeat(string(fill), n)))
+}
+
+// serveVars — полный набор переменных serve для dev; тесты меняют отдельные значения.
+func serveVars() map[string]string {
+	return map[string]string{ //nolint:gosec // тестовые значения, не секреты
+		"APP_ENV":                     "dev",
+		"IDENTITY_APP_DSN":            "postgres://u@db:5432/identity?sslmode=disable",
+		"NATS_URL":                    "tls://nats:4222",
+		"NATS_USER":                   "identity",
+		"NATS_PASSWORD":               "dev-identity-nats",
+		"TLS_CERT_FILE":               "/certs/c.pem",
+		"TLS_KEY_FILE":                "/certs/k.pem",
+		"TLS_CA_FILE":                 "/certs/ca.pem",
+		"IDENTITY_OTP_PROVIDER":       "mock",
+		"IDENTITY_OTP_HMAC_KEY":       b64(32, 'h'),
+		"IDENTITY_TOKEN_SIGNING_KEY":  b64(32, 's'),
+		"IDENTITY_TOKEN_KID":          "dev-1",
+		"OTEL_EXPORTER_OTLP_ENDPOINT": "",
+	}
+}
+
+func load(t *testing.T, vars map[string]string) (ServeConfig, error) {
+	t.Helper()
+	return LoadServe(func(k string) (string, bool) { v, ok := vars[k]; return v, ok })
+}
+
+func TestServeConfigDev(t *testing.T) {
+	vars := serveVars()
+	vars["DEMO_MODE"] = "true"
+	c, err := load(t, vars)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.DemoMode || c.OTPProvider != "mock" || c.TokenKID != "dev-1" {
+		t.Errorf("unexpected config: %+v", c)
+	}
+	if len(c.OTPHMACKey) != 32 || len(c.TokenSigningKey) != ed25519.PrivateKeySize {
+		t.Errorf("key sizes: hmac %d, signing %d", len(c.OTPHMACKey), len(c.TokenSigningKey))
+	}
+	if c.OTPDailyGlobalLimit != 500 || c.OTPDailyPrefixLimit != 50 {
+		t.Errorf("limits: %d, %d", c.OTPDailyGlobalLimit, c.OTPDailyPrefixLimit)
+	}
+	if c.TokenPreviousKey != nil {
+		t.Errorf("previous key must be nil: %+v", c.TokenPreviousKey)
+	}
+}
+
+func prodVars() map[string]string {
+	v := serveVars()
+	v["APP_ENV"] = "prod"
+	v["IDENTITY_APP_DSN"] = "postgres://u@db:5432/identity?sslmode=verify-full"
+	// Допустим пока только mock, а в prod он запрещён: проверки ниже смотрят на имена
+	// переменных в ошибке, а не на успех всей загрузки.
+	v["NATS_PASSWORD"] = b64(32, 'n')
+	v["IDENTITY_OTP_HMAC_KEY"] = b64(32, 'h')
+	v["IDENTITY_TOKEN_SIGNING_KEY"] = b64(32, 's')
+	return v
+}
+
+func mustFailNaming(t *testing.T, vars map[string]string, names ...string) {
+	t.Helper()
+	_, err := load(t, vars)
+	if err == nil {
+		t.Fatalf("expected error naming %v", names)
+	}
+	for _, n := range names {
+		if !strings.Contains(err.Error(), n) {
+			t.Errorf("error must name %s: %v", n, err)
+		}
+	}
+	for _, secret := range []string{vars["IDENTITY_OTP_HMAC_KEY"], vars["IDENTITY_TOKEN_SIGNING_KEY"]} {
+		if secret != "" && strings.Contains(err.Error(), secret) {
+			t.Errorf("error leaks a secret value: %v", err)
+		}
+	}
+}
+
+func TestProdRequiresVerifyFullDSN(t *testing.T) {
+	v := prodVars()
+	v["IDENTITY_APP_DSN"] = "postgres://u@db:5432/identity?sslmode=disable"
+	mustFailNaming(t, v, "IDENTITY_APP_DSN")
+
+	m := LoadMigrateFor(map[string]string{
+		"APP_ENV": "prod", "IDENTITY_OWNER_DSN": "postgres://u@db/identity?sslmode=require",
+	})
+	if m == nil || !strings.Contains(m.Error(), "IDENTITY_OWNER_DSN") {
+		t.Fatalf("migrate must reject weak DSN naming IDENTITY_OWNER_DSN: %v", m)
+	}
+}
+
+// LoadMigrateFor — обёртка для теста: только ошибка LoadMigrate.
+func LoadMigrateFor(vars map[string]string) error {
+	_, err := LoadMigrate(func(k string) (string, bool) { v, ok := vars[k]; return v, ok })
+	return err
+}
+
+func TestProdRequiresHTTPSOTLP(t *testing.T) {
+	v := prodVars()
+	v["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://otel:4317"
+	mustFailNaming(t, v, "OTEL_EXPORTER_OTLP_ENDPOINT")
+	v["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://otel:4317"
+	if _, err := load(t, v); err != nil && strings.Contains(err.Error(), "OTEL_EXPORTER_OTLP_ENDPOINT") {
+		t.Fatalf("https endpoint rejected: %v", err)
+	}
+}
+
+func TestProdRejectsMockOTP(t *testing.T) {
+	v := prodVars()
+	v["IDENTITY_OTP_PROVIDER"] = "mock"
+	mustFailNaming(t, v, "IDENTITY_OTP_PROVIDER")
+}
+
+func TestProdRejectsDemoMode(t *testing.T) {
+	v := prodVars()
+	v["DEMO_MODE"] = "true"
+	mustFailNaming(t, v, "DEMO_MODE")
+}
+
+func TestOTPKeyAndSigningKeyDistinct(t *testing.T) {
+	v := prodVars()
+	v["IDENTITY_OTP_HMAC_KEY"] = v["IDENTITY_TOKEN_SIGNING_KEY"]
+	mustFailNaming(t, v, "IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY")
+}
+
+func TestSigningKeyMustBe32Bytes(t *testing.T) {
+	for _, env := range []string{"dev", "prod"} {
+		v := prodVars()
+		v["APP_ENV"] = env
+		v["IDENTITY_TOKEN_SIGNING_KEY"] = b64(48, 's')
+		mustFailNaming(t, v, "IDENTITY_TOKEN_SIGNING_KEY")
+	}
+	v := serveVars()
+	v["IDENTITY_TOKEN_SIGNING_KEY"] = "short-dev-key"
+	mustFailNaming(t, v, "IDENTITY_TOKEN_SIGNING_KEY")
+}
+
+func TestPreviousKey(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := serveVars()
+	v["IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY"] = "old-1:" + base64.StdEncoding.EncodeToString(pub)
+	c, err := load(t, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.TokenPreviousKey == nil || c.TokenPreviousKey.KID != "old-1" || !c.TokenPreviousKey.Public.Equal(pub) {
+		t.Fatalf("previous key: %+v", c.TokenPreviousKey)
+	}
+	for _, bad := range []string{"nokid", ":" + base64.StdEncoding.EncodeToString(pub), "k:!!!", "k:" + b64(16, 'x')} {
+		v["IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY"] = bad
+		mustFailNaming(t, v, "IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY")
+	}
+}
+
+func TestOTPLimitsRange(t *testing.T) {
+	v := serveVars()
+	v["IDENTITY_OTP_DAILY_GLOBAL_LIMIT"] = "0"
+	v["IDENTITY_OTP_DAILY_PREFIX_LIMIT"] = "abc"
+	mustFailNaming(t, v, "IDENTITY_OTP_DAILY_GLOBAL_LIMIT", "IDENTITY_OTP_DAILY_PREFIX_LIMIT")
+}
+
+func TestRequiredNewVariables(t *testing.T) {
+	v := serveVars()
+	delete(v, "IDENTITY_OTP_HMAC_KEY")
+	delete(v, "IDENTITY_TOKEN_SIGNING_KEY")
+	delete(v, "IDENTITY_TOKEN_KID")
+	delete(v, "IDENTITY_OTP_PROVIDER")
+	mustFailNaming(t, v, "IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY", "IDENTITY_TOKEN_KID", "IDENTITY_OTP_PROVIDER")
+}

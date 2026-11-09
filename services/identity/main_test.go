@@ -104,18 +104,22 @@ func TestServeBecomesReady(t *testing.T) {
 	}
 
 	grpcAddr, probeAddr := freeAddr(t), freeAddr(t)
-	vars := map[string]string{
-		"APP_ENV":             "dev",
-		"IDENTITY_OWNER_DSN":  pg.OwnerDSN("identity"),
-		"IDENTITY_APP_DSN":    pg.AppDSN("identity"),
-		"NATS_URL":            "tls://" + proxy.addr,
-		"NATS_USER":           "identity",
-		"NATS_PASSWORD":       natsPassword(t),
-		"TLS_CERT_FILE":       srvCert,
-		"TLS_KEY_FILE":        srvKey,
-		"TLS_CA_FILE":         caFile,
-		"IDENTITY_GRPC_ADDR":  grpcAddr,
-		"IDENTITY_PROBE_ADDR": probeAddr,
+	vars := map[string]string{ //nolint:gosec // тестовые значения, не секреты
+		"APP_ENV":                    "dev",
+		"IDENTITY_OWNER_DSN":         pg.OwnerDSN("identity"),
+		"IDENTITY_APP_DSN":           pg.AppDSN("identity"),
+		"NATS_URL":                   "tls://" + proxy.addr,
+		"NATS_USER":                  "identity",
+		"NATS_PASSWORD":              natsPassword(t),
+		"TLS_CERT_FILE":              srvCert,
+		"TLS_KEY_FILE":               srvKey,
+		"TLS_CA_FILE":                caFile,
+		"IDENTITY_GRPC_ADDR":         grpcAddr,
+		"IDENTITY_PROBE_ADDR":        probeAddr,
+		"IDENTITY_OTP_PROVIDER":      "mock",
+		"IDENTITY_OTP_HMAC_KEY":      "c2VuaW0tdjItZGV2LWlkZW50aXR5LW90cC1obWFjISE=",
+		"IDENTITY_TOKEN_SIGNING_KEY": "c2VuaW0tdjItZGV2LWlkZW50aXR5LXRva2VuLWtleSE=",
+		"IDENTITY_TOKEN_KID":         "test-1",
 	}
 	src := func(k string) (string, bool) { v, ok := vars[k]; return v, ok }
 

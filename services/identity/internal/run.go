@@ -14,6 +14,7 @@ import (
 
 	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
+	"github.com/CemeteryPlaya/senim-platform/pkg/idem"
 	"github.com/CemeteryPlaya/senim-platform/pkg/inbox"
 	"github.com/CemeteryPlaya/senim-platform/pkg/logging"
 	"github.com/CemeteryPlaya/senim-platform/pkg/natsx"
@@ -64,7 +65,7 @@ func Migrate(ctx context.Context, src config.Source, log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("миграции: %w", err)
 	}
-	if err := dbx.Migrate(ctx, cfg.OwnerDSN, Service, migrations, outbox.Schema, inbox.Schema); err != nil {
+	if err := dbx.Migrate(ctx, cfg.OwnerDSN, Service, migrations, outbox.Schema, inbox.Schema, idem.Schema); err != nil {
 		return err
 	}
 	log.Info("миграции применены")
