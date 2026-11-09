@@ -72,4 +72,5 @@ deploy/compose/            docker compose, профили core и full
 - Хуки запрещают любые пути и команды, содержащие подстроку «точка + env». Файлы переменных в этом репозитории называются `*.vars` (локальные — `*.vars.local`, в git не попадают; примеры — `*.vars.example`). Переменные передавай в командной строке.
 - Все файлы с LF (`.gitattributes`).
 - Go вне PATH на Windows: `export PATH="/c/Program Files/Go/bin:$HOME/go/bin:$PATH"`. Инструменты — `go tool buf|sqlc|goose|golangci-lint|govulncheck`. Тесты локально без `-race` (нет gcc); `-race` — в CI.
-- Не делай `git push`, не создавай удалённые репозитории, деплой и регистрацию сервисов.
+- Удалённый репозиторий — `origin` (`github.com/CemeteryPlaya/senim-platform`, приватный). Коммиты и пуш в него владелец разрешил (10.11.2026); без force-push и переписывания истории `main`. Строка `apps/web/CLAUDE.md` о пушах относится к репозиторию демо. Не создавай другие удалённые репозитории, не делай деплой и регистрацию сервисов.
+- После пуша смотри прогон CI (`.github/workflows/v2.yml`). Скан образов падает на critical; отчёт grype уходит в файл, а не в лог — CVE видно, если прогнать grype по артефакту `sbom-<имя>.spdx.json`.
