@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package senim.events.v1;
+
+import "google/protobuf/timestamp.proto";
+import "senim/identity/v1/identity.proto";
+
+// События сервиса identity (субъекты senim.identity.<событие>).
+
+// UserRegistered — первый вход нового пользователя.
+message UserRegistered {
+  string user_id = 1;
+  senim.identity.v1.Role role = 2;
+}
+
+// RoleGranted — пользователю выдана роль.
+message RoleGranted {
+  string user_id = 1;
+  senim.identity.v1.Role role = 2;
+}
+
+// RoleSwitched — пользователь переключил активную роль.
+message RoleSwitched {
+  string user_id = 1;
+  senim.identity.v1.Role from = 2;
+  senim.identity.v1.Role to = 3;
+}
+
+// OtpGlobalLimitReached — достигнут общий суточный лимит отправки кодов.
+message OtpGlobalLimitReached {
+  int64 limit = 1;
+  // Дата (сутки) достижения лимита.
+  google.protobuf.Timestamp date = 2;
+}

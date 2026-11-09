@@ -2,22 +2,828 @@
 // @generated from file senim/identity/v1/identity.proto (package senim.identity.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file senim/identity/v1/identity.proto.
  */
 export const file_senim_identity_v1_identity: GenFile = /*@__PURE__*/
-  fileDesc("CiBzZW5pbS9pZGVudGl0eS92MS9pZGVudGl0eS5wcm90bxIRc2VuaW0uaWRlbnRpdHkudjEyEQoPSWRlbnRpdHlTZXJ2aWNlQtkBChVjb20uc2VuaW0uaWRlbnRpdHkudjFCDUlkZW50aXR5UHJvdG9QAVpLZ2l0aHViLmNvbS9DZW1ldGVyeVBsYXlhL3NlbmltLXBsYXRmb3JtL2dlbi9nby9zZW5pbS9pZGVudGl0eS92MTtpZGVudGl0eXYxogIDU0lYqgIRU2VuaW0uSWRlbnRpdHkuVjHKAhFTZW5pbVxJZGVudGl0eVxWMeICHVNlbmltXElkZW50aXR5XFYxXEdQQk1ldGFkYXRh6gITU2VuaW06OklkZW50aXR5OjpWMWIGcHJvdG8z");
+  fileDesc("CiBzZW5pbS9pZGVudGl0eS92MS9pZGVudGl0eS5wcm90bxIRc2VuaW0uaWRlbnRpdHkudjEi6QEKBFVzZXISCgoCaWQYASABKAkSDQoFcGhvbmUYAiABKAkSLQoMZGVmYXVsdF9yb2xlGAMgASgOMhcuc2VuaW0uaWRlbnRpdHkudjEuUm9sZRImCgVyb2xlcxgEIAMoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSDwoHaXNfZGVtbxgFIAEoCBIuCgpibG9ja2VkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpjcmVhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCKoAQoHU2Vzc2lvbhIKCgJpZBgBIAEoCRIsCgthY3RpdmVfcm9sZRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPaWRsZV9leHBpcmVzX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCI6CgpTaWduaW5nS2V5EgsKA2tpZBgBIAEoCRISCgpwdWJsaWNfa2V5GAIgASgMEgsKA2FsZxgDIAEoCSKxAQoIU2VlZFVzZXISDQoFcGhvbmUYASABKAkSLQoMZGVmYXVsdF9yb2xlGAIgASgOMhcuc2VuaW0uaWRlbnRpdHkudjEuUm9sZRImCgVyb2xlcxgDIAMoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSDwoHaXNfZGVtbxgEIAEoCBIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJOChFSZXF1ZXN0T3RwUmVxdWVzdBINCgVwaG9uZRgBIAEoCRIRCgljbGllbnRfaXAYAiABKAkSFwoPaWRlbXBvdGVuY3lfa2V5GAMgASgJImYKElJlcXVlc3RPdHBSZXNwb25zZRINCgVwaG9uZRgBIAEoCRIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCglkZW1vX2NvZGUYAyABKAkihgEKEFZlcmlmeU90cFJlcXVlc3QSDQoFcGhvbmUYASABKAkSDAoEY29kZRgCIAEoCRIRCgljbGllbnRfaXAYAyABKAkSEgoKdXNlcl9hZ2VudBgEIAEoCRIVCg1zZXNzaW9uX3Rva2VuGAUgASgJEhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCSJ3ChFWZXJpZnlPdHBSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcuc2VuaW0uaWRlbnRpdHkudjEuVXNlchIrCgdzZXNzaW9uGAIgASgLMhouc2VuaW0uaWRlbnRpdHkudjEuU2Vzc2lvbhIOCgZpc19uZXcYAyABKAgiLAoTQXV0aGVudGljYXRlUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJIrcBChRBdXRoZW50aWNhdGVSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcuc2VuaW0uaWRlbnRpdHkudjEuVXNlchIrCgdzZXNzaW9uGAIgASgLMhouc2VuaW0uaWRlbnRpdHkudjEuU2Vzc2lvbhIUCgxhY2Nlc3NfdG9rZW4YAyABKAkSNQoRYWNjZXNzX2V4cGlyZXNfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkAKDlNpZ25PdXRSZXF1ZXN0EhUKDXNlc3Npb25fdG9rZW4YASABKAkSFwoPaWRlbXBvdGVuY3lfa2V5GAIgASgJIhEKD1NpZ25PdXRSZXNwb25zZSJKChhTaWduT3V0RXZlcnl3aGVyZVJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYAiABKAkiGwoZU2lnbk91dEV2ZXJ5d2hlcmVSZXNwb25zZSJqChFTd2l0Y2hSb2xlUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJEiUKBHJvbGUYAiABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlEhcKD2lkZW1wb3RlbmN5X2tleRgDIAEoCSJoChJTd2l0Y2hSb2xlUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLnNlbmltLmlkZW50aXR5LnYxLlVzZXISKwoHc2Vzc2lvbhgCIAEoCzIaLnNlbmltLmlkZW50aXR5LnYxLlNlc3Npb24iaQoQR3JhbnRSb2xlUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJEiUKBHJvbGUYAiABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlEhcKD2lkZW1wb3RlbmN5X2tleRgDIAEoCSJLChFHcmFudFJvbGVSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcuc2VuaW0uaWRlbnRpdHkudjEuVXNlchIPCgdncmFudGVkGAIgASgIIpgBChdTdGFydERlbW9TZXNzaW9uUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgJEigKB2FzX3JvbGUYAiABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlEhUKDXNlc3Npb25fdG9rZW4YAyABKAkSEgoKdXNlcl9hZ2VudBgEIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYBSABKAkibgoYU3RhcnREZW1vU2Vzc2lvblJlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5zZW5pbS5pZGVudGl0eS52MS5Vc2VyEisKB3Nlc3Npb24YAiABKAsyGi5zZW5pbS5pZGVudGl0eS52MS5TZXNzaW9uIlcKEFNlZWRVc2Vyc1JlcXVlc3QSKgoFdXNlcnMYASADKAsyGy5zZW5pbS5pZGVudGl0eS52MS5TZWVkVXNlchIXCg9pZGVtcG90ZW5jeV9rZXkYAiABKAkiOwoRU2VlZFVzZXJzUmVzcG9uc2USJgoFdXNlcnMYASADKAsyFy5zZW5pbS5pZGVudGl0eS52MS5Vc2VyIisKEFJlc2V0RGVtb1JlcXVlc3QSFwoPaWRlbXBvdGVuY3lfa2V5GAEgASgJIhMKEVJlc2V0RGVtb1Jlc3BvbnNlIhcKFUdldFNpZ25pbmdLZXlzUmVxdWVzdCJFChZHZXRTaWduaW5nS2V5c1Jlc3BvbnNlEisKBGtleXMYASADKAsyHS5zZW5pbS5pZGVudGl0eS52MS5TaWduaW5nS2V5KmYKBFJvbGUSFAoQUk9MRV9VTlNQRUNJRklFRBAAEg8KC1JPTEVfQ0xJRU5UEAESEQoNUk9MRV9FWEVDVVRPUhACEhEKDVJPTEVfT1BFUkFUT1IQAxIRCg1ST0xFX01FQVNVUkVSEAQynggKD0lkZW50aXR5U2VydmljZRJZCgpSZXF1ZXN0T3RwEiQuc2VuaW0uaWRlbnRpdHkudjEuUmVxdWVzdE90cFJlcXVlc3QaJS5zZW5pbS5pZGVudGl0eS52MS5SZXF1ZXN0T3RwUmVzcG9uc2USVgoJVmVyaWZ5T3RwEiMuc2VuaW0uaWRlbnRpdHkudjEuVmVyaWZ5T3RwUmVxdWVzdBokLnNlbmltLmlkZW50aXR5LnYxLlZlcmlmeU90cFJlc3BvbnNlEl8KDEF1dGhlbnRpY2F0ZRImLnNlbmltLmlkZW50aXR5LnYxLkF1dGhlbnRpY2F0ZVJlcXVlc3QaJy5zZW5pbS5pZGVudGl0eS52MS5BdXRoZW50aWNhdGVSZXNwb25zZRJQCgdTaWduT3V0EiEuc2VuaW0uaWRlbnRpdHkudjEuU2lnbk91dFJlcXVlc3QaIi5zZW5pbS5pZGVudGl0eS52MS5TaWduT3V0UmVzcG9uc2USbgoRU2lnbk91dEV2ZXJ5d2hlcmUSKy5zZW5pbS5pZGVudGl0eS52MS5TaWduT3V0RXZlcnl3aGVyZVJlcXVlc3QaLC5zZW5pbS5pZGVudGl0eS52MS5TaWduT3V0RXZlcnl3aGVyZVJlc3BvbnNlElkKClN3aXRjaFJvbGUSJC5zZW5pbS5pZGVudGl0eS52MS5Td2l0Y2hSb2xlUmVxdWVzdBolLnNlbmltLmlkZW50aXR5LnYxLlN3aXRjaFJvbGVSZXNwb25zZRJWCglHcmFudFJvbGUSIy5zZW5pbS5pZGVudGl0eS52MS5HcmFudFJvbGVSZXF1ZXN0GiQuc2VuaW0uaWRlbnRpdHkudjEuR3JhbnRSb2xlUmVzcG9uc2USawoQU3RhcnREZW1vU2Vzc2lvbhIqLnNlbmltLmlkZW50aXR5LnYxLlN0YXJ0RGVtb1Nlc3Npb25SZXF1ZXN0Gisuc2VuaW0uaWRlbnRpdHkudjEuU3RhcnREZW1vU2Vzc2lvblJlc3BvbnNlElYKCVNlZWRVc2VycxIjLnNlbmltLmlkZW50aXR5LnYxLlNlZWRVc2Vyc1JlcXVlc3QaJC5zZW5pbS5pZGVudGl0eS52MS5TZWVkVXNlcnNSZXNwb25zZRJWCglSZXNldERlbW8SIy5zZW5pbS5pZGVudGl0eS52MS5SZXNldERlbW9SZXF1ZXN0GiQuc2VuaW0uaWRlbnRpdHkudjEuUmVzZXREZW1vUmVzcG9uc2USZQoOR2V0U2lnbmluZ0tleXMSKC5zZW5pbS5pZGVudGl0eS52MS5HZXRTaWduaW5nS2V5c1JlcXVlc3QaKS5zZW5pbS5pZGVudGl0eS52MS5HZXRTaWduaW5nS2V5c1Jlc3BvbnNlQtkBChVjb20uc2VuaW0uaWRlbnRpdHkudjFCDUlkZW50aXR5UHJvdG9QAVpLZ2l0aHViLmNvbS9DZW1ldGVyeVBsYXlhL3NlbmltLXBsYXRmb3JtL2dlbi9nby9zZW5pbS9pZGVudGl0eS92MTtpZGVudGl0eXYxogIDU0lYqgIRU2VuaW0uSWRlbnRpdHkuVjHKAhFTZW5pbVxJZGVudGl0eVxWMeICHVNlbmltXElkZW50aXR5XFYxXEdQQk1ldGFkYXRh6gITU2VuaW06OklkZW50aXR5OjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
- * IdentityService — вход, сессии и роли. Методы появятся в плане 2;
- * пока сервис пустой, чтобы имя было зарегистрировано в проверке здоровья.
+ * User — учётная запись.
+ *
+ * @generated from message senim.identity.v1.User
+ */
+export type User = Message<"senim.identity.v1.User"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Телефон в формате E.164.
+   *
+   * @generated from field: string phone = 2;
+   */
+  phone: string;
+
+  /**
+   * @generated from field: senim.identity.v1.Role default_role = 3;
+   */
+  defaultRole: Role;
+
+  /**
+   * @generated from field: repeated senim.identity.v1.Role roles = 4;
+   */
+  roles: Role[];
+
+  /**
+   * @generated from field: bool is_demo = 5;
+   */
+  isDemo: boolean;
+
+  /**
+   * Пусто, если пользователь не заблокирован.
+   *
+   * @generated from field: google.protobuf.Timestamp blocked_at = 6;
+   */
+  blockedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 7;
+   */
+  createdAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.User.
+ * Use `create(UserSchema)` to create a new message.
+ */
+export const UserSchema: GenMessage<User> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 0);
+
+/**
+ * Session — сессия входа. Сам токен сессии в сообщении не передаётся.
+ *
+ * @generated from message senim.identity.v1.Session
+ */
+export type Session = Message<"senim.identity.v1.Session"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: senim.identity.v1.Role active_role = 2;
+   */
+  activeRole: Role;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 3;
+   */
+  expiresAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp idle_expires_at = 4;
+   */
+  idleExpiresAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.Session.
+ * Use `create(SessionSchema)` to create a new message.
+ */
+export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 1);
+
+/**
+ * SigningKey — публичный ключ подписи внутренних токенов.
+ *
+ * @generated from message senim.identity.v1.SigningKey
+ */
+export type SigningKey = Message<"senim.identity.v1.SigningKey"> & {
+  /**
+   * @generated from field: string kid = 1;
+   */
+  kid: string;
+
+  /**
+   * Публичный ключ Ed25519, 32 байта.
+   *
+   * @generated from field: bytes public_key = 2;
+   */
+  publicKey: Uint8Array;
+
+  /**
+   * Алгоритм подписи; всегда "EdDSA".
+   *
+   * @generated from field: string alg = 3;
+   */
+  alg: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.SigningKey.
+ * Use `create(SigningKeySchema)` to create a new message.
+ */
+export const SigningKeySchema: GenMessage<SigningKey> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 2);
+
+/**
+ * SeedUser — пользователь для начального наполнения (демо и перенос данных).
+ *
+ * @generated from message senim.identity.v1.SeedUser
+ */
+export type SeedUser = Message<"senim.identity.v1.SeedUser"> & {
+  /**
+   * E.164.
+   *
+   * @generated from field: string phone = 1;
+   */
+  phone: string;
+
+  /**
+   * @generated from field: senim.identity.v1.Role default_role = 2;
+   */
+  defaultRole: Role;
+
+  /**
+   * @generated from field: repeated senim.identity.v1.Role roles = 3;
+   */
+  roles: Role[];
+
+  /**
+   * @generated from field: bool is_demo = 4;
+   */
+  isDemo: boolean;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 5;
+   */
+  createdAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.SeedUser.
+ * Use `create(SeedUserSchema)` to create a new message.
+ */
+export const SeedUserSchema: GenMessage<SeedUser> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 3);
+
+/**
+ * @generated from message senim.identity.v1.RequestOtpRequest
+ */
+export type RequestOtpRequest = Message<"senim.identity.v1.RequestOtpRequest"> & {
+  /**
+   * @generated from field: string phone = 1;
+   */
+  phone: string;
+
+  /**
+   * @generated from field: string client_ip = 2;
+   */
+  clientIp: string;
+
+  /**
+   * @generated from field: string idempotency_key = 3;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.RequestOtpRequest.
+ * Use `create(RequestOtpRequestSchema)` to create a new message.
+ */
+export const RequestOtpRequestSchema: GenMessage<RequestOtpRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 4);
+
+/**
+ * @generated from message senim.identity.v1.RequestOtpResponse
+ */
+export type RequestOtpResponse = Message<"senim.identity.v1.RequestOtpResponse"> & {
+  /**
+   * @generated from field: string phone = 1;
+   */
+  phone: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 2;
+   */
+  expiresAt?: Timestamp | undefined;
+
+  /**
+   * Пуст, кроме DEMO_MODE=true и OTP_PROVIDER=mock.
+   *
+   * @generated from field: string demo_code = 3;
+   */
+  demoCode: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.RequestOtpResponse.
+ * Use `create(RequestOtpResponseSchema)` to create a new message.
+ */
+export const RequestOtpResponseSchema: GenMessage<RequestOtpResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 5);
+
+/**
+ * @generated from message senim.identity.v1.VerifyOtpRequest
+ */
+export type VerifyOtpRequest = Message<"senim.identity.v1.VerifyOtpRequest"> & {
+  /**
+   * @generated from field: string phone = 1;
+   */
+  phone: string;
+
+  /**
+   * @generated from field: string code = 2;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string client_ip = 3;
+   */
+  clientIp: string;
+
+  /**
+   * @generated from field: string user_agent = 4;
+   */
+  userAgent: string;
+
+  /**
+   * Токен сессии, сгенерированный вызывающим: base64url без "=" от 32 случайных байт (43 символа).
+   *
+   * @generated from field: string session_token = 5;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string idempotency_key = 6;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.VerifyOtpRequest.
+ * Use `create(VerifyOtpRequestSchema)` to create a new message.
+ */
+export const VerifyOtpRequestSchema: GenMessage<VerifyOtpRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 6);
+
+/**
+ * @generated from message senim.identity.v1.VerifyOtpResponse
+ */
+export type VerifyOtpResponse = Message<"senim.identity.v1.VerifyOtpResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.User user = 1;
+   */
+  user?: User | undefined;
+
+  /**
+   * @generated from field: senim.identity.v1.Session session = 2;
+   */
+  session?: Session | undefined;
+
+  /**
+   * @generated from field: bool is_new = 3;
+   */
+  isNew: boolean;
+};
+
+/**
+ * Describes the message senim.identity.v1.VerifyOtpResponse.
+ * Use `create(VerifyOtpResponseSchema)` to create a new message.
+ */
+export const VerifyOtpResponseSchema: GenMessage<VerifyOtpResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 7);
+
+/**
+ * @generated from message senim.identity.v1.AuthenticateRequest
+ */
+export type AuthenticateRequest = Message<"senim.identity.v1.AuthenticateRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.AuthenticateRequest.
+ * Use `create(AuthenticateRequestSchema)` to create a new message.
+ */
+export const AuthenticateRequestSchema: GenMessage<AuthenticateRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 8);
+
+/**
+ * @generated from message senim.identity.v1.AuthenticateResponse
+ */
+export type AuthenticateResponse = Message<"senim.identity.v1.AuthenticateResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.User user = 1;
+   */
+  user?: User | undefined;
+
+  /**
+   * @generated from field: senim.identity.v1.Session session = 2;
+   */
+  session?: Session | undefined;
+
+  /**
+   * @generated from field: string access_token = 3;
+   */
+  accessToken: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp access_expires_at = 4;
+   */
+  accessExpiresAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.AuthenticateResponse.
+ * Use `create(AuthenticateResponseSchema)` to create a new message.
+ */
+export const AuthenticateResponseSchema: GenMessage<AuthenticateResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 9);
+
+/**
+ * @generated from message senim.identity.v1.SignOutRequest
+ */
+export type SignOutRequest = Message<"senim.identity.v1.SignOutRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string idempotency_key = 2;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.SignOutRequest.
+ * Use `create(SignOutRequestSchema)` to create a new message.
+ */
+export const SignOutRequestSchema: GenMessage<SignOutRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 10);
+
+/**
+ * @generated from message senim.identity.v1.SignOutResponse
+ */
+export type SignOutResponse = Message<"senim.identity.v1.SignOutResponse"> & {
+};
+
+/**
+ * Describes the message senim.identity.v1.SignOutResponse.
+ * Use `create(SignOutResponseSchema)` to create a new message.
+ */
+export const SignOutResponseSchema: GenMessage<SignOutResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 11);
+
+/**
+ * @generated from message senim.identity.v1.SignOutEverywhereRequest
+ */
+export type SignOutEverywhereRequest = Message<"senim.identity.v1.SignOutEverywhereRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string idempotency_key = 2;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.SignOutEverywhereRequest.
+ * Use `create(SignOutEverywhereRequestSchema)` to create a new message.
+ */
+export const SignOutEverywhereRequestSchema: GenMessage<SignOutEverywhereRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 12);
+
+/**
+ * @generated from message senim.identity.v1.SignOutEverywhereResponse
+ */
+export type SignOutEverywhereResponse = Message<"senim.identity.v1.SignOutEverywhereResponse"> & {
+};
+
+/**
+ * Describes the message senim.identity.v1.SignOutEverywhereResponse.
+ * Use `create(SignOutEverywhereResponseSchema)` to create a new message.
+ */
+export const SignOutEverywhereResponseSchema: GenMessage<SignOutEverywhereResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 13);
+
+/**
+ * @generated from message senim.identity.v1.SwitchRoleRequest
+ */
+export type SwitchRoleRequest = Message<"senim.identity.v1.SwitchRoleRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: senim.identity.v1.Role role = 2;
+   */
+  role: Role;
+
+  /**
+   * @generated from field: string idempotency_key = 3;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.SwitchRoleRequest.
+ * Use `create(SwitchRoleRequestSchema)` to create a new message.
+ */
+export const SwitchRoleRequestSchema: GenMessage<SwitchRoleRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 14);
+
+/**
+ * @generated from message senim.identity.v1.SwitchRoleResponse
+ */
+export type SwitchRoleResponse = Message<"senim.identity.v1.SwitchRoleResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.User user = 1;
+   */
+  user?: User | undefined;
+
+  /**
+   * @generated from field: senim.identity.v1.Session session = 2;
+   */
+  session?: Session | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.SwitchRoleResponse.
+ * Use `create(SwitchRoleResponseSchema)` to create a new message.
+ */
+export const SwitchRoleResponseSchema: GenMessage<SwitchRoleResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 15);
+
+/**
+ * @generated from message senim.identity.v1.GrantRoleRequest
+ */
+export type GrantRoleRequest = Message<"senim.identity.v1.GrantRoleRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: senim.identity.v1.Role role = 2;
+   */
+  role: Role;
+
+  /**
+   * @generated from field: string idempotency_key = 3;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.GrantRoleRequest.
+ * Use `create(GrantRoleRequestSchema)` to create a new message.
+ */
+export const GrantRoleRequestSchema: GenMessage<GrantRoleRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 16);
+
+/**
+ * @generated from message senim.identity.v1.GrantRoleResponse
+ */
+export type GrantRoleResponse = Message<"senim.identity.v1.GrantRoleResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.User user = 1;
+   */
+  user?: User | undefined;
+
+  /**
+   * @generated from field: bool granted = 2;
+   */
+  granted: boolean;
+};
+
+/**
+ * Describes the message senim.identity.v1.GrantRoleResponse.
+ * Use `create(GrantRoleResponseSchema)` to create a new message.
+ */
+export const GrantRoleResponseSchema: GenMessage<GrantRoleResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 17);
+
+/**
+ * @generated from message senim.identity.v1.StartDemoSessionRequest
+ */
+export type StartDemoSessionRequest = Message<"senim.identity.v1.StartDemoSessionRequest"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: senim.identity.v1.Role as_role = 2;
+   */
+  asRole: Role;
+
+  /**
+   * @generated from field: string session_token = 3;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string user_agent = 4;
+   */
+  userAgent: string;
+
+  /**
+   * @generated from field: string idempotency_key = 5;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.StartDemoSessionRequest.
+ * Use `create(StartDemoSessionRequestSchema)` to create a new message.
+ */
+export const StartDemoSessionRequestSchema: GenMessage<StartDemoSessionRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 18);
+
+/**
+ * @generated from message senim.identity.v1.StartDemoSessionResponse
+ */
+export type StartDemoSessionResponse = Message<"senim.identity.v1.StartDemoSessionResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.User user = 1;
+   */
+  user?: User | undefined;
+
+  /**
+   * @generated from field: senim.identity.v1.Session session = 2;
+   */
+  session?: Session | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.StartDemoSessionResponse.
+ * Use `create(StartDemoSessionResponseSchema)` to create a new message.
+ */
+export const StartDemoSessionResponseSchema: GenMessage<StartDemoSessionResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 19);
+
+/**
+ * @generated from message senim.identity.v1.SeedUsersRequest
+ */
+export type SeedUsersRequest = Message<"senim.identity.v1.SeedUsersRequest"> & {
+  /**
+   * @generated from field: repeated senim.identity.v1.SeedUser users = 1;
+   */
+  users: SeedUser[];
+
+  /**
+   * @generated from field: string idempotency_key = 2;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.SeedUsersRequest.
+ * Use `create(SeedUsersRequestSchema)` to create a new message.
+ */
+export const SeedUsersRequestSchema: GenMessage<SeedUsersRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 20);
+
+/**
+ * @generated from message senim.identity.v1.SeedUsersResponse
+ */
+export type SeedUsersResponse = Message<"senim.identity.v1.SeedUsersResponse"> & {
+  /**
+   * @generated from field: repeated senim.identity.v1.User users = 1;
+   */
+  users: User[];
+};
+
+/**
+ * Describes the message senim.identity.v1.SeedUsersResponse.
+ * Use `create(SeedUsersResponseSchema)` to create a new message.
+ */
+export const SeedUsersResponseSchema: GenMessage<SeedUsersResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 21);
+
+/**
+ * @generated from message senim.identity.v1.ResetDemoRequest
+ */
+export type ResetDemoRequest = Message<"senim.identity.v1.ResetDemoRequest"> & {
+  /**
+   * @generated from field: string idempotency_key = 1;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.ResetDemoRequest.
+ * Use `create(ResetDemoRequestSchema)` to create a new message.
+ */
+export const ResetDemoRequestSchema: GenMessage<ResetDemoRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 22);
+
+/**
+ * @generated from message senim.identity.v1.ResetDemoResponse
+ */
+export type ResetDemoResponse = Message<"senim.identity.v1.ResetDemoResponse"> & {
+};
+
+/**
+ * Describes the message senim.identity.v1.ResetDemoResponse.
+ * Use `create(ResetDemoResponseSchema)` to create a new message.
+ */
+export const ResetDemoResponseSchema: GenMessage<ResetDemoResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 23);
+
+/**
+ * @generated from message senim.identity.v1.GetSigningKeysRequest
+ */
+export type GetSigningKeysRequest = Message<"senim.identity.v1.GetSigningKeysRequest"> & {
+};
+
+/**
+ * Describes the message senim.identity.v1.GetSigningKeysRequest.
+ * Use `create(GetSigningKeysRequestSchema)` to create a new message.
+ */
+export const GetSigningKeysRequestSchema: GenMessage<GetSigningKeysRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 24);
+
+/**
+ * @generated from message senim.identity.v1.GetSigningKeysResponse
+ */
+export type GetSigningKeysResponse = Message<"senim.identity.v1.GetSigningKeysResponse"> & {
+  /**
+   * @generated from field: repeated senim.identity.v1.SigningKey keys = 1;
+   */
+  keys: SigningKey[];
+};
+
+/**
+ * Describes the message senim.identity.v1.GetSigningKeysResponse.
+ * Use `create(GetSigningKeysResponseSchema)` to create a new message.
+ */
+export const GetSigningKeysResponseSchema: GenMessage<GetSigningKeysResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 25);
+
+/**
+ * Role — роль пользователя на платформе.
+ *
+ * @generated from enum senim.identity.v1.Role
+ */
+export enum Role {
+  /**
+   * @generated from enum value: ROLE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ROLE_CLIENT = 1;
+   */
+  CLIENT = 1,
+
+  /**
+   * @generated from enum value: ROLE_EXECUTOR = 2;
+   */
+  EXECUTOR = 2,
+
+  /**
+   * @generated from enum value: ROLE_OPERATOR = 3;
+   */
+  OPERATOR = 3,
+
+  /**
+   * @generated from enum value: ROLE_MEASURER = 4;
+   */
+  MEASURER = 4,
+}
+
+/**
+ * Describes the enum senim.identity.v1.Role.
+ */
+export const RoleSchema: GenEnum<Role> = /*@__PURE__*/
+  enumDesc(file_senim_identity_v1_identity, 0);
+
+/**
+ * IdentityService — вход по одноразовому коду, сессии и роли.
+ *
+ * Изменяющие методы принимают idempotency_key; Authenticate и GetSigningKeys — чтение.
+ * session_token — base64url без "=" от 32 случайных байт (ровно 43 символа),
+ * иначе InvalidArgument с кодом session_token_invalid.
+ *
+ * Коды ошибок (senim.common.v1.ErrorDetail.code):
+ *   invalid_phone, otp_too_often, otp_too_many_requests, otp_too_many_today,
+ *   otp_global_limit, otp_expired, otp_wrong_code (params.left — осталось попыток),
+ *   otp_attempts_exhausted, user_blocked, session_invalid, session_token_invalid,
+ *   role_not_granted, role_forbidden, demo_disabled, user_not_found,
+ *   caller_forbidden, idempotency_key_reused.
  *
  * @generated from service senim.identity.v1.IdentityService
  */
 export const IdentityService: GenService<{
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.RequestOtp
+   */
+  requestOtp: {
+    methodKind: "unary";
+    input: typeof RequestOtpRequestSchema;
+    output: typeof RequestOtpResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.VerifyOtp
+   */
+  verifyOtp: {
+    methodKind: "unary";
+    input: typeof VerifyOtpRequestSchema;
+    output: typeof VerifyOtpResponseSchema;
+  },
+  /**
+   * Чтение.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.Authenticate
+   */
+  authenticate: {
+    methodKind: "unary";
+    input: typeof AuthenticateRequestSchema;
+    output: typeof AuthenticateResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.SignOut
+   */
+  signOut: {
+    methodKind: "unary";
+    input: typeof SignOutRequestSchema;
+    output: typeof SignOutResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.SignOutEverywhere
+   */
+  signOutEverywhere: {
+    methodKind: "unary";
+    input: typeof SignOutEverywhereRequestSchema;
+    output: typeof SignOutEverywhereResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.SwitchRole
+   */
+  switchRole: {
+    methodKind: "unary";
+    input: typeof SwitchRoleRequestSchema;
+    output: typeof SwitchRoleResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.GrantRole
+   */
+  grantRole: {
+    methodKind: "unary";
+    input: typeof GrantRoleRequestSchema;
+    output: typeof GrantRoleResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.StartDemoSession
+   */
+  startDemoSession: {
+    methodKind: "unary";
+    input: typeof StartDemoSessionRequestSchema;
+    output: typeof StartDemoSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.SeedUsers
+   */
+  seedUsers: {
+    methodKind: "unary";
+    input: typeof SeedUsersRequestSchema;
+    output: typeof SeedUsersResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.ResetDemo
+   */
+  resetDemo: {
+    methodKind: "unary";
+    input: typeof ResetDemoRequestSchema;
+    output: typeof ResetDemoResponseSchema;
+  },
+  /**
+   * Чтение.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.GetSigningKeys
+   */
+  getSigningKeys: {
+    methodKind: "unary";
+    input: typeof GetSigningKeysRequestSchema;
+    output: typeof GetSigningKeysResponseSchema;
+  },
 }> = /*@__PURE__*/
   serviceDesc(file_senim_identity_v1_identity, 0);
 

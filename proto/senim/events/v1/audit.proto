@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package senim.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// AuditEvent — запись аудита; общая для всех сервисов (цепочка хэшей — план 6).
+message AuditEvent {
+  // Вид исполнителя: user, system, operator, ...
+  string actor_kind = 1;
+  string actor_id = 2;
+  string actor_role = 3;
+  // Действие, например "user.registered".
+  string action = 4;
+  string entity_type = 5;
+  string entity_id = 6;
+  // Состояние сущности до и после (JSON); пусто, если неприменимо. Без персональных данных в открытом виде.
+  string before_json = 7;
+  string after_json = 8;
+  google.protobuf.Timestamp at = 9;
+}

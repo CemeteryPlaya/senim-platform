@@ -2,6 +2,191 @@ syntax = "proto3";
 
 package senim.identity.v1;
 
-// IdentityService — вход, сессии и роли. Методы появятся в плане 2;
-// пока сервис пустой, чтобы имя было зарегистрировано в проверке здоровья.
-service IdentityService {}
+import "google/protobuf/timestamp.proto";
+
+// Role — роль пользователя на платформе.
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_CLIENT = 1;
+  ROLE_EXECUTOR = 2;
+  ROLE_OPERATOR = 3;
+  ROLE_MEASURER = 4;
+}
+
+// User — учётная запись.
+message User {
+  string id = 1;
+  // Телефон в формате E.164.
+  string phone = 2;
+  Role default_role = 3;
+  repeated Role roles = 4;
+  bool is_demo = 5;
+  // Пусто, если пользователь не заблокирован.
+  google.protobuf.Timestamp blocked_at = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// Session — сессия входа. Сам токен сессии в сообщении не передаётся.
+message Session {
+  string id = 1;
+  Role active_role = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  google.protobuf.Timestamp idle_expires_at = 4;
+}
+
+// SigningKey — публичный ключ подписи внутренних токенов.
+message SigningKey {
+  string kid = 1;
+  // Публичный ключ Ed25519, 32 байта.
+  bytes public_key = 2;
+  // Алгоритм подписи; всегда "EdDSA".
+  string alg = 3;
+}
+
+// SeedUser — пользователь для начального наполнения (демо и перенос данных).
+message SeedUser {
+  // E.164.
+  string phone = 1;
+  Role default_role = 2;
+  repeated Role roles = 3;
+  bool is_demo = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message RequestOtpRequest {
+  string phone = 1;
+  string client_ip = 2;
+  string idempotency_key = 3;
+}
+
+message RequestOtpResponse {
+  string phone = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  // Пуст, кроме DEMO_MODE=true и OTP_PROVIDER=mock.
+  string demo_code = 3;
+}
+
+message VerifyOtpRequest {
+  string phone = 1;
+  string code = 2;
+  string client_ip = 3;
+  string user_agent = 4;
+  // Токен сессии, сгенерированный вызывающим: base64url без "=" от 32 случайных байт (43 символа).
+  string session_token = 5;
+  string idempotency_key = 6;
+}
+
+message VerifyOtpResponse {
+  User user = 1;
+  Session session = 2;
+  bool is_new = 3;
+}
+
+message AuthenticateRequest {
+  string session_token = 1;
+}
+
+message AuthenticateResponse {
+  User user = 1;
+  Session session = 2;
+  string access_token = 3;
+  google.protobuf.Timestamp access_expires_at = 4;
+}
+
+message SignOutRequest {
+  string session_token = 1;
+  string idempotency_key = 2;
+}
+
+message SignOutResponse {}
+
+message SignOutEverywhereRequest {
+  string session_token = 1;
+  string idempotency_key = 2;
+}
+
+message SignOutEverywhereResponse {}
+
+message SwitchRoleRequest {
+  string session_token = 1;
+  Role role = 2;
+  string idempotency_key = 3;
+}
+
+message SwitchRoleResponse {
+  User user = 1;
+  Session session = 2;
+}
+
+message GrantRoleRequest {
+  string session_token = 1;
+  Role role = 2;
+  string idempotency_key = 3;
+}
+
+message GrantRoleResponse {
+  User user = 1;
+  bool granted = 2;
+}
+
+message StartDemoSessionRequest {
+  string user_id = 1;
+  Role as_role = 2;
+  string session_token = 3;
+  string user_agent = 4;
+  string idempotency_key = 5;
+}
+
+message StartDemoSessionResponse {
+  User user = 1;
+  Session session = 2;
+}
+
+message SeedUsersRequest {
+  repeated SeedUser users = 1;
+  string idempotency_key = 2;
+}
+
+message SeedUsersResponse {
+  repeated User users = 1;
+}
+
+message ResetDemoRequest {
+  string idempotency_key = 1;
+}
+
+message ResetDemoResponse {}
+
+message GetSigningKeysRequest {}
+
+message GetSigningKeysResponse {
+  repeated SigningKey keys = 1;
+}
+
+// IdentityService — вход по одноразовому коду, сессии и роли.
+//
+// Изменяющие методы принимают idempotency_key; Authenticate и GetSigningKeys — чтение.
+// session_token — base64url без "=" от 32 случайных байт (ровно 43 символа),
+// иначе InvalidArgument с кодом session_token_invalid.
+//
+// Коды ошибок (senim.common.v1.ErrorDetail.code):
+//   invalid_phone, otp_too_often, otp_too_many_requests, otp_too_many_today,
+//   otp_global_limit, otp_expired, otp_wrong_code (params.left — осталось попыток),
+//   otp_attempts_exhausted, user_blocked, session_invalid, session_token_invalid,
+//   role_not_granted, role_forbidden, demo_disabled, user_not_found,
+//   caller_forbidden, idempotency_key_reused.
+service IdentityService {
+  rpc RequestOtp(RequestOtpRequest) returns (RequestOtpResponse);
+  rpc VerifyOtp(VerifyOtpRequest) returns (VerifyOtpResponse);
+  // Чтение.
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
+  rpc SignOut(SignOutRequest) returns (SignOutResponse);
+  rpc SignOutEverywhere(SignOutEverywhereRequest) returns (SignOutEverywhereResponse);
+  rpc SwitchRole(SwitchRoleRequest) returns (SwitchRoleResponse);
+  rpc GrantRole(GrantRoleRequest) returns (GrantRoleResponse);
+  rpc StartDemoSession(StartDemoSessionRequest) returns (StartDemoSessionResponse);
+  rpc SeedUsers(SeedUsersRequest) returns (SeedUsersResponse);
+  rpc ResetDemo(ResetDemoRequest) returns (ResetDemoResponse);
+  // Чтение.
+  rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
+}

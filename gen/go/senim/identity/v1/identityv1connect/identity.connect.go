@@ -6,7 +6,9 @@ package identityv1connect
 
 import (
 	connect "connectrpc.com/connect/v2"
-	_ "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
+	context "context"
+	v1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
+	sync "sync"
 )
 
 const (
@@ -14,8 +16,137 @@ const (
 	IdentityServiceName = "senim.identity.v1.IdentityService"
 )
 
+// These constants are the procedure names of the RPCs defined in this package. They're exposed at
+// runtime as Spec.Procedure and as the final two segments of the HTTP route.
+//
+// Note that these are different from the fully-qualified method names used by
+// google.golang.org/protobuf/reflect/protoreflect. To convert from these constants to
+// reflection-formatted method names, remove the leading slash and convert the remaining slash to a
+// period.
+const (
+	// IdentityServiceRequestOtpProcedure is the procedure name of the IdentityService's RequestOtp RPC.
+	IdentityServiceRequestOtpProcedure = "/senim.identity.v1.IdentityService/RequestOtp"
+	// IdentityServiceVerifyOtpProcedure is the procedure name of the IdentityService's VerifyOtp RPC.
+	IdentityServiceVerifyOtpProcedure = "/senim.identity.v1.IdentityService/VerifyOtp"
+	// IdentityServiceAuthenticateProcedure is the procedure name of the IdentityService's Authenticate
+	// RPC.
+	IdentityServiceAuthenticateProcedure = "/senim.identity.v1.IdentityService/Authenticate"
+	// IdentityServiceSignOutProcedure is the procedure name of the IdentityService's SignOut RPC.
+	IdentityServiceSignOutProcedure = "/senim.identity.v1.IdentityService/SignOut"
+	// IdentityServiceSignOutEverywhereProcedure is the procedure name of the IdentityService's
+	// SignOutEverywhere RPC.
+	IdentityServiceSignOutEverywhereProcedure = "/senim.identity.v1.IdentityService/SignOutEverywhere"
+	// IdentityServiceSwitchRoleProcedure is the procedure name of the IdentityService's SwitchRole RPC.
+	IdentityServiceSwitchRoleProcedure = "/senim.identity.v1.IdentityService/SwitchRole"
+	// IdentityServiceGrantRoleProcedure is the procedure name of the IdentityService's GrantRole RPC.
+	IdentityServiceGrantRoleProcedure = "/senim.identity.v1.IdentityService/GrantRole"
+	// IdentityServiceStartDemoSessionProcedure is the procedure name of the IdentityService's
+	// StartDemoSession RPC.
+	IdentityServiceStartDemoSessionProcedure = "/senim.identity.v1.IdentityService/StartDemoSession"
+	// IdentityServiceSeedUsersProcedure is the procedure name of the IdentityService's SeedUsers RPC.
+	IdentityServiceSeedUsersProcedure = "/senim.identity.v1.IdentityService/SeedUsers"
+	// IdentityServiceResetDemoProcedure is the procedure name of the IdentityService's ResetDemo RPC.
+	IdentityServiceResetDemoProcedure = "/senim.identity.v1.IdentityService/ResetDemo"
+	// IdentityServiceGetSigningKeysProcedure is the procedure name of the IdentityService's
+	// GetSigningKeys RPC.
+	IdentityServiceGetSigningKeysProcedure = "/senim.identity.v1.IdentityService/GetSigningKeys"
+)
+
+var (
+	identityServiceRequestOtpSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("RequestOtp"),
+			Procedure:  IdentityServiceRequestOtpProcedure,
+		}
+	})
+	identityServiceVerifyOtpSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("VerifyOtp"),
+			Procedure:  IdentityServiceVerifyOtpProcedure,
+		}
+	})
+	identityServiceAuthenticateSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("Authenticate"),
+			Procedure:  IdentityServiceAuthenticateProcedure,
+		}
+	})
+	identityServiceSignOutSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("SignOut"),
+			Procedure:  IdentityServiceSignOutProcedure,
+		}
+	})
+	identityServiceSignOutEverywhereSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("SignOutEverywhere"),
+			Procedure:  IdentityServiceSignOutEverywhereProcedure,
+		}
+	})
+	identityServiceSwitchRoleSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("SwitchRole"),
+			Procedure:  IdentityServiceSwitchRoleProcedure,
+		}
+	})
+	identityServiceGrantRoleSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("GrantRole"),
+			Procedure:  IdentityServiceGrantRoleProcedure,
+		}
+	})
+	identityServiceStartDemoSessionSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("StartDemoSession"),
+			Procedure:  IdentityServiceStartDemoSessionProcedure,
+		}
+	})
+	identityServiceSeedUsersSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("SeedUsers"),
+			Procedure:  IdentityServiceSeedUsersProcedure,
+		}
+	})
+	identityServiceResetDemoSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("ResetDemo"),
+			Procedure:  IdentityServiceResetDemoProcedure,
+		}
+	})
+	identityServiceGetSigningKeysSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("GetSigningKeys"),
+			Procedure:  IdentityServiceGetSigningKeysProcedure,
+		}
+	})
+)
+
 // IdentityServiceClient is a client for the senim.identity.v1.IdentityService service.
 type IdentityServiceClient interface {
+	RequestOtp(context.Context, *v1.RequestOtpRequest) (*v1.RequestOtpResponse, error)
+	VerifyOtp(context.Context, *v1.VerifyOtpRequest) (*v1.VerifyOtpResponse, error)
+	// Чтение.
+	Authenticate(context.Context, *v1.AuthenticateRequest) (*v1.AuthenticateResponse, error)
+	SignOut(context.Context, *v1.SignOutRequest) (*v1.SignOutResponse, error)
+	SignOutEverywhere(context.Context, *v1.SignOutEverywhereRequest) (*v1.SignOutEverywhereResponse, error)
+	SwitchRole(context.Context, *v1.SwitchRoleRequest) (*v1.SwitchRoleResponse, error)
+	GrantRole(context.Context, *v1.GrantRoleRequest) (*v1.GrantRoleResponse, error)
+	StartDemoSession(context.Context, *v1.StartDemoSessionRequest) (*v1.StartDemoSessionResponse, error)
+	SeedUsers(context.Context, *v1.SeedUsersRequest) (*v1.SeedUsersResponse, error)
+	ResetDemo(context.Context, *v1.ResetDemoRequest) (*v1.ResetDemoResponse, error)
+	// Чтение.
+	GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error)
 }
 
 // NewIdentityServiceClient constructs a client for the senim.identity.v1.IdentityService service.
@@ -26,19 +157,309 @@ func NewIdentityServiceClient(client *connect.Client) IdentityServiceClient {
 
 // IdentityServiceHandler is an implementation of the senim.identity.v1.IdentityService service.
 type IdentityServiceHandler interface {
+	RequestOtp(context.Context, *v1.RequestOtpRequest) (*v1.RequestOtpResponse, error)
+	VerifyOtp(context.Context, *v1.VerifyOtpRequest) (*v1.VerifyOtpResponse, error)
+	// Чтение.
+	Authenticate(context.Context, *v1.AuthenticateRequest) (*v1.AuthenticateResponse, error)
+	SignOut(context.Context, *v1.SignOutRequest) (*v1.SignOutResponse, error)
+	SignOutEverywhere(context.Context, *v1.SignOutEverywhereRequest) (*v1.SignOutEverywhereResponse, error)
+	SwitchRole(context.Context, *v1.SwitchRoleRequest) (*v1.SwitchRoleResponse, error)
+	GrantRole(context.Context, *v1.GrantRoleRequest) (*v1.GrantRoleResponse, error)
+	StartDemoSession(context.Context, *v1.StartDemoSessionRequest) (*v1.StartDemoSessionResponse, error)
+	SeedUsers(context.Context, *v1.SeedUsersRequest) (*v1.SeedUsersResponse, error)
+	ResetDemo(context.Context, *v1.ResetDemoRequest) (*v1.ResetDemoResponse, error)
+	// Чтение.
+	GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error)
 }
 
 // RegisterIdentityServiceHandler registers svc as the senim.identity.v1.IdentityService
 // implementation on server.
 func RegisterIdentityServiceHandler(server *connect.Server, svc IdentityServiceHandler) {
-	server.Register()
+	adapter := identityServiceHandler{svc: svc}
+	server.Register(
+		connect.Method{Spec: identityServiceRequestOtpSpec(), Handler: adapter.requestOtp},
+		connect.Method{Spec: identityServiceVerifyOtpSpec(), Handler: adapter.verifyOtp},
+		connect.Method{Spec: identityServiceAuthenticateSpec(), Handler: adapter.authenticate},
+		connect.Method{Spec: identityServiceSignOutSpec(), Handler: adapter.signOut},
+		connect.Method{Spec: identityServiceSignOutEverywhereSpec(), Handler: adapter.signOutEverywhere},
+		connect.Method{Spec: identityServiceSwitchRoleSpec(), Handler: adapter.switchRole},
+		connect.Method{Spec: identityServiceGrantRoleSpec(), Handler: adapter.grantRole},
+		connect.Method{Spec: identityServiceStartDemoSessionSpec(), Handler: adapter.startDemoSession},
+		connect.Method{Spec: identityServiceSeedUsersSpec(), Handler: adapter.seedUsers},
+		connect.Method{Spec: identityServiceResetDemoSpec(), Handler: adapter.resetDemo},
+		connect.Method{Spec: identityServiceGetSigningKeysSpec(), Handler: adapter.getSigningKeys},
+	)
 }
 
 // UnimplementedIdentityServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedIdentityServiceHandler struct{}
 
+func (UnimplementedIdentityServiceHandler) RequestOtp(context.Context, *v1.RequestOtpRequest) (*v1.RequestOtpResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.RequestOtp is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) VerifyOtp(context.Context, *v1.VerifyOtpRequest) (*v1.VerifyOtpResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.VerifyOtp is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) Authenticate(context.Context, *v1.AuthenticateRequest) (*v1.AuthenticateResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.Authenticate is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) SignOut(context.Context, *v1.SignOutRequest) (*v1.SignOutResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.SignOut is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) SignOutEverywhere(context.Context, *v1.SignOutEverywhereRequest) (*v1.SignOutEverywhereResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.SignOutEverywhere is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) SwitchRole(context.Context, *v1.SwitchRoleRequest) (*v1.SwitchRoleResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.SwitchRole is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) GrantRole(context.Context, *v1.GrantRoleRequest) (*v1.GrantRoleResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.GrantRole is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) StartDemoSession(context.Context, *v1.StartDemoSessionRequest) (*v1.StartDemoSessionResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.StartDemoSession is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) SeedUsers(context.Context, *v1.SeedUsersRequest) (*v1.SeedUsersResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.SeedUsers is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) ResetDemo(context.Context, *v1.ResetDemoRequest) (*v1.ResetDemoResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.ResetDemo is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.GetSigningKeys is not implemented")
+}
+
 type identityServiceClient struct {
 	client *connect.Client
 }
 
+func (c *identityServiceClient) RequestOtp(ctx context.Context, req *v1.RequestOtpRequest) (*v1.RequestOtpResponse, error) {
+	var res v1.RequestOtpResponse
+	if err := c.client.CallUnary(ctx, identityServiceRequestOtpSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) VerifyOtp(ctx context.Context, req *v1.VerifyOtpRequest) (*v1.VerifyOtpResponse, error) {
+	var res v1.VerifyOtpResponse
+	if err := c.client.CallUnary(ctx, identityServiceVerifyOtpSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) Authenticate(ctx context.Context, req *v1.AuthenticateRequest) (*v1.AuthenticateResponse, error) {
+	var res v1.AuthenticateResponse
+	if err := c.client.CallUnary(ctx, identityServiceAuthenticateSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) SignOut(ctx context.Context, req *v1.SignOutRequest) (*v1.SignOutResponse, error) {
+	var res v1.SignOutResponse
+	if err := c.client.CallUnary(ctx, identityServiceSignOutSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) SignOutEverywhere(ctx context.Context, req *v1.SignOutEverywhereRequest) (*v1.SignOutEverywhereResponse, error) {
+	var res v1.SignOutEverywhereResponse
+	if err := c.client.CallUnary(ctx, identityServiceSignOutEverywhereSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) SwitchRole(ctx context.Context, req *v1.SwitchRoleRequest) (*v1.SwitchRoleResponse, error) {
+	var res v1.SwitchRoleResponse
+	if err := c.client.CallUnary(ctx, identityServiceSwitchRoleSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) GrantRole(ctx context.Context, req *v1.GrantRoleRequest) (*v1.GrantRoleResponse, error) {
+	var res v1.GrantRoleResponse
+	if err := c.client.CallUnary(ctx, identityServiceGrantRoleSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) StartDemoSession(ctx context.Context, req *v1.StartDemoSessionRequest) (*v1.StartDemoSessionResponse, error) {
+	var res v1.StartDemoSessionResponse
+	if err := c.client.CallUnary(ctx, identityServiceStartDemoSessionSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) SeedUsers(ctx context.Context, req *v1.SeedUsersRequest) (*v1.SeedUsersResponse, error) {
+	var res v1.SeedUsersResponse
+	if err := c.client.CallUnary(ctx, identityServiceSeedUsersSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) ResetDemo(ctx context.Context, req *v1.ResetDemoRequest) (*v1.ResetDemoResponse, error) {
+	var res v1.ResetDemoResponse
+	if err := c.client.CallUnary(ctx, identityServiceResetDemoSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) GetSigningKeys(ctx context.Context, req *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error) {
+	var res v1.GetSigningKeysResponse
+	if err := c.client.CallUnary(ctx, identityServiceGetSigningKeysSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
 type identityServiceHandler struct{ svc IdentityServiceHandler }
+
+func (h identityServiceHandler) requestOtp(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RequestOtpRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RequestOtp(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) verifyOtp(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.VerifyOtpRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.VerifyOtp(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) authenticate(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.AuthenticateRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.Authenticate(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) signOut(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SignOutRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SignOut(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) signOutEverywhere(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SignOutEverywhereRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SignOutEverywhere(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) switchRole(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SwitchRoleRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SwitchRole(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) grantRole(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GrantRoleRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GrantRole(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) startDemoSession(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.StartDemoSessionRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.StartDemoSession(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) seedUsers(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SeedUsersRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SeedUsers(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) resetDemo(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ResetDemoRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ResetDemo(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) getSigningKeys(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetSigningKeysRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetSigningKeys(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}

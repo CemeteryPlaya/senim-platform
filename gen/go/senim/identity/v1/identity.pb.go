@@ -9,7 +9,9 @@ package identityv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -20,21 +22,1756 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Role — роль пользователя на платформе.
+type Role int32
+
+const (
+	Role_ROLE_UNSPECIFIED Role = 0
+	Role_ROLE_CLIENT      Role = 1
+	Role_ROLE_EXECUTOR    Role = 2
+	Role_ROLE_OPERATOR    Role = 3
+	Role_ROLE_MEASURER    Role = 4
+)
+
+// Enum value maps for Role.
+var (
+	Role_name = map[int32]string{
+		0: "ROLE_UNSPECIFIED",
+		1: "ROLE_CLIENT",
+		2: "ROLE_EXECUTOR",
+		3: "ROLE_OPERATOR",
+		4: "ROLE_MEASURER",
+	}
+	Role_value = map[string]int32{
+		"ROLE_UNSPECIFIED": 0,
+		"ROLE_CLIENT":      1,
+		"ROLE_EXECUTOR":    2,
+		"ROLE_OPERATOR":    3,
+		"ROLE_MEASURER":    4,
+	}
+)
+
+func (x Role) Enum() *Role {
+	p := new(Role)
+	*p = x
+	return p
+}
+
+func (x Role) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Role) Descriptor() protoreflect.EnumDescriptor {
+	return file_senim_identity_v1_identity_proto_enumTypes[0].Descriptor()
+}
+
+func (Role) Type() protoreflect.EnumType {
+	return &file_senim_identity_v1_identity_proto_enumTypes[0]
+}
+
+func (x Role) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Role.Descriptor instead.
+func (Role) EnumDescriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{0}
+}
+
+// User — учётная запись.
+type User struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Телефон в формате E.164.
+	Phone       string `protobuf:"bytes,2,opt,name=phone,proto3" json:"phone,omitempty"`
+	DefaultRole Role   `protobuf:"varint,3,opt,name=default_role,json=defaultRole,proto3,enum=senim.identity.v1.Role" json:"default_role,omitempty"`
+	Roles       []Role `protobuf:"varint,4,rep,packed,name=roles,proto3,enum=senim.identity.v1.Role" json:"roles,omitempty"`
+	IsDemo      bool   `protobuf:"varint,5,opt,name=is_demo,json=isDemo,proto3" json:"is_demo,omitempty"`
+	// Пусто, если пользователь не заблокирован.
+	BlockedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=blocked_at,json=blockedAt,proto3" json:"blocked_at,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *User) Reset() {
+	*x = User{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *User) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*User) ProtoMessage() {}
+
+func (x *User) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use User.ProtoReflect.Descriptor instead.
+func (*User) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *User) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *User) GetPhone() string {
+	if x != nil {
+		return x.Phone
+	}
+	return ""
+}
+
+func (x *User) GetDefaultRole() Role {
+	if x != nil {
+		return x.DefaultRole
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *User) GetRoles() []Role {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *User) GetIsDemo() bool {
+	if x != nil {
+		return x.IsDemo
+	}
+	return false
+}
+
+func (x *User) GetBlockedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.BlockedAt
+	}
+	return nil
+}
+
+func (x *User) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+// Session — сессия входа. Сам токен сессии в сообщении не передаётся.
+type Session struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ActiveRole    Role                   `protobuf:"varint,2,opt,name=active_role,json=activeRole,proto3,enum=senim.identity.v1.Role" json:"active_role,omitempty"`
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	IdleExpiresAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=idle_expires_at,json=idleExpiresAt,proto3" json:"idle_expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Session) Reset() {
+	*x = Session{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Session) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Session) ProtoMessage() {}
+
+func (x *Session) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Session.ProtoReflect.Descriptor instead.
+func (*Session) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Session) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Session) GetActiveRole() Role {
+	if x != nil {
+		return x.ActiveRole
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *Session) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+func (x *Session) GetIdleExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.IdleExpiresAt
+	}
+	return nil
+}
+
+// SigningKey — публичный ключ подписи внутренних токенов.
+type SigningKey struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Kid   string                 `protobuf:"bytes,1,opt,name=kid,proto3" json:"kid,omitempty"`
+	// Публичный ключ Ed25519, 32 байта.
+	PublicKey []byte `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// Алгоритм подписи; всегда "EdDSA".
+	Alg           string `protobuf:"bytes,3,opt,name=alg,proto3" json:"alg,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SigningKey) Reset() {
+	*x = SigningKey{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SigningKey) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SigningKey) ProtoMessage() {}
+
+func (x *SigningKey) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SigningKey.ProtoReflect.Descriptor instead.
+func (*SigningKey) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SigningKey) GetKid() string {
+	if x != nil {
+		return x.Kid
+	}
+	return ""
+}
+
+func (x *SigningKey) GetPublicKey() []byte {
+	if x != nil {
+		return x.PublicKey
+	}
+	return nil
+}
+
+func (x *SigningKey) GetAlg() string {
+	if x != nil {
+		return x.Alg
+	}
+	return ""
+}
+
+// SeedUser — пользователь для начального наполнения (демо и перенос данных).
+type SeedUser struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// E.164.
+	Phone         string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
+	DefaultRole   Role                   `protobuf:"varint,2,opt,name=default_role,json=defaultRole,proto3,enum=senim.identity.v1.Role" json:"default_role,omitempty"`
+	Roles         []Role                 `protobuf:"varint,3,rep,packed,name=roles,proto3,enum=senim.identity.v1.Role" json:"roles,omitempty"`
+	IsDemo        bool                   `protobuf:"varint,4,opt,name=is_demo,json=isDemo,proto3" json:"is_demo,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SeedUser) Reset() {
+	*x = SeedUser{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SeedUser) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SeedUser) ProtoMessage() {}
+
+func (x *SeedUser) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SeedUser.ProtoReflect.Descriptor instead.
+func (*SeedUser) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SeedUser) GetPhone() string {
+	if x != nil {
+		return x.Phone
+	}
+	return ""
+}
+
+func (x *SeedUser) GetDefaultRole() Role {
+	if x != nil {
+		return x.DefaultRole
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *SeedUser) GetRoles() []Role {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *SeedUser) GetIsDemo() bool {
+	if x != nil {
+		return x.IsDemo
+	}
+	return false
+}
+
+func (x *SeedUser) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type RequestOtpRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Phone          string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
+	ClientIp       string                 `protobuf:"bytes,2,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RequestOtpRequest) Reset() {
+	*x = RequestOtpRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestOtpRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestOtpRequest) ProtoMessage() {}
+
+func (x *RequestOtpRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestOtpRequest.ProtoReflect.Descriptor instead.
+func (*RequestOtpRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RequestOtpRequest) GetPhone() string {
+	if x != nil {
+		return x.Phone
+	}
+	return ""
+}
+
+func (x *RequestOtpRequest) GetClientIp() string {
+	if x != nil {
+		return x.ClientIp
+	}
+	return ""
+}
+
+func (x *RequestOtpRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type RequestOtpResponse struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Phone     string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
+	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	// Пуст, кроме DEMO_MODE=true и OTP_PROVIDER=mock.
+	DemoCode      string `protobuf:"bytes,3,opt,name=demo_code,json=demoCode,proto3" json:"demo_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestOtpResponse) Reset() {
+	*x = RequestOtpResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestOtpResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestOtpResponse) ProtoMessage() {}
+
+func (x *RequestOtpResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestOtpResponse.ProtoReflect.Descriptor instead.
+func (*RequestOtpResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *RequestOtpResponse) GetPhone() string {
+	if x != nil {
+		return x.Phone
+	}
+	return ""
+}
+
+func (x *RequestOtpResponse) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+func (x *RequestOtpResponse) GetDemoCode() string {
+	if x != nil {
+		return x.DemoCode
+	}
+	return ""
+}
+
+type VerifyOtpRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Phone     string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
+	Code      string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	ClientIp  string                 `protobuf:"bytes,3,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
+	UserAgent string                 `protobuf:"bytes,4,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
+	// Токен сессии, сгенерированный вызывающим: base64url без "=" от 32 случайных байт (43 символа).
+	SessionToken   string `protobuf:"bytes,5,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	IdempotencyKey string `protobuf:"bytes,6,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *VerifyOtpRequest) Reset() {
+	*x = VerifyOtpRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyOtpRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyOtpRequest) ProtoMessage() {}
+
+func (x *VerifyOtpRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyOtpRequest.ProtoReflect.Descriptor instead.
+func (*VerifyOtpRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *VerifyOtpRequest) GetPhone() string {
+	if x != nil {
+		return x.Phone
+	}
+	return ""
+}
+
+func (x *VerifyOtpRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *VerifyOtpRequest) GetClientIp() string {
+	if x != nil {
+		return x.ClientIp
+	}
+	return ""
+}
+
+func (x *VerifyOtpRequest) GetUserAgent() string {
+	if x != nil {
+		return x.UserAgent
+	}
+	return ""
+}
+
+func (x *VerifyOtpRequest) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+func (x *VerifyOtpRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type VerifyOtpResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	Session       *Session               `protobuf:"bytes,2,opt,name=session,proto3" json:"session,omitempty"`
+	IsNew         bool                   `protobuf:"varint,3,opt,name=is_new,json=isNew,proto3" json:"is_new,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyOtpResponse) Reset() {
+	*x = VerifyOtpResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyOtpResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyOtpResponse) ProtoMessage() {}
+
+func (x *VerifyOtpResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyOtpResponse.ProtoReflect.Descriptor instead.
+func (*VerifyOtpResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *VerifyOtpResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *VerifyOtpResponse) GetSession() *Session {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+func (x *VerifyOtpResponse) GetIsNew() bool {
+	if x != nil {
+		return x.IsNew
+	}
+	return false
+}
+
+type AuthenticateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionToken  string                 `protobuf:"bytes,1,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthenticateRequest) Reset() {
+	*x = AuthenticateRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateRequest) ProtoMessage() {}
+
+func (x *AuthenticateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthenticateRequest.ProtoReflect.Descriptor instead.
+func (*AuthenticateRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *AuthenticateRequest) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+type AuthenticateResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	User            *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	Session         *Session               `protobuf:"bytes,2,opt,name=session,proto3" json:"session,omitempty"`
+	AccessToken     string                 `protobuf:"bytes,3,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	AccessExpiresAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=access_expires_at,json=accessExpiresAt,proto3" json:"access_expires_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *AuthenticateResponse) Reset() {
+	*x = AuthenticateResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateResponse) ProtoMessage() {}
+
+func (x *AuthenticateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthenticateResponse.ProtoReflect.Descriptor instead.
+func (*AuthenticateResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *AuthenticateResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *AuthenticateResponse) GetSession() *Session {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+func (x *AuthenticateResponse) GetAccessToken() string {
+	if x != nil {
+		return x.AccessToken
+	}
+	return ""
+}
+
+func (x *AuthenticateResponse) GetAccessExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AccessExpiresAt
+	}
+	return nil
+}
+
+type SignOutRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	SessionToken   string                 `protobuf:"bytes,1,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SignOutRequest) Reset() {
+	*x = SignOutRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignOutRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignOutRequest) ProtoMessage() {}
+
+func (x *SignOutRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignOutRequest.ProtoReflect.Descriptor instead.
+func (*SignOutRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SignOutRequest) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+func (x *SignOutRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type SignOutResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignOutResponse) Reset() {
+	*x = SignOutResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignOutResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignOutResponse) ProtoMessage() {}
+
+func (x *SignOutResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignOutResponse.ProtoReflect.Descriptor instead.
+func (*SignOutResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{11}
+}
+
+type SignOutEverywhereRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	SessionToken   string                 `protobuf:"bytes,1,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SignOutEverywhereRequest) Reset() {
+	*x = SignOutEverywhereRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignOutEverywhereRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignOutEverywhereRequest) ProtoMessage() {}
+
+func (x *SignOutEverywhereRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignOutEverywhereRequest.ProtoReflect.Descriptor instead.
+func (*SignOutEverywhereRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SignOutEverywhereRequest) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+func (x *SignOutEverywhereRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type SignOutEverywhereResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignOutEverywhereResponse) Reset() {
+	*x = SignOutEverywhereResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignOutEverywhereResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignOutEverywhereResponse) ProtoMessage() {}
+
+func (x *SignOutEverywhereResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignOutEverywhereResponse.ProtoReflect.Descriptor instead.
+func (*SignOutEverywhereResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{13}
+}
+
+type SwitchRoleRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	SessionToken   string                 `protobuf:"bytes,1,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	Role           Role                   `protobuf:"varint,2,opt,name=role,proto3,enum=senim.identity.v1.Role" json:"role,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SwitchRoleRequest) Reset() {
+	*x = SwitchRoleRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SwitchRoleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SwitchRoleRequest) ProtoMessage() {}
+
+func (x *SwitchRoleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SwitchRoleRequest.ProtoReflect.Descriptor instead.
+func (*SwitchRoleRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *SwitchRoleRequest) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+func (x *SwitchRoleRequest) GetRole() Role {
+	if x != nil {
+		return x.Role
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *SwitchRoleRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type SwitchRoleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	Session       *Session               `protobuf:"bytes,2,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SwitchRoleResponse) Reset() {
+	*x = SwitchRoleResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SwitchRoleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SwitchRoleResponse) ProtoMessage() {}
+
+func (x *SwitchRoleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SwitchRoleResponse.ProtoReflect.Descriptor instead.
+func (*SwitchRoleResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SwitchRoleResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *SwitchRoleResponse) GetSession() *Session {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type GrantRoleRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	SessionToken   string                 `protobuf:"bytes,1,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	Role           Role                   `protobuf:"varint,2,opt,name=role,proto3,enum=senim.identity.v1.Role" json:"role,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GrantRoleRequest) Reset() {
+	*x = GrantRoleRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrantRoleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrantRoleRequest) ProtoMessage() {}
+
+func (x *GrantRoleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrantRoleRequest.ProtoReflect.Descriptor instead.
+func (*GrantRoleRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GrantRoleRequest) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+func (x *GrantRoleRequest) GetRole() Role {
+	if x != nil {
+		return x.Role
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *GrantRoleRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type GrantRoleResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	Granted       bool                   `protobuf:"varint,2,opt,name=granted,proto3" json:"granted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GrantRoleResponse) Reset() {
+	*x = GrantRoleResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GrantRoleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GrantRoleResponse) ProtoMessage() {}
+
+func (x *GrantRoleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GrantRoleResponse.ProtoReflect.Descriptor instead.
+func (*GrantRoleResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *GrantRoleResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *GrantRoleResponse) GetGranted() bool {
+	if x != nil {
+		return x.Granted
+	}
+	return false
+}
+
+type StartDemoSessionRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	AsRole         Role                   `protobuf:"varint,2,opt,name=as_role,json=asRole,proto3,enum=senim.identity.v1.Role" json:"as_role,omitempty"`
+	SessionToken   string                 `protobuf:"bytes,3,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
+	UserAgent      string                 `protobuf:"bytes,4,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *StartDemoSessionRequest) Reset() {
+	*x = StartDemoSessionRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartDemoSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartDemoSessionRequest) ProtoMessage() {}
+
+func (x *StartDemoSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartDemoSessionRequest.ProtoReflect.Descriptor instead.
+func (*StartDemoSessionRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *StartDemoSessionRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *StartDemoSessionRequest) GetAsRole() Role {
+	if x != nil {
+		return x.AsRole
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *StartDemoSessionRequest) GetSessionToken() string {
+	if x != nil {
+		return x.SessionToken
+	}
+	return ""
+}
+
+func (x *StartDemoSessionRequest) GetUserAgent() string {
+	if x != nil {
+		return x.UserAgent
+	}
+	return ""
+}
+
+func (x *StartDemoSessionRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type StartDemoSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	Session       *Session               `protobuf:"bytes,2,opt,name=session,proto3" json:"session,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartDemoSessionResponse) Reset() {
+	*x = StartDemoSessionResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartDemoSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartDemoSessionResponse) ProtoMessage() {}
+
+func (x *StartDemoSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartDemoSessionResponse.ProtoReflect.Descriptor instead.
+func (*StartDemoSessionResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *StartDemoSessionResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *StartDemoSessionResponse) GetSession() *Session {
+	if x != nil {
+		return x.Session
+	}
+	return nil
+}
+
+type SeedUsersRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Users          []*SeedUser            `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SeedUsersRequest) Reset() {
+	*x = SeedUsersRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SeedUsersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SeedUsersRequest) ProtoMessage() {}
+
+func (x *SeedUsersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SeedUsersRequest.ProtoReflect.Descriptor instead.
+func (*SeedUsersRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *SeedUsersRequest) GetUsers() []*SeedUser {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+func (x *SeedUsersRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type SeedUsersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SeedUsersResponse) Reset() {
+	*x = SeedUsersResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SeedUsersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SeedUsersResponse) ProtoMessage() {}
+
+func (x *SeedUsersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SeedUsersResponse.ProtoReflect.Descriptor instead.
+func (*SeedUsersResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *SeedUsersResponse) GetUsers() []*User {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+type ResetDemoRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	IdempotencyKey string                 `protobuf:"bytes,1,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ResetDemoRequest) Reset() {
+	*x = ResetDemoRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetDemoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetDemoRequest) ProtoMessage() {}
+
+func (x *ResetDemoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetDemoRequest.ProtoReflect.Descriptor instead.
+func (*ResetDemoRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ResetDemoRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type ResetDemoResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetDemoResponse) Reset() {
+	*x = ResetDemoResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetDemoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetDemoResponse) ProtoMessage() {}
+
+func (x *ResetDemoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetDemoResponse.ProtoReflect.Descriptor instead.
+func (*ResetDemoResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{23}
+}
+
+type GetSigningKeysRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSigningKeysRequest) Reset() {
+	*x = GetSigningKeysRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSigningKeysRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSigningKeysRequest) ProtoMessage() {}
+
+func (x *GetSigningKeysRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSigningKeysRequest.ProtoReflect.Descriptor instead.
+func (*GetSigningKeysRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{24}
+}
+
+type GetSigningKeysResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Keys          []*SigningKey          `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSigningKeysResponse) Reset() {
+	*x = GetSigningKeysResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSigningKeysResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSigningKeysResponse) ProtoMessage() {}
+
+func (x *GetSigningKeysResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSigningKeysResponse.ProtoReflect.Descriptor instead.
+func (*GetSigningKeysResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GetSigningKeysResponse) GetKeys() []*SigningKey {
+	if x != nil {
+		return x.Keys
+	}
+	return nil
+}
+
 var File_senim_identity_v1_identity_proto protoreflect.FileDescriptor
 
 const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\n" +
-	" senim/identity/v1/identity.proto\x12\x11senim.identity.v12\x11\n" +
-	"\x0fIdentityServiceB\xd9\x01\n" +
+	" senim/identity/v1/identity.proto\x12\x11senim.identity.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa6\x02\n" +
+	"\x04User\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05phone\x18\x02 \x01(\tR\x05phone\x12:\n" +
+	"\fdefault_role\x18\x03 \x01(\x0e2\x17.senim.identity.v1.RoleR\vdefaultRole\x12-\n" +
+	"\x05roles\x18\x04 \x03(\x0e2\x17.senim.identity.v1.RoleR\x05roles\x12\x17\n" +
+	"\ais_demo\x18\x05 \x01(\bR\x06isDemo\x129\n" +
+	"\n" +
+	"blocked_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tblockedAt\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xd2\x01\n" +
+	"\aSession\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x128\n" +
+	"\vactive_role\x18\x02 \x01(\x0e2\x17.senim.identity.v1.RoleR\n" +
+	"activeRole\x129\n" +
+	"\n" +
+	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12B\n" +
+	"\x0fidle_expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ridleExpiresAt\"O\n" +
+	"\n" +
+	"SigningKey\x12\x10\n" +
+	"\x03kid\x18\x01 \x01(\tR\x03kid\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x02 \x01(\fR\tpublicKey\x12\x10\n" +
+	"\x03alg\x18\x03 \x01(\tR\x03alg\"\xdf\x01\n" +
+	"\bSeedUser\x12\x14\n" +
+	"\x05phone\x18\x01 \x01(\tR\x05phone\x12:\n" +
+	"\fdefault_role\x18\x02 \x01(\x0e2\x17.senim.identity.v1.RoleR\vdefaultRole\x12-\n" +
+	"\x05roles\x18\x03 \x03(\x0e2\x17.senim.identity.v1.RoleR\x05roles\x12\x17\n" +
+	"\ais_demo\x18\x04 \x01(\bR\x06isDemo\x129\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"o\n" +
+	"\x11RequestOtpRequest\x12\x14\n" +
+	"\x05phone\x18\x01 \x01(\tR\x05phone\x12\x1b\n" +
+	"\tclient_ip\x18\x02 \x01(\tR\bclientIp\x12'\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"\x82\x01\n" +
+	"\x12RequestOtpResponse\x12\x14\n" +
+	"\x05phone\x18\x01 \x01(\tR\x05phone\x129\n" +
+	"\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1b\n" +
+	"\tdemo_code\x18\x03 \x01(\tR\bdemoCode\"\xc6\x01\n" +
+	"\x10VerifyOtpRequest\x12\x14\n" +
+	"\x05phone\x18\x01 \x01(\tR\x05phone\x12\x12\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\x12\x1b\n" +
+	"\tclient_ip\x18\x03 \x01(\tR\bclientIp\x12\x1d\n" +
+	"\n" +
+	"user_agent\x18\x04 \x01(\tR\tuserAgent\x12#\n" +
+	"\rsession_token\x18\x05 \x01(\tR\fsessionToken\x12'\n" +
+	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\"\x8d\x01\n" +
+	"\x11VerifyOtpResponse\x12+\n" +
+	"\x04user\x18\x01 \x01(\v2\x17.senim.identity.v1.UserR\x04user\x124\n" +
+	"\asession\x18\x02 \x01(\v2\x1a.senim.identity.v1.SessionR\asession\x12\x15\n" +
+	"\x06is_new\x18\x03 \x01(\bR\x05isNew\":\n" +
+	"\x13AuthenticateRequest\x12#\n" +
+	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\"\xe4\x01\n" +
+	"\x14AuthenticateResponse\x12+\n" +
+	"\x04user\x18\x01 \x01(\v2\x17.senim.identity.v1.UserR\x04user\x124\n" +
+	"\asession\x18\x02 \x01(\v2\x1a.senim.identity.v1.SessionR\asession\x12!\n" +
+	"\faccess_token\x18\x03 \x01(\tR\vaccessToken\x12F\n" +
+	"\x11access_expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x0faccessExpiresAt\"^\n" +
+	"\x0eSignOutRequest\x12#\n" +
+	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12'\n" +
+	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\"\x11\n" +
+	"\x0fSignOutResponse\"h\n" +
+	"\x18SignOutEverywhereRequest\x12#\n" +
+	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12'\n" +
+	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\"\x1b\n" +
+	"\x19SignOutEverywhereResponse\"\x8e\x01\n" +
+	"\x11SwitchRoleRequest\x12#\n" +
+	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12+\n" +
+	"\x04role\x18\x02 \x01(\x0e2\x17.senim.identity.v1.RoleR\x04role\x12'\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"w\n" +
+	"\x12SwitchRoleResponse\x12+\n" +
+	"\x04user\x18\x01 \x01(\v2\x17.senim.identity.v1.UserR\x04user\x124\n" +
+	"\asession\x18\x02 \x01(\v2\x1a.senim.identity.v1.SessionR\asession\"\x8d\x01\n" +
+	"\x10GrantRoleRequest\x12#\n" +
+	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12+\n" +
+	"\x04role\x18\x02 \x01(\x0e2\x17.senim.identity.v1.RoleR\x04role\x12'\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"Z\n" +
+	"\x11GrantRoleResponse\x12+\n" +
+	"\x04user\x18\x01 \x01(\v2\x17.senim.identity.v1.UserR\x04user\x12\x18\n" +
+	"\agranted\x18\x02 \x01(\bR\agranted\"\xd1\x01\n" +
+	"\x17StartDemoSessionRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x120\n" +
+	"\aas_role\x18\x02 \x01(\x0e2\x17.senim.identity.v1.RoleR\x06asRole\x12#\n" +
+	"\rsession_token\x18\x03 \x01(\tR\fsessionToken\x12\x1d\n" +
+	"\n" +
+	"user_agent\x18\x04 \x01(\tR\tuserAgent\x12'\n" +
+	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"}\n" +
+	"\x18StartDemoSessionResponse\x12+\n" +
+	"\x04user\x18\x01 \x01(\v2\x17.senim.identity.v1.UserR\x04user\x124\n" +
+	"\asession\x18\x02 \x01(\v2\x1a.senim.identity.v1.SessionR\asession\"n\n" +
+	"\x10SeedUsersRequest\x121\n" +
+	"\x05users\x18\x01 \x03(\v2\x1b.senim.identity.v1.SeedUserR\x05users\x12'\n" +
+	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\"B\n" +
+	"\x11SeedUsersResponse\x12-\n" +
+	"\x05users\x18\x01 \x03(\v2\x17.senim.identity.v1.UserR\x05users\";\n" +
+	"\x10ResetDemoRequest\x12'\n" +
+	"\x0fidempotency_key\x18\x01 \x01(\tR\x0eidempotencyKey\"\x13\n" +
+	"\x11ResetDemoResponse\"\x17\n" +
+	"\x15GetSigningKeysRequest\"K\n" +
+	"\x16GetSigningKeysResponse\x121\n" +
+	"\x04keys\x18\x01 \x03(\v2\x1d.senim.identity.v1.SigningKeyR\x04keys*f\n" +
+	"\x04Role\x12\x14\n" +
+	"\x10ROLE_UNSPECIFIED\x10\x00\x12\x0f\n" +
+	"\vROLE_CLIENT\x10\x01\x12\x11\n" +
+	"\rROLE_EXECUTOR\x10\x02\x12\x11\n" +
+	"\rROLE_OPERATOR\x10\x03\x12\x11\n" +
+	"\rROLE_MEASURER\x10\x042\x9e\b\n" +
+	"\x0fIdentityService\x12Y\n" +
+	"\n" +
+	"RequestOtp\x12$.senim.identity.v1.RequestOtpRequest\x1a%.senim.identity.v1.RequestOtpResponse\x12V\n" +
+	"\tVerifyOtp\x12#.senim.identity.v1.VerifyOtpRequest\x1a$.senim.identity.v1.VerifyOtpResponse\x12_\n" +
+	"\fAuthenticate\x12&.senim.identity.v1.AuthenticateRequest\x1a'.senim.identity.v1.AuthenticateResponse\x12P\n" +
+	"\aSignOut\x12!.senim.identity.v1.SignOutRequest\x1a\".senim.identity.v1.SignOutResponse\x12n\n" +
+	"\x11SignOutEverywhere\x12+.senim.identity.v1.SignOutEverywhereRequest\x1a,.senim.identity.v1.SignOutEverywhereResponse\x12Y\n" +
+	"\n" +
+	"SwitchRole\x12$.senim.identity.v1.SwitchRoleRequest\x1a%.senim.identity.v1.SwitchRoleResponse\x12V\n" +
+	"\tGrantRole\x12#.senim.identity.v1.GrantRoleRequest\x1a$.senim.identity.v1.GrantRoleResponse\x12k\n" +
+	"\x10StartDemoSession\x12*.senim.identity.v1.StartDemoSessionRequest\x1a+.senim.identity.v1.StartDemoSessionResponse\x12V\n" +
+	"\tSeedUsers\x12#.senim.identity.v1.SeedUsersRequest\x1a$.senim.identity.v1.SeedUsersResponse\x12V\n" +
+	"\tResetDemo\x12#.senim.identity.v1.ResetDemoRequest\x1a$.senim.identity.v1.ResetDemoResponse\x12e\n" +
+	"\x0eGetSigningKeys\x12(.senim.identity.v1.GetSigningKeysRequest\x1a).senim.identity.v1.GetSigningKeysResponseB\xd9\x01\n" +
 	"\x15com.senim.identity.v1B\rIdentityProtoP\x01ZKgithub.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1;identityv1\xa2\x02\x03SIX\xaa\x02\x11Senim.Identity.V1\xca\x02\x11Senim\\Identity\\V1\xe2\x02\x1dSenim\\Identity\\V1\\GPBMetadata\xea\x02\x13Senim::Identity::V1b\x06proto3"
 
-var file_senim_identity_v1_identity_proto_goTypes = []any{}
+var (
+	file_senim_identity_v1_identity_proto_rawDescOnce sync.Once
+	file_senim_identity_v1_identity_proto_rawDescData []byte
+)
+
+func file_senim_identity_v1_identity_proto_rawDescGZIP() []byte {
+	file_senim_identity_v1_identity_proto_rawDescOnce.Do(func() {
+		file_senim_identity_v1_identity_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_senim_identity_v1_identity_proto_rawDesc), len(file_senim_identity_v1_identity_proto_rawDesc)))
+	})
+	return file_senim_identity_v1_identity_proto_rawDescData
+}
+
+var file_senim_identity_v1_identity_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_senim_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_senim_identity_v1_identity_proto_goTypes = []any{
+	(Role)(0),                         // 0: senim.identity.v1.Role
+	(*User)(nil),                      // 1: senim.identity.v1.User
+	(*Session)(nil),                   // 2: senim.identity.v1.Session
+	(*SigningKey)(nil),                // 3: senim.identity.v1.SigningKey
+	(*SeedUser)(nil),                  // 4: senim.identity.v1.SeedUser
+	(*RequestOtpRequest)(nil),         // 5: senim.identity.v1.RequestOtpRequest
+	(*RequestOtpResponse)(nil),        // 6: senim.identity.v1.RequestOtpResponse
+	(*VerifyOtpRequest)(nil),          // 7: senim.identity.v1.VerifyOtpRequest
+	(*VerifyOtpResponse)(nil),         // 8: senim.identity.v1.VerifyOtpResponse
+	(*AuthenticateRequest)(nil),       // 9: senim.identity.v1.AuthenticateRequest
+	(*AuthenticateResponse)(nil),      // 10: senim.identity.v1.AuthenticateResponse
+	(*SignOutRequest)(nil),            // 11: senim.identity.v1.SignOutRequest
+	(*SignOutResponse)(nil),           // 12: senim.identity.v1.SignOutResponse
+	(*SignOutEverywhereRequest)(nil),  // 13: senim.identity.v1.SignOutEverywhereRequest
+	(*SignOutEverywhereResponse)(nil), // 14: senim.identity.v1.SignOutEverywhereResponse
+	(*SwitchRoleRequest)(nil),         // 15: senim.identity.v1.SwitchRoleRequest
+	(*SwitchRoleResponse)(nil),        // 16: senim.identity.v1.SwitchRoleResponse
+	(*GrantRoleRequest)(nil),          // 17: senim.identity.v1.GrantRoleRequest
+	(*GrantRoleResponse)(nil),         // 18: senim.identity.v1.GrantRoleResponse
+	(*StartDemoSessionRequest)(nil),   // 19: senim.identity.v1.StartDemoSessionRequest
+	(*StartDemoSessionResponse)(nil),  // 20: senim.identity.v1.StartDemoSessionResponse
+	(*SeedUsersRequest)(nil),          // 21: senim.identity.v1.SeedUsersRequest
+	(*SeedUsersResponse)(nil),         // 22: senim.identity.v1.SeedUsersResponse
+	(*ResetDemoRequest)(nil),          // 23: senim.identity.v1.ResetDemoRequest
+	(*ResetDemoResponse)(nil),         // 24: senim.identity.v1.ResetDemoResponse
+	(*GetSigningKeysRequest)(nil),     // 25: senim.identity.v1.GetSigningKeysRequest
+	(*GetSigningKeysResponse)(nil),    // 26: senim.identity.v1.GetSigningKeysResponse
+	(*timestamppb.Timestamp)(nil),     // 27: google.protobuf.Timestamp
+}
 var file_senim_identity_v1_identity_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,  // 0: senim.identity.v1.User.default_role:type_name -> senim.identity.v1.Role
+	0,  // 1: senim.identity.v1.User.roles:type_name -> senim.identity.v1.Role
+	27, // 2: senim.identity.v1.User.blocked_at:type_name -> google.protobuf.Timestamp
+	27, // 3: senim.identity.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	0,  // 4: senim.identity.v1.Session.active_role:type_name -> senim.identity.v1.Role
+	27, // 5: senim.identity.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	27, // 6: senim.identity.v1.Session.idle_expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 7: senim.identity.v1.SeedUser.default_role:type_name -> senim.identity.v1.Role
+	0,  // 8: senim.identity.v1.SeedUser.roles:type_name -> senim.identity.v1.Role
+	27, // 9: senim.identity.v1.SeedUser.created_at:type_name -> google.protobuf.Timestamp
+	27, // 10: senim.identity.v1.RequestOtpResponse.expires_at:type_name -> google.protobuf.Timestamp
+	1,  // 11: senim.identity.v1.VerifyOtpResponse.user:type_name -> senim.identity.v1.User
+	2,  // 12: senim.identity.v1.VerifyOtpResponse.session:type_name -> senim.identity.v1.Session
+	1,  // 13: senim.identity.v1.AuthenticateResponse.user:type_name -> senim.identity.v1.User
+	2,  // 14: senim.identity.v1.AuthenticateResponse.session:type_name -> senim.identity.v1.Session
+	27, // 15: senim.identity.v1.AuthenticateResponse.access_expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 16: senim.identity.v1.SwitchRoleRequest.role:type_name -> senim.identity.v1.Role
+	1,  // 17: senim.identity.v1.SwitchRoleResponse.user:type_name -> senim.identity.v1.User
+	2,  // 18: senim.identity.v1.SwitchRoleResponse.session:type_name -> senim.identity.v1.Session
+	0,  // 19: senim.identity.v1.GrantRoleRequest.role:type_name -> senim.identity.v1.Role
+	1,  // 20: senim.identity.v1.GrantRoleResponse.user:type_name -> senim.identity.v1.User
+	0,  // 21: senim.identity.v1.StartDemoSessionRequest.as_role:type_name -> senim.identity.v1.Role
+	1,  // 22: senim.identity.v1.StartDemoSessionResponse.user:type_name -> senim.identity.v1.User
+	2,  // 23: senim.identity.v1.StartDemoSessionResponse.session:type_name -> senim.identity.v1.Session
+	4,  // 24: senim.identity.v1.SeedUsersRequest.users:type_name -> senim.identity.v1.SeedUser
+	1,  // 25: senim.identity.v1.SeedUsersResponse.users:type_name -> senim.identity.v1.User
+	3,  // 26: senim.identity.v1.GetSigningKeysResponse.keys:type_name -> senim.identity.v1.SigningKey
+	5,  // 27: senim.identity.v1.IdentityService.RequestOtp:input_type -> senim.identity.v1.RequestOtpRequest
+	7,  // 28: senim.identity.v1.IdentityService.VerifyOtp:input_type -> senim.identity.v1.VerifyOtpRequest
+	9,  // 29: senim.identity.v1.IdentityService.Authenticate:input_type -> senim.identity.v1.AuthenticateRequest
+	11, // 30: senim.identity.v1.IdentityService.SignOut:input_type -> senim.identity.v1.SignOutRequest
+	13, // 31: senim.identity.v1.IdentityService.SignOutEverywhere:input_type -> senim.identity.v1.SignOutEverywhereRequest
+	15, // 32: senim.identity.v1.IdentityService.SwitchRole:input_type -> senim.identity.v1.SwitchRoleRequest
+	17, // 33: senim.identity.v1.IdentityService.GrantRole:input_type -> senim.identity.v1.GrantRoleRequest
+	19, // 34: senim.identity.v1.IdentityService.StartDemoSession:input_type -> senim.identity.v1.StartDemoSessionRequest
+	21, // 35: senim.identity.v1.IdentityService.SeedUsers:input_type -> senim.identity.v1.SeedUsersRequest
+	23, // 36: senim.identity.v1.IdentityService.ResetDemo:input_type -> senim.identity.v1.ResetDemoRequest
+	25, // 37: senim.identity.v1.IdentityService.GetSigningKeys:input_type -> senim.identity.v1.GetSigningKeysRequest
+	6,  // 38: senim.identity.v1.IdentityService.RequestOtp:output_type -> senim.identity.v1.RequestOtpResponse
+	8,  // 39: senim.identity.v1.IdentityService.VerifyOtp:output_type -> senim.identity.v1.VerifyOtpResponse
+	10, // 40: senim.identity.v1.IdentityService.Authenticate:output_type -> senim.identity.v1.AuthenticateResponse
+	12, // 41: senim.identity.v1.IdentityService.SignOut:output_type -> senim.identity.v1.SignOutResponse
+	14, // 42: senim.identity.v1.IdentityService.SignOutEverywhere:output_type -> senim.identity.v1.SignOutEverywhereResponse
+	16, // 43: senim.identity.v1.IdentityService.SwitchRole:output_type -> senim.identity.v1.SwitchRoleResponse
+	18, // 44: senim.identity.v1.IdentityService.GrantRole:output_type -> senim.identity.v1.GrantRoleResponse
+	20, // 45: senim.identity.v1.IdentityService.StartDemoSession:output_type -> senim.identity.v1.StartDemoSessionResponse
+	22, // 46: senim.identity.v1.IdentityService.SeedUsers:output_type -> senim.identity.v1.SeedUsersResponse
+	24, // 47: senim.identity.v1.IdentityService.ResetDemo:output_type -> senim.identity.v1.ResetDemoResponse
+	26, // 48: senim.identity.v1.IdentityService.GetSigningKeys:output_type -> senim.identity.v1.GetSigningKeysResponse
+	38, // [38:49] is the sub-list for method output_type
+	27, // [27:38] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_senim_identity_v1_identity_proto_init() }
@@ -47,13 +1784,15 @@ func file_senim_identity_v1_identity_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_senim_identity_v1_identity_proto_rawDesc), len(file_senim_identity_v1_identity_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   0,
+			NumEnums:      1,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_senim_identity_v1_identity_proto_goTypes,
 		DependencyIndexes: file_senim_identity_v1_identity_proto_depIdxs,
+		EnumInfos:         file_senim_identity_v1_identity_proto_enumTypes,
+		MessageInfos:      file_senim_identity_v1_identity_proto_msgTypes,
 	}.Build()
 	File_senim_identity_v1_identity_proto = out.File
 	file_senim_identity_v1_identity_proto_goTypes = nil
