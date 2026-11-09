@@ -135,7 +135,8 @@ export function MobileMenu({ items }: { items: readonly NavItem[] }) {
         summary={
           <>
             <Menu aria-hidden className="size-6 shrink-0" />
-            {ru.common.shell.menu}
+            {/* В узкой шапке — только значок; подпись остаётся именем кнопки для диктора. */}
+            <span className="@max-[22rem]/header:sr-only">{ru.common.shell.menu}</span>
           </>
         }
       >

@@ -16,6 +16,8 @@ type Props = { user: CurrentUser | null; demoMode: boolean };
  * шапка с логотипом и нижняя панель вкладок (MobileTabBar). В шапке справа: «Установить приложение», колокольчик
  * со счётчиком и — у роли без вкладок (оператор) на телефоне — кнопка «Меню». «Войти» гостя — вкладка меню/панели,
  * в шапке его нет: на любой ширине оно одно. «Выйти» и переключатель роли — на странице «Профиль».
+ * Узкая шапка (уже 22rem — 320 px при шрифте 200 %): название и подпись «Меню» прячутся визуально (остаются в имени
+ * ссылки и кнопки), правая группа при нехватке места переносится на вторую строку — ничего не наезжает на логотип.
  */
 export function AppHeader({ user, demoMode }: Props) {
   const { tabs, more } = navFor(user, demoMode, features());
@@ -30,14 +32,15 @@ export function AppHeader({ user, demoMode }: Props) {
   return (
     <>
       <SideNav items={sideTabs} more={sideMore} primary={primary} />
-      <header className="relative border-b border-line bg-surface">
-        <div className="mx-auto flex min-h-16 max-w-page items-center justify-between gap-x-2 px-4 py-2 sm:gap-x-4 sm:px-6">
+      <header className="@container/header relative border-b border-line bg-surface">
+        <div className="mx-auto flex min-h-16 max-w-page flex-wrap items-center justify-between gap-x-2 gap-y-1 px-4 py-2 sm:gap-x-4 sm:px-6">
           <Link href="/" aria-label={ru.common.shell.home} className="flex shrink-0 items-center gap-2 rounded-control no-underline lg:hidden">
             <ShieldCheck aria-hidden className="size-7 shrink-0 text-primary" />
-            <span className="text-xl leading-tight font-extrabold text-ink">{ru.common.brand}</span>
+            <span className="text-xl leading-tight font-extrabold text-ink @max-[22rem]/header:sr-only">{ru.common.brand}</span>
           </Link>
 
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2">
+          {/* Не flex-1: группа должна переноситься целиком, а не сжиматься поверх логотипа. */}
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1 sm:gap-2">
             <InstallHeaderItem guest={!user} />
             {user && <NotificationBell userId={user.id} />}
             {phoneMenu.length > 0 && <MobileMenu items={phoneMenu} />}
