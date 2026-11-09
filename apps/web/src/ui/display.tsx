@@ -47,7 +47,7 @@ export type PageHeaderProps = {
 /** Заголовок экрана: «Назад», h1, пояснение, действия. На странице — ровно один. */
 export function PageHeader({ title, description, back, actions, className }: PageHeaderProps) {
   return (
-    <header className={cn("flex flex-col gap-3 pt-3 pb-4 sm:pt-6", className)}>
+    <header className={cn("@container/page flex flex-col gap-3 pt-3 pb-4 sm:pt-6", className)}>
       {back && (
         <Link
           href={back.href}
@@ -59,7 +59,8 @@ export function PageHeader({ title, description, back, actions, className }: Pag
       )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
-          <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">{title}</h1>
+          {/* Узкий экран при крупном шрифте (320 px и 200 %): заголовок мельче, чтобы длинное слово не рвалось посередине. */}
+          <h1 className="text-2xl font-extrabold text-ink @max-[16em]/page:text-lg sm:text-3xl">{title}</h1>
           {description && <p className="max-w-prose text-lg text-muted">{description}</p>}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap gap-3">{actions}</div>}

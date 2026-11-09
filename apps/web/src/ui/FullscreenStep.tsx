@@ -21,7 +21,12 @@ export type FullscreenStepProps = {
 const backClass =
   "-ml-2 inline-flex min-h-control-sm items-center gap-1 self-start rounded-control pr-3 pl-1 text-base font-semibold text-ink no-underline hover:bg-surface";
 
-/** Один вопрос — одна кнопка (TikTok/Reels): «Назад», крупный заголовок, содержимое, действие внизу. */
+/**
+ * Один вопрос — одна кнопка (TikTok/Reels): «Назад», крупный заголовок, содержимое, действие внизу.
+ * Только на телефоне (< 640 px) шаг тянется до низа окна и прижимает действие к нижней панели: высота окна минус
+ * нижняя панель (--tabbar-h) и запас на шапку, демо-плашку и отступы — второстепенная кнопка под главной не уходит
+ * за край. На планшете и компьютере действие идёт сразу под полями, без пустого разрыва.
+ */
 export function FullscreenStep({ title, children, action, back, progress, titleRef, className }: FullscreenStepProps) {
   const backContent = (
     <>
@@ -30,7 +35,7 @@ export function FullscreenStep({ title, children, action, back, progress, titleR
     </>
   );
   return (
-    <section className={cn("flex min-h-[calc(100dvh-8rem)] flex-col gap-5", className)}>
+    <section className={cn("flex flex-col gap-5 max-sm:min-h-[calc(100dvh-var(--tabbar-h)-11rem)]", className)}>
       {"href" in back ? (
         <Link href={back.href} className={backClass}>
           {backContent}

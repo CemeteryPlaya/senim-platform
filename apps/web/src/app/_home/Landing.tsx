@@ -50,8 +50,9 @@ export function Landing() {
           ))}
         </div>
 
-        <div className="flex min-w-0 flex-col gap-6 lg:gap-8">
-          <h1 id="start-title" className="text-2xl font-extrabold text-ink sm:text-3xl lg:text-display">
+        <div className="@container/hero flex min-w-0 flex-col gap-6 lg:gap-8">
+          {/* Узкая колонка (320 px при шрифте 200 %): заголовок на ступень меньше, чтобы слова не рвались посередине. */}
+          <h1 id="start-title" className="text-2xl font-extrabold text-ink @max-[16em]/hero:text-xl sm:text-3xl lg:text-display">
             {t.title}
           </h1>
           <div className="flex flex-col gap-3 sm:flex-row lg:flex-col lg:items-start">
