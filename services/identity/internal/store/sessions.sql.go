@@ -50,3 +50,14 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) (S
 	)
 	return i, err
 }
+
+const sessionTokenExists = `-- name: SessionTokenExists :one
+SELECT EXISTS (SELECT 1 FROM sessions WHERE token_hash = $1)
+`
+
+func (q *Queries) SessionTokenExists(ctx context.Context, tokenHash []byte) (bool, error) {
+	row := q.db.QueryRow(ctx, sessionTokenExists, tokenHash)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}

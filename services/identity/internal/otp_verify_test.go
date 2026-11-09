@@ -491,3 +491,118 @@ func TestCreateSessionUsesAsRoleOrDefault(t *testing.T) {
 		}
 	}
 }
+
+// Токен, уже занятый другой сессией, под новым ключом: отказ до траты попытки, без ERROR в логе.
+func TestVerifyReusedSessionTokenRefused(t *testing.T) {
+	h := newHarness(t, nil)
+	phone := newPhone()
+	code := h.issued(phone)
+	first := h.verifyReq(phone, code, verifyIP)
+	res, err := h.verifyAs("web", first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	phone2 := newPhone()
+	code2 := h.issued(phone2)
+	second := h.verifyReq(phone2, code2, verifyIP)
+	second.SessionToken = first.GetSessionToken()
+	_, err = h.verifyAs("web", second)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "session_token_invalid")
+
+	if h.count(`SELECT count(*) FROM sessions WHERE id = $1`, res.GetSession().GetId()) != 1 ||
+		h.count(`SELECT count(*) FROM sessions s JOIN users u ON u.id = s.user_id WHERE u.phone = $1`, phone2) != 0 {
+		t.Fatal("лишняя или потерянная сессия")
+	}
+	if h.count(`SELECT attempts FROM otp_codes WHERE phone = $1`, phone2) != 0 {
+		t.Fatal("попытка потрачена")
+	}
+	if strings.Contains(h.logs.String(), `"level":"ERROR"`) {
+		t.Fatalf("ERROR в логе: %s", h.logs.String())
+	}
+	// Код цел: с новым токеном вход проходит.
+	second.SessionToken = newToken(t)
+	second.IdempotencyKey += "-2"
+	if _, err := h.verifyAs("web", second); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Гонка за один токен: уникальный индекс переводится в session_token_invalid (в обход предпроверки).
+func TestCreateSessionMapsTokenUniqueViolation(t *testing.T) {
+	h := newHarness(t, nil)
+	u, err := createUser(h.q, []string{"CLIENT"}, "CLIENT")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	tx, err := h.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	token := newToken(t)
+	if _, err := createSession(ctx, tx, u, token, "", "", h.clock.now()); err != nil {
+		t.Fatal(err)
+	}
+	_, err = createSession(ctx, tx, u, token, "", "", h.clock.now())
+	h.wantRefusal(err, connect.CodeInvalidArgument, "session_token_invalid")
+}
+
+// Review Focus 1, вариант «первый вызов ещё идёт»: повтор с тем же ключом ждёт его и получает тот же ответ.
+func TestVerifyConcurrentSameKeyWaitsForFirstCall(t *testing.T) {
+	h := newHarness(t, nil)
+	u, err := createUser(h.q, []string{"CLIENT"}, "CLIENT")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := h.issued(u.Phone)
+	req := h.verifyReq(u.Phone, code, verifyIP)
+
+	// Блокировка строки пользователя держит вызов A внутри Do (вставка сессии ждёт FK-замок).
+	ctx := context.Background()
+	lock, err := h.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = lock.Rollback(ctx) }()
+	if _, err := lock.Exec(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, u.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	type result struct {
+		res *identityv1.VerifyOtpResponse
+		err error
+	}
+	run := func() chan result {
+		ch := make(chan result, 1)
+		go func() {
+			r, err := h.verifyAs("web", proto.Clone(req).(*identityv1.VerifyOtpRequest))
+			ch <- result{r, err}
+		}()
+		return ch
+	}
+	a := run()
+	time.Sleep(500 * time.Millisecond) // A дошёл до вставки сессии и ждёт замок
+	b := run()
+	time.Sleep(300 * time.Millisecond)
+	select {
+	case r := <-a:
+		t.Fatalf("A завершился под замком: %v", r.err)
+	case r := <-b:
+		t.Fatalf("B завершился, пока A в работе: %v", r.err)
+	default:
+	}
+	if err := lock.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	ra, rb := <-a, <-b
+	if ra.err != nil || rb.err != nil {
+		t.Fatalf("A: %v, B: %v", ra.err, rb.err)
+	}
+	if ra.res.GetUser().GetId() != rb.res.GetUser().GetId() || ra.res.GetSession().GetId() != rb.res.GetSession().GetId() {
+		t.Fatal("B вернул не ответ A")
+	}
+	if h.sessionRows(u.ID.String()) != 1 {
+		t.Fatal("сессий не одна")
+	}
+}

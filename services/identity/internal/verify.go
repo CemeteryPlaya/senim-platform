@@ -3,7 +3,9 @@ package internal
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -93,11 +95,26 @@ func (s *Service) VerifyOtp(ctx context.Context, req *identityv1.VerifyOtpReques
 		return saved, nil
 	}
 
+	// Токен уже у другой сессии (новый ключ, старый токен): отказ до того, как тратится попытка.
+	sum := sha256.Sum256([]byte(req.GetSessionToken()))
+	taken, err := store.New(s.pool).SessionTokenExists(ctx, sum[:])
+	if err != nil {
+		s.log.ErrorContext(ctx, "otp: проверка токена сессии", "err", err)
+		return nil, internalError()
+	}
+	if taken {
+		return nil, rpcError(connect.CodeInvalidArgument, "session_token_invalid", nil)
+	}
+
 	otpID, refusal := s.checkCode(ctx, phone, ip, req.GetCode())
 	if refusal != nil {
 		again := &identityv1.VerifyOtpResponse{}
-		if found, lerr := idem.Lookup(ctx, s.pool, method, key, req, again); lerr == nil && found {
+		found, lerr := idem.Lookup(ctx, s.pool, method, key, req, again)
+		if lerr == nil && found {
 			return again, nil
+		}
+		if lerr != nil && !errors.Is(lerr, idem.ErrKeyReused) {
+			s.log.WarnContext(ctx, "otp: повторная проверка ключа после отказа", "err", lerr)
 		}
 		return nil, refusal
 	}
@@ -176,7 +193,9 @@ func (s *Service) checkCode(ctx context.Context, phone, ip, code string) (otpID 
 
 // signIn — тело идемпотентного вызова в транзакции: гасит код, находит или создаёт
 // пользователя, отказывает заблокированному, создаёт сессию и заполняет ответ.
-// Отказ откатывает транзакцию целиком, в том числе гашение кода.
+// Отказ откатывает транзакцию целиком, в том числе гашение кода: у заблокированного код
+// остаётся непогашенным (в отличие от otp.ts, где код гасится первым). Это безвредно:
+// сессии нет, попытки уже засчитаны (код ограничен пятью), срок кода 5 минут.
 func (s *Service) signIn(ctx context.Context, tx pgx.Tx, req *identityv1.VerifyOtpRequest, phone string, otpID uuid.UUID, resp *identityv1.VerifyOtpResponse) error {
 	now := s.now()
 	q := store.New(tx)
@@ -225,13 +244,17 @@ func (s *Service) recordRegistered(ctx context.Context, tx pgx.Tx, user store.Us
 	}); err != nil {
 		return err
 	}
-	_, err := outbox.Add(ctx, tx, ServiceID, subjectAudit, "senim.events.v1.AuditEvent", &eventsv1.AuditEvent{
+	after, err := json.Marshal(map[string]string{"role": user.DefaultRole})
+	if err != nil {
+		return err
+	}
+	_, err = outbox.Add(ctx, tx, ServiceID, subjectAudit, "senim.events.v1.AuditEvent", &eventsv1.AuditEvent{
 		ActorKind:  "system",
 		ActorId:    "identity.otp",
 		Action:     "user.registered",
 		EntityType: "user",
 		EntityId:   user.ID.String(),
-		AfterJson:  `{"role":"` + user.DefaultRole + `"}`,
+		AfterJson:  string(after),
 		At:         timestamppb.New(now),
 	})
 	return err

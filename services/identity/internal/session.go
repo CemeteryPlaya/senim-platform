@@ -3,11 +3,14 @@ package internal
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
+	"connectrpc.com/connect/v2"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -25,6 +28,8 @@ const (
 	staffSessionTTL = 8 * hour
 	// maxUserAgent — предел длины user_agent в рунах.
 	maxUserAgent = 300
+	// sessionTokenConstraint — уникальный индекс sessions.token_hash (имя по умолчанию).
+	sessionTokenConstraint = "sessions_token_hash_key"
 )
 
 // isStaff — оператор или замерщик площадки: у них короткая сессия.
@@ -55,6 +60,11 @@ func createSession(ctx context.Context, tx pgx.Tx, user store.User, token string
 		CreatedAt:  pgtype.Timestamptz{Time: now, Valid: true},
 		ExpiresAt:  pgtype.Timestamptz{Time: now.Add(ttl), Valid: true},
 	})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == sessionTokenConstraint {
+		// Токен уже принадлежит другой сессии (повтор токена с новым ключом, гонка).
+		return store.Session{}, rpcError(connect.CodeInvalidArgument, "session_token_invalid", nil)
+	}
 	if err != nil {
 		return store.Session{}, fmt.Errorf("запись сессии: %w", err)
 	}
