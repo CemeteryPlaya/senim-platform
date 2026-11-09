@@ -1,23 +1,51 @@
 package config
 
 import (
-	"net/url"
 	"strings"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// PostgresDSN возвращает обязательный DSN Postgres. Вне dev DSN обязан требовать
-// sslmode=verify-full (шифрование и проверка сертификата и имени сервера); разбираются
-// обе формы — URL и «ключ=значение». В ошибку DSN не попадает: в нём пароль.
+// PostgresDSN возвращает обязательный DSN Postgres. Вне dev DSN обязан давать полную
+// проверку TLS: его разбирает тот же pgconn.ParseConfig, которым потом подключается
+// сервис, и принимается только такой результат, где основное подключение и каждое
+// запасное (хосты через запятую, sslmode=prefer/allow) идут по TLS с проверкой
+// сертификата и имени сервера, то есть эквивалентно sslmode=verify-full. Так разбор
+// (экранирование «\», пробелы вокруг «=», кавычки, URL, повтор ключа) не расходится
+// с драйвером. Переменные PG* учитываются так же, как при подключении: DSN без sslmode
+// и PGSSLMODE=verify-full в окружении проходит проверку, потому что и подключится так же.
+// Пароль в ошибку не попадает: в ней только имя переменной.
 func (l *Loader) PostgresDSN(key string) string {
 	v := l.Required(key)
 	if v == "" {
 		return ""
 	}
-	if l.strict() && dsnSSLMode(v) != "verify-full" {
-		l.fail("%s: sslmode=verify-full is required when APP_ENV is not dev", key)
+	if l.strict() && !fullVerifyTLS(v) {
+		l.fail("%s: must use TLS with full certificate verification (sslmode=verify-full) when APP_ENV is not dev", key)
 		return ""
 	}
 	return v
+}
+
+// fullVerifyTLS сообщает, что каждое подключение, которое соберёт pgconn из dsn,
+// использует TLS с проверкой цепочки и имени хоста. У verify-full tls.Config имеет
+// ServerName и InsecureSkipVerify=false; у require/verify-ca/prefer/allow
+// InsecureSkipVerify=true (verify-ca проверяет цепочку вручную, но не имя), у disable
+// конфига нет вовсе.
+func fullVerifyTLS(dsn string) bool {
+	cfg, err := pgconn.ParseConfig(dsn)
+	if err != nil {
+		return false
+	}
+	if cfg.TLSConfig == nil || cfg.TLSConfig.InsecureSkipVerify || cfg.TLSConfig.ServerName == "" {
+		return false
+	}
+	for _, f := range cfg.Fallbacks {
+		if f.TLSConfig == nil || f.TLSConfig.InsecureSkipVerify || f.TLSConfig.ServerName == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // OTLPEndpoint возвращает адрес OTLP-экспортёра или пустую строку (телеметрия выключена).
@@ -29,56 +57,4 @@ func (l *Loader) OTLPEndpoint(key string) string {
 		return ""
 	}
 	return v
-}
-
-// dsnSSLMode достаёт sslmode из DSN в форме URL или «ключ=значение»; нет — пустая строка.
-func dsnSSLMode(dsn string) string {
-	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
-		u, err := url.Parse(dsn)
-		if err != nil {
-			return ""
-		}
-		return u.Query().Get("sslmode")
-	}
-	return keywordParams(dsn)["sslmode"]
-}
-
-// keywordParams разбирает DSN вида «host=db password='a b' sslmode=verify-full»:
-// значение — до пробела или в одинарных кавычках, внутри кавычек \' и \ экранируют.
-// Нераспознанный хвост отбрасывается; повтор ключа — последнее значение, как в libpq.
-func keywordParams(s string) map[string]string {
-	res := map[string]string{}
-	for i := 0; i < len(s); {
-		for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n') {
-			i++
-		}
-		start := i
-		for i < len(s) && s[i] != '=' && s[i] != ' ' {
-			i++
-		}
-		if i >= len(s) || s[i] != '=' {
-			continue
-		}
-		key := s[start:i]
-		i++ // '='
-		var val strings.Builder
-		if i < len(s) && s[i] == '\'' {
-			i++
-			for i < len(s) && s[i] != '\'' {
-				if s[i] == '\\' && i+1 < len(s) {
-					i++
-				}
-				val.WriteByte(s[i])
-				i++
-			}
-			i++ // закрывающая кавычка
-		} else {
-			for i < len(s) && s[i] != ' ' && s[i] != '\t' && s[i] != '\n' {
-				val.WriteByte(s[i])
-				i++
-			}
-		}
-		res[key] = val.String()
-	}
-	return res
 }

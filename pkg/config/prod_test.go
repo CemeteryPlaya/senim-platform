@@ -6,6 +6,9 @@ import (
 )
 
 func TestProdRequiresVerifyFullDSN(t *testing.T) {
+	// pgconn читает PG*: пустое значение отключает влияние окружения разработчика.
+	t.Setenv("PGSSLMODE", "")
+	t.Setenv("PGSSLROOTCERT", "")
 	const pass = "s3cretpass"
 	cases := []struct {
 		name string
@@ -28,6 +31,18 @@ func TestProdRequiresVerifyFullDSN(t *testing.T) {
 		{"staging verify-full", "staging", "postgres://u:" + pass + "@db/x?sslmode=verify-full", true},
 		{"dev disable", "dev", "postgres://u:" + pass + "@db/x?sslmode=disable", true},
 		{"prod garbage", "prod", "nonsense " + pass, false},
+		{"prod backslash hides sslmode in password", "prod", `host=db user=u password=ab\ sslmode=verify-full`, false},
+		{"prod spaces around equals", "prod", "host=db user=u password=" + pass + " sslmode = verify-full", true},
+		{"prod keyword verify-ca", "prod", "host=db user=u password=" + pass + " sslmode=verify-ca", false},
+		{"prod keyword require", "prod", "host=db user=u password=" + pass + " sslmode=require", false},
+		{"prod keyword prefer", "prod", "host=db user=u password=" + pass + " sslmode=prefer", false},
+		{"prod keyword duplicate last wins ok", "prod", "host=db password=" + pass + " sslmode=disable sslmode=verify-full", true},
+		{"prod keyword duplicate last wins bad", "prod", "host=db password=" + pass + " sslmode=verify-full sslmode=disable", false},
+		{"prod uppercase mode", "prod", "host=db password=" + pass + " sslmode=VERIFY-FULL", false},
+		{"prod url raw verify-full in password", "prod", "postgres://u:sslmode=verify-full@db/x", false},
+		{"prod url encoded verify-full in password", "prod", "postgres://u:sslmode%3Dverify-full@db/x", false},
+		{"prod url verify-full with password text", "prod", "postgres://u:sslmode%3Dverify-full@db/x?sslmode=verify-full", true},
+		{"prod verify-full url with host list", "prod", "postgres://u:" + pass + "@a,b/x?sslmode=verify-full", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -84,5 +99,15 @@ func TestProdRequiresHTTPSOTLP(t *testing.T) {
 		if !c.ok && (err == nil || !strings.Contains(err.Error(), "OTLP")) {
 			t.Errorf("%s %q: want error naming OTLP, got %v", c.env, c.val, err)
 		}
+	}
+}
+
+func TestPostgresDSNHonoursPGSSLMODE(t *testing.T) {
+	t.Setenv("PGSSLMODE", "verify-full")
+	l := NewLoader(mapSource(map[string]string{"APP_ENV": "prod", "DSN": "host=db user=u"}))
+	l.Env()
+	l.PostgresDSN("DSN")
+	if err := l.Err(); err != nil {
+		t.Fatalf("PGSSLMODE=verify-full is what the driver will use: %v", err)
 	}
 }

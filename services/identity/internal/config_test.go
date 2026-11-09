@@ -35,6 +35,12 @@ func load(t *testing.T, vars map[string]string) (ServeConfig, error) {
 	return LoadServe(func(k string) (string, bool) { v, ok := vars[k]; return v, ok })
 }
 
+// loadMigrateFor — обёртка для теста: только ошибка LoadMigrate.
+func loadMigrateFor(vars map[string]string) error {
+	_, err := LoadMigrate(func(k string) (string, bool) { v, ok := vars[k]; return v, ok })
+	return err
+}
+
 func TestServeConfigDev(t *testing.T) {
 	vars := serveVars()
 	vars["DEMO_MODE"] = "true"
@@ -91,18 +97,12 @@ func TestProdRequiresVerifyFullDSN(t *testing.T) {
 	v["IDENTITY_APP_DSN"] = "postgres://u@db:5432/identity?sslmode=disable"
 	mustFailNaming(t, v, "IDENTITY_APP_DSN")
 
-	m := LoadMigrateFor(map[string]string{
+	m := loadMigrateFor(map[string]string{
 		"APP_ENV": "prod", "IDENTITY_OWNER_DSN": "postgres://u@db/identity?sslmode=require",
 	})
 	if m == nil || !strings.Contains(m.Error(), "IDENTITY_OWNER_DSN") {
 		t.Fatalf("migrate must reject weak DSN naming IDENTITY_OWNER_DSN: %v", m)
 	}
-}
-
-// LoadMigrateFor — обёртка для теста: только ошибка LoadMigrate.
-func LoadMigrateFor(vars map[string]string) error {
-	_, err := LoadMigrate(func(k string) (string, bool) { v, ok := vars[k]; return v, ok })
-	return err
 }
 
 func TestProdRequiresHTTPSOTLP(t *testing.T) {
@@ -179,4 +179,19 @@ func TestRequiredNewVariables(t *testing.T) {
 	delete(v, "IDENTITY_TOKEN_KID")
 	delete(v, "IDENTITY_OTP_PROVIDER")
 	mustFailNaming(t, v, "IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY", "IDENTITY_TOKEN_KID", "IDENTITY_OTP_PROVIDER")
+}
+
+func TestPreviousKeyMustDifferFromCurrent(t *testing.T) {
+	v := serveVars()
+	cur := ed25519.NewKeyFromSeed([]byte(strings.Repeat("s", 32))).Public().(ed25519.PublicKey)
+	other, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Тот же kid, что у текущего ключа.
+	v["IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY"] = "dev-1:" + base64.StdEncoding.EncodeToString(other)
+	mustFailNaming(t, v, "IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY")
+	// Тот же публичный ключ под другим kid.
+	v["IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY"] = "old-1:" + base64.StdEncoding.EncodeToString(cur)
+	mustFailNaming(t, v, "IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY")
 }

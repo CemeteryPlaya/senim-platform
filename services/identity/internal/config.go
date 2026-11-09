@@ -94,7 +94,7 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 		}
 	}
 	l.Distinct("IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY")
-	c.TokenPreviousKey = previousKey(l, "IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY")
+	c.TokenPreviousKey = previousKey(l, "IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY", c.TokenKID, c.TokenSigningKey)
 	c.NATS = natsx.Load(l, c.CertFile, c.KeyFile, c.CAFile)
 	if err := l.Err(); err != nil {
 		return ServeConfig{}, fmt.Errorf("конфигурация: %w", err)
@@ -104,7 +104,7 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 
 // previousKey читает необязательный прежний публичный ключ вида «kid:base64(32 байта)».
 // Нарушение формата — ошибка с именем переменной, без значения.
-func previousKey(l *config.Loader, key string) *SigningKey {
+func previousKey(l *config.Loader, key, currentKID string, current ed25519.PrivateKey) *SigningKey {
 	raw := l.String(key, "")
 	if raw == "" {
 		return nil
@@ -113,6 +113,16 @@ func previousKey(l *config.Loader, key string) *SigningKey {
 	pub, err := base64.StdEncoding.DecodeString(enc)
 	if !ok || kid == "" || err != nil || len(pub) != ed25519.PublicKeySize {
 		l.Invalid(key, fmt.Sprintf("expected kid:base64 of a %d-byte Ed25519 public key", ed25519.PublicKeySize))
+		return nil
+	}
+	// Прежний ключ с тем же kid или тем же ключом — ошибка ротации: JWKS получил бы
+	// два ключа под одним kid, а токены нельзя было бы отличить от текущих.
+	if kid == currentKID {
+		l.Invalid(key, "kid must differ from IDENTITY_TOKEN_KID")
+		return nil
+	}
+	if len(current) == ed25519.PrivateKeySize && current.Public().(ed25519.PublicKey).Equal(ed25519.PublicKey(pub)) {
+		l.Invalid(key, "must differ from the public key of IDENTITY_TOKEN_SIGNING_KEY")
 		return nil
 	}
 	return &SigningKey{KID: kid, Public: ed25519.PublicKey(pub)}

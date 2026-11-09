@@ -70,11 +70,11 @@ func createUser(q *store.Queries, roles []string, def string) (store.User, error
 	return q.CreateUser(context.Background(), store.CreateUserParams{Phone: newPhone(), Roles: roles, DefaultRole: def})
 }
 
-func requireCheckViolation(t *testing.T, err error) {
+func requireCheckViolation(t *testing.T, err error, constraint string) {
 	t.Helper()
 	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) || pgErr.Code != "23514" {
-		t.Fatalf("want check_violation (23514), got %v", err)
+	if !errors.As(err, &pgErr) || pgErr.Code != "23514" || pgErr.ConstraintName != constraint {
+		t.Fatalf("want check_violation (23514) on %s, got %v", constraint, err)
 	}
 }
 
@@ -107,13 +107,13 @@ func TestDBUserCRUD(t *testing.T) {
 func TestDBDefaultRoleMustBeGranted(t *testing.T) {
 	_, q := migratedDB(t)
 	_, err := createUser(q, []string{"EXECUTOR"}, "CLIENT")
-	requireCheckViolation(t, err)
+	requireCheckViolation(t, err, "users_default_role_granted")
 }
 
 func TestDBOperatorIsAlone(t *testing.T) {
 	_, q := migratedDB(t)
 	_, err := createUser(q, []string{"OPERATOR", "CLIENT"}, "OPERATOR")
-	requireCheckViolation(t, err)
+	requireCheckViolation(t, err, "users_staff_role_alone")
 	if _, err := createUser(q, []string{"OPERATOR"}, "OPERATOR"); err != nil {
 		t.Fatalf("operator alone: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestDBOperatorIsAlone(t *testing.T) {
 func TestDBMeasurerIsAlone(t *testing.T) {
 	_, q := migratedDB(t)
 	_, err := createUser(q, []string{"MEASURER", "CLIENT"}, "MEASURER")
-	requireCheckViolation(t, err)
+	requireCheckViolation(t, err, "users_staff_role_alone")
 	if _, err := createUser(q, []string{"MEASURER"}, "MEASURER"); err != nil {
 		t.Fatalf("measurer alone: %v", err)
 	}
@@ -131,15 +131,18 @@ func TestDBMeasurerIsAlone(t *testing.T) {
 func TestDBMeasurerCannotBeClient(t *testing.T) {
 	_, q := migratedDB(t)
 	_, err := createUser(q, []string{"CLIENT", "MEASURER"}, "CLIENT")
-	requireCheckViolation(t, err)
+	requireCheckViolation(t, err, "users_staff_role_alone")
 }
 
 func TestDBRolesAreKnown(t *testing.T) {
 	_, q := migratedDB(t)
-	_, err := createUser(q, []string{"ADMIN"}, "ADMIN")
-	requireCheckViolation(t, err)
+	_, err := createUser(q, []string{"CLIENT", "ADMIN"}, "CLIENT")
+	requireCheckViolation(t, err, "users_roles_known")
 	_, err = createUser(q, []string{}, "CLIENT")
-	requireCheckViolation(t, err)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23514" {
+		t.Fatalf("empty roles: want check_violation, got %v", err)
+	}
 }
 
 func TestAppRoleCanDeleteMarkedTables(t *testing.T) {
