@@ -13,11 +13,21 @@ import { PartyContacts } from "./PartyContacts";
 /** Как часто обновлять ленту, пока вкладка видна. */
 const POLL_MS = 5_000;
 
-type Props = { id: string; offerId: string; initial: ChatView; title: string; reasonMax: number; sendVariant?: ButtonVariant; className?: string };
+type Props = {
+  id: string;
+  offerId: string;
+  initial: ChatView;
+  title: string;
+  reasonMax: number;
+  sendVariant?: ButtonVariant;
+  /** Строка контактов под лентой (после оферты). В сделке — false: там контакты уже в карточке DealContacts. */
+  showContacts?: boolean;
+  className?: string;
+};
 
 const m = ru.companies.chat.moderation;
 
-export function OfferChatClient({ id, offerId, initial, title, reasonMax, sendVariant, className }: Props) {
+export function OfferChatClient({ id, offerId, initial, title, reasonMax, sendVariant, showContacts = true, className }: Props) {
   const [chat, setChat] = useState(initial);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +75,7 @@ export function OfferChatClient({ id, offerId, initial, title, reasonMax, sendVa
         disabledReason={chat.canWrite ? undefined : chat.closedReason}
       />
       {chat.clientPhone && <ClientPhone offerId={offerId} view={chat.clientPhone} onChanged={refresh} />}
-      {chat.contacts && <PartyContacts contacts={chat.contacts} compact />}
+      {showContacts && chat.contacts && <PartyContacts contacts={chat.contacts} compact />}
       {/* Подсказка про маску — только до оферты: после неё контакты не скрываются (contacts-policy.ts). */}
       {chat.canWrite && !chat.contacts && (
         <p className="flex items-start gap-2 text-sm text-muted">

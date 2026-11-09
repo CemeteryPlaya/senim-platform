@@ -62,12 +62,14 @@ test("до оферты контакты в сообщениях скрываю�
 test("после оферты контакты видны обеим сторонам сделки", async ({ page }) => {
   await loginAs(page, P.madina);
   await openDeal(page, 2);
-  // Блок контактов на экране сделки (второй такой же — компактный, в чате)
-  const executorContacts = page.getByRole("region", { name: "Контакты исполнителя" }).first();
+  // Блок контактов на экране сделки — один (под чатом он не повторяется)
+  const executorContacts = page.getByRole("region", { name: "Контакты исполнителя" });
+  await expect(executorContacts).toHaveCount(1);
   await expect(executorContacts).toContainText("Оферта заключена — теперь вы видите контакты друг друга");
   await expect(executorContacts).toContainText(/700\s*000\s*02\s*06/);
 
   await loginAs(page, P.qazaq);
   await openDeal(page, 2);
-  await expect(page.getByRole("region", { name: "Контакты заказчика" }).first()).toContainText(/700\s*000\s*01\s*03/);
+  await expect(page.getByRole("region", { name: "Контакты заказчика" })).toHaveCount(1);
+  await expect(page.getByRole("region", { name: "Контакты заказчика" })).toContainText(/700\s*000\s*01\s*03/);
 });

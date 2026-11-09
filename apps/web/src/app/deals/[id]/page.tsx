@@ -109,8 +109,9 @@ export default async function DealPage({ params }: Props) {
                 ))}
             </div>
             <DealContacts dealId={deal.id} className={SECTION_CARD} />
-            {/* Одна заливная кнопка на экран — действие шага в StickyAction; кнопки подписи и чата вторичные. */}
-            <OfferChat offerId={deal.offerId} sendVariant="secondary" />
+            {/* Одна заливная кнопка на экран — действие шага в StickyAction; кнопки подписи и чата вторичные.
+                Контакты — один раз, в карточке DealContacts выше; под чатом их не повторяем. */}
+            <OfferChat offerId={deal.offerId} sendVariant="secondary" showContacts={false} />
             <DisputeSection deal={deal} />
             {deal.review && (
               <Section id="review" title={t.sections.review}>
