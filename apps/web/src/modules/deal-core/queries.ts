@@ -44,6 +44,10 @@ export async function dealPartyOf(user: CurrentUser, dealId: string): Promise<Pa
   return deal ? partyOf(user.id, deal) : null;
 }
 
+/** Последний спор сделки: открыт ли он — одно правило для списка, главной и экрана сделки. */
+const LAST_DISPUTE = { orderBy: { createdAt: "desc" }, take: 1 } as const satisfies Prisma.Deal$disputesArgs;
+const lastDisputeOpen = (disputes: readonly { status: string }[]) => disputes[0]?.status === "OPEN";
+
 export type DealListItem = {
   id: string;
   number: number;
@@ -54,6 +58,8 @@ export type DealListItem = {
   /** Своя смета: покупателю — к оплате, мастеру — к выплате; оператору — к оплате. */
   estimate: PartyEstimate;
   money: MoneyBlock;
+  /** Последний спор по сделке открыт — то же правило, что у экрана сделки (виден серый ход сделки). */
+  hasOpenDispute: boolean;
   executorLabel: string;
   updatedAt: Date;
   myRole: Party | null;
@@ -64,7 +70,11 @@ export async function listDeals(user: CurrentUser): Promise<DealListItem[]> {
     where: dealsWhere(user),
     orderBy: { updatedAt: "desc" },
     take: 100,
-    include: { executor: { select: { publicNumber: true, userId: true } }, transactions: { orderBy: { seq: "asc" }, include: LEDGER_INCLUDE } },
+    include: {
+      executor: { select: { publicNumber: true, userId: true } },
+      transactions: { orderBy: { seq: "asc" }, include: LEDGER_INCLUDE },
+      disputes: LAST_DISPUTE,
+    },
   });
   const shown = await executorDisplays(db, deals.map((d) => d.executorId));
   return deals.map((d) => {
@@ -78,6 +88,7 @@ export async function listDeals(user: CurrentUser): Promise<DealListItem[]> {
       priceTiyn: d.priceTiyn,
       estimate: partyEstimate(myRole ?? "CLIENT", d.priceTiyn),
       money: projectMoney(d.transactions.map(toLedgerEntry), d),
+      hasOpenDispute: lastDisputeOpen(d.disputes),
       executorLabel: shown.get(d.executorId)?.label ?? ru.common.executorLabel(d.executor.publicNumber),
       updatedAt: d.updatedAt,
       myRole,
@@ -99,7 +110,7 @@ const viewInclude = {
   deliveryPhotos: { orderBy: { sortOrder: "asc" }, select: { id: true, provider: true, storageKey: true } },
   progressReports: { orderBy: { createdAt: "asc" }, include: { photos: { orderBy: { sortOrder: "asc" }, select: { id: true, provider: true, storageKey: true } } } },
   documents: { where: { status: { not: "SUPERSEDED" } }, orderBy: { version: "desc" }, include: { signatures: { select: { party: true } }, handSignatures: { select: { party: true } } } },
-  disputes: { orderBy: { createdAt: "desc" }, take: 1 },
+  disputes: LAST_DISPUTE,
   review: true,
 } as const satisfies Prisma.DealInclude;
 
@@ -153,7 +164,7 @@ function viewContext(deal: Loaded, facts: MoneyFacts): DealContext {
   return {
     signed: deal.signedAt !== null,
     actSigned: deal.documents.some((d) => d.kind === "ACCEPTANCE_ACT" && d.status === "SIGNED"),
-    openDispute: last?.status === "OPEN",
+    openDispute: lastDisputeOpen(deal.disputes),
     disputeOutcome: last?.status === "RESOLVED" ? last.outcome : null,
     money: facts,
   };

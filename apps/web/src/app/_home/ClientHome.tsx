@@ -141,7 +141,7 @@ export async function ClientHome({ user, price }: { user: CurrentUser; price: Pr
 
 /**
  * «Моя сделка»: название (ссылка в саму сделку), статус, деньги и ход сделки. Деньги — только из журнала
- * (homeDealMoney); спор поверх шагов — по журналу: открытый спор замораживает выплату. Сделок несколько —
+ * (homeDealMoney); серый ход сделки при открытом споре — hasOpenDispute из deal-core (как на экране сделки). Сделок несколько —
  * рядом «Все сделки».
  */
 function MyDeal({ deal, more }: { deal: DealListItem; more: number }) {
@@ -172,7 +172,7 @@ function MyDeal({ deal, more }: { deal: DealListItem; more: number }) {
         )}
         {money.label}
       </p>
-      <DealProgress status={deal.status} hasOpenDispute={deal.money.kind === "frozen"} />
+      <DealProgress status={deal.status} hasOpenDispute={deal.hasOpenDispute} />
     </section>
   );
 }

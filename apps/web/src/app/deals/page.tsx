@@ -43,8 +43,8 @@ export default async function DealsPage() {
                 <StatusBadge tone={DEAL_TONE[d.status]} className="self-start">
                   {t.status[d.status]}
                 </StatusBadge>
-                {/* Открытый спор — по журналу денег: он замораживает выплату. */}
-                <DealProgress status={d.status} hasOpenDispute={d.money.kind === "frozen"} />
+                {/* Открытый спор — hasOpenDispute из deal-core, то же правило, что на экране сделки. */}
+                <DealProgress status={d.status} hasOpenDispute={d.hasOpenDispute} />
                 {showRole && d.myRole && <p className="text-lg font-semibold text-ink">{t.youAre[d.myRole]}</p>}
                 <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <span className="text-base text-muted">{(d.myRole ?? user.role) === "EXECUTOR" ? t.clientLabel : d.executorLabel}</span>

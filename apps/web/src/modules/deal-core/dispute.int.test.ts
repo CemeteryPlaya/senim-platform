@@ -3,7 +3,7 @@ import { dealAt, dealOf, journalOf, makeDeal, makePhoto, PRICE, signAct, signCon
 import { makeOperator } from "../../../test/factories";
 import { computeDealMoney, computeSplit, moneyView } from "@/modules/payments";
 import { db } from "@/platform/db";
-import { openDispute, resolveDispute, startWork, submitDisputePosition, submitReady } from "./index";
+import { listDeals, openDispute, resolveDispute, startWork, submitDisputePosition, submitReady } from "./index";
 
 const money = computeDealMoney(PRICE);
 const open = (user: Parameters<typeof openDispute>[0], dealId: string) => openDispute(user, { dealId, reason: "QUALITY", description: "Фасады не совпадают с договором" });
@@ -51,6 +51,19 @@ describe("открытие спора", () => {
     expect((await db.dispute.findUniqueOrThrow({ where: { id: disputeId } })).clientPosition).not.toContain("123 45 67");
     await resolveDispute(await makeOperator(), { disputeId, outcome: "CONTINUE", rationale: "Работа соответствует договору" });
     await expect(submitDisputePosition(f.executor, { disputeId, position: "Моя позиция по спору" })).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+});
+
+describe("список сделок: открытый спор (hasOpenDispute)", () => {
+  it("то же правило, что на экране сделки: спор OPEN — true; до спора и после решения — false; у обеих сторон", async () => {
+    const f = await dealAt("IN_PROGRESS");
+    const item = async (user: typeof f.client) => (await listDeals(user)).find((d) => d.id === f.dealId);
+    expect((await item(f.client))?.hasOpenDispute).toBe(false);
+    const { disputeId } = await open(f.client, f.dealId);
+    expect((await item(f.client))?.hasOpenDispute).toBe(true);
+    expect((await item(f.executor))?.hasOpenDispute).toBe(true);
+    await resolveDispute(await makeOperator(), { disputeId, outcome: "CONTINUE", rationale: "Претензия не подтвердилась" });
+    expect((await item(f.client))?.hasOpenDispute).toBe(false);
   });
 });
 
