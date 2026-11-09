@@ -3,7 +3,7 @@
 #   docker build -f apps/web/Dockerfile --target runner .
 # Цели: runner — сервер Next (output: "standalone"), migrate — одноразовый `prisma migrate deploy`.
 
-FROM node:24-bookworm-slim AS deps
+FROM node:24-trixie-slim AS deps
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 # Движку миграций Prisma нужен openssl (в slim-образе его нет).
@@ -22,7 +22,7 @@ FROM deps AS migrate
 USER node
 CMD ["node_modules/.bin/prisma", "migrate", "deploy"]
 
-FROM node:24-bookworm-slim AS runner
+FROM node:24-trixie-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
