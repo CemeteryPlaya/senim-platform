@@ -33,7 +33,8 @@ export default async function MeasurerPage({ searchParams }: { searchParams: Pro
 
   return (
     <Container className="flex flex-col gap-6 pb-10">
-      <PageHeader title={t.title} back={{ href: "/" }} className="pb-0" />
+      {/* Без «Назад»: это главная роли (адрес «/» ведёт сюда же), как главная заказчика и мастера; разделы — во вкладках. */}
+      <PageHeader title={t.title} className="pb-0" />
       {rows.length === 0 ? (
         <EmptyState icon={<Ruler />} title={t.emptyTitle} description={t.emptyText} />
       ) : (

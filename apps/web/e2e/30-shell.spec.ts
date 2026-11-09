@@ -227,6 +227,8 @@ test.describe("320 px и шрифт 200 %", () => {
 test("оператор: разделы в меню; на телефоне — кнопка «Меню»", async ({ page }) => {
   await loginAs(page, P.dinara);
   await page.goto("/operator");
+  // Главная роли: «Назад» вела бы на «/», а оттуда — сюда же. Навигация — меню оболочки.
+  await expect(page.getByRole("main").getByRole("link", { name: "Назад", exact: true })).toHaveCount(0);
 
   if (isDesktop(page)) {
     const nav = page.getByRole("navigation", { name: NAV });

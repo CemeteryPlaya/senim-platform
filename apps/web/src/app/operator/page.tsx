@@ -36,7 +36,8 @@ export default async function OperatorHome() {
 
   return (
     <Container className="pb-10">
-      <PageHeader title={t.title} back={{ href: "/" }} />
+      {/* Без «Назад»: это главная роли (адрес «/» ведёт сюда же), как главная заказчика и мастера; разделы — в меню. */}
+      <PageHeader title={t.title} />
       <div className="flex flex-col gap-8">
         <StatTiles
           label={d.summary}
