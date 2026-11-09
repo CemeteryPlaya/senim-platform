@@ -24,7 +24,7 @@ type fakeIdentity struct {
 	keys  map[string]ed25519.PublicKey
 	err   error
 	calls atomic.Int32
-	delay time.Duration
+	delay atomic.Int64 // наносекунды
 }
 
 func (f *fakeIdentity) set(keys map[string]ed25519.PublicKey, err error) {
@@ -35,7 +35,7 @@ func (f *fakeIdentity) set(keys map[string]ed25519.PublicKey, err error) {
 
 func (f *fakeIdentity) GetSigningKeys(context.Context, *identityv1.GetSigningKeysRequest) (*identityv1.GetSigningKeysResponse, error) {
 	f.calls.Add(1)
-	time.Sleep(f.delay)
+	time.Sleep(time.Duration(f.delay.Load()))
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
@@ -97,9 +97,10 @@ func TestUnknownKidRefreshesOnce(t *testing.T) {
 	ctx := context.Background()
 	pub2, priv2 := genKey(t)
 
-	// первый вызов загружает ключи
-	if _, err := v.Verify(ctx, sign(t, priv2, "k2", c.now())); !errors.Is(err, ErrTokenInvalid) {
-		t.Fatalf("неизвестный kid принят: %v", err)
+	// первый вызов загружает ключи; внеочередное обновление сразу после загрузки отложено,
+	// поэтому неизвестный kid — повторяемая ErrKeysUnavailable, а не «токен неверен»
+	if _, err := v.Verify(ctx, sign(t, priv2, "k2", c.now())); !errors.Is(err, ErrKeysUnavailable) {
+		t.Fatalf("неизвестный kid: %v", err)
 	}
 	if n := f.calls.Load(); n != 1 {
 		t.Fatalf("после первого вызова обращений %d, ждали 1", n)
@@ -108,7 +109,7 @@ func TestUnknownKidRefreshesOnce(t *testing.T) {
 	f.set(map[string]ed25519.PublicKey{"k1": nil, "k2": pub2}, nil)
 	c.add(10 * time.Second)
 	for range 5 {
-		if _, err := v.Verify(ctx, sign(t, priv2, "k2", c.now())); !errors.Is(err, ErrTokenInvalid) {
+		if _, err := v.Verify(ctx, sign(t, priv2, "k2", c.now())); !errors.Is(err, ErrKeysUnavailable) {
 			t.Fatalf("до паузы 30 с: %v", err)
 		}
 	}
@@ -191,7 +192,7 @@ func TestKeysUnavailableWithoutCache(t *testing.T) {
 
 func TestConcurrentUnknownKidNoStampede(t *testing.T) {
 	f, c, v := setup(t)
-	f.delay = 50 * time.Millisecond
+	f.delay.Store(int64(50 * time.Millisecond))
 	ctx := context.Background()
 	_, priv := genKey(t)
 	token := sign(t, priv, "kx", c.now())

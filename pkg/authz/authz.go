@@ -82,7 +82,8 @@ func NewVerifier(src KeySource) *Verifier {
 	return v
 }
 
-// WithClock подменяет часы (тесты). Возвращает v.
+// WithClock подменяет часы (тесты). Вызывать только до первого использования v: метод не
+// потокобезопасен. Возвращает v.
 func (v *Verifier) WithClock(now func() time.Time) *Verifier {
 	v.now = now
 	v.build()
@@ -207,7 +208,14 @@ func Interceptor(v *Verifier) connect.ServerInterceptor {
 			if !ok {
 				return next(ctx, spec, stream)
 			}
-			header := info.RequestHeader().Get("authorization")
+			values := info.RequestHeader().Values("authorization")
+			if len(values) == 0 {
+				return next(ctx, spec, stream)
+			}
+			if len(values) > 1 {
+				return refuse(connect.CodeUnauthenticated, codeTokenInvalid)
+			}
+			header := values[0]
 			if header == "" {
 				return next(ctx, spec, stream)
 			}

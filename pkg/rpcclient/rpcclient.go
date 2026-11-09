@@ -43,6 +43,9 @@ type Config struct {
 	CertFile string // сертификат сервиса
 	KeyFile  string // ключ сертификата
 	CAFile   string // корневой сертификат mesh
+
+	// dev ставит только Load при APP_ENV=dev: без него http:// не принимается.
+	dev bool
 }
 
 // Load читает MESH_URL и TLS_CERT_FILE, TLS_KEY_FILE, TLS_CA_FILE. Все обязательны; вне
@@ -54,14 +57,16 @@ func Load(l *config.Loader) Config {
 		KeyFile:  l.Required("TLS_KEY_FILE"),
 		CAFile:   l.Required("TLS_CA_FILE"),
 	}
-	if c.MeshURL != "" && l.Env() != config.Dev && !strings.HasPrefix(c.MeshURL, "https://") {
+	c.dev = l.Env() == config.Dev
+	if c.MeshURL != "" && !c.dev && !strings.HasPrefix(c.MeshURL, "https://") {
 		l.Invalid("MESH_URL", "must start with https:// outside dev")
 	}
 	return c
 }
 
 // New собирает клиент mesh. Для https:// это mTLS (tlsx.ClientConfig) и HTTP/2; для
-// http:// (dev) — HTTP/2 без шифрования (h2c), сертификаты не используются. Протокол — gRPC.
+// http:// (только конфигурация от Load при APP_ENV=dev) — HTTP/2 без шифрования (h2c),
+// сертификаты не используются. Протокол — gRPC.
 func New(cfg Config) (*connect.Client, error) {
 	u, err := url.Parse(cfg.MeshURL)
 	if err != nil || u.Host == "" {
@@ -82,6 +87,9 @@ func New(cfg Config) (*connect.Client, error) {
 		tr.TLSClientConfig = tlsCfg
 		tr.ForceAttemptHTTP2 = true
 	case "http":
+		if !cfg.dev {
+			return nil, errors.New("rpcclient: http:// MESH_URL is allowed only in dev (use Load)")
+		}
 		p := new(http.Protocols)
 		p.SetUnencryptedHTTP2(true)
 		tr.Protocols = p

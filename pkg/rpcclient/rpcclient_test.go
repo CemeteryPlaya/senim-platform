@@ -213,6 +213,17 @@ func TestNonDevRequiresHTTPS(t *testing.T) {
 	}
 }
 
+func TestHTTPOnlyFromDevLoad(t *testing.T) {
+	if _, err := rpcclient.New(rpcclient.Config{MeshURL: "http://mesh:9443"}); err == nil {
+		t.Fatal("собранный вручную Config с http:// принят")
+	}
+	l := loader(map[string]string{"APP_ENV": "dev", "MESH_URL": "http://mesh:9443", "TLS_CERT_FILE": "c", "TLS_KEY_FILE": "k", "TLS_CA_FILE": "a"})
+	cfg := rpcclient.Load(l)
+	if _, err := rpcclient.New(cfg); err != nil {
+		t.Fatalf("Config от Load в dev по http: %v", err)
+	}
+}
+
 func TestLoadRequiresAll(t *testing.T) {
 	l := loader(map[string]string{"APP_ENV": "dev"})
 	rpcclient.Load(l)

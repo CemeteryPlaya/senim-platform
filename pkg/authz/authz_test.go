@@ -157,8 +157,7 @@ func TestRejectsWrongAudience(t *testing.T) {
 
 func TestRejectsOtherClaimProblems(t *testing.T) {
 	pub, priv := newKey(t)
-	otherPub, otherPriv := newKey(t)
-	_ = otherPub
+	_, otherPriv := newKey(t)
 	cases := map[string]string{
 		"issuer":     mint(t, priv, func(c *tok) { c.iss = "evil" }),
 		"no issuer":  mint(t, priv, func(c *tok) { c.iss = "" }),
