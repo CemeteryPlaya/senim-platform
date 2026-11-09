@@ -91,6 +91,8 @@ test("полная сделка: покупатель, мастер и опер�
   await expect(buyerPrice.getByText(/^Мастер предлагает/)).toContainText(amount(160_000_000n));
   // Смета до оплаты: покупатель видит 2% сверху
   await expect(buyerPrice.getByRole("region", { name: "Смета до оплаты" })).toContainText(amount(dealMoney(1_600_000).buyerTotal));
+  // Заливная — только действие торга; «Отправить» чата — обводкой.
+  await expectOnePrimary(buyer);
   await buyerPrice.getByRole("button", { name: "Предложить свою цену" }).click();
   await buyerPrice.getByLabel("Ваша цена, ₸").fill(COUNTER);
   await buyerPrice.getByRole("button", { name: "Отправить цену" }).click();
@@ -111,6 +113,7 @@ test("полная сделка: покупатель, мастер и опер�
   await buyer.goto(offerPath);
   await expect(buyerPrice.getByRole("region", { name: "Смета до оплаты" })).toContainText(amount(M.buyerTotal));
   const accept = buyerPrice.getByRole("button", { name: /^Принять 1\s500\s000/ });
+  await expectOnePrimary(buyer);
   await accept.dblclick();
   const acceptDialog = buyer.getByRole("dialog", { name: /^Принять цену/ });
   await expect(acceptDialog).toHaveCount(1);

@@ -4,7 +4,7 @@ import { ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { ru } from "@/i18n/ru";
 import type { ChatView } from "@/modules/companies";
-import { Alert, Chat, cn, type ButtonVariant } from "@/ui";
+import { Alert, Chat, cn } from "@/ui";
 import { loadChat, sendChatMessage } from "./actions";
 import { ChatModeration } from "./ChatModeration";
 import { ClientPhone } from "./ClientPhone";
@@ -19,7 +19,6 @@ type Props = {
   initial: ChatView;
   title: string;
   reasonMax: number;
-  sendVariant?: ButtonVariant;
   /** Строка контактов под лентой (после оферты). В сделке — false: там контакты уже в карточке DealContacts. */
   showContacts?: boolean;
   className?: string;
@@ -27,7 +26,7 @@ type Props = {
 
 const m = ru.companies.chat.moderation;
 
-export function OfferChatClient({ id, offerId, initial, title, reasonMax, sendVariant, showContacts = true, className }: Props) {
+export function OfferChatClient({ id, offerId, initial, title, reasonMax, showContacts = true, className }: Props) {
   const [chat, setChat] = useState(initial);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,7 +70,9 @@ export function OfferChatClient({ id, offerId, initial, title, reasonMax, sendVa
         title={title}
         messages={chat.messages}
         onSend={send}
-        sendVariant={sendVariant}
+        // «Отправить» — обводкой: на каждом экране с чатом отклика своё главное действие (торг, отклик, шаг
+        // сделки), а заливная кнопка на экране одна.
+        sendVariant="secondary"
         disabledReason={chat.canWrite ? undefined : chat.closedReason}
       />
       {chat.clientPhone && <ClientPhone offerId={offerId} view={chat.clientPhone} onChanged={refresh} />}

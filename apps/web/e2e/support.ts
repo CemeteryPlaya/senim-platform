@@ -151,9 +151,12 @@ export async function expectNoHorizontalScrollAt320And200(page: Page, path: stri
   if (before) await page.setViewportSize(before);
 }
 
-/** Одно заливное главное действие на экране (data-primary-action ставят Button, ButtonLink и SignLink варианта primary). */
+/**
+ * Одно заливное главное действие на экране (data-primary-action ставят Button, ButtonLink и SignLink варианта primary).
+ * Считаются только видимые: кнопка «Да» закрытого окна подтверждения (ConfirmButton) лежит в DOM, но на экране её нет.
+ */
 export async function expectOnePrimary(page: Page): Promise<void> {
-  await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveCount(1);
+  await expect(page.getByRole("main").locator("[data-primary-action]:visible")).toHaveCount(1);
 }
 
 /** Блок денег — первый блок карточки сделки (заголовок «Деньги» для диктора). */

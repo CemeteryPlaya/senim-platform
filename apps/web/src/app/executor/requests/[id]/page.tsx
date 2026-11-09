@@ -134,7 +134,7 @@ export default async function ExecutorRequestPage({ params }: { params: Promise<
       )}
 
       {/* Главное действие экрана — в торге или в шаге отклика; «Отправить» в чате — вторичная. */}
-      {r.myOffer && <OfferChat offerId={r.myOffer.id} sendVariant="secondary" />}
+      {r.myOffer && <OfferChat offerId={r.myOffer.id} />}
     </Container>
   );
 }
