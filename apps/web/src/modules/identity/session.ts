@@ -8,14 +8,21 @@ import { recordAudit, type Actor } from "@/modules/audit";
 import { db, transaction, type Tx } from "@/platform/db";
 import { randomToken, sha256Hex } from "@/platform/crypto";
 import { expectOneUpdated, fail } from "@/platform/errors";
+import { logger } from "@/platform/logger";
+import { rpcErrorCode } from "@/platform/rpc";
+import { projectUser, roleFromProto } from "./projection";
+import { identity } from "./remote";
+import { identityFailure } from "./remote-errors";
+import { sessionCookieName, sessionCookieOptions } from "./session-cookie";
 import { loginHref } from "./return-to";
 import { introductionHref, needsIntroduction } from "./introduction";
 import { activeRoleOf, isStaffRole, roleToSwitch, STAFF_ROLES, switchRoleHref } from "./roles";
 
+/** Имя cookie в контуре dev (в тестах и локально); в остальных контурах — `sessionCookieName()` с префиксом __Host-. */
 export const SESSION_COOKIE = "senim_session";
 const SESSION_TTL_DAYS = 30;
-/** lastSeenAt пишется не чаще раза в N минут: иначе каждый запрос страницы — запись в БД. */
-const LAST_SEEN_THROTTLE_MIN = 10;
+/** Токен сессии — base64url без «=» от 32 байт (43 символа); иначе identity ответит session_token_invalid. */
+const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 export type CurrentUser = {
   id: string;
@@ -36,7 +43,7 @@ export type CurrentUser = {
 };
 
 async function currentToken(): Promise<string | undefined> {
-  return (await cookies()).get(SESSION_COOKIE)?.value;
+  return (await cookies()).get(sessionCookieName())?.value;
 }
 
 async function revokeToken(token: string): Promise<void> {
@@ -60,20 +67,14 @@ export async function startSession(userId: string, userAgent?: string, asRole?: 
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000);
   await db.session.create({ data: { userId, activeRole: asRole ?? role, tokenHash: sha256Hex(token), expiresAt, userAgent: userAgent?.slice(0, 300) } });
   const store = await cookies();
-  store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    expires: expiresAt,
-  });
+  store.set(sessionCookieName(), token, { ...sessionCookieOptions(), expires: expiresAt });
 }
 
 /** Отзывает текущую сессию и удаляет cookie. */
 export async function endSession(): Promise<void> {
   const token = await currentToken();
   if (token) await revokeToken(token);
-  (await cookies()).delete(SESSION_COOKIE);
+  (await cookies()).delete(sessionCookieName());
 }
 
 /** Отзывает все сессии пользователя (блокировка, смена телефона). */
@@ -88,34 +89,57 @@ export async function signOutEverywhere(): Promise<void> {
   await endSession();
 }
 
-/** Текущий пользователь по cookie; один запрос к БД на HTTP-запрос. */
-export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+/**
+ * Authenticate по cookie: один вызов identity на HTTP-запрос (cache). `null` — гость: нет cookie, токен не того вида
+ * или identity ответил `session_invalid` (простой, срок, отзыв, блокировка). Cookie здесь не удаляется: в Server Component
+ * это невозможно, удаление — в Server Action / route handler. Недоступный identity — ошибка «сервис недоступен»,
+ * cookie остаётся: человек не «выходит» сам.
+ */
+const authenticated = cache(async () => {
   const token = await currentToken();
-  if (!token) return null;
-  const session = await db.session.findUnique({
-    where: { tokenHash: sha256Hex(token) },
-    include: { user: { include: { executorProfile: { select: { id: true, publicNumber: true, status: true } } } } },
-  });
-  if (!session || session.revokedAt || session.expiresAt < new Date() || session.user.blockedAt) return null;
-
-  const staleBefore = new Date(Date.now() - LAST_SEEN_THROTTLE_MIN * 60_000);
-  if (session.lastSeenAt < staleBefore) {
-    // Условие в where делает запись идемпотентной при параллельных запросах.
-    await db.session.updateMany({ where: { id: session.id, lastSeenAt: { lt: staleBefore } }, data: { lastSeenAt: new Date() } });
+  if (!token || !TOKEN_SHAPE.test(token)) return null;
+  try {
+    const res = await identity().authenticate({ sessionToken: token });
+    if (!res.user || !res.session) {
+      logger.error("identity.call_rejected", { reason: "authenticate_without_user" });
+      return fail.unavailable(ru.common.errors.generic);
+    }
+    return { user: res.user, session: res.session, accessToken: res.accessToken };
+  } catch (e) {
+    if (rpcErrorCode(e) === "session_invalid") return null;
+    return identityFailure(e);
   }
+});
 
-  const { user } = session;
+/** Текущий пользователь по cookie: сессию проверяет identity, остальные поля — из старой базы. */
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+  const auth = await authenticated();
+  if (!auth) return null;
+  const { user, session } = auth;
+  await projectUser(user);
+  const row = await db.user.findUniqueOrThrow({
+    where: { id: user.id },
+    include: { executorProfile: { select: { id: true, publicNumber: true, status: true } } },
+  });
   return {
-    id: user.id,
-    role: activeRoleOf(user.roles, user.role, session.activeRole),
-    roles: user.roles,
-    phone: user.phone,
-    fullName: user.fullName,
-    iinLast4: user.iinLast4,
-    isDemo: user.isDemo,
-    executor: user.executorProfile,
+    id: row.id,
+    role: activeRoleOf(row.roles, row.role, roleFromProto(session.activeRole)),
+    roles: row.roles,
+    phone: row.phone,
+    fullName: row.fullName,
+    iinLast4: row.iinLast4,
+    isDemo: row.isDemo,
+    executor: row.executorProfile,
   };
 });
+
+/**
+ * Внутренний токен для вызовов сервисов v2 от имени текущего пользователя (короткоживущий, Ed25519);
+ * `null` — гость. Тот же вызов Authenticate, что и в getCurrentUser. Токен не логировать и не отдавать в браузер.
+ */
+export async function getAccessToken(): Promise<string | null> {
+  return (await authenticated())?.accessToken ?? null;
+}
 
 /** Для Server Actions и сервисов: пользователь с одной из ролей, иначе ошибка. */
 export async function requireUser(...roles: Role[]): Promise<CurrentUser> {
