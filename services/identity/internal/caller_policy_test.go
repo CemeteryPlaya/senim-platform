@@ -150,9 +150,6 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 // Unimplemented: появился обработчик, а запись осталась — тест падает, запись убирают, и
 // политика вызывающих начинает проверяться.
 var notYetImplemented = map[string]bool{
-	"SubmitKyc":                true,
-	"ListKycQueue":             true,
-	"ReviewKyc":                true,
 	"GrantConsent":             true,
 	"RevokeConsent":            true,
 	"ListMyConsents":           true,
