@@ -3,7 +3,9 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
+import type { ActionResult } from "@/platform/action";
 import { Button, Input, StatusBadge } from "@/ui";
 import { FormStatus } from "../_components/FormStatus";
 import { useActionForm } from "../_components/useActionForm";
@@ -36,9 +38,10 @@ export function TypeItem({ type }: { type: TypeRow }) {
   const [renaming, setRenaming] = useState(false);
   const rename = useActionForm(renameFurnitureTypeAction, { onSuccess: () => setRenaming(false) });
 
-  const run = (call: () => Promise<{ ok: true } | { ok: false; error: string }>) =>
+  const run = (call: () => Promise<ActionResult<unknown>>) =>
     startTransition(async () => {
       const result = await call();
+      if (!result.ok && leaveIfSignedOut(result)) return;
       setError(result.ok ? undefined : result.error);
       if (result.ok) router.refresh();
     });

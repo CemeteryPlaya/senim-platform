@@ -2,12 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import type { ActionResult } from "@/platform/action";
 import { ConfirmButton, type ButtonVariant, type ConfirmSpec } from "@/ui";
 
 export type ServerAction<I, T> = (input: I) => Promise<ActionResult<T>>;
 
-/** Запускает Server Action и после успеха переходит по адресу или обновляет экран. Ошибку показывает рядом. */
+/**
+ * Запускает Server Action и после успеха переходит по адресу или обновляет экран. Ошибку показывает рядом;
+ * сессия истекла — переход на вход с возвратом сюда, без ошибки. Промис всегда отдаёт результат действия.
+ */
 export function useRunAction<I, T>(action: ServerAction<I, T>, after?: (data: T) => string | void) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -23,7 +27,7 @@ export function useRunAction<I, T>(action: ServerAction<I, T>, after?: (data: T)
           const href = after?.(result.data);
           if (href) router.push(href);
           else router.refresh();
-        } else {
+        } else if (!leaveIfSignedOut(result)) {
           setError(result.error);
           setFieldErrors(result.fieldErrors);
         }

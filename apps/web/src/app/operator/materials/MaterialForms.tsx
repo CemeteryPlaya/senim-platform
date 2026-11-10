@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import type { Segment } from "@/generated/prisma/enums";
 import type { MaterialPriceRow } from "@/modules/operator";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Button, Checkbox, formatDate, formatMoney, Input, Select, StatusBadge } from "@/ui";
 import { MATERIAL_CATEGORIES, MATERIAL_UNITS } from "@/verticals/furniture";
@@ -76,6 +77,7 @@ export function MaterialItem({ row }: { row: MaterialPriceRow }) {
   const toggleActive = () =>
     startTransition(async () => {
       const result = await setMaterialPriceActiveAction({ id: row.id, active: !row.active });
+      if (!result.ok && leaveIfSignedOut(result)) return;
       setError(result.ok ? undefined : result.error);
       if (result.ok) router.refresh();
     });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Fact, Input, RadioCards, Textarea } from "@/ui";
 import { FormStatus } from "../../_components/FormStatus";
@@ -24,7 +25,7 @@ function SplitPreview({ disputeId, share }: { disputeId: string; share: string }
       if (result.ok) {
         setPreview(result.data);
         setError(undefined);
-      } else {
+      } else if (!leaveIfSignedOut(result)) {
         setPreview(undefined);
         setError(result.fieldErrors?.masterShareKzt?.[0] ?? result.error);
       }
