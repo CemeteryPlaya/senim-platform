@@ -36,6 +36,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
+	pgregory.net/rapid v1.2.0
 )
 
 require (

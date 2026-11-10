@@ -13,10 +13,12 @@ const redacted = "[redacted]"
 
 // Подстроки, при которых значение ключа не попадает в лог (без учёта регистра):
 // clientPhone, binIinEnc, messageText — тоже. Список перенесён из apps/web/src/platform/logger.ts
-// один к одному; email и instagram добавлены по ревью.
+// один к одному; email и instagram добавлены по ревью. Поля ПДн плана 2б называются
+// iin, bin_iin, signer_iin, iban, secret, full_name, email, instagram: full_name с
+// подчёркиванием не содержит «fullname», поэтому указан отдельно.
 var sensitiveKeyParts = []string{
 	"iin", "bin", "phone", "code", "otp", "token", "password", "secret", "authorization",
-	"cookie", "signature", "text", "body", "fullname", "address", "legalname", "comment",
+	"cookie", "signature", "text", "body", "fullname", "full_name", "address", "legalname", "comment",
 	"report", "description", "position", "iban",
 	"email", "instagram",
 }

@@ -109,6 +109,9 @@ services:
       IDENTITY_OTP_HMAC_KEY: ${IDENTITY_OTP_HMAC_KEY:?запускайте через npm run v2:up}
       IDENTITY_TOKEN_SIGNING_KEY: ${IDENTITY_TOKEN_SIGNING_KEY:?запускайте через npm run v2:up}
       IDENTITY_TOKEN_KID: ${IDENTITY_TOKEN_KID:?запускайте через npm run v2:up}
+      PII_KEKS: ${IDENTITY_PII_KEKS:?запускайте через npm run v2:up}
+      PII_KEK_CURRENT: ${IDENTITY_PII_KEK_CURRENT:?запускайте через npm run v2:up}
+      PII_INDEX_KEY: ${IDENTITY_PII_INDEX_KEY:?запускайте через npm run v2:up}
     volumes:
       - ./certs/ca.pem:/certs/ca.pem:ro
       - ./certs/identity.pem:/certs/identity.pem:ro

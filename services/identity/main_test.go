@@ -122,6 +122,9 @@ func TestServeBecomesReady(t *testing.T) {
 		"IDENTITY_OTP_HMAC_KEY":      "c2VuaW0tdjItZGV2LWlkZW50aXR5LW90cC1obWFjISE=",
 		"IDENTITY_TOKEN_SIGNING_KEY": "c2VuaW0tdjItZGV2LWlkZW50aXR5LXRva2VuLWtleSE=",
 		"IDENTITY_TOKEN_KID":         "test-1",
+		"PII_KEKS":                   "test-1:c2VuaW0tdjItdGVzdC1pZGVudGl0eS1waWkta2VrLTE=",
+		"PII_KEK_CURRENT":            "test-1",
+		"PII_INDEX_KEY":              "c2VuaW0tdjItdGVzdC1pZGVudGl0eS1waWktaW5kZXg=",
 	}
 	src := func(k string) (string, bool) { v, ok := vars[k]; return v, ok }
 

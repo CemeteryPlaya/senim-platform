@@ -27,6 +27,9 @@ func serveVars() map[string]string {
 		"IDENTITY_TOKEN_SIGNING_KEY":  b64(32, 's'),
 		"IDENTITY_TOKEN_KID":          "dev-1",
 		"OTEL_EXPORTER_OTLP_ENDPOINT": "",
+		"PII_KEKS":                    "dev-1:" + b64(32, 'p'),
+		"PII_KEK_CURRENT":             "dev-1",
+		"PII_INDEX_KEY":               b64(32, 'i'),
 	}
 }
 
@@ -60,6 +63,43 @@ func TestServeConfigDev(t *testing.T) {
 	if c.TokenPreviousKey != nil {
 		t.Errorf("previous key must be nil: %+v", c.TokenPreviousKey)
 	}
+	if c.PII == nil || c.PII.Current() != "dev-1" || c.PIIIndex == nil {
+		t.Errorf("pii keys: keyring %v, index %v", c.PII, c.PIIIndex)
+	}
+}
+
+// Ключи ПДн вне dev: ровно 32 байта, текущий kid в списке, все ключи разные между собой
+// и с секретами identity; ошибка называет переменную, но не значение.
+func TestProdPIIKeys(t *testing.T) {
+	cases := map[string]struct {
+		edit  func(v map[string]string)
+		names []string
+	}{
+		"kek equals otp key": {func(v map[string]string) { v["PII_KEKS"] = "k1:" + v["IDENTITY_OTP_HMAC_KEY"] }, []string{"PII_KEKS", "IDENTITY_OTP_HMAC_KEY"}},
+		"kek equals signing": {func(v map[string]string) { v["PII_KEKS"] = "k1:" + v["IDENTITY_TOKEN_SIGNING_KEY"] }, []string{"PII_KEKS", "IDENTITY_TOKEN_SIGNING_KEY"}},
+		"index equals otp":   {func(v map[string]string) { v["PII_INDEX_KEY"] = v["IDENTITY_OTP_HMAC_KEY"] }, []string{"PII_INDEX_KEY", "IDENTITY_OTP_HMAC_KEY"}},
+		"keks repeat":        {func(v map[string]string) { v["PII_KEKS"] = "k0:" + b64(32, 'p') + ",k1:" + b64(32, 'p') }, []string{"PII_KEKS"}},
+		"short kek":          {func(v map[string]string) { v["PII_KEKS"] = "k1:" + b64(16, 'p') }, []string{"PII_KEKS"}},
+		"short index":        {func(v map[string]string) { v["PII_INDEX_KEY"] = b64(16, 'i') }, []string{"PII_INDEX_KEY"}},
+		"current not listed": {func(v map[string]string) { v["PII_KEK_CURRENT"] = "k9" }, []string{"PII_KEK_CURRENT"}},
+		"missing": {func(v map[string]string) {
+			delete(v, "PII_KEKS")
+			delete(v, "PII_KEK_CURRENT")
+			delete(v, "PII_INDEX_KEY")
+		}, []string{"PII_KEKS", "PII_KEK_CURRENT", "PII_INDEX_KEY"}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			v := prodVars()
+			c.edit(v)
+			mustFailNaming(t, v, c.names...)
+		})
+	}
+	// Корректные ключи prod не дают ошибок по PII_*.
+	_, err := load(t, prodVars())
+	if err != nil && strings.Contains(err.Error(), "PII_") {
+		t.Fatalf("valid prod pii keys rejected: %v", err)
+	}
 }
 
 func prodVars() map[string]string {
@@ -71,6 +111,9 @@ func prodVars() map[string]string {
 	v["NATS_PASSWORD"] = b64(32, 'n')
 	v["IDENTITY_OTP_HMAC_KEY"] = b64(32, 'h')
 	v["IDENTITY_TOKEN_SIGNING_KEY"] = b64(32, 's')
+	v["PII_KEKS"] = "k0:" + b64(32, 'o') + ",k1:" + b64(32, 'p')
+	v["PII_KEK_CURRENT"] = "k1"
+	v["PII_INDEX_KEY"] = b64(32, 'i')
 	return v
 }
 
@@ -85,7 +128,13 @@ func mustFailNaming(t *testing.T, vars map[string]string, names ...string) {
 			t.Errorf("error must name %s: %v", n, err)
 		}
 	}
-	for _, secret := range []string{vars["IDENTITY_OTP_HMAC_KEY"], vars["IDENTITY_TOKEN_SIGNING_KEY"]} {
+	secrets := []string{vars["IDENTITY_OTP_HMAC_KEY"], vars["IDENTITY_TOKEN_SIGNING_KEY"], vars["PII_INDEX_KEY"]}
+	for _, item := range strings.Split(vars["PII_KEKS"], ",") {
+		if _, key, ok := strings.Cut(item, ":"); ok {
+			secrets = append(secrets, key)
+		}
+	}
+	for _, secret := range secrets {
 		if secret != "" && strings.Contains(err.Error(), secret) {
 			t.Errorf("error leaks a secret value: %v", err)
 		}

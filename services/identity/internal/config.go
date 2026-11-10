@@ -11,6 +11,7 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 	"github.com/CemeteryPlaya/senim-platform/pkg/dbx"
 	"github.com/CemeteryPlaya/senim-platform/pkg/natsx"
+	"github.com/CemeteryPlaya/senim-platform/pkg/pii"
 )
 
 // ServiceID — имя сервиса в логах, трассах и ролях базы.
@@ -59,6 +60,10 @@ type ServeConfig struct {
 	Retention RetentionConfig
 	// PoolMaxConns — размер пула соединений с базой (POOL_MAX_CONNS, по умолчанию 4).
 	PoolMaxConns int32
+	// PII — ключи конвертного шифрования ПДн (PII_KEKS, PII_KEK_CURRENT).
+	PII *pii.Keyring
+	// PIIIndex — слепой индекс ИИН/БИН (PII_INDEX_KEY).
+	PIIIndex *pii.Index
 }
 
 // MigrateConfig — настройки подкоманды migrate.
@@ -98,6 +103,9 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 	}
 	c.Retention = loadRetention(l)
 	l.Distinct("IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY")
+	// Ключи ПДн отличаются друг от друга и от прочих секретов identity (вне dev).
+	c.PII = pii.LoadKeyring(l, "IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY")
+	c.PIIIndex = pii.LoadIndex(l, "IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY")
 	c.TokenPreviousKey = previousKey(l, "IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY", c.TokenKID, c.TokenSigningKey)
 	c.NATS = natsx.Load(l, c.CertFile, c.KeyFile, c.CAFile)
 	if err := l.Err(); err != nil {

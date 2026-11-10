@@ -40,25 +40,67 @@ func (l *Loader) Secret(key string, minBytes int) []byte {
 // совпадают, если совпало любое прочтение, — так ловится один ключ, записанный в
 // одной переменной в base64, а в другой сырым.
 func (l *Loader) Distinct(keys ...string) {
+	if l.strict() {
+		l.distinct(l.keyEntries(keys), true)
+	}
+}
+
+// NamedKey — ключ, который вызывающий пакет уже разобрал из составной переменной
+// (например, один ключ из списка kid:base64): Name называет его в ошибке, Value — байты.
+type NamedKey struct {
+	Name  string
+	Value []byte
+}
+
+// DistinctWith сравнивает уже разобранные ключи values между собой и с прочтениями
+// переменных keys (как Distinct). Пары «переменная — переменная» не сравниваются: это
+// работа Distinct, и одно нарушение не попадает в ошибку дважды.
+func (l *Loader) DistinctWith(values []NamedKey, keys ...string) {
 	if !l.strict() {
 		return
 	}
-	readings := make([][][]byte, len(keys))
-	for i, k := range keys {
+	entries := make([]secretEntry, 0, len(values)+len(keys))
+	for _, v := range values {
+		if len(v.Value) > 0 {
+			entries = append(entries, secretEntry{name: v.Name, readings: [][]byte{v.Value}, parsed: true})
+		}
+	}
+	l.distinct(append(entries, l.keyEntries(keys)...), false)
+}
+
+type secretEntry struct {
+	name     string
+	readings [][]byte
+	parsed   bool // ключ из values DistinctWith, а не переменная
+}
+
+// keyEntries — прочтения заданных переменных; незаданные пропускаются.
+func (l *Loader) keyEntries(keys []string) []secretEntry {
+	entries := make([]secretEntry, 0, len(keys))
+	for _, k := range keys {
 		v, _ := l.src(k)
 		if v == "" {
 			continue
 		}
-		readings[i] = [][]byte{[]byte(v)}
+		e := secretEntry{name: k, readings: [][]byte{[]byte(v)}}
 		if decoded, err := base64.StdEncoding.DecodeString(v); err == nil && len(decoded) > 0 {
-			readings[i] = append(readings[i], decoded)
+			e.readings = append(e.readings, decoded)
 		}
+		entries = append(entries, e)
 	}
+	return entries
+}
+
+// distinct сообщает о совпавших парах; withVars=false пропускает пары из двух переменных.
+func (l *Loader) distinct(entries []secretEntry, withVars bool) {
 	reported := make(map[int]bool)
-	for i := range keys {
-		for j := i + 1; j < len(keys); j++ {
-			if sameKey(readings[i], readings[j]) && (!reported[i] || !reported[j]) {
-				l.fail("%s and %s: must be distinct but have the same value", keys[i], keys[j])
+	for i := range entries {
+		for j := i + 1; j < len(entries); j++ {
+			if !withVars && !entries[i].parsed && !entries[j].parsed {
+				continue
+			}
+			if sameKey(entries[i].readings, entries[j].readings) && (!reported[i] || !reported[j]) {
+				l.fail("%s and %s: must be distinct but have the same value", entries[i].name, entries[j].name)
 				reported[i], reported[j] = true, true
 			}
 		}

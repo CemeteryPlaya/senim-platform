@@ -245,3 +245,24 @@ func TestMessageBoundaries(t *testing.T) {
 		}
 	}
 }
+
+// Ключи ПДн плана 2б (поля ИИН/БИН, IBAN, секрет TOTP, ФИО, контакты): значения
+// не попадают в лог ни на верхнем уровне, ни в группе, ни в поле структуры.
+func TestLoggerMasksPIIKeys(t *testing.T) {
+	keys := []string{"iin", "bin_iin", "signer_iin", "iban", "secret", "full_name", "email", "instagram"}
+	const value = "pii-value-must-not-leak"
+	for _, key := range keys {
+		var buf bytes.Buffer
+		newTest(&buf).Info("x", key, value, slog.Group("g", key, value), "obj", map[string]any{key: value})
+		var rec map[string]any
+		if err := json.Unmarshal(buf.Bytes(), &rec); err != nil {
+			t.Fatalf("log line is not JSON: %v\n%s", err, buf.String())
+		}
+		if got := rec[key]; got != "[redacted]" {
+			t.Errorf("%s = %#v, want \"[redacted]\"", key, got)
+		}
+		if strings.Contains(buf.String(), value) {
+			t.Errorf("%s leaked: %s", key, buf.String())
+		}
+	}
+}

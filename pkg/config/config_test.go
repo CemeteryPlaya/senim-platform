@@ -299,6 +299,36 @@ func TestDistinctComparesDecodedBytes(t *testing.T) {
 	}
 }
 
+// Разобранные ключи из составной переменной сравниваются между собой и с переменными.
+func TestDistinctWithParsedKeys(t *testing.T) {
+	a, b := []byte(strings.Repeat("a", 32)), []byte(strings.Repeat("b", 32))
+	l := NewLoader(mapSource(map[string]string{"APP_ENV": "prod", "KEY_B": b64(32, 'b'), "KEY_C": b64(32, 'c')}))
+	l.DistinctWith([]NamedKey{{"LIST (kid k1)", a}, {"LIST (kid k2)", a}, {"LIST (kid k3)", b}}, "KEY_B", "KEY_C")
+	err := l.Err()
+	if err == nil {
+		t.Fatal("expected errors for repeated parsed keys")
+	}
+	for _, name := range []string{"LIST (kid k1)", "LIST (kid k2)", "LIST (kid k3)", "KEY_B"} {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("error must name %s: %v", name, err)
+		}
+	}
+	if strings.Contains(err.Error(), "KEY_C") || strings.Contains(err.Error(), string(a)) {
+		t.Errorf("unexpected KEY_C or secret value in error: %v", err)
+	}
+	// Пара из двух переменных — работа Distinct, DistinctWith её не повторяет.
+	same := NewLoader(mapSource(map[string]string{"APP_ENV": "prod", "KEY_B": b64(32, 'b'), "KEY_C": b64(32, 'b')}))
+	same.DistinctWith([]NamedKey{{"LIST (kid k1)", a}}, "KEY_B", "KEY_C")
+	if err := same.Err(); err != nil {
+		t.Fatalf("variable pair must be left to Distinct: %v", err)
+	}
+	dev := NewLoader(mapSource(map[string]string{"APP_ENV": "dev", "KEY_B": b64(32, 'b')}))
+	dev.DistinctWith([]NamedKey{{"LIST (kid k1)", b}}, "KEY_B")
+	if err := dev.Err(); err != nil {
+		t.Fatalf("dev must allow repeats: %v", err)
+	}
+}
+
 func TestInt(t *testing.T) {
 	l := NewLoader(mapSource(map[string]string{"APP_ENV": "dev", "N": "7"}))
 	if got := l.Int("N", 4, 1, 100); got != 7 {
