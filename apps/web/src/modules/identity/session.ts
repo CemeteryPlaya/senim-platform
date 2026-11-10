@@ -11,7 +11,7 @@ import type { Actor } from "@/modules/audit";
 import { db } from "@/platform/db";
 import { AppError, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
-import { rpcErrorCode } from "@/platform/rpc";
+import { rpcErrorCode, rpcStatusName } from "@/platform/rpc";
 import { projectUser, roleFromProto, roleToProto } from "./projection";
 import { identity } from "./remote";
 import { identityFailure, isTransient } from "./remote-errors";
@@ -19,9 +19,6 @@ import { sessionCookieName, sessionCookieOptions, TOKEN_SHAPE } from "./session-
 import { loginHref } from "./return-to";
 import { introductionHref, needsIntroduction } from "./introduction";
 import { activeRoleOf, roleToSwitch, switchRoleHref } from "./roles";
-
-/** Имя cookie в контуре dev (в тестах и локально); в остальных контурах — `sessionCookieName()` с префиксом __Host-. */
-export const SESSION_COOKIE = "senim_session";
 
 export type CurrentUser = {
   id: string;
@@ -53,17 +50,22 @@ async function tokenOrUnauthenticated(): Promise<string> {
 }
 
 /**
- * Прежняя сессия этого браузера отзывается при новом входе. Ошибки игнорируются: вход важнее, а сессия
- * в любом случае кончится по простою; токен не того вида identity не принял бы, его не отправляем.
+ * Отзывает прежнюю сессию браузера после успешного нового входа (неудачный вход старую сессию не трогает).
+ * Токен читается ДО входа (`currentToken()`): после `beginSession` cookie уже новая. Ошибки игнорируются: вход важнее,
+ * а сессия в любом случае кончится по простою; токен не того вида identity не принял бы, его не отправляем.
  */
-export async function signOutPrevious(): Promise<void> {
-  const previous = await currentToken();
+export async function signOutPrevious(previous: string | undefined): Promise<void> {
   if (!previous || !TOKEN_SHAPE.test(previous)) return;
   try {
     await identity().signOut({ sessionToken: previous, idempotencyKey: randomUUID() });
-  } catch {
-    // см. выше
+  } catch (e) {
+    logger.warn("identity.sign_out_previous_failed", { reason: rpcErrorCode(e) ?? rpcStatusName(e) });
   }
+}
+
+/** Удаляет cookie сессии с теми же Secure/Path/SameSite, что и при установке: иначе браузер игнорирует удаление `__Host-` cookie. */
+async function deleteSessionCookie(): Promise<void> {
+  (await cookies()).delete({ name: sessionCookieName(), ...sessionCookieOptions() });
 }
 
 /**
@@ -93,10 +95,10 @@ export async function endSession(): Promise<void> {
       await identity().signOut({ sessionToken: token, idempotencyKey: randomUUID() });
     } catch (e) {
       if (isTransient(e)) outage = e;
-      else logger.warn("identity.sign_out_failed", {});
+      else logger.warn("identity.sign_out_failed", { reason: rpcErrorCode(e) ?? rpcStatusName(e) });
     }
   }
-  (await cookies()).delete(sessionCookieName());
+  await deleteSessionCookie();
   if (outage !== null) identityFailure(outage);
 }
 
@@ -115,7 +117,7 @@ export async function signOutEverywhere(): Promise<void> {
       return identityFailure(e);
     }
   }
-  (await cookies()).delete(sessionCookieName());
+  await deleteSessionCookie();
 }
 
 /**
@@ -236,10 +238,10 @@ export async function switchRole(_user: Pick<CurrentUser, "id">, role: Role): Pr
 
 /**
  * Выдаёт роль человеку этой сессии в identity и пишет ответ в проекцию. Ключ идемпотентности — случайный, если
- * вызывающему не нужен свой (регистрация исполнителя). Возвращает true, если роль выдана сейчас.
+ * вызывающему не нужен свой. Возвращает true, если роль выдана сейчас.
  */
-export async function grantRole(role: Role, options: { idempotencyKey?: string; token?: string } = {}): Promise<boolean> {
-  const sessionToken = options.token ?? (await tokenOrUnauthenticated());
+export async function grantRole(role: Role, options: { idempotencyKey?: string } = {}): Promise<boolean> {
+  const sessionToken = await tokenOrUnauthenticated();
   try {
     const res = await identity().grantRole({ sessionToken, role: roleToProto(role), idempotencyKey: options.idempotencyKey ?? randomUUID() });
     if (res.user) await projectUser(res.user);

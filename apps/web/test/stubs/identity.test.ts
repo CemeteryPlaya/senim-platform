@@ -229,6 +229,11 @@ describe("подделка identity: проверка сида по validateSeed
     expect(await rejection(seed([{ ...u, phone: "8700" }]))).toEqual({ code: Code.InvalidArgument, detail: "invalid_phone" });
   });
 
+  it("один номер в разной записи считается повтором (как parsePhone в Go)", async () => {
+    const roles = { defaultRole: Role.CLIENT, roles: [Role.CLIENT] };
+    expect(await rejection(seed([{ phone: "+77001234567", ...roles }, { phone: "8 700 123 45 67", ...roles }]))).toEqual(invalid);
+  });
+
   it("неизвестная роль, роль по умолчанию вне выданных, сотрудник с другой ролью — invalid_request", async () => {
     expect(await rejection(seed([{ phone: PHONE, defaultRole: Role.CLIENT, roles: [Role.UNSPECIFIED] }]))).toEqual(invalid);
     expect(await rejection(seed([{ phone: PHONE, defaultRole: Role.EXECUTOR, roles: [Role.CLIENT] }]))).toEqual(invalid);

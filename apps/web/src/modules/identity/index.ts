@@ -4,7 +4,6 @@ import type { CurrentUser } from "./session";
 
 // Публичный API модуля identity. Другие модули импортируют только отсюда.
 export {
-  SESSION_COOKIE,
   actorOf,
   becomeClient,
   endSession,

@@ -10,7 +10,7 @@ import { roleFromProto, roleToProto } from "./projection";
 import { identity } from "./remote";
 import { identityFailure } from "./remote-errors";
 import { newSessionToken } from "./session-cookie";
-import { beginSession, signOutPrevious } from "./session";
+import { beginSession, currentToken, signOutPrevious } from "./session";
 
 /**
  * Демо-персоны: вход одним нажатием, только при DEMO_MODE=true и только пользователем с isDemo.
@@ -60,7 +60,7 @@ export async function loginAsDemoPersona(
   asRole?: Role,
 ): Promise<Pick<DemoPersona, "id" | "role"> & { executor: { status: "PENDING" | "APPROVED" | "REJECTED" } | null }> {
   if (!env().DEMO_MODE) return fail.forbidden(ru.identity.demo.disabled);
-  await signOutPrevious();
+  const previous = await currentToken();
 
   const token = newSessionToken();
   let res;
@@ -76,6 +76,8 @@ export async function loginAsDemoPersona(
     return identityFailure(e);
   }
   const { user, session } = await beginSession(token, res);
+  // Только после успешного входа: отказ (роль не выдана, нет персоны) старую сессию не трогает.
+  await signOutPrevious(previous);
 
   const profile = await db.executorProfile.findUnique({ where: { userId: user.id }, select: { status: true } });
   return { id: user.id, role: roleFromProto(session.activeRole), executor: profile };

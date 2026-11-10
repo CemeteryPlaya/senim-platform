@@ -94,6 +94,20 @@ describe("демо-персоны при DEMO_MODE=true", () => {
     expect(request.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
   });
 
+  it("отказ при входе персоной (роль не выдана, нет персоны) прежнюю сессию не трогает", async () => {
+    const person = await makeDemoPersona("CLIENT", "+77000007014");
+    const oldToken = await signInAs(person);
+
+    expect(await codeOf(loginAsDemoPersona(person.id, "vitest", "OPERATOR"))).toBe("FORBIDDEN");
+    const stranger = await makeDemoPersona("CLIENT", "+77000007015", false);
+    await mirrorUser(stranger.id);
+    expect(await codeOf(loginAsDemoPersona(stranger.id))).toBe("NOT_FOUND");
+
+    expect(identityFake.calls.filter((c) => c.method === "signOut")).toHaveLength(0);
+    expect(cookieValue(sessionCookieName())).toBe(oldToken);
+    expect(await getCurrentUser()).toMatchObject({ id: person.id });
+  });
+
   it("не-демо пользователь недоступен, даже если знать его id", async () => {
     const real = await makeDemoPersona("CLIENT", "+77000007004", false);
     await mirrorUser(real.id);

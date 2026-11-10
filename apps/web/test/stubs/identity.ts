@@ -51,7 +51,7 @@ const PHONE_RE = /^\+7\d{10}$/;
 const STAFF: readonly Role[] = [Role.OPERATOR, Role.MEASURER];
 
 export type FakeUserInit = {
-  /** По умолчанию `u-<цифры телефона>`; свой id нужен запасным сессиям (id пользователя старой базы). */
+  /** По умолчанию `u-<цифры телефона>`; свой id нужен пользователям, которых тест создал в старой базе. */
   id?: string;
   phone: string;
   defaultRole?: Role;
@@ -81,6 +81,13 @@ const STATUS_BY_CODE: Record<string, Code> = {
   user_not_found: Code.NotFound,
   invalid_request: Code.InvalidArgument,
 };
+
+/** Как parsePhone в Go: «8 700 …», «+7 700 …», «700 …» -> +7700…; не телефон остаётся как есть и не пройдёт PHONE_RE. */
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  const national = digits.length === 11 && (digits[0] === "7" || digits[0] === "8") ? digits.slice(1) : digits;
+  return /^[\d\s()+-]+$/.test(raw.trim()) && national.length === 10 ? `+7${national}` : raw;
+}
 
 const idOf = (phone: string) => `u-${phone.replace(/\D/g, "")}`;
 
@@ -251,7 +258,7 @@ export class FakeIdentity {
     if (users.length === 0 || users.length > 200) throw codedError("invalid_request", Code.InvalidArgument);
     const seen = new Set<string>();
     for (const u of users) {
-      const phone = u.phone ?? "";
+      const phone = normalizePhone(u.phone ?? "");
       if (!PHONE_RE.test(phone)) throw codedError("invalid_phone", Code.InvalidArgument);
       if (seen.has(phone)) throw codedError("invalid_request", Code.InvalidArgument);
       seen.add(phone);
@@ -406,7 +413,7 @@ export class FakeIdentity {
         async (req) => {
           const seeded: User[] = [];
           for (const u of req.users ?? []) {
-            seeded.push(this.addUser({ phone: u.phone ?? "", defaultRole: u.defaultRole, roles: (u.roles ?? []) as Role[], isDemo: u.isDemo ?? false }));
+            seeded.push(this.addUser({ phone: normalizePhone(u.phone ?? ""), defaultRole: u.defaultRole, roles: (u.roles ?? []) as Role[], isDemo: u.isDemo ?? false }));
           }
           return create(SeedUsersResponseSchema, { users: seeded.map((u) => this.view(u)) });
         },

@@ -6,7 +6,7 @@ import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeMeasured, withPreContractFlows } from "../../../test/factories/requests";
-import { freshBrowser, putCookie } from "../../../test/factories/identity";
+import { asBrowser, freshBrowser } from "../../../test/factories/identity";
 import { signInAs } from "../../../test/factories/session";
 import { identityFake } from "../../../test/stubs/identity";
 import { registerExecutor as register, reviewExecutorRegistration, type ExecutorRegistrationInput } from "./registration";
@@ -23,7 +23,7 @@ beforeEach(() => {
 
 /**
  * Регистрация от лица вошедшего человека: у каждого пользователя своя сессия identity (токен запоминается, повтор идёт
- * с той же сессией), cookie ставится прямо перед вызовом — одновременные регистрации разных людей не путают токены.
+ * с той же сессией), вызов идёт в своём «браузере» (asBrowser) — одновременные регистрации разных людей не путают токены.
  */
 async function registerExecutor(user: Parameters<typeof register>[0], input: ExecutorRegistrationInput) {
   let signedIn = sessions.get(user.id);
@@ -32,8 +32,7 @@ async function registerExecutor(user: Parameters<typeof register>[0], input: Exe
     sessions.set(user.id, signedIn);
   }
   const token = await signedIn;
-  putCookie(sessionCookieName(), token);
-  return register(user, input);
+  return asBrowser({ [sessionCookieName()]: token }, () => register(user, input));
 }
 
 const IIN = testIin("910803", 3, 21);
@@ -109,13 +108,13 @@ describe("registerExecutor", () => {
     expect(notes[0].link).toBe(`/operator/executors/${profileId}`);
   });
 
-  it("роль выдаётся в identity до транзакции старой базы: ключ — executor-registration:<id>, проекция получает роль", async () => {
+  it("роль выдаётся в identity до транзакции старой базы: ключ случайный, проекция получает роль", async () => {
     const user = await makeClient();
 
     await registerExecutor(user, selfEmployed);
 
     const grant = identityFake.calls.find((c) => c.method === "grantRole")?.request;
-    expect(grant).toMatchObject({ role: 2, idempotencyKey: `executor-registration:${user.id}` });
+    expect(grant).toMatchObject({ role: 2, idempotencyKey: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) });
     expect(identityFake.calls.filter((c) => c.method === "grantRole")).toHaveLength(1);
   });
 
@@ -132,12 +131,12 @@ describe("registerExecutor", () => {
 
     expect((await db.executorProfile.findUniqueOrThrow({ where: { id: profileId } })).userId).toBe(user.id);
     expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).roles).toEqual(["CLIENT", "EXECUTOR"]);
-    const grants = identityFake.calls.filter((c) => c.method === "grantRole" && (c.request as { idempotencyKey: string }).idempotencyKey === `executor-registration:${user.id}`);
-    expect(grants.length).toBeGreaterThan(0);
+    // Три вызова: чужая регистрация и две попытки этого человека (в тесте `user` устарел, повтор снова зовёт GrantRole: granted=false).
+    expect(identityFake.calls.filter((c) => c.method === "grantRole")).toHaveLength(3);
     expect((await identityFake.client.authenticate({ sessionToken: await sessions.get(user.id)! })).user?.roles).toEqual([1, 2]);
   });
 
-  it("повтор из новой сессии: роль уже есть в проекции, GrantRole не вызывается (тот же ключ с другим токеном identity отклонил бы)", async () => {
+  it("повтор из новой сессии: роль уже есть в проекции, GrantRole не вызывается", async () => {
     await registerExecutor(await makeClient(), selfEmployed);
     const user = await makeClient();
     expect(await codeOf(registerExecutor(user, selfEmployed))).toBe("CONFLICT");

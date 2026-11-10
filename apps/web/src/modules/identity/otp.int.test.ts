@@ -117,10 +117,10 @@ describe("verifyOtp", () => {
   });
 
   it("существующий пользователь входит со своей ролью", async () => {
-    identityFake.addUser({ phone: PHONE, defaultRole: ProtoRole.OPERATOR, roles: [ProtoRole.OPERATOR] });
+    const existing = identityFake.addUser({ phone: PHONE, defaultRole: ProtoRole.OPERATOR, roles: [ProtoRole.OPERATOR] });
     const code = await codeFor();
 
-    expect(await verifyOtp({ phone: PHONE, code, ip: IP })).toMatchObject({ role: "OPERATOR", isNew: false });
+    expect(await verifyOtp({ phone: PHONE, code, ip: IP })).toMatchObject({ userId: existing.id, role: "OPERATOR", isNew: false });
   });
 
   it("исполнителю возвращает статус профиля — для выбора экрана после входа", async () => {
@@ -188,7 +188,7 @@ describe("verifyOtp", () => {
     expect(COOKIE()).toBeUndefined();
   });
 
-  it("новый вход отзывает прежнюю сессию браузера", async () => {
+  it("успешный вход отзывает прежнюю сессию браузера", async () => {
     const person = await makeExecutor();
     const oldToken = await signInAs(person);
     const code = await codeFor();
@@ -201,17 +201,29 @@ describe("verifyOtp", () => {
     expect(await getCurrentUser()).toBeNull();
   });
 
+  it("неверный код — прежняя сессия жива, SignOut не вызывается", async () => {
+    const person = await makeExecutor();
+    const oldToken = await signInAs(person);
+    await codeFor();
+
+    await errorOf(verifyOtp({ phone: PHONE, code: "000000", ip: IP }));
+
+    expect(callsOf("signOut")).toHaveLength(0);
+    expect(COOKIE()).toBe(oldToken);
+    expect(await getCurrentUser()).toMatchObject({ id: person.id });
+  });
+
   it("сбой выхода из прежней сессии вход не мешает; cookie неверного вида не отправляется", async () => {
     await signInAs(await makeExecutor());
     const code = await codeFor();
-    identityFake.failNextUnavailable(); // SignOut
+    vi.spyOn(identityFake.client, "signOut").mockRejectedValueOnce(new ConnectError("unavailable", Code.Unavailable));
     await expect(verifyOtp({ phone: PHONE, code, ip: IP })).resolves.toMatchObject({ isNew: true });
-    expect(callsOf("signOut")).toHaveLength(1);
+    expect(COOKIE()).toMatch(/^[A-Za-z0-9_-]{43}$/);
 
     freshBrowser();
     putCookie(sessionCookieName(), "кривой-токен");
     const code2 = await codeFor("+77000005502");
     await verifyOtp({ phone: "+77000005502", code: code2, ip: IP });
-    expect(callsOf("signOut")).toHaveLength(1);
+    expect(callsOf("signOut")).toHaveLength(0);
   });
 });

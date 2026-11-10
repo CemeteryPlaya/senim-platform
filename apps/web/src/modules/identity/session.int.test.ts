@@ -4,7 +4,7 @@ import { Role as ProtoRole } from "@/gen/senim/identity/v1/identity_pb";
 import { ru } from "@/i18n/ru";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
-import { cookieValue, freshBrowser, putCookie } from "../../../test/factories/identity";
+import { cookieValue, deletedCookies, freshBrowser, putCookie, setEnv } from "../../../test/factories/identity";
 import { makeClient, makeExecutor } from "../../../test/factories";
 import { identityFake } from "../../../test/stubs/identity";
 import { setIdentityForTests } from "./remote";
@@ -152,6 +152,24 @@ describe("выход", () => {
     expect(callsOf("signOut")).toEqual([{ sessionToken: token, idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/) }]);
     expect(identityFake.sessionCount(user.id)).toBe(0);
     expect(cookieValue(sessionCookieName())).toBeUndefined();
+  });
+
+  it("вне dev cookie удаляется с теми же параметрами (Secure, Path, SameSite): иначе браузер игнорирует удаление __Host-", async () => {
+    setEnv({ APP_ENV: "staging", PAYMENT_PROVIDER: "mock" });
+    try {
+      const { token } = signIn({ phone: "+77001234567" });
+      expect(token).toBeTruthy();
+      await endSession();
+      signIn({ phone: "+77001234568" });
+      await signOutEverywhere();
+
+      expect(deletedCookies).toEqual([
+        { name: "__Host-senim_session", options: expect.objectContaining({ secure: true, path: "/", httpOnly: true, sameSite: "lax" }) },
+        { name: "__Host-senim_session", options: expect.objectContaining({ secure: true, path: "/" }) },
+      ]);
+    } finally {
+      setEnv({ APP_ENV: undefined, PAYMENT_PROVIDER: undefined });
+    }
   });
 
   it("endSession без cookie или с cookie не того вида: identity не вызывается", async () => {

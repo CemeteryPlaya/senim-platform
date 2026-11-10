@@ -9,7 +9,7 @@ import { enforceRateLimit } from "@/platform/rate-limit";
 import type { ReviewExecutorRegistration } from "./index";
 import { usesOwnIin, type ExecutorRegistrationInput, type ExecutorSigner } from "./registration-schema";
 import { EXECUTOR_REGISTRATION_PATH } from "./return-to";
-import { actorOf, currentToken, grantRole, type CurrentUser } from "./session";
+import { actorOf, grantRole, type CurrentUser } from "./session";
 import { isStaffRole } from "./roles";
 
 export { executorRegistrationSchema, type ExecutorRegistrationInput, type ExecutorSigner } from "./registration-schema";
@@ -71,17 +71,13 @@ async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegis
  * переключает вызывающий (switchRole) — сервис о cookie не знает.
  */
 export async function registerExecutor(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
-  // Cookie снимается первым делом, до любого await: токен этого запроса, а не того, что успел поставить соседний.
-  const reading = currentToken();
   if (isStaffRole(user.role)) return fail.forbidden(t.errors.operator);
   await enforceRateLimit(`registration:user:${user.id}`, REGISTRATION_LIMIT, t.errors.tooMany);
-  const token = (await reading) ?? fail.unauthenticated();
-
   const own = await withOwnIin(user, input);
-  // Роль выдаётся в identity до транзакции старой базы: ключ один на пользователя, повтор безопасен. Обратный порядок оставил бы
-  // профиль без роли без способа повторить. Роль уже есть в проекции (прежняя попытка, подача после отказа) — вызов не нужен, и
-  // повтор из новой сессии не упрётся в тот же ключ с другим токеном.
-  if (!user.roles.includes("EXECUTOR")) await grantRole("EXECUTOR", { idempotencyKey: `executor-registration:${user.id}`, token });
+  // Роль выдаётся в identity до транзакции старой базы: GrantRole идемпотентен по существу (роль уже есть — granted=false),
+  // повтор безопасен. Обратный порядок оставил бы профиль без роли без способа повторить. Роль уже есть в проекции
+  // (прежняя попытка, подача после отказа) — вызов не нужен.
+  if (!user.roles.includes("EXECUTOR")) await grantRole("EXECUTOR");
   return register(user, own).catch((e: unknown) => {
     // Два разных номера одновременно с одним ИИН/БИН: проверку прошли оба, сработал уникальный индекс.
     if (isUniqueViolation(e)) return fail.conflict(t.errors.binIinTaken);

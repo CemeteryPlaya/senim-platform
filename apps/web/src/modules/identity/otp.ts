@@ -13,7 +13,7 @@ import { roleFromProto } from "./projection";
 import { identity, identityClientIp } from "./remote";
 import { identityFailure, isTransient } from "./remote-errors";
 import { newSessionToken } from "./session-cookie";
-import { beginSession, signOutPrevious } from "./session";
+import { beginSession, currentToken, signOutPrevious } from "./session";
 
 const t = ru.identity.otp;
 
@@ -73,7 +73,7 @@ async function verifyWithRetry(request: MessageInitShape<typeof VerifyOtpRequest
  */
 export async function verifyOtp(input: { phone: string; code: string; ip: string | null; userAgent?: string }): Promise<OtpVerified> {
   const phone = phoneOrFail(input.phone);
-  await signOutPrevious();
+  const previous = await currentToken();
 
   const token = newSessionToken();
   const res = await verifyWithRetry({
@@ -85,6 +85,8 @@ export async function verifyOtp(input: { phone: string; code: string; ip: string
     idempotencyKey: randomUUID(),
   });
   const { user, session } = await beginSession(token, res);
+  // Только после успешного входа: неверный код старую сессию браузера не заканчивает.
+  await signOutPrevious(previous);
 
   const profile = await db.executorProfile.findUnique({ where: { userId: user.id }, select: { status: true } });
   return { userId: user.id, role: roleFromProto(session.activeRole), executor: profile, isNew: res.isNew };
