@@ -253,6 +253,24 @@ func TestVerifyCodeIsSingleUse(t *testing.T) {
 	h.wantRefusal(err, connect.CodeInvalidArgument, "otp_expired")
 }
 
+// Новый код гасит прежний: после входа по последнему коду более ранний неистёкший код не
+// становится «самым свежим непогашенным» и не принимается.
+func TestVerifyEarlierCodeDeadAfterNewerUsed(t *testing.T) {
+	h := newHarness(t, nil)
+	phone := newPhone()
+	first := h.issued(phone)
+	h.clock.advance(61 * time.Second)
+	second := h.issued(phone)
+	if n := h.count(`SELECT count(*) FROM otp_codes WHERE phone = $1 AND consumed_at IS NULL`, phone); n != 1 {
+		t.Fatalf("непогашенных кодов %d, want 1", n)
+	}
+	if _, err := h.verify(phone, second, verifyIP); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.verify(phone, first, verifyIP)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "otp_expired")
+}
+
 func TestVerifyTwoConcurrentEntriesGiveOneSession(t *testing.T) {
 	h := newHarness(t, nil)
 	phone := newPhone()

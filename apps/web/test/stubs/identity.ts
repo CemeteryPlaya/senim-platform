@@ -96,6 +96,7 @@ export class FakeIdentity {
   private users = new Map<string, User>(); // по id
   private blocked = new Set<string>();
   private sessions = new Map<string, StoredSession>(); // по токену
+  /** Номера с действующим кодом: не больше одного кода на номер, как RetireOtpCodes в Go (новый запрос заменяет прежний, вход гасит). */
   private otpRequested = new Set<string>();
   private nextFailure: unknown[] = [];
   private counter = 0;

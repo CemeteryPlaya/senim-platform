@@ -76,7 +76,7 @@ type GetActiveOtpParams struct {
 	Now   pgtype.Timestamptz
 }
 
-// Самый свежий непогашенный и неистёкший код номера: действует только последний выданный.
+// Непогашенный и неистёкший код номера; RetireOtpCodes оставляет не больше одного.
 func (q *Queries) GetActiveOtp(ctx context.Context, arg GetActiveOtpParams) (OtpCode, error) {
 	row := q.db.QueryRow(ctx, getActiveOtp, arg.Phone, arg.Now)
 	var i OtpCode
@@ -111,5 +111,23 @@ func (q *Queries) InsertOtpCode(ctx context.Context, arg InsertOtpCodeParams) er
 		arg.ExpiresAt,
 		arg.CreatedAt,
 	)
+	return err
+}
+
+const retireOtpCodes = `-- name: RetireOtpCodes :exec
+UPDATE otp_codes SET consumed_at = $2::timestamptz
+WHERE phone = $1 AND consumed_at IS NULL
+`
+
+type RetireOtpCodesParams struct {
+	Phone string
+	Now   pgtype.Timestamptz
+}
+
+// Перед выдачей нового кода гасит прежние непогашенные коды номера (в той же транзакции):
+// у номера всегда не больше одного действующего кода, и после входа по последнему более
+// ранний код не оживает.
+func (q *Queries) RetireOtpCodes(ctx context.Context, arg RetireOtpCodesParams) error {
+	_, err := q.db.Exec(ctx, retireOtpCodes, arg.Phone, arg.Now)
 	return err
 }

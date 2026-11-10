@@ -122,8 +122,12 @@ func (s *Service) RequestOtp(ctx context.Context, req *identityv1.RequestOtpRequ
 				return err
 			}
 			expiresAt := s.now().Add(otpTTL)
-			// Действует только последний выданный код: проверка берёт самый свежий.
-			if err := store.New(tx).InsertOtpCode(ctx, store.InsertOtpCodeParams{
+			// Действует только последний выданный код: прежние гасятся в этой же транзакции.
+			q := store.New(tx)
+			if err := q.RetireOtpCodes(ctx, store.RetireOtpCodesParams{Phone: phone, Now: pgtype.Timestamptz{Time: s.now(), Valid: true}}); err != nil {
+				return fmt.Errorf("гашение прежних кодов: %w", err)
+			}
+			if err := q.InsertOtpCode(ctx, store.InsertOtpCodeParams{
 				Phone:     phone,
 				CodeHash:  otpHash(s.cfg.OTPHMACKey, phone, code),
 				ExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
