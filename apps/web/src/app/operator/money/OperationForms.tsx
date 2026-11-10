@@ -5,6 +5,7 @@ import type { ManualOperationType } from "@/modules/operator";
 import { Button, Input, Textarea } from "@/ui";
 import { useQueueDecision } from "../_components/DecisionQueue";
 import { FormStatus } from "../_components/FormStatus";
+import { SecondFactorField } from "../_components/SecondFactorField";
 import { useActionForm } from "../_components/useActionForm";
 import { confirmBankOperationAction, failBankOperationAction } from "./actions";
 
@@ -38,6 +39,7 @@ export function ConfirmOperationForm({ transactionId, type, primary }: { transac
         error={form.fieldError("scan") ?? form.fieldError("bankDocFileId")}
       />
       <FormStatus error={form.error} done={form.done && !decided} doneText={t.confirmed} />
+      <SecondFactorField form={form} />
       <Button type="submit" variant={primary ? "primary" : "secondary"} loading={form.pending} className="self-start">
         {t.confirm[type]}
       </Button>
@@ -54,6 +56,7 @@ export function FailOperationForm({ transactionId }: { transactionId: string }) 
       <input type="hidden" name="transactionId" value={transactionId} />
       <Textarea label={t.failReason} hint={t.failReasonHint} name="reason" required maxLength={500} rows={3} error={form.fieldError("reason")} />
       <FormStatus error={form.error} done={form.done && !decided} doneText={t.failed} />
+      <SecondFactorField form={form} />
       <Button type="submit" variant="secondary" loading={form.pending} className="self-start">
         {t.failSubmit}
       </Button>

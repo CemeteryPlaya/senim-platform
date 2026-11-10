@@ -1,7 +1,9 @@
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
 import { Role } from "@/gen/senim/identity/v1/identity_pb";
+import { totpNow } from "../../e2e/totp";
 import { FakeIdentity, FAKE_OTP_CODE } from "./identity";
 
 const token = (n: number) => `${String(n).padStart(2, "0")}${"a".repeat(41)}`;
@@ -243,5 +245,158 @@ describe("подделка identity: проверка сида по validateSeed
   it("верный сид принимается", async () => {
     const res = await seed([{ phone: PHONE, defaultRole: Role.OPERATOR, roles: [Role.OPERATOR] }]);
     expect(res.users).toHaveLength(1);
+  });
+});
+
+describe("подделка identity: второй фактор (как mfa.go)", () => {
+  const OP_PHONE = "+77000000001";
+  let clock = new Date("2026-11-11T10:00:00Z");
+  const tick = (ms: number) => {
+    clock = new Date(clock.getTime() + ms);
+  };
+  let n = 0;
+  const key = () => `k-${++n}`;
+  const codeAt = (secret: string, at = clock) => totpNow(secret, at);
+
+  /** Оператор, вошедший по SMS (без второй ступени). */
+  function operator(t = 1) {
+    const user = fake.addUser({ phone: OP_PHONE, defaultRole: Role.OPERATOR });
+    fake.signIn(user.id, token(t), undefined, { mfaVerifiedAt: null });
+    return user;
+  }
+  const start = (t = 1, k = key()) => fake.client.startTotpEnrollment({ sessionToken: token(t), idempotencyKey: k });
+  const confirm = (code: string, t = 1, k = key()) => fake.client.confirmTotpEnrollment({ sessionToken: token(t), code, idempotencyKey: k });
+  const verify = (code: string, t = 1, k = key()) => fake.client.verifySecondFactor({ sessionToken: token(t), code, idempotencyKey: k });
+  /** Шесть цифр, не совпадающие с кодами окна ±1. */
+  function wrong(secret: string): string {
+    const window = [-30_000, 0, 30_000].map((d) => codeAt(secret, new Date(clock.getTime() + d)));
+    const found = ["000000", "111111", "222222", "333333"].find((c) => !window.includes(c));
+    if (!found) throw new Error("не нашлось неверного кода");
+    return found;
+  }
+
+  beforeEach(() => {
+    clock = new Date("2026-11-11T10:00:00Z");
+    fake.now = () => clock;
+  });
+
+  it("сессия оператора по SMS — mfa_required без отметки; подключение и подтверждение ставят отметку", async () => {
+    const user = operator();
+    const before = (await fake.client.authenticate({ sessionToken: token(1) })).session;
+    expect(before?.mfaRequired).toBe(true);
+    expect(before?.mfaVerifiedAt).toBeUndefined();
+
+    const { secretBase32 } = await start();
+    expect(secretBase32).toMatch(/^[A-Z2-7]{32}$/);
+    const res = await confirm(codeAt(secretBase32));
+    expect(res.session?.mfaVerifiedAt && timestampDate(res.session.mfaVerifiedAt)).toEqual(clock);
+    expect(fake.mfaVerifiedAtOf(token(1))).toEqual(clock);
+    expect(fake.factorState(user.id)).toBe("confirmed");
+  });
+
+  it("не оператор — mfa_not_required; неизвестный токен — session_invalid; пустой или длинный код — invalid_request", async () => {
+    await signedIn();
+    expect(await rejection(start())).toEqual({ code: Code.FailedPrecondition, detail: "mfa_not_required" });
+    expect(await rejection(verify("123456"))).toEqual({ code: Code.FailedPrecondition, detail: "mfa_not_required" });
+    expect(await rejection(start(9))).toEqual({ code: Code.Unauthenticated, detail: "session_invalid" });
+    expect(await rejection(verify(""))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    expect(await rejection(verify("1".repeat(33)))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+  });
+
+  it("повтор Start: тот же ключ — тот же секрет; новый ключ — новый секрет, старый ключ — idempotency_key_reused", async () => {
+    operator();
+    const k = key();
+    const first = await start(1, k);
+    expect((await start(1, k)).secretBase32).toBe(first.secretBase32);
+    const second = await start();
+    expect(second.secretBase32).not.toBe(first.secretBase32);
+    expect(await rejection(start(1, k))).toEqual({ code: Code.InvalidArgument, detail: "idempotency_key_reused" });
+    // Прежний секрет не действует.
+    expect(await rejection(confirm(codeAt(first.secretBase32)))).toEqual({ code: Code.InvalidArgument, detail: "mfa_wrong_code" });
+    await confirm(codeAt(second.secretBase32));
+    expect(await rejection(start())).toEqual({ code: Code.FailedPrecondition, detail: "mfa_already_enrolled" });
+    expect(await rejection(confirm(codeAt(second.secretBase32)))).toEqual({ code: Code.FailedPrecondition, detail: "mfa_already_enrolled" });
+  });
+
+  it("не подключён — mfa_not_enrolled; начатое подключение — тоже", async () => {
+    operator();
+    expect(await rejection(verify("123456"))).toEqual({ code: Code.FailedPrecondition, detail: "mfa_not_enrolled" });
+    const { secretBase32 } = await start();
+    expect(await rejection(verify(codeAt(secretBase32)))).toEqual({ code: Code.FailedPrecondition, detail: "mfa_not_enrolled" });
+  });
+
+  it("тот же код второй раз — mfa_code_reused; код прошлого шага — тоже; новый шаг проходит", async () => {
+    const user = operator();
+    const secret = fake.enrollTotp(user.id);
+    const code = codeAt(secret);
+    await verify(code);
+    expect(await rejection(verify(code))).toEqual({ code: Code.InvalidArgument, detail: "mfa_code_reused" });
+    tick(30_000);
+    expect(await rejection(verify(code))).toEqual({ code: Code.InvalidArgument, detail: "mfa_code_reused" });
+    await expect(verify(codeAt(secret))).resolves.toBeDefined();
+  });
+
+  it("лимит: 5 неверных (left 4…0), шестой и даже верный — mfa_too_many_attempts; через 15 минут снова можно", async () => {
+    const user = operator();
+    const secret = fake.enrollTotp(user.id);
+    const lefts: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const err = await verify(wrong(secret)).then(
+        () => null,
+        (e: unknown) => ConnectError.from(e).findDetails(ErrorDetailSchema)[0],
+      );
+      expect(err?.code).toBe("mfa_wrong_code");
+      lefts.push(err?.params["left"] ?? "");
+    }
+    expect(lefts).toEqual(["4", "3", "2", "1", "0"]);
+    expect(await rejection(verify(wrong(secret)))).toEqual({ code: Code.ResourceExhausted, detail: "mfa_too_many_attempts" });
+    expect(await rejection(verify(codeAt(secret)))).toEqual({ code: Code.ResourceExhausted, detail: "mfa_too_many_attempts" });
+    tick(15 * 60_000 + 1000);
+    await expect(verify(codeAt(secret))).resolves.toBeDefined();
+  });
+
+  it("верный код возвращает попытку: шесть верных подряд не упираются в лимит", async () => {
+    const user = operator();
+    const secret = fake.enrollTotp(user.id);
+    for (let i = 0; i < 6; i++) {
+      await verify(codeAt(secret));
+      tick(30_000);
+    }
+    // Четыре неверных после них — ещё не лимит: left = 1.
+    let left = "";
+    for (let i = 0; i < 4; i++) left = (await verify(wrong(secret)).catch((e: unknown) => ConnectError.from(e).findDetails(ErrorDetailSchema)[0]?.params["left"])) as string;
+    expect(left).toBe("1");
+  });
+
+  it("повтор verify с тем же ключом — тот же ответ, шаг не тратится второй раз", async () => {
+    const user = operator();
+    const secret = fake.enrollTotp(user.id);
+    const k = key();
+    const code = codeAt(secret);
+    const first = await verify(code, 1, k);
+    tick(3000);
+    expect(await verify(code, 1, k)).toEqual(first);
+    expect(await rejection(verify(wrong(secret), 1, k))).toEqual({ code: Code.InvalidArgument, detail: "idempotency_key_reused" });
+    expect(await rejection(verify(code))).toEqual({ code: Code.InvalidArgument, detail: "mfa_code_reused" });
+  });
+
+  it("демо-оператор входит с пройденной второй ступенью; ResetDemo стирает факторы", async () => {
+    const op = fake.addUser({ phone: OP_PHONE, defaultRole: Role.OPERATOR, isDemo: true });
+    const res = await fake.client.startDemoSession({ userId: op.id, sessionToken: token(1), idempotencyKey: key() });
+    expect(res.session?.mfaRequired).toBe(true);
+    expect(res.session?.mfaVerifiedAt && timestampDate(res.session.mfaVerifiedAt)).toEqual(clock);
+    fake.enrollTotp(op.id);
+    await fake.client.resetDemo({ idempotencyKey: key() });
+    expect(fake.factorState(op.id)).toBe("none");
+  });
+
+  it("mfa-reset: фактор удалён, отметка снята — Start снова выдаёт секрет", async () => {
+    const user = operator();
+    fake.enrollTotp(user.id);
+    fake.signIn(user.id, token(2));
+    expect(fake.mfaVerifiedAtOf(token(2))).toEqual(clock);
+    fake.resetMfa(user.id);
+    expect(fake.mfaVerifiedAtOf(token(2))).toBeNull();
+    await expect(start()).resolves.toBeDefined();
   });
 });

@@ -1,13 +1,15 @@
 "use server";
 
 import { z } from "zod";
-import { requireUser } from "@/modules/identity";
+import { requireRecentMfa, requireUser } from "@/modules/identity";
 import { previewDisputeSplit, resolveDispute, resolveDisputeSchema, splitPreviewSchema } from "@/modules/operator";
 import { action } from "@/platform/action";
 import { formatTiyn } from "@/ui/format";
 
+/** Решение спора делит деньги: только со свежим кодом из приложения (requireRecentMfa). Расчёт до решения — без кода. */
 export const resolveDisputeAction = action("operator.resolveDispute", z.unknown().pipe(resolveDisputeSchema), async (input) => {
   const user = await requireUser("OPERATOR");
+  requireRecentMfa(user);
   await resolveDispute(user, input);
 });
 

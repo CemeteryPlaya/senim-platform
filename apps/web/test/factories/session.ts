@@ -28,11 +28,12 @@ export async function mirrorUser(userId: string): Promise<void> {
 /**
  * Вошёл пользователь: сессия в подделке identity и cookie в «браузере» теста — так, как их оставляет настоящий вход.
  * Заменяет прежний `startSession`. `role` — активная роль сессии (по умолчанию — роль по умолчанию пользователя).
+ * Сессия оператора — с пройденной сейчас второй ступенью; `mfaVerifiedAt` задаёт её момент (`null` — вход только по SMS).
  */
-export async function signInAs(user: { id: string }, role?: Role): Promise<string> {
+export async function signInAs(user: { id: string }, role?: Role, opts: { mfaVerifiedAt?: Date | null } = {}): Promise<string> {
   await mirrorUser(user.id);
   const token = newSessionToken();
-  identityFake.signIn(user.id, token, role ? roleToProto(role) : undefined);
+  identityFake.signIn(user.id, token, role ? roleToProto(role) : undefined, opts);
   putCookie(sessionCookieName(), token);
   return token;
 }

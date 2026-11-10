@@ -36,6 +36,11 @@ export type CurrentUser = {
    * и история сделок). Права исполнителя — только при role = EXECUTOR.
    */
   executor: { id: string; publicNumber: number; status: "PENDING" | "APPROVED" | "REJECTED" } | null;
+  /**
+   * Второй фактор этой сессии (identity, Session.mfa_required/mfa_verified_at): нужен оператору; verifiedAt — когда
+   * пройден код из приложения (вход или повторный код), null — не пройден. Свежесть перед деньгами — requireRecentMfa.
+   */
+  mfa: { required: boolean; verifiedAt: Date | null };
 };
 
 /** Токен сессии из cookie своего контура; `undefined` — cookie нет. Вид токена не проверяется. */
@@ -44,7 +49,7 @@ export async function currentToken(): Promise<string | undefined> {
 }
 
 /** Токен для вызова identity, который меняет сессию: нет cookie — человек не вошёл. */
-async function tokenOrUnauthenticated(): Promise<string> {
+export async function currentSessionToken(): Promise<string> {
   const token = await currentToken();
   return token ?? fail.unauthenticated();
 }
@@ -175,6 +180,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     iinLast4: row.iinLast4,
     isDemo: row.isDemo,
     executor: row.executorProfile,
+    mfa: { required: session.mfaRequired, verifiedAt: session.mfaVerifiedAt ? timestampDate(session.mfaVerifiedAt) : null },
   };
 });
 
@@ -206,11 +212,16 @@ export async function getAccessToken(): Promise<string | null> {
   return (await authenticated())?.accessToken ?? null;
 }
 
-/** Для Server Actions и сервисов: пользователь с одной из ролей, иначе ошибка. */
+/**
+ * Для Server Actions и сервисов: пользователь с одной из ролей, иначе ошибка. Сессии, которой нужен второй фактор
+ * (оператор), он должен быть пройден — иначе MFA_REQUIRED: вход только по SMS не открывает действий оператора,
+ * даже в обход экранов. Экран самой второй ступени берёт пользователя через requireMfaUser.
+ */
 export async function requireUser(...roles: Role[]): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) return fail.unauthenticated();
   if (roles.length > 0 && !roles.includes(user.role)) return fail.forbidden();
+  if (user.mfa.required && user.mfa.verifiedAt === null) return fail.mfaRequired();
   return user;
 }
 
@@ -244,7 +255,7 @@ export function requireIntroduced(user: CurrentUser, returnTo: string): void {
  * она же становится ролью по умолчанию для следующего входа. Ответ identity пишется в проекцию. Повтор безопасен.
  */
 export async function switchRole(_user: Pick<CurrentUser, "id">, role: Role): Promise<void> {
-  const sessionToken = await tokenOrUnauthenticated();
+  const sessionToken = await currentSessionToken();
   try {
     const res = await identity().switchRole({ sessionToken, role: roleToProto(role), idempotencyKey: randomUUID() });
     if (res.user) await projectUser(res.user);
@@ -258,7 +269,7 @@ export async function switchRole(_user: Pick<CurrentUser, "id">, role: Role): Pr
  * вызывающему не нужен свой. Возвращает true, если роль выдана сейчас.
  */
 export async function grantRole(role: Role, options: { idempotencyKey?: string } = {}): Promise<boolean> {
-  const sessionToken = await tokenOrUnauthenticated();
+  const sessionToken = await currentSessionToken();
   try {
     const res = await identity().grantRole({ sessionToken, role: roleToProto(role), idempotencyKey: options.idempotencyKey ?? randomUUID() });
     if (res.user) await projectUser(res.user);

@@ -8,7 +8,7 @@ describe("геокодер-мок адреса заявки", () => {
   });
 
   it("искать точку может только заказчик", async () => {
-    const executor = { id: "u1", role: "EXECUTOR" as const, roles: ["EXECUTOR" as const], phone: "+77000000000", fullName: null, iinLast4: null, isDemo: false, executor: null };
+    const executor = { id: "u1", role: "EXECUTOR" as const, roles: ["EXECUTOR" as const], phone: "+77000000000", fullName: null, iinLast4: null, isDemo: false, executor: null, mfa: { required: false, verifiedAt: null } };
     await expect(geocodeAddress(executor, { city: "Астана", address: "" })).rejects.toThrow(expect.objectContaining({ code: "FORBIDDEN" }));
   });
 });

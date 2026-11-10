@@ -1,11 +1,12 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { loginHref, requireUser, type CurrentUser } from "@/modules/identity";
+import { loginHref, mfaHref, requireUser, type CurrentUser } from "@/modules/identity";
 import { isAppError } from "@/platform/errors";
 
 /**
  * Первая строка каждой страницы /operator/**: requireUser("OPERATOR").
- * Гость уходит на вход с возвратом, чужая роль — на вход с пояснением «страница для другой роли».
+ * Гость уходит на вход с возвратом, чужая роль — на вход с пояснением «страница для другой роли»,
+ * оператор без второй ступени (вошёл только по SMS) — на /operator/mfa с возвратом.
  */
 export async function requireOperatorPage(returnTo: string): Promise<CurrentUser> {
   try {
@@ -13,6 +14,7 @@ export async function requireOperatorPage(returnTo: string): Promise<CurrentUser
   } catch (e) {
     if (isAppError(e) && e.code === "UNAUTHENTICATED") redirect(loginHref(returnTo));
     if (isAppError(e) && e.code === "FORBIDDEN") redirect(loginHref(returnTo, "role"));
+    if (isAppError(e) && e.code === "MFA_REQUIRED") redirect(mfaHref(returnTo));
     throw e;
   }
 }

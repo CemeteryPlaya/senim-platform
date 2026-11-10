@@ -5,6 +5,8 @@ import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
 import {
   AuthenticateRequestSchema,
   AuthenticateResponseSchema,
+  ConfirmTotpEnrollmentRequestSchema,
+  ConfirmTotpEnrollmentResponseSchema,
   GrantRoleRequestSchema,
   IdentityService,
   GrantRoleResponseSchema,
@@ -22,15 +24,21 @@ import {
   SignOutResponseSchema,
   StartDemoSessionRequestSchema,
   StartDemoSessionResponseSchema,
+  StartTotpEnrollmentRequestSchema,
+  StartTotpEnrollmentResponseSchema,
   SwitchRoleRequestSchema,
   SwitchRoleResponseSchema,
   UserSchema,
   VerifyOtpRequestSchema,
   VerifyOtpResponseSchema,
+  VerifySecondFactorRequestSchema,
+  VerifySecondFactorResponseSchema,
   type Session,
   type User,
 } from "@/gen/senim/identity/v1/identity_pb";
+import { randomBytes } from "node:crypto";
 import { isIP } from "node:net";
+import { toBase32, totpCode, totpStep } from "../../e2e/totp";
 // Прямой импорт файла, а не index.ts: index тянет next/headers, и подделка (она грузится в setup до vi.mock) закрепила бы настоящий модуль.
 // eslint-disable-next-line no-restricted-imports
 import { TOKEN_SHAPE } from "@/modules/identity/session-cookie";
@@ -45,6 +53,12 @@ import { TOKEN_SHAPE } from "@/modules/identity/session-cookie";
  * - `sessionView` всегда даёт 7 суток; в Go у сотрудника (OPERATOR, MEASURER) — 8 ч;
  * - `signOutEverywhere` для заблокированного — no-op (lookup отказывает); Go отзывает его сессии
  *   (sessionByToken без проверки блокировки).
+ *
+ * Второй фактор (TOTP, mfa.go) повторён по Go: порядок проверок и коды, лимит 5 неверных кодов (и повторов) за
+ * 15 минут фиксированным окном (верный код попытку возвращает), шаг принятого кода не принимается дважды, повтор
+ * Start по ключу после замены секрета — idempotency_key_reused, демо-оператор входит с пройденной второй ступенью,
+ * ResetDemo стирает факторы. Часы — `now` (тест может подменить). Вход в обход кода (`signIn`) у оператора — уже
+ * с пройденной второй ступенью («вошедший пользователь»), если тест не передал `mfaVerifiedAt: null`.
  */
 
 /** Тип клиента — тот же, что у `IdentityClient` из modules/identity/remote (импорт оттуда из test/ запрещён границей модулей). */
@@ -55,6 +69,10 @@ export const FAKE_OTP_CODE = "123456";
 const MAX_KEY = 128;
 const PHONE_RE = /^\+7\d{10}$/;
 const STAFF: readonly Role[] = [Role.OPERATOR, Role.MEASURER];
+/** Как mfa.go: неверных кодов не больше 5 за 15 минут; поле code — не длиннее 32 символов до разбора. */
+const MFA_MAX_FAILURES = 5;
+const MFA_FAILURE_WINDOW_MS = 15 * 60_000;
+const MAX_TOTP_CODE_LEN = 32;
 
 export type FakeUserInit = {
   /** По умолчанию `u-<цифры телефона>`; свой id нужен пользователям, которых тест создал в старой базе. */
@@ -66,7 +84,9 @@ export type FakeUserInit = {
   blocked?: boolean;
 };
 
-type StoredSession = { id: string; userId: string; activeRole: Role };
+type StoredSession = { id: string; userId: string; activeRole: Role; mfaVerifiedAt: Date | null };
+/** Фактор TOTP: секрет в base32 (в Go — шифртекст), подтверждён ли, последний принятый шаг. */
+type StoredFactor = { secretBase32: string; secret: Buffer; confirmed: boolean; lastUsedStep: number };
 
 /** ConnectError с `ErrorDetail` — как отвечает настоящий identity. */
 export function codedError(code: string, status: Code, params: Record<string, string> = {}): ConnectError {
@@ -86,6 +106,14 @@ const STATUS_BY_CODE: Record<string, Code> = {
   demo_disabled: Code.FailedPrecondition,
   user_not_found: Code.NotFound,
   invalid_request: Code.InvalidArgument,
+  mfa_required: Code.PermissionDenied,
+  mfa_not_required: Code.FailedPrecondition,
+  mfa_not_enrolled: Code.FailedPrecondition,
+  mfa_already_enrolled: Code.FailedPrecondition,
+  mfa_wrong_code: Code.InvalidArgument,
+  mfa_code_reused: Code.InvalidArgument,
+  mfa_too_many_attempts: Code.ResourceExhausted,
+  idempotency_key_reused: Code.InvalidArgument,
 };
 
 /** Как parsePhone в Go: «8 700 …», «+7 700 …», «700 …» -> +7700…; не телефон остаётся как есть и не пройдёт PHONE_RE. */
@@ -108,8 +136,12 @@ export class FakeIdentity {
   private counter = 0;
   private replays = new Map<string, { fingerprint: string; response: unknown }>(); // ключ: (метод, ключ идемпотентности), как PRIMARY KEY (method, key) в pkg/idem
   private effectThenFail = false;
+  private factors = new Map<string, StoredFactor>(); // по id пользователя
+  private mfaFailures = new Map<string, { windowStart: number; count: number }>(); // ключ mfa:<user_id> в Go
   /** Включён ли демо-режим (DEMO_MODE у настоящего сервиса). */
   demoEnabled = true;
+  /** Часы сервиса (s.now в Go): шаг TOTP, окно лимита, отметка второй ступени. */
+  now: () => Date = () => new Date();
   /** Токены, с которыми были вызваны методы, — для проверок в тестах. */
   readonly calls: { method: string; request: unknown }[] = [];
 
@@ -128,6 +160,9 @@ export class FakeIdentity {
     this.effectThenFail = false;
     this.calls.length = 0;
     this.demoEnabled = true;
+    this.factors.clear();
+    this.mfaFailures.clear();
+    this.now = () => new Date();
   }
 
   /** Следующий вызов (любого метода) бросит эту ошибку; можно поставить несколько — по одной на вызов. */
@@ -173,10 +208,41 @@ export class FakeIdentity {
     this.blocked.add(userId);
   }
 
-  /** Создать сессию в обход OTP и вернуть токен — для тестов, которым нужен уже вошедший пользователь. */
-  signIn(userId: string, token: string, activeRole?: Role): void {
+  /**
+   * Создать сессию в обход OTP и вернуть токен — для тестов, которым нужен уже вошедший пользователь. Сессия оператора —
+   * с пройденной второй ступенью сейчас; `mfaVerifiedAt` задаёт её момент (`null` — вход только по SMS).
+   */
+  signIn(userId: string, token: string, activeRole?: Role, opts: { mfaVerifiedAt?: Date | null } = {}): void {
     const user = this.mustUser(userId);
-    this.sessions.set(token, { id: `s-${++this.counter}`, userId, activeRole: activeRole ?? user.defaultRole });
+    const role = activeRole ?? user.defaultRole;
+    const mfaVerifiedAt = opts.mfaVerifiedAt !== undefined ? opts.mfaVerifiedAt : role === Role.OPERATOR ? this.now() : null;
+    this.sessions.set(token, { id: `s-${++this.counter}`, userId, activeRole: role, mfaVerifiedAt });
+  }
+
+  /** Подключённый фактор в обход Start/Confirm: секрет base32 (для кода в тесте). */
+  enrollTotp(userId: string): string {
+    this.mustUser(userId);
+    const secret = randomBytes(20);
+    const secretBase32 = toBase32(secret);
+    this.factors.set(userId, { secretBase32, secret, confirmed: true, lastUsedStep: 0 });
+    return secretBase32;
+  }
+
+  /** identity mfa-reset: фактор удаляется, отметка второй ступени снимается со всех сессий пользователя. */
+  resetMfa(userId: string): void {
+    this.factors.delete(userId);
+    for (const s of this.sessions.values()) if (s.userId === userId) s.mfaVerifiedAt = null;
+  }
+
+  /** Есть ли у пользователя фактор и подтверждён ли он — для проверок в тестах. */
+  factorState(userId: string): "none" | "pending" | "confirmed" {
+    const f = this.factors.get(userId);
+    return f ? (f.confirmed ? "confirmed" : "pending") : "none";
+  }
+
+  /** Отметка второй ступени сессии по токену — для проверок в тестах. */
+  mfaVerifiedAtOf(token: string): Date | null | undefined {
+    return this.sessions.get(token)?.mfaVerifiedAt;
   }
 
   sessionCount(userId?: string): number {
@@ -203,6 +269,9 @@ export class FakeIdentity {
       activeRole: s.activeRole,
       expiresAt: timestampFromDate(new Date(now + 7 * 24 * 3600_000)),
       idleExpiresAt: timestampFromDate(new Date(now + 30 * 60_000)),
+      // Как sessionProto в Go: второй фактор нужен сессии оператора; отметка — когда пройден.
+      mfaRequired: s.activeRole === Role.OPERATOR,
+      mfaVerifiedAt: s.mfaVerifiedAt ? timestampFromDate(s.mfaVerifiedAt) : undefined,
     });
   }
 
@@ -236,11 +305,17 @@ export class FakeIdentity {
    * затем поиск сохранённого ответа по (метод, ключ): тот же запрос — прежний ответ без второго эффекта, другой запрос —
    * idempotency_key_reused (отпечаток — детерминированный protobuf без самого ключа), затем действие.
    */
-  private async once<S extends DescMessage, R>(method: string, schema: S, req: MessageInitShape<S>, run: () => Promise<R>, pre?: () => void): Promise<R> {
+  private async once<S extends DescMessage, R>(
+    method: string,
+    schema: S,
+    req: MessageInitShape<S>,
+    run: () => Promise<R>,
+    pre?: () => void | Promise<void>,
+  ): Promise<R> {
     this.enter(method, req);
     const msg = create(schema, req);
     const key = "idempotencyKey" in msg && typeof msg.idempotencyKey === "string" ? msg.idempotencyKey : "";
-    if (pre) pre();
+    if (pre) await pre();
     else this.checkKey(key);
     const copy = clone(schema, msg);
     if ("idempotencyKey" in copy) copy.idempotencyKey = "";
@@ -301,9 +376,64 @@ export class FakeIdentity {
     throw codedError("session_invalid", Code.Unauthenticated);
   }
 
+  /** operatorSession в Go: сессия действует, активная роль — оператор, иначе mfa_not_required. Сессия — хранимая (её отметку меняют). */
+  private async operatorSession(token: string): Promise<{ user: User; session: StoredSession }> {
+    const found = await this.lookup(token);
+    if (this.effective(found.user, found.session).activeRole !== Role.OPERATOR) throw codedError("mfa_not_required", Code.FailedPrecondition);
+    return found;
+  }
+
+  /** Проверка запроса кода (secondFactor в Go): ключ 1..128, код непуст и не длиннее 32 символов. */
+  private checkCodeRequest(key: string | undefined, code: string | undefined): void {
+    if (!key || key.length > MAX_KEY || !code || code.length > MAX_TOTP_CODE_LEN) throw codedError("invalid_request", Code.InvalidArgument);
+  }
+
+  /** HitRateLimit: фиксированное окно 15 минут; возвращает число попыток в окне, включая эту. */
+  private hitMfaLimit(userId: string): number {
+    const now = this.now().getTime();
+    const cur = this.mfaFailures.get(userId);
+    const next = !cur || cur.windowStart < now - MFA_FAILURE_WINDOW_MS ? { windowStart: now, count: 1 } : { ...cur, count: cur.count + 1 };
+    this.mfaFailures.set(userId, next);
+    return next.count;
+  }
+
+  private refundMfaLimit(userId: string): void {
+    const cur = this.mfaFailures.get(userId);
+    if (cur && cur.count > 0) cur.count -= 1;
+  }
+
+  /** totpMatch в Go: шаг окна ±1 вокруг сейчас, больше minStep, с тем же кодом; null — нет такого. */
+  private totpMatch(secret: Buffer, code: string, minStep: number): number | null {
+    const c = code.trim();
+    if (!/^\d{6}$/.test(c)) return null;
+    const cur = totpStep(this.now());
+    for (let s = cur - 1; s <= cur + 1; s++) if (s > minStep && totpCode(secret, s) === c) return s;
+    return null;
+  }
+
+  /** checkTotp и acceptTotp в Go: фактор, лимит (до сравнения), код, затем шаг, возврат попытки и отметка сессии. */
+  private acceptCode(user: User, session: StoredSession, code: string, enrolling: boolean): Session {
+    const f = this.factors.get(user.id);
+    if (!f) throw codedError("mfa_not_enrolled", Code.FailedPrecondition);
+    if (enrolling && f.confirmed) throw codedError("mfa_already_enrolled", Code.FailedPrecondition);
+    if (!enrolling && !f.confirmed) throw codedError("mfa_not_enrolled", Code.FailedPrecondition);
+    const attempts = this.hitMfaLimit(user.id);
+    if (attempts > MFA_MAX_FAILURES) throw codedError("mfa_too_many_attempts", Code.ResourceExhausted);
+    const step = this.totpMatch(f.secret, code, f.lastUsedStep);
+    if (step === null) {
+      if (this.totpMatch(f.secret, code, Number.MIN_SAFE_INTEGER) !== null) throw codedError("mfa_code_reused", Code.InvalidArgument);
+      throw codedError("mfa_wrong_code", Code.InvalidArgument, { left: String(Math.max(MFA_MAX_FAILURES - attempts, 0)) });
+    }
+    f.lastUsedStep = step;
+    f.confirmed = true;
+    this.refundMfaLimit(user.id);
+    session.mfaVerifiedAt = this.now();
+    return this.sessionView(this.effective(user, session));
+  }
+
   private build(): IdentityClient {
     const mutating =
-      <S extends DescMessage, R>(name: string, schema: S, fn: (req: MessageInitShape<S>) => Promise<R>, pre?: (req: MessageInitShape<S>) => void) =>
+      <S extends DescMessage, R>(name: string, schema: S, fn: (req: MessageInitShape<S>) => Promise<R>, pre?: (req: MessageInitShape<S>) => void | Promise<void>) =>
       (req: MessageInitShape<S>): Promise<R> =>
         this.once(name, schema, req, () => fn(req), pre && (() => pre(req)));
     const reading = <Q, R>(name: string, fn: (req: Q) => Promise<R>) => async (req: Q): Promise<R> => {
@@ -340,7 +470,8 @@ export class FakeIdentity {
           if (existing && this.blocked.has(existing.id)) throw codedError("user_blocked", Code.PermissionDenied);
           const user = existing ?? this.addUser({ phone });
           this.otpRequested.delete(phone);
-          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: user.defaultRole };
+          // Вход по SMS: второй ступени в этой сессии ещё нет (у оператора — /operator/mfa).
+          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: user.defaultRole, mfaVerifiedAt: null };
           this.sessions.set(req.sessionToken ?? "", session);
           return create(VerifyOtpResponseSchema, { user: this.view(user), session: this.sessionView(session), isNew: !existing });
         },
@@ -402,7 +533,8 @@ export class FakeIdentity {
           const asRole = req.asRole ? req.asRole : user.defaultRole;
           if (!user.roles.includes(asRole)) throw codedError("role_not_granted", Code.PermissionDenied);
           this.checkTokenFree(req.sessionToken ?? "");
-          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: asRole };
+          // Демо-оператор считается прошедшим вторую ступень (demo.go: у демо-персон нет приложения).
+          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: asRole, mfaVerifiedAt: asRole === Role.OPERATOR ? this.now() : null };
           this.sessions.set(req.sessionToken ?? "", session);
           return create(StartDemoSessionResponseSchema, { user: this.view(user), session: this.sessionView(session) });
         },
@@ -445,6 +577,8 @@ export class FakeIdentity {
           this.sessions.clear();
           this.otpRequested.clear();
           this.replays.clear();
+          this.mfaFailures.clear();
+          this.factors.clear(); // Ruling E: повторный прогон e2e подключает TOTP заново
           return create(ResetDemoResponseSchema);
         },
         (req) => {
@@ -453,9 +587,56 @@ export class FakeIdentity {
         },
       ),
       getSigningKeys: unimplemented,
-      startTotpEnrollment: unimplemented,
-      confirmTotpEnrollment: unimplemented,
-      verifySecondFactor: unimplemented,
+      startTotpEnrollment: async (req: MessageInitShape<typeof StartTotpEnrollmentRequestSchema>) => {
+        let userId = "";
+        const res = await this.once(
+          "startTotpEnrollment",
+          StartTotpEnrollmentRequestSchema,
+          req,
+          async () => {
+            // Повтор до подтверждения заменяет неподтверждённый секрет новым; подключённый фактор не меняется.
+            if (this.factors.get(userId)?.confirmed) throw codedError("mfa_already_enrolled", Code.FailedPrecondition);
+            const secret = randomBytes(20);
+            const secretBase32 = toBase32(secret);
+            this.factors.set(userId, { secretBase32, secret, confirmed: false, lastUsedStep: 0 });
+            return create(StartTotpEnrollmentResponseSchema, { secretBase32 });
+          },
+          // Порядок Go: ключ, сессия и роль; дальше повтор по ключу.
+          async () => {
+            this.checkKey(req.idempotencyKey);
+            userId = (await this.operatorSession(req.sessionToken ?? "")).user.id;
+          },
+        );
+        // После повтора по ключу: секрет показывается только до подключения и только пока он действует.
+        const factor = this.factors.get(userId);
+        if (factor?.confirmed) throw codedError("mfa_already_enrolled", Code.FailedPrecondition);
+        if (!factor || factor.secretBase32 !== res.secretBase32) throw codedError("idempotency_key_reused", Code.InvalidArgument);
+        return res;
+      },
+      confirmTotpEnrollment: mutating(
+        "confirmTotpEnrollment",
+        ConfirmTotpEnrollmentRequestSchema,
+        async (req) => {
+          const { user, session } = await this.operatorSession(req.sessionToken ?? "");
+          return create(ConfirmTotpEnrollmentResponseSchema, { session: this.acceptCode(user, session, req.code ?? "", true) });
+        },
+        async (req) => {
+          this.checkCodeRequest(req.idempotencyKey, req.code);
+          await this.operatorSession(req.sessionToken ?? "");
+        },
+      ),
+      verifySecondFactor: mutating(
+        "verifySecondFactor",
+        VerifySecondFactorRequestSchema,
+        async (req) => {
+          const { user, session } = await this.operatorSession(req.sessionToken ?? "");
+          return create(VerifySecondFactorResponseSchema, { session: this.acceptCode(user, session, req.code ?? "", false) });
+        },
+        async (req) => {
+          this.checkCodeRequest(req.idempotencyKey, req.code);
+          await this.operatorSession(req.sessionToken ?? "");
+        },
+      ),
       recordPerson: unimplemented,
       updateContacts: unimplemented,
       getProfile: unimplemented,

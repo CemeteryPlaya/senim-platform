@@ -9,6 +9,7 @@ import { IDENTITY_ERROR_CODES, identityFailure } from "./remote-errors";
 afterEach(() => vi.restoreAllMocks());
 
 const otp = ru.identity.otp.errors;
+const mfa = ru.identity.mfa.errors;
 const g = ru.common.errors;
 
 function caught(err: unknown): AppError {
@@ -40,6 +41,13 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   caller_forbidden: { code: "UNAVAILABLE", message: g.generic },
   idempotency_key_reused: { code: "UNAVAILABLE", message: g.generic },
   invalid_request: { code: "UNAVAILABLE", message: g.generic },
+  mfa_required: { code: "MFA_REQUIRED", message: ru.identity.mfa.stepUp },
+  mfa_not_required: { code: "FORBIDDEN", message: mfa.notRequired },
+  mfa_not_enrolled: { code: "CONFLICT", message: mfa.notEnrolled },
+  mfa_already_enrolled: { code: "CONFLICT", message: mfa.alreadyEnrolled },
+  mfa_wrong_code: { code: "VALIDATION", message: mfa.wrongCode(3), params: { left: "3" } },
+  mfa_code_reused: { code: "VALIDATION", message: mfa.reused },
+  mfa_too_many_attempts: { code: "RATE_LIMITED", message: mfa.tooMany },
 };
 
 describe("identityFailure", () => {
@@ -51,8 +59,8 @@ describe("identityFailure", () => {
     expect(err.message).toBe(want.message);
   });
 
-  it("таблица покрывает весь контракт: 18 кодов", () => {
-    expect(IDENTITY_ERROR_CODES).toHaveLength(18);
+  it("таблица покрывает коды входа, ролей и второго фактора: 25 кодов", () => {
+    expect(IDENTITY_ERROR_CODES).toHaveLength(25);
     expect(Object.keys(table).sort()).toEqual([...IDENTITY_ERROR_CODES].sort());
   });
 
@@ -60,12 +68,17 @@ describe("identityFailure", () => {
     expect(caught(codedError("otp_wrong_code", Code.InvalidArgument, { left: "3" })).message).toBe("Неверный код. Осталось попыток: 3");
   });
 
-  it("otp_wrong_code без разбираемого left — общий текст", () => {
+  it.each(["otp_wrong_code", "mfa_wrong_code"])("%s без разбираемого left — общий текст", (code) => {
     vi.spyOn(logger, "error").mockImplementation(() => {});
     const bad: Record<string, string>[] = [{}, { left: "abc" }, { left: "-1" }];
     for (const params of bad) {
-      expect(caught(codedError("otp_wrong_code", Code.InvalidArgument, params)).message).toBe(g.generic);
+      expect(caught(codedError(code, Code.InvalidArgument, params)).message).toBe(g.generic);
     }
+  });
+
+  it("mfa_wrong_code с left=0 — попытки закончились", () => {
+    expect(caught(codedError("mfa_wrong_code", Code.InvalidArgument, { left: "0" })).message).toBe(mfa.wrongCode(0));
+    expect(mfa.wrongCode(0)).toMatch(/15 минут/);
   });
 
   it("ошибки контракта пишутся в лог кодом, а человеку показывается общий текст", () => {

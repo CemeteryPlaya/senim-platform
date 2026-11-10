@@ -5,6 +5,7 @@ import { AppError, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 
 const otp = ru.identity.otp.errors;
+const mfa = ru.identity.mfa.errors;
 
 /** Коды, которые identity возвращает по контракту (proto/senim/identity/v1/identity.proto). */
 export const IDENTITY_ERROR_CODES = [
@@ -26,6 +27,13 @@ export const IDENTITY_ERROR_CODES = [
   "caller_forbidden",
   "idempotency_key_reused",
   "invalid_request",
+  "mfa_required",
+  "mfa_not_required",
+  "mfa_not_enrolled",
+  "mfa_already_enrolled",
+  "mfa_wrong_code",
+  "mfa_code_reused",
+  "mfa_too_many_attempts",
 ] as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
@@ -37,10 +45,11 @@ function broken(reason: string, cause?: unknown): never {
   throw new AppError("UNAVAILABLE", ru.common.errors.generic);
 }
 
-function wrongCode(params: Record<string, string>): never {
+/** params.left кодов otp_wrong_code и mfa_wrong_code: сколько попыток осталось; не число — сбой контракта. */
+function attemptsLeft(code: "otp_wrong_code" | "mfa_wrong_code", params: Record<string, string>): number {
   const raw = params["left"];
-  if (raw === undefined || !/^\d{1,2}$/.test(raw)) return broken("otp_wrong_code_without_left");
-  return fail.validation(otp.wrongCode(Number(raw)));
+  if (raw === undefined || !/^\d{1,2}$/.test(raw)) return broken(`${code}_without_left`);
+  return Number(raw);
 }
 
 /** Каждый код контракта → ошибка приложения. Тип `never` в `default` не даёт забыть новый код. */
@@ -59,7 +68,7 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
     case "otp_expired":
       return fail.validation(otp.expired);
     case "otp_wrong_code":
-      return wrongCode(params);
+      return fail.validation(otp.wrongCode(attemptsLeft(code, params)));
     case "otp_attempts_exhausted":
       return fail.rateLimited(otp.attemptsExhausted);
     case "user_blocked":
@@ -74,6 +83,20 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
       return fail.forbidden(ru.identity.demo.disabled);
     case "user_not_found":
       return fail.notFound();
+    case "mfa_required":
+      return fail.mfaRequired();
+    case "mfa_not_required":
+      return fail.forbidden(mfa.notRequired);
+    case "mfa_not_enrolled":
+      return fail.conflict(mfa.notEnrolled);
+    case "mfa_already_enrolled":
+      return fail.conflict(mfa.alreadyEnrolled);
+    case "mfa_wrong_code":
+      return fail.validation(mfa.wrongCode(attemptsLeft(code, params)));
+    case "mfa_code_reused":
+      return fail.validation(mfa.reused);
+    case "mfa_too_many_attempts":
+      return fail.rateLimited(mfa.tooMany);
     case "session_token_invalid":
     case "caller_forbidden":
     case "idempotency_key_reused":

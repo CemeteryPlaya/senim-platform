@@ -8,6 +8,7 @@ export type ErrorCode =
   | "VALIDATION"
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
+  | "MFA_REQUIRED" // нужен (свежий) код второго фактора оператора: форма спросит код и повторит действие
   | "NOT_FOUND"
   | "CONFLICT" // состояние уже изменилось: повтор, гонка, неверный статус
   | "RATE_LIMITED"
@@ -35,6 +36,10 @@ export const fail = {
   },
   forbidden(message: string = e.notAllowed): never {
     throw new AppError("FORBIDDEN", message);
+  },
+  /** Отказ по правам особого вида: второй фактор оператора не пройден или пройден давно (MFA_STEP_UP_WINDOW). */
+  mfaRequired(message: string = ru.identity.mfa.stepUp): never {
+    throw new AppError("MFA_REQUIRED", message);
   },
   notFound(message: string = e.notFoundShort): never {
     throw new AppError("NOT_FOUND", message);

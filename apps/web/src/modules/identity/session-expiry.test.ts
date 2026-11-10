@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ActionResult } from "@/platform/action";
-import { leaveIfSignedOut, type Here } from "./session-expiry";
+import { askSecondFactor, leaveIfSignedOut, type Here } from "./session-expiry";
 
 function here(pathname: string, search: string) {
   const visited: string[] = [];
@@ -33,5 +33,25 @@ describe("leaveIfSignedOut", () => {
     const { loc, visited } = here("/deals/42", "");
     expect(leaveIfSignedOut({ ok: true, data: 1 }, loc)).toBe(false);
     expect(visited).toEqual([]);
+  });
+});
+
+describe("askSecondFactor", () => {
+  it("MFA_REQUIRED: просит код с текстом сервера и не уводит со страницы", () => {
+    const asked: string[] = [];
+    expect(askSecondFactor({ ok: false, code: "MFA_REQUIRED", error: "Введите код" }, (m) => asked.push(m))).toBe(true);
+    expect(asked).toEqual(["Введите код"]);
+  });
+
+  it.each(["UNAUTHENTICATED", "FORBIDDEN", "VALIDATION", "INTERNAL"] as const)("%s: код не спрашивает", (code) => {
+    const asked: string[] = [];
+    expect(askSecondFactor(failed(code), (m) => asked.push(m))).toBe(false);
+    expect(asked).toEqual([]);
+  });
+
+  it("успех: код не спрашивает", () => {
+    expect(askSecondFactor({ ok: true, data: null }, () => {
+      throw new Error("не должен спрашивать");
+    })).toBe(false);
   });
 });

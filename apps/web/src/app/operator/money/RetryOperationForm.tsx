@@ -3,6 +3,7 @@
 import { ru } from "@/i18n/ru";
 import { Button } from "@/ui";
 import { FormStatus } from "../_components/FormStatus";
+import { SecondFactorField } from "../_components/SecondFactorField";
 import { useActionForm } from "../_components/useActionForm";
 import { retryBankOperationAction } from "./actions";
 
@@ -18,6 +19,7 @@ export function RetryOperationForm({ transactionId }: { transactionId: string })
     <form onSubmit={form.onSubmit} noValidate className="flex flex-col gap-4">
       <input type="hidden" name="transactionId" value={transactionId} />
       <FormStatus error={form.error} done={form.done} doneText={t.retried} />
+      <SecondFactorField form={form} />
       <Button type="submit" variant="secondary" loading={form.pending} className="self-start">
         {t.retry}
       </Button>

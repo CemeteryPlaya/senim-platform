@@ -229,3 +229,25 @@ describe("v2: MESH_* и V2_ENABLED", () => {
     expect(msg).toContain("MESH_TLS_CERT_FILE");
   });
 });
+
+describe("env: MFA_STEP_UP_WINDOW", () => {
+  const dev = { DATABASE_URL: "postgresql://x" };
+
+  it("по умолчанию 5 минут; пусто — тоже", () => {
+    expect(parseEnv(dev).MFA_STEP_UP_WINDOW).toBe(5 * 60_000);
+    expect(parseEnv({ ...dev, MFA_STEP_UP_WINDOW: "" }).MFA_STEP_UP_WINDOW).toBe(5 * 60_000);
+  });
+
+  it.each([
+    ["1m", 60_000],
+    ["90s", 90_000],
+    ["2m30s", 150_000],
+    ["30m", 30 * 60_000],
+  ])("%s → %i мс", (value, ms) => {
+    expect(parseEnv({ ...dev, MFA_STEP_UP_WINDOW: value }).MFA_STEP_UP_WINDOW).toBe(ms);
+  });
+
+  it.each(["59s", "31m", "1h", "5", "5 m", "five", "-5m"])("%s — ошибка с именем переменной", (value) => {
+    expect(problems({ ...dev, MFA_STEP_UP_WINDOW: value })).toMatch(/MFA_STEP_UP_WINDOW: длительность/);
+  });
+});

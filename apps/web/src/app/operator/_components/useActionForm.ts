@@ -2,18 +2,22 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
-import { leaveIfSignedOut } from "@/modules/identity/client";
+import { askSecondFactor, leaveIfSignedOut } from "@/modules/identity/client";
 import type { ActionResult } from "@/platform/action";
 import { focusFirstInvalid } from "@/ui";
+import { verifySecondFactorAction } from "../mfa/actions";
+import { MFA_CODE_FIELD, runWithCode } from "./second-factor";
 
 /** Поля формы: строки и выбранные файлы (пустое поле файла не передаётся). */
 export type FormFields = Record<string, string | File>;
 
-type State = { error?: string; fieldErrors?: Record<string, string[]>; done?: boolean };
+type State = { error?: string; fieldErrors?: Record<string, string[]>; done?: boolean; needsCode?: boolean };
 
 /**
  * Форма панели оператора: собирает поля, вызывает Server Action, показывает ошибки полей
  * и общий ответ, после успеха обновляет данные страницы. Проверка входа — на сервере (zod).
+ * Действие ответило MFA_REQUIRED (деньги без свежего кода) — форма показывает поле кода (SecondFactorField);
+ * следующая отправка сначала проверяет код, затем повторяет действие.
  */
 export function useActionForm<T>(
   action: (fields: FormFields) => Promise<ActionResult<T>>,
@@ -32,13 +36,25 @@ export function useActionForm<T>(
       if (typeof value === "string") fields[key] = value;
       else if (value.size > 0) fields[key] = value;
     });
+    // После отрисовки ошибок (aria-invalid) — фокус на первое неверное поле, а не на кнопке под ним.
+    const focusInvalid = () => requestAnimationFrame(() => focusFirstInvalid(form));
     startTransition(async () => {
-      const result = await action(fields);
+      const run = await runWithCode(fields, action, verifySecondFactorAction);
+      const { result } = run;
       if (!result.ok) {
         if (leaveIfSignedOut(result)) return;
-        setState({ error: result.error, fieldErrors: result.fieldErrors });
-        // После отрисовки ошибок (aria-invalid) — фокус на первое неверное поле, а не на кнопке под ним.
-        if (result.fieldErrors) requestAnimationFrame(() => focusFirstInvalid(form));
+        if (run.step === "code") {
+          setState({ needsCode: true, fieldErrors: { [MFA_CODE_FIELD]: [result.fieldErrors?.code?.[0] ?? result.error] } });
+          focusInvalid();
+          return;
+        }
+        if (askSecondFactor(result, (message) => setState({ needsCode: true, error: message }))) {
+          requestAnimationFrame(() => form.querySelector<HTMLInputElement>(`[name="${MFA_CODE_FIELD}"]`)?.focus());
+          return;
+        }
+        // Код принят, а действие отказало по своей причине: поле кода больше не нужно.
+        setState((prev) => ({ error: result.error, fieldErrors: result.fieldErrors, needsCode: run.verified ? false : prev.needsCode }));
+        if (result.fieldErrors) focusInvalid();
         return;
       }
       setState({ done: true });
@@ -53,6 +69,8 @@ export function useActionForm<T>(
     pending,
     error: state.error,
     done: state.done ?? false,
+    /** Показать поле кода из приложения (SecondFactorField). */
+    needsCode: state.needsCode ?? false,
     fieldError: (name: string) => state.fieldErrors?.[name]?.[0],
   };
 }

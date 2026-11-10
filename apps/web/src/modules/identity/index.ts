@@ -17,6 +17,16 @@ export {
   switchRole,
   type CurrentUser,
 } from "./session";
+export {
+  MFA_PATH,
+  confirmTotpEnrollment,
+  mfaHref,
+  requireMfaUser,
+  requireRecentMfa,
+  startTotpEnrollment,
+  verifySecondFactor,
+  type TotpEnrollment,
+} from "./mfa";
 export { identityClientIp } from "./remote";
 export { newSessionToken, sessionCookieName, sessionCookieOptions } from "./session-cookie";
 export { STAFF_ROLES, SWITCHABLE_ROLES, SWITCH_ROLE_PATH, canGrant, isStaffRole, parseSwitchableRole, roleToSwitch, switchRoleHref, switchTargets } from "./roles";

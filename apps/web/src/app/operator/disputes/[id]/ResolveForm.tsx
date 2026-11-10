@@ -5,6 +5,7 @@ import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Fact, Input, RadioCards, Textarea } from "@/ui";
 import { FormStatus } from "../../_components/FormStatus";
+import { SecondFactorField } from "../../_components/SecondFactorField";
 import { useActionForm } from "../../_components/useActionForm";
 import { previewSplitAction, resolveDisputeAction } from "../actions";
 
@@ -84,6 +85,7 @@ export function ResolveForm({ disputeId, maxShare }: { disputeId: string; maxSha
       )}
       <Textarea label={c.rationaleLabel} hint={c.rationaleHint} name="rationale" required maxLength={2000} rows={5} error={form.fieldError("rationale")} />
       <FormStatus error={form.error} done={form.done} doneText={c.resolved} />
+      <SecondFactorField form={form} />
       <Button type="submit" loading={form.pending} className="self-start">
         {c.submit}
       </Button>

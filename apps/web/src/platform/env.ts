@@ -14,6 +14,26 @@ const base64Key = z
   .string()
   .refine((v) => Buffer.from(v, "base64").length === 32, "нужно 32 байта в base64");
 
+/** Длительность как в Go-конфиге (`5m`, `90s`, `1m30s`) → миллисекунды; не длительность — null. */
+export function parseDurationMs(value: string): number | null {
+  const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(value);
+  if (!m || value === "") return null;
+  return ((Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60 + Number(m[3] ?? 0)) * 1000;
+}
+
+/** Переменная-длительность: пусто — `def`; иначе в пределах [min, max] (как config.Loader.Duration в Go). Значение — мс. */
+const duration = (def: string, min: string, max: string) =>
+  optional.transform((v, ctx) => {
+    const ms = parseDurationMs(v ?? def);
+    const lo = parseDurationMs(min) ?? 0;
+    const hi = parseDurationMs(max) ?? 0;
+    if (ms === null || ms < lo || ms > hi) {
+      ctx.addIssue({ code: "custom", message: `длительность вида 5m или 90s, от ${min} до ${max}` });
+      return z.NEVER;
+    }
+    return ms;
+  });
+
 const APP_ENVS = ["dev", "staging", "prod"] as const;
 type AppEnv = (typeof APP_ENVS)[number];
 
@@ -96,6 +116,9 @@ const base = z
     MESH_TLS_CERT_FILE: optional,
     MESH_TLS_KEY_FILE: optional,
     MESH_TLS_CA_FILE: optional,
+
+    /** Свежесть второго фактора оператора перед действием с деньгами (повторный код), мс; по умолчанию 5 минут. */
+    MFA_STEP_UP_WINDOW: duration("5m", "1m", "30m"),
   });
 
 /** Переменные после разбора; APP_ENV — с контуром по умолчанию (dev), как его видят проверки и приложение. */

@@ -13,3 +13,14 @@ export function leaveIfSignedOut(result: ActionResult<unknown>, here: Here = win
   here.assign(loginHref(here.pathname + here.search));
   return true;
 }
+
+/**
+ * Действие оператора вернуло MFA_REQUIRED: второй фактор не пройден или пройден давно (перед деньгами —
+ * MFA_STEP_UP_WINDOW). Форма просит код из приложения (`ask` — с текстом сервера) и повторяет действие с ним.
+ * true — спросили, обычная ошибка не нужна.
+ */
+export function askSecondFactor(result: ActionResult<unknown>, ask: (message: string) => void): boolean {
+  if (result.ok || result.code !== "MFA_REQUIRED") return false;
+  ask(result.error);
+  return true;
+}
