@@ -125,6 +125,38 @@ func TestIPHourlyLimit(t *testing.T) {
 	h.mustRequest("+77000006099", "198.51.100.1")
 }
 
+// IPv6: у абонента обычно целая /64, и полный адрес меняется свободно — лимит считается по /64.
+func TestIPHourlyLimitIPv6By64(t *testing.T) {
+	h := newHarness(t, nil)
+	for i := range 20 {
+		h.mustRequest(fmt.Sprintf("+770000610%02d", i), fmt.Sprintf("2001:db8:1:2::%x", i+1))
+	}
+	_, err := h.request("+77000061099", "2001:db8:1:2:ffff:ffff:ffff:ffff")
+	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_many_requests")
+	h.mustRequest("+77000061099", "2001:db8:1:3::1")
+}
+
+func TestIPLimitKey(t *testing.T) {
+	cases := []struct{ ip, want string }{
+		{"203.0.113.7", "203.0.113.7"},
+		{"2001:db8:1:2::1", "2001:db8:1:2::/64"},
+		{"2001:db8:1:2:ffff:ffff:ffff:ffff", "2001:db8:1:2::/64"},
+		{"2001:db8:1:3::1", "2001:db8:1:3::/64"},
+		{"::ffff:203.0.113.7", "203.0.113.7"},
+	}
+	for _, c := range cases {
+		if got := ipLimitKey(c.ip); got != c.want {
+			t.Errorf("ipLimitKey(%q) = %q, want %q", c.ip, got, c.want)
+		}
+	}
+	if ipLimitKey("2001:db8:1:2::1") != ipLimitKey("2001:db8:1:2:abcd::9") {
+		t.Error("два адреса одной /64 дали разные ключи")
+	}
+	if ipLimitKey("2001:db8:1:2::1") == ipLimitKey("2001:db8:1:3::1") {
+		t.Error("разные /64 дали один ключ")
+	}
+}
+
 func TestUnknownIPUsesPhoneLimits(t *testing.T) {
 	h := newHarness(t, nil)
 	for i := range 25 {

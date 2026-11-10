@@ -232,6 +232,18 @@ func TestVerifyIPHourlyLimit50(t *testing.T) {
 	h.wantRefusal(err, connect.CodeInvalidArgument, "otp_expired")
 }
 
+func TestVerifyIPHourlyLimitIPv6By64(t *testing.T) {
+	h := newHarness(t, nil)
+	for i := range 50 {
+		_, err := h.verify(newPhone(), "000000", fmt.Sprintf("2001:db8:5:6::%x", i+1))
+		h.wantRefusal(err, connect.CodeInvalidArgument, "otp_expired")
+	}
+	_, err := h.verify(newPhone(), "000000", "2001:db8:5:6::ffff")
+	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_many_requests")
+	_, err = h.verify(newPhone(), "000000", "2001:db8:5:7::1")
+	h.wantRefusal(err, connect.CodeInvalidArgument, "otp_expired")
+}
+
 func TestVerifyExpiredCode(t *testing.T) {
 	h := newHarness(t, nil)
 	phone := newPhone()

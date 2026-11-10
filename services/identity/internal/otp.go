@@ -175,6 +175,25 @@ func parseClientIP(raw string) (string, bool) {
 	return addr.Unmap().String(), true
 }
 
+// ipLimitKey — адрес в ключе лимита по IP (запрос и проверка кода): IPv4 как есть, IPv6 — префикс /64. Абоненту
+// обычно выдают целую /64, и полный адрес внутри неё меняется свободно: лимит по /128 обходился бы сменой адреса.
+// IPv4-mapped IPv6 считается как IPv4. Нераспознанный адрес (parseClientIP его не пропускает) — как есть.
+func ipLimitKey(ip string) string {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	addr = addr.Unmap()
+	if addr.Is4() {
+		return addr.String()
+	}
+	prefix, err := addr.Prefix(64)
+	if err != nil {
+		return addr.String()
+	}
+	return prefix.String()
+}
+
 // showsDemoCode — код возвращается в ответе только в демо с мок-провайдером: настоящая SMS
 // никуда не уходит.
 func (s *Service) showsDemoCode() bool {
@@ -197,7 +216,7 @@ func (s *Service) enforceLimits(ctx context.Context, phone, ip string) error {
 		return nil
 	}
 	if ip != "" {
-		if err := check("otp:ip:"+ip, ipHourly, hour, "otp_too_many_requests"); err != nil {
+		if err := check("otp:ip:"+ipLimitKey(ip), ipHourly, hour, "otp_too_many_requests"); err != nil {
 			return err
 		}
 	}

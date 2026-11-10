@@ -157,7 +157,7 @@ func (s *Service) checkCode(ctx context.Context, phone, ip, code string) (otpID 
 		return nil
 	}
 	if ip != "" {
-		if err := hit("otp:verify:ip:"+ip, verifyIPHourly, hour, "otp_too_many_requests"); err != nil {
+		if err := hit("otp:verify:ip:"+ipLimitKey(ip), verifyIPHourly, hour, "otp_too_many_requests"); err != nil {
 			return otpID, err
 		}
 	}
