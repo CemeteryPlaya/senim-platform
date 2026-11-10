@@ -34,3 +34,8 @@ UPDATE sessions SET mfa_verified_at = @at WHERE id = @id RETURNING *;
 
 -- name: ClearUserSessionsMfa :execrows
 UPDATE sessions SET mfa_verified_at = NULL WHERE user_id = $1 AND mfa_verified_at IS NOT NULL;
+
+-- Сброс стенда (ResetDemo): факторы демо-стенда удаляются, чтобы повторный прогон e2e
+-- подключал TOTP заново. Таблица mfa_factors помечена senim:app-delete.
+-- name: DeleteAllMfaFactors :execrows
+DELETE FROM mfa_factors;

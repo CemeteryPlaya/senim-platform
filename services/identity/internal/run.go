@@ -30,6 +30,10 @@ const usage = "использование: identity serve | identity migrate | i
 // healthcheckTimeout — сколько ждать ответа пробы; docker compose сам ограничивает проверку сверху.
 const healthcheckTimeout = 3 * time.Second
 
+// mfaResetTimeout — предел подключения к базе и транзакции identity mfa-reset: ни одного
+// вызова без дедлайна.
+const mfaResetTimeout = 30 * time.Second
+
 // Main выполняет команду и возвращает код выхода процесса. Ошибки пишутся в stderr
 // через логгер; значения секретов в них не попадают.
 func Main(ctx context.Context, args []string, src config.Source, stderr io.Writer) int {
@@ -99,6 +103,8 @@ func MfaReset(ctx context.Context, src config.Source, log *slog.Logger, args []s
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithTimeout(ctx, mfaResetTimeout)
+	defer cancel()
 	pool, err := dbx.Connect(ctx, cfg.AppDSN, ServiceID, 1)
 	if err != nil {
 		return err

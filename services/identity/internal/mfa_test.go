@@ -221,6 +221,36 @@ func TestStartEnrollmentAgainBeforeConfirm(t *testing.T) {
 	}
 }
 
+// Повтор Start по старому ключу после замены секрета (новый Start или mfa-reset) не отдаёт
+// мёртвый секрет: ключ принадлежит прошлому подключению.
+func TestStartEnrollmentReplayAfterSecretReplaced(t *testing.T) {
+	h := newHarness(t, nil)
+	u, token := h.operator()
+	oldKey := h.key()
+	if _, err := h.startTotp(token, oldKey); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.startTotp(token, h.key()); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.startTotp(token, oldKey)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "idempotency_key_reused")
+
+	// mfa-reset удалил фактор: повтор по ключу текущего секрета — тоже отказ.
+	curKey := h.key()
+	if _, err := h.startTotp(token, curKey); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resetMfa(context.Background(), h.pool, u.Phone, h.clock.now()); err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.startTotp(token, curKey)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "idempotency_key_reused")
+	if _, ok := h.factor(u.ID.String()); ok {
+		t.Fatal("отказ повтора создал фактор")
+	}
+}
+
 func TestStartEnrollmentTwiceAfterConfirm(t *testing.T) {
 	h := newHarness(t, nil)
 	_, token := h.operator()

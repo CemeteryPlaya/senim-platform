@@ -112,7 +112,8 @@ func lockedOperatorSession(ctx context.Context, tx pgx.Tx, token string, now tim
 // фактор не меняется — mfa_already_enrolled (сброс — identity mfa-reset).
 //
 // В таблицу idempotency ложится не секрет, а его шифртекст: повтор по ключу
-// расшифровывает его и отдаёт тот же секрет — только пока фактор не подтверждён.
+// расшифровывает его и отдаёт тот же секрет — только пока фактор не подтверждён и секрет
+// не заменён (иначе idempotency_key_reused).
 func (s *Service) StartTotpEnrollment(ctx context.Context, req *identityv1.StartTotpEnrollmentRequest) (*identityv1.StartTotpEnrollmentResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return nil, err
@@ -166,6 +167,12 @@ func (s *Service) StartTotpEnrollment(ctx context.Context, req *identityv1.Start
 	}
 	if err == nil && factor.ConfirmedAt.Valid {
 		return nil, mfaAlreadyEnrolled()
+	}
+	// Повтор по старому ключу после замены секрета (новый Start или mfa-reset): сохранённый
+	// секрет уже не действует — отдать его значило бы подключить приложение к мёртвому
+	// секрету. Ключ принадлежит прошлому подключению: idempotency_key_reused.
+	if err != nil || factor.SecretEnc != stored.GetSecretBase32() {
+		return nil, rpcError(connect.CodeInvalidArgument, "idempotency_key_reused", nil)
 	}
 	plain, err := s.cfg.PII.Open(stored.GetSecretBase32(), aad)
 	if err != nil {

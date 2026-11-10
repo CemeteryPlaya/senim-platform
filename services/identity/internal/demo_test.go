@@ -270,12 +270,21 @@ func TestResetDemoClearsLimits(t *testing.T) {
 	if _, err := h.startDemo(&identityv1.StartDemoSessionRequest{UserId: u.GetId()}); err != nil {
 		t.Fatal(err)
 	}
+	// Второй фактор оператора стенда: подтверждённый и начатый (Ruling E — повторный прогон
+	// e2e подключает TOTP заново).
+	_, opToken := h.operator()
+	h.enrolled(opToken)
+	_, pendingToken := h.operator()
+	h.mustStart(pendingToken)
+	if n := h.count(`SELECT count(*) FROM mfa_factors`); n != 2 {
+		t.Fatalf("факторов до сброса: %d", n)
+	}
 	usersBefore := h.count(`SELECT count(*) FROM users`)
 
 	if err := h.resetDemo(h.key()); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"sessions", "otp_codes", "rate_limits"} {
+	for _, table := range []string{"sessions", "otp_codes", "rate_limits", "mfa_factors"} {
 		if n := h.count(`SELECT count(*) FROM ` + table); n != 0 {
 			t.Fatalf("%s: %d строк после сброса", table, n)
 		}

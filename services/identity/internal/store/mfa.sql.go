@@ -50,6 +50,20 @@ func (q *Queries) ConfirmMfaFactor(ctx context.Context, arg ConfirmMfaFactorPara
 	return result.RowsAffected(), nil
 }
 
+const deleteAllMfaFactors = `-- name: DeleteAllMfaFactors :execrows
+DELETE FROM mfa_factors
+`
+
+// Сброс стенда (ResetDemo): факторы демо-стенда удаляются, чтобы повторный прогон e2e
+// подключал TOTP заново. Таблица mfa_factors помечена senim:app-delete.
+func (q *Queries) DeleteAllMfaFactors(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAllMfaFactors)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteMfaFactor = `-- name: DeleteMfaFactor :execrows
 DELETE FROM mfa_factors WHERE user_id = $1
 `

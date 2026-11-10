@@ -200,8 +200,10 @@ func (s *Service) StartDemoSession(ctx context.Context, req *identityv1.StartDem
 }
 
 // ResetDemo чистит одноразовое и временное состояние стенда: коды, счётчики лимитов,
-// сессии и сохранённые ответы идемпотентности (иначе повтор вернул бы вход с уже
-// несуществующей сессией). Пользователи остаются. Сам вызов остаётся идемпотентным:
+// сессии, вторые факторы операторов (повторный прогон e2e подключает TOTP заново, а не
+// упирается в mfa_already_enrolled) и сохранённые ответы идемпотентности (иначе повтор
+// вернул бы вход с уже несуществующей сессией). Пользователи остаются. Только демо-стенд
+// (demoGate). Сам вызов остаётся идемпотентным:
 // запись его ключа в idempotency не удаляется, а ответ сохраняется после очистки.
 func (s *Service) ResetDemo(ctx context.Context, req *identityv1.ResetDemoRequest) (*identityv1.ResetDemoResponse, error) {
 	if err := s.demoGate(ctx); err != nil {
@@ -221,6 +223,9 @@ func (s *Service) ResetDemo(ctx context.Context, req *identityv1.ResetDemoReques
 			return err
 		}
 		if _, err := q.DeleteAllRateLimits(ctx); err != nil {
+			return err
+		}
+		if _, err := q.DeleteAllMfaFactors(ctx); err != nil {
 			return err
 		}
 		_, err := q.DeleteIdempotencyExcept(ctx, store.DeleteIdempotencyExceptParams{Method: method, Key: req.GetIdempotencyKey()})
