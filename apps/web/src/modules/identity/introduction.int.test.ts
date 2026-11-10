@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testIin } from "@/demo/kz-id";
-import { decryptPii, hashPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { freshBrowser } from "../../../test/factories/identity";
 import { signInAs } from "../../../test/factories/session";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
+import { identityFake } from "../../../test/stubs/identity";
 import { needsIntroduction } from "./introduction";
 import { recordOwnIdentity } from "./person-identity";
 import { getCurrentUser, requireUserPage } from "./session";
@@ -37,13 +37,15 @@ async function redirectTarget(p: Promise<unknown>): Promise<string | null> {
   }
 }
 
-/** Только что вошёл по SMS: ни ФИО, ни ИИН. */
+/** Только что вошёл по SMS: ни ФИО, ни ИИН (ни в старой базе, ни в identity). */
 async function newcomer() {
   const user = await makeClient();
   await db.user.update({ where: { id: user.id }, data: { fullName: null, iinEnc: null, iinHash: null, iinLast4: null } });
   await signInAs(user);
   return (await getCurrentUser())!;
 }
+
+const recorded = (userId: string) => identityFake.auditEvents.filter((e) => e.userId === userId && e.action === "user.identity.recorded");
 
 describe("знакомство: ФИО и ИИН один раз после первого входа (№26)", () => {
   it("новый пользователь без ФИО и ИИН — страницы заказчика ведут на знакомство с возвратом", async () => {
@@ -52,16 +54,15 @@ describe("знакомство: ФИО и ИИН один раз после пе
     expect(await redirectTarget(requireUserPage("/requests", "CLIENT"))).toBe("/welcome?next=%2Frequests");
   });
 
-  it("сохраняет ФИО и ИИН (ИИН — только зашифрованным), после этого страницы открываются", async () => {
+  it("ФИО и ИИН записывает identity, в проекции — ФИО и последние 4 цифры; после этого страницы открываются", async () => {
     const user = await newcomer();
 
     await recordOwnIdentity(user, me);
 
+    expect(identityFake.personOf(user.id)).toMatchObject({ fullName: "Сапаров Ерлан", iinLast4: IIN.slice(-4) });
     const row = await db.user.findUniqueOrThrow({ where: { id: user.id } });
-    expect(row).toMatchObject({ fullName: "Сапаров Ерлан", iinHash: hashPii(IIN), iinLast4: IIN.slice(-4) });
-    expect(row.iinEnc).not.toContain(IIN);
-    expect(decryptPii(row.iinEnc!)).toBe(IIN);
-    expect(await db.auditEvent.count({ where: { action: "user.identity.recorded", entityId: user.id } })).toBe(1);
+    expect(row).toMatchObject({ fullName: "Сапаров Ерлан", iinLast4: IIN.slice(-4) });
+    expect(recorded(user.id)).toHaveLength(1);
 
     const after = (await getCurrentUser())!;
     expect(needsIntroduction(after)).toBe(false);
@@ -73,21 +74,26 @@ describe("знакомство: ФИО и ИИН один раз после пе
     await recordOwnIdentity(user, me);
 
     expect(await codeOf(recordOwnIdentity(user, { fullName: "Другой Человек", iin: testIin("900101", 3, 62) }))).toBe("CONFLICT");
-    expect(await db.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ fullName: "Сапаров Ерлан", iinHash: hashPii(IIN) });
+    // Тот же ИИН с другим ФИО — тот же ответ: ФИО не переписывается.
+    await recordOwnIdentity(user, { fullName: "Другой Человек", iin: IIN });
+    expect(await db.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ fullName: "Сапаров Ерлан", iinLast4: IIN.slice(-4) });
+    expect(recorded(user.id)).toHaveLength(1);
   });
 
-  it("двойная отправка формы: записывается один раз, второй ответ — понятный конфликт", async () => {
+  it("двойная отправка формы: записывается один раз, оба ответа успешны", async () => {
     const user = await newcomer();
     const results = await Promise.allSettled([recordOwnIdentity(user, me), recordOwnIdentity(user, me)]);
-    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    expect(await db.auditEvent.count({ where: { action: "user.identity.recorded", entityId: user.id } })).toBe(1);
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(recorded(user.id)).toHaveLength(1);
   });
 
-  it("ИИН с неверной контрольной цифрой и неполное ФИО — ошибки полей", async () => {
+  it("ИИН с неверной контрольной цифрой и неполное ФИО — ошибки полей, попытка не тратится", async () => {
     const user = await newcomer();
     expect(await codeOf(recordOwnIdentity(user, { ...me, iin: `${IIN.slice(0, 11)}${(Number(IIN[11]) + 1) % 10}` }))).toBe("VALIDATION");
     expect(await codeOf(recordOwnIdentity(user, { ...me, fullName: "Ерлан" }))).toBe("VALIDATION");
-    expect(await db.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ iinHash: null });
+    expect(await db.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ iinLast4: null });
+    for (let i = 0; i < 5; i++) expect(await codeOf(recordOwnIdentity(user, { ...me, fullName: "Ерлан" }))).toBe("VALIDATION");
+    await recordOwnIdentity(user, me);
   });
 
   it("ИИН другого аккаунта — «ИИН занят»; перебор ограничен пятью попытками в час", async () => {

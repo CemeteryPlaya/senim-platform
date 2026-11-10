@@ -3,11 +3,11 @@ import { z } from "zod";
 import { recordAudit, SYSTEM } from "@/modules/audit";
 import { maskContacts, sanitizeExecutorText } from "@/modules/companies";
 import { createDeal } from "@/modules/deal-core";
-import { actorOf, limitIdentityAttempts, recordPersonIdentity, type CurrentUser } from "@/modules/identity";
+import { actorOf, hasClientIdentity, recordPersonIdentity, requirePersonIdentity, type CurrentUser } from "@/modules/identity";
 import { notify, notifyTemplate } from "@/modules/notifications";
 import { kztToTiyn } from "@/modules/payments";
 import { ru } from "@/i18n/ru";
-import { db, transaction, type Db, type Tx } from "@/platform/db";
+import { db, transaction, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enqueueJob, type JobHandler } from "@/platform/jobs";
 import { parseInput } from "@/platform/validation";
@@ -173,7 +173,7 @@ export async function measurementNoDeal(user: CurrentUser, input: { measurementI
  * Цена договора по сценарию (ADR-005): цена утверждённого проекта, а в «договоре до замера» — цена отклика
  * (проект потом фиксирует её в пределах допуска). В сценариях с выездом исполнителя проект возможен только после замера.
  */
-async function contractPriceOf(tx: Tx, flow: PreContractFlow, offer: { id: string; priceTiyn: bigint }): Promise<number> {
+async function contractPriceOf(tx: Db, flow: PreContractFlow, offer: { id: string; priceTiyn: bigint }): Promise<number> {
   const rules = flowRules(flow);
   if (!rules.projectBeforeContract) return wholeKzt(offer.priceTiyn);
   if (rules.executorVisit) {
@@ -184,23 +184,33 @@ async function contractPriceOf(tx: Tx, flow: PreContractFlow, offer: { id: strin
   return project?.totalPrice ?? fail.conflict(ru.requests.pre.errors.projectNotApproved);
 }
 
+/** Шаг «согласие на договор»: своя заявка, разрешённый переход, принятый отклик и цена договора. Ошибки — по шагу. */
+async function contractStep(tx: Db, user: CurrentUser, requestId: string) {
+  const r = await loadOwnRequest(tx, user, requestId);
+  const flow = preContractFlow(r);
+  const to = transition(REQUEST_TRANSITIONS, "agreeToContract", r.status, "CLIENT", flow);
+  const offer = await tx.offer.findFirst({ where: { requestId: r.id, status: "ACCEPTED" }, select: { id: true, priceTiyn: true, executorId: true } });
+  if (!offer) return fail.conflict(e.noMeasurementResult);
+  const totalAmount = await contractPriceOf(tx, flow, offer);
+  return { r, flow, to, offer, totalAmount };
+}
+
 /**
  * Сценарии до договора (флаг preContractFlows): согласие на договор → CONTRACTING по цене утверждённого проекта
  * или отклика с допуском. Сделку с офертой создаёт deal-core в той же транзакции (ADR-009: одна оплата, без этапов).
  */
 export async function agreeToContract(user: CurrentUser, input: { requestId: string; identity?: { fullName: string; iin: string } }): Promise<{ dealId: string }> {
   requireClient(user);
-  await limitIdentityAttempts(user, input.identity);
+  // Сторона договора: без ФИО и ИИН договор не составить и не подписать ЭЦП. Их пишет identity — до транзакции (её
+  // запись не откатить вместе с нашей; повтор безопасен), но после проверок шага чтением: ответ «ИИН занят» — только
+  // на настоящем шаге договора, а не любому заказчику с любой заявкой.
+  if (!(await hasClientIdentity(user.id))) {
+    await contractStep(db, user, input.requestId);
+    await recordPersonIdentity(user, input.identity);
+  }
   return transaction(async (tx) => {
-    const r = await loadOwnRequest(tx, user, input.requestId);
-    const flow = preContractFlow(r);
-    const to = transition(REQUEST_TRANSITIONS, "agreeToContract", r.status, "CLIENT", flow);
-    const offer = await tx.offer.findFirst({ where: { requestId: r.id, status: "ACCEPTED" }, select: { id: true, priceTiyn: true, executorId: true } });
-    if (!offer) return fail.conflict(e.noMeasurementResult);
-    const totalAmount = await contractPriceOf(tx, flow, offer);
-    // Сторона договора: без ФИО и ИИН договор не составить и не подписать ЭЦП. После проверок шага:
-    // ответ «ИИН занят» — только на настоящем шаге договора, а не любому заказчику с любой заявкой.
-    await recordPersonIdentity(tx, user, input.identity);
+    const { r, flow, to, offer, totalAmount } = await contractStep(tx, user, input.requestId);
+    await requirePersonIdentity(tx, user.id);
 
     expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: to } }));
     const title = requestTitle(r);

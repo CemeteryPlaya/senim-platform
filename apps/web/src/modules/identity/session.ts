@@ -28,7 +28,7 @@ export type CurrentUser = {
   roles: Role[];
   phone: string;
   fullName: string | null;
-  /** Последние 4 цифры ИИН аккаунта (сам ИИН — только зашифрованным в БД); null — знакомство не пройдено. */
+  /** Последние 4 цифры ИИН аккаунта из проекции личности identity (сам ИИН — только в identity, шифртекстом); null — знакомство не пройдено. */
   iinLast4: string | null;
   isDemo: boolean;
   /**

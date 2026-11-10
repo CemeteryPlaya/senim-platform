@@ -31,13 +31,13 @@ export { newSessionToken, sessionCookieName, sessionCookieOptions } from "./sess
 export { STAFF_ROLES, SWITCHABLE_ROLES, SWITCH_ROLE_PATH, canGrant, isStaffRole, parseSwitchableRole, roleToSwitch, switchRoleHref, switchTargets } from "./roles";
 export { requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./otp";
 export { listDemoPersonas, loginAsDemoPersona, resetIdentityDemo, seedIdentityUsers, type DemoPersona, type SeedPerson } from "./demo";
-export { projectUser } from "./projection";
+export { projectPerson, projectUser } from "./projection";
 export { authorize, can, type ActionOn, type Resource } from "./rbac";
 export { EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, MFA_PATH, homePathFor, loginHref, mfaHref, safeReturnTo } from "./return-to";
 export { formatPhone, parsePhone, type Phone } from "./phone";
 export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id";
 export { isValidFullName, normalizeFullName } from "./full-name";
-export { hasClientIdentity, limitIdentityAttempts, recordOwnIdentity, recordPersonIdentity, type PersonIdentity } from "./person-identity";
+export { hasClientIdentity, recordOwnIdentity, recordPersonIdentity, requirePersonIdentity, type PersonIdentity } from "./person-identity";
 export { INTRODUCTION_PATH, introductionHref, needsIntroduction } from "./introduction";
 export { INSTAGRAM_MAX, contactsInputSchema, emailField, instagramField, type ContactsInput } from "./instagram";
 export { getOwnContacts, updateContacts, type OwnContacts } from "./contacts-profile";

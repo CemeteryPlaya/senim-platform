@@ -3,6 +3,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
 import { Role } from "@/gen/senim/identity/v1/identity_pb";
+import { testIin } from "@/demo/kz-id";
 import { totpNow } from "../../e2e/totp";
 import { FakeIdentity, FAKE_OTP_CODE } from "./identity";
 
@@ -41,6 +42,8 @@ describe("подделка identity: ключ идемпотентности", (
     ["startDemoSession", () => fake.client.startDemoSession({ userId: "x", sessionToken: token(1) })],
     ["seedUsers", () => fake.client.seedUsers({ users: [] })],
     ["resetDemo", () => fake.client.resetDemo({})],
+    ["recordPerson", () => fake.client.recordPerson({ sessionToken: token(1), fullName: "Сапаров Ерлан", iin: "870304300614" })],
+    ["updateContacts", () => fake.client.updateContacts({ sessionToken: token(1) })],
   ];
 
   it.each(mutators)("%s без ключа — InvalidArgument invalid_request", async (_name, call) => {
@@ -398,5 +401,76 @@ describe("подделка identity: второй фактор (как mfa.go)",
     fake.resetMfa(user.id);
     expect(fake.mfaVerifiedAtOf(token(2))).toBeNull();
     await expect(start()).resolves.toBeDefined();
+  });
+});
+
+describe("подделка identity: личность и контакты (как person.go)", () => {
+  const IIN = testIin("870304", 3, 61);
+  const OTHER_IIN = testIin("900101", 3, 62);
+  let n = 0;
+  const key = () => `pk-${++n}`;
+  const record = (t: number, iin = IIN, fullName = "Сапаров Ерлан", idempotencyKey = key()) => fake.client.recordPerson({ sessionToken: token(t), fullName, iin, idempotencyKey });
+  const contacts = (t: number, instagram: string, email = "", idempotencyKey = key()) => fake.client.updateContacts({ sessionToken: token(t), instagram, email, idempotencyKey });
+
+  it("порядок проверок RecordPerson: ключ, ФИО, ИИН, сессия", async () => {
+    expect(await rejection(fake.client.recordPerson({ sessionToken: token(9), fullName: "x", iin: "1" }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    expect(await rejection(record(9, "1", "x"))).toEqual({ code: Code.InvalidArgument, detail: "full_name_invalid" });
+    expect(await rejection(record(9, "1"))).toEqual({ code: Code.InvalidArgument, detail: "iin_invalid" });
+    expect(await rejection(record(9))).toEqual({ code: Code.Unauthenticated, detail: "session_invalid" });
+  });
+
+  it("запись: ФИО нормализовано, ИИН — последними 4 цифрами; тот же ИИН — тот же ответ, другой — person_already_recorded", async () => {
+    const user = await signedIn();
+    const res = await record(1, IIN, "  Сапаров   Ерлан ");
+    expect(res.person).toMatchObject({ userId: user.id, fullName: "Сапаров Ерлан", iinLast4: IIN.slice(-4) });
+    expect((await record(1, IIN, "Другое Имя")).person?.fullName).toBe("Сапаров Ерлан");
+    expect(await rejection(record(1, OTHER_IIN))).toEqual({ code: Code.FailedPrecondition, detail: "person_already_recorded" });
+    expect(fake.auditEvents.map((e) => e.action)).toEqual(["user.identity.recorded"]);
+  });
+
+  it("ИИН другого аккаунта — iin_taken; лимит 5 попыток в час, неверный формат попытку не тратит, через час снова можно", async () => {
+    const owner = fake.addUser({ phone: "+77001110000", person: { iin: IIN } });
+    fake.signIn(owner.id, token(2));
+    await signedIn(1);
+    let now = new Date("2026-11-11T10:00:00Z");
+    fake.now = () => now;
+    expect(await rejection(record(1, "123"))).toEqual({ code: Code.InvalidArgument, detail: "iin_invalid" });
+    for (let i = 0; i < 5; i++) expect(await rejection(record(1))).toEqual({ code: Code.AlreadyExists, detail: "iin_taken" });
+    expect(await rejection(record(1))).toEqual({ code: Code.ResourceExhausted, detail: "person_too_many_attempts" });
+    now = new Date(now.getTime() + 3600_000 + 1);
+    expect(await rejection(record(1))).toEqual({ code: Code.AlreadyExists, detail: "iin_taken" });
+  });
+
+  it("UpdateContacts: формат до сессии, длинный Instagram — max; поля — полное состояние, журнал — без значений", async () => {
+    expect(await rejection(contacts(9, "a".repeat(31)))).toEqual({ code: Code.InvalidArgument, detail: "instagram_invalid" });
+    expect(await rejection(contacts(9, "дала"))).toEqual({ code: Code.InvalidArgument, detail: "instagram_invalid" });
+    expect(await rejection(contacts(9, "", "не почта"))).toEqual({ code: Code.InvalidArgument, detail: "email_invalid" });
+    expect(await rejection(contacts(9, ""))).toEqual({ code: Code.Unauthenticated, detail: "session_invalid" });
+    const err = await contacts(9, "a".repeat(31)).then(
+      () => null,
+      (e: unknown) => ConnectError.from(e),
+    );
+    expect(err?.findDetails(ErrorDetailSchema)[0]?.params).toEqual({ max: "30" });
+
+    const user = await signedIn();
+    expect((await contacts(1, "@Dala", " A@Mail.KZ ")).person).toMatchObject({ userId: user.id, instagram: "Dala", email: "a@mail.kz" });
+    expect((await contacts(1, "Dala")).person).toMatchObject({ instagram: "Dala", email: "" });
+    expect(fake.auditEvents.map((e) => [e.action, e.before, e.after])).toEqual([
+      ["user.instagram_changed", { set: false }, { set: true }],
+      ["user.email_changed", { set: false }, { set: true }],
+      ["user.email_changed", { set: true }, { set: false }],
+    ]);
+  });
+
+  it("UpdateContacts только для активной роли заказчика или мастера — иначе role_forbidden", async () => {
+    const op = fake.addUser({ phone: "+77001110001", defaultRole: Role.OPERATOR });
+    fake.signIn(op.id, token(3));
+    expect(await rejection(contacts(3, "ops"))).toEqual({ code: Code.PermissionDenied, detail: "role_forbidden" });
+  });
+
+  it("GetProfile: личности нет — пустая с user_id; неизвестная сессия — session_invalid", async () => {
+    const user = await signedIn();
+    expect((await fake.client.getProfile({ sessionToken: token(1) })).person).toMatchObject({ userId: user.id, fullName: "", iinLast4: "" });
+    expect(await rejection(fake.client.getProfile({ sessionToken: token(9) }))).toEqual({ code: Code.Unauthenticated, detail: "session_invalid" });
   });
 });

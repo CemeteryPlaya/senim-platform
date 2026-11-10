@@ -7,9 +7,14 @@ import {
   AuthenticateResponseSchema,
   ConfirmTotpEnrollmentRequestSchema,
   ConfirmTotpEnrollmentResponseSchema,
+  GetProfileRequestSchema,
+  GetProfileResponseSchema,
   GrantRoleRequestSchema,
   IdentityService,
   GrantRoleResponseSchema,
+  PersonSchema,
+  RecordPersonRequestSchema,
+  RecordPersonResponseSchema,
   RequestOtpRequestSchema,
   RequestOtpResponseSchema,
   ResetDemoRequestSchema,
@@ -28,20 +33,31 @@ import {
   StartTotpEnrollmentResponseSchema,
   SwitchRoleRequestSchema,
   SwitchRoleResponseSchema,
+  UpdateContactsRequestSchema,
+  UpdateContactsResponseSchema,
   UserSchema,
   VerifyOtpRequestSchema,
   VerifyOtpResponseSchema,
   VerifySecondFactorRequestSchema,
   VerifySecondFactorResponseSchema,
+  type Person,
   type Session,
   type User,
 } from "@/gen/senim/identity/v1/identity_pb";
 import { randomBytes } from "node:crypto";
 import { isIP } from "node:net";
+import { z } from "zod";
 import { toBase32, totpCode, totpStep } from "../../e2e/totp";
 // Прямой импорт файла, а не index.ts: index тянет next/headers, и подделка (она грузится в setup до vi.mock) закрепила бы настоящий модуль.
 // eslint-disable-next-line no-restricted-imports
 import { TOKEN_SHAPE } from "@/modules/identity/session-cookie";
+// Те же проверки форматов, что перенесены в Go (kzid.go): ФИО, ИИН, Instagram.
+// eslint-disable-next-line no-restricted-imports
+import { isValidFullName, normalizeFullName } from "@/modules/identity/full-name";
+// eslint-disable-next-line no-restricted-imports
+import { INSTAGRAM_MAX } from "@/modules/identity/instagram";
+// eslint-disable-next-line no-restricted-imports
+import { isValidIin } from "@/modules/identity/kz-id";
 
 /**
  * Подделка identity для тестов web: пользователи и сессии в памяти, семантика по контракту
@@ -59,6 +75,11 @@ import { TOKEN_SHAPE } from "@/modules/identity/session-cookie";
  * Start по ключу после замены секрета — idempotency_key_reused, демо-оператор входит с пройденной второй ступенью,
  * ResetDemo стирает факторы. Часы — `now` (тест может подменить). Вход в обход кода (`signIn`) у оператора — уже
  * с пройденной второй ступенью («вошедший пользователь»), если тест не передал `mfaVerifiedAt: null`.
+ *
+ * Личность и контакты (person.go) повторены по Go: порядок проверок и коды (формат до лимита попыток, лимит 5 попыток
+ * указать ИИН в час фиксированным окном, тот же ИИН ещё раз — тот же ответ без попытки, другой поверх записанного —
+ * person_already_recorded, чужой — iin_taken; UpdateContacts — полное новое состояние, только активной роли CLIENT или
+ * EXECUTOR). ИИН хранится открыто (в Go — шифртекст и HMAC); события аудита — в `auditEvents`, без значений.
  */
 
 /** Тип клиента — тот же, что у `IdentityClient` из modules/identity/remote (импорт оттуда из test/ запрещён границей модулей). */
@@ -73,6 +94,34 @@ const STAFF: readonly Role[] = [Role.OPERATOR, Role.MEASURER];
 const MFA_MAX_FAILURES = 5;
 const MFA_FAILURE_WINDOW_MS = 15 * 60_000;
 const MAX_TOTP_CODE_LEN = 32;
+/** Как person.go: попыток указать ИИН не больше 5 в час на пользователя. */
+const PERSON_MAX_ATTEMPTS = 5;
+const PERSON_ATTEMPT_WINDOW_MS = 3600_000;
+/** emailField / emailMax в Go: шаблон z.email() и предел длины. */
+const EMAIL_MAX = 254;
+const INSTAGRAM_RE = /^[A-Za-z0-9._]*$/;
+
+/** Личность в подделке: пустая строка — поле не указано (в Go — NULL). */
+type StoredPerson = { fullName: string; iin: string; instagram: string; email: string };
+
+/** Событие аудита identity (outbox в Go): кто, что, о ком; значений ПДн нет. */
+export type FakeAuditEvent = { userId: string; actorRole: Role; action: string; before?: unknown; after?: unknown };
+
+/** checkInstagram в Go: пробелы по краям и одна ведущая «@» убираются; длиннее 30 — instagram_invalid с params.max. */
+function checkInstagram(raw: string): string {
+  const name = raw.trim().replace(/^@/, "");
+  if (name.length > INSTAGRAM_MAX) throw codedError("instagram_invalid", Code.InvalidArgument, { max: String(INSTAGRAM_MAX) });
+  if (!INSTAGRAM_RE.test(name)) throw codedError("instagram_invalid", Code.InvalidArgument);
+  return name;
+}
+
+/** normalizeEmail в Go: пробелы по краям убираются, нижний регистр; пусто — не указан. */
+function checkEmail(raw: string): string {
+  const email = raw.trim().toLowerCase();
+  if (email === "") return "";
+  if (email.length > EMAIL_MAX || !z.email().safeParse(email).success) throw codedError("email_invalid", Code.InvalidArgument);
+  return email;
+}
 
 export type FakeUserInit = {
   /** По умолчанию `u-<цифры телефона>`; свой id нужен пользователям, которых тест создал в старой базе. */
@@ -82,6 +131,8 @@ export type FakeUserInit = {
   roles?: Role[];
   isDemo?: boolean;
   blocked?: boolean;
+  /** Личность, уже записанная в identity (как сид SeedUsers): null и пусто — поле не указано. */
+  person?: { fullName?: string | null; iin?: string | null; instagram?: string | null; email?: string | null };
 };
 
 type StoredSession = { id: string; userId: string; activeRole: Role; mfaVerifiedAt: Date | null };
@@ -114,6 +165,13 @@ const STATUS_BY_CODE: Record<string, Code> = {
   mfa_code_reused: Code.InvalidArgument,
   mfa_too_many_attempts: Code.ResourceExhausted,
   idempotency_key_reused: Code.InvalidArgument,
+  full_name_invalid: Code.InvalidArgument,
+  iin_invalid: Code.InvalidArgument,
+  iin_taken: Code.AlreadyExists,
+  person_already_recorded: Code.FailedPrecondition,
+  person_too_many_attempts: Code.ResourceExhausted,
+  instagram_invalid: Code.InvalidArgument,
+  email_invalid: Code.InvalidArgument,
 };
 
 /** Как parsePhone в Go: «8 700 …», «+7 700 …», «700 …» -> +7700…; не телефон остаётся как есть и не пройдёт PHONE_RE. */
@@ -138,6 +196,10 @@ export class FakeIdentity {
   private effectThenFail = false;
   private factors = new Map<string, StoredFactor>(); // по id пользователя
   private mfaFailures = new Map<string, { windowStart: number; count: number }>(); // ключ mfa:<user_id> в Go
+  private persons = new Map<string, StoredPerson>(); // по id пользователя
+  private personAttempts = new Map<string, { windowStart: number; count: number }>(); // ключ identity:iin:user:<user_id> в Go
+  /** События аудита личности и контактов (в Go — outbox identity). */
+  readonly auditEvents: FakeAuditEvent[] = [];
   /** Включён ли демо-режим (DEMO_MODE у настоящего сервиса). */
   demoEnabled = true;
   /** Часы сервиса (s.now в Go): шаг TOTP, окно лимита, отметка второй ступени. */
@@ -162,6 +224,9 @@ export class FakeIdentity {
     this.demoEnabled = true;
     this.factors.clear();
     this.mfaFailures.clear();
+    this.persons.clear();
+    this.personAttempts.clear();
+    this.auditEvents.length = 0;
     this.now = () => new Date();
   }
 
@@ -197,7 +262,17 @@ export class FakeIdentity {
     });
     this.users.set(user.id, user);
     if (init.blocked) this.block(user.id);
+    if (init.person) {
+      const p = init.person;
+      this.persons.set(user.id, { fullName: p.fullName ?? "", iin: p.iin ?? "", instagram: p.instagram ?? "", email: p.email ?? "" });
+    }
     return user;
+  }
+
+  /** Личность пользователя, как её отдаёт identity (ИИН — последними 4 цифрами), — для проверок в тестах. */
+  personOf(userId: string): Person {
+    const p = this.persons.get(userId);
+    return create(PersonSchema, { userId, fullName: p?.fullName ?? "", iinLast4: p?.iin.slice(-4) ?? "", instagram: p?.instagram ?? "", email: p?.email ?? "" });
   }
 
   hasUser(id: string): boolean {
@@ -395,6 +470,29 @@ export class FakeIdentity {
     const next = !cur || cur.windowStart < now - MFA_FAILURE_WINDOW_MS ? { windowStart: now, count: 1 } : { ...cur, count: cur.count + 1 };
     this.mfaFailures.set(userId, next);
     return next.count;
+  }
+
+  /** limiter.hit в person.go: фиксированное окно 1 ч; true — попытка укладывается в лимит. */
+  private hitPersonLimit(userId: string): boolean {
+    const now = this.now().getTime();
+    const cur = this.personAttempts.get(userId);
+    const next = !cur || cur.windowStart < now - PERSON_ATTEMPT_WINDOW_MS ? { windowStart: now, count: 1 } : { ...cur, count: cur.count + 1 };
+    this.personAttempts.set(userId, next);
+    return next.count <= PERSON_MAX_ATTEMPTS;
+  }
+
+  /** Транзакция RecordPerson: личность заново (тот же ИИН — тот же ответ), занятый ИИН, запись и аудит без значений. */
+  private recordPersonTx(user: User, session: StoredSession, fullName: string, iin: string): Person {
+    const current = this.persons.get(user.id);
+    if (current?.iin) {
+      if (current.iin !== iin) throw codedError("person_already_recorded", Code.FailedPrecondition);
+      return this.personOf(user.id);
+    }
+    for (const [id, p] of this.persons) if (id !== user.id && p.iin === iin) throw codedError("iin_taken", Code.AlreadyExists);
+    // Уже указанное ФИО не меняется — только дополняется ИИН (COALESCE в RecordPersonIIN).
+    this.persons.set(user.id, { fullName: current?.fullName || fullName, iin, instagram: current?.instagram ?? "", email: current?.email ?? "" });
+    this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action: "user.identity.recorded" });
+    return this.personOf(user.id);
   }
 
   private refundMfaLimit(userId: string): void {
@@ -637,9 +735,57 @@ export class FakeIdentity {
           await this.operatorSession(req.sessionToken ?? "");
         },
       ),
-      recordPerson: unimplemented,
-      updateContacts: unimplemented,
-      getProfile: unimplemented,
+      recordPerson: mutating(
+        "recordPerson",
+        RecordPersonRequestSchema,
+        async (req) => {
+          const { user, session } = await this.sessionOf(req.sessionToken ?? "");
+          const iin = req.iin ?? "";
+          // До лимита: тот же ИИН ещё раз — тот же ответ без попытки, другой поверх записанного — отказ.
+          const current = this.persons.get(user.id);
+          if (current?.iin) {
+            if (current.iin !== iin) throw codedError("person_already_recorded", Code.FailedPrecondition);
+            return create(RecordPersonResponseSchema, { person: this.personOf(user.id) });
+          }
+          if (!this.hitPersonLimit(user.id)) throw codedError("person_too_many_attempts", Code.ResourceExhausted);
+          return create(RecordPersonResponseSchema, { person: this.recordPersonTx(user, session, normalizeFullName(req.fullName ?? ""), iin) });
+        },
+        async (req) => {
+          // Порядок Go (person.go): ключ, ФИО, ИИН, сессия; дальше повтор по ключу, личность, лимит, транзакция.
+          this.checkKey(req.idempotencyKey);
+          if (!isValidFullName(req.fullName ?? "")) throw codedError("full_name_invalid", Code.InvalidArgument);
+          if (!isValidIin(req.iin ?? "")) throw codedError("iin_invalid", Code.InvalidArgument);
+          await this.lookup(req.sessionToken ?? "");
+        },
+      ),
+      updateContacts: mutating(
+        "updateContacts",
+        UpdateContactsRequestSchema,
+        async (req) => {
+          // Транзакция Go: сессия под блокировкой, активная роль — сторона сделки, полная замена обоих полей.
+          const { user, session } = await this.sessionOf(req.sessionToken ?? "");
+          if (session.activeRole !== Role.CLIENT && session.activeRole !== Role.EXECUTOR) throw codedError("role_forbidden", Code.PermissionDenied);
+          const before = this.persons.get(user.id) ?? { fullName: "", iin: "", instagram: "", email: "" };
+          const after = { ...before, instagram: checkInstagram(req.instagram ?? ""), email: checkEmail(req.email ?? "") };
+          this.persons.set(user.id, after);
+          for (const [field, action] of [["instagram", "user.instagram_changed"], ["email", "user.email_changed"]] as const) {
+            if (before[field] === after[field]) continue;
+            this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action, before: { set: before[field] !== "" }, after: { set: after[field] !== "" } });
+          }
+          return create(UpdateContactsResponseSchema, { person: this.personOf(user.id) });
+        },
+        (req) => {
+          // Порядок Go: ключ, Instagram, e-mail; дальше повтор по ключу и транзакция.
+          this.checkKey(req.idempotencyKey);
+          checkInstagram(req.instagram ?? "");
+          checkEmail(req.email ?? "");
+        },
+      ),
+      getProfile: reading("getProfile", async (req: MessageInitShape<typeof GetProfileRequestSchema>) => {
+        const { user } = await this.lookup(req.sessionToken ?? "");
+        // Стороны (Party) подделка пока не ведёт: party пуст.
+        return create(GetProfileResponseSchema, { person: this.personOf(user.id) });
+      }),
       registerParty: unimplemented,
       provisionExecutor: unimplemented,
       setPayoutIban: unimplemented,

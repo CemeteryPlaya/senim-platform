@@ -11,6 +11,8 @@ afterEach(() => vi.restoreAllMocks());
 const otp = ru.identity.otp.errors;
 const mfa = ru.identity.mfa.errors;
 const g = ru.common.errors;
+const person = ru.identity.clientIdentity;
+const contacts = ru.identity.contacts;
 
 function caught(err: unknown): AppError {
   try {
@@ -48,6 +50,13 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   mfa_wrong_code: { code: "VALIDATION", message: mfa.wrongCode(3), params: { left: "3" } },
   mfa_code_reused: { code: "VALIDATION", message: mfa.reused },
   mfa_too_many_attempts: { code: "RATE_LIMITED", message: mfa.tooMany },
+  full_name_invalid: { code: "VALIDATION", message: person.fullNameInvalid },
+  iin_invalid: { code: "VALIDATION", message: person.iinInvalid },
+  iin_taken: { code: "CONFLICT", message: person.iinTaken },
+  person_already_recorded: { code: "CONFLICT", message: person.alreadySet },
+  person_too_many_attempts: { code: "RATE_LIMITED", message: person.tooMany },
+  instagram_invalid: { code: "VALIDATION", message: contacts.instagramInvalid },
+  email_invalid: { code: "VALIDATION", message: contacts.emailInvalid },
 };
 
 describe("identityFailure", () => {
@@ -59,8 +68,8 @@ describe("identityFailure", () => {
     expect(err.message).toBe(want.message);
   });
 
-  it("таблица покрывает коды входа, ролей и второго фактора: 25 кодов", () => {
-    expect(IDENTITY_ERROR_CODES).toHaveLength(25);
+  it("таблица покрывает коды входа, ролей, второго фактора, личности и контактов: 32 кода", () => {
+    expect(IDENTITY_ERROR_CODES).toHaveLength(32);
     expect(Object.keys(table).sort()).toEqual([...IDENTITY_ERROR_CODES].sort());
   });
 
@@ -79,6 +88,22 @@ describe("identityFailure", () => {
   it("mfa_wrong_code с left=0 — попытки закончились", () => {
     expect(caught(codedError("mfa_wrong_code", Code.InvalidArgument, { left: "0" })).message).toBe(mfa.wrongCode(0));
     expect(mfa.wrongCode(0)).toMatch(/15 минут/);
+  });
+
+  it.each([
+    ["full_name_invalid", "fullName", person.fullNameInvalid],
+    ["iin_invalid", "iin", person.iinInvalid],
+    ["instagram_invalid", "instagram", contacts.instagramInvalid],
+    ["email_invalid", "email", contacts.emailInvalid],
+  ])("%s — ошибка поля %s", (code, field, message) => {
+    expect(caught(codedError(code, Code.InvalidArgument)).details).toEqual({ fieldErrors: { [field]: [message] } });
+  });
+
+  it("instagram_invalid с params.max — «Не длиннее N символов»; max не число — общий текст", () => {
+    const long = caught(codedError("instagram_invalid", Code.InvalidArgument, { max: "30" }));
+    expect([long.message, long.details]).toEqual([contacts.instagramTooLong(30), { fieldErrors: { instagram: [contacts.instagramTooLong(30)] } }]);
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    expect(caught(codedError("instagram_invalid", Code.InvalidArgument, { max: "много" })).message).toBe(g.generic);
   });
 
   it("ошибки контракта пишутся в лог кодом, а человеку показывается общий текст", () => {

@@ -14,7 +14,7 @@ const schema = z.object({
   next: z.string().max(512).nullable(),
 });
 
-/** Знакомство: ФИО и ИИН один раз (№26). Проверки, шифрование и лимит попыток — в identity.recordOwnIdentity. */
+/** Знакомство: ФИО и ИИН один раз (№26). Проверки формата, шифрование и лимит попыток — в сервисе identity (RecordPerson). */
 export const introduceAction = action("identity.introduce", schema, async ({ fullName, iin, next }) => {
   const user = await requireUser("CLIENT", "EXECUTOR");
   await recordOwnIdentity(user, { fullName, iin });

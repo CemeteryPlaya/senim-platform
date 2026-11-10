@@ -245,8 +245,8 @@ export const completeMeasurementSchema = z.strictObject({ measurementId: id, fin
 export const noDealSchema = z.strictObject({ measurementId: id, result: optionalText(1000) });
 
 /**
- * ФИО и ИИН заказчика — только если их ещё нет. Формат и контрольную цифру проверяет
- * identity.recordPersonIdentity: её ошибки приходят к полям fullName и iin формы.
+ * ФИО и ИИН заказчика — только если их ещё нет. Формат и контрольную цифру проверяет сервис identity
+ * (RecordPerson через identity.recordPersonIdentity): его отказы приходят к полям fullName и iin формы.
  */
 const clientIdentity = z.strictObject({ fullName: z.string().trim().max(120), iin: z.string().trim().max(20) });
 /** Согласие на договор в сценарии до договора (флаг preContractFlows): цена — из замера или проекта. */

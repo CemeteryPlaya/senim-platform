@@ -1,7 +1,8 @@
 import "server-only";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { Role as ProtoRole, type User } from "@/gen/senim/identity/v1/identity_pb";
+import { Role as ProtoRole, type Person, type User } from "@/gen/senim/identity/v1/identity_pb";
 import type { Role as PrismaRole } from "@/generated/prisma/enums";
+import { ru } from "@/i18n/ru";
 import { db, isUniqueViolation, type Tx } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
@@ -35,8 +36,8 @@ const sameRoles = (a: readonly string[], b: readonly string[]) => a.length === b
 
 /**
  * Проекция пользователя identity в старую таблицу `User` (тот же `id`): на неё ссылаются сделки, заявки и профили.
- * Пишутся только поля identity: телефон, роль по умолчанию, роли, демо-флаг, блокировка; остальное (ФИО, ИИН,
- * контакты) принадлежит старой базе. Обновляются только изменившиеся поля. Строка с тем же телефоном, но другим `id`
+ * Пишутся только поля пользователя identity: телефон, роль по умолчанию, роли, демо-флаг, блокировка; личность
+ * (ФИО, ИИН, контакты) — projectPerson. Обновляются только изменившиеся поля. Строка с тем же телефоном, но другим `id`
  * (dev-база до перехода на identity) — ошибка с записью в лог, а не дубль.
  * `client` — транзакция сида демо (пользователи появляются вместе с остальными данными); по умолчанию — `db`.
  */
@@ -77,4 +78,36 @@ async function project(user: User, client: Tx): Promise<void> {
     ...((row.blockedAt?.getTime() ?? null) !== (blockedAt?.getTime() ?? null) && { blockedAt }),
   };
   if (Object.keys(data).length > 0) await client.user.update({ where: { id: user.id }, data });
+}
+
+/** Пусто в ответе identity — поле не указано: в старой базе это null. */
+const orNull = (v: string): string | null => (v === "" ? null : v);
+
+/**
+ * Проекция личности identity в старую `User`: ФИО, последние 4 цифры ИИН, Instagram и e-mail — их показывают экраны
+ * и сверяют страницы (needsIntroduction, hasClientIdentity). Пишутся только изменившиеся поля. Сам ИИН в старой базе
+ * больше не хранится: `iinEnc` и `iinHash` не пишутся (ИИН — только в identity, шифртекстом). Строка пользователя уже
+ * есть (projectUser при входе); её нет — сбой.
+ */
+export async function projectPerson(person: Person, client: Tx = db): Promise<void> {
+  const row = await client.user.findUnique({ where: { id: person.userId }, select: { fullName: true, iinLast4: true, instagram: true, email: true } });
+  if (!row) throw new Error("identity вернул личность пользователя, которого нет в проекции");
+  const next = { fullName: orNull(person.fullName), iinLast4: orNull(person.iinLast4), instagram: orNull(person.instagram), email: orNull(person.email) };
+  const data = {
+    ...(row.fullName !== next.fullName && { fullName: next.fullName }),
+    ...(row.iinLast4 !== next.iinLast4 && { iinLast4: next.iinLast4 }),
+    ...(row.instagram !== next.instagram && { instagram: next.instagram }),
+    ...(row.email !== next.email && { email: next.email }),
+  };
+  if (Object.keys(data).length > 0) await client.user.update({ where: { id: person.userId }, data });
+}
+
+/**
+ * Личность из ответа identity на вызов в сессии пользователя `userId`. Нет её или она чужая — сбой контракта: в лог
+ * (без значений), человеку — общий текст. Чужие ФИО и контакты в проекцию не попадают.
+ */
+export function ownPerson(userId: string, person: Person | undefined): Person {
+  if (person?.userId === userId) return person;
+  logger.error("identity.call_rejected", { reason: person ? "person_of_other_user" : "response_without_person" });
+  return fail.unavailable(ru.common.errors.generic);
 }

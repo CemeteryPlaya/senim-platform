@@ -26,13 +26,18 @@ beforeEach(() => {
  * с той же сессией), вызов идёт в своём «браузере» (asBrowser) — одновременные регистрации разных людей не путают токены.
  */
 async function registerExecutor(user: Parameters<typeof register>[0], input: ExecutorRegistrationInput) {
+  return inSession(user, () => register(user, input));
+}
+
+/** Действие от лица вошедшего человека: в его сессии identity и в его «браузере» (см. registerExecutor). */
+async function inSession<T>(user: { id: string }, call: () => Promise<T>): Promise<T> {
   let signedIn = sessions.get(user.id);
   if (signedIn === undefined) {
     signedIn = signInAs(user);
     sessions.set(user.id, signedIn);
   }
   const token = await signedIn;
-  return asBrowser({ [sessionCookieName()]: token }, () => register(user, input));
+  return asBrowser({ [sessionCookieName()]: token }, call);
 }
 
 const IIN = testIin("910803", 3, 21);
@@ -319,13 +324,13 @@ describe("подписант договора — свойство профил�
     await registerExecutor(me, ip);
     const m = await makeMeasured(me);
 
-    await agreeToContract(me, { requestId: m.requestId, identity: { fullName: "Жумабаев Ерлан", iin: IIN } });
-    expect(await accountOf(me.id)).toMatchObject({ iinHash: hashPii(IIN) });
+    await inSession(me, () => agreeToContract(me, { requestId: m.requestId, identity: { fullName: "Жумабаев Ерлан", iin: IIN } }));
+    expect(await accountOf(me.id)).toMatchObject({ iinLast4: last4(IIN) });
 
     // Один ИИН заказчика — один аккаунт: для чужих правило остаётся.
     const other = await smsUser();
     const m2 = await makeMeasured(other);
-    expect(await codeOf(agreeToContract(other, { requestId: m2.requestId, identity: { fullName: "Жумабаев Ерлан", iin: IIN } }))).toBe("CONFLICT");
+    expect(await codeOf(inSession(other, () => agreeToContract(other, { requestId: m2.requestId, identity: { fullName: "Жумабаев Ерлан", iin: IIN } })))).toBe("CONFLICT");
   });
 
   it("чужой ИИН в анкете ТОО не мешает настоящему владельцу ИИН указать его перед договором", async () => {
@@ -334,8 +339,8 @@ describe("подписант договора — свойство профил�
     const owner = await smsUser();
     const m = await makeMeasured(owner);
 
-    await agreeToContract(owner, { requestId: m.requestId, identity: { fullName: "Тулегенов Бауыржан", iin: DIRECTOR_IIN } });
-    expect(await accountOf(owner.id)).toMatchObject({ iinHash: hashPii(DIRECTOR_IIN) });
+    await inSession(owner, () => agreeToContract(owner, { requestId: m.requestId, identity: { fullName: "Тулегенов Бауыржан", iin: DIRECTOR_IIN } }));
+    expect(await accountOf(owner.id)).toMatchObject({ iinLast4: last4(DIRECTOR_IIN) });
   });
 
   it("повторная подача ТОО после отказа: новый директор заменяет прежнего в профиле", async () => {

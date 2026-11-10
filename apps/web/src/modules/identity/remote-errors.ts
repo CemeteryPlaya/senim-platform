@@ -6,6 +6,8 @@ import { logger } from "@/platform/logger";
 
 const otp = ru.identity.otp.errors;
 const mfa = ru.identity.mfa.errors;
+const person = ru.identity.clientIdentity;
+const contacts = ru.identity.contacts;
 
 /** Коды, которые identity возвращает по контракту (proto/senim/identity/v1/identity.proto). */
 export const IDENTITY_ERROR_CODES = [
@@ -34,6 +36,13 @@ export const IDENTITY_ERROR_CODES = [
   "mfa_wrong_code",
   "mfa_code_reused",
   "mfa_too_many_attempts",
+  "full_name_invalid",
+  "iin_invalid",
+  "iin_taken",
+  "person_already_recorded",
+  "person_too_many_attempts",
+  "instagram_invalid",
+  "email_invalid",
 ] as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
@@ -50,6 +59,19 @@ function attemptsLeft(code: "otp_wrong_code" | "mfa_wrong_code", params: Record<
   const raw = params["left"];
   if (raw === undefined || !/^\d{1,2}$/.test(raw)) return broken(`${code}_without_left`);
   return Number(raw);
+}
+
+/** params.max кода instagram_invalid: предел длины имени; нет — имя с недопустимыми символами; не число — сбой контракта. */
+function instagramMax(params: Record<string, string>): number | null {
+  const raw = params["max"];
+  if (raw === undefined) return null;
+  if (!/^\d{1,3}$/.test(raw)) return broken("instagram_invalid_bad_max");
+  return Number(raw);
+}
+
+/** Ошибка формата одного поля формы: текст и он же у поля (формы показывают его под полем). */
+function fieldInvalid(field: string, message: string): never {
+  return fail.validation(message, { fieldErrors: { [field]: [message] } });
 }
 
 /** Каждый код контракта → ошибка приложения. Тип `never` в `default` не даёт забыть новый код. */
@@ -97,6 +119,22 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
       return fail.validation(mfa.reused);
     case "mfa_too_many_attempts":
       return fail.rateLimited(mfa.tooMany);
+    case "full_name_invalid":
+      return fieldInvalid("fullName", person.fullNameInvalid);
+    case "iin_invalid":
+      return fieldInvalid("iin", person.iinInvalid);
+    case "iin_taken":
+      return fail.conflict(person.iinTaken);
+    case "person_already_recorded":
+      return fail.conflict(person.alreadySet);
+    case "person_too_many_attempts":
+      return fail.rateLimited(person.tooMany);
+    case "instagram_invalid": {
+      const max = instagramMax(params);
+      return fieldInvalid("instagram", max === null ? contacts.instagramInvalid : contacts.instagramTooLong(max));
+    }
+    case "email_invalid":
+      return fieldInvalid("email", contacts.emailInvalid);
     case "session_token_invalid":
     case "caller_forbidden":
     case "idempotency_key_reused":
@@ -132,4 +170,22 @@ export function identityFailure(err: unknown): never {
   }
   if (e.code === Code.Unavailable || e.code === Code.DeadlineExceeded) return fail.unavailable();
   return broken(`status:${Code[e.code] ?? "unknown"}`, err instanceof Error ? err : new Error(e.rawMessage));
+}
+
+/**
+ * Обрыв связи или дедлайн: identity мог выполнить вызов, а ответ не дойти. Повтор — один, с тем же запросом (тот же
+ * ключ идемпотентности): identity вернёт ответ первого вызова, а не отказ по лимиту или «уже указано». Любой отказ —
+ * `identityFailure`.
+ */
+export async function retriedOnce<R>(call: () => Promise<R>): Promise<R> {
+  try {
+    return await call();
+  } catch (first) {
+    if (!isTransient(first)) return identityFailure(first);
+    try {
+      return await call();
+    } catch (second) {
+      return identityFailure(second);
+    }
+  }
 }

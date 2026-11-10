@@ -4,12 +4,13 @@ import type { Role } from "@/generated/prisma/enums";
 import { roleToProto } from "@/modules/identity/projection";
 // eslint-disable-next-line no-restricted-imports
 import { newSessionToken, sessionCookieName } from "@/modules/identity/session-cookie";
+import { decryptPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
 import { identityFake } from "../stubs/identity";
 import { putCookie } from "./identity";
 
 /**
- * Пользователь старой базы появляется в подделке identity с теми же id, телефоном, ролями и демо-флагом
+ * Пользователь старой базы появляется в подделке identity с теми же id, телефоном, ролями, демо-флагом и личностью
  * (без этого identity «не знает» человека, которого тест создал фабрикой напрямую в старой базе).
  */
 export async function mirrorUser(userId: string): Promise<void> {
@@ -22,6 +23,8 @@ export async function mirrorUser(userId: string): Promise<void> {
     roles: row.roles.map(roleToProto),
     isDemo: row.isDemo,
     blocked: row.blockedAt !== null,
+    // Личность — как её записал бы сид identity: ФИО, ИИН (фабрика хранит его в старой базе) и контакты.
+    person: { fullName: row.fullName, iin: row.iinEnc ? decryptPii(row.iinEnc) : null, instagram: row.instagram, email: row.email },
   });
 }
 

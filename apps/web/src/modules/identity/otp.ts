@@ -9,7 +9,7 @@ import { logger } from "@/platform/logger";
 import { parsePhone, type Phone } from "./phone";
 import { roleFromProto } from "./projection";
 import { identity, identityClientIp } from "./remote";
-import { identityFailure, isTransient } from "./remote-errors";
+import { retriedOnce } from "./remote-errors";
 import { newSessionToken } from "./session-cookie";
 import { beginSession, currentToken, signOutPrevious } from "./session";
 
@@ -23,23 +23,6 @@ function phoneOrFail(raw: string): Phone {
 }
 
 export type OtpRequested = { phone: Phone; expiresAt: Date; demoCode: string | null };
-
-/**
- * Обрыв связи или дедлайн: identity мог выполнить вызов, а ответ не дойти. Повтор — один, с тем же запросом (тот же
- * ключ идемпотентности): identity вернёт ответ первого вызова, а не отказ по лимиту или «код устарел».
- */
-async function retriedOnce<R>(call: () => Promise<R>): Promise<R> {
-  try {
-    return await call();
-  } catch (first) {
-    if (!isTransient(first)) return identityFailure(first);
-    try {
-      return await call();
-    } catch (second) {
-      return identityFailure(second);
-    }
-  }
-}
 
 /**
  * Просит identity выдать код на номер. Демо-код возвращается, только когда его вернул сам identity (DEMO_MODE и мок-SMS там).
