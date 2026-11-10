@@ -411,8 +411,7 @@ func TestSameKeyDuringCooldownReturnsSavedResponse(t *testing.T) {
 func TestRequestOtpCallerMustBeWeb(t *testing.T) {
 	h := newHarness(t, nil)
 	req := func() *identityv1.RequestOtpRequest {
-		h.keySeq++
-		return &identityv1.RequestOtpRequest{Phone: newPhone(), IdempotencyKey: fmt.Sprintf("caller-%d", h.keySeq)}
+		return &identityv1.RequestOtpRequest{Phone: newPhone(), IdempotencyKey: fmt.Sprintf("caller-%d", h.keySeq.Add(1))}
 	}
 	for _, caller := range []string{"deal", "operator", ""} {
 		_, err := h.callAs(caller, req())

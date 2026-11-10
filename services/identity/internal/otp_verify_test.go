@@ -47,11 +47,10 @@ func (h *harness) verifyAs(caller string, req *identityv1.VerifyOtpRequest) (*id
 // verifyReq — запрос проверки с новым ключом и новым токеном.
 func (h *harness) verifyReq(phone, code, ip string) *identityv1.VerifyOtpRequest {
 	h.t.Helper()
-	h.keySeq++
 	return &identityv1.VerifyOtpRequest{
 		Phone: phone, Code: code, ClientIp: ip, UserAgent: "vitest",
 		SessionToken:   newToken(h.t),
-		IdempotencyKey: fmt.Sprintf("vkey-%d-%d", time.Now().UnixNano(), h.keySeq),
+		IdempotencyKey: fmt.Sprintf("vkey-%d-%d", time.Now().UnixNano(), h.keySeq.Add(1)),
 	}
 }
 

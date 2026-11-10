@@ -313,7 +313,7 @@ func TestGrantConsentIdempotent(t *testing.T) {
 	errs := make([]error, 5)
 	keys := make([]string, len(errs))
 	for i := range keys {
-		keys[i] = h.key() // h.key не для параллельных вызовов
+		keys[i] = h.key()
 	}
 	for i := range errs {
 		wg.Go(func() { _, errs[i] = h.grantConsent(pdGrant(token2, "2026-11-01"), keys[i]) })
@@ -671,7 +671,7 @@ func TestResolveRevocationConcurrent(t *testing.T) {
 	errs := make([]error, n)
 	keys := make([]string, n)
 	for i := range keys {
-		keys[i] = h.key() // h.key не для параллельных вызовов
+		keys[i] = h.key()
 	}
 	for i := range n {
 		wg.Go(func() {

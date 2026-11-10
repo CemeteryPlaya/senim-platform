@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -124,7 +125,7 @@ type harness struct {
 	clock  *fakeClock
 	logs   *syncLog
 	rpc    *connect.Client
-	keySeq int
+	keySeq atomic.Int64 // ключи идемпотентности берут и параллельные вызовы
 }
 
 // newHarness поднимает сервис на чистых таблицах кодов и лимитов. tune меняет конфиг.
@@ -248,8 +249,7 @@ func (h *harness) callAs(caller string, req *identityv1.RequestOtpRequest) (*ide
 // request — вызов от имени web с новым ключом идемпотентности.
 func (h *harness) request(phone, ip string) (*identityv1.RequestOtpResponse, error) {
 	h.t.Helper()
-	h.keySeq++
-	return h.callAs("web", &identityv1.RequestOtpRequest{Phone: phone, ClientIp: ip, IdempotencyKey: fmt.Sprintf("key-%d-%d", time.Now().UnixNano(), h.keySeq)})
+	return h.callAs("web", &identityv1.RequestOtpRequest{Phone: phone, ClientIp: ip, IdempotencyKey: fmt.Sprintf("key-%d-%d", time.Now().UnixNano(), h.keySeq.Add(1))})
 }
 
 // mustRequest — запрос, который обязан пройти.

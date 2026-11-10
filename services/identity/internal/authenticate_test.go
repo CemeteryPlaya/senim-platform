@@ -33,8 +33,7 @@ func idc[Resp any](h *harness, caller string, call func(ctx context.Context, c i
 }
 
 func (h *harness) key() string {
-	h.keySeq++
-	return fmt.Sprintf("k-%d-%d", time.Now().UnixNano(), h.keySeq)
+	return fmt.Sprintf("k-%d-%d", time.Now().UnixNano(), h.keySeq.Add(1))
 }
 
 func (h *harness) authenticate(token string) (*identityv1.AuthenticateResponse, error) {
