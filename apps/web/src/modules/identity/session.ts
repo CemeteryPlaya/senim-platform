@@ -168,8 +168,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 });
 
 /**
- * Пользователь для оболочки (layout): при недоступном identity страница рисуется гостем, а `unavailable` просит показать
- * плашку «сервис временно недоступен». Cookie не трогается: когда identity вернётся, человек окажется вошедшим.
+ * Пользователь для оболочки (layout) и страниц, открытых гостю (главная, вход): при недоступном identity страница
+ * рисуется гостем, а `unavailable` просит показать плашку «сервис временно недоступен». Cookie не трогается: когда
+ * identity вернётся, человек окажется вошедшим. Конфликт проекции (в старой базе тот же телефон у другого id) — тоже
+ * гость с записью в лог: иначе каждая страница падала бы в global-error без «Выйти», а сессия не кончалась бы.
  * Страницы с `requireUserPage`/`requireUser` при этом по-прежнему бросают ту же ошибку в границу ошибок.
  */
 export async function getShellUser(): Promise<{ user: CurrentUser | null; unavailable: boolean }> {
@@ -177,6 +179,10 @@ export async function getShellUser(): Promise<{ user: CurrentUser | null; unavai
     return { user: await getCurrentUser(), unavailable: false };
   } catch (e) {
     if (e instanceof AppError && e.code === "UNAVAILABLE") return { user: null, unavailable: true };
+    if (e instanceof AppError && e.code === "CONFLICT") {
+      logger.warn("identity.shell_user_conflict", { reason: "projection_conflict" });
+      return { user: null, unavailable: false };
+    }
     throw e;
   }
 }

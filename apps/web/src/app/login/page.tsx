@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ru } from "@/i18n/ru";
-import { EXECUTOR_REGISTRATION_PATH, getCurrentUser, homePathFor, safeReturnTo } from "@/modules/identity";
+import { EXECUTOR_REGISTRATION_PATH, getShellUser, homePathFor, safeReturnTo } from "@/modules/identity";
 import { env } from "@/platform/env";
 import { Alert, ButtonLink, Container, FullscreenStep } from "@/ui";
 import { LogoutButton } from "../_components/auth/LogoutButton";
@@ -16,12 +16,13 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 /**
  * Вход — полноэкранный шаг (FullscreenStep): «Назад», один вопрос и одна главная кнопка. Демо-персоны (только
  * DEMO_MODE) и регистрация мастера — второстепенные пути под ней. Вошедшему — куда идти дальше и «Выйти».
+ * Недоступный identity — форма входа гостя, как в оболочке.
  */
 export default async function LoginPage({ searchParams }: Props) {
   const params = await searchParams;
   const next = safeReturnTo(params.next);
   const wrongRole = params.reason === "role";
-  const user = await getCurrentUser();
+  const { user } = await getShellUser();
   const demoMode = env().DEMO_MODE;
 
   return (

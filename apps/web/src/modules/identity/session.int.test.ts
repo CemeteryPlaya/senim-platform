@@ -4,6 +4,7 @@ import { Role as ProtoRole } from "@/gen/senim/identity/v1/identity_pb";
 import { ru } from "@/i18n/ru";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
+import { logger } from "@/platform/logger";
 import { cookieValue, deletedCookies, freshBrowser, putCookie, setEnv } from "../../../test/factories/identity";
 import { makeClient, makeExecutor } from "../../../test/factories";
 import { identityFake } from "../../../test/stubs/identity";
@@ -275,11 +276,16 @@ describe("identity недоступен: оболочка и страницы", 
     expect(shell.user).toMatchObject({ phone: "+77001234567" });
   });
 
-  it("getShellUser: сбой не из-за недоступности (конфликт проекции) не скрывается", async () => {
-    signIn({ phone: "+77001234567" });
+  it("getShellUser: конфликт проекции — гость без плашки, запись в лог без телефона и токена", async () => {
+    const { token } = signIn({ phone: "+77001234567" });
     await db.user.create({ data: { id: "legacy-cuid", phone: "+77001234567", role: "CLIENT", roles: ["CLIENT"] } });
+    const warn = vi.spyOn(logger, "warn");
 
-    await expect(getShellUser()).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await getShellUser()).toEqual({ user: null, unavailable: false });
+    expect(warn).toHaveBeenCalledWith("identity.shell_user_conflict", { reason: "projection_conflict" });
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/7001234567|legacy-cuid/);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(token);
+    expect(cookieValue(sessionCookieName())).toBe(token);
   });
 
   it("requireUserPage пропускает UNAVAILABLE дальше в границу ошибок, без редиректа", async () => {
