@@ -4,10 +4,11 @@ import { decryptPii, hashPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { freshBrowser } from "../../../test/factories/identity";
+import { signInAs } from "../../../test/factories/session";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { needsIntroduction } from "./introduction";
 import { recordOwnIdentity } from "./person-identity";
-import { getCurrentUser, requireUserPage, startSession } from "./session";
+import { getCurrentUser, requireUserPage } from "./session";
 
 vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);
 
@@ -40,7 +41,7 @@ async function redirectTarget(p: Promise<unknown>): Promise<string | null> {
 async function newcomer() {
   const user = await makeClient();
   await db.user.update({ where: { id: user.id }, data: { fullName: null, iinEnc: null, iinHash: null, iinLast4: null } });
-  await startSession(user.id);
+  await signInAs(user);
   return (await getCurrentUser())!;
 }
 

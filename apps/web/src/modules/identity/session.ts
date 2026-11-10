@@ -1,26 +1,27 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import type { Role } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { recordAudit, type Actor } from "@/modules/audit";
-import { db, transaction, type Tx } from "@/platform/db";
-import { randomToken, sha256Hex } from "@/platform/crypto";
-import { AppError, expectOneUpdated, fail } from "@/platform/errors";
+import type { Session, User } from "@/gen/senim/identity/v1/identity_pb";
+import type { Actor } from "@/modules/audit";
+import { db } from "@/platform/db";
+import { AppError, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { rpcErrorCode } from "@/platform/rpc";
-import { projectUser, roleFromProto } from "./projection";
+import { projectUser, roleFromProto, roleToProto } from "./projection";
 import { identity } from "./remote";
-import { identityFailure } from "./remote-errors";
+import { identityFailure, isTransient } from "./remote-errors";
 import { sessionCookieName, sessionCookieOptions, TOKEN_SHAPE } from "./session-cookie";
 import { loginHref } from "./return-to";
 import { introductionHref, needsIntroduction } from "./introduction";
-import { activeRoleOf, isStaffRole, roleToSwitch, STAFF_ROLES, switchRoleHref } from "./roles";
+import { activeRoleOf, roleToSwitch, switchRoleHref } from "./roles";
 
 /** Имя cookie в контуре dev (в тестах и локально); в остальных контурах — `sessionCookieName()` с префиксом __Host-. */
 export const SESSION_COOKIE = "senim_session";
-const SESSION_TTL_DAYS = 30;
 
 export type CurrentUser = {
   id: string;
@@ -40,51 +41,81 @@ export type CurrentUser = {
   executor: { id: string; publicNumber: number; status: "PENDING" | "APPROVED" | "REJECTED" } | null;
 };
 
-async function currentToken(): Promise<string | undefined> {
+/** Токен сессии из cookie своего контура; `undefined` — cookie нет. Вид токена не проверяется. */
+export async function currentToken(): Promise<string | undefined> {
   return (await cookies()).get(sessionCookieName())?.value;
 }
 
-async function revokeToken(token: string): Promise<void> {
-  await db.session.updateMany({ where: { tokenHash: sha256Hex(token), revokedAt: null }, data: { revokedAt: new Date() } });
+/** Токен для вызова identity, который меняет сессию: нет cookie — человек не вошёл. */
+async function tokenOrUnauthenticated(): Promise<string> {
+  const token = await currentToken();
+  return token ?? fail.unauthenticated();
 }
 
 /**
- * Создаёт сессию и ставит httpOnly-cookie. Прежняя сессия этого браузера отзывается.
- * Активная роль сессии фиксируется ролью по умолчанию на момент входа: переключение роли
- * на другом устройстве не меняет роль этой сессии. asRole — войти сразу в другую выданную роль
- * (демо-вход шага показа банку); невыданная роль — FORBIDDEN. Вызывать из Server Action или route handler.
+ * Прежняя сессия этого браузера отзывается при новом входе. Ошибки игнорируются: вход важнее, а сессия
+ * в любом случае кончится по простою; токен не того вида identity не принял бы, его не отправляем.
  */
-export async function startSession(userId: string, userAgent?: string, asRole?: Role): Promise<void> {
-  const { role, roles } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true, roles: true } });
-  if (asRole && !roles.includes(asRole)) return fail.forbidden(ru.identity.switchRole.notGranted);
-
+export async function signOutPrevious(): Promise<void> {
   const previous = await currentToken();
-  if (previous) await revokeToken(previous);
-
-  const token = randomToken();
-  const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000);
-  await db.session.create({ data: { userId, activeRole: asRole ?? role, tokenHash: sha256Hex(token), expiresAt, userAgent: userAgent?.slice(0, 300) } });
-  const store = await cookies();
-  store.set(sessionCookieName(), token, { ...sessionCookieOptions(), expires: expiresAt });
+  if (!previous || !TOKEN_SHAPE.test(previous)) return;
+  try {
+    await identity().signOut({ sessionToken: previous, idempotencyKey: randomUUID() });
+  } catch {
+    // см. выше
+  }
 }
 
-/** Отзывает текущую сессию и удаляет cookie. */
+/**
+ * Начало сессии по ответу identity на вход (VerifyOtp, StartDemoSession): проекция пользователя и cookie.
+ * Срок жизни cookie — `expires_at` сессии identity.
+ */
+export async function beginSession(token: string, res: { user?: User; session?: Session }): Promise<{ user: User; session: Session }> {
+  const { user, session } = res;
+  if (!user || !session?.expiresAt) {
+    logger.error("identity.call_rejected", { reason: "login_without_user_or_session" });
+    return fail.unavailable(ru.common.errors.generic);
+  }
+  await projectUser(user);
+  (await cookies()).set(sessionCookieName(), token, { ...sessionCookieOptions(), expires: timestampDate(session.expiresAt) });
+  return { user, session };
+}
+
+/**
+ * Выход из этой сессии: SignOut, затем cookie удаляется всегда. Сбой identity (кроме недоступности) не мешает выйти;
+ * недоступность — ошибка «сервис недоступен»: сессия на сервере могла остаться, человек должен об этом знать.
+ */
 export async function endSession(): Promise<void> {
   const token = await currentToken();
-  if (token) await revokeToken(token);
+  let outage: unknown = null;
+  if (token && TOKEN_SHAPE.test(token)) {
+    try {
+      await identity().signOut({ sessionToken: token, idempotencyKey: randomUUID() });
+    } catch (e) {
+      if (isTransient(e)) outage = e;
+      else logger.warn("identity.sign_out_failed", {});
+    }
+  }
   (await cookies()).delete(sessionCookieName());
+  if (outage !== null) identityFailure(outage);
 }
 
-/** Отзывает все сессии пользователя (блокировка, смена телефона). */
-export async function revokeAllSessions(userId: string): Promise<void> {
-  await db.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
-}
-
-/** «Выйти на всех устройствах»: отзывает все сессии текущего пользователя и удаляет cookie. */
+/**
+ * «Выйти на всех устройствах»: сначала Authenticate (кто это), затем SignOutEverywhere и удаление cookie. Гость
+ * (cookie нет или сессия недействительна) — только удаление cookie. Сбой SignOutEverywhere — ошибка, cookie остаётся:
+ * человек не вышел и может повторить.
+ */
 export async function signOutEverywhere(): Promise<void> {
   const user = await getCurrentUser();
-  if (user) await revokeAllSessions(user.id);
-  await endSession();
+  const token = await currentToken();
+  if (user && token) {
+    try {
+      await identity().signOutEverywhere({ sessionToken: token, idempotencyKey: randomUUID() });
+    } catch (e) {
+      return identityFailure(e);
+    }
+  }
+  (await cookies()).delete(sessionCookieName());
 }
 
 /**
@@ -190,48 +221,32 @@ export function requireIntroduced(user: CurrentUser, returnTo: string): void {
 }
 
 /**
- * Переключение активной роли этой сессии (ADR-004). Роль должна быть выдана (проверка по БД, а не по сессии:
- * отозванную роль не выбрать). Роль по умолчанию для следующего входа — тоже она. Строка пользователя
- * блокируется: двойной клик выполняется последовательно, второй вызов видит роль уже активной и ничего не меняет.
+ * Переключение активной роли этой сессии (ADR-004): роль проверяет identity по выданным (отозванную не выбрать),
+ * она же становится ролью по умолчанию для следующего входа. Ответ identity пишется в проекцию. Повтор безопасен.
  */
-export async function switchRole(user: Pick<CurrentUser, "id">, role: Role): Promise<void> {
-  const token = await currentToken();
-  if (!token) return fail.unauthenticated();
-  await transaction(async (tx) => {
-    const [row] = await tx.$queryRaw<{ role: Role; roles: Role[] }[]>`
-      SELECT role, roles::text[] AS roles FROM "User" WHERE id = ${user.id} FOR UPDATE`;
-    if (!row || !row.roles.includes(role)) return fail.forbidden(ru.identity.switchRole.notGranted);
-    const session = await tx.session.findUnique({ where: { tokenHash: sha256Hex(token) }, select: { id: true, userId: true, activeRole: true } });
-    if (!session || session.userId !== user.id) return fail.unauthenticated();
-
-    const current = activeRoleOf(row.roles, row.role, session.activeRole);
-    if (current === role) return;
-    expectOneUpdated(await tx.session.updateMany({ where: { id: session.id, activeRole: session.activeRole }, data: { activeRole: role } }));
-    await tx.user.update({ where: { id: user.id }, data: { role } });
-    await recordAudit(tx, {
-      actor: actorOf({ id: user.id, role: current }),
-      action: "user.role_switched",
-      entity: { type: "user", id: user.id },
-      before: { role: current },
-      after: { role },
-    });
-  });
+export async function switchRole(_user: Pick<CurrentUser, "id">, role: Role): Promise<void> {
+  const sessionToken = await tokenOrUnauthenticated();
+  try {
+    const res = await identity().switchRole({ sessionToken, role: roleToProto(role), idempotencyKey: randomUUID() });
+    if (res.user) await projectUser(res.user);
+  } catch (e) {
+    return identityFailure(e);
+  }
 }
 
 /**
- * Выдаёт роль в транзакции вызывающего (анкета исполнителя, «Стать заказчиком»). Уже выданная — без изменений
- * (условие в where делает вызов идемпотентным при двойной отправке); оператору роли не добавляются.
- * Возвращает true, если роль выдана сейчас.
+ * Выдаёт роль человеку этой сессии в identity и пишет ответ в проекцию. Ключ идемпотентности — случайный, если
+ * вызывающему не нужен свой (регистрация исполнителя). Возвращает true, если роль выдана сейчас.
  */
-export async function grantRole(tx: Tx, user: Pick<CurrentUser, "id" | "role">, role: Role): Promise<boolean> {
-  if (isStaffRole(role)) return fail.forbidden();
-  const granted = await tx.user.updateMany({
-    where: { id: user.id, NOT: [{ roles: { has: role } }, ...STAFF_ROLES.map((s) => ({ roles: { has: s } }))] },
-    data: { roles: { push: role } },
-  });
-  if (granted.count === 0) return false;
-  await recordAudit(tx, { actor: actorOf(user), action: "user.role_granted", entity: { type: "user", id: user.id }, after: { role } });
-  return true;
+export async function grantRole(role: Role, options: { idempotencyKey?: string; token?: string } = {}): Promise<boolean> {
+  const sessionToken = options.token ?? (await tokenOrUnauthenticated());
+  try {
+    const res = await identity().grantRole({ sessionToken, role: roleToProto(role), idempotencyKey: options.idempotencyKey ?? randomUUID() });
+    if (res.user) await projectUser(res.user);
+    return res.granted;
+  } catch (e) {
+    return identityFailure(e);
+  }
 }
 
 /**
@@ -240,7 +255,7 @@ export async function grantRole(tx: Tx, user: Pick<CurrentUser, "id" | "role">, 
  */
 export async function becomeClient(user: CurrentUser): Promise<void> {
   if (user.role !== "EXECUTOR") return fail.forbidden();
-  await transaction((tx) => grantRole(tx, user, "CLIENT"));
+  await grantRole("CLIENT");
   await switchRole(user, "CLIENT");
 }
 

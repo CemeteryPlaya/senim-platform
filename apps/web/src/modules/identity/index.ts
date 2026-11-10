@@ -14,16 +14,14 @@ export {
   requireUser,
   requireIntroduced,
   requireUserPage,
-  revokeAllSessions,
   signOutEverywhere,
-  startSession,
   switchRole,
   type CurrentUser,
 } from "./session";
 export { identityClientIp } from "./remote";
 export { newSessionToken, sessionCookieName, sessionCookieOptions } from "./session-cookie";
 export { STAFF_ROLES, SWITCHABLE_ROLES, SWITCH_ROLE_PATH, canGrant, isStaffRole, parseSwitchableRole, roleToSwitch, switchRoleHref, switchTargets } from "./roles";
-export { OTP_MAX_ATTEMPTS, OTP_TTL_MIN, requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./otp";
+export { requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./otp";
 export { listDemoPersonas, loginAsDemoPersona, type DemoPersona } from "./demo";
 export { authorize, can, type ActionOn, type Resource } from "./rbac";
 export { EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, homePathFor, loginHref, safeReturnTo } from "./return-to";

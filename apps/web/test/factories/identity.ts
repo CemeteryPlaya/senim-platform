@@ -13,11 +13,22 @@ const jar = new Map<string, Cookie>();
 let requestHeaders = new Headers();
 
 export const nextHeadersMock = {
-  cookies: async () => ({
-    get: (name: string) => jar.get(name),
-    set: (name: string, value: string, options?: Record<string, unknown>) => void jar.set(name, { name, value, options }),
-    delete: (name: string) => void jar.delete(name),
-  }),
+  // Чтение — снимок на момент вызова cookies(), как у запроса Next: параллельные действия разных людей не путают токены.
+  cookies: async () => {
+    const snapshot = new Map(jar);
+    return {
+      get: (name: string) => snapshot.get(name),
+      set: (name: string, value: string, options?: Record<string, unknown>) => {
+        const cookie = { name, value, options };
+        jar.set(name, cookie);
+        snapshot.set(name, cookie);
+      },
+      delete: (name: string) => {
+        jar.delete(name);
+        snapshot.delete(name);
+      },
+    };
+  },
   headers: async () => requestHeaders,
 };
 
@@ -29,6 +40,10 @@ export function freshBrowser(headers: Record<string, string> = {}) {
 
 export function cookieValue(name: string): string | undefined {
   return jar.get(name)?.value;
+}
+
+export function cookieOptions(name: string): Record<string, unknown> | undefined {
+  return jar.get(name)?.options;
 }
 
 /** Положить cookie в «браузер» — например, вернуться на устройство со старым токеном. */

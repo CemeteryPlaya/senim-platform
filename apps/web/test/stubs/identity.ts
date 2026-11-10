@@ -60,9 +60,6 @@ export type FakeUserInit = {
   blocked?: boolean;
 };
 
-/** Сессия, которую подделка не создавала сама: её отдаёт запасной разрешитель (см. `setFallbackSessions`). */
-export type FallbackSession = { user: FakeUserInit; activeRole: Role };
-
 type StoredSession = { id: string; userId: string; activeRole: Role };
 
 /** ConnectError с `ErrorDetail` — как отвечает настоящий identity. */
@@ -73,14 +70,14 @@ export function codedError(code: string, status: Code, params: Record<string, st
 const STATUS_BY_CODE: Record<string, Code> = {
   invalid_phone: Code.InvalidArgument,
   otp_too_often: Code.ResourceExhausted,
-  otp_expired: Code.FailedPrecondition,
+  otp_expired: Code.InvalidArgument,
   otp_wrong_code: Code.InvalidArgument,
   user_blocked: Code.PermissionDenied,
   session_invalid: Code.Unauthenticated,
   session_token_invalid: Code.InvalidArgument,
   role_not_granted: Code.PermissionDenied,
   role_forbidden: Code.PermissionDenied,
-  demo_disabled: Code.PermissionDenied,
+  demo_disabled: Code.FailedPrecondition,
   user_not_found: Code.NotFound,
   invalid_request: Code.InvalidArgument,
 };
@@ -94,7 +91,6 @@ export class FakeIdentity {
   private sessions = new Map<string, StoredSession>(); // по токену
   private otpRequested = new Set<string>();
   private nextFailure: unknown[] = [];
-  private fallback: ((token: string) => Promise<FallbackSession | null>) | null = null;
   private counter = 0;
   private replays = new Map<string, { fingerprint: string; response: unknown }>(); // ключ: (метод, ключ идемпотентности), как PRIMARY KEY (method, key) в pkg/idem
   private effectThenFail = false;
@@ -107,7 +103,7 @@ export class FakeIdentity {
     this.client = this.build();
   }
 
-  /** Сбросить состояние перед тестом. Запасной разрешитель остаётся: его ставит setup. */
+  /** Сбросить состояние перед тестом. */
   reset(): void {
     this.users.clear();
     this.blocked.clear();
@@ -118,11 +114,6 @@ export class FakeIdentity {
     this.effectThenFail = false;
     this.calls.length = 0;
     this.demoEnabled = true;
-  }
-
-  /** Как искать сессии, которых подделка не создавала (старая таблица Session до перехода входа на identity). */
-  setFallbackSessions(resolver: ((token: string) => Promise<FallbackSession | null>) | null): void {
-    this.fallback = resolver;
   }
 
   /** Следующий вызов (любого метода) бросит эту ошибку; можно поставить несколько — по одной на вызов. */
@@ -158,6 +149,10 @@ export class FakeIdentity {
     this.users.set(user.id, user);
     if (init.blocked) this.block(user.id);
     return user;
+  }
+
+  hasUser(id: string): boolean {
+    return this.users.has(id);
   }
 
   block(userId: string): void {
@@ -219,7 +214,7 @@ export class FakeIdentity {
 
   /** Демо-методы: сначала режим (в Go — после проверки вызывающего), потом остальные проверки. */
   private demoGate(): void {
-    if (!this.demoEnabled) throw codedError("demo_disabled", Code.PermissionDenied);
+    if (!this.demoEnabled) throw codedError("demo_disabled", Code.FailedPrecondition);
   }
 
   /**
@@ -251,6 +246,23 @@ export class FakeIdentity {
     return response;
   }
 
+  /** validateSeed из demo.go: непустой список ≤ 200, телефоны верны и не повторяются, роли известны, роль по умолчанию выдана, сотрудник один в своей роли. */
+  private validateSeed(users: { phone?: string; defaultRole?: Role; roles?: Role[] }[]): void {
+    if (users.length === 0 || users.length > 200) throw codedError("invalid_request", Code.InvalidArgument);
+    const seen = new Set<string>();
+    for (const u of users) {
+      const phone = u.phone ?? "";
+      if (!PHONE_RE.test(phone)) throw codedError("invalid_phone", Code.InvalidArgument);
+      if (seen.has(phone)) throw codedError("invalid_request", Code.InvalidArgument);
+      seen.add(phone);
+      const roles = [...new Set(u.roles ?? [])];
+      if (roles.some((r) => r === Role.UNSPECIFIED || !(r in Role))) throw codedError("invalid_request", Code.InvalidArgument);
+      const def = u.defaultRole ?? Role.UNSPECIFIED;
+      if (def === Role.UNSPECIFIED || !roles.includes(def)) throw codedError("invalid_request", Code.InvalidArgument);
+      if (roles.some((r) => STAFF.includes(r)) && roles.length !== 1) throw codedError("invalid_request", Code.InvalidArgument);
+    }
+  }
+
   private checkIp(ip: string): void {
     if (ip !== "" && isIP(ip) === 0) throw codedError("invalid_request", Code.InvalidArgument);
   }
@@ -272,17 +284,7 @@ export class FakeIdentity {
       if (this.blocked.has(session.userId)) throw codedError("session_invalid", Code.Unauthenticated);
       return { user: this.mustUser(session.userId), session };
     }
-    // Запасной путь не запоминает ничего: каждый вызов читает актуальное состояние старой таблицы.
-    const found = this.fallback ? await this.fallback(token) : null;
-    if (!found || found.user.blocked) throw codedError("session_invalid", Code.Unauthenticated);
-    const user = create(UserSchema, {
-      id: found.user.id ?? idOf(found.user.phone),
-      phone: found.user.phone,
-      defaultRole: found.user.defaultRole ?? Role.CLIENT,
-      roles: found.user.roles ?? [found.user.defaultRole ?? Role.CLIENT],
-      isDemo: found.user.isDemo ?? false,
-    });
-    return { user, session: { id: `legacy-${token.slice(0, 8)}`, userId: user.id, activeRole: found.activeRole } };
+    throw codedError("session_invalid", Code.Unauthenticated);
   }
 
   private build(): IdentityClient {
@@ -318,9 +320,9 @@ export class FakeIdentity {
         async (req) => {
           const phone = req.phone ?? "";
           this.checkTokenFree(req.sessionToken ?? "");
-          if (!this.otpRequested.has(phone)) throw codedError("otp_expired", Code.FailedPrecondition);
+          if (!this.otpRequested.has(phone)) throw codedError("otp_expired", Code.InvalidArgument);
           if (req.code !== FAKE_OTP_CODE) throw codedError("otp_wrong_code", Code.InvalidArgument, { left: "4" });
-          const existing = this.users.get(idOf(phone));
+          const existing = [...this.users.values()].find((u) => u.phone === phone); // как в Go: пользователь ищется по телефону
           if (existing && this.blocked.has(existing.id)) throw codedError("user_blocked", Code.PermissionDenied);
           const user = existing ?? this.addUser({ phone });
           this.otpRequested.delete(phone);
@@ -411,11 +413,7 @@ export class FakeIdentity {
         (req) => {
           this.demoGate();
           this.checkKey(req.idempotencyKey);
-          for (const u of req.users ?? []) {
-            if (!PHONE_RE.test(u.phone ?? "")) throw codedError("invalid_phone", Code.InvalidArgument);
-            const defaultRole = u.defaultRole ?? Role.UNSPECIFIED;
-            if (defaultRole === Role.UNSPECIFIED || !(u.roles ?? []).includes(defaultRole)) throw codedError("invalid_request", Code.InvalidArgument);
-          }
+          this.validateSeed(req.users ?? []);
         },
       ),
       resetDemo: mutating(

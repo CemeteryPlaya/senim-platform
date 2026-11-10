@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { sha256Hex } from "@/platform/crypto";
-import { startSession } from "@/modules/identity";
 import { makeClient, makeOperator } from "../../../../../../test/factories";
 import { makeDeal } from "../../../../../../test/factories/deal";
 import { latestDocument, signTyped, useDocuments } from "../../../../../../test/factories/documents";
 import { freshBrowser } from "../../../../../../test/factories/identity";
+import { signInAs } from "../../../../../../test/factories/session";
 import { GET } from "./route";
 
 vi.mock("next/headers", async () => (await import("../../../../../../test/factories/identity")).nextHeadersMock);
@@ -22,7 +22,7 @@ describe("GET /api/documents/[id]/pdf", () => {
   it("сторона сделки: подписанная копия по умолчанию, исходный файл с хэшем документа по ?original=1, скачивание по ?download=1", async () => {
     const f = await makeDeal();
     const { id, sha256 } = await latestDocument(f.dealId, "CONTRACT");
-    await startSession(f.client.id);
+    await signInAs(f.client);
     await signTyped(f.client, id);
 
     const original = await call(id, "?original=1");
@@ -44,11 +44,11 @@ describe("GET /api/documents/[id]/pdf", () => {
 
     expect((await call(id)).status).toBe(401);
 
-    await startSession((await makeClient()).id);
+    await signInAs(await makeClient());
     expect((await call(id)).status).toBe(404);
 
     freshBrowser();
-    await startSession((await makeOperator()).id);
+    await signInAs(await makeOperator());
     expect((await call(id)).status).toBe(200);
   });
 });

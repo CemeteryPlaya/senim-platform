@@ -4,8 +4,11 @@ import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { useSeedStorage } from "../../../test/factories/documents";
 import { cookieValue, freshBrowser, makeDemoPersona, setEnv } from "../../../test/factories/identity";
+import { mirrorAllUsers, mirrorUser, signInAs } from "../../../test/factories/session";
+import { identityFake } from "../../../test/stubs/identity";
 import { listDemoPersonas, loginAsDemoPersona } from "./demo";
-import { getCurrentUser, SESSION_COOKIE } from "./session";
+import { getCurrentUser } from "./session";
+import { sessionCookieName } from "./session-cookie";
 
 vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);
 
@@ -39,6 +42,7 @@ describe("демо-персоны при DEMO_MODE=true", () => {
 
   it("вход персоной одним нажатием ставит сессию", async () => {
     const demo = await makeDemoPersona("OPERATOR", "+77000007003");
+    await mirrorUser(demo.id);
 
     expect(await loginAsDemoPersona(demo.id, "vitest")).toEqual({ id: demo.id, role: "OPERATOR", executor: null });
 
@@ -48,6 +52,7 @@ describe("демо-персоны при DEMO_MODE=true", () => {
   it("вход в указанной роли — шаг показа банку открывается сразу в нужной роли (ADR-004)", async () => {
     const demo = await makeDemoPersona("EXECUTOR", "+77000007008");
     await db.user.update({ where: { id: demo.id }, data: { roles: ["EXECUTOR", "CLIENT"] } });
+    await mirrorUser(demo.id);
 
     expect(await loginAsDemoPersona(demo.id, "vitest", "CLIENT")).toMatchObject({ id: demo.id, role: "CLIENT" });
     expect(await getCurrentUser()).toMatchObject({ id: demo.id, role: "CLIENT", roles: ["EXECUTOR", "CLIENT"] });
@@ -57,28 +62,58 @@ describe("демо-персоны при DEMO_MODE=true", () => {
 
   it("невыданная роль при входе отклоняется, сессия не создаётся", async () => {
     const demo = await makeDemoPersona("CLIENT", "+77000007009");
+    await mirrorUser(demo.id);
 
     expect(await codeOf(loginAsDemoPersona(demo.id, "vitest", "OPERATOR"))).toBe("FORBIDDEN");
-    expect(await db.session.count()).toBe(0);
+    expect(identityFake.sessionCount()).toBe(0);
+  });
+
+  it("вход возвращает статус профиля исполнителя из старой базы", async () => {
+    const demo = await makeDemoPersona("EXECUTOR", "+77000007010");
+    await db.executorProfile.create({
+      data: { userId: demo.id, legalForm: "IP", legalName: "ИП Демо", binIinEnc: "x", binIinHash: "h-demo", binIinLast4: "0000", status: "PENDING" },
+    });
+    await mirrorUser(demo.id);
+
+    expect(await loginAsDemoPersona(demo.id, "vitest")).toMatchObject({ id: demo.id, role: "EXECUTOR", executor: { status: "PENDING" } });
+  });
+
+  it("новый демо-вход отзывает прежнюю сессию браузера; токен, ключ и user-agent передаются в identity", async () => {
+    const first = await makeDemoPersona("CLIENT", "+77000007011");
+    const second = await makeDemoPersona("OPERATOR", "+77000007012");
+    const oldToken = await signInAs(first);
+    await mirrorUser(second.id);
+
+    await loginAsDemoPersona(second.id, "vitest");
+
+    expect(identityFake.sessionCount(first.id)).toBe(0);
+    expect(await getCurrentUser()).toMatchObject({ id: second.id });
+    const request = identityFake.calls.find((c) => c.method === "startDemoSession")?.request as Record<string, unknown>;
+    expect(request).toMatchObject({ userId: second.id, userAgent: "vitest", sessionToken: cookieValue(sessionCookieName()) });
+    expect(request.sessionToken).not.toBe(oldToken);
+    expect(request.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it("не-демо пользователь недоступен, даже если знать его id", async () => {
     const real = await makeDemoPersona("CLIENT", "+77000007004", false);
+    await mirrorUser(real.id);
 
     expect(await codeOf(loginAsDemoPersona(real.id))).toBe("NOT_FOUND");
-    expect(cookieValue(SESSION_COOKIE)).toBeUndefined();
-    expect(await db.session.count()).toBe(0);
+    expect(cookieValue(sessionCookieName())).toBeUndefined();
+    expect(identityFake.sessionCount()).toBe(0);
   });
 
   it("заблокированная демо-персона недоступна", async () => {
     const demo = await makeDemoPersona("CLIENT", "+77000007005");
     await db.user.update({ where: { id: demo.id }, data: { blockedAt: new Date() } });
+    await mirrorUser(demo.id);
 
     expect(await codeOf(loginAsDemoPersona(demo.id))).toBe("NOT_FOUND");
   });
 
   it("работает для каждой персоны из сида", async () => {
     await seedDemo(db);
+    await mirrorAllUsers();
     const personas = await listDemoPersonas();
 
     expect(personas).toHaveLength(15); // с замерщиком площадки (ADR-005)
@@ -102,10 +137,19 @@ describe("демо-персоны при DEMO_MODE=false", () => {
     expect(await listDemoPersonas()).toEqual([]);
   });
 
-  it("вход персоной невозможен", async () => {
+  it("вход персоной невозможен, identity не вызывается", async () => {
     const demo = await makeDemoPersona("CLIENT", "+77000007007");
 
     expect(await codeOf(loginAsDemoPersona(demo.id))).toBe("FORBIDDEN");
-    expect(await db.session.count()).toBe(0);
+    expect(identityFake.calls).toHaveLength(0);
+  });
+
+  it("identity выключил демо при включённом DEMO_MODE web — тот же отказ", async () => {
+    setEnv({ DEMO_MODE: "true" });
+    const demo = await makeDemoPersona("CLIENT", "+77000007013");
+    await mirrorUser(demo.id);
+    identityFake.demoEnabled = false;
+
+    expect(await codeOf(loginAsDemoPersona(demo.id))).toBe("FORBIDDEN");
   });
 });

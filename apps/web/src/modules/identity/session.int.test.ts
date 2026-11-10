@@ -1,18 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Role as ProtoRole } from "@/gen/senim/identity/v1/identity_pb";
 import { ru } from "@/i18n/ru";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { cookieValue, freshBrowser, putCookie } from "../../../test/factories/identity";
-import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
+import { makeClient, makeExecutor } from "../../../test/factories";
 import { identityFake } from "../../../test/stubs/identity";
 import { setIdentityForTests } from "./remote";
 import { newSessionToken, sessionCookieName } from "./session-cookie";
-import { endSession, getAccessToken, getCurrentUser, getShellUser, requireUserPage, SESSION_COOKIE, signOutEverywhere, startSession } from "./session";
+import { endSession, getAccessToken, getCurrentUser, getShellUser, requireUserPage, signOutEverywhere } from "./session";
 
 vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);
 
 beforeEach(() => freshBrowser());
+afterEach(() => vi.restoreAllMocks());
 
 /** Пользователь identity с сессией, cookie ставится в «браузер». */
 function signIn(init: Parameters<typeof identityFake.addUser>[0], activeRole?: ProtoRole) {
@@ -139,53 +141,81 @@ describe("getAccessToken", () => {
   });
 });
 
-describe("сессия, созданная старым входом", () => {
-  it("startSession и cookie по-прежнему дают пользователя (до перехода входа на identity)", async () => {
-    const operator = await makeOperator();
-    await startSession(operator.id, "vitest");
+describe("выход", () => {
+  const callsOf = (method: string) => identityFake.calls.filter((c) => c.method === method).map((c) => c.request as Record<string, unknown>);
 
-    expect(await getCurrentUser()).toMatchObject({ id: operator.id, role: "OPERATOR" });
-  });
-
-  it("новый вход отзывает прежнюю сессию этого браузера", async () => {
-    const client = await makeClient();
-    await startSession(client.id);
-    await startSession(client.id);
-
-    expect(await db.session.count({ where: { revokedAt: null } })).toBe(1);
-  });
-
-  it("выход отзывает сессию и удаляет cookie", async () => {
-    const client = await makeClient();
-    await startSession(client.id);
+  it("endSession: SignOut с токеном и случайным ключом, сессии нет, cookie удалена", async () => {
+    const { user, token } = signIn({ phone: "+77001234567" });
 
     await endSession();
 
-    expect(cookieValue(SESSION_COOKIE)).toBeUndefined();
-    expect(await db.session.count({ where: { revokedAt: null } })).toBe(0);
+    expect(callsOf("signOut")).toEqual([{ sessionToken: token, idempotencyKey: expect.stringMatching(/^[0-9a-f-]{36}$/) }]);
+    expect(identityFake.sessionCount(user.id)).toBe(0);
+    expect(cookieValue(sessionCookieName())).toBeUndefined();
   });
 
-  it("выход со всех устройств отзывает сессии в других браузерах", async () => {
-    const client = await makeClient();
-    await startSession(client.id); // телефон
-    const phoneToken = cookieValue(SESSION_COOKIE)!;
+  it("endSession без cookie или с cookie не того вида: identity не вызывается", async () => {
+    await endSession();
+    putCookie(sessionCookieName(), "not-a-token");
+    await endSession();
+
+    expect(identityFake.calls).toHaveLength(0);
+    expect(cookieValue(sessionCookieName())).toBeUndefined();
+  });
+
+  it("endSession: сбой identity (кроме недоступности) не мешает выйти", async () => {
+    signIn({ phone: "+77001234567" });
+    identityFake.failNextWithCode("caller_forbidden");
+
+    await expect(endSession()).resolves.toBeUndefined();
+    expect(cookieValue(sessionCookieName())).toBeUndefined();
+  });
+
+  it("endSession: identity недоступен — cookie всё равно удалена, человек видит ошибку", async () => {
+    signIn({ phone: "+77001234567" });
+    identityFake.failNextUnavailable();
+
+    const err = await endSession().catch((e: unknown) => e);
+
+    expect((err as AppError).code).toBe("UNAVAILABLE");
+    expect(cookieValue(sessionCookieName())).toBeUndefined();
+  });
+
+  it("signOutEverywhere: сначала Authenticate, потом SignOutEverywhere; другие браузеры выходят, cookie удалена", async () => {
+    const { user, token: phoneToken } = signIn({ phone: "+77001234567" });
     freshBrowser();
-    await startSession(client.id); // ноутбук
+    const laptop = newSessionToken();
+    identityFake.signIn(user.id, laptop);
+    putCookie(sessionCookieName(), laptop);
 
     await signOutEverywhere();
 
-    expect(await db.session.count({ where: { userId: client.id, revokedAt: null } })).toBe(0);
+    expect(identityFake.calls.map((c) => c.method)).toEqual(["authenticate", "signOutEverywhere"]);
+    expect(callsOf("signOutEverywhere")[0]).toMatchObject({ sessionToken: laptop });
+    expect(identityFake.sessionCount(user.id)).toBe(0);
+    expect(cookieValue(sessionCookieName())).toBeUndefined();
     freshBrowser();
-    putCookie(SESSION_COOKIE, phoneToken);
+    putCookie(sessionCookieName(), phoneToken);
     expect(await getCurrentUser()).toBeNull();
   });
 
-  it("блокировка в старой базе действует сразу", async () => {
-    const operator = await makeOperator();
-    await startSession(operator.id);
-    await db.user.update({ where: { id: operator.id }, data: { blockedAt: new Date() } });
+  it("signOutEverywhere гостя: SignOutEverywhere не вызывается, cookie убирается", async () => {
+    putCookie(sessionCookieName(), newSessionToken()); // токен, которого identity не знает
 
-    expect(await getCurrentUser()).toBeNull();
+    await signOutEverywhere();
+
+    expect(callsOf("signOutEverywhere")).toHaveLength(0);
+    expect(cookieValue(sessionCookieName())).toBeUndefined();
+  });
+
+  it("signOutEverywhere: identity недоступен — ошибка, cookie остаётся (человек не вышел)", async () => {
+    const { token } = signIn({ phone: "+77001234567" });
+    vi.spyOn(identityFake.client, "signOutEverywhere").mockRejectedValueOnce(new ConnectError("unavailable", Code.Unavailable));
+
+    const err = await signOutEverywhere().catch((e: unknown) => e);
+
+    expect((err as AppError).code).toBe("UNAVAILABLE");
+    expect(cookieValue(sessionCookieName())).toBe(token);
   });
 });
 

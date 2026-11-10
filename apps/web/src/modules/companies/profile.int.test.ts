@@ -1,15 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testBin, testIin } from "@/demo/kz-id";
 import { registerExecutor, type CurrentUser, type ExecutorRegistrationInput } from "@/modules/identity";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeFurnitureType } from "../../../test/factories/companies";
+import { freshBrowser } from "../../../test/factories/identity";
+import { signInAs } from "../../../test/factories/session";
 import { getOwnProfile, MASK, updateProfile, type ProfileInput } from "./index";
+
+vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);
+
+beforeEach(() => freshBrowser());
 
 /** Исполнитель после анкеты: вошёл по SMS (в аккаунте нет ФИО), подписанта знает только профиль. */
 async function registeredExecutor(input: Omit<ExecutorRegistrationInput, "city" | "yearsExperience">): Promise<CurrentUser> {
   const user = await makeClient();
   await db.user.update({ where: { id: user.id }, data: { fullName: null, iinEnc: null, iinHash: null, iinLast4: null } });
+  await signInAs(user);
   const { profileId } = await registerExecutor(user, { ...input, city: "Астана", yearsExperience: 3 });
   const profile = await db.executorProfile.findUniqueOrThrow({ where: { id: profileId } });
   return { ...user, fullName: null, role: "EXECUTOR", executor: { id: profileId, publicNumber: profile.publicNumber, status: profile.status } };

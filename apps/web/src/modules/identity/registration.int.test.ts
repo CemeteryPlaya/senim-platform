@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testBin, testIin } from "@/demo/kz-id";
 import { agreeToContract } from "@/modules/requests";
 import { decryptPii, encryptPii, hashPii, last4 } from "@/platform/crypto";
@@ -6,7 +6,35 @@ import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeMeasured, withPreContractFlows } from "../../../test/factories/requests";
-import { registerExecutor, reviewExecutorRegistration, type ExecutorRegistrationInput } from "./registration";
+import { freshBrowser, putCookie } from "../../../test/factories/identity";
+import { signInAs } from "../../../test/factories/session";
+import { identityFake } from "../../../test/stubs/identity";
+import { registerExecutor as register, reviewExecutorRegistration, type ExecutorRegistrationInput } from "./registration";
+import { getCurrentUser } from "./session";
+import { sessionCookieName } from "./session-cookie";
+
+vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);
+
+const sessions = new Map<string, Promise<string>>();
+beforeEach(() => {
+  freshBrowser();
+  sessions.clear();
+});
+
+/**
+ * Регистрация от лица вошедшего человека: у каждого пользователя своя сессия identity (токен запоминается, повтор идёт
+ * с той же сессией), cookie ставится прямо перед вызовом — одновременные регистрации разных людей не путают токены.
+ */
+async function registerExecutor(user: Parameters<typeof register>[0], input: ExecutorRegistrationInput) {
+  let signedIn = sessions.get(user.id);
+  if (signedIn === undefined) {
+    signedIn = signInAs(user);
+    sessions.set(user.id, signedIn);
+  }
+  const token = await signedIn;
+  putCookie(sessionCookieName(), token);
+  return register(user, input);
+}
 
 const IIN = testIin("910803", 3, 21);
 const BIN = testBin("2101", 16);
@@ -79,6 +107,57 @@ describe("registerExecutor", () => {
     const notes = await db.notification.findMany({ where: { kind: "registration.pending" } });
     expect(notes.map((n) => n.userId).sort()).toEqual([op1.id, op2.id].sort());
     expect(notes[0].link).toBe(`/operator/executors/${profileId}`);
+  });
+
+  it("роль выдаётся в identity до транзакции старой базы: ключ — executor-registration:<id>, проекция получает роль", async () => {
+    const user = await makeClient();
+
+    await registerExecutor(user, selfEmployed);
+
+    const grant = identityFake.calls.find((c) => c.method === "grantRole")?.request;
+    expect(grant).toMatchObject({ role: 2, idempotencyKey: `executor-registration:${user.id}` });
+    expect(identityFake.calls.filter((c) => c.method === "grantRole")).toHaveLength(1);
+  });
+
+  it("сбой транзакции после выдачи роли: повтор регистрации проходит, роль выдана один раз", async () => {
+    await registerExecutor(await makeClient(), selfEmployed);
+    const user = await makeClient();
+
+    // Тот же ИИН у другого номера: роль уже выдана, транзакция старой базы отклонена.
+    expect(await codeOf(registerExecutor(user, selfEmployed))).toBe("CONFLICT");
+    expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).roles).toEqual(["CLIENT", "EXECUTOR"]);
+    expect(await db.executorProfile.count({ where: { userId: user.id } })).toBe(0);
+
+    const { profileId } = await registerExecutor(user, { ...selfEmployed, binIin: testIin("930114", 3, 24) });
+
+    expect((await db.executorProfile.findUniqueOrThrow({ where: { id: profileId } })).userId).toBe(user.id);
+    expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).roles).toEqual(["CLIENT", "EXECUTOR"]);
+    const grants = identityFake.calls.filter((c) => c.method === "grantRole" && (c.request as { idempotencyKey: string }).idempotencyKey === `executor-registration:${user.id}`);
+    expect(grants.length).toBeGreaterThan(0);
+    expect((await identityFake.client.authenticate({ sessionToken: await sessions.get(user.id)! })).user?.roles).toEqual([1, 2]);
+  });
+
+  it("повтор из новой сессии: роль уже есть в проекции, GrantRole не вызывается (тот же ключ с другим токеном identity отклонил бы)", async () => {
+    await registerExecutor(await makeClient(), selfEmployed);
+    const user = await makeClient();
+    expect(await codeOf(registerExecutor(user, selfEmployed))).toBe("CONFLICT");
+
+    freshBrowser();
+    await signInAs(user);
+    const fresh = (await getCurrentUser())!;
+    expect(fresh.roles).toEqual(["CLIENT", "EXECUTOR"]);
+    const grantsBefore = identityFake.calls.filter((c) => c.method === "grantRole").length;
+
+    await register(fresh, { ...selfEmployed, binIin: testIin("930114", 3, 24) });
+
+    expect(identityFake.calls.filter((c) => c.method === "grantRole")).toHaveLength(grantsBefore);
+    expect(await db.executorProfile.count({ where: { userId: user.id } })).toBe(1);
+  });
+
+  it("без сессии — UNAUTHENTICATED, ничего не создано", async () => {
+    const user = await makeClient();
+    expect(await codeOf(register(user, selfEmployed))).toBe("UNAUTHENTICATED");
+    expect(await db.executorProfile.count()).toBe(0);
   });
 
   it("ТОО регистрируется по БИН", async () => {

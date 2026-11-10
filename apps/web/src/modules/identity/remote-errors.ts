@@ -88,6 +88,16 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
 
 const isKnown = (code: string): code is IdentityErrorCode => (IDENTITY_ERROR_CODES as readonly string[]).includes(code);
 
+/**
+ * Обрыв связи или дедлайн: результат вызова неизвестен, изменяющий вызов можно повторить с тем же ключом идемпотентности.
+ * Ответ identity с кодом ошибки (`ErrorDetail`) — не обрыв, даже если статус `Unavailable`.
+ */
+export function isTransient(err: unknown): boolean {
+  if (err instanceof AppError) return false;
+  const e = ConnectError.from(err);
+  return (e.code === Code.Unavailable || e.code === Code.DeadlineExceeded) && e.findDetails(ErrorDetailSchema).length === 0;
+}
+
 /** Ошибка вызова identity → `fail.*` с русским текстом. Всегда бросает. */
 export function identityFailure(err: unknown): never {
   if (err instanceof AppError) throw err;

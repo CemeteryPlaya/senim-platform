@@ -178,9 +178,9 @@ describe("подделка identity: демо-методы по demo.go", () => 
 
   it("порядок проверок: режим раньше ключа и токена, формат токена раньше ключа", async () => {
     fake.demoEnabled = false;
-    expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: "bad" }))).toEqual({ code: Code.PermissionDenied, detail: "demo_disabled" });
-    expect(await rejection(fake.client.resetDemo({}))).toEqual({ code: Code.PermissionDenied, detail: "demo_disabled" });
-    expect(await rejection(fake.client.seedUsers({}))).toEqual({ code: Code.PermissionDenied, detail: "demo_disabled" });
+    expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: "bad" }))).toEqual({ code: Code.FailedPrecondition, detail: "demo_disabled" });
+    expect(await rejection(fake.client.resetDemo({}))).toEqual({ code: Code.FailedPrecondition, detail: "demo_disabled" });
+    expect(await rejection(fake.client.seedUsers({}))).toEqual({ code: Code.FailedPrecondition, detail: "demo_disabled" });
     fake.demoEnabled = true;
     expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: "bad" }))).toEqual({ code: Code.InvalidArgument, detail: "session_token_invalid" });
     expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: demoToken }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
@@ -204,11 +204,39 @@ describe("подделка identity: демо-методы по demo.go", () => 
     const reset = await fake.client.resetDemo({ idempotencyKey: "x" });
 
     expect(fake.sessionCount()).toBe(0);
-    expect(await rejection(fake.client.verifyOtp({ phone: "+77001110000", code: FAKE_OTP_CODE, sessionToken: token(8), idempotencyKey: "v" }))).toEqual({ code: Code.FailedPrecondition, detail: "otp_expired" });
+    expect(await rejection(fake.client.verifyOtp({ phone: "+77001110000", code: FAKE_OTP_CODE, sessionToken: token(8), idempotencyKey: "v" }))).toEqual({ code: Code.InvalidArgument, detail: "otp_expired" });
     // чужой ответ стёрт: повтор StartDemoSession выполняется заново (новая сессия), а не отдаёт ответ про несуществующую
     await fake.client.startDemoSession({ ...start, sessionToken: token(7) });
     expect(fake.sessionCount()).toBe(1);
     expect(await fake.client.resetDemo({ idempotencyKey: "x" })).toBe(reset);
     expect((await fake.client.authenticate({ sessionToken: token(7) })).user?.id).toBe(demo.id);
+  });
+});
+
+describe("подделка identity: проверка сида по validateSeed", () => {
+  const seed = (users: Parameters<typeof fake.client.seedUsers>[0]["users"]) => fake.client.seedUsers({ users, idempotencyKey: `s-${Math.random()}` });
+  const invalid = { code: Code.InvalidArgument, detail: "invalid_request" };
+
+  it("пустой список и больше 200 — invalid_request", async () => {
+    expect(await rejection(seed([]))).toEqual(invalid);
+    const many = Array.from({ length: 201 }, (_, i) => ({ phone: `+7700${String(i).padStart(7, "0")}`, defaultRole: Role.CLIENT, roles: [Role.CLIENT] }));
+    expect(await rejection(seed(many))).toEqual(invalid);
+  });
+
+  it("повтор телефона — invalid_request; неверный телефон — invalid_phone", async () => {
+    const u = { phone: PHONE, defaultRole: Role.CLIENT, roles: [Role.CLIENT] };
+    expect(await rejection(seed([u, u]))).toEqual(invalid);
+    expect(await rejection(seed([{ ...u, phone: "8700" }]))).toEqual({ code: Code.InvalidArgument, detail: "invalid_phone" });
+  });
+
+  it("неизвестная роль, роль по умолчанию вне выданных, сотрудник с другой ролью — invalid_request", async () => {
+    expect(await rejection(seed([{ phone: PHONE, defaultRole: Role.CLIENT, roles: [Role.UNSPECIFIED] }]))).toEqual(invalid);
+    expect(await rejection(seed([{ phone: PHONE, defaultRole: Role.EXECUTOR, roles: [Role.CLIENT] }]))).toEqual(invalid);
+    expect(await rejection(seed([{ phone: PHONE, defaultRole: Role.OPERATOR, roles: [Role.OPERATOR, Role.CLIENT] }]))).toEqual(invalid);
+  });
+
+  it("верный сид принимается", async () => {
+    const res = await seed([{ phone: PHONE, defaultRole: Role.OPERATOR, roles: [Role.OPERATOR] }]);
+    expect(res.users).toHaveLength(1);
   });
 });
