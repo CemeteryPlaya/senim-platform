@@ -381,7 +381,8 @@ func operatorWithMfa(sess store.Session, user store.User) error {
 // ProvisionExecutor — оператор добавляет исполнителя (addExecutor в
 // apps/web/src/modules/operator/executors.ts): пользователь по телефону с ролью EXECUTOR
 // и его реквизиты. Нового пользователя создаёт (UserRegistered); существующему без ролей
-// сотрудника добавляет роль исполнителя (RoleGranted); сотрудник — role_forbidden. ФИО и
+// сотрудника добавляет роль исполнителя (RoleGranted); сотрудник — role_forbidden,
+// заблокированный — user_blocked. ФИО и
 // ИИН аккаунта не заполняются: подписант — свойство стороны (ADR-003). Нужна сессия
 // оператора с пройденным вторым фактором (mfa_required).
 func (s *Service) ProvisionExecutor(ctx context.Context, req *identityv1.ProvisionExecutorRequest) (*identityv1.ProvisionExecutorResponse, error) {
@@ -473,6 +474,9 @@ func (s *Service) executorByPhone(ctx context.Context, tx pgx.Tx, phone string, 
 	if isStaff(user.Roles) {
 		return user, roleForbidden()
 	}
+	if user.BlockedAt.Valid {
+		return user, rpcError(connect.CodePermissionDenied, "user_blocked", nil)
+	}
 	if slices.Contains(user.Roles, executorRole) {
 		return user, nil
 	}
@@ -533,11 +537,11 @@ func (s *Service) SetPayoutIban(ctx context.Context, req *identityv1.SetPayoutIb
 			return err
 		}
 		if p.PayoutIbanEnc.Valid {
-			previous, err := s.openPII(ctx, p.PayoutIbanEnc.String, partyPayoutIBANAAD(user.ID))
+			previous, damaged, err := s.previousPayoutIban(ctx, p)
 			if err != nil {
 				return err
 			}
-			if previous == iban {
+			if !damaged && previous == iban {
 				resp.Party = partyProto(p)
 				return nil
 			}
@@ -565,12 +569,32 @@ func (s *Service) SetPayoutIban(ctx context.Context, req *identityv1.SetPayoutIb
 	return resp, nil
 }
 
+// previousPayoutIban — прежний счёт стороны. Шифртекст повреждён или перенесён из чужой
+// строки (ErrAuth, ErrMalformed) — счёт считается неизвестным: damaged=true, в лог — только
+// kid и user_id, новый счёт записывается поверх. Ключа нет в PII_KEKS — pii_key_unknown.
+func (s *Service) previousPayoutIban(ctx context.Context, p store.Party) (iban string, damaged bool, err error) {
+	plain, err := s.cfg.PII.Open(p.PayoutIbanEnc.String, partyPayoutIBANAAD(p.UserID))
+	if errors.Is(err, pii.ErrAuth) || errors.Is(err, pii.ErrMalformed) {
+		kid, _ := s.cfg.PII.KIDOf(p.PayoutIbanEnc.String)
+		s.log.WarnContext(ctx, "set_payout_iban: прежний счёт не расшифровывается, записывается новый",
+			"kid", kid, "user_id", p.UserID.String())
+		return "", true, nil
+	}
+	if err != nil {
+		iban, err = s.openPII(ctx, p.PayoutIbanEnc.String, partyPayoutIBANAAD(p.UserID))
+		return iban, false, err
+	}
+	defer clear(plain)
+	return string(plain), false, nil
+}
+
 // VerifySignerIin — совпадает ли ИИН сертификата ЭЦП с ИИН того, кто подписывает за
-// пользователя (expectedSigner в apps/web/src/modules/documents/signing.ts): у ТОО —
-// директор (signer_iin_hash), у ИП и самозанятого — ИИН стороны (bin_iin_hash), без
-// стороны — ИИН личности. Сравниваются слепые индексы: значения не расшифровываются, ответ
-// — только «совпало / нет», аудита нет. Неизвестный пользователь, нет данных или номер не
-// ИИН — не совпало.
+// пользователя на стороне side (expectedSigner в apps/web/src/modules/documents/signing.ts):
+// исполнитель — подписант стороны (у ТОО директор, signer_iin_hash; у ИП и самозанятого
+// ИИН стороны, bin_iin_hash), заказчик — ИИН личности (persons.iin_hash), даже если у
+// пользователя есть и своя сторона. Сравниваются слепые индексы: значения не
+// расшифровываются, ответ — только «совпало / нет», аудита нет. Неизвестный пользователь,
+// нет данных или номер не ИИН — не совпало; сторона не указана — invalid_request.
 func (s *Service) VerifySignerIin(ctx context.Context, req *identityv1.VerifySignerIinRequest) (*identityv1.VerifySignerIinResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return nil, err
@@ -580,28 +604,36 @@ func (s *Service) VerifySignerIin(ctx context.Context, req *identityv1.VerifySig
 	if err != nil {
 		return nil, invalidRequest()
 	}
+	side := req.GetSide()
+	if side != identityv1.SigningSide_SIGNING_SIDE_CLIENT && side != identityv1.SigningSide_SIGNING_SIDE_EXECUTOR {
+		return nil, invalidRequest()
+	}
 	iin := req.GetIin()
 	if !validIIN(iin) {
 		return &identityv1.VerifySignerIinResponse{}, nil
 	}
 	q := store.New(s.pool)
 	var stored, want []byte
-	p, err := q.GetParty(ctx, userID)
-	switch {
-	case err == nil && p.LegalForm == formTOOName:
-		stored, want = p.SignerIinHash, s.cfg.PIIIndex.Of(pii.DomainIIN, iin)
-	case err == nil:
-		stored, want = p.BinIinHash, s.cfg.PIIIndex.Of(pii.DomainBINIIN, iin)
-	case errors.Is(err, pgx.ErrNoRows):
+	if side == identityv1.SigningSide_SIGNING_SIDE_CLIENT {
 		person, err := personOf(ctx, q, userID)
 		if err != nil {
 			s.log.ErrorContext(ctx, op+": поиск личности", "err", err)
 			return nil, internalError()
 		}
 		stored, want = person.IinHash, s.cfg.PIIIndex.Of(pii.DomainIIN, iin)
-	default:
-		s.log.ErrorContext(ctx, op+": поиск стороны", "err", err)
-		return nil, internalError()
+	} else {
+		p, err := q.GetParty(ctx, userID)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			return &identityv1.VerifySignerIinResponse{}, nil
+		case err != nil:
+			s.log.ErrorContext(ctx, op+": поиск стороны", "err", err)
+			return nil, internalError()
+		case p.LegalForm == formTOOName:
+			stored, want = p.SignerIinHash, s.cfg.PIIIndex.Of(pii.DomainIIN, iin)
+		default:
+			stored, want = p.BinIinHash, s.cfg.PIIIndex.Of(pii.DomainBINIIN, iin)
+		}
 	}
 	return &identityv1.VerifySignerIinResponse{Matches: len(stored) > 0 && hmac.Equal(stored, want)}, nil
 }

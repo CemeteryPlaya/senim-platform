@@ -84,10 +84,15 @@ func (h *harness) setPayoutIban(token, iban, key string) (*identityv1.SetPayoutI
 	})
 }
 
-func (h *harness) verifySigner(userID, iin string) (*identityv1.VerifySignerIinResponse, error) {
+const (
+	sideClient   = identityv1.SigningSide_SIGNING_SIDE_CLIENT
+	sideExecutor = identityv1.SigningSide_SIGNING_SIDE_EXECUTOR
+)
+
+func (h *harness) verifySigner(userID, iin string, side identityv1.SigningSide) (*identityv1.VerifySignerIinResponse, error) {
 	h.t.Helper()
 	return idc(h, "web", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*identityv1.VerifySignerIinResponse, error) {
-		return c.VerifySignerIin(ctx, &identityv1.VerifySignerIinRequest{UserId: userID, Iin: iin})
+		return c.VerifySignerIin(ctx, &identityv1.VerifySignerIinRequest{UserId: userID, Iin: iin, Side: side})
 	})
 }
 
@@ -472,6 +477,21 @@ func TestProvisionExecutorRequiresMfa(t *testing.T) {
 	h.wantRefusal(err, connect.CodeInvalidArgument, "bin_iin_invalid")
 }
 
+func TestProvisionExecutorBlockedUser(t *testing.T) {
+	h := newHarness(t, nil)
+	_, opToken := h.mfaOperator()
+	blocked := h.user([]string{"CLIENT"}, "CLIENT")
+	h.block(blocked)
+	_, err := h.provision(&identityv1.ProvisionExecutorRequest{SessionToken: opToken, Phone: blocked.Phone, LegalForm: formIP, LegalName: "ИП «Дала»", BinIin: freshIIN(t), SignerFullName: ownerName})
+	h.wantRefusal(err, connect.CodePermissionDenied, "user_blocked")
+	if _, ok := h.partyRow(blocked.ID); ok {
+		t.Fatal("заблокированному записана сторона")
+	}
+	if n := len(h.grants(blocked.ID.String())); n != 0 {
+		t.Fatalf("заблокированному выдана роль: %d", n)
+	}
+}
+
 func TestProvisionExecutorStaffPhone(t *testing.T) {
 	h := newHarness(t, nil)
 	_, opToken := h.mfaOperator()
@@ -569,50 +589,114 @@ func TestSetPayoutIbanValidation(t *testing.T) {
 	h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
 }
 
+// Прежний счёт не расшифровывается (повреждён или перенесён из чужой строки): считается
+// неизвестным, новый записывается; в логе — только kid и user_id.
+func TestSetPayoutIbanDamagedPrevious(t *testing.T) {
+	h := newHarness(t, nil)
+	a, tokenA, _, _ := h.tooParty()
+	b, tokenB, _, _ := h.tooParty()
+	const ibanA, ibanB, ibanNew = "KZ86125KZT5004100100", "KZ75125KZT2069100100", "KZ18722S000012345678"
+	for _, c := range []struct{ token, iban string }{{tokenA, ibanA}, {tokenB, ibanB}} {
+		if _, err := h.setPayoutIban(c.token, c.iban, h.key()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rowB, _ := h.partyRow(b.ID)
+	if _, err := h.pool.Exec(context.Background(), `UPDATE parties SET payout_iban_enc = $2 WHERE user_id = $1`, a.ID, rowB.PayoutIbanEnc.String); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := h.setPayoutIban(tokenA, ibanNew, h.key())
+	if err != nil {
+		t.Fatalf("SetPayoutIban поверх повреждённого: %v", err)
+	}
+	if res.GetParty().GetPayoutIbanLast4() != ibanNew[16:] {
+		t.Fatalf("party = %v", res.GetParty())
+	}
+	row, _ := h.partyRow(a.ID)
+	if got := h.open(row.PayoutIbanEnc.String, "identity.parties.payout_iban:"+a.ID.String()); got != ibanNew {
+		t.Fatalf("payout_iban = %q", got)
+	}
+	logs := h.logs.String()
+	if !strings.Contains(logs, a.ID.String()) || !strings.Contains(logs, "test-1") {
+		t.Fatalf("в логе нет kid и user_id:\n%s", logs)
+	}
+	for _, v := range []string{ibanA, ibanB, ibanNew} {
+		if strings.Contains(logs, v) {
+			t.Fatalf("в логе значение счёта %s", v)
+		}
+	}
+	if n := len(h.auditOf(a.ID.String(), "executor.payout_iban_changed")); n != 2 {
+		t.Fatalf("аудит: %d, want 2", n)
+	}
+}
+
 func TestVerifySignerIin(t *testing.T) {
 	h := newHarness(t, nil)
-	match := func(userID uuid.UUID, iin string) bool {
+	match := func(userID uuid.UUID, iin string, side identityv1.SigningSide) bool {
 		t.Helper()
-		res, err := h.verifySigner(userID.String(), iin)
+		res, err := h.verifySigner(userID.String(), iin, side)
 		if err != nil {
 			t.Fatalf("VerifySignerIin: %v", err)
 		}
 		return res.GetMatches()
 	}
 
-	// ТОО — директор своим ИИН; БИН и чужой ИИН не совпадают.
+	// Исполнитель-ТОО — директор своим ИИН; БИН и чужой ИИН не совпадают.
 	too, _, bin, director := h.tooParty()
-	if !match(too.ID, director) || match(too.ID, freshIIN(t)) || match(too.ID, bin) {
+	if !match(too.ID, director, sideExecutor) || match(too.ID, freshIIN(t), sideExecutor) || match(too.ID, bin, sideExecutor) {
 		t.Fatal("ТОО: сверка ИИН директора")
 	}
 
-	// ИП — по своему ИИН (ИИН личности, он же ИИН/БИН стороны).
+	// Исполнитель-ИП — по своему ИИН (ИИН личности, он же ИИН/БИН стороны).
 	ip, ipToken := h.executor()
 	own := freshIIN(t)
 	h.mustRecordPerson(ipToken, testFullName, own)
 	h.mustRegisterParty(&identityv1.RegisterPartyRequest{SessionToken: ipToken, LegalForm: formIP, LegalName: "ИП «Дала»", SignerFullName: ownerName})
-	if !match(ip.ID, own) || match(ip.ID, freshIIN(t)) {
+	if !match(ip.ID, own, sideExecutor) || match(ip.ID, freshIIN(t), sideExecutor) {
 		t.Fatal("ИП: сверка своего ИИН")
 	}
 
-	// Без стороны (заказчик) — ИИН личности.
+	// Заказчик — ИИН личности; как исполнитель без стороны — не совпало.
 	client, clientToken := h.client()
 	clientIIN := freshIIN(t)
 	h.mustRecordPerson(clientToken, testFullName, clientIIN)
-	if !match(client.ID, clientIIN) || match(client.ID, own) {
+	if !match(client.ID, clientIIN, sideClient) || match(client.ID, own, sideClient) || match(client.ID, clientIIN, sideExecutor) {
 		t.Fatal("заказчик: сверка ИИН личности")
+	}
+
+	// Две роли: заказчик со своим ТОО подписывает как заказчик — своим ИИН, а не ИИН
+	// директора; как исполнитель — ИИН директора.
+	dual := h.user([]string{"CLIENT", "EXECUTOR"}, "CLIENT")
+	dualToken := h.session(dual)
+	dualIIN, dualDirector := freshIIN(t), freshIIN(t)
+	h.mustRecordPerson(dualToken, testFullName, dualIIN)
+	h.mustRegisterParty(&identityv1.RegisterPartyRequest{
+		SessionToken: dualToken, LegalForm: formTOO, LegalName: "ТОО «Своё»", BinIin: freshBIN(t),
+		SignerFullName: directorName, SignerIin: dualDirector,
+	})
+	if !match(dual.ID, dualIIN, sideClient) || match(dual.ID, dualDirector, sideClient) {
+		t.Fatal("две роли, заказчик: сверка по ИИН личности")
+	}
+	if !match(dual.ID, dualDirector, sideExecutor) || match(dual.ID, dualIIN, sideExecutor) {
+		t.Fatal("две роли, исполнитель: сверка по ИИН директора")
 	}
 
 	// Нет ни стороны, ни ИИН, неизвестный пользователь, неверный формат — не совпало.
 	bare, _ := h.client()
-	if match(bare.ID, clientIIN) || match(uuid.New(), clientIIN) || match(client.ID, "12345") {
+	if match(bare.ID, clientIIN, sideClient) || match(uuid.New(), clientIIN, sideClient) || match(uuid.New(), director, sideExecutor) ||
+		match(client.ID, "12345", sideClient) {
 		t.Fatal("совпадение без данных")
 	}
-	_, err := h.verifySigner("not-a-uuid", clientIIN)
+	_, err := h.verifySigner("not-a-uuid", clientIIN, sideClient)
 	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+	for _, side := range []identityv1.SigningSide{identityv1.SigningSide_SIGNING_SIDE_UNSPECIFIED, 99} {
+		_, err = h.verifySigner(client.ID.String(), clientIIN, side)
+		h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+	}
 
 	// Без раскрытия и без аудита.
-	for _, id := range []uuid.UUID{too.ID, ip.ID, client.ID} {
+	for _, id := range []uuid.UUID{too.ID, ip.ID, client.ID, dual.ID} {
 		for _, e := range outboxEvents(h, subjectAudit, func() *eventsv1.AuditEvent { return &eventsv1.AuditEvent{} }) {
 			if e.GetEntityId() == id.String() && strings.Contains(e.GetAction(), "signer") {
 				t.Fatalf("аудит сверки: %v", e)

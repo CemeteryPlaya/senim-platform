@@ -549,6 +549,10 @@ func TestMfaResetCommand(t *testing.T) {
 // лимит не расходуется.
 func TestVerifySecondFactorReplayAfterLostResponse(t *testing.T) {
 	h := newHarness(t, nil)
+	// Часы — в начало шага TOTP: сдвиг на 3 с ниже не переходит в следующий шаг.
+	h.clock.mu.Lock()
+	h.clock.t = time.Unix(h.clock.t.Unix()/totpPeriod*totpPeriod, 0).UTC()
+	h.clock.mu.Unlock()
 	u, token := h.operator()
 	secret := h.enrolled(token)
 	code, key := h.codeNow(secret), h.key()

@@ -152,7 +152,7 @@ type rewrapPage struct {
 // rewrapBatchFn перешифровывает одну пачку строк с user_id больше after.
 type rewrapBatchFn func(ctx context.Context, q *store.Queries, keys *pii.Keyring, after uuid.UUID, batch int32) (rewrapPage, error)
 
-// rewrapAll обходит таблицы с ПДн по возрастанию user_id; пачка меньше batch — таблица
+// rewrapAll обходит таблицы с ПДн по возрастанию user_id; пустая пачка — таблица
 // пройдена. Курсор не даёт повреждённой строке снова попасть в следующую пачку.
 func rewrapAll(ctx context.Context, pool *pgxpool.Pool, keys *pii.Keyring, batch int32) (RewrapResult, error) {
 	var res RewrapResult
@@ -173,7 +173,9 @@ func rewrapAll(ctx context.Context, pool *pgxpool.Pool, keys *pii.Keyring, batch
 			}
 			*step.count += page.updated
 			res.Damaged = append(res.Damaged, page.damaged...)
-			if page.rows < int(batch) {
+			// Конец таблицы — пустая пачка, а не короткая: SELECT … FOR UPDATE пропускает
+			// строки, изменённые параллельно (их kid уже текущий), и пачка бывает короче.
+			if page.rows == 0 {
 				break
 			}
 			after = page.last

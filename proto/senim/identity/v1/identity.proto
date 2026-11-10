@@ -53,6 +53,15 @@ enum RevealPurpose {
   REVEAL_PURPOSE_PAYOUT = 3;
 }
 
+// SigningSide — сторона сделки, за которую подписывают документ ЭЦП.
+enum SigningSide {
+  SIGNING_SIDE_UNSPECIFIED = 0;
+  // Заказчик (покупатель): подписывает своим ИИН.
+  SIGNING_SIDE_CLIENT = 1;
+  // Исполнитель (мастер): подписант стороны.
+  SIGNING_SIDE_EXECUTOR = 2;
+}
+
 // RevocationStatus — состояние заявки на отзыв согласия.
 enum RevocationStatus {
   REVOCATION_STATUS_UNSPECIFIED = 0;
@@ -413,6 +422,10 @@ message SetPayoutIbanResponse {
 message VerifySignerIinRequest {
   string user_id = 1;
   string iin = 2;
+  // За какую сторону сделки подписывает пользователь: исполнитель сверяется с подписантом
+  // стороны (ТОО — директор, ИП и самозанятый — ИИН стороны), заказчик — с ИИН личности.
+  // Не указана — invalid_request.
+  SigningSide side = 3;
 }
 
 message VerifySignerIinResponse {

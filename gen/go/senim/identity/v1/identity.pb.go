@@ -298,6 +298,58 @@ func (RevealPurpose) EnumDescriptor() ([]byte, []int) {
 	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{4}
 }
 
+// SigningSide — сторона сделки, за которую подписывают документ ЭЦП.
+type SigningSide int32
+
+const (
+	SigningSide_SIGNING_SIDE_UNSPECIFIED SigningSide = 0
+	// Заказчик (покупатель): подписывает своим ИИН.
+	SigningSide_SIGNING_SIDE_CLIENT SigningSide = 1
+	// Исполнитель (мастер): подписант стороны.
+	SigningSide_SIGNING_SIDE_EXECUTOR SigningSide = 2
+)
+
+// Enum value maps for SigningSide.
+var (
+	SigningSide_name = map[int32]string{
+		0: "SIGNING_SIDE_UNSPECIFIED",
+		1: "SIGNING_SIDE_CLIENT",
+		2: "SIGNING_SIDE_EXECUTOR",
+	}
+	SigningSide_value = map[string]int32{
+		"SIGNING_SIDE_UNSPECIFIED": 0,
+		"SIGNING_SIDE_CLIENT":      1,
+		"SIGNING_SIDE_EXECUTOR":    2,
+	}
+)
+
+func (x SigningSide) Enum() *SigningSide {
+	p := new(SigningSide)
+	*p = x
+	return p
+}
+
+func (x SigningSide) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SigningSide) Descriptor() protoreflect.EnumDescriptor {
+	return file_senim_identity_v1_identity_proto_enumTypes[5].Descriptor()
+}
+
+func (SigningSide) Type() protoreflect.EnumType {
+	return &file_senim_identity_v1_identity_proto_enumTypes[5]
+}
+
+func (x SigningSide) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SigningSide.Descriptor instead.
+func (SigningSide) EnumDescriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{5}
+}
+
 // RevocationStatus — состояние заявки на отзыв согласия.
 type RevocationStatus int32
 
@@ -335,11 +387,11 @@ func (x RevocationStatus) String() string {
 }
 
 func (RevocationStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_senim_identity_v1_identity_proto_enumTypes[5].Descriptor()
+	return file_senim_identity_v1_identity_proto_enumTypes[6].Descriptor()
 }
 
 func (RevocationStatus) Type() protoreflect.EnumType {
-	return &file_senim_identity_v1_identity_proto_enumTypes[5]
+	return &file_senim_identity_v1_identity_proto_enumTypes[6]
 }
 
 func (x RevocationStatus) Number() protoreflect.EnumNumber {
@@ -348,7 +400,7 @@ func (x RevocationStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RevocationStatus.Descriptor instead.
 func (RevocationStatus) EnumDescriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{5}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{6}
 }
 
 // User — учётная запись.
@@ -3485,9 +3537,13 @@ func (x *SetPayoutIbanResponse) GetParty() *Party {
 }
 
 type VerifySignerIinRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Iin           string                 `protobuf:"bytes,2,opt,name=iin,proto3" json:"iin,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Iin    string                 `protobuf:"bytes,2,opt,name=iin,proto3" json:"iin,omitempty"`
+	// За какую сторону сделки подписывает пользователь: исполнитель сверяется с подписантом
+	// стороны (ТОО — директор, ИП и самозанятый — ИИН стороны), заказчик — с ИИН личности.
+	// Не указана — invalid_request.
+	Side          SigningSide `protobuf:"varint,3,opt,name=side,proto3,enum=senim.identity.v1.SigningSide" json:"side,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3534,6 +3590,13 @@ func (x *VerifySignerIinRequest) GetIin() string {
 		return x.Iin
 	}
 	return ""
+}
+
+func (x *VerifySignerIinRequest) GetSide() SigningSide {
+	if x != nil {
+		return x.Side
+	}
+	return SigningSide_SIGNING_SIDE_UNSPECIFIED
 }
 
 type VerifySignerIinResponse struct {
@@ -5016,10 +5079,11 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x04iban\x18\x02 \x01(\tR\x04iban\x12'\n" +
 	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"G\n" +
 	"\x15SetPayoutIbanResponse\x12.\n" +
-	"\x05party\x18\x01 \x01(\v2\x18.senim.identity.v1.PartyR\x05party\"C\n" +
+	"\x05party\x18\x01 \x01(\v2\x18.senim.identity.v1.PartyR\x05party\"w\n" +
 	"\x16VerifySignerIinRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x10\n" +
-	"\x03iin\x18\x02 \x01(\tR\x03iin\"3\n" +
+	"\x03iin\x18\x02 \x01(\tR\x03iin\x122\n" +
+	"\x04side\x18\x03 \x01(\x0e2\x1e.senim.identity.v1.SigningSideR\x04side\"3\n" +
 	"\x17VerifySignerIinResponse\x12\x18\n" +
 	"\amatches\x18\x01 \x01(\bR\amatches\"\xc5\x01\n" +
 	"\x19RevealPartyDetailsRequest\x12.\n" +
@@ -5122,7 +5186,11 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x1aREVEAL_PURPOSE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17REVEAL_PURPOSE_CONTRACT\x10\x01\x12\"\n" +
 	"\x1eREVEAL_PURPOSE_RELEASE_RECEIPT\x10\x02\x12\x19\n" +
-	"\x15REVEAL_PURPOSE_PAYOUT\x10\x03*\x96\x01\n" +
+	"\x15REVEAL_PURPOSE_PAYOUT\x10\x03*_\n" +
+	"\vSigningSide\x12\x1c\n" +
+	"\x18SIGNING_SIDE_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13SIGNING_SIDE_CLIENT\x10\x01\x12\x19\n" +
+	"\x15SIGNING_SIDE_EXECUTOR\x10\x02*\x96\x01\n" +
 	"\x10RevocationStatus\x12!\n" +
 	"\x1dREVOCATION_STATUS_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bREVOCATION_STATUS_REQUESTED\x10\x01\x12\x1f\n" +
@@ -5177,7 +5245,7 @@ func file_senim_identity_v1_identity_proto_rawDescGZIP() []byte {
 	return file_senim_identity_v1_identity_proto_rawDescData
 }
 
-var file_senim_identity_v1_identity_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_senim_identity_v1_identity_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
 var file_senim_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 72)
 var file_senim_identity_v1_identity_proto_goTypes = []any{
 	(Role)(0),                                // 0: senim.identity.v1.Role
@@ -5185,222 +5253,224 @@ var file_senim_identity_v1_identity_proto_goTypes = []any{
 	(KycStatus)(0),                           // 2: senim.identity.v1.KycStatus
 	(ConsentKind)(0),                         // 3: senim.identity.v1.ConsentKind
 	(RevealPurpose)(0),                       // 4: senim.identity.v1.RevealPurpose
-	(RevocationStatus)(0),                    // 5: senim.identity.v1.RevocationStatus
-	(*User)(nil),                             // 6: senim.identity.v1.User
-	(*Session)(nil),                          // 7: senim.identity.v1.Session
-	(*SigningKey)(nil),                       // 8: senim.identity.v1.SigningKey
-	(*Person)(nil),                           // 9: senim.identity.v1.Person
-	(*Party)(nil),                            // 10: senim.identity.v1.Party
-	(*PartyDetails)(nil),                     // 11: senim.identity.v1.PartyDetails
-	(*Consent)(nil),                          // 12: senim.identity.v1.Consent
-	(*ConsentRevocation)(nil),                // 13: senim.identity.v1.ConsentRevocation
-	(*SeedParty)(nil),                        // 14: senim.identity.v1.SeedParty
-	(*SeedUser)(nil),                         // 15: senim.identity.v1.SeedUser
-	(*RequestOtpRequest)(nil),                // 16: senim.identity.v1.RequestOtpRequest
-	(*RequestOtpResponse)(nil),               // 17: senim.identity.v1.RequestOtpResponse
-	(*VerifyOtpRequest)(nil),                 // 18: senim.identity.v1.VerifyOtpRequest
-	(*VerifyOtpResponse)(nil),                // 19: senim.identity.v1.VerifyOtpResponse
-	(*AuthenticateRequest)(nil),              // 20: senim.identity.v1.AuthenticateRequest
-	(*AuthenticateResponse)(nil),             // 21: senim.identity.v1.AuthenticateResponse
-	(*SignOutRequest)(nil),                   // 22: senim.identity.v1.SignOutRequest
-	(*SignOutResponse)(nil),                  // 23: senim.identity.v1.SignOutResponse
-	(*SignOutEverywhereRequest)(nil),         // 24: senim.identity.v1.SignOutEverywhereRequest
-	(*SignOutEverywhereResponse)(nil),        // 25: senim.identity.v1.SignOutEverywhereResponse
-	(*SwitchRoleRequest)(nil),                // 26: senim.identity.v1.SwitchRoleRequest
-	(*SwitchRoleResponse)(nil),               // 27: senim.identity.v1.SwitchRoleResponse
-	(*GrantRoleRequest)(nil),                 // 28: senim.identity.v1.GrantRoleRequest
-	(*GrantRoleResponse)(nil),                // 29: senim.identity.v1.GrantRoleResponse
-	(*StartDemoSessionRequest)(nil),          // 30: senim.identity.v1.StartDemoSessionRequest
-	(*StartDemoSessionResponse)(nil),         // 31: senim.identity.v1.StartDemoSessionResponse
-	(*SeedUsersRequest)(nil),                 // 32: senim.identity.v1.SeedUsersRequest
-	(*SeedUsersResponse)(nil),                // 33: senim.identity.v1.SeedUsersResponse
-	(*ResetDemoRequest)(nil),                 // 34: senim.identity.v1.ResetDemoRequest
-	(*ResetDemoResponse)(nil),                // 35: senim.identity.v1.ResetDemoResponse
-	(*StartTotpEnrollmentRequest)(nil),       // 36: senim.identity.v1.StartTotpEnrollmentRequest
-	(*StartTotpEnrollmentResponse)(nil),      // 37: senim.identity.v1.StartTotpEnrollmentResponse
-	(*ConfirmTotpEnrollmentRequest)(nil),     // 38: senim.identity.v1.ConfirmTotpEnrollmentRequest
-	(*ConfirmTotpEnrollmentResponse)(nil),    // 39: senim.identity.v1.ConfirmTotpEnrollmentResponse
-	(*VerifySecondFactorRequest)(nil),        // 40: senim.identity.v1.VerifySecondFactorRequest
-	(*VerifySecondFactorResponse)(nil),       // 41: senim.identity.v1.VerifySecondFactorResponse
-	(*RecordPersonRequest)(nil),              // 42: senim.identity.v1.RecordPersonRequest
-	(*RecordPersonResponse)(nil),             // 43: senim.identity.v1.RecordPersonResponse
-	(*UpdateContactsRequest)(nil),            // 44: senim.identity.v1.UpdateContactsRequest
-	(*UpdateContactsResponse)(nil),           // 45: senim.identity.v1.UpdateContactsResponse
-	(*GetProfileRequest)(nil),                // 46: senim.identity.v1.GetProfileRequest
-	(*GetProfileResponse)(nil),               // 47: senim.identity.v1.GetProfileResponse
-	(*RegisterPartyRequest)(nil),             // 48: senim.identity.v1.RegisterPartyRequest
-	(*RegisterPartyResponse)(nil),            // 49: senim.identity.v1.RegisterPartyResponse
-	(*ProvisionExecutorRequest)(nil),         // 50: senim.identity.v1.ProvisionExecutorRequest
-	(*ProvisionExecutorResponse)(nil),        // 51: senim.identity.v1.ProvisionExecutorResponse
-	(*SetPayoutIbanRequest)(nil),             // 52: senim.identity.v1.SetPayoutIbanRequest
-	(*SetPayoutIbanResponse)(nil),            // 53: senim.identity.v1.SetPayoutIbanResponse
-	(*VerifySignerIinRequest)(nil),           // 54: senim.identity.v1.VerifySignerIinRequest
-	(*VerifySignerIinResponse)(nil),          // 55: senim.identity.v1.VerifySignerIinResponse
-	(*RevealPartyDetailsRequest)(nil),        // 56: senim.identity.v1.RevealPartyDetailsRequest
-	(*RevealPartyDetailsResponse)(nil),       // 57: senim.identity.v1.RevealPartyDetailsResponse
-	(*SubmitKycRequest)(nil),                 // 58: senim.identity.v1.SubmitKycRequest
-	(*SubmitKycResponse)(nil),                // 59: senim.identity.v1.SubmitKycResponse
-	(*ListKycQueueRequest)(nil),              // 60: senim.identity.v1.ListKycQueueRequest
-	(*ListKycQueueResponse)(nil),             // 61: senim.identity.v1.ListKycQueueResponse
-	(*ReviewKycRequest)(nil),                 // 62: senim.identity.v1.ReviewKycRequest
-	(*ReviewKycResponse)(nil),                // 63: senim.identity.v1.ReviewKycResponse
-	(*GrantConsentRequest)(nil),              // 64: senim.identity.v1.GrantConsentRequest
-	(*GrantConsentResponse)(nil),             // 65: senim.identity.v1.GrantConsentResponse
-	(*RevokeConsentRequest)(nil),             // 66: senim.identity.v1.RevokeConsentRequest
-	(*RevokeConsentResponse)(nil),            // 67: senim.identity.v1.RevokeConsentResponse
-	(*ListMyConsentsRequest)(nil),            // 68: senim.identity.v1.ListMyConsentsRequest
-	(*ListMyConsentsResponse)(nil),           // 69: senim.identity.v1.ListMyConsentsResponse
-	(*HasConsentsRequest)(nil),               // 70: senim.identity.v1.HasConsentsRequest
-	(*HasConsentsResponse)(nil),              // 71: senim.identity.v1.HasConsentsResponse
-	(*ListConsentRevocationsRequest)(nil),    // 72: senim.identity.v1.ListConsentRevocationsRequest
-	(*ListConsentRevocationsResponse)(nil),   // 73: senim.identity.v1.ListConsentRevocationsResponse
-	(*ResolveConsentRevocationRequest)(nil),  // 74: senim.identity.v1.ResolveConsentRevocationRequest
-	(*ResolveConsentRevocationResponse)(nil), // 75: senim.identity.v1.ResolveConsentRevocationResponse
-	(*GetSigningKeysRequest)(nil),            // 76: senim.identity.v1.GetSigningKeysRequest
-	(*GetSigningKeysResponse)(nil),           // 77: senim.identity.v1.GetSigningKeysResponse
-	(*timestamppb.Timestamp)(nil),            // 78: google.protobuf.Timestamp
+	(SigningSide)(0),                         // 5: senim.identity.v1.SigningSide
+	(RevocationStatus)(0),                    // 6: senim.identity.v1.RevocationStatus
+	(*User)(nil),                             // 7: senim.identity.v1.User
+	(*Session)(nil),                          // 8: senim.identity.v1.Session
+	(*SigningKey)(nil),                       // 9: senim.identity.v1.SigningKey
+	(*Person)(nil),                           // 10: senim.identity.v1.Person
+	(*Party)(nil),                            // 11: senim.identity.v1.Party
+	(*PartyDetails)(nil),                     // 12: senim.identity.v1.PartyDetails
+	(*Consent)(nil),                          // 13: senim.identity.v1.Consent
+	(*ConsentRevocation)(nil),                // 14: senim.identity.v1.ConsentRevocation
+	(*SeedParty)(nil),                        // 15: senim.identity.v1.SeedParty
+	(*SeedUser)(nil),                         // 16: senim.identity.v1.SeedUser
+	(*RequestOtpRequest)(nil),                // 17: senim.identity.v1.RequestOtpRequest
+	(*RequestOtpResponse)(nil),               // 18: senim.identity.v1.RequestOtpResponse
+	(*VerifyOtpRequest)(nil),                 // 19: senim.identity.v1.VerifyOtpRequest
+	(*VerifyOtpResponse)(nil),                // 20: senim.identity.v1.VerifyOtpResponse
+	(*AuthenticateRequest)(nil),              // 21: senim.identity.v1.AuthenticateRequest
+	(*AuthenticateResponse)(nil),             // 22: senim.identity.v1.AuthenticateResponse
+	(*SignOutRequest)(nil),                   // 23: senim.identity.v1.SignOutRequest
+	(*SignOutResponse)(nil),                  // 24: senim.identity.v1.SignOutResponse
+	(*SignOutEverywhereRequest)(nil),         // 25: senim.identity.v1.SignOutEverywhereRequest
+	(*SignOutEverywhereResponse)(nil),        // 26: senim.identity.v1.SignOutEverywhereResponse
+	(*SwitchRoleRequest)(nil),                // 27: senim.identity.v1.SwitchRoleRequest
+	(*SwitchRoleResponse)(nil),               // 28: senim.identity.v1.SwitchRoleResponse
+	(*GrantRoleRequest)(nil),                 // 29: senim.identity.v1.GrantRoleRequest
+	(*GrantRoleResponse)(nil),                // 30: senim.identity.v1.GrantRoleResponse
+	(*StartDemoSessionRequest)(nil),          // 31: senim.identity.v1.StartDemoSessionRequest
+	(*StartDemoSessionResponse)(nil),         // 32: senim.identity.v1.StartDemoSessionResponse
+	(*SeedUsersRequest)(nil),                 // 33: senim.identity.v1.SeedUsersRequest
+	(*SeedUsersResponse)(nil),                // 34: senim.identity.v1.SeedUsersResponse
+	(*ResetDemoRequest)(nil),                 // 35: senim.identity.v1.ResetDemoRequest
+	(*ResetDemoResponse)(nil),                // 36: senim.identity.v1.ResetDemoResponse
+	(*StartTotpEnrollmentRequest)(nil),       // 37: senim.identity.v1.StartTotpEnrollmentRequest
+	(*StartTotpEnrollmentResponse)(nil),      // 38: senim.identity.v1.StartTotpEnrollmentResponse
+	(*ConfirmTotpEnrollmentRequest)(nil),     // 39: senim.identity.v1.ConfirmTotpEnrollmentRequest
+	(*ConfirmTotpEnrollmentResponse)(nil),    // 40: senim.identity.v1.ConfirmTotpEnrollmentResponse
+	(*VerifySecondFactorRequest)(nil),        // 41: senim.identity.v1.VerifySecondFactorRequest
+	(*VerifySecondFactorResponse)(nil),       // 42: senim.identity.v1.VerifySecondFactorResponse
+	(*RecordPersonRequest)(nil),              // 43: senim.identity.v1.RecordPersonRequest
+	(*RecordPersonResponse)(nil),             // 44: senim.identity.v1.RecordPersonResponse
+	(*UpdateContactsRequest)(nil),            // 45: senim.identity.v1.UpdateContactsRequest
+	(*UpdateContactsResponse)(nil),           // 46: senim.identity.v1.UpdateContactsResponse
+	(*GetProfileRequest)(nil),                // 47: senim.identity.v1.GetProfileRequest
+	(*GetProfileResponse)(nil),               // 48: senim.identity.v1.GetProfileResponse
+	(*RegisterPartyRequest)(nil),             // 49: senim.identity.v1.RegisterPartyRequest
+	(*RegisterPartyResponse)(nil),            // 50: senim.identity.v1.RegisterPartyResponse
+	(*ProvisionExecutorRequest)(nil),         // 51: senim.identity.v1.ProvisionExecutorRequest
+	(*ProvisionExecutorResponse)(nil),        // 52: senim.identity.v1.ProvisionExecutorResponse
+	(*SetPayoutIbanRequest)(nil),             // 53: senim.identity.v1.SetPayoutIbanRequest
+	(*SetPayoutIbanResponse)(nil),            // 54: senim.identity.v1.SetPayoutIbanResponse
+	(*VerifySignerIinRequest)(nil),           // 55: senim.identity.v1.VerifySignerIinRequest
+	(*VerifySignerIinResponse)(nil),          // 56: senim.identity.v1.VerifySignerIinResponse
+	(*RevealPartyDetailsRequest)(nil),        // 57: senim.identity.v1.RevealPartyDetailsRequest
+	(*RevealPartyDetailsResponse)(nil),       // 58: senim.identity.v1.RevealPartyDetailsResponse
+	(*SubmitKycRequest)(nil),                 // 59: senim.identity.v1.SubmitKycRequest
+	(*SubmitKycResponse)(nil),                // 60: senim.identity.v1.SubmitKycResponse
+	(*ListKycQueueRequest)(nil),              // 61: senim.identity.v1.ListKycQueueRequest
+	(*ListKycQueueResponse)(nil),             // 62: senim.identity.v1.ListKycQueueResponse
+	(*ReviewKycRequest)(nil),                 // 63: senim.identity.v1.ReviewKycRequest
+	(*ReviewKycResponse)(nil),                // 64: senim.identity.v1.ReviewKycResponse
+	(*GrantConsentRequest)(nil),              // 65: senim.identity.v1.GrantConsentRequest
+	(*GrantConsentResponse)(nil),             // 66: senim.identity.v1.GrantConsentResponse
+	(*RevokeConsentRequest)(nil),             // 67: senim.identity.v1.RevokeConsentRequest
+	(*RevokeConsentResponse)(nil),            // 68: senim.identity.v1.RevokeConsentResponse
+	(*ListMyConsentsRequest)(nil),            // 69: senim.identity.v1.ListMyConsentsRequest
+	(*ListMyConsentsResponse)(nil),           // 70: senim.identity.v1.ListMyConsentsResponse
+	(*HasConsentsRequest)(nil),               // 71: senim.identity.v1.HasConsentsRequest
+	(*HasConsentsResponse)(nil),              // 72: senim.identity.v1.HasConsentsResponse
+	(*ListConsentRevocationsRequest)(nil),    // 73: senim.identity.v1.ListConsentRevocationsRequest
+	(*ListConsentRevocationsResponse)(nil),   // 74: senim.identity.v1.ListConsentRevocationsResponse
+	(*ResolveConsentRevocationRequest)(nil),  // 75: senim.identity.v1.ResolveConsentRevocationRequest
+	(*ResolveConsentRevocationResponse)(nil), // 76: senim.identity.v1.ResolveConsentRevocationResponse
+	(*GetSigningKeysRequest)(nil),            // 77: senim.identity.v1.GetSigningKeysRequest
+	(*GetSigningKeysResponse)(nil),           // 78: senim.identity.v1.GetSigningKeysResponse
+	(*timestamppb.Timestamp)(nil),            // 79: google.protobuf.Timestamp
 }
 var file_senim_identity_v1_identity_proto_depIdxs = []int32{
 	0,   // 0: senim.identity.v1.User.default_role:type_name -> senim.identity.v1.Role
 	0,   // 1: senim.identity.v1.User.roles:type_name -> senim.identity.v1.Role
-	78,  // 2: senim.identity.v1.User.blocked_at:type_name -> google.protobuf.Timestamp
-	78,  // 3: senim.identity.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	79,  // 2: senim.identity.v1.User.blocked_at:type_name -> google.protobuf.Timestamp
+	79,  // 3: senim.identity.v1.User.created_at:type_name -> google.protobuf.Timestamp
 	0,   // 4: senim.identity.v1.Session.active_role:type_name -> senim.identity.v1.Role
-	78,  // 5: senim.identity.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
-	78,  // 6: senim.identity.v1.Session.idle_expires_at:type_name -> google.protobuf.Timestamp
-	78,  // 7: senim.identity.v1.Session.mfa_verified_at:type_name -> google.protobuf.Timestamp
+	79,  // 5: senim.identity.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	79,  // 6: senim.identity.v1.Session.idle_expires_at:type_name -> google.protobuf.Timestamp
+	79,  // 7: senim.identity.v1.Session.mfa_verified_at:type_name -> google.protobuf.Timestamp
 	1,   // 8: senim.identity.v1.Party.legal_form:type_name -> senim.identity.v1.LegalForm
 	2,   // 9: senim.identity.v1.Party.kyc_status:type_name -> senim.identity.v1.KycStatus
-	78,  // 10: senim.identity.v1.Party.kyc_submitted_at:type_name -> google.protobuf.Timestamp
-	78,  // 11: senim.identity.v1.Party.kyc_reviewed_at:type_name -> google.protobuf.Timestamp
+	79,  // 10: senim.identity.v1.Party.kyc_submitted_at:type_name -> google.protobuf.Timestamp
+	79,  // 11: senim.identity.v1.Party.kyc_reviewed_at:type_name -> google.protobuf.Timestamp
 	1,   // 12: senim.identity.v1.PartyDetails.legal_form:type_name -> senim.identity.v1.LegalForm
 	3,   // 13: senim.identity.v1.Consent.kind:type_name -> senim.identity.v1.ConsentKind
-	78,  // 14: senim.identity.v1.Consent.granted_at:type_name -> google.protobuf.Timestamp
-	78,  // 15: senim.identity.v1.Consent.revoked_at:type_name -> google.protobuf.Timestamp
+	79,  // 14: senim.identity.v1.Consent.granted_at:type_name -> google.protobuf.Timestamp
+	79,  // 15: senim.identity.v1.Consent.revoked_at:type_name -> google.protobuf.Timestamp
 	3,   // 16: senim.identity.v1.ConsentRevocation.kind:type_name -> senim.identity.v1.ConsentKind
-	78,  // 17: senim.identity.v1.ConsentRevocation.requested_at:type_name -> google.protobuf.Timestamp
-	78,  // 18: senim.identity.v1.ConsentRevocation.due_at:type_name -> google.protobuf.Timestamp
-	5,   // 19: senim.identity.v1.ConsentRevocation.status:type_name -> senim.identity.v1.RevocationStatus
-	78,  // 20: senim.identity.v1.ConsentRevocation.decided_at:type_name -> google.protobuf.Timestamp
+	79,  // 17: senim.identity.v1.ConsentRevocation.requested_at:type_name -> google.protobuf.Timestamp
+	79,  // 18: senim.identity.v1.ConsentRevocation.due_at:type_name -> google.protobuf.Timestamp
+	6,   // 19: senim.identity.v1.ConsentRevocation.status:type_name -> senim.identity.v1.RevocationStatus
+	79,  // 20: senim.identity.v1.ConsentRevocation.decided_at:type_name -> google.protobuf.Timestamp
 	1,   // 21: senim.identity.v1.SeedParty.legal_form:type_name -> senim.identity.v1.LegalForm
 	2,   // 22: senim.identity.v1.SeedParty.kyc_status:type_name -> senim.identity.v1.KycStatus
 	0,   // 23: senim.identity.v1.SeedUser.default_role:type_name -> senim.identity.v1.Role
 	0,   // 24: senim.identity.v1.SeedUser.roles:type_name -> senim.identity.v1.Role
-	78,  // 25: senim.identity.v1.SeedUser.created_at:type_name -> google.protobuf.Timestamp
-	14,  // 26: senim.identity.v1.SeedUser.party:type_name -> senim.identity.v1.SeedParty
-	78,  // 27: senim.identity.v1.RequestOtpResponse.expires_at:type_name -> google.protobuf.Timestamp
-	6,   // 28: senim.identity.v1.VerifyOtpResponse.user:type_name -> senim.identity.v1.User
-	7,   // 29: senim.identity.v1.VerifyOtpResponse.session:type_name -> senim.identity.v1.Session
-	6,   // 30: senim.identity.v1.AuthenticateResponse.user:type_name -> senim.identity.v1.User
-	7,   // 31: senim.identity.v1.AuthenticateResponse.session:type_name -> senim.identity.v1.Session
-	78,  // 32: senim.identity.v1.AuthenticateResponse.access_expires_at:type_name -> google.protobuf.Timestamp
-	12,  // 33: senim.identity.v1.AuthenticateResponse.consents:type_name -> senim.identity.v1.Consent
+	79,  // 25: senim.identity.v1.SeedUser.created_at:type_name -> google.protobuf.Timestamp
+	15,  // 26: senim.identity.v1.SeedUser.party:type_name -> senim.identity.v1.SeedParty
+	79,  // 27: senim.identity.v1.RequestOtpResponse.expires_at:type_name -> google.protobuf.Timestamp
+	7,   // 28: senim.identity.v1.VerifyOtpResponse.user:type_name -> senim.identity.v1.User
+	8,   // 29: senim.identity.v1.VerifyOtpResponse.session:type_name -> senim.identity.v1.Session
+	7,   // 30: senim.identity.v1.AuthenticateResponse.user:type_name -> senim.identity.v1.User
+	8,   // 31: senim.identity.v1.AuthenticateResponse.session:type_name -> senim.identity.v1.Session
+	79,  // 32: senim.identity.v1.AuthenticateResponse.access_expires_at:type_name -> google.protobuf.Timestamp
+	13,  // 33: senim.identity.v1.AuthenticateResponse.consents:type_name -> senim.identity.v1.Consent
 	0,   // 34: senim.identity.v1.SwitchRoleRequest.role:type_name -> senim.identity.v1.Role
-	6,   // 35: senim.identity.v1.SwitchRoleResponse.user:type_name -> senim.identity.v1.User
-	7,   // 36: senim.identity.v1.SwitchRoleResponse.session:type_name -> senim.identity.v1.Session
+	7,   // 35: senim.identity.v1.SwitchRoleResponse.user:type_name -> senim.identity.v1.User
+	8,   // 36: senim.identity.v1.SwitchRoleResponse.session:type_name -> senim.identity.v1.Session
 	0,   // 37: senim.identity.v1.GrantRoleRequest.role:type_name -> senim.identity.v1.Role
-	6,   // 38: senim.identity.v1.GrantRoleResponse.user:type_name -> senim.identity.v1.User
+	7,   // 38: senim.identity.v1.GrantRoleResponse.user:type_name -> senim.identity.v1.User
 	0,   // 39: senim.identity.v1.StartDemoSessionRequest.as_role:type_name -> senim.identity.v1.Role
-	6,   // 40: senim.identity.v1.StartDemoSessionResponse.user:type_name -> senim.identity.v1.User
-	7,   // 41: senim.identity.v1.StartDemoSessionResponse.session:type_name -> senim.identity.v1.Session
-	15,  // 42: senim.identity.v1.SeedUsersRequest.users:type_name -> senim.identity.v1.SeedUser
-	6,   // 43: senim.identity.v1.SeedUsersResponse.users:type_name -> senim.identity.v1.User
-	7,   // 44: senim.identity.v1.ConfirmTotpEnrollmentResponse.session:type_name -> senim.identity.v1.Session
-	7,   // 45: senim.identity.v1.VerifySecondFactorResponse.session:type_name -> senim.identity.v1.Session
-	9,   // 46: senim.identity.v1.RecordPersonResponse.person:type_name -> senim.identity.v1.Person
-	9,   // 47: senim.identity.v1.UpdateContactsResponse.person:type_name -> senim.identity.v1.Person
-	9,   // 48: senim.identity.v1.GetProfileResponse.person:type_name -> senim.identity.v1.Person
-	10,  // 49: senim.identity.v1.GetProfileResponse.party:type_name -> senim.identity.v1.Party
+	7,   // 40: senim.identity.v1.StartDemoSessionResponse.user:type_name -> senim.identity.v1.User
+	8,   // 41: senim.identity.v1.StartDemoSessionResponse.session:type_name -> senim.identity.v1.Session
+	16,  // 42: senim.identity.v1.SeedUsersRequest.users:type_name -> senim.identity.v1.SeedUser
+	7,   // 43: senim.identity.v1.SeedUsersResponse.users:type_name -> senim.identity.v1.User
+	8,   // 44: senim.identity.v1.ConfirmTotpEnrollmentResponse.session:type_name -> senim.identity.v1.Session
+	8,   // 45: senim.identity.v1.VerifySecondFactorResponse.session:type_name -> senim.identity.v1.Session
+	10,  // 46: senim.identity.v1.RecordPersonResponse.person:type_name -> senim.identity.v1.Person
+	10,  // 47: senim.identity.v1.UpdateContactsResponse.person:type_name -> senim.identity.v1.Person
+	10,  // 48: senim.identity.v1.GetProfileResponse.person:type_name -> senim.identity.v1.Person
+	11,  // 49: senim.identity.v1.GetProfileResponse.party:type_name -> senim.identity.v1.Party
 	1,   // 50: senim.identity.v1.RegisterPartyRequest.legal_form:type_name -> senim.identity.v1.LegalForm
-	10,  // 51: senim.identity.v1.RegisterPartyResponse.party:type_name -> senim.identity.v1.Party
+	11,  // 51: senim.identity.v1.RegisterPartyResponse.party:type_name -> senim.identity.v1.Party
 	1,   // 52: senim.identity.v1.ProvisionExecutorRequest.legal_form:type_name -> senim.identity.v1.LegalForm
-	6,   // 53: senim.identity.v1.ProvisionExecutorResponse.user:type_name -> senim.identity.v1.User
-	10,  // 54: senim.identity.v1.ProvisionExecutorResponse.party:type_name -> senim.identity.v1.Party
-	10,  // 55: senim.identity.v1.SetPayoutIbanResponse.party:type_name -> senim.identity.v1.Party
-	4,   // 56: senim.identity.v1.RevealPartyDetailsRequest.purpose:type_name -> senim.identity.v1.RevealPurpose
-	11,  // 57: senim.identity.v1.RevealPartyDetailsResponse.parties:type_name -> senim.identity.v1.PartyDetails
-	10,  // 58: senim.identity.v1.SubmitKycResponse.party:type_name -> senim.identity.v1.Party
-	10,  // 59: senim.identity.v1.ListKycQueueResponse.parties:type_name -> senim.identity.v1.Party
-	9,   // 60: senim.identity.v1.ListKycQueueResponse.people:type_name -> senim.identity.v1.Person
-	10,  // 61: senim.identity.v1.ReviewKycResponse.party:type_name -> senim.identity.v1.Party
-	3,   // 62: senim.identity.v1.GrantConsentRequest.kind:type_name -> senim.identity.v1.ConsentKind
-	12,  // 63: senim.identity.v1.GrantConsentResponse.consent:type_name -> senim.identity.v1.Consent
-	3,   // 64: senim.identity.v1.RevokeConsentRequest.kind:type_name -> senim.identity.v1.ConsentKind
-	13,  // 65: senim.identity.v1.RevokeConsentResponse.revocation:type_name -> senim.identity.v1.ConsentRevocation
-	12,  // 66: senim.identity.v1.ListMyConsentsResponse.consents:type_name -> senim.identity.v1.Consent
-	13,  // 67: senim.identity.v1.ListMyConsentsResponse.revocations:type_name -> senim.identity.v1.ConsentRevocation
-	3,   // 68: senim.identity.v1.HasConsentsRequest.kind:type_name -> senim.identity.v1.ConsentKind
-	13,  // 69: senim.identity.v1.ListConsentRevocationsResponse.revocations:type_name -> senim.identity.v1.ConsentRevocation
-	9,   // 70: senim.identity.v1.ListConsentRevocationsResponse.people:type_name -> senim.identity.v1.Person
-	13,  // 71: senim.identity.v1.ResolveConsentRevocationResponse.revocation:type_name -> senim.identity.v1.ConsentRevocation
-	8,   // 72: senim.identity.v1.GetSigningKeysResponse.keys:type_name -> senim.identity.v1.SigningKey
-	16,  // 73: senim.identity.v1.IdentityService.RequestOtp:input_type -> senim.identity.v1.RequestOtpRequest
-	18,  // 74: senim.identity.v1.IdentityService.VerifyOtp:input_type -> senim.identity.v1.VerifyOtpRequest
-	20,  // 75: senim.identity.v1.IdentityService.Authenticate:input_type -> senim.identity.v1.AuthenticateRequest
-	22,  // 76: senim.identity.v1.IdentityService.SignOut:input_type -> senim.identity.v1.SignOutRequest
-	24,  // 77: senim.identity.v1.IdentityService.SignOutEverywhere:input_type -> senim.identity.v1.SignOutEverywhereRequest
-	26,  // 78: senim.identity.v1.IdentityService.SwitchRole:input_type -> senim.identity.v1.SwitchRoleRequest
-	28,  // 79: senim.identity.v1.IdentityService.GrantRole:input_type -> senim.identity.v1.GrantRoleRequest
-	30,  // 80: senim.identity.v1.IdentityService.StartDemoSession:input_type -> senim.identity.v1.StartDemoSessionRequest
-	32,  // 81: senim.identity.v1.IdentityService.SeedUsers:input_type -> senim.identity.v1.SeedUsersRequest
-	34,  // 82: senim.identity.v1.IdentityService.ResetDemo:input_type -> senim.identity.v1.ResetDemoRequest
-	76,  // 83: senim.identity.v1.IdentityService.GetSigningKeys:input_type -> senim.identity.v1.GetSigningKeysRequest
-	36,  // 84: senim.identity.v1.IdentityService.StartTotpEnrollment:input_type -> senim.identity.v1.StartTotpEnrollmentRequest
-	38,  // 85: senim.identity.v1.IdentityService.ConfirmTotpEnrollment:input_type -> senim.identity.v1.ConfirmTotpEnrollmentRequest
-	40,  // 86: senim.identity.v1.IdentityService.VerifySecondFactor:input_type -> senim.identity.v1.VerifySecondFactorRequest
-	42,  // 87: senim.identity.v1.IdentityService.RecordPerson:input_type -> senim.identity.v1.RecordPersonRequest
-	44,  // 88: senim.identity.v1.IdentityService.UpdateContacts:input_type -> senim.identity.v1.UpdateContactsRequest
-	46,  // 89: senim.identity.v1.IdentityService.GetProfile:input_type -> senim.identity.v1.GetProfileRequest
-	48,  // 90: senim.identity.v1.IdentityService.RegisterParty:input_type -> senim.identity.v1.RegisterPartyRequest
-	50,  // 91: senim.identity.v1.IdentityService.ProvisionExecutor:input_type -> senim.identity.v1.ProvisionExecutorRequest
-	52,  // 92: senim.identity.v1.IdentityService.SetPayoutIban:input_type -> senim.identity.v1.SetPayoutIbanRequest
-	54,  // 93: senim.identity.v1.IdentityService.VerifySignerIin:input_type -> senim.identity.v1.VerifySignerIinRequest
-	56,  // 94: senim.identity.v1.IdentityService.RevealPartyDetails:input_type -> senim.identity.v1.RevealPartyDetailsRequest
-	58,  // 95: senim.identity.v1.IdentityService.SubmitKyc:input_type -> senim.identity.v1.SubmitKycRequest
-	60,  // 96: senim.identity.v1.IdentityService.ListKycQueue:input_type -> senim.identity.v1.ListKycQueueRequest
-	62,  // 97: senim.identity.v1.IdentityService.ReviewKyc:input_type -> senim.identity.v1.ReviewKycRequest
-	64,  // 98: senim.identity.v1.IdentityService.GrantConsent:input_type -> senim.identity.v1.GrantConsentRequest
-	66,  // 99: senim.identity.v1.IdentityService.RevokeConsent:input_type -> senim.identity.v1.RevokeConsentRequest
-	68,  // 100: senim.identity.v1.IdentityService.ListMyConsents:input_type -> senim.identity.v1.ListMyConsentsRequest
-	70,  // 101: senim.identity.v1.IdentityService.HasConsents:input_type -> senim.identity.v1.HasConsentsRequest
-	72,  // 102: senim.identity.v1.IdentityService.ListConsentRevocations:input_type -> senim.identity.v1.ListConsentRevocationsRequest
-	74,  // 103: senim.identity.v1.IdentityService.ResolveConsentRevocation:input_type -> senim.identity.v1.ResolveConsentRevocationRequest
-	17,  // 104: senim.identity.v1.IdentityService.RequestOtp:output_type -> senim.identity.v1.RequestOtpResponse
-	19,  // 105: senim.identity.v1.IdentityService.VerifyOtp:output_type -> senim.identity.v1.VerifyOtpResponse
-	21,  // 106: senim.identity.v1.IdentityService.Authenticate:output_type -> senim.identity.v1.AuthenticateResponse
-	23,  // 107: senim.identity.v1.IdentityService.SignOut:output_type -> senim.identity.v1.SignOutResponse
-	25,  // 108: senim.identity.v1.IdentityService.SignOutEverywhere:output_type -> senim.identity.v1.SignOutEverywhereResponse
-	27,  // 109: senim.identity.v1.IdentityService.SwitchRole:output_type -> senim.identity.v1.SwitchRoleResponse
-	29,  // 110: senim.identity.v1.IdentityService.GrantRole:output_type -> senim.identity.v1.GrantRoleResponse
-	31,  // 111: senim.identity.v1.IdentityService.StartDemoSession:output_type -> senim.identity.v1.StartDemoSessionResponse
-	33,  // 112: senim.identity.v1.IdentityService.SeedUsers:output_type -> senim.identity.v1.SeedUsersResponse
-	35,  // 113: senim.identity.v1.IdentityService.ResetDemo:output_type -> senim.identity.v1.ResetDemoResponse
-	77,  // 114: senim.identity.v1.IdentityService.GetSigningKeys:output_type -> senim.identity.v1.GetSigningKeysResponse
-	37,  // 115: senim.identity.v1.IdentityService.StartTotpEnrollment:output_type -> senim.identity.v1.StartTotpEnrollmentResponse
-	39,  // 116: senim.identity.v1.IdentityService.ConfirmTotpEnrollment:output_type -> senim.identity.v1.ConfirmTotpEnrollmentResponse
-	41,  // 117: senim.identity.v1.IdentityService.VerifySecondFactor:output_type -> senim.identity.v1.VerifySecondFactorResponse
-	43,  // 118: senim.identity.v1.IdentityService.RecordPerson:output_type -> senim.identity.v1.RecordPersonResponse
-	45,  // 119: senim.identity.v1.IdentityService.UpdateContacts:output_type -> senim.identity.v1.UpdateContactsResponse
-	47,  // 120: senim.identity.v1.IdentityService.GetProfile:output_type -> senim.identity.v1.GetProfileResponse
-	49,  // 121: senim.identity.v1.IdentityService.RegisterParty:output_type -> senim.identity.v1.RegisterPartyResponse
-	51,  // 122: senim.identity.v1.IdentityService.ProvisionExecutor:output_type -> senim.identity.v1.ProvisionExecutorResponse
-	53,  // 123: senim.identity.v1.IdentityService.SetPayoutIban:output_type -> senim.identity.v1.SetPayoutIbanResponse
-	55,  // 124: senim.identity.v1.IdentityService.VerifySignerIin:output_type -> senim.identity.v1.VerifySignerIinResponse
-	57,  // 125: senim.identity.v1.IdentityService.RevealPartyDetails:output_type -> senim.identity.v1.RevealPartyDetailsResponse
-	59,  // 126: senim.identity.v1.IdentityService.SubmitKyc:output_type -> senim.identity.v1.SubmitKycResponse
-	61,  // 127: senim.identity.v1.IdentityService.ListKycQueue:output_type -> senim.identity.v1.ListKycQueueResponse
-	63,  // 128: senim.identity.v1.IdentityService.ReviewKyc:output_type -> senim.identity.v1.ReviewKycResponse
-	65,  // 129: senim.identity.v1.IdentityService.GrantConsent:output_type -> senim.identity.v1.GrantConsentResponse
-	67,  // 130: senim.identity.v1.IdentityService.RevokeConsent:output_type -> senim.identity.v1.RevokeConsentResponse
-	69,  // 131: senim.identity.v1.IdentityService.ListMyConsents:output_type -> senim.identity.v1.ListMyConsentsResponse
-	71,  // 132: senim.identity.v1.IdentityService.HasConsents:output_type -> senim.identity.v1.HasConsentsResponse
-	73,  // 133: senim.identity.v1.IdentityService.ListConsentRevocations:output_type -> senim.identity.v1.ListConsentRevocationsResponse
-	75,  // 134: senim.identity.v1.IdentityService.ResolveConsentRevocation:output_type -> senim.identity.v1.ResolveConsentRevocationResponse
-	104, // [104:135] is the sub-list for method output_type
-	73,  // [73:104] is the sub-list for method input_type
-	73,  // [73:73] is the sub-list for extension type_name
-	73,  // [73:73] is the sub-list for extension extendee
-	0,   // [0:73] is the sub-list for field type_name
+	7,   // 53: senim.identity.v1.ProvisionExecutorResponse.user:type_name -> senim.identity.v1.User
+	11,  // 54: senim.identity.v1.ProvisionExecutorResponse.party:type_name -> senim.identity.v1.Party
+	11,  // 55: senim.identity.v1.SetPayoutIbanResponse.party:type_name -> senim.identity.v1.Party
+	5,   // 56: senim.identity.v1.VerifySignerIinRequest.side:type_name -> senim.identity.v1.SigningSide
+	4,   // 57: senim.identity.v1.RevealPartyDetailsRequest.purpose:type_name -> senim.identity.v1.RevealPurpose
+	12,  // 58: senim.identity.v1.RevealPartyDetailsResponse.parties:type_name -> senim.identity.v1.PartyDetails
+	11,  // 59: senim.identity.v1.SubmitKycResponse.party:type_name -> senim.identity.v1.Party
+	11,  // 60: senim.identity.v1.ListKycQueueResponse.parties:type_name -> senim.identity.v1.Party
+	10,  // 61: senim.identity.v1.ListKycQueueResponse.people:type_name -> senim.identity.v1.Person
+	11,  // 62: senim.identity.v1.ReviewKycResponse.party:type_name -> senim.identity.v1.Party
+	3,   // 63: senim.identity.v1.GrantConsentRequest.kind:type_name -> senim.identity.v1.ConsentKind
+	13,  // 64: senim.identity.v1.GrantConsentResponse.consent:type_name -> senim.identity.v1.Consent
+	3,   // 65: senim.identity.v1.RevokeConsentRequest.kind:type_name -> senim.identity.v1.ConsentKind
+	14,  // 66: senim.identity.v1.RevokeConsentResponse.revocation:type_name -> senim.identity.v1.ConsentRevocation
+	13,  // 67: senim.identity.v1.ListMyConsentsResponse.consents:type_name -> senim.identity.v1.Consent
+	14,  // 68: senim.identity.v1.ListMyConsentsResponse.revocations:type_name -> senim.identity.v1.ConsentRevocation
+	3,   // 69: senim.identity.v1.HasConsentsRequest.kind:type_name -> senim.identity.v1.ConsentKind
+	14,  // 70: senim.identity.v1.ListConsentRevocationsResponse.revocations:type_name -> senim.identity.v1.ConsentRevocation
+	10,  // 71: senim.identity.v1.ListConsentRevocationsResponse.people:type_name -> senim.identity.v1.Person
+	14,  // 72: senim.identity.v1.ResolveConsentRevocationResponse.revocation:type_name -> senim.identity.v1.ConsentRevocation
+	9,   // 73: senim.identity.v1.GetSigningKeysResponse.keys:type_name -> senim.identity.v1.SigningKey
+	17,  // 74: senim.identity.v1.IdentityService.RequestOtp:input_type -> senim.identity.v1.RequestOtpRequest
+	19,  // 75: senim.identity.v1.IdentityService.VerifyOtp:input_type -> senim.identity.v1.VerifyOtpRequest
+	21,  // 76: senim.identity.v1.IdentityService.Authenticate:input_type -> senim.identity.v1.AuthenticateRequest
+	23,  // 77: senim.identity.v1.IdentityService.SignOut:input_type -> senim.identity.v1.SignOutRequest
+	25,  // 78: senim.identity.v1.IdentityService.SignOutEverywhere:input_type -> senim.identity.v1.SignOutEverywhereRequest
+	27,  // 79: senim.identity.v1.IdentityService.SwitchRole:input_type -> senim.identity.v1.SwitchRoleRequest
+	29,  // 80: senim.identity.v1.IdentityService.GrantRole:input_type -> senim.identity.v1.GrantRoleRequest
+	31,  // 81: senim.identity.v1.IdentityService.StartDemoSession:input_type -> senim.identity.v1.StartDemoSessionRequest
+	33,  // 82: senim.identity.v1.IdentityService.SeedUsers:input_type -> senim.identity.v1.SeedUsersRequest
+	35,  // 83: senim.identity.v1.IdentityService.ResetDemo:input_type -> senim.identity.v1.ResetDemoRequest
+	77,  // 84: senim.identity.v1.IdentityService.GetSigningKeys:input_type -> senim.identity.v1.GetSigningKeysRequest
+	37,  // 85: senim.identity.v1.IdentityService.StartTotpEnrollment:input_type -> senim.identity.v1.StartTotpEnrollmentRequest
+	39,  // 86: senim.identity.v1.IdentityService.ConfirmTotpEnrollment:input_type -> senim.identity.v1.ConfirmTotpEnrollmentRequest
+	41,  // 87: senim.identity.v1.IdentityService.VerifySecondFactor:input_type -> senim.identity.v1.VerifySecondFactorRequest
+	43,  // 88: senim.identity.v1.IdentityService.RecordPerson:input_type -> senim.identity.v1.RecordPersonRequest
+	45,  // 89: senim.identity.v1.IdentityService.UpdateContacts:input_type -> senim.identity.v1.UpdateContactsRequest
+	47,  // 90: senim.identity.v1.IdentityService.GetProfile:input_type -> senim.identity.v1.GetProfileRequest
+	49,  // 91: senim.identity.v1.IdentityService.RegisterParty:input_type -> senim.identity.v1.RegisterPartyRequest
+	51,  // 92: senim.identity.v1.IdentityService.ProvisionExecutor:input_type -> senim.identity.v1.ProvisionExecutorRequest
+	53,  // 93: senim.identity.v1.IdentityService.SetPayoutIban:input_type -> senim.identity.v1.SetPayoutIbanRequest
+	55,  // 94: senim.identity.v1.IdentityService.VerifySignerIin:input_type -> senim.identity.v1.VerifySignerIinRequest
+	57,  // 95: senim.identity.v1.IdentityService.RevealPartyDetails:input_type -> senim.identity.v1.RevealPartyDetailsRequest
+	59,  // 96: senim.identity.v1.IdentityService.SubmitKyc:input_type -> senim.identity.v1.SubmitKycRequest
+	61,  // 97: senim.identity.v1.IdentityService.ListKycQueue:input_type -> senim.identity.v1.ListKycQueueRequest
+	63,  // 98: senim.identity.v1.IdentityService.ReviewKyc:input_type -> senim.identity.v1.ReviewKycRequest
+	65,  // 99: senim.identity.v1.IdentityService.GrantConsent:input_type -> senim.identity.v1.GrantConsentRequest
+	67,  // 100: senim.identity.v1.IdentityService.RevokeConsent:input_type -> senim.identity.v1.RevokeConsentRequest
+	69,  // 101: senim.identity.v1.IdentityService.ListMyConsents:input_type -> senim.identity.v1.ListMyConsentsRequest
+	71,  // 102: senim.identity.v1.IdentityService.HasConsents:input_type -> senim.identity.v1.HasConsentsRequest
+	73,  // 103: senim.identity.v1.IdentityService.ListConsentRevocations:input_type -> senim.identity.v1.ListConsentRevocationsRequest
+	75,  // 104: senim.identity.v1.IdentityService.ResolveConsentRevocation:input_type -> senim.identity.v1.ResolveConsentRevocationRequest
+	18,  // 105: senim.identity.v1.IdentityService.RequestOtp:output_type -> senim.identity.v1.RequestOtpResponse
+	20,  // 106: senim.identity.v1.IdentityService.VerifyOtp:output_type -> senim.identity.v1.VerifyOtpResponse
+	22,  // 107: senim.identity.v1.IdentityService.Authenticate:output_type -> senim.identity.v1.AuthenticateResponse
+	24,  // 108: senim.identity.v1.IdentityService.SignOut:output_type -> senim.identity.v1.SignOutResponse
+	26,  // 109: senim.identity.v1.IdentityService.SignOutEverywhere:output_type -> senim.identity.v1.SignOutEverywhereResponse
+	28,  // 110: senim.identity.v1.IdentityService.SwitchRole:output_type -> senim.identity.v1.SwitchRoleResponse
+	30,  // 111: senim.identity.v1.IdentityService.GrantRole:output_type -> senim.identity.v1.GrantRoleResponse
+	32,  // 112: senim.identity.v1.IdentityService.StartDemoSession:output_type -> senim.identity.v1.StartDemoSessionResponse
+	34,  // 113: senim.identity.v1.IdentityService.SeedUsers:output_type -> senim.identity.v1.SeedUsersResponse
+	36,  // 114: senim.identity.v1.IdentityService.ResetDemo:output_type -> senim.identity.v1.ResetDemoResponse
+	78,  // 115: senim.identity.v1.IdentityService.GetSigningKeys:output_type -> senim.identity.v1.GetSigningKeysResponse
+	38,  // 116: senim.identity.v1.IdentityService.StartTotpEnrollment:output_type -> senim.identity.v1.StartTotpEnrollmentResponse
+	40,  // 117: senim.identity.v1.IdentityService.ConfirmTotpEnrollment:output_type -> senim.identity.v1.ConfirmTotpEnrollmentResponse
+	42,  // 118: senim.identity.v1.IdentityService.VerifySecondFactor:output_type -> senim.identity.v1.VerifySecondFactorResponse
+	44,  // 119: senim.identity.v1.IdentityService.RecordPerson:output_type -> senim.identity.v1.RecordPersonResponse
+	46,  // 120: senim.identity.v1.IdentityService.UpdateContacts:output_type -> senim.identity.v1.UpdateContactsResponse
+	48,  // 121: senim.identity.v1.IdentityService.GetProfile:output_type -> senim.identity.v1.GetProfileResponse
+	50,  // 122: senim.identity.v1.IdentityService.RegisterParty:output_type -> senim.identity.v1.RegisterPartyResponse
+	52,  // 123: senim.identity.v1.IdentityService.ProvisionExecutor:output_type -> senim.identity.v1.ProvisionExecutorResponse
+	54,  // 124: senim.identity.v1.IdentityService.SetPayoutIban:output_type -> senim.identity.v1.SetPayoutIbanResponse
+	56,  // 125: senim.identity.v1.IdentityService.VerifySignerIin:output_type -> senim.identity.v1.VerifySignerIinResponse
+	58,  // 126: senim.identity.v1.IdentityService.RevealPartyDetails:output_type -> senim.identity.v1.RevealPartyDetailsResponse
+	60,  // 127: senim.identity.v1.IdentityService.SubmitKyc:output_type -> senim.identity.v1.SubmitKycResponse
+	62,  // 128: senim.identity.v1.IdentityService.ListKycQueue:output_type -> senim.identity.v1.ListKycQueueResponse
+	64,  // 129: senim.identity.v1.IdentityService.ReviewKyc:output_type -> senim.identity.v1.ReviewKycResponse
+	66,  // 130: senim.identity.v1.IdentityService.GrantConsent:output_type -> senim.identity.v1.GrantConsentResponse
+	68,  // 131: senim.identity.v1.IdentityService.RevokeConsent:output_type -> senim.identity.v1.RevokeConsentResponse
+	70,  // 132: senim.identity.v1.IdentityService.ListMyConsents:output_type -> senim.identity.v1.ListMyConsentsResponse
+	72,  // 133: senim.identity.v1.IdentityService.HasConsents:output_type -> senim.identity.v1.HasConsentsResponse
+	74,  // 134: senim.identity.v1.IdentityService.ListConsentRevocations:output_type -> senim.identity.v1.ListConsentRevocationsResponse
+	76,  // 135: senim.identity.v1.IdentityService.ResolveConsentRevocation:output_type -> senim.identity.v1.ResolveConsentRevocationResponse
+	105, // [105:136] is the sub-list for method output_type
+	74,  // [74:105] is the sub-list for method input_type
+	74,  // [74:74] is the sub-list for extension type_name
+	74,  // [74:74] is the sub-list for extension extendee
+	0,   // [0:74] is the sub-list for field type_name
 }
 
 func init() { file_senim_identity_v1_identity_proto_init() }
@@ -5413,7 +5483,7 @@ func file_senim_identity_v1_identity_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_senim_identity_v1_identity_proto_rawDesc), len(file_senim_identity_v1_identity_proto_rawDesc)),
-			NumEnums:      6,
+			NumEnums:      7,
 			NumMessages:   72,
 			NumExtensions: 0,
 			NumServices:   1,

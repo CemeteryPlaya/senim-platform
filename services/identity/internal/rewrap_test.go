@@ -195,13 +195,26 @@ func TestServeRefusesMissingKID(t *testing.T) {
 		t.Fatalf("неизвестный kid: %v", err)
 	}
 
+	// rewrap-pii без ключа данных (test-1) останавливается и называет kid (Ruling M); ничего
+	// не перешифровано — данные остальных тестов остаются под test-1.
+	before := h.encValues()
+	code, rewrapLogs := rewrapCmd(t, "k2", kek("k2", rewrapK2))
+	if code != 1 || !strings.Contains(rewrapLogs, "test-1") {
+		t.Fatalf("rewrap-pii без ключа test-1: код %d\n%s", code, rewrapLogs)
+	}
+	for _, v := range h.encValues() {
+		if strings.HasPrefix(v, "v2.k2.") {
+			t.Fatalf("перешифровано при неизвестном kid (до: %d значений)", len(before))
+		}
+	}
+
 	// serve не стартует: ошибка называет kid, сервис выходит до NATS и gRPC.
 	vars := serveVars()
 	vars["IDENTITY_APP_DSN"] = pgEnv.AppDSN("identity")
 	vars["PII_KEKS"] = kek("other", rewrapK2)
 	vars["PII_KEK_CURRENT"] = "other"
 	var logs bytes.Buffer
-	code := Main(ctx, []string{"serve"}, func(k string) (string, bool) { v, ok := vars[k]; return v, ok }, &logs)
+	code = Main(ctx, []string{"serve"}, func(k string) (string, bool) { v, ok := vars[k]; return v, ok }, &logs)
 	if code != 1 || !strings.Contains(logs.String(), `test-1`) || !strings.Contains(logs.String(), "pii_key_unknown") {
 		t.Fatalf("serve: код %d\n%s", code, logs.String())
 	}
