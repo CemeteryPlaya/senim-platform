@@ -78,7 +78,7 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 | База | `DATABASE_URL`, `TEST_DATABASE_URL`, `E2E_DATABASE_URL` | Тестовые базы — отдельные |
 | Приложение | `APP_ENV`, `APP_URL`, `DEMO_MODE`, `DEMO_ACCESS_PASSWORD`, `LOG_LEVEL`, `TRUST_PROXY` | `APP_ENV`: `dev` (моки), `staging` (песочница Freedom Pay), `prod` (пилот на `manual`; моки, `freedompay` и `DEMO_MODE` запрещены). `DEMO_MODE=true` включает демо-персоны, сброс демо, `/bank-demo` |
 | Персональные данные | `PII_ENCRYPTION_KEY`, `PII_HASH_KEY` | 32 байта в base64 каждый, разные. Шифрование ИИН/БИН и IBAN мастера (AES-256-GCM) и HMAC для поиска |
-| Вход по SMS | `SMS_PROVIDER`, `SMS_HTTP_URL`, `SMS_HTTP_TOKEN`, `SMS_SENDER`, `OTP_DAILY_GLOBAL_LIMIT`, `OTP_DAILY_PREFIX_LIMIT` | Суточные потолки кодов на новые номера |
+| Вход по SMS | `SMS_PROVIDER`, `SMS_HTTP_URL`, `SMS_HTTP_TOKEN`, `SMS_SENDER` | Коды входа и их лимиты ведёт `identity` (Go); эти настройки остались для прочих SMS |
 | Подпись ЭЦП | `SIGNATURE_PROVIDER`, `SIGEX_BASE_URL` | |
 | Файлы | `STORAGE_PROVIDER`, `STORAGE_LOCAL_DIR`, `FILE_URL_SECRET`, `S3_*`, `BLOB_READ_WRITE_TOKEN` | Ссылки на файлы подписываются `FILE_URL_SECRET` |
 | ИИ | `AI_ENABLED`, `AI_PROVIDER`, `AI_GATEWAY_API_KEY`, `AI_TEXT_MODEL`, `AI_IMAGE_MODEL`, `AI_MAX_VISUALIZATIONS_PER_REQUEST`, `AI_DAILY_BUDGET_USD` | По умолчанию выключен |

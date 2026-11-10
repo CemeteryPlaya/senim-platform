@@ -8,7 +8,6 @@ const legalForms = {
 
 export const identity = {
   otp: {
-    sms: (code: string) => `${brand.name}: код для входа ${code}. Никому его не сообщайте.`,
     errors: {
       invalidPhone: "Введите казахстанский мобильный номер полностью. Например: +7 701 234 56 78",
       tooOften: "Код уже отправлен. Новый можно запросить через минуту",

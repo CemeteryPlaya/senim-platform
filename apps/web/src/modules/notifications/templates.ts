@@ -82,10 +82,6 @@ export const TEMPLATES = {
   })),
   "registration.approved": template<{ segment: Segment }>(true, (p) => t.registrationApproved(ru.notifications.segments[p.segment])),
   "registration.rejected": template<{ reason: string }>(true, (p) => t.registrationRejected(p.reason)),
-
-  // ─── вход ───
-  /** Операторам: суточный потолок кодов на новые номера исчерпан (не чаще раза в сутки). Только in-app. */
-  "otp.global_limit": template<{ limit: number }>(false, (p) => t.otpGlobalLimit(p.limit)),
 } as const;
 
 export type TemplateKey = keyof typeof TEMPLATES;
