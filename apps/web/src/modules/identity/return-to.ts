@@ -1,6 +1,8 @@
 import type { Role } from "@/generated/prisma/enums";
 
 export const LOGIN_PATH = "/login";
+/** Экран второй ступени входа оператора (код из приложения-аутентификатора). */
+export const MFA_PATH = "/operator/mfa";
 export const EXECUTOR_REGISTRATION_PATH = "/register/executor";
 
 const CONTROL_OR_BACKSLASH = /[\p{Cc}\\]/u;
@@ -35,6 +37,12 @@ export function loginHref(returnTo: string, reason?: "role"): string {
   const params = new URLSearchParams({ next });
   if (reason) params.set("reason", reason);
   return `${LOGIN_PATH}?${params}`;
+}
+
+/** Экран второй ступени с возвратом на `returnTo` (только путь внутри сайта). */
+export function mfaHref(returnTo: string): string {
+  const next = safeReturnTo(returnTo);
+  return next ? `${MFA_PATH}?${new URLSearchParams({ next })}` : MFA_PATH;
 }
 
 /** Куда вести после входа, если адреса возврата нет. Маршруты — по таблице владения фазы B. */

@@ -21,6 +21,8 @@ function seedOperator(phone: string): void {
   execFileSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "--import", "./scripts/server-only-hook.mjs", "e2e/seed-operator.ts", phone], {
     env: { ...process.env, DATABASE_URL: url, DEMO_MODE: "true" },
     stdio: "pipe",
+    // Зависший вызов identity не должен держать прогон до общего тайм-аута.
+    timeout: 60_000,
   });
 }
 

@@ -8,22 +8,12 @@ import { fail } from "@/platform/errors";
 import { rpcErrorCode } from "@/platform/rpc";
 import { identity } from "./remote";
 import { identityFailure } from "./remote-errors";
-import { safeReturnTo } from "./return-to";
 import { currentSessionToken, getCurrentUser, type CurrentUser } from "./session";
 
 /**
  * Второй фактор оператора (TOTP, спека §4.4): подключение приложения-аутентификатора, вторая ступень входа и
  * повторный код перед действием с деньгами. Код и секрет проверяет identity; web не хранит ни того, ни другого.
  */
-
-/** Экран второй ступени входа оператора. */
-export const MFA_PATH = "/operator/mfa";
-
-/** Экран второй ступени с возвратом на `returnTo` (только путь внутри сайта). */
-export function mfaHref(returnTo: string): string {
-  const next = safeReturnTo(returnTo);
-  return next ? `${MFA_PATH}?${new URLSearchParams({ next })}` : MFA_PATH;
-}
 
 export type TotpEnrollment = {
   /** Секрет в base32 — для ручного ввода в приложение. Не логировать. */

@@ -3,10 +3,16 @@ import type { ReactElement } from "react";
 import { ru } from "@/i18n/ru";
 import * as operator from "@/modules/operator";
 import { totpNow } from "../../../../e2e/totp";
+import { requireUserPage } from "@/modules/identity";
+import { dealAt } from "../../../../test/factories/deal";
 import { freshBrowser } from "../../../../test/factories/identity";
+import DealPage, { generateMetadata as dealMetadata } from "../../deals/[id]/page";
+import MoneyHistoryPage from "../../deals/[id]/money/page";
+import DealsPage from "../../deals/page";
 import { signInAs } from "../../../../test/factories/session";
 import { makeOperator } from "../../../../test/factories";
 import { identityFake } from "../../../../test/stubs/identity";
+import { MFA_CODE_FIELD, runWithCode } from "../_components/second-factor";
 import { requireOperatorPage } from "../_lib/guard";
 import { resolveDisputeAction } from "../disputes/actions";
 import { confirmBankOperationAction, failBankOperationAction, retryBankOperationAction } from "../money/actions";
@@ -86,6 +92,29 @@ describe("страницы оператора: вторая ступень вх�
   });
 });
 
+describe("страницы вне /operator на getCurrentUser: оператор без второй ступени", () => {
+  it("/deals/[id]/money, /deals/[id] и /deals — на /operator/mfa с возвратом, журнал и сделка не читаются; заголовок вкладки без номера", async () => {
+    const { dealId } = await dealAt("PAID_HOLD");
+    await operatorSession(null);
+    expect(await redirectTarget(MoneyHistoryPage({ params: Promise.resolve({ id: dealId }) }))).toBe(`/operator/mfa?next=${encodeURIComponent(`/deals/${dealId}/money`)}`);
+    expect(await redirectTarget(DealPage({ params: Promise.resolve({ id: dealId }) }))).toBe(`/operator/mfa?next=${encodeURIComponent(`/deals/${dealId}`)}`);
+    expect(await redirectTarget(DealsPage())).toBe("/operator/mfa?next=%2Fdeals");
+    expect(await dealMetadata({ params: Promise.resolve({ id: dealId }) })).toEqual({ title: ru.deal.listTitle });
+  });
+
+  it("requireUserPage (страницы без роли, например /chats) — тоже на /operator/mfa", async () => {
+    await operatorSession(null);
+    expect(await redirectTarget(requireUserPage("/chats"))).toBe("/operator/mfa?next=%2Fchats");
+  });
+
+  it("вторая ступень пройдена — журнал денег сделки открывается", async () => {
+    const { dealId } = await dealAt("PAID_HOLD");
+    await operatorSession(new Date(Date.now() - 60 * MIN));
+    expect(await redirectTarget(MoneyHistoryPage({ params: Promise.resolve({ id: dealId }) }))).toBeNull();
+    expect(await dealMetadata({ params: Promise.resolve({ id: dealId }) })).not.toEqual({ title: ru.deal.listTitle });
+  });
+});
+
 describe("действия с деньгами: свежий код (≤ MFA_STEP_UP_WINDOW)", () => {
   it.each(actions)("%s: код пройден 6 минут назад — MFA_REQUIRED, сервис денег не вызван", async (_name, run) => {
     await operatorSession(new Date(Date.now() - 6 * MIN));
@@ -115,12 +144,19 @@ describe("действия с деньгами: свежий код (≤ MFA_STE
     expect(vi.mocked(operator.retryBankOperation)).toHaveBeenCalledTimes(1);
   });
 
-  it("неверный код — ошибка поля кода с числом попыток, действие не выполняется", async () => {
+  it("форма с неверным кодом (runWithCode): ошибка поля кода с числом попыток, действие с деньгами не вызывается", async () => {
     const { secret } = await operatorSession(new Date(Date.now() - 10 * MIN));
     const wrong = totpNow(secret) === "000000" ? "111111" : "000000";
-    const res = await verifySecondFactorAction({ code: wrong });
-    expect(res).toMatchObject({ ok: false, code: "VALIDATION", fieldErrors: { code: [ru.identity.mfa.errors.wrongCode(4)] } });
+    const retry = vi.fn(retryBankOperationAction);
+    const run = await runWithCode({ transactionId: "tx-1", [MFA_CODE_FIELD]: wrong }, (fields) => retry({ transactionId: String(fields["transactionId"]) }), verifySecondFactorAction);
+    expect(run).toMatchObject({ step: "code", result: { ok: false, code: "VALIDATION", fieldErrors: { code: [ru.identity.mfa.errors.wrongCode(4)] } } });
+    expect(retry).not.toHaveBeenCalled();
     expect(moneyCalls()).toBe(0);
+
+    // Верный код той же формой: сначала код, затем повтор действия — оно доходит до сервиса денег.
+    const ok = await runWithCode({ transactionId: "tx-1", [MFA_CODE_FIELD]: totpNow(secret) }, (fields) => retry({ transactionId: String(fields["transactionId"]) }), verifySecondFactorAction);
+    expect(ok).toEqual({ step: "action", verified: true, result: { ok: true, data: undefined } });
+    expect(vi.mocked(operator.retryBankOperation)).toHaveBeenCalledTimes(1);
   });
 });
 

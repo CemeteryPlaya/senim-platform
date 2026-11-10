@@ -16,7 +16,7 @@ import { projectUser, roleFromProto, roleToProto } from "./projection";
 import { identity } from "./remote";
 import { identityFailure, isTransient } from "./remote-errors";
 import { sessionCookieName, sessionCookieOptions, TOKEN_SHAPE } from "./session-cookie";
-import { loginHref } from "./return-to";
+import { loginHref, mfaHref } from "./return-to";
 import { introductionHref, needsIntroduction } from "./introduction";
 import { activeRoleOf, roleToSwitch, switchRoleHref } from "./roles";
 
@@ -212,6 +212,11 @@ export async function getAccessToken(): Promise<string | null> {
   return (await authenticated())?.accessToken ?? null;
 }
 
+/** Сессии нужен второй фактор (оператор), а он в ней не пройден: вошёл только по SMS. */
+export function needsSecondFactor(user: Pick<CurrentUser, "mfa">): boolean {
+  return user.mfa.required && user.mfa.verifiedAt === null;
+}
+
 /**
  * Для Server Actions и сервисов: пользователь с одной из ролей, иначе ошибка. Сессии, которой нужен второй фактор
  * (оператор), он должен быть пройден — иначе MFA_REQUIRED: вход только по SMS не открывает действий оператора,
@@ -221,7 +226,7 @@ export async function requireUser(...roles: Role[]): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) return fail.unauthenticated();
   if (roles.length > 0 && !roles.includes(user.role)) return fail.forbidden();
-  if (user.mfa.required && user.mfa.verifiedAt === null) return fail.mfaRequired();
+  if (needsSecondFactor(user)) return fail.mfaRequired();
   return user;
 }
 
@@ -243,10 +248,12 @@ export async function requireUserPage(returnTo: string, ...roles: Role[]): Promi
 }
 
 /**
- * Для страниц заказчика и исполнителя, которые берут пользователя через getCurrentUser: без пройденного
- * знакомства (ФИО и ИИН, №26) — на знакомство с возвратом сюда.
+ * Ворота страниц, которые берут пользователя через getCurrentUser (и requireUserPage): сессия оператора без второй
+ * ступени (вход только по SMS) — на /operator/mfa с возвратом сюда: страницы сделки и журнал денег оператор видит по
+ * роли, без кода из приложения они не открываются. Без пройденного знакомства (ФИО и ИИН, №26) — на знакомство.
  */
 export function requireIntroduced(user: CurrentUser, returnTo: string): void {
+  if (needsSecondFactor(user)) redirect(mfaHref(returnTo));
   if (needsIntroduction(user)) redirect(introductionHref(returnTo));
 }
 

@@ -10,6 +10,7 @@ export {
   getAccessToken,
   getCurrentUser,
   getShellUser,
+  needsSecondFactor,
   requireUser,
   requireIntroduced,
   requireUserPage,
@@ -18,9 +19,7 @@ export {
   type CurrentUser,
 } from "./session";
 export {
-  MFA_PATH,
   confirmTotpEnrollment,
-  mfaHref,
   requireMfaUser,
   requireRecentMfa,
   startTotpEnrollment,
@@ -34,7 +33,7 @@ export { requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./ot
 export { listDemoPersonas, loginAsDemoPersona, resetIdentityDemo, seedIdentityUsers, type DemoPersona, type SeedPerson } from "./demo";
 export { projectUser } from "./projection";
 export { authorize, can, type ActionOn, type Resource } from "./rbac";
-export { EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, homePathFor, loginHref, safeReturnTo } from "./return-to";
+export { EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, MFA_PATH, homePathFor, loginHref, mfaHref, safeReturnTo } from "./return-to";
 export { formatPhone, parsePhone, type Phone } from "./phone";
 export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id";
 export { isValidFullName, normalizeFullName } from "./full-name";

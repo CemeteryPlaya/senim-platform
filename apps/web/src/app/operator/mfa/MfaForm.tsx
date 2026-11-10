@@ -4,6 +4,8 @@ import { useState, useTransition, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import { leaveIfSignedOut } from "@/modules/identity/client";
 import { Button, FullscreenStep, Input } from "@/ui";
+import { logoutAction } from "../../_components/auth/actions";
+import { LogoutButton } from "../../_components/auth/LogoutButton";
 import { confirmEnrollmentAction, verifySecondFactorAction } from "./actions";
 
 const t = ru.identity.mfa;
@@ -15,7 +17,8 @@ const grouped = (secret: string) => secret.match(/.{1,4}/g)?.join(" ") ?? secret
 
 /**
  * Вторая ступень входа оператора: подключение (QR-код и ключ для ручного ввода, первый код) или код из приложения.
- * Одно главное действие — кнопка под полем кода; при успехе сервер сам переводит на next.
+ * Одно главное действие — кнопка под полем кода; при успехе сервер сам переводит на next. «Назад» — к первому шагу
+ * входа, то есть выход (страницы кабинета без второй ступени всё равно вернули бы сюда); рядом — вторичная «Выйти».
  */
 export function MfaForm(props: Props) {
   const [error, setError] = useState<string>();
@@ -37,11 +40,14 @@ export function MfaForm(props: Props) {
     <form onSubmit={onSubmit} noValidate>
       <FullscreenStep
         title={enroll ? t.enrollTitle : t.verifyTitle}
-        back={{ href: "/" }}
+        back={{ onClick: () => startTransition(async () => void (await logoutAction({ everywhere: false }))) }}
         action={
-          <Button type="submit" loading={pending} fullWidth>
-            {enroll ? t.enrollSubmit : t.verifySubmit}
-          </Button>
+          <>
+            <Button type="submit" loading={pending} fullWidth>
+              {enroll ? t.enrollSubmit : t.verifySubmit}
+            </Button>
+            <LogoutButton fullWidth />
+          </>
         }
       >
         <p className="text-lg text-ink-soft">{enroll ? t.enrollLead : t.verifyLead}</p>

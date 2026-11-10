@@ -7,7 +7,8 @@ import { freshBrowser, setEnv } from "../../../test/factories/identity";
 import { signInAs } from "../../../test/factories/session";
 import { makeClient, makeOperator } from "../../../test/factories";
 import { identityFake } from "../../../test/stubs/identity";
-import { confirmTotpEnrollment, mfaHref, requireRecentMfa, startTotpEnrollment, verifySecondFactor } from "./mfa";
+import { confirmTotpEnrollment, requireRecentMfa, startTotpEnrollment, verifySecondFactor } from "./mfa";
+import { mfaHref } from "./return-to";
 import { getCurrentUser, requireUser, type CurrentUser } from "./session";
 
 vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);

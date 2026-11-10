@@ -9,7 +9,7 @@ import { DealDocuments, SigningPanel, signingAnchorId } from "@/app/_components/
 import { orNotFound } from "@/app/requests/_parts/guard";
 import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import { LINK_TTL_HOURS, listDealDocuments } from "@/modules/documents";
-import { getCurrentUser, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
+import { getCurrentUser, needsSecondFactor, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { isAppError } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
@@ -31,7 +31,8 @@ const loadDeal = cache((user: CurrentUser, id: string) => getDealView(user, id))
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const user = await getCurrentUser();
-  if (!user) return { title: t.listTitle };
+  // Оператор без второй ступени не видит и номера сделки: страница уведёт его на /operator/mfa.
+  if (!user || needsSecondFactor(user)) return { title: t.listTitle };
   try {
     return { title: t.number((await loadDeal(user, id)).number) };
   } catch (e) {
