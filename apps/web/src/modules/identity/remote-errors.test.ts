@@ -88,6 +88,9 @@ describe("identityFailure", () => {
     expect(caught(new Error("boom")).message).toBe(g.generic);
     expect(caught(new ConnectError("x", Code.Internal)).message).toBe(g.generic);
     expect(log).toHaveBeenCalledTimes(3);
+    // Без ErrorDetail причина пишется в лог: имя и сообщение исходной ошибки, а не просто «unknown».
+    const [, fields] = log.mock.calls[1];
+    expect(fields).toMatchObject({ reason: "status:Unknown", cause: expect.objectContaining({ message: "boom" }) });
   });
 
   it("AppError пропускает как есть", () => {

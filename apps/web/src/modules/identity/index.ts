@@ -10,6 +10,7 @@ export {
   endSession,
   getAccessToken,
   getCurrentUser,
+  getShellUser,
   requireUser,
   requireIntroduced,
   requireUserPage,
@@ -20,7 +21,7 @@ export {
   type CurrentUser,
 } from "./session";
 export { identityClientIp } from "./remote";
-export { newSessionToken, sessionCookieName, sessionCookieOptions } from "./session-cookie";
+export { TOKEN_SHAPE, newSessionToken, sessionCookieName, sessionCookieOptions } from "./session-cookie";
 export { STAFF_ROLES, SWITCHABLE_ROLES, SWITCH_ROLE_PATH, canGrant, isStaffRole, parseSwitchableRole, roleToSwitch, switchRoleHref, switchTargets } from "./roles";
 export { OTP_MAX_ATTEMPTS, OTP_TTL_MIN, requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./otp";
 export { listDemoPersonas, loginAsDemoPersona, type DemoPersona } from "./demo";

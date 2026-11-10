@@ -6,8 +6,9 @@ import { AppError } from "@/platform/errors";
 import { cookieValue, freshBrowser, putCookie } from "../../../test/factories/identity";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { identityFake } from "../../../test/stubs/identity";
+import { setIdentityForTests } from "./remote";
 import { newSessionToken, sessionCookieName } from "./session-cookie";
-import { endSession, getAccessToken, getCurrentUser, requireUserPage, SESSION_COOKIE, signOutEverywhere, startSession } from "./session";
+import { endSession, getAccessToken, getCurrentUser, getShellUser, requireUserPage, SESSION_COOKIE, signOutEverywhere, startSession } from "./session";
 
 vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);
 
@@ -205,5 +206,59 @@ describe("requireUserPage", () => {
 
     await expect(requireUserPage("/requests", "CLIENT")).resolves.toMatchObject({ id: client.id });
     await expect(requireUserPage("/anything")).resolves.toMatchObject({ id: client.id });
+  });
+});
+
+describe("identity недоступен: оболочка и страницы", () => {
+  it("getShellUser: гость и признак unavailable, cookie на месте", async () => {
+    const { token } = signIn({ phone: "+77001234567" });
+    identityFake.failNextUnavailable();
+
+    expect(await getShellUser()).toEqual({ user: null, unavailable: true });
+    expect(cookieValue(sessionCookieName())).toBe(token);
+  });
+
+  it("getShellUser: обычный гость и вошедший — без признака", async () => {
+    expect(await getShellUser()).toEqual({ user: null, unavailable: false });
+
+    signIn({ phone: "+77001234567" });
+    const shell = await getShellUser();
+    expect(shell.unavailable).toBe(false);
+    expect(shell.user).toMatchObject({ phone: "+77001234567" });
+  });
+
+  it("getShellUser: сбой не из-за недоступности (конфликт проекции) не скрывается", async () => {
+    signIn({ phone: "+77001234567" });
+    await db.user.create({ data: { id: "legacy-cuid", phone: "+77001234567", role: "CLIENT", roles: ["CLIENT"] } });
+
+    await expect(getShellUser()).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  it("requireUserPage пропускает UNAVAILABLE дальше в границу ошибок, без редиректа", async () => {
+    signIn({ phone: "+77001234567" });
+    identityFake.failNextUnavailable();
+
+    const err = await requireUserPage("/requests", "CLIENT").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe("UNAVAILABLE");
+    expect((err as { digest?: string }).digest).toBeUndefined();
+  });
+
+  it("сессия истекла по простою: requireUserPage уводит на вход с возвратом", async () => {
+    signIn({ phone: "+77001234567" });
+    identityFake.failNextWithCode("session_invalid");
+
+    expect(await redirectTarget(requireUserPage("/deals/42?tab=1", "CLIENT"))).toBe("/login?next=%2Fdeals%2F42%3Ftab%3D1");
+  });
+
+  it("ошибка конфигурации mesh всплывает как есть, а не как ConnectError(Unknown)", async () => {
+    signIn({ phone: "+77001234567" });
+    setIdentityForTests(null);
+    try {
+      await expect(getCurrentUser()).rejects.toThrow(/V2_ENABLED/);
+    } finally {
+      setIdentityForTests(identityFake.client);
+    }
   });
 });

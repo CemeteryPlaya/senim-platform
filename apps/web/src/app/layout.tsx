@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { getCurrentUser } from "@/modules/identity";
+import { getShellUser } from "@/modules/identity";
 import { env } from "@/platform/env";
 import { features } from "@/platform/features";
 import { ru } from "@/i18n/ru";
-import { DemoBanner } from "@/ui";
+import { Alert, Container, DemoBanner } from "@/ui";
 import { BRAND_COLORS } from "@/ui/brand";
 import { fontVariables } from "@/ui/fonts";
 import { PwaSetup } from "./_components/install";
@@ -28,9 +28,9 @@ export const viewport: Viewport = {
 };
 
 // Оболочка читает сессию (cookie), поэтому все страницы рендерятся на запрос.
-// getCurrentUser() идёт первым: без cookie он не обращается к БД, а env() читается уже во время запроса.
+// getShellUser() идёт первым: без cookie он не обращается к БД, а env() читается уже во время запроса.
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const user = await getCurrentUser();
+  const { user, unavailable } = await getShellUser();
   const demoMode = env().DEMO_MODE;
   // Роль без нижней панели (оператор): запас под панель не нужен.
   const noBar = navFor(user, demoMode, features()).tabs.length === 0;
@@ -44,6 +44,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           {demoMode && <DemoBanner />}
           <AppHeader user={user} demoMode={demoMode} />
           <main id={MAIN_ID} tabIndex={-1} className="flex flex-1 flex-col pb-4 outline-none">
+            {unavailable && (
+              <Container className="pt-4">
+                <Alert tone="warning" live="polite">
+                  {ru.common.errors.unavailable}
+                </Alert>
+              </Container>
+            )}
             {children}
           </main>
           <AppFooter />

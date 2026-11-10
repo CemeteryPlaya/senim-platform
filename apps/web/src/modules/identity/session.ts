@@ -7,13 +7,13 @@ import { ru } from "@/i18n/ru";
 import { recordAudit, type Actor } from "@/modules/audit";
 import { db, transaction, type Tx } from "@/platform/db";
 import { randomToken, sha256Hex } from "@/platform/crypto";
-import { expectOneUpdated, fail } from "@/platform/errors";
+import { AppError, expectOneUpdated, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { rpcErrorCode } from "@/platform/rpc";
 import { projectUser, roleFromProto } from "./projection";
 import { identity } from "./remote";
 import { identityFailure } from "./remote-errors";
-import { sessionCookieName, sessionCookieOptions } from "./session-cookie";
+import { sessionCookieName, sessionCookieOptions, TOKEN_SHAPE } from "./session-cookie";
 import { loginHref } from "./return-to";
 import { introductionHref, needsIntroduction } from "./introduction";
 import { activeRoleOf, isStaffRole, roleToSwitch, STAFF_ROLES, switchRoleHref } from "./roles";
@@ -21,8 +21,6 @@ import { activeRoleOf, isStaffRole, roleToSwitch, STAFF_ROLES, switchRoleHref } 
 /** Имя cookie в контуре dev (в тестах и локально); в остальных контурах — `sessionCookieName()` с префиксом __Host-. */
 export const SESSION_COOKIE = "senim_session";
 const SESSION_TTL_DAYS = 30;
-/** Токен сессии — base64url без «=» от 32 байт (43 символа); иначе identity ответит session_token_invalid. */
-const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 export type CurrentUser = {
   id: string;
@@ -90,7 +88,8 @@ export async function signOutEverywhere(): Promise<void> {
 }
 
 /**
- * Authenticate по cookie: один вызов identity на HTTP-запрос (cache). `null` — гость: нет cookie, токен не того вида
+ * Authenticate по cookie. React `cache` объединяет вызовы только внутри одного рендера (страница, layout, компоненты);
+ * в Server Action и route handler каждый вызов — отдельный запрос к identity. `null` — гость: нет cookie, токен не того вида
  * или identity ответил `session_invalid` (простой, срок, отзыв, блокировка). Cookie здесь не удаляется: в Server Component
  * это невозможно, удаление — в Server Action / route handler. Недоступный identity — ошибка «сервис недоступен»,
  * cookie остаётся: человек не «выходит» сам.
@@ -98,8 +97,10 @@ export async function signOutEverywhere(): Promise<void> {
 const authenticated = cache(async () => {
   const token = await currentToken();
   if (!token || !TOKEN_SHAPE.test(token)) return null;
+  // Клиент строится до try: ошибка конфигурации (V2 выключен, нет MESH_URL) всплывает как есть, а не как «статус unknown».
+  const client = identity();
   try {
-    const res = await identity().authenticate({ sessionToken: token });
+    const res = await client.authenticate({ sessionToken: token });
     if (!res.user || !res.session) {
       logger.error("identity.call_rejected", { reason: "authenticate_without_user" });
       return fail.unavailable(ru.common.errors.generic);
@@ -132,6 +133,20 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     executor: row.executorProfile,
   };
 });
+
+/**
+ * Пользователь для оболочки (layout): при недоступном identity страница рисуется гостем, а `unavailable` просит показать
+ * плашку «сервис временно недоступен». Cookie не трогается: когда identity вернётся, человек окажется вошедшим.
+ * Страницы с `requireUserPage`/`requireUser` при этом по-прежнему бросают ту же ошибку в границу ошибок.
+ */
+export async function getShellUser(): Promise<{ user: CurrentUser | null; unavailable: boolean }> {
+  try {
+    return { user: await getCurrentUser(), unavailable: false };
+  } catch (e) {
+    if (e instanceof AppError && e.code === "UNAVAILABLE") return { user: null, unavailable: true };
+    throw e;
+  }
+}
 
 /**
  * Внутренний токен для вызовов сервисов v2 от имени текущего пользователя (короткоживущий, Ed25519);

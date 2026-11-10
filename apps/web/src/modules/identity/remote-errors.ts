@@ -31,8 +31,9 @@ export const IDENTITY_ERROR_CODES = [
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
 
 /** Сбой на нашей стороне (контракт, токен, ключ, конфигурация): человеку причину не показываем. */
-function broken(reason: string): never {
-  logger.error("identity.call_rejected", { reason });
+function broken(reason: string, cause?: unknown): never {
+  // cause — Error: логгер пишет только имя, сообщение (с маской телефонов и 12 цифр) и стек; токенов и телефонов в таких сообщениях нет.
+  logger.error("identity.call_rejected", cause === undefined ? { reason } : { reason, cause });
   throw new AppError("UNAVAILABLE", ru.common.errors.generic);
 }
 
@@ -97,5 +98,5 @@ export function identityFailure(err: unknown): never {
     return broken(`unknown_code:${detail.code}`);
   }
   if (e.code === Code.Unavailable || e.code === Code.DeadlineExceeded) return fail.unavailable();
-  return broken(`status:${Code[e.code] ?? "unknown"}`);
+  return broken(`status:${Code[e.code] ?? "unknown"}`, err instanceof Error ? err : new Error(e.rawMessage));
 }
