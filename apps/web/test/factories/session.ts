@@ -25,11 +25,6 @@ export async function mirrorUser(userId: string): Promise<void> {
   });
 }
 
-/** Все пользователи старой базы — в подделку (сид демо создаёт их напрямую). */
-export async function mirrorAllUsers(): Promise<void> {
-  for (const { id } of await db.user.findMany({ select: { id: true } })) await mirrorUser(id);
-}
-
 /**
  * Вошёл пользователь: сессия в подделке identity и cookie в «браузере» теста — так, как их оставляет настоящий вход.
  * Заменяет прежний `startSession`. `role` — активная роль сессии (по умолчанию — роль по умолчанию пользователя).

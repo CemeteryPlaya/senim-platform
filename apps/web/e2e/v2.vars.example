@@ -1,0 +1,8 @@
+# Переменные web для e2e против стенда v2 (npm run v2:up, профиль core). Не секреты: пути к dev-сертификатам
+# из npm run v2:certs. playwright.config.ts читает этот файл и подставляет значения, если переменная не задана
+# в командной строке. Пути — от apps/web. Сертификат mesh выписан и на localhost (tools/devcerts, ADR-011).
+V2_ENABLED=true
+MESH_URL=https://localhost:9443
+MESH_TLS_CERT_FILE=../../deploy/compose/certs/web.pem
+MESH_TLS_KEY_FILE=../../deploy/compose/certs/web-key.pem
+MESH_TLS_CA_FILE=../../deploy/compose/certs/ca.pem

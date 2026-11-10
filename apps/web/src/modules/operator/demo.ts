@@ -6,8 +6,8 @@ import { logger } from "@/platform/logger";
 import { assertDemoMode, assertOperator } from "./access";
 
 /**
- * «Сбросить демо»: TRUNCATE всех таблиц и сид заново (src/demo/seed.ts). Сессии тоже очищаются —
- * все, включая оператора, выходят; экран после этого ведёт на выбор демо-персоны.
+ * «Сбросить демо»: ResetDemo в identity (сессии, коды, лимиты; пользователи остаются), TRUNCATE всех таблиц
+ * старой базы и сид заново (src/demo/seed.ts). Все, включая оператора, выходят; экран после этого ведёт на выбор демо-персоны.
  * Журнал очищается вместе с данными, поэтому событие сброса пишется уже в новый журнал от имени системы.
  */
 export async function resetDemoData(user: CurrentUser): Promise<void> {

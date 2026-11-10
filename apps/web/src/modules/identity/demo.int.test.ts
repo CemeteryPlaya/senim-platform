@@ -4,7 +4,7 @@ import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { useSeedStorage } from "../../../test/factories/documents";
 import { cookieValue, freshBrowser, makeDemoPersona, setEnv } from "../../../test/factories/identity";
-import { mirrorAllUsers, mirrorUser, signInAs } from "../../../test/factories/session";
+import { mirrorUser, signInAs } from "../../../test/factories/session";
 import { identityFake } from "../../../test/stubs/identity";
 import { listDemoPersonas, loginAsDemoPersona } from "./demo";
 import { getCurrentUser } from "./session";
@@ -126,8 +126,7 @@ describe("демо-персоны при DEMO_MODE=true", () => {
   });
 
   it("работает для каждой персоны из сида", async () => {
-    await seedDemo(db);
-    await mirrorAllUsers();
+    await seedDemo(db); // люди сида заводятся в identity (SeedUsers) с теми же id
     const personas = await listDemoPersonas();
 
     expect(personas).toHaveLength(15); // с замерщиком площадки (ADR-005)

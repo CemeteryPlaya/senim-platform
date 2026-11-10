@@ -1,11 +1,14 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { Role as ProtoRole } from "@/gen/senim/identity/v1/identity_pb";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { ConnectError } from "@connectrpc/connect";
+import { Role as ProtoRole, type User } from "@/gen/senim/identity/v1/identity_pb";
 import type { LegalForm, Role } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { db } from "@/platform/db";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
+import { rpcErrorCode, rpcStatusName } from "@/platform/rpc";
 import { roleFromProto, roleToProto } from "./projection";
 import { identity } from "./remote";
 import { identityFailure } from "./remote-errors";
@@ -48,6 +51,43 @@ export async function listDemoPersonas(): Promise<DemoPersona[]> {
   return users
     .map(({ executorProfile, ...u }) => ({ ...u, executor: executorProfile }))
     .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || (a.executor?.publicNumber ?? 0) - (b.executor?.publicNumber ?? 0));
+}
+
+/** Человек сида демо-стенда: identity создаёт его или обновляет по телефону (SeedUsers), id не меняется. */
+export type SeedPerson = { phone: string; role: Role; roles: Role[]; isDemo: boolean; createdAt: Date };
+
+const STAND_HINT = "запустите стенд v2 (npm run v2:up) и задайте V2_ENABLED и MESH_* (пример — apps/web/e2e/v2.vars.example)";
+
+/** Вызов identity из сида: недоступный сервис — ошибка с подсказкой, отказ — с кодом identity. Тексты — для разработчика, не для экрана. */
+async function seedCall<T>(method: string, call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (e) {
+    const code = rpcErrorCode(e);
+    if (code) throw new Error(`identity отказал в ${method}: ${code}${code === "demo_disabled" ? " (сиду нужен DEMO_MODE=true у identity)" : ""}`, { cause: e });
+    const reason = e instanceof ConnectError ? rpcStatusName(e) : e instanceof Error ? e.message : String(e);
+    throw new Error(`identity недоступен (${method}: ${reason}): ${STAND_HINT}`, { cause: e });
+  }
+}
+
+/**
+ * Люди сида — в identity (SeedUsers, только DEMO_MODE у identity): возвращает пользователей в порядке `people`;
+ * их id — id старой базы (проекция — projectUser в транзакции сида).
+ */
+export async function seedIdentityUsers(people: SeedPerson[]): Promise<User[]> {
+  const res = await seedCall("SeedUsers", () =>
+    identity().seedUsers({
+      users: people.map((p) => ({ phone: p.phone, defaultRole: roleToProto(p.role), roles: p.roles.map(roleToProto), isDemo: p.isDemo, createdAt: timestampFromDate(p.createdAt) })),
+      idempotencyKey: randomUUID(),
+    }),
+  );
+  if (res.users.length !== people.length || res.users.some((u, i) => u.phone !== people[i]!.phone)) throw new Error("identity вернул пользователей сида не в порядке запроса");
+  return res.users;
+}
+
+/** «Сбросить демо» в identity: сессии, коды, лимиты и сохранённые ответы удаляются, пользователи остаются. */
+export async function resetIdentityDemo(): Promise<void> {
+  await seedCall("ResetDemo", () => identity().resetDemo({ idempotencyKey: randomUUID() }));
 }
 
 /**

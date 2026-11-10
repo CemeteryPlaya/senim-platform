@@ -1,7 +1,8 @@
+import type { User } from "@/gen/senim/identity/v1/identity_pb";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { OfferStatus, ProposalStatus, RequestStatus, Role, SignParty } from "@/generated/prisma/enums";
 import { saveFile } from "@/modules/files";
-import { signerColumns, type ExecutorSigner } from "@/modules/identity";
+import { projectUser, resetIdentityDemo, seedIdentityUsers, signerColumns, type ExecutorSigner, type SeedPerson } from "@/modules/identity";
 import { kztToTiyn } from "@/modules/payments";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { registerPorts } from "@/ports";
@@ -37,6 +38,8 @@ import { PORTFOLIO_FILES } from "./portfolio-files";
 import { testDocumentPdf } from "./test-documents";
 
 /**
+ * Люди сида заводятся в identity (SeedUsers: по телефону, id стабильны) до транзакции старой базы, а в ней
+ * проецируются (projectUser) с теми же id — на них ссылаются заявки, профили и сделки.
  * Демо-данные в два шага:
  *  1. «До сделок» — справочник, люди, мастера с KYC, заявки, отклики и торг, сценарии до договора, уведомления —
  *     одной транзакцией с датами «N дней назад» (журнал аудита — в форме recordAudit);
@@ -58,18 +61,28 @@ export async function isDatabaseEmpty(client: Pick<PrismaClient, "user" | "furni
   return (await client.user.count()) === 0 && (await client.furnitureType.count()) === 0;
 }
 
+const NOT_EMPTY = "База не пуста: для пересева используйте resetDemo";
+
 export async function seedDemo(db: PrismaClient): Promise<SeedSummary> {
+  // До identity: непустая база не меняет и пользователей identity.
+  if (!(await isDatabaseEmpty(db))) throw new Error(NOT_EMPTY);
+  const now = Date.now();
+  const users = await seedIdentityUsers(seedPeople(clockAt(now)));
   const ids = await db.$transaction(async (tx) => {
-    if (!(await isDatabaseEmpty(tx))) throw new Error("База не пуста: для пересева используйте resetDemo");
-    return fill(tx, Date.now());
+    if (!(await isDatabaseEmpty(tx))) throw new Error(NOT_EMPTY);
+    return fill(tx, now, users);
   }, TX_OPTIONS);
   return finish(db, ids);
 }
 
+/** Пересев: в identity — сброс сессий и кодов (ResetDemo) и те же пользователи; старая база — TRUNCATE и сид в одной транзакции. */
 export async function resetDemo(db: PrismaClient): Promise<SeedSummary> {
+  await resetIdentityDemo();
+  const now = Date.now();
+  const users = await seedIdentityUsers(seedPeople(clockAt(now)));
   const ids = await db.$transaction(async (tx) => {
     await truncateAll(tx);
-    return fill(tx, Date.now());
+    return fill(tx, now, users);
   }, TX_OPTIONS);
   return finish(db, ids);
 }
@@ -210,44 +223,68 @@ function signerOf(spec: ExecutorSpec): ExecutorSigner {
 /** E-mail для копии подписанного акта (ТЗ п. 7) — у одной демо-персоны, домен example.kz не доставляется. */
 const DEMO_EMAILS: Partial<Record<ClientKey, string>> = { aigerim: "aigerim.demo@example.kz" };
 
-function personData(p: PersonSpec, role: Role, clock: Clock, roles: Role[] = [role], email?: string) {
-  return {
-    role,
-    roles,
-    phone: p.phone,
-    fullName: p.fullName,
-    iinEnc: encryptPii(p.iin),
-    iinHash: hashPii(p.iin),
-    iinLast4: last4(p.iin),
-    email: email ?? null,
-    isDemo: p.isDemo,
-    createdAt: clock.ago(p.joinedDaysAgo),
-  };
+const executorRoles = (spec: ExecutorSpec): Role[] => (spec.alsoClient ? ["EXECUTOR", "CLIENT"] : ["EXECUTOR"]);
+
+/** Все люди сида для identity: роли, демо-флаг и дата регистрации — как у них в старой базе. */
+function seedPeople(clock: Clock): SeedPerson[] {
+  const person = (p: PersonSpec, role: Role, roles: Role[] = [role]): SeedPerson => ({ phone: p.phone, role, roles, isDemo: p.isDemo, createdAt: clock.ago(p.joinedDaysAgo) });
+  return [
+    person(OPERATOR, "OPERATOR"),
+    ...Object.values(CLIENTS).map((p: PersonSpec) => person(p, "CLIENT")),
+    ...Object.values(EXECUTORS).map((spec: ExecutorSpec) => person(spec.person, "EXECUTOR", executorRoles(spec))),
+    person(MEASURER, "MEASURER"),
+  ];
 }
 
-async function fill(tx: Tx, now: number): Promise<Ids> {
+/** Id человека сида в identity (и в старой базе). */
+type UserIds = Map<string, string>;
+
+/**
+ * Поля старой базы, которых нет в identity (ФИО, ИИН, e-mail), и дата регистрации из сида — поверх проекции
+ * (телефон, роли и демо-флаг пишет projectUser).
+ */
+async function completePerson(tx: Tx, users: UserIds, p: PersonSpec, clock: Clock, email?: string): Promise<string> {
+  const id = users.get(p.phone);
+  if (!id) throw new Error("Человек сида не заведён в identity");
+  await tx.user.update({
+    where: { id },
+    data: {
+      fullName: p.fullName,
+      iinEnc: encryptPii(p.iin),
+      iinHash: hashPii(p.iin),
+      iinLast4: last4(p.iin),
+      email: email ?? null,
+      createdAt: clock.ago(p.joinedDaysAgo),
+    },
+  });
+  return id;
+}
+
+async function fill(tx: Tx, now: number, identityUsers: User[]): Promise<Ids> {
   const clock = clockAt(now);
   const audit = new AuditLog();
+  for (const user of identityUsers) await projectUser(user, tx);
+  const users: UserIds = new Map(identityUsers.map((u) => [u.phone, u.id]));
 
   await tx.furnitureType.createMany({ data: DEFAULT_FURNITURE_TYPES.map((t, i) => ({ slug: t.slug, name: t.name, sortOrder: i })) });
   const types = new Map((await tx.furnitureType.findMany()).map((t) => [t.slug as FurnitureSlug, t.id]));
   // Демо-цены материалов и типовые расчёты (ADR-007): помечены isDemo, оператор заменит реальными.
   await seedMaterialPrices(tx, types);
 
-  const operator = await tx.user.create({ data: personData(OPERATOR, "OPERATOR", clock) });
+  const operator = await completePerson(tx, users, OPERATOR, clock);
   const clients = new Map<ClientKey, string>();
   for (const [key, person] of Object.entries(CLIENTS) as [ClientKey, PersonSpec][]) {
-    clients.set(key, (await tx.user.create({ data: personData(person, "CLIENT", clock, ["CLIENT"], DEMO_EMAILS[key]) })).id);
+    clients.set(key, await completePerson(tx, users, person, clock, DEMO_EMAILS[key]));
   }
 
-  const ids: Ids = { types, operator: operator.id, clients, executors: new Map(), portfolio: new Map(), requests: new Map() };
-  await seedExecutors(tx, ids, clock, audit);
+  const ids: Ids = { types, operator, clients, executors: new Map(), portfolio: new Map(), requests: new Map() };
+  await seedExecutors(tx, ids, users, clock, audit);
 
   const requests = [...REQUESTS].sort((a, b) => b.createdDaysAgo - a.createdDaysAgo);
   for (const spec of requests) await seedRequest(tx, ids, clock, audit, spec);
   for (const spec of DUAL_ROLE_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
   // Сценарии до договора (флаг preContractFlows, ADR-005) — в конце.
-  ids.measurer = (await tx.user.create({ data: personData(MEASURER, "MEASURER", clock) })).id;
+  ids.measurer = await completePerson(tx, users, MEASURER, clock);
   for (const spec of PRE_CONTRACT_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
 
   await tx.notification.createMany({
@@ -269,12 +306,11 @@ async function fill(tx: Tx, now: number): Promise<Ids> {
   return ids;
 }
 
-async function seedExecutors(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog) {
+async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, clock: Clock, audit: AuditLog) {
   // Порядок регистрации задаёт «Исполнитель №N».
   const entries = (Object.entries(EXECUTORS) as [ExecutorKey, ExecutorSpec][]).sort((a, b) => b[1].registeredDaysAgo - a[1].registeredDaysAgo);
   for (const [n, [key, spec]] of entries.entries()) {
-    const roles: Role[] = spec.alsoClient ? ["EXECUTOR", "CLIENT"] : ["EXECUTOR"];
-    const user = await tx.user.create({ data: personData(spec.person, "EXECUTOR", clock, roles) });
+    const user = { id: await completePerson(tx, users, spec.person, clock) };
     const binIin = spec.legalForm === "TOO" ? spec.bin : spec.person.iin;
     const reg = spec.registration;
     const approved = reg.status === "APPROVED";

@@ -2,7 +2,7 @@ import "server-only";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Role as ProtoRole, type User } from "@/gen/senim/identity/v1/identity_pb";
 import type { Role as PrismaRole } from "@/generated/prisma/enums";
-import { db, isUniqueViolation } from "@/platform/db";
+import { db, isUniqueViolation, type Tx } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 
@@ -38,32 +38,34 @@ const sameRoles = (a: readonly string[], b: readonly string[]) => a.length === b
  * Пишутся только поля identity: телефон, роль по умолчанию, роли, демо-флаг, блокировка; остальное (ФИО, ИИН,
  * контакты) принадлежит старой базе. Обновляются только изменившиеся поля. Строка с тем же телефоном, но другим `id`
  * (dev-база до перехода на identity) — ошибка с записью в лог, а не дубль.
+ * `client` — транзакция сида демо (пользователи появляются вместе с остальными данными); по умолчанию — `db`.
  */
-export async function projectUser(user: User): Promise<void> {
+export async function projectUser(user: User, client: Tx = db): Promise<void> {
   try {
-    await project(user);
+    await project(user, client);
   } catch (e) {
     // Два параллельных запроса создали одного пользователя: проигравший повторяет, видит строку и сверяет поля.
-    if (!isUniqueViolation(e)) throw e;
-    await project(user);
+    // В транзакции повтор невозможен (она прервана ошибкой) — ошибка уходит наверх.
+    if (!isUniqueViolation(e) || client !== db) throw e;
+    await project(user, client);
   }
 }
 
-async function project(user: User): Promise<void> {
+async function project(user: User, client: Tx): Promise<void> {
   const role = roleFromProto(user.defaultRole);
   const roles = user.roles.map(roleFromProto);
   if (!roles.includes(role)) throw new Error("identity вернул роль по умолчанию вне выданных ролей");
   const blockedAt = user.blockedAt ? timestampDate(user.blockedAt) : null;
 
-  const phoneOwner = await db.user.findUnique({ where: { phone: user.phone }, select: { id: true } });
+  const phoneOwner = await client.user.findUnique({ where: { phone: user.phone }, select: { id: true } });
   if (phoneOwner && phoneOwner.id !== user.id) {
     logger.error("identity.projection.phone_conflict", { userId: user.id });
     return fail.conflict();
   }
 
-  const row = await db.user.findUnique({ where: { id: user.id }, select: { phone: true, role: true, roles: true, isDemo: true, blockedAt: true } });
+  const row = await client.user.findUnique({ where: { id: user.id }, select: { phone: true, role: true, roles: true, isDemo: true, blockedAt: true } });
   if (!row) {
-    await db.user.create({ data: { id: user.id, phone: user.phone, role, roles, isDemo: user.isDemo, blockedAt } });
+    await client.user.create({ data: { id: user.id, phone: user.phone, role, roles, isDemo: user.isDemo, blockedAt } });
     return;
   }
 
@@ -74,5 +76,5 @@ async function project(user: User): Promise<void> {
     ...(row.isDemo !== user.isDemo && { isDemo: user.isDemo }),
     ...((row.blockedAt?.getTime() ?? null) !== (blockedAt?.getTime() ?? null) && { blockedAt }),
   };
-  if (Object.keys(data).length > 0) await db.user.update({ where: { id: user.id }, data });
+  if (Object.keys(data).length > 0) await client.user.update({ where: { id: user.id }, data });
 }

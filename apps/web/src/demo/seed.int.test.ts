@@ -10,7 +10,8 @@ import { db } from "@/platform/db";
 import { typicalEstimateSchema } from "@/verticals/furniture";
 import { useSeedStorage } from "../../test/factories/documents";
 import { setEnv } from "../../test/factories/identity";
-import { EXECUTORS } from "./data";
+import { identityFake } from "../../test/stubs/identity";
+import { EXECUTORS, OPERATOR } from "./data";
 import { PORTFOLIO_FILES } from "./portfolio-files";
 import { resetDemo, seedDemo } from "./seed";
 
@@ -164,5 +165,39 @@ describe("демо-данные", () => {
     await resetDemo(db);
     expect({ users: await db.user.count(), deals: await db.deal.count(), requests: await db.request.count(), money: await db.moneyTransaction.count() }).toEqual(before);
     expect((await db.request.findFirstOrThrow({ orderBy: { number: "asc" } })).number).toBe(1);
+  });
+
+  it("пользователи — из identity (SeedUsers): те же id в старой базе, дата регистрации из сида; resetDemo зовёт ResetDemo один раз и сохраняет id", { timeout: 240_000 }, async () => {
+    const started = Date.now();
+    await seedDemo(db);
+
+    const seedCalls = identityFake.calls.filter((c) => c.method === "seedUsers");
+    expect(seedCalls).toHaveLength(1);
+    const sent = (seedCalls[0]!.request as { users: { phone: string; isDemo: boolean; createdAt?: unknown }[] }).users;
+    const users = await db.user.findMany({ select: { id: true, phone: true, isDemo: true, createdAt: true } });
+    expect(users.map((u) => u.phone).sort()).toEqual(sent.map((u) => u.phone).sort());
+    for (const u of users) expect(identityFake.hasUser(u.id), `пользователь ${u.id} есть в identity`).toBe(true);
+    expect(sent.every((u) => u.createdAt !== undefined)).toBe(true);
+    expect(sent.filter((u) => !u.isDemo).length).toBeGreaterThan(0); // заказчики прошлых сделок — тоже в identity
+    const operator = users.find((u) => u.phone === OPERATOR.phone)!;
+    expect(Math.abs(operator.createdAt.getTime() - (started - OPERATOR.joinedDaysAgo * 86_400_000))).toBeLessThan(60_000);
+    expect(identityFake.calls.filter((c) => c.method === "resetDemo")).toHaveLength(0);
+
+    const ids = Object.fromEntries(users.map((u) => [u.phone, u.id]));
+    identityFake.calls.length = 0;
+    await resetDemo(db);
+    expect(identityFake.calls.filter((c) => c.method === "resetDemo")).toHaveLength(1);
+    expect(identityFake.calls.filter((c) => c.method === "seedUsers")).toHaveLength(1);
+    const again = await db.user.findMany({ select: { id: true, phone: true } });
+    expect(Object.fromEntries(again.map((u) => [u.phone, u.id]))).toEqual(ids);
+  });
+
+  it("без identity сид падает с подсказкой запустить стенд и не пишет старую базу", async () => {
+    identityFake.failNextUnavailable();
+    await expect(seedDemo(db)).rejects.toThrow(/npm run v2:up/);
+    expect(await db.user.count()).toBe(0);
+
+    identityFake.failNextUnavailable();
+    await expect(resetDemo(db)).rejects.toThrow(/npm run v2:up/);
   });
 });

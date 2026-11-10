@@ -1,5 +1,5 @@
 import { clone, create, toBinary, type DescMessage, type MessageInitShape } from "@bufbuild/protobuf";
-import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { TimestampSchema, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
 import {
@@ -411,9 +411,16 @@ export class FakeIdentity {
         "seedUsers",
         SeedUsersRequestSchema,
         async (req) => {
+          // Как UpsertSeedUser в Go: по телефону; у существующего id прежний, роли, демо-флаг и created_at (если задан) — из запроса, блокировка снимается.
           const seeded: User[] = [];
           for (const u of req.users ?? []) {
-            seeded.push(this.addUser({ phone: normalizePhone(u.phone ?? ""), defaultRole: u.defaultRole, roles: (u.roles ?? []) as Role[], isDemo: u.isDemo ?? false }));
+            const phone = normalizePhone(u.phone ?? "");
+            const existing = [...this.users.values()].find((x) => x.phone === phone);
+            const user = this.addUser({ id: existing?.id, phone, defaultRole: u.defaultRole, roles: [...new Set((u.roles ?? []) as Role[])], isDemo: u.isDemo ?? false });
+            const createdAt = u.createdAt ? create(TimestampSchema, u.createdAt) : existing?.createdAt;
+            if (createdAt) user.createdAt = createdAt;
+            this.blocked.delete(user.id);
+            seeded.push(user);
           }
           return create(SeedUsersResponseSchema, { users: seeded.map((u) => this.view(u)) });
         },
