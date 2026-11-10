@@ -1,7 +1,7 @@
 "use client";
 
 import { ru } from "@/i18n/ru";
-import { Button, Container, PageHeader } from "@/ui";
+import { Button, buttonClasses, Container, PageHeader } from "@/ui";
 import { fontVariables } from "@/ui/fonts";
 import "./globals.css";
 
@@ -18,7 +18,14 @@ export default function GlobalError({ retry }: { error: unknown; retry: () => vo
         <main className="flex flex-1 flex-col py-8">
           <Container size="prose">
             <PageHeader title={e.pageFailed} description={e.pageFailedText} />
-            <Button onClick={() => retry()}>{ru.common.actions.retry}</Button>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button onClick={() => retry()}>{ru.common.actions.retry}</Button>
+              {/* Обычная ссылка, не next/link: роутер Next при сбое корня может не работать, а полная загрузка главной надёжна. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a href="/" className={buttonClasses({ variant: "secondary" })}>
+                {ru.common.actions.home}
+              </a>
+            </div>
           </Container>
         </main>
       </body>

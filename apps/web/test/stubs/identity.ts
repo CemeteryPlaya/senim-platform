@@ -1,4 +1,4 @@
-import { create, type MessageInitShape } from "@bufbuild/protobuf";
+import { clone, create, toBinary, type DescMessage, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
@@ -10,6 +10,7 @@ import {
   GrantRoleResponseSchema,
   RequestOtpRequestSchema,
   RequestOtpResponseSchema,
+  ResetDemoRequestSchema,
   ResetDemoResponseSchema,
   Role,
   SeedUsersRequestSchema,
@@ -95,7 +96,7 @@ export class FakeIdentity {
   private nextFailure: unknown[] = [];
   private fallback: ((token: string) => Promise<FallbackSession | null>) | null = null;
   private counter = 0;
-  private replays = new Map<string, { fingerprint: string; response: unknown }>();
+  private replays = new Map<string, { fingerprint: string; response: unknown }>(); // ключ: (метод, ключ идемпотентности), как PRIMARY KEY (method, key) в pkg/idem
   private effectThenFail = false;
   /** Включён ли демо-режим (DEMO_MODE у настоящего сервиса). */
   demoEnabled = true;
@@ -202,31 +203,47 @@ export class FakeIdentity {
     if (failure !== undefined) throw failure;
   }
 
-  /** Формат токена, который задаёт вызывающий (VerifyOtp, StartDemoSession): неверный вид или уже занятый токен. */
-  private checkNewToken(token: string): void {
-    if (!TOKEN_SHAPE.test(token) || this.sessions.has(token)) throw codedError("session_token_invalid", Code.InvalidArgument);
+  /** Формат токена, который задаёт вызывающий (VerifyOtp, StartDemoSession). */
+  private checkTokenShape(token: string): void {
+    if (!TOKEN_SHAPE.test(token)) throw codedError("session_token_invalid", Code.InvalidArgument);
   }
 
-  private checkKey(key: string | undefined): string {
+  /** Токен уже у другой сессии (новый ключ, старый токен). */
+  private checkTokenFree(token: string): void {
+    if (this.sessions.has(token)) throw codedError("session_token_invalid", Code.InvalidArgument);
+  }
+
+  private checkKey(key: string | undefined): void {
     if (!key || key.length > MAX_KEY) throw codedError("invalid_request", Code.InvalidArgument);
-    return key;
+  }
+
+  /** Демо-методы: сначала режим (в Go — после проверки вызывающего), потом остальные проверки. */
+  private demoGate(): void {
+    if (!this.demoEnabled) throw codedError("demo_disabled", Code.PermissionDenied);
   }
 
   /**
-   * Изменяющий метод по контракту: ключ идемпотентности обязателен (1..128 символов); повтор с тем же ключом и тем же
-   * запросом возвращает прежний ответ без второго эффекта, с другим запросом — idempotency_key_reused.
+   * Изменяющий метод по контракту. Порядок как в Go: проверки запроса (`pre`, по умолчанию только ключ 1..128 символов),
+   * затем поиск сохранённого ответа по (метод, ключ): тот же запрос — прежний ответ без второго эффекта, другой запрос —
+   * idempotency_key_reused (отпечаток — детерминированный protobuf без самого ключа), затем действие.
    */
-  private async once<R>(method: string, req: { idempotencyKey?: string }, run: () => Promise<R>): Promise<R> {
+  private async once<S extends DescMessage, R>(method: string, schema: S, req: MessageInitShape<S>, run: () => Promise<R>, pre?: () => void): Promise<R> {
     this.enter(method, req);
-    const key = this.checkKey(req.idempotencyKey);
-    const fingerprint = JSON.stringify({ method, req: { ...req, idempotencyKey: undefined } });
-    const seen = this.replays.get(key);
+    const msg = create(schema, req);
+    const key = "idempotencyKey" in msg && typeof msg.idempotencyKey === "string" ? msg.idempotencyKey : "";
+    if (pre) pre();
+    else this.checkKey(key);
+    const copy = clone(schema, msg);
+    if ("idempotencyKey" in copy) copy.idempotencyKey = "";
+    const fingerprint = Buffer.from(toBinary(schema, copy)).toString("base64");
+    const slot = `${method}/${key}`;
+    const seen = this.replays.get(slot);
     if (seen) {
       if (seen.fingerprint !== fingerprint) throw codedError("idempotency_key_reused", Code.InvalidArgument);
       return seen.response as R;
     }
     const response = await run();
-    this.replays.set(key, { fingerprint, response });
+    this.replays.set(slot, { fingerprint, response });
     if (this.effectThenFail) {
       this.effectThenFail = false;
       throw new ConnectError("unavailable", Code.Unavailable);
@@ -269,7 +286,10 @@ export class FakeIdentity {
   }
 
   private build(): IdentityClient {
-    const mutating = <Q extends { idempotencyKey?: string }, R>(name: string, fn: (req: Q) => Promise<R>) => (req: Q): Promise<R> => this.once(name, req, () => fn(req));
+    const mutating =
+      <S extends DescMessage, R>(name: string, schema: S, fn: (req: MessageInitShape<S>) => Promise<R>, pre?: (req: MessageInitShape<S>) => void) =>
+      (req: MessageInitShape<S>): Promise<R> =>
+        this.once(name, schema, req, () => fn(req), pre && (() => pre(req)));
     const reading = <Q, R>(name: string, fn: (req: Q) => Promise<R>) => async (req: Q): Promise<R> => {
       this.enter(name, req);
       return fn(req);
@@ -278,28 +298,44 @@ export class FakeIdentity {
       throw new ConnectError("не реализовано в подделке", Code.Unimplemented);
     };
     return {
-      requestOtp: mutating("requestOtp", async (req: MessageInitShape<typeof RequestOtpRequestSchema>) => {
-        const phone = req.phone ?? "";
-        if (!PHONE_RE.test(phone)) throw codedError("invalid_phone", Code.InvalidArgument);
-        this.checkIp(req.clientIp ?? "");
-        this.otpRequested.add(phone);
-        return create(RequestOtpResponseSchema, { phone, expiresAt: timestampFromDate(new Date(Date.now() + 5 * 60_000)), demoCode: this.demoEnabled ? FAKE_OTP_CODE : "" });
-      }),
-      verifyOtp: mutating("verifyOtp", async (req: MessageInitShape<typeof VerifyOtpRequestSchema>) => {
-        const phone = req.phone ?? "";
-        this.checkNewToken(req.sessionToken ?? "");
-        this.checkIp(req.clientIp ?? "");
-        if (!PHONE_RE.test(phone)) throw codedError("invalid_phone", Code.InvalidArgument);
-        if (!this.otpRequested.has(phone)) throw codedError("otp_expired", Code.FailedPrecondition);
-        if (req.code !== FAKE_OTP_CODE) throw codedError("otp_wrong_code", Code.InvalidArgument, { left: "4" });
-        const existing = this.users.get(idOf(phone));
-        if (existing && this.blocked.has(existing.id)) throw codedError("user_blocked", Code.PermissionDenied);
-        const user = existing ?? this.addUser({ phone });
-        this.otpRequested.delete(phone);
-        const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: user.defaultRole };
-        this.sessions.set(req.sessionToken ?? "", session);
-        return create(VerifyOtpResponseSchema, { user: this.view(user), session: this.sessionView(session), isNew: !existing });
-      }),
+      requestOtp: mutating(
+        "requestOtp",
+        RequestOtpRequestSchema,
+        async (req) => {
+          const phone = req.phone ?? "";
+          this.otpRequested.add(phone);
+          return create(RequestOtpResponseSchema, { phone, expiresAt: timestampFromDate(new Date(Date.now() + 5 * 60_000)), demoCode: this.demoEnabled ? FAKE_OTP_CODE : "" });
+        },
+        (req) => {
+          this.checkKey(req.idempotencyKey);
+          if (!PHONE_RE.test(req.phone ?? "")) throw codedError("invalid_phone", Code.InvalidArgument);
+          this.checkIp(req.clientIp ?? "");
+        },
+      ),
+      verifyOtp: mutating(
+        "verifyOtp",
+        VerifyOtpRequestSchema,
+        async (req) => {
+          const phone = req.phone ?? "";
+          this.checkTokenFree(req.sessionToken ?? "");
+          if (!this.otpRequested.has(phone)) throw codedError("otp_expired", Code.FailedPrecondition);
+          if (req.code !== FAKE_OTP_CODE) throw codedError("otp_wrong_code", Code.InvalidArgument, { left: "4" });
+          const existing = this.users.get(idOf(phone));
+          if (existing && this.blocked.has(existing.id)) throw codedError("user_blocked", Code.PermissionDenied);
+          const user = existing ?? this.addUser({ phone });
+          this.otpRequested.delete(phone);
+          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: user.defaultRole };
+          this.sessions.set(req.sessionToken ?? "", session);
+          return create(VerifyOtpResponseSchema, { user: this.view(user), session: this.sessionView(session), isNew: !existing });
+        },
+        (req) => {
+          // Порядок Go (verify.go): формат токена, ключ, IP, телефон; дальше поиск ответа по ключу, занятый токен, код.
+          this.checkTokenShape(req.sessionToken ?? "");
+          this.checkKey(req.idempotencyKey);
+          this.checkIp(req.clientIp ?? "");
+          if (!PHONE_RE.test(req.phone ?? "")) throw codedError("invalid_phone", Code.InvalidArgument);
+        },
+      ),
       authenticate: reading("authenticate", async (req: MessageInitShape<typeof AuthenticateRequestSchema>) => {
         const { user, session } = await this.sessionOf(req.sessionToken ?? "");
         return create(AuthenticateResponseSchema, {
@@ -309,17 +345,18 @@ export class FakeIdentity {
           accessExpiresAt: timestampFromDate(new Date(Date.now() + 5 * 60_000)),
         });
       }),
-      signOut: mutating("signOut", async (req: MessageInitShape<typeof SignOutRequestSchema>) => {
+      signOut: mutating("signOut", SignOutRequestSchema, async (req) => {
         // Неверный или неизвестный токен — не ошибка: выйти из несуществующей сессии можно.
         this.sessions.delete(req.sessionToken ?? "");
         return create(SignOutResponseSchema);
       }),
-      signOutEverywhere: mutating("signOutEverywhere", async (req: MessageInitShape<typeof SignOutEverywhereRequestSchema>) => {
-        const { user } = await this.sessionOf(req.sessionToken ?? "");
-        for (const [token, s] of this.sessions) if (s.userId === user.id) this.sessions.delete(token);
+      signOutEverywhere: mutating("signOutEverywhere", SignOutEverywhereRequestSchema, async (req) => {
+        // Токен, по которому нельзя доказать вход (кривой, неизвестный, отозванный, истёкший, заблокированный), — успех без изменений.
+        const found = await this.lookup(req.sessionToken ?? "").catch(() => null);
+        if (found) for (const [token, s] of this.sessions) if (s.userId === found.user.id) this.sessions.delete(token);
         return create(SignOutEverywhereResponseSchema);
       }),
-      switchRole: mutating("switchRole", async (req: MessageInitShape<typeof SwitchRoleRequestSchema>) => {
+      switchRole: mutating("switchRole", SwitchRoleRequestSchema, async (req) => {
         const { user, session } = await this.lookup(req.sessionToken ?? "");
         const role = req.role ?? Role.UNSPECIFIED;
         if (role === Role.UNSPECIFIED) throw codedError("invalid_request", Code.InvalidArgument);
@@ -329,7 +366,7 @@ export class FakeIdentity {
         this.users.set(user.id, updated);
         return create(SwitchRoleResponseSchema, { user: this.view(updated), session: this.sessionView(session) });
       }),
-      grantRole: mutating("grantRole", async (req: MessageInitShape<typeof GrantRoleRequestSchema>) => {
+      grantRole: mutating("grantRole", GrantRoleRequestSchema, async (req) => {
         const { user } = await this.sessionOf(req.sessionToken ?? "");
         const role = req.role ?? Role.UNSPECIFIED;
         if (role === Role.UNSPECIFIED) throw codedError("invalid_request", Code.InvalidArgument);
@@ -339,37 +376,63 @@ export class FakeIdentity {
         this.users.set(user.id, updated);
         return create(GrantRoleResponseSchema, { user: this.view(updated), granted: true });
       }),
-      startDemoSession: mutating("startDemoSession", async (req: MessageInitShape<typeof StartDemoSessionRequestSchema>) => {
-        if (!this.demoEnabled) throw codedError("demo_disabled", Code.PermissionDenied);
-        this.checkNewToken(req.sessionToken ?? "");
-        const user = this.users.get(req.userId ?? "");
-        if (!user || !user.isDemo) throw codedError("user_not_found", Code.NotFound);
-        const asRole = req.asRole ? req.asRole : user.defaultRole;
-        if (!user.roles.includes(asRole)) throw codedError("role_not_granted", Code.PermissionDenied);
-        const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: asRole };
-        this.sessions.set(req.sessionToken ?? "", session);
-        return create(StartDemoSessionResponseSchema, { user: this.view(user), session: this.sessionView(session) });
-      }),
-      seedUsers: mutating("seedUsers", async (req: MessageInitShape<typeof SeedUsersRequestSchema>) => {
-        const seeded: User[] = [];
-        for (const u of req.users ?? []) {
-          const phone = u.phone ?? "";
-          if (!PHONE_RE.test(phone)) throw codedError("invalid_phone", Code.InvalidArgument);
-          const defaultRole = u.defaultRole ?? Role.UNSPECIFIED;
-          const roles = (u.roles ?? []) as Role[];
-          if (defaultRole === Role.UNSPECIFIED || !roles.includes(defaultRole)) throw codedError("invalid_request", Code.InvalidArgument);
-          seeded.push(this.addUser({ phone, defaultRole, roles, isDemo: u.isDemo ?? false }));
-        }
-        return create(SeedUsersResponseSchema, { users: seeded.map((u) => this.view(u)) });
-      }),
-      resetDemo: mutating("resetDemo", async () => {
-        if (!this.demoEnabled) throw codedError("demo_disabled", Code.PermissionDenied);
-        for (const user of [...this.users.values()].filter((u) => u.isDemo)) {
-          this.users.delete(user.id);
-          for (const [token, s] of this.sessions) if (s.userId === user.id) this.sessions.delete(token);
-        }
-        return create(ResetDemoResponseSchema);
-      }),
+      startDemoSession: mutating(
+        "startDemoSession",
+        StartDemoSessionRequestSchema,
+        async (req) => {
+          // Нет пользователя, он не демо или заблокирован — один отказ: метод не показывает, кто есть.
+          const user = this.users.get(req.userId ?? "");
+          if (!user || !user.isDemo || this.blocked.has(user.id)) throw codedError("user_not_found", Code.NotFound);
+          const asRole = req.asRole ? req.asRole : user.defaultRole;
+          if (!user.roles.includes(asRole)) throw codedError("role_not_granted", Code.PermissionDenied);
+          this.checkTokenFree(req.sessionToken ?? "");
+          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: asRole };
+          this.sessions.set(req.sessionToken ?? "", session);
+          return create(StartDemoSessionResponseSchema, { user: this.view(user), session: this.sessionView(session) });
+        },
+        (req) => {
+          // Порядок Go (demo.go): режим, формат токена, ключ, роль.
+          this.demoGate();
+          this.checkTokenShape(req.sessionToken ?? "");
+          this.checkKey(req.idempotencyKey);
+          if (req.asRole !== undefined && req.asRole !== Role.UNSPECIFIED && !(req.asRole in Role)) throw codedError("invalid_request", Code.InvalidArgument);
+        },
+      ),
+      seedUsers: mutating(
+        "seedUsers",
+        SeedUsersRequestSchema,
+        async (req) => {
+          const seeded: User[] = [];
+          for (const u of req.users ?? []) {
+            seeded.push(this.addUser({ phone: u.phone ?? "", defaultRole: u.defaultRole, roles: (u.roles ?? []) as Role[], isDemo: u.isDemo ?? false }));
+          }
+          return create(SeedUsersResponseSchema, { users: seeded.map((u) => this.view(u)) });
+        },
+        (req) => {
+          this.demoGate();
+          this.checkKey(req.idempotencyKey);
+          for (const u of req.users ?? []) {
+            if (!PHONE_RE.test(u.phone ?? "")) throw codedError("invalid_phone", Code.InvalidArgument);
+            const defaultRole = u.defaultRole ?? Role.UNSPECIFIED;
+            if (defaultRole === Role.UNSPECIFIED || !(u.roles ?? []).includes(defaultRole)) throw codedError("invalid_request", Code.InvalidArgument);
+          }
+        },
+      ),
+      resetDemo: mutating(
+        "resetDemo",
+        ResetDemoRequestSchema,
+        async () => {
+          // Пользователи остаются; сессии, коды и сохранённые ответы стираются (свой ответ once() запишет после очистки).
+          this.sessions.clear();
+          this.otpRequested.clear();
+          this.replays.clear();
+          return create(ResetDemoResponseSchema);
+        },
+        (req) => {
+          this.demoGate();
+          this.checkKey(req.idempotencyKey);
+        },
+      ),
       getSigningKeys: unimplemented,
     };
   }

@@ -72,9 +72,20 @@ describe("подделка identity: ключ идемпотентности", (
     expect(fake.sessionCount()).toBe(1);
   });
 
-  it("тот же ключ с другим запросом — idempotency_key_reused", async () => {
+  it("тот же ключ и метод, но другой запрос — idempotency_key_reused", async () => {
+    await fake.client.requestOtp({ phone: PHONE, idempotencyKey: "k" });
+    expect(await rejection(fake.client.requestOtp({ phone: "+77001110000", idempotencyKey: "k" }))).toEqual({ code: Code.InvalidArgument, detail: "idempotency_key_reused" });
+  });
+
+  it("тот же ключ на другом методе — новый вызов (ключ действует в паре с методом, как в pkg/idem)", async () => {
     await fake.client.resetDemo({ idempotencyKey: "k" });
-    expect(await rejection(fake.client.requestOtp({ phone: PHONE, idempotencyKey: "k" }))).toEqual({ code: Code.InvalidArgument, detail: "idempotency_key_reused" });
+    await expect(fake.client.requestOtp({ phone: PHONE, idempotencyKey: "k" })).resolves.toBeDefined();
+  });
+
+  it("отпечаток запроса — protobuf: явные значения по умолчанию не отличаются от пропущенных", async () => {
+    const first = await fake.client.requestOtp({ phone: PHONE, idempotencyKey: "k" });
+    const again = await fake.client.requestOtp({ clientIp: "", idempotencyKey: "k", phone: PHONE });
+    expect(again).toBe(first);
   });
 
   it("failNextAfterEffect: действие выполнено, вызов упал Unavailable, повтор вернёт ответ", async () => {
@@ -97,7 +108,6 @@ describe("подделка identity: токены сессии", () => {
     ["authenticate", () => fake.client.authenticate({ sessionToken: "bad" })],
     ["switchRole", () => fake.client.switchRole({ sessionToken: "bad", role: Role.CLIENT, idempotencyKey: "k" })],
     ["grantRole", () => fake.client.grantRole({ sessionToken: "bad", role: Role.CLIENT, idempotencyKey: "k" })],
-    ["signOutEverywhere", () => fake.client.signOutEverywhere({ sessionToken: "bad", idempotencyKey: "k" })],
   ])("%s с неверным токеном — Unauthenticated session_invalid", async (_n, call) => {
     expect(await rejection(call())).toEqual({ code: Code.Unauthenticated, detail: "session_invalid" });
   });
@@ -105,6 +115,24 @@ describe("подделка identity: токены сессии", () => {
   it("signOut с неверным или неизвестным токеном — успешно ничего не делает", async () => {
     await expect(fake.client.signOut({ sessionToken: "bad", idempotencyKey: "a" })).resolves.toBeDefined();
     await expect(fake.client.signOut({ sessionToken: token(9), idempotencyKey: "b" })).resolves.toBeDefined();
+  });
+
+  it("signOutEverywhere с токеном, который не доказывает вход (кривой, неизвестный, заблокированный) — успех без изменений", async () => {
+    const user = await signedIn();
+    await expect(fake.client.signOutEverywhere({ sessionToken: "bad", idempotencyKey: "a" })).resolves.toBeDefined();
+    await expect(fake.client.signOutEverywhere({ sessionToken: token(9), idempotencyKey: "b" })).resolves.toBeDefined();
+    fake.block(user.id);
+    await expect(fake.client.signOutEverywhere({ sessionToken: token(1), idempotencyKey: "c" })).resolves.toBeDefined();
+    expect(fake.sessionCount(user.id)).toBe(1);
+  });
+
+  it("signOutEverywhere с действующим токеном отзывает все сессии пользователя", async () => {
+    const user = await signedIn();
+    fake.signIn(user.id, token(2));
+
+    await fake.client.signOutEverywhere({ sessionToken: token(1), idempotencyKey: "a" });
+
+    expect(fake.sessionCount(user.id)).toBe(0);
   });
 
   it("session_token_invalid — только для токена, который задаёт вызывающий (VerifyOtp, StartDemoSession), в том числе занятого", async () => {
@@ -136,5 +164,51 @@ describe("подделка identity: активная роль", () => {
 
     expect((await fake.client.authenticate({ sessionToken: token(1) })).session?.activeRole).toBe(Role.CLIENT);
     expect((await fake.client.authenticate({ sessionToken: token(2) })).session?.activeRole).toBe(Role.EXECUTOR);
+  });
+});
+
+describe("подделка identity: демо-методы по demo.go", () => {
+  const demoToken = token(5);
+
+  it("StartDemoSession: заблокированная демо-персона — user_not_found", async () => {
+    const demo = fake.addUser({ phone: PHONE, isDemo: true });
+    fake.block(demo.id);
+    expect(await rejection(fake.client.startDemoSession({ userId: demo.id, sessionToken: demoToken, idempotencyKey: "d" }))).toEqual({ code: Code.NotFound, detail: "user_not_found" });
+  });
+
+  it("порядок проверок: режим раньше ключа и токена, формат токена раньше ключа", async () => {
+    fake.demoEnabled = false;
+    expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: "bad" }))).toEqual({ code: Code.PermissionDenied, detail: "demo_disabled" });
+    expect(await rejection(fake.client.resetDemo({}))).toEqual({ code: Code.PermissionDenied, detail: "demo_disabled" });
+    expect(await rejection(fake.client.seedUsers({}))).toEqual({ code: Code.PermissionDenied, detail: "demo_disabled" });
+    fake.demoEnabled = true;
+    expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: "bad" }))).toEqual({ code: Code.InvalidArgument, detail: "session_token_invalid" });
+    expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: demoToken }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+  });
+
+  it("VerifyOtp: повтор по ключу раньше проверки кода и занятого токена", async () => {
+    await fake.client.requestOtp({ phone: PHONE, idempotencyKey: "r" });
+    const req = { phone: PHONE, code: FAKE_OTP_CODE, sessionToken: token(6), idempotencyKey: "v" };
+    const first = await fake.client.verifyOtp(req);
+    // код уже погашен и токен занят, но повтор с тем же ключом возвращает сохранённый ответ
+    expect(await fake.client.verifyOtp(req)).toBe(first);
+  });
+
+  it("ResetDemo: пользователи остаются; сессии, коды и чужие сохранённые ответы стираются, свой ответ остаётся", async () => {
+    const demo = fake.addUser({ phone: PHONE, isDemo: true });
+    fake.signIn(demo.id, token(1));
+    await fake.client.requestOtp({ phone: "+77001110000", idempotencyKey: "r" });
+    const start = { userId: demo.id, sessionToken: token(7), idempotencyKey: "s" };
+    await fake.client.startDemoSession(start);
+
+    const reset = await fake.client.resetDemo({ idempotencyKey: "x" });
+
+    expect(fake.sessionCount()).toBe(0);
+    expect(await rejection(fake.client.verifyOtp({ phone: "+77001110000", code: FAKE_OTP_CODE, sessionToken: token(8), idempotencyKey: "v" }))).toEqual({ code: Code.FailedPrecondition, detail: "otp_expired" });
+    // чужой ответ стёрт: повтор StartDemoSession выполняется заново (новая сессия), а не отдаёт ответ про несуществующую
+    await fake.client.startDemoSession({ ...start, sessionToken: token(7) });
+    expect(fake.sessionCount()).toBe(1);
+    expect(await fake.client.resetDemo({ idempotencyKey: "x" })).toBe(reset);
+    expect((await fake.client.authenticate({ sessionToken: token(7) })).user?.id).toBe(demo.id);
   });
 });
