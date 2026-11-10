@@ -72,22 +72,9 @@ func mfaWrongCode(left int) error {
 // operatorSession — чтение до ключа идемпотентности: сессия действует, пользователь не
 // заблокирован, активная роль — оператор. Ошибки — уже ответы клиенту.
 func (s *Service) operatorSession(ctx context.Context, op, token string) (store.Session, store.User, error) {
-	q := store.New(s.pool)
-	sess, ok, err := sessionByToken(ctx, q, token, false)
+	sess, user, err := s.liveSession(ctx, op, token)
 	if err != nil {
-		s.log.ErrorContext(ctx, op+": поиск сессии", "err", err)
-		return sess, store.User{}, internalError()
-	}
-	if !ok {
-		return sess, store.User{}, sessionInvalid()
-	}
-	user, err := q.GetUserByID(ctx, sess.UserID)
-	if err != nil {
-		s.log.ErrorContext(ctx, op+": поиск пользователя", "err", err)
-		return sess, user, internalError()
-	}
-	if !sessionUsable(sess, user, s.now()) {
-		return sess, user, sessionInvalid()
+		return sess, user, err
 	}
 	if activeRole(user.Roles, user.DefaultRole, &sess.ActiveRole) != mfaRole {
 		return sess, user, mfaNotRequired()

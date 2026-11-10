@@ -151,9 +151,6 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 // политика вызывающих начинает проверяться.
 var notYetImplemented = map[string]bool{
 	"RevealPartyDetails":       true,
-	"GetProfile":               true,
-	"RecordPerson":             true,
-	"UpdateContacts":           true,
 	"RegisterParty":            true,
 	"ProvisionExecutor":        true,
 	"SetPayoutIban":            true,

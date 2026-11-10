@@ -46,6 +46,17 @@ type Outbox struct {
 	NextAttemptAt pgtype.Timestamptz
 }
 
+type Person struct {
+	UserID    uuid.UUID
+	FullName  pgtype.Text
+	IinEnc    pgtype.Text
+	IinHash   []byte
+	IinLast4  pgtype.Text
+	Instagram pgtype.Text
+	Email     pgtype.Text
+	UpdatedAt pgtype.Timestamptz
+}
+
 type RateLimit struct {
 	Key         string
 	WindowStart pgtype.Timestamptz

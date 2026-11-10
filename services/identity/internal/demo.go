@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"slices"
 
 	"connectrpc.com/connect/v2"
@@ -13,6 +14,7 @@ import (
 
 	identityv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
 	"github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1/identityv1connect"
+	"github.com/CemeteryPlaya/senim-platform/pkg/pii"
 	"github.com/CemeteryPlaya/senim-platform/services/identity/internal/store"
 )
 
@@ -45,6 +47,61 @@ type seedRow struct {
 	roles              []string
 	isDemo             bool
 	createdAt          pgtype.Timestamptz
+	// Личность (persons); пустое поле — не задано.
+	fullName, iin, instagram, email string
+}
+
+// hasPerson — в записи сида есть хотя бы одно поле личности.
+func (r seedRow) hasPerson() bool {
+	return r.fullName != "" || r.iin != "" || r.instagram != "" || r.email != ""
+}
+
+// validateSeedPerson проверяет поля личности сида теми же правилами, что RecordPerson и
+// UpdateContacts; пустое поле — не задано.
+func validateSeedPerson(u *identityv1.SeedUser, row *seedRow) error {
+	if raw := u.GetFullName(); raw != "" {
+		row.fullName = normalizeFullName(raw)
+		if !validFullName(row.fullName) {
+			return fullNameInvalid()
+		}
+	}
+	if iin := u.GetIin(); iin != "" {
+		if !validIIN(iin) {
+			return iinInvalid()
+		}
+		row.iin = iin
+	}
+	instagram, tooLong, ok := checkInstagram(u.GetInstagram())
+	if !ok {
+		return instagramInvalid(tooLong)
+	}
+	row.instagram = instagram
+	email, ok := normalizeEmail(u.GetEmail())
+	if !ok {
+		return emailInvalid()
+	}
+	row.email = email
+	return nil
+}
+
+// seedPerson пишет личность пользователя сида: заданные поля перезаписываются, остальные
+// остаются. ИИН — шифртекстом, со слепым индексом; занятый другим — iin_taken.
+func (s *Service) seedPerson(ctx context.Context, q *store.Queries, userID uuid.UUID, r seedRow, now pgtype.Timestamptz) error {
+	params := store.UpsertSeedPersonParams{
+		UserID: userID, FullName: text(r.fullName), Instagram: text(r.instagram), Email: text(r.email), Now: now,
+	}
+	if r.iin != "" {
+		enc, err := s.cfg.PII.Seal([]byte(r.iin), personIINAAD(userID))
+		if err != nil {
+			return fmt.Errorf("шифрование ИИН: %w", err)
+		}
+		params.IinEnc, params.IinHash, params.IinLast4 = text(enc), s.cfg.PIIIndex.Of(pii.DomainIIN, r.iin), text(pii.Last4(r.iin))
+	}
+	_, err := q.UpsertSeedPerson(ctx, params)
+	if isUniqueViolation(err, personIINConstraint) {
+		return iinTaken()
+	}
+	return err
 }
 
 // validateSeed разбирает и проверяет пользователей запроса в Go: ограничения базы (роли
@@ -86,6 +143,9 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 		if u.GetCreatedAt() != nil {
 			row.createdAt = ts(u.GetCreatedAt().AsTime())
 		}
+		if err := validateSeedPerson(u, &row); err != nil {
+			return nil, err
+		}
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -93,7 +153,8 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 
 // SeedUsers — upsert пользователей по телефону в одной транзакции: существующему
 // обновляются роли, роль по умолчанию, is_demo, created_at (если задан), блокировка
-// снимается; id остаётся прежним. Ответ — в порядке запроса.
+// снимается; id остаётся прежним. Личность (full_name, iin, instagram, email) пишется,
+// если задано хотя бы одно поле. Ответ — в порядке запроса.
 //
 // Ни аудита, ни событий: это данные демо-стенда (DemoMode), не рабочие учётные записи.
 func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersRequest) (*identityv1.SeedUsersResponse, error) {
@@ -118,6 +179,11 @@ func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersReques
 			})
 			if err != nil {
 				return err
+			}
+			if r.hasPerson() {
+				if err := s.seedPerson(ctx, q, u.ID, r, now); err != nil {
+					return err
+				}
 			}
 			resp.Users = append(resp.Users, userProto(u))
 		}

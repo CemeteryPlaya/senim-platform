@@ -148,7 +148,8 @@ func newSender(provider string, log *slog.Logger) (OtpSender, error) {
 //
 //	RequestOtp, VerifyOtp, Authenticate, SignOut, SignOutEverywhere,
 //	SwitchRole, GrantRole, StartDemoSession, SeedUsers, ResetDemo,
-//	StartTotpEnrollment, ConfirmTotpEnrollment, VerifySecondFactor — только web
+//	StartTotpEnrollment, ConfirmTotpEnrollment, VerifySecondFactor,
+//	RecordPerson, UpdateContacts, GetProfile                       — только web
 //	GetSigningKeys                                                 — Go-сервисы из tools/services
 //
 // Новый RPC без решения в этой таблице и в тесте не принимается.

@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"strings"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"connectrpc.com/connect/v2"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	eventsv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/events/v1"
 	identityv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
@@ -80,29 +78,12 @@ func recordRoleEvent(ctx context.Context, tx pgx.Tx, subject, eventType string, 
 	if _, err := outbox.Add(ctx, tx, ServiceID, subject, eventType, payload); err != nil {
 		return err
 	}
-	audit := &eventsv1.AuditEvent{
-		ActorKind:  "user",
-		ActorId:    user.ID.String(),
-		ActorRole:  actorRole,
-		Action:     action,
-		EntityType: "user",
-		EntityId:   user.ID.String(),
-		At:         timestamppb.New(now),
-	}
+	// nil-карта в any — не nil: «до» без полей передаётся явным nil.
+	var b any
 	if before != nil {
-		b, err := json.Marshal(before)
-		if err != nil {
-			return err
-		}
-		audit.BeforeJson = string(b)
+		b = before
 	}
-	a, err := json.Marshal(after)
-	if err != nil {
-		return err
-	}
-	audit.AfterJson = string(a)
-	_, err = outbox.Add(ctx, tx, ServiceID, subjectAudit, "senim.events.v1.AuditEvent", audit)
-	return err
+	return recordAudit(ctx, tx, user, actorRole, action, b, after, now)
 }
 
 // SwitchRole делает выданную роль активной в этой сессии и ролью по умолчанию (новый вход

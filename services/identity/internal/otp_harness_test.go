@@ -34,6 +34,9 @@ import (
 // testHMACKey — ключ HMAC кодов в тестах (32 байта).
 var testHMACKey = bytes.Repeat([]byte{7}, 32)
 
+// testIndexKey — ключ слепого индекса ИИН/БИН в тестах (32 байта).
+var testIndexKey = bytes.Repeat([]byte{9}, 32)
+
 // testKeyring — ключи ПДн тестов: один KEK из 32 одинаковых байт.
 func testKeyring(t *testing.T) *pii.Keyring {
 	t.Helper()
@@ -138,7 +141,7 @@ func newHarness(t *testing.T, tune func(*ServeConfig)) *harness {
 		DemoMode: true, OTPProvider: "mock", OTPHMACKey: testHMACKey,
 		OTPDailyGlobalLimit: 500, OTPDailyPrefixLimit: 50,
 		TokenSigningKey: testSigningKey, TokenKID: testKID,
-		PII: testKeyring(t),
+		PII: testKeyring(t), PIIIndex: pii.NewIndex(testIndexKey),
 	}
 	if tune != nil {
 		tune(&cfg)
