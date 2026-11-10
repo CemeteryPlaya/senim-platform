@@ -153,6 +153,9 @@ func newSender(provider string, log *slog.Logger) (OtpSender, error) {
 //	StartTotpEnrollment, ConfirmTotpEnrollment, VerifySecondFactor,
 //	RecordPerson, UpdateContacts, GetProfile, RegisterParty,
 //	ProvisionExecutor, SetPayoutIban, VerifySignerIin,
+//	SubmitKyc, ListKycQueue, ReviewKyc,
+//	GrantConsent, RevokeConsent, ListMyConsents, HasConsents,
+//	ListConsentRevocations, ResolveConsentRevocation,
 //	RevealPartyDetails                                             — только web
 //	GetSigningKeys                                                 — Go-сервисы из tools/services
 //

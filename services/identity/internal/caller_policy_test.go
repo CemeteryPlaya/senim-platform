@@ -149,14 +149,7 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 // connect (Unimplemented) без проверки вызывающего. Тест требует от такого метода именно
 // Unimplemented: появился обработчик, а запись осталась — тест падает, запись убирают, и
 // политика вызывающих начинает проверяться.
-var notYetImplemented = map[string]bool{
-	"GrantConsent":             true,
-	"RevokeConsent":            true,
-	"ListMyConsents":           true,
-	"HasConsents":              true,
-	"ListConsentRevocations":   true,
-	"ResolveConsentRevocation": true,
-}
+var notYetImplemented = map[string]bool{}
 
 // allowedCallers — таблица «метод → кто может звать» (она же в комментарии Serve в run.go).
 func allowedCallers(method string) []string {

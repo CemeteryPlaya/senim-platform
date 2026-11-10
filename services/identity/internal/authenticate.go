@@ -65,8 +65,8 @@ func sessionView(sess store.Session, user store.User) *identityv1.Session {
 	return sessionProto(sess, idleTimeout)
 }
 
-// Authenticate — чтение: по токену сессии возвращает пользователя, сессию и внутренний
-// токен. Неверный формат, неизвестный, отозванный, истёкший (срок или простой) токен и
+// Authenticate — чтение: по токену сессии возвращает пользователя, сессию, внутренний
+// токен и действующие (не отозванные) согласия. Неверный формат, неизвестный, отозванный, истёкший (срок или простой) токен и
 // заблокированный пользователь дают одно и то же: Unauthenticated / session_invalid.
 func (s *Service) Authenticate(ctx context.Context, req *identityv1.AuthenticateRequest) (*identityv1.AuthenticateResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
@@ -103,9 +103,15 @@ func (s *Service) Authenticate(ctx context.Context, req *identityv1.Authenticate
 		s.log.ErrorContext(ctx, "authenticate: внутренний токен", "err", err)
 		return nil, internalError()
 	}
+	consents, err := q.ListActiveConsents(ctx, user.ID)
+	if err != nil {
+		s.log.ErrorContext(ctx, "authenticate: согласия", "err", err)
+		return nil, internalError()
+	}
 	return &identityv1.AuthenticateResponse{
 		User: userProto(user), Session: sessionView(sess, user),
 		AccessToken: access, AccessExpiresAt: timestamppb.New(accessExp),
+		Consents: consentsProto(consents),
 	}, nil
 }
 

@@ -52,6 +52,9 @@ type seedRow struct {
 	fullName, iin, instagram, email string
 	// Сторона (parties); nil — не задана.
 	party *seedParty
+	// Согласие на обработку ПДн (версия и SHA-256 текста); пустая версия — согласия нет.
+	consentVersion string
+	consentSum     []byte
 }
 
 // seedParty — проверенная сторона сида: реквизиты, счёт выплаты (пусто — не указан) и
@@ -193,6 +196,25 @@ func (s *Service) seedPerson(ctx context.Context, q *store.Queries, userID uuid.
 	return err
 }
 
+// validateSeedConsent проверяет согласие сида: версия и хеш текста заданы вместе
+// (invalid_request) и по правилам GrantConsent (consent_version_invalid); оба пусты —
+// согласия нет.
+func validateSeedConsent(u *identityv1.SeedUser, row *seedRow) error {
+	version, sum := u.GetConsentVersion(), u.GetConsentTextSha256()
+	if version == "" && sum == "" {
+		return nil
+	}
+	if version == "" || sum == "" {
+		return invalidRequest()
+	}
+	b, err := consentProof(version, sum)
+	if err != nil {
+		return err
+	}
+	row.consentVersion, row.consentSum = version, b
+	return nil
+}
+
 // validateSeed разбирает и проверяет пользователей запроса в Go: ограничения базы (роли
 // известны, роль по умолчанию выдана, оператор и замерщик одни) остаются второй линией.
 func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
@@ -240,6 +262,9 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 				return nil, err
 			}
 		}
+		if err := validateSeedConsent(u, &row); err != nil {
+			return nil, err
+		}
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -249,7 +274,8 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 // обновляются роли, роль по умолчанию, is_demo, created_at (если задан), блокировка
 // снимается; id остаётся прежним. Личность (full_name, iin, instagram, email) пишется,
 // если задано хотя бы одно поле; сторона (party) — целиком, со счётом выплаты и состоянием
-// KYC. Ответ — в порядке запроса.
+// KYC; согласие на обработку ПДн (consent_version и consent_text_sha256) — действующая
+// запись канала seed, если такой версии ещё нет. Ответ — в порядке запроса.
 //
 // Ни аудита, ни событий: это данные демо-стенда (DemoMode), не рабочие учётные записи.
 func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersRequest) (*identityv1.SeedUsersResponse, error) {
@@ -282,6 +308,12 @@ func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersReques
 			}
 			if r.party != nil {
 				if err := s.seedPartyRow(ctx, q, u.ID, r.party, now); err != nil {
+					return err
+				}
+			}
+			if r.consentVersion != "" {
+				err := q.SeedConsent(ctx, store.SeedConsentParams{UserID: u.ID, Version: r.consentVersion, TextSha256: r.consentSum, GrantedAt: now})
+				if err != nil {
 					return err
 				}
 			}

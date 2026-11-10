@@ -9,6 +9,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Consent struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Kind        string
+	Version     string
+	TextSha256  []byte
+	Purposes    []string
+	ReferenceID string
+	Channel     string
+	SessionID   uuid.NullUUID
+	GrantedAt   pgtype.Timestamptz
+	RevokedAt   pgtype.Timestamptz
+}
+
+type ConsentRevocation struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Kind        string
+	RequestedAt pgtype.Timestamptz
+	DueAt       pgtype.Timestamptz
+	Status      string
+	DecidedAt   pgtype.Timestamptz
+	DecidedBy   uuid.NullUUID
+	Reason      pgtype.Text
+}
+
 type Idempotency struct {
 	Method      string
 	Key         string
