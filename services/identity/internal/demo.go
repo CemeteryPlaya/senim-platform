@@ -276,6 +276,9 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 // если задано хотя бы одно поле; сторона (party) — целиком, со счётом выплаты и состоянием
 // KYC; согласие на обработку ПДн (consent_version и consent_text_sha256) — действующая
 // запись канала seed, если такой версии ещё нет. Ответ — в порядке запроса.
+// is_demo существующего пользователя не поднимается с false на true: такой сид целиком
+// отклоняется (invalid_request) — настоящий человек не становится демо-персоной, и сброс
+// демо не трогает его данные. Опустить is_demo (true → false) можно.
 //
 // Ни аудита, ни событий: это данные демо-стенда (DemoMode), не рабочие учётные записи.
 func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersRequest) (*identityv1.SeedUsersResponse, error) {
@@ -298,6 +301,11 @@ func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersReques
 				Phone: r.phone, Roles: r.roles, DefaultRole: r.defaultRole, IsDemo: r.isDemo,
 				CreatedAt: r.createdAt, Now: now,
 			})
+			if errors.Is(err, pgx.ErrNoRows) {
+				// Телефон настоящего пользователя (is_demo = false) в демо-сиде: демо он не
+				// становится — иначе сброс демо считал бы его данные демо-данными.
+				return invalidRequest()
+			}
 			if err != nil {
 				return err
 			}

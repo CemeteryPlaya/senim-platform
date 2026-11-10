@@ -15,7 +15,7 @@ import (
 const createRevocation = `-- name: CreateRevocation :one
 INSERT INTO consent_revocations (user_id, kind, requested_at, due_at)
 VALUES ($1, $2, $3, $4)
-RETURNING id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason
+RETURNING id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason, is_demo
 `
 
 type CreateRevocationParams struct {
@@ -43,12 +43,13 @@ func (q *Queries) CreateRevocation(ctx context.Context, arg CreateRevocationPara
 		&i.DecidedAt,
 		&i.DecidedBy,
 		&i.Reason,
+		&i.IsDemo,
 	)
 	return i, err
 }
 
 const getActiveConsent = `-- name: GetActiveConsent :one
-SELECT id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at FROM consents
+SELECT id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at, is_demo FROM consents
 WHERE user_id = $1 AND kind = $2 AND version = $3 AND reference_id = $4 AND revoked_at IS NULL
 `
 
@@ -79,12 +80,13 @@ func (q *Queries) GetActiveConsent(ctx context.Context, arg GetActiveConsentPara
 		&i.SessionID,
 		&i.GrantedAt,
 		&i.RevokedAt,
+		&i.IsDemo,
 	)
 	return i, err
 }
 
 const getOpenRevocation = `-- name: GetOpenRevocation :one
-SELECT id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason FROM consent_revocations WHERE user_id = $1 AND kind = $2 AND status = 'REQUESTED'
+SELECT id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason, is_demo FROM consent_revocations WHERE user_id = $1 AND kind = $2 AND status = 'REQUESTED'
 `
 
 type GetOpenRevocationParams struct {
@@ -105,12 +107,13 @@ func (q *Queries) GetOpenRevocation(ctx context.Context, arg GetOpenRevocationPa
 		&i.DecidedAt,
 		&i.DecidedBy,
 		&i.Reason,
+		&i.IsDemo,
 	)
 	return i, err
 }
 
 const getRevocation = `-- name: GetRevocation :one
-SELECT id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason FROM consent_revocations WHERE id = $1
+SELECT id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason, is_demo FROM consent_revocations WHERE id = $1
 `
 
 func (q *Queries) GetRevocation(ctx context.Context, id uuid.UUID) (ConsentRevocation, error) {
@@ -126,6 +129,7 @@ func (q *Queries) GetRevocation(ctx context.Context, id uuid.UUID) (ConsentRevoc
 		&i.DecidedAt,
 		&i.DecidedBy,
 		&i.Reason,
+		&i.IsDemo,
 	)
 	return i, err
 }
@@ -133,7 +137,7 @@ func (q *Queries) GetRevocation(ctx context.Context, id uuid.UUID) (ConsentRevoc
 const insertConsent = `-- name: InsertConsent :one
 INSERT INTO consents (user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at)
 VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8, $9)
-RETURNING id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at
+RETURNING id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at, is_demo
 `
 
 type InsertConsentParams struct {
@@ -175,12 +179,13 @@ func (q *Queries) InsertConsent(ctx context.Context, arg InsertConsentParams) (C
 		&i.SessionID,
 		&i.GrantedAt,
 		&i.RevokedAt,
+		&i.IsDemo,
 	)
 	return i, err
 }
 
 const listActiveConsents = `-- name: ListActiveConsents :many
-SELECT id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at FROM consents WHERE user_id = $1 AND kind = $2 AND revoked_at IS NULL ORDER BY granted_at, id
+SELECT id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at, is_demo FROM consents WHERE user_id = $1 AND kind = $2 AND revoked_at IS NULL ORDER BY granted_at, id
 `
 
 type ListActiveConsentsParams struct {
@@ -210,6 +215,7 @@ func (q *Queries) ListActiveConsents(ctx context.Context, arg ListActiveConsents
 			&i.SessionID,
 			&i.GrantedAt,
 			&i.RevokedAt,
+			&i.IsDemo,
 		); err != nil {
 			return nil, err
 		}
@@ -222,7 +228,7 @@ func (q *Queries) ListActiveConsents(ctx context.Context, arg ListActiveConsents
 }
 
 const listOpenRevocations = `-- name: ListOpenRevocations :many
-SELECT id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason FROM consent_revocations WHERE status = 'REQUESTED' ORDER BY due_at, requested_at, id
+SELECT id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason, is_demo FROM consent_revocations WHERE status = 'REQUESTED' ORDER BY due_at, requested_at, id
 `
 
 // Очередь оператора: открытые заявки, ближний срок первым.
@@ -245,6 +251,7 @@ func (q *Queries) ListOpenRevocations(ctx context.Context) ([]ConsentRevocation,
 			&i.DecidedAt,
 			&i.DecidedBy,
 			&i.Reason,
+			&i.IsDemo,
 		); err != nil {
 			return nil, err
 		}
@@ -257,7 +264,7 @@ func (q *Queries) ListOpenRevocations(ctx context.Context) ([]ConsentRevocation,
 }
 
 const listUserConsents = `-- name: ListUserConsents :many
-SELECT id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at FROM consents WHERE user_id = $1 ORDER BY granted_at, id
+SELECT id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at, is_demo FROM consents WHERE user_id = $1 ORDER BY granted_at, id
 `
 
 // Все согласия с отозванными (ListMyConsents), старые первыми.
@@ -282,6 +289,7 @@ func (q *Queries) ListUserConsents(ctx context.Context, userID uuid.UUID) ([]Con
 			&i.SessionID,
 			&i.GrantedAt,
 			&i.RevokedAt,
+			&i.IsDemo,
 		); err != nil {
 			return nil, err
 		}
@@ -294,7 +302,7 @@ func (q *Queries) ListUserConsents(ctx context.Context, userID uuid.UUID) ([]Con
 }
 
 const listUserRevocations = `-- name: ListUserRevocations :many
-SELECT id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason FROM consent_revocations WHERE user_id = $1 ORDER BY requested_at DESC, id
+SELECT id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason, is_demo FROM consent_revocations WHERE user_id = $1 ORDER BY requested_at DESC, id
 `
 
 // Заявки пользователя (ListMyConsents), новые первыми.
@@ -317,6 +325,7 @@ func (q *Queries) ListUserRevocations(ctx context.Context, userID uuid.UUID) ([]
 			&i.DecidedAt,
 			&i.DecidedBy,
 			&i.Reason,
+			&i.IsDemo,
 		); err != nil {
 			return nil, err
 		}
@@ -348,7 +357,7 @@ UPDATE consent_revocations SET
     decided_by = $3,
     reason     = $4
 WHERE id = $5 AND status = ANY($6::text[])
-RETURNING id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason
+RETURNING id, user_id, kind, requested_at, due_at, status, decided_at, decided_by, reason, is_demo
 `
 
 type ResolveRevocationParams struct {
@@ -382,6 +391,7 @@ func (q *Queries) ResolveRevocation(ctx context.Context, arg ResolveRevocationPa
 		&i.DecidedAt,
 		&i.DecidedBy,
 		&i.Reason,
+		&i.IsDemo,
 	)
 	return i, err
 }
@@ -389,7 +399,7 @@ func (q *Queries) ResolveRevocation(ctx context.Context, arg ResolveRevocationPa
 const revokeConsentsGrantedBy = `-- name: RevokeConsentsGrantedBy :many
 UPDATE consents SET revoked_at = $1
 WHERE user_id = $2 AND kind = $3 AND revoked_at IS NULL AND granted_at <= $4
-RETURNING id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at
+RETURNING id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at, is_demo
 `
 
 type RevokeConsentsGrantedByParams struct {
@@ -428,6 +438,7 @@ func (q *Queries) RevokeConsentsGrantedBy(ctx context.Context, arg RevokeConsent
 			&i.SessionID,
 			&i.GrantedAt,
 			&i.RevokedAt,
+			&i.IsDemo,
 		); err != nil {
 			return nil, err
 		}

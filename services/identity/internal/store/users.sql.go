@@ -168,6 +168,7 @@ ON CONFLICT (phone) DO UPDATE SET
     created_at   = COALESCE($5::timestamptz, users.created_at),
     blocked_at   = NULL,
     updated_at   = $6::timestamptz
+WHERE users.is_demo OR NOT EXCLUDED.is_demo
 RETURNING id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at
 `
 
@@ -181,7 +182,9 @@ type UpsertSeedUserParams struct {
 }
 
 // Сид демо-пользователей: upsert по телефону. created_at не задан — при вставке now(),
-// при обновлении остаётся прежним. Блокировка снимается.
+// при обновлении остаётся прежним. Блокировка снимается. Существующего не-демо
+// пользователя сид демо не делает: is_demo false → true — 0 строк (pgx.ErrNoRows), сервис
+// отказывает.
 func (q *Queries) UpsertSeedUser(ctx context.Context, arg UpsertSeedUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, upsertSeedUser,
 		arg.Phone,

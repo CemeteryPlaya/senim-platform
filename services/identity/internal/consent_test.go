@@ -977,3 +977,117 @@ func TestSeedUsersConsent(t *testing.T) {
 		h.wantRefusal(err, connect.CodeInvalidArgument, bad.reason)
 	}
 }
+
+// TestDemoPurgeUsesRowFlag — признак демо берётся из записи, а не из текущего users.is_demo:
+// пометить настоящего человека демо задним числом (рабочая роль может UPDATE users) или
+// засеять его телефон как демо-персону — его согласия и заявки после очистки на месте.
+func TestDemoPurgeUsesRowFlag(t *testing.T) {
+	h := newHarness(t, nil)
+	ctx := context.Background()
+	person, token := h.client()
+	c := h.mustGrant(pdGrant(token, "2026-11-01"))
+	rev := h.mustRevoke(token)
+	intact := func(what string) {
+		t.Helper()
+		if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1`, person.ID); n != 1 {
+			t.Fatalf("%s: согласий %d, want 1", what, n)
+		}
+		if h.revocationRow(rev.GetId()).Status != revocationRequested {
+			t.Fatalf("%s: заявка тронута", what)
+		}
+	}
+	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1 AND is_demo`, person.ID); n != 0 {
+		t.Fatalf("согласие настоящего записано демо")
+	}
+
+	// (а) Рабочая роль помечает настоящего человека демо и зовёт очистку.
+	if _, err := h.pool.Exec(ctx, `UPDATE users SET is_demo = true WHERE id = $1`, person.ID); err != nil {
+		t.Fatal(err)
+	}
+	var deleted int64
+	if err := h.pool.QueryRow(ctx, `SELECT identity_purge_demo_consents()`).Scan(&deleted); err != nil {
+		t.Fatal(err)
+	}
+	intact("UPDATE users.is_demo + очистка")
+	if _, err := h.pool.Exec(ctx, `UPDATE users SET is_demo = false WHERE id = $1`, person.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Признак записи не подделать: вставка берёт его из users, изменение запрещено.
+	if _, err := h.pool.Exec(ctx,
+		`INSERT INTO consents (user_id, kind, version, text_sha256, purposes, channel, is_demo)
+		 VALUES ($1, 'PD_PROCESSING', 'x-1', $2, '{}', 'seed', true)`, person.ID, make([]byte, 32)); err != nil {
+		t.Fatal(err)
+	}
+	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1 AND is_demo`, person.ID); n != 0 {
+		t.Fatal("is_demo из запроса не проигнорирован")
+	}
+	_, err := h.pool.Exec(ctx, `UPDATE consents SET is_demo = true WHERE id = $1`, c.GetId())
+	wantImmutable(t, err, "UPDATE consents.is_demo")
+	_, err = h.pool.Exec(ctx, `UPDATE consent_revocations SET is_demo = true WHERE id = $1`, rev.GetId())
+	if code, msg := pgCode(err); code != "P0001" || !strings.Contains(msg, "revocation_immutable") {
+		t.Fatalf("UPDATE consent_revocations.is_demo: %v", err)
+	}
+	_, err = h.pool.Exec(ctx, `UPDATE consent_revocations SET user_id = $2 WHERE id = $1`, rev.GetId(), h.user([]string{"CLIENT"}, "CLIENT").ID)
+	if code, msg := pgCode(err); code != "P0001" || !strings.Contains(msg, "revocation_immutable") {
+		t.Fatalf("UPDATE consent_revocations.user_id: %v", err)
+	}
+	owner := ownerConn(t)
+	if _, err := owner.Exec(ctx, `DELETE FROM consents WHERE user_id = $1 AND version = 'x-1'`, person.ID); err == nil {
+		t.Fatal("удаление строки не-демо прошло")
+	}
+
+	// (б) Сид с телефоном настоящего пользователя как демо — отказ; сброс его не трогает.
+	_, err = h.seed(seedUser(person.Phone, roleClient, true, roleClient))
+	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+	if u, err := h.q.GetUserByID(ctx, person.ID); err != nil || u.IsDemo {
+		t.Fatalf("пользователь стал демо: %+v, %v", u, err)
+	}
+	if err := h.resetDemo(h.key()); err != nil {
+		t.Fatal(err)
+	}
+	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1`, person.ID); n != 2 {
+		t.Fatalf("после сброса согласий %d, want 2", n)
+	}
+	if h.revocationRow(rev.GetId()).Status != revocationRequested {
+		t.Fatal("после сброса заявка тронута")
+	}
+	// Опустить признак (демо → настоящий) сид может.
+	demoPhone := newPhone()
+	if _, err := h.seed(seedUser(demoPhone, roleClient, true, roleClient)); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := h.seed(seedUser(demoPhone, roleClient, false, roleClient)); err != nil || res.GetUsers()[0].GetIsDemo() {
+		t.Fatalf("демо → настоящий: %v, %v", res, err)
+	}
+
+	// (в) Демо-персона по-прежнему очищается; её записи — демо.
+	seeded := seedUser(newPhone(), roleClient, true, roleClient)
+	seeded.ConsentVersion, seeded.ConsentTextSha256 = "2026-11-01", textSum("ПДн 2026-11-01")
+	res, err := h.seed(seeded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	demoID := uuid.MustParse(res.GetUsers()[0].GetId())
+	demo := &identityv1.StartDemoSessionRequest{UserId: demoID.String()}
+	if _, err := h.startDemo(demo); err != nil {
+		t.Fatal(err)
+	}
+	h.mustRevoke(demo.GetSessionToken())
+	if n := h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1 AND is_demo`, demoID); n != 1 {
+		t.Fatalf("заявка демо без признака: %d", n)
+	}
+	if err := h.resetDemo(h.key()); err != nil {
+		t.Fatal(err)
+	}
+	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1`, demoID) + h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1`, demoID); n != 0 {
+		t.Fatalf("демо не очищено: %d", n)
+	}
+
+	// (г) TRUNCATE владельцем запрещён.
+	_, err = owner.Exec(ctx, `TRUNCATE consents`)
+	wantImmutable(t, err, "TRUNCATE владельцем")
+	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1`, person.ID); n != 2 {
+		t.Fatalf("после TRUNCATE согласий %d", n)
+	}
+}
