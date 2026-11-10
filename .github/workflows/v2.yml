@@ -71,6 +71,14 @@ jobs:
           go tool buf generate --template buf.gen.thirdparty.yaml
           git diff --exit-code
           test -z "$(git status --porcelain --untracked-files=all -- gen apps/web/src/gen)"
+      # Каждый sqlc-конфиг в репозитории (сейчас services/identity): пути в нём — от папки конфига.
+      - name: Код sqlc актуален
+        run: |
+          configs="$(git ls-files '*sqlc.yaml' '*sqlc.yml' '*sqlc.json')"
+          test -n "$configs"
+          for f in $configs; do go tool sqlc generate -f "$f"; done
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all -- services)"
 
   go:
     runs-on: ubuntu-latest
