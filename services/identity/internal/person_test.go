@@ -306,9 +306,16 @@ func TestRecordPersonSwappedCiphertext(t *testing.T) {
 	h.mustRecordPerson(tokenA, testFullName, freshIIN(t))
 	h.mustRecordPerson(tokenB, "Иван Петров", freshIIN(t))
 	rowA, _ := h.personRow(a.ID)
+	original, _ := h.personRow(b.ID)
 	if _, err := h.pool.Exec(context.Background(), `UPDATE persons SET iin_enc = $2 WHERE user_id = $1`, b.ID, rowA.IinEnc.String); err != nil {
 		t.Fatal(err)
 	}
+	// База общая для тестов пакета: испорченная строка мешала бы rewrap-pii.
+	t.Cleanup(func() {
+		if _, err := h.pool.Exec(context.Background(), `UPDATE persons SET iin_enc = $2 WHERE user_id = $1`, b.ID, original.IinEnc.String); err != nil {
+			t.Error(err)
+		}
+	})
 	rowB, _ := h.personRow(b.ID)
 	_, err := h.svc.cfg.PII.Open(rowB.IinEnc.String, personIINAAD(b.ID))
 	if !errors.Is(err, pii.ErrAuth) {

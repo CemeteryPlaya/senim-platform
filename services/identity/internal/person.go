@@ -96,13 +96,29 @@ func personOf(ctx context.Context, q *store.Queries, userID uuid.UUID) (store.Pe
 // recordAudit пишет в outbox событие аудита о пользователе (actor — он сам). before или
 // after == nil — поля нет. Значений ПДн в before/after не кладут.
 func recordAudit(ctx context.Context, tx pgx.Tx, user store.User, actorRole, action string, before, after any, now time.Time) error {
+	return writeAudit(ctx, tx, userActor(user, actorRole), user.ID.String(), action, before, after, now)
+}
+
+// auditActor — кто действует: пользователь (kind "user", id, активная роль) или сервис
+// (kind "service", id — имя вызывающего).
+type auditActor struct {
+	kind, id, role string
+}
+
+func userActor(user store.User, role string) auditActor {
+	return auditActor{kind: "user", id: user.ID.String(), role: role}
+}
+
+// writeAudit пишет в outbox событие аудита о пользователе entityID. before или after ==
+// nil — поля нет. Значений ПДн в before/after не кладут.
+func writeAudit(ctx context.Context, tx pgx.Tx, actor auditActor, entityID, action string, before, after any, now time.Time) error {
 	audit := &eventsv1.AuditEvent{
-		ActorKind:  "user",
-		ActorId:    user.ID.String(),
-		ActorRole:  actorRole,
+		ActorKind:  actor.kind,
+		ActorId:    actor.id,
+		ActorRole:  actor.role,
 		Action:     action,
 		EntityType: "user",
-		EntityId:   user.ID.String(),
+		EntityId:   entityID,
 		At:         timestamppb.New(now),
 	}
 	if before != nil {
@@ -342,7 +358,8 @@ func (s *Service) UpdateContacts(ctx context.Context, req *identityv1.UpdateCont
 }
 
 // GetProfile — чтение: личность своего аккаунта (ИИН — последними 4 символами) и сторона
-// сделки, если она есть (стороны — Task 7, пока пусто). Личности нет — пустая с user_id.
+// сделки, если она есть (реквизиты — последними 4 символами). Личности нет — пустая с
+// user_id; стороны нет — party пуст.
 func (s *Service) GetProfile(ctx context.Context, req *identityv1.GetProfileRequest) (*identityv1.GetProfileResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return nil, err
@@ -352,10 +369,20 @@ func (s *Service) GetProfile(ctx context.Context, req *identityv1.GetProfileRequ
 	if err != nil {
 		return nil, err
 	}
-	p, err := personOf(ctx, store.New(s.pool), user.ID)
+	q := store.New(s.pool)
+	p, err := personOf(ctx, q, user.ID)
 	if err != nil {
 		s.log.ErrorContext(ctx, op+": поиск личности", "err", err)
 		return nil, internalError()
 	}
-	return &identityv1.GetProfileResponse{Person: personProto(p)}, nil
+	resp := &identityv1.GetProfileResponse{Person: personProto(p)}
+	party, err := q.GetParty(ctx, user.ID)
+	switch {
+	case err == nil:
+		resp.Party = partyProto(party)
+	case !errors.Is(err, pgx.ErrNoRows):
+		s.log.ErrorContext(ctx, op+": поиск стороны", "err", err)
+		return nil, internalError()
+	}
+	return resp, nil
 }

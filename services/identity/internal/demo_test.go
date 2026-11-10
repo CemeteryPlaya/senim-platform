@@ -272,11 +272,12 @@ func TestResetDemoClearsLimits(t *testing.T) {
 	}
 	// Второй фактор оператора стенда: подтверждённый и начатый (Ruling E — повторный прогон
 	// e2e подключает TOTP заново).
-	_, opToken := h.operator()
+	enrolledOp, opToken := h.operator()
 	h.enrolled(opToken)
-	_, pendingToken := h.operator()
+	pendingOp, pendingToken := h.operator()
 	h.mustStart(pendingToken)
-	if n := h.count(`SELECT count(*) FROM mfa_factors`); n != 2 {
+	// База общая для тестов пакета (и для -count=2): считаются факторы этих двух операторов.
+	if n := h.count(`SELECT count(*) FROM mfa_factors WHERE user_id = ANY($1)`, []string{enrolledOp.ID.String(), pendingOp.ID.String()}); n != 2 {
 		t.Fatalf("факторов до сброса: %d", n)
 	}
 	usersBefore := h.count(`SELECT count(*) FROM users`)

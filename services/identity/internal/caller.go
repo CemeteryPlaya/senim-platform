@@ -17,3 +17,10 @@ func requireCaller(ctx context.Context, allowed ...string) error {
 	}
 	return rpcError(connect.CodePermissionDenied, "caller_forbidden", nil)
 }
+
+// callerOf — имя вызывающего сервиса (после requireCaller оно есть): действующее лицо
+// аудита, когда сессии пользователя нет.
+func callerOf(ctx context.Context) string {
+	name, _ := server.Caller(ctx)
+	return name
+}

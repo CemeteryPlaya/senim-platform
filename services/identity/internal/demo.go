@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"connectrpc.com/connect/v2"
 	"github.com/google/uuid"
@@ -49,6 +50,16 @@ type seedRow struct {
 	createdAt          pgtype.Timestamptz
 	// Личность (persons); пустое поле — не задано.
 	fullName, iin, instagram, email string
+	// Сторона (parties); nil — не задана.
+	party *seedParty
+}
+
+// seedParty — проверенная сторона сида: реквизиты, счёт выплаты (пусто — не указан) и
+// состояние KYC.
+type seedParty struct {
+	in         partyInput
+	payoutIBAN string
+	kycStatus  string
 }
 
 // hasPerson — в записи сида есть хотя бы одно поле личности.
@@ -82,6 +93,84 @@ func validateSeedPerson(u *identityv1.SeedUser, row *seedRow) error {
 	}
 	row.email = email
 	return nil
+}
+
+// validateSeedParty проверяет сторону сида теми же правилами, что ProvisionExecutor и
+// SetPayoutIban. Сторона — только у исполнителя (роль EXECUTOR в roles). ИП и самозанятый
+// без bin_iin работают по ИИН личности сида (как RegisterParty); его нет — person_missing.
+func validateSeedParty(sp *identityv1.SeedParty, row *seedRow) error {
+	if !slices.Contains(row.roles, executorRole) {
+		return invalidRequest()
+	}
+	own := sp.GetBinIin() == "" && sp.GetLegalForm() != identityv1.LegalForm_LEGAL_FORM_TOO
+	in, err := checkParty(sp.GetLegalForm(), sp.GetLegalName(), sp.GetBinIin(), sp.GetSignerFullName(), sp.GetSignerIin(), own)
+	if err != nil {
+		return err
+	}
+	if own {
+		if row.iin == "" {
+			return personMissing()
+		}
+		in.binIIN = row.iin
+	}
+	party := &seedParty{in: in, kycStatus: "NOT_SUBMITTED"}
+	if raw := sp.GetPayoutIban(); raw != "" {
+		iban, reason, ok := parseKzIban(raw)
+		if !ok {
+			return ibanInvalid(reason)
+		}
+		party.payoutIBAN = iban
+	}
+	if st := sp.GetKycStatus(); st != identityv1.KycStatus_KYC_STATUS_UNSPECIFIED {
+		name, known := identityv1.KycStatus_name[int32(st)]
+		if !known {
+			return invalidRequest()
+		}
+		party.kycStatus = strings.TrimPrefix(name, "KYC_STATUS_")
+	}
+	row.party = party
+	return nil
+}
+
+// seedPartyRow пишет сторону пользователя сида целиком (повтор сида перезаписывает её).
+// Номера — шифртекстом под текущим ключом; ИИН/БИН, занятый другим, — iin_taken. Время
+// подачи и проверки KYC — сейчас, если состояние их предполагает.
+func (s *Service) seedPartyRow(ctx context.Context, q *store.Queries, userID uuid.UUID, sp *seedParty, now pgtype.Timestamptz) error {
+	in := sp.in
+	binEnc, err := s.cfg.PII.Seal([]byte(in.binIIN), partyBinIINAAD(userID))
+	if err != nil {
+		return fmt.Errorf("шифрование ИИН/БИН: %w", err)
+	}
+	params := store.UpsertSeedPartyParams{
+		UserID: userID, LegalForm: in.legalForm, LegalName: in.legalName,
+		BinIinEnc: binEnc, BinIinHash: s.cfg.PIIIndex.Of(pii.DomainBINIIN, in.binIIN), BinIinLast4: pii.Last4(in.binIIN),
+		SignerFullName: text(in.signerName), KycStatus: sp.kycStatus, Now: now,
+	}
+	if in.signerIIN != "" {
+		enc, err := s.cfg.PII.Seal([]byte(in.signerIIN), partySignerIINAAD(userID))
+		if err != nil {
+			return fmt.Errorf("шифрование ИИН подписанта: %w", err)
+		}
+		params.SignerIinEnc, params.SignerIinHash, params.SignerIinLast4 = text(enc), s.signerHash(in), text(pii.Last4(in.signerIIN))
+	}
+	if sp.payoutIBAN != "" {
+		enc, err := s.cfg.PII.Seal([]byte(sp.payoutIBAN), partyPayoutIBANAAD(userID))
+		if err != nil {
+			return fmt.Errorf("шифрование IBAN: %w", err)
+		}
+		params.PayoutIbanEnc, params.PayoutIbanLast4 = text(enc), text(pii.Last4(sp.payoutIBAN))
+	}
+	if sp.kycStatus != "NOT_SUBMITTED" {
+		params.KycSubmittedAt = now
+	}
+	if sp.kycStatus == "VERIFIED" || sp.kycStatus == "REJECTED" {
+		params.KycReviewedAt = now
+	}
+	_, err = q.UpsertSeedParty(ctx, params)
+	if isUniqueViolation(err, partyBinIINConstraint) {
+		return iinTaken()
+	}
+	return err
 }
 
 // seedPerson пишет личность пользователя сида: заданные поля перезаписываются, остальные
@@ -146,6 +235,11 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 		if err := validateSeedPerson(u, &row); err != nil {
 			return nil, err
 		}
+		if sp := u.GetParty(); sp != nil {
+			if err := validateSeedParty(sp, &row); err != nil {
+				return nil, err
+			}
+		}
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -154,7 +248,8 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 // SeedUsers — upsert пользователей по телефону в одной транзакции: существующему
 // обновляются роли, роль по умолчанию, is_demo, created_at (если задан), блокировка
 // снимается; id остаётся прежним. Личность (full_name, iin, instagram, email) пишется,
-// если задано хотя бы одно поле. Ответ — в порядке запроса.
+// если задано хотя бы одно поле; сторона (party) — целиком, со счётом выплаты и состоянием
+// KYC. Ответ — в порядке запроса.
 //
 // Ни аудита, ни событий: это данные демо-стенда (DemoMode), не рабочие учётные записи.
 func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersRequest) (*identityv1.SeedUsersResponse, error) {
@@ -182,6 +277,11 @@ func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersReques
 			}
 			if r.hasPerson() {
 				if err := s.seedPerson(ctx, q, u.ID, r, now); err != nil {
+					return err
+				}
+			}
+			if r.party != nil {
+				if err := s.seedPartyRow(ctx, q, u.ID, r.party, now); err != nil {
 					return err
 				}
 			}

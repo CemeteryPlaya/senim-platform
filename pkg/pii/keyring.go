@@ -65,6 +65,13 @@ func NewKeyring(currentKID string, keks map[string][]byte) (*Keyring, error) {
 // Current — kid, которым шифруются новые значения.
 func (k *Keyring) Current() string { return k.current }
 
+// Has — есть ли ключ kid в наборе: шифртексты под ним читаются. Проверка при старте
+// сервиса — в базе нет kid, которого нет в PII_KEKS.
+func (k *Keyring) Has(kid string) bool {
+	_, ok := k.keks[kid]
+	return ok
+}
+
 // Seal шифрует plain новым случайным ключом данных и оборачивает его текущим KEK.
 // aad — место хранения: "identity.<таблица>.<поле>:<user_id>"; пустой — ErrEmptyAAD.
 func (k *Keyring) Seal(plain []byte, aad string) (string, error) {

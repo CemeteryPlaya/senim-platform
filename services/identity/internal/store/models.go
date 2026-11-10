@@ -46,6 +46,29 @@ type Outbox struct {
 	NextAttemptAt pgtype.Timestamptz
 }
 
+type Party struct {
+	UserID                 uuid.UUID
+	LegalForm              string
+	LegalName              string
+	BinIinEnc              string
+	BinIinHash             []byte
+	BinIinLast4            string
+	SignerFullName         pgtype.Text
+	SignerIinEnc           pgtype.Text
+	SignerIinHash          []byte
+	SignerIinLast4         pgtype.Text
+	PayoutIbanEnc          pgtype.Text
+	PayoutIbanLast4        pgtype.Text
+	KycStatus              string
+	KycRejectReason        pgtype.Text
+	KycSubmittedAt         pgtype.Timestamptz
+	KycReviewedAt          pgtype.Timestamptz
+	KycIDFileIds           []string
+	KycRegistrationFileIds []string
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+}
+
 type Person struct {
 	UserID    uuid.UUID
 	FullName  pgtype.Text

@@ -25,7 +25,7 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/services/identity"
 )
 
-const usage = "использование: identity serve | identity migrate | identity healthcheck | identity mfa-reset --phone <E.164>"
+const usage = "использование: identity serve | identity migrate | identity healthcheck | identity mfa-reset --phone <E.164> | identity rewrap-pii [--batch 500]"
 
 // healthcheckTimeout — сколько ждать ответа пробы; docker compose сам ограничивает проверку сверху.
 const healthcheckTimeout = 3 * time.Second
@@ -38,7 +38,7 @@ const mfaResetTimeout = 30 * time.Second
 // через логгер; значения секретов в них не попадают.
 func Main(ctx context.Context, args []string, src config.Source, stderr io.Writer) int {
 	log := logging.New(stderr, ServiceID, slog.LevelInfo)
-	if len(args) == 0 || (args[0] != "mfa-reset" && len(args) != 1) {
+	if len(args) == 0 || (args[0] != "mfa-reset" && args[0] != "rewrap-pii" && len(args) != 1) {
 		log.Error(usage)
 		return 2
 	}
@@ -52,6 +52,8 @@ func Main(ctx context.Context, args []string, src config.Source, stderr io.Write
 		err = Healthcheck(ctx, src)
 	case "mfa-reset":
 		err = MfaReset(ctx, src, log, args[1:])
+	case "rewrap-pii":
+		err = RewrapPII(ctx, src, log, args[1:])
 	default:
 		log.Error(usage, "command", args[0])
 		return 2
@@ -149,7 +151,9 @@ func newSender(provider string, log *slog.Logger) (OtpSender, error) {
 //	RequestOtp, VerifyOtp, Authenticate, SignOut, SignOutEverywhere,
 //	SwitchRole, GrantRole, StartDemoSession, SeedUsers, ResetDemo,
 //	StartTotpEnrollment, ConfirmTotpEnrollment, VerifySecondFactor,
-//	RecordPerson, UpdateContacts, GetProfile                       — только web
+//	RecordPerson, UpdateContacts, GetProfile, RegisterParty,
+//	ProvisionExecutor, SetPayoutIban, VerifySignerIin,
+//	RevealPartyDetails                                             — только web
 //	GetSigningKeys                                                 — Go-сервисы из tools/services
 //
 // Новый RPC без решения в этой таблице и в тесте не принимается.
@@ -173,6 +177,10 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 		return err
 	}
 	defer pool.Close()
+	// Ключ убран из PII_KEKS раньше перешифровки — сервис не стартует и называет kid.
+	if err := checkPIIKeys(ctx, pool, cfg.PII); err != nil {
+		return err
+	}
 
 	nc, err := natsx.Connect(cfg.NATS, ServiceID, log)
 	if err != nil {

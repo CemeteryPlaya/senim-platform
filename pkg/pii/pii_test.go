@@ -118,6 +118,13 @@ func TestOpenTampered(t *testing.T) {
 	})
 }
 
+func TestHas(t *testing.T) {
+	k := ring(t, "k2", "k1", "k2")
+	if !k.Has("k1") || !k.Has("k2") || k.Has("k3") || k.Has("") {
+		t.Fatal("Has: набор ключей k1, k2")
+	}
+}
+
 func TestOpenUnknownKID(t *testing.T) {
 	old := ring(t, "gone", "gone")
 	blob, err := old.Seal([]byte("x"), aadA)
