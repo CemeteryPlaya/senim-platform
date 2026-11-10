@@ -89,6 +89,34 @@ describe("requestOtp", () => {
 
     expect(e.code).toBe("RATE_LIMITED");
     expect(e.message).toMatch(/минуту/);
+    expect(callsOf("requestOtp")).toHaveLength(1); // отказ по делу не повторяется
+  });
+
+  it("ответ потерян после выдачи кода: повтор с тем же ключом, код один, без «слишком часто»", async () => {
+    identityFake.failNextAfterEffect();
+
+    const sent = await requestOtp({ phone: PHONE, ip: IP });
+
+    const [first, second] = callsOf("requestOtp");
+    expect(callsOf("requestOtp")).toHaveLength(2);
+    expect(second.idempotencyKey).toBe(first.idempotencyKey);
+    expect(sent.phone).toBe(PHONE);
+  });
+
+  it("DEADLINE_EXCEEDED тоже повторяется один раз", async () => {
+    identityFake.failNext(new ConnectError("deadline", Code.DeadlineExceeded));
+
+    await requestOtp({ phone: PHONE, ip: IP });
+
+    expect(callsOf("requestOtp")).toHaveLength(2);
+  });
+
+  it("повтор ровно один: второй обрыв подряд — «сервис недоступен»", async () => {
+    identityFake.failNextUnavailable();
+    identityFake.failNextUnavailable();
+
+    expect((await errorOf(requestOtp({ phone: PHONE, ip: IP }))).code).toBe("UNAVAILABLE");
+    expect(callsOf("requestOtp")).toHaveLength(2);
   });
 });
 
