@@ -96,6 +96,35 @@ func revocationRule(action string) revocationTransition {
 	return revocationTransition{}
 }
 
+// revocationReason — причина решения по правилу перехода: нужна — 3–500 символов после
+// обрезки пробелов (правило отказа KYC), не нужна — должна быть пустой; иначе
+// invalid_request.
+func revocationReason(rule revocationTransition, raw string) (string, error) {
+	if !rule.needsReason {
+		if raw != "" {
+			return "", invalidRequest()
+		}
+		return "", nil
+	}
+	r, ok := kycReason(raw)
+	if !ok {
+		return "", invalidRequest()
+	}
+	return r, nil
+}
+
+// revocationDecider — решает активная роль перехода (role_forbidden); операторская роль —
+// только с пройденным в этой сессии вторым фактором (mfa_required).
+func revocationDecider(rule revocationTransition, sess store.Session, user store.User) error {
+	if rule.by == "" || activeRole(user.Roles, user.DefaultRole, &sess.ActiveRole) != rule.by {
+		return roleForbidden()
+	}
+	if rule.by == mfaRole && !sess.MfaVerifiedAt.Valid {
+		return mfaRequired()
+	}
+	return nil
+}
+
 func consentVersionInvalid() error {
 	return rpcError(connect.CodeInvalidArgument, "consent_version_invalid", nil)
 }
@@ -171,6 +200,15 @@ func consentPurposes(raw []string) ([]string, bool) {
 		}
 	}
 	return out, true
+}
+
+// consentVersions — версии записей согласий по порядку (для аудита).
+func consentVersions(rows []store.Consent) []string {
+	out := make([]string, 0, len(rows))
+	for _, c := range rows {
+		out = append(out, c.Version)
+	}
+	return out
 }
 
 func consentProto(c store.Consent) *identityv1.Consent {
@@ -313,12 +351,13 @@ func (s *Service) GrantConsent(ctx context.Context, req *identityv1.GrantConsent
 	return resp, nil
 }
 
-// RevokeConsent — пользователь отзывает согласие на обработку ПДн: все действующие записи
-// этого вида отмечаются отозванными, появляется заявка REQUESTED со сроком 15 рабочих дней
-// по Алматы (событие ConsentRevocationRequested, аудит consent.revocation_requested).
-// Передача банку к сделке не отзывается (consent_not_revocable): она нужна для исполнения
-// договора. Действующего согласия нет — consent_missing. Открытая заявка уже есть
-// (согласие дали снова и снова отзывают) — та же заявка, без нового события.
+// RevokeConsent — пользователь отзывает согласие на обработку ПДн: появляется заявка
+// REQUESTED со сроком 15 рабочих дней по Алматы (событие ConsentRevocationRequested, аудит
+// consent.revocation_requested). Согласие остаётся действующим до решения оператора: по
+// закону в срок обработку прекращают или дают мотивированный отказ (ст. 8 п. 7), отзыв
+// отмечает ResolveConsentRevocation (COMPLETED). Передача банку к сделке не отзывается
+// (consent_not_revocable): она нужна для исполнения договора. Действующего согласия нет —
+// consent_missing. Открытая заявка уже есть — та же заявка, без события и аудита.
 func (s *Service) RevokeConsent(ctx context.Context, req *identityv1.RevokeConsentRequest) (*identityv1.RevokeConsentResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return nil, err
@@ -349,39 +388,39 @@ func (s *Service) RevokeConsent(ctx context.Context, req *identityv1.RevokeConse
 			return sessionInvalid()
 		}
 		q := store.New(tx)
-		revoked, err := q.RevokeActiveConsents(ctx, store.RevokeActiveConsentsParams{Now: ts(now), UserID: user.ID, Kind: kind})
+		active, err := q.ListActiveConsents(ctx, store.ListActiveConsentsParams{UserID: user.ID, Kind: kind})
 		if err != nil {
 			return err
 		}
-		if len(revoked) == 0 {
+		if len(active) == 0 {
 			return consentMissing()
 		}
+		// Под блокировкой пользователя: две заявки одновременно не появятся.
 		rev, err := q.GetOpenRevocation(ctx, store.GetOpenRevocationParams{UserID: user.ID, Kind: kind})
-		if errors.Is(err, pgx.ErrNoRows) {
-			rev, err = q.CreateRevocation(ctx, store.CreateRevocationParams{
-				UserID: user.ID, Kind: kind, RequestedAt: ts(now), DueAt: ts(revocationDue(now)),
-			})
-			if err != nil {
-				return err
-			}
-			if _, err := outbox.Add(ctx, tx, ServiceID, subjectConsentRevocationRequested, "senim.events.v1.ConsentRevocationRequested",
-				&eventsv1.ConsentRevocationRequested{
-					RevocationId: rev.ID.String(), UserId: user.ID.String(), Kind: req.GetKind(),
-					DueAt: timestamppb.New(rev.DueAt.Time),
-				}); err != nil {
-				return err
-			}
-		} else if err != nil {
+		if err == nil {
+			resp.Revocation = revocationProto(rev)
+			return nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		versions := make([]string, 0, len(revoked))
-		for _, c := range revoked {
-			versions = append(versions, c.Version)
+		rev, err = q.CreateRevocation(ctx, store.CreateRevocationParams{
+			UserID: user.ID, Kind: kind, RequestedAt: ts(now), DueAt: ts(revocationDue(now)),
+		})
+		if err != nil {
+			return err
+		}
+		if _, err := outbox.Add(ctx, tx, ServiceID, subjectConsentRevocationRequested, "senim.events.v1.ConsentRevocationRequested",
+			&eventsv1.ConsentRevocationRequested{
+				RevocationId: rev.ID.String(), UserId: user.ID.String(), Kind: req.GetKind(),
+				DueAt: timestamppb.New(rev.DueAt.Time),
+			}); err != nil {
+			return err
 		}
 		role := activeRole(locked.Roles, locked.DefaultRole, &sess.ActiveRole)
-		if err := recordAudit(ctx, tx, locked, role, "consent.revocation_requested",
-			consentAudit{Kind: kind, Versions: versions},
-			consentAudit{Kind: kind, RevocationID: rev.ID.String(), Status: rev.Status, DueAt: rev.DueAt.Time.UTC().Format(time.RFC3339)}, now); err != nil {
+		if err := recordAudit(ctx, tx, locked, role, "consent.revocation_requested", nil,
+			consentAudit{Kind: kind, Versions: consentVersions(active), RevocationID: rev.ID.String(), Status: rev.Status,
+				DueAt: rev.DueAt.Time.UTC().Format(time.RFC3339)}, now); err != nil {
 			return err
 		}
 		resp.Revocation = revocationProto(rev)
@@ -513,14 +552,17 @@ func (s *Service) ListConsentRevocations(ctx context.Context, req *identityv1.Li
 	return resp, nil
 }
 
-// ResolveConsentRevocation — решение оператора по заявке на отзыв: completed=true —
-// COMPLETED (обработка прекращена), иначе REFUSED с причиной 3–500 символов (invalid_request;
-// то же правило, что у отказа KYC). Переход — условный UPDATE по «ещё REQUESTED»: двойной
-// клик и два оператора одновременно дают одно решение, остальные — revocation_closed (и для
-// неизвестной заявки). Событие ConsentRevocationResolved и аудит
-// consent.revocation_completed / consent.revocation_refused — в одной транзакции с
-// изменением. Нужна сессия оператора с пройденным вторым фактором (role_forbidden,
-// mfa_required).
+// ResolveConsentRevocation — решение оператора по заявке на отзыв по таблице
+// revocationTransitions: completed=true — COMPLETED (обработка прекращена: действующие
+// согласия этого вида, данные не позже заявки, отмечаются отозванными в той же транзакции;
+// данное заново после заявки остаётся), иначе REFUSED (согласие не трогается). Причина —
+// когда её требует переход: 3–500 символов, то же правило, что у отказа KYC; у перехода без
+// причины непустая причина — тоже invalid_request. Решает активная роль перехода
+// (role_forbidden) с пройденным вторым фактором (mfa_required). Переход — условный UPDATE
+// по исходным статусам: двойной клик и два оператора одновременно дают одно решение,
+// остальные — revocation_closed (и для неизвестной заявки). Событие
+// ConsentRevocationResolved и аудит consent.revocation_completed /
+// consent.revocation_refused — в одной транзакции с изменением.
 func (s *Service) ResolveConsentRevocation(ctx context.Context, req *identityv1.ResolveConsentRevocationRequest) (*identityv1.ResolveConsentRevocationResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return nil, err
@@ -533,20 +575,19 @@ func (s *Service) ResolveConsentRevocation(ctx context.Context, req *identityv1.
 	if err != nil || len(req.GetRevocationId()) != 36 {
 		return nil, invalidRequest()
 	}
-	rule, reason := revocationRule(revocationActionComplete), ""
+	rule := revocationRule(revocationActionComplete)
 	if !req.GetCompleted() {
 		rule = revocationRule(revocationActionRefuse)
-		r, ok := kycReason(req.GetReason())
-		if !ok {
-			return nil, invalidRequest()
-		}
-		reason = r
+	}
+	reason, err := revocationReason(rule, req.GetReason())
+	if err != nil {
+		return nil, err
 	}
 	sess, operator, err := s.liveSession(ctx, op, req.GetSessionToken())
 	if err != nil {
 		return nil, err
 	}
-	if err := operatorWithMfa(sess, operator); err != nil {
+	if err := revocationDecider(rule, sess, operator); err != nil {
 		return nil, err
 	}
 	resp := &identityv1.ResolveConsentRevocationResponse{}
@@ -559,10 +600,11 @@ func (s *Service) ResolveConsentRevocation(ctx context.Context, req *identityv1.
 		if locked.ID != operator.ID {
 			return sessionInvalid()
 		}
-		if err := operatorWithMfa(sess, locked); err != nil {
+		if err := revocationDecider(rule, sess, locked); err != nil {
 			return err
 		}
-		rev, err := store.New(tx).ResolveRevocation(ctx, store.ResolveRevocationParams{
+		q := store.New(tx)
+		rev, err := q.ResolveRevocation(ctx, store.ResolveRevocationParams{
 			ToStatus: rule.to, Now: ts(now), DecidedBy: uuid.NullUUID{UUID: locked.ID, Valid: true},
 			Reason: text(reason), ID: id, AllowedFrom: rule.from,
 		})
@@ -572,13 +614,25 @@ func (s *Service) ResolveConsentRevocation(ctx context.Context, req *identityv1.
 		if err != nil {
 			return err
 		}
+		var revoked []store.Consent
+		if rule.to == revocationCompleted {
+			revoked, err = q.RevokeConsentsGrantedBy(ctx, store.RevokeConsentsGrantedByParams{
+				Now: ts(now), UserID: rev.UserID, Kind: rev.Kind, RequestedAt: rev.RequestedAt,
+			})
+			if err != nil {
+				return err
+			}
+		}
 		action := "consent.revocation_completed"
 		if rule.to == revocationRefused {
 			action = "consent.revocation_refused"
 		}
-		if err := writeAudit(ctx, tx, userActor(locked, mfaRole), rev.UserID.String(), action,
-			consentAudit{Kind: rev.Kind, RevocationID: rev.ID.String(), Status: revocationRequested},
-			consentAudit{Kind: rev.Kind, RevocationID: rev.ID.String(), Status: rev.Status, Reason: reason}, now); err != nil {
+		after := consentAudit{Kind: rev.Kind, RevocationID: rev.ID.String(), Status: rev.Status, Reason: reason}
+		if len(revoked) > 0 {
+			after.Versions = consentVersions(revoked)
+		}
+		if err := writeAudit(ctx, tx, userActor(locked, rule.by), rev.UserID.String(), action,
+			consentAudit{Kind: rev.Kind, RevocationID: rev.ID.String(), Status: revocationRequested}, after, now); err != nil {
 			return err
 		}
 		if _, err := outbox.Add(ctx, tx, ServiceID, subjectConsentRevocationResolved, "senim.events.v1.ConsentRevocationResolved",

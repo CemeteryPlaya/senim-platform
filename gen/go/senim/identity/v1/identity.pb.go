@@ -1743,7 +1743,7 @@ type AuthenticateResponse struct {
 	Session         *Session               `protobuf:"bytes,2,opt,name=session,proto3" json:"session,omitempty"`
 	AccessToken     string                 `protobuf:"bytes,3,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
 	AccessExpiresAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=access_expires_at,json=accessExpiresAt,proto3" json:"access_expires_at,omitempty"`
-	// Действующие согласия (без отозванных).
+	// Действующие согласия на обработку ПДн (без отозванных). Согласия банку к сделкам — HasConsents.
 	Consents      []*Consent `protobuf:"bytes,5,rep,name=consents,proto3" json:"consents,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

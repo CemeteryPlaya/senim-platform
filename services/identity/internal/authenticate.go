@@ -66,7 +66,7 @@ func sessionView(sess store.Session, user store.User) *identityv1.Session {
 }
 
 // Authenticate — чтение: по токену сессии возвращает пользователя, сессию, внутренний
-// токен и действующие (не отозванные) согласия. Неверный формат, неизвестный, отозванный, истёкший (срок или простой) токен и
+// токен и действующие (не отозванные) согласия на обработку ПДн. Неверный формат, неизвестный, отозванный, истёкший (срок или простой) токен и
 // заблокированный пользователь дают одно и то же: Unauthenticated / session_invalid.
 func (s *Service) Authenticate(ctx context.Context, req *identityv1.AuthenticateRequest) (*identityv1.AuthenticateResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
@@ -103,7 +103,9 @@ func (s *Service) Authenticate(ctx context.Context, req *identityv1.Authenticate
 		s.log.ErrorContext(ctx, "authenticate: внутренний токен", "err", err)
 		return nil, internalError()
 	}
-	consents, err := q.ListActiveConsents(ctx, user.ID)
+	// Только ПДн: по нему web решает, нужен ли экран согласия. Согласия банку по сделкам
+	// неотзываемы и копятся — их проверяет HasConsents.
+	consents, err := q.ListActiveConsents(ctx, store.ListActiveConsentsParams{UserID: user.ID, Kind: consentPD})
 	if err != nil {
 		s.log.ErrorContext(ctx, "authenticate: согласия", "err", err)
 		return nil, internalError()

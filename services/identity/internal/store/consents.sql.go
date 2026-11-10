@@ -180,12 +180,17 @@ func (q *Queries) InsertConsent(ctx context.Context, arg InsertConsentParams) (C
 }
 
 const listActiveConsents = `-- name: ListActiveConsents :many
-SELECT id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at FROM consents WHERE user_id = $1 AND revoked_at IS NULL ORDER BY granted_at, id
+SELECT id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at FROM consents WHERE user_id = $1 AND kind = $2 AND revoked_at IS NULL ORDER BY granted_at, id
 `
 
-// Действующие согласия (Authenticate), старые первыми.
-func (q *Queries) ListActiveConsents(ctx context.Context, userID uuid.UUID) ([]Consent, error) {
-	rows, err := q.db.Query(ctx, listActiveConsents, userID)
+type ListActiveConsentsParams struct {
+	UserID uuid.UUID
+	Kind   string
+}
+
+// Действующие согласия вида (Authenticate — ПДн; RevokeConsent), старые первыми.
+func (q *Queries) ListActiveConsents(ctx context.Context, arg ListActiveConsentsParams) ([]Consent, error) {
+	rows, err := q.db.Query(ctx, listActiveConsents, arg.UserID, arg.Kind)
 	if err != nil {
 		return nil, err
 	}
@@ -323,6 +328,19 @@ func (q *Queries) ListUserRevocations(ctx context.Context, userID uuid.UUID) ([]
 	return items, nil
 }
 
+const purgeDemoConsents = `-- name: PurgeDemoConsents :one
+SELECT identity_purge_demo_consents()::bigint AS deleted
+`
+
+// Сброс демо-стенда (ResetDemo): заявки и согласия демо-пользователей удаляет функция
+// владельца (0008) — у рабочей роли нет DELETE, а триггер пропускает только её.
+func (q *Queries) PurgeDemoConsents(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, purgeDemoConsents)
+	var deleted int64
+	err := row.Scan(&deleted)
+	return deleted, err
+}
+
 const resolveRevocation = `-- name: ResolveRevocation :one
 UPDATE consent_revocations SET
     status     = $1,
@@ -368,22 +386,29 @@ func (q *Queries) ResolveRevocation(ctx context.Context, arg ResolveRevocationPa
 	return i, err
 }
 
-const revokeActiveConsents = `-- name: RevokeActiveConsents :many
+const revokeConsentsGrantedBy = `-- name: RevokeConsentsGrantedBy :many
 UPDATE consents SET revoked_at = $1
-WHERE user_id = $2 AND kind = $3 AND revoked_at IS NULL
+WHERE user_id = $2 AND kind = $3 AND revoked_at IS NULL AND granted_at <= $4
 RETURNING id, user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id, granted_at, revoked_at
 `
 
-type RevokeActiveConsentsParams struct {
-	Now    pgtype.Timestamptz
-	UserID uuid.UUID
-	Kind   string
+type RevokeConsentsGrantedByParams struct {
+	Now         pgtype.Timestamptz
+	UserID      uuid.UUID
+	Kind        string
+	RequestedAt pgtype.Timestamptz
 }
 
-// Отметка отзыва всех действующих согласий вида (RevokeConsent): единственное изменение,
-// которое пропускает триггер неизменности.
-func (q *Queries) RevokeActiveConsents(ctx context.Context, arg RevokeActiveConsentsParams) ([]Consent, error) {
-	rows, err := q.db.Query(ctx, revokeActiveConsents, arg.Now, arg.UserID, arg.Kind)
+// Исполнение отзыва (ResolveConsentRevocation, COMPLETED): отметка отзыва действующих
+// согласий вида, данных не позже заявки; данное заново после заявки остаётся. Отметка —
+// единственное изменение, которое пропускает триггер неизменности.
+func (q *Queries) RevokeConsentsGrantedBy(ctx context.Context, arg RevokeConsentsGrantedByParams) ([]Consent, error) {
+	rows, err := q.db.Query(ctx, revokeConsentsGrantedBy,
+		arg.Now,
+		arg.UserID,
+		arg.Kind,
+		arg.RequestedAt,
+	)
 	if err != nil {
 		return nil, err
 	}

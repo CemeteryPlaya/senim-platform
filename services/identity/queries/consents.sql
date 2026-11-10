@@ -15,19 +15,20 @@ ON CONFLICT (user_id, kind, version, reference_id) WHERE revoked_at IS NULL DO N
 SELECT * FROM consents
 WHERE user_id = @user_id AND kind = @kind AND version = @version AND reference_id = @reference_id AND revoked_at IS NULL;
 
--- Действующие согласия (Authenticate), старые первыми.
+-- Действующие согласия вида (Authenticate — ПДн; RevokeConsent), старые первыми.
 -- name: ListActiveConsents :many
-SELECT * FROM consents WHERE user_id = $1 AND revoked_at IS NULL ORDER BY granted_at, id;
+SELECT * FROM consents WHERE user_id = @user_id AND kind = @kind AND revoked_at IS NULL ORDER BY granted_at, id;
 
 -- Все согласия с отозванными (ListMyConsents), старые первыми.
 -- name: ListUserConsents :many
 SELECT * FROM consents WHERE user_id = $1 ORDER BY granted_at, id;
 
--- Отметка отзыва всех действующих согласий вида (RevokeConsent): единственное изменение,
--- которое пропускает триггер неизменности.
--- name: RevokeActiveConsents :many
+-- Исполнение отзыва (ResolveConsentRevocation, COMPLETED): отметка отзыва действующих
+-- согласий вида, данных не позже заявки; данное заново после заявки остаётся. Отметка —
+-- единственное изменение, которое пропускает триггер неизменности.
+-- name: RevokeConsentsGrantedBy :many
 UPDATE consents SET revoked_at = @now
-WHERE user_id = @user_id AND kind = @kind AND revoked_at IS NULL
+WHERE user_id = @user_id AND kind = @kind AND revoked_at IS NULL AND granted_at <= @requested_at
 RETURNING *;
 
 -- Кто из пользователей дал действующее согласие вида к предмету (HasConsents).
@@ -64,3 +65,8 @@ SELECT * FROM consent_revocations WHERE status = 'REQUESTED' ORDER BY due_at, re
 -- Заявки пользователя (ListMyConsents), новые первыми.
 -- name: ListUserRevocations :many
 SELECT * FROM consent_revocations WHERE user_id = $1 ORDER BY requested_at DESC, id;
+
+-- Сброс демо-стенда (ResetDemo): заявки и согласия демо-пользователей удаляет функция
+-- владельца (0008) — у рабочей роли нет DELETE, а триггер пропускает только её.
+-- name: PurgeDemoConsents :one
+SELECT identity_purge_demo_consents()::bigint AS deleted;

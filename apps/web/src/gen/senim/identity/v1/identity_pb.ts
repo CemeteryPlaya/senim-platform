@@ -760,7 +760,7 @@ export type AuthenticateResponse = Message<"senim.identity.v1.AuthenticateRespon
   accessExpiresAt?: Timestamp | undefined;
 
   /**
-   * Действующие согласия (без отозванных).
+   * Действующие согласия на обработку ПДн (без отозванных). Согласия банку к сделкам — HasConsents.
    *
    * @generated from field: repeated senim.identity.v1.Consent consents = 5;
    */

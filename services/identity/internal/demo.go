@@ -399,7 +399,8 @@ func (s *Service) StartDemoSession(ctx context.Context, req *identityv1.StartDem
 
 // ResetDemo чистит одноразовое и временное состояние стенда: коды, счётчики лимитов,
 // сессии, вторые факторы операторов (повторный прогон e2e подключает TOTP заново, а не
-// упирается в mfa_already_enrolled) и сохранённые ответы идемпотентности (иначе повтор
+// упирается в mfa_already_enrolled), согласия и заявки на отзыв демо-пользователей (is_demo;
+// функция identity_purge_demo_consents, миграция 0008) и сохранённые ответы идемпотентности (иначе повтор
 // вернул бы вход с уже несуществующей сессией). Пользователи остаются. Только демо-стенд
 // (demoGate). Сам вызов остаётся идемпотентным:
 // запись его ключа в idempotency не удаляется, а ответ сохраняется после очистки.
@@ -424,6 +425,11 @@ func (s *Service) ResetDemo(ctx context.Context, req *identityv1.ResetDemoReques
 			return err
 		}
 		if _, err := q.DeleteAllMfaFactors(ctx); err != nil {
+			return err
+		}
+		// Согласия и заявки на отзыв демо-пользователей (иначе повторный e2e получает прежнюю
+		// заявку); SeedUsers после сброса пишет согласие сида заново.
+		if _, err := q.PurgeDemoConsents(ctx); err != nil {
 			return err
 		}
 		_, err := q.DeleteIdempotencyExcept(ctx, store.DeleteIdempotencyExceptParams{Method: method, Key: req.GetIdempotencyKey()})

@@ -404,18 +404,14 @@ func TestRevokeCreatesRequestWithDueDate(t *testing.T) {
 		t.Fatalf("строка заявки: %+v", row)
 	}
 
-	// Все действующие ПДн отозваны; передача банку не тронута.
+	// Заявка согласия не трогает: до решения оператора они действуют.
 	for _, c := range h.consentRows(u.ID) {
-		switch c.Kind {
-		case "PD_PROCESSING":
-			if !c.RevokedAt.Valid || !c.RevokedAt.Time.Equal(now) {
-				t.Fatalf("ПДн не отозвано: %+v", c)
-			}
-		case "BANK_TRANSFER":
-			if c.RevokedAt.Valid {
-				t.Fatalf("банк отозван: %+v", c)
-			}
+		if c.RevokedAt.Valid {
+			t.Fatalf("согласие отозвано до решения: %+v", c)
 		}
+	}
+	if got := h.mustAuth(token).GetConsents(); len(got) != 2 {
+		t.Fatalf("Authenticate после заявки: %v", got)
 	}
 	ev := h.revocationRequestedEvents(u.ID.String())
 	if len(ev) != 1 || ev[0].GetRevocationId() != rev.GetId() || ev[0].GetKind() != kindPD || !ev[0].GetDueAt().AsTime().Equal(wantDue) {
@@ -425,34 +421,39 @@ func TestRevokeCreatesRequestWithDueDate(t *testing.T) {
 		t.Fatalf("аудит %d, want 1", n)
 	}
 
-	// Повтор по ключу — тот же ответ; без действующего согласия — consent_missing.
+	// Повтор по ключу — тот же ответ; новый ключ при открытой заявке — та же заявка, без
+	// события и аудита.
 	again, err := h.revokeConsent(token, kindPD, key)
 	if err != nil || !proto.Equal(res, again) {
 		t.Fatalf("повтор: %v, %v", again, err)
 	}
-	_, err = h.revokeConsent(token, kindPD, h.key())
-	h.wantRefusal(err, connect.CodeFailedPrecondition, "consent_missing")
-
-	// Согласие дано снова и снова отозвано, пока прежняя заявка открыта: заявка та же.
-	h.mustGrant(pdGrant(token, "2026-11-01"))
-	second := h.mustRevoke(token)
-	if second.GetId() != rev.GetId() {
-		t.Fatalf("вторая заявка %s, want прежнюю %s", second.GetId(), rev.GetId())
+	h.clock.advance(time.Minute)
+	if second := h.mustRevoke(token); !proto.Equal(second, rev) {
+		t.Fatalf("вторая заявка %v, want прежнюю %v", second, rev)
 	}
 	if n := h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1`, u.ID); n != 1 {
 		t.Fatalf("заявок %d, want 1", n)
 	}
-	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1 AND kind = 'PD_PROCESSING' AND revoked_at IS NULL`, u.ID); n != 0 {
-		t.Fatalf("действующих ПДн %d, want 0", n)
+	if n := len(h.revocationRequestedEvents(u.ID.String())); n != 1 {
+		t.Fatalf("событий %d, want 1", n)
+	}
+	if n := len(h.auditOf(u.ID.String(), "consent.revocation_requested")); n != 1 {
+		t.Fatalf("аудит %d, want 1", n)
 	}
 
-	// ListMyConsents — все записи с отозванными и заявки.
+	// ListMyConsents — согласия действующие, заявка открыта.
 	mine, err := h.myConsents(token)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(mine.GetConsents()) != 4 || len(mine.GetRevocations()) != 1 || mine.GetRevocations()[0].GetId() != rev.GetId() {
+	if len(mine.GetConsents()) != 3 || len(mine.GetRevocations()) != 1 || mine.GetRevocations()[0].GetId() != rev.GetId() ||
+		mine.GetRevocations()[0].GetStatus() != identityv1.RevocationStatus_REVOCATION_STATUS_REQUESTED {
 		t.Fatalf("ListMyConsents: %v", mine)
+	}
+	for _, c := range mine.GetConsents() {
+		if c.GetRevokedAt() != nil {
+			t.Fatalf("ListMyConsents: отозвано %v", c)
+		}
 	}
 	_, err = h.myConsents(newToken(t))
 	h.wantRefusal(err, connect.CodeUnauthenticated, "session_invalid")
@@ -541,7 +542,11 @@ func TestRevocationTransitions(t *testing.T) {
 		for _, status := range []string{revocationRequested, revocationCompleted, revocationRefused} {
 			name := action + "/" + status
 			h.setRevocation(rev.GetId(), status, op.ID)
-			_, err := h.resolveRevocation(opToken, rev.GetId(), action == revocationActionComplete, "Неисполненная сделка", h.key())
+			reason := ""
+			if revocationRule(action).needsReason {
+				reason = "Неисполненная сделка"
+			}
+			_, err := h.resolveRevocation(opToken, rev.GetId(), action == revocationActionComplete, reason, h.key())
 			after := h.revocationRow(rev.GetId())
 			to, allowed := expectedRevocation[[2]string{action, status}]
 			if !allowed {
@@ -602,6 +607,8 @@ func TestResolveRevocation(t *testing.T) {
 		_, err = h.resolveRevocation(opToken, rev.GetId(), false, reason, h.key())
 		h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
 	}
+	_, err = h.resolveRevocation(opToken, rev.GetId(), true, "Исполнено", h.key())
+	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
 	_, err = h.resolveRevocation(opToken, "не-uuid", true, "", h.key())
 	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
 	_, err = h.resolveRevocation(opToken, uuid.NewString(), true, "", h.key())
@@ -632,6 +639,10 @@ func TestResolveRevocation(t *testing.T) {
 	audit := h.auditOf(u.ID.String(), "consent.revocation_refused")
 	if len(audit) != 1 || audit[0].GetActorId() != op.ID.String() || audit[0].GetActorRole() != mfaRole {
 		t.Fatalf("аудит: %v", audit)
+	}
+	// Отказ согласие не трогает.
+	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1 AND revoked_at IS NULL`, u.ID); n != 1 {
+		t.Fatalf("после отказа действующих %d, want 1", n)
 	}
 	// Закрытая заявка в очереди не видна.
 	queue, err = h.revocationQueue(opToken)
@@ -668,7 +679,11 @@ func TestResolveRevocationConcurrent(t *testing.T) {
 			if i%2 == 1 {
 				tok = op2
 			}
-			_, errs[i] = h.resolveRevocation(tok, rev.GetId(), i%3 != 0, "Неисполненная сделка", keys[i])
+			completed, reason := i%3 != 0, ""
+			if !completed {
+				reason = "Неисполненная сделка"
+			}
+			_, errs[i] = h.resolveRevocation(tok, rev.GetId(), completed, reason, keys[i])
 		})
 	}
 	wg.Wait()
@@ -717,9 +732,15 @@ func TestHasConsentsPerDeal(t *testing.T) {
 	check(kindBank, uuid.NewString())
 	check(kindPD, "", clientU.ID.String())
 
-	// Отозванное ПДн не действует.
-	h.mustRevoke(clientToken)
+	// Заявка на отзыв ПДн не снимает согласие; исполненная — снимает.
+	rev := h.mustRevoke(clientToken)
+	check(kindPD, "", clientU.ID.String())
+	_, opToken := h.mfaOperator()
+	if _, err := h.resolveRevocation(opToken, rev.GetId(), true, "", h.key()); err != nil {
+		t.Fatal(err)
+	}
 	check(kindPD, "")
+	check(kindBank, dealA, clientU.ID.String())
 
 	for _, bad := range []struct {
 		ids  []string
@@ -737,25 +758,166 @@ func TestHasConsentsPerDeal(t *testing.T) {
 	}
 }
 
+// TestAuthenticateReturnsActiveConsents — Authenticate отдаёт только действующие согласия на
+// ПДн (по ним web решает про экран согласия); согласия банку к сделкам — через HasConsents.
 func TestAuthenticateReturnsActiveConsents(t *testing.T) {
 	h := newHarness(t, nil)
+	_, opToken := h.mfaOperator()
 	_, token := h.client()
 	if c := h.mustAuth(token).GetConsents(); len(c) != 0 {
 		t.Fatalf("согласий %d, want 0", len(c))
 	}
-	deal := uuid.NewString()
 	pd := h.mustGrant(pdGrant(token, "2026-11-01"))
 	h.clock.advance(time.Second) // порядок — по времени согласия
-	bank := h.mustGrant(bankGrant(token, deal))
+	h.mustGrant(bankGrant(token, uuid.NewString()))
+	pd2 := h.mustGrant(pdGrant(token, "2026-12-01"))
 	got := h.mustAuth(token).GetConsents()
-	if len(got) != 2 || !proto.Equal(got[0], pd) || !proto.Equal(got[1], bank) {
+	if len(got) != 2 || !proto.Equal(got[0], pd) || !proto.Equal(got[1], pd2) {
 		t.Fatalf("согласия: %v", got)
 	}
-	h.mustRevoke(token)
-	got = h.mustAuth(token).GetConsents()
-	if len(got) != 1 || !proto.Equal(got[0], bank) {
-		t.Fatalf("после отзыва: %v", got)
+	// Заявка на отзыв — согласия ещё действуют; исполненная — нет.
+	rev := h.mustRevoke(token)
+	if got := h.mustAuth(token).GetConsents(); len(got) != 2 {
+		t.Fatalf("после заявки: %v", got)
 	}
+	h.clock.advance(time.Second)
+	if _, err := h.resolveRevocation(opToken, rev.GetId(), true, "", h.key()); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.mustAuth(token).GetConsents(); len(got) != 0 {
+		t.Fatalf("после исполнения отзыва: %v", got)
+	}
+}
+
+// TestResolveCompletedRevokesConsentsGrantedBefore — исполнение отзыва снимает согласия,
+// данные не позже заявки; согласие, данное заново после заявки, остаётся. Отказ не снимает
+// ничего.
+func TestResolveCompletedRevokesConsentsGrantedBefore(t *testing.T) {
+	h := newHarness(t, nil)
+	op, opToken := h.mfaOperator()
+	u, token := h.client()
+	old := h.mustGrant(pdGrant(token, "2026-11-01"))
+	rev := h.mustRevoke(token)
+	h.clock.advance(time.Minute)
+	fresh := h.mustGrant(pdGrant(token, "2026-12-01")) // дано заново после заявки
+	h.clock.advance(time.Minute)
+
+	res, err := h.resolveRevocation(opToken, rev.GetId(), true, "", h.key())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.GetRevocation().GetStatus() != identityv1.RevocationStatus_REVOCATION_STATUS_COMPLETED || res.GetRevocation().GetReason() != "" {
+		t.Fatalf("решение: %v", res)
+	}
+	for _, c := range h.consentRows(u.ID) {
+		switch c.ID.String() {
+		case old.GetId():
+			if !c.RevokedAt.Valid || !c.RevokedAt.Time.Equal(h.clock.now()) {
+				t.Fatalf("согласие до заявки не отозвано: %+v", c)
+			}
+		case fresh.GetId():
+			if c.RevokedAt.Valid {
+				t.Fatalf("согласие после заявки отозвано: %+v", c)
+			}
+		}
+	}
+	got := h.mustAuth(token).GetConsents()
+	if len(got) != 1 || got[0].GetId() != fresh.GetId() {
+		t.Fatalf("Authenticate: %v", got)
+	}
+	audit := h.auditOf(u.ID.String(), "consent.revocation_completed")
+	if len(audit) != 1 || audit[0].GetActorId() != op.ID.String() || !strings.Contains(audit[0].GetAfterJson(), "2026-11-01") ||
+		strings.Contains(audit[0].GetAfterJson(), "2026-12-01") {
+		t.Fatalf("аудит: %v", audit)
+	}
+
+	// Отказ: новая заявка по свежему согласию, отказ — согласие действует.
+	rev2 := h.mustRevoke(token)
+	if rev2.GetId() == rev.GetId() {
+		t.Fatal("закрытая заявка вернулась как открытая")
+	}
+	if _, err := h.resolveRevocation(opToken, rev2.GetId(), false, "Есть неисполненная сделка", h.key()); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.mustAuth(token).GetConsents(); len(got) != 1 || got[0].GetId() != fresh.GetId() {
+		t.Fatalf("после отказа: %v", got)
+	}
+}
+
+// TestResetDemoPurgesDemoConsents — сброс демо удаляет согласия и заявки демо-пользователей
+// (через функцию владельца), согласия настоящих пользователей остаются; обойти триггер
+// настройкой для не-демо нельзя.
+func TestResetDemoPurgesDemoConsents(t *testing.T) {
+	h := newHarness(t, nil)
+	phone := newPhone()
+	seeded := seedUser(phone, roleClient, true, roleClient)
+	seeded.ConsentVersion, seeded.ConsentTextSha256 = "2026-11-01", textSum("ПДн 2026-11-01")
+	res, err := h.seed(seeded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	demoID := uuid.MustParse(res.GetUsers()[0].GetId())
+	demo := &identityv1.StartDemoSessionRequest{UserId: demoID.String()}
+	if _, err := h.startDemo(demo); err != nil {
+		t.Fatal(err)
+	}
+	h.mustGrant(bankGrant(demo.GetSessionToken(), uuid.NewString()))
+	h.mustRevoke(demo.GetSessionToken())
+
+	person, realToken := h.client()
+	h.mustGrant(pdGrant(realToken, "2026-11-01"))
+	realRev := h.mustRevoke(realToken)
+
+	if err := h.resetDemo(h.key()); err != nil {
+		t.Fatalf("ResetDemo: %v", err)
+	}
+	if n := len(h.consentRows(demoID)); n != 0 {
+		t.Fatalf("согласий демо после сброса %d, want 0", n)
+	}
+	if n := h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1`, demoID); n != 0 {
+		t.Fatalf("заявок демо после сброса %d, want 0", n)
+	}
+	if n := len(h.consentRows(person.ID)); n != 1 {
+		t.Fatalf("согласий настоящего пользователя %d, want 1", n)
+	}
+	if h.revocationRow(realRev.GetId()).Status != revocationRequested {
+		t.Fatal("заявка настоящего пользователя тронута")
+	}
+	// Пересев возвращает согласие сида.
+	if _, err := h.seed(seeded); err != nil {
+		t.Fatal(err)
+	}
+	if rows := h.consentRows(demoID); len(rows) != 1 || rows[0].Channel != channelSeed {
+		t.Fatalf("после пересева: %+v", rows)
+	}
+
+	// Настройка сброса не открывает удаление согласий настоящих пользователей — даже владельцу.
+	ctx := context.Background()
+	owner := ownerConn(t)
+	if _, err := owner.Exec(ctx, `SELECT set_config('identity.demo_purge', 'on', false)`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = owner.Exec(ctx, `DELETE FROM consents WHERE user_id = $1`, person.ID)
+	wantImmutable(t, err, "DELETE не-демо с настройкой сброса")
+	// Рабочей роли настройка не даёт DELETE.
+	conn, err := h.pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SELECT set_config('identity.demo_purge', 'on', true)`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = conn.Exec(ctx, `DELETE FROM consents WHERE user_id = $1`, demoID)
+	if code, _ := pgCode(err); code != "42501" {
+		t.Fatalf("DELETE рабочей ролью: %v, want 42501", err)
+	}
+	// Без настройки владелец демо-согласие тоже не удалит.
+	if _, err := owner.Exec(ctx, `SELECT set_config('identity.demo_purge', 'off', false)`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = owner.Exec(ctx, `DELETE FROM consents WHERE user_id = $1`, demoID)
+	wantImmutable(t, err, "DELETE демо без настройки")
 }
 
 func TestSeedUsersConsent(t *testing.T) {

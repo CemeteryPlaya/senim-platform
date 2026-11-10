@@ -249,7 +249,7 @@ message AuthenticateResponse {
   Session session = 2;
   string access_token = 3;
   google.protobuf.Timestamp access_expires_at = 4;
-  // Действующие согласия (без отозванных).
+  // Действующие согласия на обработку ПДн (без отозванных). Согласия банку к сделкам — HasConsents.
   repeated Consent consents = 5;
 }
 
