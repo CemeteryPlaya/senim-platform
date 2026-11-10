@@ -66,8 +66,11 @@ func NewKeyring(currentKID string, keks map[string][]byte) (*Keyring, error) {
 func (k *Keyring) Current() string { return k.current }
 
 // Seal шифрует plain новым случайным ключом данных и оборачивает его текущим KEK.
-// aad — место хранения: "identity.<таблица>.<поле>:<user_id>".
+// aad — место хранения: "identity.<таблица>.<поле>:<user_id>"; пустой — ErrEmptyAAD.
 func (k *Keyring) Seal(plain []byte, aad string) (string, error) {
+	if aad == "" {
+		return "", ErrEmptyAAD
+	}
 	dek := make([]byte, keySize)
 	if _, err := rand.Read(dek); err != nil {
 		return "", fmt.Errorf("pii: data key: %w", err)
@@ -80,9 +83,12 @@ func (k *Keyring) Seal(plain []byte, aad string) (string, error) {
 	return k.wrap(dek, value, aad)
 }
 
-// Open расшифровывает шифртекст: ErrMalformed — не тот формат, ErrUnknownKID — kid нет
-// в наборе, ErrAuth — неверный AAD, ключ или подменённые байты.
+// Open расшифровывает шифртекст: ErrEmptyAAD — AAD пуст, ErrMalformed — не тот формат,
+// ErrUnknownKID — kid нет в наборе, ErrAuth — неверный AAD, ключ или подменённые байты.
 func (k *Keyring) Open(blob, aad string) ([]byte, error) {
+	if aad == "" {
+		return nil, ErrEmptyAAD
+	}
 	_, dek, value, err := k.unwrap(blob, aad)
 	if err != nil {
 		return nil, err
@@ -95,6 +101,9 @@ func (k *Keyring) Open(blob, aad string) ([]byte, error) {
 // меняется. false — шифртекст уже под текущим kid и возвращается как есть. Значение
 // проверяется целиком: испорченный шифртекст не переносится под новый ключ молча.
 func (k *Keyring) Rewrap(blob, aad string) (string, bool, error) {
+	if aad == "" {
+		return "", false, ErrEmptyAAD
+	}
 	kid, dek, value, err := k.unwrap(blob, aad)
 	if err != nil {
 		return "", false, err

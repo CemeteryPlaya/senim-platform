@@ -30,7 +30,7 @@ func TestSealOpenRoundTrip(t *testing.T) {
 	k := ring(t, "k1", "k1")
 	rapid.Check(t, func(rt *rapid.T) {
 		plain := rapid.SliceOf(rapid.Byte()).Draw(rt, "plain")
-		aad := rapid.String().Draw(rt, "aad")
+		aad := rapid.StringN(1, -1, -1).Draw(rt, "aad")
 		blob, err := k.Seal(plain, aad)
 		if err != nil {
 			rt.Fatal(err)
@@ -53,10 +53,29 @@ func TestOpenWrongAAD(t *testing.T) {
 	}
 	// Шифртекст пользователя A, перенесённый в строку пользователя B.
 	other := "identity.persons.iin_enc:22222222-2222-2222-2222-222222222222"
-	for _, aad := range []string{other, "", "identity.parties.bin_iin_enc:11111111-1111-1111-1111-111111111111"} {
+	for _, aad := range []string{other, "identity.parties.bin_iin_enc:11111111-1111-1111-1111-111111111111"} {
 		if _, err := k.Open(blob, aad); !errors.Is(err, ErrAuth) {
 			t.Errorf("Open with aad %q: err = %v, want ErrAuth", aad, err)
 		}
+	}
+}
+
+// Пустой AAD не привязывает значение к строке: защита от переноса шифртекста держится
+// на user_id в AAD, поэтому Seal, Open и Rewrap отказывают сразу.
+func TestEmptyAADRejected(t *testing.T) {
+	k := ring(t, "k1", "k1")
+	if _, err := k.Seal([]byte("x"), ""); !errors.Is(err, ErrEmptyAAD) {
+		t.Errorf("Seal: err = %v, want ErrEmptyAAD", err)
+	}
+	blob, err := k.Seal([]byte("x"), aadA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Open(blob, ""); !errors.Is(err, ErrEmptyAAD) {
+		t.Errorf("Open: err = %v, want ErrEmptyAAD", err)
+	}
+	if _, _, err := k.Rewrap(blob, ""); !errors.Is(err, ErrEmptyAAD) {
+		t.Errorf("Rewrap: err = %v, want ErrEmptyAAD", err)
 	}
 }
 

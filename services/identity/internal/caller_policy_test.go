@@ -146,8 +146,9 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 }
 
 // notYetImplemented — RPC плана 2б, чьи обработчики ещё не написаны: их отвечает заглушка
-// connect (Unimplemented) без проверки вызывающего. Обработчик, который появился, убирают
-// отсюда в той же задаче — и политика вызывающих начинает проверяться.
+// connect (Unimplemented) без проверки вызывающего. Тест требует от такого метода именно
+// Unimplemented: появился обработчик, а запись осталась — тест падает, запись убирают, и
+// политика вызывающих начинает проверяться.
 var notYetImplemented = map[string]bool{
 	"RevealPartyDetails":       true,
 	"GetProfile":               true,
@@ -195,6 +196,12 @@ func TestCallerPolicyCoversEveryRPC(t *testing.T) {
 			t.Fatalf("RPC %s: нет решения о вызывающих (таблица вызовов и allowedCallers)", name)
 		}
 		if notYetImplemented[name] {
+			_, err := idc(h, "web", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*struct{}, error) {
+				return nil, call(ctx, c)
+			})
+			if connect.CodeOf(err) != connect.CodeUnimplemented {
+				t.Errorf("%s: обработчик уже есть (err=%v) — уберите метод из notYetImplemented", name, err)
+			}
 			continue
 		}
 		allowed := allowedCallers(name)

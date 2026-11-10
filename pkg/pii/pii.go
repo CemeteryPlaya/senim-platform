@@ -27,6 +27,9 @@ var (
 	ErrMalformed = errors.New("pii: malformed ciphertext")
 	// ErrAuth — проверка подлинности не прошла: неверный ключ, AAD или подмена байтов.
 	ErrAuth = errors.New("pii: authentication failed")
+	// ErrEmptyAAD — AAD пуст: значение не привязано к строке (user_id), такой вызов —
+	// ошибка программы, а не данных.
+	ErrEmptyAAD = errors.New("pii: empty aad")
 )
 
 // Last4 возвращает последние 4 символа (руны) строки — то, что показывается в интерфейсе;
