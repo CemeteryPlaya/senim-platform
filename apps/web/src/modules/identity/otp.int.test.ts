@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Role as ProtoRole } from "@/gen/senim/identity/v1/identity_pb";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
+import { logger } from "@/platform/logger";
 import { makeExecutor } from "../../../test/factories";
 import { cookieOptions, cookieValue, freshBrowser, putCookie, setEnv } from "../../../test/factories/identity";
 import { signInAs } from "../../../test/factories/session";
@@ -253,5 +254,29 @@ describe("verifyOtp", () => {
     const code2 = await codeFor("+77000005502");
     await verifyOtp({ phone: "+77000005502", code: code2, ip: IP });
     expect(callsOf("signOut")).toHaveLength(0);
+  });
+
+  it("проекция не удалась после VerifyOtp: новая сессия отзывается, cookie нет, наружу — ошибка проекции", async () => {
+    await db.user.create({ data: { id: "legacy-cuid", phone: PHONE, role: "CLIENT", roles: ["CLIENT"] } });
+    const code = await codeFor();
+
+    const e = await errorOf(verifyOtp({ phone: PHONE, code, ip: IP }));
+
+    expect(e.code).toBe("CONFLICT");
+    const [verify] = callsOf("verifyOtp");
+    expect(callsOf("signOut")).toEqual([expect.objectContaining({ sessionToken: verify.sessionToken })]);
+    expect(identityFake.sessionCount()).toBe(0);
+    expect(COOKIE()).toBeUndefined();
+  });
+
+  it("сессия-сирота: сбой отзыва только в лог, наружу — исходная ошибка проекции", async () => {
+    await db.user.create({ data: { id: "legacy-cuid", phone: PHONE, role: "CLIENT", roles: ["CLIENT"] } });
+    const code = await codeFor();
+    vi.spyOn(identityFake.client, "signOut").mockRejectedValueOnce(new ConnectError("unavailable", Code.Unavailable));
+    const warn = vi.spyOn(logger, "warn");
+
+    expect((await errorOf(verifyOtp({ phone: PHONE, code, ip: IP }))).code).toBe("CONFLICT");
+    expect(warn).toHaveBeenCalledWith("identity.sign_out_orphan_failed", { reason: "unavailable" });
+    expect(COOKIE()).toBeUndefined();
   });
 });

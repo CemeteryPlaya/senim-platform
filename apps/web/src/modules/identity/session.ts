@@ -55,11 +55,16 @@ async function tokenOrUnauthenticated(): Promise<string> {
  * а сессия в любом случае кончится по простою; токен не того вида identity не принял бы, его не отправляем.
  */
 export async function signOutPrevious(previous: string | undefined): Promise<void> {
-  if (!previous || !TOKEN_SHAPE.test(previous)) return;
+  await signOutQuietly(previous, "identity.sign_out_previous_failed");
+}
+
+/** SignOut без ошибки наружу: сбой — только в лог (`event`, причина без токена). Токен не того вида не отправляется. */
+async function signOutQuietly(token: string | undefined, event: string): Promise<void> {
+  if (!token || !TOKEN_SHAPE.test(token)) return;
   try {
-    await identity().signOut({ sessionToken: previous, idempotencyKey: randomUUID() });
+    await identity().signOut({ sessionToken: token, idempotencyKey: randomUUID() });
   } catch (e) {
-    logger.warn("identity.sign_out_previous_failed", { reason: rpcErrorCode(e) ?? rpcStatusName(e) });
+    logger.warn(event, { reason: rpcErrorCode(e) ?? rpcStatusName(e) });
   }
 }
 
@@ -70,7 +75,8 @@ async function deleteSessionCookie(): Promise<void> {
 
 /**
  * Начало сессии по ответу identity на вход (VerifyOtp, StartDemoSession): проекция пользователя и cookie.
- * Срок жизни cookie — `expires_at` сессии identity.
+ * Срок жизни cookie — `expires_at` сессии identity. Проекция не удалась — сессия в identity уже создана, а cookie
+ * не будет: сессия отзывается (сбой отзыва — в лог), наружу уходит исходная ошибка проекции.
  */
 export async function beginSession(token: string, res: { user?: User; session?: Session }): Promise<{ user: User; session: Session }> {
   const { user, session } = res;
@@ -78,7 +84,12 @@ export async function beginSession(token: string, res: { user?: User; session?: 
     logger.error("identity.call_rejected", { reason: "login_without_user_or_session" });
     return fail.unavailable(ru.common.errors.generic);
   }
-  await projectUser(user);
+  try {
+    await projectUser(user);
+  } catch (e) {
+    await signOutQuietly(token, "identity.sign_out_orphan_failed");
+    throw e;
+  }
   (await cookies()).set(sessionCookieName(), token, { ...sessionCookieOptions(), expires: timestampDate(session.expiresAt) });
   return { user, session };
 }
