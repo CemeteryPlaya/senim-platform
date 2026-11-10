@@ -173,6 +173,22 @@ func LoadHealthcheck(src config.Source) (HealthcheckConfig, error) {
 	return c, nil
 }
 
+// MfaResetConfig — настройки подкоманды mfa-reset: рабочая роль базы.
+type MfaResetConfig struct {
+	Env    config.AppEnv
+	AppDSN string
+}
+
+// LoadMfaReset читает переменные mfa-reset.
+func LoadMfaReset(src config.Source) (MfaResetConfig, error) {
+	l := config.NewLoader(src)
+	c := MfaResetConfig{Env: l.Env(), AppDSN: l.PostgresDSN("IDENTITY_APP_DSN")}
+	if err := l.Err(); err != nil {
+		return MfaResetConfig{}, fmt.Errorf("конфигурация: %w", err)
+	}
+	return c, nil
+}
+
 // LoadMigrate читает переменные migrate.
 func LoadMigrate(src config.Source) (MigrateConfig, error) {
 	l := config.NewLoader(src)

@@ -52,6 +52,7 @@ type tok struct {
 	exp           *time.Time
 	noExp         bool
 	noKid, noRole bool
+	mfaAt         int64 // 0 — поля mfa_at нет
 }
 
 func mint(t *testing.T, priv ed25519.PrivateKey, mod func(*tok)) string {
@@ -74,6 +75,7 @@ func mint(t *testing.T, priv ed25519.PrivateKey, mod func(*tok)) string {
 	setIf("sid", c.sid, c.sid != "")
 	setIf("role", c.role, !c.noRole && c.role != "")
 	setIf("roles", c.roles, true)
+	setIf("mfa_at", c.mfaAt, c.mfaAt != 0)
 	setIf("exp", c.exp.Unix(), !c.noExp && c.exp != nil)
 	tk := jwt.NewWithClaims(c.method, m)
 	if c.kid != nil {
@@ -100,6 +102,63 @@ func TestVerifyAcceptsIdentityToken(t *testing.T) {
 		len(c.Roles) != 2 || c.Roles[0] != "CLIENT" || !c.ExpiresAt.Equal(now.Add(5*time.Minute)) {
 		t.Fatalf("claims = %+v", c)
 	}
+}
+
+// mfa_at — Unix-секунды проверки второго фактора; 0 или нет поля — нулевое время.
+func TestVerifyReadsMFAAt(t *testing.T) {
+	pub, priv := newKey(t)
+	at := now.Add(-2 * time.Minute)
+	c, err := verifier(pub).Verify(context.Background(), mint(t, priv, func(c *tok) { c.mfaAt = at.Unix() }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.MFAAt.Equal(at) {
+		t.Fatalf("MFAAt = %v, want %v", c.MFAAt, at)
+	}
+	c, err = verifier(pub).Verify(context.Background(), mint(t, priv, nil))
+	if err != nil || !c.MFAAt.IsZero() {
+		t.Fatalf("без mfa_at: %v %v", c.MFAAt, err)
+	}
+}
+
+// TestRequireRecentMFA — граница окна: ровно window проходит, на секунду больше — отказ;
+// без второго фактора — отказ.
+func TestRequireRecentMFA(t *testing.T) {
+	const window = 5 * time.Minute
+	at := now.Add(-window)
+	if err := authz.RequireRecentMFA(authz.Claims{MFA: true, MFAAt: at}, now, window); err != nil {
+		t.Fatalf("ровно window: %v", err)
+	}
+	if err := authz.RequireRecentMFA(authz.Claims{MFA: true, MFAAt: now}, now, window); err != nil {
+		t.Fatalf("только что: %v", err)
+	}
+	for name, c := range map[string]authz.Claims{
+		"window+1s":      {MFA: true, MFAAt: at.Add(-time.Second)},
+		"mfa=false":      {MFA: false, MFAAt: now},
+		"mfa без mfa_at": {MFA: true},
+	} {
+		err := authz.RequireRecentMFA(c, now, window)
+		var ce *connect.Error
+		if !errors.As(err, &ce) || ce.Code() != connect.CodePermissionDenied {
+			t.Errorf("%s: err = %v, want PermissionDenied", name, err)
+			continue
+		}
+		if got := detailCode(t, ce); got != "mfa_required" {
+			t.Errorf("%s: деталь %q, want mfa_required", name, got)
+		}
+	}
+}
+
+func detailCode(t *testing.T, ce *connect.Error) string {
+	t.Helper()
+	for _, d := range ce.Details() {
+		if msg, err := connectproto.UnmarshalErrorDetail(d); err == nil {
+			if ed, ok := msg.(*commonv1.ErrorDetail); ok {
+				return ed.GetCode()
+			}
+		}
+	}
+	return ""
 }
 
 func TestVerifyAcceptsAudienceAsString(t *testing.T) {

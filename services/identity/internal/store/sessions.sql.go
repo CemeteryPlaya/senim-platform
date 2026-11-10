@@ -26,7 +26,7 @@ func (q *Queries) DeleteAllSessions(ctx context.Context) (int64, error) {
 }
 
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
-SELECT id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at FROM sessions WHERE token_hash = $1
+SELECT id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at, mfa_verified_at FROM sessions WHERE token_hash = $1
 `
 
 func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (Session, error) {
@@ -42,6 +42,7 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (
 		&i.LastSeenAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.MfaVerifiedAt,
 	)
 	return i, err
 }
@@ -49,7 +50,7 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (
 const insertSession = `-- name: InsertSession :one
 INSERT INTO sessions (token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at)
 VALUES ($1, $2, $3, $4, $5, $5, $6)
-RETURNING id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at
+RETURNING id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at, mfa_verified_at
 `
 
 type InsertSessionParams struct {
@@ -81,12 +82,13 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) (S
 		&i.LastSeenAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.MfaVerifiedAt,
 	)
 	return i, err
 }
 
 const lockSessionByTokenHash = `-- name: LockSessionByTokenHash :one
-SELECT id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at FROM sessions WHERE token_hash = $1 FOR UPDATE
+SELECT id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at, mfa_verified_at FROM sessions WHERE token_hash = $1 FOR UPDATE
 `
 
 func (q *Queries) LockSessionByTokenHash(ctx context.Context, tokenHash []byte) (Session, error) {
@@ -102,6 +104,7 @@ func (q *Queries) LockSessionByTokenHash(ctx context.Context, tokenHash []byte) 
 		&i.LastSeenAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.MfaVerifiedAt,
 	)
 	return i, err
 }
@@ -152,7 +155,7 @@ func (q *Queries) SessionTokenExists(ctx context.Context, tokenHash []byte) (boo
 }
 
 const setSessionActiveRole = `-- name: SetSessionActiveRole :one
-UPDATE sessions SET active_role = $2 WHERE id = $1 RETURNING id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at
+UPDATE sessions SET active_role = $2 WHERE id = $1 RETURNING id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at, mfa_verified_at
 `
 
 type SetSessionActiveRoleParams struct {
@@ -173,6 +176,7 @@ func (q *Queries) SetSessionActiveRole(ctx context.Context, arg SetSessionActive
 		&i.LastSeenAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.MfaVerifiedAt,
 	)
 	return i, err
 }

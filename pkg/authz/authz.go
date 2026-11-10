@@ -39,6 +39,7 @@ const (
 
 	codeTokenInvalid    = "token_invalid"
 	codeAuthUnavailable = "auth_unavailable"
+	codeMFARequired     = "mfa_required"
 )
 
 var (
@@ -50,12 +51,14 @@ var (
 )
 
 // Claims — проверенное содержимое токена. Role — активная роль сессии, Roles — все роли.
+// MFA — в сессии пройден второй фактор, MFAAt — когда (нулевое время — не пройден).
 type Claims struct {
 	UserID    string
 	SessionID string
 	Role      string
 	Roles     []string
 	MFA       bool
+	MFAAt     time.Time
 	ExpiresAt time.Time
 }
 
@@ -64,7 +67,18 @@ type tokenClaims struct {
 	Role  string   `json:"role"`
 	Roles []string `json:"roles"`
 	MFA   bool     `json:"mfa"`
+	MFAAt int64    `json:"mfa_at"` // Unix-секунды; 0 — второго фактора не было
 	jwt.RegisteredClaims
+}
+
+// RequireRecentMFA — повторная проверка второго фактора для чувствительных действий
+// (денежные операции): второй фактор пройден не раньше window назад. Ровно window —
+// ещё можно. Иначе PermissionDenied с деталью mfa_required: web просит код и повторяет.
+func RequireRecentMFA(c Claims, now time.Time, window time.Duration) error {
+	if !c.MFA || c.MFAAt.IsZero() || now.Sub(c.MFAAt) > window {
+		return refuse(connect.CodePermissionDenied, codeMFARequired)
+	}
+	return nil
 }
 
 // Verifier проверяет токены по ключам из KeySource. Безопасен для параллельных вызовов,
@@ -137,10 +151,14 @@ func (v *Verifier) Verify(ctx context.Context, token string) (Claims, error) {
 	if claims.Subject == "" || claims.SID == "" || claims.Role == "" {
 		return Claims{}, invalid("missing claim")
 	}
-	return Claims{
+	out := Claims{
 		UserID: claims.Subject, SessionID: claims.SID, Role: claims.Role, Roles: claims.Roles,
 		MFA: claims.MFA, ExpiresAt: claims.ExpiresAt.Time,
-	}, nil
+	}
+	if claims.MFAAt > 0 {
+		out.MFAAt = time.Unix(claims.MFAAt, 0)
+	}
+	return out, nil
 }
 
 // key ищет ключ по kid; неизвестный kid — внеочередное обновление источника (если он

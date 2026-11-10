@@ -17,6 +17,14 @@ type Idempotency struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type MfaFactor struct {
+	UserID       uuid.UUID
+	SecretEnc    string
+	ConfirmedAt  pgtype.Timestamptz
+	LastUsedStep int64
+	CreatedAt    pgtype.Timestamptz
+}
+
 type OtpCode struct {
 	ID         uuid.UUID
 	Phone      string
@@ -45,15 +53,16 @@ type RateLimit struct {
 }
 
 type Session struct {
-	ID         uuid.UUID
-	TokenHash  []byte
-	UserID     uuid.UUID
-	ActiveRole string
-	UserAgent  string
-	CreatedAt  pgtype.Timestamptz
-	LastSeenAt pgtype.Timestamptz
-	ExpiresAt  pgtype.Timestamptz
-	RevokedAt  pgtype.Timestamptz
+	ID            uuid.UUID
+	TokenHash     []byte
+	UserID        uuid.UUID
+	ActiveRole    string
+	UserAgent     string
+	CreatedAt     pgtype.Timestamptz
+	LastSeenAt    pgtype.Timestamptz
+	ExpiresAt     pgtype.Timestamptz
+	RevokedAt     pgtype.Timestamptz
+	MfaVerifiedAt pgtype.Timestamptz
 }
 
 type User struct {

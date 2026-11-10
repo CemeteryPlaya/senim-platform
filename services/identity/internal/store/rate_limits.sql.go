@@ -49,3 +49,13 @@ func (q *Queries) HitRateLimit(ctx context.Context, arg HitRateLimitParams) (int
 	err := row.Scan(&count)
 	return count, err
 }
+
+const refundRateLimit = `-- name: RefundRateLimit :exec
+UPDATE rate_limits SET count = count - 1 WHERE key = $1 AND count > 0
+`
+
+// Возврат попытки: верный код не тратит лимит неверных (ключ mfa:<user_id>).
+func (q *Queries) RefundRateLimit(ctx context.Context, key string) error {
+	_, err := q.db.Exec(ctx, refundRateLimit, key)
+	return err
+}

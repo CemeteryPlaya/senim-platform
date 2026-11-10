@@ -96,12 +96,18 @@ func userProto(u store.User) *identityv1.User {
 	return out
 }
 
-// sessionProto — сессия в ответах сервиса; токена в ней нет.
+// sessionProto — сессия в ответах сервиса; токена в ней нет. Второй фактор нужен сессии
+// оператора; mfa_verified_at — когда он пройден в этой сессии (пусто — не пройден).
 func sessionProto(s store.Session, idle time.Duration) *identityv1.Session {
-	return &identityv1.Session{
+	out := &identityv1.Session{
 		Id:            s.ID.String(),
 		ActiveRole:    roleProto(s.ActiveRole),
 		ExpiresAt:     timestamppb.New(s.ExpiresAt.Time),
 		IdleExpiresAt: timestamppb.New(s.LastSeenAt.Time.Add(idle)),
+		MfaRequired:   s.ActiveRole == mfaRole,
 	}
+	if s.MfaVerifiedAt.Valid {
+		out.MfaVerifiedAt = timestamppb.New(s.MfaVerifiedAt.Time)
+	}
+	return out
 }

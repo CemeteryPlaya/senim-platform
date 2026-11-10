@@ -13,3 +13,7 @@ RETURNING count;
 -- Сброс стенда (ResetDemo): таблица rate_limits помечена senim:app-delete.
 -- name: DeleteAllRateLimits :execrows
 DELETE FROM rate_limits;
+
+-- Возврат попытки: верный код не тратит лимит неверных (ключ mfa:<user_id>).
+-- name: RefundRateLimit :exec
+UPDATE rate_limits SET count = count - 1 WHERE key = $1 AND count > 0;

@@ -25,6 +25,7 @@ import (
 	identityv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
 	"github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1/identityv1connect"
 	"github.com/CemeteryPlaya/senim-platform/pkg/logging"
+	"github.com/CemeteryPlaya/senim-platform/pkg/pii"
 	"github.com/CemeteryPlaya/senim-platform/pkg/server"
 	"github.com/CemeteryPlaya/senim-platform/pkg/tlsx"
 	"github.com/CemeteryPlaya/senim-platform/services/identity/internal/store"
@@ -32,6 +33,16 @@ import (
 
 // testHMACKey — ключ HMAC кодов в тестах (32 байта).
 var testHMACKey = bytes.Repeat([]byte{7}, 32)
+
+// testKeyring — ключи ПДн тестов: один KEK из 32 одинаковых байт.
+func testKeyring(t *testing.T) *pii.Keyring {
+	t.Helper()
+	k, err := pii.NewKeyring("test-1", map[string][]byte{"test-1": bytes.Repeat([]byte{5}, 32)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return k
+}
 
 // fakeClock — управляемые часы сервиса.
 type fakeClock struct {
@@ -127,6 +138,7 @@ func newHarness(t *testing.T, tune func(*ServeConfig)) *harness {
 		DemoMode: true, OTPProvider: "mock", OTPHMACKey: testHMACKey,
 		OTPDailyGlobalLimit: 500, OTPDailyPrefixLimit: 50,
 		TokenSigningKey: testSigningKey, TokenKID: testKID,
+		PII: testKeyring(t),
 	}
 	if tune != nil {
 		tune(&cfg)

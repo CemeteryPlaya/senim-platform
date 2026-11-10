@@ -152,9 +152,6 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 var notYetImplemented = map[string]bool{
 	"RevealPartyDetails":       true,
 	"GetProfile":               true,
-	"StartTotpEnrollment":      true,
-	"ConfirmTotpEnrollment":    true,
-	"VerifySecondFactor":       true,
 	"RecordPerson":             true,
 	"UpdateContacts":           true,
 	"RegisterParty":            true,

@@ -30,6 +30,7 @@ type accessClaims struct {
 	Role      string
 	Roles     []string
 	MFA       bool
+	MFAAt     time.Time // когда в сессии пройден второй фактор; нулевое — не пройден
 	ExpiresAt time.Time // верхняя граница срока (конец сессии); exp не позже неё
 }
 
@@ -38,6 +39,7 @@ type jwtClaims struct {
 	Role  string   `json:"role"`
 	Roles []string `json:"roles"`
 	MFA   bool     `json:"mfa"`
+	MFAAt int64    `json:"mfa_at"` // Unix-секунды; 0 — второй фактор не пройден
 	jwt.RegisteredClaims
 }
 
@@ -51,8 +53,12 @@ func signAccessToken(key ed25519.PrivateKey, kid string, c accessClaims, now tim
 	if !c.ExpiresAt.IsZero() && c.ExpiresAt.Before(exp) {
 		exp = c.ExpiresAt
 	}
+	var mfaAt int64
+	if c.MFA && !c.MFAAt.IsZero() {
+		mfaAt = c.MFAAt.Unix()
+	}
 	t := jwt.NewWithClaims(jwt.SigningMethodEdDSA, jwtClaims{
-		SID: c.SessionID, Role: c.Role, Roles: c.Roles, MFA: c.MFA,
+		SID: c.SessionID, Role: c.Role, Roles: c.Roles, MFA: c.MFA, MFAAt: mfaAt,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: tokenIssuer, Subject: c.UserID, Audience: jwt.ClaimStrings{tokenAudience},
 			IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(exp),
@@ -67,13 +73,15 @@ func signAccessToken(key ed25519.PrivateKey, kid string, c accessClaims, now tim
 }
 
 // issueAccessToken — внутренний токен для сессии: активная роль считается по правилу
-// activeRole, срок не дольше сессии.
+// activeRole, срок не дольше сессии; mfa и mfa_at — из mfa_verified_at сессии.
 func (s *Service) issueAccessToken(_ context.Context, user store.User, sess store.Session) (token string, expiresAt time.Time, err error) {
 	return signAccessToken(s.cfg.TokenSigningKey, s.cfg.TokenKID, accessClaims{
 		UserID:    user.ID.String(),
 		SessionID: sess.ID.String(),
 		Role:      activeRole(user.Roles, user.DefaultRole, &sess.ActiveRole),
 		Roles:     user.Roles,
+		MFA:       sess.MfaVerifiedAt.Valid,
+		MFAAt:     sess.MfaVerifiedAt.Time,
 		ExpiresAt: sess.ExpiresAt.Time,
 	}, s.now())
 }

@@ -36,7 +36,7 @@ func TestAuthzVerifiesIdentityToken(t *testing.T) {
 	}
 	sess := h.sessionRow(token)
 	if claims.UserID != u.ID.String() || claims.SessionID != sess.ID.String() || claims.Role != "EXECUTOR" ||
-		len(claims.Roles) != 2 || claims.Roles[0] != "CLIENT" || claims.Roles[1] != "EXECUTOR" || claims.MFA {
+		len(claims.Roles) != 2 || claims.Roles[0] != "CLIENT" || claims.Roles[1] != "EXECUTOR" || claims.MFA || !claims.MFAAt.IsZero() {
 		t.Fatalf("claims = %+v", claims)
 	}
 	if !claims.ExpiresAt.Equal(res.GetAccessExpiresAt().AsTime()) {

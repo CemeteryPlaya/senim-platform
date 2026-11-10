@@ -177,9 +177,17 @@ func (s *Service) StartDemoSession(ctx context.Context, req *identityv1.StartDem
 		if taken {
 			return rpcError(connect.CodeInvalidArgument, "session_token_invalid", nil)
 		}
-		sess, err := createSession(ctx, tx, user, req.GetSessionToken(), req.GetUserAgent(), asRole, s.now())
+		now := s.now()
+		sess, err := createSession(ctx, tx, user, req.GetSessionToken(), req.GetUserAgent(), asRole, now)
 		if err != nil {
 			return err
+		}
+		// Демо-оператор считается прошедшим вторую ступень: у демо-персон нет телефона с
+		// приложением, а сценарии оператора идут сразу в кабинет (только DEMO_MODE).
+		if sess.ActiveRole == mfaRole {
+			if sess, err = q.SetSessionMfaVerified(ctx, store.SetSessionMfaVerifiedParams{At: ts(now), ID: sess.ID}); err != nil {
+				return err
+			}
 		}
 		resp.User = userProto(user)
 		resp.Session = sessionProto(sess, idleTimeout)

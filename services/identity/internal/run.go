@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -24,7 +25,7 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/services/identity"
 )
 
-const usage = "использование: identity serve | identity migrate | identity healthcheck"
+const usage = "использование: identity serve | identity migrate | identity healthcheck | identity mfa-reset --phone <E.164>"
 
 // healthcheckTimeout — сколько ждать ответа пробы; docker compose сам ограничивает проверку сверху.
 const healthcheckTimeout = 3 * time.Second
@@ -33,7 +34,7 @@ const healthcheckTimeout = 3 * time.Second
 // через логгер; значения секретов в них не попадают.
 func Main(ctx context.Context, args []string, src config.Source, stderr io.Writer) int {
 	log := logging.New(stderr, ServiceID, slog.LevelInfo)
-	if len(args) != 1 {
+	if len(args) == 0 || (args[0] != "mfa-reset" && len(args) != 1) {
 		log.Error(usage)
 		return 2
 	}
@@ -45,6 +46,8 @@ func Main(ctx context.Context, args []string, src config.Source, stderr io.Write
 		err = Migrate(ctx, src, log)
 	case "healthcheck":
 		err = Healthcheck(ctx, src)
+	case "mfa-reset":
+		err = MfaReset(ctx, src, log, args[1:])
 	default:
 		log.Error(usage, "command", args[0])
 		return 2
@@ -70,6 +73,42 @@ func Migrate(ctx context.Context, src config.Source, log *slog.Logger) error {
 		return err
 	}
 	log.Info("миграции применены")
+	return nil
+}
+
+// MfaReset — подкоманда «identity mfa-reset --phone <E.164>»: владелец сбрасывает второй
+// фактор оператора (потерян телефон). Удаляет фактор, снимает отметку второго фактора со
+// всех сессий пользователя, пишет MfaReset и аудит (actor_kind "cli") в одной транзакции.
+// После сброса оператор подключает TOTP заново при следующем входе. Работает рабочей
+// ролью (IDENTITY_APP_DSN); телефон в лог не пишется.
+func MfaReset(ctx context.Context, src config.Source, log *slog.Logger, args []string) error {
+	fs := flag.NewFlagSet("mfa-reset", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	rawPhone := fs.String("phone", "", "телефон оператора в E.164")
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("mfa-reset: %w", err)
+	}
+	if fs.NArg() != 0 {
+		return errors.New("mfa-reset: лишние аргументы")
+	}
+	phone, ok := parsePhone(*rawPhone)
+	if !ok {
+		return errors.New("mfa-reset: --phone: нужен мобильный номер РК (+77001234567)")
+	}
+	cfg, err := LoadMfaReset(src)
+	if err != nil {
+		return err
+	}
+	pool, err := dbx.Connect(ctx, cfg.AppDSN, ServiceID, 1)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	userID, err := resetMfa(ctx, pool, phone, time.Now())
+	if err != nil {
+		return err
+	}
+	log.Info("второй фактор сброшен", "user_id", userID.String())
 	return nil
 }
 
@@ -102,7 +141,8 @@ func newSender(provider string, log *slog.Logger) (OtpSender, error) {
 // requireCaller; тест TestCallerPolicyCoversEveryRPC обходит все RPC дескриптора):
 //
 //	RequestOtp, VerifyOtp, Authenticate, SignOut, SignOutEverywhere,
-//	SwitchRole, GrantRole, StartDemoSession, SeedUsers, ResetDemo  — только web
+//	SwitchRole, GrantRole, StartDemoSession, SeedUsers, ResetDemo,
+//	StartTotpEnrollment, ConfirmTotpEnrollment, VerifySecondFactor — только web
 //	GetSigningKeys                                                 — Go-сервисы из tools/services
 //
 // Новый RPC без решения в этой таблице и в тесте не принимается.
