@@ -427,3 +427,81 @@ func TestGrantRoleArgumentsAndSession(t *testing.T) {
 		h.wantRefusal(err, connect.CodeUnauthenticated, "session_invalid")
 	}
 }
+
+// --- Ограничения схемы и долг плана 2 ---
+
+func TestUsersRejectDuplicateRoles(t *testing.T) {
+	_, q := migratedDB(t)
+	_, err := createUser(q, []string{"CLIENT", "CLIENT"}, "CLIENT")
+	requireCheckViolation(t, err, "users_roles_distinct")
+}
+
+func TestSessionsRejectUnknownRole(t *testing.T) {
+	pool, q := migratedDB(t)
+	u, err := createUser(q, []string{"CLIENT"}, "CLIENT")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = pool.Exec(context.Background(), `INSERT INTO sessions (token_hash, user_id, active_role, expires_at)
+		VALUES ($1, $2, 'ADMIN', now() + interval '1 hour')`, []byte(newToken(t)), u.ID)
+	requireCheckViolation(t, err, "sessions_active_role_known")
+}
+
+func (h *harness) block(u store.User) {
+	h.t.Helper()
+	if _, err := h.pool.Exec(context.Background(), `UPDATE users SET blocked_at = now() WHERE id = $1`, u.ID); err != nil {
+		h.t.Fatal(err)
+	}
+}
+
+// Заблокированный пользователь теряет доступ сразу: сессия для него недействительна
+// (user_blocked отдаёт только вход по OTP).
+func TestSwitchRoleBlockedUser(t *testing.T) {
+	h := newHarness(t, nil)
+	u := h.dual()
+	token := h.session(u)
+	h.block(u)
+	_, err := h.switchRole(token, roleClient, h.key())
+	h.wantRefusal(err, connect.CodeUnauthenticated, "session_invalid")
+	if len(h.switches(u.ID.String())) != 0 {
+		t.Fatal("отказ оставил событие")
+	}
+}
+
+func TestGrantRoleBlockedUser(t *testing.T) {
+	h := newHarness(t, nil)
+	u := h.user([]string{"CLIENT"}, "CLIENT")
+	token := h.session(u)
+	h.block(u)
+	_, err := h.grantRole(token, roleExecutor, h.key())
+	h.wantRefusal(err, connect.CodeUnauthenticated, "session_invalid")
+	if len(h.grants(u.ID.String())) != 0 {
+		t.Fatal("отказ оставил событие")
+	}
+}
+
+func TestGrantRoleRevokedSession(t *testing.T) {
+	h := newHarness(t, nil)
+	u := h.user([]string{"CLIENT"}, "CLIENT")
+	token := h.session(u)
+	if _, err := h.signOut(token, h.key()); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.grantRole(token, roleExecutor, h.key())
+	h.wantRefusal(err, connect.CodeUnauthenticated, "session_invalid")
+	if len(h.grants(u.ID.String())) != 0 {
+		t.Fatal("отказ оставил событие")
+	}
+}
+
+func TestGrantRoleIdleSession(t *testing.T) {
+	h := newHarness(t, nil)
+	u := h.user([]string{"CLIENT"}, "CLIENT")
+	token := h.session(u)
+	h.setLastSeen(token, h.clock.now().Add(-idleTimeout))
+	_, err := h.grantRole(token, roleExecutor, h.key())
+	h.wantRefusal(err, connect.CodeUnauthenticated, "session_invalid")
+	if len(h.grants(u.ID.String())) != 0 {
+		t.Fatal("отказ оставил событие")
+	}
+}
