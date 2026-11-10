@@ -244,6 +244,348 @@ func (x *OtpGlobalLimitReached) GetDate() *timestamppb.Timestamp {
 	return nil
 }
 
+// MfaEnrolled — оператор подключил второй фактор.
+type MfaEnrolled struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MfaEnrolled) Reset() {
+	*x = MfaEnrolled{}
+	mi := &file_senim_events_v1_identity_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MfaEnrolled) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MfaEnrolled) ProtoMessage() {}
+
+func (x *MfaEnrolled) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_events_v1_identity_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MfaEnrolled.ProtoReflect.Descriptor instead.
+func (*MfaEnrolled) Descriptor() ([]byte, []int) {
+	return file_senim_events_v1_identity_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *MfaEnrolled) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+// MfaReset — второй фактор оператора сброшен.
+type MfaReset struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MfaReset) Reset() {
+	*x = MfaReset{}
+	mi := &file_senim_events_v1_identity_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MfaReset) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MfaReset) ProtoMessage() {}
+
+func (x *MfaReset) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_events_v1_identity_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MfaReset.ProtoReflect.Descriptor instead.
+func (*MfaReset) Descriptor() ([]byte, []int) {
+	return file_senim_events_v1_identity_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *MfaReset) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+// KycReviewed — оператор принял решение по проверке документов.
+type KycReviewed struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status        v1.KycStatus           `protobuf:"varint,2,opt,name=status,proto3,enum=senim.identity.v1.KycStatus" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KycReviewed) Reset() {
+	*x = KycReviewed{}
+	mi := &file_senim_events_v1_identity_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KycReviewed) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KycReviewed) ProtoMessage() {}
+
+func (x *KycReviewed) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_events_v1_identity_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KycReviewed.ProtoReflect.Descriptor instead.
+func (*KycReviewed) Descriptor() ([]byte, []int) {
+	return file_senim_events_v1_identity_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *KycReviewed) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *KycReviewed) GetStatus() v1.KycStatus {
+	if x != nil {
+		return x.Status
+	}
+	return v1.KycStatus(0)
+}
+
+// ConsentGranted — пользователь дал согласие.
+type ConsentGranted struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Kind          v1.ConsentKind         `protobuf:"varint,2,opt,name=kind,proto3,enum=senim.identity.v1.ConsentKind" json:"kind,omitempty"`
+	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	ReferenceId   string                 `protobuf:"bytes,4,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConsentGranted) Reset() {
+	*x = ConsentGranted{}
+	mi := &file_senim_events_v1_identity_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConsentGranted) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConsentGranted) ProtoMessage() {}
+
+func (x *ConsentGranted) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_events_v1_identity_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConsentGranted.ProtoReflect.Descriptor instead.
+func (*ConsentGranted) Descriptor() ([]byte, []int) {
+	return file_senim_events_v1_identity_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ConsentGranted) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ConsentGranted) GetKind() v1.ConsentKind {
+	if x != nil {
+		return x.Kind
+	}
+	return v1.ConsentKind(0)
+}
+
+func (x *ConsentGranted) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ConsentGranted) GetReferenceId() string {
+	if x != nil {
+		return x.ReferenceId
+	}
+	return ""
+}
+
+// ConsentRevocationRequested — подана заявка на отзыв согласия.
+type ConsentRevocationRequested struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RevocationId  string                 `protobuf:"bytes,1,opt,name=revocation_id,json=revocationId,proto3" json:"revocation_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Kind          v1.ConsentKind         `protobuf:"varint,3,opt,name=kind,proto3,enum=senim.identity.v1.ConsentKind" json:"kind,omitempty"`
+	DueAt         *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=due_at,json=dueAt,proto3" json:"due_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConsentRevocationRequested) Reset() {
+	*x = ConsentRevocationRequested{}
+	mi := &file_senim_events_v1_identity_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConsentRevocationRequested) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConsentRevocationRequested) ProtoMessage() {}
+
+func (x *ConsentRevocationRequested) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_events_v1_identity_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConsentRevocationRequested.ProtoReflect.Descriptor instead.
+func (*ConsentRevocationRequested) Descriptor() ([]byte, []int) {
+	return file_senim_events_v1_identity_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ConsentRevocationRequested) GetRevocationId() string {
+	if x != nil {
+		return x.RevocationId
+	}
+	return ""
+}
+
+func (x *ConsentRevocationRequested) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ConsentRevocationRequested) GetKind() v1.ConsentKind {
+	if x != nil {
+		return x.Kind
+	}
+	return v1.ConsentKind(0)
+}
+
+func (x *ConsentRevocationRequested) GetDueAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DueAt
+	}
+	return nil
+}
+
+// ConsentRevocationResolved — заявка на отзыв согласия закрыта.
+type ConsentRevocationResolved struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RevocationId  string                 `protobuf:"bytes,1,opt,name=revocation_id,json=revocationId,proto3" json:"revocation_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status        v1.RevocationStatus    `protobuf:"varint,3,opt,name=status,proto3,enum=senim.identity.v1.RevocationStatus" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConsentRevocationResolved) Reset() {
+	*x = ConsentRevocationResolved{}
+	mi := &file_senim_events_v1_identity_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConsentRevocationResolved) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConsentRevocationResolved) ProtoMessage() {}
+
+func (x *ConsentRevocationResolved) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_events_v1_identity_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConsentRevocationResolved.ProtoReflect.Descriptor instead.
+func (*ConsentRevocationResolved) Descriptor() ([]byte, []int) {
+	return file_senim_events_v1_identity_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ConsentRevocationResolved) GetRevocationId() string {
+	if x != nil {
+		return x.RevocationId
+	}
+	return ""
+}
+
+func (x *ConsentRevocationResolved) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ConsentRevocationResolved) GetStatus() v1.RevocationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return v1.RevocationStatus(0)
+}
+
 var File_senim_events_v1_identity_proto protoreflect.FileDescriptor
 
 const file_senim_events_v1_identity_proto_rawDesc = "" +
@@ -261,7 +603,28 @@ const file_senim_events_v1_identity_proto_rawDesc = "" +
 	"\x02to\x18\x03 \x01(\x0e2\x17.senim.identity.v1.RoleR\x02to\"]\n" +
 	"\x15OtpGlobalLimitReached\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x03R\x05limit\x12.\n" +
-	"\x04date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04dateB\xcb\x01\n" +
+	"\x04date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04date\"&\n" +
+	"\vMfaEnrolled\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"#\n" +
+	"\bMfaReset\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\\\n" +
+	"\vKycReviewed\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x124\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x1c.senim.identity.v1.KycStatusR\x06status\"\x9a\x01\n" +
+	"\x0eConsentGranted\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x122\n" +
+	"\x04kind\x18\x02 \x01(\x0e2\x1e.senim.identity.v1.ConsentKindR\x04kind\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12!\n" +
+	"\freference_id\x18\x04 \x01(\tR\vreferenceId\"\xc1\x01\n" +
+	"\x1aConsentRevocationRequested\x12#\n" +
+	"\rrevocation_id\x18\x01 \x01(\tR\frevocationId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x122\n" +
+	"\x04kind\x18\x03 \x01(\x0e2\x1e.senim.identity.v1.ConsentKindR\x04kind\x121\n" +
+	"\x06due_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x05dueAt\"\x96\x01\n" +
+	"\x19ConsentRevocationResolved\x12#\n" +
+	"\rrevocation_id\x18\x01 \x01(\tR\frevocationId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12;\n" +
+	"\x06status\x18\x03 \x01(\x0e2#.senim.identity.v1.RevocationStatusR\x06statusB\xcb\x01\n" +
 	"\x13com.senim.events.v1B\rIdentityProtoP\x01ZGgithub.com/CemeteryPlaya/senim-platform/gen/go/senim/events/v1;eventsv1\xa2\x02\x03SEX\xaa\x02\x0fSenim.Events.V1\xca\x02\x0fSenim\\Events\\V1\xe2\x02\x1bSenim\\Events\\V1\\GPBMetadata\xea\x02\x11Senim::Events::V1b\x06proto3"
 
 var (
@@ -276,26 +639,40 @@ func file_senim_events_v1_identity_proto_rawDescGZIP() []byte {
 	return file_senim_events_v1_identity_proto_rawDescData
 }
 
-var file_senim_events_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_senim_events_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_senim_events_v1_identity_proto_goTypes = []any{
-	(*UserRegistered)(nil),        // 0: senim.events.v1.UserRegistered
-	(*RoleGranted)(nil),           // 1: senim.events.v1.RoleGranted
-	(*RoleSwitched)(nil),          // 2: senim.events.v1.RoleSwitched
-	(*OtpGlobalLimitReached)(nil), // 3: senim.events.v1.OtpGlobalLimitReached
-	(v1.Role)(0),                  // 4: senim.identity.v1.Role
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*UserRegistered)(nil),             // 0: senim.events.v1.UserRegistered
+	(*RoleGranted)(nil),                // 1: senim.events.v1.RoleGranted
+	(*RoleSwitched)(nil),               // 2: senim.events.v1.RoleSwitched
+	(*OtpGlobalLimitReached)(nil),      // 3: senim.events.v1.OtpGlobalLimitReached
+	(*MfaEnrolled)(nil),                // 4: senim.events.v1.MfaEnrolled
+	(*MfaReset)(nil),                   // 5: senim.events.v1.MfaReset
+	(*KycReviewed)(nil),                // 6: senim.events.v1.KycReviewed
+	(*ConsentGranted)(nil),             // 7: senim.events.v1.ConsentGranted
+	(*ConsentRevocationRequested)(nil), // 8: senim.events.v1.ConsentRevocationRequested
+	(*ConsentRevocationResolved)(nil),  // 9: senim.events.v1.ConsentRevocationResolved
+	(v1.Role)(0),                       // 10: senim.identity.v1.Role
+	(*timestamppb.Timestamp)(nil),      // 11: google.protobuf.Timestamp
+	(v1.KycStatus)(0),                  // 12: senim.identity.v1.KycStatus
+	(v1.ConsentKind)(0),                // 13: senim.identity.v1.ConsentKind
+	(v1.RevocationStatus)(0),           // 14: senim.identity.v1.RevocationStatus
 }
 var file_senim_events_v1_identity_proto_depIdxs = []int32{
-	4, // 0: senim.events.v1.UserRegistered.role:type_name -> senim.identity.v1.Role
-	4, // 1: senim.events.v1.RoleGranted.role:type_name -> senim.identity.v1.Role
-	4, // 2: senim.events.v1.RoleSwitched.from:type_name -> senim.identity.v1.Role
-	4, // 3: senim.events.v1.RoleSwitched.to:type_name -> senim.identity.v1.Role
-	5, // 4: senim.events.v1.OtpGlobalLimitReached.date:type_name -> google.protobuf.Timestamp
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	10, // 0: senim.events.v1.UserRegistered.role:type_name -> senim.identity.v1.Role
+	10, // 1: senim.events.v1.RoleGranted.role:type_name -> senim.identity.v1.Role
+	10, // 2: senim.events.v1.RoleSwitched.from:type_name -> senim.identity.v1.Role
+	10, // 3: senim.events.v1.RoleSwitched.to:type_name -> senim.identity.v1.Role
+	11, // 4: senim.events.v1.OtpGlobalLimitReached.date:type_name -> google.protobuf.Timestamp
+	12, // 5: senim.events.v1.KycReviewed.status:type_name -> senim.identity.v1.KycStatus
+	13, // 6: senim.events.v1.ConsentGranted.kind:type_name -> senim.identity.v1.ConsentKind
+	13, // 7: senim.events.v1.ConsentRevocationRequested.kind:type_name -> senim.identity.v1.ConsentKind
+	11, // 8: senim.events.v1.ConsentRevocationRequested.due_at:type_name -> google.protobuf.Timestamp
+	14, // 9: senim.events.v1.ConsentRevocationResolved.status:type_name -> senim.identity.v1.RevocationStatus
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_senim_events_v1_identity_proto_init() }
@@ -309,7 +686,7 @@ func file_senim_events_v1_identity_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_senim_events_v1_identity_proto_rawDesc), len(file_senim_events_v1_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

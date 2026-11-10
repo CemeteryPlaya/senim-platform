@@ -13,6 +13,54 @@ enum Role {
   ROLE_MEASURER = 4;
 }
 
+// LegalForm — правовая форма исполнителя.
+enum LegalForm {
+  LEGAL_FORM_UNSPECIFIED = 0;
+  // Самозанятый.
+  LEGAL_FORM_SELF_EMPLOYED = 1;
+  // Индивидуальный предприниматель.
+  LEGAL_FORM_IP = 2;
+  // Товарищество с ограниченной ответственностью.
+  LEGAL_FORM_TOO = 3;
+}
+
+// KycStatus — состояние проверки документов исполнителя.
+enum KycStatus {
+  KYC_STATUS_UNSPECIFIED = 0;
+  KYC_STATUS_NOT_SUBMITTED = 1;
+  KYC_STATUS_PENDING = 2;
+  KYC_STATUS_VERIFIED = 3;
+  KYC_STATUS_REJECTED = 4;
+}
+
+// ConsentKind — вид согласия.
+enum ConsentKind {
+  CONSENT_KIND_UNSPECIFIED = 0;
+  // Согласие на обработку персональных данных.
+  CONSENT_KIND_PD_PROCESSING = 1;
+  // Согласие на передачу данных банку-партнёру.
+  CONSENT_KIND_BANK_TRANSFER = 2;
+}
+
+// RevealPurpose — цель раскрытия открытых реквизитов стороны.
+enum RevealPurpose {
+  REVEAL_PURPOSE_UNSPECIFIED = 0;
+  // Договор (ИИН/БИН раскрываются только в договоре).
+  REVEAL_PURPOSE_CONTRACT = 1;
+  // Квитанция о выпуске денег.
+  REVEAL_PURPOSE_RELEASE_RECEIPT = 2;
+  // Выплата мастеру.
+  REVEAL_PURPOSE_PAYOUT = 3;
+}
+
+// RevocationStatus — состояние заявки на отзыв согласия.
+enum RevocationStatus {
+  REVOCATION_STATUS_UNSPECIFIED = 0;
+  REVOCATION_STATUS_REQUESTED = 1;
+  REVOCATION_STATUS_COMPLETED = 2;
+  REVOCATION_STATUS_REFUSED = 3;
+}
+
 // User — учётная запись.
 message User {
   string id = 1;
@@ -32,6 +80,10 @@ message Session {
   Role active_role = 2;
   google.protobuf.Timestamp expires_at = 3;
   google.protobuf.Timestamp idle_expires_at = 4;
+  // Для сессии оператора нужен второй фактор (TOTP).
+  bool mfa_required = 5;
+  // Пусто, пока второй фактор в этой сессии не подтверждён.
+  google.protobuf.Timestamp mfa_verified_at = 6;
 }
 
 // SigningKey — публичный ключ подписи внутренних токенов.
@@ -43,6 +95,91 @@ message SigningKey {
   string alg = 3;
 }
 
+// Person — данные человека. Открытый ИИН наружу не отдаётся.
+message Person {
+  string user_id = 1;
+  string full_name = 2;
+  // Последние 4 символа ИИН.
+  string iin_last4 = 3;
+  string instagram = 4;
+  string email = 5;
+}
+
+// Party — сторона сделки (исполнитель): правовая форма, реквизиты и проверка документов.
+// Открытые ИИН/БИН и IBAN наружу не отдаются, только последние 4 символа.
+message Party {
+  string user_id = 1;
+  LegalForm legal_form = 2;
+  string legal_name = 3;
+  string bin_iin_last4 = 4;
+  string signer_full_name = 5;
+  string signer_iin_last4 = 6;
+  string payout_iban_last4 = 7;
+  KycStatus kyc_status = 8;
+  // Причина отказа; пусто, если проверка не отклонена.
+  string kyc_reject_reason = 9;
+  google.protobuf.Timestamp kyc_submitted_at = 10;
+  google.protobuf.Timestamp kyc_reviewed_at = 11;
+  // Идентификаторы файлов документов, удостоверяющих личность (сервис files).
+  repeated string kyc_id_file_ids = 12;
+  // Идентификаторы файлов документов о регистрации (сервис files).
+  repeated string kyc_registration_file_ids = 13;
+}
+
+// PartyDetails — открытые реквизиты человека и стороны. Только RevealPartyDetails.
+message PartyDetails {
+  string user_id = 1;
+  string full_name = 2;
+  string iin = 3;
+  LegalForm legal_form = 4;
+  string legal_name = 5;
+  string bin_iin = 6;
+  string signer_full_name = 7;
+  string signer_iin = 8;
+  string payout_iban = 9;
+}
+
+// Consent — согласие пользователя; фиксирует версию и хеш показанного текста.
+message Consent {
+  string id = 1;
+  ConsentKind kind = 2;
+  string version = 3;
+  // SHA-256 показанного текста, hex.
+  string text_sha256 = 4;
+  repeated string purposes = 5;
+  // К чему относится согласие (например, идентификатор сделки); может быть пусто.
+  string reference_id = 6;
+  // Канал получения согласия.
+  string channel = 7;
+  google.protobuf.Timestamp granted_at = 8;
+  // Пусто, если согласие не отозвано.
+  google.protobuf.Timestamp revoked_at = 9;
+}
+
+// ConsentRevocation — заявка на отзыв согласия.
+message ConsentRevocation {
+  string id = 1;
+  string user_id = 2;
+  ConsentKind kind = 3;
+  google.protobuf.Timestamp requested_at = 4;
+  // Срок исполнения (рабочие дни).
+  google.protobuf.Timestamp due_at = 5;
+  RevocationStatus status = 6;
+  google.protobuf.Timestamp decided_at = 7;
+  string reason = 8;
+}
+
+// SeedParty — сторона для начального наполнения.
+message SeedParty {
+  LegalForm legal_form = 1;
+  string legal_name = 2;
+  string bin_iin = 3;
+  string signer_full_name = 4;
+  string signer_iin = 5;
+  string payout_iban = 6;
+  KycStatus kyc_status = 7;
+}
+
 // SeedUser — пользователь для начального наполнения (демо и перенос данных).
 message SeedUser {
   // E.164.
@@ -51,6 +188,15 @@ message SeedUser {
   repeated Role roles = 3;
   bool is_demo = 4;
   google.protobuf.Timestamp created_at = 5;
+  string full_name = 6;
+  string iin = 7;
+  string instagram = 8;
+  string email = 9;
+  // Пусто, если у пользователя нет стороны.
+  SeedParty party = 10;
+  // Версия и хеш текста согласия на обработку ПДн; пусто — согласия нет.
+  string consent_version = 11;
+  string consent_text_sha256 = 12;
 }
 
 message RequestOtpRequest {
@@ -94,6 +240,8 @@ message AuthenticateResponse {
   Session session = 2;
   string access_token = 3;
   google.protobuf.Timestamp access_expires_at = 4;
+  // Действующие согласия (без отозванных).
+  repeated Consent consents = 5;
 }
 
 message SignOutRequest {
@@ -160,6 +308,227 @@ message ResetDemoRequest {
 
 message ResetDemoResponse {}
 
+message StartTotpEnrollmentRequest {
+  string session_token = 1;
+  string idempotency_key = 2;
+}
+
+message StartTotpEnrollmentResponse {
+  // Секрет TOTP в base32; показывается один раз.
+  string secret_base32 = 1;
+}
+
+message ConfirmTotpEnrollmentRequest {
+  string session_token = 1;
+  string code = 2;
+  string idempotency_key = 3;
+}
+
+message ConfirmTotpEnrollmentResponse {
+  Session session = 1;
+}
+
+message VerifySecondFactorRequest {
+  string session_token = 1;
+  string code = 2;
+  string idempotency_key = 3;
+}
+
+message VerifySecondFactorResponse {
+  Session session = 1;
+}
+
+message RecordPersonRequest {
+  string session_token = 1;
+  string full_name = 2;
+  string iin = 3;
+  string idempotency_key = 4;
+}
+
+message RecordPersonResponse {
+  Person person = 1;
+}
+
+message UpdateContactsRequest {
+  string session_token = 1;
+  string instagram = 2;
+  string email = 3;
+  string idempotency_key = 4;
+}
+
+message UpdateContactsResponse {
+  Person person = 1;
+}
+
+message GetProfileRequest {
+  string session_token = 1;
+}
+
+message GetProfileResponse {
+  Person person = 1;
+  // Пусто, если стороны нет.
+  Party party = 2;
+}
+
+message RegisterPartyRequest {
+  string session_token = 1;
+  LegalForm legal_form = 2;
+  string legal_name = 3;
+  string bin_iin = 4;
+  string signer_full_name = 5;
+  string signer_iin = 6;
+  string idempotency_key = 7;
+}
+
+message RegisterPartyResponse {
+  Party party = 1;
+}
+
+message ProvisionExecutorRequest {
+  string session_token = 1;
+  string phone = 2;
+  LegalForm legal_form = 3;
+  string legal_name = 4;
+  string bin_iin = 5;
+  string signer_full_name = 6;
+  string signer_iin = 7;
+  string idempotency_key = 8;
+}
+
+message ProvisionExecutorResponse {
+  User user = 1;
+  Party party = 2;
+}
+
+message SetPayoutIbanRequest {
+  string session_token = 1;
+  string iban = 2;
+  string idempotency_key = 3;
+}
+
+message SetPayoutIbanResponse {
+  Party party = 1;
+}
+
+message VerifySignerIinRequest {
+  string user_id = 1;
+  string iin = 2;
+}
+
+message VerifySignerIinResponse {
+  bool matches = 1;
+}
+
+message RevealPartyDetailsRequest {
+  string actor_session_token = 1;
+  repeated string user_ids = 2;
+  RevealPurpose purpose = 3;
+  string reference_id = 4;
+}
+
+message RevealPartyDetailsResponse {
+  repeated PartyDetails parties = 1;
+}
+
+message SubmitKycRequest {
+  string session_token = 1;
+  repeated string id_file_ids = 2;
+  repeated string registration_file_ids = 3;
+  string idempotency_key = 4;
+}
+
+message SubmitKycResponse {
+  Party party = 1;
+}
+
+message ListKycQueueRequest {
+  string session_token = 1;
+}
+
+message ListKycQueueResponse {
+  repeated Party parties = 1;
+  repeated Person people = 2;
+}
+
+message ReviewKycRequest {
+  string session_token = 1;
+  string user_id = 2;
+  // true — подтвердить, false — отклонить (тогда нужна причина).
+  bool verify = 3;
+  string reason = 4;
+  string idempotency_key = 5;
+}
+
+message ReviewKycResponse {
+  Party party = 1;
+}
+
+message GrantConsentRequest {
+  string session_token = 1;
+  ConsentKind kind = 2;
+  string version = 3;
+  string text_sha256 = 4;
+  repeated string purposes = 5;
+  string reference_id = 6;
+  string idempotency_key = 7;
+}
+
+message GrantConsentResponse {
+  Consent consent = 1;
+}
+
+message RevokeConsentRequest {
+  string session_token = 1;
+  ConsentKind kind = 2;
+  string idempotency_key = 3;
+}
+
+message RevokeConsentResponse {
+  ConsentRevocation revocation = 1;
+}
+
+message ListMyConsentsRequest {
+  string session_token = 1;
+}
+
+message ListMyConsentsResponse {
+  // Включая отозванные.
+  repeated Consent consents = 1;
+  repeated ConsentRevocation revocations = 2;
+}
+
+message HasConsentsRequest {
+  repeated string user_ids = 1;
+  ConsentKind kind = 2;
+  string reference_id = 3;
+}
+
+message HasConsentsResponse {
+  repeated string granted_user_ids = 1;
+}
+
+message ListConsentRevocationsRequest {
+  string session_token = 1;
+}
+
+message ListConsentRevocationsResponse {
+  repeated ConsentRevocation revocations = 1;
+  repeated Person people = 2;
+}
+
+message ResolveConsentRevocationRequest {
+  string session_token = 1;
+  string revocation_id = 2;
+  // true — отзыв исполнен, false — отказано (тогда нужна причина).
+  bool completed = 3;
+  string reason = 4;
+  string idempotency_key = 5;
+}
+
+message ResolveConsentRevocationResponse {
+  ConsentRevocation revocation = 1;
+}
+
 message GetSigningKeysRequest {}
 
 message GetSigningKeysResponse {
@@ -178,7 +547,14 @@ message GetSigningKeysResponse {
 //   otp_attempts_exhausted, user_blocked, session_invalid, session_token_invalid,
 //   role_not_granted, role_forbidden, demo_disabled, user_not_found,
 //   caller_forbidden, idempotency_key_reused,
-//   invalid_request (idempotency_key пуст или длиннее 128 символов; client_ip не IP-адрес).
+//   invalid_request (idempotency_key пуст или длиннее 128 символов; client_ip не IP-адрес),
+//   mfa_required, mfa_not_required, mfa_not_enrolled, mfa_already_enrolled, mfa_wrong_code,
+//   mfa_code_reused, mfa_too_many_attempts, iin_invalid, iin_taken, person_missing,
+//   person_already_recorded, person_too_many_attempts, full_name_invalid, instagram_invalid,
+//   email_invalid, bin_iin_invalid, signer_required, iban_invalid, party_missing, party_exists,
+//   kyc_documents_missing, kyc_transition_forbidden, kyc_reason_invalid, consent_version_invalid,
+//   consent_not_revocable, consent_missing, revocation_closed, reveal_purpose_invalid,
+//   pii_key_unknown.
 service IdentityService {
   rpc RequestOtp(RequestOtpRequest) returns (RequestOtpResponse);
   rpc VerifyOtp(VerifyOtpRequest) returns (VerifyOtpResponse);
@@ -193,4 +569,39 @@ service IdentityService {
   rpc ResetDemo(ResetDemoRequest) returns (ResetDemoResponse);
   // Чтение.
   rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
+
+  // Второй фактор оператора (TOTP).
+  rpc StartTotpEnrollment(StartTotpEnrollmentRequest) returns (StartTotpEnrollmentResponse);
+  rpc ConfirmTotpEnrollment(ConfirmTotpEnrollmentRequest) returns (ConfirmTotpEnrollmentResponse);
+  rpc VerifySecondFactor(VerifySecondFactorRequest) returns (VerifySecondFactorResponse);
+
+  // Персональные данные и стороны.
+  rpc RecordPerson(RecordPersonRequest) returns (RecordPersonResponse);
+  rpc UpdateContacts(UpdateContactsRequest) returns (UpdateContactsResponse);
+  // Чтение.
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+  rpc RegisterParty(RegisterPartyRequest) returns (RegisterPartyResponse);
+  rpc ProvisionExecutor(ProvisionExecutorRequest) returns (ProvisionExecutorResponse);
+  rpc SetPayoutIban(SetPayoutIbanRequest) returns (SetPayoutIbanResponse);
+  // Чтение.
+  rpc VerifySignerIin(VerifySignerIinRequest) returns (VerifySignerIinResponse);
+  // Чтение.
+  rpc RevealPartyDetails(RevealPartyDetailsRequest) returns (RevealPartyDetailsResponse);
+
+  // Проверка документов исполнителя (KYC).
+  rpc SubmitKyc(SubmitKycRequest) returns (SubmitKycResponse);
+  // Чтение.
+  rpc ListKycQueue(ListKycQueueRequest) returns (ListKycQueueResponse);
+  rpc ReviewKyc(ReviewKycRequest) returns (ReviewKycResponse);
+
+  // Согласия.
+  rpc GrantConsent(GrantConsentRequest) returns (GrantConsentResponse);
+  rpc RevokeConsent(RevokeConsentRequest) returns (RevokeConsentResponse);
+  // Чтение.
+  rpc ListMyConsents(ListMyConsentsRequest) returns (ListMyConsentsResponse);
+  // Чтение.
+  rpc HasConsents(HasConsentsRequest) returns (HasConsentsResponse);
+  // Чтение.
+  rpc ListConsentRevocations(ListConsentRevocationsRequest) returns (ListConsentRevocationsResponse);
+  rpc ResolveConsentRevocation(ResolveConsentRevocationRequest) returns (ResolveConsentRevocationResponse);
 }

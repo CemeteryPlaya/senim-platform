@@ -50,6 +50,63 @@ const (
 	// IdentityServiceGetSigningKeysProcedure is the procedure name of the IdentityService's
 	// GetSigningKeys RPC.
 	IdentityServiceGetSigningKeysProcedure = "/senim.identity.v1.IdentityService/GetSigningKeys"
+	// IdentityServiceStartTotpEnrollmentProcedure is the procedure name of the IdentityService's
+	// StartTotpEnrollment RPC.
+	IdentityServiceStartTotpEnrollmentProcedure = "/senim.identity.v1.IdentityService/StartTotpEnrollment"
+	// IdentityServiceConfirmTotpEnrollmentProcedure is the procedure name of the IdentityService's
+	// ConfirmTotpEnrollment RPC.
+	IdentityServiceConfirmTotpEnrollmentProcedure = "/senim.identity.v1.IdentityService/ConfirmTotpEnrollment"
+	// IdentityServiceVerifySecondFactorProcedure is the procedure name of the IdentityService's
+	// VerifySecondFactor RPC.
+	IdentityServiceVerifySecondFactorProcedure = "/senim.identity.v1.IdentityService/VerifySecondFactor"
+	// IdentityServiceRecordPersonProcedure is the procedure name of the IdentityService's RecordPerson
+	// RPC.
+	IdentityServiceRecordPersonProcedure = "/senim.identity.v1.IdentityService/RecordPerson"
+	// IdentityServiceUpdateContactsProcedure is the procedure name of the IdentityService's
+	// UpdateContacts RPC.
+	IdentityServiceUpdateContactsProcedure = "/senim.identity.v1.IdentityService/UpdateContacts"
+	// IdentityServiceGetProfileProcedure is the procedure name of the IdentityService's GetProfile RPC.
+	IdentityServiceGetProfileProcedure = "/senim.identity.v1.IdentityService/GetProfile"
+	// IdentityServiceRegisterPartyProcedure is the procedure name of the IdentityService's
+	// RegisterParty RPC.
+	IdentityServiceRegisterPartyProcedure = "/senim.identity.v1.IdentityService/RegisterParty"
+	// IdentityServiceProvisionExecutorProcedure is the procedure name of the IdentityService's
+	// ProvisionExecutor RPC.
+	IdentityServiceProvisionExecutorProcedure = "/senim.identity.v1.IdentityService/ProvisionExecutor"
+	// IdentityServiceSetPayoutIbanProcedure is the procedure name of the IdentityService's
+	// SetPayoutIban RPC.
+	IdentityServiceSetPayoutIbanProcedure = "/senim.identity.v1.IdentityService/SetPayoutIban"
+	// IdentityServiceVerifySignerIinProcedure is the procedure name of the IdentityService's
+	// VerifySignerIin RPC.
+	IdentityServiceVerifySignerIinProcedure = "/senim.identity.v1.IdentityService/VerifySignerIin"
+	// IdentityServiceRevealPartyDetailsProcedure is the procedure name of the IdentityService's
+	// RevealPartyDetails RPC.
+	IdentityServiceRevealPartyDetailsProcedure = "/senim.identity.v1.IdentityService/RevealPartyDetails"
+	// IdentityServiceSubmitKycProcedure is the procedure name of the IdentityService's SubmitKyc RPC.
+	IdentityServiceSubmitKycProcedure = "/senim.identity.v1.IdentityService/SubmitKyc"
+	// IdentityServiceListKycQueueProcedure is the procedure name of the IdentityService's ListKycQueue
+	// RPC.
+	IdentityServiceListKycQueueProcedure = "/senim.identity.v1.IdentityService/ListKycQueue"
+	// IdentityServiceReviewKycProcedure is the procedure name of the IdentityService's ReviewKyc RPC.
+	IdentityServiceReviewKycProcedure = "/senim.identity.v1.IdentityService/ReviewKyc"
+	// IdentityServiceGrantConsentProcedure is the procedure name of the IdentityService's GrantConsent
+	// RPC.
+	IdentityServiceGrantConsentProcedure = "/senim.identity.v1.IdentityService/GrantConsent"
+	// IdentityServiceRevokeConsentProcedure is the procedure name of the IdentityService's
+	// RevokeConsent RPC.
+	IdentityServiceRevokeConsentProcedure = "/senim.identity.v1.IdentityService/RevokeConsent"
+	// IdentityServiceListMyConsentsProcedure is the procedure name of the IdentityService's
+	// ListMyConsents RPC.
+	IdentityServiceListMyConsentsProcedure = "/senim.identity.v1.IdentityService/ListMyConsents"
+	// IdentityServiceHasConsentsProcedure is the procedure name of the IdentityService's HasConsents
+	// RPC.
+	IdentityServiceHasConsentsProcedure = "/senim.identity.v1.IdentityService/HasConsents"
+	// IdentityServiceListConsentRevocationsProcedure is the procedure name of the IdentityService's
+	// ListConsentRevocations RPC.
+	IdentityServiceListConsentRevocationsProcedure = "/senim.identity.v1.IdentityService/ListConsentRevocations"
+	// IdentityServiceResolveConsentRevocationProcedure is the procedure name of the IdentityService's
+	// ResolveConsentRevocation RPC.
+	IdentityServiceResolveConsentRevocationProcedure = "/senim.identity.v1.IdentityService/ResolveConsentRevocation"
 )
 
 var (
@@ -130,6 +187,146 @@ var (
 			Procedure:  IdentityServiceGetSigningKeysProcedure,
 		}
 	})
+	identityServiceStartTotpEnrollmentSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("StartTotpEnrollment"),
+			Procedure:  IdentityServiceStartTotpEnrollmentProcedure,
+		}
+	})
+	identityServiceConfirmTotpEnrollmentSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("ConfirmTotpEnrollment"),
+			Procedure:  IdentityServiceConfirmTotpEnrollmentProcedure,
+		}
+	})
+	identityServiceVerifySecondFactorSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("VerifySecondFactor"),
+			Procedure:  IdentityServiceVerifySecondFactorProcedure,
+		}
+	})
+	identityServiceRecordPersonSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("RecordPerson"),
+			Procedure:  IdentityServiceRecordPersonProcedure,
+		}
+	})
+	identityServiceUpdateContactsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("UpdateContacts"),
+			Procedure:  IdentityServiceUpdateContactsProcedure,
+		}
+	})
+	identityServiceGetProfileSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("GetProfile"),
+			Procedure:  IdentityServiceGetProfileProcedure,
+		}
+	})
+	identityServiceRegisterPartySpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("RegisterParty"),
+			Procedure:  IdentityServiceRegisterPartyProcedure,
+		}
+	})
+	identityServiceProvisionExecutorSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("ProvisionExecutor"),
+			Procedure:  IdentityServiceProvisionExecutorProcedure,
+		}
+	})
+	identityServiceSetPayoutIbanSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("SetPayoutIban"),
+			Procedure:  IdentityServiceSetPayoutIbanProcedure,
+		}
+	})
+	identityServiceVerifySignerIinSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("VerifySignerIin"),
+			Procedure:  IdentityServiceVerifySignerIinProcedure,
+		}
+	})
+	identityServiceRevealPartyDetailsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("RevealPartyDetails"),
+			Procedure:  IdentityServiceRevealPartyDetailsProcedure,
+		}
+	})
+	identityServiceSubmitKycSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("SubmitKyc"),
+			Procedure:  IdentityServiceSubmitKycProcedure,
+		}
+	})
+	identityServiceListKycQueueSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("ListKycQueue"),
+			Procedure:  IdentityServiceListKycQueueProcedure,
+		}
+	})
+	identityServiceReviewKycSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("ReviewKyc"),
+			Procedure:  IdentityServiceReviewKycProcedure,
+		}
+	})
+	identityServiceGrantConsentSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("GrantConsent"),
+			Procedure:  IdentityServiceGrantConsentProcedure,
+		}
+	})
+	identityServiceRevokeConsentSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("RevokeConsent"),
+			Procedure:  IdentityServiceRevokeConsentProcedure,
+		}
+	})
+	identityServiceListMyConsentsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("ListMyConsents"),
+			Procedure:  IdentityServiceListMyConsentsProcedure,
+		}
+	})
+	identityServiceHasConsentsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("HasConsents"),
+			Procedure:  IdentityServiceHasConsentsProcedure,
+		}
+	})
+	identityServiceListConsentRevocationsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("ListConsentRevocations"),
+			Procedure:  IdentityServiceListConsentRevocationsProcedure,
+		}
+	})
+	identityServiceResolveConsentRevocationSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("ResolveConsentRevocation"),
+			Procedure:  IdentityServiceResolveConsentRevocationProcedure,
+		}
+	})
 )
 
 // IdentityServiceClient is a client for the senim.identity.v1.IdentityService service.
@@ -147,6 +344,37 @@ type IdentityServiceClient interface {
 	ResetDemo(context.Context, *v1.ResetDemoRequest) (*v1.ResetDemoResponse, error)
 	// Чтение.
 	GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error)
+	// Второй фактор оператора (TOTP).
+	StartTotpEnrollment(context.Context, *v1.StartTotpEnrollmentRequest) (*v1.StartTotpEnrollmentResponse, error)
+	ConfirmTotpEnrollment(context.Context, *v1.ConfirmTotpEnrollmentRequest) (*v1.ConfirmTotpEnrollmentResponse, error)
+	VerifySecondFactor(context.Context, *v1.VerifySecondFactorRequest) (*v1.VerifySecondFactorResponse, error)
+	// Персональные данные и стороны.
+	RecordPerson(context.Context, *v1.RecordPersonRequest) (*v1.RecordPersonResponse, error)
+	UpdateContacts(context.Context, *v1.UpdateContactsRequest) (*v1.UpdateContactsResponse, error)
+	// Чтение.
+	GetProfile(context.Context, *v1.GetProfileRequest) (*v1.GetProfileResponse, error)
+	RegisterParty(context.Context, *v1.RegisterPartyRequest) (*v1.RegisterPartyResponse, error)
+	ProvisionExecutor(context.Context, *v1.ProvisionExecutorRequest) (*v1.ProvisionExecutorResponse, error)
+	SetPayoutIban(context.Context, *v1.SetPayoutIbanRequest) (*v1.SetPayoutIbanResponse, error)
+	// Чтение.
+	VerifySignerIin(context.Context, *v1.VerifySignerIinRequest) (*v1.VerifySignerIinResponse, error)
+	// Чтение.
+	RevealPartyDetails(context.Context, *v1.RevealPartyDetailsRequest) (*v1.RevealPartyDetailsResponse, error)
+	// Проверка документов исполнителя (KYC).
+	SubmitKyc(context.Context, *v1.SubmitKycRequest) (*v1.SubmitKycResponse, error)
+	// Чтение.
+	ListKycQueue(context.Context, *v1.ListKycQueueRequest) (*v1.ListKycQueueResponse, error)
+	ReviewKyc(context.Context, *v1.ReviewKycRequest) (*v1.ReviewKycResponse, error)
+	// Согласия.
+	GrantConsent(context.Context, *v1.GrantConsentRequest) (*v1.GrantConsentResponse, error)
+	RevokeConsent(context.Context, *v1.RevokeConsentRequest) (*v1.RevokeConsentResponse, error)
+	// Чтение.
+	ListMyConsents(context.Context, *v1.ListMyConsentsRequest) (*v1.ListMyConsentsResponse, error)
+	// Чтение.
+	HasConsents(context.Context, *v1.HasConsentsRequest) (*v1.HasConsentsResponse, error)
+	// Чтение.
+	ListConsentRevocations(context.Context, *v1.ListConsentRevocationsRequest) (*v1.ListConsentRevocationsResponse, error)
+	ResolveConsentRevocation(context.Context, *v1.ResolveConsentRevocationRequest) (*v1.ResolveConsentRevocationResponse, error)
 }
 
 // NewIdentityServiceClient constructs a client for the senim.identity.v1.IdentityService service.
@@ -170,6 +398,37 @@ type IdentityServiceHandler interface {
 	ResetDemo(context.Context, *v1.ResetDemoRequest) (*v1.ResetDemoResponse, error)
 	// Чтение.
 	GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error)
+	// Второй фактор оператора (TOTP).
+	StartTotpEnrollment(context.Context, *v1.StartTotpEnrollmentRequest) (*v1.StartTotpEnrollmentResponse, error)
+	ConfirmTotpEnrollment(context.Context, *v1.ConfirmTotpEnrollmentRequest) (*v1.ConfirmTotpEnrollmentResponse, error)
+	VerifySecondFactor(context.Context, *v1.VerifySecondFactorRequest) (*v1.VerifySecondFactorResponse, error)
+	// Персональные данные и стороны.
+	RecordPerson(context.Context, *v1.RecordPersonRequest) (*v1.RecordPersonResponse, error)
+	UpdateContacts(context.Context, *v1.UpdateContactsRequest) (*v1.UpdateContactsResponse, error)
+	// Чтение.
+	GetProfile(context.Context, *v1.GetProfileRequest) (*v1.GetProfileResponse, error)
+	RegisterParty(context.Context, *v1.RegisterPartyRequest) (*v1.RegisterPartyResponse, error)
+	ProvisionExecutor(context.Context, *v1.ProvisionExecutorRequest) (*v1.ProvisionExecutorResponse, error)
+	SetPayoutIban(context.Context, *v1.SetPayoutIbanRequest) (*v1.SetPayoutIbanResponse, error)
+	// Чтение.
+	VerifySignerIin(context.Context, *v1.VerifySignerIinRequest) (*v1.VerifySignerIinResponse, error)
+	// Чтение.
+	RevealPartyDetails(context.Context, *v1.RevealPartyDetailsRequest) (*v1.RevealPartyDetailsResponse, error)
+	// Проверка документов исполнителя (KYC).
+	SubmitKyc(context.Context, *v1.SubmitKycRequest) (*v1.SubmitKycResponse, error)
+	// Чтение.
+	ListKycQueue(context.Context, *v1.ListKycQueueRequest) (*v1.ListKycQueueResponse, error)
+	ReviewKyc(context.Context, *v1.ReviewKycRequest) (*v1.ReviewKycResponse, error)
+	// Согласия.
+	GrantConsent(context.Context, *v1.GrantConsentRequest) (*v1.GrantConsentResponse, error)
+	RevokeConsent(context.Context, *v1.RevokeConsentRequest) (*v1.RevokeConsentResponse, error)
+	// Чтение.
+	ListMyConsents(context.Context, *v1.ListMyConsentsRequest) (*v1.ListMyConsentsResponse, error)
+	// Чтение.
+	HasConsents(context.Context, *v1.HasConsentsRequest) (*v1.HasConsentsResponse, error)
+	// Чтение.
+	ListConsentRevocations(context.Context, *v1.ListConsentRevocationsRequest) (*v1.ListConsentRevocationsResponse, error)
+	ResolveConsentRevocation(context.Context, *v1.ResolveConsentRevocationRequest) (*v1.ResolveConsentRevocationResponse, error)
 }
 
 // RegisterIdentityServiceHandler registers svc as the senim.identity.v1.IdentityService
@@ -188,6 +447,26 @@ func RegisterIdentityServiceHandler(server *connect.Server, svc IdentityServiceH
 		connect.Method{Spec: identityServiceSeedUsersSpec(), Handler: adapter.seedUsers},
 		connect.Method{Spec: identityServiceResetDemoSpec(), Handler: adapter.resetDemo},
 		connect.Method{Spec: identityServiceGetSigningKeysSpec(), Handler: adapter.getSigningKeys},
+		connect.Method{Spec: identityServiceStartTotpEnrollmentSpec(), Handler: adapter.startTotpEnrollment},
+		connect.Method{Spec: identityServiceConfirmTotpEnrollmentSpec(), Handler: adapter.confirmTotpEnrollment},
+		connect.Method{Spec: identityServiceVerifySecondFactorSpec(), Handler: adapter.verifySecondFactor},
+		connect.Method{Spec: identityServiceRecordPersonSpec(), Handler: adapter.recordPerson},
+		connect.Method{Spec: identityServiceUpdateContactsSpec(), Handler: adapter.updateContacts},
+		connect.Method{Spec: identityServiceGetProfileSpec(), Handler: adapter.getProfile},
+		connect.Method{Spec: identityServiceRegisterPartySpec(), Handler: adapter.registerParty},
+		connect.Method{Spec: identityServiceProvisionExecutorSpec(), Handler: adapter.provisionExecutor},
+		connect.Method{Spec: identityServiceSetPayoutIbanSpec(), Handler: adapter.setPayoutIban},
+		connect.Method{Spec: identityServiceVerifySignerIinSpec(), Handler: adapter.verifySignerIin},
+		connect.Method{Spec: identityServiceRevealPartyDetailsSpec(), Handler: adapter.revealPartyDetails},
+		connect.Method{Spec: identityServiceSubmitKycSpec(), Handler: adapter.submitKyc},
+		connect.Method{Spec: identityServiceListKycQueueSpec(), Handler: adapter.listKycQueue},
+		connect.Method{Spec: identityServiceReviewKycSpec(), Handler: adapter.reviewKyc},
+		connect.Method{Spec: identityServiceGrantConsentSpec(), Handler: adapter.grantConsent},
+		connect.Method{Spec: identityServiceRevokeConsentSpec(), Handler: adapter.revokeConsent},
+		connect.Method{Spec: identityServiceListMyConsentsSpec(), Handler: adapter.listMyConsents},
+		connect.Method{Spec: identityServiceHasConsentsSpec(), Handler: adapter.hasConsents},
+		connect.Method{Spec: identityServiceListConsentRevocationsSpec(), Handler: adapter.listConsentRevocations},
+		connect.Method{Spec: identityServiceResolveConsentRevocationSpec(), Handler: adapter.resolveConsentRevocation},
 	)
 }
 
@@ -236,6 +515,86 @@ func (UnimplementedIdentityServiceHandler) ResetDemo(context.Context, *v1.ResetD
 
 func (UnimplementedIdentityServiceHandler) GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.GetSigningKeys is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) StartTotpEnrollment(context.Context, *v1.StartTotpEnrollmentRequest) (*v1.StartTotpEnrollmentResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.StartTotpEnrollment is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) ConfirmTotpEnrollment(context.Context, *v1.ConfirmTotpEnrollmentRequest) (*v1.ConfirmTotpEnrollmentResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.ConfirmTotpEnrollment is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) VerifySecondFactor(context.Context, *v1.VerifySecondFactorRequest) (*v1.VerifySecondFactorResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.VerifySecondFactor is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) RecordPerson(context.Context, *v1.RecordPersonRequest) (*v1.RecordPersonResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.RecordPerson is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) UpdateContacts(context.Context, *v1.UpdateContactsRequest) (*v1.UpdateContactsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.UpdateContacts is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) GetProfile(context.Context, *v1.GetProfileRequest) (*v1.GetProfileResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.GetProfile is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) RegisterParty(context.Context, *v1.RegisterPartyRequest) (*v1.RegisterPartyResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.RegisterParty is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) ProvisionExecutor(context.Context, *v1.ProvisionExecutorRequest) (*v1.ProvisionExecutorResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.ProvisionExecutor is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) SetPayoutIban(context.Context, *v1.SetPayoutIbanRequest) (*v1.SetPayoutIbanResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.SetPayoutIban is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) VerifySignerIin(context.Context, *v1.VerifySignerIinRequest) (*v1.VerifySignerIinResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.VerifySignerIin is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) RevealPartyDetails(context.Context, *v1.RevealPartyDetailsRequest) (*v1.RevealPartyDetailsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.RevealPartyDetails is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) SubmitKyc(context.Context, *v1.SubmitKycRequest) (*v1.SubmitKycResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.SubmitKyc is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) ListKycQueue(context.Context, *v1.ListKycQueueRequest) (*v1.ListKycQueueResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.ListKycQueue is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) ReviewKyc(context.Context, *v1.ReviewKycRequest) (*v1.ReviewKycResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.ReviewKyc is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) GrantConsent(context.Context, *v1.GrantConsentRequest) (*v1.GrantConsentResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.GrantConsent is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) RevokeConsent(context.Context, *v1.RevokeConsentRequest) (*v1.RevokeConsentResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.RevokeConsent is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) ListMyConsents(context.Context, *v1.ListMyConsentsRequest) (*v1.ListMyConsentsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.ListMyConsents is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) HasConsents(context.Context, *v1.HasConsentsRequest) (*v1.HasConsentsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.HasConsents is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) ListConsentRevocations(context.Context, *v1.ListConsentRevocationsRequest) (*v1.ListConsentRevocationsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.ListConsentRevocations is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) ResolveConsentRevocation(context.Context, *v1.ResolveConsentRevocationRequest) (*v1.ResolveConsentRevocationResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.ResolveConsentRevocation is not implemented")
 }
 
 type identityServiceClient struct {
@@ -325,6 +684,166 @@ func (c *identityServiceClient) ResetDemo(ctx context.Context, req *v1.ResetDemo
 func (c *identityServiceClient) GetSigningKeys(ctx context.Context, req *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error) {
 	var res v1.GetSigningKeysResponse
 	if err := c.client.CallUnary(ctx, identityServiceGetSigningKeysSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) StartTotpEnrollment(ctx context.Context, req *v1.StartTotpEnrollmentRequest) (*v1.StartTotpEnrollmentResponse, error) {
+	var res v1.StartTotpEnrollmentResponse
+	if err := c.client.CallUnary(ctx, identityServiceStartTotpEnrollmentSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) ConfirmTotpEnrollment(ctx context.Context, req *v1.ConfirmTotpEnrollmentRequest) (*v1.ConfirmTotpEnrollmentResponse, error) {
+	var res v1.ConfirmTotpEnrollmentResponse
+	if err := c.client.CallUnary(ctx, identityServiceConfirmTotpEnrollmentSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) VerifySecondFactor(ctx context.Context, req *v1.VerifySecondFactorRequest) (*v1.VerifySecondFactorResponse, error) {
+	var res v1.VerifySecondFactorResponse
+	if err := c.client.CallUnary(ctx, identityServiceVerifySecondFactorSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) RecordPerson(ctx context.Context, req *v1.RecordPersonRequest) (*v1.RecordPersonResponse, error) {
+	var res v1.RecordPersonResponse
+	if err := c.client.CallUnary(ctx, identityServiceRecordPersonSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) UpdateContacts(ctx context.Context, req *v1.UpdateContactsRequest) (*v1.UpdateContactsResponse, error) {
+	var res v1.UpdateContactsResponse
+	if err := c.client.CallUnary(ctx, identityServiceUpdateContactsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) GetProfile(ctx context.Context, req *v1.GetProfileRequest) (*v1.GetProfileResponse, error) {
+	var res v1.GetProfileResponse
+	if err := c.client.CallUnary(ctx, identityServiceGetProfileSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) RegisterParty(ctx context.Context, req *v1.RegisterPartyRequest) (*v1.RegisterPartyResponse, error) {
+	var res v1.RegisterPartyResponse
+	if err := c.client.CallUnary(ctx, identityServiceRegisterPartySpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) ProvisionExecutor(ctx context.Context, req *v1.ProvisionExecutorRequest) (*v1.ProvisionExecutorResponse, error) {
+	var res v1.ProvisionExecutorResponse
+	if err := c.client.CallUnary(ctx, identityServiceProvisionExecutorSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) SetPayoutIban(ctx context.Context, req *v1.SetPayoutIbanRequest) (*v1.SetPayoutIbanResponse, error) {
+	var res v1.SetPayoutIbanResponse
+	if err := c.client.CallUnary(ctx, identityServiceSetPayoutIbanSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) VerifySignerIin(ctx context.Context, req *v1.VerifySignerIinRequest) (*v1.VerifySignerIinResponse, error) {
+	var res v1.VerifySignerIinResponse
+	if err := c.client.CallUnary(ctx, identityServiceVerifySignerIinSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) RevealPartyDetails(ctx context.Context, req *v1.RevealPartyDetailsRequest) (*v1.RevealPartyDetailsResponse, error) {
+	var res v1.RevealPartyDetailsResponse
+	if err := c.client.CallUnary(ctx, identityServiceRevealPartyDetailsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) SubmitKyc(ctx context.Context, req *v1.SubmitKycRequest) (*v1.SubmitKycResponse, error) {
+	var res v1.SubmitKycResponse
+	if err := c.client.CallUnary(ctx, identityServiceSubmitKycSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) ListKycQueue(ctx context.Context, req *v1.ListKycQueueRequest) (*v1.ListKycQueueResponse, error) {
+	var res v1.ListKycQueueResponse
+	if err := c.client.CallUnary(ctx, identityServiceListKycQueueSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) ReviewKyc(ctx context.Context, req *v1.ReviewKycRequest) (*v1.ReviewKycResponse, error) {
+	var res v1.ReviewKycResponse
+	if err := c.client.CallUnary(ctx, identityServiceReviewKycSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) GrantConsent(ctx context.Context, req *v1.GrantConsentRequest) (*v1.GrantConsentResponse, error) {
+	var res v1.GrantConsentResponse
+	if err := c.client.CallUnary(ctx, identityServiceGrantConsentSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) RevokeConsent(ctx context.Context, req *v1.RevokeConsentRequest) (*v1.RevokeConsentResponse, error) {
+	var res v1.RevokeConsentResponse
+	if err := c.client.CallUnary(ctx, identityServiceRevokeConsentSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) ListMyConsents(ctx context.Context, req *v1.ListMyConsentsRequest) (*v1.ListMyConsentsResponse, error) {
+	var res v1.ListMyConsentsResponse
+	if err := c.client.CallUnary(ctx, identityServiceListMyConsentsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) HasConsents(ctx context.Context, req *v1.HasConsentsRequest) (*v1.HasConsentsResponse, error) {
+	var res v1.HasConsentsResponse
+	if err := c.client.CallUnary(ctx, identityServiceHasConsentsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) ListConsentRevocations(ctx context.Context, req *v1.ListConsentRevocationsRequest) (*v1.ListConsentRevocationsResponse, error) {
+	var res v1.ListConsentRevocationsResponse
+	if err := c.client.CallUnary(ctx, identityServiceListConsentRevocationsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) ResolveConsentRevocation(ctx context.Context, req *v1.ResolveConsentRevocationRequest) (*v1.ResolveConsentRevocationResponse, error) {
+	var res v1.ResolveConsentRevocationResponse
+	if err := c.client.CallUnary(ctx, identityServiceResolveConsentRevocationSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -458,6 +977,246 @@ func (h identityServiceHandler) getSigningKeys(ctx context.Context, _ connect.Sp
 		return err
 	}
 	res, err := h.svc.GetSigningKeys(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) startTotpEnrollment(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.StartTotpEnrollmentRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.StartTotpEnrollment(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) confirmTotpEnrollment(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ConfirmTotpEnrollmentRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ConfirmTotpEnrollment(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) verifySecondFactor(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.VerifySecondFactorRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.VerifySecondFactor(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) recordPerson(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RecordPersonRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RecordPerson(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) updateContacts(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.UpdateContactsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.UpdateContacts(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) getProfile(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GetProfileRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GetProfile(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) registerParty(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RegisterPartyRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RegisterParty(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) provisionExecutor(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ProvisionExecutorRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ProvisionExecutor(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) setPayoutIban(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SetPayoutIbanRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SetPayoutIban(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) verifySignerIin(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.VerifySignerIinRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.VerifySignerIin(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) revealPartyDetails(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RevealPartyDetailsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RevealPartyDetails(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) submitKyc(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SubmitKycRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SubmitKyc(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) listKycQueue(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListKycQueueRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListKycQueue(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) reviewKyc(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ReviewKycRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ReviewKyc(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) grantConsent(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.GrantConsentRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.GrantConsent(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) revokeConsent(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RevokeConsentRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RevokeConsent(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) listMyConsents(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListMyConsentsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListMyConsents(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) hasConsents(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.HasConsentsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.HasConsents(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) listConsentRevocations(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListConsentRevocationsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListConsentRevocations(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) resolveConsentRevocation(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ResolveConsentRevocationRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ResolveConsentRevocation(ctx, &req)
 	if err != nil {
 		return err
 	}

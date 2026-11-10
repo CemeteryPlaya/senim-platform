@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file senim/identity/v1/identity.proto.
  */
 export const file_senim_identity_v1_identity: GenFile = /*@__PURE__*/
-  fileDesc("CiBzZW5pbS9pZGVudGl0eS92MS9pZGVudGl0eS5wcm90bxIRc2VuaW0uaWRlbnRpdHkudjEi6QEKBFVzZXISCgoCaWQYASABKAkSDQoFcGhvbmUYAiABKAkSLQoMZGVmYXVsdF9yb2xlGAMgASgOMhcuc2VuaW0uaWRlbnRpdHkudjEuUm9sZRImCgVyb2xlcxgEIAMoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSDwoHaXNfZGVtbxgFIAEoCBIuCgpibG9ja2VkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpjcmVhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCKoAQoHU2Vzc2lvbhIKCgJpZBgBIAEoCRIsCgthY3RpdmVfcm9sZRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPaWRsZV9leHBpcmVzX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCI6CgpTaWduaW5nS2V5EgsKA2tpZBgBIAEoCRISCgpwdWJsaWNfa2V5GAIgASgMEgsKA2FsZxgDIAEoCSKxAQoIU2VlZFVzZXISDQoFcGhvbmUYASABKAkSLQoMZGVmYXVsdF9yb2xlGAIgASgOMhcuc2VuaW0uaWRlbnRpdHkudjEuUm9sZRImCgVyb2xlcxgDIAMoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSDwoHaXNfZGVtbxgEIAEoCBIuCgpjcmVhdGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJOChFSZXF1ZXN0T3RwUmVxdWVzdBINCgVwaG9uZRgBIAEoCRIRCgljbGllbnRfaXAYAiABKAkSFwoPaWRlbXBvdGVuY3lfa2V5GAMgASgJImYKElJlcXVlc3RPdHBSZXNwb25zZRINCgVwaG9uZRgBIAEoCRIuCgpleHBpcmVzX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCglkZW1vX2NvZGUYAyABKAkihgEKEFZlcmlmeU90cFJlcXVlc3QSDQoFcGhvbmUYASABKAkSDAoEY29kZRgCIAEoCRIRCgljbGllbnRfaXAYAyABKAkSEgoKdXNlcl9hZ2VudBgEIAEoCRIVCg1zZXNzaW9uX3Rva2VuGAUgASgJEhcKD2lkZW1wb3RlbmN5X2tleRgGIAEoCSJ3ChFWZXJpZnlPdHBSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcuc2VuaW0uaWRlbnRpdHkudjEuVXNlchIrCgdzZXNzaW9uGAIgASgLMhouc2VuaW0uaWRlbnRpdHkudjEuU2Vzc2lvbhIOCgZpc19uZXcYAyABKAgiLAoTQXV0aGVudGljYXRlUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJIrcBChRBdXRoZW50aWNhdGVSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcuc2VuaW0uaWRlbnRpdHkudjEuVXNlchIrCgdzZXNzaW9uGAIgASgLMhouc2VuaW0uaWRlbnRpdHkudjEuU2Vzc2lvbhIUCgxhY2Nlc3NfdG9rZW4YAyABKAkSNQoRYWNjZXNzX2V4cGlyZXNfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkAKDlNpZ25PdXRSZXF1ZXN0EhUKDXNlc3Npb25fdG9rZW4YASABKAkSFwoPaWRlbXBvdGVuY3lfa2V5GAIgASgJIhEKD1NpZ25PdXRSZXNwb25zZSJKChhTaWduT3V0RXZlcnl3aGVyZVJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYAiABKAkiGwoZU2lnbk91dEV2ZXJ5d2hlcmVSZXNwb25zZSJqChFTd2l0Y2hSb2xlUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJEiUKBHJvbGUYAiABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlEhcKD2lkZW1wb3RlbmN5X2tleRgDIAEoCSJoChJTd2l0Y2hSb2xlUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLnNlbmltLmlkZW50aXR5LnYxLlVzZXISKwoHc2Vzc2lvbhgCIAEoCzIaLnNlbmltLmlkZW50aXR5LnYxLlNlc3Npb24iaQoQR3JhbnRSb2xlUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJEiUKBHJvbGUYAiABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlEhcKD2lkZW1wb3RlbmN5X2tleRgDIAEoCSJLChFHcmFudFJvbGVSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcuc2VuaW0uaWRlbnRpdHkudjEuVXNlchIPCgdncmFudGVkGAIgASgIIpgBChdTdGFydERlbW9TZXNzaW9uUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgJEigKB2FzX3JvbGUYAiABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlEhUKDXNlc3Npb25fdG9rZW4YAyABKAkSEgoKdXNlcl9hZ2VudBgEIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYBSABKAkibgoYU3RhcnREZW1vU2Vzc2lvblJlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5zZW5pbS5pZGVudGl0eS52MS5Vc2VyEisKB3Nlc3Npb24YAiABKAsyGi5zZW5pbS5pZGVudGl0eS52MS5TZXNzaW9uIlcKEFNlZWRVc2Vyc1JlcXVlc3QSKgoFdXNlcnMYASADKAsyGy5zZW5pbS5pZGVudGl0eS52MS5TZWVkVXNlchIXCg9pZGVtcG90ZW5jeV9rZXkYAiABKAkiOwoRU2VlZFVzZXJzUmVzcG9uc2USJgoFdXNlcnMYASADKAsyFy5zZW5pbS5pZGVudGl0eS52MS5Vc2VyIisKEFJlc2V0RGVtb1JlcXVlc3QSFwoPaWRlbXBvdGVuY3lfa2V5GAEgASgJIhMKEVJlc2V0RGVtb1Jlc3BvbnNlIhcKFUdldFNpZ25pbmdLZXlzUmVxdWVzdCJFChZHZXRTaWduaW5nS2V5c1Jlc3BvbnNlEisKBGtleXMYASADKAsyHS5zZW5pbS5pZGVudGl0eS52MS5TaWduaW5nS2V5KmYKBFJvbGUSFAoQUk9MRV9VTlNQRUNJRklFRBAAEg8KC1JPTEVfQ0xJRU5UEAESEQoNUk9MRV9FWEVDVVRPUhACEhEKDVJPTEVfT1BFUkFUT1IQAxIRCg1ST0xFX01FQVNVUkVSEAQynggKD0lkZW50aXR5U2VydmljZRJZCgpSZXF1ZXN0T3RwEiQuc2VuaW0uaWRlbnRpdHkudjEuUmVxdWVzdE90cFJlcXVlc3QaJS5zZW5pbS5pZGVudGl0eS52MS5SZXF1ZXN0T3RwUmVzcG9uc2USVgoJVmVyaWZ5T3RwEiMuc2VuaW0uaWRlbnRpdHkudjEuVmVyaWZ5T3RwUmVxdWVzdBokLnNlbmltLmlkZW50aXR5LnYxLlZlcmlmeU90cFJlc3BvbnNlEl8KDEF1dGhlbnRpY2F0ZRImLnNlbmltLmlkZW50aXR5LnYxLkF1dGhlbnRpY2F0ZVJlcXVlc3QaJy5zZW5pbS5pZGVudGl0eS52MS5BdXRoZW50aWNhdGVSZXNwb25zZRJQCgdTaWduT3V0EiEuc2VuaW0uaWRlbnRpdHkudjEuU2lnbk91dFJlcXVlc3QaIi5zZW5pbS5pZGVudGl0eS52MS5TaWduT3V0UmVzcG9uc2USbgoRU2lnbk91dEV2ZXJ5d2hlcmUSKy5zZW5pbS5pZGVudGl0eS52MS5TaWduT3V0RXZlcnl3aGVyZVJlcXVlc3QaLC5zZW5pbS5pZGVudGl0eS52MS5TaWduT3V0RXZlcnl3aGVyZVJlc3BvbnNlElkKClN3aXRjaFJvbGUSJC5zZW5pbS5pZGVudGl0eS52MS5Td2l0Y2hSb2xlUmVxdWVzdBolLnNlbmltLmlkZW50aXR5LnYxLlN3aXRjaFJvbGVSZXNwb25zZRJWCglHcmFudFJvbGUSIy5zZW5pbS5pZGVudGl0eS52MS5HcmFudFJvbGVSZXF1ZXN0GiQuc2VuaW0uaWRlbnRpdHkudjEuR3JhbnRSb2xlUmVzcG9uc2USawoQU3RhcnREZW1vU2Vzc2lvbhIqLnNlbmltLmlkZW50aXR5LnYxLlN0YXJ0RGVtb1Nlc3Npb25SZXF1ZXN0Gisuc2VuaW0uaWRlbnRpdHkudjEuU3RhcnREZW1vU2Vzc2lvblJlc3BvbnNlElYKCVNlZWRVc2VycxIjLnNlbmltLmlkZW50aXR5LnYxLlNlZWRVc2Vyc1JlcXVlc3QaJC5zZW5pbS5pZGVudGl0eS52MS5TZWVkVXNlcnNSZXNwb25zZRJWCglSZXNldERlbW8SIy5zZW5pbS5pZGVudGl0eS52MS5SZXNldERlbW9SZXF1ZXN0GiQuc2VuaW0uaWRlbnRpdHkudjEuUmVzZXREZW1vUmVzcG9uc2USZQoOR2V0U2lnbmluZ0tleXMSKC5zZW5pbS5pZGVudGl0eS52MS5HZXRTaWduaW5nS2V5c1JlcXVlc3QaKS5zZW5pbS5pZGVudGl0eS52MS5HZXRTaWduaW5nS2V5c1Jlc3BvbnNlQtkBChVjb20uc2VuaW0uaWRlbnRpdHkudjFCDUlkZW50aXR5UHJvdG9QAVpLZ2l0aHViLmNvbS9DZW1ldGVyeVBsYXlhL3NlbmltLXBsYXRmb3JtL2dlbi9nby9zZW5pbS9pZGVudGl0eS92MTtpZGVudGl0eXYxogIDU0lYqgIRU2VuaW0uSWRlbnRpdHkuVjHKAhFTZW5pbVxJZGVudGl0eVxWMeICHVNlbmltXElkZW50aXR5XFYxXEdQQk1ldGFkYXRh6gITU2VuaW06OklkZW50aXR5OjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("CiBzZW5pbS9pZGVudGl0eS92MS9pZGVudGl0eS5wcm90bxIRc2VuaW0uaWRlbnRpdHkudjEi6QEKBFVzZXISCgoCaWQYASABKAkSDQoFcGhvbmUYAiABKAkSLQoMZGVmYXVsdF9yb2xlGAMgASgOMhcuc2VuaW0uaWRlbnRpdHkudjEuUm9sZRImCgVyb2xlcxgEIAMoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSDwoHaXNfZGVtbxgFIAEoCBIuCgpibG9ja2VkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpjcmVhdGVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCLzAQoHU2Vzc2lvbhIKCgJpZBgBIAEoCRIsCgthY3RpdmVfcm9sZRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPaWRsZV9leHBpcmVzX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIUCgxtZmFfcmVxdWlyZWQYBSABKAgSMwoPbWZhX3ZlcmlmaWVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCI6CgpTaWduaW5nS2V5EgsKA2tpZBgBIAEoCRISCgpwdWJsaWNfa2V5GAIgASgMEgsKA2FsZxgDIAEoCSJhCgZQZXJzb24SDwoHdXNlcl9pZBgBIAEoCRIRCglmdWxsX25hbWUYAiABKAkSEQoJaWluX2xhc3Q0GAMgASgJEhEKCWluc3RhZ3JhbRgEIAEoCRINCgVlbWFpbBgFIAEoCSK4AwoFUGFydHkSDwoHdXNlcl9pZBgBIAEoCRIwCgpsZWdhbF9mb3JtGAIgASgOMhwuc2VuaW0uaWRlbnRpdHkudjEuTGVnYWxGb3JtEhIKCmxlZ2FsX25hbWUYAyABKAkSFQoNYmluX2lpbl9sYXN0NBgEIAEoCRIYChBzaWduZXJfZnVsbF9uYW1lGAUgASgJEhgKEHNpZ25lcl9paW5fbGFzdDQYBiABKAkSGQoRcGF5b3V0X2liYW5fbGFzdDQYByABKAkSMAoKa3ljX3N0YXR1cxgIIAEoDjIcLnNlbmltLmlkZW50aXR5LnYxLkt5Y1N0YXR1cxIZChFreWNfcmVqZWN0X3JlYXNvbhgJIAEoCRI0ChBreWNfc3VibWl0dGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIzCg9reWNfcmV2aWV3ZWRfYXQYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKD2t5Y19pZF9maWxlX2lkcxgMIAMoCRIhChlreWNfcmVnaXN0cmF0aW9uX2ZpbGVfaWRzGA0gAygJItkBCgxQYXJ0eURldGFpbHMSDwoHdXNlcl9pZBgBIAEoCRIRCglmdWxsX25hbWUYAiABKAkSCwoDaWluGAMgASgJEjAKCmxlZ2FsX2Zvcm0YBCABKA4yHC5zZW5pbS5pZGVudGl0eS52MS5MZWdhbEZvcm0SEgoKbGVnYWxfbmFtZRgFIAEoCRIPCgdiaW5faWluGAYgASgJEhgKEHNpZ25lcl9mdWxsX25hbWUYByABKAkSEgoKc2lnbmVyX2lpbhgIIAEoCRITCgtwYXlvdXRfaWJhbhgJIAEoCSKCAgoHQ29uc2VudBIKCgJpZBgBIAEoCRIsCgRraW5kGAIgASgOMh4uc2VuaW0uaWRlbnRpdHkudjEuQ29uc2VudEtpbmQSDwoHdmVyc2lvbhgDIAEoCRITCgt0ZXh0X3NoYTI1NhgEIAEoCRIQCghwdXJwb3NlcxgFIAMoCRIUCgxyZWZlcmVuY2VfaWQYBiABKAkSDwoHY2hhbm5lbBgHIAEoCRIuCgpncmFudGVkX2F0GAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpyZXZva2VkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCKxAgoRQ29uc2VudFJldm9jYXRpb24SCgoCaWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIsCgRraW5kGAMgASgOMh4uc2VuaW0uaWRlbnRpdHkudjEuQ29uc2VudEtpbmQSMAoMcmVxdWVzdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIqCgZkdWVfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjMKBnN0YXR1cxgGIAEoDjIjLnNlbmltLmlkZW50aXR5LnYxLlJldm9jYXRpb25TdGF0dXMSLgoKZGVjaWRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGcmVhc29uGAggASgJItcBCglTZWVkUGFydHkSMAoKbGVnYWxfZm9ybRgBIAEoDjIcLnNlbmltLmlkZW50aXR5LnYxLkxlZ2FsRm9ybRISCgpsZWdhbF9uYW1lGAIgASgJEg8KB2Jpbl9paW4YAyABKAkSGAoQc2lnbmVyX2Z1bGxfbmFtZRgEIAEoCRISCgpzaWduZXJfaWluGAUgASgJEhMKC3BheW91dF9pYmFuGAYgASgJEjAKCmt5Y19zdGF0dXMYByABKA4yHC5zZW5pbS5pZGVudGl0eS52MS5LeWNTdGF0dXMi1gIKCFNlZWRVc2VyEg0KBXBob25lGAEgASgJEi0KDGRlZmF1bHRfcm9sZRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSJgoFcm9sZXMYAyADKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlEg8KB2lzX2RlbW8YBCABKAgSLgoKY3JlYXRlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJZnVsbF9uYW1lGAYgASgJEgsKA2lpbhgHIAEoCRIRCglpbnN0YWdyYW0YCCABKAkSDQoFZW1haWwYCSABKAkSKwoFcGFydHkYCiABKAsyHC5zZW5pbS5pZGVudGl0eS52MS5TZWVkUGFydHkSFwoPY29uc2VudF92ZXJzaW9uGAsgASgJEhsKE2NvbnNlbnRfdGV4dF9zaGEyNTYYDCABKAkiTgoRUmVxdWVzdE90cFJlcXVlc3QSDQoFcGhvbmUYASABKAkSEQoJY2xpZW50X2lwGAIgASgJEhcKD2lkZW1wb3RlbmN5X2tleRgDIAEoCSJmChJSZXF1ZXN0T3RwUmVzcG9uc2USDQoFcGhvbmUYASABKAkSLgoKZXhwaXJlc19hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJZGVtb19jb2RlGAMgASgJIoYBChBWZXJpZnlPdHBSZXF1ZXN0Eg0KBXBob25lGAEgASgJEgwKBGNvZGUYAiABKAkSEQoJY2xpZW50X2lwGAMgASgJEhIKCnVzZXJfYWdlbnQYBCABKAkSFQoNc2Vzc2lvbl90b2tlbhgFIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYBiABKAkidwoRVmVyaWZ5T3RwUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLnNlbmltLmlkZW50aXR5LnYxLlVzZXISKwoHc2Vzc2lvbhgCIAEoCzIaLnNlbmltLmlkZW50aXR5LnYxLlNlc3Npb24SDgoGaXNfbmV3GAMgASgIIiwKE0F1dGhlbnRpY2F0ZVJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCSLlAQoUQXV0aGVudGljYXRlUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLnNlbmltLmlkZW50aXR5LnYxLlVzZXISKwoHc2Vzc2lvbhgCIAEoCzIaLnNlbmltLmlkZW50aXR5LnYxLlNlc3Npb24SFAoMYWNjZXNzX3Rva2VuGAMgASgJEjUKEWFjY2Vzc19leHBpcmVzX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIsCghjb25zZW50cxgFIAMoCzIaLnNlbmltLmlkZW50aXR5LnYxLkNvbnNlbnQiQAoOU2lnbk91dFJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYAiABKAkiEQoPU2lnbk91dFJlc3BvbnNlIkoKGFNpZ25PdXRFdmVyeXdoZXJlUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJEhcKD2lkZW1wb3RlbmN5X2tleRgCIAEoCSIbChlTaWduT3V0RXZlcnl3aGVyZVJlc3BvbnNlImoKEVN3aXRjaFJvbGVSZXF1ZXN0EhUKDXNlc3Npb25fdG9rZW4YASABKAkSJQoEcm9sZRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSFwoPaWRlbXBvdGVuY3lfa2V5GAMgASgJImgKElN3aXRjaFJvbGVSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcuc2VuaW0uaWRlbnRpdHkudjEuVXNlchIrCgdzZXNzaW9uGAIgASgLMhouc2VuaW0uaWRlbnRpdHkudjEuU2Vzc2lvbiJpChBHcmFudFJvbGVSZXF1ZXN0EhUKDXNlc3Npb25fdG9rZW4YASABKAkSJQoEcm9sZRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSFwoPaWRlbXBvdGVuY3lfa2V5GAMgASgJIksKEUdyYW50Um9sZVJlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5zZW5pbS5pZGVudGl0eS52MS5Vc2VyEg8KB2dyYW50ZWQYAiABKAgimAEKF1N0YXJ0RGVtb1Nlc3Npb25SZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSKAoHYXNfcm9sZRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSFQoNc2Vzc2lvbl90b2tlbhgDIAEoCRISCgp1c2VyX2FnZW50GAQgASgJEhcKD2lkZW1wb3RlbmN5X2tleRgFIAEoCSJuChhTdGFydERlbW9TZXNzaW9uUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLnNlbmltLmlkZW50aXR5LnYxLlVzZXISKwoHc2Vzc2lvbhgCIAEoCzIaLnNlbmltLmlkZW50aXR5LnYxLlNlc3Npb24iVwoQU2VlZFVzZXJzUmVxdWVzdBIqCgV1c2VycxgBIAMoCzIbLnNlbmltLmlkZW50aXR5LnYxLlNlZWRVc2VyEhcKD2lkZW1wb3RlbmN5X2tleRgCIAEoCSI7ChFTZWVkVXNlcnNSZXNwb25zZRImCgV1c2VycxgBIAMoCzIXLnNlbmltLmlkZW50aXR5LnYxLlVzZXIiKwoQUmVzZXREZW1vUmVxdWVzdBIXCg9pZGVtcG90ZW5jeV9rZXkYASABKAkiEwoRUmVzZXREZW1vUmVzcG9uc2UiTAoaU3RhcnRUb3RwRW5yb2xsbWVudFJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYAiABKAkiNAobU3RhcnRUb3RwRW5yb2xsbWVudFJlc3BvbnNlEhUKDXNlY3JldF9iYXNlMzIYASABKAkiXAocQ29uZmlybVRvdHBFbnJvbGxtZW50UmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJEgwKBGNvZGUYAiABKAkSFwoPaWRlbXBvdGVuY3lfa2V5GAMgASgJIkwKHUNvbmZpcm1Ub3RwRW5yb2xsbWVudFJlc3BvbnNlEisKB3Nlc3Npb24YASABKAsyGi5zZW5pbS5pZGVudGl0eS52MS5TZXNzaW9uIlkKGVZlcmlmeVNlY29uZEZhY3RvclJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCRIMCgRjb2RlGAIgASgJEhcKD2lkZW1wb3RlbmN5X2tleRgDIAEoCSJJChpWZXJpZnlTZWNvbmRGYWN0b3JSZXNwb25zZRIrCgdzZXNzaW9uGAEgASgLMhouc2VuaW0uaWRlbnRpdHkudjEuU2Vzc2lvbiJlChNSZWNvcmRQZXJzb25SZXF1ZXN0EhUKDXNlc3Npb25fdG9rZW4YASABKAkSEQoJZnVsbF9uYW1lGAIgASgJEgsKA2lpbhgDIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYBCABKAkiQQoUUmVjb3JkUGVyc29uUmVzcG9uc2USKQoGcGVyc29uGAEgASgLMhkuc2VuaW0uaWRlbnRpdHkudjEuUGVyc29uImkKFVVwZGF0ZUNvbnRhY3RzUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJEhEKCWluc3RhZ3JhbRgCIAEoCRINCgVlbWFpbBgDIAEoCRIXCg9pZGVtcG90ZW5jeV9rZXkYBCABKAkiQwoWVXBkYXRlQ29udGFjdHNSZXNwb25zZRIpCgZwZXJzb24YASABKAsyGS5zZW5pbS5pZGVudGl0eS52MS5QZXJzb24iKgoRR2V0UHJvZmlsZVJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCSJoChJHZXRQcm9maWxlUmVzcG9uc2USKQoGcGVyc29uGAEgASgLMhkuc2VuaW0uaWRlbnRpdHkudjEuUGVyc29uEicKBXBhcnR5GAIgASgLMhguc2VuaW0uaWRlbnRpdHkudjEuUGFydHkiywEKFFJlZ2lzdGVyUGFydHlSZXF1ZXN0EhUKDXNlc3Npb25fdG9rZW4YASABKAkSMAoKbGVnYWxfZm9ybRgCIAEoDjIcLnNlbmltLmlkZW50aXR5LnYxLkxlZ2FsRm9ybRISCgpsZWdhbF9uYW1lGAMgASgJEg8KB2Jpbl9paW4YBCABKAkSGAoQc2lnbmVyX2Z1bGxfbmFtZRgFIAEoCRISCgpzaWduZXJfaWluGAYgASgJEhcKD2lkZW1wb3RlbmN5X2tleRgHIAEoCSJAChVSZWdpc3RlclBhcnR5UmVzcG9uc2USJwoFcGFydHkYASABKAsyGC5zZW5pbS5pZGVudGl0eS52MS5QYXJ0eSLeAQoYUHJvdmlzaW9uRXhlY3V0b3JSZXF1ZXN0EhUKDXNlc3Npb25fdG9rZW4YASABKAkSDQoFcGhvbmUYAiABKAkSMAoKbGVnYWxfZm9ybRgDIAEoDjIcLnNlbmltLmlkZW50aXR5LnYxLkxlZ2FsRm9ybRISCgpsZWdhbF9uYW1lGAQgASgJEg8KB2Jpbl9paW4YBSABKAkSGAoQc2lnbmVyX2Z1bGxfbmFtZRgGIAEoCRISCgpzaWduZXJfaWluGAcgASgJEhcKD2lkZW1wb3RlbmN5X2tleRgIIAEoCSJrChlQcm92aXNpb25FeGVjdXRvclJlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5zZW5pbS5pZGVudGl0eS52MS5Vc2VyEicKBXBhcnR5GAIgASgLMhguc2VuaW0uaWRlbnRpdHkudjEuUGFydHkiVAoUU2V0UGF5b3V0SWJhblJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCRIMCgRpYmFuGAIgASgJEhcKD2lkZW1wb3RlbmN5X2tleRgDIAEoCSJAChVTZXRQYXlvdXRJYmFuUmVzcG9uc2USJwoFcGFydHkYASABKAsyGC5zZW5pbS5pZGVudGl0eS52MS5QYXJ0eSI2ChZWZXJpZnlTaWduZXJJaW5SZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAkSCwoDaWluGAIgASgJIioKF1ZlcmlmeVNpZ25lcklpblJlc3BvbnNlEg8KB21hdGNoZXMYASABKAgikwEKGVJldmVhbFBhcnR5RGV0YWlsc1JlcXVlc3QSGwoTYWN0b3Jfc2Vzc2lvbl90b2tlbhgBIAEoCRIQCgh1c2VyX2lkcxgCIAMoCRIxCgdwdXJwb3NlGAMgASgOMiAuc2VuaW0uaWRlbnRpdHkudjEuUmV2ZWFsUHVycG9zZRIUCgxyZWZlcmVuY2VfaWQYBCABKAkiTgoaUmV2ZWFsUGFydHlEZXRhaWxzUmVzcG9uc2USMAoHcGFydGllcxgBIAMoCzIfLnNlbmltLmlkZW50aXR5LnYxLlBhcnR5RGV0YWlscyJ2ChBTdWJtaXRLeWNSZXF1ZXN0EhUKDXNlc3Npb25fdG9rZW4YASABKAkSEwoLaWRfZmlsZV9pZHMYAiADKAkSHQoVcmVnaXN0cmF0aW9uX2ZpbGVfaWRzGAMgAygJEhcKD2lkZW1wb3RlbmN5X2tleRgEIAEoCSI8ChFTdWJtaXRLeWNSZXNwb25zZRInCgVwYXJ0eRgBIAEoCzIYLnNlbmltLmlkZW50aXR5LnYxLlBhcnR5IiwKE0xpc3RLeWNRdWV1ZVJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCSJsChRMaXN0S3ljUXVldWVSZXNwb25zZRIpCgdwYXJ0aWVzGAEgAygLMhguc2VuaW0uaWRlbnRpdHkudjEuUGFydHkSKQoGcGVvcGxlGAIgAygLMhkuc2VuaW0uaWRlbnRpdHkudjEuUGVyc29uInMKEFJldmlld0t5Y1JlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCRIPCgd1c2VyX2lkGAIgASgJEg4KBnZlcmlmeRgDIAEoCBIOCgZyZWFzb24YBCABKAkSFwoPaWRlbXBvdGVuY3lfa2V5GAUgASgJIjwKEVJldmlld0t5Y1Jlc3BvbnNlEicKBXBhcnR5GAEgASgLMhguc2VuaW0uaWRlbnRpdHkudjEuUGFydHkiwQEKE0dyYW50Q29uc2VudFJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCRIsCgRraW5kGAIgASgOMh4uc2VuaW0uaWRlbnRpdHkudjEuQ29uc2VudEtpbmQSDwoHdmVyc2lvbhgDIAEoCRITCgt0ZXh0X3NoYTI1NhgEIAEoCRIQCghwdXJwb3NlcxgFIAMoCRIUCgxyZWZlcmVuY2VfaWQYBiABKAkSFwoPaWRlbXBvdGVuY3lfa2V5GAcgASgJIkMKFEdyYW50Q29uc2VudFJlc3BvbnNlEisKB2NvbnNlbnQYASABKAsyGi5zZW5pbS5pZGVudGl0eS52MS5Db25zZW50InQKFFJldm9rZUNvbnNlbnRSZXF1ZXN0EhUKDXNlc3Npb25fdG9rZW4YASABKAkSLAoEa2luZBgCIAEoDjIeLnNlbmltLmlkZW50aXR5LnYxLkNvbnNlbnRLaW5kEhcKD2lkZW1wb3RlbmN5X2tleRgDIAEoCSJRChVSZXZva2VDb25zZW50UmVzcG9uc2USOAoKcmV2b2NhdGlvbhgBIAEoCzIkLnNlbmltLmlkZW50aXR5LnYxLkNvbnNlbnRSZXZvY2F0aW9uIi4KFUxpc3RNeUNvbnNlbnRzUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJIoEBChZMaXN0TXlDb25zZW50c1Jlc3BvbnNlEiwKCGNvbnNlbnRzGAEgAygLMhouc2VuaW0uaWRlbnRpdHkudjEuQ29uc2VudBI5CgtyZXZvY2F0aW9ucxgCIAMoCzIkLnNlbmltLmlkZW50aXR5LnYxLkNvbnNlbnRSZXZvY2F0aW9uImoKEkhhc0NvbnNlbnRzUmVxdWVzdBIQCgh1c2VyX2lkcxgBIAMoCRIsCgRraW5kGAIgASgOMh4uc2VuaW0uaWRlbnRpdHkudjEuQ29uc2VudEtpbmQSFAoMcmVmZXJlbmNlX2lkGAMgASgJIi8KE0hhc0NvbnNlbnRzUmVzcG9uc2USGAoQZ3JhbnRlZF91c2VyX2lkcxgBIAMoCSI2Ch1MaXN0Q29uc2VudFJldm9jYXRpb25zUmVxdWVzdBIVCg1zZXNzaW9uX3Rva2VuGAEgASgJIoYBCh5MaXN0Q29uc2VudFJldm9jYXRpb25zUmVzcG9uc2USOQoLcmV2b2NhdGlvbnMYASADKAsyJC5zZW5pbS5pZGVudGl0eS52MS5Db25zZW50UmV2b2NhdGlvbhIpCgZwZW9wbGUYAiADKAsyGS5zZW5pbS5pZGVudGl0eS52MS5QZXJzb24iiwEKH1Jlc29sdmVDb25zZW50UmV2b2NhdGlvblJlcXVlc3QSFQoNc2Vzc2lvbl90b2tlbhgBIAEoCRIVCg1yZXZvY2F0aW9uX2lkGAIgASgJEhEKCWNvbXBsZXRlZBgDIAEoCBIOCgZyZWFzb24YBCABKAkSFwoPaWRlbXBvdGVuY3lfa2V5GAUgASgJIlwKIFJlc29sdmVDb25zZW50UmV2b2NhdGlvblJlc3BvbnNlEjgKCnJldm9jYXRpb24YASABKAsyJC5zZW5pbS5pZGVudGl0eS52MS5Db25zZW50UmV2b2NhdGlvbiIXChVHZXRTaWduaW5nS2V5c1JlcXVlc3QiRQoWR2V0U2lnbmluZ0tleXNSZXNwb25zZRIrCgRrZXlzGAEgAygLMh0uc2VuaW0uaWRlbnRpdHkudjEuU2lnbmluZ0tleSpmCgRSb2xlEhQKEFJPTEVfVU5TUEVDSUZJRUQQABIPCgtST0xFX0NMSUVOVBABEhEKDVJPTEVfRVhFQ1VUT1IQAhIRCg1ST0xFX09QRVJBVE9SEAMSEQoNUk9MRV9NRUFTVVJFUhAEKmwKCUxlZ2FsRm9ybRIaChZMRUdBTF9GT1JNX1VOU1BFQ0lGSUVEEAASHAoYTEVHQUxfRk9STV9TRUxGX0VNUExPWUVEEAESEQoNTEVHQUxfRk9STV9JUBACEhIKDkxFR0FMX0ZPUk1fVE9PEAMqjwEKCUt5Y1N0YXR1cxIaChZLWUNfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHAoYS1lDX1NUQVRVU19OT1RfU1VCTUlUVEVEEAESFgoSS1lDX1NUQVRVU19QRU5ESU5HEAISFwoTS1lDX1NUQVRVU19WRVJJRklFRBADEhcKE0tZQ19TVEFUVVNfUkVKRUNURUQQBCprCgtDb25zZW50S2luZBIcChhDT05TRU5UX0tJTkRfVU5TUEVDSUZJRUQQABIeChpDT05TRU5UX0tJTkRfUERfUFJPQ0VTU0lORxABEh4KGkNPTlNFTlRfS0lORF9CQU5LX1RSQU5TRkVSEAIqiwEKDVJldmVhbFB1cnBvc2USHgoaUkVWRUFMX1BVUlBPU0VfVU5TUEVDSUZJRUQQABIbChdSRVZFQUxfUFVSUE9TRV9DT05UUkFDVBABEiIKHlJFVkVBTF9QVVJQT1NFX1JFTEVBU0VfUkVDRUlQVBACEhkKFVJFVkVBTF9QVVJQT1NFX1BBWU9VVBADKpYBChBSZXZvY2F0aW9uU3RhdHVzEiEKHVJFVk9DQVRJT05fU1RBVFVTX1VOU1BFQ0lGSUVEEAASHwobUkVWT0NBVElPTl9TVEFUVVNfUkVRVUVTVEVEEAESHwobUkVWT0NBVElPTl9TVEFUVVNfQ09NUExFVEVEEAISHQoZUkVWT0NBVElPTl9TVEFUVVNfUkVGVVNFRBADMtsYCg9JZGVudGl0eVNlcnZpY2USWQoKUmVxdWVzdE90cBIkLnNlbmltLmlkZW50aXR5LnYxLlJlcXVlc3RPdHBSZXF1ZXN0GiUuc2VuaW0uaWRlbnRpdHkudjEuUmVxdWVzdE90cFJlc3BvbnNlElYKCVZlcmlmeU90cBIjLnNlbmltLmlkZW50aXR5LnYxLlZlcmlmeU90cFJlcXVlc3QaJC5zZW5pbS5pZGVudGl0eS52MS5WZXJpZnlPdHBSZXNwb25zZRJfCgxBdXRoZW50aWNhdGUSJi5zZW5pbS5pZGVudGl0eS52MS5BdXRoZW50aWNhdGVSZXF1ZXN0Gicuc2VuaW0uaWRlbnRpdHkudjEuQXV0aGVudGljYXRlUmVzcG9uc2USUAoHU2lnbk91dBIhLnNlbmltLmlkZW50aXR5LnYxLlNpZ25PdXRSZXF1ZXN0GiIuc2VuaW0uaWRlbnRpdHkudjEuU2lnbk91dFJlc3BvbnNlEm4KEVNpZ25PdXRFdmVyeXdoZXJlEisuc2VuaW0uaWRlbnRpdHkudjEuU2lnbk91dEV2ZXJ5d2hlcmVSZXF1ZXN0Giwuc2VuaW0uaWRlbnRpdHkudjEuU2lnbk91dEV2ZXJ5d2hlcmVSZXNwb25zZRJZCgpTd2l0Y2hSb2xlEiQuc2VuaW0uaWRlbnRpdHkudjEuU3dpdGNoUm9sZVJlcXVlc3QaJS5zZW5pbS5pZGVudGl0eS52MS5Td2l0Y2hSb2xlUmVzcG9uc2USVgoJR3JhbnRSb2xlEiMuc2VuaW0uaWRlbnRpdHkudjEuR3JhbnRSb2xlUmVxdWVzdBokLnNlbmltLmlkZW50aXR5LnYxLkdyYW50Um9sZVJlc3BvbnNlEmsKEFN0YXJ0RGVtb1Nlc3Npb24SKi5zZW5pbS5pZGVudGl0eS52MS5TdGFydERlbW9TZXNzaW9uUmVxdWVzdBorLnNlbmltLmlkZW50aXR5LnYxLlN0YXJ0RGVtb1Nlc3Npb25SZXNwb25zZRJWCglTZWVkVXNlcnMSIy5zZW5pbS5pZGVudGl0eS52MS5TZWVkVXNlcnNSZXF1ZXN0GiQuc2VuaW0uaWRlbnRpdHkudjEuU2VlZFVzZXJzUmVzcG9uc2USVgoJUmVzZXREZW1vEiMuc2VuaW0uaWRlbnRpdHkudjEuUmVzZXREZW1vUmVxdWVzdBokLnNlbmltLmlkZW50aXR5LnYxLlJlc2V0RGVtb1Jlc3BvbnNlEmUKDkdldFNpZ25pbmdLZXlzEiguc2VuaW0uaWRlbnRpdHkudjEuR2V0U2lnbmluZ0tleXNSZXF1ZXN0Gikuc2VuaW0uaWRlbnRpdHkudjEuR2V0U2lnbmluZ0tleXNSZXNwb25zZRJ0ChNTdGFydFRvdHBFbnJvbGxtZW50Ei0uc2VuaW0uaWRlbnRpdHkudjEuU3RhcnRUb3RwRW5yb2xsbWVudFJlcXVlc3QaLi5zZW5pbS5pZGVudGl0eS52MS5TdGFydFRvdHBFbnJvbGxtZW50UmVzcG9uc2USegoVQ29uZmlybVRvdHBFbnJvbGxtZW50Ei8uc2VuaW0uaWRlbnRpdHkudjEuQ29uZmlybVRvdHBFbnJvbGxtZW50UmVxdWVzdBowLnNlbmltLmlkZW50aXR5LnYxLkNvbmZpcm1Ub3RwRW5yb2xsbWVudFJlc3BvbnNlEnEKElZlcmlmeVNlY29uZEZhY3RvchIsLnNlbmltLmlkZW50aXR5LnYxLlZlcmlmeVNlY29uZEZhY3RvclJlcXVlc3QaLS5zZW5pbS5pZGVudGl0eS52MS5WZXJpZnlTZWNvbmRGYWN0b3JSZXNwb25zZRJfCgxSZWNvcmRQZXJzb24SJi5zZW5pbS5pZGVudGl0eS52MS5SZWNvcmRQZXJzb25SZXF1ZXN0Gicuc2VuaW0uaWRlbnRpdHkudjEuUmVjb3JkUGVyc29uUmVzcG9uc2USZQoOVXBkYXRlQ29udGFjdHMSKC5zZW5pbS5pZGVudGl0eS52MS5VcGRhdGVDb250YWN0c1JlcXVlc3QaKS5zZW5pbS5pZGVudGl0eS52MS5VcGRhdGVDb250YWN0c1Jlc3BvbnNlElkKCkdldFByb2ZpbGUSJC5zZW5pbS5pZGVudGl0eS52MS5HZXRQcm9maWxlUmVxdWVzdBolLnNlbmltLmlkZW50aXR5LnYxLkdldFByb2ZpbGVSZXNwb25zZRJiCg1SZWdpc3RlclBhcnR5Eicuc2VuaW0uaWRlbnRpdHkudjEuUmVnaXN0ZXJQYXJ0eVJlcXVlc3QaKC5zZW5pbS5pZGVudGl0eS52MS5SZWdpc3RlclBhcnR5UmVzcG9uc2USbgoRUHJvdmlzaW9uRXhlY3V0b3ISKy5zZW5pbS5pZGVudGl0eS52MS5Qcm92aXNpb25FeGVjdXRvclJlcXVlc3QaLC5zZW5pbS5pZGVudGl0eS52MS5Qcm92aXNpb25FeGVjdXRvclJlc3BvbnNlEmIKDVNldFBheW91dEliYW4SJy5zZW5pbS5pZGVudGl0eS52MS5TZXRQYXlvdXRJYmFuUmVxdWVzdBooLnNlbmltLmlkZW50aXR5LnYxLlNldFBheW91dEliYW5SZXNwb25zZRJoCg9WZXJpZnlTaWduZXJJaW4SKS5zZW5pbS5pZGVudGl0eS52MS5WZXJpZnlTaWduZXJJaW5SZXF1ZXN0Giouc2VuaW0uaWRlbnRpdHkudjEuVmVyaWZ5U2lnbmVySWluUmVzcG9uc2UScQoSUmV2ZWFsUGFydHlEZXRhaWxzEiwuc2VuaW0uaWRlbnRpdHkudjEuUmV2ZWFsUGFydHlEZXRhaWxzUmVxdWVzdBotLnNlbmltLmlkZW50aXR5LnYxLlJldmVhbFBhcnR5RGV0YWlsc1Jlc3BvbnNlElYKCVN1Ym1pdEt5YxIjLnNlbmltLmlkZW50aXR5LnYxLlN1Ym1pdEt5Y1JlcXVlc3QaJC5zZW5pbS5pZGVudGl0eS52MS5TdWJtaXRLeWNSZXNwb25zZRJfCgxMaXN0S3ljUXVldWUSJi5zZW5pbS5pZGVudGl0eS52MS5MaXN0S3ljUXVldWVSZXF1ZXN0Gicuc2VuaW0uaWRlbnRpdHkudjEuTGlzdEt5Y1F1ZXVlUmVzcG9uc2USVgoJUmV2aWV3S3ljEiMuc2VuaW0uaWRlbnRpdHkudjEuUmV2aWV3S3ljUmVxdWVzdBokLnNlbmltLmlkZW50aXR5LnYxLlJldmlld0t5Y1Jlc3BvbnNlEl8KDEdyYW50Q29uc2VudBImLnNlbmltLmlkZW50aXR5LnYxLkdyYW50Q29uc2VudFJlcXVlc3QaJy5zZW5pbS5pZGVudGl0eS52MS5HcmFudENvbnNlbnRSZXNwb25zZRJiCg1SZXZva2VDb25zZW50Eicuc2VuaW0uaWRlbnRpdHkudjEuUmV2b2tlQ29uc2VudFJlcXVlc3QaKC5zZW5pbS5pZGVudGl0eS52MS5SZXZva2VDb25zZW50UmVzcG9uc2USZQoOTGlzdE15Q29uc2VudHMSKC5zZW5pbS5pZGVudGl0eS52MS5MaXN0TXlDb25zZW50c1JlcXVlc3QaKS5zZW5pbS5pZGVudGl0eS52MS5MaXN0TXlDb25zZW50c1Jlc3BvbnNlElwKC0hhc0NvbnNlbnRzEiUuc2VuaW0uaWRlbnRpdHkudjEuSGFzQ29uc2VudHNSZXF1ZXN0GiYuc2VuaW0uaWRlbnRpdHkudjEuSGFzQ29uc2VudHNSZXNwb25zZRJ9ChZMaXN0Q29uc2VudFJldm9jYXRpb25zEjAuc2VuaW0uaWRlbnRpdHkudjEuTGlzdENvbnNlbnRSZXZvY2F0aW9uc1JlcXVlc3QaMS5zZW5pbS5pZGVudGl0eS52MS5MaXN0Q29uc2VudFJldm9jYXRpb25zUmVzcG9uc2USgwEKGFJlc29sdmVDb25zZW50UmV2b2NhdGlvbhIyLnNlbmltLmlkZW50aXR5LnYxLlJlc29sdmVDb25zZW50UmV2b2NhdGlvblJlcXVlc3QaMy5zZW5pbS5pZGVudGl0eS52MS5SZXNvbHZlQ29uc2VudFJldm9jYXRpb25SZXNwb25zZULZAQoVY29tLnNlbmltLmlkZW50aXR5LnYxQg1JZGVudGl0eVByb3RvUAFaS2dpdGh1Yi5jb20vQ2VtZXRlcnlQbGF5YS9zZW5pbS1wbGF0Zm9ybS9nZW4vZ28vc2VuaW0vaWRlbnRpdHkvdjE7aWRlbnRpdHl2MaICA1NJWKoCEVNlbmltLklkZW50aXR5LlYxygIRU2VuaW1cSWRlbnRpdHlcVjHiAh1TZW5pbVxJZGVudGl0eVxWMVxHUEJNZXRhZGF0YeoCE1NlbmltOjpJZGVudGl0eTo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * User — учётная запись.
@@ -92,6 +92,20 @@ export type Session = Message<"senim.identity.v1.Session"> & {
    * @generated from field: google.protobuf.Timestamp idle_expires_at = 4;
    */
   idleExpiresAt?: Timestamp | undefined;
+
+  /**
+   * Для сессии оператора нужен второй фактор (TOTP).
+   *
+   * @generated from field: bool mfa_required = 5;
+   */
+  mfaRequired: boolean;
+
+  /**
+   * Пусто, пока второй фактор в этой сессии не подтверждён.
+   *
+   * @generated from field: google.protobuf.Timestamp mfa_verified_at = 6;
+   */
+  mfaVerifiedAt?: Timestamp | undefined;
 };
 
 /**
@@ -135,6 +149,364 @@ export const SigningKeySchema: GenMessage<SigningKey> = /*@__PURE__*/
   messageDesc(file_senim_identity_v1_identity, 2);
 
 /**
+ * Person — данные человека. Открытый ИИН наружу не отдаётся.
+ *
+ * @generated from message senim.identity.v1.Person
+ */
+export type Person = Message<"senim.identity.v1.Person"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: string full_name = 2;
+   */
+  fullName: string;
+
+  /**
+   * Последние 4 символа ИИН.
+   *
+   * @generated from field: string iin_last4 = 3;
+   */
+  iinLast4: string;
+
+  /**
+   * @generated from field: string instagram = 4;
+   */
+  instagram: string;
+
+  /**
+   * @generated from field: string email = 5;
+   */
+  email: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.Person.
+ * Use `create(PersonSchema)` to create a new message.
+ */
+export const PersonSchema: GenMessage<Person> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 3);
+
+/**
+ * Party — сторона сделки (исполнитель): правовая форма, реквизиты и проверка документов.
+ * Открытые ИИН/БИН и IBAN наружу не отдаются, только последние 4 символа.
+ *
+ * @generated from message senim.identity.v1.Party
+ */
+export type Party = Message<"senim.identity.v1.Party"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: senim.identity.v1.LegalForm legal_form = 2;
+   */
+  legalForm: LegalForm;
+
+  /**
+   * @generated from field: string legal_name = 3;
+   */
+  legalName: string;
+
+  /**
+   * @generated from field: string bin_iin_last4 = 4;
+   */
+  binIinLast4: string;
+
+  /**
+   * @generated from field: string signer_full_name = 5;
+   */
+  signerFullName: string;
+
+  /**
+   * @generated from field: string signer_iin_last4 = 6;
+   */
+  signerIinLast4: string;
+
+  /**
+   * @generated from field: string payout_iban_last4 = 7;
+   */
+  payoutIbanLast4: string;
+
+  /**
+   * @generated from field: senim.identity.v1.KycStatus kyc_status = 8;
+   */
+  kycStatus: KycStatus;
+
+  /**
+   * Причина отказа; пусто, если проверка не отклонена.
+   *
+   * @generated from field: string kyc_reject_reason = 9;
+   */
+  kycRejectReason: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp kyc_submitted_at = 10;
+   */
+  kycSubmittedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp kyc_reviewed_at = 11;
+   */
+  kycReviewedAt?: Timestamp | undefined;
+
+  /**
+   * Идентификаторы файлов документов, удостоверяющих личность (сервис files).
+   *
+   * @generated from field: repeated string kyc_id_file_ids = 12;
+   */
+  kycIdFileIds: string[];
+
+  /**
+   * Идентификаторы файлов документов о регистрации (сервис files).
+   *
+   * @generated from field: repeated string kyc_registration_file_ids = 13;
+   */
+  kycRegistrationFileIds: string[];
+};
+
+/**
+ * Describes the message senim.identity.v1.Party.
+ * Use `create(PartySchema)` to create a new message.
+ */
+export const PartySchema: GenMessage<Party> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 4);
+
+/**
+ * PartyDetails — открытые реквизиты человека и стороны. Только RevealPartyDetails.
+ *
+ * @generated from message senim.identity.v1.PartyDetails
+ */
+export type PartyDetails = Message<"senim.identity.v1.PartyDetails"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: string full_name = 2;
+   */
+  fullName: string;
+
+  /**
+   * @generated from field: string iin = 3;
+   */
+  iin: string;
+
+  /**
+   * @generated from field: senim.identity.v1.LegalForm legal_form = 4;
+   */
+  legalForm: LegalForm;
+
+  /**
+   * @generated from field: string legal_name = 5;
+   */
+  legalName: string;
+
+  /**
+   * @generated from field: string bin_iin = 6;
+   */
+  binIin: string;
+
+  /**
+   * @generated from field: string signer_full_name = 7;
+   */
+  signerFullName: string;
+
+  /**
+   * @generated from field: string signer_iin = 8;
+   */
+  signerIin: string;
+
+  /**
+   * @generated from field: string payout_iban = 9;
+   */
+  payoutIban: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.PartyDetails.
+ * Use `create(PartyDetailsSchema)` to create a new message.
+ */
+export const PartyDetailsSchema: GenMessage<PartyDetails> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 5);
+
+/**
+ * Consent — согласие пользователя; фиксирует версию и хеш показанного текста.
+ *
+ * @generated from message senim.identity.v1.Consent
+ */
+export type Consent = Message<"senim.identity.v1.Consent"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: senim.identity.v1.ConsentKind kind = 2;
+   */
+  kind: ConsentKind;
+
+  /**
+   * @generated from field: string version = 3;
+   */
+  version: string;
+
+  /**
+   * SHA-256 показанного текста, hex.
+   *
+   * @generated from field: string text_sha256 = 4;
+   */
+  textSha256: string;
+
+  /**
+   * @generated from field: repeated string purposes = 5;
+   */
+  purposes: string[];
+
+  /**
+   * К чему относится согласие (например, идентификатор сделки); может быть пусто.
+   *
+   * @generated from field: string reference_id = 6;
+   */
+  referenceId: string;
+
+  /**
+   * Канал получения согласия.
+   *
+   * @generated from field: string channel = 7;
+   */
+  channel: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp granted_at = 8;
+   */
+  grantedAt?: Timestamp | undefined;
+
+  /**
+   * Пусто, если согласие не отозвано.
+   *
+   * @generated from field: google.protobuf.Timestamp revoked_at = 9;
+   */
+  revokedAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.Consent.
+ * Use `create(ConsentSchema)` to create a new message.
+ */
+export const ConsentSchema: GenMessage<Consent> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 6);
+
+/**
+ * ConsentRevocation — заявка на отзыв согласия.
+ *
+ * @generated from message senim.identity.v1.ConsentRevocation
+ */
+export type ConsentRevocation = Message<"senim.identity.v1.ConsentRevocation"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string user_id = 2;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: senim.identity.v1.ConsentKind kind = 3;
+   */
+  kind: ConsentKind;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp requested_at = 4;
+   */
+  requestedAt?: Timestamp | undefined;
+
+  /**
+   * Срок исполнения (рабочие дни).
+   *
+   * @generated from field: google.protobuf.Timestamp due_at = 5;
+   */
+  dueAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: senim.identity.v1.RevocationStatus status = 6;
+   */
+  status: RevocationStatus;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp decided_at = 7;
+   */
+  decidedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string reason = 8;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.ConsentRevocation.
+ * Use `create(ConsentRevocationSchema)` to create a new message.
+ */
+export const ConsentRevocationSchema: GenMessage<ConsentRevocation> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 7);
+
+/**
+ * SeedParty — сторона для начального наполнения.
+ *
+ * @generated from message senim.identity.v1.SeedParty
+ */
+export type SeedParty = Message<"senim.identity.v1.SeedParty"> & {
+  /**
+   * @generated from field: senim.identity.v1.LegalForm legal_form = 1;
+   */
+  legalForm: LegalForm;
+
+  /**
+   * @generated from field: string legal_name = 2;
+   */
+  legalName: string;
+
+  /**
+   * @generated from field: string bin_iin = 3;
+   */
+  binIin: string;
+
+  /**
+   * @generated from field: string signer_full_name = 4;
+   */
+  signerFullName: string;
+
+  /**
+   * @generated from field: string signer_iin = 5;
+   */
+  signerIin: string;
+
+  /**
+   * @generated from field: string payout_iban = 6;
+   */
+  payoutIban: string;
+
+  /**
+   * @generated from field: senim.identity.v1.KycStatus kyc_status = 7;
+   */
+  kycStatus: KycStatus;
+};
+
+/**
+ * Describes the message senim.identity.v1.SeedParty.
+ * Use `create(SeedPartySchema)` to create a new message.
+ */
+export const SeedPartySchema: GenMessage<SeedParty> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 8);
+
+/**
  * SeedUser — пользователь для начального наполнения (демо и перенос данных).
  *
  * @generated from message senim.identity.v1.SeedUser
@@ -166,6 +538,45 @@ export type SeedUser = Message<"senim.identity.v1.SeedUser"> & {
    * @generated from field: google.protobuf.Timestamp created_at = 5;
    */
   createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string full_name = 6;
+   */
+  fullName: string;
+
+  /**
+   * @generated from field: string iin = 7;
+   */
+  iin: string;
+
+  /**
+   * @generated from field: string instagram = 8;
+   */
+  instagram: string;
+
+  /**
+   * @generated from field: string email = 9;
+   */
+  email: string;
+
+  /**
+   * Пусто, если у пользователя нет стороны.
+   *
+   * @generated from field: senim.identity.v1.SeedParty party = 10;
+   */
+  party?: SeedParty | undefined;
+
+  /**
+   * Версия и хеш текста согласия на обработку ПДн; пусто — согласия нет.
+   *
+   * @generated from field: string consent_version = 11;
+   */
+  consentVersion: string;
+
+  /**
+   * @generated from field: string consent_text_sha256 = 12;
+   */
+  consentTextSha256: string;
 };
 
 /**
@@ -173,7 +584,7 @@ export type SeedUser = Message<"senim.identity.v1.SeedUser"> & {
  * Use `create(SeedUserSchema)` to create a new message.
  */
 export const SeedUserSchema: GenMessage<SeedUser> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 3);
+  messageDesc(file_senim_identity_v1_identity, 9);
 
 /**
  * @generated from message senim.identity.v1.RequestOtpRequest
@@ -203,7 +614,7 @@ export type RequestOtpRequest = Message<"senim.identity.v1.RequestOtpRequest"> &
  * Use `create(RequestOtpRequestSchema)` to create a new message.
  */
 export const RequestOtpRequestSchema: GenMessage<RequestOtpRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 4);
+  messageDesc(file_senim_identity_v1_identity, 10);
 
 /**
  * @generated from message senim.identity.v1.RequestOtpResponse
@@ -232,7 +643,7 @@ export type RequestOtpResponse = Message<"senim.identity.v1.RequestOtpResponse">
  * Use `create(RequestOtpResponseSchema)` to create a new message.
  */
 export const RequestOtpResponseSchema: GenMessage<RequestOtpResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 5);
+  messageDesc(file_senim_identity_v1_identity, 11);
 
 /**
  * @generated from message senim.identity.v1.VerifyOtpRequest
@@ -278,7 +689,7 @@ export type VerifyOtpRequest = Message<"senim.identity.v1.VerifyOtpRequest"> & {
  * Use `create(VerifyOtpRequestSchema)` to create a new message.
  */
 export const VerifyOtpRequestSchema: GenMessage<VerifyOtpRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 6);
+  messageDesc(file_senim_identity_v1_identity, 12);
 
 /**
  * @generated from message senim.identity.v1.VerifyOtpResponse
@@ -305,7 +716,7 @@ export type VerifyOtpResponse = Message<"senim.identity.v1.VerifyOtpResponse"> &
  * Use `create(VerifyOtpResponseSchema)` to create a new message.
  */
 export const VerifyOtpResponseSchema: GenMessage<VerifyOtpResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 7);
+  messageDesc(file_senim_identity_v1_identity, 13);
 
 /**
  * @generated from message senim.identity.v1.AuthenticateRequest
@@ -322,7 +733,7 @@ export type AuthenticateRequest = Message<"senim.identity.v1.AuthenticateRequest
  * Use `create(AuthenticateRequestSchema)` to create a new message.
  */
 export const AuthenticateRequestSchema: GenMessage<AuthenticateRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 8);
+  messageDesc(file_senim_identity_v1_identity, 14);
 
 /**
  * @generated from message senim.identity.v1.AuthenticateResponse
@@ -347,6 +758,13 @@ export type AuthenticateResponse = Message<"senim.identity.v1.AuthenticateRespon
    * @generated from field: google.protobuf.Timestamp access_expires_at = 4;
    */
   accessExpiresAt?: Timestamp | undefined;
+
+  /**
+   * Действующие согласия (без отозванных).
+   *
+   * @generated from field: repeated senim.identity.v1.Consent consents = 5;
+   */
+  consents: Consent[];
 };
 
 /**
@@ -354,7 +772,7 @@ export type AuthenticateResponse = Message<"senim.identity.v1.AuthenticateRespon
  * Use `create(AuthenticateResponseSchema)` to create a new message.
  */
 export const AuthenticateResponseSchema: GenMessage<AuthenticateResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 9);
+  messageDesc(file_senim_identity_v1_identity, 15);
 
 /**
  * @generated from message senim.identity.v1.SignOutRequest
@@ -376,7 +794,7 @@ export type SignOutRequest = Message<"senim.identity.v1.SignOutRequest"> & {
  * Use `create(SignOutRequestSchema)` to create a new message.
  */
 export const SignOutRequestSchema: GenMessage<SignOutRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 10);
+  messageDesc(file_senim_identity_v1_identity, 16);
 
 /**
  * @generated from message senim.identity.v1.SignOutResponse
@@ -389,7 +807,7 @@ export type SignOutResponse = Message<"senim.identity.v1.SignOutResponse"> & {
  * Use `create(SignOutResponseSchema)` to create a new message.
  */
 export const SignOutResponseSchema: GenMessage<SignOutResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 11);
+  messageDesc(file_senim_identity_v1_identity, 17);
 
 /**
  * @generated from message senim.identity.v1.SignOutEverywhereRequest
@@ -411,7 +829,7 @@ export type SignOutEverywhereRequest = Message<"senim.identity.v1.SignOutEverywh
  * Use `create(SignOutEverywhereRequestSchema)` to create a new message.
  */
 export const SignOutEverywhereRequestSchema: GenMessage<SignOutEverywhereRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 12);
+  messageDesc(file_senim_identity_v1_identity, 18);
 
 /**
  * @generated from message senim.identity.v1.SignOutEverywhereResponse
@@ -424,7 +842,7 @@ export type SignOutEverywhereResponse = Message<"senim.identity.v1.SignOutEveryw
  * Use `create(SignOutEverywhereResponseSchema)` to create a new message.
  */
 export const SignOutEverywhereResponseSchema: GenMessage<SignOutEverywhereResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 13);
+  messageDesc(file_senim_identity_v1_identity, 19);
 
 /**
  * @generated from message senim.identity.v1.SwitchRoleRequest
@@ -451,7 +869,7 @@ export type SwitchRoleRequest = Message<"senim.identity.v1.SwitchRoleRequest"> &
  * Use `create(SwitchRoleRequestSchema)` to create a new message.
  */
 export const SwitchRoleRequestSchema: GenMessage<SwitchRoleRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 14);
+  messageDesc(file_senim_identity_v1_identity, 20);
 
 /**
  * @generated from message senim.identity.v1.SwitchRoleResponse
@@ -473,7 +891,7 @@ export type SwitchRoleResponse = Message<"senim.identity.v1.SwitchRoleResponse">
  * Use `create(SwitchRoleResponseSchema)` to create a new message.
  */
 export const SwitchRoleResponseSchema: GenMessage<SwitchRoleResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 15);
+  messageDesc(file_senim_identity_v1_identity, 21);
 
 /**
  * @generated from message senim.identity.v1.GrantRoleRequest
@@ -500,7 +918,7 @@ export type GrantRoleRequest = Message<"senim.identity.v1.GrantRoleRequest"> & {
  * Use `create(GrantRoleRequestSchema)` to create a new message.
  */
 export const GrantRoleRequestSchema: GenMessage<GrantRoleRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 16);
+  messageDesc(file_senim_identity_v1_identity, 22);
 
 /**
  * @generated from message senim.identity.v1.GrantRoleResponse
@@ -522,7 +940,7 @@ export type GrantRoleResponse = Message<"senim.identity.v1.GrantRoleResponse"> &
  * Use `create(GrantRoleResponseSchema)` to create a new message.
  */
 export const GrantRoleResponseSchema: GenMessage<GrantRoleResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 17);
+  messageDesc(file_senim_identity_v1_identity, 23);
 
 /**
  * @generated from message senim.identity.v1.StartDemoSessionRequest
@@ -559,7 +977,7 @@ export type StartDemoSessionRequest = Message<"senim.identity.v1.StartDemoSessio
  * Use `create(StartDemoSessionRequestSchema)` to create a new message.
  */
 export const StartDemoSessionRequestSchema: GenMessage<StartDemoSessionRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 18);
+  messageDesc(file_senim_identity_v1_identity, 24);
 
 /**
  * @generated from message senim.identity.v1.StartDemoSessionResponse
@@ -581,7 +999,7 @@ export type StartDemoSessionResponse = Message<"senim.identity.v1.StartDemoSessi
  * Use `create(StartDemoSessionResponseSchema)` to create a new message.
  */
 export const StartDemoSessionResponseSchema: GenMessage<StartDemoSessionResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 19);
+  messageDesc(file_senim_identity_v1_identity, 25);
 
 /**
  * @generated from message senim.identity.v1.SeedUsersRequest
@@ -603,7 +1021,7 @@ export type SeedUsersRequest = Message<"senim.identity.v1.SeedUsersRequest"> & {
  * Use `create(SeedUsersRequestSchema)` to create a new message.
  */
 export const SeedUsersRequestSchema: GenMessage<SeedUsersRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 20);
+  messageDesc(file_senim_identity_v1_identity, 26);
 
 /**
  * @generated from message senim.identity.v1.SeedUsersResponse
@@ -620,7 +1038,7 @@ export type SeedUsersResponse = Message<"senim.identity.v1.SeedUsersResponse"> &
  * Use `create(SeedUsersResponseSchema)` to create a new message.
  */
 export const SeedUsersResponseSchema: GenMessage<SeedUsersResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 21);
+  messageDesc(file_senim_identity_v1_identity, 27);
 
 /**
  * @generated from message senim.identity.v1.ResetDemoRequest
@@ -637,7 +1055,7 @@ export type ResetDemoRequest = Message<"senim.identity.v1.ResetDemoRequest"> & {
  * Use `create(ResetDemoRequestSchema)` to create a new message.
  */
 export const ResetDemoRequestSchema: GenMessage<ResetDemoRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 22);
+  messageDesc(file_senim_identity_v1_identity, 28);
 
 /**
  * @generated from message senim.identity.v1.ResetDemoResponse
@@ -650,7 +1068,977 @@ export type ResetDemoResponse = Message<"senim.identity.v1.ResetDemoResponse"> &
  * Use `create(ResetDemoResponseSchema)` to create a new message.
  */
 export const ResetDemoResponseSchema: GenMessage<ResetDemoResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 23);
+  messageDesc(file_senim_identity_v1_identity, 29);
+
+/**
+ * @generated from message senim.identity.v1.StartTotpEnrollmentRequest
+ */
+export type StartTotpEnrollmentRequest = Message<"senim.identity.v1.StartTotpEnrollmentRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string idempotency_key = 2;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.StartTotpEnrollmentRequest.
+ * Use `create(StartTotpEnrollmentRequestSchema)` to create a new message.
+ */
+export const StartTotpEnrollmentRequestSchema: GenMessage<StartTotpEnrollmentRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 30);
+
+/**
+ * @generated from message senim.identity.v1.StartTotpEnrollmentResponse
+ */
+export type StartTotpEnrollmentResponse = Message<"senim.identity.v1.StartTotpEnrollmentResponse"> & {
+  /**
+   * Секрет TOTP в base32; показывается один раз.
+   *
+   * @generated from field: string secret_base32 = 1;
+   */
+  secretBase32: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.StartTotpEnrollmentResponse.
+ * Use `create(StartTotpEnrollmentResponseSchema)` to create a new message.
+ */
+export const StartTotpEnrollmentResponseSchema: GenMessage<StartTotpEnrollmentResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 31);
+
+/**
+ * @generated from message senim.identity.v1.ConfirmTotpEnrollmentRequest
+ */
+export type ConfirmTotpEnrollmentRequest = Message<"senim.identity.v1.ConfirmTotpEnrollmentRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string code = 2;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string idempotency_key = 3;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.ConfirmTotpEnrollmentRequest.
+ * Use `create(ConfirmTotpEnrollmentRequestSchema)` to create a new message.
+ */
+export const ConfirmTotpEnrollmentRequestSchema: GenMessage<ConfirmTotpEnrollmentRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 32);
+
+/**
+ * @generated from message senim.identity.v1.ConfirmTotpEnrollmentResponse
+ */
+export type ConfirmTotpEnrollmentResponse = Message<"senim.identity.v1.ConfirmTotpEnrollmentResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Session session = 1;
+   */
+  session?: Session | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.ConfirmTotpEnrollmentResponse.
+ * Use `create(ConfirmTotpEnrollmentResponseSchema)` to create a new message.
+ */
+export const ConfirmTotpEnrollmentResponseSchema: GenMessage<ConfirmTotpEnrollmentResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 33);
+
+/**
+ * @generated from message senim.identity.v1.VerifySecondFactorRequest
+ */
+export type VerifySecondFactorRequest = Message<"senim.identity.v1.VerifySecondFactorRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string code = 2;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string idempotency_key = 3;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.VerifySecondFactorRequest.
+ * Use `create(VerifySecondFactorRequestSchema)` to create a new message.
+ */
+export const VerifySecondFactorRequestSchema: GenMessage<VerifySecondFactorRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 34);
+
+/**
+ * @generated from message senim.identity.v1.VerifySecondFactorResponse
+ */
+export type VerifySecondFactorResponse = Message<"senim.identity.v1.VerifySecondFactorResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Session session = 1;
+   */
+  session?: Session | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.VerifySecondFactorResponse.
+ * Use `create(VerifySecondFactorResponseSchema)` to create a new message.
+ */
+export const VerifySecondFactorResponseSchema: GenMessage<VerifySecondFactorResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 35);
+
+/**
+ * @generated from message senim.identity.v1.RecordPersonRequest
+ */
+export type RecordPersonRequest = Message<"senim.identity.v1.RecordPersonRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string full_name = 2;
+   */
+  fullName: string;
+
+  /**
+   * @generated from field: string iin = 3;
+   */
+  iin: string;
+
+  /**
+   * @generated from field: string idempotency_key = 4;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.RecordPersonRequest.
+ * Use `create(RecordPersonRequestSchema)` to create a new message.
+ */
+export const RecordPersonRequestSchema: GenMessage<RecordPersonRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 36);
+
+/**
+ * @generated from message senim.identity.v1.RecordPersonResponse
+ */
+export type RecordPersonResponse = Message<"senim.identity.v1.RecordPersonResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Person person = 1;
+   */
+  person?: Person | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.RecordPersonResponse.
+ * Use `create(RecordPersonResponseSchema)` to create a new message.
+ */
+export const RecordPersonResponseSchema: GenMessage<RecordPersonResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 37);
+
+/**
+ * @generated from message senim.identity.v1.UpdateContactsRequest
+ */
+export type UpdateContactsRequest = Message<"senim.identity.v1.UpdateContactsRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string instagram = 2;
+   */
+  instagram: string;
+
+  /**
+   * @generated from field: string email = 3;
+   */
+  email: string;
+
+  /**
+   * @generated from field: string idempotency_key = 4;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.UpdateContactsRequest.
+ * Use `create(UpdateContactsRequestSchema)` to create a new message.
+ */
+export const UpdateContactsRequestSchema: GenMessage<UpdateContactsRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 38);
+
+/**
+ * @generated from message senim.identity.v1.UpdateContactsResponse
+ */
+export type UpdateContactsResponse = Message<"senim.identity.v1.UpdateContactsResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Person person = 1;
+   */
+  person?: Person | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.UpdateContactsResponse.
+ * Use `create(UpdateContactsResponseSchema)` to create a new message.
+ */
+export const UpdateContactsResponseSchema: GenMessage<UpdateContactsResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 39);
+
+/**
+ * @generated from message senim.identity.v1.GetProfileRequest
+ */
+export type GetProfileRequest = Message<"senim.identity.v1.GetProfileRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.GetProfileRequest.
+ * Use `create(GetProfileRequestSchema)` to create a new message.
+ */
+export const GetProfileRequestSchema: GenMessage<GetProfileRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 40);
+
+/**
+ * @generated from message senim.identity.v1.GetProfileResponse
+ */
+export type GetProfileResponse = Message<"senim.identity.v1.GetProfileResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Person person = 1;
+   */
+  person?: Person | undefined;
+
+  /**
+   * Пусто, если стороны нет.
+   *
+   * @generated from field: senim.identity.v1.Party party = 2;
+   */
+  party?: Party | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.GetProfileResponse.
+ * Use `create(GetProfileResponseSchema)` to create a new message.
+ */
+export const GetProfileResponseSchema: GenMessage<GetProfileResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 41);
+
+/**
+ * @generated from message senim.identity.v1.RegisterPartyRequest
+ */
+export type RegisterPartyRequest = Message<"senim.identity.v1.RegisterPartyRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: senim.identity.v1.LegalForm legal_form = 2;
+   */
+  legalForm: LegalForm;
+
+  /**
+   * @generated from field: string legal_name = 3;
+   */
+  legalName: string;
+
+  /**
+   * @generated from field: string bin_iin = 4;
+   */
+  binIin: string;
+
+  /**
+   * @generated from field: string signer_full_name = 5;
+   */
+  signerFullName: string;
+
+  /**
+   * @generated from field: string signer_iin = 6;
+   */
+  signerIin: string;
+
+  /**
+   * @generated from field: string idempotency_key = 7;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.RegisterPartyRequest.
+ * Use `create(RegisterPartyRequestSchema)` to create a new message.
+ */
+export const RegisterPartyRequestSchema: GenMessage<RegisterPartyRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 42);
+
+/**
+ * @generated from message senim.identity.v1.RegisterPartyResponse
+ */
+export type RegisterPartyResponse = Message<"senim.identity.v1.RegisterPartyResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Party party = 1;
+   */
+  party?: Party | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.RegisterPartyResponse.
+ * Use `create(RegisterPartyResponseSchema)` to create a new message.
+ */
+export const RegisterPartyResponseSchema: GenMessage<RegisterPartyResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 43);
+
+/**
+ * @generated from message senim.identity.v1.ProvisionExecutorRequest
+ */
+export type ProvisionExecutorRequest = Message<"senim.identity.v1.ProvisionExecutorRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string phone = 2;
+   */
+  phone: string;
+
+  /**
+   * @generated from field: senim.identity.v1.LegalForm legal_form = 3;
+   */
+  legalForm: LegalForm;
+
+  /**
+   * @generated from field: string legal_name = 4;
+   */
+  legalName: string;
+
+  /**
+   * @generated from field: string bin_iin = 5;
+   */
+  binIin: string;
+
+  /**
+   * @generated from field: string signer_full_name = 6;
+   */
+  signerFullName: string;
+
+  /**
+   * @generated from field: string signer_iin = 7;
+   */
+  signerIin: string;
+
+  /**
+   * @generated from field: string idempotency_key = 8;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.ProvisionExecutorRequest.
+ * Use `create(ProvisionExecutorRequestSchema)` to create a new message.
+ */
+export const ProvisionExecutorRequestSchema: GenMessage<ProvisionExecutorRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 44);
+
+/**
+ * @generated from message senim.identity.v1.ProvisionExecutorResponse
+ */
+export type ProvisionExecutorResponse = Message<"senim.identity.v1.ProvisionExecutorResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.User user = 1;
+   */
+  user?: User | undefined;
+
+  /**
+   * @generated from field: senim.identity.v1.Party party = 2;
+   */
+  party?: Party | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.ProvisionExecutorResponse.
+ * Use `create(ProvisionExecutorResponseSchema)` to create a new message.
+ */
+export const ProvisionExecutorResponseSchema: GenMessage<ProvisionExecutorResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 45);
+
+/**
+ * @generated from message senim.identity.v1.SetPayoutIbanRequest
+ */
+export type SetPayoutIbanRequest = Message<"senim.identity.v1.SetPayoutIbanRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string iban = 2;
+   */
+  iban: string;
+
+  /**
+   * @generated from field: string idempotency_key = 3;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.SetPayoutIbanRequest.
+ * Use `create(SetPayoutIbanRequestSchema)` to create a new message.
+ */
+export const SetPayoutIbanRequestSchema: GenMessage<SetPayoutIbanRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 46);
+
+/**
+ * @generated from message senim.identity.v1.SetPayoutIbanResponse
+ */
+export type SetPayoutIbanResponse = Message<"senim.identity.v1.SetPayoutIbanResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Party party = 1;
+   */
+  party?: Party | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.SetPayoutIbanResponse.
+ * Use `create(SetPayoutIbanResponseSchema)` to create a new message.
+ */
+export const SetPayoutIbanResponseSchema: GenMessage<SetPayoutIbanResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 47);
+
+/**
+ * @generated from message senim.identity.v1.VerifySignerIinRequest
+ */
+export type VerifySignerIinRequest = Message<"senim.identity.v1.VerifySignerIinRequest"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: string iin = 2;
+   */
+  iin: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.VerifySignerIinRequest.
+ * Use `create(VerifySignerIinRequestSchema)` to create a new message.
+ */
+export const VerifySignerIinRequestSchema: GenMessage<VerifySignerIinRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 48);
+
+/**
+ * @generated from message senim.identity.v1.VerifySignerIinResponse
+ */
+export type VerifySignerIinResponse = Message<"senim.identity.v1.VerifySignerIinResponse"> & {
+  /**
+   * @generated from field: bool matches = 1;
+   */
+  matches: boolean;
+};
+
+/**
+ * Describes the message senim.identity.v1.VerifySignerIinResponse.
+ * Use `create(VerifySignerIinResponseSchema)` to create a new message.
+ */
+export const VerifySignerIinResponseSchema: GenMessage<VerifySignerIinResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 49);
+
+/**
+ * @generated from message senim.identity.v1.RevealPartyDetailsRequest
+ */
+export type RevealPartyDetailsRequest = Message<"senim.identity.v1.RevealPartyDetailsRequest"> & {
+  /**
+   * @generated from field: string actor_session_token = 1;
+   */
+  actorSessionToken: string;
+
+  /**
+   * @generated from field: repeated string user_ids = 2;
+   */
+  userIds: string[];
+
+  /**
+   * @generated from field: senim.identity.v1.RevealPurpose purpose = 3;
+   */
+  purpose: RevealPurpose;
+
+  /**
+   * @generated from field: string reference_id = 4;
+   */
+  referenceId: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.RevealPartyDetailsRequest.
+ * Use `create(RevealPartyDetailsRequestSchema)` to create a new message.
+ */
+export const RevealPartyDetailsRequestSchema: GenMessage<RevealPartyDetailsRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 50);
+
+/**
+ * @generated from message senim.identity.v1.RevealPartyDetailsResponse
+ */
+export type RevealPartyDetailsResponse = Message<"senim.identity.v1.RevealPartyDetailsResponse"> & {
+  /**
+   * @generated from field: repeated senim.identity.v1.PartyDetails parties = 1;
+   */
+  parties: PartyDetails[];
+};
+
+/**
+ * Describes the message senim.identity.v1.RevealPartyDetailsResponse.
+ * Use `create(RevealPartyDetailsResponseSchema)` to create a new message.
+ */
+export const RevealPartyDetailsResponseSchema: GenMessage<RevealPartyDetailsResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 51);
+
+/**
+ * @generated from message senim.identity.v1.SubmitKycRequest
+ */
+export type SubmitKycRequest = Message<"senim.identity.v1.SubmitKycRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: repeated string id_file_ids = 2;
+   */
+  idFileIds: string[];
+
+  /**
+   * @generated from field: repeated string registration_file_ids = 3;
+   */
+  registrationFileIds: string[];
+
+  /**
+   * @generated from field: string idempotency_key = 4;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.SubmitKycRequest.
+ * Use `create(SubmitKycRequestSchema)` to create a new message.
+ */
+export const SubmitKycRequestSchema: GenMessage<SubmitKycRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 52);
+
+/**
+ * @generated from message senim.identity.v1.SubmitKycResponse
+ */
+export type SubmitKycResponse = Message<"senim.identity.v1.SubmitKycResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Party party = 1;
+   */
+  party?: Party | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.SubmitKycResponse.
+ * Use `create(SubmitKycResponseSchema)` to create a new message.
+ */
+export const SubmitKycResponseSchema: GenMessage<SubmitKycResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 53);
+
+/**
+ * @generated from message senim.identity.v1.ListKycQueueRequest
+ */
+export type ListKycQueueRequest = Message<"senim.identity.v1.ListKycQueueRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.ListKycQueueRequest.
+ * Use `create(ListKycQueueRequestSchema)` to create a new message.
+ */
+export const ListKycQueueRequestSchema: GenMessage<ListKycQueueRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 54);
+
+/**
+ * @generated from message senim.identity.v1.ListKycQueueResponse
+ */
+export type ListKycQueueResponse = Message<"senim.identity.v1.ListKycQueueResponse"> & {
+  /**
+   * @generated from field: repeated senim.identity.v1.Party parties = 1;
+   */
+  parties: Party[];
+
+  /**
+   * @generated from field: repeated senim.identity.v1.Person people = 2;
+   */
+  people: Person[];
+};
+
+/**
+ * Describes the message senim.identity.v1.ListKycQueueResponse.
+ * Use `create(ListKycQueueResponseSchema)` to create a new message.
+ */
+export const ListKycQueueResponseSchema: GenMessage<ListKycQueueResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 55);
+
+/**
+ * @generated from message senim.identity.v1.ReviewKycRequest
+ */
+export type ReviewKycRequest = Message<"senim.identity.v1.ReviewKycRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string user_id = 2;
+   */
+  userId: string;
+
+  /**
+   * true — подтвердить, false — отклонить (тогда нужна причина).
+   *
+   * @generated from field: bool verify = 3;
+   */
+  verify: boolean;
+
+  /**
+   * @generated from field: string reason = 4;
+   */
+  reason: string;
+
+  /**
+   * @generated from field: string idempotency_key = 5;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.ReviewKycRequest.
+ * Use `create(ReviewKycRequestSchema)` to create a new message.
+ */
+export const ReviewKycRequestSchema: GenMessage<ReviewKycRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 56);
+
+/**
+ * @generated from message senim.identity.v1.ReviewKycResponse
+ */
+export type ReviewKycResponse = Message<"senim.identity.v1.ReviewKycResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Party party = 1;
+   */
+  party?: Party | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.ReviewKycResponse.
+ * Use `create(ReviewKycResponseSchema)` to create a new message.
+ */
+export const ReviewKycResponseSchema: GenMessage<ReviewKycResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 57);
+
+/**
+ * @generated from message senim.identity.v1.GrantConsentRequest
+ */
+export type GrantConsentRequest = Message<"senim.identity.v1.GrantConsentRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: senim.identity.v1.ConsentKind kind = 2;
+   */
+  kind: ConsentKind;
+
+  /**
+   * @generated from field: string version = 3;
+   */
+  version: string;
+
+  /**
+   * @generated from field: string text_sha256 = 4;
+   */
+  textSha256: string;
+
+  /**
+   * @generated from field: repeated string purposes = 5;
+   */
+  purposes: string[];
+
+  /**
+   * @generated from field: string reference_id = 6;
+   */
+  referenceId: string;
+
+  /**
+   * @generated from field: string idempotency_key = 7;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.GrantConsentRequest.
+ * Use `create(GrantConsentRequestSchema)` to create a new message.
+ */
+export const GrantConsentRequestSchema: GenMessage<GrantConsentRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 58);
+
+/**
+ * @generated from message senim.identity.v1.GrantConsentResponse
+ */
+export type GrantConsentResponse = Message<"senim.identity.v1.GrantConsentResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.Consent consent = 1;
+   */
+  consent?: Consent | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.GrantConsentResponse.
+ * Use `create(GrantConsentResponseSchema)` to create a new message.
+ */
+export const GrantConsentResponseSchema: GenMessage<GrantConsentResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 59);
+
+/**
+ * @generated from message senim.identity.v1.RevokeConsentRequest
+ */
+export type RevokeConsentRequest = Message<"senim.identity.v1.RevokeConsentRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: senim.identity.v1.ConsentKind kind = 2;
+   */
+  kind: ConsentKind;
+
+  /**
+   * @generated from field: string idempotency_key = 3;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.RevokeConsentRequest.
+ * Use `create(RevokeConsentRequestSchema)` to create a new message.
+ */
+export const RevokeConsentRequestSchema: GenMessage<RevokeConsentRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 60);
+
+/**
+ * @generated from message senim.identity.v1.RevokeConsentResponse
+ */
+export type RevokeConsentResponse = Message<"senim.identity.v1.RevokeConsentResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.ConsentRevocation revocation = 1;
+   */
+  revocation?: ConsentRevocation | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.RevokeConsentResponse.
+ * Use `create(RevokeConsentResponseSchema)` to create a new message.
+ */
+export const RevokeConsentResponseSchema: GenMessage<RevokeConsentResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 61);
+
+/**
+ * @generated from message senim.identity.v1.ListMyConsentsRequest
+ */
+export type ListMyConsentsRequest = Message<"senim.identity.v1.ListMyConsentsRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.ListMyConsentsRequest.
+ * Use `create(ListMyConsentsRequestSchema)` to create a new message.
+ */
+export const ListMyConsentsRequestSchema: GenMessage<ListMyConsentsRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 62);
+
+/**
+ * @generated from message senim.identity.v1.ListMyConsentsResponse
+ */
+export type ListMyConsentsResponse = Message<"senim.identity.v1.ListMyConsentsResponse"> & {
+  /**
+   * Включая отозванные.
+   *
+   * @generated from field: repeated senim.identity.v1.Consent consents = 1;
+   */
+  consents: Consent[];
+
+  /**
+   * @generated from field: repeated senim.identity.v1.ConsentRevocation revocations = 2;
+   */
+  revocations: ConsentRevocation[];
+};
+
+/**
+ * Describes the message senim.identity.v1.ListMyConsentsResponse.
+ * Use `create(ListMyConsentsResponseSchema)` to create a new message.
+ */
+export const ListMyConsentsResponseSchema: GenMessage<ListMyConsentsResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 63);
+
+/**
+ * @generated from message senim.identity.v1.HasConsentsRequest
+ */
+export type HasConsentsRequest = Message<"senim.identity.v1.HasConsentsRequest"> & {
+  /**
+   * @generated from field: repeated string user_ids = 1;
+   */
+  userIds: string[];
+
+  /**
+   * @generated from field: senim.identity.v1.ConsentKind kind = 2;
+   */
+  kind: ConsentKind;
+
+  /**
+   * @generated from field: string reference_id = 3;
+   */
+  referenceId: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.HasConsentsRequest.
+ * Use `create(HasConsentsRequestSchema)` to create a new message.
+ */
+export const HasConsentsRequestSchema: GenMessage<HasConsentsRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 64);
+
+/**
+ * @generated from message senim.identity.v1.HasConsentsResponse
+ */
+export type HasConsentsResponse = Message<"senim.identity.v1.HasConsentsResponse"> & {
+  /**
+   * @generated from field: repeated string granted_user_ids = 1;
+   */
+  grantedUserIds: string[];
+};
+
+/**
+ * Describes the message senim.identity.v1.HasConsentsResponse.
+ * Use `create(HasConsentsResponseSchema)` to create a new message.
+ */
+export const HasConsentsResponseSchema: GenMessage<HasConsentsResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 65);
+
+/**
+ * @generated from message senim.identity.v1.ListConsentRevocationsRequest
+ */
+export type ListConsentRevocationsRequest = Message<"senim.identity.v1.ListConsentRevocationsRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.ListConsentRevocationsRequest.
+ * Use `create(ListConsentRevocationsRequestSchema)` to create a new message.
+ */
+export const ListConsentRevocationsRequestSchema: GenMessage<ListConsentRevocationsRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 66);
+
+/**
+ * @generated from message senim.identity.v1.ListConsentRevocationsResponse
+ */
+export type ListConsentRevocationsResponse = Message<"senim.identity.v1.ListConsentRevocationsResponse"> & {
+  /**
+   * @generated from field: repeated senim.identity.v1.ConsentRevocation revocations = 1;
+   */
+  revocations: ConsentRevocation[];
+
+  /**
+   * @generated from field: repeated senim.identity.v1.Person people = 2;
+   */
+  people: Person[];
+};
+
+/**
+ * Describes the message senim.identity.v1.ListConsentRevocationsResponse.
+ * Use `create(ListConsentRevocationsResponseSchema)` to create a new message.
+ */
+export const ListConsentRevocationsResponseSchema: GenMessage<ListConsentRevocationsResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 67);
+
+/**
+ * @generated from message senim.identity.v1.ResolveConsentRevocationRequest
+ */
+export type ResolveConsentRevocationRequest = Message<"senim.identity.v1.ResolveConsentRevocationRequest"> & {
+  /**
+   * @generated from field: string session_token = 1;
+   */
+  sessionToken: string;
+
+  /**
+   * @generated from field: string revocation_id = 2;
+   */
+  revocationId: string;
+
+  /**
+   * true — отзыв исполнен, false — отказано (тогда нужна причина).
+   *
+   * @generated from field: bool completed = 3;
+   */
+  completed: boolean;
+
+  /**
+   * @generated from field: string reason = 4;
+   */
+  reason: string;
+
+  /**
+   * @generated from field: string idempotency_key = 5;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message senim.identity.v1.ResolveConsentRevocationRequest.
+ * Use `create(ResolveConsentRevocationRequestSchema)` to create a new message.
+ */
+export const ResolveConsentRevocationRequestSchema: GenMessage<ResolveConsentRevocationRequest> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 68);
+
+/**
+ * @generated from message senim.identity.v1.ResolveConsentRevocationResponse
+ */
+export type ResolveConsentRevocationResponse = Message<"senim.identity.v1.ResolveConsentRevocationResponse"> & {
+  /**
+   * @generated from field: senim.identity.v1.ConsentRevocation revocation = 1;
+   */
+  revocation?: ConsentRevocation | undefined;
+};
+
+/**
+ * Describes the message senim.identity.v1.ResolveConsentRevocationResponse.
+ * Use `create(ResolveConsentRevocationResponseSchema)` to create a new message.
+ */
+export const ResolveConsentRevocationResponseSchema: GenMessage<ResolveConsentRevocationResponse> = /*@__PURE__*/
+  messageDesc(file_senim_identity_v1_identity, 69);
 
 /**
  * @generated from message senim.identity.v1.GetSigningKeysRequest
@@ -663,7 +2051,7 @@ export type GetSigningKeysRequest = Message<"senim.identity.v1.GetSigningKeysReq
  * Use `create(GetSigningKeysRequestSchema)` to create a new message.
  */
 export const GetSigningKeysRequestSchema: GenMessage<GetSigningKeysRequest> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 24);
+  messageDesc(file_senim_identity_v1_identity, 70);
 
 /**
  * @generated from message senim.identity.v1.GetSigningKeysResponse
@@ -680,7 +2068,7 @@ export type GetSigningKeysResponse = Message<"senim.identity.v1.GetSigningKeysRe
  * Use `create(GetSigningKeysResponseSchema)` to create a new message.
  */
 export const GetSigningKeysResponseSchema: GenMessage<GetSigningKeysResponse> = /*@__PURE__*/
-  messageDesc(file_senim_identity_v1_identity, 25);
+  messageDesc(file_senim_identity_v1_identity, 71);
 
 /**
  * Role — роль пользователя на платформе.
@@ -721,6 +2109,187 @@ export const RoleSchema: GenEnum<Role> = /*@__PURE__*/
   enumDesc(file_senim_identity_v1_identity, 0);
 
 /**
+ * LegalForm — правовая форма исполнителя.
+ *
+ * @generated from enum senim.identity.v1.LegalForm
+ */
+export enum LegalForm {
+  /**
+   * @generated from enum value: LEGAL_FORM_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Самозанятый.
+   *
+   * @generated from enum value: LEGAL_FORM_SELF_EMPLOYED = 1;
+   */
+  SELF_EMPLOYED = 1,
+
+  /**
+   * Индивидуальный предприниматель.
+   *
+   * @generated from enum value: LEGAL_FORM_IP = 2;
+   */
+  IP = 2,
+
+  /**
+   * Товарищество с ограниченной ответственностью.
+   *
+   * @generated from enum value: LEGAL_FORM_TOO = 3;
+   */
+  TOO = 3,
+}
+
+/**
+ * Describes the enum senim.identity.v1.LegalForm.
+ */
+export const LegalFormSchema: GenEnum<LegalForm> = /*@__PURE__*/
+  enumDesc(file_senim_identity_v1_identity, 1);
+
+/**
+ * KycStatus — состояние проверки документов исполнителя.
+ *
+ * @generated from enum senim.identity.v1.KycStatus
+ */
+export enum KycStatus {
+  /**
+   * @generated from enum value: KYC_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: KYC_STATUS_NOT_SUBMITTED = 1;
+   */
+  NOT_SUBMITTED = 1,
+
+  /**
+   * @generated from enum value: KYC_STATUS_PENDING = 2;
+   */
+  PENDING = 2,
+
+  /**
+   * @generated from enum value: KYC_STATUS_VERIFIED = 3;
+   */
+  VERIFIED = 3,
+
+  /**
+   * @generated from enum value: KYC_STATUS_REJECTED = 4;
+   */
+  REJECTED = 4,
+}
+
+/**
+ * Describes the enum senim.identity.v1.KycStatus.
+ */
+export const KycStatusSchema: GenEnum<KycStatus> = /*@__PURE__*/
+  enumDesc(file_senim_identity_v1_identity, 2);
+
+/**
+ * ConsentKind — вид согласия.
+ *
+ * @generated from enum senim.identity.v1.ConsentKind
+ */
+export enum ConsentKind {
+  /**
+   * @generated from enum value: CONSENT_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Согласие на обработку персональных данных.
+   *
+   * @generated from enum value: CONSENT_KIND_PD_PROCESSING = 1;
+   */
+  PD_PROCESSING = 1,
+
+  /**
+   * Согласие на передачу данных банку-партнёру.
+   *
+   * @generated from enum value: CONSENT_KIND_BANK_TRANSFER = 2;
+   */
+  BANK_TRANSFER = 2,
+}
+
+/**
+ * Describes the enum senim.identity.v1.ConsentKind.
+ */
+export const ConsentKindSchema: GenEnum<ConsentKind> = /*@__PURE__*/
+  enumDesc(file_senim_identity_v1_identity, 3);
+
+/**
+ * RevealPurpose — цель раскрытия открытых реквизитов стороны.
+ *
+ * @generated from enum senim.identity.v1.RevealPurpose
+ */
+export enum RevealPurpose {
+  /**
+   * @generated from enum value: REVEAL_PURPOSE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Договор (ИИН/БИН раскрываются только в договоре).
+   *
+   * @generated from enum value: REVEAL_PURPOSE_CONTRACT = 1;
+   */
+  CONTRACT = 1,
+
+  /**
+   * Квитанция о выпуске денег.
+   *
+   * @generated from enum value: REVEAL_PURPOSE_RELEASE_RECEIPT = 2;
+   */
+  RELEASE_RECEIPT = 2,
+
+  /**
+   * Выплата мастеру.
+   *
+   * @generated from enum value: REVEAL_PURPOSE_PAYOUT = 3;
+   */
+  PAYOUT = 3,
+}
+
+/**
+ * Describes the enum senim.identity.v1.RevealPurpose.
+ */
+export const RevealPurposeSchema: GenEnum<RevealPurpose> = /*@__PURE__*/
+  enumDesc(file_senim_identity_v1_identity, 4);
+
+/**
+ * RevocationStatus — состояние заявки на отзыв согласия.
+ *
+ * @generated from enum senim.identity.v1.RevocationStatus
+ */
+export enum RevocationStatus {
+  /**
+   * @generated from enum value: REVOCATION_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: REVOCATION_STATUS_REQUESTED = 1;
+   */
+  REQUESTED = 1,
+
+  /**
+   * @generated from enum value: REVOCATION_STATUS_COMPLETED = 2;
+   */
+  COMPLETED = 2,
+
+  /**
+   * @generated from enum value: REVOCATION_STATUS_REFUSED = 3;
+   */
+  REFUSED = 3,
+}
+
+/**
+ * Describes the enum senim.identity.v1.RevocationStatus.
+ */
+export const RevocationStatusSchema: GenEnum<RevocationStatus> = /*@__PURE__*/
+  enumDesc(file_senim_identity_v1_identity, 5);
+
+/**
  * IdentityService — вход по одноразовому коду, сессии и роли.
  *
  * Изменяющие методы принимают idempotency_key; Authenticate и GetSigningKeys — чтение.
@@ -733,7 +2302,14 @@ export const RoleSchema: GenEnum<Role> = /*@__PURE__*/
  *   otp_attempts_exhausted, user_blocked, session_invalid, session_token_invalid,
  *   role_not_granted, role_forbidden, demo_disabled, user_not_found,
  *   caller_forbidden, idempotency_key_reused,
- *   invalid_request (idempotency_key пуст или длиннее 128 символов; client_ip не IP-адрес).
+ *   invalid_request (idempotency_key пуст или длиннее 128 символов; client_ip не IP-адрес),
+ *   mfa_required, mfa_not_required, mfa_not_enrolled, mfa_already_enrolled, mfa_wrong_code,
+ *   mfa_code_reused, mfa_too_many_attempts, iin_invalid, iin_taken, person_missing,
+ *   person_already_recorded, person_too_many_attempts, full_name_invalid, instagram_invalid,
+ *   email_invalid, bin_iin_invalid, signer_required, iban_invalid, party_missing, party_exists,
+ *   kyc_documents_missing, kyc_transition_forbidden, kyc_reason_invalid, consent_version_invalid,
+ *   consent_not_revocable, consent_missing, revocation_closed, reveal_purpose_invalid,
+ *   pii_key_unknown.
  *
  * @generated from service senim.identity.v1.IdentityService
  */
@@ -829,6 +2405,188 @@ export const IdentityService: GenService<{
     methodKind: "unary";
     input: typeof GetSigningKeysRequestSchema;
     output: typeof GetSigningKeysResponseSchema;
+  },
+  /**
+   * Второй фактор оператора (TOTP).
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.StartTotpEnrollment
+   */
+  startTotpEnrollment: {
+    methodKind: "unary";
+    input: typeof StartTotpEnrollmentRequestSchema;
+    output: typeof StartTotpEnrollmentResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.ConfirmTotpEnrollment
+   */
+  confirmTotpEnrollment: {
+    methodKind: "unary";
+    input: typeof ConfirmTotpEnrollmentRequestSchema;
+    output: typeof ConfirmTotpEnrollmentResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.VerifySecondFactor
+   */
+  verifySecondFactor: {
+    methodKind: "unary";
+    input: typeof VerifySecondFactorRequestSchema;
+    output: typeof VerifySecondFactorResponseSchema;
+  },
+  /**
+   * Персональные данные и стороны.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.RecordPerson
+   */
+  recordPerson: {
+    methodKind: "unary";
+    input: typeof RecordPersonRequestSchema;
+    output: typeof RecordPersonResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.UpdateContacts
+   */
+  updateContacts: {
+    methodKind: "unary";
+    input: typeof UpdateContactsRequestSchema;
+    output: typeof UpdateContactsResponseSchema;
+  },
+  /**
+   * Чтение.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.GetProfile
+   */
+  getProfile: {
+    methodKind: "unary";
+    input: typeof GetProfileRequestSchema;
+    output: typeof GetProfileResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.RegisterParty
+   */
+  registerParty: {
+    methodKind: "unary";
+    input: typeof RegisterPartyRequestSchema;
+    output: typeof RegisterPartyResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.ProvisionExecutor
+   */
+  provisionExecutor: {
+    methodKind: "unary";
+    input: typeof ProvisionExecutorRequestSchema;
+    output: typeof ProvisionExecutorResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.SetPayoutIban
+   */
+  setPayoutIban: {
+    methodKind: "unary";
+    input: typeof SetPayoutIbanRequestSchema;
+    output: typeof SetPayoutIbanResponseSchema;
+  },
+  /**
+   * Чтение.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.VerifySignerIin
+   */
+  verifySignerIin: {
+    methodKind: "unary";
+    input: typeof VerifySignerIinRequestSchema;
+    output: typeof VerifySignerIinResponseSchema;
+  },
+  /**
+   * Чтение.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.RevealPartyDetails
+   */
+  revealPartyDetails: {
+    methodKind: "unary";
+    input: typeof RevealPartyDetailsRequestSchema;
+    output: typeof RevealPartyDetailsResponseSchema;
+  },
+  /**
+   * Проверка документов исполнителя (KYC).
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.SubmitKyc
+   */
+  submitKyc: {
+    methodKind: "unary";
+    input: typeof SubmitKycRequestSchema;
+    output: typeof SubmitKycResponseSchema;
+  },
+  /**
+   * Чтение.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.ListKycQueue
+   */
+  listKycQueue: {
+    methodKind: "unary";
+    input: typeof ListKycQueueRequestSchema;
+    output: typeof ListKycQueueResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.ReviewKyc
+   */
+  reviewKyc: {
+    methodKind: "unary";
+    input: typeof ReviewKycRequestSchema;
+    output: typeof ReviewKycResponseSchema;
+  },
+  /**
+   * Согласия.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.GrantConsent
+   */
+  grantConsent: {
+    methodKind: "unary";
+    input: typeof GrantConsentRequestSchema;
+    output: typeof GrantConsentResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.RevokeConsent
+   */
+  revokeConsent: {
+    methodKind: "unary";
+    input: typeof RevokeConsentRequestSchema;
+    output: typeof RevokeConsentResponseSchema;
+  },
+  /**
+   * Чтение.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.ListMyConsents
+   */
+  listMyConsents: {
+    methodKind: "unary";
+    input: typeof ListMyConsentsRequestSchema;
+    output: typeof ListMyConsentsResponseSchema;
+  },
+  /**
+   * Чтение.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.HasConsents
+   */
+  hasConsents: {
+    methodKind: "unary";
+    input: typeof HasConsentsRequestSchema;
+    output: typeof HasConsentsResponseSchema;
+  },
+  /**
+   * Чтение.
+   *
+   * @generated from rpc senim.identity.v1.IdentityService.ListConsentRevocations
+   */
+  listConsentRevocations: {
+    methodKind: "unary";
+    input: typeof ListConsentRevocationsRequestSchema;
+    output: typeof ListConsentRevocationsResponseSchema;
+  },
+  /**
+   * @generated from rpc senim.identity.v1.IdentityService.ResolveConsentRevocation
+   */
+  resolveConsentRevocation: {
+    methodKind: "unary";
+    input: typeof ResolveConsentRevocationRequestSchema;
+    output: typeof ResolveConsentRevocationResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_senim_identity_v1_identity, 0);

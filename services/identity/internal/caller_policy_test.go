@@ -63,6 +63,112 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 		_, err := c.GetSigningKeys(ctx, &identityv1.GetSigningKeysRequest{})
 		return err
 	},
+	"RevealPartyDetails": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.RevealPartyDetails(ctx, &identityv1.RevealPartyDetailsRequest{})
+		return err
+	},
+	"GetProfile": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.GetProfile(ctx, &identityv1.GetProfileRequest{})
+		return err
+	},
+	"StartTotpEnrollment": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.StartTotpEnrollment(ctx, &identityv1.StartTotpEnrollmentRequest{})
+		return err
+	},
+	"ConfirmTotpEnrollment": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.ConfirmTotpEnrollment(ctx, &identityv1.ConfirmTotpEnrollmentRequest{})
+		return err
+	},
+	"VerifySecondFactor": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.VerifySecondFactor(ctx, &identityv1.VerifySecondFactorRequest{})
+		return err
+	},
+	"RecordPerson": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.RecordPerson(ctx, &identityv1.RecordPersonRequest{})
+		return err
+	},
+	"UpdateContacts": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.UpdateContacts(ctx, &identityv1.UpdateContactsRequest{})
+		return err
+	},
+	"RegisterParty": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.RegisterParty(ctx, &identityv1.RegisterPartyRequest{})
+		return err
+	},
+	"ProvisionExecutor": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.ProvisionExecutor(ctx, &identityv1.ProvisionExecutorRequest{})
+		return err
+	},
+	"SetPayoutIban": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.SetPayoutIban(ctx, &identityv1.SetPayoutIbanRequest{})
+		return err
+	},
+	"VerifySignerIin": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.VerifySignerIin(ctx, &identityv1.VerifySignerIinRequest{})
+		return err
+	},
+	"SubmitKyc": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.SubmitKyc(ctx, &identityv1.SubmitKycRequest{})
+		return err
+	},
+	"ListKycQueue": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.ListKycQueue(ctx, &identityv1.ListKycQueueRequest{})
+		return err
+	},
+	"ReviewKyc": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.ReviewKyc(ctx, &identityv1.ReviewKycRequest{})
+		return err
+	},
+	"GrantConsent": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.GrantConsent(ctx, &identityv1.GrantConsentRequest{})
+		return err
+	},
+	"RevokeConsent": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.RevokeConsent(ctx, &identityv1.RevokeConsentRequest{})
+		return err
+	},
+	"ListMyConsents": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.ListMyConsents(ctx, &identityv1.ListMyConsentsRequest{})
+		return err
+	},
+	"HasConsents": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.HasConsents(ctx, &identityv1.HasConsentsRequest{})
+		return err
+	},
+	"ListConsentRevocations": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.ListConsentRevocations(ctx, &identityv1.ListConsentRevocationsRequest{})
+		return err
+	},
+	"ResolveConsentRevocation": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.ResolveConsentRevocation(ctx, &identityv1.ResolveConsentRevocationRequest{})
+		return err
+	},
+}
+
+// notYetImplemented — RPC плана 2б, чьи обработчики ещё не написаны: их отвечает заглушка
+// connect (Unimplemented) без проверки вызывающего. Обработчик, который появился, убирают
+// отсюда в той же задаче — и политика вызывающих начинает проверяться.
+var notYetImplemented = map[string]bool{
+	"RevealPartyDetails":       true,
+	"GetProfile":               true,
+	"StartTotpEnrollment":      true,
+	"ConfirmTotpEnrollment":    true,
+	"VerifySecondFactor":       true,
+	"RecordPerson":             true,
+	"UpdateContacts":           true,
+	"RegisterParty":            true,
+	"ProvisionExecutor":        true,
+	"SetPayoutIban":            true,
+	"VerifySignerIin":          true,
+	"SubmitKyc":                true,
+	"ListKycQueue":             true,
+	"ReviewKyc":                true,
+	"GrantConsent":             true,
+	"RevokeConsent":            true,
+	"ListMyConsents":           true,
+	"HasConsents":              true,
+	"ListConsentRevocations":   true,
+	"ResolveConsentRevocation": true,
 }
 
 // allowedCallers — таблица «метод → кто может звать» (она же в комментарии Serve в run.go).
@@ -87,6 +193,9 @@ func TestCallerPolicyCoversEveryRPC(t *testing.T) {
 		call, ok := callWithEmptyRequest[name]
 		if !ok {
 			t.Fatalf("RPC %s: нет решения о вызывающих (таблица вызовов и allowedCallers)", name)
+		}
+		if notYetImplemented[name] {
+			continue
 		}
 		allowed := allowedCallers(name)
 		for _, caller := range callers {

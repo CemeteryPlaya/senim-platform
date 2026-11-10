@@ -6,7 +6,7 @@ import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
-import type { Role } from "../../identity/v1/identity_pb";
+import type { ConsentKind, KycStatus, RevocationStatus, Role } from "../../identity/v1/identity_pb";
 import { file_senim_identity_v1_identity } from "../../identity/v1/identity_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file senim/events/v1/identity.proto.
  */
 export const file_senim_events_v1_identity: GenFile = /*@__PURE__*/
-  fileDesc("Ch5zZW5pbS9ldmVudHMvdjEvaWRlbnRpdHkucHJvdG8SD3NlbmltLmV2ZW50cy52MSJICg5Vc2VyUmVnaXN0ZXJlZBIPCgd1c2VyX2lkGAEgASgJEiUKBHJvbGUYAiABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlIkUKC1JvbGVHcmFudGVkEg8KB3VzZXJfaWQYASABKAkSJQoEcm9sZRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUiawoMUm9sZVN3aXRjaGVkEg8KB3VzZXJfaWQYASABKAkSJQoEZnJvbRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSIwoCdG8YAyABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlIlAKFU90cEdsb2JhbExpbWl0UmVhY2hlZBINCgVsaW1pdBgBIAEoAxIoCgRkYXRlGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcELLAQoTY29tLnNlbmltLmV2ZW50cy52MUINSWRlbnRpdHlQcm90b1ABWkdnaXRodWIuY29tL0NlbWV0ZXJ5UGxheWEvc2VuaW0tcGxhdGZvcm0vZ2VuL2dvL3NlbmltL2V2ZW50cy92MTtldmVudHN2MaICA1NFWKoCD1NlbmltLkV2ZW50cy5WMcoCD1NlbmltXEV2ZW50c1xWMeICG1NlbmltXEV2ZW50c1xWMVxHUEJNZXRhZGF0YeoCEVNlbmltOjpFdmVudHM6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_senim_identity_v1_identity]);
+  fileDesc("Ch5zZW5pbS9ldmVudHMvdjEvaWRlbnRpdHkucHJvdG8SD3NlbmltLmV2ZW50cy52MSJICg5Vc2VyUmVnaXN0ZXJlZBIPCgd1c2VyX2lkGAEgASgJEiUKBHJvbGUYAiABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlIkUKC1JvbGVHcmFudGVkEg8KB3VzZXJfaWQYASABKAkSJQoEcm9sZRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUiawoMUm9sZVN3aXRjaGVkEg8KB3VzZXJfaWQYASABKAkSJQoEZnJvbRgCIAEoDjIXLnNlbmltLmlkZW50aXR5LnYxLlJvbGUSIwoCdG8YAyABKA4yFy5zZW5pbS5pZGVudGl0eS52MS5Sb2xlIlAKFU90cEdsb2JhbExpbWl0UmVhY2hlZBINCgVsaW1pdBgBIAEoAxIoCgRkYXRlGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIeCgtNZmFFbnJvbGxlZBIPCgd1c2VyX2lkGAEgASgJIhsKCE1mYVJlc2V0Eg8KB3VzZXJfaWQYASABKAkiTAoLS3ljUmV2aWV3ZWQSDwoHdXNlcl9pZBgBIAEoCRIsCgZzdGF0dXMYAiABKA4yHC5zZW5pbS5pZGVudGl0eS52MS5LeWNTdGF0dXMidgoOQ29uc2VudEdyYW50ZWQSDwoHdXNlcl9pZBgBIAEoCRIsCgRraW5kGAIgASgOMh4uc2VuaW0uaWRlbnRpdHkudjEuQ29uc2VudEtpbmQSDwoHdmVyc2lvbhgDIAEoCRIUCgxyZWZlcmVuY2VfaWQYBCABKAkingEKGkNvbnNlbnRSZXZvY2F0aW9uUmVxdWVzdGVkEhUKDXJldm9jYXRpb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIsCgRraW5kGAMgASgOMh4uc2VuaW0uaWRlbnRpdHkudjEuQ29uc2VudEtpbmQSKgoGZHVlX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJ4ChlDb25zZW50UmV2b2NhdGlvblJlc29sdmVkEhUKDXJldm9jYXRpb25faWQYASABKAkSDwoHdXNlcl9pZBgCIAEoCRIzCgZzdGF0dXMYAyABKA4yIy5zZW5pbS5pZGVudGl0eS52MS5SZXZvY2F0aW9uU3RhdHVzQssBChNjb20uc2VuaW0uZXZlbnRzLnYxQg1JZGVudGl0eVByb3RvUAFaR2dpdGh1Yi5jb20vQ2VtZXRlcnlQbGF5YS9zZW5pbS1wbGF0Zm9ybS9nZW4vZ28vc2VuaW0vZXZlbnRzL3YxO2V2ZW50c3YxogIDU0VYqgIPU2VuaW0uRXZlbnRzLlYxygIPU2VuaW1cRXZlbnRzXFYx4gIbU2VuaW1cRXZlbnRzXFYxXEdQQk1ldGFkYXRh6gIRU2VuaW06OkV2ZW50czo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_senim_identity_v1_identity]);
 
 /**
  * UserRegistered — первый вход нового пользователя.
@@ -118,4 +118,163 @@ export type OtpGlobalLimitReached = Message<"senim.events.v1.OtpGlobalLimitReach
  */
 export const OtpGlobalLimitReachedSchema: GenMessage<OtpGlobalLimitReached> = /*@__PURE__*/
   messageDesc(file_senim_events_v1_identity, 3);
+
+/**
+ * MfaEnrolled — оператор подключил второй фактор.
+ *
+ * @generated from message senim.events.v1.MfaEnrolled
+ */
+export type MfaEnrolled = Message<"senim.events.v1.MfaEnrolled"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+};
+
+/**
+ * Describes the message senim.events.v1.MfaEnrolled.
+ * Use `create(MfaEnrolledSchema)` to create a new message.
+ */
+export const MfaEnrolledSchema: GenMessage<MfaEnrolled> = /*@__PURE__*/
+  messageDesc(file_senim_events_v1_identity, 4);
+
+/**
+ * MfaReset — второй фактор оператора сброшен.
+ *
+ * @generated from message senim.events.v1.MfaReset
+ */
+export type MfaReset = Message<"senim.events.v1.MfaReset"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+};
+
+/**
+ * Describes the message senim.events.v1.MfaReset.
+ * Use `create(MfaResetSchema)` to create a new message.
+ */
+export const MfaResetSchema: GenMessage<MfaReset> = /*@__PURE__*/
+  messageDesc(file_senim_events_v1_identity, 5);
+
+/**
+ * KycReviewed — оператор принял решение по проверке документов.
+ *
+ * @generated from message senim.events.v1.KycReviewed
+ */
+export type KycReviewed = Message<"senim.events.v1.KycReviewed"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: senim.identity.v1.KycStatus status = 2;
+   */
+  status: KycStatus;
+};
+
+/**
+ * Describes the message senim.events.v1.KycReviewed.
+ * Use `create(KycReviewedSchema)` to create a new message.
+ */
+export const KycReviewedSchema: GenMessage<KycReviewed> = /*@__PURE__*/
+  messageDesc(file_senim_events_v1_identity, 6);
+
+/**
+ * ConsentGranted — пользователь дал согласие.
+ *
+ * @generated from message senim.events.v1.ConsentGranted
+ */
+export type ConsentGranted = Message<"senim.events.v1.ConsentGranted"> & {
+  /**
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: senim.identity.v1.ConsentKind kind = 2;
+   */
+  kind: ConsentKind;
+
+  /**
+   * @generated from field: string version = 3;
+   */
+  version: string;
+
+  /**
+   * @generated from field: string reference_id = 4;
+   */
+  referenceId: string;
+};
+
+/**
+ * Describes the message senim.events.v1.ConsentGranted.
+ * Use `create(ConsentGrantedSchema)` to create a new message.
+ */
+export const ConsentGrantedSchema: GenMessage<ConsentGranted> = /*@__PURE__*/
+  messageDesc(file_senim_events_v1_identity, 7);
+
+/**
+ * ConsentRevocationRequested — подана заявка на отзыв согласия.
+ *
+ * @generated from message senim.events.v1.ConsentRevocationRequested
+ */
+export type ConsentRevocationRequested = Message<"senim.events.v1.ConsentRevocationRequested"> & {
+  /**
+   * @generated from field: string revocation_id = 1;
+   */
+  revocationId: string;
+
+  /**
+   * @generated from field: string user_id = 2;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: senim.identity.v1.ConsentKind kind = 3;
+   */
+  kind: ConsentKind;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp due_at = 4;
+   */
+  dueAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message senim.events.v1.ConsentRevocationRequested.
+ * Use `create(ConsentRevocationRequestedSchema)` to create a new message.
+ */
+export const ConsentRevocationRequestedSchema: GenMessage<ConsentRevocationRequested> = /*@__PURE__*/
+  messageDesc(file_senim_events_v1_identity, 8);
+
+/**
+ * ConsentRevocationResolved — заявка на отзыв согласия закрыта.
+ *
+ * @generated from message senim.events.v1.ConsentRevocationResolved
+ */
+export type ConsentRevocationResolved = Message<"senim.events.v1.ConsentRevocationResolved"> & {
+  /**
+   * @generated from field: string revocation_id = 1;
+   */
+  revocationId: string;
+
+  /**
+   * @generated from field: string user_id = 2;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: senim.identity.v1.RevocationStatus status = 3;
+   */
+  status: RevocationStatus;
+};
+
+/**
+ * Describes the message senim.events.v1.ConsentRevocationResolved.
+ * Use `create(ConsentRevocationResolvedSchema)` to create a new message.
+ */
+export const ConsentRevocationResolvedSchema: GenMessage<ConsentRevocationResolved> = /*@__PURE__*/
+  messageDesc(file_senim_events_v1_identity, 9);
 

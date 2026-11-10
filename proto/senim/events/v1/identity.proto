@@ -32,3 +32,42 @@ message OtpGlobalLimitReached {
   // Дата (сутки) достижения лимита.
   google.protobuf.Timestamp date = 2;
 }
+
+// MfaEnrolled — оператор подключил второй фактор.
+message MfaEnrolled {
+  string user_id = 1;
+}
+
+// MfaReset — второй фактор оператора сброшен.
+message MfaReset {
+  string user_id = 1;
+}
+
+// KycReviewed — оператор принял решение по проверке документов.
+message KycReviewed {
+  string user_id = 1;
+  senim.identity.v1.KycStatus status = 2;
+}
+
+// ConsentGranted — пользователь дал согласие.
+message ConsentGranted {
+  string user_id = 1;
+  senim.identity.v1.ConsentKind kind = 2;
+  string version = 3;
+  string reference_id = 4;
+}
+
+// ConsentRevocationRequested — подана заявка на отзыв согласия.
+message ConsentRevocationRequested {
+  string revocation_id = 1;
+  string user_id = 2;
+  senim.identity.v1.ConsentKind kind = 3;
+  google.protobuf.Timestamp due_at = 4;
+}
+
+// ConsentRevocationResolved — заявка на отзыв согласия закрыта.
+message ConsentRevocationResolved {
+  string revocation_id = 1;
+  string user_id = 2;
+  senim.identity.v1.RevocationStatus status = 3;
+}
