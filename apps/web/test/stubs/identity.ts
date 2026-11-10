@@ -39,6 +39,12 @@ import { TOKEN_SHAPE } from "@/modules/identity/session-cookie";
  * Подделка identity для тестов web: пользователи и сессии в памяти, семантика по контракту
  * (proto/senim/identity/v1/identity.proto). Не повторяет лимиты и сроки настоящего сервиса:
  * их проверяют тесты Go. `id` пользователя — `u-<цифры телефона>`.
+ *
+ * Сознательные расхождения с Go (тестам web они не мешают):
+ * - `PHONE_RE` шире: любой `+7` и 10 цифр; Go (phone.go) принимает только `+77…`;
+ * - `sessionView` всегда даёт 7 суток; в Go у сотрудника (OPERATOR, MEASURER) — 8 ч;
+ * - `signOutEverywhere` для заблокированного — no-op (lookup отказывает); Go отзывает его сессии
+ *   (sessionByToken без проверки блокировки).
  */
 
 /** Тип клиента — тот же, что у `IdentityClient` из modules/identity/remote (импорт оттуда из test/ запрещён границей модулей). */
