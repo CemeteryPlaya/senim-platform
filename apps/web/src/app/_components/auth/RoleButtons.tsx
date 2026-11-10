@@ -2,6 +2,8 @@
 
 import { Repeat, ShoppingBag } from "lucide-react";
 import { useState, useTransition, type ReactNode } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
+import type { ActionResult } from "@/platform/action";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, type ButtonVariant } from "@/ui";
 import { becomeClientAction, switchRoleAction } from "./actions";
@@ -9,7 +11,7 @@ import { becomeClientAction, switchRoleAction } from "./actions";
 type Switchable = "CLIENT" | "EXECUTOR";
 
 /** Кнопка с серверным действием и ошибкой под ней (сервер ведёт дальше сам через redirect). */
-function ActionButton(props: { label: string; icon: ReactNode; variant: ButtonVariant; fullWidth?: boolean; run: () => Promise<{ ok: true } | { ok: false; error: string }> }) {
+function ActionButton(props: { label: string; icon: ReactNode; variant: ButtonVariant; fullWidth?: boolean; run: () => Promise<ActionResult<unknown>> }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   return (
@@ -23,7 +25,7 @@ function ActionButton(props: { label: string; icon: ReactNode; variant: ButtonVa
           startTransition(async () => {
             setError(undefined);
             const res = await props.run();
-            if (!res.ok) setError(res.error);
+            if (!res.ok && !leaveIfSignedOut(res)) setError(res.error);
           })
         }
       >

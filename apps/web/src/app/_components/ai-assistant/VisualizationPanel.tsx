@@ -2,6 +2,7 @@
 
 import { Wand2 } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { VISUALIZE_PROMPT_MAX, type VisualizationList, type VisualizationView } from "@/modules/ai/client";
 import { Button, RadioCards, StatusBadge, Textarea, type Tone } from "@/ui";
@@ -43,7 +44,7 @@ export function VisualizationPanel({ requestId, photos, initial, pollIntervalMs 
     setError(null);
     startTransition(async () => {
       const res = await requestVisualizationAction({ requestId, sourceFileId: photos[sourceIndex].id, prompt });
-      if (!res.ok) return setError(res.fieldErrors?.prompt?.[0] ?? res.error);
+      if (!res.ok) return void (leaveIfSignedOut(res) || setError(res.fieldErrors?.prompt?.[0] ?? res.error));
       setItems((prev) => mergeView(prev, res.data));
       setRemaining((r) => Math.max(0, r - 1));
       setPrompt("");

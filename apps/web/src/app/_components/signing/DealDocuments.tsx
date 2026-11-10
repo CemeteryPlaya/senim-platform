@@ -2,6 +2,7 @@
 
 import { Copy, Download, ExternalLink, MessageCircle, PenLine } from "lucide-react";
 import { useState } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import type { SharedLink, SigningDocumentView } from "@/modules/documents/client";
 import { Alert, Button, buttonClasses, formatDateTime, StatusBadge } from "@/ui";
@@ -100,7 +101,7 @@ function ShareArea({ documentId, linkTtlHours }: { documentId: string; linkTtlHo
     const res = await shareDocumentAction({ documentId });
     setBusy(false);
     if (res.ok) setLink(res.data);
-    else setError(res.error || t.section.shareFailed);
+    else if (!leaveIfSignedOut(res)) setError(res.error || t.section.shareFailed);
   }
 
   async function copy() {

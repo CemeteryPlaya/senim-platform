@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import type { UploadPurpose } from "@/modules/files/client";
 import { Alert, Button, useFocusInvalid } from "@/ui";
@@ -31,6 +32,7 @@ export function KycForm({ max }: { max: number }) {
     startTransition(async () => {
       const result = await submitKyc({ idFileIds, registrationFileIds });
       if (!result.ok) {
+        if (leaveIfSignedOut(result)) return;
         setErrors(result.fieldErrors ?? {});
         setNotice({ tone: "danger", text: result.error });
         // Нет удостоверения или регистрации — фокус на загрузку, которой не хватает.

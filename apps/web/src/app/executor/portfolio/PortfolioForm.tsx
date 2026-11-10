@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Checkbox, Input, RadioCards, Select, Textarea } from "@/ui";
 import { STYLES, type StyleKey } from "@/verticals/furniture";
@@ -58,6 +59,7 @@ export function PortfolioForm({ itemId, initial, types }: Props) {
     startTransition(async () => {
       const result = itemId ? await updateWork({ id: itemId, ...input }) : await createWork(input);
       if (!result.ok) {
+        if (leaveIfSignedOut(result)) return;
         setErrors(result.fieldErrors ?? {});
         setNotice({ tone: "danger", text: result.error });
         return;

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { DescribeAssistant } from "@/app/_components/ai-assistant";
 import type { RequestDraft } from "@/modules/ai/client";
 import type { StepFormInput, WizardScreen } from "@/modules/requests/client";
@@ -54,6 +55,7 @@ export function AssistantApply({ draftId, types, reviewScreen }: Props) {
         if (!step) continue;
         const result = await saveStepAction({ requestId: draftId, step });
         if (!result.ok) {
+          if (leaveIfSignedOut(result)) return;
           setError(result.error);
           return;
         }

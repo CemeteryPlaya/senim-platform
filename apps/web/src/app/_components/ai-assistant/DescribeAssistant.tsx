@@ -2,6 +2,7 @@
 
 import { Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { ASSIST_TEXT_MAX, type AssistResult, type RequestDraft } from "@/modules/ai/client";
 import { Alert, Button, Checkbox, Textarea } from "@/ui";
@@ -34,7 +35,7 @@ export function DescribeAssistant({ requestId, furnitureTypes, onApply }: Descri
     startTransition(async () => {
       const res = await assistAction({ requestId, text });
       if (res.ok) setView({ kind: "preview", result: res.data });
-      else setError(res.fieldErrors?.text?.[0] ?? res.error);
+      else if (!leaveIfSignedOut(res)) setError(res.fieldErrors?.text?.[0] ?? res.error);
     });
   }
 

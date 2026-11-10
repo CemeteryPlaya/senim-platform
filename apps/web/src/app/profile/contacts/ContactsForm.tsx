@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Input } from "@/ui";
 import { saveContacts } from "./actions";
@@ -24,6 +25,7 @@ export function ContactsForm({ initial, max }: { initial: { instagram: string; e
     startTransition(async () => {
       const result = await saveContacts({ instagram, email });
       if (!result.ok) {
+        if (leaveIfSignedOut(result)) return;
         setErrors({ instagram: result.fieldErrors?.instagram?.[0], email: result.fieldErrors?.email?.[0] });
         setNotice({ tone: "danger", text: result.error });
         return;

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import type { ActionResult } from "@/platform/action";
 import { focusFirstInvalid } from "@/ui";
 
@@ -34,6 +35,7 @@ export function useActionForm<T>(
     startTransition(async () => {
       const result = await action(fields);
       if (!result.ok) {
+        if (leaveIfSignedOut(result)) return;
         setState({ error: result.error, fieldErrors: result.fieldErrors });
         // После отрисовки ошибок (aria-invalid) — фокус на первое неверное поле, а не на кнопке под ним.
         if (result.fieldErrors) requestAnimationFrame(() => focusFirstInvalid(form));

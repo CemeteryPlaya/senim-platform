@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Checkbox, focusFirstInvalid, FullscreenStep, Input, RadioCards } from "@/ui";
 import { registerExecutorAction } from "./actions";
@@ -68,7 +69,7 @@ export function ExecutorRegistrationForm({
         directorName: field("directorName"),
         directorIin: field("directorIin"),
       });
-      if (res.ok) return;
+      if (res.ok || leaveIfSignedOut(res)) return;
       if (res.fieldErrors && Object.keys(res.fieldErrors).length > 0) setErrors(res.fieldErrors);
       else setFormError(res.error);
     });

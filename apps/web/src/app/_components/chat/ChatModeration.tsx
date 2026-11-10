@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Modal, Textarea } from "@/ui";
 import { closeChatAction, reopenChatAction } from "./actions";
@@ -29,6 +30,7 @@ function Close({ offerId, reasonMax, onChanged }: Props) {
       setError(undefined);
       const result = await closeChatAction({ offerId, reason });
       if (!result.ok) {
+        if (leaveIfSignedOut(result)) return;
         setError(result.error);
         return;
       }
@@ -81,7 +83,7 @@ function Reopen({ offerId, onChanged }: Props) {
     startTransition(async () => {
       setError(undefined);
       const result = await reopenChatAction({ offerId });
-      if (!result.ok) setError(result.error);
+      if (!result.ok && !leaveIfSignedOut(result)) setError(result.error);
       await onChanged();
     });
 

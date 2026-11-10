@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Checkbox, cn, focusFirstInvalid, Input, RadioCards, Select, Textarea } from "@/ui";
 import { STYLES, type StyleKey } from "@/verticals/furniture";
@@ -53,6 +54,7 @@ export function FromDealForm({ dealId, photos, types, initial }: Props) {
         published: values.published,
       });
       if (!result.ok) {
+        if (leaveIfSignedOut(result)) return;
         setErrors(result.fieldErrors ?? {});
         setError(result.error);
         requestAnimationFrame(() => focusFirstInvalid(form));

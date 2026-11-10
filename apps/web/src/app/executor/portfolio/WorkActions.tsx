@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
+import type { ActionResult } from "@/platform/action";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, ButtonLink, Modal } from "@/ui";
 import { deleteWork, setWorkPublished } from "./actions";
@@ -19,11 +21,12 @@ export function WorkActions({ id, title, published, withEdit = true }: { id: str
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const run = (fn: () => Promise<{ ok: true } | { ok: false; error: string }>, after?: () => void) => {
+  const run = (fn: () => Promise<ActionResult<unknown>>, after?: () => void) => {
     setError(null);
     startTransition(async () => {
       const result = await fn();
       if (!result.ok) {
+        if (leaveIfSignedOut(result)) return;
         setError(result.error);
         return;
       }

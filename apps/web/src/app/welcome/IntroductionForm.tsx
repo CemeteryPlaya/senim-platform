@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, focusFirstInvalid, FullscreenStep, Input } from "@/ui";
 import { LogoutButton } from "../_components/auth/LogoutButton";
@@ -31,7 +32,7 @@ export function IntroductionForm({ next, defaultFullName }: { next: string | nul
     startTransition(async () => {
       // При успехе действие ведёт дальше (redirect) — сюда возвращается только ошибка.
       const res = await introduceAction({ fullName: String(data.get("fullName") ?? ""), iin: String(data.get("iin") ?? ""), next });
-      if (res.ok) return;
+      if (res.ok || leaveIfSignedOut(res)) return;
       if (res.fieldErrors && Object.keys(res.fieldErrors).length > 0) setErrors(res.fieldErrors);
       else setFormError(res.error);
     });

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Input, useFocusInvalid } from "@/ui";
 import { savePayoutIban } from "./actions";
@@ -27,6 +28,7 @@ export function PayoutForm() {
     startTransition(async () => {
       const result = await savePayoutIban({ iban });
       if (!result.ok) {
+        if (leaveIfSignedOut(result)) return;
         setError(result.fieldErrors?.iban?.[0] ?? result.error);
         setNotice({ tone: "danger", text: result.error });
         // Ошибка показана у поля IBAN — фокус туда, чтобы исправить сразу.

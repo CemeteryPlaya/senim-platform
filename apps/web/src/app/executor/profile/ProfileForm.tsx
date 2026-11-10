@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import type { MeasurementTerms } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Checkbox, Input, RadioCards, Textarea } from "@/ui";
@@ -62,6 +63,7 @@ export function ProfileForm({ initial, types }: { initial: ProfileFormValues; ty
         ...address,
       });
       if (!result.ok) {
+        if (leaveIfSignedOut(result)) return;
         setErrors(result.fieldErrors ?? {});
         setNotice({ tone: "danger", text: result.error });
         return;

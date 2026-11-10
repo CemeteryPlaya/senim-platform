@@ -3,6 +3,7 @@
 import { CheckCircle2, ChevronDown, Clock, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import type { SigningDocumentView } from "@/modules/documents/client";
 import { Alert, Button, buttonClasses, Card, formatDateTime, formatTime, RadioCards, StatusBadge } from "@/ui";
@@ -99,7 +100,7 @@ function StepArea({ doc, signerName, onSigned, variant }: { doc: SigningDocument
   const router = useRouter();
   async function signHand(payload: HandPayload) {
     const res = await signByHandAction("imageDataUrl" in payload ? { documentId: doc.id, imageDataUrl: payload.imageDataUrl } : { documentId: doc.id, typedName: payload.typedName });
-    if (!res.ok) return res.error;
+    if (!res.ok) return leaveIfSignedOut(res) ? null : res.error;
     onSigned("hand", res.data.fullySigned);
     router.refresh();
     return null;
@@ -181,6 +182,7 @@ function EcpArea({ doc, onSigned, variant }: { doc: SigningDocumentView; onSigne
     if (state.step !== "choose") return;
     dispatch({ type: "start" });
     const res = await startSigningAction({ documentId: doc.id, method: state.method });
+    if (!res.ok && leaveIfSignedOut(res)) return;
     dispatch(res.ok ? { type: "started", session: res.data } : { type: "failed", error: res.error });
   }
 
@@ -188,7 +190,7 @@ function EcpArea({ doc, onSigned, variant }: { doc: SigningDocumentView; onSigne
     if (state.step !== "awaiting") return;
     dispatch({ type: "complete" });
     const res = await completeSigningAction({ documentId: doc.id, sessionId: state.session.sessionId });
-    if (!res.ok) return dispatch({ type: "failed", error: res.error });
+    if (!res.ok) return void (leaveIfSignedOut(res) || dispatch({ type: "failed", error: res.error }));
     dispatch({ type: "completed", fullySigned: res.data.fullySigned });
     onSigned("ecp", res.data.fullySigned);
     router.refresh();

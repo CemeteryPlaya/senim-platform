@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useReducer, useRef, type ReactNode } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import type { UploadPurpose } from "@/modules/files/client";
 import { ru } from "@/i18n/ru";
 import { PhotoUpload } from "@/ui";
@@ -73,10 +74,16 @@ export function Uploader({ purpose, initial = [], onChange, onBusyChange, name, 
     if (!file) return;
     try {
       const created = await createUploadAction({ purpose, contentType: contentTypeOf(file), size: file.size });
-      if (!created.ok) throw new Error(created.error);
+      if (!created.ok) {
+        if (leaveIfSignedOut(created)) return;
+        throw new Error(created.error);
+      }
       await sendToTarget(created.data.target, file, (progress) => dispatch({ type: "progress", localId, progress }));
       const saved = await finalizeUploadAction({ token: created.data.token });
-      if (!saved.ok) throw new Error(saved.error);
+      if (!saved.ok) {
+        if (leaveIfSignedOut(saved)) return;
+        throw new Error(saved.error);
+      }
       dispatch({ type: "done", localId, fileId: saved.data.id, url: saved.data.url, serverPreview: isHeic(file) });
     } catch (e) {
       // Сетевые ошибки браузера — общий текст; ошибки проверки сервера — его понятный текст.

@@ -2,6 +2,7 @@
 
 import { ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import type { ChatView } from "@/modules/companies";
 import { Alert, Chat, cn } from "@/ui";
@@ -33,6 +34,7 @@ export function OfferChatClient({ id, offerId, initial, title, reasonMax, showCo
   const refresh = useCallback(async () => {
     const result = await loadChat({ offerId });
     if (result.ok) setChat(result.data);
+    else leaveIfSignedOut(result);
   }, [offerId]);
 
   useEffect(() => {
@@ -51,6 +53,7 @@ export function OfferChatClient({ id, offerId, initial, title, reasonMax, showCo
     setError(null);
     const result = await sendChatMessage({ offerId, text });
     if (!result.ok) {
+      leaveIfSignedOut(result);
       setError(result.error);
       // Chat оставит текст в поле и покажет, что сообщение не ушло.
       throw new Error(result.error);

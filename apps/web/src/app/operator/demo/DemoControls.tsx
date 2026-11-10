@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Modal } from "@/ui";
 import { resetDemoAction } from "./actions";
@@ -18,7 +19,7 @@ export function ResetDemo() {
   const confirm = () =>
     startTransition(async () => {
       const result = await resetDemoAction({});
-      if (!result.ok) setError(result.error);
+      if (!result.ok && !leaveIfSignedOut(result)) setError(result.error);
     });
 
   return (

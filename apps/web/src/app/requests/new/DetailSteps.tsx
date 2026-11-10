@@ -2,6 +2,7 @@
 
 import { LocateFixed, MapPin } from "lucide-react";
 import { useState, useTransition, type ReactNode } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { LIMITS, type GeoPoint } from "@/modules/requests/client";
 import { ru } from "@/i18n/ru";
 import { Button, Input, Textarea } from "@/ui";
@@ -127,7 +128,7 @@ function LocationField({ value, onChange, city, address }: { value: GeoPoint | n
     startTransition(async () => {
       setState({ kind: "busy" });
       const result = await locateAddressAction({ city, address });
-      if (!result.ok) return setState({ kind: "error", message: result.error });
+      if (!result.ok) return void (leaveIfSignedOut(result) || setState({ kind: "error", message: result.error }));
       if (!result.data) return setState({ kind: "error", message: l.notFound });
       onChange({ lat: result.data.lat, lng: result.data.lng });
       setState({ kind: "geocoded", precision: result.data.precision });

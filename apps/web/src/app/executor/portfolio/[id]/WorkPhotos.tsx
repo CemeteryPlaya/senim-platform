@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import type { PhotoView } from "@/modules/companies";
 import { Alert } from "@/ui";
@@ -25,12 +26,12 @@ export function WorkPhotos({ itemId, photos, max }: { itemId: string; photos: Ph
     const removed = [...saved.current].filter((id) => !ids.includes(id));
     for (const fileId of removed) {
       const result = await removeWorkPhoto({ id: itemId, fileId });
-      if (!result.ok) return setError(result.error);
+      if (!result.ok) return void (leaveIfSignedOut(result) || setError(result.error));
       saved.current.delete(fileId);
     }
     if (added.length > 0) {
       const result = await attachWorkPhotos({ id: itemId, fileIds: added });
-      if (!result.ok) return setError(result.error);
+      if (!result.ok) return void (leaveIfSignedOut(result) || setError(result.error));
       added.forEach((id) => saved.current.add(id));
     }
     setError(null);

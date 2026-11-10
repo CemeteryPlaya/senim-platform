@@ -2,6 +2,7 @@
 
 import { Phone } from "lucide-react";
 import { useState, useTransition } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
 import type { ClientPhoneView } from "@/modules/companies";
 import { buttonClasses, ConfirmButton } from "@/ui";
@@ -39,7 +40,7 @@ function ClientToggle({ offerId, shared, onChanged }: { offerId: string; shared:
     startTransition(async () => {
       setError(null);
       const result = await (shared ? revokeClientPhoneAction : shareClientPhoneAction)({ offerId });
-      if (!result.ok) setError(result.error);
+      if (!result.ok && !leaveIfSignedOut(result)) setError(result.error);
       await onChanged();
     });
 

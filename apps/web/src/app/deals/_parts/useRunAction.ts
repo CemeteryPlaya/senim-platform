@@ -2,13 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { leaveIfSignedOut } from "@/modules/identity/client";
 import type { ActionResult } from "@/platform/action";
 import { useFocusInvalid } from "@/ui";
 
 export type ServerAction<I, T> = (input: I) => Promise<ActionResult<T>>;
 
 /**
- * Запуск Server Action: «Подождите…» на кнопке, ошибка рядом, после успеха — обновление экрана.
+ * Запуск Server Action: «Подождите…» на кнопке, ошибка рядом, после успеха — обновление экрана;
+ * сессия истекла — переход на вход с возвратом сюда.
  * Форма с полями вешает formRef на <form>: при ошибках полей фокус переходит на первое неверное поле.
  */
 export function useRunAction<I, T>(action: ServerAction<I, T>) {
@@ -26,7 +28,7 @@ export function useRunAction<I, T>(action: ServerAction<I, T>) {
       if (result.ok) {
         onDone?.(result.data);
         router.refresh();
-      } else {
+      } else if (!leaveIfSignedOut(result)) {
         setError(result.error);
         setFieldErrors(result.fieldErrors ?? {});
         if (result.fieldErrors) focusInvalid();
