@@ -311,6 +311,9 @@ function consentProof(version: string, sha: string): string {
   return sha.toLowerCase();
 }
 
+/** sessionConsentChannel в Go: otp_session — только в сессии, открытой кодом из SMS; в демо-сессии — demo. */
+const consentChannel = (session: StoredSession) => (session.openedBy === "otp" ? "otp_session" : "demo");
+
 /** validConsentReference в Go: ПДн — без предмета, передача банку — к сделке. */
 const validConsentReference = (kind: ConsentKind, ref: string) => (kind === ConsentKind.PD_PROCESSING ? ref === "" : CONSENT_REFERENCE_RE.test(ref));
 
@@ -445,7 +448,8 @@ export type FakeUserInit = {
   consent?: false | { version: string; textSha256: string };
 };
 
-type StoredSession = { id: string; userId: string; activeRole: Role; mfaVerifiedAt: Date | null };
+/** openedBy — sessions.opened_by (0010): otp — вход по коду (VerifyOtp), demo — демо-вход без кода (StartDemoSession). */
+type StoredSession = { id: string; userId: string; activeRole: Role; mfaVerifiedAt: Date | null; openedBy: "otp" | "demo" };
 /** Фактор TOTP: секрет в base32 (в Go — шифртекст), подтверждён ли, последний принятый шаг. */
 type StoredFactor = { secretBase32: string; secret: Buffer; confirmed: boolean; lastUsedStep: number };
 
@@ -778,13 +782,14 @@ export class FakeIdentity {
 
   /**
    * Создать сессию в обход OTP и вернуть токен — для тестов, которым нужен уже вошедший пользователь. Сессия оператора —
-   * с пройденной второй ступенью сейчас; `mfaVerifiedAt` задаёт её момент (`null` — вход только по SMS).
+   * с пройденной второй ступенью сейчас; `mfaVerifiedAt` задаёт её момент (`null` — вход только по SMS). Сессия — как после
+   * входа по коду (`openedBy: "otp"`), если не задано иное.
    */
-  signIn(userId: string, token: string, activeRole?: Role, opts: { mfaVerifiedAt?: Date | null } = {}): void {
+  signIn(userId: string, token: string, activeRole?: Role, opts: { mfaVerifiedAt?: Date | null; openedBy?: "otp" | "demo" } = {}): void {
     const user = this.mustUser(userId);
     const role = activeRole ?? user.defaultRole;
     const mfaVerifiedAt = opts.mfaVerifiedAt !== undefined ? opts.mfaVerifiedAt : role === Role.OPERATOR ? this.now() : null;
-    this.sessions.set(token, { id: `s-${++this.counter}`, userId, activeRole: role, mfaVerifiedAt });
+    this.sessions.set(token, { id: `s-${++this.counter}`, userId, activeRole: role, mfaVerifiedAt, openedBy: opts.openedBy ?? "otp" });
   }
 
   /** Подключённый фактор в обход Start/Confirm: секрет base32 (для кода в тесте). */
@@ -1218,7 +1223,7 @@ export class FakeIdentity {
           const user = existing ?? this.addUser({ phone, consent: false });
           this.otpRequested.delete(phone);
           // Вход по SMS: второй ступени в этой сессии ещё нет (у оператора — /operator/mfa).
-          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: user.defaultRole, mfaVerifiedAt: null };
+          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: user.defaultRole, mfaVerifiedAt: null, openedBy: "otp" };
           this.sessions.set(req.sessionToken ?? "", session);
           return create(VerifyOtpResponseSchema, { user: this.view(user), session: this.sessionView(session), isNew: !existing });
         },
@@ -1283,7 +1288,7 @@ export class FakeIdentity {
           if (!user.roles.includes(asRole)) throw codedError("role_not_granted", Code.PermissionDenied);
           this.checkTokenFree(req.sessionToken ?? "");
           // Демо-оператор считается прошедшим вторую ступень (demo.go: у демо-персон нет приложения).
-          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: asRole, mfaVerifiedAt: asRole === Role.OPERATOR ? this.now() : null };
+          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: asRole, mfaVerifiedAt: asRole === Role.OPERATOR ? this.now() : null, openedBy: "demo" };
           this.sessions.set(req.sessionToken ?? "", session);
           return create(StartDemoSessionResponseSchema, { user: this.view(user), session: this.sessionView(session) });
         },
@@ -1719,7 +1724,7 @@ export class FakeIdentity {
               if (existing.textSha256 !== sum) throw codedError("consent_version_invalid", Code.InvalidArgument);
               return create(GrantConsentResponseSchema, { consent: consentView(existing) });
             }
-            const c = this.insertConsent({ userId: user.id, kind, version, textSha256: sum, purposes, referenceId: ref, channel: "otp_session" });
+            const c = this.insertConsent({ userId: user.id, kind, version, textSha256: sum, purposes, referenceId: ref, channel: consentChannel(session) });
             this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action: "consent.granted", after: { kind: ConsentKind[kind], version, reference_id: ref, channel: c.channel } });
             return create(GrantConsentResponseSchema, { consent: consentView(c) });
           },

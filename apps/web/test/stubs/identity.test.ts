@@ -888,6 +888,20 @@ describe("подделка identity: согласия (как consent.go)", () =
     expect(fake.consentsOf(withConsent.id)).toHaveLength(1);
   });
 
+  it("GrantConsent: канал по способу открытия сессии — вход кодом otp_session, демо-вход без кода demo (Ruling AL, как sessionConsentChannel)", async () => {
+    await fake.client.requestOtp({ phone: "+77002220098", idempotencyKey: key() });
+    const otp = await fake.client.verifyOtp({ phone: "+77002220098", code: FAKE_OTP_CODE, sessionToken: token(3), idempotencyKey: key() });
+    expect((await grant(3)).consent?.channel).toBe("otp_session");
+    expect(fake.consentsOf(otp.user!.id).map((c) => c.channel)).toEqual(["otp_session"]);
+
+    const demo = fake.addUser({ phone: "+77002220097", isDemo: true, consent: false });
+    await fake.client.startDemoSession({ userId: demo.id, sessionToken: token(4), idempotencyKey: key() });
+    expect((await grant(4)).consent?.channel).toBe("demo");
+    expect((await grant(4, { kind: ConsentKind.BANK_TRANSFER, referenceId: "deal-1" })).consent?.channel).toBe("demo");
+    expect(fake.consentsOf(demo.id).map((c) => c.channel)).toEqual(["demo", "demo"]);
+    expect(fake.auditEvents.filter((e) => e.userId === demo.id && e.action === "consent.granted").map((e) => (e.after as { channel: string }).channel)).toEqual(["demo", "demo"]);
+  });
+
   it("GrantConsent: порядок проверок — ключ, вид, версия и хэш, предмет, цели, сессия", async () => {
     client(1, { consent: false });
     const wrongSession = { sessionToken: token(9) };

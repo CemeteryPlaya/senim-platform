@@ -65,8 +65,8 @@ func TestRetentionDeletesOnlyOld(t *testing.T) {
 	execAll(t, pool, idem, "young", young(cfg.RetainIdempotency))
 
 	// Сессии: истекла давно / отозвана давно / истекла недавно / отозвана недавно.
-	sess := `INSERT INTO sessions (token_hash, user_id, active_role, expires_at, revoked_at)
-		VALUES (sha256(gen_random_uuid()::text::bytea), $1, 'CLIENT', $2, $3)`
+	sess := `INSERT INTO sessions (token_hash, user_id, active_role, expires_at, revoked_at, opened_by)
+		VALUES (sha256(gen_random_uuid()::text::bytea), $1, 'CLIENT', $2, $3, 'otp')`
 	execAll(t, pool, sess, user.ID, old(cfg.RetainSessions), nil)
 	execAll(t, pool, sess, user.ID, now.Add(time.Hour), old(cfg.RetainSessions))
 	execAll(t, pool, sess, user.ID, young(cfg.RetainSessions), nil)
@@ -125,8 +125,8 @@ func TestRetentionKeepsActiveSessions(t *testing.T) {
 	cfg := retentionCfg()
 	// Живая сессия, созданная очень давно: не отозвана и ещё не истекла. И сессия,
 	// отозванная только что, но с будущим истечением.
-	sess := `INSERT INTO sessions (token_hash, user_id, active_role, created_at, last_seen_at, expires_at, revoked_at)
-		VALUES (sha256(gen_random_uuid()::text::bytea), $1, 'CLIENT', $2, $2, $3, $4)`
+	sess := `INSERT INTO sessions (token_hash, user_id, active_role, created_at, last_seen_at, expires_at, revoked_at, opened_by)
+		VALUES (sha256(gen_random_uuid()::text::bytea), $1, 'CLIENT', $2, $2, $3, $4, 'otp')`
 	long := now.Add(-cfg.RetainSessions * 3)
 	execAll(t, pool, sess, user.ID, long, now.Add(time.Minute), nil)
 	execAll(t, pool, sess, user.ID, long, now.Add(time.Hour), now.Add(-time.Minute))

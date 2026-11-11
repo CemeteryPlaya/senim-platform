@@ -442,8 +442,8 @@ func TestSessionsRejectUnknownRole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = pool.Exec(context.Background(), `INSERT INTO sessions (token_hash, user_id, active_role, expires_at)
-		VALUES ($1, $2, 'ADMIN', now() + interval '1 hour')`, []byte(newToken(t)), u.ID)
+	_, err = pool.Exec(context.Background(), `INSERT INTO sessions (token_hash, user_id, active_role, expires_at, opened_by)
+		VALUES ($1, $2, 'ADMIN', now() + interval '1 hour', 'otp')`, []byte(newToken(t)), u.ID)
 	requireCheckViolation(t, err, "sessions_active_role_known")
 }
 

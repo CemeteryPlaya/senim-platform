@@ -263,6 +263,79 @@ func TestGrantConsentRecordsProof(t *testing.T) {
 	}
 }
 
+// TestGrantConsentChannelBySessionOpening — Ruling AL: канал согласия — по тому, как открыта
+// сессия. Вход кодом (VerifyOtp) — otp_session, демо-вход без кода (StartDemoSession) —
+// demo; у обоих session_id — эта сессия. Канал demo без сессии база не примет.
+func TestGrantConsentChannelBySessionOpening(t *testing.T) {
+	h := newHarness(t, nil)
+	ctx := context.Background()
+
+	phone := newPhone()
+	login := h.verifyReq(phone, h.issued(phone), "")
+	res, err := h.verifyAs("web", login)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otpUser := uuid.MustParse(res.GetUser().GetId())
+	if got := h.sessionRow(login.GetSessionToken()).OpenedBy; got != sessionOpenedByOtp {
+		t.Fatalf("сессия входа кодом: opened_by %q", got)
+	}
+	if c := h.mustGrant(pdGrant(login.GetSessionToken(), "2026-11-01")); c.GetChannel() != channelOtpSession {
+		t.Fatalf("канал согласия после входа кодом: %q", c.GetChannel())
+	}
+	if rows := h.consentRows(otpUser); len(rows) != 1 || rows[0].Channel != channelOtpSession ||
+		rows[0].SessionID.UUID != h.sessionRow(login.GetSessionToken()).ID {
+		t.Fatalf("запись после входа кодом: %+v", rows)
+	}
+
+	demoUser := h.demoUser(roleClient, true, roleClient)
+	demo := &identityv1.StartDemoSessionRequest{UserId: demoUser.GetId()}
+	if _, err := h.startDemo(demo); err != nil {
+		t.Fatal(err)
+	}
+	demoSession := h.sessionRow(demo.GetSessionToken())
+	if demoSession.OpenedBy != sessionOpenedByDemo {
+		t.Fatalf("демо-сессия: opened_by %q", demoSession.OpenedBy)
+	}
+	deal := uuid.NewString()
+	for _, req := range []*identityv1.GrantConsentRequest{pdGrant(demo.GetSessionToken(), "2026-11-01"), bankGrant(demo.GetSessionToken(), deal)} {
+		if c := h.mustGrant(req); c.GetChannel() != channelDemo {
+			t.Fatalf("канал согласия в демо-сессии: %q", c.GetChannel())
+		}
+	}
+	rows := h.consentRows(uuid.MustParse(demoUser.GetId()))
+	if len(rows) != 2 {
+		t.Fatalf("записей в демо-сессии %d, want 2", len(rows))
+	}
+	for _, r := range rows {
+		if r.Channel != channelDemo || !r.SessionID.Valid || r.SessionID.UUID != demoSession.ID {
+			t.Fatalf("запись в демо-сессии: %+v", r)
+		}
+	}
+	audit := h.auditOf(demoUser.GetId(), "consent.granted")
+	if len(audit) != 2 || !strings.Contains(audit[0].GetAfterJson(), `"channel":"demo"`) {
+		t.Fatalf("аудит в демо-сессии: %v", audit)
+	}
+
+	// Ограничения базы: demo — только с сессией, неизвестный канал и способ входа — отказ.
+	_, err = h.pool.Exec(ctx,
+		`INSERT INTO consents (user_id, kind, version, text_sha256, purposes, channel)
+		 VALUES ($1, 'PD_PROCESSING', 'x-2', $2, '{}', 'demo')`, otpUser, make([]byte, 32))
+	if code, _ := pgCode(err); code != "23514" {
+		t.Fatalf("demo без сессии: %v, want 23514", err)
+	}
+	_, err = h.pool.Exec(ctx,
+		`INSERT INTO consents (user_id, kind, version, text_sha256, purposes, channel, session_id)
+		 VALUES ($1, 'PD_PROCESSING', 'x-3', $2, '{}', 'sms', $3)`, otpUser, make([]byte, 32), demoSession.ID)
+	if code, _ := pgCode(err); code != "23514" {
+		t.Fatalf("неизвестный канал: %v, want 23514", err)
+	}
+	_, err = h.pool.Exec(ctx, `UPDATE sessions SET opened_by = 'magic' WHERE id = $1`, demoSession.ID)
+	if code, _ := pgCode(err); code != "23514" {
+		t.Fatalf("неизвестный способ входа: %v, want 23514", err)
+	}
+}
+
 func TestGrantConsentIdempotent(t *testing.T) {
 	h := newHarness(t, nil)
 	u, token := h.client()

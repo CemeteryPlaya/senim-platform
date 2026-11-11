@@ -225,7 +225,7 @@ func (s *Service) signIn(ctx context.Context, tx pgx.Tx, req *identityv1.VerifyO
 		return rpcError(connect.CodePermissionDenied, "user_blocked", nil)
 	}
 
-	sess, err := createSession(ctx, tx, user, req.GetSessionToken(), req.GetUserAgent(), "", now)
+	sess, err := createSession(ctx, tx, user, req.GetSessionToken(), req.GetUserAgent(), "", sessionOpenedByOtp, now)
 	if err != nil {
 		return err
 	}

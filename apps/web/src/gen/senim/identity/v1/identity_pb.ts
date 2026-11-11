@@ -375,7 +375,8 @@ export type Consent = Message<"senim.identity.v1.Consent"> & {
   referenceId: string;
 
   /**
-   * Канал получения согласия.
+   * Канал получения согласия: otp_session — в сессии, открытой кодом из SMS; demo — в
+   * демо-сессии (StartDemoSession, без кода); seed — сид демо-стенда.
    *
    * @generated from field: string channel = 7;
    */

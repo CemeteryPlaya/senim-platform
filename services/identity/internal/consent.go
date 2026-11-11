@@ -32,7 +32,8 @@ const (
 	consentPD   = "PD_PROCESSING"
 	consentBank = "BANK_TRANSFER"
 
-	channelOtpSession = "otp_session"
+	channelOtpSession = "otp_session" // в сессии, открытой кодом из SMS
+	channelDemo       = "demo"        // в демо-сессии (StartDemoSession, без кода)
 	channelSeed       = "seed"
 )
 
@@ -266,8 +267,9 @@ type consentAudit struct {
 	Reason       string   `json:"reason,omitempty"`
 }
 
-// GrantConsent — пользователь даёт согласие в своей сессии (канал otp_session, session_id —
-// эта сессия): вид, версия и SHA-256 показанного текста (consent_version_invalid), цели.
+// GrantConsent — пользователь даёт согласие в своей сессии (session_id — эта сессия; канал
+// otp_session, если сессия открыта кодом из SMS, demo — если демо-входом): вид, версия и
+// SHA-256 показанного текста (consent_version_invalid), цели.
 // Согласие на ПДн — без предмета, передача банку — к сделке (reference_id); иначе
 // invalid_request. Действующее согласие той же версии и предмета уже есть — тот же ответ без
 // новой записи; та же версия с другим текстом — consent_version_invalid. Событие
@@ -327,7 +329,7 @@ func (s *Service) GrantConsent(ctx context.Context, req *identityv1.GrantConsent
 		}
 		c, err := q.InsertConsent(ctx, store.InsertConsentParams{
 			UserID: user.ID, Kind: kind, Version: req.GetVersion(), TextSha256: sum, Purposes: purposes,
-			ReferenceID: req.GetReferenceId(), Channel: channelOtpSession,
+			ReferenceID: req.GetReferenceId(), Channel: sessionConsentChannel(sess),
 			SessionID: uuid.NullUUID{UUID: sess.ID, Valid: true}, GrantedAt: ts(now),
 		})
 		if err != nil {
@@ -648,4 +650,13 @@ func (s *Service) ResolveConsentRevocation(ctx context.Context, req *identityv1.
 		return nil, err
 	}
 	return resp, nil
+}
+
+// sessionConsentChannel — канал согласия, данного в сессии: otp_session утверждает вход по
+// коду из SMS и пишется только для такой сессии; демо-сессия (без кода) — demo.
+func sessionConsentChannel(sess store.Session) string {
+	if sess.OpenedBy == sessionOpenedByOtp {
+		return channelOtpSession
+	}
+	return channelDemo
 }

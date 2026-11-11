@@ -510,7 +510,7 @@ func TestCreateSessionUsesAsRoleOrDefault(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		s, err := createSession(context.Background(), tx, u, newToken(t), "ua", asRole, now)
+		s, err := createSession(context.Background(), tx, u, newToken(t), "ua", asRole, sessionOpenedByOtp, now)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -570,10 +570,10 @@ func TestCreateSessionMapsTokenUniqueViolation(t *testing.T) {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	token := newToken(t)
-	if _, err := createSession(ctx, tx, u, token, "", "", h.clock.now()); err != nil {
+	if _, err := createSession(ctx, tx, u, token, "", "", sessionOpenedByOtp, h.clock.now()); err != nil {
 		t.Fatal(err)
 	}
-	_, err = createSession(ctx, tx, u, token, "", "", h.clock.now())
+	_, err = createSession(ctx, tx, u, token, "", "", sessionOpenedByOtp, h.clock.now())
 	h.wantRefusal(err, connect.CodeInvalidArgument, "session_token_invalid")
 }
 

@@ -518,7 +518,7 @@ func (s *Service) StartDemoSession(ctx context.Context, req *identityv1.StartDem
 			return rpcError(connect.CodeInvalidArgument, "session_token_invalid", nil)
 		}
 		now := s.now()
-		sess, err := createSession(ctx, tx, user, req.GetSessionToken(), req.GetUserAgent(), asRole, now)
+		sess, err := createSession(ctx, tx, user, req.GetSessionToken(), req.GetUserAgent(), asRole, sessionOpenedByDemo, now)
 		if err != nil {
 			return err
 		}

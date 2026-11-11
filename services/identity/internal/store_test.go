@@ -153,7 +153,7 @@ func TestAppRoleCanDeleteMarkedTables(t *testing.T) {
 		t.Fatal(err)
 	}
 	exp := time.Now().Add(time.Hour)
-	if _, err := pool.Exec(ctx, `INSERT INTO sessions (token_hash, user_id, active_role, expires_at) VALUES ('\x01', $1, 'CLIENT', $2)`, u.ID, exp); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO sessions (token_hash, user_id, active_role, expires_at, opened_by) VALUES ('\x01', $1, 'CLIENT', $2, 'otp')`, u.ID, exp); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO otp_codes (phone, code_hash, expires_at) VALUES ($1, '\x02', $2)`, u.Phone, exp); err != nil {

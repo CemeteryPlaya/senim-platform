@@ -158,7 +158,8 @@ message Consent {
   repeated string purposes = 5;
   // К чему относится согласие (например, идентификатор сделки); может быть пусто.
   string reference_id = 6;
-  // Канал получения согласия.
+  // Канал получения согласия: otp_session — в сессии, открытой кодом из SMS; demo — в
+  // демо-сессии (StartDemoSession, без кода); seed — сид демо-стенда.
   string channel = 7;
   google.protobuf.Timestamp granted_at = 8;
   // Пусто, если согласие не отозвано.

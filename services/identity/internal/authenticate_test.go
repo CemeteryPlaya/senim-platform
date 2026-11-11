@@ -95,7 +95,7 @@ func (h *harness) session(u store.User) string {
 	h.t.Helper()
 	token := newToken(h.t)
 	err := dbx.InTx(context.Background(), h.pool, func(tx pgx.Tx) error {
-		_, err := createSession(context.Background(), tx, u, token, "test", "", h.clock.now())
+		_, err := createSession(context.Background(), tx, u, token, "test", "", sessionOpenedByOtp, h.clock.now())
 		return err
 	})
 	if err != nil {

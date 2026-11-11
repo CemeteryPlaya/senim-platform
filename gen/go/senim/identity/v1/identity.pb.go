@@ -991,7 +991,8 @@ type Consent struct {
 	Purposes   []string `protobuf:"bytes,5,rep,name=purposes,proto3" json:"purposes,omitempty"`
 	// К чему относится согласие (например, идентификатор сделки); может быть пусто.
 	ReferenceId string `protobuf:"bytes,6,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
-	// Канал получения согласия.
+	// Канал получения согласия: otp_session — в сессии, открытой кодом из SMS; demo — в
+	// демо-сессии (StartDemoSession, без кода); seed — сид демо-стенда.
 	Channel   string                 `protobuf:"bytes,7,opt,name=channel,proto3" json:"channel,omitempty"`
 	GrantedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=granted_at,json=grantedAt,proto3" json:"granted_at,omitempty"`
 	// Пусто, если согласие не отозвано.

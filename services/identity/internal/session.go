@@ -32,6 +32,12 @@ const (
 	sessionTokenConstraint = "sessions_token_hash_key"
 )
 
+// Способ открытия сессии (sessions.opened_by): от него зависит канал согласия в этой сессии.
+const (
+	sessionOpenedByOtp  = "otp"  // VerifyOtp: человек ввёл код из SMS
+	sessionOpenedByDemo = "demo" // StartDemoSession: демо-вход без кода (DEMO_MODE)
+)
+
 // isStaff — оператор или замерщик площадки: у них короткая сессия.
 func isStaff(roles []string) bool {
 	return slices.Contains(roles, "OPERATOR") || slices.Contains(roles, "MEASURER")
@@ -39,8 +45,8 @@ func isStaff(roles []string) bool {
 
 // createSession вставляет сессию для токена, который сгенерировал web. В базе лежит только
 // sha256 токена. asRole пуст — активна роль по умолчанию. Выдана ли asRole пользователю,
-// createSession не проверяет: это дело вызывающего (Task 9).
-func createSession(ctx context.Context, tx pgx.Tx, user store.User, token string, userAgent string, asRole string, now time.Time) (store.Session, error) {
+// createSession не проверяет: это дело вызывающего (Task 9). openedBy — sessionOpenedBy*.
+func createSession(ctx context.Context, tx pgx.Tx, user store.User, token, userAgent, asRole, openedBy string, now time.Time) (store.Session, error) {
 	ttl := userSessionTTL
 	if isStaff(user.Roles) {
 		ttl = staffSessionTTL
@@ -59,6 +65,7 @@ func createSession(ctx context.Context, tx pgx.Tx, user store.User, token string
 		UserAgent:  userAgent,
 		CreatedAt:  pgtype.Timestamptz{Time: now, Valid: true},
 		ExpiresAt:  pgtype.Timestamptz{Time: now.Add(ttl), Valid: true},
+		OpenedBy:   openedBy,
 	})
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == sessionTokenConstraint {

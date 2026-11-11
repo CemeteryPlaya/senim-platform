@@ -111,7 +111,7 @@ func (q *Queries) LockMfaFactor(ctx context.Context, userID uuid.UUID) (MfaFacto
 }
 
 const setSessionMfaVerified = `-- name: SetSessionMfaVerified :one
-UPDATE sessions SET mfa_verified_at = $1 WHERE id = $2 RETURNING id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at, mfa_verified_at
+UPDATE sessions SET mfa_verified_at = $1 WHERE id = $2 RETURNING id, token_hash, user_id, active_role, user_agent, created_at, last_seen_at, expires_at, revoked_at, mfa_verified_at, opened_by
 `
 
 type SetSessionMfaVerifiedParams struct {
@@ -133,6 +133,7 @@ func (q *Queries) SetSessionMfaVerified(ctx context.Context, arg SetSessionMfaVe
 		&i.ExpiresAt,
 		&i.RevokedAt,
 		&i.MfaVerifiedAt,
+		&i.OpenedBy,
 	)
 	return i, err
 }

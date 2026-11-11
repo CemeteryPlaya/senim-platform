@@ -125,6 +125,7 @@ type Session struct {
 	ExpiresAt     pgtype.Timestamptz
 	RevokedAt     pgtype.Timestamptz
 	MfaVerifiedAt pgtype.Timestamptz
+	OpenedBy      string
 }
 
 type User struct {
