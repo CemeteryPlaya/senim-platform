@@ -225,14 +225,47 @@ const DEMO_EMAILS: Partial<Record<ClientKey, string>> = { aigerim: "aigerim.demo
 
 const executorRoles = (spec: ExecutorSpec): Role[] => (spec.alsoClient ? ["EXECUTOR", "CLIENT"] : ["EXECUTOR"]);
 
-/** Все люди сида для identity: роли, демо-флаг и дата регистрации — как у них в старой базе. */
+/** Исполнители сида в порядке регистрации: он задаёт «Исполнитель №N» и тестовый IBAN одобренных. */
+const executorsByRegistration = () => (Object.entries(EXECUTORS) as [ExecutorKey, ExecutorSpec][]).sort((a, b) => b[1].registeredDaysAgo - a[1].registeredDaysAgo);
+
+/** Тестовый счёт выплаты: только у одобренного исполнителя; n — место в порядке регистрации. */
+const payoutIbanOf = (spec: ExecutorSpec, n: number): string | null => (spec.registration.status === "APPROVED" ? testIban(n + 1) : null);
+
+/**
+ * Все люди сида для identity: роли, демо-флаг и дата регистрации — как у них в старой базе; ФИО и ИИН, у исполнителя —
+ * сторона со счётом выплаты (договор, подпись ЭЦП и выплата читают их из identity). Сотрудникам ИИН не нужен.
+ * Перенос остальных полей (контакты, KYC, согласие) и отказ от шифртекстов старой базы — Task 15 плана 2б.
+ */
 function seedPeople(clock: Clock): SeedPerson[] {
-  const person = (p: PersonSpec, role: Role, roles: Role[] = [role]): SeedPerson => ({ phone: p.phone, role, roles, isDemo: p.isDemo, createdAt: clock.ago(p.joinedDaysAgo) });
+  const person = (p: PersonSpec, role: Role, roles: Role[] = [role]): SeedPerson => ({
+    phone: p.phone,
+    role,
+    roles,
+    isDemo: p.isDemo,
+    createdAt: clock.ago(p.joinedDaysAgo),
+    fullName: p.fullName,
+    iin: p.iin,
+  });
+  const executor = ([, spec]: [ExecutorKey, ExecutorSpec], n: number): SeedPerson => {
+    const signer = signerOf(spec);
+    return {
+      ...person(spec.person, "EXECUTOR", executorRoles(spec)),
+      party: {
+        legalForm: spec.legalForm,
+        legalName: spec.legalName,
+        binIin: spec.legalForm === "TOO" ? spec.bin : null,
+        signerFullName: signer.fullName,
+        signerIin: signer.iin,
+        payoutIban: payoutIbanOf(spec, n),
+      },
+    };
+  };
+  const staff = (p: PersonSpec, role: Role): SeedPerson => ({ phone: p.phone, role, roles: [role], isDemo: p.isDemo, createdAt: clock.ago(p.joinedDaysAgo) });
   return [
-    person(OPERATOR, "OPERATOR"),
+    staff(OPERATOR, "OPERATOR"),
     ...Object.values(CLIENTS).map((p: PersonSpec) => person(p, "CLIENT")),
-    ...Object.values(EXECUTORS).map((spec: ExecutorSpec) => person(spec.person, "EXECUTOR", executorRoles(spec))),
-    person(MEASURER, "MEASURER"),
+    ...executorsByRegistration().map(executor),
+    staff(MEASURER, "MEASURER"),
   ];
 }
 
@@ -320,13 +353,12 @@ function signerColumns(signer: ExecutorSigner) {
 
 async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, clock: Clock, audit: AuditLog) {
   // Порядок регистрации задаёт «Исполнитель №N».
-  const entries = (Object.entries(EXECUTORS) as [ExecutorKey, ExecutorSpec][]).sort((a, b) => b[1].registeredDaysAgo - a[1].registeredDaysAgo);
-  for (const [n, [key, spec]] of entries.entries()) {
+  for (const [n, [key, spec]] of executorsByRegistration().entries()) {
     const user = { id: await completePerson(tx, users, spec.person, clock) };
     const binIin = spec.legalForm === "TOO" ? spec.bin : spec.person.iin;
     const reg = spec.registration;
     const approved = reg.status === "APPROVED";
-    const iban = approved ? testIban(n + 1) : null;
+    const iban = payoutIbanOf(spec, n);
     const profile = await tx.executorProfile.create({
       data: {
         userId: user.id,

@@ -1,7 +1,7 @@
 import type { MoneyTransaction } from "@/generated/prisma/client";
 import { ru } from "@/i18n/ru";
 import { recordAudit, SYSTEM } from "@/modules/audit";
-import { decryptPii } from "@/platform/crypto";
+import { revealParties } from "@/modules/identity";
 import { db, lockDealRow, transaction, type Db, type Tx } from "@/platform/db";
 import { env } from "@/platform/env";
 import { enqueueJob } from "@/platform/jobs";
@@ -71,7 +71,17 @@ export async function settleFromProvider(
   return settled;
 }
 
-type DealForProvider = { id: string; number: number; executor: { legalName: string; payoutIbanEnc: string | null } };
+type DealForProvider = { id: string; number: number; executor: { userId: string; legalName: string } };
+
+/**
+ * IBAN мастера для выплаты — из identity (RevealPartyDetails, цель PAYOUT, reference_id — сделка), от имени web: выплату
+ * исполняет фоновая задача, сессии человека нет. Только на сервере: не логировать и не возвращать в интерфейс.
+ * null — счёт не указан или identity не знает мастера (провайдер решает сам, как с несуществующим счётом).
+ */
+async function payoutIbanOf(deal: DealForProvider): Promise<string | null> {
+  const revealed = await revealParties([deal.executor.userId], "PAYOUT", deal.id);
+  return revealed.get(deal.executor.userId)?.payoutIban ?? null;
+}
 
 /** Подтверждённая оплата сделки для раскрытия и возврата; без неё деньгам нечего раскрывать или возвращать. */
 function heldPayment(all: MoneyTransaction[]): HeldPayment | ProviderResult {
@@ -97,7 +107,7 @@ async function callProvider(provider: PaymentProvider, deal: DealForProvider, op
       const master = all.findLast((t) => t.parentId === op.parentId && t.type === "SPLIT_MASTER");
       const platform = all.findLast((t) => t.parentId === op.parentId && t.type === "SPLIT_PLATFORM");
       if (!master || !platform) return [];
-      const iban = deal.executor.payoutIbanEnc ? decryptPii(deal.executor.payoutIbanEnc) : null;
+      const iban = await payoutIbanOf(deal);
       const r = await provider.split({
         dealId: deal.id,
         master: { dealId: deal.id, idempotencyKey: master.idempotencyKey, amountTiyn: master.amountTiyn, recipient: { iban, name: deal.executor.legalName } },
@@ -122,7 +132,7 @@ async function callProvider(provider: PaymentProvider, deal: DealForProvider, op
 export async function executeDealOperations(dealId: string, onSettled: SettledHook): Promise<Map<string, ProviderResult>> {
   const deal = await db.deal.findUnique({
     where: { id: dealId },
-    select: { id: true, number: true, paymentProvider: true, executor: { select: { legalName: true, payoutIbanEnc: true } } },
+    select: { id: true, number: true, paymentProvider: true, executor: { select: { userId: true, legalName: true } } },
   });
   const results = new Map<string, ProviderResult>();
   if (!deal) return results;

@@ -42,8 +42,9 @@ export { INTRODUCTION_PATH, introductionHref, needsIntroduction } from "./introd
 export { INSTAGRAM_MAX, contactsInputSchema, emailField, instagramField, type ContactsInput } from "./instagram";
 export { getOwnContacts, updateContacts, type OwnContacts } from "./contacts-profile";
 export { ibanField, normalizeIban, parseKzIban, type IbanCheck } from "./iban";
-/** payoutRecipientOf — только серверный путь выплаты (deal-core, payments): IBAN не логировать и не показывать. */
-export { getOwnPayout, payoutInputSchema, payoutRecipientOf, setPayoutIban, type OwnPayout, type PayoutInput } from "./payout";
+export { getOwnPayout, payoutInputSchema, setPayoutIban, type OwnPayout, type PayoutInput } from "./payout";
+/** Открытые ИИН/БИН и IBAN — только сервер (договор, расписка, подпись, выплата): не логировать и не показывать. */
+export { revealParties, verifySignerIin, type PartyDetails, type RevealPurposeName, type SigningSideName } from "./reveal";
 export { KYC_TRANSITIONS, kycTarget, kycView, type KycAction, type KycState } from "./kyc-policy";
 export {
   KYC_MAX_FILES,

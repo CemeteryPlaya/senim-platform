@@ -52,6 +52,7 @@ export const IDENTITY_ERROR_CODES = [
   "party_missing",
   "party_exists",
   "pii_key_unknown",
+  "reveal_purpose_invalid",
 ] as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
@@ -168,6 +169,7 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
     case "idempotency_key_reused":
     case "invalid_request":
     case "pii_key_unknown":
+    case "reveal_purpose_invalid":
       return broken(code);
     default: {
       const unreachable: never = code;

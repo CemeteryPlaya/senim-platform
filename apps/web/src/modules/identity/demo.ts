@@ -9,7 +9,7 @@ import { db } from "@/platform/db";
 import { env } from "@/platform/env";
 import { fail } from "@/platform/errors";
 import { rpcErrorCode, rpcStatusName } from "@/platform/rpc";
-import { roleFromProto, roleToProto } from "./projection";
+import { legalFormToProto, roleFromProto, roleToProto } from "./projection";
 import { identity } from "./remote";
 import { identityFailure } from "./remote-errors";
 import { newSessionToken } from "./session-cookie";
@@ -53,8 +53,26 @@ export async function listDemoPersonas(): Promise<DemoPersona[]> {
     .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || (a.executor?.publicNumber ?? 0) - (b.executor?.publicNumber ?? 0));
 }
 
-/** Человек сида демо-стенда: identity создаёт его или обновляет по телефону (SeedUsers), id не меняется. */
-export type SeedPerson = { phone: string; role: Role; roles: Role[]; isDemo: boolean; createdAt: Date };
+/**
+ * Сторона исполнителя сида (SeedParty): binIin null — ИП и самозанятый работают по ИИН личности; signerIin — директор ТОО;
+ * payoutIban null — счёт не указан.
+ */
+export type SeedPartyInput = { legalForm: LegalForm; legalName: string; binIin: string | null; signerFullName: string; signerIin: string | null; payoutIban: string | null };
+
+/**
+ * Человек сида демо-стенда: identity создаёт его или обновляет по телефону (SeedUsers), id не меняется. ФИО, ИИН и сторона —
+ * в identity: договор, подпись ЭЦП и выплата берут их оттуда (RevealPartyDetails, VerifySignerIin).
+ */
+export type SeedPerson = { phone: string; role: Role; roles: Role[]; isDemo: boolean; createdAt: Date; fullName?: string; iin?: string; party?: SeedPartyInput };
+
+const seedParty = (p: SeedPartyInput) => ({
+  legalForm: legalFormToProto(p.legalForm),
+  legalName: p.legalName,
+  binIin: p.binIin ?? "",
+  signerFullName: p.signerFullName,
+  signerIin: p.signerIin ?? "",
+  payoutIban: p.payoutIban ?? "",
+});
 
 const STAND_HINT = "запустите стенд v2 (npm run v2:up) и задайте V2_ENABLED и MESH_* (пример — apps/web/e2e/v2.vars.example)";
 
@@ -77,7 +95,16 @@ async function seedCall<T>(method: string, call: () => Promise<T>): Promise<T> {
 export async function seedIdentityUsers(people: SeedPerson[]): Promise<User[]> {
   const res = await seedCall("SeedUsers", () =>
     identity().seedUsers({
-      users: people.map((p) => ({ phone: p.phone, defaultRole: roleToProto(p.role), roles: p.roles.map(roleToProto), isDemo: p.isDemo, createdAt: timestampFromDate(p.createdAt) })),
+      users: people.map((p) => ({
+        phone: p.phone,
+        defaultRole: roleToProto(p.role),
+        roles: p.roles.map(roleToProto),
+        isDemo: p.isDemo,
+        createdAt: timestampFromDate(p.createdAt),
+        fullName: p.fullName ?? "",
+        iin: p.iin ?? "",
+        party: p.party ? seedParty(p.party) : undefined,
+      })),
       idempotencyKey: randomUUID(),
     }),
   );

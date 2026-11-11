@@ -6,7 +6,7 @@ import { createSigexProvider, type SigexClient } from "./sigex";
 const SHA = "a".repeat(64);
 const IIN = "900101300123";
 
-// Мок шифрует ИИН ключом разработки (encryptPii), а env() требует строку подключения к базе — в модульном тесте её нет.
+// Мок запечатывает ИИН ключом разработки (sealValue), а env() требует строку подключения к базе — в модульном тесте её нет.
 beforeAll(() => {
   vi.stubEnv("DATABASE_URL", "postgresql://unit-test");
   resetEnvCache();

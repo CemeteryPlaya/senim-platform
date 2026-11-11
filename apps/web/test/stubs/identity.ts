@@ -14,6 +14,7 @@ import {
   GrantRoleResponseSchema,
   KycStatus,
   LegalForm,
+  PartyDetailsSchema,
   PartySchema,
   PersonSchema,
   ProvisionExecutorRequestSchema,
@@ -26,6 +27,9 @@ import {
   RequestOtpResponseSchema,
   ResetDemoRequestSchema,
   ResetDemoResponseSchema,
+  RevealPartyDetailsRequestSchema,
+  RevealPartyDetailsResponseSchema,
+  RevealPurpose,
   Role,
   SeedUsersRequestSchema,
   SeedUsersResponseSchema,
@@ -36,6 +40,7 @@ import {
   SignOutEverywhereResponseSchema,
   SignOutRequestSchema,
   SignOutResponseSchema,
+  SigningSide,
   StartDemoSessionRequestSchema,
   StartDemoSessionResponseSchema,
   StartTotpEnrollmentRequestSchema,
@@ -49,7 +54,10 @@ import {
   VerifyOtpResponseSchema,
   VerifySecondFactorRequestSchema,
   VerifySecondFactorResponseSchema,
+  VerifySignerIinRequestSchema,
+  VerifySignerIinResponseSchema,
   type Party,
+  type PartyDetails,
   type Person,
   type Session,
   type User,
@@ -99,6 +107,14 @@ import { parseKzIban } from "@/modules/identity/iban";
  * по ИИН личности (person_missing, если его нет); те же реквизиты ещё раз — тот же ответ; другие поверх записанных
  * RegisterParty перезаписывает, пока KYC не подана или отклонена (иначе и в ProvisionExecutor — party_exists); ИИН/БИН
  * другой стороны — iin_taken; новая сторона — KYC NOT_SUBMITTED; SetPayoutIban отвечает changed. Номера хранятся открыто.
+ *
+ * Раскрытие и сверка (reveal.go, VerifySignerIin в party.go): RevealPartyDetails — порядок проверок (цель —
+ * reveal_purpose_invalid, ссылка 1..128 и список 1..50 — invalid_request, затем сессия действующего лица; оператор без второй
+ * ступени — mfa_required), повторы убираются, неизвестный пропускается, аудит pii.revealed на каждого субъекта — без значений
+ * (действующее лицо без сессии — сервис, `actorRole` UNSPECIFIED). VerifySignerIin — сторона обязательна (invalid_request),
+ * не ИИН — не совпало, заказчик — ИИН личности, исполнитель — директор ТОО или ИИН стороны ИП и самозанятого, без стороны —
+ * не совпало. Расхождение с Go: id пользователей не проверяются как UUID (id подделки — `u-<цифры>` и cuid фабрик).
+ * SeedUsers пишет личность (заданные поля) и сторону целиком (seedPerson и seedPartyRow) с теми же проверками.
  */
 
 /** Тип клиента — тот же, что у `IdentityClient` из modules/identity/remote (импорт оттуда из test/ запрещён границей модулей). */
@@ -137,6 +153,33 @@ type StoredParty = {
 
 /** Проверенные реквизиты запроса (partyInput в Go). */
 type PartyInput = Pick<StoredParty, "legalForm" | "legalName" | "binIin" | "signerFullName" | "signerIin">;
+
+/** reveal.go: субъектов в одном вызове — не больше 50, reference_id — не длиннее 128. */
+const MAX_REVEAL_USERS = 50;
+const MAX_REFERENCE_ID = 128;
+const REVEAL_PURPOSES: Partial<Record<RevealPurpose, string>> = {
+  [RevealPurpose.CONTRACT]: "CONTRACT",
+  [RevealPurpose.RELEASE_RECEIPT]: "RELEASE_RECEIPT",
+  [RevealPurpose.PAYOUT]: "PAYOUT",
+};
+
+/** revealedFields в Go: имена непустых раскрытых полей (как в PartyDetails), без значений. */
+function revealedFields(d: PartyDetails): string[] {
+  const fields: [string, string][] = [
+    ["full_name", d.fullName],
+    ["iin", d.iin],
+    ["legal_name", d.legalName],
+    ["bin_iin", d.binIin],
+    ["signer_full_name", d.signerFullName],
+    ["signer_iin", d.signerIin],
+    ["payout_iban", d.payoutIban],
+  ];
+  return fields.filter(([, value]) => value !== "").map(([name]) => name);
+}
+
+/** Пользователь сида и его сторона — как в запросе SeedUsers. */
+type SeedUserInit = NonNullable<MessageInitShape<typeof SeedUsersRequestSchema>["users"]>[number];
+type SeedPartyInit = NonNullable<SeedUserInit["party"]>;
 
 /** Наименование стороны: 2–200 символов после обрезки пробелов (minLegalName, maxLegalName в Go). */
 const LEGAL_NAME_MIN = 2;
@@ -218,6 +261,7 @@ const STATUS_BY_CODE: Record<string, Code> = {
   iban_invalid: Code.InvalidArgument,
   party_missing: Code.FailedPrecondition,
   party_exists: Code.FailedPrecondition,
+  reveal_purpose_invalid: Code.InvalidArgument,
 };
 
 /** withoutSpaces в Go: все пробелы убраны (digits в registration-schema.ts). */
@@ -390,6 +434,36 @@ export class FakeIdentity {
     return p && { binIin: p.binIin, signerIin: p.signerIin, payoutIban: p.payoutIban };
   }
 
+  /** Открытый ИИН личности — для проверок в тестах (в Go его отдаёт только RevealPartyDetails); нет — пустая строка. */
+  personIinOf(userId: string): string {
+    return this.persons.get(userId)?.iin ?? "";
+  }
+
+  /** Счёт выплаты стороны в обход SetPayoutIban — для тестов выплаты и расписки. */
+  setPayoutIbanOf(userId: string, iban: string): void {
+    const p = this.parties.get(userId);
+    if (!p) throw new Error("подделка identity: стороны нет");
+    p.payoutIban = iban;
+  }
+
+  /** partyDetails в Go: открытые данные пользователя — личность и сторона, если есть; undefined — пользователя нет. */
+  private partyDetails(userId: string): PartyDetails | undefined {
+    if (!this.users.has(userId)) return undefined;
+    const person = this.persons.get(userId);
+    const party = this.parties.get(userId);
+    return create(PartyDetailsSchema, {
+      userId,
+      fullName: person?.fullName ?? "",
+      iin: person?.iin ?? "",
+      legalForm: party?.legalForm ?? LegalForm.UNSPECIFIED,
+      legalName: party?.legalName ?? "",
+      binIin: party?.binIin ?? "",
+      signerFullName: party?.signerFullName ?? "",
+      signerIin: party?.signerIin ?? "",
+      payoutIban: party?.payoutIban ?? "",
+    });
+  }
+
   /** Личность пользователя, как её отдаёт identity (ИИН — последними 4 цифрами), — для проверок в тестах. */
   personOf(userId: string): Person {
     const p = this.persons.get(userId);
@@ -531,8 +605,11 @@ export class FakeIdentity {
     return response;
   }
 
-  /** validateSeed из demo.go: непустой список ≤ 200, телефоны верны и не повторяются, роли известны, роль по умолчанию выдана, сотрудник один в своей роли. */
-  private validateSeed(users: { phone?: string; defaultRole?: Role; roles?: Role[] }[]): void {
+  /**
+   * validateSeed из demo.go: непустой список ≤ 200, телефоны верны и не повторяются, роли известны, роль по умолчанию выдана,
+   * сотрудник один в своей роли; затем личность (validateSeedPerson) и сторона (validateSeedParty).
+   */
+  private validateSeed(users: SeedUserInit[]): void {
     if (users.length === 0 || users.length > 200) throw codedError("invalid_request", Code.InvalidArgument);
     const seen = new Set<string>();
     for (const u of users) {
@@ -545,7 +622,51 @@ export class FakeIdentity {
       const def = u.defaultRole ?? Role.UNSPECIFIED;
       if (def === Role.UNSPECIFIED || !roles.includes(def)) throw codedError("invalid_request", Code.InvalidArgument);
       if (roles.some((r) => STAFF.includes(r)) && roles.length !== 1) throw codedError("invalid_request", Code.InvalidArgument);
+      const person = this.seedPersonOf(u);
+      if (u.party) this.seedPartyOf(u.party, roles, person.iin);
     }
+  }
+
+  /** validateSeedPerson в Go: заданные поля личности — по правилам RecordPerson и UpdateContacts; пустое — не задано. */
+  private seedPersonOf(u: SeedUserInit): Partial<StoredPerson> {
+    const person: Partial<StoredPerson> = {};
+    if (u.fullName) {
+      person.fullName = normalizeFullName(u.fullName);
+      if (!isValidFullName(person.fullName)) throw codedError("full_name_invalid", Code.InvalidArgument);
+    }
+    if (u.iin) {
+      if (!isValidIin(u.iin)) throw codedError("iin_invalid", Code.InvalidArgument);
+      person.iin = u.iin;
+    }
+    const instagram = checkInstagram(u.instagram ?? "");
+    if (instagram) person.instagram = instagram;
+    const email = checkEmail(u.email ?? "");
+    if (email) person.email = email;
+    return person;
+  }
+
+  /**
+   * validateSeedParty в Go: сторона — только у исполнителя (иначе invalid_request); ИП и самозанятый без bin_iin — по ИИН
+   * личности сида (нет — person_missing); IBAN — как SetPayoutIban; KYC — заданный или NOT_SUBMITTED.
+   */
+  private seedPartyOf(sp: SeedPartyInit, roles: readonly Role[], iin: string | undefined): StoredParty {
+    if (!roles.includes(Role.EXECUTOR)) throw codedError("invalid_request", Code.InvalidArgument);
+    const form = sp.legalForm ?? LegalForm.UNSPECIFIED;
+    const own = (sp.binIin ?? "") === "" && form !== LegalForm.TOO;
+    const input = checkParty(form, sp.legalName ?? "", sp.binIin ?? "", sp.signerFullName ?? "", sp.signerIin ?? "", own);
+    if (own) {
+      if (!iin) throw codedError("person_missing", Code.FailedPrecondition);
+      input.binIin = iin;
+    }
+    let payoutIban = "";
+    if (sp.payoutIban) {
+      const check = parseKzIban(sp.payoutIban);
+      if (!check.ok) throw codedError("iban_invalid", Code.InvalidArgument, { reason: check.reason });
+      payoutIban = check.iban;
+    }
+    const kyc = sp.kycStatus ?? KycStatus.UNSPECIFIED;
+    if (kyc !== KycStatus.UNSPECIFIED && !(kyc in KycStatus)) throw codedError("invalid_request", Code.InvalidArgument);
+    return { ...input, payoutIban, kycStatus: kyc === KycStatus.UNSPECIFIED ? KycStatus.NOT_SUBMITTED : kyc, kycRejectReason: "" };
   }
 
   private checkIp(ip: string): void {
@@ -850,6 +971,12 @@ export class FakeIdentity {
             const createdAt = u.createdAt ? create(TimestampSchema, u.createdAt) : existing?.createdAt;
             if (createdAt) user.createdAt = createdAt;
             this.blocked.delete(user.id);
+            // seedPerson и seedPartyRow в Go: заданные поля личности перезаписываются, сторона — целиком.
+            const person = this.seedPersonOf(u);
+            if (Object.keys(person).length > 0) {
+              this.persons.set(user.id, { ...(this.persons.get(user.id) ?? { fullName: "", iin: "", instagram: "", email: "" }), ...person });
+            }
+            if (u.party) this.parties.set(user.id, this.seedPartyOf(u.party, user.roles, this.persons.get(user.id)?.iin));
             seeded.push(user);
           }
           return create(SeedUsersResponseSchema, { users: seeded.map((u) => this.view(u)) });
@@ -1057,8 +1184,44 @@ export class FakeIdentity {
           },
         );
       },
-      verifySignerIin: unimplemented,
-      revealPartyDetails: unimplemented,
+      verifySignerIin: reading("verifySignerIin", async (req: MessageInitShape<typeof VerifySignerIinRequestSchema>) => {
+        // Порядок Go: пользователь (UUID в Go), сторона; не ИИН — не совпало; дальше сверка без расшифровки и без аудита.
+        const userId = req.userId ?? "";
+        const side = req.side ?? SigningSide.UNSPECIFIED;
+        if (userId === "" || (side !== SigningSide.CLIENT && side !== SigningSide.EXECUTOR)) throw codedError("invalid_request", Code.InvalidArgument);
+        const iin = req.iin ?? "";
+        if (!isValidIin(iin)) return create(VerifySignerIinResponseSchema, { matches: false });
+        let stored = "";
+        if (side === SigningSide.CLIENT) stored = this.persons.get(userId)?.iin ?? "";
+        else {
+          const party = this.parties.get(userId);
+          stored = !party ? "" : party.legalForm === LegalForm.TOO ? party.signerIin : party.binIin;
+        }
+        return create(VerifySignerIinResponseSchema, { matches: stored !== "" && stored === iin });
+      }),
+      revealPartyDetails: reading("revealPartyDetails", async (req: MessageInitShape<typeof RevealPartyDetailsRequestSchema>) => {
+        // Порядок Go (reveal.go): цель, ссылка, список субъектов, сессия действующего лица; дальше чтение и аудит.
+        const purpose = REVEAL_PURPOSES[req.purpose ?? RevealPurpose.UNSPECIFIED];
+        if (!purpose) throw codedError("reveal_purpose_invalid", Code.InvalidArgument);
+        const ref = req.referenceId ?? "";
+        if (ref === "" || ref.length > MAX_REFERENCE_ID) throw codedError("invalid_request", Code.InvalidArgument);
+        const raw = req.userIds ?? [];
+        if (raw.length === 0 || raw.length > MAX_REVEAL_USERS || raw.some((id) => id === "")) throw codedError("invalid_request", Code.InvalidArgument);
+        let actorRole = Role.UNSPECIFIED;
+        if (req.actorSessionToken) {
+          const { session } = await this.sessionOf(req.actorSessionToken);
+          if (session.activeRole === Role.OPERATOR && !session.mfaVerifiedAt) throw codedError("mfa_required", Code.PermissionDenied);
+          actorRole = session.activeRole;
+        }
+        const parties: PartyDetails[] = [];
+        for (const id of new Set(raw)) {
+          const details = this.partyDetails(id);
+          if (details) parties.push(details);
+          const after = { purpose, reference_id: ref, fields: details ? revealedFields(details) : [], found: details !== undefined };
+          this.auditEvents.push({ userId: id, actorRole, action: "pii.revealed", after });
+        }
+        return create(RevealPartyDetailsResponseSchema, { parties });
+      }),
       submitKyc: unimplemented,
       listKycQueue: unimplemented,
       reviewKyc: unimplemented,

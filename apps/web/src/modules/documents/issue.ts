@@ -1,6 +1,7 @@
 import type { DocumentKind } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit, SYSTEM, type Actor } from "@/modules/audit";
+import { actorOf, type CurrentUser } from "@/modules/identity";
 import { saveFile } from "@/modules/files";
 import { sha256Hex } from "@/platform/crypto";
 import { lockDealRow, type Tx } from "@/platform/db";
@@ -120,9 +121,9 @@ export async function ensureMoneyStatement(tx: Tx, dealId: string, now = new Dat
   return issue(tx, { dealId, kind: "MONEY_STATEMENT", issuedAt: now, build: async (meta) => moneyStatementSpec(await statementData(tx, dealId, meta)) });
 }
 
-/** Расписка на раскрытие для банка (manual): по суммам раскрытия в журнале. Выпускает оператор (actor). */
-export const issueReleaseReceipt = (tx: Tx, dealId: string, actor: Actor, issuedAt = new Date()) =>
-  issue(tx, { dealId, kind: "RELEASE_RECEIPT", issuedAt, actor, build: async (meta) => releaseReceiptSpec(await receiptData(tx, dealId, meta)) });
+/** Расписка на раскрытие для банка (manual): по суммам раскрытия в журнале. Выпускает оператор (его сессия — для раскрытия ПДн). */
+export const issueReleaseReceipt = (tx: Tx, dealId: string, operator: CurrentUser, issuedAt = new Date()) =>
+  issue(tx, { dealId, kind: "RELEASE_RECEIPT", issuedAt, actor: actorOf(operator), build: async (meta) => releaseReceiptSpec(await receiptData(tx, dealId, meta, operator)) });
 
 /**
  * Сделка отменена до заключения оферты: неподписанная оферта снимается с подписи (в той же транзакции,

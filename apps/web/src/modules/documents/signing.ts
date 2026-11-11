@@ -3,9 +3,9 @@ import type { DocumentKind, DocumentStatus, SignMethod, SignParty } from "@/gene
 import { ru } from "@/i18n/ru";
 import { recordAudit, requestOrigin } from "@/modules/audit";
 import { isFullySigned, isSignable, missingOf, onDocumentSigned, processDealMoney, signingFlags, type SignedParties } from "@/modules/deal-core";
-import { actorOf, type CurrentUser } from "@/modules/identity";
+import { actorOf, revealParties, verifySignerIin, type CurrentUser, type PartyDetails } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
-import { decryptPii, hashPii, last4 } from "@/platform/crypto";
+import { last4 } from "@/platform/crypto";
 import { db, isUniqueViolation, transaction, type Db, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enqueueJob } from "@/platform/jobs";
@@ -184,32 +184,29 @@ export async function signByHand(user: CurrentUser, input: HandSignatureInput): 
 
 // ─── ЭЦП ────────────────────────────────────────────────────────────────────
 
-type SignerSource = { fullName: string | null; iinEnc: string | null; iinHash: string | null };
-
 /**
- * Подписант мастера — свойство профиля (ADR-003): ТОО — директор своим сертификатом (ИИН директора
- * из профиля, signerIin*); ИП и самозанятый — владелец (ИИН профиля, binIin*).
+ * Подписант стороны из реквизитов identity (ADR-003; та же сторона, что сверяет VerifySignerIin): заказчик — ФИО и ИИН
+ * личности; мастер ТОО — директор своим сертификатом (signer*); ИП и самозанятый — владелец (ИИН стороны).
  * TODO(ТОО): сверять и БИН организации из сертификата юрлица, когда провайдер станет его возвращать.
  */
-function executorSigner(p: { legalForm: string; legalName: string; signerFullName: string | null; signerIinEnc: string | null; signerIinHash: string | null; binIinEnc: string | null; binIinHash: string | null }): SignerSource {
-  const fullName = p.signerFullName ?? (p.legalForm === "TOO" ? null : p.legalName);
-  return p.legalForm === "TOO" ? { fullName, iinEnc: p.signerIinEnc, iinHash: p.signerIinHash } : { fullName, iinEnc: p.binIinEnc, iinHash: p.binIinHash };
+function signerOfParty(d: PartyDetails | undefined, party: SignParty): { fullName: string; iin: string | null } {
+  if (!d) return { fullName: "", iin: null };
+  if (party === "CLIENT") return { fullName: d.fullName ?? "", iin: d.iin };
+  if (d.legalForm === "TOO") return { fullName: d.signerFullName ?? "", iin: d.signerIin };
+  return { fullName: d.signerFullName ?? d.legalName ?? "", iin: d.legalForm ? d.binIin : null };
 }
 
-/** Кто обязан подписать ЭЦП за сторону: сверяется HMAC полного ИИН сертификата с ИИН стороны. */
-async function expectedSigner(userId: string, party: SignParty): Promise<{ fullName: string; iin: string; iinHash: string }> {
-  const user = await db.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: {
-      fullName: true,
-      iinEnc: true,
-      iinHash: true,
-      executorProfile: { select: { legalForm: true, legalName: true, signerFullName: true, signerIinEnc: true, signerIinHash: true, binIinEnc: true, binIinHash: true } },
-    },
-  });
-  const signer = party === "EXECUTOR" && user.executorProfile ? executorSigner(user.executorProfile) : user;
-  if (!signer.iinEnc || !signer.iinHash) return fail.validation(t.errors.signerIinMissing);
-  return { fullName: signer.fullName ?? "", iin: decryptPii(signer.iinEnc), iinHash: signer.iinHash };
+/**
+ * Кто подписывает ЭЦП за сторону: ФИО и ИИН — из identity (RevealPartyDetails, цель CONTRACT — подпись документов сделки,
+ * reference_id — сделка). Раскрывается только сам подписант, сторона этой сделки (signerOf), и только провайдеру подписи
+ * (mock выпускает по ИИН «сертификат»); человеку значение не показывается. Раскрытие — от имени web: подписант раскрывает
+ * собственные данные, оператор не подписывает, а сид демо подписывает без входа. Нет ИИН — подписать нельзя.
+ */
+async function expectedSigner(dealId: string, userId: string, party: SignParty): Promise<{ fullName: string; iin: string }> {
+  const revealed = await revealParties([userId], "CONTRACT", dealId);
+  const { fullName, iin } = signerOfParty(revealed.get(userId), party);
+  if (!iin) return fail.validation(t.errors.signerIinMissing);
+  return { fullName, iin };
 }
 
 /** Начать подпись ЭЦП стороной сделки. Подписывается sha256 PDF, сохранённый в Document. */
@@ -218,7 +215,7 @@ export async function startSigning(user: CurrentUser, documentId: string, method
   if (!missingOf(doc.kind, signingFlags(), party, signedParties(doc)).ecp) fail.conflict(t.errors.alreadySignedByYou);
   // Шаг сделки не тот (отменена, ещё не сдана): сессию у провайдера (QR eGov Mobile) не открываем.
   if (!(await dealAcceptsSignature(db, doc.dealId, doc.kind))) fail.conflict(t.errors.dealNotSignable);
-  const { fullName, iin } = await expectedSigner(user.id, party);
+  const { fullName, iin } = await expectedSigner(doc.dealId, user.id, party);
   const provider = signatureProvider();
   const session = await provider.startSigning({ documentId, description: t.signingDescription(t.kinds[doc.kind], doc.number), sha256: doc.sha256, method, signer: { userId: user.id, fullName, iin } });
   await recordAudit(db, { actor: actorOf(user), action: "document.signing.started", entity: { type: "document", id: documentId }, scope: scopeOf(doc.dealId), meta: { method, provider: provider.name } });
@@ -228,7 +225,8 @@ export async function startSigning(user: CurrentUser, documentId: string, method
 
 /**
  * Завершить подпись ЭЦП: сервер сам берёт CMS у провайдера и проверяет её (verify) против хэша документа.
- * Подпись сохраняется только при valid, совпадении sha256 и ИИН подписанта. Двойное нажатие — одна запись.
+ * Подпись сохраняется только при valid, совпадении sha256 и ИИН подписанта: ИИН сертификата сверяет identity
+ * (VerifySignerIin — с ИИН личности или подписанта стороны, без раскрытия). Двойное нажатие — одна запись.
  * Документ подписан полностью — deal-core.onDocumentSigned в той же транзакции.
  */
 export async function completeSigning(user: CurrentUser, input: { documentId: string; sessionId: string }): Promise<{ fullySigned: boolean }> {
@@ -242,8 +240,7 @@ export async function completeSigning(user: CurrentUser, input: { documentId: st
   const verified = await provider.verify({ cms: result.cms, sha256: doc.sha256 });
   if (!verified.valid) return fail.validation(t.errors.rejected(verified.reason));
   const { certIin } = verified;
-  const expected = await expectedSigner(user.id, party);
-  if (!certIin || hashPii(certIin) !== expected.iinHash) return fail.validation(t.errors.otherSigner);
+  if (!certIin || !(await verifySignerIin(user.id, certIin, party))) return fail.validation(t.errors.otherSigner);
 
   return afterCommit(doc, await transaction(async (tx) => {
     const { sha256, have } = await lockedState(tx, doc);

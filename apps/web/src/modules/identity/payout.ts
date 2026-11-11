@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { notify } from "@/modules/notifications";
-import { decryptPii } from "@/platform/crypto";
 import { db, transaction, type Db } from "@/platform/db";
 import { parseInput } from "@/platform/validation";
 import { ownExecutorId } from "./executor-guard";
@@ -16,7 +15,7 @@ import { currentSessionToken, type CurrentUser } from "./session";
 /**
  * Реквизиты выплаты мастера (решение 2.2.8): KZ IBAN с проверкой контрольной суммы на входе; хранит его identity
  * (шифртекстом), в старой базе и интерфейсе — последние 4 символа. Значение не пишется ни в журнал, ни в логи.
- * payoutRecipientOf до Task 12 читает прежний шифртекст старой базы (его пишет только демо-сид).
+ * Полный IBAN для выплаты — только revealParties(…, "PAYOUT", …) (reveal.ts).
  */
 export const payoutInputSchema = z.object({ iban: ibanField });
 export type PayoutInput = z.input<typeof payoutInputSchema>;
@@ -71,14 +70,4 @@ export async function setPayoutIban(user: CurrentUser, raw: PayoutInput): Promis
     if (res.changed) await notifyPayoutChanged(tx, user, executorId, (current?.payoutIbanLast4 ?? null) === null, party.payoutIbanLast4);
     return { last4: party.payoutIbanLast4 };
   });
-}
-
-/**
- * deal-core / payments → identity: получатель выплаты мастеру. Только на сервере, в транзакции распоряжения
- * банку; IBAN не логировать и не возвращать в интерфейс. iban: null — мастер ещё не указал счёт.
- * name — наименование профиля (ТОО/ИП или ФИО самозанятого), как в оферте.
- */
-export async function payoutRecipientOf(tx: Db, executorId: string): Promise<{ iban: string | null; name: string }> {
-  const row = await tx.executorProfile.findUniqueOrThrow({ where: { id: executorId }, select: { payoutIbanEnc: true, legalName: true } });
-  return { iban: row.payoutIbanEnc ? decryptPii(row.payoutIbanEnc) : null, name: row.legalName };
 }

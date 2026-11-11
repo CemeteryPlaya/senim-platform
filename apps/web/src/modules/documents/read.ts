@@ -165,5 +165,5 @@ export async function createReleaseReceipt(user: CurrentUser, dealId: string): P
   if (user.role !== "OPERATOR") return fail.forbidden();
   const exists = await db.deal.findUnique({ where: { id: dealId }, select: { id: true } });
   if (!exists) return fail.notFound(ru.deal.errors.notFound);
-  return transaction((tx) => issueReleaseReceipt(tx, dealId, actorOf(user)));
+  return transaction((tx) => issueReleaseReceipt(tx, dealId, user));
 }

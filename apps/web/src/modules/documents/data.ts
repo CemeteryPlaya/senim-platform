@@ -2,18 +2,18 @@ import sharp from "sharp";
 import { ru } from "@/i18n/ru";
 import { dealDocumentData } from "@/modules/deal-core";
 import { storageByName } from "@/modules/files";
-import { decryptPii } from "@/platform/crypto";
+import { revealParties, type CurrentUser, type RevealPurposeName } from "@/modules/identity";
 import type { Db } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { TIME_ZONE } from "@/ui/format";
 import { documentNumber } from "./templates/common";
 import { subjectDetails } from "./templates/subject";
-import type { AcceptanceActData, ContractData, MoneyStatementData, PdfImage, ReleaseReceiptData } from "./templates/types";
+import type { AcceptanceActData, ContractData, ExecutorParty, MoneyStatementData, PdfImage, ReleaseReceiptData } from "./templates/types";
 
 /**
  * Данные для шаблонов: деньги, даты, GPS и журнал — из deal-core.dealDocumentData (единый источник),
- * полные ИИН/БИН и IBAN — расшифровываются здесь и попадают только в PDF оферты и расписки.
+ * полные ИИН/БИН и IBAN — из identity (revealParties) и попадают только в PDF оферты и расписки.
  */
 
 const t = ru.documents;
@@ -28,31 +28,31 @@ export async function numberFor(client: Db, dealId: string, kind: keyof typeof d
 }
 
 /**
- * ИИН/БИН исполнителя для договора. С плана 2б регистрация пишет его только в identity (binIinEnc пуст); до Task 12
- * (revealParties) такой профиль договора не получает: документ без ИИН/БИН стороны недействителен — лучше отказ, чем пустое поле.
+ * Реквизиты сторон для оферты и расписки — из identity (RevealPartyDetails с целью и сделкой; аудит pii.revealed пишет identity).
+ * Стороны — заказчик и исполнитель этой сделки; actor — кто выпускает документ (оператор — расписку; оферту выпускает система).
+ * Нет ИИН/БИН исполнителя — документ без ИИН/БИН стороны недействителен: лучше отказ, чем пустое поле.
  */
-function executorBinIin(binIinEnc: string | null): string {
-  if (!binIinEnc) throw new Error("ИИН/БИН исполнителя хранится в identity: договор получит его через RevealPartyDetails (план 2б, Task 12)");
-  return decryptPii(binIinEnc);
+async function parties(client: Db, dealId: string, purpose: RevealPurposeName, actor?: CurrentUser) {
+  const deal = await client.deal.findUniqueOrThrow({ where: { id: dealId }, select: { clientId: true, client: { select: { fullName: true } }, executor: { select: { userId: true } } } });
+  const revealed = await revealParties([deal.clientId, deal.executor.userId], purpose, dealId, actor, client);
+  const buyer = revealed.get(deal.clientId);
+  const master = revealed.get(deal.executor.userId);
+  if (!master?.legalForm || !master.legalName || !master.binIin) throw new Error("ИИН/БИН исполнителя не получен из identity (RevealPartyDetails): документ без него недействителен");
+  const executor: ExecutorParty = { legalForm: master.legalForm, legalName: master.legalName, binIin: master.binIin, signerFullName: master.signerFullName };
+  return {
+    client: { fullName: buyer?.fullName ?? deal.client.fullName ?? t.clientNameMissing, iin: buyer?.iin ?? null },
+    executor,
+    iban: master.payoutIban,
+  };
 }
 
-/** Реквизиты сторон для оферты и расписки: расшифровываются только для PDF. */
-async function parties(client: Db, dealId: string) {
-  const deal = await client.deal.findUniqueOrThrow({
+/** Предмет договора: тип мебели, стиль, детали и пожелания заявки. */
+async function subject(client: Db, dealId: string) {
+  const { request } = await client.deal.findUniqueOrThrow({
     where: { id: dealId },
-    select: {
-      client: { select: { fullName: true, iinEnc: true } },
-      executor: { select: { legalForm: true, legalName: true, signerFullName: true, binIinEnc: true, payoutIbanEnc: true } },
-      request: { select: { customType: true, style: true, details: true, wishes: true, furnitureType: { select: { name: true } } } },
-    },
+    select: { request: { select: { customType: true, style: true, details: true, wishes: true, furnitureType: { select: { name: true } } } } },
   });
-  const { executor, request } = deal;
-  return {
-    client: { fullName: deal.client.fullName ?? t.clientNameMissing, iin: deal.client.iinEnc ? decryptPii(deal.client.iinEnc) : null },
-    executor: { legalForm: executor.legalForm, legalName: executor.legalName, binIin: executorBinIin(executor.binIinEnc), signerFullName: executor.signerFullName },
-    iban: executor.payoutIbanEnc ? decryptPii(executor.payoutIbanEnc) : null,
-    details: subjectDetails({ furnitureType: request.furnitureType?.name ?? request.customType, style: request.style, details: request.details, wishes: request.wishes }),
-  };
+  return subjectDetails({ furnitureType: request.furnitureType?.name ?? request.customType, style: request.style, details: request.details, wishes: request.wishes });
 }
 
 async function currentNumber(client: Db, dealId: string, kind: "CONTRACT" | "ACCEPTANCE_ACT") {
@@ -63,13 +63,15 @@ async function currentNumber(client: Db, dealId: string, kind: "CONTRACT" | "ACC
 export async function contractData(client: Db, dealId: string, meta: Meta): Promise<ContractData> {
   // client — часто транзакция: запросы по одному соединению идут только последовательно.
   const d = await dealDocumentData(client, dealId);
-  const p = await parties(client, dealId);
+  const details = await subject(client, dealId);
+  // Оферту выпускает система в транзакции createDeal (document.created — от SYSTEM): раскрытие без сессии человека.
+  const p = await parties(client, dealId, "CONTRACT");
   return {
     ...meta,
     city: d.address.city,
     client: p.client,
     executor: p.executor,
-    subject: { title: d.deal.title, details: p.details, address: d.address.address },
+    subject: { title: d.deal.title, details, address: d.address.address },
     money: d.money,
     durationDays: d.deal.durationDays,
     warrantyMonths: d.deal.warrantyMonths,
@@ -137,10 +139,10 @@ export async function lastMoneyAt(client: Db, dealId: string): Promise<Date | nu
   return d.moneyHistory.reduce<Date | null>((max, e) => (!max || e.at > max ? e.at : max), null);
 }
 
-export async function receiptData(client: Db, dealId: string, meta: Meta): Promise<ReleaseReceiptData> {
+/** Расписку выпускает оператор (actor): его сессия уходит в identity, второй фактор проверяет identity. */
+export async function receiptData(client: Db, dealId: string, meta: Meta, actor: CurrentUser): Promise<ReleaseReceiptData> {
   // client — часто транзакция: запросы по одному соединению идут только последовательно.
   const d = await dealDocumentData(client, dealId);
-  const p = await parties(client, dealId);
   const sum = (type: "SPLIT_MASTER" | "SPLIT_PLATFORM" | "REFUND") =>
     d.moneyHistory.filter((e) => e.type === type && e.status !== "FAILED").reduce((s, e) => s + e.amountTiyn, 0n);
   const release = { masterTiyn: sum("SPLIT_MASTER"), platformTiyn: sum("SPLIT_PLATFORM"), refundTiyn: sum("REFUND") };
@@ -149,6 +151,8 @@ export async function receiptData(client: Db, dealId: string, meta: Meta): Promi
   const act = await currentNumber(client, dealId, "ACCEPTANCE_ACT");
   if (!contract) return fail.conflict(t.errors.noContract);
   const signedAct = act && (await client.document.findFirst({ where: { dealId, kind: "ACCEPTANCE_ACT", status: "SIGNED" }, select: { number: true, sha256: true } }));
+  // ПДн — после всех проверок: без раскрытия денег и оферты реквизиты не раскрываются.
+  const p = await parties(client, dealId, "RELEASE_RECEIPT", actor);
   return {
     ...meta,
     city: d.address.city,

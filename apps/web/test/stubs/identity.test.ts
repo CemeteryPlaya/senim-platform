@@ -2,7 +2,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
-import { KycStatus, LegalForm, Role } from "@/gen/senim/identity/v1/identity_pb";
+import { KycStatus, LegalForm, RevealPurpose, Role, SigningSide } from "@/gen/senim/identity/v1/identity_pb";
 import { testBin, testIin } from "@/demo/kz-id";
 import { totpNow } from "../../e2e/totp";
 import { FakeIdentity, FAKE_OTP_CODE } from "./identity";
@@ -587,5 +587,113 @@ describe("подделка identity: реквизиты исполнителя (
     expect((await fake.client.getProfile({ sessionToken: token(1) })).party).toBeUndefined();
     await register(1);
     expect((await fake.client.getProfile({ sessionToken: token(1) })).party).toMatchObject({ userId: user.id, legalForm: LegalForm.TOO });
+  });
+});
+
+describe("подделка identity: раскрытие и сверка ИИН (как reveal.go и VerifySignerIin в party.go)", () => {
+  const CLIENT_IIN = testIin("900101", 4, 81);
+  const IP_IIN = testIin("870304", 3, 82);
+  const BIN = testBin("2101", 82);
+  const DIRECTOR = testIin("800215", 3, 83);
+  const IBAN = "KZ86125KZT5004100100";
+  const reveal = (req: Parameters<typeof fake.client.revealPartyDetails>[0]) => fake.client.revealPartyDetails(req);
+  const invalid = { code: Code.InvalidArgument, detail: "invalid_request" };
+
+  function people() {
+    const client = fake.addUser({ phone: "+77000000081", person: { fullName: "Сапарова Айгерим", iin: CLIENT_IIN } });
+    const ip = fake.addUser({
+      phone: "+77000000082",
+      roles: [Role.EXECUTOR],
+      defaultRole: Role.EXECUTOR,
+      person: { fullName: "Сапаров Ерлан", iin: IP_IIN },
+      party: { legalForm: LegalForm.IP, legalName: "ИП «Дала»", binIin: IP_IIN, signerFullName: "Сапаров Ерлан", payoutIban: IBAN },
+    });
+    const too = fake.addUser({
+      phone: "+77000000083",
+      roles: [Role.EXECUTOR],
+      defaultRole: Role.EXECUTOR,
+      party: { legalForm: LegalForm.TOO, legalName: "ТОО «Ағаш»", binIin: BIN, signerFullName: "Тулегенов Бауыржан", signerIin: DIRECTOR },
+    });
+    return { client, ip, too };
+  }
+
+  it("порядок проверок: цель (reveal_purpose_invalid), ссылка 1..128, список 1..50, затем сессия", async () => {
+    const { client } = people();
+    const ok = { userIds: [client.id], purpose: RevealPurpose.CONTRACT, referenceId: "deal-1" };
+    expect(await rejection(reveal({ ...ok, purpose: RevealPurpose.UNSPECIFIED, referenceId: "" }))).toEqual({ code: Code.InvalidArgument, detail: "reveal_purpose_invalid" });
+    expect(await rejection(reveal({ ...ok, referenceId: "" }))).toEqual(invalid);
+    expect(await rejection(reveal({ ...ok, referenceId: "x".repeat(129) }))).toEqual(invalid);
+    expect(await rejection(reveal({ ...ok, userIds: [], actorSessionToken: token(9) }))).toEqual(invalid);
+    expect(await rejection(reveal({ ...ok, userIds: Array.from({ length: 51 }, (_, i) => `u-${i}`) }))).toEqual(invalid);
+    expect(await rejection(reveal({ ...ok, actorSessionToken: token(9) }))).toEqual({ code: Code.Unauthenticated, detail: "session_invalid" });
+  });
+
+  it("открытые реквизиты; неизвестный пропускается, повторы убираются; аудит pii.revealed на каждого — без значений", async () => {
+    const { client, ip, too } = people();
+    const res = await reveal({ userIds: [client.id, ip.id, "u-unknown", ip.id, too.id], purpose: RevealPurpose.CONTRACT, referenceId: "deal-1" });
+    expect(res.parties.map((p) => p.userId)).toEqual([client.id, ip.id, too.id]);
+    expect(res.parties[0]).toMatchObject({ fullName: "Сапарова Айгерим", iin: CLIENT_IIN, legalForm: LegalForm.UNSPECIFIED, binIin: "" });
+    expect(res.parties[1]).toMatchObject({ iin: IP_IIN, legalForm: LegalForm.IP, binIin: IP_IIN, signerIin: "", payoutIban: IBAN });
+    expect(res.parties[2]).toMatchObject({ fullName: "", iin: "", legalForm: LegalForm.TOO, binIin: BIN, signerFullName: "Тулегенов Бауыржан", signerIin: DIRECTOR });
+    const events = fake.auditEvents.filter((e) => e.action === "pii.revealed");
+    expect(events.map((e) => [e.userId, e.actorRole, (e.after as { found: boolean }).found])).toEqual([
+      [client.id, Role.UNSPECIFIED, true],
+      [ip.id, Role.UNSPECIFIED, true],
+      ["u-unknown", Role.UNSPECIFIED, false],
+      [too.id, Role.UNSPECIFIED, true],
+    ]);
+    expect(events[1].after).toEqual({ purpose: "CONTRACT", reference_id: "deal-1", fields: ["full_name", "iin", "legal_name", "bin_iin", "signer_full_name", "payout_iban"], found: true });
+    const text = JSON.stringify(events);
+    for (const value of [CLIENT_IIN, IP_IIN, BIN, DIRECTOR, IBAN]) expect(text).not.toContain(value);
+  });
+
+  it("сессия оператора — только со второй ступенью (mfa_required); действующее лицо — в аудите", async () => {
+    const { client } = people();
+    const op = fake.addUser({ phone: "+77000000084", defaultRole: Role.OPERATOR, roles: [Role.OPERATOR] });
+    fake.signIn(op.id, token(1), Role.OPERATOR, { mfaVerifiedAt: null });
+    const req = { userIds: [client.id], purpose: RevealPurpose.RELEASE_RECEIPT, referenceId: "deal-1", actorSessionToken: token(1) };
+    expect(await rejection(reveal(req))).toEqual({ code: Code.PermissionDenied, detail: "mfa_required" });
+    fake.signIn(op.id, token(2), Role.OPERATOR);
+    expect((await reveal({ ...req, actorSessionToken: token(2) })).parties).toHaveLength(1);
+    expect(fake.auditEvents.filter((e) => e.action === "pii.revealed").map((e) => e.actorRole)).toEqual([Role.OPERATOR]);
+  });
+
+  it("VerifySignerIin: сторона не указана — invalid_request; заказчик — ИИН личности; ТОО — директор; ИП — ИИН стороны; не ИИН — нет", async () => {
+    const { client, ip, too } = people();
+    const verify = async (userId: string, iin: string, side: SigningSide) => (await fake.client.verifySignerIin({ userId, iin, side })).matches;
+    expect(await rejection(fake.client.verifySignerIin({ userId: client.id, iin: CLIENT_IIN }))).toEqual(invalid);
+    expect(await rejection(fake.client.verifySignerIin({ userId: "", iin: CLIENT_IIN, side: SigningSide.CLIENT }))).toEqual(invalid);
+    expect(await verify(client.id, CLIENT_IIN, SigningSide.CLIENT)).toBe(true);
+    expect(await verify(client.id, IP_IIN, SigningSide.CLIENT)).toBe(false);
+    expect(await verify(client.id, CLIENT_IIN, SigningSide.EXECUTOR)).toBe(false);
+    expect(await verify(ip.id, IP_IIN, SigningSide.EXECUTOR)).toBe(true);
+    expect(await verify(too.id, DIRECTOR, SigningSide.EXECUTOR)).toBe(true);
+    expect(await verify(too.id, BIN, SigningSide.EXECUTOR)).toBe(false);
+    expect(await verify(too.id, "123", SigningSide.EXECUTOR)).toBe(false);
+    expect(await verify("u-unknown", CLIENT_IIN, SigningSide.CLIENT)).toBe(false);
+  });
+
+  it("SeedUsers пишет личность и сторону (как seedPerson и seedPartyRow): ИП без bin_iin — по ИИН личности", async () => {
+    const res = await fake.client.seedUsers({
+      users: [
+        {
+          phone: "+77000000085",
+          defaultRole: Role.EXECUTOR,
+          roles: [Role.EXECUTOR],
+          fullName: "Сапаров Ерлан",
+          iin: IP_IIN,
+          party: { legalForm: LegalForm.IP, legalName: "ИП «Дала»", signerFullName: "Сапаров Ерлан", payoutIban: IBAN, kycStatus: KycStatus.VERIFIED },
+        },
+      ],
+      idempotencyKey: "seed-pii",
+    });
+    const id = res.users[0].id;
+    expect(fake.personIinOf(id)).toBe(IP_IIN);
+    expect(fake.partyNumbersOf(id)).toEqual({ binIin: IP_IIN, signerIin: "", payoutIban: IBAN });
+    expect(fake.partyOf(id)?.kycStatus).toBe(KycStatus.VERIFIED);
+    // Сторона — только у исполнителя (роль EXECUTOR среди выданных).
+    const party = { legalForm: LegalForm.TOO, legalName: "ТОО «Ағаш»", binIin: BIN, signerFullName: "Тулегенов Бауыржан", signerIin: DIRECTOR };
+    const bad = fake.client.seedUsers({ users: [{ phone: "+77000000086", defaultRole: Role.CLIENT, roles: [Role.CLIENT], party }], idempotencyKey: "seed-bad" });
+    expect(await rejection(bad)).toEqual(invalid);
   });
 });

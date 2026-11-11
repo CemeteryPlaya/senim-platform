@@ -146,6 +146,11 @@ export function legalFormToProto(f: LegalForm): ProtoLegalForm {
   return LEGAL_FORM_TO_PROTO[f];
 }
 
+/** Правовая форма из ответа identity; UNSPECIFIED и неизвестное — ошибка контракта. */
+export function legalFormFromProto(f: ProtoLegalForm): LegalForm {
+  return fromProto<ProtoLegalForm, LegalForm>(LEGAL_FORM_FROM_PROTO, f, "правовой формы");
+}
+
 /** Значение перечисления из ответа identity; UNSPECIFIED и неизвестное — ошибка контракта. */
 function fromProto<K extends number, V>(table: Partial<Record<K, V>>, value: K, what: string): V {
   const mapped = table[value];

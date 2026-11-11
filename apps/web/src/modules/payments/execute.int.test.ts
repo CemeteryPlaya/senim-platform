@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { RevealPurpose } from "@/gen/senim/identity/v1/identity_pb";
 import { onMoneySettled, payForDeal, startWork, submitReady } from "@/modules/deal-core";
 import { db, transaction } from "@/platform/db";
 import { makeOperator } from "../../../test/factories";
-import { ADDRESS, confirmPending, dealAt, dealOf, makeDeal, makePhoto, signAct, signContract } from "../../../test/factories/deal";
+import { ADDRESS, confirmPending, dealAt, dealOf, journalOf, makeDeal, makePhoto, signAct, signContract } from "../../../test/factories/deal";
+import { identityFake } from "../../../test/stubs/identity";
 import { executeDealOperations } from "./execute";
 import { moneyKey } from "./keys";
 import { recordOperation } from "./ledger";
@@ -69,5 +71,36 @@ describe("исполнение: что роняет задачу, а что не
     expect(await db.moneyTransaction.findUniqueOrThrow({ where: { id: op.id } })).toMatchObject({ status: "PENDING" });
     await executeDealOperations(dealId, onMoneySettled);
     expect(await dealOf(dealId)).toMatchObject({ status: "PAID_HOLD" });
+  });
+});
+
+describe("выплата мастеру: IBAN — из identity", () => {
+  it("split получает IBAN из RevealPartyDetails (цель PAYOUT, сделка, без сессии — фоновая задача)", async () => {
+    const IBAN = "KZ86125KZT5004100100";
+    const f = await dealAt("READY");
+    identityFake.setPayoutIbanOf(f.executor.id, IBAN);
+    identityFake.calls.length = 0;
+    const split = vi.spyOn(mockProvider, "split");
+    await signAct(f.dealId);
+    const { processDealMoney } = await import("@/modules/deal-core");
+    await processDealMoney(f.dealId);
+
+    const profile = await db.executorProfile.findUniqueOrThrow({ where: { id: f.executor.executor.id }, select: { legalName: true } });
+    expect(split).toHaveBeenCalledWith(expect.objectContaining({ master: expect.objectContaining({ recipient: { iban: IBAN, name: profile.legalName } }) }));
+    const reveals = identityFake.calls.filter((c) => c.method === "revealPartyDetails").map((c) => c.request);
+    expect(reveals).toEqual([expect.objectContaining({ userIds: [f.executor.id], purpose: RevealPurpose.PAYOUT, referenceId: f.dealId, actorSessionToken: "" })]);
+    // Суммы выплаты — из журнала, как и прежде.
+    expect((await journalOf(f.dealId)).filter((e) => e.type === "SPLIT_MASTER").map((e) => e.amountTiyn)).toEqual([96_000_00n]);
+    expect(await dealOf(f.dealId)).toMatchObject({ status: "SPLIT_PAYOUT" });
+  });
+
+  it("мастера нет в identity — split без IBAN (провайдер решает сам), сбоя нет", async () => {
+    const f = await dealAt("READY");
+    identityFake.reset();
+    const split = vi.spyOn(mockProvider, "split");
+    await signAct(f.dealId);
+    const { processDealMoney } = await import("@/modules/deal-core");
+    await processDealMoney(f.dealId);
+    expect(split).toHaveBeenCalledWith(expect.objectContaining({ master: expect.objectContaining({ recipient: expect.objectContaining({ iban: null }) }) }));
   });
 });

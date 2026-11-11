@@ -1,6 +1,7 @@
 import type { Role, Segment } from "@/generated/prisma/enums";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db } from "@/platform/db";
+import { kzCheckDigit } from "@/platform/kz-id";
 import type { CurrentUser } from "@/modules/identity";
 
 /**
@@ -9,10 +10,21 @@ import type { CurrentUser } from "@/modules/identity";
  */
 let seq = 0;
 const nextPhone = () => `+7700000${String(++seq).padStart(4, "0")}`;
-const testIin = (n: number) => `9001013${String(n).padStart(5, "0")}`;
+/**
+ * Тестовый ИИН с верной контрольной цифрой (identity сверяет ИИН сертификата ЭЦП только с корректным ИИН): дата рождения,
+ * цифра века и пола (3 или 4 — если для 3 номер не выдаётся), 4 цифры номера.
+ */
+function testIin(birthYymmdd: string, n: number): string {
+  for (const centuryGender of [3, 4, 5, 6]) {
+    const first11 = `${birthYymmdd}${centuryGender}${String(n % 10_000).padStart(4, "0")}`;
+    const check = kzCheckDigit(first11);
+    if (check !== null) return `${first11}${check}`;
+  }
+  throw new Error(`нет тестового ИИН для ${n}`);
+}
 
 export async function makeUser(role: Role, fullName = `Тест ${role} ${seq + 1}`, roles: Role[] = [role]): Promise<CurrentUser> {
-  const iin = testIin(seq + 1);
+  const iin = testIin("900101", seq + 1);
   const user = await db.user.create({
     data: { role, roles, phone: nextPhone(), fullName, iinEnc: encryptPii(iin), iinHash: hashPii(iin), iinLast4: last4(iin) },
   });
@@ -25,8 +37,8 @@ export async function makeExecutor(
   opts: { segment?: Segment; status?: "PENDING" | "APPROVED" | "REJECTED"; legalName?: string; roles?: Role[] } = {},
 ): Promise<CurrentUser & { executor: NonNullable<CurrentUser["executor"]> }> {
   const user = await makeUser("EXECUTOR", undefined, opts.roles);
-  // Номер БИН — из уникального телефона: seq после await уже мог увеличить параллельный вызов.
-  const bin = `2101400${user.phone.slice(-5)}`;
+  // ИИН стороны ИП — из уникального телефона: seq после await уже мог увеличить параллельный вызов.
+  const bin = testIin("850505", Number(user.phone.slice(-4)));
   const profile = await db.executorProfile.create({
     data: {
       userId: user.id,

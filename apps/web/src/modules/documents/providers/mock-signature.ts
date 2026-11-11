@@ -1,12 +1,14 @@
-import { decryptPii, encryptPii, hmacHex, randomToken, safeEqual } from "@/platform/crypto";
+import { hmacHex, openValue, randomToken, safeEqual, sealValue } from "@/platform/crypto";
 import type { SignMethod } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import type { SignatureProvider } from "../signature";
 
 // Мок не даёт юридической силы: «CMS» — это JSON с HMAC под фиксированным ключом мока.
 // Без состояния: данные сессии зашиты в sessionId, поэтому работает на нескольких инстансах Vercel.
-// ИИН подписанта — «сертификат» мока — зашифрован (encryptPii): sessionId уходит в браузер, CMS хранится в БД.
+// ИИН подписанта — «сертификат» мока, его раскрывает identity (signing.ts) — запечатан (sealValue): sessionId уходит
+// в браузер, CMS хранится в БД; полный ИИН из базы web не читается.
 const MOCK_KEY = "senim-mock-signature-not-a-secret";
+const IIN_CONTEXT = "documents.mock-signature.iin";
 const c = ru.documents.signatureCheck;
 
 type SessionData = { sha256: string; method: SignMethod; subject: string; iinEnc?: string; exp: number };
@@ -31,7 +33,7 @@ export const mockSignatureProvider: SignatureProvider = {
 
   async startSigning({ sha256, method, signer }) {
     const expiresAt = new Date(Date.now() + 5 * 60_000);
-    const data: SessionData = { sha256, method, subject: signer.fullName, iinEnc: signer.iin ? encryptPii(signer.iin) : undefined, exp: expiresAt.getTime() };
+    const data: SessionData = { sha256, method, subject: signer.fullName, iinEnc: signer.iin ? sealValue(signer.iin, IIN_CONTEXT) : undefined, exp: expiresAt.getTime() };
     const sessionId = seal(data);
     return {
       sessionId,
@@ -60,7 +62,7 @@ export const mockSignatureProvider: SignatureProvider = {
       const { mac, ...body } = JSON.parse(Buffer.from(cms, "base64").toString("utf8")) as MockCms;
       if (!safeEqual(mac, cmsMac(body))) return { valid: false, reason: c.damaged };
       if (body.sha256 !== sha256) return { valid: false, reason: c.otherDocument };
-      return { valid: true, certSubject: body.subject, certSerial: body.serial, certIin: body.iinEnc ? decryptPii(body.iinEnc) : undefined, signedAt: new Date(body.ts) };
+      return { valid: true, certSubject: body.subject, certSerial: body.serial, certIin: body.iinEnc ? openValue(body.iinEnc, IIN_CONTEXT) : undefined, signedAt: new Date(body.ts) };
     } catch {
       return { valid: false, reason: c.unreadable };
     }

@@ -5,6 +5,7 @@ import { requestsPort } from "@/modules/requests";
 import { db, transaction } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
 import { makeClient, makeExecutor, makeOperator } from "../factories";
+import { mirrorUser } from "./session";
 
 /**
  * Фабрики сделок для тестов deal-core и payments (ADR-009). Сделка создаётся настоящим createDeal;
@@ -50,6 +51,9 @@ export async function makeDeal(
   const offer = await db.offer.create({
     data: { requestId: request.id, executorId: executor.executor.id, priceTiyn, durationDays: 30, warrantyMonths: 12, measurementTerms: "FREE", status: "ACCEPTED" },
   });
+  // Стороны — и в identity (подделка): оферта, подпись ЭЦП и выплата берут их ИИН/БИН и IBAN оттуда (RevealPartyDetails).
+  await mirrorUser(client.id);
+  await mirrorUser(executor.id);
   const { dealId } = await withProvider(opts.provider ?? "mock", () =>
     transaction((tx) => createDeal(tx, { requestId: request.id, offerId: offer.id, priceTiyn, title: "Тестовый заказ" })),
   );

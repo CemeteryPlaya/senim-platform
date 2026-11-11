@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
-import { encryptPii } from "@/platform/crypto";
-import { db, transaction } from "@/platform/db";
+import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { freshBrowser } from "../../../test/factories/identity";
 import { signInAs } from "../../../test/factories/session";
 import { identityFake } from "../../../test/stubs/identity";
-import { getOwnPayout, payoutRecipientOf, setPayoutIban } from "./payout";
+import { getOwnPayout, setPayoutIban } from "./payout";
 
 vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);
 
@@ -126,14 +125,5 @@ describe("мастер указывает счёт для выплаты", () =>
     const printed = out.flatMap((spy) => spy.mock.calls.flat()).map(String).join("\n");
     expect(printed).not.toContain("5004100100");
     expect(printed).not.toContain("2069100200");
-  });
-});
-
-describe("payoutRecipientOf — получатель выплаты для deal-core и payments (до Task 12 — по шифртексту старой базы)", () => {
-  it("расшифрованный IBAN и наименование; счёт не указан — iban: null", async () => {
-    const executor = await makeExecutor({ legalName: "ИП «Дала»" });
-    expect(await transaction((tx) => payoutRecipientOf(tx, executor.executor.id))).toEqual({ iban: null, name: "ИП «Дала»" });
-    await db.executorProfile.update({ where: { id: executor.executor.id }, data: { payoutIbanEnc: encryptPii(IBAN), payoutIbanLast4: "0100" } });
-    expect(await transaction((tx) => payoutRecipientOf(tx, executor.executor.id))).toEqual({ iban: IBAN, name: "ИП «Дала»" });
   });
 });

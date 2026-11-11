@@ -1,5 +1,6 @@
 import { PDFDocument } from "pdf-lib";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { RevealPurpose, SigningSide } from "@/gen/senim/identity/v1/identity_pb";
 import { cancelDeal, getDealView, payForDeal, startWork, submitReady } from "@/modules/deal-core";
 import { jobHandlers as filesJobs } from "@/modules/files";
 import { createMockEmailProvider, sendEmail, type EmailMessage, type EmailResult } from "@/modules/notifications";
@@ -8,7 +9,10 @@ import { db, transaction } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { ADDRESS, dealAt, dealOf, journalOf, makeDeal, signContract } from "../../../test/factories/deal";
 import { latestDocument, signaturePng, signEcp, signTyped, storedPhoto, useDocuments } from "../../../test/factories/documents";
-import { setEnv } from "../../../test/factories/identity";
+import { freshBrowser, setEnv } from "../../../test/factories/identity";
+import { signInAs } from "../../../test/factories/session";
+import { identityFake } from "../../../test/stubs/identity";
+import { contractData, receiptData } from "./data";
 import { createEmailSignedActHandler, EMAIL_ACT_JOB, partyEmail } from "./email";
 import {
   createContract,
@@ -25,13 +29,18 @@ import {
 import { sealDocumentLink } from "./links";
 import { signedCopyForEmail } from "./read";
 
+vi.mock("next/headers", async () => (await import("../../../test/factories/identity")).nextHeadersMock);
+
 const code = (c: string) => expect.objectContaining({ code: c });
+const reveals = () => identityFake.calls.filter((c) => c.method === "revealPartyDetails").map((c) => c.request);
+const META = { number: "Д-0001/2026", version: 1, issuedAt: new Date("2026-11-11T10:00:00Z") };
 
 let cleanup: () => Promise<void>;
 beforeAll(async () => {
   cleanup = await useDocuments();
 });
 afterAll(() => cleanup());
+beforeEach(() => freshBrowser());
 afterEach(() => setEnv({ FEATURE_EXECUTOR_HAND_SIGNS_ACT: undefined }));
 
 /** Все подписи оферты: обе стороны собственноручно и ЭЦП. */
@@ -93,6 +102,80 @@ describe("оферта: PDF, хэш, версии", () => {
     await cancelDeal(f.client, { dealId: f.dealId });
     await expect(signTyped(f.client, id)).rejects.toEqual(code("CONFLICT"));
     await expect(startSigning(f.client, id, "EGOV_QR")).rejects.toEqual(code("CONFLICT"));
+  });
+});
+
+describe("ПДн сторон — из identity (RevealPartyDetails), не из старой базы", () => {
+  it("оферта: ИИН заказчика и ИИН/БИН исполнителя — из identity с целью CONTRACT и reference_id = сделка; шифртексты старой базы не читаются", async () => {
+    const f = await makeDeal();
+    expect(reveals()).toEqual([expect.objectContaining({ userIds: [f.client.id, f.executor.id], purpose: RevealPurpose.CONTRACT, referenceId: f.dealId, actorSessionToken: "" })]);
+    // Пользователи, заведённые через identity: в старой базе номеров нет (Ruling S/W).
+    await db.user.update({ where: { id: f.client.id }, data: { iinEnc: null, iinHash: null } });
+    await db.executorProfile.update({ where: { id: f.executor.executor.id }, data: { binIinEnc: null, binIinHash: null } });
+
+    const data = await contractData(db, f.dealId, META);
+    expect(data.client).toEqual({ fullName: f.client.fullName, iin: identityFake.personIinOf(f.client.id) });
+    expect(data.executor).toMatchObject({ legalForm: "IP", binIin: identityFake.partyNumbersOf(f.executor.id)?.binIin, signerFullName: f.executor.fullName });
+    expect(data.money).toMatchObject({ priceTiyn: 100_000_00n, buyerTotalTiyn: 102_000_00n, payoutTiyn: 96_000_00n });
+  });
+
+  it("исполнителя нет в identity — оферта не выпускается (документ без ИИН/БИН стороны недействителен)", async () => {
+    const f = await makeDeal();
+    identityFake.reset();
+    await expect(contractData(db, f.dealId, META)).rejects.toThrow(/ИИН\/БИН исполнителя/);
+  });
+
+  it("расписка: ИИН/БИН и IBAN — из identity с целью RELEASE_RECEIPT, сессией оператора; суммы — из журнала", async () => {
+    const f = await dealAt("READY");
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await signEcp(f.executor, act.id);
+    await signTyped(f.client, act.id);
+    await signEcp(f.client, act.id);
+    const IBAN = "KZ86125KZT5004100100";
+    identityFake.setPayoutIbanOf(f.executor.id, IBAN);
+    const operator = await makeOperator();
+    const token = await signInAs(operator);
+    identityFake.calls.length = 0;
+
+    await createReleaseReceipt(operator, f.dealId);
+    expect(reveals()).toContainEqual(expect.objectContaining({ userIds: [f.client.id, f.executor.id], purpose: RevealPurpose.RELEASE_RECEIPT, referenceId: f.dealId, actorSessionToken: token }));
+    const data = await receiptData(db, f.dealId, META, operator);
+    expect(data.executor).toMatchObject({ binIin: identityFake.partyNumbersOf(f.executor.id)?.binIin, iban: IBAN });
+    expect(data.client.iin).toBe(identityFake.personIinOf(f.client.id));
+    expect(data.release).toEqual({ masterTiyn: 96_000_00n, platformTiyn: 6_000_00n, refundTiyn: 0n });
+  });
+
+  it("расписка: оператор без второго фактора — mfa_required от identity, расписки нет", async () => {
+    const f = await dealAt("READY");
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await signEcp(f.executor, act.id);
+    await signTyped(f.client, act.id);
+    await signEcp(f.client, act.id);
+    const operator = await makeOperator();
+    await signInAs(operator, "OPERATOR", { mfaVerifiedAt: null });
+    await expect(createReleaseReceipt(operator, f.dealId)).rejects.toEqual(code("MFA_REQUIRED"));
+    expect(await db.document.count({ where: { dealId: f.dealId, kind: "RELEASE_RECEIPT" } })).toBe(0);
+  });
+
+  it("ЭЦП: сертификат с чужим ИИН отклоняет identity (VerifySignerIin), подпись не сохраняется", async () => {
+    const f = await makeDeal();
+    const { id } = await latestDocument(f.dealId, "CONTRACT");
+    // «Сертификат» заказчика предъявляет мастер: ИИН сертификата — не подписант стороны исполнителя.
+    const session = await startSigning(f.client, id, "EGOV_QR");
+    await expect(completeSigning(f.executor, { documentId: id, sessionId: session.sessionId })).rejects.toEqual(code("VALIDATION"));
+    const checks = identityFake.calls.filter((c) => c.method === "verifySignerIin").map((c) => c.request);
+    expect(checks).toEqual([expect.objectContaining({ userId: f.executor.id, iin: identityFake.personIinOf(f.client.id), side: SigningSide.EXECUTOR })]);
+    expect(await db.signature.count()).toBe(0);
+  });
+
+  it("ЭЦП: ИИН подписанта — из identity; нет ИИН в identity — подписать нельзя", async () => {
+    const f = await makeDeal();
+    const { id } = await latestDocument(f.dealId, "CONTRACT");
+    identityFake.calls.length = 0;
+    await startSigning(f.client, id, "EGOV_QR");
+    expect(reveals()).toEqual([expect.objectContaining({ userIds: [f.client.id], purpose: RevealPurpose.CONTRACT, referenceId: f.dealId, actorSessionToken: "" })]);
+    identityFake.reset();
+    await expect(startSigning(f.client, id, "EGOV_QR")).rejects.toEqual(code("VALIDATION"));
   });
 });
 
@@ -287,6 +370,7 @@ describe("выписка, расписка, ссылки", () => {
   it("расписка на раскрытие: только оператор и только после запроса раскрытия", async () => {
     const f = await dealAt("READY");
     const operator = await makeOperator();
+    await signInAs(operator);
     await expect(createReleaseReceipt(f.client, f.dealId)).rejects.toEqual(code("FORBIDDEN"));
     await expect(createReleaseReceipt(operator, f.dealId)).rejects.toEqual(code("CONFLICT"));
     const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");

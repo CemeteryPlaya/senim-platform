@@ -66,6 +66,7 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   party_missing: { code: "CONFLICT", message: payout.partyMissing },
   party_exists: { code: "CONFLICT", message: reg.partyExists },
   pii_key_unknown: { code: "UNAVAILABLE", message: g.generic },
+  reveal_purpose_invalid: { code: "UNAVAILABLE", message: g.generic },
 };
 
 describe("identityFailure", () => {
@@ -77,8 +78,8 @@ describe("identityFailure", () => {
     expect(err.message).toBe(want.message);
   });
 
-  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов: 39 кодов", () => {
-    expect(IDENTITY_ERROR_CODES).toHaveLength(39);
+  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов, раскрытия: 40 кодов", () => {
+    expect(IDENTITY_ERROR_CODES).toHaveLength(40);
     expect(Object.keys(table).sort()).toEqual([...IDENTITY_ERROR_CODES].sort());
   });
 
