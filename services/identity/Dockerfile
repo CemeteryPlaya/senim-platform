@@ -1,6 +1,6 @@
 # Контекст сборки — корень репозитория: docker build -f services/identity/Dockerfile .
 # Тот же патч, что toolchain в go.mod (CI, тесты и govulncheck — на нём же).
-FROM golang:1.27.3-bookworm AS build
+FROM golang:1.27.4-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

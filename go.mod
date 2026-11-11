@@ -2,8 +2,8 @@ module github.com/CemeteryPlaya/senim-platform
 
 go 1.26.7
 
-// Сборка, тесты, -race и govulncheck в CI и образы сервисов — на одном toolchain (Dockerfile: golang:1.27.3-bookworm).
-toolchain go1.27.3
+// Сборка, тесты, -race и govulncheck в CI и образы сервисов — на одном toolchain (Dockerfile: golang:1.27.4-bookworm).
+toolchain go1.27.4
 
 tool (
 	connectrpc.com/connect/v2/cmd/protoc-gen-connect-go
