@@ -19,7 +19,7 @@ export { signingFlags } from "./signing-flags";
 export { addProgressReport, cancelDeal, leaveReview, payForDeal, startWork, submitReady, type CancelResult, type PayResult, type ReadyResult } from "./service";
 export { openDispute, submitDisputePosition } from "./dispute";
 // Согласие сторон на передачу данных банку-партнёру (P3): отметка до подписи оферты и оплаты
-export { BANK_CONSENT_MISSING, bankConsentState, giveBankConsent, type BankConsentState } from "./bank-consent";
+export { BANK_CONSENT_MISSING, bankConsentSchema, bankConsentState, giveBankConsent, type BankConsentState } from "./bank-consent";
 
 // Деньги: хук итога операции (payments → deal-core), «изменились деньги», исполнение ждущих операций сейчас
 export { onMoneyChanged, onMoneySettled, processDealMoney } from "./money";

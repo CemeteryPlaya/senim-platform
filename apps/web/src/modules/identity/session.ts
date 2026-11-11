@@ -17,7 +17,8 @@ import { identity } from "./remote";
 import { identityFailure, isTransient } from "./remote-errors";
 import { sessionCookieName, sessionCookieOptions, TOKEN_SHAPE } from "./session-cookie";
 import { consentHref, loginHref, mfaHref } from "./return-to";
-import { needsConsent, type GrantedConsent } from "./consent-text";
+import { ConsentKind, RevocationStatus } from "@/gen/senim/identity/v1/identity_pb";
+import { hasCurrentConsent, needsConsent, type GrantedConsent } from "./consent-text";
 import { introductionHref, needsIntroduction } from "./introduction";
 import { activeRoleOf, roleToSwitch, switchRoleHref } from "./roles";
 
@@ -47,6 +48,11 @@ export type CurrentUser = {
    * сделкам — HasConsents). Нет согласия текущей редакции — needsConsent: страницы ведут на /consent, действия — CONSENT_REQUIRED.
    */
   consents: GrantedConsent[];
+  /**
+   * Открыта заявка на отзыв согласия на ПДн (Ruling AE): до решения оператора согласие прежней редакции достаточно.
+   * Узнаётся (ListMyConsents) только когда действующие согласия есть, а текущей редакции среди них нет; иначе false.
+   */
+  consentRevocationOpen: boolean;
 };
 
 /** Токен сессии из cookie своего контура; `undefined` — cookie нет. Вид токена не проверяется. */
@@ -160,7 +166,7 @@ const authenticated = cache(async () => {
       logger.error("identity.call_rejected", { reason: "authenticate_without_user" });
       return fail.unavailable(ru.common.errors.generic);
     }
-    return { user: res.user, session: res.session, accessToken: res.accessToken, consents: res.consents };
+    return { user: res.user, session: res.session, accessToken: res.accessToken, consents: res.consents, token };
   } catch (e) {
     if (rpcErrorCode(e) === "session_invalid") return null;
     return identityFailure(e);
@@ -171,8 +177,9 @@ const authenticated = cache(async () => {
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const auth = await authenticated();
   if (!auth) return null;
-  const { user, session, consents } = auth;
+  const { user, session, consents, token } = auth;
   await projectUser(user);
+  const revocationOpen = consents.length > 0 && !hasCurrentConsent(consents) ? await pdRevocationOpen(token) : false;
   const row = await db.user.findUniqueOrThrow({
     where: { id: user.id },
     include: { executorProfile: { select: { id: true, publicNumber: true, status: true } } },
@@ -188,8 +195,19 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     executor: row.executorProfile,
     mfa: { required: session.mfaRequired, verifiedAt: session.mfaVerifiedAt ? timestampDate(session.mfaVerifiedAt) : null },
     consents: consents.map((c) => ({ id: c.id, version: c.version, textSha256: c.textSha256 })),
+    consentRevocationOpen: revocationOpen,
   };
 });
+
+/** Есть ли у человека открытая заявка на отзыв согласия на ПДн (ListMyConsents) — только на пути «прежняя редакция». */
+async function pdRevocationOpen(sessionToken: string): Promise<boolean> {
+  try {
+    const res = await identity().listMyConsents({ sessionToken });
+    return res.revocations.some((r) => r.kind === ConsentKind.PD_PROCESSING && r.status === RevocationStatus.REQUESTED);
+  } catch (e) {
+    return identityFailure(e);
+  }
+}
 
 /**
  * Пользователь для оболочки (layout) и страниц, открытых гостю (главная, вход): при недоступном identity страница

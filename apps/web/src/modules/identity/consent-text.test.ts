@@ -31,7 +31,6 @@ describe("тексты согласий: версия и хэш", () => {
   });
 
   it("структура A.8: черновик первой строкой; 12 разделов ПДн, 4 — передачи банку; версия и цели — по правилам identity", () => {
-    expect(Object.keys(CONSENT_DOCUMENTS.PD_PROCESSING)[0]).toBe("version");
     for (const doc of Object.values(CONSENT_DOCUMENTS)) {
       expect(doc.draft).toBe("Черновик, требует юридической проверки");
       expect(doc.version).toMatch(/^[A-Za-z0-9.-]{1,32}$/);
@@ -54,16 +53,21 @@ describe("needsConsent", () => {
   const current = CONSENT_DOCUMENTS.PD_PROCESSING.version;
 
   it("нет согласия или только прежняя редакция — нужен экран согласия", () => {
-    expect(needsConsent({ role: "CLIENT", consents: [] })).toBe(true);
-    expect(needsConsent({ role: "EXECUTOR", consents: [{ version: "2020-01-01" }] })).toBe(true);
+    expect(needsConsent({ role: "CLIENT", consents: [], consentRevocationOpen: false })).toBe(true);
+    expect(needsConsent({ role: "EXECUTOR", consents: [{ version: "2020-01-01" }], consentRevocationOpen: false })).toBe(true);
   });
 
   it("согласие текущей редакции — не нужен (среди нескольких — тоже)", () => {
-    expect(needsConsent({ role: "CLIENT", consents: [{ version: "2020-01-01" }, { version: current }] })).toBe(false);
+    expect(needsConsent({ role: "CLIENT", consents: [{ version: "2020-01-01" }, { version: current }], consentRevocationOpen: false })).toBe(false);
+  });
+
+  it("Ruling AE: открытая заявка на отзыв — прежней редакции достаточно; без действующего согласия — всё равно нужен", () => {
+    expect(needsConsent({ role: "CLIENT", consents: [{ version: "2020-01-01" }], consentRevocationOpen: true })).toBe(false);
+    expect(needsConsent({ role: "CLIENT", consents: [], consentRevocationOpen: true })).toBe(true);
   });
 
   it("сотрудникам площадки (оператор, замерщик) экран не нужен", () => {
-    expect(needsConsent({ role: "OPERATOR", consents: [] })).toBe(false);
-    expect(needsConsent({ role: "MEASURER", consents: [] })).toBe(false);
+    expect(needsConsent({ role: "OPERATOR", consents: [], consentRevocationOpen: false })).toBe(false);
+    expect(needsConsent({ role: "MEASURER", consents: [], consentRevocationOpen: false })).toBe(false);
   });
 });

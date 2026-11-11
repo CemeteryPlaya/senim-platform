@@ -109,5 +109,5 @@ describe("authorize", () => {
 });
 
 function user(id: string, role: CurrentUser["role"], executorProfile: CurrentUser["executor"] = null, roles: CurrentUser["roles"] = [role]): CurrentUser {
-  return { id, role, roles, phone: "+77000000000", fullName: null, iinLast4: null, isDemo: false, executor: executorProfile, mfa: { required: role === "OPERATOR", verifiedAt: null }, consents: [] };
+  return { id, role, roles, phone: "+77000000000", fullName: null, iinLast4: null, isDemo: false, executor: executorProfile, mfa: { required: role === "OPERATOR", verifiedAt: null }, consents: [], consentRevocationOpen: false };
 }

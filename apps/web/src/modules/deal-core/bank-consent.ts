@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { bankConsentsOf, grantBankConsent, type CurrentUser } from "@/modules/identity";
 import { db } from "@/platform/db";
@@ -61,14 +62,18 @@ export async function bankConsentState(user: CurrentUser, dealId: string): Promi
   return { mine: sides[role], other: sides[role === "CLIENT" ? "EXECUTOR" : "CLIENT"] };
 }
 
+/** Отметка стороны: сделка и редакция текста согласия, которую человек видел на экране. */
+export const bankConsentSchema = dealRefSchema.extend({ version: z.string().max(32) });
+
 /**
  * Сторона сделки отмечает согласие на передачу данных банку-партнёру (до оплаты, пока сделка CREATED). Чужая сделка —
- * «не найдено», оператор — «не ваше действие». Повтор — та же запись в identity.
+ * «не найдено», оператор — «не ваше действие»; показанная редакция не текущая — CONFLICT «текст обновился». Повтор — та
+ * же запись в identity.
  */
-export async function giveBankConsent(user: CurrentUser, raw: { dealId: string }): Promise<void> {
-  const { dealId } = parseInput(dealRefSchema, raw);
+export async function giveBankConsent(user: CurrentUser, raw: z.input<typeof bankConsentSchema>): Promise<void> {
+  const { dealId, version } = parseInput(bankConsentSchema, raw);
   const parties = await dealParties(dealId);
   if (requireRole(user, parties) === "OPERATOR") fail.forbidden(ru.deal.errors.notYourAction);
   if (parties.status !== "CREATED") fail.conflict(ru.deal.errors.notAllowedNow);
-  await grantBankConsent(dealId);
+  await grantBankConsent(dealId, version);
 }

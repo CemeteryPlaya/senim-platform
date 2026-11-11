@@ -18,8 +18,13 @@ import { resetDemo, seedDemo } from "./seed";
 let cleanup: () => Promise<void>;
 beforeAll(async () => {
   cleanup = await useSeedStorage();
+  // Сид оплачивает тестовые сделки без сессий сторон — только при DEMO_MODE (Ruling AD).
+  setEnv({ DEMO_MODE: "true" });
 });
-afterAll(() => cleanup());
+afterAll(async () => {
+  setEnv({ DEMO_MODE: undefined });
+  await cleanup();
+});
 
 const sum = (rows: { type: string; status: string; amountTiyn: bigint }[], type: string) =>
   rows.filter((r) => r.type === type && r.status === "SUCCEEDED").reduce((a, r) => a + r.amountTiyn, 0n);

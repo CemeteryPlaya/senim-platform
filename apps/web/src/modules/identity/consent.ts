@@ -32,12 +32,18 @@ function broken(reason: string): never {
 
 const dateOf = (ts: Timestamp | undefined): Date | null => (ts ? timestampDate(ts) : null);
 
+/** Машинная причина отказа: человеку показали другую редакцию текста, чем текущая (AppError CONFLICT, details.reason). */
+export const CONSENT_VERSION_CHANGED = "CONSENT_VERSION_CHANGED";
+
 /**
- * GrantConsent текущей редакции текста вида в сессии этого браузера. Повтор после обрыва — с тем же ключом; identity
- * возвращает действующую запись той же версии без новой (двойной клик безопасен).
+ * GrantConsent текста вида в сессии этого браузера. `shownVersion` — редакция, которую человек видел на экране: не
+ * текущая (текст сменился между показом и нажатием) — CONFLICT «текст обновился», identity не вызывается, экран
+ * перерисовывается с новой редакцией. В запись идут версия и хэш показанного (= текущего) текста. Повтор после обрыва — с
+ * тем же ключом; identity возвращает действующую запись той же версии без новой (двойной клик безопасен).
  */
-async function grant(kind: ConsentKindName, referenceId: string): Promise<void> {
+async function grant(kind: ConsentKindName, shownVersion: string, referenceId: string): Promise<void> {
   const doc = consentDocument(kind);
+  if (shownVersion !== doc.version) fail.conflict(ru.consent.errors.versionChanged, { reason: CONSENT_VERSION_CHANGED });
   const request = {
     sessionToken: await currentSessionToken(),
     kind: KIND_PROTO[kind],
@@ -52,16 +58,16 @@ async function grant(kind: ConsentKindName, referenceId: string): Promise<void> 
 }
 
 /** Согласие на обработку ПДн текущей редакции (экран /consent) в сессии этого браузера; вход проверяет requireConsentSubject. */
-export async function grantPdConsent(): Promise<void> {
-  await grant("PD_PROCESSING", "");
+export async function grantPdConsent(shownVersion: string): Promise<void> {
+  await grant("PD_PROCESSING", shownVersion, "");
 }
 
 /**
  * Согласие на передачу данных банку-партнёру к сделке в сессии этого браузера. Сторону сделки проверяет вызывающий
  * (deal-core.giveBankConsent): identity знает только id сделки.
  */
-export async function grantBankConsent(dealId: string): Promise<void> {
-  await grant("BANK_TRANSFER", dealId);
+export async function grantBankConsent(dealId: string, shownVersion: string): Promise<void> {
+  await grant("BANK_TRANSFER", shownVersion, dealId);
 }
 
 /**

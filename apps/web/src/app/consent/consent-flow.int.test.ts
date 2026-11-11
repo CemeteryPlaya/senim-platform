@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement, ReactNode } from "react";
+import { ru } from "@/i18n/ru";
 import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
 import { ConsentKind, Role as ProtoRole } from "@/gen/senim/identity/v1/identity_pb";
 import { consentTextSha256, getCurrentUser, getMyData, requireUser, requireUserPage, sessionCookieName } from "@/modules/identity";
@@ -82,7 +83,7 @@ describe("экран согласия после входа", () => {
     const form = elements(page).find((el) => el.type === ConsentForm) as ReactElement<{ next: string | null; updated: boolean }>;
     expect(form.props).toMatchObject({ next: "/requests", updated: false });
 
-    expect(await redirectTarget(grantConsentAction({ next: "/requests" }))).toBe("/requests");
+    expect(await redirectTarget(grantConsentAction({ next: "/requests", version: PD.version }))).toBe("/requests");
 
     const user = (await getCurrentUser())!;
     const [record] = identityFake.consentsOf(user.id);
@@ -101,7 +102,7 @@ describe("экран согласия после входа", () => {
   it("двойное нажатие «Даю согласие» — одна запись", async () => {
     await signInNewcomer("+77000007702", null);
     const user = (await getCurrentUser())!;
-    await Promise.allSettled([grantConsentAction({ next: null }), grantConsentAction({ next: null })]);
+    await Promise.allSettled([grantConsentAction({ next: null, version: PD.version }), grantConsentAction({ next: null, version: PD.version })]);
     expect(identityFake.consentsOf(user.id)).toHaveLength(1);
   });
 
@@ -119,12 +120,56 @@ describe("экран согласия после входа", () => {
     const form = elements(page).find((el) => el.type === ConsentForm) as ReactElement<{ updated: boolean }>;
     expect(form.props.updated).toBe(true);
 
-    expect(await redirectTarget(grantConsentAction({ next: "/deals?tab=active" }))).toBe("/deals?tab=active");
+    expect(await redirectTarget(grantConsentAction({ next: "/deals?tab=active", version: PD.version }))).toBe("/deals?tab=active");
     const records = identityFake.consentsOf(client.id);
     expect(records.map((r) => r.version)).toEqual([ORIGINAL.version, "2099-01-01-t1"]);
     expect(records[1]?.textSha256).toBe(consentTextSha256("PD_PROCESSING"));
     expect(records[1]?.textSha256).not.toBe(records[0]?.textSha256);
     expect(await redirectTarget(requireUserPage("/deals?tab=active", "CLIENT"))).toBeNull();
+  });
+
+  it("редакция сменилась между показом и нажатием — CONFLICT «текст обновился», записи нет; новая редакция — записывается", async () => {
+    await signInNewcomer("+77000007703", null);
+    const user = (await getCurrentUser())!;
+    const shown = PD.version;
+    Object.assign(PD, { version: "2099-01-01-t2", sections: [...ORIGINAL.sections, { heading: "13. Новый раздел", body: "Текст" }] });
+
+    expect(await grantConsentAction({ next: null, version: shown })).toEqual({ ok: false, code: "CONFLICT", error: ru.consent.errors.versionChanged });
+    expect(identityFake.consentsOf(user.id)).toEqual([]);
+    expect(identityFake.calls.filter((c) => c.method === "grantConsent")).toHaveLength(0);
+
+    // Перерисованный экран показывает новую редакцию — с ней согласие проходит, в записи её версия и хэш.
+    expect(await redirectTarget(grantConsentAction({ next: null, version: "2099-01-01-t2" }))).toBe("/requests");
+    expect(identityFake.consentsOf(user.id).map((c) => [c.version, c.textSha256])).toEqual([["2099-01-01-t2", consentTextSha256("PD_PROCESSING")]]);
+  });
+
+  it("Ruling AE: при открытой заявке на отзыв новая редакция не требуется до решения оператора; после COMPLETED — экран согласия", async () => {
+    const client = await makeClient();
+    const token = await signInAs(client);
+    await revokeConsentAction({});
+    Object.assign(PD, { version: "2099-01-01-t3" });
+
+    identityFake.calls.length = 0;
+    expect(await redirectTarget(requireUserPage("/requests", "CLIENT"))).toBeNull();
+    await expect(requireUser("CLIENT")).resolves.toMatchObject({ consentRevocationOpen: true });
+    // Лишний ListMyConsents — только на пути «прежняя редакция».
+    expect(identityFake.calls.filter((c) => c.method === "listMyConsents").length).toBeGreaterThan(0);
+    expect(await redirectTarget(ConsentPage({ searchParams: Promise.resolve({ next: "/requests" }) }))).toBe("/requests");
+
+    const [rev] = identityFake.revocationsOf(client.id);
+    freshBrowser();
+    await signInAs(await makeOperator());
+    await resolveRevocationAction({ revocationId: rev!.id, decision: "COMPLETED" });
+    freshBrowser();
+    putCookie(sessionCookieName(), token);
+    expect(await redirectTarget(requireUserPage("/requests", "CLIENT"))).toBe("/consent?next=%2Frequests");
+  });
+
+  it("согласие текущей редакции — без лишнего ListMyConsents", async () => {
+    await signInAs(await makeClient());
+    identityFake.calls.length = 0;
+    await requireUser("CLIENT");
+    expect(identityFake.calls.map((c) => c.method)).toEqual(["authenticate"]);
   });
 
   it("сотруднику площадки экран согласия не нужен", async () => {

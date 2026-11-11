@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { SignLink } from "@/app/_components/signing";
 import type { BankConsentState, DealView } from "@/modules/deal-core";
+import { consentDocument } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
 import { isEnabled } from "@/platform/features";
 import { Alert, ButtonLink, Card, formatTiyn } from "@/ui";
@@ -27,7 +28,7 @@ export function NextStep({ deal, bank }: { deal: DealView; bank: BankConsentStat
   return (
     <Card as="section" title={t.sections.next} titleId={NEXT_HEADING_ID}>
       <p className="text-lg text-ink">{t.next[action]}</p>
-      {bank && side && !bank.mine && <BankConsentBox dealId={deal.id} side={side} />}
+      {bank && side && !bank.mine && <BankConsentBox dealId={deal.id} side={side} document={consentDocument("BANK_TRANSFER")} />}
       {bank?.mine && <p className="text-base text-ink-soft">{ru.consent.bank.given}</p>}
       {bank?.mine && !bank.other && side === "CLIENT" && action === "pay" && <Alert tone="info">{ru.consent.bank.waitExecutor}</Alert>}
       {/* Сразу под заголовком, на который после сдачи переходит фокус; объявляет плашка раздела «Сдача». */}

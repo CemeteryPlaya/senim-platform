@@ -37,6 +37,7 @@ export { authorize, can, type ActionOn, type Resource } from "./rbac";
 export { CONSENT_PATH, EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, MFA_PATH, consentHref, homePathFor, loginHref, mfaHref, safeReturnTo } from "./return-to";
 export { consentDocument, consentTextSha256, needsConsent, type ConsentKindName, type GrantedConsent } from "./consent-text";
 export {
+  CONSENT_VERSION_CHANGED,
   REVOCATION_REASON_MAX,
   REVOCATION_REASON_MIN,
   bankConsentsOf,

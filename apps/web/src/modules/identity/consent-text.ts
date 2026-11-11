@@ -35,13 +35,20 @@ export function consentTextSha256(kind: ConsentKindName): string {
 /** Действующее согласие на обработку ПДн из Authenticate (identity отдаёт только PD_PROCESSING без отозванных). */
 export type GrantedConsent = { id: string; version: string; textSha256: string };
 
+/** Есть ли среди действующих согласий согласие текущей редакции. */
+export function hasCurrentConsent(consents: readonly Pick<GrantedConsent, "version">[]): boolean {
+  const current = consentDocument("PD_PROCESSING").version;
+  return consents.some((c) => c.version === current);
+}
+
 /**
  * Нужен экран согласия: нет действующего согласия на обработку ПДн текущей версии (нового пользователя, после смены
- * редакции текста, после исполненного отзыва). Сотрудникам площадки (оператор, замерщик) экран не нужен — как и
- * знакомство: они не стороны сделок, а текст согласия — о заявках и сделках.
+ * редакции текста, после исполненного отзыва). Исключение (Ruling AE): пока открыта заявка на отзыв, действующее согласие
+ * прежней редакции достаточно — новую редакцию до решения оператора не показываем (иначе новое согласие пережило бы
+ * исполненный отзыв). Сотрудникам площадки (оператор, замерщик) экран не нужен — как и знакомство: они не стороны сделок,
+ * а текст согласия — о заявках и сделках.
  */
-export function needsConsent(user: { role: Role; consents: readonly Pick<GrantedConsent, "version">[] }): boolean {
-  if (isStaffRole(user.role)) return false;
-  const current = consentDocument("PD_PROCESSING").version;
-  return !user.consents.some((c) => c.version === current);
+export function needsConsent(user: { role: Role; consents: readonly Pick<GrantedConsent, "version">[]; consentRevocationOpen: boolean }): boolean {
+  if (isStaffRole(user.role) || hasCurrentConsent(user.consents)) return false;
+  return !(user.consentRevocationOpen && user.consents.length > 0);
 }

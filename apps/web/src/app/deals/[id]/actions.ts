@@ -2,6 +2,7 @@
 
 import {
   addProgressReport,
+  bankConsentSchema,
   giveBankConsent,
   cancelDeal,
   cancelDealSchema,
@@ -32,7 +33,7 @@ export const payAction = action("deal.pay", dealRefSchema, async (input) => {
 });
 
 /** Отметка «Передача данных банку-партнёру» стороны сделки: мастер — до подписи оферты, покупатель — перед оплатой. */
-export const bankConsentAction = action("deal.bankConsent", dealRefSchema, async (input) => {
+export const bankConsentAction = action("deal.bankConsent", bankConsentSchema, async (input) => {
   const user = await requireUser("CLIENT", "EXECUTOR");
   await giveBankConsent(user, input);
 });

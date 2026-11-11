@@ -129,6 +129,7 @@ describe("requireRecentMfa: свежий код перед действием с
     executor: null,
     mfa: { required: true, verifiedAt },
     consents: [],
+    consentRevocationOpen: false,
   });
   const plus = (ms: number) => new Date(at.getTime() + ms);
 
