@@ -29,6 +29,18 @@ async function makeAddressedExecutor() {
   return { executor, profile };
 }
 
+/**
+ * Последние 4 символа ИИН/БИН не должны попадать ни в одно поле представления.
+ * Поиск по сериализованному JSON даёт ложные совпадения с фрагментами cuid в `id`,
+ * поэтому проверяем значения полей, а сам `id` (идентификатор, не ПДн) пропускаем.
+ */
+function expectNoLast4(view: Record<string, unknown>, last4: string): void {
+  for (const [key, value] of Object.entries(view)) {
+    if (key === "id") continue;
+    expect(JSON.stringify(value), `поле ${key}`).not.toContain(last4);
+  }
+}
+
 const ALLOWED_KEYS = [
   "id",
   "publicNumber",
@@ -94,7 +106,7 @@ describe("publicExecutorView", () => {
     expect(json).not.toContain("Потайная");
     expect(json).not.toContain(profile.user.phone);
     expect(json).not.toContain(profile.user.phone.slice(2));
-    expect(json).not.toContain(profile.binIinLast4);
+    expectNoLast4(view, profile.binIinLast4);
     expect(json).not.toContain(profile.binIinEnc);
     expect(json).not.toContain(profile.userId);
     expect(json).not.toContain(profile.user.fullName!);
@@ -116,7 +128,7 @@ describe("publicExecutorView", () => {
     });
     expect(json).not.toContain(profile.user.phone);
     expect(json).not.toContain(profile.user.phone.slice(2));
-    expect(json).not.toContain(profile.binIinLast4);
+    expectNoLast4(view, profile.binIinLast4);
     expect(json).not.toContain(profile.binIinEnc);
     expect(json).not.toContain(profile.user.fullName!);
   });
