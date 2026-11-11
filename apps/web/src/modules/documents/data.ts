@@ -2,8 +2,8 @@ import sharp from "sharp";
 import { ru } from "@/i18n/ru";
 import { dealDocumentData } from "@/modules/deal-core";
 import { storageByName } from "@/modules/files";
-import { revealParties, type CurrentUser, type RevealPurposeName } from "@/modules/identity";
-import type { Db } from "@/platform/db";
+import { revealParties, type CurrentUser, type RevealActor, type RevealPurposeName } from "@/modules/identity";
+import { db, type Db } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { TIME_ZONE } from "@/ui/format";
@@ -32,7 +32,7 @@ export async function numberFor(client: Db, dealId: string, kind: keyof typeof d
  * Стороны — заказчик и исполнитель этой сделки; actor — кто выпускает документ (оператор — расписку; оферту выпускает система).
  * Нет ИИН/БИН исполнителя — документ без ИИН/БИН стороны недействителен: лучше отказ, чем пустое поле.
  */
-async function parties(client: Db, dealId: string, purpose: RevealPurposeName, actor?: CurrentUser) {
+async function parties(client: Db, dealId: string, purpose: RevealPurposeName, actor: RevealActor) {
   const deal = await client.deal.findUniqueOrThrow({ where: { id: dealId }, select: { clientId: true, client: { select: { fullName: true } }, executor: { select: { userId: true } } } });
   const revealed = await revealParties([deal.clientId, deal.executor.userId], purpose, dealId, actor, client);
   const buyer = revealed.get(deal.clientId);
@@ -65,7 +65,7 @@ export async function contractData(client: Db, dealId: string, meta: Meta): Prom
   const d = await dealDocumentData(client, dealId);
   const details = await subject(client, dealId);
   // Оферту выпускает система в транзакции createDeal (document.created — от SYSTEM): раскрытие без сессии человека.
-  const p = await parties(client, dealId, "CONTRACT");
+  const p = await parties(client, dealId, "CONTRACT", "system");
   return {
     ...meta,
     city: d.address.city,
@@ -139,8 +139,8 @@ export async function lastMoneyAt(client: Db, dealId: string): Promise<Date | nu
   return d.moneyHistory.reduce<Date | null>((max, e) => (!max || e.at > max ? e.at : max), null);
 }
 
-/** Расписку выпускает оператор (actor): его сессия уходит в identity, второй фактор проверяет identity. */
-export async function receiptData(client: Db, dealId: string, meta: Meta, actor: CurrentUser): Promise<ReleaseReceiptData> {
+/** Суммы раскрытия по журналу и действующая оферта; раскрытия или оферты нет — CONFLICT. */
+async function releaseOf(client: Db, dealId: string) {
   // client — часто транзакция: запросы по одному соединению идут только последовательно.
   const d = await dealDocumentData(client, dealId);
   const sum = (type: "SPLIT_MASTER" | "SPLIT_PLATFORM" | "REFUND") =>
@@ -148,19 +148,37 @@ export async function receiptData(client: Db, dealId: string, meta: Meta, actor:
   const release = { masterTiyn: sum("SPLIT_MASTER"), platformTiyn: sum("SPLIT_PLATFORM"), refundTiyn: sum("REFUND") };
   if (release.masterTiyn + release.platformTiyn === 0n) return fail.conflict(t.errors.noRelease);
   const contract = await currentNumber(client, dealId, "CONTRACT");
-  const act = await currentNumber(client, dealId, "ACCEPTANCE_ACT");
   if (!contract) return fail.conflict(t.errors.noContract);
+  return { d, release, contract };
+}
+
+/** Реквизиты сторон расписки: ИИН/БИН и IBAN из identity, раскрытые до транзакции выпуска. */
+export type ReceiptParties = Pick<ReleaseReceiptData, "client" | "executor">;
+
+/**
+ * Раскрыть реквизиты для расписки — до транзакции выпуска (identity первым): сначала проверки по журналу и оферте (без
+ * раскрытия денег и оферты ПДн не раскрываются), затем RevealPartyDetails с целью RELEASE_RECEIPT от имени оператора
+ * (его сессия уходит в identity, второй фактор проверяет identity).
+ */
+export async function receiptParties(dealId: string, operator: CurrentUser): Promise<ReceiptParties> {
+  await releaseOf(db, dealId);
+  const p = await parties(db, dealId, "RELEASE_RECEIPT", operator);
+  return { client: p.client, executor: { ...p.executor, iban: p.iban } };
+}
+
+/** Данные расписки: суммы — из журнала (в транзакции выпуска), реквизиты — уже раскрытые receiptParties; identity не вызывается. */
+export async function receiptData(client: Db, dealId: string, meta: Meta, revealed: ReceiptParties): Promise<ReleaseReceiptData> {
+  const { d, release, contract } = await releaseOf(client, dealId);
+  const act = await currentNumber(client, dealId, "ACCEPTANCE_ACT");
   const signedAct = act && (await client.document.findFirst({ where: { dealId, kind: "ACCEPTANCE_ACT", status: "SIGNED" }, select: { number: true, sha256: true } }));
-  // ПДн — после всех проверок: без раскрытия денег и оферты реквизиты не раскрываются.
-  const p = await parties(client, dealId, "RELEASE_RECEIPT", actor);
   return {
     ...meta,
     city: d.address.city,
     contractNumber: contract.number,
     actNumber: signedAct ? signedAct.number : null,
     actSha256: signedAct ? signedAct.sha256 : null,
-    client: p.client,
-    executor: { ...p.executor, iban: p.iban },
+    client: revealed.client,
+    executor: revealed.executor,
     money: d.money,
     release,
   };

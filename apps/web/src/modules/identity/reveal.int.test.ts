@@ -20,9 +20,9 @@ const reveals = () => identityFake.calls.filter((c) => c.method === "revealParty
 beforeEach(() => freshBrowser());
 
 describe("revealParties", () => {
-  it("стороны сделки — открытые реквизиты из identity; фоновый вызов — без сессии, с целью и сделкой", async () => {
+  it("стороны сделки — открытые реквизиты из identity; системный вызов (\"system\") — без сессии, с целью и сделкой", async () => {
     const f = await makeDeal();
-    const parties = await revealParties([f.client.id, f.executor.id], "CONTRACT", f.dealId);
+    const parties = await revealParties([f.client.id, f.executor.id], "CONTRACT", f.dealId, "system");
 
     expect(reveals()).toHaveLength(1);
     expect(reveals()[0].request).toMatchObject({ userIds: [f.client.id, f.executor.id], purpose: RevealPurpose.CONTRACT, referenceId: f.dealId, actorSessionToken: "" });
@@ -39,10 +39,10 @@ describe("revealParties", () => {
   it("не сторона сделки не получает реквизитов: identity не вызывается", async () => {
     const f = await makeDeal();
     const stranger = await makeExecutor();
-    expect(await code(revealParties([f.client.id, stranger.id], "CONTRACT", f.dealId))).toBe("FORBIDDEN");
-    expect(await code(revealParties([stranger.id], "PAYOUT", f.dealId))).toBe("FORBIDDEN");
-    expect(await code(revealParties([f.executor.id], "PAYOUT", "no-such-deal"))).toBe("FORBIDDEN");
-    expect(await code(revealParties([], "PAYOUT", f.dealId))).toBe("FORBIDDEN");
+    expect(await code(revealParties([f.client.id, stranger.id], "CONTRACT", f.dealId, "system"))).toBe("FORBIDDEN");
+    expect(await code(revealParties([stranger.id], "PAYOUT", f.dealId, "system"))).toBe("FORBIDDEN");
+    expect(await code(revealParties([f.executor.id], "PAYOUT", "no-such-deal", "system"))).toBe("FORBIDDEN");
+    expect(await code(revealParties([], "PAYOUT", f.dealId, "system"))).toBe("FORBIDDEN");
     // Действующее лицо — не сторона и не оператор: даже реквизиты сторон этой сделки ему не раскрываются.
     const outsider = await makeClient();
     await signInAs(outsider);
@@ -71,7 +71,15 @@ describe("revealParties", () => {
   it("пользователя нет в identity — его нет и в ответе (сделка могла пережить пользователя)", async () => {
     const f = await makeDeal();
     identityFake.reset();
-    expect((await revealParties([f.client.id, f.executor.id], "PAYOUT", f.dealId)).size).toBe(0);
+    expect((await revealParties([f.client.id, f.executor.id], "PAYOUT", f.dealId, "system")).size).toBe(0);
+  });
+});
+
+describe("revealParties: действующее лицо обязательно", () => {
+  it("пропустить actor нельзя — тип требует пользователя или \"system\"", () => {
+    // @ts-expect-error actor обязателен: "system" передаётся только явно, на системных путях без пользователя
+    const call = () => revealParties([], "CONTRACT", "deal");
+    expect(typeof call).toBe("function");
   });
 });
 

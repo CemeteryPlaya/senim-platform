@@ -1,3 +1,4 @@
+import { Code, ConnectError } from "@connectrpc/connect";
 import { PDFDocument } from "pdf-lib";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { RevealPurpose, SigningSide } from "@/gen/senim/identity/v1/identity_pb";
@@ -12,7 +13,7 @@ import { latestDocument, signaturePng, signEcp, signTyped, storedPhoto, useDocum
 import { freshBrowser, setEnv } from "../../../test/factories/identity";
 import { signInAs } from "../../../test/factories/session";
 import { identityFake } from "../../../test/stubs/identity";
-import { contractData, receiptData } from "./data";
+import { contractData, receiptData, receiptParties } from "./data";
 import { createEmailSignedActHandler, EMAIL_ACT_JOB, partyEmail } from "./email";
 import {
   createContract,
@@ -139,10 +140,39 @@ describe("ПДн сторон — из identity (RevealPartyDetails), не из 
 
     await createReleaseReceipt(operator, f.dealId);
     expect(reveals()).toContainEqual(expect.objectContaining({ userIds: [f.client.id, f.executor.id], purpose: RevealPurpose.RELEASE_RECEIPT, referenceId: f.dealId, actorSessionToken: token }));
-    const data = await receiptData(db, f.dealId, META, operator);
+    identityFake.calls.length = 0;
+    const data = await receiptData(db, f.dealId, META, await receiptParties(f.dealId, operator));
+    expect(reveals()).toHaveLength(1);
     expect(data.executor).toMatchObject({ binIin: identityFake.partyNumbersOf(f.executor.id)?.binIin, iban: IBAN });
     expect(data.client.iin).toBe(identityFake.personIinOf(f.client.id));
     expect(data.release).toEqual({ masterTiyn: 96_000_00n, platformTiyn: 6_000_00n, refundTiyn: 0n });
+  });
+
+  it("расписка: identity недоступен — расписки нет, транзакция выпуска не открывается, журнал денег не меняется", async () => {
+    const f = await dealAt("READY");
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await signEcp(f.executor, act.id);
+    await signTyped(f.client, act.id);
+    await signEcp(f.client, act.id);
+    const operator = await makeOperator();
+    await signInAs(operator);
+    const journal = await journalOf(f.dealId);
+    const audit = await db.auditEvent.count();
+    // identity недоступен (вызов и его единственный повтор). Во время вызова строка сделки свободна: транзакция выпуска
+    // (issue → lockDeal) её бы держала, и FOR UPDATE NOWAIT вне транзакции не прошёл бы.
+    const dealLocked: boolean[] = [];
+    const reveal = vi.spyOn(identityFake.client, "revealPartyDetails").mockImplementation(async () => {
+      dealLocked.push(await db.$queryRaw`SELECT id FROM "Deal" WHERE id = ${f.dealId} FOR UPDATE NOWAIT`.then(() => false, () => true));
+      throw new ConnectError("unavailable", Code.Unavailable);
+    });
+
+    await expect(createReleaseReceipt(operator, f.dealId)).rejects.toEqual(code("UNAVAILABLE"));
+    expect(reveal).toHaveBeenCalledTimes(2);
+    expect(dealLocked).toEqual([false, false]);
+    expect(await db.document.count({ where: { dealId: f.dealId, kind: "RELEASE_RECEIPT" } })).toBe(0);
+    expect(await db.auditEvent.count()).toBe(audit);
+    expect(await journalOf(f.dealId)).toEqual(journal);
+    reveal.mockRestore();
   });
 
   it("расписка: оператор без второго фактора — mfa_required от identity, расписки нет", async () => {

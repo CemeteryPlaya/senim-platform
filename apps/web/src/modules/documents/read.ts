@@ -9,6 +9,7 @@ import { fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { canRead, partyOf, readableKinds } from "./access";
 import { signingFlags } from "@/modules/deal-core";
+import { receiptParties } from "./data";
 import { ensureMoneyStatement, issueReleaseReceipt, scopeOf, type CreatedDocument } from "./issue";
 import { LINK_TTL_SEC, openDocumentLink, sealDocumentLink, whatsappShareUrl } from "./links";
 import { appendPages, renderPdf } from "./pdf/render";
@@ -165,5 +166,7 @@ export async function createReleaseReceipt(user: CurrentUser, dealId: string): P
   if (user.role !== "OPERATOR") return fail.forbidden();
   const exists = await db.deal.findUnique({ where: { id: dealId }, select: { id: true } });
   if (!exists) return fail.notFound(ru.deal.errors.notFound);
-  return transaction((tx) => issueReleaseReceipt(tx, dealId, user));
+  // identity первым: проверки и раскрытие ПДн — до транзакции; внутри неё — только выпуск по журналу.
+  const parties = await receiptParties(dealId, user);
+  return transaction((tx) => issueReleaseReceipt(tx, dealId, user, parties));
 }

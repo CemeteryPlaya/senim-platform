@@ -203,7 +203,7 @@ function signerOfParty(d: PartyDetails | undefined, party: SignParty): { fullNam
  * собственные данные, оператор не подписывает, а сид демо подписывает без входа. Нет ИИН — подписать нельзя.
  */
 async function expectedSigner(dealId: string, userId: string, party: SignParty): Promise<{ fullName: string; iin: string }> {
-  const revealed = await revealParties([userId], "CONTRACT", dealId);
+  const revealed = await revealParties([userId], "CONTRACT", dealId, "system");
   const { fullName, iin } = signerOfParty(revealed.get(userId), party);
   if (!iin) return fail.validation(t.errors.signerIinMissing);
   return { fullName, iin };

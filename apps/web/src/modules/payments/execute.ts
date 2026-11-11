@@ -79,7 +79,7 @@ type DealForProvider = { id: string; number: number; executor: { userId: string;
  * null — счёт не указан или identity не знает мастера (провайдер решает сам, как с несуществующим счётом).
  */
 async function payoutIbanOf(deal: DealForProvider): Promise<string | null> {
-  const revealed = await revealParties([deal.executor.userId], "PAYOUT", deal.id);
+  const revealed = await revealParties([deal.executor.userId], "PAYOUT", deal.id, "system");
   return revealed.get(deal.executor.userId)?.payoutIban ?? null;
 }
 

@@ -43,8 +43,12 @@ export { INSTAGRAM_MAX, contactsInputSchema, emailField, instagramField, type Co
 export { getOwnContacts, updateContacts, type OwnContacts } from "./contacts-profile";
 export { ibanField, normalizeIban, parseKzIban, type IbanCheck } from "./iban";
 export { getOwnPayout, payoutInputSchema, setPayoutIban, type OwnPayout, type PayoutInput } from "./payout";
-/** Открытые ИИН/БИН и IBAN — только сервер (договор, расписка, подпись, выплата): не логировать и не показывать. */
-export { revealParties, verifySignerIin, type PartyDetails, type RevealPurposeName, type SigningSideName } from "./reveal";
+/**
+ * Открытые ИИН/БИН и IBAN — только сервер (договор, расписка, подпись, выплата): не логировать и не показывать.
+ * Действующее лицо revealParties обязательно: на пути пользователя — сам пользователь (его сессия, у оператора — второй
+ * фактор в identity); "system" — только системные пути без пользователя (выпуск оферты, mock-подпись, фоновая выплата).
+ */
+export { revealParties, verifySignerIin, type PartyDetails, type RevealActor, type RevealPurposeName, type SigningSideName } from "./reveal";
 export { KYC_TRANSITIONS, kycTarget, kycView, type KycAction, type KycState } from "./kyc-policy";
 export {
   KYC_MAX_FILES,

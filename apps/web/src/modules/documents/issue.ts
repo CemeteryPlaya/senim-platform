@@ -7,7 +7,7 @@ import { sha256Hex } from "@/platform/crypto";
 import { lockDealRow, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
-import { actData, contractData, lastMoneyAt, numberFor, receiptData, statementData, type Meta } from "./data";
+import { actData, contractData, lastMoneyAt, numberFor, receiptData, statementData, type Meta, type ReceiptParties } from "./data";
 import { renderPdf } from "./pdf/render";
 import type { PdfSpec } from "./pdf/spec";
 import { signingFlags } from "@/modules/deal-core";
@@ -121,9 +121,12 @@ export async function ensureMoneyStatement(tx: Tx, dealId: string, now = new Dat
   return issue(tx, { dealId, kind: "MONEY_STATEMENT", issuedAt: now, build: async (meta) => moneyStatementSpec(await statementData(tx, dealId, meta)) });
 }
 
-/** Расписка на раскрытие для банка (manual): по суммам раскрытия в журнале. Выпускает оператор (его сессия — для раскрытия ПДн). */
-export const issueReleaseReceipt = (tx: Tx, dealId: string, operator: CurrentUser, issuedAt = new Date()) =>
-  issue(tx, { dealId, kind: "RELEASE_RECEIPT", issuedAt, actor: actorOf(operator), build: async (meta) => releaseReceiptSpec(await receiptData(tx, dealId, meta, operator)) });
+/**
+ * Расписка на раскрытие для банка (manual): по суммам раскрытия в журнале. Выпускает оператор; реквизиты сторон раскрыты
+ * до транзакции (receiptParties) — в транзакции identity не вызывается.
+ */
+export const issueReleaseReceipt = (tx: Tx, dealId: string, operator: CurrentUser, parties: ReceiptParties, issuedAt = new Date()) =>
+  issue(tx, { dealId, kind: "RELEASE_RECEIPT", issuedAt, actor: actorOf(operator), build: async (meta) => releaseReceiptSpec(await receiptData(tx, dealId, meta, parties)) });
 
 /**
  * Сделка отменена до заключения оферты: неподписанная оферта снимается с подписи (в той же транзакции,

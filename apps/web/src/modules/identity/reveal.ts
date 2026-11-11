@@ -15,8 +15,8 @@ import { currentSessionToken, type CurrentUser } from "./session";
  *
  * identity раскрывает любого пользователя любому вызову web, поэтому права проверяет web до вызова: раскрываются только
  * стороны сделки `referenceId` (заказчик и исполнитель), действующее лицо — её сторона или оператор. Действующее лицо
- * передаёт свою сессию (у оператора identity требует пройденный второй фактор и пишет его в аудит pii.revealed); без него
- * действует сам web (`service:web`) — выпуск документа системой и фоновая выплата.
+ * указывается всегда: пользователь передаёт свою сессию (у оператора identity требует пройденный второй фактор и пишет его
+ * в аудит pii.revealed); "system" — действует сам web (`service:web`), только на системных путях без пользователя.
  */
 export type RevealPurposeName = "CONTRACT" | "RELEASE_RECEIPT" | "PAYOUT";
 
@@ -48,6 +48,13 @@ async function dealParties(client: Db, dealId: string): Promise<Set<string>> {
 }
 
 /**
+ * Кто раскрывает: пользователь (его сессия уходит в identity) или "system" — сам web без пользователя (выпуск оферты
+ * системой в createDeal, «сертификат» mock-подписи после проверки подписанта, фоновая выплата). Обязателен: пропущенное
+ * действующее лицо не должно молча становиться service:web на пути пользователя.
+ */
+export type RevealActor = CurrentUser | "system";
+
+/**
  * Раскрыть реквизиты сторон сделки `referenceId` для цели `purpose`. Пользователь, которого identity не знает, в ответ не
  * попадает. `client` — транзакция, в которой создана сделка (оферта выпускается в транзакции createDeal); по умолчанию — `db`.
  * Не сторона сделки среди `userIds`, действующее лицо не сторона и не оператор, сделки нет — FORBIDDEN без вызова identity.
@@ -56,16 +63,17 @@ export async function revealParties(
   userIds: string[],
   purpose: RevealPurposeName,
   referenceId: string,
-  actor?: CurrentUser,
+  actor: RevealActor,
   client: Db = db,
 ): Promise<Map<string, PartyDetails>> {
   const parties = await dealParties(client, referenceId);
-  const allowedActor = !actor || actor.role === "OPERATOR" || parties.has(actor.id);
+  const user = actor === "system" ? null : actor;
+  const allowedActor = !user || user.role === "OPERATOR" || parties.has(user.id);
   if (userIds.length === 0 || !userIds.every((id) => parties.has(id)) || !allowedActor) {
-    logger.warn("identity.reveal_refused", { purpose, referenceId, actorId: actor?.id ?? null });
+    logger.warn("identity.reveal_refused", { purpose, referenceId, actorId: user?.id ?? "system" });
     return fail.forbidden();
   }
-  const actorSessionToken = actor ? await currentSessionToken() : "";
+  const actorSessionToken = user ? await currentSessionToken() : "";
   const request = { actorSessionToken, userIds, purpose: PURPOSE[purpose], referenceId };
   const res = await retriedOnce(() => identity().revealPartyDetails(request));
   const out = new Map<string, PartyDetails>();
