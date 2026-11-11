@@ -286,6 +286,8 @@ type StoredConsent = {
   channel: string;
   grantedAt: Date;
   revokedAt: Date | null;
+  /** Признак демо записи (0009): из users.is_demo при создании записи, дальше не меняется. */
+  isDemo: boolean;
 };
 
 type StoredRevocation = {
@@ -297,6 +299,8 @@ type StoredRevocation = {
   status: RevocationStatus;
   decidedAt: Date | null;
   reason: string;
+  /** Признак демо заявки (0009): из users.is_demo при создании, дальше не меняется. */
+  isDemo: boolean;
 };
 
 const consentKindOk = (k: ConsentKind | undefined): k is ConsentKind => k === ConsentKind.PD_PROCESSING || k === ConsentKind.BANK_TRANSFER;
@@ -657,9 +661,14 @@ export class FakeIdentity {
     return user;
   }
 
+  /** Триггер identity_consent_demo_flag (0009): признак демо записи — из users.is_demo в момент вставки. */
+  private isDemoUser(userId: string): boolean {
+    return this.users.get(userId)?.isDemo === true;
+  }
+
   /** Новая запись согласия (InsertConsent/SeedConsent в Go): время — часы подделки. */
-  private insertConsent(c: Omit<StoredConsent, "id" | "grantedAt" | "revokedAt">): StoredConsent {
-    const row: StoredConsent = { ...c, id: randomUUID(), grantedAt: this.now(), revokedAt: null };
+  private insertConsent(c: Omit<StoredConsent, "id" | "grantedAt" | "revokedAt" | "isDemo">): StoredConsent {
+    const row: StoredConsent = { ...c, id: randomUUID(), grantedAt: this.now(), revokedAt: null, isDemo: this.isDemoUser(c.userId) };
     this.consents.push(row);
     return row;
   }
@@ -1291,6 +1300,14 @@ export class FakeIdentity {
         SeedUsersRequestSchema,
         async (req) => {
           // Как UpsertSeedUser в Go: по телефону; у существующего id прежний, роли, демо-флаг и created_at (если задан) — из запроса, блокировка снимается.
+          // WHERE users.is_demo OR NOT EXCLUDED.is_demo: настоящего пользователя (is_demo = false) сид демо не делает —
+          // invalid_request, и вся транзакция откатывается (проверка до любых изменений).
+          const demoByPhone = new Map([...this.users.values()].map((x) => [x.phone, x.isDemo]));
+          for (const u of req.users ?? []) {
+            const phone = normalizePhone(u.phone ?? "");
+            if (demoByPhone.get(phone) === false && u.isDemo) throw codedError("invalid_request", Code.InvalidArgument);
+            demoByPhone.set(phone, u.isDemo ?? false);
+          }
           const seeded: User[] = [];
           for (const u of req.users ?? []) {
             const phone = normalizePhone(u.phone ?? "");
@@ -1361,10 +1378,10 @@ export class FakeIdentity {
           this.replays.clear();
           this.mfaFailures.clear();
           this.factors.clear(); // Ruling E: повторный прогон e2e подключает TOTP заново
-          // identity_purge_demo_consents в Go: согласия и заявки на отзыв демо-пользователей удаляются.
-          const demo = (userId: string) => this.users.get(userId)?.isDemo === true;
-          this.consents = this.consents.filter((c) => !demo(c.userId));
-          this.revocations = this.revocations.filter((r) => !demo(r.userId));
+          // identity_purge_demo_consents в Go (0009): удаляются согласия и заявки с признаком демо самой записи — не по
+          // текущему users.is_demo (пометка пользователя демо задним числом его записи не открывает для удаления).
+          this.consents = this.consents.filter((c) => !c.isDemo);
+          this.revocations = this.revocations.filter((r) => !r.isDemo);
           return create(ResetDemoResponseSchema);
         },
         (req) => {
@@ -1730,7 +1747,7 @@ export class FakeIdentity {
           const open = this.revocations.find((r) => r.userId === user.id && r.kind === ConsentKind.PD_PROCESSING && r.status === RevocationStatus.REQUESTED);
           if (open) return create(RevokeConsentResponseSchema, { revocation: revocationView(open) });
           const now = this.now();
-          const rev: StoredRevocation = { id: randomUUID(), userId: user.id, kind: ConsentKind.PD_PROCESSING, requestedAt: now, dueAt: fakeRevocationDue(now), status: RevocationStatus.REQUESTED, decidedAt: null, reason: "" };
+          const rev: StoredRevocation = { id: randomUUID(), userId: user.id, kind: ConsentKind.PD_PROCESSING, requestedAt: now, dueAt: fakeRevocationDue(now), status: RevocationStatus.REQUESTED, decidedAt: null, reason: "", isDemo: this.isDemoUser(user.id) };
           this.revocations.push(rev);
           this.auditEvents.push({
             userId: user.id,

@@ -1010,4 +1010,43 @@ describe("подделка identity: согласия (как consent.go)", () =
     await fake.client.resetDemo({ idempotencyKey: key() });
     expect(fake.consentsOf(u!.id)).toEqual([]);
   });
+
+  it("SeedUsers не делает настоящего пользователя демо (invalid_request, сид целиком откатывается); снять демо можно (Ruling AL, как UpsertSeedUser)", async () => {
+    const real = fake.addUser({ phone: "+77002220081", defaultRole: Role.CLIENT });
+    const roles = { defaultRole: Role.CLIENT, roles: [Role.CLIENT] };
+    const other = { phone: "+77002220082", ...roles, isDemo: true };
+    const raise = fake.client.seedUsers({ users: [other, { phone: real.phone, ...roles, isDemo: true }], idempotencyKey: key() });
+    expect(await rejection(raise)).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    expect(fake.hasUser(real.id)).toBe(true);
+    const [same] = (await fake.client.seedUsers({ users: [{ phone: real.phone, ...roles }], idempotencyKey: key() })).users;
+    expect(same).toMatchObject({ id: real.id, isDemo: false });
+    // Первая запись отказанного сида не создана: в Go вся транзакция откатывается.
+    const [created] = (await fake.client.seedUsers({ users: [other], idempotencyKey: key() })).users;
+    expect(created?.isDemo).toBe(true);
+    const lowered = (await fake.client.seedUsers({ users: [{ ...other, isDemo: false }], idempotencyKey: key() })).users[0];
+    expect(lowered).toMatchObject({ id: created!.id, isDemo: false });
+  });
+
+  it("ResetDemo удаляет согласия и заявки по признаку демо самой записи, а не по текущему users.is_demo (0009)", async () => {
+    // Настоящий пользователь с согласием и заявкой; потом его «помечают» демо — записи остаются его, не демо.
+    const real = fake.addUser({ phone: "+77002220083", defaultRole: Role.CLIENT });
+    fake.signIn(real.id, token(1));
+    await fake.client.revokeConsent({ sessionToken: token(1), kind: ConsentKind.PD_PROCESSING, idempotencyKey: key() });
+    expect(fake.consentsOf(real.id).map((c) => c.isDemo)).toEqual([false]);
+    // Демо-пользователь: его записи — демо; потом признак у пользователя снимают — записи остаются демо.
+    const demo = fake.addUser({ phone: "+77002220084", defaultRole: Role.CLIENT, isDemo: true });
+    fake.signIn(demo.id, token(2));
+    await fake.client.revokeConsent({ sessionToken: token(2), kind: ConsentKind.PD_PROCESSING, idempotencyKey: key() });
+    expect(fake.consentsOf(demo.id).map((c) => c.isDemo)).toEqual([true]);
+
+    const roles = { defaultRole: Role.CLIENT, roles: [Role.CLIENT] };
+    await fake.client.seedUsers({ users: [{ phone: demo.phone, ...roles, isDemo: false }], idempotencyKey: key() });
+    real.isDemo = true; // как UPDATE users SET is_demo = true рабочей ролью в обход сида
+
+    await fake.client.resetDemo({ idempotencyKey: key() });
+    expect(fake.consentsOf(real.id)).toHaveLength(1);
+    expect(fake.revocationsOf(real.id)).toHaveLength(1);
+    expect(fake.consentsOf(demo.id)).toEqual([]);
+    expect(fake.revocationsOf(demo.id)).toEqual([]);
+  });
 });
