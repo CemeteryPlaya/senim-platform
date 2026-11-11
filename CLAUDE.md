@@ -2,7 +2,7 @@
 
 Репозиторий v2: Go-микросервисы + `apps/web` (Next.js 16, импортирован с историей из `mvp-scale-arna@main` через `git subtree`).
 
-1. Спека: `docs/superpowers/specs/2026-11-08-platform-v2-architecture-design.md`; планы — `docs/superpowers/plans/`; решения — `docs/adr/` (ADR-010 — микросервисы и gRPC, ADR-011 — удостоверение сервиса через mesh, ADR-012 — учётные записи и права NATS, ADR-013 — вход через identity и проекция пользователя); правовые материалы — `docs/legal/`.
+1. Спека: `docs/superpowers/specs/2026-11-08-platform-v2-architecture-design.md`; планы — `docs/superpowers/plans/`; решения — `docs/adr/` (ADR-010 — микросервисы и gRPC, ADR-011 — удостоверение сервиса через mesh, ADR-012 — учётные записи и права NATS, ADR-013 — вход через identity и проекция пользователя, ADR-014 — ПДн, согласия и 2FA операторов в identity); правовые материалы — `docs/legal/`.
 2. Работа внутри `apps/web` — по `apps/web/CLAUDE.md`, `apps/web/SKILL.md` и `apps/web/AGENTS.md` (Next.js 16 отличается от того, что ты знаешь: `apps/web/node_modules/next/dist/docs/`).
 3. Подтягивать обновления демо: `git subtree pull --prefix=apps/web D:/mvp-scale-arna main` — часто и небольшими порциями.
 
