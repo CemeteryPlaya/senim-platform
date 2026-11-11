@@ -3,6 +3,7 @@ import { ru } from "@/i18n/ru";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
 import { AppError, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
+import { KYC_REASON_MAX, KYC_REASON_MIN } from "./kyc-policy";
 
 const otp = ru.identity.otp.errors;
 const mfa = ru.identity.mfa.errors;
@@ -10,6 +11,7 @@ const person = ru.identity.clientIdentity;
 const contacts = ru.identity.contacts;
 const registration = ru.identity.registration.errors;
 const payout = ru.identity.payout.errors;
+const kyc = ru.identity.kyc;
 
 /** Коды, которые identity возвращает по контракту (proto/senim/identity/v1/identity.proto). */
 export const IDENTITY_ERROR_CODES = [
@@ -53,6 +55,9 @@ export const IDENTITY_ERROR_CODES = [
   "party_exists",
   "pii_key_unknown",
   "reveal_purpose_invalid",
+  "kyc_transition_forbidden",
+  "kyc_documents_missing",
+  "kyc_reason_invalid",
 ] as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
@@ -164,6 +169,13 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
       return fail.conflict(payout.partyMissing);
     case "party_exists":
       return fail.conflict(registration.partyExists);
+    case "kyc_transition_forbidden":
+      // Решение по уже рассмотренным документам (двойной клик, второй оператор); у подачи — свой текст на месте вызова.
+      return fail.conflict(kyc.errors.reviewed);
+    case "kyc_documents_missing":
+      return fail.conflict(kyc.errors.noDocuments);
+    case "kyc_reason_invalid":
+      return fieldInvalid("reason", kyc.reasonLength(KYC_REASON_MIN, KYC_REASON_MAX));
     case "session_token_invalid":
     case "caller_forbidden":
     case "idempotency_key_reused":

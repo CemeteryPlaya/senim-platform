@@ -697,3 +697,125 @@ describe("подделка identity: раскрытие и сверка ИИН (
     expect(await rejection(bad)).toEqual(invalid);
   });
 });
+
+describe("подделка identity: KYC исполнителя (как kyc.go и kyc_policy.go)", () => {
+  const BIN = testBin("2101", 91);
+  const DIRECTOR = testIin("800215", 3, 91);
+  let n = 0;
+  const key = () => `kyc-${++n}`;
+  const uuid = (i: number) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
+  const one = (i: number) => [uuid(i)];
+
+  function executor(phone: string, t: number) {
+    const user = fake.addUser({
+      phone,
+      roles: [Role.EXECUTOR],
+      defaultRole: Role.EXECUTOR,
+      person: { fullName: "Тулегенов Бауыржан" },
+      party: { legalForm: LegalForm.TOO, legalName: "ТОО «Ағаш»", binIin: BIN, signerFullName: "Тулегенов Бауыржан", signerIin: DIRECTOR },
+    });
+    fake.signIn(user.id, token(t));
+    return user;
+  }
+  function operator(t: number, mfa = true) {
+    const op = fake.addUser({ phone: `+7700111009${t}`, defaultRole: Role.OPERATOR });
+    fake.signIn(op.id, token(t), undefined, mfa ? {} : { mfaVerifiedAt: null });
+    return op;
+  }
+  const submit = (t: number, id: string[], reg: string[], idempotencyKey = key()) =>
+    fake.client.submitKyc({ sessionToken: token(t), idFileIds: id, registrationFileIds: reg, idempotencyKey });
+  const review = (t: number, userId: string, verify: boolean, reason = "", idempotencyKey = key()) =>
+    fake.client.reviewKyc({ sessionToken: token(t), userId, verify, reason, idempotencyKey });
+
+  it("SubmitKyc: порядок проверок — ключ, файлы, оба вида, сессия, роль, сторона", async () => {
+    const invalid = { code: Code.InvalidArgument, detail: "invalid_request" };
+    expect(await rejection(submit(9, one(1), one(2), ""))).toEqual(invalid);
+    expect(await rejection(submit(9, ["file-1"], one(2)))).toEqual(invalid);
+    expect(await rejection(submit(9, [`{${uuid(1)}}`], one(2)))).toEqual(invalid);
+    expect(await rejection(submit(9, [1, 2, 3, 4, 5].map(uuid), one(2)))).toEqual(invalid);
+    expect(await rejection(submit(9, [], one(2)))).toEqual({ code: Code.FailedPrecondition, detail: "kyc_documents_missing" });
+    expect(await rejection(submit(9, one(1), one(2)))).toEqual({ code: Code.Unauthenticated, detail: "session_invalid" });
+    const client = fake.addUser({ phone: "+77001110080" });
+    fake.signIn(client.id, token(2));
+    expect(await rejection(submit(2, one(1), one(2)))).toEqual({ code: Code.PermissionDenied, detail: "role_forbidden" });
+    const bare = fake.addUser({ phone: "+77001110081", roles: [Role.EXECUTOR], defaultRole: Role.EXECUTOR });
+    fake.signIn(bare.id, token(3));
+    expect(await rejection(submit(3, one(1), one(2)))).toEqual({ code: Code.FailedPrecondition, detail: "party_missing" });
+  });
+
+  it("SubmitKyc: из NOT_SUBMITTED, PENDING (файлы заменяются) и REJECTED — PENDING; VERIFIED — kyc_transition_forbidden; повтор по ключу — тот же ответ", async () => {
+    const user = executor("+77001110082", 1);
+    const k = key();
+    const first = await submit(1, [uuid(1).toUpperCase(), uuid(1)], one(2), k);
+    expect(first.party).toMatchObject({ kycStatus: KycStatus.PENDING, kycIdFileIds: [uuid(1)], kycRegistrationFileIds: [uuid(2)] });
+    expect(first.party?.kycSubmittedAt).toBeDefined();
+    expect(await submit(1, [uuid(1).toUpperCase(), uuid(1)], one(2), k)).toBe(first);
+    expect(await rejection(submit(1, one(3), one(2), k))).toEqual({ code: Code.InvalidArgument, detail: "idempotency_key_reused" });
+    expect((await submit(1, one(3), one(4))).party?.kycIdFileIds).toEqual([uuid(3)]);
+    fake.setKycStatus(user.id, KycStatus.REJECTED, { reason: "Фото нечитаемое" });
+    expect((await submit(1, one(5), one(6))).party).toMatchObject({ kycStatus: KycStatus.PENDING, kycRejectReason: "" });
+    fake.setKycStatus(user.id, KycStatus.VERIFIED);
+    expect(await rejection(submit(1, one(7), one(8)))).toEqual({ code: Code.FailedPrecondition, detail: "kyc_transition_forbidden" });
+    expect(fake.auditEvents.filter((e) => e.action === "executor.kyc_submitted").map((e) => [e.before, e.after])).toEqual([
+      [{ status: "NOT_SUBMITTED" }, { status: "PENDING", id_files: 1, registration_files: 1 }],
+      [{ status: "PENDING" }, { status: "PENDING", id_files: 1, registration_files: 1 }],
+      [{ status: "REJECTED" }, { status: "PENDING", id_files: 1, registration_files: 1 }],
+    ]);
+  });
+
+  it("ListKycQueue: оператор со второй ступенью; PENDING с обоими видами, давно ждущие первыми; ФИО — у people", async () => {
+    let clock = 1_000_000;
+    fake.now = () => new Date(clock);
+    const late = executor("+77001110083", 1);
+    const early = executor("+77001110084", 2);
+    executor("+77001110085", 3); // не подал
+    const noFiles = executor("+77001110086", 4);
+    fake.setKycStatus(noFiles.id, KycStatus.PENDING);
+    clock += 1000;
+    await submit(2, one(1), one(2));
+    clock += 1000;
+    await submit(1, one(3), one(4));
+    operator(5, false);
+    expect(await rejection(fake.client.listKycQueue({ sessionToken: token(5) }))).toEqual({ code: Code.PermissionDenied, detail: "mfa_required" });
+    expect(await rejection(fake.client.listKycQueue({ sessionToken: token(1) }))).toEqual({ code: Code.PermissionDenied, detail: "role_forbidden" });
+    operator(6);
+    const res = await fake.client.listKycQueue({ sessionToken: token(6) });
+    expect(res.parties.map((p) => p.userId)).toEqual([early.id, late.id]);
+    expect(res.people.map((p) => [p.userId, p.fullName])).toEqual([
+      [early.id, "Тулегенов Бауыржан"],
+      [late.id, "Тулегенов Бауыржан"],
+    ]);
+  });
+
+  it("ReviewKyc: порядок проверок — ключ, пользователь, причина 3–500, сессия, оператор со второй ступенью; затем сторона и переход", async () => {
+    const user = executor("+77001110087", 1);
+    operator(5, false);
+    expect(await rejection(review(5, user.id, true, "", ""))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    expect(await rejection(review(5, "", true))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    for (const reason of ["", "  ab  ", "я".repeat(501)]) {
+      expect(await rejection(review(5, user.id, false, reason))).toEqual({ code: Code.InvalidArgument, detail: "kyc_reason_invalid" });
+    }
+    expect(await rejection(review(5, user.id, true))).toEqual({ code: Code.PermissionDenied, detail: "mfa_required" });
+    expect(await rejection(review(1, user.id, true))).toEqual({ code: Code.PermissionDenied, detail: "role_forbidden" });
+    operator(6);
+    expect(await rejection(review(6, "u-0", true))).toEqual({ code: Code.FailedPrecondition, detail: "party_missing" });
+    expect(await rejection(review(6, user.id, true))).toEqual({ code: Code.FailedPrecondition, detail: "kyc_transition_forbidden" });
+    fake.setKycStatus(user.id, KycStatus.PENDING);
+    expect(await rejection(review(6, user.id, true))).toEqual({ code: Code.FailedPrecondition, detail: "kyc_documents_missing" });
+  });
+
+  it("ReviewKyc: отказ с обрезанной причиной, второе решение — kyc_transition_forbidden (одновременные — одно), аудит с причиной", async () => {
+    const user = executor("+77001110088", 1);
+    await submit(1, one(1), one(2));
+    operator(6);
+    operator(7);
+    const outcome = (p: Promise<unknown>) => p.then(() => "OK", () => rejection(p));
+    const results = await Promise.all([outcome(review(6, user.id, false, "  Фото нечитаемое ")), outcome(review(7, user.id, true))]);
+    expect(results).toEqual(["OK", { code: Code.FailedPrecondition, detail: "kyc_transition_forbidden" }]);
+    expect(fake.partyOf(user.id)).toMatchObject({ kycStatus: KycStatus.REJECTED, kycRejectReason: "Фото нечитаемое" });
+    expect(fake.partyOf(user.id)?.kycReviewedAt).toBeDefined();
+    expect(fake.auditEvents.filter((e) => e.action.startsWith("executor.kyc_") && e.action !== "executor.kyc_submitted")).toEqual([
+      { userId: user.id, actorRole: Role.OPERATOR, action: "executor.kyc_rejected", before: { status: "PENDING" }, after: { status: "REJECTED", reason: "Фото нечитаемое" } },
+    ]);
+  });
+});

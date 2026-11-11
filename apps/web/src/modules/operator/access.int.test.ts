@@ -9,7 +9,7 @@ import { resetDemoData } from "./demo";
 import { getDisputeCard, listDisputes, previewDisputeSplit, resolveDispute } from "./disputes";
 import { addExecutor, changeSegment, getExecutorCard, listExecutors, listRegistrationQueue, reviewRegistration } from "./executors";
 import { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitureType, setFurnitureTypeActive } from "./furniture-types";
-import { kycQueue, reviewKyc } from "./kyc";
+import { kycQueue, kycQueueCount, reviewKyc } from "./kyc";
 import { confirmBankOperation, failBankOperation, listMoneyQueue, saveBankDocument } from "./money";
 import { buildCsv, buildIncomeCsv, buildReport, incomeReport } from "./report";
 import { listStaleRequests } from "./requests";
@@ -49,7 +49,8 @@ const ACTIONS: Record<string, (u: CurrentUser) => Promise<unknown>> = {
   listOperatorDeals: (u) => listOperatorDeals(u),
   getOperatorDeal: (u) => getOperatorDeal(u, "x"),
   kycQueue: (u) => kycQueue(u),
-  reviewKyc: (u) => reviewKyc(u, { executorId: "x", decision: "VERIFIED" }),
+  kycQueueCount: (u) => kycQueueCount(u),
+  reviewKyc: (u) => reviewKyc(u, "x", { decision: "VERIFIED" }),
   platformSettings: async (u) => platformSettings(u),
 };
 

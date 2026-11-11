@@ -15,6 +15,7 @@ const person = ru.identity.clientIdentity;
 const contacts = ru.identity.contacts;
 const reg = ru.identity.registration.errors;
 const payout = ru.identity.payout.errors;
+const kyc = { ...ru.identity.kyc.errors, reason: ru.identity.kyc.reasonLength(3, 500) };
 
 function caught(err: unknown): AppError {
   try {
@@ -67,6 +68,9 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   party_exists: { code: "CONFLICT", message: reg.partyExists },
   pii_key_unknown: { code: "UNAVAILABLE", message: g.generic },
   reveal_purpose_invalid: { code: "UNAVAILABLE", message: g.generic },
+  kyc_transition_forbidden: { code: "CONFLICT", message: kyc.reviewed },
+  kyc_documents_missing: { code: "CONFLICT", message: kyc.noDocuments },
+  kyc_reason_invalid: { code: "VALIDATION", message: kyc.reason },
 };
 
 describe("identityFailure", () => {
@@ -78,8 +82,8 @@ describe("identityFailure", () => {
     expect(err.message).toBe(want.message);
   });
 
-  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов, раскрытия: 40 кодов", () => {
-    expect(IDENTITY_ERROR_CODES).toHaveLength(40);
+  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов, раскрытия, KYC: 43 кода", () => {
+    expect(IDENTITY_ERROR_CODES).toHaveLength(43);
     expect(Object.keys(table).sort()).toEqual([...IDENTITY_ERROR_CODES].sort());
   });
 
@@ -107,6 +111,7 @@ describe("identityFailure", () => {
     ["email_invalid", "email", contacts.emailInvalid],
     ["person_missing", "binIin", reg.personMissing],
     ["bin_iin_invalid", "binIin", reg.binIinInvalid],
+    ["kyc_reason_invalid", "reason", kyc.reason],
   ])("%s — ошибка поля %s", (code, field, message) => {
     expect(caught(codedError(code, Code.InvalidArgument)).details).toEqual({ fieldErrors: { [field]: [message] } });
   });

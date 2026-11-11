@@ -49,17 +49,20 @@ export { getOwnPayout, payoutInputSchema, setPayoutIban, type OwnPayout, type Pa
  * фактор в identity); "system" — только системные пути без пользователя (выпуск оферты, mock-подпись, фоновая выплата).
  */
 export { revealParties, verifySignerIin, type PartyDetails, type RevealActor, type RevealPurposeName, type SigningSideName } from "./reveal";
-export { KYC_TRANSITIONS, kycTarget, kycView, type KycAction, type KycState } from "./kyc-policy";
+export { kycView, type KycState } from "./kyc-policy";
 export {
   KYC_MAX_FILES,
   KYC_REASON_MAX,
   KYC_REASON_MIN,
   getOwnKyc,
+  kycDecisionSchema,
   kycQueue,
+  kycQueueCount,
   kycReviewSchema,
   kycSubmitSchema,
   reviewKyc,
   submitKycDocuments,
+  type KycDecision,
   type KycDocument,
   type KycQueueItem,
   type KycReviewInput,

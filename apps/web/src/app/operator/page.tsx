@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight, TriangleAlert } from "lucide-react";
 import { ru } from "@/i18n/ru";
-import { kycQueue, listDisputes, listMoneyQueue, listRegistrationQueue, listStaleRequests } from "@/modules/operator";
+import { kycQueueCount, listDisputes, listMoneyQueue, listRegistrationQueue, listStaleRequests } from "@/modules/operator";
 import { Alert, Container, PageHeader, SectionTitle, StatTiles } from "@/ui";
 import { requireOperatorPage } from "./_lib/guard";
 
@@ -21,7 +21,7 @@ export default async function OperatorHome() {
   const [money, queue, kyc, disputes, stale] = await Promise.all([
     listMoneyQueue(user),
     listRegistrationQueue(user),
-    kycQueue(user),
+    kycQueueCount(user),
     listDisputes(user),
     listStaleRequests(user, { hours: 24 }),
   ]);
@@ -30,7 +30,7 @@ export default async function OperatorHome() {
     money.length > 0 && { href: "/operator/money", text: d.money(money.length) },
     queue.length > 0 && { href: "/operator/executors", text: d.pending(queue.length) },
     openDisputes > 0 && { href: "/operator/disputes", text: d.disputes(openDisputes) },
-    kyc.length > 0 && { href: "/operator/kyc", text: d.kyc(kyc.length) },
+    kyc > 0 && { href: "/operator/kyc", text: d.kyc(kyc) },
     stale.length > 0 && { href: "/operator/requests", text: d.stale(stale.length) },
   ].filter((x): x is { href: string; text: string } => Boolean(x));
 
@@ -45,7 +45,7 @@ export default async function OperatorHome() {
             { label: d.tiles.money, value: String(money.length) },
             { label: d.tiles.registrations, value: String(queue.length) },
             { label: d.tiles.disputes, value: String(openDisputes) },
-            { label: d.tiles.kyc, value: String(kyc.length) },
+            { label: d.tiles.kyc, value: String(kyc) },
             { label: d.tiles.stale, value: String(stale.length) },
           ]}
         />

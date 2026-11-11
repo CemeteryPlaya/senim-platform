@@ -14,6 +14,8 @@ import {
   GrantRoleResponseSchema,
   KycStatus,
   LegalForm,
+  ListKycQueueRequestSchema,
+  ListKycQueueResponseSchema,
   PartyDetailsSchema,
   PartySchema,
   PersonSchema,
@@ -30,6 +32,8 @@ import {
   RevealPartyDetailsRequestSchema,
   RevealPartyDetailsResponseSchema,
   RevealPurpose,
+  ReviewKycRequestSchema,
+  ReviewKycResponseSchema,
   Role,
   SeedUsersRequestSchema,
   SeedUsersResponseSchema,
@@ -45,6 +49,8 @@ import {
   StartDemoSessionResponseSchema,
   StartTotpEnrollmentRequestSchema,
   StartTotpEnrollmentResponseSchema,
+  SubmitKycRequestSchema,
+  SubmitKycResponseSchema,
   SwitchRoleRequestSchema,
   SwitchRoleResponseSchema,
   UpdateContactsRequestSchema,
@@ -115,6 +121,12 @@ import { parseKzIban } from "@/modules/identity/iban";
  * не ИИН — не совпало, заказчик — ИИН личности, исполнитель — директор ТОО или ИИН стороны ИП и самозанятого, без стороны —
  * не совпало. Расхождение с Go: id пользователей не проверяются как UUID (id подделки — `u-<цифры>` и cuid фабрик).
  * SeedUsers пишет личность (заданные поля) и сторону целиком (seedPerson и seedPartyRow) с теми же проверками.
+ *
+ * KYC исполнителя (kyc.go, kyc_policy.go) повторён по Go: порядок проверок и коды, таблица переходов (подача из NOT_SUBMITTED,
+ * PENDING — файлы заменяются — и REJECTED; решение — только из PENDING), условный переход (второе решение —
+ * kyc_transition_forbidden), очередь — PENDING с обоими видами файлов, давно ждущие первыми. Аудит executor.kyc_* — в
+ * `auditEvents`, без значений. Расхождение с Go: ReviewKyc не проверяет user_id как UUID (как и прочие методы подделки);
+ * идентификаторы файлов — проверяет (их задаёт web).
  */
 
 /** Тип клиента — тот же, что у `IdentityClient` из modules/identity/remote (импорт оттуда из test/ запрещён границей модулей). */
@@ -149,7 +161,58 @@ type StoredParty = {
   payoutIban: string;
   kycStatus: KycStatus;
   kycRejectReason: string;
+  kycSubmittedAt: Date | null;
+  kycReviewedAt: Date | null;
+  kycIdFileIds: string[];
+  kycRegistrationFileIds: string[];
 };
+
+/** Поля KYC новой стороны: документы не поданы (массивы — новые у каждой стороны). */
+const noKyc = () => ({
+  kycStatus: KycStatus.NOT_SUBMITTED,
+  kycRejectReason: "",
+  kycSubmittedAt: null,
+  kycReviewedAt: null,
+  kycIdFileIds: [] as string[],
+  kycRegistrationFileIds: [] as string[],
+});
+
+/** kyc_policy.go: не больше 4 файлов каждого вида; причина отказа — 3–500 символов после обрезки пробелов. */
+const KYC_MAX_FILES = 4;
+const KYC_REASON_MIN = 3;
+const KYC_REASON_MAX = 500;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** kycTransitions в Go: что можно делать с проверкой документов; всего, чего нет в таблице, нельзя. */
+const KYC_TRANSITIONS = {
+  submit: { from: [KycStatus.NOT_SUBMITTED, KycStatus.PENDING, KycStatus.REJECTED], to: KycStatus.PENDING },
+  verify: { from: [KycStatus.PENDING], to: KycStatus.VERIFIED },
+  reject: { from: [KycStatus.PENDING], to: KycStatus.REJECTED },
+} as const satisfies Record<string, { from: readonly KycStatus[]; to: KycStatus }>;
+
+/** kycFileIDs в Go: не больше 4, каждый — UUID в каноническом виде; повторы убираются (нижний регистр, порядок первого). */
+function kycFileIds(raw: readonly string[]): string[] {
+  if (raw.length > KYC_MAX_FILES || raw.some((id) => !UUID_RE.test(id))) throw codedError("invalid_request", Code.InvalidArgument);
+  return [...new Set(raw.map((id) => id.toLowerCase()))];
+}
+
+/** kycTarget в Go (роль проверена раньше): не то состояние — kyc_transition_forbidden, решение без документов — kyc_documents_missing. */
+function kycTarget(action: keyof typeof KYC_TRANSITIONS, p: StoredParty): KycStatus {
+  const rule = KYC_TRANSITIONS[action];
+  if (!(rule.from as readonly KycStatus[]).includes(p.kycStatus)) throw codedError("kyc_transition_forbidden", Code.FailedPrecondition);
+  if (action !== "submit" && (p.kycIdFileIds.length === 0 || p.kycRegistrationFileIds.length === 0)) {
+    throw codedError("kyc_documents_missing", Code.FailedPrecondition);
+  }
+  return rule.to;
+}
+
+/** kycAudit в Go: статус, причина (по решению) и число файлов (при подаче) — без значений ПДн. */
+const kycAudit = (status: KycStatus, extra: { reason?: string; idFiles?: number; registrationFiles?: number } = {}) => ({
+  status: KycStatus[status],
+  ...(extra.reason ? { reason: extra.reason } : {}),
+  ...(extra.idFiles ? { id_files: extra.idFiles } : {}),
+  ...(extra.registrationFiles ? { registration_files: extra.registrationFiles } : {}),
+});
 
 /** Проверенные реквизиты запроса (partyInput в Go). */
 type PartyInput = Pick<StoredParty, "legalForm" | "legalName" | "binIin" | "signerFullName" | "signerIin">;
@@ -262,6 +325,9 @@ const STATUS_BY_CODE: Record<string, Code> = {
   party_missing: Code.FailedPrecondition,
   party_exists: Code.FailedPrecondition,
   reveal_purpose_invalid: Code.InvalidArgument,
+  kyc_transition_forbidden: Code.FailedPrecondition,
+  kyc_documents_missing: Code.FailedPrecondition,
+  kyc_reason_invalid: Code.InvalidArgument,
 };
 
 /** withoutSpaces в Go: все пробелы убраны (digits в registration-schema.ts). */
@@ -403,8 +469,7 @@ export class FakeIdentity {
         signerFullName: "",
         signerIin: "",
         payoutIban: "",
-        kycStatus: KycStatus.NOT_SUBMITTED,
-        kycRejectReason: "",
+        ...noKyc(),
         ...init.party,
       });
     }
@@ -425,6 +490,10 @@ export class FakeIdentity {
       payoutIbanLast4: p.payoutIban.slice(-4),
       kycStatus: p.kycStatus,
       kycRejectReason: p.kycRejectReason,
+      kycSubmittedAt: p.kycSubmittedAt ? timestampFromDate(p.kycSubmittedAt) : undefined,
+      kycReviewedAt: p.kycReviewedAt ? timestampFromDate(p.kycReviewedAt) : undefined,
+      kycIdFileIds: [...p.kycIdFileIds],
+      kycRegistrationFileIds: [...p.kycRegistrationFileIds],
     });
   }
 
@@ -666,7 +735,7 @@ export class FakeIdentity {
     }
     const kyc = sp.kycStatus ?? KycStatus.UNSPECIFIED;
     if (kyc !== KycStatus.UNSPECIFIED && !(kyc in KycStatus)) throw codedError("invalid_request", Code.InvalidArgument);
-    return { ...input, payoutIban, kycStatus: kyc === KycStatus.UNSPECIFIED ? KycStatus.NOT_SUBMITTED : kyc, kycRejectReason: "" };
+    return { ...input, payoutIban, ...noKyc(), kycStatus: kyc === KycStatus.UNSPECIFIED ? KycStatus.NOT_SUBMITTED : kyc };
   }
 
   private checkIp(ip: string): void {
@@ -762,15 +831,24 @@ export class FakeIdentity {
       this.auditEvents.push({ userId, actorRole, action: "party.replaced", before: { legal_form: LegalForm[before.legalForm] }, after: { legal_form: LegalForm[input.legalForm] } });
       return;
     }
-    this.parties.set(userId, { ...input, payoutIban: "", kycStatus: KycStatus.NOT_SUBMITTED, kycRejectReason: "" });
+    this.parties.set(userId, { ...input, payoutIban: "", ...noKyc() });
     this.auditEvents.push({ userId, actorRole, action: "party.registered", after: { legal_form: LegalForm[input.legalForm] } });
   }
 
-  /** KYC на проверке или пройдена — для проверок в тестах (в Go её меняют SubmitKyc и ReviewKyc). */
-  setKycStatus(userId: string, status: KycStatus): void {
+  /**
+   * KYC на проверке или пройдена — для проверок в тестах (в Go её меняют SubmitKyc и ReviewKyc); `reason` — причина
+   * отказа, `files` — поданные документы (как setKyc в тестах Go).
+   */
+  setKycStatus(userId: string, status: KycStatus, opts: { reason?: string; files?: { id: string[]; registration: string[] } } = {}): void {
     const p = this.parties.get(userId);
     if (!p) throw new Error("подделка identity: стороны нет");
     p.kycStatus = status;
+    p.kycRejectReason = opts.reason ?? "";
+    if (opts.files) {
+      p.kycIdFileIds = [...opts.files.id];
+      p.kycRegistrationFileIds = [...opts.files.registration];
+      p.kycSubmittedAt = this.now();
+    }
   }
 
   /** Сторона в ответе: только что записанная или прежняя. */
@@ -1222,9 +1300,94 @@ export class FakeIdentity {
         }
         return create(RevealPartyDetailsResponseSchema, { parties });
       }),
-      submitKyc: unimplemented,
-      listKycQueue: unimplemented,
-      reviewKyc: unimplemented,
+      submitKyc: (req: MessageInitShape<typeof SubmitKycRequestSchema>) => {
+        let idFiles: string[] = [];
+        let registrationFiles: string[] = [];
+        return this.once(
+          "submitKyc",
+          SubmitKycRequestSchema,
+          req,
+          async () => {
+            // Транзакция Go: сессия и роль заново, сторона, переход по таблице (условный UPDATE), аудит без значений.
+            const { user, session } = await this.sessionOf(req.sessionToken ?? "");
+            if (session.activeRole !== Role.EXECUTOR) throw codedError("role_forbidden", Code.PermissionDenied);
+            const p = this.parties.get(user.id);
+            if (!p) throw codedError("party_missing", Code.FailedPrecondition);
+            const before = p.kycStatus;
+            p.kycStatus = kycTarget("submit", p);
+            p.kycRejectReason = "";
+            p.kycSubmittedAt = this.now();
+            p.kycIdFileIds = idFiles;
+            p.kycRegistrationFileIds = registrationFiles;
+            this.auditEvents.push({
+              userId: user.id,
+              actorRole: Role.EXECUTOR,
+              action: "executor.kyc_submitted",
+              before: kycAudit(before),
+              after: kycAudit(KycStatus.PENDING, { idFiles: idFiles.length, registrationFiles: registrationFiles.length }),
+            });
+            return create(SubmitKycResponseSchema, { party: this.mustParty(user.id) });
+          },
+          // Порядок Go (kyc.go): ключ, файлы (invalid_request), оба вида (kyc_documents_missing), сессия, активная роль исполнителя.
+          async () => {
+            this.checkKey(req.idempotencyKey);
+            idFiles = kycFileIds(req.idFileIds ?? []);
+            registrationFiles = kycFileIds(req.registrationFileIds ?? []);
+            if (idFiles.length === 0 || registrationFiles.length === 0) throw codedError("kyc_documents_missing", Code.FailedPrecondition);
+            if ((await this.sessionOf(req.sessionToken ?? "")).session.activeRole !== Role.EXECUTOR) throw codedError("role_forbidden", Code.PermissionDenied);
+          },
+        );
+      },
+      listKycQueue: reading("listKycQueue", async (req: MessageInitShape<typeof ListKycQueueRequestSchema>) => {
+        // Порядок Go: сессия, оператор со второй ступенью; очередь — PENDING с обоими видами файлов, давно ждущие первыми.
+        const { session } = await this.sessionOf(req.sessionToken ?? "");
+        this.operatorWithMfa(session);
+        const submitted = (p: StoredParty) => p.kycSubmittedAt?.getTime() ?? Number.POSITIVE_INFINITY;
+        const queue = [...this.parties.entries()]
+          .filter(([, p]) => p.kycStatus === KycStatus.PENDING && p.kycIdFileIds.length > 0 && p.kycRegistrationFileIds.length > 0)
+          .sort(([a, p], [b, q]) => submitted(p) - submitted(q) || (a < b ? -1 : a > b ? 1 : 0))
+          .map(([userId]) => userId);
+        return create(ListKycQueueResponseSchema, { parties: queue.map((id) => this.mustParty(id)), people: queue.map((id) => this.personOf(id)) });
+      }),
+      reviewKyc: (req: MessageInitShape<typeof ReviewKycRequestSchema>) => {
+        let reason = "";
+        return this.once(
+          "reviewKyc",
+          ReviewKycRequestSchema,
+          req,
+          async () => {
+            // Транзакция Go: сессия и вторая ступень заново, сторона, переход только из PENDING (второе решение — отказ), аудит.
+            const { session } = await this.sessionOf(req.sessionToken ?? "");
+            this.operatorWithMfa(session);
+            const userId = req.userId ?? "";
+            const p = this.parties.get(userId);
+            if (!p) throw codedError("party_missing", Code.FailedPrecondition);
+            const before = p.kycStatus;
+            const to = kycTarget(req.verify ? "verify" : "reject", p);
+            p.kycStatus = to;
+            p.kycRejectReason = reason;
+            p.kycReviewedAt = this.now();
+            this.auditEvents.push({
+              userId,
+              actorRole: Role.OPERATOR,
+              action: to === KycStatus.VERIFIED ? "executor.kyc_verified" : "executor.kyc_rejected",
+              before: kycAudit(before),
+              after: kycAudit(to, { reason }),
+            });
+            return create(ReviewKycResponseSchema, { party: this.mustParty(userId) });
+          },
+          // Порядок Go: ключ, пользователь (UUID в Go), причина отказа (kyc_reason_invalid), сессия, оператор со второй ступенью.
+          async () => {
+            this.checkKey(req.idempotencyKey);
+            if (!req.userId) throw codedError("invalid_request", Code.InvalidArgument);
+            if (!req.verify) {
+              reason = (req.reason ?? "").trim();
+              if (reason.length < KYC_REASON_MIN || reason.length > KYC_REASON_MAX) throw codedError("kyc_reason_invalid", Code.InvalidArgument);
+            }
+            this.operatorWithMfa((await this.sessionOf(req.sessionToken ?? "")).session);
+          },
+        );
+      },
       grantConsent: unimplemented,
       revokeConsent: unimplemented,
       listMyConsents: unimplemented,

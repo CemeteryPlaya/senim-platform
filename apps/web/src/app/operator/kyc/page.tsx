@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: t.title };
 
 const EMPTY_TITLE_ID = "kyc-queue-empty";
 
-/** KYC мастеров: документы открываются по подписанной ссылке; ИИН/БИН — только последние 4 цифры. */
+/** KYC мастеров: очередь — identity; документы — по подписанной ссылке на 15 минут (выдача пишется в журнал); ИИН/БИН — последние 4. */
 export default async function KycPage() {
   const user = await requireOperatorPage("/operator/kyc");
   const queue = await kycQueue(user);
@@ -35,9 +35,12 @@ export default async function KycPage() {
                 title={t.executor(item.publicNumber, item.legalName)}
                 meta={[
                   `${o.legalForms[item.legalForm]}, ${o.binIinMasked(item.binIinLast4)}`,
-                  <>
-                    {t.submitted} <DateText value={item.lastUploadAt} format="dateTime" />
-                  </>,
+                  item.fullName && t.person(item.fullName),
+                  item.submittedAt && (
+                    <>
+                      {t.submitted} <DateText value={item.submittedAt} format="dateTime" />
+                    </>
+                  ),
                 ]}
               >
                 <ul className="flex flex-col gap-2">
@@ -49,7 +52,7 @@ export default async function KycPage() {
                     </li>
                   ))}
                 </ul>
-                <KycForms executorId={item.executorId} />
+                <KycForms userId={item.userId} />
               </ListCard>
             ))}
           </ul>

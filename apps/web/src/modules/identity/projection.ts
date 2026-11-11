@@ -132,8 +132,8 @@ const LEGAL_FORM_TO_PROTO: Record<LegalForm, ProtoLegalForm> = {
 };
 
 /**
- * KYC identity → KYC старой базы. NOT_SUBMITTED в старой базе — PENDING без документов (kycView различает их по
- * документам), поэтому оба — PENDING.
+ * KYC identity → KYC старой базы. В Prisma нет NOT_SUBMITTED, поэтому «не подано» и «на проверке» — оба PENDING.
+ * Источник правды — identity: экраны KYC (getOwnKyc, kycQueue) берут состояние из ответа identity, а не из этого столбца.
  */
 const KYC_FROM_PROTO = {
   [ProtoKycStatus.NOT_SUBMITTED]: "PENDING",

@@ -870,7 +870,8 @@ enum FilePurpose {
 
 // Файл принадлежит не более чем одной сущности (одно из полей-владельцев заполнено).
 model StoredFile {
-  id           String      @id @default(cuid())
+  /// UUID: id KYC-документов уходят в identity (SubmitKyc принимает только UUID); прежние файлы остаются с cuid.
+  id           String      @id @default(uuid())
   storageKey   String      @unique
   provider     String // local | s3 | vercel-blob
   purpose      FilePurpose

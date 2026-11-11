@@ -424,6 +424,7 @@ export const operator = {
     emptyHint: "Когда мастер загрузит документы, он появится здесь.",
     executor: (n: number, name: string) => `Исполнитель №${n}: ${name}`,
     submitted: "Документы загружены",
+    person: (name: string) => `ФИО: ${name}`,
     purposes: { KYC_ID: "Удостоверение личности", KYC_REGISTRATION: "Регистрация ИП или ТОО" },
     verify: "Документы в порядке",
     verified: "Документы подтверждены",

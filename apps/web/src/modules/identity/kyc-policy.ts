@@ -1,41 +1,28 @@
-import type { KycStatus, Role } from "@/generated/prisma/enums";
-import { ru } from "@/i18n/ru";
-import { fail } from "@/platform/errors";
+import { KycStatus } from "@/gen/senim/identity/v1/identity_pb";
 
 /**
- * Проверка документов мастера (KYC, решение 2.2.8): ExecutorProfile.kycStatus.
- * Мастер загружает удостоверение (KYC_ID) и регистрацию ИП/ТОО (KYC_REGISTRATION) — статус PENDING;
- * оператор проверяет: VERIFIED или REJECTED с причиной. После отказа мастер загружает документы снова — PENDING.
- * Проверенные документы мастер не заменяет (CONFLICT): новая проверка — через оператора.
+ * Экран мастера «Проверка документов» (KYC, решение 2.2.8). Переходы (подача, подтверждение, отказ), их таблицу и
+ * условный переход решает identity (services/identity/internal/kyc_policy.go); web только показывает состояние.
+ * Состояние берётся из статуса identity, а не из проекции: в ExecutorProfile.kycStatus «не подано» и «на проверке» —
+ * оба PENDING (в Prisma нет NOT_SUBMITTED), различает их только identity.
  */
-export type KycAction = "submit" | "verify" | "reject";
+/** Пределы — те же, что в identity (kyc_policy.go): web проверяет их на входе, чтобы не звать identity с заведомо неверным. */
+export const KYC_MAX_FILES = 4;
+export const KYC_REASON_MIN = 3;
+export const KYC_REASON_MAX = 500;
 
-export const KYC_TRANSITIONS = {
-  submit: { from: ["PENDING", "REJECTED"], to: "PENDING", who: "EXECUTOR" },
-  verify: { from: ["PENDING"], to: "VERIFIED", who: "OPERATOR" },
-  reject: { from: ["PENDING"], to: "REJECTED", who: "OPERATOR" },
-} as const satisfies Record<KycAction, { from: readonly KycStatus[]; to: KycStatus; who: Role }>;
+export type KycState ="NOT_SUBMITTED" | "PENDING" | "VERIFIED" | "REJECTED";
 
-/** hasDocuments — у профиля есть оба вида документов (удостоверение и регистрация). */
-export type KycFacts = { status: KycStatus; hasDocuments: boolean };
+const STATE: Partial<Record<KycStatus, KycState>> = {
+  [KycStatus.NOT_SUBMITTED]: "NOT_SUBMITTED",
+  [KycStatus.PENDING]: "PENDING",
+  [KycStatus.VERIFIED]: "VERIFIED",
+  [KycStatus.REJECTED]: "REJECTED",
+};
 
-const e = ru.identity.kyc.errors;
-
-/** Куда ведёт действие: не та роль — FORBIDDEN; не то состояние (повтор, двойной клик) или нет документов — CONFLICT. */
-export function kycTarget(action: KycAction, facts: KycFacts, who: Role): KycStatus {
-  const rule = KYC_TRANSITIONS[action];
-  if (who !== rule.who) return fail.forbidden();
-  if (!(rule.from as readonly KycStatus[]).includes(facts.status)) {
-    return fail.conflict(action === "submit" ? e.alreadyVerified : e.reviewed);
-  }
-  if (action !== "submit" && !facts.hasDocuments) return fail.conflict(e.noDocuments);
-  return rule.to;
-}
-
-/** Экран мастера: NOT_SUBMITTED — профиль ещё PENDING, но документов нет (не путать с «на проверке»). */
-export type KycState = "NOT_SUBMITTED" | KycStatus;
-
-export function kycView(facts: KycFacts): { state: KycState; canSubmit: boolean } {
-  const state: KycState = facts.status === "PENDING" && !facts.hasDocuments ? "NOT_SUBMITTED" : facts.status;
-  return { state, canSubmit: (KYC_TRANSITIONS.submit.from as readonly KycStatus[]).includes(facts.status) };
+/** Состояние и можно ли загрузить документы (пока они не проверены). Неизвестный статус — ошибка контракта. */
+export function kycView(status: KycStatus): { state: KycState; canSubmit: boolean } {
+  const state = STATE[status];
+  if (!state) throw new Error(`identity вернул неизвестный статус KYC: ${status}`);
+  return { state, canSubmit: state !== "VERIFIED" };
 }

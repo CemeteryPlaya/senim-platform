@@ -7,5 +7,5 @@ import { action } from "@/platform/action";
 
 export const reviewKycAction = action("operator.reviewKyc", z.unknown().pipe(kycReviewSchema), async (input) => {
   const user = await requireUser("OPERATOR");
-  await reviewKyc(user, input);
+  await reviewKyc(user, input.userId, input);
 });

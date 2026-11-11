@@ -1,5 +1,5 @@
-import { LegalForm } from "@/gen/senim/identity/v1/identity_pb";
-import type { Role } from "@/generated/prisma/enums";
+import { KycStatus, LegalForm } from "@/gen/senim/identity/v1/identity_pb";
+import type { KycStatus as PrismaKycStatus, Role } from "@/generated/prisma/enums";
 // Прямые импорты файлов, а не index.ts: index тянет next/headers раньше, чем тест успеет его подменить.
 // eslint-disable-next-line no-restricted-imports
 import { roleToProto } from "@/modules/identity/projection";
@@ -9,6 +9,12 @@ import { decryptPii } from "@/platform/crypto";
 import { db } from "@/platform/db";
 import { identityFake } from "../stubs/identity";
 import { putCookie } from "./identity";
+
+const KYC_FROM_PRISMA: Record<PrismaKycStatus, KycStatus> = {
+  PENDING: KycStatus.NOT_SUBMITTED,
+  VERIFIED: KycStatus.VERIFIED,
+  REJECTED: KycStatus.REJECTED,
+};
 
 /**
  * Пользователь старой базы появляется в подделке identity с теми же id, телефоном, ролями, демо-флагом, личностью и стороной
@@ -37,6 +43,9 @@ export async function mirrorUser(userId: string): Promise<void> {
           signerFullName: profile.signerFullName ?? "",
           signerIin: open(profile.signerIinEnc),
           payoutIban: open(profile.payoutIbanEnc),
+          // Решение оператора из фабрики переносится; PENDING старой базы без поданных в identity файлов — «не подано».
+          kycStatus: KYC_FROM_PRISMA[profile.kycStatus],
+          kycRejectReason: profile.kycRejectReason ?? "",
         }
       : undefined,
   });
