@@ -10,6 +10,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	eventsv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/events/v1"
 	identityv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
@@ -32,10 +33,26 @@ func (h *harness) submitKyc(token string, idFiles, regFiles []string, key string
 	})
 }
 
+// reviewKyc — решение по той подаче, что сейчас в базе (как будто оператор только что открыл
+// очередь); нет стороны или времени подачи — текущее время часов.
 func (h *harness) reviewKyc(token, userID string, verify bool, reason, key string) (*identityv1.ReviewKycResponse, error) {
 	h.t.Helper()
+	expected := timestamppb.New(h.clock.now())
+	if id, err := uuid.Parse(userID); err == nil {
+		if p, ok := h.partyRow(id); ok && p.KycSubmittedAt.Valid {
+			expected = timestamppb.New(p.KycSubmittedAt.Time)
+		}
+	}
+	return h.reviewKycAt(token, userID, verify, reason, key, expected)
+}
+
+// reviewKycAt — решение по подаче с заданным временем (expected_submitted_at).
+func (h *harness) reviewKycAt(token, userID string, verify bool, reason, key string, expected *timestamppb.Timestamp) (*identityv1.ReviewKycResponse, error) {
+	h.t.Helper()
 	return idc(h, "web", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*identityv1.ReviewKycResponse, error) {
-		return c.ReviewKyc(ctx, &identityv1.ReviewKycRequest{SessionToken: token, UserId: userID, Verify: verify, Reason: reason, IdempotencyKey: key})
+		return c.ReviewKyc(ctx, &identityv1.ReviewKycRequest{
+			SessionToken: token, UserId: userID, Verify: verify, Reason: reason, IdempotencyKey: key, ExpectedSubmittedAt: expected,
+		})
 	})
 }
 
@@ -311,6 +328,84 @@ func TestReviewKycValidation(t *testing.T) {
 	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
 	_, err = h.reviewKyc(opToken, id, true, "", "")
 	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+
+	// Время подачи обязательно и должно быть корректным.
+	pending()
+	_, err = h.reviewKycAt(opToken, id, true, "", h.key(), nil)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+	_, err = h.reviewKycAt(opToken, id, true, "", h.key(), &timestamppb.Timestamp{Seconds: 1, Nanos: -1})
+	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+	if h.kycStatus(exec.ID).KycStatus != kycPending {
+		t.Fatal("без времени подачи статус изменился")
+	}
+}
+
+// TestReviewKycResubmittedSinceQueue — Ruling AJ: оператор открыл очередь с подачей A,
+// исполнитель подал набор B, оператор подтверждает по A — kyc_transition_forbidden, статус и
+// файлы B не меняются, ни аудита, ни события. Решение по времени из очереди (с
+// микросекундами базы и после круга через proto) проходит.
+func TestReviewKycResubmittedSinceQueue(t *testing.T) {
+	h := newHarness(t, nil)
+	exec, execToken, _, _ := h.tooParty()
+	_, opToken := h.mfaOperator()
+	id := exec.ID.String()
+	if _, err := h.submitKyc(execToken, fileIDs(1), fileIDs(1), h.key()); err != nil {
+		t.Fatal(err)
+	}
+	queue, err := h.kycQueue(opToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seen *timestamppb.Timestamp
+	for _, p := range queue.GetParties() {
+		if p.GetUserId() == id {
+			seen = p.GetKycSubmittedAt()
+		}
+	}
+	if seen == nil {
+		t.Fatal("подачи нет в очереди")
+	}
+
+	h.clock.advance(time.Minute + 123456*time.Nanosecond)
+	newID, newReg := fileIDs(2), fileIDs(1)
+	if _, err := h.submitKyc(execToken, newID, newReg, h.key()); err != nil {
+		t.Fatal(err)
+	}
+	before := h.kycStatus(exec.ID)
+
+	for _, verify := range []bool{true, false} {
+		_, err = h.reviewKycAt(opToken, id, verify, "Фото нечитаемо", h.key(), seen)
+		h.wantRefusal(err, connect.CodeFailedPrecondition, "kyc_transition_forbidden")
+	}
+	after := h.kycStatus(exec.ID)
+	if after.KycStatus != kycPending || after.KycReviewedAt.Valid || !after.KycSubmittedAt.Time.Equal(before.KycSubmittedAt.Time) ||
+		len(after.KycIDFileIds) != 2 || after.KycIDFileIds[0] != newID[0] {
+		t.Fatalf("строка изменилась: %+v -> %+v", before, after)
+	}
+	if ev := h.kycEvents(id); len(ev) != 0 {
+		t.Fatalf("событий %d, want 0", len(ev))
+	}
+	if n := len(h.auditOf(id, "executor.kyc_verified")) + len(h.auditOf(id, "executor.kyc_rejected")); n != 0 {
+		t.Fatalf("аудитов решения %d, want 0", n)
+	}
+
+	// Оператор открыл очередь снова — решение по новой подаче проходит.
+	queue, err = h.kycQueue(opToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range queue.GetParties() {
+		if p.GetUserId() == id {
+			seen = p.GetKycSubmittedAt()
+		}
+	}
+	res, err := h.reviewKycAt(opToken, id, true, "", h.key(), seen)
+	if err != nil || res.GetParty().GetKycStatus() != identityv1.KycStatus_KYC_STATUS_VERIFIED {
+		t.Fatalf("решение по свежей очереди: %v, %v", res, err)
+	}
+	if ev := h.kycEvents(id); len(ev) != 1 {
+		t.Fatalf("событий %d, want 1", len(ev))
+	}
 }
 
 // TestReviewKycAuditAndEvent — решение пишет аудит (с причиной в after_json) и событие

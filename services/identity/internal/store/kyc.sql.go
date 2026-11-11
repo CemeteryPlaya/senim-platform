@@ -102,19 +102,22 @@ UPDATE parties SET
     kyc_reviewed_at   = $3,
     updated_at        = $3
 WHERE user_id = $4 AND kyc_status = ANY($5::text[])
+  AND kyc_submitted_at = $6
 RETURNING user_id, legal_form, legal_name, bin_iin_enc, bin_iin_hash, bin_iin_last4, signer_full_name, signer_iin_enc, signer_iin_hash, signer_iin_last4, payout_iban_enc, payout_iban_last4, kyc_status, kyc_reject_reason, kyc_submitted_at, kyc_reviewed_at, kyc_id_file_ids, kyc_registration_file_ids, created_at, updated_at
 `
 
 type ReviewPartyKycParams struct {
-	ToStatus     string
-	RejectReason pgtype.Text
-	Now          pgtype.Timestamptz
-	UserID       uuid.UUID
-	AllowedFrom  []string
+	ToStatus            string
+	RejectReason        pgtype.Text
+	Now                 pgtype.Timestamptz
+	UserID              uuid.UUID
+	AllowedFrom         []string
+	ExpectedSubmittedAt pgtype.Timestamptz
 }
 
-// Решение оператора (ReviewKyc): условный UPDATE по ожидаемому статусу; две конкурентные
-// команды дают одну строку, вторая — 0 строк.
+// Решение оператора (ReviewKyc): условный UPDATE по ожидаемому статусу и по времени подачи,
+// которую видел оператор; две конкурентные команды дают одну строку, вторая — 0 строк;
+// переподача после открытия очереди (другое kyc_submitted_at) — тоже 0 строк.
 func (q *Queries) ReviewPartyKyc(ctx context.Context, arg ReviewPartyKycParams) (Party, error) {
 	row := q.db.QueryRow(ctx, reviewPartyKyc,
 		arg.ToStatus,
@@ -122,6 +125,7 @@ func (q *Queries) ReviewPartyKyc(ctx context.Context, arg ReviewPartyKycParams) 
 		arg.Now,
 		arg.UserID,
 		arg.AllowedFrom,
+		arg.ExpectedSubmittedAt,
 	)
 	var i Party
 	err := row.Scan(

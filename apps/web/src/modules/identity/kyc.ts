@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { fromJson, toJson } from "@bufbuild/protobuf";
+import { TimestampSchema, timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import { z } from "zod";
 import type { Party } from "@/gen/senim/identity/v1/identity_pb";
 import type { LegalForm } from "@/generated/prisma/enums";
@@ -57,10 +58,16 @@ const decisionFields = {
 const reasonRequired = (v: { decision: "VERIFIED" | "REJECTED"; reason?: string }, ctx: z.RefinementCtx) => {
   if (v.decision === "REJECTED" && (v.reason ?? "").length < KYC_REASON_MIN) ctx.addIssue({ code: "custom", path: ["reason"], message: reasonText });
 };
-export const kycDecisionSchema = z.object(decisionFields).superRefine(reasonRequired);
+/**
+ * Решение — по той подаче, что оператор видел в очереди: `submittedAt` — время подачи из identity в RFC 3339 с
+ * микросекундами (`submittedAtExact` очереди; Date усекает до миллисекунд и не совпал бы). Мастер подал документы заново —
+ * identity отказывает kyc_transition_forbidden.
+ */
+const reviewFields = { ...decisionFields, submittedAt: z.iso.datetime() };
+export const kycDecisionSchema = z.object(reviewFields).superRefine(reasonRequired);
 export type KycDecision = z.input<typeof kycDecisionSchema>;
-/** Форма оператора: пользователь-исполнитель (id в identity) и решение. */
-export const kycReviewSchema = z.object({ userId: userIdField, ...decisionFields }).superRefine(reasonRequired);
+/** Форма оператора: пользователь-исполнитель (id в identity), подача из очереди и решение. */
+export const kycReviewSchema = z.object({ userId: userIdField, ...reviewFields }).superRefine(reasonRequired);
 export type KycReviewInput = z.input<typeof kycReviewSchema>;
 
 /** Сторона своего профиля из identity (GetProfile в сессии этого браузера), с записью в проекцию. */
@@ -166,12 +173,17 @@ export type KycQueueItem = {
   /** Документы последней подачи: удостоверение, затем регистрация. */
   documents: KycDocument[];
   /**
-   * Оба вида документов нашлись в web — решение принимать можно. Нет — часть id из identity не сходится с файлами профиля:
-   * экран показывает пометку вместо формы решения.
+   * Оба вида документов нашлись в web и известно время подачи — решение принимать можно. Нет — часть id из identity не
+   * сходится с файлами профиля (или нет времени подачи): экран показывает пометку вместо формы решения.
    */
   complete: boolean;
   submittedAt: Date | null;
+  /** То же время без потери точности (RFC 3339, как отдаёт identity) — уходит в решение; без него решения нет. */
+  submittedAtExact: string | null;
 };
+
+/** Timestamp в RFC 3339 без потери микросекунд (JSON-вид protobuf), обратно — fromJson. */
+const exactTime = (ts: Timestamp): string => toJson(TimestampSchema, ts) as string;
 
 function requireOperator(user: CurrentUser): void {
   if (user.role !== "OPERATOR") fail.forbidden();
@@ -248,7 +260,8 @@ export async function kycQueue(operator: CurrentUser): Promise<KycQueueItem[]> {
       continue;
     }
     const documents = await documentsOf(party, profile.id, files);
-    const complete = (["KYC_ID", "KYC_REGISTRATION"] as const).every((purpose) => documents.some((d) => d.purpose === purpose));
+    const submittedAtExact = party.kycSubmittedAt ? exactTime(party.kycSubmittedAt) : null;
+    const complete = submittedAtExact !== null && (["KYC_ID", "KYC_REGISTRATION"] as const).every((purpose) => documents.some((d) => d.purpose === purpose));
     if (!complete) logger.error("identity.kyc_queue.incomplete", { executorId: profile.id });
     items.push({
       executorId: profile.id,
@@ -261,6 +274,7 @@ export async function kycQueue(operator: CurrentUser): Promise<KycQueueItem[]> {
       documents,
       complete,
       submittedAt: party.kycSubmittedAt ? timestampDate(party.kycSubmittedAt) : null,
+      submittedAtExact,
     });
   }
   await recordLinksIssued(operator, items);
@@ -287,7 +301,8 @@ async function recordLinksIssued(operator: CurrentUser, items: KycQueueItem[]): 
 /**
  * Решение оператора (ReviewKyc → проекция → уведомление мастеру): VERIFIED или REJECTED с причиной (3–500 символов).
  * Переход и журнал — в identity (условный переход: двойной клик и два оператора дают одно решение, второму — CONFLICT
- * «уже рассмотрены»); уведомление — только после принятого решения.
+ * «уже рассмотрены»; мастер подал документы заново после открытия очереди — тот же CONFLICT, решение не ложится на
+ * документы, которых оператор не видел); уведомление — только после принятого решения.
  */
 export async function reviewKyc(operator: CurrentUser, userId: string, decision: KycDecision): Promise<void> {
   requireOperator(operator);
@@ -295,7 +310,14 @@ export async function reviewKyc(operator: CurrentUser, userId: string, decision:
   const input = parseInput(kycDecisionSchema, decision);
   const verify = input.decision === "VERIFIED";
   const sessionToken = await currentSessionToken();
-  const request = { sessionToken, userId: target, verify, reason: verify ? "" : (input.reason ?? ""), idempotencyKey: randomUUID() };
+  const request = {
+    sessionToken,
+    userId: target,
+    verify,
+    reason: verify ? "" : (input.reason ?? ""),
+    expectedSubmittedAt: fromJson(TimestampSchema, input.submittedAt),
+    idempotencyKey: randomUUID(),
+  };
   const res = await retriedOnce(() => identity().reviewKyc(request), { party_missing: () => fail.notFound(t.errors.notFound) });
   const party = ownParty(target, res.party);
   await transaction(async (tx) => {

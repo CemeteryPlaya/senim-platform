@@ -12,8 +12,9 @@ UPDATE parties SET
 WHERE user_id = @user_id AND kyc_status = ANY(@allowed_from::text[])
 RETURNING *;
 
--- Решение оператора (ReviewKyc): условный UPDATE по ожидаемому статусу; две конкурентные
--- команды дают одну строку, вторая — 0 строк.
+-- Решение оператора (ReviewKyc): условный UPDATE по ожидаемому статусу и по времени подачи,
+-- которую видел оператор; две конкурентные команды дают одну строку, вторая — 0 строк;
+-- переподача после открытия очереди (другое kyc_submitted_at) — тоже 0 строк.
 -- name: ReviewPartyKyc :one
 UPDATE parties SET
     kyc_status        = @to_status,
@@ -21,6 +22,7 @@ UPDATE parties SET
     kyc_reviewed_at   = @now,
     updated_at        = @now
 WHERE user_id = @user_id AND kyc_status = ANY(@allowed_from::text[])
+  AND kyc_submitted_at = @expected_submitted_at
 RETURNING *;
 
 -- Очередь проверки: на проверке и с обоими видами файлов, давно ждущие первыми.

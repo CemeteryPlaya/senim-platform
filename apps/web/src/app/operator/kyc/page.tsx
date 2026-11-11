@@ -52,7 +52,11 @@ export default async function KycPage() {
                     </li>
                   ))}
                 </ul>
-                {item.complete ? <KycForms userId={item.userId} /> : <p className="text-base text-ink">{t.incomplete}</p>}
+                {item.complete && item.submittedAtExact ? (
+                  <KycForms userId={item.userId} submittedAt={item.submittedAtExact} />
+                ) : (
+                  <p className="text-base text-ink">{t.incomplete}</p>
+                )}
               </ListCard>
             ))}
           </ul>

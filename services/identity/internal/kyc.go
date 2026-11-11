@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -184,8 +185,10 @@ func (s *Service) ListKycQueue(ctx context.Context, req *identityv1.ListKycQueue
 
 // ReviewKyc — решение оператора по документам: verify=true — VERIFIED, иначе REJECTED с
 // причиной 3–500 символов (kyc_reason_invalid; при подтверждении причина не пишется).
-// Переход — условный UPDATE по «ещё PENDING»: двойной клик и два оператора одновременно
-// дают одно решение, остальные — kyc_transition_forbidden. Исполнитель без стороны —
+// Переход — условный UPDATE по «ещё PENDING» и по expected_submitted_at (время подачи из
+// очереди, обязательно — иначе invalid_request): двойной клик и два оператора одновременно
+// дают одно решение, остальные — kyc_transition_forbidden; переподача между открытием
+// очереди и решением — тоже kyc_transition_forbidden, решение не ложится на новые файлы. Исполнитель без стороны —
 // party_missing; PENDING без файлов — kyc_documents_missing. Аудит executor.kyc_verified /
 // executor.kyc_rejected и событие KycReviewed — в одной транзакции с изменением. Нужна
 // сессия оператора с пройденным вторым фактором (role_forbidden, mfa_required).
@@ -201,6 +204,11 @@ func (s *Service) ReviewKyc(ctx context.Context, req *identityv1.ReviewKycReques
 	if err != nil {
 		return nil, invalidRequest()
 	}
+	if req.GetExpectedSubmittedAt() == nil || req.GetExpectedSubmittedAt().CheckValid() != nil {
+		return nil, invalidRequest()
+	}
+	// База хранит микросекунды: точнее сравнивать не с чем (очередь отдаёт ровно их).
+	expectedSubmitted := req.GetExpectedSubmittedAt().AsTime().Truncate(time.Microsecond)
 	action, reason := kycActionVerify, ""
 	if !req.GetVerify() {
 		action = kycActionReject
@@ -244,10 +252,12 @@ func (s *Service) ReviewKyc(ctx context.Context, req *identityv1.ReviewKycReques
 		}
 		updated, err := q.ReviewPartyKyc(ctx, store.ReviewPartyKycParams{
 			ToStatus: to, RejectReason: text(reason), Now: ts(now),
-			UserID: target, AllowedFrom: kycRule(action).from,
+			UserID: target, AllowedFrom: kycRule(action).from, ExpectedSubmittedAt: ts(expectedSubmitted),
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
-			return kycTransitionForbidden() // решение уже принято (другим оператором или повтором)
+			// Решение уже принято (другим оператором или повтором) либо исполнитель подал
+			// документы заново после того, как оператор открыл очередь.
+			return kycTransitionForbidden()
 		}
 		if err != nil {
 			return err

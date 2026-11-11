@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { toJson } from "@bufbuild/protobuf";
+import { TimestampSchema } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KycStatus, Role } from "@/gen/senim/identity/v1/identity_pb";
@@ -65,7 +67,15 @@ async function submitted() {
 
 const own = (executor: CurrentUser) => as(executor, () => getOwnKyc(executor));
 const queueOf = (operator: CurrentUser) => as(operator, () => kycQueue(operator));
-const review = (operator: CurrentUser, userId: string, decision: Parameters<typeof reviewKyc>[2]) => as(operator, () => reviewKyc(operator, userId, decision));
+type Decision = Parameters<typeof reviewKyc>[2];
+/** Время текущей подачи в identity (как его отдаёт очередь); подачи нет — любое корректное время. */
+const submittedAtOf = (userId: string) => {
+  const at = identityFake.partyOf(userId)?.kycSubmittedAt;
+  return at ? (toJson(TimestampSchema, at) as string) : new Date().toISOString();
+};
+/** Решение по подаче, что сейчас в identity (оператор только что открыл очередь), если время не задано. */
+const review = (operator: CurrentUser, userId: string, decision: Omit<Decision, "submittedAt"> & { submittedAt?: string }) =>
+  as(operator, () => reviewKyc(operator, userId, { ...decision, submittedAt: decision.submittedAt ?? submittedAtOf(userId) }));
 
 describe("мастер загружает документы", () => {
   it("файлы прикрепляются к профилю в web, их id уходят в identity; статус — на проверке, операторы получают уведомление", async () => {
@@ -289,6 +299,40 @@ describe("оператор проверяет документы", () => {
     expect(await db.notification.count({ where: { userId: executor.id, kind: { in: ["kyc.verified", "kyc.rejected"] } } })).toBe(1);
   });
 
+  it("мастер прислал новые документы, пока оператор смотрел очередь, — решение по старым не проходит (CONFLICT, текст из ru), по свежей очереди — проходит (Ruling AJ)", async () => {
+    const operator = await makeOperator();
+    const { executor, executorId } = await submitted();
+    const [seen] = await queueOf(operator);
+    expect(seen!.submittedAtExact).toMatch(/^\d{4}-\d\d-\d\dT/);
+    identityFake.now = () => new Date(Date.now() + 60_000);
+    try {
+      await as(executor, async () => submitKycDocuments(executor, await freshFiles(executor)));
+    } finally {
+      identityFake.now = () => new Date();
+    }
+    for (const decision of [{ decision: "VERIFIED" as const }, { decision: "REJECTED" as const, reason: "Фото нечитаемое" }]) {
+      await expect(review(operator, executor.id, { ...decision, submittedAt: seen!.submittedAtExact! })).rejects.toMatchObject({ code: "CONFLICT", message: t.errors.reviewed });
+    }
+    expect(identityFake.partyOf(executor.id)?.kycStatus).toBe(KycStatus.PENDING);
+    expect(kycAudit(executor.id).map((e) => e.action)).toEqual(["executor.kyc_submitted", "executor.kyc_submitted"]);
+    expect(await db.notification.count({ where: { userId: executor.id, kind: { in: ["kyc.verified", "kyc.rejected"] } } })).toBe(0);
+    expect((await db.executorProfile.findUniqueOrThrow({ where: { id: executorId } })).kycStatus).toBe("PENDING");
+
+    const [fresh] = await queueOf(operator);
+    expect(fresh!.submittedAtExact).not.toBe(seen!.submittedAtExact);
+    await review(operator, executor.id, { decision: "VERIFIED", submittedAt: fresh!.submittedAtExact! });
+    expect(identityFake.partyOf(executor.id)?.kycStatus).toBe(KycStatus.VERIFIED);
+  });
+
+  it("решение без времени подачи или с неверным — VALIDATION до identity", async () => {
+    const operator = await makeOperator();
+    const { executor } = await submitted();
+    for (const submittedAt of ["", "вчера", "2026-11-11 10:00"]) {
+      expect(await code(review(operator, executor.id, { decision: "VERIFIED", submittedAt }))).toBe("VALIDATION");
+    }
+    expect(calls("reviewKyc")).toHaveLength(0);
+  });
+
   it("отказ — с причиной; мастер видит причину, загружает заново — снова на проверке, причина снята", async () => {
     const operator = await makeOperator();
     const { executor } = await submitted();
@@ -318,15 +362,15 @@ describe("оператор проверяет документы", () => {
     expect(await code(review(operator, "no-such", { decision: "VERIFIED" }))).toBe("VALIDATION"); // не UUID — до identity
     expect(calls("reviewKyc").map((c) => (c.request as { userId: string }).userId)).not.toContain("no-such");
     const { executor } = await submitted();
-    expect(await code(as(executor, () => reviewKyc(executor, executor.id, { decision: "VERIFIED" })))).toBe("FORBIDDEN");
+    expect(await code(as(executor, () => reviewKyc(executor, executor.id, { decision: "VERIFIED", submittedAt: submittedAtOf(executor.id) })))).toBe("FORBIDDEN");
     const client = await makeClient();
-    expect(await code(as(client, () => reviewKyc(client, executor.id, { decision: "VERIFIED" })))).toBe("FORBIDDEN");
+    expect(await code(as(client, () => reviewKyc(client, executor.id, { decision: "VERIFIED", submittedAt: submittedAtOf(executor.id) })))).toBe("FORBIDDEN");
     expect(await code(as(executor, () => kycQueue(executor)))).toBe("FORBIDDEN");
 
     const smsOnly = await makeOperator();
     const noMfa = <T>(call: () => Promise<T>) => as(smsOnly, call, { mfaVerifiedAt: null });
     expect(await code(noMfa(() => kycQueue(smsOnly)))).toBe("MFA_REQUIRED");
-    expect(await code(noMfa(() => reviewKyc(smsOnly, executor.id, { decision: "VERIFIED" })))).toBe("MFA_REQUIRED");
+    expect(await code(noMfa(() => reviewKyc(smsOnly, executor.id, { decision: "VERIFIED", submittedAt: submittedAtOf(executor.id) })))).toBe("MFA_REQUIRED");
     expect(identityFake.partyOf(executor.id)?.kycStatus).toBe(KycStatus.PENDING);
   });
 });

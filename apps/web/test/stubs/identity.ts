@@ -146,8 +146,8 @@ import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-t
  * SeedUsers пишет личность (заданные поля) и сторону целиком (seedPerson и seedPartyRow) с теми же проверками.
  *
  * KYC исполнителя (kyc.go, kyc_policy.go) повторён по Go: порядок проверок и коды, таблица переходов (подача из NOT_SUBMITTED,
- * PENDING — файлы заменяются — и REJECTED; решение — только из PENDING), условный переход (второе решение —
- * kyc_transition_forbidden), очередь — PENDING с обоими видами файлов, давно ждущие первыми. Аудит executor.kyc_* — в
+ * PENDING — файлы заменяются — и REJECTED; решение — только из PENDING), условный переход (второе решение и решение по
+ * подаче, заменённой после открытия очереди, — kyc_transition_forbidden), очередь — PENDING с обоими видами файлов, давно ждущие первыми. Аудит executor.kyc_* — в
  * `auditEvents`, без значений. Расхождение с Go: ReviewKyc не проверяет user_id как UUID (как и прочие методы подделки);
  * идентификаторы файлов — проверяет (их задаёт web).
  *
@@ -239,6 +239,20 @@ function kycTarget(action: keyof typeof KYC_TRANSITIONS, p: StoredParty): KycSta
   }
   return rule.to;
 }
+
+/**
+ * expected_submitted_at в Go: обязательно и корректно (CheckValid: 0001–9999 годы, наносекунды 0…999 999 999), иначе
+ * invalid_request; сравнивается с точностью базы — до микросекунд (усечение).
+ */
+function timestampMicros(ts: MessageInitShape<typeof TimestampSchema> | undefined): bigint {
+  const seconds = BigInt(ts?.seconds ?? 0n);
+  const nanos = ts?.nanos ?? 0;
+  if (!ts || seconds < -62_135_596_800n || seconds > 253_402_300_799n || nanos < 0 || nanos > 999_999_999) throw codedError("invalid_request", Code.InvalidArgument);
+  return seconds * 1_000_000n + BigInt(Math.floor(nanos / 1000));
+}
+
+/** Та же подача: время в подделке — Date (миллисекунды), в запросе — микросекунды. */
+const sameSubmission = (stored: Date | null, expected: bigint) => stored !== null && BigInt(stored.getTime()) * 1000n === expected;
 
 /** kycAudit в Go: статус, причина (по решению) и число файлов (при подаче) — без значений ПДн. */
 const kycAudit = (status: KycStatus, extra: { reason?: string; idFiles?: number; registrationFiles?: number } = {}) => ({
@@ -1627,6 +1641,7 @@ export class FakeIdentity {
       }),
       reviewKyc: (req: MessageInitShape<typeof ReviewKycRequestSchema>) => {
         let reason = "";
+        let expected = 0n;
         return this.once(
           "reviewKyc",
           ReviewKycRequestSchema,
@@ -1640,6 +1655,9 @@ export class FakeIdentity {
             if (!p) throw codedError("party_missing", Code.FailedPrecondition);
             const before = p.kycStatus;
             const to = kycTarget(req.verify ? "verify" : "reject", p);
+            // Условный UPDATE Go: kyc_submitted_at = expected_submitted_at (с точностью до микросекунд базы); подача
+            // заменена после открытия очереди — kyc_transition_forbidden, без изменений.
+            if (!sameSubmission(p.kycSubmittedAt, expected)) throw codedError("kyc_transition_forbidden", Code.FailedPrecondition);
             p.kycStatus = to;
             p.kycRejectReason = reason;
             p.kycReviewedAt = this.now();
@@ -1652,10 +1670,12 @@ export class FakeIdentity {
             });
             return create(ReviewKycResponseSchema, { party: this.mustParty(userId) });
           },
-          // Порядок Go: ключ, пользователь (UUID в Go), причина отказа (kyc_reason_invalid), сессия, оператор со второй ступенью.
+          // Порядок Go: ключ, пользователь (UUID в Go), время подачи, причина отказа (kyc_reason_invalid), сессия, оператор со
+          // второй ступенью.
           async () => {
             this.checkKey(req.idempotencyKey);
             if (!req.userId) throw codedError("invalid_request", Code.InvalidArgument);
+            expected = timestampMicros(req.expectedSubmittedAt);
             if (!req.verify) {
               reason = (req.reason ?? "").trim();
               if (reason.length < KYC_REASON_MIN || reason.length > KYC_REASON_MAX) throw codedError("kyc_reason_invalid", Code.InvalidArgument);

@@ -1,4 +1,5 @@
-import { timestampDate } from "@bufbuild/protobuf/wkt";
+import type { MessageInitShape } from "@bufbuild/protobuf";
+import { timestampDate, timestampFromDate, type TimestampSchema } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
@@ -6,6 +7,8 @@ import { ConsentKind, KycStatus, LegalForm, RevealPurpose, RevocationStatus, Rol
 import { testBin, testIin } from "@/demo/kz-id";
 import { totpNow } from "../../e2e/totp";
 import { FakeIdentity, FAKE_OTP_CODE, fakeRevocationDue } from "./identity";
+
+type TimestampInit = MessageInitShape<typeof TimestampSchema>;
 
 const token = (n: number) => `${String(n).padStart(2, "0")}${"a".repeat(41)}`;
 const PHONE = "+77001234567";
@@ -724,8 +727,9 @@ describe("подделка identity: KYC исполнителя (как kyc.go �
   }
   const submit = (t: number, id: string[], reg: string[], idempotencyKey = key()) =>
     fake.client.submitKyc({ sessionToken: token(t), idFileIds: id, registrationFileIds: reg, idempotencyKey });
-  const review = (t: number, userId: string, verify: boolean, reason = "", idempotencyKey = key()) =>
-    fake.client.reviewKyc({ sessionToken: token(t), userId, verify, reason, idempotencyKey });
+  /** Решение по подаче, что сейчас у стороны (оператор только что открыл очередь); нет подачи — текущее время. */
+  const review = (t: number, userId: string, verify: boolean, reason = "", idempotencyKey = key(), expectedSubmittedAt: TimestampInit = fake.partyOf(userId)?.kycSubmittedAt ?? timestampFromDate(fake.now())) =>
+    fake.client.reviewKyc({ sessionToken: token(t), userId, verify, reason, idempotencyKey, expectedSubmittedAt });
 
   it("SubmitKyc: порядок проверок — ключ, файлы, оба вида, сессия, роль, сторона", async () => {
     const invalid = { code: Code.InvalidArgument, detail: "invalid_request" };
@@ -802,6 +806,34 @@ describe("подделка identity: KYC исполнителя (как kyc.go �
     expect(await rejection(review(6, user.id, true))).toEqual({ code: Code.FailedPrecondition, detail: "kyc_transition_forbidden" });
     fake.setKycStatus(user.id, KycStatus.PENDING);
     expect(await rejection(review(6, user.id, true))).toEqual({ code: Code.FailedPrecondition, detail: "kyc_documents_missing" });
+    // Время подачи — после пользователя и до причины: нет или некорректно — invalid_request.
+    const at = (expectedSubmittedAt: TimestampInit | undefined, verify = true, reason = "") =>
+      fake.client.reviewKyc({ sessionToken: token(6), userId: user.id, verify, reason, idempotencyKey: key(), expectedSubmittedAt });
+    expect(await rejection(at(undefined, false, ""))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    expect(await rejection(at({ seconds: 1n, nanos: -1 }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    expect(await rejection(at({ seconds: 253_402_300_800n }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+  });
+
+  it("ReviewKyc: исполнитель подал документы заново после открытия очереди — kyc_transition_forbidden без изменений; по свежей очереди — решение (Ruling AJ)", async () => {
+    let clock = 2_000_000;
+    fake.now = () => new Date(clock);
+    const user = executor("+77001110089", 1);
+    await submit(1, one(1), one(2));
+    operator(6);
+    const queueAt = async () => (await fake.client.listKycQueue({ sessionToken: token(6) })).parties.find((p) => p.userId === user.id)?.kycSubmittedAt;
+    const seen = await queueAt();
+    expect(seen).toBeDefined();
+    clock += 60_000;
+    await submit(1, one(3), one(4));
+    for (const verify of [true, false]) {
+      expect(await rejection(review(6, user.id, verify, "Фото нечитаемое", key(), seen))).toEqual({ code: Code.FailedPrecondition, detail: "kyc_transition_forbidden" });
+    }
+    expect(fake.partyOf(user.id)).toMatchObject({ kycStatus: KycStatus.PENDING, kycIdFileIds: [uuid(3)] });
+    expect(fake.partyOf(user.id)?.kycReviewedAt).toBeUndefined();
+    expect(fake.auditEvents.filter((e) => e.action === "executor.kyc_verified" || e.action === "executor.kyc_rejected")).toEqual([]);
+    // Микросекунды сверх миллисекунд подделки отбрасываются, как у базы Go; ровно та же подача — решение.
+    const fresh = await queueAt();
+    expect((await review(6, user.id, true, "", key(), { seconds: fresh!.seconds, nanos: fresh!.nanos + 999 })).party?.kycStatus).toBe(KycStatus.VERIFIED);
   });
 
   it("ReviewKyc: отказ с обрезанной причиной, второе решение — kyc_transition_forbidden (одновременные — одно), аудит с причиной", async () => {

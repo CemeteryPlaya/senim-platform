@@ -497,6 +497,10 @@ message ReviewKycRequest {
   bool verify = 3;
   string reason = 4;
   string idempotency_key = 5;
+  // Party.kyc_submitted_at из очереди, по которой оператор принял решение (обязательно).
+  // Исполнитель подал документы заново после открытия очереди — время не совпадает,
+  // kyc_transition_forbidden: решение не ложится на документы, которых оператор не видел.
+  google.protobuf.Timestamp expected_submitted_at = 6;
 }
 
 message ReviewKycResponse {
