@@ -1,7 +1,14 @@
 import "server-only";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { Role as ProtoRole, type Person, type User } from "@/gen/senim/identity/v1/identity_pb";
-import type { Role as PrismaRole } from "@/generated/prisma/enums";
+import {
+  KycStatus as ProtoKycStatus,
+  LegalForm as ProtoLegalForm,
+  Role as ProtoRole,
+  type Party,
+  type Person,
+  type User,
+} from "@/gen/senim/identity/v1/identity_pb";
+import type { KycStatus, LegalForm, Role as PrismaRole } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { db, isUniqueViolation, type Tx } from "@/platform/db";
 import { fail } from "@/platform/errors";
@@ -109,5 +116,87 @@ export async function projectPerson(person: Person, client: Tx = db): Promise<vo
 export function ownPerson(userId: string, person: Person | undefined): Person {
   if (person?.userId === userId) return person;
   logger.error("identity.call_rejected", { reason: person ? "person_of_other_user" : "response_without_person" });
+  return fail.unavailable(ru.common.errors.generic);
+}
+
+const LEGAL_FORM_FROM_PROTO = {
+  [ProtoLegalForm.SELF_EMPLOYED]: "SELF_EMPLOYED",
+  [ProtoLegalForm.IP]: "IP",
+  [ProtoLegalForm.TOO]: "TOO",
+} as const satisfies Partial<Record<ProtoLegalForm, LegalForm>>;
+
+const LEGAL_FORM_TO_PROTO: Record<LegalForm, ProtoLegalForm> = {
+  SELF_EMPLOYED: ProtoLegalForm.SELF_EMPLOYED,
+  IP: ProtoLegalForm.IP,
+  TOO: ProtoLegalForm.TOO,
+};
+
+/**
+ * KYC identity → KYC старой базы. NOT_SUBMITTED в старой базе — PENDING без документов (kycView различает их по
+ * документам), поэтому оба — PENDING.
+ */
+const KYC_FROM_PROTO = {
+  [ProtoKycStatus.NOT_SUBMITTED]: "PENDING",
+  [ProtoKycStatus.PENDING]: "PENDING",
+  [ProtoKycStatus.VERIFIED]: "VERIFIED",
+  [ProtoKycStatus.REJECTED]: "REJECTED",
+} as const satisfies Partial<Record<ProtoKycStatus, KycStatus>>;
+
+export function legalFormToProto(f: LegalForm): ProtoLegalForm {
+  return LEGAL_FORM_TO_PROTO[f];
+}
+
+/** Значение перечисления из ответа identity; UNSPECIFIED и неизвестное — ошибка контракта. */
+function fromProto<K extends number, V>(table: Partial<Record<K, V>>, value: K, what: string): V {
+  const mapped = table[value];
+  if (mapped === undefined) throw new Error(`identity вернул неизвестное значение ${what}: ${value}`);
+  return mapped;
+}
+
+/**
+ * Столбцы профиля исполнителя из стороны identity: форма, наименование, последние 4 цифры ИИН/БИН, подписант, последние
+ * 4 символа IBAN и KYC. Ни шифртекстов, ни HMAC: ИИН/БИН, ИИН подписанта и IBAN хранит только identity.
+ */
+export function partyColumns(party: Party) {
+  return {
+    legalForm: fromProto<ProtoLegalForm, LegalForm>(LEGAL_FORM_FROM_PROTO, party.legalForm, "правовой формы"),
+    legalName: party.legalName,
+    binIinLast4: party.binIinLast4,
+    signerFullName: orNull(party.signerFullName),
+    payoutIbanLast4: orNull(party.payoutIbanLast4),
+    kycStatus: fromProto<ProtoKycStatus, KycStatus>(KYC_FROM_PROTO, party.kycStatus, "статуса KYC"),
+    kycRejectReason: orNull(party.kycRejectReason),
+    kycReviewedAt: party.kycReviewedAt ? timestampDate(party.kycReviewedAt) : null,
+  };
+}
+
+export type PartyColumns = ReturnType<typeof partyColumns>;
+
+/**
+ * Проекция стороны identity в профиль исполнителя (`ExecutorProfile` пользователя): только изменившиеся поля из
+ * partyColumns. Профиль уже есть (его создаёт регистрация или «Добавить исполнителя» с теми же столбцами); нет — сбой.
+ */
+export async function projectParty(party: Party, client: Tx = db): Promise<void> {
+  const row = await client.executorProfile.findUnique({
+    where: { userId: party.userId },
+    select: { legalForm: true, legalName: true, binIinLast4: true, signerFullName: true, payoutIbanLast4: true, kycStatus: true, kycRejectReason: true, kycReviewedAt: true },
+  });
+  if (!row) throw new Error("identity вернул сторону пользователя без профиля исполнителя в проекции");
+  const next = partyColumns(party);
+  const data = Object.fromEntries(
+    (Object.keys(next) as (keyof PartyColumns)[]).filter((k) => !sameValue(row[k], next[k])).map((k) => [k, next[k]]),
+  ) as Partial<PartyColumns>;
+  if (Object.keys(data).length > 0) await client.executorProfile.update({ where: { userId: party.userId }, data });
+}
+
+const sameValue = (a: unknown, b: unknown) => (a instanceof Date && b instanceof Date ? a.getTime() === b.getTime() : a === b);
+
+/**
+ * Сторона из ответа identity на вызов о пользователе `userId`. Нет её или она чужая — сбой контракта: в лог (без
+ * значений), человеку — общий текст. Чужие реквизиты в проекцию не попадают.
+ */
+export function ownParty(userId: string, party: Party | undefined): Party {
+  if (party?.userId === userId) return party;
+  logger.error("identity.call_rejected", { reason: party ? "party_of_other_user" : "response_without_party" });
   return fail.unavailable(ru.common.errors.generic);
 }

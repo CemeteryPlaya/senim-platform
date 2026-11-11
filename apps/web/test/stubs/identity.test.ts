@@ -2,8 +2,8 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
-import { Role } from "@/gen/senim/identity/v1/identity_pb";
-import { testIin } from "@/demo/kz-id";
+import { KycStatus, LegalForm, Role } from "@/gen/senim/identity/v1/identity_pb";
+import { testBin, testIin } from "@/demo/kz-id";
 import { totpNow } from "../../e2e/totp";
 import { FakeIdentity, FAKE_OTP_CODE } from "./identity";
 
@@ -472,5 +472,100 @@ describe("подделка identity: личность и контакты (ка�
     const user = await signedIn();
     expect((await fake.client.getProfile({ sessionToken: token(1) })).person).toMatchObject({ userId: user.id, fullName: "", iinLast4: "" });
     expect(await rejection(fake.client.getProfile({ sessionToken: token(9) }))).toEqual({ code: Code.Unauthenticated, detail: "session_invalid" });
+  });
+});
+
+describe("подделка identity: реквизиты исполнителя (как party.go)", () => {
+  const IIN = testIin("870304", 3, 71);
+  const BIN = testBin("2101", 71);
+  const DIRECTOR = testIin("800215", 3, 72);
+  const IBAN = "KZ86125KZT5004100100";
+  let n = 0;
+  const key = () => `party-${++n}`;
+  const too = { legalForm: LegalForm.TOO, legalName: "ТОО «Ағаш»", binIin: BIN, signerFullName: "Тулегенов Бауыржан", signerIin: DIRECTOR };
+  const ip = { legalForm: LegalForm.IP, legalName: "ИП «Дала»", binIin: "", signerFullName: "Сапаров Ерлан", signerIin: "" };
+  const register = (t: number, req: Partial<typeof too> = {}) => fake.client.registerParty({ sessionToken: token(t), ...too, ...req, idempotencyKey: key() });
+
+  it("RegisterParty: порядок проверок — ключ, реквизиты, сессия, роль EXECUTOR", async () => {
+    expect(await rejection(fake.client.registerParty({ sessionToken: token(9), ...too }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    expect(await rejection(register(9, { legalForm: LegalForm.UNSPECIFIED }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    expect(await rejection(register(9, { legalName: " a " }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    expect(await rejection(register(9, { binIin: IIN }))).toEqual({ code: Code.InvalidArgument, detail: "bin_iin_invalid" });
+    expect(await rejection(register(9, { signerIin: "" }))).toEqual({ code: Code.InvalidArgument, detail: "signer_required" });
+    expect(await rejection(register(9, { signerFullName: "Ерлан" }))).toEqual({ code: Code.InvalidArgument, detail: "full_name_invalid" });
+    expect(await rejection(register(9, { signerIin: "123" }))).toEqual({ code: Code.InvalidArgument, detail: "iin_invalid" });
+    expect(await rejection(register(9))).toEqual({ code: Code.Unauthenticated, detail: "session_invalid" });
+    const client = fake.addUser({ phone: "+77001110010" });
+    fake.signIn(client.id, token(2));
+    expect(await rejection(register(2))).toEqual({ code: Code.PermissionDenied, detail: "role_not_granted" });
+  });
+
+  it("RegisterParty: ИП берёт ИИН личности, bin_iin запроса не читается; нет ИИН — person_missing", async () => {
+    const user = await signedIn();
+    expect(await rejection(register(1, ip))).toEqual({ code: Code.FailedPrecondition, detail: "person_missing" });
+    await fake.client.recordPerson({ sessionToken: token(1), fullName: "Сапаров Ерлан", iin: IIN, idempotencyKey: key() });
+    const res = await register(1, { ...ip, binIin: "мусор" });
+    expect(res.party).toMatchObject({ userId: user.id, legalForm: LegalForm.IP, binIinLast4: IIN.slice(-4), signerIinLast4: "", kycStatus: KycStatus.NOT_SUBMITTED });
+    expect(fake.partyNumbersOf(user.id)?.binIin).toBe(IIN);
+  });
+
+  it("RegisterParty: те же реквизиты — тот же ответ; другие — party_exists; БИН другой стороны — iin_taken; аудит без значений", async () => {
+    const user = await signedIn();
+    await register(1);
+    expect((await register(1)).party?.binIinLast4).toBe(BIN.slice(-4));
+    expect(await rejection(register(1, { legalName: "ТОО «Шебер»" }))).toEqual({ code: Code.FailedPrecondition, detail: "party_exists" });
+    const other = fake.addUser({ phone: "+77001110011", roles: [Role.EXECUTOR], defaultRole: Role.EXECUTOR });
+    fake.signIn(other.id, token(2));
+    expect(await rejection(register(2))).toEqual({ code: Code.AlreadyExists, detail: "iin_taken" });
+    expect(fake.auditEvents).toEqual([{ userId: user.id, actorRole: Role.CLIENT, action: "party.registered", after: { legal_form: "TOO" } }]);
+  });
+
+  it("ProvisionExecutor: оператор со второй ступенью; сотрудник — role_forbidden, заблокированный — user_blocked; отказ стороны не создаёт пользователя", async () => {
+    const op = fake.addUser({ phone: "+77001110020", defaultRole: Role.OPERATOR });
+    const provision = (t: number, phone: string, req: Partial<typeof too> = {}) =>
+      fake.client.provisionExecutor({ sessionToken: token(t), phone, ...too, ...req, idempotencyKey: key() });
+    fake.signIn(op.id, token(3), undefined, { mfaVerifiedAt: null });
+    expect(await rejection(provision(3, "123"))).toEqual({ code: Code.InvalidArgument, detail: "invalid_phone" });
+    expect(await rejection(provision(3, "+77001110021"))).toEqual({ code: Code.PermissionDenied, detail: "mfa_required" });
+    fake.signIn(op.id, token(4));
+    expect(await rejection(provision(4, op.phone))).toEqual({ code: Code.PermissionDenied, detail: "role_forbidden" });
+    const blocked = fake.addUser({ phone: "+77001110022", blocked: true });
+    expect(await rejection(provision(4, blocked.phone))).toEqual({ code: Code.PermissionDenied, detail: "user_blocked" });
+
+    const res = await provision(4, "+7 700 111 00 21");
+    expect(res.user).toMatchObject({ phone: "+77001110021", roles: [Role.EXECUTOR] });
+    expect(res.party).toMatchObject({ userId: res.user?.id, binIinLast4: BIN.slice(-4), signerIinLast4: DIRECTOR.slice(-4) });
+    expect(await rejection(provision(4, "+77001110023"))).toEqual({ code: Code.AlreadyExists, detail: "iin_taken" });
+    expect(fake.hasUser("u-77001110023")).toBe(false);
+
+    const client = fake.addUser({ phone: "+77001110024" });
+    expect((await provision(4, client.phone, { binIin: testBin("2101", 72) })).user?.roles).toEqual([Role.CLIENT, Role.EXECUTOR]);
+  });
+
+  it("SetPayoutIban: формат до сессии, только активная роль исполнителя со стороной; тот же счёт — без аудита", async () => {
+    const set = (t: number, iban: string) => fake.client.setPayoutIban({ sessionToken: token(t), iban, idempotencyKey: key() });
+    expect(await rejection(set(9, "KZ86"))).toEqual({ code: Code.InvalidArgument, detail: "iban_invalid" });
+    const err = await set(9, "KZ86125KZT5004100101").then(
+      () => null,
+      (e: unknown) => ConnectError.from(e),
+    );
+    expect(err?.findDetails(ErrorDetailSchema)[0]?.params).toEqual({ reason: "checksum" });
+    const user = fake.addUser({ phone: "+77001110030", defaultRole: Role.EXECUTOR, roles: [Role.EXECUTOR] });
+    fake.signIn(user.id, token(5));
+    expect(await rejection(set(5, IBAN))).toEqual({ code: Code.FailedPrecondition, detail: "party_missing" });
+    await register(5);
+    expect((await set(5, "kz86 125k zt50 0410 0100")).party?.payoutIbanLast4).toBe("0100");
+    await set(5, IBAN);
+    expect(fake.auditEvents.filter((e) => e.action === "executor.payout_iban_changed").map((e) => [e.before, e.after])).toEqual([[{ set: false }, { set: true }]]);
+    const client = fake.addUser({ phone: "+77001110031" });
+    fake.signIn(client.id, token(6));
+    expect(await rejection(set(6, IBAN))).toEqual({ code: Code.PermissionDenied, detail: "role_forbidden" });
+  });
+
+  it("GetProfile отдаёт сторону; без стороны — пусто", async () => {
+    const user = await signedIn();
+    expect((await fake.client.getProfile({ sessionToken: token(1) })).party).toBeUndefined();
+    await register(1);
+    expect((await fake.client.getProfile({ sessionToken: token(1) })).party).toMatchObject({ userId: user.id, legalForm: LegalForm.TOO });
   });
 });

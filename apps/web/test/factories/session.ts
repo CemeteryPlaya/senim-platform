@@ -1,3 +1,4 @@
+import { LegalForm } from "@/gen/senim/identity/v1/identity_pb";
 import type { Role } from "@/generated/prisma/enums";
 // Прямые импорты файлов, а не index.ts: index тянет next/headers раньше, чем тест успеет его подменить.
 // eslint-disable-next-line no-restricted-imports
@@ -10,12 +11,14 @@ import { identityFake } from "../stubs/identity";
 import { putCookie } from "./identity";
 
 /**
- * Пользователь старой базы появляется в подделке identity с теми же id, телефоном, ролями, демо-флагом и личностью
+ * Пользователь старой базы появляется в подделке identity с теми же id, телефоном, ролями, демо-флагом, личностью и стороной
  * (без этого identity «не знает» человека, которого тест создал фабрикой напрямую в старой базе).
  */
 export async function mirrorUser(userId: string): Promise<void> {
   if (identityFake.hasUser(userId)) return;
-  const row = await db.user.findUniqueOrThrow({ where: { id: userId } });
+  const row = await db.user.findUniqueOrThrow({ where: { id: userId }, include: { executorProfile: true } });
+  const profile = row.executorProfile;
+  const open = (enc: string | null) => (enc ? decryptPii(enc) : "");
   identityFake.addUser({
     id: row.id,
     phone: row.phone,
@@ -25,6 +28,17 @@ export async function mirrorUser(userId: string): Promise<void> {
     blocked: row.blockedAt !== null,
     // Личность — как её записал бы сид identity: ФИО, ИИН (фабрика хранит его в старой базе) и контакты.
     person: { fullName: row.fullName, iin: row.iinEnc ? decryptPii(row.iinEnc) : null, instagram: row.instagram, email: row.email },
+    // Сторона — из профиля фабрики (makeExecutor хранит номера шифртекстом в старой базе).
+    party: profile
+      ? {
+          legalForm: LegalForm[profile.legalForm],
+          legalName: profile.legalName,
+          binIin: open(profile.binIinEnc),
+          signerFullName: profile.signerFullName ?? "",
+          signerIin: open(profile.signerIinEnc),
+          payoutIban: open(profile.payoutIbanEnc),
+        }
+      : undefined,
   });
 }
 

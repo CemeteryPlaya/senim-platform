@@ -191,7 +191,7 @@ type SignerSource = { fullName: string | null; iinEnc: string | null; iinHash: s
  * из профиля, signerIin*); ИП и самозанятый — владелец (ИИН профиля, binIin*).
  * TODO(ТОО): сверять и БИН организации из сертификата юрлица, когда провайдер станет его возвращать.
  */
-function executorSigner(p: { legalForm: string; legalName: string; signerFullName: string | null; signerIinEnc: string | null; signerIinHash: string | null; binIinEnc: string; binIinHash: string | null }): SignerSource {
+function executorSigner(p: { legalForm: string; legalName: string; signerFullName: string | null; signerIinEnc: string | null; signerIinHash: string | null; binIinEnc: string | null; binIinHash: string | null }): SignerSource {
   const fullName = p.signerFullName ?? (p.legalForm === "TOO" ? null : p.legalName);
   return p.legalForm === "TOO" ? { fullName, iinEnc: p.signerIinEnc, iinHash: p.signerIinHash } : { fullName, iinEnc: p.binIinEnc, iinHash: p.binIinHash };
 }

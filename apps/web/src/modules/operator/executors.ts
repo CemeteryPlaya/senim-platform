@@ -1,9 +1,9 @@
 import type { RegistrationStatus, Segment } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit, scopeHistory } from "@/modules/audit";
-import { actorOf, reviewExecutorRegistration, signerColumns, type CurrentUser } from "@/modules/identity";
+import { actorOf, provisionExecutor, reviewExecutorRegistration, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
-import { encryptPii, hashPii, last4 } from "@/platform/crypto";
+import { last4 } from "@/platform/crypto";
 import { db, isUniqueViolation, Prisma, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { assertOperator } from "./access";
@@ -64,37 +64,29 @@ export async function reviewRegistration(user: CurrentUser, input: ReviewRegistr
   await reviewExecutorRegistration(user, input.profileId, input.decision);
 }
 
-/** Оператор добавляет исполнителя сам: сразу APPROVED, с сегментом и пометкой addedByOperator. */
+/**
+ * Оператор добавляет исполнителя сам: пользователя и реквизиты создаёт identity (provisionExecutor — ProvisionExecutor и
+ * проекция User), затем транзакция web — профиль сразу APPROVED, с сегментом и пометкой addedByOperator, аудит и
+ * уведомление. Прямой записи пользователя и шифртекстов в старой базе нет. Номер, у которого профиль уже есть, —
+ * CONFLICT: identity ответил теми же реквизитами (повтор) или отказал party_exists (другие реквизиты).
+ */
 export async function addExecutor(user: CurrentUser, input: AddExecutorInput): Promise<{ profileId: string }> {
   assertOperator(user);
+  const provisioned = await provisionExecutor(user, input);
   try {
     return await transaction(async (tx) => {
-      if (await tx.user.findUnique({ where: { phone: input.phone }, select: { id: true } })) fail.conflict(t.errors.phoneTaken);
-      if (await tx.executorProfile.findUnique({ where: { binIinHash: hashPii(input.binIin) }, select: { id: true } })) fail.conflict(t.errors.binIinTaken);
-      // Подписант договора — свойство профиля, а не аккаунта (ADR-003): ФИО и ИИН аккаунта не заполняются.
-      const created = await tx.user.create({
+      if (await tx.executorProfile.findUnique({ where: { userId: provisioned.userId }, select: { id: true } })) fail.conflict(t.errors.phoneTaken);
+      const { id: profileId } = await tx.executorProfile.create({
         data: {
-          phone: input.phone,
-          role: "EXECUTOR",
-          roles: ["EXECUTOR"],
-          executorProfile: {
-            create: {
-              legalForm: input.legalForm,
-              legalName: input.legalName,
-              binIinEnc: encryptPii(input.binIin),
-              binIinHash: hashPii(input.binIin),
-              binIinLast4: last4(input.binIin),
-              ...signerColumns(input.signer),
-              segment: input.segment,
-              status: "APPROVED",
-              addedByOperator: true,
-              reviewedAt: new Date(),
-            },
-          },
+          userId: provisioned.userId,
+          ...provisioned.party,
+          segment: input.segment,
+          status: "APPROVED",
+          addedByOperator: true,
+          reviewedAt: new Date(),
         },
-        select: { id: true, executorProfile: { select: { id: true } } },
+        select: { id: true },
       });
-      const profileId = created.executorProfile!.id;
       await recordAudit(tx, {
         actor: actorOf(user),
         action: "executor.added_by_operator",
@@ -102,12 +94,12 @@ export async function addExecutor(user: CurrentUser, input: AddExecutorInput): P
         scope: `executor:${profileId}`,
         after: { status: "APPROVED", segment: input.segment, legalForm: input.legalForm },
       });
-      await notify(tx, { userId: created.id, kind: "executor.added", title: t.notifications.addedTitle, body: t.notifications.addedBody, link: "/executor/profile" });
+      await notify(tx, { userId: provisioned.userId, kind: "executor.added", title: t.notifications.addedTitle, body: t.notifications.addedBody, link: "/executor/profile" });
       return { profileId };
     });
   } catch (e) {
-    // Параллельное добавление того же телефона или ИИН/БИН: уникальный индекс сработал после нашей проверки.
-    if (isUniqueViolation(e)) return fail.conflict(t.errors.duplicate);
+    // Двойная отправка формы: оба вызова identity ответили одним и тем же, профиль создал первый.
+    if (isUniqueViolation(e)) return fail.conflict(t.errors.phoneTaken);
     throw e;
   }
 }

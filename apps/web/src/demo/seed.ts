@@ -2,7 +2,7 @@ import type { User } from "@/gen/senim/identity/v1/identity_pb";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { OfferStatus, ProposalStatus, RequestStatus, Role, SignParty } from "@/generated/prisma/enums";
 import { saveFile } from "@/modules/files";
-import { projectUser, resetIdentityDemo, seedIdentityUsers, signerColumns, type ExecutorSigner, type SeedPerson } from "@/modules/identity";
+import { projectUser, resetIdentityDemo, seedIdentityUsers, type ExecutorSigner, type SeedPerson } from "@/modules/identity";
 import { kztToTiyn } from "@/modules/payments";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { registerPorts } from "@/ports";
@@ -304,6 +304,18 @@ async function fill(tx: Tx, now: number, identityUsers: User[]): Promise<Ids> {
 
   await audit.flush(tx);
   return ids;
+}
+
+/**
+ * Подписант демо-профиля в старой базе (ADR-003): ТОО — ФИО и ИИН директора (шифртекст и HMAC), ИП и самозанятый — ФИО.
+ * Демо-сид пока пишет реквизиты в старую базу сам; перенос в identity — Task 15 плана 2б.
+ */
+function signerColumns(signer: ExecutorSigner) {
+  return {
+    signerFullName: signer.fullName,
+    signerIinEnc: signer.iin === null ? null : encryptPii(signer.iin),
+    signerIinHash: signer.iin === null ? null : hashPii(signer.iin),
+  };
 }
 
 async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, clock: Clock, audit: AuditLog) {

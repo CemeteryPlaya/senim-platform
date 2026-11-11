@@ -1,15 +1,20 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
+import type { Party } from "@/gen/senim/identity/v1/identity_pb";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { notify } from "@/modules/notifications";
-import { decryptPii, encryptPii, hashPii, last4 } from "@/platform/crypto";
-import { db, isUniqueViolation, transaction, type Tx } from "@/platform/db";
+import { last4 } from "@/platform/crypto";
+import { db, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
 import type { ReviewExecutorRegistration } from "./index";
-import { usesOwnIin, type ExecutorRegistrationInput, type ExecutorSigner } from "./registration-schema";
+import { legalFormToProto, ownParty, partyColumns, projectParty, projectUser, type PartyColumns } from "./projection";
+import { identity } from "./remote";
+import { retriedOnce } from "./remote-errors";
+import { usesOwnIin, type ExecutorRegistrationInput } from "./registration-schema";
 import { EXECUTOR_REGISTRATION_PATH } from "./return-to";
-import { actorOf, grantRole, type CurrentUser } from "./session";
+import { actorOf, currentSessionToken, grantRole, type CurrentUser } from "./session";
 import { isStaffRole } from "./roles";
 
 export { executorRegistrationSchema, type ExecutorRegistrationInput, type ExecutorSigner } from "./registration-schema";
@@ -21,84 +26,122 @@ const REGISTRATION_LIMIT = { limit: 5, windowSec: 3600 };
 
 const entityOf = (profileId: string) => ({ entity: { type: "executor", id: profileId }, scope: `executor:${profileId}` });
 
-/**
- * Столбцы подписанта в профиле исполнителя (ADR-003). ИИН — только у директора ТОО: зашифрованный и HMAC
- * для сверки с сертификатом ЭЦП, без уникальности (один директор у нескольких ТОО). У ИП и самозанятого
- * null: они подписывают ИИН профиля. Повторная анкета перезаписывает подписанта целиком.
- */
-export function signerColumns(signer: ExecutorSigner) {
-  return {
-    signerFullName: signer.fullName,
-    signerIinEnc: signer.iin === null ? null : encryptPii(signer.iin),
-    signerIinHash: signer.iin === null ? null : hashPii(signer.iin),
-  };
-}
-
-function profileData(input: ExecutorRegistrationInput) {
-  return {
-    legalForm: input.legalForm,
-    legalName: input.legalName,
-    binIinEnc: encryptPii(input.binIin),
-    binIinHash: hashPii(input.binIin),
-    binIinLast4: last4(input.binIin),
-    ...signerColumns(input.signer),
-    city: input.city,
-    district: input.district ?? "",
-    streetAddress: input.streetAddress ?? "",
-    yearsExperience: input.yearsExperience,
-  };
-}
+/** Поля анкеты, которые остаются в web: адрес мастерской и опыт. Реквизиты — проекция стороны identity (partyColumns). */
+const localColumns = (input: ExecutorRegistrationInput) => ({
+  city: input.city,
+  district: input.district ?? "",
+  streetAddress: input.streetAddress ?? "",
+  yearsExperience: input.yearsExperience,
+});
 
 /** Профиль: новый или повторная подача после отказа (тот же профиль снова PENDING). */
-async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegistrationInput): Promise<string> {
-  const sameBinIin = await tx.executorProfile.findUnique({ where: { binIinHash: hashPii(input.binIin) }, select: { userId: true } });
-  if (sameBinIin && sameBinIin.userId !== userId) return fail.conflict(t.errors.binIinTaken);
+async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegistrationInput, party: Party): Promise<string> {
   const existing = await tx.executorProfile.findUnique({ where: { userId }, select: { id: true } });
-  if (!existing) return (await tx.executorProfile.create({ data: { userId, ...profileData(input) }, select: { id: true } })).id;
+  if (!existing) return (await tx.executorProfile.create({ data: { userId, ...partyColumns(party), ...localColumns(input) }, select: { id: true } })).id;
   // Подать снова можно только после отказа: PENDING и APPROVED не обновятся — конфликт.
   const resubmitted = await tx.executorProfile.updateMany({
     where: { id: existing.id, status: "REJECTED" },
-    data: { ...profileData(input), status: "PENDING", rejectReason: null, reviewedAt: null },
+    data: { ...localColumns(input), status: "PENDING", rejectReason: null, reviewedAt: null },
   });
   expectOneUpdated(resubmitted, t.errors.alreadyRegistered);
+  await projectParty(party, tx);
   return existing.id;
 }
 
 /**
- * Регистрация исполнителя: профиль PENDING, ИИН/БИН и ИИН подписанта только зашифрованными, роль EXECUTOR
- * добавляется к выданным (заказчик остаётся заказчиком, ADR-004), уведомление каждому оператору.
- * ФИО и ИИН аккаунта не трогает: подписант — свойство профиля (ADR-003). Активную роль сессии
- * переключает вызывающий (switchRole) — сервис о cookie не знает.
+ * Регистрация исполнителя (как «роль, потом профиль» плана 2): роль EXECUTOR добавляется к выданным в identity (заказчик
+ * остаётся заказчиком, ADR-004), затем реквизиты — RegisterParty (ИИН/БИН и ИИН подписанта шифрует и проверяет на
+ * занятость identity), затем транзакция web: профиль PENDING с адресом, опытом и проекцией стороны, аудит и уведомление
+ * каждому оператору. Шифртекстов и HMAC web не пишет. ФИО и ИИН аккаунта не трогает: подписант — свойство стороны
+ * (ADR-003). Активную роль сессии переключает вызывающий (switchRole) — сервис о cookie не знает.
  */
 export async function registerExecutor(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
   if (isStaffRole(user.role)) return fail.forbidden(t.errors.operator);
   await enforceRateLimit(`registration:user:${user.id}`, REGISTRATION_LIMIT, t.errors.tooMany);
-  const own = await withOwnIin(user, input);
-  // Роль выдаётся в identity до транзакции старой базы: GrantRole идемпотентен по существу (роль уже есть — granted=false),
-  // повтор безопасен. Обратный порядок оставил бы профиль без роли без способа повторить. Роль уже есть в проекции
-  // (прежняя попытка, подача после отказа) — вызов не нужен.
+  await assertOwnIin(user.id, input);
+  // Роль выдаётся в identity до реквизитов и транзакции старой базы: GrantRole идемпотентен по существу (роль уже есть —
+  // granted=false), повтор безопасен; RegisterParty без роли identity отклонит. Роль уже есть в проекции (прежняя
+  // попытка, подача после отказа) — вызов не нужен.
   if (!user.roles.includes("EXECUTOR")) await grantRole("EXECUTOR");
-  return register(user, own).catch((e: unknown) => {
-    // Два разных номера одновременно с одним ИИН/БИН: проверку прошли оба, сработал уникальный индекс.
-    if (isUniqueViolation(e)) return fail.conflict(t.errors.binIinTaken);
-    throw e;
+  const party = await registerParty(user, input);
+  return register(user, input, party);
+}
+
+/**
+ * ИП и самозанятый работают по ИИН владельца аккаунта: identity берёт его из личности и ИИН анкеты не читает. Снята
+ * отметка «свой ИИН» и введён другой номер — ошибка у поля, а не молча другой ИИН в профиле. Сверка — по последним 4
+ * цифрам проекции (сам ИИН в web не хранится); ИИН в аккаунте нет — ответит identity (person_missing).
+ */
+async function assertOwnIin(userId: string, input: ExecutorRegistrationInput): Promise<void> {
+  if (input.legalForm === "TOO" || usesOwnIin(input)) return;
+  const { iinLast4 } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { iinLast4: true } });
+  if (iinLast4 === null || last4(input.binIin) === iinLast4) return;
+  const message = t.errors.notOwnIin(iinLast4);
+  fail.validation(message, { fieldErrors: { binIin: [message] } });
+}
+
+/**
+ * Реквизиты — в identity (RegisterParty в сессии этого браузера). Ключ идемпотентности — один на попытку формы: обрыв
+ * связи повторяется с ним же. ИИН/БИН ИП и самозанятого не передаётся (identity берёт ИИН личности). «ИИН/БИН занят»
+ * здесь — текст о реквизитах, а не об ИИН личности.
+ */
+async function registerParty(user: Pick<CurrentUser, "id">, input: ExecutorRegistrationInput): Promise<Party> {
+  const sessionToken = await currentSessionToken();
+  const request = {
+    sessionToken,
+    legalForm: legalFormToProto(input.legalForm),
+    legalName: input.legalName,
+    binIin: input.legalForm === "TOO" ? input.binIin : "",
+    signerFullName: input.signer.fullName,
+    signerIin: input.signer.iin ?? "",
+    idempotencyKey: randomUUID(),
+  };
+  const res = await retriedOnce(() => identity().registerParty(request), { iin_taken: () => fail.conflict(t.errors.binIinTaken) });
+  return ownParty(user.id, res.party);
+}
+
+/** Реквизиты исполнителя, которого добавляет оператор (operator.addExecutor): телефон и анкета без адреса. */
+export type ProvisionExecutorInput = Pick<ExecutorRegistrationInput, "legalForm" | "legalName" | "binIin" | "signer"> & { phone: string };
+
+const operatorErrors = ru.operator.errors;
+
+/**
+ * operator → identity: «Добавить исполнителя». ProvisionExecutor в сессии оператора (нужна пройденная вторая ступень —
+ * иначе MFA_REQUIRED) создаёт пользователя по телефону с ролью EXECUTOR или добавляет роль существующему и записывает
+ * реквизиты; ответ — в проекцию `User` (тот же id). Профиль исполнителя создаёт вызывающий в своей транзакции из
+ * возвращённых столбцов (partyColumns): сегмент и пометка «добавлен оператором» — данные web. Ключ — на попытку формы.
+ */
+export async function provisionExecutor(operator: CurrentUser, input: ProvisionExecutorInput): Promise<{ userId: string; party: PartyColumns }> {
+  if (operator.role !== "OPERATOR") return fail.forbidden();
+  const sessionToken = await currentSessionToken();
+  const request = {
+    sessionToken,
+    phone: input.phone,
+    legalForm: legalFormToProto(input.legalForm),
+    legalName: input.legalName,
+    binIin: input.binIin,
+    signerFullName: input.signer.fullName,
+    signerIin: input.signer.iin ?? "",
+    idempotencyKey: randomUUID(),
+  };
+  const res = await retriedOnce(() => identity().provisionExecutor(request), {
+    iin_taken: () => fail.conflict(operatorErrors.binIinTaken),
+    party_exists: () => fail.conflict(operatorErrors.partyExists),
+    role_forbidden: () => fail.conflict(operatorErrors.staffPhone),
+    user_blocked: () => fail.conflict(operatorErrors.phoneBlocked),
   });
+  if (!res.user) return fail.unavailable(ru.common.errors.generic);
+  const party = ownParty(res.user.id, res.party);
+  await projectUser(res.user);
+  return { userId: res.user.id, party: partyColumns(party) };
 }
 
-/** ИП и самозанятый по ИИН из знакомства (№26): ИИН берётся из аккаунта, а не вводится второй раз. */
-async function withOwnIin(user: CurrentUser, input: ExecutorRegistrationInput): Promise<ExecutorRegistrationInput> {
-  if (!usesOwnIin(input)) return input;
-  const { iinEnc } = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { iinEnc: true } });
-  if (!iinEnc) return fail.validation(t.errors.ownIinMissing, { fieldErrors: { binIin: [t.errors.ownIinMissing] } });
-  return { ...input, binIin: decryptPii(iinEnc) };
-}
-
-function register(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
+function register(user: CurrentUser, input: ExecutorRegistrationInput, party: Party): Promise<{ profileId: string }> {
   return transaction(async (tx) => {
     // Блокировка строки пользователя: двойная отправка формы выполняется последовательно.
     await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
 
-    const profileId = await upsertPendingProfile(tx, user.id, input);
+    const profileId = await upsertPendingProfile(tx, user.id, input, party);
     // Роль EXECUTOR уже выдана в identity (registerExecutor) и записана в проекцию: строка пользователя блокируется выше с ней.
     await recordAudit(tx, {
       actor: actorOf({ id: user.id, role: "EXECUTOR" }),

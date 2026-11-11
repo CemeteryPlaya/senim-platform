@@ -27,6 +27,15 @@ export async function numberFor(client: Db, dealId: string, kind: keyof typeof d
   return kind === "CONTRACT" ? documentNumber.CONTRACT(deal.number, yearIn(deal.createdAt)) : documentNumber[kind](deal.number);
 }
 
+/**
+ * ИИН/БИН исполнителя для договора. С плана 2б регистрация пишет его только в identity (binIinEnc пуст); до Task 12
+ * (revealParties) такой профиль договора не получает: документ без ИИН/БИН стороны недействителен — лучше отказ, чем пустое поле.
+ */
+function executorBinIin(binIinEnc: string | null): string {
+  if (!binIinEnc) throw new Error("ИИН/БИН исполнителя хранится в identity: договор получит его через RevealPartyDetails (план 2б, Task 12)");
+  return decryptPii(binIinEnc);
+}
+
 /** Реквизиты сторон для оферты и расписки: расшифровываются только для PDF. */
 async function parties(client: Db, dealId: string) {
   const deal = await client.deal.findUniqueOrThrow({
@@ -40,7 +49,7 @@ async function parties(client: Db, dealId: string) {
   const { executor, request } = deal;
   return {
     client: { fullName: deal.client.fullName ?? t.clientNameMissing, iin: deal.client.iinEnc ? decryptPii(deal.client.iinEnc) : null },
-    executor: { legalForm: executor.legalForm, legalName: executor.legalName, binIin: decryptPii(executor.binIinEnc), signerFullName: executor.signerFullName },
+    executor: { legalForm: executor.legalForm, legalName: executor.legalName, binIin: executorBinIin(executor.binIinEnc), signerFullName: executor.signerFullName },
     iban: executor.payoutIbanEnc ? decryptPii(executor.payoutIbanEnc) : null,
     details: subjectDetails({ furnitureType: request.furnitureType?.name ?? request.customType, style: request.style, details: request.details, wishes: request.wishes }),
   };

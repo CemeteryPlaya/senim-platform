@@ -71,7 +71,7 @@ describe("демо-персоны при DEMO_MODE=true", () => {
   it("вход возвращает статус профиля исполнителя из старой базы", async () => {
     const demo = await makeDemoPersona("EXECUTOR", "+77000007010");
     await db.executorProfile.create({
-      data: { userId: demo.id, legalForm: "IP", legalName: "ИП Демо", binIinEnc: "x", binIinHash: "h-demo", binIinLast4: "0000", status: "PENDING" },
+      data: { userId: demo.id, legalForm: "IP", legalName: "ИП Демо", binIinLast4: "0000", status: "PENDING" },
     });
     await mirrorUser(demo.id);
 

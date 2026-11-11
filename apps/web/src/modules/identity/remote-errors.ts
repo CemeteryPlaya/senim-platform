@@ -8,6 +8,8 @@ const otp = ru.identity.otp.errors;
 const mfa = ru.identity.mfa.errors;
 const person = ru.identity.clientIdentity;
 const contacts = ru.identity.contacts;
+const registration = ru.identity.registration.errors;
+const payout = ru.identity.payout.errors;
 
 /** Коды, которые identity возвращает по контракту (proto/senim/identity/v1/identity.proto). */
 export const IDENTITY_ERROR_CODES = [
@@ -43,6 +45,12 @@ export const IDENTITY_ERROR_CODES = [
   "person_too_many_attempts",
   "instagram_invalid",
   "email_invalid",
+  "person_missing",
+  "bin_iin_invalid",
+  "signer_required",
+  "iban_invalid",
+  "party_missing",
+  "party_exists",
 ] as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
@@ -67,6 +75,13 @@ function instagramMax(params: Record<string, string>): number | null {
   if (raw === undefined) return null;
   if (!/^\d{1,3}$/.test(raw)) return broken("instagram_invalid_bad_max");
   return Number(raw);
+}
+
+/** params.reason кода iban_invalid: format или checksum (свои тексты); иное — сбой контракта. */
+function ibanReason(params: Record<string, string>): "format" | "checksum" {
+  const reason = params["reason"];
+  if (reason === "format" || reason === "checksum") return reason;
+  return broken("iban_invalid_bad_reason");
 }
 
 /** Ошибка формата одного поля формы: текст и он же у поля (формы показывают его под полем). */
@@ -135,6 +150,18 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
     }
     case "email_invalid":
       return fieldInvalid("email", contacts.emailInvalid);
+    case "person_missing":
+      return fieldInvalid("binIin", registration.personMissing);
+    case "bin_iin_invalid":
+      return fieldInvalid("binIin", registration.binIinInvalid);
+    case "signer_required":
+      return fail.validation(registration.signerRequired);
+    case "iban_invalid":
+      return fieldInvalid("iban", payout[ibanReason(params)]);
+    case "party_missing":
+      return fail.conflict(payout.partyMissing);
+    case "party_exists":
+      return fail.conflict(registration.partyExists);
     case "session_token_invalid":
     case "caller_forbidden":
     case "idempotency_key_reused":
@@ -159,13 +186,22 @@ export function isTransient(err: unknown): boolean {
   return (e.code === Code.Unavailable || e.code === Code.DeadlineExceeded) && e.findDetails(ErrorDetailSchema).length === 0;
 }
 
+/**
+ * Тексты отдельных кодов на месте вызова: один код контракта значит разное в разных методах (iin_taken у RecordPerson —
+ * ИИН личности, у RegisterParty — ИИН/БИН стороны). Функция бросает `fail.*`.
+ */
+export type IdentityErrorOverrides = Partial<Record<IdentityErrorCode, () => never>>;
+
 /** Ошибка вызова identity → `fail.*` с русским текстом. Всегда бросает. */
-export function identityFailure(err: unknown): never {
+export function identityFailure(err: unknown, overrides: IdentityErrorOverrides = {}): never {
   if (err instanceof AppError) throw err;
   const e = ConnectError.from(err);
   const detail = e.findDetails(ErrorDetailSchema)[0];
   if (detail) {
-    if (isKnown(detail.code)) return byCode(detail.code, detail.params);
+    if (isKnown(detail.code)) {
+      const override = overrides[detail.code];
+      return override ? override() : byCode(detail.code, detail.params);
+    }
     return broken(`unknown_code:${detail.code}`);
   }
   if (e.code === Code.Unavailable || e.code === Code.DeadlineExceeded) return fail.unavailable();
@@ -177,15 +213,15 @@ export function identityFailure(err: unknown): never {
  * ключ идемпотентности): identity вернёт ответ первого вызова, а не отказ по лимиту или «уже указано». Любой отказ —
  * `identityFailure`.
  */
-export async function retriedOnce<R>(call: () => Promise<R>): Promise<R> {
+export async function retriedOnce<R>(call: () => Promise<R>, overrides: IdentityErrorOverrides = {}): Promise<R> {
   try {
     return await call();
   } catch (first) {
-    if (!isTransient(first)) return identityFailure(first);
+    if (!isTransient(first)) return identityFailure(first, overrides);
     try {
       return await call();
     } catch (second) {
-      return identityFailure(second);
+      return identityFailure(second, overrides);
     }
   }
 }

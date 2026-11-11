@@ -12,9 +12,16 @@ import {
   GrantRoleRequestSchema,
   IdentityService,
   GrantRoleResponseSchema,
+  KycStatus,
+  LegalForm,
+  PartySchema,
   PersonSchema,
+  ProvisionExecutorRequestSchema,
+  ProvisionExecutorResponseSchema,
   RecordPersonRequestSchema,
   RecordPersonResponseSchema,
+  RegisterPartyRequestSchema,
+  RegisterPartyResponseSchema,
   RequestOtpRequestSchema,
   RequestOtpResponseSchema,
   ResetDemoRequestSchema,
@@ -23,6 +30,8 @@ import {
   SeedUsersRequestSchema,
   SeedUsersResponseSchema,
   SessionSchema,
+  SetPayoutIbanRequestSchema,
+  SetPayoutIbanResponseSchema,
   SignOutEverywhereRequestSchema,
   SignOutEverywhereResponseSchema,
   SignOutRequestSchema,
@@ -40,6 +49,7 @@ import {
   VerifyOtpResponseSchema,
   VerifySecondFactorRequestSchema,
   VerifySecondFactorResponseSchema,
+  type Party,
   type Person,
   type Session,
   type User,
@@ -57,7 +67,10 @@ import { isValidFullName, normalizeFullName } from "@/modules/identity/full-name
 // eslint-disable-next-line no-restricted-imports
 import { INSTAGRAM_MAX } from "@/modules/identity/instagram";
 // eslint-disable-next-line no-restricted-imports
-import { isValidIin } from "@/modules/identity/kz-id";
+import { isValidBin, isValidIin } from "@/modules/identity/kz-id";
+// Тот же разбор IBAN, что в Go (party.go, parseKzIban).
+// eslint-disable-next-line no-restricted-imports
+import { parseKzIban } from "@/modules/identity/iban";
 
 /**
  * Подделка identity для тестов web: пользователи и сессии в памяти, семантика по контракту
@@ -80,6 +93,11 @@ import { isValidIin } from "@/modules/identity/kz-id";
  * указать ИИН в час фиксированным окном, тот же ИИН ещё раз — тот же ответ без попытки, другой поверх записанного —
  * person_already_recorded, чужой — iin_taken; UpdateContacts — полное новое состояние, только активной роли CLIENT или
  * EXECUTOR). ИИН хранится открыто (в Go — шифртекст и HMAC); события аудита — в `auditEvents`, без значений.
+ *
+ * Реквизиты исполнителя (party.go) повторены по Go: RegisterParty, ProvisionExecutor и SetPayoutIban — порядок проверок
+ * (ключ, формат, сессия и роль; дальше повтор по ключу и «транзакция») и коды. ИП и самозанятый в RegisterParty работают
+ * по ИИН личности (person_missing, если его нет); те же реквизиты ещё раз — тот же ответ, другие поверх записанных —
+ * party_exists; ИИН/БИН другой стороны — iin_taken; новая сторона — KYC NOT_SUBMITTED. Номера хранятся открыто.
  */
 
 /** Тип клиента — тот же, что у `IdentityClient` из modules/identity/remote (импорт оттуда из test/ запрещён границей модулей). */
@@ -103,6 +121,25 @@ const INSTAGRAM_RE = /^[A-Za-z0-9._]*$/;
 
 /** Личность в подделке: пустая строка — поле не указано (в Go — NULL). */
 type StoredPerson = { fullName: string; iin: string; instagram: string; email: string };
+
+/** Сторона (реквизиты исполнителя) в подделке: номера открыто, пустая строка — не указано. */
+type StoredParty = {
+  legalForm: LegalForm;
+  legalName: string;
+  binIin: string;
+  signerFullName: string;
+  signerIin: string;
+  payoutIban: string;
+  kycStatus: KycStatus;
+  kycRejectReason: string;
+};
+
+/** Проверенные реквизиты запроса (partyInput в Go). */
+type PartyInput = Pick<StoredParty, "legalForm" | "legalName" | "binIin" | "signerFullName" | "signerIin">;
+
+/** Наименование стороны: 2–200 символов после обрезки пробелов (minLegalName, maxLegalName в Go). */
+const LEGAL_NAME_MIN = 2;
+const LEGAL_NAME_MAX = 200;
 
 /** Событие аудита identity (outbox в Go): кто, что, о ком; значений ПДн нет. */
 export type FakeAuditEvent = { userId: string; actorRole: Role; action: string; before?: unknown; after?: unknown };
@@ -133,6 +170,8 @@ export type FakeUserInit = {
   blocked?: boolean;
   /** Личность, уже записанная в identity (как сид SeedUsers): null и пусто — поле не указано. */
   person?: { fullName?: string | null; iin?: string | null; instagram?: string | null; email?: string | null };
+  /** Сторона (реквизиты исполнителя), уже записанная в identity. */
+  party?: Partial<StoredParty> & Pick<StoredParty, "legalForm" | "legalName" | "binIin">;
 };
 
 type StoredSession = { id: string; userId: string; activeRole: Role; mfaVerifiedAt: Date | null };
@@ -172,7 +211,50 @@ const STATUS_BY_CODE: Record<string, Code> = {
   person_too_many_attempts: Code.ResourceExhausted,
   instagram_invalid: Code.InvalidArgument,
   email_invalid: Code.InvalidArgument,
+  person_missing: Code.FailedPrecondition,
+  bin_iin_invalid: Code.InvalidArgument,
+  signer_required: Code.InvalidArgument,
+  iban_invalid: Code.InvalidArgument,
+  party_missing: Code.FailedPrecondition,
+  party_exists: Code.FailedPrecondition,
 };
+
+/** withoutSpaces в Go: все пробелы убраны (digits в registration-schema.ts). */
+const withoutSpaces = (s: string) => s.replace(/\s/g, "");
+
+/**
+ * checkParty в Go: правовая форма (иначе invalid_request), наименование 2–200 символов (invalid_request), ИИН/БИН по форме
+ * (ТОО — БИН, иначе ИИН; ownIin — ИП и самозанятый работают по ИИН личности, bin_iin не читается), подписант
+ * (самозанятый — он сам, ИП — ФИО владельца, ТОО — ФИО и ИИН директора; нет — signer_required), формат ФИО и ИИН подписанта.
+ */
+function checkParty(form: LegalForm, rawName: string, rawBinIin: string, rawSigner: string, rawSignerIin: string, ownIin: boolean): PartyInput {
+  if (form !== LegalForm.SELF_EMPLOYED && form !== LegalForm.IP && form !== LegalForm.TOO) throw codedError("invalid_request", Code.InvalidArgument);
+  const legalName = rawName.trim();
+  if (legalName.length < LEGAL_NAME_MIN || legalName.length > LEGAL_NAME_MAX) throw codedError("invalid_request", Code.InvalidArgument);
+  let binIin = "";
+  if (form === LegalForm.TOO || !ownIin) {
+    binIin = withoutSpaces(rawBinIin);
+    if (!(form === LegalForm.TOO ? isValidBin : isValidIin)(binIin)) throw codedError("bin_iin_invalid", Code.InvalidArgument);
+  }
+  let signerFullName = "";
+  let signerIin = "";
+  if (form === LegalForm.SELF_EMPLOYED) signerFullName = normalizeFullName(legalName);
+  else if (form === LegalForm.IP) {
+    signerFullName = normalizeFullName(rawSigner);
+    if (signerFullName === "") throw codedError("signer_required", Code.InvalidArgument);
+  } else {
+    signerFullName = normalizeFullName(rawSigner);
+    signerIin = withoutSpaces(rawSignerIin);
+    if (signerFullName === "" || signerIin === "") throw codedError("signer_required", Code.InvalidArgument);
+  }
+  if (!isValidFullName(signerFullName)) throw codedError("full_name_invalid", Code.InvalidArgument);
+  if (signerIin !== "" && !isValidIin(signerIin)) throw codedError("iin_invalid", Code.InvalidArgument);
+  return { legalForm: form, legalName, binIin, signerFullName, signerIin };
+}
+
+/** sameParty в Go: у пользователя уже записаны те же реквизиты (повтор запроса). */
+const sameParty = (p: StoredParty, input: PartyInput) =>
+  p.legalForm === input.legalForm && p.legalName === input.legalName && p.binIin === input.binIin && p.signerFullName === input.signerFullName && p.signerIin === input.signerIin;
 
 /** Как parsePhone в Go: «8 700 …», «+7 700 …», «700 …» -> +7700…; не телефон остаётся как есть и не пройдёт PHONE_RE. */
 function normalizePhone(raw: string): string {
@@ -198,6 +280,7 @@ export class FakeIdentity {
   private mfaFailures = new Map<string, { windowStart: number; count: number }>(); // ключ mfa:<user_id> в Go
   private persons = new Map<string, StoredPerson>(); // по id пользователя
   private personAttempts = new Map<string, { windowStart: number; count: number }>(); // ключ identity:iin:user:<user_id> в Go
+  private parties = new Map<string, StoredParty>(); // по id пользователя
   /** События аудита личности и контактов (в Go — outbox identity). */
   readonly auditEvents: FakeAuditEvent[] = [];
   /** Включён ли демо-режим (DEMO_MODE у настоящего сервиса). */
@@ -226,6 +309,7 @@ export class FakeIdentity {
     this.mfaFailures.clear();
     this.persons.clear();
     this.personAttempts.clear();
+    this.parties.clear();
     this.auditEvents.length = 0;
     this.now = () => new Date();
   }
@@ -266,7 +350,40 @@ export class FakeIdentity {
       const p = init.person;
       this.persons.set(user.id, { fullName: p.fullName ?? "", iin: p.iin ?? "", instagram: p.instagram ?? "", email: p.email ?? "" });
     }
+    if (init.party) {
+      this.parties.set(user.id, {
+        signerFullName: "",
+        signerIin: "",
+        payoutIban: "",
+        kycStatus: KycStatus.NOT_SUBMITTED,
+        kycRejectReason: "",
+        ...init.party,
+      });
+    }
     return user;
+  }
+
+  /** Сторона пользователя, как её отдаёт identity (номера — последними 4 символами); нет — undefined. */
+  partyOf(userId: string): Party | undefined {
+    const p = this.parties.get(userId);
+    if (!p) return undefined;
+    return create(PartySchema, {
+      userId,
+      legalForm: p.legalForm,
+      legalName: p.legalName,
+      binIinLast4: p.binIin.slice(-4),
+      signerFullName: p.signerFullName,
+      signerIinLast4: p.signerIin.slice(-4),
+      payoutIbanLast4: p.payoutIban.slice(-4),
+      kycStatus: p.kycStatus,
+      kycRejectReason: p.kycRejectReason,
+    });
+  }
+
+  /** Открытые номера стороны — для проверок в тестах (в Go их отдаёт только RevealPartyDetails). */
+  partyNumbersOf(userId: string): { binIin: string; signerIin: string; payoutIban: string } | undefined {
+    const p = this.parties.get(userId);
+    return p && { binIin: p.binIin, signerIin: p.signerIin, payoutIban: p.payoutIban };
   }
 
   /** Личность пользователя, как её отдаёт identity (ИИН — последними 4 цифрами), — для проверок в тестах. */
@@ -493,6 +610,62 @@ export class FakeIdentity {
     this.persons.set(user.id, { fullName: current?.fullName || fullName, iin, instagram: current?.instagram ?? "", email: current?.email ?? "" });
     this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action: "user.identity.recorded" });
     return this.personOf(user.id);
+  }
+
+  /**
+   * writeParty в Go: у пользователя уже есть сторона — те же реквизиты дают её же, другие — party_exists; ИИН/БИН другой
+   * стороны — iin_taken. Ничего не меняет: запись — `commitParty` после всех проверок «транзакции».
+   */
+  private checkWriteParty(userId: string | null, input: PartyInput): StoredParty | null {
+    const existing = userId === null ? undefined : this.parties.get(userId);
+    if (existing) {
+      if (!sameParty(existing, input)) throw codedError("party_exists", Code.FailedPrecondition);
+      return existing;
+    }
+    for (const [id, p] of this.parties) if (id !== userId && p.binIin === input.binIin) throw codedError("iin_taken", Code.AlreadyExists);
+    return null;
+  }
+
+  /** Новая сторона: KYC не подана; аудит party.registered — только правовая форма. */
+  private commitParty(userId: string, input: PartyInput, actorRole: Role): void {
+    this.parties.set(userId, { ...input, payoutIban: "", kycStatus: KycStatus.NOT_SUBMITTED, kycRejectReason: "" });
+    this.auditEvents.push({ userId, actorRole, action: "party.registered", after: { legal_form: LegalForm[input.legalForm] } });
+  }
+
+  /** Сторона в ответе: только что записанная или прежняя. */
+  private mustParty(userId: string): Party {
+    const party = this.partyOf(userId);
+    if (!party) throw new Error("подделка identity: стороны нет после записи");
+    return party;
+  }
+
+  /** operatorWithMfa в Go: активная роль — оператор (иначе role_forbidden), вторая ступень пройдена (иначе mfa_required). */
+  private operatorWithMfa(session: StoredSession): void {
+    if (session.activeRole !== Role.OPERATOR) throw codedError("role_forbidden", Code.PermissionDenied);
+    if (!session.mfaVerifiedAt) throw codedError("mfa_required", Code.PermissionDenied);
+  }
+
+  /**
+   * executorByPhone и writeParty в Go одной «транзакцией»: сотрудник — role_forbidden, заблокированный — user_blocked, затем
+   * проверки стороны; только после них — новый пользователь (UserRegistered) или добавленная роль (RoleGranted) и сторона.
+   */
+  private provision(phone: string, input: PartyInput): { user: User; party: Party } {
+    let user = [...this.users.values()].find((u) => u.phone === phone);
+    if (user) {
+      if (user.roles.some((r) => STAFF.includes(r))) throw codedError("role_forbidden", Code.PermissionDenied);
+      if (this.blocked.has(user.id)) throw codedError("user_blocked", Code.PermissionDenied);
+    }
+    const existing = this.checkWriteParty(user?.id ?? null, input);
+    if (!user) {
+      user = this.addUser({ phone, defaultRole: Role.EXECUTOR, roles: [Role.EXECUTOR] });
+      this.auditEvents.push({ userId: user.id, actorRole: Role.OPERATOR, action: "user.registered", after: { role: "EXECUTOR" } });
+    } else if (!user.roles.includes(Role.EXECUTOR)) {
+      user = create(UserSchema, { ...user, roles: [...user.roles, Role.EXECUTOR] });
+      this.users.set(user.id, user);
+      this.auditEvents.push({ userId: user.id, actorRole: Role.OPERATOR, action: "user.role_granted", after: { role: "EXECUTOR" } });
+    }
+    if (!existing) this.commitParty(user.id, input, Role.OPERATOR);
+    return { user: this.view(user), party: this.mustParty(user.id) };
   }
 
   private refundMfaLimit(userId: string): void {
@@ -783,12 +956,86 @@ export class FakeIdentity {
       ),
       getProfile: reading("getProfile", async (req: MessageInitShape<typeof GetProfileRequestSchema>) => {
         const { user } = await this.lookup(req.sessionToken ?? "");
-        // Стороны (Party) подделка пока не ведёт: party пуст.
-        return create(GetProfileResponseSchema, { person: this.personOf(user.id) });
+        return create(GetProfileResponseSchema, { person: this.personOf(user.id), party: this.partyOf(user.id) });
       }),
-      registerParty: unimplemented,
-      provisionExecutor: unimplemented,
-      setPayoutIban: unimplemented,
+      registerParty: (req: MessageInitShape<typeof RegisterPartyRequestSchema>) => {
+        let input: PartyInput | undefined;
+        return this.once(
+          "registerParty",
+          RegisterPartyRequestSchema,
+          req,
+          async () => {
+            // Транзакция Go: сессия и роль заново, ИИН личности (ИП и самозанятый), сторона, аудит без значений.
+            const { user, session } = await this.sessionOf(req.sessionToken ?? "");
+            if (!user.roles.includes(Role.EXECUTOR)) throw codedError("role_not_granted", Code.PermissionDenied);
+            const own = { ...input! };
+            if (own.legalForm !== LegalForm.TOO) {
+              const iin = this.persons.get(user.id)?.iin ?? "";
+              if (iin === "") throw codedError("person_missing", Code.FailedPrecondition);
+              own.binIin = iin;
+            }
+            if (!this.checkWriteParty(user.id, own)) this.commitParty(user.id, own, session.activeRole);
+            return create(RegisterPartyResponseSchema, { party: this.mustParty(user.id) });
+          },
+          // Порядок Go (party.go): ключ, реквизиты, сессия, роль EXECUTOR среди выданных; дальше повтор по ключу.
+          async () => {
+            this.checkKey(req.idempotencyKey);
+            input = checkParty(req.legalForm ?? LegalForm.UNSPECIFIED, req.legalName ?? "", req.binIin ?? "", req.signerFullName ?? "", req.signerIin ?? "", true);
+            const { user } = await this.lookup(req.sessionToken ?? "");
+            if (!user.roles.includes(Role.EXECUTOR)) throw codedError("role_not_granted", Code.PermissionDenied);
+          },
+        );
+      },
+      provisionExecutor: (req: MessageInitShape<typeof ProvisionExecutorRequestSchema>) => {
+        let phone = "";
+        let input: PartyInput | undefined;
+        return this.once(
+          "provisionExecutor",
+          ProvisionExecutorRequestSchema,
+          req,
+          async () => {
+            const { session } = await this.sessionOf(req.sessionToken ?? "");
+            this.operatorWithMfa(session);
+            return create(ProvisionExecutorResponseSchema, this.provision(phone, input!));
+          },
+          // Порядок Go: ключ, телефон, реквизиты (ИИН/БИН из запроса), сессия, оператор со второй ступенью.
+          async () => {
+            this.checkKey(req.idempotencyKey);
+            phone = normalizePhone(req.phone ?? "");
+            if (!PHONE_RE.test(phone)) throw codedError("invalid_phone", Code.InvalidArgument);
+            input = checkParty(req.legalForm ?? LegalForm.UNSPECIFIED, req.legalName ?? "", req.binIin ?? "", req.signerFullName ?? "", req.signerIin ?? "", false);
+            this.operatorWithMfa((await this.sessionOf(req.sessionToken ?? "")).session);
+          },
+        );
+      },
+      setPayoutIban: (req: MessageInitShape<typeof SetPayoutIbanRequestSchema>) => {
+        let iban = "";
+        return this.once(
+          "setPayoutIban",
+          SetPayoutIbanRequestSchema,
+          req,
+          async () => {
+            const { user, session } = await this.sessionOf(req.sessionToken ?? "");
+            if (session.activeRole !== Role.EXECUTOR) throw codedError("role_forbidden", Code.PermissionDenied);
+            const party = this.parties.get(user.id);
+            if (!party) throw codedError("party_missing", Code.FailedPrecondition);
+            // Тот же счёт ещё раз — без изменений и без аудита; иначе аудит только «указан / не указан».
+            if (party.payoutIban !== iban) {
+              this.auditEvents.push({ userId: user.id, actorRole: Role.EXECUTOR, action: "executor.payout_iban_changed", before: { set: party.payoutIban !== "" }, after: { set: true } });
+              party.payoutIban = iban;
+            }
+            return create(SetPayoutIbanResponseSchema, { party: this.mustParty(user.id) });
+          },
+          // Порядок Go: ключ, IBAN (format или checksum), сессия, активная роль исполнителя.
+          async () => {
+            this.checkKey(req.idempotencyKey);
+            const check = parseKzIban(req.iban ?? "");
+            if (!check.ok) throw codedError("iban_invalid", Code.InvalidArgument, { reason: check.reason });
+            iban = check.iban;
+            if ((await this.sessionOf(req.sessionToken ?? "")).session.activeRole !== Role.EXECUTOR) throw codedError("role_forbidden", Code.PermissionDenied);
+          },
+        );
+      },
       verifySignerIin: unimplemented,
       revealPartyDetails: unimplemented,
       submitKyc: unimplemented,

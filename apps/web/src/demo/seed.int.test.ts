@@ -124,7 +124,7 @@ describe("демо-данные", () => {
     const profile = await db.executorProfile.findFirstOrThrow({ where: { legalName: spec.legalName }, include: { user: true } });
     expect(profile.legalForm).toBe("TOO");
     expect(JSON.stringify(profile)).not.toContain(spec.bin);
-    expect(decryptPii(profile.binIinEnc)).toBe(spec.bin);
+    expect(decryptPii(profile.binIinEnc!)).toBe(spec.bin);
     expect(profile.binIinLast4).toBe(spec.bin.slice(-4));
 
     const profiles = await db.executorProfile.findMany({ select: { district: true, streetAddress: true, kycStatus: true, status: true, payoutIbanEnc: true, kycDocuments: { select: { purpose: true } } } });

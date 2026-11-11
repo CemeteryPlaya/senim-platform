@@ -1,7 +1,7 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
-import { AppError, type ErrorCode } from "@/platform/errors";
+import { AppError, fail, type ErrorCode } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { codedError } from "../../../test/stubs/identity";
 import { IDENTITY_ERROR_CODES, identityFailure } from "./remote-errors";
@@ -13,6 +13,8 @@ const mfa = ru.identity.mfa.errors;
 const g = ru.common.errors;
 const person = ru.identity.clientIdentity;
 const contacts = ru.identity.contacts;
+const reg = ru.identity.registration.errors;
+const payout = ru.identity.payout.errors;
 
 function caught(err: unknown): AppError {
   try {
@@ -57,6 +59,12 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   person_too_many_attempts: { code: "RATE_LIMITED", message: person.tooMany },
   instagram_invalid: { code: "VALIDATION", message: contacts.instagramInvalid },
   email_invalid: { code: "VALIDATION", message: contacts.emailInvalid },
+  person_missing: { code: "VALIDATION", message: reg.personMissing },
+  bin_iin_invalid: { code: "VALIDATION", message: reg.binIinInvalid },
+  signer_required: { code: "VALIDATION", message: reg.signerRequired },
+  iban_invalid: { code: "VALIDATION", message: payout.checksum, params: { reason: "checksum" } },
+  party_missing: { code: "CONFLICT", message: payout.partyMissing },
+  party_exists: { code: "CONFLICT", message: reg.partyExists },
 };
 
 describe("identityFailure", () => {
@@ -68,8 +76,8 @@ describe("identityFailure", () => {
     expect(err.message).toBe(want.message);
   });
 
-  it("таблица покрывает коды входа, ролей, второго фактора, личности и контактов: 32 кода", () => {
-    expect(IDENTITY_ERROR_CODES).toHaveLength(32);
+  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов: 38 кодов", () => {
+    expect(IDENTITY_ERROR_CODES).toHaveLength(38);
     expect(Object.keys(table).sort()).toEqual([...IDENTITY_ERROR_CODES].sort());
   });
 
@@ -95,6 +103,8 @@ describe("identityFailure", () => {
     ["iin_invalid", "iin", person.iinInvalid],
     ["instagram_invalid", "instagram", contacts.instagramInvalid],
     ["email_invalid", "email", contacts.emailInvalid],
+    ["person_missing", "binIin", reg.personMissing],
+    ["bin_iin_invalid", "binIin", reg.binIinInvalid],
   ])("%s — ошибка поля %s", (code, field, message) => {
     expect(caught(codedError(code, Code.InvalidArgument)).details).toEqual({ fieldErrors: { [field]: [message] } });
   });
@@ -104,6 +114,26 @@ describe("identityFailure", () => {
     expect([long.message, long.details]).toEqual([contacts.instagramTooLong(30), { fieldErrors: { instagram: [contacts.instagramTooLong(30)] } }]);
     vi.spyOn(logger, "error").mockImplementation(() => {});
     expect(caught(codedError("instagram_invalid", Code.InvalidArgument, { max: "много" })).message).toBe(g.generic);
+  });
+
+  it("iban_invalid по params.reason: format и checksum — свои тексты у поля iban; без reason — общий текст", () => {
+    for (const reason of ["format", "checksum"] as const) {
+      expect(caught(codedError("iban_invalid", Code.InvalidArgument, { reason })).details).toEqual({ fieldErrors: { iban: [payout[reason]] } });
+    }
+    vi.spyOn(logger, "error").mockImplementation(() => {});
+    expect(caught(codedError("iban_invalid", Code.InvalidArgument)).message).toBe(g.generic);
+  });
+
+  it("текст кода можно заменить на месте вызова: iin_taken стороны — не текст ИИН личности", () => {
+    const err = caught(codedError("iin_taken", Code.AlreadyExists));
+    expect(err.message).toBe(person.iinTaken);
+    let replaced: unknown;
+    try {
+      identityFailure(codedError("iin_taken", Code.AlreadyExists), { iin_taken: () => fail.conflict(reg.binIinTaken) });
+    } catch (e) {
+      replaced = e;
+    }
+    expect(replaced).toMatchObject({ code: "CONFLICT", message: reg.binIinTaken });
   });
 
   it("ошибки контракта пишутся в лог кодом, а человеку показывается общий текст", () => {

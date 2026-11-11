@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testBin, testIin } from "@/demo/kz-id";
 import { registerExecutor, type CurrentUser, type ExecutorRegistrationInput } from "@/modules/identity";
+import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeFurnitureType } from "../../../test/factories/companies";
@@ -12,10 +13,15 @@ vi.mock("next/headers", async () => (await import("../../../test/factories/ident
 
 beforeEach(() => freshBrowser());
 
-/** Исполнитель после анкеты: вошёл по SMS (в аккаунте нет ФИО), подписанта знает только профиль. */
+/**
+ * Исполнитель после анкеты: в аккаунте нет ФИО, подписанта знает только профиль. ИП и самозанятый работают по ИИН
+ * личности (он в identity), у ТОО ИИН аккаунта нет вовсе.
+ */
 async function registeredExecutor(input: Omit<ExecutorRegistrationInput, "city" | "yearsExperience">): Promise<CurrentUser> {
   const user = await makeClient();
-  await db.user.update({ where: { id: user.id }, data: { fullName: null, iinEnc: null, iinHash: null, iinLast4: null } });
+  const iin = input.legalForm === "TOO" ? null : input.binIin;
+  const iinData = iin ? { iinEnc: encryptPii(iin), iinHash: hashPii(iin), iinLast4: last4(iin) } : { iinEnc: null, iinHash: null, iinLast4: null };
+  await db.user.update({ where: { id: user.id }, data: { fullName: null, ...iinData } });
   await signInAs(user);
   const { profileId } = await registerExecutor(user, { ...input, city: "Астана", yearsExperience: 3 });
   const profile = await db.executorProfile.findUniqueOrThrow({ where: { id: profileId } });

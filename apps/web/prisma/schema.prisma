@@ -127,7 +127,7 @@ model ExecutorProfile {
   publicNumber     Int                @unique @default(autoincrement()) // «Исполнитель №17»
   legalForm        LegalForm
   legalName        String // наименование ТОО/ИП или ФИО самозанятого; раскрывается только в договоре
-  binIinEnc        String // ИИН/БИН, AES-256-GCM
+  binIinEnc        String? // ИИН/БИН, AES-256-GCM; не пишется с плана 2б (ИИН/БИН — в identity), столбец удаляет план 7
   binIinHash       String?            @unique // HMAC (hashPii): один профиль на ИИН/БИН без расшифровки
   binIinLast4      String
   // Подписант договора — свойство профиля, а не аккаунта (ADR-003): ТОО — директор (ФИО и ИИН),
