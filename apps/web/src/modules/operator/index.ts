@@ -11,7 +11,7 @@ export { resetDemoData } from "./demo";
 export { getDisputeCard, listDisputes, previewDisputeSplit, resolveDispute } from "./disputes";
 export { addExecutor, changeSegment, getExecutorCard, listExecutors, listRegistrationQueue, reviewRegistration } from "./executors";
 export { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitureType, setFurnitureTypeActive } from "./furniture-types";
-export { kycQueue, kycQueueCount, kycReviewSchema, reviewKyc, type KycDecision, type KycDocument, type KycQueueItem, type KycReviewInput } from "./kyc";
+export { kycQueue, kycQueueCount, kycQueueSize, kycReviewSchema, reviewKyc, type KycDecision, type KycDocument, type KycQueueItem, type KycReviewInput } from "./kyc";
 export {
   confirmBankOperation,
   failBankOperation,

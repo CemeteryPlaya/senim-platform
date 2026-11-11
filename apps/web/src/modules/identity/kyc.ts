@@ -16,7 +16,7 @@ import { ownExecutorId } from "./executor-guard";
 import { KYC_MAX_FILES, KYC_REASON_MAX, KYC_REASON_MIN, kycView, type KycState } from "./kyc-policy";
 import { legalFormFromProto, ownParty, projectParty } from "./projection";
 import { identity } from "./remote";
-import { identityFailure, isTransient, retriedOnce } from "./remote-errors";
+import { identityFailure, isCodedRefusal, retriedOnce } from "./remote-errors";
 import { actorOf, currentSessionToken, type CurrentUser } from "./session";
 
 export { KYC_MAX_FILES, KYC_REASON_MAX, KYC_REASON_MIN };
@@ -34,11 +34,17 @@ export type KycPurpose = "KYC_ID" | "KYC_REGISTRATION";
 const DOC_URL_TTL_SEC = 15 * 60;
 
 const t = ru.identity.kyc;
-const id = z.string().min(1).max(64);
+/** id пользователя identity — UUID (ReviewKyc иного не примет). */
+const userIdField = z.guid();
+/**
+ * id файла: SubmitKyc принимает только UUID. Файлы, загруженные до перехода на UUID (cuid), — понятный текст «загрузите
+ * заново», а не общий сбой после вызова identity.
+ */
+const fileId = z.guid(t.errors.reupload);
 
 export const kycSubmitSchema = z.object({
-  idFileIds: z.array(id).min(1, t.errors.needId).max(KYC_MAX_FILES),
-  registrationFileIds: z.array(id).min(1, t.errors.needRegistration).max(KYC_MAX_FILES),
+  idFileIds: z.array(fileId).min(1, t.errors.needId).max(KYC_MAX_FILES),
+  registrationFileIds: z.array(fileId).min(1, t.errors.needRegistration).max(KYC_MAX_FILES),
 });
 export type KycSubmitInput = z.input<typeof kycSubmitSchema>;
 
@@ -54,7 +60,7 @@ const reasonRequired = (v: { decision: "VERIFIED" | "REJECTED"; reason?: string 
 export const kycDecisionSchema = z.object(decisionFields).superRefine(reasonRequired);
 export type KycDecision = z.input<typeof kycDecisionSchema>;
 /** Форма оператора: пользователь-исполнитель (id в identity) и решение. */
-export const kycReviewSchema = z.object({ userId: id, ...decisionFields }).superRefine(reasonRequired);
+export const kycReviewSchema = z.object({ userId: userIdField, ...decisionFields }).superRefine(reasonRequired);
 export type KycReviewInput = z.input<typeof kycReviewSchema>;
 
 /** Сторона своего профиля из identity (GetProfile в сессии этого браузера), с записью в проекцию. */
@@ -89,8 +95,10 @@ export async function getOwnKyc(user: CurrentUser): Promise<OwnKyc> {
  * Мастер отправляет документы на проверку. Порядок: web прикрепляет файлы к своему профилю (свои, ещё не прикреплённые,
  * нужного назначения — attachFiles; иначе CONFLICT, identity не вызывается; двойной клик даёт отказ второму), затем
  * SubmitKyc с их id (переход решает identity: проверенные документы не заменяются), затем проекция и уведомление
- * операторов. identity отказал — ничего не записал: прикрепление снимается, те же файлы можно отправить снова. Обрыв
- * связи — один повтор с тем же ключом; если и он оборвался, исход неизвестен и файлы остаются прикреплёнными.
+ * операторов. Обрыв связи — один повтор с тем же ключом. Прикрепление снимается (те же файлы можно отправить снова), только
+ * если identity ответил кодом контракта и ни одна попытка до этого не оборвалась: тогда он точно ничего не записал. Обрыв,
+ * дедлайн, Internal без кода (сброс потока после коммита) — исход неизвестен: identity мог записать id файлов, и файлы
+ * остаются прикреплёнными (иначе очередь оператора не нашла бы их в web).
  */
 export async function submitKycDocuments(user: CurrentUser, raw: KycSubmitInput): Promise<void> {
   const executorId = ownExecutorId(user);
@@ -106,20 +114,25 @@ export async function submitKycDocuments(user: CurrentUser, raw: KycSubmitInput)
   });
 
   const request = { sessionToken, idFileIds, registrationFileIds, idempotencyKey: randomUUID() };
-  let refused = false;
+  let uncertain = false; // какая-то попытка могла дойти до identity и записаться
+  let refused = false; // последняя попытка — отказ с кодом контракта
   const call = async () => {
     try {
       return await identity().submitKyc(request);
     } catch (e) {
-      refused = !isTransient(e);
+      refused = isCodedRefusal(e);
+      if (!refused) uncertain = true;
       throw e;
     }
   };
   let res;
   try {
-    res = await retriedOnce(call, { kyc_transition_forbidden: () => fail.conflict(t.errors.alreadyVerified) });
+    res = await retriedOnce(call, {
+      kyc_transition_forbidden: () => fail.conflict(t.errors.alreadyVerified),
+      party_missing: () => fail.conflict(t.errors.partyMissing),
+    });
   } catch (e) {
-    if (refused) {
+    if (refused && !uncertain) {
       await db.storedFile.updateMany({
         where: { id: { in: [...idFileIds, ...registrationFileIds] }, executorProfileId: executorId },
         data: { executorProfileId: null },
@@ -152,6 +165,11 @@ export type KycQueueItem = {
   fullName: string | null;
   /** Документы последней подачи: удостоверение, затем регистрация. */
   documents: KycDocument[];
+  /**
+   * Оба вида документов нашлись в web — решение принимать можно. Нет — часть id из identity не сходится с файлами профиля:
+   * экран показывает пометку вместо формы решения.
+   */
+  complete: boolean;
   submittedAt: Date | null;
 };
 
@@ -229,6 +247,9 @@ export async function kycQueue(operator: CurrentUser): Promise<KycQueueItem[]> {
       logger.error("identity.kyc_queue.profile_missing", { userId: party.userId });
       continue;
     }
+    const documents = await documentsOf(party, profile.id, files);
+    const complete = (["KYC_ID", "KYC_REGISTRATION"] as const).every((purpose) => documents.some((d) => d.purpose === purpose));
+    if (!complete) logger.error("identity.kyc_queue.incomplete", { executorId: profile.id });
     items.push({
       executorId: profile.id,
       userId: party.userId,
@@ -237,7 +258,8 @@ export async function kycQueue(operator: CurrentUser): Promise<KycQueueItem[]> {
       legalName: party.legalName,
       binIinLast4: party.binIinLast4,
       fullName: people.get(party.userId)?.fullName || null,
-      documents: await documentsOf(party, profile.id, files),
+      documents,
+      complete,
       submittedAt: party.kycSubmittedAt ? timestampDate(party.kycSubmittedAt) : null,
     });
   }
@@ -269,7 +291,7 @@ async function recordLinksIssued(operator: CurrentUser, items: KycQueueItem[]): 
  */
 export async function reviewKyc(operator: CurrentUser, userId: string, decision: KycDecision): Promise<void> {
   requireOperator(operator);
-  const target = parseInput(id, userId);
+  const target = parseInput(userIdField, userId);
   const input = parseInput(kycDecisionSchema, decision);
   const verify = input.decision === "VERIFIED";
   const sessionToken = await currentSessionToken();

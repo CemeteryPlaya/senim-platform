@@ -11,7 +11,7 @@ export const KYC_MAX_FILES = 4;
 export const KYC_REASON_MIN = 3;
 export const KYC_REASON_MAX = 500;
 
-export type KycState ="NOT_SUBMITTED" | "PENDING" | "VERIFIED" | "REJECTED";
+export type KycState = "NOT_SUBMITTED" | "PENDING" | "VERIFIED" | "REJECTED";
 
 const STATE: Partial<Record<KycStatus, KycState>> = {
   [KycStatus.NOT_SUBMITTED]: "NOT_SUBMITTED",

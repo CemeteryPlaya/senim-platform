@@ -4,7 +4,7 @@ import { ru } from "@/i18n/ru";
 import { AppError, fail, type ErrorCode } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { codedError } from "../../../test/stubs/identity";
-import { IDENTITY_ERROR_CODES, identityFailure } from "./remote-errors";
+import { IDENTITY_ERROR_CODES, identityFailure, isCodedRefusal } from "./remote-errors";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -169,6 +169,14 @@ describe("identityFailure", () => {
     // Без ErrorDetail причина пишется в лог: имя и сообщение исходной ошибки, а не просто «unknown».
     const [, fields] = log.mock.calls[1];
     expect(fields).toMatchObject({ reason: "status:Unknown", cause: expect.objectContaining({ message: "boom" }) });
+  });
+
+  it("isCodedRefusal: только ответ с кодом контракта; обрыв, Internal без кода и AppError — исход неизвестен", () => {
+    expect(isCodedRefusal(codedError("session_invalid", Code.Unauthenticated))).toBe(true);
+    expect(isCodedRefusal(codedError("kyc_transition_forbidden", Code.Unavailable))).toBe(true);
+    for (const err of [new ConnectError("x", Code.Unavailable), new ConnectError("reset", Code.Internal), new ConnectError("x", Code.Unknown), new AppError("CONFLICT", "x")]) {
+      expect(isCodedRefusal(err)).toBe(false);
+    }
   });
 
   it("AppError пропускает как есть", () => {

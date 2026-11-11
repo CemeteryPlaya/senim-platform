@@ -52,7 +52,7 @@ export default async function KycPage() {
                     </li>
                   ))}
                 </ul>
-                <KycForms userId={item.userId} />
+                {item.complete ? <KycForms userId={item.userId} /> : <p className="text-base text-ink">{t.incomplete}</p>}
               </ListCard>
             ))}
           </ul>

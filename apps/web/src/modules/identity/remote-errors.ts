@@ -203,6 +203,15 @@ export function isTransient(err: unknown): boolean {
 }
 
 /**
+ * identity ответил кодом контракта (`ErrorDetail`): вызов отклонён, ничего не записано. Всё остальное (обрыв, дедлайн,
+ * Internal или Unknown без детали — например, сброс потока HTTP/2 после коммита) — исход неизвестен.
+ */
+export function isCodedRefusal(err: unknown): boolean {
+  if (err instanceof AppError) return false;
+  return ConnectError.from(err).findDetails(ErrorDetailSchema).length > 0;
+}
+
+/**
  * Тексты отдельных кодов на месте вызова: один код контракта значит разное в разных методах (iin_taken у RecordPerson —
  * ИИН личности, у RegisterParty — ИИН/БИН стороны). Функция бросает `fail.*`.
  */

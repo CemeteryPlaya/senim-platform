@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { KycStatus } from "@/gen/senim/identity/v1/identity_pb";
+import { KycStatus, Role } from "@/gen/senim/identity/v1/identity_pb";
 import type { FilePurpose } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
@@ -146,6 +148,53 @@ describe("мастер загружает документы", () => {
     expect(await db.notification.count({ where: { userId: operator.id, kind: "kyc.submitted" } })).toBe(1);
   });
 
+  it("Internal без кода после записи (сброс потока после коммита) — исход неизвестен: файлы остаются прикреплены, оператор видит документы", async () => {
+    const operator = await makeOperator();
+    const executor = await makeExecutor();
+    const files = await freshFiles(executor);
+    await own(executor);
+    identityFake.failNextAfterEffect(new ConnectError("stream reset", Code.Internal));
+    expect(await code(as(executor, () => submitKycDocuments(executor, files)))).toBe("UNAVAILABLE");
+    expect(calls("submitKyc")).toHaveLength(1); // Internal не повторяется
+    expect(identityFake.partyOf(executor.id)?.kycStatus).toBe(KycStatus.PENDING);
+    const attached = await db.storedFile.findMany({ where: { executorProfileId: executor.executor.id }, select: { id: true } });
+    expect(attached.map((f) => f.id).sort()).toEqual([...files.idFileIds, ...files.registrationFileIds].sort());
+    const [item] = await queueOf(operator);
+    expect(item).toMatchObject({ userId: executor.id, complete: true });
+    expect(item!.documents.map((d) => d.id)).toEqual([...files.idFileIds, ...files.registrationFileIds]);
+  });
+
+  it("первая попытка оборвалась после записи, повтор получил отказ с кодом — исход неизвестен, файлы не открепляются", async () => {
+    const executor = await makeExecutor();
+    const files = await freshFiles(executor);
+    await own(executor);
+    identityFake.failNextAfterEffect();
+    identityFake.passNext();
+    identityFake.failNextWithCode("session_invalid");
+    expect(await code(as(executor, () => submitKycDocuments(executor, files)))).toBe("UNAUTHENTICATED");
+    expect(await db.storedFile.count({ where: { executorProfileId: executor.executor.id } })).toBe(2);
+  });
+
+  it("стороны в identity нет — текст про регистрацию исполнителя, файлы снова свободны", async () => {
+    const executor = await makeExecutor();
+    // В identity человек есть, а стороны нет (mirrorUser пропускает уже известного пользователя).
+    identityFake.addUser({ id: executor.id, phone: executor.phone, defaultRole: Role.EXECUTOR, roles: [Role.EXECUTOR] });
+    expect(await message(as(executor, async () => submitKycDocuments(executor, await freshFiles(executor))))).toBe(t.errors.partyMissing);
+    expect(await db.storedFile.count({ where: { executorProfileId: executor.executor.id } })).toBe(0);
+  });
+
+  it("файл со старым id (не UUID) — VALIDATION «загрузите заново» до вызова identity", async () => {
+    const executor = await makeExecutor();
+    const old = await db.storedFile.create({
+      data: { id: "ckq1old0000000000000000", storageKey: "kyc/test/old.jpg", provider: "local", purpose: "KYC_ID", contentType: "image/jpeg", size: 1, sha256: "4".repeat(64), uploadedById: executor.id },
+    });
+    const input = { idFileIds: [old.id], registrationFileIds: [await upload(executor, "KYC_REGISTRATION")] };
+    const err = await as(executor, () => submitKycDocuments(executor, input)).catch((e: { code: string; message: string }) => e);
+    expect(err).toMatchObject({ code: "VALIDATION", message: t.errors.reupload });
+    expect(calls("submitKyc")).toHaveLength(0);
+    expect(await db.storedFile.count({ where: { executorProfileId: executor.executor.id } })).toBe(0);
+  });
+
   it("экран — по статусу identity, а не по проекции: старые прикреплённые файлы при «не подано» не делают «на проверке»", async () => {
     const executor = await makeExecutor();
     // История старой базы: файлы прикреплены к профилю, а в identity документы не поданы.
@@ -195,7 +244,17 @@ describe("оператор проверяет документы", () => {
     identityFake.setKycStatus(executor.id, KycStatus.PENDING, { files: { id: [...files.idFileIds, stray], registration: files.registrationFileIds } });
     const [item] = await queueOf(operator);
     expect(item!.documents.map((d) => d.id)).not.toContain(stray);
+    expect(item!.complete).toBe(true);
     expect(await db.auditEvent.count({ where: { action: "pii.kyc_file_link_issued", entityId: stray } })).toBe(0);
+  });
+
+  it("после сверки нет одного из видов документов — решения нет (complete: false), ссылки на найденные выдаются", async () => {
+    const operator = await makeOperator();
+    const { executor, files } = await submitted();
+    identityFake.setKycStatus(executor.id, KycStatus.PENDING, { files: { id: files.idFileIds, registration: [randomUUID()] } });
+    const [item] = await queueOf(operator);
+    expect(item).toMatchObject({ userId: executor.id, complete: false });
+    expect(item!.documents.map((d) => d.purpose)).toEqual(["KYC_ID"]);
   });
 
   it("подтвердил — VERIFIED в identity и проекции, уведомление мастеру; из очереди уходит; повтор — текст kyc_transition_forbidden", async () => {
@@ -255,7 +314,9 @@ describe("оператор проверяет документы", () => {
     expect(await code(review(operator, bare.id, { decision: "VERIFIED" }))).toBe("CONFLICT");
     identityFake.setKycStatus(bare.id, KycStatus.PENDING); // PENDING без файлов (демо-сид) — kyc_documents_missing
     expect(await message(review(operator, bare.id, { decision: "VERIFIED" }))).toBe(t.errors.noDocuments);
-    expect(await message(review(operator, "no-such", { decision: "VERIFIED" }))).toBe(t.errors.notFound);
+    expect(await message(review(operator, randomUUID(), { decision: "VERIFIED" }))).toBe(t.errors.notFound);
+    expect(await code(review(operator, "no-such", { decision: "VERIFIED" }))).toBe("VALIDATION"); // не UUID — до identity
+    expect(calls("reviewKyc").map((c) => (c.request as { userId: string }).userId)).not.toContain("no-such");
     const { executor } = await submitted();
     expect(await code(as(executor, () => reviewKyc(executor, executor.id, { decision: "VERIFIED" })))).toBe("FORBIDDEN");
     const client = await makeClient();

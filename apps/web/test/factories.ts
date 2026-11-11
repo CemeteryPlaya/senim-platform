@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Role, Segment } from "@/generated/prisma/enums";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db } from "@/platform/db";
@@ -26,7 +27,8 @@ function testIin(birthYymmdd: string, n: number): string {
 export async function makeUser(role: Role, fullName = `Тест ${role} ${seq + 1}`, roles: Role[] = [role]): Promise<CurrentUser> {
   const iin = testIin("900101", seq + 1);
   const user = await db.user.create({
-    data: { role, roles, phone: nextPhone(), fullName, iinEnc: encryptPii(iin), iinHash: hashPii(iin), iinLast4: last4(iin) },
+    // id — UUID, как у пользователей identity (проекция пишет их id; ReviewKyc принимает только UUID).
+    data: { id: randomUUID(), role, roles, phone: nextPhone(), fullName, iinEnc: encryptPii(iin), iinHash: hashPii(iin), iinLast4: last4(iin) },
   });
   // Оператор — как после входа с пройденной второй ступенью (сейчас).
   const mfa = { required: role === "OPERATOR", verifiedAt: role === "OPERATOR" ? new Date() : null };

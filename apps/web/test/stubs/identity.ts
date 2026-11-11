@@ -389,7 +389,7 @@ export class FakeIdentity {
   private nextFailure: unknown[] = [];
   private counter = 0;
   private replays = new Map<string, { fingerprint: string; response: unknown }>(); // ключ: (метод, ключ идемпотентности), как PRIMARY KEY (method, key) в pkg/idem
-  private effectThenFail = false;
+  private effectThenFail: unknown = null;
   private factors = new Map<string, StoredFactor>(); // по id пользователя
   private mfaFailures = new Map<string, { windowStart: number; count: number }>(); // ключ mfa:<user_id> в Go
   private persons = new Map<string, StoredPerson>(); // по id пользователя
@@ -416,7 +416,7 @@ export class FakeIdentity {
     this.otpRequested.clear();
     this.nextFailure = [];
     this.replays.clear();
-    this.effectThenFail = false;
+    this.effectThenFail = null;
     this.calls.length = 0;
     this.demoEnabled = true;
     this.factors.clear();
@@ -443,9 +443,17 @@ export class FakeIdentity {
     this.failNext(new ConnectError("unavailable", Code.Unavailable));
   }
 
-  /** Следующий изменяющий вызов выполнит действие (и запомнит ответ по ключу), а потом бросит Unavailable: «обрыв связи после ответа». */
-  failNextAfterEffect(): void {
-    this.effectThenFail = true;
+  /**
+   * Следующий изменяющий вызов выполнит действие (и запомнит ответ по ключу), а потом бросит `error` (по умолчанию
+   * Unavailable): «обрыв связи после ответа»; Internal без ErrorDetail — сброс потока HTTP/2 после коммита.
+   */
+  failNextAfterEffect(error: unknown = new ConnectError("unavailable", Code.Unavailable)): void {
+    this.effectThenFail = error;
+  }
+
+  /** Следующий вызов проходит как обычно — чтобы failNext сработал на вызове после него. */
+  passNext(): void {
+    this.nextFailure.push(undefined);
   }
 
   addUser(init: FakeUserInit): User {
@@ -667,9 +675,10 @@ export class FakeIdentity {
     }
     const response = await run();
     this.replays.set(slot, { fingerprint, response });
-    if (this.effectThenFail) {
-      this.effectThenFail = false;
-      throw new ConnectError("unavailable", Code.Unavailable);
+    if (this.effectThenFail !== null) {
+      const failure = this.effectThenFail;
+      this.effectThenFail = null;
+      throw failure;
     }
     return response;
   }
