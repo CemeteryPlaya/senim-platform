@@ -59,6 +59,7 @@ describe("вкладки по роли («B + A»)", () => {
   const OPERATOR_SECTIONS = [
     "/operator/money",
     "/operator/kyc",
+    "/operator/consents",
     "/operator/executors",
     "/operator/disputes",
     "/operator/requests",
@@ -83,9 +84,9 @@ describe("вкладки по роли («B + A»)", () => {
     const runs = groupNav(navFor(OPERATOR, true, ON).more).map((run) => [run.group ?? null, run.items.map((item) => item.href)]);
     expect(runs).toEqual([
       [null, ["/operator"]],
-      ["queues", OPERATOR_SECTIONS.slice(0, 5)],
-      ["dealsReports", OPERATOR_SECTIONS.slice(5, 9)],
-      ["reference", [...OPERATOR_SECTIONS.slice(9), "/operator/demo"]],
+      ["queues", OPERATOR_SECTIONS.slice(0, 6)],
+      ["dealsReports", OPERATOR_SECTIONS.slice(6, 10)],
+      ["reference", [...OPERATOR_SECTIONS.slice(10), "/operator/demo"]],
       [null, ["/profile", "/bank-demo", "/demo"]],
     ]);
   });

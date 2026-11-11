@@ -194,11 +194,24 @@ export function amount(tiyn: bigint): RegExp {
 // ── Подписи ──
 
 /**
+ * Отметка «Передача данных банку-партнёру» в «Что дальше» (мастер — до подписи оферты, покупатель — перед оплатой), если
+ * её ещё нет: отметка сохраняется сразу, экран обновляется.
+ */
+export async function giveBankConsent(page: Page): Promise<void> {
+  const box = nextStep(page).getByRole("checkbox", { name: "Даю согласие на передачу моих данных банку-партнёру для этой сделки" });
+  if (!(await box.isVisible())) return;
+  await box.check();
+  await expect(nextStep(page).getByText("Согласие на передачу данных банку-партнёру дано")).toBeVisible();
+}
+
+/**
  * Подпись документа сделки: ссылка главного действия шага в StickyAction («Подписать оферту», «Подписать акт»,
  * «Подписать акт ЭЦП») ведёт к панели документа. Шаг 1 (если нужен) — собственноручно, «Напечатать имя»; шаг 2 — ЭЦП через мок eGov QR.
  * dblclick — двойное нажатие на каждой кнопке подписи. Возвращает панель документа.
  */
 export async function signFromNextStep(page: Page, link: string, opts: { doubleClick?: boolean; expectHand?: boolean } = {}): Promise<Locator> {
+  // Мастер подписывает оферту только после отметки о передаче данных банку-партнёру (P3).
+  if (link === "Подписать оферту") await giveBankConsent(page);
   const go = stepAction(page).getByRole("link", { name: link, exact: true });
   const anchor = await go.getAttribute("href");
   if (!anchor?.startsWith("#doc-")) throw new Error(`Неожиданная ссылка на документ: ${anchor}`);

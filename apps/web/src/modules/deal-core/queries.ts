@@ -44,6 +44,16 @@ export async function dealPartyOf(user: CurrentUser, dealId: string): Promise<Pa
   return deal ? partyOf(user.id, deal) : null;
 }
 
+/** Номера сделок, где человек — сторона (в любой роли), по id: для «Моих данных» (согласия банку к сделкам). */
+export async function dealNumbersOf(user: Pick<CurrentUser, "id">, dealIds: string[]): Promise<Map<string, number>> {
+  if (dealIds.length === 0) return new Map();
+  const deals = await db.deal.findMany({
+    where: { id: { in: dealIds }, OR: [{ clientId: user.id }, { executor: { userId: user.id } }] },
+    select: { id: true, number: true },
+  });
+  return new Map(deals.map((d) => [d.id, d.number]));
+}
+
 /** Последний спор сделки: открыт ли он — одно правило для списка, главной и экрана сделки. */
 const LAST_DISPUTE = { orderBy: { createdAt: "desc" }, take: 1 } as const satisfies Prisma.Deal$disputesArgs;
 const lastDisputeOpen = (disputes: readonly { status: string }[]) => disputes[0]?.status === "OPEN";

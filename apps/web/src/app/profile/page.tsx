@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { AtSign, UserRound } from "lucide-react";
+import { AtSign, ShieldCheck, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
-import { formatPhone, getCurrentUser, loginHref, switchTargets } from "@/modules/identity";
+import { consentHref, formatPhone, getCurrentUser, loginHref, needsConsent, switchTargets } from "@/modules/identity";
 import { env } from "@/platform/env";
 import { features } from "@/platform/features";
 import { ru } from "@/i18n/ru";
@@ -27,6 +27,8 @@ export const metadata: Metadata = { title: t.metaTitle };
 export default async function ProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect(loginHref(ACCOUNT_HREF));
+  // Без согласия на обработку ПДн текущей редакции — на экран согласия (там же «Выйти»); вторая ступень оператора здесь не нужна.
+  if (needsConsent(user)) redirect(consentHref(ACCOUNT_HREF));
   const { tabs, more } = navFor(user, env().DEMO_MODE, features());
   // Вкладки и так на виду; здесь — остальные разделы роли (у исполнителя — профиль компании, портфолио, замеры).
   const sections = more.filter((item) => item.href !== ACCOUNT_HREF && !tabs.some((tab) => tab.href === item.href));
@@ -48,7 +50,14 @@ export default async function ProfilePage() {
               ]}
             />
             {(user.role === "CLIENT" || user.role === "EXECUTOR") && (
-              <LinkList className="border-b-0" label={ru.identity.contacts.title} items={[{ href: "/profile/contacts", label: ru.identity.contacts.link, icon: <AtSign /> }]} />
+              <LinkList
+                className="border-b-0"
+                label={ru.identity.contacts.title}
+                items={[
+                  { href: "/profile/contacts", label: ru.identity.contacts.link, icon: <AtSign /> },
+                  { href: "/profile/data", label: ru.consent.myData.link, icon: <ShieldCheck /> },
+                ]}
+              />
             )}
           </Panel>
 

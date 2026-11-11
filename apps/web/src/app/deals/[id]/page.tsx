@@ -7,7 +7,7 @@ import { DealPortfolioPanel } from "@/app/_components/deal-portfolio/DealPortfol
 import { DealFlowSteps } from "@/app/_components/pre-contract/DealFlowSteps";
 import { DealDocuments, SigningPanel, signingAnchorId } from "@/app/_components/signing";
 import { orNotFound } from "@/app/requests/_parts/guard";
-import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
+import { bankConsentState, dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import { LINK_TTL_HOURS, listDealDocuments } from "@/modules/documents";
 import { getCurrentUser, needsSecondFactor, requireIntroduced, switchRoleHref, type CurrentUser } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
@@ -64,6 +64,10 @@ export default async function DealPage({ params }: Props) {
   requireIntroduced(user, `/deals/${id}`);
   const deal = await loadOrSwitchRole(user, id);
   const docs = await listDealDocuments(user, deal.id);
+  // Отметки «Передача данных банку-партнёру» сторон (identity) — только до оплаты и только стороне сделки.
+  const bank = deal.status === "CREATED" && deal.viewer !== "OPERATOR" ? await bankConsentState(user, deal.id) : null;
+  // Мастер без своей отметки оферту не подписывает: панель подписи оферты объясняет, где отметить.
+  const contractLocked = deal.viewer === "EXECUTOR" && bank !== null && !bank.mine;
   const openDispute = deal.dispute?.status === "OPEN";
 
   return (
@@ -90,7 +94,7 @@ export default async function DealPage({ params }: Props) {
           <>
             {deal.viewer === "OPERATOR" && <p className="text-base text-muted">{t.view.operatorWatch}</p>}
             {deal.dates.signedAt && deal.contract && <SignedBadge signedAt={deal.dates.signedAt} documentNumber={deal.contract.number} />}
-            <NextStep deal={deal} />
+            <NextStep deal={deal} bank={bank} />
             <ReadySection deal={deal} />
             {/* Сценарии до договора (ADR-005) — под флагом preContractFlows, только пока оферта не исполняется. */}
             {isEnabled("preContractFlows") && deal.status === "CREATED" && <DealFlowSteps user={user} offerId={deal.offerId} />}
@@ -105,7 +109,13 @@ export default async function DealPage({ params }: Props) {
                 .filter((d) => d.signable)
                 .map((d) => (
                   <div id={signingAnchorId(d.id)} key={d.id} className="scroll-mt-6">
-                    <SigningPanel document={d} titleAs="h3" signerName={user.fullName ?? undefined} actionVariant="secondary" />
+                    <SigningPanel
+                      document={d}
+                      titleAs="h3"
+                      signerName={user.fullName ?? undefined}
+                      actionVariant="secondary"
+                      lockedReason={contractLocked && d.kind === "CONTRACT" ? ru.consent.bank.signLocked : undefined}
+                    />
                   </div>
                 ))}
             </div>
@@ -125,7 +135,7 @@ export default async function DealPage({ params }: Props) {
             <CancelDeal deal={deal} />
           </>
         }
-        action={stepAction(deal)}
+        action={stepAction(deal, bank)}
       />
     </Container>
   );

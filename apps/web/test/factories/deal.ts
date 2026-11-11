@@ -5,6 +5,7 @@ import { requestsPort } from "@/modules/requests";
 import { db, transaction } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
 import { makeClient, makeExecutor, makeOperator } from "../factories";
+import { identityFake } from "../stubs/identity";
 import { mirrorUser } from "./session";
 
 /**
@@ -39,7 +40,15 @@ export async function withProvider<T>(provider: "mock" | "manual", fn: () => Pro
 
 /** Заявка с адресом, отклик мастера и сделка (оферта) через настоящий createDeal. */
 export async function makeDeal(
-  opts: { priceTiyn?: bigint; provider?: "mock" | "manual"; client?: CurrentUser; executor?: Executor; address?: { lat: number; lng: number } | null } = {},
+  opts: {
+    priceTiyn?: bigint;
+    provider?: "mock" | "manual";
+    client?: CurrentUser;
+    executor?: Executor;
+    address?: { lat: number; lng: number } | null;
+    /** Чьи согласия на передачу данных банку-партнёру к сделке уже даны (по умолчанию — обеих сторон: оплата открыта). */
+    bankConsents?: readonly ("CLIENT" | "EXECUTOR")[];
+  } = {},
 ): Promise<DealFixture> {
   const client = opts.client ?? (await makeClient());
   const executor = opts.executor ?? (await makeExecutor());
@@ -57,6 +66,11 @@ export async function makeDeal(
   const { dealId } = await withProvider(opts.provider ?? "mock", () =>
     transaction((tx) => createDeal(tx, { requestId: request.id, offerId: offer.id, priceTiyn, title: "Тестовый заказ" })),
   );
+  // Отметки «Передача данных банку-партнёру» (мастер — до подписи оферты, покупатель — перед оплатой): без них payForDeal
+  // отказывает BANK_CONSENT_MISSING.
+  for (const side of opts.bankConsents ?? ["CLIENT", "EXECUTOR"]) {
+    identityFake.grantConsentFor(side === "CLIENT" ? client.id : executor.id, "BANK_TRANSFER", { referenceId: dealId });
+  }
   return { dealId, requestId: request.id, offerId: offer.id, client, executor };
 }
 

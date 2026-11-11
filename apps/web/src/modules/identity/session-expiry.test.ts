@@ -23,7 +23,13 @@ describe("leaveIfSignedOut", () => {
     expect(visited).toEqual(["/login?next=%2Fprofile%2Fcontacts"]);
   });
 
-  it.each(["FORBIDDEN", "VALIDATION", "RATE_LIMITED", "UNAVAILABLE", "INTERNAL"] as const)("%s: остаётся на месте", (code) => {
+  it("CONSENT_REQUIRED: уводит на экран согласия с возвратом на тот же путь и запрос", () => {
+    const { loc, visited } = here("/deals/42", "?tab=chat");
+    expect(leaveIfSignedOut(failed("CONSENT_REQUIRED"), loc)).toBe(true);
+    expect(visited).toEqual(["/consent?next=%2Fdeals%2F42%3Ftab%3Dchat"]);
+  });
+
+  it.each(["FORBIDDEN", "VALIDATION", "RATE_LIMITED", "UNAVAILABLE", "INTERNAL", "MFA_REQUIRED"] as const)("%s: остаётся на месте", (code) => {
     const { loc, visited } = here("/deals/42", "");
     expect(leaveIfSignedOut(failed(code), loc)).toBe(false);
     expect(visited).toEqual([]);

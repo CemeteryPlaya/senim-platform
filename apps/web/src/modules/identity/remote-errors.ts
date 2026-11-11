@@ -12,6 +12,7 @@ const contacts = ru.identity.contacts;
 const registration = ru.identity.registration.errors;
 const payout = ru.identity.payout.errors;
 const kyc = ru.identity.kyc;
+const consent = ru.consent.errors;
 
 /** Коды, которые identity возвращает по контракту (proto/senim/identity/v1/identity.proto). */
 export const IDENTITY_ERROR_CODES = [
@@ -58,6 +59,10 @@ export const IDENTITY_ERROR_CODES = [
   "kyc_transition_forbidden",
   "kyc_documents_missing",
   "kyc_reason_invalid",
+  "consent_version_invalid",
+  "consent_not_revocable",
+  "consent_missing",
+  "revocation_closed",
 ] as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
@@ -176,6 +181,16 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
       return fail.conflict(kyc.errors.noDocuments);
     case "kyc_reason_invalid":
       return fieldInvalid("reason", kyc.reasonLength(KYC_REASON_MIN, KYC_REASON_MAX));
+    case "consent_version_invalid":
+      // Тот же номер редакции с другим текстом: текст в ru/consent.ts сменился без новой версии (ловит тест хэша).
+      return fail.conflict(consent.versionChanged);
+    case "consent_not_revocable":
+      return fail.conflict(consent.notRevocable);
+    case "consent_missing":
+      return fail.conflict(consent.missing);
+    case "revocation_closed":
+      // Заявку решили раньше (двойной клик, второй оператор) или её нет.
+      return fail.conflict(consent.revocationClosed);
     case "session_token_invalid":
     case "caller_forbidden":
     case "idempotency_key_reused":

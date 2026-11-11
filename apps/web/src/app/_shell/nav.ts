@@ -27,6 +27,7 @@ export type NavIcon =
   | "login"
   | "money"
   | "kyc"
+  | "consents"
   | "executors"
   | "disputes"
   | "staleRequests"
@@ -95,6 +96,7 @@ const ROUTES = {
   // Разделы оператора: рабочее место — десктоп, всё в боковом меню по группам.
   opMoney: { href: "/operator/money", label: op.money, icon: "money", group: "queues" },
   opKyc: { href: "/operator/kyc", label: op.kyc, icon: "kyc", group: "queues" },
+  opConsents: { href: "/operator/consents", label: op.consents, icon: "consents", group: "queues" },
   opExecutors: { href: "/operator/executors", label: op.executors, icon: "executors", group: "queues" },
   opDisputes: { href: "/operator/disputes", label: op.disputes, icon: "disputes", group: "queues" },
   opRequests: { href: "/operator/requests", label: op.requests, icon: "staleRequests", group: "queues" },
@@ -145,7 +147,7 @@ function roleNav(user: NavUser | null): RoleNav {
         tabs: [],
         more: [
           R.operator,
-          ...[R.opMoney, R.opKyc, R.opExecutors, R.opDisputes, R.opRequests],
+          ...[R.opMoney, R.opKyc, R.opConsents, R.opExecutors, R.opDisputes, R.opRequests],
           ...[R.opDeals, R.opIncome, R.opReport, R.opAudit],
           ...[R.opTypes, R.opMaterials, R.opSettings, R.opDemo],
           R.account,

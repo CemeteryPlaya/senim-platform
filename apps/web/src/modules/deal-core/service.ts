@@ -12,6 +12,7 @@ import { parseInput } from "@/platform/validation";
 import type { CreateDeal, OnDocumentSigned } from "./contracts";
 import { notifyBoth, notifyParty, otherParty, partyText, SYSTEM_ACTOR } from "./effects";
 import { processDealMoney, requestHold, requestPayout, requestRefund } from "./money";
+import { dealParties, requireBankConsents } from "./bank-consent";
 import { applyPortfolioConsent, attachOwnFiles, documents, recalculateRating, requests } from "./ports";
 import { cancelDealSchema, createDealSchema, dealRefSchema, progressReportSchema, reviewSchema, submitReadySchema } from "./schemas";
 import { contextOf, lockDeal, moveDeal, refuse, requireParty, requireRole, scopeOf, type DealState } from "./state";
@@ -135,9 +136,20 @@ export type PayResult = { transactionId: string; status: MoneyTransactionStatus;
  * Покупатель оплачивает: HOLD buyerTotal через провайдера сделки. mock подтверждает сразу (→ PAID_HOLD),
  * manual — PENDING до подтверждения оператором. Двойной клик и параллельный запрос — одна и та же операция:
  * пока попытка ждёт банк или прошла, новая не создаётся; отклонённая — следующая попытка.
+ *
+ * До списания — согласия обеих сторон на передачу данных банку-партнёру к этой сделке (identity HasConsents, вне
+ * транзакции): не хватает — CONFLICT BANK_CONSENT_MISSING, журнал денег не трогается. Сначала — что человек покупатель
+ * этой сделки (чужая — «не найдено»): отказ по согласиям не выдаёт, что сделка существует.
+ *
+ * `seedWithoutBankConsent` — только демо-сид (src/demo/deals.ts) и только по тестовой сделке (isDemo): сид действует без
+ * сессий сторон, а GrantConsent требует сессию (TODO Task 15: согласия демо-сделок — через сид identity).
  */
-export async function payForDeal(user: CurrentUser, raw: { dealId: string }): Promise<PayResult> {
+export async function payForDeal(user: CurrentUser, raw: { dealId: string }, opts: { seedWithoutBankConsent?: true } = {}): Promise<PayResult> {
   const { dealId } = parseInput(dealRefSchema, raw);
+  const parties = await dealParties(dealId);
+  requireParty(user, parties, "CLIENT");
+  if (!opts.seedWithoutBankConsent) await requireBankConsents(dealId, parties);
+  else if (!parties.isDemo) fail.forbidden();
   const hold = await transaction(async (tx) => {
     const deal = await lockDeal(tx, dealId);
     requireParty(user, deal, "CLIENT");

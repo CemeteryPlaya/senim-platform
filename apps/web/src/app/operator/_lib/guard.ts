@@ -1,6 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { loginHref, mfaHref, requireUser, type CurrentUser } from "@/modules/identity";
+import { consentHref, loginHref, mfaHref, requireUser, type CurrentUser } from "@/modules/identity";
 import { isAppError } from "@/platform/errors";
 
 /**
@@ -15,6 +15,7 @@ export async function requireOperatorPage(returnTo: string): Promise<CurrentUser
     if (isAppError(e) && e.code === "UNAUTHENTICATED") redirect(loginHref(returnTo));
     if (isAppError(e) && e.code === "FORBIDDEN") redirect(loginHref(returnTo, "role"));
     if (isAppError(e) && e.code === "MFA_REQUIRED") redirect(mfaHref(returnTo));
+    if (isAppError(e) && e.code === "CONSENT_REQUIRED") redirect(consentHref(returnTo));
     throw e;
   }
 }

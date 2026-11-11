@@ -9,6 +9,7 @@ export type ErrorCode =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
   | "MFA_REQUIRED" // нужен (свежий) код второго фактора оператора: форма спросит код и повторит действие
+  | "CONSENT_REQUIRED" // нет действующего согласия на обработку ПДн текущей редакции: форма уводит на экран согласия
   | "NOT_FOUND"
   | "CONFLICT" // состояние уже изменилось: повтор, гонка, неверный статус
   | "RATE_LIMITED"
@@ -41,11 +42,16 @@ export const fail = {
   mfaRequired(message: string = ru.identity.mfa.stepUp): never {
     throw new AppError("MFA_REQUIRED", message);
   },
+  /** Как UNAUTHENTICATED, но причина — согласие: нет действующего согласия на обработку ПДн текущей редакции. */
+  consentRequired(message: string = ru.consent.screen.lead): never {
+    throw new AppError("CONSENT_REQUIRED", message);
+  },
   notFound(message: string = e.notFoundShort): never {
     throw new AppError("NOT_FOUND", message);
   },
-  conflict(message: string = e.conflict): never {
-    throw new AppError("CONFLICT", message);
+  /** details — машинная причина отказа для вызывающего кода и тестов (например, `{ reason: "BANK_CONSENT_MISSING" }`). */
+  conflict(message: string = e.conflict, details?: Record<string, unknown>): never {
+    throw new AppError("CONFLICT", message, details);
   },
   rateLimited(message: string = e.rateLimited): never {
     throw new AppError("RATE_LIMITED", message);

@@ -18,12 +18,14 @@ export { signingFlags } from "./signing-flags";
 // Действия сторон
 export { addProgressReport, cancelDeal, leaveReview, payForDeal, startWork, submitReady, type CancelResult, type PayResult, type ReadyResult } from "./service";
 export { openDispute, submitDisputePosition } from "./dispute";
+// Согласие сторон на передачу данных банку-партнёру (P3): отметка до подписи оферты и оплаты
+export { BANK_CONSENT_MISSING, bankConsentState, giveBankConsent, type BankConsentState } from "./bank-consent";
 
 // Деньги: хук итога операции (payments → deal-core), «изменились деньги», исполнение ждущих операций сейчас
 export { onMoneyChanged, onMoneySettled, processDealMoney } from "./money";
 
 // Чтения для экранов и документов
-export { dealDocumentData, dealPartyOf, getDealView, listDeals, type DealDocumentData, type DealListItem, type DealView } from "./queries";
+export { dealDocumentData, dealNumbersOf, dealPartyOf, getDealView, listDeals, type DealDocumentData, type DealListItem, type DealView } from "./queries";
 export { nextStep, type NextAction, type NextStep } from "./next-step";
 export { daysLeft, plannedReadyAt } from "./schedule";
 export { financeOf, getExecutorFinance, monthOf, type ExecutorFinance, type FinanceRow, type MonthEarnings, type MonthKey } from "./finance";

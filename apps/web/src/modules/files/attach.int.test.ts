@@ -110,7 +110,7 @@ describe("assertAttachable: файлы, на которые ссылаются �
     const file = await db.storedFile.update({ where: { id: scan }, data: { createdAt: new Date(Date.now() - ORPHAN_AGE_MS - 60_000) } });
     const operator = await db.user.findUniqueOrThrow({ where: { id: file.uploadedById! } });
 
-    expect(await code(discardUpload({ id: operator.id, role: "OPERATOR", roles: ["OPERATOR"], phone: operator.phone, fullName: null, iinLast4: null, isDemo: false, executor: null, mfa: { required: true, verifiedAt: new Date() } }, scan))).toBe("CONFLICT");
+    expect(await code(discardUpload({ id: operator.id, role: "OPERATOR", roles: ["OPERATOR"], phone: operator.phone, fullName: null, iinLast4: null, isDemo: false, executor: null, mfa: { required: true, verifiedAt: new Date() }, consents: [] }, scan))).toBe("CONFLICT");
     await db.job.create({ data: { kind: "files.cleanupOrphans" } });
     await runDueJobs(jobHandlers);
     expect(await db.storedFile.findUnique({ where: { id: scan } })).not.toBeNull();

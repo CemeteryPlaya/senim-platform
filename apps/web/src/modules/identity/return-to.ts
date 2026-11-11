@@ -45,6 +45,15 @@ export function mfaHref(returnTo: string): string {
   return next ? `${MFA_PATH}?${new URLSearchParams({ next })}` : MFA_PATH;
 }
 
+/** Экран согласия на обработку ПДн: сразу после входа и после смены редакции текста. */
+export const CONSENT_PATH = "/consent";
+
+/** Экран согласия с возвратом на `returnTo` (только путь внутри сайта). */
+export function consentHref(returnTo?: string): string {
+  const next = safeReturnTo(returnTo);
+  return next ? `${CONSENT_PATH}?${new URLSearchParams({ next })}` : CONSENT_PATH;
+}
+
 /** Куда вести после входа, если адреса возврата нет. Маршруты — по таблице владения фазы B. */
 export function homePathFor(user: { role: Role; executor: { status: string } | null }): string {
   switch (user.role) {

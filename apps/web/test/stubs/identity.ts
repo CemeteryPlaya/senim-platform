@@ -7,15 +7,26 @@ import {
   AuthenticateResponseSchema,
   ConfirmTotpEnrollmentRequestSchema,
   ConfirmTotpEnrollmentResponseSchema,
+  ConsentKind,
+  ConsentRevocationSchema,
+  ConsentSchema,
   GetProfileRequestSchema,
   GetProfileResponseSchema,
+  GrantConsentRequestSchema,
+  GrantConsentResponseSchema,
   GrantRoleRequestSchema,
+  HasConsentsRequestSchema,
+  HasConsentsResponseSchema,
   IdentityService,
   GrantRoleResponseSchema,
   KycStatus,
   LegalForm,
+  ListConsentRevocationsRequestSchema,
+  ListConsentRevocationsResponseSchema,
   ListKycQueueRequestSchema,
   ListKycQueueResponseSchema,
+  ListMyConsentsRequestSchema,
+  ListMyConsentsResponseSchema,
   PartyDetailsSchema,
   PartySchema,
   PersonSchema,
@@ -29,11 +40,16 @@ import {
   RequestOtpResponseSchema,
   ResetDemoRequestSchema,
   ResetDemoResponseSchema,
+  ResolveConsentRevocationRequestSchema,
+  ResolveConsentRevocationResponseSchema,
   RevealPartyDetailsRequestSchema,
   RevealPartyDetailsResponseSchema,
   RevealPurpose,
   ReviewKycRequestSchema,
   ReviewKycResponseSchema,
+  RevocationStatus,
+  RevokeConsentRequestSchema,
+  RevokeConsentResponseSchema,
   Role,
   SeedUsersRequestSchema,
   SeedUsersResponseSchema,
@@ -62,13 +78,15 @@ import {
   VerifySecondFactorResponseSchema,
   VerifySignerIinRequestSchema,
   VerifySignerIinResponseSchema,
+  type Consent,
+  type ConsentRevocation,
   type Party,
   type PartyDetails,
   type Person,
   type Session,
   type User,
 } from "@/gen/senim/identity/v1/identity_pb";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { z } from "zod";
 import { toBase32, totpCode, totpStep } from "../../e2e/totp";
@@ -85,6 +103,9 @@ import { isValidBin, isValidIin } from "@/modules/identity/kz-id";
 // Тот же разбор IBAN, что в Go (party.go, parseKzIban).
 // eslint-disable-next-line no-restricted-imports
 import { parseKzIban } from "@/modules/identity/iban";
+// Текущая редакция согласия на ПДн: пользователи тестов по умолчанию уже дали его (как демо-персоны после сида).
+// eslint-disable-next-line no-restricted-imports
+import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-text";
 
 /**
  * Подделка identity для тестов web: пользователи и сессии в памяти, семантика по контракту
@@ -127,6 +148,17 @@ import { parseKzIban } from "@/modules/identity/iban";
  * kyc_transition_forbidden), очередь — PENDING с обоими видами файлов, давно ждущие первыми. Аудит executor.kyc_* — в
  * `auditEvents`, без значений. Расхождение с Go: ReviewKyc не проверяет user_id как UUID (как и прочие методы подделки);
  * идентификаторы файлов — проверяет (их задаёт web).
+ *
+ * Согласия (consent.go) повторены по Go: GrantConsent — порядок проверок (ключ, вид — invalid_request, версия и SHA-256 —
+ * consent_version_invalid, предмет по виду и цели — invalid_request, сессия), действующее той же версии и предмета — та же
+ * запись, другой хэш — consent_version_invalid; RevokeConsent — только ПДн (consent_not_revocable), нет действующего —
+ * consent_missing, открытая заявка — та же, срок — 15 рабочих дней по Алматы (UTC+5, праздники не учитываются, как в Go);
+ * согласие остаётся действующим до решения (Ruling P); ResolveConsentRevocation — причина по переходу (invalid_request),
+ * оператор со второй ступенью (role_forbidden, mfa_required), решённая или неизвестная заявка — revocation_closed,
+ * COMPLETED отзывает согласия, данные не позже заявки. Authenticate отдаёт только действующие согласия на ПДн.
+ * Пользователь, добавленный тестом (`addUser`), по умолчанию уже дал согласие на ПДн текущей редакции (канал seed) —
+ * как демо-персоны после сида; новый пользователь входа по SMS, ProvisionExecutor и SeedUsers без согласия — нет.
+ * Расхождение с Go: HasConsents не проверяет id пользователей как UUID (как и прочие методы подделки).
  */
 
 /** Тип клиента — тот же, что у `IdentityClient` из modules/identity/remote (импорт оттуда из test/ запрещён границей модулей). */
@@ -214,6 +246,113 @@ const kycAudit = (status: KycStatus, extra: { reason?: string; idFiles?: number;
   ...(extra.registrationFiles ? { registration_files: extra.registrationFiles } : {}),
 });
 
+/** consent.go: версия текста, предмет (сделка), цели; пользователей в HasConsents — не больше 200. */
+const CONSENT_VERSION_RE = /^[A-Za-z0-9.-]{1,32}$/;
+const CONSENT_REFERENCE_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+const SHA256_HEX_RE = /^[0-9a-fA-F]{64}$/;
+const MAX_CONSENT_PURPOSES = 32;
+const MAX_CONSENT_PURPOSE = 200;
+const MAX_HAS_CONSENTS_USERS = 200;
+/** workdays.go: срок ответа на отзыв — 15 рабочих дней по Алматы (с 01.03.2024 — UTC+5 без перехода на летнее время). */
+const REVOCATION_WORKDAYS = 15;
+const ALMATY_OFFSET_MS = 5 * 3600_000;
+const DAY_MS = 24 * 3600_000;
+
+/** Согласие в подделке: хэш — hex в нижнем регистре (в Go — байты). */
+type StoredConsent = {
+  id: string;
+  userId: string;
+  kind: ConsentKind;
+  version: string;
+  textSha256: string;
+  purposes: string[];
+  referenceId: string;
+  channel: string;
+  grantedAt: Date;
+  revokedAt: Date | null;
+};
+
+type StoredRevocation = {
+  id: string;
+  userId: string;
+  kind: ConsentKind;
+  requestedAt: Date;
+  dueAt: Date;
+  status: RevocationStatus;
+  decidedAt: Date | null;
+  reason: string;
+};
+
+const consentKindOk = (k: ConsentKind | undefined): k is ConsentKind => k === ConsentKind.PD_PROCESSING || k === ConsentKind.BANK_TRANSFER;
+
+/** consentProof в Go: версия по шаблону и SHA-256 — 64 hex-символа; иначе consent_version_invalid. Хэш — в нижнем регистре. */
+function consentProof(version: string, sha: string): string {
+  if (!CONSENT_VERSION_RE.test(version) || !SHA256_HEX_RE.test(sha)) throw codedError("consent_version_invalid", Code.InvalidArgument);
+  return sha.toLowerCase();
+}
+
+/** validConsentReference в Go: ПДн — без предмета, передача банку — к сделке. */
+const validConsentReference = (kind: ConsentKind, ref: string) => (kind === ConsentKind.PD_PROCESSING ? ref === "" : CONSENT_REFERENCE_RE.test(ref));
+
+/** consentPurposes в Go: 1–32 цели по 1–200 символов после обрезки, повторы убираются; иначе invalid_request. */
+function consentPurposes(raw: readonly string[]): string[] {
+  if (raw.length === 0 || raw.length > MAX_CONSENT_PURPOSES) throw codedError("invalid_request", Code.InvalidArgument);
+  const out: string[] = [];
+  for (const r of raw) {
+    const p = r.trim();
+    if (p.length === 0 || p.length > MAX_CONSENT_PURPOSE) throw codedError("invalid_request", Code.InvalidArgument);
+    if (!out.includes(p)) out.push(p);
+  }
+  return out;
+}
+
+/** revocationDue в Go: +15 рабочих дней (пн–пт по часам Алматы), время суток сохраняется. */
+export function fakeRevocationDue(requested: Date): Date {
+  let t = requested.getTime();
+  for (let n = REVOCATION_WORKDAYS; n > 0; ) {
+    t += DAY_MS;
+    const wd = new Date(t + ALMATY_OFFSET_MS).getUTCDay();
+    if (wd !== 0 && wd !== 6) n--;
+  }
+  return new Date(t);
+}
+
+/** revocationReason в Go: исполнение — причина пустая, отказ — 3–500 символов после обрезки; иначе invalid_request. */
+function revocationReason(completed: boolean, raw: string): string {
+  if (completed) {
+    if (raw !== "") throw codedError("invalid_request", Code.InvalidArgument);
+    return "";
+  }
+  const r = raw.trim();
+  if (r.length < KYC_REASON_MIN || r.length > KYC_REASON_MAX) throw codedError("invalid_request", Code.InvalidArgument);
+  return r;
+}
+
+const consentView = (c: StoredConsent): Consent =>
+  create(ConsentSchema, {
+    id: c.id,
+    kind: c.kind,
+    version: c.version,
+    textSha256: c.textSha256,
+    purposes: [...c.purposes],
+    referenceId: c.referenceId,
+    channel: c.channel,
+    grantedAt: timestampFromDate(c.grantedAt),
+    revokedAt: c.revokedAt ? timestampFromDate(c.revokedAt) : undefined,
+  });
+
+const revocationView = (r: StoredRevocation): ConsentRevocation =>
+  create(ConsentRevocationSchema, {
+    id: r.id,
+    userId: r.userId,
+    kind: r.kind,
+    requestedAt: timestampFromDate(r.requestedAt),
+    dueAt: timestampFromDate(r.dueAt),
+    status: r.status,
+    decidedAt: r.decidedAt ? timestampFromDate(r.decidedAt) : undefined,
+    reason: r.reason,
+  });
+
 /** Проверенные реквизиты запроса (partyInput в Go). */
 type PartyInput = Pick<StoredParty, "legalForm" | "legalName" | "binIin" | "signerFullName" | "signerIin">;
 
@@ -279,6 +418,11 @@ export type FakeUserInit = {
   person?: { fullName?: string | null; iin?: string | null; instagram?: string | null; email?: string | null };
   /** Сторона (реквизиты исполнителя), уже записанная в identity. */
   party?: Partial<StoredParty> & Pick<StoredParty, "legalForm" | "legalName" | "binIin">;
+  /**
+   * Согласие на обработку ПДн, уже данное (канал seed): по умолчанию — текущая редакция (пользователь теста не упирается в
+   * экран согласия); false — согласия нет; своя версия и хэш — например, прежняя редакция.
+   */
+  consent?: false | { version: string; textSha256: string };
 };
 
 type StoredSession = { id: string; userId: string; activeRole: Role; mfaVerifiedAt: Date | null };
@@ -328,6 +472,10 @@ const STATUS_BY_CODE: Record<string, Code> = {
   kyc_transition_forbidden: Code.FailedPrecondition,
   kyc_documents_missing: Code.FailedPrecondition,
   kyc_reason_invalid: Code.InvalidArgument,
+  consent_version_invalid: Code.InvalidArgument,
+  consent_not_revocable: Code.FailedPrecondition,
+  consent_missing: Code.FailedPrecondition,
+  revocation_closed: Code.FailedPrecondition,
 };
 
 /** withoutSpaces в Go: все пробелы убраны (digits в registration-schema.ts). */
@@ -395,6 +543,8 @@ export class FakeIdentity {
   private persons = new Map<string, StoredPerson>(); // по id пользователя
   private personAttempts = new Map<string, { windowStart: number; count: number }>(); // ключ identity:iin:user:<user_id> в Go
   private parties = new Map<string, StoredParty>(); // по id пользователя
+  private consents: StoredConsent[] = [];
+  private revocations: StoredRevocation[] = [];
   /** События аудита личности и контактов (в Go — outbox identity). */
   readonly auditEvents: FakeAuditEvent[] = [];
   /** Включён ли демо-режим (DEMO_MODE у настоящего сервиса). */
@@ -424,6 +574,8 @@ export class FakeIdentity {
     this.persons.clear();
     this.personAttempts.clear();
     this.parties.clear();
+    this.consents = [];
+    this.revocations = [];
     this.auditEvents.length = 0;
     this.now = () => new Date();
   }
@@ -481,7 +633,50 @@ export class FakeIdentity {
         ...init.party,
       });
     }
+    if (init.consent !== false) {
+      const c = init.consent ?? { version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") };
+      this.insertConsent({ userId: user.id, kind: ConsentKind.PD_PROCESSING, version: c.version, textSha256: c.textSha256, purposes: [], referenceId: "", channel: "seed" });
+    }
     return user;
+  }
+
+  /** Новая запись согласия (InsertConsent/SeedConsent в Go): время — часы подделки. */
+  private insertConsent(c: Omit<StoredConsent, "id" | "grantedAt" | "revokedAt">): StoredConsent {
+    const row: StoredConsent = { ...c, id: randomUUID(), grantedAt: this.now(), revokedAt: null };
+    this.consents.push(row);
+    return row;
+  }
+
+  /** Действующие согласия вида пользователя (ListActiveConsents в Go), старые первыми. */
+  private activeConsents(userId: string, kind: ConsentKind): StoredConsent[] {
+    return this.consents.filter((c) => c.userId === userId && c.kind === kind && c.revokedAt === null);
+  }
+
+  /**
+   * Согласие в обход GrantConsent — для фикстур: передача банку к сделке (`referenceId` — id сделки) или ПДн своей
+   * редакции. Канал — seed.
+   */
+  grantConsentFor(userId: string, kind: "PD_PROCESSING" | "BANK_TRANSFER", opts: { referenceId?: string; version?: string; textSha256?: string } = {}): void {
+    this.mustUser(userId);
+    this.insertConsent({
+      userId,
+      kind: ConsentKind[kind],
+      version: opts.version ?? consentDocument(kind).version,
+      textSha256: opts.textSha256 ?? consentTextSha256(kind),
+      purposes: [],
+      referenceId: opts.referenceId ?? "",
+      channel: "seed",
+    });
+  }
+
+  /** Все согласия пользователя (с отозванными) — для проверок в тестах. */
+  consentsOf(userId: string): StoredConsent[] {
+    return this.consents.filter((c) => c.userId === userId).map((c) => ({ ...c, purposes: [...c.purposes] }));
+  }
+
+  /** Заявки пользователя на отзыв — для проверок в тестах. */
+  revocationsOf(userId: string): StoredRevocation[] {
+    return this.revocations.filter((r) => r.userId === userId).map((r) => ({ ...r }));
   }
 
   /** Сторона пользователя, как её отдаёт identity (номера — последними 4 символами); нет — undefined. */
@@ -702,6 +897,11 @@ export class FakeIdentity {
       if (roles.some((r) => STAFF.includes(r)) && roles.length !== 1) throw codedError("invalid_request", Code.InvalidArgument);
       const person = this.seedPersonOf(u);
       if (u.party) this.seedPartyOf(u.party, roles, person.iin);
+      // validateSeedConsent в Go: версия и хэш — вместе (invalid_request), по правилам GrantConsent.
+      const version = u.consentVersion ?? "";
+      const sha = u.consentTextSha256 ?? "";
+      if ((version === "") !== (sha === "")) throw codedError("invalid_request", Code.InvalidArgument);
+      if (version !== "") consentProof(version, sha);
     }
   }
 
@@ -885,7 +1085,7 @@ export class FakeIdentity {
     }
     const write = this.checkWriteParty(user?.id ?? null, input, false);
     if (!user) {
-      user = this.addUser({ phone, defaultRole: Role.EXECUTOR, roles: [Role.EXECUTOR] });
+      user = this.addUser({ phone, defaultRole: Role.EXECUTOR, roles: [Role.EXECUTOR], consent: false });
       this.auditEvents.push({ userId: user.id, actorRole: Role.OPERATOR, action: "user.registered", after: { role: "EXECUTOR" } });
     } else if (!user.roles.includes(Role.EXECUTOR)) {
       user = create(UserSchema, { ...user, roles: [...user.roles, Role.EXECUTOR] });
@@ -967,7 +1167,7 @@ export class FakeIdentity {
           if (req.code !== FAKE_OTP_CODE) throw codedError("otp_wrong_code", Code.InvalidArgument, { left: "4" });
           const existing = [...this.users.values()].find((u) => u.phone === phone); // как в Go: пользователь ищется по телефону
           if (existing && this.blocked.has(existing.id)) throw codedError("user_blocked", Code.PermissionDenied);
-          const user = existing ?? this.addUser({ phone });
+          const user = existing ?? this.addUser({ phone, consent: false });
           this.otpRequested.delete(phone);
           // Вход по SMS: второй ступени в этой сессии ещё нет (у оператора — /operator/mfa).
           const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: user.defaultRole, mfaVerifiedAt: null };
@@ -989,6 +1189,8 @@ export class FakeIdentity {
           session: this.sessionView(session),
           accessToken: `fake-access-${user.id}`,
           accessExpiresAt: timestampFromDate(new Date(Date.now() + 5 * 60_000)),
+          // Как Authenticate в Go: только действующие согласия на ПДн (передача банку — HasConsents).
+          consents: this.activeConsents(user.id, ConsentKind.PD_PROCESSING).map(consentView),
         });
       }),
       signOut: mutating("signOut", SignOutRequestSchema, async (req) => {
@@ -1054,7 +1256,7 @@ export class FakeIdentity {
           for (const u of req.users ?? []) {
             const phone = normalizePhone(u.phone ?? "");
             const existing = [...this.users.values()].find((x) => x.phone === phone);
-            const user = this.addUser({ id: existing?.id, phone, defaultRole: u.defaultRole, roles: [...new Set((u.roles ?? []) as Role[])], isDemo: u.isDemo ?? false });
+            const user = this.addUser({ id: existing?.id, phone, defaultRole: u.defaultRole, roles: [...new Set((u.roles ?? []) as Role[])], isDemo: u.isDemo ?? false, consent: false });
             const createdAt = u.createdAt ? create(TimestampSchema, u.createdAt) : existing?.createdAt;
             if (createdAt) user.createdAt = createdAt;
             this.blocked.delete(user.id);
@@ -1064,6 +1266,12 @@ export class FakeIdentity {
               this.persons.set(user.id, { ...(this.persons.get(user.id) ?? { fullName: "", iin: "", instagram: "", email: "" }), ...person });
             }
             if (u.party) this.parties.set(user.id, this.seedPartyOf(u.party, user.roles, this.persons.get(user.id)?.iin));
+            // SeedConsent в Go: действующее согласие той же версии уже есть — без изменений.
+            const version = u.consentVersion ?? "";
+            if (version !== "" && !this.activeConsents(user.id, ConsentKind.PD_PROCESSING).some((c) => c.version === version)) {
+              const textSha256 = (u.consentTextSha256 ?? "").toLowerCase();
+              this.insertConsent({ userId: user.id, kind: ConsentKind.PD_PROCESSING, version, textSha256, purposes: [], referenceId: "", channel: "seed" });
+            }
             seeded.push(user);
           }
           return create(SeedUsersResponseSchema, { users: seeded.map((u) => this.view(u)) });
@@ -1084,6 +1292,10 @@ export class FakeIdentity {
           this.replays.clear();
           this.mfaFailures.clear();
           this.factors.clear(); // Ruling E: повторный прогон e2e подключает TOTP заново
+          // identity_purge_demo_consents в Go: согласия и заявки на отзыв демо-пользователей удаляются.
+          const demo = (userId: string) => this.users.get(userId)?.isDemo === true;
+          this.consents = this.consents.filter((c) => !demo(c.userId));
+          this.revocations = this.revocations.filter((r) => !demo(r.userId));
           return create(ResetDemoResponseSchema);
         },
         (req) => {
@@ -1397,12 +1609,144 @@ export class FakeIdentity {
           },
         );
       },
-      grantConsent: unimplemented,
-      revokeConsent: unimplemented,
-      listMyConsents: unimplemented,
-      hasConsents: unimplemented,
-      listConsentRevocations: unimplemented,
-      resolveConsentRevocation: unimplemented,
+      grantConsent: (req: MessageInitShape<typeof GrantConsentRequestSchema>) => {
+        let kind = ConsentKind.UNSPECIFIED;
+        let sum = "";
+        let purposes: string[] = [];
+        return this.once(
+          "grantConsent",
+          GrantConsentRequestSchema,
+          req,
+          async () => {
+            // Транзакция Go: сессия заново; действующее той же версии и предмета — та же запись (другой хэш — отказ).
+            const { user, session } = await this.sessionOf(req.sessionToken ?? "");
+            const version = req.version ?? "";
+            const ref = req.referenceId ?? "";
+            const existing = this.activeConsents(user.id, kind).find((c) => c.version === version && c.referenceId === ref);
+            if (existing) {
+              if (existing.textSha256 !== sum) throw codedError("consent_version_invalid", Code.InvalidArgument);
+              return create(GrantConsentResponseSchema, { consent: consentView(existing) });
+            }
+            const c = this.insertConsent({ userId: user.id, kind, version, textSha256: sum, purposes, referenceId: ref, channel: "otp_session" });
+            this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action: "consent.granted", after: { kind: ConsentKind[kind], version, reference_id: ref, channel: c.channel } });
+            return create(GrantConsentResponseSchema, { consent: consentView(c) });
+          },
+          // Порядок Go (consent.go): ключ, вид, версия и хэш, предмет, цели, сессия; дальше повтор по ключу.
+          async () => {
+            this.checkKey(req.idempotencyKey);
+            if (!consentKindOk(req.kind)) throw codedError("invalid_request", Code.InvalidArgument);
+            kind = req.kind;
+            sum = consentProof(req.version ?? "", req.textSha256 ?? "");
+            if (!validConsentReference(kind, req.referenceId ?? "")) throw codedError("invalid_request", Code.InvalidArgument);
+            purposes = consentPurposes(req.purposes ?? []);
+            await this.lookup(req.sessionToken ?? "");
+          },
+        );
+      },
+      revokeConsent: mutating(
+        "revokeConsent",
+        RevokeConsentRequestSchema,
+        async (req) => {
+          // Транзакция Go: действующего нет — consent_missing; открытая заявка — та же; иначе новая со сроком. Согласие
+          // остаётся действующим до решения оператора (Ruling P).
+          const { user, session } = await this.sessionOf(req.sessionToken ?? "");
+          const active = this.activeConsents(user.id, ConsentKind.PD_PROCESSING);
+          if (active.length === 0) throw codedError("consent_missing", Code.FailedPrecondition);
+          const open = this.revocations.find((r) => r.userId === user.id && r.kind === ConsentKind.PD_PROCESSING && r.status === RevocationStatus.REQUESTED);
+          if (open) return create(RevokeConsentResponseSchema, { revocation: revocationView(open) });
+          const now = this.now();
+          const rev: StoredRevocation = { id: randomUUID(), userId: user.id, kind: ConsentKind.PD_PROCESSING, requestedAt: now, dueAt: fakeRevocationDue(now), status: RevocationStatus.REQUESTED, decidedAt: null, reason: "" };
+          this.revocations.push(rev);
+          this.auditEvents.push({
+            userId: user.id,
+            actorRole: session.activeRole,
+            action: "consent.revocation_requested",
+            after: { kind: "PD_PROCESSING", versions: active.map((c) => c.version), revocation_id: rev.id, status: "REQUESTED", due_at: rev.dueAt.toISOString() },
+          });
+          return create(RevokeConsentResponseSchema, { revocation: revocationView(rev) });
+        },
+        // Порядок Go: ключ, вид (invalid_request), только ПДн (consent_not_revocable), сессия.
+        async (req) => {
+          this.checkKey(req.idempotencyKey);
+          if (!consentKindOk(req.kind)) throw codedError("invalid_request", Code.InvalidArgument);
+          if (req.kind !== ConsentKind.PD_PROCESSING) throw codedError("consent_not_revocable", Code.FailedPrecondition);
+          await this.lookup(req.sessionToken ?? "");
+        },
+      ),
+      listMyConsents: reading("listMyConsents", async (req: MessageInitShape<typeof ListMyConsentsRequestSchema>) => {
+        // Все согласия с отозванными (старые первыми) и заявки (новые первыми).
+        const { user } = await this.sessionOf(req.sessionToken ?? "");
+        const consents = this.consents.filter((c) => c.userId === user.id).sort((a, b) => a.grantedAt.getTime() - b.grantedAt.getTime() || (a.id < b.id ? -1 : 1));
+        const revocations = this.revocations
+          .filter((r) => r.userId === user.id)
+          .sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime() || (a.id < b.id ? -1 : 1));
+        return create(ListMyConsentsResponseSchema, { consents: consents.map(consentView), revocations: revocations.map(revocationView) });
+      }),
+      hasConsents: reading("hasConsents", async (req: MessageInitShape<typeof HasConsentsRequestSchema>) => {
+        // Порядок Go: вид и предмет, затем список 1–200 (id в Go — UUID); ответ — в порядке запроса без повторов.
+        const kind = req.kind;
+        if (!consentKindOk(kind) || !validConsentReference(kind, req.referenceId ?? "")) throw codedError("invalid_request", Code.InvalidArgument);
+        const raw = req.userIds ?? [];
+        if (raw.length === 0 || raw.length > MAX_HAS_CONSENTS_USERS || raw.some((id) => id === "")) throw codedError("invalid_request", Code.InvalidArgument);
+        const granted = [...new Set(raw)].filter((id) => this.activeConsents(id, kind).some((c) => c.referenceId === (req.referenceId ?? "")));
+        return create(HasConsentsResponseSchema, { grantedUserIds: granted });
+      }),
+      listConsentRevocations: reading("listConsentRevocations", async (req: MessageInitShape<typeof ListConsentRevocationsRequestSchema>) => {
+        // Порядок Go: сессия, оператор со второй ступенью; открытые заявки, ближний срок первым; people — в том же порядке.
+        const { session } = await this.sessionOf(req.sessionToken ?? "");
+        this.operatorWithMfa(session);
+        const open = this.revocations
+          .filter((r) => r.status === RevocationStatus.REQUESTED)
+          .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime() || a.requestedAt.getTime() - b.requestedAt.getTime() || (a.id < b.id ? -1 : 1));
+        return create(ListConsentRevocationsResponseSchema, { revocations: open.map(revocationView), people: open.map((r) => this.personOf(r.userId)) });
+      }),
+      resolveConsentRevocation: (req: MessageInitShape<typeof ResolveConsentRevocationRequestSchema>) => {
+        let reason = "";
+        const decide = (session: StoredSession) => {
+          if (session.activeRole !== Role.OPERATOR) throw codedError("role_forbidden", Code.PermissionDenied);
+          if (!session.mfaVerifiedAt) throw codedError("mfa_required", Code.PermissionDenied);
+        };
+        return this.once(
+          "resolveConsentRevocation",
+          ResolveConsentRevocationRequestSchema,
+          req,
+          async () => {
+            // Транзакция Go: сессия и решающий заново; условный переход из REQUESTED (иначе и для неизвестной — revocation_closed).
+            const { user, session } = await this.sessionOf(req.sessionToken ?? "");
+            decide(session);
+            const rev = this.revocations.find((r) => r.id === req.revocationId && r.status === RevocationStatus.REQUESTED);
+            if (!rev) throw codedError("revocation_closed", Code.FailedPrecondition);
+            const now = this.now();
+            rev.status = req.completed ? RevocationStatus.COMPLETED : RevocationStatus.REFUSED;
+            rev.decidedAt = now;
+            rev.reason = reason;
+            const revoked: StoredConsent[] = [];
+            if (req.completed) {
+              for (const c of this.activeConsents(rev.userId, rev.kind)) {
+                if (c.grantedAt.getTime() > rev.requestedAt.getTime()) continue; // данное заново после заявки остаётся
+                c.revokedAt = now;
+                revoked.push(c);
+              }
+            }
+            this.auditEvents.push({
+              userId: rev.userId,
+              actorRole: Role.OPERATOR,
+              action: req.completed ? "consent.revocation_completed" : "consent.revocation_refused",
+              before: { kind: "PD_PROCESSING", revocation_id: rev.id, status: "REQUESTED" },
+              after: { kind: "PD_PROCESSING", revocation_id: rev.id, status: RevocationStatus[rev.status], reason, ...(revoked.length > 0 && { versions: revoked.map((c) => c.version) }), decided_by: user.id },
+            });
+            return create(ResolveConsentRevocationResponseSchema, { revocation: revocationView(rev) });
+          },
+          // Порядок Go: ключ, id заявки (UUID), причина по переходу, сессия, оператор со второй ступенью.
+          async () => {
+            this.checkKey(req.idempotencyKey);
+            const id = req.revocationId ?? "";
+            if (id.length !== 36 || !UUID_RE.test(id)) throw codedError("invalid_request", Code.InvalidArgument);
+            reason = revocationReason(req.completed ?? false, req.reason ?? "");
+            decide((await this.sessionOf(req.sessionToken ?? "")).session);
+          },
+        );
+      },
     };
   }
 }

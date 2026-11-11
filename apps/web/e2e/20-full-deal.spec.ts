@@ -9,6 +9,7 @@ import {
   expectDealStatus,
   expectNoHorizontalScrollAt320And200,
   expectOnePrimary,
+  giveBankConsent,
   historyRow,
   loginAs,
   moneyBlock,
@@ -163,6 +164,8 @@ test("полная сделка: покупатель, мастер и опер�
   // ── 7. Оплата двойным кликом: одна операция HOLD в обработке ──
   await buyer.goto(dealPath);
   await expect(nextStep(buyer)).toContainText("Оферта заключена. Оплатите заказ");
+  // Перед оплатой — отметка покупателя «Передача данных банку-партнёру» (мастер отметил до подписи оферты).
+  await giveBankConsent(buyer);
   const pay = stepAction(buyer).getByRole("button", { name: /^Оплатить/ });
   await expect(pay).toContainText(amount(M.buyerTotal));
   const payRequest = await captureAction(buyer, () => pay.dblclick());

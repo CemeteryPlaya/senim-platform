@@ -12,6 +12,7 @@ export {
   getShellUser,
   needsSecondFactor,
   requireUser,
+  requireConsentSubject,
   requireIntroduced,
   requireUserPage,
   signOutEverywhere,
@@ -33,7 +34,26 @@ export { requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./ot
 export { listDemoPersonas, loginAsDemoPersona, resetIdentityDemo, seedIdentityUsers, type DemoPersona, type SeedPerson } from "./demo";
 export { projectPerson, projectUser } from "./projection";
 export { authorize, can, type ActionOn, type Resource } from "./rbac";
-export { EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, MFA_PATH, homePathFor, loginHref, mfaHref, safeReturnTo } from "./return-to";
+export { CONSENT_PATH, EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, MFA_PATH, consentHref, homePathFor, loginHref, mfaHref, safeReturnTo } from "./return-to";
+export { consentDocument, consentTextSha256, needsConsent, type ConsentKindName, type GrantedConsent } from "./consent-text";
+export {
+  REVOCATION_REASON_MAX,
+  REVOCATION_REASON_MIN,
+  bankConsentsOf,
+  consentRevocationQueue,
+  getMyData,
+  grantBankConsent,
+  grantPdConsent,
+  resolveConsentRevocation,
+  revocationDecisionSchema,
+  revokePdConsent,
+  type ActiveConsent,
+  type MyData,
+  type RevocationDecision,
+  type RevocationQueueItem,
+  type RevocationStatusName,
+  type RevocationView,
+} from "./consent";
 export { formatPhone, parsePhone, type Phone } from "./phone";
 export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id";
 export { isValidFullName, normalizeFullName } from "./full-name";

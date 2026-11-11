@@ -32,7 +32,7 @@ export async function makeUser(role: Role, fullName = `Тест ${role} ${seq + 
   });
   // Оператор — как после входа с пройденной второй ступенью (сейчас).
   const mfa = { required: role === "OPERATOR", verifiedAt: role === "OPERATOR" ? new Date() : null };
-  return { id: user.id, role, roles, phone: user.phone, fullName, iinLast4: user.iinLast4, isDemo: false, executor: null, mfa };
+  return { id: user.id, role, roles, phone: user.phone, fullName, iinLast4: user.iinLast4, isDemo: false, executor: null, mfa, consents: [] };
 }
 
 export async function makeExecutor(

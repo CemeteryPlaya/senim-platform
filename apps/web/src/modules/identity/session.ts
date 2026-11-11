@@ -16,7 +16,8 @@ import { projectUser, roleFromProto, roleToProto } from "./projection";
 import { identity } from "./remote";
 import { identityFailure, isTransient } from "./remote-errors";
 import { sessionCookieName, sessionCookieOptions, TOKEN_SHAPE } from "./session-cookie";
-import { loginHref, mfaHref } from "./return-to";
+import { consentHref, loginHref, mfaHref } from "./return-to";
+import { needsConsent, type GrantedConsent } from "./consent-text";
 import { introductionHref, needsIntroduction } from "./introduction";
 import { activeRoleOf, roleToSwitch, switchRoleHref } from "./roles";
 
@@ -41,6 +42,11 @@ export type CurrentUser = {
    * пройден код из приложения (вход или повторный код), null — не пройден. Свежесть перед деньгами — requireRecentMfa.
    */
   mfa: { required: boolean; verifiedAt: Date | null };
+  /**
+   * Действующие согласия на обработку ПДн (Authenticate.consents: только PD_PROCESSING без отозванных; согласия банку к
+   * сделкам — HasConsents). Нет согласия текущей редакции — needsConsent: страницы ведут на /consent, действия — CONSENT_REQUIRED.
+   */
+  consents: GrantedConsent[];
 };
 
 /** Токен сессии из cookie своего контура; `undefined` — cookie нет. Вид токена не проверяется. */
@@ -154,7 +160,7 @@ const authenticated = cache(async () => {
       logger.error("identity.call_rejected", { reason: "authenticate_without_user" });
       return fail.unavailable(ru.common.errors.generic);
     }
-    return { user: res.user, session: res.session, accessToken: res.accessToken };
+    return { user: res.user, session: res.session, accessToken: res.accessToken, consents: res.consents };
   } catch (e) {
     if (rpcErrorCode(e) === "session_invalid") return null;
     return identityFailure(e);
@@ -165,7 +171,7 @@ const authenticated = cache(async () => {
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const auth = await authenticated();
   if (!auth) return null;
-  const { user, session } = auth;
+  const { user, session, consents } = auth;
   await projectUser(user);
   const row = await db.user.findUniqueOrThrow({
     where: { id: user.id },
@@ -181,6 +187,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     isDemo: row.isDemo,
     executor: row.executorProfile,
     mfa: { required: session.mfaRequired, verifiedAt: session.mfaVerifiedAt ? timestampDate(session.mfaVerifiedAt) : null },
+    consents: consents.map((c) => ({ id: c.id, version: c.version, textSha256: c.textSha256 })),
   };
 });
 
@@ -220,9 +227,19 @@ export function needsSecondFactor(user: Pick<CurrentUser, "mfa">): boolean {
 /**
  * Для Server Actions и сервисов: пользователь с одной из ролей, иначе ошибка. Сессии, которой нужен второй фактор
  * (оператор), он должен быть пройден — иначе MFA_REQUIRED: вход только по SMS не открывает действий оператора,
- * даже в обход экранов. Экран самой второй ступени берёт пользователя через requireMfaUser.
+ * даже в обход экранов. Экран самой второй ступени берёт пользователя через requireMfaUser. Без действующего согласия
+ * на обработку ПДн текущей редакции — CONSENT_REQUIRED (форма уводит на экран согласия с возвратом, leaveIfSignedOut).
  */
 export async function requireUser(...roles: Role[]): Promise<CurrentUser> {
+  const user = await requireConsentSubject(...roles);
+  if (needsConsent(user)) return fail.consentRequired();
+  return user;
+}
+
+/**
+ * Как requireUser, но без проверки согласия: только для действий экрана согласия (дать согласие можно и без него).
+ */
+export async function requireConsentSubject(...roles: Role[]): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) return fail.unauthenticated();
   if (roles.length > 0 && !roles.includes(user.role)) return fail.forbidden();
@@ -250,10 +267,14 @@ export async function requireUserPage(returnTo: string, ...roles: Role[]): Promi
 /**
  * Ворота страниц, которые берут пользователя через getCurrentUser (и requireUserPage): сессия оператора без второй
  * ступени (вход только по SMS) — на /operator/mfa с возвратом сюда: страницы сделки и журнал денег оператор видит по
- * роли, без кода из приложения они не открываются. Без пройденного знакомства (ФИО и ИИН, №26) — на знакомство.
+ * роли, без кода из приложения они не открываются. Без согласия на обработку ПДн текущей редакции — на экран согласия
+ * (раньше знакомства: ФИО и ИИН собираются только после согласия). Без пройденного знакомства (ФИО и ИИН, №26) — на
+ * знакомство.
  */
 export function requireIntroduced(user: CurrentUser, returnTo: string): void {
   if (needsSecondFactor(user)) redirect(mfaHref(returnTo));
+  // Сменилась редакция посреди формы — следующий запрос страницы уводит на согласие и возвращает на ту же страницу.
+  if (needsConsent(user)) redirect(consentHref(returnTo));
   if (needsIntroduction(user)) redirect(introductionHref(returnTo));
 }
 

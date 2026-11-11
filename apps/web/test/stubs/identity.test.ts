@@ -2,10 +2,10 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
-import { KycStatus, LegalForm, RevealPurpose, Role, SigningSide } from "@/gen/senim/identity/v1/identity_pb";
+import { ConsentKind, KycStatus, LegalForm, RevealPurpose, RevocationStatus, Role, SigningSide } from "@/gen/senim/identity/v1/identity_pb";
 import { testBin, testIin } from "@/demo/kz-id";
 import { totpNow } from "../../e2e/totp";
-import { FakeIdentity, FAKE_OTP_CODE } from "./identity";
+import { FakeIdentity, FAKE_OTP_CODE, fakeRevocationDue } from "./identity";
 
 const token = (n: number) => `${String(n).padStart(2, "0")}${"a".repeat(41)}`;
 const PHONE = "+77001234567";
@@ -817,5 +817,165 @@ describe("подделка identity: KYC исполнителя (как kyc.go �
     expect(fake.auditEvents.filter((e) => e.action.startsWith("executor.kyc_") && e.action !== "executor.kyc_submitted")).toEqual([
       { userId: user.id, actorRole: Role.OPERATOR, action: "executor.kyc_rejected", before: { status: "PENDING" }, after: { status: "REJECTED", reason: "Фото нечитаемое" } },
     ]);
+  });
+});
+
+describe("подделка identity: согласия (как consent.go)", () => {
+  const SHA = "ab".repeat(32);
+  const PURPOSES = ["Учётная запись и вход"];
+  let n = 0;
+  const key = () => `consent-${++n}`;
+  // Понедельник, 10:00 по Алматы.
+  const MONDAY = new Date("2026-11-09T05:00:00Z");
+
+  function client(t: number, opts: { consent?: false } = {}) {
+    const user = fake.addUser({ phone: `+7700222000${t}`, ...opts });
+    fake.signIn(user.id, token(t));
+    return user;
+  }
+  function operator(t: number, mfa = true) {
+    const op = fake.addUser({ phone: `+7700222009${t}`, defaultRole: Role.OPERATOR });
+    fake.signIn(op.id, token(t), undefined, mfa ? {} : { mfaVerifiedAt: null });
+    return op;
+  }
+  type GrantOver = Partial<{ sessionToken: string; kind: ConsentKind; version: string; textSha256: string; purposes: string[]; referenceId: string; idempotencyKey: string }>;
+  const grant = (t: number, over: GrantOver = {}) =>
+    fake.client.grantConsent({ sessionToken: token(t), kind: ConsentKind.PD_PROCESSING, version: "v1", textSha256: SHA, purposes: PURPOSES, referenceId: "", idempotencyKey: key(), ...over });
+  const revoke = (t: number, kind = ConsentKind.PD_PROCESSING, idempotencyKey = key()) => fake.client.revokeConsent({ sessionToken: token(t), kind, idempotencyKey });
+  const resolve = (t: number, revocationId: string, completed: boolean, reason = "", idempotencyKey = key()) =>
+    fake.client.resolveConsentRevocation({ sessionToken: token(t), revocationId, completed, reason, idempotencyKey });
+
+  it("addUser по умолчанию — согласие на ПДн текущей редакции; consent: false и новый вход по SMS — без согласия", async () => {
+    const withConsent = client(1);
+    expect((await fake.client.authenticate({ sessionToken: token(1) })).consents.map((c) => c.channel)).toEqual(["seed"]);
+    client(2, { consent: false });
+    expect((await fake.client.authenticate({ sessionToken: token(2) })).consents).toEqual([]);
+    await fake.client.requestOtp({ phone: "+77002220099", idempotencyKey: key() });
+    const res = await fake.client.verifyOtp({ phone: "+77002220099", code: FAKE_OTP_CODE, sessionToken: token(3), idempotencyKey: key() });
+    expect(fake.consentsOf(res.user!.id)).toEqual([]);
+    expect(fake.consentsOf(withConsent.id)).toHaveLength(1);
+  });
+
+  it("GrantConsent: порядок проверок — ключ, вид, версия и хэш, предмет, цели, сессия", async () => {
+    client(1, { consent: false });
+    const wrongSession = { sessionToken: token(9) };
+    expect((await rejection(grant(1, { ...wrongSession, idempotencyKey: "", kind: ConsentKind.UNSPECIFIED }))).detail).toBe("invalid_request");
+    expect((await rejection(grant(1, { ...wrongSession, kind: ConsentKind.UNSPECIFIED, version: "bad version" }))).detail).toBe("invalid_request");
+    expect((await rejection(grant(1, { ...wrongSession, version: "bad version", referenceId: "deal-1" }))).detail).toBe("consent_version_invalid");
+    expect((await rejection(grant(1, { ...wrongSession, textSha256: "xyz", referenceId: "deal-1" }))).detail).toBe("consent_version_invalid");
+    expect((await rejection(grant(1, { ...wrongSession, referenceId: "deal-1", purposes: [] }))).detail).toBe("invalid_request");
+    expect((await rejection(grant(1, { ...wrongSession, kind: ConsentKind.BANK_TRANSFER, referenceId: "" }))).detail).toBe("invalid_request");
+    expect((await rejection(grant(1, { ...wrongSession, purposes: [" "] }))).detail).toBe("invalid_request");
+    expect((await rejection(grant(1, { ...wrongSession, purposes: ["x".repeat(201)] }))).detail).toBe("invalid_request");
+    expect((await rejection(grant(1, wrongSession))).detail).toBe("session_invalid");
+  });
+
+  it("GrantConsent: та же версия и предмет — та же запись; другой хэш — consent_version_invalid; аудит один раз", async () => {
+    const user = client(1, { consent: false });
+    const first = await grant(1, { purposes: ["  Учётная запись и вход ", "Учётная запись и вход"] });
+    expect(first.consent).toMatchObject({ kind: ConsentKind.PD_PROCESSING, version: "v1", textSha256: SHA, purposes: ["Учётная запись и вход"], channel: "otp_session" });
+    const again = await grant(1);
+    expect(again.consent?.id).toBe(first.consent?.id);
+    expect((await rejection(grant(1, { textSha256: "cd".repeat(32) }))).detail).toBe("consent_version_invalid");
+    expect(fake.auditEvents.filter((e) => e.userId === user.id && e.action === "consent.granted")).toHaveLength(1);
+    // Передача банку — к сделке; Authenticate её не отдаёт.
+    await grant(1, { kind: ConsentKind.BANK_TRANSFER, referenceId: "deal-1" });
+    const auth = await fake.client.authenticate({ sessionToken: token(1) });
+    expect(auth.consents.map((c) => c.kind)).toEqual([ConsentKind.PD_PROCESSING]);
+  });
+
+  it("HasConsents: вид и предмет, список 1–200; ответ — в порядке запроса без повторов", async () => {
+    const a = client(1);
+    const b = client(2);
+    await grant(1, { kind: ConsentKind.BANK_TRANSFER, referenceId: "deal-1" });
+    await grant(2, { kind: ConsentKind.BANK_TRANSFER, referenceId: "deal-2" });
+    const has = (userIds: string[], referenceId = "deal-1", kind = ConsentKind.BANK_TRANSFER) => fake.client.hasConsents({ userIds, kind, referenceId });
+    expect((await has([b.id, a.id, a.id])).grantedUserIds).toEqual([a.id]);
+    expect((await rejection(has([a.id], ""))).detail).toBe("invalid_request");
+    expect((await rejection(has([]))).detail).toBe("invalid_request");
+    expect((await rejection(has([a.id], "", ConsentKind.UNSPECIFIED))).detail).toBe("invalid_request");
+  });
+
+  it("RevokeConsent: только ПДн (consent_not_revocable), нет действующего — consent_missing; заявка со сроком 15 рабочих дней, согласие действует", async () => {
+    fake.now = () => MONDAY;
+    const user = client(1);
+    client(2, { consent: false });
+    expect((await rejection(revoke(1, ConsentKind.BANK_TRANSFER))).detail).toBe("consent_not_revocable");
+    expect((await rejection(revoke(1, ConsentKind.UNSPECIFIED))).detail).toBe("invalid_request");
+    expect((await rejection(revoke(2))).detail).toBe("consent_missing");
+    const first = (await revoke(1)).revocation!;
+    expect(first.status).toBe(RevocationStatus.REQUESTED);
+    expect(timestampDate(first.dueAt!).toISOString()).toBe("2026-11-30T05:00:00.000Z");
+    // Открытая заявка — та же; согласие остаётся действующим до решения (Ruling P).
+    expect((await revoke(1)).revocation?.id).toBe(first.id);
+    expect((await fake.client.authenticate({ sessionToken: token(1) })).consents).toHaveLength(1);
+    expect(fake.auditEvents.filter((e) => e.userId === user.id && e.action === "consent.revocation_requested")).toHaveLength(1);
+  });
+
+  it("срок отзыва: пятница вечером по Алматы — уже суббота по счёту дней; выходные пропускаются", () => {
+    // Пятница 19:30 UTC = суббота 00:30 в Алматы: первый рабочий день — понедельник.
+    expect(fakeRevocationDue(new Date("2026-11-13T19:30:00Z")).toISOString()).toBe("2026-12-03T19:30:00.000Z");
+    expect(fakeRevocationDue(new Date("2026-11-13T05:00:00Z")).toISOString()).toBe("2026-12-04T05:00:00.000Z");
+  });
+
+  it("ResolveConsentRevocation: порядок проверок — ключ, id (UUID), причина по переходу, сессия, оператор со второй ступенью", async () => {
+    client(1);
+    const rev = (await revoke(1)).revocation!;
+    operator(5);
+    operator(6, false);
+    expect((await rejection(resolve(5, rev.id, true, "", ""))).detail).toBe("invalid_request");
+    expect((await rejection(resolve(5, "not-a-uuid", true))).detail).toBe("invalid_request");
+    expect((await rejection(resolve(5, rev.id, true, "лишняя причина"))).detail).toBe("invalid_request");
+    expect((await rejection(resolve(5, rev.id, false, "  ok "))).detail).toBe("invalid_request");
+    expect((await rejection(resolve(1, rev.id, true))).detail).toBe("role_forbidden");
+    expect((await rejection(resolve(6, rev.id, true))).detail).toBe("mfa_required");
+    expect((await rejection(fake.client.listConsentRevocations({ sessionToken: token(6) }))).detail).toBe("mfa_required");
+  });
+
+  it("COMPLETED отзывает согласия, данные не позже заявки; второе решение и неизвестная заявка — revocation_closed", async () => {
+    let now = MONDAY;
+    fake.now = () => now;
+    const user = client(1);
+    const rev = (await revoke(1)).revocation!;
+    // Новая редакция, данная после заявки (Ruling P): COMPLETED её не снимает.
+    now = new Date(MONDAY.getTime() + 60_000);
+    await grant(1, { version: "v2" });
+    operator(5);
+    const queue = await fake.client.listConsentRevocations({ sessionToken: token(5) });
+    expect(queue.revocations.map((r) => r.id)).toEqual([rev.id]);
+    expect(queue.people.map((p) => p.userId)).toEqual([user.id]);
+    const done = (await resolve(5, rev.id, true)).revocation!;
+    expect(done.status).toBe(RevocationStatus.COMPLETED);
+    expect(fake.consentsOf(user.id).map((c) => [c.channel, c.revokedAt !== null])).toEqual([
+      ["seed", true],
+      ["otp_session", false],
+    ]);
+    expect((await rejection(resolve(5, rev.id, false, "Идёт сделка"))).detail).toBe("revocation_closed");
+    expect((await rejection(resolve(5, "00000000-0000-4000-8000-000000000001", true))).detail).toBe("revocation_closed");
+    expect((await fake.client.listConsentRevocations({ sessionToken: token(5) })).revocations).toEqual([]);
+  });
+
+  it("REFUSED: причина обрезается, согласие остаётся; ListMyConsents — согласия и заявки", async () => {
+    const user = client(1);
+    const rev = (await revoke(1)).revocation!;
+    operator(5);
+    const refused = (await resolve(5, rev.id, false, "  Идёт сделка  ")).revocation!;
+    expect([refused.status, refused.reason]).toEqual([RevocationStatus.REFUSED, "Идёт сделка"]);
+    const mine = await fake.client.listMyConsents({ sessionToken: token(1) });
+    expect(mine.consents.map((c) => c.revokedAt)).toEqual([undefined]);
+    expect(mine.revocations.map((r) => r.id)).toEqual([rev.id]);
+    expect(fake.auditEvents.filter((e) => e.userId === user.id && e.action === "consent.revocation_refused")).toHaveLength(1);
+  });
+
+  it("SeedUsers: версия и хэш вместе (invalid_request), по правилам GrantConsent; ResetDemo удаляет согласия демо-пользователей", async () => {
+    const seed = (consentVersion: string, consentTextSha256: string) =>
+      fake.client.seedUsers({ users: [{ phone: "+77002220080", defaultRole: Role.CLIENT, roles: [Role.CLIENT], isDemo: true, consentVersion, consentTextSha256 }], idempotencyKey: key() });
+    expect((await rejection(seed("v1", ""))).detail).toBe("invalid_request");
+    expect((await rejection(seed("bad version", SHA))).detail).toBe("consent_version_invalid");
+    const [u] = (await seed("v1", SHA)).users;
+    await seed("v1", SHA);
+    expect(fake.consentsOf(u!.id).map((c) => [c.version, c.channel])).toEqual([["v1", "seed"]]);
+    await fake.client.resetDemo({ idempotencyKey: key() });
+    expect(fake.consentsOf(u!.id)).toEqual([]);
   });
 });

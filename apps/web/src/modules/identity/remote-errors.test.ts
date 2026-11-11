@@ -16,6 +16,7 @@ const contacts = ru.identity.contacts;
 const reg = ru.identity.registration.errors;
 const payout = ru.identity.payout.errors;
 const kyc = { ...ru.identity.kyc.errors, reason: ru.identity.kyc.reasonLength(3, 500) };
+const consent = ru.consent.errors;
 
 function caught(err: unknown): AppError {
   try {
@@ -71,6 +72,10 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   kyc_transition_forbidden: { code: "CONFLICT", message: kyc.reviewed },
   kyc_documents_missing: { code: "CONFLICT", message: kyc.noDocuments },
   kyc_reason_invalid: { code: "VALIDATION", message: kyc.reason },
+  consent_version_invalid: { code: "CONFLICT", message: consent.versionChanged },
+  consent_not_revocable: { code: "CONFLICT", message: consent.notRevocable },
+  consent_missing: { code: "CONFLICT", message: consent.missing },
+  revocation_closed: { code: "CONFLICT", message: consent.revocationClosed },
 };
 
 describe("identityFailure", () => {
@@ -82,8 +87,8 @@ describe("identityFailure", () => {
     expect(err.message).toBe(want.message);
   });
 
-  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов, раскрытия, KYC: 43 кода", () => {
-    expect(IDENTITY_ERROR_CODES).toHaveLength(43);
+  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов, раскрытия, KYC, согласий: 47 кодов", () => {
+    expect(IDENTITY_ERROR_CODES).toHaveLength(47);
     expect(Object.keys(table).sort()).toEqual([...IDENTITY_ERROR_CODES].sort());
   });
 

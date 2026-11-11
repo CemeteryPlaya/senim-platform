@@ -31,7 +31,7 @@ export type DealIds = {
 /** Пользователь сессии — как его собирает identity.getCurrentUser (сид — доверенный скрипт, входа нет). */
 async function asUser(userId: string, role: Role): Promise<CurrentUser> {
   const u = await db.user.findUniqueOrThrow({ where: { id: userId }, include: { executorProfile: { select: { id: true, publicNumber: true, status: true } } } });
-  return { id: u.id, role, roles: u.roles, phone: u.phone, fullName: u.fullName, iinLast4: u.iinLast4, isDemo: u.isDemo, executor: u.executorProfile, mfa: { required: role === "OPERATOR", verifiedAt: role === "OPERATOR" ? new Date() : null } };
+  return { id: u.id, role, roles: u.roles, phone: u.phone, fullName: u.fullName, iinLast4: u.iinLast4, isDemo: u.isDemo, executor: u.executorProfile, mfa: { required: role === "OPERATOR", verifiedAt: role === "OPERATOR" ? new Date() : null }, consents: [] };
 }
 
 /** Фото «с объекта» для сдачи и «Хода работ»: JPEG по мотивам демо-SVG портфолио (без текста), загрузка — через files. */
@@ -85,7 +85,8 @@ async function step(p: Parties, s: DealStep): Promise<void> {
     await signAs(p.executor, contract.id, true);
     return;
   }
-  if (s === "pay") return void (await payForDeal(p.client, { dealId: p.dealId }));
+  // Сид без сессий сторон: согласия на передачу банку демо-сделки — через сид identity в Task 15 (payForDeal: isDemo).
+  if (s === "pay") return void (await payForDeal(p.client, { dealId: p.dealId }, { seedWithoutBankConsent: true }));
   if (s === "bank") return confirmBank(p);
   if (s === "start") return startWork(p.executor, { dealId: p.dealId });
   if (s === "signAct" || s === "signActClient") {

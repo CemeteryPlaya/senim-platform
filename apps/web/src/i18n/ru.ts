@@ -3,6 +3,7 @@ import { bankDemo } from "./ru/bankDemo";
 import { chats } from "./ru/chats";
 import { common } from "./ru/common";
 import { companies } from "./ru/companies";
+import { consent } from "./ru/consent";
 import { deal } from "./ru/deal";
 import { documents } from "./ru/documents";
 import { executor } from "./ru/executor";
@@ -23,6 +24,7 @@ import { requests } from "./ru/requests";
 export const ru = {
   common,
   identity,
+  consent,
   companies,
   requests,
   executor,

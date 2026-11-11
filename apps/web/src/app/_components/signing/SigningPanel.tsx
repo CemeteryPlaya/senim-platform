@@ -27,6 +27,8 @@ export type SigningPanelProps = {
    * переход к подписи в StickyAction, поэтому там secondary; на странице документа по ссылке — primary.
    */
   actionVariant?: ActionVariant;
+  /** Подпись пока закрыта (мастер не отметил передачу данных банку-партнёру): вместо шага подписи — это пояснение. */
+  lockedReason?: string;
 };
 
 type ActionVariant = "primary" | "secondary";
@@ -37,7 +39,7 @@ type ActionVariant = "primary" | "secondary";
  * После каждой подписи обновляет экран (router.refresh): шаг с кнопкой, на которой стоял фокус, исчезает.
  * Поэтому объявление — в области role="status" самой панели (переживает смену шага), а фокус — на заголовок документа.
  */
-export function SigningPanel({ document: doc, titleAs = "h2", signerName, actionVariant = "primary" }: SigningPanelProps) {
+export function SigningPanel({ document: doc, titleAs = "h2", signerName, actionVariant = "primary", lockedReason }: SigningPanelProps) {
   const badge = documentBadge(doc);
   const titleId = signingTitleId(doc.id);
   const [announcement, setAnnouncement] = useState("");
@@ -88,7 +90,7 @@ export function SigningPanel({ document: doc, titleAs = "h2", signerName, action
       <p role="status" className="sr-only">
         {announcement}
       </p>
-      <StepArea doc={doc} signerName={signerName} onSigned={onSigned} variant={actionVariant} />
+      {lockedReason ? <p className="text-base text-ink">{lockedReason}</p> : <StepArea doc={doc} signerName={signerName} onSigned={onSigned} variant={actionVariant} />}
     </Card>
   );
 }
