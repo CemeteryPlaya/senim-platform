@@ -13,6 +13,8 @@ vi.mock("next/headers", async () => (await import("../../../test/factories/ident
 /** Реквизиты выплаты мастера: KZ IBAN — в identity (SetPayoutIban), в проекции и интерфейсе — последние 4, журнал — без значения. */
 const IBAN = "KZ86125KZT5004100100";
 const OTHER = "KZ91125KZT2069100200";
+/** Другой счёт с теми же последними 4 символами, что у IBAN. */
+const SAME_LAST4 = "KZ75125KZT2069100100";
 const t = ru.identity.payout.errors;
 const code = (p: Promise<unknown>) => p.then(() => "OK", (e: { code?: string }) => e.code ?? String(e));
 const audit = (userId: string) => identityFake.auditEvents.filter((e) => e.userId === userId && e.action === "executor.payout_iban_changed");
@@ -68,6 +70,16 @@ describe("мастер указывает счёт для выплаты", () =>
     const text = JSON.stringify(notes.map((x) => [x.title, x.body]));
     expect(text).toContain("KZ… 0100");
     for (const part of ["KZ86", "KZ91", "5004", "2069"]) expect(text).not.toContain(part);
+  });
+
+  it("смена на счёт с теми же последними 4 — уведомление по changed из identity (Ruling V)", async () => {
+    const executor = await signedInExecutor();
+    await setPayoutIban(executor, { iban: IBAN });
+    await setPayoutIban(executor, { iban: SAME_LAST4 });
+    await setPayoutIban(executor, { iban: SAME_LAST4 });
+    const titles = (await db.notification.findMany({ where: { userId: executor.id, kind: "executor.payout_iban_changed" }, orderBy: { createdAt: "asc" } })).map((x) => x.title);
+    expect(titles).toEqual(["Счёт для выплаты указан", "Счёт для выплаты изменён"]);
+    expect(identityFake.partyNumbersOf(executor.id)?.payoutIban).toBe(SAME_LAST4);
   });
 
   it("неверный IBAN — VALIDATION без вызова identity, прежний счёт не меняется", async () => {

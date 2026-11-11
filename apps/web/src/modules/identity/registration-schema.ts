@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { LegalForm } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { isValidFullName, normalizeFullName } from "./full-name";
-import { binIinKindFor, isValidBinIin, isValidIin } from "./kz-id";
+import { isValidBin, isValidIin } from "./kz-id";
 
 const t = ru.identity.registration.errors;
 const a = ru.companies.address.errors;
@@ -72,34 +72,27 @@ export function signerOf(v: SignerSource): ExecutorSigner {
   }
 }
 
-/** ИИН/БИН профиля — ИИН аккаунта: только ИП и самозанятый (у ТОО — БИН). */
-export function usesOwnIin(v: { legalForm: LegalForm; ownIin?: boolean }): boolean {
-  return v.ownIin === true && v.legalForm !== "TOO";
-}
-
 /**
- * Анкета регистрации исполнителя. ИИН/БИН проверяется по форме работы: ТОО — БИН, остальные — ИИН.
- * ownIin — ИП и самозанятый работают по ИИН, указанному при знакомстве (№26): второй раз его не вводят,
- * сервис берёт ИИН из аккаунта. У ТОО флаг не действует — нужен БИН.
+ * Анкета регистрации исполнителя. Номер вводит только ТОО — свой БИН. ИП и самозанятый работают по ИИН владельца
+ * аккаунта, указанному при знакомстве (№26, Ruling U): второй раз его не вводят, identity берёт ИИН личности сам —
+ * присланный формой номер не читается, binIin у них пуст.
  */
 export const executorRegistrationSchema = z
   .object({
     legalForm: z.enum(["SELF_EMPLOYED", "IP", "TOO"]),
     legalName: z.string().trim().min(2, t.legalName).max(200, t.legalName),
-    binIin: digits,
-    ownIin: z.boolean().optional(),
+    binIin: digits.optional(),
     ...addressFields,
     yearsExperience: z.coerce.number({ error: t.experience }).int(t.experience).min(0, t.experience).max(60, t.experience),
     ...signerFields,
   })
   .superRefine((v, ctx) => {
-    const kind = binIinKindFor(v.legalForm);
-    if (usesOwnIin(v)) return refineSigner(v, ctx);
-    if (!isValidBinIin(kind, v.binIin)) ctx.addIssue({ code: "custom", path: ["binIin"], message: (v.binIin ? t.binIin : t.binIinRequired)[kind] });
+    if (v.legalForm === "TOO" && !isValidBin(v.binIin ?? "")) ctx.addIssue({ code: "custom", path: ["binIin"], message: v.binIin ? t.bin : t.binRequired });
     refineSigner(v, ctx);
   })
-  .transform(({ ownerName, directorName, directorIin, ...rest }) => ({
+  .transform(({ ownerName, directorName, directorIin, binIin, ...rest }) => ({
     ...rest,
+    binIin: rest.legalForm === "TOO" ? (binIin ?? "") : "",
     signer: signerOf({ ...rest, ownerName, directorName, directorIin }),
   }));
 

@@ -4,7 +4,6 @@ import type { Party } from "@/gen/senim/identity/v1/identity_pb";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { notify } from "@/modules/notifications";
-import { last4 } from "@/platform/crypto";
 import { db, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { enforceRateLimit } from "@/platform/rate-limit";
@@ -12,7 +11,7 @@ import type { ReviewExecutorRegistration } from "./index";
 import { legalFormToProto, ownParty, partyColumns, projectParty, projectUser, type PartyColumns } from "./projection";
 import { identity } from "./remote";
 import { retriedOnce } from "./remote-errors";
-import { usesOwnIin, type ExecutorRegistrationInput } from "./registration-schema";
+import type { ExecutorRegistrationInput } from "./registration-schema";
 import { EXECUTOR_REGISTRATION_PATH } from "./return-to";
 import { actorOf, currentSessionToken, grantRole, type CurrentUser } from "./session";
 import { isStaffRole } from "./roles";
@@ -57,8 +56,8 @@ async function upsertPendingProfile(tx: Tx, userId: string, input: ExecutorRegis
  */
 export async function registerExecutor(user: CurrentUser, input: ExecutorRegistrationInput): Promise<{ profileId: string }> {
   if (isStaffRole(user.role)) return fail.forbidden(t.errors.operator);
+  await assertCanSubmit(user.id);
   await enforceRateLimit(`registration:user:${user.id}`, REGISTRATION_LIMIT, t.errors.tooMany);
-  await assertOwnIin(user.id, input);
   // Роль выдаётся в identity до реквизитов и транзакции старой базы: GrantRole идемпотентен по существу (роль уже есть —
   // granted=false), повтор безопасен; RegisterParty без роли identity отклонит. Роль уже есть в проекции (прежняя
   // попытка, подача после отказа) — вызов не нужен.
@@ -68,21 +67,19 @@ export async function registerExecutor(user: CurrentUser, input: ExecutorRegistr
 }
 
 /**
- * ИП и самозанятый работают по ИИН владельца аккаунта: identity берёт его из личности и ИИН анкеты не читает. Снята
- * отметка «свой ИИН» и введён другой номер — ошибка у поля, а не молча другой ИИН в профиле. Сверка — по последним 4
- * цифрам проекции (сам ИИН в web не хранится); ИИН в аккаунте нет — ответит identity (person_missing).
+ * Подать анкету можно без профиля или после отказа (Ruling T). Профиль на проверке или подтверждён — CONFLICT до любого
+ * вызова identity: иначе RegisterParty перезаписал бы реквизиты (KYC ещё не подана), а web ответил бы «уже подали».
+ * Гонку двух отправок закрывает условный переход в транзакции (upsertPendingProfile).
  */
-async function assertOwnIin(userId: string, input: ExecutorRegistrationInput): Promise<void> {
-  if (input.legalForm === "TOO" || usesOwnIin(input)) return;
-  const { iinLast4 } = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { iinLast4: true } });
-  if (iinLast4 === null || last4(input.binIin) === iinLast4) return;
-  const message = t.errors.notOwnIin(iinLast4);
-  fail.validation(message, { fieldErrors: { binIin: [message] } });
+async function assertCanSubmit(userId: string): Promise<void> {
+  const profile = await db.executorProfile.findUnique({ where: { userId }, select: { status: true } });
+  if (profile && profile.status !== "REJECTED") fail.conflict(t.errors.alreadyRegistered);
 }
 
 /**
  * Реквизиты — в identity (RegisterParty в сессии этого браузера). Ключ идемпотентности — один на попытку формы: обрыв
- * связи повторяется с ним же. ИИН/БИН ИП и самозанятого не передаётся (identity берёт ИИН личности). «ИИН/БИН занят»
+ * связи повторяется с ним же. ИИН ИП и самозанятого анкета не содержит (identity берёт ИИН личности). Повторная анкета
+ * после отказа перезаписывает реквизиты, пока KYC не подана или отклонена (Ruling T). «ИИН/БИН занят»
  * здесь — текст о реквизитах, а не об ИИН личности.
  */
 async function registerParty(user: Pick<CurrentUser, "id">, input: ExecutorRegistrationInput): Promise<Party> {
@@ -91,7 +88,7 @@ async function registerParty(user: Pick<CurrentUser, "id">, input: ExecutorRegis
     sessionToken,
     legalForm: legalFormToProto(input.legalForm),
     legalName: input.legalName,
-    binIin: input.legalForm === "TOO" ? input.binIin : "",
+    binIin: input.binIin,
     signerFullName: input.signer.fullName,
     signerIin: input.signer.iin ?? "",
     idempotencyKey: randomUUID(),

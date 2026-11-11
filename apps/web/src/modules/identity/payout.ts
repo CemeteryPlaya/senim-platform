@@ -53,22 +53,22 @@ async function notifyPayoutChanged(tx: Db, user: CurrentUser, executorId: string
  * только последние 4 символа. Запрет смены при ждущей выплате (SPLIT_MASTER в PENDING) — не здесь, а в Server Action
  * `savePayoutIban` (payments.assertPayoutIbanChangeable): identity не может зависеть от payments.
  *
- * Уведомления мастеру и операторам — когда последние 4 символа изменились (строка профиля под FOR UPDATE: двойной клик
- * тем же счётом второй раз не уведомляет). Ответ identity не говорит, изменился ли сам счёт, поэтому смена на счёт с теми
- * же последними 4 символами уведомления не даёт; журнал identity её фиксирует.
+ * Уведомления мастеру и операторам — когда identity ответил changed (Ruling V): счёт указан впервые, сменён (даже на счёт с
+ * теми же последними 4 символами) или записан поверх нечитаемого. Тот же счёт ещё раз (двойной клик) — changed=false, без
+ * уведомлений. «Указан» или «изменён» — по проекции до записи (строка профиля под FOR UPDATE).
  */
 export async function setPayoutIban(user: CurrentUser, raw: PayoutInput): Promise<OwnPayout> {
   const executorId = ownExecutorId(user);
   const { iban } = parseInput(payoutInputSchema, raw);
   const sessionToken = await currentSessionToken();
   const request = { sessionToken, iban, idempotencyKey: randomUUID() };
-  const party = ownParty(user.id, (await retriedOnce(() => identity().setPayoutIban(request))).party);
+  const res = await retriedOnce(() => identity().setPayoutIban(request));
+  const party = ownParty(user.id, res.party);
   return transaction(async (tx) => {
     const [current] = await tx.$queryRaw<{ payoutIbanLast4: string | null }[]>`
       SELECT "payoutIbanLast4" FROM "ExecutorProfile" WHERE id = ${executorId} FOR UPDATE`;
-    const previous = current?.payoutIbanLast4 ?? null;
     await projectParty(party, tx);
-    if (previous !== party.payoutIbanLast4) await notifyPayoutChanged(tx, user, executorId, previous === null, party.payoutIbanLast4);
+    if (res.changed) await notifyPayoutChanged(tx, user, executorId, (current?.payoutIbanLast4 ?? null) === null, party.payoutIbanLast4);
     return { last4: party.payoutIbanLast4 };
   });
 }

@@ -509,15 +509,35 @@ describe("подделка identity: реквизиты исполнителя (
     expect(fake.partyNumbersOf(user.id)?.binIin).toBe(IIN);
   });
 
-  it("RegisterParty: те же реквизиты — тот же ответ; другие — party_exists; БИН другой стороны — iin_taken; аудит без значений", async () => {
+  it("RegisterParty: те же реквизиты — тот же ответ; БИН другой стороны — iin_taken; аудит без значений", async () => {
     const user = await signedIn();
     await register(1);
     expect((await register(1)).party?.binIinLast4).toBe(BIN.slice(-4));
-    expect(await rejection(register(1, { legalName: "ТОО «Шебер»" }))).toEqual({ code: Code.FailedPrecondition, detail: "party_exists" });
     const other = fake.addUser({ phone: "+77001110011", roles: [Role.EXECUTOR], defaultRole: Role.EXECUTOR });
     fake.signIn(other.id, token(2));
     expect(await rejection(register(2))).toEqual({ code: Code.AlreadyExists, detail: "iin_taken" });
     expect(fake.auditEvents).toEqual([{ userId: user.id, actorRole: Role.CLIENT, action: "party.registered", after: { legal_form: "TOO" } }]);
+  });
+
+  it("RegisterParty (Ruling T): другие реквизиты перезаписывают сторону, пока KYC не подана или отклонена; иначе party_exists", async () => {
+    const user = await signedIn();
+    await register(1);
+    await fake.client.setPayoutIban({ sessionToken: token(1), iban: IBAN, idempotencyKey: key() }).catch(() => undefined);
+    const bin2 = testBin("2101", 73);
+    expect((await register(1, { legalName: "ТОО «Шебер»", binIin: bin2 })).party).toMatchObject({ legalName: "ТОО «Шебер»", binIinLast4: bin2.slice(-4) });
+    expect(fake.auditEvents.at(-1)).toEqual({ userId: user.id, actorRole: Role.CLIENT, action: "party.replaced", before: { legal_form: "TOO" }, after: { legal_form: "TOO" } });
+    // Прежний БИН свободен; БИН другой стороны — iin_taken.
+    const other = fake.addUser({ phone: "+77001110012", roles: [Role.EXECUTOR], defaultRole: Role.EXECUTOR });
+    fake.signIn(other.id, token(2));
+    await register(2);
+    expect(await rejection(register(1, { binIin: BIN }))).toEqual({ code: Code.AlreadyExists, detail: "iin_taken" });
+
+    fake.setKycStatus(user.id, KycStatus.REJECTED);
+    expect((await register(1, { binIin: testBin("2101", 74) })).party?.kycStatus).toBe(KycStatus.REJECTED);
+    for (const status of [KycStatus.PENDING, KycStatus.VERIFIED]) {
+      fake.setKycStatus(user.id, status);
+      expect(await rejection(register(1, { binIin: testBin("2101", 75) }))).toEqual({ code: Code.FailedPrecondition, detail: "party_exists" });
+    }
   });
 
   it("ProvisionExecutor: оператор со второй ступенью; сотрудник — role_forbidden, заблокированный — user_blocked; отказ стороны не создаёт пользователя", async () => {
@@ -554,8 +574,8 @@ describe("подделка identity: реквизиты исполнителя (
     fake.signIn(user.id, token(5));
     expect(await rejection(set(5, IBAN))).toEqual({ code: Code.FailedPrecondition, detail: "party_missing" });
     await register(5);
-    expect((await set(5, "kz86 125k zt50 0410 0100")).party?.payoutIbanLast4).toBe("0100");
-    await set(5, IBAN);
+    expect(await set(5, "kz86 125k zt50 0410 0100")).toMatchObject({ party: { payoutIbanLast4: "0100" }, changed: true });
+    expect((await set(5, IBAN)).changed).toBe(false);
     expect(fake.auditEvents.filter((e) => e.action === "executor.payout_iban_changed").map((e) => [e.before, e.after])).toEqual([[{ set: false }, { set: true }]]);
     const client = fake.addUser({ phone: "+77001110031" });
     fake.signIn(client.id, token(6));

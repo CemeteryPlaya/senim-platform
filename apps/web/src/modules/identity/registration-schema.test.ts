@@ -15,15 +15,16 @@ function fieldErrors(input: unknown) {
 }
 
 describe("executorRegistrationSchema", () => {
-  it("чистит ввод: пробелы в имени и в номере, опыт числом", () => {
-    expect(executorRegistrationSchema.parse({ ...valid, binIin: IIN.replace(/(\d{4})/g, "$1 ") })).toEqual({
+  it("чистит ввод: пробелы в имени, опыт числом; у ИП номера нет (ИИН личности берёт identity)", () => {
+    expect(executorRegistrationSchema.parse(valid)).toEqual({
       legalForm: "IP",
       legalName: "ИП «Дала Мебель»",
-      binIin: IIN,
+      binIin: "",
       city: "Астана",
       yearsExperience: 5,
       signer: { fullName: "Жумабаев Ерлан", iin: null },
     });
+    expect(executorRegistrationSchema.parse({ ...valid, ...director, legalForm: "TOO", binIin: BIN.replace(/(\d{4})/g, "$1 ") }).binIin).toBe(BIN);
   });
 
   it("адрес мастерской (№6): район и улица необязательны, пробелы обрезаются, длина ограничена", () => {
@@ -35,17 +36,14 @@ describe("executorRegistrationSchema", () => {
     expect(fieldErrors({ ...valid, streetAddress: "у".repeat(201) })).toHaveProperty("streetAddress");
   });
 
-  it("ИП и самозанятый — по ИИН, БИН для них не подходит", () => {
-    expect(fieldErrors({ ...valid, binIin: BIN })).toHaveProperty("binIin");
-    expect(fieldErrors({ ...valid, legalForm: "SELF_EMPLOYED", binIin: BIN })).toHaveProperty("binIin");
-  });
-
-  it("ИП и самозанятый по ИИН из знакомства: поле ИИН пустое, ошибки нет; ТОО флаг не освобождает от БИН", () => {
-    expect(fieldErrors({ ...valid, binIin: "", ownIin: true })).toEqual({});
-    expect(fieldErrors({ ...valid, legalForm: "SELF_EMPLOYED", legalName: "Жумабаев Ерлан", binIin: "", ownIin: true })).toEqual({});
-    expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: "", ownIin: true })).toHaveProperty("binIin");
+  it("ИП и самозанятый номер не вводят (Ruling U): присланный — даже чужой или неверный — не читается, ошибки нет", () => {
+    for (const binIin of [undefined, "", IIN, BIN, "123"]) {
+      expect(fieldErrors({ ...valid, binIin })).toEqual({});
+      expect(executorRegistrationSchema.parse({ ...valid, binIin }).binIin).toBe("");
+    }
+    expect(fieldErrors({ ...valid, legalForm: "SELF_EMPLOYED", legalName: "Жумабаев Ерлан", binIin: undefined })).toEqual({});
     // Подписант по-прежнему проверяется.
-    expect(fieldErrors({ ...valid, ownerName: "", binIin: "", ownIin: true })).toHaveProperty("ownerName");
+    expect(fieldErrors({ ...valid, ownerName: "" })).toHaveProperty("ownerName");
   });
 
   it("ТОО — по БИН, ИИН для него не подходит", () => {
@@ -79,14 +77,14 @@ describe("executorRegistrationSchema", () => {
     expect(fieldErrors({ ...self, legalName: "Ерлан" })).toHaveProperty("legalName");
   });
 
-  it("пустой ИИН/БИН — просьба указать номер, а не «проверьте контрольную цифру»", () => {
-    expect(fieldErrors({ ...valid, binIin: "  " }).binIin).toEqual(["Укажите ИИН"]);
-    expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: "" }).binIin).toEqual(["Укажите БИН"]);
+  it("ТОО: пустой БИН — просьба указать номер, а не «проверьте контрольную цифру»", () => {
+    expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: "  " }).binIin).toEqual(["Укажите БИН"]);
+    expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: undefined }).binIin).toEqual(["Укажите БИН"]);
   });
 
-  it("неверная контрольная цифра — ошибка поля ИИН/БИН", () => {
-    const broken = IIN.slice(0, 11) + String((Number(IIN[11]) + 1) % 10);
-    expect(fieldErrors({ ...valid, binIin: broken }).binIin?.[0]).toMatch(/ИИН/);
+  it("ТОО: неверная контрольная цифра — ошибка поля БИН", () => {
+    const broken = BIN.slice(0, 11) + String((Number(BIN[11]) + 1) % 10);
+    expect(fieldErrors({ ...valid, ...director, legalForm: "TOO", binIin: broken }).binIin?.[0]).toMatch(/БИН/);
   });
 
   it.each([

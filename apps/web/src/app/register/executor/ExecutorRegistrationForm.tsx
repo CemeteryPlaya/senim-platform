@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { leaveIfSignedOut } from "@/modules/identity/client";
 import { ru } from "@/i18n/ru";
-import { Alert, Button, Checkbox, focusFirstInvalid, FullscreenStep, Input, RadioCards } from "@/ui";
+import { Alert, Button, focusFirstInvalid, FullscreenStep, Input, RadioCards } from "@/ui";
 import { registerExecutorAction } from "./actions";
 
 const t = ru.identity.registration;
@@ -19,7 +19,7 @@ export type RegistrationOwner = { fullName: string | null; iinLast4: string | nu
 /**
  * Анкета исполнителя. Подписи имени и номера зависят от формы работы: ТОО — наименование и БИН,
  * плюс ФИО и ИИН директора — он подписывает договор своей ЭЦП; ИП — ФИО владельца (подписывает он).
- * ИП и самозанятый по умолчанию работают по ИИН из знакомства — поле ИИН появляется, если снять отметку.
+ * ИП и самозанятый работают по ИИН владельца аккаунта из знакомства — номер не вводят (его берёт identity).
  */
 export function ExecutorRegistrationForm({
   defaultLegalForm = "SELF_EMPLOYED",
@@ -32,14 +32,11 @@ export function ExecutorRegistrationForm({
   intro?: ReactNode;
 }) {
   const [legalForm, setLegalForm] = useState<LegalForm>(defaultLegalForm);
-  const [ownIinChecked, setOwnIinChecked] = useState(true);
   const ownIinLast4 = owner?.iinLast4 ?? null;
-  const ownIin = ownIinLast4 !== null && legalForm !== "TOO" && ownIinChecked;
   const ownName = owner?.fullName ?? undefined;
   const [errors, setErrors] = useState<Record<string, string[] | undefined>>({});
   const [formError, setFormError] = useState<string>();
   const [pending, startTransition] = useTransition();
-  const idKind = legalForm === "TOO" ? "BIN" : "IIN";
   const form = useRef<HTMLFormElement>(null);
 
   // После неудачной отправки — фокус на первое поле с ошибкой (aria-invalid ставят сами поля).
@@ -59,7 +56,6 @@ export function ExecutorRegistrationForm({
         legalForm,
         legalName: field("legalName"),
         binIin: field("binIin"),
-        ownIin,
         city: field("city"),
         district: field("district"),
         streetAddress: field("streetAddress"),
@@ -115,18 +111,10 @@ export function ExecutorRegistrationForm({
             defaultValue={defaultLegalForm === "SELF_EMPLOYED" ? ownName : undefined}
             required
           />
-          {ownIinLast4 !== null && legalForm !== "TOO" && (
-            <Checkbox
-              label={t.ownIin(ownIinLast4)}
-              hint={t.ownIinHint}
-              name="ownIin"
-              checked={ownIinChecked}
-              onChange={(e) => setOwnIinChecked(e.target.checked)}
-            />
-          )}
-          {!ownIin && (
+          {legalForm !== "TOO" && ownIinLast4 !== null && <p className="text-base text-ink-soft">{t.ownIin(ownIinLast4)}</p>}
+          {legalForm === "TOO" && (
             <Input
-              label={t.binIinLabel[idKind]}
+              label={t.binLabel}
               hint={t.binIinHint}
               error={errors.binIin?.[0]}
               name="binIin"
@@ -136,7 +124,7 @@ export function ExecutorRegistrationForm({
               required
             />
           )}
-          {ownIin && errors.binIin?.[0] && (
+          {legalForm !== "TOO" && errors.binIin?.[0] && (
             <Alert tone="danger" live="assertive">
               {errors.binIin[0]}
             </Alert>

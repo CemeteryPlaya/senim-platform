@@ -65,6 +65,7 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   iban_invalid: { code: "VALIDATION", message: payout.checksum, params: { reason: "checksum" } },
   party_missing: { code: "CONFLICT", message: payout.partyMissing },
   party_exists: { code: "CONFLICT", message: reg.partyExists },
+  pii_key_unknown: { code: "UNAVAILABLE", message: g.generic },
 };
 
 describe("identityFailure", () => {
@@ -76,8 +77,8 @@ describe("identityFailure", () => {
     expect(err.message).toBe(want.message);
   });
 
-  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов: 38 кодов", () => {
-    expect(IDENTITY_ERROR_CODES).toHaveLength(38);
+  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов: 39 кодов", () => {
+    expect(IDENTITY_ERROR_CODES).toHaveLength(39);
     expect(Object.keys(table).sort()).toEqual([...IDENTITY_ERROR_CODES].sort());
   });
 
@@ -142,6 +143,9 @@ describe("identityFailure", () => {
     expect(err.message).toBe(g.generic);
     expect(err.message).not.toContain("invalid_request");
     expect(log).toHaveBeenCalledWith("identity.call_rejected", { reason: "invalid_request" });
+    // Ключ шифрования неизвестен identity (pii_key_unknown) — сбой конфигурации, не ошибка человека.
+    expect(caught(codedError("pii_key_unknown", Code.Internal)).message).toBe(g.generic);
+    expect(log).toHaveBeenCalledWith("identity.call_rejected", { reason: "pii_key_unknown" });
   });
 
   it.each([Code.Unavailable, Code.DeadlineExceeded])("статус %s без ErrorDetail — «сервис недоступен»", (status) => {

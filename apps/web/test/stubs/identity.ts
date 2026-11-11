@@ -96,8 +96,9 @@ import { parseKzIban } from "@/modules/identity/iban";
  *
  * Реквизиты исполнителя (party.go) повторены по Go: RegisterParty, ProvisionExecutor и SetPayoutIban — порядок проверок
  * (ключ, формат, сессия и роль; дальше повтор по ключу и «транзакция») и коды. ИП и самозанятый в RegisterParty работают
- * по ИИН личности (person_missing, если его нет); те же реквизиты ещё раз — тот же ответ, другие поверх записанных —
- * party_exists; ИИН/БИН другой стороны — iin_taken; новая сторона — KYC NOT_SUBMITTED. Номера хранятся открыто.
+ * по ИИН личности (person_missing, если его нет); те же реквизиты ещё раз — тот же ответ; другие поверх записанных
+ * RegisterParty перезаписывает, пока KYC не подана или отклонена (иначе и в ProvisionExecutor — party_exists); ИИН/БИН
+ * другой стороны — iin_taken; новая сторона — KYC NOT_SUBMITTED; SetPayoutIban отвечает changed. Номера хранятся открыто.
  */
 
 /** Тип клиента — тот же, что у `IdentityClient` из modules/identity/remote (импорт оттуда из test/ запрещён границей модулей). */
@@ -251,6 +252,9 @@ function checkParty(form: LegalForm, rawName: string, rawBinIin: string, rawSign
   if (signerIin !== "" && !isValidIin(signerIin)) throw codedError("iin_invalid", Code.InvalidArgument);
   return { legalForm: form, legalName, binIin, signerFullName, signerIin };
 }
+
+/** replaceableKyc в Go: пока KYC не подана или отклонена, повторная анкета перезаписывает реквизиты (Ruling T). */
+const REPLACEABLE_KYC: readonly KycStatus[] = [KycStatus.NOT_SUBMITTED, KycStatus.REJECTED];
 
 /** sameParty в Go: у пользователя уже записаны те же реквизиты (повтор запроса). */
 const sameParty = (p: StoredParty, input: PartyInput) =>
@@ -613,23 +617,39 @@ export class FakeIdentity {
   }
 
   /**
-   * writeParty в Go: у пользователя уже есть сторона — те же реквизиты дают её же, другие — party_exists; ИИН/БИН другой
-   * стороны — iin_taken. Ничего не меняет: запись — `commitParty` после всех проверок «транзакции».
+   * writeParty в Go: у пользователя уже есть сторона — те же реквизиты дают её же ("same"); другие — перезапись
+   * ("replace"), если `replace` (RegisterParty) и KYC не подана или отклонена, иначе party_exists; ИИН/БИН другой стороны —
+   * iin_taken. Ничего не меняет: запись — `commitParty` после всех проверок «транзакции».
    */
-  private checkWriteParty(userId: string | null, input: PartyInput): StoredParty | null {
+  private checkWriteParty(userId: string | null, input: PartyInput, replace: boolean): "same" | "create" | "replace" {
     const existing = userId === null ? undefined : this.parties.get(userId);
-    if (existing) {
-      if (!sameParty(existing, input)) throw codedError("party_exists", Code.FailedPrecondition);
-      return existing;
-    }
+    if (existing && sameParty(existing, input)) return "same";
+    if (existing && !(replace && REPLACEABLE_KYC.includes(existing.kycStatus))) throw codedError("party_exists", Code.FailedPrecondition);
     for (const [id, p] of this.parties) if (id !== userId && p.binIin === input.binIin) throw codedError("iin_taken", Code.AlreadyExists);
-    return null;
+    return existing ? "replace" : "create";
   }
 
-  /** Новая сторона: KYC не подана; аудит party.registered — только правовая форма. */
-  private commitParty(userId: string, input: PartyInput, actorRole: Role): void {
+  /**
+   * Запись стороны: новая — KYC не подана, аудит party.registered; перезапись — счёт выплаты и KYC остаются, аудит
+   * party.replaced. В аудите только правовая форма.
+   */
+  private commitParty(userId: string, input: PartyInput, actorRole: Role, write: "same" | "create" | "replace"): void {
+    const before = this.parties.get(userId);
+    if (write === "same") return;
+    if (write === "replace" && before) {
+      this.parties.set(userId, { ...before, ...input });
+      this.auditEvents.push({ userId, actorRole, action: "party.replaced", before: { legal_form: LegalForm[before.legalForm] }, after: { legal_form: LegalForm[input.legalForm] } });
+      return;
+    }
     this.parties.set(userId, { ...input, payoutIban: "", kycStatus: KycStatus.NOT_SUBMITTED, kycRejectReason: "" });
     this.auditEvents.push({ userId, actorRole, action: "party.registered", after: { legal_form: LegalForm[input.legalForm] } });
+  }
+
+  /** KYC на проверке или пройдена — для проверок в тестах (в Go её меняют SubmitKyc и ReviewKyc). */
+  setKycStatus(userId: string, status: KycStatus): void {
+    const p = this.parties.get(userId);
+    if (!p) throw new Error("подделка identity: стороны нет");
+    p.kycStatus = status;
   }
 
   /** Сторона в ответе: только что записанная или прежняя. */
@@ -655,7 +675,7 @@ export class FakeIdentity {
       if (user.roles.some((r) => STAFF.includes(r))) throw codedError("role_forbidden", Code.PermissionDenied);
       if (this.blocked.has(user.id)) throw codedError("user_blocked", Code.PermissionDenied);
     }
-    const existing = this.checkWriteParty(user?.id ?? null, input);
+    const write = this.checkWriteParty(user?.id ?? null, input, false);
     if (!user) {
       user = this.addUser({ phone, defaultRole: Role.EXECUTOR, roles: [Role.EXECUTOR] });
       this.auditEvents.push({ userId: user.id, actorRole: Role.OPERATOR, action: "user.registered", after: { role: "EXECUTOR" } });
@@ -664,7 +684,7 @@ export class FakeIdentity {
       this.users.set(user.id, user);
       this.auditEvents.push({ userId: user.id, actorRole: Role.OPERATOR, action: "user.role_granted", after: { role: "EXECUTOR" } });
     }
-    if (!existing) this.commitParty(user.id, input, Role.OPERATOR);
+    this.commitParty(user.id, input, Role.OPERATOR, write);
     return { user: this.view(user), party: this.mustParty(user.id) };
   }
 
@@ -974,7 +994,7 @@ export class FakeIdentity {
               if (iin === "") throw codedError("person_missing", Code.FailedPrecondition);
               own.binIin = iin;
             }
-            if (!this.checkWriteParty(user.id, own)) this.commitParty(user.id, own, session.activeRole);
+            this.commitParty(user.id, own, session.activeRole, this.checkWriteParty(user.id, own, true));
             return create(RegisterPartyResponseSchema, { party: this.mustParty(user.id) });
           },
           // Порядок Go (party.go): ключ, реквизиты, сессия, роль EXECUTOR среди выданных; дальше повтор по ключу.
@@ -1019,12 +1039,13 @@ export class FakeIdentity {
             if (session.activeRole !== Role.EXECUTOR) throw codedError("role_forbidden", Code.PermissionDenied);
             const party = this.parties.get(user.id);
             if (!party) throw codedError("party_missing", Code.FailedPrecondition);
-            // Тот же счёт ещё раз — без изменений и без аудита; иначе аудит только «указан / не указан».
-            if (party.payoutIban !== iban) {
+            // Тот же счёт ещё раз — без изменений и без аудита, changed=false; иначе аудит только «указан / не указан».
+            const changed = party.payoutIban !== iban;
+            if (changed) {
               this.auditEvents.push({ userId: user.id, actorRole: Role.EXECUTOR, action: "executor.payout_iban_changed", before: { set: party.payoutIban !== "" }, after: { set: true } });
               party.payoutIban = iban;
             }
-            return create(SetPayoutIbanResponseSchema, { party: this.mustParty(user.id) });
+            return create(SetPayoutIbanResponseSchema, { party: this.mustParty(user.id), changed });
           },
           // Порядок Go: ключ, IBAN (format или checksum), сессия, активная роль исполнителя.
           async () => {

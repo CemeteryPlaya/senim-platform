@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LegalForm } from "@/gen/senim/identity/v1/identity_pb";
+import { KycStatus, LegalForm } from "@/gen/senim/identity/v1/identity_pb";
 import { testBin, testIin } from "@/demo/kz-id";
 import { ru } from "@/i18n/ru";
 import { agreeToContract } from "@/modules/requests";
@@ -51,7 +51,8 @@ const DIRECTOR_IIN = testIin("800215", 3, 41);
 const selfEmployed: ExecutorRegistrationInput = {
   legalForm: "SELF_EMPLOYED",
   legalName: "Ерлан Жумабаев",
-  binIin: IIN,
+  // ИП и самозанятый номер не вводят (Ruling U): схема анкеты отдаёт пустой, identity берёт ИИН личности.
+  binIin: "",
   city: "Астана",
   yearsExperience: 7,
   signer: { fullName: "Ерлан Жумабаев", iin: null },
@@ -220,11 +221,19 @@ describe("registerExecutor", () => {
     expect(identityFake.partyNumbersOf(user.id)?.binIin).toBe(BIN);
   });
 
-  it("повторная регистрация того же пользователя — конфликт", async () => {
+  it("профиль на проверке или подтверждён — CONFLICT «уже подали» без вызова identity, реквизиты не меняются", async () => {
     const user = await clientWithIin();
-    await registerExecutor(user, selfEmployed);
+    const { profileId } = await registerExecutor(user, too);
+    const calls = callsOf("registerParty").length;
 
-    expect(await failure(registerExecutor({ ...user, role: "EXECUTOR" }, selfEmployed))).toMatchObject({ code: "CONFLICT", message: t.alreadyRegistered });
+    const changed = { ...too, legalName: "ТОО «Шебер»", binIin: testBin("2101", 19) };
+    expect(await failure(registerExecutor({ ...user, role: "EXECUTOR" }, changed))).toMatchObject({ code: "CONFLICT", message: t.alreadyRegistered });
+    await reviewExecutorRegistration(await makeOperator(), profileId, { approve: true, segment: "COMFORT" });
+    expect(await failure(registerExecutor({ ...user, role: "EXECUTOR" }, changed))).toMatchObject({ code: "CONFLICT", message: t.alreadyRegistered });
+
+    expect(callsOf("registerParty")).toHaveLength(calls);
+    expect(identityFake.partyNumbersOf(user.id)?.binIin).toBe(BIN);
+    expect(await profileOf(profileId)).toMatchObject({ legalName: "ТОО «Ағаш»", binIinLast4: BIN.slice(-4) });
   });
 
   it("двойная отправка формы создаёт один профиль, второй ответ — понятный конфликт", async () => {
@@ -277,29 +286,67 @@ describe("registerExecutor", () => {
   });
 });
 
-describe("повторная подача после отказа", () => {
-  it("те же реквизиты: профиль снова PENDING с новым адресом, роль не дублируется", async () => {
-    const user = await clientWithIin();
-    const { profileId } = await registerExecutor(user, selfEmployed);
-    await reviewExecutorRegistration(await makeOperator(), profileId, { approve: false, reason: "Нет адреса" });
+describe("повторная подача после отказа (Ruling T)", () => {
+  /** Исполнитель подал анкету, оператор отказал. */
+  async function rejected(input: ExecutorRegistrationInput) {
+    const u = await clientWithIin();
+    const { profileId } = await registerExecutor(u, input);
+    await reviewExecutorRegistration(await makeOperator(), profileId, { approve: false, reason: "Проверьте данные" });
+    return { user: { ...u, role: "EXECUTOR" as const }, profileId };
+  }
 
-    const again = await registerExecutor({ ...user, role: "EXECUTOR" }, { ...selfEmployed, district: "Алматинский район", yearsExperience: 9 });
+  it("те же реквизиты: профиль снова PENDING с новым адресом, роль не дублируется", async () => {
+    const { user, profileId } = await rejected(selfEmployed);
+
+    const again = await registerExecutor(user, { ...selfEmployed, district: "Алматинский район", yearsExperience: 9 });
 
     expect(again.profileId).toBe(profileId);
     expect(await profileOf(profileId)).toMatchObject({ status: "PENDING", rejectReason: null, reviewedAt: null, district: "Алматинский район", yearsExperience: 9 });
     expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).roles).toEqual(["CLIENT", "EXECUTOR"]);
   });
 
-  it("другие реквизиты: identity не меняет записанную сторону — CONFLICT с текстом, профиль остаётся отклонённым", async () => {
-    const user = await clientWithIin();
-    const { profileId } = await registerExecutor(user, too);
-    await reviewExecutorRegistration(await makeOperator(), profileId, { approve: false, reason: "Директор указан неверно" });
+  it("после отказа можно исправить данные и подать снова", async () => {
+    const { user, profileId } = await rejected(selfEmployed);
+
+    const again = await registerExecutor(user, { ...selfEmployed, legalName: "Жумабаев Ерлан" });
+
+    expect(again.profileId).toBe(profileId);
+    expect(await profileOf(profileId)).toMatchObject({ status: "PENDING", rejectReason: null, legalName: "Жумабаев Ерлан", signerFullName: "Жумабаев Ерлан" });
+    expect(identityFake.auditEvents.filter((e) => e.userId === user.id && e.action.startsWith("party.")).map((e) => e.action)).toEqual([
+      "party.registered",
+      "party.replaced",
+    ]);
+  });
+
+  it("ТОО: новый директор и БИН заменяют прежние в identity и в профиле", async () => {
+    const { user, profileId } = await rejected(too);
 
     const newDirector = testIin("820304", 4, 42);
-    const e = await failure(registerExecutor({ ...user, role: "EXECUTOR" }, { ...too, signer: { fullName: "Ахметова Сауле", iin: newDirector } }));
+    const newBin = testBin("2101", 20);
+    await registerExecutor(user, { ...too, binIin: newBin, signer: { fullName: "Ахметова Сауле", iin: newDirector } });
+
+    expect(await profileOf(profileId)).toMatchObject({ status: "PENDING", signerFullName: "Ахметова Сауле", binIinLast4: newBin.slice(-4) });
+    await expectNoPiiColumns(profileId);
+    expect(identityFake.partyNumbersOf(user.id)).toMatchObject({ binIin: newBin, signerIin: newDirector });
+  });
+
+  it("смена ТОО на ИП: ИИН прежнего директора стирается, номер — ИИН личности", async () => {
+    const { user, profileId } = await rejected(too);
+
+    await registerExecutor(user, ip);
+
+    expect(await profileOf(profileId)).toMatchObject({ legalForm: "IP", signerFullName: "Жумабаев Ерлан", binIinLast4: IIN.slice(-4) });
+    expect(identityFake.partyNumbersOf(user.id)).toMatchObject({ binIin: IIN, signerIin: "" });
+  });
+
+  it("KYC уже на проверке в identity — другие реквизиты не принимаются: CONFLICT с текстом, профиль остаётся отклонённым", async () => {
+    const { user, profileId } = await rejected(too);
+    identityFake.setKycStatus(user.id, KycStatus.PENDING);
+
+    const e = await failure(registerExecutor(user, { ...too, legalName: "ТОО «Шебер»" }));
 
     expect(e).toMatchObject({ code: "CONFLICT", message: t.partyExists });
-    expect(await profileOf(profileId)).toMatchObject({ status: "REJECTED", signerFullName: "Тулегенов Бауыржан" });
+    expect(await profileOf(profileId)).toMatchObject({ status: "REJECTED", legalName: "ТОО «Ағаш»" });
   });
 });
 
@@ -326,7 +373,7 @@ describe("подписант договора — свойство профил�
     expect(await profileOf((await registerExecutor(a, ip)).profileId)).toMatchObject({ signerFullName: "Жумабаев Ерлан" });
     expect(identityFake.partyNumbersOf(a.id)?.signerIin).toBe("");
     const b = await clientWithIin(testIin("930114", 3, 24));
-    expect(await profileOf((await registerExecutor(b, { ...selfEmployed, binIin: testIin("930114", 3, 24) })).profileId)).toMatchObject({ signerFullName: "Ерлан Жумабаев" });
+    expect(await profileOf((await registerExecutor(b, selfEmployed)).profileId)).toMatchObject({ signerFullName: "Ерлан Жумабаев" });
   });
 
   it("один директор у двух ТОО: оба регистрируются", async () => {
@@ -337,10 +384,10 @@ describe("подписант договора — свойство профил�
     expect([identityFake.partyNumbersOf(first.id)?.signerIin, identityFake.partyNumbersOf(second.id)?.signerIin]).toEqual([DIRECTOR_IIN, DIRECTOR_IIN]);
   });
 
-  it("ИП берёт ИИН личности: ИИН анкеты identity не передаётся, в профиле — последние 4 цифры ИИН аккаунта (№26, №28)", async () => {
+  it("ИП берёт ИИН личности: номер identity не передаётся, в профиле — последние 4 цифры ИИН аккаунта (№26, №28, Ruling U)", async () => {
     const me = await clientWithIin();
 
-    const { profileId } = await registerExecutor(me, { ...ip, binIin: "", ownIin: true });
+    const { profileId } = await registerExecutor(me, ip);
 
     expect(await profileOf(profileId)).toMatchObject({ userId: me.id, binIinLast4: last4(IIN), status: "PENDING" });
     expect(callsOf("registerParty")[0].request).toMatchObject({ binIin: "" });
@@ -348,22 +395,8 @@ describe("подписант договора — свойство профил�
     expect(await accountOf(me.id)).toMatchObject({ iinLast4: last4(IIN), roles: ["CLIENT", "EXECUTOR"] });
   });
 
-  it("ИП, отметка «свой ИИН» снята, введён тот же ИИН — регистрация по ИИН аккаунта", async () => {
-    const me = await clientWithIin();
-    const { profileId } = await registerExecutor(me, ip);
-    expect((await profileOf(profileId)).binIinLast4).toBe(last4(IIN));
-  });
-
-  it("ИП с ИИН, отличным от ИИН аккаунта, — ошибка у поля ИИН, identity не вызывается", async () => {
-    const me = await clientWithIin();
-    const e = await failure(registerExecutor(me, { ...ip, binIin: testIin("930114", 3, 24) }));
-    expect(e).toMatchObject({ code: "VALIDATION", message: t.notOwnIin(last4(IIN)), details: { fieldErrors: { binIin: [t.notOwnIin(last4(IIN))] } } });
-    expect(callsOf("registerParty")).toHaveLength(0);
-    expect(callsOf("grantRole")).toHaveLength(0);
-  });
-
   it("ИП без ИИН в аккаунте (person_missing) — ошибка у поля ИИН с текстом из ru", async () => {
-    const e = await failure(registerExecutor(await smsUser(), { ...ip, binIin: "", ownIin: true }));
+    const e = await failure(registerExecutor(await smsUser(), ip));
     expect(e).toMatchObject({ code: "VALIDATION", message: t.personMissing, details: { fieldErrors: { binIin: [t.personMissing] } } });
     expect(await db.executorProfile.count()).toBe(0);
   });
