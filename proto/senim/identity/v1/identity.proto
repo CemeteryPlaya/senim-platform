@@ -417,6 +417,9 @@ message SetPayoutIbanRequest {
 
 message SetPayoutIbanResponse {
   Party party = 1;
+  // Счёт действительно сменился (указан впервые, другой или записан поверх нечитаемого);
+  // false — тот же счёт ещё раз. По нему web решает, уведомлять ли о смене счёта.
+  bool changed = 2;
 }
 
 message VerifySignerIinRequest {

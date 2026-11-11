@@ -210,10 +210,12 @@ func TestRegisterPartyIPUsesPersonIIN(t *testing.T) {
 	if n := len(h.auditOf(u.ID.String(), "party.registered")); n != 1 {
 		t.Fatalf("аудит после повтора: %d", n)
 	}
-	// Другие данные при существующей стороне — party_exists.
+	// Другие данные при существующей стороне, пока KYC не подана, — перезапись
+	// (TestRegisterPartyReplace).
 	req.IdempotencyKey, req.LegalName = "", "ИП «Другое»"
-	_, err := h.registerParty(req)
-	h.wantRefusal(err, connect.CodeFailedPrecondition, "party_exists")
+	if got := h.mustRegisterParty(req); got.GetLegalName() != "ИП «Другое»" {
+		t.Fatalf("перезапись: %v", got)
+	}
 
 	// Самозанятый тоже работает по ИИН личности; ФИО подписанта — наименование.
 	u2, token2 := h.executor()
@@ -226,8 +228,78 @@ func TestRegisterPartyIPUsesPersonIIN(t *testing.T) {
 
 	// Личности нет — person_missing (ИИН вводится при знакомстве, второй раз не вводится).
 	_, token3 := h.executor()
-	_, err = h.registerParty(&identityv1.RegisterPartyRequest{SessionToken: token3, LegalForm: formIP, LegalName: "ИП «Дала»", BinIin: freshIIN(t), SignerFullName: ownerName})
+	_, err := h.registerParty(&identityv1.RegisterPartyRequest{SessionToken: token3, LegalForm: formIP, LegalName: "ИП «Дала»", BinIin: freshIIN(t), SignerFullName: ownerName})
 	h.wantRefusal(err, connect.CodeFailedPrecondition, "person_missing")
+}
+
+// Ruling T: повторная анкета перезаписывает реквизиты, пока KYC не подана или отклонена;
+// на проверке или пройдена — party_exists. Счёт выплаты и KYC остаются, аудит — без значений.
+func TestRegisterPartyReplace(t *testing.T) {
+	h := newHarness(t, nil)
+	u, token, oldBin, oldDirector := h.tooParty()
+	const iban = "KZ86125KZT5004100100"
+	if _, err := h.setPayoutIban(token, iban, h.key()); err != nil {
+		t.Fatal(err)
+	}
+	register := func(bin, director, name string) (*identityv1.RegisterPartyResponse, error) {
+		return h.registerParty(&identityv1.RegisterPartyRequest{
+			SessionToken: token, LegalForm: formTOO, LegalName: name, BinIin: bin, SignerFullName: directorName, SignerIin: director,
+		})
+	}
+
+	// KYC не подана: новые БИН, наименование и директор принимаются.
+	bin, director := freshBIN(t), freshIIN(t)
+	res, err := register(bin, director, "ТОО «Шебер»")
+	if err != nil {
+		t.Fatalf("перезапись при NOT_SUBMITTED: %v", err)
+	}
+	p := res.GetParty()
+	if p.GetBinIinLast4() != bin[8:] || p.GetLegalName() != "ТОО «Шебер»" || p.GetSignerIinLast4() != director[8:] ||
+		p.GetPayoutIbanLast4() != iban[16:] || p.GetKycStatus() != identityv1.KycStatus_KYC_STATUS_NOT_SUBMITTED {
+		t.Fatalf("party = %v", p)
+	}
+	row, _ := h.partyRow(u.ID)
+	if h.open(row.BinIinEnc, "identity.parties.bin_iin:"+u.ID.String()) != bin ||
+		h.open(row.SignerIinEnc.String, "identity.parties.signer_iin:"+u.ID.String()) != director {
+		t.Fatal("номера не перезаписаны")
+	}
+	events := h.auditOf(u.ID.String(), "party.replaced")
+	if len(events) != 1 {
+		t.Fatalf("аудит party.replaced: %d, want 1", len(events))
+	}
+	noValues(t, events[0], bin, director, oldBin, oldDirector, bin[8:], "Шебер")
+	// Прежний БИН освободился: его может взять другая сторона.
+	_, other := h.executor()
+	h.mustRegisterParty(&identityv1.RegisterPartyRequest{SessionToken: other, LegalForm: formTOO, LegalName: "ТОО «Дала»", BinIin: oldBin, SignerFullName: directorName, SignerIin: freshIIN(t)})
+
+	// БИН другой стороны — iin_taken, реквизиты не меняются.
+	_, err = register(oldBin, director, "ТОО «Шебер»")
+	h.wantRefusal(err, connect.CodeAlreadyExists, "iin_taken")
+	if row, _ := h.partyRow(u.ID); row.BinIinLast4 != bin[8:] {
+		t.Fatal("реквизиты изменены при отказе")
+	}
+
+	// KYC отклонена — снова можно; на проверке и пройдена — party_exists.
+	h.setKyc(u.ID, "REJECTED", true, h.clock.now())
+	bin2 := freshBIN(t)
+	if _, err := register(bin2, director, "ТОО «Шебер»"); err != nil {
+		t.Fatalf("перезапись при REJECTED: %v", err)
+	}
+	if row, _ := h.partyRow(u.ID); row.KycStatus != "REJECTED" || row.BinIinLast4 != bin2[8:] {
+		t.Fatalf("после перезаписи: kyc %s, bin %s", row.KycStatus, row.BinIinLast4)
+	}
+	for _, status := range []string{"PENDING", "VERIFIED"} {
+		h.setKyc(u.ID, status, true, h.clock.now())
+		_, err := register(freshBIN(t), director, "ТОО «Шебер»")
+		h.wantRefusal(err, connect.CodeFailedPrecondition, "party_exists")
+		// Те же реквизиты ещё раз — тот же ответ и при KYC на проверке.
+		if _, err := register(bin2, director, "ТОО «Шебер»"); err != nil {
+			t.Fatalf("%s: повтор тех же реквизитов: %v", status, err)
+		}
+	}
+	if n := len(h.auditOf(u.ID.String(), "party.replaced")); n != 2 {
+		t.Fatalf("аудит party.replaced: %d, want 2", n)
+	}
 }
 
 func TestRegisterPartyTOORequiresSigner(t *testing.T) {
@@ -516,17 +588,23 @@ func TestSetPayoutIbanValidation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", iban, err)
 		}
-		if res.GetParty().GetPayoutIbanLast4() != iban[16:] || strings.Contains(prototext.Format(res), iban) {
-			t.Fatalf("%s: party = %v", iban, res.GetParty())
+		if res.GetParty().GetPayoutIbanLast4() != iban[16:] || !res.GetChanged() || strings.Contains(prototext.Format(res), iban) {
+			t.Fatalf("%s: changed = %v, party = %v", iban, res.GetChanged(), res.GetParty())
 		}
 		row, _ := h.partyRow(u.ID)
 		if got := h.open(row.PayoutIbanEnc.String, "identity.parties.payout_iban:"+u.ID.String()); got != iban {
 			t.Fatalf("payout_iban = %q, want %q", got, iban)
 		}
 	}
-	for _, raw := range []string{" kz86 125k zt50 0410 0100 ", "KZ86 125K ZT50 0410 0100", "kz86 125k zt50 0410 0100"} {
-		if _, err := h.setPayoutIban(token, raw, h.key()); err != nil {
+	// Первый вариант записи — смена (до него был последний из valid), дальше тот же счёт:
+	// changed=false.
+	for i, raw := range []string{" kz86 125k zt50 0410 0100 ", "KZ86 125K ZT50 0410 0100", "kz86 125k zt50 0410 0100"} {
+		res, err := h.setPayoutIban(token, raw, h.key())
+		if err != nil {
 			t.Fatalf("%q: %v", raw, err)
+		}
+		if res.GetChanged() != (i == 0) {
+			t.Fatalf("%q: changed = %v", raw, res.GetChanged())
 		}
 		row, _ := h.partyRow(u.ID)
 		if got := h.open(row.PayoutIbanEnc.String, "identity.parties.payout_iban:"+u.ID.String()); got != "KZ86125KZT5004100100" {
@@ -610,8 +688,8 @@ func TestSetPayoutIbanDamagedPrevious(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetPayoutIban поверх повреждённого: %v", err)
 	}
-	if res.GetParty().GetPayoutIbanLast4() != ibanNew[16:] {
-		t.Fatalf("party = %v", res.GetParty())
+	if res.GetParty().GetPayoutIbanLast4() != ibanNew[16:] || !res.GetChanged() {
+		t.Fatalf("changed = %v, party = %v", res.GetChanged(), res.GetParty())
 	}
 	row, _ := h.partyRow(a.ID)
 	if got := h.open(row.PayoutIbanEnc.String, "identity.parties.payout_iban:"+a.ID.String()); got != ibanNew {

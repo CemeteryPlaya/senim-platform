@@ -145,6 +145,74 @@ func (q *Queries) LockParty(ctx context.Context, userID uuid.UUID) (Party, error
 	return i, err
 }
 
+const replaceParty = `-- name: ReplaceParty :one
+UPDATE parties SET
+    legal_form = $1, legal_name = $2,
+    bin_iin_enc = $3, bin_iin_hash = $4, bin_iin_last4 = $5,
+    signer_full_name = $6, signer_iin_enc = $7,
+    signer_iin_hash = $8, signer_iin_last4 = $9,
+    updated_at = $10
+WHERE user_id = $11 AND kyc_status IN ('NOT_SUBMITTED', 'REJECTED')
+RETURNING user_id, legal_form, legal_name, bin_iin_enc, bin_iin_hash, bin_iin_last4, signer_full_name, signer_iin_enc, signer_iin_hash, signer_iin_last4, payout_iban_enc, payout_iban_last4, kyc_status, kyc_reject_reason, kyc_submitted_at, kyc_reviewed_at, kyc_id_file_ids, kyc_registration_file_ids, created_at, updated_at
+`
+
+type ReplacePartyParams struct {
+	LegalForm      string
+	LegalName      string
+	BinIinEnc      string
+	BinIinHash     []byte
+	BinIinLast4    string
+	SignerFullName pgtype.Text
+	SignerIinEnc   pgtype.Text
+	SignerIinHash  []byte
+	SignerIinLast4 pgtype.Text
+	Now            pgtype.Timestamptz
+	UserID         uuid.UUID
+}
+
+// Перезапись реквизитов стороны повторной анкетой (RegisterParty): только пока KYC не подана
+// или отклонена; счёт выплаты и KYC остаются. Тот же ИИН/БИН у другой стороны — 23505 на
+// parties_bin_iin_hash_key.
+func (q *Queries) ReplaceParty(ctx context.Context, arg ReplacePartyParams) (Party, error) {
+	row := q.db.QueryRow(ctx, replaceParty,
+		arg.LegalForm,
+		arg.LegalName,
+		arg.BinIinEnc,
+		arg.BinIinHash,
+		arg.BinIinLast4,
+		arg.SignerFullName,
+		arg.SignerIinEnc,
+		arg.SignerIinHash,
+		arg.SignerIinLast4,
+		arg.Now,
+		arg.UserID,
+	)
+	var i Party
+	err := row.Scan(
+		&i.UserID,
+		&i.LegalForm,
+		&i.LegalName,
+		&i.BinIinEnc,
+		&i.BinIinHash,
+		&i.BinIinLast4,
+		&i.SignerFullName,
+		&i.SignerIinEnc,
+		&i.SignerIinHash,
+		&i.SignerIinLast4,
+		&i.PayoutIbanEnc,
+		&i.PayoutIbanLast4,
+		&i.KycStatus,
+		&i.KycRejectReason,
+		&i.KycSubmittedAt,
+		&i.KycReviewedAt,
+		&i.KycIDFileIds,
+		&i.KycRegistrationFileIds,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const setPartyPayoutIban = `-- name: SetPartyPayoutIban :one
 UPDATE parties SET payout_iban_enc = $1, payout_iban_last4 = $2, updated_at = $3
 WHERE user_id = $4

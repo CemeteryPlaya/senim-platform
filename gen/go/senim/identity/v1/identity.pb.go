@@ -3493,8 +3493,11 @@ func (x *SetPayoutIbanRequest) GetIdempotencyKey() string {
 }
 
 type SetPayoutIbanResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Party         *Party                 `protobuf:"bytes,1,opt,name=party,proto3" json:"party,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Party *Party                 `protobuf:"bytes,1,opt,name=party,proto3" json:"party,omitempty"`
+	// Счёт действительно сменился (указан впервые, другой или записан поверх нечитаемого);
+	// false — тот же счёт ещё раз. По нему web решает, уведомлять ли о смене счёта.
+	Changed       bool `protobuf:"varint,2,opt,name=changed,proto3" json:"changed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3534,6 +3537,13 @@ func (x *SetPayoutIbanResponse) GetParty() *Party {
 		return x.Party
 	}
 	return nil
+}
+
+func (x *SetPayoutIbanResponse) GetChanged() bool {
+	if x != nil {
+		return x.Changed
+	}
+	return false
 }
 
 type VerifySignerIinRequest struct {
@@ -5077,9 +5087,10 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x14SetPayoutIbanRequest\x12#\n" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12\x12\n" +
 	"\x04iban\x18\x02 \x01(\tR\x04iban\x12'\n" +
-	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"G\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"a\n" +
 	"\x15SetPayoutIbanResponse\x12.\n" +
-	"\x05party\x18\x01 \x01(\v2\x18.senim.identity.v1.PartyR\x05party\"w\n" +
+	"\x05party\x18\x01 \x01(\v2\x18.senim.identity.v1.PartyR\x05party\x12\x18\n" +
+	"\achanged\x18\x02 \x01(\bR\achanged\"w\n" +
 	"\x16VerifySignerIinRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x10\n" +
 	"\x03iin\x18\x02 \x01(\tR\x03iin\x122\n" +

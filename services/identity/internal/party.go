@@ -14,6 +14,7 @@ import (
 	"connectrpc.com/connect/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	eventsv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/events/v1"
@@ -254,45 +255,89 @@ func (s *Service) sameParty(p store.Party, in partyInput) bool {
 		p.SignerFullName.String == in.signerName && bytes.Equal(p.SignerIinHash, s.signerHash(in))
 }
 
-// writeParty записывает сторону пользователя (строка пользователя уже заблокирована).
-// Те же реквизиты ещё раз — прежняя строка, created=false; другие — party_exists. Тот же
-// ИИН/БИН у другой стороны — iin_taken (и при гонке: уникальный bin_iin_hash, 23505).
-func (s *Service) writeParty(ctx context.Context, tx pgx.Tx, userID uuid.UUID, in partyInput, now time.Time) (store.Party, bool, error) {
-	q := store.New(tx)
-	existing, err := q.LockParty(ctx, userID)
-	switch {
-	case err == nil:
-		if s.sameParty(existing, in) {
-			return existing, false, nil
-		}
-		return existing, false, partyExists()
-	case !errors.Is(err, pgx.ErrNoRows):
-		return existing, false, err
-	}
+// partyWrite — что сделала writeParty со стороной пользователя.
+type partyWrite int
+
+const (
+	partyUnchanged partyWrite = iota // те же реквизиты ещё раз
+	partyCreated                     // новая сторона
+	partyReplaced                    // реквизиты перезаписаны повторной анкетой
+)
+
+// replaceableKyc — пока KYC не подана или отклонена, повторная анкета (RegisterParty)
+// перезаписывает реквизиты: проверять оператору ещё нечего или проверка отклонена.
+var replaceableKyc = []string{"NOT_SUBMITTED", "REJECTED"}
+
+// sealedParty — шифртексты и слепые индексы реквизитов стороны пользователя.
+type sealedParty struct {
+	binEnc                             string
+	binHash, signerHash                []byte
+	signerEnc, signerName, signerLast4 pgtype.Text
+}
+
+func (s *Service) sealParty(userID uuid.UUID, in partyInput) (sealedParty, error) {
 	binEnc, err := s.cfg.PII.Seal([]byte(in.binIIN), partyBinIINAAD(userID))
 	if err != nil {
-		return store.Party{}, false, fmt.Errorf("шифрование ИИН/БИН: %w", err)
+		return sealedParty{}, fmt.Errorf("шифрование ИИН/БИН: %w", err)
 	}
-	params := store.InsertPartyParams{
-		UserID: userID, LegalForm: in.legalForm, LegalName: in.legalName,
-		BinIinEnc: binEnc, BinIinHash: s.cfg.PIIIndex.Of(pii.DomainBINIIN, in.binIIN), BinIinLast4: pii.Last4(in.binIIN),
-		SignerFullName: text(in.signerName), Now: ts(now),
-	}
+	out := sealedParty{binEnc: binEnc, binHash: s.cfg.PIIIndex.Of(pii.DomainBINIIN, in.binIIN), signerName: text(in.signerName)}
 	if in.signerIIN != "" {
 		enc, err := s.cfg.PII.Seal([]byte(in.signerIIN), partySignerIINAAD(userID))
 		if err != nil {
-			return store.Party{}, false, fmt.Errorf("шифрование ИИН подписанта: %w", err)
+			return sealedParty{}, fmt.Errorf("шифрование ИИН подписанта: %w", err)
 		}
-		params.SignerIinEnc, params.SignerIinHash, params.SignerIinLast4 = text(enc), s.signerHash(in), text(pii.Last4(in.signerIIN))
+		out.signerEnc, out.signerHash, out.signerLast4 = text(enc), s.signerHash(in), text(pii.Last4(in.signerIIN))
 	}
-	p, err := q.InsertParty(ctx, params)
+	return out, nil
+}
+
+// writeParty записывает сторону пользователя (строка пользователя уже заблокирована).
+// Те же реквизиты ещё раз — прежняя строка (partyUnchanged). Другие: replace=true
+// (RegisterParty) и KYC не подана или отклонена — перезапись (partyReplaced), иначе
+// party_exists. Тот же ИИН/БИН у другой стороны — iin_taken (и при гонке: уникальный
+// bin_iin_hash, 23505).
+func (s *Service) writeParty(ctx context.Context, tx pgx.Tx, userID uuid.UUID, in partyInput, replace bool, now time.Time) (store.Party, partyWrite, error) {
+	q := store.New(tx)
+	existing, err := q.LockParty(ctx, userID)
+	found := err == nil
+	replaceable := replace && slices.Contains(replaceableKyc, existing.KycStatus)
+	switch {
+	case found && s.sameParty(existing, in):
+		return existing, partyUnchanged, nil
+	case found && !replaceable:
+		return existing, partyUnchanged, partyExists()
+	case err != nil && !errors.Is(err, pgx.ErrNoRows):
+		return existing, partyUnchanged, err
+	}
+	sealed, err := s.sealParty(userID, in)
+	if err != nil {
+		return store.Party{}, partyUnchanged, err
+	}
+	var p store.Party
+	outcome := partyCreated
+	if found {
+		outcome = partyReplaced
+		p, err = q.ReplaceParty(ctx, store.ReplacePartyParams{
+			UserID: userID, LegalForm: in.legalForm, LegalName: in.legalName,
+			BinIinEnc: sealed.binEnc, BinIinHash: sealed.binHash, BinIinLast4: pii.Last4(in.binIIN),
+			SignerFullName: sealed.signerName, SignerIinEnc: sealed.signerEnc, SignerIinHash: sealed.signerHash,
+			SignerIinLast4: sealed.signerLast4, Now: ts(now),
+		})
+	} else {
+		p, err = q.InsertParty(ctx, store.InsertPartyParams{
+			UserID: userID, LegalForm: in.legalForm, LegalName: in.legalName,
+			BinIinEnc: sealed.binEnc, BinIinHash: sealed.binHash, BinIinLast4: pii.Last4(in.binIIN),
+			SignerFullName: sealed.signerName, SignerIinEnc: sealed.signerEnc, SignerIinHash: sealed.signerHash,
+			SignerIinLast4: sealed.signerLast4, Now: ts(now),
+		})
+	}
 	if isUniqueViolation(err, partyBinIINConstraint) {
-		return p, false, iinTaken()
+		return p, partyUnchanged, iinTaken()
 	}
 	if err != nil {
-		return p, false, fmt.Errorf("запись стороны: %w", err)
+		return p, partyUnchanged, fmt.Errorf("запись стороны: %w", err)
 	}
-	return p, true, nil
+	return p, outcome, nil
 }
 
 // partyAudit — значение аудита стороны: правовая форма, без номеров и имён.
@@ -304,11 +349,13 @@ type partyAudit struct {
 // apps/web). Роль EXECUTOR должна быть выдана (web выдаёт её раньше, GrantRole) — иначе
 // role_not_granted; активной она может ещё не быть. ИП и самозанятый работают по ИИН
 // личности: bin_iin запроса не читается, ИИН не указан — person_missing. Те же реквизиты
-// ещё раз — тот же ответ, другие при записанной стороне — party_exists.
+// ещё раз — тот же ответ. Другие при записанной стороне перезаписывают её, пока KYC не
+// подана или отклонена (повторная анкета после отказа, аудит party.replaced без значений);
+// KYC на проверке или пройдена — party_exists.
 //
 // Порядок: формат запроса, сессия и роль (чтение), затем идемпотентная транзакция:
 // пользователь под блокировкой, роль заново, ИИН личности, сторона, аудит
-// party.registered без значений.
+// party.registered или party.replaced без значений.
 func (s *Service) RegisterParty(ctx context.Context, req *identityv1.RegisterPartyRequest) (*identityv1.RegisterPartyResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return nil, err
@@ -347,15 +394,21 @@ func (s *Service) RegisterParty(ctx context.Context, req *identityv1.RegisterPar
 				return err
 			}
 		}
-		p, created, err := s.writeParty(ctx, tx, user.ID, in, now)
+		before, _ := store.New(tx).GetParty(ctx, user.ID)
+		p, outcome, err := s.writeParty(ctx, tx, user.ID, in, true, now)
 		if err != nil {
 			return err
 		}
-		if created {
-			role := activeRole(locked.Roles, locked.DefaultRole, &sess.ActiveRole)
-			if err := recordAudit(ctx, tx, locked, role, "party.registered", nil, partyAudit{in.legalForm}, now); err != nil {
-				return err
-			}
+		role := activeRole(locked.Roles, locked.DefaultRole, &sess.ActiveRole)
+		switch outcome {
+		case partyCreated:
+			err = recordAudit(ctx, tx, locked, role, "party.registered", nil, partyAudit{in.legalForm}, now)
+		case partyReplaced:
+			err = recordAudit(ctx, tx, locked, role, "party.replaced", partyAudit{before.LegalForm}, partyAudit{in.legalForm}, now)
+		case partyUnchanged:
+		}
+		if err != nil {
+			return err
 		}
 		resp.Party = partyProto(p)
 		return nil
@@ -426,11 +479,11 @@ func (s *Service) ProvisionExecutor(ctx context.Context, req *identityv1.Provisi
 		if err != nil {
 			return err
 		}
-		p, created, err := s.writeParty(ctx, tx, user.ID, in, now)
+		p, outcome, err := s.writeParty(ctx, tx, user.ID, in, false, now)
 		if err != nil {
 			return err
 		}
-		if created {
+		if outcome == partyCreated {
 			if err := writeAudit(ctx, tx, actor, user.ID.String(), "party.registered", nil, partyAudit{in.legalForm}, now); err != nil {
 				return err
 			}
@@ -493,7 +546,8 @@ func (s *Service) executorByPhone(ctx context.Context, tx pgx.Tx, phone string, 
 // SetPayoutIban указывает или меняет счёт выплаты своей стороны (setPayoutIban в
 // payout.ts): KZ IBAN с проверкой mod-97, в базе — шифртекстом, наружу — последние 4
 // символа. Активная роль — исполнитель (иначе role_forbidden), сторона есть (иначе
-// party_missing). Тот же счёт ещё раз — без изменений и без аудита; иначе аудит
+// party_missing). Тот же счёт ещё раз — без изменений и без аудита, changed=false; иначе
+// changed=true и аудит
 // executor.payout_iban_changed — только «указан / не указан». Запрет смены при ждущей
 // выплате проверяет web до вызова (payments/payout-lock.ts).
 func (s *Service) SetPayoutIban(ctx context.Context, req *identityv1.SetPayoutIbanRequest) (*identityv1.SetPayoutIbanResponse, error) {
@@ -542,7 +596,7 @@ func (s *Service) SetPayoutIban(ctx context.Context, req *identityv1.SetPayoutIb
 				return err
 			}
 			if !damaged && previous == iban {
-				resp.Party = partyProto(p)
+				resp.Party, resp.Changed = partyProto(p), false
 				return nil
 			}
 		}
@@ -560,7 +614,7 @@ func (s *Service) SetPayoutIban(ctx context.Context, req *identityv1.SetPayoutIb
 			contactSet{p.PayoutIbanEnc.Valid}, contactSet{true}, now); err != nil {
 			return err
 		}
-		resp.Party = partyProto(updated)
+		resp.Party, resp.Changed = partyProto(updated), true
 		return nil
 	})
 	if err != nil {

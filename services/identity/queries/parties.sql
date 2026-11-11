@@ -18,6 +18,19 @@ INSERT INTO parties (
 )
 RETURNING *;
 
+-- Перезапись реквизитов стороны повторной анкетой (RegisterParty): только пока KYC не подана
+-- или отклонена; счёт выплаты и KYC остаются. Тот же ИИН/БИН у другой стороны — 23505 на
+-- parties_bin_iin_hash_key.
+-- name: ReplaceParty :one
+UPDATE parties SET
+    legal_form = @legal_form, legal_name = @legal_name,
+    bin_iin_enc = @bin_iin_enc, bin_iin_hash = @bin_iin_hash, bin_iin_last4 = @bin_iin_last4,
+    signer_full_name = sqlc.narg('signer_full_name'), signer_iin_enc = sqlc.narg('signer_iin_enc'),
+    signer_iin_hash = sqlc.narg('signer_iin_hash'), signer_iin_last4 = sqlc.narg('signer_iin_last4'),
+    updated_at = @now
+WHERE user_id = @user_id AND kyc_status IN ('NOT_SUBMITTED', 'REJECTED')
+RETURNING *;
+
 -- name: SetPartyPayoutIban :one
 UPDATE parties SET payout_iban_enc = @payout_iban_enc, payout_iban_last4 = @payout_iban_last4, updated_at = @now
 WHERE user_id = @user_id
