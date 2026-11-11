@@ -45,6 +45,9 @@ const (
 	IdentityServiceStartDemoSessionProcedure = "/senim.identity.v1.IdentityService/StartDemoSession"
 	// IdentityServiceSeedUsersProcedure is the procedure name of the IdentityService's SeedUsers RPC.
 	IdentityServiceSeedUsersProcedure = "/senim.identity.v1.IdentityService/SeedUsers"
+	// IdentityServiceSeedConsentsProcedure is the procedure name of the IdentityService's SeedConsents
+	// RPC.
+	IdentityServiceSeedConsentsProcedure = "/senim.identity.v1.IdentityService/SeedConsents"
 	// IdentityServiceResetDemoProcedure is the procedure name of the IdentityService's ResetDemo RPC.
 	IdentityServiceResetDemoProcedure = "/senim.identity.v1.IdentityService/ResetDemo"
 	// IdentityServiceGetSigningKeysProcedure is the procedure name of the IdentityService's
@@ -171,6 +174,13 @@ var (
 			StreamType: connect.StreamTypeUnary,
 			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("SeedUsers"),
 			Procedure:  IdentityServiceSeedUsersProcedure,
+		}
+	})
+	identityServiceSeedConsentsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("SeedConsents"),
+			Procedure:  IdentityServiceSeedConsentsProcedure,
 		}
 	})
 	identityServiceResetDemoSpec = sync.OnceValue(func() connect.Spec {
@@ -341,6 +351,7 @@ type IdentityServiceClient interface {
 	GrantRole(context.Context, *v1.GrantRoleRequest) (*v1.GrantRoleResponse, error)
 	StartDemoSession(context.Context, *v1.StartDemoSessionRequest) (*v1.StartDemoSessionResponse, error)
 	SeedUsers(context.Context, *v1.SeedUsersRequest) (*v1.SeedUsersResponse, error)
+	SeedConsents(context.Context, *v1.SeedConsentsRequest) (*v1.SeedConsentsResponse, error)
 	ResetDemo(context.Context, *v1.ResetDemoRequest) (*v1.ResetDemoResponse, error)
 	// Чтение.
 	GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error)
@@ -395,6 +406,7 @@ type IdentityServiceHandler interface {
 	GrantRole(context.Context, *v1.GrantRoleRequest) (*v1.GrantRoleResponse, error)
 	StartDemoSession(context.Context, *v1.StartDemoSessionRequest) (*v1.StartDemoSessionResponse, error)
 	SeedUsers(context.Context, *v1.SeedUsersRequest) (*v1.SeedUsersResponse, error)
+	SeedConsents(context.Context, *v1.SeedConsentsRequest) (*v1.SeedConsentsResponse, error)
 	ResetDemo(context.Context, *v1.ResetDemoRequest) (*v1.ResetDemoResponse, error)
 	// Чтение.
 	GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error)
@@ -445,6 +457,7 @@ func RegisterIdentityServiceHandler(server *connect.Server, svc IdentityServiceH
 		connect.Method{Spec: identityServiceGrantRoleSpec(), Handler: adapter.grantRole},
 		connect.Method{Spec: identityServiceStartDemoSessionSpec(), Handler: adapter.startDemoSession},
 		connect.Method{Spec: identityServiceSeedUsersSpec(), Handler: adapter.seedUsers},
+		connect.Method{Spec: identityServiceSeedConsentsSpec(), Handler: adapter.seedConsents},
 		connect.Method{Spec: identityServiceResetDemoSpec(), Handler: adapter.resetDemo},
 		connect.Method{Spec: identityServiceGetSigningKeysSpec(), Handler: adapter.getSigningKeys},
 		connect.Method{Spec: identityServiceStartTotpEnrollmentSpec(), Handler: adapter.startTotpEnrollment},
@@ -507,6 +520,10 @@ func (UnimplementedIdentityServiceHandler) StartDemoSession(context.Context, *v1
 
 func (UnimplementedIdentityServiceHandler) SeedUsers(context.Context, *v1.SeedUsersRequest) (*v1.SeedUsersResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.SeedUsers is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) SeedConsents(context.Context, *v1.SeedConsentsRequest) (*v1.SeedConsentsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.SeedConsents is not implemented")
 }
 
 func (UnimplementedIdentityServiceHandler) ResetDemo(context.Context, *v1.ResetDemoRequest) (*v1.ResetDemoResponse, error) {
@@ -668,6 +685,14 @@ func (c *identityServiceClient) StartDemoSession(ctx context.Context, req *v1.St
 func (c *identityServiceClient) SeedUsers(ctx context.Context, req *v1.SeedUsersRequest) (*v1.SeedUsersResponse, error) {
 	var res v1.SeedUsersResponse
 	if err := c.client.CallUnary(ctx, identityServiceSeedUsersSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) SeedConsents(ctx context.Context, req *v1.SeedConsentsRequest) (*v1.SeedConsentsResponse, error) {
+	var res v1.SeedConsentsResponse
+	if err := c.client.CallUnary(ctx, identityServiceSeedConsentsSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -953,6 +978,18 @@ func (h identityServiceHandler) seedUsers(ctx context.Context, _ connect.Spec, s
 		return err
 	}
 	res, err := h.svc.SeedUsers(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) seedConsents(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.SeedConsentsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.SeedConsents(ctx, &req)
 	if err != nil {
 		return err
 	}

@@ -149,7 +149,7 @@ func newSender(provider string, log *slog.Logger) (OtpSender, error) {
 // requireCaller; тест TestCallerPolicyCoversEveryRPC обходит все RPC дескриптора):
 //
 //	RequestOtp, VerifyOtp, Authenticate, SignOut, SignOutEverywhere,
-//	SwitchRole, GrantRole, StartDemoSession, SeedUsers, ResetDemo,
+//	SwitchRole, GrantRole, StartDemoSession, SeedUsers, SeedConsents, ResetDemo,
 //	StartTotpEnrollment, ConfirmTotpEnrollment, VerifySecondFactor,
 //	RecordPerson, UpdateContacts, GetProfile, RegisterParty,
 //	ProvisionExecutor, SetPayoutIban, VerifySignerIin,

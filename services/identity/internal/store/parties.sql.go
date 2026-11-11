@@ -263,12 +263,14 @@ const upsertSeedParty = `-- name: UpsertSeedParty :one
 INSERT INTO parties (
     user_id, legal_form, legal_name, bin_iin_enc, bin_iin_hash, bin_iin_last4,
     signer_full_name, signer_iin_enc, signer_iin_hash, signer_iin_last4, payout_iban_enc, payout_iban_last4,
-    kyc_status, kyc_submitted_at, kyc_reviewed_at, created_at, updated_at
+    kyc_status, kyc_reject_reason, kyc_submitted_at, kyc_reviewed_at, kyc_id_file_ids, kyc_registration_file_ids,
+    created_at, updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10,
     $11, $12,
-    $13, $14, $15, $16, $16
+    $13, $14, $15, $16,
+    $17::text[], $18::text[], $19, $19
 )
 ON CONFLICT (user_id) DO UPDATE SET
     legal_form        = EXCLUDED.legal_form,
@@ -283,34 +285,39 @@ ON CONFLICT (user_id) DO UPDATE SET
     payout_iban_enc   = EXCLUDED.payout_iban_enc,
     payout_iban_last4 = EXCLUDED.payout_iban_last4,
     kyc_status        = EXCLUDED.kyc_status,
-    kyc_reject_reason = NULL,
+    kyc_reject_reason = EXCLUDED.kyc_reject_reason,
     kyc_submitted_at  = EXCLUDED.kyc_submitted_at,
     kyc_reviewed_at   = EXCLUDED.kyc_reviewed_at,
+    kyc_id_file_ids   = EXCLUDED.kyc_id_file_ids,
+    kyc_registration_file_ids = EXCLUDED.kyc_registration_file_ids,
     updated_at        = EXCLUDED.updated_at
 RETURNING user_id, legal_form, legal_name, bin_iin_enc, bin_iin_hash, bin_iin_last4, signer_full_name, signer_iin_enc, signer_iin_hash, signer_iin_last4, payout_iban_enc, payout_iban_last4, kyc_status, kyc_reject_reason, kyc_submitted_at, kyc_reviewed_at, kyc_id_file_ids, kyc_registration_file_ids, created_at, updated_at
 `
 
 type UpsertSeedPartyParams struct {
-	UserID          uuid.UUID
-	LegalForm       string
-	LegalName       string
-	BinIinEnc       string
-	BinIinHash      []byte
-	BinIinLast4     string
-	SignerFullName  pgtype.Text
-	SignerIinEnc    pgtype.Text
-	SignerIinHash   []byte
-	SignerIinLast4  pgtype.Text
-	PayoutIbanEnc   pgtype.Text
-	PayoutIbanLast4 pgtype.Text
-	KycStatus       string
-	KycSubmittedAt  pgtype.Timestamptz
-	KycReviewedAt   pgtype.Timestamptz
-	Now             pgtype.Timestamptz
+	UserID                 uuid.UUID
+	LegalForm              string
+	LegalName              string
+	BinIinEnc              string
+	BinIinHash             []byte
+	BinIinLast4            string
+	SignerFullName         pgtype.Text
+	SignerIinEnc           pgtype.Text
+	SignerIinHash          []byte
+	SignerIinLast4         pgtype.Text
+	PayoutIbanEnc          pgtype.Text
+	PayoutIbanLast4        pgtype.Text
+	KycStatus              string
+	KycRejectReason        pgtype.Text
+	KycSubmittedAt         pgtype.Timestamptz
+	KycReviewedAt          pgtype.Timestamptz
+	KycIDFileIds           []string
+	KycRegistrationFileIds []string
+	Now                    pgtype.Timestamptz
 }
 
-// Сид демо-стенда (SeedUsers): сторона пользователя перезаписывается целиком; файлы KYC
-// остаются.
+// Сид демо-стенда (SeedUsers): сторона пользователя перезаписывается целиком, с файлами KYC
+// и причиной отказа.
 func (q *Queries) UpsertSeedParty(ctx context.Context, arg UpsertSeedPartyParams) (Party, error) {
 	row := q.db.QueryRow(ctx, upsertSeedParty,
 		arg.UserID,
@@ -326,8 +333,11 @@ func (q *Queries) UpsertSeedParty(ctx context.Context, arg UpsertSeedPartyParams
 		arg.PayoutIbanEnc,
 		arg.PayoutIbanLast4,
 		arg.KycStatus,
+		arg.KycRejectReason,
 		arg.KycSubmittedAt,
 		arg.KycReviewedAt,
+		arg.KycIDFileIds,
+		arg.KycRegistrationFileIds,
 		arg.Now,
 	)
 	var i Party

@@ -187,6 +187,23 @@ message SeedParty {
   string signer_iin = 5;
   string payout_iban = 6;
   KycStatus kyc_status = 7;
+  // Файлы KYC (идентификаторы сервиса files, UUID) — по 0–4 каждого вида; только при поданных
+  // документах (kyc_status не NOT_SUBMITTED и не UNSPECIFIED).
+  repeated string kyc_id_file_ids = 8;
+  repeated string kyc_registration_file_ids = 9;
+  // Причина отказа KYC: только и обязательно при KYC_STATUS_REJECTED, 3–500 символов.
+  string kyc_reject_reason = 10;
+}
+
+// SeedConsent — согласие для начального наполнения демо-стенда (канал seed).
+message SeedConsent {
+  string user_id = 1;
+  ConsentKind kind = 2;
+  string version = 3;
+  // SHA-256 текста, hex.
+  string text_sha256 = 4;
+  // Предмет: у передачи банку — идентификатор сделки; у ПДн — пусто.
+  string reference_id = 5;
 }
 
 // SeedUser — пользователь для начального наполнения (демо и перенос данных).
@@ -310,6 +327,13 @@ message SeedUsersRequest {
 message SeedUsersResponse {
   repeated User users = 1;
 }
+
+message SeedConsentsRequest {
+  repeated SeedConsent consents = 1;
+  string idempotency_key = 2;
+}
+
+message SeedConsentsResponse {}
 
 message ResetDemoRequest {
   string idempotency_key = 1;
@@ -582,6 +606,7 @@ service IdentityService {
   rpc GrantRole(GrantRoleRequest) returns (GrantRoleResponse);
   rpc StartDemoSession(StartDemoSessionRequest) returns (StartDemoSessionResponse);
   rpc SeedUsers(SeedUsersRequest) returns (SeedUsersResponse);
+  rpc SeedConsents(SeedConsentsRequest) returns (SeedConsentsResponse);
   rpc ResetDemo(ResetDemoRequest) returns (ResetDemoResponse);
   // Чтение.
   rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);

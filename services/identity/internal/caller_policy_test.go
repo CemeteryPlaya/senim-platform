@@ -55,6 +55,10 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 		_, err := c.SeedUsers(ctx, &identityv1.SeedUsersRequest{})
 		return err
 	},
+	"SeedConsents": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.SeedConsents(ctx, &identityv1.SeedConsentsRequest{})
+		return err
+	},
 	"ResetDemo": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
 		_, err := c.ResetDemo(ctx, &identityv1.ResetDemoRequest{})
 		return err

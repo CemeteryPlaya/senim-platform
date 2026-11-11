@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -19,8 +20,12 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/services/identity/internal/store"
 )
 
-// maxSeedUsers — предел числа пользователей в одном SeedUsers.
-const maxSeedUsers = 200
+// maxSeedUsers — предел числа пользователей в одном SeedUsers, maxSeedConsents — согласий в
+// одном SeedConsents.
+const (
+	maxSeedUsers    = 200
+	maxSeedConsents = 500
+)
 
 func demoDisabled() error {
 	return rpcError(connect.CodeFailedPrecondition, "demo_disabled", nil)
@@ -58,11 +63,13 @@ type seedRow struct {
 }
 
 // seedParty — проверенная сторона сида: реквизиты, счёт выплаты (пусто — не указан) и
-// состояние KYC.
+// состояние KYC с файлами и причиной отказа.
 type seedParty struct {
-	in         partyInput
-	payoutIBAN string
-	kycStatus  string
+	in                      partyInput
+	payoutIBAN              string
+	kycStatus               string
+	kycIDFiles, kycRegFiles []string
+	kycRejectReason         string
 }
 
 // hasPerson — в записи сида есть хотя бы одно поле личности.
@@ -131,7 +138,42 @@ func validateSeedParty(sp *identityv1.SeedParty, row *seedRow) error {
 		}
 		party.kycStatus = strings.TrimPrefix(name, "KYC_STATUS_")
 	}
+	if err := validateSeedKyc(sp, party); err != nil {
+		return err
+	}
 	row.party = party
+	return nil
+}
+
+// validateSeedKyc проверяет файлы и причину отказа KYC стороны сида правилами SubmitKyc и
+// ReviewKyc: файлы — UUID, не больше kycMaxFiles каждого вида (invalid_request), и только при
+// поданных документах (у NOT_SUBMITTED файлов нет — invalid_request); причина — только у
+// REJECTED и обязательна там: 3–500 символов (kyc_reason_invalid).
+func validateSeedKyc(sp *identityv1.SeedParty, party *seedParty) error {
+	idFiles, ok := kycFileIDs(sp.GetKycIdFileIds())
+	if !ok {
+		return invalidRequest()
+	}
+	regFiles, ok := kycFileIDs(sp.GetKycRegistrationFileIds())
+	if !ok {
+		return invalidRequest()
+	}
+	if party.kycStatus == "NOT_SUBMITTED" && (len(idFiles) > 0 || len(regFiles) > 0) {
+		return invalidRequest()
+	}
+	party.kycIDFiles, party.kycRegFiles = idFiles, regFiles
+	raw := sp.GetKycRejectReason()
+	if party.kycStatus != "REJECTED" {
+		if raw != "" {
+			return invalidRequest()
+		}
+		return nil
+	}
+	reason, ok := kycReason(raw)
+	if !ok {
+		return kycReasonInvalid()
+	}
+	party.kycRejectReason = reason
 	return nil
 }
 
@@ -147,7 +189,8 @@ func (s *Service) seedPartyRow(ctx context.Context, q *store.Queries, userID uui
 	params := store.UpsertSeedPartyParams{
 		UserID: userID, LegalForm: in.legalForm, LegalName: in.legalName,
 		BinIinEnc: binEnc, BinIinHash: s.cfg.PIIIndex.Of(pii.DomainBINIIN, in.binIIN), BinIinLast4: pii.Last4(in.binIIN),
-		SignerFullName: text(in.signerName), KycStatus: sp.kycStatus, Now: now,
+		SignerFullName: text(in.signerName), KycStatus: sp.kycStatus, KycRejectReason: text(sp.kycRejectReason),
+		KycIDFileIds: sp.kycIDFiles, KycRegistrationFileIds: sp.kycRegFiles, Now: now,
 	}
 	if in.signerIIN != "" {
 		enc, err := s.cfg.PII.Seal([]byte(in.signerIIN), partySignerIINAAD(userID))
@@ -326,6 +369,97 @@ func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersReques
 				}
 			}
 			resp.Users = append(resp.Users, userProto(u))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// seedConsentRow — проверенное согласие SeedConsents.
+type seedConsentRow struct {
+	userID             uuid.UUID
+	kind, version, ref string
+	sum                []byte
+}
+
+// validateSeedConsents разбирает согласия SeedConsents по правилам GrantConsent: 1–500
+// записей, user_id — UUID, вид указан, предмет по правилам вида (invalid_request); версия и
+// SHA-256 текста — consent_version_invalid.
+func validateSeedConsents(raw []*identityv1.SeedConsent) ([]seedConsentRow, error) {
+	if len(raw) == 0 || len(raw) > maxSeedConsents {
+		return nil, invalidRequest()
+	}
+	rows := make([]seedConsentRow, 0, len(raw))
+	for _, c := range raw {
+		id, err := uuid.Parse(c.GetUserId())
+		if err != nil || len(c.GetUserId()) != 36 {
+			return nil, invalidRequest()
+		}
+		kind, ok := consentKindName(c.GetKind())
+		if !ok || !validConsentReference(kind, c.GetReferenceId()) {
+			return nil, invalidRequest()
+		}
+		sum, err := consentProof(c.GetVersion(), c.GetTextSha256())
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, seedConsentRow{userID: id, kind: kind, version: c.GetVersion(), ref: c.GetReferenceId(), sum: sum})
+	}
+	return rows, nil
+}
+
+// SeedConsents — согласия демо-стенда (канал seed, без сессии и целей): например, передача
+// банку к демо-сделке, которую сид оплачивает без входа сторон. Только DemoMode и вызывающий
+// web (demoGate). Пользователь должен существовать (user_not_found; признак демо не
+// требуется — в сделках сида есть заказчики вне демо-входа, Ruling AG). Действующее согласие
+// той же версии и предмета уже есть — без новой записи; та же версия с другим текстом —
+// consent_version_invalid (как GrantConsent). Всё или ничего — одна транзакция.
+//
+// Ни аудита, ни событий, как у SeedUsers: это данные демо-стенда, а не согласия людей.
+func (s *Service) SeedConsents(ctx context.Context, req *identityv1.SeedConsentsRequest) (*identityv1.SeedConsentsResponse, error) {
+	if err := s.demoGate(ctx); err != nil {
+		return nil, err
+	}
+	if !validIdempotencyKey(req.GetIdempotencyKey()) {
+		return nil, invalidRequest()
+	}
+	rows, err := validateSeedConsents(req.GetConsents())
+	if err != nil {
+		return nil, err
+	}
+	resp := &identityv1.SeedConsentsResponse{}
+	err = s.idempotent(ctx, "seed_consents", identityv1connect.IdentityServiceSeedConsentsProcedure, req.GetIdempotencyKey(), req, resp, func(tx pgx.Tx) error {
+		q := store.New(tx)
+		now := ts(s.now())
+		known := make(map[uuid.UUID]bool, len(rows))
+		for _, r := range rows {
+			if !known[r.userID] {
+				if _, err := q.GetUserByID(ctx, r.userID); errors.Is(err, pgx.ErrNoRows) {
+					return userNotFound()
+				} else if err != nil {
+					return err
+				}
+				known[r.userID] = true
+			}
+			existing, err := q.GetActiveConsent(ctx, store.GetActiveConsentParams{UserID: r.userID, Kind: r.kind, Version: r.version, ReferenceID: r.ref})
+			switch {
+			case err == nil:
+				if !bytes.Equal(existing.TextSha256, r.sum) {
+					return consentVersionInvalid()
+				}
+				continue
+			case !errors.Is(err, pgx.ErrNoRows):
+				return err
+			}
+			if _, err := q.InsertConsent(ctx, store.InsertConsentParams{
+				UserID: r.userID, Kind: r.kind, Version: r.version, TextSha256: r.sum, Purposes: []string{},
+				ReferenceID: r.ref, Channel: channelSeed, GrantedAt: now,
+			}); err != nil {
+				return err
+			}
 		}
 		return nil
 	})

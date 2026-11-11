@@ -36,18 +36,20 @@ UPDATE parties SET payout_iban_enc = @payout_iban_enc, payout_iban_last4 = @payo
 WHERE user_id = @user_id
 RETURNING *;
 
--- Сид демо-стенда (SeedUsers): сторона пользователя перезаписывается целиком; файлы KYC
--- остаются.
+-- Сид демо-стенда (SeedUsers): сторона пользователя перезаписывается целиком, с файлами KYC
+-- и причиной отказа.
 -- name: UpsertSeedParty :one
 INSERT INTO parties (
     user_id, legal_form, legal_name, bin_iin_enc, bin_iin_hash, bin_iin_last4,
     signer_full_name, signer_iin_enc, signer_iin_hash, signer_iin_last4, payout_iban_enc, payout_iban_last4,
-    kyc_status, kyc_submitted_at, kyc_reviewed_at, created_at, updated_at
+    kyc_status, kyc_reject_reason, kyc_submitted_at, kyc_reviewed_at, kyc_id_file_ids, kyc_registration_file_ids,
+    created_at, updated_at
 ) VALUES (
     @user_id, @legal_form, @legal_name, @bin_iin_enc, @bin_iin_hash, @bin_iin_last4,
     sqlc.narg('signer_full_name'), sqlc.narg('signer_iin_enc'), sqlc.narg('signer_iin_hash'), sqlc.narg('signer_iin_last4'),
     sqlc.narg('payout_iban_enc'), sqlc.narg('payout_iban_last4'),
-    @kyc_status, sqlc.narg('kyc_submitted_at'), sqlc.narg('kyc_reviewed_at'), @now, @now
+    @kyc_status, sqlc.narg('kyc_reject_reason'), sqlc.narg('kyc_submitted_at'), sqlc.narg('kyc_reviewed_at'),
+    @kyc_id_file_ids::text[], @kyc_registration_file_ids::text[], @now, @now
 )
 ON CONFLICT (user_id) DO UPDATE SET
     legal_form        = EXCLUDED.legal_form,
@@ -62,8 +64,10 @@ ON CONFLICT (user_id) DO UPDATE SET
     payout_iban_enc   = EXCLUDED.payout_iban_enc,
     payout_iban_last4 = EXCLUDED.payout_iban_last4,
     kyc_status        = EXCLUDED.kyc_status,
-    kyc_reject_reason = NULL,
+    kyc_reject_reason = EXCLUDED.kyc_reject_reason,
     kyc_submitted_at  = EXCLUDED.kyc_submitted_at,
     kyc_reviewed_at   = EXCLUDED.kyc_reviewed_at,
+    kyc_id_file_ids   = EXCLUDED.kyc_id_file_ids,
+    kyc_registration_file_ids = EXCLUDED.kyc_registration_file_ids,
     updated_at        = EXCLUDED.updated_at
 RETURNING *;

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -854,4 +855,73 @@ func TestSeedUsersWritesParty(t *testing.T) {
 	taken.Party = &identityv1.SeedParty{LegalForm: formTOO, LegalName: "ТОО «Демо»", BinIin: bin, SignerFullName: directorName, SignerIin: director}
 	_, err = h.seed(taken)
 	h.wantRefusal(err, connect.CodeAlreadyExists, "iin_taken")
+}
+
+// SeedUsers пишет файлы KYC и причину отказа стороны сида: проверенная сторона с файлами,
+// отклонённая — с причиной, на проверке — в очереди оператора. Файлы — только при поданных
+// документах, причина — только и обязательно у REJECTED.
+func TestSeedUsersWritesPartyKyc(t *testing.T) {
+	h := newHarness(t, nil)
+	idFile, regFile := uuid.NewString(), uuid.NewString()
+	executor := func(st identityv1.KycStatus, reason string, ids, regs []string) *identityv1.SeedUser {
+		u := seedUser(newPhone(), roleExecutor, true, roleExecutor)
+		u.Party = &identityv1.SeedParty{
+			LegalForm: formTOO, LegalName: "ТОО «Демо»", BinIin: freshBIN(t), SignerFullName: directorName, SignerIin: freshIIN(t),
+			KycStatus: st, KycRejectReason: reason, KycIdFileIds: ids, KycRegistrationFileIds: regs,
+		}
+		return u
+	}
+	pending := executor(identityv1.KycStatus_KYC_STATUS_PENDING, "", []string{idFile}, []string{regFile})
+	rejected := executor(identityv1.KycStatus_KYC_STATUS_REJECTED, "  Фото нечитаемо  ", []string{idFile}, []string{regFile})
+	plain := executor(identityv1.KycStatus_KYC_STATUS_UNSPECIFIED, "", nil, nil)
+	res, err := h.seed(pending, rejected, plain)
+	if err != nil {
+		t.Fatalf("SeedUsers: %v", err)
+	}
+	pendingID := uuid.MustParse(res.GetUsers()[0].GetId())
+	row, _ := h.partyRow(pendingID)
+	if row.KycStatus != "PENDING" || !slices.Equal(row.KycIDFileIds, []string{idFile}) || !slices.Equal(row.KycRegistrationFileIds, []string{regFile}) ||
+		row.KycRejectReason.Valid || !row.KycSubmittedAt.Valid {
+		t.Fatalf("на проверке: %+v", row)
+	}
+	row, _ = h.partyRow(uuid.MustParse(res.GetUsers()[1].GetId()))
+	if row.KycStatus != "REJECTED" || row.KycRejectReason.String != "Фото нечитаемо" || len(row.KycIDFileIds) != 1 {
+		t.Fatalf("отклонённая: %+v", row)
+	}
+	row, _ = h.partyRow(uuid.MustParse(res.GetUsers()[2].GetId()))
+	if row.KycStatus != "NOT_SUBMITTED" || row.KycIDFileIds == nil || len(row.KycIDFileIds) != 0 {
+		t.Fatalf("без документов: %+v", row)
+	}
+	_, operatorToken := h.operator()
+	h.markMfa(operatorToken)
+	queue, err := h.kycQueue(operatorToken)
+	if err != nil {
+		t.Fatalf("ListKycQueue: %v", err)
+	}
+	found := false
+	for _, p := range queue.GetParties() {
+		found = found || p.GetUserId() == pendingID.String()
+	}
+	if !found {
+		t.Fatal("засеянная сторона на проверке не в очереди")
+	}
+
+	for _, c := range []struct {
+		name   string
+		user   *identityv1.SeedUser
+		code   connect.Code
+		reason string
+	}{
+		{"файлы без подачи", executor(identityv1.KycStatus_KYC_STATUS_NOT_SUBMITTED, "", []string{idFile}, nil), connect.CodeInvalidArgument, "invalid_request"},
+		{"файл не UUID", executor(identityv1.KycStatus_KYC_STATUS_PENDING, "", []string{"f1"}, []string{regFile}), connect.CodeInvalidArgument, "invalid_request"},
+		{"файлов больше четырёх", executor(identityv1.KycStatus_KYC_STATUS_PENDING, "", []string{uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()}, []string{regFile}), connect.CodeInvalidArgument, "invalid_request"},
+		{"отказ без причины", executor(identityv1.KycStatus_KYC_STATUS_REJECTED, "", nil, nil), connect.CodeInvalidArgument, "kyc_reason_invalid"},
+		{"короткая причина", executor(identityv1.KycStatus_KYC_STATUS_REJECTED, " аб ", nil, nil), connect.CodeInvalidArgument, "kyc_reason_invalid"},
+		{"причина не у отказа", executor(identityv1.KycStatus_KYC_STATUS_VERIFIED, "Всё в порядке", nil, nil), connect.CodeInvalidArgument, "invalid_request"},
+	} {
+		t.Run(c.name, func(_ *testing.T) {
+			_, err := h.seed(c.user)
+			h.wantRefusal(err, c.code, c.reason)
+		})
+	}
 }

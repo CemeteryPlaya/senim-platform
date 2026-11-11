@@ -1091,3 +1091,121 @@ func TestDemoPurgeUsesRowFlag(t *testing.T) {
 		t.Fatalf("после TRUNCATE согласий %d", n)
 	}
 }
+
+func (h *harness) seedConsents(key string, consents ...*identityv1.SeedConsent) error {
+	h.t.Helper()
+	_, err := idc(h, "web", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*identityv1.SeedConsentsResponse, error) {
+		return c.SeedConsents(ctx, &identityv1.SeedConsentsRequest{Consents: consents, IdempotencyKey: key})
+	})
+	return err
+}
+
+func seedBank(userID, dealID string) *identityv1.SeedConsent {
+	return &identityv1.SeedConsent{UserId: userID, Kind: kindBank, Version: "2026-11-01", TextSha256: textSum("банк-партнёр"), ReferenceId: dealID}
+}
+
+// SeedConsents пишет согласия канала seed (без сессии и целей) любому существующему
+// пользователю (и не-демо — Ruling AG); их видит HasConsents. Повтор с тем же ключом — тот же
+// ответ без новых записей, с новым ключом — без вторых записей.
+func TestSeedConsents(t *testing.T) {
+	h := newHarness(t, nil)
+	demo := h.demoUser(roleClient, true, roleClient)
+	plain := h.demoUser(roleClient, false, roleClient)
+	deal := uuid.NewString()
+	key := h.key()
+	both := []*identityv1.SeedConsent{seedBank(demo.GetId(), deal), seedBank(plain.GetId(), deal)}
+	if err := h.seedConsents(key, both...); err != nil {
+		t.Fatalf("SeedConsents: %v", err)
+	}
+	for _, id := range []string{demo.GetId(), plain.GetId()} {
+		rows := h.consentRows(uuid.MustParse(id))
+		if len(rows) != 1 || rows[0].Kind != consentBank || rows[0].ReferenceID != deal || rows[0].Channel != channelSeed ||
+			rows[0].SessionID.Valid || len(rows[0].Purposes) != 0 || rows[0].RevokedAt.Valid {
+			t.Fatalf("согласие сида %s: %+v", id, rows)
+		}
+	}
+	res, err := h.hasConsents([]string{demo.GetId(), plain.GetId()}, kindBank, deal)
+	if err != nil || len(res.GetGrantedUserIds()) != 2 {
+		t.Fatalf("HasConsents: %v, %v", res, err)
+	}
+	if err := h.seedConsents(key, both...); err != nil {
+		t.Fatalf("повтор с тем же ключом: %v", err)
+	}
+	if err := h.seedConsents(h.key(), both...); err != nil {
+		t.Fatalf("повтор с новым ключом: %v", err)
+	}
+	if n := len(h.consentRows(uuid.MustParse(demo.GetId()))); n != 1 {
+		t.Fatalf("после повторов записей %d, want 1", n)
+	}
+	// Ключ с другим запросом — idempotency_key_reused.
+	err = h.seedConsents(key, seedBank(demo.GetId(), uuid.NewString()))
+	h.wantRefusal(err, connect.CodeInvalidArgument, "idempotency_key_reused")
+	// Та же версия с другим текстом — отказ, ничего не пишется.
+	other := seedBank(demo.GetId(), deal)
+	other.TextSha256 = textSum("другой текст")
+	fresh := uuid.NewString()
+	err = h.seedConsents(h.key(), seedBank(demo.GetId(), fresh), other)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "consent_version_invalid")
+	if res, _ := h.hasConsents([]string{demo.GetId()}, kindBank, fresh); len(res.GetGrantedUserIds()) != 0 {
+		t.Fatal("частичная запись при отказе")
+	}
+}
+
+func TestSeedConsentsRefusals(t *testing.T) {
+	h := newHarness(t, nil)
+	u := h.demoUser(roleClient, true, roleClient)
+	deal := uuid.NewString()
+	// Неизвестный пользователь — user_not_found, вся пачка не пишется.
+	err := h.seedConsents(h.key(), seedBank(u.GetId(), deal), seedBank(unknownUserID, deal))
+	h.wantRefusal(err, connect.CodeNotFound, "user_not_found")
+	if n := len(h.consentRows(uuid.MustParse(u.GetId()))); n != 0 {
+		t.Fatalf("записей после отказа %d", n)
+	}
+	pd := &identityv1.SeedConsent{UserId: u.GetId(), Kind: kindPD, Version: "2026-11-01", TextSha256: textSum("ПДн")}
+	tooMany := make([]*identityv1.SeedConsent, maxSeedConsents+1)
+	for i := range tooMany {
+		tooMany[i] = seedBank(u.GetId(), deal)
+	}
+	for _, c := range []struct {
+		name     string
+		consents []*identityv1.SeedConsent
+		code     connect.Code
+		reason   string
+	}{
+		{"пусто", nil, connect.CodeInvalidArgument, "invalid_request"},
+		{"слишком много", tooMany, connect.CodeInvalidArgument, "invalid_request"},
+		{"user_id не UUID", []*identityv1.SeedConsent{seedBank("u1", deal)}, connect.CodeInvalidArgument, "invalid_request"},
+		{"вид не указан", []*identityv1.SeedConsent{{UserId: u.GetId(), Version: "v1", TextSha256: textSum("x"), ReferenceId: deal}}, connect.CodeInvalidArgument, "invalid_request"},
+		{"передача банку без сделки", []*identityv1.SeedConsent{seedBank(u.GetId(), "")}, connect.CodeInvalidArgument, "invalid_request"},
+		{"ПДн с предметом", []*identityv1.SeedConsent{{UserId: u.GetId(), Kind: kindPD, Version: "v1", TextSha256: textSum("x"), ReferenceId: deal}}, connect.CodeInvalidArgument, "invalid_request"},
+		{"версия", []*identityv1.SeedConsent{{UserId: u.GetId(), Kind: kindBank, Version: "v 1", TextSha256: textSum("x"), ReferenceId: deal}}, connect.CodeInvalidArgument, "consent_version_invalid"},
+		{"хеш", []*identityv1.SeedConsent{{UserId: u.GetId(), Kind: kindBank, Version: "v1", TextSha256: "abc", ReferenceId: deal}}, connect.CodeInvalidArgument, "consent_version_invalid"},
+	} {
+		t.Run(c.name, func(_ *testing.T) {
+			h.wantRefusal(h.seedConsents(h.key(), c.consents...), c.code, c.reason)
+		})
+	}
+	h.wantRefusal(h.seedConsents("", pd), connect.CodeInvalidArgument, "invalid_request")
+	// ПДн без предмета допустимо.
+	if err := h.seedConsents(h.key(), pd); err != nil {
+		t.Fatalf("согласие на ПДн: %v", err)
+	}
+}
+
+// Без DemoMode SeedConsents отказывает demo_disabled и базу не трогает; вызывающий не web —
+// отказ до всего остального.
+func TestSeedConsentsDemoGate(t *testing.T) {
+	h := newHarness(t, func(c *ServeConfig) { c.DemoMode = false })
+	u, _ := h.client()
+	err := h.seedConsents(h.key(), seedBank(u.ID.String(), uuid.NewString()))
+	h.wantRefusal(err, connect.CodeFailedPrecondition, "demo_disabled")
+	if n := len(h.consentRows(u.ID)); n != 0 {
+		t.Fatalf("записей без DemoMode %d", n)
+	}
+	_, err = idc(h, "operator", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*identityv1.SeedConsentsResponse, error) {
+		return c.SeedConsents(ctx, &identityv1.SeedConsentsRequest{Consents: []*identityv1.SeedConsent{seedBank(u.ID.String(), uuid.NewString())}, IdempotencyKey: h.key()})
+	})
+	if err == nil {
+		t.Fatal("ожидался отказ чужому вызывающему")
+	}
+}
