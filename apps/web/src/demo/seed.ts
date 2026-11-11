@@ -1,10 +1,23 @@
+import { randomUUID } from "node:crypto";
 import type { User } from "@/gen/senim/identity/v1/identity_pb";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { OfferStatus, ProposalStatus, RequestStatus, Role, SignParty } from "@/generated/prisma/enums";
 import { saveFile } from "@/modules/files";
-import { projectUser, resetIdentityDemo, seedIdentityUsers, type ExecutorSigner, type SeedPerson } from "@/modules/identity";
+import {
+  consentDocument,
+  consentTextSha256,
+  projectSeedPerson,
+  projectUser,
+  resetIdentityDemo,
+  seedIdentityUsers,
+  seedPartyColumns,
+  type ExecutorSigner,
+  type SeedConsentProof,
+  type SeedKyc,
+  type SeedPartyInput,
+  type SeedPerson,
+} from "@/modules/identity";
 import { kztToTiyn } from "@/modules/payments";
-import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { registerPorts } from "@/ports";
 import { DEFAULT_FURNITURE_TYPES, suggestSegment } from "@/verticals/furniture";
 import {
@@ -38,8 +51,10 @@ import { PORTFOLIO_FILES } from "./portfolio-files";
 import { testDocumentPdf } from "./test-documents";
 
 /**
- * Люди сида заводятся в identity (SeedUsers: по телефону, id стабильны) до транзакции старой базы, а в ней
- * проецируются (projectUser) с теми же id — на них ссылаются заявки, профили и сделки.
+ * Люди сида заводятся в identity (SeedUsers: по телефону, id стабильны) до транзакции старой базы — с ФИО, ИИН, e-mail,
+ * стороной исполнителя (реквизиты, счёт выплаты, KYC с файлами) и согласием на ПДн текущей редакции. В старой базе —
+ * только проекции с теми же id (projectUser, projectPerson, столбцы стороны partyColumns): ИИН/БИН и IBAN сид сам больше
+ * не шифрует, их хранит identity. Согласия сторон демо-сделок на передачу банку — SeedConsents (deals.ts) до оплаты.
  * Демо-данные в два шага:
  *  1. «До сделок» — справочник, люди, мастера с KYC, заявки, отклики и торг, сценарии до договора, уведомления —
  *     одной транзакцией с датами «N дней назад» (журнал аудита — в форме recordAudit);
@@ -66,11 +81,11 @@ const NOT_EMPTY = "База не пуста: для пересева испол�
 export async function seedDemo(db: PrismaClient): Promise<SeedSummary> {
   // До identity: непустая база не меняет и пользователей identity.
   if (!(await isDatabaseEmpty(db))) throw new Error(NOT_EMPTY);
-  const now = Date.now();
-  const users = await seedIdentityUsers(seedPeople(clockAt(now)));
+  const plan = seedPlan(Date.now());
+  const users = await seedIdentityUsers(plan.people);
   const ids = await db.$transaction(async (tx) => {
     if (!(await isDatabaseEmpty(tx))) throw new Error(NOT_EMPTY);
-    return fill(tx, now, users);
+    return fill(tx, plan, users);
   }, TX_OPTIONS);
   return finish(db, ids);
 }
@@ -78,11 +93,11 @@ export async function seedDemo(db: PrismaClient): Promise<SeedSummary> {
 /** Пересев: в identity — сброс сессий и кодов (ResetDemo) и те же пользователи; старая база — TRUNCATE и сид в одной транзакции. */
 export async function resetDemo(db: PrismaClient): Promise<SeedSummary> {
   await resetIdentityDemo();
-  const now = Date.now();
-  const users = await seedIdentityUsers(seedPeople(clockAt(now)));
+  const plan = seedPlan(Date.now());
+  const users = await seedIdentityUsers(plan.people);
   const ids = await db.$transaction(async (tx) => {
     await truncateAll(tx);
-    return fill(tx, now, users);
+    return fill(tx, plan, users);
   }, TX_OPTIONS);
   return finish(db, ids);
 }
@@ -231,13 +246,43 @@ const executorsByRegistration = () => (Object.entries(EXECUTORS) as [ExecutorKey
 /** Тестовый счёт выплаты: только у одобренного исполнителя; n — место в порядке регистрации. */
 const payoutIbanOf = (spec: ExecutorSpec, n: number): string | null => (spec.registration.status === "APPROVED" ? testIban(n + 1) : null);
 
+/** Согласие на ПДн текущей редакции — у каждого не-сотрудника сида: демо-персоны не попадают на экран согласия. */
+const pdConsent = (): SeedConsentProof => ({ version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") });
+
+/** id KYC-документов исполнителя сида: заданы заранее — identity получает их в SeedUsers, файлы сохраняются в транзакции сида. */
+type KycFileIds = { id: string; registration: string };
+
+/** Что сид отдаёт identity и затем пишет в старую базу: часы сида, люди identity (по телефону) и id их KYC-документов. */
+type SeedPlan = { clock: Clock; people: SeedPerson[]; byPhone: Map<string, SeedPerson>; kycFiles: Map<ExecutorKey, KycFileIds> };
+
+function seedPlan(now: number): SeedPlan {
+  const clock = clockAt(now);
+  const kycFiles = new Map((Object.keys(KYC) as ExecutorKey[]).map((key) => [key, { id: randomUUID(), registration: randomUUID() }]));
+  const people = seedPeople(clock, kycFiles);
+  return { clock, people, byPhone: new Map(people.map((p) => [p.phone, p])), kycFiles };
+}
+
+/** KYC стороны сида — как после подачи (файлы) и решения оператора; без спецификации — документы не подавались. */
+function seedKycOf(key: ExecutorKey, clock: Clock, files: Map<ExecutorKey, KycFileIds>): SeedKyc | null {
+  const kyc = KYC[key];
+  const ids = files.get(key);
+  if (!kyc || !ids) return null;
+  return {
+    status: kyc.status,
+    idFileIds: [ids.id],
+    registrationFileIds: [ids.registration],
+    rejectReason: kyc.status === "REJECTED" ? kyc.reason : null,
+    reviewedAt: kyc.status === "PENDING" ? null : clock.ago(kyc.reviewedDaysAgo),
+  };
+}
+
 /**
- * Все люди сида для identity: роли, демо-флаг и дата регистрации — как у них в старой базе; ФИО и ИИН, у исполнителя —
- * сторона со счётом выплаты (договор, подпись ЭЦП и выплата читают их из identity). Сотрудникам ИИН не нужен.
- * Перенос остальных полей (контакты, KYC, согласие) и отказ от шифртекстов старой базы — Task 15 плана 2б.
+ * Все люди сида для identity: роли, демо-флаг и дата регистрации — как у них в старой базе; ФИО, ИИН, e-mail и согласие на
+ * ПДн текущей редакции; у исполнителя — сторона со счётом выплаты и KYC (договор, подпись ЭЦП, выплата и очередь KYC
+ * оператора читают их из identity). Сотрудникам — только ФИО: ИИН им не нужен, экран согласия их не касается (Ruling AC).
  */
-function seedPeople(clock: Clock): SeedPerson[] {
-  const person = (p: PersonSpec, role: Role, roles: Role[] = [role]): SeedPerson => ({
+function seedPeople(clock: Clock, kycFiles: Map<ExecutorKey, KycFileIds>): SeedPerson[] {
+  const person = (p: PersonSpec, role: Role, roles: Role[] = [role], email?: string): SeedPerson => ({
     phone: p.phone,
     role,
     roles,
@@ -245,25 +290,26 @@ function seedPeople(clock: Clock): SeedPerson[] {
     createdAt: clock.ago(p.joinedDaysAgo),
     fullName: p.fullName,
     iin: p.iin,
+    email,
+    consent: pdConsent(),
   });
-  const executor = ([, spec]: [ExecutorKey, ExecutorSpec], n: number): SeedPerson => {
+  const executor = ([key, spec]: [ExecutorKey, ExecutorSpec], n: number): SeedPerson => {
     const signer = signerOf(spec);
-    return {
-      ...person(spec.person, "EXECUTOR", executorRoles(spec)),
-      party: {
-        legalForm: spec.legalForm,
-        legalName: spec.legalName,
-        binIin: spec.legalForm === "TOO" ? spec.bin : null,
-        signerFullName: signer.fullName,
-        signerIin: signer.iin,
-        payoutIban: payoutIbanOf(spec, n),
-      },
+    const party: SeedPartyInput = {
+      legalForm: spec.legalForm,
+      legalName: spec.legalName,
+      binIin: spec.legalForm === "TOO" ? spec.bin : null,
+      signerFullName: signer.fullName,
+      signerIin: signer.iin,
+      payoutIban: payoutIbanOf(spec, n),
+      kyc: seedKycOf(key, clock, kycFiles),
     };
+    return { ...person(spec.person, "EXECUTOR", executorRoles(spec)), party };
   };
-  const staff = (p: PersonSpec, role: Role): SeedPerson => ({ phone: p.phone, role, roles: [role], isDemo: p.isDemo, createdAt: clock.ago(p.joinedDaysAgo) });
+  const staff = (p: PersonSpec, role: Role): SeedPerson => ({ phone: p.phone, role, roles: [role], isDemo: p.isDemo, createdAt: clock.ago(p.joinedDaysAgo), fullName: p.fullName });
   return [
     staff(OPERATOR, "OPERATOR"),
-    ...Object.values(CLIENTS).map((p: PersonSpec) => person(p, "CLIENT")),
+    ...(Object.entries(CLIENTS) as [ClientKey, PersonSpec][]).map(([key, p]) => person(p, "CLIENT", ["CLIENT"], DEMO_EMAILS[key])),
     ...executorsByRegistration().map(executor),
     staff(MEASURER, "MEASURER"),
   ];
@@ -273,28 +319,20 @@ function seedPeople(clock: Clock): SeedPerson[] {
 type UserIds = Map<string, string>;
 
 /**
- * Поля старой базы, которых нет в identity (ФИО, ИИН, e-mail), и дата регистрации из сида — поверх проекции
- * (телефон, роли и демо-флаг пишет projectUser).
+ * Личность человека сида в старой базе — проекция того, что получил identity (ФИО, последние 4 цифры ИИН, e-mail), — и
+ * дата регистрации из сида (телефон, роли и демо-флаг пишет projectUser).
  */
-async function completePerson(tx: Tx, users: UserIds, p: PersonSpec, clock: Clock, email?: string): Promise<string> {
+async function completePerson(tx: Tx, users: UserIds, plan: SeedPlan, p: PersonSpec): Promise<string> {
   const id = users.get(p.phone);
-  if (!id) throw new Error("Человек сида не заведён в identity");
-  await tx.user.update({
-    where: { id },
-    data: {
-      fullName: p.fullName,
-      iinEnc: encryptPii(p.iin),
-      iinHash: hashPii(p.iin),
-      iinLast4: last4(p.iin),
-      email: email ?? null,
-      createdAt: clock.ago(p.joinedDaysAgo),
-    },
-  });
+  const seeded = plan.byPhone.get(p.phone);
+  if (!id || !seeded) throw new Error("Человек сида не заведён в identity");
+  await projectSeedPerson(id, seeded, tx);
+  await tx.user.update({ where: { id }, data: { createdAt: plan.clock.ago(p.joinedDaysAgo) } });
   return id;
 }
 
-async function fill(tx: Tx, now: number, identityUsers: User[]): Promise<Ids> {
-  const clock = clockAt(now);
+async function fill(tx: Tx, plan: SeedPlan, identityUsers: User[]): Promise<Ids> {
+  const { clock } = plan;
   const audit = new AuditLog();
   for (const user of identityUsers) await projectUser(user, tx);
   const users: UserIds = new Map(identityUsers.map((u) => [u.phone, u.id]));
@@ -304,20 +342,20 @@ async function fill(tx: Tx, now: number, identityUsers: User[]): Promise<Ids> {
   // Демо-цены материалов и типовые расчёты (ADR-007): помечены isDemo, оператор заменит реальными.
   await seedMaterialPrices(tx, types);
 
-  const operator = await completePerson(tx, users, OPERATOR, clock);
+  const operator = await completePerson(tx, users, plan, OPERATOR);
   const clients = new Map<ClientKey, string>();
   for (const [key, person] of Object.entries(CLIENTS) as [ClientKey, PersonSpec][]) {
-    clients.set(key, await completePerson(tx, users, person, clock, DEMO_EMAILS[key]));
+    clients.set(key, await completePerson(tx, users, plan, person));
   }
 
   const ids: Ids = { types, operator, clients, executors: new Map(), portfolio: new Map(), requests: new Map() };
-  await seedExecutors(tx, ids, users, clock, audit);
+  await seedExecutors(tx, ids, users, plan, audit);
 
   const requests = [...REQUESTS].sort((a, b) => b.createdDaysAgo - a.createdDaysAgo);
   for (const spec of requests) await seedRequest(tx, ids, clock, audit, spec);
   for (const spec of DUAL_ROLE_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
   // Сценарии до договора (флаг preContractFlows, ADR-005) — в конце.
-  ids.measurer = await completePerson(tx, users, MEASURER, clock);
+  ids.measurer = await completePerson(tx, users, plan, MEASURER);
   for (const spec of PRE_CONTRACT_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
 
   await tx.notification.createMany({
@@ -339,35 +377,20 @@ async function fill(tx: Tx, now: number, identityUsers: User[]): Promise<Ids> {
   return ids;
 }
 
-/**
- * Подписант демо-профиля в старой базе (ADR-003): ТОО — ФИО и ИИН директора (шифртекст и HMAC), ИП и самозанятый — ФИО.
- * Демо-сид пока пишет реквизиты в старую базу сам; перенос в identity — Task 15 плана 2б.
- */
-function signerColumns(signer: ExecutorSigner) {
-  return {
-    signerFullName: signer.fullName,
-    signerIinEnc: signer.iin === null ? null : encryptPii(signer.iin),
-    signerIinHash: signer.iin === null ? null : hashPii(signer.iin),
-  };
-}
-
-async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, clock: Clock, audit: AuditLog) {
+async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, plan: SeedPlan, audit: AuditLog) {
+  const { clock } = plan;
   // Порядок регистрации задаёт «Исполнитель №N».
-  for (const [n, [key, spec]] of executorsByRegistration().entries()) {
-    const user = { id: await completePerson(tx, users, spec.person, clock) };
-    const binIin = spec.legalForm === "TOO" ? spec.bin : spec.person.iin;
+  for (const [key, spec] of executorsByRegistration()) {
+    const user = { id: await completePerson(tx, users, plan, spec.person) };
+    const seeded = plan.byPhone.get(spec.person.phone);
+    if (!seeded?.party) throw new Error("Сторона исполнителя сида не заведена в identity");
     const reg = spec.registration;
     const approved = reg.status === "APPROVED";
-    const iban = payoutIbanOf(spec, n);
     const profile = await tx.executorProfile.create({
       data: {
         userId: user.id,
-        legalForm: spec.legalForm,
-        legalName: spec.legalName,
-        binIinEnc: encryptPii(binIin),
-        binIinHash: hashPii(binIin),
-        binIinLast4: last4(binIin),
-        ...signerColumns(signerOf(spec)),
+        // Реквизиты и KYC — проекция стороны identity (последние 4 символа номеров, без шифртекстов), как у регистрации.
+        ...seedPartyColumns(user.id, { ...seeded, party: seeded.party }),
         segment: approved ? reg.segment : null,
         status: reg.status,
         rejectReason: reg.status === "REJECTED" ? reg.rejectReason : null,
@@ -377,8 +400,6 @@ async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, clock: Clock, aud
         streetAddress: spec.workshop.street,
         measurementTerms: spec.measurement,
         measurementFee: spec.measurement === "FEE_IF_NO_DEAL" ? spec.fee : null,
-        payoutIbanEnc: iban ? encryptPii(iban) : null,
-        payoutIbanLast4: iban ? iban.slice(-4) : null,
         reviewedAt: reg.status === "PENDING" ? null : clock.ago(reg.reviewedDaysAgo),
         createdAt: clock.ago(spec.registeredDaysAgo),
         specializations: { connect: spec.specializations.map((slug) => ({ id: ids.types.get(slug)! })) },
@@ -402,7 +423,8 @@ async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, clock: Clock, aud
       });
     }
     const kyc = KYC[key];
-    if (kyc) await seedKyc(tx, ids, clock, audit, { userId: user.id, profileId: profile.id, name: spec.person.fullName }, kyc);
+    const files = plan.kycFiles.get(key);
+    if (kyc && files) await seedKyc(tx, ids, clock, audit, { userId: user.id, profileId: profile.id, name: spec.person.fullName, files }, kyc);
 
     for (const [i, item] of spec.portfolio.entries()) {
       const file = PORTFOLIO_FILES[item.file];
@@ -439,15 +461,25 @@ async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, clock: Clock, aud
   }
 }
 
-/** KYC мастера (решение 2.2.8): тестовые документы через files и статус проверки, как после решения оператора. */
-async function seedKyc(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog, who: { userId: string; profileId: string; name: string }, kyc: KycSpec) {
+/**
+ * KYC мастера (решение 2.2.8): тестовые документы через files — с id, которые уже получил identity (SeedParty), — и журнал
+ * подачи и решения. Статус и причина — в identity и в проекции профиля (seedPartyColumns).
+ */
+async function seedKyc(
+  tx: Tx,
+  ids: Ids,
+  clock: Clock,
+  audit: AuditLog,
+  who: { userId: string; profileId: string; name: string; files: KycFileIds },
+  kyc: KycSpec,
+) {
   const uploadedAt = clock.ago(kyc.status === "PENDING" ? kyc.uploadedDaysAgo : kyc.reviewedDaysAgo + 1);
   const docs = [
-    { purpose: "KYC_ID" as const, title: "Удостоверение личности", lines: [`Владелец: ${who.name}`, "Номер и даты — не указываются в демо"] },
-    { purpose: "KYC_REGISTRATION" as const, title: "Регистрация ИП или ТОО", lines: [`Заявитель: ${who.name}`, "Свидетельство — тестовое"] },
+    { id: who.files.id, purpose: "KYC_ID" as const, title: "Удостоверение личности", lines: [`Владелец: ${who.name}`, "Номер и даты — не указываются в демо"] },
+    { id: who.files.registration, purpose: "KYC_REGISTRATION" as const, title: "Регистрация ИП или ТОО", lines: [`Заявитель: ${who.name}`, "Свидетельство — тестовое"] },
   ];
   for (const [i, d] of docs.entries()) {
-    const file = await saveFile({ purpose: d.purpose, bytes: await testDocumentPdf(d.title, d.lines, uploadedAt), uploadedById: who.userId, tx });
+    const file = await saveFile({ id: d.id, purpose: d.purpose, bytes: await testDocumentPdf(d.title, d.lines, uploadedAt), uploadedById: who.userId, tx });
     await tx.storedFile.update({ where: { id: file.id }, data: { executorProfileId: who.profileId, sortOrder: i, createdAt: uploadedAt } });
   }
   const entity = { type: "executor", id: who.profileId };
@@ -456,7 +488,6 @@ async function seedKyc(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog, who: { u
   if (kyc.status === "PENDING") return;
   const reviewedAt = clock.ago(kyc.reviewedDaysAgo);
   const reason = kyc.status === "REJECTED" ? kyc.reason : null;
-  await tx.executorProfile.update({ where: { id: who.profileId }, data: { kycStatus: kyc.status, kycRejectReason: reason, kycReviewedAt: reviewedAt } });
   audit.add(reviewedAt, { id: ids.operator, role: "OPERATOR" }, kyc.status === "VERIFIED" ? "executor.kyc_verified" : "executor.kyc_rejected", entity, scope, {
     before: { status: "PENDING" },
     after: reason ? { status: kyc.status, reason } : { status: kyc.status },

@@ -24,7 +24,7 @@ type Side = "CLIENT" | "EXECUTOR";
 export async function dealParties(dealId: string) {
   const deal = await db.deal.findUnique({
     where: { id: dealId },
-    select: { clientId: true, executorId: true, isDemo: true, status: true, executor: { select: { userId: true } } },
+    select: { clientId: true, executorId: true, status: true, executor: { select: { userId: true } } },
   });
   return deal ?? fail.notFound(ru.deal.errors.notFound);
 }

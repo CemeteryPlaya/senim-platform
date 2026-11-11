@@ -3,7 +3,7 @@ import type { FilePurpose, Role } from "@/generated/prisma/enums";
 import { addProgressReport, cancelDeal, onMoneySettled, openDispute, payForDeal, resolveDispute, startWork, submitDisputePosition, submitReady } from "@/modules/deal-core";
 import { completeSigning, signByHand, startSigning } from "@/modules/documents";
 import { saveFile } from "@/modules/files";
-import type { CurrentUser } from "@/modules/identity";
+import { consentDocument, consentTextSha256, seedIdentityBankConsents, type CurrentUser } from "@/modules/identity";
 import { confirmManualOperation, kztToTiyn } from "@/modules/payments";
 import { acceptPrice } from "@/modules/requests";
 import { db } from "@/platform/db";
@@ -18,6 +18,8 @@ import { testDocumentPdf } from "./test-documents";
  * подписи сторон (documents: собственноручно напечатанным именем и ЭЦП mock), оплата (payments: mock подтверждает
  * сразу, manual ждёт оператора), сдача с фото и GPS, акт, споры, отмены. На manual оператор подтверждает
  * операции банковским документом — тестовым сканом «ТЕСТОВЫЙ ДОКУМЕНТ». Деньги — только журнал payments.
+ * Оплата проверяет согласия обеих сторон на передачу банку, как у всех: сид без сессий сторон заводит их в identity
+ * (SeedConsents, канал seed) после создания сделок и до оплаты.
  */
 
 /** Что сид «до сделок» (seed.ts) передаёт сюда: id людей и заявок с откликами по порядку спецификации. */
@@ -85,8 +87,7 @@ async function step(p: Parties, s: DealStep): Promise<void> {
     await signAs(p.executor, contract.id, true);
     return;
   }
-  // Сид без сессий сторон: согласия на передачу банку демо-сделки — через сид identity в Task 15 (payForDeal: isDemo).
-  if (s === "pay") return void (await payForDeal(p.client, { dealId: p.dealId }, { seedWithoutBankConsent: true }));
+  if (s === "pay") return void (await payForDeal(p.client, { dealId: p.dealId }));
   if (s === "bank") return confirmBank(p);
   if (s === "start") return startWork(p.executor, { dealId: p.dealId });
   if (s === "signAct" || s === "signActClient") {
@@ -140,11 +141,21 @@ async function accept(ids: DealIds, plan: DealPlan) {
   return { dealId, client, executor, address: { lat: offer.request.addressLat, lng: offer.request.addressLng } };
 }
 
+/** Согласия сторон на передачу банку-партнёру — у сделок, которые сид оплачивает: текущая редакция текста, как на экране сделки. */
+async function seedBankConsents(deals: { plan: DealPlan; parties: Parties }[]) {
+  const proof = { version: consentDocument("BANK_TRANSFER").version, textSha256: consentTextSha256("BANK_TRANSFER") };
+  await seedIdentityBankConsents(
+    deals
+      .filter((d) => d.plan.steps.includes("pay"))
+      .flatMap(({ parties }) => [parties.client.id, parties.executor.id].map((userId) => ({ ...proof, userId, dealId: parties.dealId }))),
+  );
+}
+
 export async function seedDeals(ids: DealIds): Promise<{ deals: number }> {
   const operator = await asUser(ids.operator, "OPERATOR");
-  for (const plan of DEALS) {
-    const parties: Parties = { ...(await accept(ids, plan)), operator };
-    for (const s of plan.steps) await step(parties, s);
-  }
+  const deals: { plan: DealPlan; parties: Parties }[] = [];
+  for (const plan of DEALS) deals.push({ plan, parties: { ...(await accept(ids, plan)), operator } });
+  await seedBankConsents(deals);
+  for (const { plan, parties } of deals) for (const s of plan.steps) await step(parties, s);
   return { deals: DEALS.length };
 }

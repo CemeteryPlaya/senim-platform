@@ -75,6 +75,16 @@ export async function loginByPhone(page: Page, phone: string): Promise<void> {
 }
 
 /**
+ * Экран согласия на обработку ПДн после входа новым номером: «Даю согласие» и переход дальше (на `next`). Демо-персоны и
+ * люди сида его не видят — у них засеяно согласие текущей редакции. Проверки самого экрана — в consent.spec.ts.
+ */
+export async function acceptConsent(page: Page): Promise<void> {
+  await expect(page).toHaveURL(/\/consent\?next=/);
+  await page.getByRole("button", { name: "Даю согласие" }).click();
+  await page.waitForURL((u) => u.pathname !== "/consent");
+}
+
+/**
  * Отдельный мобильный браузер участника (Pixel 7): свои cookie, своё место для GPS.
  * Опции проекта (baseURL, язык, часовой пояс) в созданный вручную контекст не переходят — передаём сами.
  */

@@ -133,7 +133,7 @@ async function persist(
   base: string,
   purpose: FilePurpose,
   processed: Processed,
-  extra: { uploadedById?: string; isAiGenerated?: boolean; tx?: Db },
+  extra: { id?: string; uploadedById?: string; isAiGenerated?: boolean; tx?: Db },
 ): Promise<StoredFile> {
   const client = extra.tx ?? db;
   const storageKey = `${base}.${processed.ext}`;
@@ -142,6 +142,7 @@ async function persist(
   try {
     return await client.storedFile.create({
       data: {
+        id: extra.id,
         storageKey,
         provider: providerName,
         purpose,
@@ -171,6 +172,8 @@ export async function saveFile(input: {
   bytes: Uint8Array;
   uploadedById?: string;
   isAiGenerated?: boolean;
+  /** id записи заранее (UUID) — демо-сид передаёт id KYC-документов в identity до того, как сохранит файлы. */
+  id?: string;
   /**
    * Транзакция вызывающего: при её откате не останется записи StoredFile. Байты в хранилище при этом
    * остаются (без записи их не найдёт и files.cleanupOrphans) — для PDF это килобайты, допустимо.

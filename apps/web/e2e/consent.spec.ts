@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { testIin } from "@/demo/kz-id";
-import { expectOnePrimary, loginByPhone } from "./support";
+import { acceptConsent, expectOnePrimary, loginByPhone } from "./support";
 
 /**
  * Согласие на обработку ПДн (A.7 P2, P6, P7): вход новым номером → экран согласия (текст текущей редакции, одна главная
@@ -18,9 +18,10 @@ test("новый номер: согласие → знакомство → ка�
   await expect(page).toHaveURL(/\/consent\?next=/);
   await expect(page.getByRole("heading", { level: 1, name: "Согласие на сбор и обработку персональных данных" })).toBeVisible();
   await expect(page.getByRole("main")).toContainText("Черновик, требует юридической проверки");
-  await expect(page.getByRole("main").getByRole("link", { name: "Назад", exact: true })).toBeVisible();
+  // «Назад» на экране согласия — выход (кнопка, как на второй ступени оператора): без согласия идти некуда.
+  await expect(page.getByRole("main").getByRole("button", { name: "Назад", exact: true })).toBeVisible();
   await expectOnePrimary(page);
-  await page.getByRole("button", { name: "Даю согласие" }).click();
+  await acceptConsent(page);
 
   // Дальше — знакомство (ФИО и ИИН собираются только после согласия), затем кабинет заказчика.
   await expect(page.getByRole("heading", { level: 1, name: "Давайте познакомимся" })).toBeVisible();

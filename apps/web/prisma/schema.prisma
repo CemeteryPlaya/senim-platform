@@ -28,8 +28,8 @@ model User {
   /// Выданные роли (ADR-004). OPERATOR и MEASURER не совмещаются с другими (CHECK в миграции).
   roles     Role[]
   fullName  String?
-  iinEnc    String? // ИИН, AES-256-GCM (platform/crypto); не пишется с плана 2б (значение — в identity; до Task 15 пишет только демо-сид), удаление — план 7
-  iinHash   String? @unique // HMAC для поиска без расшифровки; не пишется с плана 2б (значение — в identity; до Task 15 пишет только демо-сид), удаление — план 7
+  iinEnc    String? // ИИН, AES-256-GCM (platform/crypto); не пишется с плана 2б (значение — в identity), удаление — план 7
+  iinHash   String? @unique // HMAC для поиска без расшифровки; не пишется с плана 2б (значение — в identity), удаление — план 7
   iinLast4  String?
   /// Instagram без «@»: виден другой стороне сделки только после заключения оферты (ТЗ п. 3).
   instagram String?
@@ -127,14 +127,14 @@ model ExecutorProfile {
   publicNumber     Int                @unique @default(autoincrement()) // «Исполнитель №17»
   legalForm        LegalForm
   legalName        String // наименование ТОО/ИП или ФИО самозанятого; раскрывается только в договоре
-  binIinEnc        String? // ИИН/БИН, AES-256-GCM; не пишется с плана 2б (значение — в identity; до Task 15 пишет только демо-сид), удаление — план 7
-  binIinHash       String?            @unique // HMAC (hashPii): один профиль на ИИН/БИН; не пишется с плана 2б (значение — в identity; до Task 15 пишет только демо-сид), удаление — план 7
+  binIinEnc        String? // ИИН/БИН, AES-256-GCM; не пишется с плана 2б (значение — в identity), удаление — план 7
+  binIinHash       String?            @unique // HMAC (hashPii): один профиль на ИИН/БИН; не пишется с плана 2б (значение — в identity), удаление — план 7
   binIinLast4      String
   // Подписант договора — свойство профиля, а не аккаунта (ADR-003): ТОО — директор (ФИО и ИИН),
   // ИП и самозанятый — владелец (ФИО; его ИИН — binIin*). Без уникального индекса: один директор у нескольких ТОО.
   signerFullName   String?
-  signerIinEnc     String? // ИИН директора ТОО, AES-256-GCM; не пишется с плана 2б (значение — в identity; до Task 15 пишет только демо-сид), удаление — план 7
-  signerIinHash    String? // HMAC: сверка с ИИН сертификата ЭЦП; не пишется с плана 2б (значение — в identity; до Task 15 пишет только демо-сид), удаление — план 7
+  signerIinEnc     String? // ИИН директора ТОО, AES-256-GCM; не пишется с плана 2б (значение — в identity), удаление — план 7
+  signerIinHash    String? // HMAC: сверка с ИИН сертификата ЭЦП; не пишется с плана 2б (значение — в identity), удаление — план 7
   segment          Segment? // ставит оператор; null — ещё не присвоен
   status           RegistrationStatus @default(PENDING)
   rejectReason     String?
@@ -153,7 +153,7 @@ model ExecutorProfile {
   kycStatus        KycStatus          @default(PENDING)
   kycRejectReason  String?
   kycReviewedAt    DateTime?
-  /// Реквизиты выплаты: KZ IBAN, AES-256-GCM; не пишется с плана 2б (значение — в identity; до Task 15 пишет только демо-сид), удаление — план 7. В интерфейсе — payoutIbanLast4 (проекция identity).
+  /// Реквизиты выплаты: KZ IBAN, AES-256-GCM; не пишется с плана 2б (значение — в identity), удаление — план 7. В интерфейсе — payoutIbanLast4 (проекция identity).
   payoutIbanEnc    String?
   payoutIbanLast4  String?
   createdAt        DateTime           @default(now())

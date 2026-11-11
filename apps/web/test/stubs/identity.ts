@@ -51,6 +51,8 @@ import {
   RevokeConsentRequestSchema,
   RevokeConsentResponseSchema,
   Role,
+  SeedConsentsRequestSchema,
+  SeedConsentsResponseSchema,
   SeedUsersRequestSchema,
   SeedUsersResponseSchema,
   SessionSchema,
@@ -525,7 +527,8 @@ function normalizePhone(raw: string): string {
   return /^[\d\s()+-]+$/.test(raw.trim()) && national.length === 10 ? `+7${national}` : raw;
 }
 
-const idOf = (phone: string) => `u-${phone.replace(/\D/g, "")}`;
+/** id пользователя по телефону — UUID, как у identity (SeedConsents и другие методы в Go принимают только UUID); стабилен для номера. */
+const idOf = (phone: string) => `00000000-0000-4000-8000-${phone.replace(/\D/g, "").slice(-12).padStart(12, "0")}`;
 
 export class FakeIdentity {
   readonly client: IdentityClient;
@@ -942,9 +945,31 @@ export class FakeIdentity {
       if (!check.ok) throw codedError("iban_invalid", Code.InvalidArgument, { reason: check.reason });
       payoutIban = check.iban;
     }
-    const kyc = sp.kycStatus ?? KycStatus.UNSPECIFIED;
-    if (kyc !== KycStatus.UNSPECIFIED && !(kyc in KycStatus)) throw codedError("invalid_request", Code.InvalidArgument);
-    return { ...input, payoutIban, ...noKyc(), kycStatus: kyc === KycStatus.UNSPECIFIED ? KycStatus.NOT_SUBMITTED : kyc };
+    const raw = sp.kycStatus ?? KycStatus.UNSPECIFIED;
+    if (raw !== KycStatus.UNSPECIFIED && !(raw in KycStatus)) throw codedError("invalid_request", Code.InvalidArgument);
+    const kycStatus = raw === KycStatus.UNSPECIFIED ? KycStatus.NOT_SUBMITTED : raw;
+    // validateSeedKyc в Go: файлы — как SubmitKyc и только при поданных документах; причина — только и обязательно у REJECTED.
+    const kycIdFileIds = kycFileIds(sp.kycIdFileIds ?? []);
+    const kycRegistrationFileIds = kycFileIds(sp.kycRegistrationFileIds ?? []);
+    if (kycStatus === KycStatus.NOT_SUBMITTED && (kycIdFileIds.length > 0 || kycRegistrationFileIds.length > 0)) throw codedError("invalid_request", Code.InvalidArgument);
+    let kycRejectReason = "";
+    if (kycStatus === KycStatus.REJECTED) {
+      kycRejectReason = (sp.kycRejectReason ?? "").trim();
+      if (kycRejectReason.length < KYC_REASON_MIN || kycRejectReason.length > KYC_REASON_MAX) throw codedError("kyc_reason_invalid", Code.InvalidArgument);
+    } else if (sp.kycRejectReason) throw codedError("invalid_request", Code.InvalidArgument);
+    // seedPartyRow в Go: подача и решение — сейчас, если состояние их предполагает.
+    const now = this.now();
+    return {
+      ...input,
+      payoutIban,
+      ...noKyc(),
+      kycStatus,
+      kycRejectReason,
+      kycIdFileIds,
+      kycRegistrationFileIds,
+      kycSubmittedAt: kycStatus === KycStatus.NOT_SUBMITTED ? null : now,
+      kycReviewedAt: kycStatus === KycStatus.VERIFIED || kycStatus === KycStatus.REJECTED ? now : null,
+    };
   }
 
   private checkIp(ip: string): void {
@@ -1280,6 +1305,36 @@ export class FakeIdentity {
           this.demoGate();
           this.checkKey(req.idempotencyKey);
           this.validateSeed(req.users ?? []);
+        },
+      ),
+      seedConsents: mutating(
+        "seedConsents",
+        SeedConsentsRequestSchema,
+        async (req) => {
+          // Транзакция Go: пользователь должен существовать (признак демо не нужен, Ruling AG); действующее той же версии и
+          // предмета — без новой записи, другой текст — consent_version_invalid; всё или ничего.
+          const rows = (req.consents ?? []).map((c) => ({ userId: c.userId ?? "", kind: c.kind as ConsentKind, version: c.version ?? "", textSha256: consentProof(c.version ?? "", c.textSha256 ?? ""), referenceId: c.referenceId ?? "" }));
+          const fresh: typeof rows = [];
+          for (const r of rows) {
+            if (!this.users.has(r.userId)) throw codedError("user_not_found", Code.NotFound);
+            const existing = [...this.activeConsents(r.userId, r.kind), ...fresh].find((c) => c.userId === r.userId && c.kind === r.kind && c.version === r.version && c.referenceId === r.referenceId);
+            if (existing && existing.textSha256 !== r.textSha256) throw codedError("consent_version_invalid", Code.InvalidArgument);
+            if (!existing) fresh.push(r);
+          }
+          for (const r of fresh) this.insertConsent({ ...r, purposes: [], channel: "seed" });
+          return create(SeedConsentsResponseSchema);
+        },
+        // Порядок Go (demo.go): режим, ключ, затем validateSeedConsents — 1–500 записей, UUID, вид, предмет, версия и хэш.
+        (req) => {
+          this.demoGate();
+          this.checkKey(req.idempotencyKey);
+          const consents = req.consents ?? [];
+          if (consents.length === 0 || consents.length > 500) throw codedError("invalid_request", Code.InvalidArgument);
+          for (const c of consents) {
+            if (!UUID_RE.test(c.userId ?? "")) throw codedError("invalid_request", Code.InvalidArgument);
+            if (!consentKindOk(c.kind) || !validConsentReference(c.kind, c.referenceId ?? "")) throw codedError("invalid_request", Code.InvalidArgument);
+            consentProof(c.version ?? "", c.textSha256 ?? "");
+          }
         },
       ),
       resetDemo: mutating(

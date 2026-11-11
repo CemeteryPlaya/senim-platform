@@ -139,18 +139,14 @@ export type PayResult = { transactionId: string; status: MoneyTransactionStatus;
  *
  * До списания — согласия обеих сторон на передачу данных банку-партнёру к этой сделке (identity HasConsents, вне
  * транзакции): не хватает — CONFLICT BANK_CONSENT_MISSING, журнал денег не трогается. Сначала — что человек покупатель
- * этой сделки (чужая — «не найдено»): отказ по согласиям не выдаёт, что сделка существует.
- *
- * `seedWithoutBankConsent` — только демо-сид (src/demo/deals.ts), только по тестовой сделке (isDemo) и только при
- * DEMO_MODE (Ruling AD): сид действует без сессий сторон, а GrantConsent требует сессию (TODO Task 15: согласия
- * демо-сделок — засеянными записями identity, обход убрать).
+ * этой сделки (чужая — «не найдено»): отказ по согласиям не выдаёт, что сделка существует. Обхода нет и у демо-сида:
+ * согласия его сделок засеяны в identity (SeedConsents) до оплаты.
  */
-export async function payForDeal(user: CurrentUser, raw: { dealId: string }, opts: { seedWithoutBankConsent?: true } = {}): Promise<PayResult> {
+export async function payForDeal(user: CurrentUser, raw: { dealId: string }): Promise<PayResult> {
   const { dealId } = parseInput(dealRefSchema, raw);
   const parties = await dealParties(dealId);
   requireParty(user, parties, "CLIENT");
-  if (!opts.seedWithoutBankConsent) await requireBankConsents(dealId, parties);
-  else if (!parties.isDemo || !env().DEMO_MODE) fail.forbidden();
+  await requireBankConsents(dealId, parties);
   const hold = await transaction(async (tx) => {
     const deal = await lockDeal(tx, dealId);
     requireParty(user, deal, "CLIENT");

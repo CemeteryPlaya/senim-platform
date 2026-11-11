@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
+import { consentTextSha256, seedIdentityBankConsents } from "@/modules/identity";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../test/factories";
 import { journalOf, makeDeal, signContract } from "../../../test/factories/deal";
@@ -64,17 +65,16 @@ describe("оплата требует согласий обеих сторон �
     expect(hasConsentsCalls()).toBe(0);
   });
 
-  it("сид демо без сессий сторон — только тестовая сделка и только при DEMO_MODE (Ruling AD)", async () => {
+  it("тестовая сделка при DEMO_MODE — та же проверка: обхода нет; засеянные согласия (SeedConsents) открывают оплату", async () => {
     const f = await signedDeal([]);
+    await db.deal.update({ where: { id: f.dealId }, data: { isDemo: true } });
     setEnv({ DEMO_MODE: "true" });
     try {
-      await expect(payForDeal(f.client, { dealId: f.dealId }, { seedWithoutBankConsent: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
-      await db.deal.update({ where: { id: f.dealId }, data: { isDemo: true } });
-      setEnv({ DEMO_MODE: "false" });
-      await expect(payForDeal(f.client, { dealId: f.dealId }, { seedWithoutBankConsent: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(payForDeal(f.client, { dealId: f.dealId })).rejects.toMatchObject({ code: "CONFLICT", details: { reason: BANK_CONSENT_MISSING, missing: ["CLIENT", "EXECUTOR"] } });
       expect(await journalOf(f.dealId)).toEqual([]);
-      setEnv({ DEMO_MODE: "true" });
-      expect(await payForDeal(f.client, { dealId: f.dealId }, { seedWithoutBankConsent: true })).toMatchObject({ status: "SUCCEEDED" });
+      const proof = { version: BANK, textSha256: consentTextSha256("BANK_TRANSFER") };
+      await seedIdentityBankConsents([f.client.id, f.executor.id].map((userId) => ({ ...proof, userId, dealId: f.dealId })));
+      expect(await payForDeal(f.client, { dealId: f.dealId })).toMatchObject({ status: "SUCCEEDED" });
     } finally {
       setEnv({ DEMO_MODE: undefined });
     }

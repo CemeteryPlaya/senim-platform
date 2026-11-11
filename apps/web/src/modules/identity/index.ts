@@ -31,7 +31,21 @@ export { identityClientIp } from "./remote";
 export { newSessionToken, sessionCookieName, sessionCookieOptions } from "./session-cookie";
 export { STAFF_ROLES, SWITCHABLE_ROLES, SWITCH_ROLE_PATH, canGrant, isStaffRole, parseSwitchableRole, roleToSwitch, switchRoleHref, switchTargets } from "./roles";
 export { requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./otp";
-export { listDemoPersonas, loginAsDemoPersona, resetIdentityDemo, seedIdentityUsers, type DemoPersona, type SeedPerson } from "./demo";
+export {
+  listDemoPersonas,
+  loginAsDemoPersona,
+  projectSeedPerson,
+  resetIdentityDemo,
+  seedIdentityBankConsents,
+  seedIdentityUsers,
+  seedPartyColumns,
+  type DemoPersona,
+  type SeedBankConsent,
+  type SeedConsentProof,
+  type SeedKyc,
+  type SeedPartyInput,
+  type SeedPerson,
+} from "./demo";
 export { projectPerson, projectUser } from "./projection";
 export { authorize, can, type ActionOn, type Resource } from "./rbac";
 export { CONSENT_PATH, EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, MFA_PATH, consentHref, homePathFor, loginHref, mfaHref, safeReturnTo } from "./return-to";

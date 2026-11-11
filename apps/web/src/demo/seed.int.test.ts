@@ -5,20 +5,21 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DealStatus, RequestStatus } from "@/generated/prisma/enums";
 import { computeDealMoney, computeSplit, moneyFacts, ledgerEntries } from "@/modules/payments";
 import { segmentPriceHints } from "@/modules/requests";
-import { decryptPii } from "@/platform/crypto";
+import { ConsentKind, KycStatus as ProtoKycStatus } from "@/gen/senim/identity/v1/identity_pb";
+import { consentDocument, consentTextSha256 } from "@/modules/identity";
 import { db } from "@/platform/db";
 import { typicalEstimateSchema } from "@/verticals/furniture";
 import { useSeedStorage } from "../../test/factories/documents";
 import { setEnv } from "../../test/factories/identity";
 import { identityFake } from "../../test/stubs/identity";
-import { EXECUTORS, OPERATOR } from "./data";
+import { CLIENTS, DEALS, EXECUTORS, KYC, OPERATOR } from "./data";
 import { PORTFOLIO_FILES } from "./portfolio-files";
 import { resetDemo, seedDemo } from "./seed";
 
 let cleanup: () => Promise<void>;
 beforeAll(async () => {
   cleanup = await useSeedStorage();
-  // Сид оплачивает тестовые сделки без сессий сторон — только при DEMO_MODE (Ruling AD).
+  // Сид — только демо-стенд (как identity: SeedUsers и SeedConsents — только DEMO_MODE).
   setEnv({ DEMO_MODE: "true" });
 });
 afterAll(async () => {
@@ -123,23 +124,39 @@ describe("демо-данные", () => {
     expect([...kinds].some((k) => k.startsWith("money."))).toBe(true);
   });
 
-  it("люди: мастера с тестовыми адресами, KYC во всех статусах, БИН ТОО зашифрован; справочник цен — демо", { timeout: 120_000 }, async () => {
+  it("люди: мастера с тестовыми адресами, KYC во всех статусах, номера — только в identity; справочник цен — демо", { timeout: 120_000 }, async () => {
     await seedDemo(db);
     const spec = EXECUTORS.agash;
     const profile = await db.executorProfile.findFirstOrThrow({ where: { legalName: spec.legalName }, include: { user: true } });
     expect(profile.legalForm).toBe("TOO");
     expect(JSON.stringify(profile)).not.toContain(spec.bin);
-    expect(decryptPii(profile.binIinEnc!)).toBe(spec.bin);
     expect(profile.binIinLast4).toBe(spec.bin.slice(-4));
+    expect(identityFake.partyNumbersOf(profile.userId)?.binIin).toBe(spec.bin);
 
-    const profiles = await db.executorProfile.findMany({ select: { district: true, streetAddress: true, kycStatus: true, status: true, payoutIbanEnc: true, kycDocuments: { select: { purpose: true } } } });
+    const profiles = await db.executorProfile.findMany({
+      select: { userId: true, district: true, streetAddress: true, kycStatus: true, status: true, payoutIbanLast4: true, kycDocuments: { select: { id: true, purpose: true } } },
+    });
     expect(profiles.length).toBe(Object.keys(EXECUTORS).length);
     for (const p of profiles) {
       expect(p.district).not.toBe("");
       expect(p.streetAddress).toMatch(/\(демо\)$/);
-      if (p.status === "APPROVED") expect(decryptPii(p.payoutIbanEnc!)).toMatch(/^KZ\d{2}000DEMO/);
+      const iban = identityFake.partyNumbersOf(p.userId)?.payoutIban ?? "";
+      if (p.status === "APPROVED") expect(iban).toMatch(/^KZ\d{2}000DEMO/);
+      expect(p.payoutIbanLast4).toBe(iban === "" ? null : iban.slice(-4));
+      // KYC в identity — с теми же файлами, что в старой базе: очередь /operator/kyc читает их из identity.
+      const party = identityFake.partyOf(p.userId)!;
+      expect(party.kycIdFileIds).toEqual(p.kycDocuments.filter((d) => d.purpose === "KYC_ID").map((d) => d.id));
+      expect(party.kycRegistrationFileIds).toEqual(p.kycDocuments.filter((d) => d.purpose === "KYC_REGISTRATION").map((d) => d.id));
     }
     expect(new Set(profiles.filter((p) => p.kycDocuments.length > 0).map((p) => p.kycStatus))).toEqual(new Set(["VERIFIED", "PENDING", "REJECTED"]));
+    const timur = identityFake.partyOf(profiles.find((p) => p.kycStatus === "REJECTED")!.userId)!;
+    expect(timur).toMatchObject({ kycStatus: ProtoKycStatus.REJECTED, kycRejectReason: KYC.timur?.status === "REJECTED" ? KYC.timur.reason : "" });
+    // Старая база — только проекции: ни шифртекстов, ни HMAC ИИН/БИН и IBAN.
+    expect(await db.executorProfile.count({ where: { OR: [{ binIinEnc: { not: null } }, { binIinHash: { not: null } }, { signerIinEnc: { not: null } }, { payoutIbanEnc: { not: null } }] } })).toBe(0);
+    expect(await db.user.count({ where: { OR: [{ iinEnc: { not: null } }, { iinHash: { not: null } }] } })).toBe(0);
+    const aigerim = await db.user.findUniqueOrThrow({ where: { phone: CLIENTS.aigerim.phone } });
+    expect(aigerim).toMatchObject({ fullName: CLIENTS.aigerim.fullName, iinLast4: CLIENTS.aigerim.iin.slice(-4), email: "aigerim.demo@example.kz" });
+    expect(identityFake.personOf(aigerim.id)).toMatchObject({ fullName: CLIENTS.aigerim.fullName, iinLast4: CLIENTS.aigerim.iin.slice(-4), email: "aigerim.demo@example.kz" });
     expect(await db.user.count({ where: { role: "OPERATOR", isDemo: true } })).toBe(1);
 
     for (const [name, meta] of Object.entries(PORTFOLIO_FILES)) {
@@ -161,6 +178,25 @@ describe("демо-данные", () => {
       const hints = await segmentPriceHints(e.furnitureTypeId).finally(() => setEnv({ FEATURE_MATERIALS_CALCULATOR: undefined }));
       for (const hint of Object.values(hints)) expect(hint).toMatchObject({ source: "materials", demo: true });
     }
+  });
+
+  it("согласия: на ПДн текущей редакции у всех, кроме сотрудников; передача банку — у обеих сторон каждой оплаченной сделки", { timeout: 120_000 }, async () => {
+    await seedDemo(db);
+    const pd = { version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") };
+    for (const u of await db.user.findMany({ select: { id: true, role: true } })) {
+      const consents = identityFake.consentsOf(u.id).filter((c) => c.kind === ConsentKind.PD_PROCESSING);
+      if (u.role === "OPERATOR" || u.role === "MEASURER") expect(consents, u.role).toHaveLength(0);
+      else expect(consents.map((c) => ({ version: c.version, textSha256: c.textSha256, channel: c.channel }))).toEqual([{ ...pd, channel: "seed" }]);
+    }
+    const bank = { version: consentDocument("BANK_TRANSFER").version, textSha256: consentTextSha256("BANK_TRANSFER") };
+    const paid = await db.deal.findMany({ where: { transactions: { some: { type: "HOLD" } } }, select: { id: true, clientId: true, executor: { select: { userId: true } } } });
+    expect(paid.length).toBe(DEALS.filter((d) => d.steps.includes("pay")).length);
+    for (const d of paid) {
+      for (const userId of [d.clientId, d.executor.userId]) {
+        expect(identityFake.consentsOf(userId).filter((c) => c.referenceId === d.id).map((c) => ({ version: c.version, textSha256: c.textSha256, channel: c.channel }))).toEqual([{ ...bank, channel: "seed" }]);
+      }
+    }
+    expect(identityFake.calls.filter((c) => c.method === "seedConsents")).toHaveLength(1);
   });
 
   it("не дают засеять непустую базу повторно, а resetDemo пересоздаёт её с теми же объёмами", { timeout: 240_000 }, async () => {
