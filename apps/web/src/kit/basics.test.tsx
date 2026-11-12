@@ -57,10 +57,19 @@ describe("Button", () => {
     expect(out).not.toContain("invisible");
   });
 
+  it("pending не откликается на наведение и нажатие, обычная — откликается", () => {
+    const busy = html(<Button pending>Ок</Button>);
+    expect(busy).not.toContain("hover:opacity");
+    expect(busy).not.toContain("active:scale-press");
+    const idle = html(<Button>Ок</Button>);
+    expect(idle).toContain("hover:opacity-90");
+    expect(idle).toContain("active:scale-press");
+  });
+
   it("обычная кнопка без aria-disabled, aria-busy и disabled", () => {
     const out = html(<Button>Ок</Button>);
-    expect(out).not.toMatch(/saria-disabled=/);
-    expect(out).not.toMatch(/saria-busy=/);
+    expect(out).not.toMatch(/\saria-disabled=/);
+    expect(out).not.toMatch(/\saria-busy=/);
     expect(out).not.toMatch(/\sdisabled(?:=|\s|>)/);
   });
 
@@ -232,6 +241,13 @@ describe("Progress", () => {
     expect(out).toContain('aria-valuetext="2 из 3"');
   });
 
+  it("value=0 — пустой трек: aria-valuenow 0 и текст «0 из 3»", () => {
+    const out = html(<Progress value={0} max={3} label="Шаги" />);
+    expect(out).toContain('aria-valuenow="0"');
+    expect(out).toContain('aria-valuetext="0 из 3"');
+    expect(out).toContain("scaleX(0)");
+  });
+
   it("значение зажимается в [0, max]", () => {
     const over = html(<Progress value={9} max={3} label="Шаги" />);
     expect(over).toContain('aria-valuenow="3"');
@@ -289,6 +305,8 @@ describe("Остальное", () => {
     expect(out.match(/<li/g)?.length).toBe(2);
     expect(out).toMatch(/<a[^>]+href="\/v2\/address"/);
     expect(out).toContain("hover:bg-canvas");
+    expect(out).toContain("active:bg-line");
+    expect(out).not.toContain("scale-press");
     expect(out).toContain("3 дня");
   });
 });

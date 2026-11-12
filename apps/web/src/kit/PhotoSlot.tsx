@@ -15,7 +15,7 @@ export function PhotoSlot({ src, alt, ratio }: { src?: string; alt: string; rati
       {src && (
         // Адрес из хранилища файлов, оптимизатор изображений не нужен.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={alt} loading="lazy" decoding="async"className="size-full object-cover" />
+        <img src={src} alt={alt} loading="lazy" decoding="async" className="size-full object-cover" />
       )}
     </div>
   );

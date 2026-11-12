@@ -30,7 +30,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={cn(buttonClasses({ variant, size, full }), pending && "opacity-50", className)}
+      className={cn(buttonClasses({ variant, size, full, pending }), className)}
       aria-disabled={pending || undefined}
       aria-busy={pending || undefined}
       data-primary-action={primaryMark(variant)}
