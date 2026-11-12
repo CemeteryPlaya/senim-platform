@@ -38,6 +38,11 @@ describe("заглушка «раздел переносится»", () => {
     expect(links[0].href).toBe("/deals/1?tab=docs&f=a&f=b");
   });
 
+  it("/v2/deals/1?tab=money → /deals/1?tab=money", async () => {
+    await render(["deals", "1"], { tab: "money" });
+    expect(links[0].href).toBe("/deals/1?tab=money");
+  });
+
   it("закодированные сегменты не кодируются повторно", async () => {
     await render(["requests", "%D0%B0"]);
     expect(links[0].href).toBe("/requests/%D0%B0");

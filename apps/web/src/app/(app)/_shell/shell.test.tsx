@@ -60,7 +60,7 @@ describe("MobileShell", () => {
     const bar = tagWith(m, "data-tab-bar");
     for (const cls of ["glass", "rounded-bar", "shadow-float"]) expect(hasClass(bar, cls), cls).toBe(true);
     const navTag = tagWith(m, 'aria-label="Основное меню"');
-    for (const cls of ["sticky", "dock-bottom", "px-bar-inset"]) expect(hasClass(navTag, cls), cls).toBe(true);
+    for (const cls of ["sticky", "dock-bottom", "dock-inline"]) expect(hasClass(navTag, cls), cls).toBe(true);
   });
 
   it("подпись вкладки — 13 px и не обрезается", () => {
@@ -87,6 +87,13 @@ describe("MobileShell", () => {
     const main = tagWith(m, 'id="content"');
     expect(main.startsWith("<main")).toBe(true);
     for (const cls of ["max-w-column", "mx-auto"]) expect(hasClass(main, cls), cls).toBe(true);
+  });
+
+  it("поля содержимого не заходят в безопасные зоны (вырез, полоска «домой»)", () => {
+    const main = tagWith(html(<MobileShell nav={clientNav}>x</MobileShell>), 'id="content"');
+    for (const cls of ["safe-gutter", "safe-block"]) expect(hasClass(main, cls), cls).toBe(true);
+    // Обычные отступы перебили бы утилиты безопасной зоны.
+    expect(main).not.toMatch(/class="(?:[^"]*\s)?(?:p|px|py|pt|pb|pl|pr)-\d/);
   });
 
   it("у роли без вкладок (оператор) панели нет", () => {
@@ -116,7 +123,8 @@ describe("DesktopShell", () => {
     const header = tagWith(d, "data-top-bar");
     expect(header.startsWith("<header")).toBe(true);
     for (const cls of ["glass", "sticky", "top-0", "border-b", "border-line"]) expect(hasClass(header, cls), cls).toBe(true);
-    expect(d).toMatch(/class="[^"]*\bmin-h-header\b/);
+    const inner = d.slice(d.indexOf("data-top-bar")).match(/<div [^>]*>/)?.[0] ?? "";
+    for (const cls of ["min-h-header", "max-w-content"]) expect(hasClass(inner, cls), cls).toBe(true);
     expect(d).toMatch(/<nav[^>]+aria-label="Основное меню"/);
     for (const href of ["/v2", "/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"]) expect(d).toContain(`href="${href}"`);
   });
@@ -208,8 +216,10 @@ describe.each([
   it("при недоступности identity — предупреждение, которое озвучивается", () => {
     expect(html(render())).not.toContain(ru.common.errors.unavailable);
     const out = html(render(true));
-    expect(out).toContain(ru.common.errors.unavailable);
-    expect(tagWith(out, 'role="status"')).toBeTruthy();
+    // role="alert": плашка приходит в разметке сервера, а role="status" при первой отрисовке диктор не читает.
+    const alert = out.match(/<p [^>]*role="alert"[^>]*>([^<]*)<\/p>/);
+    expect(alert?.[1]).toBe(ru.common.errors.unavailable);
+    expect(out).not.toContain('role="status"');
   });
 });
 

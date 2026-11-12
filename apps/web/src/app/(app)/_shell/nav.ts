@@ -55,7 +55,9 @@ const R = {
 } as const satisfies Record<string, NavItem>;
 
 /** Вкладки за флагами: «Замеры» замерщика — сценарии до договора (Фаза 2, по умолчанию выключены). */
-const FLAGGED: ReadonlyMap<NavItem, keyof NavFeatures> = new Map([[R.measurements, "preContractFlows"]]);
+const FLAGGED: Readonly<Partial<Record<NavItem["href"], keyof NavFeatures>>> = {
+  [R.measurements.href]: "preContractFlows",
+};
 
 function roleTabs(user: NavUser): NavItem[] {
   switch (user.role) {
@@ -77,7 +79,7 @@ function roleTabs(user: NavUser): NavItem[] {
 export function navFor(user: NavUser | null, f: NavFeatures): AppNav {
   if (!user) return { tabs: [R.masters, R.about, R.login], guest: true };
   const tabs = roleTabs(user).filter((item) => {
-    const flag = FLAGGED.get(item);
+    const flag = FLAGGED[item.href];
     return flag === undefined || f[flag];
   });
   const primary = user.role === "CLIENT" ? { href: to("/requests/new"), label: ru.app.shell.newRequest } : undefined;

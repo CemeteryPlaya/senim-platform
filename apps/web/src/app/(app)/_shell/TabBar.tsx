@@ -8,8 +8,8 @@ import { activeHref, type NavItem } from "./nav";
 import { NAV_ICONS } from "./nav-icons";
 
 /**
- * Плавающая панель вкладок телефона (эталон docs/design/v3/reference/mobile.html): 10 px от краёв и от низа (плюс
- * безопасная зона), радиус 22 px, полупрозрачный материал (glass: размытие и насыщенность поверх фона; при
+ * Плавающая панель вкладок телефона (эталон docs/design/v3/reference/mobile.html): 10 px от низа плюс безопасная зона
+ * (dock-bottom), по бокам 10 px или шире выреза (dock-inline), радиус 22 px, полупрозрачный материал (glass: размытие и насыщенность поверх фона; при
  * prefers-reduced-transparency — сплошной), тень float. Панель прилипает к низу (sticky) и стоит в потоке последней:
  * содержимое прокручивается под ней, а в конце страницы панель встаёт под содержимым — отступ под панель равен её
  * настоящей высоте.
@@ -21,7 +21,7 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
   const current = activeHref(items, usePathname());
 
   return (
-    <nav aria-label={ru.app.shell.navLabel} className="pointer-events-none sticky dock-bottom z-20 px-bar-inset">
+    <nav aria-label={ru.app.shell.navLabel} className="pointer-events-none sticky dock-bottom z-20 dock-inline">
       <ul
         data-tab-bar
         className="glass pointer-events-auto mx-auto flex max-w-column flex-wrap rounded-bar border border-line p-1 shadow-float"

@@ -14,7 +14,7 @@ beforeEach(() => {
 });
 
 describe("logout", () => {
-  it("завершает сессию и уводит на вход v2", async () => {
+  it("завершает сессию и уводит на главную v2 (страницы входа в v2 пока нет)", async () => {
     h.endSession.mockResolvedValue(undefined);
     const thrown = await logout({}).then(
       () => null,
@@ -22,7 +22,7 @@ describe("logout", () => {
     );
     expect(h.endSession).toHaveBeenCalledTimes(1);
     expect(isRedirectError(thrown)).toBe(true);
-    expect((thrown as { digest: string }).digest).toContain(";/v2/login;");
+    expect((thrown as { digest: string }).digest).toContain(";/v2;");
   });
 
   it("identity недоступен — ошибка «сервис недоступен», без перехода", async () => {

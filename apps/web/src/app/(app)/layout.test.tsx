@@ -111,3 +111,15 @@ describe("generateViewport: цвет строки состояния по тем
     expect((await generateViewport()).themeColor).toBe(TOKENS[theme].canvas);
   });
 });
+
+describe("generateViewport: безопасные зоны", () => {
+  it("телефон: viewport-fit=cover — env(safe-area-inset-*) получает настоящие значения", async () => {
+    h.device = "mobile";
+    expect((await generateViewport()).viewportFit).toBe("cover");
+  });
+
+  it("компьютер: viewport-fit не задаётся", async () => {
+    h.device = "desktop";
+    expect(await generateViewport()).not.toHaveProperty("viewportFit");
+  });
+});

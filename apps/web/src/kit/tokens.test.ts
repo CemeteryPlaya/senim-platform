@@ -104,6 +104,21 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(dock).toMatch(/margin-bottom:\s*calc\(var\(--spacing-bar-inset\)\s*\+\s*env\(safe-area-inset-bottom\)\)\s*;/);
   });
 
+  it("безопасные зоны телефона: утилиты берут env(safe-area-inset-*), но не меньше обычного отступа", () => {
+    const utility = (name: string) => new RegExp(String.raw`@utility ${name}\s*\{([\s\S]*?)\n\}`).exec(css)?.[1] ?? "";
+    // Панель вкладок по бокам: 10 px или вырез в альбомной ориентации.
+    const dockInline = utility("dock-inline");
+    expect(dockInline).toMatch(/padding-left:\s*max\(var\(--spacing-bar-inset\),\s*env\(safe-area-inset-left\)\)\s*;/);
+    expect(dockInline).toMatch(/padding-right:\s*max\(var\(--spacing-bar-inset\),\s*env\(safe-area-inset-right\)\)\s*;/);
+    // Поля содержимого: 16 px по бокам, 24 px сверху и снизу.
+    const gutter = utility("safe-gutter");
+    expect(gutter).toMatch(/padding-left:\s*max\(1rem,\s*env\(safe-area-inset-left\)\)\s*;/);
+    expect(gutter).toMatch(/padding-right:\s*max\(1rem,\s*env\(safe-area-inset-right\)\)\s*;/);
+    const block = utility("safe-block");
+    expect(block).toMatch(/padding-top:\s*max\(1\.5rem,\s*env\(safe-area-inset-top\)\)\s*;/);
+    expect(block).toMatch(/padding-bottom:\s*max\(1\.5rem,\s*env\(safe-area-inset-bottom\)\)\s*;/);
+  });
+
   it("полупрозрачная панель (glass) при prefers-reduced-transparency — сплошная, без размытия", () => {
     const glass = /@utility glass\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(glass).toMatch(/backdrop-filter:\s*saturate\([\d.]+\)\s*blur\([\d.]+rem\)\s*;/);

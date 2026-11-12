@@ -25,16 +25,19 @@ export const metadata: Metadata = {
 /**
  * Цвет строки состояния и заголовка окна — фон страницы своей темы (в Next 16 — через viewport). Тема выбрана кукой —
  * одно значение; «как в системе» — пара для светлой и тёмной по prefers-color-scheme.
+ * Телефон: viewport-fit=cover — страница рисуется до краёв экрана, а env(safe-area-inset-*) получают настоящие значения;
+ * отступы от выреза и полоски «домой» держат утилиты dock-* и safe-* (tokens.css). Компьютеру это не нужно.
  */
 export async function generateViewport(): Promise<Viewport> {
-  const theme = await getTheme();
-  if (theme !== "system") return { themeColor: TOKENS[theme].canvas };
-  return {
-    themeColor: [
-      { media: "(prefers-color-scheme: light)", color: TOKENS.light.canvas },
-      { media: "(prefers-color-scheme: dark)", color: TOKENS.dark.canvas },
-    ],
-  };
+  const [theme, device] = await Promise.all([getTheme(), getDevice()]);
+  const themeColor: Viewport["themeColor"] =
+    theme !== "system"
+      ? TOKENS[theme].canvas
+      : [
+          { media: "(prefers-color-scheme: light)", color: TOKENS.light.canvas },
+          { media: "(prefers-color-scheme: dark)", color: TOKENS.dark.canvas },
+        ];
+  return device === "mobile" ? { themeColor, viewportFit: "cover" } : { themeColor };
 }
 
 /**
@@ -51,7 +54,9 @@ export default async function AppLayout({ children }: Readonly<{ children: React
   const { user, unavailable } = await getShellUser();
   const [theme, device] = await Promise.all([getTheme(), getDevice()]);
   const nav = navFor(user, features());
-  // Оболочка оператора — этап 5; до неё любая страница v2 у оператора — заглушка со ссылкой на тот же адрес в v1.
+  // Оболочка оператора — этап 5; до неё оператору вместо страниц v2 показывается заглушка со ссылкой на тот же адрес
+  // в v1. Это только интерфейс, а не граница доступа: страница при этом всё равно выполняется на сервере, и права
+  // проверяют она сама и действия сервера.
   const content = user?.role === "OPERATOR" ? <OperatorMoving /> : children;
 
   return (

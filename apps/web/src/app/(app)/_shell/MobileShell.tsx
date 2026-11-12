@@ -12,13 +12,15 @@ export type MobileShellProps = {
 
 /**
  * Оболочка телефона и планшета: без шапки (крупный заголовок экрана — у самой страницы), содержимое — колонка
- * до 560 px по центру с полями 16 px, внизу — плавающая панель вкладок. У роли без вкладок (оператор) панели нет.
+ * до 560 px по центру с полями 16 px по бокам и 24 px сверху и снизу, внизу — плавающая панель вкладок. Поля не
+ * меньше безопасных зон (safe-gutter, safe-block; viewport-fit=cover ставит layout): содержимое не уходит под
+ * строку состояния, вырез и полоску «домой». У роли без вкладок (оператор) панели нет.
  */
 export function MobileShell({ nav, unavailable = false, children }: MobileShellProps) {
   return (
     <div className="flex min-h-dvh flex-col">
       <SkipLink />
-      <main id={MAIN_ID} tabIndex={-1} className="mx-auto w-full max-w-column flex-1 px-4 py-6 outline-none">
+      <main id={MAIN_ID} tabIndex={-1} className="mx-auto w-full max-w-column flex-1 safe-gutter safe-block outline-none">
         {unavailable && <UnavailableNotice />}
         {children}
       </main>

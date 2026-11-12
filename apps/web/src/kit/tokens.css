@@ -72,7 +72,7 @@
 
   /* Оболочки (src/app/(app)/_shell). Шапка компьютера — 52px (min-h-header: при крупном шрифте растёт, а не режет). */
   --spacing-header: 3.25rem;
-  /* Плавающая панель вкладок телефона: отступ 10px от краёв и снизу (px-bar-inset, утилита dock-bottom). */
+  /* Плавающая панель вкладок телефона: отступ 10px от краёв и снизу (утилиты dock-inline и dock-bottom). */
   --spacing-bar-inset: 0.625rem;
   /* Аватар в шапке — 32px (size-avatar). */
   --spacing-avatar: 2rem;
@@ -202,13 +202,35 @@
 }
 
 /*
- * Место панели вкладок у нижнего края: отступ 10px плюс безопасная зона (полоска «домой» на iPhone). С `sticky`
- * панель висит над прокручиваемым содержимым, а в конце страницы встаёт под ним — содержимое не прячется под панелью
- * при любой её высоте (крупный шрифт, подписи в две строки).
+ * Безопасные зоны телефона (вырез, скругления, полоска «домой»). env(safe-area-inset-*) ненулевые только при
+ * viewport-fit=cover — его ставит generateViewport() layout v2 для мобильной версии; на компьютере эти утилиты не
+ * используются, а без cover env() даёт 0 и остаются обычные отступы.
+ *
+ * Место панели вкладок у нижнего края: 10px плюс безопасная зона снизу. С `sticky` панель висит над прокручиваемым
+ * содержимым, а в конце страницы встаёт под ним — содержимое не прячется под панелью при любой её высоте (крупный
+ * шрифт, подписи в две строки).
  */
 @utility dock-bottom {
   bottom: calc(var(--spacing-bar-inset) + env(safe-area-inset-bottom));
   margin-bottom: calc(var(--spacing-bar-inset) + env(safe-area-inset-bottom));
+}
+
+/* Панель вкладок по бокам: 10px от края или шире — на величину выреза (альбомная ориентация). */
+@utility dock-inline {
+  padding-left: max(var(--spacing-bar-inset), env(safe-area-inset-left));
+  padding-right: max(var(--spacing-bar-inset), env(safe-area-inset-right));
+}
+
+/* Поля содержимого телефона по бокам: 16px (rules.md, «Отступы») или шире — на величину выреза. */
+@utility safe-gutter {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+/* Содержимое телефона сверху и снизу: 24px или ниже строки состояния / выше полоски «домой». */
+@utility safe-block {
+  padding-top: max(1.5rem, env(safe-area-inset-top));
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
 }
 
 /*
