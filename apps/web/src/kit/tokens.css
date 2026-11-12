@@ -85,6 +85,7 @@
   --color-warn: var(--role-warn);
   --color-warn-soft: var(--role-warn-soft);
   --color-focus: var(--role-focus);
+  --color-scrim: var(--role-scrim); /* сплошной; полупрозрачное затемнение — утилита scrim ниже */
 
   /* Тени — только у плавающего: панель вкладок, поповер, меню, тост (float) и шторка (sheet). */
   --shadow-float: 0 0.5rem 1.5rem -0.25rem color-mix(in srgb, var(--shade) 14%, transparent),
@@ -109,6 +110,8 @@
   --role-warn: #8a5a00;
   --role-warn-soft: #fbf1de;
   --role-focus: #0a7d54;
+  --role-scrim: #000000;
+  --scrim-opacity: 32%; /* затемнение под шторкой и диалогом, как в эталоне */
   --shade: var(--role-ink); /* цвет тени: почти чёрный */
 
   /* Отклик на нажатие: масштаб 0,97 (утилита scale-press, обычно с active:). */
@@ -132,6 +135,8 @@
   --role-warn: #e3a23b;
   --role-warn-soft: #3a2c12;
   --role-focus: #30b07a;
+  --role-scrim: #000000;
+  --scrim-opacity: 56%; /* на тёмном фоне 32% почти не видно */
   --shade: var(--role-canvas); /* в тёмной теме ink светлый — тень берёт чёрный фон */
 }
 
@@ -153,6 +158,8 @@
     --role-warn: #e3a23b;
     --role-warn-soft: #3a2c12;
     --role-focus: #30b07a;
+    --role-scrim: #000000;
+    --scrim-opacity: 56%;
     --shade: var(--role-canvas);
   }
 }
@@ -178,5 +185,16 @@
   @media (prefers-reduced-transparency: reduce) {
     background-color: var(--role-surface);
     backdrop-filter: none;
+  }
+}
+
+/*
+ * Затемнение под шторкой и диалогом. При prefers-reduced-transparency — сплошное: страница под окном не
+ * просвечивает (так же, как glass становится сплошным фоном).
+ */
+@utility scrim {
+  background-color: color-mix(in srgb, var(--role-scrim) var(--scrim-opacity), transparent);
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: var(--role-scrim);
   }
 }

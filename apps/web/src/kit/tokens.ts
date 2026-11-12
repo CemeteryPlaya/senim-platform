@@ -23,6 +23,7 @@ export const COLOR_ROLES = [
   "warn", // ожидание, предупреждение
   "warn-soft",
   "focus", // кольцо фокуса
+  "scrim", // затемнение под шторкой и диалогом; прозрачность — в утилите scrim (tokens.css)
 ] as const;
 
 export type ColorRole = (typeof COLOR_ROLES)[number];
@@ -45,6 +46,7 @@ export const TOKENS: { light: Record<ColorRole, string>; dark: Record<ColorRole,
     warn: "#8a5a00",
     "warn-soft": "#fbf1de",
     focus: "#0a7d54",
+    scrim: "#000000",
   },
   dark: {
     canvas: "#000000",
@@ -62,5 +64,6 @@ export const TOKENS: { light: Record<ColorRole, string>; dark: Record<ColorRole,
     warn: "#e3a23b",
     "warn-soft": "#3a2c12",
     focus: "#30b07a",
+    scrim: "#000000",
   },
 };

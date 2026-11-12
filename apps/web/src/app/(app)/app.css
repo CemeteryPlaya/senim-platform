@@ -4,6 +4,7 @@
  */
 @import "tailwindcss" source(none);
 @import "../../kit/tokens.css";
+@import "../../kit/overlays.css";
 
 @source "../../kit";
 @source ".";
@@ -24,9 +25,13 @@
 }
 
 /*
- * Меньше движения: без сдвигов и масштаба — только короткое проявление. Шторка, поповер и диалог
- * (motion) учитывают настройку сами и оставляют проявление; здесь — то, что делает CSS: нажатие
- * без масштаба, CSS-анимации (индикаторы, скелетоны) останавливаются, прокрутка без плавности.
+ * Меньше движения: без сдвигов и масштаба — только короткое проявление.
+ * - Нажатие без масштаба (--scale-press: 1).
+ * - Переходы — только прозрачности и цвета: переход transform (выезд, сдвиг) не проигрывается, элемент
+ *   сразу встаёт на место. Inline-переходы библиотек (жест шторки) этим тоже перекрываются.
+ * - CSS-анимации со сдвигом гаснут за 1 мс; индикаторы загрузки (animate-spin, animate-pulse) не замирают,
+ *   а мягко пульсируют прозрачностью — иначе не понять, что идёт работа.
+ * - Шторка и тосты — проявление (src/kit/overlays.css); поповер и диалог (motion) учитывают настройку сами.
  */
 @media (prefers-reduced-motion: reduce) {
   :root {
@@ -38,6 +43,18 @@
   ::after {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color, outline-color, text-decoration-color, fill, stroke !important;
     scroll-behavior: auto !important;
+  }
+
+  .animate-spin,
+  .animate-pulse {
+    animation: kit-pulse 1.2s ease-in-out infinite !important;
+  }
+}
+
+@keyframes kit-pulse {
+  50% {
+    opacity: 0.4;
   }
 }

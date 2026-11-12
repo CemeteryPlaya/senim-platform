@@ -1,0 +1,48 @@
+/*
+ * Окна kit поверх библиотек: шторка (vaul) и тосты (sonner) анимируются их собственным CSS; здесь — то, что
+ * нужно поверх него. Поповер и диалог анимирует motion в компонентах (Popover.tsx, Dialog.tsx).
+ * Подключается из src/app/(app)/app.css.
+ */
+
+/* Нижний отступ шторки: не меньше 1,5rem и выше домашнего индикатора iPhone. */
+@utility pb-sheet {
+  padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 1rem));
+}
+
+@keyframes kit-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes kit-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/*
+ * Меньше движения: шторка и затемнение не выезжают, а коротко проявляются и гаснут (вход и выход по одному
+ * пути). Перетаскивание пальцем остаётся — это прямое управление, а не анимация. Специфичность выше, чем
+ * у общего правила в app.css (`*`), поэтому длительность здесь своя.
+ */
+@media (prefers-reduced-motion: reduce) {
+  [data-vaul-drawer][data-state="open"],
+  [data-vaul-overlay][data-state="open"] {
+    animation-name: kit-fade-in !important;
+    animation-duration: 0.2s !important;
+    animation-timing-function: ease-out !important;
+  }
+
+  [data-vaul-drawer][data-state="closed"],
+  [data-vaul-overlay][data-state="closed"] {
+    animation-name: kit-fade-out !important;
+    animation-duration: 0.15s !important;
+    animation-timing-function: ease-in !important;
+  }
+
+  /* sonner при этой настройке снимает переходы совсем; оставляем короткое проявление без сдвига. */
+  [data-sonner-toaster] [data-sonner-toast] {
+    transition: opacity 0.2s ease-out !important;
+  }
+}

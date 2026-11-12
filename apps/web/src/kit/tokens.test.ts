@@ -45,6 +45,22 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(body()).toMatch(new RegExp(String.raw`color-scheme:\s*${scheme}\s*;`));
   });
 
+  it.each(Object.entries(BLOCKS))("%s: цвет тени --shade задан и тёмный в обеих темах", (name, { body }) => {
+    // В светлой теме тень — от почти чёрного ink; в тёмной ink светлый, поэтому тень берёт чёрный canvas.
+    const role = name.startsWith("светлая") ? "ink" : "canvas";
+    expect(body()).toMatch(new RegExp(String.raw`--shade:\s*var\(--role-${role}\)\s*;`));
+  });
+
+  it.each(Object.entries(BLOCKS))("%s: прозрачность затемнения --scrim-opacity задана", (_name, { body }) => {
+    expect(body()).toMatch(/--scrim-opacity:\s*\d+%\s*;/);
+  });
+
+  it("затемнение при prefers-reduced-transparency сплошное", () => {
+    const scrim = /@utility scrim\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(scrim).toContain("var(--scrim-opacity)");
+    expect(scrim).toMatch(/@media\s*\(prefers-reduced-transparency:\s*reduce\)\s*\{\s*background-color:\s*var\(--role-scrim\);/);
+  });
+
   it.each(COLOR_ROLES)("утилиты Tailwind по роли %s берут цвет из переменной темы", (role) => {
     const theme = block(css, /@theme inline/);
     expect(theme).toContain(`--color-${role}: var(--role-${role});`);
