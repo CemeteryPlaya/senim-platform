@@ -85,7 +85,7 @@
   --color-warn: var(--role-warn);
   --color-warn-soft: var(--role-warn-soft);
   --color-focus: var(--role-focus);
-  --color-scrim: var(--role-scrim); /* сплошной; полупрозрачное затемнение — утилита scrim ниже */
+  --color-scrim: var(--role-scrim); /* сплошной цвет; затемнение с прозрачностью — утилита scrim ниже */
 
   /* Тени — только у плавающего: панель вкладок, поповер, меню, тост (float) и шторка (sheet). */
   --shadow-float: 0 0.5rem 1.5rem -0.25rem color-mix(in srgb, var(--shade) 14%, transparent),
@@ -189,12 +189,13 @@
 }
 
 /*
- * Затемнение под шторкой и диалогом. При prefers-reduced-transparency — сплошное: страница под окном не
- * просвечивает (так же, как glass становится сплошным фоном).
+ * Затемнение под шторкой и диалогом. При prefers-reduced-transparency — плотнее (непрозрачность 0,7), но не
+ * сплошное: затемнение — не материал с размытием, страница под окном остаётся различимой как фон. Размытия
+ * (backdrop-filter) у затемнения нет; у поверхностей его снимает утилита glass.
  */
 @utility scrim {
   background-color: color-mix(in srgb, var(--role-scrim) var(--scrim-opacity), transparent);
   @media (prefers-reduced-transparency: reduce) {
-    background-color: var(--role-scrim);
+    background-color: color-mix(in srgb, var(--role-scrim) 70%, transparent);
   }
 }

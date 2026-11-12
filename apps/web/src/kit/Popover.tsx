@@ -2,14 +2,16 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Popover as PopoverPrimitive } from "radix-ui";
-import { useId, type ReactElement, type ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { presence } from "./motion";
 import { useOpenState } from "./overlay-state";
 
-export type PopoverProps = {
+/** Имя поповера для диктора: видимый заголовок `title` или, без заголовка, `label` (`aria-label`). */
+type PopoverName = { title: string; label?: never } | { label: string; title?: never };
+
+export type PopoverProps = PopoverName & {
   /** Кнопка, открывающая поповер (один элемент); получает `aria-haspopup="dialog"`. */
   trigger: ReactElement;
-  title?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   children?: ReactNode;
@@ -20,16 +22,16 @@ export type PopoverProps = {
  * триггера, которую считает Radix (`--radix-popover-content-transform-origin`); вход и выход по одному пути,
  * пружина без отскока; при `prefers-reduced-motion` — только проявление.
  *
- * Модальный: фокус заперт внутри и возвращается на триггер, Esc и нажатие вне поповера закрывают,
- * прокрутка страницы на это время заблокирована. Фон — сплошной `raised`, полупрозрачности нет.
+ * Немодальный: при открытии фокус переходит внутрь, Tab ходит по кругу внутри (FocusScope `loop` Radix ставит
+ * всегда), при закрытии фокус возвращается на триггер; Esc и нажатие вне поповера закрывают, и это нажатие
+ * сразу срабатывает там, куда нажали. Прокрутка страницы не блокируется. Фон — сплошной `raised`.
  */
-export function Popover({ trigger, title, open, onOpenChange, children }: PopoverProps) {
+export function Popover({ trigger, title, label, open, onOpenChange, children }: PopoverProps) {
   const [isOpen, setOpen] = useOpenState(open, onOpenChange);
   const reduced = useReducedMotion() ?? false;
-  const titleId = useId();
 
   return (
-    <PopoverPrimitive.Root open={isOpen} onOpenChange={setOpen} modal>
+    <PopoverPrimitive.Root open={isOpen} onOpenChange={setOpen} modal={false}>
       <PopoverPrimitive.Trigger asChild>{trigger}</PopoverPrimitive.Trigger>
       <AnimatePresence>
         {isOpen && (
@@ -41,17 +43,13 @@ export function Popover({ trigger, title, open, onOpenChange, children }: Popove
               align="start"
               sideOffset={8}
               collisionPadding={16}
-              aria-labelledby={title ? titleId : undefined}
+              aria-label={title ? undefined : label}
             >
               <motion.div
                 className="z-50 w-80 max-w-(--radix-popover-content-available-width) origin-(--radix-popover-content-transform-origin) rounded-card bg-raised p-4 text-body text-ink shadow-float outline-none"
                 {...presence(reduced, { scale: 0.9 })}
               >
-                {title && (
-                  <p id={titleId} className="mb-1 text-card text-ink">
-                    {title}
-                  </p>
-                )}
+                {title && <PopoverPrimitive.Title className="mb-1 text-card text-ink">{title}</PopoverPrimitive.Title>}
                 {children}
               </motion.div>
             </PopoverPrimitive.Content>

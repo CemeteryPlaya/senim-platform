@@ -6,9 +6,10 @@ import { Dialog as DialogPrimitive } from "radix-ui";
 import { useRef, useState, type ReactElement, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import type { Device } from "@/platform/device";
+import { logger } from "@/platform/logger";
 import { Button } from "./Button";
 import { FADE, presence } from "./motion";
-import { useOpenState, useReturnFocus, withoutDescription } from "./overlay-state";
+import { createConfirmRunner, useOpenState, useReturnFocus, type ConfirmAction } from "./overlay-state";
 import { Sheet } from "./Sheet";
 
 export type DialogProps = {
@@ -21,16 +22,27 @@ export type DialogProps = {
   trigger?: ReactElement;
   /** `false` — диалог нельзя закрыть Esc, затемнением и крестиком (например, пока идёт действие). */
   dismissible?: boolean;
+  /** Первый фокус при открытии; по умолчанию — первый элемент управления (так делает Radix). */
+  onOpenAutoFocus?: (event: Event) => void;
   children?: ReactNode;
 };
 
 /**
- * Диалог по центру (компьютер). Окно — Radix Dialog: фокус заперт внутри и возвращается на триггер, Esc и нажатие
- * на затемнение закрывают, прокрутка страницы заблокирована. Движение — motion: вход и выход по одному пути
- * (масштаб 0,96 → 1 и проявление, пружина без отскока); при `prefers-reduced-motion` — только проявление.
- * Затемнение — утилита `scrim`: при `prefers-reduced-transparency` оно сплошное.
+ * Диалог по центру (компьютер). Окно — Radix Dialog: Tab ходит по кругу внутри, фокус возвращается на триггер,
+ * Esc и нажатие на затемнение закрывают, прокрутка страницы заблокирована. Движение — motion: вход и выход по
+ * одному пути (масштаб 0,96 → 1 и проявление, пружина без отскока); при `prefers-reduced-motion` — только
+ * проявление. Затемнение — утилита `scrim`: при `prefers-reduced-transparency` оно плотнее.
  */
-export function Dialog({ open, onOpenChange, title, description, trigger, dismissible = true, children }: DialogProps) {
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  trigger,
+  dismissible = true,
+  onOpenAutoFocus,
+  children,
+}: DialogProps) {
   const [isOpen, setOpen] = useOpenState(open, onOpenChange);
   const returnFocus = useReturnFocus(isOpen, trigger === undefined);
   const reduced = useReducedMotion() ?? false;
@@ -58,7 +70,7 @@ export function Dialog({ open, onOpenChange, title, description, trigger, dismis
               <DialogPrimitive.Content
                 forceMount
                 asChild
-                {...withoutDescription(description)}
+                onOpenAutoFocus={onOpenAutoFocus}
                 onCloseAutoFocus={returnFocus}
               >
                 <motion.div
@@ -101,17 +113,25 @@ export type ConfirmDialogProps = {
   /** `danger` — необратимое действие: кнопка подтверждения в цвете ошибки. */
   tone?: "primary" | "danger";
   /**
-   * Действие. Пока промис не завершён, кнопка показывает ожидание, повторное нажатие и закрытие окна
-   * (Esc, затемнение, жест, «Отмена») не срабатывают. Успех закрывает окно; ошибка оставляет его открытым
-   * и уходит дальше — показать её (тостом) должен вызывающий.
+   * Действие. Пока оно идёт, кнопка показывает ожидание, повторное нажатие и закрытие окна (Esc, затемнение,
+   * жест, «Отмена») не срабатывают. Итог:
+   * - вернуло ничего или `true` — окно закрывается;
+   * - вернуло `false` — окно остаётся открытым (например, сервер отказал, и действие уже показало тост);
+   * - бросило исключение или промис отклонён — окно остаётся открытым, ошибка пишется в лог и дальше не идёт.
+   *
+   * Показать ошибку пользователю (тостом `toast.error(...)`) — обязанность самого `onConfirm`: окно её не видит
+   * и текста для неё не знает.
    */
-  onConfirm: () => void | Promise<void>;
+  onConfirm: ConfirmAction;
   trigger?: ReactElement;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
 
-/** Подтверждение действия: одна главная кнопка (подтвердить) и отказ. */
+/**
+ * Подтверждение действия: одна главная кнопка (подтвердить) и отказ. Первый фокус — на «Отмене»: Enter сразу
+ * после открытия не должен подтвердить необратимое действие.
+ */
 export function ConfirmDialog({
   device,
   title,
@@ -126,44 +146,61 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [isOpen, setOpen] = useOpenState(open, onOpenChange);
   const [pending, setPending] = useState(false);
-  // Ref, а не только состояние: второй клик может прийти раньше, чем React применит setPending.
-  const running = useRef(false);
+  const actions = useRef<HTMLDivElement>(null);
+  const [runner] = useState(() =>
+    createConfirmRunner({
+      setPending,
+      onError: (error) => logger.warn("kit.confirm-dialog: onConfirm failed", { error }),
+    }),
+  );
 
   const change = (next: boolean) => {
-    if (next || !running.current) setOpen(next);
+    if (next || !runner.running) setOpen(next);
   };
-
-  async function confirm() {
-    if (running.current) return;
-    running.current = true;
-    setPending(true);
-    try {
-      await onConfirm();
-      setOpen(false);
-    } finally {
-      running.current = false;
-      setPending(false);
-    }
-  }
+  const focusCancel = (event: Event) => {
+    const cancel = actions.current?.querySelector<HTMLElement>("[data-confirm-cancel]");
+    if (!cancel) return;
+    event.preventDefault();
+    cancel.focus();
+  };
 
   const mobile = device === "mobile";
   const confirmButton = (
-    <Button variant={tone === "danger" ? "danger" : "primary"} full={mobile} pending={pending} onClick={confirm}>
+    <Button
+      variant={tone === "danger" ? "danger" : "primary"}
+      full={mobile}
+      pending={pending}
+      onClick={() => void runner.run(onConfirm, () => setOpen(false))}
+    >
       {confirmLabel}
     </Button>
   );
   const cancelButton = (
-    <Button variant={mobile ? "quiet" : "secondary"} full={mobile} disabled={pending} onClick={() => change(false)}>
+    <Button
+      data-confirm-cancel
+      variant={mobile ? "quiet" : "secondary"}
+      full={mobile}
+      disabled={pending}
+      onClick={() => change(false)}
+    >
       {cancelLabel}
     </Button>
   );
-  const common = { title, description, trigger, open: isOpen, onOpenChange: change, dismissible: !pending };
+  const common = {
+    title,
+    description,
+    trigger,
+    open: isOpen,
+    onOpenChange: change,
+    dismissible: !pending,
+    onOpenAutoFocus: focusCancel,
+  };
 
   if (mobile) {
     // Телефон: главное действие внизу, в зоне большого пальца; отказ — под ним.
     return (
       <Sheet {...common}>
-        <div className="mt-2 flex flex-col gap-2">
+        <div ref={actions} className="mt-2 flex flex-col gap-2">
           {confirmButton}
           {cancelButton}
         </div>
@@ -172,7 +209,7 @@ export function ConfirmDialog({
   }
   return (
     <Dialog {...common}>
-      <div className="flex justify-end gap-3">
+      <div ref={actions} className="flex justify-end gap-3">
         {cancelButton}
         {confirmButton}
       </div>

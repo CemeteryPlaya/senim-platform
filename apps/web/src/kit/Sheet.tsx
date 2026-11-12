@@ -1,9 +1,9 @@
 "use client";
 
-import type { ReactElement, ReactNode } from "react";
+import { useRef, type ReactElement, type ReactNode } from "react";
 import { Drawer } from "vaul";
 import { ru } from "@/i18n/ru";
-import { useOpenState, useReturnFocus, withoutDescription } from "./overlay-state";
+import { useOpenState, useReturnFocus } from "./overlay-state";
 
 export type SheetProps = {
   /** Открыта ли шторка. Без `open` шторка управляется сама и открывается триггером. */
@@ -15,21 +15,43 @@ export type SheetProps = {
   trigger?: ReactElement;
   /** `false` — шторку нельзя закрыть жестом, затемнением и Esc (например, пока идёт действие). */
   dismissible?: boolean;
+  /**
+   * Первый фокус при открытии. По умолчанию — сама шторка (контейнер), а не первое поле: иначе на телефоне
+   * клавиатура выезжает одновременно со шторкой. Чтобы поставить фокус на свой элемент — `preventDefault()`
+   * и `focus()` в обработчике.
+   */
+  onOpenAutoFocus?: (event: Event) => void;
   children?: ReactNode;
 };
 
 /**
  * Шторка снизу (телефон): пояснения, подтверждения, выбор из списка.
  *
- * Жест — у vaul: шторка тянется за пальцем 1:1, её можно схватить посреди анимации, бросок вниз закрывает
- * по скорости, вверх за край — резиновое сопротивление. Окно — Radix Dialog внутри vaul: фокус заперт внутри
- * и возвращается на триггер, Esc и нажатие на затемнение закрывают, прокрутка страницы заблокирована
- * (её держит `Drawer.Overlay`). `prefers-reduced-motion` и `prefers-reduced-transparency` — в overlays.css
- * (проявление вместо выезда) и в утилите `scrim` (сплошное затемнение).
+ * Жест — у vaul (решение на Фазу 1, отклонение от спеки зафиксировано в отчёте задачи 6):
+ * - есть: шторка тянется за пальцем 1:1; бросок вниз закрывает по скорости или после четверти высоты; вверх
+ *   за край — резиновое сопротивление; отпущенная шторка возвращается на место;
+ * - нет: схватить шторку посреди открытия нельзя — vaul не даёт тянуть первые 500 мс после открытия;
+ *   открытие и закрытие — CSS-keyframes с фиксированной кривой, а не пружина; скорость броска в доезд
+ *   не переносится; отскока после броска нет. Длительность открытия и закрытия — 0,4 с (overlays.css).
+ *
+ * Окно — Radix Dialog внутри vaul: Tab ходит по кругу внутри, фокус возвращается на триггер, Esc и нажатие
+ * на затемнение закрывают, прокрутка страницы заблокирована (её держит `Drawer.Overlay`).
+ * `prefers-reduced-motion` — проявление вместо выезда (overlays.css); `prefers-reduced-transparency` —
+ * затемнение плотнее (утилита `scrim`).
  */
-export function Sheet({ open, onOpenChange, title, description, trigger, dismissible = true, children }: SheetProps) {
+export function Sheet({
+  open,
+  onOpenChange,
+  title,
+  description,
+  trigger,
+  dismissible = true,
+  onOpenAutoFocus,
+  children,
+}: SheetProps) {
   const [isOpen, setOpen] = useOpenState(open, onOpenChange);
   const returnFocus = useReturnFocus(isOpen, trigger === undefined);
+  const content = useRef<HTMLDivElement>(null);
 
   return (
     <Drawer.Root open={isOpen} onOpenChange={setOpen} dismissible={dismissible} autoFocus>
@@ -37,7 +59,13 @@ export function Sheet({ open, onOpenChange, title, description, trigger, dismiss
       <Drawer.Portal>
         <Drawer.Overlay className="scrim fixed inset-0 z-40" />
         <Drawer.Content
-          {...withoutDescription(description)}
+          ref={content}
+          onOpenAutoFocus={(event) => {
+            onOpenAutoFocus?.(event);
+            if (event.defaultPrevented) return;
+            event.preventDefault();
+            content.current?.focus();
+          }}
           onCloseAutoFocus={returnFocus}
           className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-11/12 w-full max-w-column flex-col rounded-t-sheet bg-raised px-5 pt-3 pb-sheet text-body text-ink shadow-sheet outline-none"
         >

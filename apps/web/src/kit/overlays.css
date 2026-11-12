@@ -22,9 +22,29 @@
 }
 
 /*
+ * Шторка: открытие и закрытие — 0,4 с вместо 0,5 с vaul (спека: 0,3–0,4 с). vaul вставляет свой CSS без слоя
+ * и ставит переход отпускания inline, поэтому !important. Кривая остаётся vaul (без перелёта).
+ */
+[data-vaul-drawer][data-state],
+[data-vaul-overlay][data-state] {
+  animation-duration: 0.4s !important;
+  transition-duration: 0.4s !important;
+}
+
+/*
+ * Кольцо фокуса тоста. CSS sonner без слоя (outline: none и тень сырым цветом на :focus-visible) перебивает
+ * наше общее :focus-visible из @layer base — в тёмной теме кольца не видно. Здесь — тоже без слоя и специфичнее.
+ */
+[data-sonner-toaster] [data-sonner-toast]:focus-visible {
+  outline: 2px solid var(--role-focus);
+  outline-offset: 2px;
+  box-shadow: --theme(--shadow-float);
+}
+
+/*
  * Меньше движения: шторка и затемнение не выезжают, а коротко проявляются и гаснут (вход и выход по одному
  * пути). Перетаскивание пальцем остаётся — это прямое управление, а не анимация. Специфичность выше, чем
- * у общего правила в app.css (`*`), поэтому длительность здесь своя.
+ * у общего правила в app.css (`*`), и равна правилу 0,4 с выше — побеждает это, потому что стоит позже.
  */
 @media (prefers-reduced-motion: reduce) {
   [data-vaul-drawer][data-state="open"],

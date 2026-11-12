@@ -55,10 +55,13 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(body()).toMatch(/--scrim-opacity:\s*\d+%\s*;/);
   });
 
-  it("затемнение при prefers-reduced-transparency сплошное", () => {
+  it("затемнение при prefers-reduced-transparency плотнее: непрозрачность 0,7, без размытия", () => {
     const scrim = /@utility scrim\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(scrim).toContain("var(--scrim-opacity)");
-    expect(scrim).toMatch(/@media\s*\(prefers-reduced-transparency:\s*reduce\)\s*\{\s*background-color:\s*var\(--role-scrim\);/);
+    expect(scrim).toMatch(
+      /@media\s*\(prefers-reduced-transparency:\s*reduce\)\s*\{\s*background-color:\s*color-mix\(in srgb,\s*var\(--role-scrim\)\s+70%,\s*transparent\);/,
+    );
+    expect(scrim).not.toContain("backdrop-filter");
   });
 
   it.each(COLOR_ROLES)("утилиты Tailwind по роли %s берут цвет из переменной темы", (role) => {

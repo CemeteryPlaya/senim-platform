@@ -151,10 +151,13 @@ export function findRawColor(src: string): Hit[] {
  * а само слово — начинаться после пробела, кавычки или двоеточия варианта.
  */
 export function findArbitraryValue(src: string): Hit[] {
-  return matchLines(
-    stripComments(src),
-    /(?<=^|[\s"'`:!(])-?[a-z][a-z0-9]*(?:-[a-z0-9]+)*-\[[^\]\s]+\](?!:)/,
-  );
+  const code = stripComments(src);
+  return [
+    ...matchLines(code, /(?<=^|[\s"'`:!(])-?[a-z][a-z0-9]*(?:-[a-z0-9]+)*-\[[^\]\s]+\](?!:)/),
+    // Сокращённая форма Tailwind 4: `max-w-(--x)`, `text-(--x)`, `bg-(color:--x)`. Разрешены только переменные
+    // времени выполнения библиотек окон — `--radix-*` и `--vaul-*` (их значения считает библиотека, токена нет).
+    ...matchLines(code, /(?<=^|[\s"'`:!])-?[a-z][a-z0-9]*(?:-[a-z0-9]+)*-\((?![a-z-]*:?--(?:radix|vaul)-)[^)\s]*--[^)\s]*\)(?!:)/),
+  ].sort((a, b) => a.line - b.line);
 }
 
 /**
@@ -338,6 +341,19 @@ describe("правило 3: нет произвольных значений Tai
       expect(findArbitraryValue(`className="flex ${cls}"`), cls).toHaveLength(1);
     }
     expect(findArbitraryValue('className="-mt-4 md:-translate-x-2 font-sans"')).toHaveLength(0);
+    // сокращённая форма Tailwind 4 с переменной: ловится, кроме переменных Radix и vaul
+    for (const cls of ["max-w-(--x)", "text-(--x)", "md:bg-(--brand)", "bg-(color:--x)", "-mt-(--gap)"]) {
+      expect(findArbitraryValue(`className="flex ${cls}"`), cls).toHaveLength(1);
+    }
+    for (const cls of [
+      "origin-(--radix-popover-content-transform-origin)",
+      "max-w-(--radix-popover-content-available-width)",
+      "h-(--vaul-drawer-height)",
+    ]) {
+      expect(findArbitraryValue(`className="flex ${cls}"`), cls).toHaveLength(0);
+    }
+    expect(findArbitraryValue("const n = f(--i);")).toHaveLength(0);
+    expect(findArbitraryValue("const s = use-(x);")).toHaveLength(0);
   });
   it("в .ts и .tsx нет text-[…], rounded-[…], bg-[…], scale-[…] и других произвольных значений", () => {
     expectClean(
