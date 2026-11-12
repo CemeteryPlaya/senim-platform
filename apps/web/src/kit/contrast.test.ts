@@ -26,7 +26,10 @@ const TEXT_PAIRS: [fg: ColorRole, bg: ColorRole][] = [
   ["muted", "surface"],
   ["muted", "raised"],
   // Нейтральный чип: подложка line. muted на line в светлой теме — 4,0:1 (ниже порога), поэтому текст чипа — ink.
+  // Отключённая кнопка (line / muted) сюда не входит: WCAG 1.4.3 не нормирует контраст неактивных элементов.
   ["ink", "line"],
+  // Сегментированный переключатель: подписи на дорожке и на выбранном сегменте.
+  ["ink", "track"],
   ["on-action", "action"],
   ["accent", "surface"],
   ["accent", "canvas"],
@@ -48,6 +51,12 @@ const UI_PAIRS: [fg: ColorRole, bg: ColorRole][] = [
 
 const THEMES = ["light", "dark"] as const;
 const cases = (pairs: [ColorRole, ColorRole][]) => THEMES.flatMap((theme) => pairs.map(([fg, bg]) => [theme, fg, bg] as const));
+
+describe("сегмент переключателя приподнят над дорожкой", () => {
+  it.each(THEMES)("%s: выбранный сегмент (raised) светлее дорожки (track)", (theme) => {
+    expect(luminance(TOKENS[theme].raised)).toBeGreaterThan(luminance(TOKENS[theme].track));
+  });
+});
 
 describe("контраст токенов двух тем", () => {
   it("считает контраст по WCAG", () => {

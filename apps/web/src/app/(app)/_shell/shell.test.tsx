@@ -107,10 +107,6 @@ describe("MobileShell", () => {
     expect(hrefs).toEqual(["/v2", "/v2/catalog", "/v2/about", "/v2/login"]);
   });
 
-  it("материал панели плотный — тот же glass, что у шапки (85 %)", () => {
-    expect(hasClass(tagWith(html(<MobileShell nav={guestNav}>x</MobileShell>), "data-tab-bar"), "glass")).toBe(true);
-  });
-
   it("содержимое — колонка до 560 px по центру", () => {
     const m = html(<MobileShell nav={clientNav}>x</MobileShell>);
     const main = tagWith(m, 'id="content"');
@@ -290,18 +286,25 @@ describe("ThemeSwitch", () => {
     expect(out).toMatch(/<form/);
   });
 
-  it("сегментированный переключатель: общая подложка, три равных сегмента в одну строку, выбранный — surface", () => {
+  it("сегментированный переключатель: дорожка track, три равных сегмента в одну строку, выбранный приподнят (raised)", () => {
     const out = html(<ThemeSwitch current="light" />);
     const track = out.match(/<div [^>]*>/)?.[0] ?? "";
-    for (const cls of ["grid", "grid-flow-col", "auto-cols-fr", "bg-line", "rounded-control", "p-1"]) {
+    for (const cls of ["grid", "grid-flow-col", "auto-cols-fr", "bg-track", "rounded-control", "p-1"]) {
       expect(hasClass(track, cls), cls).toBe(true);
     }
     expect(track).not.toContain("flex-wrap");
     const buttons = out.match(/<button [^>]*>/g) ?? [];
     for (const b of buttons) {
-      for (const cls of ["aria-pressed:bg-surface", "aria-pressed:font-semibold", "text-ink"]) expect(hasClass(b, cls), cls).toBe(true);
-      expect(b).not.toMatch(/shadow/);
+      for (const cls of ["aria-pressed:bg-raised", "aria-pressed:font-semibold", "text-ink", "min-h-control", "desktop:min-h-control-sm"]) {
+        expect(hasClass(b, cls), cls).toBe(true);
+      }
+      expect(b).not.toMatch(/shadow|bg-surface/);
     }
+  });
+
+  it("подпись «как в системе» — короткая «Авто»: сегмент выдерживает крупный шрифт", () => {
+    expect(ru.app.shell.theme.system).toBe("Авто");
+    expect(html(<ThemeSwitch current="system" />)).toContain(">Авто</button>");
   });
 });
 

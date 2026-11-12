@@ -3,8 +3,8 @@ import { cn } from "./cn";
 /** Варианты кнопки. Одна главная (`primary`) на экран, остальное — `secondary`, `quiet`, `danger`. */
 export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 /**
- * `md` — 48 px; `sm` — только второстепенные действия внутри карточек: 36 px на компьютере, на телефоне — 48 px
- * (высота касания). Главная кнопка бывает только `md`.
+ * `md` — 48 px; `sm` — второстепенные действия внутри карточек и действие в шапке компьютера (вторичная кнопка,
+ * Ruling 25): база — доступная высота 48 px, на компьютере 36 px (`desktop:min-h-control-sm`). Главная — только `md`.
  */
 export type ButtonSize = "md" | "sm";
 
@@ -29,33 +29,29 @@ const VARIANTS: Record<ButtonVariant, string> = {
   danger: "bg-danger-soft text-danger",
 };
 
-/** Отклик на наведение; в состоянии ожидания не применяется. */
+/** Отклик на наведение; у ожидающей не применяется, у отключённой гасится (not-disabled). */
 const HOVER: Record<ButtonVariant, string> = {
-  primary: "hover:opacity-90",
-  secondary: "hover:opacity-80",
-  quiet: "hover:bg-line",
-  danger: "hover:opacity-80",
+  primary: "hover:not-disabled:opacity-90",
+  secondary: "hover:not-disabled:opacity-80",
+  quiet: "hover:not-disabled:bg-line",
+  danger: "hover:not-disabled:opacity-80",
 };
 
 /**
- * Отключённая и ожидающая кнопка — тот же цвет, приглушённый непрозрачностью. Главная — 0,4: тёмная (в тёмной теме
- * светлая) плашка не спорит с соседней обычной главной кнопкой; текст остаётся on-action.
+ * Отключённая — одинаково у всех вариантов: подложка line, текст muted, без прозрачности (спокойная плашка, не
+ * спорит с активными). Пара muted/line в светлой теме ~4,0:1 — для неактивных элементов контраст не нормируется
+ * (WCAG 1.4.3), поэтому её нет в contrast.test.ts. Ожидающая (pending) — полный цвет варианта и индикатор.
  */
-const DIMMED: Record<ButtonVariant, { disabled: string; pending: string }> = {
-  primary: { disabled: "disabled:opacity-40", pending: "opacity-40" },
-  secondary: { disabled: "disabled:opacity-50", pending: "opacity-50" },
-  quiet: { disabled: "disabled:opacity-50", pending: "opacity-50" },
-  danger: { disabled: "disabled:opacity-50", pending: "opacity-50" },
-};
+const DISABLED = "disabled:cursor-not-allowed disabled:bg-line disabled:text-muted";
 
 const SIZES: Record<ButtonSize, string> = {
   md: "min-h-control px-6 text-body",
-  sm: "min-h-control-sm mobile:min-h-control px-4 text-sub",
+  sm: "min-h-control desktop:min-h-control-sm px-4 text-sub",
 };
 
 /**
- * Классы по уже разобранным пропсам (внутри kit: Button и ButtonLink). Запрет `sm` у главной держит тип пропсов
- * компонента, а не эта функция.
+ * Классы по уже разобранным пропсам. Только для файлов kit (Button, ButtonLink): запрет `sm` у главной держит тип
+ * пропсов компонента, а не эта функция; вне kit модуль не импортируется (сторож, правило 10).
  */
 export function lookClasses({
   variant = "primary",
@@ -66,12 +62,11 @@ export function lookClasses({
   return cn(
     "relative inline-flex min-w-0 max-w-full items-center justify-center gap-2 rounded-control text-center font-semibold no-underline",
     "transition-transform duration-100",
-    "disabled:cursor-not-allowed aria-disabled:cursor-not-allowed",
-    DIMMED[variant].disabled,
+    "aria-disabled:cursor-not-allowed",
     SIZES[size],
     VARIANTS[variant],
-    !pending && ["active:scale-press", HOVER[variant]],
-    pending && DIMMED[variant].pending,
+    DISABLED,
+    !pending && ["active:not-disabled:scale-press", HOVER[variant]],
     full && "w-full",
   );
 }

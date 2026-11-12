@@ -46,13 +46,13 @@ describe("Button", () => {
     expect(out).not.toContain("invisible");
   });
 
-  it("pending не откликается на наведение и нажатие, обычная — откликается", () => {
+  it("pending не откликается на наведение и нажатие, обычная — откликается (кроме отключённой)", () => {
     const busy = html(<Button pending>Ок</Button>);
-    expect(busy).not.toContain("hover:opacity");
-    expect(busy).not.toContain("active:scale-press");
+    expect(busy).not.toContain("hover:");
+    expect(busy).not.toContain("scale-press");
     const idle = html(<Button>Ок</Button>);
-    expect(idle).toContain("hover:opacity-90");
-    expect(idle).toContain("active:scale-press");
+    expect(hasClass(idle, "hover:not-disabled:opacity-90")).toBe(true);
+    expect(hasClass(idle, "active:not-disabled:scale-press")).toBe(true);
   });
 
   it("обычная кнопка без aria-disabled, aria-busy и disabled", () => {
@@ -73,14 +73,15 @@ describe("Button", () => {
     expect(html(<Button type="submit">Ок</Button>)).toContain('type="submit"');
   });
 
-  it("размер md — 48 px (min-h-control); sm — 36 px на компьютере и 48 px на телефоне", () => {
+  it("размер md — 48 px; sm — база 48 px (доступная высота), 36 px только вариантом desktop:", () => {
     const md = html(<Button>Ок</Button>);
     expect(hasClass(md, "min-h-control")).toBe(true);
-    expect(hasClass(md, "min-h-control-sm")).toBe(false);
+    expect(md).not.toContain("min-h-control-sm");
     const sm = html(<Button variant="secondary" size="sm">Ок</Button>);
-    expect(hasClass(sm, "min-h-control-sm")).toBe(true);
-    expect(hasClass(sm, "mobile:min-h-control")).toBe(true);
-    expect(hasClass(sm, "min-h-control")).toBe(false);
+    expect(hasClass(sm, "min-h-control")).toBe(true);
+    expect(hasClass(sm, "desktop:min-h-control-sm")).toBe(true);
+    expect(hasClass(sm, "min-h-control-sm")).toBe(false);
+    expect(sm).not.toContain("mobile:");
   });
 
   it("главная кнопка бывает только размера md: sm для primary не собирается типом", () => {
@@ -100,18 +101,25 @@ describe("Button", () => {
     expect(ok).toHaveLength(3);
   });
 
-  it("отключённая и ожидающая главная — тот же action с непрозрачностью 0,4, текст on-action", () => {
-    for (const out of [html(<Button disabled>Ок</Button>), html(<Button pending>Ок</Button>)]) {
-      expect(hasClass(out, "bg-action")).toBe(true);
-      expect(hasClass(out, "text-on-action")).toBe(true);
-      expect(out).not.toMatch(/bg-(?:line|canvas|muted)/);
-    }
-    expect(hasClass(html(<Button disabled>Ок</Button>), "disabled:opacity-40")).toBe(true);
-    expect(hasClass(html(<Button pending>Ок</Button>), "opacity-40")).toBe(true);
-    // У остальных вариантов — прежние 0,5.
-    expect(hasClass(html(<Button variant="secondary" pending>Ок</Button>), "opacity-50")).toBe(true);
-    expect(hasClass(html(<Button variant="secondary" disabled>Ок</Button>), "disabled:opacity-50")).toBe(true);
-  });
+  it.each(["primary", "secondary", "quiet", "danger"] as const)(
+    "%s: ожидание — полный цвет варианта и индикатор, без приглушения",
+    (variant) => {
+      const out = html(<Button variant={variant} pending>Ок</Button>);
+      expect(out).toContain("<svg");
+      const tag = out.match(/<button[^>]*>/)?.[0] ?? "";
+      expect(tag).not.toMatch(/[\s":]opacity-\d/);
+    },
+  );
+
+  it.each(["primary", "secondary", "quiet", "danger"] as const)(
+    "%s: отключённая — подложка line, текст muted, без прозрачности (одинаково у всех вариантов)",
+    (variant) => {
+      const out = html(<Button variant={variant} disabled>Ок</Button>);
+      for (const cls of ["disabled:bg-line", "disabled:text-muted"]) expect(hasClass(out, cls), cls).toBe(true);
+      const tag = out.match(/<button[^>]*>/)?.[0] ?? "";
+      expect(tag).not.toMatch(/[\s"](?:disabled:)?opacity-\d/);
+    },
+  );
 
   it("full растягивает кнопку, без full — нет", () => {
     expect(hasClass(html(<Button full>Ок</Button>), "w-full")).toBe(true);
@@ -218,6 +226,22 @@ describe("Поля", () => {
     for (const cls of ["text-sub", "font-medium"]) expect(hasClass(legend, cls), cls).toBe(true);
   });
 
+  it("Select: подсказка пустого выбора (option value=\"\") — muted, выбранное значение и список — ink", () => {
+    const select = html(
+      <Select label="Город" name="c" defaultValue="">
+        <option value="" disabled>
+          Выберите город
+        </option>
+        <option value="a">Астана</option>
+      </Select>,
+    ).match(/<select[^>]*>/)?.[0] ?? "";
+    // React экранирует в атрибуте «&», «'» и «>».
+    const attr = (cls: string) => cls.replace(/&/g, "&amp;").replace(/'/g, "&#x27;").replace(/>/g, "&gt;");
+    for (const cls of ["text-ink", "has-[option[value='']:checked]:text-muted", "[&>option]:text-ink"]) {
+      expect(hasClass(select, attr(cls)), cls).toBe(true);
+    }
+  });
+
   it("TextArea: без уголка изменения размера, растёт по содержимому от трёх строк, запасной вариант — 4 строки", () => {
     const area = html(<TextArea label="Описание" name="d" />).match(/<textarea[^>]*>/)?.[0] ?? "";
     for (const cls of ["resize-none", "field-sizing-content", "min-h-area"]) expect(hasClass(area, cls), cls).toBe(true);
@@ -285,10 +309,11 @@ describe("BackLink", () => {
     expect(out).toMatch(/<span class="sr-only">Назад: <\/span>/);
   });
 
-  it("цель касания 48 px на телефоне, 36 px на компьютере", () => {
+  it("цель касания: база 48 px, на компьютере 36 px вариантом desktop:", () => {
     const a = html(<BackLink href="/v2/deals" label="Сделки" />).match(/<a [^>]*>/)?.[0] ?? "";
-    expect(hasClass(a, "min-h-control-sm")).toBe(true);
-    expect(hasClass(a, "mobile:min-h-control")).toBe(true);
+    expect(hasClass(a, "min-h-control")).toBe(true);
+    expect(hasClass(a, "desktop:min-h-control-sm")).toBe(true);
+    expect(hasClass(a, "min-h-control-sm")).toBe(false);
   });
 });
 

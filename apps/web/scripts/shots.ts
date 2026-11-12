@@ -1,7 +1,8 @@
 // Снимки страниц нового интерфейса.
 //
-//   npx tsx scripts/shots.ts v2 v2/ui-kit [--out <папка>]
+//   npx tsx scripts/shots.ts v2 v2/ui-kit v2/catalog [--out <папка>]
 //
+// Путей сколько угодно (v2/catalog — заглушка раздела из меню гостя: на ней видно выделение текущего раздела).
 // Для каждого пути: компьютер — <имя>-desktop-{light,dark}.png (страница целиком); телефон —
 // <имя>-mobile-{light,dark}.png (страница целиком) и <имя>-mobile-{light,dark}-fold.png (только первый экран).
 // Файлы — в test-results/shots/ (или в --out).
@@ -21,7 +22,12 @@ import { chromium, devices, type BrowserContextOptions } from "@playwright/test"
 const BASE = (process.env.SHOTS_BASE ?? "http://127.0.0.1:3110").replace(/\/+$/, "");
 /** Витрина — единственная страница, где главных действий может быть много. */
 const SHOWCASE = "/v2/ui-kit";
-const USAGE = "Запуск: npx tsx scripts/shots.ts v2 v2/ui-kit [--out <папка>]";
+const USAGE = "Запуск: npx tsx scripts/shots.ts v2 v2/ui-kit v2/catalog [--out <папка>]";
+/**
+ * Выше этой высоты (CSS px) окно для полного снимка не растягивается: огромное окно Chromium рисует медленно и может
+ * упереться в предел текстуры. Тогда — штатный fullPage с предупреждением (прилипшая панель может застыть посередине).
+ */
+const MAX_STRETCH = 16_000;
 
 type Viewport = "mobile" | "desktop";
 type Theme = "light" | "dark";
@@ -123,7 +129,9 @@ async function main(): Promise<void> {
           // прилипшая панель вкладок (sticky) застывает посередине снимка поверх содержимого — на телефоне так не бывает.
           const size = page.viewportSize();
           const height = await page.evaluate(() => document.documentElement.scrollHeight);
-          if (size && height > size.height) {
+          if (height > MAX_STRETCH) {
+            say(`Предупреждение: ${route} (${viewport}, ${theme}) выше ${MAX_STRETCH} px (${height}) — снимок штатным fullPage, прилипшие панели могут стоять посередине.`);
+          } else if (size && height > size.height) {
             await page.setViewportSize({ width: size.width, height });
             await page.evaluate(() => document.fonts.ready);
           }

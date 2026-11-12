@@ -63,7 +63,10 @@
 
   /* Высота кнопок и полей — 48px: h-control, min-h-control. */
   --spacing-control: 3rem;
-  /* Малая кнопка 36px — только второстепенные действия внутри карточек: h-control-sm, min-h-control-sm. */
+  /*
+   * Малая высота 36px — только на компьютере (desktop:min-h-control-sm; на телефоне остаются 48px): второстепенные
+   * действия внутри карточек и действие в шапке компьютера (вторичная кнопка, Ruling 25).
+   */
   --spacing-control-sm: 2.25rem;
 
   /* Ширина содержимого: компьютер — до 1100px; планшет — колонка до 560px (спека, раздел 5). */
@@ -113,6 +116,7 @@
   --color-muted: var(--role-muted);
   --color-line: var(--role-line);
   --color-line-strong: var(--role-line-strong);
+  --color-track: var(--role-track);
   --color-action: var(--role-action);
   --color-on-action: var(--role-on-action);
   --color-accent: var(--role-accent);
@@ -139,6 +143,7 @@
   --role-muted: #6e6e73;
   --role-line: #e5e5ea;
   --role-line-strong: #8a8a8e;
+  --role-track: #e5e5ea; /* дорожка сегментов: белый выбранный сегмент (raised) на сером */
   --role-action: #1d1d1f;
   --role-on-action: #ffffff;
   --role-accent: #0a7d54;
@@ -167,6 +172,7 @@
   --role-muted: #a1a1a6;
   --role-line: #38383a;
   --role-line-strong: #78787d;
+  --role-track: #1c1c1e; /* выбранный сегмент (raised, #2c2c2e) светлее дорожки */
   --role-action: #f5f5f7;
   --role-on-action: #1d1d1f;
   --role-accent: #30b07a;
@@ -191,6 +197,7 @@
     --role-muted: #a1a1a6;
     --role-line: #38383a;
     --role-line-strong: #78787d;
+    --role-track: #1c1c1e;
     --role-action: #f5f5f7;
     --role-on-action: #1d1d1f;
     --role-accent: #30b07a;

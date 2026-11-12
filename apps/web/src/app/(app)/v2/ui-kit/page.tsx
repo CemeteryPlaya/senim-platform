@@ -76,6 +76,7 @@ const ROLES: readonly { swatch: string; label: string }[] = [
   { swatch: "bg-muted", label: s.colors.muted },
   { swatch: "bg-line", label: s.colors.line },
   { swatch: "bg-line-strong", label: s.colors.lineStrong },
+  { swatch: "bg-track", label: s.colors.track },
   { swatch: "bg-action", label: s.colors.action },
   { swatch: "bg-on-action", label: s.colors.onAction },
   { swatch: "bg-accent", label: s.colors.accent },

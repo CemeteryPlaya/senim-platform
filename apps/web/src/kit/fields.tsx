@@ -91,6 +91,10 @@ export function TextArea({ label, error, id: explicitId, className, rows = 4, ..
 
 export type SelectProps = Omit<ComponentProps<"select">, "name"> & FieldProps;
 
+/**
+ * Выпадающий список. Подсказка пустого выбора — вариант `<option value="">`: пока выбран он, текст поля muted, как
+ * placeholder текстового поля; выбранное значение и сам список вариантов — ink.
+ */
 export function Select({ label, error, id: explicitId, className, children, ...rest }: SelectProps) {
   const { id, errorId } = useFieldIds(explicitId, error);
   return (
@@ -102,7 +106,12 @@ export function Select({ label, error, id: explicitId, className, children, ...r
         <select
           id={id}
           aria-invalid={error ? true : undefined}
-          className={cn(controlClass, "h-control appearance-none pr-12", borderFor(Boolean(error)), className)}
+          className={cn(
+            controlClass,
+            "h-control appearance-none pr-12 has-[option[value='']:checked]:text-muted [&>option]:text-ink",
+            borderFor(Boolean(error)),
+            className,
+          )}
           {...rest}
           aria-describedby={describedBy(rest["aria-describedby"], errorId)}
         >

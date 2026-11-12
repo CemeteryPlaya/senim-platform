@@ -15,6 +15,7 @@ export const COLOR_ROLES = [
   "muted", // вторичный текст
   "line", // разделители внутри карточек и списков, трек прогресса
   "line-strong", // граница поля и выбора: 3:1 к фону (WCAG 1.4.11)
+  "track", // дорожка сегментированного переключателя: темнее выбранного сегмента (raised) в обеих темах
   "action", // одна главная кнопка
   "on-action", // текст на главной кнопке
   "accent", // статус, деньги «под защитой», ссылка-пояснение, прогресс
@@ -38,6 +39,7 @@ export const TOKENS: { light: Record<ColorRole, string>; dark: Record<ColorRole,
     muted: "#6e6e73",
     line: "#e5e5ea",
     "line-strong": "#8a8a8e",
+    track: "#e5e5ea", // как line: белый выбранный сегмент на серой дорожке
     action: "#1d1d1f",
     "on-action": "#ffffff",
     accent: "#0a7d54",
@@ -58,6 +60,7 @@ export const TOKENS: { light: Record<ColorRole, string>; dark: Record<ColorRole,
     muted: "#a1a1a6",
     line: "#38383a",
     "line-strong": "#78787d",
+    track: "#1c1c1e", // как surface: выбранный сегмент raised (#2c2c2e) светлее дорожки — приподнят, а не выемка
     action: "#f5f5f7",
     "on-action": "#1d1d1f",
     accent: "#30b07a",

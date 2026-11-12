@@ -13,7 +13,7 @@ export function BackLink({ href, label }: BackLinkProps) {
   return (
     <Link
       href={href}
-      className="-ml-2 inline-flex min-h-control-sm w-fit items-center gap-1 text-sub text-muted no-underline hover:text-ink mobile:min-h-control"
+      className="-ml-2 inline-flex min-h-control w-fit items-center gap-1 text-sub text-muted no-underline hover:text-ink desktop:min-h-control-sm"
     >
       <ChevronLeft aria-hidden className="size-5 shrink-0" />
       <span className="sr-only">{`${ru.app.kit.back}: `}</span>

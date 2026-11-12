@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { brand } from "@/config/brand";
-import { BackLink, Checkbox, EmptyState, FirstSteps, HelpBlock, NowNext, RadioCard, Section, WizardHeader } from "./index";
+import { BackLink, Checkbox, EmptyState, FirstSteps, HelpBlock, NowNext, RadioCard, WizardHeader } from "./index";
 import { count, hasClass, html, text } from "./test-utils";
 
 describe("FirstSteps", () => {
@@ -204,13 +204,16 @@ describe("NowNext", () => {
   });
 });
 
-describe("HelpBlock: заголовок по левому краю карточки", () => {
-  it("h2 «Помощь» без своих отступов; карточка — сразу под ним через зазор группы", () => {
+describe("HelpBlock: заголовок внутри карточки", () => {
+  it("«Помощь» — первая строка карточки: h2 17 px / 600 с полями строки (16 px), над карточкой заголовка нет", () => {
     const out = html(<HelpBlock items={[]} supportEmail="a@b.kz" />);
+    // Корень — сама карточка (section), h2 — первый элемент внутри неё.
+    expect(out).toMatch(/^<section class="[^"]*rounded-card[^"]*bg-surface[^"]*"><h2/);
+    expect(count(out, "<h2")).toBe(1);
     const h2 = out.match(/<h2[^>]*>/)?.[0] ?? "";
-    expect(h2).not.toMatch(/[\s"](?:-?m|p)[xlrse]?-\d/);
-    expect(out).not.toContain("px-1");
-    expect(out).toContain(html(<Section title={ru.app.kit.help.title}>{null}</Section>).replace("</section>", ""));
+    for (const cls of ["text-card", "text-ink", "px-4", "pt-4"]) expect(hasClass(h2, cls), cls).toBe(true);
+    expect(hasClass(h2, "text-section")).toBe(false);
+    expect(out).toContain(`>${ru.app.kit.help.title}</h2><ul`);
   });
 });
 

@@ -134,6 +134,9 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(theme).toMatch(/--spacing-split:\s*1\.5rem\s*;/);
     expect(theme).toMatch(/--grid-template-columns-split:\s*minmax\(0,\s*1\.5fr\)\s+minmax\(0,\s*1fr\)\s*;/);
     expect(theme).toMatch(/--container-narrow:\s*35rem\s*;/);
+    // Narrow на компьютере и колонка планшета — одна ширина (спека, раздел 5: 560 px).
+    const width = (name: string) => new RegExp(String.raw`--container-${name}:\s*([^;]+);`).exec(theme)?.[1];
+    expect(width("narrow")).toBe(width("column"));
     const desktop = block(css, /:root\[data-device="desktop"\]/);
     expect(desktop).toMatch(/--spacing-stack-section:\s*2rem\s*;/);
   });

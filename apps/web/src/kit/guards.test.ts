@@ -30,7 +30,11 @@ function walk(dir: string, out: string[]): void {
 /** Файлы v2: .ts/.tsx из kit и (app), кроме тестов и `tokens.ts` (единственный дом hex-значений). */
 function collect(roots: string[]): SourceFile[] {
   const all: string[] = [];
-  for (const root of roots) walk(path.join(SRC, root), all);
+  for (const root of roots) {
+    const full = path.join(SRC, root);
+    if (statSync(full).isDirectory()) walk(full, all);
+    else all.push(full);
+  }
   return all
     .filter((f) => /\.tsx?$/.test(f))
     .filter((f) => !/\.test\.tsx?$/.test(f))
@@ -46,6 +50,8 @@ function collect(roots: string[]): SourceFile[] {
 const KIT_AND_APP = collect(["kit", "app/(app)"]);
 const APP_ONLY = collect(["app/(app)"]);
 const KIT_ONLY = collect(["kit"]);
+/** Весь src, кроме kit (для правила 10): v1, модули, платформа и v2. */
+const OUTSIDE_KIT = collect(readdirSync(SRC).filter((name) => name !== "kit"));
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Разбор текста
@@ -201,17 +207,35 @@ export function findCyrillic(src: string): Hit[] {
 
 /**
  * 9. Адаптивность по ширине окна вместо версии устройства: варианты Tailwind `sm:`, `md:`, `lg:`, `xl:`, `2xl:`
- * (и `max-*:`, `min-*:`, `min-[600px]:`), а также `@media (min-width | max-width | width …)` и `matchMedia("(…width…)")`
- * в коде. Версии различают только `desktop:` и `mobile:` (data-device на <html>). Вариант — это префикс, за которым
- * сразу идёт класс: ключ объекта `sm: "…"` (с пробелом после двоеточия) — не вариант.
+ * (и `max-*:`, `min-*:`, `min-[600px]:`), контейнерные запросы Tailwind 4 (`@md:`, `@max-md:`, `@[600px]:`,
+ * `@min-[…]:`), а в коде — `@media (…width…)`, `matchMedia(…width…)` / `useMediaQuery(…width…)` с любой записью
+ * условия (в том числе `(600px <= width)`) и чтение `innerWidth` / `outerWidth`. Версии различают только `desktop:` и
+ * `mobile:` (data-device на <html>). Вариант — это префикс, за которым сразу идёт класс: ключ объекта `sm: "…"` (с
+ * пробелом после двоеточия), `size="sm"` и `text-sm` — не варианты.
  */
 export function findWidthVariant(src: string): Hit[] {
   const code = stripComments(src);
+  const variantEnd = String.raw`(?=:[\w!@[-])`;
+  const start = String.raw`(?<=^|[\s"'\`:!(])`;
   return [
-    ...matchLines(code, /(?<=^|[\s"'`:!(])(?:(?:max|min)-)?(?:sm|md|lg|xl|[2-7]xl)(?=:[\w!@[-])/),
-    ...matchLines(code, /(?<=^|[\s"'`:!(])(?:max|min)-\[[^\]\s]+\](?=:[\w!@[-])/),
-    ...matchLines(code, /(?:@media|matchMedia\s*\(\s*["'`])[^{"'`\n]*\(\s*(?:(?:min|max)-)?width\b/),
+    ...matchLines(code, new RegExp(`${start}(?:(?:max|min)-)?(?:sm|md|lg|xl|[2-7]xl)${variantEnd}`)),
+    ...matchLines(code, new RegExp(String.raw`${start}(?:max|min)-\[[^\]\s]+\]${variantEnd}`)),
+    // Контейнерные запросы: @md:, @max-md:, @min-[600px]:, @[600px]:, @md/name:.
+    ...matchLines(
+      code,
+      new RegExp(String.raw`${start}@(?:(?:max|min)-)?(?:[a-z0-9]+|\[[^\]\s]+\])(?:\/[\w-]+)?${variantEnd}`),
+    ),
+    ...matchLines(code, /(?:@media|(?:matchMedia|useMediaQuery)\s*\(\s*["'`])[^{"'`\n]*\bwidth\b/),
+    ...matchLines(code, /\b(?:innerWidth|outerWidth)\b/),
   ].sort((a, b) => a.line - b.line);
+}
+
+/**
+ * 10. Внутренний модуль kit снаружи: `button-styles` (там `lookClasses` без запрета `primary` + `sm`) импортируют только
+ * файлы `src/kit`; остальной код берёт кнопки из `@/kit` (или `@/kit/Button`), где тип держит запрет.
+ */
+export function findKitInternalImport(src: string): Hit[] {
+  return matchLines(stripComments(src), /["'`](?:@\/kit\/|(?:\.{1,2}\/)+(?:[^"'`]*\/)?kit\/)button-styles["'`]/);
 }
 
 /** 8. Слова «демо», «комисси…», «эскроу» в текстах: значения строк дерева (и результаты функций), без учёта регистра. */
@@ -262,6 +286,9 @@ describe("сторожа нового интерфейса: основа", () =>
     expect(KIT_ONLY.some((f) => f.rel.endsWith("cn.ts"))).toBe(true);
     expect(KIT_AND_APP.some((f) => f.rel.endsWith("tokens.ts"))).toBe(false);
     expect(KIT_AND_APP.some((f) => /\.test\./.test(f.rel))).toBe(false);
+    expect(OUTSIDE_KIT.some((f) => f.rel.startsWith("src/app/(app)/"))).toBe(true);
+    expect(OUTSIDE_KIT.some((f) => f.rel === "src/proxy.ts")).toBe(true);
+    expect(OUTSIDE_KIT.some((f) => f.rel.startsWith("src/kit/"))).toBe(false);
   });
 
   it("вырезание комментариев сохраняет номера строк и не трогает строки", () => {
@@ -508,6 +535,13 @@ describe("правило 9: версии различают desktop: и mobile:,
       "md:!p-4",
       "min-[600px]:flex",
       "max-[1023px]:hidden",
+      "lg:[&>p]:mt-2",
+      "@md:flex",
+      "@lg:grid-cols-2",
+      "@[600px]:flex",
+      "@max-md:hidden",
+      "@min-[30rem]:block",
+      "@md/card:flex",
     ]) {
       expect(findWidthVariant(`className="flex ${cls}"`), cls).toHaveLength(1);
     }
@@ -515,7 +549,22 @@ describe("правило 9: версии различают desktop: и mobile:,
     expect(findWidthVariant("const s = `@media (min-width: 600px) { }`;")).toHaveLength(1);
     expect(findWidthVariant("const s = `@media (max-width:600px)`;")).toHaveLength(1);
     expect(findWidthVariant("const s = `@media (width >= 40rem)`;")).toHaveLength(1);
+    expect(findWidthVariant("const s = `@media (600px <= width)`;")).toHaveLength(1);
     expect(findWidthVariant('window.matchMedia("(min-width: 1024px)")')).toHaveLength(1);
+    expect(findWidthVariant('matchMedia("(600px <= width <= 900px)")')).toHaveLength(1);
+    expect(findWidthVariant('const wide = useMediaQuery("(min-width: 1024px)");')).toHaveLength(1);
+    expect(findWidthVariant("const wide = useMediaQuery(`(width > 600px)`);")).toHaveLength(1);
+    expect(findWidthVariant("if (window.innerWidth > 1024) {}")).toHaveLength(1);
+    expect(findWidthVariant("const w = innerWidth;")).toHaveLength(1);
+    expect(findWidthVariant("const w = window.outerWidth;")).toHaveLength(1);
+    // Не варианты по ширине.
+    expect(findWidthVariant('<Button variant="quiet" size="sm">')).toHaveLength(0);
+    expect(findWidthVariant('const s = { sm: "a", md: "b" };')).toHaveLength(0);
+    expect(findWidthVariant('className="text-sm"')).toHaveLength(0);
+    expect(findWidthVariant('className="@container"')).toHaveLength(0);
+    expect(findWidthVariant('const e = "a@b.kz";')).toHaveLength(0);
+    expect(findWidthVariant('useMediaQuery("(prefers-reduced-motion: reduce)")')).toHaveLength(0);
+    expect(findWidthVariant("const innerWidthLabel = 1;")).toHaveLength(0);
     for (const cls of [
       "desktop:grid-cols-2",
       "mobile:min-h-control",
@@ -543,6 +592,22 @@ describe("правило 9: версии различают desktop: и mobile:,
       "Правило 9: версии различают варианты desktop: и mobile: (tokens.css), а не ширина окна.",
       scan(KIT_AND_APP, findWidthVariant),
     );
+  });
+});
+
+describe("правило 10: button-styles импортируют только файлы kit", () => {
+  it("самопроверка", () => {
+    expect(findKitInternalImport('import { lookClasses } from "@/kit/button-styles";')).toHaveLength(1);
+    expect(findKitInternalImport('import { x } from "../../kit/button-styles";')).toHaveLength(1);
+    expect(findKitInternalImport('import { x } from "../src/kit/button-styles";')).toHaveLength(1);
+    expect(findKitInternalImport('const m = await import("@/kit/button-styles");')).toHaveLength(1);
+    expect(findKitInternalImport('import { Button, buttonClasses } from "@/kit";')).toHaveLength(0);
+    expect(findKitInternalImport('import { ButtonLink } from "@/kit/Button";')).toHaveLength(0);
+    expect(findKitInternalImport('import { lookClasses } from "./button-styles";')).toHaveLength(0);
+    expect(findKitInternalImport("// from \"@/kit/button-styles\"")).toHaveLength(0);
+  });
+  it("вне src/kit нет импорта @/kit/button-styles", () => {
+    expectClean("Правило 10: кнопки — из @/kit, внутренний button-styles — только для kit.", scan(OUTSIDE_KIT, findKitInternalImport));
   });
 });
 

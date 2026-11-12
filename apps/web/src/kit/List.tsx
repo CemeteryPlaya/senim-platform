@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { cn } from "./cn";
 
-/** Список строк. Кладётся внутрь `Card` (обычно `padded={false}`); строки — `ListRow` или `ListItem`. */
-export function List({ children, className }: { children: ReactNode; className?: string }) {
+/** Строка списка — элемент (`ListRow` или `ListItem`), в том числе из map и по условию; текста напрямую нет. */
+type ListChild = ReactElement | false | null | undefined;
+
+/**
+ * Список строк. Кладётся внутрь `Card` (обычно `padded={false}`). Строки — только `ListRow` или `ListItem`: разделитель
+ * с отступом 16 px рисует `ListItem`, у голого `<li>` его не было бы.
+ */
+export function List({ children, className }: { children: ListChild | readonly (ListChild | readonly ListChild[])[]; className?: string }) {
   return <ul className={className}>{children}</ul>;
 }
 

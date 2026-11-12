@@ -83,6 +83,7 @@ export const kit = {
       muted: "muted — вторичный текст",
       line: "line — разделитель",
       lineStrong: "line-strong — граница поля",
+      track: "track — дорожка переключателя",
       action: "action — главная кнопка",
       onAction: "on-action — текст на кнопке",
       accent: "accent — ссылка, прогресс",
