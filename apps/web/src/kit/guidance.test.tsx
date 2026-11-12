@@ -1,13 +1,8 @@
-import type { ReactElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { brand } from "@/config/brand";
 import { Checkbox, EmptyState, FirstSteps, HelpBlock, NowNext, RadioCard, WizardHeader } from "./index";
-
-const html = (el: ReactElement): string => renderToStaticMarkup(el);
-const text = (el: ReactElement): string => html(el).replace(/<[^>]*>/g, "");
-const count = (out: string, needle: string): number => out.split(needle).length - 1;
+import { count, hasClass, html, text } from "./test-utils";
 
 describe("FirstSteps", () => {
   it("пустой список и все шаги выполнены — ничего не рисует", () => {
@@ -182,10 +177,6 @@ describe("brand.support", () => {
   });
 });
 
-/** Класс как целое слово. */
-const hasClass = (out: string, cls: string): boolean =>
-  new RegExp(`class="(?:[^"]*\\s)?${cls.replace(/-/g, "\\$&")}(?=\\s|")`).test(out);
-
 describe("Checkbox: нарисованный флажок", () => {
   it("нативный input скрыт визуально (sr-only peer) и сохраняет атрибуты", () => {
     const out = html(<Checkbox label="Согласен" name="ok" value="1" disabled error="Нужно" aria-describedby="h" />);
@@ -206,6 +197,16 @@ describe("Checkbox: нарисованный флажок", () => {
     const bad = html(<Checkbox label="А" name="a" error="Нужно" />);
     expect(hasClass(bad, "border-danger")).toBe(true);
     expect(hasClass(bad, "border-line-strong")).toBe(false);
+  });
+});
+
+describe("Checkbox: отключённый", () => {
+  it("тускнеет весь элемент вместе с подписью, курсор not-allowed — как у RadioCard", () => {
+    const out = html(<Checkbox label="Согласен" name="ok" disabled />);
+    const label = out.match(/<label[^>]*>/)?.[0] ?? "";
+    expect(hasClass(label, "has-disabled:opacity-50")).toBe(true);
+    expect(hasClass(label, "has-disabled:cursor-not-allowed")).toBe(true);
+    expect(out).not.toContain("peer-disabled:opacity-50");
   });
 });
 

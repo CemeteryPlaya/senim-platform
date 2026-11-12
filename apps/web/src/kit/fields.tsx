@@ -120,7 +120,7 @@ export function Checkbox({ label, error, id: explicitId, className, ...rest }: C
         htmlFor={id}
         className={cn(
           "flex min-h-control cursor-pointer items-center gap-3 text-body text-ink",
-          rest.disabled && "cursor-not-allowed",
+          "has-disabled:cursor-not-allowed has-disabled:opacity-50",
         )}
       >
         {/* Нативный input скрыт визуально: состояние, клавиатура и диктор остаются нативными. */}
@@ -139,7 +139,6 @@ export function Checkbox({ label, error, id: explicitId, className, ...rest }: C
             error ? "border-danger" : "border-line-strong",
             "peer-checked:border-action peer-checked:bg-action peer-checked:[&>svg]:opacity-100",
             "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus",
-            "peer-disabled:opacity-50",
           )}
         >
           <Check className="size-4 opacity-0" />

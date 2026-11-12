@@ -1,5 +1,3 @@
-import type { ReactElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   Button,
@@ -20,20 +18,10 @@ import {
   TextArea,
   TextField,
 } from "./index";
-
-const html = (el: ReactElement): string => renderToStaticMarkup(el);
-const ENTITIES: Record<string, string> = { "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" };
-const text = (el: ReactElement): string =>
-  html(el)
-    .replace(/<[^>]*>/g, "")
-    .replace(/&(?:nbsp|amp|lt|gt|quot|#x27);/g, (m) => ENTITIES[m] ?? m);
+import { hasClass, html, text } from "./test-utils";
 
 const NB = " ";
 const describedByPair = /aria-describedby="([^"]+)"[\s\S]*id="\1"|id="([^"]+)"[\s\S]*aria-describedby="\2"/;
-/** Класс как целое слово: `w-full` не совпадает с `max-w-full`, `min-h-control` — с `min-h-control-sm`. */
-const hasClass = (out: string, cls: string): boolean =>
-  new RegExp(`class="[^"]*(?:^|\\s)${cls.replace(/[-/]/g, "\\$&")}(?=\\s|")`).test(out);
-
 describe("Button", () => {
   it("primary по умолчанию ставит data-primary-action, остальные варианты нет", () => {
     expect(html(<Button>Ок</Button>)).toContain("data-primary-action");

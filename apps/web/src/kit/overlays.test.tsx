@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { ReactElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { html } from "./test-utils";
 import { Button, ConfirmDialog, Dialog, Explain, Popover, Sheet, Toaster } from "./index";
 import { ru } from "@/i18n/ru";
 import { SPRING } from "./motion";
@@ -11,8 +10,6 @@ import { toastClassNames } from "./Toaster";
 
 // Статический рендер закрытого состояния: в разметке только триггер. Поведение открытого окна
 // (фокус внутри и возврат на триггер, Esc, затемнение, жест шторки) проверяет e2e (задача 10).
-
-const html = (el: ReactElement): string => renderToStaticMarkup(el);
 
 describe("Explain", () => {
   it("на телефоне — ссылка-кнопка, открывающая шторку", () => {

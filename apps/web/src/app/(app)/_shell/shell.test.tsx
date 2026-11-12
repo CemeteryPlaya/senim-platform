@@ -1,6 +1,5 @@
-import type { ReactElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { count, hasClass, html } from "@/kit/test-utils";
 import { ru } from "@/i18n/ru";
 
 const nav = vi.hoisted(() => ({ pathname: null as string | null }));
@@ -25,11 +24,6 @@ const guestNav = navFor(null, OFF);
 const operatorNav = navFor({ role: "OPERATOR", executor: null }, OFF);
 const client = { fullName: "Айгерим Сапарова" };
 
-const html = (el: ReactElement): string => renderToStaticMarkup(el);
-const count = (s: string, sub: string): number => s.split(sub).length - 1;
-/** Класс как целое слово: `glass` не совпадает с `glass-x`, `sticky` — с `sticky-y`. */
-const hasClass = (tag: string, cls: string): boolean =>
-  new RegExp(`class="(?:[^"]*\\s)?${cls.replace(/[-/.]/g, "\\$&")}(?=\\s|")`).test(tag);
 /** Открывающий тег первого элемента, у которого есть атрибут `attr`. */
 const tagWith = (out: string, attr: string): string => {
   const at = out.indexOf(attr);
