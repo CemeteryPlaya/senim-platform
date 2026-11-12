@@ -1,2 +1,43 @@
-/* Стили нового интерфейса (v2). Токены и шрифт добавит следующая задача этапа 1. */
-@import "tailwindcss";
+/*
+ * Стили нового интерфейса (v2). Классы Tailwind собираются только из кода v2 (src/kit и группа (app)):
+ * source(none) отключает автопоиск, иначе в сборку v2 попали бы классы v1.
+ */
+@import "tailwindcss" source(none);
+@import "../../kit/tokens.css";
+
+@source "../../kit";
+@source ".";
+
+@layer base {
+  html {
+    @apply bg-canvas;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-body text-ink antialiased;
+  }
+
+  /* Кольцо фокуса с клавиатуры — на любом интерактивном элементе. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-focus;
+  }
+}
+
+/*
+ * Меньше движения: без сдвигов и масштаба — только короткое проявление. Шторка, поповер и диалог
+ * (motion) учитывают настройку сами и оставляют проявление; здесь — то, что делает CSS: нажатие
+ * без масштаба, CSS-анимации (индикаторы, скелетоны) останавливаются, прокрутка без плавности.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --scale-press: 1;
+  }
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

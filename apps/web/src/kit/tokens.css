@@ -1,0 +1,180 @@
+/*
+ * Дизайн-токены нового интерфейса (v2): «спокойный, как Apple», светлая и тёмная тема.
+ * Источник — спека редизайна, раздел 4, и docs/design/v3/rules.md.
+ *
+ * Цвета задаются ролями. Значения ролей — переменные --role-* в трёх блоках: светлая тема (:root),
+ * тёмная по выбору ([data-theme="dark"] на <html>) и тёмная по системе (prefers-color-scheme, если
+ * пользователь не выбрал светлую). Утилиты Tailwind (bg-canvas, text-ink, border-line…) ссылаются на
+ * --role-* через @theme inline, поэтому одна разметка работает в обеих темах.
+ * Те же hex — в tokens.ts; равенство держит tokens.test.ts, контраст пар — contrast.test.ts.
+ *
+ * Стандартные шкалы Tailwind обнулены (`--color-*: initial` и т. д.): случайный `bg-blue-500`,
+ * `font-bold` или `rounded-xl` не собирается. Размеры — в rem, растут с системным шрифтом.
+ */
+
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --font-weight-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-shadow-*: initial;
+
+  /* Шрифт: next/font кладёт --font-inter на <html> (src/kit/fonts.ts); запасной — системный. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Начертания: только 400, 500, 600. */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* Текст. Трекинг — по размеру: у основного 0, у заголовков отрицательный. */
+  --text-body: 1.0625rem; /* 17px — основной */
+  --text-body--line-height: 1.45;
+  --text-sub: 0.9375rem; /* 15px — вторичный */
+  --text-sub--line-height: 1.4;
+  --text-small: 0.8125rem; /* 13px — только несущественное: подпись вкладки, метка над значением */
+  --text-small--line-height: 1.35;
+  --text-card: 1.0625rem; /* 17px / 600 — заголовок карточки */
+  --text-card--line-height: 1.35;
+  --text-card--font-weight: 600;
+  --text-section: 1.25rem; /* 20px — заголовок раздела */
+  --text-section--line-height: 1.25;
+  --text-section--letter-spacing: -0.02em;
+  --text-section--font-weight: 600;
+  --text-title: 1.75rem; /* 28px на телефоне, 32px на компьютере (см. data-device ниже) — заголовок экрана */
+  --text-title--line-height: 1.1;
+  --text-title--letter-spacing: -0.025em;
+  --text-title--font-weight: 600;
+
+  /* Радиусы. Кнопка: 14px на телефоне, 12px на компьютере (см. data-device ниже). */
+  --radius-card: 1.125rem; /* 18px */
+  --radius-control: 0.875rem; /* 14px — кнопка */
+  --radius-field: 0.75rem; /* 12px — поле */
+  --radius-chip: 0.375rem; /* 6px — чип статуса */
+  --radius-bar: 1.375rem; /* 22px — панель вкладок */
+  --radius-sheet: 1.5rem; /* 24px — шторка */
+  --radius-full: 9999px; /* круг: аватар, точка статуса */
+
+  /* Высота кнопок и полей — 48px: h-control, min-h-control. */
+  --spacing-control: 3rem;
+
+  /* Ширина содержимого: компьютер — до 1100px; планшет — колонка до 560px (спека, раздел 5). */
+  --container-content: 68.75rem;
+  --container-column: 35rem;
+}
+
+@theme inline {
+  --color-canvas: var(--role-canvas);
+  --color-surface: var(--role-surface);
+  --color-raised: var(--role-raised);
+  --color-ink: var(--role-ink);
+  --color-muted: var(--role-muted);
+  --color-line: var(--role-line);
+  --color-action: var(--role-action);
+  --color-on-action: var(--role-on-action);
+  --color-accent: var(--role-accent);
+  --color-accent-soft: var(--role-accent-soft);
+  --color-danger: var(--role-danger);
+  --color-danger-soft: var(--role-danger-soft);
+  --color-warn: var(--role-warn);
+  --color-warn-soft: var(--role-warn-soft);
+  --color-focus: var(--role-focus);
+
+  /* Тени — только у плавающего: панель вкладок, поповер, меню, тост (float) и шторка (sheet). */
+  --shadow-float: 0 0.5rem 1.5rem -0.25rem color-mix(in srgb, var(--shade) 14%, transparent),
+    0 0.0625rem 0.1875rem color-mix(in srgb, var(--shade) 8%, transparent);
+  --shadow-sheet: 0 -0.5rem 2rem color-mix(in srgb, var(--shade) 16%, transparent);
+}
+
+:root {
+  color-scheme: light;
+  --role-canvas: #f5f5f7;
+  --role-surface: #ffffff;
+  --role-raised: #ffffff;
+  --role-ink: #1d1d1f;
+  --role-muted: #6e6e73;
+  --role-line: #e5e5ea;
+  --role-action: #1d1d1f;
+  --role-on-action: #ffffff;
+  --role-accent: #0a7d54;
+  --role-accent-soft: #e6f3ec;
+  --role-danger: #b42d2d;
+  --role-danger-soft: #fbeceb;
+  --role-warn: #8a5a00;
+  --role-warn-soft: #fbf1de;
+  --role-focus: #0a7d54;
+  --shade: var(--role-ink); /* цвет тени: почти чёрный */
+
+  /* Отклик на нажатие: масштаб 0,97 (утилита scale-press, обычно с active:). */
+  --scale-press: 0.97;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --role-canvas: #000000;
+  --role-surface: #1c1c1e;
+  --role-raised: #2c2c2e;
+  --role-ink: #f5f5f7;
+  --role-muted: #a1a1a6;
+  --role-line: #38383a;
+  --role-action: #f5f5f7;
+  --role-on-action: #1d1d1f;
+  --role-accent: #30b07a;
+  --role-accent-soft: #12382a;
+  --role-danger: #f2827a;
+  --role-danger-soft: #3d1d1c;
+  --role-warn: #e3a23b;
+  --role-warn-soft: #3a2c12;
+  --role-focus: #30b07a;
+  --shade: var(--role-canvas); /* в тёмной теме ink светлый — тень берёт чёрный фон */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --role-canvas: #000000;
+    --role-surface: #1c1c1e;
+    --role-raised: #2c2c2e;
+    --role-ink: #f5f5f7;
+    --role-muted: #a1a1a6;
+    --role-line: #38383a;
+    --role-action: #f5f5f7;
+    --role-on-action: #1d1d1f;
+    --role-accent: #30b07a;
+    --role-accent-soft: #12382a;
+    --role-danger: #f2827a;
+    --role-danger-soft: #3d1d1c;
+    --role-warn: #e3a23b;
+    --role-warn-soft: #3a2c12;
+    --role-focus: #30b07a;
+    --shade: var(--role-canvas);
+  }
+}
+
+/* Компьютерная версия (data-device на <html> ставит оболочка): крупнее заголовок, кнопка чуть строже. */
+:root[data-device="desktop"] {
+  --text-title: 2rem;
+  --radius-control: 0.75rem;
+}
+
+/* Нажатие: active:scale-press. Значение — переменная, чтобы prefers-reduced-motion мог его выключить. */
+@utility scale-press {
+  scale: var(--scale-press);
+}
+
+/*
+ * Полупрозрачная панель (шапка на компьютере, панель вкладок на телефоне). Полупрозрачное
+ * на полупрозрачное не кладётся; при prefers-reduced-transparency — сплошной фон.
+ */
+@utility glass {
+  background-color: color-mix(in srgb, var(--role-surface) 80%, transparent);
+  backdrop-filter: saturate(1.8) blur(1.25rem);
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: var(--role-surface);
+    backdrop-filter: none;
+  }
+}
