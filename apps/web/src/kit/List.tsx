@@ -3,9 +3,21 @@ import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "./cn";
 
-/** Список строк с разделителем `line`. Кладётся внутрь `Card` (обычно `padded={false}`). */
+/** Список строк. Кладётся внутрь `Card` (обычно `padded={false}`); строки — `ListRow` или `ListItem`. */
 export function List({ children, className }: { children: ReactNode; className?: string }) {
-  return <ul className={cn("divide-y divide-line", className)}>{children}</ul>;
+  return <ul className={className}>{children}</ul>;
+}
+
+/**
+ * Строка списка с разделителем снизу: линия `line` с отступом 16 px слева, как в эталонах; у последней строки
+ * разделителя нет. Для строк со своей разметкой (например, ссылка на почту в HelpBlock).
+ */
+export function ListItem({ children }: { children: ReactNode }) {
+  return (
+    <li className="relative after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-4 after:border-b after:border-line last:after:hidden">
+      {children}
+    </li>
+  );
 }
 
 export type ListRowProps = {
@@ -17,6 +29,7 @@ export type ListRowProps = {
 
 const rowClass = "flex min-h-control w-full items-center justify-between gap-4 px-4 py-3 text-body";
 
+/** Строка «подпись — значение». Значение — muted; сумма (`Money`) задаёт свой цвет ink сама. */
 export function ListRow({ label, value, href }: ListRowProps) {
   const content = (
     <>
@@ -30,7 +43,7 @@ export function ListRow({ label, value, href }: ListRowProps) {
     </>
   );
   return (
-    <li>
+    <ListItem>
       {href ? (
         <Link href={href} className={cn(rowClass, "no-underline transition-colors duration-100 hover:bg-canvas active:bg-line")}>
           {content}
@@ -38,6 +51,6 @@ export function ListRow({ label, value, href }: ListRowProps) {
       ) : (
         <div className={rowClass}>{content}</div>
       )}
-    </li>
+    </ListItem>
   );
 }

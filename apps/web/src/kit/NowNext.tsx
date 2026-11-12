@@ -8,24 +8,23 @@ export type NowNextProps = {
 };
 
 /**
- * «Что сейчас происходит»: первая карточка сделки и заявки. Обычная разметка без role="status":
- * блок есть на странице с загрузки, а живая область объявляла бы его при каждой подстановке данных.
+ * «Что сейчас происходит»: первая карточка сделки и заявки. «Дальше» — в той же карточке под разделителем: мелкая
+ * серая подпись, как у «Сейчас», и строка обычным весом. Обычная разметка без role="status": блок есть на странице
+ * с загрузки, а живая область объявляла бы его при каждой подстановке данных.
  */
 export function NowNext({ now, next }: NowNextProps) {
+  const t = ru.app.kit.nowNext;
   return (
-    <div className="flex flex-col gap-2">
-      <Card as="section">
-        <p className="text-small text-muted">{ru.app.kit.nowNext.now}</p>
-        <h2 className="mt-1 text-card text-ink">{now.title}</h2>
-        {now.body && <p className="mt-1 text-sub text-muted">{now.body}</p>}
-      </Card>
+    <Card as="section">
+      <p className="text-small text-muted">{t.now}</p>
+      <h2 className="mt-1 text-card text-ink">{now.title}</h2>
+      {now.body && <p className="mt-1 text-sub text-muted">{now.body}</p>}
       {next && (
-        <p className="px-1 text-sub text-muted">
-          <span className="font-medium text-ink">{ru.app.kit.nowNext.next}</span>
-          {": "}
-          {next}
-        </p>
+        <div className="mt-3 border-t border-line pt-3">
+          <p className="text-small text-muted">{t.next}</p>
+          <p className="mt-1 text-body text-ink">{next}</p>
+        </div>
       )}
-    </div>
+    </Card>
   );
 }

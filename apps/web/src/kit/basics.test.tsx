@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BackLink,
   Button,
   ButtonLink,
   Card,
@@ -72,13 +73,44 @@ describe("Button", () => {
     expect(html(<Button type="submit">Ок</Button>)).toContain('type="submit"');
   });
 
-  it("размер md — min-h-control, sm — min-h-control-sm", () => {
+  it("размер md — 48 px (min-h-control); sm — 36 px на компьютере и 48 px на телефоне", () => {
     const md = html(<Button>Ок</Button>);
     expect(hasClass(md, "min-h-control")).toBe(true);
     expect(hasClass(md, "min-h-control-sm")).toBe(false);
-    const sm = html(<Button size="sm">Ок</Button>);
+    const sm = html(<Button variant="secondary" size="sm">Ок</Button>);
     expect(hasClass(sm, "min-h-control-sm")).toBe(true);
+    expect(hasClass(sm, "mobile:min-h-control")).toBe(true);
     expect(hasClass(sm, "min-h-control")).toBe(false);
+  });
+
+  it("главная кнопка бывает только размера md: sm для primary не собирается типом", () => {
+    // @ts-expect-error — у главной кнопки размер только md (48 px), sm запрещён типом
+    const implicit = <Button size="sm">Ок</Button>;
+    // @ts-expect-error — и при явном variant="primary"
+    const explicit = <Button variant="primary" size="sm">Ок</Button>;
+    // @ts-expect-error — и у кнопки-ссылки
+    const link = <ButtonLink href="/x" size="sm">Ок</ButtonLink>;
+    expect([implicit, explicit, link]).toHaveLength(3);
+    // Разрешённые сочетания собираются.
+    const ok = [
+      <Button key="a" size="md">Ок</Button>,
+      <Button key="b" variant="quiet" size="sm">Ок</Button>,
+      <ButtonLink key="c" href="/x" variant="danger" size="sm">Ок</ButtonLink>,
+    ];
+    expect(ok).toHaveLength(3);
+  });
+
+  it("отключённая и ожидающая главная — тот же action с непрозрачностью 0,4, текст on-action", () => {
+    for (const out of [html(<Button disabled>Ок</Button>), html(<Button pending>Ок</Button>)]) {
+      expect(hasClass(out, "bg-action")).toBe(true);
+      expect(hasClass(out, "text-on-action")).toBe(true);
+      expect(out).not.toMatch(/bg-(?:line|canvas|muted)/);
+    }
+    expect(hasClass(html(<Button disabled>Ок</Button>), "disabled:opacity-40")).toBe(true);
+    expect(hasClass(html(<Button pending>Ок</Button>), "opacity-40")).toBe(true);
+    // У остальных вариантов — прежние 0,5.
+    expect(hasClass(html(<Button variant="secondary" pending>Ок</Button>), "opacity-50")).toBe(true);
+    expect(hasClass(html(<Button variant="secondary" disabled>Ок</Button>), "disabled:opacity-50")).toBe(true);
   });
 
   it("full растягивает кнопку, без full — нет", () => {
@@ -167,6 +199,31 @@ describe("Поля", () => {
     expect(out).not.toContain("aria-invalid");
   });
 
+  it("подписи полей и групп — 15 px / 500 (text-sub font-medium), одинаково в обеих версиях", () => {
+    const outs = [
+      html(<TextField label="Имя" name="a" />),
+      html(<TextArea label="Описание" name="b" />),
+      html(
+        <Select label="Город" name="c">
+          <option value="a">Астана</option>
+        </Select>,
+      ),
+    ];
+    for (const out of outs) {
+      const label = out.match(/<label[^>]*>/)?.[0] ?? "";
+      for (const cls of ["text-sub", "font-medium"]) expect(hasClass(label, cls), cls).toBe(true);
+      expect(label).not.toMatch(/(?:desktop|mobile):/);
+    }
+    const legend = html(<RadioGroup legend="Способ">x</RadioGroup>).match(/<legend[^>]*>/)?.[0] ?? "";
+    for (const cls of ["text-sub", "font-medium"]) expect(hasClass(legend, cls), cls).toBe(true);
+  });
+
+  it("TextArea: без уголка изменения размера, растёт по содержимому от трёх строк, запасной вариант — 4 строки", () => {
+    const area = html(<TextArea label="Описание" name="d" />).match(/<textarea[^>]*>/)?.[0] ?? "";
+    for (const cls of ["resize-none", "field-sizing-content", "min-h-area"]) expect(hasClass(area, cls), cls).toBe(true);
+    expect(area).toContain('rows="4"');
+  });
+
   it("RadioCard: радиокнопка в подписи, выбранная выделяется рамкой без ring", () => {
     const out = html(<RadioCard label="Самовывоз" name="m" value="a" />);
     expect(out).toContain('type="radio"');
@@ -202,14 +259,47 @@ describe("Money", () => {
     expect(out).toContain("tabular-nums");
     expect(out).toContain("whitespace-nowrap");
   });
+
+  it("сумма — цвет ink, в том числе значением строки списка; tone=inherit берёт цвет окружения", () => {
+    expect(hasClass(html(<Money tiyn={100n} />), "text-ink")).toBe(true);
+    expect(hasClass(html(<Money tiyn={100n} tone="inherit" />), "text-ink")).toBe(false);
+    const row = html(
+      <List>
+        <ListRow label="К оплате" value={<Money tiyn={100n} />} />
+      </List>,
+    );
+    const money = row.match(/<span[^>]*tabular-nums[^>]*>/)?.[0] ?? "";
+    expect(hasClass(money, "text-ink")).toBe(true);
+  });
+});
+
+describe("BackLink", () => {
+  it("шеврон, название родителя, 15 px, цвет muted; диктор слышит «Назад»", () => {
+    const out = html(<BackLink href="/v2/deals" label="Сделки" />);
+    const a = out.match(/<a [^>]*>/)?.[0] ?? "";
+    expect(a).toContain('href="/v2/deals"');
+    for (const cls of ["text-sub", "text-muted"]) expect(hasClass(a, cls), cls).toBe(true);
+    expect(a).not.toMatch(/text-accent|text-body/);
+    expect(out).toContain("lucide-chevron-left");
+    expect(text(<BackLink href="/v2/deals" label="Сделки" />)).toBe("Назад: Сделки");
+    expect(out).toMatch(/<span class="sr-only">Назад: <\/span>/);
+  });
+
+  it("цель касания 48 px на телефоне, 36 px на компьютере", () => {
+    const a = html(<BackLink href="/v2/deals" label="Сделки" />).match(/<a [^>]*>/)?.[0] ?? "";
+    expect(hasClass(a, "min-h-control-sm")).toBe(true);
+    expect(hasClass(a, "mobile:min-h-control")).toBe(true);
+  });
 });
 
 describe("PageTitle", () => {
-  it("один h1 и видимая ссылка «назад»", () => {
-    const out = html(<PageTitle title="Сделка" back={{ href: "/v2/deals", label: "Сделки" }} />);
+  it("один h1 и видимая ссылка «назад» — BackLink", () => {
+    const back = { href: "/v2/deals", label: "Сделки" };
+    const out = html(<PageTitle title="Сделка" back={back} />);
     expect(out).toMatch(/<a[^>]+href="\/v2\/deals"/);
     expect(out.match(/<h1/g)?.length).toBe(1);
-    expect(text(<PageTitle title="Сделка" back={{ href: "/v2/deals", label: "Сделки" }} />)).toContain("Сделки");
+    expect(text(<PageTitle title="Сделка" back={back} />)).toContain("Сделки");
+    expect(out).toContain(html(<BackLink {...back} />));
   });
 
   it("без back ссылки нет; lead показывается", () => {
@@ -250,6 +340,12 @@ describe("Progress", () => {
     expect(html(<Progress value={1} max={Number.POSITIVE_INFINITY} label="Шаги" />)).toBe("");
   });
 
+  it("толщина полосы — 4 px (h-progress)", () => {
+    const bar = html(<Progress value={1} max={2} label="Шаги" />).match(/<div[^>]*role="progressbar"[^>]*>/)?.[0] ?? "";
+    expect(hasClass(bar, "h-progress")).toBe(true);
+    expect(bar).not.toMatch(/\sh-\d|"h-\d/);
+  });
+
   it("заливка прямоугольная: масштаб по X внутри скруглённого трека", () => {
     const out = html(<Progress value={1} max={2} label="Шаги" />);
     expect(out).toContain("scaleX(0.5)");
@@ -281,6 +377,36 @@ describe("Остальное", () => {
   it("Card и StatusChip", () => {
     expect(html(<Card as="section">x</Card>)).toMatch(/^<section/);
     expect(html(<StatusChip tone="accent">В пути</StatusChip>)).toContain("В пути");
+  });
+
+  it("StatusChip: 13 px / 600, отступы 4 × 8 px, радиус 6 px, как .chip в эталоне", () => {
+    const chip = html(<StatusChip tone="accent">В пути</StatusChip>);
+    for (const cls of ["text-small", "font-semibold", "px-2", "py-1", "rounded-chip"]) expect(hasClass(chip, cls), cls).toBe(true);
+    expect(hasClass(chip, "text-sub")).toBe(false);
+  });
+
+  it("StatusChip neutral: подложка line, текст ink (muted на line ниже 4,5:1)", () => {
+    const chip = html(<StatusChip tone="neutral">Черновик</StatusChip>);
+    expect(hasClass(chip, "bg-line")).toBe(true);
+    expect(hasClass(chip, "text-ink")).toBe(true);
+    expect(hasClass(chip, "bg-canvas")).toBe(false);
+  });
+
+  it("List: разделители с отступом 16 px слева, у последней строки разделителя нет", () => {
+    const out = html(
+      <List>
+        <ListRow label="Срок" value="3 дня" />
+        <ListRow label="Адрес" value="—" />
+      </List>,
+    );
+    expect(out).not.toContain("divide-y");
+    const items = out.match(/<li[^>]*>/g) ?? [];
+    expect(items).toHaveLength(2);
+    for (const li of items) {
+      for (const cls of ["relative", "after:absolute", "after:left-4", "after:right-0", "after:bottom-0", "after:border-b", "after:border-line", "last:after:hidden"]) {
+        expect(hasClass(li, cls), cls).toBe(true);
+      }
+    }
   });
 
   it("List: строки, ссылка со своим hover-фоном", () => {

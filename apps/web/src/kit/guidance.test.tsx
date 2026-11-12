@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { brand } from "@/config/brand";
-import { Checkbox, EmptyState, FirstSteps, HelpBlock, NowNext, RadioCard, WizardHeader } from "./index";
+import { BackLink, Checkbox, EmptyState, FirstSteps, HelpBlock, NowNext, RadioCard, Section, WizardHeader } from "./index";
 import { count, hasClass, html, text } from "./test-utils";
 
 describe("FirstSteps", () => {
@@ -140,17 +140,24 @@ describe("WizardHeader", () => {
     expect(hasClass(out.match(/<h2[^>]*>/)?.[0] ?? "", "text-title")).toBe(true);
   });
 
-  it("«Назад» — видимая ссылка, когда задана", () => {
+  it("«Назад» — видимая ссылка, когда задана; тот же BackLink, что у PageTitle", () => {
     expect(html(<WizardHeader step={1} total={3} title="Т" />)).not.toMatch(/<a\s/);
-    const out = html(<WizardHeader step={2} total={3} title="Т" back={{ href: "/v2/prev", label: "Назад" }} />);
+    const back = { href: "/v2/prev", label: "Заявка" };
+    const out = html(<WizardHeader step={2} total={3} title="Т" back={back} />);
     expect(out).toContain('href="/v2/prev"');
-    expect(out).toContain("Назад");
+    expect(out).toContain(html(<BackLink {...back} />));
+    expect(out).not.toContain("text-accent");
   });
 });
 
 describe("EmptyState", () => {
   it("без действия нет главной кнопки", () => {
     expect(html(<EmptyState title="Пусто" body="Текст" />)).not.toContain("data-primary-action");
+  });
+
+  it("текст по центру и не шире 560 px — во всю ширину сетки строки не растягиваются", () => {
+    const body = html(<EmptyState title="Пусто" body="Текст" />).match(/<p[^>]*>Текст<\/p>/)?.[0] ?? "";
+    for (const cls of ["max-w-narrow", "mx-auto"]) expect(hasClass(body, cls), cls).toBe(true);
   });
 
   it("с действием — одна главная ссылка-кнопка", () => {
@@ -175,6 +182,35 @@ describe("NowNext", () => {
     const out = html(<NowNext now={{ title: "Ждём" }} />);
     expect(out).not.toContain(ru.app.kit.nowNext.next);
     expect(out).not.toContain("<h1");
+    expect(out).not.toContain("border-t");
+  });
+
+  it("«Дальше» — в той же карточке под разделителем: мелкая серая подпись, как «Сейчас», и текст обычным весом", () => {
+    const out = html(<NowNext now={{ title: "Ждём" }} next="Приёмка" />);
+    // Одна карточка: section открывается один раз и закрывается в самом конце.
+    expect(out).toMatch(/^<section[^>]*>[\s\S]*<\/section>$/);
+    expect(count(out, "<section")).toBe(1);
+    const now = out.match(/<p[^>]*>Сейчас<\/p>/)?.[0] ?? "";
+    const nextLabel = out.match(/<p[^>]*>Дальше<\/p>/)?.[0] ?? "";
+    expect(nextLabel).not.toBe("");
+    expect(nextLabel.replace("Дальше", "Сейчас")).toBe(now);
+    const divider = out.match(/<div[^>]*border-t[^>]*>/)?.[0] ?? "";
+    for (const cls of ["border-t", "border-line"]) expect(hasClass(divider, cls), cls).toBe(true);
+    const body = out.match(/<p[^>]*>Приёмка<\/p>/)?.[0] ?? "";
+    expect(hasClass(body, "text-ink")).toBe(true);
+    expect(body).not.toMatch(/font-(?:medium|semibold)/);
+    expect(out).not.toContain("Дальше:");
+    expect(out).not.toContain("px-1");
+  });
+});
+
+describe("HelpBlock: заголовок по левому краю карточки", () => {
+  it("h2 «Помощь» без своих отступов; карточка — сразу под ним через зазор группы", () => {
+    const out = html(<HelpBlock items={[]} supportEmail="a@b.kz" />);
+    const h2 = out.match(/<h2[^>]*>/)?.[0] ?? "";
+    expect(h2).not.toMatch(/[\s"](?:-?m|p)[xlrse]?-\d/);
+    expect(out).not.toContain("px-1");
+    expect(out).toContain(html(<Section title={ru.app.kit.help.title}>{null}</Section>).replace("</section>", ""));
   });
 });
 

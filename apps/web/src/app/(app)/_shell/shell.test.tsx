@@ -82,6 +82,35 @@ describe("MobileShell", () => {
     expect(hasClass(home ?? "", "text-muted")).toBe(true);
   });
 
+  it("гость на главной: «Главная» — текущая вкладка (ink, 600), остальные muted (500)", () => {
+    // Причина пустого выделения на первых снимках: у гостя не было вкладки, совпадающей с /v2 (и с /v2/ui-kit).
+    nav.pathname = "/v2";
+    const m = html(<MobileShell nav={guestNav}>x</MobileShell>);
+    const links = m.match(/<a [^>]*>[\s\S]*?<\/a>/g)?.filter((a) => a.includes("data-tab-label")) ?? [];
+    expect(links).toHaveLength(4);
+    const current = links.filter((a) => a.includes('aria-current="page"'));
+    expect(current).toHaveLength(1);
+    expect(current[0]).toContain('href="/v2"');
+    expect(hasClass(current[0], "text-ink")).toBe(true);
+    expect(hasClass(tagWith(current[0], "data-tab-label"), "font-semibold")).toBe(true);
+    for (const other of links.filter((a) => !a.includes('aria-current="page"'))) {
+      expect(hasClass(other, "text-muted")).toBe(true);
+      expect(hasClass(tagWith(other, "data-tab-label"), "font-medium")).toBe(true);
+    }
+  });
+
+  it("гость: «Войти» — последняя вкладка", () => {
+    const m = html(<MobileShell nav={guestNav}>x</MobileShell>);
+    const hrefs = anchors(m)
+      .filter((a) => !a.includes('href="#content"'))
+      .map((a) => /href="([^"]+)"/.exec(a)?.[1]);
+    expect(hrefs).toEqual(["/v2", "/v2/catalog", "/v2/about", "/v2/login"]);
+  });
+
+  it("материал панели плотный — тот же glass, что у шапки (85 %)", () => {
+    expect(hasClass(tagWith(html(<MobileShell nav={guestNav}>x</MobileShell>), "data-tab-bar"), "glass")).toBe(true);
+  });
+
   it("содержимое — колонка до 560 px по центру", () => {
     const m = html(<MobileShell nav={clientNav}>x</MobileShell>);
     const main = tagWith(m, 'id="content"');
@@ -153,15 +182,37 @@ describe("DesktopShell", () => {
     for (const cls of ["max-w-content", "mx-auto"]) expect(hasClass(main, cls), cls).toBe(true);
   });
 
-  it("гость: разделы и «Войти» в строке, без колокольчика и аватара", () => {
+  it("гость: в разделах Мастера · О сервисе; «Войти» — справа кнопкой secondary, не в ряду разделов", () => {
     const d = html(
       <DesktopShell nav={guestNav} user={null}>
         x
       </DesktopShell>,
     );
-    for (const href of ["/v2/catalog", "/v2/about", "/v2/login"]) expect(d).toContain(`href="${href}"`);
+    const navBlock = d.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "";
+    expect(anchors(navBlock).map((a) => /href="([^"]+)"/.exec(a)?.[1])).toEqual(["/v2/catalog", "/v2/about"]);
+    expect(navBlock).not.toContain("/v2/login");
+    const login = tagWith(d, 'href="/v2/login"');
+    expect(d.indexOf('href="/v2/login"')).toBeGreaterThan(d.indexOf("</nav>"));
+    expect(login).not.toContain("data-primary-action");
+    expect(hasClass(login, "bg-line")).toBe(true); // вид secondary
+    expect(d).toContain(`>${ru.app.shell.nav.login}</a>`);
     expect(d).not.toContain("/v2/notifications");
     expect(d).not.toContain(ru.app.shell.profileMenu);
+  });
+
+  it("гость: текущий раздел — ink и вес 600, остальные — muted и 500", () => {
+    nav.pathname = "/v2/catalog/3";
+    const d = html(
+      <DesktopShell nav={guestNav} user={null}>
+        x
+      </DesktopShell>,
+    );
+    const navBlock = d.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "";
+    const [masters, about] = anchors(navBlock);
+    expect(masters).toContain('aria-current="page"');
+    for (const cls of ["text-ink", "font-semibold"]) expect(hasClass(masters, cls), cls).toBe(true);
+    expect(about).not.toContain("aria-current");
+    for (const cls of ["text-muted", "font-medium"]) expect(hasClass(about, cls), cls).toBe(true);
   });
 
   it("оператор: шапка с названием и меню профиля, без разделов", () => {
@@ -237,6 +288,20 @@ describe("ThemeSwitch", () => {
     expect(out.indexOf('aria-pressed="true"')).toBeGreaterThan(out.indexOf(t.light));
     expect(out).not.toContain("data-primary-action");
     expect(out).toMatch(/<form/);
+  });
+
+  it("сегментированный переключатель: общая подложка, три равных сегмента в одну строку, выбранный — surface", () => {
+    const out = html(<ThemeSwitch current="light" />);
+    const track = out.match(/<div [^>]*>/)?.[0] ?? "";
+    for (const cls of ["grid", "grid-flow-col", "auto-cols-fr", "bg-line", "rounded-control", "p-1"]) {
+      expect(hasClass(track, cls), cls).toBe(true);
+    }
+    expect(track).not.toContain("flex-wrap");
+    const buttons = out.match(/<button [^>]*>/g) ?? [];
+    for (const b of buttons) {
+      for (const cls of ["aria-pressed:bg-surface", "aria-pressed:font-semibold", "text-ink"]) expect(hasClass(b, cls), cls).toBe(true);
+      expect(b).not.toMatch(/shadow/);
+    }
   });
 });
 

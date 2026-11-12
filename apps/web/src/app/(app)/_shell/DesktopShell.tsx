@@ -23,8 +23,8 @@ export type DesktopShellProps = {
 /**
  * Оболочка компьютера — меню сверху (эталон docs/design/v3/reference/desktop-layout.html, вариант A). Шапка 52 px
  * прилипает к верху; материал полупрозрачный (glass), содержимое прокручивается под ним, по нижнему краю — линия.
- * Слева название продукта, затем разделы роли строкой; справа главное действие роли (вторичной кнопкой — главная
- * кнопка принадлежит экрану), колокольчик и аватар с меню. Гостю — только разделы («Войти» среди них).
+ * Слева название продукта (ссылка на главную), затем разделы строкой; справа действие роли (вторичной кнопкой — главная
+ * кнопка принадлежит экрану), колокольчик и аватар с меню. Гостю справа — «Войти» той же вторичной кнопкой.
  * Содержимое по центру, до 1100 px. Брейкпоинтов нет: в узком окне оболочка не становится телефонной. Когда строка
  * не помещается (крупный шрифт, узкое окно), правая группа переходит на вторую строку у правого края, разделы
  * переносятся — шапка растёт, ничего не обрезается и не наезжает.
@@ -38,11 +38,11 @@ export function DesktopShell({ nav, user, unavailable = false, children }: Deskt
           <Link href={to("/")} className="inline-flex min-h-control shrink-0 items-center text-card text-ink no-underline">
             {ru.common.brand}
           </Link>
-          {nav.tabs.length > 0 && <TopNav items={nav.tabs} />}
+          {nav.sections.length > 0 && <TopNav items={nav.sections} />}
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            {nav.primary && (
-              <ButtonLink href={nav.primary.href} variant="secondary">
-                {nav.primary.label}
+            {nav.action && (
+              <ButtonLink href={nav.action.href} variant="secondary" size="sm">
+                {nav.action.label}
               </ButtonLink>
             )}
             {user && (

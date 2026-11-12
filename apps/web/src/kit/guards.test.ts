@@ -199,6 +199,21 @@ export function findCyrillic(src: string): Hit[] {
   return matchLines(stripComments(src), /[Ѐ-ӿ]+/);
 }
 
+/**
+ * 9. Адаптивность по ширине окна вместо версии устройства: варианты Tailwind `sm:`, `md:`, `lg:`, `xl:`, `2xl:`
+ * (и `max-*:`, `min-*:`, `min-[600px]:`), а также `@media (min-width | max-width | width …)` и `matchMedia("(…width…)")`
+ * в коде. Версии различают только `desktop:` и `mobile:` (data-device на <html>). Вариант — это префикс, за которым
+ * сразу идёт класс: ключ объекта `sm: "…"` (с пробелом после двоеточия) — не вариант.
+ */
+export function findWidthVariant(src: string): Hit[] {
+  const code = stripComments(src);
+  return [
+    ...matchLines(code, /(?<=^|[\s"'`:!(])(?:(?:max|min)-)?(?:sm|md|lg|xl|[2-7]xl)(?=:[\w!@[-])/),
+    ...matchLines(code, /(?<=^|[\s"'`:!(])(?:max|min)-\[[^\]\s]+\](?=:[\w!@[-])/),
+    ...matchLines(code, /(?:@media|matchMedia\s*\(\s*["'`])[^{"'`\n]*\(\s*(?:(?:min|max)-)?width\b/),
+  ].sort((a, b) => a.line - b.line);
+}
+
 /** 8. Слова «демо», «комисси…», «эскроу» в текстах: значения строк дерева (и результаты функций), без учёта регистра. */
 export function findDemoWord(tree: unknown, trail = "ru.app"): string[] {
   const found: string[] = [];
@@ -475,6 +490,58 @@ describe("правило 7: нет кириллицы в разметке и с�
     expectClean(
       "Правило 7: тексты — только из ru.app (src/i18n/ru/app).",
       scan([...KIT_ONLY, ...APP_ONLY], findCyrillic),
+    );
+  });
+});
+
+describe("правило 9: версии различают desktop: и mobile:, а не ширина окна", () => {
+  it("самопроверка", () => {
+    for (const cls of [
+      "md:grid-cols-2",
+      "sm:flex",
+      "lg:px-6",
+      "xl:gap-4",
+      "2xl:max-w-content",
+      "max-sm:hidden",
+      "min-md:block",
+      "dark:md:flex",
+      "md:!p-4",
+      "min-[600px]:flex",
+      "max-[1023px]:hidden",
+    ]) {
+      expect(findWidthVariant(`className="flex ${cls}"`), cls).toHaveLength(1);
+    }
+    expect(findWidthVariant("cn(\"a\", 'md:grid-cols-2')")).toHaveLength(1);
+    expect(findWidthVariant("const s = `@media (min-width: 600px) { }`;")).toHaveLength(1);
+    expect(findWidthVariant("const s = `@media (max-width:600px)`;")).toHaveLength(1);
+    expect(findWidthVariant("const s = `@media (width >= 40rem)`;")).toHaveLength(1);
+    expect(findWidthVariant('window.matchMedia("(min-width: 1024px)")')).toHaveLength(1);
+    for (const cls of [
+      "desktop:grid-cols-2",
+      "mobile:min-h-control",
+      "has-checked:border-action",
+      "hover:opacity-90",
+      "min-h-control",
+      "min-h-control-sm",
+      "max-w-content",
+      "text-sm",
+      "data-[state=open]:bg-surface",
+      "aria-[current=page]:text-ink",
+      "peer-checked:[&>svg]:opacity-100",
+    ]) {
+      expect(findWidthVariant(`className="flex ${cls}"`), cls).toHaveLength(0);
+    }
+    // Ключи объекта и обычный код — не варианты.
+    expect(findWidthVariant('const SIZES = { md: "min-h-control", sm: "min-h-control-sm" };')).toHaveLength(0);
+    expect(findWidthVariant("function f(width: number) { return width; }")).toHaveLength(0);
+    expect(findWidthVariant('window.matchMedia("(prefers-reduced-motion: reduce)")')).toHaveLength(0);
+    expect(findWidthVariant("const s = `@media (prefers-color-scheme: dark)`;")).toHaveLength(0);
+    expect(findWidthVariant("// md:grid-cols-2 в комментарии")).toHaveLength(0);
+  });
+  it("в .ts и .tsx из kit и (app) нет sm:, md:, lg:, xl:, max-*: и @media по ширине", () => {
+    expectClean(
+      "Правило 9: версии различают варианты desktop: и mobile: (tokens.css), а не ширина окна.",
+      scan(KIT_AND_APP, findWidthVariant),
     );
   });
 });

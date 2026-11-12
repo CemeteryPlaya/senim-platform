@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";
 import { ru } from "@/i18n/ru";
-import { buttonClasses, primaryMark, type StyleOptions } from "./button-styles";
+import { lookClasses, primaryMark, type StyleOptions } from "./button-styles";
 import { cn } from "./cn";
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
@@ -30,7 +30,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={cn(buttonClasses({ variant, size, full, pending }), className)}
+      className={cn(lookClasses({ variant, size, full, pending }), className)}
       aria-disabled={pending || undefined}
       aria-busy={pending || undefined}
       data-primary-action={primaryMark(variant)}

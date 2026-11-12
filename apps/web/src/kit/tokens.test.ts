@@ -119,6 +119,39 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(block).toMatch(/padding-bottom:\s*max\(1\.5rem,\s*env\(safe-area-inset-bottom\)\)\s*;/);
   });
 
+  it("варианты по устройству: desktop: и mobile: — по data-device на <html>, а не по ширине окна", () => {
+    expect(css).toContain('@custom-variant desktop (&:where([data-device="desktop"], [data-device="desktop"] *));');
+    expect(css).toContain('@custom-variant mobile (&:where([data-device="mobile"], [data-device="mobile"] *));');
+    // Брейкпоинтов по ширине в токенах нет.
+    expect(css).not.toMatch(/--breakpoint-[a-z0-9]+:\s*\d/);
+  });
+
+  it("раскладка: поток 8 / 12 / 24 px (раздел на компьютере — 32 px), Split 1,5 : 1 с зазором 24 px, Narrow 560 px", () => {
+    const theme = block(css, /@theme/);
+    expect(theme).toMatch(/--spacing-stack-tight:\s*0\.5rem\s*;/);
+    expect(theme).toMatch(/--spacing-stack-group:\s*0\.75rem\s*;/);
+    expect(theme).toMatch(/--spacing-stack-section:\s*1\.5rem\s*;/);
+    expect(theme).toMatch(/--spacing-split:\s*1\.5rem\s*;/);
+    expect(theme).toMatch(/--grid-template-columns-split:\s*minmax\(0,\s*1\.5fr\)\s+minmax\(0,\s*1fr\)\s*;/);
+    expect(theme).toMatch(/--container-narrow:\s*35rem\s*;/);
+    const desktop = block(css, /:root\[data-device="desktop"\]/);
+    expect(desktop).toMatch(/--spacing-stack-section:\s*2rem\s*;/);
+  });
+
+  it("полоса прогресса — 4 px, многострочное поле — от трёх строк", () => {
+    const theme = block(css, /@theme/);
+    expect(theme).toMatch(/--spacing-progress:\s*0\.25rem\s*;/);
+    expect(theme).toMatch(/--spacing-area:\s*calc\(3lh\s*\+\s*1\.625rem\)\s*;/);
+  });
+
+  it("материал панелей (glass) плотный: поверхность 85 % в обеих темах", () => {
+    const glass = /@utility glass\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(glass).toMatch(/background-color:\s*color-mix\(in srgb,\s*var\(--role-surface\)\s+var\(--glass-opacity\),\s*transparent\)\s*;/);
+    // Задано один раз на :root: тёмные блоки его не переопределяют, значит, действует в обеих темах.
+    expect(block(css, /:root/)).toMatch(/--glass-opacity:\s*85%\s*;/);
+    expect([...css.matchAll(/--glass-opacity:/g)]).toHaveLength(1);
+  });
+
   it("полупрозрачная панель (glass) при prefers-reduced-transparency — сплошная, без размытия", () => {
     const glass = /@utility glass\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(glass).toMatch(/backdrop-filter:\s*saturate\([\d.]+\)\s*blur\([\d.]+rem\)\s*;/);

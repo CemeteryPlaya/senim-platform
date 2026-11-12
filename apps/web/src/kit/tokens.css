@@ -76,7 +76,34 @@
   --spacing-bar-inset: 0.625rem;
   /* Аватар в шапке — 32px (size-avatar). */
   --spacing-avatar: 2rem;
+
+  /*
+   * Раскладка (src/kit/layout.tsx). Stack: 8px — плотно, 12px — карточки одной группы, 24px — между разделами
+   * (на компьютере 32px, см. data-device ниже). Split на компьютере — колонки 1,5 : 1 с зазором 24px (эталон
+   * desktop-layout.html, вариант A); minmax(0, …) — длинное слово не распирает колонку. Narrow — 560px на компьютере.
+   */
+  --spacing-stack-tight: 0.5rem;
+  --spacing-stack-group: 0.75rem;
+  --spacing-stack-section: 1.5rem;
+  --spacing-split: 1.5rem;
+  --grid-template-columns-split: minmax(0, 1.5fr) minmax(0, 1fr);
+  --container-narrow: 35rem;
+
+  /* Полоса прогресса — 4px (h-progress). */
+  --spacing-progress: 0.25rem;
+  /*
+   * Многострочное поле — от трёх строк (min-h-area): 3lh — три строки своего межстрочного, 1.625rem — отступы py-3
+   * и граница 1px сверху и снизу. Значение мимо шкалы: оно растёт вместе со шрифтом поля.
+   */
+  --spacing-area: calc(3lh + 1.625rem);
 }
+
+/*
+ * Версия устройства в классах: desktop:… и mobile:… (data-device на <html> ставит layout v2 по getDevice()).
+ * Единственный способ различать версии в разметке — брейкпоинтов по ширине нет (сторож, правило 9).
+ */
+@custom-variant desktop (&:where([data-device="desktop"], [data-device="desktop"] *));
+@custom-variant mobile (&:where([data-device="mobile"], [data-device="mobile"] *));
 
 @theme inline {
   --color-canvas: var(--role-canvas);
@@ -124,6 +151,8 @@
   --role-scrim: #000000;
   --scrim-opacity: 32%; /* затемнение под шторкой и диалогом, как в эталоне */
   --shade: var(--role-ink); /* цвет тени: почти чёрный */
+  /* Плотность материала панелей (утилита glass) — в обеих темах: текст под панелью не читается сквозь неё. */
+  --glass-opacity: 85%;
 
   /* Отклик на нажатие: масштаб 0,97 (утилита scale-press, обычно с active:). */
   --scale-press: 0.97;
@@ -177,10 +206,14 @@
   }
 }
 
-/* Компьютерная версия (data-device на <html> ставит layout v2 по getDevice()): крупнее заголовок, кнопка чуть строже. */
+/*
+ * Компьютерная версия (data-device на <html> ставит layout v2 по getDevice()): крупнее заголовок, кнопка чуть строже,
+ * разделы дальше друг от друга.
+ */
 :root[data-device="desktop"] {
   --text-title: 2rem;
   --radius-control: 0.75rem;
+  --spacing-stack-section: 2rem;
 }
 
 /* Нажатие: active:scale-press. Значение — переменная, чтобы prefers-reduced-motion мог его выключить. */
@@ -193,7 +226,7 @@
  * на полупрозрачное не кладётся; при prefers-reduced-transparency — сплошной фон.
  */
 @utility glass {
-  background-color: color-mix(in srgb, var(--role-surface) 80%, transparent);
+  background-color: color-mix(in srgb, var(--role-surface) var(--glass-opacity), transparent);
   backdrop-filter: saturate(1.8) blur(1.25rem);
   @media (prefers-reduced-transparency: reduce) {
     background-color: var(--role-surface);

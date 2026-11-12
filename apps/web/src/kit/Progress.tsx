@@ -2,7 +2,7 @@ import { ru } from "@/i18n/ru";
 
 export type ProgressProps = { value: number; max: number; label: string };
 
-/** Полоса прогресса (шаги сделки). Нет смысла (`max <= 0`, не число) — ничего не рисуется. */
+/** Полоса прогресса (шаги сделки), 4 px. Нет смысла (`max <= 0`, не число) — ничего не рисуется. */
 export function Progress({ value, max, label }: ProgressProps) {
   if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return null;
   const now = Math.min(Math.max(value, 0), max);
@@ -14,7 +14,7 @@ export function Progress({ value, max, label }: ProgressProps) {
       aria-valuemax={max}
       aria-valuenow={now}
       aria-valuetext={ru.app.kit.progress(now, max)}
-      className="h-2 w-full overflow-hidden rounded-full bg-line"
+      className="h-progress w-full overflow-hidden rounded-full bg-line"
     >
       {/* Прямоугольная заливка: масштаб по X (только transform) не растягивает скругление трека. */}
       <div className="h-full w-full origin-left bg-accent" style={{ transform: `scaleX(${now / max})` }} />

@@ -13,19 +13,33 @@ const labels = (nav: AppNav) => nav.tabs.map((t) => t.label);
 const hrefs = (nav: AppNav) => nav.tabs.map((t) => t.href);
 
 describe("navFor: вкладки по ролям", () => {
-  it("гость: Мастера · Как это работает · Войти", () => {
+  it("гость, телефон: Главная · Мастера · О сервисе · Войти", () => {
     const nav = navFor(null, OFF);
-    expect(labels(nav)).toEqual(["Мастера", "Как это работает", "Войти"]);
-    expect(hrefs(nav)).toEqual(["/v2/catalog", "/v2/about", "/v2/login"]);
+    expect(labels(nav)).toEqual(["Главная", "Мастера", "О сервисе", "Войти"]);
+    expect(hrefs(nav)).toEqual(["/v2", "/v2/catalog", "/v2/about", "/v2/login"]);
     expect(nav.guest).toBe(true);
-    expect(nav.primary).toBeUndefined();
   });
 
-  it("покупатель: Главная · Заявки · Сделки · Чат · Профиль; в шапке — «Новая заявка»", () => {
+  it("гость, шапка компьютера: разделы Мастера · О сервисе, «Войти» — действие справа, не раздел", () => {
+    const nav = navFor(null, OFF);
+    expect(nav.sections.map((s) => s.label)).toEqual(["Мастера", "О сервисе"]);
+    expect(nav.sections.map((s) => s.href)).toEqual(["/v2/catalog", "/v2/about"]);
+    expect(nav.action).toEqual({ href: "/v2/login", label: "Войти" });
+  });
+
+  it("подписи вкладок — одно-два слова", () => {
+    const users = [null, client, executor("APPROVED"), executor("PENDING"), measurer];
+    for (const user of users) {
+      for (const { label } of navFor(user, ON).tabs) expect(label.split(" ").length, label).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("покупатель: Главная · Заявки · Сделки · Чат · Профиль; в шапке те же разделы и «Новая заявка»", () => {
     const nav = navFor(client, OFF);
     expect(labels(nav)).toEqual(["Главная", "Заявки", "Сделки", "Чат", "Профиль"]);
     expect(hrefs(nav)).toEqual(["/v2", "/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"]);
-    expect(nav.primary).toEqual({ href: "/v2/requests/new", label: "Новая заявка" });
+    expect(nav.sections).toEqual(nav.tabs);
+    expect(nav.action).toEqual({ href: "/v2/requests/new", label: "Новая заявка" });
     expect(nav.guest).toBe(false);
   });
 
@@ -33,7 +47,8 @@ describe("navFor: вкладки по ролям", () => {
     const nav = navFor(executor("APPROVED"), OFF);
     expect(labels(nav)).toEqual(["Заявки", "Заказы", "Чат", "Финансы", "Профиль"]);
     expect(hrefs(nav)).toEqual(["/v2/executor/requests", "/v2/deals", "/v2/chats", "/v2/executor/finance", "/v2/profile"]);
-    expect(nav.primary).toBeUndefined();
+    expect(nav.sections).toEqual(nav.tabs);
+    expect(nav.action).toBeUndefined();
     expect(nav.guest).toBe(false);
   });
 
@@ -41,7 +56,7 @@ describe("navFor: вкладки по ролям", () => {
     const nav = navFor(executor(status), OFF);
     expect(labels(nav)).toEqual(["Компания", "Портфолио", "Профиль"]);
     expect(hrefs(nav)).toEqual(["/v2/executor/profile", "/v2/executor/portfolio", "/v2/profile"]);
-    expect(nav.primary).toBeUndefined();
+    expect(nav.action).toBeUndefined();
   });
 
   it("мастер без профиля исполнителя — как на проверке", () => {
@@ -55,7 +70,8 @@ describe("navFor: вкладки по ролям", () => {
   it("оператор: вкладок нет (оболочка оператора — этап 5)", () => {
     const nav = navFor(operator, ON);
     expect(nav.tabs).toEqual([]);
-    expect(nav.primary).toBeUndefined();
+    expect(nav.sections).toEqual([]);
+    expect(nav.action).toBeUndefined();
     expect(nav.guest).toBe(false);
   });
 
@@ -106,5 +122,12 @@ describe("activeHref: активная вкладка по адресу", () => 
 
   it("без адреса (вне роутера) ничего не подсвечено", () => {
     expect(activeHref(tabs, null)).toBeUndefined();
+  });
+
+  it("гость на главной /v2 — подсвечена «Главная» (раньше у гостя не было вкладки, совпадающей с /v2)", () => {
+    const guest = navFor(null, OFF);
+    expect(activeHref(guest.tabs, "/v2")).toBe("/v2");
+    expect(activeHref(guest.tabs, "/v2/catalog/5")).toBe("/v2/catalog");
+    expect(activeHref(guest.sections, "/v2/about")).toBe("/v2/about");
   });
 });

@@ -23,6 +23,7 @@ function describedBy(own: string | undefined, errorId: string | undefined): stri
   return [own, errorId].filter(Boolean).join(" ") || undefined;
 }
 
+/** Подпись поля и группы — 15 px / 500 в обеих версиях. */
 const labelClass = "text-sub font-medium text-ink";
 
 const controlClass = cn(
@@ -64,6 +65,10 @@ export function TextField({ label, error, id: explicitId, className, ...rest }: 
 
 export type TextAreaProps = Omit<ComponentProps<"textarea">, "name"> & FieldProps;
 
+/**
+ * Многострочное поле без системного уголка изменения размера: высота растёт по содержимому (field-sizing: content)
+ * от трёх строк (min-h-area). Где field-sizing не поддерживается, остаётся фиксированная высота в `rows` (4) строки.
+ */
 export function TextArea({ label, error, id: explicitId, className, rows = 4, ...rest }: TextAreaProps) {
   const { id, errorId } = useFieldIds(explicitId, error);
   return (
@@ -75,7 +80,7 @@ export function TextArea({ label, error, id: explicitId, className, rows = 4, ..
         id={id}
         rows={rows}
         aria-invalid={error ? true : undefined}
-        className={cn(controlClass, "min-h-control py-3", borderFor(Boolean(error)), className)}
+        className={cn(controlClass, "min-h-area resize-none field-sizing-content py-3", borderFor(Boolean(error)), className)}
         {...rest}
         aria-describedby={describedBy(rest["aria-describedby"], errorId)}
       />

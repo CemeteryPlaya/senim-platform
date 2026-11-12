@@ -23,8 +23,11 @@ export type NavIcon =
 
 export type NavItem = { href: string; label: string; icon: NavIcon };
 
-/** tabs — вкладки роли; primary — главное действие роли в шапке компьютера; guest — пользователь не вошёл. */
-export type AppNav = { tabs: NavItem[]; primary?: { href: string; label: string }; guest: boolean };
+/**
+ * tabs — панель вкладок телефона; sections — разделы в шапке компьютера (у вошедших те же, что вкладки); action —
+ * действие справа в шапке компьютера (кнопка `secondary`: главная кнопка принадлежит экрану); guest — не вошёл.
+ */
+export type AppNav = { tabs: NavItem[]; sections: NavItem[]; action?: { href: string; label: string }; guest: boolean };
 
 /** Ровно то, что нужно навигации от текущего пользователя (подмножество CurrentUser из identity). */
 export type NavUser = {
@@ -75,15 +78,26 @@ function roleTabs(user: NavUser): NavItem[] {
   }
 }
 
-/** Меню пользователя (null — гость). Вкладки за выключенными флагами не попадают. */
+/**
+ * Меню пользователя (null — гость). Вкладки за выключенными флагами не попадают.
+ * Гость: на телефоне — Главная · Мастера · О сервисе · Войти («Войти» — последняя вкладка); в шапке компьютера —
+ * разделы Мастера · О сервисе (на главную ведёт название продукта), «Войти» — действие справа.
+ */
 export function navFor(user: NavUser | null, f: NavFeatures): AppNav {
-  if (!user) return { tabs: [R.masters, R.about, R.login], guest: true };
+  if (!user) {
+    return {
+      tabs: [R.home, R.masters, R.about, R.login],
+      sections: [R.masters, R.about],
+      action: { href: R.login.href, label: R.login.label },
+      guest: true,
+    };
+  }
   const tabs = roleTabs(user).filter((item) => {
     const flag = FLAGGED[item.href];
     return flag === undefined || f[flag];
   });
-  const primary = user.role === "CLIENT" ? { href: to("/requests/new"), label: ru.app.shell.newRequest } : undefined;
-  return primary ? { tabs, primary, guest: false } : { tabs, guest: false };
+  const action = user.role === "CLIENT" ? { href: to("/requests/new"), label: ru.app.shell.newRequest } : undefined;
+  return action ? { tabs, sections: tabs, action, guest: false } : { tabs, sections: tabs, guest: false };
 }
 
 /**

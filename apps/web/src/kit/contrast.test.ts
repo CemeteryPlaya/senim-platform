@@ -25,6 +25,8 @@ const TEXT_PAIRS: [fg: ColorRole, bg: ColorRole][] = [
   ["muted", "canvas"],
   ["muted", "surface"],
   ["muted", "raised"],
+  // Нейтральный чип: подложка line. muted на line в светлой теме — 4,0:1 (ниже порога), поэтому текст чипа — ink.
+  ["ink", "line"],
   ["on-action", "action"],
   ["accent", "surface"],
   ["accent", "canvas"],

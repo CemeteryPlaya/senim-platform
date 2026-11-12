@@ -1,3 +1,5 @@
+import { cn } from "./cn";
+
 const NBSP = " ";
 const MINUS = "−";
 
@@ -14,7 +16,10 @@ export function formatMoney(tiyn: bigint): string {
   return `${negative ? MINUS : ""}${tenge}${fraction}${NBSP}₸`;
 }
 
-/** Сумма денег. Цифры табличные, строка не переносится. */
-export function Money({ tiyn }: { tiyn: bigint }) {
-  return <span className="whitespace-nowrap tabular-nums">{formatMoney(tiyn)}</span>;
+/**
+ * Сумма денег. Цифры табличные, строка не переносится. Цвет — ink (в том числе значением строки списка, где
+ * остальные значения muted); `tone="inherit"` — цвет окружения (сумма внутри вторичного текста).
+ */
+export function Money({ tiyn, tone = "ink" }: { tiyn: bigint; tone?: "ink" | "inherit" }) {
+  return <span className={cn("whitespace-nowrap tabular-nums", tone === "ink" && "text-ink")}>{formatMoney(tiyn)}</span>;
 }
