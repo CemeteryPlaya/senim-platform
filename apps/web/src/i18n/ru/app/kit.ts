@@ -236,11 +236,10 @@ export const kit = {
       confirmKeepOpenBody: "Сервер откажет: окно останется открытым, а причину покажет тост.",
       confirmKeepOpenLabel: "Отправить",
       confirmKeepOpenToast: "Не удалось отправить. Попробуйте ещё раз.",
-      confirmThrow: "Сбой при действии",
+      confirmThrow: "Неожиданный сбой",
       confirmThrowTitle: "Сохранить изменения?",
-      confirmThrowBody: "Действие завершится сбоем: окно останется открытым, а тост покажет само действие.",
+      confirmThrowBody: "Неожиданный сбой: окно останется открытым, а ошибка уйдёт в журнал.",
       confirmThrowLabel: "Сохранить",
-      confirmThrowToast: "Сбой связи. Изменения не сохранены.",
     },
   },
 } as const;

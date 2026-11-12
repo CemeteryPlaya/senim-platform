@@ -50,13 +50,8 @@ export function Demo({ device }: { device: Device }) {
         description={t.confirmThrowBody}
         confirmLabel={t.confirmThrowLabel}
         onConfirm={async () => {
-          try {
-            await wait(1000);
-            throw new Error("demo");
-          } catch (error) {
-            toast.error(t.confirmThrowToast);
-            throw error;
-          }
+          await wait(1000);
+          throw new Error("demo");
         }}
       />
       <Button variant="secondary" onClick={() => toast(t.toastText)}>

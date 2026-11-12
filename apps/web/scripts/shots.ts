@@ -6,7 +6,7 @@
 // <имя>-mobile-{light,dark}.png (страница целиком) и <имя>-mobile-{light,dark}-fold.png (только первый экран).
 // Файлы — в test-results/shots/ (или в --out).
 //
-// Пути пишите БЕЗ ведущего «/» (v2, v2/ui-kit; корень — «/» или пустое «v2»). Git Bash на Windows переписывает
+// Пути пишите БЕЗ ведущего «/» (v2, v2/ui-kit). Корень сайта снимается аргументом "" или «/» (последнее — только с MSYS_NO_PATHCONV=1). Git Bash на Windows переписывает
 // аргумент вида /v2 в C:/Program Files/Git/v2; скрипт в этом случае падает с подсказкой. Запуск с «/v2» возможен
 // только с MSYS_NO_PATHCONV=1.
 //
@@ -75,7 +75,7 @@ async function ensureServer(): Promise<void> {
   try {
     await fetch(`${BASE}/v2`, { signal: AbortSignal.timeout(15_000) });
   } catch {
-    throw new Error(`Сервер не отвечает на ${BASE} (порт 3110). Поднимите dev-сервер или задайте адрес в SHOTS_BASE.`);
+    throw new Error(`Сервер не отвечает на ${BASE}. Поднимите dev-сервер или задайте адрес в SHOTS_BASE.`);
   }
 }
 
@@ -100,12 +100,17 @@ async function main(): Promise<void> {
           }
           await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
           await page.evaluate(() => document.fonts.ready);
-          const applied = await page.evaluate(() => document.documentElement.dataset.theme);
-          if (applied !== theme) {
-            throw new Error(`${route} (${viewport}): ждали data-theme="${theme}", на странице "${applied ?? "нет"}". Кука темы не принята.`);
+          const pathname = new URL(page.url()).pathname;
+          if (pathname === "/v2" || pathname.startsWith("/v2/")) {
+            const applied = await page.evaluate(() => document.documentElement.dataset.theme);
+            if (applied !== theme) {
+              throw new Error(`${route} (${viewport}): ждали data-theme="${theme}", на странице "${applied ?? "нет"}". Кука темы не принята.`);
+            }
+          } else {
+            say(`Предупреждение: для ${route} тема не применяется (адрес старого интерфейса), проверка темы пропущена.`);
           }
           const primary = await page.locator("[data-primary-action]").count();
-          if (primary > 1 && new URL(page.url()).pathname.replace(/\/+$/, "") !== SHOWCASE) {
+          if (primary > 1 && pathname.replace(/\/+$/, "") !== SHOWCASE) {
             tooMany.push(`${route} (${viewport}, ${theme}): ${primary}`);
           }
           const stem = `${fileStem(route)}-${viewport}-${theme}`;
