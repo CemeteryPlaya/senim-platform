@@ -83,6 +83,35 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(css).not.toMatch(/:\s*(?:black|white)\b/i);
   });
 
+  it('компьютерные размеры (заголовок 32 px, кнопка 12 px) заданы только под [data-device="desktop"]', () => {
+    const desktop = block(css, /:root\[data-device="desktop"\]/);
+    expect(desktop).toMatch(/--text-title:\s*2rem\s*;/);
+    expect(desktop).toMatch(/--radius-control:\s*0\.75rem\s*;/);
+    // Вне @theme (значения телефона) и этого блока размеры не переопределяются: иначе версии смешались бы.
+    const overrides = [...css.matchAll(/([^{}]+)\{[^{}]*--(?:text-title|radius-control):/g)].map((m) => m[1].trim());
+    expect(overrides).toEqual(['@theme', ':root[data-device="desktop"]']);
+  });
+
+  it("панель вкладок, шапка и аватар — именованные размеры", () => {
+    const theme = block(css, /@theme/);
+    expect(theme).toMatch(/--spacing-header:\s*3\.25rem\s*;/); // 52 px
+    expect(theme).toMatch(/--spacing-bar-inset:\s*0\.625rem\s*;/); // 10 px
+    expect(theme).toMatch(/--spacing-avatar:\s*2rem\s*;/); // 32 px
+    expect(theme).toMatch(/--container-content:\s*68\.75rem\s*;/); // 1100 px
+    expect(theme).toMatch(/--container-column:\s*35rem\s*;/); // 560 px
+    const dock = /@utility dock-bottom\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(dock).toMatch(/bottom:\s*calc\(var\(--spacing-bar-inset\)\s*\+\s*env\(safe-area-inset-bottom\)\)\s*;/);
+    expect(dock).toMatch(/margin-bottom:\s*calc\(var\(--spacing-bar-inset\)\s*\+\s*env\(safe-area-inset-bottom\)\)\s*;/);
+  });
+
+  it("полупрозрачная панель (glass) при prefers-reduced-transparency — сплошная, без размытия", () => {
+    const glass = /@utility glass\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(glass).toMatch(/backdrop-filter:\s*saturate\([\d.]+\)\s*blur\([\d.]+rem\)\s*;/);
+    expect(glass).toMatch(
+      /@media\s*\(prefers-reduced-transparency:\s*reduce\)\s*\{\s*background-color:\s*var\(--role-surface\);\s*backdrop-filter:\s*none;/,
+    );
+  });
+
   it("вес шрифта не выше 600", () => {
     const weights = [...css.matchAll(/--font-weight-[a-z]+:\s*(\d+)/g)].map((m) => Number(m[1]));
     expect(weights.sort()).toEqual([400, 500, 600]);

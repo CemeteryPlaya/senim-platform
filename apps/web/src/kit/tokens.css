@@ -6,6 +6,8 @@
  * тёмная по выбору ([data-theme="dark"] на <html>) и тёмная по системе (prefers-color-scheme, если
  * пользователь не выбрал светлую). Утилиты Tailwind (bg-canvas, text-ink, border-line…) ссылаются на
  * --role-* через @theme inline, поэтому одна разметка работает в обеих темах.
+ * data-theme ставится только на <html> (layout v2): светлая тема внутри тёмной (data-theme="light" на поддереве)
+ * не поддерживается — светлые значения висят на :root, и поддерево их заново не получает.
  * Те же hex — в tokens.ts; равенство держит tokens.test.ts, контраст пар — contrast.test.ts.
  *
  * Стандартные шкалы Tailwind обнулены (`--color-*: initial` и т. д.): случайный `bg-blue-500`,
@@ -67,6 +69,13 @@
   /* Ширина содержимого: компьютер — до 1100px; планшет — колонка до 560px (спека, раздел 5). */
   --container-content: 68.75rem;
   --container-column: 35rem;
+
+  /* Оболочки (src/app/(app)/_shell). Шапка компьютера — 52px (min-h-header: при крупном шрифте растёт, а не режет). */
+  --spacing-header: 3.25rem;
+  /* Плавающая панель вкладок телефона: отступ 10px от краёв и снизу (px-bar-inset, утилита dock-bottom). */
+  --spacing-bar-inset: 0.625rem;
+  /* Аватар в шапке — 32px (size-avatar). */
+  --spacing-avatar: 2rem;
 }
 
 @theme inline {
@@ -168,7 +177,7 @@
   }
 }
 
-/* Компьютерная версия (data-device на <html> ставит оболочка): крупнее заголовок, кнопка чуть строже. */
+/* Компьютерная версия (data-device на <html> ставит layout v2 по getDevice()): крупнее заголовок, кнопка чуть строже. */
 :root[data-device="desktop"] {
   --text-title: 2rem;
   --radius-control: 0.75rem;
@@ -190,6 +199,16 @@
     background-color: var(--role-surface);
     backdrop-filter: none;
   }
+}
+
+/*
+ * Место панели вкладок у нижнего края: отступ 10px плюс безопасная зона (полоска «домой» на iPhone). С `sticky`
+ * панель висит над прокручиваемым содержимым, а в конце страницы встаёт под ним — содержимое не прячется под панелью
+ * при любой её высоте (крупный шрифт, подписи в две строки).
+ */
+@utility dock-bottom {
+  bottom: calc(var(--spacing-bar-inset) + env(safe-area-inset-bottom));
+  margin-bottom: calc(var(--spacing-bar-inset) + env(safe-area-inset-bottom));
 }
 
 /*
