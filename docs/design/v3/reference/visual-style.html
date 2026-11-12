@@ -1,0 +1,95 @@
+<style>
+  .ph-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start}
+  @media(max-width:1000px){.ph-row{grid-template-columns:1fr}}
+  .ph-wrap{cursor:pointer;border-radius:16px;padding:14px;border:2px solid transparent;transition:border-color .15s}
+  .ph-wrap.selected{border-color:#2f7cf6}
+  .ph-cap{font:600 15px/1.3 system-ui;margin:0 0 4px}
+  .ph-sub{font:400 13px/1.4 system-ui;opacity:.7;margin:0 0 12px}
+  .ph{width:100%;max-width:320px;margin:0 auto;border-radius:34px;overflow:hidden;box-shadow:0 0 0 8px #111,0 20px 40px rgba(0,0,0,.25);
+      font-family:var(--font);color:var(--ink);background:var(--bg);position:relative;text-align:left}
+  .ph *{box-sizing:border-box}
+  .ph-top{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;background:var(--bar);border-bottom:var(--hair);backdrop-filter:blur(16px)}
+  .ph-logo{font-weight:700;font-size:17px;letter-spacing:-.01em;color:var(--logo)}
+  .ph-bell{width:28px;height:28px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-size:13px}
+  .ph-body{padding:18px 18px 84px}
+  .ph-back{font-size:13px;color:var(--muted);margin-bottom:10px}
+  .ph-h{font-size:var(--h);line-height:1.12;font-weight:var(--hw);letter-spacing:var(--ht);margin:0 0 6px}
+  .ph-meta{font-size:13px;color:var(--muted);margin-bottom:14px}
+  .ph-chip{display:inline-block;font-size:12px;font-weight:600;padding:4px 10px;border-radius:var(--chipr);background:var(--accent-soft);color:var(--accent);margin-bottom:16px}
+  .ph-steps{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-bottom:6px}
+  .ph-steps i{height:4px;border-radius:2px;background:var(--line)}
+  .ph-steps i.on{background:var(--accent)}
+  .ph-stepl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:18px}
+  .ph-card{background:var(--card);border:var(--cardb);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+  .ph-lbl{font-size:12px;color:var(--muted);margin-bottom:4px}
+  .ph-sum{font-size:26px;font-weight:var(--hw);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .ph-rowl{display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-top:1px solid var(--line)}
+  .ph-rowl:first-of-type{margin-top:12px}
+  .ph-rowl span:first-child{color:var(--muted)}
+  .ph-note{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center;margin-top:10px}
+  .ph-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+  .ph-btn{display:block;width:100%;height:48px;border:0;border-radius:var(--br);background:var(--btn);color:#fff;font:600 15px var(--font);margin-top:14px}
+  .ph-link{text-align:center;font-size:13px;color:var(--accent);margin-top:12px;font-weight:500}
+  .ph-tabs{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);padding:10px 8px 16px;background:var(--bar);border-top:var(--hair);backdrop-filter:blur(16px);font-size:10.5px;color:var(--muted);text-align:center}
+  .ph-tabs b{display:block;width:20px;height:20px;border-radius:6px;margin:0 auto 4px;background:var(--line)}
+  .ph-tabs .cur{color:var(--accent);font-weight:600}.ph-tabs .cur b{background:var(--accent)}
+
+  .va{--font:system-ui,-apple-system,"Segoe UI",sans-serif;--ink:#0d1f12;--muted:#5e6d60;--bg:#fff;--bar:#fff;--hair:1px solid #e4ebe4;--logo:#0b7a3e;
+      --chip:#f2f7f2;--h:22px;--hw:600;--ht:-.01em;--accent:#0b7a3e;--accent-soft:#e7f4ea;--chipr:999px;--line:#e4ebe4;--card:#fff;--cardb:1px solid #e4ebe4;
+      --r:10px;--shadow:none;--br:10px;--btn:#0b7a3e}
+  .vb{--font:-apple-system,"SF Pro Display",system-ui,sans-serif;--ink:#1d1d1f;--muted:#6e6e73;--bg:#f5f5f7;--bar:rgba(245,245,247,.78);--hair:0;--logo:#1d1d1f;
+      --chip:#e8e8ed;--h:28px;--hw:600;--ht:-.025em;--accent:#0a7d54;--accent-soft:#e3f1ea;--chipr:6px;--line:#e5e5ea;--card:#fff;--cardb:0;
+      --r:18px;--shadow:none;--br:14px;--btn:#1d1d1f}
+  .vc{--font:-apple-system,"SF Pro Text",system-ui,sans-serif;--ink:#15201a;--muted:#647067;--bg:#fbfbfa;--bar:rgba(251,251,250,.8);--hair:1px solid rgba(0,0,0,.06);--logo:#0a6b47;
+      --chip:#eef1ee;--h:25px;--hw:600;--ht:-.02em;--accent:#0a6b47;--accent-soft:#e6f1eb;--chipr:7px;--line:#e7eae6;--card:#fff;--cardb:1px solid rgba(0,0,0,.07);
+      --r:14px;--shadow:0 1px 2px rgba(0,0,0,.04);--br:12px;--btn:#0a6b47}
+</style>
+
+<h2>Какой характер ближе?</h2>
+<p class="subtitle">Один и тот же экран покупателя — «Сделка» — в трёх стилях. Смотрите на тон цветов, шрифт, плотность и форму кнопок. Нажмите на вариант, который ближе; в чате напишите, что взять из остальных.</p>
+
+<div class="ph-row">
+  <!-- A -->
+  <div class="ph-wrap" data-choice="a-upwork" onclick="toggleSelect(this)">
+    <p class="ph-cap">A · Деловой, как UpWork</p>
+    <p class="ph-sub">Белый фон, тонкие рамки, зелёный — главный цвет. Плотно и по делу.</p>
+    <div class="ph va">__SCREEN__</div>
+  </div>
+  <!-- B -->
+  <div class="ph-wrap" data-choice="b-apple" onclick="toggleSelect(this)">
+    <p class="ph-cap">B · Спокойный, как Apple</p>
+    <p class="ph-sub">Светло-серый фон, карточки без рамок, крупные заголовки, тёмная кнопка. Зелёный только для статуса.</p>
+    <div class="ph vb">__SCREEN__</div>
+  </div>
+  <!-- C -->
+  <div class="ph-wrap" data-choice="c-hybrid" onclick="toggleSelect(this)">
+    <p class="ph-cap">C · Смешанный</p>
+    <p class="ph-sub">Структура UpWork, типографика и полупрозрачные панели Apple, приглушённый зелёный.</p>
+    <div class="ph vc">__SCREEN__</div>
+  </div>
+</div>
+
+<template id="scr">
+  <div class="ph-top"><span class="ph-logo">Сенім</span><span class="ph-bell">•</span></div>
+  <div class="ph-body">
+    <div class="ph-back">‹ Сделки</div>
+    <h3 class="ph-h">Кухня угловая, 3,2 м</h3>
+    <div class="ph-meta">Мастер № 1042 · срок до 14 декабря</div>
+    <span class="ph-chip">В работе</span>
+    <div class="ph-steps"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+    <div class="ph-stepl"><span>Оплачено</span><span>Готово</span><span>Выплата</span></div>
+    <div class="ph-card">
+      <div class="ph-lbl">Деньги в банке под защитой</div>
+      <div class="ph-sum">1 224 000 ₸</div>
+      <div class="ph-rowl"><span>Цена по оферте</span><span>1 200 000 ₸</span></div>
+      <div class="ph-rowl"><span>Защита сделки (2%)</span><span>24 000 ₸</span></div>
+      <div class="ph-note"><i class="ph-dot"></i>Мастер получит оплату после вашей приёмки</div>
+    </div>
+    <button class="ph-btn">Написать мастеру</button>
+    <div class="ph-link">Как устроена защита сделки</div>
+  </div>
+  <div class="ph-tabs"><span><b></b>Главная</span><span class="cur"><b></b>Сделки</span><span><b></b>Чат</span><span><b></b>Профиль</span></div>
+</template>
+<script>
+  document.querySelectorAll('.ph').forEach(function(p){p.innerHTML=document.getElementById('scr').innerHTML});
+</script>

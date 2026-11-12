@@ -1,0 +1,78 @@
+<style>
+  .mr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;align-items:start}
+  @media(max-width:1000px){.mr{grid-template-columns:1fr}}
+  .mcap{font:600 15px/1.3 system-ui;margin:0 0 2px;text-align:center}.msub{font:400 12.5px/1.4 system-ui;opacity:.7;margin:0 0 12px;text-align:center;min-height:36px}
+  .p{width:100%;max-width:310px;height:640px;margin:0 auto;border-radius:38px;overflow:hidden;box-shadow:0 0 0 8px #111,0 20px 40px rgba(0,0,0,.25);
+     font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:#1d1d1f;background:#f5f5f7;position:relative;text-align:left;font-size:13px}
+  .p *{box-sizing:border-box}
+  .bd{padding:46px 16px 90px;height:100%;overflow:hidden}
+  .big{font-size:28px;font-weight:600;letter-spacing:-.025em;line-height:1.1;margin:0 0 4px}
+  .mu{color:#6e6e73;line-height:1.4}
+  .c{background:#fff;border-radius:18px;padding:14px;margin-top:10px}
+  .l{font-size:11.5px;color:#6e6e73;margin-bottom:3px}.t{font-size:16px;font-weight:600;letter-spacing:-.015em}
+  .chip{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;background:#e3f1ea;color:#0a7d54;margin-top:6px}
+  .bar{height:4px;border-radius:2px;background:#e5e5ea;margin:8px 0}.bar i{display:block;height:4px;width:50%;border-radius:2px;background:#0a7d54}
+  .ck{display:flex;gap:8px;align-items:center;padding:6px 0}.ck i{width:15px;height:15px;border-radius:50%;border:1.5px solid #c7c7cc;flex:none}.ck.ok i{background:#0a7d54;border-color:#0a7d54}.ck.ok{color:#6e6e73}
+  .q{display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid #e5e5ea}.q:first-of-type{border:0;padding-top:4px}.q span:last-child{color:#c7c7cc}
+  .sec{font-size:17px;font-weight:600;letter-spacing:-.02em;margin:18px 0 0}
+  .tabs{position:absolute;left:10px;right:10px;bottom:10px;display:grid;grid-template-columns:repeat(5,1fr);padding:9px 4px;background:rgba(255,255,255,.78);backdrop-filter:blur(18px);
+        border-radius:22px;box-shadow:0 6px 24px rgba(0,0,0,.10);font-size:10px;color:#6e6e73;text-align:center}
+  .tabs b{display:block;width:20px;height:20px;border-radius:6px;margin:0 auto 3px;background:#d2d2d7}.tabs .cur{color:#1d1d1f;font-weight:600}.tabs .cur b{background:#1d1d1f}
+  .btn{display:block;height:48px;border-radius:14px;background:#1d1d1f;color:#fff;font-weight:600;font-size:15px;text-align:center;line-height:48px}
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.32)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:24px 24px 0 0;padding:10px 18px 26px}
+  .grab{width:36px;height:5px;border-radius:3px;background:#d2d2d7;margin:0 auto 14px}
+  .row{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid #e5e5ea}.row span:first-child{color:#6e6e73}
+  .role{background:#fff;border-radius:18px;padding:18px;margin-top:12px;display:flex;justify-content:space-between;align-items:center}
+  .role.on{box-shadow:inset 0 0 0 2px #1d1d1f}
+  .rd{width:20px;height:20px;border-radius:50%;border:1.5px solid #c7c7cc;flex:none}.role.on .rd{border:6px solid #1d1d1f}
+  .foot{position:absolute;left:16px;right:16px;bottom:22px}
+</style>
+
+<h2>Мобильная версия</h2>
+<p class="subtitle">Три экрана телефона в стиле B. Это отдельный дизайн под палец, а не сжатый компьютерный: крупный заголовок, плавающая полупрозрачная панель вкладок, главная кнопка внизу под большим пальцем, пояснения выезжают шторкой снизу.</p>
+
+<div class="mr">
+  <div>
+    <p class="mcap">Первый экран входа</p><p class="msub">Сначала роль, потом телефон и код</p>
+    <div class="p"><div class="bd">
+      <div style="font-weight:700;font-size:17px;margin-bottom:34px">Сенім</div>
+      <h3 class="big">Что вы хотите сделать?</h3>
+      <div class="mu">Выбор можно изменить позже в профиле.</div>
+      <div class="role on"><div><div class="t">Заказать мебель</div><div class="mu">Найду мастера и оплачу безопасно</div></div><i class="rd"></i></div>
+      <div class="role"><div><div class="t">Я мастер</div><div class="mu">Беру заказы и получаю оплату</div></div><i class="rd"></i></div>
+      <div class="foot"><div class="btn">Продолжить</div><div class="mu" style="text-align:center;margin-top:12px">Уже есть аккаунт? <span style="color:#0a7d54;font-weight:500">Войти</span></div></div>
+    </div></div>
+  </div>
+
+  <div>
+    <p class="mcap">Главная покупателя</p><p class="msub">Первые шаги сверху, «Помощь» под содержимым</p>
+    <div class="p"><div class="bd">
+      <h3 class="big">Добрый день, Айгерим</h3>
+      <div class="c"><div class="t">Осталось 2 шага до заказа</div><div class="bar"><i></i></div>
+        <div class="ck ok"><i></i>Заявка создана</div><div class="ck"><i></i>Выбрать предложение мастера</div></div>
+      <div class="c"><div class="l">Заявка · 3 предложения</div><div class="t">Шкаф-купе в прихожую</div><div class="mu">от 380 000 ₸</div></div>
+      <div class="c"><div class="l">Сделка</div><div class="t">Кухня угловая, 3,2 м</div><span class="chip">В работе</span></div>
+      <div class="sec">Помощь</div>
+      <div class="c"><div class="q"><span>Где лежат мои деньги?</span><span>›</span></div><div class="q"><span>Что, если мебель не понравится?</span><span>›</span></div></div>
+    </div>
+    <div class="tabs"><span class="cur"><b></b>Главная</span><span><b></b>Заявки</span><span><b></b>Сделки</span><span><b></b>Чат</span><span><b></b>Профиль</span></div></div>
+  </div>
+
+  <div>
+    <p class="mcap">Сделка: пояснение шторкой</p><p class="msub">Нажали «Что это?» — ответ выезжает снизу, смахивается вниз</p>
+    <div class="p"><div class="bd">
+      <div class="mu" style="margin-bottom:8px">‹ Сделки</div>
+      <h3 class="big">Кухня угловая, 3,2 м</h3>
+      <div class="c"><div class="l">Сейчас</div><div class="t">Мастер изготавливает кухню</div><div class="mu">От вас ничего не требуется.</div></div>
+      <div class="c"><div class="l">Деньги в банке под защитой</div><div class="t" style="font-size:24px">1 224 000 ₸</div></div>
+    </div>
+    <div class="scrim"></div>
+    <div class="sheet"><div class="grab"></div>
+      <div class="t" style="font-size:20px;margin-bottom:6px">Защита сделки</div>
+      <div class="mu" style="margin-bottom:12px">Деньги лежат в банке, пока вы не примете мебель. Если мастер не выполнит заказ, они вернутся вам.</div>
+      <div class="row"><span>Цена по оферте</span><span>1 200 000 ₸</span></div>
+      <div class="row"><span>Защита сделки (2%)</span><span>24 000 ₸</span></div>
+      <div class="btn" style="margin-top:14px">Понятно</div></div></div>
+  </div>
+</div>

@@ -1,0 +1,64 @@
+<style>
+  .hg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  @media(max-width:1000px){.hg{grid-template-columns:1fr}}
+  .hw{cursor:pointer;border:2px solid transparent;border-radius:16px;padding:12px}
+  .hw.selected{border-color:#2f7cf6}
+  .hcap{font:600 15px/1.3 system-ui;margin:0 0 2px}.hsub{font:400 12.5px/1.4 system-ui;opacity:.7;margin:0 0 10px;min-height:52px}
+  .hb{font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;color:#1d1d1f;background:#f5f5f7;border-radius:14px;padding:16px;font-size:13px;text-align:left;min-height:230px}
+  .hb *{box-sizing:border-box}
+  .c{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px}
+  .l{font-size:11.5px;color:#6e6e73;margin-bottom:4px}.t{font-size:16px;font-weight:600;letter-spacing:-.015em;margin-bottom:4px}
+  .m{color:#6e6e73;line-height:1.4}
+  .b{display:inline-block;background:#1d1d1f;color:#fff;border-radius:10px;padding:9px 14px;font-weight:600;font-size:12.5px;margin-top:10px}
+  .lk{color:#0a7d54;font-weight:500}
+  .pop{background:#fff;border-radius:14px;padding:12px;box-shadow:0 8px 28px rgba(0,0,0,.14);margin-top:8px;line-height:1.45}
+  .in{border:1px solid #d2d2d7;border-radius:10px;height:40px;padding:0 12px;display:flex;align-items:center;background:#fff;margin:4px 0}
+  .ck{display:flex;gap:8px;align-items:center;padding:7px 0;border-top:1px solid #e5e5ea}.ck:first-of-type{border:0}
+  .ck i{width:16px;height:16px;border-radius:50%;border:1.5px solid #c7c7cc;flex:none}.ck.ok i{background:#0a7d54;border-color:#0a7d54}.ck.ok{color:#6e6e73}
+  .bar{height:4px;border-radius:2px;background:#e5e5ea;margin:8px 0 10px}.bar i{display:block;height:4px;width:66%;border-radius:2px;background:#0a7d54}
+  .q{display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid #e5e5ea}.q:first-of-type{border:0}.q span:last-child{color:#c7c7cc}
+</style>
+
+<h2>Какие подсказки встраиваем?</h2>
+<p class="subtitle">Шесть приёмов, которые используют сильные продукты. Можно выбрать несколько — отметьте всё, что хотите видеть. Внизу — приём, от которого я советую отказаться.</p>
+
+<div class="hg options" data-multiselect style="display:grid">
+  <div class="hw" data-choice="next-step" onclick="toggleSelect(this)">
+    <p class="hcap">1 · «Что сейчас происходит»</p><p class="hsub">Uber, Airbnb, UpWork: вверху экрана одна фраза — чей сейчас ход и что будет дальше.</p>
+    <div class="hb"><div class="c"><div class="l">Сейчас</div><div class="t">Мастер изготавливает кухню</div><div class="m">От вас ничего не требуется. Когда мебель будет готова, мы попросим вас её принять.</div></div>
+      <div class="c"><div class="l">Дальше</div><div class="m">Приёмка → выплата мастеру</div></div></div>
+  </div>
+
+  <div class="hw" data-choice="inline-explain" onclick="toggleSelect(this)">
+    <p class="hcap">2 · Пояснение по нажатию</p><p class="hsub">Apple, Stripe: рядом с непонятным словом ссылка; пояснение раскрывается тут же, без ухода со страницы.</p>
+    <div class="hb"><div class="c"><div class="l">К оплате</div><div class="t">1 224 000 ₸</div><div class="m">Защита сделки (2%) · <span class="lk">Что это?</span></div>
+      <div class="pop"><b>Защита сделки</b><br><span class="m">Деньги лежат в банке, пока вы не примете мебель. Если мастер не выполнит заказ, они вернутся вам.</span></div></div></div>
+  </div>
+
+  <div class="hw" data-choice="empty-state" onclick="toggleSelect(this)">
+    <p class="hcap">3 · Пустой экран, который учит</p><p class="hsub">Linear, Notion: когда данных ещё нет, экран объясняет, зачем он, и предлагает одно действие.</p>
+    <div class="hb"><div class="c" style="text-align:center;padding:26px 16px"><div class="t">Заявок пока нет</div><div class="m">Опишите, какая мебель нужна, — мастера пришлют цены и сроки. Это бесплатно и ни к чему не обязывает.</div><span class="b">Создать заявку</span></div></div>
+  </div>
+
+  <div class="hw" data-choice="checklist" onclick="toggleSelect(this)">
+    <p class="hcap">4 · Список первых шагов</p><p class="hsub">Stripe, Shopify, профиль UpWork: короткий список «что осталось», исчезает, когда всё сделано.</p>
+    <div class="hb"><div class="c"><div class="t">Осталось 1 шаг до первых заказов</div><div class="bar"><i></i></div>
+      <div class="ck ok"><i></i>Данные компании</div><div class="ck ok"><i></i>Проверка документов</div><div class="ck"><i></i>Добавить 3 работы в портфолио</div></div></div>
+  </div>
+
+  <div class="hw" data-choice="field-help" onclick="toggleSelect(this)">
+    <p class="hcap">5 · Подсказка под полем</p><p class="hsub">gov.uk, Stripe: под полем — зачем оно и в каком виде вводить; ошибка показывается сразу, а не после отправки.</p>
+    <div class="hb"><div class="c"><div class="l">ИИН</div><div class="in">900101 300 12_</div><div class="m">12 цифр. Нужен для договора; в интерфейсе показываем только последние 4.</div>
+      <div class="l" style="margin-top:12px">Почта</div><div class="in">aigerim@</div><div class="m" style="color:#b3261e">Проверьте адрес: не хватает части после «@».</div></div></div>
+  </div>
+
+  <div class="hw" data-choice="help-center" onclick="toggleSelect(this)">
+    <p class="hcap">6 · Раздел «Помощь»</p><p class="hsub">Kaspi, Airbnb: короткие ответы на частые вопросы и связь с поддержкой — в профиле и по ссылке из сделки.</p>
+    <div class="hb"><div class="c"><div class="t">Помощь</div><div class="q"><span>Где лежат мои деньги?</span><span>›</span></div><div class="q"><span>Что, если мебель не понравится?</span><span>›</span></div><div class="q"><span>Когда мастер получит оплату?</span><span>›</span></div><div class="q"><span class="lk">Написать в поддержку</span><span>›</span></div></div></div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:18px">
+  <h3>Не советую: обучающий тур с затемнением и стрелками</h3>
+  <p class="subtitle">Всплывающие шаги «Нажмите сюда → Далее → Далее» при первом входе почти все пролистывают, не читая, а в момент реальной нужды их уже нет. Приёмы 1–5 дают ту же помощь там, где возник вопрос.</p>
+</div>
