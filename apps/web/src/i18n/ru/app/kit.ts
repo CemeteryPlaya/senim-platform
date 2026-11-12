@@ -2,4 +2,6 @@
 export const kit = {
   close: "Закрыть",
   back: "Назад",
+  pending: "Подождите",
+  loading: "Загрузка",
 } as const;

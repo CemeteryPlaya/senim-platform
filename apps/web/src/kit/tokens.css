@@ -61,6 +61,8 @@
 
   /* Высота кнопок и полей — 48px: h-control, min-h-control. */
   --spacing-control: 3rem;
+  /* Малая кнопка 36px — только второстепенные действия внутри карточек: h-control-sm, min-h-control-sm. */
+  --spacing-control-sm: 2.25rem;
 
   /* Ширина содержимого: компьютер — до 1100px; планшет — колонка до 560px (спека, раздел 5). */
   --container-content: 68.75rem;
