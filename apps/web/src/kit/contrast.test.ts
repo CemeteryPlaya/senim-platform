@@ -39,6 +39,9 @@ const TEXT_PAIRS: [fg: ColorRole, bg: ColorRole][] = [
 const UI_PAIRS: [fg: ColorRole, bg: ColorRole][] = [
   ["focus", "canvas"],
   ["focus", "surface"],
+  ["line-strong", "canvas"],
+  ["line-strong", "surface"],
+  ["line-strong", "raised"],
 ];
 
 const THEMES = ["light", "dark"] as const;

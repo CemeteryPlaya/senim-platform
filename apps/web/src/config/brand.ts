@@ -5,6 +5,8 @@
 export const brand = {
   name: "Сенім",
   tagline: "Мебель на заказ — деньги в банке под защитой",
+  /** Поддержка. Временный адрес по решению владельца; заменится адресом на домене продукта. */
+  support: { email: "sunrisefeex@gmail.com" },
   colors: {
     primary: "#007d50",
     canvas: "#f3f5f7",

@@ -13,7 +13,8 @@ export const COLOR_ROLES = [
   "raised", // плавающее: шторка, поповер
   "ink", // основной текст
   "muted", // вторичный текст
-  "line", // разделители, граница поля
+  "line", // разделители внутри карточек и списков, трек прогресса
+  "line-strong", // граница поля и выбора: 3:1 к фону (WCAG 1.4.11)
   "action", // одна главная кнопка
   "on-action", // текст на главной кнопке
   "accent", // статус, деньги «под защитой», ссылка-пояснение, прогресс
@@ -36,6 +37,7 @@ export const TOKENS: { light: Record<ColorRole, string>; dark: Record<ColorRole,
     ink: "#1d1d1f",
     muted: "#6e6e73",
     line: "#e5e5ea",
+    "line-strong": "#8a8a8e",
     action: "#1d1d1f",
     "on-action": "#ffffff",
     accent: "#0a7d54",
@@ -55,6 +57,7 @@ export const TOKENS: { light: Record<ColorRole, string>; dark: Record<ColorRole,
     ink: "#f5f5f7",
     muted: "#a1a1a6",
     line: "#38383a",
+    "line-strong": "#78787d",
     action: "#f5f5f7",
     "on-action": "#1d1d1f",
     accent: "#30b07a",

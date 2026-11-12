@@ -30,7 +30,7 @@ const controlClass = cn(
   "placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-50",
 );
 
-const borderFor = (invalid: boolean) => (invalid ? "border-danger" : "border-line");
+const borderFor = (invalid: boolean) => (invalid ? "border-danger" : "border-line-strong");
 
 function ErrorText({ id, children }: { id: string | undefined; children: ReactNode }) {
   if (!children) return null;
@@ -142,7 +142,7 @@ export function RadioCard({ label, id: explicitId, className, ...rest }: RadioCa
     <label
       htmlFor={id}
       className={cn(
-        "flex min-h-control cursor-pointer items-center gap-3 rounded-field border border-line bg-surface px-4 py-3 text-body text-ink",
+        "flex min-h-control cursor-pointer items-center gap-3 rounded-field border border-line-strong bg-surface px-4 py-3 text-body text-ink",
         "transition-transform duration-100 active:scale-press has-checked:border-action",
       )}
     >
