@@ -119,6 +119,14 @@ async function main(): Promise<void> {
             await page.screenshot({ path: fold, fullPage: false });
             say(fold);
           }
+          // Снимок целиком: окно вытягивается на высоту документа. Иначе Chromium снимает страницу при прежнем окне, и
+          // прилипшая панель вкладок (sticky) застывает посередине снимка поверх содержимого — на телефоне так не бывает.
+          const size = page.viewportSize();
+          const height = await page.evaluate(() => document.documentElement.scrollHeight);
+          if (size && height > size.height) {
+            await page.setViewportSize({ width: size.width, height });
+            await page.evaluate(() => document.fonts.ready);
+          }
           const file = path.join(out, `${stem}.png`);
           await page.screenshot({ path: file, fullPage: true });
           say(file);
