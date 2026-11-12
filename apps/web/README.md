@@ -121,7 +121,7 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 - Нужен HTTPS (на `localhost` работает и по http). Без сети установленное приложение показывает страницу «Нет связи» с кнопкой повтора; данные сделок и ответы сервера на телефоне не кэшируются.
 - На демо-стенде с паролем манифест, значки, `sw.js` и `/offline` отдаются без пароля — браузер запрашивает их без учётных данных (`src/platform/demo-gate.ts`).
 
-Где что лежит: манифест — `src/app/manifest.ts`; значки — `public/icons/` и `src/app/apple-icon.png`, перерисовать: `node scripts/generate-icons.mjs` (цвет из `src/ui/tokens.css`); сервис-воркер — `public/sw.js`; кнопка и подсказка — `src/app/_components/install/`; тексты — `src/i18n/ru/pwa.ts`. Проверка: Chrome DevTools → Application → Manifest (раздел Installability без ошибок).
+Где что лежит: манифест — `src/app/manifest.ts`; значки — `public/icons/` и `src/app/apple-icon.png`, перерисовать: `node scripts/generate-icons.mjs` (цвет из `src/ui/tokens.css`); сервис-воркер — `public/sw.js`; кнопка и подсказка — `src/app/(legacy)/_components/install/`; тексты — `src/i18n/ru/pwa.ts`. Проверка: Chrome DevTools → Application → Manifest (раздел Installability без ошибок).
 
 ## Развёртывание
 

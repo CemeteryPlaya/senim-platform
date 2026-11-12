@@ -3,7 +3,7 @@
 import { ru } from "@/i18n/ru";
 import { Button, buttonClasses, Container, PageHeader } from "@/ui";
 import { fontVariables } from "@/ui/fonts";
-import "./globals.css";
+import "./(legacy)/globals.css";
 
 const e = ru.common.errors;
 

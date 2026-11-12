@@ -217,12 +217,14 @@ function functionCoverage(fn, cov) {
 
 const crap = (c, cov) => c * c * Math.pow(1 - cov, 3) + c;
 
-/** Сколько функций выше порога в каждой зоне: src/modules/<имя>, src/app/<раздел>, src/ui и т. д. */
+/** Сколько функций выше порога в каждой зоне: src/modules/<имя>, src/app/(<группа>)/<раздел>, src/ui и т. д. */
 function summarize(over) {
   const areas = {};
   for (const f of over) {
     const parts = f.file.split("/");
-    const area = parts.length > 3 ? parts.slice(0, 3).join("/") : parts.slice(0, 2).join("/");
+    // Группа маршрутов (src/app/(legacy), src/app/(app)) — не раздел: зона на уровень глубже.
+    const depth = parts[2]?.startsWith("(") ? 4 : 3;
+    const area = parts.length > depth ? parts.slice(0, depth).join("/") : parts.slice(0, depth - 1).join("/");
     areas[area] ??= { ts: 0, tsx: 0 };
     areas[area][f.file.endsWith(".tsx") ? "tsx" : "ts"]++;
   }
