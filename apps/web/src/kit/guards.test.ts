@@ -126,9 +126,13 @@ function matchLines(src: string, re: RegExp): Hit[] {
 // Детекторы (на вход — текст файла; комментарии вырезаются внутри)
 // ---------------------------------------------------------------------------------------------------------------------
 
-/** 1. Вес шрифта не выше 600. */
+/** 1. Вес шрифта не выше 600: классы font-bold/extrabold/black и `fontWeight: 700|800|900|"bold"|"bolder"` в стиле. */
 export function findHeavyFont(src: string): Hit[] {
-  return matchLines(stripComments(src), /(?<![\w-])font-(?:bold|extrabold|black)(?![\w-])/);
+  const code = stripComments(src);
+  return [
+    ...matchLines(code, /(?<![\w-])font-(?:bold|extrabold|black)(?![\w-])/),
+    ...matchLines(code, /\bfontWeight\s*:\s*(?:[789]00\b|["'`](?:bold|bolder|[789]00)["'`])/),
+  ].sort((a, b) => a.line - b.line);
 }
 
 /** 2. Сырые цвета: hex (#rgb, #rgba, #rrggbb, #rrggbbaa) и rgb()/hsl()/oklch(). Якорь `href="#abc"` — не цвет. */
@@ -149,15 +153,18 @@ export function findRawColor(src: string): Hit[] {
 export function findArbitraryValue(src: string): Hit[] {
   return matchLines(
     stripComments(src),
-    /(?<=^|[\s"'`:!(])[a-z][a-z0-9]*(?:-[a-z0-9]+)*-\[[^\]\s"'`]+\](?!:)/,
+    /(?<=^|[\s"'`:!(])-?[a-z][a-z0-9]*(?:-[a-z0-9]+)*-\[[^\]\s]+\](?!:)/,
   );
 }
 
-/** 4. Запрещённые импорты: `@/ui…`, `@/app/(legacy)…`, относительные пути в `(legacy)`. */
+/**
+ * 4. Запрещённые импорты (import, import(), require): `@/ui…`, `@/app/(legacy)…`, относительные пути в старый
+ * `ui` (`../ui`, `../../ui/x`) и любой относительный путь с `(legacy)`.
+ */
 export function findLegacyImport(src: string): Hit[] {
   return matchLines(
     stripComments(src),
-    /["'`](?:@\/ui(?:\/[^"'`]*)?|@\/app\/\(legacy\)[^"'`]*|(?:\.{1,2}\/)+[^"'`]*\(legacy\)[^"'`]*)["'`]/,
+    /["'`](?:@\/ui(?:\/[^"'`]*)?|@\/app\/\(legacy\)[^"'`]*|(?:\.\.\/)+ui(?:\/[^"'`]*)?|(?:\.{1,2}\/)+[^"'`]*\(legacy\)[^"'`]*)["'`]/,
   );
 }
 
@@ -167,11 +174,20 @@ export function findRawControl(src: string): Hit[] {
 }
 
 /**
- * 6. Адрес-строка в href: `href="/…"`, `href='/…'`, `href={"/…"}`, `href={'/…'}`, `href={`/…`}`.
- * Разрешены `href={to(...)}`, `href={legacy(...)}`, `href="#…"`, `mailto:`, `tel:`, `https://`.
+ * 6. Адрес-литерал вместо to()/legacy(): `href="/…"`, `href={"/…"}`, `` href={`/…`} ``, ветка условия
+ * `href={c ? "/a" : "/b"}` (также `??`, `||`), ключ объекта `href: "/…"`, вызовы `redirect("/…")`,
+ * `permanentRedirect("/…")`, а также `push`, `replace`, `prefetch` с путём (`"/x"`; одиночный `"/"` в них не считается
+ * путём — это обычный `s.replace("/", "")`). Разрешены `to(...)`, `legacy(...)`, `#…`, `mailto:`, `tel:`, `https://`.
  */
 export function findHardcodedHref(src: string): Hit[] {
-  return matchLines(stripComments(src), /\bhref\s*=\s*(?:\{\s*)?["'`]\//);
+  const code = stripComments(src);
+  return [
+    ...matchLines(code, /\bhref\s*=\s*(?:\{\s*)?["'`]\//),
+    ...matchLines(code, /\bhref\s*=\s*\{[^}\n]*(?:\?\??|:|\|\|)\s*["'`]\//),
+    ...matchLines(code, /\bhref\s*:\s*["'`]\//),
+    ...matchLines(code, /\b(?:redirect|permanentRedirect)\s*\(\s*["'`]\//),
+    ...matchLines(code, /\b(?:push|replace|prefetch)\s*\(\s*["'`]\/[^"'`\s]/),
+  ].sort((a, b) => a.line - b.line);
 }
 
 /** 7. Кириллица вне комментариев (строки, текст JSX, имена). Комментарии по-русски разрешены. */
@@ -179,11 +195,11 @@ export function findCyrillic(src: string): Hit[] {
   return matchLines(stripComments(src), /[Ѐ-ӿ]+/);
 }
 
-/** 8. Слово «демо» в текстах: значения строк дерева (и результаты функций), без учёта регистра. */
+/** 8. Слова «демо», «комисси…», «эскроу» в текстах: значения строк дерева (и результаты функций), без учёта регистра. */
 export function findDemoWord(tree: unknown, trail = "ru.app"): string[] {
   const found: string[] = [];
   if (typeof tree === "string") {
-    if (/демо/i.test(tree)) found.push(`${trail}: «${tree}»`);
+    if (/демо|комисси|эскроу/i.test(tree)) found.push(`${trail}: «${tree}»`);
   } else if (typeof tree === "function") {
     for (const arg of [0, 1, 2, 5, 11, 21]) {
       let result: unknown;
@@ -204,17 +220,17 @@ export function findDemoWord(tree: unknown, trail = "ru.app"): string[] {
 // Обход и сообщения
 // ---------------------------------------------------------------------------------------------------------------------
 
-function scan(files: SourceFile[], detect: (src: string) => Hit[], only?: ".tsx"): string[] {
+function scan(files: SourceFile[], detect: (src: string) => Hit[], skip: string[] = []): string[] {
   const out: string[] = [];
   for (const f of files) {
-    if (only && f.ext !== only) continue;
+    if (skip.some((s) => f.rel.endsWith(s))) continue;
     for (const h of detect(f.text)) out.push(`${f.rel}:${h.line}  ${h.text}`);
   }
   return out;
 }
 
 function expectClean(rule: string, violations: string[]): void {
-  expect(violations.join("\n"), `${rule}\n${violations.join("\n")}`).toBe("");
+  expect(violations, rule).toEqual([]);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -222,6 +238,7 @@ function expectClean(rule: string, violations: string[]): void {
 describe("сторожа нового интерфейса: основа", () => {
   it("обход находит файлы kit и (app)", () => {
     expect(KIT_AND_APP.length).toBeGreaterThan(5);
+    expect(APP_ONLY.some((f) => f.ext === ".tsx")).toBe(true);
     expect(APP_ONLY.some((f) => f.rel.endsWith("layout.tsx"))).toBe(true);
     expect(KIT_ONLY.some((f) => f.rel.endsWith("cn.ts"))).toBe(true);
     expect(KIT_AND_APP.some((f) => f.rel.endsWith("tokens.ts"))).toBe(false);
@@ -236,6 +253,17 @@ describe("сторожа нового интерфейса: основа", () =>
     expect(out).not.toMatch(/[xbce]\s*\*?\//);
     expect(out.split("\n")[2]).toContain("d");
   });
+
+  it("https:// в строке сохраняется, в тексте JSX считается началом комментария (известное ограничение)", () => {
+    const inString = stripComments('const u = "https://example.kz/Привет";');
+    expect(inString).toContain("https://example.kz");
+    expect(findCyrillic('const u = "https://example.kz/Привет";')).toHaveLength(1);
+    // Текст JSX не размечается: «//» в нём режет остаток строки, число строк не меняется.
+    const inJsx = stripComments("<a>https://example.kz</a>\n<b>x</b>");
+    expect(inJsx.split("\n")).toHaveLength(2);
+    expect(inJsx).not.toContain("</a>");
+    expect(inJsx).toContain("<b>x</b>");
+  });
 });
 
 describe("правило 1: вес шрифта не выше 600", () => {
@@ -246,8 +274,15 @@ describe("правило 1: вес шрифта не выше 600", () => {
     expect(findHeavyFont('className="font-semibold"')).toHaveLength(0);
     expect(findHeavyFont('className="font-medium"')).toHaveLength(0);
     expect(findHeavyFont("// font-bold нельзя")).toHaveLength(0);
+    expect(findHeavyFont("style={{ fontWeight: 700 }}")).toHaveLength(1);
+    expect(findHeavyFont("{ fontWeight: 900 }")).toHaveLength(1);
+    expect(findHeavyFont('{ fontWeight: "bold" }')).toHaveLength(1);
+    expect(findHeavyFont("{ fontWeight: 'bolder' }")).toHaveLength(1);
+    expect(findHeavyFont('{ fontWeight: "800" }')).toHaveLength(1);
+    expect(findHeavyFont("{ fontWeight: 600 }")).toHaveLength(0);
+    expect(findHeavyFont('{ fontWeight: "normal" }')).toHaveLength(0);
   });
-  it("в коде v2 нет font-bold, font-extrabold, font-black", () => {
+  it("в коде v2 нет font-bold, font-extrabold, font-black и fontWeight выше 600", () => {
     expectClean("Правило 1: вес шрифта не выше 600 (font-semibold).", scan(KIT_AND_APP, findHeavyFont));
   });
 });
@@ -268,10 +303,10 @@ describe("правило 2: нет сырых цветов", () => {
     expect(findRawColor("// цвет #fff в комментарии")).toHaveLength(0);
     expect(findRawColor('"var(--color-canvas)"')).toHaveLength(0);
   });
-  it("в .tsx нет hex, rgb() и hsl()", () => {
+  it("в .ts и .tsx нет hex, rgb() и hsl() (кроме tokens.ts)", () => {
     expectClean(
       "Правило 2: цвета только из токенов (tokens.css / классы токенов).",
-      scan(KIT_AND_APP, findRawColor, ".tsx"),
+      scan(KIT_AND_APP, findRawColor),
     );
   });
 });
@@ -294,11 +329,16 @@ describe("правило 3: нет произвольных значений Tai
     expect(findArbitraryValue("const c = arr.length-[1];")).toHaveLength(0);
     expect(findArbitraryValue('className="data-[state=open]:bg-surface"')).toHaveLength(0);
     expect(findArbitraryValue("// text-[15px] в комментарии")).toHaveLength(0);
+    // отрицательные утилиты и значения с кавычками
+    for (const cls of ["-mt-[3px]", "md:-translate-x-[2px]", "font-['Inter']", "bg-[url('/x.png')]"]) {
+      expect(findArbitraryValue(`className="flex ${cls}"`), cls).toHaveLength(1);
+    }
+    expect(findArbitraryValue('className="-mt-4 md:-translate-x-2 font-sans"')).toHaveLength(0);
   });
-  it("в .tsx нет text-[…], rounded-[…], bg-[…], scale-[…] и других произвольных значений", () => {
+  it("в .ts и .tsx нет text-[…], rounded-[…], bg-[…], scale-[…] и других произвольных значений", () => {
     expectClean(
       "Правило 3: размеры, радиусы, цвета и тени — только токены.",
-      scan(KIT_AND_APP, findArbitraryValue, ".tsx"),
+      scan(KIT_AND_APP, findArbitraryValue),
     );
   });
 });
@@ -313,6 +353,13 @@ describe("правило 4: нет импортов старого интерф�
     expect(findLegacyImport('import { cn } from "@/kit/cn";')).toHaveLength(0);
     expect(findLegacyImport('import { ru } from "@/i18n/ru";')).toHaveLength(0);
     expect(findLegacyImport('import { x } from "@/uikit/a";')).toHaveLength(0);
+    expect(findLegacyImport('import { X } from "../ui/Button";')).toHaveLength(1);
+    expect(findLegacyImport('import { X } from "../../ui";')).toHaveLength(1);
+    expect(findLegacyImport('const m = require("@/ui/Modal");')).toHaveLength(1);
+    expect(findLegacyImport('const m = await import("@/ui");')).toHaveLength(1);
+    expect(findLegacyImport('import { X } from "../kit/ui-parts";')).toHaveLength(0);
+    expect(findLegacyImport('import { X } from "./cn";')).toHaveLength(0);
+    expect(findLegacyImport("// import x from '@/ui/Button'")).toHaveLength(0);
   });
   it("kit и (app) не импортируют @/ui и @/app/(legacy)", () => {
     expectClean("Правило 4: v2 не зависит от v1.", scan(KIT_AND_APP, findLegacyImport));
@@ -350,9 +397,32 @@ describe("правило 6: адреса строятся через to() и leg
     expect(findHardcodedHref('<a href="tel:+77000000000">')).toHaveLength(0);
     expect(findHardcodedHref('<a href="https://example.kz">')).toHaveLength(0);
     expect(findHardcodedHref("<a href={href}>")).toHaveLength(0);
+    // ключ объекта, вызовы навигации, условия
+    expect(findHardcodedHref('const nav = [{ label: l.deals, href: "/deals" }];')).toHaveLength(1);
+    expect(findHardcodedHref("const nav = { href: '/deals' };")).toHaveLength(1);
+    expect(findHardcodedHref("const nav = { href: `/deals/${id}` };")).toHaveLength(1);
+    expect(findHardcodedHref('redirect("/login");')).toHaveLength(1);
+    expect(findHardcodedHref("redirect('/');")).toHaveLength(1);
+    expect(findHardcodedHref("permanentRedirect(`/deals`);")).toHaveLength(1);
+    expect(findHardcodedHref('router.push("/deals");')).toHaveLength(1);
+    expect(findHardcodedHref("router.replace('/deals/1');")).toHaveLength(1);
+    expect(findHardcodedHref('router.prefetch("/deals");')).toHaveLength(1);
+    expect(findHardcodedHref('<Link href={ok ? "/a" : "/b"}>')).not.toHaveLength(0);
+    expect(findHardcodedHref('<Link href={ok ? to("/a") : "/b"}>')).toHaveLength(1);
+    expect(findHardcodedHref('<Link href={x ?? "/a"}>')).toHaveLength(1);
+    expect(findHardcodedHref('const nav = { href: to("/deals") };')).toHaveLength(0);
+    expect(findHardcodedHref('const nav = { href: "https://example.kz" };')).toHaveLength(0);
+    expect(findHardcodedHref('redirect(to("/login"));')).toHaveLength(0);
+    expect(findHardcodedHref('router.push(to("/deals"));')).toHaveLength(0);
+    expect(findHardcodedHref('<Link href={ok ? to("/a") : legacy(p)}>')).toHaveLength(0);
+    expect(findHardcodedHref('const s = path.replace("/", "-");')).toHaveLength(0);
+    expect(findHardcodedHref('redirect("/x"); // redirect("/y")')).toHaveLength(1);
   });
-  it("в src/app/(app) нет href со строкой-адресом", () => {
-    expectClean("Правило 6: адрес — to(...) или legacy(...).", scan(APP_ONLY, findHardcodedHref));
+  it("в src/app/(app) (.ts и .tsx) нет адресов-литералов", () => {
+    expectClean(
+      "Правило 6: адрес — to(...) или legacy(...).",
+      scan(APP_ONLY, findHardcodedHref, ["_shell/paths.ts"]),
+    );
   });
 });
 
@@ -369,17 +439,25 @@ describe("правило 7: нет кириллицы в разметке и с�
     expect(findCyrillic("{/* Привет */}")).toHaveLength(0);
     expect(findCyrillic("/**\n * Привет\n */\nconst a = 1;")).toHaveLength(0);
     expect(findCyrillic("/* а\nб */\nconst t = 'в';").map((h) => h.line)).toEqual([3]);
+    // сообщения схем и ошибок в .ts
+    expect(findCyrillic('z.string().min(1, "Введите имя")')).not.toHaveLength(0);
+    expect(findCyrillic('throw new Error("Не найдено");')).not.toHaveLength(0);
+    expect(findCyrillic('z.string().min(1, ru.app.kit.close)')).toHaveLength(0);
   });
-  it("в .tsx из kit и (app) нет кириллицы вне комментариев", () => {
+  it("в .ts и .tsx из kit и (app) нет кириллицы вне комментариев", () => {
     expectClean(
       "Правило 7: тексты — только из ru.app (src/i18n/ru/app).",
-      scan([...KIT_ONLY, ...APP_ONLY], findCyrillic, ".tsx"),
+      scan([...KIT_ONLY, ...APP_ONLY], findCyrillic),
     );
   });
 });
 
-describe("правило 8: в ru.app нет слова «демо»", () => {
+describe("правило 8: в ru.app нет слов «демо», «комиссия», «эскроу»", () => {
   it("самопроверка", () => {
+    expect(findDemoWord({ a: "Комиссия 4%" })).toHaveLength(1);
+    expect(findDemoWord({ a: "Без комиссии" })).toHaveLength(1);
+    expect(findDemoWord({ a: "Эскроу-счёт" })).toHaveLength(1);
+    expect(findDemoWord({ a: "Деньги в банке под защитой" })).toHaveLength(0);
     expect(findDemoWord({ a: "Демо-режим" })).toHaveLength(1);
     expect(findDemoWord({ a: { b: "это ДЕМО" } })).toHaveLength(1);
     expect(findDemoWord({ a: (n: number) => `демо ${n}` })).not.toHaveLength(0);
