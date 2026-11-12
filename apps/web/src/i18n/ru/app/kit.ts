@@ -4,6 +4,8 @@ export const kit = {
   back: "Назад",
   pending: "Подождите",
   loading: "Загрузка",
+  /** Значение полосы прогресса для диктора: «2 из 3». */
+  progress: (value: number, max: number) => `${value} из ${max}`,
   /** Кнопка отказа в окне подтверждения (ConfirmDialog). */
   cancel: "Отмена",
   /** Кнопка, закрывающая пояснение-шторку (Explain на телефоне). */

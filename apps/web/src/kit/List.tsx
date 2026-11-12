@@ -32,7 +32,7 @@ export function ListRow({ label, value, href }: ListRowProps) {
   return (
     <li>
       {href ? (
-        <Link href={href} className={cn(rowClass, "no-underline transition-transform duration-100 active:scale-press")}>
+        <Link href={href} className={cn(rowClass, "no-underline transition-colors duration-100 hover:bg-canvas")}>
           {content}
         </Link>
       ) : (

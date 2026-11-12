@@ -1,19 +1,23 @@
+import { ru } from "@/i18n/ru";
+
 export type ProgressProps = { value: number; max: number; label: string };
 
-/** Полоса прогресса (например, шаги сделки). Заполняется масштабом по X: анимируется только transform. */
+/** Полоса прогресса (шаги сделки). Нет смысла (`max <= 0`, не число) — ничего не рисуется. */
 export function Progress({ value, max, label }: ProgressProps) {
-  const safeMax = max > 0 ? max : 1;
-  const now = Math.min(Math.max(value, 0), safeMax);
+  if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return null;
+  const now = Math.min(Math.max(value, 0), max);
   return (
     <div
       role="progressbar"
       aria-label={label}
       aria-valuemin={0}
-      aria-valuemax={safeMax}
+      aria-valuemax={max}
       aria-valuenow={now}
+      aria-valuetext={ru.app.kit.progress(now, max)}
       className="h-2 w-full overflow-hidden rounded-full bg-line"
     >
-      <div className="h-full origin-left rounded-full bg-accent" style={{ transform: `scaleX(${now / safeMax})` }} />
+      {/* Прямоугольная заливка: масштаб по X (только transform) не растягивает скругление трека. */}
+      <div className="h-full w-full origin-left bg-accent" style={{ transform: `scaleX(${now / max})` }} />
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   PhotoSlot,
   Progress,
   RadioCard,
+  RadioGroup,
   Select,
   Skeleton,
   StatusChip,
@@ -29,6 +30,9 @@ const text = (el: ReactElement): string =>
 
 const NB = " ";
 const describedByPair = /aria-describedby="([^"]+)"[\s\S]*id="\1"|id="([^"]+)"[\s\S]*aria-describedby="\2"/;
+/** Класс как целое слово: `w-full` не совпадает с `max-w-full`, `min-h-control` — с `min-h-control-sm`. */
+const hasClass = (out: string, cls: string): boolean =>
+  new RegExp(`class="[^"]*(?:^|\\s)${cls.replace(/[-/]/g, "\\$&")}(?=\\s|")`).test(out);
 
 describe("Button", () => {
   it("primary по умолчанию ставит data-primary-action, остальные варианты нет", () => {
@@ -38,21 +42,51 @@ describe("Button", () => {
     expect(html(<Button variant="danger">Ок</Button>)).not.toContain("data-primary-action");
   });
 
-  it("pending блокирует повторное нажатие и показывает индикатор", () => {
+  it("pending: aria-disabled и aria-busy, без нативного disabled (фокус не теряется)", () => {
     const out = html(<Button pending>Ок</Button>);
-    expect(out).toMatch(/disabled|aria-disabled="true"/);
+    expect(out).toContain('aria-disabled="true"');
     expect(out).toContain('aria-busy="true"');
+    expect(out).not.toMatch(/\sdisabled(?:=|\s|>)/);
     expect(out).toContain("<svg");
   });
 
-  it("по умолчанию type=button; размеры md и sm различаются", () => {
-    expect(html(<Button>Ок</Button>)).toContain('type="button"');
-    expect(html(<Button size="sm">Ок</Button>)).toContain("min-h-control-sm");
-    expect(html(<Button>Ок</Button>)).toContain("min-h-control");
+  it("pending сохраняет подпись в доступном имени и добавляет «подождите»", () => {
+    const out = html(<Button pending>Принять мебель</Button>);
+    expect(out).toContain("Принять мебель");
+    expect(out).toContain(", подождите");
+    expect(out).not.toContain("invisible");
   });
 
-  it("full растягивает кнопку", () => {
-    expect(html(<Button full>Ок</Button>)).toContain("w-full");
+  it("обычная кнопка без aria-disabled, aria-busy и disabled", () => {
+    const out = html(<Button>Ок</Button>);
+    expect(out).not.toMatch(/saria-disabled=/);
+    expect(out).not.toMatch(/saria-busy=/);
+    expect(out).not.toMatch(/\sdisabled(?:=|\s|>)/);
+  });
+
+  it("явный disabled остаётся нативным", () => {
+    const out = html(<Button disabled>Ок</Button>);
+    expect(out).toMatch(/\sdisabled(?:=|\s|>)/);
+    expect(out).not.toContain('aria-disabled="true"');
+  });
+
+  it("по умолчанию type=button; submit передаётся", () => {
+    expect(html(<Button>Ок</Button>)).toContain('type="button"');
+    expect(html(<Button type="submit">Ок</Button>)).toContain('type="submit"');
+  });
+
+  it("размер md — min-h-control, sm — min-h-control-sm", () => {
+    const md = html(<Button>Ок</Button>);
+    expect(hasClass(md, "min-h-control")).toBe(true);
+    expect(hasClass(md, "min-h-control-sm")).toBe(false);
+    const sm = html(<Button size="sm">Ок</Button>);
+    expect(hasClass(sm, "min-h-control-sm")).toBe(true);
+    expect(hasClass(sm, "min-h-control")).toBe(false);
+  });
+
+  it("full растягивает кнопку, без full — нет", () => {
+    expect(hasClass(html(<Button full>Ок</Button>), "w-full")).toBe(true);
+    expect(hasClass(html(<Button>Ок</Button>), "w-full")).toBe(false);
   });
 
   it("ButtonLink — ссылка с теми же метками", () => {
@@ -64,18 +98,31 @@ describe("Button", () => {
 });
 
 describe("Поля", () => {
-  it("ошибка связана с полем и помечает его невалидным", () => {
+  it("ошибка связана с полем, помечает его невалидным и озвучивается", () => {
     const f = html(<TextField label="Почта" name="email" error="Проверьте адрес" />);
     expect(f).toContain('aria-invalid="true"');
     expect(f).toMatch(describedByPair);
     expect(f).toContain("Проверьте адрес");
+    expect(f).toContain('role="alert"');
   });
 
-  it("без ошибки нет aria-invalid и aria-describedby", () => {
+  it("без ошибки нет aria-invalid, aria-describedby и role=alert", () => {
     const f = html(<TextField label="Почта" name="email" />);
     expect(f).not.toContain("aria-invalid");
     expect(f).not.toContain("aria-describedby");
+    expect(f).not.toContain('role="alert"');
     expect(f).toContain('name="email"');
+  });
+
+  it("свой aria-describedby не затирается: получает и свой id, и id ошибки", () => {
+    const f = html(<TextField label="Почта" name="email" aria-describedby="hint" error="Ошибка" />);
+    const value = /aria-describedby="([^"]+)"/.exec(f)?.[1] ?? "";
+    const ids = value.split(" ");
+    expect(ids).toContain("hint");
+    expect(ids).toHaveLength(2);
+    const errorId = ids.find((i) => i !== "hint") ?? "";
+    expect(f).toContain(`id="${errorId}"`);
+    expect(html(<TextField label="Почта" name="email" aria-describedby="hint" />)).toContain('aria-describedby="hint"');
   });
 
   it("подпись привязана к полю", () => {
@@ -83,7 +130,7 @@ describe("Поля", () => {
     expect(f).toMatch(/<label[^>]+for="([^"]+)"[\s\S]*<input[^>]+id="\1"/);
   });
 
-  it("TextArea, Select, Checkbox и RadioCard тоже связывают ошибку", () => {
+  it("TextArea, Select и Checkbox тоже связывают ошибку и не теряют свой describedby", () => {
     expect(html(<TextArea label="Описание" name="d" error="Коротко" />)).toMatch(describedByPair);
     expect(
       html(
@@ -93,14 +140,41 @@ describe("Поля", () => {
       ),
     ).toMatch(describedByPair);
     expect(html(<Checkbox label="Согласен" name="ok" error="Нужно согласие" />)).toMatch(describedByPair);
-    expect(html(<RadioCard label="Самовывоз" name="m" value="a" error="Выберите способ" />)).toMatch(describedByPair);
     expect(html(<Checkbox label="Согласен" name="ok" error="Нужно" />)).toContain('aria-invalid="true"');
+    expect(html(<Checkbox label="Согласен" name="ok" error="Нужно" aria-describedby="h" />)).toMatch(/aria-describedby="h [^"]+"/);
   });
 
-  it("RadioCard — радиокнопка внутри подписи", () => {
+  it("RadioGroup: fieldset с legend, карточки внутри, общая ошибка связана с группой", () => {
+    const out = html(
+      <RadioGroup legend="Способ получения" error="Выберите способ">
+        <RadioCard label="Самовывоз" name="m" value="a" />
+        <RadioCard label="Доставка" name="m" value="b" />
+      </RadioGroup>,
+    );
+    expect(out).toMatch(/^<fieldset/);
+    expect(out).toMatch(/<legend[^>]*>Способ получения<\/legend>/);
+    expect(out.match(/type="radio"/g)?.length).toBe(2);
+    expect(out).toContain('role="alert"');
+    expect(out.match(/Выберите способ/g)?.length).toBe(1);
+    expect(out).toMatch(describedByPair);
+  });
+
+  it("RadioGroup без ошибки не рисует alert и describedby; у RadioCard нет своей ошибки", () => {
+    const out = html(
+      <RadioGroup legend="Способ">
+        <RadioCard label="Самовывоз" name="m" value="a" />
+      </RadioGroup>,
+    );
+    expect(out).not.toContain('role="alert"');
+    expect(out).not.toContain("aria-describedby");
+    expect(out).not.toContain("aria-invalid");
+  });
+
+  it("RadioCard: радиокнопка в подписи, выбранная выделяется рамкой без ring", () => {
     const out = html(<RadioCard label="Самовывоз" name="m" value="a" />);
     expect(out).toContain('type="radio"');
-    expect(out).toContain("Самовывоз");
+    expect(out).toContain("has-checked:border-action");
+    expect(out).not.toContain("ring");
   });
 });
 
@@ -114,10 +188,16 @@ describe("Money", () => {
   it("дробная часть только когда тиыны не кратны 100", () => {
     expect(text(<Money tiyn={122400050n} />)).toBe(`1${NB}224${NB}000,50${NB}₸`);
     expect(text(<Money tiyn={5n} />)).toBe(`0,05${NB}₸`);
+    expect(text(<Money tiyn={50n} />)).toBe(`0,50${NB}₸`);
   });
 
   it("отрицательная сумма — с минусом U+2212", () => {
     expect(text(<Money tiyn={-150000n} />)).toBe(`−1${NB}500${NB}₸`);
+    expect(text(<Money tiyn={-150050n} />)).toBe(`−1${NB}500,50${NB}₸`);
+  });
+
+  it("крупная сумма не теряет точности", () => {
+    expect(text(<Money tiyn={123456789012345678900n} />)).toBe(`1${NB}234${NB}567${NB}890${NB}123${NB}456${NB}789${NB}₸`);
   });
 
   it("цифры табличные, строка не переносится", () => {
@@ -142,36 +222,64 @@ describe("PageTitle", () => {
   });
 });
 
-describe("Остальное", () => {
-  it("Progress — role=progressbar с aria-valuenow и aria-valuemax", () => {
+describe("Progress", () => {
+  it("role=progressbar с aria-valuenow, aria-valuemax и текстом «2 из 3»", () => {
     const out = html(<Progress value={2} max={3} label="Шаги" />);
     expect(out).toContain('role="progressbar"');
     expect(out).toContain('aria-valuenow="2"');
     expect(out).toContain('aria-valuemax="3"');
     expect(out).toContain('aria-label="Шаги"');
+    expect(out).toContain('aria-valuetext="2 из 3"');
   });
 
-  it("Progress не выходит за границы", () => {
-    expect(html(<Progress value={9} max={3} label="Шаги" />)).toContain('aria-valuenow="3"');
+  it("значение зажимается в [0, max]", () => {
+    const over = html(<Progress value={9} max={3} label="Шаги" />);
+    expect(over).toContain('aria-valuenow="3"');
+    expect(over).toContain('aria-valuetext="3 из 3"');
     expect(html(<Progress value={-1} max={3} label="Шаги" />)).toContain('aria-valuenow="0"');
   });
 
-  it("PhotoSlot без src — заглушка без картинки, с src — картинка с alt", () => {
+  it("max <= 0 и не-числа — ничего не рисуется", () => {
+    expect(html(<Progress value={1} max={0} label="Шаги" />)).toBe("");
+    expect(html(<Progress value={1} max={-2} label="Шаги" />)).toBe("");
+    expect(html(<Progress value={Number.NaN} max={3} label="Шаги" />)).toBe("");
+    expect(html(<Progress value={1} max={Number.POSITIVE_INFINITY} label="Шаги" />)).toBe("");
+  });
+
+  it("заливка прямоугольная: масштаб по X внутри скруглённого трека", () => {
+    const out = html(<Progress value={1} max={2} label="Шаги" />);
+    expect(out).toContain("scaleX(0.5)");
+    expect(out).toContain("overflow-hidden");
+    const fill = /<div[^>]*origin-left[^>]*>/.exec(out)?.[0] ?? "";
+    expect(fill).not.toContain("rounded");
+  });
+});
+
+describe("Остальное", () => {
+  it("PhotoSlot без src — заглушка без картинки, с src — ленивая картинка с alt", () => {
     expect(html(<PhotoSlot alt="Кухня" ratio="4/3" />)).not.toContain("<img");
     const out = html(<PhotoSlot alt="Кухня" ratio="1/1" src="/p.jpg" />);
     expect(out).toContain("<img");
     expect(out).toContain('alt="Кухня"');
+    expect(out).toContain('loading="lazy"');
+    expect(out).toContain('decoding="async"');
   });
 
-  it("Skeleton рисует заданное число строк и скрыт от диктора", () => {
+  it("Skeleton: заданное число строк, строки скрыты от диктора, диктор слышит «Загрузка»", () => {
     const out = html(<Skeleton lines={4} />);
-    expect(out.match(/data-skeleton-line/g)?.length).toBe(4);
+    const lines = out.match(/<div[^>]*data-skeleton-line[^>]*>/g) ?? [];
+    expect(lines).toHaveLength(4);
+    for (const line of lines) expect(line).toContain('aria-hidden="true"');
     expect(out).toContain('role="status"');
+    expect(text(<Skeleton lines={4} />)).toBe("Загрузка");
   });
 
-  it("Card, StatusChip, List", () => {
+  it("Card и StatusChip", () => {
     expect(html(<Card as="section">x</Card>)).toMatch(/^<section/);
     expect(html(<StatusChip tone="accent">В пути</StatusChip>)).toContain("В пути");
+  });
+
+  it("List: строки, ссылка со своим hover-фоном", () => {
     const out = html(
       <List>
         <ListRow label="Срок" value="3 дня" />
@@ -180,6 +288,7 @@ describe("Остальное", () => {
     );
     expect(out.match(/<li/g)?.length).toBe(2);
     expect(out).toMatch(/<a[^>]+href="\/v2\/address"/);
+    expect(out).toContain("hover:bg-canvas");
     expect(out).toContain("3 дня");
   });
 });

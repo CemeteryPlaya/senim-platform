@@ -18,6 +18,11 @@ function useFieldIds(explicitId: string | undefined, error: string | undefined):
   return { id, errorId: error ? `${id}-error` : undefined };
 }
 
+/** Свой aria-describedby вызывающего + связь с ошибкой. */
+function describedBy(own: string | undefined, errorId: string | undefined): string | undefined {
+  return [own, errorId].filter(Boolean).join(" ") || undefined;
+}
+
 const labelClass = "text-sub font-medium text-ink";
 
 const controlClass = cn(
@@ -30,7 +35,7 @@ const borderFor = (invalid: boolean) => (invalid ? "border-danger" : "border-lin
 function ErrorText({ id, children }: { id: string | undefined; children: ReactNode }) {
   if (!children) return null;
   return (
-    <p id={id} className="text-sub text-danger">
+    <p id={id} role="alert" className="text-sub text-danger">
       {children}
     </p>
   );
@@ -48,9 +53,9 @@ export function TextField({ label, error, id: explicitId, className, ...rest }: 
       <input
         id={id}
         aria-invalid={error ? true : undefined}
-        aria-describedby={errorId}
         className={cn(controlClass, "h-control", borderFor(Boolean(error)), className)}
         {...rest}
+        aria-describedby={describedBy(rest["aria-describedby"], errorId)}
       />
       <ErrorText id={errorId}>{error}</ErrorText>
     </div>
@@ -70,9 +75,9 @@ export function TextArea({ label, error, id: explicitId, className, rows = 4, ..
         id={id}
         rows={rows}
         aria-invalid={error ? true : undefined}
-        aria-describedby={errorId}
         className={cn(controlClass, "min-h-control py-3", borderFor(Boolean(error)), className)}
         {...rest}
+        aria-describedby={describedBy(rest["aria-describedby"], errorId)}
       />
       <ErrorText id={errorId}>{error}</ErrorText>
     </div>
@@ -92,9 +97,9 @@ export function Select({ label, error, id: explicitId, className, children, ...r
         <select
           id={id}
           aria-invalid={error ? true : undefined}
-          aria-describedby={errorId}
           className={cn(controlClass, "h-control appearance-none pr-12", borderFor(Boolean(error)), className)}
           {...rest}
+          aria-describedby={describedBy(rest["aria-describedby"], errorId)}
         >
           {children}
         </select>
@@ -116,9 +121,9 @@ export function Checkbox({ label, error, id: explicitId, className, ...rest }: C
           id={id}
           type="checkbox"
           aria-invalid={error ? true : undefined}
-          aria-describedby={errorId}
           className={cn("size-6 shrink-0 accent-action", className)}
           {...rest}
+          aria-describedby={describedBy(rest["aria-describedby"], errorId)}
         />
         <span>{label}</span>
       </label>
@@ -127,32 +132,37 @@ export function Checkbox({ label, error, id: explicitId, className, ...rest }: C
   );
 }
 
-export type RadioCardProps = Omit<ComponentProps<"input">, "name" | "type"> & FieldProps;
+export type RadioCardProps = Omit<ComponentProps<"input">, "name" | "type"> & { label: string; name: string };
 
-/** Вариант выбора в виде карточки: вся карточка нажимается, выбранная выделена линией цвета действия. */
-export function RadioCard({ label, error, id: explicitId, className, ...rest }: RadioCardProps) {
-  const { id, errorId } = useFieldIds(explicitId, error);
+/** Вариант выбора в виде карточки: выбранная выделена линией 1 px цвета действия. Ошибка — у `RadioGroup`. */
+export function RadioCard({ label, id: explicitId, className, ...rest }: RadioCardProps) {
+  const auto = useId();
+  const id = explicitId ?? auto;
   return (
-    <div className="flex flex-col gap-2">
-      <label
-        htmlFor={id}
-        className={cn(
-          "flex min-h-control cursor-pointer items-center gap-3 rounded-field border bg-surface px-4 py-3 text-body text-ink",
-          "transition-transform duration-100 active:scale-press has-checked:border-action has-checked:ring-1 has-checked:ring-action",
-          borderFor(Boolean(error)),
-        )}
-      >
-        <input
-          id={id}
-          type="radio"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={errorId}
-          className={cn("size-6 shrink-0 accent-action", className)}
-          {...rest}
-        />
-        <span>{label}</span>
-      </label>
+    <label
+      htmlFor={id}
+      className={cn(
+        "flex min-h-control cursor-pointer items-center gap-3 rounded-field border border-line bg-surface px-4 py-3 text-body text-ink",
+        "transition-transform duration-100 active:scale-press has-checked:border-action",
+      )}
+    >
+      <input id={id} type="radio" className={cn("size-6 shrink-0 accent-action", className)} {...rest} />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+export type RadioGroupProps = { legend: string; error?: string; children: ReactNode };
+
+/** Группа карточек выбора: `fieldset` с `legend` и одной общей ошибкой. */
+export function RadioGroup({ legend, error, children }: RadioGroupProps) {
+  const id = useId();
+  const errorId = error ? `${id}-error` : undefined;
+  return (
+    <fieldset aria-describedby={errorId} className="flex min-w-0 flex-col gap-2 border-0 p-0">
+      <legend className={cn(labelClass, "mb-2")}>{legend}</legend>
+      {children}
       <ErrorText id={errorId}>{error}</ErrorText>
-    </div>
+    </fieldset>
   );
 }
