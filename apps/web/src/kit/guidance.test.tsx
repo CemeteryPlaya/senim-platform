@@ -133,6 +133,13 @@ describe("WizardHeader", () => {
     expect(count(out, "<h1")).toBe(1);
   });
 
+  it("headingLevel={2} даёт h2 и ни одного h1", () => {
+    const out = html(<WizardHeader step={1} total={3} title="Т" headingLevel={2} />);
+    expect(count(out, "<h1")).toBe(0);
+    expect(count(out, "<h2")).toBe(1);
+    expect(hasClass(out.match(/<h2[^>]*>/)?.[0] ?? "", "text-title")).toBe(true);
+  });
+
   it("«Назад» — видимая ссылка, когда задана", () => {
     expect(html(<WizardHeader step={1} total={3} title="Т" />)).not.toMatch(/<a\s/);
     const out = html(<WizardHeader step={2} total={3} title="Т" back={{ href: "/v2/prev", label: "Назад" }} />);

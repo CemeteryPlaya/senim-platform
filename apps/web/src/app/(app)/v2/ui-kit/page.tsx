@@ -39,200 +39,6 @@ import { Demo } from "./Demo";
 
 const s = ru.app.kit.showcase;
 
-/** Витрина нужна только разработчикам: вне dev страницы нет. */
-export default async function UiKit() {
-  if (env().APP_ENV !== "dev") notFound();
-  const [device, theme] = await Promise.all([getDevice(), getTheme()]);
-
-  return (
-    <div className="flex flex-col gap-10">
-      <PageTitle title={s.title} lead={s.lead} />
-
-      <Section title={s.sections.colors}>
-        <Swatches />
-      </Section>
-
-      <Section title={s.sections.typography}>
-        <Card className="flex flex-col gap-4">
-          <p className="text-title text-ink">{s.typography.title}</p>
-          <p className="text-section text-ink">{s.typography.section}</p>
-          <p className="text-card text-ink">{s.typography.card}</p>
-          <p className="text-body text-ink">{s.typography.body}</p>
-          <p className="text-sub text-muted">{s.typography.sub}</p>
-          <p className="text-small text-muted">{s.typography.small}</p>
-        </Card>
-      </Section>
-
-      <Section title={s.sections.buttons}>
-        <Buttons />
-      </Section>
-
-      <Section title={s.sections.links}>
-        <div className="flex flex-wrap gap-3">
-          <ButtonLink href={to("/")}>{s.links.primary}</ButtonLink>
-          <ButtonLink href={to("/")} variant="secondary">
-            {s.links.secondary}
-          </ButtonLink>
-          <ButtonLink href={to("/")} variant="quiet">
-            {s.links.quiet}
-          </ButtonLink>
-          <ButtonLink href={to("/")} variant="secondary" size="sm">
-            {s.links.secondary}
-          </ButtonLink>
-        </div>
-      </Section>
-
-      <Section title={s.sections.fields}>
-        <Fields />
-      </Section>
-
-      <Section title={s.sections.choices}>
-        <Choices />
-      </Section>
-
-      <Section title={s.sections.cards}>
-        <div className="flex flex-col gap-4">
-          <Card>
-            <h3 className="text-card text-ink">{s.cards.cardTitle}</h3>
-            <p className="mt-1 text-sub text-muted">{s.cards.cardBody}</p>
-          </Card>
-          <Specimen label={s.cards.listValues}>
-            <Card padded={false}>
-              <List>
-                <ListRow label={s.cards.rowStatus} value={s.cards.rowStatusValue} />
-                <ListRow label={s.cards.rowDate} value={s.cards.rowDateValue} />
-              </List>
-            </Card>
-          </Specimen>
-          <Specimen label={s.cards.listLinks}>
-            <Card padded={false}>
-              <List>
-                <ListRow label={s.cards.rowAbout} href={to("/about")} />
-                <ListRow label={s.cards.rowRules} value={s.cards.rowDateValue} href={to("/about")} />
-              </List>
-            </Card>
-          </Specimen>
-        </div>
-      </Section>
-
-      <Section title={s.sections.chips}>
-        <div className="flex flex-wrap gap-3">
-          {CHIPS.map(({ tone, label }) => (
-            <StatusChip key={tone} tone={tone}>
-              {label}
-            </StatusChip>
-          ))}
-        </div>
-      </Section>
-
-      <Section title={s.sections.progress}>
-        <Card className="flex flex-col gap-4">
-          <Specimen label={s.progress.zero}>
-            <Progress value={0} max={4} label={s.progress.zero} />
-          </Specimen>
-          <Specimen label={s.progress.partial}>
-            <Progress value={2} max={4} label={s.progress.partial} />
-          </Specimen>
-          <Specimen label={s.progress.full}>
-            <Progress value={4} max={4} label={s.progress.full} />
-          </Specimen>
-        </Card>
-      </Section>
-
-      <Section title={s.sections.money}>
-        <Card padded={false}>
-          <List>
-            <ListRow label={s.money.zero} value={<Money tiyn={0n} />} />
-            <ListRow label={s.money.tiyn} value={<Money tiyn={122400050n} />} />
-            <ListRow label={s.money.negative} value={<Money tiyn={-4500000n} />} />
-            <ListRow label={s.money.large} value={<Money tiyn={1250000000000n} />} />
-          </List>
-        </Card>
-      </Section>
-
-      <Section title={s.sections.photos}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {PHOTOS.map(({ ratio, label }) => (
-            <Specimen key={ratio} label={label}>
-              <PhotoSlot ratio={ratio} alt={s.photos.alt} />
-            </Specimen>
-          ))}
-        </div>
-      </Section>
-
-      <Section title={s.sections.skeleton}>
-        <Card className="flex flex-col gap-4">
-          <Specimen label={s.skeleton.lines}>
-            <Skeleton />
-          </Specimen>
-          <Specimen label={s.skeleton.one}>
-            <Skeleton lines={1} />
-          </Specimen>
-        </Card>
-      </Section>
-
-      <Section title={s.sections.guidance}>
-        <div className="flex flex-col gap-4">
-          <NowNext now={{ title: s.guidance.nowTitle, body: s.guidance.nowBody }} next={s.guidance.next} />
-          <FirstSteps
-            steps={[
-              { label: s.guidance.stepOne, done: true },
-              { label: s.guidance.stepTwo, done: false, href: to("/") },
-              { label: s.guidance.stepThree, done: false, href: to("/") },
-            ]}
-          />
-          <EmptyState
-            title={s.guidance.emptyTitle}
-            body={s.guidance.emptyBody}
-            action={{ href: to("/"), label: s.guidance.emptyAction }}
-          />
-          <HelpBlock
-            items={[
-              { question: s.guidance.helpOne, href: to("/about") },
-              { question: s.guidance.helpTwo, href: to("/about") },
-            ]}
-            supportEmail={brand.support.email}
-          />
-        </div>
-      </Section>
-
-      <Section title={s.sections.wizard}>
-        {/*
-         * WizardHeader содержит <h1>, а заголовок страницы (PageTitle) — тоже <h1>. Чтобы на странице остался один
-         * заголовок первого уровня, образец скрыт от диктора и клавиатуры (aria-hidden + inert); виден он обычным
-         * образом — как картинка внутри карточки.
-         */}
-        <Card>
-          <div aria-hidden inert>
-            <WizardHeader step={2} total={5} title={s.wizard.title} back={{ href: to("/"), label: s.wizard.back }} />
-          </div>
-        </Card>
-        <p className="mt-2 px-1 text-sub text-muted">{s.wizard.note}</p>
-      </Section>
-
-      <Section title={s.sections.explain}>
-        <Card>
-          <p className="text-body text-ink">
-            <Explain label={s.explain.label} title={s.explain.title} device={device}>
-              {s.explain.body}
-            </Explain>
-          </p>
-        </Card>
-      </Section>
-
-      <Section title={s.sections.overlays}>
-        <Demo device={device} />
-      </Section>
-
-      <Section title={s.sections.theme}>
-        <Card>
-          <ThemeSwitch current={theme} />
-        </Card>
-      </Section>
-    </div>
-  );
-}
-
 /** Раздел витрины: заголовок второго уровня и содержимое. */
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -451,6 +257,194 @@ function Choices() {
           <RadioCard label={c.chat} name="contact-error" value="chat" />
         </RadioGroup>
       </Card>
+    </div>
+  );
+}
+
+/** Витрина нужна только разработчикам: вне dev страницы нет. */
+export default async function UiKit() {
+  if (env().APP_ENV !== "dev") notFound();
+  const [device, theme] = await Promise.all([getDevice(), getTheme()]);
+
+  return (
+    <div className="flex flex-col gap-10">
+      <PageTitle title={s.title} lead={s.lead} />
+
+      <Section title={s.sections.colors}>
+        <Swatches />
+      </Section>
+
+      <Section title={s.sections.typography}>
+        <Card className="flex flex-col gap-4">
+          <p className="text-title text-ink">{s.typography.title}</p>
+          <p className="text-section text-ink">{s.typography.section}</p>
+          <p className="text-card text-ink">{s.typography.card}</p>
+          <p className="text-body text-ink">{s.typography.body}</p>
+          <p className="text-sub text-muted">{s.typography.sub}</p>
+          <p className="text-small text-muted">{s.typography.small}</p>
+        </Card>
+      </Section>
+
+      <Section title={s.sections.buttons}>
+        <Buttons />
+      </Section>
+
+      <Section title={s.sections.links}>
+        <div className="flex flex-wrap gap-3">
+          <ButtonLink href={to("/")}>{s.links.primary}</ButtonLink>
+          <ButtonLink href={to("/")} variant="secondary">
+            {s.links.secondary}
+          </ButtonLink>
+          <ButtonLink href={to("/")} variant="quiet">
+            {s.links.quiet}
+          </ButtonLink>
+          <ButtonLink href={to("/")} variant="secondary" size="sm">
+            {s.links.secondary}
+          </ButtonLink>
+        </div>
+      </Section>
+
+      <Section title={s.sections.fields}>
+        <Fields />
+      </Section>
+
+      <Section title={s.sections.choices}>
+        <Choices />
+      </Section>
+
+      <Section title={s.sections.cards}>
+        <div className="flex flex-col gap-4">
+          <Card>
+            <h3 className="text-card text-ink">{s.cards.cardTitle}</h3>
+            <p className="mt-1 text-sub text-muted">{s.cards.cardBody}</p>
+          </Card>
+          <Specimen label={s.cards.listValues}>
+            <Card padded={false}>
+              <List>
+                <ListRow label={s.cards.rowStatus} value={s.cards.rowStatusValue} />
+                <ListRow label={s.cards.rowDate} value={s.cards.rowDateValue} />
+              </List>
+            </Card>
+          </Specimen>
+          <Specimen label={s.cards.listLinks}>
+            <Card padded={false}>
+              <List>
+                <ListRow label={s.cards.rowAbout} href={to("/about")} />
+                <ListRow label={s.cards.rowRules} value={s.cards.rowDateValue} href={to("/about")} />
+              </List>
+            </Card>
+          </Specimen>
+        </div>
+      </Section>
+
+      <Section title={s.sections.chips}>
+        <div className="flex flex-wrap gap-3">
+          {CHIPS.map(({ tone, label }) => (
+            <StatusChip key={tone} tone={tone}>
+              {label}
+            </StatusChip>
+          ))}
+        </div>
+      </Section>
+
+      <Section title={s.sections.progress}>
+        <Card className="flex flex-col gap-4">
+          <Specimen label={s.progress.zero}>
+            <Progress value={0} max={4} label={s.progress.zero} />
+          </Specimen>
+          <Specimen label={s.progress.partial}>
+            <Progress value={2} max={4} label={s.progress.partial} />
+          </Specimen>
+          <Specimen label={s.progress.full}>
+            <Progress value={4} max={4} label={s.progress.full} />
+          </Specimen>
+        </Card>
+      </Section>
+
+      <Section title={s.sections.money}>
+        <Card padded={false}>
+          <List>
+            <ListRow label={s.money.zero} value={<Money tiyn={0n} />} />
+            <ListRow label={s.money.tiyn} value={<Money tiyn={122400050n} />} />
+            <ListRow label={s.money.negative} value={<Money tiyn={-4500000n} />} />
+            <ListRow label={s.money.large} value={<Money tiyn={1250000000000n} />} />
+          </List>
+        </Card>
+      </Section>
+
+      <Section title={s.sections.photos}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {PHOTOS.map(({ ratio, label }) => (
+            <Specimen key={ratio} label={label}>
+              <PhotoSlot ratio={ratio} alt={s.photos.alt} />
+            </Specimen>
+          ))}
+        </div>
+      </Section>
+
+      <Section title={s.sections.skeleton}>
+        <Card className="flex flex-col gap-4">
+          <Specimen label={s.skeleton.lines}>
+            <Skeleton />
+          </Specimen>
+          <Specimen label={s.skeleton.one}>
+            <Skeleton lines={1} />
+          </Specimen>
+        </Card>
+      </Section>
+
+      <Section title={s.sections.guidance}>
+        <div className="flex flex-col gap-4">
+          <NowNext now={{ title: s.guidance.nowTitle, body: s.guidance.nowBody }} next={s.guidance.next} />
+          <FirstSteps
+            steps={[
+              { label: s.guidance.stepOne, done: true },
+              { label: s.guidance.stepTwo, done: false, href: to("/") },
+              { label: s.guidance.stepThree, done: false, href: to("/") },
+            ]}
+          />
+          <EmptyState
+            title={s.guidance.emptyTitle}
+            body={s.guidance.emptyBody}
+            action={{ href: to("/"), label: s.guidance.emptyAction }}
+          />
+          <HelpBlock
+            items={[
+              { question: s.guidance.helpOne, href: to("/about") },
+              { question: s.guidance.helpTwo, href: to("/about") },
+            ]}
+            supportEmail={brand.support.email}
+          />
+        </div>
+      </Section>
+
+      <Section title={s.sections.wizard}>
+        {/* Заголовок образца — второго уровня: заголовок первого уровня на странице уже есть (PageTitle). */}
+        <Card>
+          <WizardHeader step={2} total={5} title={s.wizard.title} headingLevel={2} />
+        </Card>
+        <p className="mt-2 px-1 text-sub text-muted">{s.wizard.note}</p>
+      </Section>
+
+      <Section title={s.sections.explain}>
+        <Card>
+          <p className="text-body text-ink">
+            <Explain label={s.explain.label} title={s.explain.title} device={device}>
+              {s.explain.body}
+            </Explain>
+          </p>
+        </Card>
+      </Section>
+
+      <Section title={s.sections.overlays}>
+        <Demo device={device} />
+      </Section>
+
+      <Section title={s.sections.theme}>
+        <Card>
+          <ThemeSwitch current={theme} />
+        </Card>
+      </Section>
     </div>
   );
 }

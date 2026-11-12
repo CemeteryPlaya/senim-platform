@@ -8,10 +8,13 @@ export type WizardHeaderProps = {
   total: number;
   title: string;
   back?: { href: string; label: string };
+  /** Уровень заголовка: 1 по умолчанию; 2 — когда на странице `<h1>` уже есть (образец в витрине). */
+  headingLevel?: 1 | 2;
 };
 
 /** Шапка шага мастера: «Шаг N из M», полоса и единственный `<h1>` экрана (PageTitle рядом не нужен). */
-export function WizardHeader({ step, total, title, back }: WizardHeaderProps) {
+export function WizardHeader({ step, total, title, back, headingLevel = 1 }: WizardHeaderProps) {
+  const Heading = headingLevel === 2 ? "h2" : "h1";
   const t = ru.app.kit.wizard;
   const hasSteps = Number.isFinite(total) && total > 0;
   const current = hasSteps ? Math.min(Math.max(Math.round(step) || 1, 1), total) : 0;
@@ -32,7 +35,7 @@ export function WizardHeader({ step, total, title, back }: WizardHeaderProps) {
           <Progress value={current} max={total} label={t.progressLabel} />
         </>
       )}
-      <h1 className="mt-2 text-title text-ink">{title}</h1>
+      <Heading className="mt-2 text-title text-ink">{title}</Heading>
     </header>
   );
 }

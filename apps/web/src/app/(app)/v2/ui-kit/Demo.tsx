@@ -31,6 +31,34 @@ export function Demo({ device }: { device: Device }) {
         confirmLabel={t.confirmDangerLabel}
         onConfirm={() => wait(1000)}
       />
+      <ConfirmDialog
+        device={device}
+        trigger={<Button variant="secondary">{t.confirmKeepOpen}</Button>}
+        title={t.confirmKeepOpenTitle}
+        description={t.confirmKeepOpenBody}
+        confirmLabel={t.confirmKeepOpenLabel}
+        onConfirm={async () => {
+          await wait(1000);
+          toast.error(t.confirmKeepOpenToast);
+          return false;
+        }}
+      />
+      <ConfirmDialog
+        device={device}
+        trigger={<Button variant="secondary">{t.confirmThrow}</Button>}
+        title={t.confirmThrowTitle}
+        description={t.confirmThrowBody}
+        confirmLabel={t.confirmThrowLabel}
+        onConfirm={async () => {
+          try {
+            await wait(1000);
+            throw new Error("demo");
+          } catch (error) {
+            toast.error(t.confirmThrowToast);
+            throw error;
+          }
+        }}
+      />
       <Button variant="secondary" onClick={() => toast(t.toastText)}>
         {t.toastOpen}
       </Button>

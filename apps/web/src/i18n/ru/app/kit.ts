@@ -204,8 +204,7 @@ export const kit = {
     },
     wizard: {
       title: "Что нужно сделать",
-      back: "Назад",
-      note: "Образец скрыт от диктора и клавиатуры: единственный заголовок страницы — первый.",
+      note: "Заголовок образца — второго уровня: заголовок первого уровня на странице уже есть.",
     },
     explain: {
       label: "Что это значит?",
@@ -232,6 +231,16 @@ export const kit = {
       toastLoadingOpen: "Показать тост загрузки",
       toastLoadingText: "Отправляем",
       toastDone: "Отправлено",
+      confirmKeepOpen: "Отказ сервера",
+      confirmKeepOpenTitle: "Отправить заявку?",
+      confirmKeepOpenBody: "Сервер откажет: окно останется открытым, а причину покажет тост.",
+      confirmKeepOpenLabel: "Отправить",
+      confirmKeepOpenToast: "Не удалось отправить. Попробуйте ещё раз.",
+      confirmThrow: "Сбой при действии",
+      confirmThrowTitle: "Сохранить изменения?",
+      confirmThrowBody: "Действие завершится сбоем: окно останется открытым, а тост покажет само действие.",
+      confirmThrowLabel: "Сохранить",
+      confirmThrowToast: "Сбой связи. Изменения не сохранены.",
     },
   },
 } as const;
