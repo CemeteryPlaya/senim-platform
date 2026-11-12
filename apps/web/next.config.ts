@@ -42,6 +42,13 @@ const nextConfig: NextConfig = {
   // Своя папка сборки для e2e (NEXT_DIST_DIR=.next-e2e в playwright.config.ts): блокировка `next dev`
   // берётся на папку сборки, и без этого e2e-сервер не стартует рядом с `npm run dev`.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Показ dev-сервера на других устройствах локальной сети (телефон, планшет): Next 16 отдаёт
+  // dev-ресурсы только localhost и хосту запуска. DEV_ALLOWED_ORIGINS — имена хостов или IP через
+  // запятую (без схемы и порта). Действует только в `next dev`; по умолчанию пусто.
+  allowedDevOrigins: (process.env.DEV_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((host) => host.trim())
+    .filter(Boolean),
   poweredByHeader: false,
   async headers() {
     return [
