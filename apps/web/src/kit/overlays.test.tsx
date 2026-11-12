@@ -7,6 +7,7 @@ import { Button, ConfirmDialog, Dialog, Explain, Popover, Sheet, Toaster } from 
 import { ru } from "@/i18n/ru";
 import { SPRING } from "./motion";
 import { createConfirmRunner } from "./overlay-state";
+import { toastClassNames } from "./Toaster";
 
 // Статический рендер закрытого состояния: в разметке только триггер. Поведение открытого окна
 // (фокус внутри и возврат на триггер, Esc, затемнение, жест шторки) проверяет e2e (задача 10).
@@ -95,6 +96,12 @@ describe("закрытые окна рендерятся без ошибок и 
   });
 });
 
+describe("Toaster: иконка тоста", () => {
+  it("позиционированная коробка 20 px: в ней центрируется .sonner-loader, а не по всему тосту", () => {
+    expect(toastClassNames.icon.split(" ")).toEqual(expect.arrayContaining(["relative", "size-5", "shrink-0"]));
+  });
+});
+
 describe("SPRING", () => {
   it("по умолчанию без отскока, отскок только после броска", () => {
     expect(SPRING.default.bounce).toBe(0);
@@ -133,6 +140,12 @@ describe("меньше движения и меньше прозрачности
     expect(rule).toMatch(/outline:\s*2px solid var\(--role-focus\)/);
     expect(rule).toMatch(/outline-offset:\s*2px/);
     expect(rule).toMatch(/box-shadow:\s*--theme\(--shadow-float\)/);
+  });
+
+  it("overlays.css: при меньшем движении переход затемнения мгновенный (не догоняет палец 0,4 с)", () => {
+    const block = reduceBlock(read("overlays.css"));
+    const rule = /\[data-vaul-overlay\]\[data-state\]\s*\{([^}]*)\}/.exec(block)?.[1] ?? "";
+    expect(rule).toMatch(/transition-duration:\s*0\.01ms\s*!important/);
   });
 
   it("overlays.css: шторка и затемнение проявляются, а не выезжают", () => {

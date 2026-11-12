@@ -161,7 +161,7 @@ export function ConfirmDialog({
     const cancel = actions.current?.querySelector<HTMLElement>("[data-confirm-cancel]");
     if (!cancel) return;
     event.preventDefault();
-    cancel.focus();
+    cancel.focus({ preventScroll: true });
   };
 
   const mobile = device === "mobile";
@@ -180,8 +180,13 @@ export function ConfirmDialog({
       data-confirm-cancel
       variant={mobile ? "quiet" : "secondary"}
       full={mobile}
-      disabled={pending}
-      onClick={() => change(false)}
+      // Не native disabled: фокус стоит на «Отмене» с открытия, и выключенная кнопка в Safari сбросила бы его
+      // на <body>. Нажатие во время действия ничего не делает — закрытие гасит и change (раннер занят).
+      aria-disabled={pending || undefined}
+      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+      onClick={() => {
+        if (!pending) change(false);
+      }}
     >
       {cancelLabel}
     </Button>

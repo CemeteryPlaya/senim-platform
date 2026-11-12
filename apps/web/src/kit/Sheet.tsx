@@ -18,7 +18,7 @@ export type SheetProps = {
   /**
    * Первый фокус при открытии. По умолчанию — сама шторка (контейнер), а не первое поле: иначе на телефоне
    * клавиатура выезжает одновременно со шторкой. Чтобы поставить фокус на свой элемент — `preventDefault()`
-   * и `focus()` в обработчике.
+   * и `focus({ preventScroll: true })` в обработчике (без прыжка прокрутки на iOS посреди выезда).
    */
   onOpenAutoFocus?: (event: Event) => void;
   children?: ReactNode;
@@ -64,7 +64,7 @@ export function Sheet({
             onOpenAutoFocus?.(event);
             if (event.defaultPrevented) return;
             event.preventDefault();
-            content.current?.focus();
+            content.current?.focus({ preventScroll: true });
           }}
           onCloseAutoFocus={returnFocus}
           className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-11/12 w-full max-w-column flex-col rounded-t-sheet bg-raised px-5 pt-3 pb-sheet text-body text-ink shadow-sheet outline-none"

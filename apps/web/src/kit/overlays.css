@@ -61,6 +61,17 @@
     animation-timing-function: ease-in !important;
   }
 
+  /*
+   * Затемнение при перетаскивании: vaul ставит ему прозрачность inline с transition: none, но правило `*`
+   * из app.css возвращает переход opacity, а правило 0,4 с выше дало бы затемнению догонять палец. Появление
+   * и исчезновение затемнения — keyframes (animation), их это не касается; переход затемнения нужен только
+   * жесту, поэтому при меньшем движении он мгновенный всегда, а не только пока на шторке класс vaul-dragging
+   * (затемнение стоит в DOM раньше шторки, и без :has() по этому классу его не выбрать).
+   */
+  [data-vaul-overlay][data-state] {
+    transition-duration: 0.01ms !important;
+  }
+
   /* sonner при этой настройке снимает переходы совсем; оставляем короткое проявление без сдвига. */
   [data-sonner-toaster] [data-sonner-toast] {
     transition: opacity 0.2s ease-out !important;

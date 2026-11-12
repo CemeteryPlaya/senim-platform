@@ -35,7 +35,7 @@ export function useReturnFocus(open: boolean, enabled: boolean) {
       returnTo.current = null;
       if (target?.isConnected) {
         event.preventDefault();
-        target.focus();
+        target.focus({ preventScroll: true });
       }
     },
     [enabled],
