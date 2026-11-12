@@ -135,9 +135,9 @@ export function findHeavyFont(src: string): Hit[] {
   ].sort((a, b) => a.line - b.line);
 }
 
-/** 2. Сырые цвета: hex (#rgb, #rgba, #rrggbb, #rrggbbaa) и rgb()/hsl()/oklch(). Якорь `href="#abc"` — не цвет. */
+/** 2. Сырые цвета: hex (#rgb, #rgba, #rrggbb, #rrggbbaa) и rgb()/hsl()/oklch(). Якоря `href="#abc"`, `href: "#abc"` и `url(#abc)` — не цвет. */
 export function findRawColor(src: string): Hit[] {
-  const code = stripComments(src).replace(/href\s*=\s*\{?\s*["'`]#\w*/g, (m) => " ".repeat(m.length));
+  const code = stripComments(src).replace(/(?:href\s*[=:]\s*\{?\s*["'`]#|url\(\s*["']?#)\w*/g, (m) => " ".repeat(m.length));
   return [
     ...matchLines(code, /(?<![\w&#])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])/),
     ...matchLines(code, /(?<![\w-])(?:rgba?|hsla?|oklch)\(/),
@@ -176,17 +176,18 @@ export function findRawControl(src: string): Hit[] {
 /**
  * 6. Адрес-литерал вместо to()/legacy(): `href="/…"`, `href={"/…"}`, `` href={`/…`} ``, ветка условия
  * `href={c ? "/a" : "/b"}` (также `??`, `||`), ключ объекта `href: "/…"`, вызовы `redirect("/…")`,
- * `permanentRedirect("/…")`, а также `push`, `replace`, `prefetch` с путём (`"/x"`; одиночный `"/"` в них не считается
- * путём — это обычный `s.replace("/", "")`). Разрешены `to(...)`, `legacy(...)`, `#…`, `mailto:`, `tel:`, `https://`.
+ * `permanentRedirect("/…")`, а также `router.push|replace|prefetch("/…")`. Вызовы без приёмника `router`
+ * (`url.replace("/v2", "")`, `arr.push("/x")`) — обычный код; выражение в `href={…}`, начинающееся с `to(` или
+ * `legacy(`, пропускается целиком. Разрешены `to(...)`, `legacy(...)`, `#…`, `mailto:`, `tel:`, `https://`.
  */
 export function findHardcodedHref(src: string): Hit[] {
   const code = stripComments(src);
   return [
     ...matchLines(code, /\bhref\s*=\s*(?:\{\s*)?["'`]\//),
-    ...matchLines(code, /\bhref\s*=\s*\{[^}\n]*(?:\?\??|:|\|\|)\s*["'`]\//),
+    ...matchLines(code, /\bhref\s*=\s*\{(?!\s*(?:to|legacy)\()[^}\n]*(?:\?\??|:|\|\|)\s*["'`]\//),
     ...matchLines(code, /\bhref\s*:\s*["'`]\//),
     ...matchLines(code, /\b(?:redirect|permanentRedirect)\s*\(\s*["'`]\//),
-    ...matchLines(code, /\b(?:push|replace|prefetch)\s*\(\s*["'`]\/[^"'`\s]/),
+    ...matchLines(code, /\brouter\s*\.\s*(?:push|replace|prefetch)\s*\(\s*["'`]\//),
   ].sort((a, b) => a.line - b.line);
 }
 
@@ -302,6 +303,9 @@ describe("правило 2: нет сырых цветов", () => {
     expect(findRawColor('"&#8212;"')).toHaveLength(0);
     expect(findRawColor("// цвет #fff в комментарии")).toHaveLength(0);
     expect(findRawColor('"var(--color-canvas)"')).toHaveLength(0);
+    expect(findRawColor('const n = { href: "#add" };')).toHaveLength(0);
+    expect(findRawColor('<path fill="url(#fade)" />')).toHaveLength(0);
+    expect(findRawColor('const s = { color: "#fff" };')).toHaveLength(1);
   });
   it("в .ts и .tsx нет hex, rgb() и hsl() (кроме tokens.ts)", () => {
     expectClean(
@@ -407,7 +411,7 @@ describe("правило 6: адреса строятся через to() и leg
     expect(findHardcodedHref('router.push("/deals");')).toHaveLength(1);
     expect(findHardcodedHref("router.replace('/deals/1');")).toHaveLength(1);
     expect(findHardcodedHref('router.prefetch("/deals");')).toHaveLength(1);
-    expect(findHardcodedHref('<Link href={ok ? "/a" : "/b"}>')).not.toHaveLength(0);
+    expect(findHardcodedHref('<Link href={ok ? "/a" : "/b"}>')).toHaveLength(1);
     expect(findHardcodedHref('<Link href={ok ? to("/a") : "/b"}>')).toHaveLength(1);
     expect(findHardcodedHref('<Link href={x ?? "/a"}>')).toHaveLength(1);
     expect(findHardcodedHref('const nav = { href: to("/deals") };')).toHaveLength(0);
@@ -416,6 +420,13 @@ describe("правило 6: адреса строятся через to() и leg
     expect(findHardcodedHref('router.push(to("/deals"));')).toHaveLength(0);
     expect(findHardcodedHref('<Link href={ok ? to("/a") : legacy(p)}>')).toHaveLength(0);
     expect(findHardcodedHref('const s = path.replace("/", "-");')).toHaveLength(0);
+    expect(findHardcodedHref('const u = url.replace("/v2", "");')).toHaveLength(0);
+    expect(findHardcodedHref('const u = pathname.replace("/api/", "");')).toHaveLength(0);
+    expect(findHardcodedHref('arr.push("/x");')).toHaveLength(0);
+    expect(findHardcodedHref('if (path.startsWith("/")) {}')).toHaveLength(0);
+    expect(findHardcodedHref('<Link href={to(c ? "/a" : "/b")}>')).toHaveLength(0);
+    expect(findHardcodedHref('<Link href={to("/a", { q: "/x" })}>')).toHaveLength(0);
+    expect(findHardcodedHref('<Link href={ legacy(c ? "/a" : "/b") }>')).toHaveLength(0);
     expect(findHardcodedHref('redirect("/x"); // redirect("/y")')).toHaveLength(1);
   });
   it("в src/app/(app) (.ts и .tsx) нет адресов-литералов", () => {
