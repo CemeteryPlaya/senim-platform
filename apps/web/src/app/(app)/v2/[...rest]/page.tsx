@@ -13,6 +13,7 @@ export default async function Moving({ params, searchParams }: Props) {
   const [{ rest }, search] = await Promise.all([params, searchParams]);
   // Адрес v1 — те же сегменты без префикса v2. Сегменты приходят из адреса уже закодированными: повторное
   // кодирование испортило бы ссылку.
-  const oldPath = `/${rest.join("/")}`;
+  // Пустые сегменты (/v2//example.com) отбрасываются: иначе адрес начался бы с «//» и стал ссылкой на чужой сайт.
+  const oldPath = `/${rest.filter(Boolean).join("/")}`;
   return <MovingPlaceholder href={oldPath + queryOf(search)} />;
 }

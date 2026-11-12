@@ -43,6 +43,13 @@ describe("заглушка «раздел переносится»", () => {
     expect(links[0].href).toBe("/deals/1?tab=money");
   });
 
+  it("пустые сегменты отбрасываются: ссылка не начинается с «//»", async () => {
+    await render(["", "example.com"]);
+    expect(links[0].href).toBe("/example.com");
+    await render(["", "", "deals", "", "1"]);
+    expect(links[1].href).toBe("/deals/1");
+  });
+
   it("закодированные сегменты не кодируются повторно", async () => {
     await render(["requests", "%D0%B0"]);
     expect(links[0].href).toBe("/requests/%D0%B0");
