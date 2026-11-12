@@ -12,12 +12,15 @@ const UA = {
     "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
   ipadSafari:
     "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
-  // iPadOS 13+ по умолчанию представляется как Mac.
+  // iPadOS 13+ по умолчанию представляется как Mac. Строка намеренно совпадает с macSafari: по заголовкам их не различить.
   ipadAsMac:
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
   macSafari:
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
   curl: "curl/8.5.0",
+  // Chrome на Android в режиме «Версия для ПК»: UA как у Linux-компьютера, hint ?0.
+  androidDesktopSite:
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 } as const;
 
 function from(headers: Record<string, string>) {
@@ -65,5 +68,25 @@ describe("deviceFromHeaders", () => {
 
   it("curl получает компьютерную версию", () => {
     expect(from({ "user-agent": UA.curl })).toBe("desktop");
+  });
+
+  describe("пересечения правил", () => {
+    it("hint ?1 важнее User-Agent компьютера", () => {
+      expect(from({ "sec-ch-ua-mobile": "?1", "user-agent": UA.windowsChrome })).toBe("mobile");
+    });
+
+    it("мусор в hint не решает: решает User-Agent", () => {
+      expect(from({ "sec-ch-ua-mobile": "yes", "user-agent": UA.windowsChrome })).toBe("desktop");
+      expect(from({ "sec-ch-ua-mobile": "1", "user-agent": UA.pixelChrome })).toBe("mobile");
+      expect(from({ "sec-ch-ua-mobile": "", "user-agent": UA.iphoneSafari })).toBe("mobile");
+    });
+
+    it("Android Chrome в режиме «Версия для ПК» (?0 и UA Linux) получает компьютерную версию", () => {
+      expect(from({ "sec-ch-ua-mobile": "?0", "user-agent": UA.androidDesktopSite })).toBe("desktop");
+    });
+
+    it("пустой User-Agent получает компьютерную версию", () => {
+      expect(from({ "user-agent": "" })).toBe("desktop");
+    });
   });
 });

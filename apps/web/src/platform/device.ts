@@ -17,6 +17,8 @@ const MOBILE_UA = /iPhone|iPad|iPod|Android/i;
  *
  * Известное ограничение, принятое владельцем продукта: iPadOS Safari в режиме «как Mac»
  * (`Macintosh; Intel Mac OS X`) по заголовкам неотличим от Mac и получает desktop.
+ * Принятое допущение: Android TV (в UA есть `Android`) получает mobile — управление пультом ближе к телефонной
+ * версии, чем к компьютерной, а отдельной версии для телевизора нет.
  */
 export function deviceFromHeaders(get: (name: string) => string | null): Device {
   if (get("sec-ch-ua-mobile")?.trim() === "?1") return "mobile";
