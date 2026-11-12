@@ -19,7 +19,7 @@ export function FirstSteps({ steps }: { steps: FirstStep[] }) {
         <Progress value={steps.length - left} max={steps.length} label={t.progressLabel} />
       </div>
       <ul className="mt-2">
-        {steps.map((step) => {
+        {steps.map((step, index) => {
           const row = (
             <>
               <span
@@ -39,7 +39,7 @@ export function FirstSteps({ steps }: { steps: FirstStep[] }) {
           );
           const rowClass = "flex min-h-control items-center gap-3 text-body";
           return (
-            <li key={step.label}>
+            <li key={`${index}-${step.label}`}>
               {step.href && !step.done ? (
                 <Link href={step.href} className={cn(rowClass, "no-underline")}>
                   {row}

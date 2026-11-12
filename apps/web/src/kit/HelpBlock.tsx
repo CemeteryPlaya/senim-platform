@@ -15,10 +15,18 @@ export function HelpBlock({ items, supportEmail }: HelpBlockProps) {
       <h2 className="px-1 text-section text-ink">{t.title}</h2>
       <Card padded={false}>
         <List>
-          {items.map((item) => (
-            <ListRow key={item.href} label={item.question} href={item.href} />
+          {items.map((item, index) => (
+            <ListRow key={`${index}-${item.href}`} label={item.question} href={item.href} />
           ))}
-          <ListRow label={<span className="text-accent">{t.contact}</span>} href={`mailto:${supportEmail}`} />
+          {/* Внешнее действие (почтовая программа): обычная ссылка без шеврона. */}
+          <li>
+            <a
+              href={`mailto:${encodeURI(supportEmail)}`}
+              className="flex min-h-control w-full items-center px-4 py-3 text-body font-medium text-accent no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
+            >
+              {t.contact}
+            </a>
+          </li>
         </List>
       </Card>
     </section>

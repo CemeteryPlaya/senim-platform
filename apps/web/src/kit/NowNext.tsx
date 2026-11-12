@@ -16,7 +16,7 @@ export function NowNext({ now, next }: NowNextProps) {
     <div className="flex flex-col gap-2">
       <Card as="section">
         <p className="text-small text-muted">{ru.app.kit.nowNext.now}</p>
-        <p className="mt-1 text-card text-ink">{now.title}</p>
+        <h2 className="mt-1 text-card text-ink">{now.title}</h2>
         {now.body && <p className="mt-1 text-sub text-muted">{now.body}</p>}
       </Card>
       {next && (

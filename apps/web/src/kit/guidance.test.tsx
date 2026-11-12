@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { brand } from "@/config/brand";
-import { EmptyState, FirstSteps, HelpBlock, NowNext, WizardHeader } from "./index";
+import { Checkbox, EmptyState, FirstSteps, HelpBlock, NowNext, RadioCard, WizardHeader } from "./index";
 
 const html = (el: ReactElement): string => renderToStaticMarkup(el);
 const text = (el: ReactElement): string => html(el).replace(/<[^>]*>/g, "");
@@ -64,7 +64,37 @@ describe("FirstSteps", () => {
   });
 });
 
+describe("заголовки блоков", () => {
+  it("EmptyState, FirstSteps и HelpBlock рисуют h2, NowNext — один h2 и ни одного h1", () => {
+    expect(html(<EmptyState title="Т" body="Б" />)).toContain("<h2");
+    expect(html(<FirstSteps steps={[{ label: "А", done: false }]} />)).toContain("<h2");
+    expect(html(<HelpBlock items={[]} supportEmail="a@b.kz" />)).toContain("<h2");
+    const out = html(<NowNext now={{ title: "Ждём" }} next="Дальше-шаг" />);
+    expect(count(out, "<h2")).toBe(1);
+    expect(out).not.toContain("<h1");
+  });
+
+  it("у выполненного шага со ссылкой ссылки нет, у невыполненного есть", () => {
+    const out = html(
+      <FirstSteps
+        steps={[
+          { label: "Готов", done: true, href: "/v2/done" },
+          { label: "Нет", done: false, href: "/v2/todo" },
+        ]}
+      />,
+    );
+    expect(out).not.toContain("/v2/done");
+    expect(out).toContain('href="/v2/todo"');
+  });
+});
+
 describe("HelpBlock", () => {
+  it("адрес в mailto: кодируется, строка поддержки без шеврона", () => {
+    const out = html(<HelpBlock items={[]} supportEmail="a b@c.kz" />);
+    expect(out).toContain('href="mailto:a%20b@c.kz"');
+    expect(out).not.toContain("lucide-chevron-right");
+  });
+
   it("последняя строка — письмо в поддержку", () => {
     const out = html(<HelpBlock items={[]} supportEmail="a@b.kz" />);
     expect(out).toContain('href="mailto:a@b.kz"');
@@ -98,8 +128,18 @@ describe("WizardHeader", () => {
     expect(out).toContain("Почта");
   });
 
+  it("шаг зажат в [1, total]; при total <= 0 нет строки шага и прогресса, h1 остаётся", () => {
+    expect(text(<WizardHeader step={9} total={5} title="Т" />)).toContain("Шаг 5 из 5");
+    expect(text(<WizardHeader step={0} total={5} title="Т" />)).toContain("Шаг 1 из 5");
+    expect(text(<WizardHeader step={-3} total={5} title="Т" />)).toContain("Шаг 1 из 5");
+    const out = html(<WizardHeader step={1} total={0} title="Т" />);
+    expect(out).not.toContain("progressbar");
+    expect(out).not.toContain("Шаг");
+    expect(count(out, "<h1")).toBe(1);
+  });
+
   it("«Назад» — видимая ссылка, когда задана", () => {
-    expect(html(<WizardHeader step={1} total={3} title="Т" />)).not.toContain("<a");
+    expect(html(<WizardHeader step={1} total={3} title="Т" />)).not.toMatch(/<a\s/);
     const out = html(<WizardHeader step={2} total={3} title="Т" back={{ href: "/v2/prev", label: "Назад" }} />);
     expect(out).toContain('href="/v2/prev"');
     expect(out).toContain("Назад");
@@ -139,5 +179,42 @@ describe("NowNext", () => {
 describe("brand.support", () => {
   it("адрес поддержки задан в конфиге", () => {
     expect(brand.support.email).toBe("sunrisefeex@gmail.com");
+  });
+});
+
+/** Класс как целое слово. */
+const hasClass = (out: string, cls: string): boolean =>
+  new RegExp(`class="(?:[^"]*\\s)?${cls.replace(/-/g, "\\$&")}(?=\\s|")`).test(out);
+
+describe("Checkbox: нарисованный флажок", () => {
+  it("нативный input скрыт визуально (sr-only peer) и сохраняет атрибуты", () => {
+    const out = html(<Checkbox label="Согласен" name="ok" value="1" disabled error="Нужно" aria-describedby="h" />);
+    const input = out.match(/<input[^>]*>/)?.[0] ?? "";
+    expect(hasClass(input, "sr-only")).toBe(true);
+    expect(hasClass(input, "peer")).toBe(true);
+    expect(input).toContain('type="checkbox"');
+    expect(input).toContain('aria-invalid="true"');
+    expect(input).toMatch(/aria-describedby="h [^"]+"/);
+    expect(input).toMatch(/\sdisabled(=""|\s|\/|>)/);
+    expect(input).toContain('name="ok"');
+  });
+
+  it("коробка с границей line-strong; при ошибке border-danger", () => {
+    const ok = html(<Checkbox label="А" name="a" />);
+    expect(hasClass(ok, "border-line-strong")).toBe(true);
+    expect(hasClass(ok, "border-danger")).toBe(false);
+    const bad = html(<Checkbox label="А" name="a" error="Нужно" />);
+    expect(hasClass(bad, "border-danger")).toBe(true);
+    expect(hasClass(bad, "border-line-strong")).toBe(false);
+  });
+});
+
+describe("RadioCard: нарисованный кружок", () => {
+  it("input скрыт, кружок с границей line-strong", () => {
+    const out = html(<RadioCard label="А" name="m" value="a" />);
+    const input = out.match(/<input[^>]*>/)?.[0] ?? "";
+    expect(hasClass(input, "sr-only")).toBe(true);
+    expect(hasClass(input, "peer")).toBe(true);
+    expect(hasClass(out, "border-line-strong")).toBe(true);
   });
 });

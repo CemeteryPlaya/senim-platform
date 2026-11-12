@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useId, type ComponentProps, type ReactNode } from "react";
 import { cn } from "./cn";
 
@@ -116,15 +116,34 @@ export function Checkbox({ label, error, id: explicitId, className, ...rest }: C
   const { id, errorId } = useFieldIds(explicitId, error);
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={id} className="flex min-h-control cursor-pointer items-center gap-3 text-body text-ink">
+      <label
+        htmlFor={id}
+        className={cn(
+          "flex min-h-control cursor-pointer items-center gap-3 text-body text-ink",
+          rest.disabled && "cursor-not-allowed",
+        )}
+      >
+        {/* Нативный input скрыт визуально: состояние, клавиатура и диктор остаются нативными. */}
         <input
           id={id}
           type="checkbox"
           aria-invalid={error ? true : undefined}
-          className={cn("size-6 shrink-0 accent-action", className)}
+          className={cn("peer sr-only", className)}
           {...rest}
           aria-describedby={describedBy(rest["aria-describedby"], errorId)}
         />
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-chip border bg-surface text-on-action",
+            error ? "border-danger" : "border-line-strong",
+            "peer-checked:border-action peer-checked:bg-action peer-checked:[&>svg]:opacity-100",
+            "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus",
+            "peer-disabled:opacity-50",
+          )}
+        >
+          <Check className="size-4 opacity-0" />
+        </span>
         <span>{label}</span>
       </label>
       <ErrorText id={errorId}>{error}</ErrorText>
@@ -144,9 +163,17 @@ export function RadioCard({ label, id: explicitId, className, ...rest }: RadioCa
       className={cn(
         "flex min-h-control cursor-pointer items-center gap-3 rounded-field border border-line-strong bg-surface px-4 py-3 text-body text-ink",
         "transition-transform duration-100 active:scale-press has-checked:border-action",
+        "has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus",
+        "has-disabled:cursor-not-allowed has-disabled:opacity-50",
       )}
     >
-      <input id={id} type="radio" className={cn("size-6 shrink-0 accent-action", className)} {...rest} />
+      <input id={id} type="radio" className={cn("peer sr-only", className)} {...rest} />
+      <span
+        aria-hidden
+        className="flex size-6 shrink-0 items-center justify-center rounded-full border border-line-strong peer-checked:border-action peer-checked:[&>span]:opacity-100"
+      >
+        <span className="size-3 rounded-full bg-action opacity-0" />
+      </span>
       <span>{label}</span>
     </label>
   );

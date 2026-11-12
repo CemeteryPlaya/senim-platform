@@ -13,6 +13,8 @@ export type WizardHeaderProps = {
 /** Шапка шага мастера: «Шаг N из M», полоса и единственный `<h1>` экрана (PageTitle рядом не нужен). */
 export function WizardHeader({ step, total, title, back }: WizardHeaderProps) {
   const t = ru.app.kit.wizard;
+  const hasSteps = Number.isFinite(total) && total > 0;
+  const current = hasSteps ? Math.min(Math.max(Math.round(step) || 1, 1), total) : 0;
   return (
     <header className="flex flex-col gap-2">
       {back && (
@@ -24,8 +26,12 @@ export function WizardHeader({ step, total, title, back }: WizardHeaderProps) {
           {back.label}
         </Link>
       )}
-      <p className="text-sub text-muted">{t.step(step, total)}</p>
-      <Progress value={step} max={total} label={t.progressLabel} />
+      {hasSteps && (
+        <>
+          <p className="text-sub text-muted">{t.step(current, total)}</p>
+          <Progress value={current} max={total} label={t.progressLabel} />
+        </>
+      )}
       <h1 className="mt-2 text-title text-ink">{title}</h1>
     </header>
   );
