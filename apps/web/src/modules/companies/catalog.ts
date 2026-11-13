@@ -98,13 +98,18 @@ export async function listPublicPortfolio(executorId: string, limit = PUBLIC_PAG
 
 /** Отзывы об исполнителе: оценка, текст без контактов, дата. Автор не показывается. */
 export async function listExecutorReviews(executorId: string, limit = REVIEWS_LIMIT): Promise<PublicReview[]> {
-  const rows = await db.review.findMany({
-    where: { executorId },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    select: { id: true, rating: true, text: true, createdAt: true },
-  });
-  return rows.map((r) => ({ ...r, text: maskContacts(r.text).text }));
+  const [rows, profile] = await Promise.all([
+    db.review.findMany({
+      where: { executorId },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: { id: true, rating: true, text: true, createdAt: true },
+    }),
+    db.executorProfile.findUnique({ where: { id: executorId }, select: { legalName: true } }),
+  ]);
+  // Как «О себе»: контакты и наименование мастера из текста отзыва убираются в любом режиме показа имени.
+  const legalName = profile?.legalName ?? "";
+  return rows.map((r) => ({ ...r, text: maskIdentity(maskContacts(r.text).text, legalName) }));
 }
 
 /** Публичная страница /executors/[publicNumber]. null — исполнителя нет или он не подтверждён. */

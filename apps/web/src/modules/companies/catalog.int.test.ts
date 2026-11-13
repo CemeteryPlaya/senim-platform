@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { resetEnvCache } from "@/platform/env";
 import { db } from "@/platform/db";
 import { makeExecutor } from "../../../test/factories";
 import { makeFurnitureType, makePortfolioItem, makeReview } from "../../../test/factories/companies";
+import { EXECUTOR_IDENTITY_KEY } from "./identity-mode";
 import { CATALOG_PAGE_SIZE, getPortfolioForRequest, getPublicExecutorPage, listCatalog, MASK } from "./index";
 
 describe("каталог работ", () => {
@@ -87,6 +89,28 @@ describe("публичная страница исполнителя", () => {
     expect(page!.reviews).toHaveLength(1);
     expect(page!.reviews[0]).toMatchObject({ rating: 5, text: `Отлично! Мастер оставил номер ${MASK}` });
     expect(JSON.stringify(page)).not.toMatch(/Ағаш Шебер|87001234567/);
+  });
+
+  it("наименование мастера из текста отзыва маскируется (как «о себе») — в HIDDEN и в SHOWN", async () => {
+    const executor = await makeExecutor({ legalName: "ТОО «Ағаш Шебер»" });
+    await makeReview(executor, 5, "Спасибо, Ағаш Шебер, всё сделали вовремя");
+
+    const hidden = await getPublicExecutorPage(executor.executor.publicNumber);
+    expect(hidden!.reviews[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
+    expect(JSON.stringify(hidden)).not.toContain("Ағаш Шебер");
+
+    process.env.DEMO_MODE = "true";
+    resetEnvCache();
+    try {
+      await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
+      const shown = await getPublicExecutorPage(executor.executor.publicNumber);
+      expect(shown!.view.label).toBe("ТОО «Ағаш Шебер»");
+      // Текст отзыва остаётся очищенным: показ имени платформой не отменяет маску в текстах мастера и заказчика.
+      expect(shown!.reviews[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
+    } finally {
+      delete process.env.DEMO_MODE;
+      resetEnvCache();
+    }
   });
 
   it("неподтверждённый или неизвестный исполнитель — null", async () => {
