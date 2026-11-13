@@ -1,6 +1,13 @@
 // Снимки страниц нового интерфейса.
 //
-//   npx tsx scripts/shots.ts v2 v2/ui-kit v2/catalog [--out <папка>]
+//   npx tsx scripts/shots.ts v2 v2/ui-kit v2/catalog [--out <папка>] [--as <телефон> [--role client|executor]]
+//
+// --as <телефон>: перед съёмкой войти этим номером через /v2/login (код берётся из плашки на экране) и снимать пути вошедшим.
+// Номер новый — скрипт сам проходит онбординг (согласие, знакомство с новым ИИН, дальше шаги, которые есть в
+// e2e-v2/support.ts passOnboarding); роль по умолчанию — покупатель, `--role executor` — мастер (роль выбирается только на
+// первом шаге входа и для уже известного номера ничего не меняет). Номер должен быть новым для identity стенда: берите
+// случайный (+7 7XX …), повтор кода раньше минуты стенд отвергает. Состояние входа (cookie) лежит во временной папке ОС на
+// время запуска и удаляется в конце; в репозиторий и в папку снимков не попадает. Без --as — как раньше, гостем.
 //
 // Путей сколько угодно (v2/catalog — заглушка раздела из меню гостя: на ней видно выделение текущего раздела).
 // Для каждого пути: компьютер — <имя>-desktop-{light,dark}.png (страница целиком); телефон —
@@ -11,18 +18,23 @@
 // аргумент вида /v2 в C:/Program Files/Git/v2; скрипт в этом случае падает с подсказкой. Запуск с «/v2» возможен
 // только с MSYS_NO_PATHCONV=1.
 //
-// Сервер скрипт не поднимает: dev-сервер должен слушать http://127.0.0.1:3110 (другой адрес — переменная SHOTS_BASE).
+// Сервер скрипт не поднимает: dev-сервер должен слушать http://localhost:3110 (другой адрес — переменная SHOTS_BASE). Именно localhost, не 127.0.0.1:
+// dev-сервер Next не отдаёт HMR-сокет чужому источнику, страница не гидратируется и формы входа не работают.
 // Имя файла: «/» → «root», /v2 → v2, /v2/ui-kit → v2_ui-kit.
 // Тема задаётся кукой `theme`; системная тема браузера остаётся светлой, поэтому непринятая кука видна сразу:
 // после загрузки проверяется data-theme на <html>. Анимации выключены (reducedMotion), индикатор Next скрыт.
-import { mkdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
-import { chromium, devices, type BrowserContextOptions } from "@playwright/test";
+import { chromium, devices, type Browser, type BrowserContextOptions, type Page } from "@playwright/test";
+import { loginV2, passOnboarding, type LoginRole } from "../e2e-v2/support";
 
-const BASE = (process.env.SHOTS_BASE ?? "http://127.0.0.1:3110").replace(/\/+$/, "");
+const BASE = (process.env.SHOTS_BASE ?? "http://localhost:3110").replace(/\/+$/, "");
 /** Витрина — единственная страница, где главных действий может быть много. */
 const SHOWCASE = "/v2/ui-kit";
-const USAGE = "Запуск: npx tsx scripts/shots.ts v2 v2/ui-kit v2/catalog [--out <папка>]";
+const USAGE = "Запуск: npx tsx scripts/shots.ts v2 v2/ui-kit v2/catalog [--out <папка>] [--as <телефон> [--role client|executor]]";
+/** Шаги онбординга: если после входа адрес остался на них, пути за входом отправят обратно на шаг. */
+const ONBOARDING_PATHS = ["/v2/consent", "/v2/welcome", "/v2/email"];
 /**
  * Выше этой высоты (CSS px) окно для полного снимка не растягивается: огромное окно Chromium рисует медленно и может
  * упереться в предел текстуры. Тогда — штатный fullPage с предупреждением (прилипшая панель может застыть посередине).
@@ -57,24 +69,34 @@ function fileStem(route: string): string {
   return clean === "" ? "root" : clean.replace(/\//g, "_");
 }
 
-function parseArgs(argv: string[]): { routes: string[]; out: string } {
+type Args = { routes: string[]; out: string; phone: string | null; role: LoginRole };
+
+function parseArgs(argv: string[]): Args {
   const routes: string[] = [];
   let out = path.join("test-results", "shots");
+  let phone: string | null = null;
+  let role: LoginRole = "client";
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--out") {
+    if (arg === "--out" || arg === "--as" || arg === "--role") {
       const value = argv[i + 1];
-      if (!value) throw new Error(`--out требует папку.\n${USAGE}`);
-      out = value;
+      if (!value || value.startsWith("--")) throw new Error(`${arg} требует значение.
+${USAGE}`);
+      if (arg === "--out") out = value;
+      else if (arg === "--as") phone = value;
+      else if (value === "client" || value === "executor") role = value;
+      else throw new Error(`--role: «client» или «executor», получено «${value}».
+${USAGE}`);
       i += 1;
     } else if (arg.startsWith("--")) {
-      throw new Error(`Неизвестный параметр «${arg}».\n${USAGE}`);
+      throw new Error(`Неизвестный параметр «${arg}».
+${USAGE}`);
     } else {
       routes.push(normalizeRoute(arg));
     }
   }
   if (routes.length === 0) throw new Error(`Нужен хотя бы один путь.\n${USAGE}`);
-  return { routes, out };
+  return { routes, out, phone, role };
 }
 
 async function ensureServer(): Promise<void> {
@@ -85,18 +107,53 @@ async function ensureServer(): Promise<void> {
   }
 }
 
+/** Вход по номеру в отдельном окне компьютера; состояние (cookie сессии) — в файл. Новый номер проходит онбординг. */
+async function signIn(browser: Browser, phone: string, role: LoginRole, stateFile: string): Promise<void> {
+  const context = await browser.newContext({ ...VIEWPORTS.desktop, reducedMotion: "reduce", baseURL: BASE });
+  try {
+    const page = await context.newPage();
+    await loginV2(page, phone, { role });
+    await passOnboarding(page);
+    const final = new URL(page.url()).pathname.replace(/\/+$/, "");
+    if (ONBOARDING_PATHS.includes(final)) {
+      say(`Предупреждение: после входа адрес остался на шаге онбординга (${final}): пути за входом отправят обратно на шаг. Шаг почты допишите в passOnboarding.`);
+    } else {
+      say(`Вход выполнен (${phone}, роль ${role}); адрес после входа: ${final || "/"}`);
+    }
+    await context.storageState({ path: stateFile });
+  } finally {
+    await context.close();
+  }
+}
+
+/** Покой страницы перед кадром: гидратация (сеть утихла), шрифты, два кадра отрисовки (прокрутка к выбранному чипу и т. п.). */
+async function settle(page: Page): Promise<void> {
+  await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {
+    say("Предупреждение: сеть не утихла за 20 с, снимок сделан без полного покоя.");
+  });
+  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+}
+
 async function main(): Promise<void> {
-  const { routes, out } = parseArgs(process.argv.slice(2));
+  const { routes, out, phone, role } = parseArgs(process.argv.slice(2));
   await ensureServer();
   mkdirSync(out, { recursive: true });
 
   const browser = await chromium.launch();
+  const stateDir = phone ? mkdtempSync(path.join(tmpdir(), "senim-shots-")) : null;
+  const stateFile = stateDir ? path.join(stateDir, "state.json") : null;
   const tooMany: string[] = [];
   try {
+    if (phone && stateFile) await signIn(browser, phone, role, stateFile);
     for (const viewport of Object.keys(VIEWPORTS) as Viewport[]) {
       for (const theme of THEMES) {
         // Системная тема остаётся светлой: тёмную должна включить кука, а не браузер.
-        const context = await browser.newContext({ ...VIEWPORTS[viewport], reducedMotion: "reduce" });
+        const context = await browser.newContext({
+          ...VIEWPORTS[viewport],
+          reducedMotion: "reduce",
+          ...(stateFile ? { storageState: stateFile } : {}),
+        });
         await context.addCookies([{ name: "theme", value: theme, url: BASE }]);
         for (const route of routes) {
           const page = await context.newPage();
@@ -105,7 +162,7 @@ async function main(): Promise<void> {
             throw new Error(`${route} (${viewport}, ${theme}): ответ ${response?.status() ?? "нет"}`);
           }
           await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
-          await page.evaluate(() => document.fonts.ready);
+          await settle(page);
           const pathname = new URL(page.url()).pathname;
           if (pathname === "/v2" || pathname.startsWith("/v2/")) {
             const applied = await page.evaluate(() => document.documentElement.dataset.theme);
@@ -133,7 +190,7 @@ async function main(): Promise<void> {
             say(`Предупреждение: ${route} (${viewport}, ${theme}) выше ${MAX_STRETCH} px (${height}) — снимок штатным fullPage, прилипшие панели могут стоять посередине.`);
           } else if (size && height > size.height) {
             await page.setViewportSize({ width: size.width, height });
-            await page.evaluate(() => document.fonts.ready);
+            await settle(page);
           }
           const file = path.join(out, `${stem}.png`);
           await page.screenshot({ path: file, fullPage: true });
@@ -145,6 +202,7 @@ async function main(): Promise<void> {
     }
   } finally {
     await browser.close();
+    if (stateDir) rmSync(stateDir, { recursive: true, force: true });
   }
 
   if (tooMany.length > 0) {
