@@ -5,7 +5,7 @@ import { useRef, useState, type DragEvent } from "react";
 import { ru } from "@/i18n/ru";
 import { Button } from "./Button";
 import { cn } from "./cn";
-import { progressPercent, takeFiles } from "./uploader-logic";
+import { progressPercent, sortFiles } from "./uploader-logic";
 
 export type UploaderItem = {
   id: string;
@@ -25,6 +25,11 @@ export type UploaderProps = {
   onRemove: (id: string) => void;
   /** Повторить загрузку файла с ошибкой; без него кнопки «Повторить» нет. */
   onRetry?: (id: string) => void;
+  /**
+   * Файлы не приняты: `"type"` — не подходят под `accept`, `"limit"` — сверх предела `max`. Без обработчика отбрасываются
+   * молча; покажите причину (тостом или строкой).
+   */
+  onReject?: (files: File[], reason: "type" | "limit") => void;
   /** Предел числа фото. */
   max: number;
   /** Что принимает выбор файлов (как `accept` у input); по умолчанию любые изображения. */
@@ -53,21 +58,23 @@ function Preview({ item, className }: { item: UploaderItem; className: string })
  * вызывающего (автомат `src/features/upload`), сюда приходят готовые `items`. На компьютере файлы можно перетащить на
  * область (необязательное улучшение). Клиентский компонент.
  */
-export function Uploader({ items, onAdd, onRemove, onRetry, max, accept = "image/*", label, name }: UploaderProps) {
+export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accept = "image/*", label, name }: UploaderProps) {
   const t = ru.app.kit.uploader;
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const full = items.length >= max;
 
   const add = (files: readonly File[]) => {
-    const taken = takeFiles(files, items.length, max, accept);
-    if (taken.length > 0) onAdd(taken);
+    const { accepted, wrongType, overLimit } = sortFiles(files, items.length, max, accept);
+    if (accepted.length > 0) onAdd(accepted);
+    if (wrongType.length > 0) onReject?.(wrongType, "type");
+    if (overLimit.length > 0) onReject?.(overLimit, "limit");
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragging(false);
-    if (!full) add(Array.from(event.dataTransfer.files));
+    add(Array.from(event.dataTransfer.files));
   };
 
   return (
@@ -160,7 +167,7 @@ export function Uploader({ items, onAdd, onRemove, onRetry, max, accept = "image
           {t.counter(items.length, max)}
         </p>
       </div>
-      <p className="text-sub text-muted mobile:hidden">{t.drop}</p>
+      {!full && <p className="text-sub text-muted mobile:hidden">{t.drop}</p>}
       <input
         ref={input}
         type="file"

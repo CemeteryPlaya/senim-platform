@@ -12,6 +12,8 @@ export type MoneyRow = {
   label: string;
   /** Сумма в тиынах. */
   amount: bigint;
+  /** Итоговая строка («К оплате»): вес 600. */
+  total?: boolean;
   /** Пояснение по нажатию рядом с подписью (`Explain`: шторка на телефоне, поповер на компьютере). */
   explain?: { label: string; title: string; body: ReactNode };
 };
@@ -72,7 +74,7 @@ export function MoneyPanel({ tone, title, amount, rows = [], note, action, devic
               key={`${index}-${row.label}`}
               className={cn("flex items-baseline justify-between gap-4 py-3", index > 0 && cn("border-t", styles.divider))}
             >
-              <dt className={cn("flex min-w-0 flex-wrap items-baseline gap-x-2 text-body", textTone)}>
+              <dt className={cn("flex min-w-0 flex-wrap items-baseline gap-x-2 text-body", row.total ? "font-semibold text-ink" : textTone)}>
                 <span>{row.label}</span>
                 {row.explain && (
                   <Explain label={row.explain.label} title={row.explain.title} device={device}>
@@ -80,7 +82,7 @@ export function MoneyPanel({ tone, title, amount, rows = [], note, action, devic
                   </Explain>
                 )}
               </dt>
-              <dd className="shrink-0 text-body text-ink">
+              <dd className={cn("shrink-0 text-body text-ink", row.total && "font-semibold")}>
                 <Money tiyn={row.amount} />
               </dd>
             </div>

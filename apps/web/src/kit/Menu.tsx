@@ -28,7 +28,7 @@ export type MenuProps = {
   device: Device;
 };
 
-const ITEM_BASE = "flex w-full items-center rounded-field px-4 text-left text-body no-underline outline-none";
+const ITEM_BASE = "flex w-full items-center text-left text-body no-underline";
 
 const toneClass = (tone: MenuItem["tone"]): string => (tone === "danger" ? "text-danger" : "text-ink");
 
@@ -51,7 +51,7 @@ export function Menu({ label, items, device }: MenuProps) {
       <Sheet trigger={trigger} title={label} open={open} onOpenChange={setOpen}>
         <ul className="flex flex-col">
           {items.map((item, index) => {
-            const className = cn(ITEM_BASE, "min-h-control py-3 active:bg-line", toneClass(item.tone));
+            const className = cn(ITEM_BASE, "min-h-control rounded-field py-3 active:bg-line", toneClass(item.tone));
             return (
               <li key={`${index}-${item.label}`}>
                 {item.href ? (
@@ -90,7 +90,7 @@ export function Menu({ label, items, device }: MenuProps) {
                 {...presence(reduced, { scale: 0.9 })}
               >
                 {items.map((item, index) => {
-                  const className = cn(ITEM_BASE, "min-h-control-sm cursor-pointer py-2 data-highlighted:bg-line", toneClass(item.tone));
+                  const className = cn(ITEM_BASE, "min-h-control-sm cursor-pointer rounded-field px-4 py-2 outline-none data-highlighted:bg-line", toneClass(item.tone));
                   return (
                     <DropdownMenu.Item
                       key={`${index}-${item.label}`}

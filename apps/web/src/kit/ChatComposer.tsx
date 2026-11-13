@@ -1,7 +1,7 @@
 "use client";
 
 import { Paperclip, SendHorizontal } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import type { Device } from "@/platform/device";
 import { Button } from "./Button";
@@ -34,6 +34,15 @@ export function ChatComposer({ onSend, pending = false, maxLength, device, label
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const counterId = useId();
+  const field = useRef<HTMLTextAreaElement>(null);
+
+  // Где нет field-sizing (Firefox): высота по содержимому вручную; предел — max-h-composer (CSS режет и тут).
+  useLayoutEffect(() => {
+    const node = field.current;
+    if (!node || CSS.supports("field-sizing", "content")) return;
+    node.style.height = "auto";
+    node.style.height = `${node.scrollHeight + node.offsetHeight - node.clientHeight}px`;
+  }, [text]);
   const ready = canSend(text, maxLength, pending || busy);
 
   const send = async () => {
@@ -66,6 +75,7 @@ export function ChatComposer({ onSend, pending = false, maxLength, device, label
           </Button>
         )}
         <textarea
+          ref={field}
           aria-label={label ?? t.message}
           aria-describedby={showCounter ? counterId : undefined}
           aria-invalid={over ? true : undefined}

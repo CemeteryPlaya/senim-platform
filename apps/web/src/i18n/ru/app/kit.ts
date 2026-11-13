@@ -103,6 +103,8 @@ export const kit = {
     counter: (n: number, max: number) => `${n} из ${max}`,
   },
   signature: {
+    /** Имя самого холста для диктора (имя группы — подпись из пропса label). */
+    canvas: "Холст для подписи",
     /** Подпись-подсказка внутри пустого холста. */
     hint: "Распишитесь здесь",
     clear: "Очистить",
@@ -220,6 +222,8 @@ export const kit = {
       badgeSample: "Колокольчик со счётчиком",
       badgeBell: "Уведомления, 5 непрочитанных",
       uploaderRetried: "Повторили загрузку",
+      uploaderRejectType: "Эти файлы не фото, они не добавлены",
+      uploaderRejectLimit: "Больше пяти фото добавить нельзя",
     },
     notices: {
       infoTitle: "Заявка принята",

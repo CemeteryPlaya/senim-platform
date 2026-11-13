@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type PointerEvent } fr
 import { ru } from "@/i18n/ru";
 import { Button } from "./Button";
 import { TextField } from "./fields";
-import { drawStrokes, hasInk, toPoint, type Pen, type SignatureValue, type Stroke } from "./signature-logic";
+import { drawDot, drawSegment, drawStrokes, hasInk, toPoint, type Pen, type Point, type SignatureValue } from "./signature-logic";
 import { TOKENS } from "./tokens";
 
 export type { SignatureValue } from "./signature-logic";
@@ -31,8 +31,11 @@ export function SignaturePad({ onChange, label, name = "signature-name" }: Signa
   const t = ru.app.kit.signature;
   const hintId = useId();
   const canvas = useRef<HTMLCanvasElement>(null);
-  const strokes = useRef<Stroke[]>([]);
-  const current = useRef<number | null>(null);
+  const strokes = useRef<Point[][]>([]);
+  const current = useRef<Point[] | null>(null);
+  /** Рамка холста и цвет линии — на штрих (один раз при касании), а не на каждое движение. */
+  const gesture = useRef<{ left: number; top: number; width: number; pen: Pen } | null>(null);
+  const nameField = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
   const [inked, setInked] = useState(false);
   const [typed, setTyped] = useState(false);
@@ -93,30 +96,40 @@ export function SignaturePad({ onChange, label, name = "signature-name" }: Signa
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const node = event.currentTarget;
     const rect = node.getBoundingClientRect();
-    if (rect.width === 0) return;
+    const context = node.getContext("2d");
+    if (rect.width === 0 || !context) return;
     node.setPointerCapture(event.pointerId);
     pointerId.current = event.pointerId;
-    strokes.current = [...strokes.current, [toPoint(event.clientX, event.clientY, rect)]];
-    current.current = strokes.current.length - 1;
-    paint();
+    const color = getComputedStyle(node).color;
+    context.strokeStyle = color;
+    context.fillStyle = color;
+    gesture.current = { left: rect.left, top: rect.top, width: rect.width, pen: context as unknown as Pen };
+    const start = toPoint(event.clientX, event.clientY, rect);
+    current.current = [start];
+    strokes.current.push(current.current);
+    drawDot(gesture.current.pen, start, rect.width);
   };
 
   const move = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (pointerId.current !== event.pointerId || current.current === null) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (rect.width === 0) return;
+    const stroke = current.current;
+    const box = gesture.current;
+    if (pointerId.current !== event.pointerId || !stroke || !box) return;
     // Промежуточные точки быстрого движения пера и пальца; без поддержки — только сама точка.
     const events = event.nativeEvent.getCoalescedEvents?.() ?? [];
     const sources = events.length > 0 ? events : [event.nativeEvent];
-    const stroke = [...(strokes.current[current.current] ?? []), ...sources.map((source) => toPoint(source.clientX, source.clientY, rect))];
-    strokes.current = strokes.current.map((existing, index) => (index === current.current ? stroke : existing));
-    paint();
+    for (const source of sources) {
+      const next = toPoint(source.clientX, source.clientY, box);
+      const previous = stroke[stroke.length - 1];
+      stroke.push(next);
+      if (previous) drawSegment(box.pen, previous, next, box.width);
+    }
   };
 
   const end = (event: PointerEvent<HTMLCanvasElement>) => {
     if (pointerId.current !== event.pointerId) return;
     pointerId.current = null;
     current.current = null;
+    gesture.current = null;
     setInked(hasInk(strokes.current));
     onChange(exportImage());
   };
@@ -126,6 +139,8 @@ export function SignaturePad({ onChange, label, name = "signature-name" }: Signa
     setInked(false);
     paint();
     onChange(null);
+    // Кнопка «Очистить» отключается: фокус не должен пропасть, переводим его на холст.
+    canvas.current?.focus({ preventScroll: true });
   };
 
   const switchMode = (nextTyped: boolean) => {
@@ -133,6 +148,11 @@ export function SignaturePad({ onChange, label, name = "signature-name" }: Signa
     if (nextTyped) onChange(typedName.trim() ? { typedName: typedName.trim() } : null);
     // Штрихи сохраняются: возврат к рисунку отдаёт прежнюю подпись. Холст появляется после рендера, поэтому выгрузка — в эффекте ниже.
   };
+
+  // В режиме ввода ФИО фокус — в поле (оно только что появилось).
+  useEffect(() => {
+    if (typed) nameField.current?.focus({ preventScroll: true });
+  }, [typed]);
 
   // После возврата к рисунку холст смонтирован заново: отдаём сохранённую подпись.
   const wasTyped = useRef(false);
@@ -147,6 +167,7 @@ export function SignaturePad({ onChange, label, name = "signature-name" }: Signa
     <div role="group" aria-label={label} className="flex flex-col gap-3">
       {typed ? (
         <TextField
+          ref={nameField}
           label={t.nameLabel}
           name={name}
           autoComplete="name"
@@ -163,7 +184,8 @@ export function SignaturePad({ onChange, label, name = "signature-name" }: Signa
             <canvas
               ref={canvas}
               role="img"
-              aria-label={label}
+              tabIndex={-1}
+              aria-label={t.canvas}
               aria-describedby={hintId}
               onPointerDown={begin}
               onPointerMove={move}

@@ -3,9 +3,9 @@ import { ru } from "@/i18n/ru";
 import { Badge, Chat, ChatComposer, Menu, MoneyPanel, SignaturePad, Steps, Timeline, Uploader } from "./index";
 import { badgeText } from "./Badge";
 import { canSend, composerKeyAction, counterVisible, shouldFollow } from "./chat-logic";
-import { drawStrokes, hasInk, toPoint, type Pen, type Stroke } from "./signature-logic";
+import { drawDot, drawSegment, drawStrokes, hasInk, toPoint, type Pen, type Stroke } from "./signature-logic";
 import { count, hasClass, html, text } from "./test-utils";
-import { matchesAccept, progressPercent, takeFiles } from "./uploader-logic";
+import { matchesAccept, progressPercent, sortFiles, takeFiles } from "./uploader-logic";
 
 const NB = " ";
 
@@ -56,11 +56,14 @@ describe("Steps", () => {
     expect(hasClass(html(<Steps items={items} />), "desktop:hidden")).toBe(false);
   });
 
-  it("остановлено: нейтральная плашка вместо шкалы, без списка", () => {
+  it("остановлено: простая строка со значком вместо шкалы, без списка, без карточки в карточке и role=status", () => {
     const out = html(<Steps items={items} stopped={{ label: "Спор открыт" }} />);
     expect(out).not.toContain("<ol");
     expect(out).toContain("Спор открыт");
-    expect(hasClass(out, "bg-canvas")).toBe(true);
+    expect(out).toContain("lucide-info");
+    expect(hasClass(out, "bg-canvas")).toBe(false);
+    expect(hasClass(out, "rounded-card")).toBe(false);
+    expect(out).not.toContain("role=");
     expect(out).not.toContain("data-primary-action");
   });
 });
@@ -193,6 +196,14 @@ describe("MoneyPanel", () => {
     expect(full).toContain('href="/v2/money"');
   });
 
+  it("итоговая строка выделена весом 600, остальные нет", () => {
+    const out = html(
+      <MoneyPanel tone="protected" title="t" amount={1n} rows={[{ label: "Цена", amount: 1n }, { label: "К оплате", amount: 2n, total: true }]} device="mobile" />,
+    );
+    expect(count(out, "font-semibold")).toBe(2); // подпись и сумма итога
+    expect(out.indexOf("font-semibold")).toBeGreaterThan(out.indexOf("Цена"));
+  });
+
   it("панель названа своим заголовком", () => {
     const out = html(<MoneyPanel tone="awaiting" title="Ожидает оплаты" amount={1n} device="mobile" />);
     expect(out).toMatch(/<section aria-labelledby="([^"]+)"[\s\S]*id="\1"/);
@@ -215,6 +226,14 @@ describe("Uploader: логика", () => {
     expect(takeFiles(files, 3, 5, "image/*").map((f) => f.name)).toEqual(["1.jpg", "3.jpg"]);
     expect(takeFiles(files, 5, 5, "image/*")).toEqual([]);
     expect(takeFiles(files, 9, 5)).toEqual([]);
+  });
+
+  it("разбор: принятые, не тот тип и сверх предела отдельно", () => {
+    const files = [file("1.jpg", "image/jpeg"), file("2.pdf", "application/pdf"), file("3.jpg", "image/jpeg"), file("4.jpg", "image/jpeg")];
+    const sorted = sortFiles(files, 3, 5, "image/*");
+    expect(sorted.accepted.map((f) => f.name)).toEqual(["1.jpg", "3.jpg"]);
+    expect(sorted.wrongType.map((f) => f.name)).toEqual(["2.pdf"]);
+    expect(sorted.overLimit.map((f) => f.name)).toEqual(["4.jpg"]);
   });
 
   it("ход загрузки: целые проценты в пределах 0–100, неизвестный — null", () => {
@@ -282,10 +301,11 @@ describe("Uploader: разметка", () => {
     expect(html(<Uploader items={[{ id: "1", name: "a.jpg", state: "done" }]} onAdd={noop} onRemove={noop} max={5} />)).not.toContain("<img");
   });
 
-  it("подсказка о перетаскивании — только на компьютере", () => {
+  it("подсказка о перетаскивании — только на компьютере и пока есть место", () => {
     const out = html(<Uploader items={[]} onAdd={noop} onRemove={noop} max={5} />);
     expect(out).toContain(ru.app.kit.uploader.drop);
     expect(hasClass(out, "mobile:hidden")).toBe(true);
+    expect(html(<Uploader items={[{ id: "1", name: "a.jpg", state: "done" }]} onAdd={noop} onRemove={noop} max={1} />)).not.toContain(ru.app.kit.uploader.drop);
   });
 });
 
@@ -328,7 +348,7 @@ describe("Chat: разметка", () => {
   const messages = [
     { id: "s", kind: "system", text: "Контакты скрыты до заключения оферты", time: "10:02" },
     { id: "1", mine: true, text: "Здравствуйте", time: "10:05" },
-    { id: "2", mine: false, text: "Добрый день", time: "10:12", attachments: [{ id: "f", url: "/landing/kitchen.jpg", name: "Стена.jpg" }] },
+    { id: "2", mine: false, text: "Добрый день", time: "10:12", attachments: [{ id: "f", url: "/v2/files/f", name: "Стена.jpg", previewUrl: "/v2/files/f/preview" }] },
   ] as const;
 
   it("лента — role=log, aria-live=polite, с именем", () => {
@@ -362,10 +382,26 @@ describe("Chat: разметка", () => {
     const out = html(<Chat messages={messages} />);
     expect(out).toContain("10:12");
     expect(hasClass(out, "text-small")).toBe(true);
-    expect(out).toContain('alt="Стена.jpg"');
-    expect(out).toContain('href="/landing/kitchen.jpg"');
+    expect(out).toContain('aria-label="Стена.jpg"');
+    expect(out).toContain('src="/v2/files/f/preview"');
+    expect(out).toContain('href="/v2/files/f"');
     expect(out).toContain(`${ru.app.kit.chat.mine}: `);
     expect(out).toContain(`${ru.app.kit.chat.theirs}: `);
+  });
+
+  it("вложение без превью — заглушка line, без картинки", () => {
+    const out = html(<Chat messages={[{ id: "1", text: "", time: "10:00", attachments: [{ id: "f", url: "/v2/files/f", name: "Стена.jpg" }] }]} />);
+    expect(out).not.toContain("<img");
+    expect(hasClass(out, "bg-line")).toBe(true);
+    expect(out).toContain('aria-label="Стена.jpg"');
+  });
+
+  it("по умолчанию прокручивается сама лента (окно прокрутки у ленты на компьютере); с pageScroll — страница", () => {
+    expect(hasClass(html(<Chat messages={[]} />), "desktop:overflow-y-auto")).toBe(true);
+    const page = html(<Chat messages={[]} pageScroll />);
+    expect(hasClass(page, "desktop:overflow-y-auto")).toBe(false);
+    expect(hasClass(page, "mobile:chat-end")).toBe(true);
+    expect(hasClass(html(<Chat messages={[]} />), "mobile:chat-end")).toBe(false);
   });
 
   it("поле ввода — отдельным узлом после ленты", () => {
@@ -456,6 +492,13 @@ describe("SignaturePad", () => {
     expect(pen.lineCap).toBe("round");
   });
 
+  it("дорисовка: отрезок и точка без очистки холста", () => {
+    const { pen, calls } = fakePen();
+    drawSegment(pen, { x: 0.1, y: 0.1 }, { x: 0.5, y: 0.25 }, 200);
+    drawDot(pen, { x: 0.9, y: 0.4 }, 200);
+    expect(calls).toEqual(["begin", "move 20,20", "line 100,50", "stroke", "begin", "arc 180,80", "fill"]);
+  });
+
   it("при смене ширины штрихи масштабируются вместе с холстом (подпись не пропадает и не сплющивается)", () => {
     const strokes: Stroke[] = [
       [
@@ -480,6 +523,10 @@ describe("SignaturePad", () => {
     expect(out).toContain(ru.app.kit.signature.hint);
     expect(out).toContain('role="group"');
     expect(out).toContain('aria-label="Подпись покупателя"');
+    // имя холста не повторяет имя группы
+    expect(count(out, 'aria-label="Подпись покупателя"')).toBe(1);
+    expect(out).toContain('aria-label="' + ru.app.kit.signature.canvas + '"');
+    expect(out).toContain('tabindex="-1"');
     expect(out).toMatch(/<button[^>]*disabled=""[^>]*>[\s\S]*Очистить|disabled=""[\s\S]*Очистить/);
     expect(out).toContain(ru.app.kit.signature.typeName);
     expect(out).not.toContain("data-primary-action");

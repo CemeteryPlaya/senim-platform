@@ -35,3 +35,19 @@ export function progressPercent(progress: number | undefined): number | null {
   if (progress === undefined || !Number.isFinite(progress)) return null;
   return Math.round(Math.min(100, Math.max(0, progress)));
 }
+
+/** Разбор выбранных файлов: принятые, отброшенные по типу и отброшенные сверх предела (в порядке выбора). */
+export function sortFiles<T extends Named>(
+  files: readonly T[],
+  taken: number,
+  max: number,
+  accept?: string,
+): { accepted: T[]; wrongType: T[]; overLimit: T[] } {
+  const free = Math.max(0, max - taken);
+  const fit = files.filter((file) => matchesAccept(file, accept));
+  return {
+    accepted: fit.slice(0, free),
+    wrongType: files.filter((file) => !matchesAccept(file, accept)),
+    overLimit: fit.slice(free),
+  };
+}

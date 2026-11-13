@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import { cn } from "./cn";
 
@@ -9,7 +9,7 @@ export type StepsProps = {
   items: readonly { label: string; state: StepState }[];
   /** Пояснение к текущему шагу: на телефоне под ним, на компьютере под шкалой. */
   note?: string;
-  /** Остановлено (спор, отмена): вместо шкалы нейтральная плашка с этим текстом. */
+  /** Остановлено (спор, отмена): вместо шкалы нейтральная строка с этим текстом. */
   stopped?: { label: string };
   /** Имя списка для диктора («Ход сделки»). */
   label?: string;
@@ -34,7 +34,8 @@ function Marker({ state }: { state: StepState }) {
 export function Steps({ items, note, stopped, label }: StepsProps) {
   if (stopped) {
     return (
-      <p role="status" className="rounded-card bg-canvas p-4 text-body text-ink">
+      <p className="flex items-center gap-3 text-body text-ink">
+        <Info aria-hidden className="size-6 shrink-0 text-muted" />
         {stopped.label}
       </p>
     );

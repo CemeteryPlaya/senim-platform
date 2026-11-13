@@ -44,7 +44,7 @@ const ROWS = [
     amount: PROTECTION,
     explain: { label: t.moneyExplainLabel, title: t.moneyExplainTitle, body: t.moneyExplainBody },
   },
-  { label: t.moneyTotal, amount: TOTAL },
+  { label: t.moneyTotal, amount: TOTAL, total: true },
 ];
 
 /** События сделки; сумма события — тиыны (в ru лежит только текст). */

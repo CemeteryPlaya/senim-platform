@@ -65,3 +65,21 @@ export function drawStrokes(pen: Pen, strokes: readonly Stroke[], width: number,
     pen.stroke();
   }
 }
+
+/** Дорисовывает один отрезок штриха (движение указателя): полная перерисовка нужна только при смене темы и размера. */
+export function drawSegment(pen: Pen, from: Point, to: Point, width: number): void {
+  pen.lineWidth = LINE_WIDTH;
+  pen.lineCap = "round";
+  pen.lineJoin = "round";
+  pen.beginPath();
+  pen.moveTo(from.x * width, from.y * width);
+  pen.lineTo(to.x * width, to.y * width);
+  pen.stroke();
+}
+
+/** Дорисовывает точку (касание без движения). */
+export function drawDot(pen: Pen, at: Point, width: number): void {
+  pen.beginPath();
+  pen.arc(at.x * width, at.y * width, LINE_WIDTH / 2, 0, Math.PI * 2);
+  pen.fill();
+}

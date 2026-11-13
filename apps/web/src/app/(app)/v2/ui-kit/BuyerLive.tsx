@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import {
   Card,
@@ -20,18 +20,16 @@ import { to } from "../../_shell/paths";
 
 const t = ru.app.kit.showcase.buyer;
 
-const PHOTO = "/landing/kitchen.jpg";
-
 const START_ITEMS: UploaderItem[] = [
-  { id: "a", name: t.uploaderNames[0], state: "done", previewUrl: PHOTO },
-  { id: "b", name: t.uploaderNames[1], state: "uploading", progress: 40, previewUrl: PHOTO },
-  { id: "c", name: t.uploaderNames[2], state: "error", error: t.uploaderError, previewUrl: PHOTO },
+  { id: "a", name: t.uploaderNames[0], state: "done" },
+  { id: "b", name: t.uploaderNames[1], state: "uploading", progress: 40 },
+  { id: "c", name: t.uploaderNames[2], state: "error", error: t.uploaderError },
 ];
 
 const START_MESSAGES: ChatMessage[] = t.chatMessages.map((message, index) => ({
   ...message,
   // В четвёртом сообщении — фото-вложение: так видно превью в ленте.
-  ...(index === 3 ? { attachments: [{ id: "f", url: PHOTO, name: t.chatAttachment }] } : {}),
+  ...(index === 3 ? { attachments: [{ id: "f", url: to("/v2/ui-kit"), name: t.chatAttachment }] } : {}),
 }));
 
 /** Меню действий: на телефоне шторка, на компьютере выпадающее меню. */
@@ -52,6 +50,15 @@ export function MenuSample({ device }: { device: Device }) {
 /** Загрузчик с тремя фото в разных состояниях; добавление, повтор и удаление работают на месте. */
 export function UploaderSample() {
   const [items, setItems] = useState<UploaderItem[]>(START_ITEMS);
+  /** Адреса превью, созданные образцом: освобождает тот, кто их создал (kit этого не делает). */
+  const blobs = useRef(new Set<string>());
+  useEffect(() => {
+    const created = blobs.current;
+    return () => {
+      for (const url of created) URL.revokeObjectURL(url);
+      created.clear();
+    };
+  }, []);
   return (
     <Uploader
       items={items}
@@ -61,15 +68,19 @@ export function UploaderSample() {
       onAdd={(files) =>
         setItems((current) => [
           ...current,
-          ...files.map((file, index) => ({
-            id: `${Date.now()}-${index}`,
-            name: file.name,
-            state: "done" as const,
-            previewUrl: URL.createObjectURL(file),
-          })),
+          ...files.map((file, index) => {
+            const previewUrl = URL.createObjectURL(file);
+            blobs.current.add(previewUrl);
+            return { id: `${Date.now()}-${index}`, name: file.name, state: "done" as const, previewUrl };
+          }),
         ])
       }
-      onRemove={(id) => setItems((current) => current.filter((item) => item.id !== id))}
+      onReject={(_files, reason) => toast(reason === "type" ? t.uploaderRejectType : t.uploaderRejectLimit)}
+      onRemove={(id) => {
+        const gone = items.find((item) => item.id === id)?.previewUrl;
+        if (gone && blobs.current.delete(gone)) URL.revokeObjectURL(gone);
+        setItems((current) => current.filter((item) => item.id !== id));
+      }}
       onRetry={(id) => {
         setItems((current) => current.map((item) => (item.id === id ? { ...item, state: "done", error: undefined } : item)));
         toast(t.uploaderRetried);
