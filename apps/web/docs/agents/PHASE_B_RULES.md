@@ -1,3 +1,5 @@
+> Файл описывает СТАРЫЙ интерфейс (v1), он заморожен. Новый интерфейс описан в `docs/design/v3/` (корень репозитория).
+
 # Общие правила для агентов фазы B
 
 Прочитай по порядку: `./SKILL.md` → `CLAUDE.md` → `docs/AGENT_PROMPT.md` (разделы 2, 4, 6) → `docs/GLOSSARY.md` → `docs/adr/*` → `docs/agents/UI_COMPONENTS.md` → `docs/design/MOCKUPS.md` (открой макеты своих экранов в `docs/design/mockups/`) → свой файл в `.claude/agents/`.
@@ -7,11 +9,11 @@
 ## Владение файлами
 
 Ты пишешь **только** в свои папки (см. свой агент-файл и таблицу ниже). Общие файлы не трогаешь:
-`prisma/schema.prisma`, `prisma/migrations/`, `package.json`, `package-lock.json`, `src/platform/**`, `src/ui/**`, `src/jobs.ts`, `src/i18n/ru.ts`, `src/app/layout.tsx`, `src/app/page.tsx`, `eslint.config.mjs`, `CLAUDE.md`, чужие модули.
+`prisma/schema.prisma`, `prisma/migrations/`, `package.json`, `package-lock.json`, `src/platform/**`, `src/ui/**`, `src/jobs.ts`, `src/i18n/ru.ts`, `src/app/(legacy)/layout.tsx`, `src/app/(legacy)/page.tsx`, `eslint.config.mjs`, `CLAUDE.md`, чужие модули.
 
 Нужна правка общего файла (поле в схеме, зависимость, компонент в `ui/`, метод в чужом модуле) — **не делай её**, а опиши в отчёте в разделе «Нужно от интегратора»: файл, точный diff или сигнатура, зачем. Пока правки нет — работай против интерфейса, мока или временного адаптера внутри своего модуля с пометкой `// INTEGRATOR:`.
 
-| Зона | Владелец | Маршруты `src/app/` | Тексты |
+| Зона | Владелец | Маршруты `src/app/(legacy)/` | Тексты |
 |---|---|---|---|
 | shell, лендинг, витрина | ui-foundation | `layout.tsx`, `page.tsx`, `ui-kit/`, `_shell/` | `common.ts`, `landing.ts` |
 | identity | identity-engineer | `login/`, `register/`, `demo/`, `api/auth/` | `identity.ts` |

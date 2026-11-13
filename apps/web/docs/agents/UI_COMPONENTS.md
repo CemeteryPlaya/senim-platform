@@ -1,3 +1,5 @@
+> Файл описывает СТАРЫЙ интерфейс (v1), он заморожен. Новый интерфейс описан в `docs/design/v3/` (корень репозитория).
+
 # Компоненты интерфейса (`import { … } from "@/ui"`)
 
 Стили — только классы токенов: `bg-canvas`, `bg-surface`, `bg-sunken`, `text-ink`, `text-ink-soft`, `text-muted`, `text-accent`, `border-line`, `border-line-strong`, `rounded-card`, `rounded-control`, `rounded-button` (кнопки-«таблетки»), `rounded-chip`, `rounded-badge`, `shadow-card` (плоская — прозрачная), `shadow-raised`, `min-h-control` (56 px), `min-h-control-sm` (48 px), `max-w-page`/`max-w-form`/`max-w-prose`. Стандартная палитра Tailwind отключена (`bg-blue-500` не соберётся). Вид — минималистичный (стиль приложения Upwork): правила для новых экранов — раздел «Минимализм» в `docs/design/README.md`.
@@ -41,4 +43,4 @@
 
 Необратимые действия (приёмка, оплата, выбор исполнителя, отмена) — только через подтверждение. Нижняя панель на телефоне задаёт `--tabbar-h`: закреплённые снизу блоки поднимаются на неё (`bottom-[calc(var(--tabbar-h)+1rem)] lg:bottom-4`).
 
-Навигация по ролям — `src/app/_shell/nav.ts` (`navFor` → `{ tabs, more }`), её меняет только интегратор. Токены, правила и отступления от макетов — `docs/design/README.md`.
+Навигация по ролям — `src/app/(legacy)/_shell/nav.ts` (`navFor` → `{ tabs, more }`), её меняет только интегратор. Токены, правила и отступления от макетов — `docs/design/README.md`.
