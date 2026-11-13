@@ -1,6 +1,7 @@
 import "server-only";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Role } from "@/generated/prisma/enums";
+import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import {
   getCurrentUser,
   getShellUser,
@@ -14,6 +15,7 @@ import {
   switchRoleHref,
   type CurrentUser,
 } from "@/modules/identity";
+import { isAppError } from "@/platform/errors";
 import { pendingOnboarding } from "./onboarding";
 import { makePaths, ONBOARDING_SCREENS, safeLocalPath, to } from "./paths";
 import { recallRole, type ChosenRole } from "./role-cookie";
@@ -166,4 +168,32 @@ export async function userPastOnboarding(here: string): Promise<CurrentUser | nu
   const { user } = await getShellUser();
   if (!user || pendingOnboarding(user).length === 0) return user;
   redirect(barrierFor(user, safeNext(here), await recallRole()) ?? to("/"));
+}
+
+/**
+ * Ворота экранов покупателя: вошедший заказчик. Всё, что делает `requireV2User(next, "CLIENT")`: гость — на вход с
+ * возвратом, роль мастера при выданной роли заказчика — на переключение, не пройден шаг — на шаг. `next` — адрес этой
+ * страницы v2 (с параметрами).
+ */
+export async function requireBuyer(next: string): Promise<CurrentUser> {
+  return requireV2User(next, "CLIENT");
+}
+
+/**
+ * Сделка для экрана покупателя. Модуль отвечает NOT_FOUND и на чужую сделку, и на несуществующую; если человек — сторона
+ * этой сделки в другой своей роли (ADR-004), — на экран переключения роли v2 с возвратом на сделку
+ * (`/v2/switch-role?to=<роль>&returnTo=/v2/deals/<id>`; смысл `loadOrSwitchRole` из v1). Иначе — `notFound()`.
+ * Прочие ошибки модуля пробрасываются. Права проверяет модуль, не эта функция.
+ */
+export async function dealOrSwitch(user: CurrentUser, dealId: string): Promise<DealView> {
+  try {
+    return await getDealView(user, dealId);
+  } catch (e) {
+    if (!isAppError(e) || e.code !== "NOT_FOUND") throw e;
+  }
+  const party = user.roles.length > 1 ? await dealPartyOf(user, dealId) : null;
+  if (party && party !== user.role && user.roles.includes(party)) {
+    redirect(`${to("/switch-role")}?${new URLSearchParams({ to: party, returnTo: to(`/deals/${encodeURIComponent(dealId)}`) })}`);
+  }
+  notFound();
 }

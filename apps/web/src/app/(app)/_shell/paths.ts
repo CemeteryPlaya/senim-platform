@@ -53,3 +53,54 @@ export function safeLocalPath(path: string): string {
   const control = /[\u0000-\u001f\u007f]/;
   return path.startsWith("/") && !/^\/[/\\\s]/.test(path) && !control.test(path) ? path : "/";
 }
+
+/** Адрес разобран на путь, строку запроса (с «?») и якорь (с «#»): любая часть может быть пустой. */
+function splitHref(href: string): { path: string; query: string; hash: string } {
+  const hashAt = href.indexOf("#");
+  const hash = hashAt < 0 ? "" : href.slice(hashAt);
+  const rest = hashAt < 0 ? href : href.slice(0, hashAt);
+  const queryAt = rest.indexOf("?");
+  return queryAt < 0 ? { path: rest, query: "", hash } : { path: rest.slice(0, queryAt), query: rest.slice(queryAt), hash };
+}
+
+/** Сегменты пути, которыми можно выйти из префикса v2 (`/v2/../x`), и обратная косая черта (браузер читает её как «/»). */
+const ESCAPING_PATH = /(^|\/)(\.|%2e){1,2}(\/|$)|[\\]/i;
+
+/**
+ * `v2Href` для префикса `base` ("" или "/v2"): путь v1, пришедший из модуля (ссылка уведомления, `listChats().href`,
+ * `homePathFor`, `switchRoleHref`, ссылка «Поделиться»), — в адрес v2. Чистая функция.
+ *
+ * - Путь v1 переходит под префикс как есть, вместе со строкой запроса и якорем: `/deals/7/money` → `/v2/deals/7/money`,
+ *   `/requests?tab=2` → `/v2/requests?tab=2`, `/` → `/v2`. Путь, которого в v2 ещё нет, тоже: он попадёт в заглушку «Раздел
+ *   переносится». Конечный «/» отбрасывается.
+ * - Диалог: `/requests/<id>/offers/<offerId>#chat` → `/chats/<offerId>` (строка запроса сохраняется, якорь уходит).
+ *   Якорь `#chat` у сделки остаётся на сделке: `/deals/<id>#chat` → `/v2/deals/<id>#chat` — id отклика из пути сделки не
+ *   узнать, ссылку на диалог даёт сам экран сделки.
+ * - Адрес уже под префиксом — как есть.
+ * - Всё, что не путь этого сайта, — главная: чужой сайт (`//host`, `/\host`, `https://…`), управляющие символы,
+ *   `..` и `\` в пути. Абсолютный адрес принимается, только если указан `origin` сайта и адрес ему принадлежит
+ *   (`APP_URL/d/<token>`): тогда берётся его путь.
+ */
+export function makeV2Href(base: string): (v1Path: string, origin?: string) => string {
+  const { to } = makePaths(base);
+  return (v1Path, origin) => {
+    let local = v1Path;
+    if (origin !== undefined && /^https?:\/\//i.test(v1Path)) {
+      try {
+        const url = new URL(v1Path);
+        local = url.origin === new URL(origin).origin ? `${url.pathname}${url.search}${url.hash}` : "";
+      } catch {
+        local = "";
+      }
+    }
+    if (safeLocalPath(local) !== local) return to("/");
+    const { path, query, hash } = splitHref(local);
+    if (ESCAPING_PATH.test(path)) return to("/");
+    const clean = path.length > 1 ? path.replace(/\/+$/, "") || "/" : path;
+    const offerChat = hash === "#chat" ? /^\/requests\/[^/]+\/offers\/([^/]+)$/.exec(clean) : null;
+    if (offerChat) return to(`/chats/${offerChat[1]}${query}`);
+    return to(`${clean}${query}${hash}`);
+  };
+}
+
+export const v2Href = makeV2Href(BASE);
