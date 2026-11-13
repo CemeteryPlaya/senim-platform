@@ -42,6 +42,11 @@ describe("RoleStep: покупатель или мастер", () => {
       expect(text(<RoleStep role="client" next={null} />)).toContain(piece);
   });
 
+  it("подпись группы — только для диктора: на экране её нет, в разметке — есть", () => {
+    const out = html(<RoleStep role="client" next={null} />);
+    expect(out).toMatch(new RegExp(`<legend class="sr-only">${role.legend}</legend>`));
+  });
+
   it("выбор из cookie или адреса — «Я мастер»", () => {
     expect(checkedValue(html(<RoleStep role="executor" next={null} />))).toBe("executor");
   });

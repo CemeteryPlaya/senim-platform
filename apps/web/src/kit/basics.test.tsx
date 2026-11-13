@@ -196,6 +196,35 @@ describe("Поля", () => {
     expect(out).toMatch(describedByPair);
   });
 
+  it("RadioGroup legendHidden: legend в разметке, но только для диктора (sr-only); ошибка видна как прежде", () => {
+    const legendOf = (out: string) => /<legend[^>]*>[^<]*<\/legend>/.exec(out)?.[0] ?? "";
+    const hidden = html(
+      <RadioGroup legend="Способ получения" error="Выберите способ" legendHidden>
+        <RadioCard label="Самовывоз" name="m" value="a" />
+      </RadioGroup>,
+    );
+    expect(legendOf(hidden)).toContain("Способ получения");
+    expect(hasClass(legendOf(hidden), "sr-only")).toBe(true);
+    expect(hidden).toContain('role="alert"');
+    expect(hidden).toMatch(describedByPair);
+
+    const visible = html(
+      <RadioGroup legend="Способ получения">
+        <RadioCard label="Самовывоз" name="m" value="a" />
+      </RadioGroup>,
+    );
+    expect(hasClass(legendOf(visible), "sr-only")).toBe(false);
+    expect(hasClass(legendOf(visible), "mb-2")).toBe(true);
+    // Без пропа разметка прежняя.
+    expect(
+      html(
+        <RadioGroup legend="Способ получения" legendHidden={false}>
+          <RadioCard label="Самовывоз" name="m" value="a" />
+        </RadioGroup>,
+      ),
+    ).toBe(visible);
+  });
+
   it("RadioGroup без ошибки не рисует alert и describedby; у RadioCard нет своей ошибки", () => {
     const out = html(
       <RadioGroup legend="Способ">

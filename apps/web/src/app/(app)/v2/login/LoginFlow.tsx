@@ -128,7 +128,7 @@ export function RoleStep({ role, next }: { role: LoginRole; next: string | null 
       </Stack>
       <form id={FORM.role} method="post" onSubmit={form.onSubmit} noValidate>
         <Stack gap="section">
-          <RadioGroup legend={t.role.legend} error={form.fieldErrors.role}>
+          <RadioGroup legend={t.role.legend} legendHidden error={form.fieldErrors.role}>
             <RadioCard
               name="role"
               value="client"

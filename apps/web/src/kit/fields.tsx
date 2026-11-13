@@ -207,15 +207,24 @@ export function RadioCard({ label, description, id: explicitId, className, ...re
   );
 }
 
-export type RadioGroupProps = { legend: string; error?: string; children: ReactNode };
+export type RadioGroupProps = {
+  legend: string;
+  error?: string;
+  /**
+   * Подпись группы только для экранного диктора (`sr-only`): вопрос уже задан заголовком экрана, а видимая подпись его
+   * повторила бы. `legend` остаётся в разметке — у группы есть имя. Ошибка группы видна как обычно.
+   */
+  legendHidden?: boolean;
+  children: ReactNode;
+};
 
 /** Группа карточек выбора: `fieldset` с `legend` и одной общей ошибкой. */
-export function RadioGroup({ legend, error, children }: RadioGroupProps) {
+export function RadioGroup({ legend, error, legendHidden = false, children }: RadioGroupProps) {
   const id = useId();
   const errorId = error ? `${id}-error` : undefined;
   return (
     <fieldset aria-describedby={errorId} className="flex min-w-0 flex-col gap-2 border-0 p-0">
-      <legend className={cn(labelClass, "mb-2")}>{legend}</legend>
+      <legend className={legendHidden ? "sr-only" : cn(labelClass, "mb-2")}>{legend}</legend>
       {children}
       <ErrorText id={errorId}>{error}</ErrorText>
     </fieldset>

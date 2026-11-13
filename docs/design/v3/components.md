@@ -136,7 +136,7 @@
 | `Select` | `<select>` | Подсказка пустого выбора — `<option value="">`: пока выбран он, текст muted |
 | `Checkbox` | `<input type="checkbox">` | `label` справа от квадрата; весь ряд — цель касания |
 | `RadioCard` | `<input type="radio">` | `description?: string` — вторая строка под подписью (15 px `muted`), связана с радио через `aria-describedby`; без неё разметка прежняя. Вариант выбора карточкой; выбранный выделен рамкой цвета действия. `label` и `name` обязательны; ошибки нет — она у группы |
-| `RadioGroup` | `<fieldset>` | `legend: string`, `error?: string`, `children` (набор `RadioCard`) |
+| `RadioGroup` | `<fieldset>` | `legend: string`, `error?: string`, `legendHidden?: boolean`, `children` (набор `RadioCard`). `legendHidden` — подпись только для экранного диктора (`sr-only`, остаётся в разметке): когда вопрос уже задан заголовком экрана (шаг входа «Вы покупатель или мастер?»); ошибка группы видна как обычно |
 
 Общие пропсы `FieldProps`:
 
