@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { setExecutorIdentityMode } from "@/modules/companies";
 import { db } from "@/platform/db";
@@ -7,10 +7,14 @@ import { makeExecutor, makeOperator } from "../../../../../test/factories";
 import { makeFurnitureType, makePortfolioItem } from "../../../../../test/factories/companies";
 import CatalogPage from "./page";
 
+const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop" }));
+vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
+
 const render = async (params: Record<string, string> = {}) => renderToStaticMarkup(await CatalogPage({ searchParams: Promise.resolve(params) }));
 
 // Режим имени меняется только в DEMO_MODE (ADR-006).
 beforeEach(() => {
+  h.device = "mobile";
   process.env.DEMO_MODE = "true";
   resetEnvCache();
 });
@@ -78,7 +82,8 @@ describe("/v2/catalog: что видит гость", () => {
     expect(out).not.toContain("data-primary-action");
   });
 
-  it("режим HIDDEN: нет юридического имени, телефона, Instagram, БИН/ИИН и улицы (и в alt/title/aria-label)", async () => {
+  it.each(["mobile", "desktop"] as const)("%s, режим HIDDEN: нет юридического имени, телефона, Instagram, БИН/ИИН и улицы (и в alt/title/aria-label)", async (device) => {
+    h.device = device;
     await setExecutorIdentityMode(await makeOperator(), "HIDDEN");
     const { executor } = await seed({ realPhoto: true });
     for (const out of [await render(), await render({ type: "kitchen" })]) {
@@ -91,15 +96,27 @@ describe("/v2/catalog: что видит гость", () => {
     }
   });
 
-  it("режим SHOWN: юридическое имя — только в строке мастера как публичная метка; остальное по-прежнему скрыто", async () => {
+  it.each(["mobile", "desktop"] as const)("%s, режим SHOWN: юридическое имя — только в строке мастера как публичная метка; остальное скрыто", async (device) => {
+    h.device = device;
     await setExecutorIdentityMode(await makeOperator(), "SHOWN");
     const { executor } = await seed({ realPhoto: true });
     const out = await render();
     expect(out).toContain(SECRETS.legalName);
     // Каждое вхождение — внутри абзаца-строки мастера, а не в атрибуте или другом тексте.
-    const withoutByline = out.replace(/<p class="[^"]*">ТОО «Секретная Мебель»[^<]*<\/p>/g, "");
+    const withoutByline = out.replace(/<span class="[^"]*">ТОО «Секретная Мебель»[^<]*<\/span>/g, "");
     expect(withoutByline).not.toContain("Секретная");
     await expectNoContacts(out, executor.id);
+  });
+
+  it.each(["mobile", "desktop"] as const)("%s: в DOM один набор фильтров, заголовки карточек — h2", async (device) => {
+    h.device = device;
+    await seed();
+    const out = await render();
+    expect(out.split('aria-label="Тип мебели"').length - 1).toBe(1);
+    expect(out.split('aria-label="Цена"').length - 1).toBe(1);
+    expect(out.includes("rail-bleed") || out.includes("overflow-x-auto")).toBe(device === "mobile");
+    expect(out).toMatch(/<h2[^>]*>.*Светлая кухня/);
+    expect(out).not.toContain("<h3");
   });
 
   it("настоящее фото: alt — название и номер снимка, src — подписанная ссылка без идентификаторов", async () => {

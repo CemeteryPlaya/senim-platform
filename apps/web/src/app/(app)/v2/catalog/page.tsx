@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { Chips, Columns, EmptyState, PageTitle, Pagination, Stack, TextLink, WorkCard } from "@/kit";
+import { Chips, Columns, EmptyState, FilterList, PageTitle, Pagination, Sidebar, Stack, TextLink, WorkCard } from "@/kit";
+import { getDevice } from "@/platform/device";
 import { getCatalogFacets, listCatalog, parseCatalogFilter, type SearchParams } from "@/modules/companies";
 import { catalogView } from "./_parts/catalog-view";
 
@@ -16,17 +17,10 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const filter = parseCatalogFilter(await searchParams);
   const [result, facets] = await Promise.all([listCatalog(filter), getCatalogFacets()]);
   const view = catalogView(result, facets, filter);
+  const device = await getDevice();
 
-  return (
+  const results = (
     <Stack gap="section">
-      <PageTitle title={t.title} lead={t.lead} />
-      {view.showFilters && (
-        <Stack>
-          <Chips label={t.typeLabel} items={view.typeChips} />
-          <Chips label={t.priceLabel} items={view.priceChips} />
-          {view.found && <p className="text-sub text-muted">{view.found}</p>}
-        </Stack>
-      )}
       {view.empty && <EmptyState title={view.empty.title} body={view.empty.body} action={view.empty.action} />}
       {view.cards.length > 0 && (
         <Columns count={3}>
@@ -40,12 +34,48 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
               priceFrom={card.priceFrom}
               media={view.media}
               photo={card.photo}
+              headingLevel={2}
             />
           ))}
         </Columns>
       )}
       {view.similarLink && <TextLink href={view.similarLink.href}>{view.similarLink.label}</TextLink>}
       {view.state === "results" && <Pagination page={view.page} pageCount={view.pageCount} hrefFor={view.hrefFor} label={t.paginationLabel} />}
+    </Stack>
+  );
+
+  // Один набор фильтров: на компьютере списки слева, на телефоне две ленты чипов; версию выбирает сервер.
+  const found = view.found && <p className="text-sub text-muted">{view.found}</p>;
+  return (
+    <Stack gap="section">
+      <PageTitle title={t.title} lead={t.lead} />
+      {!view.showFilters ? (
+        results
+      ) : device === "desktop" ? (
+        <Sidebar
+          device={device}
+          aside={
+            <Stack gap="section">
+              <FilterList title={t.typeLabel} items={view.typeChips} />
+              <FilterList title={t.priceLabel} items={view.priceChips} />
+            </Stack>
+          }
+        >
+          <Stack gap="section">
+            {found}
+            {results}
+          </Stack>
+        </Sidebar>
+      ) : (
+        <>
+          <Stack>
+            <Chips label={t.typeLabel} items={view.typeChips} />
+            <Chips label={t.priceLabel} items={view.priceChips} />
+            {found}
+          </Stack>
+          {results}
+        </>
+      )}
     </Stack>
   );
 }
