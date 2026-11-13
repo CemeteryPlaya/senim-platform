@@ -3,11 +3,11 @@ import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import { db, type Prisma } from "@/platform/db";
 import { EXECUTOR_DISPLAY_SELECT } from "./anonymity";
-import { CARD_SELECT, toCard, VISIBLE_ITEM } from "./catalog";
+import { CARD_SELECT, NAME_MASK_SELECT, toCard, VISIBLE_ITEM } from "./catalog";
 import { executorDisplay } from "./display";
 import { getExecutorIdentityMode } from "./identity-mode";
 import type { InspirationFilter } from "./inspiration-filter";
-import { maskContacts, maskIdentity } from "./mask";
+import { maskPublicText } from "./mask";
 import { DEAL_PHOTOS, itemFiles, OWN_PHOTOS, toPhotoViews } from "./photos";
 import { styleView } from "./portfolio";
 import type { PhotoView, PortfolioCard } from "./types";
@@ -39,7 +39,7 @@ const TILE_SELECT = {
   furnitureType: { select: { slug: true, name: true } },
   photos: { ...OWN_PHOTOS, take: 1 },
   dealPhotos: { ...DEAL_PHOTOS, take: 1 },
-  executor: { select: EXECUTOR_DISPLAY_SELECT },
+  executor: { select: { ...EXECUTOR_DISPLAY_SELECT, ...NAME_MASK_SELECT } },
 } satisfies Prisma.PortfolioItemSelect;
 
 /** Сначала подборка площадки, затем новые. */
@@ -53,10 +53,11 @@ export async function listInspiration(filter: InspirationFilter): Promise<{ item
   ]);
   const items = await Promise.all(
     rows.slice(0, filter.limit).map(async (row): Promise<InspirationTile> => {
-      const [cover] = await toPhotoViews(itemFiles(row).slice(0, 1), (n) => ru.companies.photoAlt(row.title, n));
+      const title = maskPublicText(row.title, row.executor).text;
+      const [cover] = await toPhotoViews(itemFiles(row).slice(0, 1), (n) => ru.companies.photoAlt(title, n));
       return {
         id: row.id,
-        title: row.title,
+        title,
         cover: cover ?? null,
         furnitureType: row.furnitureType,
         style: styleView(row.style),
@@ -89,7 +90,7 @@ export async function getInspirationItem(itemId: string, viewer: CurrentUser | n
   const own = viewer?.executor?.id === row.executorId;
   return {
     ...(await toCard(row, mode)),
-    review: review ? { id: review.id, rating: review.rating, text: maskIdentity(maskContacts(review.text).text, row.executor.legalName) } : null,
+    review: review ? { id: review.id, rating: review.rating, text: maskPublicText(review.text, row.executor).text } : null,
     own,
     canLike: !own && (viewer === null || viewer.roles.includes("CLIENT")),
     canFeature: viewer?.role === "OPERATOR",

@@ -1,3 +1,4 @@
+import type { LegalForm } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 
 /**
@@ -70,6 +71,36 @@ export function maskNameWords(text: string, fullName: string | null | undefined)
   const word = `(?:${words.map(escapeRegExp).join("|")})\\p{L}{0,2}(?![\\p{L}\\p{N}])`;
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${word}(?:[\\s\\-]+${word})*`, "giu");
   return clean.replace(pattern, MASK);
+}
+
+/** Сведения о мастере, нужные для маски его имени в публичных текстах. Наружу не отдаются. */
+export type ExecutorNameSource = {
+  legalForm: LegalForm;
+  legalName: string;
+  signerFullName: string | null;
+  /** Профиль владельца учётной записи (User). */
+  user: { fullName: string | null };
+};
+
+/**
+ * ФИО подписанта договора — его слова скрываются по отдельности: ТОО — директор, ИП и самозанятый — владелец
+ * (ADR-003). Профиль до ADR-003 без подписанта: у ИП и самозанятого — наименование без «ИП» и кавычек.
+ */
+export function signerNameOf(p: Pick<ExecutorNameSource, "legalForm" | "legalName" | "signerFullName">): string | null {
+  if (p.signerFullName) return p.signerFullName;
+  if (p.legalForm === "TOO") return null;
+  return p.legalName.replace(/(?<!\p{L})ИП(?!\p{L})/gu, " ").replace(/[«»"“”„']/g, " ");
+}
+
+/**
+ * Публичный текст о мастере: контакты (maskContacts), наименование целиком (maskIdentity) и отдельные слова ФИО
+ * подписанта и владельца учётной записи (maskNameWords). Без обращения к базе; одно правило и на записи, и на чтении.
+ */
+export function maskPublicText(text: string, p: ExecutorNameSource): { text: string; masked: boolean } {
+  const contacts = maskContacts(text);
+  const names = [signerNameOf(p), p.user.fullName].filter(Boolean).join(" ");
+  const clean = maskNameWords(maskIdentity(contacts.text, p.legalName), names);
+  return { text: clean, masked: contacts.masked || clean !== contacts.text };
 }
 
 /* ── Нормализация: обходы маски невидимыми символами и «чужими» цифрами ── */

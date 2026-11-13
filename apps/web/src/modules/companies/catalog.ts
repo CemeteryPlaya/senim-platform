@@ -5,7 +5,7 @@ import { PUBLIC_EXECUTOR_SELECT, toPublicView } from "./anonymity";
 import { priceRange, type CatalogFilter } from "./catalog-filter";
 import type { ExecutorIdentityMode } from "./display";
 import { getExecutorIdentityMode } from "./identity-mode";
-import { maskContacts, maskIdentity } from "./mask";
+import { maskPublicText } from "./mask";
 import { DEAL_PHOTOS, itemFiles, OWN_PHOTOS, toPhotoViews } from "./photos";
 import { styleView } from "./portfolio";
 import type { PortfolioCard, PublicExecutorPage, PublicExecutorView, PublicReview } from "./types";
@@ -31,6 +31,9 @@ export const VISIBLE_ITEM = {
   OR: [{ dealId: null }, { deal: { portfolioConsentAt: { not: null } } }],
 } satisfies Prisma.PortfolioItemWhereInput;
 
+/** Поля для маски имени мастера в текстах: только для maskPublicText, в публичные представления не попадают. */
+export const NAME_MASK_SELECT = { legalForm: true, legalName: true, signerFullName: true, user: { select: { fullName: true } } } as const satisfies Prisma.ExecutorProfileSelect;
+
 export const CARD_SELECT = {
   id: true,
   title: true,
@@ -46,17 +49,18 @@ export const CARD_SELECT = {
   photos: OWN_PHOTOS,
   dealPhotos: DEAL_PHOTOS,
   deal: { select: { review: { select: { id: true, rating: true, text: true } } } },
-  executor: { select: PUBLIC_EXECUTOR_SELECT },
+  executor: { select: { ...PUBLIC_EXECUTOR_SELECT, ...NAME_MASK_SELECT } },
 } satisfies Prisma.PortfolioItemSelect;
 
 export type CardRow = Prisma.PortfolioItemGetPayload<{ select: typeof CARD_SELECT }>;
 
 export async function toCard(row: CardRow, mode: ExecutorIdentityMode): Promise<PortfolioCard> {
   const view = toPublicView(row.executor, mode);
+  const title = maskPublicText(row.title, row.executor).text;
   return {
     id: row.id,
-    title: row.title,
-    description: row.description,
+    title,
+    description: maskPublicText(row.description, row.executor).text,
     furnitureType: row.furnitureType,
     style: styleView(row.style),
     priceFrom: row.priceFrom,
@@ -64,7 +68,7 @@ export async function toCard(row: CardRow, mode: ExecutorIdentityMode): Promise<
     featured: row.featured,
     doneOnPlatform: row.dealId !== null,
     reviewId: row.deal?.review?.id ?? null,
-    photos: await toPhotoViews(itemFiles(row), (n) => ru.companies.photoAlt(row.title, n)),
+    photos: await toPhotoViews(itemFiles(row), (n) => ru.companies.photoAlt(title, n)),
     executor: { id: view.id, publicNumber: view.publicNumber, label: view.label, segment: view.segment, ratingAvg: view.ratingAvg, reviewsCount: view.reviewsCount },
   };
 }
@@ -105,24 +109,23 @@ export async function listExecutorReviews(executorId: string, limit = REVIEWS_LI
       take: limit,
       select: { id: true, rating: true, text: true, createdAt: true },
     }),
-    db.executorProfile.findUnique({ where: { id: executorId }, select: { legalName: true } }),
+    db.executorProfile.findUnique({ where: { id: executorId }, select: NAME_MASK_SELECT }),
   ]);
-  // Как «О себе»: контакты и наименование мастера из текста отзыва убираются в любом режиме показа имени.
-  const legalName = profile?.legalName ?? "";
-  return rows.map((r) => ({ ...r, text: maskIdentity(maskContacts(r.text).text, legalName) }));
+  // Как «О себе»: контакты, наименование и слова ФИО мастера из текста отзыва убираются в любом режиме показа имени.
+  return rows.map((r) => ({ ...r, text: profile ? maskPublicText(r.text, profile).text : r.text }));
 }
 
 /** Публичная страница /executors/[publicNumber]. null — исполнителя нет или он не подтверждён. */
 export async function getPublicExecutorPage(publicNumber: number): Promise<PublicExecutorPage | null> {
   const row = await db.executorProfile.findFirst({
     where: { publicNumber, ...VISIBLE_EXECUTOR },
-    select: { ...PUBLIC_EXECUTOR_SELECT, about: true },
+    select: { ...PUBLIC_EXECUTOR_SELECT, ...NAME_MASK_SELECT, about: true },
   });
   if (!row) return null;
-  const { about, ...publicRow } = row;
+  const { about, legalForm, signerFullName, user, ...publicRow } = row;
   const [portfolio, reviews, mode] = await Promise.all([listPublicPortfolio(row.id), listExecutorReviews(row.id), getExecutorIdentityMode()]);
   // «О себе» сохраняется уже очищенным, но демо-данные и старые записи могли обойти форму — чистим и при показе.
-  return { view: toPublicView(publicRow, mode), about: maskIdentity(maskContacts(about).text, row.legalName), portfolio, reviews };
+  return { view: toPublicView(publicRow, mode), about: maskPublicText(about, { legalForm, legalName: row.legalName, signerFullName, user }).text, portfolio, reviews };
 }
 
 export type PortfolioForRequest = PortfolioCard & { furnitureTypeId: string; executor: PublicExecutorView };

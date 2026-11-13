@@ -4,7 +4,7 @@ import { db } from "@/platform/db";
 import { makeExecutor } from "../../../test/factories";
 import { makeFurnitureType, makePortfolioItem, makeReview } from "../../../test/factories/companies";
 import { EXECUTOR_IDENTITY_KEY } from "./identity-mode";
-import { CATALOG_PAGE_SIZE, getInspirationItem, getPortfolioForRequest, getPublicExecutorPage, listCatalog, MASK } from "./index";
+import { CATALOG_PAGE_SIZE, getInspirationItem, listInspiration, getPortfolioForRequest, getPublicExecutorPage, listCatalog, MASK } from "./index";
 
 describe("каталог работ", () => {
   it("показывает только опубликованные работы подтверждённых исполнителей по включённым типам", async () => {
@@ -132,6 +132,44 @@ describe("публичная страница исполнителя", () => {
       delete process.env.DEMO_MODE;
       resetEnvCache();
     }
+  });
+
+  it("отдельное имя владельца вырезается в «О себе», отзывах и на карточке «Вдохновения» — в HIDDEN и в SHOWN; текст без имени не меняется", async () => {
+    const executor = await makeExecutor({ legalName: "ИП Ағаш Шебер" });
+    await db.user.update({ where: { id: executor.id }, data: { fullName: "Жумабаев Ерлан" } });
+    await db.executorProfile.update({ where: { id: executor.executor.id }, data: { signerFullName: "Жумабаев Ерлан Нурланович", about: "Меня зовут Ерлан, делаю кухни" } });
+    const review = await makeReview(executor, 5, "Ерлан сделал кухню вовремя");
+    const clean = await makeReview(executor, 4, "Всё сделано аккуратно");
+    const item = await makePortfolioItem(executor, { title: "Кухня Ерлана", description: "Сделал Ерлан" });
+    await db.portfolioItem.update({ where: { id: item.id }, data: { dealId: review.dealId } });
+    await db.deal.update({ where: { id: review.dealId }, data: { portfolioConsentAt: new Date() } });
+
+    const check = async () => {
+      const page = await getPublicExecutorPage(executor.executor.publicNumber);
+      expect(page!.about).toBe(`Меня зовут ${MASK}, делаю кухни`);
+      const texts = page!.reviews.map((r) => r.text).sort();
+      expect(texts).toEqual([`${MASK} сделал кухню вовремя`, "Всё сделано аккуратно"].sort());
+      expect(page!.portfolio[0]).toMatchObject({ title: `Кухня ${MASK}`, description: `Сделал ${MASK}` });
+      const card = await getInspirationItem(item.id, null);
+      expect(card!.review!.text).toBe(`${MASK} сделал кухню вовремя`);
+      expect(card!.title).toBe(`Кухня ${MASK}`);
+      const feed = await listInspiration({ limit: 12 });
+      expect(feed.items[0]!.title).toBe(`Кухня ${MASK}`);
+      // Поля для маски наружу не уходят.
+      expect(JSON.stringify([page, card, feed])).not.toMatch(/Ерлан|Жумабаев|signerFullName|legalForm/);
+    };
+    await check();
+
+    process.env.DEMO_MODE = "true";
+    resetEnvCache();
+    try {
+      await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
+      await check();
+    } finally {
+      delete process.env.DEMO_MODE;
+      resetEnvCache();
+    }
+    expect(clean.id).toBeTruthy();
   });
 
   it("неподтверждённый или неизвестный исполнитель — null", async () => {

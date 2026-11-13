@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { MASK, maskContacts, maskIdentity, maskNameWords } from "./mask";
+import { MASK, maskContacts, maskIdentity, maskNameWords, maskPublicText, type ExecutorNameSource } from "./mask";
 
 const masked = (text: string) => maskContacts(text).text;
 
@@ -455,5 +455,46 @@ describe("maskContacts: обходы маски, круг 4", () => {
         expect(maskContacts(text).masked).toBe(false);
       }),
     );
+  });
+});
+
+describe("maskPublicText: единая маска публичных текстов мастера", () => {
+  const ip = (over: Partial<ExecutorNameSource> = {}): ExecutorNameSource => ({
+    legalForm: "IP",
+    legalName: "ИП Жумабаев Ерлан",
+    signerFullName: "Жумабаев Ерлан Нурланович",
+    user: { fullName: "Жумабаев Ерлан" },
+    ...over,
+  });
+
+  it("имя, фамилия и падежные окончания скрываются; имя и фамилия подряд — одна маска", () => {
+    expect(maskPublicText("Ерлан сделал кухню", ip()).text).toBe(`${MASK} сделал кухню`);
+    expect(maskPublicText("Спасибо Ерлану и Жумабаеву!", ip()).text).toBe(`Спасибо ${MASK} и ${MASK}!`);
+    expect(maskPublicText("Работал Ерлан Жумабаев сам", ip()).text).toBe(`Работал ${MASK} сам`);
+  });
+
+  it("контакты и наименование целиком проходят в том же вызове; masked отражает любое изменение", () => {
+    const r = maskPublicText("Ерлан, звоните 87001234567", ip());
+    expect(r).toEqual({ text: `${MASK}, звоните ${MASK}`, masked: true });
+    expect(maskPublicText("Кухня из МДФ", ip())).toEqual({ text: "Кухня из МДФ", masked: false });
+  });
+
+  it("короткие слова (до 4 букв) не трогаются", () => {
+    const p = ip({ legalName: "ИП Тестовый", signerFullName: "Ли Ан", user: { fullName: "Ли Ан" } });
+    expect(maskPublicText("Ли Ан делает кухни", p).text).toBe("Ли Ан делает кухни");
+  });
+
+  it("ТОО без подписанта: берётся только ФИО владельца аккаунта, слова наименования целиком не режутся по словам", () => {
+    const too = ip({ legalForm: "TOO", legalName: "ТОО «Ағаш Шебер»", signerFullName: null, user: { fullName: "Серик Омаров" } });
+    expect(maskPublicText("Серик собрал, Ағаш Шебер молодцы, мебель хорошая", too).text).toBe(`${MASK} собрал, ${MASK} молодцы, мебель хорошая`);
+    expect(maskPublicText("Шебер — слово", too).text).toBe("Шебер — слово");
+  });
+
+  it("ИП без подписанта: слова берутся из наименования без «ИП»", () => {
+    expect(maskPublicText("Привет, Ерлан", ip({ signerFullName: null, user: { fullName: "Иванов" } })).text).toBe(`Привет, ${MASK}`);
+  });
+
+  it("невидимые символы внутри имени не помогают", () => {
+    expect(maskPublicText("Ер​лан сделал", ip()).text).toBe(`${MASK} сделал`);
   });
 });
