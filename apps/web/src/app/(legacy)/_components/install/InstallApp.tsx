@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { Button } from "@/ui";
-import { showBanner, showHeaderItem, type InstallMethod } from "./install-offer";
+import { showBanner, showHeaderItem, type InstallMethod } from "@/features/pwa/install-offer";
 import { dismissBanner, promptInstall, useBannerDismissed, useInstallMethod } from "./install-store";
 
 const t = ru.pwa.install;

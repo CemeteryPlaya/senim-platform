@@ -4,8 +4,8 @@ import { Bell, BellOff, Share } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ru } from "@/i18n/ru";
 import { Alert, Button } from "@/ui";
-import { isAppleMobile, isStandalone } from "../install/install-offer";
-import { applicationServerKey, pushState, type PushState } from "./push-state";
+import { isAppleMobile, isStandalone } from "@/features/pwa/install-offer";
+import { applicationServerKey, pushState, type PushState } from "@/features/pwa/push-state";
 
 const t = ru.notifications.push;
 

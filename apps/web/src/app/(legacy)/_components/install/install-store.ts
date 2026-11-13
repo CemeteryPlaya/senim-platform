@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { canAddToHomeScreenOnIos, installMethod, isInAppBrowser, isStandalone, readDismissed, saveDismissed, type InstallMethod } from "./install-offer";
+import { canAddToHomeScreenOnIos, installMethod, isInAppBrowser, isStandalone, readDismissed, saveDismissed, type InstallMethod } from "@/features/pwa/install-offer";
 
 /**
  * Состояние установки в браузере — одно на страницу: событие beforeinstallprompt приходит один раз,

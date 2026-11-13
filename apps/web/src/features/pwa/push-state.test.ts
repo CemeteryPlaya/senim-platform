@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAppleMobile } from "../install/install-offer";
+import { isAppleMobile } from "./install-offer";
 import { applicationServerKey, pushState } from "./push-state";
 
 const desktop = { appleMobile: false, standalone: false, pushApi: true, permission: "default", subscribed: false } as const;
