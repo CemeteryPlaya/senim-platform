@@ -15,6 +15,7 @@ import {
   stepErrors,
   summaryRows,
   typeChoice,
+  v2Message,
   wizardBack,
   wizardHref,
 } from "./steps";
@@ -51,6 +52,25 @@ describe("адреса и шаги мастера", () => {
     expect(wizardBack(0, "d1")).toEqual({ href: "/v2/requests", label: t.backToList });
     expect(wizardBack(2, null)).toEqual({ href: "/v2/requests", label: t.backToList });
     expect(wizardBack(3, "d1")).toEqual({ href: "/v2/requests/new?draft=d1&step=room", label: t.steps[2] });
+  });
+
+  it("«Назад» с первого шага прямой заявки — в профиль мастера с подписью модуля; дальше — как обычно", () => {
+    const profile = { publicNumber: 17, label: "Исполнитель №17" };
+    expect(wizardBack(0, null, profile)).toEqual({ href: "/v2/executors/17", label: "Исполнитель №17" });
+    expect(wizardBack(0, "d1", profile)).toEqual({ href: "/v2/executors/17", label: "Исполнитель №17" });
+    expect(wizardBack(1, "d1", profile)).toEqual({ href: "/v2/requests/new?draft=d1&step=start", label: t.steps[0] });
+  });
+
+  it("тексты модуля (словари v1) — словами экрана v2: «мастер» — человек, без «исполнителя»", () => {
+    const e = ru.requests.errors;
+    for (const message of [v.addressRequired, v.chooseOrUnknown, e.targetUnavailable, e.selfDeal, e.notDraft, e.incomplete]) {
+      expect(v2Message(message)).not.toBe(message);
+      expect(v2Message(message)).not.toMatch(/исполнител|мастера? (перед|её больше)/i);
+    }
+    expect(v2Message(e.notDraft)).toBe(t.errors.notDraft);
+    expect(v2Message("Другой текст")).toBe("Другой текст");
+    expect(stepErrors("place", form({ city: "Астана", address: "" }))).toEqual({ address: t.errors.addressRequired });
+    expect(stepErrors("start", form({ furnitureType: "k", advanced: "1", facade: "xxx" }))).toEqual({ facade: t.errors.chooseOrUnknown });
   });
 
   it("номер мастера из адреса: только целое положительное", () => {
@@ -91,7 +111,7 @@ describe("разбор формы шага и ошибки у полей", () =>
   });
 
   it("шаг 4: город и адрес у своих полей; точка — обе координаты или ни одной", () => {
-    expect(stepErrors("place", form({ city: "", address: "" }))).toEqual({ city: v.cityRequired, address: v.addressRequired });
+    expect(stepErrors("place", form({ city: "", address: "" }))).toEqual({ city: v.cityRequired, address: t.errors.addressRequired });
     expect(readStep("place", form({ city: "Астана", address: "ул. Достык, 5", desiredDate: "", lat: "51.1", lng: "71.4" }))).toEqual({
       screen: "place",
       city: "Астана",
@@ -137,6 +157,9 @@ describe("уровень", () => {
     expect(premium.description).toContain(t.segment.noPrice);
     expect(JSON.stringify(segmentOptions(prices))).not.toMatch(/демо/i);
     expect(segmentPriceNote(prices)).toBe(t.segment.priceNote(4));
+    expect(t.segment.priceNote(4)).toMatch(/^Вилка — по 4 предложениям мастеров .* Точную цену назовут мастера.$/);
+    expect(t.segment.priceNote(1)).toContain("по 1 предложению ");
+    expect(t.segment.priceNote(21)).toContain("по 21 предложению ");
     expect(segmentPriceNote({ ECONOMY: null, COMFORT: null, PREMIUM: null })).toBeNull();
   });
 });

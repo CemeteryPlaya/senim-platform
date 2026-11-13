@@ -76,23 +76,33 @@ test("новый покупатель: заявка от главной до «�
   await expect(page.getByText(ru.app.kit.uploader.done)).toHaveCount(1, { timeout: 30_000 });
   await expect(page.getByText(ru.app.kit.uploader.counter(1, 10))).toBeVisible();
   await page.getByLabel(w.room.description).fill("Кухня до потолка, нужна посудомойка");
-  await button(page, w.next).click();
-  await page.waitForURL(/step=place/);
 
-  // «Назад» — на прошлый шаг, сохранённое на месте.
-  await page.getByRole("link", { name: `${ru.app.kit.back}: ${w.steps[2]}` }).click();
+  // «‹ Уровень» с шага фото сохраняет шаг: вернувшись, фото и описание на месте.
+  await page.getByRole("link", { name: `${ru.app.kit.back}: ${w.steps[1]}` }).click();
+  await page.waitForURL(/step=segment/);
+  await button(page, w.next).click();
   await page.waitForURL(/step=room/);
   await expect(page.getByText(ru.app.kit.uploader.done)).toHaveCount(1);
   await expect(page.getByLabel(w.room.description)).toHaveValue("Кухня до потолка, нужна посудомойка");
   await button(page, w.next).click();
   await page.waitForURL(/step=place/);
 
-  // Шаг 4: адрес — ошибки у полей, точка по адресу (мок-геокодер знает центр города).
+  // Шаг 4: введённый, но не отправленный адрес переживает «Назад».
   await expect(heading(page, w.place.title)).toBeVisible();
+  await page.getByLabel(w.place.address).fill("ул. Кенесары, 40");
+  await page.getByRole("link", { name: `${ru.app.kit.back}: ${w.steps[2]}` }).click();
+  await page.waitForURL(/step=room/);
+  await expect(page.getByText(ru.app.kit.uploader.done)).toHaveCount(1);
+  await button(page, w.next).click();
+  await page.waitForURL(/step=place/);
+  await expect(page.getByLabel(w.place.address)).toHaveValue("ул. Кенесары, 40");
+
+  // Ошибки у полей (словами v2), точка по адресу (мок-геокодер знает центр города).
+  await page.getByLabel(w.place.address).fill("");
   await page.getByLabel(w.place.city).fill("");
   await button(page, w.next).click();
   await expect(page.getByText(v.cityRequired)).toBeVisible();
-  await expect(page.getByText(v.addressRequired)).toBeVisible();
+  await expect(page.getByText(w.errors.addressRequired)).toBeVisible();
   await page.getByLabel(w.place.city).fill("Астана");
   await page.getByLabel(w.place.address).fill("ул. Достык, 5");
   await button(page, w.place.findPoint).click();
@@ -143,6 +153,11 @@ test("прямая заявка из профиля мастера: «Заявк
 
   const forWhom = w.directFor(ru.common.executorLabel(publicNumber));
   await expect(page.getByText(forWhom)).toBeVisible();
+  // «Назад» с первого шага — в профиль этого мастера.
+  await expect(page.getByRole("link", { name: `${ru.app.kit.back}: ${ru.common.executorLabel(publicNumber)}` })).toHaveAttribute(
+    "href",
+    `/v2/executors/${publicNumber}`,
+  );
   await page.getByText(KITCHEN, { exact: true }).click();
   await button(page, w.next).click();
   await page.waitForURL(/step=segment/);

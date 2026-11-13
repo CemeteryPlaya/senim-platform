@@ -14,11 +14,12 @@ type Props = { base: WizardBase; photos: readonly SavedPhoto[]; description: str
 /**
  * Шаг 3 «Фото и описание» (можно пропустить): фото места — загрузчик kit и прямая загрузка в хранилище (назначение
  * REQUEST_ROOM, HEIC и пределы — как в v1, проверяет модуль files), описание своими словами. Пока фото загружаются,
- * «Дальше» ждёт; отклонённые файлы — тостом с причиной. К черновику прикрепляются ровно выбранные фото (модуль requests).
+ * «Дальше» и «Назад» ждут; «Назад» сохраняет шаг; отклонённые файлы — тостом с причиной. К черновику прикрепляются ровно выбранные фото (модуль requests).
  */
 export function WizardRoom({ base, photos, description }: Props) {
   const uploads = usePhotoUploads("REQUEST_ROOM", photos, ru.requests.wizard.room.photoAlt);
-  const form = useWizardStep("room", base, { when: uploads.busy, onBlocked: () => toast(t.uploading) });
+  // «Назад» тоже сохраняет шаг: загруженные фото и описание не теряются (пока фото грузятся — ждёт, объясняя тостом).
+  const form = useWizardStep("room", base, { blocked: { when: uploads.busy, onBlocked: () => toast(t.uploading) }, saveOnBack: true });
   return (
     <WizardFrame base={base} title={t.title} lead={t.lead} form={form} busy={uploads.busy}>
       <Uploader

@@ -5,6 +5,7 @@ import { Card, List, ListRow, PhotoSlot, Section } from "@/kit";
 import { useActionForm } from "../../../_shell/form";
 import { submitRequestAction } from "./actions";
 import { WizardFrame, type WizardBase, type WizardForm } from "./WizardFrame";
+import { forgetDraft } from "./wizard-memory";
 import type { SummaryRow } from "./steps";
 
 const t = ru.app.requests.wizard;
@@ -24,7 +25,13 @@ type Props = {
  * отметкой «отправлена». Повторное нажатие гасит форма, повтор запроса — действие (та же заявка).
  */
 export function WizardSend({ base, rows, photos, footnote }: Props) {
-  const action = useActionForm(submitRequestAction, { toInput: () => ({ requestId: base.draftId }) });
+  const action = useActionForm(submitRequestAction, {
+    toInput: () => {
+      // Заявка уходит целиком: несохранённый ввод её шагов больше не нужен.
+      forgetDraft(base.draftId);
+      return { requestId: base.draftId };
+    },
+  });
   const form: WizardForm = { pending: action.pending, error: action.error, errors: NO_ERRORS, attempt: 0, onSubmit: action.onSubmit };
   const direct = base.direct !== null;
   return (

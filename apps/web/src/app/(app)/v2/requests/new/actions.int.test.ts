@@ -1,5 +1,6 @@
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import type { ActionResult } from "@/platform/action";
 import { db } from "@/platform/db";
@@ -76,6 +77,18 @@ describe("saveStepAction", () => {
     expect(await db.request.findUniqueOrThrow({ where: { id: requestId } })).toMatchObject({ segment: "PREMIUM" });
   });
 
+  it("«Назад» с шага фото (goto): шаг сохраняется, переход — на прошлый шаг", async () => {
+    session.user = await makeClient();
+    const requestId = await makeDraft(session.user);
+    const res = await run(saveStepAction({ requestId, goto: "segment", step: { screen: "room", photoFileIds: [], description: "Нужна посудомойка" } }));
+    expect(res).toEqual({ redirect: `/v2/requests/new?draft=${requestId}&step=segment` });
+    expect((await db.request.findUniqueOrThrow({ where: { id: requestId } })).details).toMatchObject({ description: "Нужна посудомойка" });
+    expect(await run(saveStepAction({ requestId, goto: "nowhere" as "segment", step: { screen: "room", photoFileIds: [], description: "" } }))).toMatchObject({
+      ok: false,
+      code: "VALIDATION",
+    });
+  });
+
   it("чужой черновик — не найден", async () => {
     const requestId = await makeDraft(await makeClient());
     session.user = await makeClient();
@@ -127,7 +140,8 @@ describe("submitRequestAction", () => {
     }
     await db.executorProfile.update({ where: { id: executor.executor.id }, data: { status: "REJECTED" } });
 
-    expect(await run(submitRequestAction({ requestId: id }))).toMatchObject({ ok: false, code: "CONFLICT" });
+    // Текст отказа — словами экрана v2 («мастер», без «исполнителя»).
+    expect(await run(submitRequestAction({ requestId: id }))).toMatchObject({ ok: false, code: "CONFLICT", error: ru.app.requests.wizard.errors.targetUnavailable });
     expect((await db.request.findUniqueOrThrow({ where: { id } })).status).toBe("DRAFT");
   });
 });

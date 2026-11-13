@@ -49,10 +49,33 @@ export function nextScreen(screen: string): WizardScreen {
   return index < 0 ? WIZARD_SCREENS[0] : WIZARD_SCREENS[Math.min(index + 1, TOTAL_STEPS - 1)];
 }
 
-/** «Назад»: с первого шага — к списку заявок, дальше — на прошлый шаг того же черновика (его ответы сохранены). */
-export function wizardBack(index: number, draftId: string | null): { href: string; label: string } {
-  if (index <= 0 || !draftId) return { href: to("/requests"), label: t.backToList };
+/**
+ * «Назад»: с первого шага прямой заявки — в профиль мастера («‹ Исполнитель №N», подпись модуля), обычной — к списку
+ * заявок; дальше — на прошлый шаг того же черновика (его ответы сохранены).
+ */
+export function wizardBack(
+  index: number,
+  draftId: string | null,
+  profile: { publicNumber: number; label: string } | null = null,
+): { href: string; label: string } {
+  if (index <= 0 || !draftId) {
+    return profile ? { href: to(`/executors/${profile.publicNumber}`), label: profile.label } : { href: to("/requests"), label: t.backToList };
+  }
   return { href: wizardHref({ draft: draftId, step: WIZARD_SCREENS[index - 1] }), label: t.steps[index - 1] };
+}
+
+/** Тексты модуля requests (словари v1: «исполнитель», «шаги мастера») → тексты экрана v2. Прочие — как есть. */
+const V2_MESSAGES: ReadonlyMap<string, string> = new Map([
+  [ru.requests.validation.addressRequired, t.errors.addressRequired],
+  [ru.requests.validation.chooseOrUnknown, t.errors.chooseOrUnknown],
+  [ru.requests.errors.targetUnavailable, t.errors.targetUnavailable],
+  [ru.requests.errors.selfDeal, t.errors.selfDeal],
+  [ru.requests.errors.notDraft, t.errors.notDraft],
+  [ru.requests.errors.incomplete, t.errors.incomplete],
+]);
+
+export function v2Message(message: string): string {
+  return V2_MESSAGES.get(message) ?? message;
 }
 
 /** Публичный номер мастера из адреса (`?executor=17`): только целое положительное, иначе `null`. */
@@ -128,7 +151,7 @@ export function stepErrors(screen: WizardScreen, fd: Fields): Record<string, str
   for (const issue of parsed.error.issues) {
     const names = issue.path.filter((p): p is string => typeof p === "string");
     const key = names.includes("location") ? "location" : (names.at(-1) ?? "form");
-    errors[key] ??= issue.message;
+    errors[key] ??= v2Message(issue.message);
   }
   return errors;
 }

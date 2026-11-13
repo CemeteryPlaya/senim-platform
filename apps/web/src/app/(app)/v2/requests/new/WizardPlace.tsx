@@ -8,6 +8,7 @@ import type { Device } from "@/platform/device";
 import { outcomeOf } from "../../../_shell/form";
 import { locateAddressAction } from "./actions";
 import { WizardFrame, useWizardStep, type WizardBase } from "./WizardFrame";
+import { useStepMemory } from "./wizard-memory";
 
 const t = ru.app.requests.wizard.place;
 
@@ -116,7 +117,8 @@ function PointField({ value, onChange, city, address, device }: { value: GeoPoin
 /** Шаг 4 «Где и когда?»: город, адрес (его увидит только мастер, с которым договоритесь), точка и желаемая дата. */
 export function WizardPlace({ base, device, initial }: { base: WizardBase; device: Device; initial: PlaceInitial }) {
   const form = useWizardStep("place", base);
-  const [place, setPlace] = useState(initial);
+  // Несохранённый ввод шага переживает «Назад» и перезагрузку (sessionStorage).
+  const [place, setPlace] = useStepMemory(base.draftId, "place", initial);
   // Функциональное обновление: точка от геокодера приходит позже и не должна стереть то, что ввели за это время.
   const set = (patch: Partial<PlaceInitial>) => setPlace((p) => ({ ...p, ...patch }));
   const e = form.errors;

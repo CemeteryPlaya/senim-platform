@@ -62,14 +62,20 @@ export default async function NewRequestPage({ searchParams }: Props) {
 
   const index = resumeIndex(draft, one(params.step));
   const screen = WIZARD_SCREENS[index];
-  const directNumber = draft?.target?.publicNumber ?? like?.executor.publicNumber ?? direct?.publicNumber ?? null;
+  // Мастер прямой заявки: номер для профиля и подпись модуля (режим показа имени — тот же, что в профиле мастера).
+  const profile =
+    draft?.target && draft.targetLabel !== null
+      ? { publicNumber: draft.target.publicNumber, label: draft.targetLabel }
+      : like
+        ? { publicNumber: like.executor.publicNumber, label: like.executor.label }
+        : direct;
   const base: WizardBase = {
     draftId: draft?.id ?? null,
     like: like?.id ?? null,
     executor: direct?.publicNumber ?? null,
     index,
-    back: wizardBack(index, draft?.id ?? null),
-    direct: directNumber !== null ? ru.common.executorLabel(directNumber) : null,
+    back: wizardBack(index, draft?.id ?? null, profile),
+    direct: profile?.label ?? null,
   };
   // Компонент шага пересоздаётся на каждом шаге и черновике: начальные значения берутся из сохранённого заново.
   const key = `${draft?.id ?? "new"}:${screen}`;

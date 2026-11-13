@@ -3,10 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
+import { formatMoney } from "@/kit";
 import type { CurrentUser } from "@/modules/identity";
+import { sendOffer } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor } from "../../../../../test/factories";
-import { makeDraft, makeOpenRequest } from "../../../../../test/factories/requests";
+import { makePortfolioItem } from "../../../../../test/factories/companies";
+import { makeDraft, makeFurnitureType, makeOpenRequest, offerInput } from "../../../../../test/factories/requests";
 
 const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop", user: null as CurrentUser | null, asked: [] as string[] }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
@@ -106,11 +109,59 @@ describe("мастер заявки", () => {
     expect(await render(NewRequestPage, { draft: sent })).toEqual({ redirect: `/v2/requests/${sent}` });
   });
 
+  it("«Хочу похожее» (like=): заявка мастеру работы, «Назад» — в его профиль; чужая или несуществующая работа — 404", async () => {
+    const executor = await makeExecutor();
+    const item = await makePortfolioItem(executor);
+    const label = ru.common.executorLabel(executor.executor.publicNumber);
+    const { html } = await render(NewRequestPage, { like: item.id });
+    expect(html).toContain(w.directFor(label));
+    expect(html).toContain(`href="/v2/executors/${executor.executor.publicNumber}"`);
+    expect(await render(NewRequestPage, { like: "no-such-work" })).toEqual({ notFound: true });
+    const both = await makeExecutor({ roles: ["EXECUTOR", "CLIENT"] });
+    const own = await makePortfolioItem(both);
+    h.user = { ...both, role: "CLIENT" };
+    expect(await render(NewRequestPage, { like: own.id })).toEqual({ notFound: true });
+  });
+
+  it("уровень: вилка цены от трёх предложений на тот же тип и уровень (с оговоркой), меньше — «Цену назовут мастера»", async () => {
+    const type = await makeFurnitureType();
+    const other = await makeClient();
+    for (const price of [500_000, 600_000, 700_000]) {
+      const requestId = await makeOpenRequest(other, { segment: "COMFORT", typeId: type.id });
+      await sendOffer(await makeExecutor({ segment: "COMFORT" }), offerInput(requestId, price));
+    }
+    const draft = await makeDraft(h.user!, { typeId: type.id });
+    const { html } = await render(NewRequestPage, { draft, step: "segment" });
+    const text = html!.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    expect(text).toContain(w.segment.price(formatMoney(50_000_000n), formatMoney(70_000_000n)).replace(/\s+/g, " "));
+    expect(text).toContain(w.segment.priceNote(3).replace(/\s+/g, " "));
+    // Эконом и Премиум — предложений нет.
+    expect(text.split(w.segment.noPrice).length - 1).toBe(2);
+
+    const lonely = await makeDraft(h.user!);
+    const plain = (await render(NewRequestPage, { draft: lonely, step: "segment" })).html!;
+    expect(plain.split(w.segment.noPrice).length - 1).toBe(3);
+    expect(plain).not.toContain(w.segment.priceNote(3));
+  });
+
+  it("на шагах v2 нет слова «исполнитель», кроме подписи мастера прямой заявки", async () => {
+    const executor = await makeExecutor();
+    const label = ru.common.executorLabel(executor.executor.publicNumber);
+    const plainDraft = await makeDraft(h.user!);
+    const pages = [{}, ...(["start", "segment", "room", "place", "send"] as const).map((step) => ({ draft: plainDraft, step }))];
+    for (const params of [...pages, { executor: String(executor.executor.publicNumber) }]) {
+      const { html } = await render(NewRequestPage, params);
+      expect(html!.split(label).join("")).not.toMatch(/исполнител/i);
+    }
+  });
+
   it("прямая заявка: «Заявка для: Исполнитель №N» без имени; неверный, несуществующий или свой номер — 404", async () => {
     const executor = await makeExecutor({ legalName: "ИП Секретный" });
     const { html } = await render(NewRequestPage, { executor: String(executor.executor.publicNumber) });
     expect(html).toContain(w.directFor(ru.common.executorLabel(executor.executor.publicNumber)));
     expect(html).not.toContain("Секретный");
+    // «Назад» с первого шага — в профиль мастера с его подписью.
+    expect(html).toContain(`href="/v2/executors/${executor.executor.publicNumber}"`);
 
     for (const executorParam of ["abc", "0", "999999999"]) expect(await render(NewRequestPage, { executor: executorParam })).toEqual({ notFound: true });
     const both = await makeExecutor({ roles: ["EXECUTOR", "CLIENT"] });

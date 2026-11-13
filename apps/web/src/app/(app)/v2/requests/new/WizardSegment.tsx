@@ -7,6 +7,7 @@ import { SEGMENTS } from "@/modules/requests/client";
 import type { Device } from "@/platform/device";
 import { SEGMENT_NAMES, segmentMaterials } from "@/verticals/furniture";
 import { WizardFrame, useWizardStep, type WizardBase } from "./WizardFrame";
+import { useStepMemory } from "./wizard-memory";
 
 const t = ru.app.requests.wizard.segment;
 
@@ -53,13 +54,22 @@ function Differences({ device }: { device: Device }) {
 /** Шаг 2 «Какой уровень мебели?»: три карточки (что значит уровень и обычная цена по предложениям мастеров). */
 export function WizardSegment({ base, device, initial, options, priceNote }: Props) {
   const form = useWizardStep("segment", base);
+  const [state, setState] = useStepMemory(base.draftId, "segment", { segment: initial ?? "" });
   const lead = base.direct !== null ? t.leadDirect(base.direct) : t.lead;
   return (
     <WizardFrame base={base} title={t.title} lead={lead} form={form}>
       <Stack>
         <RadioGroup legend={t.legend} legendHidden error={form.errors.segment}>
           {options.map((o) => (
-            <RadioCard key={o.value} label={o.label} description={o.description} name="segment" value={o.value} defaultChecked={o.value === initial} />
+            <RadioCard
+              key={o.value}
+              label={o.label}
+              description={o.description}
+              name="segment"
+              value={o.value}
+              checked={o.value === state.segment}
+              onChange={() => setState({ segment: o.value })}
+            />
           ))}
         </RadioGroup>
         {priceNote && <p className="text-sub text-muted">{priceNote}</p>}

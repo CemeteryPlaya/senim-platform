@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { ru } from "@/i18n/ru";
 import { Button, HiddenField, RadioCard, RadioGroup, Select, Stack, TextField } from "@/kit";
 import { LIMITS } from "@/modules/requests/client";
 import { WizardFrame, useWizardStep, type WizardBase } from "./WizardFrame";
+import { useStepMemory } from "./wizard-memory";
 import {
   COUNTERTOP_OPTIONS,
   CUSTOM,
@@ -72,8 +72,11 @@ function Advanced({ state, onChange, errors }: { state: AdvancedState; onChange:
 export function WizardStart({ base, types, initial }: Props) {
   const form = useWizardStep("start", base);
   const { popular, rest } = splitTypes(types);
-  const [type, setType] = useState(initial.type);
-  const [advanced, setAdvanced] = useState(initial.advanced);
+  // Несохранённый ввод шага переживает «Назад» и перезагрузку (sessionStorage).
+  const [state, setState] = useStepMemory(base.draftId, "start", { type: initial.type, style: initial.style ?? "", advanced: initial.advanced });
+  const { type, style, advanced } = state;
+  const setType = (next: typeof type) => setState((s) => ({ ...s, type: next }));
+  const setAdvanced = (next: AdvancedState) => setState((s) => ({ ...s, advanced: next }));
   const e = form.errors;
   const typeError = e.furnitureTypeId;
 
@@ -127,7 +130,7 @@ export function WizardStart({ base, types, initial }: Props) {
           error={e.customType ?? typeError}
         />
       )}
-      <Select label={t.styleLabel} name="style" defaultValue={initial.style ?? ""} error={e.style}>
+      <Select label={t.styleLabel} name="style" value={style} onChange={(event) => setState((s) => ({ ...s, style: event.target.value }))} error={e.style}>
         <option value="">{t.styleAny}</option>
         {STYLE_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
