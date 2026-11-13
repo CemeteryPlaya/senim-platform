@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { SignLink } from "@/app/(legacy)/_components/signing";
+import { stepActionKind } from "@/features/deal-progress/step-action";
 import type { BankConsentState, DealView } from "@/modules/deal-core";
 import { consentDocument } from "@/modules/identity";
 import { ru } from "@/i18n/ru";
@@ -50,9 +51,7 @@ const manualTransfer = (deal: DealView) => deal.viewer === "CLIENT" && deal.paym
  * сама отметка в «Что дальше».
  */
 export function stepAction(deal: DealView, bank: BankConsentState | null): ReactNode {
-  if (!deal.next.mine) return null;
-  if (bankLocked(deal, bank)) return null;
-  switch (deal.next.action) {
+  switch (stepActionKind(deal, bank)) {
     case "signContract":
       return deal.contract && <SignLink documentId={deal.contract.id} fullWidth>{t.actions.signContract}</SignLink>;
     case "pay":
@@ -72,15 +71,4 @@ export function stepAction(deal: DealView, bank: BankConsentState | null): React
     default:
       return null;
   }
-}
-
-/**
- * Шаг закрыт до отметки о передаче данных банку-партнёру: мастеру — подпись оферты (своя отметка), покупателю — оплата
- * (обе отметки: payForDeal иначе откажет BANK_CONSENT_MISSING).
- */
-export function bankLocked(deal: DealView, bank: BankConsentState | null): boolean {
-  if (!bank) return false;
-  if (deal.viewer === "EXECUTOR" && deal.next.action === "signContract") return !bank.mine;
-  if (deal.viewer === "CLIENT" && deal.next.action === "pay") return !bank.mine || !bank.other;
-  return false;
 }

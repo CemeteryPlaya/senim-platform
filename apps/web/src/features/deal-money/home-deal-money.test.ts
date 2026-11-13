@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { computeDealMoney, type MoneyBlock, type MoneyView } from "@/modules/payments";
-import { formatTiyn } from "@/ui/format";
+import { formatTiyn } from "@/features/format/format";
 import { homeDealMoney } from "./home-deal-money";
 
 // Карточка «Моя сделка» на главной покупателя: сумма и подпись только из журнала денег.

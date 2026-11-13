@@ -8,7 +8,7 @@ import type { SharedLink, SigningDocumentView } from "@/modules/documents/client
 import { Alert, Button, buttonClasses, formatDateTime, StatusBadge } from "@/ui";
 import { shareDocumentAction } from "./actions";
 import { SignLink } from "./SignLink";
-import { documentBadge, signStep } from "./state";
+import { documentBadge, signStep } from "@/features/signing/state";
 
 const t = ru.documents;
 

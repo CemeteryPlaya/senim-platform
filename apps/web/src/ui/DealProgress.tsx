@@ -2,7 +2,7 @@ import { AlertTriangle, Check, Undo2, XCircle } from "lucide-react";
 import { ru } from "@/i18n/ru";
 import type { DealStatus } from "@/generated/prisma/enums";
 import { cn } from "./cn";
-import { dealProgressView } from "./deal-progress";
+import { dealProgressView } from "@/features/deal-progress/deal-progress";
 
 const t = ru.common.ui.dealProgress;
 

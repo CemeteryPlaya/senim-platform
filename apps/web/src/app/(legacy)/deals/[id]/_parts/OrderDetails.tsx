@@ -3,7 +3,8 @@ import { daysLeft, type DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
 import { formatDays, KeyValueList } from "@/ui";
 import { illustrationFor } from "@/app/(legacy)/_home/illustration";
-import { heroImage, orderFacts } from "./deal-view";
+import { orderFacts } from "@/features/deal-view/facts";
+import { heroImage } from "./deal-view";
 
 const v = ru.deal.view;
 

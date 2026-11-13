@@ -6,7 +6,8 @@ import { Alert, cn, DateText, StatusBadge } from "@/ui";
 import { ActionButton } from "../../_parts/ActionButton";
 import { cancelDealAction } from "../actions";
 import { DisputePositionForm, OpenDisputeForm } from "./DealForms";
-import { disputeFacts, gpsNote, needsPosition } from "./deal-view";
+import { disputeFacts, needsPosition } from "@/features/deal-view/facts";
+import { gpsNote } from "./deal-view";
 import { NEXT_HEADING_ID } from "./next-step";
 import { ProgressForm } from "./WorkForms";
 

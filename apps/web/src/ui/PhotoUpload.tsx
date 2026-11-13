@@ -3,19 +3,10 @@
 import { Camera, ImagePlus, RotateCw, X } from "lucide-react";
 import { useId, useRef, type ChangeEvent, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
+import type { PhotoItem } from "@/features/upload/photo-item";
 import { cn } from "./cn";
 
-export type PhotoItem = {
-  id: string;
-  /** Адрес превью: blob:/data: до загрузки или URL файла после. */
-  src: string;
-  alt?: string;
-  status: "uploading" | "done" | "error";
-  /** 0–100, пока status = "uploading". */
-  progress?: number;
-  /** Текст ошибки, если status = "error". */
-  error?: string;
-};
+export type { PhotoItem };
 
 export type PhotoUploadProps = {
   label: ReactNode;

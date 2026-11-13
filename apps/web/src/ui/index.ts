@@ -70,7 +70,7 @@ export { FilterChips, type FilterChipItem } from "./FilterChips";
 export { WorkCard, type WorkCardProps } from "./WorkCard";
 export { RequestCard, type RequestCardProps } from "./RequestCard";
 export { DealProgress, type DealProgressProps } from "./DealProgress";
-export { dealProgressView, type DealProgressView, type ProgressStep } from "./deal-progress";
+export { dealProgressView, type DealProgressView, type ProgressStep } from "@/features/deal-progress/deal-progress";
 export { MirrorPayout, type MirrorPayoutProps } from "./MirrorPayout";
 export { SignedBadge, type SignedBadgeProps } from "./SignedBadge";
 export { FullscreenStep, type FullscreenStepProps } from "./FullscreenStep";

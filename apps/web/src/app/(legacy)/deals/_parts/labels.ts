@@ -15,5 +15,4 @@ export const DEAL_TONE: Record<DealStatus, Tone> = {
   REFUNDED: "neutral",
 };
 
-/** Сделка ещё идёт: её показывают главные экраны. Завершённые, отменённые и с возвратом — в «Сделках». */
-export const ACTIVE_DEAL: ReadonlySet<DealStatus> = new Set(["CREATED", "PAID_HOLD", "IN_PROGRESS", "READY", "ACCEPTED"]);
+export { ACTIVE_DEAL } from "@/features/deal-progress/active-deal";

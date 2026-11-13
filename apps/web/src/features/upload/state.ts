@@ -1,4 +1,4 @@
-import type { PhotoItem } from "@/ui";
+import type { PhotoItem } from "./photo-item";
 
 /** Фото в загрузчике. Ключ на экране — localId; fileId появляется после finalizeUpload. */
 type Item =

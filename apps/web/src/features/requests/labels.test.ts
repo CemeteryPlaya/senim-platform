@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { formatMoney } from "@/ui";
+import { formatMoney } from "@/features/format/format";
 import { groupOf, REQUEST_GROUP, termsText } from "./labels";
 
 describe("termsText: условия замера одной строкой", () => {

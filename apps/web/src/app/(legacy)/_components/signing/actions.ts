@@ -5,7 +5,7 @@ import { ru } from "@/i18n/ru";
 import { completeSigning, createReleaseReceipt, HAND_IMAGE_MAX_BYTES, shareDocument, signByHand, startSigning } from "@/modules/documents";
 import { requireUser } from "@/modules/identity";
 import { action } from "@/platform/action";
-import { PNG_DATA_URL } from "./hand-state";
+import { PNG_DATA_URL } from "@/features/signing/hand-state";
 
 const documentId = z.string().min(1).max(64);
 /** base64 раздувает байты в 4/3 раза плюс префикс data URL. */

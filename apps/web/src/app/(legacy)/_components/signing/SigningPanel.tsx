@@ -10,8 +10,8 @@ import { Alert, Button, buttonClasses, Card, formatDateTime, formatTime, RadioCa
 import { completeSigningAction, signByHandAction, startSigningAction } from "./actions";
 import { signingTitleId } from "./anchors";
 import { HandSignaturePad } from "./HandSignaturePad";
-import type { HandPayload } from "./hand-state";
-import { documentBadge, focusTargetAfter, initialSigningState, signedAnnouncement, signingReducer, signStep, type SignMethodChoice } from "./state";
+import type { HandPayload } from "@/features/signing/hand-state";
+import { documentBadge, focusTargetAfter, initialSigningState, signedAnnouncement, signingReducer, signStep, type SignMethodChoice } from "@/features/signing/state";
 
 const t = ru.documents;
 const METHODS: SignMethodChoice[] = ["EGOV_QR", "NCALAYER"];

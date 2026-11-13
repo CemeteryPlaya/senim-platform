@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import type { DealView } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
 import { cn } from "@/ui";
-import { estimateRows } from "./deal-view";
-import { moneyPanel, type MoneyIcon, type MoneyTone } from "./money-panel";
+import { estimateRows } from "@/features/deal-money/estimate-rows";
+import { moneyPanel, type MoneyIcon, type MoneyTone } from "@/features/deal-money/money-panel";
 
 // Вид v2: карточка с цветной рамкой и значком в круге; цвет — только в помощь, смысл несут значок и заголовок.
 const TONE: Record<MoneyTone, string> = {

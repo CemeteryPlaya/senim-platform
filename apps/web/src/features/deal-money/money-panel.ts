@@ -1,6 +1,6 @@
 import type { MoneyBlock } from "@/modules/payments";
 import { ru } from "@/i18n/ru";
-import { formatDate, formatTiyn } from "@/ui/format";
+import { formatDate, formatTiyn } from "@/features/format/format";
 
 /**
  * Блок денег — первый блок карточки сделки (ТЗ п. 4.1, 4.2; решение 2.1.5). Строится только из журнала

@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
 import { Alert, Button, Input, useFocusInvalid } from "@/ui";
-import { handPayload, type HandMode, type HandPayload } from "./hand-state";
+import { handPayload, type HandMode, type HandPayload } from "@/features/signing/hand-state";
 
 const t = ru.documents.hand;
 const HEIGHT = 180;

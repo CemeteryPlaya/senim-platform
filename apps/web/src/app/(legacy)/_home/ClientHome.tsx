@@ -20,7 +20,7 @@ import {
 } from "@/ui";
 import { POPULAR_FURNITURE_TYPES } from "@/verticals/furniture";
 import { WorkCard } from "../catalog/_components/WorkCard";
-import { homeDealMoney } from "../deals/[id]/_parts/home-deal-money";
+import { homeDealMoney } from "@/features/deal-money/home-deal-money";
 import { ACTIVE_DEAL } from "../deals/_parts/labels";
 import { illustrationFor } from "./illustration";
 

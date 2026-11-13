@@ -6,8 +6,8 @@ import type { UploadPurpose } from "@/modules/files/client";
 import { ru } from "@/i18n/ru";
 import { PhotoUpload } from "@/ui";
 import { createUploadAction, discardUploadAction, finalizeUploadAction } from "./actions";
-import { doneFileIds, initialState, isUploading, toPhotoItems, uploaderReducer } from "./state";
-import { contentTypeOf, isHeic, PHOTO_ACCEPT, sendToTarget } from "./transfer";
+import { doneFileIds, initialState, isUploading, toPhotoItems, uploaderReducer } from "@/features/upload/state";
+import { contentTypeOf, isHeic, PHOTO_ACCEPT, sendToTarget } from "@/features/upload/transfer";
 
 export type UploaderProps = {
   /** Назначение файлов: от него зависят права, лимиты и куда их потом прикрепит модуль-владелец. */
