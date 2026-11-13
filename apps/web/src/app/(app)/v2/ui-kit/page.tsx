@@ -48,6 +48,7 @@ import { env } from "@/platform/env";
 import { brand } from "@/config/brand";
 import { ThemeSwitch } from "../../_shell/ThemeSwitch";
 import { to } from "../../_shell/paths";
+import { FormSample } from "./FormSample";
 import { OverlaySamples } from "./OverlaySamples";
 
 const s = ru.app.kit.showcase;
@@ -609,6 +610,17 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
         <OverlaySamples device={device} />
       </Section>
 
+      <Section title={s.sections.form}>
+        <Narrow>
+          <Stack>
+            <p className="text-sub text-muted">{s.formSample.note}</p>
+            <Card>
+              <FormSample />
+            </Card>
+          </Stack>
+        </Narrow>
+      </Section>
+
       <Section title={s.sections.dock}>
         <Narrow>
           <Stack>
@@ -620,10 +632,8 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
               <p className="text-body text-ink">{s.dock.filler}</p>
             </Card>
             <ActionDock>
-              <Button full>{s.dock.primary}</Button>
-              <Button variant="quiet" full>
-                {s.dock.quiet}
-              </Button>
+              <Button>{s.dock.primary}</Button>
+              <Button variant="quiet">{s.dock.quiet}</Button>
             </ActionDock>
           </Stack>
         </Narrow>

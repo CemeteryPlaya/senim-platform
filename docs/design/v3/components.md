@@ -22,7 +22,7 @@
 3. Нет произвольных значений Tailwind: `text-[15px]`, `rounded-[10px]`, `bg-[#fff]`, `max-w-(--x)` запрещены; разрешены токены и `data-[state=open]:` как вариант.
 4. Нет импортов старого интерфейса: `@/ui`, `@/app/(legacy)`, относительные пути в них.
 5. В экранах нет сырых `<button>`, `<input>`, `<select>`, `<textarea>` — только компоненты kit.
-6. Адреса строятся через `to()`/`legacy()`: нет `href="/..."`, `redirect("/...")`, `router.push("/...")` и `router?.push("/...")` с литералом, `const { push } = useRouter()`, `href={{ pathname: "/..." }}`.
+6. Адреса строятся через `to()`/`legacy()`: нет `href="/..."`, `redirect("/...")`, `router.push("/...")` и `router?.push("/...")` с литералом, `href={{ pathname: "/..." }}`; `push`/`replace`/`prefetch` не деструктурируются из `useRouter()` (в том числе в несколько строк) — пишите `router.push(to("/..."))`.
 7. Нет кириллицы в разметке и строках (комментарии по-русски можно).
 8. В `ru.app` нет слов «демо», «комиссия», «эскроу».
 9. Нет `sm:`, `md:`, `lg:`, `xl:`, контейнерных `@md:`, `@media (width…)`, `matchMedia`, `innerWidth`, `clientWidth`, `screen.width` — версии различают `desktop:` и `mobile:`.
@@ -368,13 +368,18 @@ const device = await getDevice();
 
 `{ name: string; value: string }` — единственный способ положить скрытое значение в форму (`next`, ключ идемпотентности). Сырой `<input>` в экранах запрещён (правило 5).
 
+```tsx
+<HiddenField name="idempotencyKey" value={key} />
+<HiddenField name="next" value={next} />
+```
+
 ### `CodeField` и `PhoneField`
 
 Поля на основе `TextField` (те же `label`, `name`, `error`).
 
 | Компонент | Особенности |
 |---|---|
-| `CodeField` | `length?: number` (6), `defaultValue?`. Одно поле: цифровая клавиатура (`inputmode="numeric"`), `autocomplete="one-time-code"`, `maxlength`, цифры одной ширины с разрядкой (`tabular-nums`, `tracking-code`) |
+| `CodeField` | `length?: number` (6), `defaultValue?`. Одно поле: цифровая клавиатура (`inputmode="numeric"`), `autocomplete="one-time-code"`, `maxlength` = длина × 2 (вставка «123 456» не теряет цифру), цифры одной ширины с разрядкой (`tabular-nums`, `tracking-code`). Нецифровые символы убирает схема действия: `z.string().transform(digitsOnly)` (`digitsOnly` из `@/platform/digits`), она же проверяет длину |
 | `PhoneField` | `defaultValue?`. `type="tel"`, `autocomplete="tel"`, подсказка формата из `ru.app.kit.fields.phonePlaceholder` |
 
 ### `Chips`
@@ -395,21 +400,23 @@ const device = await getDevice();
 
 ### `ActionDock`
 
-Док главного действия: внутри ровно одна главная кнопка (`full` на телефоне) и не более одной тихой. Телефон: `sticky` над панелью вкладок — `bottom` = её высота (переменная `--tab-bar-height`, которую пишет `TabBar`) + зазор 8 px + отступ панели от низа; материал `glass` с рамкой и тенью, боковые отступы как у панели (10 px). Без панели вкладок (оператор) прилипает к низу с отступом 10 px плюс безопасная зона. Компьютер: обычный блок в потоке, кнопки в ряд. Кладите дока последним в колонке экрана; не кладите его в `Card`.
+Док главного действия: внутри ровно одна главная кнопка и не более одной тихой. `full` у кнопок внутри не ставится: ширину детей задаёт сам док (телефон — каждый на всю ширину, компьютер — по своей в ряд). Телефон: `sticky` над панелью вкладок — `bottom` = её высота (переменная `--tab-bar-height`, которую пишет `TabBar`) + зазор 8 px + отступ панели от низа; материал `glass` с рамкой и тенью, боковые отступы как у панели (10 px). Без панели вкладок (оператор) прилипает к низу с отступом 10 px плюс безопасная зона. Компьютер: обычный блок в потоке, кнопки в ряд. **Док — последний ребёнок корневой колонки экрана** (`Stack` страницы): залипание `sticky` ограничено родителем, поэтому док внутри `Card` или посреди колонки залипает только в пределах этого блока. В конце страницы он встаёт на то же место, где был прилипшим (зазор до панели 8 px, двойного отступа нет). Поведение проверено в браузере (`e2e-v2/foundation.spec.ts`, сценарии 19а–19д, страница-образец `/v2/ui-kit/dock`).
 
 ### `useActionForm` (`@/app/(app)/_shell/form`, клиентский хук)
 
 ```tsx
 "use client";
-const { pending, error, fieldErrors, submit } = useActionForm(requestCodeAction, { onSuccess: () => setStep("code") });
-<form action={submit}>
+const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeAction, { onSuccess: () => setStep("code") });
+<form onSubmit={onSubmit} noValidate>
   <PhoneField label={t.phone} name="phone" error={fieldErrors.phone} />
   {error && <Notice tone="danger" live>{error}</Notice>}
   <Button type="submit" pending={pending}>{t.send}</Button>
 </form>
 ```
 
-Принимает Server Action, созданный `action()` из `@/platform/action`; `submit(formData)` отдаёт ему поля формы объектом (или `toInput(formData)`), повторная отправка при `pending` игнорируется. `error` — текст ответа, `fieldErrors` — первое сообщение по полю. Ответ `UNAUTHENTICATED` уводит на `to("/login")`, `CONSENT_REQUIRED` — на `to("/consent")`, оба с `?next=` текущего пути. Чистая часть — `outcomeOf(result, here)`.
+Форма подключается **только через `onSubmit`**, не через `<form action={…}>`: React 19 после завершения такого действия сбрасывает неуправляемые поля, и при ошибке проверки человек терял бы введённый телефон или код. `onSubmit` отменяет отправку браузера и берёт `new FormData(form)`; `submit(formData)` остаётся для программного вызова. Образец и e2e — «Форма с действием» на `/v2/ui-kit` (сценарий 18: ошибка у поля, значение сохранено, двойной клик — один вызов).
+
+Принимает Server Action, созданный `action()` из `@/platform/action`; действию уходят поля формы объектом (или `toInput(formData)`), повторная отправка при `pending` игнорируется. `error` — текст ответа, `fieldErrors` — первое сообщение по полю. Ответ `UNAUTHENTICATED` уводит на `to("/login")`, `CONSENT_REQUIRED` — на `to("/consent")`, оба с `?next=` текущего пути (на самом экране входа `next` не добавляется — петли нет). Чистая часть — `outcomeOf(result, here)`.
 
 ### `error.tsx`
 

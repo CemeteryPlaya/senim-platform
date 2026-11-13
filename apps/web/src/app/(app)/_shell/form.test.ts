@@ -32,6 +32,11 @@ describe("outcomeOf: ответ действия → состояние форм
     expect(out.kind === "leave" && out.href.startsWith("/v2/login")).toBe(true);
   });
 
+  it("уже на экране входа: next не добавляется (нет петли)", () => {
+    const result: ActionResult<never> = { ok: false, code: "UNAUTHENTICATED", error: "x" };
+    expect(outcomeOf(result, { pathname: "/v2/login", search: "?next=%2Fv2%2Fdeals" })).toEqual({ kind: "leave", href: "/v2/login" });
+  });
+
   it("возврат с чужим адресом отбрасывается (без next)", () => {
     const result: ActionResult<never> = { ok: false, code: "UNAUTHENTICATED", error: "x" };
     expect(outcomeOf(result, { pathname: "//evil.example", search: "" })).toEqual({ kind: "leave", href: "/v2/login" });

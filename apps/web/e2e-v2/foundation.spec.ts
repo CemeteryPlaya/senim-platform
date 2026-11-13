@@ -429,3 +429,141 @@ test.describe("поповер", () => {
     await expect(trigger).toBeFocused();
   });
 });
+
+// ───────── 18. Форма на useActionForm ─────────
+
+test.describe("форма на useActionForm (витрина)", () => {
+  const sample = showcase.formSample;
+
+  test("18. ошибка у поля, введённое не сбрасывается, двойной клик даёт один вызов", async ({ page }) => {
+    const calls: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.headers()["next-action"]) calls.push(request.url());
+    });
+    await page.goto(UI_KIT);
+    const form = page.locator("form").filter({ has: page.getByLabel(sample.label, { exact: true }) });
+    const field = form.getByLabel(sample.label, { exact: true });
+    await field.fill("12345");
+    await button(form, sample.submit).dblclick();
+    // Ответ сервера пришёл: ошибка стоит у поля и связана с ним.
+    await expect(form.getByText(sample.fieldError)).toBeVisible();
+    await expect(field).toHaveAttribute("aria-invalid", "true");
+    // React 19 не сбросил неуправляемое поле (форма подключена через onSubmit, а не action={…}).
+    await expect(field).toHaveValue("12345");
+    expect(calls, "двойной клик отправил действие дважды").toHaveLength(1);
+    // После ответа форму можно отправить снова.
+    await button(form, sample.submit).click();
+    await expect.poll(() => calls.length).toBe(2);
+    await expect(form.getByText(sample.fieldError)).toBeVisible();
+    await expect(field).toHaveValue("12345");
+  });
+});
+
+// ───────── 19. ActionDock над панелью вкладок ─────────
+
+test.describe("ActionDock на телефоне", () => {
+  test.skip(({ isMobile }) => !isMobile, "только проект mobile");
+  const DOCK_PAGE = "/v2/ui-kit/dock";
+  const dockText = showcase.dockPage;
+
+  /** Прокрутка: 0 — начало, 1 — самый низ. */
+  async function scrollTo(page: Page, fraction: number) {
+    await page.evaluate((f) => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo(0, max * f);
+    }, fraction);
+  }
+
+  const dockOf = (page: Page) => page.locator("[data-action-dock]");
+  const barOf = (page: Page) => page.locator("[data-tab-bar]");
+
+  /** Зазор между нижним краем дока и верхним краем панели вкладок. */
+  async function gapToBar(page: Page): Promise<number> {
+    const [dock, bar] = await Promise.all([box(dockOf(page)), box(barOf(page))]);
+    return bar.y - (dock.y + dock.height);
+  }
+
+  test("19а. док стоит над панелью с зазором 8 px в начале, середине и конце страницы", async ({ page }) => {
+    await page.goto(DOCK_PAGE);
+    await expect(dockOf(page)).toBeVisible();
+    for (const fraction of [0, 0.5, 1]) {
+      await scrollTo(page, fraction);
+      await expect.poll(async () => Math.abs((await gapToBar(page)) - 8), { message: `прокрутка ${fraction}` }).toBeLessThanOrEqual(2);
+    }
+  });
+
+  test("19б. в конце страницы док не перекрывает последний элемент и без двойного отступа", async ({ page }) => {
+    await page.goto(DOCK_PAGE);
+    await scrollTo(page, 1);
+    await expect.poll(async () => Math.abs((await gapToBar(page)) - 8)).toBeLessThanOrEqual(2);
+    const last = await box(page.locator("[data-last-content]"));
+    const dock = await box(dockOf(page));
+    const gap = dock.y - (last.y + last.height);
+    expect(gap, "док перекрывает последний элемент").toBeGreaterThanOrEqual(0);
+    // Зазор колонки — 12 px: больше значило бы двойной отступ (док ниже своего места или лишнее поле).
+    expect(gap, "между содержимым и доком двойной отступ").toBeLessThanOrEqual(14);
+    // Дальше вниз страница не прокручивается: док не оставил пустого места под собой.
+    const spare = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight - window.scrollY);
+    expect(spare).toBeLessThanOrEqual(1);
+  });
+
+  test("19г. --tab-bar-height совпадает с настоящей высотой панели", async ({ page }) => {
+    await page.goto(DOCK_PAGE);
+    await expect(barOf(page)).toBeVisible();
+    await expect
+      .poll(async () => {
+        const declared = await page.evaluate(() => parseFloat(document.querySelector<HTMLElement>("[data-has-tabs]")?.style.getPropertyValue("--tab-bar-height") ?? "NaN"));
+        return Math.abs(declared - (await box(barOf(page))).height);
+      })
+      .toBeLessThanOrEqual(1);
+  });
+
+  test.describe("шрифт 200% при 360 px", () => {
+    test.use({ viewport: { width: 360, height: 740 } });
+
+    test("19в. док поднимается вместе с выросшей панелью, горизонтальной прокрутки нет", async ({ page }) => {
+      await page.goto(DOCK_PAGE);
+      const normalBar = (await box(barOf(page))).height;
+      await page.addStyleTag({ content: "html{font-size:200%}" });
+      await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe("32px");
+      await expect.poll(async () => (await box(barOf(page))).height).toBeGreaterThan(normalBar);
+      // Зазор задан в rem (0,5 rem), как и всё в kit: при шрифте 200% он 16 px.
+      for (const fraction of [0, 1]) {
+        await scrollTo(page, fraction);
+        await expect.poll(async () => Math.abs((await gapToBar(page)) - 16), { message: `прокрутка ${fraction}` }).toBeLessThanOrEqual(2);
+      }
+      await expect
+        .poll(async () => {
+          const declared = await page.evaluate(() => parseFloat(document.querySelector<HTMLElement>("[data-has-tabs]")?.style.getPropertyValue("--tab-bar-height") ?? "NaN"));
+          return Math.abs(declared - (await box(barOf(page))).height);
+        })
+        .toBeLessThanOrEqual(1);
+      const overflow = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+      expect(overflow.scroll, "страница шире окна").toBeLessThanOrEqual(overflow.client);
+      await expect(button(dockOf(page), dockText.primary)).toBeVisible();
+    });
+  });
+
+  test("19д. без панели вкладок (роль без вкладок) док прилипает к низу с отступом 10 px", async ({ page }) => {
+    await page.goto(DOCK_PAGE);
+    await expect(dockOf(page)).toBeVisible();
+    // У оператора вкладок нет: оболочка без data-has-tabs и без панели. Вход оператора в e2e v2 недоступен, поэтому то
+    // же состояние воспроизводится в DOM — проверяется CSS дока, а не выбор оболочки.
+    await page.evaluate(() => {
+      document.querySelector("[data-tab-bar]")?.closest("nav")?.remove();
+      const shell = document.querySelector<HTMLElement>("[data-has-tabs]");
+      shell?.removeAttribute("data-has-tabs");
+      shell?.style.removeProperty("--tab-bar-height");
+    });
+    const height = viewportOf(page).height;
+    for (const fraction of [0, 0.5, 1]) {
+      await scrollTo(page, fraction);
+      await expect
+        .poll(async () => {
+          const dock = await box(dockOf(page));
+          return Math.abs(height - (dock.y + dock.height) - 10);
+        }, { message: `прокрутка ${fraction}` })
+        .toBeLessThanOrEqual(2);
+    }
+  });
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import type { ActionResult } from "@/platform/action";
 import { logger } from "@/platform/logger";
@@ -17,6 +17,8 @@ export type Outcome<T> =
 
 /** Адрес экрана v2 с возвратом сюда же: `next` — только путь этого сайта (safeLocalPath). */
 function withNext(screen: string, here: Here): string {
+  // Уже на этом экране (вход, согласие): возврат на самого себя дал бы петлю — next опускается.
+  if (here.pathname === to(screen)) return to(screen);
   const next = safeLocalPath(here.pathname + here.search);
   return next === "/" ? to(screen) : `${to(screen)}?${new URLSearchParams({ next })}`;
 }
@@ -57,13 +59,18 @@ export type ActionForm = {
   error: string | null;
   /** Первое сообщение по каждому полю — в `error` соответствующего поля kit. */
   fieldErrors: Record<string, string>;
+  /** Обработчик `<form onSubmit>`: отменяет отправку браузера, берёт поля формы и вызывает действие. */
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  /** То же для программного вызова с готовыми полями. */
   submit: (data: FormData) => Promise<void>;
 };
 
 /**
  * Состояние формы с Server Action, созданным через `action()` из `@/platform/action`.
  *
- * `submit(formData)` — для `<form action={submit}>`: повторная отправка, пока идёт прошлая, игнорируется. «Сессия
+ * Форма подключается ТОЛЬКО через `onSubmit`: `<form onSubmit={form.onSubmit}>`. Не `<form action={…}>`: React 19 после
+ * завершения такого действия сбрасывает неуправляемые поля формы, и при ошибке проверки человек терял бы введённые
+ * телефон или код. `submit(formData)` — для программного вызова. Повторная отправка, пока идёт прошлая, игнорируется. «Сессия
  * истекла» и «нужно согласие» уводят на экран v2 с возвратом (см. `outcomeOf`) и состояния формы не меняют. Сбой
  * транспорта (сеть, сервер) — общая ошибка из `ru.common.errors.generic`, подробности в журнале.
  *
@@ -105,5 +112,10 @@ export function useActionForm<I, T>(
     }
   }
 
-  return { pending, error, fieldErrors, submit };
+  function onSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    void submit(new FormData(event.currentTarget));
+  }
+
+  return { pending, error, fieldErrors, onSubmit, submit };
 }

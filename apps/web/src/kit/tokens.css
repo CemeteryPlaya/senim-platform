@@ -79,6 +79,10 @@
   --spacing-bar-inset: 0.625rem;
   /* Разрядка цифр в поле кода из сообщения (tracking-code). */
   --tracking-code: 0.4em;
+  /* Запасная высота панели вкладок (одна строка подписей): пока TabBar не измерил себя и без JavaScript. */
+  --spacing-tab-bar: 4.25rem;
+  /* Поля содержимого телефона по бокам — 16px (rules.md, «Отступы»); от них считается вынос дока (dock-bleed). */
+  --spacing-gutter: 1rem;
   /* Аватар в шапке — 32px (size-avatar). */
   --spacing-avatar: 2rem;
 
@@ -268,15 +272,26 @@
 
 /*
  * Док главного действия (ActionDock) над панелью вкладок. Оболочка с вкладками помечена data-has-tabs: ей нужно место
- * под панель — её высота (--tab-bar-height, TabBar пишет настоящую после измерения; запасное 68px — панель в одну
+ * под панель — её высота (--tab-bar-height, TabBar пишет настоящую после измерения; запасное --spacing-tab-bar — панель в одну
  * строку подписей) и зазор 8px. Без панели --tab-bar-space не задана, и док прилипает к низу с отступом панели.
  */
 [data-has-tabs] {
-  --tab-bar-space: calc(var(--tab-bar-height, 4.25rem) + var(--spacing-stack-tight));
+  --tab-bar-space: calc(var(--tab-bar-height, var(--spacing-tab-bar)) + var(--spacing-stack-tight));
+  /* Всё, что панель занимает под содержимым: её высота, отступ от низа и безопасная зона (для dock-above-bar). */
+  --tab-bar-block: calc(var(--tab-bar-height, var(--spacing-tab-bar)) + var(--spacing-bar-inset) + env(safe-area-inset-bottom));
 }
 
 @utility dock-above-bar {
   bottom: calc(var(--spacing-bar-inset) + env(safe-area-inset-bottom) + var(--tab-bar-space, 0px));
+  /*
+   * В конце страницы sticky отпускает док на нижний край содержимого, а под ним ещё нижнее поле колонки (safe-block).
+   * Отрицательное поле (разница прилипшего и естественного положения) опускает док на то же место, где он стоял
+   * прилипшим: зазор до панели вкладок остаётся 8px, без двойного отступа.
+   */
+  margin-bottom: calc(
+    var(--spacing-bar-inset) + env(safe-area-inset-bottom) + var(--tab-bar-space, 0px) - max(1.5rem, env(safe-area-inset-bottom)) -
+      var(--tab-bar-block, 0px)
+  );
 }
 
 /*
@@ -284,8 +299,8 @@
  * отрицательное поле на разницу. Работает в колонке содержимого телефона (safe-gutter).
  */
 @utility dock-bleed {
-  margin-left: calc(max(var(--spacing-bar-inset), env(safe-area-inset-left)) - max(1rem, env(safe-area-inset-left)));
-  margin-right: calc(max(var(--spacing-bar-inset), env(safe-area-inset-right)) - max(1rem, env(safe-area-inset-right)));
+  margin-left: calc(max(var(--spacing-bar-inset), env(safe-area-inset-left)) - max(var(--spacing-gutter), env(safe-area-inset-left)));
+  margin-right: calc(max(var(--spacing-bar-inset), env(safe-area-inset-right)) - max(var(--spacing-gutter), env(safe-area-inset-right)));
 }
 
 /* Панель вкладок по бокам: 10px от края или шире — на величину выреза (альбомная ориентация). */

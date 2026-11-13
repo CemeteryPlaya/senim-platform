@@ -59,14 +59,15 @@ describe("CodeField", () => {
   const out = html(<CodeField label="Код" name="code" />);
   const tag = inputTag(out, "code");
 
-  it("цифровая клавиатура, одноразовый код, шесть знаков", () => {
+  it("цифровая клавиатура, одноразовый код, запас под вставку с пробелом (длина × 2)", () => {
     expect(hasAttr(tag, "inputmode", "numeric")).toBe(true);
     expect(hasAttr(tag, "autocomplete", "one-time-code")).toBe(true);
-    expect(hasAttr(tag, "maxlength", "6")).toBe(true);
+    expect(hasAttr(tag, "maxlength", "12")).toBe(true);
+    expect(tag).not.toMatch(/pattern=/);
   });
 
   it("длина задаётся", () => {
-    expect(hasAttr(inputTag(html(<CodeField label="Код" name="c" length={4} />), "c"), "maxlength", "4")).toBe(true);
+    expect(hasAttr(inputTag(html(<CodeField label="Код" name="c" length={4} />), "c"), "maxlength", "8")).toBe(true);
   });
 
   it("цифры одной ширины с разрядкой; подпись связана с полем", () => {
@@ -135,10 +136,25 @@ describe("Pagination", () => {
     expect(count(out, "<a ")).toBe(2);
   });
 
-  it("на краю соседней страницы нет: вместо ссылки приглушённый блок", () => {
+  it("нечисловые и нецелые значения: NaN и Infinity — ничего, дробные округляются, номер ограничивается", () => {
+    const render = (page: number, pageCount: number) => html(<Pagination page={page} pageCount={pageCount} hrefFor={hrefFor} label="Страницы" />);
+    expect(render(Number.NaN, 5)).toBe("");
+    expect(render(2, Number.NaN)).toBe("");
+    expect(render(1, Number.POSITIVE_INFINITY)).toBe("");
+    expect(render(1, 1.9)).toBe("");
+    expect(text(<Pagination page={2.7} pageCount={5.9} hrefFor={hrefFor} label="Страницы" />)).toContain("Страница 2 из 5");
+    expect(text(<Pagination page={0} pageCount={5} hrefFor={hrefFor} label="Страницы" />)).toContain("Страница 1 из 5");
+    expect(text(<Pagination page={-3} pageCount={5} hrefFor={hrefFor} label="Страницы" />)).toContain("Страница 1 из 5");
+    expect(text(<Pagination page={9} pageCount={5} hrefFor={hrefFor} label="Страницы" />)).toContain("Страница 5 из 5");
+  });
+
+  it("на краю соседней страницы нет: вместо ссылки приглушённый текст без конфликтующих классов", () => {
     const first = html(<Pagination page={1} pageCount={3} hrefFor={hrefFor} label="Страницы" />);
     expect(count(first, "<a ")).toBe(1);
-    expect(first).toContain('aria-disabled="true"');
+    expect(first).not.toContain('aria-disabled="');
+    const edge = /<span class="([^"]*)">Назад<\/span>/.exec(first)?.[1] ?? "";
+    expect(edge).toContain("text-muted");
+    expect(edge).not.toMatch(/(?:^|\s)text-ink(?:\s|$)/);
     expect(first).toContain('href="/v2/masters?page=2"');
     const last = html(<Pagination page={3} pageCount={3} hrefFor={hrefFor} label="Страницы" />);
     expect(count(last, "<a ")).toBe(1);
@@ -152,6 +168,9 @@ describe("Rating", () => {
     expect(text(<Rating value={5} count={1} />)).toBe("5,0 · 1 отзыв");
     expect(text(<Rating value={4.5} count={3} />)).toBe("4,5 · 3 отзыва");
     expect(text(<Rating value={4.2} count={11} />)).toBe("4,2 · 11 отзывов");
+    expect(text(<Rating value={4.2} count={21} />)).toBe("4,2 · 21 отзыв");
+    expect(text(<Rating value={4.2} count={22} />)).toBe("4,2 · 22 отзыва");
+    expect(text(<Rating value={4.2} count={111} />)).toBe("4,2 · 111 отзывов");
   });
 
   it("без оценки — «Пока без отзывов»", () => {
@@ -178,7 +197,17 @@ describe("WorkCard", () => {
     expect(out).toContain('alt="Кухня с островом"');
     expect(out).toContain('href="/v2/masters/1"');
     expect(text(el)).toContain(`от ${formatMoney(122400000n)}`);
-    expect(out).toMatch(/<h3[^>]*>Кухня<\/h3>/);
+    expect(out).toMatch(/<h3[^>]*><a [^>]*>Кухня<\/a><\/h3>/);
+  });
+
+  it("кликабельна вся карточка: одна ссылка растянута на карточку, вложенных интерактивных нет", () => {
+    const out = html(<WorkCard href="/v2/masters/1" title="Кухня" meta="Алматы" priceFrom={1000n} />);
+    expect(count(out, "<a ")).toBe(1);
+    expect(count(out, "<button")).toBe(0);
+    expect(hasClass(out, "after:absolute")).toBe(true);
+    expect(hasClass(out, "after:inset-0")).toBe(true);
+    expect(hasClass(out, "relative")).toBe(true);
+    expect(hasClass(out, "has-focus-visible:outline-2")).toBe(true);
   });
 
   it("без цены строки «от» нет", () => {
@@ -197,6 +226,15 @@ describe("ActionDock", () => {
     expect(hasClass(out, "mobile:sticky")).toBe(true);
     expect(hasClass(out, "mobile:dock-above-bar")).toBe(true);
     expect(hasClass(out, "mobile:glass")).toBe(true);
+  });
+
+  it("док сам задаёт ширину детей: на телефоне на всю ширину, на компьютере по своей в ряд", () => {
+    expect(out).toContain("mobile:*:w-full");
+    expect(out).toContain("desktop:*:w-auto");
+    expect(hasClass(out, "flex-col")).toBe(true);
+    expect(hasClass(out, "desktop:flex-row")).toBe(true);
+    expect(hasClass(out, "desktop:flex-wrap")).toBe(true);
+    expect(hasClass(out, "desktop:items-center")).toBe(true);
   });
 
   it("на компьютере без прилипания: нет sticky без mobile:, нет fixed", () => {

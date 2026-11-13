@@ -17,12 +17,16 @@ import type { ReactNode } from "react";
  * плотность 85 % и размытие. Кнопка внутри сплошная (`bg-action`) — подпись читается на любом фоне; при
  * prefers-reduced-transparency панель сплошная (утилита `glass`).
  *
- * Компьютер: никакого прилипания — обычный блок в потоке, кнопки в ряд по своей ширине. Внутрь кладётся ровно одно
- * главное действие экрана (`Button` / `ButtonLink` без `variant`), рядом — не более одной тихой. Серверный компонент.
+ * Компьютер: никакого прилипания — обычный блок в потоке, кнопки в ряд по своей ширине. Ширину детей задаёт сам док:
+ * на телефоне каждый на всю ширину, на компьютере по своей — `full` у кнопок внутри не ставится. Внутрь кладётся ровно
+ * одно главное действие экрана (`Button` / `ButtonLink` без `variant`), рядом — не более одной тихой.
+ *
+ * Док — ПОСЛЕДНИЙ ребёнок корневой колонки экрана: залипание `sticky` ограничено родителем, и док внутри `Card` или
+ * посреди колонки залипает только в пределах этого блока. Серверный компонент.
  */
 export function ActionDock({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-stack-tight mobile:sticky mobile:z-10 mobile:glass mobile:dock-above-bar mobile:dock-bleed mobile:rounded-bar mobile:border mobile:border-line mobile:p-2 mobile:shadow-float desktop:flex-row desktop:flex-wrap desktop:items-center">
+    <div data-action-dock className="flex flex-col gap-stack-tight mobile:sticky mobile:z-10 mobile:glass mobile:dock-above-bar mobile:dock-bleed mobile:rounded-bar mobile:border mobile:border-line mobile:p-2 mobile:shadow-float mobile:*:w-full desktop:flex-row desktop:flex-wrap desktop:items-center desktop:*:w-auto">
       {children}
     </div>
   );

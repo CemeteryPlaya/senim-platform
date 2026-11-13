@@ -187,6 +187,16 @@ export function findRawControl(src: string): Hit[] {
   return matchLines(stripComments(src), /<(?:button|input|select|textarea)(?![\w-])/);
 }
 
+/** Строки, где `push` / `replace` / `prefetch` берутся из `useRouter()` деструктуризацией (однострочной или многострочной). */
+function destructuredRouterPush(code: string): Hit[] {
+  const hits: Hit[] = [];
+  for (const m of code.matchAll(/\{[^{}]*\b(?:push|replace|prefetch)\b[^{}]*\}\s*=\s*useRouter\s*\(/g)) {
+    const line = code.slice(0, m.index).split("\n").length;
+    hits.push({ line, text: m[0].replace(/\s+/g, " ").trim() });
+  }
+  return hits;
+}
+
 /**
  * 6. Адрес-литерал вместо to()/legacy(): `href="/…"`, `href={"/…"}`, `` href={`/…`} ``, ветка условия
  * `href={c ? "/a" : "/b"}` (также `??`, `||`), ключ объекта `href: "/…"`, вызовы `redirect("/…")`,
@@ -203,8 +213,9 @@ export function findHardcodedHref(src: string): Hit[] {
     ...matchLines(code, /\bhref\s*:\s*["'`]\//),
     ...matchLines(code, /\b(?:redirect|permanentRedirect)\s*\(\s*["'`]\//),
     ...matchLines(code, /\brouter\s*\??\.\s*(?:push|replace|prefetch)\s*\(\s*["'`]\//),
-    // Обход приёмника: `const { push } = useRouter()` — дальше `push("/…")` не отличить от обычного вызова.
-    ...matchLines(code, /\{[^}\n]*\b(?:push|replace|prefetch)\b[^}\n]*\}\s*=\s*useRouter\s*\(/),
+    // Обход приёмника: `const { push } = useRouter()` (в том числе в несколько строк) — дальше `push("/…")` не
+    // отличить от обычного вызова. Деструктуризация запрещена целиком: пишите `router.push(to("/…"))`.
+    ...destructuredRouterPush(code),
     // Объектная форма адреса: `href={{ pathname: "/…" }}`.
     ...matchLines(code, /\bpathname\s*:\s*["'`]\//),
   ]
@@ -516,6 +527,8 @@ describe("правило 6: адреса строятся через to() и leg
     expect(findHardcodedHref("const { push } = useRouter();")).toHaveLength(1);
     expect(findHardcodedHref("const { replace, refresh } = useRouter();")).toHaveLength(1);
     expect(findHardcodedHref("const { refresh } = useRouter();")).toHaveLength(0);
+    expect(findHardcodedHref("const {\n  push,\n  refresh,\n} = useRouter();")).toHaveLength(1);
+    expect(findHardcodedHref("const {\n  refresh,\n} = useRouter();")).toHaveLength(0);
     expect(findHardcodedHref("const router = useRouter();")).toHaveLength(0);
     expect(findHardcodedHref('<Link href={{ pathname: "/deals" }}>')).toHaveLength(1);
     expect(findHardcodedHref("<Link href={{pathname: `/deals/${id}`, query: {}}}>")).toHaveLength(1);
@@ -533,7 +546,7 @@ describe("правило 6: адреса строятся через to() и leg
   });
   it("в src/app/(app) (.ts и .tsx) нет адресов-литералов", () => {
     expectClean(
-      "Правило 6: адрес — to(...) или legacy(...).",
+      "Правило 6: адрес — to(...) или legacy(...); push/replace/prefetch из useRouter не деструктурируйте — пишите router.push(to(...)).",
       scan(APP_ONLY, findHardcodedHref, ["_shell/paths.ts"]),
     );
   });
