@@ -190,7 +190,9 @@ export function findRawControl(src: string): Hit[] {
 /** Строки, где `push` / `replace` / `prefetch` берутся из `useRouter()` деструктуризацией (однострочной или многострочной). */
 function destructuredRouterPush(code: string): Hit[] {
   const hits: Hit[] = [];
-  for (const m of code.matchAll(/\{[^{}]*\b(?:push|replace|prefetch)\b[^{}]*\}\s*=\s*useRouter\s*\(/g)) {
+  // Тело деструктуризации — с одним уровнем вложенных `{…}` (значение по умолчанию, вложенный шаблон), `...rest` тоже.
+  for (const m of code.matchAll(/\{(?:[^{}]|\{[^{}]*\})*\}\s*=\s*useRouter\s*\(/g)) {
+    if (!/\b(?:push|replace|prefetch)\b/.test(m[0])) continue;
     const line = code.slice(0, m.index).split("\n").length;
     hits.push({ line, text: m[0].replace(/\s+/g, " ").trim() });
   }
@@ -529,6 +531,13 @@ describe("правило 6: адреса строятся через to() и leg
     expect(findHardcodedHref("const { refresh } = useRouter();")).toHaveLength(0);
     expect(findHardcodedHref("const {\n  push,\n  refresh,\n} = useRouter();")).toHaveLength(1);
     expect(findHardcodedHref("const {\n  refresh,\n} = useRouter();")).toHaveLength(0);
+    // значение по умолчанию, остаток, вложенные скобки
+    expect(findHardcodedHref("const { push = go, ...rest } = useRouter();")).toHaveLength(1);
+    expect(findHardcodedHref("const { refresh, ...rest } = useRouter();")).toHaveLength(0);
+    expect(findHardcodedHref("const { refresh = { a: 1 }.a, push } = useRouter();")).toHaveLength(1);
+    expect(findHardcodedHref("const { push: go } = useRouter();")).toHaveLength(1);
+    // известное ограничение: вложенность глубже одного уровня не разбирается (на деле не встречается)
+    expect(findHardcodedHref("const { a = { b: { c: 1 } }, push } = useRouter();")).toHaveLength(0);
     expect(findHardcodedHref("const router = useRouter();")).toHaveLength(0);
     expect(findHardcodedHref('<Link href={{ pathname: "/deals" }}>')).toHaveLength(1);
     expect(findHardcodedHref("<Link href={{pathname: `/deals/${id}`, query: {}}}>")).toHaveLength(1);

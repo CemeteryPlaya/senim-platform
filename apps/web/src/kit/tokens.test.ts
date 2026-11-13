@@ -104,6 +104,15 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(dock).toMatch(/margin-bottom:\s*calc\(var\(--spacing-bar-inset\)\s*\+\s*env\(safe-area-inset-bottom\)\)\s*;/);
   });
 
+  it("док в конце страницы считает нижнее поле колонки тем же токеном, что safe-block", () => {
+    const utility = (name: string) => new RegExp(String.raw`@utility ${name}\s*\{([\s\S]*?)
+\}`).exec(css)?.[1] ?? "";
+    expect(css).toMatch(/--spacing-column-block:\s*1\.5rem\s*;/);
+    expect(utility("dock-above-bar")).toContain("max(var(--spacing-column-block), env(safe-area-inset-bottom))");
+    expect(utility("safe-block")).toContain("max(var(--spacing-column-block), env(safe-area-inset-bottom))");
+    expect(utility("dock-above-bar")).not.toMatch(/1\.5rem/);
+  });
+
   it("безопасные зоны телефона: утилиты берут env(safe-area-inset-*), но не меньше обычного отступа", () => {
     const utility = (name: string) => new RegExp(String.raw`@utility ${name}\s*\{([\s\S]*?)\n\}`).exec(css)?.[1] ?? "";
     // Панель вкладок по бокам: 10 px или вырез в альбомной ориентации.
@@ -115,8 +124,8 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(gutter).toMatch(/padding-left:\s*max\(1rem,\s*env\(safe-area-inset-left\)\)\s*;/);
     expect(gutter).toMatch(/padding-right:\s*max\(1rem,\s*env\(safe-area-inset-right\)\)\s*;/);
     const block = utility("safe-block");
-    expect(block).toMatch(/padding-top:\s*max\(1\.5rem,\s*env\(safe-area-inset-top\)\)\s*;/);
-    expect(block).toMatch(/padding-bottom:\s*max\(1\.5rem,\s*env\(safe-area-inset-bottom\)\)\s*;/);
+    expect(block).toMatch(/padding-top:\s*max\(var\(--spacing-column-block\),\s*env\(safe-area-inset-top\)\)\s*;/);
+    expect(block).toMatch(/padding-bottom:\s*max\(var\(--spacing-column-block\),\s*env\(safe-area-inset-bottom\)\)\s*;/);
   });
 
   it("варианты по устройству: desktop: и mobile: — по data-device на <html>, а не по ширине окна", () => {

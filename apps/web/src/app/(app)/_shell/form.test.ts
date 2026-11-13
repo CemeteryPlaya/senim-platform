@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ActionResult } from "@/platform/action";
-import { formDataToInput, outcomeOf } from "./form";
+import { formDataToInput, outcomeOf, submitterOf } from "./form";
 
 const here = { pathname: "/v2/masters/7", search: "?tab=works" };
 
@@ -68,5 +68,22 @@ describe("formDataToInput", () => {
     data.set("phone", "+77001234567");
     data.set("next", "/v2");
     expect(formDataToInput(data)).toEqual({ phone: "+77001234567", next: "/v2" });
+  });
+});
+
+describe("submitterOf: кнопка, которой отправили форму", () => {
+  it("button и input — отправитель", () => {
+    const button = { tagName: "BUTTON", name: "intent", value: "again" };
+    expect(submitterOf({ submitter: button })).toBe(button);
+    const input = { tagName: "input" };
+    expect(submitterOf({ submitter: input })).toBe(input);
+  });
+
+  it("нет отправителя (Enter в поле без кнопки, старый браузер) или чужой элемент — null", () => {
+    expect(submitterOf({ submitter: null })).toBeNull();
+    expect(submitterOf({})).toBeNull();
+    expect(submitterOf(null)).toBeNull();
+    expect(submitterOf({ submitter: { tagName: "DIV" } })).toBeNull();
+    expect(submitterOf({ submitter: "button" })).toBeNull();
   });
 });

@@ -144,6 +144,9 @@ export const kit = {
     formSample: {
       label: "Значение",
       submit: "Отправить",
+      submitAgain: "Отправить ещё раз",
+      /** Ответ образца: какая кнопка отправила форму (имя=значение второй, у первой имени нет). */
+      received: (intent: string | undefined) => (intent ? `Получено: intent=${intent}` : "Получено: кнопка без имени"),
       fieldError: "Образец: сервер вернул ошибку у поля",
       note: "Форма на useActionForm: отправка через onSubmit, ошибка у поля, введённое остаётся.",
     },

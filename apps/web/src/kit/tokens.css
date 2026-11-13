@@ -83,6 +83,8 @@
   --spacing-tab-bar: 4.25rem;
   /* Поля содержимого телефона по бокам — 16px (rules.md, «Отступы»); от них считается вынос дока (dock-bleed). */
   --spacing-gutter: 1rem;
+  /* Поле содержимого телефона сверху и снизу — 24px (safe-block); от него считается положение дока в конце страницы. */
+  --spacing-column-block: 1.5rem;
   /* Аватар в шапке — 32px (size-avatar). */
   --spacing-avatar: 2rem;
 
@@ -289,7 +291,7 @@
    * прилипшим: зазор до панели вкладок остаётся 8px, без двойного отступа.
    */
   margin-bottom: calc(
-    var(--spacing-bar-inset) + env(safe-area-inset-bottom) + var(--tab-bar-space, 0px) - max(1.5rem, env(safe-area-inset-bottom)) -
+    var(--spacing-bar-inset) + env(safe-area-inset-bottom) + var(--tab-bar-space, 0px) - max(var(--spacing-column-block), env(safe-area-inset-bottom)) -
       var(--tab-bar-block, 0px)
   );
 }
@@ -317,8 +319,8 @@
 
 /* Содержимое телефона сверху и снизу: 24px или ниже строки состояния / выше полоски «домой». */
 @utility safe-block {
-  padding-top: max(1.5rem, env(safe-area-inset-top));
-  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  padding-top: max(var(--spacing-column-block), env(safe-area-inset-top));
+  padding-bottom: max(var(--spacing-column-block), env(safe-area-inset-bottom));
 }
 
 /*

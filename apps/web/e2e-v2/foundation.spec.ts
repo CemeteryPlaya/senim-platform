@@ -452,10 +452,16 @@ test.describe("форма на useActionForm (витрина)", () => {
     await expect(field).toHaveValue("12345");
     expect(calls, "двойной клик отправил действие дважды").toHaveLength(1);
     // После ответа форму можно отправить снова.
+    await expect(form.getByText(sample.received(undefined))).toBeVisible();
     await button(form, sample.submit).click();
     await expect.poll(() => calls.length).toBe(2);
     await expect(form.getByText(sample.fieldError)).toBeVisible();
     await expect(field).toHaveValue("12345");
+    // Вторая кнопка отправки: действие получает её name=value; у первой имени не было.
+    await button(form, sample.submitAgain).click();
+    await expect(form.getByText(sample.received("again"))).toBeVisible();
+    await expect(form.getByText(sample.received(undefined))).toHaveCount(0);
+    expect(calls).toHaveLength(3);
   });
 });
 

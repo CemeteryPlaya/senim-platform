@@ -10,13 +10,13 @@ import { fail } from "@/platform/errors";
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Действие-образец витрины (только dev): держит ответ 400 мс и всегда возвращает ошибку у поля `value` — на нём e2e
+ * Действие-образец витрины (только dev): держит ответ 400 мс и всегда возвращает ошибку у поля `value` и в общем сообщении — имя нажатой кнопки отправки (`intent`) — на нём e2e
  * проверяет, что форма на `useActionForm` показывает ошибку, не теряет введённое и не отправляет дважды.
  */
-export const sampleAction = action("uikit.sample", z.object({ value: z.string() }), async () => {
+export const sampleAction = action("uikit.sample", z.object({ value: z.string(), intent: z.string().optional() }), async ({ intent }) => {
   if (env().APP_ENV !== "dev") notFound();
   await wait(400);
-  return fail.validation(ru.app.kit.showcase.formSample.fieldError, {
+  return fail.validation(ru.app.kit.showcase.formSample.received(intent), {
     fieldErrors: { value: [ru.app.kit.showcase.formSample.fieldError] },
   });
 });

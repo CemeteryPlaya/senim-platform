@@ -41,6 +41,19 @@ export function outcomeOf<T>(result: ActionResult<T>, here: Here): Outcome<T> {
   return { kind: "error", error: result.error, fieldErrors };
 }
 
+/**
+ * Кнопка, которой отправили форму (`event.nativeEvent.submitter`): только `<button>` и `<input>`. Её `name=value`
+ * попадает в поля формы, и сервер различает несколько кнопок отправки («Получить код», «Отправить ещё раз»).
+ * Чистая функция: проверяет по `tagName`, а не по классам DOM.
+ */
+export function submitterOf(nativeEvent: unknown): HTMLButtonElement | HTMLInputElement | null {
+  if (typeof nativeEvent !== "object" || nativeEvent === null || !("submitter" in nativeEvent)) return null;
+  const submitter = (nativeEvent as { submitter: unknown }).submitter;
+  if (typeof submitter !== "object" || submitter === null || !("tagName" in submitter)) return null;
+  const tag = String((submitter as { tagName: unknown }).tagName).toUpperCase();
+  return tag === "BUTTON" || tag === "INPUT" ? (submitter as HTMLButtonElement | HTMLInputElement) : null;
+}
+
 /** Поля формы → простой объект для Server Action (схему и разбор значений держит `action()` на сервере). */
 export function formDataToInput(data: FormData): Record<string, FormDataEntryValue> {
   return Object.fromEntries(data.entries());
@@ -59,7 +72,7 @@ export type ActionForm = {
   error: string | null;
   /** Первое сообщение по каждому полю — в `error` соответствующего поля kit. */
   fieldErrors: Record<string, string>;
-  /** Обработчик `<form onSubmit>`: отменяет отправку браузера, берёт поля формы и вызывает действие. */
+  /** Обработчик `<form onSubmit>`: отменяет отправку браузера, берёт поля формы вместе с нажатой кнопкой отправки (её `name=value`) и вызывает действие. */
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   /** То же для программного вызова с готовыми полями. */
   submit: (data: FormData) => Promise<void>;
@@ -114,7 +127,8 @@ export function useActionForm<I, T>(
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    void submit(new FormData(event.currentTarget));
+    const submitter = submitterOf(event.nativeEvent);
+    void submit(submitter ? new FormData(event.currentTarget, submitter) : new FormData(event.currentTarget));
   }
 
   return { pending, error, fieldErrors, onSubmit, submit };
