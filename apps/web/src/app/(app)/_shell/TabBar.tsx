@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { ru } from "@/i18n/ru";
 import { cn } from "@/kit";
 import { activeHref, type NavItem } from "./nav";
@@ -15,13 +16,29 @@ import { NAV_ICONS } from "./nav-icons";
  * настоящей высоте.
  *
  * Подписи 13 px не обрезаются: вкладка не уже своей подписи, и при крупном системном шрифте вкладки переносятся
- * на вторую строку — панель растёт в высоту. На планшете панель, как и содержимое, — колонка до 560 px по центру.
+ * на вторую строку — панель растёт в высоту. Высоту панели TabBar сообщает оболочке переменной --tab-bar-height
+ * (ResizeObserver): по ней док главного действия (ActionDock) встаёт над панелью, как бы она ни выросла. На планшете панель, как и содержимое, — колонка до 560 px по центру.
  */
 export function TabBar({ items }: { items: readonly NavItem[] }) {
   const current = activeHref(items, usePathname());
+  const bar = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const nav = bar.current;
+    const shell = nav?.parentElement;
+    if (!nav || !shell || typeof ResizeObserver === "undefined") return;
+    const measure = () => shell.style.setProperty("--tab-bar-height", `${nav.getBoundingClientRect().height}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav);
+    return () => {
+      observer.disconnect();
+      shell.style.removeProperty("--tab-bar-height");
+    };
+  }, []);
 
   return (
-    <nav aria-label={ru.app.shell.navLabel} className="pointer-events-none sticky dock-bottom z-20 dock-inline">
+    <nav ref={bar} aria-label={ru.app.shell.navLabel} className="pointer-events-none sticky dock-bottom z-20 dock-inline">
       <ul
         data-tab-bar
         className="glass pointer-events-auto mx-auto flex max-w-column flex-wrap rounded-bar border border-line p-1 shadow-float"

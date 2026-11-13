@@ -11,6 +11,7 @@
 - **Устройство** — телефон или компьютер — различают варианты `desktop:` и `mobile:` (атрибут `data-device` на `<html>`), а не ширина окна. Серверный экран получает устройство так: `const device = await getDevice()` (`@/platform/device`) и передаёт его в компоненты, которым оно нужно (`ConfirmDialog`, `Explain`, `Toaster`).
 - **Одно главное действие на экран.** Главное — `Button`/`ButtonLink` без `variant` (или `variant="primary"`). Остальные — `secondary`, `quiet`, `danger`.
 - Серверные компоненты (без `"use client"`): `Stack`, `Split`, `Narrow`, `Section`, `Card`, списки, `StatusChip`, `Money`, `Progress`, `PhotoSlot`, `PageTitle`, `BackLink`, `WizardHeader`, `NowNext`, `FirstSteps`, `EmptyState`, `HelpBlock`, `ButtonLink`, `Skeleton`, поля (`TextField`, `TextArea`, `Select`, `Checkbox`, `RadioCard`, `RadioGroup`), `Segmented`. Клиентские (`"use client"`): `Button`, `Sheet`, `Dialog`, `ConfirmDialog`, `Popover`, `Explain`, `Toaster`. Клиентский компонент можно ставить в серверный экран; серверный компонент без обработчиков можно ставить и в клиентский.
+- Добавлены для экранов гостя и входа (все серверные, кроме хука `useActionForm`): `Notice`, `HiddenField`, `CodeField`, `PhoneField`, `Chips`, `Pagination`, `ActionDock`, `WorkCard`, `Rating`; клиентский — только `useActionForm` (`_shell/form.ts`) и `error.tsx` группы.
 
 ### Что запрещают сторожа
 
@@ -21,10 +22,10 @@
 3. Нет произвольных значений Tailwind: `text-[15px]`, `rounded-[10px]`, `bg-[#fff]`, `max-w-(--x)` запрещены; разрешены токены и `data-[state=open]:` как вариант.
 4. Нет импортов старого интерфейса: `@/ui`, `@/app/(legacy)`, относительные пути в них.
 5. В экранах нет сырых `<button>`, `<input>`, `<select>`, `<textarea>` — только компоненты kit.
-6. Адреса строятся через `to()`/`legacy()`: нет `href="/..."`, `redirect("/...")`, `router.push("/...")` с литералом.
+6. Адреса строятся через `to()`/`legacy()`: нет `href="/..."`, `redirect("/...")`, `router.push("/...")` и `router?.push("/...")` с литералом, `const { push } = useRouter()`, `href={{ pathname: "/..." }}`.
 7. Нет кириллицы в разметке и строках (комментарии по-русски можно).
 8. В `ru.app` нет слов «демо», «комиссия», «эскроу».
-9. Нет `sm:`, `md:`, `lg:`, `xl:`, контейнерных `@md:`, `@media (width…)`, `matchMedia`, `innerWidth` — версии различают `desktop:` и `mobile:`.
+9. Нет `sm:`, `md:`, `lg:`, `xl:`, контейнерных `@md:`, `@media (width…)`, `matchMedia`, `innerWidth`, `clientWidth`, `screen.width` — версии различают `desktop:` и `mobile:`.
 10. `button-styles` импортируют только файлы kit.
 11. Вне `src/kit` (и в тестах) kit импортируется только как `@/kit`; исключения — `@/kit/theme`, `@/kit/fonts`, `@/kit/tokens`, а в тестах ещё `@/kit/test-utils`.
 
@@ -342,6 +343,76 @@ const device = await getDevice();
   </Explain>
 </Stack>
 ```
+
+---
+
+## Экраны гостя и входа
+
+Дополнения для первых экранов (гость, каталог, профиль мастера, вход). Все — серверные компоненты, `"use client"` не нужен; клиентские только хук формы и `error.tsx`.
+
+### `Notice`
+
+Сообщение в потоке: плашка радиуса карточки, текст 17 px.
+
+| Проп | Тип | По умолчанию | Смысл |
+|---|---|---|---|
+| `tone` | `"info" \| "warn" \| "danger"` | — | Пара цветов: `accent`, `warn`, `danger` на своей подложке (контраст проверен) |
+| `title` | `string?` | — | Короткий заголовок 17 px / 600 |
+| `live` | `boolean` | `false` | `role="alert"`: сообщение появилось после загрузки (ответ сервера), диктор читает сразу |
+| `children` | `ReactNode` | — | Текст |
+
+Плашка «сервис недоступен» в оболочке — `Notice tone="warn" live`.
+
+### `HiddenField`
+
+`{ name: string; value: string }` — единственный способ положить скрытое значение в форму (`next`, ключ идемпотентности). Сырой `<input>` в экранах запрещён (правило 5).
+
+### `CodeField` и `PhoneField`
+
+Поля на основе `TextField` (те же `label`, `name`, `error`).
+
+| Компонент | Особенности |
+|---|---|
+| `CodeField` | `length?: number` (6), `defaultValue?`. Одно поле: цифровая клавиатура (`inputmode="numeric"`), `autocomplete="one-time-code"`, `maxlength`, цифры одной ширины с разрядкой (`tabular-nums`, `tracking-code`) |
+| `PhoneField` | `defaultValue?`. `type="tel"`, `autocomplete="tel"`, подсказка формата из `ru.app.kit.fields.phonePlaceholder` |
+
+### `Chips`
+
+Фильтры-ссылки в строку: `items: { href: string; label: string; active: boolean }[]`, `label: string` (имя навигации). Активный — `aria-current="true"`, рамка цвета действия и вес 600. На телефоне строка прокручивается вбок, на компьютере переносится. Адреса через `to()` с параметром фильтра.
+
+### `Pagination`
+
+`page`, `pageCount`, `hrefFor: (page: number) => string`, `label`. «Назад — Страница N из M — Вперёд»; при `pageCount <= 1` ничего не рисует. На краю нужная кнопка остаётся приглушённой (`aria-disabled`). Ссылки несут `rel="prev"` / `rel="next"`.
+
+### `WorkCard`
+
+Карточка работы: `href`, `title`, `meta: string`, `priceFrom?: bigint` (тиыны, «от N ₸»), `photo?: { src, alt }`. Фото 4 : 3 (без снимка — заглушка), вся карточка — одна ссылка. Заголовок — `<h3>`.
+
+### `Rating`
+
+`value: number | null`, `count: number`. «4,8 · 12 отзывов» текстом, без звёзд; `null` или `count` 0 — «Пока без отзывов».
+
+### `ActionDock`
+
+Док главного действия: внутри ровно одна главная кнопка (`full` на телефоне) и не более одной тихой. Телефон: `sticky` над панелью вкладок — `bottom` = её высота (переменная `--tab-bar-height`, которую пишет `TabBar`) + зазор 8 px + отступ панели от низа; материал `glass` с рамкой и тенью, боковые отступы как у панели (10 px). Без панели вкладок (оператор) прилипает к низу с отступом 10 px плюс безопасная зона. Компьютер: обычный блок в потоке, кнопки в ряд. Кладите дока последним в колонке экрана; не кладите его в `Card`.
+
+### `useActionForm` (`@/app/(app)/_shell/form`, клиентский хук)
+
+```tsx
+"use client";
+const { pending, error, fieldErrors, submit } = useActionForm(requestCodeAction, { onSuccess: () => setStep("code") });
+<form action={submit}>
+  <PhoneField label={t.phone} name="phone" error={fieldErrors.phone} />
+  {error && <Notice tone="danger" live>{error}</Notice>}
+  <Button type="submit" pending={pending}>{t.send}</Button>
+</form>
+```
+
+Принимает Server Action, созданный `action()` из `@/platform/action`; `submit(formData)` отдаёт ему поля формы объектом (или `toInput(formData)`), повторная отправка при `pending` игнорируется. `error` — текст ответа, `fieldErrors` — первое сообщение по полю. Ответ `UNAUTHENTICATED` уводит на `to("/login")`, `CONSENT_REQUIRED` — на `to("/consent")`, оба с `?next=` текущего пути. Чистая часть — `outcomeOf(result, here)`.
+
+### `error.tsx`
+
+Граница ошибок группы (app): заголовок, одна строка, «Повторить» (`retry()` Next 16) и ссылка на главную. Тексты — `ru.app.shell.error*`.
 
 ---
 

@@ -18,7 +18,7 @@ export type MobileShellProps = {
  */
 export function MobileShell({ nav, unavailable = false, children }: MobileShellProps) {
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div data-has-tabs={nav.tabs.length > 0 ? "" : undefined} className="flex min-h-dvh flex-col">
       <SkipLink />
       <main id={MAIN_ID} tabIndex={-1} className="mx-auto w-full max-w-column flex-1 safe-gutter safe-block outline-none">
         {unavailable && <UnavailableNotice />}

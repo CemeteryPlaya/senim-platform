@@ -2,11 +2,14 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import {
+  ActionDock,
   BackLink,
   Button,
   ButtonLink,
   Card,
   Checkbox,
+  Chips,
+  CodeField,
   EmptyState,
   Explain,
   FirstSteps,
@@ -15,12 +18,16 @@ import {
   ListRow,
   Money,
   Narrow,
+  Notice,
   NowNext,
   PageTitle,
+  Pagination,
+  PhoneField,
   PhotoSlot,
   Progress,
   RadioCard,
   RadioGroup,
+  Rating,
   Section,
   Select,
   Skeleton,
@@ -30,6 +37,7 @@ import {
   TextArea,
   TextField,
   WizardHeader,
+  WorkCard,
   type ButtonVariant,
   type PhotoRatio,
   type StatusTone,
@@ -260,6 +268,85 @@ function Choices() {
   );
 }
 
+const CHIP_ITEMS = [
+  { label: s.filters.all, active: false },
+  { label: s.filters.kitchens, active: true },
+  { label: s.filters.wardrobes, active: false },
+  { label: s.filters.beds, active: false },
+  { label: s.filters.tables, active: false },
+  { label: s.filters.children, active: false },
+  { label: s.filters.offices, active: false },
+].map((item, index) => ({ ...item, href: to(`/v2/ui-kit?filter=${index}`) }));
+
+const pageHref = (page: number): string => to(`/v2/ui-kit?page=${page}`);
+
+/** Телефон, код и сообщения: что нужно экрану входа. */
+function Entry() {
+  const c = s.codes;
+  return (
+    <div className="grid grid-cols-1 gap-stack-group desktop:grid-cols-2">
+      <Card className="flex flex-col gap-4">
+        <Specimen label={s.notices.info}>
+          <Notice tone="info" title={s.notices.infoTitle}>
+            {s.notices.infoBody}
+          </Notice>
+        </Specimen>
+        <Specimen label={s.notices.warn}>
+          <Notice tone="warn" live>
+            {s.notices.warnBody}
+          </Notice>
+        </Specimen>
+        <Specimen label={s.notices.danger}>
+          <Notice tone="danger" title={s.notices.dangerTitle}>
+            {s.notices.dangerBody}
+          </Notice>
+        </Specimen>
+      </Card>
+      <Card className="flex flex-col gap-4">
+        <Specimen label={c.phone}>
+          <PhoneField label={c.phoneLabel} name="phone" />
+        </Specimen>
+        <Specimen label={c.code}>
+          <CodeField label={c.codeLabel} name="code" defaultValue="123456" />
+        </Specimen>
+        <Specimen label={c.withError}>
+          <CodeField label={c.codeLabel} name="code-error" error={c.codeError} />
+        </Specimen>
+      </Card>
+    </div>
+  );
+}
+
+/** Карточки работ и оценка; на компьютере — три колонки. */
+function Works() {
+  const w = s.works;
+  return (
+    <div className="grid grid-cols-1 gap-stack-group desktop:grid-cols-3">
+      <Specimen label={w.withPhoto}>
+        <WorkCard
+          href={to("/")}
+          title={w.title}
+          meta={w.meta}
+          priceFrom={122400000n}
+          photo={{ src: "/img/kitchen.svg", alt: w.photoAlt }}
+        />
+      </Specimen>
+      <Specimen label={w.noPhoto}>
+        <WorkCard href={to("/")} title={w.title} meta={w.meta} priceFrom={85000000n} />
+      </Specimen>
+      <Specimen label={w.noPrice}>
+        <WorkCard href={to("/")} title={w.title} meta={w.meta} />
+      </Specimen>
+      <Specimen label={w.rating}>
+        <Rating value={4.8} count={12} />
+      </Specimen>
+      <Specimen label={w.noReviews}>
+        <Rating value={null} count={0} />
+      </Specimen>
+    </div>
+  );
+}
+
 /**
  * Витрина нужна только разработчикам: вне dev страницы нет.
  * `?missing=1` (только в dev) — настоящий notFound() под (app): образец страницы «не найдена» v2 для e2e и снимков.
@@ -340,6 +427,32 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
 
       <Section title={s.sections.choices}>
         <Choices />
+      </Section>
+
+      <Section title={s.sections.notices}>
+        <Entry />
+      </Section>
+
+      <Section title={s.sections.filters}>
+        <Stack>
+          <Specimen label={s.filters.chips}>
+            <Chips items={CHIP_ITEMS} label={s.filters.label} />
+          </Specimen>
+          <Narrow>
+            <Stack>
+              <Specimen label={s.filters.middle}>
+                <Pagination page={2} pageCount={5} hrefFor={pageHref} label={s.filters.pagesLabel} />
+              </Specimen>
+              <Specimen label={s.filters.first}>
+                <Pagination page={1} pageCount={3} hrefFor={pageHref} label={s.filters.pagesLabel} />
+              </Specimen>
+            </Stack>
+          </Narrow>
+        </Stack>
+      </Section>
+
+      <Section title={s.sections.works}>
+        <Works />
       </Section>
 
       <Section title={s.sections.cards}>
@@ -494,6 +607,26 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
 
       <Section title={s.sections.overlays}>
         <OverlaySamples device={device} />
+      </Section>
+
+      <Section title={s.sections.dock}>
+        <Narrow>
+          <Stack>
+            <p className="text-sub text-muted">{s.dock.note}</p>
+            <Card className="flex flex-col gap-4">
+              <p className="text-body text-ink">{s.dock.filler}</p>
+              <p className="text-body text-ink">{s.dock.filler}</p>
+              <p className="text-body text-ink">{s.dock.filler}</p>
+              <p className="text-body text-ink">{s.dock.filler}</p>
+            </Card>
+            <ActionDock>
+              <Button full>{s.dock.primary}</Button>
+              <Button variant="quiet" full>
+                {s.dock.quiet}
+              </Button>
+            </ActionDock>
+          </Stack>
+        </Narrow>
       </Section>
 
       <Section title={s.sections.theme}>

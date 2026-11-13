@@ -185,7 +185,7 @@ export function RadioCard({ label, id: explicitId, className, ...rest }: RadioCa
         aria-hidden
         className="flex size-6 shrink-0 items-center justify-center rounded-full border border-line-strong peer-checked:border-action peer-checked:[&>span]:opacity-100"
       >
-        <span className="size-3 rounded-full bg-action opacity-0" />
+        <span className="size-3 rounded-full bg-action opacity-0 radio-mark" />
       </span>
       <span>{label}</span>
     </label>

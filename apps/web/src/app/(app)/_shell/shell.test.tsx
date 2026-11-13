@@ -264,7 +264,7 @@ describe.each([
     expect(html(render())).not.toContain(ru.common.errors.unavailable);
     const out = html(render(true));
     // role="alert": плашка приходит в разметке сервера, а role="status" при первой отрисовке диктор не читает.
-    const alert = out.match(/<p [^>]*role="alert"[^>]*>([^<]*)<\/p>/);
+    const alert = out.match(/<div [^>]*role="alert"[^>]*>([^<]*)<\/div>/);
     expect(alert?.[1]).toBe(ru.common.errors.unavailable);
     expect(out).not.toContain('role="status"');
   });

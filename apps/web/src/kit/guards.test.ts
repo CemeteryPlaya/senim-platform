@@ -190,7 +190,8 @@ export function findRawControl(src: string): Hit[] {
 /**
  * 6. Адрес-литерал вместо to()/legacy(): `href="/…"`, `href={"/…"}`, `` href={`/…`} ``, ветка условия
  * `href={c ? "/a" : "/b"}` (также `??`, `||`), ключ объекта `href: "/…"`, вызовы `redirect("/…")`,
- * `permanentRedirect("/…")`, а также `router.push|replace|prefetch("/…")`. Вызовы без приёмника `router`
+ * `permanentRedirect("/…")`, а также `router.push|replace|prefetch("/…")` и `router?.push(…)`, деструктуризация
+ * `const { push } = useRouter()` и объектная форма `href={{ pathname: "/…" }}`. Вызовы без приёмника `router`
  * (`url.replace("/v2", "")`, `arr.push("/x")`) — обычный код; выражение в `href={…}`, начинающееся с `to(` или
  * `legacy(`, пропускается целиком. Разрешены `to(...)`, `legacy(...)`, `#…`, `mailto:`, `tel:`, `https://`.
  */
@@ -201,8 +202,15 @@ export function findHardcodedHref(src: string): Hit[] {
     ...matchLines(code, /\bhref\s*=\s*\{(?!\s*(?:to|legacy)\()[^}\n]*(?:\?\??|:|\|\|)\s*["'`]\//),
     ...matchLines(code, /\bhref\s*:\s*["'`]\//),
     ...matchLines(code, /\b(?:redirect|permanentRedirect)\s*\(\s*["'`]\//),
-    ...matchLines(code, /\brouter\s*\.\s*(?:push|replace|prefetch)\s*\(\s*["'`]\//),
-  ].sort((a, b) => a.line - b.line);
+    ...matchLines(code, /\brouter\s*\??\.\s*(?:push|replace|prefetch)\s*\(\s*["'`]\//),
+    // Обход приёмника: `const { push } = useRouter()` — дальше `push("/…")` не отличить от обычного вызова.
+    ...matchLines(code, /\{[^}\n]*\b(?:push|replace|prefetch)\b[^}\n]*\}\s*=\s*useRouter\s*\(/),
+    // Объектная форма адреса: `href={{ pathname: "/…" }}`.
+    ...matchLines(code, /\bpathname\s*:\s*["'`]\//),
+  ]
+    .sort((a, b) => a.line - b.line)
+    // Одна запись на строку: `href={{ pathname: "/x" }}` ловят сразу два шаблона.
+    .filter((hit, i, all) => i === 0 || hit.line !== all[i - 1].line);
 }
 
 /** 7. Кириллица вне комментариев (строки, текст JSX, имена). Комментарии по-русски разрешены. */
@@ -214,7 +222,7 @@ export function findCyrillic(src: string): Hit[] {
  * 9. Адаптивность по ширине окна вместо версии устройства: варианты Tailwind `sm:`, `md:`, `lg:`, `xl:`, `2xl:`
  * (и `max-*:`, `min-*:`, `min-[600px]:`), контейнерные запросы Tailwind 4 (`@md:`, `@max-md:`, `@[600px]:`,
  * `@min-[…]:`), а в коде — `@media (…width…)`, `matchMedia(…width…)` / `useMediaQuery(…width…)` с любой записью
- * условия (в том числе `(600px <= width)`) и чтение `innerWidth` / `outerWidth`. Версии различают только `desktop:` и
+ * условия (в том числе `(600px <= width)`) и чтение `innerWidth` / `outerWidth` / `clientWidth` / `screen.width`. Версии различают только `desktop:` и
  * `mobile:` (data-device на <html>). Вариант — это префикс, за которым сразу идёт класс: ключ объекта `sm: "…"` (с
  * пробелом после двоеточия), `size="sm"` и `text-sm` — не варианты.
  */
@@ -231,7 +239,8 @@ export function findWidthVariant(src: string): Hit[] {
       new RegExp(String.raw`${start}@(?:(?:max|min)-)?(?:[a-z0-9]+|\[[^\]\s]+\])(?:\/[\w-]+)?${variantEnd}`),
     ),
     ...matchLines(code, /(?:@media|(?:matchMedia|useMediaQuery)\s*\(\s*["'`])[^{"'`\n]*\bwidth\b/),
-    ...matchLines(code, /\b(?:innerWidth|outerWidth)\b/),
+    ...matchLines(code, /\b(?:innerWidth|outerWidth|clientWidth)\b/),
+    ...matchLines(code, /\bscreen\s*\.\s*(?:avail)?[wW]idth\b/),
   ].sort((a, b) => a.line - b.line);
 }
 
@@ -500,6 +509,17 @@ describe("правило 6: адреса строятся через to() и leg
     expect(findHardcodedHref('const nav = { href: "https://example.kz" };')).toHaveLength(0);
     expect(findHardcodedHref('redirect(to("/login"));')).toHaveLength(0);
     expect(findHardcodedHref('router.push(to("/deals"));')).toHaveLength(0);
+    // router?.push, деструктуризация push из useRouter(), href-объект с pathname
+    expect(findHardcodedHref('router?.push("/deals");')).toHaveLength(1);
+    expect(findHardcodedHref("router?.replace('/deals');")).toHaveLength(1);
+    expect(findHardcodedHref('router?.push(to("/deals"));')).toHaveLength(0);
+    expect(findHardcodedHref("const { push } = useRouter();")).toHaveLength(1);
+    expect(findHardcodedHref("const { replace, refresh } = useRouter();")).toHaveLength(1);
+    expect(findHardcodedHref("const { refresh } = useRouter();")).toHaveLength(0);
+    expect(findHardcodedHref("const router = useRouter();")).toHaveLength(0);
+    expect(findHardcodedHref('<Link href={{ pathname: "/deals" }}>')).toHaveLength(1);
+    expect(findHardcodedHref("<Link href={{pathname: `/deals/${id}`, query: {}}}>")).toHaveLength(1);
+    expect(findHardcodedHref('<Link href={{ pathname: to("/deals") }}>')).toHaveLength(0);
     expect(findHardcodedHref('<Link href={ok ? to("/a") : legacy(p)}>')).toHaveLength(0);
     expect(findHardcodedHref('const s = path.replace("/", "-");')).toHaveLength(0);
     expect(findHardcodedHref('const u = url.replace("/v2", "");')).toHaveLength(0);
@@ -581,6 +601,13 @@ describe("правило 9: версии различают desktop: и mobile:,
     expect(findWidthVariant("if (window.innerWidth > 1024) {}")).toHaveLength(1);
     expect(findWidthVariant("const w = innerWidth;")).toHaveLength(1);
     expect(findWidthVariant("const w = window.outerWidth;")).toHaveLength(1);
+    expect(findWidthVariant("const w = document.documentElement.clientWidth;")).toHaveLength(1);
+    expect(findWidthVariant("if (el.clientWidth > 600) {}")).toHaveLength(1);
+    expect(findWidthVariant("const w = screen.width;")).toHaveLength(1);
+    expect(findWidthVariant("if (window.screen.width < 600) {}")).toHaveLength(1);
+    expect(findWidthVariant("const clientWidthLabel = 1;")).toHaveLength(0);
+    expect(findWidthVariant("const w = size.width;")).toHaveLength(0);
+    expect(findWidthVariant("const screenWidthLabel = 1;")).toHaveLength(0);
     // Не варианты по ширине.
     expect(findWidthVariant('<Button variant="quiet" size="sm">')).toHaveLength(0);
     expect(findWidthVariant('const s = { sm: "a", md: "b" };')).toHaveLength(0);
@@ -589,6 +616,7 @@ describe("правило 9: версии различают desktop: и mobile:,
     expect(findWidthVariant('const e = "a@b.kz";')).toHaveLength(0);
     expect(findWidthVariant('useMediaQuery("(prefers-reduced-motion: reduce)")')).toHaveLength(0);
     expect(findWidthVariant("const innerWidthLabel = 1;")).toHaveLength(0);
+    expect(findWidthVariant("const w = window.screen.availWidth;")).toHaveLength(1);
     for (const cls of [
       "desktop:grid-cols-2",
       "mobile:min-h-control",

@@ -77,6 +77,8 @@
   --spacing-header: 3.25rem;
   /* Плавающая панель вкладок телефона: отступ 10px от краёв и снизу (утилиты dock-inline и dock-bottom). */
   --spacing-bar-inset: 0.625rem;
+  /* Разрядка цифр в поле кода из сообщения (tracking-code). */
+  --tracking-code: 0.4em;
   /* Аватар в шапке — 32px (size-avatar). */
   --spacing-avatar: 2rem;
 
@@ -264,6 +266,28 @@
   margin-bottom: calc(var(--spacing-bar-inset) + env(safe-area-inset-bottom));
 }
 
+/*
+ * Док главного действия (ActionDock) над панелью вкладок. Оболочка с вкладками помечена data-has-tabs: ей нужно место
+ * под панель — её высота (--tab-bar-height, TabBar пишет настоящую после измерения; запасное 68px — панель в одну
+ * строку подписей) и зазор 8px. Без панели --tab-bar-space не задана, и док прилипает к низу с отступом панели.
+ */
+[data-has-tabs] {
+  --tab-bar-space: calc(var(--tab-bar-height, 4.25rem) + var(--spacing-stack-tight));
+}
+
+@utility dock-above-bar {
+  bottom: calc(var(--spacing-bar-inset) + env(safe-area-inset-bottom) + var(--tab-bar-space, 0px));
+}
+
+/*
+ * Боковые отступы дока — как у панели вкладок (10px или шире выреза), а не как у содержимого (16px или шире выреза):
+ * отрицательное поле на разницу. Работает в колонке содержимого телефона (safe-gutter).
+ */
+@utility dock-bleed {
+  margin-left: calc(max(var(--spacing-bar-inset), env(safe-area-inset-left)) - max(1rem, env(safe-area-inset-left)));
+  margin-right: calc(max(var(--spacing-bar-inset), env(safe-area-inset-right)) - max(1rem, env(safe-area-inset-right)));
+}
+
 /* Панель вкладок по бокам: 10px от края или шире — на величину выреза (альбомная ориентация). */
 @utility dock-inline {
   padding-left: max(var(--spacing-bar-inset), env(safe-area-inset-left));
@@ -291,5 +315,15 @@
   background-color: color-mix(in srgb, var(--role-scrim) var(--scrim-opacity), transparent);
   @media (prefers-reduced-transparency: reduce) {
     background-color: color-mix(in srgb, var(--role-scrim) 70%, transparent);
+  }
+}
+
+/*
+ * Точка выбранного радио в режиме высокой контрастности Windows (forced-colors): цвет фона задаётся системным
+ * Highlight, иначе браузер заливает точку цветом Canvas и выбор не виден.
+ */
+@utility radio-mark {
+  @media (forced-colors: active) {
+    background-color: Highlight;
   }
 }
