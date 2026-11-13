@@ -11,11 +11,15 @@ type Role = "CLIENT" | "EXECUTOR" | "OPERATOR" | "MEASURER";
 const h = vi.hoisted(() => ({
   shell: { user: null as { role: Role } | null, unavailable: false },
   device: "desktop" as "mobile" | "desktop",
+  theme: "system" as "system" | "light" | "dark",
 }));
 
 // Барьер первых шагов проверяет onboarding-gate.test.tsx; здесь вошедший их уже прошёл (или гость).
 vi.mock("../../_shell/auth", () => ({ userPastOnboarding: async () => h.shell.user }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
+vi.mock("@/kit/theme", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/kit/theme")>()), getTheme: async () => h.theme }));
+// Действия сервера в статическом рендере не вызываются; модуль действия тянет env и базу.
+vi.mock("../../_shell/theme-actions", () => ({ chooseTheme: vi.fn(async () => undefined) }));
 
 const { default: AboutPage } = await import("./page");
 
@@ -25,6 +29,7 @@ const render = async () => html(await AboutPage());
 beforeEach(() => {
   h.shell = { user: null, unavailable: false };
   h.device = "desktop";
+  h.theme = "system";
 });
 
 describe("/v2/about: структура", () => {
@@ -145,4 +150,24 @@ describe("/v2/about: главное действие по роли", () => {
       }
     });
   }
+});
+
+describe("/v2/about: оформление", () => {
+  it.each(["desktop", "mobile"] as const)("%s: гость видит раздел «Оформление» внизу страницы с переключателем темы", async (device) => {
+    h.device = device;
+    h.theme = "dark";
+    const out = await render();
+    const text = ru.app.shell.theme;
+    // Раздел — после всех четырёх (оглавление справа на компьютере стоит в разметке позже, но это другая колонка).
+    expect(out.indexOf(`>${text.section}</h2>`)).toBeGreaterThan(out.indexOf(`>${t.master.title}</h2>`));
+    const section = out.slice(out.indexOf(`>${text.section}</h2>`));
+    expect(section).toContain(text.sectionLegend);
+    for (const label of [text.system, text.light, text.dark]) expect(section).toContain(`>${label}</button>`);
+    expect(section.match(/aria-pressed="true"[^>]*>([^<]*)</)?.[1]).toBe(text.dark);
+  });
+
+  it("вошедшему переключатель тоже доступен", async () => {
+    h.shell = { user: { role: "CLIENT" }, unavailable: false };
+    expect(await render()).toContain(`>${ru.app.shell.theme.light}</button>`);
+  });
 });

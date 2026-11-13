@@ -1,11 +1,12 @@
-import { Bell } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
+import type { Theme } from "@/kit/theme";
 import { AvatarMenu } from "./AvatarMenu";
 import { LogoutButton } from "./LogoutButton";
 import type { AppNav } from "./nav";
 import { to } from "./paths";
+import { NotificationsLink } from "./NotificationsLink";
 import { ShellAction } from "./ShellAction";
 import { MAIN_ID, SkipLink, UnavailableNotice } from "./ShellParts";
 import { TopNav } from "./TopNav";
@@ -16,6 +17,10 @@ export type DesktopUser = { fullName: string | null };
 export type DesktopShellProps = {
   nav: AppNav;
   user: DesktopUser | null;
+  /** Тема из куки: отмечена в меню профиля. */
+  theme?: Theme;
+  /** Непрочитанных уведомлений (у вошедшего с пройденными шагами). */
+  unread?: number;
   /** identity не ответил: страница рисуется гостем, сверху — плашка «сервис временно недоступен». */
   unavailable?: boolean;
   children: ReactNode;
@@ -32,7 +37,7 @@ export type DesktopShellProps = {
  * не помещается (крупный шрифт, узкое окно), правая группа переходит на вторую строку у правого края, разделы
  * переносятся — шапка растёт, ничего не обрезается и не наезжает.
  */
-export function DesktopShell({ nav, user, unavailable = false, children }: DesktopShellProps) {
+export function DesktopShell({ nav, user, theme = "system", unread = 0, unavailable = false, children }: DesktopShellProps) {
   return (
     <div className="flex min-h-dvh flex-col">
       <SkipLink />
@@ -50,16 +55,8 @@ export function DesktopShell({ nav, user, unavailable = false, children }: Deskt
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <ShellAction action={nav.action} />
             {nav.focus && <LogoutButton variant="secondary" />}
-            {user && !nav.focus && (
-              <Link
-                href={to("/notifications")}
-                aria-label={ru.app.shell.notifications}
-                className="inline-flex size-control items-center justify-center rounded-control text-ink no-underline pressable hover:bg-line"
-              >
-                <Bell aria-hidden className="size-6" />
-              </Link>
-            )}
-            {user && !nav.focus && <AvatarMenu fullName={user.fullName} />}
+            {user && !nav.focus && <NotificationsLink unread={unread} />}
+            {user && !nav.focus && <AvatarMenu fullName={user.fullName} theme={theme} />}
           </div>
         </div>
       </header>

@@ -2,13 +2,16 @@ import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { computeDealMoney } from "@/modules/payments";
 import { ActionDock, ButtonLink, Card, List, ListRow, Money, PageTitle, Section, Split, Stack, TextLink } from "@/kit";
+import { getTheme } from "@/kit/theme";
 import { getDevice } from "@/platform/device";
 import { userPastOnboarding } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
+import { ThemeSwitch } from "../../_shell/ThemeSwitch";
 import { loginHref } from "../_home/links";
 import { ABOUT_ANCHORS } from "./anchors";
 
 const t = ru.app.guest.about;
+const themeText = ru.app.shell.theme;
 
 export const metadata: Metadata = { title: t.title };
 
@@ -45,9 +48,10 @@ function primaryAction(role: string | null): Action {
  * главным действием; внизу страницы кнопки нет. Телефон — одна колонка и `ActionDock` в конце. Вошедшему заказчику
  * действие ведёт на новую заявку, мастеру и оператору главного действия нет, и ссылка регистрации мастера им не
  * показывается. Якоря и порядок — в `anchors.ts`. Вошедший с непройденными первыми шагами — на шаг с возвратом сюда.
+ * Внизу — раздел «Оформление» с переключателем темы (гостю другого места для него нет).
  */
 export default async function AboutPage() {
-  const [user, device] = await Promise.all([userPastOnboarding(to("/about")), getDevice()]);
+  const [user, device, theme] = await Promise.all([userPastOnboarding(to("/about")), getDevice(), getTheme()]);
   const role = user?.role ?? null;
   const action = primaryAction(role);
   const canBecomeMaster = role === null || role === "CLIENT";
@@ -121,6 +125,11 @@ export default async function AboutPage() {
                   <TextLink href={loginHref("executor")}>{t.master.action}</TextLink>
                 </div>
               )}
+            </Section>
+            <Section title={themeText.section}>
+              <Card>
+                <ThemeSwitch current={theme} legend={themeText.sectionLegend} />
+              </Card>
             </Section>
           </Stack>
         }

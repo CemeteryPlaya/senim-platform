@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeHref, navFor, visibleAction, type AppNav, type NavFeatures, type NavUser } from "./nav";
+import { activeHref, isTabRoot, navFor, visibleAction, type AppNav, type NavFeatures, type NavUser } from "./nav";
 
 const OFF: NavFeatures = { preContractFlows: false, inspiration: false, materialsCalculator: false };
 const ON: NavFeatures = { preContractFlows: true, inspiration: true, materialsCalculator: true };
@@ -163,5 +163,25 @@ describe("visibleAction: «Войти» в шапке компьютера не 
     const client = navFor({ role: "CLIENT", executor: null }, OFF);
     expect(visibleAction(client.action, "/v2/login")).toEqual(client.action);
     expect(visibleAction(undefined, "/v2/login")).toBeUndefined();
+  });
+});
+
+describe("isTabRoot: корневой экран вкладки", () => {
+  const tabs = navFor(client, OFF).tabs;
+
+  it.each(["/v2", "/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile", "/v2/deals/"])("%s — корневой", (path) => {
+    expect(isTabRoot(tabs, path)).toBe(true);
+  });
+
+  it.each(["/v2/deals/7", "/v2/requests/new", "/v2/profile/data", "/v2/notifications", "/v2/catalog", "/v2x", "/deals", "/", ""])(
+    "%s — нет",
+    (path) => {
+      expect(isTabRoot(tabs, path)).toBe(false);
+    },
+  );
+
+  it("нет адреса и нет вкладок — нет", () => {
+    expect(isTabRoot(tabs, null)).toBe(false);
+    expect(isTabRoot([], "/v2")).toBe(false);
   });
 });

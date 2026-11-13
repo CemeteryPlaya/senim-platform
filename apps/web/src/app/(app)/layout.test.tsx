@@ -20,6 +20,8 @@ const h = vi.hoisted(() => ({
   theme: "system" as "system" | "light" | "dark",
   device: "mobile" as "mobile" | "desktop",
   shell: { user: null as ShellUser | null, unavailable: false },
+  unread: 4 as number | Error,
+  unreadCalls: [] as string[],
   pathname: "/v2/deals/7",
   search: "tab=docs",
 }));
@@ -37,7 +39,15 @@ vi.mock("@/modules/identity", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/modules/identity")>()),
   getShellUser: async () => h.shell,
 }));
+vi.mock("@/modules/notifications", () => ({
+  unreadCount: async (userId: string) => {
+    h.unreadCalls.push(userId);
+    if (h.unread instanceof Error) throw h.unread;
+    return h.unread;
+  },
+}));
 vi.mock("./_shell/session-actions", () => ({ logout: vi.fn() }));
+vi.mock("./_shell/theme-actions", () => ({ chooseTheme: vi.fn(async () => undefined) }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => h.pathname,
@@ -72,6 +82,9 @@ beforeEach(() => {
   h.theme = "system";
   h.device = "mobile";
   h.shell = { user: null, unavailable: false };
+  h.unread = 4;
+  h.unreadCalls = [];
+  h.pathname = "/v2/deals/7";
 });
 
 describe("корневой layout v2", () => {
@@ -146,6 +159,45 @@ describe("корневой layout v2", () => {
     expect(out).toContain(ru.app.shell.movingTitle);
     expect(out).toContain('href="/deals/7?tab=docs"');
     expect(out).toContain("data-top-bar");
+  });
+});
+
+describe("счётчик уведомлений", () => {
+  it("компьютер: колокольчик в шапке с числом; запрос один", async () => {
+    h.device = "desktop";
+    h.shell = { user: done("CLIENT"), unavailable: false };
+    const out = await render();
+    expect(out).toContain(`${ru.app.shell.notifications}, 4 непрочитанных`);
+    expect(h.unreadCalls).toHaveLength(1);
+  });
+
+  it("телефон: на корневом экране вкладки — верхняя строка с колокольчиком, на вложенном — нет", async () => {
+    h.shell = { user: done("CLIENT"), unavailable: false };
+    h.pathname = "/v2/deals";
+    expect(await render()).toContain(`${ru.app.shell.notifications}, 4 непрочитанных`);
+    h.pathname = "/v2/deals/7";
+    expect(await render()).not.toContain("data-top-strip");
+  });
+
+  it.each(["mobile", "desktop"] as const)("%s: гостю и в сосредоточенной оболочке колокольчика нет и запроса нет", async (device) => {
+    h.device = device;
+    h.pathname = "/v2";
+    h.shell = { user: null, unavailable: false };
+    expect(await render()).not.toContain("/v2/notifications");
+    h.shell = { user: done("CLIENT", { consents: [], fullName: null, iinLast4: null, emailVerified: false }), unavailable: false };
+    expect(await render()).not.toContain("/v2/notifications");
+    expect(h.unreadCalls).toEqual([]);
+  });
+
+  it.each(["mobile", "desktop"] as const)("%s: сбой чтения счётчика не роняет оболочку — колокольчик без числа", async (device) => {
+    h.device = device;
+    h.pathname = "/v2";
+    h.shell = { user: done("CLIENT"), unavailable: false };
+    h.unread = new Error("база недоступна");
+    const out = await render();
+    expect(out).toContain("page-body");
+    expect(out).toContain('href="/v2/notifications"');
+    expect(out).not.toContain("непрочитанных");
   });
 });
 

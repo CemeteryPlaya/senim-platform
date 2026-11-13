@@ -1,17 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import { ru } from "@/i18n/ru";
 import { getShellUser } from "@/modules/identity";
+import { unreadCount } from "@/modules/notifications";
 import { cn, Toaster } from "@/kit";
 import { fontVariables } from "@/kit/fonts";
 import { getTheme } from "@/kit/theme";
 import { TOKENS } from "@/kit/tokens";
 import { getDevice } from "@/platform/device";
 import { features } from "@/platform/features";
+import { logger } from "@/platform/logger";
 import { DesktopShell } from "./_shell/DesktopShell";
 import { MobileShell } from "./_shell/MobileShell";
 import { navFor } from "./_shell/nav";
 import { pendingOnboarding } from "./_shell/onboarding";
 import { OperatorMoving } from "./_shell/OperatorMoving";
+import { PwaSetup } from "./_shell/PwaSetup";
 import "./app.css";
 
 export const metadata: Metadata = {
@@ -43,6 +46,16 @@ export async function generateViewport(): Promise<Viewport> {
   return device === "mobile" ? { themeColor, viewportFit: "cover" } : { themeColor };
 }
 
+/** Непрочитанных уведомлений; при сбое базы — 0 (колокольчик без числа), в журнал — предупреждение. */
+async function unreadOf(userId: string): Promise<number> {
+  try {
+    return await unreadCount(userId);
+  } catch (e) {
+    logger.warn("shell.unread.failed", { error: e });
+    return 0;
+  }
+}
+
 /**
  * Корневой layout нового интерфейса (v2, адреса под /v2). Свой документ, отдельный от v1 (группа (legacy)):
  * переход между ними — полная загрузка страницы.
@@ -58,6 +71,9 @@ export default async function AppLayout({ children }: Readonly<{ children: React
   const [theme, device] = await Promise.all([getTheme(), getDevice()]);
   // Пока не пройдены первые шаги (согласие, знакомство, почта) — сосредоточенная оболочка: только название и «Выйти».
   const nav = navFor(user, features(), { focus: user !== null && pendingOnboarding(user).length > 0 });
+  // Счётчик уведомлений — один запрос на запрос страницы, только вошедшему с пройденными первыми шагами (в
+  // сосредоточенной оболочке колокольчика нет, у гостя — тоже). Сбой чтения счётчика не должен ронять всю оболочку.
+  const unread = user && !nav.focus ? await unreadOf(user.id) : null;
   // Оболочка оператора — этап 5; до неё оператору вместо страниц v2 показывается заглушка со ссылкой на тот же адрес
   // в v1. Это только интерфейс, а не граница доступа: страница при этом всё равно выполняется на сервере, и права
   // проверяют она сама и действия сервера.
@@ -76,15 +92,16 @@ export default async function AppLayout({ children }: Readonly<{ children: React
     >
       <body>
         {device === "mobile" ? (
-          <MobileShell nav={nav} unavailable={unavailable}>
+          <MobileShell nav={nav} unread={unread} unavailable={unavailable}>
             {content}
           </MobileShell>
         ) : (
-          <DesktopShell nav={nav} user={user} unavailable={unavailable}>
+          <DesktopShell nav={nav} user={user} theme={theme} unread={unread ?? 0} unavailable={unavailable}>
             {content}
           </DesktopShell>
         )}
         <Toaster device={device} />
+        <PwaSetup />
       </body>
     </html>
   );

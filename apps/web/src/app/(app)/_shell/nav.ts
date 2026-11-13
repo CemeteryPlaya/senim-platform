@@ -137,3 +137,13 @@ export function visibleAction(action: AppNav["action"], pathname: string | null)
   const onLogin = pathname === R.login.href || pathname.startsWith(`${R.login.href}/`);
   return onLogin ? undefined : action;
 }
+
+/**
+ * Корневой ли это экран вкладки: адрес совпадает с адресом одной из вкладок (главная, заявки, сделки, чат, профиль), а не
+ * лежит под ним. Вложенные экраны (`/v2/deals/7`) со своей строкой «Назад» — не корневые. `null` — адреса нет: не корневой.
+ */
+export function isTabRoot(items: readonly NavItem[], pathname: string | null): boolean {
+  if (pathname === null) return false;
+  const here = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return items.some((item) => item.href === here);
+}

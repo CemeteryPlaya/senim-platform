@@ -10,13 +10,13 @@ const t = ru.app.shell.theme;
  * сервера с темой (bind). Форма серверная, но без JavaScript отправка сейчас отклоняется из-за заголовка
  * `Referrer-Policy: no-referrer` (решение владельца, см. спеку, раздел 14); с JavaScript сервер пишет куку и
  * перерисовывает страницу в новой теме. Выбранный сегмент — aria-pressed="true"; главной кнопки здесь нет (она
- * принадлежит экрану).
+ * принадлежит экрану). `legend` — подпись группы (по умолчанию «Оформление»; под одноимённым заголовком раздела — своя).
  */
-export function ThemeSwitch({ current }: { current: Theme }) {
+export function ThemeSwitch({ current, legend = t.legend }: { current: Theme; legend?: string }) {
   return (
     <form>
       <Segmented
-        legend={t.legend}
+        legend={legend}
         value={current}
         options={[
           { value: "system", label: t.system, formAction: chooseTheme.bind(null, "system") },

@@ -411,3 +411,88 @@ describe("сосредоточенная оболочка (первые шаги
     expect(c).not.toContain(ru.app.shell.logout);
   });
 });
+
+describe("колокольчик: компьютер", () => {
+  it("с непрочитанными: бейдж в ссылке, доступное имя — «Уведомления, N непрочитанных»", () => {
+    const d = html(
+      <DesktopShell nav={clientNav} user={client} unread={3}>
+        x
+      </DesktopShell>,
+    );
+    const bell = tagWith(d, 'href="/v2/notifications"');
+    expect(bell).toContain(`aria-label="${ru.app.shell.notifications}, 3 непрочитанных"`);
+    const link = d.match(/<a [^>]*href="\/v2\/notifications"[\s\S]*?<\/a>/)?.[0] ?? "";
+    expect(link).toMatch(/<span aria-hidden="true"[^>]*>3<\/span>/);
+  });
+
+  it("без непрочитанных: бейджа нет, имя — «Уведомления»; больше 99 — «99+»", () => {
+    const none = html(
+      <DesktopShell nav={clientNav} user={client} unread={0}>
+        x
+      </DesktopShell>,
+    );
+    expect(tagWith(none, 'href="/v2/notifications"')).toContain(`aria-label="${ru.app.shell.notifications}"`);
+    expect(none.match(/<a [^>]*href="\/v2\/notifications"[\s\S]*?<\/a>/)?.[0]).not.toMatch(/<span aria-hidden="true"/);
+    const many = html(
+      <DesktopShell nav={clientNav} user={client} unread={250}>
+        x
+      </DesktopShell>,
+    );
+    expect(many).toContain(">99+<");
+  });
+});
+
+describe("MobileTopBar: колокольчик на корневых экранах вкладок", () => {
+  it.each(["/v2", "/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"])("%s: строка с колокольчиком справа", (path) => {
+    nav.pathname = path;
+    const m = html(
+      <MobileShell nav={clientNav} unread={2}>
+        x
+      </MobileShell>,
+    );
+    const strip = m.match(/<div [^>]*data-top-strip[^>]*>[\s\S]*?<\/div>/)?.[0] ?? "";
+    expect(hasClass(strip, "justify-end")).toBe(true);
+    expect(strip).toContain('href="/v2/notifications"');
+    expect(strip).toContain(`${ru.app.shell.notifications}, 2 непрочитанных`);
+    // Строка стоит в области содержимого, над самим содержимым.
+    expect(m.indexOf("data-top-strip")).toBeGreaterThan(m.indexOf('id="content"'));
+    expect(m.indexOf("data-top-strip")).toBeLessThan(m.indexOf(">x<"));
+  });
+
+  it.each(["/v2/deals/7", "/v2/requests/new", "/v2/profile/data", "/v2/notifications", null])("%s: на вложенном экране и без адреса строки нет", (path) => {
+    nav.pathname = path;
+    expect(
+      html(
+        <MobileShell nav={clientNav} unread={2}>
+          x
+        </MobileShell>,
+      ),
+    ).not.toContain("data-top-strip");
+  });
+
+  it("гость и сосредоточенная оболочка: строки нет, места не занимается", () => {
+    nav.pathname = "/v2";
+    expect(html(<MobileShell nav={guestNav}>x</MobileShell>)).not.toContain("data-top-strip");
+    expect(html(<MobileShell nav={guestNav} unread={0}>x</MobileShell>)).not.toContain("data-top-strip");
+    expect(html(<MobileShell nav={focusNav} unread={0}>x</MobileShell>)).not.toContain("data-top-strip");
+    expect(html(<MobileShell nav={clientNav}>x</MobileShell>)).not.toContain("data-top-strip");
+  });
+
+  it("без непрочитанных строка есть, бейджа нет", () => {
+    nav.pathname = "/v2";
+    const m = html(
+      <MobileShell nav={clientNav} unread={0}>
+        x
+      </MobileShell>,
+    );
+    expect(m).toContain("data-top-strip");
+    expect(m).not.toMatch(/<span aria-hidden="true"[^>]*>0<\/span>/);
+  });
+});
+
+describe("ThemeSwitch: своя подпись группы", () => {
+  it("legend задаётся снаружи (раздел «Оформление» на «О сервисе»)", () => {
+    const out = html(<ThemeSwitch current="light" legend="Цветовая тема" />);
+    expect(out).toContain("Цветовая тема");
+  });
+});
