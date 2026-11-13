@@ -104,7 +104,7 @@ describe("introduceAction", () => {
     freshBrowser({ "user-agent": "vitest" });
     await atWelcome("+77000007906");
     const res = await run(introduceAction({ fullName: "Другой Человек", iin: IIN, next: "" }));
-    expect(res).toMatchObject({ ok: false, code: "CONFLICT", error: ci.iinTaken, fieldErrors: { iin: [ci.iinTaken] } });
+    expect(res).toMatchObject({ ok: false, code: "CONFLICT", error: t.iinTaken, fieldErrors: { iin: [t.iinTaken] } });
     expect(JSON.stringify(res)).not.toContain(IIN);
   });
 
