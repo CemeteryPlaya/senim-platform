@@ -71,6 +71,7 @@ export const login = {
       wrongCode: (left: number) => `Неверный код. Осталось попыток: ${left}`,
       attemptsExhausted: "Попытки закончились. Запросите новый код",
       alreadyVerified: "Эта почта уже подтверждена",
+      alreadySent: "Код уже отправлен на этот адрес. Введите его или запросите новый позже.",
     },
   },
 } as const;

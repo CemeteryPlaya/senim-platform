@@ -42,6 +42,17 @@ const callsOf = (method: string) => identityFake.calls.filter((c) => c.method ==
 
 let serial = 0;
 
+/** Тестовый ИИН для номера по порядку: не у всех основ есть контрольная цифра — берётся следующая годная. */
+function iinFor(n: number): string {
+  for (let i = 100 + n * 7; ; i += 1) {
+    try {
+      return testIin("870304", 3, i);
+    } catch {
+      // Для этой основы нет допустимой контрольной цифры.
+    }
+  }
+}
+
 /** Новый номер, согласие, ФИО и ИИН: человек на шаге почты (по желанию — выбравший «Я мастер» на входе). */
 async function atEmail(role: "client" | "executor" | null = null) {
   serial += 1;
@@ -50,7 +61,7 @@ async function atEmail(role: "client" | "executor" | null = null) {
   await run(requestCodeAction({ phone }));
   await run(verifyCodeAction({ phone, code: FAKE_OTP_CODE, next: "" }));
   await run(grantConsentAction({ agreed: "on", version: CONSENT_DOCUMENTS.PD_PROCESSING.version }));
-  await run(introduceAction({ fullName: "Сапаров Ерлан", iin: testIin("870304", 3, 100 + serial), next: "" }));
+  await run(introduceAction({ fullName: "Сапаров Ерлан", iin: iinFor(serial), next: "" }));
   const user = (await getCurrentUser())!;
   expect(user.emailVerified).toBe(false);
   return user;
@@ -99,7 +110,18 @@ describe("requestEmailCodeAction", () => {
     const res = await run(requestEmailCodeAction({ email: ` ${ADDRESS.toUpperCase()}`, next: "" }));
     expect(res).toEqual({ ok: true, data: { email: ADDRESS, demoCode: null, alreadySent: true } });
     // Второго кода нет: identity отказал, прежний код подтверждает почту.
-    expect(await run(verifyEmailCodeAction({ code, next: NEXT }))).toEqual({ redirect: NEXT });
+    expect(await run(verifyEmailCodeAction({ code, email: ADDRESS, next: NEXT }))).toEqual({ redirect: NEXT });
+  });
+
+  it("в ту же минуту на другой адрес — ошибка у поля адреса «код отправлен на другой адрес», шага кода нет", async () => {
+    await atEmail();
+    await sentCode();
+    expect(await run(requestEmailCodeAction({ email: "other@mail.kz", next: "" }))).toMatchObject({
+      ok: false,
+      code: "RATE_LIMITED",
+      error: t.errors.otherAddress,
+      fieldErrors: { email: [t.errors.otherAddress] },
+    });
   });
 
   it("лимит в час — текст из ru", async () => {
@@ -116,7 +138,7 @@ describe("requestEmailCodeAction", () => {
   it("почта уже подтверждена в identity (отставшая проекция, другая вкладка) — не ошибка: дальше по nextStepFor", async () => {
     const user = await atEmail();
     const code = await sentCode();
-    await run(verifyEmailCodeAction({ code, next: "" }));
+    await run(verifyEmailCodeAction({ code, email: ADDRESS, next: "" }));
     // Проекция отстала: web снова считает почту неподтверждённой, identity — подтверждённой.
     await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: null } });
     identityFake.now = () => new Date(Date.now() + 61_000);
@@ -127,7 +149,7 @@ describe("requestEmailCodeAction", () => {
 
   it("почта уже подтверждена в web (вторая вкладка) — дальше без обращения к identity", async () => {
     await atEmail();
-    await run(verifyEmailCodeAction({ code: await sentCode(), next: "" }));
+    await run(verifyEmailCodeAction({ code: await sentCode(), email: ADDRESS, next: "" }));
     const before = callsOf("requestEmailCode").length;
     expect(await run(requestEmailCodeAction({ email: "other@mail.kz", next: NEXT }))).toEqual({ redirect: NEXT });
     expect(callsOf("requestEmailCode")).toHaveLength(before);
@@ -138,7 +160,7 @@ describe("verifyEmailCodeAction", () => {
   it("верный код: почта подтверждена в проекции, выбор роли забыт, переход на next", async () => {
     const user = await atEmail();
     const code = await sentCode();
-    expect(await run(verifyEmailCodeAction({ code: `${code.slice(0, 3)} ${code.slice(3)}`, next: NEXT }))).toEqual({ redirect: NEXT });
+    expect(await run(verifyEmailCodeAction({ code: `${code.slice(0, 3)} ${code.slice(3)}`, email: ADDRESS, next: NEXT }))).toEqual({ redirect: NEXT });
     expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerifiedAt).not.toBeNull();
     expect(identityFake.personOf(user.id)).toMatchObject({ email: ADDRESS, emailVerified: true });
     expect(deletedCookies.map((c) => c.name)).toContain(roleCookieName());
@@ -146,20 +168,20 @@ describe("verifyEmailCodeAction", () => {
 
   it("без next — дом покупателя; чужой next отбрасывается", async () => {
     await atEmail();
-    expect(await run(verifyEmailCodeAction({ code: await sentCode(), next: "https://evil.example/x" }))).toEqual({ redirect: "/v2" });
+    expect(await run(verifyEmailCodeAction({ code: await sentCode(), email: ADDRESS, next: "https://evil.example/x" }))).toEqual({ redirect: "/v2" });
   });
 
   it("выбравший «Я мастер» на входе — на регистрацию мастера; выбор забыт", async () => {
     await atEmail("executor");
     expect(await recallRole()).toBe("EXECUTOR");
-    expect(await run(verifyEmailCodeAction({ code: await sentCode(), next: "" }))).toEqual({ redirect: "/v2/register/executor" });
+    expect(await run(verifyEmailCodeAction({ code: await sentCode(), email: ADDRESS, next: "" }))).toEqual({ redirect: "/v2/register/executor" });
     expect(await recallRole()).toBeNull();
   });
 
   it("неверный код — у поля, с числом оставшихся попыток", async () => {
     await atEmail();
     const code = await sentCode();
-    expect(await run(verifyEmailCodeAction({ code: wrong(code), next: "" }))).toMatchObject({
+    expect(await run(verifyEmailCodeAction({ code: wrong(code), email: ADDRESS, next: "" }))).toMatchObject({
       ok: false,
       code: "VALIDATION",
       fieldErrors: { code: [e.wrongCode(4)] },
@@ -170,17 +192,30 @@ describe("verifyEmailCodeAction", () => {
     await atEmail();
     const code = await sentCode();
     identityFake.now = () => new Date(Date.now() + 11 * 60_000);
-    expect(await run(verifyEmailCodeAction({ code, next: "" }))).toMatchObject({
+    expect(await run(verifyEmailCodeAction({ code, email: ADDRESS, next: "" }))).toMatchObject({
       ok: false,
       code: "VALIDATION",
       fieldErrors: { code: [e.expired] },
     });
   });
 
+  it("подтверждается ровно показанный адрес: код выдан на другой — «код устарел» у поля, почта не подтверждена", async () => {
+    const user = await atEmail();
+    const code = await sentCode();
+    expect(await run(verifyEmailCodeAction({ code, email: "other@mail.kz", next: "" }))).toMatchObject({
+      ok: false,
+      code: "VALIDATION",
+      fieldErrors: { code: [e.expired] },
+    });
+    expect(identityFake.personOf(user.id)).toMatchObject({ emailVerified: false });
+    // Попытка не потрачена: верный адрес с тем же кодом подтверждает.
+    expect(await run(verifyEmailCodeAction({ code, email: ADDRESS, next: NEXT }))).toEqual({ redirect: NEXT });
+  });
+
   it("не 6 цифр — ошибка у поля без обращения к identity (попытка не тратится)", async () => {
     await atEmail();
     await sentCode();
-    expect(await run(verifyEmailCodeAction({ code: "12 3", next: "" }))).toMatchObject({
+    expect(await run(verifyEmailCodeAction({ code: "12 3", email: ADDRESS, next: "" }))).toMatchObject({
       ok: false,
       code: "VALIDATION",
       fieldErrors: { code: [e.codeFormat] },
@@ -191,15 +226,15 @@ describe("verifyEmailCodeAction", () => {
   it("повтор того же кода из второй вкладки — не ошибка: дальше по nextStepFor", async () => {
     await atEmail();
     const code = await sentCode();
-    expect(await run(verifyEmailCodeAction({ code, next: NEXT }))).toEqual({ redirect: NEXT });
-    expect(await run(verifyEmailCodeAction({ code, next: NEXT }))).toEqual({ redirect: NEXT });
+    expect(await run(verifyEmailCodeAction({ code, email: ADDRESS, next: NEXT }))).toEqual({ redirect: NEXT });
+    expect(await run(verifyEmailCodeAction({ code, email: ADDRESS, next: NEXT }))).toEqual({ redirect: NEXT });
   });
 });
 
 describe("кто может", () => {
   it("гость — UNAUTHENTICATED", async () => {
     expect(await run(requestEmailCodeAction({ email: ADDRESS, next: "" }))).toMatchObject({ ok: false, code: "UNAUTHENTICATED" });
-    expect(await run(verifyEmailCodeAction({ code: "123456", next: "" }))).toMatchObject({ ok: false, code: "UNAUTHENTICATED" });
+    expect(await run(verifyEmailCodeAction({ code: "123456", email: ADDRESS, next: "" }))).toMatchObject({ ok: false, code: "UNAUTHENTICATED" });
   });
 
   it("оператор — FORBIDDEN, identity не вызывается (шага почты у сотрудников нет)", async () => {

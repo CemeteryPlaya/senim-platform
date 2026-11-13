@@ -99,12 +99,21 @@ describe("requestEmailCode", () => {
     expect([err.code, err.message, err.details]).toEqual(["VALIDATION", t.invalid, { fieldErrors: { email: [t.invalid] } }]);
   });
 
-  it("второй код в ту же минуту — «слишком часто»; шестой за час — «слишком много»", async () => {
+  it("в ту же минуту на тот же адрес — «код уже отправлен» (своя причина), на другой — «слишком часто»", async () => {
+    const user = await signedIn();
+    await requestEmailCode(user, ADDRESS);
+    const same = await errorOf(requestEmailCode(user, ` ${ADDRESS.toUpperCase()}`));
+    expect([same.code, same.message, same.details]).toEqual(["RATE_LIMITED", t.alreadySent, { reason: "EMAIL_CODE_ALREADY_SENT" }]);
+    const other = await errorOf(requestEmailCode(user, "other@example.kz"));
+    expect([other.code, other.message, other.details]).toEqual(["RATE_LIMITED", t.tooOften, { reason: "CODE_TOO_OFTEN" }]);
+  });
+
+  it("второй код в ту же минуту на другой адрес — «слишком часто»; шестой за час — «слишком много»", async () => {
     const user = await signedIn();
     let now = Date.now();
     identityFake.now = () => new Date(now);
     await requestEmailCode(user, ADDRESS);
-    const often = await errorOf(requestEmailCode(user, ADDRESS));
+    const often = await errorOf(requestEmailCode(user, "other@example.kz"));
     expect([often.code, often.message]).toEqual(["RATE_LIMITED", t.tooOften]);
 
     // Отказ «слишком часто» до часового счётчика не дошёл (как в Go: лимиты по очереди, первый отказ — конец).
@@ -133,7 +142,7 @@ describe("requestEmailCode", () => {
     const user = await signedIn();
     let now = Date.now();
     identityFake.now = () => new Date(now);
-    await verifyEmailCode(user, await codeFor(user));
+    await verifyEmailCode(user, await codeFor(user), ADDRESS);
     now += 61_000;
     const before = identityFake.auditEvents.length;
 
@@ -145,7 +154,7 @@ describe("requestEmailCode", () => {
 
   it("уже подтверждён в identity, а проекция отстала — проекция обновляется, шаг почты больше не нужен", async () => {
     const user = await signedIn();
-    await verifyEmailCode(user, await codeFor(user));
+    await verifyEmailCode(user, await codeFor(user), ADDRESS);
     await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: null } });
     const stale = (await getCurrentUser())!;
     expect(needsEmail(stale)).toBe(true);
@@ -175,7 +184,7 @@ describe("verifyEmailCode", () => {
     expect(user.emailVerified).toBe(false);
     const code = await codeFor(user);
 
-    await verifyEmailCode(user, ` ${code} `);
+    await verifyEmailCode(user, ` ${code} `, ADDRESS);
 
     expect(identityFake.personOf(user.id)).toMatchObject({ email: ADDRESS, emailVerified: true });
     const saved = await row(user.id);
@@ -190,11 +199,32 @@ describe("verifyEmailCode", () => {
     expect(JSON.stringify(events)).not.toContain("example.kz");
   });
 
+  it("подтверждается ровно показанный адрес: другой адрес — «код устарел» у поля, попытка не тратится; тот же в другом регистре — успех", async () => {
+    const user = await signedIn();
+    const code = await codeFor(user);
+    const err = await errorOf(verifyEmailCode(user, code, "other@example.kz"));
+    expect([err.code, err.message, err.details?.["fieldErrors"]]).toEqual(["VALIDATION", t.expired, { code: [t.expired] }]);
+    expect(callsOf("verifyEmailCode").at(-1)).toMatchObject({ email: "other@example.kz" });
+    expect(identityFake.personOf(user.id)).toMatchObject({ email: "", emailVerified: false });
+
+    await verifyEmailCode(user, code, `  ${ADDRESS.toUpperCase()} `);
+    expect(callsOf("verifyEmailCode").at(-1)).toMatchObject({ email: ADDRESS });
+    expect(identityFake.personOf(user.id)).toMatchObject({ email: ADDRESS, emailVerified: true });
+  });
+
+  it("неверный адрес на экране — ошибка у поля email без вызова identity", async () => {
+    const user = await signedIn();
+    const code = await codeFor(user);
+    const err = await errorOf(verifyEmailCode(user, code, "erlan@"));
+    expect([err.code, err.details?.["fieldErrors"]]).toEqual(["VALIDATION", { email: [t.invalid] }]);
+    expect(callsOf("verifyEmailCode")).toHaveLength(0);
+  });
+
   it("неверный код — VALIDATION «Неверный код. Осталось попыток: 4»; адрес не подтверждён", async () => {
     const user = await signedIn();
     const code = await codeFor(user);
 
-    const err = await errorOf(verifyEmailCode(user, wrong(code)));
+    const err = await errorOf(verifyEmailCode(user, wrong(code), ADDRESS));
 
     expect([err.code, err.message]).toEqual(["VALIDATION", t.wrongCode(4)]);
     expect(t.wrongCode(4)).toBe("Неверный код. Осталось попыток: 4");
@@ -205,23 +235,23 @@ describe("verifyEmailCode", () => {
   it("пятый неверный код — попытки закончились; верный после этого тоже не принимается", async () => {
     const user = await signedIn();
     const code = await codeFor(user);
-    for (let left = 4; left >= 1; left--) expect((await errorOf(verifyEmailCode(user, wrong(code)))).message).toBe(t.wrongCode(left));
+    for (let left = 4; left >= 1; left--) expect((await errorOf(verifyEmailCode(user, wrong(code), ADDRESS))).message).toBe(t.wrongCode(left));
 
-    const fifth = await errorOf(verifyEmailCode(user, wrong(code)));
+    const fifth = await errorOf(verifyEmailCode(user, wrong(code), ADDRESS));
     expect([fifth.code, fifth.message]).toEqual(["RATE_LIMITED", t.attemptsExhausted]);
-    expect((await errorOf(verifyEmailCode(user, code))).message).toBe(t.attemptsExhausted);
+    expect((await errorOf(verifyEmailCode(user, code, ADDRESS))).message).toBe(t.attemptsExhausted);
     expect(identityFake.personOf(user.id).emailVerified).toBe(false);
   });
 
   it("код истёк (10 минут) или не запрашивался — «Код устарел»", async () => {
     const user = await signedIn();
-    expect((await errorOf(verifyEmailCode(user, "123456"))).message).toBe(t.expired);
+    expect((await errorOf(verifyEmailCode(user, "123456", ADDRESS))).message).toBe(t.expired);
 
     let now = Date.now();
     identityFake.now = () => new Date(now);
     const code = await codeFor(user);
     now += 10 * 60_000 + 1;
-    const err = await errorOf(verifyEmailCode(user, code));
+    const err = await errorOf(verifyEmailCode(user, code, ADDRESS));
     expect([err.code, err.message]).toEqual(["VALIDATION", t.expired]);
   });
 
@@ -232,8 +262,8 @@ describe("verifyEmailCode", () => {
     const old = await codeFor(user, "old@example.kz");
     now += 61_000;
     const fresh = await codeFor(user);
-    if (old !== fresh) expect((await errorOf(verifyEmailCode(user, old))).message).toBe(t.wrongCode(4));
-    await verifyEmailCode(user, fresh);
+    if (old !== fresh) expect((await errorOf(verifyEmailCode(user, old, ADDRESS))).message).toBe(t.wrongCode(4));
+    await verifyEmailCode(user, fresh, ADDRESS);
     expect(identityFake.personOf(user.id)).toMatchObject({ email: ADDRESS, emailVerified: true });
   });
 
@@ -242,7 +272,7 @@ describe("verifyEmailCode", () => {
     const code = await codeFor(user);
     identityFake.failNextAfterEffect();
 
-    await verifyEmailCode(user, code);
+    await verifyEmailCode(user, code, ADDRESS);
 
     const [first, second] = callsOf("verifyEmailCode");
     expect(second.idempotencyKey).toBe(first.idempotencyKey);
@@ -252,7 +282,7 @@ describe("verifyEmailCode", () => {
   it("ввод очищается до цифр: «12 34-56» уходит как 123456", async () => {
     const user = await signedIn();
     const code = await codeFor(user);
-    await verifyEmailCode(user, `${code.slice(0, 2)} ${code.slice(2, 4)}-${code.slice(4)}`);
+    await verifyEmailCode(user, `${code.slice(0, 2)} ${code.slice(2, 4)}-${code.slice(4)}`, ADDRESS);
     expect(callsOf("verifyEmailCode")[0]).toMatchObject({ code });
     expect(identityFake.personOf(user.id).emailVerified).toBe(true);
   });
@@ -261,12 +291,12 @@ describe("verifyEmailCode", () => {
     const user = await signedIn();
     const code = await codeFor(user);
     for (const bad of ["", "12345", "1234567", "abcdef", "12 34 5"]) {
-      const err = await errorOf(verifyEmailCode(user, bad));
+      const err = await errorOf(verifyEmailCode(user, bad, ADDRESS));
       expect([err.code, err.message, err.details]).toEqual(["VALIDATION", t.codeFormat, { fieldErrors: { code: [t.codeFormat] } }]);
     }
     expect(callsOf("verifyEmailCode")).toHaveLength(0);
     // Все 5 попыток на месте: четвёртый неверный ещё оставляет одну.
-    for (let left = 4; left >= 1; left--) expect((await errorOf(verifyEmailCode(user, wrong(code)))).message).toBe(t.wrongCode(left));
+    for (let left = 4; left >= 1; left--) expect((await errorOf(verifyEmailCode(user, wrong(code), ADDRESS))).message).toBe(t.wrongCode(left));
   });
 
   it("больше 20 проверок в сутки — «слишком много попыток»", async () => {
@@ -275,11 +305,11 @@ describe("verifyEmailCode", () => {
     identityFake.now = () => new Date(now);
     for (let i = 0; i < 4; i++) {
       const code = await codeFor(user);
-      for (let n = 0; n < 5; n++) await errorOf(verifyEmailCode(user, wrong(code)));
+      for (let n = 0; n < 5; n++) await errorOf(verifyEmailCode(user, wrong(code), ADDRESS));
       now += 61_000;
     }
     const code = await codeFor(user);
-    const err = await errorOf(verifyEmailCode(user, code));
+    const err = await errorOf(verifyEmailCode(user, code, ADDRESS));
     expect([err.code, err.message]).toEqual(["RATE_LIMITED", t.tooMany]);
     expect(identityFake.personOf(user.id).emailVerified).toBe(false);
   });
@@ -288,30 +318,30 @@ describe("verifyEmailCode", () => {
     const user = await signedIn();
     let now = Date.now();
     identityFake.now = () => new Date(now);
-    await verifyEmailCode(user, await codeFor(user));
+    await verifyEmailCode(user, await codeFor(user), ADDRESS);
     await updateContacts(user, { instagram: "", email: "other@example.kz" });
     expect((await row(user.id)).emailVerifiedAt).toBeNull();
     now += 61_000;
-    await verifyEmailCode(user, await codeFor(user));
+    await verifyEmailCode(user, await codeFor(user), ADDRESS);
     expect(await row(user.id)).toMatchObject({ email: ADDRESS, emailVerifiedAt: expect.any(Date) });
   });
 
   it("отказы по коду — у поля code; лимит проверок — ошибка формы", async () => {
     const user = await signedIn();
     const code = await codeFor(user);
-    expect((await errorOf(verifyEmailCode(user, wrong(code)))).details).toEqual({ fieldErrors: { code: [t.wrongCode(4)] } });
+    expect((await errorOf(verifyEmailCode(user, wrong(code), ADDRESS))).details).toEqual({ fieldErrors: { code: [t.wrongCode(4)] } });
     identityFake.failNextWithCode("email_code_too_many");
-    const many = await errorOf(verifyEmailCode(user, code));
+    const many = await errorOf(verifyEmailCode(user, code, ADDRESS));
     expect([many.code, many.message, many.details]).toEqual(["RATE_LIMITED", t.tooMany, undefined]);
   });
 
   it("две вкладки: второй ввод того же кода после успеха в первой — тоже успех (identity: код погашен, почта подтверждена)", async () => {
     const user = await signedIn();
     const code = await codeFor(user);
-    await verifyEmailCode(user, code); // первая вкладка
+    await verifyEmailCode(user, code, ADDRESS); // первая вкладка
     await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: null } }); // вторая ещё не знает о подтверждении
 
-    await expect(verifyEmailCode(user, code)).resolves.toBeUndefined(); // `user` — снимок до подтверждения
+    await expect(verifyEmailCode(user, code, ADDRESS)).resolves.toBeUndefined(); // `user` — снимок до подтверждения
 
     expect(callsOf("getProfile")).toHaveLength(1);
     expect((await row(user.id)).emailVerifiedAt).toBeInstanceOf(Date);
@@ -324,25 +354,25 @@ describe("verifyEmailCode", () => {
     identityFake.now = () => new Date(now);
     const code = await codeFor(user);
     now += 10 * 60_000 + 1;
-    const err = await errorOf(verifyEmailCode(user, code));
+    const err = await errorOf(verifyEmailCode(user, code, ADDRESS));
     expect([err.code, err.details]).toEqual(["VALIDATION", { fieldErrors: { code: [t.expired] }, reason: "EMAIL_CODE_EXPIRED" }]);
     expect(callsOf("getProfile")).toHaveLength(1);
 
     // Подтверждённый человек подтверждает новый адрес: прежнее подтверждение — не успех нового.
     now += 61_000;
-    await verifyEmailCode(user, await codeFor(user));
+    await verifyEmailCode(user, await codeFor(user), ADDRESS);
     const verified = (await getCurrentUser())!;
     now += 61_000;
     const fresh = await codeFor(verified, "new@example.kz");
     now += 10 * 60_000 + 1;
-    expect((await errorOf(verifyEmailCode(verified, fresh))).message).toBe(t.expired);
+    expect((await errorOf(verifyEmailCode(verified, fresh, "new@example.kz"))).message).toBe(t.expired);
     expect(callsOf("getProfile")).toHaveLength(1);
     expect(identityFake.personOf(user.id).email).toBe(ADDRESS);
   });
 
   it("сбой GetProfile после «уже подтверждена» — «сервис недоступен», а не «подтверждена»: иначе шаг почты зациклился бы", async () => {
     const user = await signedIn();
-    await verifyEmailCode(user, await codeFor(user));
+    await verifyEmailCode(user, await codeFor(user), ADDRESS);
     await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: null } });
     identityFake.now = () => new Date(Date.now() + 61_000);
     identityFake.passNext(); // requestEmailCode → email_already_verified
@@ -353,7 +383,7 @@ describe("verifyEmailCode", () => {
 
   it("оператору — FORBIDDEN без вызова identity", async () => {
     const operator = await signedIn(() => makeOperator());
-    expect((await errorOf(verifyEmailCode(operator, "123456"))).code).toBe("FORBIDDEN");
+    expect((await errorOf(verifyEmailCode(operator, "123456", ADDRESS))).code).toBe("FORBIDDEN");
     expect(callsOf("verifyEmailCode")).toHaveLength(0);
   });
 });
@@ -361,7 +391,7 @@ describe("verifyEmailCode", () => {
 describe("проекция почты и прежний экран контактов (updateContacts)", () => {
   it("другой адрес через старый экран снимает подтверждение в identity и в проекции", async () => {
     const user = await signedIn();
-    await verifyEmailCode(user, await codeFor(user));
+    await verifyEmailCode(user, await codeFor(user), ADDRESS);
 
     await updateContacts(user, { instagram: "", email: "other@example.kz" });
 
@@ -372,7 +402,7 @@ describe("проекция почты и прежний экран контак�
 
   it("тот же адрес (в другом регистре) подтверждение оставляет; пустой — снимает", async () => {
     const user = await signedIn();
-    await verifyEmailCode(user, await codeFor(user));
+    await verifyEmailCode(user, await codeFor(user), ADDRESS);
     const verifiedAt = (await row(user.id)).emailVerifiedAt;
 
     await updateContacts(user, { instagram: "dala", email: ADDRESS.toUpperCase() });
@@ -387,7 +417,7 @@ describe("проекция почты и прежний экран контак�
     const user = await signedIn();
     const code = await codeFor(user);
     await updateContacts(user, { instagram: "", email: "other@example.kz" });
-    expect((await errorOf(verifyEmailCode(user, code))).message).toBe(t.expired);
+    expect((await errorOf(verifyEmailCode(user, code, ADDRESS))).message).toBe(t.expired);
   });
 
   it("человек сида демо получает подтверждённую почту в проекции (как её отдаёт сид identity)", async () => {
@@ -426,7 +456,7 @@ describe("needsEmail", () => {
     await signInAs(executor);
     const asExecutor = (await getCurrentUser())!;
     expect(needsEmail(asExecutor)).toBe(true);
-    await verifyEmailCode(asExecutor, await codeFor(asExecutor));
+    await verifyEmailCode(asExecutor, await codeFor(asExecutor), ADDRESS);
     const after = (await getCurrentUser())!;
     expect(needsEmail(after)).toBe(false);
     expect(needsEmail(actingAs(after, "CLIENT"))).toBe(false);

@@ -1,74 +1,24 @@
 import { expect, test, type Page } from "@playwright/test";
-import { testIin } from "@/demo/kz-id";
 import { ru } from "@/i18n/ru";
+import { freshEmail, freshIin, freshPhone, loginV2, open, readShownCode } from "./support";
 
 /**
  * Почта — последний шаг после входа в новом интерфейсе: адрес → код из письма (код с экрана: у identity стенда заглушка
  * отправки писем). Полный путь нового покупателя до главной и нового мастера до регистрации мастера; существующий человек
  * без почты останавливается на шаге и после подтверждения попадает туда, куда шёл; двойной клик «Получить код» — один
- * запрос. Номера, ИИН и адреса каждый раз новые: identity стенда помнит их между прогонами. Подписи — только из ru.
+ * запрос; подтверждается ровно адрес, показанный на экране. Номера, ИИН и адреса каждый раз новые: identity стенда помнит
+ * их между прогонами. Подписи — только из ru.
  */
 
-const login = ru.app.login;
 const consent = ru.app.onboarding.consent;
 const welcome = ru.app.onboarding.welcome;
 const t = ru.app.onboarding.email;
 const errors = ru.app.login.email.errors;
 const shell = ru.app.shell;
 
-/** Новый казахстанский мобильный номер: «+7 7XX XXX XX XX». */
-function freshPhone(): string {
-  const national = `7${Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join("")}`;
-  return `+7 ${national.slice(0, 3)} ${national.slice(3, 6)} ${national.slice(6, 8)} ${national.slice(8)}`;
-}
-
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** Новый тестовый ИИН с верной контрольной цифрой (не все основы допустимы — повтор). */
-function freshIin(): string {
-  for (;;) {
-    const birth = `${pad(70 + Math.floor(Math.random() * 30))}${pad(1 + Math.floor(Math.random() * 12))}${pad(1 + Math.floor(Math.random() * 28))}`;
-    try {
-      return testIin(birth, 3, 1 + Math.floor(Math.random() * 9999));
-    } catch {
-      // Для этой основы нет допустимой контрольной цифры.
-    }
-  }
-}
-
-/** Новый адрес почты (строчными — так его показывает экран после нормализации). */
-const freshEmail = () => `e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
-
 const heading = (page: Page, name: string) => page.getByRole("heading", { level: 1, name });
 const primary = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
-
-/** Открыть адрес и дождаться загрузки скриптов: нажатие до гидратации отправило бы форму браузером, а не действием. */
-async function open(page: Page, path: string) {
-  await page.goto(path);
-  await page.waitForLoadState("networkidle");
-}
-
-/** Код из плашки на экране по шаблону текста `shown` («…Ваш код: NNNNNN»). */
-async function shownCode(page: Page, shown: (code: string) => string): Promise<string> {
-  const notice = page.getByText(new RegExp(shown("\\d{6}")));
-  await expect(notice).toBeVisible();
-  const code = (await notice.textContent())?.match(/\d{6}/)?.[0];
-  if (!code) throw new Error("Код не найден на экране");
-  return code;
-}
-
-/** Вход по номеру через все шаги входа (роль → номер → код). Заканчивается, когда адрес ушёл с экрана входа. */
-async function signIn(page: Page, phone: string, options: { executor?: boolean; next?: string } = {}) {
-  await open(page, options.next ? `/v2/login?${new URLSearchParams({ next: options.next })}` : "/v2/login");
-  if (options.executor) await page.getByText(login.role.executor, { exact: true }).click();
-  await primary(page, login.role.submit).click();
-  await page.getByLabel(login.phone.label).fill(phone);
-  await primary(page, login.phone.submit).click();
-  await page.getByLabel(login.code.label).fill(await shownCode(page, login.code.shownCode));
-  await primary(page, login.code.submit).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/v2/login"));
-  await page.waitForLoadState("networkidle");
-}
+const emailCode = (page: Page) => readShownCode(page, t.code.shownCode);
 
 /** Согласие и знакомство: человек приходит на шаг почты. */
 async function toEmailStep(page: Page) {
@@ -86,7 +36,7 @@ async function toEmailStep(page: Page) {
 async function confirmEmail(page: Page, email = freshEmail()) {
   await page.getByLabel(t.address.label).fill(email);
   await primary(page, t.address.submit).click();
-  await page.getByLabel(t.code.label).fill(await shownCode(page, t.code.shownCode));
+  await page.getByLabel(t.code.label).fill(await emailCode(page));
   await primary(page, t.code.submit).click();
 }
 
@@ -103,7 +53,7 @@ test.beforeEach(async ({ context }) => {
 test("новый покупатель: почта с ошибками у полей, неверный код, подтверждение — главная; шаг больше не открывается", async ({
   page,
 }) => {
-  await signIn(page, freshPhone());
+  await loginV2(page, freshPhone().typed);
   await toEmailStep(page);
 
   // Шаг 3 из 3, сосредоточенная оболочка, в доке одна кнопка.
@@ -142,7 +92,7 @@ test("новый покупатель: почта с ошибками у пол�
   await expect(page.getByRole("button", { name: new RegExp(`^${t.code.resend}`) })).toHaveCount(0);
   await expect(page.locator("[data-action-dock]").getByRole("button")).toHaveCount(1);
   await expectScreenRules(page);
-  const code = await shownCode(page, t.code.shownCode);
+  const code = await emailCode(page);
 
   // Неверный код — у поля, с числом оставшихся попыток.
   await page.getByLabel(t.code.label).fill(code === "000000" ? "111111" : "000000");
@@ -167,7 +117,7 @@ test("новый покупатель: почта с ошибками у пол�
 });
 
 test("новый мастер: после почты — регистрация мастера", async ({ page }) => {
-  await signIn(page, freshPhone(), { executor: true });
+  await loginV2(page, freshPhone().typed, { role: "executor" });
   await toEmailStep(page);
   await confirmEmail(page);
   await expect(page).toHaveURL(/\/v2\/register\/executor$/);
@@ -176,7 +126,7 @@ test("новый мастер: после почты — регистрация 
 test("двойной клик «Получить код» — один запрос и один код; перезагрузка шага кода — шаг адреса, повтор в ту же минуту — снова шаг кода с прежним кодом", async ({
   page,
 }) => {
-  await signIn(page, freshPhone());
+  await loginV2(page, freshPhone().typed);
   await toEmailStep(page);
 
   let actions = 0;
@@ -190,7 +140,7 @@ test("двойной клик «Получить код» — один запр�
   await expect(page.getByText(new RegExp(t.code.shownCode("\\d{6}")))).toHaveCount(1);
   await page.waitForLoadState("networkidle");
   expect(actions).toBe(1);
-  const code = await shownCode(page, t.code.shownCode);
+  const code = await emailCode(page);
 
   // Адрес почты живёт только в памяти страницы: после перезагрузки — шаг адреса с пустым полем.
   await page.reload();
@@ -211,22 +161,46 @@ test("двойной клик «Получить код» — один запр�
   await expect(page).toHaveURL(/\/v2$/);
 });
 
+test("код на A → перезагрузка → B в ту же минуту: ошибка у поля, шага кода «для B» нет, A не подтверждена", async ({ page }) => {
+  await loginV2(page, freshPhone().typed);
+  await toEmailStep(page);
+  const first = freshEmail();
+  await page.getByLabel(t.address.label).fill(first);
+  await primary(page, t.address.submit).click();
+  await expect(heading(page, t.code.title)).toBeVisible();
+
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  const second = freshEmail();
+  await page.getByLabel(t.address.label).fill(second);
+  await primary(page, t.address.submit).click();
+  await expect(page.getByText(t.errors.otherAddress)).toBeVisible();
+  await expect(page.getByLabel(t.address.label)).toHaveAttribute("aria-invalid", "true");
+  await expect(heading(page, t.address.title)).toBeVisible();
+  await expect(page.getByText(t.code.sentTo(second))).toHaveCount(0);
+  await expect(page.getByText(t.code.alreadySent)).toHaveCount(0);
+
+  // Почта не подтверждена: шаг почты по-прежнему открывается.
+  await open(page, "/v2/email");
+  await expect(heading(page, t.address.title)).toBeVisible();
+});
+
 test("существующий человек без почты: после входа — шаг почты с сохранённым next, после подтверждения — туда, куда шёл", async ({
   page,
 }, info) => {
   // Повторный вход тем же номером возможен через минуту (лимит кода identity) — сценарий идёт на одном устройстве.
   test.skip(info.project.name !== "desktop", "повторный вход ждёт минуту — достаточно одного устройства");
   test.setTimeout(180_000);
-  const phone = freshPhone();
+  const phone = freshPhone().typed;
   const firstCodeAt = Date.now();
-  await signIn(page, phone);
+  await loginV2(page, phone);
   await toEmailStep(page);
   await primary(page, shell.logout).click();
   await expect(page).toHaveURL(/\/v2\/login$/);
 
   await page.waitForTimeout(Math.max(0, firstCodeAt + 62_000 - Date.now()));
   const next = "/v2/about";
-  await signIn(page, phone, { next });
+  await loginV2(page, phone, { next });
   await expect(page).toHaveURL(new RegExp(`/v2/email\\?next=${encodeURIComponent(next)}$`));
   await expect(page.getByText(ru.app.kit.wizard.step(3, 3))).toBeVisible();
 

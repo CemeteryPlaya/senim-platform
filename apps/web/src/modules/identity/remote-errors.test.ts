@@ -4,7 +4,7 @@ import { ru } from "@/i18n/ru";
 import { AppError, fail, type ErrorCode } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { codedError } from "../../../test/stubs/identity";
-import { IDENTITY_ERROR_CODES, identityFailure, isCodeTooOften, isCodedRefusal } from "./remote-errors";
+import { IDENTITY_ERROR_CODES, identityFailure, isCodeTooOften, isCodedRefusal, isEmailCodeAlreadySent } from "./remote-errors";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -83,6 +83,7 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   email_code_wrong: { code: "VALIDATION", message: email.wrongCode(3), params: { left: "3" } },
   email_code_attempts_exhausted: { code: "RATE_LIMITED", message: email.attemptsExhausted },
   email_already_verified: { code: "CONFLICT", message: email.alreadyVerified },
+  email_code_already_sent: { code: "RATE_LIMITED", message: email.alreadySent },
 };
 
 describe("identityFailure", () => {
@@ -94,8 +95,8 @@ describe("identityFailure", () => {
     expect(err.message).toBe(want.message);
   });
 
-  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов, раскрытия, KYC, согласий, почты: 53 кода", () => {
-    expect(IDENTITY_ERROR_CODES).toHaveLength(53);
+  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов, раскрытия, KYC, согласий, почты: 54 кода", () => {
+    expect(IDENTITY_ERROR_CODES).toHaveLength(54);
     expect(Object.keys(table).sort()).toEqual([...IDENTITY_ERROR_CODES].sort());
   });
 
@@ -129,6 +130,15 @@ describe("identityFailure", () => {
     expect(many.details).toBeUndefined();
     expect(isCodeTooOften(many)).toBe(false);
     expect(many.message).toBe(email.tooMany);
+    // «Код на этот адрес уже выдан» — своя причина: экран почты ведёт на шаг кода только по ней.
+    const sent = caught(codedError("email_code_already_sent", Code.ResourceExhausted));
+    expect([sent.code, sent.details, isEmailCodeAlreadySent(sent), isCodeTooOften(sent)]).toEqual([
+      "RATE_LIMITED",
+      { reason: "EMAIL_CODE_ALREADY_SENT" },
+      true,
+      false,
+    ]);
+    expect(isEmailCodeAlreadySent(often)).toBe(false);
   });
 
   it("вход: otp_too_often — ошибка формы с той же машинной причиной; прочие лимиты входа — без неё", () => {

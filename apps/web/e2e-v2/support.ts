@@ -75,9 +75,9 @@ const primary = (page: Page, name: string) => page.getByRole("button", { name, e
  * входа: новый номер — на первый шаг онбординга, известный — туда, где он остановился. `phone` — в любом виде, который
  * принимает поле («+7 777 123 45 67» или «7771234567»).
  */
-export async function loginV2(page: Page, phone: string, options: { role?: LoginRole } = {}): Promise<void> {
+export async function loginV2(page: Page, phone: string, options: { role?: LoginRole; next?: string } = {}): Promise<void> {
   const t = login;
-  await open(page, "/v2/login");
+  await open(page, options.next ? `/v2/login?${new URLSearchParams({ next: options.next })}` : "/v2/login");
   if (options.role === "executor") await page.getByText(t.role.executor, { exact: true }).click();
   await primary(page, t.role.submit).click();
   await page.getByLabel(t.phone.label).waitFor({ state: "visible" });

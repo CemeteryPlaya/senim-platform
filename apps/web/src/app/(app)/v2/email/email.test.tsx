@@ -31,7 +31,7 @@ vi.mock("../../_shell/form", () => ({
 vi.mock("./actions", () => ({ requestEmailCodeAction: vi.fn(), verifyEmailCodeAction: vi.fn() }));
 
 const { default: EmailPage } = await import("./page");
-const { AddressStep, CodeStep, EmailFlow, sentAfter } = await import("./EmailFlow");
+const { AddressStep, CodeStep, EmailFlow, refusalAfter, sentAfter } = await import("./EmailFlow");
 const { emailStepHref, parseEmailStep } = await import("./steps");
 h.requestAction = (await import("./actions")).requestEmailCodeAction;
 
@@ -237,9 +237,11 @@ describe("шаг кода", () => {
     expect(count(text(render()), wrong)).toBe(1);
   });
 
-  it("адрес почты — только в скрытом поле формы повтора, код вводится цифрами", () => {
+  it("адрес почты — в скрытых полях формы кода (подтверждается ровно он) и формы повтора, код вводится цифрами", () => {
     const out = html(render());
-    expect(out).toMatch(/<input(?=[^>]*type="hidden")(?=[^>]*name="email")(?=[^>]*value="erlan@mail.kz")[^>]*>/);
+    const codeForm = out.slice(out.indexOf('id="email-code"'), out.indexOf('id="email-resend"'));
+    expect(codeForm).toMatch(/<input(?=[^>]*type="hidden")(?=[^>]*name="email")(?=[^>]*value="erlan@mail.kz")[^>]*>/);
+    expect(out.slice(out.indexOf('id="email-resend"'))).toMatch(/<input(?=[^>]*type="hidden")(?=[^>]*name="email")(?=[^>]*value="erlan@mail.kz")[^>]*>/);
     expect(out).toMatch(/<input(?=[^>]*name="code")(?=[^>]*autoComplete="one-time-code")[^>]*>/);
   });
 });
@@ -271,5 +273,19 @@ describe("sentAfter: что показать после запроса кода"
     const previous = sentAfter(null, data(), false, NOW);
     expect(sentAfter(previous, data({ demoCode: null, alreadySent: true }), true, NOW + 5_000).demoCode).toBe("123456");
     expect(sentAfter(previous, data({ email: "other@mail.kz", demoCode: null, alreadySent: true }), false, NOW).demoCode).toBeNull();
+  });
+});
+
+describe("refusalAfter: «код уже отправлен» на шаге адреса", () => {
+  const sent = (email: string, alreadySent: boolean) => ({ email, demoCode: null, alreadySent });
+
+  it("в этой странице код уходил на другой адрес — отказ у поля «код отправлен на другой адрес», а не шаг кода", () => {
+    expect(refusalAfter("a@mail.kz", sent("b@mail.kz", true))).toBe(t.errors.otherAddress);
+  });
+
+  it("тот же адрес, страница без прежнего адреса (перезагрузка) или новый код — переход на шаг кода", () => {
+    expect(refusalAfter("a@mail.kz", sent("a@mail.kz", true))).toBeNull();
+    expect(refusalAfter(undefined, sent("b@mail.kz", true))).toBeNull();
+    expect(refusalAfter("a@mail.kz", sent("b@mail.kz", false))).toBeNull();
   });
 });

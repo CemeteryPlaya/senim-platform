@@ -3,9 +3,18 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import { isCodeTooOften, needsEmail, requestEmailCode, requireUser, verifyEmailCode, type CurrentUser } from "@/modules/identity";
+import {
+  isCodeTooOften,
+  isEmailCodeAlreadySent,
+  needsEmail,
+  requestEmailCode,
+  requireUser,
+  verifyEmailCode,
+  type CurrentUser,
+} from "@/modules/identity";
 import { action } from "@/platform/action";
 import { digitsOnly } from "@/platform/digits";
+import { AppError } from "@/platform/errors";
 import { nextStepFor, safeNext } from "../../_shell/auth";
 import { forgetRole, recallRole } from "../../_shell/role-cookie";
 
@@ -37,8 +46,10 @@ async function moveOn(user: CurrentUser, next: string | undefined): Promise<neve
  * «Получить код» и «Отправить ещё раз»: код на адрес-кандидат (в профиль адрес попадёт только после подтверждения).
  * Ответ — адрес в том виде, в каком его принял identity (без пробелов, строчными), и код заглушки писем, если он есть.
  * Почта уже подтверждена — не ошибка, а переход дальше. Повтор нажатия гасит форма; повтор запроса в ту же минуту
- * identity отклоняет «слишком часто» — второго кода не бывает, а экран получает `alreadySent: true` и ведёт на шаг кода
- * (прежний код ещё действует: человек перезагрузил страницу на шаге кода). Лимит в час и в сутки — ошибка, как прежде.
+ * identity отклоняет — второго кода не бывает. Если действующий код выдан на этот же адрес (email_code_already_sent:
+ * человек перезагрузил страницу на шаге кода), экран получает `alreadySent: true` и ведёт на шаг кода; если на другой
+ * (email_code_too_often) — ошибка у поля адреса: шаг кода «для этого адреса» был бы неправдой. Лимит в час и в сутки —
+ * ошибка, как прежде.
  */
 export const requestEmailCodeAction = action(
   "app.email.requestCode",
@@ -51,8 +62,9 @@ export const requestEmailCodeAction = action(
     try {
       sent = await requestEmailCode(user, email);
     } catch (e) {
-      if (!isCodeTooOften(e)) throw e;
-      return { email: address, demoCode: null, alreadySent: true };
+      if (isEmailCodeAlreadySent(e)) return { email: address, demoCode: null, alreadySent: true };
+      if (isCodeTooOften(e)) throw new AppError("RATE_LIMITED", t.errors.otherAddress, { fieldErrors: { email: [t.errors.otherAddress] } });
+      throw e;
     }
     if (sent.alreadyVerified) return moveOn(user, next);
     return { email: address, demoCode: sent.demoCode, alreadySent: false };
@@ -61,18 +73,21 @@ export const requestEmailCodeAction = action(
 
 /**
  * «Подтвердить»: код из письма — только 6 цифр после удаления пробелов и прочего (`digitsOnly`), иначе ошибка у поля без
- * вызова identity (попытка не тратится). Верный код — почта подтверждена, дальше `next` или дом. Повтор того же кода
- * после успеха (вторая вкладка) — тоже дальше: шаг уже пройден (needsEmail), identity не вызывается.
+ * вызова identity (попытка не тратится). `email` — адрес, показанный на шаге кода (скрытое поле формы): identity
+ * подтверждает ровно его; код, выданный на другой адрес, — «код устарел». Верный код — почта подтверждена, дальше `next`
+ * или дом. Повтор того же кода после успеха (вторая вкладка) — тоже дальше: шаг уже пройден (needsEmail), identity не
+ * вызывается.
  */
 export const verifyEmailCodeAction = action(
   "app.email.verifyCode",
   z.strictObject({
     code: z.string().max(20).transform(digitsOnly).pipe(z.string().length(6, errors.codeFormat)),
+    email: emailField,
     next: nextField,
   }),
-  async ({ code, next }) => {
+  async ({ code, email, next }) => {
     const user = await requireUser("CLIENT", "EXECUTOR");
-    if (needsEmail(user)) await verifyEmailCode(user, code);
+    if (needsEmail(user)) await verifyEmailCode(user, code, email);
     return moveOn(user, next);
   },
 );

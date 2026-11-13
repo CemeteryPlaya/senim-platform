@@ -103,19 +103,23 @@ export async function requestEmailCode(user: CurrentUser, email: string): Promis
 }
 
 /**
- * Проверяет код в identity: верный — адрес подтверждён, ответ (личность) пишется в проекцию (`email`, `emailVerifiedAt`).
+ * Проверяет код в identity для адреса `email` — того, что человек видит на экране: identity подтверждает ровно его (код,
+ * выданный на другой адрес, — «код устарел», попытка не тратится). Неверный адрес — ошибка у поля `email` без вызова.
+ * Верный код — адрес подтверждён, ответ (личность) пишется в проекцию (`email`, `emailVerifiedAt`).
  * Ввод очищается до цифр (вставка «123 456»); не 6 цифр — ошибка поля `code` без вызова identity (попытка не тратится).
  * Неверный, истёкший код, исчерпанные попытки и лимит проверок — ошибки с текстами `ru.app.login.email.errors`.
  * «Код устарел» у человека, чья почта до вызова не была подтверждена, — сначала перечитать личность: если почта уже
  * подтверждена (тот же код погасил второй одновременный ввод, другая вкладка), это успех. У уже подтверждённого
  * (подтверждает новый адрес) «устарел» остаётся отказом: прежнее подтверждение к новому адресу не относится.
  */
-export async function verifyEmailCode(user: CurrentUser, code: string): Promise<void> {
+export async function verifyEmailCode(user: CurrentUser, code: string, email: string): Promise<void> {
   requireParty(user);
   const digits = digitsOnly(code);
   if (!CODE_RE.test(digits)) return fail.validation(t.codeFormat, { fieldErrors: { code: [t.codeFormat] } });
+  const address = emailSchema.safeParse(email);
+  if (!address.success) return invalidEmail();
   const sessionToken = await currentSessionToken();
-  const request = { sessionToken, code: digits, idempotencyKey: randomUUID() };
+  const request = { sessionToken, code: digits, email: address.data, idempotencyKey: randomUUID() };
   let res;
   try {
     res = await retriedOnce(() => identity().verifyEmailCode(request), EMAIL_OVERRIDES);

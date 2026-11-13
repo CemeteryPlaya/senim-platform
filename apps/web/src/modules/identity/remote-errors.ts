@@ -25,6 +25,17 @@ export const EMAIL_CODE_EXPIRED = "EMAIL_CODE_EXPIRED";
  */
 export const CODE_TOO_OFTEN = "CODE_TOO_OFTEN";
 
+/**
+ * Машинная причина отказа email_code_already_sent (AppError.details.reason): пауза не прошла, но на этот же адрес уже выдан
+ * действующий код — его можно ввести. Экран почты только по ней открывает шаг кода «код уже отправлен».
+ */
+export const EMAIL_CODE_ALREADY_SENT = "EMAIL_CODE_ALREADY_SENT";
+
+/** Отказ «на этот адрес уже выдан действующий код» (email_code_already_sent). */
+export function isEmailCodeAlreadySent(e: unknown): boolean {
+  return e instanceof AppError && e.details?.["reason"] === EMAIL_CODE_ALREADY_SENT;
+}
+
 /** Отказ «код уже отправлен, новый — через минуту» (otp_too_often, email_code_too_often). */
 export function isCodeTooOften(e: unknown): boolean {
   return e instanceof AppError && e.details?.["reason"] === CODE_TOO_OFTEN;
@@ -91,6 +102,7 @@ export const IDENTITY_ERROR_CODES = [
   "email_code_wrong",
   "email_code_attempts_exhausted",
   "email_already_verified",
+  "email_code_already_sent",
 ] as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
@@ -230,6 +242,8 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
     // Лимиты запроса и проверки — ошибка формы; отказы по самому коду — у поля кода.
     case "email_code_too_often":
       return tooOften(email.tooOften);
+    case "email_code_already_sent":
+      throw new AppError("RATE_LIMITED", email.alreadySent, { reason: EMAIL_CODE_ALREADY_SENT });
     case "email_code_too_many":
       // Тот же код и на часовой, и на суточный лимит (параметра нет): одна фраза.
       return fail.rateLimited(email.tooMany);

@@ -127,19 +127,28 @@ type AddressProps = {
 };
 
 /**
- * Шаг 1: адрес. Ошибка формата — у поля, лимиты — общей плашкой; зачем почта — по нажатию (Explain). «Слишком часто» на
- * другой адрес, чем тот, куда в этой странице уже ушёл код, — отказ «новый код через минуту»: действующий код у прежнего
- * адреса, и шаг кода для нового адреса солгал бы.
+ * Отказ шага адреса после ответа «код уже отправлен»: в этой странице код уходил на другой адрес — шаг кода «для этого
+ * адреса» был бы неправдой (действующий код у прежнего адреса), поэтому ошибка у поля, а не переход. Иначе `null`.
+ * Сервис сам различает адреса (email_code_already_sent только для адреса действующего кода); это вторая защита.
+ */
+export function refusalAfter(shown: string | undefined, data: SentData): string | null {
+  return data.alreadySent && shown !== undefined && shown !== data.email ? t.errors.otherAddress : null;
+}
+
+/**
+ * Шаг 1: адрес. Ошибка формата и «код уже отправлен на другой адрес» — у поля, лимиты — общей плашкой; зачем почта — по
+ * нажатию (Explain).
  */
 export function AddressStep({ next, position, device, email, onSent }: AddressProps) {
   const [refused, setRefused] = useState<string | null>(null);
   const form = useActionForm(requestEmailCodeAction, {
     onSuccess: (data) => {
-      const otherAddress = data.alreadySent && email !== undefined && email !== data.email;
-      setRefused(otherAddress ? ru.app.login.email.errors.tooOften : null);
-      if (!otherAddress) onSent(data);
+      const refusal = refusalAfter(email, data);
+      setRefused(refusal);
+      if (refusal === null) onSent(data);
     },
   });
+  const fieldError = form.fieldErrors.email ?? (form.pending ? undefined : (refused ?? undefined));
   return (
     <Stack gap="section">
       <Stack gap="tight">
@@ -162,10 +171,10 @@ export function AddressStep({ next, position, device, email, onSent }: AddressPr
             autoComplete="email"
             maxLength={254}
             defaultValue={email}
-            error={form.fieldErrors.email}
+            error={fieldError}
           />
           <HiddenField name="next" value={next ?? ""} />
-          <FormError error={form.error ?? (form.pending ? null : refused)} atField={Boolean(form.fieldErrors.email)} />
+          <FormError error={form.error} atField={Boolean(form.fieldErrors.email)} />
         </Stack>
       </form>
       <ActionDock>
@@ -238,6 +247,8 @@ export function CodeStep({ next, position, device, sent, onResent }: CodeProps) 
         <div>
           <form id={FORM.code} method="post" onSubmit={code.onSubmit} noValidate>
             <CodeField label={t.code.label} name="code" error={code.fieldErrors.code} />
+            {/* Подтверждается ровно этот адрес (identity сверяет его с адресом действующего кода). */}
+            <HiddenField name="email" value={sent.email} />
             <HiddenField name="next" value={next ?? ""} />
           </form>
           <form id={FORM.resend} method="post" onSubmit={resend.onSubmit} noValidate>

@@ -168,11 +168,13 @@ import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-t
  *
  * Подтверждение почты (email.go) повторено по Go: RequestEmailCode — порядок проверок (ключ, адрес — email_invalid, сессия и
  * роль стороны сделки — role_forbidden; дальше повтор по ключу, тот же уже подтверждённый адрес — email_already_verified без
- * кода и без траты лимита, лимиты на пользователя фиксированными окнами: 1 в минуту — email_code_too_often, 5 в час и 10 в
- * сутки — email_code_too_many, первый отказ останавливает проверку), код из 6 цифр на 10 минут, прежний код гасится;
+ * кода и без траты лимита, лимиты на пользователя фиксированными окнами: 1 в минуту — email_code_already_sent, если
+ * действующий код (не истёк, не погашен, попытки не исчерпаны) выдан на этот же адрес, иначе email_code_too_often; 5 в час
+ * и 10 в сутки — email_code_too_many, первый отказ останавливает проверку), код из 6 цифр на 10 минут, прежний код гасится;
  * demo_code — только при мок-провайдере (`emailProviderMock`) и не в сохранённом ответе (повтор по ключу — без кода).
- * VerifyEmailCode — ключ и код (не шесть цифр после обрезки пробелов — invalid_request без траты попытки), сессия и роль;
- * дальше повтор по ключу, лимит 20 проверок в сутки (email_code_too_many), нет действующего кода — email_code_expired; попытка
+ * VerifyEmailCode — ключ и код (не шесть цифр после обрезки пробелов — invalid_request без траты попытки), адрес (пустой и
+ * неверный — email_invalid), сессия и роль; дальше повтор по ключу, лимит 20 проверок в сутки (email_code_too_many), нет
+ * действующего кода или он выдан на другой адрес — email_code_expired (попытка не тратится); попытка
  * засчитывается до сравнения (5 на код): неверный — email_code_wrong с params.left, последний — email_code_attempts_exhausted;
  * верный — код погашен, адрес записан подтверждённым, аудит user.email_changed (если адрес другой) и user.email_verified —
  * без адреса. UpdateContacts с другим адресом снимает подтверждение и гасит ожидающий код; SeedUsers записывает адрес сида
@@ -509,6 +511,7 @@ const STATUS_BY_CODE: Record<string, Code> = {
   mfa_code_reused: Code.InvalidArgument,
   mfa_too_many_attempts: Code.ResourceExhausted,
   email_code_too_often: Code.ResourceExhausted,
+  email_code_already_sent: Code.ResourceExhausted,
   email_code_too_many: Code.ResourceExhausted,
   email_code_expired: Code.InvalidArgument,
   email_code_wrong: Code.InvalidArgument,
@@ -1124,11 +1127,20 @@ export class FakeIdentity {
     return found;
   }
 
-  /** checkEmailCode в Go: действующий код, попытка до сравнения, сравнение; верный — строка кода, иначе отказ. */
-  private checkEmailCode(userId: string, code: string): StoredEmailCode {
-    if (!this.hitEmailLimit(`${userId}:verify:day`, EMAIL_VERIFY_DAILY, 24 * 3600_000)) throw codedError("email_code_too_many", Code.ResourceExhausted);
+  /** Действующий код почты пользователя (GetActiveEmailCode в Go): не погашен и не истёк. */
+  private activeEmailCode(userId: string): StoredEmailCode | null {
     const row = this.emailCodes.get(userId);
-    if (!row || row.consumed || row.expiresAt.getTime() <= this.now().getTime()) throw codedError("email_code_expired", Code.InvalidArgument);
+    return row && !row.consumed && row.expiresAt.getTime() > this.now().getTime() ? row : null;
+  }
+
+  /**
+   * checkEmailCode в Go: действующий код, сверка адреса (другой — email_code_expired без траты попытки), попытка до
+   * сравнения, сравнение; верный — строка кода, иначе отказ.
+   */
+  private checkEmailCode(userId: string, email: string, code: string): StoredEmailCode {
+    if (!this.hitEmailLimit(`${userId}:verify:day`, EMAIL_VERIFY_DAILY, 24 * 3600_000)) throw codedError("email_code_too_many", Code.ResourceExhausted);
+    const row = this.activeEmailCode(userId);
+    if (!row || row.email !== email) throw codedError("email_code_expired", Code.InvalidArgument);
     if (row.attempts >= EMAIL_MAX_ATTEMPTS) throw codedError("email_code_attempts_exhausted", Code.ResourceExhausted);
     row.attempts += 1;
     if (row.code !== code) {
@@ -1600,7 +1612,11 @@ export class FakeIdentity {
             // Тот же адрес уже подтверждён — отказ без кода и без траты лимита.
             if (this.emailVerified.has(user.id) && this.persons.get(user.id)?.email === email) throw codedError("email_already_verified", Code.FailedPrecondition);
             for (const l of EMAIL_LIMITS) {
-              if (!this.hitEmailLimit(`${user.id}:${l.key}`, l.limit, l.windowMs)) throw codedError(l.reason, Code.ResourceExhausted);
+              if (this.hitEmailLimit(`${user.id}:${l.key}`, l.limit, l.windowMs)) continue;
+              // Пауза: действующий код на этот же адрес — его можно ввести (cooldownRefusal в Go).
+              const live = l.key === "cooldown" ? this.activeEmailCode(user.id) : null;
+              if (live && live.email === email && live.attempts < EMAIL_MAX_ATTEMPTS) throw codedError("email_code_already_sent", Code.ResourceExhausted);
+              throw codedError(l.reason, Code.ResourceExhausted);
             }
             const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
             const expiresAt = new Date(this.now().getTime() + EMAIL_CODE_TTL_MS);
@@ -1628,7 +1644,7 @@ export class FakeIdentity {
         async (req) => {
           // Попытка засчитывается до «транзакции» и остаётся при отказе; отказ ответом по ключу не сохраняется.
           const { user, session } = await this.emailSession(req.sessionToken ?? "");
-          const row = this.checkEmailCode(user.id, (req.code ?? "").trim());
+          const row = this.checkEmailCode(user.id, checkEmail(req.email ?? ""), (req.code ?? "").trim());
           row.consumed = true;
           const before = this.persons.get(user.id) ?? { fullName: "", iin: "", instagram: "", email: "" };
           const wasVerified = this.emailVerified.has(user.id) && before.email === row.email;
@@ -1640,11 +1656,12 @@ export class FakeIdentity {
           this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action: "user.email_verified", before: { verified: wasVerified }, after: { verified: true } });
           return create(VerifyEmailCodeResponseSchema, { person: this.personOf(user.id) });
         },
-        // Порядок Go: ключ и код — ровно шесть цифр (invalid_request), сессия и роль стороны сделки; дальше повтор по ключу и
-        // проверка кода.
+        // Порядок Go: ключ и код — ровно шесть цифр (invalid_request), адрес (email_invalid), сессия и роль стороны сделки;
+        // дальше повтор по ключу и проверка кода.
         async (req) => {
           this.checkKey(req.idempotencyKey);
           if (!EMAIL_CODE_RE.test((req.code ?? "").trim())) throw codedError("invalid_request", Code.InvalidArgument);
+          if (checkEmail(req.email ?? "") === "") throw codedError("email_invalid", Code.InvalidArgument);
           await this.emailSession(req.sessionToken ?? "");
         },
       ),
