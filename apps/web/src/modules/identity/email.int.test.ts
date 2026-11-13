@@ -348,6 +348,21 @@ describe("verifyEmailCode", () => {
     expect((await getCurrentUser())!.emailVerified).toBe(true);
   });
 
+  it("две вкладки с разными адресами: во второй подтверждён B — ввод в первой (экран A) остаётся «код устарел»", async () => {
+    const user = await signedIn();
+    let now = Date.now();
+    identityFake.now = () => new Date(now);
+    const codeA = await codeFor(user, ADDRESS); // первая вкладка: код на A
+    now += 61_000;
+    await verifyEmailCode(user, await codeFor(user, "b@example.kz"), "b@example.kz"); // вторая: B подтверждён, код A погашен
+    await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: null } }); // первая ещё не знает
+
+    const err = await errorOf(verifyEmailCode(user, codeA, ADDRESS));
+    expect([err.code, err.message]).toEqual(["VALIDATION", t.expired]);
+    expect(callsOf("getProfile")).toHaveLength(1); // профиль перечитан: подтверждён B, а не A
+    expect(identityFake.personOf(user.id)).toMatchObject({ email: "b@example.kz", emailVerified: true });
+  });
+
   it("«код устарел» без подтверждённой почты — отказ у поля code (профиль перечитан); у уже подтверждённого — отказ без перечитывания", async () => {
     const user = await signedIn();
     let now = Date.now();

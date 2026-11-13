@@ -60,11 +60,11 @@ const reasonOf = (e: unknown, reason: string) => e instanceof AppError && e.deta
 
 /**
  * Личность из identity (GetProfile) в сессии этого браузера — в проекцию: так web узнаёт о подтверждении, сделанном мимо
- * него (другая вкладка, второй одновременный ввод, отставшая проекция). Возвращает, подтверждена ли почта.
+ * него (другая вкладка, второй одновременный ввод, отставшая проекция). Возвращает подтверждённый адрес или `null`.
  * Сбой GetProfile — ошибка «сервис недоступен» (identityFailure), а не «уже подтверждена»: без обновлённой проекции
  * needsEmail снова вёл бы на шаг почты, а запрос кода снова отвечал бы «уже подтверждена» — шаг зациклился бы.
  */
-async function refreshPerson(user: CurrentUser, sessionToken: string): Promise<boolean> {
+async function refreshPerson(user: CurrentUser, sessionToken: string): Promise<string | null> {
   let res;
   try {
     res = await identity().getProfile({ sessionToken });
@@ -73,7 +73,7 @@ async function refreshPerson(user: CurrentUser, sessionToken: string): Promise<b
   }
   const person = ownPerson(user.id, res.person);
   await projectPerson(person);
-  return person.emailVerified;
+  return person.emailVerified ? person.email : null;
 }
 
 /**
@@ -124,7 +124,9 @@ export async function verifyEmailCode(user: CurrentUser, code: string, email: st
   try {
     res = await retriedOnce(() => identity().verifyEmailCode(request), EMAIL_OVERRIDES);
   } catch (e) {
-    if (!user.emailVerified && reasonOf(e, EMAIL_CODE_EXPIRED) && (await refreshPerson(user, sessionToken))) return;
+    // Успех — только если подтверждён именно этот адрес: во второй вкладке могли подтвердить другой, и экран адреса A
+    // не должен сказать «готово», когда подтверждён B.
+    if (!user.emailVerified && reasonOf(e, EMAIL_CODE_EXPIRED) && (await refreshPerson(user, sessionToken)) === address.data) return;
     throw e;
   }
   await projectPerson(ownPerson(user.id, res.person));

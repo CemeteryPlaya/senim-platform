@@ -3371,8 +3371,10 @@ type VerifyEmailCodeRequest struct {
 	Code           string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
 	IdempotencyKey string                 `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	// Адрес, который человек видит на экране (тот же, что в RequestEmailCode). Обязателен;
-	// не совпадает с адресом действующего кода — email_code_expired (попытка не тратится):
-	// подтверждается ровно показанный адрес.
+	// не совпадает с адресом действующего кода — email_code_expired: попытка КОДА не
+	// списывается и код не гасится, но суточный лимит проверок этот запрос учитывает.
+	// Подтверждается ровно показанный адрес. По idempotency_key сохраняется только успешный
+	// результат (как у VerifyOtp): повтор отказа проверяется заново.
 	Email         string `protobuf:"bytes,4,opt,name=email,proto3" json:"email,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
