@@ -80,17 +80,14 @@ function parseArgs(argv: string[]): Args {
     const arg = argv[i];
     if (arg === "--out" || arg === "--as" || arg === "--role") {
       const value = argv[i + 1];
-      if (!value || value.startsWith("--")) throw new Error(`${arg} требует значение.
-${USAGE}`);
+      if (!value || value.startsWith("--")) throw new Error(`${arg} требует значение.\n${USAGE}`);
       if (arg === "--out") out = value;
       else if (arg === "--as") phone = value;
       else if (value === "client" || value === "executor") role = value;
-      else throw new Error(`--role: «client» или «executor», получено «${value}».
-${USAGE}`);
+      else throw new Error(`--role: «client» или «executor», получено «${value}».\n${USAGE}`);
       i += 1;
     } else if (arg.startsWith("--")) {
-      throw new Error(`Неизвестный параметр «${arg}».
-${USAGE}`);
+      throw new Error(`Неизвестный параметр «${arg}».\n${USAGE}`);
     } else {
       routes.push(normalizeRoute(arg));
     }
@@ -115,11 +112,9 @@ async function signIn(browser: Browser, phone: string, role: LoginRole, stateFil
     await loginV2(page, phone, { role });
     await passOnboarding(page);
     const final = new URL(page.url()).pathname.replace(/\/+$/, "");
-    if (ONBOARDING_PATHS.includes(final)) {
-      say(`Предупреждение: после входа адрес остался на шаге онбординга (${final}): пути за входом отправят обратно на шаг. Шаг почты допишите в passOnboarding.`);
-    } else {
-      say(`Вход выполнен (${phone}, роль ${role}); адрес после входа: ${final || "/"}`);
-    }
+    // passOnboarding проходит все шаги (согласие, знакомство, почта); остаться на шаге — сбой входа, а не повод снимать.
+    if (ONBOARDING_PATHS.includes(final)) throw new Error(`После входа адрес остался на шаге онбординга (${final}).`);
+    say(`Вход выполнен (${phone}, роль ${role}); адрес после входа: ${final || "/"}`);
     await context.storageState({ path: stateFile });
   } finally {
     await context.close();

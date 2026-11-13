@@ -20,6 +20,7 @@ export function Button({
   variant,
   size,
   full,
+  flush,
   pending = false,
   className,
   children,
@@ -30,7 +31,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={cn(lookClasses({ variant, size, full, pending }), className)}
+      className={cn(lookClasses({ variant, size, full, pending, flush }), className)}
       aria-disabled={pending || undefined}
       aria-busy={pending || undefined}
       data-primary-action={primaryMark(variant)}

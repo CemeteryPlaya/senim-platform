@@ -31,6 +31,32 @@ describe("Button", () => {
     expect(html(<Button variant="danger">Ок</Button>)).not.toContain("data-primary-action");
   });
 
+  it("flush у тихой кнопки: без боковых отступов, высота касания прежняя, наведение — подчёркивание; у других вариантов не действует", () => {
+    for (const size of ["md", "sm"] as const) {
+      const flat = html(
+        <Button variant="quiet" size={size} flush>
+          Ок
+        </Button>,
+      );
+      expect(hasClass(flat, "px-6") || hasClass(flat, "px-4")).toBe(false);
+      expect(hasClass(flat, "min-h-control")).toBe(true);
+      expect(hasClass(flat, "hover:not-disabled:underline")).toBe(true);
+      expect(hasClass(flat, "hover:not-disabled:bg-line")).toBe(false);
+    }
+    expect(hasClass(html(<Button variant="quiet">Ок</Button>), "px-6")).toBe(true);
+    expect(hasClass(html(<Button variant="quiet" size="sm">Ок</Button>), "px-4")).toBe(true);
+    expect(
+      hasClass(
+        html(
+          <Button variant="secondary" flush>
+            Ок
+          </Button>,
+        ),
+        "px-6",
+      ),
+    ).toBe(true);
+  });
+
   it("pending: aria-disabled и aria-busy, без нативного disabled (фокус не теряется)", () => {
     const out = html(<Button pending>Ок</Button>);
     expect(out).toContain('aria-disabled="true"');

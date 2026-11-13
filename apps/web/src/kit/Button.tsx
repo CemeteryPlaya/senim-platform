@@ -11,10 +11,10 @@ export type { ButtonLook, ButtonSize, ButtonVariant } from "./button-styles";
 export type ButtonLinkProps = ComponentProps<typeof Link> & StyleOptions;
 
 /** Ссылка, которая выглядит как кнопка (переход на другой экран). Серверный компонент. */
-export function ButtonLink({ variant, size, full, className, ...rest }: ButtonLinkProps) {
+export function ButtonLink({ variant, size, full, flush, className, ...rest }: ButtonLinkProps) {
   return (
     <Link
-      className={cn(lookClasses({ variant, size, full }), className)}
+      className={cn(lookClasses({ variant, size, full, flush }), className)}
       data-primary-action={primaryMark(variant)}
       {...rest}
     />

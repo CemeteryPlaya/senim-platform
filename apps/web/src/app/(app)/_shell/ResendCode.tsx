@@ -21,8 +21,8 @@ type Props = {
  * Повторная отправка кода (вход и почта): пока сервис не примет новый запрос — строка вторичного текста с отсчётом
  * (не кнопка и не отключённая кнопка), после — тихая кнопка. Отсчёт раз в секунду, без анимации; первая отрисовка — от
  * `until` (вернулись «Назад» браузера — не мелькает «1:00»). Тикающий текст диктору не объявляется (нет aria-live):
- * его читают, когда до него дошли. Высота строки — высота поля касания (48 px) в обоих состояниях, а текст ожидания
- * стоит там же, где подпись тихой кнопки (тот же боковой отступ `px-4`, что у `sm`): смена состояния ничего не сдвигает.
+ * его читают, когда до него дошли. Высота строки — высота поля касания (48 px) в обоих состояниях; текст ожидания и подпись
+ * тихой кнопки без боковых отступов (`flush`) стоят по левой линии содержимого: смена состояния ничего не сдвигает.
  * Новый код — новый `key` у компонента, отсчёт начинается заново.
  */
 export function ResendCode({ until, form, pending, label, waitLabel }: Props) {
@@ -39,9 +39,9 @@ export function ResendCode({ until, form, pending, label, waitLabel }: Props) {
   return (
     <div data-resend-code className="flex min-h-control items-center">
       {left > 0 ? (
-        <p className="px-4 text-sub text-muted tabular-nums">{waitLabel(left)}</p>
+        <p className="text-sub text-muted tabular-nums">{waitLabel(left)}</p>
       ) : (
-        <Button type="submit" form={form} variant="quiet" size="sm" pending={pending}>
+        <Button type="submit" form={form} variant="quiet" size="sm" flush pending={pending}>
           {label}
         </Button>
       )}

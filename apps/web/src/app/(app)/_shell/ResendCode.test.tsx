@@ -37,6 +37,8 @@ describe("ResendCode: отсчёт — строка текста, после —
     expect(out).toMatch(/<button(?=[^>]*type="submit")(?=[^>]*form="resend")[^>]*>/);
     expect(out).not.toMatch(/<button[^>]*disabled=""/);
     expect(out).not.toContain("data-primary-action");
+    // По левой линии содержимого: тихая кнопка без боковых отступов.
+    expect(hasClass(out, "px-4")).toBe(false);
   });
 
   it("высота строки одинакова в обоих состояниях (поле касания 48 px) — смена состояния ничего не сдвигает", () => {
@@ -45,6 +47,7 @@ describe("ResendCode: отсчёт — строка текста, после —
       const out = html(render(until));
       expect(out).toMatch(/^<div data-resend-code="true"/);
       expect(hasClass(out, "min-h-control")).toBe(true);
+      expect(hasClass(out, "px-4") || hasClass(out, "px-6")).toBe(false);
     }
   });
 });

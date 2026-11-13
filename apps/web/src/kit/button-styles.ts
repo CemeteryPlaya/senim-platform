@@ -18,6 +18,11 @@ type Extras = {
   full?: boolean;
   /** Ожидание: нет отклика на наведение и нажатие. */
   pending?: boolean;
+  /**
+   * Только у `quiet`: без боковых отступов — подпись стоит по левой линии содержимого, как текст и `TextLink` рядом;
+   * высота касания прежняя (48 px на телефоне), наведение — подчёркивание вместо подложки. У других вариантов не действует.
+   */
+  flush?: boolean;
 };
 
 export type StyleOptions = ButtonLook & Extras;
@@ -45,8 +50,14 @@ const HOVER: Record<ButtonVariant, string> = {
 const DISABLED = "disabled:cursor-not-allowed disabled:bg-line disabled:text-muted";
 
 const SIZES: Record<ButtonSize, string> = {
-  md: "min-h-control px-6 text-body",
-  sm: "min-h-control desktop:min-h-control-sm px-4 text-sub",
+  md: "min-h-control text-body",
+  sm: "min-h-control desktop:min-h-control-sm text-sub",
+};
+
+/** Боковые отступы по размеру; у тихой кнопки с `flush` их нет. */
+const PADDING: Record<ButtonSize, string> = {
+  md: "px-6",
+  sm: "px-4",
 };
 
 /**
@@ -58,14 +69,17 @@ export function lookClasses({
   size = "md",
   full = false,
   pending = false,
+  flush = false,
 }: { variant?: ButtonVariant; size?: ButtonSize } & Extras): string {
+  const flat = flush && variant === "quiet";
   return cn(
     "relative inline-flex min-w-0 max-w-full items-center justify-center gap-2 rounded-control text-center font-semibold no-underline",
     "aria-disabled:cursor-not-allowed",
     SIZES[size],
+    !flat && PADDING[size],
     VARIANTS[variant],
     DISABLED,
-    !pending && ["pressable", HOVER[variant]],
+    !pending && ["pressable", flat ? "hover:not-disabled:underline" : HOVER[variant]],
     full && "w-full",
   );
 }
