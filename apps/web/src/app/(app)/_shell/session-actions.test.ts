@@ -3,31 +3,35 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import { AppError } from "@/platform/errors";
 
-const h = vi.hoisted(() => ({ endSession: vi.fn<() => Promise<void>>() }));
+const h = vi.hoisted(() => ({ endSession: vi.fn<() => Promise<void>>(), forgetRole: vi.fn<() => Promise<void>>() }));
 
 vi.mock("@/modules/identity", () => ({ endSession: h.endSession }));
+vi.mock("./role-cookie", () => ({ forgetRole: h.forgetRole }));
 
 const { logout } = await import("./session-actions");
 
 beforeEach(() => {
   h.endSession.mockReset();
+  h.forgetRole.mockReset().mockResolvedValue(undefined);
 });
 
 describe("logout", () => {
-  it("завершает сессию и уводит на главную v2 (страницы входа в v2 пока нет)", async () => {
+  it("завершает сессию, забывает выбор роли входа и уводит на вход v2", async () => {
     h.endSession.mockResolvedValue(undefined);
     const thrown = await logout({}).then(
       () => null,
       (e: unknown) => e,
     );
     expect(h.endSession).toHaveBeenCalledTimes(1);
+    expect(h.forgetRole).toHaveBeenCalledTimes(1);
     expect(isRedirectError(thrown)).toBe(true);
-    expect((thrown as { digest: string }).digest).toContain(";/v2;");
+    expect((thrown as { digest: string }).digest).toContain(";/v2/login;");
   });
 
   it("identity недоступен — ошибка «сервис недоступен», без перехода", async () => {
     h.endSession.mockRejectedValue(new AppError("UNAVAILABLE", ru.common.errors.unavailable));
     await expect(logout({})).resolves.toEqual({ ok: false, code: "UNAVAILABLE", error: ru.common.errors.unavailable });
+    expect(h.forgetRole).not.toHaveBeenCalled();
   });
 
   it("лишние поля во входе отклоняются схемой", async () => {

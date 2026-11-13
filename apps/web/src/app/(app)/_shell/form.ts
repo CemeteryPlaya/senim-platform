@@ -1,5 +1,6 @@
 "use client";
 
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import type { ActionResult } from "@/platform/action";
@@ -84,7 +85,8 @@ export type ActionForm = {
  * Форма подключается ТОЛЬКО через `onSubmit`: `<form onSubmit={form.onSubmit}>`. Не `<form action={…}>`: React 19 после
  * завершения такого действия сбрасывает неуправляемые поля формы, и при ошибке проверки человек терял бы введённые
  * телефон или код. `submit(formData)` — для программного вызова. Повторная отправка, пока идёт прошлая, игнорируется. «Сессия
- * истекла» и «нужно согласие» уводят на экран v2 с возвратом (см. `outcomeOf`) и состояния формы не меняют. Сбой
+ * истекла» и «нужно согласие» уводят на экран v2 с возвратом (см. `outcomeOf`) и состояния формы не меняют; `redirect()`
+ * в самом действии (вход, выбор шага) — тоже уход без ошибки на экране. Сбой
  * транспорта (сеть, сервер) — общая ошибка из `ru.common.errors.generic`, подробности в журнале.
  *
  * `toInput` по умолчанию не проверяет типы: вход действия — «сырой» объект полей, а разбирает и проверяет его
@@ -117,6 +119,9 @@ export function useActionForm<I, T>(
         setFieldErrors(outcome.fieldErrors);
       }
     } catch (e) {
+      // Действие сделало redirect(): Next уже ведёт на новый адрес, а обещание вызова отклоняет ошибкой перехода —
+      // это не сбой, ошибки на экране нет.
+      if (isRedirectError(e)) return;
       logger.warn("app.form: action failed", { error: e });
       setError(ru.common.errors.generic);
     } finally {

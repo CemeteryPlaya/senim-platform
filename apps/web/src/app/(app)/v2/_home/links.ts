@@ -1,9 +1,2 @@
-import { to } from "../../_shell/paths";
-
-/** Роль, с которой гость идёт на вход: экран входа читает параметр `role`. */
-export type LoginRole = "client" | "executor";
-
-/** Адрес входа с ролью: `/v2/login?role=client`. Параметр собирается здесь, а не строкой в разметке. */
-export function loginHref(role: LoginRole): string {
-  return `${to("/login")}?${new URLSearchParams({ role }).toString()}`;
-}
+// Ссылка на вход с ролью живёт рядом с экраном входа (он же читает параметр `role`); здесь — прежний адрес импорта.
+export { loginHref, type LoginRole } from "../login/steps";
