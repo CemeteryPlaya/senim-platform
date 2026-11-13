@@ -4,6 +4,7 @@ import { guest } from "./guest";
 import { kit } from "./kit";
 import { login } from "./login";
 import { onboarding } from "./onboarding";
+import { requestCard } from "./request-card";
 import { requests } from "./requests";
 import { shell } from "./shell";
 
@@ -13,6 +14,7 @@ export const app = {
   kit,
   login,
   onboarding,
+  requestCard,
   requests,
   shell,
 } as const;

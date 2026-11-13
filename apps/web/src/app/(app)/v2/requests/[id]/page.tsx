@@ -1,0 +1,78 @@
+import type { Metadata } from "next";
+import { notFound, redirect } from "next/navigation";
+import type { RequestStatus } from "@/generated/prisma/enums";
+import { ru } from "@/i18n/ru";
+import { getClientRequest, getDraft, listOffers, REQUEST_TRANSITIONS } from "@/modules/requests";
+import { getDevice } from "@/platform/device";
+import { isAppError } from "@/platform/errors";
+import { pageHref, requireBuyer } from "../../../_shell/auth";
+import { detailRows, draftHref, nowView, offersView, parseSort, photoView, sentNotice } from "./_parts/card-view";
+import { RequestCardView, type CardView } from "./_parts/RequestCardView";
+
+export const metadata: Metadata = { title: ru.app.requestCard.metaTitle };
+
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+const one = (value: string | string[] | undefined): string | undefined => (typeof value === "string" ? value : undefined);
+
+/** Чужая и несуществующая заявка — NOT_FOUND модуля — это 404; прочие ошибки идут дальше. */
+async function orNotFound<T>(promise: Promise<T>): Promise<T> {
+  try {
+    return await promise;
+  } catch (e) {
+    if (isAppError(e) && e.code === "NOT_FOUND") notFound();
+    throw e;
+  }
+}
+
+/** Отмена разрешена, когда её разрешает таблица переходов заявки для заказчика. */
+const cancellable = (status: RequestStatus): boolean =>
+  REQUEST_TRANSITIONS.some((rule) => rule.action === "cancel" && rule.who.includes("CLIENT") && (rule.from as readonly RequestStatus[]).includes(status));
+
+/**
+ * Карточка заявки покупателя: что сейчас, предложения мастеров (сортировка в адресе `?sort=`), что в заявке, отмена в меню.
+ * Мастер — «Исполнитель №N», как отдаёт модуль. Выбрать мастера можно на экране предложения (торг и «Принять цену»);
+ * здесь — переход к нему. Черновик ведёт в мастер заявки.
+ */
+export default async function RequestCardPage({ params, searchParams }: Props) {
+  const { id } = await params;
+  const sp = await searchParams;
+  const user = await requireBuyer(pageHref(`/requests/${encodeURIComponent(id)}`, sp));
+  const request = await orNotFound(getClientRequest(user, id));
+  if (request.status === "DRAFT") redirect(draftHref(id));
+
+  const sort = parseSort(one(sp.sort));
+  // Фото помещения и мастер прямой заявки приходят от модуля вместе с «черновиком» (то же чтение своей заявки).
+  const [offers, own] = await Promise.all([orNotFound(listOffers(user, { requestId: id, sort })), orNotFound(getDraft(user, id))]);
+  const device = await getDevice();
+
+  const now = nowView({
+    id,
+    status: request.status,
+    mode: request.mode,
+    offersCount: offers.length,
+    dealId: request.deal?.id ?? null,
+    chosenOfferId: request.chosen?.id ?? null,
+  });
+  const view: CardView = {
+    id,
+    title: request.title,
+    number: request.number,
+    sent: sentNotice(one(sp.sent) === "1", request.status, request.mode),
+    now,
+    offers: offersView({ id, status: request.status, mode: request.mode }, offers, sort),
+    details: detailRows({
+      title: request.title,
+      style: request.style,
+      segment: request.segment,
+      details: request.details,
+      city: request.city,
+      address: request.address,
+      wishes: request.wishes,
+      directLabel: request.mode === "DIRECT" ? own.targetLabel : null,
+    }),
+    photos: photoView(own.photos),
+    cancel: cancellable(request.status) ? { offersCount: offers.filter((o) => o.status === "SENT").length } : null,
+  };
+  return <RequestCardView view={view} device={device} />;
+}
