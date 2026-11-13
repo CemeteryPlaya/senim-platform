@@ -171,11 +171,12 @@ export type RadioCardProps = Omit<ComponentProps<"input">, "name" | "type"> & {
   description?: string;
 };
 
-/** Вариант выбора в виде карточки: выбранная выделена линией 1 px цвета действия; `description` — вторая строка под подписью. Высота не ниже 48 px. Ошибка — у `RadioGroup`. */
+/** Вариант выбора в виде карточки: выбранная выделена линией 1 px цвета действия; `description` — вторая строка под подписью: имя радио — только подпись (`aria-labelledby`), описание — только `aria-describedby` (диктор не читает его дважды). Высота не ниже 48 px. Ошибка — у `RadioGroup`. */
 export function RadioCard({ label, description, id: explicitId, className, ...rest }: RadioCardProps) {
   const auto = useId();
   const id = explicitId ?? auto;
   const descriptionId = description ? `${id}-description` : undefined;
+  const labelId = description ? `${id}-label` : undefined;
   return (
     <label
       htmlFor={id}
@@ -186,7 +187,7 @@ export function RadioCard({ label, description, id: explicitId, className, ...re
         "has-disabled:cursor-not-allowed has-disabled:opacity-50",
       )}
     >
-      <input id={id} type="radio" className={cn("peer sr-only", className)} {...rest} aria-describedby={describedBy(rest["aria-describedby"], descriptionId)} />
+      <input id={id} type="radio" className={cn("peer sr-only", className)} {...rest} aria-labelledby={rest["aria-labelledby"] ?? labelId} aria-describedby={describedBy(rest["aria-describedby"], descriptionId)} />
       <span
         aria-hidden
         className="flex size-6 shrink-0 items-center justify-center rounded-full border border-line-strong peer-checked:border-action peer-checked:[&>span]:opacity-100"
@@ -195,7 +196,7 @@ export function RadioCard({ label, description, id: explicitId, className, ...re
       </span>
       {description ? (
         <span className="flex min-w-0 flex-col">
-          <span>{label}</span>
+          <span id={labelId}>{label}</span>
           <span id={descriptionId} className="text-sub text-muted">
             {description}
           </span>

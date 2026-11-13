@@ -585,3 +585,66 @@ test.describe("ActionDock на телефоне", () => {
     }
   });
 });
+
+// ───────── 20. Оболочка телефона: док и экраны без дока ─────────
+
+test.describe("оболочка телефона: док не ломает раскладку", () => {
+  test.skip(({ isMobile }) => !isMobile, "только проект mobile");
+
+  test("20а. профиль мастера (длинный экран с доком): док прилипает над панелью, содержимое не перекрыто", async ({ page }) => {
+    await page.goto("/v2/executors/5");
+    const dock = page.locator("[data-action-dock]");
+    const bar = page.locator("[data-tab-bar]");
+    await expect(dock).toBeVisible();
+    const gap = async () => (await box(bar)).y - ((await box(dock)).y + (await box(dock)).height);
+    for (const fraction of [0, 0.5, 1]) {
+      await page.evaluate((f) => window.scrollTo(0, (document.documentElement.scrollHeight - window.innerHeight) * f), fraction);
+      await expect.poll(async () => Math.abs((await gap()) - 8), { message: `прокрутка ${fraction}` }).toBeLessThanOrEqual(2);
+    }
+    // В конце страницы предыдущий элемент колонки целиком выше дока.
+    const overlap = await page.evaluate(() => {
+      const d = document.querySelector("[data-action-dock]");
+      const prev = d?.previousElementSibling;
+      return prev && d ? prev.getBoundingClientRect().bottom - d.getBoundingClientRect().top : 0;
+    });
+    expect(overlap, "док перекрывает содержимое").toBeLessThanOrEqual(0);
+  });
+
+  for (const path of ["/v2", "/v2/catalog", "/v2/about", "/v2/deals/1"]) {
+    test(`20б. ${path}: страница не шире окна, main не сжат, main — колонка только при доке, нет лишней прокрутки`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      const m = await page.evaluate(() => {
+        const main = document.querySelector("main");
+        const bar = document.querySelector("[data-tab-bar]");
+        const root = document.documentElement;
+        return {
+          scroll: root.scrollWidth,
+          client: root.clientWidth,
+          mainWidth: main?.getBoundingClientRect().width ?? 0,
+          mainDisplay: main ? getComputedStyle(main).display : "",
+          hasDock: document.querySelector("main [data-action-dock]") !== null,
+          // Всё, что ниже панели вкладок: её отступ от низа (10 px) и ничего больше.
+          below: root.scrollHeight - ((bar?.getBoundingClientRect().bottom ?? 0) + window.scrollY),
+        };
+      });
+      expect(m.scroll, "страница шире окна").toBeLessThanOrEqual(m.client);
+      // main — колонка до 560 px: на Pixel 7 (412 px) занимает всю ширину окна, а не сжимается по содержимому.
+      expect(Math.abs(m.mainWidth - Math.min(m.client, 560))).toBeLessThanOrEqual(1);
+      // Колонкой main становится только при доке внутри; без дока он обычный блок, как до дока.
+      expect(m.mainDisplay).toBe(m.hasDock ? "flex" : "block");
+      expect(m.below, "лишняя прокрутка под панелью").toBeLessThanOrEqual(12);
+    });
+  }
+
+  test("20в. каталог: лента чипов прокручивается вбок, страница — нет", async ({ page }) => {
+    await page.goto("/v2/catalog");
+    const rail = page.locator("main nav ul").first();
+    await expect(rail).toBeVisible();
+    const sizes = await rail.evaluate((el) => ({ scroll: el.scrollWidth, client: el.getBoundingClientRect().width }));
+    expect(sizes.scroll, "лента не прокручивается").toBeGreaterThan(sizes.client);
+    const page_ = await page.evaluate(() => ({ s: document.documentElement.scrollWidth, c: document.documentElement.clientWidth }));
+    expect(page_.s).toBeLessThanOrEqual(page_.c);
+  });
+});

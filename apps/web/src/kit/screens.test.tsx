@@ -290,9 +290,18 @@ describe("RadioCard: описание", () => {
     expect(hasClass(out, "min-h-control")).toBe(true);
   });
 
+  it("имя радио — только подпись (aria-labelledby на span подписи), описание — только describedby", () => {
+    const id = /<span id="([^"]+)-label">По SMS<\/span>/.exec(out)?.[1];
+    expect(id).toBeTruthy();
+    expect(out).toContain(`aria-labelledby="${id}-label"`);
+    expect(out).toContain(`aria-describedby="${id}-description"`);
+    expect(out).not.toContain(`aria-labelledby="${id}-description"`);
+  });
+
   it("без описания разметка прежняя: подпись одним span, aria-describedby нет", () => {
     const plain = html(<RadioCard label="По SMS" name="ch" value="sms" />);
     expect(plain).not.toContain("aria-describedby");
+    expect(plain).not.toContain("aria-labelledby");
     expect(plain).not.toContain("-description");
     expect(plain).toContain("<span>По SMS</span></label>");
   });

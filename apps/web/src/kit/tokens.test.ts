@@ -106,7 +106,10 @@ describe("tokens.css совпадает с TOKENS", () => {
 
   it("dock-column: предки дока внутри main становятся растянутыми колонками (док у нижнего края на коротком экране)", () => {
     const body = /@utility dock-column\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    expect(body).toContain(":has([data-action-dock])");
+    // Только при доке внутри и с нулевой специфичностью (:where): раскладку других предков не перебивает.
+    expect(body).toContain(":where(&:has([data-action-dock]))");
+    expect(body).toContain(":where(&) :where(:has([data-action-dock]))");
+    expect(body).not.toContain("& :has");
     expect(body).toMatch(/display:\s*flex/);
     expect(body).toMatch(/flex-direction:\s*column/);
     expect(body).toMatch(/flex-grow:\s*1/);

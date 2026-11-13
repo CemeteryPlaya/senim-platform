@@ -55,10 +55,13 @@ describe("MobileShell", () => {
     }
   });
 
-  it("область содержимого — колонка на высоту экрана, предки дока растянуты (док уходит к низу на коротком экране)", () => {
+  it("main без дока обычный блок: flex-колонкой его делает только утилита dock-column, и только при доке внутри", () => {
     for (const nav of [clientNav, { ...clientNav, tabs: [] }]) {
       const main = tagWith(html(<MobileShell nav={nav}>x</MobileShell>), `id="content"`);
-      for (const cls of ["flex", "flex-col", "flex-1", "dock-column", "*:min-w-0"]) expect(main).toContain(cls);
+      expect(hasClass(main, "dock-column")).toBe(true);
+      for (const cls of ["flex", "flex-col"]) expect(hasClass(main, cls), cls).toBe(false);
+      expect(main).not.toContain("min-w-0");
+      expect(hasClass(main, "flex-1")).toBe(true);
     }
   });
 
