@@ -91,7 +91,7 @@ describe("страница знакомства: куда ведёт", () => {
 
 describe("экран знакомства", () => {
   const render = (over: Partial<Parameters<typeof WelcomeForm>[0]> = {}) => (
-    <WelcomeForm defaultFullName={null} next={null} step={1} total={2} device="mobile" {...over} />
+    <WelcomeForm defaultFullName={null} next={null} step={2} total={3} device="mobile" {...over} />
   );
 
   it("один заголовок, одно главное действие, «Шаг N из M» по оставшемуся", () => {
@@ -99,7 +99,7 @@ describe("экран знакомства", () => {
     expect(count(out, "<h1")).toBe(1);
     expect(h1(out)).toBe(t.title);
     expect(count(out, "data-primary-action")).toBe(1);
-    expect(text(render())).toContain(ru.app.kit.wizard.step(1, 2));
+    expect(text(render())).toContain(ru.app.kit.wizard.step(2, 3));
   });
 
   it("два поля с подписями; ИИН — цифровая клавиатура без автозаполнения; форма отправляется POST", () => {
@@ -140,11 +140,13 @@ describe("экран знакомства", () => {
     expect(text(render())).toContain(ru.identity.clientIdentity.iinTaken);
   });
 
-  it("в доке «Продолжить» связана с формой, рядом тихая «Выйти»", () => {
+  it("в доке одна кнопка «Продолжить», связанная с формой; «Выйти» и «Назад» на шаге нет", () => {
     const out = html(render());
     const dock = out.slice(out.indexOf("data-action-dock"));
     expect(dock).toContain('form="welcome-form"');
     expect(dock).toContain(t.submit);
-    expect(dock).toContain(ru.app.shell.logout);
+    expect(count(dock, "<button")).toBe(1);
+    expect(text(render())).not.toContain(ru.app.shell.logout);
+    expect(out).not.toContain(ru.app.kit.back);
   });
 });

@@ -2,8 +2,19 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import { TOKENS } from "@/kit/tokens";
+import { consentDocument } from "@/modules/identity";
 
-type ShellUser = { role: "CLIENT" | "EXECUTOR" | "OPERATOR" | "MEASURER"; fullName: string | null; executor: null };
+type ShellUser = {
+  role: "CLIENT" | "EXECUTOR" | "OPERATOR" | "MEASURER";
+  roles: string[];
+  fullName: string | null;
+  iinLast4: string | null;
+  emailVerified: boolean;
+  executor: null;
+  mfa: { required: boolean; verifiedAt: Date | null };
+  consents: { version: string }[];
+  consentRevocationOpen: boolean;
+};
 
 const h = vi.hoisted(() => ({
   theme: "system" as "system" | "light" | "dark",
@@ -22,13 +33,30 @@ vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
 vi.mock("@/platform/features", () => ({
   features: () => ({ preContractFlows: false, inspiration: false, materialsCalculator: false }),
 }));
-vi.mock("@/modules/identity", () => ({ getShellUser: async () => h.shell }));
+vi.mock("@/modules/identity", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules/identity")>()),
+  getShellUser: async () => h.shell,
+}));
 vi.mock("./_shell/session-actions", () => ({ logout: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => h.pathname,
   useSearchParams: () => new URLSearchParams(h.search),
 }));
+
+/** Человек, прошедший первые шаги (согласие, ФИО и ИИН, почта); поля переопределяет тест. */
+const done = (role: ShellUser["role"], over: Partial<ShellUser> = {}): ShellUser => ({
+  role,
+  roles: [role],
+  fullName: role === "OPERATOR" ? null : "Айгерим",
+  iinLast4: "1234",
+  emailVerified: true,
+  executor: null,
+  mfa: { required: false, verifiedAt: null },
+  consents: [{ version: consentDocument("PD_PROCESSING").version }],
+  consentRevocationOpen: false,
+  ...over,
+});
 
 const { default: AppLayout, generateViewport, metadata } = await import("./layout");
 
@@ -48,7 +76,7 @@ beforeEach(() => {
 
 describe("корневой layout v2", () => {
   it("телефон: data-device=mobile, панель вкладок, без шапки", async () => {
-    h.shell = { user: { role: "CLIENT", fullName: "Айгерим", executor: null }, unavailable: false };
+    h.shell = { user: done("CLIENT"), unavailable: false };
     const out = await render();
     expect(htmlTag(out)).toContain('data-device="mobile"');
     expect(out).toContain("data-tab-bar");
@@ -58,11 +86,35 @@ describe("корневой layout v2", () => {
 
   it("компьютер: data-device=desktop, шапка, без панели вкладок", async () => {
     h.device = "desktop";
-    h.shell = { user: { role: "CLIENT", fullName: "Айгерим", executor: null }, unavailable: false };
+    h.shell = { user: done("CLIENT"), unavailable: false };
     const out = await render();
     expect(htmlTag(out)).toContain('data-device="desktop"');
     expect(out).toContain("data-top-bar");
     expect(out).not.toContain("data-tab-bar");
+  });
+
+  it.each(["mobile", "desktop"] as const)("%s: пока не пройдены первые шаги — сосредоточенная оболочка, потом обычная", async (device) => {
+    h.device = device;
+    h.shell = { user: done("CLIENT", { consents: [], fullName: null, iinLast4: null, emailVerified: false }), unavailable: false };
+    const focus = await render();
+    expect(focus).toContain(ru.app.shell.logout);
+    expect(focus).not.toContain("data-tab-bar");
+    expect(focus).not.toContain(ru.app.shell.profileMenu);
+    expect(focus).not.toMatch(/<nav/);
+    expect(focus).toContain("page-body");
+
+    h.shell = { user: done("CLIENT"), unavailable: false };
+    const usual = await render();
+    expect(usual).toMatch(/<nav/);
+    expect(usual).not.toContain(ru.app.shell.logout);
+    expect(usual).not.toContain("data-focus-bar");
+  });
+
+  it("гость: обычная оболочка, сосредоточенной нет", async () => {
+    h.shell = { user: null, unavailable: false };
+    const out = await render();
+    expect(out).toContain("data-tab-bar");
+    expect(out).not.toContain("data-focus-bar");
   });
 
   it.each(["mobile", "desktop"] as const)("%s: место для тостов подключено", async (device) => {
@@ -88,7 +140,7 @@ describe("корневой layout v2", () => {
 
   it("оператор: вместо страниц v2 — заглушка со ссылкой на тот же адрес в v1", async () => {
     h.device = "desktop";
-    h.shell = { user: { role: "OPERATOR", fullName: null, executor: null }, unavailable: false };
+    h.shell = { user: done("OPERATOR", { consents: [], emailVerified: false, mfa: { required: true, verifiedAt: new Date() } }), unavailable: false };
     const out = await render();
     expect(out).not.toContain("page-body");
     expect(out).toContain(ru.app.shell.movingTitle);

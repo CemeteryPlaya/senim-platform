@@ -24,7 +24,7 @@ export default async function ConsentPage({ searchParams }: Props) {
   const user = await requireV2User(stepWithNext("/consent", next));
   if (!needsConsent(user)) redirect(nextStepFor(user, next, await recallRole()));
 
-  const { step, total } = onboardingPosition(user, "consent");
+  const { step, total } = onboardingPosition("consent");
   return (
     <ConsentForm
       document={consentDocument("PD_PROCESSING")}

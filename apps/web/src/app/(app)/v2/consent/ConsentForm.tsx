@@ -7,8 +7,6 @@ import { ActionDock, Button, Card, Checkbox, Explain, HiddenField, Notice, Stack
 import type { Device } from "@/platform/device";
 import { FormError } from "../../_shell/FormError";
 import { useActionForm } from "../../_shell/form";
-import { LogoutButton } from "../../_shell/LogoutButton";
-import { to } from "../../_shell/paths";
 import { grantConsentAction } from "./actions";
 
 const t = ru.app.onboarding.consent;
@@ -29,7 +27,7 @@ type Props = {
 
 /**
  * Экран согласия: текст в прокручиваемой карточке (область доступна с клавиатуры), отметка «Я согласен», одна главная
- * кнопка в доке и «Выйти» рядом. Текст согласия показывается как есть — хэш, который хранит identity, считается от него.
+ * кнопка в доке («Выйти» — в шапке оболочки, «Назад» на шагах нет). Текст согласия показывается как есть — хэш, который хранит identity, считается от него.
  * Сервер получает редакцию, которую человек видел: если текст сменился между показом и нажатием, действие отвечает
  * CONFLICT, экран перечитывается, а форма (вместе с отметкой) пересоздаётся — новую редакцию подтверждают заново.
  */
@@ -45,8 +43,9 @@ export function ConsentForm({ document: doc, updated, next, step, total, device 
     <div className="desktop:mx-auto desktop:max-w-narrow">
       <Stack gap="section">
         <Stack gap="tight">
-          <WizardHeader step={step} total={total} title={t.title} back={{ href: to("/"), label: ru.app.onboarding.backLabel }} />
-          <p className="text-body text-muted">{updated ? screen.updated : screen.lead}</p>
+          <WizardHeader step={step} total={total} title={t.title} />
+          {/* Первый раз заголовок говорит сам за себя; про обновлённую редакцию человеку нужно сказать. */}
+          {updated && <p className="text-body text-muted">{screen.updated}</p>}
           {/* Кнопка пояснения встаёт по левой линии текста, а не по центру растянутой колонки. */}
           <div>
             <Explain label={t.explain.label} title={t.explain.title} device={device}>
@@ -54,10 +53,13 @@ export function ConsentForm({ document: doc, updated, next, step, total, device 
             </Explain>
           </div>
         </Stack>
-        <Notice tone="warn">{doc.draft}</Notice>
-        <Card>
-          {/* Область прокрутки в фокусе клавиатуры: стрелки и PageDown читают текст, диктор называет область. */}
-          <div role="region" aria-label={t.textLabel} tabIndex={0} className="max-h-80 overflow-y-auto">
+        <Stack>
+          <Notice tone="warn">{doc.draft}</Notice>
+          <Card>
+            {/* Область ограниченной высоты со своей прокруткой: на телефоне отметка и кнопка видны на первом экране, нижняя
+                строка текста обрезана краем (подсказка, что текст продолжается). В фокусе клавиатуры: стрелки и PageDown
+                читают текст, диктор называет область. */}
+            <div role="region" aria-label={t.textLabel} tabIndex={0} className="max-h-48 overflow-y-auto desktop:max-h-80">
             <Stack>
               <p className="text-sub text-muted">{screen.edition(doc.version)}</p>
               <p className="text-card text-ink">{doc.title}</p>
@@ -68,8 +70,9 @@ export function ConsentForm({ document: doc, updated, next, step, total, device 
                 </section>
               ))}
             </Stack>
-          </div>
-        </Card>
+            </div>
+          </Card>
+        </Stack>
         <form key={doc.version} id={FORM} method="post" onSubmit={form.onSubmit} noValidate>
           <Stack gap="section">
             <Checkbox name="agreed" value="on" label={t.agree} error={form.fieldErrors.agreed} />
@@ -82,7 +85,6 @@ export function ConsentForm({ document: doc, updated, next, step, total, device 
           <Button type="submit" form={FORM} pending={form.pending}>
             {t.submit}
           </Button>
-          <LogoutButton />
         </ActionDock>
       </Stack>
     </div>

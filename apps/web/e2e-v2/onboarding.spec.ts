@@ -18,7 +18,9 @@ const doc = CONSENT_DOCUMENTS.PD_PROCESSING;
 
 /** Новый казахстанский мобильный номер: «+7 7XX XXX XX XX». */
 function freshPhone(): string {
-  const rest = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join("");
+  const rest = Array.from({ length: 9 }, () =>
+    Math.floor(Math.random() * 10),
+  ).join("");
   const national = `7${rest}`;
   return `+7 ${national.slice(0, 3)} ${national.slice(3, 6)} ${national.slice(6, 8)} ${national.slice(8)}`;
 }
@@ -40,11 +42,15 @@ function freshIin(): string {
 /** Ровно один `<h1>` и не больше одного главного действия на экране. */
 async function expectScreenRules(page: Page) {
   await expect(page.locator("h1")).toHaveCount(1);
-  expect(await page.locator("[data-primary-action]").count()).toBeLessThanOrEqual(1);
+  expect(
+    await page.locator("[data-primary-action]").count(),
+  ).toBeLessThanOrEqual(1);
 }
 
-const heading = (page: Page, name: string) => page.getByRole("heading", { level: 1, name });
-const primary = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
+const heading = (page: Page, name: string) =>
+  page.getByRole("heading", { level: 1, name });
+const primary = (page: Page, name: string) =>
+  page.getByRole("button", { name, exact: true });
 
 /** Открыть адрес и дождаться загрузки скриптов: нажатие до гидратации отправило бы форму браузером, а не действием. */
 async function open(page: Page, path: string) {
@@ -71,7 +77,9 @@ test.beforeEach(async ({ context }) => {
   await context.clearCookies();
 });
 
-test("новый номер: согласие → знакомство → почта; ошибки у полей, введённое не теряется", async ({ page }) => {
+test("новый номер: согласие → знакомство → почта; ошибки у полей, введённое не теряется", async ({
+  page,
+}) => {
   await signInNewcomer(page);
 
   // Согласие: шаг 1 из 3, текст целиком в области прокрутки, одна главная кнопка.
@@ -86,7 +94,9 @@ test("новый номер: согласие → знакомство → по�
   // Без отметки — ошибка у поля, дальше не уходим.
   await primary(page, consent.submit).click();
   await expect(page.getByText(consent.errors.required)).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: consent.agree })).toHaveAttribute("aria-invalid", "true");
+  await expect(
+    page.getByRole("checkbox", { name: consent.agree }),
+  ).toHaveAttribute("aria-invalid", "true");
   await expect(page).toHaveURL(/\/v2\/consent$/);
 
   // С отметкой — знакомство: шаг пересчитан по оставшемуся.
@@ -94,14 +104,17 @@ test("новый номер: согласие → знакомство → по�
   await primary(page, consent.submit).click();
   await expect(heading(page, welcome.title)).toBeVisible();
   await expect(page).toHaveURL(/\/v2\/welcome$/);
-  await expect(page.getByText(ru.app.kit.wizard.step(1, 2))).toBeVisible();
+  await expect(page.getByText(ru.app.kit.wizard.step(2, 3))).toBeVisible();
   await expectScreenRules(page);
 
   // Пустые поля — обе ошибки сразу у полей.
   await primary(page, welcome.submit).click();
   await expect(page.getByText(welcome.errors.fullNameRequired)).toBeVisible();
   await expect(page.getByText(welcome.errors.iinRequired)).toBeVisible();
-  await expect(page.getByLabel(welcome.fullName)).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByLabel(welcome.fullName)).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
 
   // Неверный ИИН — отказ identity у поля ИИН; ФИО остаётся.
   await page.getByLabel(welcome.fullName).fill("Сапаров Ерлан");
@@ -109,7 +122,10 @@ test("новый номер: согласие → знакомство → по�
   await primary(page, welcome.submit).click();
   await expect(page.getByText(identityTexts.iinInvalid)).toBeVisible();
   await expect(page.getByLabel(welcome.fullName)).toHaveValue("Сапаров Ерлан");
-  await expect(page.getByLabel(welcome.iin)).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByLabel(welcome.iin)).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
 
   // «Зачем ИИН» — по нажатию (телефон — шторка, компьютер — поповер).
   await page.getByRole("button", { name: welcome.explain.label }).click();
@@ -127,34 +143,63 @@ test("новый номер: согласие → знакомство → по�
   await expect(page).toHaveURL(/\/v2\/email$/);
 });
 
-test("next проходит через все шаги; после согласия страница знакомства ведёт дальше, а не по кругу", async ({ page }) => {
+test("next проходит через все шаги; после согласия страница знакомства ведёт дальше, а не по кругу", async ({
+  page,
+}) => {
   const next = "/v2/about";
-  await signInNewcomer(page, `/v2/login?${new URLSearchParams({ step: "phone", next })}`);
-  await expect(page).toHaveURL(new RegExp(`/v2/consent\\?next=${encodeURIComponent(next)}$`));
+  await signInNewcomer(
+    page,
+    `/v2/login?${new URLSearchParams({ step: "phone", next })}`,
+  );
+  await expect(page).toHaveURL(
+    new RegExp(`/v2/consent\\?next=${encodeURIComponent(next)}$`),
+  );
 
   await page.getByText(consent.agree, { exact: true }).click();
   await primary(page, consent.submit).click();
-  await expect(page).toHaveURL(new RegExp(`/v2/welcome\\?next=${encodeURIComponent(next)}$`));
+  await expect(page).toHaveURL(
+    new RegExp(`/v2/welcome\\?next=${encodeURIComponent(next)}$`),
+  );
 
   // Знакомство до согласия не открыть — а после согласия оно открыто, согласие же ведёт на него.
   await open(page, `/v2/consent?next=${encodeURIComponent(next)}`);
-  await expect(page).toHaveURL(new RegExp(`/v2/welcome\\?next=${encodeURIComponent(next)}$`));
+  await expect(page).toHaveURL(
+    new RegExp(`/v2/welcome\\?next=${encodeURIComponent(next)}$`),
+  );
 });
 
-test("гость на шагах — на вход; «Выйти» ведёт на вход", async ({ page }) => {
+test("гость на шагах — на вход; на шагах сосредоточенная оболочка, «Выйти» в шапке ведёт на вход", async ({ page }) => {
   await open(page, "/v2/consent");
   await expect(page).toHaveURL(/\/v2\/login$/);
   await open(page, "/v2/welcome");
   await expect(page).toHaveURL(/\/v2\/login$/);
 
   await signInNewcomer(page);
-  await expect(page.getByRole("button", { name: shell.logout, exact: true })).toBeVisible();
+  // Нет ни вкладок, ни разделов, ни «Назад»; «Выйти» одна, в шапке; в доке только «Продолжить».
+  await expect(page.getByRole("navigation", { name: shell.navLabel })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: new RegExp(`^${ru.app.kit.back}`) })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: shell.logout, exact: true })).toHaveCount(1);
+  await expect(page.locator("[data-action-dock]").getByRole("button")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: ru.common.brand })).toHaveAttribute("href", "/v2");
+
   await page.getByRole("button", { name: shell.logout, exact: true }).click();
   await expect(page).toHaveURL(/\/v2\/login$/);
 });
 
-test("назад с согласия — на главную", async ({ page }) => {
+test("телефон: на первом экране согласия видны заголовок, начало текста, отметка и кнопка; док не перекрывает отметку", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile", "первый экран — только телефон");
   await signInNewcomer(page);
-  await page.getByRole("link", { name: `${ru.app.kit.back}: ${ru.app.onboarding.backLabel}` }).click();
-  await expect(page).toHaveURL(/\/v2$/);
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("нет размера окна");
+  const checkbox = page.getByText(consent.agree, { exact: true });
+  const dock = page.locator("[data-action-dock]");
+  await expect(heading(page, consent.title)).toBeInViewport();
+  await expect(page.getByRole("region", { name: consent.textLabel })).toBeInViewport();
+  await expect(checkbox).toBeInViewport({ ratio: 1 });
+  await expect(primary(page, consent.submit)).toBeInViewport({ ratio: 1 });
+  const [box, dockBox] = [await checkbox.boundingBox(), await dock.boundingBox()];
+  expect(box && dockBox && box.y + box.height <= dockBox.y).toBe(true);
+  // Панели вкладок нет, док у самого нижнего края.
+  await expect(page.locator("[data-tab-bar]")).toHaveCount(0);
+  expect(dockBox && viewport.height - (dockBox.y + dockBox.height)).toBeLessThanOrEqual(24);
 });

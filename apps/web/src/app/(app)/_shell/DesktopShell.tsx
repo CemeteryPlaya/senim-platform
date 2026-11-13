@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { ButtonLink } from "@/kit";
 import { AvatarMenu } from "./AvatarMenu";
+import { LogoutButton } from "./LogoutButton";
 import type { AppNav } from "./nav";
 import { to } from "./paths";
 import { MAIN_ID, SkipLink, UnavailableNotice } from "./ShellParts";
@@ -25,6 +26,8 @@ export type DesktopShellProps = {
  * прилипает к верху; материал полупрозрачный (glass), содержимое прокручивается под ним, по нижнему краю — линия.
  * Слева название продукта (ссылка на главную), затем разделы строкой; справа действие роли (вторичной кнопкой — главная
  * кнопка принадлежит экрану), колокольчик и аватар с меню. Гостю справа — «Войти» той же вторичной кнопкой.
+ * Сосредоточенная оболочка (`nav.focus`, первые шаги после входа): слева только название, справа только «Выйти»
+ * (вторичная кнопка), без разделов, действия, колокольчика и аватара.
  * Содержимое по центру, до 1100 px. Брейкпоинтов нет: в узком окне оболочка не становится телефонной. Когда строка
  * не помещается (крупный шрифт, узкое окно), правая группа переходит на вторую строку у правого края, разделы
  * переносятся — шапка растёт, ничего не обрезается и не наезжает.
@@ -45,7 +48,8 @@ export function DesktopShell({ nav, user, unavailable = false, children }: Deskt
                 {nav.action.label}
               </ButtonLink>
             )}
-            {user && (
+            {nav.focus && <LogoutButton variant="secondary" />}
+            {user && !nav.focus && (
               <Link
                 href={to("/notifications")}
                 aria-label={ru.app.shell.notifications}
@@ -54,7 +58,7 @@ export function DesktopShell({ nav, user, unavailable = false, children }: Deskt
                 <Bell aria-hidden className="size-6" />
               </Link>
             )}
-            {user && <AvatarMenu fullName={user.fullName} />}
+            {user && !nav.focus && <AvatarMenu fullName={user.fullName} />}
           </div>
         </div>
       </header>

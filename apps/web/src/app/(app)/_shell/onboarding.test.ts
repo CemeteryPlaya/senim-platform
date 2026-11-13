@@ -20,25 +20,26 @@ function client(over: Partial<StepUser> = {}): StepUser {
   };
 }
 
-const NEWCOMER = client({ consents: [], fullName: null, iinLast4: null, emailVerified: false });
+describe("onboardingPosition: «Шаг N из 3», последовательность постоянна", () => {
+  it("новичок: 1/3 → 2/3 → 3/3, без отката", () => {
+    expect(onboardingPosition("consent")).toEqual({ step: 1, total: 3 });
+    expect(onboardingPosition("welcome")).toEqual({ step: 2, total: 3 });
+    expect(onboardingPosition("email")).toEqual({ step: 3, total: 3 });
+  });
+});
 
-describe("onboardingPosition: «Шаг N из M» по тому, что осталось пройти", () => {
-  it("новый человек: согласие — 1 из 3", () => {
-    expect(pendingOnboarding(NEWCOMER)).toEqual(["consent", "welcome", "email"]);
-    expect(onboardingPosition(NEWCOMER, "consent")).toEqual({ step: 1, total: 3 });
+describe("pendingOnboarding: что осталось пройти", () => {
+  it("новый человек: все три шага по порядку", () => {
+    expect(pendingOnboarding(client({ consents: [], fullName: null, iinLast4: null, emailVerified: false }))).toEqual(["consent", "welcome", "email"]);
   });
 
-  it("дальше оставшееся пересчитывается: знакомство — 1 из 2, почта — 1 из 1", () => {
-    expect(onboardingPosition(client({ fullName: null, iinLast4: null, emailVerified: false }), "welcome")).toEqual({ step: 1, total: 2 });
-    expect(onboardingPosition(client({ emailVerified: false }), "email")).toEqual({ step: 1, total: 1 });
+  it("вернувшийся с согласием: знакомство и почта; с согласием и ФИО — только почта", () => {
+    expect(pendingOnboarding(client({ fullName: null, iinLast4: null, emailVerified: false }))).toEqual(["welcome", "email"]);
+    expect(pendingOnboarding(client({ emailVerified: false }))).toEqual(["email"]);
   });
 
-  it("вернувшийся: новая редакция согласия — единственный шаг, не «1 из 3»", () => {
-    expect(onboardingPosition(client({ consents: [] }), "consent")).toEqual({ step: 1, total: 1 });
-  });
-
-  it("экран, которого нет среди непройденных, — 1 из 1", () => {
-    expect(onboardingPosition(client(), "welcome")).toEqual({ step: 1, total: 1 });
+  it("всё пройдено — пусто (обычная оболочка)", () => {
+    expect(pendingOnboarding(client())).toEqual([]);
   });
 
   it("сотрудника площадки первые шаги не касаются", () => {

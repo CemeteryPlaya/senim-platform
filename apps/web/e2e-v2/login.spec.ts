@@ -55,11 +55,14 @@ async function signInFromPhoneStep(page: Page, phone: string) {
   await primary(page, t.code.submit).click();
 }
 
-/** Оболочка показывает навигацию вошедшего заказчика (вкладка «Заявки» есть только у вошедших). */
+/**
+ * Вошедший с непройденными первыми шагами видит сосредоточенную оболочку: в шапке «Выйти» и нет ни вкладок, ни «Войти»
+ * (обычное меню вошедшего появляется после шагов — его проверяет onboarding.spec.ts).
+ */
 async function expectSignedIn(page: Page) {
-  const menu = page.getByRole("navigation", { name: shell.navLabel });
-  await expect(menu.getByRole("link", { name: shell.nav.requests, exact: true })).toBeVisible();
-  await expect(menu.getByRole("link", { name: shell.nav.login, exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: shell.logout, exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: shell.navLabel })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: shell.nav.login, exact: true })).toHaveCount(0);
 }
 
 /** Открыть адрес и дождаться загрузки скриптов: нажатие до гидратации отправило бы форму браузером, а не действием. */
@@ -166,14 +169,12 @@ test("выбор запоминается: вернувшись к первом�
   await expect(page.getByRole("radio", { name: t.role.executor })).toBeChecked();
 });
 
-test("выход ведёт на вход v2", async ({ page }, info) => {
-  test.skip(info.project.name === "mobile", "«Выйти» в v2 пока только в меню профиля шапки компьютера");
+test("выход ведёт на вход v2", async ({ page }) => {
   await open(page, "/v2/login?step=phone");
   await signInFromPhoneStep(page, freshPhone().typed);
   await expectSignedIn(page);
 
-  await page.getByRole("button", { name: shell.profileMenu }).click();
-  await page.getByRole("menuitem", { name: shell.logout }).click();
+  await page.getByRole("button", { name: shell.logout, exact: true }).click();
   await expect(page).toHaveURL(/\/v2\/login$/);
   await expect(heading(page, t.role.title)).toBeVisible();
 });

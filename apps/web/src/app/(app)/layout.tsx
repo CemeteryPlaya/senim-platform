@@ -10,6 +10,7 @@ import { features } from "@/platform/features";
 import { DesktopShell } from "./_shell/DesktopShell";
 import { MobileShell } from "./_shell/MobileShell";
 import { navFor } from "./_shell/nav";
+import { pendingOnboarding } from "./_shell/onboarding";
 import { OperatorMoving } from "./_shell/OperatorMoving";
 import "./app.css";
 
@@ -55,7 +56,8 @@ export default async function AppLayout({ children }: Readonly<{ children: React
   // getShellUser() идёт первым: без cookie он не обращается к БД, а env() (features) читается уже во время запроса.
   const { user, unavailable } = await getShellUser();
   const [theme, device] = await Promise.all([getTheme(), getDevice()]);
-  const nav = navFor(user, features());
+  // Пока не пройдены первые шаги (согласие, знакомство, почта) — сосредоточенная оболочка: только название и «Выйти».
+  const nav = navFor(user, features(), { focus: user !== null && pendingOnboarding(user).length > 0 });
   // Оболочка оператора — этап 5; до неё оператору вместо страниц v2 показывается заглушка со ссылкой на тот же адрес
   // в v1. Это только интерфейс, а не граница доступа: страница при этом всё равно выполняется на сервере, и права
   // проверяют она сама и действия сервера.

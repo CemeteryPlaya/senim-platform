@@ -23,6 +23,6 @@ export default async function WelcomePage({ searchParams }: Props) {
   const user = await requireV2User(stepWithNext("/welcome", next));
   if (!needsIntroduction(user)) redirect(nextStepFor(user, next, await recallRole()));
 
-  const { step, total } = onboardingPosition(user, "welcome");
+  const { step, total } = onboardingPosition("welcome");
   return <WelcomeForm defaultFullName={user.fullName} next={next} step={step} total={total} device={await getDevice()} />;
 }

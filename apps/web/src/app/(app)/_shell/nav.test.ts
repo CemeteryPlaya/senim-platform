@@ -12,6 +12,21 @@ const measurer: NavUser = { role: "MEASURER", executor: null };
 const labels = (nav: AppNav) => nav.tabs.map((t) => t.label);
 const hrefs = (nav: AppNav) => nav.tabs.map((t) => t.href);
 
+describe("navFor: сосредоточенная оболочка первых шагов", () => {
+  it.each([client, executor("APPROVED"), executor("PENDING"), measurer])("вошедший с непройденными шагами (%j): ни вкладок, ни разделов, ни действия", (user) => {
+    expect(navFor(user, ON, { focus: true })).toEqual({ tabs: [], sections: [], guest: false, focus: true });
+  });
+
+  it("без признака, с focus: false и у гостя оболочка прежняя", () => {
+    expect(navFor(client, OFF).focus).toBe(false);
+    expect(navFor(client, OFF, { focus: false })).toEqual(navFor(client, OFF));
+    expect(navFor(null, OFF).focus).toBe(false);
+    // Гостю сосредоточенная оболочка не нужна: у него нет шагов.
+    expect(navFor(null, OFF, { focus: true })).toEqual(navFor(null, OFF));
+    expect(navFor(client, OFF).tabs).toHaveLength(5);
+  });
+});
+
 describe("navFor: вкладки по ролям", () => {
   it("гость, телефон: Главная · Мастера · О сервисе · Войти", () => {
     const nav = navFor(null, OFF);

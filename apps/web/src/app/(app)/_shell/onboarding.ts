@@ -14,13 +14,13 @@ export function pendingOnboarding(user: StepUser): OnboardingScreen[] {
   return steps;
 }
 
+/** Постоянная последовательность первых шагов: номер шага — его место в ней, а не число оставшихся. */
+const SEQUENCE: readonly OnboardingScreen[] = ["consent", "welcome", "email"];
+
 /**
- * «Шаг N из M» для экрана первых шагов — по тому, что человеку осталось пройти, а не по всем возможным шагам: вернувшемуся
- * пользователю, у которого не хватает только почты, не показывается «Шаг 3 из 3». Экран, которого нет среди непройденных,
- * — единственный шаг (1 из 1): страница шага такого человека всё равно уводит дальше.
+ * «Шаг N из 3» для экрана первых шагов: последовательность постоянна (согласие, знакомство, почта), N — место экрана в ней,
+ * то есть N−1 шагов пройдено раньше. Новичок видит 1/3, 2/3, 3/3 без отката; вернувшийся с согласием сразу видит 2/3.
  */
-export function onboardingPosition(user: StepUser, screen: OnboardingScreen): { step: number; total: number } {
-  const pending = pendingOnboarding(user);
-  const index = pending.indexOf(screen);
-  return index < 0 ? { step: 1, total: 1 } : { step: index + 1, total: pending.length };
+export function onboardingPosition(screen: OnboardingScreen): { step: number; total: number } {
+  return { step: SEQUENCE.indexOf(screen) + 1, total: SEQUENCE.length };
 }

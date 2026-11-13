@@ -21,6 +21,7 @@ const { navFor } = await import("./nav");
 const OFF = { preContractFlows: false, inspiration: false, materialsCalculator: false };
 const clientNav = navFor({ role: "CLIENT", executor: null }, OFF);
 const guestNav = navFor(null, OFF);
+const focusNav = navFor({ role: "CLIENT", executor: null }, OFF, { focus: true });
 const operatorNav = navFor({ role: "OPERATOR", executor: null }, OFF);
 const client = { fullName: "Айгерим Сапарова" };
 
@@ -334,5 +335,53 @@ describe("MovingPlaceholder", () => {
     expect(out).toContain(ru.app.shell.movingTitle);
     expect(out).toContain(ru.app.shell.movingBody);
     expect(out).toMatch(/<a [^>]*href="\/deals\/1\?tab=2"[^>]*>[\s\S]*Открыть раздел/);
+  });
+});
+
+describe("сосредоточенная оболочка (первые шаги после входа)", () => {
+  const brand = ru.common.brand;
+
+  it("телефон: узкая шапка — название-ссылка на главную и «Выйти»; панели вкладок и подложки нет", () => {
+    const m = html(<MobileShell nav={focusNav}>x</MobileShell>);
+    expect(m).toContain("data-focus-bar");
+    expect(m).toMatch(new RegExp(`<a [^>]*href="/v2"[^>]*>${brand}</a>`));
+    expect(m).toContain(ru.app.shell.logout);
+    expect(m).not.toContain("data-tab-bar");
+    expect(m).not.toContain("data-bar-underlay");
+    expect(m).not.toContain("data-has-tabs");
+    expect(m).not.toMatch(/<nav/);
+    expect(count(m, "<a ")).toBeGreaterThanOrEqual(1);
+    for (const href of ["/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"]) expect(m).not.toContain(`href="${href}"`);
+  });
+
+  it("компьютер: шапка с названием слева и «Выйти» справа вторичной кнопкой; ни разделов, ни «Новая заявка», ни колокольчика, ни аватара", () => {
+    const d = html(
+      <DesktopShell nav={focusNav} user={client}>
+        x
+      </DesktopShell>,
+    );
+    expect(d).toMatch(new RegExp(`<a [^>]*href="/v2"[^>]*>${brand}</a>`));
+    const logoutClass = new RegExp(`<button[^>]*class="([^"]*)"[^>]*>(?:<span[^>]*>)?${ru.app.shell.logout}`).exec(d)?.[1] ?? "";
+    expect(hasClass(`class="${logoutClass}"`, "bg-line")).toBe(true);
+    expect(d).not.toMatch(/<nav/);
+    expect(d).not.toContain(ru.app.shell.newRequest);
+    expect(d).not.toContain(ru.app.shell.notifications);
+    expect(d).not.toContain(ru.app.shell.profileMenu);
+    expect(d).not.toContain("data-primary-action");
+  });
+
+  it("гость и человек с пройденным онбордингом видят прежнюю оболочку", () => {
+    const g = html(<MobileShell nav={guestNav}>x</MobileShell>);
+    expect(g).toContain("data-tab-bar");
+    expect(g).not.toContain("data-focus-bar");
+    const c = html(
+      <DesktopShell nav={clientNav} user={client}>
+        x
+      </DesktopShell>,
+    );
+    expect(c).toMatch(/<nav/);
+    expect(c).toContain(ru.app.shell.newRequest);
+    expect(c).toContain(ru.app.shell.profileMenu);
+    expect(c).not.toContain(ru.app.shell.logout);
   });
 });

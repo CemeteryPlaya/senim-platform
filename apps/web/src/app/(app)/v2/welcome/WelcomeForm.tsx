@@ -5,8 +5,6 @@ import { ActionDock, Button, Explain, HiddenField, Stack, TextField, WizardHeade
 import type { Device } from "@/platform/device";
 import { FormError } from "../../_shell/FormError";
 import { useActionForm } from "../../_shell/form";
-import { LogoutButton } from "../../_shell/LogoutButton";
-import { to } from "../../_shell/paths";
 import { introduceAction } from "./actions";
 
 const t = ru.app.onboarding.welcome;
@@ -24,7 +22,7 @@ type Props = {
 
 /**
  * Знакомство: ФИО и ИИН, ошибки сразу у полей (в том числе отказы identity: формат ИИН, «ИИН уже указан», лимит попыток),
- * одна главная кнопка в доке и «Выйти» рядом. Постоянных подсказок под полями нет: зачем ИИН — по нажатию (Explain).
+ * одна главная кнопка в доке («Выйти» — в шапке оболочки). Постоянных подсказок под полями нет: зачем ИИН — по нажатию (Explain).
  * Введённое остаётся в полях при ошибке (форма на onSubmit, а не на action).
  */
 export function WelcomeForm({ defaultFullName, next, step, total, device }: Props) {
@@ -35,7 +33,7 @@ export function WelcomeForm({ defaultFullName, next, step, total, device }: Prop
     <div className="desktop:mx-auto desktop:max-w-narrow">
       <Stack gap="section">
         <Stack gap="tight">
-          <WizardHeader step={step} total={total} title={t.title} back={{ href: to("/"), label: ru.app.onboarding.backLabel }} />
+          <WizardHeader step={step} total={total} title={t.title} />
           <p className="text-body text-muted">{t.lead}</p>
           {/* Кнопка пояснения встаёт по левой линии текста, а не по центру растянутой колонки. */}
           <div>
@@ -63,7 +61,6 @@ export function WelcomeForm({ defaultFullName, next, step, total, device }: Prop
           <Button type="submit" form={FORM} pending={form.pending}>
             {t.submit}
           </Button>
-          <LogoutButton />
         </ActionDock>
       </Stack>
     </div>

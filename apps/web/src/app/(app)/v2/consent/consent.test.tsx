@@ -118,7 +118,7 @@ describe("экран согласия", () => {
     expect(h1(out)).toBe(t.title);
     expect(count(out, "data-primary-action")).toBe(1);
     expect(text(render())).toContain(ru.app.kit.wizard.step(1, 3));
-    expect(text(render({ step: 1, total: 1 }))).toContain(ru.app.kit.wizard.step(1, 1));
+    expect(text(render({ step: 2, total: 3 }))).toContain(ru.app.kit.wizard.step(2, 3));
   });
 
   it("текст согласия показан целиком, как в документе: отметка черновика, редакция, все разделы", () => {
@@ -149,19 +149,26 @@ describe("экран согласия", () => {
     expect(html(render())).toMatch(/<form[^>]*method="post"/);
   });
 
-  it("в доке «Продолжить» связана с формой, рядом тихая «Выйти»; «Зачем это нужно» — по нажатию", () => {
+  it("в доке одна кнопка «Продолжить», связанная с формой; «Выйти» и «Назад» на шаге нет; «Зачем это нужно» — по нажатию", () => {
     const out = html(render());
     const dock = out.slice(out.indexOf("data-action-dock"));
     expect(dock).toContain('form="consent-form"');
     expect(dock).toContain(t.submit);
-    expect(dock).toContain(ru.app.shell.logout);
+    expect(count(dock, "<button")).toBe(1);
+    expect(text(render())).not.toContain(ru.app.shell.logout);
+    expect(out).not.toContain(ru.app.kit.back);
     expect(text(render())).toContain(t.explain.label);
     expect(text(render())).not.toContain(t.explain.body);
   });
 
-  it("новая редакция: «текст обновился» вместо первого обращения", () => {
+  it("новая редакция: «текст обновился»; в первый раз — только заголовок, без вступления (экономит первый экран телефона)", () => {
     expect(text(render({ updated: true }))).toContain(ru.consent.screen.updated);
-    expect(text(render())).toContain(ru.consent.screen.lead);
+    expect(text(render())).not.toContain(ru.consent.screen.updated);
+    expect(text(render())).not.toContain(ru.consent.screen.lead);
+  });
+
+  it("область текста ограничена по высоте: на телефоне невысокая (отметка и кнопка на первом экране), на компьютере выше", () => {
+    expect(html(render())).toMatch(/role="region"[^>]*class="[^"]*max-h-48[^"]*desktop:max-h-80/);
   });
 
   it("«текст обновился» — общей плашкой; нет отметки — у поля, без второй плашки", () => {

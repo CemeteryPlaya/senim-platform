@@ -25,9 +25,17 @@ export type NavItem = { href: string; label: string; icon: NavIcon };
 
 /**
  * tabs — панель вкладок телефона; sections — разделы в шапке компьютера (у вошедших те же, что вкладки); action —
- * действие справа в шапке компьютера (кнопка `secondary`: главная кнопка принадлежит экрану); guest — не вошёл.
+ * действие справа в шапке компьютера (кнопка `secondary`: главная кнопка принадлежит экрану); guest — не вошёл;
+ * focus — сосредоточенная оболочка (у вошедшего не пройдены первые шаги): ни вкладок, ни разделов, ни действия — только
+ * название продукта и «Выйти» (рисует оболочка).
  */
-export type AppNav = { tabs: NavItem[]; sections: NavItem[]; action?: { href: string; label: string }; guest: boolean };
+export type AppNav = {
+  tabs: NavItem[];
+  sections: NavItem[];
+  action?: { href: string; label: string };
+  guest: boolean;
+  focus: boolean;
+};
 
 /** Ровно то, что нужно навигации от текущего пользователя (подмножество CurrentUser из identity). */
 export type NavUser = {
@@ -82,14 +90,18 @@ function roleTabs(user: NavUser): NavItem[] {
  * Меню пользователя (null — гость). Вкладки за выключенными флагами не попадают.
  * Гость: на телефоне — Главная · Мастера · О сервисе · Войти («Войти» — последняя вкладка); в шапке компьютера —
  * разделы Мастера · О сервисе (на главную ведёт название продукта), «Войти» — действие справа.
+ * `options.focus` — у вошедшего есть непройденные первые шаги: сосредоточенная оболочка (см. AppNav.focus).
  */
-export function navFor(user: NavUser | null, f: NavFeatures): AppNav {
+export function navFor(user: NavUser | null, f: NavFeatures, options: { focus?: boolean } = {}): AppNav {
+  // Первые шаги после входа (согласие, знакомство, почта): человеку нужно пройти их, а не переходить по разделам.
+  if (user && options.focus) return { tabs: [], sections: [], guest: false, focus: true };
   if (!user) {
     return {
       tabs: [R.home, R.masters, R.about, R.login],
       sections: [R.masters, R.about],
       action: { href: R.login.href, label: R.login.label },
       guest: true,
+      focus: false,
     };
   }
   const tabs = roleTabs(user).filter((item) => {
@@ -97,7 +109,7 @@ export function navFor(user: NavUser | null, f: NavFeatures): AppNav {
     return flag === undefined || f[flag];
   });
   const action = user.role === "CLIENT" ? { href: to("/requests/new"), label: ru.app.shell.newRequest } : undefined;
-  return action ? { tabs, sections: tabs, action, guest: false } : { tabs, sections: tabs, guest: false };
+  return action ? { tabs, sections: tabs, action, guest: false, focus: false } : { tabs, sections: tabs, guest: false, focus: false };
 }
 
 /**
