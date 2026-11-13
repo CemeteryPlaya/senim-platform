@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { ActionResult } from "@/platform/action";
-import { formDataToInput, outcomeOf, runSubmit, submitterOf, type SubmitState } from "./form";
+import { formDataToInput, LEAVE_TIMEOUT_MS, outcomeOf, runSubmit, submitterOf, type SubmitEnv, type SubmitState } from "./form";
 
 const here = { pathname: "/v2/masters/7", search: "?tab=works" };
 
@@ -102,7 +102,73 @@ describe("runSubmit: отправка формы useActionForm", () => {
     };
     return { s, set };
   }
-  const env = { here: () => here, leave: vi.fn<(href: string) => void>() };
+  /** Окружение формы: куда уходит и подписка на pageshow (тест сам вызывает `pageshow(persisted)`). */
+  function environment() {
+    const listeners = new Set<(persisted: boolean) => void>();
+    const env: SubmitEnv = {
+      here: () => here,
+      leave: vi.fn<(href: string) => void>(),
+      onPageShow: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+    return { env, pageshow: (persisted: boolean) => [...listeners].forEach((l) => l(persisted)), listeners };
+  }
+  const { env } = environment();
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const unauthenticated = async (): Promise<ActionResult<never>> => ({ ok: false, code: "UNAUTHENTICATED", error: "x" });
+
+  it("уход на вход (UNAUTHENTICATED): адрес передан, форма остаётся занятой, повтор не вызывает действие", async () => {
+    const { s, set } = state();
+    const { env: e } = environment();
+    const action = vi.fn(unauthenticated);
+    await runSubmit(action, {}, set, e, new FormData());
+    expect(e.leave).toHaveBeenCalledWith(`/v2/login?next=${encodeURIComponent("/v2/masters/7?tab=works")}`);
+    expect(s).toMatchObject({ pending: true, error: null });
+    expect(s.busy.current).toBe(true);
+    await runSubmit(action, {}, set, e, new FormData());
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
+  it("переход не состоялся: через LEAVE_TIMEOUT_MS форма снова свободна, подписка на pageshow снята", async () => {
+    const { s, set } = state();
+    const { env: e, listeners } = environment();
+    await runSubmit(unauthenticated, {}, set, e, new FormData());
+    vi.advanceTimersByTime(LEAVE_TIMEOUT_MS - 1);
+    expect(s.busy.current).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(s.busy.current).toBe(false);
+    expect(s.pending).toBe(false);
+    expect(listeners.size).toBe(0);
+    expect(LEAVE_TIMEOUT_MS).toBe(10_000);
+  });
+
+  it("возврат из bfcache (pageshow persisted) — форма свободна сразу; pageshow без persisted — нет", async () => {
+    const { s, set } = state();
+    const { env: e, pageshow, listeners } = environment();
+    await runSubmit(async (): Promise<ActionResult<never>> => redirect("/v2"), {}, set, e, new FormData());
+    pageshow(false);
+    expect(s.busy.current).toBe(true);
+    pageshow(true);
+    expect(s.busy.current).toBe(false);
+    expect(s.pending).toBe(false);
+    expect(listeners.size).toBe(0);
+    // Таймер первого ухода снят: в свой срок он не освобождает следующую отправку.
+    vi.advanceTimersByTime(LEAVE_TIMEOUT_MS / 2);
+    await runSubmit(unauthenticated, {}, set, e, new FormData());
+    vi.advanceTimersByTime(LEAVE_TIMEOUT_MS / 2);
+    expect(s.busy.current).toBe(true);
+    vi.advanceTimersByTime(LEAVE_TIMEOUT_MS / 2);
+    expect(s.busy.current).toBe(false);
+  });
 
   it("действие сделало redirect(): ошибки нет, форма остаётся занятой, повтор не вызывает действие", async () => {
     const { s, set } = state();

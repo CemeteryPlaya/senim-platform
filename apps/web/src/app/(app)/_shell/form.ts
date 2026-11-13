@@ -87,14 +87,45 @@ export type SubmitState = {
   setFieldErrors: (fieldErrors: Record<string, string>) => void;
 };
 
-/** Где форма и как с неё уйти (в браузере — `window.location`). */
-export type SubmitEnv = { here: () => Here; leave: (href: string) => void };
+/**
+ * Где форма и как с неё уйти (в браузере — `window.location`); `onPageShow` — подписка на `pageshow` (аргумент —
+ * `event.persisted`: страница вернулась из bfcache), возвращает отписку.
+ */
+export type SubmitEnv = {
+  here: () => Here;
+  leave: (href: string) => void;
+  onPageShow: (listener: (persisted: boolean) => void) => () => void;
+};
+
+/** Через сколько после начала ухода форма снова свободна, если переход так и не состоялся (офлайн, сбой). */
+export const LEAVE_TIMEOUT_MS = 10_000;
+
+/**
+ * Форма занята, пока страница уходит; если ухода не случилось — освобождается: через LEAVE_TIMEOUT_MS или сразу, когда
+ * страница вернулась из bfcache (`pageshow` с `persisted`: кнопку «Назад» нажали после ухода). Освобождение одно.
+ */
+function holdWhileLeaving(state: SubmitState, env: SubmitEnv): void {
+  let held = true;
+  const release = () => {
+    if (!held) return;
+    held = false;
+    clearTimeout(timer);
+    unsubscribe();
+    state.busy.current = false;
+    state.setPending(false);
+  };
+  const timer = setTimeout(release, LEAVE_TIMEOUT_MS);
+  const unsubscribe = env.onPageShow((persisted) => {
+    if (persisted) release();
+  });
+}
 
 /**
  * Одна отправка формы (чистая часть useActionForm, без React): вызов действия и разбор ответа. Пока идёт прошлая отправка,
- * новая игнорируется. Действие сделало `redirect()` — Next уже ведёт на новый адрес, а обещание вызова отклоняет ошибкой
- * перехода: это не сбой, ошибки нет, и форма ОСТАЁТСЯ занятой до ухода со страницы — иначе кнопка ожила бы посреди
- * перехода, и второе нажатие вызвало бы действие ещё раз. Прочий сбой — общий текст, форма снова свободна.
+ * новая игнорируется. Уход со страницы — `redirect()` в действии (Next уже ведёт на новый адрес, а обещание вызова
+ * отклоняет ошибкой перехода: это не сбой, ошибки нет) или ответ «сессия истекла» / «нужно согласие» (outcomeOf → leave):
+ * форма ОСТАЁТСЯ занятой, иначе кнопка ожила бы посреди перехода и второе нажатие вызвало бы действие ещё раз; если переход
+ * не состоялся — освобождается (holdWhileLeaving). Прочий сбой — общий текст, форма снова свободна.
  */
 export async function runSubmit<I, T>(
   action: (input: I) => Promise<ActionResult<T>>,
@@ -114,8 +145,10 @@ export async function runSubmit<I, T>(
     const input = options.toInput ? options.toInput(data) : (formDataToInput(data) as I);
     const outcome = outcomeOf(await action(input), env.here());
     if (outcome.kind === "success") options.onSuccess?.(outcome.data);
-    else if (outcome.kind === "leave") env.leave(outcome.href);
-    else {
+    else if (outcome.kind === "leave") {
+      leaving = true;
+      env.leave(outcome.href);
+    } else {
       state.setError(outcome.error);
       state.setFieldErrors(outcome.fieldErrors);
     }
@@ -127,7 +160,8 @@ export async function runSubmit<I, T>(
     logger.warn("app.form: action failed", { error: e });
     state.setError(ru.common.errors.generic);
   } finally {
-    if (!leaving) {
+    if (leaving) holdWhileLeaving(state, env);
+    else {
       state.busy.current = false;
       state.setPending(false);
     }
@@ -141,7 +175,7 @@ export async function runSubmit<I, T>(
  * завершения такого действия сбрасывает неуправляемые поля формы, и при ошибке проверки человек терял бы введённые
  * телефон или код. `submit(formData)` — для программного вызова. Повторная отправка, пока идёт прошлая, игнорируется. «Сессия
  * истекла» и «нужно согласие» уводят на экран v2 с возвратом (см. `outcomeOf`) и состояния формы не меняют; `redirect()`
- * в самом действии (вход, выбор шага) — уход без ошибки на экране, форма остаётся занятой до перехода (runSubmit). Сбой
+ * в самом действии (вход, выбор шага) — уход без ошибки на экране; при уходе форма остаётся занятой (runSubmit). Сбой
  * транспорта (сеть, сервер) — общая ошибка из `ru.common.errors.generic`, подробности в журнале.
  *
  * `toInput` по умолчанию не проверяет типы: вход действия — «сырой» объект полей, а разбирает и проверяет его
@@ -157,7 +191,15 @@ export function useActionForm<I, T>(
   const busy = useRef(false);
 
   const state: SubmitState = { busy, setPending, setError, setFieldErrors };
-  const env: SubmitEnv = { here: () => window.location, leave: (href) => window.location.assign(href) };
+  const env: SubmitEnv = {
+    here: () => window.location,
+    leave: (href) => window.location.assign(href),
+    onPageShow: (listener) => {
+      const handler = (event: PageTransitionEvent) => listener(event.persisted);
+      window.addEventListener("pageshow", handler);
+      return () => window.removeEventListener("pageshow", handler);
+    },
+  };
   const submit = (data: FormData): Promise<void> => runSubmit(action, options, state, env, data);
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {

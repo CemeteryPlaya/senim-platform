@@ -128,7 +128,8 @@ export function RoleStep({ role, next }: { role: LoginRole; next: string | null 
       </Stack>
       <form id={FORM.role} method="post" onSubmit={form.onSubmit} noValidate>
         <Stack gap="section">
-          <RadioGroup legend={t.role.legend} legendHidden error={form.fieldErrors.role}>
+          {/* Видимый вопрос — заголовок шага; группе он же служит именем для экранного диктора. */}
+          <RadioGroup legend={t.role.title} legendHidden error={form.fieldErrors.role}>
             <RadioCard
               name="role"
               value="client"

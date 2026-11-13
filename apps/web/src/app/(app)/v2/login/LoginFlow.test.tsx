@@ -42,9 +42,10 @@ describe("RoleStep: покупатель или мастер", () => {
       expect(text(<RoleStep role="client" next={null} />)).toContain(piece);
   });
 
-  it("подпись группы — только для диктора: на экране её нет, в разметке — есть", () => {
+  it("имя группы для диктора — вопрос шага; видимой подписи группы нет", () => {
     const out = html(<RoleStep role="client" next={null} />);
-    expect(out).toMatch(new RegExp(`<legend class="sr-only">${role.legend}</legend>`));
+    expect(out).toContain(`<legend class="sr-only">${role.title}</legend>`);
+    expect(out.match(/<legend/g)).toHaveLength(1);
   });
 
   it("выбор из cookie или адреса — «Я мастер»", () => {
