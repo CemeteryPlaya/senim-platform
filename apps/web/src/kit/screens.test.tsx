@@ -75,6 +75,11 @@ describe("CodeField", () => {
     expect(hasAttr(inputTag(html(<CodeField label="Код" name="c" length={4} />), "c"), "maxlength", "8")).toBe(true);
   });
 
+  it("ширина под код (max-w-code, токен), а не вся форма", () => {
+    expect(hasClass(out, "max-w-code")).toBe(true);
+    expect(readFileSync(path.join(__dirname, "tokens.css"), "utf8")).toMatch(/--spacing-code:\s*10rem\s*;/);
+  });
+
   it("цифры одной ширины с разрядкой; подпись связана с полем", () => {
     expect(hasClass(out, "tabular-nums")).toBe(true);
     expect(hasClass(out, "tracking-code")).toBe(true);
@@ -275,12 +280,34 @@ describe("WorkCard", () => {
   });
 });
 
+describe("RadioCard: описание", () => {
+  const out = html(<RadioCard label="По SMS" description="Придёт за минуту" name="ch" value="sms" />);
+
+  it("вторая строка 15 px muted под подписью; радио связано с ней через aria-describedby", () => {
+    expect(out).toMatch(/<span id="([^"]+)-description" class="text-sub text-muted">Придёт за минуту<\/span>/);
+    const id = /<span id="([^"]+)-description"/.exec(out)?.[1];
+    expect(out).toContain(`aria-describedby="${id}-description"`);
+    expect(hasClass(out, "min-h-control")).toBe(true);
+  });
+
+  it("без описания разметка прежняя: подпись одним span, aria-describedby нет", () => {
+    const plain = html(<RadioCard label="По SMS" name="ch" value="sms" />);
+    expect(plain).not.toContain("aria-describedby");
+    expect(plain).not.toContain("-description");
+    expect(plain).toContain("<span>По SMS</span></label>");
+  });
+});
+
 describe("ActionDock", () => {
   const out = html(
     <ActionDock>
       <span>x</span>
     </ActionDock>,
   );
+
+  it("на коротком экране уходит к низу колонки: mobile:mt-auto", () => {
+    expect(hasClass(out, "mobile:mt-auto")).toBe(true);
+  });
 
   it("на телефоне прилипает над панелью вкладок", () => {
     expect(hasClass(out, "mobile:sticky")).toBe(true);

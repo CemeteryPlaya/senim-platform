@@ -164,12 +164,18 @@ export function Checkbox({ label, error, id: explicitId, className, ...rest }: C
   );
 }
 
-export type RadioCardProps = Omit<ComponentProps<"input">, "name" | "type"> & { label: string; name: string };
+export type RadioCardProps = Omit<ComponentProps<"input">, "name" | "type"> & {
+  label: string;
+  name: string;
+  /** Вторая строка под подписью: вторичный текст 15 px `muted`; связана с радио через `aria-describedby`. */
+  description?: string;
+};
 
-/** Вариант выбора в виде карточки: выбранная выделена линией 1 px цвета действия. Ошибка — у `RadioGroup`. */
-export function RadioCard({ label, id: explicitId, className, ...rest }: RadioCardProps) {
+/** Вариант выбора в виде карточки: выбранная выделена линией 1 px цвета действия; `description` — вторая строка под подписью. Высота не ниже 48 px. Ошибка — у `RadioGroup`. */
+export function RadioCard({ label, description, id: explicitId, className, ...rest }: RadioCardProps) {
   const auto = useId();
   const id = explicitId ?? auto;
+  const descriptionId = description ? `${id}-description` : undefined;
   return (
     <label
       htmlFor={id}
@@ -180,14 +186,23 @@ export function RadioCard({ label, id: explicitId, className, ...rest }: RadioCa
         "has-disabled:cursor-not-allowed has-disabled:opacity-50",
       )}
     >
-      <input id={id} type="radio" className={cn("peer sr-only", className)} {...rest} />
+      <input id={id} type="radio" className={cn("peer sr-only", className)} {...rest} aria-describedby={describedBy(rest["aria-describedby"], descriptionId)} />
       <span
         aria-hidden
         className="flex size-6 shrink-0 items-center justify-center rounded-full border border-line-strong peer-checked:border-action peer-checked:[&>span]:opacity-100"
       >
         <span className="size-3 rounded-full bg-action opacity-0 radio-mark" />
       </span>
-      <span>{label}</span>
+      {description ? (
+        <span className="flex min-w-0 flex-col">
+          <span>{label}</span>
+          <span id={descriptionId} className="text-sub text-muted">
+            {description}
+          </span>
+        </span>
+      ) : (
+        <span>{label}</span>
+      )}
     </label>
   );
 }

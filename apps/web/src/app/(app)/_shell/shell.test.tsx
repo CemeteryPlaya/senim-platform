@@ -55,6 +55,13 @@ describe("MobileShell", () => {
     }
   });
 
+  it("область содержимого — колонка на высоту экрана, предки дока растянуты (док уходит к низу на коротком экране)", () => {
+    for (const nav of [clientNav, { ...clientNav, tabs: [] }]) {
+      const main = tagWith(html(<MobileShell nav={nav}>x</MobileShell>), `id="content"`);
+      for (const cls of ["flex", "flex-col", "flex-1", "dock-column", "*:min-w-0"]) expect(main).toContain(cls);
+    }
+  });
+
   it("под плавающими панелями — подложка цвета фона (bar-underlay), без кликов и вне доступности; без вкладок её нет", () => {
     const m = html(<MobileShell nav={clientNav}>x</MobileShell>);
     const underlay = tagWith(m, "data-bar-underlay");

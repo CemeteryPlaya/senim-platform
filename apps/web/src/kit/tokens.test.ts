@@ -104,6 +104,14 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(dock).toMatch(/margin-bottom:\s*calc\(var\(--spacing-bar-inset\)\s*\+\s*env\(safe-area-inset-bottom\)\)\s*;/);
   });
 
+  it("dock-column: предки дока внутри main становятся растянутыми колонками (док у нижнего края на коротком экране)", () => {
+    const body = /@utility dock-column\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(body).toContain(":has([data-action-dock])");
+    expect(body).toMatch(/display:\s*flex/);
+    expect(body).toMatch(/flex-direction:\s*column/);
+    expect(body).toMatch(/flex-grow:\s*1/);
+  });
+
   it("док в конце страницы считает нижнее поле колонки тем же токеном, что safe-block", () => {
     const utility = (name: string) => new RegExp(String.raw`@utility ${name}\s*\{([\s\S]*?)
 \}`).exec(css)?.[1] ?? "";

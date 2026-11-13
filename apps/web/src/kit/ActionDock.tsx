@@ -17,6 +17,13 @@ import type { ReactNode } from "react";
  * плотность 85 % и размытие. Кнопка внутри сплошная (`bg-action`) — подпись читается на любом фоне; при
  * prefers-reduced-transparency панель сплошная (утилита `glass`).
  *
+ * Короткий экран. `sticky` сам по себе держит док внизу, только когда содержимое длиннее экрана; иначе он стоял бы сразу
+ * под содержимым посреди экрана. Поэтому область содержимого `MobileShell` растянута на высоту экрана (`main` — колонка),
+ * все предки дока внутри неё становятся растянутыми колонками (`dock-column`, любая вложенность), а сам док —
+ * `mobile:mt-auto`: он уходит к низу, над панелью вкладок, с тем же зазором 8 px. Док — последний ребёнок своей колонки.
+ *
+ * В доке одна кнопка действия экрана (и не более одной тихой рядом); второстепенное действие — ссылкой вне дока.
+ *
  * Компьютер: никакого прилипания — обычный блок в потоке, кнопки в ряд по своей ширине. Ширину детей задаёт сам док:
  * на телефоне каждый на всю ширину, на компьютере по своей — `full` у кнопок внутри не ставится. Внутрь кладётся ровно
  * одно главное действие экрана (`Button` / `ButtonLink` без `variant`), рядом — не более одной тихой.
@@ -29,7 +36,7 @@ import type { ReactNode } from "react";
  */
 export function ActionDock({ children }: { children: ReactNode }) {
   return (
-    <div data-action-dock className="flex flex-col gap-stack-tight mobile:sticky mobile:z-10 mobile:glass mobile:dock-above-bar mobile:dock-bleed mobile:rounded-bar mobile:border mobile:border-line mobile:p-2 mobile:shadow-float mobile:*:w-full desktop:flex-row desktop:flex-wrap desktop:items-center desktop:*:w-auto">
+    <div data-action-dock className="flex flex-col gap-stack-tight mobile:sticky mobile:mt-auto mobile:z-10 mobile:glass mobile:dock-above-bar mobile:dock-bleed mobile:rounded-bar mobile:border mobile:border-line mobile:p-2 mobile:shadow-float mobile:*:w-full desktop:flex-row desktop:flex-wrap desktop:items-center desktop:*:w-auto">
       {children}
     </div>
   );

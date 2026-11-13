@@ -513,6 +513,18 @@ test.describe("ActionDock на телефоне", () => {
     expect(spare).toBeLessThanOrEqual(1);
   });
 
+  test("19е. короткий экран: док у нижнего края над панелью вкладок, а не под содержимым", async ({ page }) => {
+    await page.goto(`${DOCK_PAGE}?short=1`);
+    await expect(dockOf(page)).toBeVisible();
+    // Страница короче экрана: прокрутки нет.
+    const scrollable = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+    expect(scrollable).toBeLessThanOrEqual(1);
+    await expect.poll(async () => Math.abs((await gapToBar(page)) - 8)).toBeLessThanOrEqual(2);
+    const last = await box(page.locator("[data-last-content]"));
+    const dock = await box(dockOf(page));
+    expect(dock.y, "док вплотную под содержимым посреди экрана").toBeGreaterThan(last.y + last.height + 40);
+  });
+
   test("19г. --tab-bar-height совпадает с настоящей высотой панели", async ({ page }) => {
     await page.goto(DOCK_PAGE);
     await expect(barOf(page)).toBeVisible();

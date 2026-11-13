@@ -9,12 +9,14 @@ const t = ru.app.kit.showcase.dockPage;
  * Служебная страница-образец для e2e (только dev): длинное содержимое и `ActionDock` последним ребёнком корневой
  * колонки — так док используют экраны. На ней проверяется прилипание над панелью вкладок.
  */
-export default function DockPage() {
+export default async function DockPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (env().APP_ENV !== "dev") notFound();
+  // ?short=1 — короткий экран (одна карточка): док должен стоять у нижнего края, а не под содержимым.
+  const short = (await searchParams).short === "1";
   return (
     <Stack gap="group">
       <PageTitle title={t.title} lead={t.lead} />
-      {Array.from({ length: 30 }, (_, i) => (
+      {Array.from({ length: short ? 1 : 30 }, (_, i) => (
         <Card key={i}>
           <p className="text-body text-ink">{t.paragraph(i + 1)}</p>
         </Card>

@@ -83,6 +83,8 @@
   --spacing-tab-bar: 4.25rem;
   /* Поля содержимого телефона по бокам — 16px (rules.md, «Отступы»); от них считается вынос дока (dock-bleed). */
   --spacing-gutter: 1rem;
+  /* Ширина поля кода из сообщения (CodeField): шесть цифр с разрядкой, а не вся ширина формы (max-w-code). */
+  --spacing-code: 10rem;
   /* Поле содержимого телефона сверху и снизу — 24px (safe-block); от него считается положение дока в конце страницы. */
   --spacing-column-block: 1.5rem;
   /* Аватар в шапке — 32px (size-avatar). */
@@ -327,6 +329,20 @@
     var(--spacing-bar-inset) + env(safe-area-inset-bottom) + var(--tab-bar-space, 0px) - max(var(--spacing-column-block), env(safe-area-inset-bottom)) -
       var(--tab-bar-block, 0px)
   );
+}
+
+/*
+ * Короткий экран: док должен стоять у нижнего края, а не под содержимым. Для этого `mt-auto` дока нужна колонка, растянутая
+ * на высоту экрана, — у каждого предка дока внутри области содержимого (`:has([data-action-dock])`, любая вложенность:
+ * обёртка экрана, форма, Narrow). Утилита ставится на `main` оболочки телефона: предки дока становятся колонками и
+ * растягиваются; остальное содержимое не затрагивается.
+ */
+@utility dock-column {
+  & :has([data-action-dock]) {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
 }
 
 /*

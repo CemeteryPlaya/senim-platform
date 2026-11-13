@@ -264,6 +264,11 @@ function Choices() {
           <RadioCard label={c.chat} name="contact" value="chat" />
           <RadioCard label={c.mail} name="contact" value="mail" disabled />
         </RadioGroup>
+        <h3 className="text-card text-ink">{c.described}</h3>
+        <RadioGroup legend={c.describedLegend}>
+          <RadioCard label={c.sms} description={c.smsText} name="channel" value="sms" defaultChecked />
+          <RadioCard label={c.call} description={c.callText} name="channel" value="call" />
+        </RadioGroup>
         <RadioGroup legend={c.groupLegend} error={c.groupError}>
           <RadioCard label={c.phone} name="contact-error" value="phone" />
           <RadioCard label={c.chat} name="contact-error" value="chat" />
