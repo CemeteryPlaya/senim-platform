@@ -1,6 +1,22 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { env } from "./env";
 
+/**
+ * Длина тега GCM — ровно 16 байт (так его пишут encryptPii и sealValue). Без `authTagLength` Node принимает при расшифровке
+ * и укороченный тег (4, 8, 12–15 байт) и проверяет только его начало — подделка становится в разы дешевле. Поэтому длина
+ * задаётся явно и проверяется до setAuthTag; формат хранимых значений не меняется.
+ */
+const GCM_TAG_BYTES = 16;
+
+/** Расшифровщик AES-256-GCM с тегом ровно GCM_TAG_BYTES; другой длины — исключение. */
+function gcmDecipher(key: Buffer, iv: string, tag: string) {
+  const tagBytes = Buffer.from(tag, "base64url");
+  if (tagBytes.length !== GCM_TAG_BYTES) throw new Error("Неверная длина тега аутентификации");
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"), { authTagLength: GCM_TAG_BYTES });
+  decipher.setAuthTag(tagBytes);
+  return decipher;
+}
+
 // Ключи для разработки и тестов. В production env.ts требует настоящие ключи.
 const DEV_ENC_KEY = createHash("sha256").update("senim-dev-pii-encryption").digest();
 const DEV_HASH_KEY = createHash("sha256").update("senim-dev-pii-hash").digest();
@@ -26,8 +42,7 @@ export function encryptPii(plain: string): string {
 export function decryptPii(sealed: string): string {
   const [version, iv, tag, data] = sealed.split(".");
   if (version !== "v1" || !iv || !tag || !data) throw new Error("Неизвестный формат зашифрованных данных");
-  const decipher = createDecipheriv("aes-256-gcm", encKey(), Buffer.from(iv, "base64url"));
-  decipher.setAuthTag(Buffer.from(tag, "base64url"));
+  const decipher = gcmDecipher(encKey(), iv, tag);
   return Buffer.concat([decipher.update(Buffer.from(data, "base64url")), decipher.final()]).toString("utf8");
 }
 
@@ -53,9 +68,8 @@ export function sealValue(plain: string, context: string): string {
 export function openValue(sealed: string, context: string): string {
   const [version, iv, tag, data] = sealed.split(".");
   if (version !== "s1" || !iv || !tag || !data) throw new Error("Неизвестный формат запечатанного значения");
-  const decipher = createDecipheriv("aes-256-gcm", sealKey(), Buffer.from(iv, "base64url"));
+  const decipher = gcmDecipher(sealKey(), iv, tag);
   decipher.setAAD(Buffer.from(context, "utf8"));
-  decipher.setAuthTag(Buffer.from(tag, "base64url"));
   return Buffer.concat([decipher.update(Buffer.from(data, "base64url")), decipher.final()]).toString("utf8");
 }
 
