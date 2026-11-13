@@ -307,7 +307,7 @@ async function applyTextRule(rule: ChatTextRule, executorId: string, body: strin
   return { text: body, masked: false };
 }
 
-/** Сообщение в чат отклика: маска контактов, вложения (свои загруженные файлы), уведомление второй стороне. */
+/** Сообщение в чат отклика: маска контактов (до оферты вложения запрещены), вложения (свои загруженные файлы), уведомление второй стороне. */
 export async function sendMessage(user: CurrentUser, offerId: string, text: string, attachments: readonly string[]): Promise<ChatMessageView> {
   const body = text.trim();
   if (body.length === 0) return fail.validation(t.errors.empty);
@@ -320,6 +320,9 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
   if (party === "operator") return fail.forbidden(t.operatorReadOnly);
   const closed = closedReasonText(offer);
   if (closed) return fail.conflict(closed);
+  // Фото не маскируются: снимок с телефоном обошёл бы защиту контактов. Вложения — только после заключения оферты
+  // (тот же признак стадии, по которому решается маска текста и открытие контактов).
+  if (fileIds.length > 0 && loaded.stage === "BEFORE_OFFER") return fail.conflict(t.errors.attachmentsBeforeOffer);
   await enforceRateLimit(`chat:${user.id}`, SEND_RATE, t.errors.rateLimited);
 
   const { text: safeText, masked } = await applyTextRule(chatTextRule(loaded.stage, party), offer.executorId, body);

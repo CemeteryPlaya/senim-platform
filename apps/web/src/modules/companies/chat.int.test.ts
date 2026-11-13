@@ -126,16 +126,16 @@ describe("чат отклика: закрытый чат и проверка в�
 });
 
 describe("чат отклика: вложения", () => {
-  it("свой загруженный файл привязывается к сообщению", async () => {
-    const t = await makeOfferThread();
+  it("свой загруженный файл привязывается к сообщению (после оферты)", async () => {
+    const t = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
     const file = await makeUploadedFile(t.client, "MESSAGE");
     const sent = await sendMessage(t.client, t.offerId, "Фото кухни", [file.id]);
     expect(sent.attachments).toEqual([{ id: file.id }]);
     expect(await db.storedFile.findUniqueOrThrow({ where: { id: file.id } })).toMatchObject({ messageId: sent.id });
   });
 
-  it("чужой, уже привязанный или не тот файл — отказ, сообщение не создаётся", async () => {
-    const t = await makeOfferThread();
+  it("чужой, уже привязанный или не тот файл — отказ, сообщение не создаётся (после оферты)", async () => {
+    const t = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
     const foreign = await makeUploadedFile(t.executor, "MESSAGE");
     const portfolioFile = await makeUploadedFile(t.client, "PORTFOLIO");
     const used = await makeUploadedFile(t.client, "MESSAGE");

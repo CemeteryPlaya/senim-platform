@@ -261,6 +261,7 @@ export const companies = {
       notFound: "Переписка не найдена",
       empty: "Напишите сообщение",
       tooLong: (max: number) => `Сообщение не длиннее ${max} символов`,
+      attachmentsBeforeOffer: "Фото можно отправлять после заключения оферты",
       tooManyAttachments: (max: number) => `Можно прикрепить не больше ${max} файлов`,
       rateLimited: "Слишком много сообщений подряд. Подождите минуту",
     },

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { ru } from "@/i18n/ru";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../test/factories";
 import { makeOfferThread } from "../../../test/factories/companies";
-import { chatAttachments, getChat, sendMessage } from "./index";
+import { chatAttachments, getChat, MASK, sendMessage } from "./index";
 
 let n = 0;
 const photo = (offerThread: { executor: { id: string } }, messageId: string, sortOrder = 0) => {
@@ -38,19 +39,38 @@ describe("вложения чата: адреса по id", () => {
     await expect(chatAttachments(t.client, "no-such-offer")).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("сообщение со своим загруженным фото: файл прикрепляется, адрес виден; чужой файл не прикрепить", async () => {
-    const t = await makeOfferThread();
-    const own = await db.storedFile.create({
-      data: { storageKey: `message/test/own-${Date.now()}.jpg`, provider: "local", purpose: "MESSAGE", contentType: "image/jpeg", size: 1000, sha256: "4".repeat(64), uploadedById: t.client.id },
+  const ownFile = (userId: string, tag: string) =>
+    db.storedFile.create({
+      data: { storageKey: `message/test/${tag}-${Date.now()}.jpg`, provider: "local", purpose: "MESSAGE", contentType: "image/jpeg", size: 1000, sha256: "4".repeat(64), uploadedById: userId },
     });
+
+  it("до оферты вложение отвергнуто, сообщение не создано, файл не прикреплён; текст без вложений — как раньше, с маской", async () => {
+    const t = await makeOfferThread({ signed: false });
+    const file = await ownFile(t.client.id, "before");
+    await expect(sendMessage(t.client, t.offerId, "Вот стена", [file.id])).rejects.toMatchObject({ code: "CONFLICT", message: ru.companies.chat.errors.attachmentsBeforeOffer });
+    expect(await db.message.count({ where: { offerId: t.offerId } })).toBe(0);
+    expect((await db.storedFile.findUniqueOrThrow({ where: { id: file.id } })).messageId).toBeNull();
+
+    const plain = await sendMessage(t.client, t.offerId, "Звоните +7 700 123 45 67", []);
+    expect(plain.masked).toBe(true);
+    expect(plain.text).toContain(MASK);
+  });
+
+  it("после оферты фото принято: файл прикреплён, адрес виден обеим сторонам; чужой файл не прикрепить", async () => {
+    const t = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+    const own = await ownFile(t.client.id, "own");
     const sent = await sendMessage(t.client, t.offerId, "Вот стена", [own.id]);
     expect(sent.attachments.map((a) => a.id)).toEqual([own.id]);
     expect((await chatAttachments(t.executor, t.offerId)).map((a) => a.id)).toEqual([own.id]);
 
-    // Файл, загруженный другим человеком, к сообщению не присоединяется.
-    const foreign = await db.storedFile.create({
-      data: { storageKey: `message/test/foreign-${Date.now()}.jpg`, provider: "local", purpose: "MESSAGE", contentType: "image/jpeg", size: 1000, sha256: "5".repeat(64), uploadedById: t.executor.id },
-    });
+    const foreign = await ownFile(t.executor.id, "foreign");
     await expect(sendMessage(t.client, t.offerId, "Чужой файл", [foreign.id])).rejects.toBeTruthy();
+  });
+
+  it("оператор писать не может ни с вложением, ни без — правило прежнее", async () => {
+    const t = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+    const operator = await makeOperator();
+    const file = await ownFile(operator.id, "op");
+    await expect(sendMessage(operator, t.offerId, "Текст", [file.id])).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
