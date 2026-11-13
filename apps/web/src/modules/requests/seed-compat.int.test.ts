@@ -28,7 +28,7 @@ describe("совместимость с демо-данными", () => {
     }
 
     const tender = requests.find((r) => r.status === "OPEN" && r.mode === "TENDER" && r.segment === "COMFORT")!;
-    const client = { id: tender.clientId, role: "CLIENT" as const, roles: tender.client.roles, phone: tender.client.phone, fullName: null, iinLast4: null, isDemo: true, executor: null, mfa: { required: false, verifiedAt: null }, consents: [], consentRevocationOpen: false };
+    const client = { id: tender.clientId, role: "CLIENT" as const, roles: tender.client.roles, phone: tender.client.phone, fullName: null, iinLast4: null, emailVerified: false, isDemo: true, executor: null, mfa: { required: false, verifiedAt: null }, consents: [], consentRevocationOpen: false };
     expect((await listMyRequests(client)).length).toBeGreaterThan(0);
     await expect(getClientRequest(client, tender.id)).resolves.toMatchObject({ status: "OPEN" });
     expect((await listOffers(client, { requestId: tender.id, sort: "rating" })).length).toBeGreaterThan(0);
@@ -45,6 +45,7 @@ describe("совместимость с демо-данными", () => {
       phone: profile.user.phone,
       fullName: null,
       iinLast4: null,
+      emailVerified: false,
       isDemo: true,
       executor: { id: profile.id, publicNumber: profile.publicNumber, status: profile.status },
       mfa: { required: false, verifiedAt: null },

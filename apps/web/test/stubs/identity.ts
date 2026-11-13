@@ -36,6 +36,8 @@ import {
   RecordPersonResponseSchema,
   RegisterPartyRequestSchema,
   RegisterPartyResponseSchema,
+  RequestEmailCodeRequestSchema,
+  RequestEmailCodeResponseSchema,
   RequestOtpRequestSchema,
   RequestOtpResponseSchema,
   ResetDemoRequestSchema,
@@ -74,6 +76,8 @@ import {
   UpdateContactsRequestSchema,
   UpdateContactsResponseSchema,
   UserSchema,
+  VerifyEmailCodeRequestSchema,
+  VerifyEmailCodeResponseSchema,
   VerifyOtpRequestSchema,
   VerifyOtpResponseSchema,
   VerifySecondFactorRequestSchema,
@@ -88,7 +92,7 @@ import {
   type Session,
   type User,
 } from "@/gen/senim/identity/v1/identity_pb";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { z } from "zod";
 import { toBase32, totpCode, totpStep } from "../../e2e/totp";
@@ -161,6 +165,18 @@ import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-t
  * Пользователь, добавленный тестом (`addUser`), по умолчанию уже дал согласие на ПДн текущей редакции (канал seed) —
  * как демо-персоны после сида; новый пользователь входа по SMS, ProvisionExecutor и SeedUsers без согласия — нет.
  * Расхождение с Go: HasConsents не проверяет id пользователей как UUID (как и прочие методы подделки).
+ *
+ * Подтверждение почты (email.go) повторено по Go: RequestEmailCode — порядок проверок (ключ, адрес — email_invalid, сессия и
+ * роль стороны сделки — role_forbidden; дальше повтор по ключу, тот же уже подтверждённый адрес — email_already_verified без
+ * кода и без траты лимита, лимиты на пользователя фиксированными окнами: 1 в минуту — email_code_too_often, 5 в час и 10 в
+ * сутки — email_code_too_many, первый отказ останавливает проверку), код из 6 цифр на 10 минут, прежний код гасится;
+ * demo_code — только при мок-провайдере (`emailProviderMock`) и не в сохранённом ответе (повтор по ключу — без кода).
+ * VerifyEmailCode — ключ и код (не шесть цифр после обрезки пробелов — invalid_request без траты попытки), сессия и роль;
+ * дальше повтор по ключу, лимит 20 проверок в сутки (email_code_too_many), нет действующего кода — email_code_expired; попытка
+ * засчитывается до сравнения (5 на код): неверный — email_code_wrong с params.left, последний — email_code_attempts_exhausted;
+ * верный — код погашен, адрес записан подтверждённым, аудит user.email_changed (если адрес другой) и user.email_verified —
+ * без адреса. UpdateContacts с другим адресом снимает подтверждение и гасит ожидающий код; SeedUsers записывает адрес сида
+ * подтверждённым (без адреса — прежнее подтверждение). Код в подделке хранится открыто (в Go — HMAC).
  */
 
 /** Тип клиента — тот же, что у `IdentityClient` из modules/identity/remote (импорт оттуда из test/ запрещён границей модулей). */
@@ -180,7 +196,21 @@ const PERSON_MAX_ATTEMPTS = 5;
 const PERSON_ATTEMPT_WINDOW_MS = 3600_000;
 /** emailField / emailMax в Go: шаблон z.email() и предел длины. */
 const EMAIL_MAX = 254;
+/** email.go: код почты живёт 10 минут, попыток на код — 5; лимиты запроса на пользователя — минута, час, сутки. */
+const EMAIL_CODE_TTL_MS = 10 * 60_000;
+const EMAIL_MAX_ATTEMPTS = 5;
+/** emailVerifyDaily в Go: проверок кода — не больше 20 в сутки на пользователя. */
+const EMAIL_VERIFY_DAILY = 20;
+const EMAIL_CODE_RE = /^[0-9]{6}$/;
+const EMAIL_LIMITS = [
+  { key: "cooldown", limit: 1, windowMs: 60_000, reason: "email_code_too_often" },
+  { key: "hour", limit: 5, windowMs: 3600_000, reason: "email_code_too_many" },
+  { key: "day", limit: 10, windowMs: 24 * 3600_000, reason: "email_code_too_many" },
+] as const;
 const INSTAGRAM_RE = /^[A-Za-z0-9._]*$/;
+
+/** Код почты (email_codes в Go): адрес-кандидат, код открыто (в Go — HMAC), попытки, срок, погашен ли. */
+type StoredEmailCode = { email: string; code: string; attempts: number; expiresAt: Date; consumed: boolean };
 
 /** Личность в подделке: пустая строка — поле не указано (в Go — NULL). */
 type StoredPerson = { fullName: string; iin: string; instagram: string; email: string };
@@ -438,7 +468,7 @@ export type FakeUserInit = {
   isDemo?: boolean;
   blocked?: boolean;
   /** Личность, уже записанная в identity (как сид SeedUsers): null и пусто — поле не указано. */
-  person?: { fullName?: string | null; iin?: string | null; instagram?: string | null; email?: string | null };
+  person?: { fullName?: string | null; iin?: string | null; instagram?: string | null; email?: string | null; emailVerified?: boolean };
   /** Сторона (реквизиты исполнителя), уже записанная в identity. */
   party?: Partial<StoredParty> & Pick<StoredParty, "legalForm" | "legalName" | "binIin">;
   /**
@@ -478,6 +508,12 @@ const STATUS_BY_CODE: Record<string, Code> = {
   mfa_wrong_code: Code.InvalidArgument,
   mfa_code_reused: Code.InvalidArgument,
   mfa_too_many_attempts: Code.ResourceExhausted,
+  email_code_too_often: Code.ResourceExhausted,
+  email_code_too_many: Code.ResourceExhausted,
+  email_code_expired: Code.InvalidArgument,
+  email_code_wrong: Code.InvalidArgument,
+  email_code_attempts_exhausted: Code.ResourceExhausted,
+  email_already_verified: Code.FailedPrecondition,
   idempotency_key_reused: Code.InvalidArgument,
   full_name_invalid: Code.InvalidArgument,
   iin_invalid: Code.InvalidArgument,
@@ -568,12 +604,18 @@ export class FakeIdentity {
   private persons = new Map<string, StoredPerson>(); // по id пользователя
   private personAttempts = new Map<string, { windowStart: number; count: number }>(); // ключ identity:iin:user:<user_id> в Go
   private parties = new Map<string, StoredParty>(); // по id пользователя
+  /** Пользователи с подтверждённой почтой (persons.email_verified_at в Go). */
+  private emailVerified = new Set<string>();
+  private emailCodes = new Map<string, StoredEmailCode>(); // по id пользователя: действует только последний (RetireEmailCodes)
+  private emailLimits = new Map<string, { windowStart: number; count: number }>(); // ключи email:user:<id>[:cooldown|:day] в Go
   private consents: StoredConsent[] = [];
   private revocations: StoredRevocation[] = [];
   /** События аудита личности и контактов (в Go — outbox identity). */
   readonly auditEvents: FakeAuditEvent[] = [];
   /** Включён ли демо-режим (DEMO_MODE у настоящего сервиса). */
   demoEnabled = true;
+  /** Провайдер писем — мок (IDENTITY_EMAIL_PROVIDER=mock): код почты возвращается в demo_code. От DEMO_MODE не зависит. */
+  emailProviderMock = true;
   /** Часы сервиса (s.now в Go): шаг TOTP, окно лимита, отметка второй ступени. */
   now: () => Date = () => new Date();
   /** Токены, с которыми были вызваны методы, — для проверок в тестах. */
@@ -599,6 +641,10 @@ export class FakeIdentity {
     this.persons.clear();
     this.personAttempts.clear();
     this.parties.clear();
+    this.emailVerified.clear();
+    this.emailCodes.clear();
+    this.emailLimits.clear();
+    this.emailProviderMock = true;
     this.consents = [];
     this.revocations = [];
     this.auditEvents.length = 0;
@@ -648,6 +694,7 @@ export class FakeIdentity {
     if (init.person) {
       const p = init.person;
       this.persons.set(user.id, { fullName: p.fullName ?? "", iin: p.iin ?? "", instagram: p.instagram ?? "", email: p.email ?? "" });
+      if (p.emailVerified && p.email) this.emailVerified.add(user.id);
     }
     if (init.party) {
       this.parties.set(user.id, {
@@ -769,7 +816,14 @@ export class FakeIdentity {
   /** Личность пользователя, как её отдаёт identity (ИИН — последними 4 цифрами), — для проверок в тестах. */
   personOf(userId: string): Person {
     const p = this.persons.get(userId);
-    return create(PersonSchema, { userId, fullName: p?.fullName ?? "", iinLast4: p?.iin.slice(-4) ?? "", instagram: p?.instagram ?? "", email: p?.email ?? "" });
+    return create(PersonSchema, {
+      userId,
+      fullName: p?.fullName ?? "",
+      iinLast4: p?.iin.slice(-4) ?? "",
+      instagram: p?.instagram ?? "",
+      email: p?.email ?? "",
+      emailVerified: !!p?.email && this.emailVerified.has(userId),
+    });
   }
 
   hasUser(id: string): boolean {
@@ -1054,6 +1108,37 @@ export class FakeIdentity {
     return next.count <= PERSON_MAX_ATTEMPTS;
   }
 
+  /** limiter.hit в Go: фиксированное окно; true — попытка укладывается в лимит (отказанная тоже засчитана). */
+  private hitEmailLimit(key: string, limit: number, windowMs: number): boolean {
+    const now = this.now().getTime();
+    const cur = this.emailLimits.get(key);
+    const next = !cur || cur.windowStart < now - windowMs ? { windowStart: now, count: 1 } : { ...cur, count: cur.count + 1 };
+    this.emailLimits.set(key, next);
+    return next.count <= limit;
+  }
+
+  /** emailSession в Go: сессия действует, активная роль — сторона сделки (заказчик или мастер), иначе role_forbidden. */
+  private async emailSession(token: string): Promise<{ user: User; session: StoredSession }> {
+    const found = await this.sessionOf(token);
+    if (found.session.activeRole !== Role.CLIENT && found.session.activeRole !== Role.EXECUTOR) throw codedError("role_forbidden", Code.PermissionDenied);
+    return found;
+  }
+
+  /** checkEmailCode в Go: действующий код, попытка до сравнения, сравнение; верный — строка кода, иначе отказ. */
+  private checkEmailCode(userId: string, code: string): StoredEmailCode {
+    if (!this.hitEmailLimit(`${userId}:verify:day`, EMAIL_VERIFY_DAILY, 24 * 3600_000)) throw codedError("email_code_too_many", Code.ResourceExhausted);
+    const row = this.emailCodes.get(userId);
+    if (!row || row.consumed || row.expiresAt.getTime() <= this.now().getTime()) throw codedError("email_code_expired", Code.InvalidArgument);
+    if (row.attempts >= EMAIL_MAX_ATTEMPTS) throw codedError("email_code_attempts_exhausted", Code.ResourceExhausted);
+    row.attempts += 1;
+    if (row.code !== code) {
+      const left = EMAIL_MAX_ATTEMPTS - row.attempts;
+      if (left > 0) throw codedError("email_code_wrong", Code.InvalidArgument, { left: String(left) });
+      throw codedError("email_code_attempts_exhausted", Code.ResourceExhausted);
+    }
+    return row;
+  }
+
   /** Транзакция RecordPerson: личность заново (тот же ИИН — тот же ответ), занятый ИИН, запись и аудит без значений. */
   private recordPersonTx(user: User, session: StoredSession, fullName: string, iin: string): Person {
     const current = this.persons.get(user.id);
@@ -1326,6 +1411,8 @@ export class FakeIdentity {
             if (Object.keys(person).length > 0) {
               this.persons.set(user.id, { ...(this.persons.get(user.id) ?? { fullName: "", iin: "", instagram: "", email: "" }), ...person });
             }
+            // Адрес сида — подтверждённый: демо-персона не проходит шаг почты (решение по задаче A2).
+            if (person.email) this.emailVerified.add(user.id);
             if (u.party) this.parties.set(user.id, this.seedPartyOf(u.party, user.roles, this.persons.get(user.id)?.iin));
             // SeedConsent в Go: действующее согласие той же версии уже есть — без изменений.
             const version = u.consentVersion ?? "";
@@ -1380,6 +1467,8 @@ export class FakeIdentity {
           // Пользователи остаются; сессии, коды и сохранённые ответы стираются (свой ответ once() запишет после очистки).
           this.sessions.clear();
           this.otpRequested.clear();
+          this.emailCodes.clear(); // DeleteAllEmailCodes
+          this.emailLimits.clear(); // DeleteAllRateLimits
           this.replays.clear();
           this.mfaFailures.clear();
           this.factors.clear(); // Ruling E: повторный прогон e2e подключает TOTP заново
@@ -1478,6 +1567,12 @@ export class FakeIdentity {
           const before = this.persons.get(user.id) ?? { fullName: "", iin: "", instagram: "", email: "" };
           const after = { ...before, instagram: checkInstagram(req.instagram ?? ""), email: checkEmail(req.email ?? "") };
           this.persons.set(user.id, after);
+          // Другой адрес (и пустой) снимает подтверждение и гасит ожидающий код почты; тот же — подтверждение оставляет.
+          if (before.email !== after.email) {
+            this.emailVerified.delete(user.id);
+            const pending = this.emailCodes.get(user.id);
+            if (pending) pending.consumed = true;
+          }
           for (const [field, action] of [["instagram", "user.instagram_changed"], ["email", "user.email_changed"]] as const) {
             if (before[field] === after[field]) continue;
             this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action, before: { set: before[field] !== "" }, after: { set: after[field] !== "" } });
@@ -1491,9 +1586,68 @@ export class FakeIdentity {
           checkEmail(req.email ?? "");
         },
       ),
-      // Подтверждение почты кодом (identity, задача A1 этапа 2): подделку дописывает модуль web (A2).
-      requestEmailCode: unimplemented,
-      verifyEmailCode: unimplemented,
+      requestEmailCode: async (req: MessageInitShape<typeof RequestEmailCodeRequestSchema>) => {
+        let email = "";
+        let demoCode = "";
+        const res = await this.once(
+          "requestEmailCode",
+          RequestEmailCodeRequestSchema,
+          req,
+          async () => {
+            // После повтора по ключу: лимиты (первый отказ — конец), затем «транзакция»: сессия и роль заново, прежний код
+            // гасится, новый пишется и «отправляется».
+            const { user } = await this.emailSession(req.sessionToken ?? "");
+            // Тот же адрес уже подтверждён — отказ без кода и без траты лимита.
+            if (this.emailVerified.has(user.id) && this.persons.get(user.id)?.email === email) throw codedError("email_already_verified", Code.FailedPrecondition);
+            for (const l of EMAIL_LIMITS) {
+              if (!this.hitEmailLimit(`${user.id}:${l.key}`, l.limit, l.windowMs)) throw codedError(l.reason, Code.ResourceExhausted);
+            }
+            const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+            const expiresAt = new Date(this.now().getTime() + EMAIL_CODE_TTL_MS);
+            this.emailCodes.set(user.id, { email, code, attempts: 0, expiresAt, consumed: false });
+            if (this.emailProviderMock) demoCode = code;
+            return create(RequestEmailCodeResponseSchema, { expiresAt: timestampFromDate(expiresAt) });
+          },
+          // Порядок Go: ключ, адрес (пустой и неверный — email_invalid), сессия и роль стороны сделки.
+          async () => {
+            this.checkKey(req.idempotencyKey);
+            email = checkEmail(req.email ?? "");
+            if (email === "") throw codedError("email_invalid", Code.InvalidArgument);
+            await this.emailSession(req.sessionToken ?? "");
+          },
+        );
+        // Код — только в ответе этого вызова: сохранённый ответ (повтор по ключу) его не раскрывает.
+        if (demoCode === "") return res;
+        const out = clone(RequestEmailCodeResponseSchema, res);
+        out.demoCode = demoCode;
+        return out;
+      },
+      verifyEmailCode: mutating(
+        "verifyEmailCode",
+        VerifyEmailCodeRequestSchema,
+        async (req) => {
+          // Попытка засчитывается до «транзакции» и остаётся при отказе; отказ ответом по ключу не сохраняется.
+          const { user, session } = await this.emailSession(req.sessionToken ?? "");
+          const row = this.checkEmailCode(user.id, (req.code ?? "").trim());
+          row.consumed = true;
+          const before = this.persons.get(user.id) ?? { fullName: "", iin: "", instagram: "", email: "" };
+          const wasVerified = this.emailVerified.has(user.id) && before.email === row.email;
+          this.persons.set(user.id, { ...before, email: row.email });
+          this.emailVerified.add(user.id);
+          if (before.email !== row.email) {
+            this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action: "user.email_changed", before: { set: before.email !== "" }, after: { set: true } });
+          }
+          this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action: "user.email_verified", before: { verified: wasVerified }, after: { verified: true } });
+          return create(VerifyEmailCodeResponseSchema, { person: this.personOf(user.id) });
+        },
+        // Порядок Go: ключ и код — ровно шесть цифр (invalid_request), сессия и роль стороны сделки; дальше повтор по ключу и
+        // проверка кода.
+        async (req) => {
+          this.checkKey(req.idempotencyKey);
+          if (!EMAIL_CODE_RE.test((req.code ?? "").trim())) throw codedError("invalid_request", Code.InvalidArgument);
+          await this.emailSession(req.sessionToken ?? "");
+        },
+      ),
       getProfile: reading("getProfile", async (req: MessageInitShape<typeof GetProfileRequestSchema>) => {
         const { user } = await this.lookup(req.sessionToken ?? "");
         return create(GetProfileResponseSchema, { person: this.personOf(user.id), party: this.partyOf(user.id) });

@@ -92,19 +92,27 @@ const orNull = (v: string): string | null => (v === "" ? null : v);
 
 /**
  * Проекция личности identity в старую `User`: ФИО, последние 4 цифры ИИН, Instagram и e-mail — их показывают экраны
- * и сверяют страницы (needsIntroduction, hasClientIdentity). Пишутся только изменившиеся поля. Сам ИИН в старой базе
+ * и сверяют страницы (needsIntroduction, hasClientIdentity, needsEmail). Пишутся только изменившиеся поля. Сам ИИН в старой базе
  * больше не хранится: `iinEnc` и `iinHash` не пишутся (ИИН — только в identity, шифртекстом). Строка пользователя уже
  * есть (projectUser при входе); её нет — сбой.
+ * Подтверждение почты (`Person.email_verified`) identity отдаёт признаком без времени: `emailVerifiedAt` — когда web
+ * узнал о нём; тот же подтверждённый адрес сохраняет прежнее время, другой адрес или снятое подтверждение — null.
  */
 export async function projectPerson(person: Person, client: Tx = db): Promise<void> {
-  const row = await client.user.findUnique({ where: { id: person.userId }, select: { fullName: true, iinLast4: true, instagram: true, email: true } });
+  const row = await client.user.findUnique({
+    where: { id: person.userId },
+    select: { fullName: true, iinLast4: true, instagram: true, email: true, emailVerifiedAt: true },
+  });
   if (!row) throw new Error("identity вернул личность пользователя, которого нет в проекции");
   const next = { fullName: orNull(person.fullName), iinLast4: orNull(person.iinLast4), instagram: orNull(person.instagram), email: orNull(person.email) };
+  const verified = person.emailVerified && next.email !== null;
+  const emailVerifiedAt = !verified ? null : row.emailVerifiedAt && row.email === next.email ? row.emailVerifiedAt : new Date();
   const data = {
     ...(row.fullName !== next.fullName && { fullName: next.fullName }),
     ...(row.iinLast4 !== next.iinLast4 && { iinLast4: next.iinLast4 }),
     ...(row.instagram !== next.instagram && { instagram: next.instagram }),
     ...(row.email !== next.email && { email: next.email }),
+    ...(row.emailVerifiedAt !== emailVerifiedAt && { emailVerifiedAt }),
   };
   if (Object.keys(data).length > 0) await client.user.update({ where: { id: person.userId }, data });
 }

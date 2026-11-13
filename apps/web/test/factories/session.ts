@@ -33,7 +33,7 @@ export async function mirrorUser(userId: string): Promise<void> {
     isDemo: row.isDemo,
     blocked: row.blockedAt !== null,
     // Личность — как её записал бы сид identity: ФИО, ИИН (фабрика хранит его в старой базе) и контакты.
-    person: { fullName: row.fullName, iin: row.iinEnc ? decryptPii(row.iinEnc) : null, instagram: row.instagram, email: row.email },
+    person: { fullName: row.fullName, iin: row.iinEnc ? decryptPii(row.iinEnc) : null, instagram: row.instagram, email: row.email, emailVerified: row.emailVerifiedAt !== null },
     // Сторона — из профиля фабрики (makeExecutor хранит номера шифртекстом в старой базе).
     party: profile
       ? {

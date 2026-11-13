@@ -35,6 +35,8 @@ model User {
   instagram String?
   /// E-mail для копии подписанного акта (ТЗ п. 7); необязательный, не уникальный, в журнал аудита не пишется.
   email     String?
+  /// Когда адрес подтверждён кодом из письма — проекция identity (Person.email_verified); null — не подтверждён. Другой адрес снимает подтверждение.
+  emailVerifiedAt DateTime?
   isDemo    Boolean  @default(false) // демо-персона, доступна только при DEMO_MODE
   blockedAt DateTime?
   createdAt DateTime @default(now())

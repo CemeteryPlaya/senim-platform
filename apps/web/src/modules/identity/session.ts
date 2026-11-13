@@ -32,6 +32,11 @@ export type CurrentUser = {
   fullName: string | null;
   /** Последние 4 цифры ИИН аккаунта из проекции личности identity (сам ИИН — только в identity, шифртекстом); null — знакомство не пройдено. */
   iinLast4: string | null;
+  /**
+   * Почта подтверждена кодом из письма (проекция identity: `User.emailVerifiedAt`). Сам адрес сюда не входит: он нужен
+   * только экранам контактов и почты, которые читают его из identity. Шаг почты при входе — needsEmail (email.ts).
+   */
+  emailVerified: boolean;
   isDemo: boolean;
   /**
    * Профиль исполнителя этого аккаунта, если он есть (в любой активной роли: экран регистрации
@@ -191,6 +196,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     phone: row.phone,
     fullName: row.fullName,
     iinLast4: row.iinLast4,
+    emailVerified: row.emailVerifiedAt !== null,
     isDemo: row.isDemo,
     executor: row.executorProfile,
     mfa: { required: session.mfaRequired, verifiedAt: session.mfaVerifiedAt ? timestampDate(session.mfaVerifiedAt) : null },

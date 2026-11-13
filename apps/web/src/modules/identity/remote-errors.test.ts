@@ -17,6 +17,7 @@ const reg = ru.identity.registration.errors;
 const payout = ru.identity.payout.errors;
 const kyc = { ...ru.identity.kyc.errors, reason: ru.identity.kyc.reasonLength(3, 500) };
 const consent = ru.consent.errors;
+const email = ru.app.login.email.errors;
 
 function caught(err: unknown): AppError {
   try {
@@ -76,6 +77,12 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   consent_not_revocable: { code: "CONFLICT", message: consent.notRevocable },
   consent_missing: { code: "CONFLICT", message: consent.missing },
   revocation_closed: { code: "CONFLICT", message: consent.revocationClosed },
+  email_code_too_often: { code: "RATE_LIMITED", message: email.tooOften },
+  email_code_too_many: { code: "RATE_LIMITED", message: email.tooMany },
+  email_code_expired: { code: "VALIDATION", message: email.expired },
+  email_code_wrong: { code: "VALIDATION", message: email.wrongCode(3), params: { left: "3" } },
+  email_code_attempts_exhausted: { code: "RATE_LIMITED", message: email.attemptsExhausted },
+  email_already_verified: { code: "CONFLICT", message: email.alreadyVerified },
 };
 
 describe("identityFailure", () => {
@@ -87,8 +94,8 @@ describe("identityFailure", () => {
     expect(err.message).toBe(want.message);
   });
 
-  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов, раскрытия, KYC, согласий: 47 кодов", () => {
-    expect(IDENTITY_ERROR_CODES).toHaveLength(47);
+  it("таблица покрывает коды входа, ролей, второго фактора, личности, контактов и реквизитов, раскрытия, KYC, согласий, почты: 53 кода", () => {
+    expect(IDENTITY_ERROR_CODES).toHaveLength(53);
     expect(Object.keys(table).sort()).toEqual([...IDENTITY_ERROR_CODES].sort());
   });
 
@@ -96,12 +103,20 @@ describe("identityFailure", () => {
     expect(caught(codedError("otp_wrong_code", Code.InvalidArgument, { left: "3" })).message).toBe("Неверный код. Осталось попыток: 3");
   });
 
-  it.each(["otp_wrong_code", "mfa_wrong_code"])("%s без разбираемого left — общий текст", (code) => {
+  it.each(["otp_wrong_code", "mfa_wrong_code", "email_code_wrong"])("%s без разбираемого left — общий текст", (code) => {
     vi.spyOn(logger, "error").mockImplementation(() => {});
     const bad: Record<string, string>[] = [{}, { left: "abc" }, { left: "-1" }];
     for (const params of bad) {
       expect(caught(codedError(code, Code.InvalidArgument, params)).message).toBe(g.generic);
     }
+  });
+
+  it("email_already_verified — CONFLICT с машинной причиной: адрес уже подтверждён, экран пропускает шаг почты", () => {
+    expect(caught(codedError("email_already_verified", Code.FailedPrecondition)).details).toEqual({ reason: "EMAIL_ALREADY_VERIFIED" });
+  });
+
+  it("email_code_wrong с left=2 — «Неверный код. Осталось попыток: 2»", () => {
+    expect(caught(codedError("email_code_wrong", Code.InvalidArgument, { left: "2" })).message).toBe("Неверный код. Осталось попыток: 2");
   });
 
   it("mfa_wrong_code с left=0 — попытки закончились", () => {

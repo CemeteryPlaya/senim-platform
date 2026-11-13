@@ -13,6 +13,10 @@ const registration = ru.identity.registration.errors;
 const payout = ru.identity.payout.errors;
 const kyc = ru.identity.kyc;
 const consent = ru.consent.errors;
+const email = ru.app.login.email.errors;
+
+/** Машинная причина отказа email_already_verified (AppError.details.reason): адрес уже подтверждён, код не выдан. */
+export const EMAIL_ALREADY_VERIFIED = "EMAIL_ALREADY_VERIFIED";
 
 /** Коды, которые identity возвращает по контракту (proto/senim/identity/v1/identity.proto). */
 export const IDENTITY_ERROR_CODES = [
@@ -63,6 +67,13 @@ export const IDENTITY_ERROR_CODES = [
   "consent_not_revocable",
   "consent_missing",
   "revocation_closed",
+  // Подтверждение почты (RequestEmailCode, VerifyEmailCode); неверный адрес — email_invalid, как у UpdateContacts.
+  "email_code_too_often",
+  "email_code_too_many",
+  "email_code_expired",
+  "email_code_wrong",
+  "email_code_attempts_exhausted",
+  "email_already_verified",
 ] as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[number];
@@ -74,8 +85,8 @@ function broken(reason: string, cause?: unknown): never {
   throw new AppError("UNAVAILABLE", ru.common.errors.generic);
 }
 
-/** params.left кодов otp_wrong_code и mfa_wrong_code: сколько попыток осталось; не число — сбой контракта. */
-function attemptsLeft(code: "otp_wrong_code" | "mfa_wrong_code", params: Record<string, string>): number {
+/** params.left кодов otp_wrong_code, mfa_wrong_code и email_code_wrong: сколько попыток осталось; не число — сбой контракта. */
+function attemptsLeft(code: "otp_wrong_code" | "mfa_wrong_code" | "email_code_wrong", params: Record<string, string>): number {
   const raw = params["left"];
   if (raw === undefined || !/^\d{1,2}$/.test(raw)) return broken(`${code}_without_left`);
   return Number(raw);
@@ -191,6 +202,19 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
     case "revocation_closed":
       // Заявку решили раньше (двойной клик, второй оператор) или её нет.
       return fail.conflict(consent.revocationClosed);
+    case "email_code_too_often":
+      return fail.rateLimited(email.tooOften);
+    case "email_code_too_many":
+      return fail.rateLimited(email.tooMany);
+    case "email_code_expired":
+      return fail.validation(email.expired);
+    case "email_code_wrong":
+      return fail.validation(email.wrongCode(attemptsLeft(code, params)));
+    case "email_code_attempts_exhausted":
+      return fail.rateLimited(email.attemptsExhausted);
+    case "email_already_verified":
+      // Этот адрес уже подтверждён: код не выдан, шаг почты не нужен (email.ts обновляет проекцию).
+      return fail.conflict(email.alreadyVerified, { reason: EMAIL_ALREADY_VERIFIED });
     case "session_token_invalid":
     case "caller_forbidden":
     case "idempotency_key_reused":

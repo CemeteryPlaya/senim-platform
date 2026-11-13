@@ -167,10 +167,12 @@ const last4 = (v: string | null | undefined) => (v ? v.slice(-4) : "");
 
 /**
  * Проекция личности человека сида в старую `User` (projectPerson) — какой её вернул бы identity после SeedUsers: ФИО,
- * последние 4 цифры ИИН и e-mail. Сам ИИН в старую базу не попадает.
+ * последние 4 цифры ИИН и e-mail. Адрес сида identity записывает подтверждённым (демо-персона не проходит шаг почты),
+ * поэтому и в проекции он подтверждён. Сам ИИН в старую базу не попадает.
  */
 export async function projectSeedPerson(userId: string, p: SeedPerson, tx: Tx): Promise<void> {
-  await projectPerson(create(PersonSchema, { userId, fullName: p.fullName ?? "", iinLast4: last4(p.iin), email: p.email ?? "" }), tx);
+  const email = p.email ?? "";
+  await projectPerson(create(PersonSchema, { userId, fullName: p.fullName ?? "", iinLast4: last4(p.iin), email, emailVerified: email !== "" }), tx);
 }
 
 /**

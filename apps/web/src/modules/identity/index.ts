@@ -31,6 +31,7 @@ export { identityClientIp } from "./remote";
 export { newSessionToken, sessionCookieName, sessionCookieOptions } from "./session-cookie";
 export { STAFF_ROLES, SWITCHABLE_ROLES, SWITCH_ROLE_PATH, canGrant, isStaffRole, parseSwitchableRole, roleToSwitch, switchRoleHref, switchTargets } from "./roles";
 export { requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./otp";
+export { needsEmail, requestEmailCode, verifyEmailCode, type EmailCodeRequested } from "./email";
 export {
   listDemoPersonas,
   loginAsDemoPersona,

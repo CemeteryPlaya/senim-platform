@@ -125,6 +125,7 @@ describe("requireRecentMfa: свежий код перед действием с
     phone: "+77000000001",
     fullName: null,
     iinLast4: null,
+    emailVerified: false,
     isDemo,
     executor: null,
     mfa: { required: true, verifiedAt },
