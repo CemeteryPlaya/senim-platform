@@ -11,7 +11,7 @@
 - **Устройство** — телефон или компьютер — различают варианты `desktop:` и `mobile:` (атрибут `data-device` на `<html>`), а не ширина окна. Серверный экран получает устройство так: `const device = await getDevice()` (`@/platform/device`) и передаёт его в компоненты, которым оно нужно (`ConfirmDialog`, `Explain`, `Toaster`).
 - **Одно главное действие на экран.** Главное — `Button`/`ButtonLink` без `variant` (или `variant="primary"`). Остальные — `secondary`, `quiet`, `danger`.
 - Серверные компоненты (без `"use client"`): `Stack`, `Split`, `Narrow`, `Section`, `Card`, списки, `StatusChip`, `Money`, `Progress`, `PhotoSlot`, `PageTitle`, `BackLink`, `WizardHeader`, `NowNext`, `FirstSteps`, `EmptyState`, `HelpBlock`, `ButtonLink`, `Skeleton`, поля (`TextField`, `TextArea`, `Select`, `Checkbox`, `RadioCard`, `RadioGroup`), `Segmented`. Клиентские (`"use client"`): `Button`, `Sheet`, `Dialog`, `ConfirmDialog`, `Popover`, `Explain`, `Toaster`. Клиентский компонент можно ставить в серверный экран; серверный компонент без обработчиков можно ставить и в клиентский.
-- Добавлены для экранов гостя и входа (все серверные, кроме хука `useActionForm`): `Notice`, `HiddenField`, `CodeField`, `PhoneField`, `Chips`, `FilterList`, `Pagination`, `ActionDock`, `WorkCard`, `Rating`, `Columns`, `TextLink`; клиентский — только `useActionForm` (`_shell/form.ts`) и `error.tsx` группы.
+- Добавлены для экранов гостя и входа (все серверные, кроме хука `useActionForm`): `Notice`, `HiddenField`, `CodeField`, `PhoneField`, `Chips`, `FilterList`, `Pagination`, `ActionDock`, `WorkCard`, `Rating`, `Columns`, `TextLink`; клиентские — только `ChipsRail` (внутри `Chips`: прокрутка ленты к выбранному чипу), `useActionForm` (`_shell/form.ts`) и `error.tsx` группы.
 
 ### Что запрещают сторожа
 
@@ -27,8 +27,8 @@
 8. В `ru.app` нет слов «демо», «комиссия», «эскроу».
 9. Нет `sm:`, `md:`, `lg:`, `xl:`, контейнерных `@md:`, `@media (width…)`, `matchMedia`, `innerWidth`, `clientWidth`, `screen.width` — версии различают `desktop:` и `mobile:`.
 10. `button-styles` импортируют только файлы kit.
-12. В `src/app/(app)/**` нет отрицательных полей (`-ml-6`, `-mx-4`, `mobile:-mt-2`): выход за поле — дело компонента kit (`TextLink`, `Chips`), а не обхода в разметке экрана. Сдвиги `-translate-x-…` не поля.
 11. Вне `src/kit` (и в тестах) kit импортируется только как `@/kit`; исключения — `@/kit/theme`, `@/kit/fonts`, `@/kit/tokens`, а в тестах ещё `@/kit/test-utils`.
+12. В `src/app/(app)/**` нет отрицательных полей (`-ml-6`, `-mx-4`, `mobile:-mt-2`): выход за поле — дело компонента kit (`TextLink`, `Chips`), а не обхода в разметке экрана. Сдвиги `-translate-x-…` не поля.
 
 Отдельно: анимируются только `transform` и `opacity`; размеры текста, радиусы, тени, цвета — токены; контролы не ниже 48 px (на компьютере вторичные `sm` — 36 px).
 
@@ -56,6 +56,16 @@
 |---|---|---|
 | `main` | `ReactNode` | Основная колонка (слева) |
 | `aside` | `ReactNode` | Боковая колонка (справа); на телефоне уходит вниз |
+
+### `Sidebar`
+
+Узкая левая колонка и основная: `aside: ReactNode`, `device: Device`, `children`. Компьютер: `aside` шириной 15 rem (токен `--sidebar-width`) прилипает при прокрутке (`sticky-aside`), основная колонка на остальную ширину, зазор 24 px, по верху. Телефон: выводятся **только** `children` — `aside` в разметку не попадает (версию выбирает экран по `device`, скрытого дубля в DOM нет). Для списков фильтров каталога (`FilterList`).
+
+```tsx
+<Sidebar device={device} aside={<FilterList title={t.type} items={typeItems} />}>
+  {/* основная колонка */}
+</Sidebar>
+```
 
 ### `Narrow`
 
@@ -171,10 +181,11 @@
 
 | Проп | Тип | Смысл |
 |---|---|---|
-| `label` | `ReactNode` | Подпись (ink) |
-| `value` | `ReactNode?` | Значение справа (muted). Сумма — `<Money>`: цвет ink она задаёт сама |
+| `label` | `ReactNode` | Подпись: `muted`, если есть значение; у строки-ссылки без значения — `ink` (это и есть её содержимое) |
+| `value` | `ReactNode?` | Значение справа, `ink`. Сумма — `<Money>`, оценка — `<Rating>` (корень — `span`, годится значением) |
 | `href` | `string?` | Есть адрес — вся строка ссылка, справа шеврон (через `to()`) |
 | `chevron` | `boolean?` | `true` по умолчанию; `false` — без шеврона у якоря на этой же странице (оглавление) |
+| `stacked` | `boolean?` | Подпись над значением (подпись 15 px `muted`, значение 17 px `ink`, переносится) — для длинных значений: адрес, описание |
 
 `ListItem` — обёртка для строки со своей разметкой (`children`), даёт разделитель с отступом 16 px; у последней строки разделителя нет.
 
@@ -390,7 +401,7 @@ const device = await getDevice();
 
 ### `FilterList`
 
-Список фильтров для левой колонки на компьютере: `title: string` (заголовок 15 px / 600 и имя `<nav>`), `items: { href; label; active }[]`. Строки-ссылки 36 px; выбранная — вес 600, галочка справа, `aria-current="true"`. Серверный.
+Список фильтров для левой колонки на компьютере: `title: string` (заголовок 15 px / 600 и имя `<nav>`), `items: { href; label; active }[]`. Строки-ссылки: 48 px на телефоне, 36 px на компьютере; выбранная — вес 600, галочка справа, `aria-current="true"`. Серверный.
 
 ### `Pagination`
 
@@ -398,9 +409,9 @@ const device = await getDevice();
 
 ### `WorkCard`
 
-Карточка работы: `href`, `title`, `meta: string`, `byline?: string` (третья строка, текст даёт экран: «Мастер № 1042 · 48 сделок»), `priceFrom?: bigint` (тиыны, «от N ₸»), `media?: "none" | "slot"`, `photo?: { src, alt }`.
+Карточка работы: `href?` (без него карточка неинтерактивна: нет ссылки, шеврона, отклика на нажатие и кольца фокуса), `title`, `meta: string`, `byline?: string` (третья строка, текст даёт экран: «Мастер № 1042 · 48 сделок»), `priceFrom?: bigint` (тиыны, «от N ₸»), `media?: "none" | "slot"`, `photo?: { src, alt }`, `headingLevel?: 2 | 3` (по умолчанию 3; на странице-списке сразу под `<h1>` ставьте `2`).
 
-- `media="none"` (по умолчанию): компактная текстовая карточка без области фото: заголовок 17 / 600, `meta` и `byline` 15 `muted`, цена «от» (вес 500, табличные цифры) прижата к низу — карточки ряда одной высоты, цены на одной линии. На телефоне справа шеврон 20 px. `photo` в этом режиме не показывается.
+- `media="none"` (по умолчанию): компактная текстовая карточка без области фото: заголовок 17 / 600, `meta` и `byline` 15 `muted`, цена «от» (вес 500, табличные цифры). Телефон (уплотнено, поля по вертикали 12 px): «meta · byline» одной строкой с переносом, цена в той же строке справа, шеврон 20 px. Компьютер: `meta` и `byline` отдельными строками, цена прижата к низу — карточки ряда одной высоты, цены на одной линии. `photo` в этом режиме не показывается.
 - `media="slot"`: над текстом область 4 : 3 с радиусом 12 px — `photo` или ровная заглушка; шеврона нет. Нужен, когда у работ есть настоящие снимки.
 
 Вся карточка — одна ссылка (заголовок растянут на карточку), фокус по карточке. Заголовок — `<h3>`.
@@ -421,7 +432,7 @@ const device = await getDevice();
 
 ### `Rating`
 
-`value: number | null`, `count: number`. «4,8 · 12 отзывов» текстом, без звёзд; `null` или `count` 0 — «Пока без отзывов».
+`value: number | null`, `count: number`. «4,8 · 12 отзывов» текстом, без звёзд; `null` или `count` 0 — «Пока без отзывов». Корневой элемент — `span` 17 px (`ink`; «Пока без отзывов» — `muted`), поэтому встаёт значением в `ListRow` без `<p>` внутри `<span>`.
 
 ### `ActionDock`
 

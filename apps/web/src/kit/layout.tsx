@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { Device } from "@/platform/device";
 import { cn } from "./cn";
 
 /**
@@ -47,6 +48,23 @@ export function Split({ main, aside, stickyAside = false }: SplitProps) {
  */
 export function Narrow({ children }: { children: ReactNode }) {
   return <div className="desktop:max-w-narrow">{children}</div>;
+}
+
+export type SidebarProps = { aside: ReactNode; device: Device; children: ReactNode };
+
+/**
+ * Узкая левая колонка и основная: на компьютере `aside` (15 rem, прилипает при прокрутке — `sticky-aside`, как у `Split`)
+ * и `children` на остальную ширину, зазор 24 px, по верху. На телефоне выводятся ТОЛЬКО `children`: `aside` в разметку не
+ * попадает (версию выбирает вызывающий по `device`, поэтому скрытого дубля в DOM нет). Для списков фильтров каталога.
+ */
+export function Sidebar({ aside, device, children }: SidebarProps) {
+  if (device === "mobile") return <div className="min-w-0">{children}</div>;
+  return (
+    <div className="desktop:grid desktop:grid-cols-sidebar desktop:items-start desktop:gap-split">
+      <div className="min-w-0 desktop:sticky-aside">{aside}</div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
 }
 
 export type SectionProps = {

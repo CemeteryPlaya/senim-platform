@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { Narrow, Section, Split, Stack } from "./index";
+import { Narrow, Section, Sidebar, Split, Stack } from "./index";
 import { count, hasClass, html } from "./test-utils";
 
 /** Открывающий тег первого элемента разметки. */
@@ -86,5 +88,29 @@ describe("Split stickyAside и якорь раздела", () => {
   it("заголовок раздела с id получает запас при переходе по якорю (desktop:scroll-anchor)", () => {
     expect(html(<Section title="Т" id="x">y</Section>)).toMatch(/<h2 id="x" class="[^"]*desktop:scroll-anchor/);
     expect(html(<Section title="Т">y</Section>)).not.toContain("scroll-anchor");
+  });
+});
+
+describe("Sidebar", () => {
+  it("компьютер: узкая левая колонка (aside, прилипает) и основная, сетка sidebar с зазором 24 px по верху", () => {
+    const out = html(<Sidebar device="desktop" aside={<p>Фильтры</p>}>Основное</Sidebar>);
+    const root = first(out);
+    for (const cls of ["desktop:grid", "desktop:grid-cols-sidebar", "desktop:items-start", "desktop:gap-split"]) expect(hasClass(root, cls), cls).toBe(true);
+    expect(out).toContain('<div class="min-w-0 desktop:sticky-aside"><p>Фильтры</p></div>');
+    expect(out).toContain('<div class="min-w-0">Основное</div>');
+    expect(out.indexOf("Фильтры")).toBeLessThan(out.indexOf("Основное"));
+  });
+
+  it("телефон: только основное, aside в разметке нет", () => {
+    const out = html(<Sidebar device="mobile" aside={<p>Фильтры</p>}>Основное</Sidebar>);
+    expect(out).toBe('<div class="min-w-0">Основное</div>');
+    expect(out).not.toContain("Фильтры");
+    expect(out).not.toContain("sticky");
+  });
+
+  it("ширина колонки — именованный токен", () => {
+    const css = readFileSync(path.join(__dirname, "tokens.css"), "utf8");
+    expect(css).toMatch(/--sidebar-width:\s*15rem\s*;/);
+    expect(css).toMatch(/--grid-template-columns-sidebar:\s*var\(--sidebar-width\)\s+minmax\(0,\s*1fr\)\s*;/);
   });
 });

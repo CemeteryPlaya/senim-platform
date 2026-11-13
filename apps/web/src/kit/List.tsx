@@ -33,19 +33,31 @@ export type ListRowProps = {
   href?: string;
   /** Шеврон у строки-ссылки (по умолчанию да); `false` — для якорей на этой же странице: переход, а не вход вглубь. */
   chevron?: boolean;
+  /** Подпись над значением (для длинных значений: адрес, описание); значение переносится. */
+  stacked?: boolean;
 };
 
 const rowClass = "flex min-h-control w-full items-center justify-between gap-4 px-4 py-3 text-body";
 
 /** Строка «подпись — значение». Значение — muted; сумма (`Money`) задаёт свой цвет ink сама. */
-export function ListRow({ label, value, href, chevron = true }: ListRowProps) {
-  const content = (
+export function ListRow({ label, value, href, chevron = true, stacked = false }: ListRowProps) {
+  const arrow = href && chevron && <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />;
+  const content = stacked ? (
     <>
-      <span className="min-w-0 text-ink">{label}</span>
-      {(value !== undefined || (href && chevron)) && (
-        <span className="flex shrink-0 items-center gap-1 text-muted">
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-sub text-muted">{label}</span>
+        {value !== undefined && <span className="text-body wrap-break-word text-ink">{value}</span>}
+      </span>
+      {arrow}
+    </>
+  ) : (
+    <>
+      {/* Подпись muted, значение ink; строка без значения (ссылка) — подпись и есть содержимое, поэтому ink. */}
+      <span className={cn("min-w-0", value !== undefined ? "text-muted" : "text-ink")}>{label}</span>
+      {(value !== undefined || arrow) && (
+        <span className="flex shrink-0 items-center gap-1 text-ink">
           {value !== undefined && <span>{value}</span>}
-          {href && chevron && <ChevronRight aria-hidden className="size-5" />}
+          {arrow}
         </span>
       )}
     </>

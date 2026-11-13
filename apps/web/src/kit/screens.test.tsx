@@ -233,9 +233,16 @@ describe("WorkCard", () => {
 
   it("строки: заголовок, meta, byline muted 15 px, цена «от» с весом 500 прижата к низу", () => {
     const out = html(<WorkCard href="/v2/x" title="Кухня" meta="Алматы" byline="Мастер № 1042 · 48 сделок" priceFrom={85000000n} />);
-    expect(out).toMatch(/<p class="text-sub text-muted">Алматы<\/p><p class="text-sub text-muted">Мастер № 1042 · 48 сделок<\/p>/);
+    // Телефон: «meta · byline» одной строкой (разделитель виден только там); компьютер: отдельные строки.
+    expect(out).toMatch(/<span class="desktop:block">Алматы<\/span><span aria-hidden="true" class="desktop:hidden"> · <\/span><span class="desktop:block">Мастер № 1042 · 48 сделок<\/span>/);
+    expect(text(<WorkCard href="/v2/x" title="К" meta="Алматы" byline="Мастер" />)).toContain("Алматы · Мастер");
     const price = /<p class="([^"]*)">от/.exec(out)?.[1] ?? "";
-    for (const cls of ["mt-auto", "font-medium", "text-body"]) expect(hasClass(`class="${price}"`, cls), cls).toBe(true);
+    for (const cls of ["desktop:mt-auto", "font-medium", "text-body", "shrink-0"]) expect(hasClass(`class="${price}"`, cls), cls).toBe(true);
+    // Строка с текстом и ценой: на телефоне в ряд (цена справа), на компьютере растворяется — цена внизу колонки.
+    expect(hasClass(out, "mobile:flex")).toBe(true);
+    expect(hasClass(out, "desktop:contents")).toBe(true);
+    expect(hasClass(out, "mobile:py-3")).toBe(true);
+    expect(hasClass(html(<WorkCard href="/v2/x" title="К" meta="М" media="slot" />), "mobile:py-3")).toBe(false);
     expect(hasClass(out, "tabular-nums")).toBe(true);
     expect(hasClass(out, "h-full")).toBe(true);
     expect(html(<WorkCard href="/v2/x" title="Кухня" meta="Алматы" />)).not.toContain("1042");
@@ -249,6 +256,8 @@ describe("WorkCard", () => {
     expect(out).toContain('href="/v2/masters/1"');
     expect(text(el)).toContain(`от ${formatMoney(122400000n)}`);
     expect(out).toMatch(/<h3[^>]*><a [^>]*>Кухня<\/a><\/h3>/);
+    expect(html(<WorkCard href="/v2/x" title="Кухня" meta="М" headingLevel={2} />)).toMatch(/<h2[^>]*><a [^>]*>Кухня<\/a><\/h2>/);
+    expect(html(<WorkCard href="/v2/x" title="Кухня" meta="М" headingLevel={2} />)).not.toContain("<h3");
   });
 
   it("кликабельна вся карточка: одна ссылка растянута на карточку, вложенных интерактивных нет", () => {
@@ -327,8 +336,10 @@ describe("FilterList", () => {
     expect(count(out, "lucide-check")).toBe(1);
   });
 
-  it("строки 36 px; активная — вес 600", () => {
-    expect(hasClass(out, "min-h-control-sm")).toBe(true);
+  it("строки 48 px на телефоне и 36 px на компьютере; активная — вес 600", () => {
+    expect(hasClass(out, "min-h-control")).toBe(true);
+    expect(hasClass(out, "desktop:min-h-control-sm")).toBe(true);
+    expect(hasClass(out, "min-h-control-sm")).toBe(false);
     expect(hasClass(/<a [^>]*aria-current="true"[^>]*>/.exec(out)?.[0] ?? "", "font-semibold")).toBe(true);
   });
 });
@@ -373,5 +384,53 @@ describe("ListRow: шеврон", () => {
     const none = row(false);
     expect(none).not.toContain("lucide-chevron-right");
     expect(none).toContain('href="/v2/about#money"');
+  });
+});
+
+describe("WorkCard без href", () => {
+  const out = html(<WorkCard title="Кухня" meta="Алматы" byline="Мастер" priceFrom={1000n} />);
+
+  it("неинтерактивна: нет ссылки, шеврона, отклика на нажатие и кольца фокуса; разметка текста та же", () => {
+    expect(out).not.toContain("<a ");
+    expect(out).not.toContain("lucide-chevron-right");
+    expect(out).not.toContain("pressable");
+    expect(out).not.toContain("has-focus-visible");
+    expect(out).not.toContain("after:absolute");
+    expect(out).toMatch(/<h3 class="text-card text-ink">Кухня<\/h3>/);
+    expect(text(<WorkCard title="Кухня" meta="Алматы" byline="Мастер" priceFrom={1000n} />)).toContain("Алматы · Мастер");
+  });
+
+  it("с href всё это есть", () => {
+    const linked = html(<WorkCard href="/v2/x" title="Кухня" meta="Алматы" />);
+    expect(linked).toContain("<a ");
+    expect(linked).toContain("lucide-chevron-right");
+    expect(hasClass(linked, "pressable")).toBe(true);
+  });
+});
+
+describe("ListRow: цвета и stacked", () => {
+  const row = (props: Parameters<typeof ListRow>[0]) => html(<List><ListRow {...props} /></List>);
+
+  it("обычная строка: подпись muted слева, значение ink справа", () => {
+    const out = row({ label: "Срок", value: "до 28 ноября" });
+    expect(out).toMatch(/<span class="[^"]*text-muted[^"]*">Срок<\/span>/);
+    expect(out).toMatch(/<span class="[^"]*text-ink[^"]*"><span>до 28 ноября<\/span>/);
+  });
+
+  it("строка без значения (ссылка): подпись ink", () => {
+    expect(row({ label: "О сервисе", href: "/v2/about" })).toMatch(/<span class="[^"]*text-ink[^"]*">О сервисе<\/span>/);
+  });
+
+  it("stacked: подпись text-sub muted над значением text-body ink, значение переносится", () => {
+    const out = row({ label: "Адрес", value: "Астана, ул. Кенесары, 40", stacked: true });
+    expect(out).toMatch(/<span class="text-sub text-muted">Адрес<\/span><span class="text-body wrap-break-word text-ink">Астана, ул. Кенесары, 40<\/span>/);
+    expect(hasClass(out, "flex-col")).toBe(true);
+  });
+
+  it("Rating — значение строки без <p> внутри <span>", () => {
+    const out = row({ label: "Оценка", value: <Rating value={4.8} count={12} /> });
+    expect(out).not.toContain("<p");
+    expect(out).toContain('<span class="text-body text-ink">4,8 · 12 отзывов</span>');
+    expect(row({ label: "Оценка", value: <Rating value={null} count={0} /> })).toContain('<span class="text-body text-muted">Пока без отзывов</span>');
   });
 });

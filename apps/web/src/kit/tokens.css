@@ -98,6 +98,9 @@
   --spacing-stack-section: 1.5rem;
   --spacing-split: 1.5rem;
   --grid-template-columns-split: minmax(0, 1.5fr) minmax(0, 1fr);
+  /* Sidebar: узкая левая колонка 15rem (240px) и основная на остальную ширину. */
+  --sidebar-width: 15rem;
+  --grid-template-columns-sidebar: var(--sidebar-width) minmax(0, 1fr);
   --container-narrow: 35rem;
 
   /* Полоса прогресса — 4px (h-progress). */

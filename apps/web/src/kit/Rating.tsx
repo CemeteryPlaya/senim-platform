@@ -6,9 +6,13 @@ export type RatingProps = {
   count: number;
 };
 
-/** Оценка текстом: «4,8 · 12 отзывов». Без ряда звёзд — число и счёт говорят точнее. Серверный компонент. */
+/**
+ * Оценка текстом: «4,8 · 12 отзывов». Без ряда звёзд — число и счёт говорят точнее. Корневой элемент — `span` (годится
+ * значением `ListRow` без вложенности `<p>` в `<span>`), 17 px, как соседние значения строки: `ink`; «Пока без
+ * отзывов» — тем же кеглем, `muted`. Серверный компонент.
+ */
 export function Rating({ value, count }: RatingProps) {
   const t = ru.app.kit.rating;
-  if (value === null || !(count > 0)) return <p className="text-sub text-muted">{t.none}</p>;
-  return <p className="text-sub text-ink">{t.summary(value, count)}</p>;
+  if (value === null || !(count > 0)) return <span className="text-body text-muted">{t.none}</span>;
+  return <span className="text-body text-ink">{t.summary(value, count)}</span>;
 }

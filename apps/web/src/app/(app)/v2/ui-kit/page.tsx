@@ -32,6 +32,7 @@ import {
   Rating,
   Section,
   Select,
+  Sidebar,
   Skeleton,
   Split,
   Stack,
@@ -325,7 +326,7 @@ function Entry() {
 function Works() {
   const w = s.works;
   return (
-    <div className="grid grid-cols-1 gap-stack-group desktop:grid-cols-3">
+    <div className="grid grid-cols-1 items-start gap-stack-group desktop:grid-cols-3">
       <Specimen label={w.slotPhoto}>
         <WorkCard
           href={to("/")}
@@ -403,6 +404,20 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
           <Narrow>
             <p className="text-sub text-muted">{s.layout.note}</p>
           </Narrow>
+          <Specimen label={s.layout.sidebar}>
+            <Sidebar
+              device={device}
+              aside={
+                <Card>
+                  <p className="text-sub text-ink">{s.layout.sidebarAside}</p>
+                </Card>
+              }
+            >
+              <Card>
+                <p className="text-body text-ink">{s.layout.sidebarMain}</p>
+              </Card>
+            </Sidebar>
+          </Specimen>
         </Stack>
       </Section>
 
@@ -496,6 +511,13 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
                 <List>
                   <ListRow label={s.cards.rowStatus} value={s.cards.rowStatusValue} />
                   <ListRow label={s.cards.rowDate} value={s.cards.rowDateValue} />
+                </List>
+              </Card>
+            </Specimen>
+            <Specimen label={s.cards.stacked}>
+              <Card padded={false}>
+                <List>
+                  <ListRow label={s.cards.rowStacked} value={s.cards.rowStackedValue} stacked />
                 </List>
               </Card>
             </Specimen>

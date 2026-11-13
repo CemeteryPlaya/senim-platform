@@ -9,7 +9,7 @@ export type FilterListProps = {
 };
 
 /**
- * Список фильтров для левой колонки на компьютере: заголовок 15 px / 600 и строки-ссылки по 36 px. Выбранная строка —
+ * Список фильтров для левой колонки на компьютере: заголовок 15 px / 600 и строки-ссылки: 48 px на телефоне, 36 px на компьютере. Выбранная строка —
  * вес 600, галочка справа и `aria-current="true"` (не одним весом). Серверный компонент.
  */
 export function FilterList({ title, items }: FilterListProps) {
@@ -23,7 +23,7 @@ export function FilterList({ title, items }: FilterListProps) {
               href={item.href}
               aria-current={item.active ? "true" : undefined}
               className={cn(
-                "flex min-h-control-sm items-center justify-between gap-2 text-sub text-ink no-underline hover:underline",
+                "flex min-h-control items-center desktop:min-h-control-sm justify-between gap-2 text-sub text-ink no-underline hover:underline",
                 item.active && "font-semibold",
               )}
             >
