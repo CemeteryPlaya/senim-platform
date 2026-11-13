@@ -32,6 +32,7 @@ export { newSessionToken, sessionCookieName, sessionCookieOptions } from "./sess
 export { STAFF_ROLES, SWITCHABLE_ROLES, SWITCH_ROLE_PATH, canGrant, isStaffRole, parseSwitchableRole, roleToSwitch, switchRoleHref, switchTargets } from "./roles";
 export { requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./otp";
 export { needsEmail, requestEmailCode, verifyEmailCode, type EmailCodeRequested } from "./email";
+export { isCodeTooOften } from "./remote-errors";
 export {
   listDemoPersonas,
   loginAsDemoPersona,

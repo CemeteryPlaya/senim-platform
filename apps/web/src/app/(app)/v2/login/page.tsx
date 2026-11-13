@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { getShellUser } from "@/modules/identity";
+import { getDevice } from "@/platform/device";
 import { nextStepFor, safeNext } from "../../_shell/auth";
 import { recallRole } from "../../_shell/role-cookie";
 import { LoginFlow } from "./LoginFlow";
@@ -26,5 +27,12 @@ export default async function LoginPage({ searchParams }: Props) {
   const [{ user }, chosen] = await Promise.all([getShellUser(), recallRole()]);
   if (user) redirect(nextStepFor(user, next, chosen));
 
-  return <LoginFlow step={parseLoginStep(one(params.step))} role={preselectedRole(one(params.role), chosen)} next={next} />;
+  return (
+    <LoginFlow
+      step={parseLoginStep(one(params.step))}
+      role={preselectedRole(one(params.role), chosen)}
+      next={next}
+      device={await getDevice()}
+    />
+  );
 }

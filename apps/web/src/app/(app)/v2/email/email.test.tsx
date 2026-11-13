@@ -31,7 +31,7 @@ vi.mock("../../_shell/form", () => ({
 vi.mock("./actions", () => ({ requestEmailCodeAction: vi.fn(), verifyEmailCodeAction: vi.fn() }));
 
 const { default: EmailPage } = await import("./page");
-const { AddressStep, CodeStep, EmailFlow, ResendButton } = await import("./EmailFlow");
+const { AddressStep, CodeStep, EmailFlow, sentAfter } = await import("./EmailFlow");
 const { emailStepHref, parseEmailStep } = await import("./steps");
 h.requestAction = (await import("./actions")).requestEmailCodeAction;
 
@@ -175,15 +175,17 @@ describe("шаг адреса", () => {
 });
 
 describe("шаг кода", () => {
-  const sent: { email: string; demoCode: string | null; retryAt: number; resent: boolean } = {
-    email: "erlan@mail.kz",
-    demoCode: "123456",
-    retryAt: Date.now() + 60_000,
-    resent: false,
-  };
-  const render = (over: Partial<typeof sent> = {}) => (
-    <CodeStep next="/v2/deals/1" position={POSITION} sent={{ ...sent, ...over }} onResent={() => {}} />
+  type Sent = Parameters<typeof CodeStep>[0]["sent"];
+  const sent: Sent = { email: "erlan@mail.kz", demoCode: "123456", retryAt: Date.now() + 60_000, notice: "none" };
+  const render = (over: Partial<Sent> = {}, device: "mobile" | "desktop" = "mobile") => (
+    <CodeStep next="/v2/deals/1" position={POSITION} device={device} sent={{ ...sent, ...over }} onResent={() => {}} />
   );
+  /** Где в разметке стоит фрагмент (для порядка элементов). */
+  const at = (out: string, needle: string) => {
+    const i = out.indexOf(needle);
+    if (i < 0) throw new Error(`нет в разметке: ${needle}`);
+    return i;
+  };
 
   it("куда отправили, плашка с кодом, «Изменить адрес» — ссылка на шаг адреса с тем же next", () => {
     const plain = text(render());
@@ -198,14 +200,35 @@ describe("шаг кода", () => {
     expect(text(render({ demoCode: null }))).not.toContain(t.code.shownCode(""));
   });
 
-  it("в доке одна кнопка «Подтвердить»; «Отправить ещё раз» — тихая кнопка вне дока", () => {
+  it("код уже был отправлен (перезагрузка, запрос раньше минуты) — пояснение плашкой", () => {
+    expect(text(render({ notice: "alreadySent", demoCode: null }))).toContain(t.code.alreadySent);
+    expect(text(render())).not.toContain(t.code.alreadySent);
+    expect(text(render({ notice: "resent" }))).toContain(t.code.resent);
+  });
+
+  it("в доке одна кнопка «Подтвердить»; во время отсчёта повтор — строка текста, не кнопка", () => {
     const out = html(render());
     expect(count(out, "data-primary-action")).toBe(1);
+    expect(count(out, "<button")).toBe(1);
     const dock = dockOf(out);
-    expect(count(dock, "<button")).toBe(1);
     expect(dock).toContain(t.code.submit);
     expect(dock).toContain('form="email-code"');
-    expect(out.slice(0, out.indexOf("data-action-dock"))).toContain('form="email-resend"');
+    // «Отправить ещё раз через 1:00» (или 0:59 — время идёт): строка без кнопки.
+    expect(text(render())).toContain(t.code.resendIn(60).replace(/\s\S+$/, ""));
+  });
+
+  it("телефон: поле → повтор → «Изменить адрес» → док последним (у нижнего края)", () => {
+    const out = html(render());
+    expect(at(out, 'name="code"')).toBeLessThan(at(out, "data-resend-code"));
+    expect(at(out, "data-resend-code")).toBeLessThan(at(out, t.code.changeEmail));
+    expect(at(out, t.code.changeEmail)).toBeLessThan(at(out, "data-action-dock"));
+  });
+
+  it("компьютер: поле → «Подтвердить» → повтор под ней → «Изменить адрес»", () => {
+    const out = html(render({}, "desktop"));
+    expect(at(out, 'name="code"')).toBeLessThan(at(out, "data-action-dock"));
+    expect(at(out, "data-action-dock")).toBeLessThan(at(out, "data-resend-code"));
+    expect(at(out, "data-resend-code")).toBeLessThan(at(out, t.code.changeEmail));
   });
 
   it("неверный код — у поля, без второй плашки", () => {
@@ -221,19 +244,32 @@ describe("шаг кода", () => {
   });
 });
 
-describe("«Отправить ещё раз»", () => {
-  it("отсчёт от срока: осталось 25 с — недоступна; срок прошёл — доступна", () => {
-    const now = Date.now();
-    vi.useFakeTimers({ now });
-    try {
-      const waiting = html(<ResendButton until={now + 25_000} pending={false} />);
-      expect(waiting).toContain(t.code.resendIn(25));
-      expect(waiting).toMatch(/<button[^>]*disabled=""/);
-      const ready = html(<ResendButton until={now - 1} pending={false} />);
-      expect(ready).toContain(t.code.resend);
-      expect(ready).not.toMatch(/<button[^>]*disabled=""/);
-    } finally {
-      vi.useRealTimers();
-    }
+describe("sentAfter: что показать после запроса кода", () => {
+  const NOW = 1_000_000;
+  const data = (over: Partial<{ email: string; demoCode: string | null; alreadySent: boolean }> = {}) => ({
+    email: "erlan@mail.kz",
+    demoCode: "123456",
+    alreadySent: false,
+    ...over,
+  });
+
+  it("код отправлен — без плашки, повтор через минуту", () => {
+    expect(sentAfter(null, data(), false, NOW)).toEqual({ email: "erlan@mail.kz", demoCode: "123456", retryAt: NOW + 60_000, notice: "none" });
+    expect(sentAfter(null, data(), true, NOW).notice).toBe("resent");
+  });
+
+  it("код уже был отправлен после перезагрузки — плашка «уже отправлен», кода на экране нет, полный интервал повтора", () => {
+    expect(sentAfter(null, data({ demoCode: null, alreadySent: true }), false, NOW)).toEqual({
+      email: "erlan@mail.kz",
+      demoCode: null,
+      retryAt: NOW + 60_000,
+      notice: "alreadySent",
+    });
+  });
+
+  it("тому же адресу в этой странице — прежний код заглушки остаётся на экране", () => {
+    const previous = sentAfter(null, data(), false, NOW);
+    expect(sentAfter(previous, data({ demoCode: null, alreadySent: true }), true, NOW + 5_000).demoCode).toBe("123456");
+    expect(sentAfter(previous, data({ email: "other@mail.kz", demoCode: null, alreadySent: true }), false, NOW).demoCode).toBeNull();
   });
 });

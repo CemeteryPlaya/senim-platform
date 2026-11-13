@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import { formatPhone, getCurrentUser, requestOtp, verifyOtp } from "@/modules/identity";
+import { formatPhone, getCurrentUser, isCodeTooOften, parsePhone, requestOtp, verifyOtp } from "@/modules/identity";
 import { action } from "@/platform/action";
 import { digitsOnly } from "@/platform/digits";
 import { AppError, fail } from "@/platform/errors";
@@ -45,13 +45,18 @@ export const chooseRoleAction = action(
 /**
  * Шаг 2 и «Отправить ещё раз»: код на номер. Ответ одинаков для нового и известного номера — экран не выдаёт, есть ли
  * у номера аккаунт. `demoCode` — код, если identity работает с заглушкой SMS (экран показывает его вместо сообщения).
+ * Запрос раньше минуты (otp_too_often; лимит identity — на номер, для нового и известного одинаково) — не ошибка:
+ * `alreadySent: true`, экран ведёт на шаг кода с пояснением — прежний код этому номеру ещё действует (человек перезагрузил
+ * страницу на шаге кода). Срока и кода в этом ответе нет. Прочие лимиты — ошибка, как прежде.
  */
 export const requestCodeAction = action("app.login.requestCode", z.strictObject({ phone: phoneField }), async ({ phone }) => {
   const { ip } = await clientInfo();
   try {
     const sent = await requestOtp({ phone, ip });
-    return { phone: formatPhone(sent.phone), expiresAt: sent.expiresAt.toISOString(), demoCode: sent.demoCode };
+    return { phone: formatPhone(sent.phone), expiresAt: sent.expiresAt.toISOString(), demoCode: sent.demoCode, alreadySent: false };
   } catch (e) {
+    const parsed = parsePhone(phone);
+    if (isCodeTooOften(e) && parsed) return { phone: formatPhone(parsed), expiresAt: null, demoCode: null, alreadySent: true };
     throw atField(e, "phone");
   }
 });

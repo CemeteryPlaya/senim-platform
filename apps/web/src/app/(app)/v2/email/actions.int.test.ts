@@ -69,7 +69,7 @@ describe("requestEmailCodeAction", () => {
   it("код выслан: адрес для строки «Отправили код на …» (без пробелов, строчными) и код заглушки писем", async () => {
     await atEmail();
     const res = await run(requestEmailCodeAction({ email: "  Erlan@Mail.KZ ", next: "" }));
-    expect(res).toEqual({ ok: true, data: { email: ADDRESS, demoCode: expect.stringMatching(/^\d{6}$/) } });
+    expect(res).toEqual({ ok: true, data: { email: ADDRESS, demoCode: expect.stringMatching(/^\d{6}$/), alreadySent: false } });
     expect(callsOf("requestEmailCode").at(-1)?.request).toMatchObject({ email: ADDRESS });
   });
 
@@ -93,12 +93,13 @@ describe("requestEmailCodeAction", () => {
     expect(callsOf("requestEmailCode")).toHaveLength(0);
   });
 
-  it("второй запрос в ту же минуту — «слишком часто» общей ошибкой формы (не у поля)", async () => {
+  it("второй запрос в ту же минуту (перезагрузка на шаге кода) — не ошибка: «код уже отправлен», прежний код действует", async () => {
     await atEmail();
-    await sentCode();
-    const res = await run(requestEmailCodeAction({ email: ADDRESS, next: "" }));
-    expect(res).toMatchObject({ ok: false, code: "RATE_LIMITED", error: e.tooOften });
-    expect(res).not.toHaveProperty("fieldErrors");
+    const code = await sentCode();
+    const res = await run(requestEmailCodeAction({ email: ` ${ADDRESS.toUpperCase()}`, next: "" }));
+    expect(res).toEqual({ ok: true, data: { email: ADDRESS, demoCode: null, alreadySent: true } });
+    // Второго кода нет: identity отказал, прежний код подтверждает почту.
+    expect(await run(verifyEmailCodeAction({ code, next: NEXT }))).toEqual({ redirect: NEXT });
   });
 
   it("лимит в час — текст из ru", async () => {

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import { needsEmail, requestEmailCode, requireUser, verifyEmailCode, type CurrentUser } from "@/modules/identity";
+import { isCodeTooOften, needsEmail, requestEmailCode, requireUser, verifyEmailCode, type CurrentUser } from "@/modules/identity";
 import { action } from "@/platform/action";
 import { digitsOnly } from "@/platform/digits";
 import { nextStepFor, safeNext } from "../../_shell/auth";
@@ -37,7 +37,8 @@ async function moveOn(user: CurrentUser, next: string | undefined): Promise<neve
  * «Получить код» и «Отправить ещё раз»: код на адрес-кандидат (в профиль адрес попадёт только после подтверждения).
  * Ответ — адрес в том виде, в каком его принял identity (без пробелов, строчными), и код заглушки писем, если он есть.
  * Почта уже подтверждена — не ошибка, а переход дальше. Повтор нажатия гасит форма; повтор запроса в ту же минуту
- * identity отклоняет «слишком часто» — второго кода не бывает.
+ * identity отклоняет «слишком часто» — второго кода не бывает, а экран получает `alreadySent: true` и ведёт на шаг кода
+ * (прежний код ещё действует: человек перезагрузил страницу на шаге кода). Лимит в час и в сутки — ошибка, как прежде.
  */
 export const requestEmailCodeAction = action(
   "app.email.requestCode",
@@ -45,9 +46,16 @@ export const requestEmailCodeAction = action(
   async ({ email, next }) => {
     const user = await requireUser("CLIENT", "EXECUTOR");
     if (!needsEmail(user)) return moveOn(user, next);
-    const sent = await requestEmailCode(user, email);
+    const address = email.toLowerCase();
+    let sent;
+    try {
+      sent = await requestEmailCode(user, email);
+    } catch (e) {
+      if (!isCodeTooOften(e)) throw e;
+      return { email: address, demoCode: null, alreadySent: true };
+    }
     if (sent.alreadyVerified) return moveOn(user, next);
-    return { email: email.toLowerCase(), demoCode: sent.demoCode };
+    return { email: address, demoCode: sent.demoCode, alreadySent: false };
   },
 );
 

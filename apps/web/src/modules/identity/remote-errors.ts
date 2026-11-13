@@ -19,6 +19,21 @@ const email = ru.app.login.email.errors;
 export const EMAIL_ALREADY_VERIFIED = "EMAIL_ALREADY_VERIFIED";
 /** Машинная причина отказа email_code_expired (AppError.details.reason): действующего кода нет. */
 export const EMAIL_CODE_EXPIRED = "EMAIL_CODE_EXPIRED";
+/**
+ * Машинная причина отказов otp_too_often и email_code_too_often (AppError.details.reason): новый код раньше минуты не
+ * выдаётся — прежний ещё действует. Экраны входа и почты по ней ведут на шаг кода, а не показывают тупиковую ошибку.
+ */
+export const CODE_TOO_OFTEN = "CODE_TOO_OFTEN";
+
+/** Отказ «код уже отправлен, новый — через минуту» (otp_too_often, email_code_too_often). */
+export function isCodeTooOften(e: unknown): boolean {
+  return e instanceof AppError && e.details?.["reason"] === CODE_TOO_OFTEN;
+}
+
+/** Лимит «раз в минуту»: ошибка формы (без поля) с машинной причиной CODE_TOO_OFTEN. */
+function tooOften(message: string): never {
+  throw new AppError("RATE_LIMITED", message, { reason: CODE_TOO_OFTEN });
+}
 
 /** Коды, которые identity возвращает по контракту (proto/senim/identity/v1/identity.proto). */
 export const IDENTITY_ERROR_CODES = [
@@ -128,7 +143,7 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
     case "invalid_phone":
       return fail.validation(otp.invalidPhone);
     case "otp_too_often":
-      return fail.rateLimited(otp.tooOften);
+      return tooOften(otp.tooOften);
     case "otp_too_many_requests":
       return fail.rateLimited(otp.tooManyRequests);
     case "otp_too_many_today":
@@ -214,7 +229,7 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
       return fail.conflict(consent.revocationClosed);
     // Лимиты запроса и проверки — ошибка формы; отказы по самому коду — у поля кода.
     case "email_code_too_often":
-      return fail.rateLimited(email.tooOften);
+      return tooOften(email.tooOften);
     case "email_code_too_many":
       // Тот же код и на часовой, и на суточный лимит (параметра нет): одна фраза.
       return fail.rateLimited(email.tooMany);

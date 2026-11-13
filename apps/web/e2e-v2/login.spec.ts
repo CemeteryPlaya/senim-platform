@@ -98,8 +98,9 @@ test("неверный код: ошибка у поля; «Изменить но
   await expect(field).toHaveAttribute("aria-invalid", "true");
   await expect(page).toHaveURL(/[?&]step=code/);
 
-  // Повтор кода недоступен до конца отсчёта.
-  await expect(page.getByRole("button", { name: new RegExp(`^${t.code.resend}`) })).toBeDisabled();
+  // Повтор кода до конца отсчёта — строка текста, а не кнопка.
+  await expect(page.getByText(new RegExp(`^${t.code.resend} через \\d:\\d\\d$`))).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(`^${t.code.resend}`) })).toHaveCount(0);
 
   await page.getByRole("link", { name: t.code.changePhone }).click();
   await expect(heading(page, t.phone.title)).toBeVisible();
@@ -158,4 +159,25 @@ test("выход ведёт на вход v2", async ({ page }) => {
   await page.getByRole("button", { name: shell.logout, exact: true }).click();
   await expect(page).toHaveURL(/\/v2\/login$/);
   await expect(heading(page, t.role.title)).toBeVisible();
+});
+
+test("перезагрузка на шаге кода: шаг номера, повтор раньше минуты — снова шаг кода с пояснением, прежний код впускает", async ({
+  page,
+}) => {
+  const phone = freshPhone();
+  await open(page, "/v2/login?step=phone");
+  const code = await requestCode(page, phone.typed);
+
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await expect(heading(page, t.phone.title)).toBeVisible();
+
+  await page.getByLabel(t.phone.label).fill(phone.typed);
+  await primary(page, t.phone.submit).click();
+  await expect(heading(page, t.code.title)).toBeVisible();
+  await expect(page.getByText(t.code.alreadySent)).toBeVisible();
+  await expect(page.getByText(ru.identity.otp.errors.tooOften)).toHaveCount(0);
+  await page.getByLabel(t.code.label).fill(code);
+  await primary(page, t.code.submit).click();
+  await expect(page).toHaveURL(/\/v2\/consent$/);
 });

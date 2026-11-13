@@ -16,10 +16,12 @@ import {
   TextLink,
   WizardHeader,
 } from "@/kit";
+import type { Device } from "@/platform/device";
 import { useActionForm } from "../../_shell/form";
 import { to } from "../../_shell/paths";
+import { ResendCode } from "../../_shell/ResendCode";
 import { chooseRoleAction, requestCodeAction, verifyCodeAction } from "./actions";
-import { loginStepHref, RESEND_SECONDS, secondsLeft, type LoginRole, type LoginStep } from "./steps";
+import { loginStepHref, RESEND_SECONDS, type LoginRole, type LoginStep } from "./steps";
 
 const t = ru.app.login;
 const TOTAL = 3;
@@ -36,12 +38,15 @@ const FORM = {
   resend: "login-resend",
 } as const;
 
+/** Плашка под заголовком шага кода: новый код отправлен повторно или код уже был отправлен раньше. */
+type SentNotice = "none" | "resent" | "alreadySent";
+
 /** Код отправлен: номер для показа и повторной отправки, код заглушки SMS (если есть), когда можно запросить новый. */
 type Sent = {
   phone: string;
   demoCode: string | null;
   retryAt: number;
-  resent: boolean;
+  notice: SentNotice;
 };
 
 type Props = {
@@ -51,6 +56,7 @@ type Props = {
   role: LoginRole;
   /** Возврат после входа (уже проверен safeNext). */
   next: string | null;
+  device: Device;
 };
 
 /**
@@ -59,7 +65,7 @@ type Props = {
  * а номер (ПДн) не попадает ни в адрес, ни в cookie. Шаг кода без отправленного кода (перезагрузка) — снова шаг номера.
  * При смене шага фокус переходит на первое поле нового шага.
  */
-export function LoginFlow({ step: requested, role, next }: Props) {
+export function LoginFlow({ step: requested, role, next, device }: Props) {
   const router = useRouter();
   const [sent, setSent] = useState<Sent | null>(null);
   const step: LoginStep = requested === "code" && sent === null ? "phone" : requested;
@@ -69,20 +75,23 @@ export function LoginFlow({ step: requested, role, next }: Props) {
   }, [requested, sent, next, router]);
 
   const root = useRef<HTMLDivElement>(null);
+  const focusField = () => root.current?.querySelector<HTMLInputElement>('input:not([type="hidden"])')?.focus();
   const shown = useRef(step);
   useEffect(() => {
     if (shown.current === step) return;
     shown.current = step;
-    root.current?.querySelector<HTMLInputElement>('input:not([type="hidden"])')?.focus();
+    focusField();
   }, [step]);
 
-  const codeSent = (data: { phone: string; demoCode: string | null }, resent: boolean) =>
-    setSent({
+  // Код уже был отправлен (запрос раньше минуты): тому же номеру в этой странице прежний код заглушки остаётся на экране.
+  // Отсчёт повтора — полный интервал: сервис не сообщает, сколько осталось.
+  const codeSent = (data: SentData, resent: boolean) =>
+    setSent((previous) => ({
       phone: data.phone,
-      demoCode: data.demoCode,
+      demoCode: data.alreadySent ? (previous?.phone === data.phone ? previous.demoCode : null) : data.demoCode,
       retryAt: Date.now() + RESEND_SECONDS * 1000,
-      resent,
-    });
+      notice: data.alreadySent ? "alreadySent" : resent ? "resent" : "none",
+    }));
 
   return (
     // Компьютер: одна узкая колонка по центру (ширина Narrow), а не растянутая на всю ширину шапка шага и поля слева.
@@ -98,7 +107,18 @@ export function LoginFlow({ step: requested, role, next }: Props) {
           }}
         />
       )}
-      {step === "code" && sent !== null && <CodeStep next={next} sent={sent} onResent={(data) => codeSent(data, true)} />}
+      {step === "code" && sent !== null && (
+        <CodeStep
+          next={next}
+          device={device}
+          sent={sent}
+          onResent={(data) => {
+            codeSent(data, true);
+            // Кнопка повтора сменилась строкой отсчёта — фокус на поле кода, а не в никуда.
+            focusField();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -159,7 +179,8 @@ export function RoleStep({ role, next }: { role: LoginRole; next: string | null 
   );
 }
 
-type SentData = { phone: string; demoCode: string | null };
+/** Ответ запроса кода; `alreadySent` — новый код не выдан (раньше минуты), действует прежний. */
+type SentData = { phone: string; demoCode: string | null; alreadySent: boolean };
 
 function PhoneStep({ next, phone, onSent }: { next: string | null; phone: string | undefined; onSent: (data: SentData) => void }) {
   const form = useActionForm(requestCodeAction, { onSuccess: onSent });
@@ -185,42 +206,58 @@ function PhoneStep({ next, phone, onSent }: { next: string | null; phone: string
 }
 
 /**
- * «Отправить ещё раз»: недоступна, пока identity не примет новый запрос (RESEND_SECONDS после отправки), и показывает,
- * сколько осталось; раз в секунду, без анимации (при reduced motion считает так же). Новый код — новый `key` у кнопки,
- * отсчёт начинается заново. На телефоне кнопка во всю ширину дока, поэтому смена подписи ничего не сдвигает.
+ * Шаг 3: код из SMS. Порядок: поле кода → главная «Войти» → строка повторной отправки → «Изменить номер». На телефоне
+ * главная кнопка — в доке у нижнего края (док — последний ребёнок колонки), поэтому повтор и ссылка стоят сразу под
+ * полем; на компьютере док в потоке — повтор и ссылка ниже него.
  */
-export function ResendButton({ until, pending }: { until: number; pending: boolean }) {
-  // Первая отрисовка — от `until`, а не от полной минуты: при возврате на шаг кода («Назад» браузера) не мелькает «1:00».
-  const [left, setLeft] = useState(() => secondsLeft(until, Date.now()));
-  useEffect(() => {
-    if (secondsLeft(until, Date.now()) === 0) return;
-    const id = window.setInterval(() => {
-      const seconds = secondsLeft(until, Date.now());
-      setLeft(seconds);
-      if (seconds === 0) window.clearInterval(id);
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [until]);
-  return (
-    <Button type="submit" form={FORM.resend} variant="quiet" disabled={left > 0} pending={pending}>
-      {left > 0 ? t.code.resendIn(left) : t.code.resend}
-    </Button>
-  );
-}
-
-function CodeStep({ next, sent, onResent }: { next: string | null; sent: Sent; onResent: (data: SentData) => void }) {
+export function CodeStep({
+  next,
+  device,
+  sent,
+  onResent,
+}: {
+  next: string | null;
+  device: Device;
+  sent: Sent;
+  onResent: (data: SentData) => void;
+}) {
   const code = useActionForm(verifyCodeAction);
   const resend = useActionForm(requestCodeAction, { onSuccess: onResent });
   const phoneStep = loginStepHref("phone", next);
+
+  const dock = (
+    <ActionDock>
+      <Button type="submit" form={FORM.code} pending={code.pending}>
+        {t.code.submit}
+      </Button>
+    </ActionDock>
+  );
+  const secondary = (
+    <div>
+      <ResendCode
+        key={sent.retryAt}
+        until={sent.retryAt}
+        form={FORM.resend}
+        pending={resend.pending}
+        label={t.code.resend}
+        waitLabel={t.code.resendIn}
+      />
+      <TextLink href={phoneStep}>{t.code.changePhone}</TextLink>
+    </div>
+  );
 
   return (
     <Stack gap="section">
       <Stack gap="tight">
         <WizardHeader step={3} total={TOTAL} title={t.code.title} back={{ href: phoneStep, label: t.code.backLabel }} />
         <p className="text-body text-muted">{t.code.sentTo(sent.phone)}</p>
-        <TextLink href={phoneStep}>{t.code.changePhone}</TextLink>
       </Stack>
       <Stack gap="section">
+        {sent.notice === "alreadySent" && (
+          <Notice tone="info" live>
+            {t.code.alreadySent}
+          </Notice>
+        )}
         {sent.demoCode && (
           <Notice tone="info" live>
             {t.code.shownCode(sent.demoCode)}
@@ -239,18 +276,23 @@ function CodeStep({ next, sent, onResent }: { next: string | null; sent: Sent; o
         </div>
         <FormError error={code.error} atField={Boolean(code.fieldErrors.code)} />
         <FormError error={resend.error} />
-        {sent.resent && !resend.error && (
+        {sent.notice === "resent" && !resend.error && (
           <Notice tone="info" live>
             {t.code.resent}
           </Notice>
         )}
       </Stack>
-      <ActionDock>
-        <Button type="submit" form={FORM.code} pending={code.pending}>
-          {t.code.submit}
-        </Button>
-        <ResendButton key={sent.retryAt} until={sent.retryAt} pending={resend.pending} />
-      </ActionDock>
+      {device === "desktop" ? (
+        <>
+          {dock}
+          {secondary}
+        </>
+      ) : (
+        <>
+          {secondary}
+          {dock}
+        </>
+      )}
     </Stack>
   );
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { count, html, text } from "@/kit/test-utils";
 import { ru } from "@/i18n/ru";
-import { ResendButton, RoleStep } from "./LoginFlow";
+import { CodeStep, RoleStep } from "./LoginFlow";
 
 const t = ru.app.login.code;
 const NOW = Date.UTC(2026, 10, 13, 10, 0, 0);
@@ -10,20 +10,47 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("ResendButton: первая отрисовка считает от момента, когда можно запросить снова", () => {
-  it("осталось 25 с — «через 0:25», а не «через 1:00»", () => {
+describe("CodeStep: поле → «Войти» → повтор → «Изменить номер»", () => {
+  type Sent = Parameters<typeof CodeStep>[0]["sent"];
+  const sent: Sent = { phone: "+7 700 000 66 01", demoCode: "123456", retryAt: NOW + 60_000, notice: "none" };
+  const render = (over: Partial<Sent> = {}, device: "mobile" | "desktop" = "mobile") => (
+    <CodeStep next={null} device={device} sent={{ ...sent, ...over }} onResent={() => {}} />
+  );
+  const at = (out: string, needle: string) => {
+    const i = out.indexOf(needle);
+    if (i < 0) throw new Error(`нет в разметке: ${needle}`);
+    return i;
+  };
+
+  it("во время отсчёта повтор — строка текста: единственная кнопка — «Войти» в доке", () => {
     vi.useFakeTimers({ now: NOW });
-    expect(text(<ResendButton until={NOW + 25_000} pending={false} />)).toBe(t.resendIn(25));
+    const out = html(render());
+    expect(count(out, "<button")).toBe(1);
+    expect(out.slice(out.indexOf("data-action-dock"))).toContain(t.submit);
+    expect(text(render())).toContain(t.resendIn(60));
   });
 
-  it("срок прошёл (вернулись «Назад» браузера через минуту) — кнопка сразу доступна", () => {
+  it("телефон: поле, повтор, «Изменить номер», док последним", () => {
     vi.useFakeTimers({ now: NOW });
-    expect(text(<ResendButton until={NOW - 1_000} pending={false} />)).toBe(t.resend);
+    const out = html(render());
+    expect(at(out, 'name="code"')).toBeLessThan(at(out, "data-resend-code"));
+    expect(at(out, "data-resend-code")).toBeLessThan(at(out, t.changePhone));
+    expect(at(out, t.changePhone)).toBeLessThan(at(out, "data-action-dock"));
   });
 
-  it("только что отправили — «через 1:00»", () => {
+  it("компьютер: «Войти» над повтором и ссылкой", () => {
     vi.useFakeTimers({ now: NOW });
-    expect(text(<ResendButton until={NOW + 60_000} pending={false} />)).toBe(t.resendIn(60));
+    const out = html(render({}, "desktop"));
+    expect(at(out, 'name="code"')).toBeLessThan(at(out, "data-action-dock"));
+    expect(at(out, "data-action-dock")).toBeLessThan(at(out, "data-resend-code"));
+    expect(at(out, "data-resend-code")).toBeLessThan(at(out, t.changePhone));
+  });
+
+  it("код уже был отправлен — пояснение; новый отправлен — «Отправили новый код»", () => {
+    vi.useFakeTimers({ now: NOW });
+    expect(text(render({ notice: "alreadySent", demoCode: null }))).toContain(t.alreadySent);
+    expect(text(render({ notice: "resent" }))).toContain(t.resent);
+    expect(text(render())).not.toContain(t.alreadySent);
   });
 });
 

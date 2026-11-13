@@ -1,18 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { preselectedRole, secondsLeft } from "./steps";
-
-describe("secondsLeft", () => {
-  it.each([
-    [60_000, 60],
-    [59_001, 60],
-    [59_000, 59],
-    [1, 1],
-    [0, 0],
-    [-5_000, 0],
-  ])("до срока %i мс — %i с", (ms, seconds) => {
-    expect(secondsLeft(1_000_000 + ms, 1_000_000)).toBe(seconds);
-  });
-});
+import { preselectedRole } from "./steps";
 
 describe("preselectedRole: какая карточка выбрана при открытии", () => {
   it.each<[unknown, "CLIENT" | "EXECUTOR" | null, "client" | "executor"]>([

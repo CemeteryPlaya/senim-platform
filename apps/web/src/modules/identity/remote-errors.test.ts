@@ -4,7 +4,7 @@ import { ru } from "@/i18n/ru";
 import { AppError, fail, type ErrorCode } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { codedError } from "../../../test/stubs/identity";
-import { IDENTITY_ERROR_CODES, identityFailure, isCodedRefusal } from "./remote-errors";
+import { IDENTITY_ERROR_CODES, identityFailure, isCodeTooOften, isCodedRefusal } from "./remote-errors";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -121,10 +121,23 @@ describe("identityFailure", () => {
     expect(caught(codedError("email_code_expired", Code.InvalidArgument)).details).toEqual({ fieldErrors: { code: [email.expired] }, reason: "EMAIL_CODE_EXPIRED" });
     const exhausted = caught(codedError("email_code_attempts_exhausted", Code.ResourceExhausted));
     expect([exhausted.code, exhausted.details]).toEqual(["RATE_LIMITED", { fieldErrors: { code: [email.attemptsExhausted] } }]);
-    for (const code of ["email_code_too_often", "email_code_too_many"]) {
-      expect(caught(codedError(code, Code.ResourceExhausted)).details).toBeUndefined();
+    // «Слишком часто» — ошибка формы, но с машинной причиной: экран почты уводит на шаг кода (код уже отправлен).
+    const often = caught(codedError("email_code_too_often", Code.ResourceExhausted));
+    expect([often.code, often.details]).toEqual(["RATE_LIMITED", { reason: "CODE_TOO_OFTEN" }]);
+    expect(isCodeTooOften(often)).toBe(true);
+    const many = caught(codedError("email_code_too_many", Code.ResourceExhausted));
+    expect(many.details).toBeUndefined();
+    expect(isCodeTooOften(many)).toBe(false);
+    expect(many.message).toBe(email.tooMany);
+  });
+
+  it("вход: otp_too_often — ошибка формы с той же машинной причиной; прочие лимиты входа — без неё", () => {
+    const often = caught(codedError("otp_too_often", Code.ResourceExhausted));
+    expect([often.code, often.message, isCodeTooOften(often)]).toEqual(["RATE_LIMITED", otp.tooOften, true]);
+    for (const code of ["otp_too_many_requests", "otp_too_many_today", "otp_global_limit"]) {
+      expect(isCodeTooOften(caught(codedError(code, Code.ResourceExhausted)))).toBe(false);
     }
-    expect(caught(codedError("email_code_too_many", Code.ResourceExhausted)).message).toBe(email.tooMany);
+    expect(isCodeTooOften(new Error("x"))).toBe(false);
   });
 
   it("email_code_wrong с left=2 — «Неверный код. Осталось попыток: 2»", () => {

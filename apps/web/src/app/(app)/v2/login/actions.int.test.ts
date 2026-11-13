@@ -73,7 +73,10 @@ describe("chooseRoleAction", () => {
 describe("requestCodeAction", () => {
   it("номер приводится, код запрошен; код из заглушки identity возвращается для показа", async () => {
     const res = await run(requestCodeAction({ phone: "8 700 000 66 01" }));
-    expect(res).toEqual({ ok: true, data: { phone: "+7 700 000 66 01", expiresAt: expect.any(String), demoCode: FAKE_OTP_CODE } });
+    expect(res).toEqual({
+      ok: true,
+      data: { phone: "+7 700 000 66 01", expiresAt: expect.any(String), demoCode: FAKE_OTP_CODE, alreadySent: false },
+    });
     expect(callsOf("requestOtp")[0].request).toMatchObject({ phone: PHONE });
   });
 
@@ -92,10 +95,22 @@ describe("requestCodeAction", () => {
     expect(callsOf("requestOtp")).toHaveLength(0);
   });
 
-  it("слишком часто — общая ошибка формы, не у поля", async () => {
+  it("слишком часто (перезагрузка на шаге кода) — не ошибка: «код уже отправлен» этому номеру, без кода и срока", async () => {
     identityFake.failNextWithCode("otp_too_often");
-    const res = await run(requestCodeAction({ phone: PHONE }));
-    expect(res).toEqual({ ok: false, code: "RATE_LIMITED", error: otp.tooOften });
+    const res = await run(requestCodeAction({ phone: "8 700 000 66 01" }));
+    expect(res).toEqual({ ok: true, data: { phone: "+7 700 000 66 01", expiresAt: null, demoCode: null, alreadySent: true } });
+  });
+
+  it("после отказа «слишком часто» прежний код действует и впускает", async () => {
+    await run(requestCodeAction({ phone: PHONE }));
+    identityFake.failNextWithCode("otp_too_often");
+    expect(await run(requestCodeAction({ phone: PHONE }))).toMatchObject({ ok: true, data: { alreadySent: true, demoCode: null } });
+    expect(await run(verifyCodeAction({ phone: PHONE, code: FAKE_OTP_CODE, next: "" }))).toEqual({ redirect: "/v2/consent" });
+  });
+
+  it("прочие лимиты входа — по-прежнему общая ошибка формы", async () => {
+    identityFake.failNextWithCode("otp_too_many_requests");
+    expect(await run(requestCodeAction({ phone: PHONE }))).toEqual({ ok: false, code: "RATE_LIMITED", error: otp.tooManyRequests });
   });
 
   it("новый и существующий номер — одинаковый ответ до проверки кода", async () => {

@@ -137,7 +137,9 @@ test("новый покупатель: почта с ошибками у пол�
   expect(page.url()).not.toContain("example.com");
   await expect(page.getByText(t.code.sentTo(email))).toBeVisible();
   await expect(page.getByLabel(t.code.label)).toBeFocused();
-  await expect(page.getByRole("button", { name: new RegExp(`^${t.code.resend}`) })).toBeDisabled();
+  // Повтор до конца отсчёта — строка текста, а не кнопка.
+  await expect(page.getByText(new RegExp(`^${t.code.resend} через [01]:[0-5][0-9]$`))).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(`^${t.code.resend}`) })).toHaveCount(0);
   await expect(page.locator("[data-action-dock]").getByRole("button")).toHaveCount(1);
   await expectScreenRules(page);
   const code = await shownCode(page, t.code.shownCode);
@@ -171,7 +173,7 @@ test("новый мастер: после почты — регистрация 
   await expect(page).toHaveURL(/\/v2\/register\/executor$/);
 });
 
-test("двойной клик «Получить код» — один запрос и один код; перезагрузка шага кода — шаг адреса; повтор в ту же минуту — «слишком часто»", async ({
+test("двойной клик «Получить код» — один запрос и один код; перезагрузка шага кода — шаг адреса, повтор в ту же минуту — снова шаг кода с прежним кодом", async ({
   page,
 }) => {
   await signIn(page, freshPhone());
@@ -188,6 +190,7 @@ test("двойной клик «Получить код» — один запр�
   await expect(page.getByText(new RegExp(t.code.shownCode("\\d{6}")))).toHaveCount(1);
   await page.waitForLoadState("networkidle");
   expect(actions).toBe(1);
+  const code = await shownCode(page, t.code.shownCode);
 
   // Адрес почты живёт только в памяти страницы: после перезагрузки — шаг адреса с пустым полем.
   await page.reload();
@@ -196,11 +199,16 @@ test("двойной клик «Получить код» — один запр�
   await expect(page).toHaveURL(/\/v2\/email$/);
   await expect(page.getByLabel(t.address.label)).toHaveValue("");
 
-  // Новый запрос раньше минуты — понятный отказ плашкой, второго кода нет.
+  // Новый запрос раньше минуты — не тупик: снова шаг кода с пояснением; второго кода нет, прежний подтверждает почту.
   await page.getByLabel(t.address.label).fill(email);
   await primary(page, t.address.submit).click();
-  await expect(page.getByText(errors.tooOften)).toBeVisible();
-  await expect(heading(page, t.address.title)).toBeVisible();
+  await expect(heading(page, t.code.title)).toBeVisible();
+  await expect(page.getByText(t.code.alreadySent)).toBeVisible();
+  await expect(page.getByText(t.code.sentTo(email))).toBeVisible();
+  await expect(page.getByText(new RegExp(t.code.shownCode("\\d{6}")))).toHaveCount(0);
+  await page.getByLabel(t.code.label).fill(code);
+  await primary(page, t.code.submit).click();
+  await expect(page).toHaveURL(/\/v2$/);
 });
 
 test("существующий человек без почты: после входа — шаг почты с сохранённым next, после подтверждения — туда, куда шёл", async ({
