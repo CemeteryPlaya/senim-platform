@@ -1,14 +1,21 @@
 import { getShellUser } from "@/modules/identity";
 import { getDevice } from "@/platform/device";
+import { requireV2User } from "../_shell/auth";
+import { to } from "../_shell/paths";
 import { GuestHome } from "./_home/GuestHome";
 import { SignedInHome } from "./_home/SignedInHome";
 
 /**
  * Главная нового интерфейса. Гость видит лендинг (`GuestHome`); вошедшему пока показывается прежний образец
- * (`SignedInHome`, заменится на этапе 3). <main> и навигацию даёт оболочка (layout v2).
+ * (`SignedInHome`, заменится на этапе 3). Вошедший с непройденными первыми шагами (согласие, знакомство, почта — в том
+ * числе пришедший из v1: сессия общая) уходит на первый из них с возвратом сюда (requireV2User без ролей: главная — дом
+ * заказчика, правило 3 в _shell/auth.ts). <main> и навигацию даёт оболочка (layout v2).
  */
 export default async function V2Home() {
   const { user } = await getShellUser();
-  if (user) return <SignedInHome />;
+  if (user) {
+    await requireV2User(to("/"));
+    return <SignedInHome />;
+  }
   return <GuestHome device={await getDevice()} />;
 }

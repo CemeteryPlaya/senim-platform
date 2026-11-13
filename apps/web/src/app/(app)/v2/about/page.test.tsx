@@ -13,7 +13,8 @@ const h = vi.hoisted(() => ({
   device: "desktop" as "mobile" | "desktop",
 }));
 
-vi.mock("@/modules/identity", () => ({ getShellUser: async () => h.shell }));
+// Барьер первых шагов проверяет onboarding-gate.test.tsx; здесь вошедший их уже прошёл (или гость).
+vi.mock("../../_shell/auth", () => ({ userPastOnboarding: async () => h.shell.user }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
 
 const { default: AboutPage } = await import("./page");

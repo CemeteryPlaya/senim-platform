@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { Role } from "@/generated/prisma/enums";
 import {
   getCurrentUser,
+  getShellUser,
   mfaHref,
   needsConsent,
   needsEmail,
@@ -13,6 +14,7 @@ import {
   switchRoleHref,
   type CurrentUser,
 } from "@/modules/identity";
+import { pendingOnboarding } from "./onboarding";
 import { makePaths, ONBOARDING_SCREENS, safeLocalPath, to } from "./paths";
 import { recallRole, type ChosenRole } from "./role-cookie";
 
@@ -141,4 +143,27 @@ export async function requireV2User(returnTo: string, ...roles: Role[]): Promise
   const barrier = barrierFor(user, back, await recallRole());
   if (barrier !== null && pathOf(barrier) !== pathOf(returnTo)) redirect(barrier);
   return user;
+}
+
+/** Адрес страницы v2 с параметрами запроса (как их отдал Next): `pageHref("/catalog", { type: "kitchen" })`. */
+export function pageHref(screen: string, params: Record<string, string | string[] | undefined> = {}): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    for (const one of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, one);
+  }
+  const search = query.toString();
+  return search ? `${to(screen)}?${search}` : to(screen);
+}
+
+/**
+ * Для страниц, открытых гостю (каталог, «О сервисе», профиль мастера): вошедший с непройденными первыми шагами (согласие,
+ * знакомство, почта) уходит на первый из них с возвратом сюда (`here` — адрес этой страницы с параметрами, проходит
+ * safeNext). Иначе — вошедший пользователь или `null` (гость; identity недоступен — тоже как гость, страница открыта всем).
+ * Сотрудников площадки первые шаги не касаются (pendingOnboarding пуст) — их страница не уводит никуда, в том числе на
+ * второй фактор: это граница первых шагов, а не прав.
+ */
+export async function userPastOnboarding(here: string): Promise<CurrentUser | null> {
+  const { user } = await getShellUser();
+  if (!user || pendingOnboarding(user).length === 0) return user;
+  redirect(barrierFor(user, safeNext(here), await recallRole()) ?? to("/"));
 }

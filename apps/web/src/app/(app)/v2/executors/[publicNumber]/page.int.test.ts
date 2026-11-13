@@ -9,6 +9,8 @@ import { makeFurnitureType, makePortfolioItem, makeReview } from "../../../../..
 
 const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop" }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
+// Гость: cookie сессии нет (барьер первых шагов не уводит).
+vi.mock("next/headers", async () => (await import("../../../../../../test/factories/identity")).nextHeadersMock);
 
 const { default: ExecutorPage } = await import("./page");
 const { executorView } = await import("./_parts/executor-view");

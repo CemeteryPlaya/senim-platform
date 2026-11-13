@@ -5,6 +5,8 @@ import { ru } from "@/i18n/ru";
 import { ActionDock, ButtonLink, Card, Columns, Explain, List, ListRow, Money, PageTitle, Rating, Section, Split, Stack, WorkCard } from "@/kit";
 import { getPublicExecutorPage } from "@/modules/companies";
 import { getDevice, type Device } from "@/platform/device";
+import { userPastOnboarding } from "../../../_shell/auth";
+import { to } from "../../../_shell/paths";
 import { executorView, parsePublicNumber, type ExecutorViewModel } from "./_parts/executor-view";
 
 const t = ru.app.guest.executor;
@@ -146,7 +148,10 @@ function Sections({ view }: { view: ExecutorViewModel }) {
  * с параметром `executor` (публичный номер) — контракт для экрана заявки следующего этапа. Карточки работ неинтерактивны.
  */
 export default async function ExecutorPage({ params }: Props) {
-  const page = await loadPage((await params).publicNumber);
+  const { publicNumber } = await params;
+  // Вошедший с непройденными первыми шагами — на шаг с возвратом сюда (адрес проверит safeNext).
+  await userPastOnboarding(to(`/executors/${encodeURIComponent(publicNumber)}`));
+  const page = await loadPage(publicNumber);
   if (!page) notFound();
   const device = await getDevice();
   const view = executorView(page);

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { getShellUser } from "@/modules/identity";
 import { computeDealMoney } from "@/modules/payments";
 import { ActionDock, ButtonLink, Card, List, ListRow, Money, PageTitle, Section, Split, Stack, TextLink } from "@/kit";
 import { getDevice } from "@/platform/device";
+import { userPastOnboarding } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
 import { loginHref } from "../_home/links";
 import { ABOUT_ANCHORS } from "./anchors";
@@ -44,10 +44,10 @@ function primaryAction(role: string | null): Action {
  * Компьютер — `Split` с прилипающей правой колонкой: оглавление (ссылки-якоря, без шевронов) и карточка с единственным
  * главным действием; внизу страницы кнопки нет. Телефон — одна колонка и `ActionDock` в конце. Вошедшему заказчику
  * действие ведёт на новую заявку, мастеру и оператору главного действия нет, и ссылка регистрации мастера им не
- * показывается. Якоря и порядок — в `anchors.ts`.
+ * показывается. Якоря и порядок — в `anchors.ts`. Вошедший с непройденными первыми шагами — на шаг с возвратом сюда.
  */
 export default async function AboutPage() {
-  const [{ user }, device] = await Promise.all([getShellUser(), getDevice()]);
+  const [user, device] = await Promise.all([userPastOnboarding(to("/about")), getDevice()]);
   const role = user?.role ?? null;
   const action = primaryAction(role);
   const canBecomeMaster = role === null || role === "CLIENT";

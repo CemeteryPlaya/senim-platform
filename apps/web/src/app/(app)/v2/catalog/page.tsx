@@ -3,6 +3,7 @@ import { ru } from "@/i18n/ru";
 import { Chips, Columns, EmptyState, FilterList, PageTitle, Pagination, Sidebar, Stack, TextLink, WorkCard } from "@/kit";
 import { getDevice } from "@/platform/device";
 import { getCatalogFacets, listCatalog, parseCatalogFilter, type SearchParams } from "@/modules/companies";
+import { pageHref, userPastOnboarding } from "../../_shell/auth";
 import { catalogView } from "./_parts/catalog-view";
 
 const t = ru.app.guest.catalog;
@@ -11,10 +12,13 @@ export const metadata: Metadata = { title: t.title };
 
 /**
  * Каталог работ: тип мебели и цена — чипами-ссылками (всё в адресе), карточки ведут на публичный профиль мастера.
- * Открыт гостю. Главного действия при результатах нет; в пустых состояниях оно одно — в `EmptyState`.
+ * Открыт гостю. Главного действия при результатах нет; в пустых состояниях оно одно — в `EmptyState`. Вошедший с
+ * непройденными первыми шагами — на шаг с возвратом сюда же, с фильтрами (userPastOnboarding).
  */
 export default async function CatalogPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const filter = parseCatalogFilter(await searchParams);
+  const params = await searchParams;
+  await userPastOnboarding(pageHref("/catalog", params));
+  const filter = parseCatalogFilter(params);
   const [result, facets] = await Promise.all([listCatalog(filter), getCatalogFacets()]);
   const view = catalogView(result, facets, filter);
   const device = await getDevice();

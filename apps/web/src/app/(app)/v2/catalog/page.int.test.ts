@@ -9,6 +9,8 @@ import CatalogPage from "./page";
 
 const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop" }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
+// Гость: cookie сессии нет (барьер первых шагов не уводит).
+vi.mock("next/headers", async () => (await import("../../../../../test/factories/identity")).nextHeadersMock);
 
 const render = async (params: Record<string, string> = {}) => renderToStaticMarkup(await CatalogPage({ searchParams: Promise.resolve(params) }));
 
