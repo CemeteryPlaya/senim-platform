@@ -34,6 +34,9 @@ const TEXT_PAIRS: [fg: ColorRole, bg: ColorRole][] = [
   ["accent", "surface"],
   ["accent", "canvas"],
   ["accent", "accent-soft"],
+  // Блок денег «под защитой» (MoneyPanel) и своё сообщение в переписке (Chat): текст ink на accent-soft.
+  // muted на accent-soft в светлой теме — 4,44:1 (ниже порога), поэтому вторичный текст на этой подложке не ставится.
+  ["ink", "accent-soft"],
   ["danger", "surface"],
   ["danger", "danger-soft"],
   ["warn", "surface"],

@@ -52,6 +52,7 @@ import { env } from "@/platform/env";
 import { brand } from "@/config/brand";
 import { ThemeSwitch } from "../../_shell/ThemeSwitch";
 import { to } from "../../_shell/paths";
+import { BuyerKit } from "./BuyerKit";
 import { FormSample } from "./FormSample";
 import { OverlaySamples } from "./OverlaySamples";
 
@@ -693,6 +694,8 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
           </Stack>
         </Narrow>
       </Section>
+
+      <BuyerKit device={device} />
 
       <Section title={s.sections.theme}>
         {/* Без карточки: переключатель стоит на фоне страницы, как в профиле — сегменты шире. */}
