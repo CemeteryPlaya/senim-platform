@@ -5,3 +5,5 @@ node_modules/
 *.vars.local
 deploy/compose/certs/
 .superpowers/
+.claude/
+.codebase-memory/
