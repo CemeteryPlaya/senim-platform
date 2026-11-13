@@ -1,6 +1,7 @@
 import { ru } from "@/i18n/ru";
 import { catalogHref, PRICE_BUCKETS, type CatalogFilter, type PortfolioCard } from "@/modules/companies";
 import { to } from "../../../_shell/paths";
+import { workCardView, type WorkCardView } from "../../_parts/work-card";
 
 const t = ru.app.guest.catalog;
 
@@ -11,17 +12,9 @@ export type CatalogFacets = { types: { slug: string; name: string }[] };
 type Chip = { href: string; label: string; active: boolean };
 type EmptyView = { title: string; body: string; action: { href: string; label: string } };
 
-export type CardView = {
-  id: string;
+export type CardView = WorkCardView & {
   /** Профиль мастера: адрес v2. */
   href: string;
-  title: string;
-  /** «Тип · место» — только то, что карточка отдаёт публично. */
-  meta: string;
-  /** Тиыны. Нет цены — поля нет. */
-  priceFrom?: bigint;
-  /** Только загруженный снимок; иллюстрации сида из `public/` в карточку не идут (будет заглушка). */
-  photo?: { src: string; alt: string };
 };
 
 export type CatalogView = {
@@ -40,24 +33,10 @@ export type CatalogView = {
   empty: EmptyView | null;
 };
 
-/** Корень статических иллюстраций сида: это не фото мастера. */
-const SEED_ILLUSTRATIONS = "/demo/";
-
 const href = (filter: CatalogFilter): string => to(catalogHref(filter));
 
-/** Цена в модуле — целые тенге; в интерфейсе деньги — тиыны. */
-const toTiyn = (tenge: number): bigint => BigInt(Math.round(tenge)) * 100n;
-
 function cardView(card: PortfolioCard): CardView {
-  const cover = card.photos.find((p) => p.src !== null && !p.src.startsWith(SEED_ILLUSTRATIONS));
-  return {
-    id: card.id,
-    href: to(`/executors/${card.executor.publicNumber}`),
-    title: card.title,
-    meta: [card.furnitureType.name, card.place].filter(Boolean).join(" · "),
-    ...(card.priceFrom !== null ? { priceFrom: toTiyn(card.priceFrom) } : {}),
-    ...(cover?.src ? { photo: { src: cover.src, alt: cover.alt } } : {}),
-  };
+  return { ...workCardView(card), href: to(`/executors/${card.executor.publicNumber}`) };
 }
 
 /**

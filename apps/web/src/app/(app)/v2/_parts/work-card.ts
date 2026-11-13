@@ -1,0 +1,31 @@
+import type { PortfolioCard } from "@/modules/companies";
+
+/** То, что `WorkCard` берёт из работы портфолио (без адреса: его задаёт экран). */
+export type WorkCardView = {
+  id: string;
+  title: string;
+  /** «Тип · место» — только то, что карточка отдаёт публично. */
+  meta: string;
+  /** Тиыны. Нет цены — поля нет. */
+  priceFrom?: bigint;
+  /** Только загруженный снимок; иллюстрации сида из `public/` в карточку не идут (будет заглушка). */
+  photo?: { src: string; alt: string };
+};
+
+/** Корень статических иллюстраций сида: это не фото мастера. */
+const SEED_ILLUSTRATIONS = "/demo/";
+
+/** Цена в модуле — целые тенге; в интерфейсе деньги — тиыны. */
+export const toTiyn = (tenge: number): bigint => BigInt(Math.round(tenge)) * 100n;
+
+/** Чистое отображение работы портфолио в данные карточки: каталог и профиль мастера показывают её одинаково. */
+export function workCardView(card: PortfolioCard): WorkCardView {
+  const cover = card.photos.find((p) => p.src !== null && !p.src.startsWith(SEED_ILLUSTRATIONS));
+  return {
+    id: card.id,
+    title: card.title,
+    meta: [card.furnitureType.name, card.place].filter(Boolean).join(" · "),
+    ...(card.priceFrom !== null ? { priceFrom: toTiyn(card.priceFrom) } : {}),
+    ...(cover?.src ? { photo: { src: cover.src, alt: cover.alt } } : {}),
+  };
+}
