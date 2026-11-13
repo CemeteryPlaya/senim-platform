@@ -1,6 +1,6 @@
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Card, Explain, HelpBlock, Narrow, PageTitle, Section, Split, Stack } from "@/kit";
+import { ActionDock, ButtonLink, Card, Columns, Explain, HelpBlock, Narrow, PageTitle, Section, Split, Stack, TextLink } from "@/kit";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { ABOUT_ANCHORS } from "../about/anchors";
@@ -9,12 +9,8 @@ import { loginHref } from "./links";
 const t = ru.app.guest.home;
 
 /** Ссылка для мастера: тихая, вне панели действий (в панели телефона — одна главная кнопка). */
-function ExecutorLink({ className }: { className?: string }) {
-  return (
-    <ButtonLink href={loginHref("executor")} variant="quiet" className={className}>
-      {t.executorLink}
-    </ButtonLink>
-  );
+function ExecutorLink() {
+  return <TextLink href={loginHref("executor")}>{t.executorLink}</TextLink>;
 }
 
 /**
@@ -35,10 +31,10 @@ export function GuestHome({ device }: { device: Device }) {
   const primary = <ButtonLink href={loginHref("client")}>{t.clientAction}</ButtonLink>;
   const title = <PageTitle title={t.title} lead={t.lead} />;
 
-  // Ряд карточек шагов: колонка на телефоне, три равные колонки на компьютере (только через desktop:).
+  // Ряд карточек шагов: колонка на телефоне, три равные колонки на компьютере (`Columns`).
   const steps = (
     <Section title={t.stepsTitle}>
-      <div className="flex flex-col gap-stack-group desktop:grid desktop:grid-cols-3">
+      <Columns count={3}>
         {t.steps.map((step, index) => (
           <Card key={step.title} as="article">
             <p className="text-small text-muted">{t.stepLabel(index + 1)}</p>
@@ -46,7 +42,7 @@ export function GuestHome({ device }: { device: Device }) {
             <p className="mt-1 text-body text-ink">{step.text}</p>
           </Card>
         ))}
-      </div>
+      </Columns>
     </Section>
   );
   const trust = (
@@ -94,9 +90,8 @@ export function GuestHome({ device }: { device: Device }) {
     <Stack gap="section">
       <Stack gap="tight">
         {title}
-        {/* -ml-6: тихая кнопка стоит текстом по левой линии заголовка (её отступ — 24 px). */}
         <div>
-          <ExecutorLink className="-ml-6" />
+          <ExecutorLink />
         </div>
       </Stack>
       {steps}

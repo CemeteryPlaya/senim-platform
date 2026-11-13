@@ -22,8 +22,8 @@ describe("главная гостя", () => {
         const primary = out.match(/<a [^>]*data-primary-action[^>]*>([^<]*)<\/a>/);
         expect(primary?.[1]).toBe(t.clientAction);
         expect(primary?.[0]).toContain('href="/v2/login?role=client"');
-        const master = out.match(/<a [^>]*href="\/v2\/login\?role=executor"[^>]*>([^<]*)<\/a>/);
-        expect(master?.[1]).toBe(t.executorLink);
+        const master = out.match(/<a [^>]*href="\/v2\/login\?role=executor"[^>]*>(.*?)<\/a>/);
+        expect(master?.[1].replace(/<[^>]*>/g, "")).toBe(t.executorLink);
         expect(master?.[0]).not.toContain("data-primary-action");
       });
 

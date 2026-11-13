@@ -11,7 +11,7 @@
 - **Устройство** — телефон или компьютер — различают варианты `desktop:` и `mobile:` (атрибут `data-device` на `<html>`), а не ширина окна. Серверный экран получает устройство так: `const device = await getDevice()` (`@/platform/device`) и передаёт его в компоненты, которым оно нужно (`ConfirmDialog`, `Explain`, `Toaster`).
 - **Одно главное действие на экран.** Главное — `Button`/`ButtonLink` без `variant` (или `variant="primary"`). Остальные — `secondary`, `quiet`, `danger`.
 - Серверные компоненты (без `"use client"`): `Stack`, `Split`, `Narrow`, `Section`, `Card`, списки, `StatusChip`, `Money`, `Progress`, `PhotoSlot`, `PageTitle`, `BackLink`, `WizardHeader`, `NowNext`, `FirstSteps`, `EmptyState`, `HelpBlock`, `ButtonLink`, `Skeleton`, поля (`TextField`, `TextArea`, `Select`, `Checkbox`, `RadioCard`, `RadioGroup`), `Segmented`. Клиентские (`"use client"`): `Button`, `Sheet`, `Dialog`, `ConfirmDialog`, `Popover`, `Explain`, `Toaster`. Клиентский компонент можно ставить в серверный экран; серверный компонент без обработчиков можно ставить и в клиентский.
-- Добавлены для экранов гостя и входа (все серверные, кроме хука `useActionForm`): `Notice`, `HiddenField`, `CodeField`, `PhoneField`, `Chips`, `Pagination`, `ActionDock`, `WorkCard`, `Rating`; клиентский — только `useActionForm` (`_shell/form.ts`) и `error.tsx` группы.
+- Добавлены для экранов гостя и входа (все серверные, кроме хука `useActionForm`): `Notice`, `HiddenField`, `CodeField`, `PhoneField`, `Chips`, `FilterList`, `Pagination`, `ActionDock`, `WorkCard`, `Rating`, `Columns`, `TextLink`; клиентский — только `useActionForm` (`_shell/form.ts`) и `error.tsx` группы.
 
 ### Что запрещают сторожа
 
@@ -27,6 +27,7 @@
 8. В `ru.app` нет слов «демо», «комиссия», «эскроу».
 9. Нет `sm:`, `md:`, `lg:`, `xl:`, контейнерных `@md:`, `@media (width…)`, `matchMedia`, `innerWidth`, `clientWidth`, `screen.width` — версии различают `desktop:` и `mobile:`.
 10. `button-styles` импортируют только файлы kit.
+12. В `src/app/(app)/**` нет отрицательных полей (`-ml-6`, `-mx-4`, `mobile:-mt-2`): выход за поле — дело компонента kit (`TextLink`, `Chips`), а не обхода в разметке экрана. Сдвиги `-translate-x-…` не поля.
 11. Вне `src/kit` (и в тестах) kit импортируется только как `@/kit`; исключения — `@/kit/theme`, `@/kit/fonts`, `@/kit/tokens`, а в тестах ещё `@/kit/test-utils`.
 
 Отдельно: анимируются только `transform` и `opacity`; размеры текста, радиусы, тени, цвета — токены; контролы не ниже 48 px (на компьютере вторичные `sm` — 36 px).
@@ -173,6 +174,7 @@
 | `label` | `ReactNode` | Подпись (ink) |
 | `value` | `ReactNode?` | Значение справа (muted). Сумма — `<Money>`: цвет ink она задаёт сама |
 | `href` | `string?` | Есть адрес — вся строка ссылка, справа шеврон (через `to()`) |
+| `chevron` | `boolean?` | `true` по умолчанию; `false` — без шеврона у якоря на этой же странице (оглавление) |
 
 `ListItem` — обёртка для строки со своей разметкой (`children`), даёт разделитель с отступом 16 px; у последней строки разделителя нет.
 
@@ -384,15 +386,38 @@ const device = await getDevice();
 
 ### `Chips`
 
-Фильтры-ссылки в строку: `items: { href: string; label: string; active: boolean }[]`, `label: string` (имя навигации). Активный — `aria-current="true"`, рамка цвета действия и вес 600. На телефоне строка прокручивается вбок, на компьютере переносится. Адреса через `to()` с параметром фильтра.
+Фильтры-ссылки без обводок: `items: { href: string; label: string; active: boolean }[]`, `label: string` (имя навигации). Обычный чип — заливка `line`, текст `ink`, радиус 12 px; выбранный — заливка `action`, текст `on-action`, вес 600, `aria-current="true"` (в тёмной теме — светлая заливка и тёмный текст). Телефон: высота 48 px, лента выходит за поля экрана до его края (`rail-bleed`), прокручивается вбок, последний видимый чип уходит за край; выбранный при открытии прокручивается к центру ленты (`ChipsRail` — единственная клиентская часть, остальное серверное). Компьютер: высота 36 px, строки переносятся. Адреса через `to()` с параметром фильтра.
+
+### `FilterList`
+
+Список фильтров для левой колонки на компьютере: `title: string` (заголовок 15 px / 600 и имя `<nav>`), `items: { href; label; active }[]`. Строки-ссылки 36 px; выбранная — вес 600, галочка справа, `aria-current="true"`. Серверный.
 
 ### `Pagination`
 
-`page`, `pageCount`, `hrefFor: (page: number) => string`, `label`. «Назад — Страница N из M — Вперёд»; при `pageCount <= 1` ничего не рисует. На краю нужная кнопка остаётся приглушённой (`aria-disabled`). Ссылки несут `rel="prev"` / `rel="next"`.
+`page`, `pageCount`, `hrefFor: (page: number) => string`, `label`. «Назад — Страница N из M — Вперёд»; при `pageCount <= 1` или нечисловых значениях ничего не рисует. Компьютер: компактная группа по центру, тихие кнопки 36 px. Телефон: кнопки 48 px делят строку. Край, где идти некуда, не показывается вовсе. Ссылки несут `rel="prev"` / `rel="next"`.
 
 ### `WorkCard`
 
-Карточка работы: `href`, `title`, `meta: string`, `priceFrom?: bigint` (тиыны, «от N ₸»), `photo?: { src, alt }`. Фото 4 : 3 (без снимка — заглушка), вся карточка — одна ссылка. Заголовок — `<h3>`.
+Карточка работы: `href`, `title`, `meta: string`, `byline?: string` (третья строка, текст даёт экран: «Мастер № 1042 · 48 сделок»), `priceFrom?: bigint` (тиыны, «от N ₸»), `media?: "none" | "slot"`, `photo?: { src, alt }`.
+
+- `media="none"` (по умолчанию): компактная текстовая карточка без области фото: заголовок 17 / 600, `meta` и `byline` 15 `muted`, цена «от» (вес 500, табличные цифры) прижата к низу — карточки ряда одной высоты, цены на одной линии. На телефоне справа шеврон 20 px. `photo` в этом режиме не показывается.
+- `media="slot"`: над текстом область 4 : 3 с радиусом 12 px — `photo` или ровная заглушка; шеврона нет. Нужен, когда у работ есть настоящие снимки.
+
+Вся карточка — одна ссылка (заголовок растянут на карточку), фокус по карточке. Заголовок — `<h3>`.
+
+### `Columns`
+
+`count: 2 | 3`, `children`. Компьютер: сетка из `count` равных колонок с зазором группы (12 px), дети растянуты по высоте; телефон: одна колонка. Для карточек одного уровня (три шага, два тарифа).
+
+```tsx
+<Columns count={3}>
+  {steps.map((step) => <Card key={step.title}>…</Card>)}
+</Columns>
+```
+
+### `TextLink`
+
+`href`, `children`. Тихая навигационная ссылка в потоке текста: `ink`, вес 500, шеврон 16 px, высота касания 48 px. Текст стоит по левой линии содержимого — без боковых отступов и отрицательных полей (для вторичного перехода вместо тихой кнопки с `-ml-6`). Наведение — подчёркивание.
 
 ### `Rating`
 

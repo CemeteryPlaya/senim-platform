@@ -93,8 +93,8 @@ describe("/v2/about: главное действие по роли", () => {
     expect(primary?.[0]).toContain('href="/v2/login?role=client"');
     expect(out.indexOf("data-primary-action")).toBeGreaterThan(out.indexOf(t.tocTitle));
     expect(out).toContain("desktop:sticky-aside");
-    expect(out).not.toContain("lucide-chevron-right");
     const toc = out.slice(out.indexOf(`>${t.tocTitle}</h2>`), out.indexOf("data-primary-action"));
+    expect(toc).not.toContain("lucide-chevron-right");
     expect(toc.match(/href="\/v2\/about#[a-z]+"/g)).toHaveLength(4);
     expect(out).toContain('href="/v2/login?role=executor"');
     expect(out).not.toContain("mobile:sticky");

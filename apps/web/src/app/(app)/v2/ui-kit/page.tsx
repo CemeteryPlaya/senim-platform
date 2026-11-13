@@ -10,8 +10,10 @@ import {
   Checkbox,
   Chips,
   CodeField,
+  Columns,
   EmptyState,
   Explain,
+  FilterList,
   FirstSteps,
   HelpBlock,
   List,
@@ -36,6 +38,7 @@ import {
   StatusChip,
   TextArea,
   TextField,
+  TextLink,
   WizardHeader,
   WorkCard,
   type ButtonVariant,
@@ -323,19 +326,24 @@ function Works() {
   const w = s.works;
   return (
     <div className="grid grid-cols-1 gap-stack-group desktop:grid-cols-3">
-      <Specimen label={w.withPhoto}>
+      <Specimen label={w.slotPhoto}>
         <WorkCard
           href={to("/")}
           title={w.title}
           meta={w.meta}
+          byline={w.byline}
           priceFrom={122400000n}
+          media="slot"
           photo={{ src: "/img/kitchen.svg", alt: w.photoAlt }}
         />
       </Specimen>
-      <Specimen label={w.noPhoto}>
-        <WorkCard href={to("/")} title={w.title} meta={w.meta} priceFrom={85000000n} />
+      <Specimen label={w.slotEmpty}>
+        <WorkCard href={to("/")} title={w.title} meta={w.meta} priceFrom={85000000n} media="slot" />
       </Specimen>
-      <Specimen label={w.noPrice}>
+      <Specimen label={w.compact}>
+        <WorkCard href={to("/")} title={w.title} meta={w.meta} byline={w.byline} priceFrom={85000000n} />
+      </Specimen>
+      <Specimen label={w.compactNoPrice}>
         <WorkCard href={to("/")} title={w.title} meta={w.meta} />
       </Specimen>
       <Specimen label={w.rating}>
@@ -416,6 +424,19 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
               {s.links.secondary}
             </ButtonLink>
           </div>
+          <Specimen label={s.links.textLink}>
+            <TextLink href={to("/")}>{s.links.textLinkLabel}</TextLink>
+          </Specimen>
+          <Specimen label={s.columns.note}>
+            <Columns count={3}>
+              {[s.columns.one, s.columns.two, s.columns.three].map((title) => (
+                <Card key={title}>
+                  <h3 className="text-card text-ink">{title}</h3>
+                  <p className="mt-1 text-body text-muted">{s.columns.body}</p>
+                </Card>
+              ))}
+            </Columns>
+          </Specimen>
           <Specimen label={s.links.back}>
             <BackLink href={to("/")} label={s.links.backParent} />
           </Specimen>
@@ -438,6 +459,13 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
         <Stack>
           <Specimen label={s.filters.chips}>
             <Chips items={CHIP_ITEMS} label={s.filters.label} />
+          </Specimen>
+          <Specimen label={s.filters.list}>
+            <Narrow>
+              <Card>
+                <FilterList title={s.filters.listTitle} items={CHIP_ITEMS} />
+              </Card>
+            </Narrow>
           </Specimen>
           <Narrow>
             <Stack>

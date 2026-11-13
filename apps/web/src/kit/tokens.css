@@ -347,6 +347,19 @@
   padding-right: max(1rem, env(safe-area-inset-right));
 }
 
+/*
+ * Лента, выходящая за поля содержимого до края экрана (Chips): отрицательное поле равно полю экрана (safe-gutter,
+ * --spacing-gutter или шире выреза), внутренний отступ — тот же: первый чип стоит по левой линии содержимого, а
+ * последний видимый уходит за край.
+ */
+@utility rail-bleed {
+  margin-left: calc(-1 * max(var(--spacing-gutter), env(safe-area-inset-left)));
+  margin-right: calc(-1 * max(var(--spacing-gutter), env(safe-area-inset-right)));
+  padding-left: max(var(--spacing-gutter), env(safe-area-inset-left));
+  padding-right: max(var(--spacing-gutter), env(safe-area-inset-right));
+  scroll-padding-inline: max(var(--spacing-gutter), env(safe-area-inset-left));
+}
+
 /* Содержимое телефона сверху и снизу: 24px или ниже строки состояния / выше полоски «домой». */
 @utility safe-block {
   padding-top: max(var(--spacing-column-block), env(safe-area-inset-top));

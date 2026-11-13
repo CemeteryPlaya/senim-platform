@@ -6,6 +6,11 @@ import {
   ActionDock,
   Chips,
   CodeField,
+  Columns,
+  FilterList,
+  List,
+  ListRow,
+  TextLink,
   formatMoney,
   HiddenField,
   Notice,
@@ -112,9 +117,22 @@ describe("Chips", () => {
     expect(out).toMatch(/<a [^>]*href="\/v2\/masters"[^>]*>Все<\/a>/);
   });
 
-  it("цель касания не ниже 48 px и строка прокручивается вбок", () => {
+  it("телефон: 48 px, лента прокручивается и выходит за поля экрана; компьютер: 36 px и перенос", () => {
     expect(hasClass(out, "min-h-control")).toBe(true);
+    expect(hasClass(out, "desktop:min-h-control-sm")).toBe(true);
     expect(hasClass(out, "overflow-x-auto")).toBe(true);
+    expect(hasClass(out, "mobile:rail-bleed")).toBe(true);
+    expect(hasClass(out, "desktop:flex-wrap")).toBe(true);
+    expect(hasClass(out, "desktop:overflow-visible")).toBe(true);
+  });
+
+  it("без обводок: обычный — заливка line и ink, выбранный — заливка action и on-action; радиус 12 px", () => {
+    const chip = (label: string) => new RegExp(`<a [^>]*class="([^"]*)"[^>]*>${label}</a>`).exec(out)?.[1] ?? "";
+    const plain = chip("Все");
+    const active = chip("Кухни");
+    for (const cls of ["bg-line", "text-ink", "rounded-field"]) expect(hasClass(`class="${plain}"`, cls), cls).toBe(true);
+    for (const cls of ["bg-action", "text-on-action", "font-semibold", "rounded-field"]) expect(hasClass(`class="${active}"`, cls), cls).toBe(true);
+    expect(out).not.toMatch(/border/);
   });
 });
 
@@ -148,17 +166,27 @@ describe("Pagination", () => {
     expect(text(<Pagination page={9} pageCount={5} hrefFor={hrefFor} label="Страницы" />)).toContain("Страница 5 из 5");
   });
 
-  it("на краю соседней страницы нет: вместо ссылки приглушённый текст без конфликтующих классов", () => {
+  it("на краю соседней страницы нет и кнопки нет вовсе: ни ссылки, ни серого текста", () => {
     const first = html(<Pagination page={1} pageCount={3} hrefFor={hrefFor} label="Страницы" />);
     expect(count(first, "<a ")).toBe(1);
-    expect(first).not.toContain('aria-disabled="');
-    const edge = /<span class="([^"]*)">Назад<\/span>/.exec(first)?.[1] ?? "";
-    expect(edge).toContain("text-muted");
-    expect(edge).not.toMatch(/(?:^|\s)text-ink(?:\s|$)/);
+    expect(first).not.toContain("Назад");
+    expect(first).not.toContain("<span");
     expect(first).toContain('href="/v2/masters?page=2"');
     const last = html(<Pagination page={3} pageCount={3} hrefFor={hrefFor} label="Страницы" />);
     expect(count(last, "<a ")).toBe(1);
+    expect(last).not.toContain("Вперёд");
     expect(last).toContain('href="/v2/masters?page=2"');
+  });
+
+  it("компьютер: компактная группа по центру, тихие кнопки 36 px; телефон: кнопки 48 px, серые, делят строку", () => {
+    const out = html(<Pagination page={2} pageCount={5} hrefFor={hrefFor} label="Страницы" />);
+    expect(hasClass(out, "desktop:justify-center")).toBe(true);
+    expect(hasClass(out, "desktop:min-h-control-sm")).toBe(true);
+    expect(hasClass(out, "min-h-control")).toBe(true);
+    expect(hasClass(out, "bg-transparent")).toBe(true);
+    expect(hasClass(out, "mobile:bg-line")).toBe(true);
+    expect(hasClass(out, "flex-1")).toBe(true);
+    expect(hasClass(out, "desktop:flex-none")).toBe(true);
   });
 });
 
@@ -184,14 +212,37 @@ describe("Rating", () => {
 });
 
 describe("WorkCard", () => {
-  it("без фото нет <img, заглушка 4/3 на месте", () => {
-    const out = html(<WorkCard href="/v2/masters/1" title="Кухня" meta="Алматы" />);
+  it("media=slot без фото: нет <img, заглушка 4/3 с радиусом поля на месте, шеврона нет", () => {
+    const out = html(<WorkCard href="/v2/masters/1" title="Кухня" meta="Алматы" media="slot" />);
     expect(out).not.toContain("<img");
     expect(hasClass(out, "aspect-4/3")).toBe(true);
+    expect(hasClass(out, "rounded-field")).toBe(true);
+    expect(out).not.toContain("lucide-chevron-right");
   });
 
-  it("с фото — img с alt; заголовок, строка meta, цена «от»", () => {
-    const el = <WorkCard href="/v2/masters/1" title="Кухня" meta="Алматы" priceFrom={122400000n} photo={{ src: "/f/1.jpg", alt: "Кухня с островом" }} />;
+  it("media=none (по умолчанию): нет области фото и <img даже при photo; на телефоне шеврон 20 px, скрытый от диктора", () => {
+    for (const out of [
+      html(<WorkCard href="/v2/x" title="Кухня" meta="Алматы" photo={{ src: "/f/1.jpg", alt: "Кухня" }} />),
+      html(<WorkCard href="/v2/x" title="Кухня" meta="Алматы" media="none" />),
+    ]) {
+      expect(out).not.toContain("<img");
+      expect(out).not.toContain("aspect-");
+      expect(out).toMatch(/<svg[^>]*class="[^"]*lucide-chevron-right[^"]*size-5[^"]*desktop:hidden[^"]*"[^>]*aria-hidden="true"/);
+    }
+  });
+
+  it("строки: заголовок, meta, byline muted 15 px, цена «от» с весом 500 прижата к низу", () => {
+    const out = html(<WorkCard href="/v2/x" title="Кухня" meta="Алматы" byline="Мастер № 1042 · 48 сделок" priceFrom={85000000n} />);
+    expect(out).toMatch(/<p class="text-sub text-muted">Алматы<\/p><p class="text-sub text-muted">Мастер № 1042 · 48 сделок<\/p>/);
+    const price = /<p class="([^"]*)">от/.exec(out)?.[1] ?? "";
+    for (const cls of ["mt-auto", "font-medium", "text-body"]) expect(hasClass(`class="${price}"`, cls), cls).toBe(true);
+    expect(hasClass(out, "tabular-nums")).toBe(true);
+    expect(hasClass(out, "h-full")).toBe(true);
+    expect(html(<WorkCard href="/v2/x" title="Кухня" meta="Алматы" />)).not.toContain("1042");
+  });
+
+  it("с фото (media=slot) — img с alt; заголовок, строка meta, цена «от»", () => {
+    const el = <WorkCard href="/v2/masters/1" title="Кухня" meta="Алматы" media="slot" priceFrom={122400000n} photo={{ src: "/f/1.jpg", alt: "Кухня с островом" }} />;
     const out = html(el);
     expect(out).toContain('src="/f/1.jpg"');
     expect(out).toContain('alt="Кухня с островом"');
@@ -254,5 +305,73 @@ describe("радио в forced-colors", () => {
 
   it("RadioCard применяет её к точке выбора", () => {
     expect(html(<RadioCard label="А" name="a" value="a" />)).toMatch(/class="[^"]*\bradio-mark\b/);
+  });
+});
+
+describe("FilterList", () => {
+  const out = html(
+    <FilterList
+      title="Тип мебели"
+      items={[
+        { href: "/v2/catalog", label: "Все", active: false },
+        { href: "/v2/catalog?type=kitchen", label: "Кухни", active: true },
+      ]}
+    />,
+  );
+
+  it("навигация с именем-заголовком; активная — aria-current и галочка справа", () => {
+    expect(out).toContain('<nav aria-label="Тип мебели"');
+    expect(out).toMatch(/<p class="[^"]*font-semibold[^"]*">Тип мебели<\/p>/);
+    expect(count(out, "aria-current")).toBe(1);
+    expect(out).toMatch(/<a [^>]*aria-current="true"[^>]*>.*Кухни.*lucide-check/);
+    expect(count(out, "lucide-check")).toBe(1);
+  });
+
+  it("строки 36 px; активная — вес 600", () => {
+    expect(hasClass(out, "min-h-control-sm")).toBe(true);
+    expect(hasClass(/<a [^>]*aria-current="true"[^>]*>/.exec(out)?.[0] ?? "", "font-semibold")).toBe(true);
+  });
+});
+
+describe("Columns", () => {
+  it("компьютер — count равных колонок с зазором группы и растяжением; телефон — одна колонка", () => {
+    const three = html(<Columns count={3}><p>a</p></Columns>);
+    expect(hasClass(three, "desktop:grid-cols-3")).toBe(true);
+    expect(hasClass(three, "desktop:grid")).toBe(true);
+    expect(hasClass(three, "desktop:items-stretch")).toBe(true);
+    expect(hasClass(three, "gap-stack-group")).toBe(true);
+    expect(hasClass(three, "flex-col")).toBe(true);
+    expect(hasClass(html(<Columns count={2}><p>a</p></Columns>), "desktop:grid-cols-2")).toBe(true);
+  });
+});
+
+describe("TextLink", () => {
+  const out = html(<TextLink href="/v2/login?role=executor">Я мастер</TextLink>);
+
+  it("ссылка с текстом и шевроном 16 px, скрытым от диктора", () => {
+    expect(out).toMatch(/<a [^>]*href="\/v2\/login\?role=executor"[^>]*>Я мастер<svg/);
+    expect(out).toMatch(/<svg[^>]*class="[^"]*size-4[^"]*"[^>]*aria-hidden="true"/);
+  });
+
+  it("ink, вес 500, 48 px; без боковых отступов и отрицательных полей; наведение — подчёркивание", () => {
+    for (const cls of ["text-ink", "font-medium", "min-h-control", "hover:underline", "no-underline"]) expect(hasClass(out, cls), cls).toBe(true);
+    expect(out).not.toMatch(/class="[^"]*\b-?(?:px|pl|pr|ml|mr|mx)-/);
+  });
+});
+
+describe("ListRow: шеврон", () => {
+  const row = (chevron?: boolean) =>
+    html(
+      <List>
+        <ListRow label="Деньги" href="/v2/about#money" chevron={chevron} />
+      </List>,
+    );
+
+  it("по умолчанию у ссылки есть шеврон; chevron=false — только ссылка", () => {
+    expect(row()).toContain("lucide-chevron-right");
+    expect(row(true)).toContain("lucide-chevron-right");
+    const none = row(false);
+    expect(none).not.toContain("lucide-chevron-right");
+    expect(none).toContain('href="/v2/about#money"');
   });
 });

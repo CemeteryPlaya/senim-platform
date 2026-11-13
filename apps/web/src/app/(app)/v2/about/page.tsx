@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { getShellUser } from "@/modules/identity";
 import { computeDealMoney } from "@/modules/payments";
-import { ActionDock, ButtonLink, Card, List, ListItem, Money, PageTitle, Section, Split, Stack } from "@/kit";
+import { ActionDock, ButtonLink, Card, List, ListRow, Money, PageTitle, Section, Split, Stack, TextLink } from "@/kit";
 import { getDevice } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { loginHref } from "../_home/links";
@@ -65,15 +65,8 @@ export default async function AboutPage() {
         <Card padded={false}>
           <List>
             {toc.map((item) => (
-              <ListItem key={item.id}>
-                {/* Якорь на этой же странице: без шеврона (ListRow с адресом рисует шеврон — он про переход). */}
-                <a
-                  href={`${to("/about")}#${item.id}`}
-                  className="flex min-h-control w-full items-center px-4 py-3 text-body text-ink no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
-                >
-                  {item.label}
-                </a>
-              </ListItem>
+              // Якорь на этой же странице: без шеврона (он про переход на другой экран).
+              <ListRow key={item.id} label={item.label} href={`${to("/about")}#${item.id}`} chevron={false} />
             ))}
           </List>
         </Card>
@@ -123,10 +116,7 @@ export default async function AboutPage() {
               <Paragraphs items={t.master.paragraphs} />
               {canBecomeMaster && (
                 <div>
-                  {/* -ml-6: текст тихой кнопки — по левой линии карточек. */}
-                  <ButtonLink href={loginHref("executor")} variant="quiet" className="-ml-6">
-                    {t.master.action}
-                  </ButtonLink>
+                  <TextLink href={loginHref("executor")}>{t.master.action}</TextLink>
                 </div>
               )}
             </Section>

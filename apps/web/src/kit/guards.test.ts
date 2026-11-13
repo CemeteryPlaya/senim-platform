@@ -226,6 +226,15 @@ export function findHardcodedHref(src: string): Hit[] {
     .filter((hit, i, all) => i === 0 || hit.line !== all[i - 1].line);
 }
 
+/**
+ * 12. Отрицательные поля в экранах: `-ml-6`, `-mx-4`, `mobile:-mt-2`, `-m-1`. Компонент, которому «не хватает» выноса за
+ * поле, получает его в kit (`TextLink`, `Chips`, `Columns`), а не уродливым обходом в разметке экрана. Сдвиги
+ * (`-translate-x-…`) и прочие отрицательные значения — не поля.
+ */
+export function findNegativeMargin(src: string): Hit[] {
+  return matchLines(stripComments(src), /(?<=^|[\s"'`:!(])-m[xytrblse]?-(?:\d|px(?![\w-])|\[|\()/);
+}
+
 /** 7. Кириллица вне комментариев (строки, текст JSX, имена). Комментарии по-русски разрешены. */
 export function findCyrillic(src: string): Hit[] {
   return matchLines(stripComments(src), /[Ѐ-ӿ]+/);
@@ -682,6 +691,25 @@ describe("правило 10: button-styles импортируют только �
   });
   it("вне src/kit нет импорта @/kit/button-styles", () => {
     expectClean("Правило 10: кнопки — из @/kit, внутренний button-styles — только для kit.", scan(OUTSIDE_KIT, findKitInternalImport));
+  });
+});
+
+describe("правило 12: в экранах нет отрицательных полей", () => {
+  it("самопроверка", () => {
+    expect(findNegativeMargin('<div className="-ml-6">')).toHaveLength(1);
+    expect(findNegativeMargin('<div className="flex -mx-4 gap-2">')).toHaveLength(1);
+    expect(findNegativeMargin('<div className="mobile:-mt-2">')).toHaveLength(1);
+    expect(findNegativeMargin('cn("a", "-m-1")')).toHaveLength(1);
+    expect(findNegativeMargin('<div className="-mb-px">')).toHaveLength(1);
+    expect(findNegativeMargin('<div className="-ms-2 -me-2">')).toHaveLength(2);
+    expect(findNegativeMargin('<div className="ml-6 mx-4 mt-2 m-1">')).toHaveLength(0);
+    expect(findNegativeMargin('<div className="-translate-x-1 -translate-y-2">')).toHaveLength(0);
+    expect(findNegativeMargin('<div className="-mt-0">')).toHaveLength(1);
+    expect(findNegativeMargin('const x = a-m-1;')).toHaveLength(0);
+    expect(findNegativeMargin("{/* -ml-6 в комментарии */}")).toHaveLength(0);
+  });
+  it("в src/app/(app) нет -m*-N", () => {
+    expectClean("Правило 12: отрицательных полей в экранах нет — нужен компонент kit.", scan(APP_ONLY, findNegativeMargin));
   });
 });
 
