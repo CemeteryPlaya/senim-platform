@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { cn } from "@/kit/cn";
+import { cn } from "@/kit";
 import { activeHref, type NavItem } from "./nav";
 
 /**

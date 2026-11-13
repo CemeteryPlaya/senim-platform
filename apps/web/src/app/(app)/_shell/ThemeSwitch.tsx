@@ -1,14 +1,16 @@
 import { ru } from "@/i18n/ru";
 import { Segmented } from "@/kit";
 import type { Theme } from "@/kit/theme";
-import { setTheme } from "./theme-actions";
+import { chooseTheme } from "./theme-actions";
 
 const t = ru.app.shell.theme;
 
 /**
  * Переключатель темы: сегментированный переключатель из трёх кнопок отправки одной формы, у каждой — своё действие
- * сервера с темой (bind). Работает и без JavaScript: форма отправляется обычным запросом, сервер пишет куку и отдаёт
- * страницу уже в новой теме. Выбранный сегмент — aria-pressed="true"; главной кнопки здесь нет (она принадлежит экрану).
+ * сервера с темой (bind). Форма серверная, но без JavaScript отправка сейчас отклоняется из-за заголовка
+ * `Referrer-Policy: no-referrer` (решение владельца, см. спеку, раздел 14); с JavaScript сервер пишет куку и
+ * перерисовывает страницу в новой теме. Выбранный сегмент — aria-pressed="true"; главной кнопки здесь нет (она
+ * принадлежит экрану).
  */
 export function ThemeSwitch({ current }: { current: Theme }) {
   return (
@@ -17,9 +19,9 @@ export function ThemeSwitch({ current }: { current: Theme }) {
         legend={t.legend}
         value={current}
         options={[
-          { value: "system", label: t.system, formAction: setTheme.bind(null, "system") },
-          { value: "light", label: t.light, formAction: setTheme.bind(null, "light") },
-          { value: "dark", label: t.dark, formAction: setTheme.bind(null, "dark") },
+          { value: "system", label: t.system, formAction: chooseTheme.bind(null, "system") },
+          { value: "light", label: t.light, formAction: chooseTheme.bind(null, "light") },
+          { value: "dark", label: t.dark, formAction: chooseTheme.bind(null, "dark") },
         ]}
       />
     </form>

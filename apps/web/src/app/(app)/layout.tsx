@@ -1,10 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { ru } from "@/i18n/ru";
 import { getShellUser } from "@/modules/identity";
-import { cn } from "@/kit/cn";
+import { cn, Toaster } from "@/kit";
 import { fontVariables } from "@/kit/fonts";
 import { getTheme } from "@/kit/theme";
-import { Toaster } from "@/kit/Toaster";
 import { TOKENS } from "@/kit/tokens";
 import { getDevice } from "@/platform/device";
 import { features } from "@/platform/features";
@@ -20,11 +19,14 @@ export const metadata: Metadata = {
   applicationName: ru.common.brand,
   // Установка на iPhone: название под значком и светлая строка состояния (как в v1).
   appleWebApp: { capable: true, title: ru.common.brand, statusBarStyle: "default" },
+  // Временные страницы v2 (заглушки, витрина) не индексируются, пока основной интерфейс — v1.
+  // Убрать при переключении на этапе 6.
+  robots: { index: false, follow: false },
 };
 
 /**
  * Цвет строки состояния и заголовка окна — фон страницы своей темы (в Next 16 — через viewport). Тема выбрана кукой —
- * одно значение; «как в системе» — пара для светлой и тёмной по prefers-color-scheme.
+ * одно значение; «Авто» — пара для светлой и тёмной по prefers-color-scheme.
  * Телефон: viewport-fit=cover — страница рисуется до краёв экрана, а env(safe-area-inset-*) получают настоящие значения;
  * отступы от выреза и полоски «домой» держат утилиты dock-* и safe-* (tokens.css). Компьютеру это не нужно.
  */
@@ -45,7 +47,7 @@ export async function generateViewport(): Promise<Viewport> {
  * переход между ними — полная загрузка страницы.
  *
  * Тема: кука `theme` читается на сервере, поэтому страница приходит сразу в нужной теме, без мигания.
- * «Как в системе» — без data-theme: тёмную включает prefers-color-scheme в tokens.css.
+ * «Авто» — без data-theme: тёмную включает prefers-color-scheme в tokens.css.
  * Версия (телефон или компьютер) — getDevice() по заголовкам запроса, не по ширине окна: data-device на <html>
  * включает размеры компьютера в tokens.css, оболочка — MobileShell или DesktopShell.
  */

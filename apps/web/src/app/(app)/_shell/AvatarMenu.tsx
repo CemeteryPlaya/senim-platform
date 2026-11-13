@@ -5,7 +5,7 @@ import Link from "next/link";
 import { DropdownMenu } from "radix-ui";
 import { useTransition } from "react";
 import { ru } from "@/i18n/ru";
-import { toast } from "@/kit/Toaster";
+import { toast } from "@/kit";
 import { to } from "./paths";
 import { logout } from "./session-actions";
 
@@ -44,7 +44,7 @@ export function AvatarMenu({ fullName }: { fullName: string | null }) {
     <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger
         aria-label={t.profileMenu}
-        className="inline-flex size-control shrink-0 cursor-pointer items-center justify-center rounded-full transition-transform duration-100 active:scale-press"
+        className="inline-flex size-control shrink-0 cursor-pointer items-center justify-center rounded-full pressable"
       >
         <span aria-hidden className="inline-flex size-avatar items-center justify-center rounded-full bg-line text-small font-semibold text-ink">
           {initials ?? <UserRound className="size-5" />}

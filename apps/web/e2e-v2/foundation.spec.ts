@@ -237,6 +237,36 @@ test.describe("заглушка раздела", () => {
     await expect(link).toHaveAttribute("href", "/example.com");
     expect((await link.getAttribute("href"))?.startsWith("//")).toBe(false);
   });
+
+  // Сегмент с закодированными «//» и «\»: что бы ни сделал сервер (404, переадресация или заглушка), ссылка заглушки,
+  // если она есть, не уводит на другой сайт.
+  for (const path of ["/v2/%2F%2Fexample.com", "/v2/%5Cexample.com"]) {
+    test(`15c. ${path}: ссылка заглушки остаётся на этом сайте`, async ({ page }) => {
+      const response = await page.goto(path);
+      expect(response?.status()).toBeLessThan(500);
+      const links = page.getByRole("link", { name: shell.openOld });
+      for (const href of await links.evaluateAll((all) => all.map((a) => a.getAttribute("href") ?? ""))) {
+        expect(new URL(href, page.url()).host, href).toBe(new URL(page.url()).host);
+      }
+    });
+  }
+});
+
+// ───────── 17. Страница не найдена в v2 ─────────
+
+test("17. notFound() под /v2: русская страница «не найдена» внутри оболочки v2, статус 404", async ({ page }) => {
+  // Настоящий notFound() из страницы под (app): витрина вызывает его при ?missing=1 (только в dev).
+  const response = await page.goto(`${UI_KIT}?missing=1`);
+  expect(response?.status()).toBe(404);
+  await expect(page.locator("html[data-device]")).toHaveCount(1);
+  await expect(page.locator("h1")).toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 1, name: shell.notFoundTitle })).toBeVisible();
+  await expect(page.getByText(shell.notFoundBody)).toBeVisible();
+  const primary = page.locator("[data-primary-action]");
+  await expect(primary).toHaveCount(1);
+  await expect(primary).toHaveAttribute("href", "/v2");
+  await expect(primary).toHaveText(shell.notFoundAction);
+  await expect(page.getByText("This page could not be found")).toHaveCount(0);
 });
 
 // ───────── 10, 11. Главное действие и заголовок ─────────
@@ -332,7 +362,7 @@ test.describe("ConfirmDialog на витрине", () => {
 // ───────── 13. Переключатель темы ─────────
 
 test.describe("ThemeSwitch", () => {
-  test("13a. «Тёмная» ставит data-theme и переживает перезагрузку, «Как в системе» снимает", async ({ page }) => {
+  test("13a. «Тёмная» ставит data-theme и переживает перезагрузку, «Авто» снимает", async ({ page }) => {
     await page.goto(UI_KIT);
     const html = page.locator("html");
     const t = shell.theme;

@@ -49,10 +49,10 @@ describe("Button", () => {
   it("pending не откликается на наведение и нажатие, обычная — откликается (кроме отключённой)", () => {
     const busy = html(<Button pending>Ок</Button>);
     expect(busy).not.toContain("hover:");
-    expect(busy).not.toContain("scale-press");
+    expect(hasClass(busy, "pressable")).toBe(false);
     const idle = html(<Button>Ок</Button>);
     expect(hasClass(idle, "hover:not-disabled:opacity-90")).toBe(true);
-    expect(hasClass(idle, "active:not-disabled:scale-press")).toBe(true);
+    expect(hasClass(idle, "pressable")).toBe(true);
   });
 
   it("обычная кнопка без aria-disabled, aria-busy и disabled", () => {
@@ -445,7 +445,7 @@ describe("Остальное", () => {
     expect(out).toMatch(/<a[^>]+href="\/v2\/address"/);
     expect(out).toContain("hover:bg-canvas");
     expect(out).toContain("active:bg-line");
-    expect(out).not.toContain("scale-press");
+    expect(hasClass(out, "pressable")).toBe(false);
     expect(out).toContain("3 дня");
   });
 });

@@ -159,7 +159,7 @@
   /* Плотность материала панелей (утилита glass) — в обеих темах: текст под панелью не читается сквозь неё. */
   --glass-opacity: 85%;
 
-  /* Отклик на нажатие: масштаб 0,97 (утилита scale-press, обычно с active:). */
+  /* Отклик на нажатие: масштаб 0,97 (утилита pressable). */
   --scale-press: 0.97;
 }
 
@@ -223,9 +223,18 @@
   --spacing-stack-section: 2rem;
 }
 
-/* Нажатие: active:scale-press. Значение — переменная, чтобы prefers-reduced-motion мог его выключить. */
-@utility scale-press {
-  scale: var(--scale-press);
+/*
+ * Отклик на нажатие (кнопки, сегменты, вкладки, карточки выбора): масштаб --scale-press (0,97) за 100 мс, только
+ * transform. Отключённый элемент не откликается. Масштаб — переменная, чтобы prefers-reduced-motion (app.css: 1)
+ * его выключил: нажатие тогда без движения.
+ */
+@utility pressable {
+  transition-property: transform, translate, scale, rotate;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function, ease));
+  transition-duration: 100ms;
+  &:active:not(:disabled) {
+    scale: var(--scale-press);
+  }
 }
 
 /*

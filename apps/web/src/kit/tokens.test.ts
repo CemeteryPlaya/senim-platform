@@ -169,3 +169,20 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(css).not.toMatch(/--text-[a-z]+--font-weight:\s*(?:[7-9]\d\d|bold)/);
   });
 });
+
+describe("утилита pressable: отклик на нажатие", () => {
+  const pressable = /@utility pressable\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+
+  it("масштаб --scale-press при нажатии, отключённый не откликается; переход только transform за 100 мс", () => {
+    expect(pressable).toMatch(/&:active:not\(:disabled\)\s*\{\s*scale:\s*var\(--scale-press\)\s*;\s*\}/);
+    expect(pressable).toMatch(/transition-property:\s*transform,\s*translate,\s*scale,\s*rotate\s*;/);
+    expect(pressable).toMatch(/transition-duration:\s*100ms\s*;/);
+    expect(css).toMatch(/--scale-press:\s*0\.97\s*;/);
+  });
+
+  it("при меньшем движении масштаб выключен (app.css: --scale-press: 1)", () => {
+    const app = readFileSync(path.join(__dirname, "../app/(app)/app.css"), "utf8");
+    const reduced = /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/.exec(app)?.[1] ?? "";
+    expect(reduced).toMatch(/--scale-press:\s*1\s*;/);
+  });
+});

@@ -30,7 +30,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
   useSearchParams: () => new URLSearchParams(h.search),
 }));
 
-const { default: AppLayout, generateViewport } = await import("./layout");
+const { default: AppLayout, generateViewport, metadata } = await import("./layout");
 
 async function render(): Promise<string> {
   return renderToStaticMarkup(await AppLayout({ children: <p>page-body</p> }));
@@ -97,8 +97,14 @@ describe("корневой layout v2", () => {
   });
 });
 
+describe("metadata", () => {
+  it("временные страницы v2 не индексируются (до переключения на этапе 6)", () => {
+    expect(metadata.robots).toEqual({ index: false, follow: false });
+  });
+});
+
 describe("generateViewport: цвет строки состояния по теме", () => {
-  it("как в системе — пара для светлой и тёмной", async () => {
+  it("«Авто» — пара для светлой и тёмной", async () => {
     h.theme = "system";
     expect((await generateViewport()).themeColor).toEqual([
       { media: "(prefers-color-scheme: light)", color: TOKENS.light.canvas },

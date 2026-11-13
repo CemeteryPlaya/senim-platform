@@ -10,7 +10,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 // Действия сервера в статическом рендере не вызываются; модуль identity тянет базу — заменяем.
 vi.mock("./session-actions", () => ({ logout: vi.fn() }));
-vi.mock("./theme-actions", () => ({ setTheme: vi.fn(async () => undefined) }));
+vi.mock("./theme-actions", () => ({ setTheme: vi.fn(async () => ({ ok: true, data: undefined })), chooseTheme: vi.fn(async () => undefined) }));
 
 const { DesktopShell } = await import("./DesktopShell");
 const { MobileShell } = await import("./MobileShell");

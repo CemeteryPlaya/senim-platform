@@ -175,7 +175,7 @@ export function RadioCard({ label, id: explicitId, className, ...rest }: RadioCa
       htmlFor={id}
       className={cn(
         "flex min-h-control cursor-pointer items-center gap-3 rounded-field border border-line-strong bg-surface px-4 py-3 text-body text-ink",
-        "transition-transform duration-100 active:scale-press has-checked:border-action",
+        "pressable has-checked:border-action",
         "has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus",
         "has-disabled:cursor-not-allowed has-disabled:opacity-50",
       )}

@@ -1,4 +1,5 @@
 import { MovingPlaceholder, queryOf } from "../../_shell/Moving";
+import { safeLocalPath } from "../../_shell/paths";
 
 type Props = {
   params: Promise<{ rest: string[] }>;
@@ -11,9 +12,10 @@ type Props = {
  */
 export default async function Moving({ params, searchParams }: Props) {
   const [{ rest }, search] = await Promise.all([params, searchParams]);
-  // Адрес v1 — те же сегменты без префикса v2. Сегменты приходят из адреса уже закодированными: повторное
-  // кодирование испортило бы ссылку.
-  // Пустые сегменты (/v2//example.com) отбрасываются: иначе адрес начался бы с «//» и стал ссылкой на чужой сайт.
+  // Адрес v1 — те же сегменты без префикса v2. Сегменты не кодируются повторно: уже закодированный сегмент
+  // испортился бы. Пустые сегменты (/v2//example.com) отбрасываются.
+  // Приходят ли сегменты закодированными, Next не документирует: раскодированный `//example.com` или `\example.com`
+  // дал бы ссылку на чужой сайт, поэтому готовый адрес проходит safeLocalPath (чужое — «/»).
   const oldPath = `/${rest.filter(Boolean).join("/")}`;
-  return <MovingPlaceholder href={oldPath + queryOf(search)} />;
+  return <MovingPlaceholder href={safeLocalPath(oldPath + queryOf(search))} />;
 }

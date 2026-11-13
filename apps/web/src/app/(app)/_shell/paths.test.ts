@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { legacy, makePaths, to } from "./paths";
+import { legacy, makePaths, safeLocalPath, to } from "./paths";
 
 // Один набор случаев для префикса "/v2" (сейчас) и "" (после переключения на этапе 6): [вход, при "/v2", при ""].
 const TO: [string, string, string][] = [
@@ -54,5 +54,43 @@ describe("to и legacy приложения — префикс /v2", () => {
   it("совпадают с makePaths(\"/v2\")", () => {
     expect(to("/deals")).toBe("/v2/deals");
     expect(legacy("/v2/deals")).toBe("/deals");
+  });
+});
+
+describe("safeLocalPath: только путь этого сайта", () => {
+  it.each([
+    "/",
+    "/deals/1",
+    "/deals/1?tab=money&f=a",
+    "/example.com",
+    "/requests/%D0%B0",
+    "/%2F%2Fexample.com",
+    "/%5Cexample.com",
+    "/a//b",
+  ])("%j — как есть", (path) => {
+    expect(safeLocalPath(path)).toBe(path);
+  });
+
+  it.each([
+    "//example.com",
+    "///example.com",
+    "/\\example.com",
+    "/\\\\example.com",
+    "\\example.com",
+    "\\\\example.com",
+    "/ //example.com",
+    " //example.com",
+    " /deals",
+    "/\t/example.com",
+    "/\n/example.com",
+    "\t//example.com",
+    "/deals\u0000",
+    "/deals\u007f",
+    "https://example.com",
+    "javascript:alert(1)",
+    "example.com",
+    "",
+  ])("%j → «/»", (path) => {
+    expect(safeLocalPath(path)).toBe("/");
   });
 });

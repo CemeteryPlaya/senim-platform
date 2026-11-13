@@ -40,7 +40,7 @@ import { env } from "@/platform/env";
 import { brand } from "@/config/brand";
 import { ThemeSwitch } from "../../_shell/ThemeSwitch";
 import { to } from "../../_shell/paths";
-import { Demo } from "./Demo";
+import { OverlaySamples } from "./OverlaySamples";
 
 const s = ru.app.kit.showcase;
 
@@ -260,10 +260,14 @@ function Choices() {
   );
 }
 
-/** Витрина нужна только разработчикам: вне dev страницы нет. */
-export default async function UiKit() {
+/**
+ * Витрина нужна только разработчикам: вне dev страницы нет.
+ * `?missing=1` (только в dev) — настоящий notFound() под (app): образец страницы «не найдена» v2 для e2e и снимков.
+ */
+export default async function UiKit({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (env().APP_ENV !== "dev") notFound();
-  const [device, theme] = await Promise.all([getDevice(), getTheme()]);
+  const [device, theme, search] = await Promise.all([getDevice(), getTheme(), searchParams]);
+  if (search.missing === "1") notFound();
 
   return (
     <Stack gap="section">
@@ -489,7 +493,7 @@ export default async function UiKit() {
       </Section>
 
       <Section title={s.sections.overlays}>
-        <Demo device={device} />
+        <OverlaySamples device={device} />
       </Section>
 
       <Section title={s.sections.theme}>

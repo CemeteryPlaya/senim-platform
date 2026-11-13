@@ -13,12 +13,14 @@ export const toastClassNames = {
   // font-sans — на самом тосте: sonner ставит свой шрифт на контейнер стилем без слоя, наследование он перебил бы.
   toast: "flex w-full items-start gap-3 rounded-card bg-raised p-4 font-sans text-body text-ink shadow-float",
   title: "font-medium",
+  // mt-0.5 (2 px) здесь и у иконки — оптическое выравнивание по первой строке заголовка (17 px, межстрочный 1,45),
+  // а не отступ шкалы.
   description: "mt-0.5 text-sub text-muted",
   // relative и размер 20 px: sonner кладёт индикатор загрузки в <div class="sonner-loader"> внутри [data-icon]
   // и центрирует его absolute по ближайшему позиционированному предку — без relative это был бы весь тост.
   icon: "relative mt-0.5 size-5 shrink-0",
   actionButton:
-    "ml-auto min-h-control shrink-0 rounded-control bg-line px-4 text-sub font-semibold text-ink transition-transform duration-100 active:scale-press",
+    "ml-auto min-h-control shrink-0 rounded-control bg-line px-4 text-sub font-semibold text-ink pressable",
   cancelButton: "min-h-control shrink-0 rounded-control px-4 text-sub text-muted",
 } as const satisfies ToastClassnames;
 

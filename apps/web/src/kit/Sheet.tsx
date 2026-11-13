@@ -67,9 +67,12 @@ export function Sheet({
             content.current?.focus({ preventScroll: true });
           }}
           onCloseAutoFocus={returnFocus}
+          // px-5 (20 px) — мимо шкалы намеренно: поля шторки эталона mobile.html — 18 px; 16 px со шкалы прижимают
+          // текст к скруглению углов 24 px.
           className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-11/12 w-full max-w-column flex-col rounded-t-sheet bg-raised px-5 pt-3 pb-sheet text-body text-ink shadow-sheet outline-none"
         >
-          {/* Ручка — знак «можно смахнуть»; тянуть можно за любое место шторки. */}
+          {/* Ручка — знак «можно смахнуть»; тянуть можно за любое место шторки. Размер 36 × 6 px (h-1.5 w-9) —
+              размер знака по эталону mobile.html (36 × 5), а не отступ шкалы. */}
           <div aria-hidden className="mx-auto mb-4 h-1.5 w-9 shrink-0 rounded-full bg-muted/50" />
           <Drawer.Title className="text-section text-ink">{title}</Drawer.Title>
           {description && <Drawer.Description className="mt-2 text-body text-muted">{description}</Drawer.Description>}

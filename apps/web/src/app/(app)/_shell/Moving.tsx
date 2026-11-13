@@ -1,6 +1,5 @@
 import { ru } from "@/i18n/ru";
-import { ButtonLink } from "@/kit/Button";
-import { PageTitle } from "@/kit/PageTitle";
+import { ButtonLink, PageTitle } from "@/kit";
 
 const t = ru.app.shell;
 

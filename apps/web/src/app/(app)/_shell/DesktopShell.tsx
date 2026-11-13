@@ -49,7 +49,7 @@ export function DesktopShell({ nav, user, unavailable = false, children }: Deskt
               <Link
                 href={to("/notifications")}
                 aria-label={ru.app.shell.notifications}
-                className="inline-flex size-control items-center justify-center rounded-control text-ink no-underline transition-transform duration-100 hover:bg-line active:scale-press"
+                className="inline-flex size-control items-center justify-center rounded-control text-ink no-underline pressable hover:bg-line"
               >
                 <Bell aria-hidden className="size-6" />
               </Link>

@@ -87,7 +87,7 @@ export function Dialog({
                   <DialogPrimitive.Close
                     aria-label={ru.app.kit.close}
                     disabled={!dismissible}
-                    className="absolute top-3 right-3 inline-flex size-control items-center justify-center rounded-control text-muted transition-transform duration-100 hover:bg-line active:scale-press disabled:opacity-50"
+                    className="absolute top-3 right-3 inline-flex size-control items-center justify-center rounded-control text-muted pressable hover:bg-line disabled:opacity-50"
                   >
                     <X aria-hidden className="size-5" />
                   </DialogPrimitive.Close>

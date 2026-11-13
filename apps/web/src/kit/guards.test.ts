@@ -27,8 +27,8 @@ function walk(dir: string, out: string[]): void {
   }
 }
 
-/** Файлы v2: .ts/.tsx из kit и (app), кроме тестов и `tokens.ts` (единственный дом hex-значений). */
-function collect(roots: string[]): SourceFile[] {
+/** Файлы v2: .ts/.tsx из kit и (app), кроме тестов (с `withTests` — вместе с ними) и `tokens.ts` (единственный дом hex-значений). */
+function collect(roots: string[], withTests = false): SourceFile[] {
   const all: string[] = [];
   for (const root of roots) {
     const full = path.join(SRC, root);
@@ -37,7 +37,7 @@ function collect(roots: string[]): SourceFile[] {
   }
   return all
     .filter((f) => /\.tsx?$/.test(f))
-    .filter((f) => !/\.test\.tsx?$/.test(f))
+    .filter((f) => withTests || !/\.test\.tsx?$/.test(f))
     .filter((f) => path.basename(f) !== "tokens.ts")
     .sort()
     .map((f) => ({
@@ -52,6 +52,11 @@ const APP_ONLY = collect(["app/(app)"]);
 const KIT_ONLY = collect(["kit"]);
 /** Весь src, кроме kit (для правила 10): v1, модули, платформа и v2. */
 const OUTSIDE_KIT = collect(readdirSync(SRC).filter((name) => name !== "kit"));
+/** То же вместе с тестами (правило 11: тесты тоже берут kit из `@/kit`, кроме test-utils). */
+const OUTSIDE_KIT_WITH_TESTS = collect(
+  readdirSync(SRC).filter((name) => name !== "kit"),
+  true,
+);
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Разбор текста
@@ -232,10 +237,29 @@ export function findWidthVariant(src: string): Hit[] {
 
 /**
  * 10. Внутренний модуль kit снаружи: `button-styles` (там `lookClasses` без запрета `primary` + `sm`) импортируют только
- * файлы `src/kit`; остальной код берёт кнопки из `@/kit` (или `@/kit/Button`), где тип держит запрет.
+ * файлы `src/kit`; остальной код берёт кнопки из `@/kit` (правило 11), где тип держит запрет.
  */
 export function findKitInternalImport(src: string): Hit[] {
   return matchLines(stripComments(src), /["'`](?:@\/kit\/|(?:\.{1,2}\/)+(?:[^"'`]*\/)?kit\/)button-styles["'`]/);
+}
+
+/**
+ * Модули kit, которых нет в `@/kit` намеренно: `theme` (cookies() из next/headers — только сервер), `fonts`
+ * (next/font) и `tokens` (значения цветов для метаданных). В общем входе они притянули бы серверный код в клиентские
+ * компоненты, импортирующие `@/kit`.
+ */
+const KIT_DIRECT_MODULES = ["theme", "fonts", "tokens"];
+
+/**
+ * 11. Код вне `src/kit` берёт kit только из `@/kit` (не `@/kit/Button`, не `../kit/cn`): внутреннее устройство kit
+ * меняется, не трогая экраны. Исключения — KIT_DIRECT_MODULES, а в тестах ещё `@/kit/test-utils`.
+ */
+export function findKitDeepImport(src: string, isTest = false): Hit[] {
+  const allowed = isTest ? [...KIT_DIRECT_MODULES, "test-utils"] : KIT_DIRECT_MODULES;
+  return matchLines(stripComments(src), /["'`](?:@\/kit\/|(?:\.{1,2}\/)+(?:[^"'`]*\/)?kit\/)[^"'`]+["'`]/).filter((hit) => {
+    const name = /kit\/([^"'`]+)["'`]$/.exec(hit.text)?.[1] ?? "";
+    return !allowed.includes(name);
+  });
 }
 
 /** 8. Слова «демо», «комисси…», «эскроу» в текстах: значения строк дерева (и результаты функций), без учёта регистра. */
@@ -608,6 +632,33 @@ describe("правило 10: button-styles импортируют только �
   });
   it("вне src/kit нет импорта @/kit/button-styles", () => {
     expectClean("Правило 10: кнопки — из @/kit, внутренний button-styles — только для kit.", scan(OUTSIDE_KIT, findKitInternalImport));
+  });
+});
+
+describe("правило 11: вне src/kit kit импортируется только как @/kit", () => {
+  it("самопроверка", () => {
+    expect(findKitDeepImport('import { ButtonLink } from "@/kit/Button";')).toHaveLength(1);
+    expect(findKitDeepImport('import { cn } from "@/kit/cn";')).toHaveLength(1);
+    expect(findKitDeepImport('import { cn } from "../../kit/cn";')).toHaveLength(1);
+    expect(findKitDeepImport('const m = await import("@/kit/Sheet");')).toHaveLength(1);
+    expect(findKitDeepImport('import { lookClasses } from "@/kit/button-styles";')).toHaveLength(1);
+    expect(findKitDeepImport('import { html } from "@/kit/test-utils";')).toHaveLength(1);
+    expect(findKitDeepImport('import { html } from "@/kit/test-utils";', true)).toHaveLength(0);
+    expect(findKitDeepImport('import { Button, cn } from "@/kit";')).toHaveLength(0);
+    expect(findKitDeepImport('import { getTheme } from "@/kit/theme";')).toHaveLength(0);
+    expect(findKitDeepImport('import { fontVariables } from "@/kit/fonts";')).toHaveLength(0);
+    expect(findKitDeepImport('import { TOKENS } from "@/kit/tokens";')).toHaveLength(0);
+    expect(findKitDeepImport('vi.mock("@/kit/theme", () => ({}));', true)).toHaveLength(0);
+    expect(findKitDeepImport('import { x } from "./kitchen/a";')).toHaveLength(0);
+    expect(findKitDeepImport('import { x } from "@/modules/toolkit/a";')).toHaveLength(0);
+    expect(findKitDeepImport('// import { cn } from "@/kit/cn"')).toHaveLength(0);
+  });
+  it("вне src/kit (с тестами) нет @/kit/<модуль>, кроме theme, fonts, tokens и test-utils в тестах", () => {
+    const violations: string[] = [];
+    for (const f of OUTSIDE_KIT_WITH_TESTS) {
+      for (const h of findKitDeepImport(f.text, /\.test\.tsx?$/.test(f.rel))) violations.push(`${f.rel}:${h.line}  ${h.text}`);
+    }
+    expectClean("Правило 11: kit — только из @/kit.", violations);
   });
 });
 

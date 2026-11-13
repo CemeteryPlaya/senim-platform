@@ -61,12 +61,11 @@ export function lookClasses({
 }: { variant?: ButtonVariant; size?: ButtonSize } & Extras): string {
   return cn(
     "relative inline-flex min-w-0 max-w-full items-center justify-center gap-2 rounded-control text-center font-semibold no-underline",
-    "transition-transform duration-100",
     "aria-disabled:cursor-not-allowed",
     SIZES[size],
     VARIANTS[variant],
     DISABLED,
-    !pending && ["active:not-disabled:scale-press", HOVER[variant]],
+    !pending && ["pressable", HOVER[variant]],
     full && "w-full",
   );
 }

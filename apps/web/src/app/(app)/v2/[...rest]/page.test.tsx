@@ -52,6 +52,27 @@ describe("заглушка «раздел переносится»", () => {
     expect(links[2].href).toBe("/");
   });
 
+  it.each([
+    [["deals", "1"], "/deals/1"],
+    [["", "example.com"], "/example.com"],
+    [["//example.com"], "/"],
+    [["\\example.com"], "/"],
+    [["\\\\example.com"], "/"],
+    [[" //example.com"], "/"],
+    [["\t", "example.com"], "/"],
+    [["%2F%2Fexample.com"], "/%2F%2Fexample.com"],
+  ])("сегменты %j → ссылка %j: чужой сайт не получается, даже если сегменты пришли раскодированными", async (rest, href) => {
+    await render(rest);
+    expect(links[0].href).toBe(href);
+  });
+
+  it("параметры адреса сохраняются после проверки, а у чужого адреса ссылка — «/»", async () => {
+    await render(["deals", "1"], { tab: "money" });
+    expect(links[0].href).toBe("/deals/1?tab=money");
+    await render(["//example.com"], { tab: "money" });
+    expect(links[1].href).toBe("/");
+  });
+
   it("закодированные сегменты не кодируются повторно", async () => {
     await render(["requests", "%D0%B0"]);
     expect(links[0].href).toBe("/requests/%D0%B0");

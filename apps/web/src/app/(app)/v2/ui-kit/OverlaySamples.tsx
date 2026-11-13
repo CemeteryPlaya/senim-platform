@@ -9,7 +9,7 @@ const t = ru.app.kit.showcase.overlays;
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Живые примеры накладок: нужен клик, поэтому клиентский компонент. */
-export function Demo({ device }: { device: Device }) {
+export function OverlaySamples({ device }: { device: Device }) {
   return (
     <div className="flex flex-wrap gap-3">
       <Sheet trigger={<Button variant="secondary">{t.sheetOpen}</Button>} title={t.sheetTitle} description={t.sheetBody} />
@@ -51,7 +51,7 @@ export function Demo({ device }: { device: Device }) {
         confirmLabel={t.confirmThrowLabel}
         onConfirm={async () => {
           await wait(1000);
-          throw new Error("demo");
+          throw new Error("sample");
         }}
       />
       <Button variant="secondary" onClick={() => toast(t.toastText)}>

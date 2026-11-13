@@ -3,7 +3,10 @@ import type { ButtonHTMLAttributes } from "react";
 export type SegmentedOption = {
   value: string;
   label: string;
-  /** Действие сервера для этого сегмента (кнопка отправки формы): работает и без JavaScript. */
+  /**
+   * Действие сервера для этого сегмента (кнопка отправки формы). Форма серверная, но без JavaScript отправка сейчас
+   * отклоняется из-за заголовка `Referrer-Policy: no-referrer` (решение владельца, см. спеку, раздел 14).
+   */
   formAction: ButtonHTMLAttributes<HTMLButtonElement>["formAction"];
 };
 
@@ -28,7 +31,7 @@ export function Segmented({ legend, options, value }: SegmentedProps) {
             type="submit"
             aria-pressed={option.value === value}
             formAction={option.formAction}
-            className="flex min-h-control min-w-0 items-center justify-center rounded-field px-2 text-center text-sub font-medium text-ink transition-transform duration-100 active:scale-press aria-pressed:bg-raised aria-pressed:font-semibold desktop:min-h-control-sm"
+            className="flex min-h-control min-w-0 items-center justify-center rounded-field px-2 text-center text-sub font-medium text-ink pressable aria-pressed:bg-raised aria-pressed:font-semibold desktop:min-h-control-sm"
           >
             {option.label}
           </button>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { cn } from "@/kit/cn";
+import { cn } from "@/kit";
 import { activeHref, type NavItem } from "./nav";
 import { NAV_ICONS } from "./nav-icons";
 
@@ -34,9 +34,11 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
+                // py-1.5 (6 px) — мимо шкалы намеренно: иконка 24 px, зазор 4 px и подпись 13 px укладываются в
+                // плашку высотой с эталонную; с py-2 панель становится выше, с py-1 подпись прижата к краю.
                 className={cn(
                   "flex min-h-control w-full flex-col items-center justify-center gap-1 rounded-field px-1 py-1.5 text-center no-underline",
-                  "transition-transform duration-100 active:scale-press",
+                  "pressable",
                   active ? "text-ink" : "text-muted",
                 )}
               >
