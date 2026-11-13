@@ -30,6 +30,12 @@ type SigningKey struct {
 	Public ed25519.PublicKey
 }
 
+// Умолчания суточных потолков кодов входа (всего и на префикс номера).
+const (
+	defaultDailyGlobalLimit = 500
+	defaultDailyPrefixLimit = 50
+)
+
 // ServeConfig — настройки подкоманды serve.
 type ServeConfig struct {
 	Env      config.AppEnv
@@ -56,6 +62,13 @@ type ServeConfig struct {
 	OTPPhoneHourlyLimit int
 	OTPPhoneDailyLimit  int
 	OTPPhoneCooldown    time.Duration
+	// OTPIPHourlyLimit — кодов входа в час с одного адреса (IDENTITY_OTP_IP_HOURLY_LIMIT).
+	OTPIPHourlyLimit int
+	// Лимиты проверки кода: на номер в сутки, на адрес в час (IDENTITY_OTP_VERIFY_*) и на человека
+	// в сутки для кода почты (IDENTITY_EMAIL_VERIFY_DAILY_LIMIT). В prod не слабее умолчаний.
+	OTPVerifyPhoneDailyLimit int
+	OTPVerifyIPHourlyLimit   int
+	EmailVerifyDailyLimit    int
 	// Лимиты кода почты на человека (IDENTITY_EMAIL_CODE_*): в час, в сутки и пауза между кодами.
 	// В prod не слабее умолчаний (emailHourly, emailDaily, emailCooldown).
 	EmailCodeHourlyLimit int
@@ -104,8 +117,8 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 		TokenKID:      l.Required("IDENTITY_TOKEN_KID"),
 		// Верх 50: 8 сервисов × 2 реплики × пул должны уместиться в max_connections Postgres.
 		PoolMaxConns:        int32(l.Int("POOL_MAX_CONNS", dbx.DefaultMaxConns, 1, 50)), //nolint:gosec // диапазон проверен
-		OTPDailyGlobalLimit: l.Int("IDENTITY_OTP_DAILY_GLOBAL_LIMIT", 500, 1, 1_000_000),
-		OTPDailyPrefixLimit: l.Int("IDENTITY_OTP_DAILY_PREFIX_LIMIT", 50, 1, 1_000_000),
+		OTPDailyGlobalLimit: l.Int("IDENTITY_OTP_DAILY_GLOBAL_LIMIT", defaultDailyGlobalLimit, 1, 1_000_000),
+		OTPDailyPrefixLimit: l.Int("IDENTITY_OTP_DAILY_PREFIX_LIMIT", defaultDailyPrefixLimit, 1, 1_000_000),
 	}
 	// Seed ровно в 32 байта в любом окружении: ed25519.NewKeyFromSeed иначе паникует.
 	if seed := l.Secret("IDENTITY_TOKEN_SIGNING_KEY", ed25519.SeedSize); seed != nil {
@@ -121,6 +134,10 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 	c.EmailCodeHourlyLimit = l.Int("IDENTITY_EMAIL_CODE_HOURLY_LIMIT", emailHourly, 1, 1_000_000)
 	c.EmailCodeDailyLimit = l.Int("IDENTITY_EMAIL_CODE_DAILY_LIMIT", emailDaily, 1, 1_000_000)
 	c.EmailCodeCooldown = l.Duration("IDENTITY_EMAIL_CODE_COOLDOWN", emailCooldown, time.Second, time.Hour)
+	c.OTPIPHourlyLimit = l.Int("IDENTITY_OTP_IP_HOURLY_LIMIT", ipHourly, 1, 1_000_000)
+	c.OTPVerifyPhoneDailyLimit = l.Int("IDENTITY_OTP_VERIFY_PHONE_DAILY_LIMIT", verifyPhoneDaily, 1, 1_000_000)
+	c.OTPVerifyIPHourlyLimit = l.Int("IDENTITY_OTP_VERIFY_IP_HOURLY_LIMIT", verifyIPHourly, 1, 1_000_000)
+	c.EmailVerifyDailyLimit = l.Int("IDENTITY_EMAIL_VERIFY_DAILY_LIMIT", emailVerifyDaily, 1, 1_000_000)
 	requireNotWeaker(l, c)
 	c.Retention = loadRetention(l)
 	l.Distinct("IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY")
@@ -151,6 +168,12 @@ func requireNotWeaker(l *config.Loader, c ServeConfig) {
 		{"IDENTITY_OTP_PHONE_DAILY_LIMIT", c.OTPPhoneDailyLimit, phoneDaily},
 		{"IDENTITY_EMAIL_CODE_HOURLY_LIMIT", c.EmailCodeHourlyLimit, emailHourly},
 		{"IDENTITY_EMAIL_CODE_DAILY_LIMIT", c.EmailCodeDailyLimit, emailDaily},
+		{"IDENTITY_OTP_IP_HOURLY_LIMIT", c.OTPIPHourlyLimit, ipHourly},
+		{"IDENTITY_OTP_VERIFY_PHONE_DAILY_LIMIT", c.OTPVerifyPhoneDailyLimit, verifyPhoneDaily},
+		{"IDENTITY_OTP_VERIFY_IP_HOURLY_LIMIT", c.OTPVerifyIPHourlyLimit, verifyIPHourly},
+		{"IDENTITY_EMAIL_VERIFY_DAILY_LIMIT", c.EmailVerifyDailyLimit, emailVerifyDaily},
+		{"IDENTITY_OTP_DAILY_GLOBAL_LIMIT", c.OTPDailyGlobalLimit, defaultDailyGlobalLimit},
+		{"IDENTITY_OTP_DAILY_PREFIX_LIMIT", c.OTPDailyPrefixLimit, defaultDailyPrefixLimit},
 	} {
 		if v.got > v.limit {
 			l.Invalid(v.key, fmt.Sprintf(reasonMax, v.limit))

@@ -217,7 +217,7 @@ func (s *Service) enforceLimits(ctx context.Context, phone, ip string) error {
 		return nil
 	}
 	if ip != "" {
-		if err := check("otp:ip:"+ipLimitKey(ip), ipHourly, hour, "otp_too_many_requests"); err != nil {
+		if err := check("otp:ip:"+ipLimitKey(ip), s.cfg.OTPIPHourlyLimit, hour, "otp_too_many_requests"); err != nil {
 			return err
 		}
 	}

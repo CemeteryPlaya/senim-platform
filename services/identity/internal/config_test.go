@@ -267,6 +267,9 @@ func TestCodeLimitsDefaults(t *testing.T) {
 	if c.OTPPhoneHourlyLimit != 5 || c.OTPPhoneDailyLimit != 10 || c.OTPPhoneCooldown != time.Minute {
 		t.Errorf("код входа: %d / %d / %s, want 5 / 10 / 1m", c.OTPPhoneHourlyLimit, c.OTPPhoneDailyLimit, c.OTPPhoneCooldown)
 	}
+	if c.OTPIPHourlyLimit != 20 || c.OTPVerifyPhoneDailyLimit != 20 || c.OTPVerifyIPHourlyLimit != 50 || c.EmailVerifyDailyLimit != 20 {
+		t.Errorf("IP и проверки: %d / %d / %d / %d, want 20 / 20 / 50 / 20", c.OTPIPHourlyLimit, c.OTPVerifyPhoneDailyLimit, c.OTPVerifyIPHourlyLimit, c.EmailVerifyDailyLimit)
+	}
 	if c.EmailCodeHourlyLimit != 5 || c.EmailCodeDailyLimit != 10 || c.EmailCodeCooldown != time.Minute {
 		t.Errorf("код почты: %d / %d / %s, want 5 / 10 / 1m", c.EmailCodeHourlyLimit, c.EmailCodeDailyLimit, c.EmailCodeCooldown)
 	}
@@ -305,12 +308,18 @@ func TestCodeLimitsFromVariables(t *testing.T) {
 // В prod ослабить лимиты кодов нельзя: сервис не стартует и называет переменную.
 func TestProdRejectsWeakerCodeLimits(t *testing.T) {
 	weak := map[string]string{
-		"IDENTITY_OTP_PHONE_HOURLY_LIMIT":  "6",
-		"IDENTITY_OTP_PHONE_DAILY_LIMIT":   "11",
-		"IDENTITY_OTP_PHONE_COOLDOWN":      "59s",
-		"IDENTITY_EMAIL_CODE_HOURLY_LIMIT": "6",
-		"IDENTITY_EMAIL_CODE_DAILY_LIMIT":  "11",
-		"IDENTITY_EMAIL_CODE_COOLDOWN":     "59s",
+		"IDENTITY_OTP_PHONE_HOURLY_LIMIT":       "6",
+		"IDENTITY_OTP_PHONE_DAILY_LIMIT":        "11",
+		"IDENTITY_OTP_PHONE_COOLDOWN":           "59s",
+		"IDENTITY_EMAIL_CODE_HOURLY_LIMIT":      "6",
+		"IDENTITY_EMAIL_CODE_DAILY_LIMIT":       "11",
+		"IDENTITY_EMAIL_CODE_COOLDOWN":          "59s",
+		"IDENTITY_OTP_IP_HOURLY_LIMIT":          "21",
+		"IDENTITY_OTP_VERIFY_PHONE_DAILY_LIMIT": "21",
+		"IDENTITY_OTP_VERIFY_IP_HOURLY_LIMIT":   "51",
+		"IDENTITY_EMAIL_VERIFY_DAILY_LIMIT":     "21",
+		"IDENTITY_OTP_DAILY_GLOBAL_LIMIT":       "501",
+		"IDENTITY_OTP_DAILY_PREFIX_LIMIT":       "51",
 	}
 	for key, val := range weak {
 		t.Run(key, func(t *testing.T) {
@@ -330,12 +339,18 @@ func TestProdRejectsWeakerCodeLimits(t *testing.T) {
 // Ужесточение и значения, равные умолчанию, в prod допустимы.
 func TestProdAcceptsStricterCodeLimits(t *testing.T) {
 	strict := map[string]string{
-		"IDENTITY_OTP_PHONE_HOURLY_LIMIT":  "3",
-		"IDENTITY_OTP_PHONE_DAILY_LIMIT":   "10",
-		"IDENTITY_OTP_PHONE_COOLDOWN":      "90s",
-		"IDENTITY_EMAIL_CODE_HOURLY_LIMIT": "5",
-		"IDENTITY_EMAIL_CODE_DAILY_LIMIT":  "4",
-		"IDENTITY_EMAIL_CODE_COOLDOWN":     "1m",
+		"IDENTITY_OTP_PHONE_HOURLY_LIMIT":       "3",
+		"IDENTITY_OTP_PHONE_DAILY_LIMIT":        "10",
+		"IDENTITY_OTP_PHONE_COOLDOWN":           "90s",
+		"IDENTITY_EMAIL_CODE_HOURLY_LIMIT":      "5",
+		"IDENTITY_EMAIL_CODE_DAILY_LIMIT":       "4",
+		"IDENTITY_EMAIL_CODE_COOLDOWN":          "1m",
+		"IDENTITY_OTP_IP_HOURLY_LIMIT":          "20",
+		"IDENTITY_OTP_VERIFY_PHONE_DAILY_LIMIT": "10",
+		"IDENTITY_OTP_VERIFY_IP_HOURLY_LIMIT":   "50",
+		"IDENTITY_EMAIL_VERIFY_DAILY_LIMIT":     "5",
+		"IDENTITY_OTP_DAILY_GLOBAL_LIMIT":       "500",
+		"IDENTITY_OTP_DAILY_PREFIX_LIMIT":       "10",
 	}
 	v := prodVars()
 	for key, val := range strict {

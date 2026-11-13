@@ -144,6 +144,7 @@ func newHarness(t *testing.T, tune func(*ServeConfig)) *harness {
 		OTPDailyGlobalLimit: 500, OTPDailyPrefixLimit: 50,
 		OTPPhoneHourlyLimit: phoneHourly, OTPPhoneDailyLimit: phoneDaily, OTPPhoneCooldown: phoneCooldown,
 		EmailCodeHourlyLimit: emailHourly, EmailCodeDailyLimit: emailDaily, EmailCodeCooldown: emailCooldown,
+		OTPIPHourlyLimit: ipHourly, OTPVerifyPhoneDailyLimit: verifyPhoneDaily, OTPVerifyIPHourlyLimit: verifyIPHourly, EmailVerifyDailyLimit: emailVerifyDaily,
 		TokenSigningKey: testSigningKey, TokenKID: testKID,
 		PII: testKeyring(t), PIIIndex: pii.NewIndex(testIndexKey),
 	}

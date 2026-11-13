@@ -214,6 +214,17 @@ func TestPhoneDailyLimitFromConfig(t *testing.T) {
 	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_many_today")
 }
 
+// Лимит по адресу берётся из конфигурации: при 2 кодах в час третий запрос с того же IP отклоняется.
+func TestIPHourlyLimitFromConfig(t *testing.T) {
+	h := newHarness(t, func(c *ServeConfig) { c.OTPIPHourlyLimit = 2 })
+	const ip = "203.0.113.50"
+	h.mustRequest("+77000090001", ip)
+	h.mustRequest("+77000090002", ip)
+	_, err := h.request("+77000090003", ip)
+	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_many_requests")
+	h.mustRequest("+77000090003", "198.51.100.50")
+}
+
 func TestGlobalCeiling(t *testing.T) {
 	h := newHarness(t, func(c *ServeConfig) { c.OTPDailyGlobalLimit = 3 })
 	for i := range 3 {

@@ -157,11 +157,11 @@ func (s *Service) checkCode(ctx context.Context, phone, ip, code string) (otpID 
 		return nil
 	}
 	if ip != "" {
-		if err := hit("otp:verify:ip:"+ipLimitKey(ip), verifyIPHourly, hour, "otp_too_many_requests"); err != nil {
+		if err := hit("otp:verify:ip:"+ipLimitKey(ip), s.cfg.OTPVerifyIPHourlyLimit, hour, "otp_too_many_requests"); err != nil {
 			return otpID, err
 		}
 	}
-	if err := hit("otp:verify:phone:"+phone+":day", verifyPhoneDaily, day, "otp_too_many_today"); err != nil {
+	if err := hit("otp:verify:phone:"+phone+":day", s.cfg.OTPVerifyPhoneDailyLimit, day, "otp_too_many_today"); err != nil {
 		return otpID, err
 	}
 

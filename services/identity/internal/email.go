@@ -355,7 +355,7 @@ func (s *Service) VerifyEmailCode(ctx context.Context, req *identityv1.VerifyEma
 // не обходит предел) и сравнивает код за постоянное время. Возвращает строку кода, если он
 // верный, иначе отказ.
 func (s *Service) checkEmailCode(ctx context.Context, op string, userID uuid.UUID, email, code string) (store.EmailCode, error) {
-	allowed, err := limiter{now: s.now}.hit(ctx, s.pool, "email:verify:user:"+userID.String()+":day", emailVerifyDaily, day)
+	allowed, err := limiter{now: s.now}.hit(ctx, s.pool, "email:verify:user:"+userID.String()+":day", s.cfg.EmailVerifyDailyLimit, day)
 	if err != nil {
 		s.log.ErrorContext(ctx, op+": счётчик лимита проверки", "err", err)
 		return store.EmailCode{}, internalError()
