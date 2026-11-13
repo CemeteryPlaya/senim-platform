@@ -170,10 +170,11 @@ describe("offerView: действия, смета и тексты по сост�
       confirmDescription: t.acceptConfirm.description({ price, protection, total }),
     });
     if (view.primary?.kind !== "accept") throw new Error("нет принятия");
-    expect(view.primary.confirmDescription).toContain(`${price} + защита сделки 2% (${protection}) = ${total}`);
-    expect(view.primary.confirmDescription).toContain("с этим мастером");
+    expect(view.primary.confirmDescription).toContain(`Будет создана сделка на ${price}. К оплате — ${total} с защитой сделки 2% (${protection}).`);
     expect(view.secondary).toEqual({ kind: "propose" });
-    expect(view.now).toEqual({ title: t.now.masterPrice.title(price), body: t.now.masterPrice.body(total) });
+    // Сумма к оплате — в блоке денег сразу ниже, в «Сейчас» не повторяется.
+    expect(view.now).toEqual({ title: t.now.masterPrice.title(price) });
+    expect(view.proposeDescription).toBe(t.propose.masterPrice(price));
     expect(view.money).toEqual({
       title: t.money.title,
       amountTiyn: m.buyerTotalTiyn,
@@ -200,14 +201,15 @@ describe("offerView: действия, смета и тексты по сост�
     expect(view.secondary).toEqual({ kind: "propose" });
   });
 
-  it("(2) ждём мастера: главного действия нет, «Отозвать предложение»; смета по своей цене с пометкой", () => {
+  it("(2) ждём мастера: главного действия нет, «Отозвать предложение»; смета по своей цене, условие — в заголовке", () => {
     const n = negotiation([round("p1", "EXECUTOR", 1_050_000, "SUPERSEDED"), round("p2", "CLIENT", 980_000, "PROPOSED")]);
     const view = offerView(offer(), n);
     expect(view.primary).toBeNull();
     expect(view.secondary).toEqual({ kind: "withdraw", proposalId: "p2" });
     expect(view.now.title).toBe(t.now.waiting.title);
     expect(view.money?.rows[0]).toEqual({ label: t.money.price.yours, amountTiyn: 980_000_00n });
-    expect(view.money?.note).toBe(t.money.note.waiting);
+    expect(view.money?.title).toBe(t.money.titleWaiting);
+    expect(view.proposeDescription).toBe(t.propose.description);
   });
 
   it("цены, ждущей ответа, нет: главное — «Предложить свою цену», сметы нет", () => {
@@ -218,13 +220,14 @@ describe("offerView: действия, смета и тексты по сост�
     expect(view.now.title).toBe(t.now.masterWithdrew.title);
   });
 
-  it("(4) сделка: «Открыть сделку» на /v2/deals/<id>, смета по цене сделки", () => {
+  it("(4) сделка: «Открыть сделку» на /v2/deals/<id>, цена сделки строкой, блока денег нет (деньги — на экране сделки)", () => {
     const n = negotiation([round("p1", "EXECUTOR", 330_000, "ACCEPTED")], { live: false, dealId: "deal-1" });
     const view = offerView(offer({ status: "ACCEPTED", requestStatus: "CONTRACTING" }), n);
     expect(view.primary).toEqual({ kind: "deal", href: "/v2/deals/deal-1", label: t.actions.openDeal });
     expect(view.secondary).toBeNull();
-    expect(view.money?.rows[0]).toEqual({ label: t.money.price.deal, amountTiyn: 330_000_00n });
-    expect(view.now.title).toBe(t.now.deal.title);
+    expect(view.money).toBeNull();
+    expect(view.now).toEqual({ title: t.now.deal.title, body: t.now.deal.body(formatMoney(330_000_00n)) });
+    expect(view.next).toBeUndefined();
   });
 
   it.each([
@@ -240,9 +243,10 @@ describe("offerView: действия, смета и тексты по сост�
     expect(view.next).toBeUndefined();
   });
 
-  it("заголовок — подпись модуля; «Назад» — название заявки; профиль, переписка — адреса v2", () => {
+  it("заголовок «Предложение мастера», подпись модуля — строкой под ним; «Назад» — название заявки; профиль, переписка — адреса v2", () => {
     const view = offerView(offer(), negotiation([round("p1", "EXECUTOR", 1_180_000, "PROPOSED")]));
-    expect(view.title).toBe("Предложение: Исполнитель №7");
+    expect(view.title).toBe("Предложение мастера");
+    expect(view.executorLabel).toBe("Исполнитель №7");
     expect(view.back).toEqual({ href: "/v2/requests/req-1", label: "Кухня" });
     expect(view.executor).toEqual({ rating: { value: 4.8, count: 12 }, deals: 31, profileHref: "/v2/executors/7" });
     expect(view.chatHref).toBe("/v2/chats/offer-1");
@@ -266,6 +270,12 @@ describe("offerView: действия, смета и тексты по сост�
       [t.history.master, t.history.status.PROPOSED, 480_000_00n],
     ]);
     expect(offerView(offer(), n).history[0].time).toMatch(/2026/);
+  });
+
+  it("история у закрытого торга: цена, ждавшая ответа, — «Не принята», а не «Ждёт ответа»", () => {
+    const n = negotiation([round("p1", "EXECUTOR", 340_000, "PROPOSED")], { live: false });
+    const view = offerView(offer({ status: "DECLINED", requestStatus: "CONTRACTING" }), n);
+    expect(view.history.map((h) => h.text)).toEqual([t.history.notAccepted]);
   });
 
   it("мастер без отзывов — рейтинг null (покажет «Пока без отзывов»)", () => {

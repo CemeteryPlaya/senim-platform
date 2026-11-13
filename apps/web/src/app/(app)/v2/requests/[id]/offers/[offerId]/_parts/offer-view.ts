@@ -59,24 +59,28 @@ export type PrimaryAction =
   | { kind: "propose" }
   | { kind: "deal"; href: string; label: string };
 
+/** Второстепенное действие торга: под карточкой «Сейчас», не в доке. */
 export type SecondaryAction = { kind: "propose" } | { kind: "withdraw"; proposalId: string };
 
 export type MoneyView = {
   title: string;
   amountTiyn: bigint;
   rows: { label: string; amountTiyn: bigint; total?: true; explain?: true }[];
-  note?: string;
 };
 
 export type OfferViewModel = {
   state: OfferState;
   title: string;
+  /** Подпись мастера ровно как её отдал модуль («Исполнитель №N»): строка под заголовком. */
+  executorLabel: string;
   back: { href: string; label: string };
   now: { title: string; body?: string };
   next?: string;
   primary: PrimaryAction | null;
   secondary: SecondaryAction | null;
-  /** Смета покупателя по текущей цене; нет — когда цены, которую можно принять или ждать, нет. */
+  /** Описание окна «Ваша цена»: открытая цена мастера, если она есть. */
+  proposeDescription: string;
+  /** Смета до сделки по цене, которую можно принять или ждать; у сделки и закрытого торга — нет (деньги — на экране сделки). */
   money: MoneyView | null;
   conditions: { label: string; value: string; stacked?: true }[];
   executor: { rating: { value: number | null; count: number }; deals: number; profileHref: string };
@@ -85,13 +89,11 @@ export type OfferViewModel = {
 };
 
 function nowOf(state: OfferState, n: NegotiationView): Pick<OfferViewModel, "now" | "next"> {
-  const price = formatMoney(n.estimate.priceTiyn);
-  const total = formatMoney(n.estimate.totalTiyn);
   switch (state.kind) {
     case "masterPrice":
     case "masterCounter": {
       const s = t.now[state.kind];
-      return { now: { title: s.title(formatMoney(state.amountTiyn)), body: s.body(total) }, next: s.next };
+      return { now: { title: s.title(formatMoney(state.amountTiyn)) }, next: s.next };
     }
     case "waiting":
       return { now: { title: t.now.waiting.title, body: t.now.waiting.body(formatMoney(state.amountTiyn)) }, next: t.now.waiting.next };
@@ -100,7 +102,8 @@ function nowOf(state: OfferState, n: NegotiationView): Pick<OfferViewModel, "now
       return { now: { title: s.title, body: s.body }, next: s.next };
     }
     case "deal":
-      return { now: { title: t.now.deal.title, body: t.now.deal.body(price) }, next: t.now.deal.next };
+      // Цена сделки — принятая цена торга (state.priceTiyn модуля); статуса сделки и денег экран не знает.
+      return { now: { title: t.now.deal.title, body: t.now.deal.body(formatMoney(n.priceTiyn)) } };
     case "closed": {
       const s = t.now[state.reason];
       return { now: { title: s.title, body: s.body } };
@@ -141,26 +144,17 @@ function actionsOf(state: OfferState, n: NegotiationView): Pick<OfferViewModel, 
 
 /** Смета из `partyEstimate` модуля (n.estimate): цена, защита сделки 2% вверх до тиына, к оплате. Ничего не считается здесь. */
 function moneyOf(state: OfferState, n: NegotiationView): MoneyView | null {
-  const priceLabel =
-    state.kind === "masterPrice" || state.kind === "masterCounter"
-      ? t.money.price.master
-      : state.kind === "waiting"
-        ? t.money.price.yours
-        : state.kind === "deal"
-          ? t.money.price.deal
-          : null;
-  if (priceLabel === null) return null;
+  const master = state.kind === "masterPrice" || state.kind === "masterCounter";
+  if (!master && state.kind !== "waiting") return null;
   const e = n.estimate;
-  const note = state.kind === "waiting" ? t.money.note.waiting : state.kind === "deal" ? t.money.note.deal : undefined;
   return {
-    title: t.money.title,
+    title: master ? t.money.title : t.money.titleWaiting,
     amountTiyn: e.totalTiyn,
     rows: [
-      { label: priceLabel, amountTiyn: e.priceTiyn },
+      { label: master ? t.money.price.master : t.money.price.yours, amountTiyn: e.priceTiyn },
       { label: t.money.protection, amountTiyn: e.extraTiyn, explain: true },
       { label: t.money.total, amountTiyn: e.totalTiyn, total: true },
     ],
-    ...(note ? { note } : {}),
   };
 }
 
@@ -174,11 +168,12 @@ function conditionsOf(offer: OfferDetail): OfferViewModel["conditions"] {
   return rows;
 }
 
+/** История цены. Торг закрыт, а цена так и осталась ждать ответа (PROPOSED) — «Не принята», а не «Ждёт ответа». */
 function historyOf(n: NegotiationView): OfferViewModel["history"] {
   return n.rounds.map((r) => ({
     title: r.mine ? t.history.you : t.history.master,
     time: formatDateTime(r.createdAt),
-    text: t.history.status[r.status],
+    text: !n.live && r.status === "PROPOSED" ? t.history.notAccepted : t.history.status[r.status],
     amountTiyn: r.amountTiyn,
   }));
 }
@@ -198,12 +193,15 @@ export function offerView(offer: OfferDetail, n: NegotiationView): OfferViewMode
     requestStatus: offer.request.status,
   });
   const ex = offer.executor;
+  const masterOpen = n.open && !n.open.mine ? n.open.amountTiyn : null;
   return {
     state,
-    title: t.title(ex.label),
+    title: t.title,
+    executorLabel: ex.label,
     back: { href: to(`/requests/${encodeURIComponent(offer.request.id)}`), label: offer.request.title },
     ...nowOf(state, n),
     ...actionsOf(state, n),
+    proposeDescription: masterOpen === null ? t.propose.description : t.propose.masterPrice(formatMoney(masterOpen)),
     money: moneyOf(state, n),
     conditions: conditionsOf(offer),
     executor: {

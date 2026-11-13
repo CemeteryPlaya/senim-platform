@@ -3,9 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
 import { computeDealMoney } from "@/modules/payments/client";
+import { cancelDeal } from "@/modules/deal-core";
 import { acceptPrice, cancelRequest, proposePrice, sendOffer, withdrawOffer, withdrawPrice } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor } from "../../../../../../../../test/factories";
+import { dealAt, PRICE } from "../../../../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../../../../test/factories/identity";
 import { makeExecutorWithTerms, makeOpenRequest, offerInput, openProposal } from "../../../../../../../../test/factories/requests";
 import { signInAs } from "../../../../../../../../test/factories/session";
@@ -63,14 +65,15 @@ describe("экран предложения: состояния торга", () 
     const m = computeDealMoney(1_180_000_00n);
 
     expect(count(out, "<h1")).toBe(1);
-    expect(out).toMatch(new RegExp(`<h1[^>]*>${t.title(`Исполнитель №${executor.executor.publicNumber}`)}</h1>`));
+    expect(out).toMatch(new RegExp(`<h1[^>]*>${t.title}</h1>`));
+    expect(text(out)).toContain(`Исполнитель №${executor.executor.publicNumber}`);
     expect(primaries(out)).toEqual([t.actions.accept(formatMoney(m.priceTiyn))]);
     expect(out).toContain(t.actions.propose);
     expect(out).toContain(`href="/v2/requests/${requestId}"`);
     expect(out).toContain(`href="/v2/executors/${executor.executor.publicNumber}"`);
     expect(out).toContain(`href="/v2/chats/${offerId}"`);
     const plain = text(out);
-    expect(plain).toContain(t.now.masterPrice.body(formatMoney(m.buyerTotalTiyn)));
+    expect(plain).toContain(t.money.title);
     expect(plain).toContain(t.money.protection);
     expect(plain).toContain(t.money.explain.label);
     for (const amount of [m.priceTiyn, m.protectionTiyn, m.buyerTotalTiyn]) expect(plain).toContain(formatMoney(amount));
@@ -123,7 +126,7 @@ describe("экран предложения: состояния торга", () 
     expect(out).not.toContain(t.money.protection);
   });
 
-  it.each(["mobile", "desktop"] as const)("%s (4) цена принята: «Открыть сделку» на /v2/deals/<id>", async (device) => {
+  it.each(["mobile", "desktop"] as const)("%s (4) цена принята: «Открыть сделку» на /v2/deals/<id>, цена сделки строкой, блока денег нет", async (device) => {
     h.device = device;
     const { client, requestId, offerId } = await offered();
     const { dealId } = await acceptPrice(client, { proposalId: (await openProposal(offerId)).id });
@@ -131,10 +134,38 @@ describe("экран предложения: состояния торга", () 
     expect(primaries(out)).toEqual([t.actions.openDeal]);
     expect(out).toContain(`href="/v2/deals/${dealId}"`);
     expect(out).toContain(t.now.deal.title);
+    expect(text(out)).toContain(t.now.deal.body(formatMoney(1_180_000_00n)));
     expect(out).not.toContain(t.actions.propose);
+    expect(out).not.toContain(t.money.total);
+    expect(out).not.toContain(t.money.protection);
   });
 
-  it("(5) выбран другой мастер: объяснение без действий", async () => {
+  it("(4) сделка отменена — по-прежнему «Открыть сделку», и нигде нет «К оплате»", async () => {
+    const { client, requestId, offerId } = await offered();
+    const { dealId } = await acceptPrice(client, { proposalId: (await openProposal(offerId)).id });
+    await cancelDeal(client, { dealId, reason: "" });
+    expect((await db.deal.findUniqueOrThrow({ where: { id: dealId } })).status).toBe("CANCELLED");
+    const out = await render(requestId, offerId);
+    expect(primaries(out)).toEqual([t.actions.openDeal]);
+    expect(out).not.toContain(t.money.total);
+    expect(out).not.toContain(t.money.title);
+  });
+
+  it("(4) сделка оплачена (деньги в банке) — на экране предложения нет «К оплате»", async () => {
+    const client = await buyer();
+    const deal = await dealAt("PAID_HOLD", { client });
+    // Сделка фабрики создана без торга: принятая цена — как её пишет acceptPrice (иначе модуль не свяжет торг со сделкой).
+    await db.priceProposal.create({ data: { offerId: deal.offerId, authorId: deal.executor.id, party: "EXECUTOR", amountTiyn: PRICE, status: "ACCEPTED" } });
+    expect((await db.deal.findUniqueOrThrow({ where: { id: deal.dealId } })).status).toBe("PAID_HOLD");
+    await signInAs(client);
+    const out = await render(deal.requestId, deal.offerId);
+    expect(primaries(out)).toEqual([t.actions.openDeal]);
+    expect(out).toContain(`href="/v2/deals/${deal.dealId}"`);
+    expect(out).not.toContain(t.money.total);
+    expect(out).not.toContain(t.money.title);
+  });
+
+  it("(5) выбран другой мастер: объяснение без действий; в истории его цена «Не принята»", async () => {
     const { client, requestId, offerId } = await offered();
     const other = await makeExecutorWithTerms("COMFORT");
     const { offerId: otherOffer } = await sendOffer(other, offerInput(requestId, 900_000));
@@ -145,6 +176,8 @@ describe("экран предложения: состояния торга", () 
     expect(out).not.toContain(t.actions.propose);
     expect(out).not.toContain(t.actions.withdraw);
     expect(out).not.toContain(t.money.protection);
+    expect(out).toContain(t.history.notAccepted);
+    expect(out).not.toContain(t.history.status.PROPOSED);
   });
 
   it("(5) заявка отменена: объяснение без действий", async () => {
@@ -189,17 +222,18 @@ describe("экран предложения: 404", () => {
     await expect(render(requestId, offerId)).rejects.toMatchObject(notFound);
   });
 
-  it("предложение другой заявки под своей заявкой и несуществующее", async () => {
-    const { client, requestId } = await offered();
-    const otherRequest = await makeOpenRequest(client, { segment: "COMFORT" });
-    const { offerId: foreign } = await sendOffer(await makeExecutorWithTerms("COMFORT"), offerInput(otherRequest));
-    await expect(render(requestId, foreign)).rejects.toMatchObject(notFound);
+  it("несуществующая заявка; предложение своей другой заявки под чужой заявкой", async () => {
+    const { requestId, offerId } = await offered();
+    await expect(render("no-such-request", offerId)).rejects.toMatchObject(notFound);
+    await signInAs(await buyer());
     await expect(render(requestId, "no-such-offer")).rejects.toMatchObject(notFound);
   });
 
-  it("мастер отозвал предложение целиком — его больше нет", async () => {
+  it("своя заявка, а предложения нет (мастер отозвал его целиком, адрес устарел) — на карточку заявки", async () => {
     const { requestId, executor, offerId } = await offered();
     await withdrawOffer(executor, { offerId });
-    await expect(render(requestId, offerId)).rejects.toMatchObject(notFound);
+    const toRequest = { digest: expect.stringContaining(`;/v2/requests/${requestId};`) };
+    await expect(render(requestId, offerId)).rejects.toMatchObject(toRequest);
+    await expect(render(requestId, "no-such-offer")).rejects.toMatchObject(toRequest);
   });
 });

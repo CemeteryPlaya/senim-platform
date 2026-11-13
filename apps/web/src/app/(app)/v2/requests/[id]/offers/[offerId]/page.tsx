@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import {
   ActionDock,
@@ -18,7 +18,7 @@ import {
   Timeline,
 } from "@/kit";
 import type { CurrentUser } from "@/modules/identity";
-import { getNegotiation, getOfferForClient } from "@/modules/requests";
+import { getClientRequest, getNegotiation, getOfferForClient } from "@/modules/requests";
 import { getDevice, type Device } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { requireBuyer } from "../../../../../_shell/auth";
@@ -33,21 +33,32 @@ export const metadata: Metadata = { title: t.metaTitle };
 
 type Props = { params: Promise<{ id: string; offerId: string }> };
 
-/** Предложение и торг одного отклика своей заявки. Чужая или несуществующая заявка, чужое или отозванное предложение — 404. */
+/**
+ * Предложение и торг одного отклика своей заявки. Чужая или несуществующая заявка — 404. Своя заявка, а предложения нет
+ * (мастер отозвал его целиком — модуль такие не отдаёт, или адрес устарел) — на карточку заявки.
+ */
 async function load(user: CurrentUser, requestId: string, offerId: string) {
   try {
     const offer = await getOfferForClient(user, { requestId, offerId });
     const negotiation = await getNegotiation(user, { offerId: offer.id });
     return { offer, negotiation };
   } catch (e) {
-    if (isAppError(e) && e.code === "NOT_FOUND") notFound();
-    throw e;
+    if (!isAppError(e) || e.code !== "NOT_FOUND") throw e;
   }
+  const own = await getClientRequest(user, requestId).then(
+    () => true,
+    (e: unknown) => {
+      if (isAppError(e) && e.code === "NOT_FOUND") return false;
+      throw e;
+    },
+  );
+  if (own) redirect(to(`/requests/${encodeURIComponent(requestId)}`));
+  notFound();
 }
 
-/** Главное действие (не больше одного) и тихое рядом: в доке; дети дока — кнопки напрямую. */
+/** Главное действие (не больше одного) — единственная кнопка дока; дети дока — кнопки напрямую. */
 function Actions({ view, device, offerId }: { view: OfferViewModel; device: Device; offerId: string }) {
-  const { primary, secondary } = view;
+  const { primary } = view;
   if (!primary) return null;
   return (
     <ActionDock>
@@ -61,25 +72,27 @@ function Actions({ view, device, offerId }: { view: OfferViewModel; device: Devi
           confirmDescription={primary.confirmDescription}
         />
       )}
-      {primary.kind === "propose" && <ProposeButton device={device} offerId={offerId} primary />}
+      {primary.kind === "propose" && <ProposeButton device={device} offerId={offerId} primary description={view.proposeDescription} />}
       {primary.kind === "deal" && <ButtonLink href={primary.href}>{primary.label}</ButtonLink>}
-      {secondary?.kind === "propose" && <ProposeButton device={device} offerId={offerId} primary={false} />}
     </ActionDock>
   );
 }
 
-/** «Сейчас / Дальше»; без главного действия второстепенное («Отозвать предложение») — тихой кнопкой под карточкой. */
-function Now({ view, device }: { view: OfferViewModel; device: Device }) {
+/**
+ * Второстепенное действие торга («Предложить свою цену» или «Отозвать предложение») — тихой кнопкой-ссылкой по левой линии.
+ * Обёртка-ряд: в колонке кнопка растянулась бы на всю ширину, и подпись встала бы по центру.
+ */
+function Secondary({ view, device, offerId }: { view: OfferViewModel; device: Device; offerId: string }) {
+  const { secondary } = view;
+  if (!secondary) return null;
   return (
-    <Stack gap="tight">
-      <NowNext now={view.now} next={view.next} />
-      {/* Обёртка-ряд: в колонке кнопка растянулась бы на всю ширину, подпись встала бы по центру, а не по левой линии. */}
-      {view.secondary?.kind === "withdraw" && (
-        <div className="flex">
-          <WithdrawButton device={device} proposalId={view.secondary.proposalId} />
-        </div>
+    <div className="flex">
+      {secondary.kind === "propose" ? (
+        <ProposeButton device={device} offerId={offerId} primary={false} description={view.proposeDescription} />
+      ) : (
+        <WithdrawButton device={device} proposalId={secondary.proposalId} />
       )}
-    </Stack>
+    </div>
   );
 }
 
@@ -111,7 +124,6 @@ function Money({ view, device }: { view: OfferViewModel; device: Device }) {
         ...(row.total ? { total: true } : {}),
         ...(row.explain ? { explain } : {}),
       }))}
-      note={money.note}
       device={device}
     />
   );
@@ -172,7 +184,8 @@ function History({ view }: { view: OfferViewModel }) {
 /**
  * Предложение мастера и торг цены (путь ТЗ, ADR-009): покупатель принимает цену — создаётся сделка с офертой.
  * Первая карточка — «Сейчас / Дальше» по состоянию торга (`offerState`), одно главное действие: «Принять X», «Предложить
- * свою цену» (когда открытой цены нет) или «Открыть сделку». Смета — `partyEstimate` модуля (цена, защита 2% вверх до
+ * свою цену» (когда открытой цены нет) или «Открыть сделку»; второстепенное — тихой кнопкой-ссылкой под «Сейчас».
+ * У сделки блока денег нет: статус и деньги сделки — на её экране (из журнала). Смета — `partyEstimate` модуля (цена, защита 2% вверх до
  * тиына, к оплате). Мастер — «Исполнитель №N» (как отдаёт модуль), без контактов. Чата здесь нет — ссылка на экран
  * переписки. Выбор без торга и «Показать телефон» (флаги preContractFlows, clientPhoneConsent) не переносятся.
  * Телефон — одна колонка, действие в доке последним; компьютер — `Split`: слева торг и условия, справа деньги и мастер.
@@ -183,7 +196,9 @@ export default async function OfferPage({ params }: Props) {
   const { offer, negotiation } = await load(user, id, offerId);
   const device = await getDevice();
   const view = offerView(offer, negotiation);
-  const title = <PageTitle title={view.title} back={view.back} />;
+  const title = <PageTitle title={view.title} back={view.back} lead={view.executorLabel} />;
+  const now = <NowNext now={view.now} next={view.next} />;
+  const secondary = <Secondary view={view} device={device} offerId={offer.id} />;
 
   if (device === "desktop") {
     return (
@@ -193,8 +208,9 @@ export default async function OfferPage({ params }: Props) {
           main={
             <Stack gap="section">
               <Stack>
-                <Now view={view} device={device} />
+                {now}
                 <Actions view={view} device={device} offerId={offer.id} />
+                {secondary}
               </Stack>
               <Conditions view={view} />
               <History view={view} />
@@ -214,7 +230,10 @@ export default async function OfferPage({ params }: Props) {
   return (
     <Stack gap="section">
       {title}
-      <Now view={view} device={device} />
+      <Stack gap="tight">
+        {now}
+        {secondary}
+      </Stack>
       <Money view={view} device={device} />
       <Conditions view={view} />
       <Executor view={view} />

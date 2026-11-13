@@ -25,14 +25,17 @@ function retext(e: unknown, texts: Partial<Record<ErrorCode, string>>, field?: {
 
 /**
  * «Предложить свою цену» (и встречная на цену мастера). Своё открытое предложение сначала отзывают (FORBIDDEN), та же
- * цена, что у мастера, — не встречная (VALIDATION, у поля), торг закрыт или гонка двух встречных — CONFLICT.
+ * цена, что у мастера, — не встречная (VALIDATION с текстом sameAmount модуля, у поля), торг закрыт или гонка двух встречных — CONFLICT.
  */
 export const proposePriceAction = action("app.offer.proposePrice", proposeSchema, async ({ offerId, amount }) => {
   const user = await requireUser("CLIENT");
   try {
     return await proposePrice(user, { offerId, amountKzt: amount });
   } catch (e) {
-    throw retext(e, { VALIDATION: t.sameAmount, FORBIDDEN: t.waitAnswer, CONFLICT: t.changed, NOT_FOUND: t.notFound }, { name: "amount", codes: ["VALIDATION"] });
+    // «Та же цена» модуль отличает только текстом отказа (ru.requests.errors.sameAmount); прочие отказы проверки — общий текст.
+    const same = isAppError(e) && e.code === "VALIDATION" && e.message === ru.requests.errors.sameAmount;
+    const validation = same ? t.sameAmount : t.proposeFailed;
+    throw retext(e, { VALIDATION: validation, FORBIDDEN: t.waitAnswer, CONFLICT: t.changed, NOT_FOUND: t.notFound }, { name: "amount", codes: ["VALIDATION"] });
   }
 });
 

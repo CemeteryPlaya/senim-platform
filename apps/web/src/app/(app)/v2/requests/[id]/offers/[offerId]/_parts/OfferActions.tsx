@@ -1,9 +1,10 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, ConfirmDialog, Dialog, HiddenField, Notice, Sheet, Stack, TextField, toast } from "@/kit";
+import { Button, type ButtonProps, ConfirmDialog, Dialog, HiddenField, Notice, Sheet, Stack, TextField, toast } from "@/kit";
 import type { ActionResult } from "@/platform/action";
 import type { Device } from "@/platform/device";
 import { outcomeOf, useActionForm } from "../../../../../../_shell/form";
@@ -92,11 +93,28 @@ function ProposeForm({ device, offerId, onDone }: { device: Device; offerId: str
 }
 
 /**
- * «Предложить свою цену»: поле суммы в тенге в шторке (телефон) или диалоге (компьютер). Пока окно закрыто, на экране
- * только кнопка-открыватель (`primary` — когда это единственное действие торга, иначе тихая). Ошибки — у поля; после
- * отправки окно закрывается и экран обновляется (торг — «ждём ответа мастера»); закрытие окна тоже обновляет экран.
+ * Второстепенное действие торга под карточкой «Сейчас»: тихая кнопка по левой линии с шевроном — видно, что нажимается,
+ * и не спорит с главной кнопкой. Сама кнопка — открыватель окна (шторка / диалог), поэтому не ссылка `TextLink`.
  */
-export function ProposeButton({ device, offerId, primary }: { device: Device; offerId: string; primary: boolean }) {
+function LinkButton({ label, ...rest }: { label: string } & Omit<ButtonProps, "children" | "variant" | "flush">) {
+  return (
+    <Button variant="quiet" flush {...rest}>
+      {/* Подпись кнопки kit — строчный span, а svg блочный: без строчного flex шеврон уехал бы на вторую строку. */}
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <ChevronRight aria-hidden className="size-4 shrink-0" />
+      </span>
+    </Button>
+  );
+}
+
+/**
+ * «Предложить свою цену»: поле суммы в тенге в шторке (телефон) или диалоге (компьютер); в описании окна — цена мастера.
+ * Пока окно закрыто, на экране только открыватель: главная кнопка (`primary` — когда это единственное действие торга)
+ * или тихая кнопка-ссылка под «Сейчас». Ошибки — у поля; после отправки окно закрывается и экран обновляется (торг —
+ * «ждём ответа мастера»); закрытие окна тоже обновляет экран.
+ */
+export function ProposeButton({ device, offerId, primary, description }: { device: Device; offerId: string; primary: boolean; description: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const change = (next: boolean) => {
@@ -107,8 +125,8 @@ export function ProposeButton({ device, offerId, primary }: { device: Device; of
   return (
     <Window
       title={t.propose.title}
-      description={t.propose.description}
-      trigger={<Button variant={primary ? "primary" : "quiet"}>{t.actions.propose}</Button>}
+      description={description}
+      trigger={primary ? <Button>{t.actions.propose}</Button> : <LinkButton label={t.actions.propose} />}
       open={open}
       onOpenChange={change}
     >
@@ -131,11 +149,7 @@ export function WithdrawButton({ device, proposalId }: { device: Device; proposa
   return (
     <ConfirmDialog
       device={device}
-      trigger={
-        <Button variant="quiet" flush>
-          {t.actions.withdraw}
-        </Button>
-      }
+      trigger={<LinkButton label={t.actions.withdraw} />}
       title={t.withdrawConfirm.title}
       description={t.withdrawConfirm.description}
       confirmLabel={t.withdrawConfirm.confirm}
