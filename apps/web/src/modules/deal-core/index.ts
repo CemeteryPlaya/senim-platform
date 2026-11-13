@@ -27,6 +27,7 @@ export { onMoneyChanged, onMoneySettled, processDealMoney } from "./money";
 // Чтения для экранов и документов
 export { dealDocumentData, dealNumbersOf, dealPartyOf, getDealView, listDeals, type DealDocumentData, type DealListItem, type DealView } from "./queries";
 export { nextStep, type NextAction, type NextStep } from "./next-step";
+export { nextStepsOf } from "./next-steps";
 export { daysLeft, plannedReadyAt } from "./schedule";
 export { financeOf, getExecutorFinance, monthOf, type ExecutorFinance, type FinanceRow, type MonthEarnings, type MonthKey } from "./finance";
 
