@@ -413,6 +413,10 @@ message VerifyEmailCodeRequest {
   string session_token = 1;
   string code = 2;
   string idempotency_key = 3;
+  // Адрес, который человек видит на экране (тот же, что в RequestEmailCode). Обязателен;
+  // не совпадает с адресом действующего кода — email_code_expired (попытка не тратится):
+  // подтверждается ровно показанный адрес.
+  string email = 4;
 }
 
 message VerifyEmailCodeResponse {
@@ -626,9 +630,11 @@ message GetSigningKeysResponse {
 //   consent_not_revocable, consent_missing, revocation_closed, reveal_purpose_invalid,
 //   pii_key_unknown, email_code_too_often, email_code_too_many, email_code_expired,
 //   email_code_wrong (params.left — осталось попыток), email_code_attempts_exhausted,
-//   email_already_verified (RequestEmailCode: этот адрес уже подтверждён, код не выдаётся).
-//   Неверный адрес в RequestEmailCode — email_invalid; код не из шести цифр в
-//   VerifyEmailCode — invalid_request.
+//   email_already_verified (RequestEmailCode: этот адрес уже подтверждён, код не выдаётся),
+//   email_code_already_sent (RequestEmailCode раньше минуты: на этот же адрес уже выдан
+//   действующий код — его можно ввести; на другой адрес — email_code_too_often).
+//   Неверный адрес в RequestEmailCode и VerifyEmailCode — email_invalid; код не из шести
+//   цифр в VerifyEmailCode — invalid_request.
 service IdentityService {
   rpc RequestOtp(RequestOtpRequest) returns (RequestOtpResponse);
   rpc VerifyOtp(VerifyOtpRequest) returns (VerifyOtpResponse);

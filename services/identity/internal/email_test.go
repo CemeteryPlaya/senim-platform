@@ -18,11 +18,27 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/services/identity/internal/store"
 )
 
+// shownEmail — адрес, который «экран» показывает по сессии: последний адрес, на который
+// RequestEmailCode выдал код (VerifyEmailCode обязан передать его). Сессии уникальны на тест.
+var shownEmail sync.Map
+
+// emailShownFor — адрес для VerifyEmailCode по сессии; кода ещё не было — любой верный адрес.
+func emailShownFor(token string) string {
+	if v, ok := shownEmail.Load(token); ok {
+		return v.(string)
+	}
+	return "a@example.kz"
+}
+
 func (h *harness) requestEmail(token, email, key string) (*identityv1.RequestEmailCodeResponse, error) {
 	h.t.Helper()
-	return idc(h, "web", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*identityv1.RequestEmailCodeResponse, error) {
+	res, err := idc(h, "web", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*identityv1.RequestEmailCodeResponse, error) {
 		return c.RequestEmailCode(ctx, &identityv1.RequestEmailCodeRequest{SessionToken: token, Email: email, IdempotencyKey: key})
 	})
+	if err == nil {
+		shownEmail.Store(token, email)
+	}
+	return res, err
 }
 
 // mustRequestEmail — запрос кода, который обязан пройти; возвращает показанный код.
@@ -35,10 +51,17 @@ func (h *harness) mustRequestEmail(token, email string) string {
 	return res.GetDemoCode()
 }
 
+// verifyEmail — ввод кода для адреса, показанного по этой сессии (emailShownFor).
 func (h *harness) verifyEmail(token, code, key string) (*identityv1.VerifyEmailCodeResponse, error) {
 	h.t.Helper()
+	return h.verifyEmailAt(token, emailShownFor(token), code, key)
+}
+
+// verifyEmailAt — ввод кода с явным адресом на экране.
+func (h *harness) verifyEmailAt(token, email, code, key string) (*identityv1.VerifyEmailCodeResponse, error) {
+	h.t.Helper()
 	return idc(h, "web", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*identityv1.VerifyEmailCodeResponse, error) {
-		return c.VerifyEmailCode(ctx, &identityv1.VerifyEmailCodeRequest{SessionToken: token, Code: code, IdempotencyKey: key})
+		return c.VerifyEmailCode(ctx, &identityv1.VerifyEmailCodeRequest{SessionToken: token, Code: code, IdempotencyKey: key, Email: email})
 	})
 }
 
@@ -82,7 +105,7 @@ func wantEmailHash(u store.User, email, code string) []byte {
 
 // Успешный запрос: код из 6 цифр в ответе (мок-провайдер), адрес нормализован, в базе —
 // HMAC с адресом-кандидатом, persons.email не тронут. Повтор по ключу — тот же ответ без
-// кода и без второго кода; новый запрос в ту же минуту — email_code_too_often.
+// кода и без второго кода; новый запрос в ту же минуту на тот же адрес — email_code_already_sent.
 func TestRequestEmailCode(t *testing.T) {
 	h := newHarness(t, nil)
 	u, token := h.client()
@@ -125,8 +148,9 @@ func TestRequestEmailCode(t *testing.T) {
 		t.Fatalf("после повтора кодов %d, отправок %d", n, len(h.email.sent()))
 	}
 
+	// Тот же адрес в ту же минуту — действующий код уже у него (email_code_already_sent).
 	_, err = h.requestEmail(token, "aigerim@example.kz", h.key())
-	h.wantRefusal(err, connect.CodeResourceExhausted, "email_code_too_often")
+	h.wantRefusal(err, connect.CodeResourceExhausted, "email_code_already_sent")
 
 	// Тот же ключ с другим адресом — idempotency_key_reused.
 	_, err = h.requestEmail(token, "other@example.kz", key)
@@ -188,6 +212,11 @@ func TestRequestEmailCodeValidation(t *testing.T) {
 	h.wantRefusal(err, connect.CodeUnauthenticated, "session_invalid")
 	_, err = h.verifyEmail(token, "123456", "")
 	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+	// Адрес в VerifyEmailCode обязателен и проверяется так же, как в RequestEmailCode.
+	for _, raw := range []string{"", "   ", "не почта"} {
+		_, err = h.verifyEmailAt(token, raw, "123456", h.key())
+		h.wantRefusal(err, connect.CodeInvalidArgument, "email_invalid")
+	}
 	if n := len(h.emailCodes(u)); n != 0 || len(h.email.sent()) != 0 {
 		t.Fatalf("после отказов кодов %d, отправок %d", n, len(h.email.sent()))
 	}
@@ -601,4 +630,91 @@ func TestVerifyEmailCodeConcurrentSameKey(t *testing.T) {
 	if c := h.emailCodes(u); c[0].Attempts != 1 {
 		t.Fatalf("попыток %d, want 1", c[0].Attempts)
 	}
+}
+
+// Подтверждается ровно показанный адрес: ввод кода с другим адресом — email_code_expired,
+// попытка не списана и код не погашен; тот же адрес в другом регистре и с пробелами — успех.
+func TestVerifyEmailCodeShownAddress(t *testing.T) {
+	h := newHarness(t, nil)
+	u, token := h.client()
+	code := h.mustRequestEmail(token, "a@example.kz")
+
+	for _, other := range []string{"b@example.kz", "a@example.kz.evil"} {
+		_, err := h.verifyEmailAt(token, other, code, h.key())
+		h.wantRefusal(err, connect.CodeInvalidArgument, "email_code_expired")
+	}
+	if c := h.emailCodes(u); len(c) != 1 || c[0].Attempts != 0 || c[0].ConsumedAt.Valid {
+		t.Fatalf("код тронут вводом с другим адресом: %+v", c)
+	}
+	if row, ok := h.personRow(u.ID); ok && (row.Email.Valid || row.EmailVerifiedAt.Valid) {
+		t.Fatalf("адрес записан: %+v", row)
+	}
+
+	res, err := h.verifyEmailAt(token, "  A@Example.KZ ", code, h.key())
+	if err != nil {
+		t.Fatalf("тот же адрес в другом регистре: %v", err)
+	}
+	if p := res.GetPerson(); p.GetEmail() != "a@example.kz" || !p.GetEmailVerified() {
+		t.Fatalf("person = %v", p)
+	}
+}
+
+// Повтор того же запроса подтверждения (тот же ключ и адрес) — тот же ответ; с тем же ключом,
+// но другим адресом — idempotency_key_reused.
+func TestVerifyEmailCodeShownAddressIdempotent(t *testing.T) {
+	h := newHarness(t, nil)
+	_, token := h.client()
+	code := h.mustRequestEmail(token, "a@example.kz")
+	key := h.key()
+	first, err := h.verifyEmailAt(token, "a@example.kz", code, key)
+	if err != nil {
+		t.Fatalf("VerifyEmailCode: %v", err)
+	}
+	again, err := h.verifyEmailAt(token, "a@example.kz", code, key)
+	if err != nil || !proto.Equal(first, again) {
+		t.Fatalf("повтор по ключу: %v, %v", again, err)
+	}
+	_, err = h.verifyEmailAt(token, "b@example.kz", code, key)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "idempotency_key_reused")
+}
+
+// Запрос раньше минуты: действующий код на тот же адрес — email_code_already_sent (письма и
+// нового кода нет, прежний подходит); на другой адрес — email_code_too_often.
+func TestRequestEmailCodeAlreadySent(t *testing.T) {
+	h := newHarness(t, nil)
+	u, token := h.client()
+	code := h.mustRequestEmail(token, "a@example.kz")
+
+	_, err := h.requestEmail(token, " A@Example.KZ ", h.key())
+	h.wantRefusal(err, connect.CodeResourceExhausted, "email_code_already_sent")
+	_, err = h.requestEmail(token, "b@example.kz", h.key())
+	h.wantRefusal(err, connect.CodeResourceExhausted, "email_code_too_often")
+	if n := len(h.emailCodes(u)); n != 1 || len(h.email.sent()) != 1 {
+		t.Fatalf("кодов %d, отправок %d", n, len(h.email.sent()))
+	}
+	if p := h.mustVerifyEmail(token, code); p.GetEmail() != "a@example.kz" {
+		t.Fatalf("person = %v", p)
+	}
+}
+
+// Тот же адрес, но код не действует (попытки исчерпаны или код погашен) — email_code_too_often:
+// вводить нечего. Истечь код в паузу не успевает (срок 10 минут, пауза минута).
+func TestRequestEmailCodeAlreadySentOnlyForLiveCode(t *testing.T) {
+	h := newHarness(t, nil)
+
+	// Попытки исчерпаны.
+	_, token := h.client()
+	code := h.mustRequestEmail(token, "a@example.kz")
+	for range emailMaxAttempts {
+		_, _ = h.verifyEmail(token, wrongOf(code), h.key())
+	}
+	_, err := h.requestEmail(token, "a@example.kz", h.key())
+	h.wantRefusal(err, connect.CodeResourceExhausted, "email_code_too_often")
+
+	// Погашен: подтверждён, затем адрес сброшен сменой контактов (код погашен) и запрошен снова.
+	_, other := h.client()
+	h.mustVerifyEmail(other, h.mustRequestEmail(other, "c@example.kz"))
+	h.mustUpdateContacts(other, "dala", "d@example.kz")
+	_, err = h.requestEmail(other, "c@example.kz", h.key())
+	h.wantRefusal(err, connect.CodeResourceExhausted, "email_code_too_often")
 }

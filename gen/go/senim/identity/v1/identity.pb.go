@@ -3370,8 +3370,12 @@ type VerifyEmailCodeRequest struct {
 	SessionToken   string                 `protobuf:"bytes,1,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
 	Code           string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
 	IdempotencyKey string                 `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Адрес, который человек видит на экране (тот же, что в RequestEmailCode). Обязателен;
+	// не совпадает с адресом действующего кода — email_code_expired (попытка не тратится):
+	// подтверждается ровно показанный адрес.
+	Email         string `protobuf:"bytes,4,opt,name=email,proto3" json:"email,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *VerifyEmailCodeRequest) Reset() {
@@ -3421,6 +3425,13 @@ func (x *VerifyEmailCodeRequest) GetCode() string {
 func (x *VerifyEmailCodeRequest) GetIdempotencyKey() string {
 	if x != nil {
 		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *VerifyEmailCodeRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
 	}
 	return ""
 }
@@ -5507,11 +5518,12 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x18RequestEmailCodeResponse\x129\n" +
 	"\n" +
 	"expires_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1b\n" +
-	"\tdemo_code\x18\x02 \x01(\tR\bdemoCode\"z\n" +
+	"\tdemo_code\x18\x02 \x01(\tR\bdemoCode\"\x90\x01\n" +
 	"\x16VerifyEmailCodeRequest\x12#\n" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12'\n" +
-	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"L\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\x12\x14\n" +
+	"\x05email\x18\x04 \x01(\tR\x05email\"L\n" +
 	"\x17VerifyEmailCodeResponse\x121\n" +
 	"\x06person\x18\x01 \x01(\v2\x19.senim.identity.v1.PersonR\x06person\"8\n" +
 	"\x11GetProfileRequest\x12#\n" +
