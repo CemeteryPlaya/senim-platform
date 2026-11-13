@@ -489,6 +489,21 @@ describe("Остальное", () => {
     }
   });
 
+  it("ListRow с action: в <li> форма с кнопкой отправки и скрытыми полями; вид и разделитель как у строки-ссылки", () => {
+    const out = html(
+      <List>
+        <ListRow label="Новое предложение" action={async () => {}} fields={{ id: "n1" }} />
+      </List>,
+    );
+    expect(out).toMatch(/<li[^>]*><form/);
+    expect(out).toMatch(/<button[^>]+type="submit"/);
+    expect(out).toContain('<input type="hidden" name="id" value="n1"/>');
+    expect(out).not.toContain("<a ");
+    const button = out.match(/<button[^>]*>/)?.[0] ?? "";
+    for (const cls of ["min-h-control", "w-full", "px-4", "py-3", "text-left", "hover:bg-canvas"]) expect(hasClass(button, cls), cls).toBe(true);
+    expect(out).not.toContain("lucide-chevron-right");
+  });
+
   it("List: строки, ссылка со своим hover-фоном", () => {
     const out = html(
       <List>

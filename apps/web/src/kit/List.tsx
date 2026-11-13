@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 import { cn } from "./cn";
+import { HiddenField } from "./HiddenField";
 
 /** Строка списка — элемент (`ListRow` или `ListItem`), в том числе из map и по условию; текста напрямую нет. */
 type ListChild = ReactElement | false | null | undefined;
@@ -35,12 +36,19 @@ export type ListRowProps = {
   chevron?: boolean;
   /** Подпись над значением (для длинных значений: адрес, описание); значение переносится. */
   stacked?: boolean;
+  /**
+   * Строка-действие: вместо ссылки — кнопка отправки формы с этим серверным действием (`<li><form action>`; без JS
+   * работает как обычная форма). Вид и фокус те же, что у строки-ссылки; шеврона нет. Не сочетается с `href`.
+   */
+  action?: (formData: FormData) => void | Promise<void>;
+  /** Скрытые поля формы строки-действия (например, `{ id }`). */
+  fields?: Readonly<Record<string, string>>;
 };
 
 const rowClass = "flex min-h-control w-full items-center justify-between gap-4 px-4 py-3 text-body";
 
 /** Строка «подпись — значение». Значение — muted; сумма (`Money`) задаёт свой цвет ink сама. */
-export function ListRow({ label, value, href, chevron = true, stacked = false }: ListRowProps) {
+export function ListRow({ label, value, href, chevron = true, stacked = false, action, fields }: ListRowProps) {
   const arrow = href && chevron && <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />;
   const content = stacked ? (
     <>
@@ -62,6 +70,20 @@ export function ListRow({ label, value, href, chevron = true, stacked = false }:
       )}
     </>
   );
+  if (action) {
+    return (
+      <ListItem>
+        <form action={action}>
+          {Object.entries(fields ?? {}).map(([name, fieldValue]) => (
+            <HiddenField key={name} name={name} value={fieldValue} />
+          ))}
+          <button type="submit" className={cn(rowClass, "cursor-pointer text-left transition-colors duration-100 hover:bg-canvas active:bg-line")}>
+            {content}
+          </button>
+        </form>
+      </ListItem>
+    );
+  }
   return (
     <ListItem>
       {href ? (

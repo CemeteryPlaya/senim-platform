@@ -404,6 +404,11 @@ describe("Chat: разметка", () => {
     expect(hasClass(html(<Chat messages={[]} />), "mobile:chat-end")).toBe(false);
   });
 
+  it("лента — контекст позиционирования: скрытый автор (sr-only) не растягивает страницу", () => {
+    expect(hasClass(html(<Chat messages={[]} />), "relative")).toBe(true);
+    expect(hasClass(html(<Chat messages={[]} pageScroll />), "relative")).toBe(true);
+  });
+
   it("поле ввода — отдельным узлом после ленты", () => {
     const out = html(<Chat messages={messages} composer={<ChatComposer device="mobile" onSend={() => {}} />} />);
     expect(out.indexOf("<form")).toBeGreaterThan(out.indexOf('role="log"'));

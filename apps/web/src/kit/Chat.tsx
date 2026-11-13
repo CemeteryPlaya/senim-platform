@@ -51,6 +51,9 @@ const NEAR_END = 24;
  * кнопка экрана); время под подложкой мелким вторичным текстом; фото — превью-ссылки (без превью — заглушка);
  * системная строка по центру. Лента — `role="log"` (`aria-live="polite"`).
  *
+ * `relative` у ленты — контекст позиционирования для скрытого автора (`sr-only`, absolute): без него в ленте со своей
+ * прокруткой он выходит за неё и растягивает страницу на длину переписки.
+ *
  * Прокрутка к последнему сообщению — после раскладки при показе, при новом сообщении (если человек был внизу или написал
  * сам) и при росте содержимого (загрузилось фото), пока человек внизу. По умолчанию двигается только сама лента;
  * окно — только с `pageScroll`. Клиентский компонент.
@@ -138,7 +141,7 @@ export function Chat({ messages, composer, label, pageScroll = false }: ChatProp
         role="log"
         aria-live="polite"
         aria-label={label ?? t.log}
-        className={cn("flex min-h-0 flex-1 flex-col", !pageScroll && "desktop:max-h-chat desktop:overflow-y-auto")}
+        className={cn("relative flex min-h-0 flex-1 flex-col", !pageScroll && "desktop:max-h-chat desktop:overflow-y-auto")}
       >
         <div ref={content} className="flex flex-col gap-3">
           {messages.map((message) => {
