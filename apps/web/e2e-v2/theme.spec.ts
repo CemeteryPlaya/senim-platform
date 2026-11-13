@@ -69,3 +69,21 @@ test("вошедший: колокольчик уведомлений — в ш�
   // Вложенный экран: верхней строки с колокольчиком на телефоне нет.
   if (info.project.name === "mobile") await expect(page.locator("[data-top-strip]")).toHaveCount(0);
 });
+
+test("вошедший на компьютере: тема переключается с клавиатуры (стрелки и Enter в меню профиля)", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "меню профиля — только компьютер");
+  await loginV2(page, freshPhone().typed);
+  await passOnboarding(page);
+  const trigger = page.getByRole("button", { name: shell.profileMenu });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const dark = page.getByRole("menuitemradio", { name: theme.dark, exact: true });
+  await expect(dark).toBeVisible();
+  // Стрелка вниз идёт по пунктам: Профиль, Авто, Светлая, Тёмная.
+  for (let step = 0; step < 6 && !(await dark.evaluate((el) => el === document.activeElement)); step += 1) {
+    await page.keyboard.press("ArrowDown");
+  }
+  await expect(dark).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});

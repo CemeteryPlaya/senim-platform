@@ -27,7 +27,7 @@ vi.mock("@/modules/deal-core", () => ({
   },
 }));
 
-const { requireBuyer, dealOrSwitch } = await import("./auth");
+const { requireBuyer, dealOrSwitch, switchRoleTo } = await import("./auth");
 
 const CURRENT = { id: "c1", version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") };
 
@@ -111,11 +111,12 @@ describe("dealOrSwitch", () => {
     expect(await outcome(dealOrSwitch(person({ roles: ["CLIENT", "EXECUTOR"] }), "d1"))).toBe("NOT_FOUND");
   });
 
-  it("сторона сделки в другой своей роли — на переключение роли с возвратом на сделку v2", async () => {
+  it("сторона сделки в другой своей роли — на переключение роли (тот же адрес, что у requireBuyer) с возвратом на сделку v2", async () => {
     h.viewError = notFoundError();
     h.party = "EXECUTOR";
     const to = await outcome(dealOrSwitch(person({ roles: ["CLIENT", "EXECUTOR"] }), "d1"));
-    expect(to).toBe(`/v2/switch-role?to=EXECUTOR&returnTo=${encodeURIComponent("/v2/deals/d1")}`);
+    expect(to).toBe(`/switch-role?to=EXECUTOR&returnTo=${encodeURIComponent("/v2/deals/d1")}`);
+    expect(to).toBe(switchRoleTo("EXECUTOR", "/v2/deals/d1"));
   });
 
   it("сторона в роли, которой у человека нет в выданных, — 404, а не переключение", async () => {

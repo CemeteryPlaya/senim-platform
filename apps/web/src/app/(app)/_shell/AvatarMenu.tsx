@@ -79,7 +79,7 @@ export function AvatarMenu({ fullName, theme = "system" }: { fullName: string | 
           </DropdownMenu.Item>
           <DropdownMenu.Separator className="my-1 h-px bg-line" />
           <DropdownMenu.Label className="px-3 py-2 text-sub text-muted">{t.theme.legend}</DropdownMenu.Label>
-          <DropdownMenu.RadioGroup value={theme} onValueChange={(value) => {
+          <DropdownMenu.RadioGroup aria-label={t.theme.legend} value={theme} onValueChange={(value) => {
               const chosen = THEMES.find((option) => option.value === value);
               if (chosen) pick(chosen.value);
             }}>

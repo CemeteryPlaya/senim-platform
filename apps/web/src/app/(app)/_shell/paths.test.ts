@@ -144,6 +144,8 @@ const V2_HREF: [string, string, string][] = [
   ["/deals/%2e%2e/admin", "/v2", "/"],
   ["/deals\\..\\admin", "/v2", "/"],
   ["/deals\\x", "/v2", "/"],
+  // Дважды закодированные точки — не переход вверх (браузер их не раскрывает): обычный путь.
+  ["/deals/%252e%252e/x", "/v2/deals/%252e%252e/x", "/deals/%252e%252e/x"],
   ["/deals\n/x", "/v2", "/"],
 ];
 
@@ -180,6 +182,8 @@ describe("v2Href: абсолютный адрес своего сайта", () =
     expect(href("https://senim.example.evil.example/d/abc", origin)).toBe("/v2");
     expect(href("https://senim.example@evil.example/d/abc", origin)).toBe("/v2");
     expect(href("https://senim.example/d/abc", "not a url")).toBe("/v2");
+    expect(href("https:evil.example/d/abc", origin)).toBe("/v2");
+    expect(href("https:/evil.example/d/abc", origin)).toBe("/v2");
     // Локальный путь при указанном origin обрабатывается как обычно.
     expect(href("/deals/d1", origin)).toBe("/v2/deals/d1");
   });
