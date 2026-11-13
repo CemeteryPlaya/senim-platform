@@ -3,6 +3,7 @@ import { buyer } from "./buyer";
 import { guest } from "./guest";
 import { kit } from "./kit";
 import { login } from "./login";
+import { offer } from "./offer";
 import { onboarding } from "./onboarding";
 import { requestCard } from "./request-card";
 import { requests } from "./requests";
@@ -13,6 +14,7 @@ export const app = {
   guest,
   kit,
   login,
+  offer,
   onboarding,
   requestCard,
   requests,
