@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { ru } from "@/i18n/ru";
+import { freshPhone, open, readShownCode } from "./support";
 
 /**
  * Вход в новом интерфейсе: роль → номер → код → первый обязательный шаг (согласие; пока на его месте заглушка раздела).
@@ -10,16 +11,6 @@ import { ru } from "@/i18n/ru";
 
 const t = ru.app.login;
 const shell = ru.app.shell;
-
-/** Новый казахстанский мобильный номер: «+7 7XX XXX XX XX». */
-function freshPhone(): { typed: string; digits: string } {
-  const rest = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10)).join("");
-  const national = `7${rest}`;
-  return {
-    typed: `+7 ${national.slice(0, 3)} ${national.slice(3, 6)} ${national.slice(6, 8)} ${national.slice(8)}`,
-    digits: national,
-  };
-}
 
 /** Ровно один `<h1>` и не больше одного главного действия на экране. */
 async function expectScreenRules(page: Page) {
@@ -41,11 +32,7 @@ async function requestCode(page: Page, phone: string): Promise<string> {
   await expect(heading(page, t.code.title)).toBeVisible();
   await expect(page).toHaveURL(/[?&]step=code/);
   await expectScreenRules(page);
-  const shown = page.getByText(new RegExp(t.code.shownCode("\\d{6}")));
-  await expect(shown).toBeVisible();
-  const code = (await shown.textContent())?.match(/\d{6}/)?.[0];
-  if (!code) throw new Error("Код не найден на экране");
-  return code;
+  return readShownCode(page);
 }
 
 /** Вход новым номером с шага номера: код с экрана → «Войти». */
@@ -63,12 +50,6 @@ async function expectSignedIn(page: Page) {
   await expect(page.getByRole("button", { name: shell.logout, exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: shell.navLabel })).toHaveCount(0);
   await expect(page.getByRole("link", { name: shell.nav.login, exact: true })).toHaveCount(0);
-}
-
-/** Открыть адрес и дождаться загрузки скриптов: нажатие до гидратации отправило бы форму браузером, а не действием. */
-async function open(page: Page, path: string) {
-  await page.goto(path);
-  await page.waitForLoadState("networkidle");
 }
 
 test.beforeEach(async ({ context }) => {

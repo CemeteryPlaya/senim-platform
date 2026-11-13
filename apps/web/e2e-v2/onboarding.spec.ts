@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
-import { testIin } from "@/demo/kz-id";
 import { ru } from "@/i18n/ru";
 import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
+import { freshIin, freshPhone, open, readShownCode } from "./support";
 
 /**
  * Первые шаги после входа в новом интерфейсе: согласие на обработку данных → ФИО и ИИН (→ подтверждение почты, пока на его
@@ -16,29 +16,6 @@ const identityTexts = ru.identity.clientIdentity;
 const shell = ru.app.shell;
 const doc = CONSENT_DOCUMENTS.PD_PROCESSING;
 
-/** Новый казахстанский мобильный номер: «+7 7XX XXX XX XX». */
-function freshPhone(): string {
-  const rest = Array.from({ length: 9 }, () =>
-    Math.floor(Math.random() * 10),
-  ).join("");
-  const national = `7${rest}`;
-  return `+7 ${national.slice(0, 3)} ${national.slice(3, 6)} ${national.slice(6, 8)} ${national.slice(8)}`;
-}
-
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** Новый тестовый ИИН с верной контрольной цифрой: дата рождения и порядковая часть случайные (не все основы допустимы — повтор). */
-function freshIin(): string {
-  for (;;) {
-    const birth = `${pad(70 + Math.floor(Math.random() * 30))}${pad(1 + Math.floor(Math.random() * 12))}${pad(1 + Math.floor(Math.random() * 28))}`;
-    try {
-      return testIin(birth, 3, 1 + Math.floor(Math.random() * 9999));
-    } catch {
-      // Для этой основы нет допустимой контрольной цифры.
-    }
-  }
-}
-
 /** Ровно один `<h1>` и не больше одного главного действия на экране. */
 async function expectScreenRules(page: Page) {
   await expect(page.locator("h1")).toHaveCount(1);
@@ -52,21 +29,12 @@ const heading = (page: Page, name: string) =>
 const primary = (page: Page, name: string) =>
   page.getByRole("button", { name, exact: true });
 
-/** Открыть адрес и дождаться загрузки скриптов: нажатие до гидратации отправило бы форму браузером, а не действием. */
-async function open(page: Page, path: string) {
-  await page.goto(path);
-  await page.waitForLoadState("networkidle");
-}
-
 /** Вход новым номером с шага номера: код с экрана → «Войти». Заканчивается на экране согласия. */
 async function signInNewcomer(page: Page, path = "/v2/login?step=phone") {
   await open(page, path);
-  await page.getByLabel(login.phone.label).fill(freshPhone());
+  await page.getByLabel(login.phone.label).fill(freshPhone().typed);
   await primary(page, login.phone.submit).click();
-  const shown = page.getByText(new RegExp(login.code.shownCode("\\d{6}")));
-  await expect(shown).toBeVisible();
-  const code = (await shown.textContent())?.match(/\d{6}/)?.[0];
-  if (!code) throw new Error("Код не найден на экране");
+  const code = await readShownCode(page);
   await page.getByLabel(login.code.label).fill(code);
   await primary(page, login.code.submit).click();
   await page.waitForURL(/\/v2\/consent/);
