@@ -3,11 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, CodeField, Explain, HiddenField, Notice, Stack, TextField, TextLink, WizardHeader } from "@/kit";
+import { ActionDock, Button, CodeField, Explain, HiddenField, Notice, Stack, TextField, TextLink } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../_shell/FormError";
 import { useActionForm } from "../../_shell/form";
+import { OnboardingHeader } from "../../_shell/OnboardingHeader";
 import { ResendCode } from "../../_shell/ResendCode";
+import { ShownCode } from "../../_shell/ShownCode";
 import { requestEmailCodeAction, verifyEmailCodeAction } from "./actions";
 import { EMAIL_RESEND_SECONDS, emailStepHref, type EmailStep } from "./steps";
 
@@ -152,7 +154,7 @@ export function AddressStep({ next, position, device, email, onSent }: AddressPr
   return (
     <Stack gap="section">
       <Stack gap="tight">
-        <WizardHeader step={position.step} total={position.total} title={t.address.title} />
+        <OnboardingHeader step={position.step} total={position.total} title={t.address.title} />
         <p className="text-body text-muted">{t.address.lead}</p>
         {/* Кнопка пояснения встаёт по левой линии текста, а не по центру растянутой колонки. */}
         <div>
@@ -228,7 +230,7 @@ export function CodeStep({ next, position, device, sent, onResent }: CodeProps) 
   return (
     <Stack gap="section">
       <Stack gap="tight">
-        <WizardHeader step={position.step} total={position.total} title={t.code.title} />
+        <OnboardingHeader step={position.step} total={position.total} title={t.code.title} />
         {/* Длинный адрес без пробелов переносится, а не растягивает экран вбок. */}
         <p className="text-body text-muted wrap-anywhere">{t.code.sentTo(sent.email)}</p>
       </Stack>
@@ -239,9 +241,7 @@ export function CodeStep({ next, position, device, sent, onResent }: CodeProps) 
           </Notice>
         )}
         {sent.demoCode && (
-          <Notice tone="info" live>
-            {t.code.shownCode(sent.demoCode)}
-          </Notice>
+          <ShownCode lead={t.code.shownLead} codeLine={t.code.shownCode(sent.demoCode)} />
         )}
         {/* Одна строка колонки: форма повтора пустая (только адрес) и не должна давать лишний зазор. */}
         <div>

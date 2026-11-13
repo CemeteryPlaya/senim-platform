@@ -61,9 +61,11 @@ test("новый номер: роль → номер → код → соглас
   const phone = freshPhone();
   await open(page, "/v2/login");
   await expect(heading(page, t.role.title)).toBeVisible();
-  await expect(page.getByText(ru.app.kit.wizard.step(1, 3))).toBeVisible();
+  // На входе счётчика шагов нет (он только в анкете после входа).
+  await expect(page.getByText(/Шаг \d из|Анкета: шаг/)).toHaveCount(0);
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
   await expectScreenRules(page);
-  // «Я покупатель» выбран сразу; в доке одна кнопка, «Уже есть аккаунт? Войти» — ссылка.
+  // «Я покупатель» выбран сразу; в доке одна кнопка, «Уже регистрировались? Войти по номеру» — ссылка.
   await expect(page.getByRole("radio", { name: t.role.client })).toBeChecked();
   await expect(page.locator("[data-action-dock]").getByRole("link")).toHaveCount(0);
   await expect(page.locator("[data-action-dock]").getByRole("button")).toHaveCount(1);
@@ -181,4 +183,16 @@ test("перезагрузка на шаге кода: шаг номера, по
   await page.getByLabel(t.code.label).fill(code);
   await primary(page, t.code.submit).click();
   await expect(page).toHaveURL(/\/v2\/consent$/);
+});
+
+test("экраны входа: в шапке компьютера нет «Войти», на телефоне вкладка «Войти» активна; на главной кнопка есть", async ({ page }) => {
+  await open(page, "/v2/login");
+  const desktop = (await page.locator("html").getAttribute("data-device")) === "desktop";
+  if (desktop) {
+    await expect(page.locator("[data-top-bar]").getByRole("link", { name: shell.nav.login, exact: true })).toHaveCount(0);
+    await open(page, "/v2");
+    await expect(page.locator("[data-top-bar]").getByRole("link", { name: shell.nav.login, exact: true })).toBeVisible();
+  } else {
+    await expect(page.locator("[data-tab-bar]").getByRole("link", { name: shell.nav.login, exact: true })).toHaveAttribute("aria-current", "page");
+  }
 });

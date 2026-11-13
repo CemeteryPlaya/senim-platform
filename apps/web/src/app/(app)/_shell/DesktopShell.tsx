@@ -2,11 +2,11 @@ import { Bell } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
-import { ButtonLink } from "@/kit";
 import { AvatarMenu } from "./AvatarMenu";
 import { LogoutButton } from "./LogoutButton";
 import type { AppNav } from "./nav";
 import { to } from "./paths";
+import { ShellAction } from "./ShellAction";
 import { MAIN_ID, SkipLink, UnavailableNotice } from "./ShellParts";
 import { TopNav } from "./TopNav";
 
@@ -25,7 +25,7 @@ export type DesktopShellProps = {
  * Оболочка компьютера — меню сверху (эталон docs/design/v3/reference/desktop-layout.html, вариант A). Шапка 52 px
  * прилипает к верху; материал полупрозрачный (glass), содержимое прокручивается под ним, по нижнему краю — линия.
  * Слева название продукта (ссылка на главную), затем разделы строкой; справа действие роли (вторичной кнопкой — главная
- * кнопка принадлежит экрану), колокольчик и аватар с меню. Гостю справа — «Войти» той же вторичной кнопкой.
+ * кнопка принадлежит экрану), колокольчик и аватар с меню. Гостю справа — «Войти» той же вторичной кнопкой (на экранах входа её нет: человек уже там).
  * Сосредоточенная оболочка (`nav.focus`, первые шаги после входа): слева только название, справа только «Выйти»
  * (вторичная кнопка), без разделов, действия, колокольчика и аватара.
  * Содержимое по центру, до 1100 px. Брейкпоинтов нет: в узком окне оболочка не становится телефонной. Когда строка
@@ -48,11 +48,7 @@ export function DesktopShell({ nav, user, unavailable = false, children }: Deskt
           )}
           {nav.sections.length > 0 && <TopNav items={nav.sections} />}
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            {nav.action && (
-              <ButtonLink href={nav.action.href} variant="secondary" size="sm">
-                {nav.action.label}
-              </ButtonLink>
-            )}
+            <ShellAction action={nav.action} />
             {nav.focus && <LogoutButton variant="secondary" />}
             {user && !nav.focus && (
               <Link

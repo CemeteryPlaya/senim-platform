@@ -126,3 +126,14 @@ export function activeHref(items: readonly NavItem[], pathname: string | null): 
   }
   return best;
 }
+
+/**
+ * Действие справа в шапке компьютера на этом адресе. На экранах входа (`/v2/login` и его шаги) кнопка «Войти» не
+ * показывается: человек уже на входе, а на телефоне вкладка «Войти» остаётся активной. Остальные действия и страницы —
+ * без изменений. `null` — адреса нет (рендер вне роутера): действие показывается.
+ */
+export function visibleAction(action: AppNav["action"], pathname: string | null): AppNav["action"] {
+  if (!action || pathname === null || action.href !== R.login.href) return action;
+  const onLogin = pathname === R.login.href || pathname.startsWith(`${R.login.href}/`);
+  return onLogin ? undefined : action;
+}

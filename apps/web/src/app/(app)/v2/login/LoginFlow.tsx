@@ -13,19 +13,19 @@ import {
   RadioCard,
   RadioGroup,
   Stack,
+  PageTitle,
   TextLink,
-  WizardHeader,
 } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../_shell/FormError";
 import { useActionForm } from "../../_shell/form";
 import { to } from "../../_shell/paths";
 import { ResendCode } from "../../_shell/ResendCode";
+import { ShownCode } from "../../_shell/ShownCode";
 import { chooseRoleAction, requestCodeAction, verifyCodeAction } from "./actions";
 import { loginStepHref, RESEND_SECONDS, type LoginRole, type LoginStep } from "./steps";
 
 const t = ru.app.login;
-const TOTAL = 3;
 
 /**
  * id форм: кнопки дока стоят вне форм и связаны с ними атрибутом `form`. У всех форм `method="post"`: нажатие до загрузки
@@ -126,17 +126,14 @@ export function LoginFlow({ step: requested, role, next, device }: Props) {
 
 /**
  * Шаг 1: покупатель или мастер. Одна карточка выбрана всегда (по умолчанию — «Я покупатель»), поэтому «Продолжить» не бывает
- * «без выбора»; ошибка группы — только если схема действия всё же отказала. В доке одна кнопка; «Уже есть аккаунт? Войти» —
+ * «без выбора»; ошибка группы — только если схема действия всё же отказала. В доке одна кнопка; «Уже регистрировались? Войти по номеру» —
  * тихая ссылка под карточками.
  */
 export function RoleStep({ role, next }: { role: LoginRole; next: string | null }) {
   const form = useActionForm(chooseRoleAction);
   return (
     <Stack gap="section">
-      <Stack gap="tight">
-        <WizardHeader step={1} total={TOTAL} title={t.role.title} back={{ href: to("/"), label: t.role.backLabel }} />
-        <p className="text-body text-muted">{t.role.lead}</p>
-      </Stack>
+      <PageTitle title={t.role.title} back={{ href: to("/"), label: t.role.backLabel }} lead={t.role.lead} />
       <form id={FORM.role} method="post" onSubmit={form.onSubmit} noValidate>
         <Stack gap="section">
           {/* Видимый вопрос — заголовок шага; группе он же служит именем для экранного диктора. */}
@@ -177,10 +174,7 @@ function PhoneStep({ next, phone, onSent }: { next: string | null; phone: string
   const form = useActionForm(requestCodeAction, { onSuccess: onSent });
   return (
     <Stack gap="section">
-      <Stack gap="tight">
-        <WizardHeader step={2} total={TOTAL} title={t.phone.title} back={{ href: loginStepHref("role", next), label: t.phone.backLabel }} />
-        <p className="text-body text-muted">{t.phone.lead}</p>
-      </Stack>
+      <PageTitle title={t.phone.title} back={{ href: loginStepHref("role", next), label: t.phone.backLabel }} lead={t.phone.lead} />
       <form id={FORM.phone} method="post" onSubmit={form.onSubmit} noValidate>
         <Stack gap="section">
           <PhoneField label={t.phone.label} name="phone" defaultValue={phone} error={form.fieldErrors.phone} />
@@ -239,10 +233,7 @@ export function CodeStep({
 
   return (
     <Stack gap="section">
-      <Stack gap="tight">
-        <WizardHeader step={3} total={TOTAL} title={t.code.title} back={{ href: phoneStep, label: t.code.backLabel }} />
-        <p className="text-body text-muted">{t.code.sentTo(sent.phone)}</p>
-      </Stack>
+      <PageTitle title={t.code.title} back={{ href: phoneStep, label: t.code.backLabel }} lead={t.code.sentTo(sent.phone)} />
       <Stack gap="section">
         {sent.notice === "alreadySent" && (
           <Notice tone="info" live>
@@ -250,9 +241,7 @@ export function CodeStep({
           </Notice>
         )}
         {sent.demoCode && (
-          <Notice tone="info" live>
-            {t.code.shownCode(sent.demoCode)}
-          </Notice>
+          <ShownCode lead={t.code.shownLead} codeLine={t.code.shownCode(sent.demoCode)} />
         )}
         {/* Одна строка колонки: форма повтора пустая (только номер) и не должна давать лишний зазор. */}
         <div>

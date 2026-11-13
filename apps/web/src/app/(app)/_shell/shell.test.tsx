@@ -216,6 +216,22 @@ describe("DesktopShell", () => {
     expect(d).not.toContain(ru.app.shell.profileMenu);
   });
 
+  it("гость на экранах входа: «Войти» в шапке компьютера нет, на телефоне вкладка «Войти» активна", () => {
+    for (const path of ["/v2/login", "/v2/login?step=phone"]) {
+      nav.pathname = path.split("?")[0];
+      const d = html(
+        <DesktopShell nav={guestNav} user={null}>
+          x
+        </DesktopShell>,
+      );
+      expect(d).not.toContain('href="/v2/login"');
+      expect(d).toContain('href="/v2/catalog"');
+    }
+    nav.pathname = "/v2/login";
+    const m = html(<MobileShell nav={guestNav}>x</MobileShell>);
+    expect(tagWith(m, 'href="/v2/login"')).toContain('aria-current="page"');
+  });
+
   it("гость: текущий раздел — ink и вес 600, остальные — muted и 500", () => {
     nav.pathname = "/v2/catalog/3";
     const d = html(

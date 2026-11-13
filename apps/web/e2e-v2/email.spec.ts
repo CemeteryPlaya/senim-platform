@@ -58,7 +58,7 @@ test("новый покупатель: почта с ошибками у пол�
 
   // Шаг 3 из 3, сосредоточенная оболочка, в доке одна кнопка.
   await expect(page).toHaveURL(/\/v2\/email$/);
-  await expect(page.getByText(ru.app.kit.wizard.step(3, 3))).toBeVisible();
+  await expect(page.getByText(ru.app.onboarding.step(3, 3))).toBeVisible();
   await expectScreenRules(page);
   await expect(page.getByRole("navigation", { name: shell.navLabel })).toHaveCount(0);
   await expect(page.locator("[data-action-dock]").getByRole("button")).toHaveCount(1);
@@ -202,7 +202,7 @@ test("существующий человек без почты: после вх
   const next = "/v2/about";
   await loginV2(page, phone, { next });
   await expect(page).toHaveURL(new RegExp(`/v2/email\\?next=${encodeURIComponent(next)}$`));
-  await expect(page.getByText(ru.app.kit.wizard.step(3, 3))).toBeVisible();
+  await expect(page.getByText(ru.app.onboarding.step(3, 3))).toBeVisible();
 
   await confirmEmail(page);
   await expect(page).toHaveURL(new RegExp(`${next}$`));

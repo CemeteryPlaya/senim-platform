@@ -53,7 +53,7 @@ test("новый номер: согласие → знакомство → по�
 
   // Согласие: шаг 1 из 3, текст целиком в области прокрутки, одна главная кнопка.
   await expect(heading(page, consent.title)).toBeVisible();
-  await expect(page.getByText(ru.app.kit.wizard.step(1, 3))).toBeVisible();
+  await expect(page.getByText(ru.app.onboarding.step(1, 3))).toBeVisible();
   await expectScreenRules(page);
   const text = page.getByRole("region", { name: consent.textLabel });
   await expect(text).toContainText(doc.sections[0].heading);
@@ -73,7 +73,7 @@ test("новый номер: согласие → знакомство → по�
   await primary(page, consent.submit).click();
   await expect(heading(page, welcome.title)).toBeVisible();
   await expect(page).toHaveURL(/\/v2\/welcome$/);
-  await expect(page.getByText(ru.app.kit.wizard.step(2, 3))).toBeVisible();
+  await expect(page.getByText(ru.app.onboarding.step(2, 3))).toBeVisible();
   await expectScreenRules(page);
 
   // Пустые поля — обе ошибки сразу у полей.
@@ -206,7 +206,10 @@ test("ИИН уже указан в другом аккаунте — ошибк
   await page.getByLabel(welcome.fullName).fill("Другой Человек");
   await page.getByLabel(welcome.iin).fill(iin);
   await primary(page, welcome.submit).click();
-  await expect(page.getByText(identityTexts.iinTaken)).toBeVisible();
+  // Текст v2 («в другом профиле») и ссылка на поддержку под полем; текст identity («аккаунте») на экран не попадает.
+  await expect(page.getByText(welcome.errors.iinTaken)).toBeVisible();
+  await expect(page.getByText(identityTexts.iinTaken)).toHaveCount(0);
+  await expect(page.getByRole("link", { name: welcome.errors.supportLink })).toHaveAttribute("href", /^mailto:.+@.+/);
   await expect(page.getByLabel(welcome.iin)).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByLabel(welcome.fullName)).toHaveValue("Другой Человек");
   await expect(page).toHaveURL(/\/v2\/welcome$/);
@@ -256,5 +259,7 @@ test("прошедший онбординг: обычная оболочка —
   await page.getByRole("button", { name: shell.profileMenu }).click();
   await page.getByRole("menuitem", { name: shell.logout }).click();
   await expect(page).toHaveURL(/\/v2\/login$/);
-  await expect(page.getByRole("link", { name: shell.nav.login, exact: true })).toBeVisible();
+  // Экран входа: «Войти» в шапке компьютера нет (человек уже на входе).
+  await expect(heading(page, login.role.title)).toBeVisible();
+  await expect(page.locator("[data-top-bar]").getByRole("link", { name: shell.nav.login, exact: true })).toHaveCount(0);
 });

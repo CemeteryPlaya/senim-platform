@@ -1,10 +1,12 @@
 "use client";
 
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Explain, HiddenField, Stack, TextField, WizardHeader } from "@/kit";
+import { ActionDock, Button, Explain, HiddenField, Stack, TextField, TextLink } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../_shell/FormError";
 import { useActionForm } from "../../_shell/form";
+import { OnboardingHeader } from "../../_shell/OnboardingHeader";
+import { SUPPORT_HREF } from "../../_shell/support";
 import { introduceAction } from "./actions";
 
 const t = ru.app.onboarding.welcome;
@@ -33,7 +35,7 @@ export function WelcomeForm({ defaultFullName, next, step, total, device }: Prop
     <div className="desktop:mx-auto desktop:max-w-narrow">
       <Stack gap="section">
         <Stack gap="tight">
-          <WizardHeader step={step} total={total} title={t.title} />
+          <OnboardingHeader step={step} total={total} title={t.title} />
           <p className="text-body text-muted">{t.lead}</p>
           {/* Кнопка пояснения встаёт по левой линии текста, а не по центру растянутой колонки. */}
           <div>
@@ -52,7 +54,11 @@ export function WelcomeForm({ defaultFullName, next, step, total, device }: Prop
               defaultValue={defaultFullName ?? undefined}
               error={form.fieldErrors.fullName}
             />
-            <TextField label={t.iin} name="iin" inputMode="numeric" autoComplete="off" maxLength={15} error={form.fieldErrors.iin} />
+            {/* ИИН уже у другого профиля: под полем — как написать в поддержку (адрес из конфига бренда). */}
+            <div className="flex flex-col">
+              <TextField label={t.iin} name="iin" inputMode="numeric" autoComplete="off" maxLength={15} error={form.fieldErrors.iin} />
+              {form.fieldErrors.iin === t.errors.iinTaken && <TextLink href={SUPPORT_HREF}>{t.errors.supportLink}</TextLink>}
+            </div>
             <HiddenField name="next" value={next ?? ""} />
             <FormError error={form.error} atField={fieldError} />
           </Stack>

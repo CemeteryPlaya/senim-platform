@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
+import { brand } from "@/config/brand";
 import { count, html, text } from "@/kit/test-utils";
 import { consentDocument, consentTextSha256 } from "@/modules/identity";
 
@@ -99,7 +100,7 @@ describe("экран знакомства", () => {
     expect(count(out, "<h1")).toBe(1);
     expect(h1(out)).toBe(t.title);
     expect(count(out, "data-primary-action")).toBe(1);
-    expect(text(render())).toContain(ru.app.kit.wizard.step(2, 3));
+    expect(text(render())).toContain(ru.app.onboarding.step(2, 3));
   });
 
   it("два поля с подписями; ИИН — цифровая клавиатура без автозаполнения; форма отправляется POST", () => {
@@ -138,6 +139,21 @@ describe("экран знакомства", () => {
     h.form = { pending: false, error: ru.identity.clientIdentity.iinTaken, fieldErrors: {} };
     expect(html(render())).toContain('role="alert"');
     expect(text(render())).toContain(ru.identity.clientIdentity.iinTaken);
+  });
+
+  it("ИИН уже у другого профиля: «профиль» вместо «аккаунт» и ссылка «Написать в поддержку» (mailto из конфига)", () => {
+    h.form = { pending: false, error: t.errors.iinTaken, fieldErrors: { iin: t.errors.iinTaken } };
+    const out = html(render());
+    expect(text(render())).toContain("в другом профиле");
+    expect(text(render())).not.toContain("аккаунт");
+    expect(out).toMatch(new RegExp(`<a [^>]*href="mailto:${brand.support.email}"[^>]*>${t.errors.supportLink}`));
+    expect(count(out, "<h1")).toBe(1);
+    expect(count(out, "data-primary-action")).toBe(1);
+  });
+
+  it("без этой ошибки ссылки на поддержку нет", () => {
+    h.form = { pending: false, error: null, fieldErrors: {} };
+    expect(html(render())).not.toContain("mailto:");
   });
 
   it("в доке одна кнопка «Продолжить», связанная с формой; «Выйти» и «Назад» на шаге нет", () => {

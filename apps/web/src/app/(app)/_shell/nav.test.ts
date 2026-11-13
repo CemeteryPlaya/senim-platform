@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeHref, navFor, type AppNav, type NavFeatures, type NavUser } from "./nav";
+import { activeHref, navFor, visibleAction, type AppNav, type NavFeatures, type NavUser } from "./nav";
 
 const OFF: NavFeatures = { preContractFlows: false, inspiration: false, materialsCalculator: false };
 const ON: NavFeatures = { preContractFlows: true, inspiration: true, materialsCalculator: true };
@@ -144,5 +144,24 @@ describe("activeHref: активная вкладка по адресу", () => 
     expect(activeHref(guest.tabs, "/v2")).toBe("/v2");
     expect(activeHref(guest.tabs, "/v2/catalog/5")).toBe("/v2/catalog");
     expect(activeHref(guest.sections, "/v2/about")).toBe("/v2/about");
+  });
+});
+
+describe("visibleAction: «Войти» в шапке компьютера не показывается на экранах входа", () => {
+  const guest = navFor(null, OFF);
+  it("на /v2/login и его шагах действия нет", () => {
+    expect(visibleAction(guest.action, "/v2/login")).toBeUndefined();
+    expect(visibleAction(guest.action, "/v2/login/phone")).toBeUndefined();
+  });
+  it("на остальных страницах гостя кнопка остаётся; /v2/loginx — не вход", () => {
+    expect(visibleAction(guest.action, "/v2")?.label).toBe("Войти");
+    expect(visibleAction(guest.action, "/v2/about")?.href).toBe("/v2/login");
+    expect(visibleAction(guest.action, "/v2/loginx")?.href).toBe("/v2/login");
+    expect(visibleAction(guest.action, null)?.href).toBe("/v2/login");
+  });
+  it("другие действия (заказчика) не затрагиваются", () => {
+    const client = navFor({ role: "CLIENT", executor: null }, OFF);
+    expect(visibleAction(client.action, "/v2/login")).toEqual(client.action);
+    expect(visibleAction(undefined, "/v2/login")).toBeUndefined();
   });
 });

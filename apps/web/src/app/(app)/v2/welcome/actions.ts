@@ -27,12 +27,21 @@ const schema = z.strictObject({
 });
 
 /**
+ * Отказ identity «ИИН уже указан в другом аккаунте» на экране v2 говорит «в другом профиле» (текст v2; v1 и общий модуль
+ * остаются как есть), остальные отказы — как пришли.
+ */
+function v2Message(message: string): string {
+  return message === ru.identity.clientIdentity.iinTaken ? t.iinTaken : message;
+}
+
+/**
  * Отказ identity «конфликт» (ИИН уже указан в другом аккаунте; ФИО и ИИН уже записаны и не меняются) — к полю ИИН: экран
  * показывает его под полем. Остальные отказы (лимит попыток, недоступность) остаются общей ошибкой формы.
  */
 function atIinField(e: unknown): unknown {
   if (!(e instanceof AppError) || e.code !== "CONFLICT") return e;
-  return new AppError(e.code, e.message, { ...e.details, fieldErrors: { iin: [e.message] } });
+  const message = v2Message(e.message);
+  return new AppError(e.code, message, { ...e.details, fieldErrors: { iin: [message] } });
 }
 
 /**

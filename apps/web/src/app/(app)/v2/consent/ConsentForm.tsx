@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import type { ConsentDocument } from "@/i18n/ru/consent";
-import { ActionDock, Button, Card, Checkbox, cn, Explain, HiddenField, Notice, Stack, WizardHeader } from "@/kit";
+import { ActionDock, Button, Card, Checkbox, cn, Explain, HiddenField, Notice, Stack } from "@/kit";
 import type { ActionResult } from "@/platform/action";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../_shell/FormError";
 import { useActionForm } from "../../_shell/form";
+import { OnboardingHeader } from "../../_shell/OnboardingHeader";
 import { grantConsentAction } from "./actions";
 
 const t = ru.app.onboarding.consent;
@@ -67,7 +68,7 @@ export function ConsentForm({ document: doc, updated, next, step, total, device 
     <div className="desktop:mx-auto desktop:max-w-narrow">
       <Stack gap="section">
         <Stack gap="tight">
-          <WizardHeader step={step} total={total} title={t.title} />
+          <OnboardingHeader step={step} total={total} title={t.title} />
           {/* Первый раз заголовок говорит сам за себя; про обновлённую редакцию человеку нужно сказать. */}
           {updated && <p className="text-body text-muted">{screen.updated}</p>}
           {/* Кнопка пояснения встаёт по левой линии текста, а не по центру растянутой колонки. */}
@@ -95,7 +96,7 @@ export function ConsentForm({ document: doc, updated, next, step, total, device 
                 className="max-h-64 overflow-y-auto desktop:max-h-80"
               >
                 <Stack>
-                  <p className="text-sub text-muted">{screen.edition(doc.version)}</p>
+                  <p className="text-sub text-muted">{t.edition(doc.version)}</p>
                   <p className="text-card text-ink">{doc.title}</p>
                   {doc.sections.map((section) => (
                     <section key={section.heading} className="flex flex-col gap-1">

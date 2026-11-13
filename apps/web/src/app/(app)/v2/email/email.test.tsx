@@ -133,7 +133,7 @@ describe("шаг адреса", () => {
     const out = html(render());
     expect(count(out, "<h1")).toBe(1);
     expect(h1(out)).toBe(t.address.title);
-    expect(text(render())).toContain(ru.app.kit.wizard.step(3, 3));
+    expect(text(render())).toContain(ru.app.onboarding.step(3, 3));
     expect(count(out, "data-primary-action")).toBe(1);
     const dock = dockOf(out);
     expect(count(dock, "<button")).toBe(1);
@@ -194,6 +194,10 @@ describe("шаг кода", () => {
     expect(plain).toContain(t.code.shownCode("123456"));
     expect(html(render())).toContain('href="/v2/email?next=%2Fv2%2Fdeals%2F1"');
     expect(plain).toContain(t.code.changeEmail);
+  });
+
+  it("плашка кода — та же разметка, что на входе: фраза, затем «Ваш код» отдельной строкой", () => {
+    expect(html(render())).toContain(`<span class="block">${t.code.shownLead}</span><span class="block tabular-nums">${t.code.shownCode("123456")}</span>`);
   });
 
   it("без кода от identity плашки нет", () => {

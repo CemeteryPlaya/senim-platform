@@ -117,14 +117,30 @@ describe("экран согласия", () => {
     expect(count(out, "<h1")).toBe(1);
     expect(h1(out)).toBe(t.title);
     expect(count(out, "data-primary-action")).toBe(1);
-    expect(text(render())).toContain(ru.app.kit.wizard.step(1, 3));
-    expect(text(render({ step: 2, total: 3 }))).toContain(ru.app.kit.wizard.step(2, 3));
+    expect(text(render())).toContain(ru.app.onboarding.step(1, 3));
+    expect(text(render({ step: 2, total: 3 }))).toContain(ru.app.onboarding.step(2, 3));
+  });
+
+  it("редакция показана датой, а в действие уходит прежняя версия; отметка — новая формулировка", () => {
+    expect(t.edition("2026-11-11-d1")).toBe("Редакция от 11 ноября 2026");
+    expect(t.edition("2026-01-05-d2")).toBe("Редакция от 5 января 2026");
+    expect(t.edition("v7")).toBe("Редакция v7");
+    expect(t.edition("2026-13-11-d1")).toBe("Редакция 2026-13-11-d1");
+    expect(html(render())).toContain(`name="version" value="${doc.version}"`);
+    expect(t.agree).toBe("С текстом ознакомлен(а) и даю согласие на обработку моих персональных данных");
+  });
+
+  it("счётчик анкеты с полосой; над заголовком строка той же высоты, что «Назад» на входе (36 px на компьютере)", () => {
+    const out = html(render());
+    expect(out).toContain('role="progressbar"');
+    expect(out).toContain("desktop:min-h-control-sm");
+    expect(text(render())).not.toContain("Шаг 1 из 3Согласие");
   });
 
   it("текст согласия показан целиком, как в документе: отметка черновика, редакция, все разделы", () => {
     const plain = text(render());
     expect(plain).toContain(doc.draft);
-    expect(plain).toContain(ru.consent.screen.edition(doc.version));
+    expect(plain).toContain(t.edition(doc.version));
     for (const section of doc.sections) {
       expect(plain).toContain(section.heading);
       expect(plain).toContain(section.body);

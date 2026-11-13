@@ -3,6 +3,7 @@ import { count, html, text } from "@/kit/test-utils";
 import { ru } from "@/i18n/ru";
 import { CodeStep, RoleStep } from "./LoginFlow";
 
+
 const t = ru.app.login.code;
 const NOW = Date.UTC(2026, 10, 13, 10, 0, 0);
 
@@ -46,6 +47,15 @@ describe("CodeStep: поле → «Войти» → повтор → «Изме�
     expect(at(out, "data-resend-code")).toBeLessThan(at(out, t.changePhone));
   });
 
+  it("плашка кода: первая фраза, затем «Ваш код: NNNNNN» отдельной строкой с tabular-nums; один h1; счётчика шагов нет", () => {
+    vi.useFakeTimers({ now: NOW });
+    const out = html(render());
+    expect(out).toContain(`<span class="block">${t.shownLead}</span><span class="block tabular-nums">${t.shownCode("123456")}</span>`);
+    expect(count(out, "<h1")).toBe(1);
+    expect(count(out, "data-primary-action")).toBe(1);
+    expect(out).not.toMatch(/Шаг \d из|Анкета|progressbar/);
+  });
+
   it("код уже был отправлен — пояснение; новый отправлен — «Отправили новый код»", () => {
     vi.useFakeTimers({ now: NOW });
     expect(text(render({ notice: "alreadySent", demoCode: null }))).toContain(t.alreadySent);
@@ -79,7 +89,16 @@ describe("RoleStep: покупатель или мастер", () => {
     expect(checkedValue(html(<RoleStep role="executor" next={null} />))).toBe("executor");
   });
 
-  it("в доке одна кнопка «Продолжить»; «Уже есть аккаунт? Войти» — ссылка вне дока", () => {
+  it("первый шаг без счётчика и полосы, «Назад» с названием родителя; ссылка «Уже регистрировались? Войти по номеру»", () => {
+    const out = html(<RoleStep role="client" next={null} />);
+    expect(out).not.toMatch(/Шаг \d из|Анкета|progressbar/);
+    expect(count(out, "<h1")).toBe(1);
+    expect(text(<RoleStep role="client" next={null} />)).toContain(role.backLabel);
+    expect(role.haveAccount).toBe("Уже регистрировались? Войти по номеру");
+    expect(text(<RoleStep role="client" next={null} />)).toContain(role.haveAccount);
+  });
+
+  it("в доке одна кнопка «Продолжить»; ссылка «Войти по номеру» — вне дока", () => {
     const out = html(<RoleStep role="client" next="/v2/about" />);
     expect(count(out, "data-primary-action")).toBe(1);
     const dock = out.slice(out.indexOf("data-action-dock"));
