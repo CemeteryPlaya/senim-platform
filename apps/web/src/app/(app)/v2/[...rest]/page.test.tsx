@@ -48,6 +48,8 @@ describe("заглушка «раздел переносится»", () => {
     expect(links[0].href).toBe("/example.com");
     await render(["", "", "deals", "", "1"]);
     expect(links[1].href).toBe("/deals/1");
+    await render([""]);
+    expect(links[2].href).toBe("/");
   });
 
   it("закодированные сегменты не кодируются повторно", async () => {

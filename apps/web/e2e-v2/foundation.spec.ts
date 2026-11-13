@@ -26,6 +26,21 @@ function viewportOf(page: Page) {
   return v;
 }
 
+/**
+ * Негативная проверка («окно не закрылось», «второго тоста нет»): наблюдаемого события нет, ждать нечего. Вместо одной
+ * проверки после слепой паузы условие проверяется каждые 50 мс в течение `ms` и падает на первом же нарушении.
+ */
+async function holds(check: () => Promise<void>, ms = 500) {
+  const end = Date.now() + ms;
+  do {
+    await check();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  } while (Date.now() < end);
+}
+
+/** Короткий срок для проверок внутри `holds`: нарушение должно находиться сразу, а не через 30 секунд. */
+const NOW = { timeout: 100 };
+
 /** Фокус внутри элемента (а не на странице за ним). */
 const focusInside = (el: Locator) => el.evaluate((node) => node.contains(document.activeElement));
 
@@ -181,6 +196,8 @@ test.describe("шрифт 200% при 360 px", () => {
   test("8. нет горизонтальной прокрутки, подписи вкладок не обрезаны", async ({ page }) => {
     await page.goto("/v2");
     await page.addStyleTag({ content: "html{font-size:200%}" });
+    // Стиль действительно применился: 200% от 16 px. Иначе проверки ниже прошли бы и без увеличения шрифта.
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe("32px");
     const nav = page.getByRole("navigation", { name: NAV });
     await expect(nav).toBeVisible();
     const overflow = await page.evaluate(() => ({
@@ -210,13 +227,15 @@ test.describe("заглушка раздела", () => {
     await expect(page.getByRole("link", { name: shell.openOld })).toHaveAttribute("href", "/deals/1?tab=money");
   });
 
-  test("15b. /v2//example.com: ссылка не начинается с «//»", async ({ page }) => {
+  test("15b. /v2//example.com: Next нормализует адрес, ссылка ведёт на /example.com, а не на чужой сайт", async ({ page }) => {
     await page.goto("/v2//example.com");
+    // Наблюдаемый итог (Next 16.4.3): двойной слеш схлопывается ещё до страницы, адрес становится /v2/example.com.
+    expect(new URL(page.url()).pathname).toBe("/v2/example.com");
     const link = page.getByRole("link", { name: shell.openOld });
     await expect(link).toBeVisible();
-    const href = await link.getAttribute("href");
-    expect(href).not.toBeNull();
-    expect(href?.startsWith("//"), `href=${href}`).toBe(false);
+    // Страховка самой заглушки (пустые сегменты отбрасываются) проверена модульным тестом page.test.tsx.
+    await expect(link).toHaveAttribute("href", "/example.com");
+    expect((await link.getAttribute("href"))?.startsWith("//")).toBe(false);
   });
 });
 
@@ -251,11 +270,13 @@ test.describe("ConfirmDialog на витрине", () => {
     await confirm.click();
     await expect(dialog.locator('[aria-busy="true"]')).toHaveCount(1);
     // Повторное нажатие: aria-disabled снимает проверки Playwright, поэтому — событием напрямую.
+    // Что второе нажатие ничего не запускает, доказывает 12b: там onConfirm вызывает тост, и тост ровно один.
     await dialog.locator('[aria-busy="true"]').dispatchEvent("click");
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(300);
-    await expect(dialog).toBeVisible();
-    await expect(dialog.locator('[aria-busy="true"]')).toHaveCount(1);
+    await holds(async () => {
+      await expect(dialog).toBeVisible(NOW);
+      await expect(dialog.locator('[aria-busy="true"]')).toHaveCount(1, NOW);
+    }, 300);
 
     await expect(dialog).toBeHidden({ timeout: 5_000 });
     await expect(opener).toBeFocused();
@@ -269,15 +290,29 @@ test.describe("ConfirmDialog на витрине", () => {
     await button(dialog, overlays.confirmKeepOpenLabel).click();
     await dialog.locator('[aria-busy="true"]').dispatchEvent("click");
     await expect(page.getByText(overlays.confirmKeepOpenToast)).toHaveCount(1);
-    await page.waitForTimeout(500);
-    await expect(dialog).toBeVisible();
+    // Действие завершилось (тост показан) и снова доступно; дальше окно открыто, а второго тоста от повтора нет.
     await expect(dialog.locator('[aria-busy="true"]')).toHaveCount(0);
-    await expect(page.getByText(overlays.confirmKeepOpenToast)).toHaveCount(1);
+    await holds(async () => {
+      await expect(dialog).toBeVisible(NOW);
+      await expect(page.getByText(overlays.confirmKeepOpenToast)).toHaveCount(1, NOW);
+    });
   });
 
-  test("12c. onConfirm бросил исключение: окно открыто, оверлея ошибки Next нет", async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
+  test("12c. onConfirm бросил исключение: окно открыто, ошибок страницы и оверлея ошибки Next нет", async ({ page }) => {
+    // Ошибка, дошедшая до пользователя, видна тремя способами: `pageerror` (необработанное исключение или отклонённый
+    // промис), `console.error` и оверлей Next. Оверлей живёт в shadow root элемента <nextjs-portal>; локаторы
+    // Playwright проникают в открытые shadow root. Селекторы проверены на Next 16.4.3 (next dev): после
+    // `Promise.reject(new Error(...))` на странице `[data-nextjs-dialog]` и `[data-issues]` появляются (0 → 1).
+    // `[data-nextjs-toast]` есть всегда (плашка dev-индикатора), поэтому его не используем.
+    // Известного безвредного шума типа error нет: на витрине в dev приходят только info/log/warning.
+    // Предупреждение `kit.confirm-dialog: onConfirm failed` — `logger.warn`, это не error.
+    const pageErrors: string[] = [];
+    const consoleErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    const nextOverlay = page.locator("[data-nextjs-dialog], [data-issues]");
     await page.goto(UI_KIT);
     await button(page, overlays.confirmThrow).click();
     const dialog = page.getByRole("dialog", { name: overlays.confirmThrowTitle });
@@ -285,10 +320,12 @@ test.describe("ConfirmDialog на витрине", () => {
     await button(dialog, overlays.confirmThrowLabel).click();
     await expect(dialog.locator('[aria-busy="true"]')).toHaveCount(1);
     await expect(dialog.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: 5_000 });
-    await page.waitForTimeout(500);
-    await expect(dialog).toBeVisible();
-    await expect(page.locator("[data-nextjs-dialog], [data-nextjs-dialog-overlay], [data-nextjs-toast-errors-parent]")).toHaveCount(0);
-    expect(errors).toEqual([]);
+    await holds(async () => {
+      await expect(dialog).toBeVisible(NOW);
+      await expect(nextOverlay).toHaveCount(0, NOW);
+      expect(pageErrors).toEqual([]);
+      expect(consoleErrors).toEqual([]);
+    }, 600);
   });
 });
 
@@ -334,8 +371,8 @@ test("14. неизвестный адрес: 404 внутри оболочки v
   // Оболочка v1 не ставит data-device; шапка и меню на месте.
   await expect(page.locator("html")).not.toHaveAttribute("data-device");
   await expect(page.getByRole("main")).toBeVisible();
-  await expect(page.getByRole("navigation", { name: ru.common.shell.navLabel }).first()).toBeAttached();
-  await expect(page.locator("header").first()).toBeAttached();
+  // Навигация v1 видна по своему имени (ru.common.shell.navLabel), а не по общему тегу <header>.
+  await expect(page.getByRole("navigation", { name: ru.common.shell.navLabel }).first()).toBeVisible();
 });
 
 // ───────── 16. Поповер (компьютер) ─────────
