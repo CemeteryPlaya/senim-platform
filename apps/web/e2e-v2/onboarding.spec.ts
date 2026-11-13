@@ -1,12 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import { ru } from "@/i18n/ru";
 import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
-import { freshIin, freshPhone, open, readShownCode } from "./support";
+import { freshIin, freshPhone, loginV2, open, passOnboarding, readShownCode } from "./support";
 
 /**
- * Первые шаги после входа в новом интерфейсе: согласие на обработку данных → ФИО и ИИН (→ подтверждение почты, пока на его
- * месте заглушка раздела). Вход новым номером через код с экрана (номера и ИИН каждый раз новые: identity стенда помнит их
- * между прогонами). Подписи — только из ru; на каждом экране ровно один h1 и не больше одного главного действия.
+ * Первые шаги после входа в новом интерфейсе: согласие на обработку данных → ФИО и ИИН → почта (сценарии почты —
+ * email.spec.ts). Вход новым номером через код с экрана (номера и ИИН каждый раз новые: identity стенда помнит их между
+ * прогонами). Вошедший с непройденными шагами не застревает на главной и гостевых страницах; прошедший видит обычную
+ * оболочку. Подписи — только из ru; на каждом экране ровно один h1 и не больше одного главного действия.
  */
 
 const login = ru.app.login;
@@ -67,7 +68,7 @@ test("новый номер: согласие → знакомство → по�
   ).toHaveAttribute("aria-invalid", "true");
   await expect(page).toHaveURL(/\/v2\/consent$/);
 
-  // С отметкой — знакомство: шаг пересчитан по оставшемуся.
+  // С отметкой — знакомство: «Шаг 2 из 3» (место в постоянной последовательности согласие → знакомство → почта).
   await page.getByText(consent.agree, { exact: true }).click();
   await primary(page, consent.submit).click();
   await expect(heading(page, welcome.title)).toBeVisible();
@@ -172,4 +173,88 @@ test("телефон: на первом экране согласия видны
   // Панели вкладок нет, док у самого нижнего края.
   await expect(page.locator("[data-tab-bar]")).toHaveCount(0);
   expect(dockBox && viewport.height - (dockBox.y + dockBox.height)).toBeLessThanOrEqual(24);
+});
+
+test("телефон 390×844: отметка и «Продолжить» видны без прокрутки страницы; в конце текста подпись «Прокрутите…» гаснет", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "mobile", "первый экран — только телефон");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signInNewcomer(page);
+  await expect(page.getByText(consent.agree, { exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(primary(page, consent.submit)).toBeInViewport({ ratio: 1 });
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  const fade = page.locator("[data-end]");
+  await expect(fade).toHaveAttribute("data-end", "false");
+  await expect(page.getByText(consent.scrollHint)).toHaveAttribute("aria-hidden", "false");
+  await page.getByRole("region", { name: consent.textLabel }).evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await expect(fade).toHaveAttribute("data-end", "true");
+  await expect(page.getByText(consent.scrollHint)).toHaveAttribute("aria-hidden", "true");
+});
+
+test("ИИН уже указан в другом аккаунте — ошибка у поля ИИН, ФИО не теряется", async ({ page, context }) => {
+  const iin = freshIin();
+  await loginV2(page, freshPhone().typed);
+  await passOnboarding(page, { iin });
+
+  await context.clearCookies();
+  await signInNewcomer(page);
+  await page.getByText(consent.agree, { exact: true }).click();
+  await primary(page, consent.submit).click();
+  await expect(heading(page, welcome.title)).toBeVisible();
+  await page.getByLabel(welcome.fullName).fill("Другой Человек");
+  await page.getByLabel(welcome.iin).fill(iin);
+  await primary(page, welcome.submit).click();
+  await expect(page.getByText(identityTexts.iinTaken)).toBeVisible();
+  await expect(page.getByLabel(welcome.iin)).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByLabel(welcome.fullName)).toHaveValue("Другой Человек");
+  await expect(page).toHaveURL(/\/v2\/welcome$/);
+});
+
+test("вошедший с непройденными шагами не застревает: главная и каталог уводят на шаг с возвратом туда же", async ({ page }) => {
+  await signInNewcomer(page);
+  await page.getByText(consent.agree, { exact: true }).click();
+  await primary(page, consent.submit).click();
+  await expect(heading(page, welcome.title)).toBeVisible();
+
+  /** Адрес сейчас: путь и параметр возврата. */
+  const where = () => {
+    const url = new URL(page.url());
+    return { path: url.pathname, next: url.searchParams.get("next") };
+  };
+
+  await open(page, "/v2");
+  await expect(heading(page, welcome.title)).toBeVisible();
+  expect(where()).toEqual({ path: "/v2/welcome", next: "/v2" });
+
+  const catalog = "/v2/catalog?type=kitchen";
+  await open(page, catalog);
+  await expect(heading(page, welcome.title)).toBeVisible();
+  expect(where()).toEqual({ path: "/v2/welcome", next: catalog });
+
+  // Пройдя шаги, человек возвращается в каталог с тем же фильтром.
+  await passOnboarding(page);
+  const back = new URL(page.url());
+  expect(back.pathname + back.search).toBe(catalog);
+});
+
+test("прошедший онбординг: обычная оболочка — вкладки на телефоне, разделы и меню профиля на компьютере; выход через меню", async ({
+  page,
+}, info) => {
+  await loginV2(page, freshPhone().typed);
+  await passOnboarding(page);
+  await expect(page).toHaveURL(/\/v2$/);
+  await expect(page.getByRole("navigation", { name: shell.navLabel })).toBeVisible();
+  if (info.project.name === "mobile") {
+    await expect(page.locator("[data-tab-bar]")).toBeVisible();
+    await expect(page.locator("[data-focus-bar]")).toHaveCount(0);
+    return;
+  }
+  await expect(page.locator("[data-tab-bar]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: shell.logout, exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: shell.profileMenu }).click();
+  await page.getByRole("menuitem", { name: shell.logout }).click();
+  await expect(page).toHaveURL(/\/v2\/login$/);
+  await expect(page.getByRole("link", { name: shell.nav.login, exact: true })).toBeVisible();
 });
