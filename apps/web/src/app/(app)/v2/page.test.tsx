@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 import { count, html } from "@/kit/test-utils";
 
 const h = vi.hoisted(() => ({
-  shell: { user: null as { role: "CLIENT" } | null, unavailable: false },
+  shell: { user: null as { role: "CLIENT" | "EXECUTOR" } | null, unavailable: false },
   device: "desktop" as "mobile" | "desktop",
 }));
 
@@ -11,6 +11,8 @@ vi.mock("@/modules/identity", () => ({ getShellUser: async () => h.shell }));
 // Барьер первых шагов проверяет onboarding-gate.test.tsx; здесь вошедший их уже прошёл.
 vi.mock("../_shell/auth", () => ({ requireV2User: async () => h.shell.user }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
+// Главная покупателя читает базу — её проверяет page.int.test.ts; здесь только выбор по роли.
+vi.mock("./_home/BuyerHome", () => ({ BuyerHome: ({ device }: { device: string }) => <h1>покупатель-{device}</h1> }));
 
 const { default: V2Home } = await import("./page");
 
@@ -34,8 +36,14 @@ describe("главная /v2", () => {
     expect(out).toContain("mobile:sticky");
   });
 
-  it("вошедший видит прежний образец", async () => {
+  it("вошедший с активной ролью заказчика видит главную покупателя", async () => {
     h.shell = { user: { role: "CLIENT" }, unavailable: false };
+    h.device = "mobile";
+    expect(html(await V2Home())).toContain("покупатель-mobile");
+  });
+
+  it("вошедший в другой роли пока видит прежний образец", async () => {
+    h.shell = { user: { role: "EXECUTOR" }, unavailable: false };
     const out = html(await V2Home());
     expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(ru.app.shell.preview.title);
   });
