@@ -28,13 +28,16 @@ test("гость: главная, каталог с фильтром, работ
   await expect(page.getByRole("heading", { level: 1, name: catalog.title })).toBeVisible();
   await expectScreenRules(page);
 
-  // Фильтр по типу: первый тип после «Все типы».
-  const typeChips = page.getByRole("navigation", { name: catalog.typeLabel });
-  await typeChips.getByRole("link", { name: catalog.allTypes }).waitFor();
-  const firstType = typeChips.getByRole("link").filter({ hasNotText: catalog.allTypes }).first();
-  await firstType.click();
+  // Фильтр по типу — тот, что есть у первой карточки без фильтра (в навигации фильтров: чипы на телефоне, список слева на компьютере).
+  const typeNav = page.getByRole("navigation", { name: catalog.typeLabel });
+  await typeNav.getByRole("link", { name: catalog.allTypes }).waitFor();
+  const firstCard = (await page.getByRole("article").first().innerText()).trim();
+  const typeName = (await typeNav.getByRole("link").allInnerTexts()).map((text) => text.trim()).find((text) => text !== catalog.allTypes && firstCard.includes(text));
+  expect(typeName, "тип первой карточки есть среди фильтров").toBeTruthy();
+  await typeNav.getByRole("link", { name: typeName ?? "", exact: true }).click();
   await expect(page).toHaveURL(/\/v2\/catalog\?.*type=/);
-  await expect(typeChips.locator('[aria-current="true"]')).toHaveCount(1);
+  await expect(typeNav.locator('[aria-current="true"]')).toHaveCount(1);
+  await expect(page.getByRole("article").first()).toBeVisible();
   await expectScreenRules(page);
 
   // Работа -> профиль мастера.
@@ -43,6 +46,7 @@ test("гость: главная, каталог с фильтром, работ
   await expect(page.getByRole("heading", { level: 2, name: executor.aboutTitle })).toBeVisible();
   await expectScreenRules(page);
   await expect(page.getByRole("link", { name: executor.action })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: executor.action })).toHaveAttribute("href", /\/v2\/requests\/new\?executor=\d+$/);
 
   // Назад на каталог.
   await page.getByRole("link", { name: `${ru.app.kit.back}: ${executor.backLabel}` }).click();

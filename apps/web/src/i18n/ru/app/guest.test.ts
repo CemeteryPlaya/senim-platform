@@ -18,7 +18,7 @@ describe("склонения профиля мастера", () => {
     [101, "101 сделка", "101 год"],
     [111, "111 сделок", "111 лет"],
   ])("%i", (n, deals, years) => {
-    expect(t.deals(n)).toBe(deals);
-    expect(t.years(n)).toBe(years);
+    expect(t.facts.deals(n).value).toBe(deals);
+    expect(t.facts.years(n).value).toBe(years);
   });
 });

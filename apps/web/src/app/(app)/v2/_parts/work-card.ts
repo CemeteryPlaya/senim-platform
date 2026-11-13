@@ -33,3 +33,11 @@ export function workCardView(card: PortfolioCard): WorkCardView {
     ...(cover?.src ? { photo: { src: cover.src, alt: cover.alt } } : {}),
   };
 }
+
+/**
+ * Область изображения у всех карточек списка: если хотя бы у одной работы есть настоящее фото — у всех `slot`
+ * (карточки одной высоты, без фото — заглушка), иначе `none` (компактные текстовые карточки).
+ */
+export function cardsMedia(cards: readonly Pick<WorkCardView, "photo">[]): "none" | "slot" {
+  return cards.some((card) => card.photo) ? "slot" : "none";
+}

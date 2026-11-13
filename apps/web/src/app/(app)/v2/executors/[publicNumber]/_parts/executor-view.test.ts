@@ -63,63 +63,61 @@ describe("parsePublicNumber", () => {
   );
 });
 
-describe("executorView: сводка", () => {
-  it("строки в порядке: рейтинг, сделки, стаж, специализации, замер, адрес", () => {
-    const { rows } = executorView(page());
-    expect(rows.map((r) => r.label)).toEqual([t.rows.rating, t.rows.deals, t.rows.years, t.rows.specializations, t.rows.measurement, t.rows.address]);
-  });
-
+describe("executorView: строка-сводка", () => {
   it("рейтинг: число как есть (шкала 1…5), число отзывов рядом", () => {
-    const [rating] = executorView(page()).rows;
-    expect(rating).toMatchObject({ kind: "rating", value: 4.75, count: 12 });
+    expect(executorView(page()).rating).toEqual({ value: 4.75, count: 12 });
   });
 
   it("нет отзывов: рейтинг null, даже если в профиле 0", () => {
-    const [rating] = executorView(page({ view: viewOf({ ratingAvg: 0, reviewsCount: 0 }) })).rows;
-    expect(rating).toMatchObject({ kind: "rating", value: null, count: 0 });
+    expect(executorView(page({ view: viewOf({ ratingAvg: 0, reviewsCount: 0 }) })).rating).toEqual({ value: null, count: 0 });
   });
 
-  it("сделки и стаж — со склонением", () => {
-    const { rows } = executorView(page());
-    expect(rows[1]).toMatchObject({ kind: "text", value: "21 сделка" });
-    expect(rows[2]).toMatchObject({ kind: "text", value: "5 лет" });
+  it("сделки на платформе и стаж — со склонением: значение отдельно от пояснений", () => {
+    expect(executorView(page()).facts).toEqual([
+      { value: "21 сделка", after: "на платформе" },
+      { before: "Стаж", value: "5 лет" },
+    ]);
   });
 
-  it("стаж 0 — «не указан»", () => {
-    const row = executorView(page({ view: viewOf({ yearsExperience: 0 }) })).rows[2];
-    expect(row).toMatchObject({ kind: "text", value: t.yearsUnknown });
+  it("стаж 0 — факта нет; сделок 0 — «0 сделок»", () => {
+    expect(executorView(page({ view: viewOf({ yearsExperience: 0, completedDeals: 0 }) })).facts).toEqual([{ value: "0 сделок", after: "на платформе" }]);
+  });
+});
+
+describe("executorView: условия", () => {
+  const find = (v: PublicExecutorView, label: string) => executorView(page({ view: v })).conditions.find((r) => r.label === label);
+
+  it("строки: специализация, замер, где работает; вид задан явно", () => {
+    const rows = executorView(page()).conditions;
+    expect(rows.map((r) => r.label)).toEqual([t.rows.specializations, t.rows.measurement, t.rows.address]);
+    expect(rows[0]).toMatchObject({ value: "Кухни, Шкафы", layout: "stacked" });
+    expect(rows[1]).toMatchObject({ value: t.measurement.FREE, layout: "inline" });
+    expect(rows[2]).toMatchObject({ value: "Астана, Есиль", layout: "stacked" });
   });
 
-  it("специализации через запятую; пусто — строки нет", () => {
-    expect(executorView(page()).rows[3]).toMatchObject({ value: "Кухни, Шкафы" });
-    const rows = executorView(page({ view: viewOf({ specializations: [] }) })).rows;
-    expect(rows.map((r) => r.label)).not.toContain(t.rows.specializations);
+  it("нет специализаций или адреса — строки нет", () => {
+    const labels = executorView(page({ view: viewOf({ specializations: [], address: " " }) })).conditions.map((r) => r.label);
+    expect(labels).toEqual([t.rows.measurement]);
   });
 
-  it("адрес пустой — строки нет", () => {
-    const rows = executorView(page({ view: viewOf({ address: "" }) })).rows;
-    expect(rows.map((r) => r.label)).not.toContain(t.rows.address);
-  });
-
-  it("замер: бесплатно / входит в стоимость", () => {
-    const find = (terms: "FREE" | "INCLUDED") =>
-      executorView(page({ view: viewOf({ measurementTerms: terms }) })).rows.find((r) => r.label === t.rows.measurement);
-    expect(find("FREE")).toMatchObject({ kind: "text", value: t.measurement.FREE });
-    expect(find("INCLUDED")).toMatchObject({ kind: "text", value: t.measurement.INCLUDED });
+  it("замер: входит в стоимость", () => {
+    expect(find(viewOf({ measurementTerms: "INCLUDED" }), t.rows.measurement)).toMatchObject({ value: t.measurement.INCLUDED, layout: "stacked" });
   });
 
   it("замер с платой: тенге модуля -> тиыны ровно, пояснение про прямую оплату мастеру", () => {
-    const row = executorView(page({ view: viewOf({ measurementTerms: "FEE_IF_NO_DEAL", measurementFee: 5000 }) })).rows.find(
-      (r) => r.label === t.rows.measurement,
-    );
-    expect(row).toMatchObject({ kind: "fee", feeTiyn: 500_000n, value: t.measurement.feeSuffix, note: t.measurement.feeNote });
+    expect(find(viewOf({ measurementTerms: "FEE_IF_NO_DEAL", measurementFee: 5000 }), t.rows.measurement)).toEqual({
+      label: t.rows.measurement,
+      feeTiyn: 500_000n,
+      value: t.measurement.feeSuffix,
+      note: t.measurement.feeNote,
+      layout: "stacked",
+    });
   });
 
   it("замер с платой без суммы: текст без суммы", () => {
-    const row = executorView(page({ view: viewOf({ measurementTerms: "FEE_IF_NO_DEAL", measurementFee: null }) })).rows.find(
-      (r) => r.label === t.rows.measurement,
-    );
-    expect(row).toMatchObject({ kind: "text", value: t.measurement.feeUnknown, note: t.measurement.feeNote });
+    const row = find(viewOf({ measurementTerms: "FEE_IF_NO_DEAL", measurementFee: null }), t.rows.measurement);
+    expect(row).toMatchObject({ value: t.measurement.feeUnknown, note: t.measurement.feeNote });
+    expect(row).not.toHaveProperty("feeTiyn");
   });
 });
 
@@ -144,26 +142,33 @@ describe("executorView: заголовок, «О мастере»", () => {
 });
 
 describe("executorView: работы и действие", () => {
+  const seed = { id: "f1", src: "/demo/portfolio/a.svg", alt: "a" };
+  const real = { id: "f2", src: "/files/abc", alt: "Кухня" };
+
   it("карточка: тип · место, цена в тиынах; только загруженные фото, иллюстрации сида — нет", () => {
-    const seed = { id: "f1", src: "/demo/portfolio/a.svg", alt: "a" };
-    const real = { id: "f2", src: "/files/abc", alt: "Кухня" };
     const [w] = executorView(page({ portfolio: [work({ photos: [seed, real] })] })).works;
     expect(w).toMatchObject({ id: "w1", title: "Светлая кухня", meta: "Кухня · Астана", priceFrom: 120_000_000n, photo: { src: "/files/abc", alt: "Кухня" } });
     expect(executorView(page({ portfolio: [work({ photos: [seed] })] })).works[0]).not.toHaveProperty("photo");
+  });
+
+  it("карточки неинтерактивны: адреса нет", () => {
+    expect(executorView(page()).works[0]).not.toHaveProperty("href");
   });
 
   it("цена null — поля нет", () => {
     expect(executorView(page({ portfolio: [work({ priceFrom: null })] })).works[0]).not.toHaveProperty("priceFrom");
   });
 
-  it("работа ведёт к заявке «похожее» на эту работу, параметр закодирован", () => {
-    const [w] = executorView(page({ portfolio: [work({ id: "a b&c" })] })).works;
-    expect(w?.href).toBe("/v2/requests/new?like=a+b%26c");
+  it("область изображения: хоть одно настоящее фото — slot у всех, иначе none", () => {
+    expect(executorView(page({ portfolio: [work({ id: "a", photos: [real] }), work({ id: "b" })] })).worksMedia).toBe("slot");
+    expect(executorView(page({ portfolio: [work({ photos: [seed] })] })).worksMedia).toBe("none");
+    expect(executorView(page({ portfolio: [] })).worksMedia).toBe("none");
   });
 
-  it("главное действие — заявка по последней работе; без работ действия нет", () => {
-    expect(executorView(page({ portfolio: [work({ id: "w9" }), work({ id: "w8" })] })).action).toEqual({ href: "/v2/requests/new?like=w9", label: t.action });
-    expect(executorView(page({ portfolio: [] })).action).toBeNull();
+  it("главное действие — у любого мастера: заявка с публичным номером мастера", () => {
+    const expected = { href: "/v2/requests/new?executor=17", label: t.action };
+    expect(executorView(page()).action).toEqual(expected);
+    expect(executorView(page({ portfolio: [] })).action).toEqual(expected);
   });
 });
 

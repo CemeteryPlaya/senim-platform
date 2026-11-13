@@ -41,7 +41,7 @@ async function seed() {
   });
   const kitchen = await makeFurnitureType({ slug: "kitchen", name: "Кухня" });
   await makePortfolioItem(executor, { furnitureTypeId: kitchen.id, title: "Светлая кухня", priceFrom: 1_200_000 });
-  await makeReview(executor, 5, `Спасибо, мастер! Мой номер ${SECRETS.phone}`);
+  await makeReview(executor, 5, `Спасибо, ${SECRETS.legalName}! Мой номер ${SECRETS.phone}`);
   return executor;
 }
 
@@ -78,10 +78,15 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
     expect(out).toContain(`Исполнитель №${executor.executor.publicNumber}`);
     expect(out).toContain(t.aboutTitle);
     expect(out).toContain("Светлая кухня");
-    expect(out).toContain("Спасибо, мастер!");
+    expect(out).toContain("Спасибо,");
     expect(out).toContain("7 лет");
     expect(out).toContain('href="/v2/catalog"');
     expect(out).not.toMatch(/href="\/(catalog|executors|requests)/);
+    // Режим «имя скрыто»: заголовок — метка с номером, не наименование.
+    expect(out).toMatch(new RegExp(`<h1[^>]*>Исполнитель №${executor.executor.publicNumber}</h1>`));
+    // Карточки работ неинтерактивны: ни одной ссылки на заявку, кроме главного действия.
+    expect(out).not.toContain("like=");
+    expect(count(out, "/v2/requests/new")).toBe(1);
   });
 
   it.each(["mobile", "desktop"] as const)("%s: HIDDEN — в HTML нет телефона, Instagram, наименования, улицы и ИИН/БИН", async (device) => {
@@ -91,16 +96,17 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
     expectNoSecrets(await render(String(executor.executor.publicNumber)), profile.binIinLast4);
   });
 
-  it("сериализуемая view-модель (то, что уходит в RSC-пропсы) тоже без контактов", async () => {
+  it("view-модель страницы, сериализованная в JSON, тоже без контактов (это не проверка потока RSC)", async () => {
     const executor = await seed();
     const page = await getPublicExecutorPage(executor.executor.publicNumber);
     if (!page) throw new Error("страницы нет");
+    expect(page.view.nameShown).toBe(false);
     const json = JSON.stringify(executorView(page), (_, v: unknown) => (typeof v === "bigint" ? v.toString() : v));
     const profile = await db.executorProfile.findFirstOrThrow({ where: { id: executor.executor.id } });
     expectNoSecrets(json, profile.binIinLast4);
   });
 
-  it("один h1; одно главное действие — «Предложить заказ» с параметром работы", async () => {
+  it("один h1; одно главное действие — «Предложить заказ» с публичным номером мастера", async () => {
     const executor = await seed();
     for (const device of ["mobile", "desktop"] as const) {
       h.device = device;
@@ -108,23 +114,32 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
       expect(count(out, "<h1")).toBe(1);
       expect(count(out, "data-primary-action")).toBe(1);
       expect(out).toContain(t.action);
-      expect(out).toMatch(/href="\/v2\/requests\/new\?like=[^"]+"/);
+      expect(out).toContain(`href="/v2/requests/new?executor=${executor.executor.publicNumber}"`);
     }
   });
 
-  it("пояснение «почему скрыто» есть, в нём нет данных мастера", async () => {
+  it("пояснение «почему скрыто»: подпись на экране, текст — в пропсах, без данных мастера", async () => {
     const executor = await seed();
     const out = await render(String(executor.executor.publicNumber));
     expect(out).toContain(t.explain.hidden.label);
+    const page = await getPublicExecutorPage(executor.executor.publicNumber);
+    if (!page) throw new Error("страницы нет");
+    const { explain } = executorView(page);
+    expect(explain.title).toBe(t.explain.hidden.title);
+    expect(explain.paragraphs).toEqual(t.explain.hidden.paragraphs);
+    expect(explain.paragraphs.join(" ")).toContain("общайтесь в чате сервиса");
+    expect(JSON.stringify(explain)).not.toMatch(/Секретная|secret_master|\+7\d{10}/);
   });
 
-  it("мастер без работ и отзывов: нейтральные строки, главного действия нет", async () => {
+  it("мастер без работ и отзывов: действие есть, «Пока без отзывов» один раз, раздела отзывов нет", async () => {
     const executor = await makeExecutor();
     const out = await render(String(executor.executor.publicNumber));
     expect(out).toContain(t.worksEmpty);
-    expect(out).toContain(t.reviewsEmpty);
+    expect(count(out, ru.app.kit.rating.none)).toBe(1);
+    expect(out).not.toContain(`>${t.reviewsTitle}<`);
     expect(count(out, "<h1")).toBe(1);
-    expect(count(out, "data-primary-action")).toBe(0);
+    expect(count(out, "data-primary-action")).toBe(1);
+    expect(out).toContain(`href="/v2/requests/new?executor=${executor.executor.publicNumber}"`);
   });
 
   it("режим «имя показано»: наименование в заголовке, телефон, Instagram и ИИН/БИН — по-прежнему нет", async () => {

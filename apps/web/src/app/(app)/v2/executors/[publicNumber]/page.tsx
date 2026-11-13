@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Card, Explain, List, ListItem, ListRow, Money, PageTitle, Rating, Section, Split, Stack, WorkCard } from "@/kit";
+import { ActionDock, ButtonLink, Card, Columns, Explain, List, ListRow, Money, PageTitle, Rating, Section, Split, Stack, WorkCard } from "@/kit";
 import { getPublicExecutorPage } from "@/modules/companies";
 import { getDevice, type Device } from "@/platform/device";
-import { executorView, parsePublicNumber, type ExecutorViewModel, type SummaryRow } from "./_parts/executor-view";
+import { executorView, parsePublicNumber, type ExecutorViewModel } from "./_parts/executor-view";
 
 const t = ru.app.guest.executor;
 
@@ -22,48 +22,68 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: page ? page.view.label : ru.app.shell.notFoundTitle };
 }
 
-/** Строка сводки: короткое значение — справа от подписи, длинное — под ней. */
-function Row({ row }: { row: SummaryRow }) {
-  if (row.kind === "rating") return <ListRow label={row.label} value={<Rating value={row.value} count={row.count} />} />;
-  if (!row.stacked) return <ListRow label={row.label} value={row.value} />;
+/** Строка-сводка под заголовком: рейтинг · сделки на платформе · стаж. Значения тёмные, пояснения серые. */
+function FactsLine({ view }: { view: ExecutorViewModel }) {
   return (
-    <ListItem>
-      <div className="flex flex-col gap-1 px-4 py-3">
-        <p className="text-sub text-muted">{row.label}</p>
-        <p className="text-body text-ink">
-          {row.kind === "fee" && (
-            <>
-              <Money tiyn={row.feeTiyn} />{" "}
-            </>
-          )}
-          {row.value}
-        </p>
-        {row.note && <p className="text-sub text-muted">{row.note}</p>}
-      </div>
-    </ListItem>
+    <p className="text-body text-muted">
+      <Rating value={view.rating.value} count={view.rating.count} />
+      {view.facts.map((fact) => (
+        <span key={fact.value}>
+          {" · "}
+          {fact.before && `${fact.before} `}
+          <span className="text-ink">{fact.value}</span>
+          {fact.after && ` ${fact.after}`}
+        </span>
+      ))}
+    </p>
   );
 }
 
-function Summary({ view, device }: { view: ExecutorViewModel; device: Device }) {
+/** Карточка «Условия»: строки, ссылка-пояснение и (на компьютере) главная кнопка последней в карточке. */
+function Conditions({ view, device }: { view: ExecutorViewModel; device: Device }) {
   return (
-    <Card padded={false}>
-      <List>
-        {view.rows.map((row) => (
-          <Row key={row.label} row={row} />
-        ))}
-      </List>
-      <div className="border-t border-line px-4 py-3">
-        <Explain label={view.explain.label} title={view.explain.title} device={device}>
-          <Stack>
-            {view.explain.paragraphs.map((text) => (
-              <p key={text} className="text-body text-ink">
-                {text}
-              </p>
-            ))}
-          </Stack>
-        </Explain>
-      </div>
-    </Card>
+    <Section title={t.conditionsTitle}>
+      <Card padded={false}>
+        <List>
+          {view.conditions.map((row) => (
+            <ListRow
+              key={row.label}
+              label={row.label}
+              stacked={row.layout === "stacked"}
+              value={
+                <>
+                  {row.feeTiyn !== undefined && (
+                    <>
+                      <Money tiyn={row.feeTiyn} />{" "}
+                    </>
+                  )}
+                  {row.value}
+                  {row.note && <span className="mt-1 block text-sub text-muted">{row.note}</span>}
+                </>
+              }
+            />
+          ))}
+        </List>
+        <div className="border-t border-line px-4 py-3">
+          <Explain label={view.explain.label} title={view.explain.title} device={device}>
+            <Stack>
+              {view.explain.paragraphs.map((text) => (
+                <p key={text} className="text-body text-ink">
+                  {text}
+                </p>
+              ))}
+            </Stack>
+          </Explain>
+        </div>
+        {device === "desktop" && (
+          <div className="px-4 pb-4">
+            <ButtonLink href={view.action.href} full>
+              {view.action.label}
+            </ButtonLink>
+          </div>
+        )}
+      </Card>
+    </Section>
   );
 }
 
@@ -90,19 +110,15 @@ function Sections({ view }: { view: ExecutorViewModel }) {
         {view.works.length === 0 ? (
           <p className="text-body text-muted">{t.worksEmpty}</p>
         ) : (
-          <ul className="grid grid-cols-1 gap-3 desktop:grid-cols-2 desktop:gap-4">
+          <Columns count={2}>
             {view.works.map((work) => (
-              <li key={work.id} className="grid">
-                <WorkCard href={work.href} title={work.title} meta={work.meta} priceFrom={work.priceFrom} photo={work.photo} />
-              </li>
+              <WorkCard key={work.id} title={work.title} meta={work.meta} priceFrom={work.priceFrom} media={view.worksMedia} photo={work.photo} />
             ))}
-          </ul>
+          </Columns>
         )}
       </Section>
-      <Section title={t.reviewsTitle}>
-        {view.reviews.length === 0 ? (
-          <p className="text-body text-muted">{t.reviewsEmpty}</p>
-        ) : (
+      {view.reviews.length > 0 && (
+        <Section title={t.reviewsTitle}>
           <ul className="flex flex-col gap-3">
             {view.reviews.map((review) => (
               <li key={review.id} id={`review-${review.id}`} className="scroll-anchor">
@@ -115,25 +131,26 @@ function Sections({ view }: { view: ExecutorViewModel }) {
               </li>
             ))}
           </ul>
-        )}
-      </Section>
+        </Section>
+      )}
     </>
   );
 }
 
 /**
- * Профиль мастера для заказчика: кому доверять (рейтинг, сделки на платформе, стаж, условия замера), о мастере, работы
- * и отзывы. Открыт гостю. Мастер показан ровно так, как его отдаёт модуль (`toPublicView`): по умолчанию «Исполнитель №N»,
- * без телефона, Instagram и ИИН/БИН; тексты уже очищены от контактов. Телефон — одна колонка: сводка, «О мастере», работы
- * и отзывы, главное действие в `ActionDock`. Компьютер — `Split`: слева «О мастере», работы и отзывы, справа прилипающая
- * сводка и главное действие. Мастер без работ получает не заявку, а только сведения: заявка строится по его работе.
+ * Профиль мастера для заказчика: кому доверять (строка под заголовком: рейтинг, сделки на платформе, стаж), условия
+ * (специализация, замер, где работает), о мастере, работы и отзывы. Открыт гостю. Мастер показан ровно так, как его отдаёт
+ * модуль (`toPublicView`): по умолчанию «Исполнитель №N», без телефона, Instagram и ИИН/БИН; тексты уже очищены от
+ * контактов и наименования. Телефон — одна колонка и `ActionDock` в конце. Компьютер — `Split`: слева «О мастере», работы и
+ * отзывы, справа прилипающая карточка условий, внизу которой главная кнопка. Действие есть у любого мастера: заявка
+ * с параметром `executor` (публичный номер) — контракт для экрана заявки следующего этапа. Карточки работ неинтерактивны.
  */
 export default async function ExecutorPage({ params }: Props) {
   const page = await loadPage((await params).publicNumber);
   if (!page) notFound();
   const device = await getDevice();
   const view = executorView(page);
-  const title = <PageTitle title={view.title} back={{ href: view.backHref, label: t.backLabel }} />;
+  const title = <PageTitle title={view.title} back={{ href: view.backHref, label: t.backLabel }} lead={<FactsLine view={view} />} />;
 
   if (device === "desktop") {
     return (
@@ -146,18 +163,7 @@ export default async function ExecutorPage({ params }: Props) {
               <Sections view={view} />
             </Stack>
           }
-          aside={
-            <Stack>
-              <Summary view={view} device={device} />
-              {view.action && (
-                <Card>
-                  <ButtonLink href={view.action.href} full>
-                    {view.action.label}
-                  </ButtonLink>
-                </Card>
-              )}
-            </Stack>
-          }
+          aside={<Conditions view={view} device={device} />}
         />
       </Stack>
     );
@@ -166,13 +172,11 @@ export default async function ExecutorPage({ params }: Props) {
   return (
     <Stack gap="section">
       {title}
-      <Summary view={view} device={device} />
+      <Conditions view={view} device={device} />
       <Sections view={view} />
-      {view.action && (
-        <ActionDock>
-          <ButtonLink href={view.action.href}>{view.action.label}</ButtonLink>
-        </ActionDock>
-      )}
+      <ActionDock>
+        <ButtonLink href={view.action.href}>{view.action.label}</ButtonLink>
+      </ActionDock>
     </Stack>
   );
 }
