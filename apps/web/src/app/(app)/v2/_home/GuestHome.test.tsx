@@ -11,18 +11,19 @@ describe("главная гостя", () => {
     describe(device, () => {
       const out = html(<GuestHome device={device} />);
 
-      it("один h1 — обещание продукта", () => {
+      it("один h1 — обещание продукта, без висящих слов (text-balance)", () => {
         expect(count(out, "<h1")).toBe(1);
         expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(t.title);
+        expect(hasClass(out.match(/<h1[^>]*>/)?.[0] ?? "", "text-balance")).toBe(true);
       });
 
-      it("одно главное действие «Заказать мебель» и вторая ссылка «Я мастер» — на вход с разной ролью", () => {
+      it("одно главное действие «Заказать мебель»; ссылка мастера — на вход с другой ролью и не главная", () => {
         expect(count(out, "data-primary-action")).toBe(1);
         const primary = out.match(/<a [^>]*data-primary-action[^>]*>([^<]*)<\/a>/);
         expect(primary?.[1]).toBe(t.clientAction);
         expect(primary?.[0]).toContain('href="/v2/login?role=client"');
         const master = out.match(/<a [^>]*href="\/v2\/login\?role=executor"[^>]*>([^<]*)<\/a>/);
-        expect(master?.[1]).toBe(t.executorAction);
+        expect(master?.[1]).toBe(t.executorLink);
         expect(master?.[0]).not.toContain("data-primary-action");
       });
 
@@ -40,6 +41,12 @@ describe("главная гостя", () => {
         ]);
       });
 
+      it("текст шагов основным цветом, серая только подпись «Шаг N»", () => {
+        const step = out.match(new RegExp(`<p class="([^"]*)">${t.steps[0].text}</p>`));
+        expect(step?.[1]).toContain("text-ink");
+        expect(out).toMatch(/<p class="[^"]*text-muted">Шаг 1<\/p>/);
+      });
+
       it("фотографий нет", () => {
         expect(out).not.toContain("<img");
         expect(out).not.toContain("<picture");
@@ -47,29 +54,41 @@ describe("главная гостя", () => {
     });
   }
 
-  it("компьютер: сверху заголовок и действия | доверие, ниже шаги | «Помощь»", () => {
+  it("компьютер: Split — заголовок, кнопка и ссылка мастера | доверие; ниже шаги тремя в ряд; «Помощь» в Narrow", () => {
     const out = html(<GuestHome device="desktop" />);
     const grids = out.match(/<div [^>]*desktop:grid-cols-split[^>]*>/g) ?? [];
-    expect(grids).toHaveLength(2);
+    expect(grids).toHaveLength(1);
     expect(hasClass(grids[0] ?? "", "desktop:grid")).toBe(true);
+    expect(out).toContain("desktop:grid-cols-3");
     const at = (s: string) => out.indexOf(s);
-    const second = out.indexOf(grids[1] ?? "", at(grids[0] ?? "") + 1);
     const order = [
       at("<h1"),
       at("data-primary-action"),
+      at("role=executor"),
       at(`>${t.trustTitle}</h2>`),
-      second,
       at(`>${t.stepsTitle}</h2>`),
       at(`>${ru.app.kit.help.title}</h2>`),
     ];
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     expect(order.every((i) => i >= 0)).toBe(true);
+    expect(out.slice(out.lastIndexOf("desktop:max-w-narrow"))).toContain(ru.app.kit.help.title);
   });
 
-  it("телефон: главное действие — в доке, последним в странице; компьютер: в доке нет прилипания, но он рядом с заголовком", () => {
-    const mobile = html(<GuestHome device="mobile" />);
-    expect(mobile.indexOf("mobile:sticky")).toBeGreaterThan(mobile.indexOf(`>${ru.app.kit.help.title}</h2>`));
-    expect(mobile.indexOf("data-primary-action")).toBeGreaterThan(mobile.indexOf(`>${ru.app.kit.help.title}</h2>`));
+  it("телефон: в панели действий одна главная кнопка и она последняя; ссылка мастера — до шагов, на первом экране", () => {
+    const out = html(<GuestHome device="mobile" />);
+    const dock = out.slice(out.indexOf("mobile:sticky") - 200);
+    expect(count(dock, "<a ")).toBe(1);
+    expect(dock).toContain("data-primary-action");
+    expect(out.indexOf("data-primary-action")).toBeGreaterThan(out.indexOf(`>${ru.app.kit.help.title}</h2>`));
+    expect(out.indexOf("role=executor")).toBeLessThan(out.indexOf(`>${t.stepsTitle}</h2>`));
+    expect(out.indexOf("role=executor")).toBeGreaterThan(out.indexOf("<h1"));
+  });
+
+  it("компьютер: панель действий — обычный блок в ряд, прилипание только у варианта mobile:", () => {
+    const dock = html(<GuestHome device="desktop" />).match(/<div [^>]*data-action-dock[^>]*>/)?.[0] ?? "";
+    expect(hasClass(dock, "desktop:flex-row")).toBe(true);
+    expect(hasClass(dock, "mobile:sticky")).toBe(true);
+    expect(hasClass(dock, "sticky")).toBe(false);
   });
 
   it("разделы через Stack section, карточки группы — через Stack group", () => {
@@ -78,9 +97,11 @@ describe("главная гостя", () => {
     expect(out).toContain("gap-stack-group");
   });
 
-  it("в текстах нет запретных слов", () => {
-    const all = JSON.stringify(ru.app.guest);
+  it("в текстах нет запретных слов и слова «приёмка»; предлог «в» в заголовке не отрывается", () => {
+    const all = JSON.stringify(ru.app.guest.home) + JSON.stringify(ru.app.guest.about);
     expect(all).not.toMatch(/эскроу|комисси|демо|тестов/i);
+    expect(JSON.stringify(ru.app.guest.home)).not.toMatch(/приёмк/i);
     expect(all).toContain("Защита сделки (2%)");
+    expect(t.title).toContain("в банке");
   });
 });

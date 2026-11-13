@@ -1,6 +1,6 @@
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Card, Explain, HelpBlock, PageTitle, Section, Split, Stack } from "@/kit";
+import { ActionDock, ButtonLink, Card, Explain, HelpBlock, Narrow, PageTitle, Section, Split, Stack } from "@/kit";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { ABOUT_ANCHORS } from "../about/anchors";
@@ -8,25 +8,23 @@ import { loginHref } from "./links";
 
 const t = ru.app.guest.home;
 
-/** Два входа: покупатель — главное действие, мастер — тихая ссылка рядом. */
-function Actions() {
+/** Ссылка для мастера: тихая, вне панели действий (в панели телефона — одна главная кнопка). */
+function ExecutorLink({ className }: { className?: string }) {
   return (
-    <>
-      <ButtonLink href={loginHref("client")}>{t.clientAction}</ButtonLink>
-      <ButtonLink href={loginHref("executor")} variant="quiet">
-        {t.executorAction}
-      </ButtonLink>
-    </>
+    <ButtonLink href={loginHref("executor")} variant="quiet" className={className}>
+      {t.executorLink}
+    </ButtonLink>
   );
 }
 
 /**
  * Главная гостя: обещание продукта, вход, три шага, где лежат деньги и «Помощь».
  *
- * Компьютер — два `Split` 1,5 : 1: слева заголовок и оба входа, справа «Где ваши деньги»; ниже слева три шага, справа «Помощь»
- * (так нет пустой дыры под коротким заголовком). Телефон — одна колонка: заголовок, шаги, деньги, «Помощь», а главное
- * действие в `ActionDock` в конце: он прилипает над панелью вкладок, кнопка под большим пальцем с первого экрана. Док в
- * разметке один, поэтому `data-primary-action` на странице один. Фотографий нет. Шаги — Card, не списки с кружками-номерами (правила: никаких цветных кружков).
+ * Компьютер — три ряда. 1: `Split` 1,5 : 1 — слева заголовок, подзаголовок, главная кнопка и ссылка для мастера, справа
+ * «Где ваши деньги». 2: «Как это работает» на всю ширину тремя карточками в ряд. 3: «Помощь» в `Narrow`.
+ * Телефон — одна колонка: заголовок, ссылка для мастера (виден на первом экране), шаги, деньги, «Помощь»; главная
+ * кнопка — одна в `ActionDock` в конце, он прилипает над панелью вкладок. Док в разметке один, поэтому
+ * `data-primary-action` на странице один. Фотографий нет.
  */
 export function GuestHome({ device }: { device: Device }) {
   const helpItems = [
@@ -34,25 +32,32 @@ export function GuestHome({ device }: { device: Device }) {
     { question: t.helpPrice, href: `${to("/about")}#${ABOUT_ANCHORS.price}` },
     { question: t.helpRefusal, href: `${to("/about")}#${ABOUT_ANCHORS.refusal}` },
   ];
-
+  const primary = <ButtonLink href={loginHref("client")}>{t.clientAction}</ButtonLink>;
   const title = <PageTitle title={t.title} lead={t.lead} />;
+
+  // Ряд карточек шагов: колонка на телефоне, три равные колонки на компьютере (только через desktop:).
   const steps = (
     <Section title={t.stepsTitle}>
-      {t.steps.map((step, index) => (
-        <Card key={step.title} as="article">
-          <p className="text-small text-muted">{t.stepLabel(index + 1)}</p>
-          <h3 className="mt-1 text-card text-ink">{step.title}</h3>
-          <p className="mt-1 text-body text-muted">{step.text}</p>
-        </Card>
-      ))}
+      <div className="flex flex-col gap-stack-group desktop:grid desktop:grid-cols-3">
+        {t.steps.map((step, index) => (
+          <Card key={step.title} as="article">
+            <p className="text-small text-muted">{t.stepLabel(index + 1)}</p>
+            <h3 className="mt-1 text-card text-ink">{step.title}</h3>
+            <p className="mt-1 text-body text-ink">{step.text}</p>
+          </Card>
+        ))}
+      </div>
     </Section>
   );
   const trust = (
     <Section title={t.trustTitle}>
       <Card>
         <Stack>
-          <p className="text-body text-ink">{t.trustMoney}</p>
-          <p className="text-body text-ink">{t.trustRefusal}</p>
+          {t.trustParagraphs.map((text) => (
+            <p key={text} className="text-body text-ink">
+              {text}
+            </p>
+          ))}
           <p className="text-body">
             <Explain label={t.explainLabel} title={t.explainTitle} device={device}>
               <p>{t.explainBody}</p>
@@ -72,26 +77,32 @@ export function GuestHome({ device }: { device: Device }) {
             <Stack gap="section">
               {title}
               <ActionDock>
-                <Actions />
+                {primary}
+                <ExecutorLink />
               </ActionDock>
             </Stack>
           }
           aside={trust}
         />
-        <Split main={steps} aside={help} />
+        {steps}
+        <Narrow>{help}</Narrow>
       </Stack>
     );
   }
 
   return (
     <Stack gap="section">
-      {title}
+      <Stack gap="tight">
+        {title}
+        {/* -ml-6: тихая кнопка стоит текстом по левой линии заголовка (её отступ — 24 px). */}
+        <div>
+          <ExecutorLink className="-ml-6" />
+        </div>
+      </Stack>
       {steps}
       {trust}
       {help}
-      <ActionDock>
-        <Actions />
-      </ActionDock>
+      <ActionDock>{primary}</ActionDock>
     </Stack>
   );
 }

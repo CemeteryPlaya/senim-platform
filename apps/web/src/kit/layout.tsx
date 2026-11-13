@@ -21,17 +21,22 @@ export function Stack({ gap = "group", className, children }: StackProps) {
   return <div className={cn("flex min-w-0 flex-col", GAPS[gap], className)}>{children}</div>;
 }
 
-export type SplitProps = { main: ReactNode; aside: ReactNode };
+export type SplitProps = {
+  main: ReactNode;
+  aside: ReactNode;
+  /** Боковая колонка прилипает под шапкой, пока прокручивается основная (только компьютер). */
+  stickyAside?: boolean;
+};
 
 /**
  * Две колонки на компьютере: `main` и `aside` в сетке 1,5 : 1 с зазором 24 px, выровнены по верху (эталон
  * desktop-layout.html, вариант A). На телефоне — одна колонка: `main`, затем `aside` через отступ раздела.
  */
-export function Split({ main, aside }: SplitProps) {
+export function Split({ main, aside, stickyAside = false }: SplitProps) {
   return (
     <div className="flex flex-col gap-stack-section desktop:grid desktop:grid-cols-split desktop:items-start desktop:gap-split">
       <div className="min-w-0">{main}</div>
-      <div className="min-w-0">{aside}</div>
+      <div className={cn("min-w-0", stickyAside && "desktop:sticky-aside")}>{aside}</div>
     </div>
   );
 }
@@ -58,7 +63,7 @@ export type SectionProps = {
 export function Section({ title, id, children }: SectionProps) {
   return (
     <section className="flex min-w-0 flex-col gap-stack-group" aria-labelledby={id}>
-      <h2 id={id} className="text-section text-ink">{title}</h2>
+      <h2 id={id} className={cn("text-section text-ink", id && "desktop:scroll-anchor")}>{title}</h2>
       {children}
     </section>
   );

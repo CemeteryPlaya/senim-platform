@@ -259,6 +259,36 @@
 }
 
 /*
+ * Боковая колонка, прилипающая под шапкой компьютера (Split stickyAside): верх — высота шапки и зазор раздела.
+ * scroll-anchor — запас над заголовком раздела при переходе по якорю: заголовок не прижат к краю под шапкой
+ * (сама шапка учтена в scroll-padding корня).
+ */
+@utility sticky-aside {
+  position: sticky;
+  top: calc(var(--spacing-header) + var(--spacing-stack-section));
+}
+@utility scroll-anchor {
+  scroll-margin-top: var(--spacing-stack-group);
+}
+
+/*
+ * Подложка под плавающими панелями телефона (MobileShell): сплошной фон страницы от нижнего края на высоту панели
+ * вкладок с её отступами и зазором до дока (8px), выше — плавный переход в прозрачность на 24px. Строки содержимого не мелькают в щелях
+ * между доком и панелью и под панелью. Клики не перехватывает; при prefers-reduced-transparency — сплошной фон.
+ */
+@utility bar-underlay {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  pointer-events: none;
+  height: calc(var(--tab-bar-block, 0px) + var(--spacing-stack-tight) + 1.5rem);
+  background: linear-gradient(to top, var(--role-canvas) calc(100% - 1rem), transparent);
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--role-canvas);
+  }
+}
+
+/*
  * Безопасные зоны телефона (вырез, скругления, полоска «домой»). env(safe-area-inset-*) ненулевые только при
  * viewport-fit=cover — его ставит generateViewport() layout v2 для мобильной версии; на компьютере эти утилиты не
  * используются, а без cover env() даёт 0 и остаются обычные отступы.

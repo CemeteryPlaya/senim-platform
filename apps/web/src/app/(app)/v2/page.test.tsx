@@ -38,3 +38,12 @@ describe("главная /v2", () => {
     expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(ru.app.shell.preview.title);
   });
 });
+
+describe("главная /v2: identity недоступен", () => {
+  it("гость при unavailable: true по-прежнему видит лендинг", async () => {
+    h.shell = { user: null, unavailable: true };
+    const out = html(await V2Home());
+    expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(ru.app.guest.home.title);
+    expect(count(out, "data-primary-action")).toBe(1);
+  });
+});

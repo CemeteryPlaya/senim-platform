@@ -75,3 +75,16 @@ describe("Section с id (якорь)", () => {
     expect(html(<Section title="Цена">x</Section>)).not.toMatch(/\bid=|aria-labelledby/);
   });
 });
+
+describe("Split stickyAside и якорь раздела", () => {
+  it("stickyAside прилипает боковую колонку только на компьютере; по умолчанию нет", () => {
+    const sticky = html(<Split main="a" aside="b" stickyAside />);
+    expect(sticky).toContain('class="min-w-0 desktop:sticky-aside"');
+    expect(html(<Split main="a" aside="b" />)).not.toContain("sticky");
+  });
+
+  it("заголовок раздела с id получает запас при переходе по якорю (desktop:scroll-anchor)", () => {
+    expect(html(<Section title="Т" id="x">y</Section>)).toMatch(/<h2 id="x" class="[^"]*desktop:scroll-anchor/);
+    expect(html(<Section title="Т">y</Section>)).not.toContain("scroll-anchor");
+  });
+});

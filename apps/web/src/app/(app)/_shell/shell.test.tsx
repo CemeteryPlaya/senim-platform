@@ -55,6 +55,15 @@ describe("MobileShell", () => {
     }
   });
 
+  it("под плавающими панелями — подложка цвета фона (bar-underlay), без кликов и вне доступности; без вкладок её нет", () => {
+    const m = html(<MobileShell nav={clientNav}>x</MobileShell>);
+    const underlay = tagWith(m, "data-bar-underlay");
+    expect(hasClass(underlay, "bar-underlay")).toBe(true);
+    expect(underlay).toContain("aria-hidden");
+    expect(m.indexOf("data-bar-underlay")).toBeLessThan(m.indexOf("data-tab-bar"));
+    expect(html(<MobileShell nav={{ ...clientNav, tabs: [] }}>x</MobileShell>)).not.toContain("data-bar-underlay");
+  });
+
   it("панель плавающая и полупрозрачная: glass, rounded-bar, shadow-float, прилипает снизу с отступом", () => {
     const m = html(<MobileShell nav={clientNav}>x</MobileShell>);
     const bar = tagWith(m, "data-tab-bar");

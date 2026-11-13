@@ -8,12 +8,12 @@ export type PageTitleProps = {
   lead?: ReactNode;
 };
 
-/** Заголовок экрана: единственный `<h1>`; размер 28 px на телефоне и 32 px на компьютере задаёт токен. */
+/** Заголовок экрана: единственный `<h1>`, без висящих слов в конце строк (text-balance); размер 28 px на телефоне и 32 px на компьютере задаёт токен. */
 export function PageTitle({ title, back, lead }: PageTitleProps) {
   return (
     <header className="flex flex-col gap-2">
       {back && <BackLink {...back} />}
-      <h1 className="text-title text-ink">{title}</h1>
+      <h1 className="text-balance text-title text-ink">{title}</h1>
       {lead && <div className="text-body text-muted">{lead}</div>}
     </header>
   );

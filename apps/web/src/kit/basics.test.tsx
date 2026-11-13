@@ -449,3 +449,9 @@ describe("Остальное", () => {
     expect(out).toContain("3 дня");
   });
 });
+
+describe("PageTitle: перенос строк", () => {
+  it("h1 с text-balance: нет висящих слов", () => {
+    expect(html(<PageTitle title="Деньги в банке" />)).toMatch(/<h1 class="(?:[^"]*\s)?text-balance(?:\s[^"]*)?"/);
+  });
+});
