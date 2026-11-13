@@ -23,6 +23,7 @@ func serveVars() map[string]string {
 		"TLS_KEY_FILE":                "/certs/k.pem",
 		"TLS_CA_FILE":                 "/certs/ca.pem",
 		"IDENTITY_OTP_PROVIDER":       "mock",
+		"IDENTITY_EMAIL_PROVIDER":     "mock",
 		"IDENTITY_OTP_HMAC_KEY":       b64(32, 'h'),
 		"IDENTITY_TOKEN_SIGNING_KEY":  b64(32, 's'),
 		"IDENTITY_TOKEN_KID":          "dev-1",
@@ -51,7 +52,7 @@ func TestServeConfigDev(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.DemoMode || c.OTPProvider != "mock" || c.TokenKID != "dev-1" {
+	if !c.DemoMode || c.OTPProvider != "mock" || c.EmailProvider != "mock" || c.TokenKID != "dev-1" {
 		t.Errorf("unexpected config: %+v", c)
 	}
 	if len(c.OTPHMACKey) != 32 || len(c.TokenSigningKey) != ed25519.PrivateKeySize {
@@ -170,6 +171,16 @@ func TestProdRejectsMockOTP(t *testing.T) {
 	mustFailNaming(t, v, "IDENTITY_OTP_PROVIDER")
 }
 
+// Мок почты в prod: сервис не стартует и называет переменную.
+func TestProdRejectsMockEmail(t *testing.T) {
+	v := prodVars()
+	v["IDENTITY_EMAIL_PROVIDER"] = "mock"
+	mustFailNaming(t, v, "IDENTITY_EMAIL_PROVIDER")
+	v = serveVars()
+	v["IDENTITY_EMAIL_PROVIDER"] = "smtp"
+	mustFailNaming(t, v, "IDENTITY_EMAIL_PROVIDER")
+}
+
 func TestProdRejectsDemoMode(t *testing.T) {
 	v := prodVars()
 	v["DEMO_MODE"] = "true"
@@ -227,7 +238,8 @@ func TestRequiredNewVariables(t *testing.T) {
 	delete(v, "IDENTITY_TOKEN_SIGNING_KEY")
 	delete(v, "IDENTITY_TOKEN_KID")
 	delete(v, "IDENTITY_OTP_PROVIDER")
-	mustFailNaming(t, v, "IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY", "IDENTITY_TOKEN_KID", "IDENTITY_OTP_PROVIDER")
+	delete(v, "IDENTITY_EMAIL_PROVIDER")
+	mustFailNaming(t, v, "IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY", "IDENTITY_TOKEN_KID", "IDENTITY_OTP_PROVIDER", "IDENTITY_EMAIL_PROVIDER")
 }
 
 func TestPreviousKeyMustDifferFromCurrent(t *testing.T) {

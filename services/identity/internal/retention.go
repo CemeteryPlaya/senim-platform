@@ -35,7 +35,7 @@ var retentionLockKey = func() int64 {
 
 // RetentionConfig — сроки хранения и период запуска очистки.
 type RetentionConfig struct {
-	// RetainOTP — сколько хранятся коды с момента создания.
+	// RetainOTP — сколько хранятся коды (SMS и e-mail) с момента создания.
 	RetainOTP time.Duration
 	// RetainSessions — сколько хранится сессия после окончания или отзыва.
 	RetainSessions time.Duration
@@ -53,13 +53,13 @@ type RetentionConfig struct {
 // RetentionResult — сколько строк удалено в каждой таблице. Skipped — очистку ведёт
 // другая реплика (замок занят).
 type RetentionResult struct {
-	OTP, Sessions, RateLimits, Idempotency, Outbox int64
-	Skipped                                        bool
+	OTP, EmailCodes, Sessions, RateLimits, Idempotency, Outbox int64
+	Skipped                                                    bool
 }
 
 // Total — всего удалено строк.
 func (r RetentionResult) Total() int64 {
-	return r.OTP + r.Sessions + r.RateLimits + r.Idempotency + r.Outbox
+	return r.OTP + r.EmailCodes + r.Sessions + r.RateLimits + r.Idempotency + r.Outbox
 }
 
 type tableCount struct {
@@ -70,7 +70,7 @@ type tableCount struct {
 // byTable — удалённое по таблицам для метрики.
 func (r RetentionResult) byTable() []tableCount {
 	return []tableCount{
-		{"otp_codes", r.OTP}, {"sessions", r.Sessions}, {"rate_limits", r.RateLimits},
+		{"otp_codes", r.OTP}, {"email_codes", r.EmailCodes}, {"sessions", r.Sessions}, {"rate_limits", r.RateLimits},
 		{"idempotency", r.Idempotency}, {"outbox", r.Outbox},
 	}
 }
@@ -123,6 +123,9 @@ func runRetention(ctx context.Context, pool *pgxpool.Pool, cfg RetentionConfig, 
 	steps := []retentionStep{
 		{"otp_codes", &res.OTP, cut(cfg.RetainOTP), func(ctx context.Context, q *store.Queries, c pgtype.Timestamptz) (int64, error) {
 			return q.DeleteOldOtpCodes(ctx, store.DeleteOldOtpCodesParams{Cutoff: c, BatchSize: retentionBatch})
+		}},
+		{"email_codes", &res.EmailCodes, cut(cfg.RetainOTP), func(ctx context.Context, q *store.Queries, c pgtype.Timestamptz) (int64, error) {
+			return q.DeleteOldEmailCodes(ctx, store.DeleteOldEmailCodesParams{Cutoff: c, BatchSize: retentionBatch})
 		}},
 		{"sessions", &res.Sessions, cut(cfg.RetainSessions), func(ctx context.Context, q *store.Queries, c pgtype.Timestamptz) (int64, error) {
 			return q.DeleteOldSessions(ctx, store.DeleteOldSessionsParams{Cutoff: c, BatchSize: retentionBatch})
@@ -209,7 +212,7 @@ func retentionLoop(ctx context.Context, pool *pgxpool.Pool, cfg RetentionConfig,
 		}
 		if res.Total() > 0 {
 			log.Info("срок хранения: удалено",
-				"otp_codes", res.OTP, "sessions", res.Sessions, "rate_limits", res.RateLimits,
+				"otp_codes", res.OTP, "email_codes", res.EmailCodes, "sessions", res.Sessions, "rate_limits", res.RateLimits,
 				"idempotency", res.Idempotency, "outbox", res.Outbox)
 		}
 	}

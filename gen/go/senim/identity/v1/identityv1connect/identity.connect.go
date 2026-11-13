@@ -68,6 +68,12 @@ const (
 	// IdentityServiceUpdateContactsProcedure is the procedure name of the IdentityService's
 	// UpdateContacts RPC.
 	IdentityServiceUpdateContactsProcedure = "/senim.identity.v1.IdentityService/UpdateContacts"
+	// IdentityServiceRequestEmailCodeProcedure is the procedure name of the IdentityService's
+	// RequestEmailCode RPC.
+	IdentityServiceRequestEmailCodeProcedure = "/senim.identity.v1.IdentityService/RequestEmailCode"
+	// IdentityServiceVerifyEmailCodeProcedure is the procedure name of the IdentityService's
+	// VerifyEmailCode RPC.
+	IdentityServiceVerifyEmailCodeProcedure = "/senim.identity.v1.IdentityService/VerifyEmailCode"
 	// IdentityServiceGetProfileProcedure is the procedure name of the IdentityService's GetProfile RPC.
 	IdentityServiceGetProfileProcedure = "/senim.identity.v1.IdentityService/GetProfile"
 	// IdentityServiceRegisterPartyProcedure is the procedure name of the IdentityService's
@@ -232,6 +238,20 @@ var (
 			Procedure:  IdentityServiceUpdateContactsProcedure,
 		}
 	})
+	identityServiceRequestEmailCodeSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("RequestEmailCode"),
+			Procedure:  IdentityServiceRequestEmailCodeProcedure,
+		}
+	})
+	identityServiceVerifyEmailCodeSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType: connect.StreamTypeUnary,
+			Schema:     v1.File_senim_identity_v1_identity_proto.Services().ByName("IdentityService").Methods().ByName("VerifyEmailCode"),
+			Procedure:  IdentityServiceVerifyEmailCodeProcedure,
+		}
+	})
 	identityServiceGetProfileSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType: connect.StreamTypeUnary,
@@ -362,6 +382,9 @@ type IdentityServiceClient interface {
 	// Персональные данные и стороны.
 	RecordPerson(context.Context, *v1.RecordPersonRequest) (*v1.RecordPersonResponse, error)
 	UpdateContacts(context.Context, *v1.UpdateContactsRequest) (*v1.UpdateContactsResponse, error)
+	// Подтверждение e-mail кодом: код на адрес-кандидат, затем проверка.
+	RequestEmailCode(context.Context, *v1.RequestEmailCodeRequest) (*v1.RequestEmailCodeResponse, error)
+	VerifyEmailCode(context.Context, *v1.VerifyEmailCodeRequest) (*v1.VerifyEmailCodeResponse, error)
 	// Чтение.
 	GetProfile(context.Context, *v1.GetProfileRequest) (*v1.GetProfileResponse, error)
 	RegisterParty(context.Context, *v1.RegisterPartyRequest) (*v1.RegisterPartyResponse, error)
@@ -417,6 +440,9 @@ type IdentityServiceHandler interface {
 	// Персональные данные и стороны.
 	RecordPerson(context.Context, *v1.RecordPersonRequest) (*v1.RecordPersonResponse, error)
 	UpdateContacts(context.Context, *v1.UpdateContactsRequest) (*v1.UpdateContactsResponse, error)
+	// Подтверждение e-mail кодом: код на адрес-кандидат, затем проверка.
+	RequestEmailCode(context.Context, *v1.RequestEmailCodeRequest) (*v1.RequestEmailCodeResponse, error)
+	VerifyEmailCode(context.Context, *v1.VerifyEmailCodeRequest) (*v1.VerifyEmailCodeResponse, error)
 	// Чтение.
 	GetProfile(context.Context, *v1.GetProfileRequest) (*v1.GetProfileResponse, error)
 	RegisterParty(context.Context, *v1.RegisterPartyRequest) (*v1.RegisterPartyResponse, error)
@@ -465,6 +491,8 @@ func RegisterIdentityServiceHandler(server *connect.Server, svc IdentityServiceH
 		connect.Method{Spec: identityServiceVerifySecondFactorSpec(), Handler: adapter.verifySecondFactor},
 		connect.Method{Spec: identityServiceRecordPersonSpec(), Handler: adapter.recordPerson},
 		connect.Method{Spec: identityServiceUpdateContactsSpec(), Handler: adapter.updateContacts},
+		connect.Method{Spec: identityServiceRequestEmailCodeSpec(), Handler: adapter.requestEmailCode},
+		connect.Method{Spec: identityServiceVerifyEmailCodeSpec(), Handler: adapter.verifyEmailCode},
 		connect.Method{Spec: identityServiceGetProfileSpec(), Handler: adapter.getProfile},
 		connect.Method{Spec: identityServiceRegisterPartySpec(), Handler: adapter.registerParty},
 		connect.Method{Spec: identityServiceProvisionExecutorSpec(), Handler: adapter.provisionExecutor},
@@ -552,6 +580,14 @@ func (UnimplementedIdentityServiceHandler) RecordPerson(context.Context, *v1.Rec
 
 func (UnimplementedIdentityServiceHandler) UpdateContacts(context.Context, *v1.UpdateContactsRequest) (*v1.UpdateContactsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.UpdateContacts is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) RequestEmailCode(context.Context, *v1.RequestEmailCodeRequest) (*v1.RequestEmailCodeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.RequestEmailCode is not implemented")
+}
+
+func (UnimplementedIdentityServiceHandler) VerifyEmailCode(context.Context, *v1.VerifyEmailCodeRequest) (*v1.VerifyEmailCodeResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "senim.identity.v1.IdentityService.VerifyEmailCode is not implemented")
 }
 
 func (UnimplementedIdentityServiceHandler) GetProfile(context.Context, *v1.GetProfileRequest) (*v1.GetProfileResponse, error) {
@@ -749,6 +785,22 @@ func (c *identityServiceClient) RecordPerson(ctx context.Context, req *v1.Record
 func (c *identityServiceClient) UpdateContacts(ctx context.Context, req *v1.UpdateContactsRequest) (*v1.UpdateContactsResponse, error) {
 	var res v1.UpdateContactsResponse
 	if err := c.client.CallUnary(ctx, identityServiceUpdateContactsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) RequestEmailCode(ctx context.Context, req *v1.RequestEmailCodeRequest) (*v1.RequestEmailCodeResponse, error) {
+	var res v1.RequestEmailCodeResponse
+	if err := c.client.CallUnary(ctx, identityServiceRequestEmailCodeSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+func (c *identityServiceClient) VerifyEmailCode(ctx context.Context, req *v1.VerifyEmailCodeRequest) (*v1.VerifyEmailCodeResponse, error) {
+	var res v1.VerifyEmailCodeResponse
+	if err := c.client.CallUnary(ctx, identityServiceVerifyEmailCodeSpec(), req, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -1074,6 +1126,30 @@ func (h identityServiceHandler) updateContacts(ctx context.Context, _ connect.Sp
 		return err
 	}
 	res, err := h.svc.UpdateContacts(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) requestEmailCode(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.RequestEmailCodeRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.RequestEmailCode(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+func (h identityServiceHandler) verifyEmailCode(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.VerifyEmailCodeRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.VerifyEmailCode(ctx, &req)
 	if err != nil {
 		return err
 	}

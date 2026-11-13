@@ -17,11 +17,12 @@ type Service struct {
 	pool   *pgxpool.Pool
 	cfg    ServeConfig
 	sender OtpSender
+	email  EmailSender
 	now    func() time.Time // часы: в тестах подменяются
 	log    *slog.Logger
 }
 
 // NewService собирает сервис с настоящими часами.
-func NewService(pool *pgxpool.Pool, cfg ServeConfig, sender OtpSender, log *slog.Logger) *Service {
-	return &Service{pool: pool, cfg: cfg, sender: sender, now: time.Now, log: log}
+func NewService(pool *pgxpool.Pool, cfg ServeConfig, sender OtpSender, email EmailSender, log *slog.Logger) *Service {
+	return &Service{pool: pool, cfg: cfg, sender: sender, email: email, now: time.Now, log: log}
 }

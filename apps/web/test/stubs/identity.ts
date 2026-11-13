@@ -1491,6 +1491,9 @@ export class FakeIdentity {
           checkEmail(req.email ?? "");
         },
       ),
+      // Подтверждение почты кодом (identity, задача A1 этапа 2): подделку дописывает модуль web (A2).
+      requestEmailCode: unimplemented,
+      verifyEmailCode: unimplemented,
       getProfile: reading("getProfile", async (req: MessageInitShape<typeof GetProfileRequestSchema>) => {
         const { user } = await this.lookup(req.sessionToken ?? "");
         return create(GetProfileResponseSchema, { person: this.personOf(user.id), party: this.partyOf(user.id) });

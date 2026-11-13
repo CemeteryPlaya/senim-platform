@@ -26,7 +26,7 @@ func execAll(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {
 
 func cleanRetentionTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	for _, table := range []string{"otp_codes", "sessions", "rate_limits", "idempotency", "outbox"} {
+	for _, table := range []string{"otp_codes", "email_codes", "sessions", "rate_limits", "idempotency", "outbox"} {
 		execAll(t, pool, "DELETE FROM "+table)
 	}
 }
@@ -56,6 +56,11 @@ func TestRetentionDeletesOnlyOld(t *testing.T) {
 	execAll(t, pool, otp, "+77000000001", old(cfg.RetainOTP))
 	execAll(t, pool, otp, "+77000000002", young(cfg.RetainOTP))
 
+	// Коды почты хранят адрес-кандидат (ПДн): тот же срок, что у кодов SMS.
+	ec := `INSERT INTO email_codes (user_id, email, code_hash, expires_at, created_at) VALUES ($1, 'a@example.kz', '\x00', $2, $2)`
+	execAll(t, pool, ec, user.ID, old(cfg.RetainOTP))
+	execAll(t, pool, ec, user.ID, young(cfg.RetainOTP))
+
 	rl := `INSERT INTO rate_limits (key, window_start, count) VALUES ($1, $2, 1)`
 	execAll(t, pool, rl, "old", old(cfg.RetainRateLimits))
 	execAll(t, pool, rl, "young", young(cfg.RetainRateLimits))
@@ -82,11 +87,11 @@ func TestRetentionDeletesOnlyOld(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := RetentionResult{OTP: 1, Sessions: 2, RateLimits: 1, Idempotency: 1, Outbox: 1}
+	want := RetentionResult{OTP: 1, EmailCodes: 1, Sessions: 2, RateLimits: 1, Idempotency: 1, Outbox: 1}
 	if res != want {
 		t.Fatalf("удалено %+v, want %+v", res, want)
 	}
-	for table, left := range map[string]int{"otp_codes": 1, "sessions": 2, "rate_limits": 1, "idempotency": 1, "outbox": 2} {
+	for table, left := range map[string]int{"otp_codes": 1, "email_codes": 1, "sessions": 2, "rate_limits": 1, "idempotency": 1, "outbox": 2} {
 		if got := rows(t, pool, table); got != left {
 			t.Errorf("%s: осталось %d, want %d", table, got, left)
 		}

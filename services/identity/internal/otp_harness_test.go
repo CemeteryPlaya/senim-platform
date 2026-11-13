@@ -122,6 +122,7 @@ type harness struct {
 	q      *store.Queries
 	svc    *Service
 	sender *fakeSender
+	email  *fakeSender // отправитель кодов на e-mail (адрес вместо номера)
 	clock  *fakeClock
 	logs   *syncLog
 	rpc    *connect.Client
@@ -139,7 +140,7 @@ func newHarness(t *testing.T, tune func(*ServeConfig)) *harness {
 		}
 	}
 	cfg := ServeConfig{
-		DemoMode: true, OTPProvider: "mock", OTPHMACKey: testHMACKey,
+		DemoMode: true, OTPProvider: "mock", EmailProvider: "mock", OTPHMACKey: testHMACKey,
 		OTPDailyGlobalLimit: 500, OTPDailyPrefixLimit: 50,
 		TokenSigningKey: testSigningKey, TokenKID: testKID,
 		PII: testKeyring(t), PIIIndex: pii.NewIndex(testIndexKey),
@@ -147,9 +148,9 @@ func newHarness(t *testing.T, tune func(*ServeConfig)) *harness {
 	if tune != nil {
 		tune(&cfg)
 	}
-	h := &harness{t: t, pool: pool, q: q, sender: &fakeSender{}, clock: &fakeClock{t: time.Now().UTC().Truncate(time.Second)}, logs: &syncLog{}}
+	h := &harness{t: t, pool: pool, q: q, sender: &fakeSender{}, email: &fakeSender{}, clock: &fakeClock{t: time.Now().UTC().Truncate(time.Second)}, logs: &syncLog{}}
 	log := logging.New(h.logs, ServiceID, slog.LevelDebug)
-	h.svc = NewService(pool, cfg, h.sender, log)
+	h.svc = NewService(pool, cfg, h.sender, h.email, log)
 	h.svc.now = h.clock.now
 
 	dir := t.TempDir()

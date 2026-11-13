@@ -76,11 +76,12 @@ func text(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} 
 // personProto — личность в ответах: ИИН только последними 4 символами.
 func personProto(p store.Person) *identityv1.Person {
 	return &identityv1.Person{
-		UserId:    p.UserID.String(),
-		FullName:  p.FullName.String,
-		IinLast4:  p.IinLast4.String,
-		Instagram: p.Instagram.String,
-		Email:     p.Email.String,
+		UserId:        p.UserID.String(),
+		FullName:      p.FullName.String,
+		IinLast4:      p.IinLast4.String,
+		Instagram:     p.Instagram.String,
+		Email:         p.Email.String,
+		EmailVerified: p.EmailVerifiedAt.Valid,
 	}
 }
 
@@ -297,7 +298,9 @@ type contactSet struct {
 // contacts-profile.ts): контакты — у сторон сделки (заказчик, мастер), у остальных
 // ролей — role_forbidden. Пустое поле — не указан. Аудит user.instagram_changed /
 // user.email_changed — только «указан / не указан»; то же значение ещё раз журнал не
-// пишет.
+// пишет. Другой адрес (и пустой) сбрасывает подтверждение e-mail и гасит ожидающий код
+// почты: иначе код, выданный на прежнего кандидата, подтвердил бы его поверх нового адреса.
+// Тот же адрес подтверждение оставляет.
 func (s *Service) UpdateContacts(ctx context.Context, req *identityv1.UpdateContactsRequest) (*identityv1.UpdateContactsResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return nil, err
@@ -332,6 +335,11 @@ func (s *Service) UpdateContacts(ctx context.Context, req *identityv1.UpdateCont
 		after, err := q.UpsertContacts(ctx, store.UpsertContactsParams{UserID: user.ID, Instagram: text(instagram), Email: text(email), Now: ts(now)})
 		if err != nil {
 			return err
+		}
+		if before.Email != after.Email {
+			if err := q.RetireEmailCodes(ctx, store.RetireEmailCodesParams{UserID: user.ID, Now: ts(now)}); err != nil {
+				return err
+			}
 		}
 		changes := []struct {
 			before, after pgtype.Text

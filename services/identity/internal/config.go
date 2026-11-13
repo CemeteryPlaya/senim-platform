@@ -37,6 +37,9 @@ type ServeConfig struct {
 	AppDSN   string
 	// OTPProvider — провайдер одноразовых кодов (сейчас только mock; в prod запрещён).
 	OTPProvider string
+	// EmailProvider — провайдер писем с кодом подтверждения e-mail (сейчас только mock; в
+	// prod запрещён). При mock код возвращается в ответе RequestEmailCode (demo_code).
+	EmailProvider string
 	// OTPHMACKey — ключ HMAC, которым хешируются коды в базе.
 	OTPHMACKey []byte
 	// TokenSigningKey — ключ подписи внутренних токенов Ed25519, собранный из seed в 32 байта.
@@ -76,18 +79,19 @@ type MigrateConfig struct {
 func LoadServe(src config.Source) (ServeConfig, error) {
 	l := config.NewLoader(src)
 	c := ServeConfig{
-		Env:         l.Env(),
-		DemoMode:    l.DemoMode(),
-		AppDSN:      l.PostgresDSN("IDENTITY_APP_DSN"),
-		CertFile:    l.Required("TLS_CERT_FILE"),
-		KeyFile:     l.Required("TLS_KEY_FILE"),
-		CAFile:      l.Required("TLS_CA_FILE"),
-		OTLP:        l.OTLPEndpoint("OTEL_EXPORTER_OTLP_ENDPOINT"),
-		GRPCAddr:    l.String("IDENTITY_GRPC_ADDR", ":8443"),
-		ProbeAddr:   l.String("IDENTITY_PROBE_ADDR", ":8081"),
-		OTPProvider: l.Provider("IDENTITY_OTP_PROVIDER", []string{"mock"}, []string{"mock"}),
-		OTPHMACKey:  l.Secret("IDENTITY_OTP_HMAC_KEY", 32),
-		TokenKID:    l.Required("IDENTITY_TOKEN_KID"),
+		Env:           l.Env(),
+		DemoMode:      l.DemoMode(),
+		AppDSN:        l.PostgresDSN("IDENTITY_APP_DSN"),
+		CertFile:      l.Required("TLS_CERT_FILE"),
+		KeyFile:       l.Required("TLS_KEY_FILE"),
+		CAFile:        l.Required("TLS_CA_FILE"),
+		OTLP:          l.OTLPEndpoint("OTEL_EXPORTER_OTLP_ENDPOINT"),
+		GRPCAddr:      l.String("IDENTITY_GRPC_ADDR", ":8443"),
+		ProbeAddr:     l.String("IDENTITY_PROBE_ADDR", ":8081"),
+		OTPProvider:   l.Provider("IDENTITY_OTP_PROVIDER", []string{"mock"}, []string{"mock"}),
+		EmailProvider: l.Provider("IDENTITY_EMAIL_PROVIDER", []string{"mock"}, []string{"mock"}),
+		OTPHMACKey:    l.Secret("IDENTITY_OTP_HMAC_KEY", 32),
+		TokenKID:      l.Required("IDENTITY_TOKEN_KID"),
 		// Верх 50: 8 сервисов × 2 реплики × пул должны уместиться в max_connections Postgres.
 		PoolMaxConns:        int32(l.Int("POOL_MAX_CONNS", dbx.DefaultMaxConns, 1, 50)), //nolint:gosec // диапазон проверен
 		OTPDailyGlobalLimit: l.Int("IDENTITY_OTP_DAILY_GLOBAL_LIMIT", 500, 1, 1_000_000),

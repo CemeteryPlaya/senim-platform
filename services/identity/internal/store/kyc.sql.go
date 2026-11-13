@@ -63,7 +63,7 @@ func (q *Queries) ListKycQueue(ctx context.Context) ([]Party, error) {
 }
 
 const listPersonsByIDs = `-- name: ListPersonsByIDs :many
-SELECT user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at FROM persons WHERE user_id = ANY($1::uuid[])
+SELECT user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at, email_verified_at FROM persons WHERE user_id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListPersonsByIDs(ctx context.Context, userIds []uuid.UUID) ([]Person, error) {
@@ -84,6 +84,7 @@ func (q *Queries) ListPersonsByIDs(ctx context.Context, userIds []uuid.UUID) ([]
 			&i.Instagram,
 			&i.Email,
 			&i.UpdatedAt,
+			&i.EmailVerifiedAt,
 		); err != nil {
 			return nil, err
 		}

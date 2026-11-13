@@ -37,6 +37,17 @@ type ConsentRevocation struct {
 	IsDemo      bool
 }
 
+type EmailCode struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Email      string
+	CodeHash   []byte
+	Attempts   int32
+	ExpiresAt  pgtype.Timestamptz
+	ConsumedAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+}
+
 type Idempotency struct {
 	Method      string
 	Key         string
@@ -98,14 +109,15 @@ type Party struct {
 }
 
 type Person struct {
-	UserID    uuid.UUID
-	FullName  pgtype.Text
-	IinEnc    pgtype.Text
-	IinHash   []byte
-	IinLast4  pgtype.Text
-	Instagram pgtype.Text
-	Email     pgtype.Text
-	UpdatedAt pgtype.Timestamptz
+	UserID          uuid.UUID
+	FullName        pgtype.Text
+	IinEnc          pgtype.Text
+	IinHash         []byte
+	IinLast4        pgtype.Text
+	Instagram       pgtype.Text
+	Email           pgtype.Text
+	UpdatedAt       pgtype.Timestamptz
+	EmailVerifiedAt pgtype.Timestamptz
 }
 
 type RateLimit struct {

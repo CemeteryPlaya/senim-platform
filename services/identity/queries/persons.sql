@@ -16,14 +16,16 @@ ON CONFLICT (user_id) DO UPDATE SET
 WHERE persons.iin_hash IS NULL
 RETURNING *;
 
--- Контакты (UpdateContacts): Instagram и e-mail целиком, пусто — NULL.
+-- Контакты (UpdateContacts): Instagram и e-mail целиком, пусто — NULL. Другой адрес (и
+-- пустой) сбрасывает подтверждение, тот же — оставляет.
 -- name: UpsertContacts :one
 INSERT INTO persons (user_id, instagram, email, updated_at)
 VALUES (@user_id, sqlc.narg('instagram'), sqlc.narg('email'), @now)
 ON CONFLICT (user_id) DO UPDATE SET
-    instagram  = EXCLUDED.instagram,
-    email      = EXCLUDED.email,
-    updated_at = EXCLUDED.updated_at
+    instagram         = EXCLUDED.instagram,
+    email             = EXCLUDED.email,
+    email_verified_at = CASE WHEN persons.email = EXCLUDED.email THEN persons.email_verified_at END,
+    updated_at        = EXCLUDED.updated_at
 RETURNING *;
 
 -- Сид демо-стенда (SeedUsers): заданные поля перезаписываются, незаданные (NULL) остаются.
@@ -39,5 +41,8 @@ ON CONFLICT (user_id) DO UPDATE SET
     iin_last4  = COALESCE(EXCLUDED.iin_last4, persons.iin_last4),
     instagram  = COALESCE(EXCLUDED.instagram, persons.instagram),
     email      = COALESCE(EXCLUDED.email, persons.email),
+    -- Сид сменил адрес — подтверждение прежнего к новому не относится.
+    email_verified_at = CASE WHEN EXCLUDED.email IS NULL OR EXCLUDED.email = persons.email
+                             THEN persons.email_verified_at END,
     updated_at = EXCLUDED.updated_at
 RETURNING *;

@@ -112,6 +112,8 @@ message Person {
   string iin_last4 = 3;
   string instagram = 4;
   string email = 5;
+  // Адрес email подтверждён кодом (VerifyEmailCode). Смена адреса в UpdateContacts сбрасывает.
+  bool email_verified = 6;
 }
 
 // Party — сторона сделки (исполнитель): правовая форма, реквизиты и проверка документов.
@@ -394,6 +396,29 @@ message UpdateContactsResponse {
   Person person = 1;
 }
 
+message RequestEmailCodeRequest {
+  string session_token = 1;
+  // Адрес-кандидат; в Person.email попадает только после VerifyEmailCode.
+  string email = 2;
+  string idempotency_key = 3;
+}
+
+message RequestEmailCodeResponse {
+  google.protobuf.Timestamp expires_at = 1;
+  // Пуст, кроме IDENTITY_EMAIL_PROVIDER=mock; повтор по ключу возвращает его пустым.
+  string demo_code = 2;
+}
+
+message VerifyEmailCodeRequest {
+  string session_token = 1;
+  string code = 2;
+  string idempotency_key = 3;
+}
+
+message VerifyEmailCodeResponse {
+  Person person = 1;
+}
+
 message GetProfileRequest {
   string session_token = 1;
 }
@@ -599,7 +624,9 @@ message GetSigningKeysResponse {
 //   email_invalid, bin_iin_invalid, signer_required, iban_invalid, party_missing, party_exists,
 //   kyc_documents_missing, kyc_transition_forbidden, kyc_reason_invalid, consent_version_invalid,
 //   consent_not_revocable, consent_missing, revocation_closed, reveal_purpose_invalid,
-//   pii_key_unknown.
+//   pii_key_unknown, invalid_email, email_code_too_often, email_code_too_many,
+//   email_code_expired, email_code_wrong (params.left — осталось попыток),
+//   email_code_attempts_exhausted.
 service IdentityService {
   rpc RequestOtp(RequestOtpRequest) returns (RequestOtpResponse);
   rpc VerifyOtp(VerifyOtpRequest) returns (VerifyOtpResponse);
@@ -624,6 +651,9 @@ service IdentityService {
   // Персональные данные и стороны.
   rpc RecordPerson(RecordPersonRequest) returns (RecordPersonResponse);
   rpc UpdateContacts(UpdateContactsRequest) returns (UpdateContactsResponse);
+  // Подтверждение e-mail кодом: код на адрес-кандидат, затем проверка.
+  rpc RequestEmailCode(RequestEmailCodeRequest) returns (RequestEmailCodeResponse);
+  rpc VerifyEmailCode(VerifyEmailCodeRequest) returns (VerifyEmailCodeResponse);
   // Чтение.
   rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
   rpc RegisterParty(RegisterPartyRequest) returns (RegisterPartyResponse);

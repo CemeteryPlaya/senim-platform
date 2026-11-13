@@ -119,6 +119,7 @@ func TestServeBecomesReady(t *testing.T) {
 		"IDENTITY_GRPC_ADDR":         grpcAddr,
 		"IDENTITY_PROBE_ADDR":        probeAddr,
 		"IDENTITY_OTP_PROVIDER":      "mock",
+		"IDENTITY_EMAIL_PROVIDER":    "mock",
 		"IDENTITY_OTP_HMAC_KEY":      "c2VuaW0tdjItZGV2LWlkZW50aXR5LW90cC1obWFjISE=",
 		"IDENTITY_TOKEN_SIGNING_KEY": "c2VuaW0tdjItZGV2LWlkZW50aXR5LXRva2VuLWtleSE=",
 		"IDENTITY_TOKEN_KID":         "test-1",

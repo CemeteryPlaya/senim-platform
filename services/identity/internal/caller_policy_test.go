@@ -95,6 +95,14 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 		_, err := c.UpdateContacts(ctx, &identityv1.UpdateContactsRequest{})
 		return err
 	},
+	"RequestEmailCode": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.RequestEmailCode(ctx, &identityv1.RequestEmailCodeRequest{})
+		return err
+	},
+	"VerifyEmailCode": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.VerifyEmailCode(ctx, &identityv1.VerifyEmailCodeRequest{})
+		return err
+	},
 	"RegisterParty": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
 		_, err := c.RegisterParty(ctx, &identityv1.RegisterPartyRequest{})
 		return err

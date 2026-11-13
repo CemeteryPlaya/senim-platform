@@ -143,6 +143,17 @@ func newSender(provider string, log *slog.Logger) (OtpSender, error) {
 	}
 }
 
+// newEmailSender выбирает отправителя писем с кодом по IDENTITY_EMAIL_PROVIDER; неизвестное
+// значение — ошибка, а не мок.
+func newEmailSender(provider string, log *slog.Logger) (EmailSender, error) {
+	switch provider {
+	case "mock":
+		return mockEmailSender{log: log}, nil
+	default:
+		return nil, fmt.Errorf("IDENTITY_EMAIL_PROVIDER: нет отправителя для %q", provider)
+	}
+}
+
 // Serve запускает gRPC (mTLS), пробы и релей outbox; возвращается после остановки.
 //
 // Кто может звать методы IdentityService (каждый обработчик проверяет это первой строкой через
@@ -151,7 +162,8 @@ func newSender(provider string, log *slog.Logger) (OtpSender, error) {
 //	RequestOtp, VerifyOtp, Authenticate, SignOut, SignOutEverywhere,
 //	SwitchRole, GrantRole, StartDemoSession, SeedUsers, SeedConsents, ResetDemo,
 //	StartTotpEnrollment, ConfirmTotpEnrollment, VerifySecondFactor,
-//	RecordPerson, UpdateContacts, GetProfile, RegisterParty,
+//	RecordPerson, UpdateContacts, RequestEmailCode, VerifyEmailCode,
+//	GetProfile, RegisterParty,
 //	ProvisionExecutor, SetPayoutIban, VerifySignerIin,
 //	SubmitKyc, ListKycQueue, ReviewKyc,
 //	GrantConsent, RevokeConsent, ListMyConsents, HasConsents,
@@ -172,6 +184,10 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 	defer func() { _ = shutdownTelemetry(context.WithoutCancel(ctx)) }()
 
 	sender, err := newSender(cfg.OTPProvider, log)
+	if err != nil {
+		return err
+	}
+	emailSender, err := newEmailSender(cfg.EmailProvider, log)
 	if err != nil {
 		return err
 	}
@@ -241,7 +257,7 @@ func Serve(ctx context.Context, src config.Source, log *slog.Logger) error {
 		// напрямую не допускаются (ADR-011).
 		AllowedPeers: []string{server.MeshPeer, ServiceID},
 	}, func(s *connect.Server) error {
-		identityv1connect.RegisterIdentityServiceHandler(s, NewService(pool, cfg, sender, log))
+		identityv1connect.RegisterIdentityServiceHandler(s, NewService(pool, cfg, sender, emailSender, log))
 		return nil
 	}, ready)
 

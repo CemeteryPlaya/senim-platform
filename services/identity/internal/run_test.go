@@ -15,3 +15,13 @@ func TestNewSender(t *testing.T) {
 		t.Fatal("неизвестный провайдер принят")
 	}
 }
+
+func TestNewEmailSender(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if s, err := newEmailSender("mock", log); err != nil || s == nil {
+		t.Fatalf("mock: %v %v", s, err)
+	}
+	if _, err := newEmailSender("smtp", log); err == nil {
+		t.Fatal("неизвестный провайдер принят")
+	}
+}

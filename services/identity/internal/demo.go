@@ -539,7 +539,7 @@ func (s *Service) StartDemoSession(ctx context.Context, req *identityv1.StartDem
 	return resp, nil
 }
 
-// ResetDemo чистит одноразовое и временное состояние стенда: коды, счётчики лимитов,
+// ResetDemo чистит одноразовое и временное состояние стенда: коды (SMS и e-mail), счётчики лимитов,
 // сессии, вторые факторы операторов (повторный прогон e2e подключает TOTP заново, а не
 // упирается в mfa_already_enrolled), согласия и заявки на отзыв демо-пользователей (is_demo;
 // функция identity_purge_demo_consents, миграция 0008) и сохранённые ответы идемпотентности (иначе повтор
@@ -561,6 +561,9 @@ func (s *Service) ResetDemo(ctx context.Context, req *identityv1.ResetDemoReques
 			return err
 		}
 		if _, err := q.DeleteAllOtpCodes(ctx); err != nil {
+			return err
+		}
+		if _, err := q.DeleteAllEmailCodes(ctx); err != nil {
 			return err
 		}
 		if _, err := q.DeleteAllRateLimits(ctx); err != nil {

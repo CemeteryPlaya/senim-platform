@@ -13,7 +13,7 @@ import (
 )
 
 const getPerson = `-- name: GetPerson :one
-SELECT user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at FROM persons WHERE user_id = $1
+SELECT user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at, email_verified_at FROM persons WHERE user_id = $1
 `
 
 func (q *Queries) GetPerson(ctx context.Context, userID uuid.UUID) (Person, error) {
@@ -28,6 +28,7 @@ func (q *Queries) GetPerson(ctx context.Context, userID uuid.UUID) (Person, erro
 		&i.Instagram,
 		&i.Email,
 		&i.UpdatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
@@ -42,7 +43,7 @@ ON CONFLICT (user_id) DO UPDATE SET
     iin_last4  = EXCLUDED.iin_last4,
     updated_at = EXCLUDED.updated_at
 WHERE persons.iin_hash IS NULL
-RETURNING user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at
+RETURNING user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at, email_verified_at
 `
 
 type RecordPersonIINParams struct {
@@ -76,6 +77,7 @@ func (q *Queries) RecordPersonIIN(ctx context.Context, arg RecordPersonIINParams
 		&i.Instagram,
 		&i.Email,
 		&i.UpdatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
@@ -84,10 +86,11 @@ const upsertContacts = `-- name: UpsertContacts :one
 INSERT INTO persons (user_id, instagram, email, updated_at)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (user_id) DO UPDATE SET
-    instagram  = EXCLUDED.instagram,
-    email      = EXCLUDED.email,
-    updated_at = EXCLUDED.updated_at
-RETURNING user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at
+    instagram         = EXCLUDED.instagram,
+    email             = EXCLUDED.email,
+    email_verified_at = CASE WHEN persons.email = EXCLUDED.email THEN persons.email_verified_at END,
+    updated_at        = EXCLUDED.updated_at
+RETURNING user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at, email_verified_at
 `
 
 type UpsertContactsParams struct {
@@ -97,7 +100,8 @@ type UpsertContactsParams struct {
 	Now       pgtype.Timestamptz
 }
 
-// Контакты (UpdateContacts): Instagram и e-mail целиком, пусто — NULL.
+// Контакты (UpdateContacts): Instagram и e-mail целиком, пусто — NULL. Другой адрес (и
+// пустой) сбрасывает подтверждение, тот же — оставляет.
 func (q *Queries) UpsertContacts(ctx context.Context, arg UpsertContactsParams) (Person, error) {
 	row := q.db.QueryRow(ctx, upsertContacts,
 		arg.UserID,
@@ -115,6 +119,7 @@ func (q *Queries) UpsertContacts(ctx context.Context, arg UpsertContactsParams) 
 		&i.Instagram,
 		&i.Email,
 		&i.UpdatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
@@ -130,8 +135,11 @@ ON CONFLICT (user_id) DO UPDATE SET
     iin_last4  = COALESCE(EXCLUDED.iin_last4, persons.iin_last4),
     instagram  = COALESCE(EXCLUDED.instagram, persons.instagram),
     email      = COALESCE(EXCLUDED.email, persons.email),
+    -- Сид сменил адрес — подтверждение прежнего к новому не относится.
+    email_verified_at = CASE WHEN EXCLUDED.email IS NULL OR EXCLUDED.email = persons.email
+                             THEN persons.email_verified_at END,
     updated_at = EXCLUDED.updated_at
-RETURNING user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at
+RETURNING user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at, email_verified_at
 `
 
 type UpsertSeedPersonParams struct {
@@ -168,6 +176,7 @@ func (q *Queries) UpsertSeedPerson(ctx context.Context, arg UpsertSeedPersonPara
 		&i.Instagram,
 		&i.Email,
 		&i.UpdatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
