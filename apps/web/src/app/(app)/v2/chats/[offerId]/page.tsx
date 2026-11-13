@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { Explain, Narrow, PageTitle, Stack, TextLink } from "@/kit";
-import { CHAT_MAX_LENGTH, getChat, listChats } from "@/modules/companies";
+import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, chatAttachments, getChat, listChats } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { requireBuyer } from "../../../_shell/auth";
@@ -24,13 +24,14 @@ type Props = { params: Promise<{ offerId: string }> };
 export default async function ChatPage({ params }: Props) {
   const { offerId } = await params;
   const user = await requireBuyer(chatHref(offerId));
-  const view = await getChat(user, offerId).catch((e: unknown) => {
+  const loaded = await Promise.all([getChat(user, offerId), chatAttachments(user, offerId)]).catch((e: unknown) => {
     if (isAppError(e) && e.code === "NOT_FOUND") notFound();
     throw e;
   });
+  const [view, attachments] = loaded;
   // Собеседник и «к чему относится» — из списка диалогов (один запрос; чат-вид их не несёт).
   const item = (await listChats(user)).find((chat) => chat.offerId === offerId) ?? null;
-  const model = chatRoomModel(view);
+  const model = chatRoomModel(view, attachments);
   const device = await getDevice();
   const link = item ? contextLink(contextOfHref(item.href, offerId), item.title) : null;
 
@@ -48,7 +49,7 @@ export default async function ChatPage({ params }: Props) {
     </span>
   );
 
-  const room = <ChatRoom key={offerId} offerId={offerId} initial={model} device={device} maxLength={CHAT_MAX_LENGTH} />;
+  const room = <ChatRoom key={offerId} offerId={offerId} initial={model} device={device} maxLength={CHAT_MAX_LENGTH} maxAttachments={CHAT_MAX_ATTACHMENTS} />;
   return (
     <Stack gap="section">
       <PageTitle title={item?.counterpart ?? t.fallbackTitle} back={{ href: to("/chats"), label: t.back }} lead={lead} />

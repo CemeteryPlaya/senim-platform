@@ -8,6 +8,8 @@ import { assertSafeDatabase } from "./safe-database";
 import { seedBuyerState } from "./offers";
 import { freshPhone, loginV2, open, passOnboarding } from "./support";
 
+const PHOTO = path.join(__dirname, "..", "public", "landing", "kitchen.jpg");
+
 /**
  * Чаты покупателя (/v2/chats, /v2/chats/<id>) глазами засеянного покупателя Айгерим: список → диалог → сообщение; маска
  * телефона и ссылки до оферты; двойная отправка — одно сообщение; прокрутка длинной переписки (открытие у последнего
@@ -218,6 +220,40 @@ test("длинная переписка: открывается у послед�
     await db.end();
   }
   await expect(log(page).getByText(reply)).toBeVisible({ timeout: 12_000 });
+});
+
+test("компьютер 1280×800: поле ввода видно без прокрутки страницы, документ не выше окна", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "высота окна ленты — токен компьютера");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const href = await firstDialog(page);
+  await open(page, href);
+  const box = await field(page).boundingBox();
+  const metrics = await page.evaluate("({ doc: document.documentElement.scrollHeight, win: window.innerHeight, y: window.scrollY })") as { doc: number; win: number; y: number };
+  info.annotations.push({ type: "1280×800", description: JSON.stringify({ fieldBottom: Math.round((box?.y ?? 0) + (box?.height ?? 0)), ...metrics }) });
+  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(800);
+  expect(metrics.doc).toBeLessThanOrEqual(metrics.win + 2);
+  expect(metrics.y).toBe(0);
+});
+
+test("фото к сообщению: кнопка вложения → загрузка → отправка с текстом → «Фото 1» с превью; после перезагрузки на месте", async ({ page }) => {
+  const href = await firstDialog(page);
+  await open(page, href);
+  await page.getByRole("button", { name: kit.attach, exact: true }).click();
+  await page.locator('input[type="file"]').setInputFiles(PHOTO);
+  await expect(page.getByText(ru.app.kit.uploader.done)).toHaveCount(1, { timeout: 30_000 });
+  const marker = `Фото ${Date.now()}`;
+  await field(page).fill(marker);
+  await send(page).click();
+  const message = log(page).locator("article", { hasText: marker });
+  await expect(message).toHaveCount(1);
+  const link = message.getByRole("link", { name: t.room.photo(1) });
+  await expect(link).toBeVisible();
+  await expect.poll(() => link.locator("img").evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  // Панель вложений после отправки убрана.
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
+
+  await open(page, href);
+  await expect(log(page).locator("article", { hasText: marker }).getByRole("link", { name: t.room.photo(1) })).toBeVisible();
 });
 
 test("опрос молчит на скрытой вкладке и возобновляется при возврате", async ({ page }) => {

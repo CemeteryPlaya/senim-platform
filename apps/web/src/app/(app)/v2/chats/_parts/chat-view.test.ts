@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { ChatListItem, ChatView } from "@/modules/companies";
-import { chatHref, chatRoomModel, chatRows, contextLink, contextOfHref, messageTime } from "./chat-view";
+import { chatHref, chatRoomModel, chatRows, closedText, contextLink, contextOfHref, messageTime } from "./chat-view";
 import { createGate, shouldPoll } from "./single-flight";
 
 const t = ru.app.chat;
@@ -15,6 +15,7 @@ const view = (over: Partial<ChatView> = {}): ChatView => ({
   ],
   canWrite: true,
   closedReason: null,
+  closedCode: null,
   closedByOperator: null,
   canModerate: false,
   clientPhone: null,
@@ -31,7 +32,7 @@ describe("время сообщения", () => {
 
 describe("модель ленты", () => {
   it("до оферты — системная строка первой; свои справа, автор для диктора из модуля", () => {
-    const model = chatRoomModel(view(), NOW);
+    const model = chatRoomModel(view(), [], NOW);
     expect(model.beforeOffer).toBe(true);
     expect(model.messages[0]).toMatchObject({ kind: "system", text: t.room.hiddenSystem });
     expect(model.messages.slice(1).map((m) => [m.id, m.mine, m.author])).toEqual([
@@ -41,18 +42,51 @@ describe("модель ленты", () => {
   });
 
   it("после оферты (контакты открыты) системной строки нет", () => {
-    const model = chatRoomModel(view({ contacts: { phone: "+7 700 000 00 00" } as unknown as ChatView["contacts"] }), NOW);
+    const model = chatRoomModel(view({ contacts: { phone: "+7 700 000 00 00" } as unknown as ChatView["contacts"] }), [], NOW);
     expect(model.beforeOffer).toBe(false);
     expect(model.messages.map((m) => m.id)).toEqual(["m1", "m2"]);
   });
 
   it("закрытый чат: причина и признак оператора передаются как есть", () => {
-    const model = chatRoomModel(view({ canWrite: false, closedReason: "Чат закрыт", closedByOperator: { reason: "Жалоба", at: NOW } }), NOW);
-    expect(model).toMatchObject({ canWrite: false, closedReason: "Чат закрыт", operatorReason: "Жалоба" });
+    const model = chatRoomModel(view({ canWrite: false, closedReason: "Чат закрыт оператором — можно только читать", closedCode: "operatorClosed", closedByOperator: { reason: "Жалоба", at: NOW } }), [], NOW);
+    expect(model).toMatchObject({ canWrite: false, closedReason: t.room.closed.operatorClosed, operatorReason: "Жалоба" });
   });
 
   it("модель — простые значения (идёт через серверное действие): без Date", () => {
-    expect(JSON.parse(JSON.stringify(chatRoomModel(view(), NOW)))).toEqual(chatRoomModel(view(), NOW));
+    expect(JSON.parse(JSON.stringify(chatRoomModel(view(), [], NOW)))).toEqual(chatRoomModel(view(), [], NOW));
+  });
+});
+
+describe("закрытый чат: свои тексты по коду", () => {
+  it("каждая причина модуля — текст покупателя без «отклик»; неизвестный код — общий", () => {
+    const codes = ["operatorClosed", "offerWithdrawn", "offerDeclined", "requestCancelled", "dealCancelled", "dealRefunded"] as const;
+    for (const code of codes) {
+      const text = closedText({ canWrite: false, closedCode: code });
+      expect(text).toBe(t.room.closed[code]);
+      expect(text).not.toMatch(/отклик|исполнител/i);
+    }
+    expect(closedText({ canWrite: false, closedCode: null })).toBe(t.room.closedGeneric);
+    expect(closedText({ canWrite: true, closedCode: null })).toBeNull();
+  });
+});
+
+describe("вложения в ленте", () => {
+  it("фото сообщения — превью-ссылки «Фото N» по порядку; чужие сообщения не получают лишнего", () => {
+    const model = chatRoomModel(
+      view(),
+      [
+        { id: "f1", messageId: "m1", url: "/api/files/a" },
+        { id: "f2", messageId: "m1", url: "/api/files/b" },
+        { id: "f3", messageId: "m2", url: "/api/files/c" },
+      ],
+      NOW,
+    );
+    const [, first, second] = model.messages;
+    expect(first.attachments?.map((a) => [a.id, a.name, a.url, a.previewUrl])).toEqual([
+      ["f1", t.room.photo(1), "/api/files/a", "/api/files/a"],
+      ["f2", t.room.photo(2), "/api/files/b", "/api/files/b"],
+    ]);
+    expect(second.attachments?.map((a) => a.name)).toEqual([t.room.photo(1)]);
   });
 });
 
@@ -87,8 +121,10 @@ describe("список диалогов", () => {
     expect(row.time).toBeTruthy();
   });
 
-  it("без переписки — «Сообщений пока нет» и без времени", () => {
-    expect(chatRows([item({ lastMessage: null, lastAt: null })], NOW)[0]).toMatchObject({ last: t.list.noMessages, time: null });
+  it("диалоги без сообщений в список не попадают; закрытый с сообщениями остаётся", () => {
+    const rows = chatRows([item({ offerId: "empty", lastMessage: null, lastAt: null }), item({ offerId: "closed", closed: true })], NOW);
+    expect(rows.map((r) => [r.offerId, r.closed])).toEqual([["closed", true]]);
+    expect(chatRows([item({ lastMessage: null, lastAt: null })], NOW)).toEqual([]);
   });
 });
 

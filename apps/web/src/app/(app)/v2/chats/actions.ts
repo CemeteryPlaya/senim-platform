@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { CHAT_MAX_LENGTH, getChat, sendMessage } from "@/modules/companies";
+import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, chatAttachments, getChat, sendMessage } from "@/modules/companies";
 import { requireUser } from "@/modules/identity";
 import { action } from "@/platform/action";
 import { chatRoomModel } from "./_parts/chat-view";
@@ -12,22 +12,33 @@ import { chatRoomModel } from "./_parts/chat-view";
 
 const offerId = z.string().min(1).max(64);
 
+/** Диалог и адреса вложений (права обеих проверяет модуль). */
+async function roomOf(user: Parameters<typeof getChat>[0], id: string) {
+  const [view, attachments] = await Promise.all([getChat(user, id), chatAttachments(user, id)]);
+  return chatRoomModel(view, attachments);
+}
+
 /** Обновление ленты опросом (раз в 5 с, пока вкладка видна). Чужой диалог — NOT_FOUND из модуля. */
 export const loadChatAction = action("app.chat.load", z.strictObject({ offerId }), async (input) => {
   const user = await requireUser("CLIENT", "EXECUTOR");
-  return chatRoomModel(await getChat(user, input.offerId));
+  return roomOf(user, input.offerId);
 });
 
 /**
  * Отправка сообщения. Ответ — вся лента после записи (свежее сообщение уже в ней): оптимистичного добавления нет.
- * Вложений нет: модулю отдаётся пустой список (отправка фото в чат — вне этого экрана).
+ * Фото — id файлов, уже загруженных общим `v2/_upload` с назначением MESSAGE; число, владение и назначение проверяет
+ * модуль (не больше CHAT_MAX_ATTACHMENTS). Сообщение только с фото без текста модуль не принимает («Напишите сообщение»).
  */
 export const sendMessageAction = action(
   "app.chat.send",
-  z.strictObject({ offerId, text: z.string().max(CHAT_MAX_LENGTH * 2) }),
+  z.strictObject({
+    offerId,
+    text: z.string().max(CHAT_MAX_LENGTH * 2),
+    fileIds: z.array(z.string().min(1).max(64)).max(CHAT_MAX_ATTACHMENTS).default([]),
+  }),
   async (input) => {
     const user = await requireUser("CLIENT", "EXECUTOR");
-    await sendMessage(user, input.offerId, input.text, []);
-    return chatRoomModel(await getChat(user, input.offerId));
+    await sendMessage(user, input.offerId, input.text, input.fileIds);
+    return roomOf(user, input.offerId);
   },
 );

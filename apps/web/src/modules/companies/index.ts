@@ -93,17 +93,20 @@ export {
   CHAT_MAX_ATTACHMENTS,
   CHAT_MAX_LENGTH,
   closeChat,
+  chatAttachments,
   getChat,
   listChats,
   reopenChat,
   revokeClientPhone,
   sendMessage,
   shareClientPhone,
+  type ChatAttachmentView,
   type ChatListItem,
   type ChatMessageView,
   type ClientPhoneView,
   type ChatView,
 } from "./chat";
+export type { ChatClosedReason } from "./chat-policy";
 export { dealContacts, type PartyContacts } from "./contacts";
 export { CONTACTS, contactStage, type ContactStage } from "./contacts-policy";
 

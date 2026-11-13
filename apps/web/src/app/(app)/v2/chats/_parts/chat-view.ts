@@ -1,7 +1,7 @@
 import { formatDate, formatDateTime, formatRelative, formatTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import type { ChatMessage } from "@/kit";
-import type { ChatListItem, ChatView } from "@/modules/companies";
+import type { ChatAttachmentView, ChatListItem, ChatView } from "@/modules/companies";
 import { to } from "../../../_shell/paths";
 
 // Чистая часть экранов переписки покупателя: данные модуля `companies` → строки для kit. Права, маску контактов и
@@ -13,7 +13,7 @@ const t = ru.app.chat;
 export type ChatRoomModel = {
   messages: ChatMessage[];
   canWrite: boolean;
-  /** Почему писать нельзя; `null` — можно. */
+  /** Почему писать нельзя (свой текст по коду причины); `null` — можно. */
   closedReason: string | null;
   /** Причина закрытия оператором; `null` — не закрыт им. */
   operatorReason: string | null;
@@ -26,8 +26,17 @@ export function messageTime(sentAt: Date, now: Date): string {
   return formatDate(sentAt) === formatDate(now) ? formatTime(sentAt) : formatDateTime(sentAt);
 }
 
-/** Диалог → модель ленты. Системная строка про скрытые контакты стоит первой, пока оферта не заключена. */
-export function chatRoomModel(view: ChatView, now: Date = new Date()): ChatRoomModel {
+/** Текст причины закрытия по коду модуля; неизвестный код — общий «Чат закрыт» (текст модуля покупателю не показываем). */
+export function closedText(view: Pick<ChatView, "canWrite" | "closedCode">): string | null {
+  if (view.canWrite) return null;
+  return view.closedCode ? t.room.closed[view.closedCode] : t.room.closedGeneric;
+}
+
+/**
+ * Диалог → модель ленты. Системная строка про скрытые контакты стоит первой, пока оферта не заключена. Вложения —
+ * адреса из `chatAttachments` (подпись «Фото N» по порядку в сообщении).
+ */
+export function chatRoomModel(view: ChatView, attachments: readonly ChatAttachmentView[] = [], now: Date = new Date()): ChatRoomModel {
   // `contacts` отдаёт только состояние «оферта заключена» (у стороны сделки); до оферты — null.
   const beforeOffer = view.contacts === null;
   const messages: ChatMessage[] = view.messages.map((message) => ({
@@ -36,12 +45,15 @@ export function chatRoomModel(view: ChatView, now: Date = new Date()): ChatRoomM
     time: messageTime(message.sentAt, now),
     mine: message.kind === "own",
     author: message.author,
+    attachments: attachments
+      .filter((file) => file.messageId === message.id)
+      .map((file, index) => ({ id: file.id, url: file.url, previewUrl: file.url, name: t.room.photo(index + 1) })),
   }));
   if (beforeOffer) messages.unshift({ id: "system:contacts-hidden", kind: "system", text: t.room.hiddenSystem, time: "" });
   return {
     messages,
     canWrite: view.canWrite,
-    closedReason: view.closedReason,
+    closedReason: closedText(view),
     operatorReason: view.closedByOperator?.reason ?? null,
     beforeOffer,
   };
@@ -88,14 +100,17 @@ export type ChatRowView = {
 /** Адрес диалога покупателя. */
 export const chatHref = (offerId: string): string => to(`/chats/${encodeURIComponent(offerId)}`);
 
-/** Строки списка диалогов: адрес — всегда экран диалога v2. Модуль не отдаёт «непрочитанное» — признака нет. */
+/**
+ * Строки списка диалогов: адрес — всегда экран диалога v2. Только диалоги с сообщениями: пустой диалог по предложению
+ * открывается с экрана предложения. Модуль не отдаёт «непрочитанное» — признака нет.
+ */
 export function chatRows(items: readonly ChatListItem[], now: Date = new Date()): ChatRowView[] {
-  return items.map((item) => ({
+  return items.filter((item) => item.lastMessage !== null).map((item) => ({
     offerId: item.offerId,
     href: chatHref(item.offerId),
     counterpart: item.counterpart,
     title: item.title,
-    last: item.lastMessage ?? t.list.noMessages,
+    last: item.lastMessage ?? "",
     time: item.lastAt ? formatRelative(item.lastAt, now) : null,
     closed: item.closed,
   }));

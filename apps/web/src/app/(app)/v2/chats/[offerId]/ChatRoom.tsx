@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PHOTO_ACCEPT } from "@/features/upload/transfer";
 import { ru } from "@/i18n/ru";
-import { Chat, ChatComposer, Notice } from "@/kit";
+import { Chat, ChatComposer, Notice, toast, Uploader } from "@/kit";
 import type { Device } from "@/platform/device";
 import { outcomeOf } from "../../../_shell/form";
+import { usePhotoUploads } from "../../_upload/usePhotoUploads";
 import { loadChatAction, sendMessageAction } from "../actions";
 import type { ChatRoomModel } from "../_parts/chat-view";
 import { createGate, shouldPoll } from "../_parts/single-flight";
@@ -22,16 +24,48 @@ export type ChatRoomProps = {
   device: Device;
   /** Предел длины сообщения (из модуля). */
   maxLength: number;
+  /** Предел числа фото в сообщении (из модуля). */
+  maxAttachments: number;
 };
+
+type Attached = { fileIds: string[]; busy: boolean };
+
+/**
+ * Фото к сообщению: загрузка общим автоматом `v2/_upload` с назначением MESSAGE (то же, что у модуля files для чата),
+ * превью и «Убрать». Своё состояние — перемонтируется после отправки (ключ), сообщает наверх id готовых файлов.
+ */
+function AttachPanel({ max, onChange }: { max: number; onChange: (state: Attached) => void }) {
+  const uploads = usePhotoUploads("MESSAGE", [], t.photo);
+  const ids = uploads.fileIds.join(",");
+  useEffect(() => {
+    onChange({ fileIds: ids ? ids.split(",") : [], busy: uploads.busy });
+  }, [ids, uploads.busy, onChange]);
+  return (
+    <Uploader
+      label={t.attach.title}
+      items={uploads.items}
+      onAdd={uploads.add}
+      onRemove={uploads.remove}
+      onRetry={uploads.retry}
+      onReject={(_files, reason) => toast.error(reason === "type" ? t.attach.notPhoto : t.attach.limit(max))}
+      max={max}
+      accept={PHOTO_ACCEPT}
+    />
+  );
+}
 
 /**
  * Лента диалога и поле ввода. Новые сообщения — опросом серверного действия раз в 5 с (не чаще одного запроса за раз,
  * не на скрытой вкладке); отправка — серверным действием, после успеха лента заменяется ответом (оптимистичного
  * добавления нет). Ошибка отправки — текст у поля, набранное остаётся. На телефоне прокручивается страница.
  */
-export function ChatRoom({ offerId, initial, device, maxLength }: ChatRoomProps) {
+export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }: ChatRoomProps) {
   const [model, setModel] = useState(initial);
   const [error, setError] = useState<string | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attached, setAttached] = useState<Attached>({ fileIds: [], busy: false });
+  /** Растёт после отправки: панель фото перемонтируется пустой. */
+  const [panelKey, setPanelKey] = useState(0);
   /** Поколение ленты: ответ опроса, начатого до отправки, устарел и не применяется. */
   const epoch = useRef(0);
 
@@ -71,13 +105,21 @@ export function ChatRoom({ offerId, initial, device, maxLength }: ChatRoomProps)
   const send = async (text: string): Promise<boolean> => {
     const gate = gates.current.send;
     if (!gate.enter()) return false;
+    if (attached.busy) {
+      gate.leave();
+      setError(t.attach.wait);
+      return false;
+    }
     setError(null);
     epoch.current += 1;
     try {
-      const outcome = outcomeOf(await sendMessageAction({ offerId, text }), here());
+      const outcome = outcomeOf(await sendMessageAction({ offerId, text, fileIds: attached.fileIds }), here());
       epoch.current += 1;
       if (outcome.kind === "success") {
         setModel(outcome.data);
+        setAttachOpen(false);
+        setAttached({ fileIds: [], busy: false });
+        setPanelKey((key) => key + 1);
         return true;
       }
       if (outcome.kind === "leave") leave(outcome.href);
@@ -98,9 +140,11 @@ export function ChatRoom({ offerId, initial, device, maxLength }: ChatRoomProps)
           {error}
         </Notice>
       )}
+      {attachOpen && <AttachPanel key={panelKey} max={maxAttachments} onChange={setAttached} />}
       <ChatComposer
         device={device}
         onSend={send}
+        onAttach={() => setAttachOpen(true)}
         maxLength={maxLength}
         label={t.composerLabel}
         placeholder={t.composerPlaceholder}
@@ -113,12 +157,5 @@ export function ChatRoom({ offerId, initial, device, maxLength }: ChatRoomProps)
     </Notice>
   );
 
-  // Компьютер: у ленты своя прокрутка, а скрытый автор сообщения (`sr-only`, absolute) без позиционированного предка
-  // выходит за неё и растягивает страницу на всю длину переписки. Обёртка (relative + clip) держит его внутри.
-  // TODO(kit): `relative` у ленты `Chat` убирает потребность в обёртке.
-  return (
-    <div className="desktop:relative desktop:overflow-clip desktop:[overflow-clip-margin:8px]">
-      <Chat messages={model.messages} label={t.log} pageScroll={device === "mobile"} composer={composer} />
-    </div>
-  );
+  return <Chat messages={model.messages} label={t.log} pageScroll={device === "mobile"} composer={composer} />;
 }

@@ -81,9 +81,26 @@ describe("список чатов", () => {
     expect(html!.split("<h1").length - 1).toBe(1);
   });
 
+  it("диалоги без сообщений в списке не показываются; остался один пустой — обучающий экран; закрытый с сообщением — с чипом", async () => {
+    const silent = await makeOfferThread();
+    h.user = silent.client;
+    const empty = await list();
+    expect(empty.html).toContain(t.list.emptyTitle);
+    expect(empty.html).not.toContain(silent.offerId);
+
+    const talked = await makeOfferThread({ client: silent.client });
+    await db.message.create({ data: { offerId: talked.offerId, senderId: talked.executor.id, body: "Здравствуйте" } });
+    await db.offer.update({ where: { id: talked.offerId }, data: { chatClosedAt: new Date(), chatClosedReason: "причина" } });
+    const { html } = await list();
+    expect(html).toContain(`href="/v2/chats/${talked.offerId}"`);
+    expect(html).toContain(t.list.closed);
+    expect(html).not.toContain(silent.offerId);
+  });
+
   it("чужие диалоги в списке не видны", async () => {
     const mine = await makeOfferThread();
     const other = await makeOfferThread();
+    for (const thread of [mine, other]) await db.message.create({ data: { offerId: thread.offerId, senderId: thread.executor.id, body: "Привет" } });
     h.user = mine.client;
     const { html } = await list();
     expect(html).toContain(mine.offerId);
@@ -128,7 +145,32 @@ describe("экран диалога", () => {
     const { html } = await room(thread.offerId);
     expect(html).toContain(t.room.closedTitle);
     expect(html).toContain("Нарушение правил");
+    expect(html).toContain(t.room.closed.operatorClosed);
     expect(html).not.toContain("<textarea");
+  });
+
+  it("причина закрытия — свой текст покупателя по коду, без слова «отклик»", async () => {
+    const declined = await makeOfferThread({ offerStatus: "DECLINED" });
+    h.user = declined.client;
+    const { html } = await room(declined.offerId);
+    expect(html).toContain(t.room.closed.offerDeclined);
+    expect(html).not.toMatch(/[Оо]тклик/);
+    const withdrawn = await makeOfferThread({ offerStatus: "WITHDRAWN" });
+    h.user = withdrawn.client;
+    expect((await room(withdrawn.offerId)).html).toContain(t.room.closed.offerWithdrawn);
+  });
+
+  it("вложения: фото сообщения — ссылка «Фото 1» на адрес файла; кнопка вложения в поле есть", async () => {
+    const thread = await makeOfferThread();
+    h.user = thread.client;
+    const message = await db.message.create({ data: { offerId: thread.offerId, senderId: thread.executor.id, body: "Образец" } });
+    await db.storedFile.create({
+      data: { storageKey: `message/test/page-${Date.now()}.jpg`, provider: "local", purpose: "MESSAGE", contentType: "image/jpeg", size: 1000, sha256: "6".repeat(64), uploadedById: thread.executor.id, messageId: message.id },
+    });
+    const { html } = await room(thread.offerId);
+    expect(html).toContain(`aria-label="${t.room.photo(1)}"`);
+    expect(html).toMatch(/<a href="[^"]*\/api\/files\//);
+    expect(html).toContain(ru.app.kit.chat.attach);
   });
 
   it("чужой и несуществующий диалог — 404", async () => {
@@ -174,6 +216,29 @@ describe("действия диалога", () => {
     expect(await loadChatAction({ offerId: thread.offerId })).toMatchObject({ ok: false, code: "NOT_FOUND" });
     expect(await sendMessageAction({ offerId: thread.offerId, text: "привет" })).toMatchObject({ ok: false, code: "NOT_FOUND" });
     expect(await db.message.count({ where: { offerId: thread.offerId } })).toBe(0);
+  });
+
+  it("сообщение с фото: файл прикрепляется, лента отдаёт адрес; фото без текста и чужой файл — ошибка без сообщения", async () => {
+    const thread = await makeOfferThread();
+    await signInAs(thread.client);
+    const file = (userId: string, tag: string) =>
+      db.storedFile.create({
+        data: { storageKey: `message/test/${tag}-${Date.now()}.jpg`, provider: "local", purpose: "MESSAGE", contentType: "image/jpeg", size: 1000, sha256: "7".repeat(64), uploadedById: userId },
+      });
+    const mine = await file(thread.client.id, "mine");
+    const sent = await sendMessageAction({ offerId: thread.offerId, text: "Вот стена", fileIds: [mine.id] });
+    if (!sent.ok) throw new Error(sent.error);
+    const withPhoto = sent.data.messages.find((m) => m.attachments && m.attachments.length > 0);
+    expect(withPhoto?.attachments?.map((a) => a.name)).toEqual([t.room.photo(1)]);
+
+    const second = await file(thread.client.id, "second");
+    expect(await sendMessageAction({ offerId: thread.offerId, text: "  ", fileIds: [second.id] })).toMatchObject({ ok: false, code: "VALIDATION" });
+    const foreign = await file(thread.executor.id, "foreign");
+    expect(await sendMessageAction({ offerId: thread.offerId, text: "Чужой", fileIds: [foreign.id] })).toMatchObject({ ok: false });
+    expect(await db.message.count({ where: { offerId: thread.offerId } })).toBe(1);
+    // Больше предела — схема.
+    const many = Array.from({ length: 6 }, (_, i) => `f${i}`);
+    expect(await sendMessageAction({ offerId: thread.offerId, text: "много", fileIds: many })).toMatchObject({ ok: false, code: "VALIDATION" });
   });
 
   it("закрытый чат не принимает сообщение", async () => {

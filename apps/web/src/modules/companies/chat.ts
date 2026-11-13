@@ -1,7 +1,7 @@
 import "server-only";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
-import { attachFiles } from "@/modules/files";
+import { attachFiles, fileUrl } from "@/modules/files";
 import { actorOf, formatPhone, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { db, transaction, type Db, type Prisma } from "@/platform/db";
@@ -51,6 +51,8 @@ export type ChatView = {
   canWrite: boolean;
   /** Почему писать нельзя (для поля ввода); null — можно. */
   closedReason: string | null;
+  /** Код причины, по которому чат закрыт для сторон (экран выбирает свой текст по коду); null — не закрыт или читает оператор. */
+  closedCode: ChatClosedReason | null;
   /** Чат закрыт оператором (№19): причину видят обе стороны; null — не закрыт. */
   closedByOperator: { reason: string; at: Date } | null;
   /** Оператор: может закрыть или снова открыть чат. */
@@ -168,11 +170,30 @@ export async function getChat(user: CurrentUser, offerId: string): Promise<ChatV
     messages: rows.reverse().map((row) => toView(row, user, loaded)),
     canWrite: closed === null,
     closedReason: closed,
+    closedCode: party === "operator" ? null : closedReasonOf(offer),
     closedByOperator: closedByOperator(offer),
     canModerate: party === "operator",
     clientPhone: await clientPhoneView(loaded),
     contacts: await partyContactsFor(db, party, sidesOf(offer)),
   };
+}
+
+/** Фото-вложение сообщения: адрес для <img> и ссылки (подписанная ссылка хранилища). */
+export type ChatAttachmentView = { id: string; messageId: string; url: string };
+
+/**
+ * Адреса вложений всех сообщений диалога, по порядку сообщений и файлов. Права те же, что у getChat (стороны отклика и
+ * оператор; чужой отклик — NOT_FOUND). Отдельно от getChat, чтобы его вид не менялся и подписи ссылок не строились там,
+ * где вложений нет.
+ */
+export async function chatAttachments(user: CurrentUser, offerId: string): Promise<ChatAttachmentView[]> {
+  await requireOffer(db, user, offerId);
+  const files = await db.storedFile.findMany({
+    where: { message: { offerId } },
+    orderBy: [{ message: { createdAt: "asc" } }, { sortOrder: "asc" }],
+    select: { id: true, messageId: true, provider: true, storageKey: true },
+  });
+  return Promise.all(files.flatMap((f) => (f.messageId ? [fileUrl(f).then((url) => ({ id: f.id, messageId: f.messageId as string, url }))] : [])));
 }
 
 // ─── список диалогов (вкладка «Чат») ─────────────────────────────────────────
