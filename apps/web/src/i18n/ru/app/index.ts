@@ -1,5 +1,6 @@
 // Тексты нового интерфейса (v2). Каждая часть — свой файл в этой папке.
 import { buyer } from "./buyer";
+import { chat } from "./chat";
 import { guest } from "./guest";
 import { kit } from "./kit";
 import { login } from "./login";
@@ -11,6 +12,7 @@ import { shell } from "./shell";
 
 export const app = {
   buyer,
+  chat,
   guest,
   kit,
   login,
