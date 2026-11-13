@@ -72,15 +72,15 @@ describe("executorView: строка-сводка", () => {
     expect(executorView(page({ view: viewOf({ ratingAvg: 0, reviewsCount: 0 }) })).rating).toEqual({ value: null, count: 0 });
   });
 
-  it("сделки на платформе и стаж — со склонением: значение отдельно от пояснений", () => {
+  it("сделки в сервисе и стаж — со склонением: значение отдельно от пояснений", () => {
     expect(executorView(page()).facts).toEqual([
-      { value: "21 сделка", after: "на платформе" },
+      { value: "21 сделка", after: "в сервисе" },
       { before: "Стаж", value: "5 лет" },
     ]);
   });
 
-  it("стаж 0 — факта нет; сделок 0 — «0 сделок»", () => {
-    expect(executorView(page({ view: viewOf({ yearsExperience: 0, completedDeals: 0 }) })).facts).toEqual([{ value: "0 сделок", after: "на платформе" }]);
+  it("стаж 0 — факта нет; сделок 0 — «Пока без сделок» без выделения значения", () => {
+    expect(executorView(page({ view: viewOf({ yearsExperience: 0, completedDeals: 0 }) })).facts).toEqual([{ value: "Пока без сделок", plain: true }]);
   });
 });
 

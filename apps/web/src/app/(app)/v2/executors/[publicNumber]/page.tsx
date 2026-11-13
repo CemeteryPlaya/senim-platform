@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: page ? page.view.label : ru.app.shell.notFoundTitle };
 }
 
-/** Строка-сводка под заголовком: рейтинг · сделки на платформе · стаж. Значения тёмные, пояснения серые. */
+/** Строка-сводка под заголовком: рейтинг · сделки в сервисе · стаж. Значения тёмные, пояснения серые. */
 function FactsLine({ view }: { view: ExecutorViewModel }) {
   return (
     <p className="text-body text-muted">
@@ -33,7 +33,7 @@ function FactsLine({ view }: { view: ExecutorViewModel }) {
         <span key={fact.value}>
           {" · "}
           {fact.before && `${fact.before} `}
-          <span className="text-ink">{fact.value}</span>
+          {fact.plain ? fact.value : <span className="text-ink">{fact.value}</span>}
           {fact.after && ` ${fact.after}`}
         </span>
       ))}

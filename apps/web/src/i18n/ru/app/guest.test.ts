@@ -5,7 +5,6 @@ const t = ru.app.guest.executor;
 
 describe("склонения профиля мастера", () => {
   it.each([
-    [0, "0 сделок", "0 лет"],
     [1, "1 сделка", "1 год"],
     [2, "2 сделки", "2 года"],
     [4, "4 сделки", "4 года"],
@@ -20,6 +19,21 @@ describe("склонения профиля мастера", () => {
   ])("%i", (n, deals, years) => {
     expect(t.facts.deals(n).value).toBe(deals);
     expect(t.facts.years(n).value).toBe(years);
+  });
+});
+
+describe("строка-сводка профиля мастера", () => {
+  it("сделок нет — «Пока без сделок» без выделяемого значения; «на платформе» нигде нет", () => {
+    expect(t.facts.deals(0)).toEqual({ value: "Пока без сделок", plain: true });
+    expect(t.facts.years(0).value).toBe("0 лет");
+    expect(t.facts.deals(3)).toEqual({ value: "3 сделки", after: "в сервисе" });
+  });
+
+  it("в текстах гостевых экранов и входа нет слова «платформа» (кроме юридических текстов, которых здесь нет)", () => {
+    const all = JSON.stringify(ru.app.guest) + JSON.stringify(ru.app.login) + JSON.stringify(ru.app.onboarding) + JSON.stringify(ru.app.shell);
+    expect(all).not.toMatch(/платформ/i);
+    expect(ru.app.guest.about.price.buyerLabel).toBe("Если вы покупатель");
+    expect(ru.app.guest.about.price.masterLabel).toBe("Если вы мастер");
   });
 });
 

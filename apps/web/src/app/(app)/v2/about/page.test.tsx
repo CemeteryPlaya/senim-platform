@@ -69,6 +69,16 @@ describe("/v2/about: цена по ролям", () => {
     expect(out).not.toContain("Заявка бесплатная");
   });
 
+  it("над карточками подписи ролей: «вы платите» и «вы получите» не читаются как обращённые к одному человеку", async () => {
+    const out = await render();
+    const at = (s: string) => out.indexOf(s);
+    expect(at(t.price.buyerLabel)).toBeGreaterThan(0);
+    expect(at(t.price.buyerLabel)).toBeLessThan(at(`>${t.price.buyerTitle}</h3>`));
+    expect(at(t.price.masterLabel)).toBeGreaterThan(at(`>${t.price.buyerTitle}</h3>`));
+    expect(at(t.price.masterLabel)).toBeLessThan(at(`>${t.price.masterTitle}</h3>`));
+    expect(count(out, "<h1")).toBe(1);
+  });
+
   it("пример: 200 000 ₸ → покупатель платит 204 000 ₸, мастер получает 192 000 ₸ — из одного значения и сверено с computeDealMoney", async () => {
     const price = 200_000n * 100n;
     const protection = (price * 2n) / 100n; // 2% без округления: 4 000 ₸ ровно

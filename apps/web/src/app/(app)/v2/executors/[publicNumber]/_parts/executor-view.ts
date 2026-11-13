@@ -5,8 +5,8 @@ import { cardsMedia, toTiyn, workCardView, type WorkCardView } from "../../../_p
 
 const t = ru.app.guest.executor;
 
-/** Факт строки-сводки: `before` и `after` — серые пояснения, `value` — тёмное значение. */
-export type Fact = { before?: string; value: string; after?: string };
+/** Факт строки-сводки: `before` и `after` — серые пояснения, `value` — тёмное значение; `plain` — вся строка серая (без значения). */
+export type Fact = { before?: string; value: string; after?: string; plain?: true };
 
 /** Строка карточки «Условия». `layout` задан явно: `inline` — значение справа от подписи, `stacked` — под ней. */
 export type ConditionRow = {
@@ -26,7 +26,7 @@ export type ExecutorViewModel = {
   backHref: string;
   /** Рейтинг: 1…5; `null` — отзывов нет. */
   rating: { value: number | null; count: number };
-  /** Сделки на платформе и стаж (стаж 0 — не указан, факта нет). */
+  /** Сделки в сервисе и стаж (стаж 0 — не указан, факта нет). */
   facts: Fact[];
   conditions: ConditionRow[];
   /** Абзацы «О мастере»; пусто — мастер ничего не написал. */

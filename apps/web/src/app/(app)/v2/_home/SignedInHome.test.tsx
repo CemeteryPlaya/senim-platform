@@ -7,11 +7,12 @@ const t = ru.app.shell.preview;
 const out = html(<SignedInHome />);
 
 describe("временная главная вошедшего", () => {
-  it("одно главное действие — «Создать заявку» в пустом экране", () => {
+  it("одно главное действие — «Заказать мебель» в пустом экране", () => {
     expect(count(out, "data-primary-action")).toBe(1);
     const primary = out.match(/<a [^>]*data-primary-action[^>]*>([^<]*)<\/a>/);
     expect(primary?.[0]).toContain('href="/v2/requests/new"');
     expect(primary?.[1]).toBe(t.emptyAction);
+    expect(t.emptyAction).toBe("Заказать мебель");
   });
 
   it("заголовок экрана по смыслу, а не название продукта; один h1", () => {
@@ -20,12 +21,18 @@ describe("временная главная вошедшего", () => {
     expect(t.title).not.toBe(ru.common.brand);
   });
 
-  it("«Сейчас» называет оставшийся первый шаг", () => {
-    const step = "какая мебель нужна";
-    expect(t.nowTitle).toContain(step);
-    expect(t.stepTwo).toContain(step);
+  it("«Сейчас» называет оставшийся первый шаг тем же именем действия: «Заказать мебель»", () => {
+    expect(t.stepTwo).toBe("Заказать мебель");
+    expect(t.nowTitle).toBe("Закажите мебель: опишите, что нужно");
     expect(out).toContain(`>${t.nowTitle}</h2>`);
     expect(out).toContain(t.stepTwo);
+  });
+
+  it("одна мысль не повторяется тремя формулировками в трёх карточках: «какая мебель нужна» и «Создать заявку» на экране нет", () => {
+    expect(out).not.toContain("какая мебель нужна");
+    expect(out).not.toContain("Создать заявку");
+    expect(t.emptyBody).not.toMatch(/[Оо]пишите/);
+    expect(t.nowBody).not.toMatch(/[Оо]пишите/);
   });
 
   it("Split: слева шаги, «Сейчас» и пустой экран, справа только «Помощь» (телефон — тот же порядок колонкой)", () => {

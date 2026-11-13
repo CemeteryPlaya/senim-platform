@@ -74,6 +74,21 @@ describe("главная гостя", () => {
     expect(out.slice(out.lastIndexOf("desktop:max-w-narrow"))).toContain(ru.app.kit.help.title);
   });
 
+  it("телефон: название продукта мелкой строкой над заголовком; на компьютере его в содержимом нет (оно в шапке)", () => {
+    const mobile = html(<GuestHome device="mobile" />);
+    expect(mobile).toMatch(new RegExp(`<p class="[^"]*text-muted">${ru.common.brand}</p>`));
+    expect(mobile.indexOf(ru.common.brand)).toBeLessThan(mobile.indexOf("<h1"));
+    expect(html(<GuestHome device="desktop" />)).not.toContain(`>${ru.common.brand}</p>`);
+  });
+
+  it("компьютер: ссылка мастера отдельной строкой под кнопкой, не в одном ряду с ней", () => {
+    const out = html(<GuestHome device="desktop" />);
+    const dock = out.slice(out.indexOf("data-action-dock"), out.indexOf("</div>", out.indexOf("data-action-dock")));
+    expect(count(dock, "<a ")).toBe(1);
+    expect(dock).toContain("data-primary-action");
+    expect(out.slice(out.indexOf("data-action-dock"))).toMatch(/<\/div><div><a [^>]*role=executor/);
+  });
+
   it("телефон: в панели действий одна главная кнопка и она последняя; ссылка мастера — до шагов, на первом экране", () => {
     const out = html(<GuestHome device="mobile" />);
     const dock = out.slice(out.indexOf("mobile:sticky") - 200);
