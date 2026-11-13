@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { Button, Card, EmptyState, HiddenField, List, ListItem, Narrow, PageTitle, Stack } from "@/kit";
+import { Button, Card, EmptyState, List, ListRow, Narrow, PageTitle, Stack } from "@/kit";
 import { listNotifications, pushPublicKey } from "@/modules/notifications";
 import { pageHref, requireV2User } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
@@ -12,28 +12,25 @@ const t = ru.app.chat.notifications;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
-/** Карточка — форма: отметить прочитанным и перейти. Непрочитанное — точка и жирный заголовок, фон тот же. */
+/**
+ * Строка-действие (kit `ListRow action`): форма с кнопкой — отметить прочитанным и перейти. Непрочитанное — точка и
+ * заголовок 600; прочитанное — заголовок обычного веса; текст и время — вторичные, обычный вес. Фон один и тот же.
+ */
 function Row({ row }: { row: NotificationRowView }) {
-  return (
-    <ListItem>
-      <form action={openNotificationForm}>
-        <HiddenField name="id" value={row.id} />
-        <Button type="submit" variant="quiet" full className="h-auto justify-start rounded-none px-4 py-3 text-left font-normal">
-          <span className="flex items-start gap-3 text-left">
-            <span aria-hidden className={row.unread ? "mt-2.5 size-2 shrink-0 rounded-full bg-ink" : "mt-2.5 size-2 shrink-0"} />
-            <span className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className={row.unread ? "text-card wrap-break-word text-ink" : "text-body wrap-break-word text-ink"}>
-                {row.unread && <span className="sr-only">{`${t.unread}: `}</span>}
-                {row.title}
-              </span>
-              <span className="line-clamp-2 text-body wrap-break-word text-muted">{row.body}</span>
-              <span className="text-sub text-muted">{row.time}</span>
-            </span>
-          </span>
-        </Button>
-      </form>
-    </ListItem>
+  const label = (
+    <span className="flex items-start gap-3">
+      <span aria-hidden className={row.unread ? "mt-2.5 size-2 shrink-0 rounded-full bg-ink" : "mt-2.5 size-2 shrink-0"} />
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className={row.unread ? "text-body font-semibold wrap-break-word text-ink" : "text-body font-normal wrap-break-word text-ink"}>
+          {row.unread && <span className="sr-only">{`${t.unread}: `}</span>}
+          {row.title}
+        </span>
+        <span className="line-clamp-2 text-sub font-normal wrap-break-word text-muted">{row.body}</span>
+        <span className="text-small font-normal text-muted">{row.time}</span>
+      </span>
+    </span>
   );
+  return <ListRow label={label} action={openNotificationForm} fields={{ id: row.id }} />;
 }
 
 /**

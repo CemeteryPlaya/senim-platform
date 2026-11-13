@@ -78,11 +78,29 @@ test("пустой экран; список с непрочитанным; пе�
   await expect(page.getByText(`${t.unread}: `)).toHaveCount(3);
   await expectScreenRules(page);
 
+  // Вид: непрочитанное — заголовок 600, прочитанное — 400; текст 15 px и время 13 px обычного веса, вторичным цветом.
+  const row = page.getByRole("button", { name: new RegExp(`Сообщение ${run}`) });
+  const css = (locator: ReturnType<Page["locator"]>, prop: string) => locator.evaluate((el, name) => getComputedStyle(el).getPropertyValue(name), prop);
+  const title = row.locator("span", { hasText: `Сообщение ${run}` }).last();
+  expect(await css(title, "font-weight")).toBe("600");
+  const bodyText = row.getByText("Цена и срок");
+  expect(await css(bodyText, "font-weight")).toBe("400");
+  expect(await css(bodyText, "font-size")).toBe("15px");
+  const timeText = row.locator("span.text-small");
+  expect(await css(timeText, "font-weight")).toBe("400");
+  expect(await css(timeText, "font-size")).toBe("13px");
+  expect(await css(bodyText, "color")).toBe(await css(timeText, "color"));
+
   // Переход по уведомлению: на экран v2 (диалог), уведомление прочитано, счётчик меньше.
   await page.getByRole("button", { name: new RegExp(`Сообщение ${run}`) }).click();
   await page.waitForURL(/\/v2\/chats\/e2e-offer$/);
   await open(page, "/v2");
   await expect(bell(page, 2)).toBeVisible();
+
+  // Прочитанное — заголовок обычного веса.
+  await open(page, "/v2/notifications");
+  const readTitle = page.getByRole("button", { name: new RegExp(`Сообщение ${run}`) }).locator("span", { hasText: `Сообщение ${run}` }).last();
+  expect(await readTitle.evaluate((el) => getComputedStyle(el).fontWeight)).toBe("400");
 
   // Вторая — сделка: ведёт под /v2/deals/.
   await open(page, "/v2/notifications");
