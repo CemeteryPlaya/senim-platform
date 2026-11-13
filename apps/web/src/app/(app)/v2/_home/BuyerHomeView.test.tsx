@@ -92,10 +92,27 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     expect(out).toContain(">Кухня угловая</a>");
     expect(out).toContain('href="/v2/deals/d1"');
     expect(out).toContain(ru.deal.status.IN_PROGRESS);
-    expect(out).toContain(t.deal.steps[1]);
+    // Компактно: одна строка хода и полоса, а не пять шагов; полный ход — на экране сделки.
+    expect(out).toContain(t.deal.caption(2, 5, t.deal.steps[1]));
+    expect(out).toContain('role="progressbar"');
+    expect(out).not.toContain("<ol");
+    expect(out).toContain("bg-accent-soft text-accent");
     expect(out.replace(/\s+/g, " ")).toContain("1 224 000 ₸");
     expect(out).toContain(ru.common.home.client.inBank);
     expect(out).not.toMatch(/тестов|демо|комисси|эскроу|платформ/i);
+  });
+
+  it("сумма: до оплаты «к оплате», после — «в банке под защитой»; оба раза из журнала", () => {
+    const wait = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, device, listItem({ status: "CREATED", money: { kind: "awaiting", payment: "none", bankBalanceTiyn: 0n, isTest: false } }));
+    expect(wait.replace(/\s+/g, " ")).toMatch(/1 224 000 ₸<\/span> к оплате/);
+    const paid = render({ deals: [dealInput()], requests: [] }, device, listItem());
+    expect(paid.replace(/\s+/g, " ")).toMatch(/1 224 000 ₸<\/span> в банке под защитой/);
+  });
+
+  it("плашка: сделка ждёт моей оплаты — «внимание», не зелёная; оплаченная — зелёная", () => {
+    const pay = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, device, listItem({ status: "CREATED" }));
+    expect(pay).toContain("text-warn");
+    expect(pay).not.toContain("bg-accent-soft text-accent");
   });
 
   it("спор: вместо шкалы строка, плашка «Открыт спор», главной кнопки нет", () => {
@@ -103,6 +120,16 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     expect(out).toContain(t.deal.stopped.dispute);
     expect(out).toContain(ru.deal.disputeOpenBadge);
     expect(count(out, "data-primary-action")).toBe(0);
+  });
+
+  it("заявка со сделкой (CONTRACTING) в «Мои заявки» не повторяется", () => {
+    const out = render(
+      { deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [request({ id: "c", number: 17, title: "Прихожая", status: "CONTRACTING", offersCount: 2 })] },
+      device,
+      listItem({ status: "CREATED" }),
+    );
+    expect(out).not.toContain(ru.requests.requestTitle(17, "Прихожая"));
+    expect(out).not.toContain(t.requests.section);
   });
 
   it("несколько сделок: «Все сделки»; одна — без ссылки", () => {
@@ -118,8 +145,9 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
       listItem(),
     );
     expect(out).toContain(ru.requests.requestTitle(4, "Шкаф"));
-    expect(out).toContain(t.requests.offers(3));
-    expect(out).toContain(`${ru.requests.status.DRAFT}<`);
+    expect(out).toContain(t.requests.status.offers(3));
+    expect(out).toContain(`>${t.requests.status.draft}<`);
+    expect(out).not.toMatch(/отклик/i);
     expect(out).toContain('href="/v2/requests/new?draft=dr"');
     expect(out).toContain(t.requests.all);
     // Предложения по заявке «a» — в карточке списка, а не в «Сейчас» (сделка важнее).

@@ -1,5 +1,6 @@
 import type { DealStatus, RequestStatus } from "@/generated/prisma/enums";
 import type { NextAction } from "@/modules/deal-core";
+import { ru } from "@/i18n/ru";
 import { dealProgressView } from "@/features/deal-progress/deal-progress";
 import { to } from "../../_shell/paths";
 
@@ -99,8 +100,13 @@ export const WAIT_ACTIONS = [
 export type WaitAction = (typeof WAIT_ACTIONS)[number];
 const waitOf = (action: NextAction | undefined): WaitAction | null => WAIT_ACTIONS.find((w) => w === action) ?? null;
 
-const LIVE_REQUEST: ReadonlySet<RequestStatus> = new Set(["PLATFORM_MEASURING", "OPEN", "OFFER_CHOSEN", "MEASURING", "CONTRACTING"]);
-const CHOSEN_REQUEST: ReadonlySet<RequestStatus> = new Set(["OFFER_CHOSEN", "MEASURING", "CONTRACTING"]);
+/**
+ * Живая заявка без сделки. CONTRACTING и CLOSED — сделка по заявке уже создана (оферта), её показывает карточка сделки,
+ * поэтому в «Мои заявки» и в «Сейчас» такая заявка не попадает.
+ */
+const LIVE_REQUEST: ReadonlySet<RequestStatus> = new Set(["PLATFORM_MEASURING", "OPEN", "OFFER_CHOSEN", "MEASURING"]);
+const CHOSEN_REQUEST: ReadonlySet<RequestStatus> = new Set(["OFFER_CHOSEN", "MEASURING"]);
+const WITH_DEAL_REQUEST: ReadonlySet<RequestStatus> = new Set(["CONTRACTING", "CLOSED"]);
 
 const dealHref = (id: string) => to(`/deals/${encodeURIComponent(id)}`);
 const requestHref = (id: string) => to(`/requests/${encodeURIComponent(id)}`);
@@ -161,7 +167,7 @@ export function buyerHome(input: HomeInput): BuyerHomeView {
 
   const paid = deals.some((d) => d.paid);
   const ordered = requests.some((r) => r.status !== "DRAFT" && r.status !== "CANCELLED") || deals.length > 0;
-  const chosen = deals.length > 0 || requests.some((r) => CHOSEN_REQUEST.has(r.status) || r.status === "CLOSED");
+  const chosen = deals.length > 0 || requests.some((r) => CHOSEN_REQUEST.has(r.status) || WITH_DEAL_REQUEST.has(r.status));
   const firstSteps = paid
     ? null
     : {
@@ -173,27 +179,59 @@ export function buyerHome(input: HomeInput): BuyerHomeView {
   return { now: picked.now, primary: picked.primary, secondary: picked.secondary, deal, moreDeals, requests: listed, firstSteps };
 }
 
-export type DealStepState = "done" | "current" | "todo";
-export type DealSteps =
-  | { kind: "steps"; states: DealStepState[] }
+export type DealProgress =
+  | { kind: "steps"; /** Сколько шагов пройдено: номер текущего шага минус один; равен `total`, когда пройдены все. */ done: number; total: number }
   | { kind: "stopped"; reason: "dispute" | "cancelled" | "refunded" };
 
-/** Ход сделки для `Steps`: пять шагов (оплата … выплата) с состояниями; спор, отмена и возврат — одна строка. */
-export function dealSteps(status: DealStatus, hasOpenDispute: boolean): DealSteps {
+/** Ход сделки для компактной карточки: сколько шагов из пяти пройдено; спор, отмена и возврат — «остановлено». */
+export function dealProgress(status: DealStatus, hasOpenDispute: boolean): DealProgress {
   const view = dealProgressView(status, hasOpenDispute);
   if (view.kind === "banner") return { kind: "stopped", reason: view.tone };
   if (view.muted) return { kind: "stopped", reason: "dispute" };
-  const states = Array.from({ length: 5 }, (_, i): DealStepState => (i < view.current ? "done" : i === view.current ? "current" : "todo"));
-  return { kind: "steps", states };
+  return { kind: "steps", done: view.current, total: ru.app.buyer.home.deal.steps.length };
+}
+
+export type DealTone = "accent" | "neutral" | "warn";
+
+/**
+ * Тон плашки статуса сделки. Зелёный — только когда деньги уже в банке под защитой или работа идёт к концу (оплачено);
+ * сделка, которая ждёт оплаты, — нейтральная; ждёт моего действия или спор — «внимание»; отмена и возврат — нейтральные.
+ */
+export function dealTone(deal: Pick<HomeDealInput, "status" | "hasOpenDispute" | "next">): DealTone {
+  if (deal.hasOpenDispute || deal.next?.mine === true) return "warn";
+  if (deal.status === "CANCELLED" || deal.status === "REFUNDED" || deal.status === "CREATED") return "neutral";
+  return "accent";
+}
+
+/** Статус заявки словами покупателя (число предложений — внутри текста, не второй раз рядом). */
+export function requestStatusText(status: RequestStatus, offersCount: number): string {
+  const s = ru.app.buyer.home.requests.status;
+  switch (status) {
+    case "OPEN":
+      return offersCount > 0 ? s.offers(offersCount) : s.open;
+    case "DRAFT":
+      return s.draft;
+    case "PLATFORM_MEASURING":
+      return s.platformMeasuring;
+    case "OFFER_CHOSEN":
+      return s.offerChosen;
+    case "MEASURING":
+      return s.measuring;
+    case "CONTRACTING":
+    case "CLOSED":
+      return s.deal;
+    case "CANCELLED":
+      return s.cancelled;
+  }
 }
 
 /**
- * Имя для приветствия из ФИО «Фамилия Имя [Отчество]» (как в удостоверении, так просит анкета): второе слово. Одно слово
- * или пусто — имени нет (не гадаем, что это). Слова ЗАГЛАВНЫМИ приводятся к «Имя»; дефисные части — каждая отдельно.
+ * Имя для приветствия из ФИО «Фамилия Имя Отчество» (как в удостоверении, так просит анкета): второе слово — только когда
+ * слов ровно три. Другое число слов — имени нет (порядок не угадать: «Имя Фамилия» и «Фамилия Имя» не отличить). Слова ЗАГЛАВНЫМИ приводятся к «Имя»; дефисные части — каждая отдельно.
  */
 export function firstName(fullName: string | null): string | null {
   const words = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
-  const name = words[1];
+  const name = words.length === 3 ? words[1] : undefined;
   if (!name) return null;
   return name
     .split("-")

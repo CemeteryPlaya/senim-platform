@@ -89,8 +89,11 @@ export const buyer = {
     deal: {
       section: "Моя сделка",
       allDeals: "Все сделки",
-      stepsLabel: "Ход сделки",
+      progressLabel: "Ход сделки",
       steps: ["Оплата", "Изготовление", "Сдача", "Приёмка", "Выплата"],
+      /** «Шаг 2 из 5: Изготовление»; все пройдены — «Все шаги пройдены». */
+      caption: (n: number, total: number, name: string) => `Шаг ${n} из ${total}: ${name}`,
+      allDone: "Все шаги пройдены",
       stopped: {
         dispute: "Открыт спор — выплата остановлена",
         cancelled: "Сделка отменена",
@@ -100,11 +103,20 @@ export const buyer = {
     requests: {
       section: "Мои заявки",
       all: "Все заявки",
-      offers: (n: number) => {
-        if (n === 0) return "Предложений пока нет";
-        const form = pluralForm(n);
-        if (form === "one") return `${n} предложение`;
-        return form === "few" ? `${n} предложения` : `${n} предложений`;
+      /** Статус заявки для покупателя: число предложений — внутри текста. */
+      status: {
+        draft: "Черновик",
+        open: "Ждёт предложений",
+        offers: (n: number) => {
+          const form = pluralForm(n);
+          if (form === "one") return `${n} предложение — выберите мастера`;
+          return form === "few" ? `${n} предложения — выберите мастера` : `${n} предложений — выберите мастера`;
+        },
+        platformMeasuring: "Ждёт замера",
+        offerChosen: "Мастер выбран",
+        measuring: "Идёт замер",
+        deal: "Идёт сделка",
+        cancelled: "Отменена",
       },
     },
     help: {

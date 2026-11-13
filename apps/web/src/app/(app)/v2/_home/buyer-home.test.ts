@@ -1,9 +1,12 @@
+import { ru } from "@/i18n/ru";
 import { describe, expect, it } from "vitest";
 import type { NextAction } from "@/modules/deal-core";
 import {
   buyerHome,
-  dealSteps,
+  dealProgress,
+  dealTone,
   firstName,
+  requestStatusText,
   type HomeDealInput,
   type HomeInput,
   type HomeRequestInput,
@@ -67,6 +70,7 @@ const CASES: Case[] = [
   { name: "заявка без предложений — ждём, ссылка на заявку", input: { deals: [], requests: [request()] }, now: "request-waiting", primary: null, secondary: "/v2/requests/r1" },
   { name: "замер площадки — тоже ждём", input: { deals: [], requests: [request({ status: "PLATFORM_MEASURING" })] }, now: "request-waiting", primary: null, secondary: "/v2/requests/r1" },
   { name: "мастер выбран, сделки ещё нет", input: { deals: [], requests: [request({ status: "MEASURING", offersCount: 2 })] }, now: "request-chosen", primary: null, secondary: "/v2/requests/r1" },
+  { name: "заявка с созданной сделкой (CONTRACTING) сама не «Сейчас»", input: { deals: [], requests: [request({ status: "CONTRACTING" })] }, now: "empty", primary: "order" },
 ];
 
 describe("buyerHome: что сейчас", () => {
@@ -142,6 +146,14 @@ describe("buyerHome: сделка и заявки ниже «Сейчас»", ()
     expect(view.requests).toEqual([]);
   });
 
+  it("заявка, по которой идёт сделка (CONTRACTING, CLOSED), в списке заявок не дублируется", () => {
+    const view = buyerHome({
+      deals: [deal({ action: "pay", mine: true })],
+      requests: [request({ id: "c", status: "CONTRACTING", offersCount: 2 }), request({ id: "z", status: "CLOSED" }), request({ id: "w" })],
+    });
+    expect(view.requests.map((r) => r.id)).toEqual(["w"]);
+  });
+
   it("пусто — списка и сделки нет: пустое состояние не повторяется отдельной карточкой", () => {
     const view = buyerHome({ deals: [], requests: [] });
     expect(view.requests).toEqual([]);
@@ -184,36 +196,84 @@ describe("buyerHome: первые шаги", () => {
   });
 });
 
-describe("dealSteps", () => {
+describe("dealProgress", () => {
   it.each([
-    ["CREATED", ["current", "todo", "todo", "todo", "todo"]],
-    ["PAID_HOLD", ["done", "current", "todo", "todo", "todo"]],
-    ["IN_PROGRESS", ["done", "current", "todo", "todo", "todo"]],
-    ["READY", ["done", "done", "done", "current", "todo"]],
-    ["ACCEPTED", ["done", "done", "done", "done", "current"]],
-    ["SPLIT_PAYOUT", ["done", "done", "done", "done", "done"]],
-  ] as const)("%s", (status, states) => {
-    expect(dealSteps(status, false)).toEqual({ kind: "steps", states });
+    ["CREATED", 0],
+    ["PAID_HOLD", 1],
+    ["IN_PROGRESS", 1],
+    ["READY", 3],
+    ["ACCEPTED", 4],
+    ["SPLIT_PAYOUT", 5],
+  ] as const)("%s: пройдено шагов %i из 5", (status, done) => {
+    expect(dealProgress(status, false)).toEqual({ kind: "steps", done, total: 5 });
   });
 
-  it("спор, отмена, возврат — одна строка вместо шкалы", () => {
-    expect(dealSteps("READY", true)).toEqual({ kind: "stopped", reason: "dispute" });
-    expect(dealSteps("CANCELLED", false)).toEqual({ kind: "stopped", reason: "cancelled" });
-    expect(dealSteps("REFUNDED", false)).toEqual({ kind: "stopped", reason: "refunded" });
+  it("спор, отмена, возврат — «остановлено»", () => {
+    expect(dealProgress("READY", true)).toEqual({ kind: "stopped", reason: "dispute" });
+    expect(dealProgress("CANCELLED", false)).toEqual({ kind: "stopped", reason: "cancelled" });
+    expect(dealProgress("REFUNDED", false)).toEqual({ kind: "stopped", reason: "refunded" });
   });
 });
 
-describe("firstName", () => {
+describe("dealTone: зелёный только у оплаченной сделки", () => {
+  const base = { hasOpenDispute: false, next: null };
+  it.each([
+    ["ждёт оплаты, чужое действие", { status: "CREATED", hasOpenDispute: false, next: { action: "waitPayment", mine: false } }, "neutral"],
+    ["ждёт моей оплаты", { status: "CREATED", hasOpenDispute: false, next: { action: "pay", mine: true } }, "warn"],
+    ["оплачена, ждём мастера", { status: "PAID_HOLD", hasOpenDispute: false, next: { action: "waitStart", mine: false } }, "accent"],
+    ["идёт работа", { status: "IN_PROGRESS", ...base }, "accent"],
+    ["сдана, ждёт моей приёмки", { status: "READY", hasOpenDispute: false, next: { action: "signAct", mine: true } }, "warn"],
+    ["сдана, ждёт мастера", { status: "READY", hasOpenDispute: false, next: { action: "waitMasterActSignature", mine: false } }, "accent"],
+    ["завершена", { status: "SPLIT_PAYOUT", ...base }, "accent"],
+    ["спор", { status: "READY", hasOpenDispute: true, next: null }, "warn"],
+    ["отменена", { status: "CANCELLED", ...base }, "neutral"],
+    ["деньги возвращены", { status: "REFUNDED", ...base }, "neutral"],
+  ] as const)("%s", (_name, deal, tone) => {
+    expect(dealTone(deal)).toBe(tone);
+  });
+});
+
+describe("requestStatusText: статус заявки словами покупателя", () => {
+  const s = ru.app.buyer.home.requests.status;
+  it.each([
+    ["DRAFT", 0, "Черновик"],
+    ["OPEN", 0, "Ждёт предложений"],
+    ["OPEN", 1, "1 предложение — выберите мастера"],
+    ["OPEN", 2, "2 предложения — выберите мастера"],
+    ["OPEN", 5, "5 предложений — выберите мастера"],
+    ["OPEN", 11, "11 предложений — выберите мастера"],
+    ["PLATFORM_MEASURING", 0, s.platformMeasuring],
+    ["OFFER_CHOSEN", 3, "Мастер выбран"],
+    ["MEASURING", 3, "Идёт замер"],
+    ["CONTRACTING", 2, "Идёт сделка"],
+    ["CLOSED", 2, "Идёт сделка"],
+    ["CANCELLED", 2, "Отменена"],
+  ] as const)("%s, предложений %i -> %s", (status, n, text) => {
+    expect(requestStatusText(status, n)).toBe(text);
+  });
+
+  it("без жаргона и без числа предложений дважды", () => {
+    for (const st of ["DRAFT", "OPEN", "PLATFORM_MEASURING", "OFFER_CHOSEN", "MEASURING", "CONTRACTING", "CLOSED", "CANCELLED"] as const) {
+      const text = requestStatusText(st, 3);
+      expect(text).not.toMatch(/отклик/i);
+      expect(text.match(/\d+/g)?.length ?? 0).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("firstName: имя — второе слово, только когда слов три", () => {
   it.each([
     ["Иванов Иван Иванович", "Иван"],
-    ["Иванов Иван", "Иван"],
-    ["  Нурланова   Айгерим  ", "Айгерим"],
+    ["  Нурланова   Айгерим   Ержановна ", "Айгерим"],
     ["ИВАНОВ ИВАН ИВАНОВИЧ", "Иван"],
-    ["Иванова Нур-Султан", "Нур-Султан"],
+    ["Иванова Нур-Султан Ержановна", "Нур-Султан"],
+    ["Айгерим Сапарова", null],
+    ["Иванов Иван", null],
     ["Иванов", null],
+    ["Иванов Иван Иванович Оглы", null],
     ["", null],
     [null, null],
-  ] as const)("%s → %s", (full, name) => {
+  ] as const)("%s -> %s", (full, name) => {
     expect(firstName(full)).toBe(name);
   });
 });

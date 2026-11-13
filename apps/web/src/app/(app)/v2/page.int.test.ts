@@ -35,7 +35,7 @@ const primaries = (out: string) => [...out.matchAll(/<a [^>]*data-primary-action
 const h2s = (out: string) => [...out.matchAll(/<h2[^>]*>([^<]*)<\/h2>/g)].map((m) => m[1]);
 
 /** Заказчик, прошедший первые шаги (почта подтверждена), — до входа, чтобы подделка identity взяла его уже готовым. */
-async function buyer(fullName = "Сапаров Ерлан") {
+async function buyer(fullName = "Сапаров Ерлан Ержанович") {
   const client = await makeClient(fullName);
   await db.user.update({ where: { id: client.id }, data: { emailVerifiedAt: new Date() } });
   return client;
@@ -117,7 +117,7 @@ describe("/v2 для покупателя: по одному главному д
   });
 
   it("чужие заявки и сделки не видны", async () => {
-    const other = await buyer("Иванов Пётр");
+    const other = await buyer("Иванов Пётр Иванович");
     await makeOpenRequest(other);
     await dealAt("IN_PROGRESS", { client: other });
     await signInAs(await buyer());

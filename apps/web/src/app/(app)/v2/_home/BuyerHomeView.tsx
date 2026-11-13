@@ -12,6 +12,7 @@ import {
   Money,
   NowNext,
   PageTitle,
+  Progress,
   Section,
   Split,
   Stack,
@@ -23,7 +24,7 @@ import { homeDealMoney } from "@/features/deal-money/home-deal-money";
 import type { DealListItem } from "@/modules/deal-core";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
-import { dealSteps, type BuyerHomeView as View, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
+import { dealProgress, dealTone, requestStatusText, type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
 
 const t = ru.app.buyer.home;
 
@@ -84,24 +85,27 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
       <PageTitle title={t.title(name)} />
       <Split
         main={
-          <Stack>
-            {first && (
-              <FirstSteps
-                steps={[
-                  { label: t.steps.profile, done: true },
-                  { label: t.steps.order, ...first.order },
-                  { label: t.steps.master, ...first.master },
-                  { label: t.steps.pay, ...first.pay },
-                ]}
-              />
-            )}
-            <NowNext now={{ title: text.title, ...(text.body ? { body: text.body } : {}) }} {...(text.next ? { next: text.next } : {})} />
-            {/* Компьютер: действие сразу под «Сейчас». Телефон: в доке в конце экрана (ниже). */}
-            {device === "desktop" && action}
-            {view.secondary && (
-              <TextLink href={view.secondary.href}>{view.now.kind === "request-chosen" ? t.now.requestChosen.link : t.now.requestWaiting.link}</TextLink>
-            )}
-            {deal && <DealCard deal={deal} more={view.moreDeals} />}
+          <Stack gap="section">
+            {/* Первая группа: что сейчас и что делать. Главное действие компьютера — прямо под «Сейчас» (через 12 px). */}
+            <Stack>
+              {first && (
+                <FirstSteps
+                  steps={[
+                    { label: t.steps.profile, done: true },
+                    { label: t.steps.order, ...first.order },
+                    { label: t.steps.master, ...first.master },
+                    { label: t.steps.pay, ...first.pay },
+                  ]}
+                />
+              )}
+              <NowNext now={{ title: text.title, ...(text.body ? { body: text.body } : {}) }} {...(text.next ? { next: text.next } : {})} />
+              {/* Компьютер: действие сразу под «Сейчас». Телефон: в доке в конце экрана (ниже). */}
+              {device === "desktop" && action}
+              {view.secondary && (
+                <TextLink href={view.secondary.href}>{view.now.kind === "request-chosen" ? t.now.requestChosen.link : t.now.requestWaiting.link}</TextLink>
+              )}
+            </Stack>
+            {deal && <DealCard deal={deal} listed={view.deal} more={view.moreDeals} />}
             {view.requests.length > 0 && <RequestsSection requests={view.requests} />}
           </Stack>
         }
@@ -120,11 +124,15 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
   );
 }
 
-/** Карточка сделки: вся — ссылка (растянутая на карточку), внутри название, статус, ход и деньги из журнала. */
-function DealCard({ deal, more }: { deal: DealListItem; more: number }) {
+/**
+ * Компактная карточка сделки: вся — ссылка (растянутая на карточку). Название, плашка статуса, одна строка хода
+ * «Шаг N из M: …» с полосой и строка денег из журнала. Полный ход — на экране сделки.
+ */
+function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDealInput | null; more: number }) {
   const money = homeDealMoney(deal.money, deal.estimate);
-  const steps = dealSteps(deal.status, deal.hasOpenDispute);
-  const tone = deal.hasOpenDispute ? "warn" : "accent";
+  const progress = dealProgress(deal.status, deal.hasOpenDispute);
+  const tone = dealTone({ status: deal.status, hasOpenDispute: deal.hasOpenDispute, next: listed?.next ?? null });
+  const names = t.deal.steps;
   return (
     <Section title={t.deal.section}>
       <Card
@@ -139,10 +147,17 @@ function DealCard({ deal, more }: { deal: DealListItem; more: number }) {
           </h3>
           <StatusChip tone={tone}>{deal.hasOpenDispute ? ru.deal.disputeOpenBadge : ru.deal.status[deal.status]}</StatusChip>
         </div>
-        {steps.kind === "steps" ? (
-          <Steps label={t.deal.stepsLabel} items={t.deal.steps.map((label, i) => ({ label, state: steps.states[i] ?? "todo" }))} />
+        {progress.kind === "steps" ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sub text-muted">
+              {progress.done >= progress.total
+                ? t.deal.allDone
+                : t.deal.caption(progress.done + 1, progress.total, names[progress.done] ?? "")}
+            </p>
+            <Progress value={progress.done} max={progress.total} label={t.deal.progressLabel} />
+          </div>
         ) : (
-          <Steps label={t.deal.stepsLabel} items={[]} stopped={{ label: t.deal.stopped[steps.reason] }} />
+          <Steps label={t.deal.progressLabel} items={[]} stopped={{ label: t.deal.stopped[progress.reason] }} />
         )}
         <p className="text-body text-ink">
           {money.amountTiyn !== null && (
@@ -169,7 +184,7 @@ function RequestsSection({ requests }: { requests: HomeRequestInput[] }) {
               key={r.id}
               stacked
               label={ru.requests.requestTitle(r.number, r.title)}
-              value={r.status === "DRAFT" ? ru.requests.status.DRAFT : `${ru.requests.status[r.status]} · ${t.requests.offers(r.offersCount)}`}
+              value={requestStatusText(r.status, r.offersCount)}
               href={r.status === "DRAFT" ? to(`/requests/new?draft=${encodeURIComponent(r.id)}`) : to(`/requests/${encodeURIComponent(r.id)}`)}
             />
           ))}
