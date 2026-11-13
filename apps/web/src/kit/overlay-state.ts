@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 /**
  * Открыто ли окно: управляемо (`open` задан снаружи) или само по себе (открывает триггер).
@@ -21,25 +21,32 @@ export function useOpenState(open: boolean | undefined, onOpenChange?: (open: bo
  * Возврат фокуса для окна без триггера (открыто программно). С триггером Radix сам возвращает фокус на него;
  * без триггера — некуда, и фокус уходит на `<body>`. Поэтому в момент открытия запоминаем элемент в фокусе
  * (layout-эффект идёт раньше, чем FocusScope переводит фокус внутрь окна) и возвращаем его при закрытии.
+ * Если окно открыто из пункта меню, элемента в фокусе к этому моменту уже нет (меню закрылось): тогда вызывающий
+ * называет, куда вернуть фокус, — `returnFocusTo` (например, кнопка меню); он важнее запомненного.
  * Результат — обработчик `onCloseAutoFocus` для `Content`.
  */
-export function useReturnFocus(open: boolean, enabled: boolean) {
+export function useReturnFocus(open: boolean, enabled: boolean, returnFocusTo?: RefObject<HTMLElement | null>) {
   const returnTo = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (open && enabled && document.activeElement instanceof HTMLElement) returnTo.current = document.activeElement;
   }, [open, enabled]);
-  return useCallback(
-    (event: Event) => {
-      if (!enabled) return;
-      const target = returnTo.current;
-      returnTo.current = null;
-      if (target?.isConnected) {
-        event.preventDefault();
-        target.focus({ preventScroll: true });
-      }
-    },
-    [enabled],
-  );
+  // Не useCallback: ссылка читается в момент закрытия (`.current` на момент рендера не годится), а компилятор React
+  // сам не пересоздаёт обработчик без нужды.
+  return (event: Event) => {
+    if (!enabled) return;
+    const target = returnFocusTarget(returnFocusTo?.current ?? null, returnTo.current);
+    returnTo.current = null;
+    if (target?.isConnected) {
+      event.preventDefault();
+      target.focus({ preventScroll: true });
+    }
+  };
+}
+
+/** Куда вернуть фокус: названный вызывающим элемент (если он ещё на странице), иначе запомненный при открытии. */
+export function returnFocusTarget(explicit: HTMLElement | null, remembered: HTMLElement | null): HTMLElement | null {
+  if (explicit?.isConnected) return explicit;
+  return remembered?.isConnected ? remembered : null;
 }
 
 /** Действие подтверждения: `false` (или промис с `false`) — окно остаётся открытым. */

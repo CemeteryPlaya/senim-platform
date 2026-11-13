@@ -519,6 +519,7 @@ const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeActio
 | `label` | `string` | Имя кнопки для диктора и заголовок шторки |
 | `items` | `{ label: string; href?: string; onSelect?: () => void; tone?: "danger" }[]` | `href` — переход, `onSelect` — действие; `danger` — цвет `danger` (необратимое подтверждайте через `ConfirmDialog`) |
 | `device` | `"mobile" \| "desktop"` | Какое окно показать |
+| `triggerRef` | `RefObject<HTMLButtonElement \| null>?` | Ссылка на кнопку «три точки»; передаётся в `returnFocusTo` окна подтверждения, открытого пунктом меню |
 
 Не для главного действия экрана; одно-два действия лучше показать кнопками.
 
@@ -614,7 +615,7 @@ const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeActio
 
 ### `Dialog` (компьютер)
 
-Диалог по центру. Те же пропсы, что у `Sheet` (`title`, `description`, `trigger`, `open`, `onOpenChange`, `dismissible`, `onOpenAutoFocus`, `children`), `dismissible={false}` отключает также крестик. Для подтверждений используйте `ConfirmDialog`, а не `Dialog` с самодельными кнопками.
+Диалог по центру. Те же пропсы, что у `Sheet` (`title`, `description`, `trigger`, `open`, `onOpenChange`, `dismissible`, `onOpenAutoFocus`, `returnFocusTo`, `children`), `dismissible={false}` отключает также крестик. Для подтверждений используйте `ConfirmDialog`, а не `Dialog` с самодельными кнопками.
 
 ### `ConfirmDialog`
 
@@ -630,6 +631,7 @@ const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeActio
 | `tone` | `"primary" \| "danger"` | `"primary"` | `danger` — необратимое действие |
 | `onConfirm` | `() => void \| boolean \| Promise<void \| boolean>` | — | Действие |
 | `trigger`, `open`, `onOpenChange` | как у `Dialog` | — | Открытие |
+| `returnFocusTo` | `RefObject<HTMLElement \| null>` | — | Куда вернуть фокус при закрытии окна без `trigger`. Подтверждение из меню: передать кнопку меню (`Menu` отдаёт её через `triggerRef`) |
 
 Поведение `onConfirm`:
 

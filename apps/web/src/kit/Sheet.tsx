@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactElement, type ReactNode } from "react";
+import { useRef, type ReactElement, type ReactNode, type RefObject } from "react";
 import { Drawer } from "vaul";
 import { ru } from "@/i18n/ru";
 import { useOpenState, useReturnFocus } from "./overlay-state";
@@ -21,6 +21,11 @@ export type SheetProps = {
    * и `focus({ preventScroll: true })` в обработчике (без прыжка прокрутки на iOS посреди выезда).
    */
   onOpenAutoFocus?: (event: Event) => void;
+  /**
+   * Куда вернуть фокус при закрытии окна, открытого без `trigger` (программно, например из пункта `Menu`): к моменту
+   * закрытия запомнить нечего, фокус ушёл бы на `<body>`. Для окна из меню — ссылка на кнопку меню (`triggerRef`).
+   */
+  returnFocusTo?: RefObject<HTMLElement | null>;
   children?: ReactNode;
 };
 
@@ -47,10 +52,11 @@ export function Sheet({
   trigger,
   dismissible = true,
   onOpenAutoFocus,
+  returnFocusTo,
   children,
 }: SheetProps) {
   const [isOpen, setOpen] = useOpenState(open, onOpenChange);
-  const returnFocus = useReturnFocus(isOpen, trigger === undefined);
+  const returnFocus = useReturnFocus(isOpen, trigger === undefined, returnFocusTo);
   const content = useRef<HTMLDivElement>(null);
 
   return (

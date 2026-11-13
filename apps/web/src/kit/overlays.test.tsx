@@ -5,7 +5,7 @@ import { html } from "./test-utils";
 import { Button, ConfirmDialog, Dialog, Explain, Popover, Sheet, Toaster } from "./index";
 import { ru } from "@/i18n/ru";
 import { SPRING } from "./motion";
-import { createConfirmRunner } from "./overlay-state";
+import { createConfirmRunner, returnFocusTarget } from "./overlay-state";
 import { toastClassNames } from "./Toaster";
 
 // Статический рендер закрытого состояния: в разметке только триггер. Поведение открытого окна
@@ -213,5 +213,25 @@ describe("createConfirmRunner: запуск → ожидание → резул�
     await first;
     expect(log).toEqual(["pending:true", "pending:false", "close"]);
     expect(runner.running).toBe(false);
+  });
+});
+
+describe("returnFocusTarget: куда вернуть фокус после окна без триггера", () => {
+  const el = (isConnected: boolean) => ({ isConnected }) as HTMLElement;
+
+  it("названный вызывающим элемент важнее запомненного (окно из пункта меню: запомнить было нечего)", () => {
+    const menuButton = el(true);
+    expect(returnFocusTarget(menuButton, el(true))).toBe(menuButton);
+    expect(returnFocusTarget(menuButton, null)).toBe(menuButton);
+  });
+
+  it("названный ушёл со страницы — запомненный, если он на месте", () => {
+    const remembered = el(true);
+    expect(returnFocusTarget(el(false), remembered)).toBe(remembered);
+  });
+
+  it("некуда возвращать — null (фокус останется на body)", () => {
+    expect(returnFocusTarget(null, null)).toBeNull();
+    expect(returnFocusTarget(el(false), el(false))).toBeNull();
   });
 });

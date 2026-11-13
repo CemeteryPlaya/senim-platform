@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, Ref } from "react";
 import { ru } from "@/i18n/ru";
 import { lookClasses, primaryMark, type StyleOptions } from "./button-styles";
 import { cn } from "./cn";
@@ -13,6 +13,8 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
      * Явный `disabled` вызывающего остаётся нативным.
      */
     pending?: boolean;
+    /** Ссылка на элемент (React 19: обычный проп); нужна, например, чтобы вернуть на кнопку фокус после окна. */
+    ref?: Ref<HTMLButtonElement>;
   };
 
 /** Клиентская часть: нужен обработчик клика, гасящий повтор. По умолчанию `type="button"`. */

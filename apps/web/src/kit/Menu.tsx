@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { Ellipsis } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import type { Device } from "@/platform/device";
 import { Button } from "./Button";
 import { cn } from "./cn";
@@ -26,6 +26,11 @@ export type MenuProps = {
   label: string;
   items: readonly MenuItem[];
   device: Device;
+  /**
+   * Ссылка на кнопку «три точки». Окно, открытое пунктом меню (`ConfirmDialog` без `trigger`), возвращает фокус
+   * сюда: `returnFocusTo={triggerRef}`.
+   */
+  triggerRef?: RefObject<HTMLButtonElement | null>;
 };
 
 const ITEM_BASE = "flex w-full items-center text-left text-body no-underline";
@@ -37,11 +42,11 @@ const toneClass = (tone: MenuItem["tone"]): string => (tone === "danger" ? "text
  * выпадающее меню Radix (стрелки, Enter, Home/End, поиск по первой букве, Esc, фокус возвращается на кнопку).
  * Не для главного действия экрана.
  */
-export function Menu({ label, items, device }: MenuProps) {
+export function Menu({ label, items, device, triggerRef }: MenuProps) {
   const [open, setOpen] = useState(false);
   const reduced = useReducedMotion() ?? false;
   const trigger = (
-    <Button variant="quiet" flush aria-label={label} className="min-w-control">
+    <Button ref={triggerRef} variant="quiet" flush aria-label={label} className="min-w-control">
       <Ellipsis aria-hidden className="size-6" />
     </Button>
   );
