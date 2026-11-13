@@ -197,6 +197,21 @@ func TestRequestEmailCodeLimits(t *testing.T) {
 	}
 }
 
+// Лимиты почты берутся из конфигурации: при 2 кодах в час и паузе 1 с третий запрос отклоняется.
+func TestRequestEmailCodeLimitsFromConfig(t *testing.T) {
+	h := newHarness(t, func(c *ServeConfig) {
+		c.EmailCodeHourlyLimit = 2
+		c.EmailCodeCooldown = time.Second
+	})
+	_, token := h.client()
+	for range 2 {
+		h.mustRequestEmail(token, "a@example.kz")
+		h.clock.advance(2 * time.Second)
+	}
+	_, err := h.requestEmail(token, "a@example.kz", h.key())
+	h.wantRefusal(err, connect.CodeResourceExhausted, "email_code_too_many")
+}
+
 func TestRequestEmailCodeValidation(t *testing.T) {
 	h := newHarness(t, nil)
 	u, token := h.client()

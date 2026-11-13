@@ -142,6 +142,8 @@ func newHarness(t *testing.T, tune func(*ServeConfig)) *harness {
 	cfg := ServeConfig{
 		DemoMode: true, OTPProvider: "mock", EmailProvider: "mock", OTPHMACKey: testHMACKey,
 		OTPDailyGlobalLimit: 500, OTPDailyPrefixLimit: 50,
+		OTPPhoneHourlyLimit: phoneHourly, OTPPhoneDailyLimit: phoneDaily, OTPPhoneCooldown: phoneCooldown,
+		EmailCodeHourlyLimit: emailHourly, EmailCodeDailyLimit: emailDaily, EmailCodeCooldown: emailCooldown,
 		TokenSigningKey: testSigningKey, TokenKID: testKID,
 		PII: testKeyring(t), PIIIndex: pii.NewIndex(testIndexKey),
 	}

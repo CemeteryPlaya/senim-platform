@@ -114,6 +114,15 @@ services:
       PII_KEKS: ${IDENTITY_PII_KEKS:?запускайте через npm run v2:up}
       PII_KEK_CURRENT: ${IDENTITY_PII_KEK_CURRENT:?запускайте через npm run v2:up}
       PII_INDEX_KEY: ${IDENTITY_PII_INDEX_KEY:?запускайте через npm run v2:up}
+      # Лимиты кодов щедрые: на стенде одни и те же номера входят десятки раз в час. В prod слабее умолчаний нельзя — конфиг не даст стартовать.
+      IDENTITY_OTP_PHONE_HOURLY_LIMIT: ${IDENTITY_OTP_PHONE_HOURLY_LIMIT:?запускайте через npm run v2:up}
+      IDENTITY_OTP_PHONE_DAILY_LIMIT: ${IDENTITY_OTP_PHONE_DAILY_LIMIT:?запускайте через npm run v2:up}
+      IDENTITY_OTP_PHONE_COOLDOWN: ${IDENTITY_OTP_PHONE_COOLDOWN:?запускайте через npm run v2:up}
+      IDENTITY_OTP_DAILY_GLOBAL_LIMIT: ${IDENTITY_OTP_DAILY_GLOBAL_LIMIT:?запускайте через npm run v2:up}
+      IDENTITY_OTP_DAILY_PREFIX_LIMIT: ${IDENTITY_OTP_DAILY_PREFIX_LIMIT:?запускайте через npm run v2:up}
+      IDENTITY_EMAIL_CODE_HOURLY_LIMIT: ${IDENTITY_EMAIL_CODE_HOURLY_LIMIT:?запускайте через npm run v2:up}
+      IDENTITY_EMAIL_CODE_DAILY_LIMIT: ${IDENTITY_EMAIL_CODE_DAILY_LIMIT:?запускайте через npm run v2:up}
+      IDENTITY_EMAIL_CODE_COOLDOWN: ${IDENTITY_EMAIL_CODE_COOLDOWN:?запускайте через npm run v2:up}
     volumes:
       - ./certs/ca.pem:/certs/ca.pem:ro
       - ./certs/identity.pem:/certs/identity.pem:ro

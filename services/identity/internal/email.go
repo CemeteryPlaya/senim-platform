@@ -29,7 +29,7 @@ import (
 const (
 	emailCodeTTL     = 10 * time.Minute
 	emailMaxAttempts = 5
-	// Лимиты запроса кода на пользователя: раз в минуту, 5 в час, 10 в сутки.
+	// Умолчания лимитов запроса кода на пользователя (IDENTITY_EMAIL_CODE_*; в prod слабее нельзя): раз в минуту, 5 в час, 10 в сутки.
 	emailCooldown = time.Minute
 	emailHourly   = 5
 	emailDaily    = 10
@@ -227,9 +227,9 @@ func (s *Service) enforceEmailLimits(ctx context.Context, op string, userID uuid
 		window time.Duration
 		reason string
 	}{
-		{base + ":cooldown", 1, emailCooldown, "email_code_too_often"},
-		{base, emailHourly, hour, "email_code_too_many"},
-		{base + ":day", emailDaily, day, "email_code_too_many"},
+		{base + ":cooldown", 1, s.cfg.EmailCodeCooldown, "email_code_too_often"},
+		{base, s.cfg.EmailCodeHourlyLimit, hour, "email_code_too_many"},
+		{base + ":day", s.cfg.EmailCodeDailyLimit, day, "email_code_too_many"},
 	} {
 		allowed, err := lim.hit(ctx, s.pool, l.key, l.limit, l.window)
 		if err != nil {

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+	"time"
 )
 
 func b64(n int, fill byte) string {
@@ -255,4 +256,98 @@ func TestPreviousKeyMustDifferFromCurrent(t *testing.T) {
 	// Тот же публичный ключ под другим kid.
 	v["IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY"] = "old-1:" + base64.StdEncoding.EncodeToString(cur)
 	mustFailNaming(t, v, "IDENTITY_TOKEN_PREVIOUS_PUBLIC_KEY")
+}
+
+// Лимиты кодов по умолчанию равны прежним константам: без переменных поведение не меняется.
+func TestCodeLimitsDefaults(t *testing.T) {
+	c, err := load(t, serveVars())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.OTPPhoneHourlyLimit != 5 || c.OTPPhoneDailyLimit != 10 || c.OTPPhoneCooldown != time.Minute {
+		t.Errorf("код входа: %d / %d / %s, want 5 / 10 / 1m", c.OTPPhoneHourlyLimit, c.OTPPhoneDailyLimit, c.OTPPhoneCooldown)
+	}
+	if c.EmailCodeHourlyLimit != 5 || c.EmailCodeDailyLimit != 10 || c.EmailCodeCooldown != time.Minute {
+		t.Errorf("код почты: %d / %d / %s, want 5 / 10 / 1m", c.EmailCodeHourlyLimit, c.EmailCodeDailyLimit, c.EmailCodeCooldown)
+	}
+	if c.OTPPhoneHourlyLimit != phoneHourly || c.OTPPhoneDailyLimit != phoneDaily || c.OTPPhoneCooldown != phoneCooldown ||
+		c.EmailCodeHourlyLimit != emailHourly || c.EmailCodeDailyLimit != emailDaily || c.EmailCodeCooldown != emailCooldown {
+		t.Errorf("умолчания разошлись с константами: %+v", c)
+	}
+}
+
+func TestCodeLimitsFromVariables(t *testing.T) {
+	v := serveVars()
+	v["IDENTITY_OTP_PHONE_HOURLY_LIMIT"] = "200"
+	v["IDENTITY_OTP_PHONE_DAILY_LIMIT"] = "1000"
+	v["IDENTITY_OTP_PHONE_COOLDOWN"] = "1s"
+	v["IDENTITY_EMAIL_CODE_HOURLY_LIMIT"] = "300"
+	v["IDENTITY_EMAIL_CODE_DAILY_LIMIT"] = "2000"
+	v["IDENTITY_EMAIL_CODE_COOLDOWN"] = "2s"
+	c, err := load(t, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.OTPPhoneHourlyLimit != 200 || c.OTPPhoneDailyLimit != 1000 || c.OTPPhoneCooldown != time.Second ||
+		c.EmailCodeHourlyLimit != 300 || c.EmailCodeDailyLimit != 2000 || c.EmailCodeCooldown != 2*time.Second {
+		t.Fatalf("значения не прочитаны: %+v", c)
+	}
+	for _, key := range []string{"IDENTITY_OTP_PHONE_HOURLY_LIMIT", "IDENTITY_EMAIL_CODE_DAILY_LIMIT"} {
+		bad := serveVars()
+		bad[key] = "0"
+		mustFailNaming(t, bad, key)
+	}
+	bad := serveVars()
+	bad["IDENTITY_OTP_PHONE_COOLDOWN"] = "0s"
+	mustFailNaming(t, bad, "IDENTITY_OTP_PHONE_COOLDOWN")
+}
+
+// В prod ослабить лимиты кодов нельзя: сервис не стартует и называет переменную.
+func TestProdRejectsWeakerCodeLimits(t *testing.T) {
+	weak := map[string]string{
+		"IDENTITY_OTP_PHONE_HOURLY_LIMIT":  "6",
+		"IDENTITY_OTP_PHONE_DAILY_LIMIT":   "11",
+		"IDENTITY_OTP_PHONE_COOLDOWN":      "59s",
+		"IDENTITY_EMAIL_CODE_HOURLY_LIMIT": "6",
+		"IDENTITY_EMAIL_CODE_DAILY_LIMIT":  "11",
+		"IDENTITY_EMAIL_CODE_COOLDOWN":     "59s",
+	}
+	for key, val := range weak {
+		t.Run(key, func(t *testing.T) {
+			v := prodVars()
+			v[key] = val
+			mustFailNaming(t, v, key)
+			// Вне prod то же значение допустимо.
+			dev := serveVars()
+			dev[key] = val
+			if _, err := load(t, dev); err != nil {
+				t.Fatalf("dev отверг %s: %v", key, err)
+			}
+		})
+	}
+}
+
+// Ужесточение и значения, равные умолчанию, в prod допустимы.
+func TestProdAcceptsStricterCodeLimits(t *testing.T) {
+	strict := map[string]string{
+		"IDENTITY_OTP_PHONE_HOURLY_LIMIT":  "3",
+		"IDENTITY_OTP_PHONE_DAILY_LIMIT":   "10",
+		"IDENTITY_OTP_PHONE_COOLDOWN":      "90s",
+		"IDENTITY_EMAIL_CODE_HOURLY_LIMIT": "5",
+		"IDENTITY_EMAIL_CODE_DAILY_LIMIT":  "4",
+		"IDENTITY_EMAIL_CODE_COOLDOWN":     "1m",
+	}
+	v := prodVars()
+	for key, val := range strict {
+		v[key] = val
+	}
+	_, err := load(t, v)
+	// Остальные ошибки prod в тесте возможны (мок-провайдеры); значимо лишь, что лимиты не названы.
+	if err != nil {
+		for key := range strict {
+			if strings.Contains(err.Error(), key) {
+				t.Fatalf("prod отверг %s: %v", key, err)
+			}
+		}
+	}
 }

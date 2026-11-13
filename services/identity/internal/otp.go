@@ -40,7 +40,8 @@ const (
 	globalLimitSubject = "senim.identity.otp.global_limit_reached"
 )
 
-// Лимиты запроса кода, перенесены один к одному из apps/web/src/modules/identity/otp.ts:
+// Умолчания лимитов запроса кода (настраиваются IDENTITY_OTP_PHONE_*; в prod слабее нельзя),
+// перенесены один к одному из apps/web/src/modules/identity/otp.ts:
 // повтор — раз в минуту; на номер — 5 кодов в час и 10 в сутки (с любых IP); с одного IP —
 // 20 запросов в час. IP неизвестен (пуст) — лимиты по IP не применяются: общий ключ
 // дал бы один лимит на всех.
@@ -220,13 +221,13 @@ func (s *Service) enforceLimits(ctx context.Context, phone, ip string) error {
 			return err
 		}
 	}
-	if err := check("otp:phone:"+phone+":cooldown", 1, phoneCooldown, "otp_too_often"); err != nil {
+	if err := check("otp:phone:"+phone+":cooldown", 1, s.cfg.OTPPhoneCooldown, "otp_too_often"); err != nil {
 		return err
 	}
-	if err := check("otp:phone:"+phone, phoneHourly, hour, "otp_too_many_requests"); err != nil {
+	if err := check("otp:phone:"+phone, s.cfg.OTPPhoneHourlyLimit, hour, "otp_too_many_requests"); err != nil {
 		return err
 	}
-	if err := check("otp:phone:"+phone+":day", phoneDaily, day, "otp_too_many_today"); err != nil {
+	if err := check("otp:phone:"+phone+":day", s.cfg.OTPPhoneDailyLimit, day, "otp_too_many_today"); err != nil {
 		return err
 	}
 

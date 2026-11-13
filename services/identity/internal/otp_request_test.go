@@ -183,6 +183,37 @@ func TestPhoneDailyLimit10(t *testing.T) {
 	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_many_today")
 }
 
+// Лимиты номера берутся из конфигурации: при 2 кодах в час третий запрос отклоняется.
+func TestPhoneHourlyLimitFromConfig(t *testing.T) {
+	h := newHarness(t, func(c *ServeConfig) {
+		c.OTPPhoneHourlyLimit = 2
+		c.OTPPhoneCooldown = time.Second
+	})
+	phone := newPhone()
+	for range 2 {
+		h.mustRequest(phone, "")
+		h.clock.advance(2 * time.Second) // пауза в 1 с истекла, часовое окно — нет
+	}
+	_, err := h.request(phone, "")
+	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_many_requests")
+	if h.codeRows(phone) != 2 {
+		t.Fatalf("кодов %d, want 2", h.codeRows(phone))
+	}
+}
+
+func TestPhoneDailyLimitFromConfig(t *testing.T) {
+	h := newHarness(t, func(c *ServeConfig) { c.OTPPhoneDailyLimit = 2 })
+	phone := newPhone()
+	for range 2 {
+		h.mustRequest(phone, "")
+		if _, err := h.pool.Exec(context.Background(), `DELETE FROM rate_limits WHERE key NOT LIKE '%:day'`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err := h.request(phone, "")
+	h.wantRefusal(err, connect.CodeResourceExhausted, "otp_too_many_today")
+}
+
 func TestGlobalCeiling(t *testing.T) {
 	h := newHarness(t, func(c *ServeConfig) { c.OTPDailyGlobalLimit = 3 })
 	for i := range 3 {

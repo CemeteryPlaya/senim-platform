@@ -51,6 +51,16 @@ type ServeConfig struct {
 	// OTPDailyGlobalLimit — сколько кодов в сутки сервис отправляет всего; OTPDailyPrefixLimit — на один префикс номера.
 	OTPDailyGlobalLimit int
 	OTPDailyPrefixLimit int
+	// Лимиты кода входа на номер (IDENTITY_OTP_PHONE_*): в час, в сутки и пауза между кодами.
+	// В prod не слабее умолчаний (phoneHourly, phoneDaily, phoneCooldown).
+	OTPPhoneHourlyLimit int
+	OTPPhoneDailyLimit  int
+	OTPPhoneCooldown    time.Duration
+	// Лимиты кода почты на человека (IDENTITY_EMAIL_CODE_*): в час, в сутки и пауза между кодами.
+	// В prod не слабее умолчаний (emailHourly, emailDaily, emailCooldown).
+	EmailCodeHourlyLimit int
+	EmailCodeDailyLimit  int
+	EmailCodeCooldown    time.Duration
 	// NATS — подключение к NATS: учётная запись identity, TLS с сертификатом сервиса (ADR-012).
 	NATS      natsx.Config
 	CertFile  string
@@ -105,6 +115,13 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 			l.Invalid("IDENTITY_TOKEN_SIGNING_KEY", fmt.Sprintf("must be exactly %d bytes (base64)", ed25519.SeedSize))
 		}
 	}
+	c.OTPPhoneHourlyLimit = l.Int("IDENTITY_OTP_PHONE_HOURLY_LIMIT", phoneHourly, 1, 1_000_000)
+	c.OTPPhoneDailyLimit = l.Int("IDENTITY_OTP_PHONE_DAILY_LIMIT", phoneDaily, 1, 1_000_000)
+	c.OTPPhoneCooldown = l.Duration("IDENTITY_OTP_PHONE_COOLDOWN", phoneCooldown, time.Second, time.Hour)
+	c.EmailCodeHourlyLimit = l.Int("IDENTITY_EMAIL_CODE_HOURLY_LIMIT", emailHourly, 1, 1_000_000)
+	c.EmailCodeDailyLimit = l.Int("IDENTITY_EMAIL_CODE_DAILY_LIMIT", emailDaily, 1, 1_000_000)
+	c.EmailCodeCooldown = l.Duration("IDENTITY_EMAIL_CODE_COOLDOWN", emailCooldown, time.Second, time.Hour)
+	requireNotWeaker(l, c)
 	c.Retention = loadRetention(l)
 	l.Distinct("IDENTITY_OTP_HMAC_KEY", "IDENTITY_TOKEN_SIGNING_KEY")
 	// Ключи ПДн отличаются друг от друга и от прочих секретов identity (вне dev).
@@ -116,6 +133,40 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 		return ServeConfig{}, fmt.Errorf("конфигурация: %w", err)
 	}
 	return c, nil
+}
+
+// requireNotWeaker — в prod лимиты кодов на номер и на человека не слабее умолчаний
+// (больше кодов в час или в сутки, пауза короче): сервис не стартует и называет переменную.
+// Ужесточать можно. Вне prod (dev, staging) значения свободны в пределах диапазона.
+func requireNotWeaker(l *config.Loader, c ServeConfig) {
+	if c.Env != config.Prod {
+		return
+	}
+	const reasonMax = "weaker than the default when APP_ENV=prod (must not exceed %d)"
+	for _, v := range []struct {
+		key        string
+		got, limit int
+	}{
+		{"IDENTITY_OTP_PHONE_HOURLY_LIMIT", c.OTPPhoneHourlyLimit, phoneHourly},
+		{"IDENTITY_OTP_PHONE_DAILY_LIMIT", c.OTPPhoneDailyLimit, phoneDaily},
+		{"IDENTITY_EMAIL_CODE_HOURLY_LIMIT", c.EmailCodeHourlyLimit, emailHourly},
+		{"IDENTITY_EMAIL_CODE_DAILY_LIMIT", c.EmailCodeDailyLimit, emailDaily},
+	} {
+		if v.got > v.limit {
+			l.Invalid(v.key, fmt.Sprintf(reasonMax, v.limit))
+		}
+	}
+	for _, v := range []struct {
+		key      string
+		got, min time.Duration
+	}{
+		{"IDENTITY_OTP_PHONE_COOLDOWN", c.OTPPhoneCooldown, phoneCooldown},
+		{"IDENTITY_EMAIL_CODE_COOLDOWN", c.EmailCodeCooldown, emailCooldown},
+	} {
+		if v.got < v.min {
+			l.Invalid(v.key, fmt.Sprintf("weaker than the default when APP_ENV=prod (must be at least %s)", v.min))
+		}
+	}
 }
 
 // loadRetention читает сроки хранения. Верх везде год; нижние границы защищают живые
