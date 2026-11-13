@@ -188,7 +188,7 @@ function material(unknown: ReadonlySet<string>, key: "facade" | "countertop" | "
   return value ? (names[value]?.name ?? value) : null;
 }
 
-/** Сводка заявки строками «подпись — значение»; пустое не показывается. Длинное (описание, адрес, пожелания) — стопкой. */
+/** Сводка заявки строками «подпись — значение»; пустое не показывается. Длинное (размеры, описание, адрес, пожелания) — стопкой: в одну строку оно наезжало на подпись. */
 export function detailRows(i: DetailsInput): DetailRow[] {
   const d = i.details;
   const unknown = new Set<string>(d.unknown ?? []);
@@ -199,7 +199,7 @@ export function detailRows(i: DetailsInput): DetailRow[] {
     [t.details.segment, i.segment ? SEGMENT_NAMES[i.segment] : null],
     [t.details.style, i.style ? (STYLES[i.style as StyleKey]?.name ?? i.style) : null],
     [t.details.styleNote, d.styleNote, true],
-    [t.details.size, size],
+    [t.details.size, size, true],
     [t.details.facade, material(unknown, "facade", d.facade, FACADES)],
     [t.details.countertop, material(unknown, "countertop", d.countertop, COUNTERTOPS)],
     [t.details.hardware, material(unknown, "hardware", d.hardware, HARDWARE)],

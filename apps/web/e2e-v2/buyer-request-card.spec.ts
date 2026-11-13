@@ -1,38 +1,74 @@
-import { expect, test, type Page } from "@playwright/test";
+import { existsSync, mkdirSync, statSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { devices, expect, test, type Browser, type Page, type TestInfo } from "@playwright/test";
 import { ru } from "@/i18n/ru";
 import { loginV2, open } from "./support";
 
 /**
  * Карточка заявки покупателя (`/v2/requests/[id]`) на засеянных людях: Айгерим (+7 700 000 01 01) — заявка с тремя
- * предложениями; Данияр (+7 700 000 01 02) — прямая заявка, чужая для Мадины (+7 700 000 01 03). Сценарий ничего не меняет в данных
- * (отмена — интеграционным тестом, пересев не включается). Порядок мастеров зависит от сида: у заявки с тремя предложениями
- * дешевле всех мастер №4, быстрее всех — №2.
+ * предложениями; Данияр (+7 700 000 01 02) — прямая заявка без предложений, чужая для Мадины (+7 700 000 01 03).
+ * Сценарий ничего не меняет в данных (отмена — интеграционным тестом, пересев не включается). Порядок мастеров зависит
+ * от сида: у заявки с тремя предложениями дешевле всех мастер №4, быстрее всех — №2.
+ *
+ * identity даёт на номер 5 кодов в час: каждый человек входит ОДИН раз (с компьютера; телефон берёт то же состояние), состояние входа
+ * лежит во временной папке ОС (вне репозитория) и переиспользуется, пока свежее; тесты берут из него новое окно.
  */
 
 const t = ru.app.requestCard;
 const list = ru.app.requests.list;
 
-const AIGERIM = "+7 700 000 01 01";
-const DANIYAR = "+7 700 000 01 02";
-const MADINA = "+7 700 000 01 03";
+const PEOPLE = { aigerim: "+7 700 000 01 01", daniyar: "+7 700 000 01 02", madina: "+7 700 000 01 03" } as const;
+type Person = keyof typeof PEOPLE;
 
-async function openRequestWithOffers(page: Page, count: number): Promise<string> {
+const STATE_DIR = path.join(os.tmpdir(), "senim-e2e-v2-states");
+const FRESH_MS = 45 * 60_000;
+
+/** Один файл на человека: сессия не привязана к устройству, поэтому телефон берёт вход, сделанный с компьютера. */
+const stateFile = (person: Person) => path.join(STATE_DIR, `${person}.json`);
+
+/** Вход человека один раз на проект: готовое свежее состояние берётся из файла, иначе входим и сохраняем. */
+async function ensureState(browser: Browser, info: TestInfo, person: Person): Promise<string> {
+  const file = stateFile(person);
+  if (existsSync(file) && Date.now() - statSync(file).mtimeMs < FRESH_MS) return file;
+  mkdirSync(STATE_DIR, { recursive: true });
+  const context = await browser.newContext({ ...devices["Desktop Chrome"], baseURL: info.project.use.baseURL });
+  try {
+    await loginV2(await context.newPage(), PEOPLE[person]);
+    await context.storageState({ path: file });
+  } finally {
+    await context.close();
+  }
+  return file;
+}
+
+/** Новое окно браузера, уже вошедшее этим человеком. */
+async function pageOf(browser: Browser, info: TestInfo, person: Person): Promise<Page> {
+  const context = await browser.newContext({ ...info.project.use, storageState: stateFile(person) });
+  return context.newPage();
+}
+
+async function openRequestWithOffers(page: Page, count: number): Promise<void> {
   await open(page, "/v2/requests");
-  const link = page.locator("main a[href^='/v2/requests/']").filter({ hasText: list.offers(count) }).first();
-  await link.click();
+  await page.locator("main a[href^='/v2/requests/']").filter({ hasText: list.offers(count) }).first().click();
   await page.waitForURL(/\/v2\/requests\/[^/?]+$/);
   await page.waitForLoadState("networkidle");
-  return new URL(page.url()).pathname;
 }
 
 const masters = (page: Page) => page.locator("main a[href*='/offers/']").evaluateAll((links) => links.map((a) => a.textContent?.match(/Исполнитель №(\d+)/)?.[1] ?? ""));
 
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
+test.beforeAll(async ({ browser }, info) => {
+  test.setTimeout(420_000);
+  for (const person of Object.keys(PEOPLE) as Person[]) await ensureState(browser, info, person);
 });
 
-test("заявка с тремя предложениями: «Исполнитель №N» без имён, сортировка в адресе меняет порядок", async ({ page }) => {
-  await loginV2(page, AIGERIM);
+// Первый заход компилирует страницы dev-сервера: запас по времени.
+test.beforeEach(() => {
+  test.setTimeout(120_000);
+});
+
+test("заявка с тремя предложениями: «Исполнитель №N» без имён, сортировка в адресе меняет порядок", async ({ browser }, info) => {
+  const page = await pageOf(browser, info, "aigerim");
   await openRequestWithOffers(page, 3);
 
   await expect(page.locator("h1")).toHaveCount(1);
@@ -60,26 +96,51 @@ test("заявка с тремя предложениями: «Исполнит�
   // Предложение открывается ссылкой на свой экран v2.
   await page.getByRole("link", { name: /Исполнитель №2/ }).click();
   await page.waitForURL(/\/v2\/requests\/[^/]+\/offers\/[^/]+/);
+  await page.context().close();
 });
 
-test("прямая заявка без предложений: обучающий экран без кнопки; чужая и несуществующая заявка — 404", async ({ page, context }) => {
-  // Номера входят не чаще раза в минуту, поэтому один вход Данияра на оба сценария, а чужой смотрит Мадина.
-  await loginV2(page, DANIYAR);
+test("меню «Действия»: подтверждение отмены открывается и закрывается «Не отменять», заявка остаётся", async ({ browser }, info) => {
+  const page = await pageOf(browser, info, "aigerim");
+  await openRequestWithOffers(page, 3);
+  const url = page.url();
+
+  await page.getByRole("button", { name: t.actions.menu }).click();
+  await page.getByText(t.actions.cancel, { exact: true }).first().click();
+  const dialog = page.getByRole("dialog", { name: t.actions.cancelTitle });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText(t.actions.cancelBody(3));
+  // Первый фокус — на «Не отменять»; Enter закрывает окно, ничего не отменяя.
+  await expect(dialog.getByRole("button", { name: t.actions.cancelKeep })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+  expect(page.url()).toBe(url);
+  await expect(page.getByRole("heading", { level: 2, name: ru.app.buyer.home.now.offers.title(3) })).toBeVisible();
+  await page.context().close();
+});
+
+test("прямая заявка без предложений: обучающий экран без кнопки, «Заявка для: Исполнитель №N»", async ({ browser }, info) => {
+  const page = await pageOf(browser, info, "daniyar");
   await open(page, "/v2/requests");
-  const own = page.locator("main a[href^='/v2/requests/']").filter({ hasText: list.direct }).first();
-  const foreign = await own.getAttribute("href");
-  expect(foreign).toBeTruthy();
-  await own.click();
+  await page.locator("main a[href^='/v2/requests/']").filter({ hasText: list.direct }).first().click();
   await page.waitForURL(/\/v2\/requests\/[^/?]+$/);
   await expect(page.getByRole("heading", { level: 2, name: t.now.waitingDirect.title })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: t.offers.emptyDirect.title })).toBeVisible();
   expect(await page.locator("[data-primary-action]").count()).toBe(0);
   await expect(page.locator("main")).toContainText(/Заявка для\s*Исполнитель №\d+/);
-  await context.clearCookies();
+  await page.context().close();
+});
 
-  await loginV2(page, MADINA);
+test("чужая и несуществующая заявка — 404", async ({ browser }, info) => {
+  const owner = await pageOf(browser, info, "daniyar");
+  await open(owner, "/v2/requests");
+  const foreign = await owner.locator("main a[href^='/v2/requests/']").first().getAttribute("href");
+  expect(foreign).toBeTruthy();
+  await owner.context().close();
+
+  const page = await pageOf(browser, info, "madina");
   for (const href of [foreign ?? "", "/v2/requests/net-takoj-zayavki"]) {
     const response = await page.goto(href);
     expect(response?.status(), href).toBe(404);
   }
+  await page.context().close();
 });

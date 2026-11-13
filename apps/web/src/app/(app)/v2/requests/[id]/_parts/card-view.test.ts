@@ -169,6 +169,7 @@ describe("detailRows", () => {
     expect(by("Уровень")?.value).toBe("Комфорт");
     expect(by("Стиль")?.value).toBe("Лофт");
     expect(by("Размеры")?.value).toBe("ширина 240 см");
+    expect(by("Размеры")?.stacked).toBe(true);
     expect(by("Фасады")?.value).toBe("ЛДСП");
     expect(by("Столешница")?.value).toBe(t.details.unknown);
     expect(by("Дополнительно")?.value).toBe("Подсветка");
