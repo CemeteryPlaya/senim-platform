@@ -115,6 +115,18 @@ describe("identityFailure", () => {
     expect(caught(codedError("email_already_verified", Code.FailedPrecondition)).details).toEqual({ reason: "EMAIL_ALREADY_VERIFIED" });
   });
 
+  it("почта: отказы по коду — у поля code (устаревший — с машинной причиной), лимиты — ошибка формы", () => {
+    const wrong = caught(codedError("email_code_wrong", Code.InvalidArgument, { left: "2" }));
+    expect(wrong.details).toEqual({ fieldErrors: { code: [email.wrongCode(2)] } });
+    expect(caught(codedError("email_code_expired", Code.InvalidArgument)).details).toEqual({ fieldErrors: { code: [email.expired] }, reason: "EMAIL_CODE_EXPIRED" });
+    const exhausted = caught(codedError("email_code_attempts_exhausted", Code.ResourceExhausted));
+    expect([exhausted.code, exhausted.details]).toEqual(["RATE_LIMITED", { fieldErrors: { code: [email.attemptsExhausted] } }]);
+    for (const code of ["email_code_too_often", "email_code_too_many"]) {
+      expect(caught(codedError(code, Code.ResourceExhausted)).details).toBeUndefined();
+    }
+    expect(email.tooMany).toBe("Слишком много попыток. Попробуйте через час");
+  });
+
   it("email_code_wrong с left=2 — «Неверный код. Осталось попыток: 2»", () => {
     expect(caught(codedError("email_code_wrong", Code.InvalidArgument, { left: "2" })).message).toBe("Неверный код. Осталось попыток: 2");
   });

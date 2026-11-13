@@ -12,7 +12,7 @@ import { typicalEstimateSchema } from "@/verticals/furniture";
 import { useSeedStorage } from "../../test/factories/documents";
 import { setEnv } from "../../test/factories/identity";
 import { identityFake } from "../../test/stubs/identity";
-import { CLIENTS, DEALS, EXECUTORS, KYC, OPERATOR } from "./data";
+import { CLIENTS, DEALS, EXECUTORS, KYC, MEASURER, OPERATOR } from "./data";
 import { PORTFOLIO_FILES } from "./portfolio-files";
 import { resetDemo, seedDemo } from "./seed";
 
@@ -26,6 +26,25 @@ afterAll(async () => {
   setEnv({ DEMO_MODE: undefined });
   await cleanup();
 });
+
+/**
+ * Почта сида: у каждого демо-покупателя и демо-мастера — `<ключ>@example.com`, подтверждённая в identity и в проекции
+ * (шаг почты на стенде не нужен); у сотрудников адреса нет. Проекция совпадает с identity у всех людей сида.
+ */
+async function expectSeedEmails(): Promise<void> {
+  const people: [string, string | null][] = [
+    ...Object.entries(CLIENTS).map(([key, p]): [string, string | null] => [p.phone, `${key}@example.com`]),
+    ...Object.entries(EXECUTORS).map(([key, e]): [string, string | null] => [e.person.phone, `${key}@example.com`]),
+    [OPERATOR.phone, null],
+    [MEASURER.phone, null],
+  ];
+  for (const [phone, email] of people) {
+    const row = await db.user.findUniqueOrThrow({ where: { phone }, select: { id: true, email: true, emailVerifiedAt: true } });
+    const person = identityFake.personOf(row.id);
+    expect({ phone, email: row.email, verified: row.emailVerifiedAt !== null }).toEqual({ phone, email, verified: email !== null });
+    expect({ phone, email: person.email || null, verified: person.emailVerified }).toEqual({ phone, email, verified: email !== null });
+  }
+}
 
 const sum = (rows: { type: string; status: string; amountTiyn: bigint }[], type: string) =>
   rows.filter((r) => r.type === type && r.status === "SUCCEEDED").reduce((a, r) => a + r.amountTiyn, 0n);
@@ -155,8 +174,9 @@ describe("демо-данные", () => {
     expect(await db.executorProfile.count({ where: { OR: [{ binIinEnc: { not: null } }, { binIinHash: { not: null } }, { signerIinEnc: { not: null } }, { payoutIbanEnc: { not: null } }] } })).toBe(0);
     expect(await db.user.count({ where: { OR: [{ iinEnc: { not: null } }, { iinHash: { not: null } }] } })).toBe(0);
     const aigerim = await db.user.findUniqueOrThrow({ where: { phone: CLIENTS.aigerim.phone } });
-    expect(aigerim).toMatchObject({ fullName: CLIENTS.aigerim.fullName, iinLast4: CLIENTS.aigerim.iin.slice(-4), email: "aigerim.demo@example.kz" });
-    expect(identityFake.personOf(aigerim.id)).toMatchObject({ fullName: CLIENTS.aigerim.fullName, iinLast4: CLIENTS.aigerim.iin.slice(-4), email: "aigerim.demo@example.kz" });
+    expect(aigerim).toMatchObject({ fullName: CLIENTS.aigerim.fullName, iinLast4: CLIENTS.aigerim.iin.slice(-4), email: "aigerim@example.com" });
+    expect(identityFake.personOf(aigerim.id)).toMatchObject({ fullName: CLIENTS.aigerim.fullName, iinLast4: CLIENTS.aigerim.iin.slice(-4), email: "aigerim@example.com", emailVerified: true });
+    await expectSeedEmails();
     expect(await db.user.count({ where: { role: "OPERATOR", isDemo: true } })).toBe(1);
 
     for (const [name, meta] of Object.entries(PORTFOLIO_FILES)) {
@@ -231,6 +251,8 @@ describe("демо-данные", () => {
     expect(identityFake.calls.filter((c) => c.method === "seedUsers")).toHaveLength(1);
     const again = await db.user.findMany({ select: { id: true, phone: true } });
     expect(Object.fromEntries(again.map((u) => [u.phone, u.id]))).toEqual(ids);
+    // После пересева почта в проекции снова совпадает с identity: подтверждена у покупателей и мастеров.
+    await expectSeedEmails();
   });
 
   it("без identity сид падает с подсказкой запустить стенд и не пишет старую базу", async () => {

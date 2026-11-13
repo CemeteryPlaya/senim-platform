@@ -235,8 +235,12 @@ function signerOf(spec: ExecutorSpec): ExecutorSigner {
   }
 }
 
-/** E-mail для копии подписанного акта (ТЗ п. 7) — у одной демо-персоны, домен example.kz не доставляется. */
-const DEMO_EMAILS: Partial<Record<ClientKey, string>> = { aigerim: "aigerim.demo@example.kz" };
+/**
+ * E-mail демо-покупателя и демо-мастера: вымышленный адрес на зарезервированном домене example.com (RFC 2606, письма не
+ * доставляются). identity записывает адрес сида подтверждённым — на стенде персоны не упираются в шаг почты. Сотрудникам
+ * адрес не нужен.
+ */
+const demoEmail = (key: ClientKey | ExecutorKey): string => `${key}@example.com`;
 
 const executorRoles = (spec: ExecutorSpec): Role[] => (spec.alsoClient ? ["EXECUTOR", "CLIENT"] : ["EXECUTOR"]);
 
@@ -304,12 +308,12 @@ function seedPeople(clock: Clock, kycFiles: Map<ExecutorKey, KycFileIds>): SeedP
       payoutIban: payoutIbanOf(spec, n),
       kyc: seedKycOf(key, clock, kycFiles),
     };
-    return { ...person(spec.person, "EXECUTOR", executorRoles(spec)), party };
+    return { ...person(spec.person, "EXECUTOR", executorRoles(spec), demoEmail(key)), party };
   };
   const staff = (p: PersonSpec, role: Role): SeedPerson => ({ phone: p.phone, role, roles: [role], isDemo: p.isDemo, createdAt: clock.ago(p.joinedDaysAgo), fullName: p.fullName });
   return [
     staff(OPERATOR, "OPERATOR"),
-    ...(Object.entries(CLIENTS) as [ClientKey, PersonSpec][]).map(([key, p]) => person(p, "CLIENT", ["CLIENT"], DEMO_EMAILS[key])),
+    ...(Object.entries(CLIENTS) as [ClientKey, PersonSpec][]).map(([key, p]) => person(p, "CLIENT", ["CLIENT"], demoEmail(key))),
     ...executorsByRegistration().map(executor),
     staff(MEASURER, "MEASURER"),
   ];

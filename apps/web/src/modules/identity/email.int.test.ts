@@ -296,6 +296,61 @@ describe("verifyEmailCode", () => {
     expect(await row(user.id)).toMatchObject({ email: ADDRESS, emailVerifiedAt: expect.any(Date) });
   });
 
+  it("отказы по коду — у поля code; лимит проверок — ошибка формы", async () => {
+    const user = await signedIn();
+    const code = await codeFor(user);
+    expect((await errorOf(verifyEmailCode(user, wrong(code)))).details).toEqual({ fieldErrors: { code: [t.wrongCode(4)] } });
+    identityFake.failNextWithCode("email_code_too_many");
+    const many = await errorOf(verifyEmailCode(user, code));
+    expect([many.code, many.message, many.details]).toEqual(["RATE_LIMITED", t.tooMany, undefined]);
+  });
+
+  it("две вкладки: второй ввод того же кода после успеха в первой — тоже успех (identity: код погашен, почта подтверждена)", async () => {
+    const user = await signedIn();
+    const code = await codeFor(user);
+    await verifyEmailCode(user, code); // первая вкладка
+    await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: null } }); // вторая ещё не знает о подтверждении
+
+    await expect(verifyEmailCode(user, code)).resolves.toBeUndefined(); // `user` — снимок до подтверждения
+
+    expect(callsOf("getProfile")).toHaveLength(1);
+    expect((await row(user.id)).emailVerifiedAt).toBeInstanceOf(Date);
+    expect((await getCurrentUser())!.emailVerified).toBe(true);
+  });
+
+  it("«код устарел» без подтверждённой почты — отказ у поля code (профиль перечитан); у уже подтверждённого — отказ без перечитывания", async () => {
+    const user = await signedIn();
+    let now = Date.now();
+    identityFake.now = () => new Date(now);
+    const code = await codeFor(user);
+    now += 10 * 60_000 + 1;
+    const err = await errorOf(verifyEmailCode(user, code));
+    expect([err.code, err.details]).toEqual(["VALIDATION", { fieldErrors: { code: [t.expired] }, reason: "EMAIL_CODE_EXPIRED" }]);
+    expect(callsOf("getProfile")).toHaveLength(1);
+
+    // Подтверждённый человек подтверждает новый адрес: прежнее подтверждение — не успех нового.
+    now += 61_000;
+    await verifyEmailCode(user, await codeFor(user));
+    const verified = (await getCurrentUser())!;
+    now += 61_000;
+    const fresh = await codeFor(verified, "new@example.kz");
+    now += 10 * 60_000 + 1;
+    expect((await errorOf(verifyEmailCode(verified, fresh))).message).toBe(t.expired);
+    expect(callsOf("getProfile")).toHaveLength(1);
+    expect(identityFake.personOf(user.id).email).toBe(ADDRESS);
+  });
+
+  it("сбой GetProfile после «уже подтверждена» — «сервис недоступен», а не «подтверждена»: иначе шаг почты зациклился бы", async () => {
+    const user = await signedIn();
+    await verifyEmailCode(user, await codeFor(user));
+    await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: null } });
+    identityFake.now = () => new Date(Date.now() + 61_000);
+    identityFake.passNext(); // requestEmailCode → email_already_verified
+    identityFake.failNextUnavailable(); // getProfile
+    expect((await errorOf(requestEmailCode(user, ADDRESS))).code).toBe("UNAVAILABLE");
+    expect((await row(user.id)).emailVerifiedAt).toBeNull();
+  });
+
   it("оператору — FORBIDDEN без вызова identity", async () => {
     const operator = await signedIn(() => makeOperator());
     expect((await errorOf(verifyEmailCode(operator, "123456"))).code).toBe("FORBIDDEN");

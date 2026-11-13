@@ -17,6 +17,8 @@ const email = ru.app.login.email.errors;
 
 /** Машинная причина отказа email_already_verified (AppError.details.reason): адрес уже подтверждён, код не выдан. */
 export const EMAIL_ALREADY_VERIFIED = "EMAIL_ALREADY_VERIFIED";
+/** Машинная причина отказа email_code_expired (AppError.details.reason): действующего кода нет. */
+export const EMAIL_CODE_EXPIRED = "EMAIL_CODE_EXPIRED";
 
 /** Коды, которые identity возвращает по контракту (proto/senim/identity/v1/identity.proto). */
 export const IDENTITY_ERROR_CODES = [
@@ -105,6 +107,14 @@ function ibanReason(params: Record<string, string>): "format" | "checksum" {
   const reason = params["reason"];
   if (reason === "format" || reason === "checksum") return reason;
   return broken("iban_invalid_bad_reason");
+}
+
+/**
+ * Отказ по коду из письма — у поля `code` (экран почты показывает его под полем): `status` — вид ошибки, `reason` —
+ * машинная причина для вызывающего кода.
+ */
+function codeFieldError(status: "VALIDATION" | "RATE_LIMITED", message: string, reason?: string): never {
+  throw new AppError(status, message, { fieldErrors: { code: [message] }, ...(reason && { reason }) });
 }
 
 /** Ошибка формата одного поля формы: текст и он же у поля (формы показывают его под полем). */
@@ -202,16 +212,18 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
     case "revocation_closed":
       // Заявку решили раньше (двойной клик, второй оператор) или её нет.
       return fail.conflict(consent.revocationClosed);
+    // Лимиты запроса и проверки — ошибка формы; отказы по самому коду — у поля кода.
     case "email_code_too_often":
       return fail.rateLimited(email.tooOften);
     case "email_code_too_many":
+      // Тот же код и на часовой, и на суточный лимит (параметра нет): одна фраза.
       return fail.rateLimited(email.tooMany);
     case "email_code_expired":
-      return fail.validation(email.expired);
+      return codeFieldError("VALIDATION", email.expired, EMAIL_CODE_EXPIRED);
     case "email_code_wrong":
-      return fail.validation(email.wrongCode(attemptsLeft(code, params)));
+      return codeFieldError("VALIDATION", email.wrongCode(attemptsLeft(code, params)));
     case "email_code_attempts_exhausted":
-      return fail.rateLimited(email.attemptsExhausted);
+      return codeFieldError("RATE_LIMITED", email.attemptsExhausted);
     case "email_already_verified":
       // Этот адрес уже подтверждён: код не выдан, шаг почты не нужен (email.ts обновляет проекцию).
       return fail.conflict(email.alreadyVerified, { reason: EMAIL_ALREADY_VERIFIED });

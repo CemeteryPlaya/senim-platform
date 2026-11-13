@@ -8,7 +8,7 @@ import { AppError, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { ownPerson, projectPerson } from "./projection";
 import { identity } from "./remote";
-import { EMAIL_ALREADY_VERIFIED, identityFailure, retriedOnce, type IdentityErrorOverrides } from "./remote-errors";
+import { EMAIL_ALREADY_VERIFIED, EMAIL_CODE_EXPIRED, identityFailure, retriedOnce, type IdentityErrorOverrides } from "./remote-errors";
 import { isStaffRole } from "./roles";
 import { currentSessionToken, type CurrentUser } from "./session";
 
@@ -30,7 +30,8 @@ const invalidEmail = (): never => fail.validation(t.invalid, { fieldErrors: { em
 
 /**
  * email_invalid у RequestEmailCode — текст нового экрана почты, а не прежнего экрана контактов (тот же код у
- * UpdateContacts сопоставлен с ru.identity.contacts в remote-errors.ts).
+ * UpdateContacts сопоставлен с ru.identity.contacts в remote-errors.ts). Отказы по коду из письма (неверный, устарел,
+ * попытки кончились) remote-errors.ts отдаёт у поля `code`, лимиты — ошибкой формы: эти коды бывают только у почты.
  */
 const EMAIL_OVERRIDES: IdentityErrorOverrides = { email_invalid: invalidEmail };
 
@@ -55,17 +56,24 @@ export function needsEmail(user: Pick<CurrentUser, "role" | "roles" | "emailVeri
  */
 export type EmailCodeRequested = { alreadyVerified: false; expiresAt: Date; demoCode: string | null } | { alreadyVerified: true };
 
-const isAlreadyVerified = (e: unknown) => e instanceof AppError && e.details?.["reason"] === EMAIL_ALREADY_VERIFIED;
+const reasonOf = (e: unknown, reason: string) => e instanceof AppError && e.details?.["reason"] === reason;
 
-/** Личность из identity (GetProfile) в сессии этого браузера — в проекцию: так web узнаёт о подтверждении, сделанном мимо него. */
-async function refreshPerson(user: CurrentUser, sessionToken: string): Promise<void> {
+/**
+ * Личность из identity (GetProfile) в сессии этого браузера — в проекцию: так web узнаёт о подтверждении, сделанном мимо
+ * него (другая вкладка, второй одновременный ввод, отставшая проекция). Возвращает, подтверждена ли почта.
+ * Сбой GetProfile — ошибка «сервис недоступен» (identityFailure), а не «уже подтверждена»: без обновлённой проекции
+ * needsEmail снова вёл бы на шаг почты, а запрос кода снова отвечал бы «уже подтверждена» — шаг зациклился бы.
+ */
+async function refreshPerson(user: CurrentUser, sessionToken: string): Promise<boolean> {
   let res;
   try {
     res = await identity().getProfile({ sessionToken });
   } catch (e) {
     return identityFailure(e);
   }
-  await projectPerson(ownPerson(user.id, res.person));
+  const person = ownPerson(user.id, res.person);
+  await projectPerson(person);
+  return person.emailVerified;
 }
 
 /**
@@ -83,7 +91,7 @@ export async function requestEmailCode(user: CurrentUser, email: string): Promis
   try {
     res = await retriedOnce(() => identity().requestEmailCode(request), EMAIL_OVERRIDES);
   } catch (e) {
-    if (!isAlreadyVerified(e)) throw e;
+    if (!reasonOf(e, EMAIL_ALREADY_VERIFIED)) throw e;
     await refreshPerson(user, sessionToken);
     return { alreadyVerified: true };
   }
@@ -98,6 +106,9 @@ export async function requestEmailCode(user: CurrentUser, email: string): Promis
  * Проверяет код в identity: верный — адрес подтверждён, ответ (личность) пишется в проекцию (`email`, `emailVerifiedAt`).
  * Ввод очищается до цифр (вставка «123 456»); не 6 цифр — ошибка поля `code` без вызова identity (попытка не тратится).
  * Неверный, истёкший код, исчерпанные попытки и лимит проверок — ошибки с текстами `ru.app.login.email.errors`.
+ * «Код устарел» у человека, чья почта до вызова не была подтверждена, — сначала перечитать личность: если почта уже
+ * подтверждена (тот же код погасил второй одновременный ввод, другая вкладка), это успех. У уже подтверждённого
+ * (подтверждает новый адрес) «устарел» остаётся отказом: прежнее подтверждение к новому адресу не относится.
  */
 export async function verifyEmailCode(user: CurrentUser, code: string): Promise<void> {
   requireParty(user);
@@ -105,6 +116,12 @@ export async function verifyEmailCode(user: CurrentUser, code: string): Promise<
   if (!CODE_RE.test(digits)) return fail.validation(t.codeFormat, { fieldErrors: { code: [t.codeFormat] } });
   const sessionToken = await currentSessionToken();
   const request = { sessionToken, code: digits, idempotencyKey: randomUUID() };
-  const res = await retriedOnce(() => identity().verifyEmailCode(request), EMAIL_OVERRIDES);
+  let res;
+  try {
+    res = await retriedOnce(() => identity().verifyEmailCode(request), EMAIL_OVERRIDES);
+  } catch (e) {
+    if (!user.emailVerified && reasonOf(e, EMAIL_CODE_EXPIRED) && (await refreshPerson(user, sessionToken))) return;
+    throw e;
+  }
   await projectPerson(ownPerson(user.id, res.person));
 }
