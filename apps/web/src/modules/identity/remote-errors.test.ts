@@ -124,7 +124,7 @@ describe("identityFailure", () => {
     for (const code of ["email_code_too_often", "email_code_too_many"]) {
       expect(caught(codedError(code, Code.ResourceExhausted)).details).toBeUndefined();
     }
-    expect(email.tooMany).toBe("Слишком много попыток. Попробуйте через час");
+    expect(caught(codedError("email_code_too_many", Code.ResourceExhausted)).message).toBe(email.tooMany);
   });
 
   it("email_code_wrong с left=2 — «Неверный код. Осталось попыток: 2»", () => {
