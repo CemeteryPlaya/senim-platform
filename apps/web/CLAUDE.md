@@ -3,16 +3,18 @@
 1. **Перед любой работой с кодом прочитай `./SKILL.md` и следуй ему** (он же — скилл `project-standards`).
 2. Прочитай `AGENTS.md`: Next.js 16 отличается от того, что ты знаешь. Перед работой с роутингом, Server Actions, кэшем и proxy (бывший middleware) смотри `node_modules/next/dist/docs/`.
 3. Prisma 7: скиллы `prisma-cli`, `prisma-client-api`, `prisma-orm-setup` в `.claude/skills/`. Клиент генерируется в `src/generated/prisma`, импорт — `@/generated/prisma/client` и `@/generated/prisma/enums`.
-4. Полное задание — `docs/AGENT_PROMPT.md`; прогресс — `docs/PROGRESS.md`; термины — `docs/GLOSSARY.md`; решения — `docs/adr/`.
+4. **Новый интерфейс (v2)**: маршруты в `src/app/(app)/` под `/v2`, компоненты только из `@/kit` (`src/kit/`); правила и справочник компонентов — `docs/design/v3/` в корне репозитория (`rules.md`, `checklist.md`, `components.md`), спека — `docs/superpowers/specs/2026-11-12-frontend-redesign-design.md`. Старый интерфейс (v1) — `src/app/(legacy)/` и `src/ui/` — заморожен: не развивать; новые экраны на `@/ui` не строятся.
+5. Полное задание — `docs/AGENT_PROMPT.md`; прогресс — `docs/PROGRESS.md`; термины — `docs/GLOSSARY.md`; решения — `docs/adr/`.
 
 ## Архитектура: модульный монолит
 
 ```
-src/app/              маршруты и экраны, без бизнес-логики
+src/app/              маршруты и экраны, без бизнес-логики: (app)/ — v2 под /v2, (legacy)/ — v1 (заморожен)
+src/kit/              дизайн-система v2 (импорт только из @/kit)
 src/modules/<имя>/    модуль; снаружи — только index.ts (и client.ts для клиентских компонентов)
 src/verticals/furniture/  всё мебельное: типы, стили, шаблоны этапов, правила сегмента
 src/platform/         db, env (zod), errors, logger, crypto, jobs, rate-limit, action
-src/ui/               дизайн-токены и базовые компоненты
+src/ui/               дизайн-токены и базовые компоненты v1 (заморожены)
 src/i18n/ru.ts        все тексты; каждая зона — свой файл в src/i18n/ru/
 src/jobs.ts           сборка обработчиков фоновых задач из модулей
 ```

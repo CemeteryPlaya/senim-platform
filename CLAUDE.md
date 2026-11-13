@@ -4,6 +4,7 @@
 
 1. Спека: `docs/superpowers/specs/2026-11-08-platform-v2-architecture-design.md`; планы — `docs/superpowers/plans/`; решения — `docs/adr/` (ADR-010 — микросервисы и gRPC, ADR-011 — удостоверение сервиса через mesh, ADR-012 — учётные записи и права NATS, ADR-013 — вход через identity и проекция пользователя, ADR-014 — ПДн, согласия и 2FA операторов в identity); правовые материалы — `docs/legal/`.
 2. Работа внутри `apps/web` — по `apps/web/CLAUDE.md`, `apps/web/SKILL.md` и `apps/web/AGENTS.md` (Next.js 16 отличается от того, что ты знаешь: `apps/web/node_modules/next/dist/docs/`).
+3. Новый интерфейс (v2) — маршруты в `apps/web/src/app/(app)/` под `/v2`, компоненты только из `@/kit` (`apps/web/src/kit/`); правила и справочник компонентов — `docs/design/v3/` (`rules.md`, `checklist.md`, `components.md`), спека — `docs/superpowers/specs/2026-11-12-frontend-redesign-design.md`. Старый интерфейс (v1) — `src/app/(legacy)/` и `src/ui/` — заморожен: его не развиваем, новые экраны на `@/ui` не строим.
 
 ## Архитектура (спека, раздел 4)
 
@@ -18,7 +19,7 @@ pkg/                       инфраструктурные пакеты (config
 services/<имя>/            Go-сервис; своя база, свои миграции, свои роли
 gen/go/                    сгенерированный код (buf); руками не править
 proto/senim/<сервис>/v1/   контракты; события — proto/senim/events/v1
-apps/web/                  текущий Next.js
+apps/web/                  Next.js: v2 — src/app/(app)/ (/v2) и src/kit/; v1 (заморожен) — src/app/(legacy)/ и src/ui/
 deploy/compose/            docker compose, профили core и full
 ```
 

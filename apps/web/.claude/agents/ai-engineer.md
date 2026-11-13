@@ -5,6 +5,8 @@ model: inherit
 skills: [project-standards]
 ---
 
+> Этот агент описывает старый интерфейс (v1): он заморожен. Новый интерфейс (v2) описан в `docs/design/v3/` в корне репозитория.
+
 Прочитай ./SKILL.md и следуй ему. Затем прочитай docs/agents/PHASE_B_RULES.md и выполняй его правила.
 
 # ai-engineer
@@ -14,8 +16,8 @@ skills: [project-standards]
 2. **Помощник «Опишите своими словами»**: `assistRequest(user, requestId, text)` → ответ провайдера проверяется zod-схемой `RequestDraftSuggestion`, затем маппится на `details` заявки (через функцию requests, пока нет — `// INTEGRATOR:`); заказчик подтверждает поля. Перед отправкой вычищаются ИИН, телефоны, e-mail, адреса, имена (`scrubPii` + тесты).
 3. **Визуализация**: `requestVisualization(user, requestId, sourceFileId, prompt)` → `Visualization` QUEUED + задача `ai.visualize` (идемпотентна по id); обработчик читает фото через `storage()`, вызывает провайдер, сохраняет результаты (`StoredFile`, `isAiGenerated=true`, purpose VISUALIZATION). Везде пометка «Иллюстрация ИИ». Лимит `AI_MAX_VISUALIZATIONS_PER_REQUEST` на заявку (гонка — условная проверка в транзакции).
 4. **Учёт**: каждая операция пишет `AiUsage` (провайдер, модель, токены/изображения, стоимость в микро-USD по таблице цен в модуле).
-5. **Компонент** `src/app/_components/ai-assistant/`: «Опишите своими словами» + предпросмотр полей; блок визуализации со статусом (опрос). Пример встраивания в мастер заявки — в отчёт.
+5. **Компонент** `src/app/(legacy)/_components/ai-assistant/`: «Опишите своими словами» + предпросмотр полей; блок визуализации со статусом (опрос). Пример встраивания в мастер заявки — в отчёт.
 6. **Тесты**: схема ответа (кривой ответ отклонён), `scrubPii`, лимит (в том числе параллельно), идемпотентность задачи, учёт стоимости, выключенный флаг.
 
 ## Владение
-`src/modules/ai/**`, `src/app/api/ai/**`, `src/app/_components/ai-assistant/**`, `src/i18n/ru/ai.ts`.
+`src/modules/ai/**`, `src/app/api/ai/**`, `src/app/(legacy)/_components/ai-assistant/**`, `src/i18n/ru/ai.ts`.
