@@ -148,7 +148,9 @@ test("гость на шагах — на вход; на шагах сосред
   await expect(page.getByRole("link", { name: new RegExp(`^${ru.app.kit.back}`) })).toHaveCount(0);
   await expect(page.getByRole("button", { name: shell.logout, exact: true })).toHaveCount(1);
   await expect(page.locator("[data-action-dock]").getByRole("button")).toHaveCount(1);
-  await expect(page.getByRole("link", { name: ru.common.brand })).toHaveAttribute("href", "/v2");
+  // Название на шагах — текст, а не ссылка: уходить со шагов некуда, кроме «Выйти».
+  await expect(page.getByRole("link", { name: ru.common.brand })).toHaveCount(0);
+  await expect(page.getByRole("banner").getByText(ru.common.brand, { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: shell.logout, exact: true }).click();
   await expect(page).toHaveURL(/\/v2\/login$/);

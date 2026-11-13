@@ -50,9 +50,12 @@ export async function open(page: Page, path: string): Promise<void> {
   await page.waitForLoadState("networkidle");
 }
 
-/** Код входа из плашки на экране шага кода («Сообщения пока не отправляются. Ваш код: NNNNNN»). */
-export async function readShownCode(page: Page): Promise<string> {
-  const shown = page.getByText(new RegExp(login.code.shownCode("\\d{6}")));
+/**
+ * Код из плашки на экране шага кода: входа («Сообщения пока не отправляются. Ваш код: NNNNNN») или почты (`shownCode` —
+ * ru.app.onboarding.email.code.shownCode).
+ */
+export async function readShownCode(page: Page, shownCode: (code: string) => string = login.code.shownCode): Promise<string> {
+  const shown = page.getByText(new RegExp(shownCode("\\d{6}")));
   await shown.waitFor({ state: "visible" });
   const code = (await shown.textContent())?.match(/\d{6}/)?.[0];
   if (!code) throw new Error("Код не найден на экране");
@@ -87,14 +90,18 @@ export async function loginV2(page: Page, phone: string, options: { role?: Login
   await page.waitForLoadState("networkidle");
 }
 
+/** Новый адрес почты (строчными — так его показывает экран после нормализации). */
+export const freshEmail = (): string => `e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`;
+
 /**
- * Пройти шаги онбординга, которые есть на пути: согласие → знакомство (ФИО и новый ИИН) → почта. Начинать можно с любого
- * шага (после `loginV2`); шаг, которого нет в адресе, пропускается. Заканчивается, когда адрес вышел за пределы шагов.
- * Если шаг почты ещё не построен или идёт заглушкой раздела — функция заканчивает на нём, не падая.
+ * Пройти шаги онбординга, которые есть на пути: согласие → знакомство (ФИО и новый ИИН) → почта (новый адрес и код из
+ * плашки на экране). Начинать можно с любого шага (после `loginV2`); шаг, которого нет в адресе, пропускается.
+ * Заканчивается, когда адрес вышел за пределы шагов: новый человек — у себя дома (или на `next`).
  */
-export async function passOnboarding(page: Page, options: { fullName?: string; iin?: string } = {}): Promise<void> {
+export async function passOnboarding(page: Page, options: { fullName?: string; iin?: string; email?: string } = {}): Promise<void> {
   const consent = ru.app.onboarding.consent;
   const welcome = ru.app.onboarding.welcome;
+  const email = ru.app.onboarding.email;
   const pathOf = () => new URL(page.url()).pathname.replace(/\/+$/, "");
 
   for (let guard = 0; guard < ONBOARDING_STEPS.length + 1; guard += 1) {
@@ -109,8 +116,11 @@ export async function passOnboarding(page: Page, options: { fullName?: string; i
       await primary(page, welcome.submit).click();
       await page.waitForURL((url) => !url.pathname.startsWith("/v2/welcome"), { timeout: WIZARD_STEP_MS });
     } else if (here === "/v2/email") {
-      // Шаг почты (D2): заполнить и подтвердить почту здесь. Пока не построен — остановиться на нём.
-      return;
+      await page.getByLabel(email.address.label).fill(options.email ?? freshEmail());
+      await primary(page, email.address.submit).click();
+      await page.getByLabel(email.code.label).fill(await readShownCode(page, email.code.shownCode));
+      await primary(page, email.code.submit).click();
+      await page.waitForURL((url) => !url.pathname.startsWith("/v2/email"), { timeout: WIZARD_STEP_MS });
     } else {
       return;
     }
