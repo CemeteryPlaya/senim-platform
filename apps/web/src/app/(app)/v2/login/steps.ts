@@ -22,6 +22,14 @@ export function parseLoginRole(value: unknown): LoginRole | null {
   return value === "client" || value === "executor" ? value : null;
 }
 
+/**
+ * Какая карточка первого шага выбрана при открытии: роль из адреса (ссылка главной «Я мастер»), иначе прошлый выбор из
+ * cookie, иначе «Я покупатель». Выбор есть всегда — «Продолжить» без выбора невозможна (схема действия всё равно проверяет).
+ */
+export function preselectedRole(param: unknown, remembered: "CLIENT" | "EXECUTOR" | null): LoginRole {
+  return parseLoginRole(param) ?? (remembered === "EXECUTOR" ? "executor" : "client");
+}
+
 /** Неизвестный или пустой шаг — первый. */
 export function parseLoginStep(value: unknown): LoginStep {
   return value === "phone" || value === "code" ? value : "role";

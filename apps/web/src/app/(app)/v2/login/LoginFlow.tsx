@@ -6,7 +6,6 @@ import { ru } from "@/i18n/ru";
 import {
   ActionDock,
   Button,
-  ButtonLink,
   CodeField,
   HiddenField,
   Notice,
@@ -48,8 +47,8 @@ type Sent = {
 type Props = {
   /** Шаг из адреса. */
   step: LoginStep;
-  /** Предвыбранная карточка первого шага. */
-  role: LoginRole | null;
+  /** Выбранная при открытии карточка первого шага (preselectedRole). */
+  role: LoginRole;
   /** Возврат после входа (уже проверен safeNext). */
   next: string | null;
 };
@@ -114,7 +113,12 @@ function FormError({ error, atField = false }: { error: string | null; atField?:
   );
 }
 
-function RoleStep({ role, next }: { role: LoginRole | null; next: string | null }) {
+/**
+ * Шаг 1: покупатель или мастер. Одна карточка выбрана всегда (по умолчанию — «Я покупатель»), поэтому «Продолжить» не бывает
+ * «без выбора»; ошибка группы — только если схема действия всё же отказала. В доке одна кнопка; «Уже есть аккаунт? Войти» —
+ * тихая ссылка под карточками.
+ */
+export function RoleStep({ role, next }: { role: LoginRole; next: string | null }) {
   const form = useActionForm(chooseRoleAction);
   return (
     <Stack gap="section">
@@ -125,20 +129,30 @@ function RoleStep({ role, next }: { role: LoginRole | null; next: string | null 
       <form id={FORM.role} method="post" onSubmit={form.onSubmit} noValidate>
         <Stack gap="section">
           <RadioGroup legend={t.role.legend} error={form.fieldErrors.role}>
-            <RadioCard name="role" value="client" label={t.role.client} defaultChecked={role === "client"} />
-            <RadioCard name="role" value="executor" label={t.role.executor} defaultChecked={role === "executor"} />
+            <RadioCard
+              name="role"
+              value="client"
+              label={t.role.client}
+              description={t.role.clientDescription}
+              defaultChecked={role === "client"}
+            />
+            <RadioCard
+              name="role"
+              value="executor"
+              label={t.role.executor}
+              description={t.role.executorDescription}
+              defaultChecked={role === "executor"}
+            />
           </RadioGroup>
           <HiddenField name="next" value={next ?? ""} />
           <FormError error={form.error} atField={Boolean(form.fieldErrors.role)} />
         </Stack>
       </form>
+      <TextLink href={loginStepHref("phone", next)}>{t.role.haveAccount}</TextLink>
       <ActionDock>
         <Button type="submit" form={FORM.role} pending={form.pending}>
           {t.role.submit}
         </Button>
-        <ButtonLink href={loginStepHref("phone", next)} variant="quiet">
-          {t.role.haveAccount}
-        </ButtonLink>
       </ActionDock>
     </Stack>
   );

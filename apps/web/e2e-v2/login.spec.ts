@@ -78,6 +78,10 @@ test("новый номер: роль → номер → код → соглас
   await expect(heading(page, t.role.title)).toBeVisible();
   await expect(page.getByText(ru.app.kit.wizard.step(1, 3))).toBeVisible();
   await expectScreenRules(page);
+  // «Я покупатель» выбран сразу; в доке одна кнопка, «Уже есть аккаунт? Войти» — ссылка.
+  await expect(page.getByRole("radio", { name: t.role.client })).toBeChecked();
+  await expect(page.locator("[data-action-dock]").getByRole("link")).toHaveCount(0);
+  await expect(page.locator("[data-action-dock]").getByRole("button")).toHaveCount(1);
 
   await page.getByText(t.role.executor, { exact: true }).click();
   await primary(page, t.role.submit).click();
@@ -134,7 +138,6 @@ test("перезагрузка шага кода без отправленног
 test("next на адрес v2 переносится через вход на первый шаг; чужой next отбрасывается", async ({ page, context }) => {
   const next = "/v2/about";
   await open(page, `/v2/login?${new URLSearchParams({ next })}`);
-  await page.getByText(t.role.client, { exact: true }).click();
   await primary(page, t.role.submit).click();
   await expect(page).toHaveURL(at(`/v2/login?${new URLSearchParams({ step: "phone", next })}`));
   await signInFromPhoneStep(page, freshPhone().typed);
@@ -148,6 +151,19 @@ test("next на адрес v2 переносится через вход на п
   await open(page, `/v2/login?${new URLSearchParams({ step: "phone", next: "https://evil.example/v2" })}`);
   await signInFromPhoneStep(page, freshPhone().typed);
   await expect(page).toHaveURL(/\/v2\/consent$/);
+});
+
+test("выбор запоминается: вернувшись к первому шагу, видишь «Я мастер»", async ({ page }) => {
+  await open(page, "/v2/login");
+  await page.getByText(t.role.executor, { exact: true }).click();
+  await primary(page, t.role.submit).click();
+  await expect(heading(page, t.phone.title)).toBeVisible();
+  await page.getByRole("link", { name: `${ru.app.kit.back}: ${t.phone.backLabel}` }).click();
+  await expect(heading(page, t.role.title)).toBeVisible();
+  await expect(page.getByRole("radio", { name: t.role.executor })).toBeChecked();
+  // Новая загрузка страницы — выбор из cookie.
+  await open(page, "/v2/login");
+  await expect(page.getByRole("radio", { name: t.role.executor })).toBeChecked();
 });
 
 test("выход ведёт на вход v2", async ({ page }, info) => {
