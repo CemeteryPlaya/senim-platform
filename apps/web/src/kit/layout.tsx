@@ -44,16 +44,21 @@ export function Narrow({ children }: { children: ReactNode }) {
   return <div className="desktop:max-w-narrow">{children}</div>;
 }
 
-export type SectionProps = { title: string; children: ReactNode };
+export type SectionProps = {
+  title: string;
+  /** Якорь: id заголовка (ссылки вида #id); раздел подписан им. */
+  id?: string;
+  children: ReactNode;
+};
 
 /**
  * Раздел экрана: заголовок h2 и содержимое через зазор группы (12 px). Заголовок стоит ровно по левому краю карточек —
  * своих отступов у него нет.
  */
-export function Section({ title, children }: SectionProps) {
+export function Section({ title, id, children }: SectionProps) {
   return (
-    <section className="flex min-w-0 flex-col gap-stack-group">
-      <h2 className="text-section text-ink">{title}</h2>
+    <section className="flex min-w-0 flex-col gap-stack-group" aria-labelledby={id}>
+      <h2 id={id} className="text-section text-ink">{title}</h2>
       {children}
     </section>
   );

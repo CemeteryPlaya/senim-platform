@@ -66,3 +66,12 @@ describe("Section", () => {
     expect(hasClass(first(html(<Section title="Т">x</Section>)), "gap-stack-group")).toBe(true);
   });
 });
+
+describe("Section с id (якорь)", () => {
+  it("id ставится на h2, раздел подписан им; без id атрибутов нет", () => {
+    const out = html(<Section title="Цена" id="price">x</Section>);
+    expect(out).toMatch(/<h2 id="price"/);
+    expect(out).toContain('aria-labelledby="price"');
+    expect(html(<Section title="Цена">x</Section>)).not.toMatch(/\bid=|aria-labelledby/);
+  });
+});

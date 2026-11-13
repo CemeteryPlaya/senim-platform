@@ -1,51 +1,40 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
-import { count, hasClass, html } from "@/kit/test-utils";
-import V2Home from "./page";
+import { count, html } from "@/kit/test-utils";
 
-const t = ru.app.shell.preview;
-const out = html(<V2Home />);
+const h = vi.hoisted(() => ({
+  shell: { user: null as { role: "CLIENT" } | null, unavailable: false },
+  device: "desktop" as "mobile" | "desktop",
+}));
 
-describe("временная главная /v2", () => {
-  it("одно главное действие — «Создать заявку» в пустом экране", () => {
+vi.mock("@/modules/identity", () => ({ getShellUser: async () => h.shell }));
+vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
+
+const { default: V2Home } = await import("./page");
+
+beforeEach(() => {
+  h.shell = { user: null, unavailable: false };
+  h.device = "desktop";
+});
+
+describe("главная /v2", () => {
+  it("гость видит лендинг: заголовок-обещание и вход", async () => {
+    const out = html(await V2Home());
+    expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(ru.app.guest.home.title);
     expect(count(out, "data-primary-action")).toBe(1);
-    const primary = out.match(/<a [^>]*data-primary-action[^>]*>([^<]*)<\/a>/);
-    expect(primary?.[0]).toContain('href="/v2/requests/new"');
-    expect(primary?.[1]).toBe(t.emptyAction);
+    expect(out).toContain('href="/v2/login?role=client"');
   });
 
-  it("заголовок экрана по смыслу, а не название продукта; один h1", () => {
+  it("гость на телефоне получает ту же главную", async () => {
+    h.device = "mobile";
+    const out = html(await V2Home());
     expect(count(out, "<h1")).toBe(1);
-    expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(t.title);
-    expect(t.title).not.toBe(ru.common.brand);
+    expect(out).toContain("mobile:sticky");
   });
 
-  it("«Сейчас» называет оставшийся первый шаг", () => {
-    const step = "какая мебель нужна";
-    expect(t.nowTitle).toContain(step);
-    expect(t.stepTwo).toContain(step);
-    expect(out).toContain(`>${t.nowTitle}</h2>`);
-    expect(out).toContain(t.stepTwo);
-  });
-
-  it("Split: слева шаги, «Сейчас» и пустой экран, справа только «Помощь» (телефон — тот же порядок колонкой)", () => {
-    const grid = out.match(/<div [^>]*desktop:grid-cols-split[^>]*>/)?.[0] ?? "";
-    expect(hasClass(grid, "desktop:grid")).toBe(true);
-    const at = (s: string) => out.indexOf(s);
-    expect(at(grid)).toBeGreaterThanOrEqual(0);
-    const order = [t.stepTwo, t.nowTitle, t.emptyTitle, ru.app.kit.help.title].map(at);
-    expect(order.every((i) => i > at(grid))).toBe(true);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // Колонки: main — до «Помощи», aside — только «Помощь».
-    const columns = out.slice(at(grid)).match(/<div class="min-w-0">/g) ?? [];
-    expect(columns).toHaveLength(2);
-    const aside = out.slice(out.lastIndexOf('<div class="min-w-0">'));
-    expect(aside).toContain(ru.app.kit.help.title);
-    expect(aside).not.toContain(t.emptyTitle);
-  });
-
-  it("разделы через 24/32 px (Stack section), карточки группы — через 12 px", () => {
-    expect(out).toMatch(/^<div class="[^"]*gap-stack-section/);
-    expect(out).toContain("gap-stack-group");
+  it("вошедший видит прежний образец", async () => {
+    h.shell = { user: { role: "CLIENT" }, unavailable: false };
+    const out = html(await V2Home());
+    expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(ru.app.shell.preview.title);
   });
 });
