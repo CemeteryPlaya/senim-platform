@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import { executorDisplayOf, findLikeablePortfolioItem, maskContacts } from "@/modules/companies";
+import type { Segment } from "@/generated/prisma/enums";
+import { executorDisplayOf, findAddressableExecutor, findLikeablePortfolioItem, maskContacts } from "@/modules/companies";
 import { attachFiles } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
@@ -105,14 +106,23 @@ function maskStepTexts(step: StepInput): StepInput {
   }
 }
 
-async function createDraft(tx: Tx, user: CurrentUser, like: string | null | undefined): Promise<RequestWithType> {
+/**
+ * Новый черновик: тендер, прямой запрос по работе (`like`, «Хочу похожее») или прямой запрос мастеру по его публичному
+ * номеру (`executor`, профиль мастера). Мастер прямого запроса — по одному правилу видимости (подтверждён, не заблокирован,
+ * не сам заказчик); нет такого — NOT_FOUND, как у несуществующей работы.
+ */
+async function createDraft(tx: Tx, user: CurrentUser, like: string | null | undefined, executor: number | null | undefined): Promise<RequestWithType> {
+  if (like && executor) fail.validation(ru.common.errors.invalid);
   const item = like ? await findLikeablePortfolioItem(tx, like, user.id) : null;
   if (like && !item) fail.notFound(e.portfolioNotFound);
+  const target = executor ? await findAddressableExecutor(tx, executor, user.id) : null;
+  if (executor && !target) fail.notFound(ru.companies.errors.executorNotFound);
+  const targetExecutorId = item?.executorId ?? target?.id;
   const r = await tx.request.create({
     data: {
       clientId: user.id,
-      mode: item ? "DIRECT" : "TENDER",
-      targetExecutorId: item?.executorId,
+      mode: targetExecutorId ? "DIRECT" : "TENDER",
+      targetExecutorId,
       portfolioItemId: item?.id,
       style: item?.style,
     },
@@ -139,7 +149,7 @@ export async function saveDraftStep(user: CurrentUser, input: SaveDraftInput): P
       r = await loadOwnRequest(tx, user, input.requestId);
     } else {
       if (step.screen !== "start" && step.screen !== "type") fail.validation(e.startFromFirst);
-      r = await createDraft(tx, user, input.like);
+      r = await createDraft(tx, user, input.like, input.executor);
     }
     if (r.status !== "DRAFT") fail.conflict(e.notDraft);
 
@@ -296,6 +306,16 @@ export async function likeTarget(portfolioItemId: string, user: Pick<CurrentUser
   if (!item) return fail.notFound(e.portfolioNotFound);
   const { label } = await executorDisplayOf(db, item.executorId);
   return { id: item.id, title: item.title, furnitureTypeId: item.furnitureTypeId, style: item.style, executor: { ...item.executor, label } };
+}
+
+/**
+ * Мастер прямой заявки по публичному номеру глазами заказчика (профиль мастера → «Заказать мебель»): номер и уровень,
+ * без имени. Нет такого мастера, он не подтверждён, заблокирован или это сам заказчик — NOT_FOUND (как у likeTarget).
+ */
+export async function executorTarget(publicNumber: number, user: Pick<CurrentUser, "id">): Promise<{ publicNumber: number; segment: Segment | null }> {
+  const target = await findAddressableExecutor(db, publicNumber, user.id);
+  if (!target) return fail.notFound(ru.companies.errors.executorNotFound);
+  return { publicNumber: target.publicNumber, segment: target.segment };
 }
 
 /** «Мои заявки»: свои заявки с числом действующих откликов и обложкой — первым фото помещения. */

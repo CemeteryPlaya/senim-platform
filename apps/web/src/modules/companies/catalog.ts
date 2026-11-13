@@ -157,7 +157,19 @@ export async function findLikeablePortfolioItem(client: Db, portfolioItemId: str
   });
 }
 
-export async function getCatalogFacets(): Promise<{ types: { slug: string; name: string }[] }> {
+/**
+ * Мастер для прямой заявки по публичному номеру (`/requests/new?executor=<номер>`, профиль мастера): то же правило
+ * видимости исполнителя, что у «Хочу похожее» (подтверждён и не заблокирован), только без работы. viewerId — кто
+ * заказывает: себя (тот же человек в роли исполнителя, ADR-004) не найти — самосделка запрещена.
+ */
+export async function findAddressableExecutor(client: Db, publicNumber: number, viewerId: string) {
+  return client.executorProfile.findFirst({
+    where: { publicNumber, ...VISIBLE_EXECUTOR, userId: { not: viewerId } },
+    select: { id: true, publicNumber: true, segment: true },
+  });
+}
+
+export async function getCatalogFacets():Promise<{ types: { slug: string; name: string }[] }> {
   const types = await db.furnitureType.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { slug: true, name: true } });
   return { types };
 }

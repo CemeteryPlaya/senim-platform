@@ -5,6 +5,7 @@ import "server-only";
 // Каждая функция принимает CurrentUser и сама проверяет права (IDOR: чужое — «не найдено»).
 export {
   cancelRequest,
+  executorTarget,
   getClientRequest,
   getDraft,
   likeTarget,

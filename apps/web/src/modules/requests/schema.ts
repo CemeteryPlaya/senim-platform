@@ -205,6 +205,8 @@ export const saveDraftSchema = z.strictObject({
   requestId: id.nullable(),
   /** «Хочу похожее»: работа из портфолио — только при создании черновика. */
   like: id.nullable().optional(),
+  /** Прямая заявка мастеру по его публичному номеру (профиль мастера) — только при создании черновика; вместе с `like` нельзя. */
+  executor: z.number().int().positive().max(2_147_483_647).nullable().optional(),
   step: stepInputSchema,
 });
 export type SaveDraftInput = z.output<typeof saveDraftSchema>;

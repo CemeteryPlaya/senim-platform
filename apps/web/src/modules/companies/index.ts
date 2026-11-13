@@ -16,6 +16,7 @@ export type {
 } from "./types";
 export {
   CATALOG_PAGE_SIZE,
+  findAddressableExecutor,
   findLikeablePortfolioItem,
   getCatalogFacets,
   getPortfolioForRequest,
