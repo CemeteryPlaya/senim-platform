@@ -4,7 +4,7 @@ import { db } from "@/platform/db";
 import { makeExecutor } from "../../../test/factories";
 import { makeFurnitureType, makePortfolioItem, makeReview } from "../../../test/factories/companies";
 import { EXECUTOR_IDENTITY_KEY } from "./identity-mode";
-import { CATALOG_PAGE_SIZE, getPortfolioForRequest, getPublicExecutorPage, listCatalog, MASK } from "./index";
+import { CATALOG_PAGE_SIZE, getInspirationItem, getPortfolioForRequest, getPublicExecutorPage, listCatalog, MASK } from "./index";
 
 describe("каталог работ", () => {
   it("показывает только опубликованные работы подтверждённых исполнителей по включённым типам", async () => {
@@ -107,6 +107,27 @@ describe("публичная страница исполнителя", () => {
       expect(shown!.view.label).toBe("ТОО «Ағаш Шебер»");
       // Текст отзыва остаётся очищенным: показ имени платформой не отменяет маску в текстах мастера и заказчика.
       expect(shown!.reviews[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
+    } finally {
+      delete process.env.DEMO_MODE;
+      resetEnvCache();
+    }
+  });
+
+  it("«Вдохновение»: наименование мастера в отзыве по сделке работы маскируется — в HIDDEN и в SHOWN", async () => {
+    const executor = await makeExecutor({ legalName: "ТОО «Ағаш Шебер»" });
+    const review = await makeReview(executor, 5, "Спасибо, Ағаш Шебер! Звоните 87001234567");
+    const item = await makePortfolioItem(executor, { title: "Кухня" });
+    await db.portfolioItem.update({ where: { id: item.id }, data: { dealId: review.dealId } });
+    await db.deal.update({ where: { id: review.dealId }, data: { portfolioConsentAt: new Date() } });
+    const expected = `Спасибо, ${MASK}! Звоните ${MASK}`;
+
+    expect((await getInspirationItem(item.id, null))!.review!.text).toBe(expected);
+
+    process.env.DEMO_MODE = "true";
+    resetEnvCache();
+    try {
+      await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
+      expect((await getInspirationItem(item.id, null))!.review!.text).toBe(expected);
     } finally {
       delete process.env.DEMO_MODE;
       resetEnvCache();

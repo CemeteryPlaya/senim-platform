@@ -7,7 +7,7 @@ import { CARD_SELECT, toCard, VISIBLE_ITEM } from "./catalog";
 import { executorDisplay } from "./display";
 import { getExecutorIdentityMode } from "./identity-mode";
 import type { InspirationFilter } from "./inspiration-filter";
-import { maskContacts } from "./mask";
+import { maskContacts, maskIdentity } from "./mask";
 import { DEAL_PHOTOS, itemFiles, OWN_PHOTOS, toPhotoViews } from "./photos";
 import { styleView } from "./portfolio";
 import type { PhotoView, PortfolioCard } from "./types";
@@ -89,7 +89,7 @@ export async function getInspirationItem(itemId: string, viewer: CurrentUser | n
   const own = viewer?.executor?.id === row.executorId;
   return {
     ...(await toCard(row, mode)),
-    review: review ? { id: review.id, rating: review.rating, text: maskContacts(review.text).text } : null,
+    review: review ? { id: review.id, rating: review.rating, text: maskIdentity(maskContacts(review.text).text, row.executor.legalName) } : null,
     own,
     canLike: !own && (viewer === null || viewer.roles.includes("CLIENT")),
     canFeature: viewer?.role === "OPERATOR",
