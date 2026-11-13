@@ -1,10 +1,13 @@
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Card, EmptyState, List, ListRow, Money, Notice, NowNext, PageTitle, PhotoSlot, Rating, Section, Segmented, Split, Stack, StatusChip } from "@/kit";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { ActionDock, ButtonLink, Card, EmptyState, List, ListItem, ListRow, Money, NowNext, PageTitle, PhotoSlot, Rating, Section, Segmented, Split, Stack, StatusChip } from "@/kit";
 import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
 import { chooseOfferSort } from "../actions";
 import { sortOptions, type DetailRow, type NowView, type OffersView } from "./card-view";
 import { RequestActions } from "./RequestActions";
+import { SentNotice } from "./SentNotice";
 
 const t = ru.app.requestCard;
 
@@ -13,13 +16,13 @@ export type CardView = {
   id: string;
   title: string;
   number: number;
-  sent: { title: string; text: string } | null;
+  sent: { title: string; text: string; href: string } | null;
   now: NowView;
   offers: OffersView;
   details: DetailRow[];
   photos: { id: string; src: string; alt: string }[];
   /** Отмена разрешена: показываем «Действия»; число предложений — для текста последствий. */
-  cancel: { offersCount: number } | null;
+  cancel: { offersCount: number; direct: boolean } | null;
 };
 
 function Offers({ view }: { view: CardView }) {
@@ -40,23 +43,34 @@ function Offers({ view }: { view: CardView }) {
       <Card padded={false}>
         <List>
           {offers.rows.map((row) => (
-            <ListRow
-              key={row.id}
-              href={row.href}
-              label={
-                <span className="flex flex-col gap-1">
-                  <span className="text-card wrap-break-word text-ink">{row.label}</span>
+            <ListItem key={row.id}>
+              <Link
+                href={row.href}
+                className="flex w-full items-center gap-3 px-4 py-3 text-body no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
+              >
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  {/* Имя и цена в одной строке; условия — отдельной строкой под ними: цены сравниваются взглядом по правому краю. */}
+                  <span className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 text-card wrap-break-word text-ink">{row.label}</span>
+                    <Money tiyn={row.priceTiyn} />
+                  </span>
                   <Rating value={row.rating.value} count={row.rating.count} />
-                  <span className="text-sub text-muted">{row.terms}</span>
+                  <span className="flex flex-wrap gap-x-3 text-sub text-muted">
+                    {row.terms.map((part) => (
+                      <span key={part} className="whitespace-nowrap">
+                        {part}
+                      </span>
+                    ))}
+                  </span>
                   {row.chip && (
                     <span>
                       <StatusChip tone={row.chip.tone}>{row.chip.text}</StatusChip>
                     </span>
                   )}
                 </span>
-              }
-              value={<Money tiyn={row.priceTiyn} />}
-            />
+                <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
+              </Link>
+            </ListItem>
           ))}
         </List>
       </Card>
@@ -110,12 +124,10 @@ export function RequestCardView({ view, device }: { view: CardView; device: Devi
         <div className="min-w-0 flex-1">
           <PageTitle title={view.title} back={{ href: to("/requests"), label: t.back }} lead={t.numberLine(view.number)} />
         </div>
-        {view.cancel && <RequestActions requestId={view.id} offersCount={view.cancel.offersCount} device={device} />}
+        {view.cancel && <RequestActions requestId={view.id} offersCount={view.cancel.offersCount} direct={view.cancel.direct} device={device} />}
       </div>
       {view.sent && (
-        <Notice tone="info" title={view.sent.title}>
-          {view.sent.text}
-        </Notice>
+        <SentNotice title={view.sent.title} text={view.sent.text} href={view.sent.href} />
       )}
       <Split
         main={

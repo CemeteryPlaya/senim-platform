@@ -91,9 +91,10 @@ export function nowView(i: NowInput): NowView {
   }
 }
 
-/** Плашка «Заявка отправлена мастерам» — разово, после отправки из мастера. */
-export function sentNotice(sent: boolean, status: RequestStatus, mode: "TENDER" | "DIRECT"): { title: string; text: string } | null {
-  if (!sent || (status !== "OPEN" && status !== "PLATFORM_MEASURING")) return null;
+/** Плашка «Заявка отправлена мастерам» — разово, после отправки из мастера, пока предложений нет. */
+export function sentNotice(sent: boolean, status: RequestStatus, mode: "TENDER" | "DIRECT", offersCount: number): { title: string; text: string } | null {
+  // «Когда придёт первое предложение…» верно, только пока предложений нет.
+  if (!sent || offersCount > 0 || (status !== "OPEN" && status !== "PLATFORM_MEASURING")) return null;
   return { title: mode === "DIRECT" ? t.sent.titleDirect : t.sent.title, text: t.sent.text };
 }
 
@@ -115,8 +116,8 @@ export type OfferRow = {
   label: string;
   priceTiyn: bigint;
   rating: { value: number | null; count: number };
-  /** «Срок: 30 дней · Гарантия: 24 месяца · 12 сделок в сервисе». */
-  terms: string;
+  /** «Срок: 30 дней», «Гарантия: 24 месяца», «12 сделок в сервисе»: каждая часть не переносится внутри себя. */
+  terms: string[];
   chip: { tone: StatusTone; text: string } | null;
 };
 
@@ -124,6 +125,9 @@ const CHIPS: Partial<Record<OfferStatus, { tone: StatusTone; text: string }>> = 
   ACCEPTED: { tone: "accent", text: t.offers.status.accepted },
   DECLINED: { tone: "neutral", text: t.offers.status.declined },
 };
+
+/** Действующие предложения: на них отвечает покупатель; отклонённые и выбранное — история. */
+export const isLive = (o: { status: OfferStatus }): boolean => o.status === "SENT";
 
 export function offerRow(requestId: string, o: OfferInput): OfferRow {
   const parts = [t.offers.term(formatDays(o.durationDays)), t.offers.warranty(formatMonths(o.warrantyMonths))];
@@ -134,7 +138,7 @@ export function offerRow(requestId: string, o: OfferInput): OfferRow {
     label: o.executor.label,
     priceTiyn: o.priceTiyn,
     rating: { value: o.executor.reviewsCount > 0 ? o.executor.ratingAvg : null, count: o.executor.reviewsCount },
-    terms: parts.join(" · "),
+    terms: parts,
     chip: CHIPS[o.status] ?? null,
   };
 }
@@ -150,9 +154,13 @@ export type OffersView = {
   shown: boolean;
 };
 
+/**
+ * Список предложений. Пока заявка ждёт предложений (OPEN, замер площадки), в нём только действующие — отклонённые
+ * не считаются и не показываются; у заявки со сделкой или отменённой — вся история с плашками.
+ */
 export function offersView(i: { id: string; status: RequestStatus; mode: "TENDER" | "DIRECT" }, offers: readonly OfferInput[], sort: OfferSort): OffersView {
-  const rows = offers.map((o) => offerRow(i.id, o));
   const expecting = i.status === "OPEN" || i.status === "PLATFORM_MEASURING";
+  const rows = (expecting ? offers.filter(isLive) : offers).map((o) => offerRow(i.id, o));
   return {
     rows,
     sort,

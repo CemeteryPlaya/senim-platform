@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RequestStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { detailRows, nowView, offerRow, offersView, parseSort, photoView, sentNotice, sortHref, sortOptions, type NowInput, type OfferInput } from "./card-view";
+import { detailRows, isLive, nowView, offerRow, offersView, parseSort, photoView, sentNotice, sortHref, sortOptions, type NowInput, type OfferInput } from "./card-view";
 
 const t = ru.app.requestCard;
 const buyer = ru.app.buyer.home.now;
@@ -54,16 +54,26 @@ describe("nowView: таблица состояний заявки", () => {
   });
 });
 
+describe("текст подтверждения отмены", () => {
+  it("тендер — «мастера» во множественном числе; прямая — «мастер» в единственном", () => {
+    expect(t.actions.cancelBody(0, false)).toBe("Мастера больше не увидят заявку. Отменить это действие нельзя.");
+    expect(t.actions.cancelBody(2, false)).toContain("присланные предложения будут отклонены, а мастера получат уведомление");
+    expect(t.actions.cancelBody(0, true)).toBe("Мастер больше не увидит заявку. Отменить это действие нельзя.");
+    expect(t.actions.cancelBody(1, true)).toContain("Мастер больше не увидит заявку, присланное предложение будет отклонено, а мастер получит уведомление");
+  });
+});
+
 describe("sentNotice", () => {
   it.each([
-    [true, "OPEN", "TENDER", "Заявка отправлена мастерам"],
-    [true, "OPEN", "DIRECT", "Заявка отправлена мастеру"],
-    [true, "PLATFORM_MEASURING", "TENDER", "Заявка отправлена мастерам"],
-    [true, "CANCELLED", "TENDER", null],
-    [true, "CLOSED", "TENDER", null],
-    [false, "OPEN", "TENDER", null],
-  ] as const)("sent=%s, %s, %s -> %s", (sent, status, mode, title) => {
-    expect(sentNotice(sent, status, mode)?.title ?? null).toBe(title);
+    [true, "OPEN", "TENDER", 0, "Заявка отправлена мастерам"],
+    [true, "OPEN", "DIRECT", 0, "Заявка отправлена мастеру"],
+    [true, "PLATFORM_MEASURING", "TENDER", 0, "Заявка отправлена мастерам"],
+    [true, "OPEN", "TENDER", 1, null],
+    [true, "CANCELLED", "TENDER", 0, null],
+    [true, "CLOSED", "TENDER", 0, null],
+    [false, "OPEN", "TENDER", 0, null],
+  ] as const)("sent=%s, %s, %s, предложений %i -> %s", (sent, status, mode, offers, title) => {
+    expect(sentNotice(sent, status, mode, offers)?.title ?? null).toBe(title);
   });
 });
 
@@ -105,7 +115,7 @@ describe("offerRow", () => {
     expect(row.label).toBe("Исполнитель №3");
     expect(row.priceTiyn).toBe(105_000_000n);
     expect(row.href).toBe("/v2/requests/r1/offers/o1");
-    expect(row.terms.replaceAll(" ", " ")).toBe("Срок: 30 дней · Гарантия: 24 месяца · 7 сделок в сервисе");
+    expect(row.terms.map((x) => x.replaceAll(" ", " "))).toEqual(["Срок: 30 дней", "Гарантия: 24 месяца", "7 сделок в сервисе"]);
     expect(row.rating).toEqual({ value: 4.8, count: 12 });
     expect(row.chip).toBeNull();
   });
@@ -113,7 +123,7 @@ describe("offerRow", () => {
   it("без отзывов рейтинга нет; без сделок их нет в условиях", () => {
     const row = offerRow("r1", offer({}, { reviewsCount: 0, ratingAvg: 0, completedDeals: 0 }));
     expect(row.rating).toEqual({ value: null, count: 0 });
-    expect(row.terms.replaceAll(" ", " ")).toBe("Срок: 30 дней · Гарантия: 24 месяца");
+    expect(row.terms.map((x) => x.replaceAll(" ", " "))).toEqual(["Срок: 30 дней", "Гарантия: 24 месяца"]);
   });
 
   it("плашки: выбрано, отклонено", () => {
@@ -130,6 +140,25 @@ describe("offersView", () => {
     expect(v.empty?.title).toBe("Предложения придут сюда");
     expect(v.shown).toBe(true);
     expect(v.sortable).toBe(false);
+  });
+
+  it("у открытой отклонённые не считаются и не показываются; только отклонённые — как «предложений нет»", () => {
+    const declined = offer({ id: "d", status: "DECLINED" });
+    const v = offersView(open, [declined, offer({ id: "s" })], "price");
+    expect(v.rows.map((r) => r.id)).toEqual(["s"]);
+    expect(v.sortable).toBe(false);
+    const none = offersView(open, [declined], "price");
+    expect(none.rows).toEqual([]);
+    expect(none.empty?.title).toBe("Предложения придут сюда");
+  });
+
+  it("у заявки со сделкой вся история: выбранное и отклонённые с плашками", () => {
+    const v = offersView({ ...open, status: "CLOSED" }, [offer({ id: "a", status: "ACCEPTED" }), offer({ id: "d", status: "DECLINED" })], "price");
+    expect(v.rows.map((r) => r.chip?.text)).toEqual(["Выбрано", "Отклонено"]);
+  });
+
+  it("isLive: только отправленные", () => {
+    expect(["SENT", "ACCEPTED", "DECLINED", "WITHDRAWN"].map((status) => isLive({ status } as never))).toEqual([true, false, false, false]);
   });
 
   it("пусто у прямой: свой текст", () => {

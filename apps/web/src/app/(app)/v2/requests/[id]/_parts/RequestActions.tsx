@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import { ConfirmDialog, Menu, toast } from "@/kit";
 import type { Device } from "@/platform/device";
@@ -15,8 +15,10 @@ const t = ru.app.requestCard.actions;
  * эффект: окно подтверждения не принимает второй клик, пока действие идёт, а модуль на повтор отвечает CONFLICT. После
  * отмены экран перерисовывается в состоянии «отменена» и показывает тост; сессия истекла — на вход с возвратом.
  */
-export function RequestActions({ requestId, offersCount, device }: { requestId: string; offersCount: number; device: Device }) {
+export function RequestActions({ requestId, offersCount, direct, device }: { requestId: string; offersCount: number; direct: boolean; device: Device }) {
   const [open, setOpen] = useState(false);
+  // Подтверждение открывает пункт меню, а меню к этому моменту закрыто: фокус после окна возвращаем на кнопку «Действия».
+  const menuButton = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
   async function cancel(): Promise<boolean> {
@@ -38,14 +40,15 @@ export function RequestActions({ requestId, offersCount, device }: { requestId: 
 
   return (
     <>
-      <Menu label={t.menu} device={device} items={[{ label: t.cancel, tone: "danger", onSelect: () => setOpen(true) }]} />
+      <Menu label={t.menu} device={device} triggerRef={menuButton} items={[{ label: t.cancel, tone: "danger", onSelect: () => setOpen(true) }]} />
       <ConfirmDialog
         device={device}
         tone="danger"
         open={open}
+        returnFocusTo={menuButton}
         onOpenChange={setOpen}
         title={t.cancelTitle}
-        description={t.cancelBody(offersCount)}
+        description={t.cancelBody(offersCount, direct)}
         confirmLabel={t.cancel}
         cancelLabel={t.cancelKeep}
         onConfirm={cancel}

@@ -55,7 +55,7 @@ async function openRequestWithOffers(page: Page, count: number): Promise<void> {
   await page.waitForLoadState("networkidle");
 }
 
-const masters = (page: Page) => page.locator("main a[href*='/offers/']").evaluateAll((links) => links.map((a) => a.textContent?.match(/Исполнитель №(\d+)/)?.[1] ?? ""));
+const masters = (page: Page) => page.locator("main a[href*='/offers/']").evaluateAll((links) => links.map((a) => a.querySelector("[class*='text-card']")?.textContent?.match(/Исполнитель №(\d+)$/)?.[1] ?? ""));
 
 test.beforeAll(async ({ browser }, info) => {
   test.setTimeout(420_000);
@@ -72,7 +72,8 @@ test("заявка с тремя предложениями: «Исполнит�
   await openRequestWithOffers(page, 3);
 
   await expect(page.locator("h1")).toHaveCount(1);
-  expect(await page.locator("[data-primary-action]").count()).toBeLessThanOrEqual(1);
+  // У заявки с предложениями главного действия нет: действие — сами карточки предложений.
+  await expect(page.locator("[data-primary-action]")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 2, name: ru.app.buyer.home.now.offers.title(3) })).toBeVisible();
   await expect(page.getByRole("link", { name: /Исполнитель №\d+/ })).toHaveCount(3);
   // Имени и контактов мастера на экране нет, только номер.
@@ -109,12 +110,22 @@ test("меню «Действия»: подтверждение отмены о�
   const dialog = page.getByRole("dialog", { name: t.actions.cancelTitle });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText(t.actions.cancelBody(3));
-  // Первый фокус — на «Не отменять»; Enter закрывает окно, ничего не отменяя.
+  // Первый фокус — на «Не отменять»; Enter закрывает окно, ничего не отменяя, и фокус возвращается на «Действия».
   await expect(dialog.getByRole("button", { name: t.actions.cancelKeep })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
+  const menuButton = page.getByRole("button", { name: t.actions.menu });
+  await expect(menuButton).toBeFocused();
   expect(page.url()).toBe(url);
   await expect(page.getByRole("heading", { level: 2, name: ru.app.buyer.home.now.offers.title(3) })).toBeVisible();
+
+  // То же с Esc: окно закрыто, фокус снова на «Действия».
+  await menuButton.click();
+  await page.getByText(t.actions.cancel, { exact: true }).first().click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(menuButton).toBeFocused();
   await page.context().close();
 });
 
@@ -125,7 +136,7 @@ test("прямая заявка без предложений: обучающи�
   await page.waitForURL(/\/v2\/requests\/[^/?]+$/);
   await expect(page.getByRole("heading", { level: 2, name: t.now.waitingDirect.title })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: t.offers.emptyDirect.title })).toBeVisible();
-  expect(await page.locator("[data-primary-action]").count()).toBe(0);
+  await expect(page.locator("[data-primary-action]")).toHaveCount(0);
   await expect(page.locator("main")).toContainText(/Заявка для\s*Исполнитель №\d+/);
   await page.context().close();
 });

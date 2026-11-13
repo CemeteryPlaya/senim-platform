@@ -31,7 +31,7 @@ function view(over: Partial<CardView> = {}, offers: OfferInput[] = [offer("3", 1
     offers: offersView(request, offers, "price"),
     details: [{ label: "Город", value: "Астана", stacked: false }],
     photos: [{ id: "p1", src: "/f/p1", alt: "Фото помещения 1 из 1" }],
-    cancel: { offersCount: offers.length },
+    cancel: { offersCount: offers.length, direct: false },
     ...over,
   };
 }
@@ -89,7 +89,7 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
   });
 
   it("разовая плашка отправки", () => {
-    const out = html(<RequestCardView view={view({ sent: { title: t.sent.title, text: t.sent.text } })} device={device} />);
+    const out = html(<RequestCardView view={view({ sent: { title: t.sent.title, text: t.sent.text, href: "/v2/requests/r1" } })} device={device} />);
     expect(out).toContain(t.sent.title);
   });
 

@@ -6,7 +6,7 @@ import { getClientRequest, getDraft, listOffers, REQUEST_TRANSITIONS } from "@/m
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { pageHref, requireBuyer } from "../../../_shell/auth";
-import { detailRows, draftHref, nowView, offersView, parseSort, photoView, sentNotice } from "./_parts/card-view";
+import { detailRows, draftHref, isLive, nowView, offersView, parseSort, photoView, sentNotice } from "./_parts/card-view";
 import { RequestCardView, type CardView } from "./_parts/RequestCardView";
 
 export const metadata: Metadata = { title: ru.app.requestCard.metaTitle };
@@ -46,11 +46,15 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
   const [offers, own] = await Promise.all([orNotFound(listOffers(user, { requestId: id, sort })), orNotFound(getDraft(user, id))]);
   const device = await getDevice();
 
+  // «Пришло N предложений» — только действующие: отклонённые покупателю не предложения.
+  const live = offers.filter(isLive).length;
+  const notice = sentNotice(one(sp.sent) === "1", request.status, request.mode, live);
+  const withoutSent = Object.fromEntries(Object.entries(sp).filter(([key]) => key !== "sent"));
   const now = nowView({
     id,
     status: request.status,
     mode: request.mode,
-    offersCount: offers.length,
+    offersCount: live,
     dealId: request.deal?.id ?? null,
     chosenOfferId: request.chosen?.id ?? null,
   });
@@ -58,7 +62,7 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
     id,
     title: request.title,
     number: request.number,
-    sent: sentNotice(one(sp.sent) === "1", request.status, request.mode),
+    sent: notice && { ...notice, href: pageHref(`/requests/${encodeURIComponent(id)}`, withoutSent) },
     now,
     offers: offersView({ id, status: request.status, mode: request.mode }, offers, sort),
     details: detailRows({
@@ -72,7 +76,7 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
       directLabel: request.mode === "DIRECT" ? own.targetLabel : null,
     }),
     photos: photoView(own.photos),
-    cancel: cancellable(request.status) ? { offersCount: offers.filter((o) => o.status === "SENT").length } : null,
+    cancel: cancellable(request.status) ? { offersCount: live, direct: request.mode === "DIRECT" } : null,
   };
   return <RequestCardView view={view} device={device} />;
 }

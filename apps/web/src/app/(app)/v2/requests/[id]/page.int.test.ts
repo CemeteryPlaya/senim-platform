@@ -118,6 +118,39 @@ describe("/v2/requests/[id]: заявка с предложениями", () => 
   });
 });
 
+describe("/v2/requests/[id]: отклонённые предложения не считаются", () => {
+  /** Заявка с двумя предложениями; первое переведено в «отклонено». */
+  async function withDeclined(keepLive: boolean) {
+    const client = await buyer();
+    const requestId = await makeOpenRequest(client, { segment: "COMFORT" });
+    const first = await sendOffer(await makeExecutorWithTerms("COMFORT"), offerInput(requestId, 300_000));
+    if (keepLive) await sendOffer(await makeExecutorWithTerms("COMFORT"), offerInput(requestId, 400_000));
+    await db.offer.update({ where: { id: first.offerId }, data: { status: "DECLINED" } });
+    await signInAs(client);
+    return requestId;
+  }
+
+  it("одно отклонённое и одно действующее — «Пришло 1 предложение», в списке одна строка, сортировки нет", async () => {
+    const out = await render(await withDeclined(true));
+    expect(out).toContain("Пришло 1 предложение");
+    expect(out).toContain(t.offers.section(1));
+    expect(out).not.toContain(t.offers.status.declined);
+    expect(out).not.toContain("aria-pressed");
+  });
+
+  it("только отклонённое — «Ждём предложений», обучающий экран", async () => {
+    const out = await render(await withDeclined(false));
+    expect(out).toContain(t.now.waiting.title);
+    expect(out).toContain(t.offers.empty.title);
+    expect(out).not.toContain("Пришло");
+  });
+
+  it("?sent=1 при уже пришедших предложениях плашку не показывает", async () => {
+    const out = await render(await withDeclined(true), { sent: "1" });
+    expect(out).not.toContain(t.sent.title);
+  });
+});
+
 describe("/v2/requests/[id]: без предложений", () => {
   it("«Ждём предложений», обучающий экран «Предложения придут сюда» без кнопки", async () => {
     const client = await buyer();
