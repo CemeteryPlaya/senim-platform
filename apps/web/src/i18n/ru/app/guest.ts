@@ -111,22 +111,13 @@ export const guest = {
     },
     /** «Найдена 1 работа», «Найдено 2 работы», «Найдено 5 работ». */
     found: (n: number): string => {
-      const one = n % 10 === 1 && n % 100 !== 11;
-      const few = n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14);
-      return `${one ? "Найдена" : "Найдено"} ${n} ${one ? "работа" : few ? "работы" : "работ"}`;
+      const form = pluralForm(n);
+      return `${form === "one" ? "Найдена" : "Найдено"} ${n} ${{ one: "работа", few: "работы", many: "работ" }[form]}`;
     },
     /** «12 отзывов» в строке мастера: 1 отзыв, 2 отзыва, 5 отзывов. */
-    reviews: (n: number): string => {
-      const one = n % 10 === 1 && n % 100 !== 11;
-      const few = n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14);
-      return `${n} ${one ? "отзыв" : few ? "отзыва" : "отзывов"}`;
-    },
+    reviews: (n: number): string => `${n} ${{ one: "отзыв", few: "отзыва", many: "отзывов" }[pluralForm(n)]}`,
     /** Страниц в каталоге: 1 страница, 2 страницы, 5 страниц. */
-    pagesInCatalogue: (n: number): string => {
-      const one = n % 10 === 1 && n % 100 !== 11;
-      const few = n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14);
-      return `В каталоге ${n} ${one ? "страница" : few ? "страницы" : "страниц"}`;
-    },
+    pagesInCatalogue: (n: number): string => `В каталоге ${n} ${{ one: "страница", few: "страницы", many: "страниц" }[pluralForm(n)]}`,
     paginationLabel: "Страницы каталога",
     similarLink: "Не нашли похожее? Опишите, что нужно",
     emptyFilter: {

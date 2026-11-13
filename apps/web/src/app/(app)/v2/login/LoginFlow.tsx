@@ -17,6 +17,7 @@ import {
   WizardHeader,
 } from "@/kit";
 import type { Device } from "@/platform/device";
+import { FormError } from "../../_shell/FormError";
 import { useActionForm } from "../../_shell/form";
 import { to } from "../../_shell/paths";
 import { ResendCode } from "../../_shell/ResendCode";
@@ -120,16 +121,6 @@ export function LoginFlow({ step: requested, role, next, device }: Props) {
         />
       )}
     </div>
-  );
-}
-
-/** Общая ошибка формы; `atField` — тот же текст уже стоит у поля, и второй раз он не нужен. */
-function FormError({ error, atField = false }: { error: string | null; atField?: boolean }) {
-  if (!error || atField) return null;
-  return (
-    <Notice tone="danger" live>
-      {error}
-    </Notice>
   );
 }
 
