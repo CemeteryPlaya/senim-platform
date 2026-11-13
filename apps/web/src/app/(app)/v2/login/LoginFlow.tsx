@@ -20,7 +20,7 @@ import {
 import { useActionForm } from "../../_shell/form";
 import { to } from "../../_shell/paths";
 import { chooseRoleAction, requestCodeAction, verifyCodeAction } from "./actions";
-import { loginStepHref, RESEND_SECONDS, type LoginRole, type LoginStep } from "./steps";
+import { loginStepHref, RESEND_SECONDS, secondsLeft, type LoginRole, type LoginStep } from "./steps";
 
 const t = ru.app.login;
 const TOTAL = 3;
@@ -174,11 +174,13 @@ function PhoneStep({ next, phone, onSent }: { next: string | null; phone: string
  * сколько осталось; раз в секунду, без анимации (при reduced motion считает так же). Новый код — новый `key` у кнопки,
  * отсчёт начинается заново. На телефоне кнопка во всю ширину дока, поэтому смена подписи ничего не сдвигает.
  */
-function ResendButton({ until, pending }: { until: number; pending: boolean }) {
-  const [left, setLeft] = useState(RESEND_SECONDS);
+export function ResendButton({ until, pending }: { until: number; pending: boolean }) {
+  // Первая отрисовка — от `until`, а не от полной минуты: при возврате на шаг кода («Назад» браузера) не мелькает «1:00».
+  const [left, setLeft] = useState(() => secondsLeft(until, Date.now()));
   useEffect(() => {
+    if (secondsLeft(until, Date.now()) === 0) return;
     const id = window.setInterval(() => {
-      const seconds = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      const seconds = secondsLeft(until, Date.now());
       setLeft(seconds);
       if (seconds === 0) window.clearInterval(id);
     }, 1000);

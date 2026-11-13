@@ -79,6 +79,61 @@ export type ActionForm = {
   submit: (data: FormData) => Promise<void>;
 };
 
+/** Состояние формы, которое меняет отправка: занятость (повтор гасится) и то, что видит человек. */
+export type SubmitState = {
+  busy: { current: boolean };
+  setPending: (pending: boolean) => void;
+  setError: (error: string | null) => void;
+  setFieldErrors: (fieldErrors: Record<string, string>) => void;
+};
+
+/** Где форма и как с неё уйти (в браузере — `window.location`). */
+export type SubmitEnv = { here: () => Here; leave: (href: string) => void };
+
+/**
+ * Одна отправка формы (чистая часть useActionForm, без React): вызов действия и разбор ответа. Пока идёт прошлая отправка,
+ * новая игнорируется. Действие сделало `redirect()` — Next уже ведёт на новый адрес, а обещание вызова отклоняет ошибкой
+ * перехода: это не сбой, ошибки нет, и форма ОСТАЁТСЯ занятой до ухода со страницы — иначе кнопка ожила бы посреди
+ * перехода, и второе нажатие вызвало бы действие ещё раз. Прочий сбой — общий текст, форма снова свободна.
+ */
+export async function runSubmit<I, T>(
+  action: (input: I) => Promise<ActionResult<T>>,
+  options: UseActionFormOptions<I, T>,
+  state: SubmitState,
+  env: SubmitEnv,
+  data: FormData,
+): Promise<void> {
+  if (state.busy.current) return;
+  state.busy.current = true;
+  state.setPending(true);
+  state.setError(null);
+  state.setFieldErrors({});
+  let leaving = false;
+  try {
+    // Вход проверяет схема действия на сервере, поэтому приведение типа здесь безопасно.
+    const input = options.toInput ? options.toInput(data) : (formDataToInput(data) as I);
+    const outcome = outcomeOf(await action(input), env.here());
+    if (outcome.kind === "success") options.onSuccess?.(outcome.data);
+    else if (outcome.kind === "leave") env.leave(outcome.href);
+    else {
+      state.setError(outcome.error);
+      state.setFieldErrors(outcome.fieldErrors);
+    }
+  } catch (e) {
+    if (isRedirectError(e)) {
+      leaving = true;
+      return;
+    }
+    logger.warn("app.form: action failed", { error: e });
+    state.setError(ru.common.errors.generic);
+  } finally {
+    if (!leaving) {
+      state.busy.current = false;
+      state.setPending(false);
+    }
+  }
+}
+
 /**
  * Состояние формы с Server Action, созданным через `action()` из `@/platform/action`.
  *
@@ -86,7 +141,7 @@ export type ActionForm = {
  * завершения такого действия сбрасывает неуправляемые поля формы, и при ошибке проверки человек терял бы введённые
  * телефон или код. `submit(formData)` — для программного вызова. Повторная отправка, пока идёт прошлая, игнорируется. «Сессия
  * истекла» и «нужно согласие» уводят на экран v2 с возвратом (см. `outcomeOf`) и состояния формы не меняют; `redirect()`
- * в самом действии (вход, выбор шага) — тоже уход без ошибки на экране. Сбой
+ * в самом действии (вход, выбор шага) — уход без ошибки на экране, форма остаётся занятой до перехода (runSubmit). Сбой
  * транспорта (сеть, сервер) — общая ошибка из `ru.common.errors.generic`, подробности в журнале.
  *
  * `toInput` по умолчанию не проверяет типы: вход действия — «сырой» объект полей, а разбирает и проверяет его
@@ -100,35 +155,10 @@ export function useActionForm<I, T>(
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const busy = useRef(false);
-  const { onSuccess, toInput } = options;
 
-  async function submit(data: FormData): Promise<void> {
-    if (busy.current) return;
-    busy.current = true;
-    setPending(true);
-    setError(null);
-    setFieldErrors({});
-    try {
-      // Вход проверяет схема действия на сервере, поэтому приведение типа здесь безопасно.
-      const input = toInput ? toInput(data) : (formDataToInput(data) as I);
-      const outcome = outcomeOf(await action(input), window.location);
-      if (outcome.kind === "success") onSuccess?.(outcome.data);
-      else if (outcome.kind === "leave") window.location.assign(outcome.href);
-      else {
-        setError(outcome.error);
-        setFieldErrors(outcome.fieldErrors);
-      }
-    } catch (e) {
-      // Действие сделало redirect(): Next уже ведёт на новый адрес, а обещание вызова отклоняет ошибкой перехода —
-      // это не сбой, ошибки на экране нет.
-      if (isRedirectError(e)) return;
-      logger.warn("app.form: action failed", { error: e });
-      setError(ru.common.errors.generic);
-    } finally {
-      busy.current = false;
-      setPending(false);
-    }
-  }
+  const state: SubmitState = { busy, setPending, setError, setFieldErrors };
+  const env: SubmitEnv = { here: () => window.location, leave: (href) => window.location.assign(href) };
+  const submit = (data: FormData): Promise<void> => runSubmit(action, options, state, env, data);
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();

@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { redirect } from "next/navigation";
+import { describe, expect, it, vi } from "vitest";
+import { ru } from "@/i18n/ru";
 import type { ActionResult } from "@/platform/action";
-import { formDataToInput, outcomeOf, submitterOf } from "./form";
+import { formDataToInput, outcomeOf, runSubmit, submitterOf, type SubmitState } from "./form";
 
 const here = { pathname: "/v2/masters/7", search: "?tab=works" };
 
@@ -85,5 +87,58 @@ describe("submitterOf: кнопка, которой отправили форм�
     expect(submitterOf(null)).toBeNull();
     expect(submitterOf({ submitter: { tagName: "DIV" } })).toBeNull();
     expect(submitterOf({ submitter: "button" })).toBeNull();
+  });
+});
+
+describe("runSubmit: отправка формы useActionForm", () => {
+  /** Состояние формы, как его держит хук: занятость (ref) и последние значения pending / error / fieldErrors. */
+  function state() {
+    const s = { busy: { current: false }, pending: false, error: null as string | null, fieldErrors: {} as Record<string, string> };
+    const set: SubmitState = {
+      busy: s.busy,
+      setPending: (v) => (s.pending = v),
+      setError: (v) => (s.error = v),
+      setFieldErrors: (v) => (s.fieldErrors = v),
+    };
+    return { s, set };
+  }
+  const env = { here: () => here, leave: vi.fn<(href: string) => void>() };
+
+  it("действие сделало redirect(): ошибки нет, форма остаётся занятой, повтор не вызывает действие", async () => {
+    const { s, set } = state();
+    const action = vi.fn(async (): Promise<ActionResult<never>> => redirect("/v2/consent"));
+    await runSubmit(action, {}, set, env, new FormData());
+    expect(s.error).toBeNull();
+    expect(s.pending).toBe(true);
+    expect(s.busy.current).toBe(true);
+    await runSubmit(action, {}, set, env, new FormData());
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
+  it("сбой транспорта: общий текст и форма снова свободна", async () => {
+    const { s, set } = state();
+    const action = vi.fn(async (): Promise<ActionResult<never>> => {
+      throw new Error("network");
+    });
+    await runSubmit(action, {}, set, env, new FormData());
+    expect(s.error).toBe(ru.common.errors.generic);
+    expect(s.pending).toBe(false);
+    expect(s.busy.current).toBe(false);
+  });
+
+  it("ошибка у поля: текст и поле, форма свободна", async () => {
+    const { s, set } = state();
+    const action = vi.fn(async (): Promise<ActionResult<never>> => ({ ok: false, code: "VALIDATION", error: "e", fieldErrors: { code: ["x"] } }));
+    await runSubmit(action, {}, set, env, new FormData());
+    expect(s).toMatchObject({ error: "e", fieldErrors: { code: "x" }, pending: false });
+    expect(s.busy.current).toBe(false);
+  });
+
+  it("успех: onSuccess с данными, форма свободна", async () => {
+    const { s, set } = state();
+    const onSuccess = vi.fn();
+    await runSubmit(async () => ({ ok: true, data: 7 }), { onSuccess }, set, env, new FormData());
+    expect(onSuccess).toHaveBeenCalledWith(7);
+    expect(s.pending).toBe(false);
   });
 });
