@@ -12,7 +12,10 @@ export type WorkCardView = {
   photo?: { src: string; alt: string };
 };
 
-/** Корень статических иллюстраций сида: это не фото мастера. */
+/**
+ * Корень статических иллюстраций сида: это не фото мастера. Правило держится на префиксе пути (провайдер хранилища в
+ * `PhotoView` не приходит): другие статические пути потребуют правки здесь.
+ */
 const SEED_ILLUSTRATIONS = "/demo/";
 
 /** Цена в модуле — целые тенге; в интерфейсе деньги — тиыны. */
@@ -25,7 +28,8 @@ export function workCardView(card: PortfolioCard): WorkCardView {
     id: card.id,
     title: card.title,
     meta: [card.furnitureType.name, card.place].filter(Boolean).join(" · "),
-    ...(card.priceFrom !== null ? { priceFrom: toTiyn(card.priceFrom) } : {}),
+    // Ноль — «цена не указана», а не «бесплатно».
+    ...(card.priceFrom !== null && card.priceFrom > 0 ? { priceFrom: toTiyn(card.priceFrom) } : {}),
     ...(cover?.src ? { photo: { src: cover.src, alt: cover.alt } } : {}),
   };
 }

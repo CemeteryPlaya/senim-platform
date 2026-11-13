@@ -41,6 +41,11 @@ describe("catalogView: чипы", () => {
     expect(typeChips.map((c) => c.href)).toEqual(["/v2/catalog", "/v2/catalog?type=kitchen", "/v2/catalog?type=wardrobe"]);
   });
 
+  it("тип, которого нет в фасетах, не выбирает ни один чип: активна «Все типы»", () => {
+    const { typeChips } = view(result(), { page: 1, type: "unknown-type" });
+    expect(typeChips.map((c) => c.active)).toEqual([true, false, false]);
+  });
+
   it("активный тип помечен, «Все» сбрасывает только тип", () => {
     const { typeChips } = view(result(), { page: 1, type: "wardrobe", price: "300-700" });
     expect(typeChips.map((c) => c.active)).toEqual([false, false, true]);
@@ -76,7 +81,7 @@ describe("catalogView: карточки", () => {
 
   it("карточка: ссылка на профиль, тип · место, цена в тиынах", () => {
     const [c] = view(result()).cards;
-    expect(c).toEqual({ id: "w1", href: "/v2/executors/7", title: "Светлая кухня", meta: "Кухня · Астана", priceFrom: 120_000_000n });
+    expect(c).toEqual({ id: "w1", href: "/v2/executors/7", title: "Светлая кухня", meta: "Кухня · Астана", byline: "Исполнитель №7 · 4,5 · 3 отзыва", priceFrom: 120_000_000n });
   });
 
   it("место не указано — в meta только тип; цены нет — поля priceFrom нет", () => {
@@ -85,9 +90,37 @@ describe("catalogView: карточки", () => {
     expect(c).not.toHaveProperty("priceFrom");
   });
 
-  it("мастер — только публичная метка модуля: в карточке нет label, номера, рейтинга", () => {
+  it("строка мастера: метка модуля, рейтинг и отзывы с правильным склонением", () => {
+    const by = (reviewsCount: number, ratingAvg = 4.8) =>
+      view(result({ items: [card({ executor: { ...card().executor, label: "Исполнитель №1042", reviewsCount, ratingAvg } })] })).cards[0].byline;
+    expect(by(0, 0)).toBe("Исполнитель №1042");
+    expect(by(0)).toBe("Исполнитель №1042");
+    expect(by(1)).toBe("Исполнитель №1042 · 4,8 · 1 отзыв");
+    expect(by(2)).toBe("Исполнитель №1042 · 4,8 · 2 отзыва");
+    expect(by(12)).toBe("Исполнитель №1042 · 4,8 · 12 отзывов");
+    expect(by(21)).toBe("Исполнитель №1042 · 4,8 · 21 отзыв");
+    expect(by(3, 0)).toBe("Исполнитель №1042 · 3 отзыва");
+  });
+
+  it("в карточке только публичные поля: нет id мастера, сегмента, описания", () => {
     const [c] = view(result()).cards;
-    expect(Object.keys(c).sort()).toEqual(["href", "id", "meta", "priceFrom", "title"]);
+    expect(Object.keys(c).sort()).toEqual(["byline", "href", "id", "meta", "priceFrom", "title"]);
+    expect(JSON.stringify(c, (_, v: unknown) => (typeof v === "bigint" ? v.toString() : v))).not.toContain("e1");
+  });
+
+  it("цена ноль — цена не показывается", () => {
+    expect(view(result({ items: [card({ priceFrom: 0 })] })).cards[0]).not.toHaveProperty("priceFrom");
+  });
+
+  it("вид карточек страницы: хотя бы одно настоящее фото — slot у всех, иначе none", () => {
+    const real = { id: "p1", src: "https://files.example/p1.jpg?sig=1", alt: "Фото 1" };
+    const seed = { id: "p2", src: "/demo/portfolio/kitchen-sage.svg", alt: "Фото 2" };
+    const two = (a: PortfolioCard["photos"], b: PortfolioCard["photos"]) => view(result({ items: [card({ id: "a", photos: a }), card({ id: "b", photos: b })], total: 2 }));
+    expect(two([], []).media).toBe("none");
+    expect(two([seed], [seed]).media).toBe("none");
+    const mixed = two([real], []);
+    expect(mixed.media).toBe("slot");
+    expect(mixed.cards[1]).not.toHaveProperty("photo");
   });
 
   it("фото: загруженный снимок идёт в карточку, статичная иллюстрация сида — нет", () => {
@@ -108,6 +141,7 @@ describe("catalogView: счёт, страницы и состояния", () => 
     expect(v.hrefFor(1)).toBe("/v2/catalog?type=kitchen");
     expect(v.hrefFor(3)).toBe("/v2/catalog?type=kitchen&page=3");
     expect(v.empty).toBeNull();
+    expect(v.similarLink).toEqual({ href: "/v2/requests/new", label: t.similarLink });
   });
 
   it("пустой результат по фильтру: «Сбросить фильтр» на каталог", () => {
@@ -129,7 +163,8 @@ describe("catalogView: счёт, страницы и состояния", () => 
     const v = view(result({ items: [], total: 30, page: 9, pageCount: 3 }), { page: 9, type: "kitchen" });
     expect(v.state).toBe("beyond");
     expect(v.showFilters).toBe(true);
-    expect(v.empty?.action).toEqual({ href: "/v2/catalog?type=kitchen", label: t.beyond.action });
+    expect(v.empty).toEqual({ title: "Такой страницы нет", body: "В каталоге 3 страницы", action: { href: "/v2/catalog?type=kitchen", label: t.beyond.action } });
+    expect(v.similarLink).toBeNull();
     expect(v.cards).toEqual([]);
   });
 
@@ -138,6 +173,18 @@ describe("catalogView: счёт, страницы и состояния", () => 
     expect(v.state).toBe("results");
     expect(v.empty).toBeNull();
     expect(v.showFilters).toBe(true);
+  });
+});
+
+describe("ru.app.guest.catalog: склонения страниц", () => {
+  it.each([
+    [1, "В каталоге 1 страница"],
+    [2, "В каталоге 2 страницы"],
+    [5, "В каталоге 5 страниц"],
+    [11, "В каталоге 11 страниц"],
+    [21, "В каталоге 21 страница"],
+  ])("%i", (n, expected) => {
+    expect(t.pagesInCatalogue(n)).toBe(expected);
   });
 });
 

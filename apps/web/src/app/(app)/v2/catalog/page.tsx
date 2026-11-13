@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { Chips, EmptyState, PageTitle, Pagination, Stack, WorkCard } from "@/kit";
+import { Chips, Columns, EmptyState, PageTitle, Pagination, Stack, TextLink, WorkCard } from "@/kit";
 import { getCatalogFacets, listCatalog, parseCatalogFilter, type SearchParams } from "@/modules/companies";
 import { catalogView } from "./_parts/catalog-view";
 
@@ -29,14 +29,22 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       )}
       {view.empty && <EmptyState title={view.empty.title} body={view.empty.body} action={view.empty.action} />}
       {view.cards.length > 0 && (
-        <ul className="grid grid-cols-1 gap-3 desktop:grid-cols-3 desktop:gap-4">
+        <Columns count={3}>
           {view.cards.map((card) => (
-            <li key={card.id} className="grid">
-              <WorkCard href={card.href} title={card.title} meta={card.meta} priceFrom={card.priceFrom} photo={card.photo} />
-            </li>
+            <WorkCard
+              key={card.id}
+              href={card.href}
+              title={card.title}
+              meta={card.meta}
+              byline={card.byline}
+              priceFrom={card.priceFrom}
+              media={view.media}
+              photo={card.photo}
+            />
           ))}
-        </ul>
+        </Columns>
       )}
+      {view.similarLink && <TextLink href={view.similarLink.href}>{view.similarLink.label}</TextLink>}
       {view.state === "results" && <Pagination page={view.page} pageCount={view.pageCount} hrefFor={view.hrefFor} label={t.paginationLabel} />}
     </Stack>
   );
