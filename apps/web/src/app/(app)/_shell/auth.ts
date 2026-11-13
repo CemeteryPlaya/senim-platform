@@ -73,7 +73,7 @@ export function homeFor(user: Pick<StepUser, "role" | "executor">, chosen: Chose
 }
 
 /** Адрес шага с возвратом: `/v2/consent?next=%2Fv2%2Fdeals%2F1` или без параметра. */
-function stepWithNext(screen: string, next: string | null): string {
+export function stepWithNext(screen: string, next: string | null): string {
   return next ? `${to(screen)}?${new URLSearchParams({ next })}` : to(screen);
 }
 
@@ -101,6 +101,20 @@ export function nextStepFor(user: StepUser, next: string | null, chosen: ChosenR
 /** Путь адреса без строки запроса и якоря. */
 const pathOf = (href: string): string => new URL(href, SAME_ORIGIN).pathname;
 
+/** Экраны первых шагов (барьеры barrierFor): сами они возвращаться «на себя» через `next` не должны. */
+const STEP_SCREENS = ["/consent", "/welcome", "/email"].map((screen) => to(screen));
+
+/**
+ * Куда вернуться после входа и шагов, если страница, которой нужен пользователь, — сама страница шага: её собственный
+ * адрес не годится (после шага человек оказался бы на нём снова), берётся её `next`. Иначе адрес страницы как есть.
+ */
+function backFrom(returnTo: string): string | null {
+  const own = safeNext(returnTo);
+  if (own === null) return null;
+  const { pathname, searchParams } = new URL(own, SAME_ORIGIN);
+  return STEP_SCREENS.includes(pathname) ? safeNext(searchParams.get("next") ?? undefined) : own;
+}
+
 /**
  * Для страниц v2: вошедший пользователь с одной из ролей. Нет сессии — вход v2 с возвратом сюда (`returnTo` — адрес этой
  * страницы, его знает она сама). Нужная роль выдана, но не активна — экран переключения роли (v1) с возвратом; не выдана —
@@ -108,9 +122,19 @@ const pathOf = (href: string): string => new URL(href, SAME_ORIGIN).pathname;
  * знакомства и почты тоже берут пользователя здесь и не уводят сами на себя.
  *
  * Это граница экрана, а не прав: действия и сервисы по-прежнему проверяют пользователя сами (requireUser).
+ *
+ * Правила для новых страниц — иначе возможна петля переходов:
+ * 1. Страница шага (согласие, знакомство, почта) вызывает `requireV2User(<свой адрес с next>)` БЕЗ ролей и сама проверяет,
+ *    что шаг ещё нужен; не нужен — `redirect(nextStepFor(user, next, chosen))`. Барьер на её собственном адресе молчит
+ *    (сравнение путей), на чужом ведёт на первый непройденный шаг, поэтому «шаг пройден» страница шага не требует.
+ * 2. «Дом» (`homeFor`) не должен требовать роль, которой у человека может не быть: страница, куда ведёт дом, берёт
+ *    пользователя с теми ролями, для которых она дом. Регистрация мастера — дом и заказчика без профиля, и мастера, поэтому
+ *    `requireV2User(path, "CLIENT", "EXECUTOR")`, а не только `"EXECUTOR"`: иначе заказчик ушёл бы в дом, а дом — снова в дом.
+ * 3. Роль, которой нет, ведёт в дом — значит, сам дом (`/v2`, раздел оператора и т. д.) не вызывает requireV2User с ролью,
+ *    которой нет у тех, кого туда ведёт homeFor.
  */
 export async function requireV2User(returnTo: string, ...roles: Role[]): Promise<CurrentUser> {
-  const back = safeNext(returnTo);
+  const back = backFrom(returnTo);
   const user = await getCurrentUser();
   if (!user) redirect(stepWithNext("/login", back));
   if (roles.length > 0 && !roles.includes(user.role)) {
