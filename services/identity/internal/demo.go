@@ -224,6 +224,8 @@ func (s *Service) seedPartyRow(ctx context.Context, q *store.Queries, userID uui
 func (s *Service) seedPerson(ctx context.Context, q *store.Queries, userID uuid.UUID, r seedRow, now pgtype.Timestamptz) error {
 	params := store.UpsertSeedPersonParams{
 		UserID: userID, FullName: text(r.fullName), Instagram: text(r.instagram), Email: text(r.email), Now: now,
+		// Адрес сида подтверждён (спека редизайна, раздел 8): демо-персоны не проходят шаг почты.
+		EmailVerifiedAt: pgtype.Timestamptz{Time: now.Time, Valid: r.email != ""},
 	}
 	if r.iin != "" {
 		enc, err := s.cfg.PII.Seal([]byte(r.iin), personIINAAD(userID))

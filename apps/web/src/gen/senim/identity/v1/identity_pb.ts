@@ -2570,9 +2570,11 @@ export const RevocationStatusSchema: GenEnum<RevocationStatus> = /*@__PURE__*/
  *   email_invalid, bin_iin_invalid, signer_required, iban_invalid, party_missing, party_exists,
  *   kyc_documents_missing, kyc_transition_forbidden, kyc_reason_invalid, consent_version_invalid,
  *   consent_not_revocable, consent_missing, revocation_closed, reveal_purpose_invalid,
- *   pii_key_unknown, invalid_email, email_code_too_often, email_code_too_many,
- *   email_code_expired, email_code_wrong (params.left — осталось попыток),
- *   email_code_attempts_exhausted.
+ *   pii_key_unknown, email_code_too_often, email_code_too_many, email_code_expired,
+ *   email_code_wrong (params.left — осталось попыток), email_code_attempts_exhausted,
+ *   email_already_verified (RequestEmailCode: этот адрес уже подтверждён, код не выдаётся).
+ *   Неверный адрес в RequestEmailCode — email_invalid; код не из шести цифр в
+ *   VerifyEmailCode — invalid_request.
  *
  * @generated from service senim.identity.v1.IdentityService
  */

@@ -280,12 +280,15 @@ func TestResetDemoClearsLimits(t *testing.T) {
 	if n := h.count(`SELECT count(*) FROM mfa_factors WHERE user_id = ANY($1)`, []string{enrolledOp.ID.String(), pendingOp.ID.String()}); n != 2 {
 		t.Fatalf("факторов до сброса: %d", n)
 	}
+	// Код почты заказчика.
+	_, clientToken := h.client()
+	h.mustRequestEmail(clientToken, "a@example.kz")
 	usersBefore := h.count(`SELECT count(*) FROM users`)
 
 	if err := h.resetDemo(h.key()); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"sessions", "otp_codes", "rate_limits", "mfa_factors"} {
+	for _, table := range []string{"sessions", "otp_codes", "email_codes", "rate_limits", "mfa_factors"} {
 		if n := h.count(`SELECT count(*) FROM ` + table); n != 0 {
 			t.Fatalf("%s: %d строк после сброса", table, n)
 		}

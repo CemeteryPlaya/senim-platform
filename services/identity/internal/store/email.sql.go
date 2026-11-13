@@ -83,6 +83,18 @@ func (q *Queries) DeleteOldEmailCodes(ctx context.Context, arg DeleteOldEmailCod
 	return result.RowsAffected(), nil
 }
 
+const emailCodeConsumed = `-- name: EmailCodeConsumed :one
+SELECT (consumed_at IS NOT NULL)::bool AS consumed FROM email_codes WHERE id = $1
+`
+
+// Попытка не засчитана (CountEmailAttempt без строки): погашен код или исчерпаны попытки.
+func (q *Queries) EmailCodeConsumed(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, emailCodeConsumed, id)
+	var consumed bool
+	err := row.Scan(&consumed)
+	return consumed, err
+}
+
 const getActiveEmailCode = `-- name: GetActiveEmailCode :one
 SELECT id, user_id, email, code_hash, attempts, expires_at, consumed_at, created_at FROM email_codes
 WHERE user_id = $1 AND consumed_at IS NULL AND expires_at > $2::timestamptz

@@ -6,6 +6,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -177,7 +178,7 @@ func TestRequestEmailCodeValidation(t *testing.T) {
 	u, token := h.client()
 	for _, raw := range []string{"", "   ", "не почта", "a@b", strings.Repeat("a", 250) + "@example.kz"} {
 		_, err := h.requestEmail(token, raw, h.key())
-		h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_email")
+		h.wantRefusal(err, connect.CodeInvalidArgument, "email_invalid")
 	}
 	_, err := h.requestEmail(token, "a@example.kz", "")
 	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
@@ -371,5 +372,233 @@ func TestUpdateContactsResetsEmailVerification(t *testing.T) {
 	h.mustVerifyEmail(token, h.mustRequestEmail(token, "d@example.kz"))
 	if p := h.mustUpdateContacts(token, "dala", ""); p.GetEmailVerified() || p.GetEmail() != "" {
 		t.Fatalf("пустой адрес: %v", p)
+	}
+}
+
+// Тот же адрес уже подтверждён — email_already_verified: кода, отправки, аудита и траты
+// лимита нет. Другой адрес — обычный код.
+func TestRequestEmailCodeAlreadyVerified(t *testing.T) {
+	h := newHarness(t, nil)
+	u, token := h.client()
+	h.mustVerifyEmail(token, h.mustRequestEmail(token, "a@example.kz"))
+	codes, sent, audits := len(h.emailCodes(u)), len(h.email.sent()), h.auditRows()
+
+	h.clock.advance(emailCooldown + time.Second)
+	_, err := h.requestEmail(token, " A@Example.KZ ", h.key())
+	h.wantRefusal(err, connect.CodeFailedPrecondition, "email_already_verified")
+	if len(h.emailCodes(u)) != codes || len(h.email.sent()) != sent || h.auditRows() != audits {
+		t.Fatal("для подтверждённого адреса выдан код, отправлено письмо или записан аудит")
+	}
+	// Отказ не тратит паузу: другой адрес сразу получает код.
+	if code := h.mustRequestEmail(token, "b@example.kz"); !sixDigits.MatchString(code) {
+		t.Fatalf("код для другого адреса: %q", code)
+	}
+}
+
+// Ввод не из шести цифр — invalid_request до счёта: ни попытка, ни суточный лимит не тратятся.
+func TestVerifyEmailCodeFormat(t *testing.T) {
+	h := newHarness(t, nil)
+	u, token := h.client()
+	code := h.mustRequestEmail(token, "a@example.kz")
+	for range emailVerifyDaily + 1 {
+		for _, bad := range []string{"", "12345", "1234567", "12a456", "１２３４５６", "12 456"} {
+			_, err := h.verifyEmail(token, bad, h.key())
+			h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+		}
+	}
+	if c := h.emailCodes(u); c[0].Attempts != 0 {
+		t.Fatalf("попыток %d после ввода не по формату, want 0", c[0].Attempts)
+	}
+	// Пробелы по краям обрезаются.
+	if p := h.mustVerifyEmail(token, " "+code+" "); !p.GetEmailVerified() {
+		t.Fatalf("person = %v", p)
+	}
+}
+
+// Не больше 20 проверок кода в сутки на пользователя, каким бы ни был код.
+func TestVerifyEmailCodeDailyLimit(t *testing.T) {
+	h := newHarness(t, nil)
+	u, token := h.client()
+	code := h.mustRequestEmail(token, "a@example.kz")
+	for range emailVerifyDaily {
+		_, err := h.verifyEmail(token, wrongOf(code), h.key())
+		if _, reason := refusal(t, err); reason != "email_code_wrong" && reason != "email_code_attempts_exhausted" {
+			t.Fatalf("до предела: %v", err)
+		}
+	}
+	_, err := h.verifyEmail(token, code, h.key())
+	h.wantRefusal(err, connect.CodeResourceExhausted, "email_code_too_many")
+
+	// Через сутки — снова можно (новый код: прежний исчерпан).
+	h.clock.advance(day + time.Second)
+	token = h.session(u)
+	h.mustVerifyEmail(token, h.mustRequestEmail(token, "a@example.kz"))
+}
+
+// Тот же ключ с другим кодом — idempotency_key_reused.
+func TestVerifyEmailCodeKeyReused(t *testing.T) {
+	h := newHarness(t, nil)
+	_, token := h.client()
+	code := h.mustRequestEmail(token, "a@example.kz")
+	key := h.key()
+	if _, err := h.verifyEmail(token, code, key); err != nil {
+		t.Fatalf("VerifyEmailCode: %v", err)
+	}
+	_, err := h.verifyEmail(token, wrongOf(code), key)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "idempotency_key_reused")
+}
+
+// Код пользователя A не подтверждает почту пользователя B: код привязан к пользователю.
+func TestVerifyEmailCodeOtherUser(t *testing.T) {
+	h := newHarness(t, nil)
+	a, tokenA := h.client()
+	b, tokenB := h.client()
+	codeA := h.mustRequestEmail(tokenA, "a@example.kz")
+
+	_, err := h.verifyEmail(tokenB, codeA, h.key())
+	h.wantRefusal(err, connect.CodeInvalidArgument, "email_code_expired")
+	codeB := h.mustRequestEmail(tokenB, "b@example.kz")
+	if codeB != codeA {
+		_, err = h.verifyEmail(tokenB, codeA, h.key())
+		h.wantRefusal(err, connect.CodeInvalidArgument, "email_code_wrong")
+	}
+	if row, ok := h.personRow(b.ID); ok && (row.Email.Valid || row.EmailVerifiedAt.Valid) {
+		t.Fatalf("у B адрес: %+v", row)
+	}
+	if c := h.emailCodes(a); c[0].Attempts != 0 || c[0].ConsumedAt.Valid {
+		t.Fatalf("код A тронут: %+v", c[0])
+	}
+	if p := h.mustVerifyEmail(tokenA, codeA); p.GetEmail() != "a@example.kz" || !p.GetEmailVerified() {
+		t.Fatalf("A: %v", p)
+	}
+}
+
+// Два одновременных верных ввода с разными ключами: один успех, второй — email_code_expired;
+// событие подтверждения одно.
+func TestVerifyEmailCodeConcurrentEntries(t *testing.T) {
+	h := newHarness(t, nil)
+	for round := range 5 {
+		u, token := h.client()
+		code := h.mustRequestEmail(token, "a@example.kz")
+		start := make(chan struct{})
+		errs := make([]error, 2)
+		var wg sync.WaitGroup
+		for i := range 2 {
+			key := h.key()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				_, errs[i] = h.verifyEmail(token, code, key)
+			}()
+		}
+		close(start)
+		wg.Wait()
+		ok := 0
+		for _, err := range errs {
+			if err == nil {
+				ok++
+				continue
+			}
+			if code, reason := callerRefusal(err); code != connect.CodeInvalidArgument || reason != "email_code_expired" {
+				t.Fatalf("раунд %d: отказ проигравшего %v/%q", round, code, reason)
+			}
+		}
+		if ok != 1 {
+			t.Fatalf("раунд %d: успехов %d, want 1", round, ok)
+		}
+		if n := len(h.auditOf(u.ID.String(), "user.email_verified")); n != 1 {
+			t.Fatalf("раунд %d: событий user.email_verified %d, want 1", round, n)
+		}
+	}
+}
+
+// N одновременных неверных вводов: засчитано ровно min(N, 5) попыток.
+func TestVerifyEmailCodeConcurrentWrong(t *testing.T) {
+	h := newHarness(t, nil)
+	for _, n := range []int{3, 8} {
+		u, token := h.client()
+		code := h.mustRequestEmail(token, "a@example.kz")
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		errs := make([]error, n)
+		for i := range n {
+			key := h.key()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				_, errs[i] = h.verifyEmail(token, wrongOf(code), key)
+			}()
+		}
+		close(start)
+		wg.Wait()
+		for _, err := range errs {
+			if _, reason := callerRefusal(err); reason != "email_code_wrong" && reason != "email_code_attempts_exhausted" {
+				t.Fatalf("N=%d: %v", n, err)
+			}
+		}
+		if got, want := int(h.emailCodes(u)[0].Attempts), min(n, emailMaxAttempts); got != want {
+			t.Fatalf("N=%d: попыток %d, want %d", n, got, want)
+		}
+	}
+}
+
+// Повтор с тем же ключом, пока первый вызов ещё в транзакции: ждёт его и получает тот же
+// ответ; эффект один (одно событие, одна попытка).
+func TestVerifyEmailCodeConcurrentSameKey(t *testing.T) {
+	h := newHarness(t, nil)
+	u, token := h.client()
+	code := h.mustRequestEmail(token, "a@example.kz")
+	key := h.key()
+
+	// Блокировка строки пользователя держит вызов A внутри Do (lockedSession ждёт замок).
+	ctx := context.Background()
+	lock, err := h.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = lock.Rollback(ctx) }()
+	if _, err := lock.Exec(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, u.ID); err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		res *identityv1.VerifyEmailCodeResponse
+		err error
+	}
+	run := func() chan result {
+		ch := make(chan result, 1)
+		go func() {
+			r, err := h.verifyEmail(token, code, key)
+			ch <- result{r, err}
+		}()
+		return ch
+	}
+	a := run()
+	time.Sleep(500 * time.Millisecond) // A в транзакции и ждёт замок
+	b := run()
+	time.Sleep(300 * time.Millisecond)
+	select {
+	case r := <-a:
+		t.Fatalf("A завершился под замком: %v", r.err)
+	case r := <-b:
+		t.Fatalf("B завершился, пока A в работе: %v", r.err)
+	default:
+	}
+	if err := lock.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	ra, rb := <-a, <-b
+	if ra.err != nil || rb.err != nil {
+		t.Fatalf("A: %v, B: %v", ra.err, rb.err)
+	}
+	if !proto.Equal(ra.res, rb.res) || !ra.res.GetPerson().GetEmailVerified() {
+		t.Fatalf("B вернул не ответ A: %v / %v", ra.res, rb.res)
+	}
+	if n := len(h.auditOf(u.ID.String(), "user.email_verified")); n != 1 {
+		t.Fatalf("событий user.email_verified %d, want 1", n)
+	}
+	if c := h.emailCodes(u); c[0].Attempts != 1 {
+		t.Fatalf("попыток %d, want 1", c[0].Attempts)
 	}
 }

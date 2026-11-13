@@ -472,14 +472,17 @@ func TestNoPIIInLogs(t *testing.T) {
 	}
 }
 
-// SeedUsers пишет личность из full_name/iin/instagram/email; неверный ИИН — iin_invalid.
+// SeedUsers пишет личность из full_name/iin/instagram/email (адрес сида подтверждён, без
+// адреса — нет); неверный ИИН — iin_invalid.
 func TestSeedUsersWritesPerson(t *testing.T) {
 	h := newHarness(t, nil)
 	iin := freshIIN(t)
 	su := seedUser(newPhone(), roleClient, true, roleClient)
 	su.FullName, su.Iin, su.Instagram, su.Email = "  Иван  Петров ", iin, "@Dala.Mebel", " Master@Example.KZ "
 	plain := seedUser(newPhone(), roleClient, true, roleClient)
-	res, err := h.seed(su, plain)
+	noEmail := seedUser(newPhone(), roleClient, true, roleClient)
+	noEmail.FullName = "Асель Нурланова"
+	res, err := h.seed(su, plain, noEmail)
 	if err != nil {
 		t.Fatalf("SeedUsers: %v", err)
 	}
@@ -491,6 +494,12 @@ func TestSeedUsersWritesPerson(t *testing.T) {
 	if row.FullName.String != "Иван Петров" || row.IinLast4.String != iin[8:] || row.Instagram.String != "Dala.Mebel" || row.Email.String != "master@example.kz" {
 		t.Fatalf("строка: %+v", row)
 	}
+	if !personProto(row).GetEmailVerified() {
+		t.Fatal("адрес сида не подтверждён")
+	}
+	if row, ok := h.personRow(uuid.MustParse(res.GetUsers()[2].GetId())); !ok || personProto(row).GetEmailVerified() || row.Email.Valid {
+		t.Fatalf("сид без адреса: %+v", row)
+	}
 	if got, err := h.svc.cfg.PII.Open(row.IinEnc.String, personIINAAD(id)); err != nil || string(got) != iin {
 		t.Fatalf("расшифровка: %q, %v", got, err)
 	}
@@ -500,6 +509,9 @@ func TestSeedUsersWritesPerson(t *testing.T) {
 	// Повтор сида — без ошибок, данные те же.
 	if _, err := h.seed(su); err != nil {
 		t.Fatalf("повтор SeedUsers: %v", err)
+	}
+	if row, _ := h.personRow(id); !row.EmailVerifiedAt.Valid {
+		t.Fatal("повтор сида снял подтверждение")
 	}
 
 	bad := seedUser(newPhone(), roleClient, true, roleClient)

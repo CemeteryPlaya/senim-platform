@@ -125,9 +125,9 @@ func (q *Queries) UpsertContacts(ctx context.Context, arg UpsertContactsParams) 
 }
 
 const upsertSeedPerson = `-- name: UpsertSeedPerson :one
-INSERT INTO persons (user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at)
+INSERT INTO persons (user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, email_verified_at, updated_at)
 VALUES ($1, $2, $3, $4, $5,
-        $6, $7, $8)
+        $6, $7, $8, $9)
 ON CONFLICT (user_id) DO UPDATE SET
     full_name  = COALESCE(EXCLUDED.full_name, persons.full_name),
     iin_enc    = COALESCE(EXCLUDED.iin_enc, persons.iin_enc),
@@ -135,26 +135,27 @@ ON CONFLICT (user_id) DO UPDATE SET
     iin_last4  = COALESCE(EXCLUDED.iin_last4, persons.iin_last4),
     instagram  = COALESCE(EXCLUDED.instagram, persons.instagram),
     email      = COALESCE(EXCLUDED.email, persons.email),
-    -- Сид сменил адрес — подтверждение прежнего к новому не относится.
-    email_verified_at = CASE WHEN EXCLUDED.email IS NULL OR EXCLUDED.email = persons.email
-                             THEN persons.email_verified_at END,
+    email_verified_at = CASE WHEN EXCLUDED.email IS NULL THEN persons.email_verified_at
+                             ELSE EXCLUDED.email_verified_at END,
     updated_at = EXCLUDED.updated_at
 RETURNING user_id, full_name, iin_enc, iin_hash, iin_last4, instagram, email, updated_at, email_verified_at
 `
 
 type UpsertSeedPersonParams struct {
-	UserID    uuid.UUID
-	FullName  pgtype.Text
-	IinEnc    pgtype.Text
-	IinHash   []byte
-	IinLast4  pgtype.Text
-	Instagram pgtype.Text
-	Email     pgtype.Text
-	Now       pgtype.Timestamptz
+	UserID          uuid.UUID
+	FullName        pgtype.Text
+	IinEnc          pgtype.Text
+	IinHash         []byte
+	IinLast4        pgtype.Text
+	Instagram       pgtype.Text
+	Email           pgtype.Text
+	EmailVerifiedAt pgtype.Timestamptz
+	Now             pgtype.Timestamptz
 }
 
 // Сид демо-стенда (SeedUsers): заданные поля перезаписываются, незаданные (NULL) остаются.
-// ИИН задаётся тремя столбцами вместе.
+// ИИН задаётся тремя столбцами вместе. Адрес сида считается подтверждённым (спека
+// редизайна, раздел 8): email_verified_at задаётся вместе с адресом, без адреса — прежнее.
 func (q *Queries) UpsertSeedPerson(ctx context.Context, arg UpsertSeedPersonParams) (Person, error) {
 	row := q.db.QueryRow(ctx, upsertSeedPerson,
 		arg.UserID,
@@ -164,6 +165,7 @@ func (q *Queries) UpsertSeedPerson(ctx context.Context, arg UpsertSeedPersonPara
 		arg.IinLast4,
 		arg.Instagram,
 		arg.Email,
+		arg.EmailVerifiedAt,
 		arg.Now,
 	)
 	var i Person

@@ -23,6 +23,10 @@ UPDATE email_codes SET attempts = attempts + 1
 WHERE id = $1 AND consumed_at IS NULL AND attempts < sqlc.arg(max_attempts)::int
 RETURNING attempts;
 
+-- name: EmailCodeConsumed :one
+-- Попытка не засчитана (CountEmailAttempt без строки): погашен код или исчерпаны попытки.
+SELECT (consumed_at IS NOT NULL)::bool AS consumed FROM email_codes WHERE id = $1;
+
 -- name: ConsumeEmailCode :execrows
 -- Условный UPDATE: из двух одновременных вводов одного кода погасит ровно один.
 UPDATE email_codes SET consumed_at = sqlc.arg(now)::timestamptz

@@ -33,9 +33,9 @@ const (
 	emailCooldown = time.Minute
 	emailHourly   = 5
 	emailDaily    = 10
+	// Проверок кода — не больше 20 в сутки на пользователя (как verifyPhoneDaily у SMS).
+	emailVerifyDaily = 20
 )
-
-func invalidEmail() error { return rpcError(connect.CodeInvalidArgument, "invalid_email", nil) }
 
 func emailCodeExpired() error {
 	return rpcError(connect.CodeInvalidArgument, "email_code_expired", nil)
@@ -43,6 +43,10 @@ func emailCodeExpired() error {
 
 func emailAttemptsExhausted() error {
 	return rpcError(connect.CodeResourceExhausted, "email_code_attempts_exhausted", nil)
+}
+
+func emailAlreadyVerified() error {
+	return rpcError(connect.CodeFailedPrecondition, "email_already_verified", nil)
 }
 
 // emailVerifiedAudit — значение аудита подтверждения: только «подтверждён / нет», без адреса.
@@ -90,6 +94,10 @@ func lockedEmailSession(ctx context.Context, tx pgx.Tx, token string, userID uui
 // повторяет Lookup — ответ успевшего вызова с этим ключом), затем транзакция: прежние коды
 // гасятся, новый пишется, письмо уходит.
 //
+// Тот же адрес уже подтверждён — email_already_verified (FailedPrecondition): код не
+// выдаётся, лимит не тратится, web пропускает шаг почты. Проверка — после повтора по ключу:
+// потерянный ответ прежнего запроса возвращается как есть.
+//
 // demo_code — только при провайдере mock (в prod он запрещён конфигом) и только в этом
 // ответе: в сохранённый идемпотентный ответ код не попадает, повтор вернёт его пустым.
 func (s *Service) RequestEmailCode(ctx context.Context, req *identityv1.RequestEmailCodeRequest) (*identityv1.RequestEmailCodeResponse, error) {
@@ -103,7 +111,7 @@ func (s *Service) RequestEmailCode(ctx context.Context, req *identityv1.RequestE
 	}
 	email, ok := normalizeEmail(req.GetEmail())
 	if !ok || email == "" {
-		return nil, invalidEmail()
+		return nil, emailInvalid()
 	}
 	user, err := s.emailSession(ctx, op, req.GetSessionToken())
 	if err != nil {
@@ -116,6 +124,14 @@ func (s *Service) RequestEmailCode(ctx context.Context, req *identityv1.RequestE
 	}
 	if found {
 		return saved, nil
+	}
+	current, err := personOf(ctx, store.New(s.pool), user.ID)
+	if err != nil {
+		s.log.ErrorContext(ctx, op+": поиск личности", "err", err)
+		return nil, internalError()
+	}
+	if current.EmailVerifiedAt.Valid && current.Email.String == email {
+		return nil, emailAlreadyVerified()
 	}
 
 	if err := s.enforceEmailLimits(ctx, op, user.ID); err != nil {
@@ -154,6 +170,9 @@ func (s *Service) RequestEmailCode(ctx context.Context, req *identityv1.RequestE
 			}); err != nil {
 				return fmt.Errorf("запись кода почты: %w", err)
 			}
+			// Отправка внутри транзакции, как у SMS: мок ничего не отправляет.
+			// TODO(план 6): настоящий провайдер — отправка через outbox (письмо уходит после
+			// коммита), потолок отправок на адрес и общий суточный потолок писем.
 			if err := s.email.Send(ctx, email, code); err != nil {
 				return fmt.Errorf("отправка кода почты: %w", err)
 			}
@@ -216,16 +235,19 @@ func (s *Service) enforceEmailLimits(ctx context.Context, op string, userID uuid
 // код гасится, persons.email = адрес-кандидат, email_verified_at = сейчас, в outbox —
 // аудит user.email_verified (и user.email_changed, если адрес сменился) без адреса.
 //
-// Порядок как в VerifyOtp: вызывающий, формат, сессия и роль (чтение), повтор по ключу,
-// засчитывание попытки и сравнение (вне транзакции: попытка остаётся и при откате), затем
-// транзакция. Отказ до транзакции повторяет Lookup — ответ успевшего вызова с этим ключом.
+// Порядок как в VerifyOtp: вызывающий, формат (ключ; код — ровно шесть цифр, иначе
+// invalid_request без траты попытки и лимита), сессия и роль (чтение), повтор по ключу,
+// суточный лимит проверок, засчитывание попытки и сравнение (вне транзакции: попытка
+// остаётся и при откате), затем транзакция. Отказ до транзакции повторяет Lookup — ответ
+// успевшего вызова с этим ключом.
 func (s *Service) VerifyEmailCode(ctx context.Context, req *identityv1.VerifyEmailCodeRequest) (*identityv1.VerifyEmailCodeResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return nil, err
 	}
 	const op, method = "email_verify", identityv1connect.IdentityServiceVerifyEmailCodeProcedure
 	key := req.GetIdempotencyKey()
-	if !validIdempotencyKey(key) {
+	code := strings.TrimSpace(req.GetCode())
+	if !validIdempotencyKey(key) || !validTotpFormat(code) { // шесть ASCII-цифр, как код TOTP
 		return nil, invalidRequest()
 	}
 	user, err := s.emailSession(ctx, op, req.GetSessionToken())
@@ -241,7 +263,7 @@ func (s *Service) VerifyEmailCode(ctx context.Context, req *identityv1.VerifyEma
 		return resp, nil
 	}
 
-	row, refusal := s.checkEmailCode(ctx, op, user.ID, req.GetCode())
+	row, refusal := s.checkEmailCode(ctx, op, user.ID, code)
 	if refusal != nil {
 		again := &identityv1.VerifyEmailCodeResponse{}
 		if found, lerr := idem.Lookup(ctx, s.pool, method, key, req, again); lerr == nil && found {
@@ -290,10 +312,18 @@ func (s *Service) VerifyEmailCode(ctx context.Context, req *identityv1.VerifyEma
 	return resp, nil
 }
 
-// checkEmailCode засчитывает попытку до сравнения (условным UPDATE: параллельный перебор
-// не обходит предел) и сравнивает код за постоянное время. Возвращает строку кода, если он
-// верный, иначе отказ.
+// checkEmailCode применяет суточный лимит проверок, засчитывает попытку до сравнения
+// (условным UPDATE: параллельный перебор не обходит предел) и сравнивает код за постоянное
+// время. Возвращает строку кода, если он верный, иначе отказ.
 func (s *Service) checkEmailCode(ctx context.Context, op string, userID uuid.UUID, code string) (store.EmailCode, error) {
+	allowed, err := limiter{now: s.now}.hit(ctx, s.pool, "email:verify:user:"+userID.String()+":day", emailVerifyDaily, day)
+	if err != nil {
+		s.log.ErrorContext(ctx, op+": счётчик лимита проверки", "err", err)
+		return store.EmailCode{}, internalError()
+	}
+	if !allowed {
+		return store.EmailCode{}, rpcError(connect.CodeResourceExhausted, "email_code_too_many", nil)
+	}
 	q := store.New(s.pool)
 	row, err := q.GetActiveEmailCode(ctx, store.GetActiveEmailCodeParams{UserID: userID, Now: ts(s.now())})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -305,13 +335,23 @@ func (s *Service) checkEmailCode(ctx context.Context, op string, userID uuid.UUI
 	}
 	attempts, err := q.CountEmailAttempt(ctx, store.CountEmailAttemptParams{ID: row.ID, MaxAttempts: emailMaxAttempts})
 	if errors.Is(err, pgx.ErrNoRows) {
+		// Попытка не засчитана: код погашен между чтением и счётом (новый запрос кода, смена
+		// адреса, параллельный верный ввод) — email_code_expired; иначе попытки исчерпаны.
+		consumed, cerr := q.EmailCodeConsumed(ctx, row.ID)
+		if cerr != nil {
+			s.log.ErrorContext(ctx, op+": состояние кода", "err", cerr)
+			return row, internalError()
+		}
+		if consumed {
+			return row, emailCodeExpired()
+		}
 		return row, emailAttemptsExhausted()
 	}
 	if err != nil {
 		s.log.ErrorContext(ctx, op+": засчитывание попытки", "err", err)
 		return row, internalError()
 	}
-	if !hmac.Equal(row.CodeHash, emailHash(s.cfg.OTPHMACKey, userID, row.Email, strings.TrimSpace(code))) {
+	if !hmac.Equal(row.CodeHash, emailHash(s.cfg.OTPHMACKey, userID, row.Email, code)) {
 		if left := emailMaxAttempts - int(attempts); left > 0 {
 			return row, rpcError(connect.CodeInvalidArgument, "email_code_wrong", map[string]string{"left": strconv.Itoa(left)})
 		}
