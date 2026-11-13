@@ -160,8 +160,19 @@ describe("экран диалога", () => {
     expect((await room(withdrawn.offerId)).html).toContain(t.room.closed.offerWithdrawn);
   });
 
-  it("вложения: фото сообщения — ссылка «Фото 1» на адрес файла; кнопка вложения в поле есть", async () => {
-    const thread = await makeOfferThread();
+  it("кнопка вложения: до оферты её нет и сказано почему, после оферты есть", async () => {
+    const before = await makeOfferThread();
+    h.user = before.client;
+    const early = (await room(before.offerId)).html;
+    expect(early).not.toContain(`aria-label="${ru.app.kit.chat.attach}"`);
+    expect(early).toContain(t.room.why);
+    const after = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+    h.user = after.client;
+    expect((await room(after.offerId)).html).toContain(`aria-label="${ru.app.kit.chat.attach}"`);
+  });
+
+  it("вложения: фото сообщения — ссылка «Фото 1» на адрес файла (после оферты)", async () => {
+    const thread = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
     h.user = thread.client;
     const message = await db.message.create({ data: { offerId: thread.offerId, senderId: thread.executor.id, body: "Образец" } });
     await db.storedFile.create({
@@ -170,7 +181,6 @@ describe("экран диалога", () => {
     const { html } = await room(thread.offerId);
     expect(html).toContain(`aria-label="${t.room.photo(1)}"`);
     expect(html).toMatch(/<a href="[^"]*\/api\/files\//);
-    expect(html).toContain(ru.app.kit.chat.attach);
   });
 
   it("чужой и несуществующий диалог — 404", async () => {
@@ -218,8 +228,23 @@ describe("действия диалога", () => {
     expect(await db.message.count({ where: { offerId: thread.offerId } })).toBe(0);
   });
 
-  it("сообщение с фото: файл прикрепляется, лента отдаёт адрес; фото без текста и чужой файл — ошибка без сообщения", async () => {
+  it("до оферты фото отвергается сервером: сообщения нет, файл не привязан", async () => {
     const thread = await makeOfferThread();
+    await signInAs(thread.client);
+    const file = await db.storedFile.create({
+      data: { storageKey: `message/test/early-${Date.now()}.jpg`, provider: "local", purpose: "MESSAGE", contentType: "image/jpeg", size: 1000, sha256: "8".repeat(64), uploadedById: thread.client.id },
+    });
+    expect(await sendMessageAction({ offerId: thread.offerId, text: "Вот стена", fileIds: [file.id] })).toMatchObject({
+      ok: false,
+      code: "CONFLICT",
+      error: ru.companies.chat.errors.attachmentsBeforeOffer,
+    });
+    expect(await db.message.count({ where: { offerId: thread.offerId } })).toBe(0);
+    expect((await db.storedFile.findUniqueOrThrow({ where: { id: file.id } })).messageId).toBeNull();
+  });
+
+  it("после оферты: сообщение с фото — файл прикрепляется, лента отдаёт адрес; фото без текста и чужой файл — ошибка без сообщения", async () => {
+    const thread = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
     await signInAs(thread.client);
     const file = (userId: string, tag: string) =>
       db.storedFile.create({

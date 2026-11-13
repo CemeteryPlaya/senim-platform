@@ -8,7 +8,6 @@ import { assertSafeDatabase } from "./safe-database";
 import { seedBuyerState } from "./offers";
 import { freshPhone, loginV2, open, passOnboarding } from "./support";
 
-const PHOTO = path.join(__dirname, "..", "public", "landing", "kitchen.jpg");
 
 /**
  * Чаты покупателя (/v2/chats, /v2/chats/<id>) глазами засеянного покупателя Айгерим: список → диалог → сообщение; маска
@@ -235,25 +234,15 @@ test("компьютер 1280×800: поле ввода видно без про
   expect(metrics.y).toBe(0);
 });
 
-test("фото к сообщению: кнопка вложения → загрузка → отправка с текстом → «Фото 1» с превью; после перезагрузки на месте", async ({ page }) => {
+test("до оферты кнопки вложения нет, а «Почему?» объясняет, что фото — после оферты", async ({ page }) => {
+  // У засеянного покупателя диалоги с перепиской — по предложениям (оферты нет): фото в чат здесь недоступны.
+  // Отправка фото после оферты — интеграционными тестами (companies/chat-attachments, v2/chats/chats.int).
   const href = await firstDialog(page);
   await open(page, href);
-  await page.getByRole("button", { name: kit.attach, exact: true }).click();
-  await page.locator('input[type="file"]').setInputFiles(PHOTO);
-  await expect(page.getByText(ru.app.kit.uploader.done)).toHaveCount(1, { timeout: 30_000 });
-  const marker = `Фото ${Date.now()}`;
-  await field(page).fill(marker);
-  await send(page).click();
-  const message = log(page).locator("article", { hasText: marker });
-  await expect(message).toHaveCount(1);
-  const link = message.getByRole("link", { name: t.room.photo(1) });
-  await expect(link).toBeVisible();
-  await expect.poll(() => link.locator("img").evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
-  // Панель вложений после отправки убрана.
+  await expect(page.getByRole("button", { name: kit.attach, exact: true })).toHaveCount(0);
   await expect(page.locator('input[type="file"]')).toHaveCount(0);
-
-  await open(page, href);
-  await expect(log(page).locator("article", { hasText: marker }).getByRole("link", { name: t.room.photo(1) })).toBeVisible();
+  await page.getByRole("button", { name: t.room.why }).click();
+  await expect(page.getByText(/фото в чат можно будет отправлять/)).toBeVisible();
 });
 
 test("опрос молчит на скрытой вкладке и возобновляется при возврате", async ({ page }) => {

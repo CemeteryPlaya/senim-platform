@@ -140,11 +140,11 @@ export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }
           {error}
         </Notice>
       )}
-      {attachOpen && <AttachPanel key={panelKey} max={maxAttachments} onChange={setAttached} />}
+      {attachOpen && !model.beforeOffer && <AttachPanel key={panelKey} max={maxAttachments} onChange={setAttached} />}
       <ChatComposer
         device={device}
         onSend={send}
-        onAttach={() => setAttachOpen(true)}
+        onAttach={model.beforeOffer ? undefined : () => setAttachOpen(true)}
         maxLength={maxLength}
         label={t.composerLabel}
         placeholder={t.composerPlaceholder}
