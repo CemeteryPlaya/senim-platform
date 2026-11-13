@@ -41,6 +41,7 @@ export type NowKind =
   | "review"
   | "deal-dispute"
   | "deal-waiting"
+  | "deal-unknown"
   | "offers"
   | "draft"
   | "request-waiting"
@@ -133,7 +134,11 @@ function pick({ deals, requests }: HomeInput): Picked {
   if (dispute) return { now: nowOf("deal-dispute"), primary: null, secondary: null, deal: dispute };
   const waiting = deals.find((d) => ACTIVE.has(d.status));
   if (waiting) {
-    return { now: nowOf("deal-waiting", { waitAction: waitOf(waiting.next?.action) }), primary: null, secondary: null, deal: waiting };
+    // «От вас ничего не требуется» — только при известном «чужом ходе»; не знаем (или действие не из известных) — открыть сделку.
+    if (waiting.next === null || waiting.next.mine) {
+      return { now: nowOf("deal-unknown"), primary: null, secondary: { href: dealHref(waiting.id) }, deal: waiting };
+    }
+    return { now: nowOf("deal-waiting", { waitAction: waitOf(waiting.next.action) }), primary: null, secondary: null, deal: waiting };
   }
   // (3) Заявка с предложениями.
   const offered = requests.find((r) => r.status === "OPEN" && r.offersCount > 0);
@@ -165,16 +170,22 @@ export function buyerHome(input: HomeInput): BuyerHomeView {
 
   const listed = requests.filter((r) => (LIVE_REQUEST.has(r.status) || r.status === "DRAFT") && r.id !== picked.now.request?.id).slice(0, 2);
 
-  const paid = deals.some((d) => d.paid);
-  const ordered = requests.some((r) => r.status !== "DRAFT" && r.status !== "CANCELLED") || deals.length > 0;
-  const chosen = deals.length > 0 || requests.some((r) => CHOSEN_REQUEST.has(r.status) || WITH_DEAL_REQUEST.has(r.status));
-  const firstSteps = paid
-    ? null
-    : {
-        order: { done: ordered, ...(ordered ? {} : { href: ORDER_HREF }) },
-        master: { done: chosen, ...(chosen || requests.length === 0 ? {} : { href: to("/requests") }) },
-        pay: { done: false, ...(deals[0] ? { href: dealHref(deals[0].id) } : {}) },
-      };
+  // Первые шаги считаем по идущим и завершённым сделкам: отменённая или возвращённая путь не продвигает.
+  const counted = deals.filter((d) => d.status !== "CANCELLED" && d.status !== "REFUNDED");
+  const paid = counted.some((d) => d.paid);
+  const ordered = requests.some((r) => LIVE_REQUEST.has(r.status) || WITH_DEAL_REQUEST.has(r.status)) || counted.length > 0;
+  const chosen = counted.length > 0 || requests.some((r) => CHOSEN_REQUEST.has(r.status) || WITH_DEAL_REQUEST.has(r.status));
+  const payDeal = running[0];
+  const steps = {
+    order: { done: ordered, href: ORDER_HREF } as FirstStepState,
+    master: { done: chosen, ...(requests.length > 0 ? { href: to("/requests") } : {}) } as FirstStepState,
+    pay: { done: false, ...(payDeal ? { href: dealHref(payDeal.id) } : {}) } as FirstStepState,
+  };
+  // Ссылка только у будущих шагов: текущий (первый невыполненный) — это и есть главное действие «Сейчас».
+  const current = (["order", "master", "pay"] as const).find((k) => !steps[k].done);
+  if (current) steps[current] = { done: false };
+  for (const k of ["order", "master", "pay"] as const) if (steps[k].done) steps[k] = { done: true };
+  const firstSteps = paid ? null : steps;
 
   return { now: picked.now, primary: picked.primary, secondary: picked.secondary, deal, moreDeals, requests: listed, firstSteps };
 }

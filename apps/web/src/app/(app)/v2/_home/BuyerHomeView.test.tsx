@@ -69,12 +69,15 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     expect(count(out, "data-primary-action")).toBe(1);
   });
 
-  it("первые шаги: профиль пройден, у нового человека три остальных; шаг «Заказать мебель» — ссылка, не главное действие", () => {
+  it("новый человек: «Сейчас» — первой карточкой, «Первые шаги» под ней; ссылок у шагов нет; формулировки не повторяются", () => {
     const out = render({ deals: [], requests: [] }, device);
     expect(out).toContain(ru.app.kit.firstSteps.left(3));
     for (const label of [t.steps.profile, t.steps.order, t.steps.master, t.steps.pay]) expect(out).toContain(label);
-    // Шаг — ссылка (внутри списка шагов), а не вторая главная кнопка.
-    expect(out).toMatch(/<li><a class="[^"]*" href="\/v2\/requests\/new"><span aria-hidden/);
+    expect(out.indexOf(t.now.order.title)).toBeLessThan(out.indexOf(ru.app.kit.firstSteps.left(3)));
+    // Текущий шаг — не ссылка: главное действие одно, у «Сейчас».
+    expect(out).not.toMatch(/<li><a [^>]*href="\/v2\/requests/);
+    expect(count(out, "data-primary-action")).toBe(1);
+    expect(t.now.order.title).not.toBe(t.steps.order);
   });
 
   it("после оплаты первых шагов нет", () => {
@@ -130,6 +133,30 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     );
     expect(out).not.toContain(ru.requests.requestTitle(17, "Прихожая"));
     expect(out).not.toContain(t.requests.section);
+  });
+
+  it("«что дальше» неизвестно: нет фразы «ничего не требуется», есть «Открыть сделку»", () => {
+    const out = render({ deals: [dealInput({ next: null })], requests: [] }, device, listItem());
+    expect(out).toContain(t.now.unknown.body);
+    expect(out).toContain(t.now.unknown.link);
+    expect(out).not.toContain(t.now.waiting.body);
+    expect(count(out, "data-primary-action")).toBe(0);
+  });
+
+  it("известный чужой ход: «От вас ничего не требуется»", () => {
+    expect(render({ deals: [dealInput()], requests: [] }, device, listItem())).toContain(t.now.waiting.body);
+  });
+
+  it("до подписи оферты ход называется «Оферта и оплата», номер шага прежний", () => {
+    const out = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "signContract", mine: true } })], requests: [] }, device, listItem({ status: "CREATED" }));
+    expect(out).toContain(t.deal.caption(1, 5, t.deal.offerStep));
+    const after = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, device, listItem({ status: "CREATED" }));
+    expect(after).toContain(t.deal.caption(1, 5, t.deal.steps[0]));
+  });
+
+  it("заявка CLOSED (сделка создана) в «Мои заявки» не показывается", () => {
+    const out = render({ deals: [dealInput()], requests: [request({ id: "z", number: 3, title: "Шкаф", status: "CLOSED" })] }, device, listItem());
+    expect(out).not.toContain(ru.requests.requestTitle(3, "Шкаф"));
   });
 
   it("несколько сделок: «Все сделки»; одна — без ссылки", () => {

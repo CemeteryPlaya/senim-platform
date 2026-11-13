@@ -62,7 +62,7 @@ const CASES: Case[] = [
   { name: "открытый спор — без главного действия", input: { deals: [deal({ status: "READY", paid: true, hasOpenDispute: true, action: "waitDispute" })], requests: [] }, now: "deal-dispute", primary: null },
   { name: "спор раньше обычного ожидания", input: { deals: [deal({ id: "a", status: "IN_PROGRESS", paid: true, action: "waitReady" }), deal({ id: "b", status: "READY", paid: true, hasOpenDispute: true, action: "waitDispute" })], requests: [] }, now: "deal-dispute", primary: null },
   { name: "моё действие важнее чужого спора", input: { deals: [deal({ id: "a", status: "READY", paid: true, hasOpenDispute: true, action: "waitDispute" }), deal({ id: "b", action: "pay", mine: true })], requests: [] }, now: "pay", primary: "pay", href: "/v2/deals/b" },
-  { name: "не удалось прочитать «что дальше» — идёт, без кнопки", input: { deals: [deal({ status: "IN_PROGRESS", paid: true })], requests: [] }, now: "deal-waiting", primary: null },
+  { name: "не удалось прочитать «что дальше» — открыть сделку, без кнопки", input: { deals: [deal({ status: "IN_PROGRESS", paid: true })], requests: [] }, now: "deal-unknown", primary: null, secondary: "/v2/deals/d1" },
   { name: "заявка с предложениями", input: { deals: [], requests: [request({ offersCount: 3 })] }, now: "offers", primary: "offers", href: "/v2/requests/r1" },
   { name: "предложения важнее черновика", input: { deals: [], requests: [request({ id: "d", status: "DRAFT" }), request({ id: "o", offersCount: 1 })] }, now: "offers", primary: "offers", href: "/v2/requests/o" },
   { name: "черновик", input: { deals: [], requests: [request({ id: "dr", status: "DRAFT" })] }, now: "draft", primary: "draft", href: "/v2/requests/new?draft=dr" },
@@ -70,6 +70,7 @@ const CASES: Case[] = [
   { name: "заявка без предложений — ждём, ссылка на заявку", input: { deals: [], requests: [request()] }, now: "request-waiting", primary: null, secondary: "/v2/requests/r1" },
   { name: "замер площадки — тоже ждём", input: { deals: [], requests: [request({ status: "PLATFORM_MEASURING" })] }, now: "request-waiting", primary: null, secondary: "/v2/requests/r1" },
   { name: "мастер выбран, сделки ещё нет", input: { deals: [], requests: [request({ status: "MEASURING", offersCount: 2 })] }, now: "request-chosen", primary: null, secondary: "/v2/requests/r1" },
+  { name: "заявка CLOSED (сделка создана) сама не «Сейчас»", input: { deals: [], requests: [request({ status: "CLOSED" })] }, now: "empty", primary: "order" },
   { name: "заявка с созданной сделкой (CONTRACTING) сама не «Сейчас»", input: { deals: [], requests: [request({ status: "CONTRACTING" })] }, now: "empty", primary: "order" },
 ];
 
@@ -168,31 +169,89 @@ describe("buyerHome: сделка и заявки ниже «Сейчас»", ()
 });
 
 describe("buyerHome: первые шаги", () => {
-  it("новый человек: профиль пройден, дальше «Заказать мебель» со ссылкой", () => {
-    const steps = buyerHome({ deals: [], requests: [] }).firstSteps;
-    expect(steps?.order).toEqual({ done: false, href: "/v2/requests/new" });
-    expect(steps?.master).toEqual({ done: false });
-    expect(steps?.pay).toEqual({ done: false });
+  it("новый человек: профиль пройден; первый невыполненный шаг — без ссылки (это главное действие «Сейчас»)", () => {
+    const view = buyerHome({ deals: [], requests: [] });
+    expect(view.firstSteps).toEqual({ order: { done: false }, master: { done: false }, pay: { done: false } });
+    expect(view.primary?.kind).toBe("order");
   });
 
-  it("с заявкой: заказ сделан, мастера ещё выбирать — ссылка на заявки", () => {
-    const steps = buyerHome({ deals: [], requests: [request()] }).firstSteps;
-    expect(steps?.order.done).toBe(true);
-    expect(steps?.master).toEqual({ done: false, href: "/v2/requests" });
+  it("с заявкой: заказ сделан, текущий шаг — выбор мастера, без ссылки", () => {
+    expect(buyerHome({ deals: [], requests: [request()] }).firstSteps).toEqual({ order: { done: true }, master: { done: false }, pay: { done: false } });
   });
 
   it("черновик — ещё не заказ", () => {
     expect(buyerHome({ deals: [], requests: [request({ status: "DRAFT" })] }).firstSteps?.order.done).toBe(false);
   });
 
-  it("со сделкой до оплаты: мастер выбран, оплата — ссылка на сделку", () => {
-    const steps = buyerHome({ deals: [deal({ action: "pay", mine: true })], requests: [] }).firstSteps;
-    expect(steps?.master.done).toBe(true);
-    expect(steps?.pay).toEqual({ done: false, href: "/v2/deals/d1" });
+  it("со сделкой до оплаты: заказ и мастер пройдены, текущий шаг — оплата", () => {
+    expect(buyerHome({ deals: [deal({ action: "pay", mine: true })], requests: [] }).firstSteps).toEqual({ order: { done: true }, master: { done: true }, pay: { done: false } });
   });
 
-  it("есть оплаченная сделка — первых шагов нет", () => {
+  it("единственная отменённая до оплаты сделка: шаги не выполнены, «Сейчас» — «Закажите мебель», без противоречия", () => {
+    const view = buyerHome({ deals: [deal({ status: "CANCELLED", action: "cancelled" })], requests: [] });
+    expect(view.firstSteps).toEqual({ order: { done: false }, master: { done: false }, pay: { done: false } });
+    expect(view.now.kind).toBe("empty");
+    expect(view.deal).toBeNull();
+  });
+
+  it("возвращённая сделка путь тоже не продвигает; первые шаги остаются", () => {
+    const view = buyerHome({ deals: [deal({ status: "REFUNDED", paid: true, action: "refunded" })], requests: [] });
+    expect(view.firstSteps?.order.done).toBe(false);
+    expect(view.now.kind).toBe("empty");
+  });
+
+  it("есть оплаченная идущая или завершённая сделка — первых шагов нет", () => {
     expect(buyerHome({ deals: [deal({ status: "IN_PROGRESS", paid: true, action: "waitReady" })], requests: [] }).firstSteps).toBeNull();
+    expect(buyerHome({ deals: [deal({ status: "SPLIT_PAYOUT", paid: true, action: "done" })], requests: [] }).firstSteps).toBeNull();
+  });
+});
+
+describe("buyerHome: дополнительные случаи", () => {
+  it("банк подтверждает оплату: ждём, без главного действия, подпись ожидания", () => {
+    const view = buyerHome({ deals: [deal({ action: "waitPaymentConfirmation" })], requests: [] });
+    expect(view.now).toMatchObject({ kind: "deal-waiting", waitAction: "waitPaymentConfirmation" });
+    expect(view.primary).toBeNull();
+  });
+
+  it("ждём подпись оферты мастером", () => {
+    const view = buyerHome({ deals: [deal({ action: "waitContractSignature" })], requests: [] });
+    expect(view.now).toMatchObject({ kind: "deal-waiting", waitAction: "waitContractSignature" });
+    expect(view.primary).toBeNull();
+  });
+
+  it("«что дальше» неизвестно: «Откройте сделку» со ссылкой на сделку, без главного действия", () => {
+    const view = buyerHome({ deals: [deal({ status: "IN_PROGRESS", paid: true })], requests: [] });
+    expect(view.now.kind).toBe("deal-unknown");
+    expect(view.primary).toBeNull();
+    expect(view.secondary?.href).toBe("/v2/deals/d1");
+  });
+
+  it("отменённая и возвращённая сделки не «идут»: карточки сделки нет", () => {
+    for (const status of ["CANCELLED", "REFUNDED"] as const) {
+      const view = buyerHome({ deals: [deal({ status, action: status === "CANCELLED" ? "cancelled" : "refunded" })], requests: [request({ offersCount: 1 })] });
+      expect(view.deal).toBeNull();
+      expect(view.now.kind).toBe("offers");
+    }
+  });
+
+  it("сделка и заявка с предложениями одновременно: «Сейчас» — сделка, заявка остаётся в списке", () => {
+    const view = buyerHome({ deals: [deal({ status: "IN_PROGRESS", paid: true, action: "waitReady" })], requests: [request({ id: "o", offersCount: 3 })] });
+    expect(view.now.kind).toBe("deal-waiting");
+    expect(view.requests.map((r) => r.id)).toEqual(["o"]);
+  });
+
+  it("сделка с моим действием важнее заявки с предложениями; главное действие одно", () => {
+    const view = buyerHome({ deals: [deal({ action: "pay", mine: true })], requests: [request({ offersCount: 3 })] });
+    expect(view.primary?.kind).toBe("pay");
+  });
+
+  it("больше пяти сделок: срочное действие по шестой находится", () => {
+    const quiet = Array.from({ length: 5 }, (_, i) => deal({ id: `q${i}`, status: "IN_PROGRESS", paid: true, action: "waitReady" }));
+    const view = buyerHome({ deals: [...quiet, deal({ id: "sixth", status: "READY", paid: true, action: "signAct", mine: true })], requests: [] });
+    expect(view.now.kind).toBe("accept");
+    expect(view.primary?.href).toBe("/v2/deals/sixth");
+    expect(view.deal?.id).toBe("sixth");
+    expect(view.moreDeals).toBe(5);
   });
 });
 

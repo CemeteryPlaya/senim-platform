@@ -54,11 +54,20 @@ function nowText(view: View): { title: string; body?: string; next?: string } {
       return { title: n.review.title, body: n.review.body };
     case "deal-dispute":
       return n.dispute;
+    case "deal-unknown":
+      return { title: n.unknown.title, body: n.unknown.body };
     case "deal-waiting": {
       const title = now.waitAction ? n.waiting[now.waitAction] : n.waiting.generic;
       return { title, body: n.waiting.body };
     }
   }
+}
+
+/** Подпись второстепенной ссылки под «Сейчас»: заявка или сделка. */
+function secondaryLabel(kind: View["now"]["kind"]): string {
+  if (kind === "request-chosen") return t.now.requestChosen.link;
+  if (kind === "deal-unknown") return t.now.unknown.link;
+  return t.now.requestWaiting.link;
 }
 
 const PRIMARY_LABEL: Record<PrimaryAction["kind"], string> = {
@@ -86,8 +95,14 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
       <Split
         main={
           <Stack gap="section">
-            {/* Первая группа: что сейчас и что делать. Главное действие компьютера — прямо под «Сейчас» (через 12 px). */}
+            {/* Первая группа: что сейчас, действие и путь целиком. Главное действие компьютера — прямо под «Сейчас» (через 12 px). */}
             <Stack>
+              <NowNext now={{ title: text.title, ...(text.body ? { body: text.body } : {}) }} {...(text.next ? { next: text.next } : {})} />
+              {/* Компьютер: действие сразу под «Сейчас». Телефон: в доке в конце экрана (ниже). */}
+              {device === "desktop" && action}
+              {view.secondary && (
+                <TextLink href={view.secondary.href}>{secondaryLabel(view.now.kind)}</TextLink>
+              )}
               {first && (
                 <FirstSteps
                   steps={[
@@ -97,12 +112,6 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
                     { label: t.steps.pay, ...first.pay },
                   ]}
                 />
-              )}
-              <NowNext now={{ title: text.title, ...(text.body ? { body: text.body } : {}) }} {...(text.next ? { next: text.next } : {})} />
-              {/* Компьютер: действие сразу под «Сейчас». Телефон: в доке в конце экрана (ниже). */}
-              {device === "desktop" && action}
-              {view.secondary && (
-                <TextLink href={view.secondary.href}>{view.now.kind === "request-chosen" ? t.now.requestChosen.link : t.now.requestWaiting.link}</TextLink>
               )}
             </Stack>
             {deal && <DealCard deal={deal} listed={view.deal} more={view.moreDeals} />}
@@ -132,7 +141,9 @@ function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDeal
   const money = homeDealMoney(deal.money, deal.estimate);
   const progress = dealProgress(deal.status, deal.hasOpenDispute);
   const tone = dealTone({ status: deal.status, hasOpenDispute: deal.hasOpenDispute, next: listed?.next ?? null });
-  const names = t.deal.steps;
+  // До подписи оферты текущий шаг называется шире, чем «Оплата»: сейчас подпись.
+  const signing = listed?.next?.action === "signContract" || listed?.next?.action === "waitContractSignature";
+  const names = signing ? [t.deal.offerStep, ...t.deal.steps.slice(1)] : t.deal.steps;
   return (
     <Section title={t.deal.section}>
       <Card
