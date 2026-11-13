@@ -169,7 +169,7 @@ export async function findAddressableExecutor(client: Db, publicNumber: number, 
   });
 }
 
-export async function getCatalogFacets():Promise<{ types: { slug: string; name: string }[] }> {
+export async function getCatalogFacets(): Promise<{ types: { slug: string; name: string }[] }> {
   const types = await db.furnitureType.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { slug: true, name: true } });
   return { types };
 }

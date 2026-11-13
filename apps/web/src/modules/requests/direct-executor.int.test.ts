@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import { db } from "@/platform/db";
 import { actingAs, makeClient, makeExecutor } from "../../../test/factories";
@@ -24,8 +25,9 @@ import {
 const code = (c: string) => expect.objectContaining({ code: c });
 
 /** Все экраны мастера; первый — с номером мастера (или работой). */
-async function fillDraft(client: CurrentUser, target: { executor?: number; like?: string }): Promise<string> {
-  const type = await makeFurnitureType();
+async function fillDraft(client: CurrentUser, target: { executor?: number; like?: string; typeId?: string }): Promise<string> {
+  // Тип работы — тот же, что у работы: фабрики типов companies и requests ведут свои счётчики и совпали бы по slug.
+  const type = target.typeId ? { id: target.typeId } : await makeFurnitureType();
   const steps: StepInput[] = [
     { screen: "start", furnitureTypeId: type.id, customType: null, style: "modern", advanced: null },
     segmentStep("COMFORT"),
@@ -77,8 +79,47 @@ describe("прямая заявка по номеру мастера", () => {
 
     const view = await executorTarget(target.executor.publicNumber, client);
 
-    expect(view).toEqual({ publicNumber: target.executor.publicNumber, segment: "PREMIUM" });
+    expect(view).toEqual({ publicNumber: target.executor.publicNumber, segment: "PREMIUM", label: ru.common.executorLabel(target.executor.publicNumber) });
     expect(JSON.stringify(view)).not.toContain("Секретный");
+  });
+
+  it("подпись мастера — та же, что у черновика и «Хочу похожее» (режим показа имени)", async () => {
+    const client = await makeClient();
+    const target = await makeExecutor();
+    const item = await makePortfolioItem(target);
+    const requestId = await fillDraft(client, { executor: target.executor.publicNumber, typeId: item.furnitureTypeId });
+
+    const label = (await executorTarget(target.executor.publicNumber, client)).label;
+    expect((await getDraft(client, requestId)).targetLabel).toBe(label);
+    expect((await likeTarget(item.id, client)).executor.label).toBe(label);
+  });
+
+  it.each(["executor", "like"] as const)(
+    "мастер заблокирован после создания черновика (%s) — отправка отказывает «не принимает заявки», уведомления нет",
+    async (by) => {
+      const client = await makeClient();
+      const target = await makeExecutor();
+      const item = await makePortfolioItem(target);
+      const requestId = await fillDraft(client, { typeId: item.furnitureTypeId, ...(by === "executor" ? { executor: target.executor.publicNumber } : { like: item.id }) });
+      await db.user.update({ where: { id: target.id }, data: { blockedAt: new Date() } });
+
+      await expect(publishRequest(client, { requestId })).rejects.toMatchObject({ code: "CONFLICT", message: ru.requests.errors.targetUnavailable });
+      expect((await db.request.findUniqueOrThrow({ where: { id: requestId } })).status).toBe("DRAFT");
+      expect(await db.notification.count({ where: { userId: target.id } })).toBe(0);
+    },
+  );
+
+  it("заблокированный мастер уровня не получает и общую заявку", async () => {
+    const client = await makeClient();
+    const active = await makeExecutor({ segment: "COMFORT" });
+    const blocked = await makeExecutor({ segment: "COMFORT" });
+    await db.user.update({ where: { id: blocked.id }, data: { blockedAt: new Date() } });
+    const requestId = await fillDraft(client, {});
+
+    await publishRequest(client, { requestId });
+
+    const notified = await db.notification.findMany({ where: { kind: "request.new" }, select: { userId: true } });
+    expect(notified.map((n) => n.userId)).toEqual([active.id]);
   });
 
   it("несуществующий номер, неподтверждённый и заблокированный мастер — не найдено; заявка не создаётся", async () => {
@@ -112,10 +153,10 @@ describe("прямая заявка по номеру мастера", () => {
     const target = await makeExecutor();
     const item = await makePortfolioItem(target);
 
-    await expect(fillDraft(client, { executor: target.executor.publicNumber, like: item.id })).rejects.toThrow(code("VALIDATION"));
+    await expect(fillDraft(client, { executor: target.executor.publicNumber, like: item.id, typeId: item.furnitureTypeId })).rejects.toThrow(code("VALIDATION"));
     expect(await db.request.count({ where: { clientId: client.id } })).toBe(0);
 
-    const tender = await fillDraft(client, {});
+    const tender = await fillDraft(client, { typeId: item.furnitureTypeId });
     await saveDraftStep(client, { requestId: tender, executor: target.executor.publicNumber, step: segmentStep("ECONOMY") });
     expect(await db.request.findUniqueOrThrow({ where: { id: tender } })).toMatchObject({ mode: "TENDER", targetExecutorId: null });
   });
@@ -126,7 +167,7 @@ describe("прямая заявка по номеру мастера", () => {
     const item = await makePortfolioItem(target);
 
     await expect(likeTarget(item.id, client)).resolves.toMatchObject({ id: item.id });
-    const requestId = await fillDraft(client, { like: item.id });
+    const requestId = await fillDraft(client, { like: item.id, typeId: item.furnitureTypeId });
 
     expect(await db.request.findUniqueOrThrow({ where: { id: requestId } })).toMatchObject({
       mode: "DIRECT",

@@ -309,13 +309,18 @@ export async function likeTarget(portfolioItemId: string, user: Pick<CurrentUser
 }
 
 /**
- * Мастер прямой заявки по публичному номеру глазами заказчика (профиль мастера → «Заказать мебель»): номер и уровень,
- * без имени. Нет такого мастера, он не подтверждён, заблокирован или это сам заказчик — NOT_FOUND (как у likeTarget).
+ * Мастер прямой заявки по публичному номеру глазами заказчика (профиль мастера → «Предложить заказ»): номер, уровень и
+ * подпись по режиму «имя скрыто / показано» (companies, №6) — та же, что у `likeTarget` и `getDraft().targetLabel`. Нет
+ * такого мастера, он не подтверждён, заблокирован или это сам заказчик — NOT_FOUND (как у likeTarget).
  */
-export async function executorTarget(publicNumber: number, user: Pick<CurrentUser, "id">): Promise<{ publicNumber: number; segment: Segment | null }> {
+export async function executorTarget(
+  publicNumber: number,
+  user: Pick<CurrentUser, "id">,
+): Promise<{ publicNumber: number; segment: Segment | null; label: string }> {
   const target = await findAddressableExecutor(db, publicNumber, user.id);
   if (!target) return fail.notFound(ru.companies.errors.executorNotFound);
-  return { publicNumber: target.publicNumber, segment: target.segment };
+  const { label } = await executorDisplayOf(db, target.id);
+  return { publicNumber: target.publicNumber, segment: target.segment, label };
 }
 
 /** «Мои заявки»: свои заявки с числом действующих откликов и обложкой — первым фото помещения. */

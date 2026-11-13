@@ -25,6 +25,7 @@ export {
   listExecutorReviews,
   listPublicPortfolio,
   type PortfolioForRequest,
+  VISIBLE_EXECUTOR,
 } from "./catalog";
 export { catalogHref, parseCatalogFilter, PRICE_BUCKETS, type CatalogFilter, type PriceBucket, type SearchParams } from "./catalog-filter";
 
