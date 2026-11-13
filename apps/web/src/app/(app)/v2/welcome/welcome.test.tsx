@@ -94,7 +94,7 @@ describe("экран знакомства", () => {
     <WelcomeForm defaultFullName={null} next={null} step={2} total={3} device="mobile" {...over} />
   );
 
-  it("один заголовок, одно главное действие, «Шаг N из M» по оставшемуся", () => {
+  it("один заголовок, одно главное действие, «Шаг 2 из 3» (место шага в постоянной последовательности)", () => {
     const out = html(render());
     expect(count(out, "<h1")).toBe(1);
     expect(h1(out)).toBe(t.title);

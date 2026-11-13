@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
-import { count, html, text } from "@/kit/test-utils";
+import { count, hasClass, html, text } from "@/kit/test-utils";
 import { consentTextSha256 } from "@/modules/identity";
 
 const h = vi.hoisted(() => ({
@@ -23,7 +23,7 @@ vi.mock("../../_shell/session-actions", () => ({ logout: vi.fn() }));
 vi.mock("./actions", () => ({ grantConsentAction: vi.fn() }));
 
 const { default: ConsentPage } = await import("./page");
-const { ConsentForm } = await import("./ConsentForm");
+const { ConsentForm, isScrolledToEnd, refreshOnConflict } = await import("./ConsentForm");
 
 const t = ru.app.onboarding.consent;
 const doc = CONSENT_DOCUMENTS.PD_PROCESSING;
@@ -167,8 +167,48 @@ describe("экран согласия", () => {
     expect(text(render())).not.toContain(ru.consent.screen.lead);
   });
 
-  it("область текста ограничена по высоте: на телефоне невысокая (отметка и кнопка на первом экране), на компьютере выше", () => {
-    expect(html(render())).toMatch(/role="region"[^>]*class="[^"]*max-h-48[^"]*desktop:max-h-80/);
+  it("область текста: до max-h-64 на телефоне и max-h-80 на компьютере, своя прокрутка", () => {
+    const region = /<div[^>]*role="region"[^>]*>/.exec(html(render()))?.[0] ?? "";
+    for (const cls of ["max-h-64", "overflow-y-auto", "desktop:max-h-80"]) expect(hasClass(region, cls), cls).toBe(true);
+  });
+
+  it("видно, что текст длиннее: обёртка с затуханием (scroll-fade, не дошли до конца) и подпись, которая держит место", () => {
+    const out = html(render());
+    expect(out).toMatch(/<div data-end="false" class="scroll-fade"/);
+    expect(text(render())).toContain(t.scrollHint);
+    // Подпись не пропадает из разметки (раскладка не прыгает) и для диктора не скрыта, пока текст не дочитан.
+    expect(out).toMatch(new RegExp(`<p aria-hidden="false"[^>]*>${t.scrollHint}</p>`));
+  });
+
+  it("isScrolledToEnd: до конца прокручено (с допуском 2 px) или текст помещается целиком", () => {
+    expect(isScrolledToEnd({ scrollTop: 0, clientHeight: 200, scrollHeight: 900 })).toBe(false);
+    expect(isScrolledToEnd({ scrollTop: 697, clientHeight: 200, scrollHeight: 900 })).toBe(false);
+    expect(isScrolledToEnd({ scrollTop: 698, clientHeight: 200, scrollHeight: 900 })).toBe(true);
+    expect(isScrolledToEnd({ scrollTop: 700, clientHeight: 200, scrollHeight: 900 })).toBe(true);
+    expect(isScrolledToEnd({ scrollTop: 0, clientHeight: 200, scrollHeight: 200 })).toBe(true);
+  });
+
+  it("«текст обновился» (CONFLICT): экран перечитывается; другие ответы — нет; ответ возвращается как есть", () => {
+    const refresh = vi.fn();
+    const conflict = { ok: false, code: "CONFLICT", error: ru.consent.errors.versionChanged } as const;
+    expect(refreshOnConflict(conflict, refresh)).toBe(conflict);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    for (const result of [
+      { ok: true, data: undefined },
+      { ok: false, code: "VALIDATION", error: "x" },
+      { ok: false, code: "UNAUTHENTICATED", error: "x" },
+    ] as const) {
+      expect(refreshOnConflict(result, refresh)).toBe(result);
+    }
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("форма пересоздаётся при новой редакции: отметка не переходит на текст, которого человек не видел", () => {
+    // key формы — версия редакции: React при её смене создаёт форму заново, и отметка сбрасывается (e2e — задача D3).
+    const a = html(render());
+    const b = html(<ConsentForm document={{ ...doc, version: "2099-01-01-t1" }} updated next={null} step={1} total={3} device="mobile" />);
+    expect(a).toContain(`name="version" value="${doc.version}"`);
+    expect(b).toContain('name="version" value="2099-01-01-t1"');
   });
 
   it("«текст обновился» — общей плашкой; нет отметки — у поля, без второй плашки", () => {

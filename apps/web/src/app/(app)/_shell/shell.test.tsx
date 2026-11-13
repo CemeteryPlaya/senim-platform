@@ -344,13 +344,19 @@ describe("сосредоточенная оболочка (первые шаги
   it("телефон: узкая шапка — название-ссылка на главную и «Выйти»; панели вкладок и подложки нет", () => {
     const m = html(<MobileShell nav={focusNav}>x</MobileShell>);
     expect(m).toContain("data-focus-bar");
-    expect(m).toMatch(new RegExp(`<a [^>]*href="/v2"[^>]*>${brand}</a>`));
+    // Название — текст, а не ссылка на главную: со шага уходить некуда.
+    expect(m).toContain(brand);
+    expect(m).not.toContain('href="/v2"');
     expect(m).toContain(ru.app.shell.logout);
+    // Отступ выреза — у шапки (safe-bar), main под ней верх не добавляет (safe-block только у обычной оболочки).
+    expect(hasClass(tagWith(m, "data-focus-bar"), "safe-bar")).toBe(true);
+    const main = tagWith(m, 'id="content"');
+    expect(hasClass(main, "safe-block")).toBe(false);
+    for (const cls of ["safe-gutter", "safe-bottom", "pt-6"]) expect(hasClass(main, cls), cls).toBe(true);
     expect(m).not.toContain("data-tab-bar");
     expect(m).not.toContain("data-bar-underlay");
     expect(m).not.toContain("data-has-tabs");
     expect(m).not.toMatch(/<nav/);
-    expect(count(m, "<a ")).toBeGreaterThanOrEqual(1);
     for (const href of ["/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"]) expect(m).not.toContain(`href="${href}"`);
   });
 
@@ -360,7 +366,8 @@ describe("сосредоточенная оболочка (первые шаги
         x
       </DesktopShell>,
     );
-    expect(d).toMatch(new RegExp(`<a [^>]*href="/v2"[^>]*>${brand}</a>`));
+    expect(d).toContain(brand);
+    expect(d).not.toContain('href="/v2"');
     const logoutClass = new RegExp(`<button[^>]*class="([^"]*)"[^>]*>(?:<span[^>]*>)?${ru.app.shell.logout}`).exec(d)?.[1] ?? "";
     expect(hasClass(`class="${logoutClass}"`, "bg-line")).toBe(true);
     expect(d).not.toMatch(/<nav/);
@@ -374,12 +381,15 @@ describe("сосредоточенная оболочка (первые шаги
     const g = html(<MobileShell nav={guestNav}>x</MobileShell>);
     expect(g).toContain("data-tab-bar");
     expect(g).not.toContain("data-focus-bar");
+    // Обычная оболочка: вырез учитывает main (safe-block), название — ссылка на главную.
+    expect(hasClass(tagWith(g, 'id="content"'), "safe-block")).toBe(true);
     const c = html(
       <DesktopShell nav={clientNav} user={client}>
         x
       </DesktopShell>,
     );
     expect(c).toMatch(/<nav/);
+    expect(c).toMatch(new RegExp(`<a [^>]*href="/v2"[^>]*>${brand}</a>`));
     expect(c).toContain(ru.app.shell.newRequest);
     expect(c).toContain(ru.app.shell.profileMenu);
     expect(c).not.toContain(ru.app.shell.logout);

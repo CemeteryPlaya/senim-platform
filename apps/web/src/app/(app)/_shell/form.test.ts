@@ -28,6 +28,27 @@ describe("outcomeOf: ответ действия → состояние форм
     });
   });
 
+  it("CONSENT_REQUIRED со знакомства: возврат — next знакомства, а не он сам (next в next не вкладывается)", () => {
+    const result: ActionResult<never> = { ok: false, code: "CONSENT_REQUIRED", error: "x" };
+    const next = "/v2/deals/1";
+    expect(outcomeOf(result, { pathname: "/v2/welcome", search: `?next=${encodeURIComponent(next)}` })).toEqual({
+      kind: "leave",
+      href: `/v2/consent?next=${encodeURIComponent(next)}`,
+    });
+    // Без next — без параметра; чужой next отбрасывается; то же с экрана почты.
+    expect(outcomeOf(result, { pathname: "/v2/welcome", search: "" })).toEqual({ kind: "leave", href: "/v2/consent" });
+    expect(outcomeOf(result, { pathname: "/v2/email", search: "?next=%2F%2Fevil.example" })).toEqual({ kind: "leave", href: "/v2/consent" });
+    expect(outcomeOf(result, { pathname: "/v2/email", search: `?next=${encodeURIComponent(next)}` })).toEqual({
+      kind: "leave",
+      href: `/v2/consent?next=${encodeURIComponent(next)}`,
+    });
+    const unauth: ActionResult<never> = { ok: false, code: "UNAUTHENTICATED", error: "x" };
+    expect(outcomeOf(unauth, { pathname: "/v2/welcome", search: `?next=${encodeURIComponent(next)}` })).toEqual({
+      kind: "leave",
+      href: `/v2/login?next=${encodeURIComponent(next)}`,
+    });
+  });
+
   it("адреса — под префиксом v2, а не v1", () => {
     const result: ActionResult<never> = { ok: false, code: "UNAUTHENTICATED", error: "x" };
     const out = outcomeOf(result, here);

@@ -393,6 +393,49 @@
 }
 
 /*
+ * Узкая шапка сосредоточенной оболочки телефона (первые шаги после входа; viewport-fit=cover): сверху 8px или ниже выреза
+ * и строки состояния, по бокам 16px или шире выреза. Справа поле на 16px меньше: у «Выйти» (size sm) свой внутренний отступ
+ * 16px, и её текст встаёт на правую линию содержимого (без отрицательных полей).
+ */
+@utility safe-bar {
+  padding-top: max(var(--spacing-stack-tight), env(safe-area-inset-top));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(0rem, calc(env(safe-area-inset-right) - 1rem));
+}
+
+/* Нижнее поле содержимого телефона — как у safe-block, без верхнего: верх под шапкой уже учтён ею (safe-bar). */
+@utility safe-bottom {
+  padding-bottom: max(var(--spacing-column-block), env(safe-area-inset-bottom));
+}
+
+/*
+ * Подсказка, что область прокручивается (текст согласия): у нижнего края — затухание к цвету карточки, пока прокрутка не
+ * дошла до конца (`data-end="true"` ставит клиент; без JavaScript затухание остаётся). Ставится на обёртку области
+ * внутри карточки (`bg-surface`). Только opacity; при prefers-reduced-transparency — линия вместо затухания.
+ */
+@utility scroll-fade {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 3rem;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, var(--role-surface));
+    transition: opacity 100ms;
+    @media (prefers-reduced-transparency: reduce) {
+      height: 0;
+      background: none;
+      border-top: 1px solid var(--role-line-strong);
+    }
+  }
+  &[data-end="true"]::after {
+    opacity: 0;
+  }
+}
+
+/*
  * Затемнение под шторкой и диалогом. При prefers-reduced-transparency — плотнее (непрозрачность 0,7), но не
  * сплошное: затемнение — не материал с размытием, страница под окном остаётся различимой как фон. Размытия
  * (backdrop-filter) у затемнения нет; у поверхностей его снимает утилита glass.

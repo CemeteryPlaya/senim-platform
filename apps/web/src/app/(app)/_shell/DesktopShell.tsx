@@ -38,9 +38,14 @@ export function DesktopShell({ nav, user, unavailable = false, children }: Deskt
       <SkipLink />
       <header data-top-bar className="glass sticky top-0 z-20 border-b border-line">
         <div className="mx-auto flex min-h-header w-full max-w-content flex-wrap items-center gap-x-6 px-6">
-          <Link href={to("/")} className="inline-flex min-h-control shrink-0 items-center text-card text-ink no-underline">
-            {ru.common.brand}
-          </Link>
+          {nav.focus ? (
+            // Первые шаги: название — текст, а не ссылка (со шага уходить некуда).
+            <span className="inline-flex min-h-control shrink-0 items-center text-card text-ink">{ru.common.brand}</span>
+          ) : (
+            <Link href={to("/")} className="inline-flex min-h-control shrink-0 items-center text-card text-ink no-underline">
+              {ru.common.brand}
+            </Link>
+          )}
           {nav.sections.length > 0 && <TopNav items={nav.sections} />}
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {nav.action && (

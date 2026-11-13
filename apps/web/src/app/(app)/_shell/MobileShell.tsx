@@ -1,9 +1,7 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { LogoutButton } from "./LogoutButton";
 import type { AppNav } from "./nav";
-import { to } from "./paths";
 import { MAIN_ID, SkipLink, UnavailableNotice } from "./ShellParts";
 import { TabBar } from "./TabBar";
 
@@ -28,15 +26,14 @@ export function MobileShell({ nav, unavailable = false, children }: MobileShellP
     <div data-has-tabs={nav.tabs.length > 0 ? "" : undefined} className="flex min-h-dvh flex-col">
       <SkipLink />
       {nav.focus && (
-        // Сосредоточенная оболочка (первые шаги): узкая шапка — название слева, «Выйти» справа; панели вкладок нет.
-        <header data-focus-bar className="mx-auto flex w-full max-w-column items-center justify-between safe-gutter pt-2">
-          <Link href={to("/")} className="inline-flex min-h-control items-center text-card text-ink no-underline">
-            {ru.common.brand}
-          </Link>
+        // Сосредоточенная оболочка (первые шаги): узкая шапка — название (не ссылка: со шага уходить некуда) слева, «Выйти»
+        // справа; отступы шапки учитывают вырез (safe-bar), поэтому main под ней верхний вырез второй раз не добавляет.
+        <header data-focus-bar className="mx-auto flex w-full max-w-column items-center justify-between safe-bar">
+          <span className="inline-flex min-h-control items-center text-card text-ink">{ru.common.brand}</span>
           <LogoutButton />
         </header>
       )}
-      <main id={MAIN_ID} tabIndex={-1} className="mx-auto w-full max-w-column flex-1 safe-gutter safe-block outline-none dock-column">
+      <main id={MAIN_ID} tabIndex={-1} className={`mx-auto w-full max-w-column flex-1 safe-gutter outline-none dock-column ${nav.focus ? "safe-bottom pt-6" : "safe-block"}`}>
         {unavailable && <UnavailableNotice />}
         {children}
       </main>

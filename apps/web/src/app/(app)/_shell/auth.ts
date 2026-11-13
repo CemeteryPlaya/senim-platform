@@ -13,7 +13,7 @@ import {
   switchRoleHref,
   type CurrentUser,
 } from "@/modules/identity";
-import { makePaths, safeLocalPath, to } from "./paths";
+import { makePaths, ONBOARDING_SCREENS, safeLocalPath, to } from "./paths";
 import { recallRole, type ChosenRole } from "./role-cookie";
 
 /** Пользователь в том объёме, что нужен барьерам и выбору дома (подмножество CurrentUser). */
@@ -101,9 +101,6 @@ export function nextStepFor(user: StepUser, next: string | null, chosen: ChosenR
 /** Путь адреса без строки запроса и якоря. */
 const pathOf = (href: string): string => new URL(href, SAME_ORIGIN).pathname;
 
-/** Экраны первых шагов (барьеры barrierFor): сами они возвращаться «на себя» через `next` не должны. */
-const STEP_SCREENS = ["/consent", "/welcome", "/email"].map((screen) => to(screen));
-
 /**
  * Куда вернуться после входа и шагов, если страница, которой нужен пользователь, — сама страница шага: её собственный
  * адрес не годится (после шага человек оказался бы на нём снова), берётся её `next`. Иначе адрес страницы как есть.
@@ -112,7 +109,7 @@ function backFrom(returnTo: string): string | null {
   const own = safeNext(returnTo);
   if (own === null) return null;
   const { pathname, searchParams } = new URL(own, SAME_ORIGIN);
-  return STEP_SCREENS.includes(pathname) ? safeNext(searchParams.get("next") ?? undefined) : own;
+  return ONBOARDING_SCREENS.includes(pathname) ? safeNext(searchParams.get("next") ?? undefined) : own;
 }
 
 /**

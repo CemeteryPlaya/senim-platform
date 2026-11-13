@@ -1,5 +1,5 @@
 import { isRedirectError } from "next/dist/client/components/redirect-error";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { testIin } from "@/demo/kz-id";
 import { ru } from "@/i18n/ru";
 import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
@@ -23,6 +23,20 @@ const OTHER_IIN = testIin("900101", 3, 62);
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
   setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+});
+
+/** Всё, что ушло в консоль (логгер пишет JSON-строки через console.log/warn/error) с включённым уровнем debug. */
+function captureLogs() {
+  process.env.LOG_LEVEL = "debug";
+  const lines: string[] = [];
+  const spies = (["log", "info", "warn", "error", "debug"] as const).map((m) =>
+    vi.spyOn(console, m).mockImplementation((...args: unknown[]) => void lines.push(args.map(String).join(" "))),
+  );
+  return { lines, stop: () => spies.forEach((s) => s.mockRestore()) };
+}
+
+afterEach(() => {
+  delete process.env.LOG_LEVEL;
 });
 
 async function run<T>(p: Promise<ActionResult<T>>): Promise<{ redirect: string } | ActionResult<T>> {
@@ -82,7 +96,7 @@ describe("introduceAction", () => {
     });
   });
 
-  it("ИИН уже у другого человека — общая ошибка, ИИН в тексте нет", async () => {
+  it("ИИН уже у другого человека — ошибка у поля ИИН, ИИН в тексте нет", async () => {
     const first = await atWelcome("+77000007905");
     await run(introduceAction({ fullName: "Сапаров Ерлан", iin: IIN, next: "" }));
     expect(identityFake.personOf(first.id)).toBeDefined();
@@ -90,14 +104,18 @@ describe("introduceAction", () => {
     freshBrowser({ "user-agent": "vitest" });
     await atWelcome("+77000007906");
     const res = await run(introduceAction({ fullName: "Другой Человек", iin: IIN, next: "" }));
-    expect(res).toMatchObject({ ok: false, code: "CONFLICT", error: ci.iinTaken });
+    expect(res).toMatchObject({ ok: false, code: "CONFLICT", error: ci.iinTaken, fieldErrors: { iin: [ci.iinTaken] } });
     expect(JSON.stringify(res)).not.toContain(IIN);
   });
 
   it("уже указанные не меняются: другой ИИН — CONFLICT, тот же — тот же ответ (повтор формы безопасен)", async () => {
     await atWelcome("+77000007907");
     await run(introduceAction({ fullName: "Сапаров Ерлан", iin: IIN, next: "" }));
-    expect(await run(introduceAction({ fullName: "Сапаров Ерлан", iin: OTHER_IIN, next: "" }))).toMatchObject({ ok: false, code: "CONFLICT" });
+    expect(await run(introduceAction({ fullName: "Сапаров Ерлан", iin: OTHER_IIN, next: "" }))).toMatchObject({
+      ok: false,
+      code: "CONFLICT",
+      fieldErrors: { iin: [expect.any(String)] },
+    });
     expect(await run(introduceAction({ fullName: "Сапаров Ерлан", iin: IIN, next: "" }))).toEqual({ redirect: "/v2/email" });
   });
 
@@ -108,5 +126,21 @@ describe("introduceAction", () => {
 
   it("гость — UNAUTHENTICATED", async () => {
     expect(await run(introduceAction({ fullName: "Сапаров Ерлан", iin: IIN, next: "" }))).toMatchObject({ ok: false, code: "UNAUTHENTICATED" });
+  });
+
+  it("ИИН не попадает в журнал ни при успехе, ни при ошибке (формат, конфликт, сбой identity)", async () => {
+    await atWelcome("+77000007909");
+    const logs = captureLogs();
+    try {
+      await run(introduceAction({ fullName: "Сапаров Ерлан", iin: "123", next: "" }));
+      await run(introduceAction({ fullName: "Сапаров Ерлан", iin: OTHER_IIN, next: "" }));
+      identityFake.failNextWithCode("some_unmapped_failure");
+      await run(introduceAction({ fullName: "Сапаров Ерлан", iin: OTHER_IIN, next: "" }));
+      await run(introduceAction({ fullName: "Сапаров Ерлан", iin: IIN, next: "" }));
+    } finally {
+      logs.stop();
+    }
+    const all = logs.lines.join("\n");
+    for (const secret of [IIN, OTHER_IIN, IIN.slice(0, 6), "Сапаров"]) expect(all, secret).not.toContain(secret);
   });
 });

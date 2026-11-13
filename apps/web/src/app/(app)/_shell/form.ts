@@ -5,7 +5,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import type { ActionResult } from "@/platform/action";
 import { logger } from "@/platform/logger";
-import { safeLocalPath, to } from "./paths";
+import { ONBOARDING_SCREENS, safeLocalPath, to } from "./paths";
 
 /** Где человек сейчас: путь и строка запроса (в браузере — `window.location`). */
 export type Here = { pathname: string; search: string };
@@ -20,7 +20,11 @@ export type Outcome<T> =
 function withNext(screen: string, here: Here): string {
   // Уже на этом экране (вход, согласие): возврат на самого себя дал бы петлю — next опускается.
   if (here.pathname === to(screen)) return to(screen);
-  const next = safeLocalPath(here.pathname + here.search);
+  // На экране первого шага (согласие, знакомство, почта) возврат — его собственный `next`: адрес самого шага вложил бы
+  // `next` в `next`, и после шагов человек вернулся бы на пройденный шаг.
+  const next = ONBOARDING_SCREENS.includes(here.pathname)
+    ? safeLocalPath(new URLSearchParams(here.search).get("next") ?? "/")
+    : safeLocalPath(here.pathname + here.search);
   return next === "/" ? to(screen) : `${to(screen)}?${new URLSearchParams({ next })}`;
 }
 

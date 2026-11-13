@@ -38,6 +38,9 @@ export function makePaths(base: string): { to: (path: string) => string; legacy:
 
 export const { to, legacy } = makePaths(BASE);
 
+/** Адреса экранов первых шагов после входа (согласие, знакомство, почта): с них `next` не вкладывается сам в себя. */
+export const ONBOARDING_SCREENS: readonly string[] = ["/consent", "/welcome", "/email"].map((screen) => to(screen));
+
 /**
  * Последняя страховка ссылки, собранной из чужого ввода (адрес запроса): только путь этого сайта, иначе "/".
  * Браузер читает `//host` и `/\host` как ссылку на другой сайт, а перед разбором срезает пробелы и управляющие

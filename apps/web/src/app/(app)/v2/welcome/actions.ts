@@ -5,6 +5,7 @@ import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { recordOwnIdentity, requireUser } from "@/modules/identity";
 import { action } from "@/platform/action";
+import { AppError } from "@/platform/errors";
 import { nextStepFor, safeNext } from "../../_shell/auth";
 import { recallRole } from "../../_shell/role-cookie";
 
@@ -26,6 +27,15 @@ const schema = z.strictObject({
 });
 
 /**
+ * Отказ identity «конфликт» (ИИН уже указан в другом аккаунте; ФИО и ИИН уже записаны и не меняются) — к полю ИИН: экран
+ * показывает его под полем. Остальные отказы (лимит попыток, недоступность) остаются общей ошибкой формы.
+ */
+function atIinField(e: unknown): unknown {
+  if (!(e instanceof AppError) || e.code !== "CONFLICT") return e;
+  return new AppError(e.code, e.message, { ...e.details, fieldErrors: { iin: [e.message] } });
+}
+
+/**
  * «Продолжить» на знакомстве (№26): ФИО и ИИН один раз. Вход — requireUser: без согласия — CONSENT_REQUIRED (форма уводит
  * на экран согласия), без сессии — UNAUTHENTICATED. Ключ идемпотентности создаёт модуль identity. Дальше — первый
  * непройденный шаг (почта), `next` или дом; пользователь прочитан до записи (кэш на время запроса), поэтому в нём
@@ -33,7 +43,9 @@ const schema = z.strictObject({
  */
 export const introduceAction = action("app.welcome.introduce", schema, async ({ fullName, iin, next }) => {
   const user = await requireUser("CLIENT", "EXECUTOR");
-  await recordOwnIdentity(user, { fullName, iin });
+  await recordOwnIdentity(user, { fullName, iin }).catch((e: unknown) => {
+    throw atIinField(e);
+  });
   const introduced = { ...user, fullName, iinLast4: iin.slice(-4) };
   redirect(nextStepFor(introduced, safeNext(next), await recallRole()));
 });

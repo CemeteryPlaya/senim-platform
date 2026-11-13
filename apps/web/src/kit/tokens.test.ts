@@ -139,6 +139,32 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(block).toMatch(/padding-bottom:\s*max\(var\(--spacing-column-block\),\s*env\(safe-area-inset-bottom\)\)\s*;/);
   });
 
+  it("шапка сосредоточенной оболочки: верх ниже выреза, справа поле на 16px меньше; safe-bottom — только низ", () => {
+    const utility = (name: string) => new RegExp(String.raw`@utility ${name}\s*\{([\s\S]*?)
+\}`).exec(css)?.[1] ?? "";
+    const bar = utility("safe-bar");
+    expect(bar).toMatch(/padding-top:\s*max\(var\(--spacing-stack-tight\),\s*env\(safe-area-inset-top\)\)\s*;/);
+    expect(bar).toMatch(/padding-left:\s*max\(1rem,\s*env\(safe-area-inset-left\)\)\s*;/);
+    expect(bar).toMatch(/padding-right:\s*max\(0rem,\s*calc\(env\(safe-area-inset-right\)\s*-\s*1rem\)\)\s*;/);
+    const bottom = utility("safe-bottom");
+    expect(bottom).toMatch(/padding-bottom:\s*max\(var\(--spacing-column-block\),\s*env\(safe-area-inset-bottom\)\)\s*;/);
+    expect(bottom).not.toContain("padding-top");
+    // Левое/правое поле main — по-прежнему safe-gutter, верх main под шапкой — не safe-block (вырез не учитывается дважды).
+    expect(utility("safe-block")).toContain("env(safe-area-inset-top)");
+  });
+
+  it("scroll-fade: затухание к цвету карточки у нижнего края, пропадает в конце прокрутки; при reduced-transparency — линия", () => {
+    const fade = /@utility scroll-fade\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(fade).toContain("linear-gradient(to bottom, transparent, var(--role-surface))");
+    expect(fade).toContain("pointer-events: none");
+    expect(fade).toMatch(/&\[data-end="true"\]::after\s*\{\s*opacity:\s*0;/);
+    const reduced = /@media \(prefers-reduced-transparency: reduce\) \{([\s\S]*?)\}/.exec(fade)?.[1] ?? "";
+    expect(reduced).toContain("background: none");
+    expect(reduced).toContain("border-top: 1px solid var(--role-line-strong)");
+    // Только роли-токены, без сырых цветов.
+    expect(fade).not.toMatch(/#[0-9a-f]{3,8}|rgb\(|hsl\(/i);
+  });
+
   it("варианты по устройству: desktop: и mobile: — по data-device на <html>, а не по ширине окна", () => {
     expect(css).toContain('@custom-variant desktop (&:where([data-device="desktop"], [data-device="desktop"] *));');
     expect(css).toContain('@custom-variant mobile (&:where([data-device="mobile"], [data-device="mobile"] *));');
