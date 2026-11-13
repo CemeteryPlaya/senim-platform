@@ -1,8 +1,10 @@
 import type { DealStatus, RequestStatus } from "@/generated/prisma/enums";
 import type { NextAction } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
-import { dealProgressView } from "@/features/deal-progress/deal-progress";
 import { to } from "../../_shell/paths";
+
+// Ход и тон плашки сделки — общие с экранами сделок (`../_parts/deal-summary`).
+export { dealProgress, dealTone, type DealProgress, type DealTone } from "../_parts/deal-summary";
 
 /**
  * Что показать покупателю на главной: чистая логика без React и без обращений к модулям. Страница читает данные
@@ -188,30 +190,6 @@ export function buyerHome(input: HomeInput): BuyerHomeView {
   const firstSteps = paid ? null : steps;
 
   return { now: picked.now, primary: picked.primary, secondary: picked.secondary, deal, moreDeals, requests: listed, firstSteps };
-}
-
-export type DealProgress =
-  | { kind: "steps"; /** Сколько шагов пройдено: номер текущего шага минус один; равен `total`, когда пройдены все. */ done: number; total: number }
-  | { kind: "stopped"; reason: "dispute" | "cancelled" | "refunded" };
-
-/** Ход сделки для компактной карточки: сколько шагов из пяти пройдено; спор, отмена и возврат — «остановлено». */
-export function dealProgress(status: DealStatus, hasOpenDispute: boolean): DealProgress {
-  const view = dealProgressView(status, hasOpenDispute);
-  if (view.kind === "banner") return { kind: "stopped", reason: view.tone };
-  if (view.muted) return { kind: "stopped", reason: "dispute" };
-  return { kind: "steps", done: view.current, total: ru.app.buyer.home.deal.steps.length };
-}
-
-export type DealTone = "accent" | "neutral" | "warn";
-
-/**
- * Тон плашки статуса сделки. Зелёный — только когда деньги уже в банке под защитой или работа идёт к концу (оплачено);
- * сделка, которая ждёт оплаты, — нейтральная; ждёт моего действия или спор — «внимание»; отмена и возврат — нейтральные.
- */
-export function dealTone(deal: Pick<HomeDealInput, "status" | "hasOpenDispute" | "next">): DealTone {
-  if (deal.hasOpenDispute || deal.next?.mine === true) return "warn";
-  if (deal.status === "CANCELLED" || deal.status === "REFUNDED" || deal.status === "CREATED") return "neutral";
-  return "accent";
 }
 
 /** Статус заявки словами покупателя (число предложений — внутри текста, не второй раз рядом). */

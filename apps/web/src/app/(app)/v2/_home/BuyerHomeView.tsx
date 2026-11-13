@@ -24,7 +24,8 @@ import { homeDealMoney } from "@/features/deal-money/home-deal-money";
 import type { DealListItem } from "@/modules/deal-core";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
-import { dealProgress, dealTone, requestStatusText, type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
+import { dealProgress, dealStatusText, dealTone, progressCaption, stoppedLabel } from "../_parts/deal-summary";
+import { requestStatusText, type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
 
 const t = ru.app.buyer.home;
 
@@ -141,9 +142,6 @@ function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDeal
   const money = homeDealMoney(deal.money, deal.estimate);
   const progress = dealProgress(deal.status, deal.hasOpenDispute);
   const tone = dealTone({ status: deal.status, hasOpenDispute: deal.hasOpenDispute, next: listed?.next ?? null });
-  // До подписи оферты текущий шаг называется шире, чем «Оплата»: сейчас подпись.
-  const signing = listed?.next?.action === "signContract" || listed?.next?.action === "waitContractSignature";
-  const names = signing ? [t.deal.offerStep, ...t.deal.steps.slice(1)] : t.deal.steps;
   return (
     <Section title={t.deal.section}>
       <Card
@@ -156,19 +154,16 @@ function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDeal
               {deal.title}
             </Link>
           </h3>
-          <StatusChip tone={tone}>{deal.hasOpenDispute ? ru.deal.disputeOpenBadge : ru.deal.status[deal.status]}</StatusChip>
+          <StatusChip tone={tone}>{dealStatusText(deal.status, deal.hasOpenDispute)}</StatusChip>
         </div>
         {progress.kind === "steps" ? (
           <div className="flex flex-col gap-2">
-            <p className="text-sub text-muted">
-              {progress.done >= progress.total
-                ? t.deal.allDone
-                : t.deal.caption(progress.done + 1, progress.total, names[progress.done] ?? "")}
-            </p>
+            {/* До подписи оферты текущий шаг называется шире, чем «Оплата»: сейчас подпись. */}
+            <p className="text-sub text-muted">{progressCaption(progress, listed?.next?.action ?? null)}</p>
             <Progress value={progress.done} max={progress.total} label={t.deal.progressLabel} />
           </div>
         ) : (
-          <Steps label={t.deal.progressLabel} items={[]} stopped={{ label: t.deal.stopped[progress.reason] }} />
+          <Steps label={t.deal.progressLabel} items={[]} stopped={{ label: stoppedLabel(progress.reason) }} />
         )}
         <p className="text-body text-ink">
           {money.amountTiyn !== null && (
