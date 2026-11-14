@@ -145,6 +145,7 @@
   --color-line: var(--role-line);
   --color-line-strong: var(--role-line-strong);
   --color-track: var(--role-track);
+  --color-bubble: var(--role-bubble);
   --color-action: var(--role-action);
   --color-on-action: var(--role-on-action);
   --color-accent: var(--role-accent);
@@ -172,6 +173,7 @@
   --role-line: #e5e5ea;
   --role-line-strong: #8a8a8e;
   --role-track: #e5e5ea; /* дорожка сегментов: белый выбранный сегмент (raised) на сером */
+  --role-bubble: #e5e5ea; /* своё сообщение в переписке: серое рядом с белым чужим (surface) */
   --role-action: #1d1d1f;
   --role-on-action: #ffffff;
   --role-accent: #0a7d54;
@@ -201,6 +203,7 @@
   --role-line: #38383a;
   --role-line-strong: #78787d;
   --role-track: #1c1c1e; /* выбранный сегмент (raised, #2c2c2e) светлее дорожки */
+  --role-bubble: #2c2c2e; /* как raised: track здесь равен surface, свои сообщения слились бы с чужими */
   --role-action: #f5f5f7;
   --role-on-action: #1d1d1f;
   --role-accent: #30b07a;
@@ -226,6 +229,7 @@
     --role-line: #38383a;
     --role-line-strong: #78787d;
     --role-track: #1c1c1e;
+    --role-bubble: #2c2c2e;
     --role-action: #f5f5f7;
     --role-on-action: #1d1d1f;
     --role-accent: #30b07a;
@@ -480,6 +484,34 @@
  */
 @utility chat-end {
   scroll-margin-bottom: calc(var(--tab-bar-block, 0px) + 6rem);
+}
+
+/*
+ * Шапка экрана, закреплённая у верхнего края телефона (экран переписки: «Назад», собеседник, «Почему?»): при прокрутке
+ * длинной ленты не уезжает. Материал — как у панелей (glass: плотность 85 %, размытие; при prefers-reduced-transparency
+ * сплошной): под ней прокручивается только содержимое страницы, других полупрозрачных панелей наверху нет, поэтому
+ * «полупрозрачное на полупрозрачном» не возникает. Выходит за поля содержимого до краёв экрана (как rail-bleed), а сверху —
+ * на верхнее поле колонки (safe-block): в покое шапка стоит там же, где стоял бы заголовок, а прилипшая закрывает и строку
+ * состояния (вырез). Снизу — тонкая линия, чтобы край материала читался над лентой. Только для `mobile:`.
+ */
+@utility sticky-head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin-top: calc(-1 * max(var(--spacing-column-block), env(safe-area-inset-top)));
+  margin-left: calc(-1 * max(var(--spacing-gutter), env(safe-area-inset-left)));
+  margin-right: calc(-1 * max(var(--spacing-gutter), env(safe-area-inset-right)));
+  padding-top: max(var(--spacing-column-block), env(safe-area-inset-top));
+  padding-left: max(var(--spacing-gutter), env(safe-area-inset-left));
+  padding-right: max(var(--spacing-gutter), env(safe-area-inset-right));
+  padding-bottom: var(--spacing-stack-group);
+  border-bottom: 1px solid var(--role-line);
+  background-color: color-mix(in srgb, var(--role-surface) var(--glass-opacity), transparent);
+  backdrop-filter: saturate(1.8) blur(1.25rem);
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: var(--role-surface);
+    backdrop-filter: none;
+  }
 }
 
 /*

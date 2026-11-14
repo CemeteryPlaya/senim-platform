@@ -56,10 +56,11 @@ export default async function ChatPage({ params }: Props) {
 
   const room = <ChatRoom key={offerId} offerId={offerId} initial={model} device={device} maxLength={CHAT_MAX_LENGTH} maxAttachments={CHAT_MAX_ATTACHMENTS} />;
   // Компьютер: колонка на высоту окна за вычетом шапки (screen-fill): заголовок не сжимается, лента — flex-1 со своей
-  // прокруткой, поле ввода последним. Телефон: обычный поток, прокручивается страница.
+  // прокруткой, поле ввода последним. Телефон: прокручивается страница, а шапка («Назад: Чаты», собеседник, «Почему?»)
+  // закреплена у верхнего края (sticky-head) — длинная переписка открывается внизу, и шапка не уезжает.
   return (
     <div className="flex min-w-0 flex-col gap-stack-section desktop:screen-fill">
-      <div className="desktop:shrink-0">
+      <div className="mobile:sticky-head desktop:shrink-0">
         <PageTitle title={view.counterpart} back={{ href: to("/chats"), label: t.back }} lead={lead} />
       </div>
       <div className="flex min-w-0 flex-col mobile:flex-1 desktop:min-h-0 desktop:max-w-narrow desktop:flex-1">{room}</div>

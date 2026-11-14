@@ -372,15 +372,16 @@ describe("Chat: разметка", () => {
     expect(html(<Chat messages={[]} />)).toContain(`aria-label="${ru.app.kit.chat.log}"`);
   });
 
-  it("свои сообщения справа на accent-soft, чужие слева на surface; тёмной подложки нет", () => {
+  it("свои сообщения справа на нейтральной bubble, чужие слева на surface; ни тёмной, ни зелёной подложки", () => {
     const out = html(<Chat messages={messages} />);
     const mine = out.slice(out.indexOf("Здравствуйте") - 400, out.indexOf("Здравствуйте"));
     const theirs = out.slice(out.indexOf("Добрый день") - 400, out.indexOf("Добрый день"));
-    expect(mine).toContain("bg-accent-soft");
+    expect(mine).toContain("bg-bubble");
     expect(mine).toContain("ml-auto");
     expect(theirs).toContain("bg-surface");
     expect(theirs).toContain("mr-auto");
     expect(out).not.toContain("bg-action");
+    expect(out).not.toMatch(/accent/);
   });
 
   it("системная строка — по центру вторичным текстом, не сообщение", () => {

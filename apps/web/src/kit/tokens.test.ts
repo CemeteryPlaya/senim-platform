@@ -124,6 +124,16 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(utility("dock-above-bar")).not.toMatch(/1\.5rem/);
   });
 
+  it("sticky-head: шапка прилипает к верху, материал панелей со сплошной заменой, верхнее поле колонки — тем же токеном, что safe-block", () => {
+    const body = /@utility sticky-head\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(body).toMatch(/position:\s*sticky/);
+    expect(body).toMatch(/top:\s*0/);
+    expect(body).toContain("margin-top: calc(-1 * max(var(--spacing-column-block), env(safe-area-inset-top)))");
+    expect(body).toContain("padding-top: max(var(--spacing-column-block), env(safe-area-inset-top))");
+    expect(body).toContain("var(--glass-opacity)");
+    expect(body).toMatch(/prefers-reduced-transparency: reduce\)\s*\{\s*background-color: var\(--role-surface\)/);
+  });
+
   it("безопасные зоны телефона: утилиты берут env(safe-area-inset-*), но не меньше обычного отступа", () => {
     const utility = (name: string) => new RegExp(String.raw`@utility ${name}\s*\{([\s\S]*?)\n\}`).exec(css)?.[1] ?? "";
     // Панель вкладок по бокам: 10 px или вырез в альбомной ориентации.

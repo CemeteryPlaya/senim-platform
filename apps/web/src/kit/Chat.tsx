@@ -20,7 +20,7 @@ export type ChatMessage = {
   text: string;
   /** Время готовой строкой («10:05»). */
   time: string;
-  /** Моё сообщение (справа на `accent-soft`); по умолчанию чужое (слева на `surface`). */
+  /** Моё сообщение (справа на нейтральной `bubble`); по умолчанию чужое (слева на `surface`). */
   mine?: boolean;
   /** `system` — служебная строка по центру вторичным текстом («Контакты скрыты до заключения оферты»). */
   kind?: "message" | "system";
@@ -53,8 +53,9 @@ export type ChatProps = {
 const NEAR_END = 24;
 
 /**
- * Лента переписки. Мои сообщения справа на `accent-soft`, чужие слева на `surface` (тёмным остаётся только главная
- * кнопка экрана); время под подложкой мелким вторичным текстом; фото — превью-ссылки (без превью — заглушка);
+ * Лента переписки. Мои сообщения справа на нейтральной `bubble` (серой), чужие слева на `surface`; зелёного в переписке
+ * нет (он — только для «под защитой», денег и статусов), тёмной остаётся только главная кнопка экрана; время под
+ * подложкой мелким вторичным текстом; фото — превью-ссылки (без превью — заглушка);
  * системная строка по центру. Лента — `role="log"` (`aria-live="polite"`).
  *
  * `relative` у ленты — контекст позиционирования для скрытого автора (`sr-only`, absolute): без него в ленте со своей
@@ -161,7 +162,7 @@ export function Chat({ messages, composer, label, pageScroll = false, fill = fal
             const mine = Boolean(message.mine);
             return (
               <article key={message.id} className={cn("flex max-w-4/5 flex-col gap-1", mine ? "ml-auto items-end" : "mr-auto items-start")}>
-                <div className={cn("flex min-w-0 flex-col gap-2 rounded-card px-4 py-3 text-body text-ink", mine ? "bg-accent-soft" : "bg-surface")}>
+                <div className={cn("flex min-w-0 flex-col gap-2 rounded-card px-4 py-3 text-body text-ink", mine ? "bg-bubble" : "bg-surface")}>
                   <span className="sr-only">{`${message.author ?? (mine ? t.mine : t.theirs)}: `}</span>
                   {message.text && <p className="wrap-break-word whitespace-pre-wrap">{message.text}</p>}
                   {message.attachments && message.attachments.length > 0 && (
@@ -179,7 +180,7 @@ export function Chat({ messages, composer, label, pageScroll = false, fill = fal
                     </ul>
                   )}
                 </div>
-                {/* Время вне подложки: muted на accent-soft в светлой теме ниже 4,5:1, на canvas — выше. */}
+                {/* Время вне подложки: на фоне страницы (canvas) muted даёт 4,5:1 и выше в обеих темах. */}
                 <span className="text-small text-muted">{message.time}</span>
               </article>
             );

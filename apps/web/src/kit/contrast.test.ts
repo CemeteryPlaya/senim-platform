@@ -34,7 +34,9 @@ const TEXT_PAIRS: [fg: ColorRole, bg: ColorRole][] = [
   ["accent", "surface"],
   ["accent", "canvas"],
   ["accent", "accent-soft"],
-  // Блок денег «под защитой» (MoneyPanel) и своё сообщение в переписке (Chat): текст ink на accent-soft.
+  // Переписка (Chat): своё сообщение — ink на bubble, чужое — ink на surface (пара выше).
+  ["ink", "bubble"],
+  // Блок денег «под защитой» (MoneyPanel): текст ink на accent-soft.
   // muted на accent-soft в светлой теме — 4,44:1 (ниже порога), поэтому вторичный текст на этой подложке не ставится.
   ["ink", "accent-soft"],
   ["danger", "surface"],
@@ -54,6 +56,15 @@ const UI_PAIRS: [fg: ColorRole, bg: ColorRole][] = [
 
 const THEMES = ["light", "dark"] as const;
 const cases = (pairs: [ColorRole, ColorRole][]) => THEMES.flatMap((theme) => pairs.map(([fg, bg]) => [theme, fg, bg] as const));
+
+describe("переписка: свои и чужие сообщения различимы в обеих темах", () => {
+  it.each(THEMES)("%s: подложка своего (bubble) не равна подложке чужого (surface) и фону страницы (canvas)", (theme) => {
+    const t = TOKENS[theme];
+    expect(t.bubble).not.toBe(t.surface);
+    expect(t.bubble).not.toBe(t.canvas);
+    expect(contrast(t.bubble, t.surface)).toBeGreaterThan(1.15);
+  });
+});
 
 describe("сегмент переключателя приподнят над дорожкой", () => {
   it.each(THEMES)("%s: выбранный сегмент (raised) светлее дорожки (track)", (theme) => {
