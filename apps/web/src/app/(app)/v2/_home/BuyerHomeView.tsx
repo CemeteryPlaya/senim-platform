@@ -20,12 +20,11 @@ import {
   Steps,
   TextLink,
 } from "@/kit";
-import { homeDealMoney } from "@/features/deal-money/home-deal-money";
 import type { DealListItem } from "@/modules/deal-core";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { HELP_ANCHORS } from "../help/anchors";
-import { dealProgress, dealStatusText, dealTone, progressCaption, stoppedLabel } from "../_parts/deal-summary";
+import { dealMoneyLine, dealProgress, dealStatusText, dealTone, progressCaption, stoppedLabel } from "../_parts/deal-summary";
 import { requestStatusText, type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
 
 const t = ru.app.buyer.home;
@@ -140,9 +139,9 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
  * «Шаг N из M: …» с полосой и строка денег из журнала. Полный ход — на экране сделки.
  */
 function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDealInput | null; more: number }) {
-  const money = homeDealMoney(deal.money, deal.estimate);
+  const money = dealMoneyLine(deal.money, deal.estimate);
   const progress = dealProgress(deal.status, deal.hasOpenDispute);
-  const tone = dealTone({ status: deal.status, hasOpenDispute: deal.hasOpenDispute, next: listed?.next ?? null });
+  const tone = dealTone({ status: deal.status, hasOpenDispute: deal.hasOpenDispute, next: listed?.next ?? null, payWaitsMaster: listed?.payWaitsMaster ?? false });
   return (
     <Section title={t.deal.section}>
       <Card

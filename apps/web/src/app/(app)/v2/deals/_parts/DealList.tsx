@@ -25,7 +25,7 @@ function DealCard({ card }: { card: DealCardView }) {
         </h2>
         <StatusChip tone={card.chip.tone}>{card.chip.text}</StatusChip>
       </div>
-      {card.progress.kind === "steps" ? (
+      {card.progress === null ? null : card.progress.kind === "steps" ? (
         <div className="flex flex-col gap-2">
           <p className="text-sub text-muted">{card.progress.caption}</p>
           <Progress value={card.progress.done} max={card.progress.total} label={home.progressLabel} />
@@ -41,7 +41,9 @@ function DealCard({ card }: { card: DealCardView }) {
         )}
         {card.money.label}
       </p>
-      {card.mine && <p className="text-body font-medium text-warn">{card.mine}</p>}
+      {card.marker && (
+        <p className={card.marker.tone === "mine" ? "text-body font-medium text-warn" : "text-body text-muted"}>{card.marker.text}</p>
+      )}
     </Card>
   );
 }

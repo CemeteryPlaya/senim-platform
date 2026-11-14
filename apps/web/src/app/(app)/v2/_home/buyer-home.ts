@@ -22,6 +22,8 @@ export type HomeDealInput = {
   paid: boolean;
   /** «Что дальше» из модуля; `null` — не удалось прочитать (сделка всё равно показывается). */
   next: { action: NextAction; mine: boolean } | null;
+  /** Шаг — оплата, но она закрыта до согласия мастера для банка (`payWaitsMaster`): это ожидание, а не моё действие. */
+  payWaitsMaster?: boolean;
 };
 
 /** Заявка покупателя; порядок — как отдал модуль (свежие первыми). */
@@ -100,7 +102,8 @@ export const WAIT_ACTIONS = [
   "waitPayout",
   "waitRefund",
 ] as const satisfies readonly NextAction[];
-export type WaitAction = (typeof WAIT_ACTIONS)[number];
+/** Ожидание другой стороны: шаги модуля и закрытая до согласия мастера оплата (`waitMasterBank`). */
+export type WaitAction = (typeof WAIT_ACTIONS)[number] | "waitMasterBank";
 const waitOf = (action: NextAction | undefined): WaitAction | null => WAIT_ACTIONS.find((w) => w === action) ?? null;
 
 /**
@@ -128,7 +131,7 @@ const nowOf = (kind: NowKind, rest: Partial<Now> = {}): Now => ({ kind, waitActi
 function pick({ deals, requests }: HomeInput): Picked {
   // (1) Моё действие по сделке: самая срочная, при равенстве — самая свежая.
   for (const rule of MINE) {
-    const deal = deals.find((d) => d.next?.mine === true && d.next.action === rule.action);
+    const deal = deals.find((d) => d.next?.mine === true && d.next.action === rule.action && !d.payWaitsMaster);
     if (deal) return { now: nowOf(rule.now), primary: { kind: rule.primary, href: dealHref(deal.id) }, secondary: null, deal };
   }
   // (2) Спор — раньше обычного ожидания; ожидание — у идущих сделок.
@@ -136,6 +139,7 @@ function pick({ deals, requests }: HomeInput): Picked {
   if (dispute) return { now: nowOf("deal-dispute"), primary: null, secondary: null, deal: dispute };
   const waiting = deals.find((d) => ACTIVE.has(d.status));
   if (waiting) {
+    if (waiting.payWaitsMaster) return { now: nowOf("deal-waiting", { waitAction: "waitMasterBank" }), primary: null, secondary: null, deal: waiting };
     // «От вас ничего не требуется» — только при известном «чужом ходе»; не знаем (или действие не из известных) — открыть сделку.
     if (waiting.next === null || waiting.next.mine) {
       return { now: nowOf("deal-unknown"), primary: null, secondary: { href: dealHref(waiting.id) }, deal: waiting };

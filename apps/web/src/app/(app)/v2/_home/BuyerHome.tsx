@@ -5,6 +5,7 @@ import { listMyRequests } from "@/modules/requests";
 import type { Device } from "@/platform/device";
 import { isEnabled } from "@/platform/features";
 import { logger } from "@/platform/logger";
+import { payWaitingMaster } from "../_parts/pay-waits";
 import { BuyerHomeView } from "./BuyerHomeView";
 import { buyerHome, firstName, type HomeDealInput, type HomeRequestInput } from "./buyer-home";
 
@@ -23,6 +24,7 @@ export async function BuyerHome({ user, device }: { user: CurrentUser; device: D
     logger.warn("home next steps failed", { error });
     return new Map<string, NextStep>();
   });
+  const waiting = await payWaitingMaster(user, nexts);
   const deals: HomeDealInput[] = mine.map((d) => ({
     id: d.id,
     title: d.title,
@@ -30,6 +32,7 @@ export async function BuyerHome({ user, device }: { user: CurrentUser; device: D
     hasOpenDispute: d.hasOpenDispute,
     paid: d.money.kind !== "awaiting",
     next: nexts.get(d.id) ?? null,
+    payWaitsMaster: waiting.has(d.id),
   }));
   const inputs: HomeRequestInput[] = requests.map((r) => ({ id: r.id, number: r.number, title: r.title, status: r.status, offersCount: r.offersCount }));
   const view = buyerHome({ deals, requests: inputs });

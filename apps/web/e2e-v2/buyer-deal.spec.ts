@@ -8,8 +8,9 @@ import { loginV2, open } from "./support";
 /**
  * Сделки покупателя (`/v2/deals`, `/v2/deals/[id]`) на засеянных людях — только чтение (отмена — интеграционным тестом,
  * пересев не включается): Айгерим (+7 700 000 01 01) — оферта не подписана, «Шкаф-купе» оплачен, «Кухня» в работе;
- * Данияр (+7 700 000 01 02) — «Детская» со спором; Мадина (+7 700 000 01 03) — «Стеллаж» ждёт оплаты; Арман
- * (+7 700 000 03 01) — завершённая и возвращённая.
+ * Данияр (+7 700 000 01 02) — «Детская» со спором; Мадина (+7 700 000 01 03) — «Стеллаж»: оферта подписана, а согласия
+ * мастера для банка в сиде нет (оплата закрыта); Арман (+7 700 000 03 01) — завершённая и возвращённая; Ерболат
+ * (+7 700 000 03 05) — «Кабинет», спор решён разделом.
  *
  * identity даёт на номер 5 кодов в час: каждый человек входит ОДИН раз (с компьютера; телефон берёт то же состояние);
  * состояние лежит во временной папке ОС (вне репозитория), общей с другими сценариями покупателя, и переиспользуется,
@@ -19,7 +20,13 @@ import { loginV2, open } from "./support";
 const t = ru.app.deal;
 const card = t.card;
 
-const PEOPLE = { aigerim: "+7 700 000 01 01", daniyar: "+7 700 000 01 02", madina: "+7 700 000 01 03", arman: "+7 700 000 03 01" } as const;
+const PEOPLE = {
+  aigerim: "+7 700 000 01 01",
+  daniyar: "+7 700 000 01 02",
+  madina: "+7 700 000 01 03",
+  arman: "+7 700 000 03 01",
+  erbolat: "+7 700 000 03 05",
+} as const;
 type Person = keyof typeof PEOPLE;
 
 const STATE_DIR = path.join(os.tmpdir(), "senim-e2e-v2-states");
@@ -80,15 +87,19 @@ test("список: группы «Идут» и «Завершены», кар�
   await expect(page.getByRole("link", { name: t.list.groups.active(3) })).toBeVisible();
   await expect(page.locator("main a[href^='/v2/deals/']")).toHaveCount(3);
   await expect(page.locator("main")).toContainText(t.list.mine.signContract);
-  await expect(page.locator("main")).toContainText(ru.common.home.client.inBank);
+  await expect(page.locator("main")).toContainText(t.line.inBank);
   await expect(page.locator("[data-primary-action]")).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText(FORBIDDEN);
+  await expect(page.locator("main a[href='/v2/help#money']")).toHaveCount(1);
+  await expect(page.locator("main a[href='/v2/help#not-fit']")).toHaveCount(1);
 
   const arman = await pageOf(browser, info, "arman");
   await open(arman, "/v2/deals");
-  // Идущих нет — сразу «Завершены»: завершённая и возвращённая.
+  // Идущих нет — сразу «Завершены»: завершённая и возвращённая; возврат — «вернулись вам», а не «покупателю».
   await expect(arman.getByRole("link", { name: t.list.groups.done(2) })).toHaveAttribute("aria-current", "true");
   await expect(arman.locator("main a[href^='/v2/deals/']")).toHaveCount(2);
+  await expect(arman.locator("main")).toContainText(t.line.refundDone);
+  await expect(arman.locator("main")).not.toContainText(/покупател/);
   await page.context().close();
   await arman.context().close();
 });
@@ -104,15 +115,17 @@ test("оферта не подписана: «Подписать оферту» 
   await page.context().close();
 });
 
-test("ждёт оплаты: «Оплатить N ₸» (или «ждём согласие мастера для банка» без кнопки); «Защита сделки (2%)» с пояснением", async ({ browser }, info) => {
+test("оплата закрыта до согласия мастера для банка: «Ждём согласие мастера» без кнопки, в списке — то же; «Защита сделки (2%)»", async ({ browser }, info) => {
   const page = await pageOf(browser, info, "madina");
+  // В сиде на шаге оплаты одна сделка — «Стеллаж», и согласия мастера у неё нет; кнопку «Оплатить N ₸» при согласиях
+  // обеих сторон проверяет интеграционный тест.
+  await open(page, "/v2/deals");
+  await expect(page.locator("main")).toContainText(t.list.waitMaster);
+  await expect(page.locator("main")).not.toContainText(t.list.mine.pay);
   await open(page, await dealHref(page, "Стеллаж"));
   await expectCard(page);
-  // Оплата открыта, только когда обе стороны отметили согласие на передачу данных банку (identity стенда); иначе экран
-  // говорит, чего ждём, и кнопки нет.
-  const waitMaster = page.getByRole("heading", { level: 2, name: card.now.payWaitMaster.title });
-  if (await waitMaster.isVisible()) await expect(page.locator("[data-primary-action]")).toHaveCount(0);
-  else await expect(page.locator("[data-primary-action]")).toHaveText(/^Оплатить \d/);
+  await expect(page.getByRole("heading", { level: 2, name: card.now.payWaitMaster.title })).toBeVisible();
+  await expect(page.locator("[data-primary-action]")).toHaveCount(0);
   await expect(page.locator("main")).toContainText("Защита сделки (2%)");
   await page.getByRole("button", { name: card.money.explain.label }).first().click();
   await expect(page.getByText(card.money.explain.body)).toBeVisible();
@@ -126,8 +139,23 @@ test("деньги под защитой и работа идёт: главно�
     await expectCard(page);
     await expect(page.locator("[data-primary-action]")).toHaveCount(0);
     await expect(page.locator("main")).toContainText(card.money.protected.title);
+    await expect(page.locator("main")).toContainText(/Зарезервировано \d/);
     await expect(page.locator("main a[href^='tel:']")).toHaveCount(1);
+    // История — словами покупателя, без служебных событий (у «Кухни» последние события — отчёты мастера).
+    await expect(page.locator("main")).toContainText(title === "Кухня" ? card.history.started : card.history.paid);
+    await expect(page.locator("main")).not.toContainText(/Сформирован документ|Банк провёл операцию|Событие по сделке/);
   }
+  await page.context().close();
+});
+
+test("спор решён разделом: «Спор решён: деньги разделены», шкала остановлена, «Вы оплатили»", async ({ browser }, info) => {
+  const page = await pageOf(browser, info, "erbolat");
+  await open(page, await dealHref(page, "Кабинет", "done"));
+  await expectCard(page);
+  await expect(page.getByRole("heading", { level: 2, name: card.now.disputeSplit.title })).toBeVisible();
+  await expect(page.locator("main")).toContainText(card.steps.disputeSplit);
+  await expect(page.locator("main")).toContainText(card.money.completed.title);
+  await expect(page.locator("main")).not.toContainText(ru.app.buyer.home.deal.allDone);
   await page.context().close();
 });
 

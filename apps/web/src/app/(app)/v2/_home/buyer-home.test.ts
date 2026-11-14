@@ -120,6 +120,16 @@ describe("buyerHome: сделка и заявки ниже «Сейчас»", ()
     expect(view.moreDeals).toBe(0);
   });
 
+  it("оплата закрыта до согласия мастера для банка: не «Оплатите», а ожидание без кнопки (то же правило, что в карточке)", () => {
+    const view = buyerHome({ deals: [deal({ id: "a", action: "pay", mine: true, payWaitsMaster: true })], requests: [] });
+    expect(view.now).toMatchObject({ kind: "deal-waiting", waitAction: "waitMasterBank" });
+    expect(view.primary).toBeNull();
+    expect(ru.app.buyer.home.now.waiting.waitMasterBank).toBe(ru.app.deal.list.waitMaster);
+    // Другая сделка ждёт моей оплаты по-настоящему — она и главная.
+    const two = buyerHome({ deals: [deal({ id: "a", action: "pay", mine: true, payWaitsMaster: true }), deal({ id: "b", action: "pay", mine: true })], requests: [] });
+    expect(two.primary).toEqual({ kind: "pay", href: "/v2/deals/b" });
+  });
+
   it("отзыв по завершённой сделке: карточка — она", () => {
     const view = buyerHome({ deals: [deal({ id: "a", status: "SPLIT_PAYOUT", paid: true, action: "leaveReview", mine: true })], requests: [] });
     expect(view.deal?.id).toBe("a");

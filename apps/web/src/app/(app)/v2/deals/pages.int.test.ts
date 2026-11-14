@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { formatMoney } from "@/kit";
 import { ru } from "@/i18n/ru";
-import { cancelDeal, openDispute, payForDeal, processDealMoney } from "@/modules/deal-core";
+import { cancelDeal, leaveReview, openDispute, payForDeal, processDealMoney, resolveDispute } from "@/modules/deal-core";
 import { db } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
 import { makeClient, makeExecutor, makeOperator } from "../../../../../test/factories";
@@ -94,15 +94,33 @@ describe("карточка сделки покупателя: «что сейч�
     expect(shown(out)).not.toMatch(FORBIDDEN);
   });
 
-  it("оплата ждёт подтверждения (ручной провайдер): «Ждём подтверждения оплаты», кнопки нет", async () => {
+  it("ручной провайдер после «Оплатить»: «Переведите 102 000 ₸ по реквизитам из оферты», ссылка на PDF оферты, кнопки нет", async () => {
     const client = await buyer();
     const f = await dealAt("SIGNED", { client, provider: "manual" });
     await payForDeal(client, { dealId: f.dealId });
+    const contract = await db.document.findFirstOrThrow({ where: { dealId: f.dealId, kind: "CONTRACT" } });
     await signInAs(client);
     const out = await card(f.dealId);
-    expect(h2s(out)).toContain(now.payPending.title);
+    expect(plain(out)).toContain(`Переведите ${money(102_000_00n)} по реквизитам из оферты`);
+    expect(plain(out)).toContain(now.payTransfer.next);
+    expect(out).toContain(`href="/api/documents/${contract.id}/pdf"`);
+    expect(plain(out)).toContain(t.card.money.transfer.title);
+    expect(plain(out)).not.toContain("не нужно");
     expect(primaries(out)).toEqual([]);
-    expect(plain(out)).toContain(t.card.money.pending.title);
+  });
+
+  it("оплата закрыта до согласия мастера для банка: карточка, список и главная говорят одно — ждём мастера, без оранжевого", async () => {
+    const client = await buyer();
+    const f = await dealAt("SIGNED", { client, bankConsents: ["CLIENT"] });
+    await signInAs(client);
+    const out = await card(f.dealId);
+    expect(h2s(out)).toContain(now.payWaitMaster.title);
+    expect(primaries(out)).toEqual([]);
+    expect(out).not.toContain("bg-warn-soft");
+    const listed = await list();
+    expect(plain(listed)).toContain(t.list.waitMaster);
+    expect(plain(listed)).not.toContain(t.list.mine.pay);
+    expect(listed).not.toContain("bg-warn-soft");
   });
 
   it("оплачено: деньги под защитой (единственный зелёный блок), кнопки нет; меню «Действия» есть", async () => {
@@ -114,6 +132,7 @@ describe("карточка сделки покупателя: «что сейч�
     expect(primaries(out)).toEqual([]);
     expect(plain(out)).toContain("Деньги в банке под защитой");
     expect(out).toContain("bg-accent-soft");
+    expect(plain(out)).toContain("Зарезервировано");
     expect(out).toContain(`aria-label="${t.card.actions.menu}"`);
     expect(shown(out)).not.toMatch(FORBIDDEN);
   });
@@ -189,17 +208,78 @@ describe("карточка сделки покупателя: «что сейч�
     process.env.FEATURE_REVIEWS = "true";
     resetEnvCache();
     expect(primaries(await card(f.dealId))).toEqual([{ href: `/v2/deals/${f.dealId}/review`, label: now.review.action }]);
+    expect(await card(f.dealId)).not.toContain(t.card.review.section);
+    // Отзыв оставлен: кнопки нет, на карточке — «Ваш отзыв» с оценкой и текстом.
+    await leaveReview(client, { dealId: f.dealId, rating: 5, text: "Всё сделали в срок" });
+    const reviewed = await card(f.dealId);
+    expect(primaries(reviewed)).toEqual([]);
+    expect(plain(reviewed)).toContain(t.card.review.section);
+    expect(plain(reviewed)).toContain(t.card.review.ratingValue(5));
+    expect(plain(reviewed)).toContain("Всё сделали в срок");
   });
 
-  it("история: свёрнута; «Показать всё» раскрывает", async () => {
+  it("спор решён разделом: «Спор решён: деньги разделены», шкала остановлена, «Вы оплатили» и «Возвращено вам»", async () => {
+    const client = await buyer();
+    const f = await dealAt("READY", { client });
+    const { disputeId } = await openDispute(client, { dealId: f.dealId, reason: "OTHER", description: "Сделана только часть работ" });
+    await resolveDispute(await makeOperator(), { disputeId, outcome: "PARTIAL_SPLIT", masterShareTiyn: "3333333", rationale: "Сделана треть работ" });
+    await processDealMoney(f.dealId);
+    await signInAs(client);
+    const out = await card(f.dealId);
+    expect(h2s(out)).toContain(now.disputeSplit.title);
+    expect(plain(out)).toContain(t.card.steps.disputeSplit);
+    expect(plain(out)).not.toContain(ru.app.buyer.home.deal.allDone);
+    expect(plain(out)).toContain(t.card.money.completed.title);
+    expect(plain(out)).toContain(t.card.money.refundedRow);
+    expect(plain(out)).toContain(money(102_000_00n));
+  });
+
+  it("спор решён полным возвратом: «Спор решён: деньги вернулись вам»", async () => {
+    const client = await buyer();
+    const f = await dealAt("IN_PROGRESS", { client });
+    const { disputeId } = await openDispute(client, { dealId: f.dealId, reason: "OTHER", description: "Мастер не выходит на связь" });
+    await resolveDispute(await makeOperator(), { disputeId, outcome: "FULL_REFUND", rationale: "Работы не выполнены" });
+    await processDealMoney(f.dealId);
+    await signInAs(client);
+    const out = await card(f.dealId);
+    expect(h2s(out)).toContain(now.disputeRefund.done);
+    expect(plain(out)).toContain(t.card.money.refunded.done);
+  });
+
+  it("спор решён «продолжить»: обычный ход сделки", async () => {
+    const client = await buyer();
+    const f = await dealAt("IN_PROGRESS", { client });
+    const { disputeId } = await openDispute(client, { dealId: f.dealId, reason: "OTHER", description: "Сомнения в сроках работ" });
+    await resolveDispute(await makeOperator(), { disputeId, outcome: "CONTINUE", rationale: "Работа идёт по договору" });
+    await signInAs(client);
+    const out = await card(f.dealId);
+    expect(h2s(out)).toContain(now.waitReady.title);
+    expect(plain(out)).not.toContain(t.card.steps.disputeSplit);
+  });
+
+  it("открытие карточки ничего не пишет: ни выписки, ни событий аудита", async () => {
+    const client = await buyer();
+    const f = await dealAt("PAID_HOLD", { client });
+    await signInAs(client);
+    const counts = async () => [await db.document.count({ where: { dealId: f.dealId } }), await db.auditEvent.count({ where: { scope: `deal:${f.dealId}` } })];
+    const before = await counts();
+    await card(f.dealId);
+    await card(f.dealId);
+    expect(await counts()).toEqual(before);
+  });
+
+  it("история: события словами покупателя, без служебных; «Показать всё» раскрывает", async () => {
     const client = await buyer();
     const f = await dealAt("READY", { client });
     await signInAs(client);
     const short = await card(f.dealId);
     const all = await card(f.dealId, { history: "all" });
     const items = (out: string) => (out.match(/<ol aria-label="События сделки"[\s\S]*?<\/ol>/)?.[0].match(/<li/g) ?? []).length;
-    expect(items(short)).toBeLessThanOrEqual(5);
+    expect(items(short)).toBeLessThanOrEqual(3);
     expect(items(all)).toBeGreaterThanOrEqual(items(short));
+    expect(plain(all)).toContain(t.card.history.paid);
+    expect(plain(all)).toContain(t.card.history.ready);
+    expect(plain(all)).not.toMatch(/Сформирован документ|Банк провёл операцию|Событие по сделке/);
   });
 });
 
@@ -250,6 +330,10 @@ describe("карточка сделки: доступ и роли", () => {
     const f = await dealAt("SIGNED", { executor: both });
     await signInAs(both, "CLIENT");
     expect(await outcome(() => card(f.dealId))).toContain("/switch-role?to=EXECUTOR");
+    // После переключения на роль мастера тот же адрес ведёт на экран сделки v1 (экрана мастера в v2 пока нет).
+    freshBrowser({ "user-agent": "vitest" });
+    await signInAs(both, "EXECUTOR");
+    expect(await outcome(() => card(f.dealId))).toContain(`;/deals/${f.dealId};`);
   });
 });
 
@@ -285,6 +369,8 @@ describe("список «Сделки»", () => {
 
     const done = await list({ group: "done" });
     expect(done).toContain(`href="/v2/deals/${cancelled.dealId}"`);
+    expect(out).toContain('href="/v2/help#money"');
+    expect(out).toContain('href="/v2/help#not-fit"');
     expect(done).not.toContain(`href="/v2/deals/${pay.dealId}"`);
   });
 
