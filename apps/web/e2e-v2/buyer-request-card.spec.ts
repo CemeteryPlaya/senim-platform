@@ -109,7 +109,7 @@ test("меню «Действия»: подтверждение отмены о�
   await page.getByText(t.actions.cancel, { exact: true }).first().click();
   const dialog = page.getByRole("dialog", { name: t.actions.cancelTitle });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText(t.actions.cancelBody(3));
+  await expect(dialog).toContainText(t.actions.cancelBody(3, false));
   // Первый фокус — на «Не отменять»; Enter закрывает окно, ничего не отменяя, и фокус возвращается на «Действия».
   await expect(dialog.getByRole("button", { name: t.actions.cancelKeep })).toBeFocused();
   await page.keyboard.press("Enter");
