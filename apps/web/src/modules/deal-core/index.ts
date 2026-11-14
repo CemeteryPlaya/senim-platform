@@ -18,6 +18,7 @@ export { signingFlags } from "./signing-flags";
 // Действия сторон
 export { addProgressReport, cancelDeal, leaveReview, payForDeal, startWork, submitReady, type CancelResult, type PayResult, type ReadyResult } from "./service";
 export { openDispute, submitDisputePosition } from "./dispute";
+export { disputePhotos } from "./dispute-photos";
 // Согласие сторон на передачу данных банку-партнёру (P3): отметка до подписи оферты и оплаты
 export { BANK_CONSENT_MISSING, bankConsentSchema, bankConsentState, giveBankConsent, type BankConsentState } from "./bank-consent";
 
