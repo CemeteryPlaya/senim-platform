@@ -157,6 +157,34 @@ describe("/v2/switch-role", () => {
     expect(await render({ to: "EXECUTOR" })).toEqual({ redirect: "/executor/requests" });
   });
 
+  it("без `to` (прямой адрес): покупатель с ролью мастера — «Вы сейчас — покупатель» и «Перейти в роль мастера»", async () => {
+    await both();
+    const { html } = await render({});
+    expect(html).toContain(t.now("покупатель"));
+    expect(html).toContain(t.action.EXECUTOR);
+    expect(html).toContain('name="role" value="EXECUTOR"');
+    expect(primaryCount(html!)).toBe(1);
+  });
+
+  it("без `to`: покупатель без роли мастера — кто он сейчас и «Стать мастером», не 404", async () => {
+    await signed(await makeClient());
+    const { html } = await render({});
+    expect(html).toContain(t.now("покупатель"));
+    expect(html).toContain(t.becomeMasterBody);
+    expect(html).toContain(t.becomeMaster);
+    expect(primaryCount(html!)).toBe(1);
+  });
+
+  it("без `to`: мастер с ролью покупателя — «Перейти к покупкам»; гость — вход с возвратом", async () => {
+    const user = await makeExecutor({ roles: ["CLIENT", "EXECUTOR"] });
+    await signed(user, "EXECUTOR");
+    const { html } = await render({});
+    expect(html).toContain(t.now("мастер"));
+    expect(html).toContain(t.action.CLIENT);
+    freshBrowser({ "user-agent": "vitest" });
+    expect(await render({})).toEqual({ redirect: `/v2/login?next=${encodeURIComponent("/v2/switch-role")}` });
+  });
+
   it("неизвестная роль — 404; гость — вход с возвратом на этот же экран", async () => {
     expect(await render({ to: "OPERATOR" })).toEqual({ notFound: true });
     expect(await render({ to: "EXECUTOR", returnTo: "/v2/deals/7" })).toEqual({

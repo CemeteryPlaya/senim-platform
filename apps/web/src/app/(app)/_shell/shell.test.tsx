@@ -376,7 +376,7 @@ describe("сосредоточенная оболочка (первые шаги
     for (const href of ["/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"]) expect(m).not.toContain(`href="${href}"`);
   });
 
-  it("компьютер: шапка с названием слева и «Выйти» справа вторичной кнопкой; ни разделов, ни «Новая заявка», ни колокольчика, ни аватара", () => {
+  it("компьютер: шапка с названием слева и «Выйти» справа вторичной кнопкой; ни разделов, ни «Заказать мебель», ни колокольчика, ни аватара", () => {
     const d = html(
       <DesktopShell nav={focusNav} user={client}>
         x
@@ -387,7 +387,7 @@ describe("сосредоточенная оболочка (первые шаги
     const logoutClass = new RegExp(`<button[^>]*class="([^"]*)"[^>]*>(?:<span[^>]*>)?${ru.app.shell.logout}`).exec(d)?.[1] ?? "";
     expect(hasClass(`class="${logoutClass}"`, "bg-line")).toBe(true);
     expect(d).not.toMatch(/<nav/);
-    expect(d).not.toContain(ru.app.shell.newRequest);
+    expect(d).not.toContain(ru.app.shell.order);
     expect(d).not.toContain(ru.app.shell.notifications);
     expect(d).not.toContain(ru.app.shell.profileMenu);
     expect(d).not.toContain("data-primary-action");
@@ -406,7 +406,7 @@ describe("сосредоточенная оболочка (первые шаги
     );
     expect(c).toMatch(/<nav/);
     expect(c).toMatch(new RegExp(`<a [^>]*href="/v2"[^>]*>${brand}</a>`));
-    expect(c).toContain(ru.app.shell.newRequest);
+    expect(c).toContain(ru.app.shell.order);
     expect(c).toContain(ru.app.shell.profileMenu);
     expect(c).not.toContain(ru.app.shell.logout);
   });

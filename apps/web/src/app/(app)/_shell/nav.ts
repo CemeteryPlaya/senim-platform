@@ -108,7 +108,7 @@ export function navFor(user: NavUser | null, f: NavFeatures, options: { focus?: 
     const flag = FLAGGED[item.href];
     return flag === undefined || f[flag];
   });
-  const action = user.role === "CLIENT" ? { href: to("/requests/new"), label: ru.app.shell.newRequest } : undefined;
+  const action = user.role === "CLIENT" ? { href: to("/requests/new"), label: ru.app.shell.order } : undefined;
   return action ? { tabs, sections: tabs, action, guest: false, focus: false } : { tabs, sections: tabs, guest: false, focus: false };
 }
 

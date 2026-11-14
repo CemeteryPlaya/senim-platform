@@ -49,12 +49,12 @@ describe("navFor: вкладки по ролям", () => {
     }
   });
 
-  it("покупатель: Главная · Заявки · Сделки · Чат · Профиль; в шапке те же разделы и «Новая заявка»", () => {
+  it("покупатель: Главная · Заявки · Сделки · Чат · Профиль; в шапке те же разделы и «Заказать мебель»", () => {
     const nav = navFor(client, OFF);
     expect(labels(nav)).toEqual(["Главная", "Заявки", "Сделки", "Чат", "Профиль"]);
     expect(hrefs(nav)).toEqual(["/v2", "/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"]);
     expect(nav.sections).toEqual(nav.tabs);
-    expect(nav.action).toEqual({ href: "/v2/requests/new", label: "Новая заявка" });
+    expect(nav.action).toEqual({ href: "/v2/requests/new", label: "Заказать мебель" });
     expect(nav.guest).toBe(false);
   });
 
