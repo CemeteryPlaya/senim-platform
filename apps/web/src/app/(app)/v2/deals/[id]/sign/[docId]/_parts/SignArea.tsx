@@ -237,7 +237,8 @@ function EcpStep({ documentId, kind, step, dealHref, device }: SignAreaProps) {
             {t.ecp.check}
           </Button>
         )}
-        {state.step === "awaiting" && (
+        {/* Выбрать другой способ — только когда способов больше одного (на телефоне способ один). */}
+        {state.step === "awaiting" && methods.length > 1 && (
           <Button variant="quiet" onClick={() => dispatch({ type: "reset" })}>
             {t.ecp.other}
           </Button>

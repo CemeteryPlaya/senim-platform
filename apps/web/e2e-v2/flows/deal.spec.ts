@@ -72,7 +72,9 @@ async function signInV2(page: Page, title: string, toast: string): Promise<void>
   await page.getByLabel(ru.app.kit.signature.nameLabel).fill("Сапарова Айгерим");
   await page.locator("[data-primary-action]").dblclick();
   await expect(page.locator("main")).toContainText(t.sign.stepOf(2, 2), { timeout: 30_000 });
-  await expect(page.getByRole("radio", { name: new RegExp(t.sign.ecp.methods.EGOV_QR.label) })).toBeChecked();
+  // Покупатель — на телефоне: способ ЭЦП один (eGov Mobile), выбора нет — строка о том, чем подписывать.
+  await expect(page.getByText(t.sign.ecp.phoneMethod)).toBeVisible();
+  await expect(page.getByRole("radio")).toHaveCount(0);
   await page.locator("[data-primary-action]").click();
   await expect(page.getByRole("img", { name: t.sign.ecp.qrAlt })).toBeVisible();
   await page.locator("[data-primary-action]").dblclick();
@@ -137,7 +139,7 @@ test("полная сделка покупателя в v2: оферта → о�
   // Повторно на экран оплаты не попасть: он уводит на карточку («ждём подтверждения»).
   await open(buyer, `${dealPath}/pay`);
   await expect(buyer).toHaveURL(new RegExp(`${dealPath}$`));
-  await expect(buyer.locator("[data-primary-action]")).not.toHaveText(/^Оплатить/);
+  await expect(buyer.locator("[data-primary-action]").filter({ hasText: /^Оплатить/ })).toHaveCount(0);
 
   // ── 4. Оператор в v1 (manual): деньги поступили в банк ──
   if ((await facts(dealId)).holdPending) {
@@ -164,7 +166,7 @@ test("полная сделка покупателя в v2: оферта → о�
 
   // ── 7. Оператор (manual): раскрытие и обе выплаты → сделка завершена ──
   await open(buyer, dealPath);
-  await expect(buyer.locator("[data-primary-action]")).not.toHaveText(now.accept.action);
+  await expect(buyer.locator("[data-primary-action]").filter({ hasText: now.accept.action })).toHaveCount(0);
   if (!(await nowHeading(buyer, [now.done.title, now.review.title]).isVisible())) {
     await confirmOperation(operator, { type: "Распоряжение о раскрытии", deal: dealNumber, confirm: "Распоряжение о раскрытии передано в банк", docNumber: "E2E-V2-REL" });
     await confirmOperation(operator, { type: "Выплата мастеру", deal: dealNumber, confirm: "Выплачено мастеру", docNumber: "E2E-V2-PAY" });
