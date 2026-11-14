@@ -46,6 +46,16 @@ describe("входящие мастера: фильтры в адресе", () =
     ]);
   });
 
+  it("выбранного чипа нет (прямых заявок нет, тип один) — «Все», а не пустой список без активного чипа", () => {
+    const plain = [row({ id: "a" }), row({ id: "b" })];
+    for (const search of [{ f: "direct" }, { type: "Кухня" }]) {
+      const view = incomingListView(plain, search, NOW);
+      expect(view.cards.map((c) => c.id)).toEqual(["a", "b"]);
+      expect(view.key).toBe("all");
+      expect(view.chips.filter((c) => c.active).map((c) => c.href)).toEqual(["/v2/executor/requests"]);
+    }
+  });
+
   it("пусто: нет заявок совсем, пустой раздел", () => {
     expect(incomingListView([], {}, NOW)).toMatchObject({ empty: "none", chips: [] });
     expect(incomingListView([row({ myOfferStatus: "SENT" })], { f: "new" }, NOW).empty).toBe("filter");

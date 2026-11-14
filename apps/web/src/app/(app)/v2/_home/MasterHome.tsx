@@ -52,7 +52,7 @@ async function docsOf(user: CurrentUser): Promise<MasterDocsInput | null> {
  * более срочного (они идут через identity). Нет одобрения — экран статуса.
  */
 export async function MasterHome({ user, status, device }: { user: CurrentUser; status: MasterStatus; device: Device }) {
-  const read = await readForMaster(status, async () => {
+  const read = await readForMaster(user, status, async () => {
     const [incoming, allDeals, finance, counters] = await Promise.all([listIncomingRequests(user), listDeals(user), getExecutorFinance(user), countersOf(user)]);
     return { incoming, allDeals, finance, counters };
   });

@@ -66,7 +66,7 @@ export default async function MyOffersPage({ searchParams }: Props) {
   const params = await searchParams;
   const { user, status } = await requireMaster(pageHref("/executor/offers", params));
   const device = await getDevice();
-  const read = await readForMaster(status, () => listMyOffers(user));
+  const read = await readForMaster(user, status, () => listMyOffers(user));
   if ("gate" in read) return <MasterGate status={read.gate} title={t.title} device={device} />;
 
   const view = offersView(read.data, typeof params.show === "string" ? params.show : undefined);

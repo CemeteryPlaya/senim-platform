@@ -60,7 +60,10 @@ describe("«Заявки» мастера", () => {
       expect(primaries(all)).toBe(0);
       expect((all.match(/<h1/g) ?? []).length).toBe(1);
     }
-    expect(await render(IncomingPage, { f: "direct" })).toContain(m.incoming.emptyFilter.title);
+    // Прямых нет — чипа нет, адрес читается как «Все»: заявка на месте, активен «Все».
+    const direct = await render(IncomingPage, { f: "direct" });
+    expect(direct).toContain(m.incoming.card.fresh);
+    expect(direct).not.toContain(m.incoming.emptyFilter.title);
   });
 
   it("неодобренный мастер — экран статуса вместо ошибки", async () => {

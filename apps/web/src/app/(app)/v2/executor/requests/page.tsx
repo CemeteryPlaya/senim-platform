@@ -45,7 +45,7 @@ export default async function IncomingPage({ searchParams }: Props) {
   const params = await searchParams;
   const { user, status } = await requireMaster(pageHref("/executor/requests", params));
   const device = await getDevice();
-  const read = await readForMaster(status, () => listIncomingRequests(user));
+  const read = await readForMaster(user, status, () => listIncomingRequests(user));
   if ("gate" in read) return <MasterGate status={read.gate} title={t.title} device={device} />;
 
   const view = incomingListView(read.data, { f: one(params.f), type: one(params.type) });

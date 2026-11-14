@@ -66,9 +66,12 @@ export function incomingCard(r: IncomingRow, now: Date = new Date()): IncomingCa
  * каждый с числом; выбранный берётся из адреса (`?f=new|direct`, `?type=`), неизвестное значение — «Все».
  */
 export function incomingListView(list: readonly IncomingListItem[], search: IncomingSearch, now: Date = new Date()): IncomingListView {
-  const current = selectedIncoming(search, list);
-  if (list.length === 0) return { key: current.key, chips: [], cards: [], empty: "none" };
   const counts = incomingCounts(list);
+  const picked = selectedIncoming(search, list);
+  // Чип выбранного раздела может не рисоваться (прямых заявок нет, тип один): тогда адрес читается как «Все», а не пустой список без активного чипа.
+  const hidden = (picked.key === "direct" && counts.direct === 0) || (picked.key.startsWith("type:") && counts.byType.length <= 1);
+  const current = hidden ? selectedIncoming({}, list) : picked;
+  if (list.length === 0) return { key: current.key, chips: [], cards: [], empty: "none" };
   const chip = (key: string, label: string, n: number, href: string): ChipItem => ({ href, label: t.chip(label, n), active: current.key === key });
   const chips: ChipItem[] = [
     chip("all", t.chips.all, counts.all, BASE),
