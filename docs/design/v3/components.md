@@ -549,7 +549,7 @@ const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeActio
 
 | Проп | Тип | Смысл |
 |---|---|---|
-| `items` | `{ id; name; previewUrl?; kind?: "image" \| "document"; state: "uploading" \| "done" \| "error"; progress?: number; error?: string }[]` | Файлы; `progress` — проценты 0–100; `kind: "document"` (PDF) — вместо превью значок документа и имя файла (в строке ошибки — тоже), по умолчанию фото |
+| `items` | `{ id; name; previewUrl?; kind?: "image" \| "document"; state: "uploading" \| "done" \| "error"; progress?: number; error?: string }[]` | Файлы; `progress` — проценты 0–100; `kind: "document"` (PDF) — вместо превью значок документа и имя файла в одну строку с многоточием, полное имя — в `title` (в строке ошибки имя показано целиком), по умолчанию фото |
 | `onAdd` | `(files: File[]) => void` | Выбраны файлы: уже отфильтрованы по `accept` и обрезаны до свободных мест |
 | `onRemove` | `(id: string) => void` | «Убрать» |
 | `onRetry` | `(id: string) => void`? | «Повторить» у файла с ошибкой; без него кнопки нет |

@@ -53,7 +53,12 @@ function Preview({ item, className, showName = true }: { item: UploaderItem; cla
     return (
       <div className={cn("flex flex-col items-center justify-center gap-1 overflow-hidden rounded-field bg-line p-2 text-muted", className)}>
         <FileText aria-hidden className="size-6 shrink-0" />
-        {showName && <span className="line-clamp-2 w-full text-center text-small wrap-break-word text-ink">{item.name}</span>}
+        {/* Длинное имя без пробелов не рвём посреди слова: одна строка с многоточием; полное имя — в title и в тексте для диктора. */}
+        {showName && (
+          <span title={item.name} className="block w-full min-w-0 truncate text-center text-small text-ink">
+            {item.name}
+          </span>
+        )}
       </div>
     );
   }

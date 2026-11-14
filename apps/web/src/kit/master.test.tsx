@@ -137,4 +137,11 @@ describe("Uploader: камера и PDF", () => {
     expect(count(out, "<img")).toBe(1);
     expect(out).toContain(`aria-label="Убрать: Устав.pdf"`);
   });
+
+  it("длинное имя документа не рвётся посреди слова: одна строка с многоточием, полное имя — в title", () => {
+    const name = "registraciya-ip-2026-skan-so-vsemi-pechatyami.pdf";
+    const out = html(<Uploader items={[{ id: "1", name, state: "done", kind: "document" }]} onAdd={noop} onRemove={noop} max={4} accept="application/pdf" />);
+    expect(out).toContain(`title="${name}"`);
+    expect(out).toMatch(/<span title="[^"]*" class="[^"]*truncate/);
+  });
 });
