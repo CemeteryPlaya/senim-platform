@@ -134,14 +134,15 @@ test("оплата: смета, «Защита сделки (2%)» с поясн
   await expect(page.locator("main")).toContainText(pay.money.total);
   await expect(page.getByRole("heading", { level: 2, name: pay.where.section })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: pay.consent.section })).toBeVisible();
-  // Оплата открыта, только когда обе стороны дали согласие банку (identity стенда); иначе экран говорит, чего ждём.
-  const waiting = page.getByRole("heading", { level: 2, name: pay.waitMaster.title });
-  if (await waiting.isVisible()) await expect(page.locator("[data-primary-action]")).toHaveCount(0);
-  else await expect(page.locator("[data-primary-action]")).toHaveText(/^Оплатить \d/);
-  // Своё согласие не дано — текст в области с прокруткой и отметка; дано — «Согласие дано».
-  const region = page.getByRole("region", { name: pay.consent.textLabel });
-  if (await region.isVisible()) await expect(page.getByRole("checkbox", { name: pay.consent.agree })).toBeVisible();
-  else await expect(page.getByText(pay.consent.given, { exact: true })).toBeVisible();
+  // Сид «Стеллажа»: мастер согласие банку не дал, Мадина — тоже. Экран говорит, чего ждём, ведёт в переписку с мастером;
+  // главное действие — своё согласие заранее (текст в области с прокруткой, отметка); оплаты нет.
+  await expect(page.getByRole("heading", { level: 2, name: pay.waitMaster.title }), RESEED).toBeVisible();
+  await expect(page.getByRole("link", { name: pay.waitMaster.chat })).toHaveAttribute("href", /^\/v2\/chats\/[^/]+$/);
+  await expect(page.getByRole("region", { name: pay.consent.textLabel })).toBeVisible();
+  await expect(page.getByText(ru.app.onboarding.consent.edition(ru.consent.documents.BANK_TRANSFER.version))).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: pay.consent.agree })).not.toBeChecked();
+  await expect(page.locator("[data-primary-action]")).toHaveText(pay.consent.giveAhead);
+  await expect(page.locator("main")).not.toContainText(/Оплатить/);
   await page.getByRole("button", { name: pay.money.explain.label }).first().click();
   await expect(page.getByText(pay.money.explain.body)).toBeVisible();
   await page.context().close();

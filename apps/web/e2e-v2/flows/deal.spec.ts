@@ -120,16 +120,19 @@ test("полная сделка покупателя в v2: оферта → о�
   await buyer.waitForURL(/\/pay$/);
   await expect(buyer.locator("h1")).toHaveText(t.pay.title);
   const pay = buyer.locator("[data-primary-action]");
-  await expect(pay).toHaveText(/^Оплатить \d/);
+  // Провайдер стенда — ручной (перевод по реквизитам оферты); онлайн-провайдер — «Оплатить N ₸».
+  await expect(pay).toHaveText(/^Оплатить (переводом )?\d/);
+  // После пересева своего согласия банку у Айгерим по «Прихожей» нет: текст согласия, отметка, кнопка отключена до отметки.
+  await expect(buyer.getByRole("region", { name: t.pay.consent.textLabel })).toBeVisible();
   const agree = buyer.getByRole("checkbox", { name: t.pay.consent.agree });
-  if (await agree.isVisible()) {
-    await expect(pay).toBeDisabled();
-    await buyer.getByText(t.pay.consent.agree, { exact: true }).click();
-    await expect(agree).toBeChecked();
-  }
+  await expect(agree).not.toBeChecked();
+  await expect(pay).toBeDisabled();
+  await buyer.getByText(t.pay.consent.agree, { exact: true }).click();
+  await expect(agree).toBeChecked();
+  await expect(pay).toBeEnabled();
   await pay.dblclick();
   await buyer.waitForURL(/\/v2\/deals\/[^/?#]+$/, { timeout: 30_000 });
-  await expect(buyer.getByText(new RegExp(`^(${t.pay.done.PENDING}|${t.pay.done.SUCCEEDED})$`))).toBeVisible();
+  await expect(buyer.getByText(new RegExp(`^(Переведите .+ по реквизитам из оферты|${t.pay.done.PENDING}|${t.pay.done.SUCCEEDED})$`)).first()).toBeVisible();
   expect((await facts(dealId)).holds).toBe(1);
   // Повторно на экран оплаты не попасть: он уводит на карточку («ждём подтверждения»).
   await open(buyer, `${dealPath}/pay`);
