@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type PointerEvent } fr
 import { ru } from "@/i18n/ru";
 import { Button } from "./Button";
 import { TextField } from "./fields";
-import { drawDot, drawSegment, drawStrokes, hasInk, toPoint, type Pen, type Point, type SignatureValue } from "./signature-logic";
+import { drawDot, drawSegment, drawStrokes, hasInk, toPoint, typedSignature, type Pen, type Point, type SignatureValue } from "./signature-logic";
 import { TOKENS } from "./tokens";
 
 export type { SignatureValue } from "./signature-logic";
@@ -19,6 +19,11 @@ export type SignaturePadProps = {
   label: string;
   /** Имя поля формы у ФИО-замены (`TextField` требует `name`); по умолчанию `signature-name`. */
   name?: string;
+  /**
+   * ФИО, которое стоит в поле ввода сразу (имя покупателя из профиля): при переключении на «Ввести ФИО» с непустым
+   * значением подпись отдаётся сразу — `onChange({ typedName })`. Человек может его изменить.
+   */
+  defaultTypedName?: string;
 };
 
 /**
@@ -27,7 +32,7 @@ export type SignaturePadProps = {
  * подпись не пропадает. Подсказка внутри пустого холста; «Очистить»; доступная замена — переключатель «Ввести ФИО» с
  * текстовым полем. Клиентский компонент.
  */
-export function SignaturePad({ onChange, label, name = "signature-name" }: SignaturePadProps) {
+export function SignaturePad({ onChange, label, name = "signature-name", defaultTypedName = "" }: SignaturePadProps) {
   const t = ru.app.kit.signature;
   const hintId = useId();
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -39,7 +44,7 @@ export function SignaturePad({ onChange, label, name = "signature-name" }: Signa
   const pointerId = useRef<number | null>(null);
   const [inked, setInked] = useState(false);
   const [typed, setTyped] = useState(false);
-  const [typedName, setTypedName] = useState("");
+  const [typedName, setTypedName] = useState(defaultTypedName);
 
   const paint = useCallback(() => {
     const node = canvas.current;
@@ -145,7 +150,7 @@ export function SignaturePad({ onChange, label, name = "signature-name" }: Signa
 
   const switchMode = (nextTyped: boolean) => {
     setTyped(nextTyped);
-    if (nextTyped) onChange(typedName.trim() ? { typedName: typedName.trim() } : null);
+    if (nextTyped) onChange(typedSignature(typedName));
     // Штрихи сохраняются: возврат к рисунку отдаёт прежнюю подпись. Холст появляется после рендера, поэтому выгрузка — в эффекте ниже.
   };
 
@@ -174,8 +179,7 @@ export function SignaturePad({ onChange, label, name = "signature-name" }: Signa
           value={typedName}
           onChange={(event) => {
             setTypedName(event.target.value);
-            const value = event.target.value.trim();
-            onChange(value ? { typedName: value } : null);
+            onChange(typedSignature(event.target.value));
           }}
         />
       ) : (

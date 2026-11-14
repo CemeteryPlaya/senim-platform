@@ -83,3 +83,6 @@ export function drawDot(pen: Pen, at: Point, width: number): void {
   pen.arc(at.x * width, at.y * width, LINE_WIDTH / 2, 0, Math.PI * 2);
   pen.fill();
 }
+
+/** Подпись вводом ФИО: имя без пробелов по краям; пустое — подписи нет (`null`). Одно правило для ввода и для переключения режима. */
+export const typedSignature = (name: string): SignatureValue | null => (name.trim() ? { typedName: name.trim() } : null);

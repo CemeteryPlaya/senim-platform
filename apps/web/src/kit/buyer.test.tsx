@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 import { Badge, Chat, ChatComposer, Menu, MoneyPanel, SignaturePad, Steps, Timeline, Uploader } from "./index";
 import { badgeText } from "./Badge";
 import { canSend, composerKeyAction, counterVisible, shouldFollow } from "./chat-logic";
-import { drawDot, drawSegment, drawStrokes, hasInk, toPoint, type Pen, type Stroke } from "./signature-logic";
+import { drawDot, drawSegment, drawStrokes, hasInk, toPoint, typedSignature, type Pen, type Stroke } from "./signature-logic";
 import { count, hasClass, html, text } from "./test-utils";
 import { matchesAccept, progressPercent, sortFiles, takeFiles } from "./uploader-logic";
 
@@ -85,6 +85,19 @@ describe("Timeline", () => {
     expect(text(<Timeline items={[{ title: "A", time: "t", amount: 20_400_000n }]} />)).toContain(`204${NB}000${NB}₸`);
     expect(out).toContain("Деньги под защитой");
     expect(out).toContain("text-muted");
+  });
+
+  it("ссылка в строке: внутренняя — с шевроном; внешняя — в новой вкладке со значком и скрытым пояснением; без ссылки её нет", () => {
+    const inner = html(<Timeline items={[{ title: "Оплата", time: "t", link: { label: "Открыть документ", href: "/v2/help" } }]} />);
+    expect(inner).toMatch(/<a [^>]*href="\/v2\/help"[^>]*>Открыть документ<svg/);
+    expect(inner).toContain("lucide-chevron-right");
+    expect(inner).not.toContain("_blank");
+    const outer = html(<Timeline items={[{ title: "Оплата", time: "t", link: { label: "Открыть документ", href: "/api/documents/d1/pdf", external: true } }]} />);
+    expect(outer).toMatch(/<a [^>]*href="\/api\/documents\/d1\/pdf"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
+    expect(outer).toContain("lucide-external-link");
+    expect(outer).not.toContain("lucide-chevron-right");
+    expect(outer).toContain(`(${ru.app.kit.externalHint})`);
+    expect(html(<Timeline items={[{ title: "Оплата", time: "t" }]} />)).not.toContain("<a ");
   });
 
   it("без суммы и текста — только заголовок и время", () => {
@@ -547,6 +560,18 @@ describe("SignaturePad", () => {
     expect(out).toMatch(/<button[^>]*disabled=""[^>]*>[\s\S]*Очистить|disabled=""[\s\S]*Очистить/);
     expect(out).toContain(ru.app.kit.signature.typeName);
     expect(out).not.toContain("data-primary-action");
+  });
+
+  it("подпись вводом ФИО: имя без пробелов по краям; пустое — подписи нет (так же отдаётся ФИО по умолчанию при переключении режима)", () => {
+    expect(typedSignature("  Сапаров Ерлан Ержанович ")).toEqual({ typedName: "Сапаров Ерлан Ержанович" });
+    expect(typedSignature("   ")).toBeNull();
+    expect(typedSignature("")).toBeNull();
+  });
+
+  it("ФИО по умолчанию не меняет вид холста: рисунок по-прежнему первый режим", () => {
+    const out = html(<SignaturePad label="Подпись" defaultTypedName="Сапаров Ерлан Ержанович" onChange={() => {}} />);
+    expect(out).toContain("<canvas");
+    expect(out).not.toContain("<input");
   });
 
   it("описание холста для диктора называет замену вводом ФИО", () => {

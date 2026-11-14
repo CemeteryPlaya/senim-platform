@@ -1,4 +1,5 @@
 import { Money } from "./Money";
+import { TextLink } from "./TextLink";
 
 export type TimelineItem = {
   title: string;
@@ -7,6 +8,8 @@ export type TimelineItem = {
   text?: string;
   /** Сумма справа, в тиынах; показывается через `Money`. */
   amount?: bigint;
+  /** Ссылка в строке под текстом («Открыть документ»): `external` — файл или страница в новой вкладке. */
+  link?: { label: string; href: string; external?: boolean };
 };
 
 export type TimelineProps = {
@@ -16,7 +19,7 @@ export type TimelineProps = {
 };
 
 /**
- * Лента событий (история сделки, история денег): заголовок, время (вторичный текст), необязательные текст и сумма
+ * Лента событий (история сделки, история денег): заголовок, время (вторичный текст), необязательные текст, ссылка и сумма
  * справа. Слева точка и линия к следующему событию. Семантика — `<ol>`. Серверный компонент.
  */
 export function Timeline({ items, label }: TimelineProps) {
@@ -41,6 +44,11 @@ export function Timeline({ items, label }: TimelineProps) {
             </div>
             <p className="text-sub text-muted">{item.time}</p>
             {item.text && <p className="text-sub wrap-break-word text-ink">{item.text}</p>}
+            {item.link && (
+              <TextLink href={item.link.href} external={item.link.external === true}>
+                {item.link.label}
+              </TextLink>
+            )}
           </div>
         </li>
       ))}

@@ -406,6 +406,28 @@ describe("TextLink", () => {
   });
 });
 
+describe("TextLink external", () => {
+  const out = html(
+    <TextLink href="/api/documents/d1/pdf" external>
+      Открыть оферту
+    </TextLink>,
+  );
+
+  it("обычная ссылка в новой вкладке: target=_blank, rel=noopener noreferrer, без предзагрузки роутера", () => {
+    expect(out).toMatch(/^<a href="\/api\/documents\/d1\/pdf" target="_blank" rel="noopener noreferrer"/);
+  });
+
+  it("значок внешней ссылки вместо шеврона; для диктора — «откроется в новой вкладке»", () => {
+    expect(out).toContain("lucide-external-link");
+    expect(out).not.toContain("lucide-chevron-right");
+    expect(out).toMatch(/Открыть оферту<span class="sr-only"> \(откроется в новой вкладке\)<\/span><svg/);
+  });
+
+  it("вид тот же, что у внутренней ссылки", () => {
+    for (const cls of ["text-ink", "font-medium", "min-h-control", "hover:underline", "no-underline"]) expect(hasClass(out, cls), cls).toBe(true);
+  });
+});
+
 describe("ListRow: шеврон", () => {
   const row = (chevron?: boolean) =>
     html(
