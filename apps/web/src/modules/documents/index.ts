@@ -18,6 +18,7 @@ export {
   getSharedDocumentPdf,
   LINK_TTL_HOURS,
   listDealDocuments,
+  readDealDocuments,
   openSharedDocument,
   shareDocument,
   type PdfVariant,

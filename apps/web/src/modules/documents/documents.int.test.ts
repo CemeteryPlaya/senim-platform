@@ -21,6 +21,7 @@ import {
   getDocumentPdf,
   getSharedDocumentPdf,
   listDealDocuments,
+  readDealDocuments,
   openSharedDocument,
   shareDocument,
   signByHand,
@@ -395,6 +396,20 @@ describe("выписка, расписка, ссылки", () => {
     const second = (await listDealDocuments(f.client, f.dealId)).find((d) => d.kind === "MONEY_STATEMENT");
     expect(second?.id).not.toBe(first?.id);
     expect((await db.document.findUniqueOrThrow({ where: { id: first!.id } })).status).toBe("SUPERSEDED");
+  });
+
+  it("readDealDocuments: те же документы и права, но выписку не выпускает, сделку не трогает, аудита нет", async () => {
+    const f = await dealAt("PAID_HOLD");
+    const before = { documents: await db.document.count({ where: { dealId: f.dealId } }), audit: await db.auditEvent.count({ where: { scope: `deal:${f.dealId}` } }) };
+    const read = await readDealDocuments(f.client, f.dealId);
+    expect(read.map((d) => d.kind)).toEqual(["CONTRACT"]);
+    expect(await db.document.count({ where: { dealId: f.dealId } })).toBe(before.documents);
+    expect(await db.auditEvent.count({ where: { scope: `deal:${f.dealId}` } })).toBe(before.audit);
+    // После выпуска (listDealDocuments) чтение видит выписку.
+    const listed = await listDealDocuments(f.client, f.dealId);
+    expect((await readDealDocuments(f.client, f.dealId)).map((d) => d.id)).toEqual(listed.map((d) => d.id));
+    await expect(readDealDocuments(await makeClient(), f.dealId)).rejects.toEqual(code("NOT_FOUND"));
+    await expect(readDealDocuments(f.client, "net-takoj-sdelki")).rejects.toEqual(code("NOT_FOUND"));
   });
 
   it("расписка на раскрытие: только оператор и только после запроса раскрытия", async () => {

@@ -108,9 +108,29 @@ export async function signedCopyForEmail(documentId: string): Promise<{ bytes: U
  * Выписка по деньгам выпускается здесь же, если журнал изменился после прошлой версии (идемпотентно).
  */
 export async function listDealDocuments(user: CurrentUser, dealId: string): Promise<SigningDocumentView[]> {
+  const deal = await readableDeal(user, dealId);
+  await transaction((tx) => ensureMoneyStatement(tx, dealId));
+  return documentsOf(user, dealId, deal);
+}
+
+/**
+ * Те же документы и те же права, что у `listDealDocuments`, но только чтение: выписка по деньгам не выпускается, сделка
+ * не блокируется, в журнал аудита ничего не пишется. Для экранов, которые открывают часто (карточка сделки); выписку
+ * выпускает экран истории денег через `listDealDocuments`.
+ */
+export async function readDealDocuments(user: CurrentUser, dealId: string): Promise<SigningDocumentView[]> {
+  return documentsOf(user, dealId, await readableDeal(user, dealId));
+}
+
+type ReadableDeal = { clientId: string; executor: { userId: string } };
+
+async function readableDeal(user: CurrentUser, dealId: string): Promise<ReadableDeal> {
   const deal = await db.deal.findUnique({ where: { id: dealId }, select: { clientId: true, executor: { select: { userId: true } } } });
   if (!deal || !canRead(user, deal)) return fail.notFound(t.errors.notFound);
-  await transaction((tx) => ensureMoneyStatement(tx, dealId));
+  return deal;
+}
+
+async function documentsOf(user: CurrentUser, dealId: string, deal: ReadableDeal): Promise<SigningDocumentView[]> {
   const myParty = partyOf(user, deal);
   const flags = signingFlags();
   const docs = await db.document.findMany({
