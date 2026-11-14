@@ -478,7 +478,7 @@ const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeActio
 
 ## Экраны покупателя
 
-Добавлены задачей E2. Компоненты «глупые»: только вид и доступность; данные, состояния загрузки и отправка приходят пропсами и обработчиками, вызовов модулей, server actions и `fetch` внутри нет. Серверные: `Steps`, `Timeline`, `Badge`, `MoneyPanel` (клиентский только `Explain` внутри строк). Клиентские: `Menu`, `Uploader`, `Chat`, `ChatComposer`, `SignaturePad`. Образцы — `/v2/ui-kit`.
+Добавлены задачей E2; `Stat`, `StatRow`, `Bars` и расширение `Uploader` — задачей J2 (экраны мастера). Компоненты «глупые»: только вид и доступность; данные, состояния загрузки и отправка приходят пропсами и обработчиками, вызовов модулей, server actions и `fetch` внутри нет. Серверные: `Steps`, `Timeline`, `Badge`, `MoneyPanel` (клиентский только `Explain` внутри строк). Клиентские: `Menu`, `Uploader`, `Chat`, `ChatComposer`, `SignaturePad`. Образцы — `/v2/ui-kit`.
 
 ### `Steps`
 
@@ -549,15 +549,42 @@ const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeActio
 
 | Проп | Тип | Смысл |
 |---|---|---|
-| `items` | `{ id; name; previewUrl?; state: "uploading" \| "done" \| "error"; progress?: number; error?: string }[]` | Файлы; `progress` — проценты 0–100 |
+| `items` | `{ id; name; previewUrl?; kind?: "image" \| "document"; state: "uploading" \| "done" \| "error"; progress?: number; error?: string }[]` | Файлы; `progress` — проценты 0–100; `kind: "document"` (PDF) — вместо превью значок документа и имя файла (в строке ошибки — тоже), по умолчанию фото |
 | `onAdd` | `(files: File[]) => void` | Выбраны файлы: уже отфильтрованы по `accept` и обрезаны до свободных мест |
 | `onRemove` | `(id: string) => void` | «Убрать» |
 | `onRetry` | `(id: string) => void`? | «Повторить» у файла с ошибкой; без него кнопки нет |
 | `onReject` | `(files: File[], reason: "type" | "limit") => void`? | Файлы не приняты: `type` — не под `accept`, `limit` — сверх `max`. Без обработчика отбрасываются молча — покажите причину (тост) |
 | `max` | `number` | Предел; при заполнении кнопка отключена |
-| `accept` | `string?` | Как `accept` у input, по умолчанию `image/*` |
-| `label` | `string?` | Подпись кнопки, по умолчанию «Добавить фото» |
+| `accept` | `string?` | Как `accept` у input, по умолчанию `image/*`; для документов — `"image/*,application/pdf"` |
+| `capture` | `"environment" \| "user"?` | Кнопка «Снять на камеру» **только на телефоне** (`desktop:hidden`): отдельный скрытый input с `capture` и `accept="image/*"`; `environment` — основная камера. Без пропа кнопки нет, поведение прежнее |
+| `label` | `string?` | Подпись кнопки, по умолчанию «Добавить фото» (при приёме PDF задайте свою: «Добавить фото или PDF») |
 | `name` | `string?` | Имя скрытого input (обычно не нужно) |
+
+### `Stat` и `StatRow`
+
+Число с подписью для сводок («Новые заявки», «В работе», «За месяц»). Без плитки-значка и рамки: `Stat` — крупное значение (`text-title`, 600, табличные цифры) и под ним вторичная подпись; разметка `dl` (для диктора подпись первая). `StatRow` — группа (`role="group"`) на одной белой подложке `surface` (`rounded-card`, поле 20 px): два-три `Stat` в ряд, переносятся, когда тесно (минимум 8 rem на значение). Серверные.
+
+| Проп | Тип | Смысл |
+|---|---|---|
+| `Stat.label` | `string` | Подпись |
+| `Stat.value` | `ReactNode` | Число или `<Money />`; ничего не считается |
+| `Stat.compact` | `boolean?` | Кегль 20 px (`text-section`) вместо 28 px: для сумм в тенге на телефоне |
+| `StatRow.label` | `string` | Имя группы для диктора («Сводка») |
+| `StatRow.children` | `ReactNode` | `Stat`-ы |
+
+Не ставьте `StatRow` внутрь `Card` (подложка своя); одиночный `Stat` в `Card` — можно.
+
+### `Bars`
+
+Столбики сумм по месяцам без библиотек графиков. По умолчанию строки «подпись — полоса — сумма» (суммы всех месяцев на виду, не наезжают друг на друга); `layout="columns"` — на компьютере вертикальные столбики с суммой над ними (нужна ширина около 90 px на столбик при суммах в миллионы; на телефоне всё равно строки). Суммы — тиыны через `Money`. Заливка — переменная `--bar` (0–100%, от самого высокого значения, ненулевое не меньше 4%) и утилиты `bar-fill` / `bar-fill-v` из `tokens.css`; цвета ролями: текущий месяц `accent` (деньги), остальные `line-strong` на дорожке `line`. Сам рисунок `aria-hidden`; для диктора — таблица-дубль (`sr-only`: подпись, столбцы «Месяц» / «Сумма», у текущего месяца пометка «текущий месяц»). Серверный.
+
+| Проп | Тип | Смысл |
+|---|---|---|
+| `label` | `string` | Имя графика и подпись таблицы («Выплаты по месяцам») |
+| `layout` | `"rows" \| "columns"?` | По умолчанию `rows` |
+| `items` | `{ label: string; name?: string; value: bigint; current?: boolean }[]` | Столбики по порядку; `label` — «Ноя», `name` — «Ноябрь 2026» для таблицы (по умолчанию `label`); `value` — тиыны; `current` — выделенный |
+
+Экран готовит подписи и порядок (окно из шести месяцев — `chartWindow` в `src/features/executor-finance/months.ts`); сумм в `Bars` никто не считает.
 
 ### `Chat` и `ChatComposer` (клиентские)
 

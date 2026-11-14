@@ -292,6 +292,20 @@
   position: sticky;
   top: calc(var(--spacing-header) + var(--spacing-stack-section));
 }
+/*
+ * Заливка столбика (Bars): доля 0–100% лежит в переменной --bar. bar-fill — горизонтальная полоса (доля ширины),
+ * bar-fill-v — вертикальный столбик (доля высоты; с `desktop:` в раскладке «столбики»). Применять к вложенному в дорожку элементу.
+ */
+@utility bar-fill {
+  border-radius: var(--radius-chip);
+  height: 100%;
+  width: var(--bar, 0%);
+}
+@utility bar-fill-v {
+  border-radius: var(--radius-chip);
+  height: var(--bar, 0%);
+  width: 100%;
+}
 @utility scroll-anchor {
   scroll-margin-top: var(--spacing-stack-group);
 }

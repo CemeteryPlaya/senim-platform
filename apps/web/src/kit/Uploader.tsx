@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, RotateCw, X } from "lucide-react";
+import { Camera, FileText, ImagePlus, RotateCw, X } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 import { ru } from "@/i18n/ru";
 import { Button } from "./Button";
@@ -12,6 +12,8 @@ export type UploaderItem = {
   name: string;
   /** Адрес превью (blob: или из хранилища); без него — ровная заглушка. */
   previewUrl?: string;
+  /** `"document"` — не фото (PDF): вместо превью значок документа с именем файла. По умолчанию фото. */
+  kind?: "image" | "document";
   state: "uploading" | "done" | "error";
   /** Ход загрузки, проценты 0–100; без него у загружающегося файла — пульсация. */
   progress?: number;
@@ -32,8 +34,13 @@ export type UploaderProps = {
   onReject?: (files: File[], reason: "type" | "limit") => void;
   /** Предел числа фото. */
   max: number;
-  /** Что принимает выбор файлов (как `accept` у input); по умолчанию любые изображения. */
+  /** Что принимает выбор файлов (как `accept` у input); по умолчанию любые изображения. Для PDF — `"image/*,application/pdf"`. */
   accept?: string;
+  /**
+   * Кнопка «Снять на камеру» (только на телефоне): открывает камеру устройства, `"environment"` — основную, `"user"` —
+   * фронтальную. Снимок принимается как фото (`image/*`); без пропа кнопки нет.
+   */
+  capture?: "environment" | "user";
   /** Подпись кнопки добавления; по умолчанию «Добавить фото». */
   label?: string;
   /** Имя поля формы для скрытого input; обычно не требуется (файлы уходят через `onAdd`). */
@@ -42,6 +49,14 @@ export type UploaderProps = {
 
 /** Превью: заглушка `line` и фото поверх; адрес из хранилища или blob:, оптимизатор изображений не нужен. */
 function Preview({ item, className }: { item: UploaderItem; className: string }) {
+  if (item.kind === "document") {
+    return (
+      <div className={cn("flex flex-col items-center justify-center gap-1 overflow-hidden rounded-field bg-line p-2 text-muted", className)}>
+        <FileText aria-hidden className="size-6 shrink-0" />
+        <span className="line-clamp-2 w-full text-center text-small wrap-break-word text-ink">{item.name}</span>
+      </div>
+    );
+  }
   return (
     <div className={cn("relative overflow-hidden rounded-field bg-line", className)}>
       {item.previewUrl && (
@@ -58,9 +73,10 @@ function Preview({ item, className }: { item: UploaderItem; className: string })
  * вызывающего (автомат `src/features/upload`), сюда приходят готовые `items`. На компьютере файлы можно перетащить на
  * область (необязательное улучшение). Клиентский компонент.
  */
-export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accept = "image/*", label, name }: UploaderProps) {
+export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accept = "image/*", capture, label, name }: UploaderProps) {
   const t = ru.app.kit.uploader;
   const input = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const full = items.length >= max;
 
@@ -163,6 +179,14 @@ export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accep
             {label ?? t.add}
           </span>
         </Button>
+        {capture && (
+          <Button variant="secondary" disabled={full} onClick={() => camera.current?.click()} className="desktop:hidden">
+            <span className="inline-flex items-center gap-2">
+              <Camera aria-hidden className="size-5" />
+              {t.camera}
+            </span>
+          </Button>
+        )}
         <p role="status" className="text-sub text-muted">
           {t.counter(items.length, max)}
         </p>
@@ -182,6 +206,20 @@ export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accep
           event.target.value = "";
         }}
       />
+      {capture && (
+        <input
+          ref={camera}
+          type="file"
+          accept="image/*"
+          capture={capture}
+          hidden
+          tabIndex={-1}
+          onChange={(event) => {
+            add(Array.from(event.target.files ?? []));
+            event.target.value = "";
+          }}
+        />
+      )}
     </div>
   );
 }

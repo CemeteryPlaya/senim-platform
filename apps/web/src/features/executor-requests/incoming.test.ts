@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { IncomingListItem } from "@/modules/requests";
 import { incomingCounts, incomingTypes, inWorkCount, isFreshIncoming, offerGroupCounts, offerGroupOf, offerGroupParam, offersIn, selectedIncoming } from "./incoming";
 
-const req = (title: string, myOfferStatus: IncomingListItem["myOfferStatus"], mode: IncomingListItem["mode"]) => ({ title, myOfferStatus, mode }) as IncomingListItem;
+const req = (title: string, myOfferStatus: IncomingListItem["myOfferStatus"] | null, mode: IncomingListItem["mode"]) => ({ title, myOfferStatus, mode }) as IncomingListItem;
 const list = [req("Кухня", null, "TENDER"), req("Шкаф", "SENT", "DIRECT"), req("Кухня", "SENT", "TENDER")];
 
 describe("входящие мастера", () => {
