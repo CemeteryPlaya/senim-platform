@@ -592,16 +592,18 @@ describe("masterMoneyView: блок денег мастера из журнал�
   const BUYER_SUMS = [102_000_00n, 2_000_00n];
   const amounts = (v: ReturnType<typeof master>) => [v.amount, ...v.rows.map((r) => r.amount)];
 
-  const CASES: { name: string; block: MoneyBlock; tone: string; title: string; amount: bigint }[] = [
-    { name: "ждём оплату покупателя", block: block({ kind: "awaiting", payment: "none" }), tone: "awaiting", title: md.awaiting.title, amount: 96_000_00n },
-    { name: "оплата обрабатывается", block: block({ kind: "awaiting", payment: "PENDING" }), tone: "awaiting", title: md.pending.title, amount: 96_000_00n },
-    { name: "оплата покупателя не прошла", block: block({ kind: "awaiting", payment: "FAILED" }), tone: "awaiting", title: md.failed.title, amount: 96_000_00n },
+  // Заголовок называет сумму мастера («Вы получите после приёмки», пока оплаты мастеру нет); состояние — первой фразой пояснения.
+  const CASES: { name: string; block: MoneyBlock; tone: string; title: string; amount: bigint; note?: string }[] = [
+    { name: "ждём оплату покупателя", block: block({ kind: "awaiting", payment: "none" }), tone: "awaiting", title: md.youGetAfter, amount: 96_000_00n, note: md.awaiting },
+    { name: "оплата обрабатывается", block: block({ kind: "awaiting", payment: "PENDING" }), tone: "awaiting", title: md.youGetAfter, amount: 96_000_00n, note: md.pending },
+    { name: "оплата покупателя не прошла", block: block({ kind: "awaiting", payment: "FAILED" }), tone: "awaiting", title: md.youGetAfter, amount: 96_000_00n, note: md.failed },
     {
       name: "деньги покупателя в банке под защитой",
       block: block({ kind: "protected", amountTiyn: 102_000_00n, reservedAt, operationRef: "B-1" }, 102_000_00n),
       tone: "protected",
-      title: md.protected.title,
+      title: md.youGetAfter,
       amount: 96_000_00n,
+      note: md.protected,
     },
     {
       name: "оплата приостановлена спором",
@@ -609,6 +611,7 @@ describe("masterMoneyView: блок денег мастера из журнал�
       tone: "frozen",
       title: md.frozen.title,
       amount: 96_000_00n,
+      note: md.frozen.note,
     },
     {
       name: "банк переводит оплату",
@@ -626,9 +629,12 @@ describe("masterMoneyView: блок денег мастера из журнал�
     },
   ];
 
-  it.each(CASES)("$name: тон, заголовок, «вы получите»; строки — цена, гарантия 4%, «Вы получите»", ({ block: b, tone, title, amount }) => {
+  it.each(CASES)("$name: тон, заголовок о сумме мастера, состояние в пояснении; строки — цена, гарантия 4%, «Вы получите»", ({ block: b, tone, title, amount, note }) => {
     const v = master(b);
     expect(v).toMatchObject({ tone, title, amount });
+    if (note) expect(v.note).toBe(note);
+    // Состояние — первой фразой пояснения, а не заголовком: заголовок ни в одном случае не говорит о деньгах покупателя.
+    expect(v.title).not.toMatch(/покупател/i);
     expect(v.rows).toEqual(offerRows(amount));
     for (const sum of BUYER_SUMS) expect(amounts(v)).not.toContain(sum);
   });
@@ -649,9 +655,10 @@ describe("masterMoneyView: блок денег мастера из журнал�
     expect(done).toMatchObject({ title: md.completed.splitDone, note: md.completed.splitNote });
   });
 
-  it("возврат покупателю: оплаты мастеру нет (ноль), сумма возврата покупателя не показывается", () => {
+  it("возврат покупателю: «Вы получите по этой сделке» — 0 ₸, строка цены, состояние в пояснении; сумма возврата не показывается", () => {
     const pending = master(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: false, refundedAt: null }));
     expect(pending).toMatchObject({ tone: "refunded", title: md.refunded.title, amount: 0n, note: md.refunded.pending });
+    expect(pending.rows).toEqual([{ label: md.price, amount: 100_000_00n }]);
     expect(amounts(pending)).not.toContain(102_000_00n);
     expect(master(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: true, refundedAt: reservedAt })).note).toBe(md.refunded.done);
   });

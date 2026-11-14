@@ -166,6 +166,17 @@ describe("/v2 для мастера", () => {
     const out = await render();
     expect(h2s(out)).toContain(m.gate.pending.now);
     expect(primaries(out)).toEqual([{ href: "/v2/register/executor", label: m.gate.pending.action }]);
+    expect(out).not.toContain(ru.app.masterDeal.list.yours);
+  });
+
+  it("неодобренный мастер со сделками (вкладки «Сделки» нет): на экране статуса — ссылка «Ваши сделки»", async () => {
+    const executor = await master({ status: "PENDING" });
+    await dealAt("SIGNED", { executor });
+    await signInAs(executor);
+    const out = await render();
+    expect(h2s(out)).toContain(m.gate.pending.now);
+    expect(out).toMatch(new RegExp(`<a [^>]*href="/v2/deals"[^>]*>${ru.app.masterDeal.list.yours}`));
+    expect(primaries(out)).toEqual([{ href: "/v2/register/executor", label: m.gate.pending.action }]);
   });
 
   it("первые шаги: документы и счёт не готовы — список с прогрессом, главное действие одно; первое предложение отмечается сделанным", async () => {

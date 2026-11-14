@@ -6,6 +6,7 @@ import { listDeals, nextStepsOf, type NextStep } from "@/modules/deal-core";
 import { getDevice } from "@/platform/device";
 import { logger } from "@/platform/logger";
 import { masterStatusOf, pageHref, requireParty, switchRoleTo } from "../../_shell/auth";
+import { to } from "../../_shell/paths";
 import type { DealSide } from "../../_shell/side";
 import { MasterGate } from "../executor/_parts/MasterGate";
 import { DealList } from "./_parts/DealList";
@@ -50,7 +51,8 @@ export default async function DealsPage({ searchParams }: Props) {
   const bankWaits = side === "CLIENT" ? await payWaitingMaster(user, nexts) : await consentMissingOf(user, nexts);
   const view = dealListView(mine, nexts, typeof params.group === "string" ? params.group : undefined, bankWaits, side);
   const other = OTHER[side];
-  const otherRole = user.roles.includes(other) && all.some((d) => d.myRole === other) ? switchRoleTo(other) : null;
+  // После переключения роли человек остаётся в «Сделках» — уже другой роли.
+  const otherRole = user.roles.includes(other) && all.some((d) => d.myRole === other) ? switchRoleTo(other, to("/deals")) : null;
 
   const help = <HelpBlock items={dealHelpItems(side)} supportEmail={brand.support.email} />;
   const list = <DealList view={view} otherRole={otherRole} side={side} />;

@@ -181,7 +181,8 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки м�
     expect(primaries(out)).toEqual([{ href: "/v2/deals/d1/ready", label: ru.app.master.deal.now.ready.action }]);
     expect(out).toContain('href="/v2/deals/d1/progress"');
     const shown = text(<DealCardView view={view} device={device} />);
-    expect(shown).toContain(tm.money.protected.title);
+    expect(shown).toContain(tm.money.youGetAfter);
+    expect(shown).toContain(tm.money.protected);
     expect(shown).toContain(tm.money.guarantee);
     expect(shown).toContain(tm.money.youGet);
     expect(shown).toContain(tm.money.explain.label);

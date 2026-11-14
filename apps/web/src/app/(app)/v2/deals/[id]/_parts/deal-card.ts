@@ -360,11 +360,12 @@ export type MasterMoneyInput = {
 };
 
 /**
- * Блок денег мастера — только из журнала (`moneyBlock`) и сметы мастера, ничего не считается здесь. Главная сумма — то,
- * что важно мастеру: «вы получите» (цена по оферте − гарантия 4%), пока оплаты нет, деньги покупателя в банке или спор;
- * после раскрытия — его часть из журнала (`paidToMasterTiyn`: идёт или получена). Строки — «Цена по оферте», «Гарантия
- * оплаты и клиента (4%)» с пояснением и «Вы получите». Сумм покупателя (к оплате, защита 2%, остаток в банке, возврат)
- * мастеру не показываем: при возврате покупателю главная сумма — ноль оплаты мастеру.
+ * Блок денег мастера — только из журнала (`moneyBlock`) и сметы мастера, ничего не считается здесь. Главная сумма — всегда
+ * сумма мастера, и заголовок называет её: пока оплаты мастеру нет (ждём оплату, оплата идёт или не прошла, деньги
+ * покупателя в банке) — «Вы получите после приёмки» (цена по оферте − гарантия 4%), а состояние — первой фразой пояснения;
+ * спор — «Оплата вам приостановлена спором»; после раскрытия — его часть из журнала (`paidToMasterTiyn`: идёт или получена).
+ * Строки — «Цена по оферте», «Гарантия оплаты и клиента (4%)» с пояснением и «Вы получите». Сумм покупателя (к оплате,
+ * защита 2%, остаток в банке, возврат) мастеру не показываем: при возврате покупателю — «Вы получите по этой сделке: 0 ₸».
  */
 export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyView {
   const m = tmd.card.money;
@@ -376,16 +377,16 @@ export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyVie
   ];
   switch (block.kind) {
     case "awaiting": {
-      const text = block.payment === "PENDING" ? m.pending : block.payment === "FAILED" ? m.failed : m.awaiting;
-      return { tone: "awaiting", title: text.title, amount: estimate.totalTiyn, rows: offerRows(estimate.totalTiyn), note: text.note };
+      const note = block.payment === "PENDING" ? m.pending : block.payment === "FAILED" ? m.failed : m.awaiting;
+      return { tone: "awaiting", title: m.youGetAfter, amount: estimate.totalTiyn, rows: offerRows(estimate.totalTiyn), note };
     }
     case "protected":
       return {
         tone: "protected",
-        title: m.protected.title,
+        title: m.youGetAfter,
         amount: estimate.totalTiyn,
         rows: offerRows(estimate.totalTiyn),
-        note: m.protected.note,
+        note: m.protected,
         proof: m.reservedAt(formatDate(block.reservedAt)),
       };
     case "frozen":

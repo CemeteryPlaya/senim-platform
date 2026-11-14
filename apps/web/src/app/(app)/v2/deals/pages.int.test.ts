@@ -397,7 +397,8 @@ describe("список «Сделки»", () => {
     expect(out).toContain(`href="/v2/deals/${asClient.dealId}"`);
     expect(out).not.toContain(asMaster.dealId);
     expect(plain(out)).toContain(t.list.otherRole);
-    expect(out).toContain(`/switch-role?to=EXECUTOR"`);
+    // После переключения роли — снова «Сделки» (другой роли).
+    expect(out).toContain(`/switch-role?to=EXECUTOR&amp;returnTo=${encodeURIComponent("/v2/deals")}"`);
   });
 });
 
@@ -424,7 +425,8 @@ describe("карточка сделки мастера: «что сейчас» 
     const out = await card(f.dealId);
     expect(h2s(out)).toContain(mn.signOffer.title);
     expect(primaries(out)).toEqual([{ href: `/v2/deals/${f.dealId}/sign/${contract.id}`, label: mn.signOffer.action }]);
-    expect(plain(out)).toContain(md.money.awaiting.title);
+    expect(plain(out)).toContain(md.money.youGetAfter);
+    expect(plain(out)).toContain(md.money.awaiting);
     expect(plain(out)).toContain(md.money.guarantee);
     expect(plain(out)).toContain(money(96_000_00n));
     expect(plain(out)).toContain(md.buyer.hidden);
@@ -461,7 +463,8 @@ describe("карточка сделки мастера: «что сейчас» 
     await signInAs(executor);
     const out = await card(f.dealId);
     expect(primaries(out)).toEqual([{ href: `/v2/deals/${f.dealId}/start`, label: mn.start.action }]);
-    expect(plain(out)).toContain(md.money.protected.title);
+    expect(plain(out)).toContain(md.money.youGetAfter);
+    expect(plain(out)).toContain(md.money.protected);
     expect(out).toContain("bg-accent-soft");
     expect(plain(out)).toContain(money(96_000_00n));
     expect(buyerMoney(out)).toEqual([]);
@@ -543,6 +546,7 @@ describe("карточка сделки мастера: «что сейчас» 
     await signInAs(executor);
     const out = await card(f.dealId);
     expect(h2s(out)).toContain(mn.refunded.title);
+    expect(plain(out)).toContain(md.money.refunded.title);
     expect(plain(out)).toContain(md.money.refunded.done);
     expect(buyerMoney(out)).toEqual([]);
     expect(out).not.toContain(`aria-label="${t.card.actions.menu}"`);
@@ -584,7 +588,8 @@ describe("список «Сделки» мастера", () => {
     expect(plain(out)).toContain(money(96_000_00n));
     expect(plain(out)).not.toContain(money(102_000_00n));
     expect(plain(out)).toContain(ru.app.masterDeal.list.otherRole);
-    expect(out).toContain(`/switch-role?to=CLIENT"`);
+    // После переключения роли — снова «Сделки» (другой роли).
+    expect(out).toContain(`/switch-role?to=CLIENT&amp;returnTo=${encodeURIComponent("/v2/deals")}"`);
     expect(out).not.toContain('href="/v2/help#money"');
     expect(shown(out)).not.toMatch(FORBIDDEN);
   });
