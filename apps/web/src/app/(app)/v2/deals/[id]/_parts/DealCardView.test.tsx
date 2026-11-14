@@ -198,7 +198,8 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки м�
     expect(out).toContain(tm.buyer.write);
     expect(out).not.toContain(t.master.write);
     expect(out).toContain(tm.lead(7));
-    expect(out).not.toContain('href="/v2/help#money"');
+    expect(out).toContain('href="/v2/help#dispute"');
+    expect(out).not.toContain('href="/v2/help#not-fit"');
   });
 
   it("ход работ: отчёты свежими сверху с фото, ссылка «Добавить отчёт» — когда передана", () => {

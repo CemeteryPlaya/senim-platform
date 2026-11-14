@@ -590,7 +590,9 @@ describe("список «Сделки» мастера", () => {
     expect(plain(out)).toContain(ru.app.masterDeal.list.otherRole);
     // После переключения роли — снова «Сделки» (другой роли).
     expect(out).toContain(`/switch-role?to=CLIENT&amp;returnTo=${encodeURIComponent("/v2/deals")}"`);
-    expect(out).not.toContain('href="/v2/help#money"');
+    // «Помощь» мастера: деньги и спор, а не «мебель не подошла» покупателя.
+    expect(out).toContain('href="/v2/help#dispute"');
+    expect(out).not.toContain('href="/v2/help#not-fit"');
     expect(shown(out)).not.toMatch(FORBIDDEN);
   });
 });

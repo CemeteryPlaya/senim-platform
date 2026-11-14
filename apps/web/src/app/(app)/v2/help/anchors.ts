@@ -20,3 +20,5 @@ export const MASTER_HELP_ANCHORS = {
   contacts: "contacts",
   support: "support",
 } as const;
+
+export type MasterHelpAnchor = (typeof MASTER_HELP_ANCHORS)[keyof typeof MASTER_HELP_ANCHORS];
