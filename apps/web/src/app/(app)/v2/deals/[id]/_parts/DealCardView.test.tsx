@@ -207,8 +207,8 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки м�
       { id: "r2", title: "Корпус готов", text: "", createdAt: new Date("2026-11-12T10:00:00Z"), photos: [{ id: "p1", src: "/f/p1.jpg" }] },
     ]);
     const out = html(<DealCardView view={masterView(held, { next: { action: "signActEcp", mine: true }, actId: "a1" }, { reports: { items, addHref: "/v2/deals/d1/progress" } })} device={device} />);
-    expect(out).toContain(tm.reports.section);
-    expect(out.indexOf("Корпус готов")).toBeLessThan(out.indexOf(tm.reports.untitled));
+    expect(out).toContain(t.reports.section);
+    expect(out.indexOf("Корпус готов")).toBeLessThan(out.indexOf(t.reports.untitled));
     expect(out).toContain('src="/f/p1.jpg"');
     expect(out).toContain(tm.reports.add);
     expect(primaries(out)).toEqual([{ href: "/v2/deals/d1/sign/a1", label: ru.app.master.deal.now.signAct.action }]);

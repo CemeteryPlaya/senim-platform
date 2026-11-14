@@ -536,7 +536,7 @@ export type ReportView = { id: string; title: string; time: string; text: string
  * «Отчёт о ходе работ»; у фото — подпись с названием отчёта и номером.
  */
 export function reportsView(reports: readonly ReportInput[]): ReportView[] {
-  const r = tmd.card.reports;
+  const r = t.reports;
   return [...reports].reverse().map((report) => {
     const title = report.title?.trim() || r.untitled;
     return {

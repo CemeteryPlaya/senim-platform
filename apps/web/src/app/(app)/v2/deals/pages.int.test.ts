@@ -487,7 +487,7 @@ describe("карточка сделки мастера: «что сейчас» 
     expect(plain(out)).not.toContain(t.card.order.readyBy);
     expect(plain(out)).toContain(md.order.address);
     expect(plain(out)).toContain("ул. Абая, 12, кв. 5");
-    expect(plain(out)).toContain(md.reports.section);
+    expect(plain(out)).toContain(t.card.reports.section);
     expect(plain(out)).toContain("Корпус собран");
     expect(plain(out)).toContain(m.status.inWork);
   });

@@ -678,7 +678,7 @@ describe("заказ мастера и ход работ", () => {
   });
 
   it("отчёты: свежие сверху, без названия — «Отчёт о ходе работ», подписи фото с номером", () => {
-    const r = ru.app.masterDeal.card.reports;
+    const r = ru.app.deal.card.reports;
     const items = reportsView([
       { id: "r1", title: "  ", text: "Начали", createdAt: new Date("2026-11-10T10:00:00Z"), photos: [{ id: "p1", src: "/f/1" }, { id: "p2", src: "/f/2" }] },
       { id: "r2", title: "Корпус", text: "", createdAt: new Date("2026-11-12T10:00:00Z"), photos: [] },

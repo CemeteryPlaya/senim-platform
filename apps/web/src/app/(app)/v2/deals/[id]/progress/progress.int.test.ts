@@ -83,7 +83,7 @@ describe("экран отчёта и лента на карточке", () => {
     const out = await card(f.dealId);
     expect(plain(out)).toContain(ru.app.deal.card.reports.section);
     expect(plain(out)).toContain("Собрал корпус, ставлю фасады");
-    expect(out).toContain(`alt="${ru.app.masterDeal.card.reports.photoAlt("Корпус готов", 1)}"`);
+    expect(out).toContain(`alt="${ru.app.deal.card.reports.photoAlt("Корпус готов", 1)}"`);
     expect(plain(out)).not.toContain(ru.app.masterDeal.card.reports.add);
   });
 });

@@ -37,10 +37,18 @@ function databaseUrl(): string {
   return url;
 }
 
-/** Только чтение базы e2e: подписи покупателя на документе, операции HOLD и переходы мастера сделки. */
+/** Только чтение базы e2e: подписи сторон на документах, операции HOLD и переходы мастера сделки. */
 async function facts(
   dealId: string,
-): Promise<{ holds: number; holdPending: boolean; hand: Record<string, number>; ecp: Record<string, number>; events: Record<string, number> }> {
+): Promise<{
+  holds: number;
+  holdPending: boolean;
+  hand: Record<string, number>;
+  ecp: Record<string, number>;
+  masterHand: Record<string, number>;
+  masterEcp: Record<string, number>;
+  events: Record<string, number>;
+}> {
   const client = new Client({ connectionString: databaseUrl() });
   await client.connect();
   try {
@@ -56,6 +64,15 @@ async function facts(
       `select d.kind, count(*)::text as n from "Signature" s join "Document" d on d.id = s."documentId" where d."dealId" = $1 and s.party = 'CLIENT' group by d.kind`,
       [dealId],
     );
+    // Подписи мастера (сторона EXECUTOR): оферта — от руки и ЭЦП, акт — только ЭЦП.
+    const masterHand = await client.query<{ kind: string; n: string }>(
+      `select d.kind, count(*)::text as n from "HandSignature" s join "Document" d on d.id = s."documentId" where d."dealId" = $1 and s.party = 'EXECUTOR' group by d.kind`,
+      [dealId],
+    );
+    const masterEcp = await client.query<{ kind: string; n: string }>(
+      `select d.kind, count(*)::text as n from "Signature" s join "Document" d on d.id = s."documentId" where d."dealId" = $1 and s.party = 'EXECUTOR' group by d.kind`,
+      [dealId],
+    );
     // Переходы мастера (аудит сделки): двойное нажатие не даёт второго «начал работу» и второй «сдачи».
     const events = await client.query<{ kind: string; n: string }>(
       `select action as kind, count(*)::text as n from "AuditEvent" where scope = $1 and action in ('deal.started', 'deal.ready') group by action`,
@@ -67,6 +84,8 @@ async function facts(
       holdPending: Number(holds.rows[0]?.pending ?? 0) > 0,
       hand: byKind(hand.rows),
       ecp: byKind(ecp.rows),
+      masterHand: byKind(masterHand.rows),
+      masterEcp: byKind(masterEcp.rows),
       events: byKind(events.rows),
     };
   } finally {
@@ -161,6 +180,9 @@ test("полная сделка покупателя в v2: оферта → о�
   await expect(master.locator("main")).toContainText(t.sign.stepOf(2, 2), { timeout: 30_000 });
   await signEcpV2(master, t.sign.signed.CONTRACT);
   await expect(nowHeading(master, [mnow.waitPay.title])).toBeVisible();
+  // Двойные нажатия мастера — по одной подписи от руки и ЭЦП.
+  expect((await facts(dealId)).masterHand.CONTRACT).toBe(1);
+  expect((await facts(dealId)).masterEcp.CONTRACT).toBe(1);
 
   // ── 3. Покупатель: оплата — согласие банку и «Оплатить» двойным нажатием: одна операция ──
   await expectNow(buyer, dealPath, [now.pay.title]);
@@ -207,8 +229,9 @@ test("полная сделка покупателя в v2: оферта → о�
   await expect(nowHeading(master, [mnow.ready.title])).toBeVisible();
   expect((await facts(dealId)).events["deal.started"]).toBe(1);
 
-  // Отчёт о ходе работ — покупатель видит его на карточке.
-  await open(master, `${dealPath}/progress`);
+  // Отчёт о ходе работ — ссылкой «Добавить отчёт о ходе работ» под «Сейчас»; покупатель видит его на карточке.
+  await master.getByRole("link", { name: mnow.ready.progress }).click();
+  await master.waitForURL(/\/progress$/);
   await master.getByLabel(ms.progress.textLabel).fill("Собрал корпус, ставлю фасады");
   await master.locator("[data-primary-action]").dblclick();
   await master.waitForURL(/\/v2\/deals\/[^/?#]+$/, { timeout: 30_000 });
@@ -251,6 +274,8 @@ test("полная сделка покупателя в v2: оферта → о�
   await expect(master.locator("main")).toContainText(ms.sign.act.meaning);
   await expect(master.locator("main")).not.toContainText(t.sign.hand.section);
   await signEcpV2(master, t.sign.signed.ACCEPTANCE_ACT);
+  expect((await facts(dealId)).masterEcp.ACCEPTANCE_ACT).toBe(1);
+  expect((await facts(dealId)).masterHand.ACCEPTANCE_ACT).toBeUndefined();
 
   // ── 6. Покупатель: «Принять мебель» → подпись акта от руки и ЭЦП ──
   await expectNow(buyer, dealPath, [now.accept.title]);
