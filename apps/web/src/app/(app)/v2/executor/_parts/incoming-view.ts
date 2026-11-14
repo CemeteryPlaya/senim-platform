@@ -1,0 +1,81 @@
+import { selectedIncoming, incomingCounts, type IncomingSearch } from "@/features/executor-requests/incoming";
+import { formatDate, formatRelative } from "@/features/format/format";
+import type { OfferStatus } from "@/generated/prisma/enums";
+import { ru } from "@/i18n/ru";
+import type { ChipItem, StatusTone } from "@/kit";
+import type { IncomingListItem } from "@/modules/requests";
+import { SEGMENT_NAMES } from "@/verticals/furniture";
+import { to } from "../../../_shell/paths";
+
+// Вид входящих заявок мастера (чистая функция, без React и базы): чипы-фильтры в адресе, карточки заявок, какое пустое
+// состояние показать. Общий для экрана «Заявки» и блока «Новые заявки» на главной. Тексты — `ru.app.masterRequests.incoming`.
+
+const t = ru.app.masterRequests.incoming;
+
+/** Заявка во входящих в том объёме, что нужен виду (подмножество `listIncomingRequests`). */
+export type IncomingRow = Pick<
+  IncomingListItem,
+  "id" | "number" | "title" | "mode" | "segment" | "city" | "desiredDate" | "publishedAt" | "offersCount" | "myOfferStatus"
+>;
+
+export type IncomingBadge = { text: string; tone: StatusTone };
+
+export type IncomingCardView = {
+  id: string;
+  href: string;
+  /** «Заявка №5: Кухня» — что нужно покупателю. */
+  title: string;
+  /** Метки: «Новая», «Прямая заявка вам», моё предложение. */
+  badges: IncomingBadge[];
+  /** Строка под названием: город и сегмент; срок; когда опубликована; число предложений. */
+  meta: string[];
+};
+
+export type IncomingListView = {
+  /** Ключ выбранного чипа: `all`, `new`, `direct`, `type:<название>`. */
+  key: string;
+  chips: ChipItem[];
+  cards: IncomingCardView[];
+  /** `none` — заявок нет совсем (обучающий экран), `filter` — пуст выбранный раздел, `null` — есть что показать. */
+  empty: "none" | "filter" | null;
+};
+
+const BASE = to("/executor/requests");
+
+/** Тон метки моего предложения: выбрано — зелёный, ждёт — нейтральный. */
+const OFFER_TONE: Record<OfferStatus, StatusTone> = { SENT: "neutral", ACCEPTED: "accent", DECLINED: "neutral", WITHDRAWN: "neutral" };
+
+/** Строка заявки: ссылка на экран заявки, метки и мелкие сведения. `now` — для «опубликована N дней назад». */
+export function incomingCard(r: IncomingRow, now: Date = new Date()): IncomingCardView {
+  const badges: IncomingBadge[] = [];
+  if (r.myOfferStatus === null) badges.push({ text: t.card.fresh, tone: "warn" });
+  if (r.mode === "DIRECT") badges.push({ text: t.card.direct, tone: "accent" });
+  if (r.myOfferStatus) badges.push({ text: t.card.myOffer[r.myOfferStatus], tone: OFFER_TONE[r.myOfferStatus] });
+  const place = r.segment ? `${r.city} · ${SEGMENT_NAMES[r.segment]}` : r.city;
+  const meta = [
+    place,
+    ...(r.desiredDate ? [t.card.wanted(formatDate(r.desiredDate))] : []),
+    ...(r.publishedAt ? [t.card.published(formatRelative(r.publishedAt, now))] : []),
+    ...(r.offersCount > 0 ? [t.card.offers(r.offersCount)] : []),
+  ];
+  return { id: r.id, href: to(`/executor/requests/${encodeURIComponent(r.id)}`), title: ru.requests.requestTitle(r.number, r.title), badges, meta };
+}
+
+/**
+ * Чипы: «Все», «Новые» (без моего предложения), «Прямые вам» (когда есть), по типу мебели (когда типов больше одного) —
+ * каждый с числом; выбранный берётся из адреса (`?f=new|direct`, `?type=`), неизвестное значение — «Все».
+ */
+export function incomingListView(list: readonly IncomingListItem[], search: IncomingSearch, now: Date = new Date()): IncomingListView {
+  const current = selectedIncoming(search, list);
+  if (list.length === 0) return { key: current.key, chips: [], cards: [], empty: "none" };
+  const counts = incomingCounts(list);
+  const chip = (key: string, label: string, n: number, href: string): ChipItem => ({ href, label: t.chip(label, n), active: current.key === key });
+  const chips: ChipItem[] = [
+    chip("all", t.chips.all, counts.all, BASE),
+    chip("new", t.chips.fresh, counts.fresh, `${BASE}?f=new`),
+    ...(counts.direct > 0 ? [chip("direct", t.chips.direct, counts.direct, `${BASE}?f=direct`)] : []),
+    ...(counts.byType.length > 1 ? counts.byType.map((x) => chip(`type:${x.type}`, x.type, x.count, `${BASE}?${new URLSearchParams({ type: x.type })}`)) : []),
+  ];
+  const shown = list.filter(current.keep);
+  return { key: current.key, chips, cards: shown.map((r) => incomingCard(r, now)), empty: shown.length === 0 ? "filter" : null };
+}

@@ -127,12 +127,44 @@ describe("/v2 для покупателя: по одному главному д
   });
 });
 
+const m = ru.app.masterRequests;
+
+/** Мастер, прошедший первые шаги: почта подтверждена. */
+async function master(opts: Parameters<typeof makeExecutor>[0] = {}) {
+  const executor = await makeExecutor(opts);
+  await db.user.update({ where: { id: executor.id }, data: { emailVerifiedAt: new Date() } });
+  return executor;
+}
+
 describe("/v2 для мастера", () => {
-  it("активная роль мастера: прежняя временная главная (экран мастера — этап 4)", async () => {
-    const executor = await makeExecutor();
-    await db.user.update({ where: { id: executor.id }, data: { emailVerifiedAt: new Date() } });
+  it("новая заявка: «Сейчас» — новая заявка, одна кнопка ведёт в список новых; в сводке одна новая", async () => {
+    const executor = await master({ segment: "COMFORT" });
+    await makeOpenRequest(await buyer(), { segment: "COMFORT" });
     await signInAs(executor);
     const out = await render();
-    expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(ru.app.shell.preview.title);
+    expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toMatch(/^Здравствуйте/);
+    expect(h2s(out)).toContain(m.home.now.fresh.title(1));
+    expect(primaries(out)).toEqual([{ href: "/v2/executor/requests?f=new", label: m.home.now.fresh.action }]);
+    expect(out).toContain(m.home.requests.section);
+  });
+
+  it("сделка ждёт запуска: «Начать работу» ведёт в сделку, в карточке строка «вы получите» без суммы покупателя", async () => {
+    const client = await buyer();
+    const deal = await dealAt("PAID_HOLD", { client });
+    await db.user.update({ where: { id: deal.executor.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(deal.executor);
+    h.device = "desktop";
+    const out = await render();
+    expect(primaries(out)).toEqual([{ href: `/v2/deals/${deal.dealId}`, label: m.home.now.start.action }]);
+    expect(out).toContain(ru.app.master.deal.line.protected);
+    expect(out).not.toMatch(/комисси|эскроу|демо/i);
+  });
+
+  it("неодобренный мастер: экран статуса с одним шагом — на регистрацию", async () => {
+    const executor = await master({ status: "PENDING" });
+    await signInAs(executor);
+    const out = await render();
+    expect(h2s(out)).toContain(m.gate.pending.now);
+    expect(primaries(out)).toEqual([{ href: "/v2/register/executor", label: m.gate.pending.action }]);
   });
 });

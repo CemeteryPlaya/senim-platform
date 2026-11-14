@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
 import {
@@ -9,15 +8,12 @@ import {
   HelpBlock,
   List,
   ListRow,
-  Money,
   NowNext,
   PageTitle,
-  Progress,
   Section,
   Split,
   Stack,
   StatusChip,
-  Steps,
   TextLink,
 } from "@/kit";
 import type { DealListItem } from "@/modules/deal-core";
@@ -25,7 +21,8 @@ import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { HELP_ANCHORS } from "../help/anchors";
 import { helpItem } from "../help/questions";
-import { dealChip, dealMoneyLine, dealProgress, progressCaption, stoppedLabel } from "../_parts/deal-summary";
+import { DealSummaryCard } from "../_parts/DealSummaryCard";
+import { dealChip } from "../_parts/deal-summary";
 import { requestState } from "../_parts/request-state";
 import { type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
 
@@ -133,45 +130,12 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
   );
 }
 
-/**
- * Компактная карточка сделки: вся — ссылка (растянутая на карточку). Название, плашка статуса, одна строка хода
- * «Шаг N из M: …» с полосой и строка денег из журнала. Полный ход — на экране сделки.
- */
+/** Карточка сделки на главной: общая с мастером (`DealSummaryCard`), слова покупателя. */
 function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDealInput | null; more: number }) {
-  const money = dealMoneyLine(deal.money, deal.estimate, "CLIENT");
-  const progress = dealProgress(deal.status, deal.hasOpenDispute);
   const chip = dealChip({ ...deal, side: "CLIENT", next: listed?.next ?? null, payWaitsMaster: listed?.payWaitsMaster ?? false });
   return (
     <Section title={t.deal.section}>
-      <Card
-        as="article"
-        className="pressable relative flex flex-col gap-3 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="min-w-0 text-card text-ink wrap-break-word">
-            <Link href={to(`/deals/${encodeURIComponent(deal.id)}`)} className="text-ink no-underline after:absolute after:inset-0 after:rounded-card focus-visible:outline-none">
-              {deal.title}
-            </Link>
-          </h3>
-          <StatusChip tone={chip.tone}>{chip.text}</StatusChip>
-        </div>
-        {progress.kind === "steps" ? (
-          <div className="flex flex-col gap-2">
-            <p className="text-sub text-muted">{progressCaption(progress, "CLIENT")}</p>
-            <Progress value={progress.done} max={progress.total} label={t.deal.progressLabel} />
-          </div>
-        ) : (
-          <Steps label={t.deal.progressLabel} items={[]} stopped={{ label: stoppedLabel(progress.reason, "CLIENT") }} />
-        )}
-        <p className="text-body text-ink">
-          {money.amountTiyn !== null && (
-            <>
-              <Money tiyn={money.amountTiyn} />{" "}
-            </>
-          )}
-          {money.label}
-        </p>
-      </Card>
+      <DealSummaryCard deal={deal} side="CLIENT" chip={chip} progressLabel={t.deal.progressLabel} />
       {more > 0 && <TextLink href={to("/deals")}>{t.deal.allDeals}</TextLink>}
     </Section>
   );
