@@ -36,7 +36,8 @@ const TABLE: { name: string; action: NextAction; mine: boolean; over?: Partial<N
   { name: "ждём подпись оферты мастером (другая сторона не подписала)", action: "waitContractSignature", mine: false, kind: "wait-offer", title: n.waitOffer.title, primary: null },
   { name: "оплатить: сумма к оплате в кнопке", action: "pay", mine: true, kind: "pay", title: n.pay.title, primary: pay },
   { name: "оплатить без своей отметки банку — всё равно на экран оплаты (отметка там)", action: "pay", mine: true, over: { bank: { mine: false, other: true } }, kind: "pay", title: n.pay.title, primary: pay },
-  { name: "оплата закрыта: нет отметки мастера", action: "pay", mine: true, over: { bank: { mine: true, other: false } }, kind: "pay-wait-master", title: n.payWaitMaster.title, primary: null },
+  { name: "оплата закрыта: нет отметки мастера, своей тоже нет", action: "pay", mine: true, over: { bank: { mine: false, other: false } }, kind: "pay-wait-master", title: n.payWaitMaster.title, primary: null },
+  { name: "оплата закрыта: своя отметка дана, ждём мастера", action: "pay", mine: true, over: { bank: { mine: true, other: false } }, kind: "pay-wait-master", title: n.payWaitMaster.titleMineGiven, primary: null },
   { name: "онлайн-оплата ждёт подтверждения банка", action: "waitPaymentConfirmation", mine: false, kind: "pay-pending", title: n.payPending.title, primary: null },
   { name: "ручной провайдер: переведите N ₸ по реквизитам", action: "waitPaymentConfirmation", mine: false, over: { manual: true }, kind: "pay-transfer", title: n.payTransfer.title(formatMoney(102_000_00n)), primary: null },
   { name: "ждём начала работ", action: "waitStart", mine: false, kind: "wait-start", title: n.waitStart.title, primary: null },
@@ -100,6 +101,19 @@ describe("nowView: таблица «что сейчас» покупателя",
     expect(now("waitPaymentConfirmation", false).body).toBe(n.payPending.body);
   });
 
+  it("оплата закрыта до согласия мастера: своего согласия нет — второстепенная ссылка «Дать своё согласие заранее» на экран оплаты, не главное действие; дано — ссылки нет", () => {
+    const open = now("pay", true, { bank: { mine: false, other: false } });
+    expect(open.primary).toBeNull();
+    expect(open.link).toEqual({ label: n.payWaitMaster.ahead, href: "/v2/deals/d1/pay" });
+    expect(open.title).toBe(n.payWaitMaster.title);
+    const given = now("pay", true, { bank: { mine: true, other: false } });
+    expect(given.link).toBeNull();
+    expect(given.primary).toBeNull();
+    expect(given.title).toBe("Ваше согласие дано, ждём мастера");
+    // Мастер согласие дал — это уже обычная оплата без ссылки.
+    expect(now("pay", true, { bank: { mine: false, other: true } })).toMatchObject({ kind: "pay", link: null });
+  });
+
   it("решённый спор разделом: текст по деньгам — идёт или завершено", () => {
     expect(now("waitRefund", false, { disputeOutcome: "PARTIAL_SPLIT", refundAll: false }).body).toBe(n.disputeSplit.pending);
     expect(now("done", false, { disputeOutcome: "PARTIAL_SPLIT" }).body).toBe(n.disputeSplit.done);
@@ -159,8 +173,15 @@ describe("moneyView: блок денег из журнала", () => {
     expect(v).toMatchObject({ tone: "frozen", title: t.money.frozen.title, amount: 102_000_00n });
   });
 
-  it("выплата: главная сумма — сколько заплатил покупатель (снимок оферты), выплаты мастеру с гарантией нет", () => {
-    const pending = money(block({ kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 2_000_00n, refundedTiyn: 0n, settled: false, completedAt: null }));
+  it("выплата: главная сумма — сколько заплатил покупатель по журналу (не по снимку оферты)", () => {
+    const done = { kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 2_000_00n, refundedTiyn: 0n, settled: true, completedAt: new Date() } as const;
+    expect(money(block({ ...done, paidTiyn: 103_500_00n })).amount).toBe(103_500_00n);
+    // Оплаты в журнале нет (не бывает при выплате) — запасной вариант, снимок оферты.
+    expect(money(block(done)).amount).toBe(102_000_00n);
+  });
+
+  it("выплата: выплаты мастеру с гарантией на экране нет", () => {
+    const pending = money(block({ kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 2_000_00n, refundedTiyn: 0n, settled: false, completedAt: null, paidTiyn: 102_000_00n }));
     expect(pending).toMatchObject({ tone: "completed", title: t.money.completed.title, amount: 102_000_00n, note: t.money.completed.pending });
     expect(pending.rows).toEqual([
       { label: "Цена по оферте", amount: 100_000_00n },
@@ -173,7 +194,7 @@ describe("moneyView: блок денег из журнала", () => {
   });
 
   it("раздел по спору: «Возвращено вам» строкой, текст о части оплаты мастеру", () => {
-    const split = money(block({ kind: "completed", paidToMasterTiyn: 48_000_00n, protectionTiyn: 1_000_00n, refundedTiyn: 51_000_00n, settled: true, completedAt: new Date() }));
+    const split = money(block({ kind: "completed", paidToMasterTiyn: 48_000_00n, protectionTiyn: 1_000_00n, refundedTiyn: 51_000_00n, settled: true, completedAt: new Date(), paidTiyn: 102_000_00n }));
     expect(split).toMatchObject({ amount: 102_000_00n, note: t.money.completed.splitDone });
     expect(split.rows.at(-1)).toEqual({ label: t.money.refundedRow, amount: 51_000_00n });
     expect(money(block({ kind: "completed", paidToMasterTiyn: 48_000_00n, protectionTiyn: 1_000_00n, refundedTiyn: 51_000_00n, settled: false, completedAt: null })).note).toBe(

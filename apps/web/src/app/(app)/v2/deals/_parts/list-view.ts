@@ -4,7 +4,7 @@ import { ru } from "@/i18n/ru";
 import type { ChipItem } from "@/kit";
 import type { NextAction, NextStep } from "@/modules/deal-core";
 import type { MoneyBlock } from "@/modules/payments";
-import { dealMoneyLine, dealProgress, dealStatusText, dealTone, progressCaption, stoppedLabel, type DealMoneyLine, type DealTone } from "../../_parts/deal-summary";
+import { dealMoneyLine, dealProgress, dealStatusText, dealTone, paymentWait, progressCaption, stoppedLabel, type DealMoneyLine, type DealTone } from "../../_parts/deal-summary";
 import { to } from "../../../_shell/paths";
 
 // Вид списка «Сделки» покупателя (чистая функция, без React и базы): группы чипами («Идут» / «Завершены»), карточки
@@ -20,6 +20,7 @@ export type ListDealInput = {
   hasOpenDispute: boolean;
   money: MoneyBlock;
   estimate: { totalTiyn: bigint };
+  paymentProvider: string;
 };
 
 export type DealGroup = "active" | "done";
@@ -77,7 +78,7 @@ function cardOf(deal: ListDealInput, next: NextStep | null, waitsMaster: boolean
     id: deal.id,
     href: to(`/deals/${encodeURIComponent(deal.id)}`),
     title: deal.title,
-    chip: { text: dealStatusText(deal.status, deal.hasOpenDispute), tone: dealTone({ ...deal, next, payWaitsMaster: waitsMaster }) },
+    chip: { text: dealStatusText(deal.status, deal.hasOpenDispute, paymentWait(deal)), tone: dealTone({ ...deal, next, payWaitsMaster: waitsMaster }) },
     progress:
       progress.kind === "steps"
         ? { kind: "steps", caption: progressCaption(progress, action) ?? "", done: progress.done, total: progress.total }

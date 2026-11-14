@@ -111,16 +111,30 @@ describe("карточка сделки покупателя: «что сейч�
 
   it("оплата закрыта до согласия мастера для банка: карточка, список и главная говорят одно — ждём мастера, без оранжевого", async () => {
     const client = await buyer();
-    const f = await dealAt("SIGNED", { client, bankConsents: ["CLIENT"] });
+    const f = await dealAt("SIGNED", { client, bankConsents: [] });
     await signInAs(client);
     const out = await card(f.dealId);
     expect(h2s(out)).toContain(now.payWaitMaster.title);
     expect(primaries(out)).toEqual([]);
+    // Своё согласие можно дать заранее — ссылкой на экран оплаты (не главным действием).
+    expect(out).toContain(`href="/v2/deals/${f.dealId}/pay"`);
+    expect(plain(out)).toContain(now.payWaitMaster.ahead);
     expect(out).not.toContain("bg-warn-soft");
     const listed = await list();
     expect(plain(listed)).toContain(t.list.waitMaster);
     expect(plain(listed)).not.toContain(t.list.mine.pay);
     expect(listed).not.toContain("bg-warn-soft");
+  });
+
+  it("оплата закрыта, своё согласие уже дано: «Ваше согласие дано, ждём мастера», ссылки на оплату нет", async () => {
+    const client = await buyer();
+    const f = await dealAt("SIGNED", { client, bankConsents: ["CLIENT"] });
+    await signInAs(client);
+    const out = await card(f.dealId);
+    expect(h2s(out)).toContain(now.payWaitMaster.titleMineGiven);
+    expect(out).not.toContain(`href="/v2/deals/${f.dealId}/pay"`);
+    expect(plain(out)).not.toContain(now.payWaitMaster.ahead);
+    expect(primaries(out)).toEqual([]);
   });
 
   it("оплачено: деньги под защитой (единственный зелёный блок), кнопки нет; меню «Действия» есть", async () => {
@@ -384,6 +398,6 @@ describe("список «Сделки»", () => {
     expect(out).toContain(`href="/v2/deals/${asClient.dealId}"`);
     expect(out).not.toContain(asMaster.dealId);
     expect(plain(out)).toContain(t.list.otherRole);
-    expect(out).toContain(`/switch-role?to=EXECUTOR&amp;returnTo=%2Fdeals`);
+    expect(out).toContain(`/switch-role?to=EXECUTOR"`);
   });
 });

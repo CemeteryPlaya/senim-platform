@@ -84,7 +84,7 @@ export type NowView = {
   next?: string;
   /** Единственное главное действие экрана; `null` — от покупателя сейчас ничего не нужно. */
   primary: { label: string; href: string } | null;
-  /** Второстепенная ссылка под «Сейчас»: форма позиции по спору или PDF оферты (`external` — обычная ссылка на файл). */
+  /** Второстепенная ссылка под «Сейчас»: позиция по спору, согласие заранее (экран оплаты) или PDF оферты (`external` — файл в новой вкладке). */
   link: { label: string; href: string; external?: boolean } | null;
 };
 
@@ -135,7 +135,13 @@ export function nowView(i: NowInput): NowView {
       return row("wait-offer", n.waitOffer);
     case "pay":
       if (!mine) return row("unknown", n.unknown);
-      if (i.bank !== null && !i.bank.other) return row("pay-wait-master", n.payWaitMaster);
+      if (i.bank !== null && !i.bank.other) {
+        const w = n.payWaitMaster;
+        // Своё согласие можно дать заранее — второстепенной ссылкой на экран оплаты; дано — ссылки нет, ждём мастера.
+        return i.bank.mine
+          ? row("pay-wait-master", { ...w, title: w.titleMineGiven })
+          : row("pay-wait-master", w, null, { label: w.ahead, href: h.pay });
+      }
       return row("pay", n.pay, { label: n.pay.action(formatMoney(i.payTiyn)), href: h.pay });
     case "waitPaymentConfirmation":
       if (!i.manual) return row("pay-pending", n.payPending);
@@ -233,7 +239,8 @@ export function moneyView({ block, estimate, snapshot, manual = false }: MoneyIn
       const rows = [...offerRows, ...(split ? [{ label: m.refundedRow, amount: block.refundedTiyn }] : [])];
       const c = m.completed;
       const note = split ? (block.settled ? c.splitDone : c.splitPending) : block.settled ? c.done : c.pending;
-      return { tone: "completed", title: c.title, amount: snapshot.buyerTotalTiyn, rows, note };
+      // Сколько заплатил покупатель — из журнала (`paidTiyn`, подтверждённая оплата); снимок оферты — только если оплаты в журнале нет.
+      return { tone: "completed", title: c.title, amount: block.paidTiyn ?? snapshot.buyerTotalTiyn, rows, note };
     }
     case "refunded":
       return { tone: "refunded", title: block.settled ? m.refunded.done : m.refunded.pending, amount: block.amountTiyn, rows: [] };

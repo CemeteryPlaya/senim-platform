@@ -70,6 +70,8 @@ export type DealListItem = {
   money: MoneyBlock;
   /** Последний спор по сделке открыт — то же правило, что у экрана сделки (виден серый ход сделки). */
   hasOpenDispute: boolean;
+  /** Провайдер оплаты сделки: `MANUAL` — перевод по реквизитам (плашка «Ждём ваш перевод»). */
+  paymentProvider: DealView["paymentProvider"];
   executorLabel: string;
   updatedAt: Date;
   myRole: Party | null;
@@ -99,6 +101,7 @@ export async function listDeals(user: CurrentUser): Promise<DealListItem[]> {
       estimate: partyEstimate(myRole ?? "CLIENT", d.priceTiyn),
       money: projectMoney(d.transactions.map(toLedgerEntry), d),
       hasOpenDispute: lastDisputeOpen(d.disputes),
+      paymentProvider: d.paymentProvider,
       executorLabel: shown.get(d.executorId)?.label ?? ru.common.executorLabel(d.executor.publicNumber),
       updatedAt: d.updatedAt,
       myRole,

@@ -134,7 +134,7 @@ test("полная сделка покупателя в v2: оферта → о�
   await expect(pay).toBeEnabled();
   await pay.dblclick();
   await buyer.waitForURL(/\/v2\/deals\/[^/?#]+$/, { timeout: 30_000 });
-  await expect(buyer.getByText(new RegExp(`^(Переведите .+ по реквизитам из оферты|${t.pay.done.PENDING}|${t.pay.done.SUCCEEDED})$`)).first()).toBeVisible();
+  await expect(buyer.getByText(new RegExp(`^(${t.pay.manual.done}|${t.pay.done.PENDING}|${t.pay.done.SUCCEEDED})$`)).first()).toBeVisible();
   expect((await facts(dealId)).holds).toBe(1);
   // Повторно на экран оплаты не попасть: он уводит на карточку («ждём подтверждения»).
   await open(buyer, `${dealPath}/pay`);

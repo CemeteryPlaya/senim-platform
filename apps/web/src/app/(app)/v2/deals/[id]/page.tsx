@@ -8,7 +8,7 @@ import { getDevice } from "@/platform/device";
 import { logger } from "@/platform/logger";
 import { pageHref } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
-import { dealStatusText, dealStepsView, dealTone, payWaitsMaster } from "../../_parts/deal-summary";
+import { dealStatusText, dealStepsView, dealTone, payWaitsMaster, paymentWait } from "../../_parts/deal-summary";
 import { cancelText, dealHrefs, documentRows, HISTORY_SHOWN, historyView, moneyView, nowView, orderRows, reviewRows } from "./_parts/deal-card";
 import { DealCardView, type CardView } from "./_parts/DealCardView";
 import { buyerDeal } from "./_parts/gate";
@@ -67,7 +67,7 @@ export default async function DealPage({ params, searchParams }: Props) {
     title: deal.title,
     lead: t.lead(deal.number, deal.executorLabel),
     chip: {
-      text: dealStatusText(deal.status, openDispute),
+      text: dealStatusText(deal.status, openDispute, paymentWait({ status: deal.status, money: deal.moneyBlock, paymentProvider: deal.paymentProvider })),
       tone: dealTone({ status: deal.status, hasOpenDispute: openDispute, next: deal.next, payWaitsMaster: payWaitsMaster(deal.next, bank) }),
     },
     now,

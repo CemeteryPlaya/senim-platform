@@ -1,11 +1,10 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import type { ConsentDocument } from "@/i18n/ru/consent";
-import { ActionDock, Button, Card, Checkbox, cn, HiddenField, Notice, Section, Stack, toast } from "@/kit";
+import { ActionDock, Button, Card, Checkbox, cn, HiddenField, Notice, Section, Stack, TextLink, toast } from "@/kit";
 import type { ActionResult } from "@/platform/action";
 import { FormError } from "../../../../../_shell/FormError";
 import { useActionForm } from "../../../../../_shell/form";
@@ -92,11 +91,9 @@ function ManualHint({ amount, offerHref }: { amount: string; offerHref: string |
         <p className="text-body text-ink">{t.manual.hint(amount)}</p>
         {offerHref && (
           // PDF — обработчик маршрута, а не экран: обычная ссылка в новой вкладке.
-          <a href={offerHref} target="_blank" rel="noopener" className="inline-flex min-h-control w-fit items-center gap-2 text-body font-medium text-ink no-underline hover:underline">
+          <TextLink href={offerHref} external>
             {t.manual.offer}
-            <span className="sr-only">({t.manual.offerHint})</span>
-            <ExternalLink aria-hidden className="size-4 shrink-0" />
-          </a>
+          </TextLink>
         )}
         <p className="text-body text-muted">{t.manual.protectedAfter}</p>
       </Stack>
@@ -141,7 +138,7 @@ function PayStep({ dealId, dealHref, amount, manual, consentGiven, document: doc
         return;
       }
       setLeaving("deal");
-      toast(paidToast(data, amount, manual !== null));
+      toast(paidToast(data, manual !== null));
       router.push(dealHref);
     },
   });

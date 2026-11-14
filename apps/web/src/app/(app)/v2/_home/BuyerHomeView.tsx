@@ -24,7 +24,7 @@ import type { DealListItem } from "@/modules/deal-core";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { HELP_ANCHORS } from "../help/anchors";
-import { dealMoneyLine, dealProgress, dealStatusText, dealTone, progressCaption, stoppedLabel } from "../_parts/deal-summary";
+import { dealMoneyLine, dealProgress, dealStatusText, dealTone, paymentWait, progressCaption, stoppedLabel } from "../_parts/deal-summary";
 import { requestStatusText, type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
 
 const t = ru.app.buyer.home;
@@ -154,7 +154,7 @@ function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDeal
               {deal.title}
             </Link>
           </h3>
-          <StatusChip tone={tone}>{dealStatusText(deal.status, deal.hasOpenDispute)}</StatusChip>
+          <StatusChip tone={tone}>{dealStatusText(deal.status, deal.hasOpenDispute, paymentWait({ status: deal.status, money: deal.money, paymentProvider: deal.paymentProvider }))}</StatusChip>
         </div>
         {progress.kind === "steps" ? (
           <div className="flex flex-col gap-2">

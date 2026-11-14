@@ -17,6 +17,7 @@ const deal = (id: string, status: DealStatus, over: Partial<ListDealInput> = {})
   hasOpenDispute: false,
   money: status === "CREATED" ? awaiting : held,
   estimate: { totalTiyn: 102_000_00n },
+  paymentProvider: "MOCK",
   ...over,
 });
 const none = new Map<string, NextStep>();

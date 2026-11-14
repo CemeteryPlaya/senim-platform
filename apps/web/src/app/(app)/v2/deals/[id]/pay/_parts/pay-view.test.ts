@@ -36,10 +36,10 @@ describe("оплата переводом по реквизитам (ручно�
     expect(payLabel("102 000 ₸", false)).toBe("Оплатить 102 000 ₸");
   });
 
-  it("тост после: перевод — «Переведите N ₸ по реквизитам из оферты» при любом статусе; онлайн — по итогу операции", () => {
-    expect(paidToast({ status: "PENDING" }, "102 000 ₸", true)).toBe("Переведите 102 000 ₸ по реквизитам из оферты");
-    expect(paidToast({ status: "SUCCEEDED" }, "102 000 ₸", false)).toBe(p.done.SUCCEEDED);
-    expect(paidToast({ status: "PENDING" }, "102 000 ₸", false)).toBe(p.done.PENDING);
+  it("тост после: перевод — «Оплата оформлена — переведите деньги по реквизитам» без суммы при любом статусе; онлайн — по итогу операции", () => {
+    expect(paidToast({ status: "PENDING" }, true)).toBe("Оплата оформлена — переведите деньги по реквизитам");
+    expect(paidToast({ status: "SUCCEEDED" }, false)).toBe(p.done.SUCCEEDED);
+    expect(paidToast({ status: "PENDING" }, false)).toBe(p.done.PENDING);
   });
 });
 

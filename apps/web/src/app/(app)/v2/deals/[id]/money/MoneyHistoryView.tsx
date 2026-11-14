@@ -1,5 +1,5 @@
 import { ru } from "@/i18n/ru";
-import { Card, List, ListItem, MoneyPanel, Narrow, PageTitle, Section, Stack, Timeline, type TimelineItem } from "@/kit";
+import { Card, List, ListItem, MoneyPanel, Narrow, PageTitle, Section, Stack, TextLink, Timeline, type TimelineItem } from "@/kit";
 import type { Device } from "@/platform/device";
 import type { MoneyView } from "../_parts/deal-card";
 import { ShareButton } from "./ShareButton";
@@ -19,37 +19,9 @@ export type MoneyHistoryModel = {
   documents: MoneyDocument[];
 };
 
-/** Документ-основание оплаты: подпись — какая операция и когда (ссылка без этого безымянна). */
-function Basis({ rows }: { rows: OperationRow[] }) {
-  // Timeline kit не умеет ссылку в строке, поэтому основание оплаты — отдельным разделом (остальные документы — в «Выписке и акте»).
-  const withBasis = rows.filter((row) => row.kind === "hold" && row.basis);
-  if (withBasis.length === 0) return null;
-  return (
-    <Section title={t.basisSection}>
-      <Card padded={false}>
-        <List>
-          {withBasis.map((row) => (
-            <ListItem key={row.covers.join("+")}>
-              <a
-                href={row.basis?.href}
-                target="_blank"
-                rel="noopener"
-                className="flex min-h-control w-full items-center justify-between gap-4 px-4 py-3 text-body text-ink no-underline hover:bg-canvas"
-              >
-                <span className="min-w-0 wrap-break-word">{t.basisLabel(row.title, row.time)}</span>
-                <span className="shrink-0 font-medium">{t.basisOpen}</span>
-              </a>
-            </ListItem>
-          ))}
-        </List>
-      </Card>
-    </Section>
-  );
-}
-
 /**
  * История денег: блок денег (тот же вид, что на карточке сделки, из журнала), операции журнала лентой — свежие сверху,
- * документы-основания, выписка и акт («Открыть» и «Поделиться»). Главного действия на экране нет: он справочный.
+ * выписка и акт («Открыть» и «Поделиться»). Главного действия на экране нет: он справочный.
  */
 export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; device: Device }) {
   const m = model.money;
@@ -59,6 +31,8 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
     time: row.time,
     ...(row.amount !== undefined ? { amount: row.amount } : {}),
     ...(row.text ? { text: row.text } : {}),
+    // Документ-основание оплаты (PDF) — ссылка внутри строки операции.
+    ...(row.kind === "hold" && row.basis ? { link: { label: t.basisLink, href: row.basis.href, external: true } } : {}),
   }));
   return (
     <Narrow>
@@ -76,7 +50,6 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
         <Section title={t.operations}>
           <Card>{items.length === 0 ? <p className="text-body text-muted">{t.empty}</p> : <Timeline label={t.operationsLabel} items={items} />}</Card>
         </Section>
-        <Basis rows={model.operations} />
         <Section title={t.documentsSection}>
           {model.documents.length === 0 ? (
             <Card>
@@ -93,9 +66,9 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
                         <span className="text-sub text-muted">{doc.status}</span>
                       </span>
                       <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <a href={doc.href} target="_blank" rel="noopener" className="inline-flex min-h-control items-center text-body font-medium text-ink underline underline-offset-4">
+                        <TextLink href={doc.href} external>
                           {doc.statement ? t.openStatement : t.open}
-                        </a>
+                        </TextLink>
                         {doc.shareable && <ShareButton documentId={doc.id} name={doc.name} device={device} />}
                       </span>
                     </div>

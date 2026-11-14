@@ -145,7 +145,16 @@ export type MoneyView =
   | { kind: "awaiting"; payment: "none" | "PENDING" | "FAILED" }
   | { kind: "protected"; amountTiyn: bigint; reservedAt: Date; operationRef: string | null }
   | { kind: "frozen"; amountTiyn: bigint; frozenAt: Date }
-  | { kind: "completed"; paidToMasterTiyn: bigint; protectionTiyn: bigint; refundedTiyn: bigint; settled: boolean; completedAt: Date | null }
+  | {
+      kind: "completed";
+      paidToMasterTiyn: bigint;
+      protectionTiyn: bigint;
+      refundedTiyn: bigint;
+      settled: boolean;
+      completedAt: Date | null;
+      /** Сколько заплатил покупатель: подтверждённая оплата (`HOLD`) из журнала, цена с защитой сделки. Нет — оплаты в журнале нет. */
+      paidTiyn?: bigint;
+    }
   | { kind: "refunded"; amountTiyn: bigint; settled: boolean; refundedAt: Date | null };
 
 export type MoneyBlock = MoneyView & { bankBalanceTiyn: bigint; isTest: boolean };
@@ -171,6 +180,7 @@ function viewOf(facts: MoneyFacts, list: LedgerEntry[], priceTiyn: bigint): Mone
       protectionTiyn: protectionOf(release, priceTiyn),
       refundedTiyn: refund?.amountTiyn ?? 0n,
       settled: facts.payoutSettled,
+      ...(facts.heldEntry ? { paidTiyn: facts.heldEntry.amountTiyn } : {}),
       completedAt: facts.payoutSettled ? [release, ...parts, ...(refund ? [refund] : [])].map(at).reduce((a, b) => (a > b ? a : b)) : null,
     };
   }

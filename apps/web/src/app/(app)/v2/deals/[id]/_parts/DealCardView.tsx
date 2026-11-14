@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import type { ReactNode } from "react";
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
@@ -27,9 +27,9 @@ import {
 import type { PartyContacts } from "@/modules/companies";
 import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
-import { HELP_ANCHORS } from "../../../help/anchors";
 import type { DealStepsView, DealTone } from "../../../_parts/deal-summary";
 import type { DocumentRow, MoneyView, NowView } from "./deal-card";
+import { dealHelpItems } from "../../_parts/help-items";
 import { DealActions } from "./DealActions";
 
 const t = ru.app.deal.card;
@@ -54,9 +54,6 @@ export type CardView = {
 
 /** Сколько строк «Заказа» видно на телефоне до «Показать всё». */
 const ORDER_SHOWN_MOBILE = 3;
-
-/** Ссылка на файл (PDF): обычная ссылка без перехода роутера, вид — как у `TextLink`. */
-const FILE_LINK = "inline-flex min-h-control w-fit items-center gap-1 text-body font-medium text-ink no-underline hover:underline";
 
 /**
  * Раскрытие по нажатию (нативный `<details>`: клавиатура и диктор без скриптов). Подпись — как у `TextLink`; раскрытое
@@ -164,7 +161,7 @@ function Order({ view, device }: { view: CardView; device: Device }) {
   );
 }
 
-/** Документ — строка-ссылка на PDF (обработчик `/api/documents/<id>/pdf`): обычная ссылка, без перехода роутера. */
+/** Документ — строка-ссылка на PDF в новой вкладке (обработчик `/api/documents/<id>/pdf`): обычная ссылка, без перехода роутера. */
 function Documents({ view }: { view: CardView }) {
   const d = t.documents;
   return (
@@ -181,7 +178,7 @@ function Documents({ view }: { view: CardView }) {
                 <a
                   href={doc.href}
                   target="_blank"
-                  rel="noopener"
+                  rel="noopener noreferrer"
                   className="flex min-h-control w-full items-center justify-between gap-4 px-4 py-3 text-body no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
                 >
                   <span className="flex min-w-0 flex-col gap-1">
@@ -190,7 +187,8 @@ function Documents({ view }: { view: CardView }) {
                   </span>
                   <span className="flex shrink-0 items-center gap-1 font-medium text-ink">
                     {d.open}
-                    <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
+                    <span className="sr-only"> ({ru.app.kit.externalHint})</span>
+                    <ExternalLink aria-hidden className="size-4 shrink-0 text-muted" />
                   </span>
                 </a>
               </ListItem>
@@ -266,10 +264,7 @@ function History({ view }: { view: CardView }) {
 function Help() {
   return (
     <HelpBlock
-      items={[
-        { question: t.help.money, href: `${to("/help")}#${HELP_ANCHORS.money}` },
-        { question: t.help.notLiked, href: `${to("/help")}#${HELP_ANCHORS.notFit}` },
-      ]}
+      items={dealHelpItems()}
       supportEmail={brand.support.email}
     />
   );
@@ -284,16 +279,11 @@ function Help() {
 export function DealCardView({ view, device }: { view: CardView; device: Device }) {
   const { now } = view;
   const primary = now.primary && <ButtonLink href={now.primary.href}>{now.primary.label}</ButtonLink>;
-  const link =
-    now.link &&
-    (now.link.external ? (
-      <a href={now.link.href} target="_blank" rel="noopener" className={FILE_LINK}>
-        {now.link.label}
-        <ChevronRight aria-hidden className="size-4 shrink-0" />
-      </a>
-    ) : (
-      <TextLink href={now.link.href}>{now.link.label}</TextLink>
-    ));
+  const link = now.link && (
+    <TextLink href={now.link.href} external={now.link.external === true}>
+      {now.link.label}
+    </TextLink>
+  );
   const nowBlock: ReactNode = (
     <Stack>
       <NowNext now={{ title: now.title, ...(now.body ? { body: now.body } : {}) }} {...(now.next ? { next: now.next } : {})} />

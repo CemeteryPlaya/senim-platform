@@ -38,8 +38,8 @@ export const isAgreed = (agreedVersion: string | null, version: string): boolean
 /** Подпись главной кнопки: перевод по реквизитам — «Оплатить переводом N ₸», онлайн — «Оплатить N ₸». */
 export const payLabel = (amount: string, manual: boolean): string => (manual ? p.manual.submit(amount) : p.submit(amount));
 
-/** Тост на карточке после оплаты: перевод — что сделать дальше; онлайн — итог операции. */
-export function paidToast(data: { status: "PENDING" | "SUCCEEDED" | "FAILED" }, amount: string, manual: boolean): string {
-  if (manual) return p.manual.done(amount);
+/** Тост на карточке после оплаты: перевод — что сделать дальше (без суммы: она в «Сейчас»); онлайн — итог операции. */
+export function paidToast(data: { status: "PENDING" | "SUCCEEDED" | "FAILED" }, manual: boolean): string {
+  if (manual) return p.manual.done;
   return data.status === "SUCCEEDED" ? p.done.SUCCEEDED : p.done.PENDING;
 }

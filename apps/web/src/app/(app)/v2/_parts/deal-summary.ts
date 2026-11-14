@@ -84,9 +84,27 @@ export function dealTone(deal: {
   return "accent";
 }
 
-/** Текст плашки статуса: открытый спор важнее статуса. */
-export function dealStatusText(status: DealStatus, hasOpenDispute: boolean): string {
-  return hasOpenDispute ? ru.app.deal.status.dispute : ru.app.deal.status[status];
+/** Оплата оформлена, поступления ещё нет: перевод по реквизитам (`transfer`), онлайн-оплата у банка (`online`). */
+export type PaymentWait = "transfer" | "online";
+
+/**
+ * Идёт ли ожидание оплаты (журнал денег: операция оплаты в обработке, сделка ещё `CREATED`) и какое: ручной провайдер —
+ * ждём перевод покупателя, иначе банк обрабатывает оплату. Иначе — `null`. Одно правило для карточки, списка и главной.
+ */
+export function paymentWait(deal: { status: DealStatus; money: MoneyBlock; paymentProvider: string }): PaymentWait | null {
+  if (deal.status !== "CREATED" || deal.money.kind !== "awaiting" || deal.money.payment !== "PENDING") return null;
+  return deal.paymentProvider === "MANUAL" ? "transfer" : "online";
+}
+
+/**
+ * Текст плашки статуса: открытый спор важнее всего; ожидание оплаты (`paymentWait`) — «Ждём ваш перевод» или «Оплата
+ * обрабатывается» вместо «Оферта: подпись и оплата»; иначе — по статусу.
+ */
+export function dealStatusText(status: DealStatus, hasOpenDispute: boolean, wait: PaymentWait | null = null): string {
+  const s = ru.app.deal.status;
+  if (hasOpenDispute) return s.dispute;
+  if (wait) return wait === "transfer" ? s.transfer : s.processing;
+  return s[status];
 }
 
 /** Оплата закрыта: шаг покупателя — оплата, а мастер не дал согласие на передачу данных банку. */

@@ -88,6 +88,19 @@ describe("блок денег — только из журнала", () => {
     expect(block.kind === "completed" && block.completedAt).toBeInstanceOf(Date);
   });
 
+  it("завершённая сделка: сколько заплатил покупатель — подтверждённая оплата журнала (цена с защитой сделки), в том числе при разделе по спору и повторе оплаты", () => {
+    expect(view([entry("HOLD", money.buyerTotalTiyn), ...payout()])).toMatchObject({ kind: "completed", paidTiyn: money.buyerTotalTiyn });
+    const share = 40_000_00n;
+    const split = computeSplit(X, share);
+    expect(view([entry("HOLD", money.buyerTotalTiyn), ...payout("SUCCEEDED", share), entry("REFUND", split.refundTiyn)])).toMatchObject({ kind: "completed", paidTiyn: money.buyerTotalTiyn });
+    // Первая попытка оплаты отклонена, вторая прошла: сумма — по подтверждённой.
+    expect(view([entry("HOLD", 1n, "FAILED"), entry("HOLD", money.buyerTotalTiyn), ...payout()])).toMatchObject({ kind: "completed", paidTiyn: money.buyerTotalTiyn });
+    // Выплата ещё в банке — оплата уже была.
+    expect(view([entry("HOLD", money.buyerTotalTiyn), ...payout("PENDING")])).toMatchObject({ kind: "completed", settled: false, paidTiyn: money.buyerTotalTiyn });
+    // Поля нет там, где его не было: существующие поля остались как были.
+    expect(view([entry("HOLD", money.buyerTotalTiyn)])).not.toHaveProperty("paidTiyn");
+  });
+
   it("выплата в банке — завершается, но ещё не подтверждена", () => {
     expect(view([entry("HOLD", money.buyerTotalTiyn), ...payout("PENDING")])).toMatchObject({
       kind: "completed",

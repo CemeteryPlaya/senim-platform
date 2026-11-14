@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { dealStatusText, dealStepsView, dealTone, payWaitsMaster, progressCaption } from "./deal-summary";
+import type { DealStatus } from "@/generated/prisma/enums";
+import type { MoneyBlock } from "@/modules/payments";
+import { dealStatusText, dealStepsView, dealTone, payWaitsMaster, paymentWait, progressCaption } from "./deal-summary";
 
 const s = ru.app.buyer.home.deal;
 
@@ -42,6 +44,32 @@ describe("progressCaption и dealStatusText", () => {
   it("открытый спор важнее статуса", () => {
     expect(dealStatusText("READY", true)).toBe(ru.app.deal.status.dispute);
     expect(dealStatusText("READY", false)).toBe(ru.app.deal.status.READY);
+  });
+});
+
+describe("плашка при ожидании оплаты: одно правило для карточки, списка и главной", () => {
+  const awaiting = (payment: "none" | "PENDING" | "FAILED"): MoneyBlock => ({ kind: "awaiting", payment, bankBalanceTiyn: 0n, isTest: false });
+  const protectedBlock: MoneyBlock = { kind: "protected", amountTiyn: 1n, reservedAt: new Date(), operationRef: null, bankBalanceTiyn: 1n, isTest: false };
+  const status = ru.app.deal.status;
+
+  // [статус, блок денег, провайдер, спор, ожидание, текст плашки]
+  const TABLE: [string, DealStatus, MoneyBlock, string, boolean, ReturnType<typeof paymentWait>, string][] = [
+    ["перевод оформлен, поступления нет", "CREATED", awaiting("PENDING"), "MANUAL", false, "transfer", status.transfer],
+    ["онлайн-оплата у банка", "CREATED", awaiting("PENDING"), "FREEDOMPAY", false, "online", status.processing],
+    ["онлайн-оплата (тестовый провайдер)", "CREATED", awaiting("PENDING"), "MOCK", false, "online", status.processing],
+    ["оплаты ещё не было — как раньше", "CREATED", awaiting("none"), "MANUAL", false, null, status.CREATED],
+    ["прошлая оплата не прошла — как раньше", "CREATED", awaiting("FAILED"), "MANUAL", false, null, status.CREATED],
+    ["деньги в банке — статус по сделке", "PAID_HOLD", protectedBlock, "MANUAL", false, null, status.PAID_HOLD],
+    ["открытый спор важнее ожидания", "CREATED", awaiting("PENDING"), "MANUAL", true, "transfer", status.dispute],
+  ];
+
+  it.each(TABLE)("%s", (_name, dealStatus, money, paymentProvider, dispute, wait, text) => {
+    expect(paymentWait({ status: dealStatus, money, paymentProvider })).toBe(wait);
+    expect(dealStatusText(dealStatus, dispute, wait)).toBe(text);
+  });
+
+  it("без признака ожидания текст по статусу, как раньше", () => {
+    expect(dealStatusText("CREATED", false)).toBe(status.CREATED);
   });
 });
 
