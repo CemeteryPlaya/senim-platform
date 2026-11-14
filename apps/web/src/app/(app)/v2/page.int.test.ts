@@ -31,6 +31,16 @@ async function render(): Promise<string> {
   }
   return renderToStaticMarkup(page);
 }
+/** Куда уходит главная: адрес перехода или «page», если она нарисовалась. */
+async function where(): Promise<string> {
+  try {
+    await render();
+    return "page";
+  } catch (e) {
+    const digest = typeof e === "object" && e !== null && "digest" in e ? String((e as { digest: unknown }).digest) : "";
+    return digest.startsWith("NEXT_REDIRECT") ? (digest.split(";")[2] ?? "") : digest || "error";
+  }
+}
 const primaries = (out: string) => [...out.matchAll(/<a [^>]*data-primary-action[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map((m) => ({ href: m[1], label: m[2] }));
 const h2s = (out: string) => [...out.matchAll(/<h2[^>]*>([^<]*)<\/h2>/g)].map((m) => m[1]);
 
@@ -160,23 +170,16 @@ describe("/v2 для мастера", () => {
     expect(out).not.toMatch(/комисси|эскроу|демо/i);
   });
 
-  it("неодобренный мастер: экран статуса с одним шагом — на регистрацию", async () => {
-    const executor = await master({ status: "PENDING" });
-    await signInAs(executor);
-    const out = await render();
-    expect(h2s(out)).toContain(m.gate.pending.now);
-    expect(primaries(out)).toEqual([{ href: "/v2/register/executor", label: m.gate.pending.action }]);
-    expect(out).not.toContain(ru.app.masterDeal.list.yours);
+  it.each(["PENDING", "REJECTED"] as const)("неодобренный мастер (%s): «/v2» ведёт на регистрацию — его дом, главной у него нет", async (status) => {
+    await signInAs(await master({ status }));
+    expect(await where()).toBe("/v2/register/executor");
   });
 
-  it("неодобренный мастер со сделками (вкладки «Сделки» нет): на экране статуса — ссылка «Ваши сделки»", async () => {
+  it("неодобренный мастер со сделками: тоже на регистрацию (ссылка «Ваши сделки» — на экране статуса)", async () => {
     const executor = await master({ status: "PENDING" });
     await dealAt("SIGNED", { executor });
     await signInAs(executor);
-    const out = await render();
-    expect(h2s(out)).toContain(m.gate.pending.now);
-    expect(out).toMatch(new RegExp(`<a [^>]*href="/v2/deals"[^>]*>${ru.app.masterDeal.list.yours}`));
-    expect(primaries(out)).toEqual([{ href: "/v2/register/executor", label: m.gate.pending.action }]);
+    expect(await where()).toBe("/v2/register/executor");
   });
 
   it("первые шаги: документы и счёт не готовы — список с прогрессом, главное действие одно; первое предложение отмечается сделанным", async () => {
@@ -193,10 +196,5 @@ describe("/v2 для мастера", () => {
     await sendOffer(executor, offerInput(requestId));
     const after = await render();
     expect(after).toContain(`${steps.offer}<span class="sr-only">`);
-  });
-
-  it("неодобренный мастер первых шагов не видит: только экран статуса", async () => {
-    await signInAs(await master({ status: "PENDING" }));
-    expect(await render()).not.toContain(ru.app.kit.firstSteps.progressLabel);
   });
 });

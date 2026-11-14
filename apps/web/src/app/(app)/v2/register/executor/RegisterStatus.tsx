@@ -1,5 +1,5 @@
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Card, List, ListRow, NowNext, PageTitle, Section, Split, Stack } from "@/kit";
+import { ActionDock, ButtonLink, Card, List, ListRow, NowNext, PageTitle, Section, Split, Stack, TextLink } from "@/kit";
 import { to } from "../../../_shell/paths";
 import type { LegalForm } from "./_parts/schema";
 import { guestLoginHref, stepHref } from "./_parts/steps";
@@ -38,6 +38,11 @@ export type KycState = "NOT_SUBMITTED" | "PENDING" | "VERIFIED" | "REJECTED";
 export const documentsWanted = (kyc: KycState | null): boolean => kyc === "NOT_SUBMITTED" || kyc === "REJECTED";
 
 const KYC_HREF = to("/executor/profile/kyc");
+
+/** «Ваши сделки»: у мастера до одобрения вкладки «Сделки» нет, а сделки есть (одобрение сняли или оно ещё не пришло). */
+function DealsLink() {
+  return <TextLink href={to("/deals")}>{ru.app.masterDeal.list.yours}</TextLink>;
+}
 
 /**
  * На проверке: что проверяем и что можно сделать, пока ждёте. Документы не поданы или отклонены — главное действие
@@ -88,14 +93,16 @@ function Pending({ registration, kyc }: { registration: RegistrationView; kyc: K
 
 /**
  * Статус регистрации мастера — дом мастера до одобрения: на проверке, одобрено (к заявкам), отказ (причина и «Исправить и
- * отправить заново» — та же анкета с первого шага). Вложенным экраном не является: «Назад» нет. Номер — только 4 цифры.
+ * отправить заново» — та же анкета с первого шага). Вложенным экраном не является: «Назад» нет. Номер — только 4 цифры. `hasDeals` — у мастера есть сделки: под
+ * «Сейчас» ссылка «Ваши сделки» (до одобрения вкладки «Сделки» нет).
  */
-export function RegisterStatus({ registration, kyc = null }: { registration: RegistrationView; kyc?: KycState | null }) {
+export function RegisterStatus({ registration, kyc = null, hasDeals = false }: { registration: RegistrationView; kyc?: KycState | null; hasDeals?: boolean }) {
   if (registration.status === "PENDING") {
     return (
       <Stack gap="section">
         <PageTitle title={s.title} />
         <Pending registration={registration} kyc={kyc} />
+        {hasDeals && <DealsLink />}
         {documentsWanted(kyc) && (
           <ActionDock>
             <ButtonLink href={KYC_HREF}>{s.pending.documents}</ButtonLink>
@@ -112,6 +119,7 @@ export function RegisterStatus({ registration, kyc = null }: { registration: Reg
     <Stack gap="section">
       <PageTitle title={s.title} />
       <Split main={<NowNext now={now} next={approved ? s.approved.next : s.rejected.next} />} aside={<Summary registration={registration} />} />
+      {hasDeals && !approved && <DealsLink />}
       <ActionDock>
         {approved ? (
           <ButtonLink href={to("/executor/requests")}>{s.approved.action}</ButtonLink>

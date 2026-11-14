@@ -7,7 +7,6 @@ import { getNegotiation, listIncomingRequests, listMyOffers } from "@/modules/re
 import type { Device } from "@/platform/device";
 import { logger } from "@/platform/logger";
 import type { MasterStatus } from "../../_shell/auth";
-import { to } from "../../_shell/paths";
 import { consentMissingOf } from "../_parts/pay-waits";
 import { readForMaster } from "../executor/_parts/approved";
 import { MasterGate } from "../executor/_parts/MasterGate";
@@ -70,10 +69,8 @@ export async function MasterHome({ user, status, device }: { user: CurrentUser; 
   });
   const name = firstName(user.fullName);
   if ("gate" in read) {
-    // Вкладки «Сделки» до одобрения нет: если сделки мастера есть (одобрение сняли), — ссылка на них.
-    const hasDeals = (await listDeals(user)).some((d) => d.myRole === "EXECUTOR");
-    const link = hasDeals ? { href: to("/deals"), label: ru.app.masterDeal.list.yours } : undefined;
-    return <MasterGate status={read.gate} title={ru.app.masterRequests.home.title(name)} device={device} {...(link ? { link } : {})} />;
+    // Неодобренного мастера `/v2` направляет на регистрацию; сюда — только гонка: сессия говорит «одобрен», база — уже нет.
+    return <MasterGate status={read.gate} title={ru.app.masterRequests.home.title(name)} device={device} />;
   }
 
   const { incoming, allDeals, finance, counters, offered, docs } = read.data;

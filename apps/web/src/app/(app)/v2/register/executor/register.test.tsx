@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   registration: null as unknown,
   unavailable: false,
   kyc: "NOT_SUBMITTED" as string | Error,
+  deals: [] as { myRole: string }[],
   form: { pending: false, error: null as string | null, fieldErrors: {} as Record<string, string> },
 }));
 
@@ -26,6 +27,10 @@ vi.mock("@/modules/identity", async (original) => ({
     if (h.kyc instanceof Error) throw h.kyc;
     return { state: h.kyc, canSubmit: true, rejectReason: null, documents: { id: 0, registration: 0 } };
   },
+}));
+vi.mock("@/modules/deal-core", async (original) => ({
+  ...(await original<typeof import("@/modules/deal-core")>()),
+  listDeals: async () => h.deals,
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
@@ -102,6 +107,7 @@ beforeEach(() => {
   h.registration = null;
   h.unavailable = false;
   h.kyc = "NOT_SUBMITTED";
+  h.deals = [];
   h.form = { pending: false, error: null, fieldErrors: {} };
 });
 
@@ -165,6 +171,20 @@ describe("регистрация мастера: кто что видит", () =
     expect(out).toContain(`•••• ${BIN.slice(-4)}`);
     // Пояснение «как проходит проверка» не повторяет первую карточку.
     expect(out).not.toContain(t.form.explain.label);
+  });
+
+  it("«Ваши сделки» — только у мастера, у которого сделки есть; без сделок и у заказчика ссылки нет", async () => {
+    h.user = person({ role: "EXECUTOR", roles: ["CLIENT", "EXECUTOR"], executor: { id: "e1", status: "PENDING" } });
+    h.registration = registration("PENDING");
+    expect(await page()).not.toContain(ru.app.masterDeal.list.yours);
+    h.deals = [{ myRole: "EXECUTOR" }];
+    const out = await page();
+    expect(out).toMatch(new RegExp(`<a [^>]*href="/v2/deals"[^>]*>${ru.app.masterDeal.list.yours}`));
+    expect(count(out, "data-primary-action")).toBe(1);
+    h.registration = registration("REJECTED");
+    expect(await page()).toContain(ru.app.masterDeal.list.yours);
+    h.user = person({ roles: ["CLIENT", "EXECUTOR"], executor: { id: "e1", status: "PENDING" } });
+    expect(await page()).not.toContain(ru.app.masterDeal.list.yours);
   });
 
   it("документы отклонены — то же главное действие", async () => {

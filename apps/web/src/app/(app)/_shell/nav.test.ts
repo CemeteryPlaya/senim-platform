@@ -70,13 +70,13 @@ describe("navFor: вкладки по ролям", () => {
   it.each(["PENDING", "REJECTED"] as const)("мастер (%s): Главная (статус проверки) · Компания · Профиль", (status) => {
     const nav = navFor(executor(status), OFF);
     expect(labels(nav)).toEqual(["Главная", "Компания", "Профиль"]);
-    expect(hrefs(nav)).toEqual(["/v2", "/v2/executor/profile", "/v2/profile"]);
+    expect(hrefs(nav)).toEqual(["/v2/register/executor", "/v2/executor/profile", "/v2/profile"]);
     expect(nav.sections).toEqual(nav.tabs);
     expect(nav.action).toBeUndefined();
   });
 
   it("мастер без профиля исполнителя — как на проверке", () => {
-    expect(hrefs(navFor({ role: "EXECUTOR", executor: null }, OFF))).toEqual(["/v2", "/v2/executor/profile", "/v2/profile"]);
+    expect(hrefs(navFor({ role: "EXECUTOR", executor: null }, OFF))).toEqual(["/v2/register/executor", "/v2/executor/profile", "/v2/profile"]);
   });
 
   it("вкладки мастера: активная — по адресу; корневые экраны — сами вкладки", () => {
@@ -87,6 +87,13 @@ describe("navFor: вкладки по ролям", () => {
     expect(activeHref(tabs, "/v2/executor/finance")).toBeUndefined();
     expect(isTabRoot(tabs, "/v2/executor/requests")).toBe(true);
     expect(isTabRoot(tabs, "/v2/executor/requests/r1")).toBe(false);
+  });
+
+  it("мастер до одобрения: «Главная» — регистрация, она же активна на экранах регистрации", () => {
+    const tabs = navFor(executor("PENDING"), OFF).tabs;
+    expect(activeHref(tabs, "/v2/register/executor")).toBe("/v2/register/executor");
+    expect(isTabRoot(tabs, "/v2/register/executor")).toBe(true);
+    expect(activeHref(tabs, "/v2")).toBeUndefined();
   });
 
   it("оператор: вкладок нет (оболочка оператора — этап 5)", () => {

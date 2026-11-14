@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
+import { listDeals } from "@/modules/deal-core";
 import { getMyRegistration, getOwnKyc, getShellUser, type CurrentUser } from "@/modules/identity";
 import { getDevice } from "@/platform/device";
 import { logger } from "@/platform/logger";
@@ -19,7 +20,7 @@ const one = (value: string | string[] | undefined): string | undefined => (typeo
  * - гость — что нужно и вход с ролью мастера и возвратом сюда; вошедший при недоступном identity — не гость: общая
  *   ошибка оболочки (плашка «сервис недоступен» и граница ошибок группы с «Повторить»);
  * - нет профиля — анкета по шагам (`?step=`);
- * - на проверке, одобрено, отказ — экран статуса; после отказа `?step=` открывает ту же анкету заново.
+ * - на проверке, одобрено, отказ — экран статуса (у мастера со сделками — ссылка «Ваши сделки»); после отказа `?step=` открывает ту же анкету заново.
  *
  * Ворота — `requireV2User` с обеими ролями (правило 2 у requireV2User), а не `requireMaster`: заказчик без профиля тоже
  * попадает сюда. Оператор и замерщик уходят в свой дом, непройденные первые шаги (согласие, ФИО и ИИН, почта) — на них.
@@ -35,7 +36,8 @@ export default async function RegisterExecutorPage({ searchParams }: Props) {
   const [registration, device] = await Promise.all([getMyRegistration(user), getDevice()]);
   if (registration && (registration.status !== "REJECTED" || step === null)) {
     const kyc = registration.status === "PENDING" ? await kycStateOf(user) : null;
-    return <RegisterStatus registration={registration} kyc={kyc} />;
+    const hasDeals = registration.status !== "APPROVED" && (await hasMasterDeals(user));
+    return <RegisterStatus registration={registration} kyc={kyc} hasDeals={hasDeals} />;
   }
 
   const rejected = registration !== null;
@@ -64,5 +66,19 @@ async function kycStateOf(user: CurrentUser): Promise<KycState | null> {
   } catch (e) {
     logger.warn("app.masterRegister.kyc_unavailable", { error: e });
     return null;
+  }
+}
+
+/**
+ * Есть ли у мастера сделки (одобрение сняли или ещё не пришло): вкладки «Сделки» до одобрения нет, ссылка — на экране
+ * статуса. Только в роли мастера: в роли заказчика «Сделки» — это сделки покупателя. Сбой чтения — «нет»: ссылка не нужна.
+ */
+async function hasMasterDeals(user: CurrentUser): Promise<boolean> {
+  if (user.role !== "EXECUTOR") return false;
+  try {
+    return (await listDeals(user)).some((d) => d.myRole === "EXECUTOR");
+  } catch (e) {
+    logger.warn("app.masterRegister.deals_unavailable", { error: e });
+    return false;
   }
 }

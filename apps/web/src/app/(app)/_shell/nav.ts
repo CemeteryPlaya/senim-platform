@@ -49,6 +49,8 @@ const t = ru.app.shell.nav;
 
 const R = {
   home: { href: to("/"), label: t.home, icon: "home" },
+  /** «Главная» неодобренного мастера: его дом — регистрация и статус проверки (`homeFor`), а не главная v2. */
+  registration: { href: to("/register/executor"), label: t.home, icon: "home" },
   masters: { href: to("/catalog"), label: t.masters, icon: "masters" },
   about: { href: to("/about"), label: t.about, icon: "about" },
   login: { href: to("/login"), label: t.login, icon: "login" },
@@ -74,10 +76,11 @@ function roleTabs(user: NavUser): NavItem[] {
       return [R.home, R.requests, R.deals, R.chat, R.profile];
     case "EXECUTOR":
       // Мастер: «что сейчас» на главной; финансы, компания и портфолио — из профиля и главной. Неодобренный (нет профиля,
-      // на проверке, отказ): главная говорит о статусе проверки, компания — что о нём увидят покупатели.
+      // на проверке, отказ): «Главная» — регистрация и статус проверки (тот же дом, что у `homeFor`; `/v2` его туда
+      // направляет), компания — что о нём увидят покупатели.
       return user.executor?.status === "APPROVED"
         ? [R.home, R.incoming, R.deals, R.chat, R.profile]
-        : [R.home, R.company, R.profile];
+        : [R.registration, R.company, R.profile];
     case "MEASURER":
       return [R.measurements, R.chat, R.profile];
     case "OPERATOR":
