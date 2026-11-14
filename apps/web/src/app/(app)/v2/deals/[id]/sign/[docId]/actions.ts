@@ -47,14 +47,16 @@ const consentMissing = () => new AppError("VALIDATION", tc.missing, { fieldError
 
 /**
  * Замок согласия для банка перед подписью оферты мастером. Покупателя не касается (его согласие — перед оплатой). Документ
- * должен быть среди документов этой сделки (иначе «не найден»: чужая сделка с данным согласием не открывает чужую
- * оферту). Отметки читаются, пока сделка CREATED (`bankConsentState`, иначе `null` — шаг сделки рассудит модуль). Своего
+ * должен быть среди действующих документов этой сделки (иначе CONFLICT «документ заменили»: своя сделка с данным
+ * согласием не открывает чужую оферту). Отметки читаются, пока сделка CREATED (`bankConsentState`, иначе `null` — шаг сделки рассудит модуль). Своего
  * согласия нет: с отметкой (`give`) — сохранить его до подписи; без — отказ.
  */
 async function bankLock(user: CurrentUser, input: ConsentInput, give: boolean): Promise<void> {
   if (user.role !== "EXECUTOR") return;
   const doc = (await readDealDocuments(user, input.dealId)).find((d) => d.id === input.documentId);
-  if (!doc) throw new AppError("NOT_FOUND", t.notFound);
+  // Не среди действующих документов этой сделки (заменён новой редакцией или подставлен из чужой сделки): тот же ответ,
+  // что модуль даёт покупателю на заменённую редакцию; подписи нет.
+  if (!doc) throw new AppError("CONFLICT", t.superseded);
   if (doc.kind !== "CONTRACT") return;
   const bank = await bankConsentState(user, input.dealId);
   if (!bank || bank.mine) return;
@@ -77,9 +79,10 @@ function repeated(e: unknown): { fullySigned: boolean } | null {
 /** Отказ модуля → тот же код с текстом экрана. Не AppError и неизвестные — как есть (их разберёт `action()`). */
 function retext(e: unknown): unknown {
   if (!isAppError(e)) return e;
-  // Отказ замка согласия — уже текст экрана с ошибкой у отметки.
-  if (e.message === tc.missing) return e;
-  if (e.details?.reason === CONSENT_VERSION_CHANGED) return new AppError(e.code, tc.changed);
+  // Отказы замка согласия — уже тексты экрана.
+  if (e.message === tc.missing || e.message === t.superseded) return e;
+  // Редакция согласия сменилась: ошибка у отметки, экран перечитывается на месте и показывает новую редакцию.
+  if (e.details?.reason === CONSENT_VERSION_CHANGED) return new AppError(e.code, tc.changed, { fieldErrors: { agreed: [tc.changed] } });
   const byMessage: Readonly<Record<string, string>> = {
     [m.pending]: t.pending,
     [m.otherSigner]: t.otherSigner,

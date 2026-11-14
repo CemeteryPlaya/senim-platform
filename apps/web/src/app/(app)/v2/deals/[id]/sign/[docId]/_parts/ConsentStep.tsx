@@ -16,12 +16,18 @@ type Props = { dealId: string; dealHref: string; document: ConsentDocument };
 
 /**
  * Оферта подписана, а своего согласия для банка у мастера нет (Ruling 7): текст согласия с прокруткой, отметка и единственное
- * действие «Дать согласие». Без отметки сервер отвечает ошибкой у неё. После — тост и карточка сделки. Двойное нажатие —
- * одна отправка; повтор модуль сводит к той же записи.
+ * действие «Дать согласие». Без отметки сервер отвечает ошибкой у неё; сменилась редакция текста — экран перечитывается с
+ * новой редакцией (отметка снята), ошибка у отметки. После — тост и карточка сделки. Двойное нажатие — одна отправка;
+ * повтор модуль сводит к той же записи.
  */
 export function ConsentStep({ dealId, dealHref, document: doc }: Props) {
   const router = useRouter();
-  const form = useActionForm(giveBankConsentAction, {
+  // Редакция текста сменилась (CONFLICT): экран перечитывается на месте — форма с новой редакцией, ошибка у отметки.
+  const form = useActionForm(async (input: Parameters<typeof giveBankConsentAction>[0]) => {
+    const result = await giveBankConsentAction(input);
+    if (!result.ok && result.code === "CONFLICT") router.refresh();
+    return result;
+  }, {
     onSuccess: () => {
       toast(tc.saved);
       router.push(dealHref);

@@ -220,12 +220,23 @@ describe("мастер: оферта с согласием для банка, а
     expect((await dealOf(dealId)).signedAt).not.toBeNull();
   });
 
-  it("документ чужой сделки при своей сделке с согласием — «не найден», подписи нет", async () => {
+  it("документ чужой сделки при своей сделке с согласием — «документ заменили» (как заменённая редакция), подписи нет", async () => {
     const own = await masterContract(["CLIENT", "EXECUTOR"]);
     const other = await makeDeal({ executor: own.f.executor, bankConsents: ["CLIENT"] });
     const otherDoc = await latestDocument(other.dealId, "CONTRACT");
-    expect(await signByHandAction({ dealId: own.dealId, documentId: otherDoc.id, typedName: "Жумабаев Ерлан" })).toMatchObject({ ok: false, code: "NOT_FOUND", error: t.notFound });
+    expect(await signByHandAction({ dealId: own.dealId, documentId: otherDoc.id, typedName: "Жумабаев Ерлан" })).toMatchObject({ ok: false, code: "CONFLICT", error: t.superseded });
     expect(await handOf(otherDoc.id, "EXECUTOR")).toHaveLength(0);
+  });
+
+  it("редакция текста согласия сменилась — CONFLICT с ошибкой у отметки («текст обновился»): ни подписи, ни согласия", async () => {
+    const { f, dealId, documentId } = await masterContract();
+    const stale = { agreed: "on" as const, version: "1999-01-01" };
+    const hand = await signByHandAction({ dealId, documentId, ...stale, typedName: "Жумабаев Ерлан" });
+    expect(hand).toMatchObject({ ok: false, code: "CONFLICT", error: tc.changed, fieldErrors: { agreed: [tc.changed] } });
+    expect(await startSigningAction({ dealId, documentId, ...stale, method: "EGOV_QR" })).toMatchObject({ ok: false, code: "CONFLICT", error: tc.changed });
+    expect(await giveBankConsentAction({ dealId, ...stale })).toMatchObject({ ok: false, code: "CONFLICT", fieldErrors: { agreed: [tc.changed] } });
+    expect(await handOf(documentId, "EXECUTOR")).toHaveLength(0);
+    expect(bankConsentOf(f.executor.id, dealId)).toHaveLength(0);
   });
 
   it("оферта подписана без согласия (Ruling 7): «Дать согласие» — без отметки отказ; дважды — одна запись; покупатель этим действием не даёт", async () => {

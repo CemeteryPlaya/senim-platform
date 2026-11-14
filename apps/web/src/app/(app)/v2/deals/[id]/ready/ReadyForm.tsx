@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { GeoFix } from "@/features/delivery/request-location";
 import { PHOTO_ACCEPT } from "@/features/upload/transfer";
 import { ru } from "@/i18n/ru";
@@ -46,6 +46,11 @@ export function ReadyForm({ dealId, dealHref, device }: Props) {
     },
   });
   const photosError = photoError ?? form.fieldErrors.photoIds ?? null;
+  // Ошибка «нет фото» — фокус на раздел фото: диктор читает ошибку, на телефоне раздел прокручивается в вид.
+  const photos = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (photosError) photos.current?.focus();
+  }, [photosError]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,6 +61,8 @@ export function ReadyForm({ dealId, dealHref, device }: Props) {
     }
     if (uploads.fileIds.length === 0) {
       setPhotoError(t.errors.photos);
+      // Повторное нажатие с той же ошибкой — фокус снова на фото (эффект ниже срабатывает только на смену текста).
+      photos.current?.focus();
       return;
     }
     setPhotoError(null);
@@ -74,7 +81,7 @@ export function ReadyForm({ dealId, dealHref, device }: Props) {
       <Section title={t.photosTitle}>
         <Card>
           <form id={FORM} method="post" onSubmit={(event) => void submit(event)} noValidate>
-            <Stack>
+            <div ref={photos} tabIndex={-1} className="flex flex-col gap-3 outline-none">
               <p className="text-sub text-muted">{t.photosLead}</p>
               <Uploader
                 items={uploads.items}
@@ -96,7 +103,7 @@ export function ReadyForm({ dealId, dealHref, device }: Props) {
                 </p>
               )}
               <FormError error={form.error} atField={Boolean(form.fieldErrors.photoIds)} />
-            </Stack>
+            </div>
           </form>
         </Card>
       </Section>

@@ -50,6 +50,12 @@ function useHandle(dealHref: string) {
       return { kind: "leaving" };
     }
     if (outcome.kind === "error") {
+      const agreed = outcome.fieldErrors.agreed;
+      // Сменилась редакция текста согласия: экран перечитывается на месте (новая редакция, отметка снята), ошибка — у отметки.
+      if (!result.ok && result.code === "CONFLICT" && agreed) {
+        router.refresh();
+        return { kind: "error", error: agreed, field: "agreed" };
+      }
       // Документ или сделку изменили (заменили редакцию, сменился шаг, вторая вкладка): подписывать здесь больше нечего —
       // тост с причиной и карточка сделки (её главное действие ведёт на действующую редакцию).
       if (!result.ok && result.code === "CONFLICT") {
@@ -57,7 +63,6 @@ function useHandle(dealHref: string) {
         router.push(dealHref);
         return { kind: "leaving" };
       }
-      const agreed = outcome.fieldErrors.agreed;
       if (agreed) return { kind: "error", error: agreed, field: "agreed" };
       return { kind: "error", error: Object.values(outcome.fieldErrors)[0] ?? outcome.error };
     }
@@ -102,10 +107,15 @@ function ConsentGate({ document: doc, agreed, onChange, error }: { document: Con
   );
 }
 
-/** Отметка согласия для банка, пока замок есть: что отметил человек и ошибка у отметки. */
+/**
+ * Отметка согласия для банка, пока замок есть: что отметил человек и ошибка у отметки. Отметка привязана к редакции текста:
+ * экран перечитался с новой редакцией — отметка снята, её нужно поставить заново.
+ */
 function useConsentGate(consent: SignAreaProps["consent"]) {
-  const [agreed, setAgreed] = useState(false);
+  const [agreedVersion, setAgreedVersion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const agreed = consent !== null && agreedVersion === consent.document.version;
+  const setAgreed = (next: boolean) => setAgreedVersion(next && consent ? consent.document.version : null);
   return {
     locked: consent !== null && !agreed,
     /** Поля отметки для действия: только при замке. */
