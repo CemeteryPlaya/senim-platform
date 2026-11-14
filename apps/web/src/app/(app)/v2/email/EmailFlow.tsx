@@ -3,17 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, CodeField, Explain, HiddenField, Notice, Stack, TextField, TextLink } from "@/kit";
+import { ActionDock, Button, CodeField, Explain, HiddenField, Notice, PageTitle, Stack, TextField, TextLink } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../_shell/FormError";
 import { useActionForm } from "../../_shell/form";
 import { OnboardingHeader } from "../../_shell/OnboardingHeader";
 import { ResendCode } from "../../_shell/ResendCode";
+import { to } from "../../_shell/paths";
 import { ShownCode } from "../../_shell/ShownCode";
 import { requestEmailCodeAction, verifyEmailCodeAction } from "./actions";
 import { EMAIL_RESEND_SECONDS, emailStepHref, type EmailStep } from "./steps";
 
 const t = ru.app.onboarding.email;
+const c = ru.app.profile.emailChange;
 
 /**
  * id форм: кнопки стоят вне форм и связаны с ними атрибутом `form`. У всех форм `method="post"`: нажатие до загрузки
@@ -46,10 +48,18 @@ type Props = {
   step: EmailStep;
   /** Возврат после первых шагов (уже проверен safeNext). */
   next: string | null;
+  /** Смена уже подтверждённой почты из профиля: вместо шапки анкеты — «Назад: Контакты», возврат — в контакты. */
+  change?: boolean;
   /** «Шаг N из M» онбординга (onboardingPosition). */
   position: Position;
   device: Device;
 };
+
+/** Шапка экрана: у анкеты — счётчик шагов, у смены почты — «Назад: Контакты» и заголовок (один `<h1>` в обоих). */
+function Header({ change, position, title }: { change: boolean; position: Position; title: string }) {
+  if (!change) return <OnboardingHeader step={position.step} total={position.total} title={title} />;
+  return <PageTitle title={title} back={{ href: to("/profile/contacts"), label: c.back }} />;
+}
 
 /**
  * Что показать после ответа запроса кода. Код уже был отправлен (`alreadySent`): тому же адресу в этой странице — прежний
@@ -69,14 +79,14 @@ export function sentAfter(previous: Sent | null, data: SentData, resent: boolean
  * отправлен (запрос раньше минуты), повторный «Получить код» ведёт обратно на шаг кода с пояснением, а не в тупик.
  * При смене шага фокус переходит на первое поле нового шага.
  */
-export function EmailFlow({ step: requested, next, position, device }: Props) {
+export function EmailFlow({ step: requested, next, change = false, position, device }: Props) {
   const router = useRouter();
   const [sent, setSent] = useState<Sent | null>(null);
   const step: EmailStep = requested === "code" && sent === null ? "address" : requested;
 
   useEffect(() => {
-    if (requested === "code" && sent === null) router.replace(emailStepHref("address", next));
-  }, [requested, sent, next, router]);
+    if (requested === "code" && sent === null) router.replace(emailStepHref("address", next, change));
+  }, [requested, sent, next, change, router]);
 
   const root = useRef<HTMLDivElement>(null);
   const focusField = () => root.current?.querySelector<HTMLInputElement>('input:not([type="hidden"])')?.focus();
@@ -93,18 +103,20 @@ export function EmailFlow({ step: requested, next, position, device }: Props) {
       {step === "address" && (
         <AddressStep
           next={next}
+          change={change}
           position={position}
           device={device}
           email={sent?.email}
           onSent={(data) => {
             setSent((previous) => sentAfter(previous, data, false, Date.now()));
-            router.push(emailStepHref("code", next));
+            router.push(emailStepHref("code", next, change));
           }}
         />
       )}
       {step === "code" && sent !== null && (
         <CodeStep
           next={next}
+          change={change}
           position={position}
           device={device}
           sent={sent}
@@ -121,6 +133,7 @@ export function EmailFlow({ step: requested, next, position, device }: Props) {
 
 type AddressProps = {
   next: string | null;
+  change?: boolean;
   position: Position;
   device: Device;
   /** Адрес, на который уже отправляли код в этой странице («Изменить адрес» возвращает его в поле). */
@@ -141,7 +154,7 @@ export function refusalAfter(shown: string | undefined, data: SentData): string 
  * Шаг 1: адрес. Ошибка формата и «код уже отправлен на другой адрес» — у поля, лимиты — общей плашкой; зачем почта — по
  * нажатию (Explain).
  */
-export function AddressStep({ next, position, device, email, onSent }: AddressProps) {
+export function AddressStep({ next, change = false, position, device, email, onSent }: AddressProps) {
   const [refused, setRefused] = useState<string | null>(null);
   const form = useActionForm(requestEmailCodeAction, {
     onSuccess: (data) => {
@@ -154,8 +167,8 @@ export function AddressStep({ next, position, device, email, onSent }: AddressPr
   return (
     <Stack gap="section">
       <Stack gap="tight">
-        <OnboardingHeader step={position.step} total={position.total} title={t.address.title} />
-        <p className="text-body text-muted">{t.address.lead}</p>
+        <Header change={change} position={position} title={change ? c.addressTitle : t.address.title} />
+        <p className="text-body text-muted">{change ? c.addressLead : t.address.lead}</p>
         {/* Кнопка пояснения встаёт по левой линии текста, а не по центру растянутой колонки. */}
         <div>
           <Explain label={t.explain.label} title={t.explain.title} device={device}>
@@ -176,6 +189,7 @@ export function AddressStep({ next, position, device, email, onSent }: AddressPr
             error={fieldError}
           />
           <HiddenField name="next" value={next ?? ""} />
+          {change && <HiddenField name="change" value="1" />}
           <FormError error={form.error} atField={Boolean(form.fieldErrors.email)} />
         </Stack>
       </form>
@@ -190,6 +204,7 @@ export function AddressStep({ next, position, device, email, onSent }: AddressPr
 
 type CodeProps = {
   next: string | null;
+  change?: boolean;
   position: Position;
   device: Device;
   sent: Sent;
@@ -202,7 +217,7 @@ type CodeProps = {
  * сразу под полем; на компьютере док в потоке — повтор и ссылка ниже него. Неверный, устаревший код и исчерпанные
  * попытки — у поля, лимиты — плашкой.
  */
-export function CodeStep({ next, position, device, sent, onResent }: CodeProps) {
+export function CodeStep({ next, change = false, position, device, sent, onResent }: CodeProps) {
   const code = useActionForm(verifyEmailCodeAction);
   const resend = useActionForm(requestEmailCodeAction, { onSuccess: onResent });
 
@@ -223,14 +238,14 @@ export function CodeStep({ next, position, device, sent, onResent }: CodeProps) 
         label={t.code.resend}
         waitLabel={t.code.resendIn}
       />
-      <TextLink href={emailStepHref("address", next)}>{t.code.changeEmail}</TextLink>
+      <TextLink href={emailStepHref("address", next, change)}>{t.code.changeEmail}</TextLink>
     </div>
   );
 
   return (
     <Stack gap="section">
       <Stack gap="tight">
-        <OnboardingHeader step={position.step} total={position.total} title={t.code.title} />
+        <Header change={change} position={position} title={t.code.title} />
         {/* Длинный адрес без пробелов переносится, а не растягивает экран вбок. */}
         <p className="text-body text-muted wrap-anywhere">{t.code.sentTo(sent.email)}</p>
       </Stack>
@@ -250,10 +265,12 @@ export function CodeStep({ next, position, device, sent, onResent }: CodeProps) 
             {/* Подтверждается ровно этот адрес (identity сверяет его с адресом действующего кода). */}
             <HiddenField name="email" value={sent.email} />
             <HiddenField name="next" value={next ?? ""} />
+            {change && <HiddenField name="change" value="1" />}
           </form>
           <form id={FORM.resend} method="post" onSubmit={resend.onSubmit} noValidate>
             <HiddenField name="email" value={sent.email} />
             <HiddenField name="next" value={next ?? ""} />
+            {change && <HiddenField name="change" value="1" />}
           </form>
         </div>
         <FormError error={code.error} atField={Boolean(code.fieldErrors.code)} />

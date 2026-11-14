@@ -293,3 +293,41 @@ describe("refusalAfter: «код уже отправлен» на шаге ад�
     expect(refusalAfter("a@mail.kz", sent("b@mail.kz", false))).toBeNull();
   });
 });
+
+describe("смена подтверждённой почты (?change=1)", () => {
+  const c = ru.app.profile.emailChange;
+
+  it("подтверждённая почта: без параметра — шаг пропускается, с параметром — страница смены (не перенаправление)", async () => {
+    h.user = person({ emailVerified: true });
+    expect(await open()).toEqual({ redirect: "/v2" });
+    expect(await open({ change: "1" })).toHaveProperty("page");
+  });
+
+  it("без подтверждённой почты параметр ничего не значит: обычный шаг почты", async () => {
+    const res = await open({ change: "1" });
+    expect(res).toHaveProperty("page");
+    const out = html((res as { page: React.ReactElement }).page);
+    expect(out).toContain(ru.app.onboarding.step(3, 3));
+  });
+
+  it("шаг адреса: «Назад: Контакты» вместо счётчика анкеты, один h1, пояснение «прежняя почта действует», в форме поле change", () => {
+    const view = <AddressStep next={null} change position={POSITION} device="mobile" email={undefined} onSent={() => {}} />;
+    const out = html(view);
+    expect(count(out, "<h1")).toBe(1);
+    expect(h1(out)).toBe(c.addressTitle);
+    expect(out).toContain('href="/v2/profile/contacts"');
+    expect(out).toContain(c.addressLead);
+    expect(out).not.toContain(ru.app.onboarding.step(3, 3));
+    expect(out).toContain('name="change"');
+  });
+
+  it("обычный шаг: поля change нет", () => {
+    const out = html(<AddressStep next={null} position={POSITION} device="mobile" email={undefined} onSent={() => {}} />);
+    expect(out).not.toContain('name="change"');
+  });
+
+  it("ссылки шагов сохраняют режим смены и не несут next", () => {
+    expect(emailStepHref("address", "/v2/deals/1", true)).toBe("/v2/email?change=1");
+    expect(emailStepHref("code", null, true)).toBe("/v2/email?step=code&change=1");
+  });
+});

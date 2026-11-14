@@ -7,6 +7,7 @@ import { kit } from "./kit";
 import { login } from "./login";
 import { offer } from "./offer";
 import { onboarding } from "./onboarding";
+import { profile } from "./profile";
 import { requestCard } from "./request-card";
 import { requests } from "./requests";
 import { shell } from "./shell";
@@ -20,6 +21,7 @@ export const app = {
   login,
   offer,
   onboarding,
+  profile,
   requestCard,
   requests,
   shell,

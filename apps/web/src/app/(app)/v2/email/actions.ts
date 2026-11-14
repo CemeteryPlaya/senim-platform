@@ -16,6 +16,7 @@ import { action } from "@/platform/action";
 import { digitsOnly } from "@/platform/digits";
 import { AppError } from "@/platform/errors";
 import { nextStepFor, safeNext } from "../../_shell/auth";
+import { to } from "../../_shell/paths";
 import { forgetRole, recallRole } from "../../_shell/role-cookie";
 
 // Почта — последний из первых шагов после входа. Адрес и код в журнал не пишутся (действия ничего не логируют, модуль
@@ -25,9 +26,12 @@ import { forgetRole, recallRole } from "../../_shell/role-cookie";
 
 const t = ru.app.onboarding.email;
 const errors = ru.app.login.email.errors;
+const c = ru.app.profile.emailChange;
 
 /** Адрес возврата из формы: пустая строка — нет возврата; проверяет его safeNext. */
 const nextField = z.string().max(2000).optional();
+/** Смена уже подтверждённой почты (из профиля): "1" — режим смены; всё прочее — обычные первые шаги. */
+const changeField = z.string().max(1).optional();
 /** Формат адреса проверяет модуль (email.ts: та же нормализация, что в identity); здесь — пусто и предел длины. */
 const emailField = z.string().trim().min(1, t.errors.required).max(254, errors.invalid);
 
@@ -42,6 +46,9 @@ async function moveOn(user: CurrentUser, next: string | undefined): Promise<neve
   redirect(nextStepFor({ ...user, emailVerified: true }, safeNext(next), chosen));
 }
 
+/** Контакты профиля после смены почты: тост «Почта изменена» показывает сам экран по `?email=changed`. */
+const EMAIL_CHANGED_HREF = `${to("/profile/contacts")}?email=changed`;
+
 /**
  * «Получить код» и «Отправить ещё раз»: код на адрес-кандидат (в профиль адрес попадёт только после подтверждения).
  * Ответ — адрес в том виде, в каком его принял identity (без пробелов, строчными), и код заглушки писем, если он есть.
@@ -53,10 +60,12 @@ async function moveOn(user: CurrentUser, next: string | undefined): Promise<neve
  */
 export const requestEmailCodeAction = action(
   "app.email.requestCode",
-  z.strictObject({ email: emailField, next: nextField }),
-  async ({ email, next }) => {
+  z.strictObject({ email: emailField, next: nextField, change: changeField }),
+  async ({ email, next, change }) => {
     const user = await requireUser("CLIENT", "EXECUTOR");
-    if (!needsEmail(user)) return moveOn(user, next);
+    // Смена: почта уже подтверждена, код уходит на новый адрес; прежняя действует, пока новый не подтверждён (identity).
+    const changing = change === "1" && !needsEmail(user);
+    if (!needsEmail(user) && !changing) return moveOn(user, next);
     const address = email.toLowerCase();
     let sent;
     try {
@@ -66,7 +75,10 @@ export const requestEmailCodeAction = action(
       if (isCodeTooOften(e)) throw new AppError("RATE_LIMITED", t.errors.otherAddress, { fieldErrors: { email: [t.errors.otherAddress] } });
       throw e;
     }
-    if (sent.alreadyVerified) return moveOn(user, next);
+    if (sent.alreadyVerified) {
+      if (changing) throw new AppError("VALIDATION", c.sameAddress, { fieldErrors: { email: [c.sameAddress] } });
+      return moveOn(user, next);
+    }
     return { email: address, demoCode: sent.demoCode, alreadySent: false };
   },
 );
@@ -84,9 +96,15 @@ export const verifyEmailCodeAction = action(
     code: z.string().max(20).transform(digitsOnly).pipe(z.string().length(6, errors.codeFormat)),
     email: emailField,
     next: nextField,
+    change: changeField,
   }),
-  async ({ code, email, next }) => {
+  async ({ code, email, next, change }) => {
     const user = await requireUser("CLIENT", "EXECUTOR");
+    // Смена: подтверждается новый адрес (прежняя подтверждённая почта у identity остаётся до успеха), дальше — контакты.
+    if (change === "1" && !needsEmail(user)) {
+      await verifyEmailCode(user, code, email);
+      redirect(EMAIL_CHANGED_HREF);
+    }
     if (needsEmail(user)) await verifyEmailCode(user, code, email);
     return moveOn(user, next);
   },

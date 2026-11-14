@@ -83,7 +83,7 @@ describe("requireBuyer", () => {
   it("мастер, у которого есть и роль заказчика, — на переключение роли с возвратом", async () => {
     h.user = person({ role: "EXECUTOR", roles: ["CLIENT", "EXECUTOR"], executor: { status: "APPROVED" } });
     const to = await outcome(requireBuyer("/v2/deals/d1"));
-    expect(to).toMatch(/^\/switch-role\?/);
+    expect(to).toMatch(/^\/v2\/switch-role\?/);
     expect(new URLSearchParams(to?.split("?")[1]).get("to")).toBe("CLIENT");
   });
 
@@ -115,7 +115,7 @@ describe("dealOrSwitch", () => {
     h.viewError = notFoundError();
     h.party = "EXECUTOR";
     const to = await outcome(dealOrSwitch(person({ roles: ["CLIENT", "EXECUTOR"] }), "d1"));
-    expect(to).toBe(`/switch-role?to=EXECUTOR&returnTo=${encodeURIComponent("/v2/deals/d1")}`);
+    expect(to).toBe(`/v2/switch-role?to=EXECUTOR&returnTo=${encodeURIComponent("/v2/deals/d1")}`);
     expect(to).toBe(switchRoleTo("EXECUTOR", "/v2/deals/d1"));
   });
 
@@ -137,5 +137,12 @@ describe("dealOrSwitch", () => {
     await expect(dealOrSwitch(person(), "d1")).rejects.toMatchObject({ code: "FORBIDDEN" });
     h.viewError = new Error("база недоступна");
     await expect(dealOrSwitch(person(), "d1")).rejects.toThrow("база недоступна");
+  });
+});
+
+describe("switchRoleTo", () => {
+  it("экран переключения v2 с параметрами to и returnTo; чужой возврат отбрасывается", () => {
+    expect(switchRoleTo("CLIENT", "/v2/profile")).toBe("/v2/switch-role?to=CLIENT&returnTo=%2Fv2%2Fprofile");
+    expect(switchRoleTo("EXECUTOR", "//evil.example")).toBe("/v2/switch-role?to=EXECUTOR");
   });
 });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { consentDocument, consentTextSha256, switchRoleHref } from "@/modules/identity";
+import { consentDocument, consentTextSha256 } from "@/modules/identity";
 import type { CurrentUser } from "@/modules/identity";
 
 const h = vi.hoisted(() => ({
@@ -126,7 +126,7 @@ describe("requireV2User: страница шага не уводит сама н
 describe("requireV2User: роль", () => {
   it("роль выдана, но не активна — переключение роли (v1) с возвратом", async () => {
     h.user = person({ role: "CLIENT", roles: ["CLIENT", "EXECUTOR"] });
-    expect(await target(requireV2User(NEXT, "EXECUTOR"))).toBe(switchRoleHref("EXECUTOR", NEXT));
+    expect(await target(requireV2User(NEXT, "EXECUTOR"))).toBe(`/v2/switch-role?to=EXECUTOR&returnTo=${encodeURIComponent(NEXT)}`);
   });
 
   it("нужна роль, которой нет, — дом человека (не вход и не сама страница)", async () => {

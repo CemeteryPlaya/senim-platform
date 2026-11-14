@@ -12,7 +12,6 @@ import {
   needsSecondFactor,
   roleToSwitch,
   safeReturnTo,
-  switchRoleHref,
   type CurrentUser,
 } from "@/modules/identity";
 import { isAppError } from "@/platform/errors";
@@ -118,7 +117,7 @@ function backFrom(returnTo: string): string | null {
 
 /**
  * Для страниц v2: вошедший пользователь с одной из ролей. Нет сессии — вход v2 с возвратом сюда (`returnTo` — адрес этой
- * страницы, его знает она сама). Нужная роль выдана, но не активна — экран переключения роли (v1) с возвратом; не выдана —
+ * страницы, его знает она сама). Нужная роль выдана, но не активна — экран переключения роли v2 с возвратом; не выдана —
  * дом человека. Не пройден обязательный шаг — на него (nextStepFor), кроме экрана самого этого шага: страницы согласия,
  * знакомства и почты тоже берут пользователя здесь и не уводят сами на себя.
  *
@@ -171,12 +170,14 @@ export async function userPastOnboarding(here: string): Promise<CurrentUser | nu
 }
 
 /**
- * Адрес переключения роли с возвратом (`returnTo` — путь v2): единственное место, где ворота оболочки строят эту ссылку.
- * Пока экрана переключения в v2 нет, это рабочий экран v1 (`switchRoleHref`); с появлением `/v2/switch-role` (задача
- * профиля) адрес меняется только здесь, на `to("/switch-role")` с теми же параметрами `to` и `returnTo`.
+ * Адрес экрана переключения роли v2 с возвратом (`returnTo` — путь v2; чужое и не-путь отбрасываются safeReturnTo):
+ * единственное место, где ворота оболочки и профиль строят эту ссылку. Параметры те же, что у v1: `to` и `returnTo`.
  */
 export function switchRoleTo(role: Role, returnTo: string): string {
-  return switchRoleHref(role, returnTo);
+  const params = new URLSearchParams({ to: role });
+  const back = safeReturnTo(returnTo);
+  if (back) params.set("returnTo", back);
+  return `${to("/switch-role")}?${params}`;
 }
 
 /**
