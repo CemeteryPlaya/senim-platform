@@ -171,10 +171,10 @@ export const kit = {
       statMonth: "За ноябрь",
       statCompactCaption: "Сумма в строке: compact, кегль 20 px",
       statSingleCaption: "Один Stat на подложке карточки",
-      barsLabel: "Выплаты по месяцам",
+      barsLabel: "Оплаты по месяцам",
       barsCaption: "Строки (по умолчанию): текущий месяц выделен, остальные нейтральные",
       barsColumnsCaption: "layout=\"columns\": на компьютере столбики, на телефоне строки",
-      barsEmptyCaption: "Выплат ещё не было: все значения нули",
+      barsEmptyCaption: "Оплат ещё не было: все значения нули",
       /** Подписи столбиков (месяц и полное имя для таблицы). */
       months: [
         { label: "Июн", name: "Июнь 2026", tiyn: 6_500_000_00n },

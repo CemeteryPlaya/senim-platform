@@ -78,24 +78,31 @@ describe("тексты мастера: запретные слова", () => {
     expect(master.filter((s) => /заказчик/i.test(s))).toEqual([]);
   });
 
-  // «выплат» и «договор» (Ruling 9: «оплата», «оферта») запрещены в зонах, где слова уже решены: сделка мастера
-  // (`ru.app.master`), регистрация мастера (`ru.app.masterRegister`) и заявка с предложением (`ru.app.masterOffer`). Остальные
-  // зоны `master-*` добавляются сюда, когда их тексты приведены к решению.
-  const DECIDED: readonly Zone[] = ["master", "masterDeal", "masterRegister", "masterOffer", "masterCompany", "masterFinance", "masterPortfolio", "masterProfile", "masterDispute", "masterMoney", "masterSteps"];
+  // «выплат» и «договор» (Ruling 9: «оплата», «оферта») запрещены во всех зонах мастера.
+  const DECIDED = MASTER_ZONES;
   it.each([
     ["выплат", /выплат/i],
     ["договор", /(^|[^а-яё])договор(?!ит|ён)/i],
-  ])("в зонах сделки, регистрации и предложения мастера нет слова «%s»", (_word, pattern) => {
+  ])("во всех зонах мастера нет слова «%s»", (_word, pattern) => {
     expect(DECIDED.flatMap((name) => strings(ru.app[name])).filter((s) => pattern.test(s))).toEqual([]);
   });
 
   it("«клиент» — только в формуле «Гарантия оплаты и клиента (4%)»", () => {
     expect(master.filter((s) => /клиент/i.test(s.replaceAll(GUARANTEE, "")))).toEqual([]);
-    expect(ru.app.master.deal.money.guarantee).toBe(GUARANTEE);
+    expect(ru.app.masterDeal.card.money.guarantee).toBe(GUARANTEE);
+  });
+
+  // Где выводится гарантия: слово «гарантия» рядом с 4% — это ровно формула (не «комиссия 4%», не «гарантия 4%»).
+  const WITH_GUARANTEE: readonly Zone[] = ["masterDeal", "masterOffer", "masterSteps", "masterProfile"];
+  const NEAR_FOUR = /гаранти[а-яё]*[^%\d]{0,40}4\s?%\)?/gi;
+  it.each(WITH_GUARANTEE)("зона «%s»: «гарантия» рядом с процентом — ровно формула гарантии", (name) => {
+    const found = strings(ru.app[name]).flatMap((s) => (s.match(NEAR_FOUR) ?? []).map((m) => m.replace(/^[«"]|[»"]$/g, "")));
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.filter((m) => m !== GUARANTEE)).toEqual([]);
   });
 
   it("мастер видит «Вы получите»; защиты сделки покупателя (2%) в текстах мастера нет", () => {
-    expect(ru.app.master.deal.money.youGet).toBe("Вы получите");
+    expect(ru.app.masterDeal.card.money.youGet).toBe("Вы получите");
     expect(master.filter((s) => BUYER_PROTECTION.test(s))).toEqual([]);
   });
 

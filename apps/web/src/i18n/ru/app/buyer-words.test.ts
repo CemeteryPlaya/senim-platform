@@ -14,8 +14,8 @@ const a = ru.app;
 const BUYER = [a.buyer, a.requests, a.requestCard, a.offer, a.deal, a.chat, a.profile, a.onboarding, a.shell];
 
 describe("тексты пути покупателя к одному виду", () => {
-  it("мастер получает «оплату», не «выплату» (кроме названия документа «Расписка о выплате»)", () => {
-    const found = BUYER.flatMap(strings).filter((s) => /выплат/i.test(s) && s !== a.deal.card.documents.kinds.RELEASE_RECEIPT);
+  it("мастер получает «оплату», не «выплату»", () => {
+    const found = BUYER.flatMap(strings).filter((s) => /выплат/i.test(s));
     expect(found).toEqual([]);
   });
 

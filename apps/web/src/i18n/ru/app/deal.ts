@@ -267,7 +267,7 @@ export const deal = {
     documents: {
       section: "Документы",
       empty: "Документы появятся здесь.",
-      kinds: { CONTRACT: "Оферта", ACCEPTANCE_ACT: "Акт приёмки", MONEY_STATEMENT: "Выписка по деньгам", RELEASE_RECEIPT: "Расписка о выплате" },
+      kinds: { CONTRACT: "Оферта", ACCEPTANCE_ACT: "Акт приёмки", MONEY_STATEMENT: "Выписка по деньгам", RELEASE_RECEIPT: "Расписка об оплате мастеру" },
       /** Номер не отрывается от знака «№» при переносе. */
       name: (kind: string, number: string) => `${kind} № ${number}`,
       /** Статус подписи по роду документа: оферта — она, акт — он. */

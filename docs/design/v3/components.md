@@ -580,7 +580,7 @@ const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeActio
 
 | Проп | Тип | Смысл |
 |---|---|---|
-| `label` | `string` | Имя графика и подпись таблицы («Выплаты по месяцам») |
+| `label` | `string` | Имя графика и подпись таблицы («Оплаты по месяцам») |
 | `layout` | `"rows" \| "columns"?` | По умолчанию `rows` |
 | `items` | `{ label: string; name?: string; value: bigint; current?: boolean }[]` | Столбики по порядку; `label` — «Ноя», `name` — «Ноябрь 2026» для таблицы (по умолчанию `label`); `value` — тиыны; `current` — выделенный |
 

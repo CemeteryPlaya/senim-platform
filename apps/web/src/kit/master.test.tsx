@@ -58,7 +58,7 @@ describe("Bars", () => {
   ];
 
   it("рисунок скрыт от диктора, суммы через Money, текущий месяц — accent, остальные нейтральные", () => {
-    const out = html(<Bars label="Выплаты по месяцам" items={items} />);
+    const out = html(<Bars label="Оплаты по месяцам" items={items} />);
     expect(out).toMatch(/<ul aria-hidden="true"/);
     expect(count(out, "bg-accent")).toBe(1);
     expect(count(out, "bg-line-strong")).toBe(2);
@@ -79,9 +79,9 @@ describe("Bars", () => {
   });
 
   it("таблица-дубль: подпись, заголовки, строка на месяц, текущий помечен", () => {
-    const out = html(<Bars label="Выплаты по месяцам" items={items} />);
+    const out = html(<Bars label="Оплаты по месяцам" items={items} />);
     const table = out.slice(out.indexOf("<table"));
-    expect(table).toContain("<caption>Выплаты по месяцам</caption>");
+    expect(table).toContain("<caption>Оплаты по месяцам</caption>");
     expect(table).toContain(`>${ru.app.kit.bars.month}</th>`);
     expect(table).toContain(`>${ru.app.kit.bars.amount}</th>`);
     expect(count(table, "<tr")).toBe(4);
