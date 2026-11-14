@@ -1,5 +1,5 @@
 import { ru } from "@/i18n/ru";
-import { Card, List, ListItem, MoneyPanel, Narrow, PageTitle, Section, Split, Stack, TextLink, Timeline, type TimelineItem } from "@/kit";
+import { Card, List, ListItem, MoneyPanel, PageTitle, Section, Split, Stack, TextLink, Timeline, type TimelineItem } from "@/kit";
 import type { Device } from "@/platform/device";
 import type { DealSide } from "../../../../_shell/side";
 import type { MoneyView } from "../_parts/deal-card";
@@ -18,15 +18,15 @@ export type MoneyHistoryModel = {
   number: number;
   money: MoneyView;
   operations: OperationRow[];
-  /** Выписка и акт — только покупателю (в них суммы покупателя); мастеру — `null`, раздела нет. */
-  documents: MoneyDocument[] | null;
+  /** Выписка и акт; `shareable` («Поделиться») — только у покупателя. */
+  documents: MoneyDocument[];
 };
 
 /**
  * История денег: блок денег (тот же вид, что на карточке сделки, из журнала), операции журнала лентой — свежие сверху
  * (номер операции банка — только здесь), выписка и акт («Открыть …» и «Поделиться»). Главного действия на экране нет: он
  * справочный. Телефон — одна колонка; компьютер покупателя — `Split`: слева деньги и операции, справа «Выписка и акт».
- * Мастеру — тексты мастера, без выписки и акта (в них суммы покупателя), на компьютере одна колонка `Narrow`.
+ * Мастеру — тексты мастера, выписка и акт без «Поделиться».
  */
 export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; device: Device }) {
   const m = model.money;
@@ -61,16 +61,6 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
     </Stack>
   );
   const docs = model.documents;
-  if (docs === null) {
-    return (
-      <Narrow>
-        <Stack gap="section">
-          {title}
-          {money}
-        </Stack>
-      </Narrow>
-    );
-  }
   const documents = (
     <Section title={t.documentsSection}>
       {docs.length === 0 ? (

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { DocumentKind } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import type { DealView } from "@/modules/deal-core";
 import { listDealDocuments } from "@/modules/documents";
@@ -14,11 +15,24 @@ export const metadata: Metadata = { title: ru.app.deal.money.metaTitle };
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-/** Покупателю — блок денег, операции, выписка и акт («Поделиться»); выписка по деньгам выпускается здесь же (`listDealDocuments`). */
-async function buyerModel(user: CurrentUser, deal: DealView): Promise<MoneyHistoryModel> {
+/** Выписка и акт сделки (как «Документы» на карточке): выписка по деньгам выпускается здесь же (`listDealDocuments`). */
+async function statementDocuments(user: CurrentUser, deal: DealView): Promise<{ documents: MoneyHistoryModel["documents"]; kinds: Map<string, DocumentKind> }> {
   const documents = await listDealDocuments(user, deal.id);
   const rows = documentRows(documents);
   const shown = documents.filter((d) => d.kind === "MONEY_STATEMENT" || d.kind === "ACCEPTANCE_ACT");
+  return {
+    kinds: new Map(documents.map((d) => [d.id, d.kind])),
+    documents: shown.flatMap((d) => {
+      const row = rows.find((r) => r.id === d.id);
+      // «Поделиться» — только покупателю: мастер сам подписывает акт и видит выписку в «Документах» карточки.
+      return row ? [{ ...row, shareable: deal.viewer === "CLIENT" && d.shareable }] : [];
+    }),
+  };
+}
+
+/** Покупателю — блок денег, операции (с документами-основаниями), выписка и акт («Поделиться»). */
+async function buyerModel(user: CurrentUser, deal: DealView): Promise<MoneyHistoryModel> {
+  const { documents, kinds } = await statementDocuments(user, deal);
   const manual = deal.paymentProvider === "MANUAL";
   return {
     side: "CLIENT",
@@ -26,33 +40,29 @@ async function buyerModel(user: CurrentUser, deal: DealView): Promise<MoneyHisto
     backHref: dealHrefs(deal.id).card,
     number: deal.number,
     money: moneyView({ block: deal.moneyBlock, estimate: deal.estimate, snapshot: deal.money, manual }),
-    operations: operationRows(deal.moneyHistory, { manual, kinds: new Map(documents.map((d) => [d.id, d.kind])) }),
-    documents: shown.flatMap((d) => {
-      const row = rows.find((r) => r.id === d.id);
-      return row ? [{ ...row, shareable: d.shareable }] : [];
-    }),
+    operations: operationRows(deal.moneyHistory, { manual, kinds }),
+    documents,
   };
 }
 
 /**
- * Мастеру — блок денег мастера (смета мастера и журнал), операции его денег; выписки и акта нет: в них суммы покупателя
- * (оплата с защитой сделки 2%, возврат). «Вы получите» под оплатой — пока оплата вам не раскрыта.
+ * Мастеру — блок денег мастера (смета мастера и журнал), операции его денег без сумм покупателя, выписка и акт как на карточке
+ * (без «Поделиться»; ограничение сумм относится к экрану, юридические PDF мастер подписывает сам). «Вы получите» — в блоке денег.
  */
-function masterModel(deal: DealView): MoneyHistoryModel {
-  const kind = deal.moneyBlock.kind;
-  const youGetTiyn = kind === "awaiting" || kind === "protected" || kind === "frozen" ? deal.estimate.totalTiyn : null;
+async function masterModel(user: CurrentUser, deal: DealView): Promise<MoneyHistoryModel> {
+  const { documents } = await statementDocuments(user, deal);
   return {
     side: "EXECUTOR",
     dealTitle: deal.title,
     backHref: dealHrefs(deal.id).card,
     number: deal.number,
     money: masterMoneyView({ block: deal.moneyBlock, estimate: deal.estimate }),
-    operations: masterOperationRows(deal.moneyHistory, { manual: deal.paymentProvider === "MANUAL", youGetTiyn }),
-    documents: null,
+    operations: masterOperationRows(deal.moneyHistory, { manual: deal.paymentProvider === "MANUAL" }),
+    documents,
   };
 }
 
-const modelOf = (side: DealSide, user: CurrentUser, deal: DealView): Promise<MoneyHistoryModel> => (side === "CLIENT" ? buyerModel(user, deal) : Promise.resolve(masterModel(deal)));
+const modelOf = (side: DealSide, user: CurrentUser, deal: DealView): Promise<MoneyHistoryModel> => (side === "CLIENT" ? buyerModel(user, deal) : masterModel(user, deal));
 
 /**
  * История денег сделки стороны (тап по блоку денег на карточке): блок денег и операции — только из журнала (`moneyBlock`,

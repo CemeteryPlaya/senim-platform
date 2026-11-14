@@ -487,7 +487,7 @@ export const deal = {
       photoAlt: (n: number, total: number) => `Фото к спору ${n} из ${total}`,
       positionsSection: "Позиции сторон",
       yourPosition: "Ваша позиция",
-      masterPosition: "Позиция мастера",
+      otherPosition: "Позиция мастера",
       noPosition: "Пока не отправлена",
       positionForm: {
         label: "Ваша позиция",

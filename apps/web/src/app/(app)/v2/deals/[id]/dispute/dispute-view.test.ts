@@ -3,7 +3,7 @@ import { disputePositionSchema, openDisputeSchema } from "@/modules/deal-core";
 import type { MoneyBlock } from "@/modules/payments";
 import { DisputeReason } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { disputeScreen, disputeTexts, positionsOf, REASONS, resolvedRefund, resolvedShare, TEXT_MAX, TEXT_MIN, textValid } from "./dispute-view";
+import { disputeOpenedBy, disputeScreen, disputeTexts, positionsOf, reasonText, REASONS, resolvedRefund, resolvedShare, TEXT_MAX, TEXT_MIN, textValid } from "./dispute-view";
 
 describe("disputeScreen: какой экран по состоянию спора", () => {
   const open = { status: "OPEN" as const };
@@ -89,5 +89,26 @@ describe("спор мастера", () => {
     expect(resolvedShare(completed(40n, 0n))).toBeNull();
     expect(resolvedShare({ kind: "refunded", amountTiyn: 100n } as MoneyBlock)).toBeNull();
     expect(resolvedShare({ kind: "protected" } as MoneyBlock)).toBeNull();
+  });
+});
+
+describe("кто открыл спор и как называется причина", () => {
+  it("открывший — по последнему событию dispute.opened; нет события или оператор — null", () => {
+    expect(disputeOpenedBy([{ action: "dispute.opened", actorRole: "EXECUTOR" }])).toBe("EXECUTOR");
+    expect(disputeOpenedBy([{ action: "dispute.opened", actorRole: "EXECUTOR" }, { action: "dispute.resolved", actorRole: "OPERATOR" }, { action: "dispute.opened", actorRole: "CLIENT" }])).toBe("CLIENT");
+    expect(disputeOpenedBy([{ action: "deal.paid", actorRole: "CLIENT" }])).toBeNull();
+    expect(disputeOpenedBy([{ action: "dispute.opened", actorRole: "OPERATOR" }])).toBeNull();
+  });
+
+  it("причина — словами открывшей стороны: мастер — нейтрально, покупатель и неизвестно — как у покупателя", () => {
+    expect(reasonText("SCOPE", "EXECUTOR")).toBe(ru.app.masterDispute.reasons.SCOPE);
+    expect(reasonText("SCOPE", "CLIENT")).toBe(ru.app.deal.dispute.reasons.SCOPE);
+    expect(reasonText("SCOPE", null)).toBe(ru.app.deal.dispute.reasons.SCOPE);
+    expect(ru.app.masterDispute.reasons.SCOPE).not.toBe(ru.app.deal.dispute.reasons.SCOPE);
+  });
+
+  it("позиция другой стороны — один ключ у обеих сторон", () => {
+    expect(ru.app.deal.dispute.open.otherPosition).toBe("Позиция мастера");
+    expect(ru.app.masterDispute.open.otherPosition).toBe("Позиция покупателя");
   });
 });

@@ -4,7 +4,7 @@ import { formatMoney } from "@/kit";
 import { ru } from "@/i18n/ru";
 import { cancelDeal, processDealMoney, resolveDispute, submitDisputePosition } from "@/modules/deal-core";
 import { db } from "@/platform/db";
-import { makeOperator } from "../../../../../../test/factories";
+import { makeExecutor, makeOperator } from "../../../../../../test/factories";
 import { dealAt, journalOf, makePhoto, signAct } from "../../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../../test/factories/identity";
 import { signInAs } from "../../../../../../test/factories/session";
@@ -119,6 +119,56 @@ describe("спор мастера: открыть", () => {
   });
 });
 
+describe("спор мастера: действие и фото", () => {
+  const input = (dealId: string, photoIds: string[]) => ({ dealId, reason: "OTHER" as const, description: DESCRIPTION, photoIds });
+
+  it("чужое фото или фото не того назначения — ошибка, спора и остановки оплаты нет", async () => {
+    const f = await dealAt("PAID_HOLD");
+    await signInAs(f.executor);
+    const foreign = await makePhoto(f.client, "DISPUTE");
+    const wrongPurpose = await makePhoto(f.executor, "PORTFOLIO");
+    for (const id of [foreign, wrongPurpose]) {
+      const result = await openDisputeAction(input(f.dealId, [id]));
+      expect(result.ok).toBe(false);
+    }
+    expect(await db.dispute.count({ where: { dealId: f.dealId } })).toBe(0);
+    expect((await journalOf(f.dealId)).filter((e) => e.type === "FREEZE")).toHaveLength(0);
+    // Своё фото нужного назначения — принимается.
+    expect((await openDisputeAction(input(f.dealId, [await makePhoto(f.executor, "DISPUTE")]))).ok).toBe(true);
+  });
+
+  it("человек с двумя ролями: сторона в неактивной роли — действие «не найдено», экран переключает роль", async () => {
+    const f = await dealAt("PAID_HOLD", { executor: await makeExecutor({ roles: ["EXECUTOR", "CLIENT"] }) });
+    await db.user.update({ where: { id: f.executor.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(f.executor, "CLIENT");
+    const result = await openDisputeAction(input(f.dealId, []));
+    expect(result.ok ? null : result.code).toBe("NOT_FOUND");
+    expect(await db.dispute.count({ where: { dealId: f.dealId } })).toBe(0);
+    const where = await outcome(() => disputePage(f.dealId));
+    expect(where).toContain("/v2/switch-role");
+    expect(decodeURIComponent(where)).toContain("to=EXECUTOR");
+  });
+
+  it("причина «Расхождение с офертой»: открыл мастер — покупатель видит нейтральный текст; открыл покупатель — его текст", async () => {
+    const byMaster = await dealAt("PAID_HOLD");
+    await signInAs(byMaster.executor);
+    expect((await openDisputeAction({ ...input(byMaster.dealId, []), reason: "SCOPE" })).ok).toBe(true);
+    await db.user.update({ where: { id: byMaster.client.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(byMaster.client);
+    const seenByBuyer = plain(await disputePage(byMaster.dealId));
+    expect(seenByBuyer).toContain(td.reasons.SCOPE);
+    expect(seenByBuyer).not.toContain(ru.app.deal.dispute.reasons.SCOPE);
+
+    const byBuyer = await dealAt("PAID_HOLD");
+    await db.user.update({ where: { id: byBuyer.client.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(byBuyer.client);
+    expect((await openDisputeAction({ ...input(byBuyer.dealId, []), reason: "SCOPE" })).ok).toBe(true);
+    expect(plain(await disputePage(byBuyer.dealId))).toContain(ru.app.deal.dispute.reasons.SCOPE);
+    await asMaster(byBuyer);
+    expect(plain(await disputePage(byBuyer.dealId))).toContain(ru.app.deal.dispute.reasons.SCOPE);
+  });
+});
+
 describe("спор мастера: открыт", () => {
   async function opened(photos = 0) {
     const f = await dealAt("IN_PROGRESS");
@@ -226,8 +276,10 @@ describe("история денег мастера: по записям журн
     const split = journal.filter((e) => e.type === "SPLIT_MASTER" || e.type === "SPLIT_PLATFORM");
     expect(timelineItems(out)).toBe(journal.length - split.length + (split.length > 0 ? 1 : 0));
     expectNoBuyerAmounts(out, extra);
-    expect(plain(out)).not.toContain(ru.app.deal.money.documentsSection);
-    expect(out).not.toContain("/api/documents/");
+    // Выписка и акт — как в «Документах» карточки, без «Поделиться».
+    expect(plain(out)).toContain(ru.app.deal.money.documentsSection);
+    if (journal.length > 0) expect(plain(out)).toContain(ru.app.deal.openDocument.MONEY_STATEMENT);
+    expect(plain(out)).not.toContain(ru.app.deal.money.share);
     return { out, text: plain(out), journal };
   }
 
@@ -240,13 +292,14 @@ describe("история денег мастера: по записям журн
     expect(text).toContain(money(YOU_GET));
   });
 
-  it("оплачена: строка «Деньги покупателя в банке под защитой» без суммы покупателя и «Вы получите N после приёмки»", async () => {
+  it("оплачена: строка «Деньги покупателя в банке под защитой» без суммы; «Вы получите» только в блоке денег", async () => {
     const f = await dealAt("PAID_HOLD");
     await asMaster(f);
-    const { text, journal } = await check(f.dealId);
+    const { out, text, journal } = await check(f.dealId);
     expect(journal.map((e) => e.type)).toEqual(["HOLD"]);
     expect(text).toContain(tm.hold.DONE);
-    expect(text).toContain(tm.youGet(money(YOU_GET)));
+    expect(text).toContain(`${ru.app.masterDeal.card.money.youGet} ${money(YOU_GET)}`);
+    expect(timelineItems(out)).toBe(1);
   });
 
   it("спор: оплата приостановлена — строка без суммы, блок «Оплата вам приостановлена спором»", async () => {

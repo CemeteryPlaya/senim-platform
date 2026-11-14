@@ -6,6 +6,20 @@ import type { DealSide } from "../../../../_shell/side";
 /** Тексты спора по стороне: покупатель — `ru.app.deal.dispute`, мастер — `ru.app.masterDispute` (структура общая). */
 export const disputeTexts = (side: DealSide) => (side === "CLIENT" ? ru.app.deal.dispute : ru.app.masterDispute);
 
+/**
+ * Кто открыл последний спор — по истории сделки (`dispute.opened`, актёр): `null`, если события нет. Причину спора
+ * показываем словами открывшей стороны: покупатель не видит обвинения мастера, которого тот не выдвигал, и наоборот.
+ */
+export function disputeOpenedBy(history: readonly { action: string; actorRole: string }[]): DealSide | null {
+  const role = history.filter((e) => e.action === "dispute.opened").at(-1)?.actorRole;
+  return role === "CLIENT" || role === "EXECUTOR" ? role : null;
+}
+
+/** Причина спора словами открывшей стороны (неизвестно кто — словами покупателя, как было). */
+export function reasonText(reason: DisputeReason, openedBy: DealSide | null): string {
+  return (openedBy === "EXECUTOR" ? ru.app.masterDispute.reasons : ru.app.deal.dispute.reasons)[reason];
+}
+
 /** Позиции спора: своя и другой стороны — по стороне смотрящего. */
 export function positionsOf(side: DealSide, dispute: { clientPosition: string | null; executorPosition: string | null }): { mine: string | null; other: string | null } {
   return side === "CLIENT" ? { mine: dispute.clientPosition, other: dispute.executorPosition } : { mine: dispute.executorPosition, other: dispute.clientPosition };

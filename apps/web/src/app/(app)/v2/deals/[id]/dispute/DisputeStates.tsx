@@ -5,7 +5,7 @@ import { Card, List, ListRow, Money, Narrow, NowNext, PageTitle, PhotoSlot, Sect
 import type { DealView } from "@/modules/deal-core";
 import type { DealSide } from "../../../../_shell/side";
 import { dealHrefs } from "../_parts/deal-card";
-import { disputeTexts, positionsOf, resolvedRefund, resolvedShare } from "./dispute-view";
+import { disputeOpenedBy, disputeTexts, positionsOf, reasonText, resolvedRefund, resolvedShare } from "./dispute-view";
 import { PositionForm } from "./PositionForm";
 
 export type Dispute = NonNullable<DealView["dispute"]>;
@@ -36,7 +36,7 @@ export function OpenState({ deal, side, dispute, photos }: { deal: DealView; sid
         <Section title={o.aboutSection}>
           <Card padded={false}>
             <List>
-              <ListRow label={o.reason} value={t.reasons[dispute.reason] ?? dispute.reason} stacked />
+              <ListRow label={o.reason} value={reasonText(dispute.reason, disputeOpenedBy(deal.history))} stacked />
               <ListRow label={o.description} value={dispute.description} stacked />
             </List>
           </Card>
@@ -60,7 +60,7 @@ export function OpenState({ deal, side, dispute, photos }: { deal: DealView; sid
           <Card padded={false}>
             <List>
               <ListRow label={o.yourPosition} value={positions.mine ?? o.noPosition} stacked />
-              <ListRow label={side === "CLIENT" ? ru.app.deal.dispute.open.masterPosition : ru.app.masterDispute.open.otherPosition} value={positions.other ?? o.noPosition} stacked />
+              <ListRow label={o.otherPosition} value={positions.other ?? o.noPosition} stacked />
             </List>
           </Card>
         </Section>

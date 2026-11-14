@@ -1,6 +1,5 @@
 import type { DocumentKind } from "@/generated/prisma/enums";
 import { formatDateTime } from "@/features/format/format";
-import { formatMoney } from "@/kit";
 import { ru } from "@/i18n/ru";
 import type { MoneyHistoryItem } from "@/modules/payments";
 
@@ -139,16 +138,15 @@ function masterPayoutRow(history: readonly MoneyHistoryItem[], splits: readonly 
 /**
  * Записи журнала → строки истории денег МАСТЕРА, свежие сверху. Показывается движение денег, которое касается мастера:
  * - оплата покупателя (`HOLD`) — без суммы покупателя (в ней его защита сделки 2%): «Деньги покупателя в банке под защитой»,
- *   под ней — «Вы получите N» (смета мастера модуля, `youGetTiyn`; пока оплата вам не раскрыта), «обрабатывается» / «не прошла»;
+ *   «обрабатывается» / «не прошла»; «Вы получите» — в блоке денег над лентой, не в строке;
  * - остановка и снятие остановки оплаты спором (`FREEZE`, `UNFREEZE`) — без суммы;
  * - оплата мастеру (`SPLIT_MASTER`) — со своей суммой из журнала и статусом банка (номер операции — в тексте); доход сервиса
  *   (`SPLIT_PLATFORM`) в отдельную строку не выводится — он свёрнут в эту же строку и без суммы;
  * - возврат покупателю (`REFUND`) — одна свёрнутая строка без суммы (в ней защита сделки покупателя).
  * Документов-оснований у строк мастера нет: оферта и акт показывают суммы покупателя. Ничего не вычисляется.
  */
-export function masterOperationRows(history: readonly MoneyHistoryItem[], opts: { manual?: boolean; youGetTiyn?: bigint | null } = {}): OperationRow[] {
+export function masterOperationRows(history: readonly MoneyHistoryItem[], opts: { manual?: boolean } = {}): OperationRow[] {
   const manual = opts.manual ?? false;
-  const youGet = opts.youGetTiyn ?? null;
   const splits = history.filter((item) => isSplit(item.type));
   const hasRefund = history.some((item) => item.type === "REFUND");
   const entries: { order: number; row: OperationRow }[] = [];
@@ -159,8 +157,7 @@ export function masterOperationRows(history: readonly MoneyHistoryItem[], opts: 
     switch (item.type) {
       case "HOLD": {
         const title = item.status === "SUCCEEDED" ? tm.hold.DONE : item.status === "FAILED" ? tm.hold.FAILED : manual ? tm.hold.WAITING : tm.hold.PENDING;
-        const showYouGet = item.status === "SUCCEEDED" && youGet !== null;
-        entries.push({ order: index, row: { ...base, kind: "hold", title, ...(showYouGet ? { text: tm.youGet(formatMoney(youGet)) } : {}) } });
+        entries.push({ order: index, row: { ...base, kind: "hold", title } });
         break;
       }
       case "REFUND": {

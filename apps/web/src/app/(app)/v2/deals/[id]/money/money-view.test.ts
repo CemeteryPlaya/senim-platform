@@ -162,12 +162,11 @@ describe("masterOperationRows: движение денег мастера", () =
     item({ id: "p", type: "SPLIT_PLATFORM", amountTiyn: 6_000_00n }),
   ];
 
-  it("оплата покупателя: строка без суммы покупателя и без его номера операции, «Вы получите» из сметы мастера", () => {
-    const [row] = masterOperationRows([item({ type: "HOLD", amountTiyn: BUYER_AMOUNT, operationRef: "BUYER-REF" })], { youGetTiyn: MASTER_AMOUNT });
+  it("оплата покупателя: строка без суммы покупателя, без его номера операции и без обещания «Вы получите»", () => {
+    const [row] = masterOperationRows([item({ type: "HOLD", amountTiyn: BUYER_AMOUNT, operationRef: "BUYER-REF" })]);
     expect(row?.title).toBe(tm.hold.DONE);
     expect(row).not.toHaveProperty("amount");
-    expect(row?.text).toContain("96");
-    expect(row?.text).not.toContain("BUYER-REF");
+    expect(row).not.toHaveProperty("text");
     expect(row?.basis).toBeNull();
   });
 
