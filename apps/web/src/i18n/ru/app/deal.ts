@@ -428,4 +428,20 @@ export const deal = {
       toDeal: "К сделке",
     },
   },
+
+  /** Отзыв о мастере (флаг `reviews`): экран `/v2/deals/<id>/review`. */
+  review: {
+    metaTitle: "Отзыв о мастере",
+    title: "Отзыв о мастере",
+    lead: (number: number) => `Сделка №${number}`,
+    intro: "Как всё прошло? Ваша оценка поможет другим покупателям выбрать мастера.",
+    ratingLegend: "Оценка",
+    rating: (n: number) => `${n} из 5`,
+    ratingText: { 5: "Отлично", 4: "Хорошо", 3: "Нормально", 2: "Плохо", 1: "Очень плохо" } as Readonly<Record<number, string>>,
+    textLabel: "Ваш отзыв (необязательно)",
+    privacy: "Имя мастера и контакты в тексте отзыва будут скрыты.",
+    submit: "Оставить отзыв",
+    sent: "Спасибо за отзыв",
+    errors: { rating: "Выберите оценку" },
+  },
 } as const;
