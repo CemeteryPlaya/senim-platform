@@ -584,7 +584,7 @@ const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeActio
 | `layout` | `"rows" \| "columns"?` | По умолчанию `rows` |
 | `items` | `{ label: string; name?: string; value: bigint; current?: boolean }[]` | Столбики по порядку; `label` — «Ноя», `name` — «Ноябрь 2026» для таблицы (по умолчанию `label`); `value` — тиыны; `current` — выделенный |
 
-Экран готовит подписи и порядок (окно из шести месяцев — `chartWindow` в `src/features/executor-finance/months.ts`); сумм в `Bars` никто не считает.
+Экран готовит подписи и порядок (окно из шести месяцев — `chartWindow` в `src/features/executor-finance/months.ts`); сумм в `Bars` никто не считает. `monthName`, `monthTitle`, `versusPrevious` и `GeolocationError.message` берут тексты v1 и в v2 не используются (v2: `shiftMonth`, `selectedMonth`, `chartWindow`, `error.code` и свои тексты из `ru.app`). На широком экране для столбиков задайте `layout="columns"`.
 
 ### `Chat` и `ChatComposer` (клиентские)
 

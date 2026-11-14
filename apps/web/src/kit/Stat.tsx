@@ -6,7 +6,7 @@ export type StatProps = {
   label: string;
   /** Число или сумма: строка, `<Money />` и т. п. Не считается здесь. */
   value: ReactNode;
-  /** Меньший кегль значения (20 px вместо 28 px): для сумм в тенге, которым тесно в строке. */
+  /** Меньший кегль значения (20 px вместо 28 px). Для сумм в тенге на телефоне задавайте `compact`: значение не переносится, а крупная сумма в 390 px не помещается. */
   compact?: boolean;
 };
 
@@ -19,7 +19,7 @@ export function Stat({ label, value, compact = false }: StatProps) {
   return (
     <dl className="m-0 flex min-w-0 flex-col-reverse gap-1">
       <dt className="text-sub wrap-break-word text-muted">{label}</dt>
-      <dd className={cn("m-0 font-semibold tabular-nums text-ink", compact ? "text-section" : "text-title")}>{value}</dd>
+      <dd className={cn("m-0 min-w-0 font-semibold whitespace-nowrap tabular-nums text-ink", compact ? "text-section" : "text-title")}>{value}</dd>
     </dl>
   );
 }
@@ -37,7 +37,7 @@ export type StatRowProps = {
  */
 export function StatRow({ label, children }: StatRowProps) {
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-x-8 gap-y-4 rounded-card bg-surface p-5 *:flex-1 *:basis-32">
+    <div role="group" aria-label={label} className="flex flex-wrap gap-x-8 gap-y-4 overflow-hidden rounded-card bg-surface p-5 *:flex-1 *:basis-32">
       {children}
     </div>
   );

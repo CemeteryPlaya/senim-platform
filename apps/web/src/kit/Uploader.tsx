@@ -38,7 +38,7 @@ export type UploaderProps = {
   accept?: string;
   /**
    * Кнопка «Снять на камеру» (только на телефоне): открывает камеру устройства, `"environment"` — основную, `"user"` —
-   * фронтальную. Снимок принимается как фото (`image/*`); без пропа кнопки нет.
+   * фронтальную. Камера отдаёт только изображения (`image/*`): если в `accept` изображений нет, снимок будет отклонён как неверный тип. Без пропа кнопки нет.
    */
   capture?: "environment" | "user";
   /** Подпись кнопки добавления; по умолчанию «Добавить фото». */
@@ -48,12 +48,12 @@ export type UploaderProps = {
 };
 
 /** Превью: заглушка `line` и фото поверх; адрес из хранилища или blob:, оптимизатор изображений не нужен. */
-function Preview({ item, className }: { item: UploaderItem; className: string }) {
+function Preview({ item, className, showName = true }: { item: UploaderItem; className: string; showName?: boolean }) {
   if (item.kind === "document") {
     return (
       <div className={cn("flex flex-col items-center justify-center gap-1 overflow-hidden rounded-field bg-line p-2 text-muted", className)}>
         <FileText aria-hidden className="size-6 shrink-0" />
-        <span className="line-clamp-2 w-full text-center text-small wrap-break-word text-ink">{item.name}</span>
+        {showName && <span className="line-clamp-2 w-full text-center text-small wrap-break-word text-ink">{item.name}</span>}
       </div>
     );
   }
@@ -112,7 +112,7 @@ export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accep
               return (
                 <li key={item.id} className="col-span-full flex flex-col gap-3 rounded-field bg-danger-soft p-3">
                   <div className="flex items-center gap-3">
-                    <Preview item={item} className="size-16 shrink-0" />
+                    <Preview item={item} className="size-16 shrink-0" showName={false} />
                     <div className="flex min-w-0 flex-col gap-1">
                       <p className="text-sub font-medium wrap-break-word text-ink">{item.name}</p>
                       <p role="alert" className="text-sub text-danger">

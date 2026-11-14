@@ -1,3 +1,6 @@
+// ВНИМАНИЕ: monthName, monthTitle и versusPrevious берут тексты v1 (ru.executor.finance) и на экранах v2 не используются:
+// v2 берёт shiftMonth, selectedMonth, chartWindow и свои тексты из ru.app.
+
 import { z } from "zod";
 import type { MonthKey, MonthEarnings } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
