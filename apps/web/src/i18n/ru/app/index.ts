@@ -6,6 +6,7 @@ import { guest } from "./guest";
 import { kit } from "./kit";
 import { login } from "./login";
 import { master } from "./master";
+import { masterRegister } from "./master-register";
 import { masterRequests } from "./master-requests";
 import { offer } from "./offer";
 import { onboarding } from "./onboarding";
@@ -22,6 +23,7 @@ export const app = {
   kit,
   login,
   master,
+  masterRegister,
   masterRequests,
   offer,
   onboarding,
