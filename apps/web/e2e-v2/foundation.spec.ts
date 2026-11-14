@@ -216,15 +216,16 @@ test.describe("шрифт 200% при 360 px", () => {
 // ───────── 9, 15. Заглушка раздела ─────────
 
 test.describe("заглушка раздела", () => {
-  test("9. /v2/deals/1 — заглушка со ссылкой на /deals/1", async ({ page }) => {
-    await page.goto("/v2/deals/1");
+  test("9. /v2/executor/orders/1 — заглушка со ссылкой на /executor/orders/1", async ({ page }) => {
+    // Экраны покупателя уже перенесены; заглушку проверяем на разделе мастера (этап 4).
+    await page.goto("/v2/executor/orders/1");
     await expect(page.getByRole("heading", { level: 1, name: shell.movingTitle })).toBeVisible();
-    await expect(page.getByRole("link", { name: shell.openOld })).toHaveAttribute("href", "/deals/1");
+    await expect(page.getByRole("link", { name: shell.openOld })).toHaveAttribute("href", "/executor/orders/1");
   });
 
   test("15a. параметры адреса сохраняются в ссылке", async ({ page }) => {
-    await page.goto("/v2/deals/1?tab=money");
-    await expect(page.getByRole("link", { name: shell.openOld })).toHaveAttribute("href", "/deals/1?tab=money");
+    await page.goto("/v2/executor/orders/1?tab=money");
+    await expect(page.getByRole("link", { name: shell.openOld })).toHaveAttribute("href", "/executor/orders/1?tab=money");
   });
 
   test("15b. /v2//example.com: Next нормализует адрес, ссылка ведёт на /example.com, а не на чужой сайт", async ({ page }) => {
@@ -565,6 +566,8 @@ test.describe("ActionDock на телефоне", () => {
   test("19д. без панели вкладок (роль без вкладок) док прилипает к низу с отступом 10 px", async ({ page }) => {
     await page.goto(DOCK_PAGE);
     await expect(dockOf(page)).toBeVisible();
+    // Правка DOM ниже делается после гидратации: иначе React при загруженном сервере возвращает панель на место.
+    await page.waitForLoadState("networkidle");
     // У оператора вкладок нет: оболочка без data-has-tabs и без панели. Вход оператора в e2e v2 недоступен, поэтому то
     // же состояние воспроизводится в DOM — проверяется CSS дока, а не выбор оболочки.
     await page.evaluate(() => {

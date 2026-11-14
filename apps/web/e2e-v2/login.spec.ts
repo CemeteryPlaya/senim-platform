@@ -164,7 +164,7 @@ test("выход ведёт на вход v2", async ({ page }) => {
   await expect(heading(page, t.role.title)).toBeVisible();
 });
 
-test("перезагрузка на шаге кода: шаг номера, повтор раньше минуты — снова шаг кода с пояснением, прежний код впускает", async ({
+test("перезагрузка на шаге кода: шаг номера, повторный запрос — снова шаг кода без отказа «слишком часто», действующий код впускает", async ({
   page,
 }) => {
   const phone = freshPhone();
@@ -178,9 +178,12 @@ test("перезагрузка на шаге кода: шаг номера, по
   await page.getByLabel(t.phone.label).fill(phone.typed);
   await primary(page, t.phone.submit).click();
   await expect(heading(page, t.code.title)).toBeVisible();
-  await expect(page.getByText(t.code.alreadySent)).toBeVisible();
   await expect(page.getByText(ru.identity.otp.errors.tooOften)).toHaveCount(0);
-  await page.getByLabel(t.code.label).fill(code);
+  // Не зависит от длины паузы identity между кодами: пауза не прошла — «код уже отправлен», действует прежний код;
+  // прошла (на стенде она короткая) — выдан новый код, он показан на экране.
+  const alreadySent = (await page.getByText(t.code.alreadySent).count()) > 0;
+  const valid = alreadySent ? code : await readShownCode(page);
+  await page.getByLabel(t.code.label).fill(valid);
   await primary(page, t.code.submit).click();
   await expect(page).toHaveURL(/\/v2\/consent$/);
 });
