@@ -6,7 +6,7 @@ import { ru } from "@/i18n/ru";
 import { cn, Container, Money, PageHeader, TrustNote, formatDate, formatTiyn } from "@/ui";
 import { NoAccess } from "@/app/(legacy)/_components/NoAccess";
 import { pageUser } from "@/app/(legacy)/requests/_parts/guard";
-import { barPercent, chartWindow, monthTitle, selectedMonth, shiftMonth, versusPrevious } from "./_parts/months";
+import { barPercent, chartWindow, monthTitle, selectedMonth, shiftMonth, versusPrevious } from "@/features/executor-finance/months";
 
 const t = ru.executor.finance;
 

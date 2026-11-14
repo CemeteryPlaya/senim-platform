@@ -3,6 +3,7 @@ import { Send } from "lucide-react";
 import { listMyOffers, wholeKzt, type MyOfferItem } from "@/modules/requests";
 import { ru } from "@/i18n/ru";
 import { ButtonLink, Container, EmptyState, FilterChips, PageHeader, RequestCard, StatusBadge, formatDateTime, formatMoney, formatRelative, type Tone } from "@/ui";
+import { OFFER_GROUPS, offerGroupOf as groupOf, type OfferGroup } from "@/features/executor-requests/incoming";
 import { SEGMENT_NAMES } from "@/verticals/furniture";
 import { pageUser } from "@/app/(legacy)/requests/_parts/guard";
 import { NoAccess } from "@/app/(legacy)/_components/NoAccess";
@@ -12,10 +13,8 @@ const t = ru.executor.offers;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
-const GROUPS = ["all", "waiting", "chosen", "closed"] as const;
-type Group = (typeof GROUPS)[number];
-
-const groupOf = (o: MyOfferItem): Exclude<Group, "all"> => (o.status === "SENT" ? "waiting" : o.status === "ACCEPTED" ? "chosen" : "closed");
+const GROUPS = OFFER_GROUPS;
+type Group = OfferGroup;
 
 /** Статус отклика простыми словами: у выбранного — где он сейчас (замер, договор). */
 function status(o: MyOfferItem): { tone: Tone; text: string } {

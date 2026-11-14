@@ -1,4 +1,4 @@
-import type { GeolocationState } from "@/app/(legacy)/_components/geolocation";
+import { gpsVerdict, readyFarInfo, readyWait, type GeolocationState, type ReadyGps } from "@/features/delivery/gps";
 import type { DealStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 
@@ -18,27 +18,26 @@ export function heroImage(p: { ready: readonly Src[]; progress: readonly (readon
 export type GpsNote = { tone: "ok" | "warning" | "unknown"; text: string };
 
 /** Мягкая проверка GPS: дальше радиуса — предупреждение (не запрет), без координат — так и пишем. */
-export function gpsNote(r: { distanceM: number | null; withinRadius: boolean | null; radiusM: number }): GpsNote {
+export function gpsNote(r: ReadyGps): GpsNote {
   const t = ru.deal.ready;
-  if (r.distanceM === null) return { tone: "unknown", text: t.gpsUnknown };
-  return r.withinRadius ? { tone: "ok", text: t.gpsOk(r.distanceM) } : { tone: "warning", text: t.gpsFar(r.distanceM, r.radiusM) };
+  const v = gpsVerdict(r);
+  if (v.kind === "unknown") return { tone: "unknown", text: t.gpsUnknown };
+  return v.kind === "ok" ? { tone: "ok", text: t.gpsOk(v.distanceM) } : { tone: "warning", text: t.gpsFar(v.distanceM, v.radiusM) };
 }
-
-type ReadyGps = { distanceM: number | null; withinRadius: boolean | null; radiusM: number };
 
 /**
  * Мастер только что сдал работу дальше радиуса: «Что дальше» говорит об этом сразу (live), а не только
  * плашкой в разделе «Сдача» ниже. Сдача не блокируется — расстояние попадает в акт.
  */
 export function readyFarWarning(d: { viewer: "CLIENT" | "EXECUTOR" | "OPERATOR"; status: DealStatus; ready: ReadyGps | null }): string | null {
-  const r = d.ready;
-  if (d.viewer !== "EXECUTOR" || d.status !== "READY" || !r || r.withinRadius !== false || r.distanceM === null) return null;
-  return ru.deal.ready.gpsWarning(r.distanceM, r.radiusM);
+  const far = readyFarInfo(d);
+  return far ? ru.deal.ready.gpsWarning(far.distanceM, far.radiusM) : null;
 }
 
 /** Строка под «Сдать работу» (aria-live): ждём фото, определяем место или почему места не будет (сдача идёт и так). */
 export function readyWaitText(s: { uploading: boolean; geo: GeolocationState }): string {
-  if (s.uploading) return ru.deal.ready.waitPhotos;
-  if (s.geo.status === "locating") return ru.deal.ready.locating;
-  return s.geo.status === "failed" ? s.geo.error.message : "";
+  const w = readyWait(s);
+  if (w.kind === "photos") return ru.deal.ready.waitPhotos;
+  if (w.kind === "locating") return ru.deal.ready.locating;
+  return w.kind === "geoFailed" ? w.error.message : "";
 }

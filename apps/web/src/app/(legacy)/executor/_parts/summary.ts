@@ -5,7 +5,7 @@ import { listIncomingRequests, type IncomingListItem } from "@/modules/requests"
 import { ru } from "@/i18n/ru";
 import { formatTiyn, type StatTileItem } from "@/ui";
 import { ACTIVE_DEAL } from "@/app/(legacy)/deals/_parts/labels";
-import { monthName } from "../finance/_parts/months";
+import { monthName } from "@/features/executor-finance/months";
 
 const t = ru.executor.stats;
 

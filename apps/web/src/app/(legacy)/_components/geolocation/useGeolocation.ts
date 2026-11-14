@@ -1,13 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { GeolocationError, requestLocation, type GeoFix, type RequestLocationOptions } from "./request-location";
-
-export type GeolocationState =
-  | { status: "idle" }
-  | { status: "locating" }
-  | { status: "located"; fix: GeoFix }
-  | { status: "failed"; error: GeolocationError };
+import type { GeolocationState } from "@/features/delivery/gps";
+import { GeolocationError, requestLocation, type GeoFix, type RequestLocationOptions } from "@/features/delivery/request-location";
 
 /**
  * Хук для экрана: request() по нажатию кнопки, состояние — для подписи и текста ошибки.

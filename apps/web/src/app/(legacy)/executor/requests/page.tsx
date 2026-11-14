@@ -5,6 +5,7 @@ import { ru } from "@/i18n/ru";
 import { Container, EmptyState, FilterChips, PageHeader, StatTiles, type FilterChipItem } from "@/ui";
 import { pageUser } from "@/app/(legacy)/requests/_parts/guard";
 import { NoAccess } from "@/app/(legacy)/_components/NoAccess";
+import { selectedIncoming as selected, type IncomingSearch } from "@/features/executor-requests/incoming";
 import { IncomingCard } from "../_parts/IncomingCard";
 import { executorSummary } from "../_parts/summary";
 
@@ -14,15 +15,7 @@ const chip = ru.common.ui.filterChip;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
-type Search = { f?: string; type?: string };
-
-/** Выбранный чип из адреса: раздел (без отклика, прямые) или тип мебели; неизвестное — «Все». */
-function selected(sp: Search, list: readonly IncomingListItem[]): { key: string; keep: (r: IncomingListItem) => boolean } {
-  if (sp.type && list.some((r) => r.title === sp.type)) return { key: `type:${sp.type}`, keep: (r) => r.title === sp.type };
-  if (sp.f === "new") return { key: "new", keep: (r) => r.myOfferStatus === null };
-  if (sp.f === "direct") return { key: "direct", keep: (r) => r.mode === "DIRECT" };
-  return { key: "all", keep: () => true };
-}
+type Search = IncomingSearch;
 
 /** Чипы с числом заявок; «Мои отклики» — последним, ведёт в свой раздел (макет master-screens). */
 function chipsFor(list: readonly IncomingListItem[], current: string): FilterChipItem[] {
