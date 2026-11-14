@@ -51,7 +51,7 @@ async function masterAddress(user: CurrentUser, deal: DealView): Promise<string 
 
 /**
  * Карточка сделки стороны в активной роли (главный экран доверия): что сейчас и одно главное действие шага, деньги из
- * журнала, ход сделки, ход работ (мастер), заказ, документы, другая сторона (контакты — после оферты), история; отмена и
+ * журнала, ход сделки, ход работ (отчёты мастера — обеим сторонам), заказ, документы, другая сторона (контакты — после оферты), история; отмена и
  * спор — в меню «Действия». Действие шага ведёт на свой экран (подпись, оплата, отзыв — покупатель; подпись, начало
  * работы, сдача — мастер). Ворота — `partyDeal`: сторона в другой своей роли — переключение роли, оператор — в v1, чужая и
  * несуществующая — 404. Документы читаются без выпуска выписки (`readDealDocuments`): открытие карточки ничего не пишет.
@@ -88,6 +88,12 @@ function reportsBlock(deal: DealView, addHref: string | null): CardView["reports
   const add = deal.can.addProgress ? addHref : null;
   if (items.length === 0 && !deal.can.addProgress) return null;
   return { items, addHref: add };
+}
+
+/** «Ход работ» покупателя: те же отчёты мастера, только чтение; отчётов нет — блока нет. */
+function buyerReports(deal: DealView): CardView["reports"] {
+  const items = reportsView(deal.progressReports);
+  return items.length > 0 ? { items, addHref: null } : null;
 }
 
 type CardInput = {
@@ -163,7 +169,7 @@ function cardView({ deal, side, documents, contacts, bank, address, all, device 
       contacts,
       chatHref: to(`/chats/${encodeURIComponent(deal.offerId)}`),
     },
-    reports: master ? reportsBlock(deal, now.kind === "ready" ? null : hrefs.progress) : null,
+    reports: master ? reportsBlock(deal, now.kind === "ready" ? null : hrefs.progress) : buyerReports(deal),
     review: reviewRows(deal.review),
     history: { ...historyView(deal.history, { all, limit: HISTORY_SHOWN[device] }, side), allHref: hrefs.history },
     actions: {

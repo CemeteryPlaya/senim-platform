@@ -214,7 +214,17 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки м�
     expect(primaries(out)).toEqual([{ href: "/v2/deals/d1/sign/a1", label: ru.app.master.deal.now.signAct.action }]);
   });
 
-  it("у покупателя блока «Ход работ» нет", () => {
-    expect(html(<DealCardView view={view()} device={device} />)).not.toContain(tm.reports.section);
+  it("у покупателя без отчётов блока «Ход работ» нет", () => {
+    expect(html(<DealCardView view={view()} device={device} />)).not.toContain(t.reports.section);
+  });
+
+  it("покупатель видит отчёты мастера (общий заголовок «Ход работ»), без ссылки «Добавить отчёт» и без пустого состояния мастера", () => {
+    const items = reportsView([{ id: "r1", title: "Корпус готов", text: "Собрал корпус", createdAt: new Date("2026-11-12T10:00:00Z"), photos: [{ id: "p1", src: "/f/p1.jpg" }] }]);
+    const out = html(<DealCardView view={view({ reports: { items, addHref: null } })} device={device} />);
+    expect(out).toContain(`>${t.reports.section}<`);
+    expect(out).toContain("Собрал корпус");
+    expect(out).toContain('src="/f/p1.jpg"');
+    expect(out).not.toContain(tm.reports.add);
+    expect(out).not.toContain(tm.reports.empty);
   });
 });

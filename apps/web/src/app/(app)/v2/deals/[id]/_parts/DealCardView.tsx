@@ -252,11 +252,14 @@ function Party({ view, device }: { view: CardView; device: Device }) {
   );
 }
 
-/** «Ход работ» мастера: отчёты свежими сверху (название, время, текст, фото), ссылка на экран нового отчёта. */
+/**
+ * «Ход работ»: отчёты мастера свежими сверху (название, время, текст, фото) — обеим сторонам; мастеру ещё ссылка на экран
+ * нового отчёта и пустое состояние (покупателю пустой блок не показывается).
+ */
 function Reports({ reports }: { reports: NonNullable<CardView["reports"]> }) {
   const r = tm.reports;
   return (
-    <Section title={r.section}>
+    <Section title={t.reports.section}>
       {reports.items.length === 0 ? (
         <Card>
           <p className="text-body text-muted">{r.empty}</p>
