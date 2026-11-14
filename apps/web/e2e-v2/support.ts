@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { testIin } from "@/demo/kz-id";
 import { ru } from "@/i18n/ru";
 
@@ -79,8 +79,11 @@ export async function loginV2(page: Page, phone: string, options: { role?: Login
   const t = login;
   await open(page, options.next ? `/v2/login?${new URLSearchParams({ next: options.next })}` : "/v2/login");
   if (options.role === "executor") await page.getByText(t.role.executor, { exact: true }).click();
-  await primary(page, t.role.submit).click();
-  await page.getByLabel(t.phone.label).waitFor({ state: "visible" });
+  // Нажатие до гидратации теряется (шаг роли — клиентский): повторяем, пока не откроется шаг телефона.
+  await expect(async () => {
+    await primary(page, t.role.submit).click();
+    await page.getByLabel(t.phone.label).waitFor({ state: "visible", timeout: 3_000 });
+  }).toPass({ timeout: WIZARD_STEP_MS });
   await page.getByLabel(t.phone.label).fill(phone);
   await primary(page, t.phone.submit).click();
   const code = await readShownCode(page);

@@ -38,6 +38,20 @@ function databaseUrl(): string {
 }
 
 /** Только чтение базы e2e: подписи сторон на документах, операции HOLD и переходы мастера сделки. */
+/** Срок изготовления по сделке из базы: текст подтверждения «Начать работу» называет его, а сид может меняться. */
+async function dealDays(dealId: string): Promise<number> {
+  const client = new Client({ connectionString: databaseUrl() });
+  await client.connect();
+  try {
+    const row = await client.query<{ days: number }>(`select "durationDays" as days from "Deal" where id = $1`, [dealId]);
+    const days = row.rows[0]?.days;
+    if (days === undefined) throw new Error(`Сделка ${dealId} не найдена — нужен пересев`);
+    return days;
+  } finally {
+    await client.end();
+  }
+}
+
 async function facts(
   dealId: string,
 ): Promise<{
@@ -222,7 +236,7 @@ test("полная сделка покупателя в v2: оферта → о�
   await expect(master.locator("h1")).toHaveText(ms.start.title);
   await master.locator("[data-primary-action]").click();
   const confirm = master.getByRole("dialog", { name: ms.start.confirm.title });
-  await expect(confirm).toContainText(ms.start.confirm.body(formatDays(30)));
+  await expect(confirm).toContainText(ms.start.confirm.body(formatDays(await dealDays(dealId))));
   await confirm.getByRole("button", { name: ms.start.confirm.confirm }).dblclick();
   await master.waitForURL(/\/v2\/deals\/[^/?#]+$/, { timeout: 30_000 });
   await expect(master.getByText(ms.start.started, { exact: true })).toBeVisible();

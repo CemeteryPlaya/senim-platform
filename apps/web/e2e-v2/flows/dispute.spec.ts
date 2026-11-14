@@ -74,10 +74,14 @@ test("покупатель открывает спор по сделке в ра
   await expect(cancel).toBeVisible();
   await cancel.getByRole("button", { name: card.actions.cancel }).click();
   // Итог — на экране истории денег (тост исчезает): провайдер стенда ручной, возврат ждёт отметки оператора.
-  await page.waitForURL(new RegExp(`${wardrobe}$`), { timeout: 30_000 });
-  await open(page, `${wardrobe}/money`);
+  // Адрес карточки уже открыт до отмены — ждём закрытия окна, а строку возврата — перечитывая историю денег.
+  await expect(cancel).toBeHidden({ timeout: 30_000 });
   const wardrobeOps = page.getByRole("list", { name: t.money.operationsLabel });
-  await expect(wardrobeOps.getByText(new RegExp(`^(${t.money.type.REFUND}|${t.money.refundState.PENDING})$`))).toBeVisible();
+  const refundRow = wardrobeOps.getByText(new RegExp(`^(${t.money.type.REFUND}|${t.money.refundState.PENDING})$`));
+  await expect(async () => {
+    await open(page, `${wardrobe}/money`);
+    await expect(refundRow).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 30_000 });
   await expect(wardrobeOps.getByText(t.money.type.HOLD)).toBeVisible();
   // «Сейчас» на карточке — про возврат или отмену, а не про оплату.
   await open(page, wardrobe);

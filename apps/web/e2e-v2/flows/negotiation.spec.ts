@@ -103,7 +103,11 @@ test("мастер в v2 отправляет и отзывает предлож
   await expect(kimPage.locator("[data-primary-action]")).toHaveCount(0);
   expect((await offersOnKitchen()).length).toBe(before + 1);
   await kimPage.getByRole("button", { name: mt.actions.menu }).click();
-  await kimPage.getByRole("menuitem", { name: mt.actions.withdrawOffer }).click();
+  // Меню kit на телефоне — шторка с кнопками, на компьютере — список пунктов.
+  await kimPage
+    .getByRole("menuitem", { name: mt.actions.withdrawOffer })
+    .or(kimPage.getByRole("dialog").getByRole("button", { name: mt.actions.withdrawOffer }))
+    .click();
   await kimPage.getByRole("dialog", { name: mt.withdrawOfferConfirm.title }).getByRole("button", { name: mt.withdrawOfferConfirm.confirm }).click();
   await expect(heading2(kimPage, mt.now.withdrawn.title)).toBeVisible();
   expect((await offersOnKitchen()).filter((o) => o.offerStatus === "WITHDRAWN")).toHaveLength(1);
