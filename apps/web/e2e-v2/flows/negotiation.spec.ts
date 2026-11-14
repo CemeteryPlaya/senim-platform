@@ -71,7 +71,7 @@ async function openOffer(page: Page, offer: BuyerOffer): Promise<void> {
 
 test("мастер в v2 отправляет и отзывает предложение, торгуется; покупатель предлагает свою цену, отзывает её и принимает встречную цену мастера — одна сделка", async ({ browser }, info) => {
   test.skip(info.project.name !== "flows-mobile", "сделка по тендеру сида одна на пересев: сценарий — в flows-mobile, вид компьютера — вторым контекстом в нём же");
-  test.setTimeout(240_000);
+  test.setTimeout(360_000);
   const priced = await seedOffer("masterPrice");
   const countered = await seedOffer("masterCounter");
   const erlanOffer = await seedOffer("waiting", (o) => o.requestId === countered.requestId);

@@ -12,7 +12,18 @@ export type GateStatus = Exclude<MasterStatus, "approved">;
  * «Сейчас / Дальше» и один следующий шаг — на экран регистрации и статуса проверки. Модуль заявок всё равно ответил бы
  * `notApproved`; здесь человек видит причину и куда идти. Телефон — действие в доке, компьютер — под карточкой.
  */
-export function MasterGate({ status, title, device }: { status: GateStatus; title: string; device: Device }) {
+export function MasterGate({
+  status,
+  title,
+  device,
+  back,
+}: {
+  status: GateStatus;
+  title: string;
+  device: Device;
+  /** «Назад» вложенного экрана (заявка, сделка): разделы до одобрения закрыты, поэтому обычно — на главную. Без него — как раньше. */
+  back?: { href: string; label: string };
+}) {
   const g = ru.app.masterRequests.gate[status];
   const action = (
     <ActionDock>
@@ -21,7 +32,7 @@ export function MasterGate({ status, title, device }: { status: GateStatus; titl
   );
   return (
     <Stack gap="section">
-      <PageTitle title={title} />
+      <PageTitle title={title} {...(back ? { back } : {})} />
       <Stack>
         <NowNext now={{ title: g.now, body: g.body }} next={g.next} />
         {device === "desktop" && action}
