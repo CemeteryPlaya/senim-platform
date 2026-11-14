@@ -5,7 +5,6 @@ import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import {
   getCurrentUser,
   getShellUser,
-  homePathFor,
   mfaHref,
   needsConsent,
   needsEmail,
@@ -19,6 +18,7 @@ import { isAppError } from "@/platform/errors";
 import { pendingOnboarding } from "./onboarding";
 import { makePaths, ONBOARDING_SCREENS, safeLocalPath, to } from "./paths";
 import { recallRole, type ChosenRole } from "./role-cookie";
+import { isDealSide, type DealSide } from "./side";
 
 /** Пользователь в том объёме, что нужен барьерам и выбору дома (подмножество CurrentUser). */
 export type StepUser = Pick<
@@ -59,16 +59,21 @@ const BASE = to("/") === "/" ? "" : to("/");
 export const safeNext = makeSafeNext(BASE);
 
 /**
- * Дом человека после всех первых шагов: заказчик — главная, мастер с одобренным профилем — входящие заявки, мастер без
- * профиля или на проверке — регистрация мастера, оператор — его раздел, замерщик — замеры. Выбор «Я мастер» на первом
- * шаге входа ведёт заказчика без профиля исполнителя на регистрацию мастера (роль в identity от выбора не меняется).
+ * Дом человека после всех первых шагов: заказчик и мастер с одобренным профилем — главная v2 (у каждого своя «что сейчас»),
+ * мастер без профиля, на проверке или с отказом — регистрация мастера (анкета и статус проверки), оператор — его раздел,
+ * замерщик — замеры. Выбор «Я мастер» на первом шаге входа ведёт заказчика без профиля исполнителя на регистрацию мастера
+ * (роль в identity от выбора не меняется).
+ *
+ * Регистрация мастера — дом и заказчика без профиля, и неодобренного мастера: её страница берёт пользователя с обеими ролями
+ * (`requireV2User(path, "CLIENT", "EXECUTOR")`, правило 2 у requireV2User), а не `requireMaster`. Пока экрана нет (задача M1),
+ * адрес попадает в заглушку «раздел переносится» (`[...rest]`) со ссылкой на регистрацию в v1.
  */
 export function homeFor(user: Pick<StepUser, "role" | "executor">, chosen: ChosenRole | null = null): string {
   switch (user.role) {
     case "CLIENT":
       return chosen === "EXECUTOR" && user.executor === null ? to("/register/executor") : to("/");
     case "EXECUTOR":
-      return user.executor?.status === "APPROVED" ? to("/executor/requests") : to("/register/executor");
+      return masterStatusOf(user) === "approved" ? to("/") : to("/register/executor");
     case "OPERATOR":
       return to("/operator");
     case "MEASURER":
@@ -77,12 +82,28 @@ export function homeFor(user: Pick<StepUser, "role" | "executor">, chosen: Chose
 }
 
 /**
- * Куда вести сразу после переключения роли, если возврата нет. У мастера в v2 пока нет экранов (этап 4): его дом — рабочий
- * экран v1 (`homePathFor`: входящие заявки или регистрация мастера), а не временная главная v2 и не заглушка «раздел
- * переносится». У остальных ролей — дом v2 (`homeFor`).
+ * Куда вести сразу после переключения роли, если возврата нет: дом новой роли v2 (`homeFor`) — у мастера главная v2 или
+ * регистрация мастера, как и после входа.
  */
 export function homeAfterSwitch(user: Pick<StepUser, "role" | "executor">): string {
-  return user.role === "EXECUTOR" ? homePathFor(user) : homeFor(user);
+  return homeFor(user);
+}
+
+/** Статус профиля мастера для экранов: нет профиля, на проверке, отказ, одобрен. */
+export type MasterStatus = "none" | "pending" | "rejected" | "approved";
+
+const MASTER_STATUS = {
+  PENDING: "pending",
+  REJECTED: "rejected",
+  APPROVED: "approved",
+} as const satisfies Record<NonNullable<StepUser["executor"]>["status"], MasterStatus>;
+
+/**
+ * Статус профиля мастера по пользователю identity (`executor.status`). Это подсказка экрану, а не право: модули мастера
+ * сами проверяют одобрение по базе (`notApproved`).
+ */
+export function masterStatusOf(user: Pick<StepUser, "executor">): MasterStatus {
+  return user.executor === null ? "none" : MASTER_STATUS[user.executor.status];
 }
 
 /** Адрес шага с возвратом: `/v2/consent?next=%2Fv2%2Fdeals%2F1` или без параметра. */
@@ -216,4 +237,52 @@ export async function dealOrSwitch(user: CurrentUser, dealId: string): Promise<D
     redirect(switchRoleTo(party, to(`/deals/${encodeURIComponent(dealId)}`)));
   }
   notFound();
+}
+
+/**
+ * Ворота экранов, общих для сторон сделки (чаты, список сделок): вошедший с пройденными первыми шагами в роли покупателя
+ * или мастера. Всё, что делает `requireV2User(next, "CLIENT", "EXECUTOR")`: гость — на вход с возвратом, не пройден шаг —
+ * на шаг, оператор и замерщик — в свой дом (роли стороны выдана, но не активна — переключение). Возвращает пользователя и
+ * сторону — его активную роль. `next` — адрес этой страницы v2 (с параметрами).
+ */
+export async function requireParty(next: string): Promise<{ user: CurrentUser; side: DealSide }> {
+  const user = await requireV2User(next, "CLIENT", "EXECUTOR");
+  // requireV2User уже пустил только эти роли; проверка — для типа и на случай правки выше.
+  if (!isDealSide(user.role)) redirect(homeFor(user, await recallRole()));
+  return { user, side: user.role };
+}
+
+/**
+ * Ворота экранов только мастера (заявки, предложения, финансы, компания, портфолио): активная роль мастера. Роль мастера
+ * выдана, но активна другая — на переключение роли с возвратом сюда (`switchRoleTo`); не выдана — дом человека (заказчику —
+ * главная, а выбравшему «Я мастер» без профиля — регистрация мастера). Неодобренный мастер (нет профиля, на проверке,
+ * отказ) проходит без ошибки: экран по `status` показывает понятный экран статуса, а модуль всё равно ответит `notApproved`.
+ *
+ * Регистрация мастера (дом неодобренного мастера и заказчика без профиля) этими воротами не пользуется — правило 2 у
+ * requireV2User: она берёт обе роли.
+ */
+export async function requireMaster(next: string): Promise<{ user: CurrentUser; status: MasterStatus }> {
+  const user = await requireV2User(next, "EXECUTOR");
+  return { user, status: masterStatusOf(user) };
+}
+
+/**
+ * Сделка для экрана, общего для сторон, в активной роли человека. `user` — из `requireV2User(<адрес страницы>)` без ролей:
+ * - оператор — в v1 (`operatorTo`, по умолчанию карточка сделки `/deals/<id>`): его экраны сделки — этап 5;
+ * - сторона сделки в активной роли — вид сделки из модуля и сторона (`deal.viewer`);
+ * - сторона в другой своей выданной роли (ADR-004) — переключение роли с возвратом на сделку v2 (`dealOrSwitch`);
+ * - чужая и несуществующая — 404. Прочие ошибки модуля пробрасываются. Права проверяет модуль, не эта функция.
+ *
+ * `buyerDeal` (`v2/deals/[id]/_parts/gate.ts`) и `requireBuyer` остаются для экранов только покупателя: оплата, отзыв, заявки.
+ */
+export async function partyDeal(
+  user: CurrentUser,
+  dealId: string,
+  { operatorTo }: { operatorTo?: string } = {},
+): Promise<{ deal: DealView; side: DealSide }> {
+  if (user.role === "OPERATOR") redirect(operatorTo ?? `/deals/${encodeURIComponent(dealId)}`);
+  const deal = await dealOrSwitch(user, dealId);
+  // Модуль отдаёт сделку стороне в её активной роли; оператор отсечён выше, поэтому `viewer` — сторона.
+  if (deal.viewer === "OPERATOR") notFound();
+  return { deal, side: deal.viewer };
 }

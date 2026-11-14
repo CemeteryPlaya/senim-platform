@@ -13,7 +13,6 @@ export type NavIcon =
   | "login"
   | "requests"
   | "deals"
-  | "orders"
   | "chat"
   | "finance"
   | "profile"
@@ -56,7 +55,6 @@ const R = {
   requests: { href: to("/requests"), label: t.requests, icon: "requests" },
   deals: { href: to("/deals"), label: t.deals, icon: "deals" },
   incoming: { href: to("/executor/requests"), label: t.requests, icon: "requests" },
-  orders: { href: to("/deals"), label: t.orders, icon: "orders" },
   chat: { href: to("/chats"), label: t.chat, icon: "chat" },
   finance: { href: to("/executor/finance"), label: t.finance, icon: "finance" },
   profile: { href: to("/profile"), label: t.profile, icon: "profile" },
@@ -75,9 +73,11 @@ function roleTabs(user: NavUser): NavItem[] {
     case "CLIENT":
       return [R.home, R.requests, R.deals, R.chat, R.profile];
     case "EXECUTOR":
+      // Мастер: «что сейчас» на главной; финансы, компания и портфолио — из профиля и главной. Неодобренный (нет профиля,
+      // на проверке, отказ): главная говорит о статусе проверки, компания — что о нём увидят покупатели.
       return user.executor?.status === "APPROVED"
-        ? [R.incoming, R.orders, R.chat, R.finance, R.profile]
-        : [R.company, R.portfolio, R.profile];
+        ? [R.home, R.incoming, R.deals, R.chat, R.profile]
+        : [R.home, R.company, R.profile];
     case "MEASURER":
       return [R.measurements, R.chat, R.profile];
     case "OPERATOR":

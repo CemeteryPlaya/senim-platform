@@ -27,7 +27,6 @@ export const shell = {
     login: "Войти",
     requests: "Заявки",
     deals: "Сделки",
-    orders: "Заказы",
     chat: "Чат",
     finance: "Финансы",
     profile: "Профиль",

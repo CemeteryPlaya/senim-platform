@@ -87,9 +87,9 @@ describe("requireBuyer", () => {
     expect(new URLSearchParams(to?.split("?")[1]).get("to")).toBe("CLIENT");
   });
 
-  it("мастер без роли заказчика — в свой дом, без петли", async () => {
+  it("мастер без роли заказчика — в свой дом (главная мастера), без петли", async () => {
     h.user = person({ role: "EXECUTOR", roles: ["EXECUTOR"], executor: { status: "APPROVED" } });
-    expect(await outcome(requireBuyer("/v2/deals/d1"))).toBe("/v2/executor/requests");
+    expect(await outcome(requireBuyer("/v2/deals/d1"))).toBe("/v2");
   });
 
   it("не пройден шаг — на шаг с возвратом", async () => {

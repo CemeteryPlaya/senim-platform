@@ -58,28 +58,35 @@ describe("navFor: вкладки по ролям", () => {
     expect(nav.guest).toBe(false);
   });
 
-  it("мастер (одобрен): Заявки · Заказы · Чат · Финансы · Профиль", () => {
+  it("мастер (одобрен): Главная · Заявки · Сделки · Чат · Профиль (финансы и компания — из профиля и главной)", () => {
     const nav = navFor(executor("APPROVED"), OFF);
-    expect(labels(nav)).toEqual(["Заявки", "Заказы", "Чат", "Финансы", "Профиль"]);
-    expect(hrefs(nav)).toEqual(["/v2/executor/requests", "/v2/deals", "/v2/chats", "/v2/executor/finance", "/v2/profile"]);
+    expect(labels(nav)).toEqual(["Главная", "Заявки", "Сделки", "Чат", "Профиль"]);
+    expect(hrefs(nav)).toEqual(["/v2", "/v2/executor/requests", "/v2/deals", "/v2/chats", "/v2/profile"]);
     expect(nav.sections).toEqual(nav.tabs);
     expect(nav.action).toBeUndefined();
     expect(nav.guest).toBe(false);
   });
 
-  it.each(["PENDING", "REJECTED"] as const)("мастер (%s): Компания · Портфолио · Профиль", (status) => {
+  it.each(["PENDING", "REJECTED"] as const)("мастер (%s): Главная (статус проверки) · Компания · Профиль", (status) => {
     const nav = navFor(executor(status), OFF);
-    expect(labels(nav)).toEqual(["Компания", "Портфолио", "Профиль"]);
-    expect(hrefs(nav)).toEqual(["/v2/executor/profile", "/v2/executor/portfolio", "/v2/profile"]);
+    expect(labels(nav)).toEqual(["Главная", "Компания", "Профиль"]);
+    expect(hrefs(nav)).toEqual(["/v2", "/v2/executor/profile", "/v2/profile"]);
+    expect(nav.sections).toEqual(nav.tabs);
     expect(nav.action).toBeUndefined();
   });
 
   it("мастер без профиля исполнителя — как на проверке", () => {
-    expect(hrefs(navFor({ role: "EXECUTOR", executor: null }, OFF))).toEqual([
-      "/v2/executor/profile",
-      "/v2/executor/portfolio",
-      "/v2/profile",
-    ]);
+    expect(hrefs(navFor({ role: "EXECUTOR", executor: null }, OFF))).toEqual(["/v2", "/v2/executor/profile", "/v2/profile"]);
+  });
+
+  it("вкладки мастера: активная — по адресу; корневые экраны — сами вкладки", () => {
+    const tabs = navFor(executor("APPROVED"), OFF).tabs;
+    expect(activeHref(tabs, "/v2")).toBe("/v2");
+    expect(activeHref(tabs, "/v2/executor/requests/r1")).toBe("/v2/executor/requests");
+    expect(activeHref(tabs, "/v2/deals/d1/sign/c1")).toBe("/v2/deals");
+    expect(activeHref(tabs, "/v2/executor/finance")).toBeUndefined();
+    expect(isTabRoot(tabs, "/v2/executor/requests")).toBe(true);
+    expect(isTabRoot(tabs, "/v2/executor/requests/r1")).toBe(false);
   });
 
   it("оператор: вкладок нет (оболочка оператора — этап 5)", () => {

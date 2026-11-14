@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { consentDocument, consentTextSha256 } from "@/modules/identity";
-import { homeAfterSwitch, homeFor, makeSafeNext, nextStepFor, safeNext, type StepUser } from "./auth";
+import { homeAfterSwitch, homeFor, makeSafeNext, masterStatusOf, nextStepFor, safeNext, type StepUser } from "./auth";
 
 const CURRENT = { id: "c1", version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") };
 
@@ -89,11 +89,11 @@ describe("nextStepFor", () => {
     ["выбрал «Я мастер», но есть next — next", client(), NEXT, "EXECUTOR", NEXT],
     ["выбрал «Я мастер», но нет согласия — согласие", client({ consents: [] }), null, "EXECUTOR", "/v2/consent"],
     [
-      "мастер с одобренным профилем — входящие заявки",
+      "мастер с одобренным профилем — главная мастера",
       client({ role: "EXECUTOR", roles: ["EXECUTOR"], executor: { id: "e1", publicNumber: 1, status: "APPROVED" } }),
       null,
       null,
-      "/v2/executor/requests",
+      "/v2",
     ],
     [
       "мастер с профилем на проверке — регистрация мастера",
@@ -130,10 +130,35 @@ describe("homeFor", () => {
   });
 });
 
+describe("homeFor мастера", () => {
+  const executor = (status: "PENDING" | "APPROVED" | "REJECTED" | null) =>
+    ({ role: "EXECUTOR", executor: status === null ? null : { id: "e1", publicNumber: 1, status } }) as const;
+
+  it("одобренный — главная v2 (его «что сейчас»), а не входящие заявки", () => {
+    expect(homeFor(executor("APPROVED"))).toBe("/v2");
+  });
+
+  it.each(["PENDING", "REJECTED", null] as const)("неодобренный (%s) — регистрация мастера: анкета и статус проверки", (status) => {
+    expect(homeFor(executor(status))).toBe("/v2/register/executor");
+  });
+});
+
 describe("homeAfterSwitch", () => {
-  it("мастер — рабочий экран v1 (в v2 экранов мастера нет), остальные — дом v2", () => {
-    expect(homeAfterSwitch({ role: "EXECUTOR", executor: { id: "e1", publicNumber: 1, status: "APPROVED" } })).toBe("/executor/requests");
-    expect(homeAfterSwitch({ role: "EXECUTOR", executor: { id: "e1", publicNumber: 1, status: "PENDING" } })).toBe("/register/executor");
+  it("дом новой роли v2 — тот же, что после входа: мастер — главная или регистрация мастера, покупатель — главная", () => {
+    expect(homeAfterSwitch({ role: "EXECUTOR", executor: { id: "e1", publicNumber: 1, status: "APPROVED" } })).toBe("/v2");
+    expect(homeAfterSwitch({ role: "EXECUTOR", executor: { id: "e1", publicNumber: 1, status: "PENDING" } })).toBe("/v2/register/executor");
+    expect(homeAfterSwitch({ role: "EXECUTOR", executor: null })).toBe("/v2/register/executor");
     expect(homeAfterSwitch({ role: "CLIENT", executor: null })).toBe("/v2");
+  });
+});
+
+describe("masterStatusOf", () => {
+  it.each([
+    [null, "none"],
+    ["PENDING", "pending"],
+    ["REJECTED", "rejected"],
+    ["APPROVED", "approved"],
+  ] as const)("%s → %s", (status, expected) => {
+    expect(masterStatusOf({ executor: status === null ? null : { id: "e1", publicNumber: 1, status } })).toBe(expected);
   });
 });

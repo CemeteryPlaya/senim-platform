@@ -126,8 +126,28 @@ const V2_HREF: [string, string, string][] = [
   ["/?a=1", "/v2?a=1", "/?a=1"],
   ["/deals/d1/", "/v2/deals/d1", "/deals/d1"],
   ["/deals/d1?x=1#money", "/v2/deals/d1?x=1#money", "/deals/d1?x=1#money"],
-  // Неизвестный путь — под префиксом, как есть (попадёт в заглушку).
+  // Пути мастера v1: в v2 те же пути под префиксом.
   ["/executor/requests", "/v2/executor/requests", "/executor/requests"],
+  ["/executor/requests?type=kitchen", "/v2/executor/requests?type=kitchen", "/executor/requests?type=kitchen"],
+  ["/executor/requests/r1", "/v2/executor/requests/r1", "/executor/requests/r1"],
+  // Диалог мастера по заявке: id своего предложения из пути не узнать — адрес, который его находит.
+  ["/executor/requests/r1#chat", "/v2/executor/requests/r1/chat", "/executor/requests/r1/chat"],
+  ["/executor/requests/r1/#chat", "/v2/executor/requests/r1/chat", "/executor/requests/r1/chat"],
+  ["/executor/requests/r1?from=n#chat", "/v2/executor/requests/r1/chat?from=n", "/executor/requests/r1/chat?from=n"],
+  // Другой якорь и список заявок диалогом не становятся.
+  ["/executor/requests/r1#offer", "/v2/executor/requests/r1#offer", "/executor/requests/r1#offer"],
+  ["/executor/requests#chat", "/v2/executor/requests#chat", "/executor/requests#chat"],
+  ["/executor/offers", "/v2/executor/offers", "/executor/offers"],
+  ["/executor/finance", "/v2/executor/finance", "/executor/finance"],
+  ["/executor/finance?month=2026-10", "/v2/executor/finance?month=2026-10", "/executor/finance?month=2026-10"],
+  ["/executor/profile", "/v2/executor/profile", "/executor/profile"],
+  ["/executor/profile/kyc", "/v2/executor/profile/kyc", "/executor/profile/kyc"],
+  ["/executor/profile/payout", "/v2/executor/profile/payout", "/executor/profile/payout"],
+  ["/executor/portfolio", "/v2/executor/portfolio", "/executor/portfolio"],
+  ["/executor/portfolio/new", "/v2/executor/portfolio/new", "/executor/portfolio/new"],
+  ["/executor/portfolio/w1", "/v2/executor/portfolio/w1", "/executor/portfolio/w1"],
+  ["/register/executor", "/v2/register/executor", "/register/executor"],
+  // Неизвестный путь — под префиксом, как есть (попадёт в заглушку).
   ["/something/else", "/v2/something/else", "/something/else"],
   // Уже под префиксом — без второго префикса.
   ["/v2", "/v2", "/v2"],

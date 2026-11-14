@@ -76,6 +76,10 @@ const ESCAPING_PATH = /(^|\/)(\.|%2e){1,2}(\/|$)|[\\]/i;
  * - Диалог: `/requests/<id>/offers/<offerId>#chat` → `/chats/<offerId>` (строка запроса сохраняется, якорь уходит).
  *   Якорь `#chat` у сделки остаётся на сделке: `/deals/<id>#chat` → `/v2/deals/<id>#chat` — id отклика из пути сделки не
  *   узнать, ссылку на диалог даёт сам экран сделки.
+ * - Диалог мастера по заявке: `/executor/requests/<id>#chat` → `/executor/requests/<id>/chat` — id своего предложения из
+ *   пути заявки не узнать; этот адрес находит его (модуль requests) и ведёт в диалог `/chats/<offerId>`.
+ * - Остальные пути мастера v1 (`/executor/requests…`, `/executor/offers`, `/executor/finance`, `/executor/profile…`,
+ *   `/executor/portfolio…`, `/register/executor`) в v2 лежат под теми же путями — переходят под префикс как есть.
  * - Адрес уже под префиксом — как есть.
  * - Всё, что не путь этого сайта, — главная: чужой сайт (`//host`, `/\host`, `https://…`), управляющие символы,
  *   `..` и `\` в пути. Абсолютный адрес принимается, только если указан `origin` сайта и адрес ему принадлежит
@@ -99,6 +103,8 @@ export function makeV2Href(base: string): (v1Path: string, origin?: string) => s
     const clean = path.length > 1 ? path.replace(/\/+$/, "") || "/" : path;
     const offerChat = hash === "#chat" ? /^\/requests\/[^/]+\/offers\/([^/]+)$/.exec(clean) : null;
     if (offerChat) return to(`/chats/${offerChat[1]}${query}`);
+    const requestChat = hash === "#chat" ? /^\/executor\/requests\/[^/]+$/.exec(clean) : null;
+    if (requestChat) return to(`${clean}/chat${query}`);
     return to(`${clean}${query}${hash}`);
   };
 }

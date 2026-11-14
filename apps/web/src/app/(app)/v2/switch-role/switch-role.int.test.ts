@@ -68,23 +68,23 @@ describe("switchRoleAction", () => {
     expect((await getCurrentUser())!.role).toBe("EXECUTOR");
   });
 
-  it("без возврата — дом новой роли: мастера — рабочий экран v1 (входящие заявки), а не заглушка v2; покупателя — главная v2", async () => {
+  it("без возврата — дом новой роли v2: мастера и покупателя — главная v2 (у каждого своя)", async () => {
     await both();
-    expect(await run(switchRoleAction({ role: "EXECUTOR" }))).toEqual({ redirect: "/executor/requests" });
+    expect(await run(switchRoleAction({ role: "EXECUTOR" }))).toEqual({ redirect: "/v2" });
     expect(await run(switchRoleAction({ role: "CLIENT" }))).toEqual({ redirect: "/v2" });
   });
 
-  it("мастер без одобренного профиля: без возврата — регистрация мастера в v1", async () => {
+  it("мастер без одобренного профиля: без возврата — регистрация мастера v2", async () => {
     const user = await makeExecutor({ roles: ["CLIENT", "EXECUTOR"] });
     await db.executorProfile.update({ where: { userId: user.id }, data: { status: "PENDING" } });
     await signed(user, "CLIENT");
-    expect(await run(switchRoleAction({ role: "EXECUTOR" }))).toEqual({ redirect: "/register/executor" });
+    expect(await run(switchRoleAction({ role: "EXECUTOR" }))).toEqual({ redirect: "/v2/register/executor" });
   });
 
   it("чужой и не-v2 возврат отбрасывается: идёт в дом", async () => {
     await both();
     for (const returnTo of ["//evil.example/x", "https://evil.example", "/deals/1", "/v2/login", "/\\evil.example"]) {
-      expect(await run(switchRoleAction({ role: "EXECUTOR", returnTo }))).toEqual({ redirect: "/executor/requests" });
+      expect(await run(switchRoleAction({ role: "EXECUTOR", returnTo }))).toEqual({ redirect: "/v2" });
     }
   });
 
@@ -102,7 +102,7 @@ describe("switchRoleAction", () => {
   it("двойное нажатие — одна и та же итоговая роль без ошибок", async () => {
     await both();
     const results = await Promise.all([run(switchRoleAction({ role: "EXECUTOR" })), run(switchRoleAction({ role: "EXECUTOR" }))]);
-    for (const r of results) expect(r).toMatchObject({ redirect: "/executor/requests" });
+    for (const r of results) expect(r).toMatchObject({ redirect: "/v2" });
     expect((await getCurrentUser())!.role).toBe("EXECUTOR");
   });
 });
@@ -141,7 +141,7 @@ describe("/v2/switch-role", () => {
     const { html } = await render({ to: "CLIENT" });
     expect(html).toContain(t.noRole("покупатель"));
     expect(html).toContain(`>${t.home}<svg`);
-    expect(html).toContain('href="/v2/executor/requests"');
+    expect(html).toContain('href="/v2"');
     expect(primaryCount(html!)).toBe(0);
   });
 
@@ -151,10 +151,10 @@ describe("/v2/switch-role", () => {
     expect(await render({ to: "CLIENT" })).toEqual({ redirect: "/v2" });
   });
 
-  it("роль мастера уже активна, возврата нет — рабочий экран мастера в v1", async () => {
+  it("роль мастера уже активна, возврата нет — главная мастера v2", async () => {
     const user = await makeExecutor({ roles: ["CLIENT", "EXECUTOR"] });
     await signed(user, "EXECUTOR");
-    expect(await render({ to: "EXECUTOR" })).toEqual({ redirect: "/executor/requests" });
+    expect(await render({ to: "EXECUTOR" })).toEqual({ redirect: "/v2" });
   });
 
   it("без `to` (прямой адрес): покупатель с ролью мастера — «Вы сейчас — покупатель» и «Перейти в роль мастера»", async () => {
