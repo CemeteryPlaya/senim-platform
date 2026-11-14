@@ -123,6 +123,7 @@ describe("/v2/switch-role", () => {
     expect(html).toContain(t.noRole("мастер"));
     expect(html).toContain(t.becomeMaster);
     expect(html).toContain('href="/v2/register/executor"');
+    expect(html).toContain(`>${t.home}<svg`);
     expect(html).not.toContain('name="role"');
     expect(primaryCount(html!)).toBe(1);
   });
@@ -131,6 +132,8 @@ describe("/v2/switch-role", () => {
     await signed(await makeExecutor());
     const { html } = await render({ to: "CLIENT" });
     expect(html).toContain(t.noRole("покупатель"));
+    expect(html).toContain(`>${t.home}<svg`);
+    expect(html).toContain('href="/v2/executor/requests"');
     expect(primaryCount(html!)).toBe(0);
   });
 

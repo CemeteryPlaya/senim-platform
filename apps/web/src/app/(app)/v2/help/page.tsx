@@ -33,7 +33,7 @@ function Paragraphs({ items }: { items: readonly string[] }) {
  * «Помощь»: вопросы и ответы покупателя простыми разделами с якорями (без раскрывающихся блоков): как это работает, сколько
  * стоит, где деньги, если мебель не подошла, как отменить, контакты мастера, поддержка. Открыта и гостю, и вошедшему
  * (вошедший с непройденными первыми шагами уходит на шаг с возвратом сюда). Главного действия на экране нет; на компьютере
- * справа — оглавление.
+ * справа оглавление, на телефоне оно сверху.
  */
 export default async function HelpPage() {
   const [, device] = await Promise.all([userPastOnboarding(to("/help")), getDevice()]);
@@ -48,7 +48,8 @@ export default async function HelpPage() {
     { id: HELP_ANCHORS.support, label: t.support.title },
   ];
 
-  const aside = (
+  // Оглавление: на компьютере справа, на телефоне — сверху перед первой секцией (ссылки-якоря без шевронов).
+  const contents = (
     <Section title={t.tocTitle}>
       <Card padded={false}>
         <List>
@@ -68,6 +69,7 @@ export default async function HelpPage() {
         stickyAside={device === "desktop"}
         main={
           <Stack gap="section">
+            {device === "mobile" && contents}
             <Section id={HELP_ANCHORS.how} title={t.how.title}>
               <Card>
                 <ol className="flex list-decimal flex-col gap-2 pl-6 text-body text-ink">
@@ -111,7 +113,7 @@ export default async function HelpPage() {
             </Section>
           </Stack>
         }
-        aside={device === "desktop" ? aside : null}
+        aside={device === "desktop" ? contents : null}
       />
     </Stack>
   );

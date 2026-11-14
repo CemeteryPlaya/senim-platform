@@ -303,6 +303,11 @@ describe("смена подтверждённой почты (?change=1)", () =>
     expect(await open({ change: "1" })).toHaveProperty("page");
   });
 
+  it("сотрудник площадки: режим смены не открывается — прежний переход дальше", async () => {
+    h.user = person({ role: "OPERATOR", roles: ["OPERATOR"], emailVerified: true, mfa: { required: true, verifiedAt: new Date("2026-11-13T10:00:00Z") } });
+    expect(await open({ change: "1" })).toEqual({ redirect: "/v2/operator" });
+  });
+
   it("без подтверждённой почты параметр ничего не значит: обычный шаг почты", async () => {
     const res = await open({ change: "1" });
     expect(res).toHaveProperty("page");

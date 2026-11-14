@@ -27,7 +27,8 @@ export default async function EmailPage({ searchParams }: Props) {
   const user = await requireV2User(stepWithNext("/email", next));
   // Смена подтверждённой почты (`?change=1` из контактов профиля): экран открыт тому, у кого почта уже подтверждена.
   // Без подтверждённой почты параметр ничего не значит — идут обычные первые шаги.
-  const change = one(params.change) === "1" && !needsEmail(user);
+  // Только для сторон сделки: сотруднику площадки почта не нужна и менять её он не может — ему прежний переход дальше.
+  const change = one(params.change) === "1" && (user.role === "CLIENT" || user.role === "EXECUTOR") && !needsEmail(user);
   if (!needsEmail(user) && !change) redirect(nextStepFor(user, next, await recallRole()));
 
   return (

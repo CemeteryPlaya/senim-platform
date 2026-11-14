@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Narrow, NowNext, PageTitle, Stack } from "@/kit";
+import { ActionDock, ButtonLink, Narrow, NowNext, PageTitle, Stack, TextLink } from "@/kit";
 import { parseSwitchableRole } from "@/modules/identity";
 import { homeFor, pageHref, requireV2User, safeNext } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
@@ -46,6 +46,9 @@ export default async function SwitchRolePage({ searchParams }: Props) {
         ) : (
           <>
             <NowNext now={{ title: t.noRole(ru.app.profile.roleNames[target]), ...(canBecomeMaster ? { body: t.becomeMasterBody } : {}) }} />
+            <div>
+              <TextLink href={homeFor(user)}>{t.home}</TextLink>
+            </div>
             {canBecomeMaster && (
               <ActionDock>
                 <ButtonLink href={to("/register/executor")}>{t.becomeMaster}</ButtonLink>

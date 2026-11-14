@@ -36,11 +36,23 @@ describe("/v2/help", () => {
     expect(await render()).toContain(t.how.title);
   });
 
-  it("оглавление есть только на компьютере и ведёт на якоря этой страницы", async () => {
-    const desktop = await render();
-    for (const id of Object.values(HELP_ANCHORS)) expect(desktop).toContain(`href="/v2/help#${id}"`);
-    h.device = "mobile";
-    expect(await render()).not.toContain(`href="/v2/help#${HELP_ANCHORS.how}"`);
+  it("оглавление ведёт на якоря этой страницы: на компьютере справа, на телефоне сверху перед первой секцией; один раз", async () => {
+    for (const device of ["desktop", "mobile"] as const) {
+      h.device = device;
+      const out = await render();
+      for (const id of Object.values(HELP_ANCHORS)) expect(count(out, `href="/v2/help#${id}"`)).toBe(1);
+      const toc = out.indexOf(`>${t.tocTitle}</h2>`);
+      const first = out.indexOf(`<h2 id="${HELP_ANCHORS.how}"`);
+      expect(toc).toBeGreaterThan(-1);
+      // Телефон: оглавление раньше первой секции; компьютер: справа, то есть в разметке после основной колонки.
+      expect(device === "mobile" ? toc < first : toc > first).toBe(true);
+    }
+  });
+
+  it("основной текст секций — 17 px (text-body), не мельче", async () => {
+    const out = await render();
+    expect(out).toContain('class="text-body text-ink"');
+    expect(out).not.toMatch(/class="text-(sub|small)[^"]*"[^>]*>Деньги лежат/);
   });
 
   it("поддержка — адрес из конфига бренда; деньги не проходят через счета сервиса; слов «комиссия» и «эскроу» нет", async () => {

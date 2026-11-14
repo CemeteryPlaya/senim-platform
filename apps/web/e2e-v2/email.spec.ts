@@ -123,7 +123,7 @@ test("новый мастер: после почты — регистрация 
   await expect(page).toHaveURL(/\/v2\/register\/executor$/);
 });
 
-test("двойной клик «Получить код» — один запрос и один код; перезагрузка шага кода — шаг адреса, повтор в ту же минуту — снова шаг кода с прежним кодом", async ({
+test("двойной клик «Получить код» — один запрос и один код; перезагрузка шага кода — шаг адреса; повторный запрос не тупик и подтверждает почту", async ({
   page,
 }) => {
   await loginV2(page, freshPhone().typed);
@@ -149,38 +149,52 @@ test("двойной клик «Получить код» — один запр�
   await expect(page).toHaveURL(/\/v2\/email$/);
   await expect(page.getByLabel(t.address.label)).toHaveValue("");
 
-  // Новый запрос раньше минуты — не тупик: снова шаг кода с пояснением; второго кода нет, прежний подтверждает почту.
+  // Повторный запрос на тот же адрес — не тупик и не ошибка «слишком часто», какой бы ни была пауза identity: снова шаг кода.
+  // Пауза не прошла — «код уже отправлен», кода на экране нет, действует прежний; прошла — выдан новый код, он на экране.
   await page.getByLabel(t.address.label).fill(email);
   await primary(page, t.address.submit).click();
   await expect(heading(page, t.code.title)).toBeVisible();
-  await expect(page.getByText(t.code.alreadySent)).toBeVisible();
   await expect(page.getByText(t.code.sentTo(email))).toBeVisible();
-  await expect(page.getByText(new RegExp(t.code.shownCode("\\d{6}")))).toHaveCount(0);
-  await page.getByLabel(t.code.label).fill(code);
+  const issued = await page.getByText(new RegExp(t.code.shownCode("\\d{6}"))).count();
+  const valid = issued > 0 ? await emailCode(page) : code;
+  if (issued === 0) await expect(page.getByText(t.code.alreadySent)).toBeVisible();
+  await page.getByLabel(t.code.label).fill(valid);
   await primary(page, t.code.submit).click();
   await expect(page).toHaveURL(/\/v2$/);
 });
 
-test("код на A → перезагрузка → B в ту же минуту: ошибка у поля, шага кода «для B» нет, A не подтверждена", async ({ page }) => {
+test("код на A → перезагрузка → B: подтверждается ровно показанный адрес — код от A на экране B не подтверждает ни A, ни B", async ({ page }) => {
   await loginV2(page, freshPhone().typed);
   await toEmailStep(page);
   const first = freshEmail();
   await page.getByLabel(t.address.label).fill(first);
   await primary(page, t.address.submit).click();
   await expect(heading(page, t.code.title)).toBeVisible();
+  const codeForFirst = await emailCode(page);
 
   await page.reload();
   await page.waitForLoadState("networkidle");
   const second = freshEmail();
   await page.getByLabel(t.address.label).fill(second);
   await primary(page, t.address.submit).click();
-  await expect(page.getByText(t.errors.otherAddress)).toBeVisible();
-  await expect(page.getByLabel(t.address.label)).toHaveAttribute("aria-invalid", "true");
-  await expect(heading(page, t.address.title)).toBeVisible();
-  await expect(page.getByText(t.code.sentTo(second))).toHaveCount(0);
-  await expect(page.getByText(t.code.alreadySent)).toHaveCount(0);
 
-  // Почта не подтверждена: шаг почты по-прежнему открывается.
+  // Пауза identity не прошла: отказ у поля адреса, шага кода «для B» нет. Прошла: шаг кода для B с новым кодом.
+  const refused = page.getByText(t.errors.otherAddress);
+  const codeStep = heading(page, t.code.title);
+  await expect(refused.or(codeStep)).toBeVisible();
+  if (await codeStep.isVisible()) {
+    await expect(page.getByText(t.code.sentTo(second))).toBeVisible();
+    await page.getByLabel(t.code.label).fill(codeForFirst);
+    await primary(page, t.code.submit).click();
+    await expect(page.getByLabel(t.code.label)).toHaveAttribute("aria-invalid", "true");
+    await expect(page).not.toHaveURL(/\/v2$/);
+  } else {
+    await expect(page.getByLabel(t.address.label)).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByText(t.code.sentTo(second))).toHaveCount(0);
+    await expect(page.getByText(t.code.alreadySent)).toHaveCount(0);
+  }
+
+  // Ни A, ни B не подтверждены: шаг почты по-прежнему открывается.
   await open(page, "/v2/email");
   await expect(heading(page, t.address.title)).toBeVisible();
 });

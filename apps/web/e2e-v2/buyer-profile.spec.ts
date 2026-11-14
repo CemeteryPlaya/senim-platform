@@ -16,6 +16,8 @@ async function freshBuyer(page: Page, options: { email?: string } = {}): Promise
   await loginV2(page, freshPhone().typed);
   await passOnboarding(page, { iin, ...options });
   await expect(page).toHaveURL(/\/v2$/);
+  // Переход после последнего шага анкеты ещё может идти: следующий goto прервал бы его (ERR_ABORTED).
+  await page.waitForLoadState("networkidle");
   return { iin };
 }
 
@@ -147,6 +149,8 @@ test("смена почты: прежняя действует, пока нов�
   const other = await page.context().newPage();
   await open(other, "/v2/profile/contacts");
   await expect(other.getByText(oldEmail)).toBeVisible();
+  await expect(other.getByText(t.contacts.email.confirmed)).toBeVisible();
+  await expect(other.getByText(newEmail)).toHaveCount(0);
   await expect(other).toHaveURL(/\/v2\/profile\/contacts$/);
   await other.close();
 
@@ -156,4 +160,23 @@ test("смена почты: прежняя действует, пока нов�
   await expect(page.getByText(t.contacts.emailChanged)).toBeVisible();
   await expect(page.getByText(newEmail)).toBeVisible();
   await expect(page.getByText(oldEmail)).toHaveCount(0);
+});
+
+test("короткий телефон 390×667: «Выйти» после прокрутки до конца не под панелью вкладок и нажимается", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile", "панель вкладок — только телефон");
+  await page.setViewportSize({ width: 390, height: 667 });
+  await freshBuyer(page);
+  await open(page, "/v2/profile");
+  const logout = page.getByRole("button", { name: shell.logout, exact: true });
+  await logout.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect(logout).toBeVisible();
+  const bar = await page.getByRole("navigation", { name: shell.navLabel }).boundingBox();
+  const box = await logout.boundingBox();
+  expect(bar).not.toBeNull();
+  expect(box).not.toBeNull();
+  // Кнопка целиком выше панели вкладок.
+  expect(box!.y + box!.height).toBeLessThanOrEqual(bar!.y);
+  await logout.click();
+  await expect(page).toHaveURL(/\/v2\/login/);
 });
