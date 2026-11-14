@@ -5,11 +5,12 @@ import { ru } from "@/i18n/ru";
 import { Card, EmptyState, List, ListItem, Narrow, PageTitle, Stack, StatusChip, TextLink } from "@/kit";
 import { listChats } from "@/modules/companies";
 import { listMyRequests } from "@/modules/requests";
-import { pageHref, requireBuyer } from "../../_shell/auth";
+import { masterStatusOf, pageHref, requireParty } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
 import { chatRows, type ChatRowView } from "./_parts/chat-view";
 
 const t = ru.app.chat.list;
+const tm = ru.app.masterDeal.chat.list;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
@@ -41,22 +42,27 @@ function Row({ row }: { row: ChatRowView }) {
 }
 
 /**
- * «Чаты» покупателя: диалоги по предложениям на свои заявки, свежие сверху. Собеседник — как называет модуль
- * («Исполнитель №N» до оферты, имя после); последнее сообщение уже замаскировано модулем. Модуль не отдаёт признак
- * «непрочитано», поэтому его на экране нет. Пусто — обучающий экран без кнопки; есть заявки — ссылка «Мои заявки».
+ * «Чаты» стороны в активной роли (`requireParty`): покупателю — диалоги по предложениям на свои заявки, мастеру — по своим
+ * предложениям; свежие сверху, диалоги другой роли сюда не попадают (модуль выбирает по активной роли). Собеседник — как
+ * называет модуль («Исполнитель №N» до оферты, имя после), мастеру — «Покупатель»; последнее сообщение уже замаскировано
+ * модулем. Модуль не отдаёт признак «непрочитано», поэтому его на экране нет. Пусто — обучающий экран без кнопки и ссылка:
+ * покупателю с заявками — «Мои заявки», одобренному мастеру — «Заявки».
  */
 export default async function ChatsPage() {
-  const user = await requireBuyer(pageHref("/chats"));
-  const rows = chatRows(await listChats(user));
+  const { user, side } = await requireParty(pageHref("/chats"));
+  const rows = chatRows(await listChats(user), new Date(), side);
   const title = <PageTitle title={t.title} />;
 
   if (rows.length === 0) {
-    const hasRequests = (await listMyRequests(user)).length > 0;
+    const empty =
+      side === "EXECUTOR"
+        ? { title: tm.emptyTitle, body: tm.emptyBody, link: masterStatusOf(user) === "approved" ? { href: to("/executor/requests"), label: tm.toRequests } : null }
+        : { title: t.emptyTitle, body: t.emptyBody, link: (await listMyRequests(user)).length > 0 ? { href: to("/requests"), label: t.myRequests } : null };
     return (
       <Stack gap="section">
         {title}
-        <EmptyState title={t.emptyTitle} body={t.emptyBody} />
-        {hasRequests && <TextLink href={to("/requests")}>{t.myRequests}</TextLink>}
+        <EmptyState title={empty.title} body={empty.body} />
+        {empty.link && <TextLink href={empty.link.href}>{empty.link.label}</TextLink>}
       </Stack>
     );
   }
@@ -66,7 +72,7 @@ export default async function ChatsPage() {
       {title}
       <Narrow>
         <Card padded={false}>
-          <nav aria-label={t.label}>
+          <nav aria-label={side === "EXECUTOR" ? tm.label : t.label}>
             <List>{rows.map((row) => <Row key={row.offerId} row={row} />)}</List>
           </nav>
         </Card>

@@ -83,3 +83,35 @@ describe("dealListView", () => {
     expect(dealListView([deal("c", "SPLIT_PAYOUT", { money: paidOut })], none, undefined).cards[0]?.money).toEqual({ amountTiyn: null, label: ru.app.deal.line.payoutDone });
   });
 });
+
+describe("dealListView мастера", () => {
+  const tm = ru.app.master.deal;
+  // Смета мастера: «вы получите» = цена − гарантия 4% (из модуля); суммы покупателя (102 000 ₸) в строке не появляются.
+  const mine = (id: string, status: DealStatus, over: Partial<ListDealInput> = {}) => deal(id, status, { estimate: { totalTiyn: 96_000_00n }, ...over });
+
+  it("карточка словами мастера: плашка шага мастера, «Оплата вам» в шагах, «вы получите» вместо сумм покупателя", () => {
+    const nexts = new Map<string, NextStep>([["a", { action: "startWork", mine: true }]]);
+    const [card] = dealListView([mine("a", "PAID_HOLD")], nexts, undefined, new Set(), "EXECUTOR").cards;
+    expect(card).toMatchObject({
+      href: "/v2/deals/a",
+      chip: { text: tm.status.start, tone: "warn" },
+      money: { amountTiyn: 96_000_00n, label: tm.line.protected },
+    });
+    expect(card?.progress).toMatchObject({ kind: "steps" });
+  });
+
+  it("оферта заключена, своего согласия для банка нет — «Дайте согласие для банка»", () => {
+    const nexts = new Map<string, NextStep>([["a", { action: "waitPayment", mine: false }]]);
+    const [card] = dealListView([mine("a", "CREATED")], nexts, undefined, new Set(["a"]), "EXECUTOR").cards;
+    expect(card?.chip.text).toBe(tm.status.bankConsent);
+    const [given] = dealListView([mine("a", "CREATED")], nexts, undefined, new Set(), "EXECUTOR").cards;
+    expect(given?.chip.text).toBe(tm.status.waitPay);
+  });
+
+  it("спор — ход остановлен словами мастера, деньги без суммы", () => {
+    const frozen: MoneyBlock = { kind: "frozen", amountTiyn: 102_000_00n, frozenAt: new Date(), bankBalanceTiyn: 102_000_00n, isTest: false };
+    const [card] = dealListView([mine("a", "IN_PROGRESS", { hasOpenDispute: true, money: frozen })], none, undefined, new Set(), "EXECUTOR").cards;
+    expect(card?.progress).toEqual({ kind: "stopped", label: tm.stopped.dispute });
+    expect(card?.money).toEqual({ amountTiyn: null, label: tm.line.frozen });
+  });
+});

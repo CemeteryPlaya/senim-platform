@@ -18,9 +18,12 @@ vi.mock("next/headers", async () => (await import("../../../../../test/factories
 vi.mock("@/app/(app)/_shell/auth", async (original) => ({
   ...(await original<object>()),
   requireV2User: async () => h.user!,
-  requireBuyer: async (next: string) => {
+  // Ворота сторон: пользователь теста и его активная роль (покупатель или мастер) — сторона; адрес возврата запоминается.
+  requireParty: async (next: string) => {
     h.asked.push(next);
-    return h.user!;
+    const user = h.user!;
+    if (user.role !== "CLIENT" && user.role !== "EXECUTOR") throw new Error(`роль не стороны: ${user.role}`);
+    return { user, side: user.role };
   },
 }));
 
@@ -109,6 +112,35 @@ describe("список чатов", () => {
   });
 });
 
+describe("список чатов мастера", () => {
+  const tm = ru.app.masterDeal.chat;
+
+  it("диалоги по своим предложениям: «Покупатель», ссылка на диалог v2; диалоги в роли покупателя не смешиваются", async () => {
+    const thread = await makeOfferThread();
+    await db.message.create({ data: { offerId: thread.offerId, senderId: thread.client.id, body: "Здравствуйте" } });
+    // Тот же человек — покупатель в другом диалоге: в списке мастера его нет.
+    const asClient = await makeOfferThread({ client: { ...thread.executor, role: "CLIENT" } });
+    await db.message.create({ data: { offerId: asClient.offerId, senderId: asClient.executor.id, body: "Привет" } });
+    h.user = { ...thread.executor, role: "EXECUTOR", roles: ["EXECUTOR", "CLIENT"] };
+    const { html } = await list();
+    expect(html).toContain(`href="/v2/chats/${thread.offerId}"`);
+    expect(html).not.toContain(asClient.offerId);
+    expect(html).toContain(tm.counterpart);
+    expect(html).toContain(`aria-label="${tm.list.label}"`);
+    expect(html).not.toMatch(/заказчик|отклик/i);
+    expect(primaryCount(html!)).toBe(0);
+  });
+
+  it("пусто — обучающий экран мастера и ссылка «Заявки» (одобренному)", async () => {
+    const thread = await makeOfferThread();
+    h.user = { ...thread.executor, role: "EXECUTOR", roles: ["EXECUTOR"] };
+    const { html } = await list();
+    expect(html).toContain(tm.list.emptyTitle);
+    expect(html).toContain('href="/v2/executor/requests"');
+    expect(primaryCount(html!)).toBe(0);
+  });
+});
+
 describe("экран диалога", () => {
   it("до оферты: «Назад: Чаты», собеседник, системная строка, «Почему?», ссылка на предложение; без главного действия", async () => {
     const thread = await makeOfferThread();
@@ -184,16 +216,51 @@ describe("экран диалога", () => {
     expect(html).toMatch(/<a href="[^"]*\/api\/files\//);
   });
 
-  it("мастер этого отклика (активная роль мастера): на экран чата v1, без переключения роли; чужой мастер — 404", async () => {
+  it("мастер этого отклика (активная роль мастера): диалог в v2 — «Покупатель», ссылка на заявку мастера; после сделки — на сделку", async () => {
+    const tm = ru.app.masterDeal.chat;
     const thread = await makeOfferThread();
-    const withDeal = await makeOfferThread({ dealStatus: "IN_PROGRESS" });
+    await db.message.create({ data: { offerId: thread.offerId, senderId: thread.client.id, body: "Когда сможете начать?" } });
     h.user = { ...thread.executor, role: "EXECUTOR", roles: ["EXECUTOR", "CLIENT"] };
-    expect(await room(thread.offerId)).toEqual({ redirect: `/executor/requests/${thread.requestId}#chat` });
-    h.user = { ...withDeal.executor, role: "EXECUTOR", roles: ["EXECUTOR", "CLIENT"] };
-    expect(await room(withDeal.offerId)).toEqual({ redirect: `/deals/${withDeal.dealId}#chat` });
-    expect(h.asked).toEqual([]);
-    // Мастер другого отклика: ворота не мешают, диалог чужой — 404.
-    h.user = { ...withDeal.executor, role: "EXECUTOR", roles: ["EXECUTOR", "CLIENT"] };
+    for (const device of ["mobile", "desktop"] as const) {
+      h.device = device;
+      const { html } = await room(thread.offerId);
+      expect(html!.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(tm.counterpart);
+      expect(html).toContain(`href="/v2/executor/requests/${thread.requestId}"`);
+      expect(html).toContain(tm.room.composerPlaceholder);
+      expect(html).toContain("Когда сможете начать?");
+      expect(html).toContain(t.room.hiddenSystem);
+      expect(html).not.toMatch(/заказчик|отклик/i);
+      expect(primaryCount(html!)).toBe(0);
+      expect(h.asked.at(-1)).toBe(`/v2/chats/${thread.offerId}`);
+    }
+    const withDeal = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+    h.user = { ...withDeal.executor, role: "EXECUTOR", roles: ["EXECUTOR"] };
+    expect((await room(withDeal.offerId)).html).toContain(`href="/v2/deals/${withDeal.dealId}"`);
+    // Мастер другого отклика: диалог чужой — 404.
+    expect(await room(thread.offerId)).toEqual({ notFound: true });
+  });
+
+  it("причина закрытия у мастера — его словами: «Вы отозвали предложение»", async () => {
+    const withdrawn = await makeOfferThread({ offerStatus: "WITHDRAWN" });
+    h.user = { ...withdrawn.executor, role: "EXECUTOR", roles: ["EXECUTOR"] };
+    const { html } = await room(withdrawn.offerId);
+    expect(html).toContain(ru.app.masterDeal.chat.room.closed.offerWithdrawn);
+    expect(html).not.toContain("<textarea");
+  });
+
+  it("человек с двумя ролями: диалог, где он сторона в другой роли, — переключение роли с возвратом в диалог; в своей роли — экран", async () => {
+    const thread = await makeOfferThread();
+    // Активна роль покупателя, а в этом диалоге он мастер.
+    h.user = { ...thread.executor, role: "CLIENT", roles: ["EXECUTOR", "CLIENT"] };
+    const switched = await room(thread.offerId);
+    expect(switched.redirect).toContain("/v2/switch-role?to=EXECUTOR");
+    expect(switched.redirect).toContain(encodeURIComponent(`/v2/chats/${thread.offerId}`));
+    // Активна роль мастера, а в диалоге он покупатель.
+    const asClient = await makeOfferThread();
+    h.user = { ...asClient.client, role: "EXECUTOR", roles: ["EXECUTOR", "CLIENT"] };
+    expect((await room(asClient.offerId)).redirect).toContain("/v2/switch-role?to=CLIENT");
+    // Роль не выдана — переключать не на что: диалог по активной роли чужой — 404.
+    h.user = { ...thread.executor, role: "CLIENT", roles: ["CLIENT"] };
     expect(await room(thread.offerId)).toEqual({ notFound: true });
   });
 

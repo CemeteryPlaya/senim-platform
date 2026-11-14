@@ -209,6 +209,8 @@ export async function getDealView(user: CurrentUser, dealId: string) {
     number: deal.number,
     /** Чат сделки привязан к отклику (ADR-003). */
     offerId: deal.offerId,
+    /** Заявка сделки: экрану мастера — адрес заказа по правилам заявки (`requests.getIncomingRequest`). */
+    requestId: deal.requestId,
     title: deal.title,
     status: deal.status,
     isDemo: deal.isDemo,

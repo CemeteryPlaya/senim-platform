@@ -15,6 +15,7 @@ import {
   MoneyPanel,
   NowNext,
   PageTitle,
+  PhotoSlot,
   Progress,
   Section,
   Split,
@@ -27,16 +28,20 @@ import {
 import type { PartyContacts } from "@/modules/companies";
 import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
+import type { DealSide } from "../../../../_shell/side";
 import type { DealStepsView, DealTone } from "../../../_parts/deal-summary";
-import type { DocumentRow, MoneyView, NowView } from "./deal-card";
+import type { DocumentRow, MoneyView, NowView, ReportView } from "./deal-card";
 import { dealHelpItems } from "../../_parts/help-items";
 import { DealActions } from "./DealActions";
 
 const t = ru.app.deal.card;
+const tm = ru.app.masterDeal.card;
 
 /** Всё, что нужно показать, готовым: страница читает модули, вид ничего не читает и не считает. */
 export type CardView = {
   id: string;
+  /** Чьими глазами: покупатель или мастер (`partyDeal`) — от неё подписи блоков денег, другой стороны и отзыва. */
+  side: DealSide;
   title: string;
   lead: string;
   chip: { text: string; tone: DealTone };
@@ -45,7 +50,13 @@ export type CardView = {
   money: MoneyView & { historyHref: string };
   order: { label: string; value: string }[];
   documents: DocumentRow[];
-  master: { label: string; contacts: PartyContacts | null; chatHref: string };
+  /**
+   * Другая сторона: мастеру — покупатель, покупателю — мастер (имя — как отдаёт модуль, контакты — после оферты). `label` —
+   * имя строкой; `null` — имени нет (покупатель для мастера): раздел уже называет сторону.
+   */
+  party: { label: string | null; contacts: PartyContacts | null; chatHref: string };
+  /** «Ход работ» мастера: отчёты и ссылка «Добавить отчёт» (`null` — не добавить); у покупателя блока нет (`null`). */
+  reports: { items: ReportView[]; addHref: string | null } | null;
   history: { items: { title: string; time: string }[]; more: boolean; allHref: string };
   /** Оставленный отзыв строками; `null` — отзыва нет. */
   review: { label: string; value: string; stacked: boolean }[] | null;
@@ -109,9 +120,10 @@ function Progression({ steps, device }: { steps: DealStepsView; device: Device }
   );
 }
 
+/** Деньги: пояснение строки — защита сделки покупателю, гарантия мастеру. */
 function Money({ view, device }: { view: CardView; device: Device }) {
   const m = view.money;
-  const e = t.money.explain;
+  const e = view.side === "EXECUTOR" ? tm.money.explain : t.money.explain;
   return (
     <Section title={t.money.section}>
       <MoneyPanel
@@ -200,17 +212,22 @@ function Documents({ view }: { view: CardView }) {
   );
 }
 
-/** Мастер: имя — как отдаёт модуль; контакты — только после оферты (`dealContacts`), до неё — строка с пояснением. */
-function Master({ view, device }: { view: CardView; device: Device }) {
-  const m = t.master;
-  const { contacts } = view.master;
+/**
+ * Другая сторона: покупателю — мастер (имя — как отдаёт модуль), мастеру — покупатель (имени модуль не отдаёт); контакты —
+ * только после оферты (`dealContacts`), до неё — строка с пояснением.
+ */
+function Party({ view, device }: { view: CardView; device: Device }) {
+  const m = view.side === "EXECUTOR" ? tm.buyer : t.master;
+  const { contacts } = view.party;
   return (
     <Section title={m.section}>
       <Card padded={false}>
         <List>
-          <ListItem>
-            <p className="px-4 py-3 text-card text-ink wrap-break-word">{view.master.label}</p>
-          </ListItem>
+          {view.party.label !== null && (
+            <ListItem>
+              <p className="px-4 py-3 text-card text-ink wrap-break-word">{view.party.label}</p>
+            </ListItem>
+          )}
           {contacts ? (
             <>
               <ListRow label={m.phone} value={contacts.phoneDisplay} href={`tel:${contacts.phone}`} />
@@ -230,14 +247,54 @@ function Master({ view, device }: { view: CardView; device: Device }) {
           )}
         </List>
       </Card>
-      <TextLink href={view.master.chatHref}>{m.write}</TextLink>
+      <TextLink href={view.party.chatHref}>{m.write}</TextLink>
     </Section>
   );
 }
 
-function Review({ rows }: { rows: NonNullable<CardView["review"]> }) {
+/** «Ход работ» мастера: отчёты свежими сверху (название, время, текст, фото), ссылка на экран нового отчёта. */
+function Reports({ reports }: { reports: NonNullable<CardView["reports"]> }) {
+  const r = tm.reports;
   return (
-    <Section title={t.review.section}>
+    <Section title={r.section}>
+      {reports.items.length === 0 ? (
+        <Card>
+          <p className="text-body text-muted">{r.empty}</p>
+        </Card>
+      ) : (
+        <Card padded={false}>
+          <List>
+            {reports.items.map((report) => (
+              <ListItem key={report.id}>
+                <div className="flex flex-col gap-2 px-4 py-3">
+                  <h3 className="text-card text-ink wrap-break-word">{report.title}</h3>
+                  <p className="text-sub text-muted">{report.time}</p>
+                  {report.text && <p className="text-body whitespace-pre-line text-ink wrap-break-word">{report.text}</p>}
+                  {report.photos.length > 0 && (
+                    <ul className="grid grid-cols-3 gap-2">
+                      {report.photos.map((photo) => (
+                        <li key={photo.id}>
+                          <a href={photo.src} target="_blank" rel="noopener noreferrer">
+                            <PhotoSlot ratio="1/1" src={photo.src} alt={photo.alt} />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </ListItem>
+            ))}
+          </List>
+        </Card>
+      )}
+      {reports.addHref && <TextLink href={reports.addHref}>{r.add}</TextLink>}
+    </Section>
+  );
+}
+
+function Review({ rows, side }: { rows: NonNullable<CardView["review"]>; side: DealSide }) {
+  return (
+    <Section title={side === "EXECUTOR" ? tm.review.section : t.review.section}>
       <Card padded={false}>
         <List>
           {rows.map((row) => (
@@ -261,20 +318,20 @@ function History({ view }: { view: CardView }) {
   );
 }
 
-function Help() {
+function Help({ side }: { side: DealSide }) {
   return (
     <HelpBlock
-      items={dealHelpItems()}
+      items={dealHelpItems(side)}
       supportEmail={brand.support.email}
     />
   );
 }
 
 /**
- * Карточка сделки покупателя. Телефон — одна колонка в порядке важности: «Сейчас», деньги, ход (компактно), заказ,
- * документы, мастер, история, помощь; главное действие шага — в `ActionDock` последним. Компьютер — `Split`: слева
- * процесс («Сейчас» с действием под ним, ход, документы, мастер, история), справа деньги, заказ и помощь.
- * Второстепенное — меню «Действия».
+ * Карточка сделки стороны (покупатель или мастер — `view.side`). Телефон — одна колонка в порядке важности: «Сейчас»,
+ * деньги, ход (компактно), ход работ (мастер), заказ, документы, другая сторона, история, помощь; главное действие шага —
+ * в `ActionDock` последним. Компьютер — `Split`: слева процесс («Сейчас» с действием под ним, ход, ход работ, документы,
+ * другая сторона, история), справа деньги, заказ и помощь. Второстепенное — меню «Действия».
  */
 export function DealCardView({ view, device }: { view: CardView; device: Device }) {
   const { now } = view;
@@ -318,9 +375,10 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
             <Stack gap="section">
               {nowBlock}
               <Progression steps={view.steps} device={device} />
+              {view.reports && <Reports reports={view.reports} />}
               <Documents view={view} />
-              <Master view={view} device={device} />
-              {view.review && <Review rows={view.review} />}
+              <Party view={view} device={device} />
+              {view.review && <Review rows={view.review} side={view.side} />}
               <History view={view} />
             </Stack>
           }
@@ -328,7 +386,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
             <Stack gap="section">
               <Money view={view} device={device} />
               <Order view={view} device={device} />
-              <Help />
+              <Help side={view.side} />
             </Stack>
           }
         />
@@ -342,12 +400,13 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
       {nowBlock}
       <Money view={view} device={device} />
       <Progression steps={view.steps} device={device} />
+      {view.reports && <Reports reports={view.reports} />}
       <Order view={view} device={device} />
       <Documents view={view} />
-      <Master view={view} device={device} />
-      {view.review && <Review rows={view.review} />}
+      <Party view={view} device={device} />
+      {view.review && <Review rows={view.review} side={view.side} />}
       <History view={view} />
-      <Help />
+      <Help side={view.side} />
       {primary && <ActionDock>{primary}</ActionDock>}
     </Stack>
   );

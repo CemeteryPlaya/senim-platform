@@ -16,9 +16,9 @@ const offerId = z.string().min(1).max(64);
 /** Опрос раз в 5 с — 12 в минуту; лимит с большим запасом (несколько вкладок), при превышении клиент тихо паузит опрос. */
 const LOAD_RATE = { limit: 60, windowSec: 60 };
 
-/** Диалог с адресами вложений одним чтением (права проверяет модуль). */
+/** Диалог с адресами вложений одним чтением (права проверяет модуль), словами стороны активной роли. */
 async function roomOf(user: Parameters<typeof getChat>[0], id: string) {
-  return chatRoomModel(await getChat(user, id, { attachments: true }));
+  return chatRoomModel(await getChat(user, id, { attachments: true }), new Date(), user.role === "EXECUTOR" ? "EXECUTOR" : "CLIENT");
 }
 
 /** Обновление ленты опросом (раз в 5 с, пока вкладка видна). Чужой диалог — NOT_FOUND из модуля. */

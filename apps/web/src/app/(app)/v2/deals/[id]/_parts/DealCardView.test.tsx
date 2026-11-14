@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 import { count, html, text } from "@/kit/test-utils";
 import type { MoneyBlock } from "@/modules/payments";
 import { dealStepsView } from "../../../_parts/deal-summary";
-import { cancelText, moneyView, nowView, reviewRows, type NowInput } from "./deal-card";
+import { cancelText, masterMoneyView, moneyView, nowView, reportsView, reviewRows, type NowInput } from "./deal-card";
 import { DealCardView, type CardView } from "./DealCardView";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => undefined }), redirect: () => undefined }));
@@ -36,6 +36,7 @@ function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: P
   const money = moneyView({ block, estimate: { priceTiyn: 100_000_00n, extraTiyn: 2_000_00n, totalTiyn: 102_000_00n }, snapshot: { priceTiyn: 100_000_00n, protectionTiyn: 2_000_00n, buyerTotalTiyn: 102_000_00n } });
   return {
     id: "d1",
+    side: "CLIENT",
     title: "Кухня",
     lead: t.lead(7, "Исполнитель №4"),
     chip: { text: ru.app.deal.status.pay, tone: "warn" },
@@ -44,7 +45,8 @@ function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: P
     money: { ...money, historyHref: "/v2/deals/d1/money" },
     order: [{ label: t.order.what, value: "Кухня" }],
     documents: [{ id: "c1", name: "Оферта № Д-1", status: "Подписан", href: "/api/documents/c1/pdf", open: ru.app.deal.openDocument.CONTRACT }],
-    master: { label: "Исполнитель №4", contacts: null, chatHref: "/v2/chats/o1" },
+    party: { label: "Исполнитель №4", contacts: null, chatHref: "/v2/chats/o1" },
+    reports: null,
     history: { items: [{ title: "Оферта сформирована", time: "1 ноября 2026, 10:00" }], more: true, allHref: "/v2/deals/d1?history=all#history" },
     review: null,
     actions: { cancelText: cancelText({ side: "CLIENT", canCancel: true, status: "CREATED", block, manual: false }), disputeHref: null },
@@ -96,7 +98,7 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки, %s
 
   it("мастер после оферты: телефон ссылкой tel:, Instagram ссылкой", () => {
     const contacts = { of: "executor" as const, phone: "+77000000204", phoneDisplay: "+7 700 000 02 04", instagram: "master.kz" };
-    const out = html(<DealCardView view={view({ master: { label: "ТОО Мебель", contacts, chatHref: "/v2/chats/o1" } })} device={device} />);
+    const out = html(<DealCardView view={view({ party: { label: "ТОО Мебель", contacts, chatHref: "/v2/chats/o1" } })} device={device} />);
     expect(out).toContain('href="tel:+77000000204"');
     expect(out).toContain('href="https://www.instagram.com/master.kz/"');
     expect(out).not.toContain(t.master.hidden);
@@ -151,4 +153,67 @@ it("телефон: главное действие — в доке, после�
   expect(mobile.lastIndexOf("data-primary-action")).toBeGreaterThan(mobile.indexOf(ru.app.kit.help.title));
   const desktop = html(<DealCardView view={view()} device="desktop" />);
   expect(desktop.indexOf("data-primary-action")).toBeLessThan(desktop.indexOf(t.steps.section));
+});
+
+describe.each(["mobile", "desktop"] as const)("карточка сделки мастера, %s", (device) => {
+  const tm = ru.app.masterDeal.card;
+  const estimate = { priceTiyn: 100_000_00n, extraTiyn: 4_000_00n, totalTiyn: 96_000_00n };
+
+  /** Карточка глазами мастера: таблица «что сейчас», деньги, покупатель, ход работ мастера. */
+  function masterView(block: MoneyBlock, now: Partial<NowInput>, over: Partial<CardView> = {}): CardView {
+    return view({
+      side: "EXECUTOR",
+      lead: tm.lead(7),
+      chip: { text: ru.app.master.deal.status.inWork, tone: "accent" },
+      now: nowView({ ...nowBase, side: "EXECUTOR", payTiyn: 0n, ...now }),
+      steps: dealStepsView("IN_PROGRESS", false, null, "EXECUTOR"),
+      money: { ...masterMoneyView({ block, estimate }), historyHref: "/v2/deals/d1/money" },
+      party: { label: null, contacts: null, chatHref: "/v2/chats/o1" },
+      reports: { items: [], addHref: null },
+      actions: { cancelText: null, disputeHref: "/v2/deals/d1/dispute" },
+      ...over,
+    });
+  }
+
+  it("работа идёт: одно главное действие «Сдать работу», ссылка на отчёт; деньги мастера без сумм покупателя", () => {
+    const view = masterView(held, { next: { action: "submitReady", mine: true } });
+    const out = html(<DealCardView view={view} device={device} />);
+    expect(primaries(out)).toEqual([{ href: "/v2/deals/d1/ready", label: ru.app.master.deal.now.ready.action }]);
+    expect(out).toContain('href="/v2/deals/d1/progress"');
+    const shown = text(<DealCardView view={view} device={device} />);
+    expect(shown).toContain(tm.money.protected.title);
+    expect(shown).toContain(tm.money.guarantee);
+    expect(shown).toContain(tm.money.youGet);
+    expect(shown).toContain(tm.money.explain.label);
+    // Ни защиты сделки покупателя, ни суммы оплаты покупателя (102 000 ₸), ни «к оплате».
+    expect(shown).not.toMatch(/2\s?%|Защита сделки|102\s000|к оплате/i);
+    expect(shown).not.toMatch(/комисси|эскроу|тестов|платформ|демо|отклик|заказчик|выплат/i);
+  });
+
+  it("другая сторона — «Покупатель»: контакты до оферты скрыты, «Написать покупателю»; лид — номер сделки", () => {
+    const out = html(<DealCardView view={masterView(awaiting, { next: { action: "signContract", mine: true } })} device={device} />);
+    expect(out).toContain(tm.buyer.section);
+    expect(out).toContain(tm.buyer.hidden);
+    expect(out).toContain(tm.buyer.write);
+    expect(out).not.toContain(t.master.write);
+    expect(out).toContain(tm.lead(7));
+    expect(out).not.toContain('href="/v2/help#money"');
+  });
+
+  it("ход работ: отчёты свежими сверху с фото, ссылка «Добавить отчёт» — когда передана", () => {
+    const items = reportsView([
+      { id: "r1", title: "", text: "Начали сборку", createdAt: new Date("2026-11-10T10:00:00Z"), photos: [] },
+      { id: "r2", title: "Корпус готов", text: "", createdAt: new Date("2026-11-12T10:00:00Z"), photos: [{ id: "p1", src: "/f/p1.jpg" }] },
+    ]);
+    const out = html(<DealCardView view={masterView(held, { next: { action: "signActEcp", mine: true }, actId: "a1" }, { reports: { items, addHref: "/v2/deals/d1/progress" } })} device={device} />);
+    expect(out).toContain(tm.reports.section);
+    expect(out.indexOf("Корпус готов")).toBeLessThan(out.indexOf(tm.reports.untitled));
+    expect(out).toContain('src="/f/p1.jpg"');
+    expect(out).toContain(tm.reports.add);
+    expect(primaries(out)).toEqual([{ href: "/v2/deals/d1/sign/a1", label: ru.app.master.deal.now.signAct.action }]);
+  });
+
+  it("у покупателя блока «Ход работ» нет", () => {
+    expect(html(<DealCardView view={view()} device={device} />)).not.toContain(tm.reports.section);
+  });
 });

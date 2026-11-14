@@ -6,6 +6,7 @@ import { ru } from "@/i18n/ru";
 import { Chat, ChatComposer, Notice, toast, Uploader } from "@/kit";
 import type { Device } from "@/platform/device";
 import { outcomeOf } from "../../../_shell/form";
+import type { DealSide } from "../../../_shell/side";
 import { usePhotoUploads } from "../../_upload/usePhotoUploads";
 import { loadChatAction, sendMessageAction } from "../actions";
 import type { ChatRoomModel } from "../_parts/chat-view";
@@ -13,6 +14,7 @@ import { mergeRoom, type RoomState } from "../_parts/room-state";
 import { createGate, shouldPoll } from "../_parts/single-flight";
 
 const t = ru.app.chat.room;
+const tm = ru.app.masterDeal.chat.room;
 
 /** Как часто обновлять ленту, пока вкладка видна (как в v1). */
 export const POLL_MS = 5_000;
@@ -24,6 +26,8 @@ const here = () => ({ pathname: window.location.pathname, search: window.locatio
 export type ChatRoomProps = {
   offerId: string;
   initial: ChatRoomModel;
+  /** Чьими глазами: подписи ленты и поля ввода называют собеседника (мастеру — покупатель, покупателю — мастер). */
+  side: DealSide;
   device: Device;
   /** Предел длины сообщения (из модуля). */
   maxLength: number;
@@ -62,7 +66,8 @@ function AttachPanel({ max, onChange }: { max: number; onChange: (state: Attache
  * не на скрытой вкладке); отправка — серверным действием, после успеха лента заменяется ответом (оптимистичного
  * добавления нет). Ошибка отправки — текст у поля, набранное остаётся. На телефоне прокручивается страница.
  */
-export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }: ChatRoomProps) {
+export function ChatRoom({ offerId, initial, side, device, maxLength, maxAttachments }: ChatRoomProps) {
+  const words = side === "EXECUTOR" ? tm : t;
   const [room, setRoom] = useState<RoomState>(() => ({ model: initial, urlsAt: Date.now() }));
   const { model } = room;
   /** До какого времени опрос молчит (лимит частоты на сервере): без ошибки на экране. */
@@ -154,8 +159,8 @@ export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }
         onSend={send}
         onAttach={model.beforeOffer ? undefined : () => setAttachOpen(true)}
         maxLength={maxLength}
-        label={t.composerLabel}
-        placeholder={t.composerPlaceholder}
+        label={words.composerLabel}
+        placeholder={words.composerPlaceholder}
       />
     </>
   ) : (
@@ -165,5 +170,5 @@ export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }
     </Notice>
   );
 
-  return <Chat messages={model.messages} label={t.log} pageScroll={device === "mobile"} fill composer={composer} />;
+  return <Chat messages={model.messages} label={words.log} pageScroll={device === "mobile"} fill composer={composer} />;
 }

@@ -6,7 +6,7 @@ import { cancelDeal, leaveReview, openDispute, payForDeal, processDealMoney, res
 import { db } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
 import { makeClient, makeExecutor, makeOperator } from "../../../../../test/factories";
-import { dealAt, makeDeal, signAct } from "../../../../../test/factories/deal";
+import { dealAt, makeDeal, signAct, type Executor } from "../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../test/factories/identity";
 import { signInAs } from "../../../../../test/factories/session";
 import DealPage from "./[id]/page";
@@ -312,14 +312,13 @@ describe("карточка сделки: доступ и роли", () => {
     expect(result).toContain(encodeURIComponent(`/v2/deals/${f.dealId}`));
   });
 
-  it("мастер этой сделки (активная роль мастера) — на экран сделки v1", async () => {
+  it("мастер этой сделки (активная роль мастера) — карточка мастера в v2", async () => {
     const executor = await makeExecutor();
     await verified(executor.id);
     const f = await dealAt("SIGNED", { executor });
     await signInAs(executor);
-    const result = await outcome(() => card(f.dealId));
-    expect(result).toContain("NEXT_REDIRECT");
-    expect(result).toContain(`;/deals/${f.dealId};`);
+    expect(await outcome(() => card(f.dealId))).toBe("page");
+    expect(plain(await card(f.dealId))).toContain(ru.app.masterDeal.card.buyer.section);
   });
 
   it("оператор — на экран сделки v1", async () => {
@@ -344,10 +343,10 @@ describe("карточка сделки: доступ и роли", () => {
     const f = await dealAt("SIGNED", { executor: both });
     await signInAs(both, "CLIENT");
     expect(await outcome(() => card(f.dealId))).toContain("/switch-role?to=EXECUTOR");
-    // После переключения на роль мастера тот же адрес ведёт на экран сделки v1 (экрана мастера в v2 пока нет).
+    // После переключения на роль мастера тот же адрес открывает карточку мастера в v2 — петли нет.
     freshBrowser({ "user-agent": "vitest" });
     await signInAs(both, "EXECUTOR");
-    expect(await outcome(() => card(f.dealId))).toContain(`;/deals/${f.dealId};`);
+    expect(await outcome(() => card(f.dealId))).toBe("page");
   });
 });
 
@@ -399,5 +398,194 @@ describe("список «Сделки»", () => {
     expect(out).not.toContain(asMaster.dealId);
     expect(plain(out)).toContain(t.list.otherRole);
     expect(out).toContain(`/switch-role?to=EXECUTOR"`);
+  });
+});
+
+describe("карточка сделки мастера: «что сейчас» и деньги мастера по состояниям на реальной базе", () => {
+  const m = ru.app.master.deal;
+  const mn = m.now;
+  const md = ru.app.masterDeal.card;
+  /** Суммы покупателя, которых мастер не видит: оплата с защитой 102 000 ₸ и защита 2 000 ₸. */
+  const buyerMoney = (out: string) => [money(102_000_00n), money(2_000_00n)].filter((sum) => plain(out).includes(sum));
+  /** Слова покупателя и v1, которых нет у мастера: защита сделки, «2%», «к оплате», «заказчик», «выплата», «договор». */
+  const BUYER_WORDS = /Защита сделки|2\s?%|к оплате|заказчик|выплат|договор/i;
+
+  async function master(): Promise<Executor> {
+    const executor = await makeExecutor();
+    await verified(executor.id);
+    return executor;
+  }
+
+  it("оферта не подписана: «Подписать оферту» — на экран подписи; контакты покупателя скрыты; «Ждём оплату», «вы получите 96 000 ₸»", async () => {
+    const executor = await master();
+    const f = await makeDeal({ executor });
+    const contract = await db.document.findFirstOrThrow({ where: { dealId: f.dealId, kind: "CONTRACT" } });
+    await signInAs(executor);
+    const out = await card(f.dealId);
+    expect(h2s(out)).toContain(mn.signOffer.title);
+    expect(primaries(out)).toEqual([{ href: `/v2/deals/${f.dealId}/sign/${contract.id}`, label: mn.signOffer.action }]);
+    expect(plain(out)).toContain(md.money.awaiting.title);
+    expect(plain(out)).toContain(md.money.guarantee);
+    expect(plain(out)).toContain(money(96_000_00n));
+    expect(plain(out)).toContain(md.buyer.hidden);
+    expect(out).not.toContain("tel:");
+    expect(out).toContain(`href="/v2/chats/${f.offerId}"`);
+    expect(plain(out)).toContain(md.buyer.write);
+    // Мастер отменяет только до оплаты — меню есть.
+    expect(out).toContain(`aria-label="${t.card.actions.menu}"`);
+    expect(buyerMoney(out)).toEqual([]);
+    expect(shown(out)).not.toMatch(BUYER_WORDS);
+    expect(shown(out)).not.toMatch(FORBIDDEN);
+  });
+
+  it("оферта заключена, своего согласия для банка нет: «Дать согласие для банка» — на экран оферты; есть — ждём оплату без кнопки", async () => {
+    const executor = await master();
+    const missing = await dealAt("SIGNED", { executor, bankConsents: ["CLIENT"] });
+    const contract = await db.document.findFirstOrThrow({ where: { dealId: missing.dealId, kind: "CONTRACT" }, orderBy: { version: "desc" } });
+    await signInAs(executor);
+    const out = await card(missing.dealId);
+    expect(h2s(out)).toContain(mn.bankConsent.title);
+    expect(primaries(out)).toEqual([{ href: `/v2/deals/${missing.dealId}/sign/${contract.id}`, label: mn.bankConsent.action }]);
+    expect(plain(out)).toContain(m.status.bankConsent);
+    const given = await dealAt("SIGNED", { executor });
+    const ok = await card(given.dealId);
+    expect(h2s(ok)).toContain(mn.waitPay.title);
+    expect(primaries(ok)).toEqual([]);
+    // Оферта заключена: контакты покупателя открыты.
+    expect(ok).toContain("tel:");
+  });
+
+  it("оплачено: «Начать работу» — на экран начала; деньги покупателя в банке под защитой — единственный зелёный блок; сумм покупателя нет", async () => {
+    const executor = await master();
+    const f = await dealAt("PAID_HOLD", { executor });
+    await signInAs(executor);
+    const out = await card(f.dealId);
+    expect(primaries(out)).toEqual([{ href: `/v2/deals/${f.dealId}/start`, label: mn.start.action }]);
+    expect(plain(out)).toContain(md.money.protected.title);
+    expect(out).toContain("bg-accent-soft");
+    expect(plain(out)).toContain(money(96_000_00n));
+    expect(buyerMoney(out)).toEqual([]);
+    // После оплаты мастер не отменяет (только покупатель), но спор открыть может — меню есть.
+    expect(out).toContain(`aria-label="${t.card.actions.menu}"`);
+    expect(shown(out)).not.toMatch(BUYER_WORDS);
+  });
+
+  it("идут работы: «Сдать работу», ссылка на отчёт, дата готовности в «Сейчас» (не в «Заказе»); адрес после оферты; ход работ с отчётом", async () => {
+    const executor = await master();
+    const f = await dealAt("IN_PROGRESS", { executor });
+    await db.request.update({ where: { id: f.requestId }, data: { address: "ул. Абая, 12, кв. 5", city: "Астана" } });
+    await db.progressReport.create({ data: { dealId: f.dealId, authorId: executor.id, title: "Корпус собран", text: "Осталось навесить фасады" } });
+    await signInAs(executor);
+    h.device = "desktop";
+    const out = await card(f.dealId);
+    expect(primaries(out)).toEqual([{ href: `/v2/deals/${f.dealId}/ready`, label: mn.ready.action }]);
+    expect(out).toContain(`href="/v2/deals/${f.dealId}/progress"`);
+    expect(plain(out)).toContain("Ожидаемая готовность");
+    expect(plain(out)).not.toContain(t.card.order.readyBy);
+    expect(plain(out)).toContain(md.order.address);
+    expect(plain(out)).toContain("ул. Абая, 12, кв. 5");
+    expect(plain(out)).toContain(md.reports.section);
+    expect(plain(out)).toContain("Корпус собран");
+    expect(plain(out)).toContain(m.status.inWork);
+  });
+
+  it("до оферты адреса нет, даже если модуль заявок его уже знает", async () => {
+    const executor = await master();
+    const f = await makeDeal({ executor });
+    await db.request.update({ where: { id: f.requestId }, data: { address: "ул. Абая, 12, кв. 5" } });
+    await signInAs(executor);
+    const out = await card(f.dealId);
+    expect(plain(out)).not.toContain("ул. Абая");
+    expect(plain(out)).not.toContain(md.order.address);
+  });
+
+  it("работа сдана: «Подписать акт» — на экран подписи акта ЭЦП", async () => {
+    const executor = await master();
+    const f = await dealAt("READY", { executor });
+    const act = await db.document.findFirstOrThrow({ where: { dealId: f.dealId, kind: "ACCEPTANCE_ACT" }, orderBy: { version: "desc" } });
+    await signInAs(executor);
+    const out = await card(f.dealId);
+    expect(primaries(out)).toEqual([{ href: `/v2/deals/${f.dealId}/sign/${act.id}`, label: mn.signAct.action }]);
+  });
+
+  it("спор: оплата вам приостановлена, кнопки нет, ссылка на позицию; ход остановлен словами мастера", async () => {
+    const executor = await master();
+    const f = await dealAt("IN_PROGRESS", { executor });
+    await openDispute(f.client, { dealId: f.dealId, reason: "OTHER", description: "Сроки сорваны, мебели нет" });
+    await signInAs(executor);
+    const out = await card(f.dealId);
+    expect(h2s(out)).toContain(mn.dispute.title);
+    expect(primaries(out)).toEqual([]);
+    expect(plain(out)).toContain(md.money.frozen.title);
+    expect(plain(out)).toContain(m.stopped.dispute);
+    expect(out).toContain(`href="/v2/deals/${f.dealId}/dispute"`);
+    expect(buyerMoney(out)).toEqual([]);
+  });
+
+  it("завершена: «Вы получили оплату» — его часть из журнала", async () => {
+    const executor = await master();
+    const f = await dealAt("READY", { executor });
+    await signAct(f.dealId);
+    await processDealMoney(f.dealId);
+    await signInAs(executor);
+    const out = await card(f.dealId);
+    expect(h2s(out)).toContain(mn.done.title);
+    expect(plain(out)).toContain(md.money.completed.done);
+    expect(plain(out)).toContain(money(96_000_00n));
+    expect(buyerMoney(out)).toEqual([]);
+  });
+
+  it("отменена после оплаты: деньги вернулись покупателю, оплаты мастеру нет; сумма возврата покупателя не показывается", async () => {
+    const executor = await master();
+    const f = await dealAt("PAID_HOLD", { executor });
+    await cancelDeal(f.client, { dealId: f.dealId });
+    await processDealMoney(f.dealId);
+    await signInAs(executor);
+    const out = await card(f.dealId);
+    expect(h2s(out)).toContain(mn.refunded.title);
+    expect(plain(out)).toContain(md.money.refunded.done);
+    expect(buyerMoney(out)).toEqual([]);
+    expect(out).not.toContain(`aria-label="${t.card.actions.menu}"`);
+  });
+});
+
+describe("список «Сделки» мастера", () => {
+  const m = ru.app.master.deal;
+
+  it("мастер без сделок: обучающий экран мастера, единственное действие «Открыть заявки»", async () => {
+    const executor = await makeExecutor();
+    await verified(executor.id);
+    await signInAs(executor);
+    const out = await list();
+    expect(out).toContain(ru.app.masterDeal.list.emptyTitle);
+    expect(primaries(out)).toEqual([{ href: "/v2/executor/requests", label: ru.app.masterDeal.list.toRequests }]);
+  });
+
+  it("мастер на проверке без сделок — экран статуса, а не пустой список", async () => {
+    const executor = await makeExecutor({ status: "PENDING" });
+    await verified(executor.id);
+    await signInAs(executor);
+    const out = await list();
+    expect(plain(out)).toContain(ru.app.masterRequests.gate.pending.now);
+    expect(primaries(out)).toEqual([{ href: "/v2/register/executor", label: ru.app.masterRequests.gate.pending.action }]);
+  });
+
+  it("свои сделки мастера словами мастера; сделки в роли покупателя не смешиваются — ссылка на переключение", async () => {
+    const both = await makeExecutor({ roles: ["EXECUTOR", "CLIENT"] });
+    await verified(both.id);
+    const asMaster = await dealAt("PAID_HOLD", { executor: both });
+    const asClient = await dealAt("SIGNED", { client: both });
+    await signInAs(both, "EXECUTOR");
+    h.device = "desktop";
+    const out = await list();
+    expect(out).toContain(`href="/v2/deals/${asMaster.dealId}"`);
+    expect(out).not.toContain(asClient.dealId);
+    expect(plain(out)).toContain(m.status.start);
+    expect(plain(out)).toContain(money(96_000_00n));
+    expect(plain(out)).not.toContain(money(102_000_00n));
+    expect(plain(out)).toContain(ru.app.masterDeal.list.otherRole);
+    expect(out).toContain(`/switch-role?to=CLIENT"`);
+    expect(out).not.toContain('href="/v2/help#money"');
+    expect(shown(out)).not.toMatch(FORBIDDEN);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { ChatListItem, ChatView } from "@/modules/companies";
-import { chatHref, chatRoomModel, chatRows, closedText, contextLink, contextOf, messageTime } from "./chat-view";
+import { chatHref, chatRoomModel, chatRows, closedText, contextLink, contextOf, counterpartOf, messageTime } from "./chat-view";
 import { createGate, shouldPoll } from "./single-flight";
 
 const t = ru.app.chat;
@@ -129,6 +129,57 @@ describe("список диалогов", () => {
     const rows = chatRows([item({ offerId: "empty", lastMessage: null, lastAt: null }), item({ offerId: "closed", closed: true })], NOW);
     expect(rows.map((r) => [r.offerId, r.closed])).toEqual([["closed", true]]);
     expect(chatRows([item({ lastMessage: null, lastAt: null })], NOW)).toEqual([]);
+  });
+});
+
+describe("чаты мастера: собеседник, причины и «к чему относится» словами мастера", () => {
+  const tm = ru.app.masterDeal.chat;
+  // Модуль называет покупателя для мастера «Заказчик» — мастеру это слово не показываем.
+  const masterView = (over: Partial<ChatView> = {}) =>
+    view({
+      counterpart: "Заказчик",
+      messages: [
+        { id: "m1", kind: "other", author: "Заказчик", text: "Когда начнёте?", sentAt: new Date("2026-11-14T08:05:00.000Z"), masked: false, attachments: [] },
+        { id: "m2", kind: "own", author: "Вы", text: "Завтра", sentAt: new Date("2026-11-14T08:06:00.000Z"), masked: false, attachments: [] },
+      ],
+      ...over,
+    });
+
+  it("собеседник и автор чужих сообщений — «Покупатель»; свои — «Вы»; у покупателя — как отдал модуль", () => {
+    expect(counterpartOf("Заказчик", "EXECUTOR")).toBe(tm.counterpart);
+    expect(counterpartOf("Исполнитель №7", "CLIENT")).toBe("Исполнитель №7");
+    const model = chatRoomModel(masterView(), NOW, "EXECUTOR");
+    expect(model.messages.slice(1).map((m) => m.author)).toEqual([tm.counterpart, "Вы"]);
+    expect(JSON.stringify(model)).not.toMatch(/заказчик/i);
+  });
+
+  it("закрытый чат — причина по коду словами мастера; без «отклик» и «заказчик»", () => {
+    const codes = Object.keys(tm.room.closed) as (keyof typeof tm.room.closed)[];
+    for (const closedCode of codes) {
+      const text = closedText({ canWrite: false, closedCode }, "EXECUTOR");
+      expect(text).toBe(tm.room.closed[closedCode]);
+      expect(text).not.toMatch(/отклик|заказчик/i);
+    }
+    expect(chatRoomModel(masterView({ canWrite: false, closedCode: "offerWithdrawn" }), NOW, "EXECUTOR").closedReason).toBe(tm.room.closed.offerWithdrawn);
+    expect(closedText({ canWrite: false, closedCode: null }, "EXECUTOR")).toBe(t.room.closedGeneric);
+  });
+
+  it("к чему относится: до сделки — заявка мастера, после — сделка", () => {
+    expect(contextLink({ kind: "offer", requestId: "r1", offerId: "o1" }, "Кухня · Астана", "EXECUTOR")).toEqual({
+      href: "/v2/executor/requests/r1",
+      label: tm.room.aboutRequest("Кухня · Астана"),
+    });
+    expect(contextLink({ kind: "offer", requestId: "r/1", offerId: "o1" }, null, "EXECUTOR")).toEqual({ href: "/v2/executor/requests/r%2F1", label: tm.room.aboutRequestShort });
+    expect(contextLink({ kind: "deal", dealId: "d1" }, "Кухня · Астана", "EXECUTOR").href).toBe("/v2/deals/d1");
+  });
+
+  it("строка списка мастера — «Покупатель», адрес — диалог v2", () => {
+    const [row] = chatRows(
+      [{ offerId: "o1", title: "Кухня · Астана", counterpart: "Заказчик", lastMessage: "Здравствуйте", lastAt: NOW, closed: false, href: "/executor/requests/r1#chat" }],
+      NOW,
+      "EXECUTOR",
+    );
+    expect(row).toMatchObject({ counterpart: tm.counterpart, href: "/v2/chats/o1" });
   });
 });
 

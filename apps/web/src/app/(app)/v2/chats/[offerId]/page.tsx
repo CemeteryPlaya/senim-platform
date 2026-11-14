@@ -5,9 +5,10 @@ import { Explain, PageTitle, TextLink } from "@/kit";
 import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, chatSideOf, getChat } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
-import { requireBuyer, requireV2User } from "../../../_shell/auth";
+import { requireParty, switchRoleTo } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
-import { chatHref, chatRoomModel, contextLink, contextOf } from "../_parts/chat-view";
+import type { DealSide } from "../../../_shell/side";
+import { chatHref, chatRoomModel, contextLink, contextOf, counterpartOf } from "../_parts/chat-view";
 import { ChatRoom } from "./ChatRoom";
 
 const t = ru.app.chat.room;
@@ -16,36 +17,39 @@ export const metadata: Metadata = { title: t.metaTitle };
 
 type Props = { params: Promise<{ offerId: string }> };
 
+/** Сторона отклика модуля (`chatSideOf`) — роль. */
+const ROLE_OF = { client: "CLIENT", executor: "EXECUTOR" } as const satisfies Record<"client" | "executor", DealSide>;
+
 /**
- * Диалог покупателя с мастером по одному предложению. Шапка: «Назад: Чаты», собеседник (то, что отдаёт модуль:
- * «Исполнитель №N» до оферты, имя после), ссылка на предложение или сделку. Экран — лента и поле ввода; главного
- * действия и дока нет, поле — последний элемент. Чужой и несуществующий диалог — 404 (модуль: NOT_FOUND).
- * Ворота: человек с двумя ролями, активный как мастер, по уведомлению о сообщении попадает на диалог своего отклика, где он
- * мастер, — экрана мастера в v2 пока нет, поэтому он уходит на экран этого чата в v1 (без переключения роли: после него
- * диалог покупателя в этом отклике был бы 404).
+ * Диалог стороны в активной роли (`requireParty`) по одному предложению: покупатель — с мастером, мастер — с покупателем.
+ * Шапка: «Назад: Чаты», собеседник (покупателю — то, что отдаёт модуль: «Исполнитель №N» до оферты, имя после; мастеру —
+ * «Покупатель»), ссылка «к чему относится» по стороне (сделка; до неё — предложение покупателя или заявка мастера). Экран —
+ * лента и поле ввода; главного действия и дока нет, поле — последний элемент. Чужой и несуществующий диалог — 404 (модуль:
+ * NOT_FOUND).
+ * Человек с двумя ролями: диалог, где он сторона в другой своей выданной роли (по уведомлению, по ссылке), — переключение
+ * роли с возвратом сюда (`chatSideOf` — сторона по человеку, а не по роли). После переключения активная роль совпадает со
+ * стороной диалога, поэтому петли нет.
  */
 export default async function ChatPage({ params }: Props) {
   const { offerId } = await params;
-  const signedIn = await requireV2User(chatHref(offerId));
-  if (signedIn.role === "EXECUTOR") {
-    const side = await chatSideOf(signedIn, offerId);
-    if (side?.side === "executor") redirect(side.href);
-  }
-  const user = await requireBuyer(chatHref(offerId));
+  const here = chatHref(offerId);
+  const { user, side } = await requireParty(here);
+  const own = await chatSideOf(user, offerId);
+  if (own && ROLE_OF[own.side] !== side && user.roles.includes(ROLE_OF[own.side])) redirect(switchRoleTo(ROLE_OF[own.side], here));
   const view = await getChat(user, offerId, { attachments: true }).catch((e: unknown) => {
     if (isAppError(e) && e.code === "NOT_FOUND") notFound();
     throw e;
   });
-  const model = chatRoomModel(view);
+  const model = chatRoomModel(view, new Date(), side);
   const device = await getDevice();
-  const link = contextLink(contextOf(view), view.title);
+  const link = contextLink(contextOf(view), view.title, side);
 
   const lead = (
     <span className="flex flex-col items-start gap-1">
       <TextLink href={link.href}>{link.label}</TextLink>
       {model.beforeOffer && (
         <span>
-          {ru.app.chat.room.hiddenShort}{" "}
+          {t.hiddenShort}{" "}
           <Explain label={t.why} title={t.whyTitle} device={device}>
             <p>{t.whyBody}</p>
           </Explain>
@@ -54,14 +58,16 @@ export default async function ChatPage({ params }: Props) {
     </span>
   );
 
-  const room = <ChatRoom key={offerId} offerId={offerId} initial={model} device={device} maxLength={CHAT_MAX_LENGTH} maxAttachments={CHAT_MAX_ATTACHMENTS} />;
+  const room = (
+    <ChatRoom key={offerId} offerId={offerId} initial={model} side={side} device={device} maxLength={CHAT_MAX_LENGTH} maxAttachments={CHAT_MAX_ATTACHMENTS} />
+  );
   // Компьютер: колонка на высоту окна за вычетом шапки (screen-fill): заголовок не сжимается, лента — flex-1 со своей
   // прокруткой, поле ввода последним. Телефон: прокручивается страница, а шапка («Назад: Чаты», собеседник, «Почему?»)
   // закреплена у верхнего края (sticky-head) — длинная переписка открывается внизу, и шапка не уезжает.
   return (
     <div className="flex min-w-0 flex-col gap-stack-section desktop:screen-fill">
       <div className="mobile:sticky-head desktop:shrink-0">
-        <PageTitle title={view.counterpart} back={{ href: to("/chats"), label: t.back }} lead={lead} />
+        <PageTitle title={counterpartOf(view.counterpart, side)} back={{ href: to("/chats"), label: t.back }} lead={lead} />
       </div>
       <div className="flex min-w-0 flex-col mobile:flex-1 desktop:min-h-0 desktop:max-w-narrow desktop:flex-1">{room}</div>
     </div>

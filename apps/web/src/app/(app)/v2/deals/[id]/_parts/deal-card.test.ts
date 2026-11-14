@@ -3,7 +3,21 @@ import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
 import type { NextAction } from "@/modules/deal-core";
 import type { MoneyBlock, MoneyView } from "@/modules/payments";
-import { cancelText, documentRows, HISTORY_SHOWN, historyView, moneyView, nowView, orderRows, reviewRows, type HistoryEvent, type NowInput, type NowKind } from "./deal-card";
+import {
+  cancelText,
+  documentRows,
+  HISTORY_SHOWN,
+  historyView,
+  masterMoneyView,
+  moneyView,
+  nowView,
+  orderRows,
+  reportsView,
+  reviewRows,
+  type HistoryEvent,
+  type NowInput,
+  type NowKind,
+} from "./deal-card";
 
 const t = ru.app.deal.card;
 const n = t.now;
@@ -561,5 +575,109 @@ describe("historyView: события словами мастера («Вы» �
     ];
     expect(historyView(events(list), { all: true, limit: 100 }, "CLIENT").items.map((i) => i.title)).toEqual([t.history.cancelled.you, t.history.disputeOpened.master]);
     expect(masterTitles(list)).toEqual([h.cancelled.other, h.disputeOpened.you]);
+  });
+});
+
+describe("masterMoneyView: блок денег мастера из журнала — без сумм покупателя", () => {
+  const md = ru.app.masterDeal.card.money;
+  // Смета мастера модуля (`partyEstimate("EXECUTOR")`): цена 100 000 ₸, гарантия 4% — 4 000 ₸, «вы получите» — 96 000 ₸.
+  const mine = { priceTiyn: 100_000_00n, extraTiyn: 4_000_00n, totalTiyn: 96_000_00n };
+  const master = (b: MoneyBlock) => masterMoneyView({ block: b, estimate: mine });
+  const offerRows = (youGet: bigint) => [
+    { label: md.price, amount: 100_000_00n },
+    { label: md.guarantee, amount: 4_000_00n, explain: true },
+    { label: md.youGet, amount: youGet, total: true },
+  ];
+  /** Суммы покупателя в журнале: оплата с защитой (102 000 ₸) и остаток в банке. Мастеру их видно быть не должно. */
+  const BUYER_SUMS = [102_000_00n, 2_000_00n];
+  const amounts = (v: ReturnType<typeof master>) => [v.amount, ...v.rows.map((r) => r.amount)];
+
+  const CASES: { name: string; block: MoneyBlock; tone: string; title: string; amount: bigint }[] = [
+    { name: "ждём оплату покупателя", block: block({ kind: "awaiting", payment: "none" }), tone: "awaiting", title: md.awaiting.title, amount: 96_000_00n },
+    { name: "оплата обрабатывается", block: block({ kind: "awaiting", payment: "PENDING" }), tone: "awaiting", title: md.pending.title, amount: 96_000_00n },
+    { name: "оплата покупателя не прошла", block: block({ kind: "awaiting", payment: "FAILED" }), tone: "awaiting", title: md.failed.title, amount: 96_000_00n },
+    {
+      name: "деньги покупателя в банке под защитой",
+      block: block({ kind: "protected", amountTiyn: 102_000_00n, reservedAt, operationRef: "B-1" }, 102_000_00n),
+      tone: "protected",
+      title: md.protected.title,
+      amount: 96_000_00n,
+    },
+    {
+      name: "оплата приостановлена спором",
+      block: block({ kind: "frozen", amountTiyn: 102_000_00n, frozenAt: reservedAt }, 102_000_00n),
+      tone: "frozen",
+      title: md.frozen.title,
+      amount: 96_000_00n,
+    },
+    {
+      name: "банк переводит оплату",
+      block: block({ kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 2_000_00n, refundedTiyn: 0n, settled: false, completedAt: null, paidTiyn: 102_000_00n }),
+      tone: "completed",
+      title: md.completed.pending,
+      amount: 96_000_00n,
+    },
+    {
+      name: "оплата получена",
+      block: block({ kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 2_000_00n, refundedTiyn: 0n, settled: true, completedAt: reservedAt, paidTiyn: 102_000_00n }),
+      tone: "completed",
+      title: md.completed.done,
+      amount: 96_000_00n,
+    },
+  ];
+
+  it.each(CASES)("$name: тон, заголовок, «вы получите»; строки — цена, гарантия 4%, «Вы получите»", ({ block: b, tone, title, amount }) => {
+    const v = master(b);
+    expect(v).toMatchObject({ tone, title, amount });
+    expect(v.rows).toEqual(offerRows(amount));
+    for (const sum of BUYER_SUMS) expect(amounts(v)).not.toContain(sum);
+  });
+
+  it("только «под защитой» — зелёный блок с датой резерва из журнала", () => {
+    const tones = CASES.map((c) => master(c.block).tone);
+    expect(tones.filter((x) => x === "protected")).toHaveLength(1);
+    const held = master(block({ kind: "protected", amountTiyn: 102_000_00n, reservedAt, operationRef: "B-1" }, 102_000_00n));
+    expect(held.proof).toBe(md.reservedAt("14 ноября 2026"));
+  });
+
+  it("раздел по спору: главная сумма — часть мастера из журнала, строк сметы нет, кроме цены; остаток — словами", () => {
+    const pending = master(block({ kind: "completed", paidToMasterTiyn: 31_999_99n, protectionTiyn: 666_67n, refundedTiyn: 68_000_01n, settled: false, completedAt: null }));
+    expect(pending).toMatchObject({ tone: "completed", title: md.completed.splitPending, amount: 31_999_99n, note: md.completed.splitNotePending });
+    expect(pending.rows).toEqual([{ label: md.price, amount: 100_000_00n }]);
+    expect(amounts(pending)).not.toContain(68_000_01n);
+    const done = master(block({ kind: "completed", paidToMasterTiyn: 31_999_99n, protectionTiyn: 666_67n, refundedTiyn: 68_000_01n, settled: true, completedAt: reservedAt }));
+    expect(done).toMatchObject({ title: md.completed.splitDone, note: md.completed.splitNote });
+  });
+
+  it("возврат покупателю: оплаты мастеру нет (ноль), сумма возврата покупателя не показывается", () => {
+    const pending = master(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: false, refundedAt: null }));
+    expect(pending).toMatchObject({ tone: "refunded", title: md.refunded.title, amount: 0n, note: md.refunded.pending });
+    expect(amounts(pending)).not.toContain(102_000_00n);
+    expect(master(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: true, refundedAt: reservedAt })).note).toBe(md.refunded.done);
+  });
+});
+
+describe("заказ мастера и ход работ", () => {
+  const order = { title: "Кухня", city: "Астана", plannedReadyAt: null, signedAt: null, durationDays: 30, warrantyMonths: 12, readyShownInNow: false };
+  it("адрес — строкой после города, только если передан", () => {
+    expect(orderRows({ ...order, address: "ул. Абая, 12" }).map((r) => r.label)).toEqual([
+      t.order.what,
+      t.order.city,
+      ru.app.masterDeal.card.order.address,
+      t.order.duration,
+      t.order.warranty,
+    ]);
+    expect(orderRows({ ...order, address: null }).map((r) => r.label)).not.toContain(ru.app.masterDeal.card.order.address);
+  });
+
+  it("отчёты: свежие сверху, без названия — «Отчёт о ходе работ», подписи фото с номером", () => {
+    const r = ru.app.masterDeal.card.reports;
+    const items = reportsView([
+      { id: "r1", title: "  ", text: "Начали", createdAt: new Date("2026-11-10T10:00:00Z"), photos: [{ id: "p1", src: "/f/1" }, { id: "p2", src: "/f/2" }] },
+      { id: "r2", title: "Корпус", text: "", createdAt: new Date("2026-11-12T10:00:00Z"), photos: [] },
+    ]);
+    expect(items.map((i) => i.id)).toEqual(["r2", "r1"]);
+    expect(items[1]?.title).toBe(r.untitled);
+    expect(items[1]?.photos.map((p) => p.alt)).toEqual([r.photoAlt(r.untitled, 1), r.photoAlt(r.untitled, 2)]);
   });
 });

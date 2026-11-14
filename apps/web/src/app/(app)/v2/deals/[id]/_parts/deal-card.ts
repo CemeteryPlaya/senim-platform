@@ -15,6 +15,7 @@ import type { DealSide } from "../../../../_shell/side";
 
 const t = ru.app.deal.card;
 const tm = ru.app.master.deal;
+const tmd = ru.app.masterDeal;
 
 const dealPath = (id: string) => `/deals/${encodeURIComponent(id)}`;
 
@@ -352,6 +353,62 @@ export function moneyView({ block, estimate, snapshot, manual = false }: MoneyIn
   }
 }
 
+/** Деньги мастера: журнал (`moneyBlock`) и смета мастера (`partyEstimate("EXECUTOR")` модуля: цена, гарантия 4%, «вы получите»). */
+export type MasterMoneyInput = {
+  block: MoneyBlock;
+  estimate: { priceTiyn: bigint; extraTiyn: bigint; totalTiyn: bigint };
+};
+
+/**
+ * Блок денег мастера — только из журнала (`moneyBlock`) и сметы мастера, ничего не считается здесь. Главная сумма — то,
+ * что важно мастеру: «вы получите» (цена по оферте − гарантия 4%), пока оплаты нет, деньги покупателя в банке или спор;
+ * после раскрытия — его часть из журнала (`paidToMasterTiyn`: идёт или получена). Строки — «Цена по оферте», «Гарантия
+ * оплаты и клиента (4%)» с пояснением и «Вы получите». Сумм покупателя (к оплате, защита 2%, остаток в банке, возврат)
+ * мастеру не показываем: при возврате покупателю главная сумма — ноль оплаты мастеру.
+ */
+export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyView {
+  const m = tmd.card.money;
+  const priceRow = { label: m.price, amount: estimate.priceTiyn };
+  const offerRows = (youGet: bigint) => [
+    priceRow,
+    { label: m.guarantee, amount: estimate.extraTiyn, explain: true as const },
+    { label: m.youGet, amount: youGet, total: true },
+  ];
+  switch (block.kind) {
+    case "awaiting": {
+      const text = block.payment === "PENDING" ? m.pending : block.payment === "FAILED" ? m.failed : m.awaiting;
+      return { tone: "awaiting", title: text.title, amount: estimate.totalTiyn, rows: offerRows(estimate.totalTiyn), note: text.note };
+    }
+    case "protected":
+      return {
+        tone: "protected",
+        title: m.protected.title,
+        amount: estimate.totalTiyn,
+        rows: offerRows(estimate.totalTiyn),
+        note: m.protected.note,
+        proof: m.reservedAt(formatDate(block.reservedAt)),
+      };
+    case "frozen":
+      return { tone: "frozen", title: m.frozen.title, amount: estimate.totalTiyn, rows: offerRows(estimate.totalTiyn), note: m.frozen.note };
+    case "completed": {
+      const c = m.completed;
+      // Раздел по спору: часть оплаты мастеру по решению, гарантия от доли — не от сметы; строки сметы ввели бы в заблуждение.
+      if (block.refundedTiyn > 0n) {
+        return {
+          tone: "completed",
+          title: block.settled ? c.splitDone : c.splitPending,
+          amount: block.paidToMasterTiyn,
+          rows: [priceRow],
+          note: block.settled ? c.splitNote : c.splitNotePending,
+        };
+      }
+      return { tone: "completed", title: block.settled ? c.done : c.pending, amount: block.paidToMasterTiyn, rows: offerRows(block.paidToMasterTiyn) };
+    }
+    case "refunded":
+      return { tone: "refunded", title: m.refunded.title, amount: 0n, rows: [priceRow], note: block.settled ? m.refunded.done : m.refunded.pending };
+  }
+}
+
 // ─── Отмена ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -377,6 +434,8 @@ export function cancelText(i: { side: DealSide; canCancel: boolean; status: Deal
 export type OrderInput = {
   title: string;
   city: string | null;
+  /** Адрес заказа — мастеру, когда его отдал модуль заявок и оферта заключена; иначе нет. */
+  address?: string | null;
   plannedReadyAt: Date | null;
   signedAt: Date | null;
   durationDays: number;
@@ -387,7 +446,8 @@ export type OrderInput = {
 
 /**
  * «Заказ»: что делаем и существенные условия. Срок — одной строкой: известна плановая дата готовности — дата (если её уже
- * не назвала карточка «Сейчас»), иначе — срок изготовления в днях из оферты. Мастер — в своём блоке.
+ * не назвала карточка «Сейчас»), иначе — срок изготовления в днях из оферты. Адрес — только если он передан (мастеру после
+ * оферты). Другая сторона — в своём блоке.
  */
 export function orderRows(o: OrderInput): { label: string; value: string }[] {
   const r = t.order;
@@ -399,6 +459,7 @@ export function orderRows(o: OrderInput): { label: string; value: string }[] {
   return [
     { label: r.what, value: o.title },
     ...(o.city ? [{ label: r.city, value: o.city }] : []),
+    ...(o.address ? [{ label: tmd.card.order.address, value: o.address }] : []),
     ...term,
     { label: r.warranty, value: formatMonths(o.warrantyMonths) },
     ...(o.signedAt ? [{ label: r.signedAt, value: formatDate(o.signedAt) }] : []),
@@ -463,6 +524,28 @@ export function reviewRows(review: { rating: number; text: string | null; create
     ...(review.text ? [{ label: r.text, value: review.text, stacked: true }] : []),
     { label: r.date, value: formatDate(review.createdAt), stacked: false },
   ];
+}
+
+export type ReportInput = { id: string; title: string | null; text: string; createdAt: Date; photos: { id: string; src: string }[] };
+
+export type ReportView = { id: string; title: string; time: string; text: string; photos: { id: string; src: string; alt: string }[] };
+
+/**
+ * «Ход работ» мастера: отчёты из модуля (`deal.progressReports`, по порядку создания) — свежие сверху; без названия —
+ * «Отчёт о ходе работ»; у фото — подпись с названием отчёта и номером.
+ */
+export function reportsView(reports: readonly ReportInput[]): ReportView[] {
+  const r = tmd.card.reports;
+  return [...reports].reverse().map((report) => {
+    const title = report.title?.trim() || r.untitled;
+    return {
+      id: report.id,
+      title,
+      time: formatDateTime(report.createdAt),
+      text: report.text,
+      photos: report.photos.map((photo, index) => ({ id: photo.id, src: photo.src, alt: r.photoAlt(title, index + 1) })),
+    };
+  });
 }
 
 /** Сколько последних событий видно, пока история свёрнута: телефон и компьютер. */

@@ -63,11 +63,20 @@ describe("cancelDealAction", () => {
     expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("CREATED");
   });
 
-  it("мастер этим действием отменить не может (только покупатель)", async () => {
+  it("мастер отменяет до оплаты: сделка отменена, событие одно", async () => {
     const f = await dealAt("SIGNED");
     await signInAs(f.executor);
+    expect(await cancelDealAction({ dealId: f.dealId })).toEqual({ ok: true, data: { status: "CANCELLED" } });
+    expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("CANCELLED");
+    expect(await auditCount(f.dealId, "deal.cancelled")).toBe(1);
+  });
+
+  it("мастер после оплаты отменить не может (модуль): статус и журнал не меняются", async () => {
+    const f = await dealAt("PAID_HOLD");
+    await signInAs(f.executor);
     expect((await cancelDealAction({ dealId: f.dealId })).ok).toBe(false);
-    expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("CREATED");
+    expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("PAID_HOLD");
+    expect((await journalOf(f.dealId)).filter((e) => e.type === "REFUND")).toEqual([]);
   });
 
   it("плохой вход отклоняет схема", async () => {
