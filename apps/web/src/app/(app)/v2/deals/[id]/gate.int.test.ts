@@ -15,7 +15,7 @@ vi.mock("next/navigation", async (importActual) => ({ ...(await importActual<typ
 
 // Ворота экранов спора, отзыва и истории денег: оператор уходит в v1 — там нет экранов `/deals/<id>/dispute` и
 // `/deals/<id>/review` (404), поэтому на карточку сделки v1; история денег есть и в v1 — на тот же адрес. Отзыв — экран только
-// покупателя: мастер сделки уходит в v1. Спор и история денег общие для сторон — мастер видит свой экран v2.
+// покупателя: мастер сделки уходит на карточку сделки v2. Спор и история денег общие для сторон — мастер видит свой экран v2.
 
 beforeEach(() => freshBrowser({ "user-agent": "vitest" }));
 
@@ -51,10 +51,10 @@ async function masterOf(f: Awaited<ReturnType<typeof dealAt>>) {
 }
 
 describe("мастер сделки (активная роль мастера)", () => {
-  it("отзыв — экран покупателя: в v1", async () => {
+  it("отзыв — экран покупателя: на карточку сделки v2", async () => {
     const f = await dealAt("SIGNED");
     await masterOf(f);
-    expect(await where(ReviewPage as Page, f.dealId)).toBe(`/deals/${f.dealId}`);
+    expect(await where(ReviewPage as Page, f.dealId)).toBe(`/v2/deals/${f.dealId}`);
   });
 
   it("история денег — свой экран v2", async () => {
