@@ -6,7 +6,7 @@ import type { DealListItem } from "@/modules/deal-core";
 import type { IncomingListItem } from "@/modules/requests";
 import type { Device } from "@/platform/device";
 import { MasterHomeView, type MasterHomeData } from "./MasterHomeView";
-import { masterHome, type MasterHomeInput } from "./master-home";
+import { masterFirstSteps, masterHome, type MasterHomeInput } from "./master-home";
 
 const t = ru.app.masterRequests.home;
 
@@ -44,7 +44,7 @@ const fresh = (id: string): IncomingListItem => ({
 
 function data(input: Partial<MasterHomeInput>, over: Partial<MasterHomeData> = {}): MasterHomeData {
   const view = masterHome({ deals: [], counters: [], freshCount: 0, docs: { kyc: "VERIFIED", payoutSet: true }, ...input });
-  return { view, deals: [], moreDeals: 0, fresh: [], stats: { fresh: 0, inWork: 0, earnedTiyn: 0n }, ...over };
+  return { view, firstSteps: null, deals: [], moreDeals: 0, fresh: [], stats: { fresh: 0, inWork: 0, earnedTiyn: 0n }, ...over };
 }
 
 const render = (d: MasterHomeData, device: Device) => html(<MasterHomeView data={d} name="Ерлан" device={device} />);
@@ -96,5 +96,18 @@ describe.each(["mobile", "desktop"] as const)("главная мастера (%s
     expect(out).toContain('href="/v2/executor/requests/r1"');
     expect(out).toContain(ru.app.masterRequests.incoming.card.direct);
     expect(out).toContain(t.requests.all);
+  });
+
+  it("первые шаги: список с прогрессом и ссылками; главное действие по-прежнему одно; когда всё сделано — списка нет", () => {
+    const docs = { kyc: "NOT_SUBMITTED", payoutSet: false } as const;
+    const input: Partial<MasterHomeInput> = { docs, freshCount: 2 };
+    const view = masterHome({ deals: [], counters: [], freshCount: 2, docs });
+    const withSteps = data(input, { firstSteps: masterFirstSteps({ docs, offered: false, primaryHref: view.primary?.href ?? null }) });
+    const out = render(withSteps, device);
+    expect(out).toContain(ru.app.kit.firstSteps.left(3));
+    for (const label of Object.values(ru.app.masterProfile.steps)) expect(out).toContain(label);
+    expect(out).toContain('href="/v2/executor/profile/kyc"');
+    expect(count(out, "data-primary-action")).toBe(1);
+    expect(render(data({ freshCount: 2 }), device)).not.toContain(ru.app.kit.firstSteps.progressLabel);
   });
 });

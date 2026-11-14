@@ -12,14 +12,20 @@ import { readForMaster } from "../executor/_parts/approved";
 import { MasterGate } from "../executor/_parts/MasterGate";
 import { firstName } from "./buyer-home";
 import { MasterHomeView, type MasterHomeData } from "./MasterHomeView";
-import { masterHome, shownDeals, SHOWN_REQUESTS, type MasterCounterInput, type MasterDocsInput, type MasterHomeInput } from "./master-home";
+import { masterFirstSteps, masterHome, shownDeals, SHOWN_REQUESTS, type MasterCounterInput, type MasterDocsInput, type MasterHomeInput } from "./master-home";
 
 /** Сколько отправленных предложений проверяем на встречную цену покупателя (свежие первыми): чтение — по одному на каждое. */
 const COUNTER_CHECKED = 8;
 
+/** Мои предложения за один вызов модуля: встречные цены покупателя и «хоть одно предложение отправлено» (первый шаг). */
+async function offersOf(user: CurrentUser): Promise<{ counters: MasterCounterInput[]; offered: boolean }> {
+  const all = await listMyOffers(user);
+  return { counters: await countersOf(user, all), offered: all.length > 0 };
+}
+
 /** Встречные цены покупателя по моим отправленным предложениям: торг идёт, открытое предложение — покупателя. */
-async function countersOf(user: CurrentUser): Promise<MasterCounterInput[]> {
-  const offers = (await listMyOffers(user)).filter((o) => o.status === "SENT").slice(0, COUNTER_CHECKED);
+async function countersOf(user: CurrentUser, all: Awaited<ReturnType<typeof listMyOffers>>): Promise<MasterCounterInput[]> {
+  const offers = all.filter((o) => o.status === "SENT").slice(0, COUNTER_CHECKED);
   const states = await Promise.all(
     offers.map((o) =>
       getNegotiation(user, { offerId: o.id }).catch((error: unknown) => {
@@ -48,18 +54,23 @@ async function docsOf(user: CurrentUser): Promise<MasterDocsInput | null> {
 
 /**
  * Главная одобренного мастера. Данные читает здесь (страница не знает про модули), показ — в `MasterHomeView`. «Что дальше»
- * по сделкам — из лёгкого `nextStepsOf` (то же правило, что на экране сделки); документы и счёт читаются, только когда нет
- * более срочного (они идут через identity). Нет одобрения — экран статуса.
+ * по сделкам — из лёгкого `nextStepsOf` (то же правило, что на экране сделки); документы и счёт читаются всегда (нужны и «Сейчас», и первым шагам; через identity). Нет одобрения — экран статуса.
  */
 export async function MasterHome({ user, status, device }: { user: CurrentUser; status: MasterStatus; device: Device }) {
   const read = await readForMaster(user, status, async () => {
-    const [incoming, allDeals, finance, counters] = await Promise.all([listIncomingRequests(user), listDeals(user), getExecutorFinance(user), countersOf(user)]);
-    return { incoming, allDeals, finance, counters };
+    const [incoming, allDeals, finance, offers, docs] = await Promise.all([
+      listIncomingRequests(user),
+      listDeals(user),
+      getExecutorFinance(user),
+      offersOf(user),
+      docsOf(user),
+    ]);
+    return { incoming, allDeals, finance, counters: offers.counters, offered: offers.offered, docs };
   });
   const name = firstName(user.fullName);
   if ("gate" in read) return <MasterGate status={read.gate} title={ru.app.masterRequests.home.title(name)} device={device} />;
 
-  const { incoming, allDeals, finance, counters } = read.data;
+  const { incoming, allDeals, finance, counters, offered, docs } = read.data;
   const mine = allDeals.filter((d) => d.myRole === "EXECUTOR");
   const running = mine.filter((d) => ACTIVE_DEAL.has(d.status));
   const nexts = await nextStepsOf(
@@ -76,16 +87,16 @@ export async function MasterHome({ user, status, device }: { user: CurrentUser; 
     deals: mine.map((d) => ({ id: d.id, title: d.title, status: d.status, hasOpenDispute: d.hasOpenDispute, next: nexts.get(d.id) ?? null, consentMissing: missing.has(d.id) })),
     counters,
     freshCount: fresh.length,
-    docs: null,
+    docs,
   };
-  let view = masterHome(input);
-  // Документы и счёт — только когда ничего срочнее нет.
-  if (view.now.kind === "in-work" || view.now.kind === "empty") view = masterHome({ ...input, docs: await docsOf(user) });
+  const view = masterHome(input);
+  const firstSteps = masterFirstSteps({ docs, offered: offered || mine.length > 0, primaryHref: view.primary?.href ?? null });
 
   const { shown, more } = shownDeals(running, view.now.deal?.id ?? null);
   const month = monthOf(new Date());
   const data: MasterHomeData = {
     view,
+    firstSteps,
     deals: shown.map((d) => ({ item: d, next: nexts.get(d.id) ?? null, consentMissing: missing.has(d.id) })),
     moreDeals: more,
     fresh: fresh.slice(0, SHOWN_REQUESTS),

@@ -10,3 +10,13 @@ export const HELP_ANCHORS = {
 } as const;
 
 export type HelpAnchor = (typeof HELP_ANCHORS)[keyof typeof HELP_ANCHORS];
+
+/** Якоря «Помощи» мастера (`/v2/help#<якорь>`): свой набор вопросов, покупатель их не видит. */
+export const MASTER_HELP_ANCHORS = {
+  requests: "requests",
+  price: "price",
+  money: "money",
+  dispute: "dispute",
+  contacts: "contacts",
+  support: "support",
+} as const;

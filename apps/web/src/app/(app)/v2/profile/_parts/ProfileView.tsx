@@ -21,6 +21,19 @@ export function ProfileView({ model, theme, device }: { model: ProfileModel; the
       <p className="text-body text-muted">{model.roleLine}</p>
     </Card>
   );
+  const work = model.work.length > 0 && (
+    <Section title={ru.app.masterProfile.sectionsTitle}>
+      <nav aria-label={ru.app.masterProfile.sectionsLabel}>
+        <Card padded={false}>
+          <List>
+            {model.work.map((row) => (
+              <ListRow key={row.href} label={row.label} href={row.href} />
+            ))}
+          </List>
+        </Card>
+      </nav>
+    </Section>
+  );
   const sections = (
     <nav aria-label={t.sectionsLabel}>
       <Card padded={false}>
@@ -64,6 +77,7 @@ export function ProfileView({ model, theme, device }: { model: ProfileModel; the
           main={
             <Stack gap="section">
               {who}
+              {work}
               {sections}
             </Stack>
           }
@@ -78,6 +92,7 @@ export function ProfileView({ model, theme, device }: { model: ProfileModel; the
       ) : (
         <>
           {who}
+          {work}
           {sections}
           {appearance}
           {role}

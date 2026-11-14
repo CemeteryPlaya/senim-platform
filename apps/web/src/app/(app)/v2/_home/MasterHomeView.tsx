@@ -1,5 +1,5 @@
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, NowNext, PageTitle, Section, Split, Stack, Stat, StatRow, TextLink, formatMoney, Money } from "@/kit";
+import { ActionDock, ButtonLink, FirstSteps, NowNext, PageTitle, Section, Split, Stack, Stat, StatRow, TextLink, formatMoney, Money } from "@/kit";
 import type { DealListItem, NextStep } from "@/modules/deal-core";
 import type { IncomingListItem } from "@/modules/requests";
 import type { Device } from "@/platform/device";
@@ -8,13 +8,16 @@ import { DealSummaryCard } from "../_parts/DealSummaryCard";
 import { dealChip } from "../_parts/deal-summary";
 import { IncomingRows } from "../executor/_parts/IncomingRows";
 import { incomingCard } from "../executor/_parts/incoming-view";
-import { type MasterHomeView as View, type MasterPrimary } from "./master-home";
+import { type MasterFirstSteps, type MasterHomeView as View, type MasterPrimary } from "./master-home";
 
 const t = ru.app.masterRequests.home;
+const steps = ru.app.masterProfile.steps;
 
 /** Всё, что главная показывает кроме приветствия: готовый выбор «Сейчас» и данные блоков (читает `MasterHome`). */
 export type MasterHomeData = {
   view: View;
+  /** Первые шаги мастера; `null` — не показывать (всё сделано). */
+  firstSteps: MasterFirstSteps | null;
   /** До двух идущих сделок: сделка, «что дальше» по ней и отметка «нет согласия для банка». */
   deals: { item: DealListItem; next: NextStep | null; consentMissing: boolean }[];
   /** Сколько идущих сделок осталось за пределами блока. */
@@ -136,6 +139,16 @@ export function MasterHomeView({ data, name, device }: { data: MasterHomeData; n
       {/* Компьютер: действие сразу под «Сейчас». Телефон: в доке в конце экрана (ниже). */}
       {device === "desktop" && action}
       {view.secondary && <TextLink href={view.secondary.href}>{secondaryLabel(view.now.kind)}</TextLink>}
+      {data.firstSteps && (
+        <FirstSteps
+          steps={[
+            { label: steps.profile, done: true },
+            { label: steps.documents, ...data.firstSteps.documents },
+            { label: steps.payout, ...data.firstSteps.payout },
+            { label: steps.offer, ...data.firstSteps.offer },
+          ]}
+        />
+      )}
     </Stack>
   );
   const title = <PageTitle title={t.title(name)} />;

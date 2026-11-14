@@ -52,6 +52,45 @@ describe("profileModel", () => {
   });
 });
 
+const master = (status: "PENDING" | "APPROVED" | "REJECTED" | null): User => ({
+  role: "EXECUTOR",
+  roles: ["CLIENT", "EXECUTOR"],
+  fullName: "Мастер Ерлан",
+  phone: "+77001234567",
+  executor: status ? { id: "e1", publicNumber: 17, status } : null,
+});
+const hrefs = (user: User) => profileModel(user).work.map((r) => r.href);
+const WORK = ["/v2/executor/profile", "/v2/executor/profile/kyc", "/v2/executor/profile/payout", "/v2/executor/portfolio"];
+
+describe("разделы мастера", () => {
+  it("одобренный: компания, документы, счёт, портфолио, финансы, публичный профиль; общие разделы после них", () => {
+    expect(hrefs(master("APPROVED"))).toEqual([...WORK, "/v2/executor/finance", "/v2/executors/17"]);
+    expect(profileModel(master("APPROVED")).sections.map((s) => s.href)).toEqual(["/v2/profile/contacts", "/v2/profile/data", "/v2/notifications", "/v2/help"]);
+  });
+
+  it("на проверке и после отказа: без финансов и публичного профиля, со ссылкой на статус проверки", () => {
+    for (const status of ["PENDING", "REJECTED"] as const) expect(hrefs(master(status))).toEqual([...WORK, "/v2/register/executor"]);
+  });
+
+  it("роль мастера без анкеты — ссылка на регистрацию", () => {
+    expect(hrefs(master(null))).toEqual(["/v2/register/executor"]);
+  });
+
+  it("покупатель, в том числе с профилем мастера, разделов мастера не видит", () => {
+    expect(profileModel(client).work).toEqual([]);
+    expect(profileModel({ ...master("APPROVED"), role: "CLIENT" }).work).toEqual([]);
+  });
+
+  it.each(["mobile", "desktop"] as const)("%s: раздел «Работа мастера» с ссылками; у покупателя его нет; главного действия нет", (device) => {
+    const out = render(master("APPROVED"), device);
+    expect(out).toContain(`>${ru.app.masterProfile.sectionsTitle}</h2>`);
+    for (const href of [...WORK, "/v2/executor/finance", "/v2/executors/17"]) expect(out).toContain(`href="${href}"`);
+    expect(count(out, "data-primary-action")).toBe(0);
+    expect(count(out, "<h1")).toBe(1);
+    expect(render(client, device)).not.toContain(ru.app.masterProfile.sectionsTitle);
+  });
+});
+
 describe.each(["mobile", "desktop"] as const)("ProfileView (%s)", (device) => {
   it("один h1, нет главного действия, разделы ссылками со шевроном, «Оформление» и «Выйти»", () => {
     const out = render(client, device);

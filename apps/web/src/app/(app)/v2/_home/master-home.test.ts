@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { masterHome, shownDeals, MASTER_HREFS, type MasterDealInput, type MasterHomeInput } from "./master-home";
+import { masterFirstSteps, masterHome, shownDeals, MASTER_HREFS, type MasterDealInput, type MasterHomeInput } from "./master-home";
 
 const deal = (over: Partial<MasterDealInput> = {}): MasterDealInput => ({
   id: "d1",
@@ -75,5 +75,37 @@ describe("shownDeals", () => {
     expect(shownDeals(list, "c")).toEqual({ shown: [{ id: "c" }, { id: "a" }], more: 2 });
     expect(shownDeals(list, null).shown.map((d) => d.id)).toEqual(["a", "b"]);
     expect(shownDeals(list.slice(0, 1), null).more).toBe(0);
+  });
+});
+
+describe("masterFirstSteps", () => {
+  const steps = (over: Partial<Parameters<typeof masterFirstSteps>[0]> = {}) => masterFirstSteps({ docs: okDocs, offered: false, primaryHref: null, ...over });
+
+  it("документы не прочитались — шагов нет; всё сделано — шаги скрыты", () => {
+    expect(steps({ docs: null })).toBeNull();
+    expect(steps({ offered: true })).toBeNull();
+  });
+
+  it("документы: загружены (на проверке или проверены) — сделано; не загружены и отказ — нет", () => {
+    expect(steps({ docs: { kyc: "PENDING", payoutSet: true } })?.documents.done).toBe(true);
+    expect(steps({ docs: { kyc: "VERIFIED", payoutSet: true } })?.documents.done).toBe(true);
+    expect(steps({ docs: { kyc: "NOT_SUBMITTED", payoutSet: true } })?.documents.done).toBe(false);
+    expect(steps({ docs: { kyc: "REJECTED", payoutSet: true } })?.documents.done).toBe(false);
+  });
+
+  it("не сделанные шаги ведут на свои экраны; сделанные — без ссылки", () => {
+    expect(steps({ docs: { kyc: "NOT_SUBMITTED", payoutSet: false } })).toEqual({
+      documents: { done: false, href: "/v2/executor/profile/kyc" },
+      payout: { done: false, href: "/v2/executor/profile/payout" },
+      offer: { done: false, href: "/v2/executor/requests" },
+    });
+    expect(steps()?.documents).toEqual({ done: true });
+  });
+
+  it("шаг, на который ведёт главное действие «Сейчас», без ссылки: действие одно", () => {
+    const view = masterHome(input({ docs: { kyc: "NOT_SUBMITTED", payoutSet: false } }));
+    const first = steps({ docs: { kyc: "NOT_SUBMITTED", payoutSet: false }, primaryHref: view.primary?.href ?? null });
+    expect(first?.documents).toEqual({ done: false });
+    expect(first?.payout.href).toBe("/v2/executor/profile/payout");
   });
 });

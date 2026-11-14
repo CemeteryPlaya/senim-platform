@@ -6,7 +6,7 @@ import { ru } from "@/i18n/ru";
 import { getCurrentUser, getOwnContacts } from "@/modules/identity";
 import type { ActionResult } from "@/platform/action";
 import { db } from "@/platform/db";
-import { makeClient, makeOperator } from "../../../../../test/factories";
+import { makeClient, makeExecutor, makeOperator } from "../../../../../test/factories";
 import { freshBrowser, setEnv } from "../../../../../test/factories/identity";
 import { signInAs } from "../../../../../test/factories/session";
 import { identityFake } from "../../../../../test/stubs/identity";
@@ -152,6 +152,29 @@ describe("страницы профиля", () => {
     expect(contacts.html).toContain('href="/v2/email?change=1"');
     expect(contacts.html!.split("<h1").length - 1).toBe(1);
     expect(contacts.html!.split("data-primary-action").length - 1).toBe(1);
+  });
+
+  it("профиль мастера: одобренному — все разделы мастера, публичный профиль по номеру; на проверке — без финансов, со статусом; покупателю разделов нет", async () => {
+    const approved = await makeExecutor();
+    await db.user.update({ where: { id: approved.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(approved);
+    const full = (await render(ProfilePage)).html!;
+    expect(full).toContain(ru.app.masterProfile.sectionsTitle);
+    for (const href of ["/v2/executor/profile", "/v2/executor/profile/kyc", "/v2/executor/profile/payout", "/v2/executor/portfolio", "/v2/executor/finance"]) {
+      expect(full).toContain(`href="${href}"`);
+    }
+    expect(full).toContain(`href="/v2/executors/${approved.executor.publicNumber}"`);
+
+    const pending = await makeExecutor({ status: "PENDING" });
+    await db.user.update({ where: { id: pending.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(pending);
+    const wait = (await render(ProfilePage)).html!;
+    expect(wait).toContain('href="/v2/register/executor"');
+    expect(wait).not.toContain('href="/v2/executor/finance"');
+    expect(wait).not.toContain("/v2/executors/");
+
+    await buyer();
+    expect((await render(ProfilePage)).html).not.toContain(ru.app.masterProfile.sectionsTitle);
   });
 
   it("контакты: Instagram показан в поле; ?email=changed показывает тост-компонент", async () => {

@@ -167,4 +167,25 @@ describe("/v2 для мастера", () => {
     expect(h2s(out)).toContain(m.gate.pending.now);
     expect(primaries(out)).toEqual([{ href: "/v2/register/executor", label: m.gate.pending.action }]);
   });
+
+  it("первые шаги: документы и счёт не готовы — список с прогрессом, главное действие одно; первое предложение отмечается сделанным", async () => {
+    const steps = ru.app.masterProfile.steps;
+    const executor = await master({ segment: "COMFORT" });
+    const requestId = await makeOpenRequest(await buyer(), { segment: "COMFORT" });
+    await signInAs(executor);
+    const before = await render();
+    expect(before).toContain(ru.app.kit.firstSteps.progressLabel);
+    for (const label of [steps.profile, steps.documents, steps.payout, steps.offer]) expect(before).toContain(label);
+    expect(before).not.toContain(`${steps.offer}<span class="sr-only">`);
+    expect(primaries(before)).toHaveLength(1);
+
+    await sendOffer(executor, offerInput(requestId));
+    const after = await render();
+    expect(after).toContain(`${steps.offer}<span class="sr-only">`);
+  });
+
+  it("неодобренный мастер первых шагов не видит: только экран статуса", async () => {
+    await signInAs(await master({ status: "PENDING" }));
+    expect(await render()).not.toContain(ru.app.kit.firstSteps.progressLabel);
+  });
 });

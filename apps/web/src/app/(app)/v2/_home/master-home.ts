@@ -84,6 +84,7 @@ export const MASTER_HREFS = {
   kyc: to("/executor/profile/kyc"),
   payout: to("/executor/profile/payout"),
   company: to("/executor/profile"),
+  requests: to("/executor/requests"),
 } as const;
 
 /** Шаги сделки, где ход мастера, по срочности: акт, оферта, согласие для банка, начало работы. */
@@ -145,4 +146,28 @@ export function shownDeals<T extends { id: string }>(running: readonly T[], nowI
   const first = running.find((d) => d.id === nowId);
   const ordered = first ? [first, ...running.filter((d) => d.id !== nowId)] : [...running];
   return { shown: ordered.slice(0, SHOWN_DEALS), more: Math.max(0, ordered.length - SHOWN_DEALS) };
+}
+
+/** Состояние первого шага: сделан и, если нет, куда вести. */
+export type MasterStepState = { done: boolean; href?: string };
+
+/** Первые шаги мастера: профиль → документы → счёт → первое предложение. */
+export type MasterFirstSteps = { documents: MasterStepState; payout: MasterStepState; offer: MasterStepState };
+
+/**
+ * Первые шаги мастера на главной; `null` — не показывать (все сделаны или документы не прочитались). Профиль к этому
+ * экрану уже проверен (шаги — только у одобренного), поэтому он всегда сделан. Документы сделаны, когда загружены (на
+ * проверке или проверены; отказ — нет), счёт — когда указан, первое предложение — когда есть хоть одно предложение или
+ * сделка. Шаг, на который уже ведёт главное действие «Сейчас», без ссылки: действие на экране одно. Только чтение данных
+ * модулей, ничего не считается.
+ */
+export function masterFirstSteps({ docs, offered, primaryHref }: { docs: MasterDocsInput | null; offered: boolean; primaryHref: string | null }): MasterFirstSteps | null {
+  if (docs === null) return null;
+  const link = (done: boolean, href: string): MasterStepState => (done ? { done } : primaryHref === href ? { done } : { done, href });
+  const steps: MasterFirstSteps = {
+    documents: link(docs.kyc === "PENDING" || docs.kyc === "VERIFIED", MASTER_HREFS.kyc),
+    payout: link(docs.payoutSet, MASTER_HREFS.payout),
+    offer: link(offered, MASTER_HREFS.requests),
+  };
+  return Object.values(steps).every((step) => step.done) ? null : steps;
 }

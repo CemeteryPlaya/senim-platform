@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { Card, List, ListRow, Money, PageTitle, Section, Split, Stack, TextLink } from "@/kit";
+import { Card, Money, Section, Stack, TextLink } from "@/kit";
 import { computeDealMoney } from "@/modules/payments";
 import { getDevice } from "@/platform/device";
 import { userPastOnboarding } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
 import { SUPPORT_HREF } from "../../_shell/support";
 import { HELP_ANCHORS } from "./anchors";
+import { HelpFrame, Paragraphs } from "./_parts/HelpFrame";
+import { MasterHelp } from "./_parts/MasterHelp";
 
 const t = ru.app.profile.help;
 
@@ -15,20 +17,6 @@ export const metadata: Metadata = { title: t.metaTitle };
 /** Цена в примере раздела «Сколько это стоит»: 200 000 ₸ в тиынах (как на «О сервисе»). Суммы считает `computeDealMoney`. */
 const EXAMPLE_PRICE_TIYN = 200_000n * 100n;
 
-function Paragraphs({ items }: { items: readonly string[] }) {
-  return (
-    <Card>
-      <Stack>
-        {items.map((text) => (
-          <p key={text} className="text-body text-ink">
-            {text}
-          </p>
-        ))}
-      </Stack>
-    </Card>
-  );
-}
-
 /**
  * «Помощь»: вопросы и ответы покупателя простыми разделами с якорями (без раскрывающихся блоков): как это работает, сколько
  * стоит, где деньги, если мебель не подошла, как отменить, контакты мастера, поддержка. Открыта и гостю, и вошедшему
@@ -36,7 +24,9 @@ function Paragraphs({ items }: { items: readonly string[] }) {
  * справа оглавление, на телефоне оно сверху.
  */
 export default async function HelpPage() {
-  const [, device] = await Promise.all([userPastOnboarding(to("/help")), getDevice()]);
+  const [user, device] = await Promise.all([userPastOnboarding(to("/help")), getDevice()]);
+  // Мастер видит свои вопросы; покупатель, гость, оператор — вопросы покупателя (как раньше).
+  if (user?.role === "EXECUTOR") return <MasterHelp device={device} />;
   const money = computeDealMoney(EXAMPLE_PRICE_TIYN);
   const toc = [
     { id: HELP_ANCHORS.how, label: t.how.title },
@@ -48,73 +38,49 @@ export default async function HelpPage() {
     { id: HELP_ANCHORS.support, label: t.support.title },
   ];
 
-  // Оглавление: на компьютере справа, на телефоне — сверху перед первой секцией (ссылки-якоря без шевронов).
-  const contents = (
-    <Section title={t.tocTitle}>
-      <Card padded={false}>
-        <List>
-          {toc.map((item) => (
-            // Якорь на этой же странице: без шеврона (он про переход на другой экран).
-            <ListRow key={item.id} label={item.label} href={`${to("/help")}#${item.id}`} chevron={false} />
-          ))}
-        </List>
-      </Card>
-    </Section>
-  );
-
   return (
-    <Stack gap="section">
-      <PageTitle title={t.title} lead={t.lead} back={{ href: to("/"), label: t.back }} />
-      <Split
-        stickyAside={device === "desktop"}
-        main={
-          <Stack gap="section">
-            {device === "mobile" && contents}
-            <Section id={HELP_ANCHORS.how} title={t.how.title}>
-              <Card>
-                <ol className="flex list-decimal flex-col gap-2 pl-6 text-body text-ink">
-                  {t.how.steps.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ol>
-              </Card>
-            </Section>
-            <Section id={HELP_ANCHORS.price} title={t.price.title}>
-              <Card>
-                <Stack>
-                  <p className="text-body text-ink">{t.price.intro}</p>
-                  <p className="text-body text-ink">
-                    {t.price.example} <Money tiyn={money.priceTiyn} /> — {t.price.pays} <Money tiyn={money.buyerTotalTiyn} />
-                  </p>
-                </Stack>
-              </Card>
-            </Section>
-            <Section id={HELP_ANCHORS.money} title={t.money.title}>
-              <Paragraphs items={t.money.paragraphs} />
-            </Section>
-            <Section id={HELP_ANCHORS.notFit} title={t.notFit.title}>
-              <Paragraphs items={t.notFit.paragraphs} />
-            </Section>
-            <Section id={HELP_ANCHORS.cancel} title={t.cancel.title}>
-              <Paragraphs items={t.cancel.paragraphs} />
-            </Section>
-            <Section id={HELP_ANCHORS.contacts} title={t.contacts.title}>
-              <Paragraphs items={t.contacts.paragraphs} />
-            </Section>
-            <Section id={HELP_ANCHORS.support} title={t.support.title}>
-              <Card>
-                <Stack gap="tight">
-                  <p className="text-body text-ink">{t.support.body}</p>
-                  <div>
-                    <TextLink href={SUPPORT_HREF}>{t.support.action}</TextLink>
-                  </div>
-                </Stack>
-              </Card>
-            </Section>
+    <HelpFrame title={t.title} lead={t.lead} back={t.back} tocTitle={t.tocTitle} toc={toc} device={device}>
+      <Section id={HELP_ANCHORS.how} title={t.how.title}>
+        <Card>
+          <ol className="flex list-decimal flex-col gap-2 pl-6 text-body text-ink">
+            {t.how.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </Card>
+      </Section>
+      <Section id={HELP_ANCHORS.price} title={t.price.title}>
+        <Card>
+          <Stack>
+            <p className="text-body text-ink">{t.price.intro}</p>
+            <p className="text-body text-ink">
+              {t.price.example} <Money tiyn={money.priceTiyn} /> — {t.price.pays} <Money tiyn={money.buyerTotalTiyn} />
+            </p>
           </Stack>
-        }
-        aside={device === "desktop" ? contents : null}
-      />
-    </Stack>
+        </Card>
+      </Section>
+      <Section id={HELP_ANCHORS.money} title={t.money.title}>
+        <Paragraphs items={t.money.paragraphs} />
+      </Section>
+      <Section id={HELP_ANCHORS.notFit} title={t.notFit.title}>
+        <Paragraphs items={t.notFit.paragraphs} />
+      </Section>
+      <Section id={HELP_ANCHORS.cancel} title={t.cancel.title}>
+        <Paragraphs items={t.cancel.paragraphs} />
+      </Section>
+      <Section id={HELP_ANCHORS.contacts} title={t.contacts.title}>
+        <Paragraphs items={t.contacts.paragraphs} />
+      </Section>
+      <Section id={HELP_ANCHORS.support} title={t.support.title}>
+        <Card>
+          <Stack gap="tight">
+            <p className="text-body text-ink">{t.support.body}</p>
+            <div>
+              <TextLink href={SUPPORT_HREF}>{t.support.action}</TextLink>
+            </div>
+          </Stack>
+        </Card>
+      </Section>
+    </HelpFrame>
   );
 }

@@ -11,6 +11,7 @@ import { masterOffer } from "./master-offer";
 import { masterCompany } from "./master-company";
 import { masterFinance } from "./master-finance";
 import { masterPortfolio } from "./master-portfolio";
+import { masterProfile } from "./master-profile";
 import { masterRegister } from "./master-register";
 import { masterRequests } from "./master-requests";
 import { offer } from "./offer";
@@ -33,6 +34,7 @@ export const app = {
   masterCompany,
   masterFinance,
   masterPortfolio,
+  masterProfile,
   masterRegister,
   masterRequests,
   offer,
