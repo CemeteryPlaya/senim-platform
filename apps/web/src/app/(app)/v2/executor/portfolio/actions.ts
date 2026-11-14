@@ -20,22 +20,24 @@ import { createWorkSchema, deleteWorkSchema, setPublishedSchema, updateWorkSchem
 // модуле; ответ несёт признак «что-то убрано» и сохранённые тексты.
 
 /**
- * Новая работа и её фото. Работа создаётся первой, фото прикрепляются следом отдельным шагом модуля; если прикрепить не
- * вышло, работа остаётся, а ответ говорит об этом (`photosAttached: false`) — форма ведёт в правку работы, не создавая
- * вторую. Повторного создания защищает форма (кнопка занята до перехода).
+ * Новая работа и её фото. Работа с фото создаётся скрытой, фото прикрепляются следом отдельным шагом модуля, и только
+ * после успеха работа публикуется (если мастер так выбрал): в каталоге не появится работа без фото. Если прикрепить не
+ * вышло, работа остаётся скрытой, а ответ говорит об этом (`photosAttached: false`) — форма ведёт в правку работы, не
+ * создавая вторую. Без фото работа создаётся сразу с выбором мастера. Повторное создание гасит форма (кнопка занята).
  */
 export const createWorkAction = action("app.executor.createWork", createWorkSchema, async ({ fileIds, ...fields }) => {
   const user = await requireUser("EXECUTOR");
   try {
-    const created = await createPortfolioItem(user, fields);
-    if (fileIds.length === 0) return { ...created, photosAttached: true };
+    if (fileIds.length === 0) return { ...(await createPortfolioItem(user, fields)), photosAttached: true };
+    const created = await createPortfolioItem(user, { ...fields, published: false });
     try {
       await attachPortfolioPhotos(user, created.id, fileIds);
-      return { ...created, photosAttached: true };
     } catch (e) {
       logger.warn("app.executor.createWork: photos not attached", { error: e });
       return { ...created, photosAttached: false };
     }
+    if (fields.published) await setPortfolioPublished(user, created.id, true);
+    return { ...created, photosAttached: true };
   } catch (e) {
     throw workFailure(e);
   }

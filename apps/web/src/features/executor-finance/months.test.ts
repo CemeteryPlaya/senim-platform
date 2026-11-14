@@ -59,6 +59,8 @@ describe("месяцы «Финансов»", () => {
     expect(percentChange(199n, 100n)).toBe(99n);
     expect(percentChange(5n, 0n)).toBeNull();
     expect(percentChange(0n, 7n)).toBe(-100n);
+    // Отрицательное усекается к нулю, а не вниз: 2 против 3 — −33, не −34.
+    expect(percentChange(2n, 3n)).toBe(-33n);
     // Сумма больше безопасного целого float: точность не теряется.
     expect(percentChange(2n * 10n ** 18n, 10n ** 18n)).toBe(100n);
   });

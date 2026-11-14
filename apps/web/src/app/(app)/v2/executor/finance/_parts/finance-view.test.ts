@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { ExecutorFinance, FinanceRow } from "@/modules/deal-core";
-import { financeView, monthTitle, percentText } from "./finance-view";
+import { financeView, monthTitle, versusText } from "./finance-view";
 
 const t = ru.app.masterFinance;
 
@@ -41,7 +41,7 @@ describe("месяц «Финансов» мастера", () => {
     expect(view.month).toBe("2026-11");
     expect(view.title).toBe("Ноябрь 2026");
     expect(view.totalTiyn).toBe(115_200_000n);
-    expect(view.versus).toBe("+15% к октябрю");
+    expect(view.versus).toBe("на 15% больше, чем в октябре");
     expect(view.payments.map((p) => p.key.startsWith("d1"))).toEqual([true]);
     expect(view.payments[0]).toMatchObject({ href: "/v2/deals/d1", title: "Кухня угловая", amountTiyn: 115_200_000n });
     expect(view.payments[0]!.line).toBe("Сделка № 7, 3 ноября 2026");
@@ -59,7 +59,7 @@ describe("месяц «Финансов» мастера", () => {
     const january = financeView(finance(rows, [...months]), "2026-01", NOW);
     expect(january.prevHref).toBe("/v2/executor/finance?month=2025-12");
     expect(january.nextHref).toBe("/v2/executor/finance?month=2026-02");
-    expect(january.versus).toBe("−10% к декабрю");
+    expect(january.versus).toBe("на 10% меньше, чем в декабре");
     expect(january.bars.map((b) => b.name)).toEqual(["Август 2025", "Сентябрь 2025", "Октябрь 2025", "Ноябрь 2025", "Декабрь 2025", "Январь 2026"]);
     expect(january.bars.map((b) => b.label)).toEqual(["Авг", "Сен", "Окт", "Ноя", "Дек", "Янв"]);
     const december = financeView(finance(rows, [...months]), "2025-12", NOW);
@@ -74,7 +74,7 @@ describe("месяц «Финансов» мастера", () => {
     ] as const;
     const view = financeView(finance([row()], [...months]), "2026-11", NOW);
     expect(view.bars.map((b) => b.value)).toEqual([0n, 0n, 100n, 0n, 0n, 300n]);
-    expect(view.bars.map((b) => b.current)).toEqual([false, false, false, false, false, true]);
+    expect(view.bars.map((b) => b.selected)).toEqual([false, false, false, false, false, true]);
   });
 
   it("неверный и будущий месяц в адресе — текущий; пустой месяц — без оплат", () => {
@@ -102,12 +102,21 @@ describe("месяц «Финансов» мастера", () => {
     expect(financeView(finance([]), undefined, NOW).empty).toBe(true);
   });
 
-  it("тексты: целый процент и склонение месяца", () => {
-    expect(t.versus(percentText(0n), "декабрю")).toBe("0% к декабрю");
-    expect(t.versus(percentText(18n), "октябрю")).toBe("+18% к октябрю");
-    expect(percentText(-5n)).toBe("−5%");
-    expect(t.monthsTo).toHaveLength(12);
+  it("тексты: сравнение словами, целый процент; отрицательный усекается к нулю", () => {
+    expect(versusText(0n, "декабре")).toBe("как в декабре");
+    expect(versusText(18n, "октябре")).toBe("на 18% больше, чем в октябре");
+    expect(versusText(-5n, "мае")).toBe("на 5% меньше, чем в мае");
+    expect(t.monthsIn).toHaveLength(12);
     expect(t.months).toHaveLength(12);
     expect(t.monthsShort).toHaveLength(12);
+  });
+
+  it("отрицательный процент усечён: 2 против 3 — на 33% меньше, а не на 34%", () => {
+    const rows = [row({ amountTiyn: 2n }), row({ dealId: "d0", amountTiyn: 3n, at: new Date("2026-10-10T10:00:00Z") })];
+    const months = [
+      { month: "2026-11", receivedTiyn: 2n, deals: 1 },
+      { month: "2026-10", receivedTiyn: 3n, deals: 1 },
+    ] as const;
+    expect(financeView(finance(rows, [...months]), undefined, NOW).versus).toBe("на 33% меньше, чем в октябре");
   });
 });

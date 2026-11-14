@@ -101,7 +101,7 @@ export function FinanceScreen({ view, device }: { view: FinanceView; device: Dev
   const chart = (
     <Section title={t.chart.title} id="fin-chart">
       <Card>
-        <Bars label={t.chart.label} items={view.bars} />
+        <Bars label={t.chart.label} items={view.bars.map(({ selected, ...bar }) => ({ ...bar, current: selected }))} />
       </Card>
     </Section>
   );

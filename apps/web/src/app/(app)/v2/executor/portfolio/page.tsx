@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { ButtonLink, Columns, EmptyState, ActionDock, PageTitle, Stack, WorkCard } from "@/kit";
+import { ActionDock, ButtonLink, Columns, EmptyState, PageTitle, Stack } from "@/kit";
 import { listOwnPortfolio } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { requireMaster } from "../../../_shell/auth";
@@ -8,13 +8,14 @@ import { to } from "../../../_shell/paths";
 import { MasterGate } from "../_parts/MasterGate";
 import { readForOwner } from "./_parts/read";
 import { workListView } from "./_parts/work-view";
+import { WorkTile } from "./_parts/WorkTile";
 
 const t = ru.app.masterPortfolio.list;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
 /**
- * Портфолио мастера: его работы карточками (фото, название, тип и стиль, цена «от», «Опубликована» / «Скрыта»); карточка
+ * Портфолио мастера: его работы карточками (фото, название, статус «Опубликована» / «Скрыта» чипом, тип, стиль и число фото, цена «от»); карточка
  * ведёт в правку, где публикация и удаление. «Добавить работу» — главное действие (док на телефоне, под заголовком на
  * компьютере); пусто — обучающий экран с тем же действием. Открыто и мастеру на проверке (портфолио заполняют до
  * проверки); нет профиля мастера — экран статуса. «Назад» — «Компания».
@@ -48,17 +49,7 @@ export default async function PortfolioPage() {
         <p className="text-sub text-muted">{view.countText}</p>
         <Columns count={3}>
           {view.rows.map((row) => (
-            <WorkCard
-              key={row.id}
-              href={row.href}
-              title={row.title}
-              meta={row.meta}
-              byline={row.byline}
-              {...(row.priceFrom !== undefined ? { priceFrom: row.priceFrom } : {})}
-              media={view.media}
-              {...(row.photo ? { photo: row.photo } : {})}
-              headingLevel={2}
-            />
+            <WorkTile key={row.id} row={row} media={view.media} />
           ))}
         </Columns>
       </Stack>

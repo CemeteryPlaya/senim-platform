@@ -24,17 +24,16 @@ const item = (over: Partial<OwnPortfolioItem> = {}): OwnPortfolioItem => ({
 describe("список работ", () => {
   it("строка: адрес правки, тип и стиль, статус и число фото, цена «от» в тиынах, обложка", () => {
     const row = workRow(item());
-    expect(row).toMatchObject({ id: "w1", href: "/v2/executor/portfolio/w1", meta: "Кухня · Лофт", published: true, priceFrom: 85_000_000n });
-    expect(row.byline).toBe(`${t.list.published} · ${t.list.photos(1)}`);
+    expect(row).toMatchObject({ id: "w1", href: "/v2/executor/portfolio/w1", status: t.list.published, details: `Кухня · Лофт · ${t.list.photos(1)}`, published: true, priceFrom: 85_000_000n });
     expect(row.photo).toEqual({ src: "https://files.example/1.jpg", alt: "Фото 1" });
   });
 
   it("скрытая без фото и без цены; иллюстрации сида не считаются фото; ноль — цены нет", () => {
     const row = workRow(item({ published: false, priceFrom: 0, photos: [{ id: "f", src: "/demo/portfolio/x.svg", alt: "" }] }));
-    expect(row.byline).toBe(`${t.list.hidden} · ${t.list.photos(1)}`);
+    expect(row.status).toBe(t.list.hidden);
     expect(row.priceFrom).toBeUndefined();
     expect(row.photo).toBeUndefined();
-    expect(workRow(item({ priceFrom: null, photos: [] })).byline).toBe(`${t.list.published} · ${t.list.photos(0)}`);
+    expect(workRow(item({ priceFrom: null, photos: [] })).details).toBe(`Кухня · Лофт · ${t.list.photos(0)}`);
   });
 
   it("область изображения: есть хоть одно настоящее фото — у всех slot, иначе none; счёт работ со склонением", () => {

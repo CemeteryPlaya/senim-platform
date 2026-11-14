@@ -16,10 +16,10 @@ export type WorkRow = {
   id: string;
   href: string;
   title: string;
-  /** «Тип · стиль». */
-  meta: string;
-  /** «Опубликована» / «Скрыта» (и число фото). */
-  byline: string;
+  /** «Опубликована» / «Скрыта» — в `StatusChip`. */
+  status: string;
+  /** Вторая строка: «Тип · стиль · фото: N». */
+  details: string;
   published: boolean;
   priceFrom?: bigint;
   photo?: { src: string; alt: string };
@@ -31,13 +31,12 @@ export const workHref = (id: string): string => to(`/executor/portfolio/${id}`);
 
 export function workRow(item: OwnPortfolioItem): WorkRow {
   const cover = item.photos.find((p) => p.src !== null && !p.src.startsWith(SEED_ILLUSTRATIONS));
-  const status = item.published ? t.list.published : t.list.hidden;
   return {
     id: item.id,
     href: workHref(item.id),
     title: item.title,
-    meta: [item.furnitureType.name, item.style.name].join(" · "),
-    byline: `${status} · ${t.list.photos(item.photos.length)}`,
+    status: item.published ? t.list.published : t.list.hidden,
+    details: [item.furnitureType.name, item.style.name, t.list.photos(item.photos.length)].join(" · "),
     published: item.published,
     // Ноль — «цена не указана», а не «бесплатно».
     ...(item.priceFrom !== null && item.priceFrom > 0 ? { priceFrom: toTiyn(item.priceFrom) } : {}),

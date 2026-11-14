@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { PHOTO_ACCEPT } from "@/features/upload/transfer";
 import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, Checkbox, Explain, Notice, RadioCard, RadioGroup, Select, Stack, TextArea, TextField, toast, Uploader } from "@/kit";
@@ -96,6 +96,15 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
   const form = itemId ? update : create;
   const err = form.fieldErrors;
   const atField = Object.keys(err).length > 0;
+  const root = useRef<HTMLFormElement>(null);
+  const photoSection = useRef<HTMLDivElement>(null);
+
+  // Ответ сервера с ошибками у полей — фокус на первую: ошибка фото — на раздел фото, иначе на первое поле с ошибкой.
+  useEffect(() => {
+    if (!atField) return;
+    if (err.fileIds) photoSection.current?.focus();
+    else root.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [atField, err]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     if (uploads.busy) {
@@ -113,9 +122,9 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
   return (
     <>
       <Card>
-        <form id={FORM} method="post" onSubmit={submit} noValidate>
+        <form ref={root} id={FORM} method="post" onSubmit={submit} noValidate>
           <Stack gap="section">
-            <Stack>
+            <div ref={photoSection} tabIndex={-1} className="flex flex-col gap-stack-group outline-none">
               <p className="text-sub font-medium text-ink">{t.photosTitle}</p>
               <Uploader
                 items={uploads.items}
@@ -130,7 +139,7 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
               />
               <p className="text-sub text-muted">{t.photosHint(maxPhotos)}</p>
               <SectionError>{err.fileIds}</SectionError>
-            </Stack>
+            </div>
 
             <Select label={t.type} name="furnitureTypeId" value={typeId} onChange={(e) => setTypeId(e.target.value)} {...(err.furnitureTypeId ? { error: err.furnitureTypeId } : {})}>
               <option value="">{t.typePlaceholder}</option>

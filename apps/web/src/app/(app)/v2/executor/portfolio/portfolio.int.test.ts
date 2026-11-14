@@ -117,6 +117,8 @@ describe("действия портфолио", () => {
     const saved = await getOwnPortfolioItem(executor, created.data.id);
     expect(saved.photos.map((p) => p.id)).toEqual([file.id]);
     expect(saved.description).not.toContain("701");
+    // Опубликована после прикрепления фото.
+    expect(saved.published).toBe(true);
     const bad = await createWorkAction(await input({ title: "ab" }));
     expect(bad).toMatchObject({ ok: false, code: "VALIDATION", fieldErrors: { title: [m.form.errors.title(3, 120)] } });
   });
@@ -128,6 +130,16 @@ describe("действия портфолио", () => {
     const created = await createWorkAction(await input({ fileIds: [foreignFile.id] }));
     expect(created).toMatchObject({ ok: true, data: { photosAttached: false } });
     expect(await db.portfolioItem.count({ where: { executorId: executor.executor.id } })).toBe(1);
+    // Фото не прикрепились — работа скрыта, в каталоге её нет.
+    expect((await db.portfolioItem.findFirstOrThrow({ where: { executorId: executor.executor.id } })).published).toBe(false);
+  });
+
+  it("создание без фото и со скрытием: выбор мастера сохраняется как есть", async () => {
+    const executor = await master();
+    await createWorkAction(await input({ title: "Без фото" }));
+    await createWorkAction(await input({ title: "Скрытая", published: false, fileIds: [(await makeUploadedFile(executor)).id] }));
+    const rows = await db.portfolioItem.findMany({ where: { executorId: executor.executor.id } });
+    expect(Object.fromEntries(rows.map((r) => [r.title, r.published]))).toEqual({ "Без фото": true, "Скрытая": false });
   });
 
   it("место с адресом — ошибка у поля place; неизвестный тип — у поля типа", async () => {
