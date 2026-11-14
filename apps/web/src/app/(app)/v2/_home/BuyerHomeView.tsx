@@ -138,9 +138,9 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
  * «Шаг N из M: …» с полосой и строка денег из журнала. Полный ход — на экране сделки.
  */
 function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDealInput | null; more: number }) {
-  const money = dealMoneyLine(deal.money, deal.estimate);
+  const money = dealMoneyLine(deal.money, deal.estimate, "CLIENT");
   const progress = dealProgress(deal.status, deal.hasOpenDispute);
-  const chip = dealChip({ ...deal, next: listed?.next ?? null, payWaitsMaster: listed?.payWaitsMaster ?? false });
+  const chip = dealChip({ ...deal, side: "CLIENT", next: listed?.next ?? null, payWaitsMaster: listed?.payWaitsMaster ?? false });
   return (
     <Section title={t.deal.section}>
       <Card
@@ -157,11 +157,11 @@ function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDeal
         </div>
         {progress.kind === "steps" ? (
           <div className="flex flex-col gap-2">
-            <p className="text-sub text-muted">{progressCaption(progress)}</p>
+            <p className="text-sub text-muted">{progressCaption(progress, "CLIENT")}</p>
             <Progress value={progress.done} max={progress.total} label={t.deal.progressLabel} />
           </div>
         ) : (
-          <Steps label={t.deal.progressLabel} items={[]} stopped={{ label: stoppedLabel(progress.reason) }} />
+          <Steps label={t.deal.progressLabel} items={[]} stopped={{ label: stoppedLabel(progress.reason, "CLIENT") }} />
         )}
         <p className="text-body text-ink">
           {money.amountTiyn !== null && (

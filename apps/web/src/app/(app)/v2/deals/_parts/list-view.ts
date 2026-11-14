@@ -65,14 +65,14 @@ function cardOf(deal: ListDealInput, next: NextStep | null, waitsMaster: boolean
     id: deal.id,
     href: to(`/deals/${encodeURIComponent(deal.id)}`),
     title: deal.title,
-    chip: dealChip({ ...deal, next, payWaitsMaster: waitsMaster }),
+    chip: dealChip({ ...deal, side: "CLIENT", next, payWaitsMaster: waitsMaster }),
     progress:
       progress.kind === "steps"
-        ? { kind: "steps", caption: progressCaption(progress) ?? "", done: progress.done, total: progress.total }
+        ? { kind: "steps", caption: progressCaption(progress, "CLIENT") ?? "", done: progress.done, total: progress.total }
         : progress.reason === "refunded"
           ? null
-          : { kind: "stopped", label: stoppedLabel(progress.reason) },
-    money: dealMoneyLine(deal.money, deal.estimate),
+          : { kind: "stopped", label: stoppedLabel(progress.reason, "CLIENT") },
+    money: dealMoneyLine(deal.money, deal.estimate, "CLIENT"),
   };
 }
 

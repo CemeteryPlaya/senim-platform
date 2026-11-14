@@ -10,6 +10,7 @@ const n = t.now;
 
 const base: NowInput = {
   id: "d1",
+  side: "CLIENT",
   next: { action: "none", mine: false },
   contractId: "c1",
   actId: "a1",
@@ -221,21 +222,21 @@ describe("cancelText: последствия отмены по факту cancel
   const protectedBlock = block({ kind: "protected", amountTiyn: 102_000_00n, reservedAt, operationRef: null });
   const awaitingBlock = block({ kind: "awaiting", payment: "none" });
   it("до оплаты — денег не было", () => {
-    expect(cancelText({ canCancel: true, status: "CREATED", block: awaitingBlock, manual: false })).toBe("Сделка будет отменена. Деньги не списывались.");
+    expect(cancelText({ side: "CLIENT", canCancel: true, status: "CREATED", block: awaitingBlock, manual: false })).toBe("Сделка будет отменена. Деньги не списывались.");
   });
   it("после онлайн-оплаты — вся зарезервированная сумма вернётся на карту, включая защиту", () => {
-    expect(cancelText({ canCancel: true, status: "PAID_HOLD", block: protectedBlock, manual: false })).toBe(
+    expect(cancelText({ side: "CLIENT", canCancel: true, status: "PAID_HOLD", block: protectedBlock, manual: false })).toBe(
       `Сделка будет отменена, ${formatMoney(102_000_00n)} вернутся на вашу карту — включая защиту сделки.`,
     );
   });
   it("после перевода по реквизитам — «вернутся вам», не «на карту»", () => {
-    expect(cancelText({ canCancel: true, status: "PAID_HOLD", block: protectedBlock, manual: true })).toBe(
+    expect(cancelText({ side: "CLIENT", canCancel: true, status: "PAID_HOLD", block: protectedBlock, manual: true })).toBe(
       `Сделка будет отменена, ${formatMoney(102_000_00n)} вернутся вам — включая защиту сделки.`,
     );
   });
   it("отмена недоступна — пункта нет", () => {
-    expect(cancelText({ canCancel: false, status: "CREATED", block: awaitingBlock, manual: false })).toBeNull();
-    expect(cancelText({ canCancel: true, status: "IN_PROGRESS", block: protectedBlock, manual: false })).toBeNull();
+    expect(cancelText({ side: "CLIENT", canCancel: false, status: "CREATED", block: awaitingBlock, manual: false })).toBeNull();
+    expect(cancelText({ side: "CLIENT", canCancel: true, status: "IN_PROGRESS", block: protectedBlock, manual: false })).toBeNull();
   });
 });
 
@@ -305,7 +306,7 @@ describe("документы", () => {
 /** События в порядке журнала модуля (seq), время — по порядку. */
 const events = (list: [action: string, actor: string][]): HistoryEvent[] =>
   list.map(([action, actorRole], i) => ({ id: `e${i}`, action, actorRole, createdAt: new Date(Date.UTC(2026, 10, 1, 10, i)) }));
-const titles = (list: [string, string][], limit = 100) => historyView(events(list), { all: false, limit }).items.map((i) => i.title);
+const titles = (list: [string, string][], limit = 100) => historyView(events(list), { all: false, limit }, "CLIENT").items.map((i) => i.title);
 
 describe("historyView: события словами покупателя", () => {
   const h = t.history;
@@ -377,10 +378,188 @@ describe("historyView: события словами покупателя", () =
 
   it("свёрнута до лимита устройства; «Показать всё» — все", () => {
     const list: [string, string][] = Array.from({ length: 7 }, () => ["deal.progress.reported", "EXECUTOR"]);
-    expect(historyView(events(list), { all: false, limit: HISTORY_SHOWN.mobile })).toMatchObject({ more: true });
-    expect(historyView(events(list), { all: false, limit: HISTORY_SHOWN.mobile }).items).toHaveLength(3);
-    expect(historyView(events(list), { all: false, limit: HISTORY_SHOWN.desktop }).items).toHaveLength(5);
-    expect(historyView(events(list), { all: true, limit: 3 })).toMatchObject({ more: false });
-    expect(historyView(events(list), { all: true, limit: 3 }).items).toHaveLength(7);
+    expect(historyView(events(list), { all: false, limit: HISTORY_SHOWN.mobile }, "CLIENT")).toMatchObject({ more: true });
+    expect(historyView(events(list), { all: false, limit: HISTORY_SHOWN.mobile }, "CLIENT").items).toHaveLength(3);
+    expect(historyView(events(list), { all: false, limit: HISTORY_SHOWN.desktop }, "CLIENT").items).toHaveLength(5);
+    expect(historyView(events(list), { all: true, limit: 3 }, "CLIENT")).toMatchObject({ more: false });
+    expect(historyView(events(list), { all: true, limit: 3 }, "CLIENT").items).toHaveLength(7);
+  });
+});
+
+// ─── Сторона мастера ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+const m = ru.app.master.deal;
+const mn = m.now;
+const master = (action: NextAction, mine: boolean, over: Partial<NowInput> = {}) => nowView({ ...base, side: "EXECUTOR", next: { action, mine }, ...over });
+
+/**
+ * Таблица «что сейчас» мастера — по строке на каждое значение `next.action`, которое модуль отдаёт мастеру
+ * (deal-core/next-step.ts: подписать оферту с согласием банку, ждать подпись покупателя, ждать оплату, начать работу, сдать
+ * работу, подписать акт, ждать покупателя, ждать оплату от банка, спор, завершена, отменена, возвращена), плюс согласие для
+ * банка после оферты, оплата у банка, возврат частями, решённый спор и шаги чужих ролей.
+ */
+const MASTER_TABLE: { name: string; action: NextAction; mine: boolean; over?: Partial<NowInput>; kind: NowKind; title: string; primary: { label: string; href: string } | null }[] = [
+  { name: "подписать оферту (согласие для банка — на экране подписи)", action: "signContract", mine: true, kind: "sign-offer", title: mn.signOffer.title, primary: { label: mn.signOffer.action, href: "/v2/deals/d1/sign/c1" } },
+  { name: "оферты нет — кнопки нет", action: "signContract", mine: true, over: { contractId: null }, kind: "unknown", title: mn.unknown.title, primary: null },
+  { name: "ждём подпись оферты покупателем", action: "waitContractSignature", mine: false, kind: "wait-offer", title: mn.waitOffer.title, primary: null },
+  { name: "ждём оплату покупателя", action: "waitPayment", mine: false, kind: "wait-pay", title: mn.waitPay.title, primary: null },
+  { name: "ждём оплату: своё согласие для банка дано", action: "waitPayment", mine: false, over: { bank: { mine: true, other: true } }, kind: "wait-pay", title: mn.waitPay.title, primary: null },
+  { name: "оферта заключена, своего согласия для банка нет — дать согласие", action: "waitPayment", mine: false, over: { bank: { mine: false, other: true } }, kind: "bank-consent", title: mn.bankConsent.title, primary: { label: mn.bankConsent.action, href: "/v2/deals/d1/sign/c1" } },
+  { name: "согласия нет и оферты нет — без кнопки", action: "waitPayment", mine: false, over: { bank: { mine: false, other: false }, contractId: null }, kind: "bank-consent", title: mn.bankConsent.title, primary: null },
+  { name: "оплата у банка", action: "waitPaymentConfirmation", mine: false, kind: "pay-pending", title: mn.payPending.title, primary: null },
+  { name: "оплата переводом у банка — то же для мастера", action: "waitPaymentConfirmation", mine: false, over: { manual: true }, kind: "pay-pending", title: mn.payPending.title, primary: null },
+  { name: "начать работу", action: "startWork", mine: true, kind: "start", title: mn.start.title, primary: { label: mn.start.action, href: "/v2/deals/d1/start" } },
+  { name: "сдать работу", action: "submitReady", mine: true, kind: "ready", title: mn.ready.title, primary: { label: mn.ready.action, href: "/v2/deals/d1/ready" } },
+  { name: "подписать акт ЭЦП", action: "signActEcp", mine: true, kind: "sign-act", title: mn.signAct.title, primary: { label: mn.signAct.action, href: "/v2/deals/d1/sign/a1" } },
+  { name: "акта нет — кнопки нет", action: "signActEcp", mine: true, over: { actId: null }, kind: "unknown", title: mn.unknown.title, primary: null },
+  { name: "ждём приёмку покупателем", action: "waitAct", mine: false, kind: "wait-act", title: mn.waitAct.title, primary: null },
+  { name: "ждём оплату от банка", action: "waitPayout", mine: false, kind: "wait-payout", title: mn.waitPayout.title, primary: null },
+  { name: "банк возвращает деньги покупателю", action: "waitRefund", mine: false, kind: "wait-refund", title: mn.waitRefund.title, primary: null },
+  { name: "деньги уходят частями без решения спора в данных", action: "waitRefund", mine: false, over: { refundAll: false }, kind: "wait-settlement", title: mn.waitSettlement.title, primary: null },
+  { name: "спор", action: "waitDispute", mine: false, kind: "dispute", title: mn.dispute.title, primary: null },
+  { name: "завершена", action: "done", mine: false, kind: "done", title: mn.done.title, primary: null },
+  { name: "отменена", action: "cancelled", mine: false, kind: "cancelled", title: mn.cancelled.title, primary: null },
+  { name: "возвращена", action: "refunded", mine: false, kind: "refunded", title: mn.refunded.title, primary: null },
+  // Решённый спор.
+  { name: "спор решён разделом: банк делит деньги", action: "waitRefund", mine: false, over: { refundAll: false, disputeOutcome: "PARTIAL_SPLIT" }, kind: "dispute-split", title: mn.disputeSplit.title, primary: null },
+  { name: "спор решён разделом: оплата вам проведена", action: "done", mine: false, over: { disputeOutcome: "PARTIAL_SPLIT" }, kind: "dispute-split", title: mn.disputeSplit.title, primary: null },
+  { name: "спор решён возвратом покупателю: идёт", action: "waitRefund", mine: false, over: { disputeOutcome: "FULL_REFUND" }, kind: "dispute-refund", title: mn.disputeRefund.pending, primary: null },
+  { name: "спор решён возвратом покупателю: вернулись", action: "refunded", mine: false, over: { disputeOutcome: "FULL_REFUND" }, kind: "dispute-refund", title: mn.disputeRefund.done, primary: null },
+  { name: "спор решён «продолжить»: обычная строка", action: "submitReady", mine: true, over: { disputeOutcome: "CONTINUE" }, kind: "ready", title: mn.ready.title, primary: { label: mn.ready.action, href: "/v2/deals/d1/ready" } },
+  // Шаги покупателя и оператора: мастеру модуль их не отдаёт; если вдруг — без кнопки.
+  ...(["pay", "waitStart", "waitReady", "signAct", "waitMasterActSignature", "leaveReview", "resolveDispute", "none"] as const).map((action) => ({
+    name: `чужой шаг ${action}`,
+    action,
+    mine: action === "pay" || action === "signAct" || action === "leaveReview" || action === "resolveDispute",
+    kind: "unknown" as const,
+    title: mn.unknown.title,
+    primary: null,
+  })),
+];
+
+describe("nowView: таблица «что сейчас» мастера", () => {
+  it.each(MASTER_TABLE)("$name", ({ action, mine, over, kind, title, primary }) => {
+    const view = master(action, mine, over);
+    expect(view.kind).toBe(kind);
+    expect(view.title).toBe(title);
+    expect(view.primary).toEqual(primary);
+  });
+
+  it("таблица покрывает каждое действие модуля", () => {
+    const all: NextAction[] = [
+      "signContract", "waitContractSignature", "pay", "waitPayment", "waitPaymentConfirmation", "startWork", "waitStart", "submitReady", "waitReady",
+      "signAct", "signActEcp", "waitAct", "waitMasterActSignature", "waitPayout", "waitRefund", "waitDispute", "resolveDispute", "leaveReview", "done",
+      "cancelled", "refunded", "none",
+    ];
+    expect(new Set(MASTER_TABLE.map((r) => r.action))).toEqual(new Set(all));
+  });
+
+  it("главная кнопка — только у своего шага: чужой signContract/startWork/submitReady/signActEcp кнопки не даёт", () => {
+    for (const action of ["signContract", "startWork", "submitReady", "signActEcp"] as const) expect(master(action, false)).toMatchObject({ kind: "unknown", primary: null });
+  });
+
+  it("подпись оферты: без согласия для банка — сначала согласие, с согласием — проверить условия", () => {
+    expect(master("signContract", true).body).toBe(mn.signOffer.body);
+    expect(master("signContract", true, { bank: { mine: false, other: false } }).body).toBe(mn.signOffer.body);
+    expect(master("signContract", true, { bank: { mine: true, other: false } }).body).toBe(mn.signOffer.bodyConsentGiven);
+  });
+
+  it("сдача работы: второстепенная ссылка — отчёт о ходе работ; ожидаемая дата, когда модуль её знает", () => {
+    expect(master("submitReady", true).link).toEqual({ label: mn.ready.progress, href: "/v2/deals/d1/progress" });
+    expect(master("submitReady", true).body).toBe(mn.ready.body);
+    expect(master("submitReady", true, { plannedReadyAt: new Date("2026-12-20T10:00:00Z") }).body).toBe(mn.ready.readyBy("20 декабря 2026"));
+  });
+
+  it("спор: «Изложить свою позицию» — ссылкой на экран спора, только когда позиции ещё нет", () => {
+    expect(master("waitDispute", false, { needsPosition: true }).link).toEqual({ label: mn.dispute.position, href: "/v2/deals/d1/dispute" });
+    expect(master("waitDispute", false).link).toBeNull();
+  });
+
+  it("решённый спор: текст по деньгам — идёт или завершено", () => {
+    expect(master("waitPayout", false, { disputeOutcome: "PARTIAL_SPLIT" }).body).toBe(mn.disputeSplit.pending);
+    expect(master("done", false, { disputeOutcome: "PARTIAL_SPLIT" }).body).toBe(mn.disputeSplit.done);
+    expect(master("refunded", false, { disputeOutcome: "FULL_REFUND" }).body).toBe(mn.disputeRefund.bodyDone);
+  });
+
+  it("сумм покупателя нет: ни «к оплате», ни защиты сделки — в любой строке", () => {
+    for (const row of MASTER_TABLE) {
+      const text = JSON.stringify(master(row.action, row.mine, { ...row.over, manual: true }));
+      expect(text).not.toContain(formatMoney(102_000_00n));
+      expect(text).not.toMatch(/защит[аы] сделки|2\s?%/i);
+    }
+  });
+
+  it("строки покупателя не меняются от строк мастера: та же сделка глазами покупателя — его таблица", () => {
+    expect(nowView({ ...base, next: { action: "signContract", mine: true } }).title).toBe(n.signOffer.title);
+    expect(nowView({ ...base, next: { action: "startWork", mine: true } }).kind).toBe("unknown");
+    expect(master("pay", true).kind).toBe("unknown");
+  });
+
+  it("id в адресах экранируется", () => {
+    expect(nowView({ ...base, id: "a/b", side: "EXECUTOR", next: { action: "startWork", mine: true } }).primary?.href).toBe("/v2/deals/a%2Fb/start");
+  });
+});
+
+describe("cancelText мастера: только до оплаты", () => {
+  const awaitingBlock = block({ kind: "awaiting", payment: "none" });
+  const protectedBlock = block({ kind: "protected", amountTiyn: 102_000_00n, reservedAt, operationRef: null });
+  it("до оплаты — покупатель ещё не платил", () => {
+    expect(cancelText({ side: "EXECUTOR", canCancel: true, status: "CREATED", block: awaitingBlock, manual: false })).toBe(m.actions.cancelBeforePay);
+  });
+  it("после оплаты мастер не отменяет — текста нет (и суммы покупателя тоже)", () => {
+    expect(cancelText({ side: "EXECUTOR", canCancel: true, status: "PAID_HOLD", block: protectedBlock, manual: false })).toBeNull();
+    expect(cancelText({ side: "EXECUTOR", canCancel: false, status: "CREATED", block: awaitingBlock, manual: false })).toBeNull();
+  });
+});
+
+describe("historyView: события словами мастера («Вы» — мастер)", () => {
+  const h = m.history;
+  const masterTitles = (list: [string, string][]) => historyView(events(list), { all: true, limit: 100 }, "EXECUTOR").items.map((i) => i.title);
+  it.each([
+    ["deal.created", "SYSTEM", h.created],
+    ["deal.signed", "SYSTEM", h.concluded],
+    ["deal.paid", "SYSTEM", h.paid],
+    ["deal.started", "EXECUTOR", h.started],
+    ["deal.progress.reported", "EXECUTOR", h.progress],
+    ["deal.ready", "EXECUTOR", h.ready],
+    ["deal.accepted", "SYSTEM", h.accepted],
+    ["deal.completed", "SYSTEM", h.completed],
+    ["dispute.opened", "EXECUTOR", h.disputeOpened.you],
+    ["dispute.opened", "CLIENT", h.disputeOpened.other],
+    ["dispute.opened", "OPERATOR", h.disputeOpened.unknown],
+    ["dispute.position.submitted", "EXECUTOR", h.position.you],
+    ["dispute.position.submitted", "CLIENT", h.position.other],
+    ["dispute.resolved", "OPERATOR", h.disputeResolved],
+    ["deal.cancelled", "EXECUTOR", h.cancelled.you],
+    ["deal.cancelled", "CLIENT", h.cancelled.other],
+    ["deal.cancelled", "SYSTEM", h.cancelled.unknown],
+    ["deal.cancel.requested", "CLIENT", h.cancelRequested],
+    ["deal.refunded", "SYSTEM", h.refunded],
+    ["review.created", "CLIENT", h.review],
+  ])("%s от %s", (action, actor, title) => {
+    expect(masterTitles([[action, actor]])).toEqual([title]);
+  });
+
+  it("подписи: «Вы» — мастер, другая сторона — «Покупатель»; одна строка на сторону и документ", () => {
+    expect(
+      masterTitles([
+        ["document.hand_signature.added", "CLIENT"],
+        ["document.signature.added", "CLIENT"],
+        ["document.hand_signature.added", "EXECUTOR"],
+        ["document.signature.added", "EXECUTOR"],
+        ["deal.ready", "EXECUTOR"],
+        ["document.signature.added", "EXECUTOR"],
+        ["document.signature.added", "CLIENT"],
+      ]),
+    ).toEqual([h.signed.other.act, h.signed.you.act, h.ready, h.signed.you.contract, h.signed.other.contract]);
+  });
+
+  it("та же история глазами покупателя — его слова («Вы» — покупатель, «Мастер …»)", () => {
+    const list: [string, string][] = [
+      ["dispute.opened", "EXECUTOR"],
+      ["deal.cancelled", "CLIENT"],
+    ];
+    expect(historyView(events(list), { all: true, limit: 100 }, "CLIENT").items.map((i) => i.title)).toEqual([t.history.cancelled.you, t.history.disputeOpened.master]);
+    expect(masterTitles(list)).toEqual([h.cancelled.other, h.disputeOpened.you]);
   });
 });

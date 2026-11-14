@@ -3,7 +3,18 @@ import { ru } from "@/i18n/ru";
 import type { DealStatus } from "@/generated/prisma/enums";
 import type { NextAction } from "@/modules/deal-core";
 import type { MoneyBlock } from "@/modules/payments";
-import { dealChip, dealStepsView, payWaitsMaster, paymentWait, progressCaption, type DealChip } from "./deal-summary";
+import {
+  dealChip,
+  dealMoneyLine,
+  dealStepsView,
+  masterConsentMissing,
+  payWaitsMaster,
+  paymentWait,
+  progressCaption,
+  stoppedLabel,
+  type DealChip,
+  type DealMoneyLine,
+} from "./deal-summary";
 
 const s = ru.app.buyer.home.deal;
 const st = ru.app.deal.status;
@@ -18,12 +29,12 @@ describe("dealStepsView: полный ход сделки", () => {
     ["ACCEPTED", ["done", "done", "done", "done", "current"]],
     ["SPLIT_PAYOUT", ["done", "done", "done", "done", "done"]],
   ] as const)("%s", (status, states) => {
-    const view = dealStepsView(status, false);
+    const view = dealStepsView(status, false, null, "CLIENT");
     expect(view.kind === "steps" ? view.items.map((i) => i.state) : null).toEqual(states);
   });
 
   it("подписи шкалы — те же, что в строке «Шаг N из 5»: первый — «Оферта и оплата», последний — «Оплата мастеру»", () => {
-    const view = dealStepsView("PAID_HOLD", false);
+    const view = dealStepsView("PAID_HOLD", false, null, "CLIENT");
     expect(view.kind === "steps" ? view.items.map((i) => i.label) : null).toEqual([...steps]);
     expect(steps[0]).toBe("Оферта и оплата");
     expect(steps.at(-1)).toBe("Оплата мастеру");
@@ -32,25 +43,25 @@ describe("dealStepsView: полный ход сделки", () => {
   });
 
   it("спор, отмена, возврат — строка вместо шкалы; возврат — «Сделка закрыта» (о деньгах говорят плашка и блок денег)", () => {
-    expect(dealStepsView("READY", true)).toEqual({ kind: "stopped", label: s.stopped.dispute });
-    expect(dealStepsView("CANCELLED", false)).toEqual({ kind: "stopped", label: s.stopped.cancelled });
-    expect(dealStepsView("REFUNDED", false)).toEqual({ kind: "stopped", label: "Сделка закрыта" });
+    expect(dealStepsView("READY", true, null, "CLIENT")).toEqual({ kind: "stopped", label: s.stopped.dispute });
+    expect(dealStepsView("CANCELLED", false, null, "CLIENT")).toEqual({ kind: "stopped", label: s.stopped.cancelled });
+    expect(dealStepsView("REFUNDED", false, null, "CLIENT")).toEqual({ kind: "stopped", label: "Сделка закрыта" });
   });
 
   it("спор решён разделом или возвратом — шкала остановлена; «продолжить» — обычная шкала", () => {
-    expect(dealStepsView("SPLIT_PAYOUT", false, "PARTIAL_SPLIT")).toEqual({ kind: "stopped", label: ru.app.deal.card.steps.disputeSplit });
-    expect(dealStepsView("READY", false, "FULL_REFUND")).toEqual({ kind: "stopped", label: ru.app.deal.card.steps.disputeRefund });
-    expect(dealStepsView("REFUNDED", false, "FULL_REFUND")).toEqual({ kind: "stopped", label: s.stopped.refunded });
-    expect(dealStepsView("IN_PROGRESS", false, "CONTINUE").kind).toBe("steps");
+    expect(dealStepsView("SPLIT_PAYOUT", false, "PARTIAL_SPLIT", "CLIENT")).toEqual({ kind: "stopped", label: ru.app.deal.card.steps.disputeSplit });
+    expect(dealStepsView("READY", false, "FULL_REFUND", "CLIENT")).toEqual({ kind: "stopped", label: ru.app.deal.card.steps.disputeRefund });
+    expect(dealStepsView("REFUNDED", false, "FULL_REFUND", "CLIENT")).toEqual({ kind: "stopped", label: s.stopped.refunded });
+    expect(dealStepsView("IN_PROGRESS", false, "CONTINUE", "CLIENT").kind).toBe("steps");
   });
 });
 
 describe("progressCaption", () => {
   it("«Шаг N из 5: …» с подписями шкалы, «Все шаги пройдены», остановленный — без строки", () => {
-    expect(progressCaption({ kind: "steps", done: 1, total: 5 })).toBe(s.caption(2, 5, "Изготовление"));
-    expect(progressCaption({ kind: "steps", done: 0, total: 5 })).toBe(s.caption(1, 5, "Оферта и оплата"));
-    expect(progressCaption({ kind: "steps", done: 5, total: 5 })).toBe(s.allDone);
-    expect(progressCaption({ kind: "stopped", reason: "dispute" })).toBeNull();
+    expect(progressCaption({ kind: "steps", done: 1, total: 5 }, "CLIENT")).toBe(s.caption(2, 5, "Изготовление"));
+    expect(progressCaption({ kind: "steps", done: 0, total: 5 }, "CLIENT")).toBe(s.caption(1, 5, "Оферта и оплата"));
+    expect(progressCaption({ kind: "steps", done: 5, total: 5 }, "CLIENT")).toBe(s.allDone);
+    expect(progressCaption({ kind: "stopped", reason: "dispute" }, "CLIENT")).toBeNull();
   });
 });
 
@@ -103,6 +114,7 @@ describe("dealChip: плашка называет текущий шаг — од
 
   it.each(ROWS)("%s", (_name, status, action, mine, money, o, text, tone) => {
     const chip = dealChip({
+      side: "CLIENT",
       status,
       hasOpenDispute: o.dispute ?? false,
       next: action ? { action, mine } : null,
@@ -134,5 +146,134 @@ describe("dealChip: плашка называет текущий шаг — од
     expect(payWaitsMaster({ action: "pay", mine: true }, { other: true })).toBe(false);
     expect(payWaitsMaster({ action: "pay", mine: true }, null)).toBe(false);
     expect(payWaitsMaster({ action: "signContract", mine: true }, { other: false })).toBe(false);
+  });
+});
+
+describe("сторона мастера: плашка, ход, строка денег", () => {
+  const ms = ru.app.master.deal.status;
+  const awaiting = (payment: "none" | "PENDING" | "FAILED"): MoneyBlock => ({ kind: "awaiting", payment, bankBalanceTiyn: 0n, isTest: false });
+  const protectedBlock: MoneyBlock = { kind: "protected", amountTiyn: 102_000_00n, reservedAt: new Date(), operationRef: null, bankBalanceTiyn: 102_000_00n, isTest: false };
+  const frozen: MoneyBlock = { kind: "frozen", amountTiyn: 102_000_00n, frozenAt: new Date(), bankBalanceTiyn: 102_000_00n, isTest: false };
+  const completed = (refundedTiyn: bigint, settled = false): MoneyBlock => ({
+    kind: "completed",
+    paidToMasterTiyn: 96_000_00n,
+    protectionTiyn: 2_000_00n,
+    refundedTiyn,
+    settled,
+    completedAt: null,
+    paidTiyn: 102_000_00n,
+    bankBalanceTiyn: 0n,
+    isTest: false,
+  });
+  const refundedBlock = (settled: boolean): MoneyBlock => ({ kind: "refunded", amountTiyn: 102_000_00n, settled, refundedAt: null, bankBalanceTiyn: 0n, isTest: false });
+
+  type Row = [string, DealStatus, NextAction | null, boolean, MoneyBlock, { dispute?: boolean; consentMissing?: boolean; provider?: string }, string, DealChip["tone"]];
+  /** По строке на каждое действие, которое модуль отдаёт мастеру, и на каждое состояние журнала, меняющее плашку. */
+  const ROWS: Row[] = [
+    ["оферта ждёт моей подписи", "CREATED", "signContract", true, awaiting("none"), {}, ms.signOffer, "warn"],
+    ["я подписал, ждём покупателя", "CREATED", "waitContractSignature", false, awaiting("none"), {}, ms.waitOffer, "neutral"],
+    ["оферта заключена, ждём оплату", "CREATED", "waitPayment", false, awaiting("none"), {}, ms.waitPay, "neutral"],
+    ["прошлая оплата не прошла — всё равно ждём оплату", "CREATED", "waitPayment", false, awaiting("FAILED"), {}, ms.waitPay, "neutral"],
+    ["оферта заключена, моего согласия для банка нет — мой шаг", "CREATED", "waitPayment", false, awaiting("none"), { consentMissing: true }, ms.bankConsent, "warn"],
+    ["онлайн-оплата у банка", "CREATED", "waitPaymentConfirmation", false, awaiting("PENDING"), { provider: "FREEDOMPAY" }, ms.processing, "neutral"],
+    ["перевод по реквизитам — ждём оплату покупателя (не «ваш перевод»)", "CREATED", "waitPaymentConfirmation", false, awaiting("PENDING"), { provider: "MANUAL" }, ms.waitPay, "neutral"],
+    ["оплачено — начните работу", "PAID_HOLD", "startWork", true, protectedBlock, {}, ms.start, "warn"],
+    ["работа идёт — сдать, когда готово", "IN_PROGRESS", "submitReady", true, protectedBlock, {}, ms.inWork, "accent"],
+    ["работа сдана, подпишите акт", "READY", "signActEcp", true, protectedBlock, {}, ms.signAct, "warn"],
+    ["акт подписан мной, ждём приёмку", "READY", "waitAct", false, protectedBlock, {}, ms.waitAct, "neutral"],
+    ["банк переводит оплату", "ACCEPTED", "waitPayout", false, completed(0n), {}, ms.finishing, "neutral"],
+    ["завершена", "SPLIT_PAYOUT", "done", false, completed(0n, true), {}, ms.done, "accent"],
+    ["отмена после оплаты, деньги возвращаются покупателю", "PAID_HOLD", "waitRefund", false, protectedBlock, {}, ms.refunding, "neutral"],
+    ["спор открыт", "IN_PROGRESS", "waitDispute", false, frozen, { dispute: true }, ms.dispute, "warn"],
+    ["спор решён разделом", "SPLIT_PAYOUT", "done", false, completed(5n, true), {}, ms.disputeResolved, "neutral"],
+    ["отменена", "CANCELLED", "cancelled", false, awaiting("none"), {}, ms.cancelled, "neutral"],
+    ["деньги возвращены покупателю", "REFUNDED", "refunded", false, refundedBlock(true), {}, ms.refunded, "neutral"],
+    ["«что дальше» неизвестно: создана", "CREATED", null, false, awaiting("none"), {}, ms.offer, "neutral"],
+    ["«что дальше» неизвестно: оплачено", "PAID_HOLD", null, false, protectedBlock, {}, ms.protected, "accent"],
+    ["«что дальше» неизвестно: в работе", "IN_PROGRESS", null, false, protectedBlock, {}, ms.inWork, "accent"],
+    ["«что дальше» неизвестно: сдана", "READY", null, false, protectedBlock, {}, ms.handedOver, "neutral"],
+    ["«что дальше» неизвестно: принята", "ACCEPTED", null, false, completed(0n), {}, ms.finishing, "neutral"],
+    ["шаг покупателя (не мастера) — по статусу", "CREATED", "pay", true, awaiting("none"), {}, ms.offer, "neutral"],
+  ];
+
+  it.each(ROWS)("%s", (_name, status, action, mine, money, o, text, tone) => {
+    const chip = dealChip({
+      side: "EXECUTOR",
+      status,
+      hasOpenDispute: o.dispute ?? false,
+      next: action ? { action, mine } : null,
+      consentMissing: o.consentMissing ?? false,
+      money,
+      paymentProvider: o.provider ?? "MOCK",
+    });
+    expect(chip).toEqual({ text, tone });
+  });
+
+  it("один текст — один тон; у каждого текста словаря мастера есть строка таблицы", () => {
+    const tones = new Map<string, string>();
+    for (const [, , , , , , text, tone] of ROWS) {
+      expect(tones.get(text) ?? tone).toBe(tone);
+      tones.set(text, tone);
+    }
+    expect([...tones.keys()].sort()).toEqual(Object.values(ms).sort());
+  });
+
+  it("шаги покупателя и оператора мастеру не дают «вашего шага»: плашка по статусу", () => {
+    for (const action of ["pay", "waitStart", "waitReady", "signAct", "waitMasterActSignature", "leaveReview", "resolveDispute", "none"] as const) {
+      const chip = dealChip({ side: "EXECUTOR", status: "IN_PROGRESS", hasOpenDispute: false, next: { action, mine: true }, money: protectedBlock, paymentProvider: "MOCK" });
+      expect(chip).toEqual({ text: ms.inWork, tone: "accent" });
+    }
+  });
+
+  it("признак покупателя «ждём согласие мастера» мастеру ничего не меняет, а согласие мастера — покупателю", () => {
+    const base = { status: "CREATED" as const, hasOpenDispute: false, money: awaiting("none"), paymentProvider: "MOCK" };
+    expect(dealChip({ ...base, side: "EXECUTOR", next: { action: "waitPayment", mine: false }, payWaitsMaster: true }).text).toBe(ms.waitPay);
+    expect(dealChip({ ...base, side: "CLIENT", next: { action: "pay", mine: true }, consentMissing: true }).text).toBe(st.pay);
+  });
+
+  it("masterConsentMissing: только ожидание оплаты и только без своей отметки", () => {
+    expect(masterConsentMissing({ action: "waitPayment" }, { mine: false })).toBe(true);
+    expect(masterConsentMissing({ action: "waitPayment" }, { mine: true })).toBe(false);
+    expect(masterConsentMissing({ action: "waitPayment" }, null)).toBe(false);
+    expect(masterConsentMissing({ action: "signContract" }, { mine: false })).toBe(false);
+    expect(masterConsentMissing(null, { mine: false })).toBe(false);
+  });
+
+  it("ход: те же пять этапов, последний — «Оплата вам»; спор — «оплата вам приостановлена»", () => {
+    const view = dealStepsView("PAID_HOLD", false, null, "EXECUTOR");
+    expect(view.kind === "steps" ? view.items.map((i) => i.label) : null).toEqual([...ru.app.master.deal.steps]);
+    expect(ru.app.master.deal.steps.at(-1)).toBe("Оплата вам");
+    expect(view.kind === "steps" ? view.caption : null).toBe(s.caption(2, 5, "Изготовление"));
+    expect(progressCaption({ kind: "steps", done: 4, total: 5 }, "EXECUTOR")).toBe(s.caption(5, 5, "Оплата вам"));
+    expect(dealStepsView("READY", true, null, "EXECUTOR")).toEqual({ kind: "stopped", label: ru.app.master.deal.stopped.dispute });
+    expect(stoppedLabel("dispute", "EXECUTOR")).toBe("Открыт спор — оплата вам приостановлена");
+    expect(stoppedLabel("cancelled", "EXECUTOR")).toBe(ru.app.master.deal.stopped.cancelled);
+    expect(dealStepsView("READY", false, "FULL_REFUND", "EXECUTOR")).toEqual({ kind: "stopped", label: ru.app.master.deal.stepsStopped.disputeRefund });
+    expect(dealStepsView("SPLIT_PAYOUT", false, "PARTIAL_SPLIT", "EXECUTOR")).toEqual({ kind: "stopped", label: ru.app.master.deal.stepsStopped.disputeSplit });
+  });
+
+  describe("строка денег мастера: без сумм покупателя", () => {
+    const l = ru.app.master.deal.line;
+    /** Смета мастера из модуля (`partyEstimate("EXECUTOR")`): 100 000 ₸ − гарантия 4% = 96 000 ₸. */
+    const estimate = { totalTiyn: 96_000_00n };
+    it.each<[string, MoneyBlock, DealMoneyLine]>([
+      ["до оплаты — вы получите (смета мастера)", awaiting("none"), { amountTiyn: 96_000_00n, label: l.awaiting }],
+      ["деньги в банке — вы получите, а не сумма покупателя в банке", protectedBlock, { amountTiyn: 96_000_00n, label: l.protected }],
+      ["спор — без суммы", frozen, { amountTiyn: null, label: l.frozen }],
+      ["банк переводит — его часть из журнала", completed(0n), { amountTiyn: 96_000_00n, label: l.payoutPending }],
+      ["получено", completed(0n, true), { amountTiyn: 96_000_00n, label: l.payoutDone }],
+      ["возврат покупателю — без суммы", refundedBlock(false), { amountTiyn: null, label: l.refundPending }],
+      ["возвращено покупателю — без суммы", refundedBlock(true), { amountTiyn: null, label: l.refundDone }],
+    ])("%s", (_name, money, line) => {
+      expect(dealMoneyLine(money, estimate, "EXECUTOR")).toEqual(line);
+      // Сумма покупателя (цена с защитой 2%) мастеру не показывается ни в одном состоянии.
+      expect(dealMoneyLine(money, estimate, "EXECUTOR").amountTiyn).not.toBe(102_000_00n);
+    });
+
+    it("покупателю строка прежняя: к оплате и в банке — его суммы", () => {
+      expect(dealMoneyLine(awaiting("none"), { totalTiyn: 102_000_00n }, "CLIENT")).toEqual({ amountTiyn: 102_000_00n, label: ru.app.deal.line.toPay });
+      expect(dealMoneyLine(protectedBlock, { totalTiyn: 102_000_00n }, "CLIENT")).toEqual({ amountTiyn: 102_000_00n, label: ru.app.deal.line.inBank });
+      expect(dealMoneyLine(completed(0n), { totalTiyn: 102_000_00n }, "CLIENT")).toEqual({ amountTiyn: null, label: ru.app.deal.line.payoutPending });
+    });
   });
 });

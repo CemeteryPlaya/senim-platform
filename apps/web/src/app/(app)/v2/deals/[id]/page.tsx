@@ -50,6 +50,7 @@ export default async function DealPage({ params, searchParams }: Props) {
   const money = moneyView({ block: deal.moneyBlock, estimate: deal.estimate, snapshot: deal.money, manual });
   const now = nowView({
     id: deal.id,
+    side: "CLIENT",
     next: deal.next,
     contractId: deal.contract?.id ?? null,
     actId: deal.act?.id ?? null,
@@ -67,6 +68,7 @@ export default async function DealPage({ params, searchParams }: Props) {
     title: deal.title,
     lead: t.lead(deal.number, deal.executorLabel),
     chip: dealChip({
+      side: "CLIENT",
       status: deal.status,
       hasOpenDispute: openDispute,
       next: deal.next,
@@ -75,7 +77,7 @@ export default async function DealPage({ params, searchParams }: Props) {
       paymentProvider: deal.paymentProvider,
     }),
     now,
-    steps: dealStepsView(deal.status, openDispute, outcome),
+    steps: dealStepsView(deal.status, openDispute, outcome, "CLIENT"),
     money: { ...money, historyHref: hrefs.money },
     order: orderRows({
       title: deal.title,
@@ -89,9 +91,9 @@ export default async function DealPage({ params, searchParams }: Props) {
     documents: documentRows(documents, outcome),
     master: { label: deal.executorLabel, contacts, chatHref: to(`/chats/${encodeURIComponent(deal.offerId)}`) },
     review: reviewRows(deal.review),
-    history: { ...historyView(deal.history, { all: sp.history === "all", limit: HISTORY_SHOWN[device] }), allHref: hrefs.history },
+    history: { ...historyView(deal.history, { all: sp.history === "all", limit: HISTORY_SHOWN[device] }, "CLIENT"), allHref: hrefs.history },
     actions: {
-      cancelText: cancelText({ canCancel: deal.can.cancel, status: deal.status, block: deal.moneyBlock, manual }),
+      cancelText: cancelText({ side: "CLIENT", canCancel: deal.can.cancel, status: deal.status, block: deal.moneyBlock, manual }),
       disputeHref: deal.can.openDispute ? hrefs.dispute : null,
     },
   };

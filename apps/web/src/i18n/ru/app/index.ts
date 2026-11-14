@@ -5,6 +5,7 @@ import { deal } from "./deal";
 import { guest } from "./guest";
 import { kit } from "./kit";
 import { login } from "./login";
+import { master } from "./master";
 import { offer } from "./offer";
 import { onboarding } from "./onboarding";
 import { profile } from "./profile";
@@ -19,6 +20,7 @@ export const app = {
   guest,
   kit,
   login,
+  master,
   offer,
   onboarding,
   profile,

@@ -18,6 +18,7 @@ const held: MoneyBlock = { kind: "protected", amountTiyn: 102_000_00n, reservedA
 
 const nowBase: NowInput = {
   id: "d1",
+  side: "CLIENT",
   next: { action: "pay", mine: true },
   contractId: "c1",
   actId: null,
@@ -39,14 +40,14 @@ function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: P
     lead: t.lead(7, "Исполнитель №4"),
     chip: { text: ru.app.deal.status.pay, tone: "warn" },
     now: nowView({ ...nowBase, ...now }),
-    steps: dealStepsView("CREATED", false),
+    steps: dealStepsView("CREATED", false, null, "CLIENT"),
     money: { ...money, historyHref: "/v2/deals/d1/money" },
     order: [{ label: t.order.what, value: "Кухня" }],
     documents: [{ id: "c1", name: "Оферта № Д-1", status: "Подписан", href: "/api/documents/c1/pdf", open: ru.app.deal.openDocument.CONTRACT }],
     master: { label: "Исполнитель №4", contacts: null, chatHref: "/v2/chats/o1" },
     history: { items: [{ title: "Оферта сформирована", time: "1 ноября 2026, 10:00" }], more: true, allHref: "/v2/deals/d1?history=all#history" },
     review: null,
-    actions: { cancelText: cancelText({ canCancel: true, status: "CREATED", block, manual: false }), disputeHref: null },
+    actions: { cancelText: cancelText({ side: "CLIENT", canCancel: true, status: "CREATED", block, manual: false }), disputeHref: null },
     ...over,
   };
 }

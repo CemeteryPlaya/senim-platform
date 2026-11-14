@@ -6,20 +6,29 @@ import type { BankConsentState, NextStep } from "@/modules/deal-core";
 import type { MoneyBlock } from "@/modules/payments";
 import type { DisputeOutcome } from "../../../_parts/deal-summary";
 import { to } from "../../../../_shell/paths";
+import type { DealSide } from "../../../../_shell/side";
 
-// Вид карточки сделки покупателя (чистые функции, без React и базы): «Сейчас / Дальше» с одним главным действием по
-// таблице состояний, блок денег из журнала, «Заказ», «Документы», «История», текст последствий отмены. Страница читает
-// модули (getDealView, readDealDocuments, dealContacts, bankConsentState) и отдаёт сюда готовые данные.
+// Вид карточки сделки (чистые функции, без React и базы): «Сейчас / Дальше» с одним главным действием по таблице состояний
+// стороны, блок денег из журнала, «Заказ», «Документы», «История», текст последствий отмены. Сторона (`side`: покупатель или
+// мастер) выбирает таблицу и слова; тексты покупателя — `ru.app.deal.card`, мастера — `ru.app.master.deal`. Страница
+// читает модули (getDealView, readDealDocuments, dealContacts, bankConsentState) и отдаёт сюда готовые данные.
 
 const t = ru.app.deal.card;
+const tm = ru.app.master.deal;
 
 const dealPath = (id: string) => `/deals/${encodeURIComponent(id)}`;
 
-/** Адреса экранов сделки: подпись, оплата, спор, отзыв, история денег делают следующие задачи (до тех пор — заглушка). */
+/**
+ * Адреса экранов сделки: подпись, спор, история денег — обе стороны; оплата и отзыв — покупатель; начало работы, отчёт о
+ * ходе работ и сдача — мастер (экраны мастера делает задача L2, до неё — заглушка «раздел переносится»).
+ */
 export const dealHrefs = (id: string) => ({
   card: to(dealPath(id)),
   sign: (documentId: string) => to(`${dealPath(id)}/sign/${encodeURIComponent(documentId)}`),
   pay: to(`${dealPath(id)}/pay`),
+  start: to(`${dealPath(id)}/start`),
+  progress: to(`${dealPath(id)}/progress`),
+  ready: to(`${dealPath(id)}/ready`),
   dispute: to(`${dealPath(id)}/dispute`),
   review: to(`${dealPath(id)}/review`),
   money: to(`${dealPath(id)}/money`),
@@ -28,10 +37,15 @@ export const dealHrefs = (id: string) => ({
 
 // ─── «Сейчас / Дальше» ───────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Строка таблицы «что сейчас». */
+/** Строка таблицы «что сейчас» (общие строки и строки стороны: мастер — `bank-consent`, `wait-pay`, `start`, `ready`, `sign-act`). */
 export type NowKind =
   | "sign-offer"
   | "wait-offer"
+  | "bank-consent"
+  | "wait-pay"
+  | "start"
+  | "ready"
+  | "sign-act"
   | "pay"
   | "pay-wait-master"
   | "pay-pending"
@@ -54,14 +68,16 @@ export type NowKind =
 
 export type NowInput = {
   id: string;
+  /** Чьими глазами: покупатель (`CLIENT`) или мастер (`EXECUTOR`) — сторона из `partyDeal`. */
+  side: DealSide;
   /** «Что дальше» модуля (`deal.next`): действие и чьё оно. */
   next: NextStep;
-  /** Действующие оферта и акт приёмки (их подписывает покупатель). */
+  /** Действующие оферта и акт приёмки (их подписывают обе стороны). */
   contractId: string | null;
   actId: string | null;
   /** PDF оферты (реквизиты для перевода при ручном провайдере). */
   contractPdf: string | null;
-  /** К оплате — главная сумма блока денег до оплаты. */
+  /** Покупатель: к оплате — главная сумма блока денег до оплаты. Мастеру не показывается. */
   payTiyn: bigint;
   /** Оплата переводом по реквизитам (провайдер `MANUAL`): перевод делает сам покупатель, оператор подтверждает. */
   manual: boolean;
@@ -82,9 +98,12 @@ export type NowView = {
   title: string;
   body?: string;
   next?: string;
-  /** Единственное главное действие экрана; `null` — от покупателя сейчас ничего не нужно. */
+  /** Единственное главное действие экрана; `null` — от смотрящего сейчас ничего не нужно. */
   primary: { label: string; href: string } | null;
-  /** Второстепенная ссылка под «Сейчас»: позиция по спору, согласие заранее (экран оплаты) или PDF оферты (`external` — файл в новой вкладке). */
+  /**
+   * Второстепенная ссылка под «Сейчас»: позиция по спору, согласие заранее (экран оплаты), PDF оферты (`external` — файл в
+   * новой вкладке) или отчёт о ходе работ (мастер).
+   */
   link: { label: string; href: string; external?: boolean } | null;
 };
 
@@ -113,6 +132,8 @@ function resolvedDispute(i: NowInput, review: NowView["primary"]): NowView | nul
 }
 
 /**
+ * «Сейчас / Дальше» по стороне: таблица покупателя или мастера (`buyerNow`, `masterNow`).
+ *
  * Таблица «что сейчас» покупателя по `deal.next` модуля (`deal-core/next-step.ts`). Главное действие ведёт на отдельный
  * экран шага (подпись, оплата, отзыв), а не раскрывает форму здесь. Действия, которых у покупателя не бывает (шаги мастера и
  * оператора), и действие без нужного документа — «Сделка идёт» без кнопки.
@@ -122,6 +143,10 @@ function resolvedDispute(i: NowInput, review: NowView["primary"]): NowView | nul
  * провайдер): после «Оплатить» перевод делает сам покупатель — экран говорит, сколько и куда, а не «платить не нужно».
  */
 export function nowView(i: NowInput): NowView {
+  return i.side === "CLIENT" ? buyerNow(i) : masterNow(i);
+}
+
+function buyerNow(i: NowInput): NowView {
   const n = t.now;
   const h = dealHrefs(i.id);
   const { action, mine } = i.next;
@@ -179,6 +204,87 @@ export function nowView(i: NowInput): NowView {
     case "submitReady":
     case "signActEcp":
     case "waitAct":
+    case "resolveDispute":
+    case "none":
+      return row("unknown", n.unknown);
+  }
+}
+
+/** Строка решённого спора мастера, если исход меняет картину: раздел и полный возврат покупателю. */
+function masterResolvedDispute(i: NowInput): NowView | null {
+  const n = tm.now;
+  const { action } = i.next;
+  const leaving = action === "waitRefund" || action === "waitPayout";
+  if (i.disputeOutcome === "PARTIAL_SPLIT" && (leaving || action === "done")) {
+    return row("dispute-split", { title: n.disputeSplit.title, body: leaving ? n.disputeSplit.pending : n.disputeSplit.done });
+  }
+  if (i.disputeOutcome === "FULL_REFUND" && (action === "waitRefund" || action === "refunded")) {
+    const done = action === "refunded";
+    return row("dispute-refund", { title: done ? n.disputeRefund.done : n.disputeRefund.pending, body: done ? n.disputeRefund.bodyDone : n.disputeRefund.body });
+  }
+  return null;
+}
+
+/**
+ * Таблица «что сейчас» мастера по `deal.next` модуля (`deal-core/next-step.ts`). Главное действие ведёт на экран шага:
+ * подпись оферты (там же согласие на передачу данных банку — без него подпись закрыта), начало работы, сдача работы,
+ * подпись акта ЭЦП. Сумм покупателя (к оплате, защита 2%) здесь нет. Шаги покупателя и оператора и действие без нужного
+ * документа — «Сделка идёт» без кнопки.
+ *
+ * Оферта заключена, а своего согласия для банка нет (`bank.mine === false` при ожидании оплаты) — оплату покупателя
+ * закрывает мастер: строка «Дайте согласие для банка» ведёт на экран оферты, где ставится согласие.
+ */
+function masterNow(i: NowInput): NowView {
+  const n = tm.now;
+  const h = dealHrefs(i.id);
+  const { action, mine } = i.next;
+  const resolved = masterResolvedDispute(i);
+  if (resolved) return resolved;
+  switch (action) {
+    case "signContract": {
+      if (!mine || !i.contractId) return row("unknown", n.unknown);
+      const body = i.bank?.mine ? n.signOffer.bodyConsentGiven : n.signOffer.body;
+      return row("sign-offer", { ...n.signOffer, body }, { label: n.signOffer.action, href: h.sign(i.contractId) });
+    }
+    case "waitContractSignature":
+      return row("wait-offer", n.waitOffer);
+    case "waitPayment":
+      if (i.bank !== null && !i.bank.mine) {
+        return i.contractId ? row("bank-consent", n.bankConsent, { label: n.bankConsent.action, href: h.sign(i.contractId) }) : row("bank-consent", n.bankConsent);
+      }
+      return row("wait-pay", n.waitPay);
+    case "waitPaymentConfirmation":
+      return row("pay-pending", n.payPending);
+    case "startWork":
+      return mine ? row("start", n.start, { label: n.start.action, href: h.start }) : row("unknown", n.unknown);
+    case "submitReady": {
+      if (!mine) return row("unknown", n.unknown);
+      const body = i.plannedReadyAt ? n.ready.readyBy(formatDate(i.plannedReadyAt)) : n.ready.body;
+      return row("ready", { ...n.ready, body }, { label: n.ready.action, href: h.ready }, { label: n.ready.progress, href: h.progress });
+    }
+    case "signActEcp":
+      return mine && i.actId ? row("sign-act", n.signAct, { label: n.signAct.action, href: h.sign(i.actId) }) : row("unknown", n.unknown);
+    case "waitAct":
+      return row("wait-act", n.waitAct);
+    case "waitPayout":
+      return row("wait-payout", n.waitPayout);
+    case "waitRefund":
+      return i.refundAll ? row("wait-refund", n.waitRefund) : row("wait-settlement", n.waitSettlement);
+    case "waitDispute":
+      return row("dispute", n.dispute, null, i.needsPosition ? { label: n.dispute.position, href: h.dispute } : null);
+    case "done":
+      return row("done", n.done);
+    case "cancelled":
+      return row("cancelled", n.cancelled);
+    case "refunded":
+      return row("refunded", n.refunded);
+    // Шаги покупателя и оператора: мастеру их не показывает модуль; на всякий случай — без кнопки.
+    case "pay":
+    case "waitStart":
+    case "waitReady":
+    case "signAct":
+    case "waitMasterActSignature":
+    case "leaveReview":
     case "resolveDispute":
     case "none":
       return row("unknown", n.unknown);
@@ -252,10 +358,12 @@ export function moneyView({ block, estimate, snapshot, manual = false }: MoneyIn
  * Текст последствий отмены — ровно то, что делает `cancelDeal` модуля: до оплаты (CREATED) сделка отменяется, денег нет;
  * после оплаты (PAID_HOLD, деньги в банке) — возврат всей зарезервированной суммы (`heldEntry`, она же сумма блока
  * «под защитой»), то есть цена и защита сделки: онлайн-оплата — на карту, перевод по реквизитам — «вам».
+ * Мастер отменяет только до оплаты (`can.cancel` модуля): после оплаты отменяет покупатель, текста мастеру нет.
  * Отмена недоступна (`can.cancel`) или состояние другое — `null`.
  */
-export function cancelText(i: { canCancel: boolean; status: DealStatus; block: MoneyBlock; manual: boolean }): string | null {
+export function cancelText(i: { side: DealSide; canCancel: boolean; status: DealStatus; block: MoneyBlock; manual: boolean }): string | null {
   if (!i.canCancel) return null;
+  if (i.side === "EXECUTOR") return i.status === "CREATED" ? tm.actions.cancelBeforePay : null;
   if (i.status === "CREATED") return t.actions.cancelBeforePay;
   if (i.status === "PAID_HOLD" && i.block.kind === "protected") {
     const amount = formatMoney(i.block.amountTiyn);
@@ -363,24 +471,58 @@ export const HISTORY_SHOWN = { mobile: 3, desktop: 5 } as const;
 export type HistoryEvent = { id: string; action: string; actorRole: string; createdAt: Date };
 
 type Phase = "contract" | "act";
-/** Текст по стороне события: покупатель — «Вы …», мастер — «Мастер …»; оператор и система — `null`. */
-function whose<T>(actor: string, texts: { readonly you: T; readonly master: T }): T | null {
-  return actor === "CLIENT" ? texts.you : actor === "EXECUTOR" ? texts.master : null;
+
+/** Тексты истории стороны в одном виде: «вы» — смотрящий, «другая сторона» — покупатель для мастера и мастер для покупателя. */
+type HistoryTexts = {
+  created: string;
+  signed: { you: Readonly<Record<Phase, string>>; other: Readonly<Record<Phase, string>> };
+  concluded: string;
+  paid: string;
+  started: string;
+  progress: string;
+  ready: string;
+  accepted: string;
+  completed: string;
+  disputeOpened: { you: string; other: string; unknown: string };
+  position: { you: string; other: string };
+  disputeResolved: string;
+  cancelled: { you: string; other: string; unknown: string };
+  cancelRequested: string;
+  refunded: string;
+  review: string;
+};
+
+function historyTexts(side: DealSide): HistoryTexts {
+  if (side === "EXECUTOR") return tm.history;
+  const h = t.history;
+  return {
+    ...h,
+    signed: { you: h.signed.you, other: h.signed.master },
+    disputeOpened: { you: h.disputeOpened.you, other: h.disputeOpened.master, unknown: h.disputeOpened.other },
+    position: { you: h.position.you, other: h.position.master },
+    cancelled: { you: h.cancelled.you, other: h.cancelled.master, unknown: h.cancelled.other },
+  };
+}
+
+/** Текст по стороне события: смотрящий — «Вы …», другая сторона — «Мастер …» / «Покупатель …»; оператор и система — `null`. */
+function whose<T>(actor: string, side: DealSide, texts: { readonly you: T; readonly other: T }): T | null {
+  if (actor === side) return texts.you;
+  return actor === "CLIENT" || actor === "EXECUTOR" ? texts.other : null;
 }
 
 /**
- * Белый список событий для покупателя: человеческий текст по действию и стороне («Вы …» / «Мастер …»). Подписи документа
- * (от руки и ЭЦП) — одна строка на сторону и документ; документ определяется по ходу сделки (до «Мастер сдал работу» —
- * оферта, после — акт). Служебные события (выпуск документов, операции банка, переписка) и неизвестные — `null`.
+ * Белый список событий для стороны: человеческий текст по действию и стороне («Вы …» / «Мастер …» у покупателя, «Вы …» /
+ * «Покупатель …» у мастера). Подписи документа (от руки и ЭЦП) — одна строка на сторону и документ; документ определяется
+ * по ходу сделки (до «Мастер сдал работу» — оферта, после — акт). Служебные события (выпуск документов, операции банка,
+ * переписка) и неизвестные — `null`.
  */
-function eventTitle(e: HistoryEvent, phase: Phase): string | null {
-  const h = t.history;
+function eventTitle(e: HistoryEvent, phase: Phase, side: DealSide, h: HistoryTexts): string | null {
   switch (e.action) {
     case "deal.created":
       return h.created;
     case "document.signature.added":
     case "document.hand_signature.added":
-      return whose<Readonly<Record<Phase, string>>>(e.actorRole, h.signed)?.[phase] ?? null;
+      return whose(e.actorRole, side, h.signed)?.[phase] ?? null;
     case "deal.signed":
       return h.concluded;
     case "deal.paid":
@@ -396,13 +538,13 @@ function eventTitle(e: HistoryEvent, phase: Phase): string | null {
     case "deal.completed":
       return h.completed;
     case "dispute.opened":
-      return whose<string>(e.actorRole, h.disputeOpened) ?? h.disputeOpened.other;
+      return whose(e.actorRole, side, h.disputeOpened) ?? h.disputeOpened.unknown;
     case "dispute.position.submitted":
-      return whose<string>(e.actorRole, h.position);
+      return whose(e.actorRole, side, h.position);
     case "dispute.resolved":
       return h.disputeResolved;
     case "deal.cancelled":
-      return whose<string>(e.actorRole, h.cancelled) ?? h.cancelled.other;
+      return whose(e.actorRole, side, h.cancelled) ?? h.cancelled.unknown;
     case "deal.cancel.requested":
       return h.cancelRequested;
     case "deal.refunded":
@@ -415,15 +557,20 @@ function eventTitle(e: HistoryEvent, phase: Phase): string | null {
 }
 
 /**
- * События сделки для `Timeline`: события модуля идут по порядку журнала (`seq`); здесь — белый список, по одной строке
- * подписи на сторону и документ, свежие сверху; свёрнутая — последние `limit`.
+ * События сделки для `Timeline` глазами стороны (`side`): события модуля идут по порядку журнала (`seq`); здесь — белый
+ * список, по одной строке подписи на сторону и документ, свежие сверху; свёрнутая — последние `limit`.
  */
-export function historyView(history: readonly HistoryEvent[], opts: { all: boolean; limit: number }): { items: { title: string; time: string }[]; more: boolean } {
+export function historyView(
+  history: readonly HistoryEvent[],
+  opts: { all: boolean; limit: number },
+  side: DealSide,
+): { items: { title: string; time: string }[]; more: boolean } {
+  const texts = historyTexts(side);
   let phase: Phase = "contract";
   const signedOnce = new Set<string>();
   const shown: { title: string; time: string }[] = [];
   for (const e of history) {
-    const title = eventTitle(e, phase);
+    const title = eventTitle(e, phase, side, texts);
     if (e.action === "deal.ready") phase = "act";
     if (title === null) continue;
     if (e.action === "document.signature.added" || e.action === "document.hand_signature.added") {
