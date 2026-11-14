@@ -3,3 +3,5 @@ export { askSecondFactor, leaveIfSignedOut } from "./session-expiry";
 // Чистые проверки ИИН/БИН и ФИО — для проверки полей анкеты в браузере (те же правила, что у схем модуля).
 export { isValidBin, isValidIin } from "./kz-id";
 export { isValidFullName } from "./full-name";
+// Проверка IBAN в браузере — те же правила, что у схемы модуля (счёт для оплаты мастера).
+export { normalizeIban, parseKzIban, type IbanCheck } from "./iban";
