@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { formatDays, formatMonths } from "@/features/format/format";
 import { signStep } from "@/features/signing/state";
 import { ru } from "@/i18n/ru";
-import { farWarning, isSignKind, methodsFor, stepView, whatRows } from "./sign-view";
+import { farWarning, isSignKind, methodsFor, signTitle, stepView, whatRows } from "./sign-view";
 
 const t = ru.app.deal.sign;
+const tm = ru.app.masterSteps.sign;
 type Party = "CLIENT" | "EXECUTOR";
 const NOW = new Date("2026-11-14T10:00:00Z");
 
@@ -57,7 +58,18 @@ describe("шаг подписи покупателя (как в v1: сначал
 });
 
 describe("«Что вы подписываете»", () => {
-  const base = { number: "Д-0001/2026", executorLabel: "Исполнитель №3", buyerName: "Айгерим Сапарова", estimate: { priceTiyn: 100_000_00n, totalTiyn: 102_000_00n }, durationDays: 21, warrantyMonths: 12, readyAt: NOW };
+  const base = {
+    side: "CLIENT" as const,
+    number: "Д-0001/2026",
+    executorLabel: "Исполнитель №3",
+    buyerName: "Айгерим Сапарова",
+    estimate: { priceTiyn: 100_000_00n, extraTiyn: 2_000_00n, totalTiyn: 102_000_00n },
+    durationDays: 21,
+    warrantyMonths: 12,
+    readyAt: NOW,
+  };
+  /** Смета мастера модуля (`partyEstimate("EXECUTOR")`): цена − гарантия 4%. */
+  const master = { ...base, side: "EXECUTOR" as const, estimate: { priceTiyn: 100_000_00n, extraTiyn: 4_000_00n, totalTiyn: 96_000_00n } };
 
   it("оферта: документ, стороны (мастер — подпись модуля), цена, к оплате с защитой, срок, гарантия; суммы — из сметы модуля как есть", () => {
     expect(whatRows({ kind: "CONTRACT", ...base })).toEqual([
@@ -78,6 +90,33 @@ describe("«Что вы подписываете»", () => {
     expect(rows[2]).toEqual({ label: t.what.buyer, value: t.what.you });
   });
 
+  it("оферта мастеру: «Мастер — Вы», без строки покупателя; гарантия оплаты и клиента и «Вы получите» из сметы мастера; сумм покупателя нет", () => {
+    const rows = whatRows({ kind: "CONTRACT", ...master });
+    expect(rows).toEqual([
+      { label: t.what.document, value: t.documentName(t.kinds.CONTRACT, "Д-0001/2026") },
+      { label: t.what.master, value: tm.what.you },
+      { label: t.what.price, amount: 100_000_00n },
+      { label: tm.what.guarantee, amount: 4_000_00n },
+      { label: tm.what.youGet, amount: 96_000_00n, total: true },
+      { label: t.what.duration, value: formatDays(21) },
+      { label: tm.what.warranty, value: formatMonths(12) },
+    ]);
+    expect(rows.map((r) => r.label)).not.toContain(t.what.total);
+    expect(rows.map((r) => r.label)).not.toContain(t.what.buyer);
+    expect(tm.what.guarantee).toBe("Гарантия оплаты и клиента (4%)");
+  });
+
+  it("акт мастеру: цена, «Вы получите» и дата сдачи", () => {
+    const rows = whatRows({ kind: "ACCEPTANCE_ACT", ...master });
+    expect(rows.map((r) => r.label)).toEqual([t.what.document, t.what.master, t.what.price, tm.what.guarantee, tm.what.youGet, t.what.readyAt]);
+  });
+
+  it("заголовок по стороне: акт покупателю — «Примите мебель…», мастеру — «Подпишите акт приёмки»", () => {
+    expect(signTitle("ACCEPTANCE_ACT", "CLIENT")).toBe(t.title.ACCEPTANCE_ACT);
+    expect(signTitle("ACCEPTANCE_ACT", "EXECUTOR")).toBe(tm.title.ACCEPTANCE_ACT);
+    expect(signTitle("CONTRACT", "EXECUTOR")).toBe(tm.title.CONTRACT);
+  });
+
   it("виды документов экрана: оферта и акт; выписка и расписка — нет", () => {
     expect(["CONTRACT", "ACCEPTANCE_ACT", "MONEY_STATEMENT", "RELEASE_RECEIPT"].filter(isSignKind)).toEqual(["CONTRACT", "ACCEPTANCE_ACT"]);
   });
@@ -94,6 +133,10 @@ describe("предупреждение о расстоянии (GPS) для ак
     expect(farWarning("ACCEPTANCE_ACT", { distanceM: null, withinRadius: null, radiusM: 500 })).toBeNull();
     expect(farWarning("ACCEPTANCE_ACT", null)).toBeNull();
     expect(farWarning("CONTRACT", { distanceM: 1800, withinRadius: false, radiusM: 500 })).toBeNull();
+  });
+
+  it("мастеру — свой текст: «Вы отметили сдачу…»", () => {
+    expect(farWarning("ACCEPTANCE_ACT", { distanceM: 1800, withinRadius: false, radiusM: 500 }, "EXECUTOR")).toBe(tm.act.far("1800", "500"));
   });
 });
 

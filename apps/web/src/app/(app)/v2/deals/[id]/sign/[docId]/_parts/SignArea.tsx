@@ -5,30 +5,41 @@ import { useEffect, useId, useReducer, useRef, useState, type RefObject } from "
 import { formatTime } from "@/features/format/format";
 import { initialSigningState, signingReducer, type SignMethodChoice, type SigningState } from "@/features/signing/state";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Notice, RadioCard, RadioGroup, Section, SignaturePad, Stack, toast, type SignatureValue } from "@/kit";
+import type { ConsentDocument } from "@/i18n/ru/consent";
+import { ActionDock, Button, Checkbox, Notice, RadioCard, RadioGroup, Section, SignaturePad, Stack, toast, type SignatureValue } from "@/kit";
 import type { ActionResult } from "@/platform/action";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../../../../_shell/FormError";
 import { outcomeOf } from "../../../../../../_shell/form";
+import type { DealSide } from "../../../../../../_shell/side";
+import { BankConsentText } from "../../../_parts/BankConsentText";
 import { completeSigningAction, signByHandAction, startSigningAction } from "../actions";
 import { methodsFor, type SignKind, type StepView } from "./sign-view";
 
 const t = ru.app.deal.sign;
-
+const tc = ru.app.masterSteps.sign.consent;
 
 export type SignAreaProps = {
+  dealId: string;
   documentId: string;
+  /** Сторона документа: подпись холста называет её («Подпись покупателя» / «Подпись мастера»). */
+  side: DealSide;
   kind: SignKind;
   step: StepView;
   /** Карточка сделки: туда — после подписи, с тостом. */
   dealHref: string;
   device: Device;
-  /** ФИО покупателя из профиля: подставляется в поле «Ввести ФИО» (можно изменить). */
+  /** ФИО из профиля: подставляется в поле «Ввести ФИО» (можно изменить). */
   fullName: string;
+  /**
+   * Замок согласия для банка (мастер, оферта, своего согласия ещё нет): текст согласия и отметка над подписью; без отметки
+   * кнопка подписи отключена, причина — рядом. Отметка уходит вместе с подписью. `null` — замка нет.
+   */
+  consent: { document: ConsentDocument } | null;
 };
 
-/** Что сделать с ответом действия: успех — данные; уход (вход, согласие, карточка) — уже начат; отказ — текст. */
-type Handled<T> = { kind: "ok"; data: T } | { kind: "leaving" } | { kind: "error"; error: string };
+/** Что сделать с ответом действия: успех — данные; уход (вход, согласие, карточка) — уже начат; отказ — текст (и поле). */
+type Handled<T> = { kind: "ok"; data: T } | { kind: "leaving" } | { kind: "error"; error: string; field?: string };
 
 function useHandle(dealHref: string) {
   const router = useRouter();
@@ -46,6 +57,8 @@ function useHandle(dealHref: string) {
         router.push(dealHref);
         return { kind: "leaving" };
       }
+      const agreed = outcome.fieldErrors.agreed;
+      if (agreed) return { kind: "error", error: agreed, field: "agreed" };
       return { kind: "error", error: Object.values(outcome.fieldErrors)[0] ?? outcome.error };
     }
     return { kind: "ok", data: outcome.data };
@@ -62,8 +75,9 @@ function useFinish(kind: SignKind, dealHref: string) {
 }
 
 /**
- * Шаг подписи документа покупателем — как в v1 и по требованиям модуля: сначала подпись от руки (холст или ФИО), затем
- * ЭЦП. Одно главное действие шага — в `ActionDock` последним (на телефоне у нижнего края). После подписи от руки экран
+ * Шаг подписи документа стороной сделки — как в v1 и по требованиям модуля: сначала подпись от руки (холст или ФИО), затем
+ * ЭЦП. Замок согласия для банка (мастер, оферта) — отметка над подписью, без неё кнопка закрыта с объяснением; отказ
+ * сервера по отметке — у неё. Одно главное действие шага — в `ActionDock` последним (на телефоне у нижнего края). После подписи от руки экран
  * перечитывается и показывает шаг ЭЦП; после последней своей подписи — карточка сделки с тостом.
  * Шаг — ключ компонента: при смене шага состояние начинается заново.
  */
@@ -77,7 +91,41 @@ function StepTitle({ step }: { step: StepView }) {
   return <p className="text-body text-ink">{step.kind === "hand" ? t.steps.handFirst : t.steps.ecpSecond}</p>;
 }
 
-function HandStep({ documentId, kind, step, dealHref, fullName }: SignAreaProps) {
+/** Согласие для банка над подписью (замок мастера): текст с прокруткой и отметка; отказ сервера — у отметки. */
+function ConsentGate({ document: doc, agreed, onChange, error }: { document: ConsentDocument; agreed: boolean; onChange: (agreed: boolean) => void; error: string | null }) {
+  return (
+    <Section title={tc.section}>
+      <p className="text-body text-muted">{tc.lead}</p>
+      <BankConsentText document={doc} />
+      <Checkbox name="agreed" value="on" label={tc.agree} checked={agreed} onChange={(e) => onChange(e.currentTarget.checked)} {...(error ? { error } : {})} />
+    </Section>
+  );
+}
+
+/** Отметка согласия для банка, пока замок есть: что отметил человек и ошибка у отметки. */
+function useConsentGate(consent: SignAreaProps["consent"]) {
+  const [agreed, setAgreed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return {
+    locked: consent !== null && !agreed,
+    /** Поля отметки для действия: только при замке. */
+    fields: consent && agreed ? { agreed: "on" as const, version: consent.document.version } : {},
+    gate: consent && (
+      <ConsentGate
+        document={consent.document}
+        agreed={agreed}
+        error={error}
+        onChange={(next) => {
+          setAgreed(next);
+          setError(null);
+        }}
+      />
+    ),
+    setError,
+  };
+}
+
+function HandStep({ dealId, documentId, kind, side, step, dealHref, fullName, consent }: SignAreaProps) {
   const router = useRouter();
   const handle = useHandle(dealHref);
   const finish = useFinish(kind, dealHref);
@@ -86,17 +134,22 @@ function HandStep({ documentId, kind, step, dealHref, fullName }: SignAreaProps)
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
+  const lock = useConsentGate(consent);
+  const ready = value !== null && !lock.locked;
+  const reason = lock.locked ? (value === null ? tc.lockedHand : tc.locked) : t.hand.empty;
 
   async function submit() {
-    if (busy.current || value === null) return;
+    if (busy.current || !ready || value === null) return;
     busy.current = true;
     setPending(true);
     setError(null);
-    const input = typeof value === "string" ? { documentId, imageDataUrl: value } : { documentId, typedName: value.typedName };
+    const base = { dealId, documentId, ...lock.fields };
+    const input = typeof value === "string" ? { ...base, imageDataUrl: value } : { ...base, typedName: value.typedName };
     const out = handle(await signByHandAction(input));
     if (out.kind === "leaving") return;
     if (out.kind === "error") {
-      setError(out.error);
+      if (out.field === "agreed") lock.setError(out.error);
+      else setError(out.error);
       busy.current = false;
       setPending(false);
       return;
@@ -112,22 +165,23 @@ function HandStep({ documentId, kind, step, dealHref, fullName }: SignAreaProps)
 
   return (
     <>
+      {lock.gate}
       <Section title={t.hand.section}>
         <Stack gap="tight">
           <StepTitle step={step} />
-          <SignaturePad label={t.hand.padLabel} defaultTypedName={fullName} onChange={setValue} />
+          <SignaturePad label={side === "EXECUTOR" ? ru.app.masterSteps.sign.padLabel : t.hand.padLabel} defaultTypedName={fullName} onChange={setValue} />
           <p className="text-sub text-muted">{t.hand.consent}</p>
           {/* Почему кнопка отключена — рядом с ней, видимым текстом (на телефоне кнопка в доке у нижнего края). */}
-          {value === null && (
+          {!ready && (
             <p id={reasonId} className="text-body text-ink">
-              {t.hand.empty}
+              {reason}
             </p>
           )}
         </Stack>
         <FormError error={error} />
       </Section>
       <ActionDock>
-        <Button onClick={submit} pending={pending} disabled={value === null} aria-describedby={value === null ? reasonId : undefined}>
+        <Button onClick={submit} pending={pending} disabled={!ready} aria-describedby={ready ? undefined : reasonId}>
           {t.hand.submit[kind]}
         </Button>
       </ActionDock>
@@ -149,8 +203,10 @@ function useExpired(state: SigningState): boolean {
   return at !== null && expiredAt === at;
 }
 
-function EcpStep({ documentId, kind, step, dealHref, device }: SignAreaProps) {
+function EcpStep({ dealId, documentId, kind, step, dealHref, device, consent }: SignAreaProps) {
   const handle = useHandle(dealHref);
+  const lock = useConsentGate(consent);
+  const reasonId = useId();
   const methods = methodsFor(device);
   const finish = useFinish(kind, dealHref);
   const [state, dispatch] = useReducer(signingReducer, initialSigningState);
@@ -168,9 +224,14 @@ function EcpStep({ documentId, kind, step, dealHref, device }: SignAreaProps) {
     if (busy.current) return;
     busy.current = true;
     dispatch({ type: "start" });
-    const out = handle(await startSigningAction({ documentId, method }));
+    const out = handle(await startSigningAction({ dealId, documentId, method, ...lock.fields }));
     busy.current = false;
     if (out.kind === "leaving") return;
+    if (out.kind === "error" && out.field === "agreed") {
+      lock.setError(out.error);
+      dispatch({ type: "failed", error: "" });
+      return;
+    }
     dispatch(out.kind === "ok" ? { type: "started", session: out.data } : { type: "failed", error: out.error });
   }
 
@@ -178,7 +239,7 @@ function EcpStep({ documentId, kind, step, dealHref, device }: SignAreaProps) {
     if (busy.current || state.step !== "awaiting") return;
     busy.current = true;
     dispatch({ type: "complete" });
-    const out = handle(await completeSigningAction({ documentId, sessionId: state.session.sessionId }));
+    const out = handle(await completeSigningAction({ dealId, documentId, sessionId: state.session.sessionId }));
     if (out.kind === "leaving") return;
     if (out.kind === "error") {
       busy.current = false;
@@ -198,8 +259,11 @@ function EcpStep({ documentId, kind, step, dealHref, device }: SignAreaProps) {
   }
 
   const choosing = state.step === "choose" || state.step === "starting";
+  // Замок согласия закрывает только начало подписи; начатую сессию он уже пропустил.
+  const locked = choosing && lock.locked;
   return (
     <>
+      {lock.gate}
       <Section title={t.ecp.section}>
         <Stack gap="tight">
           <StepTitle step={step} />
@@ -224,12 +288,22 @@ function EcpStep({ documentId, kind, step, dealHref, device }: SignAreaProps) {
             <Awaiting state={state} expired={expired} hint={hint} />
           ) : null}
         </Stack>
+        {locked && (
+          <p id={reasonId} className="text-body text-ink">
+            {tc.locked}
+          </p>
+        )}
         {state.step === "choose" && state.error && <FormError error={state.error} />}
         {state.step === "awaiting" && state.error && !expired && <FormError error={state.error} />}
       </Section>
       <ActionDock>
         {choosing || state.step === "done" ? (
-          <Button onClick={() => state.step === "choose" && void start(state.method)} pending={state.step !== "choose"}>
+          <Button
+            onClick={() => state.step === "choose" && !locked && void start(state.method)}
+            pending={state.step !== "choose"}
+            disabled={locked}
+            aria-describedby={locked ? reasonId : undefined}
+          >
             {t.ecp.start[kind]}
           </Button>
         ) : expired ? (

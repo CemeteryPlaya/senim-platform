@@ -16,6 +16,7 @@ import { masterPortfolio } from "./master-portfolio";
 import { masterProfile } from "./master-profile";
 import { masterRegister } from "./master-register";
 import { masterRequests } from "./master-requests";
+import { masterSteps } from "./master-steps";
 import { offer } from "./offer";
 import { onboarding } from "./onboarding";
 import { profile } from "./profile";
@@ -41,6 +42,7 @@ export const app = {
   masterProfile,
   masterRegister,
   masterRequests,
+  masterSteps,
   offer,
   onboarding,
   profile,

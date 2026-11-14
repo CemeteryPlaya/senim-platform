@@ -209,13 +209,115 @@ describe("ворота экрана подписи", () => {
     expect(await outcome(() => render("no-such-deal", docId))).toMatch(/NEXT_HTTP_ERROR_FALLBACK;404/);
   });
 
-  it("мастер этой сделки и оператор — на карточку сделки v1 (экрана подписи в v1 нет)", async () => {
+  it("оператор — на карточку сделки v1 (его экран подписи — этап 5)", async () => {
     const { f, docId } = await contractFixture();
-    // Мастер, прошедший первые шаги: иначе ворота уведут его на шаг онбординга раньше развилки ролей.
-    await db.user.update({ where: { id: f.executor.id }, data: { emailVerifiedAt: new Date() } });
-    await signInAs(f.executor);
-    expect(await outcome(() => render(f.dealId, docId))).toEqual(redirectTo(`/deals/${f.dealId}`));
     await signInAs(await makeOperator());
     expect(await outcome(() => render(f.dealId, docId))).toEqual(redirectTo(`/deals/${f.dealId}`));
+  });
+});
+
+describe("экран подписи мастера", () => {
+  const tm = ru.app.masterSteps.sign;
+  const m = computeDealMoney(PRICE);
+
+  /** Мастер сделки, прошедший первые шаги (почта подтверждена): иначе ворота уведут его на шаг онбординга. */
+  async function asMaster(f: { executor: { id: string } }) {
+    await db.user.update({ where: { id: f.executor.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(f.executor);
+  }
+
+  async function masterContract(bankConsents: readonly ("CLIENT" | "EXECUTOR")[]) {
+    const f = await makeDeal({ bankConsents });
+    const doc = await latestDocument(f.dealId, "CONTRACT");
+    await asMaster(f);
+    return { f, docId: doc.id };
+  }
+
+  /** Суммы покупателя (защита сделки 2% и к оплате) — их в HTML мастера нет. */
+  function noBuyerSums(out: string) {
+    expect(plain(out)).not.toContain(money(m.buyerTotalTiyn));
+    expect(plain(out)).not.toContain(money(m.protectionTiyn));
+    expect(out).not.toContain(m.buyerTotalTiyn.toString());
+    expect(plain(out)).not.toContain(t.what.total);
+  }
+
+  it("оферта, согласия нет: текст согласия с прокруткой и отметка над подписью; «Подписать оферту» отключена с объяснением; суммы мастера", async () => {
+    const { f, docId } = await masterContract(["CLIENT"]);
+    const out = await render(f.dealId, docId);
+    expect(out.match(/<h1/g)).toHaveLength(1);
+    expect(out).toContain(`>${tm.title.CONTRACT}<`);
+    expect(out).toContain(`aria-label="${ru.app.deal.pay.consent.textLabel}"`);
+    expect(plain(out)).toContain(tm.consent.agree);
+    expect(out).toMatch(/type="checkbox"[^>]*name="agreed"|name="agreed"[^>]*type="checkbox"/);
+    expect(primaries(out)).toHaveLength(1);
+    expect(primaries(out)[0]).toMatch(/\sdisabled=""/);
+    expect(plain(out)).toContain(tm.consent.lockedHand);
+    expect(plain(out)).toContain(t.hand.section);
+    expect(plain(out)).toContain(tm.what.youGet);
+    expect(plain(out)).toContain(money(m.payoutTiyn));
+    expect(plain(out)).toContain(tm.what.guarantee);
+    noBuyerSums(out);
+    expect(shown(out)).not.toMatch(FORBIDDEN);
+  });
+
+  it("оферта, согласие уже дано: «Согласие для банка дано», отметки нет; кнопка ждёт только подпись", async () => {
+    const { f, docId } = await masterContract(["CLIENT", "EXECUTOR"]);
+    const out = await render(f.dealId, docId);
+    expect(plain(out)).toContain(tm.consent.given);
+    expect(out).not.toContain('name="agreed"');
+    expect(plain(out)).toContain(t.hand.empty);
+    expect(plain(out)).not.toContain(tm.consent.locked);
+    noBuyerSums(out);
+  });
+
+  it("оферта от руки подписана — шаг 2 ЭЦП; на компьютере — две колонки, одно главное действие", async () => {
+    const { f, docId } = await masterContract(["CLIENT", "EXECUTOR"]);
+    await signTyped(f.executor, docId);
+    h.device = "desktop";
+    const out = await render(f.dealId, docId);
+    expect(plain(out)).toContain(t.steps.ecpSecond);
+    expect(out).toContain("desktop:grid-cols-split");
+    expect(primaries(out)).toHaveLength(1);
+    expect(primaries(out)[0]).not.toMatch(/\sdisabled=""/);
+  });
+
+  it("Ruling 7: оферта подписана, своего согласия нет — экран согласия с единственным действием «Дать согласие»", async () => {
+    const f = await dealAt("SIGNED", { bankConsents: ["CLIENT"] });
+    const contract = await latestDocument(f.dealId, "CONTRACT");
+    await asMaster(f);
+    const out = await render(f.dealId, contract.id);
+    expect(out).toContain(`>${tm.consentTitle}<`);
+    expect(plain(out)).toContain(tm.consent.now.title);
+    expect(primaries(out)).toHaveLength(1);
+    expect(primaries(out)[0]).not.toMatch(/\sdisabled=""/);
+    expect(out).toContain(tm.consent.give);
+    expect(plain(out)).not.toContain(t.hand.section);
+    noBuyerSums(out);
+  });
+
+  it("оферта подписана и согласие дано — подписывать нечего: на карточку сделки", async () => {
+    const f = await dealAt("SIGNED");
+    const contract = await latestDocument(f.dealId, "CONTRACT");
+    await asMaster(f);
+    expect(await outcome(() => render(f.dealId, contract.id))).toEqual(redirectTo(`/v2/deals/${f.dealId}`));
+  });
+
+  it("акт: «Подпишите акт приёмки», что значит подпись для мастера, только ЭЦП; сдано далеко — свой текст о расстоянии", async () => {
+    const f = await dealAt("IN_PROGRESS");
+    await submitReady(f.executor, { dealId: f.dealId, photoIds: [await makePhoto(f.executor)], lat: 51.175, lng: 71.430411, accuracyM: 10 });
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await asMaster(f);
+    const out = await render(f.dealId, act.id);
+    const deal = await db.deal.findUniqueOrThrow({ where: { id: f.dealId } });
+    expect(out).toContain(`>${tm.title.ACCEPTANCE_ACT}<`);
+    expect(plain(out)).toContain(tm.act.meaning);
+    expect(plain(out)).not.toContain(t.act.notLiked);
+    expect(plain(out)).toContain(t.ecp.section);
+    expect(plain(out)).not.toContain(t.hand.section);
+    expect(deal.readyWithinRadius).toBe(false);
+    expect(plain(out)).toContain(tm.act.farTitle);
+    expect(plain(out)).toContain(`Вы отметили сдачу в ${deal.readyDistanceM} м от адреса заказа`);
+    expect(primaries(out)).toHaveLength(1);
+    noBuyerSums(out);
   });
 });
