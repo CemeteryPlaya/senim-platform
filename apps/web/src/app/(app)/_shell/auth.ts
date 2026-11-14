@@ -224,9 +224,11 @@ export async function requireBuyer(next: string): Promise<CurrentUser> {
  * Сделка для экрана покупателя. Модуль отвечает NOT_FOUND и на чужую сделку, и на несуществующую; если человек — сторона
  * этой сделки в другой своей роли (ADR-004), — на экран переключения роли v2 с возвратом на сделку
  * (`switchRoleTo(<роль>, /v2/deals/<id>)`; смысл `loadOrSwitchRole` из v1). Иначе — `notFound()`.
+ * `back` — куда вернуться после переключения (адрес экрана, с которого пришли: подпись, спор, история денег); только путь
+ * v2 этого сайта (`safeNext`), иначе и по умолчанию — карточка сделки.
  * Прочие ошибки модуля пробрасываются. Права проверяет модуль, не эта функция.
  */
-export async function dealOrSwitch(user: CurrentUser, dealId: string): Promise<DealView> {
+export async function dealOrSwitch(user: CurrentUser, dealId: string, back?: string): Promise<DealView> {
   try {
     return await getDealView(user, dealId);
   } catch (e) {
@@ -234,7 +236,7 @@ export async function dealOrSwitch(user: CurrentUser, dealId: string): Promise<D
   }
   const party = user.roles.length > 1 ? await dealPartyOf(user, dealId) : null;
   if (party && party !== user.role && user.roles.includes(party)) {
-    redirect(switchRoleTo(party, to(`/deals/${encodeURIComponent(dealId)}`)));
+    redirect(switchRoleTo(party, safeNext(back) ?? to(`/deals/${encodeURIComponent(dealId)}`)));
   }
   notFound();
 }
@@ -270,7 +272,8 @@ export async function requireMaster(next: string): Promise<{ user: CurrentUser; 
  * Сделка для экрана, общего для сторон, в активной роли человека. `user` — из `requireV2User(<адрес страницы>)` без ролей:
  * - оператор — в v1 (`operatorTo`, по умолчанию карточка сделки `/deals/<id>`): его экраны сделки — этап 5;
  * - сторона сделки в активной роли — вид сделки из модуля и сторона (`deal.viewer`);
- * - сторона в другой своей выданной роли (ADR-004) — переключение роли с возвратом на сделку v2 (`dealOrSwitch`);
+ * - сторона в другой своей выданной роли (ADR-004) — переключение роли с возвратом на `here` (адрес этого экрана v2:
+ *   подпись, спор, история денег; проверка — `safeNext`) или, без него и для чужого адреса, на карточку сделки v2;
  * - чужая и несуществующая — 404. Прочие ошибки модуля пробрасываются. Права проверяет модуль, не эта функция.
  *
  * `buyerDeal` (`v2/deals/[id]/_parts/gate.ts`) и `requireBuyer` остаются для экранов только покупателя: оплата, отзыв, заявки.
@@ -278,10 +281,10 @@ export async function requireMaster(next: string): Promise<{ user: CurrentUser; 
 export async function partyDeal(
   user: CurrentUser,
   dealId: string,
-  { operatorTo }: { operatorTo?: string } = {},
+  { operatorTo, here }: { operatorTo?: string; here?: string } = {},
 ): Promise<{ deal: DealView; side: DealSide }> {
-  if (user.role === "OPERATOR") redirect(operatorTo ?? `/deals/${encodeURIComponent(dealId)}`);
-  const deal = await dealOrSwitch(user, dealId);
+  if (user.role === "OPERATOR") redirect(safeLocalPath(operatorTo ?? `/deals/${encodeURIComponent(dealId)}`));
+  const deal = await dealOrSwitch(user, dealId, here);
   // Модуль отдаёт сделку стороне в её активной роли; оператор отсечён выше, поэтому `viewer` — сторона.
   if (deal.viewer === "OPERATOR") notFound();
   return { deal, side: deal.viewer };

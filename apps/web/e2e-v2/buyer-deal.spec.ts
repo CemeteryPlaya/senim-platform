@@ -155,7 +155,7 @@ test("спор решён разделом: «Спор решён: деньги 
   await expect(page.getByRole("heading", { level: 2, name: card.now.disputeSplit.title })).toBeVisible();
   await expect(page.locator("main")).toContainText(card.steps.disputeSplit);
   await expect(page.locator("main")).toContainText(card.money.completed.title);
-  await expect(page.locator("main")).not.toContainText(ru.app.buyer.home.deal.allDone);
+  await expect(page.locator("main")).not.toContainText(ru.app.deal.allStepsDone);
   await page.context().close();
 });
 

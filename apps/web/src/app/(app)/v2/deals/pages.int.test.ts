@@ -242,7 +242,7 @@ describe("карточка сделки покупателя: «что сейч�
     const out = await card(f.dealId);
     expect(h2s(out)).toContain(now.disputeSplit.title);
     expect(plain(out)).toContain(t.card.steps.disputeSplit);
-    expect(plain(out)).not.toContain(ru.app.buyer.home.deal.allDone);
+    expect(plain(out)).not.toContain(ru.app.deal.allStepsDone);
     expect(plain(out)).toContain(t.card.money.completed.title);
     expect(plain(out)).toContain(t.card.money.refundedRow);
     expect(plain(out)).toContain(money(102_000_00n));

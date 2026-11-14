@@ -184,6 +184,30 @@ describe("partyDeal: сделка для стороны в её активной
     expect(await outcome(partyDeal(person({ roles: ["CLIENT", "EXECUTOR"], executor: approved }), "d1"))).toBe(switchRoleTo("EXECUTOR", "/v2/deals/d1"));
   });
 
+  it("адрес возврата `here`: после переключения роли — на исходный экран (подпись, спор, история денег)", async () => {
+    const both = person({ roles: ["CLIENT", "EXECUTOR"], executor: approved });
+    h.party = "EXECUTOR";
+    for (const here of ["/v2/deals/d1/sign/c1", "/v2/deals/d1/dispute", "/v2/deals/d1/money?x=1"]) {
+      h.viewError = notFoundError();
+      expect(await outcome(partyDeal(both, "d1", { here }))).toBe(switchRoleTo("EXECUTOR", here));
+    }
+  });
+
+  it("чужой и не-v2 адрес возврата отбрасывается — возврат на карточку сделки", async () => {
+    const both = person({ roles: ["CLIENT", "EXECUTOR"], executor: approved });
+    h.party = "EXECUTOR";
+    for (const here of ["//evil.example/x", "https://evil.example/v2", "/deals/d1/money", "/v2/../admin", "/v2/login", ""]) {
+      h.viewError = notFoundError();
+      expect(await outcome(partyDeal(both, "d1", { here })), here).toBe(switchRoleTo("EXECUTOR", "/v2/deals/d1"));
+    }
+  });
+
+  it("с `here` своя сделка открывается как обычно, чужая — 404", async () => {
+    expect((await partyDeal(person(), "d1", { here: "/v2/deals/d1/money" })).side).toBe("CLIENT");
+    h.viewError = notFoundError();
+    expect(await outcome(partyDeal(person(), "d1", { here: "/v2/deals/d1/money" }))).toBe("NOT_FOUND");
+  });
+
   it("человек — покупатель этой сделки, а активен как мастер: переключение на покупателя", async () => {
     h.viewError = notFoundError();
     h.party = "CLIENT";
@@ -201,6 +225,7 @@ describe("partyDeal: сделка для стороны в её активной
     expect(await outcome(partyDeal(operator(), "d1"))).toBe("/deals/d1");
     expect(await outcome(partyDeal(operator(), "a/b"))).toBe("/deals/a%2Fb");
     expect(await outcome(partyDeal(operator(), "d1", { operatorTo: "/deals/d1/money" }))).toBe("/deals/d1/money");
+    expect(await outcome(partyDeal(operator(), "d1", { operatorTo: "//evil.example" }))).toBe("/");
     expect(h.viewCalls).toBe(0);
   });
 

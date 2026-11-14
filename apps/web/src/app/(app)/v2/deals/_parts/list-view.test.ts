@@ -52,7 +52,7 @@ describe("dealListView", () => {
       href: "/v2/deals/a",
       title: expect.any(String),
       chip: { text: ru.app.deal.status.pay, tone: "warn" },
-      progress: { kind: "steps", caption: ru.app.buyer.home.deal.caption(1, 5, ru.app.deal.steps[0]), done: 0, total: 5 },
+      progress: { kind: "steps", caption: ru.app.deal.stepCaption(1, 5, ru.app.deal.steps[0]), done: 0, total: 5 },
       money: { amountTiyn: 102_000_00n, label: ru.app.deal.line.toPay },
     });
   });

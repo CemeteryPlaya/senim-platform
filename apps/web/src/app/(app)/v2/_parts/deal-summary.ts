@@ -37,8 +37,9 @@ export function dealProgress(status: DealStatus, hasOpenDispute: boolean): DealP
 /** Строка хода компактной карточки: «Шаг 2 из 5: Изготовление» или «Все шаги пройдены»; остановленной — `null`. */
 export function progressCaption(progress: DealProgress, side: DealSide): string | null {
   if (progress.kind === "stopped") return null;
-  if (progress.done >= progress.total) return s.allDone;
-  return s.caption(progress.done + 1, progress.total, stepNames(side)[progress.done] ?? "");
+  const d = ru.app.deal;
+  if (progress.done >= progress.total) return d.allStepsDone;
+  return d.stepCaption(progress.done + 1, progress.total, stepNames(side)[progress.done] ?? "");
 }
 
 /** Подпись остановленного хода: спор (покупателю — «оплата мастеру остановлена», мастеру — «оплата вам»), отмена, возврат. */

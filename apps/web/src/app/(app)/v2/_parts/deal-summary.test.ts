@@ -38,7 +38,7 @@ describe("dealStepsView: полный ход сделки", () => {
     expect(view.kind === "steps" ? view.items.map((i) => i.label) : null).toEqual([...steps]);
     expect(steps[0]).toBe("Оферта и оплата");
     expect(steps.at(-1)).toBe("Оплата мастеру");
-    expect(view.kind === "steps" ? view.caption : null).toBe(s.caption(2, 5, steps[1]));
+    expect(view.kind === "steps" ? view.caption : null).toBe(ru.app.deal.stepCaption(2, 5, steps[1]));
     expect(steps.join(" ")).not.toMatch(/выплат/i);
   });
 
@@ -58,9 +58,9 @@ describe("dealStepsView: полный ход сделки", () => {
 
 describe("progressCaption", () => {
   it("«Шаг N из 5: …» с подписями шкалы, «Все шаги пройдены», остановленный — без строки", () => {
-    expect(progressCaption({ kind: "steps", done: 1, total: 5 }, "CLIENT")).toBe(s.caption(2, 5, "Изготовление"));
-    expect(progressCaption({ kind: "steps", done: 0, total: 5 }, "CLIENT")).toBe(s.caption(1, 5, "Оферта и оплата"));
-    expect(progressCaption({ kind: "steps", done: 5, total: 5 }, "CLIENT")).toBe(s.allDone);
+    expect(progressCaption({ kind: "steps", done: 1, total: 5 }, "CLIENT")).toBe(ru.app.deal.stepCaption(2, 5, "Изготовление"));
+    expect(progressCaption({ kind: "steps", done: 0, total: 5 }, "CLIENT")).toBe(ru.app.deal.stepCaption(1, 5, "Оферта и оплата"));
+    expect(progressCaption({ kind: "steps", done: 5, total: 5 }, "CLIENT")).toBe(ru.app.deal.allStepsDone);
     expect(progressCaption({ kind: "stopped", reason: "dispute" }, "CLIENT")).toBeNull();
   });
 });
@@ -243,8 +243,8 @@ describe("сторона мастера: плашка, ход, строка де
     const view = dealStepsView("PAID_HOLD", false, null, "EXECUTOR");
     expect(view.kind === "steps" ? view.items.map((i) => i.label) : null).toEqual([...ru.app.master.deal.steps]);
     expect(ru.app.master.deal.steps.at(-1)).toBe("Оплата вам");
-    expect(view.kind === "steps" ? view.caption : null).toBe(s.caption(2, 5, "Изготовление"));
-    expect(progressCaption({ kind: "steps", done: 4, total: 5 }, "EXECUTOR")).toBe(s.caption(5, 5, "Оплата вам"));
+    expect(view.kind === "steps" ? view.caption : null).toBe(ru.app.deal.stepCaption(2, 5, "Изготовление"));
+    expect(progressCaption({ kind: "steps", done: 4, total: 5 }, "EXECUTOR")).toBe(ru.app.deal.stepCaption(5, 5, "Оплата вам"));
     expect(dealStepsView("READY", true, null, "EXECUTOR")).toEqual({ kind: "stopped", label: ru.app.master.deal.stopped.dispute });
     expect(stoppedLabel("dispute", "EXECUTOR")).toBe("Открыт спор — оплата вам приостановлена");
     expect(stoppedLabel("cancelled", "EXECUTOR")).toBe(ru.app.master.deal.stopped.cancelled);

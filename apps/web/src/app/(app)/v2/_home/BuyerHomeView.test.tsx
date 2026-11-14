@@ -100,7 +100,7 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     expect(out).toContain('href="/v2/deals/d1"');
     expect(out).toContain(ru.app.deal.status.inWork);
     // Компактно: одна строка хода и полоса, а не пять шагов; полный ход — на экране сделки.
-    expect(out).toContain(t.deal.caption(2, 5, ru.app.deal.steps[1]));
+    expect(out).toContain(ru.app.deal.stepCaption(2, 5, ru.app.deal.steps[1]));
     expect(out).toContain('role="progressbar"');
     expect(out).not.toContain("<ol");
     expect(out).toContain("bg-accent-soft text-accent");
@@ -153,10 +153,10 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
 
   it("первый шаг — «Оферта и оплата» и до подписи, и после (как на шкале карточки); плашка называет шаг", () => {
     const out = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "signContract", mine: true } })], requests: [] }, device, listItem({ status: "CREATED" }));
-    expect(out).toContain(t.deal.caption(1, 5, "Оферта и оплата"));
+    expect(out).toContain(ru.app.deal.stepCaption(1, 5, "Оферта и оплата"));
     expect(out).toContain(ru.app.deal.status.signOffer);
     const after = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, device, listItem({ status: "CREATED" }));
-    expect(after).toContain(t.deal.caption(1, 5, "Оферта и оплата"));
+    expect(after).toContain(ru.app.deal.stepCaption(1, 5, "Оферта и оплата"));
     expect(after).toContain(ru.app.deal.status.pay);
   });
 
