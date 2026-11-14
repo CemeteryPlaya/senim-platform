@@ -45,8 +45,20 @@ export type ChatMessageView = {
   attachments: { id: string }[];
 };
 
+/** Фото-вложение сообщения: адрес для <img> и ссылки (подписанная ссылка хранилища, срок — у files). */
+export type ChatAttachmentView = { id: string; messageId: string; url: string };
+
 export type ChatView = {
   offerId: string;
+  /** Заявка отклика и сделка (если есть): к чему относится диалог — для шапки экрана. */
+  requestId: string;
+  dealId: string | null;
+  /** Тип изделия и город заявки («Кухня · Астана»). */
+  title: string;
+  /** Подпись собеседника: «Исполнитель №N» по режиму ADR-006 (для заказчика) или «Заказчик» (для исполнителя). */
+  counterpart: string;
+  /** Адреса вложений всех сообщений: только если запрошены (`getChat(..., { attachments: true })`), иначе пусто. */
+  attachments: ChatAttachmentView[];
   messages: ChatMessageView[];
   canWrite: boolean;
   /** Почему писать нельзя (для поля ввода); null — можно. */
@@ -145,6 +157,12 @@ function toView(row: MessageRow, viewer: CurrentUser, loaded: Loaded): ChatMessa
   };
 }
 
+/** Тип изделия и город («Кухня · Астана»); та же сборка, что в списке диалогов (companies не импортирует requests). */
+function requestTitle(request: { city: string; customType: string | null; furnitureType: { name: string } | null }): string {
+  const type = request.furnitureType?.name ?? request.customType ?? ru.requests.untitled;
+  return [type, request.city].filter((part) => part.length > 0).join(" · ");
+}
+
 const MESSAGE_SELECT = {
   id: true,
   senderId: true,
@@ -155,7 +173,7 @@ const MESSAGE_SELECT = {
 } as const;
 
 /** История переписки по отклику и право писать. Стороны отклика и оператор. */
-export async function getChat(user: CurrentUser, offerId: string): Promise<ChatView> {
+export async function getChat(user: CurrentUser, offerId: string, opts: { attachments?: boolean } = {}): Promise<ChatView> {
   const loaded = await requireOffer(db, user, offerId);
   const { offer, party } = loaded;
   const rows = await db.message.findMany({
@@ -165,8 +183,17 @@ export async function getChat(user: CurrentUser, offerId: string): Promise<ChatV
     select: MESSAGE_SELECT,
   });
   const closed = party === "operator" ? t.operatorReadOnly : closedReasonText(offer);
+  const request = await db.request.findUniqueOrThrow({
+    where: { id: offer.requestId },
+    select: { city: true, customType: true, furnitureType: { select: { name: true } } },
+  });
   return {
     offerId,
+    requestId: offer.requestId,
+    dealId: offer.deal?.id ?? null,
+    title: requestTitle(request),
+    counterpart: party === "executor" ? t.clientLabel : loaded.label,
+    attachments: opts.attachments ? await loadAttachments(offerId) : [],
     messages: rows.reverse().map((row) => toView(row, user, loaded)),
     canWrite: closed === null,
     closedReason: closed,
@@ -178,22 +205,23 @@ export async function getChat(user: CurrentUser, offerId: string): Promise<ChatV
   };
 }
 
-/** Фото-вложение сообщения: адрес для <img> и ссылки (подписанная ссылка хранилища). */
-export type ChatAttachmentView = { id: string; messageId: string; url: string };
-
-/**
- * Адреса вложений всех сообщений диалога, по порядку сообщений и файлов. Права те же, что у getChat (стороны отклика и
- * оператор; чужой отклик — NOT_FOUND). Отдельно от getChat, чтобы его вид не менялся и подписи ссылок не строились там,
- * где вложений нет.
- */
-export async function chatAttachments(user: CurrentUser, offerId: string): Promise<ChatAttachmentView[]> {
-  await requireOffer(db, user, offerId);
+/** Адреса вложений диалога без проверки прав (права проверил вызывающий). */
+async function loadAttachments(offerId: string): Promise<ChatAttachmentView[]> {
   const files = await db.storedFile.findMany({
     where: { message: { offerId } },
     orderBy: [{ message: { createdAt: "asc" } }, { sortOrder: "asc" }],
     select: { id: true, messageId: true, provider: true, storageKey: true },
   });
   return Promise.all(files.flatMap((f) => (f.messageId ? [fileUrl(f).then((url) => ({ id: f.id, messageId: f.messageId as string, url }))] : [])));
+}
+
+/**
+ * Адреса вложений всех сообщений диалога, по порядку сообщений и файлов. Права те же, что у getChat (стороны отклика и
+ * оператор; чужой отклик — NOT_FOUND). Отдельно от getChat, чтобы подписи ссылок не строились там, где вложений нет.
+ */
+export async function chatAttachments(user: CurrentUser, offerId: string): Promise<ChatAttachmentView[]> {
+  await requireOffer(db, user, offerId);
+  return loadAttachments(offerId);
 }
 
 // ─── список диалогов (вкладка «Чат») ─────────────────────────────────────────
@@ -283,10 +311,9 @@ export async function listChats(user: CurrentUser): Promise<ChatListItem[]> {
     // Намеренная защита в глубину: сообщения до оферты уже маскируются при записи (sendMessage), но превью не должно
     // зависеть от того, что каждая строка попала в БД через сервис, — поэтому маска применяется второй раз.
     // Та же логика, что requestTitle в requests/access.ts: companies не может импортировать requests (requests сам зависит от companies — цикл).
-    const type = offer.request.furnitureType?.name ?? offer.request.customType ?? ru.requests.untitled;
     const item: ChatListItem = {
       offerId: offer.id,
-      title: [type, offer.request.city].filter((part) => part.length > 0).join(" · "),
+      title: requestTitle(offer.request),
       counterpart,
       lastMessage: last ? (beforeOffer ? maskContacts(last.body).text : last.body) : null,
       lastAt: last?.createdAt ?? null,

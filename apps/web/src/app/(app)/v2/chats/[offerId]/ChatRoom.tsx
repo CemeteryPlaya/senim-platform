@@ -9,12 +9,15 @@ import { outcomeOf } from "../../../_shell/form";
 import { usePhotoUploads } from "../../_upload/usePhotoUploads";
 import { loadChatAction, sendMessageAction } from "../actions";
 import type { ChatRoomModel } from "../_parts/chat-view";
+import { mergeRoom, type RoomState } from "../_parts/room-state";
 import { createGate, shouldPoll } from "../_parts/single-flight";
 
 const t = ru.app.chat.room;
 
 /** Как часто обновлять ленту, пока вкладка видна (как в v1). */
 export const POLL_MS = 5_000;
+/** Пауза опроса после «слишком часто» от сервера. */
+const PAUSE_MS = 30_000;
 
 const here = () => ({ pathname: window.location.pathname, search: window.location.search });
 
@@ -60,7 +63,10 @@ function AttachPanel({ max, onChange }: { max: number; onChange: (state: Attache
  * добавления нет). Ошибка отправки — текст у поля, набранное остаётся. На телефоне прокручивается страница.
  */
 export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }: ChatRoomProps) {
-  const [model, setModel] = useState(initial);
+  const [room, setRoom] = useState<RoomState>(() => ({ model: initial, urlsAt: Date.now() }));
+  const { model } = room;
+  /** До какого времени опрос молчит (лимит частоты на сервере): без ошибки на экране. */
+  const pausedUntil = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
   const [attached, setAttached] = useState<Attached>({ fileIds: [], busy: false });
@@ -78,9 +84,11 @@ export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }
     if (!gate.enter()) return;
     const started = epoch.current;
     try {
-      const outcome = outcomeOf(await loadChatAction({ offerId }), here());
+      const result = await loadChatAction({ offerId });
+      if (!result.ok && result.code === "RATE_LIMITED") pausedUntil.current = Date.now() + PAUSE_MS;
+      const outcome = outcomeOf(result, here());
       if (epoch.current !== started) return;
-      if (outcome.kind === "success") setModel(outcome.data);
+      if (outcome.kind === "success") setRoom((prev) => mergeRoom(prev, outcome.data, Date.now()));
       else if (outcome.kind === "leave") leave(outcome.href);
     } catch {
       // Сеть пропала на секунду: следующий тик попробует снова.
@@ -91,7 +99,7 @@ export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }
 
   useEffect(() => {
     const tick = () => {
-      if (shouldPoll(document.visibilityState)) void refresh();
+      if (shouldPoll(document.visibilityState) && Date.now() >= pausedUntil.current) void refresh();
     };
     const timer = window.setInterval(tick, POLL_MS);
     document.addEventListener("visibilitychange", tick);
@@ -116,7 +124,7 @@ export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }
       const outcome = outcomeOf(await sendMessageAction({ offerId, text, fileIds: attached.fileIds }), here());
       epoch.current += 1;
       if (outcome.kind === "success") {
-        setModel(outcome.data);
+        setRoom((prev) => mergeRoom(prev, outcome.data, Date.now()));
         setAttachOpen(false);
         setAttached({ fileIds: [], busy: false });
         setPanelKey((key) => key + 1);
@@ -157,5 +165,5 @@ export function ChatRoom({ offerId, initial, device, maxLength, maxAttachments }
     </Notice>
   );
 
-  return <Chat messages={model.messages} label={t.log} pageScroll={device === "mobile"} composer={composer} />;
+  return <Chat messages={model.messages} label={t.log} pageScroll={device === "mobile"} fill composer={composer} />;
 }

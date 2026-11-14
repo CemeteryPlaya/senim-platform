@@ -245,6 +245,42 @@ test("до оферты кнопки вложения нет, а «Почему?
   await expect(page.getByText(/фото в чат можно будет отправлять/)).toBeVisible();
 });
 
+test("колонка на высоту окна: поле ввода видно, страница не прокручивается (800 и 720; шрифт 100 % и 150 %)", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "высота ленты — устройство компьютера");
+  const href = await firstDialog(page);
+  await open(page, href);
+  const rows: string[] = [];
+  for (const height of [800, 720]) {
+    for (const scale of ["100%", "150%"]) {
+      await page.setViewportSize({ width: 1280, height });
+      await page.addStyleTag({ content: `html { font-size: ${scale} !important; }` });
+      await page.waitForTimeout(500);
+      const m = (await page.evaluate(
+        "(function(){var f=document.querySelector('textarea').getBoundingClientRect();var h1=document.querySelector('h1');var lh=parseFloat(getComputedStyle(h1).lineHeight);return {doc:document.documentElement.scrollHeight,win:window.innerHeight,fieldBottom:Math.round(f.bottom),h1Lines:Math.round(h1.getBoundingClientRect().height/lh),logH:Math.round(document.querySelector('[role=log]').clientHeight),y:Math.round(window.scrollY)}})()",
+      )) as { doc: number; win: number; fieldBottom: number; h1Lines: number; logH: number; y: number };
+      rows.push(`${height} ${scale}: ${JSON.stringify(m)}`);
+      expect(m.fieldBottom, `${height} ${scale}`).toBeLessThanOrEqual(m.win);
+      expect(m.doc, `${height} ${scale}`).toBeLessThanOrEqual(m.win + 2);
+      expect(m.y).toBe(0);
+    }
+  }
+  info.annotations.push({ type: "колонка на высоту окна", description: rows.join(" | ") });
+});
+
+test("адреса фото в ленте не меняются между опросами", async ({ page }) => {
+  const href = await firstDialog(page);
+  await open(page, href);
+  const img = log(page).locator("img").first();
+  test.skip((await img.count()) === 0, "в диалоге нет фото (сид пересеян)");
+  const before = await img.getAttribute("src");
+  let polls = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.headers()["next-action"]) polls += 1;
+  });
+  await expect.poll(() => polls, { timeout: 16_000 }).toBeGreaterThanOrEqual(2);
+  expect(await img.getAttribute("src")).toBe(before);
+});
+
 test("опрос молчит на скрытой вкладке и возобновляется при возврате", async ({ page }) => {
   const href = await firstDialog(page);
   let polls = 0;

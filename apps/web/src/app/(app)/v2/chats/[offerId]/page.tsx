@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { Explain, Narrow, PageTitle, Stack, TextLink } from "@/kit";
-import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, chatAttachments, getChat, listChats } from "@/modules/companies";
+import { Explain, PageTitle, TextLink } from "@/kit";
+import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, getChat } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { requireBuyer } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
-import { chatHref, chatRoomModel, contextLink, contextOfHref } from "../_parts/chat-view";
+import { chatHref, chatRoomModel, contextLink, contextOf } from "../_parts/chat-view";
 import { ChatRoom } from "./ChatRoom";
 
 const t = ru.app.chat.room;
@@ -24,20 +24,17 @@ type Props = { params: Promise<{ offerId: string }> };
 export default async function ChatPage({ params }: Props) {
   const { offerId } = await params;
   const user = await requireBuyer(chatHref(offerId));
-  const loaded = await Promise.all([getChat(user, offerId), chatAttachments(user, offerId)]).catch((e: unknown) => {
+  const view = await getChat(user, offerId, { attachments: true }).catch((e: unknown) => {
     if (isAppError(e) && e.code === "NOT_FOUND") notFound();
     throw e;
   });
-  const [view, attachments] = loaded;
-  // Собеседник и «к чему относится» — из списка диалогов (один запрос; чат-вид их не несёт).
-  const item = (await listChats(user)).find((chat) => chat.offerId === offerId) ?? null;
-  const model = chatRoomModel(view, attachments);
+  const model = chatRoomModel(view);
   const device = await getDevice();
-  const link = item ? contextLink(contextOfHref(item.href, offerId), item.title) : null;
+  const link = contextLink(contextOf(view), view.title);
 
   const lead = (
     <span className="flex flex-col items-start gap-1">
-      {link && <TextLink href={link.href}>{link.label}</TextLink>}
+      <TextLink href={link.href}>{link.label}</TextLink>
       {model.beforeOffer && (
         <span>
           {ru.app.chat.room.hiddenShort}{" "}
@@ -50,10 +47,14 @@ export default async function ChatPage({ params }: Props) {
   );
 
   const room = <ChatRoom key={offerId} offerId={offerId} initial={model} device={device} maxLength={CHAT_MAX_LENGTH} maxAttachments={CHAT_MAX_ATTACHMENTS} />;
+  // Компьютер: колонка на высоту окна за вычетом шапки (screen-fill): заголовок не сжимается, лента — flex-1 со своей
+  // прокруткой, поле ввода последним. Телефон: обычный поток, прокручивается страница.
   return (
-    <Stack gap="section">
-      <PageTitle title={item?.counterpart ?? t.fallbackTitle} back={{ href: to("/chats"), label: t.back }} lead={lead} />
-      {device === "desktop" ? <Narrow>{room}</Narrow> : room}
-    </Stack>
+    <div className="flex min-w-0 flex-col gap-stack-section desktop:screen-fill">
+      <div className="desktop:shrink-0">
+        <PageTitle title={view.counterpart} back={{ href: to("/chats"), label: t.back }} lead={lead} />
+      </div>
+      <div className="flex min-w-0 flex-col mobile:flex-1 desktop:min-h-0 desktop:max-w-narrow desktop:flex-1">{room}</div>
+    </div>
   );
 }

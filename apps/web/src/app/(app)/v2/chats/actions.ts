@@ -1,9 +1,10 @@
 "use server";
 
 import { z } from "zod";
-import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, chatAttachments, getChat, sendMessage } from "@/modules/companies";
+import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, getChat, sendMessage } from "@/modules/companies";
 import { requireUser } from "@/modules/identity";
 import { action } from "@/platform/action";
+import { enforceRateLimit } from "@/platform/rate-limit";
 import { chatRoomModel } from "./_parts/chat-view";
 
 // Действия экрана диалога (v2). Свои обёртки над теми же функциями модуля `companies`, что и в v1: схема zod, затем
@@ -12,15 +13,18 @@ import { chatRoomModel } from "./_parts/chat-view";
 
 const offerId = z.string().min(1).max(64);
 
-/** Диалог и адреса вложений (права обеих проверяет модуль). */
+/** Опрос раз в 5 с — 12 в минуту; лимит с большим запасом (несколько вкладок), при превышении клиент тихо паузит опрос. */
+const LOAD_RATE = { limit: 60, windowSec: 60 };
+
+/** Диалог с адресами вложений одним чтением (права проверяет модуль). */
 async function roomOf(user: Parameters<typeof getChat>[0], id: string) {
-  const [view, attachments] = await Promise.all([getChat(user, id), chatAttachments(user, id)]);
-  return chatRoomModel(view, attachments);
+  return chatRoomModel(await getChat(user, id, { attachments: true }));
 }
 
 /** Обновление ленты опросом (раз в 5 с, пока вкладка видна). Чужой диалог — NOT_FOUND из модуля. */
 export const loadChatAction = action("app.chat.load", z.strictObject({ offerId }), async (input) => {
   const user = await requireUser("CLIENT", "EXECUTOR");
+  await enforceRateLimit(`chat.load:${user.id}`, LOAD_RATE);
   return roomOf(user, input.offerId);
 });
 

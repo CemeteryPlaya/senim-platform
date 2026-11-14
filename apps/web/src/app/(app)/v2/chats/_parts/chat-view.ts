@@ -1,7 +1,7 @@
 import { formatDate, formatDateTime, formatRelative, formatTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import type { ChatMessage } from "@/kit";
-import type { ChatAttachmentView, ChatListItem, ChatView } from "@/modules/companies";
+import type { ChatListItem, ChatView } from "@/modules/companies";
 import { to } from "../../../_shell/paths";
 
 // Чистая часть экранов переписки покупателя: данные модуля `companies` → строки для kit. Права, маску контактов и
@@ -34,9 +34,10 @@ export function closedText(view: Pick<ChatView, "canWrite" | "closedCode">): str
 
 /**
  * Диалог → модель ленты. Системная строка про скрытые контакты стоит первой, пока оферта не заключена. Вложения —
- * адреса из `chatAttachments` (подпись «Фото N» по порядку в сообщении).
+ * адреса из `view.attachments` (запрошены у модуля; подпись «Фото N» по порядку в сообщении).
  */
-export function chatRoomModel(view: ChatView, attachments: readonly ChatAttachmentView[] = [], now: Date = new Date()): ChatRoomModel {
+export function chatRoomModel(view: ChatView, now: Date = new Date()): ChatRoomModel {
+  const attachments = view.attachments;
   // `contacts` отдаёт только состояние «оферта заключена» (у стороны сделки); до оферты — null.
   const beforeOffer = view.contacts === null;
   const messages: ChatMessage[] = view.messages.map((message) => ({
@@ -59,27 +60,15 @@ export function chatRoomModel(view: ChatView, attachments: readonly ChatAttachme
   };
 }
 
-/** К чему относится диалог: сделка или предложение (по пути, который отдаёт модуль). */
+/** К чему относится диалог: сделка, если она есть, иначе предложение (данные диалога от модуля). */
 export type ChatContext = { kind: "deal"; dealId: string } | { kind: "offer"; requestId: string; offerId: string };
 
-const DEAL_PATH = /^\/deals\/([^/?#]+)/;
-const OFFER_PATH = /^\/requests\/([^/?#]+)\/offers\/([^/?#]+)/;
-
-/**
- * Путь v1 из `listChats().href` → к чему относится диалог. Сам путь адресом не служит: адрес диалога всегда
- * `/chats/<offerId>`, а ссылка на сделку или предложение собирается через `to()`. Неизвестный путь — `null`.
- */
-export function contextOfHref(href: string, offerId: string): ChatContext | null {
-  const deal = DEAL_PATH.exec(href);
-  if (deal) return { kind: "deal", dealId: deal[1] };
-  const offer = OFFER_PATH.exec(href);
-  if (offer) return { kind: "offer", requestId: offer[1], offerId: offer[2] ?? offerId };
-  return null;
+export function contextOf(view: Pick<ChatView, "dealId" | "requestId" | "offerId">): ChatContext {
+  return view.dealId ? { kind: "deal", dealId: view.dealId } : { kind: "offer", requestId: view.requestId, offerId: view.offerId };
 }
 
 /** Адрес и подпись ссылки «к чему относится». */
-export function contextLink(context: ChatContext | null, title: string | null): { href: string; label: string } | null {
-  if (!context) return null;
+export function contextLink(context: ChatContext, title: string | null): { href: string; label: string } {
   if (context.kind === "deal") {
     return { href: to(`/deals/${encodeURIComponent(context.dealId)}`), label: title ? t.room.aboutDeal(title) : t.room.aboutDealShort };
   }

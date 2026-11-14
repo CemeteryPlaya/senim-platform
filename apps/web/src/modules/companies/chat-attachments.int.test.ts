@@ -73,4 +73,40 @@ describe("вложения чата: адреса по id", () => {
     const file = await ownFile(operator.id, "op");
     await expect(sendMessage(operator, t.offerId, "Текст", [file.id])).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("файл другого назначения (не чат) и файл, уже использованный в другом диалоге, — отказ без сообщения", async () => {
+    const a = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+    const b = await makeOfferThread({ client: a.client, dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+    const portfolio = await db.storedFile.create({
+      data: { storageKey: `portfolio/test/other-${Date.now()}.jpg`, provider: "local", purpose: "PORTFOLIO", contentType: "image/jpeg", size: 1000, sha256: "9".repeat(64), uploadedById: a.client.id },
+    });
+    await expect(sendMessage(a.client, a.offerId, "Не то назначение", [portfolio.id])).rejects.toMatchObject({ code: "CONFLICT" });
+
+    const photo = await ownFile(a.client.id, "reuse");
+    await sendMessage(a.client, a.offerId, "Первый диалог", [photo.id]);
+    await expect(sendMessage(a.client, b.offerId, "Тот же файл в другом диалоге", [photo.id])).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await db.message.count({ where: { offerId: b.offerId } })).toBe(0);
+    expect((await db.storedFile.findUniqueOrThrow({ where: { id: photo.id } })).messageId).not.toBeNull();
+  });
+
+  it("фото от мастера после оферты принято и видно покупателю", async () => {
+    const t = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+    const photo = await ownFile(t.executor.id, "master");
+    const sent = await sendMessage(t.executor, t.offerId, "Образец фасада", [photo.id]);
+    expect(sent.attachments.map((a) => a.id)).toEqual([photo.id]);
+    const seen = await chatAttachments(t.client, t.offerId);
+    expect(seen.map((a) => [a.id, a.messageId])).toEqual([[photo.id, sent.id]]);
+    const view = await getChat(t.client, t.offerId, { attachments: true });
+    expect(view.attachments.map((a) => a.id)).toEqual([photo.id]);
+    expect(view.dealId).toBe(t.dealId);
+    expect((await getChat(t.client, t.offerId)).attachments).toEqual([]);
+  });
+
+  it("шапка диалога из getChat: собеседник по роли, заявка, сделка, название", async () => {
+    const t = await makeOfferThread();
+    const forClient = await getChat(t.client, t.offerId);
+    expect(forClient).toMatchObject({ requestId: t.requestId, dealId: null, counterpart: ru.common.executorLabel(t.executor.executor.publicNumber) });
+    expect(typeof forClient.title).toBe("string");
+    expect((await getChat(t.executor, t.offerId)).counterpart).toBe(ru.companies.chat.clientLabel);
+  });
 });

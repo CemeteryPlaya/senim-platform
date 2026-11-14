@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { ChatListItem, ChatView } from "@/modules/companies";
-import { chatHref, chatRoomModel, chatRows, closedText, contextLink, contextOfHref, messageTime } from "./chat-view";
+import { chatHref, chatRoomModel, chatRows, closedText, contextLink, contextOf, messageTime } from "./chat-view";
 import { createGate, shouldPoll } from "./single-flight";
 
 const t = ru.app.chat;
@@ -9,6 +9,11 @@ const NOW = new Date("2026-11-14T10:00:00.000Z");
 
 const view = (over: Partial<ChatView> = {}): ChatView => ({
   offerId: "o1",
+  requestId: "r1",
+  dealId: null,
+  title: "Кухня · Астана",
+  counterpart: "Исполнитель №7",
+  attachments: [],
   messages: [
     { id: "m1", kind: "other", author: "Исполнитель №7", text: "Здравствуйте", sentAt: new Date("2026-11-14T08:05:00.000Z"), masked: false, attachments: [] },
     { id: "m2", kind: "own", author: "Вы", text: "Добрый день", sentAt: new Date("2026-11-12T08:05:00.000Z"), masked: false, attachments: [] },
@@ -32,7 +37,7 @@ describe("время сообщения", () => {
 
 describe("модель ленты", () => {
   it("до оферты — системная строка первой; свои справа, автор для диктора из модуля", () => {
-    const model = chatRoomModel(view(), [], NOW);
+    const model = chatRoomModel(view(), NOW);
     expect(model.beforeOffer).toBe(true);
     expect(model.messages[0]).toMatchObject({ kind: "system", text: t.room.hiddenSystem });
     expect(model.messages.slice(1).map((m) => [m.id, m.mine, m.author])).toEqual([
@@ -42,18 +47,18 @@ describe("модель ленты", () => {
   });
 
   it("после оферты (контакты открыты) системной строки нет", () => {
-    const model = chatRoomModel(view({ contacts: { phone: "+7 700 000 00 00" } as unknown as ChatView["contacts"] }), [], NOW);
+    const model = chatRoomModel(view({ contacts: { phone: "+7 700 000 00 00" } as unknown as ChatView["contacts"] }), NOW);
     expect(model.beforeOffer).toBe(false);
     expect(model.messages.map((m) => m.id)).toEqual(["m1", "m2"]);
   });
 
   it("закрытый чат: причина и признак оператора передаются как есть", () => {
-    const model = chatRoomModel(view({ canWrite: false, closedReason: "Чат закрыт оператором — можно только читать", closedCode: "operatorClosed", closedByOperator: { reason: "Жалоба", at: NOW } }), [], NOW);
+    const model = chatRoomModel(view({ canWrite: false, closedReason: "Чат закрыт оператором — можно только читать", closedCode: "operatorClosed", closedByOperator: { reason: "Жалоба", at: NOW } }), NOW);
     expect(model).toMatchObject({ canWrite: false, closedReason: t.room.closed.operatorClosed, operatorReason: "Жалоба" });
   });
 
   it("модель — простые значения (идёт через серверное действие): без Date", () => {
-    expect(JSON.parse(JSON.stringify(chatRoomModel(view(), [], NOW)))).toEqual(chatRoomModel(view(), [], NOW));
+    expect(JSON.parse(JSON.stringify(chatRoomModel(view(), NOW)))).toEqual(chatRoomModel(view(), NOW));
   });
 });
 
@@ -73,12 +78,13 @@ describe("закрытый чат: свои тексты по коду", () => {
 describe("вложения в ленте", () => {
   it("фото сообщения — превью-ссылки «Фото N» по порядку; чужие сообщения не получают лишнего", () => {
     const model = chatRoomModel(
-      view(),
-      [
-        { id: "f1", messageId: "m1", url: "/api/files/a" },
-        { id: "f2", messageId: "m1", url: "/api/files/b" },
-        { id: "f3", messageId: "m2", url: "/api/files/c" },
-      ],
+      view({
+        attachments: [
+          { id: "f1", messageId: "m1", url: "/api/files/a" },
+          { id: "f2", messageId: "m1", url: "/api/files/b" },
+          { id: "f3", messageId: "m2", url: "/api/files/c" },
+        ],
+      }),
       NOW,
     );
     const [, first, second] = model.messages;
@@ -91,13 +97,11 @@ describe("вложения в ленте", () => {
 });
 
 describe("к чему относится диалог", () => {
-  it("путь v1 → сделка или предложение; адрес собирается через to(), не из пути модуля", () => {
-    expect(contextOfHref("/deals/d1#chat", "o1")).toEqual({ kind: "deal", dealId: "d1" });
-    expect(contextOfHref("/requests/r1/offers/o1#chat", "o1")).toEqual({ kind: "offer", requestId: "r1", offerId: "o1" });
-    expect(contextOfHref("/executor/requests/r1#chat", "o1")).toBeNull();
+  it("сделка, если она есть, иначе предложение; адрес собирается через to()", () => {
+    expect(contextOf({ dealId: "d1", requestId: "r1", offerId: "o1" })).toEqual({ kind: "deal", dealId: "d1" });
+    expect(contextOf({ dealId: null, requestId: "r1", offerId: "o1" })).toEqual({ kind: "offer", requestId: "r1", offerId: "o1" });
     expect(contextLink({ kind: "deal", dealId: "d1" }, "Кухня · Астана")).toEqual({ href: "/v2/deals/d1", label: t.room.aboutDeal("Кухня · Астана") });
     expect(contextLink({ kind: "offer", requestId: "r1", offerId: "o1" }, null)).toEqual({ href: "/v2/requests/r1/offers/o1", label: t.room.aboutOfferShort });
-    expect(contextLink(null, "x")).toBeNull();
   });
 });
 

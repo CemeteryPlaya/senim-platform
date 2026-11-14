@@ -266,6 +266,16 @@ describe("действия диалога", () => {
     expect(await sendMessageAction({ offerId: thread.offerId, text: "много", fileIds: many })).toMatchObject({ ok: false, code: "VALIDATION" });
   });
 
+  it("опрос ограничен по частоте на пользователя: после 60 за минуту — RATE_LIMITED, клиент тихо паузит", async () => {
+    const thread = await makeOfferThread();
+    await signInAs(thread.client);
+    for (let i = 0; i < 60; i += 1) expect(await loadChatAction({ offerId: thread.offerId })).toMatchObject({ ok: true });
+    expect(await loadChatAction({ offerId: thread.offerId })).toMatchObject({ ok: false, code: "RATE_LIMITED" });
+    // Другой человек не затронут.
+    await signInAs(thread.executor);
+    expect(await loadChatAction({ offerId: thread.offerId })).toMatchObject({ ok: true });
+  });
+
   it("закрытый чат не принимает сообщение", async () => {
     const thread = await makeOfferThread();
     await db.offer.update({ where: { id: thread.offerId }, data: { chatClosedAt: new Date(), chatClosedReason: "причина" } });
