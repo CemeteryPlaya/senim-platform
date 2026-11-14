@@ -137,12 +137,15 @@ describe("экран подписи оферты", () => {
     expect(await outcome(() => render(done.dealId, contract.id))).toEqual(redirectTo(`/v2/deals/${done.dealId}`));
   });
 
-  it("на компьютере — та же форма в узкой колонке, одно главное действие", async () => {
+  it("на компьютере — две колонки: слева подпись и кнопка «Подписать оферту», справа «Что вы подписываете»; одно главное действие", async () => {
     const { f, docId } = await contractFixture();
     h.device = "desktop";
     const out = await render(f.dealId, docId);
-    expect(out).toContain("max-w-narrow");
+    expect(out).toContain("desktop:grid-cols-split");
     expect(primaries(out)).toHaveLength(1);
+    // Подпись (слева) идёт в разметке раньше «Что вы подписываете» (справа).
+    expect(out.indexOf(ru.app.deal.sign.hand.section)).toBeLessThan(out.indexOf(ru.app.deal.sign.what.section));
+    expect(out).toContain(ru.app.deal.sign.hand.submit.CONTRACT);
   });
 });
 

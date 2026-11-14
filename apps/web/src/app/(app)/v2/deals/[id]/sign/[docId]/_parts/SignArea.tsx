@@ -128,7 +128,7 @@ function HandStep({ documentId, kind, step, dealHref, fullName }: SignAreaProps)
       </Section>
       <ActionDock>
         <Button onClick={submit} pending={pending} disabled={value === null} aria-describedby={value === null ? reasonId : undefined}>
-          {t.hand.submit}
+          {t.hand.submit[kind]}
         </Button>
       </ActionDock>
     </>
@@ -230,7 +230,7 @@ function EcpStep({ documentId, kind, step, dealHref, device }: SignAreaProps) {
       <ActionDock>
         {choosing || state.step === "done" ? (
           <Button onClick={() => state.step === "choose" && void start(state.method)} pending={state.step !== "choose"}>
-            {t.ecp.start}
+            {t.ecp.start[kind]}
           </Button>
         ) : expired ? (
           <Button onClick={restart}>{t.ecp.restart}</Button>

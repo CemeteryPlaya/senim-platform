@@ -173,7 +173,7 @@ test("полная сделка покупателя в v2: оферта → о�
     await confirmOperation(operator, { type: "Доход платформы", deal: dealNumber, confirm: "Доход платформы получен", docNumber: "E2E-V2-INC" });
   }
   await expectNow(buyer, dealPath, [now.done.title, now.review.title]);
-  await expect(buyer.locator("main")).toContainText(t.status.SPLIT_PAYOUT);
+  await expect(buyer.locator("main")).toContainText(t.status.done);
   expect((await facts(dealId)).holds).toBe(1);
   await Promise.all([buyerCtx.close(), masterCtx.close(), operatorCtx.close()]);
 

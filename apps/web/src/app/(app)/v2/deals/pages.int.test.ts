@@ -121,8 +121,8 @@ describe("карточка сделки покупателя: «что сейч�
     expect(plain(out)).toContain(now.payWaitMaster.ahead);
     expect(out).not.toContain("bg-warn-soft");
     const listed = await list();
-    expect(plain(listed)).toContain(t.list.waitMaster);
-    expect(plain(listed)).not.toContain(t.list.mine.pay);
+    expect(plain(listed)).toContain(t.status.waitMasterBank);
+    expect(plain(listed)).not.toContain(t.status.pay);
     expect(listed).not.toContain("bg-warn-soft");
   });
 
@@ -360,7 +360,7 @@ describe("список «Сделки»", () => {
     expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(t.list.title);
   });
 
-  it("идущие и завершённые: группы чипами, по умолчанию «Идут»; признак «нужно ваше действие»; чужих нет", async () => {
+  it("идущие и завершённые: группы чипами, по умолчанию «Идут»; плашка называет шаг («Оплатите заказ»); чужих нет", async () => {
     const client = await buyer();
     const pay = await dealAt("SIGNED", { client });
     const running = await dealAt("IN_PROGRESS", { client });
@@ -376,7 +376,7 @@ describe("список «Сделки»", () => {
     expect(out).toContain(`href="/v2/deals/${running.dealId}"`);
     expect(out).not.toContain(`href="/v2/deals/${cancelled.dealId}"`);
     expect(out).not.toContain(foreign.dealId);
-    expect(plain(out)).toContain(t.list.mine.pay);
+    expect(plain(out)).toContain(t.status.pay);
     expect(plain(out)).toContain(ru.common.home.client.inBank);
     expect(primaries(out)).toEqual([]);
     expect(shown(out)).not.toMatch(FORBIDDEN);

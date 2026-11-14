@@ -90,7 +90,7 @@ test("оферта: что подписываю, PDF в новой вкладк�
   const what = page.getByRole("heading", { level: 2, name: sign.what.section });
   await expect(what).toBeVisible();
   await expect(page.locator("main")).toContainText(sign.what.total);
-  const pdf = page.getByRole("link", { name: new RegExp(`^${sign.what.open}`) });
+  const pdf = page.getByRole("link", { name: new RegExp(`^${ru.app.deal.openDocument.CONTRACT}`) });
   await expect(pdf).toHaveAttribute("target", "_blank");
   await expect(pdf).toHaveAttribute("href", /^\/api\/documents\/[^/]+\/pdf$/);
   const res = await page.request.get((await pdf.getAttribute("href")) ?? "");
@@ -101,7 +101,7 @@ test("оферта: что подписываю, PDF в новой вкладк�
   await expect(page.getByRole("heading", { level: 2, name: sign.hand.section })).toBeVisible();
   await expect(page.locator("main")).toContainText(sign.stepOf(1, 2));
   const submit = page.locator("[data-primary-action]");
-  await expect(submit).toHaveText(sign.hand.submit);
+  await expect(submit).toHaveText(sign.hand.submit.CONTRACT);
   await expect(submit).toBeDisabled();
   await expect(page.getByText(sign.hand.empty)).toBeVisible();
   // Ввод ФИО — доступная замена холсту: кнопка становится доступна. Не нажимаем: данные стенда не меняются.

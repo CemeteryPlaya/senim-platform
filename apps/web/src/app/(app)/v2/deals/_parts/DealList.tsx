@@ -9,7 +9,7 @@ const home = ru.app.buyer.home.deal;
 
 /**
  * Карточка сделки — вся ссылка (растянутая на карточку, как «Моя сделка» на главной): название, плашка статуса, ход
- * «Шаг N из M: …» с полосой (или строка остановки), деньги из журнала строкой, признак «нужно ваше действие».
+ * «Шаг N из M: …» с полосой (или строка остановки), деньги из журнала строкой. Что нужно от человека — говорит плашка.
  */
 function DealCard({ card }: { card: DealCardView }) {
   return (
@@ -41,9 +41,6 @@ function DealCard({ card }: { card: DealCardView }) {
         )}
         {card.money.label}
       </p>
-      {card.marker && (
-        <p className={card.marker.tone === "mine" ? "text-body font-medium text-warn" : "text-body text-muted"}>{card.marker.text}</p>
-      )}
     </Card>
   );
 }

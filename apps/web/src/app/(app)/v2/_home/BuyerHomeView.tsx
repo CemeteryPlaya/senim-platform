@@ -24,8 +24,10 @@ import type { DealListItem } from "@/modules/deal-core";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { HELP_ANCHORS } from "../help/anchors";
-import { dealMoneyLine, dealProgress, dealStatusText, dealTone, paymentWait, progressCaption, stoppedLabel } from "../_parts/deal-summary";
-import { requestStatusText, type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
+import { helpItem } from "../help/questions";
+import { dealChip, dealMoneyLine, dealProgress, progressCaption, stoppedLabel } from "../_parts/deal-summary";
+import { requestState } from "../_parts/request-state";
+import { type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
 
 const t = ru.app.buyer.home;
 
@@ -121,10 +123,7 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
         }
         aside={
           <HelpBlock
-            items={[
-              { question: t.help.how, href: `${to("/help")}#${HELP_ANCHORS.how}` },
-              { question: t.help.price, href: `${to("/help")}#${HELP_ANCHORS.price}` },
-            ]}
+            items={[helpItem(HELP_ANCHORS.how), helpItem(HELP_ANCHORS.price)]}
             supportEmail={brand.support.email}
           />
         }
@@ -141,7 +140,7 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
 function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDealInput | null; more: number }) {
   const money = dealMoneyLine(deal.money, deal.estimate);
   const progress = dealProgress(deal.status, deal.hasOpenDispute);
-  const tone = dealTone({ status: deal.status, hasOpenDispute: deal.hasOpenDispute, next: listed?.next ?? null, payWaitsMaster: listed?.payWaitsMaster ?? false });
+  const chip = dealChip({ ...deal, next: listed?.next ?? null, payWaitsMaster: listed?.payWaitsMaster ?? false });
   return (
     <Section title={t.deal.section}>
       <Card
@@ -154,12 +153,11 @@ function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDeal
               {deal.title}
             </Link>
           </h3>
-          <StatusChip tone={tone}>{dealStatusText(deal.status, deal.hasOpenDispute, paymentWait({ status: deal.status, money: deal.money, paymentProvider: deal.paymentProvider }))}</StatusChip>
+          <StatusChip tone={chip.tone}>{chip.text}</StatusChip>
         </div>
         {progress.kind === "steps" ? (
           <div className="flex flex-col gap-2">
-            {/* До подписи оферты текущий шаг называется шире, чем «Оплата»: сейчас подпись. */}
-            <p className="text-sub text-muted">{progressCaption(progress, listed?.next?.action ?? null)}</p>
+            <p className="text-sub text-muted">{progressCaption(progress)}</p>
             <Progress value={progress.done} max={progress.total} label={t.deal.progressLabel} />
           </div>
         ) : (
@@ -179,21 +177,30 @@ function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDeal
   );
 }
 
-/** До двух живых заявок: название, статус, число предложений; остальные — «Все заявки». */
+/**
+ * До двух живых заявок: название и плашка состояния — та же `requestState`, что в «Моих заявках» и в карточке заявки
+ * (число действующих предложений — внутри неё); остальные — «Все заявки».
+ */
 function RequestsSection({ requests }: { requests: HomeRequestInput[] }) {
   return (
     <Section title={t.requests.section}>
       <Card padded={false}>
         <List>
-          {requests.map((r) => (
-            <ListRow
-              key={r.id}
-              stacked
-              label={ru.requests.requestTitle(r.number, r.title)}
-              value={requestStatusText(r.status, r.offersCount)}
-              href={r.status === "DRAFT" ? to(`/requests/new?draft=${encodeURIComponent(r.id)}`) : to(`/requests/${encodeURIComponent(r.id)}`)}
-            />
-          ))}
+          {requests.map((r) => {
+            const state = requestState(r);
+            return (
+              <ListRow
+                key={r.id}
+                label={
+                  <span className="flex flex-col items-start gap-1">
+                    <span className="text-body wrap-break-word text-ink">{ru.requests.requestTitle(r.number, r.title)}</span>
+                    <StatusChip tone={state.tone}>{state.text}</StatusChip>
+                  </span>
+                }
+                href={r.status === "DRAFT" ? to(`/requests/new?draft=${encodeURIComponent(r.id)}`) : to(`/requests/${encodeURIComponent(r.id)}`)}
+              />
+            );
+          })}
         </List>
       </Card>
       <TextLink href={to("/requests")}>{t.requests.all}</TextLink>

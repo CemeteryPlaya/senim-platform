@@ -1,9 +1,5 @@
-import { ru } from "@/i18n/ru";
-import { to } from "../../../_shell/paths";
 import { HELP_ANCHORS } from "../../help/anchors";
+import { helpItem } from "../../help/questions";
 
-/** Вопросы «Помощи» на экранах сделок покупателя (список и карточка): про деньги и «если не понравится». */
-export const dealHelpItems = (): { question: string; href: string }[] => [
-  { question: ru.app.deal.card.help.money, href: `${to("/help")}#${HELP_ANCHORS.money}` },
-  { question: ru.app.deal.card.help.notLiked, href: `${to("/help")}#${HELP_ANCHORS.notFit}` },
-];
+/** Вопросы «Помощи» на экранах сделок покупателя (список и карточка): про деньги и «если не подошла» — дословно как разделы «Помощи». */
+export const dealHelpItems = (): { question: string; href: string }[] => [helpItem(HELP_ANCHORS.money), helpItem(HELP_ANCHORS.notFit)];

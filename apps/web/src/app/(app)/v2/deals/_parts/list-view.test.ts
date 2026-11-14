@@ -44,41 +44,34 @@ describe("dealListView", () => {
     expect(dealListView([deal("c", "SPLIT_PAYOUT")], none, "active")).toMatchObject({ group: "active", cards: [], empty: "group" });
   });
 
-  it("карточка: адрес, статус, ход, деньги из журнала, признак «нужно ваше действие»", () => {
+  it("карточка: адрес, плашка по шагу, ход, деньги из журнала; признака «нужно ваше действие» отдельно нет — его говорит плашка", () => {
     const nexts = new Map<string, NextStep>([["a", { action: "pay", mine: true }]]);
     const [card] = dealListView([deal("a", "CREATED")], nexts, undefined).cards;
-    expect(card).toMatchObject({
+    expect(card).toEqual({
+      id: "a",
       href: "/v2/deals/a",
-      chip: { text: ru.app.deal.status.CREATED, tone: "warn" },
-      progress: { kind: "steps", done: 0, total: 5 },
+      title: expect.any(String),
+      chip: { text: ru.app.deal.status.pay, tone: "warn" },
+      progress: { kind: "steps", caption: ru.app.buyer.home.deal.caption(1, 5, ru.app.deal.steps[0]), done: 0, total: 5 },
       money: { amountTiyn: 102_000_00n, label: ru.app.deal.line.toPay },
-      marker: { tone: "mine", text: t.mine.pay },
     });
   });
 
-  it("ждём другую сторону — признака нет, тон по статусу; оплачено — «в банке под защитой»", () => {
+  it("ждём другую сторону — плашка по шагу; оплачено — «в банке под защитой»", () => {
     const nexts = new Map<string, NextStep>([["b", { action: "waitReady", mine: false }]]);
     const [card] = dealListView([deal("b", "IN_PROGRESS")], nexts, undefined).cards;
-    expect(card).toMatchObject({ chip: { tone: "accent" }, marker: null, money: { amountTiyn: 102_000_00n, label: ru.app.deal.line.inBank } });
+    expect(card).toMatchObject({ chip: { text: ru.app.deal.status.inWork, tone: "accent" }, money: { amountTiyn: 102_000_00n, label: ru.app.deal.line.inBank } });
   });
 
-  it("спор — плашка «Открыт спор», ход остановлен", () => {
+  it("спор — плашка «Идёт спор», ход остановлен", () => {
     const [card] = dealListView([deal("s", "READY", { hasOpenDispute: true })], none, undefined).cards;
     expect(card).toMatchObject({ chip: { text: ru.app.deal.status.dispute, tone: "warn" }, progress: { kind: "stopped" } });
   });
 
-  it("признак — только для действий покупателя; «что дальше» неизвестно — признака нет", () => {
-    for (const [action, text] of [["signContract", t.mine.signContract], ["signAct", t.mine.signAct], ["leaveReview", t.mine.leaveReview]] as const) {
-      const [card] = dealListView([deal("x", "READY")], new Map([["x", { action, mine: true }]]), undefined).cards;
-      expect(card?.marker).toEqual({ tone: "mine", text });
-    }
-    expect(dealListView([deal("x", "READY")], none, undefined).cards[0]?.marker).toBeNull();
-  });
-
-  it("оплата закрыта до согласия мастера: нейтральная строка «Ждём согласие мастера», плашка не оранжевая", () => {
+  it("оплата закрыта до согласия мастера: плашка «Ждём согласие мастера», не оранжевая", () => {
     const nexts = new Map<string, NextStep>([["a", { action: "pay", mine: true }]]);
     const [card] = dealListView([deal("a", "CREATED")], nexts, undefined, new Set(["a"])).cards;
-    expect(card).toMatchObject({ marker: { tone: "wait", text: t.waitMaster }, chip: { tone: "neutral" } });
+    expect(card?.chip).toEqual({ text: ru.app.deal.status.waitMasterBank, tone: "neutral" });
   });
 
   it("возврат: «N ₸ вернулись вам» (сумма отдельно), выплата — без суммы мастеру", () => {

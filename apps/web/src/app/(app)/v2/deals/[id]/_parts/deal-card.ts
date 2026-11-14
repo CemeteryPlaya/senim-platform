@@ -149,7 +149,7 @@ export function nowView(i: NowInput): NowView {
         "pay-transfer",
         { title: n.payTransfer.title(formatMoney(i.payTiyn)), body: n.payTransfer.body, next: n.payTransfer.next },
         null,
-        i.contractPdf ? { label: n.payTransfer.offer, href: i.contractPdf, external: true } : null,
+        i.contractPdf ? { label: ru.app.deal.openDocument.CONTRACT, href: i.contractPdf, external: true } : null,
       );
     case "waitStart":
       return row("wait-start", n.waitStart);
@@ -202,7 +202,7 @@ export type MoneyView = {
   amount: bigint;
   rows: (Omit<MoneyRow, "explain"> & { explain?: true })[];
   note?: string;
-  /** Доказательства из журнала вторичным текстом под блоком: дата резерва и номер операции банка. */
+  /** Доказательство из журнала вторичным текстом под блоком: дата резерва (номер операции банка — только в «Операциях»). */
   proof?: string;
 };
 
@@ -229,8 +229,7 @@ export function moneyView({ block, estimate, snapshot, manual = false }: MoneyIn
       return { tone: "awaiting", title: text.title, amount: estimate.totalTiyn, rows, note: text.note };
     }
     case "protected": {
-      const proof = [m.reservedAt(formatDate(block.reservedAt)), ...(block.operationRef ? [m.operationRef(block.operationRef)] : [])].join(" · ");
-      return { tone: "protected", title: m.protected.title, amount: block.amountTiyn, rows: offerRows, note: m.protected.note, proof };
+      return { tone: "protected", title: m.protected.title, amount: block.amountTiyn, rows: offerRows, note: m.protected.note, proof: m.reservedAt(formatDate(block.reservedAt)) };
     }
     case "frozen":
       return { tone: "frozen", title: m.frozen.title, amount: block.bankBalanceTiyn, rows: offerRows, note: m.frozen.note };
@@ -310,20 +309,41 @@ export type DocumentInput = {
   canSign: { hand: boolean; ecp: boolean };
 };
 
-export type DocumentRow = { id: string; name: string; status: string; href: string };
+export type DocumentRow = {
+  id: string;
+  name: string;
+  status: string;
+  href: string;
+  /** Подпись ссылки: «Открыть» и вид документа («Открыть оферту», «Открыть акт», «Открыть выписку»). */
+  open: string;
+};
 
-/** Статус подписи словами по роду документа (оферта — она, акт — он); выписка и расписка не подписываются. */
-function documentStatus(doc: DocumentInput): string {
+/**
+ * Статус подписи словами по роду документа (оферта — она, акт — он); выписка и расписка не подписываются. Акт, который
+ * так и остался неподписанным, когда сделку закрыло решение по спору (раздел или полный возврат), — «Не подписан: спор
+ * решён оператором», а не «Ждёт подписей».
+ */
+function documentStatus(doc: DocumentInput, outcome: DisputeOutcome | null): string {
   const d = t.documents;
   if (!doc.signable || (doc.kind !== "CONTRACT" && doc.kind !== "ACCEPTANCE_ACT")) return d.notSigned;
+  if (doc.kind === "ACCEPTANCE_ACT" && doc.status === "SIGNING" && (outcome === "PARTIAL_SPLIT" || outcome === "FULL_REFUND")) return d.actByDispute;
   if (doc.status === "SIGNING" && (doc.canSign.hand || doc.canSign.ecp)) return d.yours;
   return d.status[doc.kind][doc.status];
 }
 
-/** Документы сделки: название с номером, статус подписи («Ждёт вашей подписи», если не хватает вашей), PDF. */
-export function documentRows(docs: readonly DocumentInput[]): DocumentRow[] {
+/**
+ * Документы сделки: название с номером, статус подписи («Ждёт вашей подписи», если не хватает вашей), PDF и подпись ссылки
+ * по виду документа. `outcome` — исход решённого спора сделки (если был).
+ */
+export function documentRows(docs: readonly DocumentInput[], outcome: DisputeOutcome | null = null): DocumentRow[] {
   const d = t.documents;
-  return docs.map((doc) => ({ id: doc.id, name: d.name(d.kinds[doc.kind], doc.number), status: documentStatus(doc), href: doc.pdfUrl }));
+  return docs.map((doc) => ({
+    id: doc.id,
+    name: d.name(d.kinds[doc.kind], doc.number),
+    status: documentStatus(doc, outcome),
+    href: doc.pdfUrl,
+    open: ru.app.deal.openDocument[doc.kind],
+  }));
 }
 
 /** Оставленный отзыв (`deal.review`): строки «Оценка», «Отзыв» (если есть текст), «Оставлен». */

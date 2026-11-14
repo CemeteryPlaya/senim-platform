@@ -26,11 +26,14 @@ describe("operationRows: движение денег покупателя", () =
   });
 
   it("выплата мастеру и доход сервиса сворачиваются в одну строку без суммы", () => {
-    const rows = operationRows([
-      item({ id: "h", type: "HOLD", amountTiyn: 102_000_00n }),
-      item({ id: "m", type: "SPLIT_MASTER", amountTiyn: 96_000_00n, basisDocumentId: "act1" }),
-      item({ id: "p", type: "SPLIT_PLATFORM", amountTiyn: 6_000_00n }),
-    ]);
+    const rows = operationRows(
+      [
+        item({ id: "h", type: "HOLD", amountTiyn: 102_000_00n }),
+        item({ id: "m", type: "SPLIT_MASTER", amountTiyn: 96_000_00n, basisDocumentId: "act1" }),
+        item({ id: "p", type: "SPLIT_PLATFORM", amountTiyn: 6_000_00n }),
+      ],
+      { kinds: new Map([["act1", "ACCEPTANCE_ACT"]]) },
+    );
     expect(rows).toHaveLength(2);
     const [payout, hold] = rows;
     expect(payout?.title).toBe(t.payout);
@@ -137,8 +140,14 @@ describe("operationRows: движение денег покупателя", () =
     });
   });
 
-  it("документ-основание — ссылка на PDF; пустой журнал — пустой список", () => {
-    expect(operationRows([item({ type: "HOLD", basisDocumentId: "doc1" })])[0]?.basis).toEqual({ documentId: "doc1", href: "/api/documents/doc1/pdf" });
+  it("документ-основание — ссылка на PDF с подписью по виду документа; вид неизвестен — без ссылки; пустой журнал — пустой список", () => {
+    const kinds = new Map([["doc1", "CONTRACT" as const]]);
+    expect(operationRows([item({ type: "HOLD", basisDocumentId: "doc1" })], { kinds })[0]?.basis).toEqual({
+      documentId: "doc1",
+      href: "/api/documents/doc1/pdf",
+      label: "Открыть оферту",
+    });
+    expect(operationRows([item({ type: "HOLD", basisDocumentId: "doc2" })], { kinds })[0]?.basis).toBeNull();
     expect(operationRows([])).toEqual([]);
   });
 });

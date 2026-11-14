@@ -8,7 +8,7 @@ import { getDevice } from "@/platform/device";
 import { logger } from "@/platform/logger";
 import { pageHref } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
-import { dealStatusText, dealStepsView, dealTone, payWaitsMaster, paymentWait } from "../../_parts/deal-summary";
+import { dealChip, dealStepsView, payWaitsMaster } from "../../_parts/deal-summary";
 import { cancelText, dealHrefs, documentRows, HISTORY_SHOWN, historyView, moneyView, nowView, orderRows, reviewRows } from "./_parts/deal-card";
 import { DealCardView, type CardView } from "./_parts/DealCardView";
 import { buyerDeal } from "./_parts/gate";
@@ -66,12 +66,16 @@ export default async function DealPage({ params, searchParams }: Props) {
     id: deal.id,
     title: deal.title,
     lead: t.lead(deal.number, deal.executorLabel),
-    chip: {
-      text: dealStatusText(deal.status, openDispute, paymentWait({ status: deal.status, money: deal.moneyBlock, paymentProvider: deal.paymentProvider })),
-      tone: dealTone({ status: deal.status, hasOpenDispute: openDispute, next: deal.next, payWaitsMaster: payWaitsMaster(deal.next, bank) }),
-    },
+    chip: dealChip({
+      status: deal.status,
+      hasOpenDispute: openDispute,
+      next: deal.next,
+      payWaitsMaster: payWaitsMaster(deal.next, bank),
+      money: deal.moneyBlock,
+      paymentProvider: deal.paymentProvider,
+    }),
     now,
-    steps: dealStepsView(deal.status, openDispute, deal.next.action, outcome),
+    steps: dealStepsView(deal.status, openDispute, outcome),
     money: { ...money, historyHref: hrefs.money },
     order: orderRows({
       title: deal.title,
@@ -82,7 +86,7 @@ export default async function DealPage({ params, searchParams }: Props) {
       warrantyMonths: deal.warrantyMonths,
       readyShownInNow: now.kind === "wait-ready" && deal.dates.plannedReadyAt !== null,
     }),
-    documents: documentRows(documents),
+    documents: documentRows(documents, outcome),
     master: { label: deal.executorLabel, contacts, chatHref: to(`/chats/${encodeURIComponent(deal.offerId)}`) },
     review: reviewRows(deal.review),
     history: { ...historyView(deal.history, { all: sp.history === "all", limit: HISTORY_SHOWN[device] }), allHref: hrefs.history },

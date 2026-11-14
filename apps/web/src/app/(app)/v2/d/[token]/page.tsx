@@ -55,7 +55,7 @@ export default async function SharedDocumentPage({ params }: { params: Promise<{
         </Explain>
         <ActionDock>
           <ButtonLink href={base} target="_blank" rel="noopener" prefetch={false}>
-            {t.open}
+            {ru.app.deal.openDocument[doc.kind]}
             <span className="sr-only"> ({t.openHint})</span>
           </ButtonLink>
           <ButtonLink href={`${base}?download=1`} variant="quiet" download prefetch={false}>

@@ -95,7 +95,7 @@ describe("nowView: таблица «что сейчас» покупателя",
 
   it("ручной провайдер: не «платить не нужно», а куда переводить; ссылка на PDF оферты; дальше — банк подтвердит", () => {
     const view = now("waitPaymentConfirmation", false, { manual: true });
-    expect(view).toMatchObject({ body: n.payTransfer.body, next: n.payTransfer.next, link: { label: n.payTransfer.offer, href: "/api/documents/c1/pdf", external: true } });
+    expect(view).toMatchObject({ body: n.payTransfer.body, next: n.payTransfer.next, link: { label: ru.app.deal.openDocument.CONTRACT, href: "/api/documents/c1/pdf", external: true } });
     expect(JSON.stringify(view)).not.toContain("не нужно");
     expect(now("waitPaymentConfirmation", false, { manual: true, contractPdf: null }).link).toBeNull();
     expect(now("waitPaymentConfirmation", false).body).toBe(n.payPending.body);
@@ -160,11 +160,11 @@ describe("moneyView: блок денег из журнала", () => {
     expect(money(block({ kind: "awaiting", payment: "FAILED" }))).toMatchObject({ tone: "awaiting", title: t.money.failed.title, note: t.money.failed.note });
   });
 
-  it("под защитой: единственный зелёный тон, сумма — зарезервированная; доказательства — дата резерва и номер операции", () => {
+  it("под защитой: единственный зелёный тон, сумма — зарезервированная; под блоком — только дата резерва (номер операции — в истории денег)", () => {
     const v = money(block({ kind: "protected", amountTiyn: 102_000_00n, reservedAt, operationRef: "X-1" }));
     expect(v).toMatchObject({ tone: "protected", title: "Деньги в банке под защитой", amount: 102_000_00n });
     expect(v.rows.map((r) => r.label)).toEqual(["Цена по оферте", "Защита сделки (2%)"]);
-    expect(v.proof).toBe(`${t.money.reservedAt("14 ноября 2026")} · ${t.money.operationRef("X-1")}`);
+    expect(v.proof).toBe(t.money.reservedAt("14 ноября 2026"));
     expect(money(block({ kind: "protected", amountTiyn: 1n, reservedAt, operationRef: null })).proof).toBe(t.money.reservedAt("14 ноября 2026"));
   });
 
@@ -202,9 +202,9 @@ describe("moneyView: блок денег из журнала", () => {
     );
   });
 
-  it("возврат: сумма возврата; идёт и завершён — «вам»", () => {
+  it("возврат: сумма возврата; идёт — «Возвращается вам», завершён — «Возвращено вам»", () => {
     expect(money(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: false, refundedAt: null }))).toMatchObject({ tone: "refunded", title: t.money.refunded.pending, amount: 102_000_00n });
-    expect(money(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: true, refundedAt: new Date() })).title).toBe("Деньги вернулись вам");
+    expect(money(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: true, refundedAt: new Date() })).title).toBe("Возвращено вам");
   });
 
   it("пометки тестового платежа нет ни в одном тексте", () => {
@@ -286,6 +286,19 @@ describe("документы", () => {
       ["Выписка по деньгам № В-1", "Подпись не нужна"],
     ]);
     expect(rows[0]?.href).toBe("/api/documents/c1/pdf");
+    expect(rows.map((r) => r.open)).toEqual(["Открыть оферту", "Открыть оферту", "Открыть акт", "Открыть акт", "Открыть выписку"]);
+  });
+
+  it.each([
+    ["раздел по спору", "PARTIAL_SPLIT", "Не подписан: спор решён оператором"],
+    ["полный возврат по спору", "FULL_REFUND", "Не подписан: спор решён оператором"],
+    ["спор решён «продолжить» — акт ещё ждёт подписей", "CONTINUE", "Ждёт подписей"],
+    ["спора не было", null, "Ждёт подписей"],
+  ] as const)("неподписанный акт, %s", (_name, outcome, status) => {
+    const act = { id: "a", kind: "ACCEPTANCE_ACT" as const, number: "А-1", status: "SIGNING" as const, pdfUrl: "/x", signable: true, canSign: { hand: false, ecp: false } };
+    expect(documentRows([act], outcome)[0]?.status).toBe(status);
+    // Подписанный акт остаётся «Подписан» при любом исходе.
+    expect(documentRows([{ ...act, status: "SIGNED" }], outcome)[0]?.status).toBe("Подписан");
   });
 });
 

@@ -88,7 +88,7 @@ test("история денег оплаченной сделки: блок де
   await expect(page.locator("main")).toContainText(t.card.money.protected.title);
   await expect(page.locator("main")).toContainText("Защита сделки (2%)");
   await expect(page.getByRole("list", { name: money.operationsLabel }).getByText(money.type.HOLD)).toBeVisible();
-  await expect(page.getByRole("link", { name: money.openStatement })).toBeVisible();
+  await expect(page.getByRole("link", { name: ru.app.deal.openDocument.MONEY_STATEMENT })).toBeVisible();
   await expect(page.getByRole("button", { name: money.shareNamed("Выписка по деньгам") }).first()).toBeVisible();
   await page.context().close();
 });

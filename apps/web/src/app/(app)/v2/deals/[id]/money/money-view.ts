@@ -1,3 +1,4 @@
+import type { DocumentKind } from "@/generated/prisma/enums";
 import { formatDateTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import type { MoneyHistoryItem } from "@/modules/payments";
@@ -16,8 +17,8 @@ export type OperationRow = {
   text?: string;
   /** Сумма записи журнала; у неудачной оплаты, остановки выплаты и свёрнутой строки завершения суммы нет. */
   amount?: bigint;
-  /** Документ-основание операции, если есть. */
-  basis: { documentId: string; href: string } | null;
+  /** Документ-основание операции, если есть: PDF и подпись ссылки по виду документа («Открыть оферту»). */
+  basis: { documentId: string; href: string; label: string } | null;
 };
 
 /** PDF документа сделки (обработчик общий с v1). */
@@ -25,7 +26,11 @@ export const documentPdfHref = (documentId: string) => `/api/documents/${encodeU
 
 const isSplit = (type: string) => type === "SPLIT_MASTER" || type === "SPLIT_PLATFORM";
 
-const basisOf = (documentId: string | null): OperationRow["basis"] => (documentId ? { documentId, href: documentPdfHref(documentId) } : null);
+/** Основание — документ сделки известного вида (`kinds` — виды документов сделки по id); неизвестный — без ссылки. */
+function basisOf(documentId: string | null, kinds: ReadonlyMap<string, DocumentKind>): OperationRow["basis"] {
+  const kind = documentId ? kinds.get(documentId) : undefined;
+  return documentId && kind ? { documentId, href: documentPdfHref(documentId), label: ru.app.deal.openDocument[kind] } : null;
+}
 
 /** Заголовок оплаты по состоянию в банке; при переводе по реквизитам ожидание — «Ждём ваш перевод». */
 function holdTitle(status: MoneyHistoryItem["status"], manual: boolean): string {
@@ -58,8 +63,9 @@ function lastAttempts(splits: readonly MoneyHistoryItem[]): MoneyHistoryItem[] {
  *   дают «Оплата переведена мастеру»). Служебную группу `RELEASE` модуль в историю не отдаёт.
  * Ничего не вычисляется; пометка тестового платежа не выводится.
  */
-export function operationRows(history: readonly MoneyHistoryItem[], opts: { manual?: boolean } = {}): OperationRow[] {
+export function operationRows(history: readonly MoneyHistoryItem[], opts: { manual?: boolean; kinds?: ReadonlyMap<string, DocumentKind> } = {}): OperationRow[] {
   const manual = opts.manual ?? false;
+  const kinds = opts.kinds ?? new Map<string, DocumentKind>();
   const splits = history.filter((item) => isSplit(item.type));
   const hasRefund = history.some((item) => item.type === "REFUND");
   const entries: { order: number; row: OperationRow }[] = [];
@@ -67,7 +73,7 @@ export function operationRows(history: readonly MoneyHistoryItem[], opts: { manu
   history.forEach((item, index) => {
     if (isSplit(item.type)) return;
     const ref = item.operationRef ? t.bankRef(item.operationRef) : undefined;
-    const base = { covers: [item.id], time: formatDateTime(item.at), ...(ref ? { text: ref } : {}), basis: basisOf(item.basisDocumentId) };
+    const base = { covers: [item.id], time: formatDateTime(item.at), ...(ref ? { text: ref } : {}), basis: basisOf(item.basisDocumentId, kinds) };
     let row: OperationRow;
     switch (item.type) {
       case "HOLD":
@@ -98,7 +104,7 @@ export function operationRows(history: readonly MoneyHistoryItem[], opts: { manu
         kind: "payout",
         title: title ?? "",
         time: formatDateTime(last.at),
-        basis: basisOf(splits.find((item) => item.basisDocumentId)?.basisDocumentId ?? null),
+        basis: basisOf(splits.find((item) => item.basisDocumentId)?.basisDocumentId ?? null, kinds),
       },
     });
   }

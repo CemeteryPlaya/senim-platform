@@ -37,12 +37,12 @@ function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: P
     id: "d1",
     title: "Кухня",
     lead: t.lead(7, "Исполнитель №4"),
-    chip: { text: ru.app.deal.status.CREATED, tone: "warn" },
+    chip: { text: ru.app.deal.status.pay, tone: "warn" },
     now: nowView({ ...nowBase, ...now }),
-    steps: dealStepsView("CREATED", false, "pay"),
+    steps: dealStepsView("CREATED", false),
     money: { ...money, historyHref: "/v2/deals/d1/money" },
     order: [{ label: t.order.what, value: "Кухня" }],
-    documents: [{ id: "c1", name: "Оферта № Д-1", status: "Подписан", href: "/api/documents/c1/pdf" }],
+    documents: [{ id: "c1", name: "Оферта № Д-1", status: "Подписан", href: "/api/documents/c1/pdf", open: ru.app.deal.openDocument.CONTRACT }],
     master: { label: "Исполнитель №4", contacts: null, chatHref: "/v2/chats/o1" },
     history: { items: [{ title: "Оферта сформирована", time: "1 ноября 2026, 10:00" }], more: true, allHref: "/v2/deals/d1?history=all#history" },
     review: null,
@@ -60,7 +60,7 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки, %s
     expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe("Кухня");
     expect(out).toContain('href="/v2/deals"');
     expect(out).toContain(t.lead(7, "Исполнитель №4"));
-    expect(out).toContain(ru.app.deal.status.CREATED);
+    expect(out).toContain(ru.app.deal.status.pay);
   });
 
   it("оплата: одно главное действие «Оплатить N ₸» на экран оплаты", () => {

@@ -98,7 +98,7 @@ describe("экран оплаты", () => {
     expect(primaries(out)[0]?.text).toBe(t.submit(formatMoney(computeDealMoney(PRICE).buyerTotalTiyn)));
     expect(primaries(out)[0]?.tag).not.toMatch(/\sdisabled=""/);
     // Онлайн-провайдер: про перевод по реквизитам ничего нет.
-    expect(plain(out)).not.toContain(t.manual.offer);
+    expect(plain(out)).not.toContain(ru.app.deal.openDocument.CONTRACT);
   });
 
   it("ручной провайдер: «Оплатить переводом N ₸», рядом — перевести по реквизитам из оферты (PDF) и когда деньги будут под защитой", async () => {

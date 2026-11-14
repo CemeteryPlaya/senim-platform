@@ -186,7 +186,7 @@ function Documents({ view }: { view: CardView }) {
                     <span className="text-sub text-muted">{doc.status}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1 font-medium text-ink">
-                    {d.open}
+                    {doc.open}
                     <span className="sr-only"> ({ru.app.kit.externalHint})</span>
                     <ExternalLink aria-hidden className="size-4 shrink-0 text-muted" />
                   </span>

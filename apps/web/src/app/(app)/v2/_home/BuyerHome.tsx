@@ -1,11 +1,12 @@
 import { ACTIVE_DEAL } from "@/features/deal-progress/active-deal";
 import { listDeals, nextStepsOf, type NextStep } from "@/modules/deal-core";
 import type { CurrentUser } from "@/modules/identity";
-import { listMyRequests } from "@/modules/requests";
+import { listMyRequests, myOfferStates } from "@/modules/requests";
 import type { Device } from "@/platform/device";
 import { isEnabled } from "@/platform/features";
 import { logger } from "@/platform/logger";
 import { payWaitingMaster } from "../_parts/pay-waits";
+import { offersByRequest } from "../_parts/request-state";
 import { BuyerHomeView } from "./BuyerHomeView";
 import { buyerHome, firstName, type HomeDealInput, type HomeRequestInput } from "./buyer-home";
 
@@ -14,7 +15,7 @@ import { buyerHome, firstName, type HomeDealInput, type HomeRequestInput } from 
  * из лёгкого `nextStepsOf` (то же правило, что на экране сделки), без ограничения числа сделок.
  */
 export async function BuyerHome({ user, device }: { user: CurrentUser; device: Device }) {
-  const [requests, allDeals] = await Promise.all([listMyRequests(user), listDeals(user)]);
+  const [requests, allDeals, offerStates] = await Promise.all([listMyRequests(user), listDeals(user), myOfferStates(user)]);
   const mine = allDeals.filter((d) => d.myRole === "CLIENT");
   const reviews = isEnabled("reviews");
   // «Что дальше» нужно по идущим сделкам и (при включённых отзывах) по завершённым: отзыв ждёт и завершённая сделка.
@@ -34,7 +35,8 @@ export async function BuyerHome({ user, device }: { user: CurrentUser; device: D
     next: nexts.get(d.id) ?? null,
     payWaitsMaster: waiting.has(d.id),
   }));
-  const inputs: HomeRequestInput[] = requests.map((r) => ({ id: r.id, number: r.number, title: r.title, status: r.status, offersCount: r.offersCount }));
+  const offers = offersByRequest(offerStates);
+  const inputs: HomeRequestInput[] = requests.map((r) => ({ id: r.id, number: r.number, title: r.title, status: r.status, offers: offers.get(r.id) ?? [] }));
   const view = buyerHome({ deals, requests: inputs });
   const shown = view.deal ? (mine.find((d) => d.id === view.deal?.id) ?? null) : null;
   return <BuyerHomeView view={view} name={firstName(user.fullName)} deal={shown} device={device} />;

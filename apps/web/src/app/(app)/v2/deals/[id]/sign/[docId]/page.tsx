@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { signStep } from "@/features/signing/state";
 import { ru } from "@/i18n/ru";
-import { Card, List, ListRow, Money, Narrow, Notice, PageTitle, Section, Stack, TextLink } from "@/kit";
+import { Card, List, ListRow, Money, Notice, PageTitle, Section, Split, Stack, TextLink } from "@/kit";
 import { readDealDocuments } from "@/modules/documents";
 import { getDevice } from "@/platform/device";
 import { pageHref } from "../../../../../_shell/auth";
@@ -32,7 +32,8 @@ function Row({ row }: { row: WhatRow }) {
  * нечего (уже подписано, не тот шаг сделки, открыт спор) — карточка сделки без ошибки: её главное действие ведёт на
  * действующую редакцию. Документ есть, но это не оферта/акт или покупатель не его подписант — 404. Порядок: «Назад: <сделка>»,
  * заголовок, «Что вы подписываете» (с PDF в новой вкладке), для акта — что значит подпись и предупреждение о расстоянии,
- * шаг подписи (от руки, затем ЭЦП) и одно главное действие. Компьютер — узкая колонка (`Narrow`): это форма.
+ * шаг подписи (от руки, затем ЭЦП) и одно главное действие. Компьютер — `Split`: слева подпись и кнопка (видна без
+ * прокрутки), справа «Что вы подписываете» со ссылкой на документ.
  */
 export default async function SignPage({ params, searchParams }: Props) {
   const { id, docId } = await params;
@@ -62,39 +63,72 @@ export default async function SignPage({ params, searchParams }: Props) {
   });
   const far = farWarning(kind, deal.ready);
 
-  const body: ReactNode = (
+  const title = <PageTitle title={t.title[kind]} back={{ href: card, label: deal.title }} />;
+  const what: ReactNode = (
+    <Section title={t.what.section}>
+      <Card padded={false}>
+        <List>
+          {rows.map((row) => (
+            <Row key={row.label} row={row} />
+          ))}
+        </List>
+      </Card>
+      {/* PDF — обработчик маршрута, а не экран: обычная ссылка в новой вкладке (`external`). */}
+      <TextLink href={doc.pdfUrl} external>
+        {ru.app.deal.openDocument[kind]}
+      </TextLink>
+    </Section>
+  );
+  const farNotice = far && (
+    <Notice tone="warn" title={t.act.farTitle}>
+      <p>{far}</p>
+    </Notice>
+  );
+  const meaning = kind === "ACCEPTANCE_ACT" && (
+    <Card>
+      <Stack gap="tight">
+        <p className="text-body text-ink">{t.act.meaning}</p>
+        <p className="text-body text-muted">{t.act.notLiked}</p>
+      </Stack>
+    </Card>
+  );
+  const area = <SignArea documentId={doc.id} kind={kind} step={step} dealHref={card} device={device} fullName={user.fullName ?? ""} />;
+
+  // Компьютер — две колонки: слева подпись (предупреждение о расстоянии, шаг, холст или ЭЦП, кнопка — видна без
+  // прокрутки), справа «Что вы подписываете», ссылка на документ и что значит подпись акта.
+  if (device === "desktop") {
+    return (
+      <Stack gap="section">
+        {title}
+        <Split
+          main={
+            <Stack gap="section">
+              {farNotice}
+              {area}
+            </Stack>
+          }
+          aside={
+            <Stack gap="section">
+              {what}
+              {meaning}
+            </Stack>
+          }
+        />
+      </Stack>
+    );
+  }
+
+  return (
     <Stack gap="section">
-      <PageTitle title={t.title[kind]} back={{ href: card, label: deal.title }} />
-      <Section title={t.what.section}>
-        <Card padded={false}>
-          <List>
-            {rows.map((row) => (
-              <Row key={row.label} row={row} />
-            ))}
-          </List>
-        </Card>
-        {/* PDF — обработчик маршрута, а не экран: обычная ссылка в новой вкладке (`external`). */}
-        <TextLink href={doc.pdfUrl} external>
-          {t.what.open}
-        </TextLink>
-      </Section>
+      {title}
+      {what}
       {kind === "ACCEPTANCE_ACT" && (
         <Stack>
-          {far && (
-            <Notice tone="warn" title={t.act.farTitle}>
-              <p>{far}</p>
-            </Notice>
-          )}
-          <Card>
-            <Stack gap="tight">
-              <p className="text-body text-ink">{t.act.meaning}</p>
-              <p className="text-body text-muted">{t.act.notLiked}</p>
-            </Stack>
-          </Card>
+          {farNotice}
+          {meaning}
         </Stack>
       )}
-      <SignArea documentId={doc.id} kind={kind} step={step} dealHref={card} device={device} fullName={user.fullName ?? ""} />
+      {area}
     </Stack>
   );
-  return device === "desktop" ? <Narrow>{body}</Narrow> : body;
 }

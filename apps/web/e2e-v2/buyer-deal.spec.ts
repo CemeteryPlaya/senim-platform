@@ -80,13 +80,13 @@ test.beforeEach(() => {
   test.setTimeout(120_000);
 });
 
-test("список: группы «Идут» и «Завершены», карточки-ссылки, признак действия, без запретных слов", async ({ browser }, info) => {
+test("список: группы «Идут» и «Завершены», карточки-ссылки, плашка называет шаг, без запретных слов", async ({ browser }, info) => {
   const page = await pageOf(browser, info, "aigerim");
   await open(page, "/v2/deals");
   await expect(page.locator("h1")).toHaveText(t.list.title);
   await expect(page.getByRole("link", { name: t.list.groups.active(3) })).toBeVisible();
   await expect(page.locator("main a[href^='/v2/deals/']")).toHaveCount(3);
-  await expect(page.locator("main")).toContainText(t.list.mine.signContract);
+  await expect(page.locator("main")).toContainText(t.status.signOffer);
   await expect(page.locator("main")).toContainText(t.line.inBank);
   await expect(page.locator("[data-primary-action]")).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText(FORBIDDEN);
@@ -120,8 +120,8 @@ test("оплата закрыта до согласия мастера для б
   // В сиде на шаге оплаты одна сделка — «Стеллаж», и согласия мастера у неё нет; кнопку «Оплатить N ₸» при согласиях
   // обеих сторон проверяет интеграционный тест.
   await open(page, "/v2/deals");
-  await expect(page.locator("main")).toContainText(t.list.waitMaster);
-  await expect(page.locator("main")).not.toContainText(t.list.mine.pay);
+  await expect(page.locator("main")).toContainText(t.status.waitMasterBank);
+  await expect(page.locator("main")).not.toContainText(t.status.pay);
   await open(page, await dealHref(page, "Стеллаж"));
   await expectCard(page);
   await expect(page.getByRole("heading", { level: 2, name: card.now.payWaitMaster.title })).toBeVisible();

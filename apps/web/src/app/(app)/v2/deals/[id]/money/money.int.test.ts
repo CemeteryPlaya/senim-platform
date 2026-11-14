@@ -194,7 +194,7 @@ describe("страница: доступ, документы, «Назад»", (
     const f = await dealAt("PAID_HOLD", { client });
     await signInAs(client);
     const out = await page(f.dealId);
-    expect(plain(out)).toContain(t.openStatement);
+    expect(plain(out)).toContain(ru.app.deal.openDocument.MONEY_STATEMENT);
     expect(plain(out)).toContain(t.share);
     expect(plain(out)).not.toContain(ru.app.deal.card.documents.kinds.CONTRACT);
   });

@@ -123,7 +123,7 @@ test("«Помощь» открывается гостю; вошедшему —
 
 test("ссылка «Как это работает» на главной ведёт на раздел «Помощи»", async ({ page }) => {
   await freshBuyer(page);
-  await page.getByRole("link", { name: ru.app.buyer.home.help.how }).first().click();
+  await page.getByRole("link", { name: ru.app.profile.help.how.title }).first().click();
   await expect(page).toHaveURL(/\/v2\/help#how$/);
   await expect(page.locator("h1")).toHaveText(t.help.title);
 });

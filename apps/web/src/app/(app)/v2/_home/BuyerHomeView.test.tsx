@@ -8,7 +8,10 @@ import { buyerHome, type HomeDealInput, type HomeInput, type HomeRequestInput } 
 
 const t = ru.app.buyer.home;
 
-const request = (over: Partial<HomeRequestInput> = {}): HomeRequestInput => ({ id: "r1", number: 1, title: "Кухня", status: "OPEN", offersCount: 0, ...over });
+/** n действующих предложений (торг идёт). */
+const live = (n: number) => Array.from({ length: n }, () => ({ live: true, deal: null }));
+
+const request = (over: Partial<HomeRequestInput> = {}): HomeRequestInput => ({ id: "r1", number: 1, title: "Кухня", status: "OPEN", offers: [], ...over });
 const dealInput = (over: Partial<HomeDealInput> = {}): HomeDealInput => ({ id: "d1", title: "Кухня угловая", status: "IN_PROGRESS", hasOpenDispute: false, paid: true, next: { action: "waitReady", mine: false }, ...over });
 
 const listItem = (over: Partial<DealListItem> = {}): DealListItem => ({
@@ -38,7 +41,7 @@ const SCREENS: { name: string; input: HomeInput; deal?: DealListItem; label: str
   { name: "новый человек", input: { deals: [], requests: [] }, label: "Заказать мебель", href: "/v2/requests/new" },
   { name: "черновик", input: { deals: [], requests: [request({ id: "dr", status: "DRAFT" })] }, label: "Продолжить заявку", href: "/v2/requests/new?draft=dr" },
   { name: "заявка ждёт предложений", input: { deals: [], requests: [request()] }, label: null },
-  { name: "заявка с предложениями", input: { deals: [], requests: [request({ offersCount: 2 })] }, label: "Посмотреть предложения", href: "/v2/requests/r1" },
+  { name: "заявка с предложениями", input: { deals: [], requests: [request({ offers: live(2) })] }, label: "Посмотреть предложения", href: "/v2/requests/r1" },
   { name: "сделка ждёт оплаты", input: { deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, deal: listItem({ status: "CREATED", money: { kind: "awaiting", payment: "none", bankBalanceTiyn: 0n, isTest: false } }), label: "Оплатить заказ", href: "/v2/deals/d1" },
   { name: "сделка идёт, ждём мастера", input: { deals: [dealInput()], requests: [] }, deal: listItem(), label: null },
   { name: "открытый спор", input: { deals: [dealInput({ hasOpenDispute: true, next: { action: "waitDispute", mine: false } })], requests: [] }, deal: listItem({ hasOpenDispute: true }), label: null },
@@ -95,9 +98,9 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     const out = render({ deals: [dealInput()], requests: [] }, device, listItem());
     expect(out).toContain(">Кухня угловая</a>");
     expect(out).toContain('href="/v2/deals/d1"');
-    expect(out).toContain(ru.deal.status.IN_PROGRESS);
+    expect(out).toContain(ru.app.deal.status.inWork);
     // Компактно: одна строка хода и полоса, а не пять шагов; полный ход — на экране сделки.
-    expect(out).toContain(t.deal.caption(2, 5, t.deal.steps[1]));
+    expect(out).toContain(t.deal.caption(2, 5, ru.app.deal.steps[1]));
     expect(out).toContain('role="progressbar"');
     expect(out).not.toContain("<ol");
     expect(out).toContain("bg-accent-soft text-accent");
@@ -119,16 +122,16 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     expect(pay).not.toContain("bg-accent-soft text-accent");
   });
 
-  it("спор: вместо шкалы строка, плашка «Открыт спор», главной кнопки нет", () => {
+  it("спор: вместо шкалы строка, плашка «Идёт спор», главной кнопки нет", () => {
     const out = render({ deals: [dealInput({ hasOpenDispute: true, next: { action: "waitDispute", mine: false } })], requests: [] }, device, listItem({ hasOpenDispute: true }));
     expect(out).toContain(t.deal.stopped.dispute);
-    expect(out).toContain(ru.deal.disputeOpenBadge);
+    expect(out).toContain(ru.app.deal.status.dispute);
     expect(count(out, "data-primary-action")).toBe(0);
   });
 
   it("заявка со сделкой (CONTRACTING) в «Мои заявки» не повторяется", () => {
     const out = render(
-      { deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [request({ id: "c", number: 17, title: "Прихожая", status: "CONTRACTING", offersCount: 2 })] },
+      { deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [request({ id: "c", number: 17, title: "Прихожая", status: "CONTRACTING", offers: live(2) })] },
       device,
       listItem({ status: "CREATED" }),
     );
@@ -148,11 +151,13 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     expect(render({ deals: [dealInput()], requests: [] }, device, listItem())).toContain(t.now.waiting.body);
   });
 
-  it("до подписи оферты ход называется «Оферта и оплата», номер шага прежний", () => {
+  it("первый шаг — «Оферта и оплата» и до подписи, и после (как на шкале карточки); плашка называет шаг", () => {
     const out = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "signContract", mine: true } })], requests: [] }, device, listItem({ status: "CREATED" }));
-    expect(out).toContain(t.deal.caption(1, 5, t.deal.offerStep));
+    expect(out).toContain(t.deal.caption(1, 5, "Оферта и оплата"));
+    expect(out).toContain(ru.app.deal.status.signOffer);
     const after = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, device, listItem({ status: "CREATED" }));
-    expect(after).toContain(t.deal.caption(1, 5, t.deal.steps[0]));
+    expect(after).toContain(t.deal.caption(1, 5, "Оферта и оплата"));
+    expect(after).toContain(ru.app.deal.status.pay);
   });
 
   it("заявка CLOSED (сделка создана) в «Мои заявки» не показывается", () => {
@@ -168,13 +173,13 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
 
   it("заявки: название, статус и число предложений; «Все заявки»; заявка из «Сейчас» не повторяется", () => {
     const out = render(
-      { deals: [dealInput()], requests: [request({ id: "a", number: 4, title: "Шкаф", offersCount: 3 }), request({ id: "dr", number: 5, title: "Прихожая", status: "DRAFT" })] },
+      { deals: [dealInput()], requests: [request({ id: "a", number: 4, title: "Шкаф", offers: live(3) }), request({ id: "dr", number: 5, title: "Прихожая", status: "DRAFT" })] },
       device,
       listItem(),
     );
     expect(out).toContain(ru.requests.requestTitle(4, "Шкаф"));
-    expect(out).toContain(t.requests.status.offers(3));
-    expect(out).toContain(`>${t.requests.status.draft}<`);
+    expect(out).toContain(ru.app.requests.state.choose(3));
+    expect(out).toContain(`>${ru.app.requests.state.draft}<`);
     expect(out).not.toMatch(/отклик/i);
     expect(out).toContain('href="/v2/requests/new?draft=dr"');
     expect(out).toContain(t.requests.all);

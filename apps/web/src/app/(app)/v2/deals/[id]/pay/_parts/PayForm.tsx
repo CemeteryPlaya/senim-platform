@@ -92,7 +92,7 @@ function ManualHint({ amount, offerHref }: { amount: string; offerHref: string |
         {offerHref && (
           // PDF — обработчик маршрута, а не экран: обычная ссылка в новой вкладке.
           <TextLink href={offerHref} external>
-            {t.manual.offer}
+            {ru.app.deal.openDocument.CONTRACT}
           </TextLink>
         )}
         <p className="text-body text-muted">{t.manual.protectedAfter}</p>

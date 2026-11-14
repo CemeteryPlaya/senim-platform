@@ -90,7 +90,7 @@ describe("/v2 для покупателя: по одному главному д
     const out = await render();
     expect(primaries(out)).toEqual([{ href: `/v2/deals/${deal.dealId}`, label: t.now.pay.action }]);
     expect(out).toContain(">Тестовый заказ</a>");
-    expect(out).toContain(t.deal.steps[0]);
+    expect(out).toContain(ru.app.deal.steps[0]);
     expect(out).toContain(ru.common.home.client.toPay);
     expect(out).not.toMatch(/тестов(ый|ая) (платёж|сделк)|демо|комисси|эскроу/i);
   });

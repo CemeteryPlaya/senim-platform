@@ -2,7 +2,7 @@ import type { DealStatus } from "@/generated/prisma/enums";
 import { dealProgressView } from "@/features/deal-progress/deal-progress";
 import { ru } from "@/i18n/ru";
 import type { StepState } from "@/kit";
-import type { NextAction, NextStep } from "@/modules/deal-core";
+import type { NextStep } from "@/modules/deal-core";
 import type { MoneyBlock } from "@/modules/payments";
 
 /**
@@ -13,13 +13,11 @@ import type { MoneyBlock } from "@/modules/payments";
 
 const s = ru.app.buyer.home.deal;
 
+/** Подписи пяти шагов хода сделки — одни и те же в строке «Шаг N из 5» (список, главная) и на шкале карточки. */
+const stepNames = (): readonly string[] => ru.app.deal.steps;
+
 /** Исход решённого спора (последний спор сделки, `Dispute.outcome`). */
 export type DisputeOutcome = "CONTINUE" | "FULL_REFUND" | "PARTIAL_SPLIT";
-
-/** Шаги сделки по-человечески; до подписи оферты первый шаг называется шире — «Оферта и оплата». */
-function stepNames(action: NextAction | null): readonly string[] {
-  return action === "signContract" || action === "waitContractSignature" ? [s.offerStep, ...s.steps.slice(1)] : s.steps;
-}
 
 export type DealProgress =
   | { kind: "steps"; /** Сколько шагов пройдено: номер текущего шага минус один; равен `total`, когда пройдены все. */ done: number; total: number }
@@ -30,14 +28,14 @@ export function dealProgress(status: DealStatus, hasOpenDispute: boolean): DealP
   const view = dealProgressView(status, hasOpenDispute);
   if (view.kind === "banner") return { kind: "stopped", reason: view.tone };
   if (view.muted) return { kind: "stopped", reason: "dispute" };
-  return { kind: "steps", done: view.current, total: s.steps.length };
+  return { kind: "steps", done: view.current, total: stepNames().length };
 }
 
 /** Строка хода компактной карточки: «Шаг 2 из 5: Изготовление» или «Все шаги пройдены»; остановленной — `null`. */
-export function progressCaption(progress: DealProgress, action: NextAction | null): string | null {
+export function progressCaption(progress: DealProgress): string | null {
   if (progress.kind === "stopped") return null;
   if (progress.done >= progress.total) return s.allDone;
-  return s.caption(progress.done + 1, progress.total, stepNames(action)[progress.done] ?? "");
+  return s.caption(progress.done + 1, progress.total, stepNames()[progress.done] ?? "");
 }
 
 /** Подпись остановленного хода: спор, отмена, возврат. */
@@ -51,60 +49,134 @@ export type DealStepsView =
  * Полный ход сделки для карточки: пять шагов с отметками и строка «Шаг N из 5»; спор, отмена и возврат — строка вместо
  * шкалы. Спор, решённый разделом или возвратом, тоже останавливает шкалу: «все шаги пройдены» было бы неправдой.
  */
-export function dealStepsView(status: DealStatus, hasOpenDispute: boolean, action: NextAction | null, outcome: DisputeOutcome | null = null): DealStepsView {
+export function dealStepsView(status: DealStatus, hasOpenDispute: boolean, outcome: DisputeOutcome | null = null): DealStepsView {
   const card = ru.app.deal.card.steps;
   if (!hasOpenDispute && outcome === "PARTIAL_SPLIT") return { kind: "stopped", label: card.disputeSplit };
   if (!hasOpenDispute && outcome === "FULL_REFUND" && status !== "REFUNDED") return { kind: "stopped", label: card.disputeRefund };
   const progress = dealProgress(status, hasOpenDispute);
   if (progress.kind === "stopped") return { kind: "stopped", label: stoppedLabel(progress.reason) };
-  const items = stepNames(action).map((label, index) => {
+  const items = stepNames().map((label, index) => {
     const state: StepState = index < progress.done ? "done" : index === progress.done ? "current" : "todo";
     return { label, state };
   });
-  return { kind: "steps", items, caption: progressCaption(progress, action) ?? "", done: progress.done, total: progress.total };
+  return { kind: "steps", items, caption: progressCaption(progress) ?? "", done: progress.done, total: progress.total };
 }
 
 export type DealTone = "accent" | "neutral" | "warn";
-
-/**
- * Тон плашки статуса сделки. Зелёный — только когда деньги уже в банке под защитой или работа идёт к концу (оплачено);
- * сделка, которая ждёт оплаты, — нейтральная; ждёт моего действия или спор — «внимание»; отмена и возврат — нейтральные.
- * Не «внимание»: отзыв (сделка завершена, отзыв по желанию) и оплата, закрытая до согласия мастера для банка
- * (`payWaitsMaster`: от покупателя ничего не зависит).
- */
-export function dealTone(deal: {
-  status: DealStatus;
-  hasOpenDispute: boolean;
-  next: Pick<NextStep, "mine"> & Partial<Pick<NextStep, "action">> | null;
-  payWaitsMaster?: boolean;
-}): DealTone {
-  const mine = deal.next?.mine === true && deal.next.action !== "leaveReview" && !deal.payWaitsMaster;
-  if (deal.hasOpenDispute || mine) return "warn";
-  if (deal.status === "CANCELLED" || deal.status === "REFUNDED" || deal.status === "CREATED") return "neutral";
-  return "accent";
-}
 
 /** Оплата оформлена, поступления ещё нет: перевод по реквизитам (`transfer`), онлайн-оплата у банка (`online`). */
 export type PaymentWait = "transfer" | "online";
 
 /**
  * Идёт ли ожидание оплаты (журнал денег: операция оплаты в обработке, сделка ещё `CREATED`) и какое: ручной провайдер —
- * ждём перевод покупателя, иначе банк обрабатывает оплату. Иначе — `null`. Одно правило для карточки, списка и главной.
+ * ждём перевод покупателя, иначе банк обрабатывает оплату. Иначе — `null`.
  */
 export function paymentWait(deal: { status: DealStatus; money: MoneyBlock; paymentProvider: string }): PaymentWait | null {
   if (deal.status !== "CREATED" || deal.money.kind !== "awaiting" || deal.money.payment !== "PENDING") return null;
   return deal.paymentProvider === "MANUAL" ? "transfer" : "online";
 }
 
+/** Спор решён разделом денег (журнал: выплата проведена частично, остаток возвращён покупателю). */
+const splitByDispute = (m: MoneyBlock): boolean => m.kind === "completed" && m.refundedTiyn > 0n;
+
+export type DealChip = { text: string; tone: DealTone };
+
+export type DealChipInput = {
+  status: DealStatus;
+  hasOpenDispute: boolean;
+  /** «Что дальше» модуля; `null` — не удалось прочитать: плашка по статусу. */
+  next: Pick<NextStep, "action" | "mine"> | null;
+  /** Оплата закрыта до согласия мастера для банка (`payWaitsMaster`). */
+  payWaitsMaster?: boolean;
+  /** Журнал денег (`moneyBlock`): ожидание оплаты и раздел по спору. */
+  money: MoneyBlock;
+  paymentProvider: string;
+};
+
+const chip = (text: string, tone: DealTone): DealChip => ({ text, tone });
+
 /**
- * Текст плашки статуса: открытый спор важнее всего; ожидание оплаты (`paymentWait`) — «Ждём ваш перевод» или «Оплата
- * обрабатывается» вместо «Оферта: подпись и оплата»; иначе — по статусу.
+ * Плашка по «что дальше» покупателя. Тон: «внимание» — нужен мой шаг (подпись, оплата, приёмка) или спор; зелёный —
+ * деньги в банке под защитой (ждём начала, работа идёт) и сделка завершена; остальное — нейтральное. Шаги мастера и
+ * оператора покупателю модуль не отдаёт — для них, как и для неизвестного «дальше», плашка по статусу (`byStatus`).
  */
-export function dealStatusText(status: DealStatus, hasOpenDispute: boolean, wait: PaymentWait | null = null): string {
-  const s = ru.app.deal.status;
-  if (hasOpenDispute) return s.dispute;
-  if (wait) return wait === "transfer" ? s.transfer : s.processing;
-  return s[status];
+function byAction(i: DealChipInput): DealChip | null {
+  const t = ru.app.deal.status;
+  const next = i.next;
+  if (!next) return null;
+  switch (next.action) {
+    case "signContract":
+      return next.mine ? chip(t.signOffer, "warn") : null;
+    case "waitContractSignature":
+      return chip(t.waitOffer, "neutral");
+    case "pay":
+      if (!next.mine) return null;
+      return i.payWaitsMaster ? chip(t.waitMasterBank, "neutral") : chip(t.pay, "warn");
+    case "waitPaymentConfirmation":
+      return chip(i.paymentProvider === "MANUAL" ? t.transfer : t.processing, "neutral");
+    case "waitStart":
+      return chip(t.protected, "accent");
+    case "waitReady":
+      return chip(t.inWork, "accent");
+    case "signAct":
+      return next.mine ? chip(t.accept, "warn") : null;
+    case "waitMasterActSignature":
+      return chip(t.waitAct, "neutral");
+    case "waitPayout":
+      return chip(t.finishing, "neutral");
+    case "waitRefund":
+      return chip(t.refunding, "neutral");
+    case "waitDispute":
+      return chip(t.dispute, "warn");
+    case "leaveReview":
+    case "done":
+      return chip(t.done, "accent");
+    case "cancelled":
+      return chip(t.cancelled, "neutral");
+    case "refunded":
+      return chip(t.refunded, "neutral");
+    case "waitPayment":
+    case "startWork":
+    case "submitReady":
+    case "signActEcp":
+    case "waitAct":
+    case "resolveDispute":
+    case "none":
+      return null;
+  }
+}
+
+/** Плашка по статусу, когда «что дальше» неизвестно: «вашего шага» не знаем — нейтрально, кроме денег под защитой. */
+function byStatus(status: DealStatus): DealChip {
+  const t = ru.app.deal.status;
+  const BY_STATUS: Record<DealStatus, DealChip> = {
+    CREATED: chip(t.offer, "neutral"),
+    PAID_HOLD: chip(t.protected, "accent"),
+    IN_PROGRESS: chip(t.inWork, "accent"),
+    READY: chip(t.handedOver, "neutral"),
+    ACCEPTED: chip(t.finishing, "neutral"),
+    SPLIT_PAYOUT: chip(t.done, "accent"),
+    CANCELLED: chip(t.cancelled, "neutral"),
+    REFUNDED: chip(t.refunded, "neutral"),
+  };
+  return BY_STATUS[status];
+}
+
+/**
+ * Плашка статуса сделки — одна функция для главной, списка «Сделки» и карточки: называет текущий шаг по статусу и «что
+ * дальше» (`next`), а не только по статусу. Порядок: открытый спор → отмена и возврат → спор, решённый разделом денег
+ * («Спор решён») → ожидание оплаты по журналу («Ждём ваш перевод» / «Оплата обрабатывается») → шаг из «что дальше» →
+ * статус. Один текст — всегда один тон (тест-таблица).
+ */
+export function dealChip(i: DealChipInput): DealChip {
+  const t = ru.app.deal.status;
+  if (i.hasOpenDispute) return chip(t.dispute, "warn");
+  if (i.status === "CANCELLED") return chip(t.cancelled, "neutral");
+  if (i.status === "REFUNDED") return chip(t.refunded, "neutral");
+  if (splitByDispute(i.money)) return chip(t.disputeResolved, "neutral");
+  const wait = paymentWait(i);
+  if (wait) return chip(wait === "transfer" ? t.transfer : t.processing, "neutral");
+  return byAction(i) ?? byStatus(i.status);
 }
 
 /** Оплата закрыта: шаг покупателя — оплата, а мастер не дал согласие на передачу данных банку. */

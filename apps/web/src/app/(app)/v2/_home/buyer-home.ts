@@ -1,11 +1,11 @@
 import { ACTIVE_DEAL } from "@/features/deal-progress/active-deal";
 import type { DealStatus, RequestStatus } from "@/generated/prisma/enums";
 import type { NextAction } from "@/modules/deal-core";
-import { ru } from "@/i18n/ru";
 import { to } from "../../_shell/paths";
+import { requestState, type RequestOfferInput } from "../_parts/request-state";
 
 // Ход и тон плашки сделки — общие с экранами сделок (`../_parts/deal-summary`).
-export { dealProgress, dealTone, type DealProgress, type DealTone } from "../_parts/deal-summary";
+export { dealProgress, type DealProgress } from "../_parts/deal-summary";
 
 /**
  * Что показать покупателю на главной: чистая логика без React и без обращений к модулям. Страница читает данные
@@ -33,7 +33,8 @@ export type HomeRequestInput = {
   number: number;
   title: string;
   status: RequestStatus;
-  offersCount: number;
+  /** Предложения заявки (`myOfferStates`): по ним `requestState` считает действующие — то же, что в «Моих заявках» и карточке. */
+  offers: readonly RequestOfferInput[];
 };
 
 export type HomeInput = { deals: readonly HomeDealInput[]; requests: readonly HomeRequestInput[] };
@@ -61,7 +62,7 @@ export type BuyerHomeView = {
     kind: NowKind;
     /** Для `deal-waiting`: что именно ждём (подпись); `null` — общая. */
     waitAction: WaitAction | null;
-    /** Для `offers`: сколько предложений. */
+    /** Для `offers`: сколько действующих предложений. */
     offersCount: number;
     /** Заявка, о которой говорит «Сейчас» (для названия и отдельной карточки в списке). */
     request: HomeRequestInput | null;
@@ -144,10 +145,10 @@ function pick({ deals, requests }: HomeInput): Picked {
     }
     return { now: nowOf("deal-waiting", { waitAction: waitOf(waiting.next.action) }), primary: null, secondary: null, deal: waiting };
   }
-  // (3) Заявка с предложениями.
-  const offered = requests.find((r) => r.status === "OPEN" && r.offersCount > 0);
+  // (3) Заявка с действующими предложениями (то же правило, что у плашки заявки: `requestState`).
+  const offered = requests.find((r) => requestState(r).kind === "choose");
   if (offered) {
-    const now = nowOf("offers", { offersCount: offered.offersCount, request: offered });
+    const now = nowOf("offers", { offersCount: requestState(offered).liveOffers, request: offered });
     return { now, primary: { kind: "offers", href: requestHref(offered.id) }, secondary: null, deal: null };
   }
   // (4) Черновик.
@@ -192,28 +193,6 @@ export function buyerHome(input: HomeInput): BuyerHomeView {
   const firstSteps = paid ? null : steps;
 
   return { now: picked.now, primary: picked.primary, secondary: picked.secondary, deal, moreDeals, requests: listed, firstSteps };
-}
-
-/** Статус заявки словами покупателя (число предложений — внутри текста, не второй раз рядом). */
-export function requestStatusText(status: RequestStatus, offersCount: number): string {
-  const s = ru.app.buyer.home.requests.status;
-  switch (status) {
-    case "OPEN":
-      return offersCount > 0 ? s.offers(offersCount) : s.open;
-    case "DRAFT":
-      return s.draft;
-    case "PLATFORM_MEASURING":
-      return s.platformMeasuring;
-    case "OFFER_CHOSEN":
-      return s.offerChosen;
-    case "MEASURING":
-      return s.measuring;
-    case "CONTRACTING":
-    case "CLOSED":
-      return s.deal;
-    case "CANCELLED":
-      return s.cancelled;
-  }
 }
 
 /**

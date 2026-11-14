@@ -2,9 +2,9 @@ import type { DealStatus } from "@/generated/prisma/enums";
 import { ACTIVE_DEAL } from "@/features/deal-progress/active-deal";
 import { ru } from "@/i18n/ru";
 import type { ChipItem } from "@/kit";
-import type { NextAction, NextStep } from "@/modules/deal-core";
+import type { NextStep } from "@/modules/deal-core";
 import type { MoneyBlock } from "@/modules/payments";
-import { dealMoneyLine, dealProgress, dealStatusText, dealTone, paymentWait, progressCaption, stoppedLabel, type DealMoneyLine, type DealTone } from "../../_parts/deal-summary";
+import { dealChip, dealMoneyLine, dealProgress, progressCaption, stoppedLabel, type DealChip, type DealMoneyLine } from "../../_parts/deal-summary";
 import { to } from "../../../_shell/paths";
 
 // Вид списка «Сделки» покупателя (чистая функция, без React и базы): группы чипами («Идут» / «Завершены»), карточки
@@ -29,7 +29,8 @@ export type DealCardView = {
   id: string;
   href: string;
   title: string;
-  chip: { text: string; tone: DealTone };
+  /** Плашка — общая `dealChip` (называет текущий шаг: «Подпишите оферту», «Мастер делает мебель»…). */
+  chip: DealChip;
   /**
    * Ход: строка «Шаг N из M: …» с полосой или строка остановки (спор, отмена); у возврата строки нет — о нём говорят
    * плашка и строка денег («N ₸ вернулись вам»), третий повтор не нужен.
@@ -37,11 +38,6 @@ export type DealCardView = {
   progress: { kind: "steps"; caption: string; done: number; total: number } | { kind: "stopped"; label: string } | null;
   /** Строка денег из журнала: сумма (если есть) и подпись. */
   money: DealMoneyLine;
-  /**
-   * Признак под деньгами: `mine` — «нужно ваше действие» (что именно), `wait` — оплата закрыта до согласия мастера для
-   * банка (от покупателя не зависит); `null` — ничего (или «что дальше» неизвестно).
-   */
-  marker: { tone: "mine" | "wait"; text: string } | null;
 };
 
 export type DealListView = {
@@ -51,9 +47,6 @@ export type DealListView = {
   /** `none` — сделок нет совсем (обучающий экран), `group` — пуста выбранная группа, `null` — есть что показать. */
   empty: "none" | "group" | null;
 };
-
-/** Действия покупателя, о которых говорит признак на карточке. */
-const MINE: Partial<Record<NextAction, string>> = t.mine;
 
 export const groupHref = (group: DealGroup): string => `${to("/deals")}?${new URLSearchParams({ group })}`;
 
@@ -65,28 +58,21 @@ function chosenGroup(raw: string | undefined, counts: Record<DealGroup, number>)
   return counts.active === 0 && counts.done > 0 ? "done" : "active";
 }
 
-function markerOf(next: NextStep | null, waitsMaster: boolean): DealCardView["marker"] {
-  if (waitsMaster) return { tone: "wait", text: t.waitMaster };
-  const text = next?.mine ? MINE[next.action] : undefined;
-  return text ? { tone: "mine", text } : null;
-}
-
+/** Карточка сделки: плашка называет шаг (что от меня нужно — тоже она), поэтому отдельного признака «нужно ваше действие» нет. */
 function cardOf(deal: ListDealInput, next: NextStep | null, waitsMaster: boolean): DealCardView {
   const progress = dealProgress(deal.status, deal.hasOpenDispute);
-  const action = next?.action ?? null;
   return {
     id: deal.id,
     href: to(`/deals/${encodeURIComponent(deal.id)}`),
     title: deal.title,
-    chip: { text: dealStatusText(deal.status, deal.hasOpenDispute, paymentWait(deal)), tone: dealTone({ ...deal, next, payWaitsMaster: waitsMaster }) },
+    chip: dealChip({ ...deal, next, payWaitsMaster: waitsMaster }),
     progress:
       progress.kind === "steps"
-        ? { kind: "steps", caption: progressCaption(progress, action) ?? "", done: progress.done, total: progress.total }
+        ? { kind: "steps", caption: progressCaption(progress) ?? "", done: progress.done, total: progress.total }
         : progress.reason === "refunded"
           ? null
           : { kind: "stopped", label: stoppedLabel(progress.reason) },
     money: dealMoneyLine(deal.money, deal.estimate),
-    marker: markerOf(next, waitsMaster),
   };
 }
 
