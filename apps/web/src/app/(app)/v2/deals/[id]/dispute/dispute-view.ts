@@ -23,11 +23,11 @@ export function disputeScreen(dispute: { status: "OPEN" | "RESOLVED" } | null, c
 export const textValid = (text: string): boolean => text.trim().length >= TEXT_MIN;
 
 /**
- * Суммы по решению спора — из журнала (`moneyBlock`), ничего не считается: мастеру выплачено / возвращено вам.
- * Пока операции не проведены (блок ещё «под защитой» или «заморожен»), строк нет.
+ * Сумма, которая по решению спора вернулась покупателю, — из журнала (`moneyBlock`), ничего не считается. Доля мастера и
+ * доход сервиса покупателю не показываются. Пока возврат не проведён или его нет — `null`.
  */
-export function resolvedMoney(block: MoneyBlock): { paidToMaster?: bigint; refunded?: bigint } {
-  if (block.kind === "completed") return { paidToMaster: block.paidToMasterTiyn, ...(block.refundedTiyn > 0n ? { refunded: block.refundedTiyn } : {}) };
-  if (block.kind === "refunded") return { refunded: block.amountTiyn };
-  return {};
+export function resolvedRefund(block: MoneyBlock): bigint | null {
+  if (block.kind === "completed") return block.refundedTiyn > 0n ? block.refundedTiyn : null;
+  if (block.kind === "refunded") return block.amountTiyn;
+  return null;
 }

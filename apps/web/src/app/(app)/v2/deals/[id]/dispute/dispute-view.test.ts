@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { disputePositionSchema, openDisputeSchema } from "@/modules/deal-core";
 import type { MoneyBlock } from "@/modules/payments";
-import { disputeScreen, resolvedMoney, TEXT_MAX, TEXT_MIN, textValid } from "./dispute-view";
+import { disputeScreen, resolvedRefund, TEXT_MAX, TEXT_MIN, textValid } from "./dispute-view";
 
 describe("disputeScreen: какой экран по состоянию спора", () => {
   const open = { status: "OPEN" as const };
@@ -37,18 +37,18 @@ describe("границы текста совпадают с модулем deal-
   });
 });
 
-describe("resolvedMoney: суммы по журналу", () => {
-  const completed = (paid: bigint, refunded: bigint) => ({ kind: "completed", paidToMasterTiyn: paid, refundedTiyn: refunded }) as MoneyBlock;
-  it("раздел: мастеру и возврат", () => {
-    expect(resolvedMoney(completed(40n, 60n))).toEqual({ paidToMaster: 40n, refunded: 60n });
+describe("resolvedRefund: возврат покупателю по журналу", () => {
+  const completed =(paid: bigint, refunded: bigint) => ({ kind: "completed", paidToMasterTiyn: paid, refundedTiyn: refunded }) as MoneyBlock;
+  it("раздел: только возврат (доля мастера не возвращается)", () => {
+    expect(resolvedRefund(completed(40n, 60n))).toBe(60n);
   });
-  it("выплата без возврата: только мастеру", () => {
-    expect(resolvedMoney(completed(40n, 0n))).toEqual({ paidToMaster: 40n });
+  it("выплата без возврата — нет", () => {
+    expect(resolvedRefund(completed(40n, 0n))).toBeNull();
   });
   it("полный возврат", () => {
-    expect(resolvedMoney({ kind: "refunded", amountTiyn: 100n } as MoneyBlock)).toEqual({ refunded: 100n });
+    expect(resolvedRefund({ kind: "refunded", amountTiyn: 100n } as MoneyBlock)).toBe(100n);
   });
-  it("деньги ещё в банке — строк нет", () => {
-    expect(resolvedMoney({ kind: "protected" } as MoneyBlock)).toEqual({});
+  it("деньги ещё в банке — нет", () => {
+    expect(resolvedRefund({ kind: "protected" } as MoneyBlock)).toBeNull();
   });
 });

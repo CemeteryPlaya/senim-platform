@@ -5,7 +5,7 @@ import { ru } from "@/i18n/ru";
 import { processDealMoney, resolveDispute, submitDisputePosition } from "@/modules/deal-core";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../../../../../test/factories";
-import { dealAt, journalOf } from "../../../../../../../test/factories/deal";
+import { dealAt, journalOf, makePhoto } from "../../../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../../../test/factories/identity";
 import { signInAs } from "../../../../../../../test/factories/session";
 import { openDisputeAction, submitPositionAction } from "./actions";
@@ -147,9 +147,22 @@ describe("спор открыт", () => {
     expect(plain(out)).toContain(t.reasons.DEADLINE);
     expect(plain(out)).toContain(DESCRIPTION);
     expect(plain(out)).toContain(money(102_000_00n));
+    expect(plain(out)).not.toContain(money(96_000_00n));
     expect(out).toContain('name="position"');
     expect(primaries(out)).toBe(1);
     expect(plain(out)).not.toMatch(FORBIDDEN);
+  });
+
+  it("фото к спору показаны превью-ссылками с alt «Фото к спору N из M»", async () => {
+    const client = await buyer();
+    const f = await dealAt("PAID_HOLD", { client });
+    await signInAs(client);
+    const photoIds = [await makePhoto(client, "DISPUTE"), await makePhoto(client, "DISPUTE")];
+    expect((await openDisputeAction({ dealId: f.dealId, reason: "QUALITY", description: DESCRIPTION, photoIds })).ok).toBe(true);
+    const out = await page(f.dealId);
+    expect(out).toContain(`alt="${t.open.photoAlt(1, 2)}"`);
+    expect(out).toContain(`alt="${t.open.photoAlt(2, 2)}"`);
+    expect([...out.matchAll(/<a [^>]*target="_blank"[^>]*><div[^>]*><img/g)]).toHaveLength(2);
   });
 
   it("позиция отправлена: формы больше нет, главного действия нет; позиция мастера видна", async () => {
@@ -222,7 +235,7 @@ describe("спор решён", () => {
     const journal = await journalOf(f.dealId);
     const master = journal.find((e) => e.type === "SPLIT_MASTER");
     const refund = journal.find((e) => e.type === "REFUND");
-    expect(plain(out)).toContain(`${t.resolved.paidToMaster} ${money(master?.amountTiyn ?? 0n)}`);
+    expect(plain(out)).not.toContain(money(master?.amountTiyn ?? 0n));
     expect(plain(out)).toContain(`${t.resolved.refundedToYou} ${money(refund?.amountTiyn ?? 0n)}`);
   });
 
