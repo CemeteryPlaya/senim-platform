@@ -37,12 +37,12 @@ function MonthCard({ view }: { view: FinanceView }) {
     <Card className="flex flex-col gap-4">
       <nav aria-label={n.label} className="flex items-center justify-between gap-2">
         <ButtonLink variant="secondary" className="w-control px-0" href={view.prevHref} aria-label={n.prev} title={n.prev}>
-          <ChevronLeft aria-hidden className="size-6" />
+          <ChevronLeft aria-hidden className="size-6 shrink-0" />
         </ButtonLink>
         <h2 className="min-w-0 flex-1 text-center text-section text-ink">{view.title}</h2>
         {view.nextHref ? (
           <ButtonLink variant="secondary" className="w-control px-0" href={view.nextHref} aria-label={n.next} title={n.next}>
-            <ChevronRight aria-hidden className="size-6" />
+            <ChevronRight aria-hidden className="size-6 shrink-0" />
           </ButtonLink>
         ) : (
           <span aria-hidden className="w-control shrink-0" />
