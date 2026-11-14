@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { Card, List, ListRow, NowNext, PageTitle, Stack, TextLink } from "@/kit";
+import { Card, List, Narrow, ListRow, NowNext, PageTitle, Stack, TextLink } from "@/kit";
 import { getOwnPayout } from "@/modules/identity";
 import { hasPendingPayout } from "@/modules/payments";
 import { getDevice } from "@/platform/device";
@@ -39,18 +39,26 @@ export default async function PayoutPage() {
   const now = payoutNow(last4, locked);
 
   return (
-    <Stack gap="section">
-      <PageTitle title={t.title} back={{ href: to("/executor/profile"), label: ru.app.masterCompany.shared.backCompany }} />
-      <Stack>
-        <NowNext now={{ title: now.title, body: now.body }} {...(now.next ? { next: now.next } : {})} />
-        <Card padded={false}>
-          <List>
-            <ListRow label={t.account} value={<span className="tabular-nums">{accountLine(last4)}</span>} />
-          </List>
-        </Card>
-        {locked && <TextLink href={SUPPORT_HREF}>{t.support}</TextLink>}
+    <Narrow>
+      <Stack gap="section">
+        <PageTitle
+          title={t.title}
+          back={{
+            href: to("/executor/profile"),
+            label: ru.app.masterCompany.shared.backCompany,
+          }}
+        />
+        <Stack>
+          <NowNext now={{ title: now.title, body: now.body }} {...(now.next ? { next: now.next } : {})} />
+          <Card padded={false}>
+            <List>
+              <ListRow label={t.account} value={<span className="tabular-nums">{accountLine(last4)}</span>} />
+            </List>
+          </Card>
+          {locked && <TextLink href={SUPPORT_HREF}>{t.support}</TextLink>}
+        </Stack>
+        {!locked && <PayoutForm device={device} />}
       </Stack>
-      {!locked && <PayoutForm device={device} />}
-    </Stack>
+    </Narrow>
   );
 }

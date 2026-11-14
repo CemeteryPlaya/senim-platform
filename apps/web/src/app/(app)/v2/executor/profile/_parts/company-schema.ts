@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 
 // Компания мастера v2: проверка полей формы (без React и сервера). Правила те же, что у `profileInputSchema` модуля
 // companies, тексты — v2 (`ru.app.masterCompany.company.form.errors`). Всё, что пропускает эта схема, пропускает и схема
-// модуля (действие затем разбирает вход схемой модуля); пределы сверяет `actions.int.test.ts` с константами модуля.
+// модуля (действие затем разбирает вход схемой модуля); пределы сверяет `profile.int.test.ts` с константами модуля.
 
 const t = ru.app.masterCompany.company.form.errors;
 

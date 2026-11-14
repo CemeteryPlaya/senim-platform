@@ -71,6 +71,13 @@ export function publicHref(profile: Pick<CompanyProfile, "status" | "publicNumbe
   return profile.status === "APPROVED" ? to(`/executors/${profile.publicNumber}`) : null;
 }
 
+/** Плата за выезд для показа: «10 000» с разделителем разрядов (в том числе неразрывным); не число — как ввели. */
+export function formatFee(raw: string): string {
+  const clean = raw.replace(/[\s ]/g, "");
+  if (clean === "" || !/^\d+$/.test(clean)) return raw;
+  return Number(clean).toLocaleString("ru-RU");
+}
+
 /** Начальные значения формы: все поля — строки (число — как его вводят). */
 export type CompanyValues = {
   about: string;
@@ -89,7 +96,7 @@ export function initialValues(profile: CompanyProfile): CompanyValues {
     years: String(profile.yearsExperience),
     specializationIds: profile.specializationIds,
     terms: profile.measurementTerms,
-    fee: profile.measurementFee === null ? "" : String(profile.measurementFee),
+    fee: profile.measurementFee === null ? "" : formatFee(String(profile.measurementFee)),
     city: profile.city,
     district: profile.district,
     streetAddress: profile.streetAddress,

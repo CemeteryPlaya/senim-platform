@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, Explain, Stack, TextField, toast } from "@/kit";
 import type { Device } from "@/platform/device";
@@ -31,19 +31,28 @@ export function PayoutForm({ device }: { device: Device }) {
       router.refresh();
     },
   });
+  const [attempt, setAttempt] = useState(0);
+  const root = useRef<HTMLFormElement>(null);
   const error = local ?? form.fieldErrors.iban;
+
+  // Ошибка у поля (в браузере или с сервера) — фокус на него, чтобы исправить сразу.
+  useEffect(() => {
+    if (attempt === 0 && form.fieldErrors.iban === undefined) return;
+    root.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [attempt, form.fieldErrors]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const problem = ibanProblem(iban);
     setLocal(problem ?? undefined);
+    if (problem !== null) setAttempt((n) => n + 1);
     if (problem === null) void form.submit(new FormData());
   }
 
   return (
     <>
       <Card>
-        <form id={FORM} method="post" onSubmit={submit} noValidate>
+        <form id={FORM} ref={root} method="post" onSubmit={submit} noValidate>
           <Stack>
             <TextField
               label={t.iban}

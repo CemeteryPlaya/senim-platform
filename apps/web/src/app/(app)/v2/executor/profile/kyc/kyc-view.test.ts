@@ -12,6 +12,14 @@ describe("карточка «Сейчас / Дальше» документов"
     expect(kycNow("PENDING", null, 3).uploaded).toBe(t.now.PENDING.uploaded(3));
     expect(kycNow("PENDING", null, 0).uploaded).toBeNull();
     expect(kycNow("VERIFIED", null, 2).uploaded).toBeNull();
+    // Проверены: «Дальше» — про счёт, только пока он не указан.
+    expect(kycNow("VERIFIED", null, 2).next).toBe(t.now.VERIFIED.next);
+    expect(kycNow("VERIFIED", null, 2, { payoutSet: true }).next).toBeNull();
+    // Режим «заново»: предупреждение о замене вместо «от вас ничего не требуется».
+    const again = kycNow("PENDING", null, 2, { again: true });
+    expect(again.body).toBe(t.now.PENDING.again);
+    expect(again.uploaded).toBeNull();
+    expect(kycNow("PENDING", null, 2).body).toBe(t.now.PENDING.body);
     expect(kycNow("REJECTED", "Фото нечёткое", 0).body).toBe(t.now.REJECTED.reason("Фото нечёткое"));
     expect(kycNow("REJECTED", null, 0).body).toBe(t.now.REJECTED.noReason);
   });

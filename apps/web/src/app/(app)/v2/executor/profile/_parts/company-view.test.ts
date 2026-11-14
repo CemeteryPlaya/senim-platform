@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { companyNow, initialValues, placeLine, publicHref, sectionLinks, type CompanyProfile } from "./company-view";
+import { companyNow, formatFee, initialValues, placeLine, publicHref, sectionLinks, type CompanyProfile } from "./company-view";
 import { companySchema, toNumber, type CompanyInput } from "./company-schema";
 
 const t = ru.app.masterCompany.company;
@@ -49,8 +49,16 @@ describe("разделы и публичная страница", () => {
     expect(placeLine({ city: "", district: "" })).toBeNull();
   });
 
+  it("плата — с разделителем разрядов; не число остаётся как ввели", () => {
+    expect(formatFee("10000")).toBe("10 000");
+    expect(formatFee("10 000")).toBe("10 000");
+    expect(formatFee("1500000")).toBe("1 500 000");
+    expect(formatFee("")).toBe("");
+    expect(formatFee("abc")).toBe("abc");
+  });
+
   it("начальные значения формы — строки; плата пустая, когда её нет", () => {
-    expect(initialValues(profile)).toMatchObject({ years: "7", fee: "10000", terms: "FEE_IF_NO_DEAL", specializationIds: ["a", "b"] });
+    expect(initialValues(profile)).toMatchObject({ years: "7", fee: "10 000", terms: "FEE_IF_NO_DEAL", specializationIds: ["a", "b"] });
     expect(initialValues({ ...profile, measurementFee: null }).fee).toBe("");
   });
 });

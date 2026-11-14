@@ -6,23 +6,31 @@ import type { UploaderItem } from "@/kit";
 
 const t = ru.app.masterCompany.kyc;
 
-/** Пределы — те же, что у `KYC_MAX_FILES` модуля identity (сверяет `actions.int.test.ts`). */
+/** Пределы — те же, что у `KYC_MAX_FILES` модуля identity (сверяет `profile.int.test.ts`). */
 export const KYC_MAX = 4;
 
 /** Состояние проверки так, как его отдаёт `getOwnKyc` модуля identity. */
 export type KycState = "NOT_SUBMITTED" | "PENDING" | "VERIFIED" | "REJECTED";
 
-export type KycNow = { title: string; body: string; next: string; uploaded: string | null };
+export type KycNow = { title: string; body: string; next: string | null; uploaded: string | null };
 
-/** Карточка «Сейчас / Дальше» по состоянию проверки; число файлов — только у «на проверке». */
-export function kycNow(state: KycState, rejectReason: string | null, uploadedCount: number): KycNow {
+/** Что ещё влияет на карточку: режим «отправить заново» и указан ли счёт для оплаты (у проверенных). */
+export type KycNowOptions = { again?: boolean; payoutSet?: boolean };
+
+/**
+ * Карточка «Сейчас / Дальше» по состоянию проверки; число файлов — только у «на проверке». В режиме «заново» вместо «от вас
+ * ничего не требуется» — предупреждение, что новая отправка заменит документы на проверке. Проверенным «Дальше» — про счёт,
+ * только пока он не указан.
+ */
+export function kycNow(state: KycState, rejectReason: string | null, uploadedCount: number, options: KycNowOptions = {}): KycNow {
   switch (state) {
     case "NOT_SUBMITTED":
       return { ...t.now.NOT_SUBMITTED, uploaded: null };
     case "PENDING":
+      if (options.again) return { title: t.now.PENDING.title, body: t.now.PENDING.again, next: t.now.PENDING.againNext, uploaded: null };
       return { title: t.now.PENDING.title, body: t.now.PENDING.body, next: t.now.PENDING.next, uploaded: uploadedCount > 0 ? t.now.PENDING.uploaded(uploadedCount) : null };
     case "VERIFIED":
-      return { ...t.now.VERIFIED, uploaded: null };
+      return { title: t.now.VERIFIED.title, body: t.now.VERIFIED.body, next: options.payoutSet ? null : t.now.VERIFIED.next, uploaded: null };
     case "REJECTED":
       return {
         title: t.now.REJECTED.title,

@@ -7,7 +7,7 @@ import { ru } from "@/i18n/ru";
 import { ABOUT_MAX_LENGTH, MASK, MEASUREMENT_FEE_MAX, MEASUREMENT_FEE_MIN } from "@/modules/companies";
 import { KYC_MAX_FILES } from "@/modules/identity";
 import { db } from "@/platform/db";
-import { makeClient, makeExecutor } from "../../../../../../test/factories";
+import { makeClient, makeExecutor, makeOperator } from "../../../../../../test/factories";
 import { dealAt, makePhoto, signAct } from "../../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../../test/factories/identity";
 import { signInAs } from "../../../../../../test/factories/session";
@@ -131,11 +131,33 @@ describe("«Компания»", () => {
     expect(out).toContain('href="/v2/register/executor?step=form"');
   });
 
-  it("покупатель без роли мастера — не здесь: уходит в свой дом", async () => {
+  it("покупатель без роли мастера — не здесь: переход в его дом (главная), а не на экран мастера", async () => {
     const client = await makeClient();
     await db.user.update({ where: { id: client.id }, data: { emailVerifiedAt: new Date() } });
     await signInAs(client);
-    expect(await redirectOf(() => CompanyPage())).not.toBeNull();
+    expect(await redirectOf(() => CompanyPage())).toBe("/v2");
+  });
+});
+
+describe("три экрана: гость и оператор", () => {
+  const screens = [
+    ["компания", () => CompanyPage()],
+    ["документы", () => KycPage({ searchParams: Promise.resolve({}) })],
+    ["счёт", () => PayoutPage()],
+  ] as const;
+
+  it.each(screens)("%s: гость уходит на вход", async (_name, open) => {
+    const to = await redirectOf(open);
+    expect(to).toMatch(/^\/v2\/login/);
+  });
+
+  it.each(screens)("%s: оператор не попадает на экран мастера", async (_name, open) => {
+    const operator = await makeOperator();
+    await db.user.update({ where: { id: operator.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(operator);
+    const to = await redirectOf(open);
+    expect(to).not.toBeNull();
+    expect(to).not.toContain("/executor/profile");
   });
 });
 
@@ -314,11 +336,18 @@ describe("«Счёт для оплаты»", () => {
     const bad = await savePayoutAction({ iban: "KZ87 125K ZT50 0410 0100" });
     expect(bad).toMatchObject({ ok: false, code: "VALIDATION", fieldErrors: { iban: [m.payout.form.errors.checksum] } });
 
+    // В ответе на неверный номер нет введённого значения.
+    expect(JSON.stringify(bad)).not.toMatch(/KZ87|87125|5004100/);
+
     const saved = await savePayoutAction({ iban: GROUPED });
     expect(saved).toEqual({ ok: true, data: { last4: "0100" } });
     expect(JSON.stringify(saved)).not.toContain("KZ86");
     expect(setPayoutCalls()).toHaveLength(1);
     expect((await db.executorProfile.findUniqueOrThrow({ where: { id: executor.executor.id } })).payoutIbanLast4).toBe("0100");
+
+    // Тот же номер ещё раз (двойной клик, повтор): один эффект — ни второго уведомления, ни лишних изменений.
+    expect(await savePayoutAction({ iban: IBAN })).toEqual({ ok: true, data: { last4: "0100" } });
+    expect(await db.notification.count({ where: { userId: executor.id, kind: "executor.payout_iban_changed" } })).toBe(1);
 
     const out = await renderPayout();
     expect(out).toContain("KZ •••• 0100");
