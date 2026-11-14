@@ -1,5 +1,15 @@
 import { DisputeReason } from "@/generated/prisma/enums";
+import { ru } from "@/i18n/ru";
 import type { MoneyBlock } from "@/modules/payments";
+import type { DealSide } from "../../../../_shell/side";
+
+/** Тексты спора по стороне: покупатель — `ru.app.deal.dispute`, мастер — `ru.app.masterDispute` (структура общая). */
+export const disputeTexts = (side: DealSide) => (side === "CLIENT" ? ru.app.deal.dispute : ru.app.masterDispute);
+
+/** Позиции спора: своя и другой стороны — по стороне смотрящего. */
+export function positionsOf(side: DealSide, dispute: { clientPosition: string | null; executorPosition: string | null }): { mine: string | null; other: string | null } {
+  return side === "CLIENT" ? { mine: dispute.clientPosition, other: dispute.executorPosition } : { mine: dispute.executorPosition, other: dispute.clientPosition };
+}
 
 /** Границы текста спора и позиции — те же, что у модуля deal-core (сверяет `dispute-view.test.ts`). */
 export const TEXT_MIN = 10;
@@ -34,4 +44,13 @@ export function resolvedRefund(block: MoneyBlock): bigint | null {
   if (block.kind === "completed") return block.refundedTiyn > 0n ? block.refundedTiyn : null;
   if (block.kind === "refunded") return block.amountTiyn;
   return null;
+}
+
+/**
+ * Сумма, которую по решению спора получает мастер, — из журнала (`moneyBlock`, часть оплаты мастеру): только при разделе
+ * (часть вернулась покупателю). Полный возврат — мастеру ничего (строки нет), сделка продолжается — оплата как обычно, не
+ * решение. Суммы покупателя (возврат, защита) мастеру не показываются.
+ */
+export function resolvedShare(block: MoneyBlock): bigint | null {
+  return block.kind === "completed" && block.refundedTiyn > 0n ? block.paidToMasterTiyn : null;
 }

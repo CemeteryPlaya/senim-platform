@@ -13,8 +13,9 @@ vi.mock("@/platform/device", () => ({ getDevice: async () => "mobile" }));
 vi.mock("next/headers", async () => (await import("../../../../../../test/factories/identity")).nextHeadersMock);
 vi.mock("next/navigation", async (importActual) => ({ ...(await importActual<typeof import("next/navigation")>()), useRouter: () => ({ refresh: () => undefined, push: () => undefined }) }));
 
-// Ворота экранов спора, отзыва и истории денег для оператора и мастера сделки: в v1 нет экранов `/deals/<id>/dispute` и
-// `/deals/<id>/review` (404), поэтому они уходят на карточку сделки v1; история денег есть и в v1 — на тот же адрес.
+// Ворота экранов спора, отзыва и истории денег: оператор уходит в v1 — там нет экранов `/deals/<id>/dispute` и
+// `/deals/<id>/review` (404), поэтому на карточку сделки v1; история денег есть и в v1 — на тот же адрес. Отзыв — экран только
+// покупателя: мастер сделки уходит в v1. Спор и история денег общие для сторон — мастер видит свой экран v2.
 
 beforeEach(() => freshBrowser({ "user-agent": "vitest" }));
 
@@ -36,17 +37,38 @@ const SCREENS: [string, Page, (id: string) => string][] = [
   ["история денег", MoneyHistoryPage as Page, (id) => `/deals/${id}/money`],
 ];
 
-describe.each(SCREENS)("ворота экрана «%s»: оператор и мастер сделки — в v1", (_name, page, v1) => {
+describe.each(SCREENS)("ворота экрана «%s»: оператор — в v1", (_name, page, v1) => {
   it("оператор", async () => {
     const f = await dealAt("SIGNED");
     await signInAs(await makeOperator());
     expect(await where(page, f.dealId)).toBe(v1(f.dealId));
   });
+});
 
-  it("мастер этой сделки (активная роль мастера)", async () => {
+async function masterOf(f: Awaited<ReturnType<typeof dealAt>>) {
+  await db.user.update({ where: { id: f.executor.id }, data: { emailVerifiedAt: new Date() } });
+  await signInAs(f.executor);
+}
+
+describe("мастер сделки (активная роль мастера)", () => {
+  it("отзыв — экран покупателя: в v1", async () => {
     const f = await dealAt("SIGNED");
-    await db.user.update({ where: { id: f.executor.id }, data: { emailVerifiedAt: new Date() } });
-    await signInAs(f.executor);
-    expect(await where(page, f.dealId)).toBe(v1(f.dealId));
+    await masterOf(f);
+    expect(await where(ReviewPage as Page, f.dealId)).toBe(`/deals/${f.dealId}`);
+  });
+
+  it("история денег — свой экран v2", async () => {
+    const f = await dealAt("SIGNED");
+    await masterOf(f);
+    expect(await where(MoneyHistoryPage as Page, f.dealId)).toBe("page");
+  });
+
+  it("спор: до оплаты открыть нельзя — карточка сделки v2; после оплаты — форма", async () => {
+    const early = await dealAt("SIGNED");
+    await masterOf(early);
+    expect(await where(DisputePage as Page, early.dealId)).toBe(`/v2/deals/${early.dealId}`);
+    const paid = await dealAt("PAID_HOLD");
+    await masterOf(paid);
+    expect(await where(DisputePage as Page, paid.dealId)).toBe("page");
   });
 });

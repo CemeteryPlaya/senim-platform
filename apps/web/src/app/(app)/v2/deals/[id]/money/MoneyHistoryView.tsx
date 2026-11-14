@@ -1,32 +1,38 @@
 import { ru } from "@/i18n/ru";
-import { Card, List, ListItem, MoneyPanel, PageTitle, Section, Split, Stack, TextLink, Timeline, type TimelineItem } from "@/kit";
+import { Card, List, ListItem, MoneyPanel, Narrow, PageTitle, Section, Split, Stack, TextLink, Timeline, type TimelineItem } from "@/kit";
 import type { Device } from "@/platform/device";
+import type { DealSide } from "../../../../_shell/side";
 import type { MoneyView } from "../_parts/deal-card";
 import { ShareButton } from "./ShareButton";
 import type { OperationRow } from "./money-view";
 
 const t = ru.app.deal.money;
-const card = ru.app.deal.card;
 
 export type MoneyDocument = { id: string; name: string; status: string; href: string; open: string; shareable: boolean };
 
 export type MoneyHistoryModel = {
+  /** Чьими глазами: покупатель или мастер (тексты и состав экрана). */
+  side: DealSide;
   dealTitle: string;
   backHref: string;
   number: number;
   money: MoneyView;
   operations: OperationRow[];
-  documents: MoneyDocument[];
+  /** Выписка и акт — только покупателю (в них суммы покупателя); мастеру — `null`, раздела нет. */
+  documents: MoneyDocument[] | null;
 };
 
 /**
  * История денег: блок денег (тот же вид, что на карточке сделки, из журнала), операции журнала лентой — свежие сверху
  * (номер операции банка — только здесь), выписка и акт («Открыть …» и «Поделиться»). Главного действия на экране нет: он
- * справочный. Телефон — одна колонка; компьютер — `Split`: слева деньги и операции, справа «Выписка и акт».
+ * справочный. Телефон — одна колонка; компьютер покупателя — `Split`: слева деньги и операции, справа «Выписка и акт».
+ * Мастеру — тексты мастера, без выписки и акта (в них суммы покупателя), на компьютере одна колонка `Narrow`.
  */
 export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; device: Device }) {
   const m = model.money;
-  const e = card.money.explain;
+  const master = model.side === "EXECUTOR";
+  const tx = master ? ru.app.masterMoney : t;
+  const e = master ? ru.app.masterDeal.card.money.explain : ru.app.deal.card.money.explain;
   const items: TimelineItem[] = model.operations.map((row) => ({
     title: row.title,
     time: row.time,
@@ -35,7 +41,7 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
     // Документ-основание оплаты (PDF) — ссылка внутри строки операции, подпись по виду документа («Открыть оферту»).
     ...(row.kind === "hold" && row.basis ? { link: { label: row.basis.label, href: row.basis.href, external: true } } : {}),
   }));
-  const title = <PageTitle title={t.title} back={{ href: model.backHref, label: model.dealTitle }} lead={t.lead(model.number)} />;
+  const title = <PageTitle title={tx.title} back={{ href: model.backHref, label: model.dealTitle }} lead={tx.lead(model.number)} />;
   const money = (
     <Stack gap="section">
       <Stack gap="tight">
@@ -49,21 +55,32 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
         />
         {m.proof && <p className="text-sub text-muted">{m.proof}</p>}
       </Stack>
-      <Section title={t.operations}>
-        <Card>{items.length === 0 ? <p className="text-body text-muted">{t.empty}</p> : <Timeline label={t.operationsLabel} items={items} />}</Card>
+      <Section title={tx.operations}>
+        <Card>{items.length === 0 ? <p className="text-body text-muted">{tx.empty}</p> : <Timeline label={tx.operationsLabel} items={items} />}</Card>
       </Section>
     </Stack>
   );
+  const docs = model.documents;
+  if (docs === null) {
+    return (
+      <Narrow>
+        <Stack gap="section">
+          {title}
+          {money}
+        </Stack>
+      </Narrow>
+    );
+  }
   const documents = (
     <Section title={t.documentsSection}>
-      {model.documents.length === 0 ? (
+      {docs.length === 0 ? (
         <Card>
           <p className="text-body text-muted">{t.documentsEmpty}</p>
         </Card>
       ) : (
         <Card padded={false}>
           <List>
-            {model.documents.map((doc) => (
+            {docs.map((doc) => (
               <ListItem key={doc.id}>
                 <div className="flex flex-col gap-2 px-4 py-3">
                   <span className="flex flex-col gap-1">

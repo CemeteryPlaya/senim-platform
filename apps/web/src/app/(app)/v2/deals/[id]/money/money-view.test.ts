@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { MoneyHistoryItem } from "@/modules/payments";
-import { operationRows } from "./money-view";
+import { masterOperationRows, operationRows } from "./money-view";
 
 const t = ru.app.deal.money;
 let seq = 0;
@@ -149,5 +149,85 @@ describe("operationRows: движение денег покупателя", () =
     });
     expect(operationRows([item({ type: "HOLD", basisDocumentId: "doc2" })], { kinds })[0]?.basis).toBeNull();
     expect(operationRows([])).toEqual([]);
+  });
+});
+
+describe("masterOperationRows: движение денег мастера", () => {
+  const tm = ru.app.masterMoney;
+  const BUYER_AMOUNT = 102_000_00n;
+  const MASTER_AMOUNT = 96_000_00n;
+  const journal = () => [
+    item({ id: "h", type: "HOLD", amountTiyn: BUYER_AMOUNT, operationRef: "BUYER-REF" }),
+    item({ id: "m", type: "SPLIT_MASTER", amountTiyn: MASTER_AMOUNT, operationRef: "BK-9", basisDocumentId: "act1" }),
+    item({ id: "p", type: "SPLIT_PLATFORM", amountTiyn: 6_000_00n }),
+  ];
+
+  it("оплата покупателя: строка без суммы покупателя и без его номера операции, «Вы получите» из сметы мастера", () => {
+    const [row] = masterOperationRows([item({ type: "HOLD", amountTiyn: BUYER_AMOUNT, operationRef: "BUYER-REF" })], { youGetTiyn: MASTER_AMOUNT });
+    expect(row?.title).toBe(tm.hold.DONE);
+    expect(row).not.toHaveProperty("amount");
+    expect(row?.text).toContain("96");
+    expect(row?.text).not.toContain("BUYER-REF");
+    expect(row?.basis).toBeNull();
+  });
+
+  it("оплата ждёт банка / перевод по реквизитам / не прошла — без сумм", () => {
+    expect(masterOperationRows([item({ type: "HOLD", status: "PENDING" })])[0]?.title).toBe(tm.hold.PENDING);
+    expect(masterOperationRows([item({ type: "HOLD", status: "PENDING" })], { manual: true })[0]?.title).toBe(tm.hold.WAITING);
+    const failed = masterOperationRows([item({ type: "HOLD", status: "FAILED" })])[0];
+    expect(failed?.title).toBe(tm.hold.FAILED);
+    expect(failed).not.toHaveProperty("amount");
+  });
+
+  it("остановка спором и снятие — без суммы", () => {
+    const rows = masterOperationRows([item({ type: "FREEZE", amountTiyn: MASTER_AMOUNT }), item({ type: "UNFREEZE", amountTiyn: MASTER_AMOUNT })]);
+    expect(rows.map((r) => r.title)).toEqual([tm.unfreeze, tm.freeze]);
+    for (const row of rows) expect(row).not.toHaveProperty("amount");
+  });
+
+  it("оплата мастеру: сумма мастера и номер операции банка; доход сервиса свёрнут в ту же строку без суммы", () => {
+    const rows = masterOperationRows(journal());
+    expect(rows).toHaveLength(2);
+    const [payout] = rows;
+    expect(payout?.title).toBe(tm.payout.DONE);
+    expect(payout?.amount).toBe(MASTER_AMOUNT);
+    expect(payout?.text).toBe(tm.bankRef("BK-9"));
+    expect(payout?.covers).toEqual(["m", "p"]);
+    expect(payout?.basis).toBeNull();
+    expect(rows.some((r) => r.amount === BUYER_AMOUNT || r.amount === 6_000_00n)).toBe(false);
+  });
+
+  it("оплата мастеру по состоянию банка: ждёт, отказ (без суммы), отказ → повтор → успех", () => {
+    const split = (status: MoneyHistoryItem["status"], type: "SPLIT_MASTER" | "SPLIT_PLATFORM", id?: string) => item({ type, status, ...(id ? { id } : {}) });
+    expect(masterOperationRows([split("PENDING", "SPLIT_MASTER"), split("SUCCEEDED", "SPLIT_PLATFORM")])[0]?.title).toBe(tm.payout.PENDING);
+    const failed = masterOperationRows([split("FAILED", "SPLIT_MASTER"), split("SUCCEEDED", "SPLIT_PLATFORM")])[0];
+    expect(failed?.title).toBe(tm.payout.FAILED);
+    expect(failed).not.toHaveProperty("amount");
+    const retried = masterOperationRows([split("FAILED", "SPLIT_MASTER", "m1"), split("SUCCEEDED", "SPLIT_PLATFORM", "p1"), split("SUCCEEDED", "SPLIT_MASTER", "m2")]);
+    expect(retried).toHaveLength(1);
+    expect(retried[0]?.title).toBe(tm.payout.DONE);
+    expect([...(retried[0]?.covers ?? [])].sort()).toEqual(["m1", "m2", "p1"]);
+  });
+
+  it("возврат покупателю — одна строка без суммы; при разделе по спору — «часть оплаты» и «остаток вернулся»", () => {
+    const refund = masterOperationRows([item({ type: "HOLD" }), item({ type: "REFUND", amountTiyn: BUYER_AMOUNT })]);
+    expect(refund[0]?.title).toBe(tm.refund.DONE);
+    expect(refund[0]).not.toHaveProperty("amount");
+    expect(masterOperationRows([item({ type: "REFUND", status: "PENDING" })])[0]?.title).toBe(tm.refund.PENDING);
+    expect(masterOperationRows([item({ type: "REFUND", status: "FAILED" })])[0]?.title).toBe(tm.refund.FAILED);
+    const split = masterOperationRows([...journal(), item({ id: "r", type: "REFUND", amountTiyn: 40_800_00n })]);
+    expect(split.map((r) => r.title)).toEqual(expect.arrayContaining([tm.refund.DONE_REST, tm.payout.DONE_PART]));
+    expect(split.find((r) => r.kind === "refund")).not.toHaveProperty("amount");
+  });
+
+  it("каждая запись журнала показана или свёрнута ровно в одной строке; суммы покупателя и «2%» не выводятся", () => {
+    const history = [...journal(), item({ type: "FREEZE" }), item({ type: "UNFREEZE" }), item({ type: "REFUND", amountTiyn: 40_800_00n })];
+    const rows = masterOperationRows(history);
+    expect(rows.flatMap((r) => r.covers).sort()).toEqual(history.map((h) => h.id).sort());
+    for (const row of rows) expect(`${row.title} ${row.text ?? ""}`).not.toMatch(/комисси|эскроу|тестов|демо|платформ|2%|защит[аыеу] сделки|выплат|договор/i);
+  });
+
+  it("пустой журнал — пустой список", () => {
+    expect(masterOperationRows([])).toEqual([]);
   });
 });

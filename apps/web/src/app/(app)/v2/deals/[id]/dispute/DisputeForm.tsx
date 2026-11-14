@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { DisputeReason } from "@/generated/prisma/enums";
-import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, ConfirmDialog, Explain, Narrow, NowNext, PageTitle, RadioCard, RadioGroup, Stack, TextArea, toast, Uploader } from "@/kit";
 import { PHOTO_ACCEPT } from "@/features/upload/transfer";
 import type { Device } from "@/platform/device";
@@ -11,20 +10,22 @@ import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
 import { usePhotoUploads } from "../../../_upload/usePhotoUploads";
 import { openDisputeAction } from "./actions";
-import { MAX_PHOTOS, REASONS, TEXT_MAX, textValid } from "./dispute-view";
+import type { DealSide } from "../../../../_shell/side";
+import { disputeTexts, MAX_PHOTOS, REASONS, TEXT_MAX, textValid } from "./dispute-view";
 
-const t = ru.app.deal.dispute.form;
 const FORM = "dispute-form";
 
-type Props = { dealId: string; dealTitle: string; backHref: string; device: Device };
+type Props = { dealId: string; side: DealSide; dealTitle: string; backHref: string; device: Device };
 
 /**
- * Форма «Открыть спор»: причина (радио), описание (обязательное), фото (по желанию), пояснение «Что будет дальше».
+ * Форма «Открыть спор» (тексты по стороне — `side`): причина (радио), описание (обязательное), фото (по желанию), пояснение «Что будет дальше».
  * «Открыть спор» сперва проверяет поля, потом спрашивает подтверждение с точным текстом последствий и только тогда
  * вызывает действие. Двойное нажатие: окно не принимает второй клик, форма не отправляется повторно, а модуль даёт
  * один спор на сделку. После успеха — тост и возврат на карточку сделки.
  */
-export function DisputeForm({ dealId, dealTitle, backHref, device }: Props) {
+export function DisputeForm({ dealId, side, dealTitle, backHref, device }: Props) {
+  const all = disputeTexts(side);
+  const t = all.form;
   const router = useRouter();
   const [reason, setReason] = useState<DisputeReason | null>(null);
   const [description, setDescription] = useState("");
@@ -70,7 +71,7 @@ export function DisputeForm({ dealId, dealTitle, backHref, device }: Props) {
             <Stack gap="section">
               <RadioGroup legend={t.reasonLegend} {...(fieldErrors.reason ? { error: fieldErrors.reason } : {})}>
                 {REASONS.map((key) => (
-                  <RadioCard key={key} name="reason" value={key} label={ru.app.deal.dispute.reasons[key]} checked={reason === key} onChange={() => setReason(key)} />
+                  <RadioCard key={key} name="reason" value={key} label={all.reasons[key]} checked={reason === key} onChange={() => setReason(key)} />
                 ))}
               </RadioGroup>
               <TextArea

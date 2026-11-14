@@ -2,18 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, Stack, TextArea, toast } from "@/kit";
 import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
 import { submitPositionAction } from "./actions";
-import { TEXT_MAX, textValid } from "./dispute-view";
+import type { DealSide } from "../../../../_shell/side";
+import { disputeTexts, TEXT_MAX, textValid } from "./dispute-view";
 
-const t = ru.app.deal.dispute.open.positionForm;
 const FORM = "position-form";
 
-/** Позиция покупателя по открытому спору: одно поле и главное действие «Отправить позицию». */
-export function PositionForm({ disputeId }: { disputeId: string }) {
+/** Позиция стороны по открытому спору (тексты по стороне): одно поле и главное действие «Отправить позицию». */
+export function PositionForm({ disputeId, side }: { disputeId: string; side: DealSide }) {
+  const t = disputeTexts(side).open.positionForm;
   const router = useRouter();
   const [position, setPosition] = useState("");
   const [local, setLocal] = useState<string | undefined>();

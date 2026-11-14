@@ -122,13 +122,13 @@ describe("openDisputeAction", () => {
     expect(await db.dispute.count({ where: { dealId: f.dealId } })).toBe(0);
   });
 
-  it("чужая сделка — «не найдено»; мастер этим действием спор не открывает", async () => {
+  it("чужая сделка — «не найдено»; оператор спор этим действием не открывает", async () => {
     const f = await dealAt("PAID_HOLD");
     const input = { dealId: f.dealId, reason: "OTHER" as const, description: DESCRIPTION, photoIds: [] };
     await signInAs(await makeClient("Нурланов Айдос Ержанович"));
     const other = await openDisputeAction(input);
     expect(other.ok ? null : other.code).toBe("NOT_FOUND");
-    await signInAs(f.executor);
+    await signInAs(await makeOperator());
     expect((await openDisputeAction(input)).ok).toBe(false);
     expect(await db.dispute.count({ where: { dealId: f.dealId } })).toBe(0);
   });
