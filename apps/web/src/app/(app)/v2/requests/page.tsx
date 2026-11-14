@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { ActionDock, ButtonLink, Card, Chips, EmptyState, List, ListRow, PageTitle, Split, Stack, StatusChip, TextLink } from "@/kit";
-import { listMyRequests } from "@/modules/requests";
+import { listMyRequests, myOfferStates } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
 import { pageHref, requireBuyer } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
+import { offersByRequest } from "../_parts/request-state";
 import { requestListView, type RequestListView } from "./_parts/list-view";
 import { wizardHref } from "./new/steps";
 
@@ -58,7 +59,8 @@ export default async function MyRequestsPage({ searchParams }: Props) {
   const params = await searchParams;
   const user = await requireBuyer(pageHref("/requests", params));
   const status = typeof params.status === "string" ? params.status : undefined;
-  const view = requestListView(await listMyRequests(user), status);
+  const [list, offers] = await Promise.all([listMyRequests(user), myOfferStates(user)]);
+  const view = requestListView(list, status, offersByRequest(offers));
   const device = await getDevice();
   const create = { href: wizardHref(), label: t.create };
   const title = <PageTitle title={t.title} />;

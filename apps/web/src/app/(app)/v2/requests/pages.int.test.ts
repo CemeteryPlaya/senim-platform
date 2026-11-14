@@ -68,8 +68,8 @@ describe("«Мои заявки»", () => {
       expect(html).toContain(`href="/v2/requests/new?draft=${draft}"`);
       expect(html).toContain(`href="/v2/requests/${sent}"`);
       expect(html).not.toContain(foreign);
-      expect(html).toContain(list.status.DRAFT);
-      expect(html).toContain(list.status.OPEN);
+      expect(html).toContain(ru.app.requests.state.draft);
+      expect(html).toContain(ru.app.requests.state.waiting);
       expect(primaryCount(html!)).toBe(1);
       expect(html!.split("<h1").length - 1).toBe(1);
     }

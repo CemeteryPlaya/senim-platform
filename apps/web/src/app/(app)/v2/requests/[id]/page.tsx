@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import type { RequestStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { getClientRequest, getDraft, listOffers, REQUEST_TRANSITIONS } from "@/modules/requests";
+import { getClientRequest, getDraft, listOffers, myOfferStates, REQUEST_TRANSITIONS } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { pageHref, requireBuyer } from "../../../_shell/auth";
-import { detailRows, draftHref, isLive, nowView, offersView, parseSort, photoView, sentNotice } from "./_parts/card-view";
+import { requestState } from "../../_parts/request-state";
+import { detailRows, draftHref, nowView, offersView, parseSort, photoView, sentNotice, type OfferInput } from "./_parts/card-view";
 import { RequestCardView, type CardView } from "./_parts/RequestCardView";
 
 export const metadata: Metadata = { title: ru.app.requestCard.metaTitle };
@@ -42,19 +43,28 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
   if (request.status === "DRAFT") redirect(draftHref(id));
 
   const sort = parseSort(one(sp.sort));
-  // Фото помещения и мастер прямой заявки приходят от модуля вместе с «черновиком» (то же чтение своей заявки).
-  const [offers, own] = await Promise.all([orNotFound(listOffers(user, { requestId: id, sort })), orNotFound(getDraft(user, id))]);
+  // Фото помещения и мастер прямой заявки приходят от модуля вместе с «черновиком» (то же чтение своей заявки); действующие
+  // цены и состояние предложений — лёгким чтением `myOfferStates` (цена торга или сделки, а не первая цена отклика).
+  const [offers, own, states] = await Promise.all([
+    orNotFound(listOffers(user, { requestId: id, sort })),
+    orNotFound(getDraft(user, id)),
+    orNotFound(myOfferStates(user, { requestId: id })),
+  ]);
   const device = await getDevice();
 
-  // «Пришло N предложений» — только действующие: отклонённые покупателю не предложения.
-  const live = offers.filter(isLive).length;
-  const notice = sentNotice(one(sp.sent) === "1", request.status, request.mode, live);
+  const stateOf = new Map(states.map((s) => [s.offerId, s]));
+  const inputs: OfferInput[] = offers.map((o) => {
+    const st = stateOf.get(o.id);
+    return { ...o, live: st?.live ?? false, priceTiyn: st?.priceTiyn ?? o.priceTiyn, withDeal: (st?.deal ?? null) !== null };
+  });
+  // Одно состояние заявки на всех экранах: «Пришло N предложений» — только действующие (торг по ним идёт).
+  const state = requestState({ status: request.status, offers: states });
+  const notice = sentNotice(one(sp.sent) === "1", request.status, request.mode, state.liveOffers);
   const withoutSent = Object.fromEntries(Object.entries(sp).filter(([key]) => key !== "sent"));
   const now = nowView({
     id,
-    status: request.status,
     mode: request.mode,
-    offersCount: live,
+    state,
     dealId: request.deal?.id ?? null,
     chosenOfferId: request.chosen?.id ?? null,
   });
@@ -63,8 +73,9 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
     title: request.title,
     number: request.number,
     sent: notice && { ...notice, href: pageHref(`/requests/${encodeURIComponent(id)}`, withoutSent) },
+    chip: { text: state.text, tone: state.tone },
     now,
-    offers: offersView({ id, status: request.status, mode: request.mode }, offers, sort),
+    offers: offersView({ id, status: request.status, mode: request.mode }, inputs, sort),
     details: detailRows({
       title: request.title,
       style: request.style,
@@ -76,7 +87,7 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
       directLabel: request.mode === "DIRECT" ? own.targetLabel : null,
     }),
     photos: photoView(own.photos),
-    cancel: cancellable(request.status) ? { offersCount: live, direct: request.mode === "DIRECT" } : null,
+    cancel: cancellable(request.status) ? { offersCount: state.liveOffers, direct: request.mode === "DIRECT" } : null,
   };
   return <RequestCardView view={view} device={device} />;
 }

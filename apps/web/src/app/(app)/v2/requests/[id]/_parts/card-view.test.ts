@@ -1,39 +1,35 @@
 import { describe, expect, it } from "vitest";
-import type { RequestStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { detailRows, isLive, nowView, offerRow, offersView, parseSort, photoView, sentNotice, sortHref, sortOptions, type NowInput, type OfferInput } from "./card-view";
+import type { RequestStateKind } from "../../../_parts/request-state";
+import { detailRows, nowView, offerRow, offersView, parseSort, photoView, sentNotice, sortHref, sortOptions, type NowInput, type OfferInput } from "./card-view";
 
 const t = ru.app.requestCard;
 const buyer = ru.app.buyer.home.now;
 
-const base: NowInput = { id: "r1", status: "OPEN", mode: "TENDER", offersCount: 0, dealId: null, chosenOfferId: null };
+const base: NowInput = { id: "r1", mode: "TENDER", state: { kind: "waiting", liveOffers: 0 }, dealId: null, chosenOfferId: null };
+const st = (kind: RequestStateKind, liveOffers = 0) => ({ state: { kind, liveOffers } });
 
-describe("nowView: таблица состояний заявки", () => {
+describe("nowView: таблица состояний заявки (по общей requestState)", () => {
   it.each([
-    ["открыта, предложений нет", { ...base }, "waiting", t.now.waiting.title, null],
+    ["открыта, действующих предложений нет", { ...base }, "waiting", t.now.waiting.title, null],
     ["открыта прямая, предложений нет", { ...base, mode: "DIRECT" as const }, "waiting-direct", t.now.waitingDirect.title, null],
-    ["открыта, одно предложение", { ...base, offersCount: 1 }, "offers", "Пришло 1 предложение", null],
-    ["открыта, три предложения", { ...base, offersCount: 3 }, "offers", "Пришло 3 предложения", null],
-    ["открыта, пять предложений", { ...base, offersCount: 5 }, "offers", "Пришло 5 предложений", null],
-    ["замер помещения", { ...base, status: "PLATFORM_MEASURING" as const }, "site-measuring", t.now.siteMeasuring.title, null],
-    ["мастер выбран", { ...base, status: "OFFER_CHOSEN" as const, chosenOfferId: "o1" }, "chosen", buyer.requestChosen.title, "/v2/requests/r1/offers/o1"],
-    ["идёт замер", { ...base, status: "MEASURING" as const, chosenOfferId: "o1" }, "chosen", buyer.requestChosen.title, "/v2/requests/r1/offers/o1"],
-    ["мастер выбран, предложение не нашли", { ...base, status: "OFFER_CHOSEN" as const }, "chosen", buyer.requestChosen.title, null],
-    ["оферта готова, сделка есть", { ...base, status: "CONTRACTING" as const, dealId: "d1" }, "deal", t.now.deal.title, "/v2/deals/d1"],
-    ["договор подписан, сделка есть", { ...base, status: "CLOSED" as const, dealId: "d1" }, "deal", t.now.deal.title, "/v2/deals/d1"],
-    ["сделка по заявке не найдена", { ...base, status: "CLOSED" as const }, "deal", t.now.deal.title, null],
-    ["отменена", { ...base, status: "CANCELLED" as const, offersCount: 2 }, "cancelled", t.now.cancelled.title, null],
-    ["черновик", { ...base, status: "DRAFT" as const }, "draft", buyer.draft.title, "/v2/requests/new?draft=r1"],
+    ["одно действующее предложение", { ...base, ...st("choose", 1) }, "offers", "Пришло 1 предложение", null],
+    ["три действующих", { ...base, ...st("choose", 3) }, "offers", "Пришло 3 предложения", null],
+    ["пять действующих", { ...base, ...st("choose", 5) }, "offers", "Пришло 5 предложений", null],
+    ["замер помещения", { ...base, ...st("site-measuring") }, "site-measuring", t.now.siteMeasuring.title, null],
+    ["мастер выбран", { ...base, ...st("chosen"), chosenOfferId: "o1" }, "chosen", buyer.requestChosen.title, "/v2/requests/r1/offers/o1"],
+    ["идёт замер", { ...base, ...st("measuring"), chosenOfferId: "o1" }, "chosen", buyer.requestChosen.title, "/v2/requests/r1/offers/o1"],
+    ["мастер выбран, предложение не нашли", { ...base, ...st("chosen") }, "chosen", buyer.requestChosen.title, null],
+    ["идёт сделка", { ...base, ...st("deal"), dealId: "d1" }, "deal", t.now.deal.title, "/v2/deals/d1"],
+    ["сделка по заявке не найдена", { ...base, ...st("deal") }, "deal", t.now.deal.title, null],
+    ["сделка завершена", { ...base, ...st("done"), dealId: "d1" }, "done", t.now.done.title, "/v2/deals/d1"],
+    ["отменена", { ...base, ...st("cancelled") }, "cancelled", t.now.cancelled.title, null],
+    ["черновик", { ...base, ...st("draft") }, "draft", buyer.draft.title, "/v2/requests/new?draft=r1"],
   ])("%s", (_name, input, kind, title, href) => {
     const view = nowView(input);
     expect(view.kind).toBe(kind);
     expect(view.title).toBe(title);
     expect(view.primary?.href ?? null).toBe(href);
-  });
-
-  it("покрыты все статусы заявки", () => {
-    const all: RequestStatus[] = ["DRAFT", "PLATFORM_MEASURING", "OPEN", "OFFER_CHOSEN", "MEASURING", "CONTRACTING", "CLOSED", "CANCELLED"];
-    for (const status of all) expect(nowView({ ...base, status }).title.length).toBeGreaterThan(0);
   });
 
   it("ожидание: «Дальше» — мастера пришлют цены и сроки, главного действия нет", () => {
@@ -43,14 +39,14 @@ describe("nowView: таблица состояний заявки", () => {
   });
 
   it("«Пришло N предложений»: «Сравните и откройте подходящее», главного действия нет (оно в списке)", () => {
-    const view = nowView({ ...base, offersCount: 2 });
+    const view = nowView({ ...base, ...st("choose", 2) });
     expect(view.body).toBe("Сравните и откройте подходящее.");
     expect(view.primary).toBeNull();
   });
 
   it("тексты без запрещённых слов", () => {
-    const all = JSON.stringify([t, nowView({ ...base, offersCount: 2 })]);
-    expect(all).not.toMatch(/платформ|демо|комисси|эскроу|тестов|отклик/i);
+    const all = JSON.stringify([t, nowView({ ...base, ...st("choose", 2) })]);
+    expect(all).not.toMatch(/платформ|демо|комисси|эскроу|тестов|отклик|договор(?!ит)/i);
   });
 });
 
@@ -102,6 +98,9 @@ describe("сортировка в адресе", () => {
 const offer = (over: Partial<OfferInput> = {}, ex: Partial<OfferInput["executor"]> = {}): OfferInput => ({
   id: "o1",
   status: "SENT",
+  live: true,
+  withDeal: false,
+  createdAt: new Date("2026-11-01T10:00:00Z"),
   priceTiyn: 105_000_000n,
   durationDays: 30,
   warrantyMonths: 24,
@@ -118,6 +117,13 @@ describe("offerRow", () => {
     expect(row.terms.map((x) => x.replaceAll(" ", " "))).toEqual(["Срок: 30 дней", "Гарантия: 24 месяца", "7 сделок в сервисе"]);
     expect(row.rating).toEqual({ value: 4.8, count: 12 });
     expect(row.chip).toBeNull();
+    expect(row.priceLabel).toBeNull();
+  });
+
+  it("предложение со сделкой — цена сделки с подписью «Цена сделки»", () => {
+    const row = offerRow("r1", offer({ status: "ACCEPTED", live: false, withDeal: true, priceTiyn: 102_000_000n }));
+    expect(row.priceTiyn).toBe(102_000_000n);
+    expect(row.priceLabel).toBe(t.offers.dealPrice);
   });
 
   it("без отзывов рейтинга нет; без сделок их нет в условиях", () => {
@@ -142,8 +148,8 @@ describe("offersView", () => {
     expect(v.sortable).toBe(false);
   });
 
-  it("у открытой отклонённые не считаются и не показываются; только отклонённые — как «предложений нет»", () => {
-    const declined = offer({ id: "d", status: "DECLINED" });
+  it("у открытой недействующие не считаются и не показываются; только они — как «предложений нет»", () => {
+    const declined = offer({ id: "d", status: "DECLINED", live: false });
     const v = offersView(open, [declined, offer({ id: "s" })], "price");
     expect(v.rows.map((r) => r.id)).toEqual(["s"]);
     expect(v.sortable).toBe(false);
@@ -153,12 +159,21 @@ describe("offersView", () => {
   });
 
   it("у заявки со сделкой вся история: выбранное и отклонённые с плашками", () => {
-    const v = offersView({ ...open, status: "CLOSED" }, [offer({ id: "a", status: "ACCEPTED" }), offer({ id: "d", status: "DECLINED" })], "price");
+    const v = offersView({ ...open, status: "CLOSED" }, [offer({ id: "a", status: "ACCEPTED", live: false }), offer({ id: "d", status: "DECLINED", live: false })], "price");
     expect(v.rows.map((r) => r.chip?.text)).toEqual(["Выбрано", "Отклонено"]);
   });
 
-  it("isLive: только отправленные", () => {
-    expect(["SENT", "ACCEPTED", "DECLINED", "WITHDRAWN"].map((status) => isLive({ status } as never))).toEqual([true, false, false, false]);
+  it("отправленное, но торг закрыт (сценарий до договора) — тоже не действует", () => {
+    expect(offersView(open, [offer({ id: "s", live: false })], "price").rows).toEqual([]);
+  });
+
+  it("«Дешевле» — по показанной (действующей) цене, а не по первой; при равной — быстрее", () => {
+    const v = offersView(
+      open,
+      [offer({ id: "a", priceTiyn: 300n }), offer({ id: "b", priceTiyn: 100n, durationDays: 40 }), offer({ id: "c", priceTiyn: 100n, durationDays: 20 })],
+      "price",
+    );
+    expect(v.rows.map((r) => r.id)).toEqual(["c", "b", "a"]);
   });
 
   it("пусто у прямой: свой текст", () => {

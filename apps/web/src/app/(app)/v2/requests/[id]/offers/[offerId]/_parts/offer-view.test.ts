@@ -231,15 +231,17 @@ describe("offerView: действия, смета и тексты по сост�
   });
 
   it.each([
-    ["requestCancelled", offer({ requestStatus: "CANCELLED" })],
-    ["otherChosen", offer({ status: "DECLINED", requestStatus: "CONTRACTING" })],
-  ] as const)("(5) %s: объяснение без действий и без сметы", (reason, o) => {
+    ["requestCancelled", offer({ requestStatus: "CANCELLED" }), t.actions.toRequest],
+    ["otherChosen", offer({ status: "DECLINED", requestStatus: "CONTRACTING" }), t.actions.toOthers],
+    ["closed", offer({ requestStatus: "OPEN" }), t.actions.toOthers],
+  ] as const)("(5) %s: почему закрыто, последняя цена, ссылка к заявке; без главного действия и сметы", (reason, o, link) => {
     const view = offerView(o, negotiation([round("p1", "EXECUTOR", 340_000, "PROPOSED")], { live: false }));
     expect(view.state).toEqual({ kind: "closed", reason });
     expect(view.primary).toBeNull();
-    expect(view.secondary).toBeNull();
+    expect(view.secondary).toEqual({ kind: "link", href: "/v2/requests/req-1", label: link });
     expect(view.money).toBeNull();
-    expect(view.now).toEqual({ title: t.now[reason].title, body: t.now[reason].body });
+    expect(view.now).toEqual({ title: t.now[reason].title, body: `${t.now[reason].body} ${t.now.lastPrice(formatMoney(340_000_00n))}` });
+    expect(view.now.body).not.toContain("ничего не требуется");
     expect(view.next).toBeUndefined();
   });
 

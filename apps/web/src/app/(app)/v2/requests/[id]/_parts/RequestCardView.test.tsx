@@ -11,13 +11,17 @@ vi.mock("@/platform/action", () => ({ action: () => async () => ({ ok: true }) }
 
 const t = ru.app.requestCard;
 
-const offer = (id: string, price: bigint): OfferInput => ({
+const offer = (id: string, price: bigint, over: Partial<OfferInput> = {}): OfferInput => ({
   id,
   status: "SENT",
+  live: true,
+  withDeal: false,
+  createdAt: new Date("2026-11-01T10:00:00Z"),
   priceTiyn: price,
   durationDays: 20,
   warrantyMonths: 12,
   executor: { label: `Исполнитель №${id}`, ratingAvg: 4.5, reviewsCount: 3, completedDeals: 2 },
+  ...over,
 });
 
 function view(over: Partial<CardView> = {}, offers: OfferInput[] = [offer("3", 100_000_00n), offer("5", 90_000_00n)]): CardView {
@@ -27,7 +31,8 @@ function view(over: Partial<CardView> = {}, offers: OfferInput[] = [offer("3", 1
     title: "Кухня",
     number: 18,
     sent: null,
-    now: nowView({ ...request, offersCount: offers.length, dealId: null, chosenOfferId: null }),
+    chip: { text: ru.app.requests.state.choose(offers.length), tone: "warn" },
+    now: nowView({ id: "r1", mode: "TENDER", state: { kind: offers.length > 0 ? "choose" : "waiting", liveOffers: offers.length }, dealId: null, chosenOfferId: null }),
     offers: offersView(request, offers, "price"),
     details: [{ label: "Город", value: "Астана", stacked: false }],
     photos: [{ id: "p1", src: "/f/p1", alt: "Фото помещения 1 из 1" }],
@@ -76,11 +81,19 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
 
   it("сделка: одно главное действие «Открыть сделку» на сделку", () => {
     const request = { id: "r1", status: "CONTRACTING" as const, mode: "TENDER" as const };
-    const now = nowView({ ...request, offersCount: 1, dealId: "d9", chosenOfferId: null });
+    const now = nowView({ id: "r1", mode: "TENDER", state: { kind: "deal", liveOffers: 0 }, dealId: "d9", chosenOfferId: null });
     const out = html(<RequestCardView view={view({ now, offers: offersView(request, [offer("3", 1n)], "price"), cancel: null })} device={device} />);
     expect(count(out, "data-primary-action")).toBe(1);
     expect(out).toMatch(/data-primary-action[^>]*href="\/v2\/deals\/d9"|href="\/v2\/deals\/d9"[^>]*data-primary-action/);
     expect(out).toContain(t.now.deal.action);
+  });
+
+  it("плашка состояния под номером; у предложения со сделкой — «Цена сделки»", () => {
+    const request = { id: "r1", status: "CLOSED" as const, mode: "TENDER" as const };
+    const offers = offersView(request, [offer("3", 1_020_000_00n, { status: "ACCEPTED", live: false, withDeal: true }), offer("5", 1n, { status: "DECLINED", live: false })], "price");
+    const out = html(<RequestCardView view={view({ chip: { text: ru.app.requests.state.deal, tone: "neutral" }, offers, cancel: null })} device={device} />);
+    expect(out).toContain(ru.app.requests.state.deal);
+    expect(count(out, t.offers.dealPrice)).toBe(1);
   });
 
   it("меню «Действия» только когда отмена разрешена", () => {
@@ -107,7 +120,7 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
 describe("раскладка по устройствам", () => {
   it("телефон: действие в ActionDock последним; компьютер: под «Сейчас», дока нет", () => {
     const request = { id: "r1", status: "CLOSED" as const, mode: "TENDER" as const };
-    const now = nowView({ ...request, offersCount: 0, dealId: "d9", chosenOfferId: null });
+    const now = nowView({ id: "r1", mode: "TENDER", state: { kind: "deal", liveOffers: 0 }, dealId: "d9", chosenOfferId: null });
     const v = view({ now, offers: offersView(request, [], "price"), cancel: null });
     const mobile = html(<RequestCardView view={v} device="mobile" />);
     const desktop = html(<RequestCardView view={v} device="desktop" />);

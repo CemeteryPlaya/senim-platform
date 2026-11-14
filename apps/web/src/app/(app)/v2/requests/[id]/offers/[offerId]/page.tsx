@@ -79,12 +79,14 @@ function Actions({ view, device, offerId }: { view: OfferViewModel; device: Devi
 }
 
 /**
- * Второстепенное действие торга («Предложить свою цену» или «Отозвать предложение») — тихой кнопкой-ссылкой по левой линии.
+ * Второстепенное действие торга («Предложить свою цену» или «Отозвать предложение») — тихой кнопкой-ссылкой по левой линии;
+ * у закрытого торга — ссылка к заявке.
  * Обёртка-ряд: в колонке кнопка растянулась бы на всю ширину, и подпись встала бы по центру.
  */
 function Secondary({ view, device, offerId }: { view: OfferViewModel; device: Device; offerId: string }) {
   const { secondary } = view;
   if (!secondary) return null;
+  if (secondary.kind === "link") return <TextLink href={secondary.href}>{secondary.label}</TextLink>;
   return (
     <div className="flex">
       {secondary.kind === "propose" ? (

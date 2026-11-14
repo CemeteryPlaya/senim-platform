@@ -3,6 +3,9 @@ import { ru } from "@/i18n/ru";
 import { requestListView, type MyRequestRow } from "./list-view";
 
 const t = ru.app.requests.list;
+const st = ru.app.requests.state;
+const live = { live: true, deal: null };
+const closed = { live: false, deal: null };
 const DAY = new Date("2026-11-12T10:00:00Z");
 
 const row = (over: Partial<MyRequestRow> = {}): MyRequestRow => ({
@@ -13,7 +16,6 @@ const row = (over: Partial<MyRequestRow> = {}): MyRequestRow => ({
   wizardStep: 5,
   createdAt: DAY,
   publishedAt: DAY,
-  offersCount: 0,
   ...over,
 });
 
@@ -45,17 +47,35 @@ describe("«Мои заявки»", () => {
       [
         row({ id: "d", status: "DRAFT", wizardStep: 2 }),
         row({ id: "u", status: "DRAFT", wizardStep: 0, title: ru.requests.untitled }),
-        row({ id: "s", mode: "DIRECT", offersCount: 3 }),
+        row({ id: "s", mode: "DIRECT" }),
       ],
       undefined,
     ).cards;
-    expect(draft).toMatchObject({ href: "/v2/requests/new?draft=d", title: "Кухня", status: t.status.DRAFT, tone: "neutral", meta: t.draftProgress(2, 5) });
+    expect(draft).toMatchObject({ href: "/v2/requests/new?draft=d", title: "Кухня", status: st.draft, tone: "neutral", meta: t.draftProgress(2, 5) });
     expect(untitled.title).toBe(t.draftTitle);
-    expect(sent).toMatchObject({ href: "/v2/requests/s", status: t.status.OPEN, tone: "accent" });
-    expect(sent.meta).toBe(`${t.offers(3)} · ${t.direct} · ${t.sentOn("12 ноября 2026")}`);
+    expect(sent).toMatchObject({ href: "/v2/requests/s", status: st.waiting, tone: "neutral" });
+    // Число предложений — только в статусе, не второй раз в строке под ним.
+    expect(sent.meta).toBe(`${t.direct} · ${t.sentOn("12 ноября 2026")}`);
   });
 
-  it("склонение числа предложений", () => {
-    expect([0, 1, 2, 5, 21].map(t.offers)).toEqual(["Нет предложений", "1 предложение", "2 предложения", "5 предложений", "21 предложение"]);
+  it("статус — общая requestState: только действующие предложения; со сделкой — «Идёт сделка», не «Договор»", () => {
+    const offers = new Map([
+      ["open", [live, live, closed]],
+      ["closedTorg", [closed, closed]],
+      ["deal", [{ live: false, deal: { status: "PAID_HOLD" as const } }, closed]],
+      ["done", [{ live: false, deal: { status: "SPLIT_PAYOUT" as const } }]],
+    ]);
+    const cards = requestListView(
+      [row({ id: "open" }), row({ id: "closedTorg" }), row({ id: "deal", status: "CLOSED" }), row({ id: "done", status: "CLOSED" })],
+      undefined,
+      offers,
+    ).cards;
+    expect(cards.map((c) => [c.id, c.status, c.tone])).toEqual([
+      ["open", st.choose(2), "warn"],
+      ["closedTorg", st.waiting, "neutral"],
+      ["deal", st.deal, "neutral"],
+      ["done", st.done, "accent"],
+    ]);
+    expect(Object.values(t.groups).join(" ")).not.toMatch(/оговор/);
   });
 });

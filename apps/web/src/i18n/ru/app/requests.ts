@@ -2,12 +2,29 @@
 // Правила: коротко, обычными словами, на «вы»; кнопка называет результат. Нет слов «комиссия», «эскроу», «демо»,
 // «тестовый», «платформа» (пишем «сервис»). Постоянных подсказок под полями нет: пояснения — по нажатию (Explain).
 // Справочные названия (типы мебели, стили, материалы, уровни) — из справочников вертикали и ru.requests, здесь не повторяются.
-import type { RequestStatus } from "@/generated/prisma/enums";
+import type { RequestGroup } from "@/features/requests/labels";
 import { pluralForm } from "./plural";
 
 const offersWord = { one: "предложение", few: "предложения", many: "предложений" } as const;
 
 export const requests = {
+  /**
+   * Состояние заявки на плашке — одни и те же слова на главной, в «Моих заявках» и в карточке заявки
+   * (`v2/_parts/request-state.ts`). Число предложений — только действующие; покупателю — «сделка», не «договор».
+   */
+  state: {
+    draft: "Черновик",
+    waiting: "Ждём предложений",
+    /** «2 предложения — выберите мастера». */
+    choose: (n: number) => `${n} ${offersWord[pluralForm(n)]} — выберите мастера`,
+    siteMeasuring: "Ждём замера",
+    chosen: "Мастер выбран",
+    measuring: "Идёт замер",
+    deal: "Идёт сделка",
+    done: "Завершена",
+    cancelled: "Отменена",
+  },
+
   list: {
     metaTitle: "Мои заявки",
     title: "Мои заявки",
@@ -15,27 +32,20 @@ export const requests = {
     create: "Заказать мебель",
     filterLabel: "Показать заявки",
     all: "Все",
-    /** Разделы (группы статусов из src/features/requests). */
+    /**
+     * Разделы (группы статусов из src/features/requests): ключи общие с v1, подписи — языком пути покупателя (заявка со
+     * сделкой — «Со сделкой», не «Договор»).
+     */
     groups: {
       draft: "Черновики",
-      waiting: "Ждут предложений",
+      waiting: "Ищем мастера",
       chosen: "Мастер выбран",
-      contract: "Договор",
+      contract: "Со сделкой",
       cancelled: "Отменённые",
-    },
+    } satisfies Record<RequestGroup, string>,
     /** «Черновики · 2». */
     chip: (label: string, n: number) => `${label} · ${n}`,
     listLabel: "Заявки",
-    status: {
-      DRAFT: "Черновик",
-      PLATFORM_MEASURING: "Ждёт замера",
-      OPEN: "Ждёт предложений",
-      OFFER_CHOSEN: "Мастер выбран",
-      MEASURING: "Замер",
-      CONTRACTING: "Договор",
-      CLOSED: "Договор подписан",
-      CANCELLED: "Отменена",
-    } satisfies Record<RequestStatus, string>,
     /** Черновик без выбранного типа мебели. */
     draftTitle: "Черновик",
     /** «Заполнено 2 из 5 шагов». */

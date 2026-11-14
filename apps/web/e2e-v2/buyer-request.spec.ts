@@ -124,7 +124,7 @@ test("новый покупатель: заявка от главной до «�
   // «Мои заявки»: черновик ведёт обратно в мастер на свой шаг.
   await open(page, "/v2/requests");
   const draftRow = page.locator(`a[href="/v2/requests/new?draft=${draftId}"]`);
-  await expect(draftRow).toContainText(list.status.DRAFT);
+  await expect(draftRow).toContainText(ru.app.requests.state.draft);
   await expect(draftRow).toContainText(list.draftProgress(4, 5));
   await draftRow.click();
   await expect(heading(page, w.send.title)).toBeVisible();
@@ -136,8 +136,7 @@ test("новый покупатель: заявка от главной до «�
   await open(page, "/v2/requests");
   const sent = page.locator(`a[href="/v2/requests/${draftId}"]`);
   await expect(sent).toHaveCount(1);
-  await expect(sent).toContainText(list.status.OPEN);
-  await expect(sent).toContainText(list.offers(0));
+  await expect(sent).toContainText(ru.app.requests.state.waiting);
   await expect(page.locator('a[href^="/v2/requests/new?draft="]')).toHaveCount(0);
 });
 

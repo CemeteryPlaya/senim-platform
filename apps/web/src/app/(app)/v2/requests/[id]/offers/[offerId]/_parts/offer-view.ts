@@ -14,8 +14,9 @@ type Round = NegotiationView["rounds"][number];
  * | kind            | когда                                                            | главное            | второстепенное   |
  * |-----------------|------------------------------------------------------------------|--------------------|------------------|
  * | `deal`          | цена принята, сделка есть (`dealId`)                             | «Открыть сделку»   | —                |
- * | `closed`        | торг не идёт (`live` = false) и сделки нет: заявка отменена,     | —                  | —                |
- * |                 | выбран другой мастер (отклик DECLINED) или иное                  |                    |                  |
+ * | `closed`        | торг не идёт (`live` = false) и сделки нет: заявка отменена,     | —                  | ссылка на заявку |
+ * |                 | выбран другой мастер (отклик DECLINED) или иное — тогда          |                    | («К другим       |
+ * |                 | «Предложение больше не действует»; с последней ценой торга       |                    | предложениям…»)  |
  * | `masterPrice`   | открыта цена мастера, покупатель цен ещё не называл              | «Принять X»        | «Предложить…»    |
  * | `masterCounter` | открыта цена мастера в ответ на цену покупателя                  | «Принять X»        | «Предложить…»    |
  * | `waiting`       | открыта своя цена, ждёт мастера                                  | —                  | «Отозвать…»      |
@@ -59,8 +60,8 @@ export type PrimaryAction =
   | { kind: "propose" }
   | { kind: "deal"; href: string; label: string };
 
-/** Второстепенное действие торга: под карточкой «Сейчас», не в доке. */
-export type SecondaryAction = { kind: "propose" } | { kind: "withdraw"; proposalId: string };
+/** Второстепенное действие: под карточкой «Сейчас», не в доке. У закрытого торга — ссылка на карточку заявки. */
+export type SecondaryAction = { kind: "propose" } | { kind: "withdraw"; proposalId: string } | { kind: "link"; href: string; label: string };
 
 export type MoneyView = {
   title: string;
@@ -105,13 +106,14 @@ function nowOf(state: OfferState, n: NegotiationView): Pick<OfferViewModel, "now
       // Цена сделки — принятая цена торга (state.priceTiyn модуля); статуса сделки и денег экран не знает.
       return { now: { title: t.now.deal.title, body: t.now.deal.body(formatMoney(n.priceTiyn)) } };
     case "closed": {
+      // Почему закрыто и последняя цена торга (принятая, открытая или последняя названная — `priceTiyn` модуля).
       const s = t.now[state.reason];
-      return { now: { title: s.title, body: s.body } };
+      return { now: { title: s.title, body: `${s.body} ${t.now.lastPrice(formatMoney(n.priceTiyn))}` } };
     }
   }
 }
 
-function actionsOf(state: OfferState, n: NegotiationView): Pick<OfferViewModel, "primary" | "secondary"> {
+function actionsOf(state: OfferState, n: NegotiationView, requestHref: string): Pick<OfferViewModel, "primary" | "secondary"> {
   switch (state.kind) {
     case "masterPrice":
     case "masterCounter": {
@@ -138,7 +140,11 @@ function actionsOf(state: OfferState, n: NegotiationView): Pick<OfferViewModel, 
     case "deal":
       return { primary: { kind: "deal", href: to(`/deals/${encodeURIComponent(state.dealId)}`), label: t.actions.openDeal }, secondary: null };
     case "closed":
-      return { primary: null, secondary: null };
+      // Следующий шаг — к заявке: у отменённой — сама заявка, иначе — другие предложения по ней.
+      return {
+        primary: null,
+        secondary: { kind: "link", href: requestHref, label: state.reason === "requestCancelled" ? t.actions.toRequest : t.actions.toOthers },
+      };
   }
 }
 
@@ -194,13 +200,14 @@ export function offerView(offer: OfferDetail, n: NegotiationView): OfferViewMode
   });
   const ex = offer.executor;
   const masterOpen = n.open && !n.open.mine ? n.open.amountTiyn : null;
+  const requestHref = to(`/requests/${encodeURIComponent(offer.request.id)}`);
   return {
     state,
     title: t.title,
     executorLabel: ex.label,
-    back: { href: to(`/requests/${encodeURIComponent(offer.request.id)}`), label: offer.request.title },
+    back: { href: requestHref, label: offer.request.title },
     ...nowOf(state, n),
-    ...actionsOf(state, n),
+    ...actionsOf(state, n, requestHref),
     proposeDescription: masterOpen === null ? t.propose.description : t.propose.masterPrice(formatMoney(masterOpen)),
     money: moneyOf(state, n),
     conditions: conditionsOf(offer),

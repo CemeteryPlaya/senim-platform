@@ -1,7 +1,7 @@
 import { ru } from "@/i18n/ru";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { ActionDock, ButtonLink, Card, EmptyState, List, ListItem, ListRow, Money, NowNext, PageTitle, PhotoSlot, Rating, Section, Segmented, Split, Stack, StatusChip } from "@/kit";
+import { ActionDock, ButtonLink, Card, EmptyState, List, ListItem, ListRow, Money, NowNext, PageTitle, PhotoSlot, Rating, Section, Segmented, Split, Stack, StatusChip, type StatusTone } from "@/kit";
 import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
 import { chooseOfferSort } from "../actions";
@@ -17,6 +17,8 @@ export type CardView = {
   title: string;
   number: number;
   sent: { title: string; text: string; href: string } | null;
+  /** Плашка состояния заявки — общая `requestState` (те же слова и тон, что на главной и в «Моих заявках»). */
+  chip: { text: string; tone: StatusTone };
   now: NowView;
   offers: OffersView;
   details: DetailRow[];
@@ -52,7 +54,11 @@ function Offers({ view }: { view: CardView }) {
                   {/* Имя и цена в одной строке; условия — отдельной строкой под ними: цены сравниваются взглядом по правому краю. */}
                   <span className="flex items-baseline justify-between gap-3">
                     <span className="min-w-0 text-card wrap-break-word text-ink">{row.label}</span>
-                    <Money tiyn={row.priceTiyn} />
+                    {/* У предложения со сделкой — цена сделки с подписью под ней; у остальных — действующая цена мастера. */}
+                    <span className="flex shrink-0 flex-col items-end">
+                      <Money tiyn={row.priceTiyn} />
+                      {row.priceLabel && <span className="text-sub text-muted">{row.priceLabel}</span>}
+                    </span>
                   </span>
                   <Rating value={row.rating.value} count={row.rating.count} />
                   <span className="flex flex-wrap gap-x-3 text-sub text-muted">
@@ -122,7 +128,16 @@ export function RequestCardView({ view, device }: { view: CardView; device: Devi
     <Stack gap="section">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <PageTitle title={view.title} back={{ href: to("/requests"), label: t.back }} lead={t.numberLine(view.number)} />
+          <PageTitle
+            title={view.title}
+            back={{ href: to("/requests"), label: t.back }}
+            lead={
+              <span className="flex flex-col items-start gap-2">
+                <span>{t.numberLine(view.number)}</span>
+                <StatusChip tone={view.chip.tone}>{view.chip.text}</StatusChip>
+              </span>
+            }
+          />
         </div>
         {view.cancel && <RequestActions requestId={view.id} offersCount={view.cancel.offersCount} direct={view.cancel.direct} device={device} />}
       </div>

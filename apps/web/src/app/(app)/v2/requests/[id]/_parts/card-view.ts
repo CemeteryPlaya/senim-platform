@@ -5,6 +5,7 @@ import type { StatusTone } from "@/kit";
 import type { OfferSort, RequestDetails } from "@/modules/requests/client";
 import { COUNTERTOPS, FACADES, HARDWARE, SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { to } from "../../../../_shell/paths";
+import type { RequestState } from "../../../_parts/request-state";
 
 // Вид карточки заявки покупателя (чистая логика без React и базы): «Сейчас / Дальше» по состоянию, предложения мастеров,
 // «Что в заявке». Страница читает модули и отдаёт сюда готовые данные; тексты — `ru.app.requestCard` и `ru.app.buyer`.
@@ -31,14 +32,13 @@ export const draftHref = (id: string) => `${to("/requests/new")}?${new URLSearch
 
 // ─── «Сейчас / Дальше» ───────────────────────────────────────────────────────────────────────────────────────────────
 
-export type NowKind = "draft" | "waiting" | "waiting-direct" | "offers" | "site-measuring" | "chosen" | "deal" | "cancelled";
+export type NowKind = "draft" | "waiting" | "waiting-direct" | "offers" | "site-measuring" | "chosen" | "deal" | "done" | "cancelled";
 
 export type NowInput = {
   id: string;
-  status: RequestStatus;
   mode: "TENDER" | "DIRECT";
-  /** Действующие предложения (без отозванных). */
-  offersCount: number;
+  /** Состояние заявки — общая `requestState` (то же, что на главной и в «Моих заявках»): что сейчас и сколько действующих предложений. */
+  state: Pick<RequestState, "kind" | "liveOffers">;
   dealId: string | null;
   chosenOfferId: string | null;
 };
@@ -53,40 +53,36 @@ export type NowView = {
 };
 
 /**
- * Что сейчас с заявкой (таблица состояний). Главное действие — только когда есть куда вести: на сделку или на выбранное
- * предложение. «Пришло N предложений» действия не имеет: действие — сами карточки предложений ниже.
+ * Что сейчас с заявкой — по общему состоянию `requestState` (таблица там). Главное действие — только когда есть куда
+ * вести: на сделку или на выбранное предложение. «Пришло N предложений» (N — действующие) действия не имеет: действие —
+ * сами карточки предложений ниже.
  */
 export function nowView(i: NowInput): NowView {
-  switch (i.status) {
-    case "DRAFT":
+  const dealAction = (label: string) => (i.dealId ? { label, href: to(`/deals/${encodeURIComponent(i.dealId)}`) } : null);
+  switch (i.state.kind) {
+    case "draft":
       return { kind: "draft", ...buyer.draft, primary: { label: buyer.draft.action, href: draftHref(i.id) } };
-    case "OPEN":
-      if (i.offersCount > 0) {
-        return { kind: "offers", title: buyer.offers.title(i.offersCount), body: t.now.offers.body, next: t.now.offers.next, primary: null };
-      }
+    case "choose":
+      return { kind: "offers", title: buyer.offers.title(i.state.liveOffers), body: t.now.offers.body, next: t.now.offers.next, primary: null };
+    case "waiting":
       return i.mode === "DIRECT"
         ? { kind: "waiting-direct", ...t.now.waitingDirect, primary: null }
         : { kind: "waiting", ...t.now.waiting, primary: null };
-    case "PLATFORM_MEASURING":
+    case "site-measuring":
       return { kind: "site-measuring", ...t.now.siteMeasuring, primary: null };
-    case "OFFER_CHOSEN":
-    case "MEASURING":
+    case "chosen":
+    case "measuring":
       return {
         kind: "chosen",
         title: buyer.requestChosen.title,
         next: buyer.requestChosen.next,
         primary: i.chosenOfferId ? { label: t.now.chosen.action, href: `${requestHref(i.id)}/offers/${encodeURIComponent(i.chosenOfferId)}` } : null,
       };
-    case "CONTRACTING":
-    case "CLOSED":
-      return {
-        kind: "deal",
-        title: t.now.deal.title,
-        body: t.now.deal.body,
-        next: t.now.deal.next,
-        primary: i.dealId ? { label: t.now.deal.action, href: to(`/deals/${encodeURIComponent(i.dealId)}`) } : null,
-      };
-    case "CANCELLED":
+    case "deal":
+      return { kind: "deal", title: t.now.deal.title, body: t.now.deal.body, next: t.now.deal.next, primary: dealAction(t.now.deal.action) };
+    case "done":
+      return { kind: "done", title: t.now.done.title, body: t.now.done.body, primary: dealAction(t.now.deal.action) };
+    case "cancelled":
       return { kind: "cancelled", ...t.now.cancelled, primary: null };
   }
 }
@@ -100,13 +96,19 @@ export function sentNotice(sent: boolean, status: RequestStatus, mode: "TENDER" 
 
 // ─── Предложения ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Предложение в объёме, нужном списку (подмножество `listOffers`). */
+/** Предложение в объёме, нужном списку (`listOffers` и действующая цена из `myOfferStates`). */
 export type OfferInput = {
   id: string;
   status: OfferStatus;
+  /** Торг по предложению идёт (`myOfferStates.live`): такое предложение действует. */
+  live: boolean;
+  /** Цена, которую видит покупатель сейчас (`myOfferStates.priceTiyn`): со сделкой — цена сделки, иначе — действующая цена мастера. */
   priceTiyn: bigint;
+  /** По предложению создана сделка: цена подписывается «Цена сделки». */
+  withDeal: boolean;
   durationDays: number;
   warrantyMonths: number;
+  createdAt: Date;
   executor: { label: string; ratingAvg: number; reviewsCount: number; completedDeals: number };
 };
 
@@ -115,6 +117,8 @@ export type OfferRow = {
   href: string;
   label: string;
   priceTiyn: bigint;
+  /** Подпись к цене: «Цена сделки» у предложения со сделкой; у остальных — без подписи (цена мастера). */
+  priceLabel: string | null;
   rating: { value: number | null; count: number };
   /** «Срок: 30 дней», «Гарантия: 24 месяца», «12 сделок в сервисе»: каждая часть не переносится внутри себя. */
   terms: string[];
@@ -126,9 +130,6 @@ const CHIPS: Partial<Record<OfferStatus, { tone: StatusTone; text: string }>> = 
   DECLINED: { tone: "neutral", text: t.offers.status.declined },
 };
 
-/** Действующие предложения: на них отвечает покупатель; отклонённые и выбранное — история. */
-export const isLive = (o: { status: OfferStatus }): boolean => o.status === "SENT";
-
 export function offerRow(requestId: string, o: OfferInput): OfferRow {
   const parts = [t.offers.term(formatDays(o.durationDays)), t.offers.warranty(formatMonths(o.warrantyMonths))];
   if (o.executor.completedDeals > 0) parts.push(t.offers.deals(formatDeals(o.executor.completedDeals)));
@@ -137,6 +138,7 @@ export function offerRow(requestId: string, o: OfferInput): OfferRow {
     href: `${requestHref(requestId)}/offers/${encodeURIComponent(o.id)}`,
     label: o.executor.label,
     priceTiyn: o.priceTiyn,
+    priceLabel: o.withDeal ? t.offers.dealPrice : null,
     rating: { value: o.executor.reviewsCount > 0 ? o.executor.ratingAvg : null, count: o.executor.reviewsCount },
     terms: parts,
     chip: CHIPS[o.status] ?? null,
@@ -155,12 +157,21 @@ export type OffersView = {
 };
 
 /**
- * Список предложений. Пока заявка ждёт предложений (OPEN, замер площадки), в нём только действующие — отклонённые
- * не считаются и не показываются; у заявки со сделкой или отменённой — вся история с плашками.
+ * «Дешевле» — по той цене, что показана (действующая цена торга или цена сделки), а не по первой цене отклика, как
+ * сортирует модуль; при равной цене — быстрее, затем раньше присланное (как у модуля). Другие порядки — как отдал модуль.
+ */
+function byShownPrice(offers: readonly OfferInput[], sort: OfferSort): OfferInput[] {
+  if (sort !== "price") return [...offers];
+  return [...offers].sort((a, b) => (a.priceTiyn < b.priceTiyn ? -1 : a.priceTiyn > b.priceTiyn ? 1 : a.durationDays - b.durationDays || a.createdAt.getTime() - b.createdAt.getTime()));
+}
+
+/**
+ * Список предложений. Пока заявка ждёт предложений (OPEN, замер площадки), в нём только действующие (`live`: торг идёт) —
+ * отклонённые и закрытые не считаются и не показываются; у заявки со сделкой или отменённой — вся история с плашками.
  */
 export function offersView(i: { id: string; status: RequestStatus; mode: "TENDER" | "DIRECT" }, offers: readonly OfferInput[], sort: OfferSort): OffersView {
   const expecting = i.status === "OPEN" || i.status === "PLATFORM_MEASURING";
-  const rows = (expecting ? offers.filter(isLive) : offers).map((o) => offerRow(i.id, o));
+  const rows = byShownPrice(expecting ? offers.filter((o) => o.live) : offers, sort).map((o) => offerRow(i.id, o));
   return {
     rows,
     sort,
