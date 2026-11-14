@@ -28,7 +28,7 @@ function Basis({ rows }: { rows: OperationRow[] }) {
       <Card padded={false}>
         <List>
           {withBasis.map((row) => (
-            <ListItem key={row.id}>
+            <ListItem key={row.covers.join("+")}>
               <a
                 href={row.basis?.href}
                 target="_blank"
@@ -56,7 +56,7 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
   const items: TimelineItem[] = model.operations.map((row) => ({
     title: row.title,
     time: row.time,
-    amount: row.amount,
+    ...(row.amount !== undefined ? { amount: row.amount } : {}),
     ...(row.text ? { text: row.text } : {}),
   }));
   return (

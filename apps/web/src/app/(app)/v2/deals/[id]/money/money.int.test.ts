@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { formatMoney } from "@/kit";
 import { ru } from "@/i18n/ru";
-import { cancelDeal, openDispute, processDealMoney } from "@/modules/deal-core";
+import { cancelDeal, openDispute, processDealMoney, resolveDispute } from "@/modules/deal-core";
 import { listDealDocuments, openSharedDocument } from "@/modules/documents";
 import { db } from "@/platform/db";
-import { makeClient } from "../../../../../../../test/factories";
+import { makeClient, makeOperator } from "../../../../../../../test/factories";
 import { dealAt, journalOf, signAct } from "../../../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../../../test/factories/identity";
 import { signInAs } from "../../../../../../../test/factories/session";
@@ -45,61 +45,89 @@ async function outcome(run: () => Promise<string>): Promise<string> {
   }
 }
 
-describe("история денег совпадает с журналом", () => {
-  async function check(dealId: string, clientId: string) {
+/** Суммы вида «96 000 ₸» из видимого текста (без дат и номеров). */
+const amountsIn = (text: string) => (text.match(/\d[\d ]* ₸/g) ?? []).map((x) => x.trim());
+
+describe("история денег покупателя совпадает с журналом: только движение его денег", () => {
+  /** Каждая запись журнала показана своей строкой или свёрнута в строку завершения; суммы показанных строк равны записям. */
+  async function check(dealId: string) {
     const out = await page(dealId);
-    const journal = (await journalOf(dealId)).filter((e) => e.type !== "RELEASE");
-    expect(timelineItems(out)).toBe(journal.length);
     const text = plain(out);
-    for (const entry of journal) expect(text).toContain(money(entry.amountTiyn));
+    const journal = (await journalOf(dealId)).filter((e) => e.type !== "RELEASE");
+    const split = journal.filter((e) => e.type === "SPLIT_MASTER" || e.type === "SPLIT_PLATFORM");
+    const shown = journal.filter((e) => !split.includes(e));
+    expect(timelineItems(out)).toBe(shown.length + (split.length > 0 ? 1 : 0));
+    const shownWithAmount = shown.filter((e) => e.type === "HOLD" || e.type === "REFUND");
+    for (const entry of shownWithAmount) expect(amountsIn(text)).toContain(money(entry.amountTiyn));
+    // Доля мастера, доход сервиса и «4%» покупателю не показываются.
+    for (const entry of [...split, ...journal.filter((e) => e.type === "FREEZE" || e.type === "UNFREEZE")]) {
+      if (!shownWithAmount.some((s) => s.amountTiyn === entry.amountTiyn)) expect(amountsIn(text)).not.toContain(money(entry.amountTiyn));
+    }
+    expect(text).not.toMatch(/4%|гарантия оплаты|Гарантия оплаты|доход/i);
     expect(text).not.toMatch(FORBIDDEN);
-    void clientId;
-    return { out, journal };
+    return { out, text, journal };
   }
 
   it("оплачена: одна запись HOLD — одна строка с суммой", async () => {
     const client = await buyer();
     const f = await dealAt("PAID_HOLD", { client });
     await signInAs(client);
-    const { out, journal } = await check(f.dealId, client.id);
+    const { text, journal } = await check(f.dealId);
     expect(journal.map((e) => e.type)).toEqual(["HOLD"]);
-    expect(plain(out)).toContain(t.type.HOLD);
-    expect(plain(out)).toContain(ru.app.deal.card.money.protected.title);
+    expect(text).toContain(t.type.HOLD);
+    expect(text).toContain(ru.app.deal.card.money.protected.title);
   });
 
-  it("завершена: оплата, выплата мастеру и защита сделки — каждая запись своей строкой", async () => {
+  it("завершена: оплата и ОДНА свёрнутая строка «Оплата переведена мастеру» без суммы", async () => {
     const client = await buyer();
     const f = await dealAt("READY", { client });
     await signAct(f.dealId);
     await processDealMoney(f.dealId);
     await signInAs(client);
-    const { out, journal } = await check(f.dealId, client.id);
+    const { text, journal } = await check(f.dealId);
     expect(journal.map((e) => e.type).sort()).toEqual(["HOLD", "SPLIT_MASTER", "SPLIT_PLATFORM"]);
-    expect(plain(out)).toContain(t.type.SPLIT_MASTER);
-    expect(plain(out)).toContain(t.type.SPLIT_PLATFORM);
-    expect(plain(out)).toContain(t.note.SPLIT_PLATFORM);
+    expect(text).toContain(t.payout);
+    expect(text).not.toContain("Банк выплатил мастеру");
+    // Суммы выплаты мастеру (X − 4%) и дохода сервиса нет нигде в HTML.
+    const master = journal.find((e) => e.type === "SPLIT_MASTER");
+    const platform = journal.find((e) => e.type === "SPLIT_PLATFORM");
+    expect(amountsIn(text)).not.toContain(money(master?.amountTiyn ?? 0n));
+    expect(amountsIn(text)).not.toContain(money(platform?.amountTiyn ?? 0n));
   });
 
-  it("возврат после отмены: оплата и возврат; блок денег «вернулись»", async () => {
+  it("возврат после отмены: оплата и «Деньги возвращены вам» с суммой", async () => {
     const client = await buyer();
     const f = await dealAt("PAID_HOLD", { client });
     await cancelDeal(client, { dealId: f.dealId });
     await processDealMoney(f.dealId);
     await signInAs(client);
-    const { out, journal } = await check(f.dealId, client.id);
+    const { text, journal } = await check(f.dealId);
     expect(journal.map((e) => e.type)).toEqual(["HOLD", "REFUND"]);
-    expect(plain(out)).toContain(t.type.REFUND);
-    expect(plain(out)).toContain(ru.app.deal.card.money.refunded.done);
+    expect(text).toContain(t.type.REFUND);
+    expect(text).toContain(ru.app.deal.card.money.refunded.done);
   });
 
-  it("спор: заморозка выплаты — отдельная строка", async () => {
+  it("спор: остановка выплаты — строка без суммы (сумма записи — доля мастера)", async () => {
     const client = await buyer();
     const f = await dealAt("PAID_HOLD", { client });
     await openDispute(client, { dealId: f.dealId, reason: "OTHER", description: "Мастер не выходит на связь неделю" });
     await signInAs(client);
-    const { out, journal } = await check(f.dealId, client.id);
+    const { text, journal } = await check(f.dealId);
     expect(journal.map((e) => e.type)).toEqual(["HOLD", "FREEZE"]);
-    expect(plain(out)).toContain(t.type.FREEZE);
+    expect(text).toContain(t.type.FREEZE);
+  });
+
+  it("раздел по спору: «Спор решён: возвращено вам» с суммой возврата и «Остальное переведено мастеру» без суммы", async () => {
+    const client = await buyer();
+    const f = await dealAt("READY", { client });
+    const { disputeId } = await openDispute(client, { dealId: f.dealId, reason: "QUALITY", description: "Фасады не совпадают с договором" });
+    await resolveDispute(await makeOperator(), { disputeId, outcome: "PARTIAL_SPLIT", masterShareTiyn: 60_000_00n, rationale: "Решение принято по материалам спора" });
+    await processDealMoney(f.dealId);
+    await signInAs(client);
+    const { text, journal } = await check(f.dealId);
+    expect(text).toContain(t.refundSplit);
+    expect(text).toContain(t.payoutRest);
+    expect(journal.some((e) => e.type === "REFUND")).toBe(true);
   });
 
   it("до оплаты: журнал пуст — «движений нет»", async () => {
