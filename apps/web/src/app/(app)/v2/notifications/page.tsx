@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { Button, Card, EmptyState, List, ListRow, Narrow, PageTitle, Stack } from "@/kit";
+import { Button, Card, EmptyState, List, ListRow, Narrow, Notice, PageTitle, Stack } from "@/kit";
 import { listNotifications, pushPublicKey } from "@/modules/notifications";
 import { pageHref, requireV2User } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
@@ -37,8 +37,11 @@ function Row({ row }: { row: NotificationRowView }) {
  * Уведомления: список (заголовок, текст, время), переход по уведомлению отмечает его прочитанным; «Прочитать все» —
  * тихая кнопка над списком; блок «Уведомления на этом устройстве» (push). Главного действия нет. Пусто — обучающий экран.
  */
-export default async function NotificationsPage() {
-  const user = await requireV2User(pageHref("/notifications"));
+type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+export default async function NotificationsPage({ searchParams }: Props) {
+  const params = await searchParams;
+  const user = await requireV2User(pageHref("/notifications", params));
   const rows = notificationRows(await listNotifications(user.id, 50));
   const publicKey = pushPublicKey();
 
@@ -47,6 +50,11 @@ export default async function NotificationsPage() {
       <PageTitle title={t.title} back={{ href: to("/"), label: t.back }} />
       <Narrow>
         <Stack>
+          {params.error === "1" && (
+            <Notice tone="danger" live>
+              {t.markAllFailed}
+            </Notice>
+          )}
           {publicKey && <PushPanel publicKey={publicKey} />}
           {rows.length === 0 ? (
             <EmptyState title={t.emptyTitle} body={t.emptyBody} />
@@ -60,9 +68,9 @@ export default async function NotificationsPage() {
                 </form>
               )}
               <Card padded={false}>
-                <nav aria-label={t.label}>
+                <section aria-label={t.label}>
                   <List>{rows.map((row) => <Row key={row.id} row={row} />)}</List>
-                </nav>
+                </section>
               </Card>
             </>
           )}

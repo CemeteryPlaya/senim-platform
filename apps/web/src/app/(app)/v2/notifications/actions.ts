@@ -33,7 +33,11 @@ export async function openNotificationForm(formData: FormData): Promise<void> {
   redirect(result.ok ? v2Href(result.data) : to("/notifications"));
 }
 
-/** «Прочитать все». */
+/**
+ * «Прочитать все». Ошибка не глотается: истёкшая сессия — страница списка сама отправит на вход (ворота), прочий сбой —
+ * на список с `?error=1`, где над списком сообщение.
+ */
 export async function markAllReadForm(): Promise<void> {
-  await markAll({});
+  const result = await markAll({});
+  if (!result.ok) redirect(`${to("/notifications")}?error=1`);
 }

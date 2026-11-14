@@ -43,8 +43,8 @@ async function redirectOf(run: () => Promise<void>): Promise<string | null> {
   }
 }
 
-async function page(): Promise<string> {
-  return renderToStaticMarkup((await NotificationsPage()) as ReactElement);
+async function page(params: Record<string, string> = {}): Promise<string> {
+  return renderToStaticMarkup((await NotificationsPage({ searchParams: Promise.resolve(params) })) as ReactElement);
 }
 
 beforeEach(() => {
@@ -77,6 +77,29 @@ describe("уведомления: экран", () => {
     expect(html).toContain('href="/v2"');
     expect(primaryCount(html)).toBe(0);
     expect(html.split("<h1").length - 1).toBe(1);
+  });
+});
+
+describe("уведомления: «Прочитать все» не глотает ошибку", () => {
+  it("без сессии — не молчание: переход на список с ?error=1; на странице — сообщение", async () => {
+    const me = await makeClient();
+    await notify(me.id);
+    freshBrowser({ "user-agent": "vitest" });
+    expect(await redirectOf(() => markAllReadForm())).toBe("/v2/notifications?error=1");
+    expect(await unreadCount(me.id)).toBe(1);
+    h.user = me;
+    const html = await page({ error: "1" });
+    expect(html).toContain(t.markAllFailed);
+    expect(await page()).not.toContain(t.markAllFailed);
+  });
+
+  it("список обёрнут в section с подписью, а не в nav", async () => {
+    const me = await makeClient();
+    h.user = me;
+    await notify(me.id);
+    const html = await page();
+    expect(html).toContain(`<section aria-label="${t.label}">`);
+    expect(html).not.toContain("<nav");
   });
 });
 
