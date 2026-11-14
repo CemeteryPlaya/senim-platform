@@ -202,6 +202,7 @@ export const kit = {
       uploaderNames: ["Кухня.jpg", "Стена.jpg", "Окно.jpg"],
       uploaderCaption: "Загруженное, идущая загрузка, ошибка у файла",
       chatLabel: "Переписка с мастером",
+      chatFillCaption: "Компьютер: лента на всю высоту окна (fill), поле ввода внизу колонки; телефон — как обычно",
       chatComposerLabel: "Сообщение мастеру",
       chatPlaceholder: "Напишите мастеру",
       chatMessages: [

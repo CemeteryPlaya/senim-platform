@@ -89,11 +89,15 @@ export function UploaderSample() {
   );
 }
 
-/** Переписка из пяти сообщений; отправка добавляет своё сообщение, лента прокручивается к нему. */
-export function ChatSample({ device }: { device: Device }) {
+/**
+ * Переписка из пяти сообщений; отправка добавляет своё сообщение, лента прокручивается к нему. `fill` — на компьютере лента
+ * занимает всю высоту колонки (колонка — `screen-fill`, высота окна за вычетом шапки), поле ввода внизу колонки.
+ */
+export function ChatSample({ device, fill = false }: { device: Device; fill?: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>(START_MESSAGES);
   return (
     <Chat
+      fill={fill}
       label={t.chatLabel}
       messages={messages}
       composer={

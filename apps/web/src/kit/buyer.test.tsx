@@ -404,6 +404,17 @@ describe("Chat: разметка", () => {
     expect(hasClass(html(<Chat messages={[]} />), "mobile:chat-end")).toBe(false);
   });
 
+  it("fill: лента занимает всю высоту родителя на компьютере вместо окна 32 rem; без fill — окно, как прежде", () => {
+    const fill = html(<Chat messages={[]} fill />);
+    expect(hasClass(fill, "desktop:flex-1")).toBe(true);
+    expect(hasClass(fill, "desktop:min-h-0")).toBe(true);
+    expect(hasClass(fill, "desktop:overflow-y-auto")).toBe(true);
+    expect(hasClass(fill, "desktop:max-h-chat")).toBe(false);
+    const plain = html(<Chat messages={[]} />);
+    expect(hasClass(plain, "desktop:max-h-chat")).toBe(true);
+    expect(hasClass(plain, "desktop:flex-1")).toBe(false);
+  });
+
   it("лента — контекст позиционирования: скрытый автор (sr-only) не растягивает страницу", () => {
     expect(hasClass(html(<Chat messages={[]} />), "relative")).toBe(true);
     expect(hasClass(html(<Chat messages={[]} pageScroll />), "relative")).toBe(true);

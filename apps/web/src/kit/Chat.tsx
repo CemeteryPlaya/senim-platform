@@ -41,6 +41,12 @@ export type ChatProps = {
    * (на компьютере — окно высотой до 32 rem), а положение страницы не меняется.
    */
   pageScroll?: boolean;
+  /**
+   * Компьютер: лента занимает всю высоту родителя (`flex-1 min-h-0` со своей прокруткой) вместо окна высотой 32 rem.
+   * Родитель — колонка заданной высоты (`flex flex-col` + `screen-fill`); поле ввода остаётся под лентой. На телефоне
+   * ничего не меняет. Для экрана, где чат — всё содержимое.
+   */
+  fill?: boolean;
 };
 
 /** Запас «человек внизу», px: ниже этого расстояния до конца считаем, что он читает последнее. */
@@ -58,7 +64,7 @@ const NEAR_END = 24;
  * сам) и при росте содержимого (загрузилось фото), пока человек внизу. По умолчанию двигается только сама лента;
  * окно — только с `pageScroll`. Клиентский компонент.
  */
-export function Chat({ messages, composer, label, pageScroll = false }: ChatProps) {
+export function Chat({ messages, composer, label, pageScroll = false, fill = false }: ChatProps) {
   const reduced = useReducedMotion() ?? false;
   const log = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -135,13 +141,13 @@ export function Chat({ messages, composer, label, pageScroll = false }: ChatProp
 
   const t = ru.app.kit.chat;
   return (
-    <div className="flex flex-col gap-3 mobile:flex-1">
+    <div className={cn("flex flex-col gap-3 mobile:flex-1", fill && "desktop:min-h-0 desktop:flex-1")}>
       <div
         ref={log}
         role="log"
         aria-live="polite"
         aria-label={label ?? t.log}
-        className={cn("relative flex min-h-0 flex-1 flex-col", !pageScroll && "desktop:max-h-chat desktop:overflow-y-auto")}
+        className={cn("relative flex min-h-0 flex-1 flex-col", !pageScroll && (fill ? "desktop:overflow-y-auto" : "desktop:max-h-chat desktop:overflow-y-auto"))}
       >
         <div ref={content} className="flex flex-col gap-3">
           {messages.map((message) => {

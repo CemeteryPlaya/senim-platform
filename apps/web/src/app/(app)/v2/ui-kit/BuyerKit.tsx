@@ -147,6 +147,14 @@ export function BuyerKit({ device }: { device: Device }) {
           {/* Без карточки: чужие сообщения на surface, им нужен серый фон страницы. */}
           <ChatSample device={device} />
         </Narrow>
+        <Narrow>
+          <Stack>
+            <p className="text-sub text-muted">{t.chatFillCaption}</p>
+            <div className="flex flex-col desktop:screen-fill">
+              <ChatSample device={device} fill />
+            </div>
+          </Stack>
+        </Narrow>
       </Section>
 
       <Section title={s.sections.signature}>
