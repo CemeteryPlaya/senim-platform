@@ -24,6 +24,7 @@ import { homeDealMoney } from "@/features/deal-money/home-deal-money";
 import type { DealListItem } from "@/modules/deal-core";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
+import { HELP_ANCHORS } from "../help/anchors";
 import { dealProgress, dealStatusText, dealTone, progressCaption, stoppedLabel } from "../_parts/deal-summary";
 import { requestStatusText, type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
 
@@ -122,8 +123,8 @@ export function BuyerHomeView({ view, name, deal, device }: { view: View; name: 
         aside={
           <HelpBlock
             items={[
-              { question: t.help.how, href: to("/about") },
-              { question: t.help.price, href: to("/about") },
+              { question: t.help.how, href: `${to("/help")}#${HELP_ANCHORS.how}` },
+              { question: t.help.price, href: `${to("/help")}#${HELP_ANCHORS.price}` },
             ]}
             supportEmail={brand.support.email}
           />
