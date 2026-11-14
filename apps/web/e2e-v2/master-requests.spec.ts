@@ -95,9 +95,12 @@ for (const [person, status] of [
   ["almas", "pending"],
   ["express", "rejected"],
 ] as const) {
-  test(`неодобренный мастер (${status}): три экрана — статус с одним шагом на регистрацию, не ошибка`, async ({ browser }, info) => {
+  test(`неодобренный мастер (${status}): главная ведёт на регистрацию, заявки и предложения — статус с одним шагом на регистрацию, не ошибка`, async ({ browser }, info) => {
     const page = await pageOf(browser, info, person);
-    for (const url of ["/v2", "/v2/executor/requests", "/v2/executor/offers"]) {
+    // «Главная» неодобренного мастера — регистрация и статус проверки: `/v2` ведёт туда же.
+    await open(page, "/v2");
+    await expect(page).toHaveURL(/\/v2\/register\/executor$/);
+    for (const url of ["/v2/executor/requests", "/v2/executor/offers"]) {
       await open(page, url);
       await expect(page.locator("h1")).toHaveCount(1);
       await expect(page.getByRole("heading", { level: 2, name: m.gate[status].now })).toBeVisible();
