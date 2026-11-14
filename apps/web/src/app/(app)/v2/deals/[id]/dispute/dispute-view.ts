@@ -1,3 +1,4 @@
+import { DisputeReason } from "@/generated/prisma/enums";
 import type { MoneyBlock } from "@/modules/payments";
 
 /** Границы текста спора и позиции — те же, что у модуля deal-core (сверяет `dispute-view.test.ts`). */
@@ -5,6 +6,9 @@ export const TEXT_MIN = 10;
 export const TEXT_MAX = 2000;
 /** Сколько фото можно приложить к спору (модуль принимает до 12). */
 export const MAX_PHOTOS = 5;
+
+/** Причины спора — перечисление модуля (`DisputeReason`); текст каждой — `ru.app.deal.dispute.reasons[причина]` (сверяет тест). */
+export const REASONS: readonly DisputeReason[] = Object.values(DisputeReason);
 
 /** Какой экран показать по состоянию спора: форма, открытый, решённый или карточка сделки. */
 export type DisputeScreen = "form" | "open" | "resolved" | "back";

@@ -1,3 +1,4 @@
+import { ACTIVE_DEAL } from "@/features/deal-progress/active-deal";
 import type { DealStatus, RequestStatus } from "@/generated/prisma/enums";
 import type { NextAction } from "@/modules/deal-core";
 import { ru } from "@/i18n/ru";
@@ -81,9 +82,6 @@ export type BuyerHomeView = {
 
 export type FirstStepState = { done: boolean; href?: string };
 
-/** Сделка идёт (то, что показывает главная): до выплаты включительно. */
-const ACTIVE: ReadonlySet<DealStatus> = new Set(["CREATED", "PAID_HOLD", "IN_PROGRESS", "READY", "ACCEPTED"]);
-
 /** Какое действие от покупателя; порядок — срочность между разными сделками. */
 const MINE: readonly { action: NextAction; now: NowKind; primary: PrimaryAction["kind"] }[] = [
   { action: "pay", now: "pay", primary: "pay" },
@@ -135,9 +133,9 @@ function pick({ deals, requests }: HomeInput): Picked {
     if (deal) return { now: nowOf(rule.now), primary: { kind: rule.primary, href: dealHref(deal.id) }, secondary: null, deal };
   }
   // (2) Спор — раньше обычного ожидания; ожидание — у идущих сделок.
-  const dispute = deals.find((d) => ACTIVE.has(d.status) && d.hasOpenDispute);
+  const dispute = deals.find((d) => ACTIVE_DEAL.has(d.status) && d.hasOpenDispute);
   if (dispute) return { now: nowOf("deal-dispute"), primary: null, secondary: null, deal: dispute };
-  const waiting = deals.find((d) => ACTIVE.has(d.status));
+  const waiting = deals.find((d) => ACTIVE_DEAL.has(d.status));
   if (waiting) {
     if (waiting.payWaitsMaster) return { now: nowOf("deal-waiting", { waitAction: "waitMasterBank" }), primary: null, secondary: null, deal: waiting };
     // «От вас ничего не требуется» — только при известном «чужом ходе»; не знаем (или действие не из известных) — открыть сделку.
@@ -169,10 +167,10 @@ function pick({ deals, requests }: HomeInput): Picked {
 export function buyerHome(input: HomeInput): BuyerHomeView {
   const { deals, requests } = input;
   const picked = pick(input);
-  const running = deals.filter((d) => ACTIVE.has(d.status));
+  const running = deals.filter((d) => ACTIVE_DEAL.has(d.status));
   // Карточка сделки: та, о которой «Сейчас»; иначе самая свежая из идущих.
   const deal = picked.deal ?? running[0] ?? null;
-  const moreDeals = deal && ACTIVE.has(deal.status) ? running.length - 1 : running.length;
+  const moreDeals = deal && ACTIVE_DEAL.has(deal.status) ? running.length - 1 : running.length;
 
   const listed = requests.filter((r) => (LIVE_REQUEST.has(r.status) || r.status === "DRAFT") && r.id !== picked.now.request?.id).slice(0, 2);
 

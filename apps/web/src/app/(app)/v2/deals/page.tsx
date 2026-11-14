@@ -6,9 +6,8 @@ import { listDeals, nextStepsOf, type NextStep } from "@/modules/deal-core";
 import { getDevice } from "@/platform/device";
 import { logger } from "@/platform/logger";
 import { pageHref, requireBuyer, switchRoleTo } from "../../_shell/auth";
-import { legacy, to } from "../../_shell/paths";
 import { DealList } from "./_parts/DealList";
-import { HELP_ANCHORS } from "../help/anchors";
+import { dealHelpItems } from "./_parts/help-items";
 import { payWaitingMaster } from "../_parts/pay-waits";
 import { dealListView } from "./_parts/list-view";
 
@@ -40,15 +39,12 @@ export default async function DealsPage({ searchParams }: Props) {
   const waiting = await payWaitingMaster(user, nexts);
   const view = dealListView(mine, nexts, typeof params.group === "string" ? params.group : undefined, waiting);
   const otherRole =
-    user.roles.includes("EXECUTOR") && all.some((d) => d.myRole === "EXECUTOR") ? switchRoleTo("EXECUTOR", legacy(to("/deals"))) : null;
+    user.roles.includes("EXECUTOR") && all.some((d) => d.myRole === "EXECUTOR") ? switchRoleTo("EXECUTOR") : null;
   const device = await getDevice();
 
   const help = (
     <HelpBlock
-      items={[
-        { question: ru.app.deal.card.help.money, href: `${to("/help")}#${HELP_ANCHORS.money}` },
-        { question: ru.app.deal.card.help.notLiked, href: `${to("/help")}#${HELP_ANCHORS.notFit}` },
-      ]}
+      items={dealHelpItems()}
       supportEmail={brand.support.email}
     />
   );

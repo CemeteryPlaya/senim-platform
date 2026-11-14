@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { disputePositionSchema, openDisputeSchema } from "@/modules/deal-core";
 import type { MoneyBlock } from "@/modules/payments";
-import { disputeScreen, resolvedRefund, TEXT_MAX, TEXT_MIN, textValid } from "./dispute-view";
+import { DisputeReason } from "@/generated/prisma/enums";
+import { ru } from "@/i18n/ru";
+import { disputeScreen, REASONS, resolvedRefund, TEXT_MAX, TEXT_MIN, textValid } from "./dispute-view";
 
 describe("disputeScreen: какой экран по состоянию спора", () => {
   const open = { status: "OPEN" as const };
@@ -50,5 +52,13 @@ describe("resolvedRefund: возврат покупателю по журнал�
   });
   it("деньги ещё в банке — нет", () => {
     expect(resolvedRefund({ kind: "protected" } as MoneyBlock)).toBeNull();
+  });
+});
+
+describe("причины спора", () => {
+  it("список — перечисление модуля; у каждой причины есть текст, лишних текстов нет", () => {
+    expect([...REASONS].sort()).toEqual(Object.values(DisputeReason).sort());
+    for (const reason of REASONS) expect(ru.app.deal.dispute.reasons[reason], reason).toMatch(/\S/);
+    expect(Object.keys(ru.app.deal.dispute.reasons).sort()).toEqual([...REASONS].sort());
   });
 });

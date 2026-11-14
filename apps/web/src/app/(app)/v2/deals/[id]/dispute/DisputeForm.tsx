@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { DisputeReason } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, ConfirmDialog, Explain, Narrow, NowNext, PageTitle, RadioCard, RadioGroup, Stack, TextArea, toast, Uploader } from "@/kit";
 import { PHOTO_ACCEPT } from "@/features/upload/transfer";
@@ -10,11 +11,10 @@ import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
 import { usePhotoUploads } from "../../../_upload/usePhotoUploads";
 import { openDisputeAction } from "./actions";
-import { MAX_PHOTOS, TEXT_MAX, textValid } from "./dispute-view";
+import { MAX_PHOTOS, REASONS, TEXT_MAX, textValid } from "./dispute-view";
 
 const t = ru.app.deal.dispute.form;
 const FORM = "dispute-form";
-const REASONS = Object.keys(ru.app.deal.dispute.reasons);
 
 type Props = { dealId: string; dealTitle: string; backHref: string; device: Device };
 
@@ -26,7 +26,7 @@ type Props = { dealId: string; dealTitle: string; backHref: string; device: Devi
  */
 export function DisputeForm({ dealId, dealTitle, backHref, device }: Props) {
   const router = useRouter();
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState<DisputeReason | null>(null);
   const [description, setDescription] = useState("");
   const [errors, setErrors] = useState<{ reason?: string; description?: string }>({});
   const [confirm, setConfirm] = useState(false);
@@ -34,7 +34,8 @@ export function DisputeForm({ dealId, dealTitle, backHref, device }: Props) {
   const uploads = usePhotoUploads("DISPUTE", [], t.photoName);
   const form = useActionForm(openDisputeAction, {
     // Значения держит состояние формы; схема действия на сервере проверяет причину и тексты.
-    toInput: () => ({ dealId, reason: reason as "OTHER", description, photoIds: uploads.fileIds }),
+    // Причина выбрана: «Открыть спор» сперва проверяет поля. Запасное значение не достигается; схему на сервере это не обходит.
+    toInput: () => ({ dealId, reason: reason ?? DisputeReason.OTHER, description, photoIds: uploads.fileIds }),
     onSuccess: () => {
       setDone(true);
       toast(t.opened);
@@ -69,7 +70,7 @@ export function DisputeForm({ dealId, dealTitle, backHref, device }: Props) {
             <Stack gap="section">
               <RadioGroup legend={t.reasonLegend} {...(fieldErrors.reason ? { error: fieldErrors.reason } : {})}>
                 {REASONS.map((key) => (
-                  <RadioCard key={key} name="reason" value={key} label={ru.app.deal.dispute.reasons[key] ?? key} checked={reason === key} onChange={() => setReason(key)} />
+                  <RadioCard key={key} name="reason" value={key} label={ru.app.deal.dispute.reasons[key]} checked={reason === key} onChange={() => setReason(key)} />
                 ))}
               </RadioGroup>
               <TextArea
