@@ -181,6 +181,22 @@ describe("спор открыт", () => {
     expect(plain(out)).toContain("Заказчик не принимает работу без причин");
   });
 
+  it("позиция отправлена повторно: модуль принимает и перезаписывает позицию той же стороны, пока спор открыт; после решения — отказ", async () => {
+    const client = await buyer();
+    const f = await dealAt("PAID_HOLD", { client });
+    await signInAs(client);
+    await openDisputeAction({ dealId: f.dealId, reason: "OTHER", description: DESCRIPTION, photoIds: [] });
+    const dispute = await db.dispute.findFirstOrThrow({ where: { dealId: f.dealId } });
+    expect((await submitPositionAction({ disputeId: dispute.id, position: "Первая версия позиции покупателя" })).ok).toBe(true);
+    expect((await submitPositionAction({ disputeId: dispute.id, position: "Вторая версия позиции покупателя" })).ok).toBe(true);
+    expect((await db.dispute.findUniqueOrThrow({ where: { id: dispute.id } })).clientPosition).toBe("Вторая версия позиции покупателя");
+    // Позиция уже есть — экран формы не показывает; после решения оператора позицию больше не принять.
+    expect(await page(f.dealId)).not.toContain('name="position"');
+    await resolveDispute(await makeOperator(), { disputeId: dispute.id, outcome: "CONTINUE", rationale: "Решение принято по материалам спора" });
+    const late = await submitPositionAction({ disputeId: dispute.id, position: "Третья версия позиции покупателя" });
+    expect(late.ok ? null : late.code).toBe("CONFLICT");
+  });
+
   it("позиция: короткая — ошибка схемы; чужой спор — «не найдено»", async () => {
     const client = await buyer();
     const f = await dealAt("PAID_HOLD", { client });

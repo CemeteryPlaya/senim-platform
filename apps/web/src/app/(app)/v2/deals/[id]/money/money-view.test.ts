@@ -68,9 +68,73 @@ describe("operationRows: движение денег покупателя", () =
     for (const row of operationRows(history)) expect(`${row.title} ${row.text ?? ""}`).not.toMatch(/комисси|эскроу|тестов|демо|платформ|гаранти|4%/i);
   });
 
-  it("статус банка и номер операции — в тексте; пометка тестового платежа не выводится", () => {
-    const [row] = operationRows([item({ type: "REFUND", status: "PENDING", operationRef: "BK-1" })]);
-    expect(row?.text).toBe(`${t.status.PENDING} · ${t.bankRef("BK-1")}`);
+  it("номер операции банка — в тексте; пометка тестового платежа не выводится", () => {
+    const [row] = operationRows([item({ type: "REFUND", operationRef: "BK-1" })]);
+    expect(row?.text).toBe(t.bankRef("BK-1"));
+  });
+
+  describe("заголовок оплаты зависит от состояния в банке", () => {
+    it("проведена: «Вы оплатили — деньги в банке под защитой» с суммой", () => {
+      const [row] = operationRows([item({ type: "HOLD", status: "SUCCEEDED", amountTiyn: 102_000_00n })]);
+      expect([row?.title, row?.amount]).toEqual([t.type.HOLD, 102_000_00n]);
+    });
+    it("ждёт банка: «Оплата обрабатывается» (с суммой)", () => {
+      const [row] = operationRows([item({ type: "HOLD", status: "PENDING", amountTiyn: 102_000_00n })]);
+      expect([row?.title, row?.amount]).toEqual([t.hold.PENDING, 102_000_00n]);
+    });
+    it("ждёт банка при переводе по реквизитам: «Ждём ваш перевод»", () => {
+      const [row] = operationRows([item({ type: "HOLD", status: "PENDING" })], { manual: true });
+      expect(row?.title).toBe(t.hold.WAITING);
+    });
+    it("не прошла: «Оплата не прошла», суммы нет", () => {
+      const [row] = operationRows([item({ type: "HOLD", status: "FAILED", amountTiyn: 102_000_00n })]);
+      expect(row?.title).toBe(t.hold.FAILED);
+      expect(row).not.toHaveProperty("amount");
+    });
+  });
+
+  describe("заголовок возврата зависит от состояния в банке", () => {
+    it("проведён: «Деньги возвращены вам» с суммой", () => {
+      const [row] = operationRows([item({ type: "REFUND", status: "SUCCEEDED", amountTiyn: 5n })]);
+      expect([row?.title, row?.amount]).toEqual([t.type.REFUND, 5n]);
+    });
+    it("ждёт банка: «Возврат обрабатывается»", () => {
+      expect(operationRows([item({ type: "REFUND", status: "PENDING" })])[0]?.title).toBe(t.refundState.PENDING);
+    });
+    it("не прошёл: «Возврат не прошёл — оператор повторит»", () => {
+      expect(operationRows([item({ type: "REFUND", status: "FAILED" })])[0]?.title).toBe(t.refundState.FAILED);
+    });
+  });
+
+  describe("свёрнутая выплата мастеру — по последним попыткам частей", () => {
+    const split = (status: MoneyHistoryItem["status"], type: "SPLIT_MASTER" | "SPLIT_PLATFORM", id?: string) => item({ type, status, ...(id ? { id } : {}) });
+    const title = (history: MoneyHistoryItem[]) => operationRows(history).find((r) => r.kind === "payout")?.title;
+
+    it("обе части проведены — «Оплата переведена мастеру»", () => {
+      expect(title([split("SUCCEEDED", "SPLIT_MASTER"), split("SUCCEEDED", "SPLIT_PLATFORM")])).toBe(t.payout);
+    });
+    it("часть ждёт банка — «Банк переводит оплату мастеру»", () => {
+      expect(title([split("PENDING", "SPLIT_MASTER"), split("SUCCEEDED", "SPLIT_PLATFORM")])).toBe(t.payoutState.PENDING);
+    });
+    it("часть отклонена — «Выплата мастеру не прошла — оператор повторит»", () => {
+      expect(title([split("FAILED", "SPLIT_MASTER"), split("SUCCEEDED", "SPLIT_PLATFORM")])).toBe(t.payoutState.FAILED);
+    });
+    it("отказ → повтор → успех: «Оплата переведена мастеру», «не прошла» нет, записи покрыты", () => {
+      const history = [split("FAILED", "SPLIT_MASTER", "m1"), split("SUCCEEDED", "SPLIT_PLATFORM", "p1"), split("SUCCEEDED", "SPLIT_MASTER", "m2")];
+      const rows = operationRows(history);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.title).toBe(t.payout);
+      expect(rows[0]?.title).not.toMatch(/не прошла/);
+      expect([...(rows[0]?.covers ?? [])].sort()).toEqual(["m1", "m2", "p1"]);
+    });
+    it("отказ → повтор ждёт банка: «Банк переводит оплату мастеру»", () => {
+      expect(title([split("FAILED", "SPLIT_MASTER"), split("SUCCEEDED", "SPLIT_PLATFORM"), split("PENDING", "SPLIT_MASTER")])).toBe(t.payoutState.PENDING);
+    });
+    it("раздел по спору: проведено — «Остальное переведено мастеру», ждёт — «Банк переводит остальное мастеру»", () => {
+      const refund = item({ type: "REFUND" });
+      expect(title([split("SUCCEEDED", "SPLIT_MASTER"), split("SUCCEEDED", "SPLIT_PLATFORM"), refund])).toBe(t.payoutRest);
+      expect(title([split("PENDING", "SPLIT_MASTER"), split("SUCCEEDED", "SPLIT_PLATFORM"), refund])).toBe(t.payoutState.PENDING_REST);
+    });
   });
 
   it("документ-основание — ссылка на PDF; пустой журнал — пустой список", () => {

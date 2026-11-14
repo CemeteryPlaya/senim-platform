@@ -363,6 +363,12 @@ export const deal = {
       UNFREEZE: "Приостановка выплаты снята",
       REFUND: "Деньги возвращены вам",
     } as Readonly<Record<string, string>>,
+    /** Оплата по состоянию в банке (успешная — `type.HOLD`); сумму неудачной попытки не выводим. */
+    hold: { PENDING: "Оплата обрабатывается", WAITING: "Ждём ваш перевод", FAILED: "Оплата не прошла" } as Readonly<Record<string, string>>,
+    /** Возврат по состоянию в банке (проведённый — `type.REFUND` и `refundSplit`). */
+    refundState: { PENDING: "Возврат обрабатывается", FAILED: "Возврат не прошёл — оператор повторит" } as Readonly<Record<string, string>>,
+    /** Выплата мастеру по последним попыткам частей (проведённая — `payout` и `payoutRest`). */
+    payoutState: { PENDING: "Банк переводит оплату мастеру", PENDING_REST: "Банк переводит остальное мастеру", FAILED: "Выплата мастеру не прошла — оператор повторит" } as Readonly<Record<string, string>>,
     /** Возврат по решению спора, когда остальное ушло мастеру. */
     refundSplit: "Спор решён: возвращено вам",
     /** Одна строка завершения, без суммы. */
@@ -371,7 +377,7 @@ export const deal = {
     payoutRest: "Остальное переведено мастеру",
     status: { PENDING: "Банк обрабатывает операцию", FAILED: "Операция не прошла" } as Readonly<Record<string, string>>,
     bankRef: (ref: string) => `Операция в банке: ${ref}`,
-    basisSection: "Документы-основания",
+    basisSection: "Документ-основание оплаты",
     basisLabel: (what: string, when: string) => `${what}, ${when}`,
     basisOpen: "Открыть",
     documentsSection: "Выписка и акт",
@@ -480,11 +486,11 @@ export const deal = {
         },
         FULL_REFUND: {
           title: "Решено: деньги возвращаются вам",
-          body: "Вся оплаченная сумма, включая защиту сделки, возвращается на вашу карту.",
+          body: "Вся оплаченная сумма, включая защиту сделки, возвращается вам.",
         },
         PARTIAL_SPLIT: {
           title: "Решено: деньги делятся",
-          body: "Мастер получает часть оплаты, остаток возвращается вам на карту. Суммы — в истории денег.",
+          body: "Мастер получает часть оплаты, остаток возвращается вам. Суммы — в истории денег.",
         },
       } as Readonly<Record<string, { title: string; body: string }>>,
       moneySection: "Деньги по решению",

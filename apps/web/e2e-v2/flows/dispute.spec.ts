@@ -7,7 +7,7 @@ import { open } from "../support";
  * Спор и возврат покупателя в v2 (набор flows: база e2e пересеяна перед прогоном, данные меняются). Засеянная Айгерим:
  * «Кухня» (работа идёт, деньги в банке) — покупатель открывает спор, видит «Спор рассматривает оператор», выплату
  * приостановленной и строку «выплата приостановлена» в истории денег; «Шкаф-купе» (оплачен, работа не начата) — покупатель
- * отменяет сделку, деньги возвращаются на карту, а в истории денег появляется строка возврата.
+ * отменяет сделку, деньги возвращаются, а в истории денег появляется строка возврата.
  *
  * Сделки сида одни на пересев, поэтому сценарий идёт только в проекте flows-mobile (в flows-desktop — явный пропуск):
  * от порядка проектов и от других сценариев набора он не зависит (свои сделки, свой вход). Вид компьютера проверяет второй
@@ -48,7 +48,6 @@ test("покупатель открывает спор по сделке в ра
   // Двойное нажатие на подтверждение: спор один.
   await confirm.getByRole("button", { name: dispute.form.confirm.confirm }).dblclick();
   await page.waitForURL(new RegExp(`${kitchen}$`), { timeout: 30_000 });
-  await expect(page.getByText(dispute.form.opened, { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: card.now.dispute.title })).toBeVisible();
   await expect(page.locator("main")).toContainText(card.money.frozen.title);
 
@@ -66,19 +65,24 @@ test("покупатель открывает спор по сделке в ра
   await expect(operations.getByText(t.money.type.HOLD)).toBeVisible();
   await expect(operations.getByText(t.money.type.FREEZE)).toBeVisible();
 
-  // ── 4. Отмена оплаченной «Шкаф-купе»: возврат на карту, строка возврата в истории денег ──
+  // ── 4. Отмена оплаченной «Шкаф-купе»: возврат, строка возврата в истории денег ──
   const wardrobe = await dealHref(page, "Шкаф-купе");
   await open(page, wardrobe);
   await page.getByRole("button", { name: card.actions.menu }).click();
   await page.getByText(card.actions.cancel, { exact: true }).first().click();
   const cancel = page.getByRole("dialog", { name: card.actions.cancelTitle });
-  await expect(cancel).toContainText(/вернутся на вашу карту/);
+  await expect(cancel).toBeVisible();
   await cancel.getByRole("button", { name: card.actions.cancel }).click();
-  await expect(page.getByText(card.actions.refundRequested, { exact: true })).toBeVisible();
+  // Итог — на экране истории денег (тост исчезает): провайдер стенда ручной, возврат ждёт отметки оператора.
+  await page.waitForURL(new RegExp(`${wardrobe}$`), { timeout: 30_000 });
   await open(page, `${wardrobe}/money`);
   const wardrobeOps = page.getByRole("list", { name: t.money.operationsLabel });
-  await expect(wardrobeOps.getByText(t.money.type.REFUND)).toBeVisible();
+  await expect(wardrobeOps.getByText(new RegExp(`^(${t.money.type.REFUND}|${t.money.refundState.PENDING})$`))).toBeVisible();
   await expect(wardrobeOps.getByText(t.money.type.HOLD)).toBeVisible();
+  // «Сейчас» на карточке — про возврат или отмену, а не про оплату.
+  await open(page, wardrobe);
+  await expect(page.getByRole("heading", { level: 2, name: new RegExp(`^(${card.now.waitRefund.title}|${card.now.refunded.title}|${card.now.cancelled.title})$`) })).toBeVisible();
+  await open(page, `${wardrobe}/money`);
   await expect(page.locator("main")).not.toContainText(/комисси|эскроу|тестов|демо|платформ/i);
 
   // ── 5. Вид компьютера: спор и история денег ──

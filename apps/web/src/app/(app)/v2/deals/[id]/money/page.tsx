@@ -33,7 +33,7 @@ export default async function MoneyHistoryPage({ params, searchParams }: Props) 
         backHref: dealHrefs(deal.id).card,
         number: deal.number,
         money: moneyView({ block: deal.moneyBlock, estimate: deal.estimate, snapshot: deal.money, manual: deal.paymentProvider === "MANUAL" }),
-        operations: operationRows(deal.moneyHistory),
+        operations: operationRows(deal.moneyHistory, { manual: deal.paymentProvider === "MANUAL" }),
         documents: shown.flatMap((d) => {
           const row = rows.find((r) => r.id === d.id);
           return row ? [{ ...row, shareable: d.shareable, statement: d.kind === "MONEY_STATEMENT" }] : [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeClient } from "../../../test/factories";
+import { makeClient, makeOperator } from "../../../test/factories";
 import { dealAt, makePhoto } from "../../../test/factories/deal";
 import { disputePhotos, openDispute } from "./index";
 
@@ -20,6 +20,14 @@ describe("disputePhotos: фото последнего спора", () => {
     expect(mine).toHaveLength(2);
     for (const photo of mine) expect(photo.src).toMatch(/^(\/|https?:)/);
     expect((await disputePhotos(f.executor, f.dealId)).map((p) => p.id).sort()).toEqual(mine.map((p) => p.id).sort());
+  });
+
+  it("оператор видит фото спора; мастер другой сделки — «не найдено»", async () => {
+    const f = await dealAt("PAID_HOLD");
+    await open(f, 1);
+    expect(await disputePhotos(await makeOperator(), f.dealId)).toHaveLength(1);
+    const other = await dealAt("PAID_HOLD");
+    await expect(disputePhotos(other.executor, f.dealId)).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("чужой — «не найдено», несуществующая сделка — тоже", async () => {

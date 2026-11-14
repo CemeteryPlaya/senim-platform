@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { formatMoney } from "@/kit";
 import { ru } from "@/i18n/ru";
-import { cancelDeal, openDispute, processDealMoney, resolveDispute } from "@/modules/deal-core";
+import { cancelDeal, onMoneySettled, openDispute, payForDeal, processDealMoney, resolveDispute } from "@/modules/deal-core";
+import { failManualOperation, retryFailedOperation } from "@/modules/payments";
 import { listDealDocuments, openSharedDocument } from "@/modules/documents";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../../../../../test/factories";
-import { dealAt, journalOf, signAct } from "../../../../../../../test/factories/deal";
+import { confirmPending, dealAt, journalOf, signAct } from "../../../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../../../test/factories/identity";
 import { signInAs } from "../../../../../../../test/factories/session";
 import { shareDocumentAction } from "./actions";
@@ -128,6 +129,40 @@ describe("история денег покупателя совпадает с �
     expect(text).toContain(t.refundSplit);
     expect(text).toContain(t.payoutRest);
     expect(journal.some((e) => e.type === "REFUND")).toBe(true);
+  });
+
+  it("перевод по реквизитам: ждём банка — «Ждём ваш перевод»; отказ — «Оплата не прошла» без суммы", async () => {
+    const client = await buyer();
+    const f = await dealAt("SIGNED", { client, provider: "manual" });
+    await payForDeal(client, { dealId: f.dealId });
+    await signInAs(client);
+    expect(plain(await page(f.dealId))).toContain(t.hold.WAITING);
+    const hold = await db.moneyTransaction.findFirstOrThrow({ where: { dealId: f.dealId, type: "HOLD", status: "PENDING" } });
+    await failManualOperation(await makeOperator(), { transactionId: hold.id, reason: "Платёж не поступил" }, onMoneySettled);
+    const text = plain(await page(f.dealId));
+    expect(text).toContain(t.hold.FAILED);
+    expect(text).not.toContain(t.type.HOLD);
+  });
+
+  it("выплата: отказ банка → «Выплата мастеру не прошла»; повтор оператором и успех → «Оплата переведена мастеру» без «не прошла»", async () => {
+    const client = await buyer();
+    const f = await dealAt("READY", { client, provider: "manual" });
+    await signAct(f.dealId);
+    await confirmPending(f.dealId, "RELEASE");
+    const operator = await makeOperator();
+    const master = await db.moneyTransaction.findFirstOrThrow({ where: { dealId: f.dealId, type: "SPLIT_MASTER", status: "PENDING" } });
+    await failManualOperation(operator, { transactionId: master.id, reason: "Банк отклонил: неверные реквизиты" }, onMoneySettled);
+    await confirmPending(f.dealId, "SPLIT_PLATFORM");
+    await signInAs(client);
+    expect(plain(await page(f.dealId))).toContain(t.payoutState.FAILED);
+
+    await retryFailedOperation(operator, { transactionId: master.id }, onMoneySettled);
+    expect(plain(await page(f.dealId))).toContain(t.payoutState.PENDING);
+    await confirmPending(f.dealId, "SPLIT_MASTER");
+    const { text } = await check(f.dealId);
+    expect(text).toContain(t.payout);
+    expect(text).not.toMatch(/не прошла/);
+    expect(text).not.toContain(t.payoutState.PENDING);
   });
 
   it("до оплаты: журнал пуст — «движений нет»", async () => {

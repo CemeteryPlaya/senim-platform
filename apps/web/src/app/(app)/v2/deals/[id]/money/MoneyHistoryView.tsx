@@ -19,9 +19,10 @@ export type MoneyHistoryModel = {
   documents: MoneyDocument[];
 };
 
-/** Документы-основания: подпись — какая операция и когда (ссылка без этого безымянна). */
+/** Документ-основание оплаты: подпись — какая операция и когда (ссылка без этого безымянна). */
 function Basis({ rows }: { rows: OperationRow[] }) {
-  const withBasis = rows.filter((row) => row.basis);
+  // Timeline kit не умеет ссылку в строке, поэтому основание оплаты — отдельным разделом (остальные документы — в «Выписке и акте»).
+  const withBasis = rows.filter((row) => row.kind === "hold" && row.basis);
   if (withBasis.length === 0) return null;
   return (
     <Section title={t.basisSection}>
