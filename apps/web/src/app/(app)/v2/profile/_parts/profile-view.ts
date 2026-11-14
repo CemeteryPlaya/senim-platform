@@ -26,7 +26,7 @@ type ProfileUser = Pick<CurrentUser, "role" | "roles" | "fullName" | "phone"> & 
 
 const isParty = (role: Role): boolean => role === "CLIENT" || role === "EXECUTOR";
 
-/** Строки раздела «Роль»: переключение только на выданную роль; роли мастера нет — регистрация мастера (заглушка v1 до этапа 4). */
+/** Строки раздела «Роль»: переключение только на выданную роль; роли мастера нет — регистрация мастера. */
 export function roleLinks(user: Pick<CurrentUser, "role" | "roles">): ProfileLink[] {
   const links: ProfileLink[] = switchTargets(user).map((role) => ({
     label: t.role.switchTo[role],

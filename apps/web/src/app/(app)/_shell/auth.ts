@@ -65,8 +65,7 @@ export const safeNext = makeSafeNext(BASE);
  * (роль в identity от выбора не меняется).
  *
  * Регистрация мастера — дом и заказчика без профиля, и неодобренного мастера: её страница берёт пользователя с обеими ролями
- * (`requireV2User(path, "CLIENT", "EXECUTOR")`, правило 2 у requireV2User), а не `requireMaster`. Пока экрана нет (задача M1),
- * адрес попадает в заглушку «раздел переносится» (`[...rest]`) со ссылкой на регистрацию в v1.
+ * (`requireV2User(path, "CLIENT", "EXECUTOR")`, правило 2 у requireV2User), а не `requireMaster`.
  */
 export function homeFor(user: Pick<StepUser, "role" | "executor">, chosen: ChosenRole | null = null): string {
   switch (user.role) {
