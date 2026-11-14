@@ -319,6 +319,17 @@ export function documentRows(docs: readonly DocumentInput[]): DocumentRow[] {
   return docs.map((doc) => ({ id: doc.id, name: d.name(d.kinds[doc.kind], doc.number), status: documentStatus(doc), href: doc.pdfUrl }));
 }
 
+/** Оставленный отзыв (`deal.review`): строки «Оценка», «Отзыв» (если есть текст), «Оставлен». */
+export function reviewRows(review: { rating: number; text: string | null; createdAt: Date } | null): { label: string; value: string; stacked: boolean }[] | null {
+  if (!review) return null;
+  const r = t.review;
+  return [
+    { label: r.rating, value: r.ratingValue(review.rating), stacked: false },
+    ...(review.text ? [{ label: r.text, value: review.text, stacked: true }] : []),
+    { label: r.date, value: formatDate(review.createdAt), stacked: false },
+  ];
+}
+
 /** Сколько последних событий видно, пока история свёрнута: телефон и компьютер. */
 export const HISTORY_SHOWN = { mobile: 3, desktop: 5 } as const;
 

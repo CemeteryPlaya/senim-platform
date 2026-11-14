@@ -47,6 +47,8 @@ export type CardView = {
   documents: DocumentRow[];
   master: { label: string; contacts: PartyContacts | null; chatHref: string };
   history: { items: { title: string; time: string }[]; more: boolean; allHref: string };
+  /** Оставленный отзыв строками; `null` — отзыва нет. */
+  review: { label: string; value: string; stacked: boolean }[] | null;
   actions: { cancelText: string | null; disputeHref: string | null };
 };
 
@@ -235,6 +237,20 @@ function Master({ view, device }: { view: CardView; device: Device }) {
   );
 }
 
+function Review({ rows }: { rows: NonNullable<CardView["review"]> }) {
+  return (
+    <Section title={t.review.section}>
+      <Card padded={false}>
+        <List>
+          {rows.map((row) => (
+            <ListRow key={row.label} label={row.label} value={row.value} stacked={row.stacked} />
+          ))}
+        </List>
+      </Card>
+    </Section>
+  );
+}
+
 function History({ view }: { view: CardView }) {
   const h = t.history;
   return (
@@ -314,6 +330,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
               <Progression steps={view.steps} device={device} />
               <Documents view={view} />
               <Master view={view} device={device} />
+              {view.review && <Review rows={view.review} />}
               <History view={view} />
             </Stack>
           }
@@ -338,6 +355,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
       <Order view={view} device={device} />
       <Documents view={view} />
       <Master view={view} device={device} />
+      {view.review && <Review rows={view.review} />}
       <History view={view} />
       <Help />
       {primary && <ActionDock>{primary}</ActionDock>}

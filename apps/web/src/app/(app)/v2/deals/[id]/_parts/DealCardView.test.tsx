@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 import { count, html, text } from "@/kit/test-utils";
 import type { MoneyBlock } from "@/modules/payments";
 import { dealStepsView } from "../../../_parts/deal-summary";
-import { cancelText, moneyView, nowView, type NowInput } from "./deal-card";
+import { cancelText, moneyView, nowView, reviewRows, type NowInput } from "./deal-card";
 import { DealCardView, type CardView } from "./DealCardView";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => undefined }), redirect: () => undefined }));
@@ -45,6 +45,7 @@ function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: P
     documents: [{ id: "c1", name: "Оферта № Д-1", status: "Подписан", href: "/api/documents/c1/pdf" }],
     master: { label: "Исполнитель №4", contacts: null, chatHref: "/v2/chats/o1" },
     history: { items: [{ title: "Оферта сформирована", time: "1 ноября 2026, 10:00" }], more: true, allHref: "/v2/deals/d1?history=all#history" },
+    review: null,
     actions: { cancelText: cancelText({ canCancel: true, status: "CREATED", block, manual: false }), disputeHref: null },
     ...over,
   };
@@ -104,6 +105,16 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки, %s
     const out = html(<DealCardView view={view()} device={device} />);
     expect(out).toContain('href="/api/documents/c1/pdf"');
     expect(out).toContain('href="/v2/deals/d1?history=all#history"');
+  });
+
+  it("«Ваш отзыв» — только когда отзыв оставлен: оценка, текст, дата", () => {
+    expect(html(<DealCardView view={view()} device={device} />)).not.toContain(t.review.section);
+    const rows = reviewRows({ rating: 5, text: "Всё отлично", createdAt: new Date("2026-11-14T10:00:00Z") });
+    const out = text(<DealCardView view={view({ review: rows })} device={device} />);
+    expect(out).toContain(t.review.section);
+    expect(out).toContain(t.review.ratingValue(5));
+    expect(out).toContain("Всё отлично");
+    expect(out).toContain("14 ноября 2026");
   });
 
   it("меню «Действия» — только когда есть что делать", () => {

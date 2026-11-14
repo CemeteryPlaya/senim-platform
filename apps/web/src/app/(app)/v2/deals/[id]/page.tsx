@@ -9,7 +9,7 @@ import { logger } from "@/platform/logger";
 import { pageHref } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
 import { dealStatusText, dealStepsView, dealTone, payWaitsMaster } from "../../_parts/deal-summary";
-import { cancelText, dealHrefs, documentRows, HISTORY_SHOWN, historyView, moneyView, nowView, orderRows } from "./_parts/deal-card";
+import { cancelText, dealHrefs, documentRows, HISTORY_SHOWN, historyView, moneyView, nowView, orderRows, reviewRows } from "./_parts/deal-card";
 import { DealCardView, type CardView } from "./_parts/DealCardView";
 import { buyerDeal } from "./_parts/gate";
 
@@ -84,6 +84,7 @@ export default async function DealPage({ params, searchParams }: Props) {
     }),
     documents: documentRows(documents),
     master: { label: deal.executorLabel, contacts, chatHref: to(`/chats/${encodeURIComponent(deal.offerId)}`) },
+    review: reviewRows(deal.review),
     history: { ...historyView(deal.history, { all: sp.history === "all", limit: HISTORY_SHOWN[device] }), allHref: hrefs.history },
     actions: {
       cancelText: cancelText({ canCancel: deal.can.cancel, status: deal.status, block: deal.moneyBlock, manual }),

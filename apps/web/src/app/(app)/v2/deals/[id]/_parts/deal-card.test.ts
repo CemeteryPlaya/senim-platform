@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
 import type { NextAction } from "@/modules/deal-core";
 import type { MoneyBlock, MoneyView } from "@/modules/payments";
-import { cancelText, documentRows, HISTORY_SHOWN, historyView, moneyView, nowView, orderRows, type HistoryEvent, type NowInput, type NowKind } from "./deal-card";
+import { cancelText, documentRows, HISTORY_SHOWN, historyView, moneyView, nowView, orderRows, reviewRows, type HistoryEvent, type NowInput, type NowKind } from "./deal-card";
 
 const t = ru.app.deal.card;
 const n = t.now;
@@ -232,6 +232,19 @@ describe("заказ", () => {
     const rows = orderRows({ ...order, plannedReadyAt: new Date("2026-12-20T10:00:00Z"), readyShownInNow: true });
     expect(rows.map((r) => r.label)).not.toContain(t.order.readyBy);
     expect(rows.map((r) => r.label)).not.toContain(t.order.duration);
+  });
+});
+
+describe("отзыв", () => {
+  it("нет отзыва — блока нет; есть — оценка «N из 5», текст (если есть), дата", () => {
+    expect(reviewRows(null)).toBeNull();
+    const at = new Date("2026-11-14T10:00:00Z");
+    expect(reviewRows({ rating: 4, text: "Хорошо", createdAt: at })).toEqual([
+      { label: t.review.rating, value: "4 из 5", stacked: false },
+      { label: t.review.text, value: "Хорошо", stacked: true },
+      { label: t.review.date, value: "14 ноября 2026", stacked: false },
+    ]);
+    expect(reviewRows({ rating: 5, text: null, createdAt: at })?.map((r) => r.label)).toEqual([t.review.rating, t.review.date]);
   });
 });
 
