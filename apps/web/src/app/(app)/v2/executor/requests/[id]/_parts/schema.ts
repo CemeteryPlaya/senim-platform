@@ -55,8 +55,8 @@ export const proposeSchema = z.strictObject({ offerId: id, amount: priceKzt });
 /** «Принять»: именно то предложение цены покупателя, что было на экране, и предложение мастера — для проверки и повтора. */
 export const acceptSchema = z.strictObject({ offerId: id, proposalId: id });
 
-/** «Отозвать цену»: своё открытое предложение цены. */
-export const withdrawPriceSchema = z.strictObject({ proposalId: id });
+/** «Отозвать мою цену»: своё открытое предложение цены и предложение мастера — для проверки повтора. */
+export const withdrawPriceSchema = z.strictObject({ offerId: id, proposalId: id });
 
-/** «Отозвать предложение»: своё предложение целиком. */
+/** «Отказаться от заявки»: своё предложение целиком. */
 export const withdrawOfferSchema = z.strictObject({ offerId: id });

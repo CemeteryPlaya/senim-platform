@@ -2,7 +2,7 @@
 
 import { ru } from "@/i18n/ru";
 import { requireUser, type CurrentUser } from "@/modules/identity";
-import { acceptPrice, getIncomingRequest, getNegotiation, proposePrice, sendOffer, withdrawOffer, withdrawPrice } from "@/modules/requests";
+import { acceptPrice, getIncomingRequest, getNegotiation, listMyOffers, proposePrice, sendOffer, withdrawOffer, withdrawPrice } from "@/modules/requests";
 import { kztToTiyn } from "@/modules/payments";
 import { action } from "@/platform/action";
 import { AppError, isAppError, type ErrorCode } from "@/platform/errors";
@@ -30,8 +30,9 @@ function retext(e: unknown, texts: Partial<Record<ErrorCode, string>>, field?: {
 type SendInput = { requestId: string; price: number; days: number; warranty: number; comment: string };
 
 /**
- * Своё предложение по заявке уже есть ровно с этими условиями (повтор после обрыва связи, вторая вкладка с теми же
- * значениями) — тот же ответ, что у первой отправки. Иначе — `null`.
+ * Своё предложение по заявке уже есть с теми же ценой, сроком и гарантией (повтор после обрыва связи, вторая вкладка) — тот
+ * же ответ, что у первой отправки. Иначе — `null`. Комментарий не сравнивается: модуль маскирует в нём контакты, и повтор
+ * с телефоном в тексте иначе выглядел бы другим предложением.
  */
 async function sameOffer(user: CurrentUser, input: SendInput): Promise<{ offerId: string } | null> {
   const r = await getIncomingRequest(user, input.requestId);
@@ -40,8 +41,7 @@ async function sameOffer(user: CurrentUser, input: SendInput): Promise<{ offerId
   const same =
     mine.priceTiyn === kztToTiyn(input.price) &&
     mine.durationDays === input.days &&
-    mine.warrantyMonths === input.warranty &&
-    mine.comment === input.comment;
+    mine.warrantyMonths === input.warranty;
   return same ? { offerId: mine.id } : null;
 }
 
@@ -70,12 +70,20 @@ export const sendOfferAction = action("app.masterOffer.send", sendSchema, async 
   }
 });
 
-/** «Отозвать предложение» целиком: только своё и только пока заявка открыта и торг идёт; иначе — CONFLICT «экран устарел». */
+/**
+ * «Отказаться от заявки» — отозвать предложение целиком: только своё и только пока заявка открыта и торг идёт. Повтор
+ * (двойное нажатие, вторая вкладка), когда предложение уже отозвано этим мастером, — тот же ответ `ok`; иначе CONFLICT
+ * «экран устарел» (покупатель успел принять цену или закрыть заявку).
+ */
 export const withdrawOfferAction = action("app.masterOffer.withdrawOffer", withdrawOfferSchema, async ({ offerId }) => {
   const user = await requireUser("EXECUTOR");
   try {
     await withdrawOffer(user, { offerId });
   } catch (e) {
+    if (isAppError(e) && e.code === "CONFLICT") {
+      const mine = await listMyOffers(user).catch(() => []);
+      if (mine.some((o) => o.id === offerId && o.status === "WITHDRAWN")) return;
+    }
     throw retext(e, { CONFLICT: t.changed, NOT_FOUND: t.notFound, FORBIDDEN: t.notApproved });
   }
 });
@@ -131,12 +139,19 @@ export const acceptPriceAction = action("app.masterOffer.acceptPrice", acceptSch
   }
 });
 
-/** «Отозвать цену»: только свою открытую (чужую — FORBIDDEN), уже решённую — CONFLICT. */
-export const withdrawPriceAction = action("app.masterOffer.withdrawPrice", withdrawPriceSchema, async ({ proposalId }) => {
+/**
+ * «Отозвать мою цену»: только свою открытую (чужую — FORBIDDEN). Повтор, когда эта своя цена уже отозвана, — тот же ответ
+ * `ok`; цену успели принять или торг закрыт — CONFLICT. Цена должна принадлежать предложению `offerId` (иначе NOT_FOUND).
+ */
+export const withdrawPriceAction = action("app.masterOffer.withdrawPrice", withdrawPriceSchema, async ({ offerId, proposalId }) => {
   const user = await requireUser("EXECUTOR");
   try {
     await withdrawPrice(user, { proposalId });
   } catch (e) {
+    if (isAppError(e) && e.code === "CONFLICT") {
+      const view = await getNegotiation(user, { offerId }).catch(() => null);
+      if (view?.rounds.some((r) => r.id === proposalId && r.mine && r.status === "WITHDRAWN")) return;
+    }
     throw retext(e, { FORBIDDEN: t.notYours, CONFLICT: t.changed, NOT_FOUND: t.notFound });
   }
 });

@@ -129,6 +129,8 @@ describe("заявка мастера: состояния", () => {
     expect(primaries(out)).toEqual([t.actions.openDeal]);
     expect(out).toContain(`href="/v2/deals/${dealId}"`);
     expect(text(out)).toContain(ADDRESS);
+    expect(text(out)).toContain(t.now.deal.next);
+    expect(text(out)).toContain(t.request.contactsDeal);
 
     const other = await buyerRequest(false);
     const second = await sendOffer(executor, offerInput(other.requestId, 300_000));
@@ -136,6 +138,11 @@ describe("заявка мастера: состояния", () => {
     const cancelled = await render(other.requestId);
     expect(text(cancelled)).toContain(t.now.requestCancelled.title);
     expect(cancelled).toContain(`href="/v2/chats/${second.offerId}"`);
+    expect(text(cancelled)).toContain(t.actions.chatClosed);
+    expect(text(cancelled)).not.toContain(t.actions.chat);
+    // Договориться уже нельзя: ни подсказки об адресе, ни строки о контактах.
+    expect(text(cancelled)).not.toContain(t.request.addressHidden);
+    expect(text(cancelled)).not.toContain(t.request.contacts);
     expect(primaries(cancelled)).toEqual([]);
   });
 });
@@ -158,5 +165,15 @@ describe("заявка мастера: доступ", () => {
     expect(out).toContain(ru.app.masterRequests.gate.pending.now);
     expect(out).toContain('href="/v2/register/executor"');
     expect(count(out, "<h1")).toBe(1);
+    // «Назад» вложенного экрана — на главную: заявки до одобрения закрыты.
+    expect(out).toContain('href="/v2"');
+    expect(text(out)).toContain(t.gateBack);
+  });
+
+  it("заявка порядка «до оферты» (замер, проект — флаг preContractFlows) — сразу в v1", async () => {
+    const { requestId } = await buyerRequest();
+    await db.request.update({ where: { id: requestId }, data: { preContractFlow: "EXECUTOR_MEASURE" } });
+    await master();
+    await expect(render(requestId)).rejects.toMatchObject({ digest: expect.stringContaining(`;/executor/requests/${requestId};`) });
   });
 });

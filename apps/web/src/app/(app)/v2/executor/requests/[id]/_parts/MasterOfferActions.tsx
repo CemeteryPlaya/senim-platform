@@ -153,8 +153,8 @@ export function ProposeButton({ device, offerId, primary, description }: { devic
   );
 }
 
-/** «Отозвать цену»: свою открытую, с подтверждением; после — экран обновляется (цены, ждущей ответа, нет). */
-export function WithdrawPriceButton({ device, proposalId }: { device: Device; proposalId: string }) {
+/** «Отозвать мою цену»: свою открытую, с подтверждением; после — экран обновляется (цены, ждущей ответа, нет). */
+export function WithdrawPriceButton({ device, offerId, proposalId }: { device: Device; offerId: string; proposalId: string }) {
   const router = useRouter();
   const settle = useSettle();
   return (
@@ -165,7 +165,7 @@ export function WithdrawPriceButton({ device, proposalId }: { device: Device; pr
       description={t.withdrawPriceConfirm.description}
       confirmLabel={t.withdrawPriceConfirm.confirm}
       onConfirm={async () =>
-        settle(await withdrawPriceAction({ proposalId }), () => {
+        settle(await withdrawPriceAction({ offerId, proposalId }), () => {
           toast(t.toasts.priceWithdrawn);
           router.refresh();
         })
@@ -175,7 +175,8 @@ export function WithdrawPriceButton({ device, proposalId }: { device: Device; pr
 }
 
 /**
- * «Действия с предложением» за кнопкой «три точки»: отозвать предложение целиком (необратимо — подтверждение `danger`).
+ * «Действия с предложением» за кнопкой «три точки»: «Отказаться от заявки» — отозвать предложение целиком (необратимо:
+ * новое по этой заявке модуль не примет — подтверждение `danger`).
  * Пункт меню закрывает меню и открывает подтверждение; фокус после окна возвращается на кнопку меню.
  */
 export function OfferMenu({ device, offerId }: { device: Device; offerId: string }) {

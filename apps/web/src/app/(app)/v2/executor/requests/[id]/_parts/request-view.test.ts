@@ -85,13 +85,9 @@ function request(over: Partial<IncomingRequest> = {}): IncomingRequest {
 }
 
 const stateOf = (over: Partial<MasterStateInput> = {}): MasterState =>
-  masterState({ path: "TZ", canOffer: false, retryAllowed: false, status: "OPEN", myOffer: { status: "SENT", dealId: null }, negotiation: null, ...over });
+  masterState({ canOffer: false, retryAllowed: false, status: "OPEN", myOffer: { status: "SENT", dealId: null }, negotiation: null, ...over });
 
 describe("masterState: состояние заявки и торга глазами мастера", () => {
-  it("заявка порядка «до оферты» — в v1, даже если можно отправить предложение", () => {
-    expect(stateOf({ path: "EXECUTOR_MEASURE", canOffer: true, myOffer: null })).toEqual({ kind: "legacy" });
-  });
-
   it("своего предложения нет — форма; новая попытка от оператора — форма «ещё раз»; отправить нельзя — «не принимает»", () => {
     expect(stateOf({ canOffer: true, myOffer: null })).toEqual({ kind: "form", retry: false });
     expect(stateOf({ canOffer: true, retryAllowed: true, myOffer: { status: "DECLINED", dealId: null } })).toEqual({ kind: "form", retry: true });
@@ -130,7 +126,8 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.now.title).toBe(t.now.form.title);
     expect(v.primary).toEqual({ kind: "send" });
     expect(v.secondary).toBeNull();
-    expect([v.money, v.withdrawOffer, v.chatHref, v.offerId]).toEqual([null, null, null, null]);
+    expect([v.money, v.withdrawOffer, v.chat, v.offerId]).toEqual([null, null, null, null]);
+    expect(v.contactsNote).toBe(t.request.contacts);
     expect([v.history, v.conditions]).toEqual([[], []]);
     expect(v.back).toEqual({ href: "/v2/executor/requests", label: t.back });
     expect(v.lead).toEqual({ number: t.numberLine(18), direct: null });
@@ -162,7 +159,7 @@ describe("requestView: экран заявки мастера", () => {
       ],
     });
     expect(v.withdrawOffer).toEqual({ offerId: "offer-1" });
-    expect(v.chatHref).toBe("/v2/chats/offer-1");
+    expect(v.chat).toEqual({ href: "/v2/chats/offer-1", label: t.actions.chat });
     expect(v.history.map((h) => [h.title, h.text])).toEqual([
       [t.history.you, t.history.status.SUPERSEDED],
       [t.history.buyer, t.history.status.PROPOSED],
@@ -174,7 +171,7 @@ describe("requestView: экран заявки мастера", () => {
     ]);
   });
 
-  it("своя цена ждёт: главного нет, «Отозвать цену»; смета «если покупатель примет»", () => {
+  it("своя цена ждёт: главного нет, «Отозвать мою цену»; смета «если покупатель примет»", () => {
     const n = negotiation([round("a", "EXECUTOR", 1_050_000, "PROPOSED")]);
     const v = requestView(request({ canOffer: false, myOffer: myOffer() }), n, now);
     expect(v.primary).toBeNull();
@@ -205,6 +202,9 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.money).toBeNull();
     expect(v.details).toContainEqual({ label: t.request.address, value: "ул. Тестовая, 1", stacked: true });
     expect(v.details).toContainEqual({ label: t.request.location, value: "51.12820, 71.43040", stacked: false });
+    expect(v.next).toBe(t.now.deal.next);
+    expect(v.contactsNote).toBe(t.request.contactsDeal);
+    expect(v.chat?.label).toBe(t.actions.chat);
   });
 
   it("закрыто: причина и последняя цена, ссылка к другим заявкам, без главного действия и меню", () => {
@@ -215,12 +215,18 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.secondary).toEqual({ kind: "link", href: "/v2/executor/requests", label: t.actions.toRequests });
     expect(v.withdrawOffer).toBeNull();
     expect(v.history[0]?.text).toBe(t.history.notAccepted);
+    // Договориться уже нельзя: ни строки адреса, ни строки о контактах; переписка — для чтения.
+    expect(v.details.map((r) => r.label)).not.toContain(t.request.address);
+    expect(v.contactsNote).toBeNull();
+    expect(v.chat).toEqual({ href: "/v2/chats/offer-1", label: t.actions.chatClosed });
   });
 
-  it("заявка «до оферты» — ссылка на экран v1, торга и денег нет", () => {
-    const v = requestView(request({ path: "EXECUTOR_MEASURE" }), null, now);
-    expect(v.secondary).toEqual({ kind: "link", href: "/executor/requests/req-1", label: t.now.legacy.action });
-    expect([v.primary, v.money, v.chatHref]).toEqual([null, null, null]);
+  it("заявка не принимает предложений (своего нет) — без строки адреса и контактов, ссылка к другим заявкам", () => {
+    const v = requestView(request({ canOffer: false, status: "CONTRACTING" }), null, now);
+    expect(v.state).toEqual({ kind: "unavailable" });
+    expect(v.details.map((r) => r.label)).not.toContain(t.request.address);
+    expect([v.contactsNote, v.chat, v.primary]).toEqual([null, null, null]);
+    expect(v.secondary).toEqual({ kind: "link", href: "/v2/executor/requests", label: t.actions.toRequests });
   });
 
   it("сводка: до выбора адреса нет — пояснение; «не знаю» — «Покупатель не знает»; снимок без адреса пропущен; прямая заявка помечена", () => {

@@ -79,13 +79,13 @@ describe("тексты мастера: запретные слова", () => {
   });
 
   // «выплат» и «договор» (Ruling 9: «оплата», «оферта») запрещены в зонах, где слова уже решены: сделка мастера
-  // (`ru.app.master`) и регистрация мастера (`ru.app.masterRegister`). Остальные зоны `master-*` добавляются сюда, когда
-  // их тексты приведены к решению.
-  const DECIDED: readonly Zone[] = ["master", "masterRegister"];
+  // (`ru.app.master`), регистрация мастера (`ru.app.masterRegister`) и заявка с предложением (`ru.app.masterOffer`). Остальные
+  // зоны `master-*` добавляются сюда, когда их тексты приведены к решению.
+  const DECIDED: readonly Zone[] = ["master", "masterRegister", "masterOffer", "masterCompany"];
   it.each([
     ["выплат", /выплат/i],
     ["договор", /(^|[^а-яё])договор(?!ит|ён)/i],
-  ])("в зонах сделки и регистрации мастера нет слова «%s»", (_word, pattern) => {
+  ])("в зонах сделки, регистрации и предложения мастера нет слова «%s»", (_word, pattern) => {
     expect(DECIDED.flatMap((name) => strings(ru.app[name])).filter((s) => pattern.test(s))).toEqual([]);
   });
 

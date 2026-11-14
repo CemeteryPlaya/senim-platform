@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import {
   ActionDock,
@@ -22,7 +22,7 @@ import { getIncomingRequest, getNegotiation, TZ_PATH, type IncomingRequest, type
 import { getDevice, type Device } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { requireMaster } from "../../../../_shell/auth";
-import { to } from "../../../../_shell/paths";
+import { legacy, to } from "../../../../_shell/paths";
 import { readForMaster } from "../../_parts/approved";
 import { MasterGate } from "../../_parts/MasterGate";
 import { AcceptButton, OfferMenu, ProposeButton, WithdrawPriceButton } from "./_parts/MasterOfferActions";
@@ -39,7 +39,8 @@ type Props = { params: Promise<{ id: string }> };
 
 /**
  * Заявка и торг по своему предложению. Чужая и несуществующая заявка (модуль: не видна мастеру и своего предложения нет)
- * — 404. Торг читается только на пути ТЗ, когда своё предложение есть и форма не нужна.
+ * — 404. Заявка порядка «до оферты» (замер, залог, проект — флаг preContractFlows, в v2 не переносится) — сразу в v1, как
+ * у чатов. Торг читается, когда своё предложение есть и форма не нужна.
  */
 async function load(user: CurrentUser, id: string): Promise<{ request: IncomingRequest; negotiation: NegotiationView | null }> {
   let request: IncomingRequest;
@@ -49,9 +50,10 @@ async function load(user: CurrentUser, id: string): Promise<{ request: IncomingR
     if (isAppError(e) && e.code === "NOT_FOUND") notFound();
     throw e;
   }
+  if (request.path !== TZ_PATH) redirect(legacy(`/executor/requests/${encodeURIComponent(id)}`));
   const composing = request.canOffer && (!request.myOffer || request.retryAllowed);
   const offer = request.myOffer;
-  const negotiation = offer && !composing && request.path === TZ_PATH ? await getNegotiation(user, { offerId: offer.id }) : null;
+  const negotiation = offer && !composing ? await getNegotiation(user, { offerId: offer.id }) : null;
   return { request, negotiation };
 }
 
@@ -78,12 +80,13 @@ function Actions({ view, device }: { view: RequestViewModel; device: Device }) {
 }
 
 /**
- * Второстепенное действие («Предложить свою цену», «Отозвать цену» или ссылка) — тихой кнопкой-ссылкой по левой линии;
- * под ним — «Написать покупателю». Обёртка-ряд: в колонке кнопка растянулась бы на всю ширину.
+ * Второстепенное действие («Предложить свою цену», «Отозвать мою цену» или ссылка) — тихой кнопкой-ссылкой по левой линии;
+ * под ним — переписка («Написать покупателю», у закрытого торга — «Переписка»). Обёртка-ряд: в колонке кнопка растянулась
+ * бы на всю ширину.
  */
 function Secondary({ view, device }: { view: RequestViewModel; device: Device }) {
-  const { secondary, offerId, chatHref } = view;
-  const chat = chatHref && <TextLink href={chatHref}>{t.actions.chat}</TextLink>;
+  const { secondary, offerId } = view;
+  const chat = view.chat && <TextLink href={view.chat.href}>{view.chat.label}</TextLink>;
   if (!secondary) return chat || null;
   const action =
     secondary.kind === "link" ? (
@@ -94,7 +97,7 @@ function Secondary({ view, device }: { view: RequestViewModel; device: Device })
           {secondary.kind === "propose" ? (
             <ProposeButton device={device} offerId={offerId} primary={false} description={view.proposeDescription} />
           ) : (
-            <WithdrawPriceButton device={device} proposalId={secondary.proposalId} />
+            <WithdrawPriceButton device={device} offerId={offerId} proposalId={secondary.proposalId} />
           )}
         </div>
       )
@@ -107,7 +110,7 @@ function Secondary({ view, device }: { view: RequestViewModel; device: Device })
   );
 }
 
-/** Что нужно покупателю: сводка, фото помещения, строка о скрытых контактах. */
+/** Что нужно покупателю: сводка, фото помещения, строка о контактах покупателя (у закрытого торга её нет). */
 function Request({ view }: { view: RequestViewModel }) {
   return (
     <Section title={t.request.title}>
@@ -132,7 +135,7 @@ function Request({ view }: { view: RequestViewModel }) {
           </Stack>
         </Card>
       )}
-      <p className="text-sub text-muted">{t.request.contacts}</p>
+      {view.contactsNote && <p className="text-sub text-muted">{view.contactsNote}</p>}
     </Section>
   );
 }
@@ -199,7 +202,7 @@ function Title({ view, device }: { view: RequestViewModel; device: Device }) {
  * назван: имя и контакты, адрес и точку модуль отдаёт только после того, как цена принята. Смета — `partyEstimate
  * ("EXECUTOR")` модуля: мастер видит цену, «Гарантия оплаты и клиента (4%)» и «Вы получите»; защиты сделки и суммы к
  * оплате покупателя здесь нет. Неодобренный мастер — экран статуса. Замер, залог и проект (флаг preContractFlows) не
- * переносятся: такая заявка ведёт в v1.
+ * переносятся: такая заявка сразу уводит в v1.
  * Телефон — одна колонка, главное действие в доке последним; компьютер — `Split`: слева «Сейчас», торг и заявка, справа
  * деньги (или форма) и своё предложение.
  */
@@ -208,7 +211,7 @@ export default async function MasterRequestPage({ params }: Props) {
   const { user, status } = await requireMaster(to(`/executor/requests/${encodeURIComponent(id)}`));
   const device = await getDevice();
   const read = await readForMaster(user, status, () => load(user, id));
-  if ("gate" in read) return <MasterGate status={read.gate} title={t.gateTitle} device={device} />;
+  if ("gate" in read) return <MasterGate status={read.gate} title={t.gateTitle} device={device} back={{ href: to("/"), label: t.gateBack }} />;
 
   const { request, negotiation } = read.data;
   const view = requestView(request, negotiation);

@@ -2,13 +2,13 @@ import { formatDate, formatDateTime, formatDays, formatMonths, formatRelative } 
 import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
 import type { IncomingRequest, NegotiationView } from "@/modules/requests";
-import { TZ_PATH } from "@/modules/requests/client";
 import { COUNTERTOPS, FACADES, HARDWARE, SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
-import { legacy, to } from "../../../../../_shell/paths";
+import { to } from "../../../../../_shell/paths";
 
 // Вид заявки глазами мастера (чистая логика без React и базы): состояние заявки и торга, «Сейчас / Дальше», действия,
 // смета мастера, сводка заявки, своё предложение и история цены. Страница читает модули (`getIncomingRequest`,
 // `getNegotiation`) и отдаёт сюда готовые данные; тексты — `ru.app.masterOffer`. Зеркало `offer-view.ts` покупателя.
+// Только путь ТЗ: заявку порядка «до оферты» (флаг preContractFlows) страница сразу уводит в v1.
 
 const t = ru.app.masterOffer;
 
@@ -20,19 +20,17 @@ type MyOffer = NonNullable<IncomingRequest["myOffer"]>;
  *
  * | kind         | когда                                                                         | главное              | второстепенное        |
  * |--------------|-------------------------------------------------------------------------------|----------------------|-----------------------|
- * | `legacy`     | заявка идёт порядком «до оферты» (флаг preContractFlows, путь не ТЗ)          | —                    | ссылка в v1           |
  * | `form`       | можно отправить предложение: своего нет или оператор разрешил новую попытку   | «Отправить…» (форма) | —                     |
  * | `unavailable`| своего предложения нет, а отправить нельзя                                    | —                    | к другим заявкам      |
  * | `deal`       | цена принята, сделка есть                                                     | «Открыть сделку»     | —                     |
  * | `closed`     | торг не идёт и сделки нет: заявка отменена, выбран другой мастер, отозвано    | —                    | к другим заявкам      |
  * | `buyerPrice` | открыта цена покупателя                                                       | «Принять X»          | «Предложить…»         |
- * | `waiting`    | открыта своя цена, ждёт покупателя                                            | —                    | «Отозвать цену»       |
+ * | `waiting`    | открыта своя цена, ждёт покупателя                                            | —                    | «Отозвать мою цену»   |
  * | `noPrice`    | торг идёт, открытой цены нет: отозвал мастер или покупатель                   | «Предложить…»        | —                     |
  *
- * Пока торг идёт (`buyerPrice`, `waiting`, `noPrice`), предложение целиком можно отозвать — пунктом меню.
+ * Пока торг идёт (`buyerPrice`, `waiting`, `noPrice`), от заявки можно отказаться (отозвать предложение целиком) — пунктом меню.
  */
 export type MasterState =
-  | { kind: "legacy" }
   | { kind: "form"; retry: boolean }
   | { kind: "unavailable" }
   | { kind: "deal"; dealId: string }
@@ -40,14 +38,13 @@ export type MasterState =
   | { kind: "buyerPrice" | "waiting"; proposalId: string; amountTiyn: bigint }
   | { kind: "noPrice"; by: "you" | "buyer" };
 
-export type MasterStateInput = Pick<IncomingRequest, "path" | "canOffer" | "retryAllowed" | "status"> & {
+export type MasterStateInput = Pick<IncomingRequest, "canOffer" | "retryAllowed" | "status"> & {
   myOffer: Pick<MyOffer, "status" | "dealId"> | null;
   negotiation: (Pick<NegotiationView, "live" | "open" | "dealId"> & { rounds: readonly Pick<Round, "mine">[] }) | null;
 };
 
 /** Чистая функция: состояние экрана (правила переходов — в модуле; здесь только чтение). */
 export function masterState(i: MasterStateInput): MasterState {
-  if (i.path !== TZ_PATH) return { kind: "legacy" };
   // Форма: своего предложения ещё нет или оператор разрешил новую попытку (как в v1).
   if (i.canOffer && (!i.myOffer || i.retryAllowed)) return { kind: "form", retry: i.myOffer !== null };
   if (!i.myOffer) return { kind: "unavailable" };
@@ -103,15 +100,15 @@ export type RequestViewModel = {
   conditions: { label: string; value: string; stacked?: true }[];
   details: DetailRow[];
   photos: { id: string; src: string; alt: string }[];
-  /** Переписка с покупателем по своему предложению. */
-  chatHref: string | null;
+  /** Переписка с покупателем по своему предложению: «Написать покупателю», у закрытого торга — «Переписка». */
+  chat: { href: string; label: string } | null;
+  /** Строка о скрытых контактах покупателя: до оферты — «откроются после оферты», у сделки — «на экране сделки». */
+  contactsNote: string | null;
   history: { title: string; time: string; text: string; amountTiyn: bigint }[];
 };
 
 function nowOf(state: MasterState, n: NegotiationView | null): Pick<RequestViewModel, "now" | "next"> {
   switch (state.kind) {
-    case "legacy":
-      return { now: { title: t.now.legacy.title, body: t.now.legacy.body } };
     case "form": {
       const s = state.retry ? t.now.retry : t.now.form;
       return { now: { title: s.title, body: s.body }, next: s.next };
@@ -138,10 +135,8 @@ function nowOf(state: MasterState, n: NegotiationView | null): Pick<RequestViewM
 
 const toRequests = (): SecondaryAction => ({ kind: "link", href: to("/executor/requests"), label: t.actions.toRequests });
 
-function actionsOf(state: MasterState, n: NegotiationView | null, requestId: string): Pick<RequestViewModel, "primary" | "secondary"> {
+function actionsOf(state: MasterState, n: NegotiationView | null): Pick<RequestViewModel, "primary" | "secondary"> {
   switch (state.kind) {
-    case "legacy":
-      return { primary: null, secondary: { kind: "link", href: legacy(`/executor/requests/${encodeURIComponent(requestId)}`), label: t.now.legacy.action } };
     case "form":
       return { primary: { kind: "send" }, secondary: null };
     case "buyerPrice": {
@@ -190,7 +185,7 @@ function moneyOf(state: MasterState, n: NegotiationView | null): MoneyView | nul
 }
 
 function conditionsOf(state: MasterState, offer: MyOffer | null): RequestViewModel["conditions"] {
-  if (!offer || state.kind === "form" || state.kind === "legacy") return [];
+  if (!offer || state.kind === "form") return [];
   const rows: RequestViewModel["conditions"] = [
     { label: t.conditions.duration, value: formatDays(offer.durationDays) },
     { label: t.conditions.warranty, value: formatMonths(offer.warrantyMonths) },
@@ -224,9 +219,10 @@ export type DetailsInput = Pick<
 
 /**
  * Что нужно покупателю строками «подпись — значение»; пустое не показывается. Адрес и точку модуль отдаёт только мастеру,
- * чью цену приняли: до того вместо адреса — пояснение. Длинное (размеры, описание, адрес, пожелания) — стопкой.
+ * с которым договорились о цене: до того вместо адреса — пояснение, а когда договориться уже нельзя (`addressHint: false`:
+ * торг закрыт, заявка не принимает предложений) — строки адреса нет. Длинное (размеры, описание, адрес, пожелания) — стопкой.
  */
-export function detailRows(r: DetailsInput, now: Date = new Date()): DetailRow[] {
+export function detailRows(r: DetailsInput, now: Date = new Date(), addressHint = true): DetailRow[] {
   const d = r.details;
   const unknown = new Set<string>(d.unknown ?? []);
   const size = unknown.has("size") ? t.request.unknown : d.widthCm || d.heightCm || d.depthCm ? t.request.sizeValue(d.widthCm, d.heightCm, d.depthCm) : null;
@@ -245,7 +241,7 @@ export function detailRows(r: DetailsInput, now: Date = new Date()): DetailRow[]
     [t.request.city, r.city],
     [t.request.desiredDate, r.desiredDate ? formatDate(r.desiredDate) : null],
     [t.request.published, r.publishedAt ? formatRelative(r.publishedAt, now) : null],
-    [t.request.address, r.address ?? t.request.addressHidden, true],
+    [t.request.address, r.address ?? (addressHint ? t.request.addressHidden : null), true],
     [t.request.location, r.location ? t.request.locationValue(r.location.lat.toFixed(5), r.location.lng.toFixed(5)) : null],
     [t.request.wishes, r.wishes, true],
   ];
@@ -264,7 +260,6 @@ export function photoView(photos: readonly { id: string; src: string | null }[])
  */
 export function requestView(r: IncomingRequest, n: NegotiationView | null, now: Date = new Date()): RequestViewModel {
   const state = masterState({
-    path: r.path,
     canOffer: r.canOffer,
     retryAllowed: r.retryAllowed,
     status: r.status,
@@ -273,23 +268,26 @@ export function requestView(r: IncomingRequest, n: NegotiationView | null, now: 
   });
   const live = state.kind === "buyerPrice" || state.kind === "waiting" || state.kind === "noPrice";
   const buyerOpen = n?.open && !n.open.mine ? n.open.amountTiyn : null;
-  const offerId = state.kind === "legacy" || state.kind === "form" ? null : (r.myOffer?.id ?? null);
+  const offerId = state.kind === "form" ? null : (r.myOffer?.id ?? null);
+  // Договориться уже нельзя: ни подсказки об адресе, ни строки о контактах (они не откроются).
+  const over = state.kind === "closed" || state.kind === "unavailable";
   return {
     state,
     title: r.title,
     lead: { number: t.numberLine(r.number), direct: r.mode === "DIRECT" ? t.direct : null },
     back: { href: to("/executor/requests"), label: t.back },
     ...nowOf(state, n),
-    ...actionsOf(state, n, r.id),
+    ...actionsOf(state, n),
     withdrawOffer: live && r.myOffer ? { offerId: r.myOffer.id } : null,
     offerId,
     proposeDescription: buyerOpen === null ? t.propose.description : t.propose.buyerPrice(formatMoney(buyerOpen)),
     money: moneyOf(state, n),
     conditions: conditionsOf(state, r.myOffer),
-    details: detailRows(r, now),
+    details: detailRows(r, now, !over),
     photos: photoView(r.photos),
-    chatHref: offerId ? to(`/chats/${encodeURIComponent(offerId)}`) : null,
+    chat: offerId ? { href: to(`/chats/${encodeURIComponent(offerId)}`), label: over ? t.actions.chatClosed : t.actions.chat } : null,
+    contactsNote: over ? null : state.kind === "deal" ? t.request.contactsDeal : t.request.contacts,
     // У формы (в том числе новой попытки) истории нет: прошлый торг закрыт и к новому предложению не относится.
-    history: state.kind === "legacy" || state.kind === "form" ? [] : historyOf(n),
+    history: state.kind === "form" ? [] : historyOf(n),
   };
 }

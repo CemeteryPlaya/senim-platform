@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import { partyEstimate } from "@/modules/payments";
-import { getNegotiation, proposePrice, sendOffer, withdrawPrice } from "@/modules/requests";
+import { acceptPrice, getNegotiation, proposePrice, sendOffer, withdrawPrice } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor } from "../../../../../../../test/factories";
 import { freshBrowser } from "../../../../../../../test/factories/identity";
@@ -52,6 +52,16 @@ describe("sendOfferAction: отправить предложение", () => {
     // Повтор позже с теми же условиями — тот же ответ; с другими — «уже отправили», второго предложения нет.
     expect(await sendOfferAction(form(requestId))).toEqual(a);
     expect(await sendOfferAction(form(requestId, { price: "490000" }))).toEqual(failed("CONFLICT", t.alreadySent));
+    expect(await offersOf(requestId)).toHaveLength(1);
+  });
+
+  it("повтор с телефоном в комментарии (модуль его маскирует) — тот же ответ, второго предложения нет", async () => {
+    const { requestId } = await openForMaster();
+    const withPhone = form(requestId, { comment: "Звоните +7 701 555 44 33, обсудим" });
+    const first = await sendOfferAction(withPhone);
+    expect(first).toMatchObject({ ok: true });
+    expect((await offersOf(requestId))[0]?.comment).not.toContain("555 44 33");
+    expect(await sendOfferAction(withPhone)).toEqual(first);
     expect(await offersOf(requestId)).toHaveLength(1);
   });
 
@@ -164,21 +174,56 @@ describe("proposePriceAction: своя цена мастера", () => {
 });
 
 describe("withdrawPriceAction и withdrawOfferAction: отозвать", () => {
-  it("свою цену — отозвана; цену покупателя — нельзя", async () => {
+  it("свою цену — отозвана, повтор — тот же ответ ok; цену покупателя — нельзя; цену покупателя успели сменить — CONFLICT", async () => {
     const { offerId, proposalId } = await countered();
-    expect(await withdrawPriceAction({ proposalId })).toEqual(failed("FORBIDDEN", t.notYours));
+    expect(await withdrawPriceAction({ offerId, proposalId })).toEqual(failed("FORBIDDEN", t.notYours));
     const res = await proposePriceAction({ offerId, amount: "480000" });
     if (!res.ok) throw new Error(res.error);
-    expect(await withdrawPriceAction({ proposalId: res.data.proposalId })).toMatchObject({ ok: true });
+    const own = { offerId, proposalId: res.data.proposalId };
+    const [a, b] = await Promise.all([withdrawPriceAction(own), withdrawPriceAction(own)]);
+    expect([a, b]).toEqual([{ ok: true, data: undefined }, { ok: true, data: undefined }]);
+    expect(await withdrawPriceAction(own)).toEqual({ ok: true, data: undefined });
     expect((await db.priceProposal.findUniqueOrThrow({ where: { id: res.data.proposalId } })).status).toBe("WITHDRAWN");
   });
 
-  it("предложение целиком — WITHDRAWN; повтор — CONFLICT «экран устарел»; чужое — NOT_FOUND", async () => {
+  it("своя цена, которую покупатель уже принял, — не отзывается: CONFLICT «экран устарел», сделка остаётся", async () => {
+    const { client, offerId } = await countered();
+    const res = await proposePriceAction({ offerId, amount: "480000" });
+    if (!res.ok) throw new Error(res.error);
+    await acceptPrice(client, { proposalId: res.data.proposalId });
+    expect(await withdrawPriceAction({ offerId, proposalId: res.data.proposalId })).toEqual(failed("CONFLICT", t.changed));
+    expect(await dealsOf(offerId)).toHaveLength(1);
+  });
+
+  it("отказаться от заявки — WITHDRAWN; двойное нажатие и повтор — ok, одно изменение; чужое — NOT_FOUND", async () => {
     const { offerId } = await countered();
-    expect(await withdrawOfferAction({ offerId })).toMatchObject({ ok: true });
+    const [a, b] = await Promise.all([withdrawOfferAction({ offerId }), withdrawOfferAction({ offerId })]);
+    expect([a, b]).toEqual([{ ok: true, data: undefined }, { ok: true, data: undefined }]);
     expect((await db.offer.findUniqueOrThrow({ where: { id: offerId } })).status).toBe("WITHDRAWN");
-    expect(await withdrawOfferAction({ offerId })).toEqual(failed("CONFLICT", t.changed));
+    expect(await withdrawOfferAction({ offerId })).toEqual({ ok: true, data: undefined });
     await signInAs(await makeExecutorWithTerms("COMFORT"));
     expect(await withdrawOfferAction({ offerId })).toEqual(failed("NOT_FOUND", t.notFound));
+  });
+
+  it("гонка: мастер отказывается от заявки, а покупатель в тот же момент принимает его цену — ровно один исход", async () => {
+    const { client, requestId, executor } = await openForMaster();
+    const { offerId } = await sendOffer(executor, offerInput(requestId, 500_000));
+    const opening = await openProposal(offerId);
+    const [withdrawn, accepted] = await Promise.allSettled([withdrawOfferAction({ offerId }), acceptPrice(client, { proposalId: opening.id })]);
+    if (withdrawn.status !== "fulfilled") throw new Error("действие не должно бросать");
+    const offer = await db.offer.findUniqueOrThrow({ where: { id: offerId } });
+    const deals = await dealsOf(offerId);
+    if (withdrawn.value.ok) {
+      // Отказ успел первым: предложение отозвано, сделки нет, принять нельзя.
+      expect(accepted.status).toBe("rejected");
+      expect(offer.status).toBe("WITHDRAWN");
+      expect(deals).toHaveLength(0);
+    } else {
+      // Покупатель успел первым: сделка по цене мастера, отказ — «экран устарел».
+      expect(withdrawn.value).toEqual(failed("CONFLICT", t.changed));
+      expect(accepted.status).toBe("fulfilled");
+      expect(offer.status).toBe("ACCEPTED");
+      expect(deals).toHaveLength(1);
+    }
   });
 });
