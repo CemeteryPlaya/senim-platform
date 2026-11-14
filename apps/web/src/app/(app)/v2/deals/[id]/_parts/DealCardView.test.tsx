@@ -21,15 +21,18 @@ const nowBase: NowInput = {
   next: { action: "pay", mine: true },
   contractId: "c1",
   actId: null,
+  contractPdf: "/api/documents/c1/pdf",
   payTiyn: 102_000_00n,
+  manual: false,
   bank: null,
   plannedReadyAt: null,
   needsPosition: false,
   refundAll: false,
+  disputeOutcome: null,
 };
 
 function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: Partial<NowInput> = {}): CardView {
-  const money = moneyView({ block, estimate: { priceTiyn: 100_000_00n, extraTiyn: 2_000_00n, totalTiyn: 102_000_00n }, snapshot: { priceTiyn: 100_000_00n, protectionTiyn: 2_000_00n } });
+  const money = moneyView({ block, estimate: { priceTiyn: 100_000_00n, extraTiyn: 2_000_00n, totalTiyn: 102_000_00n }, snapshot: { priceTiyn: 100_000_00n, protectionTiyn: 2_000_00n, buyerTotalTiyn: 102_000_00n } });
   return {
     id: "d1",
     title: "Кухня",
@@ -42,7 +45,7 @@ function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: P
     documents: [{ id: "c1", name: "Оферта № Д-1", status: "Подписан", href: "/api/documents/c1/pdf" }],
     master: { label: "Исполнитель №4", contacts: null, chatHref: "/v2/chats/o1" },
     history: { items: [{ title: "Оферта сформирована", time: "1 ноября 2026, 10:00" }], more: true, allHref: "/v2/deals/d1?history=all#history" },
-    actions: { cancelText: cancelText({ canCancel: true, status: "CREATED", block }), disputeHref: null },
+    actions: { cancelText: cancelText({ canCancel: true, status: "CREATED", block, manual: false }), disputeHref: null },
     ...over,
   };
 }
@@ -108,6 +111,27 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки, %s
     const none = view({ actions: { cancelText: null, disputeHref: null } });
     expect(html(<DealCardView view={none} device={device} />)).not.toContain(`aria-label="${t.actions.menu}"`);
   });
+});
+
+it("телефон: деньги сразу после «Сейчас», ход — компактно («Шаг N из 5», полная шкала по нажатию); компьютер — полная шкала", () => {
+  const mobile = html(<DealCardView view={view({}, held, { next: { action: "waitReady", mine: false } })} device="mobile" />);
+  expect(mobile.indexOf(t.money.section)).toBeLessThan(mobile.indexOf(t.steps.section));
+  expect(mobile.indexOf(t.now.waitReady.title)).toBeLessThan(mobile.indexOf(t.money.section));
+  expect(mobile).toContain(t.steps.all);
+  expect(mobile).toContain("<details");
+  const desktop = html(<DealCardView view={view({}, held)} device="desktop" />);
+  expect(desktop).not.toContain(t.steps.all);
+});
+
+it("«Помощь» ведёт в разделы помощи: где деньги и если мебель не понравилась", () => {
+  const out = html(<DealCardView view={view()} device="mobile" />);
+  expect(out).toContain('href="/v2/help#money"');
+  expect(out).toContain('href="/v2/help#not-fit"');
+});
+
+it("ссылка на PDF оферты при переводе — обычная ссылка в новом окне", () => {
+  const out = html(<DealCardView view={view({}, awaiting, { next: { action: "waitPaymentConfirmation", mine: false }, manual: true })} device="desktop" />);
+  expect(out).toMatch(/<a href="\/api\/documents\/c1\/pdf" target="_blank"[^>]*>Открыть оферту/);
 });
 
 it("телефон: главное действие — в доке, последним на экране; компьютер — под «Сейчас»", () => {

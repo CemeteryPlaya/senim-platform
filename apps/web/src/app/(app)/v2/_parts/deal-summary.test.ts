@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { dealStatusText, dealStepsView, progressCaption } from "./deal-summary";
+import { dealStatusText, dealStepsView, dealTone, payWaitsMaster, progressCaption } from "./deal-summary";
 
 const s = ru.app.buyer.home.deal;
 
@@ -42,5 +42,27 @@ describe("progressCaption и dealStatusText", () => {
   it("открытый спор важнее статуса", () => {
     expect(dealStatusText("READY", true)).toBe(ru.app.deal.status.dispute);
     expect(dealStatusText("READY", false)).toBe(ru.app.deal.status.READY);
+  });
+});
+
+describe("решённый спор, тон и закрытая оплата", () => {
+  it("спор решён разделом или возвратом — шкала остановлена; «продолжить» — обычная шкала", () => {
+    expect(dealStepsView("SPLIT_PAYOUT", false, "done", "PARTIAL_SPLIT")).toEqual({ kind: "stopped", label: ru.app.deal.card.steps.disputeSplit });
+    expect(dealStepsView("READY", false, "waitRefund", "FULL_REFUND")).toEqual({ kind: "stopped", label: ru.app.deal.card.steps.disputeRefund });
+    expect(dealStepsView("REFUNDED", false, "refunded", "FULL_REFUND")).toEqual({ kind: "stopped", label: s.stopped.refunded });
+    expect(dealStepsView("IN_PROGRESS", false, "waitReady", "CONTINUE").kind).toBe("steps");
+  });
+
+  it("dealTone: отзыв и закрытая до согласия мастера оплата — не «внимание»", () => {
+    expect(dealTone({ status: "SPLIT_PAYOUT", hasOpenDispute: false, next: { action: "leaveReview", mine: true } })).toBe("accent");
+    expect(dealTone({ status: "CREATED", hasOpenDispute: false, next: { action: "pay", mine: true }, payWaitsMaster: true })).toBe("neutral");
+    expect(dealTone({ status: "CREATED", hasOpenDispute: false, next: { action: "pay", mine: true } })).toBe("warn");
+  });
+
+  it("payWaitsMaster: только оплата покупателя и только без отметки мастера", () => {
+    expect(payWaitsMaster({ action: "pay", mine: true }, { other: false })).toBe(true);
+    expect(payWaitsMaster({ action: "pay", mine: true }, { other: true })).toBe(false);
+    expect(payWaitsMaster({ action: "pay", mine: true }, null)).toBe(false);
+    expect(payWaitsMaster({ action: "signContract", mine: true }, { other: false })).toBe(false);
   });
 });
