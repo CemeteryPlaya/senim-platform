@@ -1,26 +1,34 @@
 import { devices, expect, test, type Page } from "@playwright/test";
 import { Client } from "pg";
 import { ru } from "@/i18n/ru";
-import { confirmOperation, loginAs, P, phone as phoneContext, POINT, signFromNextStep, stepAction, submitReady } from "../../e2e/support";
+import sharp from "sharp";
+import { formatDays } from "@/features/format/format";
+import { confirmOperation, loginAs, P, phone as phoneContext, POINT } from "../../e2e/support";
 import { seedBuyerState } from "../offers";
 import { assertSafeDatabase } from "../safe-database";
 import { open } from "../support";
 
 /**
- * Полная сделка покупателя в v2 (набор flows: база e2e пересеяна перед прогоном, данные меняются). Засеянная Айгерим и
- * «Прихожая» (оферта не подписана, мастер — Ерлан, провайдер оплаты стенда — manual): покупатель в v2 подписывает оферту
- * (от руки ФИО и ЭЦП мок-провайдера, двойные нажатия), мастер в v1 даёт согласие банку и подписывает оферту, покупатель в
- * v2 даёт согласие и оплачивает (двойное нажатие — одна операция HOLD), оператор в v1 подтверждает поступление, мастер в v1
- * начинает работу, сдаёт её у адреса и подписывает акт ЭЦП, покупатель в v2 принимает мебель подписью акта, оператор
- * подтверждает раскрытие и выплаты — сделка завершена. Вид компьютера проверяет второй контекст в конце.
+ * Полная сделка в v2 — обе стороны работают в новом интерфейсе (набор flows: база e2e пересеяна перед прогоном, данные
+ * меняются). Засеянная Айгерим и «Прихожая» (оферта не подписана, мастер — Ерлан, провайдер оплаты стенда — manual):
+ * покупатель в v2 подписывает оферту (от руки ФИО и ЭЦП мок-провайдера, двойные нажатия); мастер в v2 подписывает оферту —
+ * без отметки согласия для банка подпись закрыта, с ней — от руки и ЭЦП; покупатель в v2 даёт согласие и оплачивает
+ * (двойное нажатие — одна операция HOLD), оператор в v1 подтверждает поступление; мастер в v2 начинает работу
+ * (подтверждение, двойное нажатие — один переход), добавляет отчёт о ходе работ (покупатель видит его на карточке), сдаёт
+ * работу с фото — сначала без разрешения на геолокацию (честный отказ, сдача не начата), затем у адреса с отметкой места —
+ * и подписывает акт ЭЦП; покупатель в v2 принимает мебель подписью акта, оператор подтверждает раскрытие и выплаты — сделка
+ * завершена. Вид компьютера проверяет второй контекст в конце.
  *
  * Сделка сида одна на пересев, поэтому сценарий идёт только в проекте flows-mobile (в flows-desktop — явный пропуск):
  * от порядка проектов он не зависит. Покупатель входит через identity один раз (состояние во временной папке ОС); мастер
- * и оператор — демо-входом v1 (DEMO_MODE сервера e2e), кодов SMS это не тратит.
+ * и оператор — демо-входом v1 (DEMO_MODE сервера e2e), кодов SMS это не тратит. Геолокацию мастера задаёт контекст
+ * Playwright: `geolocation` и `permissions: ["geolocation"]` (у адреса «Прихожей»); второй контекст мастера — без разрешения.
  */
 
 const t = ru.app.deal;
 const now = t.card.now;
+const ms = ru.app.masterSteps;
+const mnow = ru.app.master.deal.now;
 const DEAL_TITLE = "Прихожая";
 
 function databaseUrl(): string {
@@ -29,8 +37,10 @@ function databaseUrl(): string {
   return url;
 }
 
-/** Только чтение базы e2e: подписи покупателя на документе и операции HOLD сделки. */
-async function facts(dealId: string): Promise<{ holds: number; holdPending: boolean; hand: Record<string, number>; ecp: Record<string, number> }> {
+/** Только чтение базы e2e: подписи покупателя на документе, операции HOLD и переходы мастера сделки. */
+async function facts(
+  dealId: string,
+): Promise<{ holds: number; holdPending: boolean; hand: Record<string, number>; ecp: Record<string, number>; events: Record<string, number> }> {
   const client = new Client({ connectionString: databaseUrl() });
   await client.connect();
   try {
@@ -46,8 +56,19 @@ async function facts(dealId: string): Promise<{ holds: number; holdPending: bool
       `select d.kind, count(*)::text as n from "Signature" s join "Document" d on d.id = s."documentId" where d."dealId" = $1 and s.party = 'CLIENT' group by d.kind`,
       [dealId],
     );
+    // Переходы мастера (аудит сделки): двойное нажатие не даёт второго «начал работу» и второй «сдачи».
+    const events = await client.query<{ kind: string; n: string }>(
+      `select action as kind, count(*)::text as n from "AuditEvent" where scope = $1 and action in ('deal.started', 'deal.ready') group by action`,
+      [`deal:${dealId}`],
+    );
     const byKind = (rows: { kind: string; n: string }[]) => Object.fromEntries(rows.map((r) => [r.kind, Number(r.n)]));
-    return { holds: Number(holds.rows[0]?.n ?? 0), holdPending: Number(holds.rows[0]?.pending ?? 0) > 0, hand: byKind(hand.rows), ecp: byKind(ecp.rows) };
+    return {
+      holds: Number(holds.rows[0]?.n ?? 0),
+      holdPending: Number(holds.rows[0]?.pending ?? 0) > 0,
+      hand: byKind(hand.rows),
+      ecp: byKind(ecp.rows),
+      events: byKind(events.rows),
+    };
   } finally {
     await client.end();
   }
@@ -64,7 +85,7 @@ async function expectNow(page: Page, dealPath: string, titles: readonly string[]
   await expect(nowHeading(page, titles)).toBeVisible();
 }
 
-/** Подпись документа покупателем на экране v2: шаг 1 — ФИО вводом, шаг 2 — ЭЦП (мок eGov QR); двойные нажатия. */
+/** Подпись документа на экране v2: шаг 1 — ФИО вводом, шаг 2 — ЭЦП (мок eGov QR); двойные нажатия. */
 async function signInV2(page: Page, title: string, toast: string): Promise<void> {
   await expect(page.locator("h1")).toHaveText(title);
   await expect(page.locator("main")).toContainText(t.sign.stepOf(1, 2));
@@ -72,8 +93,13 @@ async function signInV2(page: Page, title: string, toast: string): Promise<void>
   await page.getByLabel(ru.app.kit.signature.nameLabel).fill("Сапарова Айгерим");
   await page.locator("[data-primary-action]").dblclick();
   await expect(page.locator("main")).toContainText(t.sign.stepOf(2, 2), { timeout: 30_000 });
-  // Покупатель — на телефоне: способ ЭЦП один (eGov Mobile), выбора нет — строка о том, чем подписывать.
-  await expect(page.getByText(t.sign.ecp.phoneMethod)).toBeVisible();
+  await signEcpV2(page, toast);
+}
+
+/** Шаг ЭЦП на экране v2 (телефон: способ один — eGov Mobile): «Подписать» → QR → «Я подписал — проверить» дважды → карточка. */
+async function signEcpV2(page: Page, toast: string): Promise<void> {
+  // Телефон: способ ЭЦП один (eGov Mobile), выбора нет — строка о том, чем подписывать.
+  await expect(page.getByText(t.sign.ecp.phoneMethod)).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("radio")).toHaveCount(0);
   await page.locator("[data-primary-action]").click();
   await expect(page.getByRole("img", { name: t.sign.ecp.qrAlt })).toBeVisible();
@@ -112,9 +138,29 @@ test("полная сделка покупателя в v2: оферта → о�
   expect((await facts(dealId)).hand.CONTRACT).toBe(1);
   expect((await facts(dealId)).ecp.CONTRACT).toBe(1);
 
-  // ── 2. Мастер в v1: согласие банку и подпись оферты ──
-  await master.goto(`/deals/${dealId}`);
-  await signFromNextStep(master, "Подписать оферту");
+  // ── 2. Мастер в v2: подпись оферты — без согласия для банка закрыта; с отметкой — от руки и ЭЦП ──
+  await expectNow(master, dealPath, [mnow.signOffer.title]);
+  await master.locator("[data-primary-action]").click();
+  await master.waitForURL(/\/sign\//);
+  await expect(master.locator("h1")).toHaveText(ms.sign.title.CONTRACT);
+  // Что подписывает мастер: «Вы получите»; суммы покупателя (к оплате с защитой сделки) нет.
+  await expect(master.locator("main")).toContainText(ms.sign.what.youGet);
+  await expect(master.locator("main")).not.toContainText(t.sign.what.total);
+  await expect(master.getByRole("region", { name: t.pay.consent.textLabel })).toBeVisible();
+  const masterAgree = master.getByRole("checkbox", { name: ms.sign.consent.agree });
+  await expect(masterAgree).not.toBeChecked();
+  await master.getByRole("button", { name: ru.app.kit.signature.typeName }).click();
+  await master.getByLabel(ru.app.kit.signature.nameLabel).fill("Жумабаев Ерлан");
+  // Подпись есть, отметки нет — кнопка закрыта, причина рядом.
+  await expect(master.locator("[data-primary-action]")).toBeDisabled();
+  await expect(master.getByText(ms.sign.consent.locked)).toBeVisible();
+  await master.getByText(ms.sign.consent.agree, { exact: true }).click();
+  await expect(masterAgree).toBeChecked();
+  await expect(master.locator("[data-primary-action]")).toBeEnabled();
+  await master.locator("[data-primary-action]").dblclick();
+  await expect(master.locator("main")).toContainText(t.sign.stepOf(2, 2), { timeout: 30_000 });
+  await signEcpV2(master, t.sign.signed.CONTRACT);
+  await expect(nowHeading(master, [mnow.waitPay.title])).toBeVisible();
 
   // ── 3. Покупатель: оплата — согласие банку и «Оплатить» двойным нажатием: одна операция ──
   await expectNow(buyer, dealPath, [now.pay.title]);
@@ -147,13 +193,64 @@ test("полная сделка покупателя в v2: оферта → о�
   }
   await expectNow(buyer, dealPath, [now.waitStart.title]);
 
-  // ── 5. Мастер в v1: начинает работу, сдаёт у адреса, подписывает акт ЭЦП ──
-  await master.goto(`/deals/${dealId}`);
-  await stepAction(master).getByRole("button", { name: "Начать работу" }).click();
-  await expect(stepAction(master).getByRole("button", { name: "Начать работу" })).toHaveCount(0);
-  await master.reload();
-  await submitReady(master);
-  await signFromNextStep(master, "Подписать акт ЭЦП", { expectHand: false });
+  // ── 5. Мастер в v2: начинает работу, отчёт о ходе работ, сдача с фото и местом, подпись акта ЭЦП ──
+  await expectNow(master, dealPath, [mnow.start.title]);
+  await master.locator("[data-primary-action]").click();
+  await master.waitForURL(/\/start$/);
+  await expect(master.locator("h1")).toHaveText(ms.start.title);
+  await master.locator("[data-primary-action]").click();
+  const confirm = master.getByRole("dialog", { name: ms.start.confirm.title });
+  await expect(confirm).toContainText(ms.start.confirm.body(formatDays(30)));
+  await confirm.getByRole("button", { name: ms.start.confirm.confirm }).dblclick();
+  await master.waitForURL(/\/v2\/deals\/[^/?#]+$/, { timeout: 30_000 });
+  await expect(master.getByText(ms.start.started, { exact: true })).toBeVisible();
+  await expect(nowHeading(master, [mnow.ready.title])).toBeVisible();
+  expect((await facts(dealId)).events["deal.started"]).toBe(1);
+
+  // Отчёт о ходе работ — покупатель видит его на карточке.
+  await open(master, `${dealPath}/progress`);
+  await master.getByLabel(ms.progress.textLabel).fill("Собрал корпус, ставлю фасады");
+  await master.locator("[data-primary-action]").dblclick();
+  await master.waitForURL(/\/v2\/deals\/[^/?#]+$/, { timeout: 30_000 });
+  await expect(master.getByText(ms.progress.sent, { exact: true })).toBeVisible();
+  await open(buyer, dealPath);
+  await expect(buyer.getByRole("heading", { level: 2, name: t.card.reports.section })).toBeVisible();
+  await expect(buyer.locator("main")).toContainText("Собрал корпус, ставлю фасады");
+
+  // Без разрешения на геолокацию: «Отметить место сдачи» — честный отказ, место не отмечено (сдачу здесь не отправляем).
+  const noGeoCtx = await phoneContext(browser, info);
+  const noGeo = await noGeoCtx.newPage();
+  await loginAs(noGeo, P.erlan);
+  await open(noGeo, `${dealPath}/ready`);
+  await noGeo.getByRole("button", { name: ms.ready.place.mark }).click();
+  const refused = [ms.ready.place.denied, ms.ready.place.timeout, ms.ready.place.unavailable];
+  await expect(noGeo.getByRole("status").filter({ hasText: new RegExp(`^(${refused.map(escape).join("|")})$`) })).toBeVisible({ timeout: 60_000 });
+  await noGeoCtx.close();
+
+  // С разрешением (у адреса): без фото сдача не уходит; фото, «Отметить место сдачи» → «Место отмечено», «Сдать работу» дважды.
+  await expectNow(master, dealPath, [mnow.ready.title]);
+  await master.locator("[data-primary-action]").click();
+  await master.waitForURL(/\/ready$/);
+  await master.locator("[data-primary-action]").click();
+  await expect(master.getByText(ms.ready.errors.photos)).toBeVisible();
+  const photo = await sharp({ create: { width: 320, height: 240, channels: 3, background: "#b07a4a" } }).jpeg().toBuffer();
+  await master.locator('input[type="file"]:not([capture])').setInputFiles({ name: "result.jpg", mimeType: "image/jpeg", buffer: photo });
+  await expect(master.getByRole("progressbar")).toHaveCount(0, { timeout: 30_000 });
+  await master.getByRole("button", { name: ms.ready.place.mark }).click();
+  await expect(master.getByRole("status").filter({ hasText: ms.ready.place.located })).toBeVisible({ timeout: 30_000 });
+  await master.locator("[data-primary-action]").dblclick();
+  await master.waitForURL(/\/v2\/deals\/[^/?#]+$/, { timeout: 30_000 });
+  await expect(master.getByText(ms.ready.done, { exact: true })).toBeVisible();
+  expect((await facts(dealId)).events["deal.ready"]).toBe(1);
+
+  // Акт: только ЭЦП (подписи от руки у мастера нет).
+  await expect(nowHeading(master, [mnow.signAct.title])).toBeVisible();
+  await master.locator("[data-primary-action]").click();
+  await master.waitForURL(/\/sign\//);
+  await expect(master.locator("h1")).toHaveText(ms.sign.title.ACCEPTANCE_ACT);
+  await expect(master.locator("main")).toContainText(ms.sign.act.meaning);
+  await expect(master.locator("main")).not.toContainText(t.sign.hand.section);
+  await signEcpV2(master, t.sign.signed.ACCEPTANCE_ACT);
 
   // ── 6. Покупатель: «Принять мебель» → подпись акта от руки и ЭЦП ──
   await expectNow(buyer, dealPath, [now.accept.title]);
