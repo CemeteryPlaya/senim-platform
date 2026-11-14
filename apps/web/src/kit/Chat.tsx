@@ -147,7 +147,7 @@ export function Chat({ messages, composer, label, pageScroll = false, fill = fal
         role="log"
         aria-live="polite"
         aria-label={label ?? t.log}
-        className={cn("relative flex min-h-0 flex-1 flex-col", !pageScroll && (fill ? "desktop:overflow-y-auto" : "desktop:max-h-chat desktop:overflow-y-auto"))}
+        className={cn("relative flex min-h-0 flex-1 flex-col", !pageScroll && (fill ? "desktop:min-h-chat-min desktop:overflow-y-auto" : "desktop:max-h-chat desktop:overflow-y-auto"))}
       >
         <div ref={content} className="flex flex-col gap-3">
           {messages.map((message) => {

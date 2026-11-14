@@ -409,6 +409,7 @@ describe("Chat: разметка", () => {
     expect(hasClass(fill, "desktop:flex-1")).toBe(true);
     expect(hasClass(fill, "desktop:min-h-0")).toBe(true);
     expect(hasClass(fill, "desktop:overflow-y-auto")).toBe(true);
+    expect(hasClass(fill, "desktop:min-h-chat-min")).toBe(true);
     expect(hasClass(fill, "desktop:max-h-chat")).toBe(false);
     const plain = html(<Chat messages={[]} />);
     expect(hasClass(plain, "desktop:max-h-chat")).toBe(true);
