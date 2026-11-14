@@ -1,7 +1,8 @@
 import { formatDate, formatDays, formatMonths } from "@/features/format/format";
-import type { SignStep } from "@/features/signing/state";
+import type { SignMethodChoice, SignStep } from "@/features/signing/state";
 import { ru } from "@/i18n/ru";
 import type { SigningDocumentView } from "@/modules/documents/client";
+import type { Device } from "@/platform/device";
 
 const t = ru.app.deal.sign;
 
@@ -78,3 +79,6 @@ export function farWarning(kind: SignKind, ready: ReadyGps | null): string | nul
   if (kind !== "ACCEPTANCE_ACT" || !ready || ready.withinRadius !== false || ready.distanceM === null) return null;
   return t.act.far(String(ready.distanceM), String(ready.radiusM));
 }
+
+/** Ключ ЭЦП (NCALayer) — программа на компьютере: на телефоне его не предлагаем. */
+export const methodsFor = (device: Device): readonly SignMethodChoice[] => (device === "desktop" ? ["EGOV_QR", "NCALAYER"] : ["EGOV_QR"]);

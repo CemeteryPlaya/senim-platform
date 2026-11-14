@@ -7,13 +7,14 @@ import { initialSigningState, signingReducer, type SignMethodChoice, type Signin
 import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Notice, RadioCard, RadioGroup, Section, SignaturePad, Stack, toast, type SignatureValue } from "@/kit";
 import type { ActionResult } from "@/platform/action";
+import type { Device } from "@/platform/device";
 import { FormError } from "../../../../../../_shell/FormError";
 import { outcomeOf } from "../../../../../../_shell/form";
 import { completeSigningAction, signByHandAction, startSigningAction } from "../actions";
-import type { SignKind, StepView } from "./sign-view";
+import { methodsFor, type SignKind, type StepView } from "./sign-view";
 
 const t = ru.app.deal.sign;
-const METHODS: readonly SignMethodChoice[] = ["EGOV_QR", "NCALAYER"];
+
 
 export type SignAreaProps = {
   documentId: string;
@@ -21,12 +22,13 @@ export type SignAreaProps = {
   step: StepView;
   /** Карточка сделки: туда — после подписи, с тостом. */
   dealHref: string;
+  device: Device;
 };
 
-/** Что сделать с ответом действия: успех — данные; уход (вход, согласие) — уже начат; отказ — текст, экран обновлён при CONFLICT. */
+/** Что сделать с ответом действия: успех — данные; уход (вход, согласие, карточка) — уже начат; отказ — текст. */
 type Handled<T> = { kind: "ok"; data: T } | { kind: "leaving" } | { kind: "error"; error: string };
 
-function useHandle() {
+function useHandle(dealHref: string) {
   const router = useRouter();
   return function handle<T>(result: ActionResult<T>): Handled<T> {
     const outcome = outcomeOf(result, window.location);
@@ -35,9 +37,13 @@ function useHandle() {
       return { kind: "leaving" };
     }
     if (outcome.kind === "error") {
-      // Документ или сделку изменили (вторая вкладка, мастер): экран перечитывается — ворота уведут на карточку, если
-      // подписывать больше нечего.
-      if (!result.ok && result.code === "CONFLICT") router.refresh();
+      // Документ или сделку изменили (заменили редакцию, сменился шаг, вторая вкладка): подписывать здесь больше нечего —
+      // тост с причиной и карточка сделки (её главное действие ведёт на действующую редакцию).
+      if (!result.ok && result.code === "CONFLICT") {
+        toast.error(outcome.error);
+        router.push(dealHref);
+        return { kind: "leaving" };
+      }
       return { kind: "error", error: Object.values(outcome.fieldErrors)[0] ?? outcome.error };
     }
     return { kind: "ok", data: outcome.data };
@@ -63,14 +69,15 @@ export function SignArea(props: SignAreaProps) {
   return props.step.kind === "hand" ? <HandStep key="hand" {...props} /> : <EcpStep key="ecp" {...props} />;
 }
 
-/** «Шаг N из M», когда своих подписей у документа больше одной. */
+/** Где человек в подписи: «Шаг 1 из 2: подпись от руки. Затем — ЭЦП» / «Шаг 2 из 2: электронная подпись». */
 function StepTitle({ step }: { step: StepView }) {
-  return step.total > 1 ? <p className="text-sub text-muted">{t.stepOf(step.step, step.total)}</p> : null;
+  if (step.total < 2) return null;
+  return <p className="text-body text-ink">{step.kind === "hand" ? t.steps.handFirst : t.steps.ecpSecond}</p>;
 }
 
 function HandStep({ documentId, kind, step, dealHref }: SignAreaProps) {
   const router = useRouter();
-  const handle = useHandle();
+  const handle = useHandle(dealHref);
   const finish = useFinish(kind, dealHref);
   const reasonId = useId();
   const [value, setValue] = useState<SignatureValue | null>(null);
@@ -140,8 +147,9 @@ function useExpired(state: SigningState): boolean {
   return at !== null && expiredAt === at;
 }
 
-function EcpStep({ documentId, kind, step, dealHref }: SignAreaProps) {
-  const handle = useHandle();
+function EcpStep({ documentId, kind, step, dealHref, device }: SignAreaProps) {
+  const handle = useHandle(dealHref);
+  const methods = methodsFor(device);
   const finish = useFinish(kind, dealHref);
   const [state, dispatch] = useReducer(signingReducer, initialSigningState);
   const expired = useExpired(state);
@@ -193,9 +201,11 @@ function EcpStep({ documentId, kind, step, dealHref }: SignAreaProps) {
       <Section title={t.ecp.section}>
         <Stack gap="tight">
           <StepTitle step={step} />
-          {choosing ? (
+          {choosing && methods.length === 1 ? (
+            <p className="text-body text-muted">{t.ecp.phoneMethod}</p>
+          ) : choosing ? (
             <RadioGroup legend={t.ecp.methodLegend}>
-              {METHODS.map((m) => (
+              {methods.map((m) => (
                 <RadioCard
                   key={m}
                   name="sign-method"

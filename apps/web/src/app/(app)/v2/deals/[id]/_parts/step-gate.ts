@@ -2,8 +2,8 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { dealPartyOf, type DealView } from "@/modules/deal-core";
 import type { CurrentUser } from "@/modules/identity";
-import { dealOrSwitch, requireBuyer, requireV2User } from "../../../../../_shell/auth";
-import { legacy, to } from "../../../../../_shell/paths";
+import { dealOrSwitch, requireBuyer, requireV2User } from "../../../../_shell/auth";
+import { legacy, to } from "../../../../_shell/paths";
 
 /** Адрес карточки сделки v2. */
 export const dealCardHref = (dealId: string): string => to(`/deals/${encodeURIComponent(dealId)}`);

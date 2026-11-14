@@ -6,7 +6,9 @@ import { ADDRESS, dealAt, dealOf, makeDeal, makePhoto } from "../../../../../../
 import { latestDocument, signaturePng, signEcp, signTyped, useDocuments } from "../../../../../../../../test/factories/documents";
 import { freshBrowser } from "../../../../../../../../test/factories/identity";
 import { signInAs } from "../../../../../../../../test/factories/session";
-import { submitReady } from "@/modules/deal-core";
+import { openDispute, submitReady } from "@/modules/deal-core";
+import { createContract, withdrawContract } from "@/modules/documents";
+import { transaction } from "@/platform/db";
 import { completeSigningAction, signByHandAction, startSigningAction } from "./actions";
 
 vi.mock("next/headers", async () => (await import("../../../../../../../../test/factories/identity")).nextHeadersMock);
@@ -75,11 +77,14 @@ describe("подпись от руки (signByHandAction)", () => {
     expect(await db.handSignature.count({ where: { documentId } })).toBe(0);
   });
 
-  it("оферта уже заключена (шаг сделки не тот) — CONFLICT с текстом экрана", async () => {
-    const f = await dealAt("SIGNED");
-    const doc = await latestDocument(f.dealId, "CONTRACT");
+  it("шаг сделки не принимает подпись (по сделке открыт спор) — CONFLICT с текстом экрана, подписи нет", async () => {
+    const f = await dealAt("IN_PROGRESS");
+    await submitReady(f.executor, { dealId: f.dealId, photoIds: [await makePhoto(f.executor)], ...ADDRESS, accuracyM: 10 });
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await openDispute(f.client, { dealId: f.dealId, reason: "OTHER", description: "Дверца не закрывается до конца" });
     await signInAs(f.client);
-    expect(await signByHandAction({ documentId: doc.id, typedName: "Сапарова Айгерим" })).toMatchObject({ ok: false, code: "CONFLICT", error: t.changed });
+    expect(await signByHandAction({ documentId: act.id, typedName: "Сапарова Айгерим" })).toMatchObject({ ok: false, code: "CONFLICT", error: t.changed });
+    expect(await handOf(act.id, "CLIENT")).toHaveLength(0);
   });
 });
 
@@ -109,6 +114,35 @@ describe("подпись ЭЦП (startSigningAction → completeSigningAction, �
     const { documentId } = await contractOf();
     expect(await completeSigningAction({ documentId, sessionId: "broken.session" })).toMatchObject({ ok: false, code: "VALIDATION", error: t.rejected });
     expect(await ecpOf(documentId, "CLIENT")).toHaveLength(0);
+  });
+});
+
+describe("заменённая редакция и последний подписант", () => {
+  it("оферту заменили новой редакцией — CONFLICT «документ заменили», подписи нет", async () => {
+    const { f, documentId } = await contractOf();
+    await transaction((tx) => withdrawContract(tx, f.dealId));
+    await transaction((tx) => createContract(tx, f.dealId));
+    expect(await signByHandAction({ documentId, typedName: "Сапарова Айгерим" })).toMatchObject({ ok: false, code: "CONFLICT", error: t.superseded });
+    expect(await handOf(documentId, "CLIENT")).toHaveLength(0);
+  });
+
+  it("акт: покупатель — последний подписант; двойное нажатие «проверить» — оба ответа успех, подпись одна, акт подписан", async () => {
+    const f = await dealAt("IN_PROGRESS");
+    await submitReady(f.executor, { dealId: f.dealId, photoIds: [await makePhoto(f.executor)], ...ADDRESS, accuracyM: 10 });
+    const act = await latestDocument(f.dealId, "ACCEPTANCE_ACT");
+    await signEcp(f.executor, act.id);
+    await signTyped(f.client, act.id);
+    await signInAs(f.client);
+    const s = await startSigningAction({ documentId: act.id, method: "EGOV_QR" });
+    if (!s.ok) throw new Error(s.error);
+    const results = await Promise.all([
+      completeSigningAction({ documentId: act.id, sessionId: s.data.sessionId }),
+      completeSigningAction({ documentId: act.id, sessionId: s.data.sessionId }),
+    ]);
+    expect(results.map(codeOf)).toEqual(["ok", "ok"]);
+    expect(results.some((r) => r.ok && r.data.fullySigned)).toBe(true);
+    expect(await ecpOf(act.id, "CLIENT")).toHaveLength(1);
+    expect((await db.document.findUniqueOrThrow({ where: { id: act.id } })).status).toBe("SIGNED");
   });
 });
 

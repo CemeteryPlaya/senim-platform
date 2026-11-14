@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { formatDays, formatMonths } from "@/features/format/format";
 import { signStep } from "@/features/signing/state";
 import { ru } from "@/i18n/ru";
-import { farWarning, isSignKind, stepView, whatRows } from "./sign-view";
+import { farWarning, isSignKind, methodsFor, stepView, whatRows } from "./sign-view";
 
 const t = ru.app.deal.sign;
 type Party = "CLIENT" | "EXECUTOR";
@@ -105,5 +105,12 @@ describe("тексты подписи и оплаты", () => {
     expect(all).not.toMatch(/сч[её]т(а|у|е|ом)? сервиса|через сервис/i);
     expect(ru.app.deal.pay.where.points[0]).toContain("в банке под защитой");
     expect(ru.app.deal.pay.money.protection).toBe("Защита сделки (2%)");
+  });
+});
+
+describe("способы ЭЦП по устройству", () => {
+  it("компьютер — eGov Mobile (по умолчанию) и ключ NCALayer; телефон — только eGov Mobile", () => {
+    expect(methodsFor("desktop")).toEqual(["EGOV_QR", "NCALAYER"]);
+    expect(methodsFor("mobile")).toEqual(["EGOV_QR"]);
   });
 });

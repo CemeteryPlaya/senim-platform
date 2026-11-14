@@ -31,9 +31,9 @@ async function buyer() {
 }
 
 /** Оферта заключена; согласия на передачу банку — только у перечисленных сторон. */
-async function signed(bankConsents: readonly ("CLIENT" | "EXECUTOR")[]) {
+async function signed(bankConsents: readonly ("CLIENT" | "EXECUTOR")[], provider: "mock" | "manual" = "mock") {
   const client = await buyer();
-  const f = await makeDeal({ client, bankConsents });
+  const f = await makeDeal({ client, bankConsents, provider });
   await signContract(f.dealId);
   await signInAs(client);
   return f;
@@ -70,6 +70,10 @@ describe("экран оплаты", () => {
     expect(plain(out)).toContain(t.money.explain.label);
     expect(plain(out)).toContain(t.where.section);
     expect(plain(out)).toContain(ru.consent.documents.BANK_TRANSFER.title);
+    // Редакция — как на экране согласия этапа 2; «Черновик…» — отдельной плашкой.
+    expect(plain(out)).toContain(ru.app.onboarding.consent.edition(ru.consent.documents.BANK_TRANSFER.version));
+    expect(plain(out)).toContain("Редакция от 11 ноября 2026");
+    expect(plain(out)).toContain(ru.consent.documents.BANK_TRANSFER.draft);
     expect(plain(out)).toContain(t.consent.scrollHint);
     expect(plain(out)).toContain(t.consent.agree);
     expect(primaries(out)).toHaveLength(1);
@@ -87,22 +91,46 @@ describe("экран оплаты", () => {
     expect(primaries(out)).toHaveLength(1);
     expect(primaries(out)[0]?.text).toBe(t.submit(formatMoney(computeDealMoney(PRICE).buyerTotalTiyn)));
     expect(primaries(out)[0]?.tag).not.toMatch(/\sdisabled=""/);
+    // Онлайн-провайдер: про перевод по реквизитам ничего нет.
+    expect(plain(out)).not.toContain(t.manual.offer);
   });
 
-  it("мастер не дал согласие: чего ждём, главной кнопки нет; своё — «Дать согласие заранее» второстепенной кнопкой", async () => {
+  it("ручной провайдер: «Оплатить переводом N ₸», рядом — перевести по реквизитам из оферты (PDF) и когда деньги будут под защитой", async () => {
+    const f = await signed(["CLIENT", "EXECUTOR"], "manual");
+    const out = await render(f.dealId);
+    const amount = formatMoney(computeDealMoney(PRICE).buyerTotalTiyn);
+    expect(primaries(out)).toHaveLength(1);
+    expect(primaries(out)[0]?.text).toBe(t.manual.submit(amount));
+    expect(plain(out)).toContain(money(computeDealMoney(PRICE).buyerTotalTiyn));
+    expect(plain(out)).toContain(t.manual.hint(amount).replace(/[  ]/g, " "));
+    expect(plain(out)).toContain(t.manual.protectedAfter);
+    const contract = await db.document.findFirstOrThrow({ where: { dealId: f.dealId, kind: "CONTRACT" } });
+    expect(out).toContain(`href="/api/documents/${contract.id}/pdf"`);
+    expect(out).toMatch(/target="_blank"/);
+  });
+
+  it("мастер не дал согласие: чего ждём и ссылка на переписку; главное действие — «Дать согласие заранее»", async () => {
     const f = await signed([]);
     const out = await render(f.dealId);
     expect(plain(out)).toContain(t.waitMaster.title);
-    expect(primaries(out)).toHaveLength(0);
-    expect(plain(out)).toContain(t.consent.giveAhead);
+    expect(plain(out)).toContain(t.waitMaster.body);
+    expect(out).toContain(`href="/v2/chats/${f.offerId}"`);
     expect(plain(out)).toContain(t.consent.agree);
-    const given = await signed(["CLIENT"]);
-    const out2 = await render(given.dealId);
-    expect(plain(out2)).toContain(t.waitMaster.title);
-    expect(plain(out2)).toContain(t.consent.given);
-    expect(plain(out2)).not.toContain(t.consent.giveAhead);
-    expect(primaries(out2)).toHaveLength(0);
+    expect(primaries(out)).toHaveLength(1);
+    expect(primaries(out)[0]?.text).toBe(t.consent.giveAhead);
+    expect(plain(out)).not.toMatch(/Оплатить/);
   });
+
+  it("своё согласие дано, мастер — нет: «Ваше согласие дано, ждём мастера», действий нет", async () => {
+    const given = await signed(["CLIENT"]);
+    const out = await render(given.dealId);
+    expect(plain(out)).toContain(t.waitMaster.titleMineGiven);
+    expect(plain(out)).toContain(t.consent.given);
+    expect(plain(out)).not.toContain(t.consent.giveAhead);
+    expect(out).toContain(`href="/v2/chats/${given.offerId}"`);
+    expect(primaries(out)).toHaveLength(0);
+  });
+
 
   it("на компьютере — две колонки, одно главное действие", async () => {
     const f = await signed(["CLIENT", "EXECUTOR"]);

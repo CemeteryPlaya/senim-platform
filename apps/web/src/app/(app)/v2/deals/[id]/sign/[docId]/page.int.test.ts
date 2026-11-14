@@ -2,9 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { renderToStaticMarkup } from "react-dom/server";
 import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
-import { submitReady } from "@/modules/deal-core";
+import { openDispute, submitReady } from "@/modules/deal-core";
+import { createContract, withdrawContract } from "@/modules/documents";
 import { computeDealMoney } from "@/modules/payments";
-import { db } from "@/platform/db";
+import { db, transaction } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../../../../../../test/factories";
 import { dealAt, makeDeal, makePhoto, PRICE } from "../../../../../../../../test/factories/deal";
 import { latestDocument, signEcp, signTyped, useDocuments } from "../../../../../../../../test/factories/documents";
@@ -87,16 +88,43 @@ describe("экран подписи оферты", () => {
     expect(shown(out)).not.toMatch(FORBIDDEN);
   });
 
-  it("от руки подписано — шаг 2 из 2: ЭЦП, способы eGov Mobile и NCALayer, выбран eGov Mobile", async () => {
+  it("шаг 1 — понятная строка: «Шаг 1 из 2: подпись от руки. Затем — электронная подпись (ЭЦП)»", async () => {
+    const { f, docId } = await contractFixture();
+    expect(plain(await render(f.dealId, docId))).toContain(t.steps.handFirst);
+  });
+
+  it("от руки подписано — «Шаг 2 из 2: электронная подпись»; на компьютере — eGov Mobile (выбран) и ключ NCALayer", async () => {
     const { f, docId } = await contractFixture();
     await signTyped(f.client, docId);
+    h.device = "desktop";
     const out = await render(f.dealId, docId);
-    expect(plain(out)).toContain(t.stepOf(2, 2));
+    expect(plain(out)).toContain(t.steps.ecpSecond);
     expect(plain(out)).toContain(t.ecp.methods.EGOV_QR.label);
     expect(plain(out)).toContain(t.ecp.methods.NCALAYER.label);
     expect(out).toMatch(/value="EGOV_QR"[^>]*checked|checked[^>]*value="EGOV_QR"/);
     expect(primaries(out)).toHaveLength(1);
     expect(primaries(out)[0]).not.toMatch(/\sdisabled=""/);
+  });
+
+  it("на телефоне ключ ЭЦП на компьютере (NCALayer) не предлагается: только eGov Mobile", async () => {
+    const { f, docId } = await contractFixture();
+    await signTyped(f.client, docId);
+    const out = await render(f.dealId, docId);
+    expect(plain(out)).toContain(t.ecp.phoneMethod);
+    expect(plain(out)).not.toContain(t.ecp.methods.NCALAYER.label);
+    expect(out).not.toContain('value="NCALAYER"');
+    expect(primaries(out)).toHaveLength(1);
+  });
+
+  it("заменённая редакция оферты (старая ссылка) — на карточку сделки; действующая редакция — экран подписи", async () => {
+    const { f, docId } = await contractFixture();
+    await transaction((tx) => withdrawContract(tx, f.dealId));
+    await transaction((tx) => createContract(tx, f.dealId));
+    const fresh = await latestDocument(f.dealId, "CONTRACT");
+    expect(fresh.id).not.toBe(docId);
+    expect((await db.document.findUniqueOrThrow({ where: { id: docId } })).status).toBe("SUPERSEDED");
+    expect(await outcome(() => render(f.dealId, docId))).toEqual(redirectTo(`/v2/deals/${f.dealId}`));
+    expect(await outcome(() => render(f.dealId, fresh.id))).toBe("page");
   });
 
   it("всё своё подписано, оферта уже заключена — на карточку сделки без ошибки", async () => {
@@ -142,6 +170,20 @@ describe("экран подписи акта приёмки", () => {
     expect(shown(out)).not.toMatch(FORBIDDEN);
   });
 
+  it("открытие экрана ничего не пишет: выписка по деньгам не выпускается", async () => {
+    const { f, docId } = await actFixture(false);
+    const statements = () => db.document.count({ where: { dealId: f.dealId, kind: "MONEY_STATEMENT" } });
+    const before = await statements();
+    await render(f.dealId, docId);
+    expect(await statements()).toBe(before);
+  });
+
+  it("открыт спор — подписывать акт сейчас нельзя: на карточку сделки", async () => {
+    const { f, docId } = await actFixture(false);
+    await openDispute(f.client, { dealId: f.dealId, reason: "OTHER", description: "Дверца не закрывается до конца" });
+    expect(await outcome(() => render(f.dealId, docId))).toEqual(redirectTo(`/v2/deals/${f.dealId}`));
+  });
+
   it("сдано дальше радиуса — предупреждение о расстоянии из данных модуля", async () => {
     const { f, docId } = await actFixture(true);
     const deal = await db.deal.findUniqueOrThrow({ where: { id: f.dealId } });
@@ -153,14 +195,15 @@ describe("экран подписи акта приёмки", () => {
 });
 
 describe("ворота экрана подписи", () => {
-  it("чужая сделка, документ другой сделки, выписка и несуществующий документ — 404", async () => {
+  it("чужая сделка — 404; в своей сделке документа нет среди действующих — карточка своей сделки (один ответ для любого id)", async () => {
     const { f, docId } = await contractFixture();
     const other = await makeDeal({ client: f.client });
     const otherDoc = await latestDocument(other.dealId, "CONTRACT");
-    expect(await outcome(() => render(f.dealId, otherDoc.id))).toMatch(/NEXT_HTTP_ERROR_FALLBACK;404/);
-    expect(await outcome(() => render(f.dealId, "no-such-doc"))).toMatch(/NEXT_HTTP_ERROR_FALLBACK;404/);
+    expect(await outcome(() => render(f.dealId, otherDoc.id))).toEqual(redirectTo(`/v2/deals/${f.dealId}`));
+    expect(await outcome(() => render(f.dealId, "no-such-doc"))).toEqual(redirectTo(`/v2/deals/${f.dealId}`));
     await signInAs(await buyer());
     expect(await outcome(() => render(f.dealId, docId))).toMatch(/NEXT_HTTP_ERROR_FALLBACK;404/);
+    expect(await outcome(() => render("no-such-deal", docId))).toMatch(/NEXT_HTTP_ERROR_FALLBACK;404/);
   });
 
   it("мастер этой сделки и оператор — на карточку сделки v1 (экрана подписи в v1 нет)", async () => {

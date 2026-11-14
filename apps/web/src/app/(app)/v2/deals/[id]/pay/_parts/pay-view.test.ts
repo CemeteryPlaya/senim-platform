@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { partyEstimate, type MoneyBlock } from "@/modules/payments";
-import { payMoney } from "./pay-view";
+import { isAgreed, paidToast, payLabel, payMoney } from "./pay-view";
 
 const t = ru.app.deal.pay.money;
+const p = ru.app.deal.pay;
 const block = (payment: "none" | "PENDING" | "FAILED"): MoneyBlock => ({ kind: "awaiting", payment, bankBalanceTiyn: 0n, isTest: false });
 
 describe("деньги экрана оплаты — смета модуля как есть", () => {
@@ -26,5 +27,33 @@ describe("деньги экрана оплаты — смета модуля к�
     const e = partyEstimate("CLIENT", 100_000_00n);
     expect(payMoney(e, block("FAILED")).failed).toBe(true);
     expect(payMoney(e, block("PENDING")).failed).toBe(false);
+  });
+});
+
+describe("оплата переводом по реквизитам (ручной провайдер) и онлайн", () => {
+  it("подпись кнопки: «Оплатить переводом N ₸» и «Оплатить N ₸»", () => {
+    expect(payLabel("102 000 ₸", true)).toBe("Оплатить переводом 102 000 ₸");
+    expect(payLabel("102 000 ₸", false)).toBe("Оплатить 102 000 ₸");
+  });
+
+  it("тост после: перевод — «Переведите N ₸ по реквизитам из оферты» при любом статусе; онлайн — по итогу операции", () => {
+    expect(paidToast({ status: "PENDING" }, "102 000 ₸", true)).toBe("Переведите 102 000 ₸ по реквизитам из оферты");
+    expect(paidToast({ status: "SUCCEEDED" }, "102 000 ₸", false)).toBe(p.done.SUCCEEDED);
+    expect(paidToast({ status: "PENDING" }, "102 000 ₸", false)).toBe(p.done.PENDING);
+  });
+});
+
+describe("отметка согласия и редакция текста", () => {
+  it("отметка действует только для той редакции, при которой её поставили: новая редакция — отметки нет", () => {
+    expect(isAgreed(null, "2026-11-11-d1")).toBe(false);
+    expect(isAgreed("2026-11-11-d1", "2026-11-11-d1")).toBe(true);
+    expect(isAgreed("2026-11-11-d1", "2026-12-01-d2")).toBe(false);
+  });
+
+  it("отметка — «для этой сделки» (согласие хранится по сделке); без обещаний уведомить", () => {
+    expect(p.consent.agree).toBe("Согласен(на) на передачу данных банку для этой сделки");
+    expect(p.waitMaster.body).not.toMatch(/сообщим/);
+    expect(p.where.points.join(" ")).not.toMatch(/на (вашу )?карту/);
+    expect(p.where.points[0]).toBe("Деньги будут лежать в банке под защитой.");
   });
 });

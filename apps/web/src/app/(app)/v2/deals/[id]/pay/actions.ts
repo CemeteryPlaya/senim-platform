@@ -43,14 +43,14 @@ function retext(e: unknown): unknown {
 }
 
 /**
- * Адрес страницы оплаты провайдера — только абсолютный http(s), как его вернул модуль (`payForDeal().redirectUrl`).
- * Ничего не подставляется: другое (пусто, `javascript:`, относительный путь) — без перехода, экран остаётся на сделке.
+ * Адрес страницы оплаты провайдера — только абсолютный https, как его вернул модуль (`payForDeal().redirectUrl`).
+ * Ничего не подставляется: другое (пусто, `http:`, `javascript:`, относительный путь) — без перехода, экран остаётся на сделке.
  */
 function providerPage(url: string | null): string | null {
   if (!url) return null;
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
+    return parsed.protocol === "https:" ? parsed.href : null;
   } catch {
     return null;
   }

@@ -29,8 +29,17 @@ const handSchema = z.union([
 const startSchema = z.object({ documentId, method: z.enum(["EGOV_QR", "NCALAYER"]) });
 const completeSchema = z.object({ documentId, sessionId: z.string().min(1).max(4000) });
 
-/** Повтор подписи, которая уже есть (двойное нажатие, вторая вкладка): эффект один, ответ — тот же успех. */
-const alreadySigned = (e: unknown): boolean => isAppError(e) && e.code === "CONFLICT" && e.message === m.alreadySignedByYou;
+/**
+ * Повтор подписи, которая уже есть (двойное нажатие, вторая вкладка): эффект один, ответ — тот же успех. «Подписан всеми
+ * сторонами» — тоже успех: параллельный вызов последнего подписанта уже довёл документ до SIGNED, значит, и эта подпись
+ * покупателя есть.
+ */
+function repeated(e: unknown): { fullySigned: boolean } | null {
+  if (!isAppError(e) || e.code !== "CONFLICT") return null;
+  if (e.message === m.alreadySignedByYou) return { fullySigned: false };
+  if (e.message === m.alreadySigned) return { fullySigned: true };
+  return null;
+}
 
 /** Отказ модуля → тот же код с текстом экрана. Не AppError и неизвестные — как есть (их разберёт `action()`). */
 function retext(e: unknown): unknown {
@@ -40,17 +49,18 @@ function retext(e: unknown): unknown {
     [m.otherSigner]: t.otherSigner,
     [m.signerIinMissing]: t.iinMissing,
     [m.dealNotSignable]: t.changed,
-    [m.alreadySigned]: t.changed,
     [m.handNotRequired]: t.changed,
     [m.superseded]: t.superseded,
     [m.badSignatureImage]: t.badImage,
     [m.typedNameLength]: t.typedName,
     [m.notFound]: t.notFound,
+    [m.ncalayerUnavailable]: t.ncalayer,
   };
   const known = byMessage[e.message];
   if (known) return new AppError(e.code, known);
   // «Подпись не принята: <причина провайдера>» и прочие отказы проверки подписи.
   if (e.code === "VALIDATION") return new AppError(e.code, t.rejected);
+  if (e.code === "UNAVAILABLE") return new AppError(e.code, t.unavailable);
   if (e.code === "NOT_FOUND") return new AppError(e.code, t.notFound);
   if (e.code === "CONFLICT") return new AppError(e.code, t.changed);
   return e;
@@ -69,7 +79,8 @@ export const signByHandAction = action("deals.sign.hand", handSchema, async (inp
     }
     return await signByHand(user, { documentId: input.documentId, typedName: input.typedName });
   } catch (e) {
-    if (alreadySigned(e)) return { fullySigned: false };
+    const again = repeated(e);
+    if (again) return again;
     throw retext(e);
   }
 });
@@ -95,7 +106,8 @@ export const completeSigningAction = action("deals.sign.complete", completeSchem
   try {
     return await completeSigning(user, input);
   } catch (e) {
-    if (alreadySigned(e)) return { fullySigned: false };
+    const again = repeated(e);
+    if (again) return again;
     throw retext(e);
   }
 });

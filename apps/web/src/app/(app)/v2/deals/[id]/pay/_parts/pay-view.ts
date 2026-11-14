@@ -2,6 +2,7 @@ import { ru } from "@/i18n/ru";
 import type { MoneyBlock, PartyEstimate } from "@/modules/payments";
 
 const t = ru.app.deal.pay.money;
+const p = ru.app.deal.pay;
 
 export type PayMoney = {
   /** «К оплате» — главная сумма блока и сумма на кнопке. */
@@ -26,4 +27,19 @@ export function payMoney(estimate: Pick<PartyEstimate, "priceTiyn" | "extraTiyn"
     ],
     failed: block.kind === "awaiting" && block.payment === "FAILED",
   };
+}
+
+/**
+ * Отметка действует только для редакции, при которой её поставили: сменилась редакция текста (сервер ответил «текст
+ * обновился», экран перечитан) — отметка снята и её ставят заново, как в v1.
+ */
+export const isAgreed = (agreedVersion: string | null, version: string): boolean => agreedVersion === version;
+
+/** Подпись главной кнопки: перевод по реквизитам — «Оплатить переводом N ₸», онлайн — «Оплатить N ₸». */
+export const payLabel = (amount: string, manual: boolean): string => (manual ? p.manual.submit(amount) : p.submit(amount));
+
+/** Тост на карточке после оплаты: перевод — что сделать дальше; онлайн — итог операции. */
+export function paidToast(data: { status: "PENDING" | "SUCCEEDED" | "FAILED" }, amount: string, manual: boolean): string {
+  if (manual) return p.manual.done(amount);
+  return data.status === "SUCCEEDED" ? p.done.SUCCEEDED : p.done.PENDING;
 }

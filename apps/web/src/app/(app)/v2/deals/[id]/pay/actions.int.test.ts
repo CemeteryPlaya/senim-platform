@@ -7,7 +7,7 @@ import { dealAt, journalOf, makeDeal, signContract } from "../../../../../../../
 import { freshBrowser } from "../../../../../../../test/factories/identity";
 import { signInAs } from "../../../../../../../test/factories/session";
 import { identityFake } from "../../../../../../../test/stubs/identity";
-import { cancelDeal } from "@/modules/deal-core";
+import { cancelDeal, openDispute } from "@/modules/deal-core";
 import { giveBankConsentAction, payAction } from "./actions";
 
 vi.mock("next/headers", async () => (await import("../../../../../../../test/factories/identity")).nextHeadersMock);
@@ -49,6 +49,24 @@ describe("payAction", () => {
     expect((await holds(f.dealId)).map((h) => h.status)).toEqual(["PENDING"]);
   });
 
+  it("manual: двойное нажатие — одна операция HOLD (PENDING), оба ответа одинаковые", async () => {
+    const f = await signed(["CLIENT", "EXECUTOR"], "manual");
+    const results = await Promise.all([payAction({ dealId: f.dealId }), payAction({ dealId: f.dealId })]);
+    expect(results).toEqual([
+      { ok: true, data: { status: "PENDING", redirectUrl: null } },
+      { ok: true, data: { status: "PENDING", redirectUrl: null } },
+    ]);
+    expect((await holds(f.dealId)).map((h) => h.status)).toEqual(["PENDING"]);
+  });
+
+  it("открыт спор — отказ «оплата недоступна, пока спор рассматривает оператор», вторая операция не создаётся", async () => {
+    const f = await dealAt("PAID_HOLD");
+    await openDispute(f.client, { dealId: f.dealId, reason: "OTHER", description: "Мастер не выходит на связь" });
+    await signInAs(f.client);
+    expect(await payAction({ dealId: f.dealId })).toMatchObject({ ok: false, code: "CONFLICT", error: t.dispute });
+    expect(await holds(f.dealId)).toHaveLength(1);
+  });
+
   it("отметка согласия и оплата одним нажатием: согласие записано к этой сделке, операция одна", async () => {
     const f = await signed(["EXECUTOR"]);
     const results = await Promise.all([
@@ -56,7 +74,7 @@ describe("payAction", () => {
       payAction({ dealId: f.dealId, agreed: "on", version: VERSION }),
     ]);
     expect(results.every((r) => r.ok)).toBe(true);
-    expect(bankConsentOf(f.client.id, f.dealId).length).toBeGreaterThan(0);
+    expect(bankConsentOf(f.client.id, f.dealId)).toHaveLength(1);
     expect(await holds(f.dealId)).toHaveLength(1);
   });
 
@@ -118,7 +136,7 @@ describe("giveBankConsentAction (заранее, пока мастер не да
     expect(await giveBankConsentAction(unchecked)).toMatchObject({ ok: false, code: "VALIDATION", fieldErrors: { agreed: [t.consentMissing] } });
     expect(await giveBankConsentAction({ dealId: f.dealId, agreed: "on", version: VERSION })).toEqual({ ok: true, data: undefined });
     expect(await giveBankConsentAction({ dealId: f.dealId, agreed: "on", version: VERSION })).toMatchObject({ ok: true });
-    expect(bankConsentOf(f.client.id, f.dealId).length).toBeGreaterThan(0);
+    expect(bankConsentOf(f.client.id, f.dealId)).toHaveLength(1);
     expect(await journalOf(f.dealId)).toEqual([]);
   });
 });
