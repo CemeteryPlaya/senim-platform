@@ -93,6 +93,7 @@ test("новый мастер (ТОО): анкета по шагам, номер
   await expect(page.getByLabel(t.name.legalName.TOO)).toHaveValue("ТОО «Ағаш»");
   await expect(page.getByLabel(t.name.director.name)).toHaveValue("Тулегенов Бауыржан");
   await expect(page.getByLabel(t.name.bin)).toHaveValue("");
+  await expect(page.getByText(t.name.numbersNotSaved)).toBeVisible();
   await page.getByLabel(t.name.bin).fill(bin);
   await page.getByLabel(t.name.director.iin).fill(directorIin);
   await primary(page, t.next).click();
@@ -123,7 +124,10 @@ test("новый мастер (ТОО): анкета по шагам, номер
   await expect(page).toHaveURL(PATH);
   await expect(page.getByText(t.status.pending.now)).toBeVisible();
   await expect(page.getByText(t.check.masked(bin.slice(-4)))).toBeVisible();
-  await expect(page.getByRole("link", { name: t.status.pending.documents })).toHaveAttribute("href", "/v2/executor/profile/kyc");
+  // Документы ещё не поданы — «Загрузить документы» единственное главное действие.
+  const documents = page.locator("[data-primary-action]");
+  await expect(documents).toHaveText(t.status.pending.documents);
+  await expect(documents).toHaveAttribute("href", "/v2/executor/profile/kyc");
   await expectScreenRules(page);
   expect(await page.content()).not.toContain(bin);
   expect(await tabStorage(page)).not.toContain("ТОО «Ағаш»");

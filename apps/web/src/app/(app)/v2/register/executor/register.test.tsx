@@ -4,18 +4,28 @@ import { testBin, testIin } from "@/demo/kz-id";
 import { ru } from "@/i18n/ru";
 import { count, html } from "@/kit/test-utils";
 import { consentDocument, consentTextSha256 } from "@/modules/identity";
+import { AppError } from "@/platform/errors";
 
 const h = vi.hoisted(() => ({
   user: null as unknown,
   registration: null as unknown,
+  unavailable: false,
+  kyc: "NOT_SUBMITTED" as string | Error,
   form: { pending: false, error: null as string | null, fieldErrors: {} as Record<string, string> },
 }));
 
 vi.mock("@/modules/identity", async (original) => ({
   ...(await original<typeof import("@/modules/identity")>()),
-  getCurrentUser: async () => h.user,
-  getShellUser: async () => ({ user: h.user, unavailable: false }),
+  getCurrentUser: async () => {
+    if (h.unavailable) throw new AppError("UNAVAILABLE", ru.common.errors.generic);
+    return h.user;
+  },
+  getShellUser: async () => ({ user: h.unavailable ? null : h.user, unavailable: h.unavailable }),
   getMyRegistration: async () => h.registration,
+  getOwnKyc: async () => {
+    if (h.kyc instanceof Error) throw h.kyc;
+    return { state: h.kyc, canSubmit: true, rejectReason: null, documents: { id: 0, registration: 0 } };
+  },
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
@@ -90,6 +100,8 @@ function expectScreen(out: string) {
 beforeEach(() => {
   h.user = person();
   h.registration = null;
+  h.unavailable = false;
+  h.kyc = "NOT_SUBMITTED";
   h.form = { pending: false, error: null, fieldErrors: {} };
 });
 
@@ -136,7 +148,7 @@ describe("регистрация мастера: кто что видит", () =
     expect(out).toContain(`href="/v2/register/executor?step=name"`);
   });
 
-  it("на проверке: что проверяем, что можно сделать пока, анкета с 4 цифрами номера; без главной кнопки", async () => {
+  it("на проверке, документы не поданы: главное действие «Загрузить документы», счёт и портфолио — строками; БИН — 4 цифры", async () => {
     h.user = person({ role: "EXECUTOR", roles: ["CLIENT", "EXECUTOR"], executor: { id: "e1", status: "PENDING" } });
     h.registration = registration("PENDING");
     const out = await page();
@@ -144,11 +156,50 @@ describe("регистрация мастера: кто что видит", () =
     expect(h1(out)).toBe(t.status.title);
     expect(out).toContain(t.status.pending.now);
     for (const item of t.status.pending.checks) expect(out).toContain(item);
-    expect(out).toContain('href="/v2/executor/profile/kyc"');
+    expect(count(out, "data-primary-action")).toBe(1);
+    expect(out.slice(out.indexOf("data-action-dock"))).toContain('href="/v2/executor/profile/kyc"');
+    expect(out.slice(out.indexOf("data-action-dock"))).toContain(t.status.pending.documents);
     expect(out).toContain('href="/v2/executor/profile/payout"');
     expect(out).toContain('href="/v2/executor/portfolio"');
+    expect(out).toContain(`${t.status.bin}`);
     expect(out).toContain(`•••• ${BIN.slice(-4)}`);
+    // Пояснение «как проходит проверка» не повторяет первую карточку.
+    expect(out).not.toContain(t.form.explain.label);
+  });
+
+  it("документы отклонены — то же главное действие", async () => {
+    h.registration = registration("PENDING");
+    h.kyc = "REJECTED";
+    expect(count(await page(), "data-primary-action")).toBe(1);
+  });
+
+  it.each(["PENDING", "VERIFIED"] as const)("документы %s — главного действия нет, строка с их состоянием", async (state) => {
+    h.registration = registration("PENDING");
+    h.kyc = state;
+    const out = await page();
     expect(count(out, "data-primary-action")).toBe(0);
+    expect(out).toContain(t.status.pending.documentsState[state]);
+    expect(out).toContain('href="/v2/executor/profile/kyc"');
+  });
+
+  it("состояние документов не узнать — без главного действия, ссылка на документы", async () => {
+    h.registration = registration("PENDING");
+    h.kyc = new AppError("UNAVAILABLE", ru.common.errors.generic);
+    const out = await page();
+    expect(count(out, "data-primary-action")).toBe(0);
+    expect(out).toContain(t.status.pending.documents);
+  });
+
+  it("подпись номера по форме работы: у ТОО — БИН, у ИП — ИИН", async () => {
+    h.registration = registration("APPROVED", { legalForm: "IP", legalName: "ИП «Дала»" });
+    const out = await page();
+    expect(out).toContain(`>${t.status.iin}<`);
+    expect(out).not.toContain(`>${t.status.bin}<`);
+  });
+
+  it("вошедший при недоступном identity — не экран гостя, а ошибка (граница ошибок оболочки)", async () => {
+    h.unavailable = true;
+    await expect(RegisterPage({ searchParams: Promise.resolve({}) })).rejects.toMatchObject({ code: "UNAVAILABLE" });
   });
 
   it("на проверке адрес шага анкету не открывает", async () => {
@@ -175,6 +226,9 @@ describe("регистрация мастера: кто что видит", () =
     const again = await page("form");
     expect(h1(again)).toBe(t.steps.form);
     expect(again).toContain(t.backStatus);
+    // Причина отказа — плашкой на шаге анкеты.
+    expect(again).toContain(t.status.rejected.againTitle);
+    expect(again).toContain(t.status.rejected.reason("Наименование не совпадает с документами"));
     // Прежняя форма работы выбрана.
     expect(again).toMatch(/value="TOO"[^>]*checked|checked[^>]*value="TOO"/);
   });

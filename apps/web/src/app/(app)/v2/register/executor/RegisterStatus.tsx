@@ -1,6 +1,5 @@
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Card, Explain, List, ListRow, NowNext, PageTitle, Section, Split, Stack } from "@/kit";
-import type { Device } from "@/platform/device";
+import { ActionDock, ButtonLink, Card, List, ListRow, NowNext, PageTitle, Section, Split, Stack } from "@/kit";
 import { to } from "../../../_shell/paths";
 import type { LegalForm } from "./_parts/schema";
 import { guestLoginHref, stepHref } from "./_parts/steps";
@@ -25,33 +24,43 @@ function Summary({ registration }: { registration: RegistrationView }) {
         <List>
           <ListRow label={s.form} value={t.form.legalForms[registration.legalForm]} />
           <ListRow label={s.legalName} value={registration.legalName} stacked />
-          <ListRow label={s.binIin} value={s.masked(registration.binIinLast4)} />
+          <ListRow label={registration.legalForm === "TOO" ? s.bin : s.iin} value={s.masked(registration.binIinLast4)} />
         </List>
       </Card>
     </Section>
   );
 }
 
-/** На проверке: что проверяем и что можно сделать, пока ждёте (документы, счёт, портфолио). Главного действия нет. */
-function Pending({ registration, device }: { registration: RegistrationView; device: Device }) {
+/** Состояние документов мастера (`getOwnKyc`); `null` — узнать не удалось. */
+export type KycState = "NOT_SUBMITTED" | "PENDING" | "VERIFIED" | "REJECTED";
+
+/** Документы ждут мастера: не поданы или отклонены — тогда «Загрузить документы» главное действие экрана. */
+export const documentsWanted = (kyc: KycState | null): boolean => kyc === "NOT_SUBMITTED" || kyc === "REJECTED";
+
+const KYC_HREF = to("/executor/profile/kyc");
+
+/**
+ * На проверке: что проверяем и что можно сделать, пока ждёте. Документы не поданы или отклонены — главное действие
+ * «Загрузить документы» (в доке); поданы или проверены — строка с их состоянием, главного действия нет. Счёт и
+ * портфолио — строками.
+ */
+function Pending({ registration, kyc }: { registration: RegistrationView; kyc: KycState | null }) {
   const p = s.pending;
+  const documentsRow =
+    kyc === "PENDING" || kyc === "VERIFIED" ? (
+      <ListRow label={p.documentsRow} value={p.documentsState[kyc]} href={KYC_HREF} />
+    ) : kyc === null ? (
+      <ListRow label={p.documents} href={KYC_HREF} />
+    ) : null;
   return (
     <Split
       main={
         <Stack gap="section">
-          <Stack>
-            <NowNext now={{ title: p.now, body: p.body }} next={p.next} />
-            {/* Кнопка пояснения встаёт по левой линии текста. */}
-            <div>
-              <Explain label={t.form.explain.label} title={t.form.explain.title} device={device}>
-                <p>{t.form.explain.body}</p>
-              </Explain>
-            </div>
-          </Stack>
+          <NowNext now={{ title: p.now, body: p.body }} next={p.next} />
           <Section title={p.meanwhileTitle}>
             <Card padded={false}>
               <List>
-                <ListRow label={p.documents} href={to("/executor/profile/kyc")} />
+                {documentsRow}
                 <ListRow label={p.payout} href={to("/executor/profile/payout")} />
                 <ListRow label={p.portfolio} href={to("/executor/portfolio")} />
               </List>
@@ -81,12 +90,17 @@ function Pending({ registration, device }: { registration: RegistrationView; dev
  * Статус регистрации мастера — дом мастера до одобрения: на проверке, одобрено (к заявкам), отказ (причина и «Исправить и
  * отправить заново» — та же анкета с первого шага). Вложенным экраном не является: «Назад» нет. Номер — только 4 цифры.
  */
-export function RegisterStatus({ registration, device }: { registration: RegistrationView; device: Device }) {
+export function RegisterStatus({ registration, kyc = null }: { registration: RegistrationView; kyc?: KycState | null }) {
   if (registration.status === "PENDING") {
     return (
       <Stack gap="section">
         <PageTitle title={s.title} />
-        <Pending registration={registration} device={device} />
+        <Pending registration={registration} kyc={kyc} />
+        {documentsWanted(kyc) && (
+          <ActionDock>
+            <ButtonLink href={KYC_HREF}>{s.pending.documents}</ButtonLink>
+          </ActionDock>
+        )}
       </Stack>
     );
   }

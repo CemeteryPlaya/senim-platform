@@ -3,13 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Stack, WizardHeader } from "@/kit";
+import { ActionDock, Button, Notice, Stack, WizardHeader } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../_shell/FormError";
 import { useActionForm } from "../../../_shell/form";
 import { registerMasterAction } from "./actions";
 import { errorsOf, firstInvalidStep, stepIssues, stepOfField, STEP_FIELDS, STEPS, type AnswerField, type Answers, type RegisterStep } from "./_parts/schema";
-import { backOf, persistable, prefillSigner, restoreAnswers, stepHref, type Origin } from "./_parts/steps";
+import { backOf, initialAnswers, persistable, prefillSigner, restoreAnswers, stepHref, type Origin } from "./_parts/steps";
 import { CheckSummary, FormFields, NameFields, PlaceFields, StepExplain, type StepErrors } from "./RegisterSteps";
 
 const t = ru.app.masterRegister;
@@ -57,6 +57,8 @@ type Props = {
   /** Начальные значения: пустая анкета или, после отказа, прежние форма работы и наименование. */
   initial: Answers;
   origin: Origin;
+  /** Повторная анкета после отказа: причина отказа (плашкой на первом и последнем шаге) или `null`. */
+  rejectReason?: string | null;
   /** Последние 4 цифры ИИН из знакомства (самозанятый и ИП работают по нему). */
   ownIinLast4: string | null;
   /** ФИО из знакомства: подставляется в наименование самозанятого и владельца ИП. */
@@ -78,10 +80,12 @@ type Props = {
  * шаг отправляет анкету целиком (`registerMasterAction`); ошибки сервиса приходят у полей — анкета открывает шаг с первой из
  * них. Повторное нажатие, пока идёт отправка, гасит `useActionForm`; сервер на повтор отвечает экраном статуса.
  */
-export function RegisterWizard({ step: requested, initial, origin, ownIinLast4, fullName, keepsBuyer, storageKey, device }: Props) {
+export function RegisterWizard({ step: requested, initial, origin, rejectReason = null, ownIinLast4, fullName, keepsBuyer, storageKey, device }: Props) {
   const router = useRouter();
   const [answers, setAnswers] = useState(initial);
   const [restored, setRestored] = useState(false);
+  /** Из хранилища восстановлена анкета ТОО: номеров там нет — их нужно ввести снова (плашка на шаге 2). */
+  const [numbersDropped, setNumbersDropped] = useState(false);
   /** Ошибки проверки в браузере. */
   const [invalid, setInvalid] = useState<StepErrors>({});
   /** Поля, исправленные после ответа сервера: его ошибка у них больше не показывается. */
@@ -95,7 +99,10 @@ export function RegisterWizard({ step: requested, initial, origin, ownIinLast4, 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       const saved = readSaved(storageKey);
-      if (saved !== null) setAnswers((current) => restoreAnswers(current, saved));
+      if (saved !== null) {
+        setAnswers((current) => restoreAnswers(current, saved));
+        setNumbersDropped(restoreAnswers(initialAnswers(), saved).legalForm === "TOO");
+      }
       setRestored(true);
     });
     return () => cancelAnimationFrame(frame);
@@ -128,12 +135,17 @@ export function RegisterWizard({ step: requested, initial, origin, ownIinLast4, 
   }, [serverErrors, router]);
 
   const root = useRef<HTMLDivElement>(null);
-  // Смена шага — фокус на первое поле нового шага (первый показ — без фокуса).
+  // Смена шага — фокус на выбранную карточку или первое поле нового шага; на шаге без полей — на заголовок (первый показ —
+  // без фокуса).
   const shown = useRef(step);
   useEffect(() => {
     if (shown.current === step) return;
     shown.current = step;
-    root.current?.querySelector<HTMLElement>("form input")?.focus();
+    const field = root.current?.querySelector<HTMLElement>("form input:checked") ?? root.current?.querySelector<HTMLElement>("form input");
+    if (field) return field.focus();
+    const heading = root.current?.querySelector<HTMLElement>("h1");
+    heading?.setAttribute("tabindex", "-1");
+    heading?.focus();
   }, [step]);
   // Неудачная проверка или ответ сервера с ошибками у полей — фокус на первое поле с ошибкой (у группы карточек — на её
   // первый вариант); после перехода на шаг с ошибкой — там.
@@ -196,6 +208,14 @@ export function RegisterWizard({ step: requested, initial, origin, ownIinLast4, 
           {step === "place" && <p className="text-body text-muted">{t.place.lead}</p>}
           {step === "check" && <p className="text-body text-muted">{t.check.lead}</p>}
         </Stack>
+        {origin === "status" && (step === "form" || step === "check") && (
+          <Notice tone="warn" title={t.status.rejected.againTitle}>
+            <p>{rejectReason ? t.status.rejected.reason(rejectReason) : t.status.rejected.noReason}</p>
+          </Notice>
+        )}
+        {step === "name" && numbersDropped && answers.legalForm === "TOO" && (answers.binIin === "" || answers.directorIin === "") && (
+          <Notice tone="info">{t.name.numbersNotSaved}</Notice>
+        )}
         <form id={FORM} method="post" onSubmit={onSubmit} noValidate>
           <Stack gap="section">
             {step === "form" && <FormFields {...fields} />}

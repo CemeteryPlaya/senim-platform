@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { getMyRegistration, getShellUser } from "@/modules/identity";
+import { getMyRegistration, getOwnKyc, getShellUser, type CurrentUser } from "@/modules/identity";
 import { getDevice } from "@/platform/device";
+import { logger } from "@/platform/logger";
 import { requireV2User } from "../../../_shell/auth";
 import { initialAnswers, parseStep, REGISTER_PATH } from "./_parts/steps";
-import { RegisterGuest, RegisterStatus } from "./RegisterStatus";
+import { RegisterGuest, RegisterStatus, type KycState } from "./RegisterStatus";
 import { RegisterWizard } from "./RegisterWizard";
 
 export const metadata: Metadata = { title: ru.app.masterRegister.metaTitle };
@@ -15,7 +16,8 @@ const one = (value: string | string[] | undefined): string | undefined => (typeo
 
 /**
  * Регистрация мастера — дом заказчика, выбравшего «Я мастер», и мастера до одобрения (`homeFor`):
- * - гость — что нужно и вход с ролью мастера и возвратом сюда (identity недоступен — тоже экран гостя);
+ * - гость — что нужно и вход с ролью мастера и возвратом сюда; вошедший при недоступном identity — не гость: общая
+ *   ошибка оболочки (плашка «сервис недоступен» и граница ошибок группы с «Повторить»);
  * - нет профиля — анкета по шагам (`?step=`);
  * - на проверке, одобрено, отказ — экран статуса; после отказа `?step=` открывает ту же анкету заново.
  *
@@ -25,13 +27,15 @@ const one = (value: string | string[] | undefined): string | undefined => (typeo
  */
 export default async function RegisterExecutorPage({ searchParams }: Props) {
   const step = parseStep(one((await searchParams).step));
-  const { user: shellUser } = await getShellUser();
-  if (!shellUser) return <RegisterGuest />;
+  const { user: shellUser, unavailable } = await getShellUser();
+  if (!shellUser && !unavailable) return <RegisterGuest />;
 
+  // identity недоступен — requireV2User бросает UNAVAILABLE: страницу заменяет граница ошибок группы (error.tsx).
   const user = await requireV2User(REGISTER_PATH, "CLIENT", "EXECUTOR");
   const [registration, device] = await Promise.all([getMyRegistration(user), getDevice()]);
   if (registration && (registration.status !== "REJECTED" || step === null)) {
-    return <RegisterStatus registration={registration} device={device} />;
+    const kyc = registration.status === "PENDING" ? await kycStateOf(user) : null;
+    return <RegisterStatus registration={registration} kyc={kyc} />;
   }
 
   const rejected = registration !== null;
@@ -40,6 +44,7 @@ export default async function RegisterExecutorPage({ searchParams }: Props) {
       step={step}
       initial={initialAnswers(rejected ? { legalForm: registration.legalForm, legalName: registration.legalName } : null)}
       origin={rejected ? "status" : "home"}
+      rejectReason={registration?.rejectReason ?? null}
       ownIinLast4={user.iinLast4}
       fullName={user.fullName}
       keepsBuyer={user.roles.includes("CLIENT") && !user.roles.includes("EXECUTOR")}
@@ -47,4 +52,17 @@ export default async function RegisterExecutorPage({ searchParams }: Props) {
       device={device}
     />
   );
+}
+
+/**
+ * Состояние документов мастера для экрана «на проверке»: от него зависит главное действие. Сбой чтения (identity,
+ * роль) — `null`: экран рисуется без главного действия, со ссылкой на документы.
+ */
+async function kycStateOf(user: CurrentUser): Promise<KycState | null> {
+  try {
+    return (await getOwnKyc(user)).state;
+  } catch (e) {
+    logger.warn("app.masterRegister.kyc_unavailable", { error: e });
+    return null;
+  }
 }

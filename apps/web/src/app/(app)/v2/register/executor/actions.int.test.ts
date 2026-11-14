@@ -129,6 +129,18 @@ describe("registerMasterAction", () => {
     expect(await profiles(other.id)).toHaveLength(0);
   });
 
+  it("повторная подача после отказа: тот же профиль снова на проверке, причина сброшена, данные новые", async () => {
+    const user = await buyer("+77000008608");
+    expect(await run(registerMasterAction(selfEmployed))).toEqual({ redirect: STATUS });
+    const [first] = await profiles(user.id);
+    await db.executorProfile.update({ where: { id: first.id }, data: { status: "REJECTED", rejectReason: "Опыт не подтверждён", reviewedAt: new Date() } });
+
+    expect(await run(registerMasterAction({ ...selfEmployed, city: "Алматы", yearsExperience: "12" }))).toEqual({ redirect: STATUS });
+    const again = await profiles(user.id);
+    expect(again).toHaveLength(1);
+    expect(again[0]).toMatchObject({ id: first.id, status: "PENDING", rejectReason: null, reviewedAt: null, city: "Алматы", yearsExperience: 12 });
+  });
+
   it("гость — UNAUTHENTICATED", async () => {
     expect(await run(registerMasterAction(selfEmployed))).toMatchObject({ ok: false, code: "UNAUTHENTICATED" });
   });
