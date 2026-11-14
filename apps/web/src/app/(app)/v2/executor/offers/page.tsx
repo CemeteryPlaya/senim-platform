@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { Card, Chips, EmptyState, List, ListRow, Money, Narrow, PageTitle, Stack, StatusChip, TextLink } from "@/kit";
 import { listMyOffers } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
 import { pageHref, requireMaster } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
-import { readForMaster } from "../_parts/approved";
-import { MasterGate } from "../_parts/MasterGate";
+import { readForMaster, REGISTER } from "../_parts/approved";
+import { GATE_BACK, MasterGate } from "../_parts/MasterGate";
 import { offersView, type OfferCardView, type OffersView } from "../_parts/offers-view";
 
 const t = ru.app.masterRequests.offers;
@@ -67,7 +68,10 @@ export default async function MyOffersPage({ searchParams }: Props) {
   const { user, status } = await requireMaster(pageHref("/executor/offers", params));
   const device = await getDevice();
   const read = await readForMaster(user, status, () => listMyOffers(user));
-  if ("gate" in read) return <MasterGate status={read.gate} title={t.title} device={device} />;
+  if ("gate" in read) {
+    if (read.gate === "none") redirect(REGISTER);
+    return <MasterGate status={read.gate} title={t.title} device={device} back={GATE_BACK} />;
+  }
 
   const view = offersView(read.data, typeof params.show === "string" ? params.show : undefined);
   const title = <PageTitle title={t.title} back={{ href: to("/executor/requests"), label: t.back }} />;

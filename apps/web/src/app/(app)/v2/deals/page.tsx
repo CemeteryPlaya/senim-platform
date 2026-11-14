@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
 import { HelpBlock, PageTitle, Split, Stack } from "@/kit";
@@ -8,7 +9,8 @@ import { logger } from "@/platform/logger";
 import { masterStatusOf, pageHref, requireParty, switchRoleTo } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
 import type { DealSide } from "../../_shell/side";
-import { MasterGate } from "../executor/_parts/MasterGate";
+import { REGISTER } from "../executor/_parts/approved";
+import { GATE_BACK, MasterGate } from "../executor/_parts/MasterGate";
 import { DealList } from "./_parts/DealList";
 import { dealHelpItems } from "./_parts/help-items";
 import { consentMissingOf, payWaitingMaster } from "../_parts/pay-waits";
@@ -38,7 +40,8 @@ export default async function DealsPage({ searchParams }: Props) {
   const device = await getDevice();
   const status = masterStatusOf(user);
   if (side === "EXECUTOR" && status !== "approved" && mine.length === 0) {
-    return <MasterGate status={status} title={ru.app.masterDeal.list.gateTitle} device={device} />;
+    if (status === "none") redirect(REGISTER);
+    return <MasterGate status={status} title={ru.app.masterDeal.list.gateTitle} device={device} back={GATE_BACK} />;
   }
   const nexts = await nextStepsOf(
     user,

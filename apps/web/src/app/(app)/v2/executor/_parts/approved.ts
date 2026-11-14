@@ -2,7 +2,14 @@ import "server-only";
 import { getMyRegistration, type CurrentUser } from "@/modules/identity";
 import { isAppError } from "@/platform/errors";
 import type { MasterStatus } from "../../../_shell/auth";
+import { to } from "../../../_shell/paths";
 import type { GateStatus } from "./MasterGate";
+
+/**
+ * Нет профиля мастера: на всех экранах мастера одно поведение — переход на регистрацию (как у компании, документов и
+ * счёта), а не экран статуса «нет профиля». Экран статуса (`MasterGate`) остаётся для «на проверке» и «отказ».
+ */
+export const REGISTER = to("/register/executor");
 
 /** Статус для экрана статуса по свежему чтению профиля (не по сессии). Одобрен — значит гонка уже прошла: «на проверке». */
 async function freshGate(user: CurrentUser): Promise<GateStatus> {

@@ -4,6 +4,12 @@ import type { Device } from "@/platform/device";
 import type { MasterStatus } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
 
+/**
+ * «Назад» экранов статуса вложенных и некорневых экранов мастера (предложения, заявки, сделки, финансы, заявка): до
+ * одобрения «Главная» — регистрация и статус проверки (тот же дом, что у вкладки «Главная» и `homeFor`).
+ */
+export const GATE_BACK = { href: to("/register/executor"), label: ru.app.masterOffer.gateBack };
+
 /** Статус, при котором экраны мастера закрыты: профиль не одобрен. */
 export type GateStatus = Exclude<MasterStatus, "approved">;
 

@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ru } from "@/i18n/ru";
 import { sendOffer } from "@/modules/requests";
 import { db } from "@/platform/db";
-import { makeClient, makeExecutor } from "../../../../../test/factories";
+import { makeClient, makeExecutor, makeUser } from "../../../../../test/factories";
 import { freshBrowser } from "../../../../../test/factories/identity";
 import { makeOpenRequest, offerInput } from "../../../../../test/factories/requests";
 import { signInAs } from "../../../../../test/factories/session";
@@ -15,6 +15,10 @@ vi.mock("next/headers", async () => (await import("../../../../../test/factories
 
 const { default: IncomingPage } = await import("./requests/page");
 const { default: OffersPage } = await import("./offers/page");
+const { default: FinancePage } = await import("./finance/page");
+const { default: PortfolioPage } = await import("./portfolio/page");
+const { default: NewWorkPage } = await import("./portfolio/new/page");
+const { default: DealsPage } = await import("../deals/page");
 
 const m = ru.app.masterRequests;
 type Params = Record<string, string>;
@@ -90,5 +94,52 @@ describe("«Мои предложения»", () => {
   it("неодобренный мастер — экран статуса", async () => {
     await master({ status: "REJECTED" });
     expect(await render(OffersPage)).toContain(m.gate.rejected.now);
+  });
+});
+
+describe("мастер до одобрения: один дом и «Назад» на главную", () => {
+  const BACK = /<a [^>]*href="\/v2\/register\/executor"[^>]*><svg[^>]*>.*?<\/svg><span class="sr-only">Назад: <\/span>Главная/;
+
+  it.each([
+    ["заявки", IncomingPage],
+    ["предложения", OffersPage],
+  ] as const)("«%s»: на проверке — экран статуса со строкой «Назад» на главную (регистрацию)", async (_name, page) => {
+    await master({ status: "PENDING" });
+    expect(await render(page)).toMatch(BACK);
+  });
+
+  it("«Сделки» без сделок: на проверке — экран статуса со строкой «Назад»", async () => {
+    await master({ status: "PENDING" });
+    expect(await render(DealsPage)).toMatch(BACK);
+  });
+
+  /** Куда ведёт экран: «page» — нарисовался, иначе адрес перехода. */
+  async function where(page: (props: { searchParams: Promise<Params> }) => Promise<ReactElement>): Promise<string> {
+    try {
+      await render(page);
+      return "page";
+    } catch (e) {
+      const digest = typeof e === "object" && e !== null && "digest" in e ? String((e as { digest: unknown }).digest) : "";
+      return digest.startsWith("NEXT_REDIRECT") ? (digest.split(";")[2] ?? "") : digest || "error";
+    }
+  }
+
+  it.each([
+    ["заявки", IncomingPage],
+    ["предложения", OffersPage],
+    ["финансы", FinancePage],
+    ["сделки", DealsPage],
+    ["портфолио", PortfolioPage],
+    ["новая работа", NewWorkPage],
+  ] as const)("нет профиля мастера: «%s» — переход на регистрацию, не экран статуса", async (_name, page) => {
+    const user = await makeUser("EXECUTOR");
+    await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(user);
+    expect(await where(page as never)).toBe("/v2/register/executor");
+  });
+
+  it("портфолио открыто мастеру на проверке (его заполняют до проверки)", async () => {
+    await master({ status: "PENDING" });
+    expect(await where(PortfolioPage as never)).toBe("page");
   });
 });

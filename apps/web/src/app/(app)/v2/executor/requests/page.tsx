@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { Card, Chips, EmptyState, PageTitle, Split, Stack, TextLink } from "@/kit";
 import { listIncomingRequests } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
 import { pageHref, requireMaster } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
-import { readForMaster } from "../_parts/approved";
+import { readForMaster, REGISTER } from "../_parts/approved";
 import { IncomingRows } from "../_parts/IncomingRows";
 import { incomingListView, type IncomingListView } from "../_parts/incoming-view";
-import { MasterGate } from "../_parts/MasterGate";
+import { GATE_BACK, MasterGate } from "../_parts/MasterGate";
 
 const t = ru.app.masterRequests.incoming;
 
@@ -46,7 +47,10 @@ export default async function IncomingPage({ searchParams }: Props) {
   const { user, status } = await requireMaster(pageHref("/executor/requests", params));
   const device = await getDevice();
   const read = await readForMaster(user, status, () => listIncomingRequests(user));
-  if ("gate" in read) return <MasterGate status={read.gate} title={t.title} device={device} />;
+  if ("gate" in read) {
+    if (read.gate === "none") redirect(REGISTER);
+    return <MasterGate status={read.gate} title={t.title} device={device} back={GATE_BACK} />;
+  }
 
   const view = incomingListView(read.data, { f: one(params.f), type: one(params.type) });
   const title = <PageTitle title={t.title} />;

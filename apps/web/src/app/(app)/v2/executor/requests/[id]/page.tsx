@@ -23,8 +23,8 @@ import { getDevice, type Device } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { requireMaster } from "../../../../_shell/auth";
 import { legacy, to } from "../../../../_shell/paths";
-import { readForMaster } from "../../_parts/approved";
-import { MasterGate } from "../../_parts/MasterGate";
+import { readForMaster, REGISTER } from "../../_parts/approved";
+import { GATE_BACK, MasterGate } from "../../_parts/MasterGate";
 import { AcceptButton, OfferMenu, ProposeButton, WithdrawPriceButton } from "./_parts/MasterOfferActions";
 import { MasterMoney } from "./_parts/MasterMoney";
 import { OfferForm } from "./_parts/OfferForm";
@@ -211,7 +211,10 @@ export default async function MasterRequestPage({ params }: Props) {
   const { user, status } = await requireMaster(to(`/executor/requests/${encodeURIComponent(id)}`));
   const device = await getDevice();
   const read = await readForMaster(user, status, () => load(user, id));
-  if ("gate" in read) return <MasterGate status={read.gate} title={t.gateTitle} device={device} back={{ href: to("/"), label: t.gateBack }} />;
+  if ("gate" in read) {
+    if (read.gate === "none") redirect(REGISTER);
+    return <MasterGate status={read.gate} title={t.gateTitle} device={device} back={GATE_BACK} />;
+  }
 
   const { request, negotiation } = read.data;
   const view = requestView(request, negotiation);

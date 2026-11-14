@@ -165,8 +165,8 @@ describe("заявка мастера: доступ", () => {
     expect(out).toContain(ru.app.masterRequests.gate.pending.now);
     expect(out).toContain('href="/v2/register/executor"');
     expect(count(out, "<h1")).toBe(1);
-    // «Назад» вложенного экрана — на главную: заявки до одобрения закрыты.
-    expect(out).toContain('href="/v2"');
+    // «Назад» вложенного экрана — на главную мастера до одобрения (регистрация и статус): заявки закрыты.
+    expect(out).toMatch(/<a [^>]*href="\/v2\/register\/executor"[^>]*><svg[^>]*>.*?<\/svg><span class="sr-only">Назад: <\/span>/);
     expect(text(out)).toContain(t.gateBack);
   });
 

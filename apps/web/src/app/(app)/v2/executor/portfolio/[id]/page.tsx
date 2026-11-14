@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { Card, Narrow, PageTitle, Stack } from "@/kit";
 import { getOwnPortfolioItem, listFurnitureTypes } from "@/modules/companies";
@@ -7,7 +7,7 @@ import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { requireMaster } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
-import { MasterGate } from "../../_parts/MasterGate";
+import { REGISTER } from "../../_parts/approved";
 import { readForOwner } from "../_parts/read";
 import { PHOTOS_MAX } from "../_parts/work-schema";
 import { initialValues } from "../_parts/work-view";
@@ -36,7 +36,8 @@ export default async function EditWorkPage({ params }: Props) {
       throw e;
     }
   });
-  if ("gate" in read) return <MasterGate status={read.gate} title={t.editTitle} device={device} />;
+  // Портфолио открыто и мастеру на проверке и после отказа; «нет профиля» — регистрация, как на остальных экранах мастера.
+  if ("gate" in read) redirect(REGISTER);
   const [item, types] = read.data;
 
   const content = (

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { getExecutorFinance } from "@/modules/deal-core";
 import { getDevice } from "@/platform/device";
 import { pageHref, requireMaster } from "../../../_shell/auth";
-import { to } from "../../../_shell/paths";
-import { readForMaster } from "../_parts/approved";
-import { MasterGate } from "../_parts/MasterGate";
+import { readForMaster, REGISTER } from "../_parts/approved";
+import { GATE_BACK, MasterGate } from "../_parts/MasterGate";
 import { FinanceScreen } from "./_parts/FinanceScreen";
 import { financeView } from "./_parts/finance-view";
 
@@ -25,6 +25,9 @@ export default async function FinancePage({ searchParams }: Props) {
   const { user, status } = await requireMaster(pageHref("/executor/finance", params));
   const device = await getDevice();
   const read = await readForMaster(user, status, () => getExecutorFinance(user));
-  if ("gate" in read) return <MasterGate status={read.gate} title={t.title} device={device} back={{ href: to("/"), label: ru.app.masterOffer.gateBack }} />;
+  if ("gate" in read) {
+    if (read.gate === "none") redirect(REGISTER);
+    return <MasterGate status={read.gate} title={t.title} device={device} back={GATE_BACK} />;
+  }
   return <FinanceScreen view={financeView(read.data, params.month, new Date())} device={device} />;
 }

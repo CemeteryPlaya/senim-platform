@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { ActionDock, ButtonLink, Columns, EmptyState, PageTitle, Stack } from "@/kit";
 import { listOwnPortfolio } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { requireMaster } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
-import { MasterGate } from "../_parts/MasterGate";
+import { REGISTER } from "../_parts/approved";
 import { readForOwner } from "./_parts/read";
 import { workListView } from "./_parts/work-view";
 import { WorkTile } from "./_parts/WorkTile";
@@ -24,7 +25,8 @@ export default async function PortfolioPage() {
   const { user, status } = await requireMaster(to("/executor/portfolio"));
   const device = await getDevice();
   const read = await readForOwner(status, () => listOwnPortfolio(user));
-  if ("gate" in read) return <MasterGate status={read.gate} title={t.title} device={device} />;
+  // Портфолио открыто и мастеру на проверке и после отказа; «нет профиля» — регистрация, как на остальных экранах мастера.
+  if ("gate" in read) redirect(REGISTER);
 
   const title = <PageTitle title={t.title} back={{ href: to("/executor/profile"), label: t.back }} />;
   if (read.data.length === 0) {
