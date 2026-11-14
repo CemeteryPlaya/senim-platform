@@ -4,36 +4,12 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import { ConfirmDialog, Menu, StatusChip, toast } from "@/kit";
-import type { ActionResult } from "@/platform/action";
 import type { Device } from "@/platform/device";
-import { outcomeOf } from "../../../../_shell/form";
+import { useSettle } from "../../../../_shell/settle";
 import { to } from "../../../../_shell/paths";
 import { deleteWorkAction, setWorkPublishedAction } from "../actions";
 
 const t = ru.app.masterPortfolio;
-
-/**
- * Ответ действия, вызванного не формой: успех — `onSuccess`; «сессия истекла» / «нужно согласие» — уход на экран v2 с
- * возвратом (outcomeOf); отказ — тост с текстом сервера. Возвращает `false` при отказе: окно подтверждения остаётся
- * открытым (тост уже показан), при успехе и уходе — закрывается.
- */
-function useSettle() {
-  const router = useRouter();
-  return <T,>(result: ActionResult<T>, onSuccess: (data: T) => void): boolean => {
-    const outcome = outcomeOf(result, window.location);
-    if (outcome.kind === "success") {
-      onSuccess(outcome.data);
-      return true;
-    }
-    if (outcome.kind === "leave") {
-      window.location.assign(outcome.href);
-      return true;
-    }
-    toast.error(outcome.error);
-    router.refresh();
-    return false;
-  };
-}
 
 /**
  * Статус работы и «Действия с работой» за кнопкой «три точки»: опубликовать или скрыть из каталога (сразу) и удалить
@@ -42,7 +18,7 @@ function useSettle() {
  */
 export function WorkActions({ device, id, published }: { device: Device; id: string; published: boolean }) {
   const router = useRouter();
-  const settle = useSettle();
+  const settle = useSettle({ keepOpenOnError: true });
   const [open, setOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
 

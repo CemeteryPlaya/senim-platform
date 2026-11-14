@@ -1,37 +1,18 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, type ButtonProps, ConfirmDialog, Dialog, HiddenField, Menu, Money, Notice, Sheet, Stack, TextField, toast } from "@/kit";
-import type { ActionResult } from "@/platform/action";
+import { Button, ConfirmDialog, Dialog, HiddenField, Menu, Money, Notice, Sheet, Stack, TextField, toast } from "@/kit";
 import type { Device } from "@/platform/device";
-import { outcomeOf, useActionForm } from "../../../../../_shell/form";
+import { useActionForm } from "../../../../../_shell/form";
+import { LinkButton } from "../../../../../_shell/LinkButton";
+import { useSettle } from "../../../../../_shell/settle";
 import { to } from "../../../../../_shell/paths";
 import { acceptPriceAction, proposePriceAction, withdrawOfferAction, withdrawPriceAction } from "../actions";
 import { liveMoney } from "./live-money";
 
 const t = ru.app.masterOffer;
-
-/**
- * Ответ действия, вызванного не формой (подтверждение в окне): успех — `onSuccess`; «сессия истекла» / «нужно согласие» —
- * уход на экран v2 с возвратом (outcomeOf); отказ — тост с текстом сервера и обновление экрана (цена могла измениться).
- * Окно закрывается в любом случае: после отказа его содержимое устарело.
- */
-function useSettle() {
-  const router = useRouter();
-  return <T,>(result: ActionResult<T>, onSuccess: (data: T) => void): true => {
-    const outcome = outcomeOf(result, window.location);
-    if (outcome.kind === "success") onSuccess(outcome.data);
-    else if (outcome.kind === "leave") window.location.assign(outcome.href);
-    else {
-      toast.error(outcome.error);
-      router.refresh();
-    }
-    return true;
-  };
-}
 
 export type AcceptButtonProps = {
   device: Device;
@@ -100,22 +81,6 @@ function ProposeForm({ device, offerId, onDone }: { device: Device; offerId: str
         </Button>
       </Stack>
     </form>
-  );
-}
-
-/**
- * Второстепенное действие торга под карточкой «Сейчас»: тихая кнопка по левой линии с шевроном — видно, что нажимается,
- * и не спорит с главной кнопкой. Сама кнопка — открыватель окна (шторка / диалог), поэтому не ссылка `TextLink`.
- */
-function LinkButton({ label, ...rest }: { label: string } & Omit<ButtonProps, "children" | "variant" | "flush">) {
-  return (
-    <Button variant="quiet" flush {...rest}>
-      {/* Подпись кнопки kit — строчный span, а svg блочный: без строчного flex шеврон уехал бы на вторую строку. */}
-      <span className="inline-flex items-center gap-1">
-        {label}
-        <ChevronRight aria-hidden className="size-4 shrink-0" />
-      </span>
-    </Button>
   );
 }
 
