@@ -23,6 +23,8 @@ export type SignAreaProps = {
   /** Карточка сделки: туда — после подписи, с тостом. */
   dealHref: string;
   device: Device;
+  /** ФИО покупателя из профиля: подставляется в поле «Ввести ФИО» (можно изменить). */
+  fullName: string;
 };
 
 /** Что сделать с ответом действия: успех — данные; уход (вход, согласие, карточка) — уже начат; отказ — текст. */
@@ -75,7 +77,7 @@ function StepTitle({ step }: { step: StepView }) {
   return <p className="text-body text-ink">{step.kind === "hand" ? t.steps.handFirst : t.steps.ecpSecond}</p>;
 }
 
-function HandStep({ documentId, kind, step, dealHref }: SignAreaProps) {
+function HandStep({ documentId, kind, step, dealHref, fullName }: SignAreaProps) {
   const router = useRouter();
   const handle = useHandle(dealHref);
   const finish = useFinish(kind, dealHref);
@@ -113,7 +115,7 @@ function HandStep({ documentId, kind, step, dealHref }: SignAreaProps) {
       <Section title={t.hand.section}>
         <Stack gap="tight">
           <StepTitle step={step} />
-          <SignaturePad label={t.hand.padLabel} onChange={setValue} />
+          <SignaturePad label={t.hand.padLabel} defaultTypedName={fullName} onChange={setValue} />
           <p className="text-sub text-muted">{t.hand.consent}</p>
           {/* Почему кнопка отключена — рядом с ней, видимым текстом (на телефоне кнопка в доке у нижнего края). */}
           {value === null && (

@@ -68,15 +68,23 @@ describe("switchRoleAction", () => {
     expect((await getCurrentUser())!.role).toBe("EXECUTOR");
   });
 
-  it("без возврата — дом новой роли (одобренный мастер — входящие заявки)", async () => {
+  it("без возврата — дом новой роли: мастера — рабочий экран v1 (входящие заявки), а не заглушка v2; покупателя — главная v2", async () => {
     await both();
-    expect(await run(switchRoleAction({ role: "EXECUTOR" }))).toEqual({ redirect: "/v2/executor/requests" });
+    expect(await run(switchRoleAction({ role: "EXECUTOR" }))).toEqual({ redirect: "/executor/requests" });
+    expect(await run(switchRoleAction({ role: "CLIENT" }))).toEqual({ redirect: "/v2" });
+  });
+
+  it("мастер без одобренного профиля: без возврата — регистрация мастера в v1", async () => {
+    const user = await makeExecutor({ roles: ["CLIENT", "EXECUTOR"] });
+    await db.executorProfile.update({ where: { userId: user.id }, data: { status: "PENDING" } });
+    await signed(user, "CLIENT");
+    expect(await run(switchRoleAction({ role: "EXECUTOR" }))).toEqual({ redirect: "/register/executor" });
   });
 
   it("чужой и не-v2 возврат отбрасывается: идёт в дом", async () => {
     await both();
     for (const returnTo of ["//evil.example/x", "https://evil.example", "/deals/1", "/v2/login", "/\\evil.example"]) {
-      expect(await run(switchRoleAction({ role: "EXECUTOR", returnTo }))).toEqual({ redirect: "/v2/executor/requests" });
+      expect(await run(switchRoleAction({ role: "EXECUTOR", returnTo }))).toEqual({ redirect: "/executor/requests" });
     }
   });
 
@@ -94,7 +102,7 @@ describe("switchRoleAction", () => {
   it("двойное нажатие — одна и та же итоговая роль без ошибок", async () => {
     await both();
     const results = await Promise.all([run(switchRoleAction({ role: "EXECUTOR" })), run(switchRoleAction({ role: "EXECUTOR" }))]);
-    for (const r of results) expect(r).toMatchObject({ redirect: "/v2/executor/requests" });
+    for (const r of results) expect(r).toMatchObject({ redirect: "/executor/requests" });
     expect((await getCurrentUser())!.role).toBe("EXECUTOR");
   });
 });
@@ -141,6 +149,12 @@ describe("/v2/switch-role", () => {
     await signed(await makeClient());
     expect(await render({ to: "CLIENT", returnTo: "/v2/deals/7" })).toEqual({ redirect: "/v2/deals/7" });
     expect(await render({ to: "CLIENT" })).toEqual({ redirect: "/v2" });
+  });
+
+  it("роль мастера уже активна, возврата нет — рабочий экран мастера в v1", async () => {
+    const user = await makeExecutor({ roles: ["CLIENT", "EXECUTOR"] });
+    await signed(user, "EXECUTOR");
+    expect(await render({ to: "EXECUTOR" })).toEqual({ redirect: "/executor/requests" });
   });
 
   it("неизвестная роль — 404; гость — вход с возвратом на этот же экран", async () => {

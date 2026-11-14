@@ -94,6 +94,7 @@ export {
   CHAT_MAX_LENGTH,
   closeChat,
   chatAttachments,
+  chatSideOf,
   getChat,
   listChats,
   reopenChat,

@@ -17,6 +17,7 @@ vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
 vi.mock("next/headers", async () => (await import("../../../../../test/factories/identity")).nextHeadersMock);
 vi.mock("@/app/(app)/_shell/auth", async (original) => ({
   ...(await original<object>()),
+  requireV2User: async () => h.user!,
   requireBuyer: async (next: string) => {
     h.asked.push(next);
     return h.user!;
@@ -181,6 +182,19 @@ describe("экран диалога", () => {
     const { html } = await room(thread.offerId);
     expect(html).toContain(`aria-label="${t.room.photo(1)}"`);
     expect(html).toMatch(/<a href="[^"]*\/api\/files\//);
+  });
+
+  it("мастер этого отклика (активная роль мастера): на экран чата v1, без переключения роли; чужой мастер — 404", async () => {
+    const thread = await makeOfferThread();
+    const withDeal = await makeOfferThread({ dealStatus: "IN_PROGRESS" });
+    h.user = { ...thread.executor, role: "EXECUTOR", roles: ["EXECUTOR", "CLIENT"] };
+    expect(await room(thread.offerId)).toEqual({ redirect: `/executor/requests/${thread.requestId}#chat` });
+    h.user = { ...withDeal.executor, role: "EXECUTOR", roles: ["EXECUTOR", "CLIENT"] };
+    expect(await room(withDeal.offerId)).toEqual({ redirect: `/deals/${withDeal.dealId}#chat` });
+    expect(h.asked).toEqual([]);
+    // Мастер другого отклика: ворота не мешают, диалог чужой — 404.
+    h.user = { ...withDeal.executor, role: "EXECUTOR", roles: ["EXECUTOR", "CLIENT"] };
+    expect(await room(thread.offerId)).toEqual({ notFound: true });
   });
 
   it("чужой и несуществующий диалог — 404", async () => {

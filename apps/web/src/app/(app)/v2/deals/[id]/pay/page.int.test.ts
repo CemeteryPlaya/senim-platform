@@ -11,8 +11,13 @@ import { freshBrowser } from "../../../../../../../test/factories/identity";
 import { signInAs } from "../../../../../../../test/factories/session";
 import PayPage from "./page";
 
-const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop" }));
+const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop", bankFails: false }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
+// Чтение отметок банку у модуля — настоящее; сбой identity включается флагом.
+vi.mock("@/modules/deal-core", async (importActual) => {
+  const actual = await importActual<typeof import("@/modules/deal-core")>();
+  return { ...actual, bankConsentState: (...args: Parameters<typeof actual.bankConsentState>) => (h.bankFails ? Promise.reject(new Error("identity недоступна")) : actual.bankConsentState(...args)) };
+});
 vi.mock("next/headers", async () => (await import("../../../../../../../test/factories/identity")).nextHeadersMock);
 vi.mock("next/navigation", async (importActual) => ({ ...(await importActual<typeof import("next/navigation")>()), useRouter: () => ({ refresh: () => undefined, push: () => undefined }) }));
 
@@ -22,6 +27,7 @@ const FORBIDDEN = /комисси|эскроу|тестов|демо|платф�
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
   h.device = "mobile";
+  h.bankFails = false;
 });
 
 async function buyer() {
@@ -160,6 +166,12 @@ describe("ворота экрана оплаты: не шаг оплаты — �
     const { payForDeal } = await import("@/modules/deal-core");
     await payForDeal(f.client, { dealId: f.dealId });
     await signInAs(client);
+    expect(await outcome(() => render(f.dealId))).toEqual(redirectTo(`/v2/deals/${f.dealId}`));
+  });
+
+  it("чтение отметок банку упало (identity недоступна) — карточка сделки, а не ошибка 500", async () => {
+    const f = await signed(["CLIENT", "EXECUTOR"]);
+    h.bankFails = true;
     expect(await outcome(() => render(f.dealId))).toEqual(redirectTo(`/v2/deals/${f.dealId}`));
   });
 

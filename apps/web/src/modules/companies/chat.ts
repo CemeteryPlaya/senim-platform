@@ -248,6 +248,19 @@ function chatHref(offer: { id: string; requestId: string; deal: { id: string } |
   return party === "client" ? `/requests/${offer.requestId}/offers/${offer.id}${CHAT_ANCHOR}` : `/executor/requests/${offer.requestId}${CHAT_ANCHOR}`;
 }
 
+/**
+ * Сторона отклика по человеку, а не по активной роли: «исполнитель» — он мастер этого отклика, «client» — заказчик заявки;
+ * чужой и несуществующий отклик — null. Нужна воротам экранов, чтобы человек с двумя ролями, активный в другой, не получал
+ * 404 на своём же диалоге. Вместе со стороной — адрес экрана этого чата в v1 (`href`, как в списке диалогов). Ничего не
+ * читает из переписки, прав на чат не даёт: чат по-прежнему открывает только `getChat`.
+ */
+export async function chatSideOf(user: Pick<CurrentUser, "id">, offerId: string): Promise<{ side: "client" | "executor"; href: string } | null> {
+  const offer = await loadOffer(db, offerId);
+  if (!offer) return null;
+  const side = offer.request.clientId === user.id ? "client" : offer.executor.userId === user.id ? "executor" : null;
+  return side ? { side, href: chatHref(offer, side) } : null;
+}
+
 const CHAT_LIST_LIMIT = 100;
 
 /** До 100 откликов пользователя: сначала с перепиской по времени последнего сообщения, затем без неё по дате отклика. */

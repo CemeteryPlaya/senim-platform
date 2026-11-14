@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { ActionDock, ButtonLink, Narrow, NowNext, PageTitle, Stack, TextLink } from "@/kit";
 import { parseSwitchableRole } from "@/modules/identity";
-import { homeFor, pageHref, requireV2User, safeNext } from "../../_shell/auth";
+import { homeAfterSwitch, homeFor, pageHref, requireV2User, safeNext } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
 import { SwitchRoleForm } from "./SwitchRoleForm";
 
@@ -27,7 +27,7 @@ export default async function SwitchRolePage({ searchParams }: Props) {
   if (!target) notFound();
   const user = await requireV2User(pageHref("/switch-role", params));
   const returnTo = safeNext(one(params.returnTo));
-  if (user.role === target) redirect(returnTo ?? homeFor(user));
+  if (user.role === target) redirect(returnTo ?? homeAfterSwitch(user));
 
   const granted = user.roles.includes(target);
   const canBecomeMaster = !granted && target === "EXECUTOR" && user.role === "CLIENT";

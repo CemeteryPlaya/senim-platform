@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { consentDocument, consentTextSha256 } from "@/modules/identity";
-import { homeFor, makeSafeNext, nextStepFor, safeNext, type StepUser } from "./auth";
+import { homeAfterSwitch, homeFor, makeSafeNext, nextStepFor, safeNext, type StepUser } from "./auth";
 
 const CURRENT = { id: "c1", version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") };
 
@@ -127,5 +127,13 @@ describe("homeFor", () => {
 
   it("заказчик с профилем мастера, выбравший «Я мастер», — главная (профиль уже есть)", () => {
     expect(homeFor({ role: "CLIENT", executor: { id: "e1", publicNumber: 1, status: "PENDING" } }, "EXECUTOR")).toBe("/v2");
+  });
+});
+
+describe("homeAfterSwitch", () => {
+  it("мастер — рабочий экран v1 (в v2 экранов мастера нет), остальные — дом v2", () => {
+    expect(homeAfterSwitch({ role: "EXECUTOR", executor: { id: "e1", publicNumber: 1, status: "APPROVED" } })).toBe("/executor/requests");
+    expect(homeAfterSwitch({ role: "EXECUTOR", executor: { id: "e1", publicNumber: 1, status: "PENDING" } })).toBe("/register/executor");
+    expect(homeAfterSwitch({ role: "CLIENT", executor: null })).toBe("/v2");
   });
 });

@@ -6,9 +6,11 @@ import { bankConsentState } from "@/modules/deal-core";
 import { readDealDocuments } from "@/modules/documents";
 import { consentDocument } from "@/modules/identity";
 import { getDevice, type Device } from "@/platform/device";
+import { logger } from "@/platform/logger";
 import { pageHref } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
-import { buyerDealStep, dealCardHref } from "../_parts/step-gate";
+import { dealHrefs } from "../_parts/deal-card";
+import { buyerDeal } from "../_parts/gate";
 import { payMoney, type PayMoney } from "./_parts/pay-view";
 import { PayForm } from "./_parts/PayForm";
 
@@ -47,7 +49,7 @@ function Where() {
 }
 
 /**
- * Оплата покупателя. Ворота — покупатель этой сделки (`buyerDealStep`); сейчас не шаг оплаты этого покупателя (оферта не
+ * Оплата покупателя. Ворота — покупатель этой сделки (`buyerDeal`); сейчас не шаг оплаты этого покупателя (оферта не
  * подписана, оплата уже идёт или прошла, сделка отменена, открыт спор — `deal.next` модуля) — карточка сделки без ошибки.
  * Порядок: «Назад: <сделка>», «Оплата», при несогласии мастера — чего ждём (и ссылка на переписку с ним); деньги
  * (`MoneyPanel` «К оплате», суммы — смета модуля, тот же источник, что у карточки сделки); «Где будут деньги»; согласие
@@ -58,12 +60,16 @@ function Where() {
 export default async function PayPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
-  const { user, deal } = await buyerDealStep(pageHref(`/deals/${encodeURIComponent(id)}/pay`, sp), id);
-  const card = dealCardHref(deal.id);
+  const { user, deal } = await buyerDeal(pageHref(`/deals/${encodeURIComponent(id)}/pay`, sp), id);
+  const card = dealHrefs(deal.id).card;
   if (deal.next.action !== "pay" || !deal.next.mine) redirect(card);
   const manual = deal.paymentProvider === "MANUAL";
   const [bank, device, documents] = await Promise.all([
-    bankConsentState(user, deal.id),
+    // Сбой чтения отметок (identity недоступна) не роняет экран: карточка сделки работает и без них.
+    bankConsentState(user, deal.id).catch((error: unknown) => {
+      logger.warn("bank consent state failed", { dealId: deal.id, error });
+      return null;
+    }),
     getDevice(),
     manual ? readDealDocuments(user, deal.id) : Promise.resolve([]),
   ]);

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { Explain, PageTitle, TextLink } from "@/kit";
-import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, getChat } from "@/modules/companies";
+import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, chatSideOf, getChat } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
-import { requireBuyer } from "../../../_shell/auth";
+import { requireBuyer, requireV2User } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
 import { chatHref, chatRoomModel, contextLink, contextOf } from "../_parts/chat-view";
 import { ChatRoom } from "./ChatRoom";
@@ -20,9 +20,17 @@ type Props = { params: Promise<{ offerId: string }> };
  * Диалог покупателя с мастером по одному предложению. Шапка: «Назад: Чаты», собеседник (то, что отдаёт модуль:
  * «Исполнитель №N» до оферты, имя после), ссылка на предложение или сделку. Экран — лента и поле ввода; главного
  * действия и дока нет, поле — последний элемент. Чужой и несуществующий диалог — 404 (модуль: NOT_FOUND).
+ * Ворота: человек с двумя ролями, активный как мастер, по уведомлению о сообщении попадает на диалог своего отклика, где он
+ * мастер, — экрана мастера в v2 пока нет, поэтому он уходит на экран этого чата в v1 (без переключения роли: после него
+ * диалог покупателя в этом отклике был бы 404).
  */
 export default async function ChatPage({ params }: Props) {
   const { offerId } = await params;
+  const signedIn = await requireV2User(chatHref(offerId));
+  if (signedIn.role === "EXECUTOR") {
+    const side = await chatSideOf(signedIn, offerId);
+    if (side?.side === "executor") redirect(side.href);
+  }
   const user = await requireBuyer(chatHref(offerId));
   const view = await getChat(user, offerId, { attachments: true }).catch((e: unknown) => {
     if (isAppError(e) && e.code === "NOT_FOUND") notFound();

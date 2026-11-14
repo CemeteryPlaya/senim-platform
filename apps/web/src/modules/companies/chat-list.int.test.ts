@@ -5,7 +5,7 @@ import { makeClient, makeExecutor, makeOperator, makeUser } from "../../../test/
 import { makeFurnitureType, makeOfferThread } from "../../../test/factories/companies";
 import { MASK } from "./mask";
 import { EXECUTOR_IDENTITY_KEY } from "./identity-mode";
-import { listChats, sendMessage } from "./index";
+import { chatSideOf, listChats, sendMessage } from "./index";
 
 afterEach(() => {
   delete process.env.DEMO_MODE;
@@ -131,4 +131,16 @@ describe("список чатов: предел", () => {
     expect(list).toHaveLength(100);
     expect(list[0].offerId).toBe(talked.offerId);
   }, 60_000);
+});
+
+describe("сторона отклика по человеку (chatSideOf)", () => {
+  it("не зависит от активной роли: заказчик заявки, мастер отклика и их адрес в v1; чужой и несуществующий — null", async () => {
+    const draft = await makeOfferThread();
+    const withDeal = await makeOfferThread({ dealStatus: "IN_PROGRESS" });
+    expect(await chatSideOf(draft.client, draft.offerId)).toEqual({ side: "client", href: `/requests/${draft.requestId}/offers/${draft.offerId}#chat` });
+    expect(await chatSideOf({ id: draft.executor.id }, draft.offerId)).toEqual({ side: "executor", href: `/executor/requests/${draft.requestId}#chat` });
+    expect(await chatSideOf(withDeal.executor, withDeal.offerId)).toEqual({ side: "executor", href: `/deals/${withDeal.dealId}#chat` });
+    expect(await chatSideOf(await makeClient(), draft.offerId)).toBeNull();
+    expect(await chatSideOf(draft.client, "00000000-0000-4000-8000-000000000000")).toBeNull();
+  });
 });

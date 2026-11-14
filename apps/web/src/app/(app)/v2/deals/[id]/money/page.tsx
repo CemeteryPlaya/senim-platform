@@ -21,7 +21,7 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<str
 export default async function MoneyHistoryPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
-  const { user, deal } = await buyerDeal(pageHref(`/deals/${encodeURIComponent(id)}/money`, sp), id);
+  const { user, deal } = await buyerDeal(pageHref(`/deals/${encodeURIComponent(id)}/money`, sp), id, { legacyAt: "same" });
   const [documents, device] = await Promise.all([listDealDocuments(user, deal.id), getDevice()]);
   const rows = documentRows(documents);
   const shown = documents.filter((d) => d.kind === "MONEY_STATEMENT" || d.kind === "ACCEPTANCE_ACT");

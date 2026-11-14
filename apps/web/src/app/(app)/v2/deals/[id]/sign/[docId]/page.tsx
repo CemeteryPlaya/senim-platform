@@ -1,14 +1,14 @@
-import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { signStep } from "@/features/signing/state";
 import { ru } from "@/i18n/ru";
-import { Card, List, ListRow, Money, Narrow, Notice, PageTitle, Section, Stack } from "@/kit";
+import { Card, List, ListRow, Money, Narrow, Notice, PageTitle, Section, Stack, TextLink } from "@/kit";
 import { readDealDocuments } from "@/modules/documents";
 import { getDevice } from "@/platform/device";
 import { pageHref } from "../../../../../_shell/auth";
-import { buyerDealStep, dealCardHref } from "../../_parts/step-gate";
+import { dealHrefs } from "../../_parts/deal-card";
+import { buyerDeal } from "../../_parts/gate";
 import { SignArea } from "./_parts/SignArea";
 import { farWarning, isSignKind, stepView, whatRows, type WhatRow } from "./_parts/sign-view";
 
@@ -27,7 +27,7 @@ function Row({ row }: { row: WhatRow }) {
 
 /**
  * Подпись документа сделки покупателем — один экран для оферты и акта приёмки (вид — из данных модуля). Ворота — покупатель
- * этой сделки (`buyerDealStep`, чужая сделка — 404); документы — `readDealDocuments` (только чтение, выписка не выпускается).
+ * этой сделки (`buyerDeal`, чужая сделка — 404); документы — `readDealDocuments` (только чтение, выписка не выпускается).
  * Документа нет среди действующих документов своей сделки (заменён новой редакцией, старая ссылка) или подписывать сейчас
  * нечего (уже подписано, не тот шаг сделки, открыт спор) — карточка сделки без ошибки: её главное действие ведёт на
  * действующую редакцию. Документ есть, но это не оферта/акт или покупатель не его подписант — 404. Порядок: «Назад: <сделка>»,
@@ -37,9 +37,9 @@ function Row({ row }: { row: WhatRow }) {
 export default async function SignPage({ params, searchParams }: Props) {
   const { id, docId } = await params;
   const sp = await searchParams;
-  const { user, deal } = await buyerDealStep(pageHref(`/deals/${encodeURIComponent(id)}/sign/${encodeURIComponent(docId)}`, sp), id);
+  const { user, deal } = await buyerDeal(pageHref(`/deals/${encodeURIComponent(id)}/sign/${encodeURIComponent(docId)}`, sp), id);
   const [documents, device] = await Promise.all([readDealDocuments(user, deal.id), getDevice()]);
-  const card = dealCardHref(deal.id);
+  const card = dealHrefs(deal.id).card;
   const doc = documents.find((d) => d.id === docId);
   // Своя сделка, а документа среди действующих нет: заменённая редакция или старая ссылка. Ответ один и тот же для любого
   // id — о чужих документах он ничего не говорит; карточка ведёт к действующей редакции.
@@ -73,12 +73,10 @@ export default async function SignPage({ params, searchParams }: Props) {
             ))}
           </List>
         </Card>
-        {/* PDF — обработчик маршрута, а не экран: обычная ссылка в новой вкладке, без перехода и предзагрузки роутера. */}
-        <a href={doc.pdfUrl} target="_blank" rel="noopener" className="inline-flex min-h-control w-fit items-center gap-2 text-body font-medium text-ink no-underline hover:underline">
+        {/* PDF — обработчик маршрута, а не экран: обычная ссылка в новой вкладке (`external`). */}
+        <TextLink href={doc.pdfUrl} external>
           {t.what.open}
-          <span className="sr-only">({t.what.openHint})</span>
-          <ExternalLink aria-hidden className="size-4 shrink-0" />
-        </a>
+        </TextLink>
       </Section>
       {kind === "ACCEPTANCE_ACT" && (
         <Stack>
@@ -95,7 +93,7 @@ export default async function SignPage({ params, searchParams }: Props) {
           </Card>
         </Stack>
       )}
-      <SignArea documentId={doc.id} kind={kind} step={step} dealHref={card} device={device} />
+      <SignArea documentId={doc.id} kind={kind} step={step} dealHref={card} device={device} fullName={user.fullName ?? ""} />
     </Stack>
   );
   return device === "desktop" ? <Narrow>{body}</Narrow> : body;

@@ -5,6 +5,7 @@ import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import {
   getCurrentUser,
   getShellUser,
+  homePathFor,
   mfaHref,
   needsConsent,
   needsEmail,
@@ -73,6 +74,15 @@ export function homeFor(user: Pick<StepUser, "role" | "executor">, chosen: Chose
     case "MEASURER":
       return to("/measurer");
   }
+}
+
+/**
+ * Куда вести сразу после переключения роли, если возврата нет. У мастера в v2 пока нет экранов (этап 4): его дом — рабочий
+ * экран v1 (`homePathFor`: входящие заявки или регистрация мастера), а не временная главная v2 и не заглушка «раздел
+ * переносится». У остальных ролей — дом v2 (`homeFor`).
+ */
+export function homeAfterSwitch(user: Pick<StepUser, "role" | "executor">): string {
+  return user.role === "EXECUTOR" ? homePathFor(user) : homeFor(user);
 }
 
 /** Адрес шага с возвратом: `/v2/consent?next=%2Fv2%2Fdeals%2F1` или без параметра. */
@@ -171,11 +181,11 @@ export async function userPastOnboarding(here: string): Promise<CurrentUser | nu
 
 /**
  * Адрес экрана переключения роли v2 с возвратом (`returnTo` — путь v2; чужое и не-путь отбрасываются safeReturnTo):
- * единственное место, где ворота оболочки и профиль строят эту ссылку. Параметры те же, что у v1: `to` и `returnTo`.
+ * единственное место, где ворота оболочки и профиль строят эту ссылку. Параметры те же, что у v1: `to` и `returnTo` (без возврата — после переключения человек идёт в дом новой роли).
  */
-export function switchRoleTo(role: Role, returnTo: string): string {
+export function switchRoleTo(role: Role, returnTo: string | null = null): string {
   const params = new URLSearchParams({ to: role });
-  const back = safeReturnTo(returnTo);
+  const back = returnTo === null ? null : safeReturnTo(returnTo);
   if (back) params.set("returnTo", back);
   return `${to("/switch-role")}?${params}`;
 }
