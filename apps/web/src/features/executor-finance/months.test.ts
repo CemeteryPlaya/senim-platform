@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { barPercent, chartWindow, monthName, monthTitle, selectedMonth, shiftMonth, versusPrevious } from "./months";
+import { barPercent, chartWindow, monthName, monthNumber, monthTitle, monthYear, percentChange, selectedMonth, shiftMonth, versusPrevious } from "./months";
 
 describe("месяцы «Финансов»", () => {
   it("сдвиг через границу года", () => {
@@ -50,5 +50,21 @@ describe("месяцы «Финансов»", () => {
   it("названия месяца", () => {
     expect(monthName("2026-11")).toBe("ноябрь");
     expect(monthTitle("2026-03")).toBe("Март 2026");
+  });
+
+  it("percentChange — целые проценты без float; прошлого нет — null", () => {
+    expect(percentChange(118n, 100n)).toBe(18n);
+    expect(percentChange(95n, 100n)).toBe(-5n);
+    expect(percentChange(100n, 100n)).toBe(0n);
+    expect(percentChange(199n, 100n)).toBe(99n);
+    expect(percentChange(5n, 0n)).toBeNull();
+    expect(percentChange(0n, 7n)).toBe(-100n);
+    // Сумма больше безопасного целого float: точность не теряется.
+    expect(percentChange(2n * 10n ** 18n, 10n ** 18n)).toBe(100n);
+  });
+
+  it("monthNumber и monthYear — части ключа, в том числе на границе года", () => {
+    expect([monthYear("2026-01"), monthNumber("2026-01")]).toEqual([2026, 1]);
+    expect([monthYear(shiftMonth("2026-01", -1)), monthNumber(shiftMonth("2026-01", -1))]).toEqual([2025, 12]);
   });
 });

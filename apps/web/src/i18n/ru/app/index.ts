@@ -8,6 +8,8 @@ import { login } from "./login";
 import { master } from "./master";
 import { masterOffer } from "./master-offer";
 import { masterCompany } from "./master-company";
+import { masterFinance } from "./master-finance";
+import { masterPortfolio } from "./master-portfolio";
 import { masterRegister } from "./master-register";
 import { masterRequests } from "./master-requests";
 import { offer } from "./offer";
@@ -27,6 +29,8 @@ export const app = {
   master,
   masterOffer,
   masterCompany,
+  masterFinance,
+  masterPortfolio,
   masterRegister,
   masterRequests,
   offer,

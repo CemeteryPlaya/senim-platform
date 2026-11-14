@@ -55,9 +55,27 @@ export function barPercent(value: bigint, max: bigint): number {
  * сравнивать не с чем, null.
  */
 export function versusPrevious(current: bigint, previous: bigint, previousMonth: MonthKey): string | null {
+  const percent = percentChange(current, previous);
+  return percent === null ? null : t.vsPrev(percent, t.monthsTo[parts(previousMonth)[1] - 1]!);
+}
+
+/**
+ * Изменение к прошлому месяцу в целых процентах (bigint, дробь отбрасывается к нулю; без float). В прошлом месяце не
+ * было ничего — сравнивать не с чем, null. Чистое вычисление без текстов: v2 собирает подпись из своих текстов.
+ */
+export function percentChange(current: bigint, previous: bigint): bigint | null {
   if (previous === 0n) return null;
-  const percent = ((current - previous) * 100n) / previous;
-  return t.vsPrev(percent, t.monthsTo[parts(previousMonth)[1] - 1]!);
+  return ((current - previous) * 100n) / previous;
+}
+
+/** Номер месяца 1–12 из ключа «2026-11»: чистое вычисление без текстов (для названий месяцев v2). */
+export function monthNumber(key: MonthKey): number {
+  return parts(key)[1];
+}
+
+/** Год из ключа «2026-11». */
+export function monthYear(key: MonthKey): number {
+  return parts(key)[0];
 }
 
 /** «ноябрь». */
