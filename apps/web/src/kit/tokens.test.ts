@@ -270,7 +270,7 @@ describe("tokens.css совпадает с TOKENS", () => {
 
   it("полоса прогресса — 4 px, многострочное поле — от трёх строк", () => {
     const theme = block(css, /@theme/);
-    expect(theme).toMatch(/--spacing-progress:\s*0\.25rem\s*;/);
+    expect(theme).toMatch(/--spacing-progress:\s*0\.375rem\s*;/);
     expect(theme).toMatch(/--spacing-area:\s*calc\(3lh\s*\+\s*1\.625rem\)\s*;/);
   });
 

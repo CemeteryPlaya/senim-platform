@@ -2,7 +2,7 @@ import { ru } from "@/i18n/ru";
 
 export type ProgressProps = { value: number; max: number; label: string };
 
-/** Полоса прогресса (шаги сделки), 4 px. Нет смысла (`max <= 0`, не число) — ничего не рисуется. */
+/** Полоса прогресса (шаги сделки), 6 px со скруглением. Нет смысла (`max <= 0`, не число) — ничего не рисуется. */
 export function Progress({ value, max, label }: ProgressProps) {
   if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return null;
   const now = Math.min(Math.max(value, 0), max);

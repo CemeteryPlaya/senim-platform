@@ -172,7 +172,8 @@ describe("MoneyPanel", () => {
     const out = html(<MoneyPanel tone="protected" title="Деньги в банке под защитой" amount={20_400_000n} rows={rows} device="mobile" />);
     expect(hasClass(out, "bg-accent-soft")).toBe(true);
     expect(out).toContain("lucide-shield-check");
-    expect(hasClass(out, "text-title")).toBe(true);
+    // Сумма-герой блока денег — 40 px (`display-amount`, разбор 3.6), знак «₸» — меньше (Money large).
+    expect(hasClass(out, "text-display-amount")).toBe(true);
     expect(count(out, "tabular-nums")).toBe(5); // абзац главной суммы, она сама и три строки (Money)
     expect(text(<MoneyPanel tone="protected" title="t" amount={20_400_000n} device="mobile" />)).toContain(`204${NB}000${NB}₸`);
     expect(count(out, "<dt")).toBe(3);

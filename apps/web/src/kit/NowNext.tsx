@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { Card } from "./Card";
 
@@ -5,6 +6,11 @@ export type NowNextProps = {
   now: { title: string; body?: string };
   /** Что будет после: одна короткая строка. */
   next?: string;
+  /**
+   * Главное действие внутри карточки — только на компьютере (разбор 3.6: «кнопка внутри»), обычно `ActionDock` с одной
+   * кнопкой. На телефоне действие живёт в доке в конце экрана, сюда его не передают.
+   */
+  action?: ReactNode;
 };
 
 /**
@@ -12,7 +18,7 @@ export type NowNextProps = {
  * серая подпись, как у «Сейчас», и строка обычным весом. Обычная разметка без role="status": блок есть на странице
  * с загрузки, а живая область объявляла бы его при каждой подстановке данных.
  */
-export function NowNext({ now, next }: NowNextProps) {
+export function NowNext({ now, next, action }: NowNextProps) {
   const t = ru.app.kit.nowNext;
   return (
     <Card as="section">
@@ -25,6 +31,7 @@ export function NowNext({ now, next }: NowNextProps) {
           <p className="mt-1 text-body text-ink">{next}</p>
         </div>
       )}
+      {action && <div className="mt-4">{action}</div>}
     </Card>
   );
 }

@@ -63,7 +63,7 @@ export function MoneyPanel({ tone, title, amount, rows = [], note, action, devic
           {tone === "frozen" && <TriangleAlert aria-hidden className="size-5 shrink-0" />}
           <span className="min-w-0">{title}</span>
         </p>
-        <p className="text-title tabular-nums text-ink">
+        <p className="text-display-amount tabular-nums text-ink">
           <Money tiyn={amount} large />
         </p>
       </div>

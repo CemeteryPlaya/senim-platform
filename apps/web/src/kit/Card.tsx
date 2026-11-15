@@ -22,6 +22,11 @@ export type CardProps = {
    */
   cover?: ReactNode;
   /**
+   * Только у `hero` с `cover`: на компьютере обложка — слева на всю высоту карточки, содержимое — справа (две равные
+   * колонки, карточка-герой сделки на главной). На телефоне обложка остаётся сверху 16:9.
+   */
+  coverAside?: boolean;
+  /**
    * Карточка целиком кликабельна (обёрнута ссылкой или сама ссылка внутри растянута): на компьютере при наведении —
    * подъём на 2 px и тень `hover` за 200 мс. В покое тени нет (без тени в потоке); на телефоне отклика наведения нет.
    */
@@ -34,11 +39,12 @@ const HOVER =
   "desktop:transition desktop:duration-200 desktop:hover:-translate-y-0.5 desktop:hover:shadow-hover";
 
 /** Белая карточка на тёплом фоне: без рамки и тени, радиус 20 px (на компьютере 22 px). Серверный компонент. */
-export function Card({ as: Tag = "div", variant = "plain", padded = true, cover, interactive = false, className, children }: CardProps) {
+export function Card({ as: Tag = "div", variant = "plain", padded = true, cover, coverAside = false, interactive = false, className, children }: CardProps) {
   if (variant === "hero") {
+    const aside = coverAside && cover !== undefined && cover !== null && cover !== false;
     return (
-      <Tag data-card="hero" className={cn("overflow-hidden rounded-card bg-surface", interactive && HOVER, className)}>
-        {cover && <div className="photo-frame aspect-16/9 *:size-full *:object-cover">{cover}</div>}
+      <Tag data-card="hero" className={cn("overflow-hidden rounded-card bg-surface", aside && "desktop:grid desktop:grid-cols-2", interactive && HOVER, className)}>
+        {cover && <div className={cn("photo-frame aspect-16/9 *:size-full *:object-cover", aside && "desktop:aspect-auto")}>{cover}</div>}
         <div className="flex flex-col gap-4 p-6">{children}</div>
       </Tag>
     );
