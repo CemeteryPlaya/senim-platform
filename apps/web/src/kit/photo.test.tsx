@@ -39,7 +39,8 @@ describe("WorkCard: цена на фото", () => {
   const photo = { src: "/f/1.jpg", alt: "Кухня" };
   it("с фото цена в капсуле glass-clear под затемнением, в тексте её нет", () => {
     const out = html(<WorkCard title="К" meta="М" media="slot" priceFrom={1000n} photo={photo} />);
-    expect(out).toContain("scrim-photo");
+    expect(out).toContain("scrim-photo-soft");
+    expect(out).toContain("photo-overlay");
     expect(count(out, "от ")).toBe(1);
     expect(out).toMatch(/<p class="glass-clear[^"]*">от /);
   });
@@ -88,5 +89,17 @@ describe("PhotoGallery (закрытая)", () => {
   });
   it("пусто — ничего", () => {
     expect(html(<PhotoGallery photos={[]} layout="mosaic" label="x" />)).toBe("");
+  });
+});
+
+describe("WorkCard: порядок и приоритет", () => {
+  it("название раньше цены в разметке; фото сверху на экране (flex-col-reverse)", () => {
+    const out = html(<WorkCard href="/v2/x" title="Кухня" meta="М" media="slot" priceFrom={1000n} photo={{ src: "/f/1.jpg", alt: "К" }} />);
+    expect(out.indexOf("Кухня")).toBeLessThan(out.indexOf("от "));
+    expect(hasClass(out, "flex-col-reverse")).toBe(true);
+  });
+  it("priority: фото без ленивой загрузки", () => {
+    const out = html(<WorkCard title="К" meta="М" media="slot" photo={{ src: "/f/1.jpg", alt: "К" }} priority />);
+    expect(out).not.toContain('loading="lazy"');
   });
 });

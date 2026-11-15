@@ -36,3 +36,49 @@
     animation: gallery-in 150ms ease-out;
   }
 }
+
+/*
+ * Затемнение фото под капсулой цены на карточке работы: лёгкое, плато 15 % у нижнего края, спад к 35 % высоты. Капсула
+ * `glass-clear` (подложка 28 % + белый 600) сама держит контраст ≥ 4,5:1 на любом фото каталога; затемнение лишь мягко
+ * опускает самый светлый низ кадра. Для крупного текста прямо на фото — `scrim-photo` из tokens.css. При увеличении
+ * контраста плотнее.
+ */
+@utility scrim-photo-soft {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --scrim-photo-soft-alpha: 15%;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-soft-alpha), transparent) 0%,
+    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-soft-alpha), transparent) 12%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-soft-alpha) * 0.7), transparent) 18%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-soft-alpha) * 0.35), transparent) 26%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-soft-alpha) * 0.1), transparent) 31%,
+    transparent 35%
+  );
+  @media (prefers-contrast: more) {
+    --scrim-photo-soft-alpha: 40%;
+  }
+}
+
+/*
+ * Слой поверх фото (затемнение, капсулы) виден только после загрузки картинки: до неё и при ошибке — чистая заливка
+ * photo-fallback. Без скриптов (PhotoImage не поставит data-ready) слой виден сразу.
+ */
+.photo-overlay {
+  transition: opacity 200ms ease-out;
+}
+.photo-frame:not(:has(img[data-ready])) > .photo-overlay {
+  opacity: 0;
+}
+@media (scripting: none) {
+  .photo-frame:not(:has(img[data-ready])) > .photo-overlay {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .photo-overlay {
+    transition: none;
+  }
+}

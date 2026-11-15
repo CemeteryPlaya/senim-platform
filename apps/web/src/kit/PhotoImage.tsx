@@ -31,9 +31,13 @@ export function bypassOptimizer(src: string): boolean {
 export function PhotoImage({ src, alt, sizes, priority = false, className }: PhotoImageProps) {
   const ref = useRef<HTMLImageElement>(null);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (ref.current?.complete) setReady(true);
   }, []);
+  // Файл не загрузился: нейтральная заливка `photo-fallback` обёртки вместо значка «битая картинка»; затемнение и капсулы
+  // поверх фото (`photo-overlay`) не показываются, пока нет `data-ready`.
+  if (failed) return null;
   return (
     <Image
       ref={ref}
@@ -44,6 +48,7 @@ export function PhotoImage({ src, alt, sizes, priority = false, className }: Pho
       priority={priority}
       unoptimized={bypassOptimizer(src)}
       onLoad={() => setReady(true)}
+      onError={() => setFailed(true)}
       data-ready={ready ? "" : undefined}
       className={cn("photo-reveal object-cover", className)}
     />

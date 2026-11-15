@@ -50,7 +50,7 @@ export function PhotoChoice({ label, description, photo, icon, sizes = DEFAULT_S
         )}
       >
         {photo ? <PhotoImage src={photo.src} alt="" sizes={sizes} /> : icon}
-        <span className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full bg-action text-on-action opacity-0 group-has-checked:opacity-100">
+        <span className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full bg-action text-on-action shadow-float ring-1 ring-scrim/40 opacity-0 group-has-checked:opacity-100">
           <Check className="size-5" />
         </span>
       </span>

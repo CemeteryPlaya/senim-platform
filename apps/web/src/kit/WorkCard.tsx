@@ -24,6 +24,8 @@ export type WorkCardProps = {
   headingLevel?: 2 | 3;
   /** Ширина карточки на экране (`sizes` у фото): по умолчанию — колонка сетки каталога; в сетке из двух колонок задаёт вызывающий. */
   sizes?: string;
+  /** Первый экран: фото грузится сразу (первые карточки первого ряда каталога). */
+  priority?: boolean;
 };
 
 /**
@@ -42,7 +44,7 @@ export type WorkCardProps = {
  * (заглушка `photo-fallback`) цена остаётся в тексте под ним: белый текст на светлой заливке нечитаем. Серверный
  * компонент.
  */
-export function WorkCard({ href, title, meta, byline, priceFrom, media = "none", photo, headingLevel = 3, sizes }: WorkCardProps) {
+export function WorkCard({ href, title, meta, byline, priceFrom, media = "none", photo, headingLevel = 3, sizes, priority }: WorkCardProps) {
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const compact = media === "none";
   const priceOnPhoto = !compact && Boolean(photo?.src) && priceFrom !== undefined;
@@ -84,7 +86,9 @@ export function WorkCard({ href, title, meta, byline, priceFrom, media = "none",
       as="article"
       padded={false}
       className={cn(
-        "relative flex h-full flex-col overflow-hidden",
+        "relative flex h-full overflow-hidden",
+        // Режим с фото: в разметке сначала текст (название раньше цены для диктора), на экране фото сверху.
+        compact ? "flex-col" : "flex-col-reverse",
         href && "pressable has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus",
       )}
     >
@@ -95,15 +99,15 @@ export function WorkCard({ href, title, meta, byline, priceFrom, media = "none",
         </div>
       ) : (
         <>
-          <PhotoSlot ratio="4/3" radius="none" src={photo?.src} alt={photo?.alt ?? ""} {...(sizes ? { sizes } : {})}>
+          <div className="flex flex-1 flex-col p-4">{text}</div>
+          <PhotoSlot ratio="4/3" radius="none" src={photo?.src} alt={photo?.alt ?? ""} priority={priority} {...(sizes ? { sizes } : {})}>
             {priceOnPhoto && (
               <>
-                <div aria-hidden className="scrim-photo" />
+                <div aria-hidden className="scrim-photo-soft" />
                 <p className="glass-clear absolute bottom-3 left-3 rounded-chip px-3 py-1 text-body">{price}</p>
               </>
             )}
           </PhotoSlot>
-          <div className="flex flex-1 flex-col p-4">{text}</div>
         </>
       )}
     </Card>

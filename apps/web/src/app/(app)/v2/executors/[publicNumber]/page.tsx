@@ -25,23 +25,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * Факты крупно под заголовком (разбор 4, п. 9): рейтинг, сделки в сервисе, стаж. Значение — 22 px 600, пояснение под
- * ним серым. Рейтинг: «4,8» и «12 отзывов»; отзывов нет — «Пока без отзывов» (одна фраза, как везде).
+ * Факты крупно под заголовком (разбор 4, п. 9): рейтинг, сделки в сервисе, стаж — три в одну строку без подложки.
+ * Значение 22 px 600 в одну строку, подпись под ним серым. Нет данных — прочерк, а подпись говорит, чего нет
+ * («Пока без отзывов», «Пока без сделок»): высота значений одинакова.
  */
 function Facts({ view }: { view: ExecutorViewModel }) {
   const { rating } = view;
   const cells = [
     rating.value === null
-      ? { label: t.ratingLabel, value: ru.app.kit.rating.none }
+      ? { label: ru.app.kit.rating.none, value: t.emptyValue }
       : { label: ru.app.guest.catalog.reviews(rating.count), value: rating.value.toFixed(1).replace(".", ",") },
-    ...view.facts.map((fact) => ({ label: fact.after ?? fact.before ?? t.dealsLabel, value: fact.value })),
+    ...view.facts.map((fact) =>
+      fact.plain ? { label: fact.value, value: t.emptyValue } : { label: fact.after ?? fact.before ?? t.dealsLabel, value: fact.value },
+    ),
   ];
   return (
-    <div role="group" aria-label={t.factsLabel} className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-card bg-surface p-5 desktop:grid-cols-3">
+    <div role="group" aria-label={t.factsLabel} className="grid grid-cols-3 gap-4">
       {cells.map((cell) => (
         <dl key={cell.label} className="m-0 flex min-w-0 flex-col-reverse gap-1">
           <dt className="text-sub text-muted">{cell.label}</dt>
-          <dd className="m-0 text-title-2 text-ink wrap-break-word tabular-nums">{cell.value}</dd>
+          <dd className="m-0 text-title-2 whitespace-nowrap text-ink tabular-nums">{cell.value}</dd>
         </dl>
       ))}
     </div>
@@ -174,14 +177,7 @@ export default async function ExecutorPage({ params }: Props) {
   if (!page) notFound();
   const device = await getDevice();
   const view = executorView(page);
-  const title = (
-    <div className="flex items-center gap-4">
-      <Monogram name={view.title} size="lg" />
-      <div className="min-w-0 flex-1">
-        <PageTitle title={view.title} back={{ href: view.backHref, label: t.backLabel }} />
-      </div>
-    </div>
-  );
+  const title = <PageTitle title={view.title} back={{ href: view.backHref, label: t.backLabel }} leading={<Monogram name={view.title} size="lg" />} />;
 
   if (device === "desktop") {
     return (

@@ -52,7 +52,7 @@ export function PhotoGallery({ photos, layout, label, sizes }: PhotoGalleryProps
   if (photos.length === 0) return null;
 
   const tile = (photo: GalleryPhoto, i: number, className: string, tileSizes: string, extra?: ReactNode, fillCell = false) => (
-    <button key={photo.src} type="button" aria-haspopup="dialog" onClick={() => setIndex(i)} className={cn(TILE, fillCell && "desktop:h-full", className)}>
+    <button key={`${i}-${photo.src}`} type="button" aria-haspopup="dialog" onClick={() => setIndex(i)} className={cn(TILE, fillCell && "desktop:h-full", className)}>
       <PhotoSlot ratio="4/3" src={photo.src} alt={photo.alt} sizes={tileSizes} className={fillCell ? "desktop:aspect-auto desktop:h-full" : undefined}>
         {extra}
       </PhotoSlot>
@@ -63,9 +63,9 @@ export function PhotoGallery({ photos, layout, label, sizes }: PhotoGalleryProps
   if (layout === "strip") {
     const single = photos.length === 1;
     tiles = (
-      <ul aria-label={label} className="flex snap-x snap-mandatory gap-2 overflow-x-auto desktop:grid desktop:grid-cols-3 desktop:overflow-visible">
+      <ul aria-label={label} className="-m-1 flex snap-x snap-mandatory gap-2 overflow-x-auto p-1 desktop:grid desktop:grid-cols-3 desktop:overflow-visible">
         {photos.map((photo, i) => (
-          <li key={photo.src} className={cn("shrink-0 snap-start desktop:w-auto", single ? "w-full" : "w-4/5")}>
+          <li key={`${i}-${photo.src}`} className={cn("shrink-0 snap-start desktop:w-auto", single ? "w-full" : "w-4/5")}>
             {tile(photo, i, "", sizes ?? TILE_SIZES)}
           </li>
         ))}

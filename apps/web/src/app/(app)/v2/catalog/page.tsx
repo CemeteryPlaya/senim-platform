@@ -28,7 +28,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       {view.empty && <EmptyState title={view.empty.title} body={view.empty.body} action={view.empty.action} />}
       {view.cards.length > 0 && (
         <Columns count={3}>
-          {view.cards.map((card) => (
+          {view.cards.map((card, index) => (
             <WorkCard
               key={card.id}
               href={card.href}
@@ -39,6 +39,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
               media={view.media}
               photo={card.photo}
               headingLevel={2}
+              priority={index < (device === "desktop" ? 3 : 1)}
             />
           ))}
         </Columns>

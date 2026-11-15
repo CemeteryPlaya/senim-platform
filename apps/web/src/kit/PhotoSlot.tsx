@@ -25,7 +25,7 @@ export type PhotoSlotProps = {
   priority?: boolean;
   /** Размеры в раскладке: например, заполнить ячейку сетки на компьютере (`desktop:aspect-auto desktop:h-full`). */
   className?: string;
-  /** Слой поверх фото: затемнение `scrim-photo` и капсула `glass-clear` (цена, счётчик). Только при заданном `src`. */
+  /** Слой поверх фото: затемнение и капсула `glass-clear` (цена, счётчик). Только при заданном `src` и только после загрузки фото (`photo-overlay`). */
   children?: ReactNode;
 };
 
@@ -41,7 +41,7 @@ export function PhotoSlot({ src, alt, ratio, sizes = DEFAULT_SIZES, radius = "th
   return (
     <div className={cn("photo-frame w-full", RADII[radius], RATIOS[ratio], className)}>
       {src && <PhotoImage src={src} alt={alt} sizes={sizes} priority={priority} />}
-      {src && children}
+      {src && children && <div className="photo-overlay pointer-events-none absolute inset-0">{children}</div>}
     </div>
   );
 }

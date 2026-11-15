@@ -201,6 +201,8 @@ export const guest = {
     factsLabel: "Сводка по мастеру",
     ratingLabel: "Рейтинг",
     dealsLabel: "Сделки",
+    /** Значение факта, когда данных нет: подпись под ним говорит, чего именно. */
+    emptyValue: "—",
     conditionsTitle: "Условия",
     rows: {
       specializations: "Специализация",
