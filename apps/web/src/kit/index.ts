@@ -91,3 +91,6 @@ export { ChatComposer } from "./ChatComposer";
 export type { ChatComposerProps } from "./ChatComposer";
 export { SignaturePad } from "./SignaturePad";
 export type { SignaturePadProps, SignatureValue } from "./SignaturePad";
+export { PhoneFrame } from "./PhoneFrame";
+export type { PhoneFrameProps } from "./PhoneFrame";
+export { TrustCapsule } from "./TrustCapsule";

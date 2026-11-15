@@ -5,6 +5,7 @@
 @import "tailwindcss" source(none);
 @import "../../kit/tokens.css";
 @import "../../kit/overlays.css";
+@import "../../kit/landing.css";
 
 @source "../../kit";
 @source ".";

@@ -1,108 +1,53 @@
-import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Card, Columns, Explain, HelpBlock, Narrow, PageTitle, Section, Split, Stack, TextLink } from "@/kit";
+import { ActionDock, ButtonLink } from "@/kit";
 import type { Device } from "@/platform/device";
-import { to } from "../../_shell/paths";
-import { ABOUT_ANCHORS } from "../about/anchors";
+import { DesktopHero, Facts, Footer, Help, MobileHero, MoneySection, Steps, Works } from "./GuestLanding";
+import { heroPhoto, stepScreens, workTiles } from "./landing-media";
 import { loginHref } from "./links";
 
 const t = ru.app.guest.home;
 
-/** Ссылка для мастера: тихая, вне панели действий (в панели телефона — одна главная кнопка). */
-function ExecutorLink() {
-  return <TextLink href={loginHref("executor")}>{t.executorLink}</TextLink>;
-}
-
 /**
- * Главная гостя: обещание продукта, вход, три шага, где лежат деньги и «Помощь».
+ * Главная гостя — лендинг (разбор 3.8, спека раздел 18). Порядок: первый экран, три факта, «Как это работает» со
+ * снимками наших экранов, тёмный раздел «Где ваши деньги», «Работы мастеров», «Помощь», подвал.
  *
- * Компьютер — три ряда. 1: `Split` 1,5 : 1 — слева заголовок, подзаголовок, главная кнопка и под ней отдельной строкой ссылка для мастера, справа
- * «Где ваши деньги». 2: «Как это работает» на всю ширину тремя карточками в ряд. 3: «Помощь» в `Narrow`.
- * Телефон — одна колонка: название продукта мелкой строкой, заголовок, ссылка для мастера (виден на первом экране), шаги, деньги, «Помощь»; главная
- * кнопка — одна в `ActionDock` в конце, он прилипает над панелью вкладок. Док в разметке один, поэтому
- * `data-primary-action` на странице один. Фотографий нет.
+ * Компьютер: первый экран — фото на всю ширину окна под стеклянной шапкой, белый заголовок 64 px, единственная главная
+ * кнопка — белая (`inverse`) на затемнении фото, рядом ссылка мастера. Дока нет: кнопка — в первом экране.
+ * Телефон: название продукта, заголовок 40 px, подзаголовок, фото 4:5 с капсулой доверия, ссылка мастера; главная
+ * кнопка — одна в `ActionDock`, последним ребёнком колонки (прилипает над панелью вкладок с первого экрана).
+ * На странице один `h1` и одно главное действие (`data-primary-action`).
  */
 export function GuestHome({ device }: { device: Device }) {
-  const helpItems = [
-    { question: t.helpMoney, href: `${to("/about")}#${ABOUT_ANCHORS.money}` },
-    { question: t.helpPrice, href: `${to("/about")}#${ABOUT_ANCHORS.price}` },
-    { question: t.helpRefusal, href: `${to("/about")}#${ABOUT_ANCHORS.refusal}` },
-  ];
-  const primary = <ButtonLink href={loginHref("client")}>{t.clientAction}</ButtonLink>;
-  const title = <PageTitle title={t.title} lead={t.lead} />;
-
-  // Ряд карточек шагов: колонка на телефоне, три равные колонки на компьютере (`Columns`).
-  const steps = (
-    <Section title={t.stepsTitle}>
-      <Columns count={3}>
-        {t.steps.map((step, index) => (
-          <Card key={step.title} as="article">
-            <p className="text-small text-muted">{t.stepLabel(index + 1)}</p>
-            <h3 className="mt-1 text-headline text-ink">{step.title}</h3>
-            <p className="mt-1 text-body text-ink">{step.text}</p>
-          </Card>
-        ))}
-      </Columns>
-    </Section>
-  );
-  const trust = (
-    <Section title={t.trustTitle}>
-      <Card>
-        <Stack>
-          {t.trustParagraphs.map((text) => (
-            <p key={text} className="text-body text-ink">
-              {text}
-            </p>
-          ))}
-          <p className="text-body">
-            <Explain label={t.explainLabel} title={t.explainTitle} device={device}>
-              <p>{t.explainBody}</p>
-            </Explain>
-          </p>
-        </Stack>
-      </Card>
-    </Section>
-  );
-  const help = <HelpBlock items={helpItems} supportEmail={brand.support.email} />;
+  const photo = heroPhoto();
+  const screens = stepScreens(t.stepShots);
+  const tiles = workTiles();
 
   if (device === "desktop") {
     return (
-      <Stack gap="section">
-        <Split
-          main={
-            <Stack gap="section">
-              {title}
-              {/* Ссылка мастера — отдельной строкой под кнопкой: в ряду с ней зазор был бы 8 px и читался бы как одна пара. */}
-              <Stack gap="tight">
-                <ActionDock>{primary}</ActionDock>
-                <div>
-                  <ExecutorLink />
-                </div>
-              </Stack>
-            </Stack>
-          }
-          aside={trust}
-        />
-        {steps}
-        <Narrow>{help}</Narrow>
-      </Stack>
+      <div className="flex flex-col gap-24">
+        <DesktopHero photo={photo} />
+        <Facts />
+        <Steps device={device} screens={screens} />
+        <MoneySection device={device} />
+        <Works device={device} tiles={tiles} />
+        <Help />
+        <Footer />
+      </div>
     );
   }
 
   return (
-    <Stack gap="section">
-      <Stack gap="tight">
-        {/* Название продукта — мелкой строкой над заголовком: на телефоне шапки нет (на компьютере оно в шапке). */}
-        <p className="text-sub text-muted">{ru.common.brand}</p>
-        {title}
-        <div>
-          <ExecutorLink />
-        </div>
-      </Stack>
-      {steps}
-      {trust}
-      {help}
-      <ActionDock>{primary}</ActionDock>
-    </Stack>
+    <div className="flex flex-col gap-14">
+      <MobileHero photo={photo} />
+      <Facts />
+      <Steps device={device} screens={screens} />
+      <MoneySection device={device} />
+      <Works device={device} tiles={tiles} />
+      <Help />
+      <Footer />
+      <ActionDock>
+        <ButtonLink href={loginHref("client")}>{t.clientAction}</ButtonLink>
+      </ActionDock>
+    </div>
   );
 }

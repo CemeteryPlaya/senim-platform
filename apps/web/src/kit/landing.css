@@ -1,0 +1,113 @@
+/*
+ * Лендинг гостя (разбор 3.8): первый экран с фото на всю ширину, рамка телефона для снимков экранов, тёмный раздел и
+ * ширины колонок. Отдельный файл, а не tokens.css: палитра и стекло живут там, а здесь — только раскладка одного экрана.
+ * Цвета — только роли (var(--role-*)); сырых значений цвета нет.
+ */
+
+@theme {
+  --container-hero: 46rem; /* колонка текста первого экрана на компьютере: заголовок 64px в 3 строки */
+  --container-lead: 34ch; /* подзаголовок первого экрана: не шире 34 знаков */
+  --container-help: 42.5rem; /* «Помощь» на лендинге: колонка 680px */
+  --radius-hero: 1.5rem; /* 24px — фото первого экрана на телефоне */
+  --radius-phone: 2.75rem; /* 44px — рамка телефона со снимком экрана */
+  --radius-phone-screen: calc(var(--radius-phone) - var(--spacing-phone-bezel)); /* концентрично рамке */
+  --spacing-phone-bezel: 0.375rem; /* 6px — рамка телефона вокруг снимка */
+  --spacing-hero-tile: 17rem; /* ширина карточки в ленте работ на телефоне */
+}
+
+/*
+ * Блок на всю ширину окна из колонки содержимого (первый экран, тёмный раздел): ширина окна и сдвиг влево на
+ * разницу. 100vw включает полосу прокрутки (Windows), поэтому корень страницы с таким блоком обрезает горизонтальный
+ * выход за край (overflow-x: clip — без своей области прокрутки, прилипание шапки не ломается).
+ */
+@utility bleed {
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+}
+:root:has([data-bleed]) {
+  overflow-x: clip;
+}
+
+/*
+ * Первый экран компьютера: высота min(88vh, 860px), фото уходит под стеклянную шапку — блок поднят на её высоту и
+ * верхнее поле области содержимого (DesktopShell: main pt-8 = 2rem), а сверху отступает столько же, чтобы текст не
+ * попал под шапку. При крупном шрифте блок растёт по содержимому (min-height), фото тянется вместе с ним.
+ */
+@utility hero-fold {
+  min-height: min(88vh, 53.75rem);
+  margin-top: calc(-1 * (var(--spacing-header) + 2rem));
+  padding-top: calc(var(--spacing-header) + 2rem);
+}
+
+/*
+ * Затемнение фото первого экрана под белым текстом. Плато scrim-photo-start держит контраст только у левого нижнего
+ * угла, а здесь текст — заголовок 64px в три строки, подзаголовок, кнопка и капсула — занимает левые ~60% ширины и
+ * нижние ~60% высоты. Поэтому три слоя (каждый поверх предыдущего, непрозрачности перемножаются):
+ * - всё фото — 30%: фото «под текст», как у образцов;
+ * - колонка текста — ещё 36% от левого края до правой границы колонки (центр + 14rem при содержимом 1100px), к центру
+ *   + 34rem тает; в колонке итог 1 − 0,70 · 0,64 = 55,2%;
+ * - нижняя полоса (подпись фото справа внизу) — ещё 36% на нижние 5rem, к 12rem тает; итог там тоже ≥ 55,2%.
+ * Белый текст на белом фото под 55,2% черного — 4,78:1 (landing.test.ts).
+ * При увеличении контраста — плотнее (итог ≈ 70%).
+ */
+@utility scrim-hero {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --hero-scrim-base: 30%;
+  --hero-scrim-zone: 36%;
+  background:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--role-scrim) var(--hero-scrim-zone), transparent) 0,
+      color-mix(in srgb, var(--role-scrim) var(--hero-scrim-zone), transparent) calc(50% + 14rem),
+      transparent calc(50% + 34rem)
+    ),
+    linear-gradient(
+      to top,
+      color-mix(in srgb, var(--role-scrim) var(--hero-scrim-zone), transparent) 0,
+      color-mix(in srgb, var(--role-scrim) var(--hero-scrim-zone), transparent) 5rem,
+      transparent 12rem
+    ),
+    linear-gradient(
+      color-mix(in srgb, var(--role-scrim) var(--hero-scrim-base), transparent),
+      color-mix(in srgb, var(--role-scrim) var(--hero-scrim-base), transparent)
+    );
+  @media (prefers-contrast: more) {
+    --hero-scrim-base: 45%;
+    --hero-scrim-zone: 46%;
+  }
+}
+
+/*
+ * Рамка телефона вокруг снимка экрана («Как это работает»): тёмный корпус в обеих темах (почти чёрный от scrim), тонкая
+ * светлая кромка — край виден и на тёмной странице, тень float. Снимок внутри — с радиусом экрана, концентрично.
+ */
+@utility phone-frame {
+  padding: var(--spacing-phone-bezel);
+  border-radius: var(--radius-phone);
+  background-color: color-mix(in srgb, var(--role-scrim) 88%, var(--role-on-photo));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--role-on-photo) 14%, transparent),
+    var(--elev-float);
+}
+
+/*
+ * Затемнение фото от верхнего края — для капсулы у верхнего края фото первого экрана на телефоне (у нижнего края её
+ * закрыли бы док главной кнопки и панель вкладок). Как scrim-photo, только сверху: плато 55% на верхнюю четверть
+ * (белый на белом фото — 4,74:1), к 60% высоты — прозрачно. При увеличении контраста — 70%.
+ */
+@utility scrim-photo-top {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 0%,
+    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 25%,
+    transparent 60%
+  );
+  @media (prefers-contrast: more) {
+    --scrim-photo-alpha: 70%;
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "temporary": true,
+  "note": "Временные снимки экранов v2 со стенда (покупатель +77000000101, телефон 390×844, светлая тема). Пересъёмка после пересмотра вида (этап 04b): экраны ещё меняются.",
+  "shotAt": "2026-11-15",
+  "screens": [
+    {
+      "key": "request-new",
+      "file": "request-new.webp",
+      "route": "/v2/requests/new",
+      "width": 600,
+      "height": 1298,
+      "size": 27850,
+      "sha256": "2270989bf727b1d241d61f2e31334baccc03d7f9bb387925e5c72ae0c1495f2b"
+    },
+    {
+      "key": "request-offers",
+      "file": "request-offers.webp",
+      "route": "/v2/requests/[id]",
+      "width": 600,
+      "height": 1298,
+      "size": 35400,
+      "sha256": "7a862e03c760ee8ba45e15d6fcf34ea563e768e72877ccd5a37290e344435812"
+    },
+    {
+      "key": "deal-money",
+      "file": "deal-money.webp",
+      "route": "/v2/deals/[id]",
+      "width": 600,
+      "height": 1298,
+      "size": 30650,
+      "sha256": "a1b2d08b275b3cc1c35b5bf4fd9eae597168056b618d7de97bf4fa42f7f5c087"
+    }
+  ]
+}
