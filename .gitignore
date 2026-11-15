@@ -7,3 +7,4 @@ deploy/compose/certs/
 .superpowers/
 .claude/
 .codebase-memory/
+.playwright-mcp/
