@@ -10,7 +10,7 @@ import manifestJson from "../../public/stand-photos/manifest.json";
 
 export const STAND_PHOTOS_DIR = "stand-photos";
 
-/** Для чего снимок: портфолио мастеров сида, фото отчётов и сдачи, «герой» лендинга, запас для плиток. */
+/** Для чего снимок: портфолио мастеров сида, фото отчётов и сдачи (готовая мебель — report-*, цех и монтаж — process-*), «герой» лендинга, запас для плиток. */
 export type StandPhotoUse = "portfolio" | "report" | "hero" | "extra";
 
 export const STAND_PHOTO_KEYS = [
@@ -23,6 +23,7 @@ export const STAND_PHOTO_KEYS = [
   "report-kids-1", "report-tv-1", "report-office-1", "report-table-1",
   "hero-kitchen-oak", "hero-kitchen-white",
   "hallway-storage", "bathroom-vanity", "dresser-retro", "workshop-bench", "workshop-hall",
+  "process-sheets", "process-carcass", "process-cnc", "process-assembly", "process-install", "process-drawers",
 ] as const;
 export type StandPhotoKey = (typeof STAND_PHOTO_KEYS)[number];
 

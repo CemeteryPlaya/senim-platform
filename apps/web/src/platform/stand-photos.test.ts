@@ -15,7 +15,7 @@ describe("манифест временных фото стенда", () => {
     expect(records.map((r) => r.key).sort()).toEqual([...STAND_PHOTO_KEYS].sort());
     expect(new Set(records.map((r) => r.file)).size).toBe(records.length);
     expect(records.length).toBeGreaterThanOrEqual(30);
-    expect(records.length).toBeLessThanOrEqual(40);
+    expect(records.length).toBeLessThanOrEqual(50);
   });
 
   it("каждый файл на месте, это WebP, размер и sha256 из манифеста верны, ≤ 250 КБ", () => {
@@ -57,6 +57,9 @@ describe("манифест временных фото стенда", () => {
     expect(k).toMatchObject({ src: "/stand-photos/kitchen-sage.webp", storageKey: "stand-photos/kitchen-sage.webp", type: "kitchen" });
     expect(standPhotosByType("kitchen", "portfolio").map((p) => p.key)).toEqual(["kitchen-sage", "kitchen-island-oak", "kitchen-neoclassic", "kitchen-terracotta"]);
     for (const type of ["kitchen", "wardrobe", "walk-in-closet", "hallway", "bathroom"]) expect(standPhotosByType(type).length, type).toBeGreaterThanOrEqual(2);
+    // «Ход работ» — процесс (цех, сборка, монтаж), а не чужая готовая мебель: снимки process-* мастерской.
+    expect(standPhotosByType("workshop", "report").map((p) => p.key).every((k) => k.startsWith("process-"))).toBe(true);
+    expect(standPhotosByType("workshop", "report").length).toBeGreaterThanOrEqual(4);
     const heroes = standHeroPhotos();
     expect(heroes.length).toBeGreaterThanOrEqual(2);
     for (const h of heroes) expect(h.width, h.key).toBeGreaterThan(h.height);
