@@ -32,13 +32,23 @@ function lastBusinessMoment(now: number): number {
   return Math.min(now, close);
 }
 
-/** `days` дней назад в рабочих часах: каждый день плана — календарный день, доля дня — доля рабочего окна. */
+/** Доля рабочего окна, которую задаёт сама дата (иначе целые дни плана все попадали бы на одно и то же время суток). */
+const DATE_SHARE = 0.8;
+const dateJitter = (dayStart: number) => ((Math.round(dayStart / DAY) * 0.618_033_988_7) % 1 + 1) % 1;
+
+/**
+ * `days` дней назад в рабочих часах: каждый день плана — календарный день. Внутри прошедших дней время суток задаёт дата
+ * (DATE_SHARE окна) и доля дня плана (остаток окна) — порядок шагов одного дня сохраняется; сегодня — только доля дня
+ * плана, чтобы не уйти позже «сейчас».
+ */
 function businessTime(days: number, now: number): number {
   const b = lastBusinessMoment(now);
   const bDay = astanaMidnight(b);
   const x = (b - bDay - OPEN_H * HOUR) / (SPAN_H * HOUR) - days;
   const offset = Math.floor(x);
-  return bDay + offset * DAY + OPEN_H * HOUR + (x - offset) * SPAN_H * HOUR;
+  const day = bDay + offset * DAY;
+  const position = offset < 0 ? (1 - DATE_SHARE) * (x - offset) + DATE_SHARE * dateJitter(day) : x - offset;
+  return day + OPEN_H * HOUR + position * SPAN_H * HOUR;
 }
 
 /** Момент по плану; `thisMonth` в первые дни месяца сжимается пропорционально и не выходит за начало месяца. */
