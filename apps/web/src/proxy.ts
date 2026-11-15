@@ -25,6 +25,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Статика сборки и картинки из public/ — без проверки: в них нет данных стенда.
-  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|icon\\.svg|img/).*)"],
+  // Статика сборки и картинки из public/ — без проверки: в них нет данных стенда. Временные фото мебели (stand-photos/)
+  // и снимки экранов лендинга (app-screens/) тоже публичны: оптимизатор /_next/image запрашивает их у сервера без
+  // basic-auth, и за паролем показа ни одно фото не грузилось. Приватные фото (отчёты, сдача) идут через /api/files
+  // по подписанной ссылке и остаются за паролем.
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|icon\\.svg|img/|stand-photos/|app-screens/).*)"],
 };
