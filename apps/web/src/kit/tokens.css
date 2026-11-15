@@ -1023,6 +1023,10 @@
   @supports not (animation-timeline: scroll()) {
     animation: none;
   }
+  /* Меньше движения — имя видно сразу, без проявления. */
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 }
 
 /*

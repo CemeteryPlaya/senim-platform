@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { Card, cn, List, ListItem, Monogram, StatusChip } from "@/kit";
 import type { DealSide } from "../../../_shell/side";
@@ -61,5 +62,25 @@ export function ChatList({ rows, side, current = null, className }: { rows: read
         </List>
       </nav>
     </Card>
+  );
+}
+
+/**
+ * Компьютер: «Чаты» в две панели, как в «Сообщениях» (разбор 3.9) — один каркас у списка (`/v2/chats`) и у диалога
+ * (`/v2/chats/<id>`), поэтому при переходе левая панель не прыгает. Слева заголовок «Чаты» (`heading`: на экране списка —
+ * его h1, у диалога — h2 того же размера; h1 там — собеседник) и список 360 px со своей прокруткой; справа — `children`
+ * (подсказка или переписка). Всё — на высоту окна за вычетом шапки (`screen-fill`).
+ */
+export function ChatPanes({ rows, side, current = null, heading, children }: { rows: readonly ChatRowView[]; side: DealSide; current?: string | null; heading: ReactNode; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-chats grid-rows-1 gap-split screen-fill">
+      <div className="flex min-h-0 min-w-0 flex-col gap-stack-section">
+        {heading}
+        <div className="min-h-0 overflow-y-auto rounded-card">
+          <ChatList rows={rows} side={side} current={current} />
+        </div>
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-col gap-stack-section">{children}</div>
+    </div>
   );
 }

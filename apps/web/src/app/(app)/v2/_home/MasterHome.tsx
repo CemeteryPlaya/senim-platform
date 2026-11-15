@@ -99,7 +99,7 @@ export async function MasterHome({ user, status, device }: { user: CurrentUser; 
   const { shown, more } = shownDeals(running, view.now.deal?.id ?? null);
   const month = monthOf(new Date());
   // Обложка карточки-героя — последнее фото отчёта хода работ сделки из «Сейчас» (если есть).
-  const cover = view.now.deal ? await dealCover(user, view.now.deal.id) : null;
+  const cover = view.now.deal ? await dealCover(user, view.now.deal) : null;
   const data: MasterHomeData = {
     view,
     firstSteps,

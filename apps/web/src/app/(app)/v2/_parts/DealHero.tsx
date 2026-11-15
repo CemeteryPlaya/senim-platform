@@ -43,7 +43,7 @@ export function DealHero({ deal, side, cover, now, action, link, progressLabel }
         <>
           <div aria-hidden className="scrim-photo" />
           <div className="absolute inset-x-3 bottom-3 flex">
-            <p className="glass-clear inline-flex min-h-8 max-w-full items-center rounded-chip px-3 text-sub">{caption}</p>
+            <p className="glass-clear photo-capsule inline-flex min-h-8 max-w-full items-center rounded-chip px-3 text-sub">{caption}</p>
           </div>
         </>
       )}

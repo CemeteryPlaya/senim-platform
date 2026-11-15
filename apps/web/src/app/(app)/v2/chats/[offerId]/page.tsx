@@ -8,7 +8,7 @@ import { isAppError } from "@/platform/errors";
 import { requireParty, switchRoleTo } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
 import type { DealSide } from "../../../_shell/side";
-import { ChatList } from "../_parts/ChatList";
+import { ChatPanes } from "../_parts/ChatList";
 import { chatHref, chatRoomModel, chatRows, contextLink, contextOf, counterpartOf } from "../_parts/chat-view";
 import { ChatRoom } from "./ChatRoom";
 
@@ -66,22 +66,16 @@ export default async function ChatPage({ params }: Props) {
   );
 
   if (device === "desktop") {
-    // Компьютер — две панели, как в «Сообщениях» (разбор 3.9): слева список диалогов (360 px, своя прокрутка, открытый
-    // отмечен), справа заголовок и переписка. Всё — на высоту окна за вычетом шапки (screen-fill): заголовок не сжимается,
-    // лента — flex-1 со своей прокруткой, поле ввода последним.
+    // Компьютер — две панели (общий каркас ChatPanes с экраном списка): слева «Чаты» и список (открытый отмечен), справа
+    // заголовок и переписка: заголовок не сжимается, лента — flex-1 со своей прокруткой, поле ввода последним.
     const rows = chatRows(await listChats(user), new Date(), side);
     return (
-      <div className="grid grid-cols-chats grid-rows-1 gap-split screen-fill">
-        <div className="min-h-0 overflow-y-auto rounded-card">
-          <ChatList rows={rows} side={side} current={offerId} />
+      <ChatPanes rows={rows} side={side} current={offerId} heading={<h2 className="text-balance text-title text-ink">{ru.app.chat.list.title}</h2>}>
+        <div className="shrink-0">
+          <PageTitle title={counterpart} back={back} lead={lead} />
         </div>
-        <div className="flex min-h-0 min-w-0 flex-col gap-stack-section">
-          <div className="shrink-0">
-            <PageTitle title={counterpart} back={back} lead={lead} />
-          </div>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">{room}</div>
-        </div>
-      </div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{room}</div>
+      </ChatPanes>
     );
   }
 

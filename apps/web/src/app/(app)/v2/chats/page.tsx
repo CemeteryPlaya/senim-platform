@@ -6,7 +6,7 @@ import { listMyRequests } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
 import { masterStatusOf, pageHref, requireParty } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
-import { ChatList } from "./_parts/ChatList";
+import { ChatList, ChatPanes } from "./_parts/ChatList";
 import { chatRows } from "./_parts/chat-view";
 
 const t = ru.app.chat.list;
@@ -45,15 +45,11 @@ export default async function ChatsPage() {
 
   if (device === "desktop") {
     return (
-      <Stack gap="section">
-        {title}
-        <div className="grid grid-cols-chats items-start gap-split">
-          <ChatList rows={rows} side={side} />
-          <Card className="flex min-h-chat items-center justify-center">
-            <p className="max-w-narrow text-center text-body text-muted">{t.pick}</p>
-          </Card>
-        </div>
-      </Stack>
+      <ChatPanes rows={rows} side={side} heading={title}>
+        <Card className="flex flex-1 items-center justify-center">
+          <p className="max-w-narrow text-center text-body text-muted">{t.pick}</p>
+        </Card>
+      </ChatPanes>
     );
   }
 

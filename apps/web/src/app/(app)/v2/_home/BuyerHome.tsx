@@ -48,6 +48,6 @@ export async function BuyerHome({ user, device }: { user: CurrentUser; device: D
   const view = buyerHome({ deals, requests: inputs });
   const shown = view.deal ? (mine.find((d) => d.id === view.deal?.id) ?? null) : null;
   // Обложка карточки-героя — последнее фото отчёта хода работ этой сделки (если есть).
-  const cover = shown ? await dealCover(user, shown.id) : null;
+  const cover = shown ? await dealCover(user, shown) : null;
   return <BuyerHomeView view={view} name={firstName(user.fullName)} deal={shown} cover={cover} device={device} />;
 }
