@@ -166,6 +166,12 @@ describe("стекло: текст читается при худшем фоне
     },
   );
 
+  // Опасный пункт меню («Открыть спор») на толстом стекле: текст danger при худшем фоне.
+  it.each(["light", "dark"] as const)("%s: danger на glass-thick при худшем фоне — не ниже 4,5:1", (theme) => {
+    const worst = Math.min(...[WHITE, BLACK].map((under) => contrast(TOKENS[theme].danger, over(GLASS[theme].tint, GLASS[theme].thick, under))));
+    expect(worst).toBeGreaterThanOrEqual(4.5);
+  });
+
   it("тёплый вторичный текст стекла светлой темы — #4a4844 (в тон ink)", () => {
     expect(GLASS.light.secondary).toBe("#4a4844");
   });

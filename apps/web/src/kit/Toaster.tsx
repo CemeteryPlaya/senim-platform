@@ -11,8 +11,8 @@ export { toast };
 /** Классы тоста на токенах kit (sonner `unstyled`). Экспорт — для теста. */
 export const toastClassNames = {
   // font-sans — на самом тосте: sonner ставит свой шрифт на контейнер стилем без слоя, наследование он перебил бы.
-  // Толстое стекло (разбор 3.4): тост плавает над содержимым; текст на нём — ink и glass-secondary, не muted.
-  toast: "glass-thick flex w-full items-start gap-3 rounded-card p-4 font-sans text-body text-ink",
+  // Материал — по устройству (TOAST_MATERIAL). Вторичный текст — glass-secondary: читается и на стекле, и на raised.
+  toast: "flex w-full items-start gap-3 rounded-card p-4 font-sans text-body text-ink",
   title: "font-medium",
   // mt-0.5 (2 px) здесь и у иконки — оптическое выравнивание по первой строке заголовка (17 px, межстрочный 1,45),
   // а не отступ шкалы.
@@ -26,9 +26,19 @@ export const toastClassNames = {
 } as const satisfies ToastClassnames;
 
 /**
+ * Материал тоста. Компьютер — толстое стекло (разбор 3.4): тост снизу справа плавает над содержимым, другого стекла там
+ * нет. Телефон — сплошной raised с тенью overlay: тост сверху по центру лёг бы на стекло закреплённой шапки переписки и
+ * круглых кнопок (колокольчик, «…») — стекло на стекле запрещено. Экспорт — для теста.
+ */
+export const TOAST_MATERIAL: Record<Device, string> = {
+  mobile: "bg-raised shadow-overlay",
+  desktop: "glass-thick",
+};
+
+/**
  * Место для тостов, одно на оболочку. Телефон — сверху по центру (низ занят панелью вкладок и главной кнопкой),
  * компьютер — снизу справа. Вид — токены kit (`unstyled` снимает оформление sonner, раскладку и жест смахивания
- * оставляет). Материал — толстое стекло `glass-thick` (при уменьшении прозрачности — сплошной raised). Появляется со
+ * оставляет). Материал — `TOAST_MATERIAL`: на компьютере толстое стекло, на телефоне сплошной raised. Появляется со
  * стороны своего края (сверху на телефоне, снизу на компьютере) и уходит туда же. `prefers-reduced-motion` — в
  * overlays.css: проявление вместо выезда; там же кольцо фокуса тоста (CSS sonner без слоя иначе перебивает наше).
  */
@@ -45,7 +55,7 @@ export function Toaster({ device }: { device: Device }) {
       toastOptions={{
         unstyled: true,
         closeButtonAriaLabel: ru.app.kit.close,
-        classNames: toastClassNames,
+        classNames: { ...toastClassNames, toast: `${toastClassNames.toast} ${TOAST_MATERIAL[device]}` },
       }}
     />
   );

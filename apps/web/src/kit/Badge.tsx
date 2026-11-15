@@ -31,7 +31,7 @@ export function Badge({ count, max = BADGE_MAX, className }: BadgeProps) {
     <span
       aria-hidden
       className={cn(
-        "inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-chip bg-danger px-1 text-small leading-none font-semibold tabular-nums text-on-danger",
+        "inline-flex min-h-4.5 min-w-4.5 items-center justify-center rounded-chip bg-danger px-1 text-small leading-none font-semibold tabular-nums text-on-danger",
         className,
       )}
     >

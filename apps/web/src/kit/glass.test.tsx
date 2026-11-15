@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { POPOVER_MATERIALS } from "./Popover";
 import { sheetShape } from "./Sheet";
-import { toastClassNames } from "./Toaster";
+import { TOAST_MATERIAL, toastClassNames } from "./Toaster";
 import { hasClass, html, text } from "./test-utils";
 import { BackLink, Card, Explain, List, ListRow, Menu, Monogram, monogramOf, NavLens, PageTitle } from "./index";
 
@@ -54,9 +54,11 @@ describe("меню, поповеры, тосты, шторка", () => {
     expect(source("Popover.tsx")).toContain("presence(reduced, { scale: 0.96 })");
   });
 
-  it("тост — толстое стекло, вторичный текст glass-secondary, кнопка действия — fill", () => {
-    expect(toastClassNames.toast.split(" ")).toContain("glass-thick");
-    expect(toastClassNames.toast).not.toMatch(/bg-raised|shadow-float/);
+  it("тост: компьютер — толстое стекло; телефон — сплошной (сверху он лёг бы на стекло шапки и круглых кнопок)", () => {
+    expect(TOAST_MATERIAL.desktop).toBe("glass-thick");
+    expect(TOAST_MATERIAL.mobile.split(" ")).toEqual(["bg-raised", "shadow-overlay"]);
+    expect(TOAST_MATERIAL.mobile).not.toContain("glass");
+    expect(toastClassNames.toast).not.toMatch(/glass|bg-raised|shadow-/);
     expect(toastClassNames.description.split(" ")).toContain("text-glass-secondary");
     expect(toastClassNames.cancelButton).not.toContain("text-muted");
     expect(toastClassNames.actionButton.split(" ")).toContain("bg-fill");
@@ -111,14 +113,20 @@ describe("Card: обычная, герой, сгруппированный сп�
 });
 
 describe("ListRow: миниатюра или монограмма слева, вторая строка", () => {
-  it("с leading — строка 56 px, разделитель от начала текста, а не от края", () => {
+  it("с leading — строка 56 px, разделитель от начала текста (какой бы ширины ни была монограмма или миниатюра)", () => {
     const out = html(
       <List>
         <ListRow label="Кухня" detail="Шаг 2 из 5" value="21 окт" href="/v2/deals/1" leading={<Monogram name="Исполнитель №8" size="md" />} />
       </List>,
     );
     expect(hasClass(out, "min-h-14")).toBe(true);
-    expect(hasClass(out, "after:left-21")).toBe(true);
+    // Строка сама не рисует линию от края: её рисует колонка текста — от своего начала, до края карточки и низа строки.
+    const li = /<li[^>]*>/.exec(out)?.[0] ?? "";
+    expect(li).not.toContain("after:border-b");
+    const column = /<span data-row-text="true"[^>]*>/.exec(out)?.[0] ?? "";
+    for (const cls of ["after:left-0", "after:-right-4", "after:-bottom-2", "after:border-line", "group-last/row:after:hidden", "self-stretch"]) {
+      expect(hasClass(column, cls), cls).toBe(true);
+    }
     expect(out).toContain('<span class="text-headline text-ink">Кухня</span><span class="line-clamp-2 text-sub text-muted">Шаг 2 из 5</span>');
     expect(out.indexOf("№8")).toBeLessThan(out.indexOf("Кухня"));
     // Шеврон 16 px muted.
@@ -140,6 +148,8 @@ describe("Monogram", () => {
   it.each([
     ["Исполнитель №8", "№8"],
     ["Исполнитель № 12", "№12"],
+    ["Исполнитель №104", "104"],
+    ["Мастер № 1042", "1042"],
     ["Айгерим Сапарова", "АС"],
     ["айгерим", "А"],
     ["  ", null],
@@ -157,6 +167,19 @@ describe("Monogram", () => {
     for (const c of [cls, "rounded-full", "bg-fill", "text-ink", "font-semibold"]) expect(hasClass(out, c), c).toBe(true);
     expect(out).toContain('aria-hidden="true"');
     expect(out).toContain(">№8<");
+  });
+
+  it.each([
+    ["sm", "text-sub", "text-small"],
+    ["md", "text-headline", "text-sub"],
+    ["lg", "text-title-2", "text-headline"],
+  ] as const)("%s: длинный номер («1042») — кегль на ступень меньше (%s → %s), один размер текста", (size, normal, long) => {
+    const short = html(<Monogram name="Исполнитель №8" size={size} />);
+    expect(hasClass(short, normal)).toBe(true);
+    const out = html(<Monogram name="Мастер № 1042" size={size} />);
+    expect(out).toContain(">1042<");
+    expect(hasClass(out, long)).toBe(true);
+    expect(hasClass(out, normal)).toBe(false);
   });
 
   it("без имени — значок человека", () => {

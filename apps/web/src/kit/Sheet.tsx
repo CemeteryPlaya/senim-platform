@@ -120,8 +120,9 @@ export function Sheet({
           <div aria-hidden className="mx-auto mb-4 h-1.5 w-9 shrink-0 rounded-full bg-muted/50" />
           <Drawer.Title className="text-title-2 text-ink">{title}</Drawer.Title>
           {description && <Drawer.Description className="mt-2 text-body text-muted">{description}</Drawer.Description>}
-          {/* Прокрутка длинного содержимого; поле в 4 px (p-1, -mx-1), чтобы кольцо фокуса кнопок не обрезалось. */}
-          <div className="-mx-1 mt-3 min-h-0 overflow-y-auto p-1">{children}</div>
+          {/* Прокрутка длинного содержимого; поле 4 px сверху и снизу и 12 px по бокам (-mx-3 px-3, текст на месте): кольцо
+              фокуса кнопок не обрезается, а подсветка пунктов списка (Menu) выходит за линию текста, не обрезаясь. */}
+          <div className="-mx-3 mt-3 min-h-0 overflow-y-auto px-3 py-1">{children}</div>
           {/* Для диктора и клавиатуры; видна только в фокусе с клавиатуры. Esc закрывает так же. */}
           {dismissible && (
             <Drawer.Close className="sr-only rounded-control px-4 text-sub text-ink focus-visible:not-sr-only focus-visible:absolute focus-visible:top-3 focus-visible:right-3 focus-visible:min-h-control focus-visible:bg-fill">

@@ -18,7 +18,8 @@ export function DealSummaryCard({ deal, side, chip, progressLabel }: { deal: Dea
       as="article"
       className="pressable relative flex flex-col gap-3 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus"
     >
-      <div className="flex items-start justify-between gap-3">
+      {/* flex-wrap: при крупном шрифте плашка статуса уходит строкой ниже, а не сжимает название в полоску. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <h3 className="min-w-0 text-headline text-ink wrap-break-word">
           <Link href={to(`/deals/${encodeURIComponent(deal.id)}`)} className="text-ink no-underline after:absolute after:inset-0 after:rounded-card focus-visible:outline-none">
             {deal.title}

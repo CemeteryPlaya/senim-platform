@@ -711,11 +711,13 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
               </Card>
             </Specimen>
             <Specimen label={s.cards.monograms}>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 <Monogram name={s.cards.groupedOne} size="sm" />
                 <Monogram name={s.cards.groupedOne} size="md" />
                 <Monogram name={s.cards.groupedOne} size="lg" />
                 <Monogram name={s.cards.groupedTwo} size="lg" />
+                <Monogram name={s.cards.monogramLong} size="sm" />
+                <Monogram name={s.cards.monogramLong} size="md" />
               </div>
             </Specimen>
             <Specimen label={s.cards.listValues}>

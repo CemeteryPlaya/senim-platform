@@ -355,7 +355,6 @@
     --role-line-strong: #7d7970;
     --role-fill: color-mix(in srgb, var(--role-ink) 8%, transparent);
     --role-fill-strong: color-mix(in srgb, var(--role-ink) 14%, transparent);
-  --role-fill-strong: color-mix(in srgb, var(--role-ink) 14%, transparent);
     --role-track: #1b1a18;
     --role-bubble: #302e2a;
     --role-action: #f5f3ef;
@@ -737,8 +736,9 @@
  * главного действия (MobileShell). Не плита: тон фона страницы плавно густеет к низу (S-кривая без видимой полосы),
  * так что под стеклом панели содержимое ещё просвечивает — стекло видно, а строки не мелькают резко в щелях между
  * доком и панелью. Высота — всё, что занимают панель (её высота, отступ и безопасная зона) и док (кнопка 48px и зазор
- * 8px), плюс 40px перехода сверху. Видна, только если в оболочке есть панель вкладок (data-has-tabs) или док
- * (data-action-dock); иначе плавающего у низа ничего нет и растворять содержимое незачем. Клики не перехватывает.
+ * 8px), плюс 40px перехода сверху. Видна, только если в оболочке телефона (корень с меткой data-mobile-shell) есть
+ * панель вкладок (data-has-tabs) или док (data-action-dock); иначе плавающего у низа ничего нет и растворять содержимое
+ * незачем. :has() привязан к корню оболочки, а не к документу. Клики не перехватывает.
  * prefers-reduced-transparency и prefers-contrast: more — сплошной фон на высоту панелей (материалы там тоже сплошные).
  */
 @utility bar-underlay {
@@ -757,7 +757,7 @@
     color-mix(in srgb, var(--role-canvas) 8%, transparent) 90%,
     transparent 100%
   );
-  :where([data-has-tabs], :has([data-action-dock])) > & {
+  :where([data-mobile-shell]:is([data-has-tabs], :has(> main [data-action-dock]))) > & {
     display: block;
   }
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
@@ -766,7 +766,7 @@
 }
 
 /* Док главного действия в оболочке: подложке нужна ещё его высота (кнопка 48px и зазор 8px до панели). */
-:where(:has(> main [data-action-dock])) {
+:where([data-mobile-shell]:has(> main [data-action-dock])) {
   --underlay-dock: calc(var(--spacing-control) + var(--spacing-stack-tight));
 }
 

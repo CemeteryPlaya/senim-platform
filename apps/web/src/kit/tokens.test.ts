@@ -356,7 +356,10 @@ describe("tokens.css совпадает с TOKENS", () => {
   it("bar-underlay: растворение, а не плита — тон фона густеет к низу и не сплошной; видна только при вкладках или доке", () => {
     const body = /@utility bar-underlay\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(body).toContain("display: none;");
-    expect(body).toMatch(/:where\(\[data-has-tabs\], :has\(\[data-action-dock\]\)\) > & \{\s*display: block;/);
+    // :has() привязан к корню оболочки (data-mobile-shell), а не ко всему документу.
+    expect(body).toContain(":where([data-mobile-shell]:is([data-has-tabs], :has(> main [data-action-dock]))) > & {");
+    expect(css).toContain(":where([data-mobile-shell]:has(> main [data-action-dock])) {");
+    expect(css).not.toMatch(/^:where\(:has\(/m);
     const alphas = [...body.split("@media")[0].matchAll(/var\(--role-canvas\) (\d+)%/g)].map((m) => Number(m[1]));
     expect(alphas.length).toBeGreaterThanOrEqual(4);
     expect(Math.max(...alphas)).toBeLessThan(100);

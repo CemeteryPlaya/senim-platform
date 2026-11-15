@@ -16,22 +16,29 @@ export function List({ children, className }: { children: ListChild | readonly (
 }
 
 /**
- * Строка списка с разделителем снизу: линия `line` с отступом слева до текста, как в «Настройках»: 16 px, а у строки с
- * миниатюрой или монограммой (`inset="leading"`) — от начала текста после неё (16 + 56 + 12 px). У последней строки
- * разделителя нет. Для строк со своей разметкой (например, ссылка на почту в HelpBlock).
+ * Строка списка с разделителем снизу: линия `line` с отступом 16 px слева, как в «Настройках»; у последней строки
+ * разделителя нет. Для строк со своей разметкой (например, ссылка на почту в HelpBlock). `inset="none"` — разделитель
+ * рисует сама строка (ListRow с `leading`: линия от начала текста, какой бы ширины ни была миниатюра или монограмма).
  */
-export function ListItem({ children, inset = "text" }: { children: ReactNode; inset?: "text" | "leading" }) {
+export function ListItem({ children, inset = "text" }: { children: ReactNode; inset?: "text" | "none" }) {
   return (
     <li
       className={cn(
-        "relative after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:border-b after:border-line last:after:hidden",
-        inset === "leading" ? "after:left-21" : "after:left-4",
+        "group/row relative",
+        inset === "text" && "after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-4 after:border-b after:border-line last:after:hidden",
       )}
     >
       {children}
     </li>
   );
 }
+
+/**
+ * Колонка текста строки с `leading`: тянется на высоту строки, а разделитель — её нижняя кромка, продлённая вниз на
+ * поле строки (py-2) и вправо до края карточки (px-4). Начинается ровно там, где начинается текст.
+ */
+const TEXT_COLUMN =
+  "relative flex min-w-0 flex-1 items-center justify-between gap-4 self-stretch after:pointer-events-none after:absolute after:-right-4 after:-bottom-2 after:left-0 after:border-b after:border-line group-last/row:after:hidden";
 
 export type ListRowProps = {
   label: ReactNode;
@@ -58,7 +65,7 @@ export type ListRowProps = {
   detail?: ReactNode;
 };
 
-const ROW = "flex min-h-control w-full items-center justify-between gap-4 px-4 py-3 text-body";
+const ROW = "flex min-h-control w-full items-center justify-between px-4 text-body";
 
 /**
  * Строка «подпись — значение» (разбор 3.6, «Списки»): [миниатюра или монограмма] + подпись + вторая строка + справа
@@ -95,21 +102,24 @@ export function ListRow({ label, value, href, chevron = true, stacked = false, a
       </span>
     );
   }
-  const content = (
-    <>
-      {leading === undefined ? (
-        labelPart
-      ) : (
-        <span className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="flex shrink-0">{leading}</span>
+  const content =
+    leading === undefined ? (
+      <>
+        {labelPart}
+        {valuePart}
+      </>
+    ) : (
+      <>
+        <span className="flex shrink-0">{leading}</span>
+        <span data-row-text className={TEXT_COLUMN}>
           {labelPart}
+          {valuePart}
         </span>
-      )}
-      {valuePart}
-    </>
-  );
-  const inset = leading === undefined ? "text" : "leading";
-  const rowClass = cn(ROW, leading !== undefined && "min-h-14 py-2");
+      </>
+    );
+  const inset = leading === undefined ? "text" : "none";
+  // С leading: строка 56 px, зазор миниатюра — текст 12 px; без неё — зазор подпись — значение 16 px.
+  const rowClass = cn(ROW, leading === undefined ? "gap-4 py-3" : "min-h-14 gap-3 py-2");
   if (action) {
     return (
       <ListItem inset={inset}>

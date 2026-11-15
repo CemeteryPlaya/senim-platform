@@ -59,11 +59,12 @@ const HOVER: Record<ButtonVariant, string> = {
 };
 
 /**
- * Отключённая — одинаково у всех вариантов: заливка fill, текст muted, без прозрачности (спокойная плашка, не спорит с
- * активными). От вторичной (тоже fill) отличается цветом текста: muted, а не ink. Пара muted/fill держит 4,5:1 и так
- * (contrast.test.ts), хотя для неактивных WCAG её не нормирует. Ожидающая (pending) — полный цвет варианта и индикатор.
+ * Отключённая — одинаково у всех вариантов: без заливки (прозрачный фон), тонкий контур line внутри, текст muted,
+ * курсор «нельзя», без прозрачности. От вторичной (заливка fill, текст ink) отличается и формой (контур вместо заливки),
+ * и цветом текста; на тёмном и светлом фоне читается одинаково (muted на canvas/surface — contrast.test.ts). Ожидающая
+ * (pending) — полный цвет варианта и индикатор.
  */
-const DISABLED = "disabled:cursor-not-allowed disabled:bg-fill disabled:text-muted";
+const DISABLED = "disabled:cursor-not-allowed disabled:bg-transparent disabled:text-muted disabled:ring-1 disabled:ring-inset disabled:ring-line";
 
 const SIZES: Record<ButtonSize, string> = {
   md: "min-h-control text-body",

@@ -127,7 +127,7 @@ describe("Badge", () => {
     expect(hasClass(out, "tabular-nums")).toBe(true);
     expect(hasClass(out, "absolute")).toBe(true);
     // Капсула сплошного danger, цифры on-danger (разбор 3.6).
-    for (const cls of ["bg-danger", "text-on-danger", "rounded-chip", "h-4.5"]) expect(hasClass(out, cls), cls).toBe(true);
+    for (const cls of ["bg-danger", "text-on-danger", "rounded-chip", "min-h-4.5"]) expect(hasClass(out, cls), cls).toBe(true);
     expect(hasClass(out, "bg-danger-soft")).toBe(false);
   });
 

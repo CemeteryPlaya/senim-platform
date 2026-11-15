@@ -140,10 +140,10 @@ describe("Button", () => {
   );
 
   it.each(["primary", "secondary", "quiet", "danger"] as const)(
-    "%s: отключённая — заливка fill, текст muted, без прозрачности (одинаково у всех вариантов)",
+    "%s: отключённая — без заливки, контур line, текст muted, без прозрачности (одинаково у всех вариантов)",
     (variant) => {
       const out = html(<Button variant={variant} disabled>Ок</Button>);
-      for (const cls of ["disabled:bg-fill", "disabled:text-muted"]) expect(hasClass(out, cls), cls).toBe(true);
+      for (const cls of ["disabled:bg-transparent", "disabled:ring-1", "disabled:ring-line", "disabled:text-muted"]) expect(hasClass(out, cls), cls).toBe(true);
       const tag = out.match(/<button[^>]*>/)?.[0] ?? "";
       expect(tag).not.toMatch(/[\s"](?:disabled:)?opacity-\d/);
     },
@@ -163,11 +163,12 @@ describe("Button", () => {
     expect(small).toBeTruthy();
   });
 
-  it("вторичная — заливка fill и текст ink; отключённая отличается от неё текстом muted", () => {
+  it("вторичная — заливка fill и текст ink; отключённая отличается от неё формой (без заливки, контур) и текстом muted", () => {
     const secondary = html(<Button variant="secondary">Ок</Button>);
     for (const cls of ["bg-fill", "text-ink", "hover:not-disabled:bg-fill-strong"]) expect(hasClass(secondary, cls), cls).toBe(true);
     expect(hasClass(secondary, "bg-line")).toBe(false);
-    expect(hasClass(html(<Button variant="secondary" disabled>Ок</Button>), "disabled:text-muted")).toBe(true);
+    const disabled = html(<Button variant="secondary" disabled>Ок</Button>);
+    for (const cls of ["disabled:text-muted", "disabled:bg-transparent", "disabled:ring-line"]) expect(hasClass(disabled, cls), cls).toBe(true);
   });
 
   it("full растягивает кнопку, без full — нет", () => {

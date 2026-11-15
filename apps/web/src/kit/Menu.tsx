@@ -69,7 +69,8 @@ export function Menu({ label, items, device, triggerRef }: MenuProps) {
   if (device === "mobile") {
     return (
       <Sheet trigger={trigger} title={label} open={open} onOpenChange={setOpen}>
-        <ul className="flex flex-col">
+        {/* -mx-3: текст пунктов на одной линии с заголовком шторки, подсветка нажатия выходит за неё на 12 px. */}
+        <ul className="-mx-3 flex flex-col">
           {items.map((item, index) => {
             const className = cn(ITEM_BASE, "min-h-control rounded-field px-3 py-3 active:bg-fill-strong", toneClass(item.tone));
             return (

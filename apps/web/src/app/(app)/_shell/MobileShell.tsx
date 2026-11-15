@@ -28,7 +28,7 @@ export type MobileShellProps = {
  */
 export function MobileShell({ nav, unavailable = false, unread = null, children }: MobileShellProps) {
   return (
-    <div data-has-tabs={nav.tabs.length > 0 ? "" : undefined} className="flex min-h-dvh flex-col">
+    <div data-mobile-shell data-has-tabs={nav.tabs.length > 0 ? "" : undefined} className="flex min-h-dvh flex-col">
       <SkipLink />
       {nav.focus && (
         // Сосредоточенная оболочка (первые шаги): узкая шапка — название (не ссылка: со шага уходить некуда) слева, «Выйти»

@@ -226,7 +226,7 @@ describe("DesktopShell", () => {
     for (const cls of ["max-w-content", "mx-auto"]) expect(hasClass(main, cls), cls).toBe(true);
   });
 
-  it("гость: в разделах Мастера · О сервисе; «Войти» — справа кнопкой secondary, не в ряду разделов", () => {
+  it("гость: в разделах Мастера · О сервисе; «Войти» — справа тихой кнопкой со значком, не в ряду разделов", () => {
     const d = html(
       <DesktopShell nav={guestNav} user={null}>
         x
@@ -238,7 +238,10 @@ describe("DesktopShell", () => {
     const login = tagWith(d, 'href="/v2/login"');
     expect(d.indexOf('href="/v2/login"')).toBeGreaterThan(d.indexOf("</nav>"));
     expect(login).not.toContain("data-primary-action");
-    expect(hasClass(login, "bg-fill")).toBe(true); // вид secondary
+    // Тихая (без заливки): заливка-капсула в шапке — только линза раздела.
+    expect(hasClass(login, "bg-transparent")).toBe(true);
+    expect(hasClass(login, "bg-fill")).toBe(false);
+    expect(d.slice(d.indexOf('href="/v2/login"'))).toMatch(/^[^>]*>\s*<svg[^>]*lucide-log-in/);
     expect(d).toContain(`>${ru.app.shell.nav.login}</a>`);
     expect(d).not.toContain("/v2/notifications");
     expect(d).not.toContain(ru.app.shell.profileMenu);
@@ -271,6 +274,18 @@ describe("DesktopShell", () => {
     const links = navBlock.match(/<a [^>]*>[\s\S]*?<\/a>/g) ?? [];
     expect(links.filter((a) => a.includes("data-nav-lens"))).toHaveLength(1);
     expect(links.find((a) => a.includes("data-nav-lens"))).toContain('aria-current="page"');
+  });
+
+  it("«Заказать мебель» — тихая кнопка ink со значком «+», не заливка-капсула (её носит только линза раздела)", () => {
+    const d = html(
+      <DesktopShell nav={clientNav} user={client}>
+        x
+      </DesktopShell>,
+    );
+    const order = tagWith(d, 'href="/v2/requests/new"');
+    for (const cls of ["bg-transparent", "text-ink"]) expect(hasClass(order, cls), cls).toBe(true);
+    expect(hasClass(order, "bg-fill")).toBe(false);
+    expect(d.slice(d.indexOf('href="/v2/requests/new"'))).toMatch(/^[^>]*>\s*<svg[^>]*lucide-plus/);
   });
 
   it("гость: текущий раздел — ink и вес 600, остальные — muted и 500", () => {
