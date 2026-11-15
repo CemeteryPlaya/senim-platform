@@ -14,8 +14,8 @@ export type PortfolioFileKey = Extract<
   | "wardrobe-oak" | "wardrobe-white"
 >;
 
-/** Фото отчётов и сдачи: у каждого отчёта и сделки свои файлы (storageKey уникален). */
-export type ReportPhotoKey = Extract<StandPhotoKey, `report-${string}`>;
+/** Фото сдачи (готовая мебель) и «Хода работ» (цех, сборка, монтаж — `process-*`). */
+export type ReportPhotoKey = Extract<StandPhotoKey, `report-${string}` | `process-${string}`>;
 
 export type DemoFileKey = PortfolioFileKey | ReportPhotoKey;
 

@@ -12,7 +12,8 @@ import { typicalEstimateSchema } from "@/verticals/furniture";
 import { useSeedStorage } from "../../test/factories/documents";
 import { setEnv } from "../../test/factories/identity";
 import { identityFake } from "../../test/stubs/identity";
-import { CLIENTS, DEALS, EXECUTORS, KYC, MEASURER, OPERATOR } from "./data";
+import { monthOf } from "@/modules/deal-core";
+import { CLIENTS, DEALS, EXECUTORS, KYC, MEASURER, OPERATOR, REVIEWS } from "./data";
 import { demoFile } from "./portfolio-files";
 import { resetDemo, seedDemo } from "./seed";
 
@@ -141,6 +142,49 @@ describe("демо-данные", () => {
     const kinds = new Set((await db.notification.findMany({ select: { kind: true } })).map((n) => n.kind));
     for (const kind of ["deal.offer.ready", "deal.ready", "deal.signed"]) expect(kinds.has(kind), kind).toBe(true);
     expect([...kinds].some((k) => k.startsWith("money."))).toBe(true);
+  });
+
+  it("время и витрина: действия сделок по дням, номера операций банка, отзывы и числа у мастеров; журналы снова только-добавление", { timeout: 180_000 }, async () => {
+    const started = Date.now();
+    await seedDemo(db);
+    const DAY = 86_400_000;
+
+    // Ни одного события сделки и операции журнала «минутой засева»: всё перенесено на дни плана.
+    expect(await db.auditEvent.count({ where: { scope: { startsWith: "deal:" }, createdAt: { gte: new Date(started) } } })).toBe(0);
+    expect(await db.moneyTransaction.count({ where: { createdAt: { gte: new Date(started) } } })).toBe(0);
+    const kitchen = await db.deal.findFirstOrThrow({ where: { status: "IN_PROGRESS" }, include: { progressReports: { orderBy: { createdAt: "asc" } } } });
+    expect(Math.abs(kitchen.paidAt!.getTime() - (started - 20 * DAY))).toBeLessThan(DAY);
+    expect(kitchen.progressReports[1]!.createdAt.getTime() - kitchen.progressReports[0]!.createdAt.getTime()).toBeGreaterThan(5 * DAY);
+    const days = await db.auditEvent.findMany({ where: { scope: `deal:${kitchen.id}` }, select: { createdAt: true, seq: true }, orderBy: { seq: "asc" } });
+    expect(new Set(days.map((e) => e.createdAt.toISOString().slice(0, 10))).size).toBeGreaterThanOrEqual(4);
+    for (let i = 1; i < days.length; i++) expect(days[i]!.createdAt.getTime()).toBeGreaterThanOrEqual(days[i - 1]!.createdAt.getTime());
+
+    // Номер операции у тестового провайдера — 12 цифр, без «MOCK-».
+    const mock = await db.moneyTransaction.findMany({ where: { provider: "MOCK", status: "SUCCEEDED" }, select: { type: true, externalRef: true } });
+    expect(mock.length).toBeGreaterThan(5);
+    // FREEZE/UNFREEZE — отметки журнала без операции в банке, номера у них нет.
+    expect(mock.filter((t) => !["FREEZE", "UNFREEZE"].includes(t.type) && !/^\d{12}$/.test(t.externalRef ?? ""))).toEqual([]);
+    expect(await db.moneyTransaction.count({ where: { externalRef: { startsWith: "MOCK-" } } })).toBe(0);
+
+    // Журналы аудита и денег после переноса — снова только-добавление.
+    const anyEvent = await db.auditEvent.findFirstOrThrow();
+    await expect(db.auditEvent.update({ where: { id: anyEvent.id }, data: { action: "x" } })).rejects.toThrow();
+    const settled = await db.moneyTransaction.findFirstOrThrow({ where: { status: "SUCCEEDED" } });
+    await expect(db.moneyTransaction.update({ where: { id: settled.id }, data: { externalRef: "x" } })).rejects.toThrow();
+
+    // Витрина: отзывы по плану, рейтинг и завершённые сделки в профиле; у Ерлана выплата в текущем месяце.
+    expect(await db.review.count()).toBe(REVIEWS.length);
+    const profile = (phone: string) => db.executorProfile.findFirstOrThrow({ where: { user: { phone } } });
+    for (const key of ["erlan", "qazaq", "dala", "timur", "asel"] as const) {
+      const p = await profile(EXECUTORS[key].person.phone);
+      expect({ key, reviews: p.reviewsCount > 0, deals: p.completedDeals > 0, rating: p.ratingAvg >= 4 }).toEqual({ key, reviews: true, deals: true, rating: true });
+    }
+    const erlan = await profile(EXECUTORS.erlan.person.phone);
+    const payouts = await db.moneyTransaction.findMany({ where: { type: "SPLIT_MASTER", status: "SUCCEEDED", deal: { executorId: erlan.id } }, select: { settledAt: true } });
+    expect(payouts.some((t) => monthOf(t.settledAt!) === monthOf(new Date(started)))).toBe(true);
+
+    // Заявки порядка «до оферты» не попадают во «Входящие» мастеров «Комфорта» (экран такой заявки — в v1).
+    expect(await db.request.count({ where: { status: "OPEN", mode: "TENDER", segment: "COMFORT", preContractFlow: { not: null } } })).toBe(0);
   });
 
   it("люди: мастера с тестовыми адресами, KYC во всех статусах, номера — только в identity; справочник цен — демо", { timeout: 120_000 }, async () => {

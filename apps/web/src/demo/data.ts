@@ -50,6 +50,10 @@ export const CLIENTS = {
   saule: { fullName: "Сауле Мукашева", phone: "+77000000303", iin: testIin("860403", 4, 33), isDemo: false, joinedDaysAgo: 130 },
   zhanna: { fullName: "Жанна Бекова", phone: "+77000000304", iin: testIin("910129", 4, 34), isDemo: false, joinedDaysAgo: 105 },
   erbolat: { fullName: "Ерболат Нуриев", phone: "+77000000305", iin: testIin("870811", 3, 35), isDemo: false, joinedDaysAgo: 90 },
+  // Заказчики завершённых сделок витринных мастеров (SHOWCASE_REQUESTS): отзывы и числа в профиле, в демо-вход не попадают.
+  gulnara: { fullName: "Гульнара Ермекова", phone: "+77000000306", iin: testIin("850619", 4, 36), isDemo: false, joinedDaysAgo: 85 },
+  aliya: { fullName: "Алия Жаксыбекова", phone: "+77000000307", iin: testIin("930227", 4, 37), isDemo: false, joinedDaysAgo: 68 },
+  berik: { fullName: "Берик Омаров", phone: "+77000000308", iin: testIin("810514", 3, 38), isDemo: false, joinedDaysAgo: 42 },
 } as const satisfies Record<string, PersonSpec>;
 
 export type ClientKey = keyof typeof CLIENTS;
@@ -119,7 +123,7 @@ export const EXECUTORS = {
     specializations: ["kitchen", "wardrobe", "hallway"],
     portfolio: [
       { key: "erlan-kitchen", file: "kitchen-sage", type: "kitchen", style: "modern", title: "Кухня в новостройке, 3,4 м", description: "Фасады МДФ в эмали цвета шалфей, столешница под дуб, верхние шкафы до потолка.", priceFrom: 900_000, place: "Астана, Есильский район", featured: true },
-      { key: "erlan-wardrobe", file: "wardrobe-oak", type: "wardrobe", style: "modern", title: "Шкаф-купе с зеркальной дверью", description: "Три двери, средняя — зеркало. Внутри штанга, полки и ящики с доводчиками.", priceFrom: 320_000, place: "Астана, Алматинский район" },
+      { key: "erlan-wardrobe", file: "wardrobe-oak", type: "wardrobe", style: "modern", title: "Шкаф-купе с зеркальной дверью", description: "Зеркальная дверь-купе на алюминиевом профиле, внутри штанга, полки и ящики с доводчиками.", priceFrom: 320_000, place: "Астана, Алматинский район" },
       { key: "erlan-hallway", file: "hallway-graphite", type: "hallway", style: "loft", title: "Прихожая с банкеткой", description: "Закрытый шкаф для верхней одежды, открытая вешалка, мягкая банкетка и зеркало.", priceFrom: 240_000, place: "Астана, Сарыаркинский район" },
     ],
   },
@@ -173,7 +177,7 @@ export const EXECUTORS = {
     about: "Шкафы-купе и гардеробные из ЛДСП. Профиль Aristo, зеркала с пескоструйным рисунком. Работаю быстро, замер бесплатно.",
     specializations: ["wardrobe", "walk-in-closet", "hallway"],
     portfolio: [
-      { key: "timur-wardrobe", file: "wardrobe-white", type: "wardrobe", style: "minimalism", title: "Шкаф-купе 2,8 м в нишу", description: "Белое ЛДСП, зеркальная дверь по центру, внутри полки под обувь.", priceFrom: 210_000, place: "Астана, Сарыаркинский район" },
+      { key: "timur-wardrobe", file: "wardrobe-white", type: "wardrobe", style: "minimalism", title: "Шкаф-купе 2,8 м в нишу", description: "Белые двери-купе в нише, внутри открытые полки и тумба с ящиками.", priceFrom: 210_000, place: "Астана, Сарыаркинский район" },
       { key: "timur-closet", file: "closet-light", type: "walk-in-closet", style: "scandi", title: "Гардеробная в спальне", description: "Открытая система: штанги, полки, ящики. Светлый дуб.", priceFrom: 280_000, place: "Астана, район Байконыр" },
     ],
   },
@@ -246,8 +250,8 @@ export const EXECUTORS = {
     about: "Начинающий мастер: прихожие, шкафы и комоды из ЛДСП. Работаю аккуратно и недорого.",
     specializations: ["hallway", "wardrobe", "dresser"],
     portfolio: [
-      { key: "samat-hallway", file: "hallway-sonoma", type: "hallway", style: "modern", title: "Прихожая в коридор", description: "Шкаф, открытая вешалка и банкетка в цвете дуб сонома.", priceFrom: 130_000, place: "Астана, район Нура" },
-      { key: "samat-dresser", file: "dresser-white", type: "dresser", style: "scandi", title: "Комод для детской", description: "Белый комод на шесть ящиков с голубыми ручками.", priceFrom: 75_000, place: "Астана, Сарыаркинский район" },
+      { key: "samat-hallway", file: "hallway-sonoma", type: "hallway", style: "modern", title: "Прихожая в коридор", description: "Открытая вешалка, тумба-банкетка с ящиками и место под обувь, всё в белом.", priceFrom: 130_000, place: "Астана, район Нура" },
+      { key: "samat-dresser", file: "dresser-white", type: "dresser", style: "scandi", title: "Комод для детской", description: "Белый комод с круглыми ручками, ящики на доводчиках.", priceFrom: 75_000, place: "Астана, Сарыаркинский район" },
     ],
   },
   almas: {
@@ -656,6 +660,52 @@ export const DUAL_ROLE_REQUESTS: RequestSpec[] = [
   }),
 ];
 
+/**
+ * Витрина мастеров (повторный разбор вида, 0.2): завершённые сделки с отзывами у Ерлана (Исп. №3, одна — с выплатой в текущем
+ * месяце), «Qazaq Wood» (Исп. №2) и «Дала» (Исп. №4, сделка №21: e2e v1 12-roles считает его сделки мастера) и новая заявка
+ * «Комфорта» для входящих мастеров. Сеются после DUAL_ROLE_REQUESTS: номера
+ * заявок и сделок, на которые опираются сценарии (заявки №18, №19, сделки №1–17), не сдвигаются.
+ */
+export const SHOWCASE_REQUESTS: RequestSpec[] = [
+  dealRequest({
+    key: "showcase-erlan-wardrobe", client: "gulnara", executor: "erlan", type: "wardrobe", style: "modern",
+    details: { widthCm: 240, heightCm: 260, depthCm: 60, facade: "mdf_film", hardware: "soft_close", color: "Светлый дуб, средняя дверь — зеркало" }, segment: "COMFORT", address: ADDR.test2,
+    wishes: "Шкаф-купе в спальню на всю стену, внутри штанга и ящики.", daysAgo: 80, price: 380_000, durationDays: 21, comment: "Три двери, средняя — зеркало, ящики с доводчиками Blum.",
+  }),
+  dealRequest({
+    key: "showcase-erlan-hallway", client: "berik", executor: "erlan", type: "hallway", style: "modern",
+    details: { widthCm: 200, heightCm: 260, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Белый и дуб" }, segment: "COMFORT", address: ADDR.maket21,
+    wishes: "Прихожая до потолка: закрытый шкаф, открытая ниша с банкеткой и полки для обуви.", daysAgo: 40, price: 340_000, durationDays: 25, comment: "Шкаф до потолка, ниша с банкеткой, полки под обувь.",
+  }),
+  dealRequest({
+    key: "showcase-qazaq-kitchen", client: "aliya", executor: "qazaq", type: "kitchen", style: "modern",
+    details: { widthCm: 280, heightCm: 270, depthCm: 60, facade: "mdf_film", countertop: "ldsp", hardware: "soft_close", color: "Тёмный орех и белый" }, segment: "COMFORT", address: ADDR.probny7,
+    wishes: "Прямая кухня 2,8 м, встроенная духовка и посудомойка.", daysAgo: 65, price: 760_000, durationDays: 25, comment: "Своё производство, монтаж нашей бригадой.",
+  }),
+  dealRequest({
+    key: "showcase-dala-kitchen", client: "saule", executor: "dala", type: "kitchen", style: "modern",
+    details: { widthCm: 300, heightCm: 260, depthCm: 60, facade: "mdf_film", countertop: "compact", hardware: "soft_close", color: "Терракота, тёмная столешница" }, segment: "COMFORT", address: ADDR.probny7,
+    wishes: "Кухня 3 м в тёплом цвете, встроенная мойка.", daysAgo: 58, price: 820_000, durationDays: 30, comment: "Фасады МДФ в плёнке, столешница компакт-плита.",
+  }),
+  {
+    // Новая заявка «Комфорта» без предложений: во входящих Ерлана первой стоит заявка пути ТЗ, а не «до оферты».
+    key: "showcase-open-hallway",
+    mode: "TENDER",
+    client: "gulnara",
+    type: "hallway",
+    style: "modern",
+    details: { widthCm: 180, heightCm: 250, depthCm: 40, facade: "mdf_film", hardware: "soft_close", color: "Как шкаф в спальне — светлый дуб" },
+    segment: "COMFORT",
+    address: ADDR.test2,
+    desiredInDays: 30,
+    wishes: "Прихожая с зеркалом и банкеткой, в цвет шкафа в спальне.",
+    createdDaysAgo: 0.5,
+    publishedDaysAgo: 0.4,
+    wizardStep: 6,
+    offers: [],
+  },
+];
+
 /** Материалы проекта после замера (сценарии до договора, ADR-005). */
 export const PROJECT_MATERIALS = "Корпус — ЛДСП Egger 16 мм, фасады по заявке, кромка ПВХ 2 мм, фурнитура с доводчиками.";
 
@@ -820,7 +870,8 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     type: "dresser",
     style: "scandi",
     details: { widthCm: 120, heightCm: 85, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Белый" },
-    segment: "COMFORT",
+    // Эконом: заявку порядка «до оферты» (её экран — в v1) не видят мастера «Комфорта», в том числе витринный Ерлан.
+    segment: "ECONOMY",
     address: ADDR.probny7,
     desiredInDays: 20,
     wishes: "Комод в детскую, размеры снял сам по инструкции.",
@@ -828,15 +879,15 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     publishedDaysAgo: 1.4,
     wizardStep: 6,
     offers: [
-      { executor: "kim", price: 190_000, durationDays: 18, warrantyMonths: 18, comment: "Посчитал по вашим размерам, контрольный замер — первым этапом.", sentDaysAgo: 1 },
-      { executor: "erlan", price: 210_000, durationDays: 15, warrantyMonths: 24, comment: "Фасады МДФ, доводчики Blum.", sentDaysAgo: 0.8 },
+      { executor: "samat", price: 160_000, durationDays: 14, warrantyMonths: 12, comment: "Посчитал по вашим размерам, контрольный замер — первым этапом.", sentDaysAgo: 1 },
+      { executor: "timur", price: 175_000, durationDays: 15, warrantyMonths: 12, comment: "ЛДСП Egger, ручки на выбор.", sentDaysAgo: 0.8 },
     ],
   },
 ];
 
 // ─── сделки: путь ТЗ настоящими сервисами (deals.ts) ─────────────────────────
 
-/** Фото сдачи и «Хода работ» — из демо-SVG портфолио (seed переводит их в JPEG и загружает через files). */
+/** Фото сдачи и «Хода работ» — временные снимки стенда (deals.ts загружает их байты через files как приватные файлы сделки). */
 export type ProgressSpec = { title: string; text: string; photos: readonly DemoFileKey[] };
 
 export type DisputeSpec = {
@@ -870,12 +921,29 @@ export type DealStep =
   | { dispute: DisputeSpec }
   | { resolve: ResolutionSpec };
 
+/**
+ * Когда это было: дней назад от момента сида. `{ thisMonth: N }` — N дней назад, но не раньше начала текущего месяца по
+ * времени Астаны (сжимается пропорционально в первые дни месяца): выплата должна попасть в «Получено за месяц».
+ */
+export type When = number | { thisMonth: number };
+
+/** Сжатие `thisMonth` начинается, когда от начала месяца прошло меньше этого числа дней (больше любого N с thisMonth). */
+export const THIS_MONTH_SPAN_DAYS = 6;
+
 export type DealPlan = {
-  /** Ключ заявки из REQUESTS / DUAL_ROLE_REQUESTS: принимается последняя цена торга её первого отклика. */
+  /** Ключ заявки из REQUESTS / DUAL_ROLE_REQUESTS / SHOWCASE_REQUESTS: принимается последняя цена торга её первого отклика. */
   request: string;
   provider: "mock" | "manual";
   steps: readonly DealStep[];
+  /**
+   * Время шагов (повторный разбор вида, 0.2): сервисы пишут «сейчас», сид затем переносит каждое действие на свой день
+   * (retime.ts) — история, отчёты и деньги идут по дням, а не одной минутой засева. accepted — акцепт цены (после
+   * отклика и торга); steps — по одному на шаг, строго по убыванию.
+   */
+  at: { accepted: When; steps: readonly When[] };
 };
+
+export type ReviewSpec = { request: string; rating: 1 | 2 | 3 | 4 | 5; text: string; at: When };
 
 const READY_PHOTOS = {
   closet: ["report-closet-1", "report-closet-2"],
@@ -884,9 +952,13 @@ const READY_PHOTOS = {
   kitchen: ["report-kitchen-3", "report-kitchen-4"],
   table: ["report-table-1"],
   wardrobe: ["report-wardrobe-1"],
-  // Второй шкаф — другой файл: ключ хранилища уникален, один файл не прикрепить к двум сделкам.
   wardrobeDual: ["report-wardrobe-2"],
   office: ["report-office-1"],
+  // Витрина: сдача — та же мебель, что в портфолио мастера (Ерлан), и готовая кухня «Qazaq Wood».
+  erlanWardrobe: ["wardrobe-oak"],
+  erlanHallway: ["hallway-graphite"],
+  qazaqKitchen: ["report-kitchen-1", "report-kitchen-2"],
+  dalaKitchen: ["kitchen-terracotta"],
 } as const satisfies Record<string, readonly DemoFileKey[]>;
 
 const KIDS_DISPUTE: DisputeSpec = {
@@ -897,16 +969,20 @@ const KIDS_DISPUTE: DisputeSpec = {
   executorPosition: "Цвет соответствует образцу RAL 5024 из оферты, на фото оттенок искажён. Кромку переклеим по гарантии, перекрашивать фасады за свой счёт не согласен.",
 };
 
-/** Сделки во всех статусах ТЗ (п. 9) — на mock и на manual. Порядок задаёт номера сделок. */
+/**
+ * Сделки во всех статусах ТЗ (п. 9) — на mock и на manual. Порядок задаёт номера сделок. Время шагов (`at`) — по дням:
+ * оплата, начало работ и отчёты разнесены в соответствии со сроком по отклику. Выплаты Исп. №6 (сделки №12 и №17) — в
+ * текущем месяце: на них опираются «Финансы мастера» e2e v1 (в прошлом месяце выплат нет).
+ */
 export const DEALS: readonly DealPlan[] = [
   // CREATED: оферта ещё не подписана.
-  { request: "deal-offer-hallway", provider: "mock", steps: [] },
+  { request: "deal-offer-hallway", provider: "mock", steps: [], at: { accepted: 4.3, steps: [] } },
   // CREATED: оферта заключена, ждёт оплаты.
-  { request: "deal-signed-shelving", provider: "mock", steps: ["sign"] },
+  { request: "deal-signed-shelving", provider: "mock", steps: ["sign"], at: { accepted: 7.2, steps: [7.0] } },
   // CREATED на manual: оплата ждёт подтверждения оператора по выписке банка.
-  { request: "deal-manual-hold-office", provider: "manual", steps: ["sign", "pay"] },
+  { request: "deal-manual-hold-office", provider: "manual", steps: ["sign", "pay"], at: { accepted: 7.6, steps: [7.4, 7.3] } },
   // PAID_HOLD: деньги в банке под защитой, мастер ещё не начал.
-  { request: "deal-paid-wardrobe", provider: "mock", steps: ["sign", "pay"] },
+  { request: "deal-paid-wardrobe", provider: "mock", steps: ["sign", "pay"], at: { accepted: 8.0, steps: [7.8, 7.6] } },
   // PAID_HOLD + открытый спор: мастер не выходит на связь.
   {
     request: "deal-paid-dispute-bedroom",
@@ -924,8 +1000,9 @@ export const DEALS: readonly DealPlan[] = [
         },
       },
     ],
+    at: { accepted: 19.2, steps: [19.0, 18.8, 3.5] },
   },
-  // IN_PROGRESS с «Ходом работ».
+  // IN_PROGRESS с «Ходом работ»: фото цеха — материалы, затем корпуса без фасадов.
   {
     request: "deal-progress-kitchen",
     provider: "mock",
@@ -933,29 +1010,52 @@ export const DEALS: readonly DealPlan[] = [
       "sign",
       "pay",
       "start",
-      { progress: { title: "Материалы закуплены", text: "Плиты, кромка и фурнитура Blum на складе цеха.", photos: ["report-kitchen-1"] } },
-      { progress: { title: "Корпуса собраны", text: "Корпуса нижних шкафов собраны, фасады ушли в покраску.", photos: ["report-kitchen-2"] } },
+      { progress: { title: "Материалы закуплены", text: "Плиты, кромка и фурнитура Blum на складе цеха.", photos: ["process-sheets"] } },
+      { progress: { title: "Корпуса собраны", text: "Корпуса нижних шкафов собраны, фасады ушли в покраску.", photos: ["process-carcass"] } },
     ],
+    at: { accepted: 22.3, steps: [22.1, 20.0, 18.0, 10.0, 3.0] },
   },
   // READY: работа сдана у адреса заказа, акт ждёт подписей.
-  { request: "deal-ready-closet", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.closet } }] },
+  {
+    request: "deal-ready-closet",
+    provider: "mock",
+    steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.closet } }],
+    at: { accepted: 39.2, steps: [39.0, 38.5, 33.0, 2.0] },
+  },
   // READY: сдано вдали от адреса (предупреждение), покупатель подписал акт — ждём ЭЦП мастера.
-  { request: "deal-ready-far-tv", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "far", photos: READY_PHOTOS.tv } }, "signActClient"] },
+  {
+    request: "deal-ready-far-tv",
+    provider: "mock",
+    steps: ["sign", "pay", "start", { ready: { at: "far", photos: READY_PHOTOS.tv } }, "signActClient"],
+    at: { accepted: 29.2, steps: [29.0, 28.5, 24.0, 4.0, 3.0] },
+  },
   // READY + открытый спор по качеству.
-  { request: "deal-ready-dispute-kids", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.kids } }, { dispute: KIDS_DISPUTE }] },
+  {
+    request: "deal-ready-dispute-kids",
+    provider: "mock",
+    steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.kids } }, { dispute: KIDS_DISPUTE }],
+    at: { accepted: 34.2, steps: [34.0, 33.5, 31.0, 5.0, 4.0] },
+  },
   // ACCEPTED на manual: акт подписан, выплата ждёт подтверждения оператора.
   {
     request: "deal-accepted-manual-kitchen",
     provider: "manual",
     steps: ["sign", "pay", "bank", "start", { ready: { at: "address", photos: READY_PHOTOS.kitchen } }, "signAct"],
+    at: { accepted: 59.2, steps: [59.0, 58.8, 58.0, 47.0, 8.0, 5.0] },
   },
   // SPLIT_PAYOUT: обычная выплата (mock).
-  { request: "deal-done-table", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.table } }, "signAct"] },
-  // SPLIT_PAYOUT на manual: все операции подтверждены банковскими документами.
+  {
+    request: "deal-done-table",
+    provider: "mock",
+    steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.table } }, "signAct"],
+    at: { accepted: 49.2, steps: [49.0, 48.5, 46.0, 17.0, 16.0] },
+  },
+  // SPLIT_PAYOUT на manual: все операции подтверждены банковскими документами. Покупатель решался месяц после отклика.
   {
     request: "deal-done-manual-wardrobe",
     provider: "manual",
     steps: ["sign", "pay", "bank", "start", { ready: { at: "address", photos: READY_PHOTOS.wardrobe } }, "signAct", "bank"],
+    at: { accepted: 32.0, steps: [31.8, 31.5, 31.0, 29.0, 9.0, { thisMonth: 5.0 }, { thisMonth: 4.5 }] },
   },
   // SPLIT_PAYOUT по спору: раздел — мастеру часть, остаток — покупателю (REFUND).
   {
@@ -977,11 +1077,17 @@ export const DEALS: readonly DealPlan[] = [
       },
       { resolve: { outcome: "PARTIAL_SPLIT", masterShareKzt: 300_000, rationale: "Стол и тумба сданы и приняты по фото, стеллаж не изготовлен: мастеру — 300 000 ₸ из 520 000 ₸." } },
     ],
+    at: { accepted: 44.2, steps: [44.0, 43.5, 41.0, 17.0, 15.0, 9.0] },
   },
   // CANCELLED: покупатель отменил до оплаты.
-  { request: "deal-cancelled-dresser", provider: "mock", steps: ["sign", { cancel: "client", reason: "Нашли готовый комод" }] },
+  { request: "deal-cancelled-dresser", provider: "mock", steps: ["sign", { cancel: "client", reason: "Нашли готовый комод" }], at: { accepted: 14.2, steps: [14.0, 12.0] } },
   // REFUNDED: отмена после оплаты — деньги вернулись на карту.
-  { request: "deal-refunded-hallway", provider: "mock", steps: ["sign", "pay", { cancel: "client", reason: "Переезжаем, прихожая не нужна" }] },
+  {
+    request: "deal-refunded-hallway",
+    provider: "mock",
+    steps: ["sign", "pay", { cancel: "client", reason: "Переезжаем, прихожая не нужна" }],
+    at: { accepted: 17.2, steps: [17.0, 16.8, 14.0] },
+  },
   // REFUNDED по спору на manual: полный возврат подтверждён оператором.
   {
     request: "deal-refund-dispute-wardrobe",
@@ -1003,9 +1109,84 @@ export const DEALS: readonly DealPlan[] = [
       { resolve: { outcome: "FULL_REFUND", rationale: "Обе стороны согласны на возврат; работа не принята." } },
       "bank",
     ],
+    at: { accepted: 27.2, steps: [27.0, 26.8, 26.0, 24.0, 10.0, 6.0, 5.0] },
   },
   // Мастер «Дала» в роли покупателя (ADR-004): завершённая сделка.
-  { request: "deal-dual-role-wardrobe", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.wardrobeDual } }, "signAct"] },
+  {
+    request: "deal-dual-role-wardrobe",
+    provider: "mock",
+    steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.wardrobeDual } }, "signAct"],
+    at: { accepted: 25.0, steps: [24.8, 24.5, 22.0, 6.0, { thisMonth: 3.0 }] },
+  },
+  // Витрина (SHOWCASE_REQUESTS): завершённые сделки с отзывами; у Ерлана выплата за прихожую — в текущем месяце.
+  {
+    request: "showcase-erlan-wardrobe",
+    provider: "mock",
+    steps: [
+      "sign",
+      "pay",
+      "start",
+      { progress: { title: "Детали распилены", text: "Корпус и полки раскроены на станке с ЧПУ, кромка ПВХ 2 мм.", photos: ["process-cnc"] } },
+      { ready: { at: "address", photos: READY_PHOTOS.erlanWardrobe } },
+      "signAct",
+    ],
+    at: { accepted: 79.0, steps: [78.8, 78.5, 76.0, 70.0, 56.0, 55.0] },
+  },
+  {
+    request: "showcase-erlan-hallway",
+    provider: "mock",
+    steps: [
+      "sign",
+      "pay",
+      "start",
+      { progress: { title: "Корпус собран", text: "Собрали корпус в цеху, проверили размеры ниши под банкетку.", photos: ["process-assembly"] } },
+      { ready: { at: "address", photos: READY_PHOTOS.erlanHallway } },
+      "signAct",
+    ],
+    at: { accepted: 39.0, steps: [38.8, 38.5, 33.0, 20.0, 8.0, { thisMonth: 4.0 }] },
+  },
+  {
+    request: "showcase-qazaq-kitchen",
+    provider: "mock",
+    steps: [
+      "sign",
+      "pay",
+      "start",
+      { progress: { title: "Монтаж на объекте", text: "Нижние модули выставлены по уровню, столешница подрезана по месту.", photos: ["process-install"] } },
+      { progress: { title: "Ящики и фасады на месте", text: "Навесили фасады, отрегулировали ящики с доводчиками.", photos: ["process-drawers"] } },
+      { ready: { at: "address", photos: READY_PHOTOS.qazaqKitchen } },
+      "signAct",
+    ],
+    at: { accepted: 64.0, steps: [63.8, 63.5, 60.0, 38.0, 36.0, 34.0, 33.0] },
+  },
+  {
+    // Исп. №4 — профиль из маршрута показа (разбор, раздел 4): кухня из его портфолио, сданная покупателю.
+    request: "showcase-dala-kitchen",
+    provider: "mock",
+    steps: [
+      "sign",
+      "pay",
+      "start",
+      { progress: { title: "Корпуса собраны", text: "Корпуса собраны в цеху, фасады в плёнке заказаны.", photos: ["process-carcass"] } },
+      { ready: { at: "address", photos: READY_PHOTOS.dalaKitchen } },
+      "signAct",
+    ],
+    at: { accepted: 57.2, steps: [57.0, 56.8, 54.0, 40.0, 26.0, 25.0] },
+  },
+];
+
+/**
+ * Отзывы покупателей по завершённым сделкам (SPLIT_PAYOUT, один на сделку): профиль мастера показывает рейтинг и число
+ * сделок, а не прочерки. Сид пишет их после сделок (функция отзывов — за флагом reviews), время — после выплаты.
+ */
+export const REVIEWS: readonly ReviewSpec[] = [
+  { request: "showcase-erlan-wardrobe", rating: 5, text: "Шкаф сделали точно по размерам ниши, зеркало без искажений. Сроки выдержали.", at: 54.0 },
+  { request: "showcase-erlan-hallway", rating: 5, text: "Аккуратный монтаж, убрали за собой. Ниша под банкетку получилась удобной.", at: { thisMonth: 3.5 } },
+  { request: "showcase-dala-kitchen", rating: 5, text: "Цвет фасадов точно как на образце, мойку врезали аккуратно. Мастер помог с проектом.", at: 24.0 },
+  { request: "showcase-qazaq-kitchen", rating: 4, text: "Кухня хорошая, фурнитура плавная. Монтаж задержали на два дня, но предупредили заранее.", at: 32.0 },
+  { request: "deal-done-table", rating: 5, text: "Стол из карагача красивее, чем на фото. Масло-воск пахнет приятно, поверхность ровная.", at: 15.0 },
+  { request: "deal-done-manual-wardrobe", rating: 4, text: "Шкаф-купе встал в нишу как надо. Двери ходят мягко.", at: { thisMonth: 4.2 } },
+  { request: "deal-dual-role-wardrobe", rating: 5, text: "Коллега сделал быстро и чисто, рекомендую.", at: { thisMonth: 2.5 } },
 ];
 
 // ─── уведомления ─────────────────────────────────────────────────────────────

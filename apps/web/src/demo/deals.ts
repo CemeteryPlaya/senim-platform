@@ -7,8 +7,10 @@ import { confirmManualOperation, kztToTiyn } from "@/modules/payments";
 import { acceptPrice } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { formatTiyn } from "@/ui/format";
-import { DEALS, type ClientKey, type DealPlan, type DealStep, type ExecutorKey } from "./data";
+import { DEALS, REVIEWS, type ClientKey, type DealPlan, type DealStep, type ExecutorKey } from "./data";
 import { demoFile, type DemoFileKey } from "./portfolio-files";
+import type { SeedReview, SeedWindow } from "./retime";
+import { resolveWhen } from "./timeline";
 import { testDocumentPdf } from "./test-documents";
 
 /**
@@ -152,11 +154,35 @@ async function seedBankConsents(deals: { plan: DealPlan; parties: Parties }[]) {
   );
 }
 
-export async function seedDeals(ids: DealIds): Promise<{ deals: number }> {
+/** Что сделки отдают переносу времени (retime.ts): окна действий, конец засева, отзывы с id сделок. */
+export type SeededDeals = { deals: number; windows: SeedWindow[]; end: number; reviews: SeedReview[] };
+
+/**
+ * Сделки по плану: каждое действие — своё окно стенных часов, его записи потом переносятся на день из `plan.at`
+ * (`now` — часы сида, от них же считаются даты «до сделок»).
+ */
+export async function seedDeals(ids: DealIds, now: number): Promise<SeededDeals> {
   const operator = await asUser(ids.operator, "OPERATOR");
+  const windows: SeedWindow[] = [];
+  const mark = (when: DealPlan["at"]["accepted"]) => windows.push({ from: Date.now(), target: resolveWhen(when, now) });
   const deals: { plan: DealPlan; parties: Parties }[] = [];
-  for (const plan of DEALS) deals.push({ plan, parties: { ...(await accept(ids, plan)), operator } });
+  for (const plan of DEALS) {
+    if (plan.at.steps.length !== plan.steps.length) throw new Error(`Сделка демо ${plan.request}: время задано не для каждого шага`);
+    mark(plan.at.accepted);
+    deals.push({ plan, parties: { ...(await accept(ids, plan)), operator } });
+  }
   await seedBankConsents(deals);
-  for (const { plan, parties } of deals) for (const s of plan.steps) await step(parties, s);
-  return { deals: DEALS.length };
+  for (const { plan, parties } of deals) {
+    for (const [i, s] of plan.steps.entries()) {
+      mark(plan.at.steps[i]!);
+      await step(parties, s);
+    }
+  }
+  const dealOf = new Map(deals.map((d) => [d.plan.request, d.parties.dealId]));
+  const reviews = REVIEWS.map((r) => {
+    const dealId = dealOf.get(r.request);
+    if (!dealId) throw new Error(`Отзыв демо: нет сделки по заявке ${r.request}`);
+    return { ...r, dealId };
+  });
+  return { deals: DEALS.length, windows, end: Date.now(), reviews };
 }

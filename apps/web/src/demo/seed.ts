@@ -31,6 +31,7 @@ import {
   PRE_CONTRACT_REQUESTS,
   PROJECT_MATERIALS,
   REQUESTS,
+  SHOWCASE_REQUESTS,
   type ClientKey,
   type ClientRef,
   type ExecutorKey,
@@ -48,6 +49,7 @@ import { seedDeals, type DealIds } from "./deals";
 import { testIban } from "./kz-id";
 import { seedMaterialPrices } from "./materials";
 import { demoFile } from "./portfolio-files";
+import { retimeDemo } from "./retime";
 import { testDocumentPdf } from "./test-documents";
 
 /**
@@ -87,7 +89,7 @@ export async function seedDemo(db: PrismaClient): Promise<SeedSummary> {
     if (!(await isDatabaseEmpty(tx))) throw new Error(NOT_EMPTY);
     return fill(tx, plan, users);
   }, TX_OPTIONS);
-  return finish(db, ids);
+  return finish(db, ids, plan.now);
 }
 
 /** Пересев: в identity — сброс сессий и кодов (ResetDemo) и те же пользователи; старая база — TRUNCATE и сид в одной транзакции. */
@@ -99,13 +101,15 @@ export async function resetDemo(db: PrismaClient): Promise<SeedSummary> {
     await truncateAll(tx);
     return fill(tx, plan, users);
   }, TX_OPTIONS);
-  return finish(db, ids);
+  return finish(db, ids, plan.now);
 }
 
-async function finish(db: PrismaClient, ids: DealIds): Promise<SeedSummary> {
+async function finish(db: PrismaClient, ids: DealIds, now: number): Promise<SeedSummary> {
   // Сделки идут настоящими сервисами: оферте и акту нужен порт documents (PDF), заявке — порт requests.
   registerPorts();
-  await seedDeals(ids);
+  const seeded = await seedDeals(ids, now);
+  // Действия сделок — по дням из плана, номера операций банка вместо MOCK-…, отзывы покупателей (retime.ts).
+  await retimeDemo(db, { windows: seeded.windows, end: seeded.end, now, reviews: seeded.reviews });
   return {
     users: await db.user.count(),
     executors: ids.executors.size,
@@ -257,13 +261,13 @@ const pdConsent = (): SeedConsentProof => ({ version: consentDocument("PD_PROCES
 type KycFileIds = { id: string; registration: string };
 
 /** Что сид отдаёт identity и затем пишет в старую базу: часы сида, люди identity (по телефону) и id их KYC-документов. */
-type SeedPlan = { clock: Clock; people: SeedPerson[]; byPhone: Map<string, SeedPerson>; kycFiles: Map<ExecutorKey, KycFileIds> };
+type SeedPlan = { now: number; clock: Clock; people: SeedPerson[]; byPhone: Map<string, SeedPerson>; kycFiles: Map<ExecutorKey, KycFileIds> };
 
 function seedPlan(now: number): SeedPlan {
   const clock = clockAt(now);
   const kycFiles = new Map((Object.keys(KYC) as ExecutorKey[]).map((key) => [key, { id: randomUUID(), registration: randomUUID() }]));
   const people = seedPeople(clock, kycFiles);
-  return { clock, people, byPhone: new Map(people.map((p) => [p.phone, p])), kycFiles };
+  return { now, clock, people, byPhone: new Map(people.map((p) => [p.phone, p])), kycFiles };
 }
 
 /** KYC стороны сида — как после подачи (файлы) и решения оператора; без спецификации — документы не подавались. */
@@ -358,6 +362,8 @@ async function fill(tx: Tx, plan: SeedPlan, identityUsers: User[]): Promise<Ids>
   const requests = [...REQUESTS].sort((a, b) => b.createdDaysAgo - a.createdDaysAgo);
   for (const spec of requests) await seedRequest(tx, ids, clock, audit, spec);
   for (const spec of DUAL_ROLE_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
+  // Витрина мастеров — после всех заявок, на номера которых опираются сценарии.
+  for (const spec of SHOWCASE_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
   // Сценарии до договора (флаг preContractFlows, ADR-005) — в конце.
   ids.measurer = await completePerson(tx, users, plan, MEASURER);
   for (const spec of PRE_CONTRACT_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);

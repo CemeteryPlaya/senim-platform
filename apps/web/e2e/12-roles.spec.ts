@@ -19,7 +19,7 @@ test("сделка в роли покупателя открывается по�
   await page.goto("/deals");
   const asClient = page.getByRole("listitem").filter({ hasText: "Вы — покупатель" });
   await expect(asClient).toHaveCount(1);
-  await expect(page.getByRole("listitem").filter({ hasText: "Вы — мастер" })).toHaveCount(2); // №5 и №8
+  await expect(page.getByRole("listitem").filter({ hasText: "Вы — мастер" })).toHaveCount(3); // №5, №8 и №21 (витрина: завершённая кухня)
 
   await asClient.getByRole("link", { name: /^Открыть/ }).click();
   await page.waitForURL(/\/switch-role\?/);
