@@ -1,7 +1,7 @@
 import type { FilePurpose, Role } from "@/generated/prisma/enums";
 import { addProgressReport, cancelDeal, onMoneySettled, openDispute, payForDeal, resolveDispute, startWork, submitDisputePosition, submitReady } from "@/modules/deal-core";
 import { completeSigning, signByHand, startSigning } from "@/modules/documents";
-import { saveFile } from "@/modules/files";
+import { saveFile, storageByName } from "@/modules/files";
 import { consentDocument, consentTextSha256, seedIdentityBankConsents, type CurrentUser } from "@/modules/identity";
 import { confirmManualOperation, kztToTiyn } from "@/modules/payments";
 import { acceptPrice } from "@/modules/requests";
@@ -36,12 +36,16 @@ async function asUser(userId: string, role: Role): Promise<CurrentUser> {
 }
 
 /**
- * Фото «с объекта» для сдачи и «Хода работ»: временный снимок из public/stand-photos (хранилище static, как портфолио).
- * Файл у каждой записи свой (ключ хранилища уникален), поэтому сид не читает байты с диска — на Vercel папки public нет.
+ * Фото «с объекта» для сдачи и «Хода работ»: байты временного снимка из public/stand-photos загружаются через files
+ * (saveFile → обычное хранилище), как загрузка мастера. Это приватные файлы сделки: их отдаёт только подписанная
+ * ссылка, а не публичный адрес /stand-photos/… — static остаётся только у публичного портфолио.
+ * Байты читает провайдер static (public/ рядом с сервером: dev и образ стенда).
  */
 async function photo(source: DemoFileKey, purpose: FilePurpose, uploadedById: string): Promise<string> {
-  const file = demoFile(source);
-  return (await db.storedFile.create({ data: { ...file, purpose, uploadedById }, select: { id: true } })).id;
+  const { storageKey } = demoFile(source);
+  const bytes = await (await storageByName("static")).get(storageKey);
+  if (!bytes) throw new Error(`Сид: нет файла public/${storageKey}`);
+  return (await saveFile({ purpose, bytes, uploadedById })).id;
 }
 
 type Parties = { dealId: string; client: CurrentUser; executor: CurrentUser; operator: CurrentUser; address: { lat: number; lng: number } };

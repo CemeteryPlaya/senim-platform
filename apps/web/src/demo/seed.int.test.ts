@@ -179,10 +179,9 @@ describe("демо-данные", () => {
     await expectSeedEmails();
     expect(await db.user.count({ where: { role: "OPERATOR", isDemo: true } })).toBe(1);
 
-    // Фото демо — временные снимки из public/stand-photos (хранилище static): StoredFile сида совпадает с файлом на диске,
-    // а сделки получают отчёты и сдачу с такими же снимками, у каждого файла свой ключ.
+    // Фото демо — временные снимки из public/stand-photos. Публичное портфолио — хранилище static (адрес /stand-photos/…):
+    // StoredFile сида совпадает с файлом на диске, у каждого файла свой ключ.
     const stored = await db.storedFile.findMany({ where: { provider: "static" } });
-    expect(stored.length).toBeGreaterThanOrEqual(20);
     for (const f of stored) {
       expect(f.storageKey).toMatch(/^stand-photos\/[a-z0-9-]+\.webp$/);
       expect(f.contentType).toBe("image/webp");
@@ -190,8 +189,20 @@ describe("демо-данные", () => {
       expect({ size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }, f.storageKey).toEqual({ size: f.size, sha256: f.sha256 });
     }
     expect(new Set(stored.map((f) => f.storageKey)).size).toBe(stored.length);
-    expect(stored.filter((f) => f.purpose === "PORTFOLIO")).toHaveLength(20);
+    expect(stored.map((f) => f.purpose)).toEqual(Array<string>(20).fill("PORTFOLIO"));
     expect(demoFile("kitchen-sage")).toMatchObject({ provider: "static", contentType: "image/webp" });
+    // Фото «Хода работ» и сдачи — приватные файлы сделки: сид загружает байты через files (обычное хранилище,
+    // только подписанная ссылка), а не кладёт публичный static-адрес. Число — по плану сделок сида.
+    const steps = DEALS.flatMap((d) => d.steps);
+    const progressPhotos = steps.reduce((n, s) => n + (typeof s === "object" && "progress" in s ? s.progress.photos.length : 0), 0);
+    const readyPhotos = steps.reduce((n, s) => n + (typeof s === "object" && "ready" in s ? s.ready.photos.length : 0), 0);
+    const privatePhotos = await db.storedFile.findMany({ where: { purpose: { in: ["PROGRESS_REPORT", "DELIVERY"] } } });
+    expect(privatePhotos.length).toBeGreaterThan(0);
+    for (const f of privatePhotos) {
+      expect({ provider: f.provider, key: f.storageKey.startsWith("stand-photos/"), image: f.contentType.startsWith("image/") }, f.id).toEqual({ provider: expect.not.stringMatching(/^static$/), key: false, image: true });
+    }
+    expect(privatePhotos.filter((f) => f.purpose === "PROGRESS_REPORT" && f.progressReportId !== null)).toHaveLength(progressPhotos);
+    expect(privatePhotos.filter((f) => f.purpose === "DELIVERY" && f.dealId !== null)).toHaveLength(readyPhotos);
 
     const prices = await db.materialPrice.findMany();
     expect(prices.length).toBeGreaterThan(0);
