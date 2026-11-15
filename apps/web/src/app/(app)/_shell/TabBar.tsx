@@ -9,8 +9,8 @@ import { activeHref, type NavItem } from "./nav";
 import { NAV_ICONS } from "./nav-icons";
 
 /**
- * Переносится ли панель: вкладки встали в несколько рядов или подпись вкладки — в две строки (крупный шрифт).
- * Капсула такой высоты скругляла бы края так сильно, что крайние подписи вышли бы за материал.
+ * Не помещаются ли подписи: вкладки встали в несколько рядов или подпись вкладки — в две строки (крупный шрифт).
+ * Тогда панель выросла бы на пол-экрана и наехала на док главного действия, поэтому подписи скрываются.
  */
 function isWrapped(list: HTMLElement): boolean {
   const items = [...list.children] as HTMLElement[];
@@ -32,9 +32,10 @@ function isWrapped(list: HTMLElement): boolean {
  * без отскока (при prefers-reduced-motion — мгновенно); подпись ink 600, у остальных — glass-secondary 500. Иконки
  * одной толщины: выбранную отличает подложка, а не штрих.
  *
- * Подписи 13 px не обрезаются: вкладка не уже своей подписи, и при крупном системном шрифте вкладки переносятся
- * на вторую строку — панель растёт в высоту. Тогда капсула сменяется скруглением карточки (rounded-card), а линза —
- * скруглением поля: подписи не выходят за материал. Высоту панели TabBar сообщает оболочке переменной
+ * Подписи 13 px не обрезаются: вкладка не уже своей подписи. Если при крупном системном шрифте они перестали
+ * помещаться в один ряд, подписи скрываются (display: none), остаются иконки в одну строку, а у вкладки появляется
+ * aria-label с полным названием: панель не растёт и не наезжает на док. Решение принимает измерение с подписями
+ * (на время замера признак снимается), поэтому состояние не мигает. Высоту панели TabBar сообщает оболочке переменной
  * --tab-bar-height (ResizeObserver): по ней док главного действия (ActionDock) встаёт над панелью, как бы она ни
  * выросла. На планшете панель, как и содержимое, — колонка до 560 px по центру.
  */
@@ -42,7 +43,7 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
   const current = activeHref(items, usePathname());
   const bar = useRef<HTMLElement>(null);
   const list = useRef<HTMLUListElement>(null);
-  const [wrapped, setWrapped] = useState(false);
+  const [iconsOnly, setIconsOnly] = useState(false);
 
   useEffect(() => {
     const nav = bar.current;
@@ -50,7 +51,14 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
     if (!nav || !shell || typeof ResizeObserver === "undefined") return;
     const measure = () => {
       shell.style.setProperty("--tab-bar-height", `${nav.getBoundingClientRect().height}px`);
-      if (list.current) setWrapped(isWrapped(list.current));
+      const tabs = list.current;
+      if (!tabs) return;
+      // Замер — с подписями: на время измерения признак «только иконки» снят и тут же возвращён (без отрисовки между).
+      const had = tabs.hasAttribute("data-icons-only");
+      if (had) tabs.removeAttribute("data-icons-only");
+      const overflowing = isWrapped(tabs);
+      if (had) tabs.setAttribute("data-icons-only", "");
+      setIconsOnly(overflowing);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -66,8 +74,8 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
       <ul
         ref={list}
         data-tab-bar
-        data-wrapped={wrapped ? "" : undefined}
-        className={cn("glass-regular pointer-events-auto mx-auto flex max-w-column flex-wrap p-1", wrapped ? "rounded-card" : "rounded-bar")}
+        data-icons-only={iconsOnly ? "" : undefined}
+        className="glass-regular group/tabs pointer-events-auto mx-auto flex max-w-column flex-wrap rounded-bar p-1"
       >
         {items.map((item) => {
           const Icon = NAV_ICONS[item.icon];
@@ -77,18 +85,18 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
+                aria-label={iconsOnly ? item.label : undefined}
                 // py-1.5 (6 px) — мимо шкалы намеренно: иконка 24 px, зазор 4 px и подпись 13 px укладываются в
                 // плашку высотой с эталонную; с py-2 панель становится выше, с py-1 подпись прижата к краю.
                 className={cn(
                   "relative isolate flex min-h-control w-full flex-col items-center justify-center gap-1 px-2 py-1.5 text-center no-underline",
-                  "pressable",
-                  wrapped ? "rounded-field" : "rounded-chip",
+                  "pressable rounded-chip group-data-icons-only/tabs:px-0",
                   active ? "text-ink" : "text-glass-secondary",
                 )}
               >
-                {active && <NavLens group="tabs" shape={wrapped ? "field" : "capsule"} />}
+                {active && <NavLens group="tabs" shape="capsule" />}
                 <Icon aria-hidden className="size-6 shrink-0" strokeWidth={1.75} />
-                <span data-tab-label className={cn("text-small", active ? "font-semibold" : "font-medium")}>
+                <span data-tab-label className={cn("text-small group-data-icons-only/tabs:hidden", active ? "font-semibold" : "font-medium")}>
                   {item.label}
                 </span>
               </Link>

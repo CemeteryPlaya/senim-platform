@@ -85,6 +85,7 @@ describe("Card: обычная, герой, сгруппированный сп�
 
   it("герой — отступ 24 px, обложка 16:9 во всю ширину сверху в рамке фото", () => {
     const out = html(
+      // eslint-disable-next-line @next/next/no-img-element -- тестовая разметка: проверяется рамка обложки, оптимизация картинки не нужна
       <Card variant="hero" cover={<img src="/p.webp" alt="Кухня" />}>
         <p>Сумма</p>
       </Card>,
