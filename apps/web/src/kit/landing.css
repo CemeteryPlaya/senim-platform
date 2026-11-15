@@ -8,6 +8,14 @@
   --container-hero: 46rem; /* колонка текста первого экрана на компьютере: заголовок 64px в 3 строки */
   --container-lead: 34ch; /* подзаголовок первого экрана: не шире 34 знаков */
   --container-help: 42.5rem; /* «Помощь» на лендинге: колонка 680px */
+  /*
+   * Заголовок первого экрана на телефоне — 36px / 600 (три строки на 390px, фото начинается выше). Не крупнее 11vw:
+   * при шрифте 200 % слово целиком помещается в строку (без разрыва посередине), а не растёт до 72px за край экрана.
+   */
+  --text-hero-mobile: min(2.25rem, 11vw);
+  --text-hero-mobile--line-height: 1.08;
+  --text-hero-mobile--letter-spacing: -0.03em;
+  --text-hero-mobile--font-weight: 600;
   --radius-hero: 1.5rem; /* 24px — фото первого экрана на телефоне */
   --radius-phone: 2.75rem; /* 44px — рамка телефона со снимком экрана */
   --radius-phone-screen: calc(var(--radius-phone) - var(--spacing-phone-bezel)); /* концентрично рамке */
@@ -126,22 +134,62 @@
 }
 
 /*
- * Затемнение фото от верхнего края — для капсулы у верхнего края фото первого экрана на телефоне (у нижнего края её
- * закрыли бы док главной кнопки и панель вкладок). Как scrim-photo, только сверху: плато 55% на верхнюю четверть
- * (белый на белом фото — 4,74:1), к 60% высоты — прозрачно. При увеличении контраста — 70%.
+ * Док главной кнопки телефона над тёмным разделом «Где ваши деньги» (разбор 2, 3.1): графитовая кнопка на почти чёрном
+ * разделе пропадает. Пока раздел стоит под центром кнопки, кнопка инверсная — белая с графитовым текстом, как
+ * `variant="inverse"` на фото; подложка-растворение оболочки (`bar-underlay`) над тёмным разделом растворяет его в тон
+ * раздела (почти чёрный: scrim с 11 % on-photo ≈ surface тёмной темы), а не светлым туманом canvas — белые строки
+ * раздела не просвечивают сквозь панель вкладок.
+ *
+ * Как: у раздела именованная шкала просмотра `--landing-money`, суженная (`view-timeline-inset`) до полосы на высоте
+ * центра кнопки дока — её положение считается теми же токенами, что `dock-above-bar`. Шкала видна всей оболочке
+ * (`timeline-scope` на корне оболочки телефона), анимация без заливки (`fill-mode: none`) действует только пока раздел
+ * пересекает эту полосу. Цвета — роли; ни прозрачности, ни движения: переключение мгновенное (reduced-motion не нужен).
+ * Без шкал просмотра (старые браузеры) — светлая кромка вокруг кнопки на лендинге: край кнопки виден и над тёмным.
  */
-@utility scrim-photo-top {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 0%,
-    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 25%,
-    transparent 60%
-  );
-  @media (prefers-contrast: more) {
-    --scrim-photo-alpha: 70%;
+:where([data-mobile-shell]:has([data-landing-money])) {
+  timeline-scope: --landing-money;
+}
+
+@supports (view-timeline-name: --a) and (timeline-scope: --a) {
+  [data-landing-money] {
+    view-timeline: --landing-money block;
+    view-timeline-inset: calc(100% - var(--landing-dock-center)) var(--landing-dock-center);
+    --landing-dock-center: calc(
+      var(--spacing-bar-inset) + env(safe-area-inset-bottom) + var(--tab-bar-space, 0px) + var(--spacing-control) / 2
+    );
+  }
+  [data-mobile-shell]:has([data-landing-money]) [data-action-dock] [data-primary-action] {
+    animation: landing-dock-over-dark linear none;
+    animation-timeline: --landing-money;
+    animation-range: cover 0% cover 100%;
+  }
+  [data-mobile-shell]:has([data-landing-money]) > .bar-underlay {
+    animation: landing-underlay-over-dark linear none;
+    animation-timeline: --landing-money;
+    animation-range: cover 0% cover 100%;
+  }
+}
+
+@supports not ((view-timeline-name: --a) and (timeline-scope: --a)) {
+  [data-mobile-shell]:has([data-landing-money]) [data-action-dock] [data-primary-action] {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--role-on-photo) 22%, transparent),
+      var(--elev-float);
+  }
+}
+
+@keyframes landing-dock-over-dark {
+  from,
+  to {
+    background-color: var(--role-on-photo);
+    color: var(--role-on-inverse);
+  }
+}
+
+@keyframes landing-underlay-over-dark {
+  from,
+  to {
+    --role-canvas: color-mix(in srgb, var(--role-scrim) 89%, var(--role-on-photo));
   }
 }
 

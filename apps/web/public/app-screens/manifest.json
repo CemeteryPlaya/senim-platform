@@ -9,8 +9,8 @@
       "route": "/v2/requests/new",
       "width": 600,
       "height": 1298,
-      "size": 43422,
-      "sha256": "0cd1e0d5234bcb2e549e0a22afe4c7a42c700cf797c87994744cdfa3c54ad6e6"
+      "size": 42018,
+      "sha256": "bfe059af1127468ecfc419997e09d5fdd80e003acd96eaa3b54926ae899e0172"
     },
     {
       "key": "request-offers",

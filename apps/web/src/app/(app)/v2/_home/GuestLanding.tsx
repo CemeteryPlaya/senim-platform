@@ -65,26 +65,29 @@ export function DesktopHero({ photo }: { photo: HeroPhoto }) {
 }
 
 /**
- * Первый экран телефона: название продукта, заголовок 40 px, подзаголовок, фото 4:5 со скруглением 24, у верхнего края
- * фото — капсула доверия и под ней подпись фото (на затемнении `scrim-photo-top`: у нижнего края их закрыли бы док и
- * панель вкладок на первом экране), ссылка мастера. Главная кнопка — в доке (GuestHome).
+ * Первый экран телефона: название продукта, заголовок (`text-hero-mobile` — 36 px, три строки на 390 px), сразу под ним
+ * фото 4:5 со скруглением 24 — капсула доверия у нижнего края фото на затемнении снизу (`scrim-photo`), подпись фото —
+ * отдельно, под фото справа, тихим текстом. Подзаголовок и ссылка мастера — под фото: на первом экране фото видно
+ * целиком над доком главной кнопки. Главная кнопка — в доке (GuestHome).
  */
 export function MobileHero({ photo }: { photo: HeroPhoto }) {
   return (
     <div className="flex flex-col gap-stack-section">
       <header className="flex flex-col gap-3">
         <p className="text-headline text-ink">{ru.common.brand}</p>
-        <h1 className="text-balance wrap-break-word text-display text-ink">{t.title}</h1>
-        <p className="text-body text-muted">{t.lead}</p>
+        <h1 className="text-balance text-hero-mobile text-ink">{t.title}</h1>
       </header>
-      <div className="photo-frame aspect-4/5 rounded-hero">
-        <Image src={photo.src} alt={photo.alt} fill preload sizes="100vw" className="object-cover" />
-        <div aria-hidden className="scrim-photo-top" />
-        <div className="absolute inset-x-3 top-3 flex flex-col items-start gap-2">
-          <TrustCapsule>{t.trustCapsule}</TrustCapsule>
-          <p className="px-4 text-small text-on-photo">{captionOf(photo)}</p>
+      <figure className="flex flex-col gap-2">
+        <div className="photo-frame aspect-4/5 rounded-hero">
+          <Image src={photo.src} alt={photo.alt} fill preload sizes="100vw" className="object-cover" />
+          <div aria-hidden className="scrim-photo" />
+          <div className="absolute inset-x-3 bottom-3 flex">
+            <TrustCapsule>{t.trustCapsule}</TrustCapsule>
+          </div>
         </div>
-      </div>
+        <figcaption className="self-end text-small text-muted">{captionOf(photo)}</figcaption>
+      </figure>
+      <p className="text-body text-muted">{t.lead}</p>
       <div>
         <TextLink href={loginHref("executor")}>{t.executorLink}</TextLink>
       </div>
@@ -95,8 +98,9 @@ export function MobileHero({ photo }: { photo: HeroPhoto }) {
 const FACT_ICONS = [Wallet, Landmark, HandCoins] as const;
 
 /**
- * Три факта под первым экраном — блоки с весом: карточка `surface`, значок 24 px в круге `accent-soft` (это факты о
- * деньгах — акцент уместен), значение 22 px (`title-2`), пояснение 17 px. Компьютер — три в ряд, телефон — столбиком.
+ * Три факта под первым экраном — блоки с весом: карточка `surface`, значок 24 px `ink` в круге `fill` (нейтрально:
+ * зелёный остаётся деньгам под защитой и прогрессу — разбор 2, раздел 5 п. 7), значение 22 px (`title-2`), пояснение
+ * 17 px. Компьютер — три в ряд, телефон — столбиком.
  */
 export function Facts() {
   return (
@@ -106,7 +110,7 @@ export function Facts() {
           const Icon = FACT_ICONS[index] ?? Wallet;
           return (
             <li key={fact.value} className="flex min-w-0 flex-wrap items-start gap-4 rounded-card bg-surface p-5 desktop:flex-col desktop:flex-nowrap desktop:p-7">
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-fill text-ink">
                 <Icon aria-hidden className="size-6" />
               </span>
               {/* При крупном шрифте текст уходит под значок, а не за край экрана. */}
@@ -124,8 +128,9 @@ export function Facts() {
 
 /**
  * «Как это работает»: три шага, у каждого снимок нашего экрана в рамке телефона и номер шага крупно (40 px, muted;
- * для читалки — «Шаг N»), заголовок шага 22 px на компьютере. Компьютер — три колонки, рамка 19,5rem сверху (снимок
- * читается); телефон — строка: рамка слева, текст справа.
+ * для читалки — «Шаг N»), заголовок шага 22 px. Компьютер — три колонки, рамка 19,5rem сверху (снимок читается).
+ * Телефон — столбиком (разбор 2, 3.1): номер и заголовок в строку, абзац на всю ширину колонки, ниже снимок шириной
+ * 70 % по центру — текст читается строками, а не по два слова, и снимок крупнее.
  */
 export function Steps({ device, screens }: { device: Device; screens: LandingImage[] }) {
   return (
@@ -133,27 +138,23 @@ export function Steps({ device, screens }: { device: Device; screens: LandingIma
       <h2 id="landing-steps" className="text-title text-ink">
         {t.stepsTitle}
       </h2>
-      <ol className="grid gap-10 desktop:grid-cols-3 desktop:gap-8">
+      <ol className="grid gap-14 desktop:grid-cols-3 desktop:gap-8">
         {t.steps.map((step, index) => {
           const shot = screens[index];
           return (
-            <li key={step.title} className="flex flex-wrap gap-5 desktop:flex-col desktop:flex-nowrap desktop:gap-6">
-              {shot && (
-                <PhoneFrame
-                  {...shot}
-                  sizes={device === "desktop" ? "20rem" : "10rem"}
-                  className="w-40 desktop:mx-auto desktop:w-78"
-                />
-              )}
-              {/* Текст не уже 10rem: при крупном шрифте он уходит под рамку, а не за край экрана. */}
-              <div className="flex min-w-40 flex-1 flex-col gap-2 desktop:gap-3">
-                <p className="text-display text-muted">
-                  <span aria-hidden>{index + 1}</span>
-                  <span className="sr-only">{t.stepLabel(index + 1)}</span>
-                </p>
-                <h3 className="text-headline text-ink desktop:text-title-2">{step.title}</h3>
+            <li key={step.title} className="flex flex-col gap-6">
+              {shot && device === "desktop" && <PhoneFrame {...shot} sizes="20rem" className="mx-auto w-78" />}
+              <div className="flex min-w-0 flex-col gap-2 desktop:gap-3">
+                <div className="flex flex-wrap items-baseline gap-x-3 desktop:flex-col desktop:gap-3">
+                  <p className="text-display text-muted">
+                    <span aria-hidden>{index + 1}</span>
+                    <span className="sr-only">{t.stepLabel(index + 1)}</span>
+                  </p>
+                  <h3 className="min-w-0 text-title-2 text-ink">{step.title}</h3>
+                </div>
                 <p className="text-body text-ink">{step.text}</p>
               </div>
+              {shot && device === "mobile" && <PhoneFrame {...shot} sizes="70vw" className="mx-auto w-7/10" />}
             </li>
           );
         })}
@@ -168,13 +169,20 @@ const FLOW_ICONS = [UserRound, Landmark, Hammer] as const;
  * «Где ваши деньги» — единственный тёмный раздел, тёмный в обеих темах: роли цветов внутри — тёмной темы
  * (`data-theme="dark"` на разделе), фон `surface` тёмной темы. Слева схема «Вы → банк → мастер» с состояниями и три
  * абзаца с пояснением «Что такое защита сделки?», справа пример суммы крупными цифрами. От края до края: на компьютере —
- * во всю ширину области содержимого лендинга, на телефоне — за поля колонки (`rail-bleed`, внутри — те же поля).
+ * во всю ширину области содержимого лендинга (`w-full`), на телефоне — за поля колонки (`rail-bleed`, внутри — те же
+ * поля) без `w-full`: ширину по отрицательным полям даёт растяжение в колонке, а `width: 100%` оставил бы раздел шириной
+ * колонки, сдвинутым влево (разбор 2, 3.1). Метка `data-landing-money` — для дока над тёмным разделом (landing.css).
  */
 export function MoneySection({ device }: { device: Device }) {
   const money = computeDealMoney(EXAMPLE_PRICE_TIYN);
   const Arrow = device === "desktop" ? ArrowRight : ArrowDown;
   return (
-    <section data-theme="dark" aria-labelledby="landing-money" className="w-full bg-surface text-ink mobile:rail-bleed">
+    <section
+      data-theme="dark"
+      data-landing-money
+      aria-labelledby="landing-money"
+      className="bg-surface text-ink desktop:w-full mobile:rail-bleed"
+    >
       <div className="mx-auto grid w-full max-w-content gap-10 py-14 desktop:grid-cols-split desktop:gap-16 desktop:px-6 desktop:py-24">
         <div className="flex min-w-0 flex-col gap-8">
           <h2 id="landing-money" className="wrap-break-word text-title text-ink">

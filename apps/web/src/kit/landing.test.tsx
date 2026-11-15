@@ -46,9 +46,30 @@ describe("landing.css: контраст белого текста на фото"
     expect(stacked(percent(more, "hero-scrim-base"), percent(more, "hero-scrim-zone"))).toBeGreaterThan(stacked(base, zone));
   });
 
-  it("scrim-photo-top (капсула у верхнего края фото на телефоне) — то же плато, что scrim-photo: ≥ 4,5:1", () => {
-    expect(css).toMatch(/@utility scrim-photo-top[\s\S]*var\(--scrim-photo-alpha\)[\s\S]*25%/);
+  it("капсула у нижнего края фото на телефоне — на scrim-photo: ≥ 4,5:1 над белым фото", () => {
+    expect(css).not.toContain("scrim-photo-top");
     expect(whiteOnDimmedWhite(percent(tokens, "scrim-photo-alpha"))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("док над тёмным разделом на телефоне: шкала просмотра раздела в полосе центра кнопки, кнопка инверсная, растворение в тон раздела; без шкал — светлая кромка", () => {
+    expect(css).toMatch(/\[data-mobile-shell\]:has\(\[data-landing-money\]\)\) \{\s*timeline-scope: --landing-money;/);
+    const scroll = css.slice(css.indexOf("@supports (view-timeline-name"), css.indexOf("@supports not"));
+    expect(scroll).toMatch(/view-timeline: --landing-money block;/);
+    expect(scroll).toMatch(/view-timeline-inset: calc\(100% - var\(--landing-dock-center\)\) var\(--landing-dock-center\);/);
+    // Центр кнопки — теми же токенами, что dock-above-bar.
+    expect(scroll).toMatch(
+      /--landing-dock-center: calc\(\s*var\(--spacing-bar-inset\) \+ env\(safe-area-inset-bottom\) \+ var\(--tab-bar-space, 0px\) \+ var\(--spacing-control\) \/ 2/,
+    );
+    expect(scroll).toMatch(/\[data-action-dock\] \[data-primary-action\] \{\s*animation: landing-dock-over-dark linear none;\s*animation-timeline: --landing-money;/);
+    expect(scroll).toMatch(/> \.bar-underlay \{\s*animation: landing-underlay-over-dark linear none;/);
+    const frames = css.slice(css.indexOf("@keyframes landing-dock-over-dark"));
+    expect(frames).toMatch(/background-color: var\(--role-on-photo\);\s*color: var\(--role-on-inverse\);/);
+    expect(css.slice(css.indexOf("@keyframes landing-underlay-over-dark"))).toMatch(/--role-canvas: color-mix\(in srgb, var\(--role-scrim\) 89%, var\(--role-on-photo\)\);/);
+    expect(css.slice(css.indexOf("@supports not"))).toMatch(/\[data-primary-action\] \{\s*box-shadow:/);
+  });
+
+  it("заголовок первого экрана на телефоне — 36 px, не крупнее 11vw (шрифт 200 %: слово целиком в строке)", () => {
+    expect(css).toMatch(/--text-hero-mobile: min\(2\.25rem, 11vw\);/);
   });
 
   it("шапка над первым экраном прозрачна только в самом верху и только там, где есть анимация по прокрутке; не при уменьшении прозрачности и увеличении контраста", () => {
