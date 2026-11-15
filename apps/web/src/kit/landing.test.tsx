@@ -47,6 +47,14 @@ describe("landing.css: контраст белого текста на фото"
     expect(whiteOnDimmedWhite(percent(tokens, "scrim-photo-alpha"))).toBeGreaterThanOrEqual(4.5);
   });
 
+  it("шапка над первым экраном прозрачна только в самом верху и только там, где есть анимация по прокрутке; не при уменьшении прозрачности и увеличении контраста", () => {
+    const block = css.slice(css.indexOf("@supports (animation-timeline: scroll())"));
+    expect(block).toMatch(/@media not \(\(prefers-reduced-transparency: reduce\) or \(prefers-contrast: more\)\)/);
+    expect(block).toMatch(/\[data-hero\]\) \[data-top-bar\][\s\S]*animation-range: 0 1rem/);
+    // Белый текст шапки стоит на верхней полосе затемнения — она того же уровня, что колонка текста.
+    expect(css).toMatch(/to bottom,\s*color-mix\(in srgb, var\(--role-scrim\) var\(--hero-scrim-zone\)/);
+  });
+
   it("в landing.css нет сырых цветов — только роли", () => {
     expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(css).not.toMatch(/\b(?:rgb|hsl|oklch)a?\(/);

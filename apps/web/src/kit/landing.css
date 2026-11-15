@@ -46,7 +46,8 @@
  * - всё фото — 30%: фото «под текст», как у образцов;
  * - колонка текста — ещё 36% от левого края до правой границы колонки (центр + 14rem при содержимом 1100px), к центру
  *   + 34rem тает; в колонке итог 1 − 0,70 · 0,64 = 55,2%;
- * - нижняя полоса (подпись фото справа внизу) — ещё 36% на нижние 5rem, к 12rem тает; итог там тоже ≥ 55,2%.
+ * - нижняя полоса (подпись фото справа внизу) — ещё 36% на нижние 5rem, к 12rem тает; итог там тоже ≥ 55,2%;
+ * - верхняя полоса под прозрачной шапкой (белые разделы и «Войти», см. ниже) — ещё 36% на высоту шапки + 1rem.
  * Белый текст на белом фото под 55,2% черного — 4,78:1 (landing.test.ts).
  * При увеличении контраста — плотнее (итог ≈ 70%).
  */
@@ -68,6 +69,12 @@
       color-mix(in srgb, var(--role-scrim) var(--hero-scrim-zone), transparent) 0,
       color-mix(in srgb, var(--role-scrim) var(--hero-scrim-zone), transparent) 5rem,
       transparent 12rem
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--role-scrim) var(--hero-scrim-zone), transparent) 0,
+      color-mix(in srgb, var(--role-scrim) var(--hero-scrim-zone), transparent) calc(var(--spacing-header) + 1rem),
+      transparent calc(var(--spacing-header) + 6rem)
     ),
     linear-gradient(
       color-mix(in srgb, var(--role-scrim) var(--hero-scrim-base), transparent),
@@ -109,5 +116,35 @@
   );
   @media (prefers-contrast: more) {
     --scrim-photo-alpha: 70%;
+  }
+}
+
+/*
+ * Шапка компьютера над первым экраном лендинга (разбор 3.8): в самом верху страницы — прозрачная, с белым текстом поверх
+ * затемнённого фото (верхняя полоса scrim-hero); с первых пикселей прокрутки — обычное стекло glass-bar с тёмным
+ * текстом. Переключение — анимацией по прокрутке корня (как «растворение» glass-bar), поэтому разметка оболочки не
+ * меняется. Цвета текста шапки — роли ink, glass-secondary и fill внутри неё (переключаются дискретно, на середине
+ * диапазона 0–1rem). Без animation-timeline (Firefox, старый Safari), при уменьшении прозрачности и при увеличении
+ * контраста — обычная шапка со стеклом всегда: белый текст на прозрачной шапке без прокрутки к фото не привязан.
+ */
+@supports (animation-timeline: scroll()) {
+  @media not ((prefers-reduced-transparency: reduce) or (prefers-contrast: more)) {
+    :root[data-device="desktop"]:has([data-hero]) [data-top-bar] {
+      animation: top-bar-over-photo linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 1rem;
+    }
+  }
+}
+
+@keyframes top-bar-over-photo {
+  from {
+    background-color: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    --role-ink: var(--role-on-photo);
+    --glass-secondary: var(--role-on-photo);
+    --role-fill: color-mix(in srgb, var(--role-scrim) 25%, transparent); /* «Войти» темнее фото: белый текст не теряет контраст */
+    --role-fill-strong: color-mix(in srgb, var(--role-scrim) 35%, transparent);
   }
 }
