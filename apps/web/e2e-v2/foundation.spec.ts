@@ -97,14 +97,29 @@ test.describe("оболочка компьютера", () => {
 // ───────── 4. Тема ─────────
 
 test.describe("тема", () => {
-  const BLACK = "rgb(0, 0, 0)";
   const bodyBackground = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  // Тёмный фон — из токена --role-canvas тёмной темы (не жёсткий #000): цвет роли, приведённый браузером к rgb.
+  const canvasToken = (page: Page) =>
+    page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.backgroundColor = "var(--role-canvas)";
+      document.body.append(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    });
+  const expectDarkCanvas = async (page: Page) => {
+    const background = await bodyBackground(page);
+    expect(background).toBe(await canvasToken(page));
+    const [r, g, b] = (background.match(/\d+/g) ?? []).map(Number);
+    expect(Math.max(r, g, b), `фон ${background} не тёмный`).toBeLessThan(40);
+  };
 
-  test("4a. кука theme=dark: data-theme и чёрный фон", async ({ page, context, baseURL }) => {
+  test("4a. кука theme=dark: data-theme и тёмный фон из токена", async ({ page, context, baseURL }) => {
     await context.addCookies([{ name: "theme", value: "dark", url: baseURL }]);
     await page.goto("/v2");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-    expect(await bodyBackground(page)).toBe(BLACK);
+    await expectDarkCanvas(page);
   });
 
   test("4b. кука с чужим значением: атрибута нет, страница отвечает 200", async ({ page, context, baseURL }) => {
@@ -117,10 +132,10 @@ test.describe("тема", () => {
   test.describe("системная тёмная", () => {
     test.use({ colorScheme: "dark" });
 
-    test("4c. без куки фон тоже чёрный", async ({ page }) => {
+    test("4c. без куки фон тоже тёмный из токена", async ({ page }) => {
       await page.goto("/v2");
       await expect(page.locator("html")).not.toHaveAttribute("data-theme");
-      expect(await bodyBackground(page)).toBe(BLACK);
+      await expectDarkCanvas(page);
     });
   });
 });
@@ -175,15 +190,23 @@ test.describe("уменьшенное движение", () => {
   test.skip(({ isMobile }) => !isMobile, "только проект mobile");
   test.use({ reducedMotion: "reduce" });
 
-  test("7. шторка открывается и встаёт на место (низ шторки — низ окна)", async ({ page }) => {
+  test("7. шторка открывается и встаёт на место (низ шторки у низа окна)", async ({ page }) => {
     await page.goto(UI_KIT);
     await button(page, overlays.sheetOpen).click();
     const sheet = page.getByRole("dialog", { name: overlays.sheetTitle });
     await expect(sheet).toBeVisible();
     const height = viewportOf(page).height;
+    // Шторка «висит» (форма iOS 26): между её низом и низом окна зазор 8 px, у полноэкранной — 0. Ниже окна низ не уходит.
     await expect
-      .poll(async () => Math.abs((await box(sheet)).y + (await box(sheet)).height - height), { timeout: 5_000 })
-      .toBeLessThanOrEqual(4);
+      .poll(
+        async () => {
+          const rect = await box(sheet);
+          const gap = height - (rect.y + rect.height);
+          return gap >= -1 && gap <= 12;
+        },
+        { timeout: 5_000, message: "низ шторки не у низа окна (зазор висящей шторки — 8 px)" },
+      )
+      .toBe(true);
   });
 });
 
