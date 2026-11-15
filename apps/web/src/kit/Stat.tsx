@@ -45,7 +45,7 @@ export function StatRow({ label, inline = false, children }: StatRowProps) {
     <div
       role="group"
       aria-label={label}
-      className={cn("flex flex-wrap gap-y-4 overflow-hidden rounded-card bg-surface p-5", inline ? "gap-x-5 *:flex-none *:last:flex-1" : "gap-x-8 *:flex-1 *:basis-32")}
+      className={cn("flex flex-wrap gap-y-4 overflow-hidden rounded-card bg-surface p-5", inline ? "items-start gap-x-5 *:flex-none *:last:flex-1" : "gap-x-8 *:flex-1 *:basis-32")}
     >
       {children}
     </div>
