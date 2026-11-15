@@ -17,10 +17,17 @@ function lastBeforeAccept(r: RequestSpec): number {
 }
 
 const NOWS = {
-  "середина месяца": Date.UTC(2026, 10, 16, 7, 0),
+  "середина месяца, день": Date.UTC(2026, 10, 16, 7, 0),
+  "середина месяца, 01:00 Астаны": Date.UTC(2026, 10, 15, 20, 0),
+  "середина месяца, 22:00 Астаны": Date.UTC(2026, 10, 16, 17, 0),
   "1-е число, 01:00 Астаны": Date.UTC(2026, 10, 30, 20, 0),
+  "1-е число, 12:00 Астаны": Date.UTC(2026, 11, 1, 7, 0),
   "2-е число": Date.UTC(2026, 11, 2, 6, 0),
+  "3-е число, 05:00 Астаны": Date.UTC(2026, 11, 3, 0, 0),
 };
+
+/** Час по Астане (UTC+5). */
+const astanaHour = (t: number) => new Date(t + 5 * 3_600_000).getUTCHours() + new Date(t).getUTCMinutes() / 60;
 
 const isThisMonth = (w: When) => typeof w === "object";
 
@@ -41,6 +48,12 @@ describe("время сделок сида", () => {
         for (let i = 1; i < times.length; i++) expect(times[i]!, `${plan.request}, шаг ${i}`).toBeGreaterThan(times[i - 1]!);
         expect(times.at(-1)!, plan.request).toBeLessThan(now);
         for (const w of plan.at.steps.filter(isThisMonth)) expect(resolveWhen(w, now), plan.request).toBeGreaterThanOrEqual(monthStartAstana(now));
+        // Дни плана — в рабочие часы Астаны, а не во время засева (например, 01:01 у всех).
+        for (const w of [plan.at.accepted, ...plan.at.steps].filter((x) => !isThisMonth(x))) {
+          const h = astanaHour(resolveWhen(w, now));
+          expect(h, plan.request).toBeGreaterThanOrEqual(10);
+          expect(h, plan.request).toBeLessThanOrEqual(19);
+        }
       }
       for (const review of REVIEWS) {
         const plan = DEALS.find((d) => d.request === review.request)!;
