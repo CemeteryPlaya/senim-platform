@@ -11,7 +11,7 @@ export type ChipsProps = {
 };
 
 /**
- * Фильтры-ссылки без обводок: обычный чип — заливка `line` и текст `ink`, радиус 12 px; выбранный — заливка `action`,
+ * Фильтры-ссылки без обводок: обычный чип — заливка `fill` и текст `ink`, капсула; выбранный — заливка `action`,
  * текст `on-action`, вес 600 и `aria-current="true"`. Каждый чип — обычная ссылка (адрес с параметром фильтра): работает
  * без JavaScript, с кнопкой «Назад» и общим доступом к адресу.
  *
@@ -30,8 +30,8 @@ export function Chips({ items, label }: ChipsProps) {
               href={item.href}
               aria-current={item.active ? "true" : undefined}
               className={cn(
-                "flex min-h-control items-center rounded-field px-4 text-sub whitespace-nowrap no-underline pressable desktop:min-h-control-sm",
-                item.active ? "bg-action font-semibold text-on-action" : "bg-line font-medium text-ink",
+                "flex min-h-control items-center rounded-chip px-4 text-sub whitespace-nowrap no-underline pressable desktop:min-h-control-sm",
+                item.active ? "bg-action font-semibold text-on-action" : "bg-fill font-medium text-ink",
               )}
             >
               {item.label}

@@ -66,13 +66,15 @@ describe("MobileShell", () => {
     }
   });
 
-  it("под плавающими панелями — подложка цвета фона (bar-underlay), без кликов и вне доступности; без вкладок её нет", () => {
+  it("под плавающими панелями — растворение (bar-underlay), без кликов и вне доступности; видимость — по вкладкам или доку (CSS)", () => {
     const m = html(<MobileShell nav={clientNav}>x</MobileShell>);
     const underlay = tagWith(m, "data-bar-underlay");
     expect(hasClass(underlay, "bar-underlay")).toBe(true);
     expect(underlay).toContain("aria-hidden");
     expect(m.indexOf("data-bar-underlay")).toBeLessThan(m.indexOf("data-tab-bar"));
-    expect(html(<MobileShell nav={{ ...clientNav, tabs: [] }}>x</MobileShell>)).not.toContain("data-bar-underlay");
+    // Без вкладок подложка в разметке есть (у экрана может быть док), а видна только при доке: правило bar-underlay.
+    const noTabs = html(<MobileShell nav={{ ...clientNav, tabs: [] }}>x</MobileShell>);
+    expect(hasClass(tagWith(noTabs, "data-bar-underlay"), "bar-underlay")).toBe(true);
   });
 
   it("панель плавающая, стекло: glass-regular (кромка, контур и тень в материале), капсула, прилипает снизу с отступом", () => {
@@ -103,6 +105,28 @@ describe("MobileShell", () => {
     expect(home).toBeDefined();
     // На стекле вторичный текст — glass-secondary (обычный muted на стекле над тёмным фото ниже 4,5:1).
     expect(hasClass(home ?? "", "text-glass-secondary")).toBe(true);
+  });
+
+  it("активная вкладка — линза: подложка fill-strong за иконкой и подписью (не толщина штриха), скрыта от диктора", () => {
+    nav.pathname = "/v2/deals/42";
+    const m = html(<MobileShell nav={clientNav}>x</MobileShell>);
+    const links = m.match(/<a [^>]*>[\s\S]*?<\/a>/g)?.filter((a) => a.includes("data-tab-label")) ?? [];
+    const withLens = links.filter((a) => a.includes("data-nav-lens"));
+    expect(withLens).toHaveLength(1);
+    expect(withLens[0]).toContain('aria-current="page"');
+    const lens = tagWith(withLens[0], "data-nav-lens");
+    for (const cls of ["bg-fill-strong", "rounded-chip", "absolute", "-z-10"]) expect(hasClass(lens, cls), cls).toBe(true);
+    expect(lens).toContain('aria-hidden="true"');
+    // Иконки одной толщины: выбранную отличает линза.
+    expect(new Set(links.map((a) => /stroke-width="([\d.]+)"/.exec(a)?.[1])).size).toBe(1);
+  });
+
+  it("«Сделки» — значок документа с отметкой, а не рукопожатие", () => {
+    const m = html(<MobileShell nav={clientNav}>x</MobileShell>);
+    const deals = anchors(m).find((a) => a.includes('href="/v2/deals"')) ?? "";
+    expect(m).not.toContain("lucide-handshake");
+    expect(m.slice(m.indexOf('href="/v2/deals"'), m.indexOf('href="/v2/deals"') + 800)).toMatch(/lucide-file-check/);
+    expect(deals).toBeTruthy();
   });
 
   it("гость на главной: «Главная» — текущая вкладка (ink, 600), остальные glass-secondary (500)", () => {
@@ -214,7 +238,7 @@ describe("DesktopShell", () => {
     const login = tagWith(d, 'href="/v2/login"');
     expect(d.indexOf('href="/v2/login"')).toBeGreaterThan(d.indexOf("</nav>"));
     expect(login).not.toContain("data-primary-action");
-    expect(hasClass(login, "bg-line")).toBe(true); // вид secondary
+    expect(hasClass(login, "bg-fill")).toBe(true); // вид secondary
     expect(d).toContain(`>${ru.app.shell.nav.login}</a>`);
     expect(d).not.toContain("/v2/notifications");
     expect(d).not.toContain(ru.app.shell.profileMenu);
@@ -234,6 +258,19 @@ describe("DesktopShell", () => {
     nav.pathname = "/v2/login";
     const m = html(<MobileShell nav={guestNav}>x</MobileShell>);
     expect(tagWith(m, 'href="/v2/login"')).toContain('aria-current="page"');
+  });
+
+  it("текущий раздел в шапке — с линзой (подложка за подписью), остальные без неё", () => {
+    nav.pathname = "/v2/catalog/3";
+    const d = html(
+      <DesktopShell nav={guestNav} user={null}>
+        x
+      </DesktopShell>,
+    );
+    const navBlock = d.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "";
+    const links = navBlock.match(/<a [^>]*>[\s\S]*?<\/a>/g) ?? [];
+    expect(links.filter((a) => a.includes("data-nav-lens"))).toHaveLength(1);
+    expect(links.find((a) => a.includes("data-nav-lens"))).toContain('aria-current="page"');
   });
 
   it("гость: текущий раздел — ink и вес 600, остальные — muted и 500", () => {
@@ -374,7 +411,6 @@ describe("сосредоточенная оболочка (первые шаги
     expect(hasClass(main, "safe-block")).toBe(false);
     for (const cls of ["safe-gutter", "safe-bottom", "pt-6"]) expect(hasClass(main, cls), cls).toBe(true);
     expect(m).not.toContain("data-tab-bar");
-    expect(m).not.toContain("data-bar-underlay");
     expect(m).not.toContain("data-has-tabs");
     expect(m).not.toMatch(/<nav/);
     for (const href of ["/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"]) expect(m).not.toContain(`href="${href}"`);
@@ -389,7 +425,7 @@ describe("сосредоточенная оболочка (первые шаги
     expect(d).toContain(brand);
     expect(d).not.toContain('href="/v2"');
     const logoutClass = new RegExp(`<button[^>]*class="([^"]*)"[^>]*>(?:<span[^>]*>)?${ru.app.shell.logout}`).exec(d)?.[1] ?? "";
-    expect(hasClass(`class="${logoutClass}"`, "bg-line")).toBe(true);
+    expect(hasClass(`class="${logoutClass}"`, "bg-fill")).toBe(true);
     expect(d).not.toMatch(/<nav/);
     expect(d).not.toContain(ru.app.shell.order);
     expect(d).not.toContain(ru.app.shell.notifications);
@@ -480,6 +516,25 @@ describe("MobileTopBar: колокольчик на корневых экран�
     expect(html(<MobileShell nav={guestNav} unread={0}>x</MobileShell>)).not.toContain("data-top-strip");
     expect(html(<MobileShell nav={focusNav} unread={0}>x</MobileShell>)).not.toContain("data-top-strip");
     expect(html(<MobileShell nav={clientNav}>x</MobileShell>)).not.toContain("data-top-strip");
+  });
+
+  it("колокольчик телефона — круглая кнопка 48 px на стекле; в шапке компьютера (она уже стекло) — без своего материала", () => {
+    nav.pathname = "/v2";
+    const m = html(
+      <MobileShell nav={clientNav} unread={2}>
+        x
+      </MobileShell>,
+    );
+    const bell = tagWith(m, 'href="/v2/notifications"');
+    for (const cls of ["glass-regular", "rounded-full", "size-control"]) expect(hasClass(bell, cls), cls).toBe(true);
+    const d = html(
+      <DesktopShell nav={clientNav} user={client} unread={2}>
+        x
+      </DesktopShell>,
+    );
+    const deskBell = tagWith(d, 'href="/v2/notifications"');
+    expect(hasClass(deskBell, "glass-regular")).toBe(false);
+    expect(hasClass(deskBell, "hover:bg-fill")).toBe(true);
   });
 
   it("без непрочитанных строка есть, бейджа нет", () => {

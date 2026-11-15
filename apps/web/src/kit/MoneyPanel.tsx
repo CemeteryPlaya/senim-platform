@@ -64,7 +64,7 @@ export function MoneyPanel({ tone, title, amount, rows = [], note, action, devic
           <span className="min-w-0">{title}</span>
         </p>
         <p className="text-title tabular-nums text-ink">
-          <Money tiyn={amount} />
+          <Money tiyn={amount} large />
         </p>
       </div>
       {rows.length > 0 && (

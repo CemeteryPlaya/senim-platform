@@ -50,7 +50,7 @@ export default async function ChatPage({ params }: Props) {
       {model.beforeOffer && (
         <span>
           {t.hiddenShort}{" "}
-          <Explain label={t.why} title={t.whyTitle} device={device}>
+          <Explain label={t.why} title={t.whyTitle} device={device} onGlass={device === "mobile"}>
             <p>{t.whyBody}</p>
           </Explain>
         </span>
@@ -67,7 +67,13 @@ export default async function ChatPage({ params }: Props) {
   return (
     <div className="flex min-w-0 flex-col gap-stack-section desktop:screen-fill">
       <div className="mobile:sticky-head mobile:glass-bar desktop:shrink-0">
-        <PageTitle title={counterpartOf(view.counterpart, side)} back={{ href: to("/chats"), label: t.back }} lead={lead} />
+        {/* На телефоне шапка — стекло (glass-bar): на нём только ink и glass-secondary (onGlass), без muted и accent. */}
+        <PageTitle
+          title={counterpartOf(view.counterpart, side)}
+          back={{ href: to("/chats"), label: t.back }}
+          lead={lead}
+          onGlass={device === "mobile"}
+        />
       </div>
       <div className="flex min-w-0 flex-col mobile:flex-1 desktop:min-h-0 desktop:max-w-narrow desktop:flex-1">{room}</div>
     </div>

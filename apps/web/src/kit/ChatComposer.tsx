@@ -26,8 +26,10 @@ export type ChatComposerProps = {
 
 /**
  * Поле сообщения: многострочное, растёт до пяти строк, счётчик у предела, кнопка отправки (значок, имя из `ru`).
- * Это не главная кнопка экрана (`data-primary-action` нет). На телефоне панель прилипает к низу области над панелью
- * вкладок (как `ActionDock`, с безопасной зоной); на компьютере стоит в потоке под лентой. Клиентский компонент.
+ * Это не главная кнопка экрана (`data-primary-action` нет). На телефоне полоса прилипает к низу области над панелью
+ * вкладок (как `ActionDock`, с безопасной зоной); она не стекло (поле ввода на стекле запрещено, разбор 3.4), а сплошная
+ * цвета фона от края до края экрана (`composer-bar`, `rail-bleed`), над ней лента растворяется. На компьютере стоит в
+ * потоке под лентой. Клиентский компонент.
  */
 export function ChatComposer({ onSend, pending = false, maxLength, device, label, placeholder, onAttach }: ChatComposerProps) {
   const t = ru.app.kit.chat;
@@ -66,7 +68,7 @@ export function ChatComposer({ onSend, pending = false, maxLength, device, label
         event.preventDefault();
         void send();
       }}
-      className="flex flex-col gap-2 mobile:sticky mobile:z-10 mobile:mt-auto mobile:glass-regular mobile:dock-above-bar mobile:dock-bleed mobile:rounded-card mobile:p-2"
+      className="flex flex-col gap-2 mobile:sticky mobile:z-10 mobile:mt-auto mobile:composer-bar mobile:dock-above-bar mobile:rail-bleed mobile:py-2"
     >
       <div className="flex items-end gap-2">
         {onAttach && (

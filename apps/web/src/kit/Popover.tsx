@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Popover as PopoverPrimitive } from "radix-ui";
 import type { ReactElement, ReactNode } from "react";
+import { cn } from "./cn";
 import { presence } from "./motion";
 import { useOpenState } from "./overlay-state";
 
@@ -14,19 +15,30 @@ export type PopoverProps = PopoverName & {
   trigger: ReactElement;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Материал (разбор 3.4): `solid` (по умолчанию) — сплошной `raised`, для текста пояснений: длинный текст на стекле
+   * запрещён; `glass` — толстое стекло `glass-thick`, для короткого выбора (несколько пунктов). Текст на стекле — только
+   * ink и glass-secondary.
+   */
+  material?: "solid" | "glass";
   children?: ReactNode;
 };
 
+export const POPOVER_MATERIALS = {
+  solid: "bg-raised shadow-overlay",
+  glass: "glass-thick",
+} as const;
+
 /**
  * Поповер у кнопки (компьютер): пояснение, короткий выбор. Растёт из своей кнопки: `transform-origin` — точка
- * триггера, которую считает Radix (`--radix-popover-content-transform-origin`); вход и выход по одному пути,
- * пружина без отскока; при `prefers-reduced-motion` — только проявление.
+ * триггера, которую считает Radix (`--radix-popover-content-transform-origin`), масштаб 0,96 → 1 и проявление; вход и
+ * выход по одному пути, пружина без отскока; при `prefers-reduced-motion` — только проявление.
  *
  * Немодальный: при открытии фокус переходит внутрь, Tab ходит по кругу внутри (FocusScope `loop` Radix ставит
  * всегда), при закрытии фокус возвращается на триггер; Esc и нажатие вне поповера закрывают, и это нажатие
  * сразу срабатывает там, куда нажали. Прокрутка страницы не блокируется. Фон — сплошной `raised`.
  */
-export function Popover({ trigger, title, label, open, onOpenChange, children }: PopoverProps) {
+export function Popover({ trigger, title, label, open, onOpenChange, material = "solid", children }: PopoverProps) {
   const [isOpen, setOpen] = useOpenState(open, onOpenChange);
   const reduced = useReducedMotion() ?? false;
 
@@ -46,8 +58,11 @@ export function Popover({ trigger, title, label, open, onOpenChange, children }:
               aria-label={title ? undefined : label}
             >
               <motion.div
-                className="z-50 w-80 max-w-(--radix-popover-content-available-width) origin-(--radix-popover-content-transform-origin) rounded-card bg-raised p-4 text-body text-ink shadow-float outline-none"
-                {...presence(reduced, { scale: 0.9 })}
+                className={cn(
+                  "z-50 w-80 max-w-(--radix-popover-content-available-width) origin-(--radix-popover-content-transform-origin) rounded-card p-4 text-body text-ink outline-none",
+                  POPOVER_MATERIALS[material],
+                )}
+                {...presence(reduced, { scale: 0.96 })}
               >
                 {title && <PopoverPrimitive.Title className="mb-1 text-headline text-ink">{title}</PopoverPrimitive.Title>}
                 {children}

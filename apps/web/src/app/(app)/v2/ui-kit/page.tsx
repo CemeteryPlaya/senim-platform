@@ -18,6 +18,7 @@ import {
   HelpBlock,
   List,
   ListRow,
+  Monogram,
   Money,
   Narrow,
   Notice,
@@ -277,7 +278,8 @@ const STATES = `${s.buttons.states.normal}, ${s.buttons.states.pending}, ${s.but
 /** Варианты кнопок карточками; на компьютере — две колонки. У главной размера sm нет (запрещён типом). */
 function Buttons() {
   return (
-    <div className="grid grid-cols-1 gap-stack-group desktop:grid-cols-2">
+    <Stack>
+      <div className="grid grid-cols-1 gap-stack-group desktop:grid-cols-2">
       {VARIANTS.map(({ variant, label }) => (
         <Card key={variant} className="flex flex-col gap-4">
           <Specimen label={`${s.buttons.sizeMd}: ${STATES}`}>
@@ -313,7 +315,17 @@ function Buttons() {
           </Specimen>
         </Card>
       ))}
-    </div>
+      </div>
+      <Specimen label={s.buttons.inverseNote}>
+        {/* Вместо фото — тёмная заливка ink под затемнением: инверсная кнопка живёт только поверх тёмного фото. */}
+        <div className="photo-frame flex min-h-40 items-end rounded-card p-6">
+          <div aria-hidden className="absolute inset-0 bg-scrim" />
+          <div className="relative">
+            <Button variant="inverse">{s.buttons.inverse}</Button>
+          </div>
+        </div>
+      </Specimen>
+    </Stack>
   );
 }
 
@@ -658,6 +670,54 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
               <h3 className="text-headline text-ink">{s.cards.cardTitle}</h3>
               <p className="mt-1 text-sub text-muted">{s.cards.cardBody}</p>
             </Card>
+            <Specimen label={s.cards.hero}>
+              <Card variant="hero" cover={<div aria-hidden />}>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-title-2 text-ink">{s.cards.heroTitle}</h3>
+                  <StatusChip tone="neutral">{s.cards.rowStatusValue}</StatusChip>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="text-sub text-muted">{s.cards.heroLabel}</p>
+                  <p className="text-display-amount text-ink">
+                    <Money tiyn={102040000n} large />
+                  </p>
+                </div>
+              </Card>
+            </Specimen>
+            <Specimen label={s.cards.grouped}>
+              <Card variant="grouped">
+                <List>
+                  <ListRow
+                    label={s.cards.groupedOne}
+                    detail={s.cards.groupedOneDetail}
+                    value={s.cards.groupedValue}
+                    href={to("/v2/ui-kit")}
+                    leading={<Monogram name={s.cards.groupedOne} size="md" />}
+                  />
+                  <ListRow
+                    label={s.cards.groupedTwo}
+                    detail={s.cards.groupedTwoDetail}
+                    value={<Money tiyn={32130000n} />}
+                    href={to("/v2/ui-kit")}
+                    leading={<Monogram name={s.cards.groupedTwo} size="md" />}
+                  />
+                </List>
+              </Card>
+            </Specimen>
+            <Specimen label={s.cards.interactive}>
+              <Card interactive>
+                <h3 className="text-headline text-ink">{s.cards.cardTitle}</h3>
+                <p className="mt-1 text-sub text-muted">{s.cards.cardBody}</p>
+              </Card>
+            </Specimen>
+            <Specimen label={s.cards.monograms}>
+              <div className="flex items-center gap-4">
+                <Monogram name={s.cards.groupedOne} size="sm" />
+                <Monogram name={s.cards.groupedOne} size="md" />
+                <Monogram name={s.cards.groupedOne} size="lg" />
+                <Monogram name={s.cards.groupedTwo} size="lg" />
+              </div>
+            </Specimen>
             <Specimen label={s.cards.listValues}>
               <Card padded={false}>
                 <List>

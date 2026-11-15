@@ -41,27 +41,29 @@ export type StyleOptions = ButtonLook & Extras;
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-action text-on-action",
   inverse: "bg-on-photo text-on-inverse",
-  secondary: "bg-line text-ink",
+  // Вторичная — полупрозрачная заливка fill (ink 6 %/8 %) на любом фоне, текст ink; отключённая отличается текстом muted.
+  secondary: "bg-fill text-ink",
   quiet: "bg-transparent text-ink",
   danger: "bg-danger-soft text-danger",
 };
 
 /** Отклик на наведение; у ожидающей не применяется, у отключённой гасится (not-disabled). */
 const HOVER: Record<ButtonVariant, string> = {
-  primary: "hover:not-disabled:opacity-90",
+  // Осветление (в тёмной теме — притемнение) к фону карточки, а не прозрачность: прозрачная кнопка выглядит блёклой.
+  primary: "hover:not-disabled:bg-action-hover",
   // Белая на фото: наведение — затемнение на 8% (inverse-hover), а не прозрачность (фото проступало бы сквозь кнопку).
   inverse: "hover:not-disabled:bg-inverse-hover",
-  secondary: "hover:not-disabled:opacity-80",
-  quiet: "hover:not-disabled:bg-line",
+  secondary: "hover:not-disabled:bg-fill-strong",
+  quiet: "hover:not-disabled:bg-fill",
   danger: "hover:not-disabled:opacity-80",
 };
 
 /**
- * Отключённая — одинаково у всех вариантов: подложка line, текст muted, без прозрачности (спокойная плашка, не
- * спорит с активными). Пара muted/line в светлой теме ~4,0:1 — для неактивных элементов контраст не нормируется
- * (WCAG 1.4.3), поэтому её нет в contrast.test.ts. Ожидающая (pending) — полный цвет варианта и индикатор.
+ * Отключённая — одинаково у всех вариантов: заливка fill, текст muted, без прозрачности (спокойная плашка, не спорит с
+ * активными). От вторичной (тоже fill) отличается цветом текста: muted, а не ink. Пара muted/fill держит 4,5:1 и так
+ * (contrast.test.ts), хотя для неактивных WCAG её не нормирует. Ожидающая (pending) — полный цвет варианта и индикатор.
  */
-const DISABLED = "disabled:cursor-not-allowed disabled:bg-line disabled:text-muted";
+const DISABLED = "disabled:cursor-not-allowed disabled:bg-fill disabled:text-muted";
 
 const SIZES: Record<ButtonSize, string> = {
   md: "min-h-control text-body",

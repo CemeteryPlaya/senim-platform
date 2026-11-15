@@ -84,7 +84,7 @@
   --text-small--line-height: 1.35;
   --text-small--letter-spacing: -0.003em;
   --text-small--font-weight: 500;
-  /* Знак «₸» в сумме — 0,6 размера самой суммы (text-currency на <span> внутри суммы). */
+  /* Знак «₸» в крупной сумме — 0,6 размера самой суммы (text-currency на <span> внутри суммы; Money large). */
   --text-currency: 0.6em;
 
   /*
@@ -134,8 +134,10 @@
   --spacing-code: 10rem;
   /* Поле содержимого телефона сверху и снизу — 24px (safe-block); от него считается положение дока в конце страницы. */
   --spacing-column-block: 1.5rem;
-  /* Аватар в шапке — 32px (size-avatar). */
-  --spacing-avatar: 2rem;
+  /* Монограмма: 36px — шапка (size-avatar), 44px — чаты (size-avatar-md), 72px — профиль (size-avatar-lg). */
+  --spacing-avatar: 2.25rem;
+  --spacing-avatar-md: 2.75rem;
+  --spacing-avatar-lg: 4.5rem;
 
   /*
    * Раскладка (src/kit/layout.tsx). Stack: 8px — плотно, 12px — карточки одной группы, 24px — между разделами
@@ -192,9 +194,12 @@
   --color-line: var(--role-line);
   --color-line-strong: var(--role-line-strong);
   --color-fill: var(--role-fill);
+  --color-fill-strong: var(--role-fill-strong);
   --color-track: var(--role-track);
   --color-bubble: var(--role-bubble);
   --color-action: var(--role-action);
+  /* Наведение главной кнопки — осветление (светлая тема) или притемнение (тёмная) к фону карточки, а не прозрачность. */
+  --color-action-hover: color-mix(in srgb, var(--role-action) 88%, var(--role-surface));
   --color-on-action: var(--role-on-action);
   --color-accent: var(--role-accent);
   --color-accent-soft: var(--role-accent-soft);
@@ -233,6 +238,7 @@
   --role-line: #e7e5e0;
   --role-line-strong: #8a877f;
   --role-fill: color-mix(in srgb, var(--role-ink) 6%, transparent); /* на canvas ≈ #e9e8e5 */
+  --role-fill-strong: color-mix(in srgb, var(--role-ink) 10%, transparent);
   --role-track: #e7e5e0; /* дорожка сегментов: белый выбранный сегмент (raised) на тёплом сером */
   --role-bubble: #e7e5e0; /* своё сообщение в переписке: серое рядом с белым чужим (surface) */
   --role-action: #1d1c1a;
@@ -261,13 +267,13 @@
 
   /*
    * Стекло (утилиты glass-* ниже). Плотность — по худшему фону: под светлым стеклом чёрное фото даёт ≈ #c7c7c7 —
-   * ink 10,1:1, glass-secondary 5,46:1 (contrast.test.ts). Свет кромки (--sheen) — белый в обеих темах, сила — по теме.
+   * ink 10,1:1, glass-secondary 5,38:1 (contrast.test.ts). Свет кромки (--sheen) — белый в обеих темах, сила — по теме.
    */
   --glass-tint: #ffffff;
   --glass-alpha: 78%;
   --glass-thick-alpha: 86%;
   --glass-solid-alpha: 96%; /* без backdrop-filter: почти сплошной, текст под панелью не читается сквозь неё */
-  --glass-secondary: #48474a;
+  --glass-secondary: #4a4844; /* тёплый, в тон ink */
   --glass-blur: 24px;
   --glass-thick-blur: 40px;
   --glass-saturate: 180%;
@@ -299,6 +305,7 @@
   --role-line: #34322e;
   --role-line-strong: #7d7970;
   --role-fill: color-mix(in srgb, var(--role-ink) 8%, transparent);
+  --role-fill-strong: color-mix(in srgb, var(--role-ink) 14%, transparent);
   --role-track: #1b1a18; /* выбранный сегмент (raised, #272522) светлее дорожки */
   --role-bubble: #302e2a; /* светлее raised: raised к surface — всего 1,14, свои слились бы с чужими */
   --role-action: #f5f3ef;
@@ -347,6 +354,8 @@
     --role-line: #34322e;
     --role-line-strong: #7d7970;
     --role-fill: color-mix(in srgb, var(--role-ink) 8%, transparent);
+    --role-fill-strong: color-mix(in srgb, var(--role-ink) 14%, transparent);
+  --role-fill-strong: color-mix(in srgb, var(--role-ink) 14%, transparent);
     --role-track: #1b1a18;
     --role-bubble: #302e2a;
     --role-action: #f5f3ef;
@@ -634,7 +643,8 @@
 /*
  * Затемнение фото под белым текстом и glass-clear (Apple: Clear «needs a dimming layer»). Отдельный пустой слой
  * поверх <img> и под текстом: `<div aria-hidden className="scrim-photo" />` в контейнере `relative`. Нижняя четверть —
- * полное затемнение 55% (белый на белом фото 4,74:1), к 60% высоты — прозрачно. Текст и капсулы ставить в нижнюю
+ * полное затемнение 55% (белый на белом фото 4,74:1), к 60% высоты — прозрачно; спад плавный (S-кривая по семи точкам:
+ * без видимой полосы на краю плато). Текст и капсулы ставить в нижнюю
  * четверть. scrim-photo-start — от левого нижнего угла (первый экран лендинга на компьютере, текст слева).
  * При увеличении контраста — 70%.
  */
@@ -646,6 +656,11 @@
     to top,
     color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 0%,
     color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 25%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.94), transparent) 30.25%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.78), transparent) 35.5%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.5), transparent) 42.5%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.22), transparent) 49.5%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.06), transparent) 54.75%,
     transparent 60%
   );
   @media (prefers-contrast: more) {
@@ -660,6 +675,11 @@
     to top right,
     color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 0%,
     color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 35%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.94), transparent) 41%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.78), transparent) 47%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.5), transparent) 55%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.22), transparent) 63%,
+    color-mix(in srgb, var(--role-scrim) calc(var(--scrim-photo-alpha) * 0.06), transparent) 69%,
     transparent 75%
   );
   @media (prefers-contrast: more) {
@@ -713,20 +733,41 @@
 }
 
 /*
- * Подложка под плавающими панелями телефона (MobileShell): сплошной фон страницы от нижнего края на высоту панели
- * вкладок с её отступами и зазором до дока (8px), выше — плавный переход в прозрачность на 24px. Строки содержимого не мелькают в щелях
- * между доком и панелью и под панелью. Клики не перехватывает; при prefers-reduced-transparency — сплошной фон.
+ * «Растворение» содержимого у нижнего края телефона (scroll edge, разбор 3.4) под плавающими панелью вкладок и доком
+ * главного действия (MobileShell). Не плита: тон фона страницы плавно густеет к низу (S-кривая без видимой полосы),
+ * так что под стеклом панели содержимое ещё просвечивает — стекло видно, а строки не мелькают резко в щелях между
+ * доком и панелью. Высота — всё, что занимают панель (её высота, отступ и безопасная зона) и док (кнопка 48px и зазор
+ * 8px), плюс 40px перехода сверху. Видна, только если в оболочке есть панель вкладок (data-has-tabs) или док
+ * (data-action-dock); иначе плавающего у низа ничего нет и растворять содержимое незачем. Клики не перехватывает.
+ * prefers-reduced-transparency и prefers-contrast: more — сплошной фон на высоту панелей (материалы там тоже сплошные).
  */
 @utility bar-underlay {
+  display: none;
   position: fixed;
   inset-inline: 0;
   bottom: 0;
   pointer-events: none;
-  height: calc(var(--tab-bar-block, 0px) + var(--spacing-stack-tight) + 1.5rem);
-  background: linear-gradient(to top, var(--role-canvas) calc(100% - 1rem), transparent);
-  @media (prefers-reduced-transparency: reduce) {
-    background: var(--role-canvas);
+  height: calc(var(--tab-bar-block, 0px) + var(--underlay-dock, 0px) + 2.5rem);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--role-canvas) 72%, transparent) 0%,
+    color-mix(in srgb, var(--role-canvas) 66%, transparent) 30%,
+    color-mix(in srgb, var(--role-canvas) 50%, transparent) 55%,
+    color-mix(in srgb, var(--role-canvas) 26%, transparent) 75%,
+    color-mix(in srgb, var(--role-canvas) 8%, transparent) 90%,
+    transparent 100%
+  );
+  :where([data-has-tabs], :has([data-action-dock])) > & {
+    display: block;
   }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    background: linear-gradient(to top, var(--role-canvas) calc(100% - 1rem), transparent);
+  }
+}
+
+/* Док главного действия в оболочке: подложке нужна ещё его высота (кнопка 48px и зазор 8px до панели). */
+:where(:has(> main [data-action-dock])) {
+  --underlay-dock: calc(var(--spacing-control) + var(--spacing-stack-tight));
 }
 
 /*
@@ -795,6 +836,40 @@
 @utility dock-bleed {
   margin-left: calc(max(var(--spacing-bar-inset), env(safe-area-inset-left)) - max(var(--spacing-gutter), env(safe-area-inset-left)));
   margin-right: calc(max(var(--spacing-bar-inset), env(safe-area-inset-right)) - max(var(--spacing-gutter), env(safe-area-inset-right)));
+}
+
+/*
+ * Док без плиты (ActionDock на телефоне, разбор 3.4): главная кнопка висит сама над растворением содержимого
+ * (bar-underlay), сплошная, с тенью float — так она отделена от прокручиваемого под ней содержимого.
+ */
+@utility dock-float {
+  & > [data-primary-action] {
+    box-shadow: var(--elev-float);
+  }
+}
+
+/*
+ * Поле сообщения на телефоне (ChatComposer) — не стекло (поле ввода на стекле запрещено): сплошная полоса цвета фона
+ * от края до края экрана, а над ней — «растворение» ленты 24px (сообщения уходят под поле мягко, без линии).
+ * Элемент позиционирован (sticky). prefers-reduced-transparency и prefers-contrast: more — линия вместо растворения.
+ */
+@utility composer-bar {
+  background-color: var(--role-canvas);
+  &::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: 100%;
+    height: 1.5rem;
+    pointer-events: none;
+    background: linear-gradient(to top, var(--role-canvas), transparent);
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    &::before {
+      height: 1px;
+      background: var(--role-line-strong);
+    }
+  }
 }
 
 /* Панель вкладок по бокам: 10px от края или шире — на величину выреза (альбомная ориентация). */

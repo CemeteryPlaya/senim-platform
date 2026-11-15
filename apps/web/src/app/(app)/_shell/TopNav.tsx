@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { cn } from "@/kit";
+import { cn, NavLens } from "@/kit";
 import { activeHref, type NavItem } from "./nav";
 
 /**
  * Разделы роли в шапке компьютера — строкой (эталон docs/design/v3/reference/desktop-layout.html, вариант A).
- * Активный — цвет ink и aria-current="page", остальные — glass-secondary (вторичный текст на стекле шапки). При крупном шрифте строка переносится, шапка растёт.
+ * Активный — «линза» (NavLens: капсула fill-strong за подписью, переезжает пружиной без отскока; при меньшем движении —
+ * мгновенно), цвет ink 600 и aria-current="page"; остальные — glass-secondary 500 (вторичный текст на стекле шапки),
+ * при наведении — ink. Различимость не только весом: подложка и цвет. При крупном шрифте строка переносится, шапка растёт.
  */
 export function TopNav({ items }: { items: readonly NavItem[] }) {
   const current = activeHref(items, usePathname());
@@ -25,10 +27,11 @@ export function TopNav({ items }: { items: readonly NavItem[] }) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-control items-center rounded-field px-3 text-body no-underline hover:text-ink",
+                  "relative isolate inline-flex min-h-control-sm items-center rounded-chip px-4 text-body no-underline hover:text-ink",
                   active ? "font-semibold text-ink" : "font-medium text-glass-secondary",
                 )}
               >
+                {active && <NavLens group="sections" />}
                 {item.label}
               </Link>
             </li>

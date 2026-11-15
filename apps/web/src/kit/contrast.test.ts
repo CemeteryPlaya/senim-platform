@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { GLASS, type SolidRole, TOKENS, TRANSLUCENT } from "./tokens";
 
@@ -115,6 +117,14 @@ describe("заливка fill (полупрозрачный ink) на любом
     expect(contrast(t[fg], fill)).toBeGreaterThanOrEqual(4.5);
   });
 
+  // На fill-strong (наведение, нажатие, линза) — только ink: muted там не ставится (≈ 4,0–4,5:1).
+  const strongCases = fillCases.filter(([, fg]) => fg === "ink");
+  it.each(strongCases)("%s: %s на fill-strong (наведение, нажатие, линза) поверх %s — не ниже 4,5:1", (theme, fg, bg) => {
+    const t = TOKENS[theme];
+    const strong = over(t[TRANSLUCENT["fill-strong"].of], TRANSLUCENT["fill-strong"][theme], t[bg]);
+    expect(contrast(t[fg], strong)).toBeGreaterThanOrEqual(4.5);
+  });
+
   it.each(["light", "dark"] as const)("%s: fill заметен на фоне страницы (вторичная кнопка не сливается с canvas)", (theme) => {
     const t = TOKENS[theme];
     expect(contrast(over(t.ink, TRANSLUCENT.fill[theme], t.canvas), t.canvas)).toBeGreaterThan(1.1);
@@ -143,6 +153,39 @@ describe("стекло: текст читается при худшем фоне
   it.each(["light", "dark"] as const)("%s: обычный muted на стекле не ставится — при худшем фоне ниже 4,5:1", (theme) => {
     const worst = Math.min(...[WHITE, BLACK].map((under) => contrast(TOKENS[theme].muted, over(GLASS[theme].tint, GLASS[theme].regular, under))));
     expect(worst).toBeLessThan(4.5);
+  });
+
+  // Шапка во всю ширину (glass-bar: шапка компьютера, закреплённая шапка переписки) — плотность regular. На ней ни muted,
+  // ни accent: при худшем фоне оба ниже 4,5:1. Поэтому PageTitle, BackLink и Explain на стекле — вариант onGlass
+  // (ink и glass-secondary), а разметка экрана со стеклом — под сторожем ниже.
+  it.each((["light", "dark"] as const).flatMap((theme) => (["muted", "accent"] as const).map((fg) => [theme, fg] as const)))(
+    "%s: %s на glass-bar при худшем фоне ниже 4,5:1 — запрещён",
+    (theme, fg) => {
+      const worst = Math.min(...[WHITE, BLACK].map((under) => contrast(TOKENS[theme][fg], over(GLASS[theme].tint, GLASS[theme].regular, under))));
+      expect(worst).toBeLessThan(4.5);
+    },
+  );
+
+  it("тёплый вторичный текст стекла светлой темы — #4a4844 (в тон ink)", () => {
+    expect(GLASS.light.secondary).toBe("#4a4844");
+  });
+});
+
+describe("сторож: на стекле шапки — только ink и glass-secondary", () => {
+  // Разметка со стеклом шапки (glass-bar) и то, что она рендерит на нём: muted и accent там запрещены (тест выше).
+  const read = (rel: string) => readFileSync(path.join(__dirname, rel), "utf8");
+
+  it("закреплённая шапка переписки: заголовок и пояснение — в варианте onGlass", () => {
+    const page = read("../app/(app)/v2/chats/[offerId]/page.tsx");
+    expect(page).toContain("mobile:glass-bar");
+    expect(page).toMatch(/<PageTitle[^>]*\bonGlass=/);
+    expect(page).toMatch(/<Explain[^>]*\bonGlass=/);
+  });
+
+  it("шапка компьютера и меню разделов: без text-muted и text-accent", () => {
+    for (const file of ["../app/(app)/_shell/DesktopShell.tsx", "../app/(app)/_shell/TopNav.tsx", "../app/(app)/_shell/AvatarMenu.tsx"]) {
+      expect(read(file), file).not.toMatch(/\btext-(?:muted|accent)\b/);
+    }
   });
 });
 

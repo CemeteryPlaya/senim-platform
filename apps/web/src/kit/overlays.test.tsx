@@ -136,7 +136,7 @@ describe("меньше движения и меньше прозрачности
       /\[data-sonner-toaster\] \[data-sonner-toast\]:focus-visible\s*\{([^}]*)\}/.exec(read("overlays.css"))?.[1] ?? "";
     expect(rule).toMatch(/outline:\s*2px solid var\(--role-focus\)/);
     expect(rule).toMatch(/outline-offset:\s*2px/);
-    expect(rule).toMatch(/box-shadow:\s*--theme\(--shadow-float\)/);
+    expect(rule).toMatch(/box-shadow:\s*--theme\(--shadow-overlay\)/);
   });
 
   it("overlays.css: при меньшем движении переход затемнения мгновенный (не догоняет палец 0,4 с)", () => {

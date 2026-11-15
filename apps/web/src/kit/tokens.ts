@@ -17,6 +17,7 @@ export const COLOR_ROLES = [
   "line", // разделители внутри карточек и списков
   "line-strong", // граница поля и выбора: 3:1 к фону (WCAG 1.4.11)
   "fill", // полупрозрачная заливка ink: вторичная кнопка, нейтральный чип, дорожка, монограмма (см. TRANSLUCENT)
+  "fill-strong", // плотнее fill: наведение на вторичную кнопку, нажатие строки списка, «линза» активной вкладки на стекле
   "track", // дорожка сегментированного переключателя: темнее выбранного сегмента (raised) в обеих темах
   "bubble", // своё сообщение в переписке (Chat): нейтральная подложка, отличная от surface (чужие) в обеих темах
   "action", // одна главная кнопка
@@ -43,6 +44,7 @@ export type ColorRole = (typeof COLOR_ROLES)[number];
  */
 export const TRANSLUCENT = {
   fill: { of: "ink", light: 6, dark: 8 },
+  "fill-strong": { of: "ink", light: 10, dark: 14 },
 } as const satisfies Record<string, { of: ColorRole; light: number; dark: number }>;
 
 /** Роли со сплошным hex (все, кроме полупрозрачных). */
@@ -107,7 +109,7 @@ export const TOKENS: { light: Record<SolidRole, string>; dark: Record<SolidRole,
 
 /**
  * Стекло (Liquid Glass, разбор 3.4): тон материала, его плотность и вторичный текст на нём — по теме. Плотность выбрана
- * по худшему фону под панелью: в светлой теме — чёрное фото (подложка ≈ #c7c7c7), в тёмной — белое (≈ #4b4a49).
+ * по худшему фону под панелью: в светлой теме — чёрное фото (подложка ≈ #c7c7c7); вторичный текст светлой — тёплый #4a4844 (5,38:1 на худшем фоне), в тёмной — белое (≈ #4b4a49).
  * Обычный muted на стекле не ставится (3,5:1 на худшем фоне) — только ink и glass-secondary. contrast.test.ts считает
  * обе пары по худшему фону для обычного и толстого стекла и для запасной плотности без backdrop-filter.
  */
@@ -119,7 +121,7 @@ export const GLASS: {
   /** Clear поверх фото: тёмная подложка капсулы, затемнение фото под ней и запасные плотности. */
   clear: { regular: number; solid: number; reduced: number; scrim: number };
 } = {
-  light: { tint: "#ffffff", secondary: "#48474a", regular: 78, thick: 86 },
+  light: { tint: "#ffffff", secondary: "#4a4844", regular: 78, thick: 86 },
   dark: { tint: "#1e1d1b", secondary: "#c7c3bb", regular: 80, thick: 88 },
   solid: 96,
   clear: { regular: 28, solid: 60, reduced: 78, scrim: 55 },

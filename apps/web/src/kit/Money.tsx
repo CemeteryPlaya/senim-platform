@@ -16,10 +16,31 @@ export function formatMoney(tiyn: bigint): string {
   return `${negative ? MINUS : ""}${tenge}${fraction}${NBSP}₸`;
 }
 
+export type MoneyProps = {
+  tiyn: bigint;
+  /** `ink` (по умолчанию) — цвет ink; `inherit` — цвет окружения (сумма внутри вторичного текста, на фото). */
+  tone?: "ink" | "inherit";
+  /**
+   * Крупная сумма (герой экрана, блок денег, сводка): знак «₸» — 0,6 размера суммы (`text-currency`, разбор 3.6),
+   * у `ink` — цветом muted: цифры главнее знака. В строках и тексте не ставится — там знак полного размера.
+   */
+  large?: boolean;
+};
+
 /**
  * Сумма денег. Цифры табличные, строка не переносится. Цвет — ink (в том числе значением строки списка, где
- * остальные значения muted); `tone="inherit"` — цвет окружения (сумма внутри вторичного текста).
+ * остальные значения muted). Текст суммы для диктора и копирования один — `formatMoney`.
  */
-export function Money({ tiyn, tone = "ink" }: { tiyn: bigint; tone?: "ink" | "inherit" }) {
-  return <span className={cn("whitespace-nowrap tabular-nums", tone === "ink" && "text-ink")}>{formatMoney(tiyn)}</span>;
+export function Money({ tiyn, tone = "ink", large = false }: MoneyProps) {
+  const full = formatMoney(tiyn);
+  const className = cn("whitespace-nowrap tabular-nums", tone === "ink" && "text-ink");
+  if (!large) return <span className={className}>{full}</span>;
+  return (
+    <span className={className}>
+      {full.slice(0, -1)}
+      <span data-currency className={cn("text-currency", tone === "ink" && "text-muted")}>
+        ₸
+      </span>
+    </span>
+  );
 }

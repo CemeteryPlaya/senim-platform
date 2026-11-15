@@ -126,7 +126,9 @@ describe("Badge", () => {
     expect(out).toContain("99+");
     expect(hasClass(out, "tabular-nums")).toBe(true);
     expect(hasClass(out, "absolute")).toBe(true);
-    expect(hasClass(out, "bg-danger-soft")).toBe(true);
+    // Капсула сплошного danger, цифры on-danger (разбор 3.6).
+    for (const cls of ["bg-danger", "text-on-danger", "rounded-chip", "h-4.5"]) expect(hasClass(out, cls), cls).toBe(true);
+    expect(hasClass(out, "bg-danger-soft")).toBe(false);
   });
 
   it("подпись для диктора у родителя склоняется", () => {
@@ -460,6 +462,13 @@ describe("ChatComposer: разметка", () => {
     expect(hasClass(out, "mobile:sticky")).toBe(true);
     expect(hasClass(out, "mobile:dock-above-bar")).toBe(true);
     expect(hasClass(out, "desktop:sticky")).toBe(false);
+  });
+
+  it("на телефоне не стекло (поле ввода на стекле запрещено): сплошная полоса цвета фона от края до края", () => {
+    const out = html(<ChatComposer device="mobile" onSend={() => {}} />);
+    expect(hasClass(out, "mobile:composer-bar")).toBe(true);
+    expect(hasClass(out, "mobile:rail-bleed")).toBe(true);
+    expect(out).not.toContain("glass-");
   });
 
   it("пустое поле — отправка отключена; кнопка вложения — только с onAttach", () => {

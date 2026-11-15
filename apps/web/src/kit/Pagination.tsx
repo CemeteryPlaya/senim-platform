@@ -19,7 +19,7 @@ const t = ru.app.kit.pagination;
  * Кнопка шага: тихая 36 px на компьютере; на телефоне — серая на всю оставшуюся ширину, 48 px. `buttonClasses` (quiet, sm)
  * даёт 48 px на телефоне и 36 px на компьютере сам.
  */
-const step = cn(buttonClasses({ variant: "quiet", size: "sm" }), "flex-1 mobile:bg-line desktop:flex-none");
+const step = cn(buttonClasses({ variant: "quiet", size: "sm" }), "flex-1 mobile:bg-fill desktop:flex-none");
 
 /**
  * «Назад — Страница N из M — Вперёд». Компьютер: компактная группа по центру. Телефон: кнопки 48 px делят строку. Края,

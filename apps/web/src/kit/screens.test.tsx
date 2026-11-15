@@ -131,12 +131,12 @@ describe("Chips", () => {
     expect(hasClass(out, "desktop:overflow-visible")).toBe(true);
   });
 
-  it("без обводок: обычный — заливка line и ink, выбранный — заливка action и on-action; радиус 12 px", () => {
+  it("без обводок: обычный — заливка fill и ink, выбранный — заливка action и on-action; капсула", () => {
     const chip = (label: string) => new RegExp(`<a [^>]*class="([^"]*)"[^>]*>${label}</a>`).exec(out)?.[1] ?? "";
     const plain = chip("Все");
     const active = chip("Кухни");
-    for (const cls of ["bg-line", "text-ink", "rounded-field"]) expect(hasClass(`class="${plain}"`, cls), cls).toBe(true);
-    for (const cls of ["bg-action", "text-on-action", "font-semibold", "rounded-field"]) expect(hasClass(`class="${active}"`, cls), cls).toBe(true);
+    for (const cls of ["bg-fill", "text-ink", "rounded-chip"]) expect(hasClass(`class="${plain}"`, cls), cls).toBe(true);
+    for (const cls of ["bg-action", "text-on-action", "font-semibold", "rounded-chip"]) expect(hasClass(`class="${active}"`, cls), cls).toBe(true);
     expect(out).not.toMatch(/border/);
   });
 });
@@ -189,7 +189,7 @@ describe("Pagination", () => {
     expect(hasClass(out, "desktop:min-h-control-sm")).toBe(true);
     expect(hasClass(out, "min-h-control")).toBe(true);
     expect(hasClass(out, "bg-transparent")).toBe(true);
-    expect(hasClass(out, "mobile:bg-line")).toBe(true);
+    expect(hasClass(out, "mobile:bg-fill")).toBe(true);
     expect(hasClass(out, "flex-1")).toBe(true);
     expect(hasClass(out, "desktop:flex-none")).toBe(true);
   });
@@ -318,10 +318,11 @@ describe("ActionDock", () => {
     expect(hasClass(out, "mobile:mt-auto")).toBe(true);
   });
 
-  it("на телефоне прилипает над панелью вкладок", () => {
+  it("на телефоне прилипает над панелью вкладок; без плиты: ни стекла, ни подложки — кнопка с тенью float", () => {
     expect(hasClass(out, "mobile:sticky")).toBe(true);
     expect(hasClass(out, "mobile:dock-above-bar")).toBe(true);
-    expect(hasClass(out, "mobile:glass-regular")).toBe(true);
+    expect(hasClass(out, "mobile:dock-float")).toBe(true);
+    expect(out).not.toMatch(/glass-|bg-surface|bg-raised|rounded-card/);
   });
 
   it("док сам задаёт ширину детей: на телефоне на всю ширину, на компьютере по своей в ряд", () => {

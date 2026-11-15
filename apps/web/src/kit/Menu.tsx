@@ -6,7 +6,6 @@ import { Ellipsis } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { useState, type RefObject } from "react";
 import type { Device } from "@/platform/device";
-import { Button } from "./Button";
 import { cn } from "./cn";
 import { presence } from "./motion";
 import { Sheet } from "./Sheet";
@@ -38,17 +37,33 @@ const ITEM_BASE = "flex w-full items-center text-left text-body no-underline";
 const toneClass = (tone: MenuItem["tone"]): string => (tone === "danger" ? "text-danger" : "text-ink");
 
 /**
- * Второстепенные действия экрана за кнопкой «три точки» (вид `quiet`). Телефон — шторка со списком, компьютер —
- * выпадающее меню Radix (стрелки, Enter, Home/End, поиск по первой букве, Esc, фокус возвращается на кнопку).
- * Не для главного действия экрана.
+ * Кнопка «три точки» — круг 48 px. Телефон: круглая кнопка на стекле `glass-regular` (разбор 3.4, п. 4: плавает в
+ * верхней строке экрана над содержимым; не кладите её на другое стекло — например, в шапку переписки). Компьютер: без
+ * материала, при наведении — заливка fill.
+ */
+const TRIGGER: Record<Device, string> = {
+  mobile: "glass-regular",
+  desktop: "hover:bg-fill",
+};
+
+/**
+ * Второстепенные действия экрана за кнопкой «три точки». Телефон — шторка со списком, компьютер — выпадающее меню
+ * Radix (стрелки, Enter, Home/End, поиск по первой букве, Esc, фокус возвращается на кнопку) на толстом стекле
+ * `glass-thick`: появляется из кнопки (transform-origin — точка триггера) масштабом 0,96 → 1 и проявлением, пружина без
+ * отскока, закрывается тем же путём; при `prefers-reduced-motion` — только проявление. Не для главного действия экрана.
  */
 export function Menu({ label, items, device, triggerRef }: MenuProps) {
   const [open, setOpen] = useState(false);
   const reduced = useReducedMotion() ?? false;
   const trigger = (
-    <Button ref={triggerRef} variant="quiet" flush aria-label={label} className="min-w-control">
-      <Ellipsis aria-hidden className="size-6" />
-    </Button>
+    <button
+      ref={triggerRef}
+      type="button"
+      aria-label={label}
+      className={cn("inline-flex size-control min-h-control shrink-0 cursor-pointer items-center justify-center rounded-full text-ink pressable", TRIGGER[device])}
+    >
+      <Ellipsis aria-hidden className="size-6" strokeWidth={1.75} />
+    </button>
   );
 
   if (device === "mobile") {
@@ -56,7 +71,7 @@ export function Menu({ label, items, device, triggerRef }: MenuProps) {
       <Sheet trigger={trigger} title={label} open={open} onOpenChange={setOpen}>
         <ul className="flex flex-col">
           {items.map((item, index) => {
-            const className = cn(ITEM_BASE, "min-h-control rounded-field py-3 active:bg-line", toneClass(item.tone));
+            const className = cn(ITEM_BASE, "min-h-control rounded-field px-3 py-3 active:bg-fill-strong", toneClass(item.tone));
             return (
               <li key={`${index}-${item.label}`}>
                 {item.href ? (
@@ -91,11 +106,11 @@ export function Menu({ label, items, device, triggerRef }: MenuProps) {
           <DropdownMenu.Portal forceMount>
             <DropdownMenu.Content forceMount asChild align="end" side="bottom" sideOffset={8} collisionPadding={16} aria-label={label}>
               <motion.div
-                className="z-50 min-w-56 origin-(--radix-dropdown-menu-content-transform-origin) rounded-card bg-raised p-2 text-body text-ink shadow-float outline-none"
-                {...presence(reduced, { scale: 0.9 })}
+                className="glass-thick z-50 min-w-56 origin-(--radix-dropdown-menu-content-transform-origin) rounded-card p-2 text-body text-ink outline-none"
+                {...presence(reduced, { scale: 0.96 })}
               >
                 {items.map((item, index) => {
-                  const className = cn(ITEM_BASE, "min-h-control-sm cursor-pointer rounded-field px-4 py-2 outline-none data-highlighted:bg-line", toneClass(item.tone));
+                  const className = cn(ITEM_BASE, "min-h-control-sm cursor-pointer rounded-field px-4 py-2 outline-none data-highlighted:bg-fill-strong", toneClass(item.tone));
                   return (
                     <DropdownMenu.Item
                       key={`${index}-${item.label}`}

@@ -32,13 +32,21 @@
 }
 
 /*
+ * Висящая шторка (форма iOS 26, Sheet.tsx): vaul дорисовывает под шторкой продолжение её фона (::after на 200% вниз —
+ * для вытягивания вверх за край); у висящей шторки оно залило бы зазор 8 px под ней. Специфичнее правила vaul.
+ */
+[data-vaul-drawer][data-sheet-float]::after {
+  display: none !important;
+}
+
+/*
  * Кольцо фокуса тоста. CSS sonner без слоя (outline: none и тень сырым цветом на :focus-visible) перебивает
  * наше общее :focus-visible из @layer base — в тёмной теме кольца не видно. Здесь — тоже без слоя и специфичнее.
  */
 [data-sonner-toaster] [data-sonner-toast]:focus-visible {
   outline: 2px solid var(--role-focus);
   outline-offset: 2px;
-  box-shadow: --theme(--shadow-float);
+  box-shadow: --theme(--shadow-overlay);
 }
 
 /*

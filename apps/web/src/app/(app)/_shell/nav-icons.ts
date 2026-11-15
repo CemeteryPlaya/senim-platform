@@ -1,7 +1,7 @@
 import {
   ClipboardList,
+  FileCheck2,
   Hammer,
-  Handshake,
   House,
   Images,
   Info,
@@ -22,7 +22,8 @@ export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   about: Info,
   login: LogIn,
   requests: ClipboardList,
-  deals: Handshake,
+  // «Сделки» — документ с отметкой (оферта заключена), а не рукопожатие: на 24 px рукопожатие не читается (разбор 3.6).
+  deals: FileCheck2,
   chat: MessageCircle,
   finance: Wallet,
   profile: UserRound,

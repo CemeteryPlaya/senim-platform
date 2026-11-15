@@ -11,11 +11,10 @@ import type { ReactNode } from "react";
  * с тем же отступом 10 px плюс безопасная зона. В конце страницы `sticky` отпускает док, и он встаёт обычным блоком под
  * содержимым.
  *
- * Материал. Стекло `glass-regular` (кромка, контур и тень `float`) радиуса карточки, с теми же боковыми отступами
- * 10 px, что у панели вкладок (утилита `dock-bleed` выводит его за поля содержимого). Стекло на стекле не кладётся: док
- * стоит выше панели вкладок с зазором и её не перекрывает; перекрывает он только содержимое страницы. Кнопка внутри
- * сплошная (`bg-action`) — подпись читается на любом фоне; при prefers-reduced-transparency панель сплошная.
- * (Пересмотр вида, разбор 3.4: док станет кнопкой без плиты — задача V2.)
+ * Без плиты (разбор 3.4). Ни стекла, ни подложки: главная кнопка висит сама — сплошная графитовая, с тенью `float`
+ * (утилита `dock-float`), с теми же боковыми отступами 10 px, что у панели вкладок (`dock-bleed` выводит её за поля
+ * содержимого). Под ней содержимое не обрезается плитой, а растворяется: подложка оболочки `bar-underlay` при доке
+ * растёт на его высоту. Последний элемент страницы не перекрыт: в конце страницы `sticky` отпускает док в поток под ним.
  *
  * Короткий экран. `sticky` сам по себе держит док внизу, только когда содержимое длиннее экрана; иначе он стоял бы сразу
  * под содержимым посреди экрана. Поэтому область содержимого `MobileShell` растянута на высоту экрана (`main` — колонка),
@@ -36,7 +35,7 @@ import type { ReactNode } from "react";
  */
 export function ActionDock({ children }: { children: ReactNode }) {
   return (
-    <div data-action-dock className="flex flex-col gap-stack-tight mobile:sticky mobile:mt-auto mobile:z-10 mobile:glass-regular mobile:dock-above-bar mobile:dock-bleed mobile:rounded-card mobile:p-2 mobile:*:w-full desktop:flex-row desktop:flex-wrap desktop:items-center desktop:*:w-auto">
+    <div data-action-dock className="flex flex-col gap-stack-tight mobile:sticky mobile:mt-auto mobile:z-10 mobile:dock-float mobile:dock-above-bar mobile:dock-bleed mobile:*:w-full desktop:flex-row desktop:flex-wrap desktop:items-center desktop:*:w-auto">
       {children}
     </div>
   );

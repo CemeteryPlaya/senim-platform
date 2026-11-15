@@ -41,7 +41,7 @@ describe("Button", () => {
       expect(hasClass(flat, "px-6") || hasClass(flat, "px-4")).toBe(false);
       expect(hasClass(flat, "min-h-control")).toBe(true);
       expect(hasClass(flat, "hover:not-disabled:underline")).toBe(true);
-      expect(hasClass(flat, "hover:not-disabled:bg-line")).toBe(false);
+      expect(hasClass(flat, "hover:not-disabled:bg-fill")).toBe(false);
     }
     expect(hasClass(html(<Button variant="quiet">Ок</Button>), "px-6")).toBe(true);
     expect(hasClass(html(<Button variant="quiet" size="sm">Ок</Button>), "px-4")).toBe(true);
@@ -77,7 +77,9 @@ describe("Button", () => {
     expect(busy).not.toContain("hover:");
     expect(hasClass(busy, "pressable")).toBe(false);
     const idle = html(<Button>Ок</Button>);
-    expect(hasClass(idle, "hover:not-disabled:opacity-90")).toBe(true);
+    // Наведение главной — осветление (bg-action-hover), а не прозрачность.
+    expect(hasClass(idle, "hover:not-disabled:bg-action-hover")).toBe(true);
+    expect(idle).not.toMatch(/hover:[^\s"]*opacity-/);
     expect(hasClass(idle, "pressable")).toBe(true);
   });
 
@@ -138,10 +140,10 @@ describe("Button", () => {
   );
 
   it.each(["primary", "secondary", "quiet", "danger"] as const)(
-    "%s: отключённая — подложка line, текст muted, без прозрачности (одинаково у всех вариантов)",
+    "%s: отключённая — заливка fill, текст muted, без прозрачности (одинаково у всех вариантов)",
     (variant) => {
       const out = html(<Button variant={variant} disabled>Ок</Button>);
-      for (const cls of ["disabled:bg-line", "disabled:text-muted"]) expect(hasClass(out, cls), cls).toBe(true);
+      for (const cls of ["disabled:bg-fill", "disabled:text-muted"]) expect(hasClass(out, cls), cls).toBe(true);
       const tag = out.match(/<button[^>]*>/)?.[0] ?? "";
       expect(tag).not.toMatch(/[\s"](?:disabled:)?opacity-\d/);
     },
@@ -159,6 +161,13 @@ describe("Button", () => {
     // @ts-expect-error — у инверсной главной размер только md
     const small = <Button variant="inverse" size="sm">Ок</Button>;
     expect(small).toBeTruthy();
+  });
+
+  it("вторичная — заливка fill и текст ink; отключённая отличается от неё текстом muted", () => {
+    const secondary = html(<Button variant="secondary">Ок</Button>);
+    for (const cls of ["bg-fill", "text-ink", "hover:not-disabled:bg-fill-strong"]) expect(hasClass(secondary, cls), cls).toBe(true);
+    expect(hasClass(secondary, "bg-line")).toBe(false);
+    expect(hasClass(html(<Button variant="secondary" disabled>Ок</Button>), "disabled:text-muted")).toBe(true);
   });
 
   it("full растягивает кнопку, без full — нет", () => {
@@ -329,6 +338,13 @@ describe("Money", () => {
   it("целые тенге с неразрывными пробелами", () => {
     expect(text(<Money tiyn={122400000n} />)).toBe(`1${NB}224${NB}000${NB}₸`);
     expect(text(<Money tiyn={0n} />)).toBe(`0${NB}₸`);
+    // Обычная сумма — одной строкой текста, знак полного размера.
+    expect(html(<Money tiyn={122400000n} />)).toContain(`1${NB}224${NB}000${NB}₸`);
+    // Крупная: текст тот же, знак — 0,6 размера и muted.
+    expect(text(<Money tiyn={122400000n} large />)).toBe(`1${NB}224${NB}000${NB}₸`);
+    const large = html(<Money tiyn={122400000n} large />);
+    expect(/<span data-currency="true" class="([^"]*)">₸<\/span>/.exec(large)?.[1].split(" ")).toEqual(["text-currency", "text-muted"]);
+    expect(/data-currency="true" class="([^"]*)"/.exec(html(<Money tiyn={1n} large tone="inherit" />))?.[1]).toBe("text-currency");
     expect(text(<Money tiyn={99900n} />)).toBe(`999${NB}₸`);
   });
 
@@ -473,17 +489,25 @@ describe("Остальное", () => {
     expect(html(<StatusChip tone="accent">В пути</StatusChip>)).toContain("В пути");
   });
 
-  it("StatusChip: 13 px / 600, отступы 4 × 8 px, радиус 6 px, как .chip в эталоне", () => {
-    const chip = html(<StatusChip tone="accent">В пути</StatusChip>);
-    for (const cls of ["text-small", "font-semibold", "px-2", "py-1", "rounded-chip"]) expect(hasClass(chip, cls), cls).toBe(true);
-    expect(hasClass(chip, "text-sub")).toBe(false);
+  it("StatusChip: капсула 28 / 26 px, текст 15 px / 500, точка 8 px слева (скрыта от диктора)", () => {
+    const out = html(<StatusChip tone="accent">В пути</StatusChip>);
+    const chip = /<span[^>]*data-status-chip[^>]*>/.exec(out)?.[0] ?? "";
+    for (const cls of ["text-sub", "font-medium", "rounded-chip", "min-h-7", "desktop:min-h-6.5", "px-3"]) expect(hasClass(chip, cls), cls).toBe(true);
+    expect(hasClass(chip, "text-small")).toBe(false);
+    const dot = /<span aria-hidden="true"[^>]*>/.exec(out)?.[0] ?? "";
+    for (const cls of ["size-2", "rounded-full", "bg-accent"]) expect(hasClass(dot, cls), cls).toBe(true);
+    expect(text(<StatusChip tone="accent">В пути</StatusChip>)).toBe("В пути");
   });
 
-  it("StatusChip neutral: подложка line, текст ink (muted на line ниже 4,5:1)", () => {
-    const chip = html(<StatusChip tone="neutral">Черновик</StatusChip>);
-    expect(hasClass(chip, "bg-line")).toBe(true);
-    expect(hasClass(chip, "text-ink")).toBe(true);
-    expect(hasClass(chip, "bg-canvas")).toBe(false);
+  it.each([
+    ["neutral", "bg-fill", "text-ink", "bg-muted"],
+    ["warn", "bg-warn-soft", "text-warn", "bg-warn"],
+    ["accent", "bg-accent-soft", "text-accent", "bg-accent"],
+    ["danger", "bg-danger-soft", "text-danger", "bg-danger"],
+  ] as const)("StatusChip %s: заливка %s, текст %s, точка %s", (tone, fill, ink, dot) => {
+    const out = html(<StatusChip tone={tone}>Статус</StatusChip>);
+    for (const cls of [fill, ink, dot]) expect(hasClass(out, cls), cls).toBe(true);
+    expect(hasClass(out, "bg-line")).toBe(false);
   });
 
   it("List: разделители с отступом 16 px слева, у последней строки разделителя нет", () => {
@@ -528,7 +552,7 @@ describe("Остальное", () => {
     expect(out.match(/<li/g)?.length).toBe(2);
     expect(out).toMatch(/<a[^>]+href="\/v2\/address"/);
     expect(out).toContain("hover:bg-canvas");
-    expect(out).toContain("active:bg-line");
+    expect(out).toContain("active:bg-fill-strong");
     expect(hasClass(out, "pressable")).toBe(false);
     expect(out).toContain("3 дня");
   });

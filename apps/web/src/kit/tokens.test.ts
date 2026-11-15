@@ -37,9 +37,11 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(Object.keys(TOKENS.dark).sort()).toEqual([...solid].sort());
   });
 
-  it.each(Object.entries(BLOCKS))("%s: fill — доля ink поверх фона (color-mix), как в TRANSLUCENT", (name, { body }) => {
-    const percent = TRANSLUCENT.fill[name.startsWith("светлая") ? "light" : "dark"];
-    expect(body()).toContain(`--role-fill: color-mix(in srgb, var(--role-${TRANSLUCENT.fill.of}) ${percent}%, transparent);`);
+  it.each(Object.entries(BLOCKS))("%s: fill и fill-strong — доля ink поверх фона (color-mix), как в TRANSLUCENT", (name, { body }) => {
+    const theme = name.startsWith("светлая") ? "light" : "dark";
+    for (const [role, spec] of Object.entries(TRANSLUCENT)) {
+      expect(body()).toContain(`--role-${role}: color-mix(in srgb, var(--role-${spec.of}) ${spec[theme]}%, transparent);`);
+    }
   });
 
   it.each(Object.entries(BLOCKS))("%s: каждая роль с тем же hex и без лишних", (_name, { body, theme }) => {
@@ -163,7 +165,9 @@ describe("tokens.css совпадает с TOKENS", () => {
     const theme = block(css, /@theme/);
     expect(theme).toMatch(/--spacing-header:\s*3\.25rem\s*;/); // 52 px
     expect(theme).toMatch(/--spacing-bar-inset:\s*0\.625rem\s*;/); // 10 px
-    expect(theme).toMatch(/--spacing-avatar:\s*2rem\s*;/); // 32 px
+    expect(theme).toMatch(/--spacing-avatar:\s*2\.25rem\s*;/); // 36 px — шапка
+    expect(theme).toMatch(/--spacing-avatar-md:\s*2\.75rem\s*;/); // 44 px — чаты
+    expect(theme).toMatch(/--spacing-avatar-lg:\s*4\.5rem\s*;/); // 72 px — профиль
     expect(theme).toMatch(/--container-content:\s*68\.75rem\s*;/); // 1100 px
     expect(theme).toMatch(/--container-column:\s*35rem\s*;/); // 560 px
     const dock = /@utility dock-bottom\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
@@ -338,11 +342,26 @@ describe("tokens.css совпадает с TOKENS", () => {
     );
   });
 
-  it("scrim-photo: нижняя четверть — полное затемнение, к 60% — прозрачно; клики не перехватывает", () => {
+  it("scrim-photo: нижняя четверть — полное затемнение, к 60% — прозрачно плавно (много точек, монотонно); клики не перехватывает", () => {
     const body = /@utility scrim-photo\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(body).toContain("pointer-events: none;");
     expect(body).toContain("color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 25%");
     expect(body).toContain("transparent 60%");
+    // Спад — не одна прямая (на краю плато видна полоса), а не меньше пяти промежуточных точек с убывающей долей.
+    const factors = [...body.matchAll(/calc\(var\(--scrim-photo-alpha\) \* ([\d.]+)\)/g)].map((m) => Number(m[1]));
+    expect(factors.length).toBeGreaterThanOrEqual(5);
+    expect([...factors].sort((a, b) => b - a)).toEqual(factors);
+  });
+
+  it("bar-underlay: растворение, а не плита — тон фона густеет к низу и не сплошной; видна только при вкладках или доке", () => {
+    const body = /@utility bar-underlay\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(body).toContain("display: none;");
+    expect(body).toMatch(/:where\(\[data-has-tabs\], :has\(\[data-action-dock\]\)\) > & \{\s*display: block;/);
+    const alphas = [...body.split("@media")[0].matchAll(/var\(--role-canvas\) (\d+)%/g)].map((m) => Number(m[1]));
+    expect(alphas.length).toBeGreaterThanOrEqual(4);
+    expect(Math.max(...alphas)).toBeLessThan(100);
+    expect([...alphas].sort((a, b) => b - a)).toEqual(alphas);
+    expect(body).toContain("var(--underlay-dock, 0px)");
   });
 
   it("вес шрифта не выше 600", () => {

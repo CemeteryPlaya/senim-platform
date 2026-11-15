@@ -20,9 +20,9 @@ export type BadgeProps = {
 
 /**
  * Счётчик поверх значка (колокольчик, вкладка). 0 — не рисуется. Бейдж скрыт от диктора (`aria-hidden`): доступное
- * имя и число задаёт родитель — его `aria-label` или скрытый текст (`ru.app.kit.badge.unread(count)`). Подложка
- * `danger-soft`, текст `danger` (пара проверена по контрасту); не тёмная, чтобы оставить единственное тёмное пятно
- * главной кнопке. Серверный компонент.
+ * имя и число задаёт родитель — его `aria-label` или скрытый текст (`ru.app.kit.badge.unread(count)`). Капсула 18 px
+ * сплошного `danger`, цифры `on-danger` 13 px / 600 (белые в светлой теме, графит в тёмной: белый на светлом danger
+ * тёмной темы не проходит 4,5:1; пара — в contrast.test.ts). Серверный компонент.
  */
 export function Badge({ count, max = BADGE_MAX, className }: BadgeProps) {
   const text = badgeText(count, max);
@@ -31,7 +31,7 @@ export function Badge({ count, max = BADGE_MAX, className }: BadgeProps) {
     <span
       aria-hidden
       className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-danger-soft px-1 text-small font-semibold tabular-nums text-danger",
+        "inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-chip bg-danger px-1 text-small leading-none font-semibold tabular-nums text-on-danger",
         className,
       )}
     >
