@@ -72,7 +72,7 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
           <List>
             {docs.map((doc) => (
               <ListItem key={doc.id}>
-                <div className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex flex-col gap-2 px-card py-3">
                   <span className="flex flex-col gap-1">
                     <span className="text-body text-ink wrap-break-word">{doc.name}</span>
                     <span className="text-sub text-muted">{doc.status}</span>

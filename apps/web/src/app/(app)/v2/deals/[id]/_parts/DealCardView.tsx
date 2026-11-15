@@ -186,8 +186,8 @@ function Order({ view, device }: { view: CardView; device: Device }) {
           // Разделитель с отступом 16 px слева — как у строк списка.
           <More
             label={t.order.all}
-            className="relative before:absolute before:top-0 before:right-0 before:left-4 before:border-t before:border-line"
-            summaryClassName="px-4"
+            className="relative before:absolute before:top-0 before:right-0 before:left-card before:border-t before:border-line"
+            summaryClassName="px-card"
           >
             <OrderRows rows={rest} />
           </More>
@@ -215,13 +215,14 @@ function Documents({ view }: { view: CardView }) {
                   href={doc.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex min-h-control w-full items-center justify-between gap-4 px-4 py-3 text-body no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
+                  className="flex min-h-control w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 px-card py-3 text-body no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
                 >
+                  {/* Не помещается рядом (шрифт 200 %) — «Открыть ↗» целиком уходит строкой ниже вправо, а не за край. */}
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="text-ink wrap-break-word">{doc.name}</span>
                     <span className="text-sub text-muted">{doc.status}</span>
                   </span>
-                  <span className="flex shrink-0 items-center gap-1 font-medium text-ink">
+                  <span className="ml-auto flex shrink-0 items-center gap-1 font-medium text-ink">
                     {doc.open}
                     <span className="sr-only"> ({ru.app.kit.externalHint})</span>
                     <ExternalLink aria-hidden className="size-4 shrink-0 text-muted" />
@@ -249,7 +250,7 @@ function Party({ view, device }: { view: CardView; device: Device }) {
         <List>
           {view.party.label !== null && (
             <ListItem>
-              <p className="px-4 py-3 text-headline text-ink wrap-break-word">{view.party.label}</p>
+              <p className="px-card py-3 text-headline text-ink wrap-break-word">{view.party.label}</p>
             </ListItem>
           )}
           {contacts ? (
@@ -261,7 +262,7 @@ function Party({ view, device }: { view: CardView; device: Device }) {
             </>
           ) : (
             <ListItem>
-              <div className="flex flex-wrap items-baseline gap-x-2 px-4 py-3 text-body text-muted">
+              <div className="flex flex-wrap items-baseline gap-x-2 px-card py-3 text-body text-muted">
                 <span>{m.hidden}</span>
                 <Explain label={m.explain.label} title={m.explain.title} device={device}>
                   <p>{m.explain.body}</p>
@@ -294,7 +295,7 @@ function Reports({ reports }: { reports: NonNullable<CardView["reports"]> }) {
           <List>
             {reports.items.map((report) => (
               <ListItem key={report.id}>
-                <div className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex flex-col gap-2 px-card py-3">
                   <h3 className="text-headline text-ink wrap-break-word">{report.title}</h3>
                   <p className="text-sub text-muted">{report.time}</p>
                   {report.text && <p className="text-body whitespace-pre-line text-ink wrap-break-word">{report.text}</p>}

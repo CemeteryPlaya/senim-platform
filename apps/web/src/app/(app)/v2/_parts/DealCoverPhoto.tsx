@@ -14,7 +14,8 @@ export type DealCoverPhotoProps = {
 /**
  * Обложка сделки — последнее фото отчёта хода работ (Ruling 6: только фото отчёта), 16 : 9. Шаг сделки — капсулой
  * `glass-clear photo-capsule` у нижнего края поверх затемнения `scrim-photo` (в нижней четверти затемнение полное: белый
- * текст держит контраст на самом светлом кадре). Общая для карточки-героя главной и карточки сделки.
+ * текст держит контраст на самом светлом кадре). Радиус капсулы — 14 px в px (`rounded-status`, как у чипа статуса): при
+ * переносе (шрифт 200 %) — скруглённый прямоугольник, а не «облако». Общая для карточки-героя главной и карточки сделки.
  */
 export function DealCoverPhoto({ cover, caption, sizes, className }: DealCoverPhotoProps) {
   return (
@@ -23,7 +24,7 @@ export function DealCoverPhoto({ cover, caption, sizes, className }: DealCoverPh
         <>
           <div aria-hidden className="scrim-photo" />
           <div className="absolute inset-x-3 bottom-3 flex">
-            <p className="glass-clear photo-capsule inline-flex min-h-8 max-w-full items-center rounded-chip px-3 text-sub">{caption}</p>
+            <p className="glass-clear photo-capsule inline-flex min-h-8 max-w-full items-center rounded-status px-chip-x py-chip-y text-sub">{caption}</p>
           </div>
         </>
       )}
