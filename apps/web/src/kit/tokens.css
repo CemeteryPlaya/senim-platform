@@ -207,6 +207,9 @@
   --color-scrim: var(--role-scrim); /* сплошной цвет; затемнение с прозрачностью — утилиты scrim и scrim-photo ниже */
   --color-photo-fallback: var(--role-photo-fallback);
   --color-on-photo: var(--role-on-photo);
+  --color-on-inverse: var(--role-on-inverse);
+  /* Наведение инверсной кнопки (белая на тёмном фото): затемнение на 8%, одинаково в обеих темах. */
+  --color-inverse-hover: color-mix(in srgb, var(--role-on-photo) 92%, var(--role-scrim));
   /* Вторичный текст на стекле (подписи неактивных вкладок): обычный muted на стекле не проходит 4,5:1. */
   --color-glass-secondary: var(--glass-secondary);
 
@@ -245,6 +248,7 @@
   --role-scrim: #000000;
   --role-photo-fallback: #e9e6e0;
   --role-on-photo: #ffffff;
+  --role-on-inverse: #1d1c1a;
   --scrim-opacity: 32%; /* затемнение под шторкой и диалогом, как в эталоне */
   --shade: var(--role-ink); /* цвет тени: тёплый почти чёрный */
 
@@ -310,6 +314,7 @@
   --role-scrim: #000000;
   --role-photo-fallback: #262421;
   --role-on-photo: #ffffff;
+  --role-on-inverse: #1d1c1a;
   --scrim-opacity: 56%; /* на тёмном фоне 32% почти не видно */
   --shade: var(--role-canvas); /* в тёмной теме ink светлый — тень берёт почти чёрный фон, плотнее */
   --elev-float: 0 0.625rem 1.875rem -0.5rem color-mix(in srgb, var(--shade) 60%, transparent),
@@ -357,6 +362,7 @@
     --role-scrim: #000000;
     --role-photo-fallback: #262421;
     --role-on-photo: #ffffff;
+    --role-on-inverse: #1d1c1a;
     --scrim-opacity: 56%;
     --shade: var(--role-canvas);
     --elev-float: 0 0.625rem 1.875rem -0.5rem color-mix(in srgb, var(--shade) 60%, transparent),

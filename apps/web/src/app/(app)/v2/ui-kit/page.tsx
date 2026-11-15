@@ -291,7 +291,7 @@ function Buttons() {
               </Button>
             </div>
           </Specimen>
-          {variant !== "primary" && (
+          {variant !== "primary" && variant !== "inverse" && (
             <Specimen label={`${s.buttons.sizeSm}: ${STATES}`}>
               <div className="flex flex-wrap gap-3">
                 <Button variant={variant} size="sm">

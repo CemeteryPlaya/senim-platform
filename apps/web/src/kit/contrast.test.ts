@@ -41,6 +41,8 @@ const TEXT_PAIRS: [fg: SolidRole, bg: SolidRole][] = [
   // Сегментированный переключатель: подписи на дорожке и на выбранном сегменте.
   ["ink", "track"],
   ["on-action", "action"],
+  // Инверсная главная кнопка на фото: графит на белом в обеих темах.
+  ["on-inverse", "on-photo"],
   ["accent", "surface"],
   ["accent", "canvas"],
   ["accent", "accent-soft"],

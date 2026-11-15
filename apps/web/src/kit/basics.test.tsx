@@ -147,6 +147,20 @@ describe("Button", () => {
     },
   );
 
+  it("inverse — главная кнопка на тёмном фото: белая заливка, графитовый текст, метка главного действия, только md", () => {
+    for (const out of [html(<Button variant="inverse">Заказать</Button>), html(<ButtonLink href="/x" variant="inverse">Заказать</ButtonLink>)]) {
+      for (const cls of ["bg-on-photo", "text-on-inverse", "min-h-control", "pressable", "hover:not-disabled:bg-inverse-hover"]) {
+        expect(hasClass(out, cls), cls).toBe(true);
+      }
+      expect(out).toContain("data-primary-action");
+      // Наведение — затемнение, а не прозрачность: фото не проступает сквозь кнопку.
+      expect(out).not.toMatch(/hover:[^\s"]*opacity-/);
+    }
+    // @ts-expect-error — у инверсной главной размер только md
+    const small = <Button variant="inverse" size="sm">Ок</Button>;
+    expect(small).toBeTruthy();
+  });
+
   it("full растягивает кнопку, без full — нет", () => {
     expect(hasClass(html(<Button full>Ок</Button>), "w-full")).toBe(true);
     expect(hasClass(html(<Button>Ок</Button>), "w-full")).toBe(false);

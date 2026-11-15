@@ -32,6 +32,7 @@ export const COLOR_ROLES = [
   "scrim", // затемнение под шторкой и диалогом и на фото; прозрачность — в утилитах scrim и scrim-photo (tokens.css)
   "photo-fallback", // заливка места фото до загрузки
   "on-photo", // текст поверх фото (на затемнении и glass-clear) и инверсная кнопка на тёмном фото: белый в обеих темах
+  "on-inverse", // текст инверсной главной кнопки (белая на тёмном фото): графит в обеих темах
 ] as const;
 
 export type ColorRole = (typeof COLOR_ROLES)[number];
@@ -72,6 +73,7 @@ export const TOKENS: { light: Record<SolidRole, string>; dark: Record<SolidRole,
     scrim: "#000000",
     "photo-fallback": "#e9e6e0",
     "on-photo": "#ffffff",
+    "on-inverse": "#1d1c1a",
   },
   dark: {
     // Тёплый графит вместо чистого чёрного: на OLED разницы не видно, а фото дерева на нём лучше.
@@ -99,6 +101,7 @@ export const TOKENS: { light: Record<SolidRole, string>; dark: Record<SolidRole,
     scrim: "#000000",
     "photo-fallback": "#262421",
     "on-photo": "#ffffff",
+    "on-inverse": "#1d1c1a",
   },
 };
 
