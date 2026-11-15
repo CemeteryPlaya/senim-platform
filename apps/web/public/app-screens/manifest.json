@@ -27,8 +27,8 @@
       "route": "/v2/deals/[id]",
       "width": 600,
       "height": 1298,
-      "size": 31356,
-      "sha256": "6bebf852bbb2709a9a5b195349004dec31e9ddb40fc4c5f936ad84a4a340d25d"
+      "size": 42184,
+      "sha256": "67b771f1200d91347960a8266ddf4249921795ea7affde3dacd2c9bafa3404ce"
     }
   ]
 }
