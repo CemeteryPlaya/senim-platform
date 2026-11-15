@@ -1,3 +1,5 @@
+import "server-only";
+import { z } from "zod";
 import manifestJson from "../../public/stand-photos/manifest.json";
 
 /**
@@ -53,7 +55,27 @@ export type StandPhoto = StandPhotoRecord & {
   storageKey: string;
 };
 
-const RECORDS = (manifestJson as { photos: StandPhotoRecord[] }).photos;
+/** Манифест проверяется при загрузке модуля: испорченная запись — ошибка при старте, а не битая картинка на экране. */
+const recordSchema = z.object({
+  key: z.enum(STAND_PHOTO_KEYS),
+  file: z.string().regex(/^[a-z0-9-]+\.webp$/),
+  type: z.string().min(1),
+  use: z.enum(["portfolio", "report", "hero", "extra"]),
+  alt: z.string().min(1),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  size: z.number().int().positive(),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  source: z.string().min(1),
+  license: z.string().min(1),
+  author: z.string().min(1),
+  authorUrl: z.url(),
+  url: z.url(),
+  unsplashId: z.string().min(1),
+  temporary: z.literal(true),
+});
+
+const RECORDS: StandPhotoRecord[] = z.array(recordSchema).parse(manifestJson.photos);
 const BY_KEY = new Map<string, StandPhoto>(
   RECORDS.map((r) => [r.key, { ...r, src: `/${STAND_PHOTOS_DIR}/${r.file}`, storageKey: `${STAND_PHOTOS_DIR}/${r.file}` }]),
 );
@@ -64,7 +86,7 @@ export const standPhotoRecords = (): readonly StandPhotoRecord[] => RECORDS;
 /** Снимок по ключу; неизвестный ключ — ошибка (тест манифеста сверяет список ключей с файлом). */
 export function standPhoto(key: StandPhotoKey): StandPhoto {
   const photo = BY_KEY.get(key);
-  if (!photo) throw new Error(`Нет фото стенда: ${key}`);
+  if (!photo) throw new Error(`stand photo not in manifest: ${key}`);
   return photo;
 }
 
