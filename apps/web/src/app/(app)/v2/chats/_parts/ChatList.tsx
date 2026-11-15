@@ -21,12 +21,12 @@ function Row({ row, current }: { row: ChatRowView; current: boolean }) {
         href={row.href}
         aria-current={current ? "page" : undefined}
         className={cn(
-          "flex min-h-control w-full items-center gap-3 px-4 py-3 text-body no-underline transition-colors duration-100 active:bg-fill-strong",
+          "flex min-h-control w-full items-center gap-3 px-card py-3 text-body no-underline transition-colors duration-100 active:bg-fill-strong",
           current ? "bg-fill" : "hover:bg-canvas",
         )}
       >
         <Monogram name={row.counterpart} size="md" />
-        <span className="relative flex min-w-0 flex-1 items-center gap-3 self-stretch after:pointer-events-none after:absolute after:-right-4 after:-bottom-3 after:left-0 after:border-b after:border-line group-last/row:after:hidden">
+        <span className="relative flex min-w-0 flex-1 items-center gap-3 self-stretch after:pointer-events-none after:absolute after:-right-card after:-bottom-3 after:left-0 after:border-b after:border-line group-last/row:after:hidden">
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="flex items-baseline justify-between gap-3">
               <span className="min-w-0 text-headline wrap-anywhere text-ink">{row.counterpart}</span>

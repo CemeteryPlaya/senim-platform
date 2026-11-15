@@ -79,7 +79,8 @@ describe("меню, поповеры, тосты, шторка", () => {
 describe("Card: обычная, герой, сгруппированный список", () => {
   it("обычная — отступ 16 px, без тени", () => {
     const out = html(<Card>x</Card>);
-    for (const cls of ["rounded-card", "bg-surface", "p-4"]) expect(hasClass(out, cls), cls).toBe(true);
+    // Отступ в px (p-card): при шрифте 200 % растёт текст, а не поля.
+    for (const cls of ["rounded-card", "bg-surface", "p-card"]) expect(hasClass(out, cls), cls).toBe(true);
     expect(out).not.toContain("shadow");
   });
 
@@ -93,7 +94,7 @@ describe("Card: обычная, герой, сгруппированный сп�
     expect(out).toContain('data-card="hero"');
     expect(hasClass(out, "overflow-hidden")).toBe(true);
     expect(out).toMatch(/class="photo-frame aspect-16\/9[^"]*"><img/);
-    expect(hasClass(out, "p-6")).toBe(true);
+    expect(hasClass(out, "p-card-hero")).toBe(true);
     expect(out.indexOf("<img")).toBeLessThan(out.indexOf("Сумма"));
     expect(html(<Card variant="hero">x</Card>)).not.toContain("photo-frame");
   });
@@ -101,7 +102,7 @@ describe("Card: обычная, герой, сгруппированный сп�
   it("сгруппированный — без отступа, подсветка строк не выходит за скругление", () => {
     const out = html(<Card variant="grouped">x</Card>);
     for (const cls of ["overflow-hidden", "rounded-card"]) expect(hasClass(out, cls), cls).toBe(true);
-    expect(hasClass(out, "p-4")).toBe(false);
+    expect(hasClass(out, "p-card")).toBe(false);
   });
 
   it("кликабельная — тень и подъём только при наведении и только на компьютере", () => {
@@ -125,7 +126,7 @@ describe("ListRow: миниатюра или монограмма слева, в
     const li = /<li[^>]*>/.exec(out)?.[0] ?? "";
     expect(li).not.toContain("after:border-b");
     const column = /<span data-row-text="true"[^>]*>/.exec(out)?.[0] ?? "";
-    for (const cls of ["after:left-0", "after:-right-4", "after:-bottom-2", "after:border-line", "group-last/row:after:hidden", "self-stretch"]) {
+    for (const cls of ["after:left-0", "after:-right-card", "after:-bottom-2", "after:border-line", "group-last/row:after:hidden", "self-stretch"]) {
       expect(hasClass(column, cls), cls).toBe(true);
     }
     expect(out).toContain('<span class="text-headline text-ink">Кухня</span><span class="line-clamp-2 text-sub text-muted">Шаг 2 из 5</span>');
@@ -140,7 +141,7 @@ describe("ListRow: миниатюра или монограмма слева, в
         <ListRow label="Статус" value="Идёт" />
       </List>,
     );
-    expect(hasClass(out, "after:left-4")).toBe(true);
+    expect(hasClass(out, "after:left-card")).toBe(true);
     expect(out).not.toContain("min-h-14");
   });
 });

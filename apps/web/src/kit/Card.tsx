@@ -3,11 +3,14 @@ import { cn } from "./cn";
 
 /**
  * Вид карточки (разбор 3.6):
- * - `plain` — обычная: отступ 16 px (`padded`);
- * - `hero` — одна на экране (текущая сделка, сумма, первый экран профиля мастера): отступ 24 px, место под фото-обложку
- *   16:9 во всю ширину сверху (`cover`) и сумму `text-display-amount` в теле; главная кнопка на компьютере — внутри;
+ * - `plain` — обычная: отступ 16 px (`padded`, `p-card`);
+ * - `hero` — одна на экране (текущая сделка, сумма, первый экран профиля мастера): отступ 24 px (`p-card-hero`), место
+ *   под фото-обложку 16:9 во всю ширину сверху (`cover`) и сумму `text-display-amount` в теле; главная кнопка на
+ *   компьютере — внутри;
  * - `grouped` — сгруппированный список (как в «Настройках»): без отступа, внутри `List` со строками 56+ px и
  *   разделителями с отступом слева от текста; подсветка строк не выходит за скругление.
+ * Отступы — в px (`--spacing-card`, `--spacing-card-hero`): при крупном шрифте (200 %) растёт текст, а не поля вокруг
+ * него — иначе поля в rem съедают ширину строки (разбор 2, 3.7).
  */
 export type CardVariant = "plain" | "hero" | "grouped";
 
@@ -45,7 +48,7 @@ export function Card({ as: Tag = "div", variant = "plain", padded = true, cover,
     return (
       <Tag data-card="hero" className={cn("overflow-hidden rounded-card bg-surface", aside && "desktop:grid desktop:grid-cols-2", interactive && HOVER, className)}>
         {cover && <div className={cn("photo-frame aspect-16/9 *:size-full *:object-cover", aside && "desktop:aspect-auto")}>{cover}</div>}
-        <div className="flex flex-col gap-4 p-6">{children}</div>
+        <div className="flex flex-col gap-4 p-card-hero">{children}</div>
       </Tag>
     );
   }
@@ -54,7 +57,7 @@ export function Card({ as: Tag = "div", variant = "plain", padded = true, cover,
       data-card={variant === "grouped" ? "grouped" : undefined}
       className={cn(
         "rounded-card bg-surface",
-        variant === "grouped" ? "overflow-hidden" : padded && "p-4",
+        variant === "grouped" ? "overflow-hidden" : padded && "p-card",
         interactive && HOVER,
         className,
       )}

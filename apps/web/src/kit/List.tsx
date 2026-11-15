@@ -25,7 +25,7 @@ export function ListItem({ children, inset = "text" }: { children: ReactNode; in
     <li
       className={cn(
         "group/row relative",
-        inset === "text" && "after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-4 after:border-b after:border-line last:after:hidden",
+        inset === "text" && "after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-card after:border-b after:border-line last:after:hidden",
       )}
     >
       {children}
@@ -35,10 +35,10 @@ export function ListItem({ children, inset = "text" }: { children: ReactNode; in
 
 /**
  * Колонка текста строки с `leading`: тянется на высоту строки, а разделитель — её нижняя кромка, продлённая вниз на
- * поле строки (py-2) и вправо до края карточки (px-4). Начинается ровно там, где начинается текст.
+ * поле строки (py-2) и вправо до края карточки (px-card). Начинается ровно там, где начинается текст.
  */
 const TEXT_COLUMN =
-  "relative flex min-w-0 flex-1 items-center justify-between gap-4 self-stretch after:pointer-events-none after:absolute after:-right-4 after:-bottom-2 after:left-0 after:border-b after:border-line group-last/row:after:hidden";
+  "relative flex min-w-0 flex-1 items-center justify-between gap-4 self-stretch after:pointer-events-none after:absolute after:-right-card after:-bottom-2 after:left-0 after:border-b after:border-line group-last/row:after:hidden";
 
 export type ListRowProps = {
   label: ReactNode;
@@ -65,7 +65,8 @@ export type ListRowProps = {
   detail?: ReactNode;
 };
 
-const ROW = "flex min-h-control w-full items-center justify-between px-4 text-body";
+/** Поля строки по бокам — как у карточки, 16 px в px (`px-card`): при шрифте 200 % растёт текст, а не поля. */
+const ROW = "flex min-h-control w-full items-center justify-between px-card text-body";
 
 /**
  * Строка «подпись — значение» (разбор 3.6, «Списки»): [миниатюра или монограмма] + подпись + вторая строка + справа
@@ -96,7 +97,7 @@ export function ListRow({ label, value, href, chevron = true, stacked = false, a
         </span>
       );
     valuePart = (value !== undefined || arrow) && (
-      <span className="flex shrink-0 items-center gap-1 text-ink">
+      <span className="ml-auto flex shrink-0 items-center gap-1 text-ink">
         {value !== undefined && <span>{value}</span>}
         {arrow}
       </span>
@@ -118,8 +119,12 @@ export function ListRow({ label, value, href, chevron = true, stacked = false, a
       </>
     );
   const inset = leading === undefined ? "text" : "none";
-  // С leading: строка 56 px, зазор миниатюра — текст 12 px; без неё — зазор подпись — значение 16 px.
-  const rowClass = cn(ROW, leading === undefined ? "gap-4 py-3" : "min-h-14 gap-3 py-2");
+  // С leading: строка 56 px, зазор миниатюра — текст 12 px; без неё — зазор подпись — значение 16 px. Строка со значением
+  // без leading переносится: если подпись и значение не помещаются в строку (шрифт 200 %, длинный телефон), значение
+  // целиком уходит на следующую строку вправо, а не за край экрана — подпись не рвётся (разбор 2, 3.4 и 3.7). Строку с
+  // одним шевроном не переносим: шеврон остаётся справа от подписи.
+  const wraps = leading === undefined && !stacked && value !== undefined;
+  const rowClass = cn(ROW, leading !== undefined ? "min-h-14 gap-3 py-2" : wraps ? "flex-wrap gap-x-4 gap-y-1 py-3" : "gap-4 py-3");
   if (action) {
     return (
       <ListItem inset={inset}>

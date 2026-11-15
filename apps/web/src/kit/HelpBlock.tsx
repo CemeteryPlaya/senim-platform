@@ -15,7 +15,7 @@ export function HelpBlock({ items, supportEmail }: HelpBlockProps) {
   const t = ru.app.kit.help;
   return (
     <Card as="section" padded={false}>
-      <h2 className="px-4 pt-4 text-headline text-ink">{t.title}</h2>
+      <h2 className="px-card pt-4 text-headline text-ink">{t.title}</h2>
       <List>
         {items.map((item, index) => (
           <ListRow key={`${index}-${item.href}`} label={item.question} href={item.href} />
@@ -24,7 +24,7 @@ export function HelpBlock({ items, supportEmail }: HelpBlockProps) {
         <ListItem>
           <a
             href={`mailto:${encodeURI(supportEmail)}`}
-            className="flex min-h-control w-full items-center px-4 py-3 text-body font-medium text-accent no-underline transition-colors duration-100 hover:bg-canvas active:bg-fill-strong"
+            className="flex min-h-control w-full items-center px-card py-3 text-body font-medium text-accent no-underline transition-colors duration-100 hover:bg-canvas active:bg-fill-strong"
           >
             {t.contact}
           </a>

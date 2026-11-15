@@ -97,7 +97,8 @@ describe("tokens.css совпадает с TOKENS", () => {
 
   it('компьютерные размеры (заголовок 40 px, карточка 22 px, кнопка 12 px) заданы только под [data-device="desktop"]', () => {
     const theme = block(css, /@theme/);
-    expect(theme).toMatch(/--text-title:\s*2\.125rem\s*;/); // 34 px на телефоне
+    // 34 px на телефоне, не крупнее 11vw: при шрифте 200 % слово заголовка целиком в строке (разбор 2, 3.7).
+    expect(theme).toMatch(/--text-title:\s*min\(2\.125rem, 11vw\)\s*;/);
     expect(theme).toMatch(/--radius-card:\s*1\.25rem\s*;/); // 20 px
     expect(theme).toMatch(/--radius-control:\s*1rem\s*;/); // 16 px
     const desktop = block(css, /:root\[data-device="desktop"\]/);
@@ -115,8 +116,9 @@ describe("tokens.css совпадает с TOKENS", () => {
     const scale: [name: string, size: string, leading: string, tracking: string][] = [
       ["display-xl", "4rem", "1.03", "-0.035em"],
       ["display", "2.5rem", "1.08", "-0.03em"],
-      ["display-amount", "2.5rem", "1.05", "-0.02em"],
-      ["title", "2.125rem", "1.1", "-0.025em"],
+      // Сумма-герой и заголовок экрана на телефоне не крупнее доли ширины экрана: при шрифте 200 % не обрезаются.
+      ["display-amount", "min(2.5rem, 12vw)", "1.05", "-0.02em"],
+      ["title", "min(2.125rem, 11vw)", "1.1", "-0.025em"],
       ["amount", "1.75rem", "1.1", "-0.02em"],
       ["title-2", "1.375rem", "1.25", "-0.018em"],
       ["lead", "1.3125rem", "1.4", "-0.016em"],

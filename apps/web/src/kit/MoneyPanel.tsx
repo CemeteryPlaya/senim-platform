@@ -56,7 +56,7 @@ export function MoneyPanel({ tone, title, amount, rows = [], note, action, devic
   const titleId = useId();
   const textTone = tone === "protected" ? "text-ink" : "text-muted";
   return (
-    <section aria-labelledby={titleId} className={cn("flex flex-col gap-3 rounded-card p-4", styles.box)}>
+    <section aria-labelledby={titleId} className={cn("flex flex-col gap-3 rounded-card p-card", styles.box)}>
       <div className="flex flex-col gap-1">
         <p id={titleId} className={cn("flex items-center gap-2 text-sub font-medium", styles.title)}>
           {tone === "protected" && <ShieldCheck aria-hidden className="size-5 shrink-0" />}

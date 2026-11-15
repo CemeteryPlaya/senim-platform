@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   BackLink,
@@ -490,14 +492,28 @@ describe("Остальное", () => {
     expect(html(<StatusChip tone="accent">В пути</StatusChip>)).toContain("В пути");
   });
 
-  it("StatusChip: капсула 28 / 26 px, текст 15 px / 500, точка 8 px слева (скрыта от диктора)", () => {
+  it("StatusChip: 28 / 26 px в строку, текст 15 px / 500, точка 8 px слева у первой строки (скрыта от диктора)", () => {
     const out = html(<StatusChip tone="accent">В пути</StatusChip>);
     const chip = /<span[^>]*data-status-chip[^>]*>/.exec(out)?.[0] ?? "";
-    for (const cls of ["text-sub", "font-medium", "rounded-chip", "min-h-7", "desktop:min-h-6.5", "px-3"]) expect(hasClass(chip, cls), cls).toBe(true);
+    for (const cls of ["text-sub", "font-medium", "py-chip-y", "desktop:py-chip-y-desktop", "px-chip-x"]) expect(hasClass(chip, cls), cls).toBe(true);
     expect(hasClass(chip, "text-small")).toBe(false);
-    const dot = /<span aria-hidden="true"[^>]*>/.exec(out)?.[0] ?? "";
+    const dotRow = /<span aria-hidden="true"[^>]*>/.exec(out)?.[0] ?? "";
+    for (const cls of ["h-lh", "shrink-0", "items-center"]) expect(hasClass(dotRow, cls), cls).toBe(true);
+    const dot = out.slice(out.indexOf(dotRow) + dotRow.length).match(/^<span[^>]*>/)?.[0] ?? "";
     for (const cls of ["size-2", "rounded-full", "bg-accent"]) expect(hasClass(dot, cls), cls).toBe(true);
     expect(text(<StatusChip tone="accent">В пути</StatusChip>)).toBe("В пути");
+  });
+
+  it("StatusChip при переносе (крупный шрифт) — не «облако»: не шире строки, радиус 14 px и поля 12 px в px, подпись переносится по словам", () => {
+    const out = html(<StatusChip tone="neutral">Мастер делает мебель</StatusChip>);
+    const chip = /<span[^>]*data-status-chip[^>]*>/.exec(out)?.[0] ?? "";
+    for (const cls of ["max-w-full", "rounded-status", "items-start"]) expect(hasClass(chip, cls), cls).toBe(true);
+    for (const cls of ["rounded-chip", "rounded-full", "whitespace-nowrap"]) expect(hasClass(chip, cls), cls).toBe(false);
+    expect(out).toContain('<span class="min-w-0">Мастер делает мебель</span>');
+    const tokens = readFileSync(path.join(__dirname, "tokens.css"), "utf8");
+    expect(tokens).toMatch(/--radius-status: 14px;/);
+    expect(tokens).toMatch(/--spacing-chip-x: 12px;/);
+    expect(tokens).toMatch(/--spacing-chip-y: calc\(\(1\.75rem - 1lh\) \/ 2\);/);
   });
 
   it.each([
@@ -522,7 +538,7 @@ describe("Остальное", () => {
     const items = out.match(/<li[^>]*>/g) ?? [];
     expect(items).toHaveLength(2);
     for (const li of items) {
-      for (const cls of ["relative", "after:absolute", "after:left-4", "after:right-0", "after:bottom-0", "after:border-b", "after:border-line", "last:after:hidden"]) {
+      for (const cls of ["relative", "after:absolute", "after:left-card", "after:right-0", "after:bottom-0", "after:border-b", "after:border-line", "last:after:hidden"]) {
         expect(hasClass(li, cls), cls).toBe(true);
       }
     }
@@ -539,8 +555,22 @@ describe("Остальное", () => {
     expect(out).toContain('<input type="hidden" name="id" value="n1"/>');
     expect(out).not.toContain("<a ");
     const button = out.match(/<button[^>]*>/)?.[0] ?? "";
-    for (const cls of ["min-h-control", "w-full", "px-4", "py-3", "text-left", "hover:bg-canvas"]) expect(hasClass(button, cls), cls).toBe(true);
+    for (const cls of ["min-h-control", "w-full", "px-card", "py-3", "text-left", "hover:bg-canvas"]) expect(hasClass(button, cls), cls).toBe(true);
     expect(out).not.toContain("lucide-chevron-right");
+  });
+
+  it("ListRow при крупном шрифте: поля 16 px в px; значение переносится целиком на строку ниже, строка с одним шевроном — нет", () => {
+    const out = html(
+      <List>
+        <ListRow label="Телефон" value="+7 700 000 02 01" href="/v2/x" />
+        <ListRow label="Где мои деньги?" href="/v2/help" />
+      </List>,
+    );
+    const [withValue, onlyChevron] = out.match(/<a [^>]*>/g) ?? [];
+    for (const cls of ["px-card", "flex-wrap", "gap-y-1"]) expect(hasClass(withValue ?? "", cls), cls).toBe(true);
+    expect(out).toMatch(/<span class="ml-auto flex shrink-0 items-center gap-1 text-ink"><span>\+7 700 000 02 01<\/span>/);
+    expect(hasClass(onlyChevron ?? "", "flex-wrap")).toBe(false);
+    expect(hasClass(onlyChevron ?? "", "px-card")).toBe(true);
   });
 
   it("List: строки, ссылка со своим hover-фоном", () => {

@@ -48,7 +48,7 @@ function Offers({ view }: { view: CardView }) {
             <ListItem key={row.id}>
               <Link
                 href={row.href}
-                className="flex w-full items-center gap-3 px-4 py-3 text-body no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
+                className="flex w-full items-center gap-3 px-card py-3 text-body no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
               >
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
                   {/* Имя и цена в одной строке; условия — отдельной строкой под ними: цены сравниваются взглядом по правому краю. */}
