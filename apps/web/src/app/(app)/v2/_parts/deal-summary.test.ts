@@ -90,7 +90,7 @@ describe("dealChip: плашка называет текущий шаг — од
     ["ждём перевод (ручной провайдер)", "CREATED", "waitPaymentConfirmation", false, awaiting("PENDING"), { provider: "MANUAL" }, st.transfer, "neutral"],
     ["онлайн-оплата у банка", "CREATED", "waitPaymentConfirmation", false, awaiting("PENDING"), { provider: "FREEDOMPAY" }, st.processing, "neutral"],
     ["оплачено, ждём начала", "PAID_HOLD", "waitStart", false, protectedBlock, {}, st.protected, "accent"],
-    ["мастер делает мебель", "IN_PROGRESS", "waitReady", false, protectedBlock, {}, st.inWork, "accent"],
+    ["мастер делает мебель", "IN_PROGRESS", "waitReady", false, protectedBlock, {}, st.inWork, "neutral"],
     ["готово, нужна моя приёмка", "READY", "signAct", true, protectedBlock, {}, st.accept, "warn"],
     ["я принял(а), ждём подпись мастера на акте", "READY", "waitMasterActSignature", false, protectedBlock, {}, st.waitAct, "neutral"],
     ["ждём выплату", "ACCEPTED", "waitPayout", false, completed(0n), {}, st.finishing, "neutral"],
@@ -105,11 +105,11 @@ describe("dealChip: плашка называет текущий шаг — од
     ["деньги возвращены", "REFUNDED", "refunded", false, refundedBlock, {}, st.refunded, "neutral"],
     ["«что дальше» неизвестно: создана", "CREATED", null, false, awaiting("none"), {}, st.offer, "neutral"],
     ["«что дальше» неизвестно: оплачено", "PAID_HOLD", null, false, protectedBlock, {}, st.protected, "accent"],
-    ["«что дальше» неизвестно: работа идёт", "IN_PROGRESS", null, false, protectedBlock, {}, st.inWork, "accent"],
+    ["«что дальше» неизвестно: работа идёт", "IN_PROGRESS", null, false, protectedBlock, {}, st.inWork, "neutral"],
     ["«что дальше» неизвестно: сдана", "READY", null, false, protectedBlock, {}, st.handedOver, "neutral"],
     ["«что дальше» неизвестно: принята", "ACCEPTED", null, false, completed(0n), {}, st.finishing, "neutral"],
     ["«что дальше» неизвестно, но оплата у банка — по журналу", "CREATED", null, false, awaiting("PENDING"), { provider: "MANUAL" }, st.transfer, "neutral"],
-    ["шаг мастера (не покупателя) — по статусу", "IN_PROGRESS", "submitReady", true, protectedBlock, {}, st.inWork, "accent"],
+    ["шаг мастера (не покупателя) — по статусу", "IN_PROGRESS", "submitReady", true, protectedBlock, {}, st.inWork, "neutral"],
   ];
 
   it.each(ROWS)("%s", (_name, status, action, mine, money, o, text, tone) => {
@@ -178,7 +178,7 @@ describe("сторона мастера: плашка, ход, строка де
     ["онлайн-оплата у банка", "CREATED", "waitPaymentConfirmation", false, awaiting("PENDING"), { provider: "FREEDOMPAY" }, ms.processing, "neutral"],
     ["перевод по реквизитам — ждём оплату покупателя (не «ваш перевод»)", "CREATED", "waitPaymentConfirmation", false, awaiting("PENDING"), { provider: "MANUAL" }, ms.waitPay, "neutral"],
     ["оплачено — начните работу", "PAID_HOLD", "startWork", true, protectedBlock, {}, ms.start, "warn"],
-    ["работа идёт — сдать, когда готово", "IN_PROGRESS", "submitReady", true, protectedBlock, {}, ms.inWork, "accent"],
+    ["работа идёт — сдать, когда готово", "IN_PROGRESS", "submitReady", true, protectedBlock, {}, ms.inWork, "neutral"],
     ["работа сдана, подпишите акт", "READY", "signActEcp", true, protectedBlock, {}, ms.signAct, "warn"],
     ["акт подписан мной, ждём приёмку", "READY", "waitAct", false, protectedBlock, {}, ms.waitAct, "neutral"],
     ["банк переводит оплату", "ACCEPTED", "waitPayout", false, completed(0n), {}, ms.finishing, "neutral"],
@@ -190,7 +190,7 @@ describe("сторона мастера: плашка, ход, строка де
     ["деньги возвращены покупателю", "REFUNDED", "refunded", false, refundedBlock(true), {}, ms.refunded, "neutral"],
     ["«что дальше» неизвестно: создана", "CREATED", null, false, awaiting("none"), {}, ms.offer, "neutral"],
     ["«что дальше» неизвестно: оплачено", "PAID_HOLD", null, false, protectedBlock, {}, ms.protected, "accent"],
-    ["«что дальше» неизвестно: в работе", "IN_PROGRESS", null, false, protectedBlock, {}, ms.inWork, "accent"],
+    ["«что дальше» неизвестно: в работе", "IN_PROGRESS", null, false, protectedBlock, {}, ms.inWork, "neutral"],
     ["«что дальше» неизвестно: сдана", "READY", null, false, protectedBlock, {}, ms.handedOver, "neutral"],
     ["«что дальше» неизвестно: принята", "ACCEPTED", null, false, completed(0n), {}, ms.finishing, "neutral"],
     ["шаг покупателя (не мастера) — по статусу", "CREATED", "pay", true, awaiting("none"), {}, ms.offer, "neutral"],
@@ -221,7 +221,7 @@ describe("сторона мастера: плашка, ход, строка де
   it("шаги покупателя и оператора мастеру не дают «вашего шага»: плашка по статусу", () => {
     for (const action of ["pay", "waitStart", "waitReady", "signAct", "waitMasterActSignature", "leaveReview", "resolveDispute", "none"] as const) {
       const chip = dealChip({ side: "EXECUTOR", status: "IN_PROGRESS", hasOpenDispute: false, next: { action, mine: true }, money: protectedBlock, paymentProvider: "MOCK" });
-      expect(chip).toEqual({ text: ms.inWork, tone: "accent" });
+      expect(chip).toEqual({ text: ms.inWork, tone: "neutral" });
     }
   });
 

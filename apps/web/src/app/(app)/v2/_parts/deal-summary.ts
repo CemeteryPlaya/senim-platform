@@ -106,8 +106,9 @@ const chip = (text: string, tone: DealTone): DealChip => ({ text, tone });
 
 /**
  * Плашка по «что дальше» покупателя. Тон: «внимание» — нужен мой шаг (подпись, оплата, приёмка) или спор; зелёный —
- * деньги в банке под защитой (ждём начала, работа идёт) и сделка завершена; остальное — нейтральное. Шаги мастера и
- * оператора покупателю модуль не отдаёт — для них, как и для неизвестного «дальше», плашка по статусу (`byStatus`).
+ * только деньги в банке под защитой (ждём начала) и сделка завершена; «Мастер делает мебель» — нейтральное, как и
+ * остальное (зелёный — деньгам и прогрессу, разбор 2, раздел 5 п. 7). Шаги мастера и оператора покупателю модуль не
+ * отдаёт — для них, как и для неизвестного «дальше», плашка по статусу (`byStatus`).
  */
 function buyerByAction(i: DealChipInput): DealChip | null {
   const t = ru.app.deal.status;
@@ -126,7 +127,7 @@ function buyerByAction(i: DealChipInput): DealChip | null {
     case "waitStart":
       return chip(t.protected, "accent");
     case "waitReady":
-      return chip(t.inWork, "accent");
+      return chip(t.inWork, "neutral");
     case "signAct":
       return next.mine ? chip(t.accept, "warn") : null;
     case "waitMasterActSignature":
@@ -157,8 +158,9 @@ function buyerByAction(i: DealChipInput): DealChip | null {
 
 /**
  * Плашка по «что дальше» мастера. «Внимание» — нужен его шаг: подписать оферту, дать согласие для банка, начать работу,
- * подписать акт; спор. Изготовление (`submitReady`) — его шаг на недели, поэтому не «внимание», а зелёное «В работе», как
- * и деньги покупателя под защитой. Шаги покупателя и оператора мастеру модуль не отдаёт — для них плашка по статусу.
+ * подписать акт; спор. Изготовление (`submitReady`) — его шаг на недели, поэтому не «внимание», а нейтральное «В работе»
+ * (зелёный — только деньгам под защитой и завершённой сделке, разбор 2, раздел 5 п. 7). Шаги покупателя и оператора
+ * мастеру модуль не отдаёт — для них плашка по статусу.
  */
 function masterByAction(i: DealChipInput): DealChip | null {
   const t = ru.app.master.deal.status;
@@ -176,7 +178,7 @@ function masterByAction(i: DealChipInput): DealChip | null {
     case "startWork":
       return next.mine ? chip(t.start, "warn") : null;
     case "submitReady":
-      return next.mine ? chip(t.inWork, "accent") : null;
+      return next.mine ? chip(t.inWork, "neutral") : null;
     case "signActEcp":
       return next.mine ? chip(t.signAct, "warn") : null;
     case "waitAct":
@@ -211,7 +213,7 @@ function byStatus(status: DealStatus, side: DealSide): DealChip {
   const BY_STATUS: Record<DealStatus, DealChip> = {
     CREATED: chip(t.offer, "neutral"),
     PAID_HOLD: chip(t.protected, "accent"),
-    IN_PROGRESS: chip(t.inWork, "accent"),
+    IN_PROGRESS: chip(t.inWork, "neutral"),
     READY: chip(t.handedOver, "neutral"),
     ACCEPTED: chip(t.finishing, "neutral"),
     SPLIT_PAYOUT: chip(t.done, "accent"),

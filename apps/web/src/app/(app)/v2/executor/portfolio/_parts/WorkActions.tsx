@@ -32,7 +32,7 @@ export function WorkActions({ device, id, published }: { device: Device; id: str
 
   return (
     <div className="flex items-center justify-between gap-3">
-      <StatusChip tone={published ? "accent" : "neutral"}>{published ? t.list.published : t.list.hidden}</StatusChip>
+      <StatusChip tone="neutral">{published ? t.list.published : t.list.hidden}</StatusChip>
       <Menu
         label={t.actions.menu}
         device={device}
