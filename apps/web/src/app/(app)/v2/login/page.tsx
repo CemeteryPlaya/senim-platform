@@ -6,6 +6,7 @@ import { getDevice } from "@/platform/device";
 import { nextStepFor, safeNext } from "../../_shell/auth";
 import { recallRole } from "../../_shell/role-cookie";
 import { LoginFlow } from "./LoginFlow";
+import { rolePhotos } from "./role-photos";
 import { parseLoginStep, preselectedRole } from "./steps";
 
 export const metadata: Metadata = { title: ru.app.login.metaTitle };
@@ -33,6 +34,7 @@ export default async function LoginPage({ searchParams }: Props) {
       role={preselectedRole(one(params.role), chosen)}
       next={next}
       device={await getDevice()}
+      rolePhotos={rolePhotos()}
     />
   );
 }

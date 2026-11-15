@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Hammer, Sofa } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import {
@@ -10,8 +11,8 @@ import {
   HiddenField,
   Notice,
   PhoneField,
-  RadioCard,
-  RadioGroup,
+  PhotoChoice,
+  PhotoChoiceGroup,
   Stack,
   PageTitle,
   TextLink,
@@ -23,6 +24,7 @@ import { to } from "../../_shell/paths";
 import { ResendCode } from "../../_shell/ResendCode";
 import { ShownCode } from "../../_shell/ShownCode";
 import { chooseRoleAction, requestCodeAction, verifyCodeAction } from "./actions";
+import type { RolePhotos } from "./role-photos";
 import { loginStepHref, RESEND_SECONDS, type LoginRole, type LoginStep } from "./steps";
 
 const t = ru.app.login;
@@ -58,6 +60,8 @@ type Props = {
   /** Возврат после входа (уже проверен safeNext). */
   next: string | null;
   device: Device;
+  /** Фото плиток первого шага (страница берёт их из статики стенда); без них плитки со значком. */
+  rolePhotos?: RolePhotos;
 };
 
 /**
@@ -66,7 +70,7 @@ type Props = {
  * а номер (ПДн) не попадает ни в адрес, ни в cookie. Шаг кода без отправленного кода (перезагрузка) — снова шаг номера.
  * При смене шага фокус переходит на первое поле нового шага.
  */
-export function LoginFlow({ step: requested, role, next, device }: Props) {
+export function LoginFlow({ step: requested, role, next, device, rolePhotos }: Props) {
   const router = useRouter();
   const [sent, setSent] = useState<Sent | null>(null);
   const step: LoginStep = requested === "code" && sent === null ? "phone" : requested;
@@ -97,7 +101,7 @@ export function LoginFlow({ step: requested, role, next, device }: Props) {
   return (
     // Компьютер: одна узкая колонка по центру (ширина Narrow), а не растянутая на всю ширину шапка шага и поля слева.
     <div ref={root} className="desktop:mx-auto desktop:max-w-narrow">
-      {step === "role" && <RoleStep role={role} next={next} />}
+      {step === "role" && <RoleStep role={role} next={next} photos={rolePhotos} />}
       {step === "phone" && (
         <PhoneStep
           next={next}
@@ -125,11 +129,11 @@ export function LoginFlow({ step: requested, role, next, device }: Props) {
 }
 
 /**
- * Шаг 1: покупатель или мастер. Одна карточка выбрана всегда (по умолчанию — «Я покупатель»), поэтому «Продолжить» не бывает
+ * Шаг 1: покупатель или мастер — две фото-плитки (подпись и описание под фото). Одна плитка выбрана всегда (по умолчанию — «Я покупатель»), поэтому «Продолжить» не бывает
  * «без выбора»; ошибка группы — только если схема действия всё же отказала. В доке одна кнопка; «Уже регистрировались? Войти по номеру» —
  * тихая ссылка под карточками.
  */
-export function RoleStep({ role, next }: { role: LoginRole; next: string | null }) {
+export function RoleStep({ role, next, photos }: { role: LoginRole; next: string | null; photos?: RolePhotos }) {
   const form = useActionForm(chooseRoleAction);
   return (
     <Stack gap="section">
@@ -137,22 +141,26 @@ export function RoleStep({ role, next }: { role: LoginRole; next: string | null 
       <form id={FORM.role} method="post" onSubmit={form.onSubmit} noValidate>
         <Stack gap="section">
           {/* Видимый вопрос — заголовок шага; группе он же служит именем для экранного диктора. */}
-          <RadioGroup legend={t.role.title} legendHidden error={form.fieldErrors.role}>
-            <RadioCard
+          <PhotoChoiceGroup legend={t.role.title} error={form.fieldErrors.role}>
+            <PhotoChoice
               name="role"
               value="client"
               label={t.role.client}
               description={t.role.clientDescription}
+              photo={photos ? { src: photos.client } : undefined}
+              icon={<Sofa aria-hidden className="size-10 text-muted" />}
               defaultChecked={role === "client"}
             />
-            <RadioCard
+            <PhotoChoice
               name="role"
               value="executor"
               label={t.role.executor}
               description={t.role.executorDescription}
+              photo={photos ? { src: photos.executor } : undefined}
+              icon={<Hammer aria-hidden className="size-10 text-muted" />}
               defaultChecked={role === "executor"}
             />
-          </RadioGroup>
+          </PhotoChoiceGroup>
           <HiddenField name="next" value={next ?? ""} />
           <FormError error={form.error} atField={Boolean(form.fieldErrors.role)} />
         </Stack>

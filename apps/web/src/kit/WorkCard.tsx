@@ -22,6 +22,8 @@ export type WorkCardProps = {
   photo?: { src: string; alt: string };
   /** Уровень заголовка: на странице-списке сразу под `<h1>` карточки — `2` (по умолчанию `3`). */
   headingLevel?: 2 | 3;
+  /** Ширина карточки на экране (`sizes` у фото): по умолчанию — колонка сетки каталога; в сетке из двух колонок задаёт вызывающий. */
+  sizes?: string;
 };
 
 /**
@@ -32,12 +34,24 @@ export type WorkCardProps = {
  * (уплотнено: вертикальные поля 12 px, чтобы на экран помещалось больше карточек): `meta · byline` в одной строке
  * (переносится), цена «от N ₸» в той же строке справа, шеврон справа. Компьютер: `meta` и `byline` отдельными
  * строками, цена прижата к низу карточки (`mt-auto`) — карточки ряда одной высоты, цены на одной линии (строка
- * `desktop:contents` растворяется, и цена становится ребёнком колонки). `media="slot"`: над текстом область 4 : 3 с
- * радиусом 12 px — фото или ровная заглушка; шеврона нет, поля 16 px. Серверный компонент.
+ * `desktop:contents` растворяется, и цена становится ребёнком колонки).
+ *
+ * `media="slot"`: фото 4 : 3 во всю ширину карточки сверху (радиус карточки обрезает сама карточка — концентрично), под
+ * ним текст с полями 16 px; шеврона нет. Цена «от» при настоящем фото лежит на нём: капсула `glass-clear` в нижней
+ * четверти под затемнением `scrim-photo` (белый текст на самом светлом фото — 4,7:1, contrast.test.ts). Без фото
+ * (заглушка `photo-fallback`) цена остаётся в тексте под ним: белый текст на светлой заливке нечитаем. Серверный
+ * компонент.
  */
-export function WorkCard({ href, title, meta, byline, priceFrom, media = "none", photo, headingLevel = 3 }: WorkCardProps) {
+export function WorkCard({ href, title, meta, byline, priceFrom, media = "none", photo, headingLevel = 3, sizes }: WorkCardProps) {
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const compact = media === "none";
+  const priceOnPhoto = !compact && Boolean(photo?.src) && priceFrom !== undefined;
+  const price =
+    priceFrom !== undefined ? (
+      <>
+        {ru.app.kit.workCard.priceFrom} <Money tiyn={priceFrom} tone={priceOnPhoto ? "inherit" : "ink"} />
+      </>
+    ) : null;
   const text = (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
       <Heading className="text-headline text-ink">
@@ -61,32 +75,35 @@ export function WorkCard({ href, title, meta, byline, priceFrom, media = "none",
             </>
           )}
         </p>
-        {priceFrom !== undefined && (
-          <p className="shrink-0 text-body font-medium text-ink desktop:mt-auto desktop:pt-2">
-            {ru.app.kit.workCard.priceFrom} <Money tiyn={priceFrom} />
-          </p>
-        )}
+        {price && !priceOnPhoto && <p className="shrink-0 text-body font-medium text-ink desktop:mt-auto desktop:pt-2">{price}</p>}
       </div>
     </div>
   );
   return (
     <Card
       as="article"
+      padded={false}
       className={cn(
-        "relative flex h-full flex-col gap-3",
+        "relative flex h-full flex-col overflow-hidden",
         href && "pressable has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus",
-        compact && "mobile:py-3",
       )}
     >
       {compact ? (
-        <div className="flex flex-1 items-stretch gap-3">
+        <div className="flex flex-1 items-stretch gap-3 p-4 mobile:py-3">
           {text}
           {href && <ChevronRight aria-hidden className="size-5 shrink-0 self-center text-muted desktop:hidden" />}
         </div>
       ) : (
         <>
-          <PhotoSlot ratio="4/3" src={photo?.src} alt={photo?.alt ?? ""} />
-          {text}
+          <PhotoSlot ratio="4/3" radius="none" src={photo?.src} alt={photo?.alt ?? ""} {...(sizes ? { sizes } : {})}>
+            {priceOnPhoto && (
+              <>
+                <div aria-hidden className="scrim-photo" />
+                <p className="glass-clear absolute bottom-3 left-3 rounded-chip px-3 py-1 text-body">{price}</p>
+              </>
+            )}
+          </PhotoSlot>
+          <div className="flex flex-1 flex-col p-4">{text}</div>
         </>
       )}
     </Card>

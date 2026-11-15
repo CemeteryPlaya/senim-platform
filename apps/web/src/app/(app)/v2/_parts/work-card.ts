@@ -41,3 +41,26 @@ export function workCardView(card: PortfolioCard): WorkCardView {
 export function cardsMedia(cards: readonly Pick<WorkCardView, "photo">[]): "none" | "slot" {
   return cards.some((card) => card.photo) ? "slot" : "none";
 }
+
+/** Снимок работы для галереи на весь экран: подпись — название работы. */
+export type WorkPhoto = { src: string; alt: string; caption: string };
+
+/** Верхняя граница снимков в галерее профиля: больше экран не листают, а страница тяжелеет. */
+const GALLERY_LIMIT = 24;
+
+const isUpload = (p: PortfolioCard["photos"][number]): p is { id: string; src: string; alt: string } => p.src !== null && !p.src.startsWith(SEED_ILLUSTRATIONS);
+
+/**
+ * Снимки всех работ мастера для мозаики и галереи: сначала обложка каждой работы (в порядке портфолио — первые три
+ * видны плитками, и это три разные работы), затем остальные снимки работ. Только загруженные фото: иллюстрации сида
+ * (`/demo/`) не показываются, как и в карточке работы.
+ */
+export function workGallery(cards: readonly PortfolioCard[]): WorkPhoto[] {
+  const covers: WorkPhoto[] = [];
+  const rest: WorkPhoto[] = [];
+  for (const card of cards) {
+    const photos = card.photos.filter(isUpload);
+    photos.forEach((p, i) => (i === 0 ? covers : rest).push({ src: p.src, alt: p.alt, caption: card.title }));
+  }
+  return [...covers, ...rest].slice(0, GALLERY_LIMIT);
+}

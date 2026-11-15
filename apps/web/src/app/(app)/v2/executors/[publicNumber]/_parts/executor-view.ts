@@ -1,7 +1,7 @@
 import { ru } from "@/i18n/ru";
 import type { PublicExecutorPage, PublicExecutorView } from "@/modules/companies";
 import { to } from "../../../../_shell/paths";
-import { cardsMedia, toTiyn, workCardView, type WorkCardView } from "../../../_parts/work-card";
+import { toTiyn, workCardView, workGallery, type WorkCardView, type WorkPhoto } from "../../../_parts/work-card";
 
 const t = ru.app.guest.executor;
 
@@ -32,8 +32,8 @@ export type ExecutorViewModel = {
   /** Абзацы «О мастере»; пусто — мастер ничего не написал. */
   about: string[];
   works: WorkCardView[];
-  /** Область изображения карточек работ: одна на все. */
-  worksMedia: "none" | "slot";
+  /** Снимки работ для мозаики и галереи (обложки работ первыми); пусто — фото нет, мозаики нет. */
+  gallery: WorkPhoto[];
   reviews: ReviewView[];
   explain: ExplainView;
   /** Заявка этому мастеру (для экрана заявки следующего этапа: `executor` — публичный номер). У любого мастера. */
@@ -93,7 +93,7 @@ export function executorView(page: PublicExecutorPage): ExecutorViewModel {
       .map((line) => line.trim())
       .filter(Boolean),
     works,
-    worksMedia: cardsMedia(works),
+    gallery: workGallery(page.portfolio),
     reviews: page.reviews.map((r) => ({ id: r.id, ratingLabel: t.reviewRating(r.rating), date: dateFormat.format(r.createdAt), text: r.text.trim() })),
     explain: view.nameShown ? t.explain.shown : t.explain.hidden,
     action: { href: `${to("/requests/new")}?${new URLSearchParams({ executor: String(view.publicNumber) }).toString()}`, label: t.action },

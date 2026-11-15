@@ -43,17 +43,19 @@ export default async function PortfolioPage() {
       <ButtonLink href={to("/executor/portfolio/new")}>{t.add}</ButtonLink>
     </ActionDock>
   );
+  const tiles = view.rows.map((row) => <WorkTile key={row.id} row={row} media={view.media} />);
   return (
     <Stack gap="section">
       {title}
       {device === "desktop" && add}
       <Stack>
         <p className="text-sub text-muted">{view.countText}</p>
-        <Columns count={3}>
-          {view.rows.map((row) => (
-            <WorkTile key={row.id} row={row} media={view.media} />
-          ))}
-        </Columns>
+        {view.media === "slot" ? (
+          // Сетка фото: две колонки на телефоне, три на компьютере.
+          <div className="grid grid-cols-2 gap-3 *:min-w-0 desktop:grid-cols-3">{tiles}</div>
+        ) : (
+          <Columns count={3}>{tiles}</Columns>
+        )}
       </Stack>
       {device === "mobile" && add}
     </Stack>

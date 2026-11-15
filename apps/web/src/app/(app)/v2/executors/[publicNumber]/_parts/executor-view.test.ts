@@ -159,10 +159,14 @@ describe("executorView: работы и действие", () => {
     expect(executorView(page({ portfolio: [work({ priceFrom: null })] })).works[0]).not.toHaveProperty("priceFrom");
   });
 
-  it("область изображения: хоть одно настоящее фото — slot у всех, иначе none", () => {
-    expect(executorView(page({ portfolio: [work({ id: "a", photos: [real] }), work({ id: "b" })] })).worksMedia).toBe("slot");
-    expect(executorView(page({ portfolio: [work({ photos: [seed] })] })).worksMedia).toBe("none");
-    expect(executorView(page({ portfolio: [] })).worksMedia).toBe("none");
+  it("галерея: обложки работ первыми, потом остальные снимки; иллюстрации сида не попадают; подпись — название работы", () => {
+    const more = { id: "f3", src: "/files/def", alt: "Вид сбоку" };
+    const other = { id: "f4", src: "/files/ghi", alt: "Шкаф" };
+    const gallery = executorView(page({ portfolio: [work({ id: "a", photos: [seed, real, more] }), work({ id: "b", title: "Шкаф", photos: [other] })] })).gallery;
+    expect(gallery.map((p) => p.src)).toEqual(["/files/abc", "/files/ghi", "/files/def"]);
+    expect(gallery[0]).toEqual({ src: "/files/abc", alt: "Кухня", caption: "Светлая кухня" });
+    expect(executorView(page({ portfolio: [work({ photos: [seed] })] })).gallery).toEqual([]);
+    expect(executorView(page({ portfolio: [] })).gallery).toEqual([]);
   });
 
   it("главное действие — у любого мастера: заявка с публичным номером мастера", () => {

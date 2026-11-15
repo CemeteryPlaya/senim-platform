@@ -217,11 +217,12 @@ describe("Rating", () => {
 });
 
 describe("WorkCard", () => {
-  it("media=slot без фото: нет <img, заглушка 4/3 с радиусом поля на месте, шеврона нет", () => {
+  it("media=slot без фото: нет <img, заглушка 4/3 с заливкой photo-fallback (photo-frame) на месте, шеврона нет", () => {
     const out = html(<WorkCard href="/v2/masters/1" title="Кухня" meta="Алматы" media="slot" />);
     expect(out).not.toContain("<img");
     expect(hasClass(out, "aspect-4/3")).toBe(true);
-    expect(hasClass(out, "rounded-field")).toBe(true);
+    expect(hasClass(out, "photo-frame")).toBe(true);
+    expect(hasClass(out, "rounded-field")).toBe(false);
     expect(out).not.toContain("lucide-chevron-right");
   });
 

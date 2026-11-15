@@ -94,3 +94,7 @@ export type { SignaturePadProps, SignatureValue } from "./SignaturePad";
 export { PhoneFrame } from "./PhoneFrame";
 export type { PhoneFrameProps } from "./PhoneFrame";
 export { TrustCapsule } from "./TrustCapsule";
+export { PhotoChoice, PhotoChoiceGroup } from "./PhotoChoice";
+export type { PhotoChoiceGroupProps, PhotoChoiceProps } from "./PhotoChoice";
+export { PhotoGallery } from "./PhotoGallery";
+export type { GalleryPhoto, PhotoGalleryProps } from "./PhotoGallery";

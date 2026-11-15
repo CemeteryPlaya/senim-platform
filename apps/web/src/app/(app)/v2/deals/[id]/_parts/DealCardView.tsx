@@ -15,7 +15,7 @@ import {
   MoneyPanel,
   NowNext,
   PageTitle,
-  PhotoSlot,
+  PhotoGallery,
   Progress,
   Section,
   Split,
@@ -253,7 +253,8 @@ function Party({ view, device }: { view: CardView; device: Device }) {
 }
 
 /**
- * «Ход работ»: отчёты мастера свежими сверху (название, время, текст, фото) — обеим сторонам; мастеру ещё ссылка на экран
+ * «Ход работ»: отчёты мастера свежими сверху (название, время, текст, лента фото 4 : 3 — по нажатию снимок открывается на весь
+ * экран, листается) — обеим сторонам; мастеру ещё ссылка на экран
  * нового отчёта и пустое состояние (покупателю пустой блок не показывается).
  */
 function Reports({ reports }: { reports: NonNullable<CardView["reports"]> }) {
@@ -274,15 +275,11 @@ function Reports({ reports }: { reports: NonNullable<CardView["reports"]> }) {
                   <p className="text-sub text-muted">{report.time}</p>
                   {report.text && <p className="text-body whitespace-pre-line text-ink wrap-break-word">{report.text}</p>}
                   {report.photos.length > 0 && (
-                    <ul className="grid grid-cols-3 gap-2">
-                      {report.photos.map((photo) => (
-                        <li key={photo.id}>
-                          <a href={photo.src} target="_blank" rel="noopener noreferrer">
-                            <PhotoSlot ratio="1/1" src={photo.src} alt={photo.alt} />
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
+                    <PhotoGallery
+                      layout="strip"
+                      label={report.title}
+                      photos={report.photos.map((photo) => ({ src: photo.src, alt: photo.alt, caption: [report.title, report.time].filter(Boolean).join(" · ") }))}
+                    />
                   )}
                 </div>
               </ListItem>

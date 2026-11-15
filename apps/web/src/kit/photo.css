@@ -1,0 +1,38 @@
+/*
+ * Фото-витрины (разбор 3.5): проявление картинки, галерея на весь экран, плитки выбора. Отдельный файл: палитра и стекло
+ * живут в tokens.css, а здесь — только то, что относится к снимкам. Цвета — только роли (var(--role-*)).
+ */
+
+/*
+ * Проявление фото: opacity 0 → 1 за 200 мс, когда картинка загрузилась (PhotoImage ставит data-ready). Без «подъезда».
+ * Без скриптов и при prefers-reduced-motion — сразу видна.
+ */
+@utility photo-reveal {
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+  &[data-ready] {
+    opacity: 1;
+  }
+  @media (scripting: none) {
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    opacity: 1;
+    transition: none;
+  }
+}
+
+/* Галерея на весь экран: появление проявлением 150 мс; при prefers-reduced-motion — сразу. */
+@keyframes gallery-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@utility gallery-in {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: gallery-in 150ms ease-out;
+  }
+}

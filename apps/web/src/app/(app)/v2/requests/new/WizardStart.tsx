@@ -1,7 +1,8 @@
 "use client";
 
+import { LayoutGrid } from "lucide-react";
 import { ru } from "@/i18n/ru";
-import { Button, HiddenField, RadioCard, RadioGroup, Select, Stack, TextField } from "@/kit";
+import { Button, HiddenField, PhotoChoice, PhotoChoiceGroup, RadioCard, RadioGroup, Select, Stack, TextField } from "@/kit";
 import { LIMITS } from "@/modules/requests/client";
 import { WizardFrame, useWizardStep, type WizardBase } from "./WizardFrame";
 import { useStepMemory } from "./wizard-memory";
@@ -24,6 +25,8 @@ const ADVANCED_ID = "request-advanced";
 type Props = {
   base: WizardBase;
   types: readonly FurnitureType[];
+  /** slug типа → адрес фото плитки; типа нет в списке — плитка без фото (заливка со значком). */
+  photos: Readonly<Record<string, string>>;
   initial: { type: { main: string; sub: string; custom: string }; style: string | null; advanced: AdvancedState };
 };
 
@@ -65,11 +68,11 @@ function Advanced({ state, onChange, errors }: { state: AdvancedState; onChange:
 }
 
 /**
- * Шаг 1 «Что нужно сделать?»: тип мебели карточками (частые заказы и «Другое» → список справочника или свой вариант),
- * стиль списком («Не важно» по умолчанию). Размеры и материалы — по кнопке, у каждого «не знаю» (блок «Для продвинутых»
- * v1). Картинок-примеров нет: стиль назван словами.
+ * Шаг 1 «Что нужно сделать?»: тип мебели фото-плитками 2 × 3 (частые заказы с фото стенда и «Другое» со значком → список
+ * справочника или свой вариант; подпись под фото), стиль списком («Не важно» по умолчанию). Размеры и материалы — по
+ * кнопке, у каждого «не знаю» (блок «Для продвинутых» v1). Картинок-примеров стилей нет: стиль назван словами.
  */
-export function WizardStart({ base, types, initial }: Props) {
+export function WizardStart({ base, types, photos, initial }: Props) {
   const form = useWizardStep("start", base);
   const { popular, rest } = splitTypes(types);
   // Несохранённый ввод шага переживает «Назад» и перезагрузку (sessionStorage).
@@ -82,26 +85,29 @@ export function WizardStart({ base, types, initial }: Props) {
 
   return (
     <WizardFrame base={base} title={t.title} lead={t.lead} form={form}>
-      <RadioGroup legend={t.typeLegend} legendHidden error={type.main === OTHER ? undefined : typeError}>
+      <PhotoChoiceGroup legend={t.typeLegend} error={type.main === OTHER ? undefined : typeError}>
         {popular.map((item) => (
-          <RadioCard
+          <PhotoChoice
             key={item.id}
             label={item.name}
             name="furnitureType"
             value={item.id}
+            photo={photos[item.slug] ? { src: photos[item.slug] } : undefined}
+            icon={<LayoutGrid aria-hidden className="size-10 text-muted" />}
             checked={type.main === item.id}
             onChange={() => setType({ ...type, main: item.id })}
           />
         ))}
-        <RadioCard
+        <PhotoChoice
           label={t.other}
           description={t.otherDescription}
           name="furnitureType"
           value={OTHER}
+          icon={<LayoutGrid aria-hidden className="size-10 text-muted" />}
           checked={type.main === OTHER}
           onChange={() => setType({ ...type, main: OTHER })}
         />
-      </RadioGroup>
+      </PhotoChoiceGroup>
       {type.main === OTHER && (
         <Select
           label={t.otherLabel}

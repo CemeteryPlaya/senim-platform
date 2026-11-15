@@ -14,6 +14,7 @@ import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { pageHref, requireBuyer } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
+import { choicePhotos } from "./choice-photos";
 import { WizardPlace } from "./WizardPlace";
 import { WizardRoom } from "./WizardRoom";
 import { WizardSegment } from "./WizardSegment";
@@ -87,6 +88,7 @@ export default async function NewRequestPage({ searchParams }: Props) {
         key={key}
         base={base}
         types={types}
+        photos={choicePhotos()}
         initial={{
           type: typeChoice(types, { furnitureTypeId: draft?.furnitureTypeId ?? like?.furnitureTypeId ?? null, customType: draft?.customType ?? null }),
           style: draft?.style ?? like?.style ?? null,

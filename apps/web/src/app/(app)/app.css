@@ -6,6 +6,7 @@
 @import "../../kit/tokens.css";
 @import "../../kit/overlays.css";
 @import "../../kit/landing.css";
+@import "../../kit/photo.css";
 
 @source "../../kit";
 @source ".";

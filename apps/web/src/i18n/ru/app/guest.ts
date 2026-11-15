@@ -197,6 +197,10 @@ export const guest = {
         value: `${n} ${{ one: "год", few: "года", many: "лет" }[pluralForm(n)]}`,
       }),
     },
+    /** Имя группы крупных фактов под заголовком профиля (для диктора) и подпись рейтинга, когда отзывов ещё нет. */
+    factsLabel: "Сводка по мастеру",
+    ratingLabel: "Рейтинг",
+    dealsLabel: "Сделки",
     conditionsTitle: "Условия",
     rows: {
       specializations: "Специализация",
