@@ -82,3 +82,19 @@
     transition: none;
   }
 }
+
+/*
+ * Капсула цены на карточке работы: `glass-clear` с более плотной подложкой (55 %, при уменьшении прозрачности и
+ * увеличении контраста — 78 %). Под лёгким затемнением `scrim-photo-soft` (15 %) самый светлый пиксель фото под
+ * капсулой остаётся не светлее ≈ 117/255, и белый текст держит ≥ 4,5:1 (замер на фото каталога — отчёт V5).
+ * Ставится вместе с `glass-clear`.
+ */
+@utility photo-capsule {
+  --photo-capsule-alpha: 55%;
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    --photo-capsule-alpha: 78%;
+  }
+  &.glass-clear {
+    background-color: color-mix(in srgb, var(--role-scrim) var(--photo-capsule-alpha), transparent);
+  }
+}

@@ -104,7 +104,7 @@ export function WorkCard({ href, title, meta, byline, priceFrom, media = "none",
             {priceOnPhoto && (
               <>
                 <div aria-hidden className="scrim-photo-soft" />
-                <p className="glass-clear absolute bottom-3 left-3 rounded-chip px-3 py-1 text-body">{price}</p>
+                <p className="glass-clear photo-capsule absolute bottom-3 left-3 rounded-chip px-3 py-1 text-body">{price}</p>
               </>
             )}
           </PhotoSlot>
