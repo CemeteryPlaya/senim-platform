@@ -102,11 +102,14 @@ describe("главная гостя (лендинг)", () => {
     });
   }
 
-  it("компьютер: фото на всю ширину окна под шапкой, заголовок 64 px белым, главная кнопка белая (inverse), дока нет", () => {
+  it("компьютер: фото на всю ширину без 100vw, под шапкой, заголовок 64 px белым, главная кнопка белая (inverse), дока нет", () => {
     const out = html(<GuestHome device="desktop" />);
+    // Корень — data-landing (область содержимого оболочки во всю ширину, landing.css); первый экран — w-full.
+    expect(out).toMatch(/^<link [^>]*\/><div data-landing="true"/);
     const hero = tagWith(out, "data-hero");
-    for (const cls of ["bleed", "hero-fold"]) expect(hasClass(hero, cls)).toBe(true);
-    expect(hero).toContain("data-bleed");
+    for (const cls of ["hero-fold", "w-full"]) expect(hasClass(hero, cls)).toBe(true);
+    expect(out).not.toMatch(/(?<![\w-])bleed/); // утилиты 100vw больше нет (rail-bleed телефона — другое)
+    expect(out).toContain('class="hero-fade"');
     const h1 = out.match(/<h1[^>]*>/)?.[0] ?? "";
     expect(hasClass(h1, "desktop:text-display-xl")).toBe(true);
     expect(hasClass(h1, "text-on-photo")).toBe(true);
@@ -118,13 +121,42 @@ describe("главная гостя (лендинг)", () => {
     expect(out).toContain(`${t.trustCapsule} · ${t.trustCapsuleMore}`);
   });
 
-  it("телефон: название продукта над заголовком 40 px, фото 4:5 со скруглением 24, капсула у верхнего края; кнопка — в доке последней", () => {
+  it("компьютер: факты и шаги, работы, «Помощь» и подвал — в колонке содержимого; тёмный раздел — от края до края", () => {
+    const out = html(<GuestHome device="desktop" />);
+    const columns = out.match(/<div class="mx-auto flex w-full max-w-content flex-col gap-24 px-6">/g) ?? [];
+    expect(columns).toHaveLength(2);
+    expect(hasClass(tagWith(out, 'data-theme="dark"'), "w-full")).toBe(true);
+  });
+
+  it("факты — блоки с весом: карточка, значок 24 px, значение title-2, пояснение 17 px", () => {
+    const out = html(<GuestHome device="desktop" />);
+    for (const fact of t.facts) {
+      expect(out).toContain(`<p class="text-title-2 text-ink">${fact.value}</p>`);
+      expect(out).toContain(`<p class="text-body text-muted">${fact.note}</p>`);
+    }
+    expect(count(out, "rounded-card bg-surface p-5")).toBe(3);
+  });
+
+  it("шаги на компьютере: рамка телефона 19,5rem, заголовок шага 22 px", () => {
+    const out = html(<GuestHome device="desktop" />);
+    expect(count(out, "desktop:w-78")).toBe(3);
+    expect(count(out, 'sizes="20rem"')).toBe(3);
+    for (const step of t.steps) expect(out).toContain(`<h3 class="text-headline text-ink desktop:text-title-2">${step.title}</h3>`);
+  });
+
+  it("телефон: название продукта над заголовком 40 px, фото 4:5 со скруглением 24, капсула и подпись фото у верхнего края; кнопка — в доке последней", () => {
     const out = html(<GuestHome device="mobile" />);
     expect(out.indexOf(`>${ru.common.brand}</p>`)).toBeLessThan(out.indexOf("<h1"));
     expect(hasClass(out.match(/<h1[^>]*>/)?.[0] ?? "", "text-display")).toBe(true);
     const photo = tagWith(out, "aspect-4/5");
     expect(hasClass(photo, "rounded-hero")).toBe(true);
     expect(hasClass(photo, "photo-frame")).toBe(true);
+    // Подпись фото — внутри фото у верхнего края, под капсулой (под фото её закрыла бы панель вкладок).
+    const top = out.slice(out.indexOf("scrim-photo-top"));
+    expect(top.indexOf(t.trustCapsule)).toBeLessThan(top.indexOf(t.photoCaption.temporary));
+    expect(top).toContain(`<p class="px-4 text-small text-on-photo">${t.photoCaption.temporary}</p>`);
+    // Тёмный раздел — за поля колонки.
+    expect(hasClass(tagWith(out, 'data-theme="dark"'), "mobile:rail-bleed")).toBe(true);
     const dock = out.slice(out.indexOf("data-action-dock"));
     expect(count(dock, "<a ")).toBe(1);
     expect(dock).toContain("data-primary-action");

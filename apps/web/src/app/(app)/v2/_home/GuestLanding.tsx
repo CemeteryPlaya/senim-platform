@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ChevronDown, ChevronRight, Hammer, Landmark, UserRound } from "lucide-react";
+import { ArrowDown, ArrowRight, ChevronDown, ChevronRight, Hammer, HandCoins, Landmark, UserRound, Wallet } from "lucide-react";
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
 import { computeDealMoney } from "@/modules/payments";
@@ -24,16 +24,19 @@ const EXAMPLE_PRICE_TIYN = 200_000n * 100n;
 const captionOf = (photo: HeroPhoto) => (photo.temporary ? t.photoCaption.temporary : t.photoCaption.work);
 
 /**
- * Первый экран компьютера: фото на всю ширину окна под стеклянной шапкой, затемнение слева и снизу (`scrim-hero`),
- * заголовок 64 px белым, подзаголовок 21 px, белая главная кнопка и ссылка мастера, внизу — капсула доверия на стекле и
- * подпись фото. Высота min(88vh, 860px), при крупном шрифте растёт.
+ * Первый экран компьютера: фото на всю ширину области содержимого (на лендинге она во всю ширину окна — landing.css) под
+ * стеклянной шапкой, затемнение слева, сверху и снизу (`scrim-hero`), заголовок 64 px белым, подзаголовок 21 px, белая
+ * главная кнопка и ссылка мастера, внизу — капсула доверия на стекле и подпись фото; нижний край фото растворяется в
+ * фоне страницы (`hero-fade`, ниже текста). Высота min(88vh, 860px), при крупном шрифте растёт. Кольцо фокуса — двойное.
  */
 export function DesktopHero({ photo }: { photo: HeroPhoto }) {
   return (
-    <section data-bleed data-hero className="bleed hero-fold relative isolate flex flex-col justify-end overflow-hidden bg-photo-fallback">
+    <section data-hero className="hero-fold relative isolate flex w-full flex-col justify-end overflow-hidden bg-photo-fallback">
       <Image src={photo.src} alt={photo.alt} fill preload sizes="100vw" className="object-cover" />
       <div aria-hidden className="scrim-hero" />
-      <div className="relative mx-auto flex w-full max-w-content flex-col gap-8 px-6 pt-16 pb-12">
+      <div aria-hidden className="hero-fade" />
+      {/* Нижнее поле (7rem) больше полосы растворения (4rem): текст стоит на затемнённом фото, а не на переходе в фон. */}
+      <div className="relative mx-auto flex w-full max-w-content flex-col gap-8 px-6 pt-16 pb-28">
         <div className="flex max-w-hero flex-col gap-5">
           <h1 className="text-balance text-display desktop:text-display-xl text-on-photo">{t.title}</h1>
           <p className="max-w-lead text-lead text-on-photo">{t.lead}</p>
@@ -62,9 +65,9 @@ export function DesktopHero({ photo }: { photo: HeroPhoto }) {
 }
 
 /**
- * Первый экран телефона: название продукта, заголовок 40 px, подзаголовок, фото 4:5 со скруглением 24 и капсулой доверия
- * у верхнего края (на затемнении `scrim-photo-top`: у нижнего её закрыли бы док и панель вкладок на первом экране),
- * подпись фото, ссылка мастера. Главная кнопка — в доке (GuestHome).
+ * Первый экран телефона: название продукта, заголовок 40 px, подзаголовок, фото 4:5 со скруглением 24, у верхнего края
+ * фото — капсула доверия и под ней подпись фото (на затемнении `scrim-photo-top`: у нижнего края их закрыли бы док и
+ * панель вкладок на первом экране), ссылка мастера. Главная кнопка — в доке (GuestHome).
  */
 export function MobileHero({ photo }: { photo: HeroPhoto }) {
   return (
@@ -74,16 +77,14 @@ export function MobileHero({ photo }: { photo: HeroPhoto }) {
         <h1 className="text-balance wrap-break-word text-display text-ink">{t.title}</h1>
         <p className="text-body text-muted">{t.lead}</p>
       </header>
-      <figure className="flex flex-col gap-2">
-        <div className="photo-frame aspect-4/5 rounded-hero">
-          <Image src={photo.src} alt={photo.alt} fill preload sizes="100vw" className="object-cover" />
-          <div aria-hidden className="scrim-photo-top" />
-          <div className="absolute inset-x-3 top-3 flex">
-            <TrustCapsule>{t.trustCapsule}</TrustCapsule>
-          </div>
+      <div className="photo-frame aspect-4/5 rounded-hero">
+        <Image src={photo.src} alt={photo.alt} fill preload sizes="100vw" className="object-cover" />
+        <div aria-hidden className="scrim-photo-top" />
+        <div className="absolute inset-x-3 top-3 flex flex-col items-start gap-2">
+          <TrustCapsule>{t.trustCapsule}</TrustCapsule>
+          <p className="px-4 text-small text-on-photo">{captionOf(photo)}</p>
         </div>
-        <figcaption className="text-small text-muted">{captionOf(photo)}</figcaption>
-      </figure>
+      </div>
       <div>
         <TextLink href={loginHref("executor")}>{t.executorLink}</TextLink>
       </div>
@@ -91,17 +92,31 @@ export function MobileHero({ photo }: { photo: HeroPhoto }) {
   );
 }
 
-/** Полоса из трёх фактов: значение 22 px, пояснение 15 px; на компьютере — в ряд, разделены линией сверху. */
+const FACT_ICONS = [Wallet, Landmark, HandCoins] as const;
+
+/**
+ * Три факта под первым экраном — блоки с весом: карточка `surface`, значок 24 px в круге `accent-soft` (это факты о
+ * деньгах — акцент уместен), значение 22 px (`title-2`), пояснение 17 px. Компьютер — три в ряд, телефон — столбиком.
+ */
 export function Facts() {
   return (
     <section aria-label={t.factsLabel}>
-      <ul className="grid gap-6 desktop:grid-cols-3 desktop:gap-8">
-        {t.facts.map((fact) => (
-          <li key={fact.value} className="flex flex-col gap-1 border-t border-line pt-4">
-            <p className="text-title-2 text-ink">{fact.value}</p>
-            <p className="text-sub text-muted">{fact.note}</p>
-          </li>
-        ))}
+      <ul className="grid gap-3 desktop:grid-cols-3 desktop:gap-5">
+        {t.facts.map((fact, index) => {
+          const Icon = FACT_ICONS[index] ?? Wallet;
+          return (
+            <li key={fact.value} className="flex min-w-0 flex-wrap items-start gap-4 rounded-card bg-surface p-5 desktop:flex-col desktop:flex-nowrap desktop:p-7">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+                <Icon aria-hidden className="size-6" />
+              </span>
+              {/* При крупном шрифте текст уходит под значок, а не за край экрана. */}
+              <div className="flex min-w-0 flex-1 basis-40 flex-col gap-1 wrap-break-word desktop:basis-auto">
+                <p className="text-title-2 text-ink">{fact.value}</p>
+                <p className="text-body text-muted">{fact.note}</p>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -109,7 +124,8 @@ export function Facts() {
 
 /**
  * «Как это работает»: три шага, у каждого снимок нашего экрана в рамке телефона и номер шага крупно (40 px, muted;
- * для читалки — «Шаг N»). Компьютер — три колонки, рамка сверху; телефон — строка: рамка слева, текст справа.
+ * для читалки — «Шаг N»), заголовок шага 22 px на компьютере. Компьютер — три колонки, рамка 19,5rem сверху (снимок
+ * читается); телефон — строка: рамка слева, текст справа.
  */
 export function Steps({ device, screens }: { device: Device; screens: LandingImage[] }) {
   return (
@@ -125,17 +141,17 @@ export function Steps({ device, screens }: { device: Device; screens: LandingIma
               {shot && (
                 <PhoneFrame
                   {...shot}
-                  sizes={device === "desktop" ? "15rem" : "10rem"}
-                  className="w-40 desktop:mx-auto desktop:w-60"
+                  sizes={device === "desktop" ? "20rem" : "10rem"}
+                  className="w-40 desktop:mx-auto desktop:w-78"
                 />
               )}
               {/* Текст не уже 10rem: при крупном шрифте он уходит под рамку, а не за край экрана. */}
-              <div className="flex min-w-40 flex-1 flex-col gap-2">
+              <div className="flex min-w-40 flex-1 flex-col gap-2 desktop:gap-3">
                 <p className="text-display text-muted">
                   <span aria-hidden>{index + 1}</span>
                   <span className="sr-only">{t.stepLabel(index + 1)}</span>
                 </p>
-                <h3 className="text-headline text-ink">{step.title}</h3>
+                <h3 className="text-headline text-ink desktop:text-title-2">{step.title}</h3>
                 <p className="text-body text-ink">{step.text}</p>
               </div>
             </li>
@@ -151,14 +167,15 @@ const FLOW_ICONS = [UserRound, Landmark, Hammer] as const;
 /**
  * «Где ваши деньги» — единственный тёмный раздел, тёмный в обеих темах: роли цветов внутри — тёмной темы
  * (`data-theme="dark"` на разделе), фон `surface` тёмной темы. Слева схема «Вы → банк → мастер» с состояниями и три
- * абзаца с пояснением «Что такое защита сделки?», справа пример суммы крупными цифрами. На всю ширину окна.
+ * абзаца с пояснением «Что такое защита сделки?», справа пример суммы крупными цифрами. От края до края: на компьютере —
+ * во всю ширину области содержимого лендинга, на телефоне — за поля колонки (`rail-bleed`, внутри — те же поля).
  */
 export function MoneySection({ device }: { device: Device }) {
   const money = computeDealMoney(EXAMPLE_PRICE_TIYN);
   const Arrow = device === "desktop" ? ArrowRight : ArrowDown;
   return (
-    <section data-bleed data-theme="dark" aria-labelledby="landing-money" className="bleed bg-surface text-ink">
-      <div className="mx-auto grid w-full max-w-content gap-10 py-14 mobile:safe-gutter desktop:grid-cols-split desktop:gap-16 desktop:px-6 desktop:py-24">
+    <section data-theme="dark" aria-labelledby="landing-money" className="w-full bg-surface text-ink mobile:rail-bleed">
+      <div className="mx-auto grid w-full max-w-content gap-10 py-14 desktop:grid-cols-split desktop:gap-16 desktop:px-6 desktop:py-24">
         <div className="flex min-w-0 flex-col gap-8">
           <h2 id="landing-money" className="wrap-break-word text-title text-ink">
             {t.trustTitle}

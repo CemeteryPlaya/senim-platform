@@ -29,8 +29,12 @@ describe("landing.css: контраст белого текста на фото"
   const base = percent(css, "hero-scrim-base");
   const zone = percent(css, "hero-scrim-zone");
 
-  it("первый экран компьютера: в колонке текста и в нижней полосе — ≥ 4,5:1 над белым фото", () => {
-    expect(whiteOnDimmedWhite(stacked(base, zone))).toBeGreaterThanOrEqual(4.5);
+  it("первый экран компьютера: в колонке текста, в нижней и верхней полосе — ≥ 4,9:1 над белым фото (запас над 4,5)", () => {
+    // Расчёт по худшему случаю (белое фото): 5,05. Замер по самому светлому пикселю реального фото — 5,06 и выше.
+    // Запас нужен: при 55% (расчёт 4,78) замер на отрисовке дал 4,77 — цвет градиента округляется до 8 бит.
+    const ratio = whiteOnDimmedWhite(stacked(base, zone));
+    expect(ratio).toBeGreaterThanOrEqual(4.9);
+    expect(ratio).toBeCloseTo(5.05, 1);
   });
 
   it("без слоя колонки (только общее 30%) белый текст не читается — поэтому текст стоит только в колонке и внизу", () => {
@@ -53,6 +57,37 @@ describe("landing.css: контраст белого текста на фото"
     expect(block).toMatch(/\[data-hero\]\) \[data-top-bar\][\s\S]*animation-range: 0 1rem/);
     // Белый текст шапки стоит на верхней полосе затемнения — она того же уровня, что колонка текста.
     expect(css).toMatch(/to bottom,\s*color-mix\(in srgb, var\(--role-scrim\) var\(--hero-scrim-zone\)/);
+  });
+
+  it("на всю ширину — без 100vw и без обрезки корня: узкое окно компьютера прокручивается вбок", () => {
+    expect(css).not.toMatch(/100vw|50vw/);
+    expect(css).not.toMatch(/overflow-x:\s*clip/);
+    expect(css).toMatch(/:root\[data-device="desktop"\] main:has\(> \[data-landing\]\) \{\s*max-width: none;\s*padding-inline: 0;\s*padding-top: 0;/);
+  });
+
+  it("переход фото в фон — ниже текста: нижнее поле первого экрана больше полосы растворения", () => {
+    expect(css).toMatch(/@utility hero-fade \{[\s\S]*height: 4rem;[\s\S]*var\(--role-canvas\)/);
+    const hero = readFileSync(path.join(__dirname, "../app/(app)/v2/_home/GuestLanding.tsx"), "utf8");
+    expect(hero).toContain("pb-28"); // 7rem > 4rem
+  });
+
+  it("кольцо фокуса на фото и в прозрачной шапке — двойное: светлое снаружи, тёмное внутри", () => {
+    expect(css).toMatch(/\[data-hero\] :focus-visible \{\s*outline-color: var\(--role-on-photo\);\s*box-shadow: 0 0 0 2px var\(--role-scrim\);/);
+    const frames = css.slice(css.indexOf("@keyframes top-bar-over-photo"));
+    expect(frames).toMatch(/--role-focus: var\(--role-on-photo\);[\s\S]*--focus-halo: var\(--role-scrim\);/);
+    expect(frames).toMatch(/\[data-top-bar\] :focus-visible \{\s*box-shadow: 0 0 0 2px var\(--focus-halo, transparent\);/);
+  });
+
+  it("белые роли прозрачной шапки не достают меню и поповеры: они рендерятся в портал вне шапки; первый экран — только у главной гостя", () => {
+    const read = (rel: string) => readFileSync(path.join(__dirname, rel), "utf8");
+    expect(read("Menu.tsx")).toContain("DropdownMenu.Portal");
+    expect(read("Popover.tsx")).toContain("PopoverPrimitive.Portal");
+    expect(read("Sheet.tsx")).toContain("Drawer.Portal");
+    expect(read("../app/(app)/_shell/AvatarMenu.tsx")).toContain("DropdownMenu.Portal");
+    // Переопределение — только у [data-top-bar] на странице с [data-hero]; [data-hero] ставит только лендинг гостя.
+    const home = read("../app/(app)/v2/_home/GuestLanding.tsx");
+    expect(home).toContain("data-hero");
+    expect(css.match(/\[data-top-bar\]/g)?.length).toBe(2);
   });
 
   it("в landing.css нет сырых цветов — только роли", () => {

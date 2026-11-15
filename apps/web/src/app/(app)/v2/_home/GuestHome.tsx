@@ -24,14 +24,20 @@ export function GuestHome({ device }: { device: Device }) {
 
   if (device === "desktop") {
     return (
-      <div className="flex flex-col gap-24">
+      // data-landing: область содержимого оболочки на этой странице — во всю ширину (landing.css); первый экран и тёмный
+      // раздел идут от края до края, остальное — в колонке содержимого (те же max-w-content и px-6, что у main).
+      <div data-landing className="flex flex-col gap-24">
         <DesktopHero photo={photo} />
-        <Facts />
-        <Steps device={device} screens={screens} />
+        <div className="mx-auto flex w-full max-w-content flex-col gap-24 px-6">
+          <Facts />
+          <Steps device={device} screens={screens} />
+        </div>
         <MoneySection device={device} />
-        <Works device={device} tiles={tiles} />
-        <Help />
-        <Footer />
+        <div className="mx-auto flex w-full max-w-content flex-col gap-24 px-6">
+          <Works device={device} tiles={tiles} />
+          <Help />
+          <Footer />
+        </div>
       </div>
     );
   }
