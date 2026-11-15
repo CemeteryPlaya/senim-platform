@@ -42,6 +42,7 @@ function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: P
     chip: { text: ru.app.deal.status.pay, tone: "warn" },
     now: nowView({ ...nowBase, ...now }),
     steps: dealStepsView("CREATED", false, null, "CLIENT"),
+    cover: null,
     money: { ...money, historyHref: "/v2/deals/d1/money" },
     order: [{ label: t.order.what, value: "Кухня" }],
     documents: [{ id: "c1", name: "Оферта № Д-1", status: "Подписан", href: "/api/documents/c1/pdf", open: ru.app.deal.openDocument.CONTRACT }],
@@ -135,6 +136,36 @@ it("телефон: деньги сразу после «Сейчас», ход 
   expect(mobile).toContain("<details");
   const desktop = html(<DealCardView view={view({}, held)} device="desktop" />);
   expect(desktop).not.toContain(t.steps.all);
+});
+
+it("фото-герой: обложка сразу под заголовком с шагом на стекле, сумма сразу под обложкой, «Ход работ» выше хода и «Заказа»", () => {
+  const items = reportsView([{ id: "r1", title: "Корпус готов", text: "", createdAt: new Date("2026-11-12T10:00:00Z"), photos: [{ id: "p1", src: "/f/p1.jpg" }] }]);
+  const over = { steps: dealStepsView("IN_PROGRESS", false, null, "CLIENT"), cover: { src: "/f/p1.jpg", alt: "Корпус готов" }, reports: { items, addHref: null } };
+  const mobile = html(<DealCardView view={view(over, held, { next: { action: "waitReady", mine: false } })} device="mobile" />);
+  const cover = mobile.indexOf("photo-capsule");
+  expect(cover).toBeGreaterThan(mobile.indexOf("<h1"));
+  // Шаг сделки — на фото капсулой; сумма сразу под обложкой (раньше «Сейчас»), заголовок «Деньги» — только для диктора.
+  expect(mobile.slice(cover, cover + 300)).toContain("Шаг 2 из 5");
+  const sum = mobile.indexOf("Деньги в банке под защитой");
+  expect(sum).toBeGreaterThan(cover);
+  expect(sum).toBeLessThan(mobile.indexOf(t.now.waitReady.title));
+  expect(mobile).toMatch(new RegExp(`<h2 id="deal-money" class="sr-only">${t.money.section}</h2>`));
+  expect(mobile.indexOf(`>${t.reports.section}<`)).toBeLessThan(mobile.indexOf(`>${t.steps.section}<`));
+  expect(mobile.indexOf(`>${t.reports.section}<`)).toBeLessThan(mobile.indexOf(`>${t.order.section}<`));
+  // Компьютер: обложка — первой в основной колонке, над «Сейчас».
+  const desktop = html(<DealCardView view={view(over, held, { next: { action: "waitReady", mine: false } })} device="desktop" />);
+  expect(desktop.indexOf("photo-capsule")).toBeLessThan(desktop.indexOf(t.now.waitReady.title));
+  // Без фото — прежний порядок, без обложки.
+  expect(html(<DealCardView view={view({}, held)} device="mobile" />)).not.toContain("photo-capsule");
+});
+
+it("«…» — в строке заголовка рядом с h1 и без стекла", () => {
+  for (const device of ["mobile", "desktop"] as const) {
+    const out = html(<DealCardView view={view()} device={device} />);
+    const row = out.slice(out.indexOf("<h1"), out.indexOf(`aria-label="${t.actions.menu}"`));
+    expect(row).not.toContain("</header>");
+    expect(out).not.toContain("glass-regular");
+  }
 });
 
 it("«Помощь» ведёт в разделы помощи: где деньги и если мебель не понравилась", () => {

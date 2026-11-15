@@ -11,6 +11,7 @@ import { logger } from "@/platform/logger";
 import { pageHref, partyDeal, requireV2User } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
 import type { DealSide } from "../../../_shell/side";
+import { coverOf } from "../../_parts/deal-cover";
 import { dealChip, dealStepsView, masterConsentMissing, payWaitsMaster } from "../../_parts/deal-summary";
 import {
   cancelText,
@@ -150,6 +151,8 @@ function cardView({ deal, side, documents, contacts, bank, address, all, device 
     }),
     now,
     steps: dealStepsView(deal.status, openDispute, outcome, side),
+    // Обложка — только фото отчёта хода работ (Ruling 6); отчётов с фото нет — без обложки.
+    cover: coverOf(deal.progressReports),
     money: { ...money, historyHref: hrefs.money },
     order: orderRows({
       title: deal.title,

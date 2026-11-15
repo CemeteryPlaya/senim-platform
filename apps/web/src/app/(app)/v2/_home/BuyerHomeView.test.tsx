@@ -152,6 +152,22 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     expect(render({ deals: [dealInput()], requests: [] }, device, listItem())).not.toContain("<img");
   });
 
+  it("у текущей сделки нет фото — второй карточкой сделка «в работе» с обложкой: без «Сейчас» и без второго главного действия", () => {
+    const current = listItem({ id: "d0", title: "Прихожая", status: "CREATED", money: { kind: "awaiting", payment: "none", bankBalanceTiyn: 0n, isTest: true } });
+    const inWork = { deal: listItem({ id: "d6", title: "Кухня" }), cover: { src: "/f/report.webp", alt: "Корпуса собраны: фото 1" } };
+    const input = { deals: [dealInput({ id: "d0", title: "Прихожая", status: "CREATED", paid: false, next: { action: "signContract", mine: true } }), dealInput({ id: "d6", title: "Кухня" })], requests: [] };
+    const out = html(<BuyerHomeView view={buyerHome(input)} name="Иван" deal={current} inWork={inWork} device={device} />);
+    expect(out).toContain('alt="Корпуса собраны: фото 1"');
+    expect(out).toMatch(/glass-clear[^>]*>Шаг 2 из 5/);
+    // Вторая карточка — после первой, ссылка «Открыть сделку» обычная (не главное действие); главное действие одно.
+    expect(out.indexOf('href="/v2/deals/d6"')).toBeGreaterThan(out.indexOf('href="/v2/deals/d0"'));
+    expect(out).toMatch(new RegExp(`<a [^>]*href="/v2/deals/d6"[^>]*>${ru.app.buyer.home.now.unknown.link}<svg`));
+    const alone = html(<BuyerHomeView view={buyerHome(input)} name="Иван" deal={current} device={device} />);
+    expect(count(alone, "data-primary-action")).toBe(1);
+    expect(count(out, "data-primary-action")).toBe(1);
+    expect(count(out, `>${ru.app.kit.nowNext.now}<`)).toBe(1);
+  });
+
   it("заявка со сделкой (CONTRACTING) в «Мои заявки» не повторяется", () => {
     const out = render(
       { deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [request({ id: "c", number: 17, title: "Прихожая", status: "CONTRACTING", offers: live(2) })] },

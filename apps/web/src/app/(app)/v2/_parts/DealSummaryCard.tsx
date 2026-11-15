@@ -36,7 +36,7 @@ export function DealSummaryCard({ deal, side, chip, progressLabel }: { deal: Dea
       {progress.kind === "steps" ? (
         <div className="flex flex-col gap-2">
           <p className="text-sub text-muted">{progressCaption(progress, side)}</p>
-          <Progress value={progress.done} max={progress.total} label={progressLabel} />
+          <Progress value={progress.done} max={progress.total} label={progressLabel} segmented />
         </div>
       ) : (
         <Steps label={progressLabel} items={[]} stopped={{ label: stoppedLabel(progress.reason, side) }} />

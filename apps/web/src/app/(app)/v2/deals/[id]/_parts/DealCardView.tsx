@@ -29,6 +29,8 @@ import type { PartyContacts } from "@/modules/companies";
 import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
 import type { DealSide } from "../../../../_shell/side";
+import type { DealCover } from "../../../_parts/deal-cover";
+import { DealCoverPhoto } from "../../../_parts/DealCoverPhoto";
 import type { DealStepsView, DealTone } from "../../../_parts/deal-summary";
 import type { DocumentRow, MoneyView, NowView, ReportView } from "./deal-card";
 import { dealHelpItems } from "../../_parts/help-items";
@@ -47,6 +49,8 @@ export type CardView = {
   chip: { text: string; tone: DealTone };
   now: NowView;
   steps: DealStepsView;
+  /** Обложка — последнее фото отчёта хода работ (`coverOf`, Ruling 6); `null` — отчётов с фото нет, карточка без обложки. */
+  cover: DealCover | null;
   money: MoneyView & { historyHref: string };
   order: { label: string; value: string }[];
   documents: DocumentRow[];
@@ -107,7 +111,7 @@ function Progression({ steps, device }: { steps: DealStepsView; device: Device }
         ) : (
           <Stack gap="tight">
             <p className="text-body text-ink">{steps.caption}</p>
-            <Progress value={steps.done} max={steps.total} label={label} />
+            <Progress value={steps.done} max={steps.total} label={label} segmented />
             <More label={t.steps.all}>
               <div className="pt-3">
                 <Steps label={label} items={steps.items} />
@@ -120,12 +124,15 @@ function Progression({ steps, device }: { steps: DealStepsView; device: Device }
   );
 }
 
-/** Деньги: пояснение строки — защита сделки покупателю, гарантия мастеру. */
-function Money({ view, device }: { view: CardView; device: Device }) {
+/**
+ * Деньги: пояснение строки — защита сделки покупателю, гарантия мастеру. Под обложкой (`underCover`) заголовок раздела
+ * только для диктора: сумма стоит сразу под фото, а не через строку «Деньги».
+ */
+function Money({ view, device, underCover = false }: { view: CardView; device: Device; underCover?: boolean }) {
   const m = view.money;
   const e = view.side === "EXECUTOR" ? tm.money.explain : t.money.explain;
-  return (
-    <Section title={t.money.section}>
+  const panel = (
+    <>
       <MoneyPanel
         tone={m.tone}
         title={m.title}
@@ -136,8 +143,25 @@ function Money({ view, device }: { view: CardView; device: Device }) {
         device={device}
       />
       {m.proof && <p className="text-sub text-muted">{m.proof}</p>}
-    </Section>
+    </>
   );
+  if (!underCover) return <Section title={t.money.section}>{panel}</Section>;
+  return (
+    <section aria-labelledby="deal-money" className="flex min-w-0 flex-col gap-stack-group">
+      <h2 id="deal-money" className="sr-only">
+        {t.money.section}
+      </h2>
+      {panel}
+    </section>
+  );
+}
+
+/** Ширина обложки: на компьютере — основная колонка `Split`, на телефоне — экран. */
+const COVER_SIZES = "(min-width: 64rem) 720px, 100vw";
+
+/** Обложка карточки: фото последнего отчёта, на нём шаг сделки капсулой (остановленная сделка — без капсулы). */
+function Cover({ cover, steps }: { cover: DealCover; steps: DealStepsView }) {
+  return <DealCoverPhoto cover={cover} caption={steps.kind === "steps" ? steps.caption : null} sizes={COVER_SIZES} className="rounded-card" />;
 }
 
 function OrderRows({ rows }: { rows: CardView["order"] }) {
@@ -329,9 +353,11 @@ function Help({ side }: { side: DealSide }) {
 
 /**
  * Карточка сделки стороны (покупатель или мастер — `view.side`). Телефон — одна колонка в порядке важности: «Сейчас»,
- * деньги, ход (компактно), ход работ (мастер), заказ, документы, другая сторона, история, помощь; главное действие шага —
- * в `ActionDock` последним. Компьютер — `Split`: слева процесс («Сейчас» с действием внутри, ход, ход работ, документы,
- * другая сторона, история), справа деньги, заказ и помощь. Второстепенное — меню «Действия».
+ * деньги, ход (компактно), ход работ, заказ, документы, другая сторона, история, помощь; главное действие шага —
+ * в `ActionDock` последним. Есть фото отчёта — фото-герой: обложка сразу под заголовком, под ней сумма, затем «Сейчас»,
+ * ход работ и ход сделки. Компьютер — `Split`: слева процесс (обложка, «Сейчас» с действием внутри, ход, ход работ,
+ * документы, другая сторона, история), справа деньги, заказ и помощь. Второстепенное — меню «Действия» («…» в строке
+ * заголовка).
  */
 export function DealCardView({ view, device }: { view: CardView; device: Device }) {
   const { now } = view;
@@ -352,23 +378,23 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
       {link}
     </Stack>
   );
+  const hasActions = view.actions.cancelText !== null || view.actions.disputeHref !== null;
+  // «…» — в строке заголовка справа от названия (разбор 3.7), без стекла: строка заголовка в покое не плавает.
   const header = (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <PageTitle
-          title={view.title}
-          back={{ href: to("/deals"), label: t.back }}
-          lead={
-            <span className="flex flex-col items-start gap-2">
-              <span>{view.lead}</span>
-              <StatusChip tone={view.chip.tone}>{view.chip.text}</StatusChip>
-            </span>
-          }
-        />
-      </div>
-      <DealActions dealId={view.id} cancelText={view.actions.cancelText} disputeHref={view.actions.disputeHref} device={device} />
-    </div>
+    <PageTitle
+      title={view.title}
+      back={{ href: to("/deals"), label: t.back }}
+      trailing={hasActions && <DealActions dealId={view.id} cancelText={view.actions.cancelText} disputeHref={view.actions.disputeHref} device={device} />}
+      lead={
+        <span className="flex flex-col items-start gap-2">
+          <span>{view.lead}</span>
+          <StatusChip tone={view.chip.tone}>{view.chip.text}</StatusChip>
+        </span>
+      }
+    />
   );
+  const cover = view.cover && <Cover cover={view.cover} steps={view.steps} />;
+  const reports = view.reports && <Reports reports={view.reports} />;
 
   if (device === "desktop") {
     return (
@@ -377,9 +403,10 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
         <Split
           main={
             <Stack gap="section">
+              {cover}
               {nowBlock}
               <Progression steps={view.steps} device={device} />
-              {view.reports && <Reports reports={view.reports} />}
+              {reports}
               <Documents view={view} />
               <Party view={view} device={device} />
               {view.review && <Review rows={view.review} side={view.side} />}
@@ -401,10 +428,26 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
   return (
     <Stack gap="section">
       {header}
-      {nowBlock}
-      <Money view={view} device={device} />
-      <Progression steps={view.steps} device={device} />
-      {view.reports && <Reports reports={view.reports} />}
+      {cover ? (
+        // Фото-герой (разбор 3.1): обложка сразу под заголовком, сумма — сразу под обложкой, «Ход работ» лентой — до хода
+        // сделки и «Заказа».
+        <>
+          <Stack>
+            {cover}
+            <Money view={view} device={device} underCover />
+          </Stack>
+          {nowBlock}
+          {reports}
+          <Progression steps={view.steps} device={device} />
+        </>
+      ) : (
+        <>
+          {nowBlock}
+          <Money view={view} device={device} />
+          <Progression steps={view.steps} device={device} />
+          {reports}
+        </>
+      )}
       <Order view={view} device={device} />
       <Documents view={view} />
       <Party view={view} device={device} />

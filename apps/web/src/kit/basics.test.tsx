@@ -453,6 +453,19 @@ describe("Progress", () => {
     expect(html(<Progress value={1} max={Number.POSITIVE_INFINITY} label="Шаги" />)).toBe("");
   });
 
+  it("segmented: деления по шагам, пройденные залиты, у текущего — начальная заливка; шаг 1 из 5 не пустой", () => {
+    const first = html(<Progress value={0} max={5} label="Ход сделки" segmented />);
+    expect(first).toContain('role="progressbar"');
+    expect(first).toContain('aria-valuetext="0 из 5"');
+    expect(first.match(/rounded-full bg-line/g)).toHaveLength(5);
+    expect(first.match(/data-current-step/g)).toHaveLength(1);
+    const second = html(<Progress value={2} max={5} label="Ход сделки" segmented />);
+    expect(second.match(/w-full bg-accent/g)).toHaveLength(2);
+    expect(second.match(/data-current-step/g)).toHaveLength(1);
+    // Всё пройдено — текущего деления нет.
+    expect(html(<Progress value={5} max={5} label="Ход сделки" segmented />)).not.toContain("data-current-step");
+  });
+
   it("толщина полосы — 4 px (h-progress)", () => {
     const bar = html(<Progress value={1} max={2} label="Шаги" />).match(/<div[^>]*role="progressbar"[^>]*>/)?.[0] ?? "";
     expect(hasClass(bar, "h-progress")).toBe(true);

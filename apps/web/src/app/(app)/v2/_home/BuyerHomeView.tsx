@@ -69,10 +69,26 @@ const PRIMARY_LABEL: Record<PrimaryAction["kind"], string> = {
 /**
  * Показ главной покупателя по готовому выбору. Одна колонка на обоих устройствах (компьютер — 760 px по центру, без
  * пустой правой колонки, разбор 3.9): идёт сделка — карточка-герой (`DealHero`: обложка из отчёта, сумма, ход, «Сейчас» и
- * кнопка внутри на компьютере); сделки нет — «Сейчас / Дальше» с кнопкой внутри на компьютере. Ниже заявки и «Помощь».
+ * кнопка внутри на компьютере); у неё нет фото — второй карточкой другая сделка «в работе» с фото (`inWork`, без
+ * главного действия); сделки нет — «Сейчас / Дальше» с кнопкой внутри на компьютере. Ниже заявки и «Помощь».
  * Телефон — главное действие в доке в конце экрана.
  */
-export function BuyerHomeView({ view, name, deal, cover = null, device }: { view: View; name: string | null; deal: DealListItem | null; cover?: DealCover | null; device: Device }) {
+export function BuyerHomeView({
+  view,
+  name,
+  deal,
+  cover = null,
+  inWork = null,
+  device,
+}: {
+  view: View;
+  name: string | null;
+  deal: DealListItem | null;
+  cover?: DealCover | null;
+  /** Другая сделка «в работе» с фото отчёта — второй карточкой-героем, когда у текущей сделки фото нет. */
+  inWork?: { deal: DealListItem; cover: DealCover } | null;
+  device: Device;
+}) {
   const text = nowText(view);
   const action = view.primary && (
     <ActionDock>
@@ -100,6 +116,16 @@ export function BuyerHomeView({ view, name, deal, cover = null, device }: { view
       {deal ? (
         <Stack>
           <DealHero deal={deal} side="CLIENT" cover={cover} now={text} action={inCard} link={secondary} progressLabel={t.deal.progressLabel} />
+          {inWork && (
+            // Вторая карточка — без «Сейчас» и без главного действия: только ссылка на сделку.
+            <DealHero
+              deal={inWork.deal}
+              side="CLIENT"
+              cover={inWork.cover}
+              link={<TextLink href={to(`/deals/${encodeURIComponent(inWork.deal.id)}`)}>{t.now.unknown.link}</TextLink>}
+              progressLabel={t.deal.progressLabel}
+            />
+          )}
           {firstSteps}
           {view.moreDeals > 0 && <TextLink href={to("/deals")}>{t.deal.allDeals}</TextLink>}
         </Stack>

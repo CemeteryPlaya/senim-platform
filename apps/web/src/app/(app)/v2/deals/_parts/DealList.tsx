@@ -38,7 +38,7 @@ function DealCard({ card }: { card: DealCardView }) {
       {card.progress === null ? null : card.progress.kind === "steps" ? (
         <div className="flex flex-col gap-2">
           <p className="text-sub text-muted">{card.progress.caption}</p>
-          <Progress value={card.progress.done} max={card.progress.total} label={progressLabel} />
+          <Progress value={card.progress.done} max={card.progress.total} label={progressLabel} segmented />
         </div>
       ) : (
         <Steps label={progressLabel} items={[]} stopped={{ label: card.progress.label }} />
