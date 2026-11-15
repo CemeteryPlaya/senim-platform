@@ -148,8 +148,8 @@ export const masterRequests = {
       myOfferShort: {
         SENT: "Цена отправлена",
         ACCEPTED: "Вас выбрали",
-        DECLINED: "Не выбрано",
-        WITHDRAWN: "Вы отозвали",
+        DECLINED: "Отклонено",
+        WITHDRAWN: "Отозвано",
       },
       wanted: (date: string) => `Нужно к ${date}`,
       published: (when: string) => `Опубликована ${when}`,

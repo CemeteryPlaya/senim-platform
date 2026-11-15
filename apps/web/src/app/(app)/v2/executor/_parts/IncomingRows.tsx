@@ -1,5 +1,5 @@
 import { Card, List, ListRow, StatusChip } from "@/kit";
-import { Thumb } from "../../_parts/Thumb";
+import { thumbOf } from "../../_parts/Thumb";
 import type { IncomingCardView } from "./incoming-view";
 
 /**
@@ -15,7 +15,7 @@ export function IncomingRows({ cards }: { cards: readonly IncomingCardView[] }) 
           <ListRow
             key={card.id}
             href={card.href}
-            leading={<Thumb src={card.cover} />}
+            leading={thumbOf(card.cover)}
             label={
               // Метки и сведения под названием, а не справа: на телефоне справа они сжимали бы строку.
               <span className="flex flex-col items-start gap-1 py-1">

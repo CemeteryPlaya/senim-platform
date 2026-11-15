@@ -27,6 +27,11 @@ export function Stat({ label, value, compact = false }: StatProps) {
 export type StatRowProps = {
   /** Имя группы для диктора («Сводка»). */
   label: string;
+  /**
+   * Числа в одну строку (сводка мастера на телефоне, без «2 + 1»): каждое — по своей ширине, последнее (обычно сумма,
+   * `compact`) забирает остаток. Переносится только при крупном шрифте. По умолчанию — равные доли с переносом.
+   */
+  inline?: boolean;
   /** Несколько `Stat`. */
   children: ReactNode;
 };
@@ -35,9 +40,13 @@ export type StatRowProps = {
  * Строка сводки: два-три `Stat` на одной белой подложке (`surface`), переносятся на следующую строку, когда тесно.
  * Один блок, а не ряд плиток. Серверный компонент.
  */
-export function StatRow({ label, children }: StatRowProps) {
+export function StatRow({ label, inline = false, children }: StatRowProps) {
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-x-8 gap-y-4 overflow-hidden rounded-card bg-surface p-5 *:flex-1 *:basis-32">
+    <div
+      role="group"
+      aria-label={label}
+      className={cn("flex flex-wrap gap-y-4 overflow-hidden rounded-card bg-surface p-5", inline ? "gap-x-5 *:flex-none *:last:flex-1" : "gap-x-8 *:flex-1 *:basis-32")}
+    >
       {children}
     </div>
   );

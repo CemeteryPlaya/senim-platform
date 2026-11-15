@@ -80,6 +80,12 @@ describe("«Мои заявки»", () => {
       ["done", st.done, "accent"],
     ]);
     expect(Object.values(t.groups).join(" ")).not.toMatch(/оговор/);
+    // Одинаковая нейтральная плашка у всех строк — не показывается; плашка «нужно действие» — всегда.
+    const same = requestListView([row({ id: "a", status: "CLOSED" }), row({ id: "b", status: "CLOSED" })], undefined, new Map([["a", [{ live: false, deal: { status: "PAID_HOLD" as const } }]], ["b", [{ live: false, deal: { status: "IN_PROGRESS" as const } }]]])).cards;
+    expect(same.map((c) => c.chip)).toEqual([null, null]);
+    expect(same.map((c) => c.status)).toEqual([st.deal, st.deal]);
+    const choose = requestListView([row({ id: "a" }), row({ id: "b" })], undefined, new Map([["a", [live]], ["b", [live]]])).cards;
+    expect(choose.map((c) => c.chip)).toEqual([st.chooseShort, st.chooseShort]);
     // В строке — короткая плашка, число предложений — рядом.
     expect(cards[0]).toMatchObject({ chip: st.chooseShort, note: t.offers(2) });
     expect(cards[1]).toMatchObject({ chip: st.waiting, note: null });

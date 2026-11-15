@@ -84,10 +84,13 @@ function secondaryLabel(kind: View["now"]["kind"]): string {
   return t.now.empty.link;
 }
 
-/** Сводка числами: ничего не считается на экране — значения пришли из модулей. */
-function Summary({ stats }: { stats: MasterHomeData["stats"] }) {
+/**
+ * Сводка числами: ничего не считается на экране — значения пришли из модулей. Телефон — три числа в одну строку (`inline`),
+ * сумма компактная с маленьким «₸».
+ */
+function Summary({ stats, device }: { stats: MasterHomeData["stats"]; device: Device }) {
   return (
-    <StatRow label={t.stats.label}>
+    <StatRow label={t.stats.label} inline={device === "mobile"}>
       <Stat label={t.stats.fresh} value={stats.fresh} />
       <Stat label={t.stats.inWork} value={stats.inWork} />
       <Stat label={t.stats.earned} value={<Money tiyn={stats.earnedTiyn} large />} compact />
@@ -172,7 +175,7 @@ export function MasterHomeView({ data, name, device }: { data: MasterHomeData; n
     <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
       <PageTitle title={t.title(name)} />
       {now}
-      <Summary stats={data.stats} />
+      <Summary stats={data.stats} device={device} />
       <Deals deals={rest} more={data.moreDeals} />
       <FreshRequests fresh={data.fresh} />
       {device === "mobile" && action}

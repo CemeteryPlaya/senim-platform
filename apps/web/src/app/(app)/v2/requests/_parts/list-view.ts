@@ -32,8 +32,11 @@ export type RequestCard = {
   /** Состояние полностью (`requestState().text`). */
   status: string;
   tone: StatusTone;
-  /** Плашка в строке — коротко («Выберите мастера»), пояснение к ней — `note` («3 предложения»). */
-  chip: string;
+  /**
+   * Плашка в строке — коротко («Выберите мастера»), пояснение к ней — `note` («3 предложения»). `null` — у всех строк
+   * списка один и тот же информационный статус («Идёт сделка» ×3): в каждой строке он шум (разбор 3.6), не показываем.
+   */
+  chip: string | null;
   note: string | null;
   meta: string;
   /** Адрес миниатюры 56 px; `null` — фото нет. */
@@ -97,5 +100,16 @@ export function requestListView(
     ...REQUEST_GROUPS.filter((g) => count(g) > 0 || g === group).map((g) => ({ href: groupHref(g), label: t.chip(t.groups[g], count(g)), active: g === group })),
   ];
   const shown = group === "all" ? list : list.filter((r) => REQUEST_GROUP[r.status] === group);
-  return { group, chips, cards: shown.map((r) => cardOf(r, offers.get(r.id) ?? [], now)), empty: shown.length === 0 ? "filter" : null };
+  const cards = shown.map((r) => cardOf(r, offers.get(r.id) ?? [], now));
+  return { group, chips, cards: withoutUniformChip(cards), empty: shown.length === 0 ? "filter" : null };
+}
+
+/**
+ * Одинаковая нейтральная плашка у всех строк (две и больше) — не показываем ни в одной: статус не различает строки.
+ * Плашки «нужно действие» (warn) и «завершена» (accent) остаются всегда.
+ */
+function withoutUniformChip(cards: RequestCard[]): RequestCard[] {
+  const first = cards[0];
+  const uniform = cards.length > 1 && first !== undefined && first.tone === "neutral" && cards.every((c) => c.chip === first.chip && c.tone === first.tone);
+  return uniform ? cards.map((c) => ({ ...c, chip: null })) : cards;
 }

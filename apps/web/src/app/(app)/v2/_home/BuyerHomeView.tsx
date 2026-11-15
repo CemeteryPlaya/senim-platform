@@ -9,7 +9,7 @@ import { helpItem } from "../help/questions";
 import { DealHero } from "../_parts/DealHero";
 import type { DealCover } from "../_parts/deal-cover";
 import { requestState } from "../_parts/request-state";
-import { Thumb } from "../_parts/Thumb";
+import { thumbOf } from "../_parts/Thumb";
 import { type BuyerHomeView as View, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
 
 const t = ru.app.buyer.home;
@@ -131,7 +131,7 @@ function RequestsSection({ requests }: { requests: HomeRequestInput[] }) {
             return (
               <ListRow
                 key={r.id}
-                leading={<Thumb src={r.cover} />}
+                leading={thumbOf(r.cover)}
                 label={
                   <span className="flex flex-col items-start gap-1 py-1">
                     <span className="text-headline wrap-break-word text-ink">{ru.requests.requestTitle(r.number, r.title)}</span>

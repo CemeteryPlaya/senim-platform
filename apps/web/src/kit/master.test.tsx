@@ -36,6 +36,19 @@ describe("Stat и StatRow", () => {
     expect(count(out, "<dl")).toBe(2);
     expect(out).not.toContain("<svg");
   });
+
+  it("inline: числа в одну строку — каждое по своей ширине, последнее забирает остаток", () => {
+    const out = html(
+      <StatRow label="Сводка" inline>
+        <Stat label="Новые заявки" value="3" />
+        <Stat label="Получено" value="0" compact />
+      </StatRow>,
+    );
+    const box = out.slice(0, out.indexOf(">"));
+    expect(box).toContain(" *:flex-none ");
+    expect(box).toContain(" *:last:flex-1");
+    expect(box).not.toContain("*:basis-32");
+  });
 });
 
 describe("Bars", () => {

@@ -6,7 +6,7 @@ import { getDevice } from "@/platform/device";
 import { pageHref, requireBuyer } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
 import { offersByRequest } from "../_parts/request-state";
-import { Thumb } from "../_parts/Thumb";
+import { thumbOf } from "../_parts/Thumb";
 import { requestListView, type RequestListView } from "./_parts/list-view";
 import { wizardHref } from "./new/steps";
 
@@ -36,15 +36,17 @@ function Requests({ view }: { view: RequestListView }) {
               <ListRow
                 key={card.id}
                 href={card.href}
-                leading={<Thumb src={card.cover} />}
+                leading={thumbOf(card.cover)}
                 label={
                   // Статус под названием, а не справа: на телефоне справа он сжимал бы строку «что с заявкой».
                   <span className="flex flex-col items-start gap-1 py-1">
                     <span className="text-headline wrap-break-word text-ink">{card.title}</span>
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <StatusChip tone={card.tone}>{card.chip}</StatusChip>
-                      {card.note && <span className="text-sub text-muted">{card.note}</span>}
-                    </span>
+                    {(card.chip || card.note) && (
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        {card.chip && <StatusChip tone={card.tone}>{card.chip}</StatusChip>}
+                        {card.note && <span className="text-sub text-muted">{card.note}</span>}
+                      </span>
+                    )}
                     <span className="text-sub text-muted">{card.meta}</span>
                   </span>
                 }
