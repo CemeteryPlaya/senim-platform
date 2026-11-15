@@ -137,17 +137,19 @@ describe("formatTiyn — деньги сделки в тиынах", () => {
 
 describe("formatShortDate", () => {
   const now = new Date("2026-11-15T09:00:00Z");
+  /** Неразрывный пробел. */
+  const NB = String.fromCharCode(160);
 
-  it("текущий год — день и месяц без точки: «21 окт»", () => {
-    expect(formatShortDate(new Date("2026-10-21T10:00:00Z"), now)).toBe("21 окт");
-    expect(formatShortDate(new Date("2026-05-03T10:00:00Z"), now)).toBe("3 мая");
+  it("текущий год — день и месяц без точки, неразрывным пробелом: «21 окт»", () => {
+    expect(formatShortDate(new Date("2026-10-21T10:00:00Z"), now)).toBe(`21${NB}окт`);
+    expect(formatShortDate(new Date("2026-05-03T10:00:00Z"), now)).toBe(`3${NB}мая`);
   });
 
   it("другой год — с годом: «21 окт 2025»", () => {
-    expect(formatShortDate(new Date("2025-10-21T10:00:00Z"), now)).toBe("21 окт 2025");
+    expect(formatShortDate(new Date("2025-10-21T10:00:00Z"), now)).toBe(`21${NB}окт${NB}2025`);
   });
 
   it("по времени Астаны: 31 декабря 20:00 UTC — уже 1 января", () => {
-    expect(formatShortDate(new Date("2025-12-31T20:00:00Z"), now)).toBe("1 янв");
+    expect(formatShortDate(new Date("2025-12-31T20:00:00Z"), now)).toBe(`1${NB}янв`);
   });
 });

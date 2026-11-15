@@ -63,13 +63,14 @@ const yearFormat = new Intl.DateTimeFormat(LOCALE, { year: "numeric", timeZone: 
 
 /**
  * Короткая дата для строк списков (разбор 3.6): «21 окт»; год — только если не текущий («21 окт 2025»). Точки
- * сокращений Intl («окт.») убраны — в строке списка они лишние.
+ * сокращений Intl («окт.») убраны — в строке списка они лишние. Между днём, месяцем и годом — неразрывные пробелы:
+ * в узкой строке дата не рвётся («Нужно к 5 / дек»). Только эта функция: `formatDate` (общий с v1) не менялся.
  */
 export function formatShortDate(value: DateInput, now: Date = new Date()): string {
   const date = toDate(value);
-  const day = shortDateFormat.format(date).replace(/\./g, "");
+  const day = shortDateFormat.format(date).replace(/\./g, "").replace(/\s+/g, NBSP);
   const year = yearFormat.format(date).replace(/\D/g, "");
-  return year === yearFormat.format(now).replace(/\D/g, "") ? day : `${day} ${year}`;
+  return year === yearFormat.format(now).replace(/\D/g, "") ? day : `${day}${NBSP}${year}`;
 }
 
 /** «14:30». */

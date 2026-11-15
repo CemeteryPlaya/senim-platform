@@ -29,10 +29,21 @@ export function IncomingRows({ cards }: { cards: readonly IncomingCardView[] }) 
                     ))}
                   </span>
                 )}
-                {/* Сведения — две строки: где и к какому сроку; когда опубликована и сколько предложений. */}
+                {/* Сведения — две строки: где и к какому сроку; когда опубликована и сколько предложений. Перенос — только
+                    между частями (« · »), часть не рвётся: «Нужно к 5 дек» целиком. */}
                 <span className="flex flex-col text-sub text-muted">
-                  <span>{card.lines[0]}</span>
-                  {card.lines[1] && <span>{card.lines[1]}</span>}
+                  {card.lines
+                    .filter((parts) => parts.length > 0)
+                    .map((parts) => (
+                      <span key={parts.join()} className="flex flex-wrap gap-x-1">
+                        {parts.map((part, index) => (
+                          <span key={part} className="whitespace-nowrap">
+                            {index > 0 && "· "}
+                            {part}
+                          </span>
+                        ))}
+                      </span>
+                    ))}
                 </span>
               </span>
             }

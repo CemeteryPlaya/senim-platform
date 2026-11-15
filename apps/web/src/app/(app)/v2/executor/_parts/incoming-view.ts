@@ -33,10 +33,11 @@ export type IncomingCardView = {
   /** Строка под названием: город и сегмент; срок; когда опубликована; число предложений. */
   meta: string[];
   /**
-   * Те же сведения двумя строками (разбор 2.2): «где и к какому сроку» («Астана · Комфорт · Нужно к 5 дек») и «когда и
-   * сколько предложений» («Опубликована вчера · Предложений: 2»); пустая вторая — `null`.
+   * Те же сведения двумя строками (разбор 2.2): «где и к какому сроку» («Астана · Комфорт», «Нужно к 5 дек») и «когда и
+   * сколько предложений» («Опубликована вчера», «Предложений: 2»); части строки разделяются « · », переносится только
+   * между частями. Пустая вторая строка — пустой массив.
    */
-  lines: [string, string | null];
+  lines: [string[], string[]];
   /** Адрес миниатюры 56 px (первое фото помещения); `null` — фото нет. */
   cover: string | null;
 };
@@ -66,7 +67,7 @@ export function incomingCard(r: IncomingRow, now: Date = new Date()): IncomingCa
   const where = [place, ...(r.desiredDate ? [t.card.wanted(formatShortDate(r.desiredDate, now))] : [])];
   const when = [...(r.publishedAt ? [t.card.published(formatRelative(r.publishedAt, now))] : []), ...(r.offersCount > 0 ? [t.card.offers(r.offersCount)] : [])];
   const meta = [...where, ...when];
-  const lines: [string, string | null] = [where.join(" · "), when.length > 0 ? when.join(" · ") : null];
+  const lines: [string[], string[]] = [where, when];
   return { id: r.id, href: to(`/executor/requests/${encodeURIComponent(r.id)}`), title: ru.requests.requestTitle(r.number, r.title), badges, meta, lines, cover: r.cover?.src ?? null };
 }
 

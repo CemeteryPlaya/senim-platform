@@ -72,7 +72,10 @@ describe("карточка входящей заявки", () => {
     expect(card.meta).toContain(t.card.offers(2));
     expect(card.meta.some((m) => m.startsWith("Нужно к"))).toBe(true);
     // Двумя строками: где и к какому сроку (короткая дата) — когда и сколько предложений.
-    expect(card.lines[0]).toMatch(/^Астана.* · Нужно к \d+ \S+$/);
+    expect(card.lines[0][0]).toMatch(/^Астана/);
+    // Дата срока — с неразрывным пробелом: «Нужно к 5 дек» не рвётся посередине.
+    expect(card.lines[0].at(-1)?.startsWith("Нужно к")).toBe(true);
+    expect(card.lines[0].at(-1)).toContain(String.fromCharCode(160));
     expect(card.lines[1]).toContain(t.card.offers(2));
   });
 
