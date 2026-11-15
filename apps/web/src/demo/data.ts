@@ -1,7 +1,7 @@
 import type { DisputeReason, KycStatus, LegalForm, PreContractFlow, Segment } from "@/generated/prisma/enums";
 import type { CountertopKey, DEFAULT_FURNITURE_TYPES, FacadeKey, HardwareKey, StyleKey } from "@/verticals/furniture";
 import { testBin, testIin } from "./kz-id";
-import type { PortfolioFileKey } from "./portfolio-files";
+import type { DemoFileKey, PortfolioFileKey } from "./portfolio-files";
 
 /**
  * Демо-данные «Сенім» — только описание. Логика вставки — в seed.ts.
@@ -837,7 +837,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
 // ─── сделки: путь ТЗ настоящими сервисами (deals.ts) ─────────────────────────
 
 /** Фото сдачи и «Хода работ» — из демо-SVG портфолио (seed переводит их в JPEG и загружает через files). */
-export type ProgressSpec = { title: string; text: string; photos: readonly PortfolioFileKey[] };
+export type ProgressSpec = { title: string; text: string; photos: readonly DemoFileKey[] };
 
 export type DisputeSpec = {
   by: "client" | "executor";
@@ -863,7 +863,7 @@ export type DealStep =
   | "bank"
   | "start"
   | { progress: ProgressSpec }
-  | { ready: { at: "address" | "far"; photos: readonly PortfolioFileKey[] } }
+  | { ready: { at: "address" | "far"; photos: readonly DemoFileKey[] } }
   | "signAct"
   | "signActClient"
   | { cancel: "client" | "executor"; reason: string }
@@ -878,14 +878,16 @@ export type DealPlan = {
 };
 
 const READY_PHOTOS = {
-  closet: ["closet-walnut", "closet-light"],
-  tv: ["tv-zone-scandi"],
-  kids: ["kids-bunk"],
-  kitchen: ["kitchen-neoclassic", "kitchen-island-oak"],
-  table: ["table-karagach"],
-  wardrobe: ["wardrobe-oak"],
-  office: ["office-white"],
-} as const satisfies Record<string, readonly PortfolioFileKey[]>;
+  closet: ["report-closet-1", "report-closet-2"],
+  tv: ["report-tv-1"],
+  kids: ["report-kids-1"],
+  kitchen: ["report-kitchen-3", "report-kitchen-4"],
+  table: ["report-table-1"],
+  wardrobe: ["report-wardrobe-1"],
+  // Второй шкаф — другой файл: ключ хранилища уникален, один файл не прикрепить к двум сделкам.
+  wardrobeDual: ["report-wardrobe-2"],
+  office: ["report-office-1"],
+} as const satisfies Record<string, readonly DemoFileKey[]>;
 
 const KIDS_DISPUTE: DisputeSpec = {
   by: "client",
@@ -931,8 +933,8 @@ export const DEALS: readonly DealPlan[] = [
       "sign",
       "pay",
       "start",
-      { progress: { title: "Материалы закуплены", text: "Плиты, кромка и фурнитура Blum на складе цеха.", photos: ["kitchen-sage"] } },
-      { progress: { title: "Корпуса собраны", text: "Корпуса нижних шкафов собраны, фасады ушли в покраску.", photos: ["kitchen-terracotta"] } },
+      { progress: { title: "Материалы закуплены", text: "Плиты, кромка и фурнитура Blum на складе цеха.", photos: ["report-kitchen-1"] } },
+      { progress: { title: "Корпуса собраны", text: "Корпуса нижних шкафов собраны, фасады ушли в покраску.", photos: ["report-kitchen-2"] } },
     ],
   },
   // READY: работа сдана у адреса заказа, акт ждёт подписей.
@@ -1003,7 +1005,7 @@ export const DEALS: readonly DealPlan[] = [
     ],
   },
   // Мастер «Дала» в роли покупателя (ADR-004): завершённая сделка.
-  { request: "deal-dual-role-wardrobe", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.wardrobe } }, "signAct"] },
+  { request: "deal-dual-role-wardrobe", provider: "mock", steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.wardrobeDual } }, "signAct"] },
 ];
 
 // ─── уведомления ─────────────────────────────────────────────────────────────

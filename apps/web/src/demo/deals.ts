@@ -1,4 +1,3 @@
-import sharp from "sharp";
 import type { FilePurpose, Role } from "@/generated/prisma/enums";
 import { addProgressReport, cancelDeal, onMoneySettled, openDispute, payForDeal, resolveDispute, startWork, submitDisputePosition, submitReady } from "@/modules/deal-core";
 import { completeSigning, signByHand, startSigning } from "@/modules/documents";
@@ -9,7 +8,7 @@ import { acceptPrice } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { formatTiyn } from "@/ui/format";
 import { DEALS, type ClientKey, type DealPlan, type DealStep, type ExecutorKey } from "./data";
-import type { PortfolioFileKey } from "./portfolio-files";
+import { demoFile, type DemoFileKey } from "./portfolio-files";
 import { testDocumentPdf } from "./test-documents";
 
 /**
@@ -36,15 +35,13 @@ async function asUser(userId: string, role: Role): Promise<CurrentUser> {
   return { id: u.id, role, roles: u.roles, phone: u.phone, fullName: u.fullName, iinLast4: u.iinLast4, emailVerified: u.emailVerifiedAt !== null, isDemo: u.isDemo, executor: u.executorProfile, mfa: { required: role === "OPERATOR", verifiedAt: role === "OPERATOR" ? new Date() : null }, consents: [], consentRevocationOpen: false };
 }
 
-/** Фото «с объекта» для сдачи и «Хода работ»: JPEG по мотивам демо-SVG портфолио (без текста), загрузка — через files. */
-async function photo(source: PortfolioFileKey, purpose: FilePurpose, uploadedById: string, n: number): Promise<string> {
-  let hash = 0;
-  for (const ch of source) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
-  const wall = `hsl(${hash}, 25%, 88%)`;
-  const body = `hsl(${(hash + 30) % 360}, 35%, ${45 + (n % 3) * 8}%)`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="${wall}"/><rect y="380" width="640" height="100" fill="#b9a58c"/><rect x="${90 + n * 20}" y="110" width="440" height="280" rx="6" fill="${body}"/><rect x="${110 + n * 20}" y="130" width="190" height="240" fill="#ffffff" opacity="0.18"/><rect x="${320 + n * 20}" y="130" width="190" height="240" fill="#ffffff" opacity="0.1"/></svg>`;
-  const bytes = new Uint8Array(await sharp(Buffer.from(svg)).jpeg({ quality: 80 }).toBuffer());
-  return (await saveFile({ purpose, bytes, uploadedById })).id;
+/**
+ * Фото «с объекта» для сдачи и «Хода работ»: временный снимок из public/stand-photos (хранилище static, как портфолио).
+ * Файл у каждой записи свой (ключ хранилища уникален), поэтому сид не читает байты с диска — на Vercel папки public нет.
+ */
+async function photo(source: DemoFileKey, purpose: FilePurpose, uploadedById: string): Promise<string> {
+  const file = demoFile(source);
+  return (await db.storedFile.create({ data: { ...file, purpose, uploadedById }, select: { id: true } })).id;
 }
 
 type Parties = { dealId: string; client: CurrentUser; executor: CurrentUser; operator: CurrentUser; address: { lat: number; lng: number } };
@@ -97,11 +94,11 @@ async function step(p: Parties, s: DealStep): Promise<void> {
     return;
   }
   if ("progress" in s) {
-    const photoIds = await Promise.all(s.progress.photos.map((f, i) => photo(f, "PROGRESS_REPORT", p.executor.id, i)));
+    const photoIds = await Promise.all(s.progress.photos.map((f) => photo(f, "PROGRESS_REPORT", p.executor.id)));
     return void (await addProgressReport(p.executor, { dealId: p.dealId, title: s.progress.title, text: s.progress.text, photoIds }));
   }
   if ("ready" in s) {
-    const photoIds = await Promise.all(s.ready.photos.map((f, i) => photo(f, "DELIVERY", p.executor.id, i)));
+    const photoIds = await Promise.all(s.ready.photos.map((f) => photo(f, "DELIVERY", p.executor.id)));
     return void (await submitReady(p.executor, { dealId: p.dealId, photoIds, ...readyPoint(p.address, s.ready.at) }));
   }
   if ("cancel" in s) return void (await cancelDeal(s.cancel === "client" ? p.client : p.executor, { dealId: p.dealId, reason: s.reason }));

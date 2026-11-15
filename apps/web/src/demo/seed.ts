@@ -47,7 +47,7 @@ import {
 import { seedDeals, type DealIds } from "./deals";
 import { testIban } from "./kz-id";
 import { seedMaterialPrices } from "./materials";
-import { PORTFOLIO_FILES } from "./portfolio-files";
+import { demoFile } from "./portfolio-files";
 import { testDocumentPdf } from "./test-documents";
 
 /**
@@ -431,7 +431,7 @@ async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, plan: SeedPlan, a
     if (kyc && files) await seedKyc(tx, ids, clock, audit, { userId: user.id, profileId: profile.id, name: spec.person.fullName, files }, kyc);
 
     for (const [i, item] of spec.portfolio.entries()) {
-      const file = PORTFOLIO_FILES[item.file];
+      const file = demoFile(item.file);
       const createdAt = clock.ago(spec.registeredDaysAgo - 1 - i);
       const created = await tx.portfolioItem.create({
         data: {
@@ -446,14 +446,8 @@ async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, plan: SeedPlan, a
           createdAt,
           photos: {
             create: {
-              storageKey: `demo/portfolio/${item.file}.svg`,
-              provider: "static",
+              ...file,
               purpose: "PORTFOLIO",
-              contentType: "image/svg+xml",
-              size: file.size,
-              sha256: file.sha256,
-              width: 400,
-              height: 300,
               uploadedById: user.id,
               createdAt,
             },

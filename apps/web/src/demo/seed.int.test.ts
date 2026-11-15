@@ -13,7 +13,7 @@ import { useSeedStorage } from "../../test/factories/documents";
 import { setEnv } from "../../test/factories/identity";
 import { identityFake } from "../../test/stubs/identity";
 import { CLIENTS, DEALS, EXECUTORS, KYC, MEASURER, OPERATOR } from "./data";
-import { PORTFOLIO_FILES } from "./portfolio-files";
+import { demoFile } from "./portfolio-files";
 import { resetDemo, seedDemo } from "./seed";
 
 let cleanup: () => Promise<void>;
@@ -179,10 +179,19 @@ describe("демо-данные", () => {
     await expectSeedEmails();
     expect(await db.user.count({ where: { role: "OPERATOR", isDemo: true } })).toBe(1);
 
-    for (const [name, meta] of Object.entries(PORTFOLIO_FILES)) {
-      const bytes = readFileSync(path.resolve("public/demo/portfolio", `${name}.svg`));
-      expect({ size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }, name).toEqual(meta);
+    // Фото демо — временные снимки из public/stand-photos (хранилище static): StoredFile сида совпадает с файлом на диске,
+    // а сделки получают отчёты и сдачу с такими же снимками, у каждого файла свой ключ.
+    const stored = await db.storedFile.findMany({ where: { provider: "static" } });
+    expect(stored.length).toBeGreaterThanOrEqual(20);
+    for (const f of stored) {
+      expect(f.storageKey).toMatch(/^stand-photos\/[a-z0-9-]+\.webp$/);
+      expect(f.contentType).toBe("image/webp");
+      const bytes = readFileSync(path.resolve("public", f.storageKey));
+      expect({ size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }, f.storageKey).toEqual({ size: f.size, sha256: f.sha256 });
     }
+    expect(new Set(stored.map((f) => f.storageKey)).size).toBe(stored.length);
+    expect(stored.filter((f) => f.purpose === "PORTFOLIO")).toHaveLength(20);
+    expect(demoFile("kitchen-sage")).toMatchObject({ provider: "static", contentType: "image/webp" });
 
     const prices = await db.materialPrice.findMany();
     expect(prices.length).toBeGreaterThan(0);
