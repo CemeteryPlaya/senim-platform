@@ -1,30 +1,16 @@
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
-import {
-  ActionDock,
-  ButtonLink,
-  Card,
-  FirstSteps,
-  HelpBlock,
-  List,
-  ListRow,
-  NowNext,
-  PageTitle,
-  Section,
-  Split,
-  Stack,
-  StatusChip,
-  TextLink,
-} from "@/kit";
+import { ActionDock, ButtonLink, Card, FirstSteps, HelpBlock, List, ListRow, NowNext, PageTitle, Section, Stack, StatusChip, TextLink } from "@/kit";
 import type { DealListItem } from "@/modules/deal-core";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { HELP_ANCHORS } from "../help/anchors";
 import { helpItem } from "../help/questions";
-import { DealSummaryCard } from "../_parts/DealSummaryCard";
-import { dealChip } from "../_parts/deal-summary";
+import { DealHero } from "../_parts/DealHero";
+import type { DealCover } from "../_parts/deal-cover";
 import { requestState } from "../_parts/request-state";
-import { type BuyerHomeView as View, type HomeDealInput, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
+import { Thumb } from "../_parts/Thumb";
+import { type BuyerHomeView as View, type HomeRequestInput, type PrimaryAction } from "./buyer-home";
 
 const t = ru.app.buyer.home;
 
@@ -80,85 +66,79 @@ const PRIMARY_LABEL: Record<PrimaryAction["kind"], string> = {
   order: t.now.order.action,
 };
 
-/** Показ главной покупателя по готовому выбору. Телефон — одна колонка, главное действие в доке; компьютер — `Split`. */
-export function BuyerHomeView({ view, name, deal, device }: { view: View; name: string | null; deal: DealListItem | null; device: Device }) {
+/**
+ * Показ главной покупателя по готовому выбору. Одна колонка на обоих устройствах (компьютер — 760 px по центру, без
+ * пустой правой колонки, разбор 3.9): идёт сделка — карточка-герой (`DealHero`: обложка из отчёта, сумма, ход, «Сейчас» и
+ * кнопка внутри на компьютере); сделки нет — «Сейчас / Дальше» с кнопкой внутри на компьютере. Ниже заявки и «Помощь».
+ * Телефон — главное действие в доке в конце экрана.
+ */
+export function BuyerHomeView({ view, name, deal, cover = null, device }: { view: View; name: string | null; deal: DealListItem | null; cover?: DealCover | null; device: Device }) {
   const text = nowText(view);
   const action = view.primary && (
     <ActionDock>
       <ButtonLink href={view.primary.href}>{PRIMARY_LABEL[view.primary.kind]}</ButtonLink>
     </ActionDock>
   );
+  // Компьютер: кнопка внутри карточки «Сейчас» (героя). Телефон: в доке последним элементом экрана.
+  const inCard = device === "desktop" ? action : null;
+  const secondary = view.secondary && <TextLink href={view.secondary.href}>{secondaryLabel(view.now.kind)}</TextLink>;
   const first = view.firstSteps;
+  const firstSteps = first && (
+    <FirstSteps
+      steps={[
+        { label: t.steps.profile, done: true },
+        { label: t.steps.order, ...first.order },
+        { label: t.steps.master, ...first.master },
+        { label: t.steps.pay, ...first.pay },
+      ]}
+    />
+  );
   return (
-    <Stack gap="section">
+    <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
       <PageTitle title={t.title(name)} />
-      <Split
-        main={
-          <Stack gap="section">
-            {/* Первая группа: что сейчас, действие и путь целиком. Главное действие компьютера — прямо под «Сейчас» (через 12 px). */}
-            <Stack>
-              <NowNext now={{ title: text.title, ...(text.body ? { body: text.body } : {}) }} {...(text.next ? { next: text.next } : {})} />
-              {/* Компьютер: действие сразу под «Сейчас». Телефон: в доке в конце экрана (ниже). */}
-              {device === "desktop" && action}
-              {view.secondary && (
-                <TextLink href={view.secondary.href}>{secondaryLabel(view.now.kind)}</TextLink>
-              )}
-              {first && (
-                <FirstSteps
-                  steps={[
-                    { label: t.steps.profile, done: true },
-                    { label: t.steps.order, ...first.order },
-                    { label: t.steps.master, ...first.master },
-                    { label: t.steps.pay, ...first.pay },
-                  ]}
-                />
-              )}
-            </Stack>
-            {deal && <DealCard deal={deal} listed={view.deal} more={view.moreDeals} />}
-            {view.requests.length > 0 && <RequestsSection requests={view.requests} />}
-          </Stack>
-        }
-        aside={
-          <HelpBlock
-            items={[helpItem(HELP_ANCHORS.how), helpItem(HELP_ANCHORS.price)]}
-            supportEmail={brand.support.email}
-          />
-        }
-      />
+      {/* Первая группа: что сейчас, действие и путь целиком. */}
+      {deal ? (
+        <Stack>
+          <DealHero deal={deal} side="CLIENT" cover={cover} now={text} action={inCard} link={secondary} progressLabel={t.deal.progressLabel} />
+          {firstSteps}
+          {view.moreDeals > 0 && <TextLink href={to("/deals")}>{t.deal.allDeals}</TextLink>}
+        </Stack>
+      ) : (
+        <Stack>
+          <NowNext now={{ title: text.title, ...(text.body ? { body: text.body } : {}) }} {...(text.next ? { next: text.next } : {})} action={inCard} />
+          {secondary}
+          {firstSteps}
+        </Stack>
+      )}
+      {view.requests.length > 0 && <RequestsSection requests={view.requests} />}
+      <HelpBlock items={[helpItem(HELP_ANCHORS.how), helpItem(HELP_ANCHORS.price)]} supportEmail={brand.support.email} />
       {device === "mobile" && action}
     </Stack>
   );
 }
 
-/** Карточка сделки на главной: общая с мастером (`DealSummaryCard`), слова покупателя. */
-function DealCard({ deal, listed, more }: { deal: DealListItem; listed: HomeDealInput | null; more: number }) {
-  const chip = dealChip({ ...deal, side: "CLIENT", next: listed?.next ?? null, payWaitsMaster: listed?.payWaitsMaster ?? false });
-  return (
-    <Section title={t.deal.section}>
-      <DealSummaryCard deal={deal} side="CLIENT" chip={chip} progressLabel={t.deal.progressLabel} />
-      {more > 0 && <TextLink href={to("/deals")}>{t.deal.allDeals}</TextLink>}
-    </Section>
-  );
-}
-
 /**
- * До двух живых заявок: название и плашка состояния — та же `requestState`, что в «Моих заявках» и в карточке заявки
- * (число действующих предложений — внутри неё); остальные — «Все заявки».
+ * До двух живых заявок: миниатюра (первое фото помещения), название и короткая плашка состояния — та же `requestState`,
+ * что в «Моих заявках» и в карточке заявки (число предложений — строкой рядом с плашкой); остальные — «Все заявки».
  */
 function RequestsSection({ requests }: { requests: HomeRequestInput[] }) {
   return (
     <Section title={t.requests.section}>
-      <Card padded={false}>
+      <Card variant="grouped">
         <List>
           {requests.map((r) => {
             const state = requestState(r);
             return (
               <ListRow
                 key={r.id}
+                leading={<Thumb src={r.cover} />}
                 label={
-                  <span className="flex flex-col items-start gap-1">
-                    <span className="text-body wrap-break-word text-ink">{ru.requests.requestTitle(r.number, r.title)}</span>
-                    <StatusChip tone={state.tone}>{state.text}</StatusChip>
+                  <span className="flex flex-col items-start gap-1 py-1">
+                    <span className="text-headline wrap-break-word text-ink">{ru.requests.requestTitle(r.number, r.title)}</span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <StatusChip tone={state.tone}>{state.chip}</StatusChip>
+                      {state.note && <span className="text-sub text-muted">{state.note}</span>}
+                    </span>
                   </span>
                 }
                 href={r.status === "DRAFT" ? to(`/requests/new?draft=${encodeURIComponent(r.id)}`) : to(`/requests/${encodeURIComponent(r.id)}`)}

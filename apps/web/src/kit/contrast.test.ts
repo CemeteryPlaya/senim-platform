@@ -181,11 +181,16 @@ describe("сторож: на стекле шапки — только ink и gla
   // Разметка со стеклом шапки (glass-bar) и то, что она рендерит на нём: muted и accent там запрещены (тест выше).
   const read = (rel: string) => readFileSync(path.join(__dirname, rel), "utf8");
 
-  it("закреплённая шапка переписки: заголовок и пояснение — в варианте onGlass", () => {
+  it("закреплённая шапка переписки (короткая, как у iOS): на стекле — «Назад» в варианте onGlass и имя цветом ink", () => {
     const page = read("../app/(app)/v2/chats/[offerId]/page.tsx");
-    expect(page).toContain("mobile:glass-bar");
-    expect(page).toMatch(/<PageTitle[^>]*\bonGlass=/);
-    expect(page).toMatch(/<Explain[^>]*\bonGlass=/);
+    const start = page.indexOf("data-chat-bar");
+    const bar = page.slice(start, page.indexOf("</div>", start));
+    expect(start).toBeGreaterThan(0);
+    expect(bar).toContain("glass-bar");
+    expect(bar).toMatch(/<BackLink[^>]*\bonGlass\b/);
+    expect(bar).toContain("text-ink");
+    // Большой заголовок и пояснения («Почему?», ссылка «к чему относится») — в потоке под шапкой, не на стекле.
+    expect(bar).not.toMatch(/\btext-(?:muted|accent)\b|<Explain|<TextLink|<PageTitle/);
   });
 
   it("шапка компьютера и меню разделов: без text-muted и text-accent", () => {

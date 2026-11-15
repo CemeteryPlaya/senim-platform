@@ -29,11 +29,23 @@ export type RequestOfferInput = { live: boolean; deal: { status: DealStatus } | 
 
 export type RequestStateInput = { status: RequestStatus; offers: readonly RequestOfferInput[] };
 
-export type RequestState = { kind: RequestStateKind; text: string; tone: StatusTone; liveOffers: number };
+export type RequestState = {
+  kind: RequestStateKind;
+  text: string;
+  tone: StatusTone;
+  liveOffers: number;
+  /**
+   * Плашка в строке списка (главная, «Мои заявки»): коротко и без переноса. У `choose` — «Выберите мастера», а число
+   * предложений — отдельной строкой рядом (`note`); у остальных — тот же `text`.
+   */
+  chip: string;
+  /** Пояснение к короткой плашке строкой рядом («3 предложения»); `null` — плашка говорит всё сама. */
+  note: string | null;
+};
 
 const t = ru.app.requests.state;
 
-const state = (kind: RequestStateKind, text: string, tone: StatusTone, liveOffers: number): RequestState => ({ kind, text, tone, liveOffers });
+const state = (kind: RequestStateKind, text: string, tone: StatusTone, liveOffers: number): RequestState => ({ kind, text, tone, liveOffers, chip: text, note: null });
 
 export function requestState({ status, offers }: RequestStateInput): RequestState {
   const live = offers.filter((o) => o.live).length;
@@ -41,7 +53,9 @@ export function requestState({ status, offers }: RequestStateInput): RequestStat
     case "DRAFT":
       return state("draft", t.draft, "neutral", live);
     case "OPEN":
-      return live > 0 ? state("choose", t.choose(live), "warn", live) : state("waiting", t.waiting, "neutral", live);
+      return live > 0
+        ? { ...state("choose", t.choose(live), "warn", live), chip: t.chooseShort, note: ru.app.requests.list.offers(live) }
+        : state("waiting", t.waiting, "neutral", live);
     case "PLATFORM_MEASURING":
       return state("site-measuring", t.siteMeasuring, "neutral", live);
     case "OFFER_CHOSEN":

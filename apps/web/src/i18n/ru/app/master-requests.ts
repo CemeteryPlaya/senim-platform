@@ -144,6 +144,13 @@ export const masterRequests = {
         DECLINED: "Предложение отклонено",
         WITHDRAWN: "Вы отозвали предложение",
       },
+      /** Плашка в строке списка — коротко, без переноса (тот же смысл, что `myOffer`). */
+      myOfferShort: {
+        SENT: "Цена отправлена",
+        ACCEPTED: "Вас выбрали",
+        DECLINED: "Не выбрано",
+        WITHDRAWN: "Вы отозвали",
+      },
       wanted: (date: string) => `Нужно к ${date}`,
       published: (when: string) => `Опубликована ${when}`,
       offers: (n: number) => `Предложений: ${n}`,

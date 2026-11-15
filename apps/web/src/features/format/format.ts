@@ -58,6 +58,20 @@ export function formatDate(value: DateInput): string {
   return dateFormat.format(toDate(value)).replace(/\s*г\.$/, "");
 }
 
+const shortDateFormat = new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "short", timeZone: TIME_ZONE });
+const yearFormat = new Intl.DateTimeFormat(LOCALE, { year: "numeric", timeZone: TIME_ZONE });
+
+/**
+ * Короткая дата для строк списков (разбор 3.6): «21 окт»; год — только если не текущий («21 окт 2025»). Точки
+ * сокращений Intl («окт.») убраны — в строке списка они лишние.
+ */
+export function formatShortDate(value: DateInput, now: Date = new Date()): string {
+  const date = toDate(value);
+  const day = shortDateFormat.format(date).replace(/\./g, "");
+  const year = yearFormat.format(date).replace(/\D/g, "");
+  return year === yearFormat.format(now).replace(/\D/g, "") ? day : `${day} ${year}`;
+}
+
 /** «14:30». */
 export function formatTime(value: DateInput): string {
   return timeFormat.format(toDate(value));

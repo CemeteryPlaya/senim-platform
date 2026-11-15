@@ -1,6 +1,6 @@
 import type { RequestStatus } from "@/generated/prisma/enums";
 import { groupOf, REQUEST_GROUP, REQUEST_GROUPS, type RequestGroup } from "@/features/requests/labels";
-import { formatDate } from "@/features/format/format";
+import { formatShortDate } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import type { ChipItem, StatusTone } from "@/kit";
 import { WIZARD_SCREENS } from "@/modules/requests/client";
@@ -21,9 +21,24 @@ export type MyRequestRow = {
   wizardStep: number;
   createdAt: Date;
   publishedAt: Date | null;
+  /** Обложка — первое фото помещения (модуль); нет — `null`. */
+  cover?: { src: string } | null;
 };
 
-export type RequestCard = { id: string; href: string; title: string; status: string; tone: StatusTone; meta: string };
+export type RequestCard = {
+  id: string;
+  href: string;
+  title: string;
+  /** Состояние полностью (`requestState().text`). */
+  status: string;
+  tone: StatusTone;
+  /** Плашка в строке — коротко («Выберите мастера»), пояснение к ней — `note` («3 предложения»). */
+  chip: string;
+  note: string | null;
+  meta: string;
+  /** Адрес миниатюры 56 px; `null` — фото нет. */
+  cover: string | null;
+};
 
 export type RequestListView = {
   group: RequestGroup | "all";
@@ -39,13 +54,14 @@ const groupHref = (group: RequestGroup | "all") => (group === "all" ? to("/reque
 
 /**
  * Черновик ведёт в мастер на свой шаг (resumeIndex модуля), отправленная — на карточку заявки. Статус и тон — общая
- * `requestState` (те же слова, что на главной и в карточке); число предложений — внутри статуса, в строке под ним его нет.
+ * `requestState` (те же слова, что на главной и в карточке); в строке — короткая плашка и число предложений рядом с ней.
  */
-function cardOf(r: MyRequestRow, offers: readonly RequestOfferInput[]): RequestCard {
+function cardOf(r: MyRequestRow, offers: readonly RequestOfferInput[], now: Date): RequestCard {
   const draft = r.status === "DRAFT";
+  // Дата — короткая («21 окт», год — только если не текущий): строка списка, а не документ.
   const meta = draft
     ? t.draftProgress(Math.min(r.wizardStep, WIZARD_SCREENS.length), WIZARD_SCREENS.length)
-    : [r.mode === "DIRECT" ? t.direct : null, t.sentOn(formatDate(r.publishedAt ?? r.createdAt))].filter(Boolean).join(" · ");
+    : [r.mode === "DIRECT" ? t.direct : null, t.sentOn(formatShortDate(r.publishedAt ?? r.createdAt, now))].filter(Boolean).join(" · ");
   const state = requestState({ status: r.status, offers });
   return {
     id: r.id,
@@ -54,7 +70,10 @@ function cardOf(r: MyRequestRow, offers: readonly RequestOfferInput[]): RequestC
     title: draft && r.title === ru.requests.untitled ? t.draftTitle : r.title,
     status: state.text,
     tone: state.tone,
+    chip: state.chip,
+    note: state.note,
     meta,
+    cover: r.cover?.src ?? null,
   };
 }
 
@@ -68,6 +87,7 @@ export function requestListView(
   list: readonly MyRequestRow[],
   status: string | undefined,
   offers: ReadonlyMap<string, readonly RequestOfferInput[]> = new Map(),
+  now: Date = new Date(),
 ): RequestListView {
   const group = groupOf(status);
   if (list.length === 0) return { group, chips: [], cards: [], empty: "none" };
@@ -77,5 +97,5 @@ export function requestListView(
     ...REQUEST_GROUPS.filter((g) => count(g) > 0 || g === group).map((g) => ({ href: groupHref(g), label: t.chip(t.groups[g], count(g)), active: g === group })),
   ];
   const shown = group === "all" ? list : list.filter((r) => REQUEST_GROUP[r.status] === group);
-  return { group, chips, cards: shown.map((r) => cardOf(r, offers.get(r.id) ?? [])), empty: shown.length === 0 ? "filter" : null };
+  return { group, chips, cards: shown.map((r) => cardOf(r, offers.get(r.id) ?? [], now)), empty: shown.length === 0 ? "filter" : null };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { digitGroupParts, formatDate, formatDateTime, formatDays, formatMoney, formatMonths, formatRelative, formatTiyn, formatTime, formatYears, moneyBreakParts } from "./format";
+import { digitGroupParts, formatDate, formatDateTime, formatDays, formatMoney, formatMonths, formatRelative, formatShortDate, formatTiyn, formatTime, formatYears, moneyBreakParts } from "./format";
 
 const NBSP = " ";
 
@@ -132,5 +132,22 @@ describe("formatTiyn — деньги сделки в тиынах", () => {
 
   it("отрицательная сумма — со знаком минус", () => {
     expect(formatTiyn(-150n)).toBe("−1,50 ₸");
+  });
+});
+
+describe("formatShortDate", () => {
+  const now = new Date("2026-11-15T09:00:00Z");
+
+  it("текущий год — день и месяц без точки: «21 окт»", () => {
+    expect(formatShortDate(new Date("2026-10-21T10:00:00Z"), now)).toBe("21 окт");
+    expect(formatShortDate(new Date("2026-05-03T10:00:00Z"), now)).toBe("3 мая");
+  });
+
+  it("другой год — с годом: «21 окт 2025»", () => {
+    expect(formatShortDate(new Date("2025-10-21T10:00:00Z"), now)).toBe("21 окт 2025");
+  });
+
+  it("по времени Астаны: 31 декабря 20:00 UTC — уже 1 января", () => {
+    expect(formatShortDate(new Date("2025-12-31T20:00:00Z"), now)).toBe("1 янв");
   });
 });

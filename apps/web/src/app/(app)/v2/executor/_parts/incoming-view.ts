@@ -1,5 +1,5 @@
 import { selectedIncoming, incomingCounts, type IncomingSearch } from "@/features/executor-requests/incoming";
-import { formatDate, formatRelative } from "@/features/format/format";
+import { formatRelative, formatShortDate } from "@/features/format/format";
 import type { OfferStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import type { ChipItem, StatusTone } from "@/kit";
@@ -16,7 +16,10 @@ const t = ru.app.masterRequests.incoming;
 export type IncomingRow = Pick<
   IncomingListItem,
   "id" | "number" | "title" | "mode" | "segment" | "city" | "desiredDate" | "publishedAt" | "offersCount" | "myOfferStatus"
->;
+> & {
+  /** Обложка — первое фото помещения (модуль); нет — `null`. */
+  cover?: { src: string } | null;
+};
 
 export type IncomingBadge = { text: string; tone: StatusTone };
 
@@ -29,6 +32,13 @@ export type IncomingCardView = {
   badges: IncomingBadge[];
   /** Строка под названием: город и сегмент; срок; когда опубликована; число предложений. */
   meta: string[];
+  /**
+   * Те же сведения двумя строками (разбор 2.2): «где и к какому сроку» («Астана · Комфорт · Нужно к 5 дек») и «когда и
+   * сколько предложений» («Опубликована вчера · Предложений: 2»); пустая вторая — `null`.
+   */
+  lines: [string, string | null];
+  /** Адрес миниатюры 56 px (первое фото помещения); `null` — фото нет. */
+  cover: string | null;
 };
 
 export type IncomingListView = {
@@ -50,15 +60,14 @@ export function incomingCard(r: IncomingRow, now: Date = new Date()): IncomingCa
   const badges: IncomingBadge[] = [];
   if (r.myOfferStatus === null) badges.push({ text: t.card.fresh, tone: "warn" });
   if (r.mode === "DIRECT") badges.push({ text: t.card.direct, tone: "accent" });
-  if (r.myOfferStatus) badges.push({ text: t.card.myOffer[r.myOfferStatus], tone: OFFER_TONE[r.myOfferStatus] });
+  // В строке — короткая подпись плашки (без переноса); полная — `t.card.myOffer` на экране заявки.
+  if (r.myOfferStatus) badges.push({ text: t.card.myOfferShort[r.myOfferStatus], tone: OFFER_TONE[r.myOfferStatus] });
   const place = r.segment ? `${r.city} · ${SEGMENT_NAMES[r.segment]}` : r.city;
-  const meta = [
-    place,
-    ...(r.desiredDate ? [t.card.wanted(formatDate(r.desiredDate))] : []),
-    ...(r.publishedAt ? [t.card.published(formatRelative(r.publishedAt, now))] : []),
-    ...(r.offersCount > 0 ? [t.card.offers(r.offersCount)] : []),
-  ];
-  return { id: r.id, href: to(`/executor/requests/${encodeURIComponent(r.id)}`), title: ru.requests.requestTitle(r.number, r.title), badges, meta };
+  const where = [place, ...(r.desiredDate ? [t.card.wanted(formatShortDate(r.desiredDate, now))] : [])];
+  const when = [...(r.publishedAt ? [t.card.published(formatRelative(r.publishedAt, now))] : []), ...(r.offersCount > 0 ? [t.card.offers(r.offersCount)] : [])];
+  const meta = [...where, ...when];
+  const lines: [string, string | null] = [where.join(" · "), when.length > 0 ? when.join(" · ") : null];
+  return { id: r.id, href: to(`/executor/requests/${encodeURIComponent(r.id)}`), title: ru.requests.requestTitle(r.number, r.title), badges, meta, lines, cover: r.cover?.src ?? null };
 }
 
 /**

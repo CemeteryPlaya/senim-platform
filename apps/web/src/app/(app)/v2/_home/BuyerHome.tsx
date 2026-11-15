@@ -5,6 +5,7 @@ import { listMyRequests, myOfferStates } from "@/modules/requests";
 import type { Device } from "@/platform/device";
 import { isEnabled } from "@/platform/features";
 import { logger } from "@/platform/logger";
+import { dealCover } from "../_parts/deal-cover";
 import { payWaitingMaster } from "../_parts/pay-waits";
 import { offersByRequest } from "../_parts/request-state";
 import { BuyerHomeView } from "./BuyerHomeView";
@@ -36,8 +37,17 @@ export async function BuyerHome({ user, device }: { user: CurrentUser; device: D
     payWaitsMaster: waiting.has(d.id),
   }));
   const offers = offersByRequest(offerStates);
-  const inputs: HomeRequestInput[] = requests.map((r) => ({ id: r.id, number: r.number, title: r.title, status: r.status, offers: offers.get(r.id) ?? [] }));
+  const inputs: HomeRequestInput[] = requests.map((r) => ({
+    id: r.id,
+    number: r.number,
+    title: r.title,
+    status: r.status,
+    offers: offers.get(r.id) ?? [],
+    cover: r.cover?.src ?? null,
+  }));
   const view = buyerHome({ deals, requests: inputs });
   const shown = view.deal ? (mine.find((d) => d.id === view.deal?.id) ?? null) : null;
-  return <BuyerHomeView view={view} name={firstName(user.fullName)} deal={shown} device={device} />;
+  // Обложка карточки-героя — последнее фото отчёта хода работ этой сделки (если есть).
+  const cover = shown ? await dealCover(user, shown.id) : null;
+  return <BuyerHomeView view={view} name={firstName(user.fullName)} deal={shown} cover={cover} device={device} />;
 }

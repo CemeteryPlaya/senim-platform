@@ -330,7 +330,7 @@ function Help({ side }: { side: DealSide }) {
 /**
  * Карточка сделки стороны (покупатель или мастер — `view.side`). Телефон — одна колонка в порядке важности: «Сейчас»,
  * деньги, ход (компактно), ход работ (мастер), заказ, документы, другая сторона, история, помощь; главное действие шага —
- * в `ActionDock` последним. Компьютер — `Split`: слева процесс («Сейчас» с действием под ним, ход, ход работ, документы,
+ * в `ActionDock` последним. Компьютер — `Split`: слева процесс («Сейчас» с действием внутри, ход, ход работ, документы,
  * другая сторона, история), справа деньги, заказ и помощь. Второстепенное — меню «Действия».
  */
 export function DealCardView({ view, device }: { view: CardView; device: Device }) {
@@ -343,8 +343,12 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
   );
   const nowBlock: ReactNode = (
     <Stack>
-      <NowNext now={{ title: now.title, ...(now.body ? { body: now.body } : {}) }} {...(now.next ? { next: now.next } : {})} />
-      {device === "desktop" && primary && <ActionDock>{primary}</ActionDock>}
+      {/* Компьютер: главное действие внутри карточки «Сейчас» (разбор 3.6); телефон — в доке в конце экрана. */}
+      <NowNext
+        now={{ title: now.title, ...(now.body ? { body: now.body } : {}) }}
+        {...(now.next ? { next: now.next } : {})}
+        action={device === "desktop" && primary ? <ActionDock>{primary}</ActionDock> : null}
+      />
       {link}
     </Stack>
   );

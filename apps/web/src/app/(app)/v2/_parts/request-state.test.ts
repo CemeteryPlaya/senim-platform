@@ -26,7 +26,13 @@ describe("requestState: одна заявка — одно состояние н
     ["отменена", "CANCELLED", [closed], "cancelled", s.cancelled, "neutral", 0],
     ["отменена вместе со сделкой", "CANCELLED", [withDeal("REFUNDED")], "cancelled", s.cancelled, "neutral", 0],
   ])("%s", (_name, status, offers, kind, text, tone, n) => {
-    expect(requestState({ status, offers })).toEqual({ kind, text, tone, liveOffers: n });
+    expect(requestState({ status, offers })).toMatchObject({ kind, text, tone, liveOffers: n });
+  });
+
+  it("плашка в строке списка — коротко: «Выберите мастера», число предложений — строкой рядом; остальные — тот же текст", () => {
+    expect(requestState({ status: "OPEN", offers: [live, live, live] })).toMatchObject({ chip: s.chooseShort, note: "3 предложения" });
+    expect(requestState({ status: "OPEN", offers: [] })).toMatchObject({ chip: s.waiting, note: null });
+    expect(requestState({ status: "CLOSED", offers: [withDeal("IN_PROGRESS")] })).toMatchObject({ chip: s.deal, note: null });
   });
 
   it("один текст — один тон; ни «договора», ни «отклика»", () => {

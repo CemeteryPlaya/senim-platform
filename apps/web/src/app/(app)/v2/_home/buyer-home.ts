@@ -35,6 +35,8 @@ export type HomeRequestInput = {
   status: RequestStatus;
   /** Предложения заявки (`myOfferStates`): по ним `requestState` считает действующие — то же, что в «Моих заявках» и карточке. */
   offers: readonly RequestOfferInput[];
+  /** Обложка заявки — первое фото помещения (адрес из модуля); `null` — фото нет. Только для миниатюры в списке. */
+  cover?: string | null;
 };
 
 export type HomeInput = { deals: readonly HomeDealInput[]; requests: readonly HomeRequestInput[] };

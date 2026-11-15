@@ -10,15 +10,17 @@ import { activeHref, type NavItem } from "./nav";
  * Разделы роли в шапке компьютера — строкой (эталон docs/design/v3/reference/desktop-layout.html, вариант A).
  * Активный — «линза» (NavLens: капсула fill-strong за подписью, переезжает пружиной без отскока; при меньшем движении —
  * мгновенно), цвет ink 600 и aria-current="page"; остальные — glass-secondary 500 (вторичный текст на стекле шапки),
- * при наведении — ink. Различимость не только весом: подложка и цвет. При крупном шрифте строка переносится, шапка растёт.
+ * при наведении — ink. Различимость не только весом: подложка и цвет. Разделы — одной строкой, без переноса (узкое окно —
+ * горизонтальная прокрутка страницы).
  */
 export function TopNav({ items }: { items: readonly NavItem[] }) {
   const current = activeHref(items, usePathname());
 
   return (
     // flex-auto: в шапке разделы занимают свободное место, а не помещаясь рядом с названием — уходят строкой ниже целиком.
-    <nav aria-label={ru.app.shell.navLabel} className="min-w-0 flex-auto">
-      <ul className="flex flex-wrap items-center gap-x-1">
+    <nav aria-label={ru.app.shell.navLabel} className="flex-auto">
+      {/* Без переноса: узкое окно прокручивается вбок (оболочка min-w-shell), меню не встаёт в три строки. */}
+      <ul className="flex items-center gap-x-1 whitespace-nowrap">
         {items.map((item) => {
           const active = item.href === current;
           return (

@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { Explain, PageTitle, TextLink } from "@/kit";
-import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, chatSideOf, getChat } from "@/modules/companies";
+import { BackLink, Explain, PageTitle, TextLink } from "@/kit";
+import { CHAT_MAX_ATTACHMENTS, CHAT_MAX_LENGTH, chatSideOf, getChat, listChats } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { requireParty, switchRoleTo } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
 import type { DealSide } from "../../../_shell/side";
-import { chatHref, chatRoomModel, contextLink, contextOf, counterpartOf } from "../_parts/chat-view";
+import { ChatList } from "../_parts/ChatList";
+import { chatHref, chatRoomModel, chatRows, contextLink, contextOf, counterpartOf } from "../_parts/chat-view";
 import { ChatRoom } from "./ChatRoom";
 
 const t = ru.app.chat.room;
@@ -43,6 +44,8 @@ export default async function ChatPage({ params }: Props) {
   const model = chatRoomModel(view, new Date(), side);
   const device = await getDevice();
   const link = contextLink(contextOf(view), view.title, side);
+  const counterpart = counterpartOf(view.counterpart, side);
+  const back = { href: to("/chats"), label: t.back };
 
   const lead = (
     <span className="flex flex-col items-start gap-1">
@@ -50,7 +53,7 @@ export default async function ChatPage({ params }: Props) {
       {model.beforeOffer && (
         <span>
           {t.hiddenShort}{" "}
-          <Explain label={t.why} title={t.whyTitle} device={device} onGlass={device === "mobile"}>
+          <Explain label={t.why} title={t.whyTitle} device={device}>
             <p>{t.whyBody}</p>
           </Explain>
         </span>
@@ -61,21 +64,41 @@ export default async function ChatPage({ params }: Props) {
   const room = (
     <ChatRoom key={offerId} offerId={offerId} initial={model} side={side} device={device} maxLength={CHAT_MAX_LENGTH} maxAttachments={CHAT_MAX_ATTACHMENTS} />
   );
-  // Компьютер: колонка на высоту окна за вычетом шапки (screen-fill): заголовок не сжимается, лента — flex-1 со своей
-  // прокруткой, поле ввода последним. Телефон: прокручивается страница, а шапка («Назад: Чаты», собеседник, «Почему?»)
-  // закреплена у верхнего края (sticky-head) — длинная переписка открывается внизу, и шапка не уезжает.
-  return (
-    <div className="flex min-w-0 flex-col gap-stack-section desktop:screen-fill">
-      <div className="mobile:sticky-head mobile:glass-bar desktop:shrink-0">
-        {/* На телефоне шапка — стекло (glass-bar): на нём только ink и glass-secondary (onGlass), без muted и accent. */}
-        <PageTitle
-          title={counterpartOf(view.counterpart, side)}
-          back={{ href: to("/chats"), label: t.back }}
-          lead={lead}
-          onGlass={device === "mobile"}
-        />
+
+  if (device === "desktop") {
+    // Компьютер — две панели, как в «Сообщениях» (разбор 3.9): слева список диалогов (360 px, своя прокрутка, открытый
+    // отмечен), справа заголовок и переписка. Всё — на высоту окна за вычетом шапки (screen-fill): заголовок не сжимается,
+    // лента — flex-1 со своей прокруткой, поле ввода последним.
+    const rows = chatRows(await listChats(user), new Date(), side);
+    return (
+      <div className="grid grid-cols-chats grid-rows-1 gap-split screen-fill">
+        <div className="min-h-0 overflow-y-auto rounded-card">
+          <ChatList rows={rows} side={side} current={offerId} />
+        </div>
+        <div className="flex min-h-0 min-w-0 flex-col gap-stack-section">
+          <div className="shrink-0">
+            <PageTitle title={counterpart} back={back} lead={lead} />
+          </div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">{room}</div>
+        </div>
       </div>
-      <div className="flex min-w-0 flex-col mobile:flex-1 desktop:min-h-0 desktop:max-w-narrow desktop:flex-1">{room}</div>
+    );
+  }
+
+  // Телефон — как большой заголовок iOS: к верхнему краю прилипает только короткая шапка-стекло («‹ Чаты» и имя
+  // собеседника, оно проявляется, когда большой заголовок ушёл под шапку — compact-title), а большой заголовок, ссылка
+  // «к чему относится» и «Почему?» прокручиваются вместе с лентой. Длинная переписка открывается внизу — видна короткая
+  // шапка (~84 px), а не вся (~240 px). На стекле шапки — только ink и glass-secondary (BackLink onGlass).
+  return (
+    <div className="flex min-w-0 flex-col gap-stack-section">
+      <div data-chat-bar className="sticky-head glass-bar flex items-center gap-3">
+        <BackLink {...back} onGlass />
+        <span aria-hidden className="compact-title min-w-0 flex-1 truncate text-headline text-ink">
+          {counterpart}
+        </span>
+      </div>
+      <PageTitle title={counterpart} lead={lead} />
+      <div className="flex min-w-0 flex-1 flex-col">{room}</div>
     </div>
   );
 }

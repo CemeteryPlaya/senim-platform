@@ -7,6 +7,7 @@ import { getNegotiation, listIncomingRequests, listMyOffers } from "@/modules/re
 import type { Device } from "@/platform/device";
 import { logger } from "@/platform/logger";
 import type { MasterStatus } from "../../_shell/auth";
+import { dealCover } from "../_parts/deal-cover";
 import { consentMissingOf } from "../_parts/pay-waits";
 import { readForMaster } from "../executor/_parts/approved";
 import { MasterGate } from "../executor/_parts/MasterGate";
@@ -97,6 +98,8 @@ export async function MasterHome({ user, status, device }: { user: CurrentUser; 
 
   const { shown, more } = shownDeals(running, view.now.deal?.id ?? null);
   const month = monthOf(new Date());
+  // Обложка карточки-героя — последнее фото отчёта хода работ сделки из «Сейчас» (если есть).
+  const cover = view.now.deal ? await dealCover(user, view.now.deal.id) : null;
   const data: MasterHomeData = {
     view,
     firstSteps,
@@ -104,6 +107,7 @@ export async function MasterHome({ user, status, device }: { user: CurrentUser; 
     moreDeals: more,
     fresh: fresh.slice(0, SHOWN_REQUESTS),
     stats: { fresh: fresh.length, inWork: inWorkCount(mine), earnedTiyn: finance.months.find((m) => m.month === month)?.receivedTiyn ?? 0n },
+    cover,
   };
   return <MasterHomeView data={data} name={name} device={device} />;
 }

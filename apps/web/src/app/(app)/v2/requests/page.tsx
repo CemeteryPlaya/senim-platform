@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Card, Chips, EmptyState, List, ListRow, PageTitle, Split, Stack, StatusChip, TextLink } from "@/kit";
+import { ActionDock, ButtonLink, Card, Chips, EmptyState, List, ListRow, PageTitle, Stack, StatusChip, TextLink } from "@/kit";
 import { listMyRequests, myOfferStates } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
 import { pageHref, requireBuyer } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
 import { offersByRequest } from "../_parts/request-state";
+import { Thumb } from "../_parts/Thumb";
 import { requestListView, type RequestListView } from "./_parts/list-view";
 import { wizardHref } from "./new/steps";
 
@@ -15,7 +16,10 @@ export const metadata: Metadata = { title: t.metaTitle };
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-/** Разделы и заявки (или пустой раздел со ссылкой на все). Строка — ссылка: название, что с заявкой, статус справа. */
+/**
+ * Разделы и заявки (или пустой раздел со ссылкой на все). Строка — ссылка (сгруппированный список): миниатюра 56 px
+ * (первое фото помещения), название, короткая плашка и число предложений, что с заявкой и короткая дата.
+ */
 function Requests({ view }: { view: RequestListView }) {
   return (
     <Stack>
@@ -26,23 +30,27 @@ function Requests({ view }: { view: RequestListView }) {
           <TextLink href={to("/requests")}>{t.showAll}</TextLink>
         </Stack>
       ) : (
-        <Card padded={false}>
+        <Card variant="grouped">
           <List>
-              {view.cards.map((card) => (
-                <ListRow
-                  key={card.id}
-                  href={card.href}
-                  label={
-                    // Статус под названием, а не справа: на телефоне справа он сжимал бы строку «что с заявкой».
-                    <span className="flex flex-col items-start gap-1">
-                      <span className="text-headline wrap-break-word text-ink">{card.title}</span>
-                      <StatusChip tone={card.tone}>{card.status}</StatusChip>
-                      <span className="text-sub text-muted">{card.meta}</span>
+            {view.cards.map((card) => (
+              <ListRow
+                key={card.id}
+                href={card.href}
+                leading={<Thumb src={card.cover} />}
+                label={
+                  // Статус под названием, а не справа: на телефоне справа он сжимал бы строку «что с заявкой».
+                  <span className="flex flex-col items-start gap-1 py-1">
+                    <span className="text-headline wrap-break-word text-ink">{card.title}</span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <StatusChip tone={card.tone}>{card.chip}</StatusChip>
+                      {card.note && <span className="text-sub text-muted">{card.note}</span>}
                     </span>
-                  }
-                />
-              ))}
-            </List>
+                    <span className="text-sub text-muted">{card.meta}</span>
+                  </span>
+                }
+              />
+            ))}
+          </List>
         </Card>
       )}
     </Stack>
@@ -53,7 +61,7 @@ function Requests({ view }: { view: RequestListView }) {
  * «Мои заявки» покупателя: разделы чипами (группы статусов), строки-ссылки (название или «Черновик», что с заявкой — шаг
  * черновика или число предложений и дата, статус). Черновик ведёт в мастер на свой шаг, отправленная — на карточку заявки.
  * Пусто — обучающий экран с единственным действием «Заказать мебель». Телефон: одна колонка, действие в доке. Компьютер:
- * список слева, справа карточка с действием (не растянутая телефонная страница).
+ * одна колонка 760 px по центру, карточка «Нужна ещё мебель?» с действием — над списком.
  */
 export default async function MyRequestsPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -75,23 +83,21 @@ export default async function MyRequestsPage({ searchParams }: Props) {
   }
 
   if (device === "desktop") {
+    // Одна колонка 760 px по центру (разбор 3.9): карточка «Нужна ещё мебель?» с главным действием — над списком, а не
+    // одна в правой колонке.
     return (
-      <Stack gap="section">
+      <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
         {title}
-        <Split
-          main={<Requests view={view} />}
-          aside={
-            <Card>
-              <Stack>
-                <h2 className="text-headline text-ink">{t.asideTitle}</h2>
-                <p className="text-body text-muted">{t.asideBody}</p>
-                <ButtonLink href={create.href} full>
-                  {create.label}
-                </ButtonLink>
-              </Stack>
-            </Card>
-          }
-        />
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 flex-1 basis-64 flex-col gap-1">
+              <h2 className="text-headline text-ink">{t.asideTitle}</h2>
+              <p className="text-body text-muted">{t.asideBody}</p>
+            </div>
+            <ButtonLink href={create.href}>{create.label}</ButtonLink>
+          </div>
+        </Card>
+        <Requests view={view} />
       </Stack>
     );
   }

@@ -1,21 +1,24 @@
 import { Card, List, ListRow, StatusChip } from "@/kit";
+import { Thumb } from "../../_parts/Thumb";
 import type { IncomingCardView } from "./incoming-view";
 
 /**
- * Список входящих заявок мастера: строка — ссылка на заявку. Название (что нужно), метки («Новая», «Прямая заявка вам»,
- * моё предложение), под ними — город, сегмент, срок, когда опубликована. Общий для экрана «Заявки» и главной.
+ * Список входящих заявок мастера (сгруппированный список): строка — ссылка на заявку. Миниатюра 56 px (первое фото
+ * помещения), название (что нужно), метки («Новая», «Прямая заявка вам», моё предложение), под ними — город, сегмент,
+ * срок (короткой датой), когда опубликована. Общий для экрана «Заявки» и главной.
  */
 export function IncomingRows({ cards }: { cards: readonly IncomingCardView[] }) {
   return (
-    <Card padded={false}>
+    <Card variant="grouped">
       <List>
         {cards.map((card) => (
           <ListRow
             key={card.id}
             href={card.href}
+            leading={<Thumb src={card.cover} />}
             label={
               // Метки и сведения под названием, а не справа: на телефоне справа они сжимали бы строку.
-              <span className="flex flex-col items-start gap-1">
+              <span className="flex flex-col items-start gap-1 py-1">
                 <span className="text-headline wrap-break-word text-ink">{card.title}</span>
                 {card.badges.length > 0 && (
                   <span className="flex flex-wrap gap-2">
@@ -26,7 +29,11 @@ export function IncomingRows({ cards }: { cards: readonly IncomingCardView[] }) 
                     ))}
                   </span>
                 )}
-                <span className="text-sub text-muted">{card.meta.join(" · ")}</span>
+                {/* Сведения — две строки: где и к какому сроку; когда опубликована и сколько предложений. */}
+                <span className="flex flex-col text-sub text-muted">
+                  <span>{card.lines[0]}</span>
+                  {card.lines[1] && <span>{card.lines[1]}</span>}
+                </span>
               </span>
             }
           />

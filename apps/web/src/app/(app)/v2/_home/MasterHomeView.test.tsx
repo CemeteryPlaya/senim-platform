@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
-import { count, html } from "@/kit/test-utils";
+import { count, html, text } from "@/kit/test-utils";
 import type { DealListItem } from "@/modules/deal-core";
 import type { IncomingListItem } from "@/modules/requests";
 import type { Device } from "@/platform/device";
@@ -83,12 +83,32 @@ describe.each(["mobile", "desktop"] as const)("главная мастера (%s
 
   it("сводка: число новых, в работе и сумма за месяц; сумм покупателя нет", () => {
     const out = render(SCREENS[0]!.data, device);
+    // Крупные суммы (сводка, герой) — Money large: знак «₸» отдельным <span>, поэтому сверяем видимый текст.
+    const shown = text(<MasterHomeView data={SCREENS[0]!.data} name="Ерлан" device={device} />);
     expect(out).toContain(t.stats.earned);
-    expect(out).toContain(formatMoney(8_000_000n));
+    expect(shown).toContain(formatMoney(8_000_000n));
     expect(out).toContain(ru.app.master.deal.line.protected);
     // 122 400 ₸-подобная сумма «в банке» (с защитой покупателя) мастеру не показывается: только его «вы получите».
-    expect(out).not.toContain(formatMoney(122_400_000n));
-    expect(out).toContain(formatMoney(115_200_000n));
+    expect(shown).not.toContain(formatMoney(122_400_000n));
+    expect(shown).toContain(formatMoney(115_200_000n));
+  });
+
+  it("сделка из «Сейчас» — карточкой-героем: название ссылкой, «вы получите» крупно, «Сейчас» внутри; второй раз карточкой не повторяется", () => {
+    const out = render(SCREENS[0]!.data, device);
+    expect(count(out, 'data-card="hero"')).toBe(1);
+    expect(count(out, ">Кухня угловая</a>")).toBe(1);
+    expect(out).toContain("text-display-amount");
+    expect(out).toContain(`>${t.now.start.title}</h2>`);
+    // Статус называет «Сейчас»: плашки статуса в герое нет (не повторяем заголовок, плашку и кнопку).
+    expect(out).not.toContain("data-status-chip");
+  });
+
+  it("компьютер — одна колонка 760 px по центру, без правой колонки; главная кнопка — внутри героя", () => {
+    const out = render(SCREENS[0]!.data, "desktop");
+    expect(out).toMatch(/^<div class="[^"]*desktop:max-w-home/);
+    expect(out).not.toContain("grid-cols-split");
+    const hero = out.slice(out.indexOf('data-card="hero"'), out.indexOf("</section>", out.indexOf('data-card="hero"')));
+    expect(hero).toContain("data-primary-action");
   });
 
   it("новые заявки: строки-ссылки на заявку и «Все заявки»", () => {

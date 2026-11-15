@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { count, hasClass, html } from "@/kit/test-utils";
+import { count, html, text } from "@/kit/test-utils";
 import type { DealListItem } from "@/modules/deal-core";
 import type { Device } from "@/platform/device";
 import { BuyerHomeView } from "./BuyerHomeView";
@@ -33,6 +33,11 @@ const listItem = (over: Partial<DealListItem> = {}): DealListItem => ({
 
 function render(input: HomeInput, device: Device, deal: DealListItem | null = null, name: string | null = "Иван") {
   return html(<BuyerHomeView view={buyerHome(input)} name={name} deal={deal} device={device} />);
+}
+
+/** Видимый текст (крупная сумма героя — Money large: знак «₸» отдельным <span>), пробелы сведены. */
+function shown(input: HomeInput, device: Device, deal: DealListItem | null = null) {
+  return text(<BuyerHomeView view={buyerHome(input)} name="Иван" deal={deal} device={device} />).replace(/\s+/g, " ");
 }
 
 const primaryOf = (out: string) => out.match(/<a [^>]*data-primary-action[^>]*>([^<]*)<\/a>/);
@@ -94,39 +99,57 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
     expect(out).toContain(ru.app.kit.help.title);
   });
 
-  it("карточка сделки: название ссылкой, ход, сумма под защитой из данных; пометок «тестовый» нет", () => {
+  it("карточка-герой сделки: название ссылкой, ход, сумма под защитой из данных крупно; пометок «тестовый» нет", () => {
     const out = render({ deals: [dealInput()], requests: [] }, device, listItem());
+    expect(count(out, 'data-card="hero"')).toBe(1);
     expect(out).toContain(">Кухня угловая</a>");
     expect(out).toContain('href="/v2/deals/d1"');
-    expect(out).toContain(ru.app.deal.status.inWork);
+    // Статус называет «Сейчас» (заголовок карточки), плашки в герое нет — заголовок, плашка и кнопка не повторяют одно и то же.
+    expect(out).toContain(`>${t.now.waiting.waitReady}</h2>`);
+    expect(out).not.toContain("data-status-chip");
     // Компактно: одна строка хода и полоса, а не пять шагов; полный ход — на экране сделки.
     expect(out).toContain(ru.app.deal.stepCaption(2, 5, ru.app.deal.steps[1]));
     expect(out).toContain('role="progressbar"');
     expect(out).not.toContain("<ol");
-    expect(out).toContain("bg-accent-soft text-accent");
-    expect(out.replace(/\s+/g, " ")).toContain("1 224 000 ₸");
+    // Сумма — герой карточки: 40 px, знак «₸» меньше (Money large).
+    expect(out).toContain("text-display-amount");
+    expect(out).toContain("data-currency");
+    expect(shown({ deals: [dealInput()], requests: [] }, device, listItem())).toContain("1 224 000 ₸");
     expect(out).toContain(ru.common.home.client.inBank);
     expect(out).not.toMatch(/тестов|демо|комисси|эскроу|платформ/i);
   });
 
   it("сумма: до оплаты «к оплате», после — «в банке под защитой»; оба раза из журнала", () => {
-    const wait = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, device, listItem({ status: "CREATED", money: { kind: "awaiting", payment: "none", bankBalanceTiyn: 0n, isTest: false } }));
-    expect(wait.replace(/\s+/g, " ")).toMatch(/1 224 000 ₸<\/span> к оплате/);
-    const paid = render({ deals: [dealInput()], requests: [] }, device, listItem());
-    expect(paid.replace(/\s+/g, " ")).toMatch(/1 224 000 ₸<\/span> в банке под защитой/);
+    const wait = shown({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, device, listItem({ status: "CREATED", money: { kind: "awaiting", payment: "none", bankBalanceTiyn: 0n, isTest: false } }));
+    expect(wait).toContain("1 224 000 ₸ к оплате");
+    const paid = shown({ deals: [dealInput()], requests: [] }, device, listItem());
+    expect(paid).toContain("1 224 000 ₸ в банке под защитой");
   });
 
-  it("плашка: сделка ждёт моей оплаты — «внимание», не зелёная; оплаченная — зелёная", () => {
+  it("ждёт моей оплаты: «Сейчас» — «Оплатите заказ», одна кнопка; без повтора статуса плашкой", () => {
     const pay = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, device, listItem({ status: "CREATED" }));
-    expect(pay).toContain("text-warn");
-    expect(pay).not.toContain("bg-accent-soft text-accent");
+    expect(pay).toContain(`>${t.now.pay.title}</h2>`);
+    expect(count(pay, "data-primary-action")).toBe(1);
+    expect(count(pay, t.now.pay.title)).toBe(1);
+    expect(pay).not.toContain("data-status-chip");
   });
 
-  it("спор: вместо шкалы строка, плашка «Идёт спор», главной кнопки нет", () => {
+  it("спор: вместо шкалы строка, «Сейчас» — «Открыт спор», главной кнопки нет", () => {
     const out = render({ deals: [dealInput({ hasOpenDispute: true, next: { action: "waitDispute", mine: false } })], requests: [] }, device, listItem({ hasOpenDispute: true }));
     expect(out).toContain(t.deal.stopped.dispute);
-    expect(out).toContain(ru.app.deal.status.dispute);
+    expect(out).toContain(`>${t.now.dispute.title}</h2>`);
     expect(count(out, "data-primary-action")).toBe(0);
+  });
+
+  it("обложка героя — фото отчёта, если передано; на нём шаг на стекле поверх затемнения; без фото — без обложки", () => {
+    const cover = { src: "/stand-photos/kitchen.webp", alt: "Корпуса собраны: фото 1" };
+    const out = html(<BuyerHomeView view={buyerHome({ deals: [dealInput()], requests: [] })} name="Иван" deal={listItem()} cover={cover} device={device} />);
+    expect(out).toContain('alt="Корпуса собраны: фото 1"');
+    expect(out).toContain("scrim-photo");
+    expect(out).toMatch(/glass-clear[^>]*>Шаг 2 из 5/);
+    // Шаг — один раз: на фото, а не ещё строкой под ним.
+    expect(count(out, ru.app.deal.stepCaption(2, 5, ru.app.deal.steps[1]))).toBe(1);
+    expect(render({ deals: [dealInput()], requests: [] }, device, listItem())).not.toContain("<img");
   });
 
   it("заявка со сделкой (CONTRACTING) в «Мои заявки» не повторяется", () => {
@@ -178,7 +201,9 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
       listItem(),
     );
     expect(out).toContain(ru.requests.requestTitle(4, "Шкаф"));
-    expect(out).toContain(ru.app.requests.state.choose(3));
+    // Плашка в строке — коротко, число предложений — рядом с ней.
+    expect(out).toContain(`>${ru.app.requests.state.chooseShort}<`);
+    expect(out).toContain(ru.app.requests.list.offers(3));
     expect(out).toContain(`>${ru.app.requests.state.draft}<`);
     expect(out).not.toMatch(/отклик/i);
     expect(out).toContain('href="/v2/requests/new?draft=dr"');
@@ -212,13 +237,13 @@ describe("главная покупателя: устройства", () => {
     expect(out.indexOf("data-action-dock")).toBeLessThan(out.indexOf(ru.app.kit.help.title));
   });
 
-  it("Split: слева процесс, справа «Помощь»", () => {
-    const out = render({ deals: [dealInput()], requests: [] }, "desktop", listItem());
-    const grid = out.match(/<div [^>]*desktop:grid-cols-split[^>]*>/)?.[0] ?? "";
-    expect(hasClass(grid, "desktop:grid")).toBe(true);
-    const aside = out.slice(out.lastIndexOf('<div class="min-w-0">'));
-    expect(aside).toContain(ru.app.kit.help.title);
-    expect(aside).not.toContain(t.deal.section);
+  it("компьютер — одна колонка 760 px по центру: без пустой правой колонки, «Помощь» — внизу, кнопка — внутри героя", () => {
+    const out = render({ deals: [dealInput({ status: "CREATED", paid: false, next: { action: "pay", mine: true } })], requests: [] }, "desktop", listItem({ status: "CREATED" }));
+    expect(out).toMatch(/^<div class="[^"]*desktop:max-w-home/);
+    expect(out).not.toContain("grid-cols-split");
+    expect(out.indexOf(ru.app.kit.help.title)).toBeGreaterThan(out.indexOf('data-card="hero"'));
+    const hero = out.slice(out.indexOf('data-card="hero"'), out.indexOf("</section>", out.indexOf('data-card="hero"')));
+    expect(hero).toContain("data-primary-action");
   });
 
   it("разделы через 24/32 px, карточки группы — через 12 px", () => {

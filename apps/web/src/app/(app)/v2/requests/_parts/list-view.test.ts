@@ -55,7 +55,10 @@ describe("«Мои заявки»", () => {
     expect(untitled.title).toBe(t.draftTitle);
     expect(sent).toMatchObject({ href: "/v2/requests/s", status: st.waiting, tone: "neutral" });
     // Число предложений — только в статусе, не второй раз в строке под ним.
-    expect(sent.meta).toBe(`${t.direct} · ${t.sentOn("12 ноября 2026")}`);
+    // Дата короткая: год текущий — без года, иначе с годом.
+    const at = (now: string, over: Partial<MyRequestRow>) => requestListView([row(over)], undefined, new Map(), new Date(now)).cards[0]?.meta;
+    expect(at("2026-11-15T10:00:00Z", { id: "s", mode: "DIRECT" })).toBe(`${t.direct} · ${t.sentOn("12 нояб")}`);
+    expect(at("2027-01-15T10:00:00Z", { id: "s" })).toBe(t.sentOn("12 нояб 2026"));
   });
 
   it("статус — общая requestState: только действующие предложения; со сделкой — «Идёт сделка», не «Договор»", () => {
@@ -77,5 +80,8 @@ describe("«Мои заявки»", () => {
       ["done", st.done, "accent"],
     ]);
     expect(Object.values(t.groups).join(" ")).not.toMatch(/оговор/);
+    // В строке — короткая плашка, число предложений — рядом.
+    expect(cards[0]).toMatchObject({ chip: st.chooseShort, note: t.offers(2) });
+    expect(cards[1]).toMatchObject({ chip: st.waiting, note: null });
   });
 });

@@ -71,9 +71,12 @@ describe("карточка входящей заявки", () => {
     expect(card.meta[0]).toContain("Астана");
     expect(card.meta).toContain(t.card.offers(2));
     expect(card.meta.some((m) => m.startsWith("Нужно к"))).toBe(true);
+    // Двумя строками: где и к какому сроку (короткая дата) — когда и сколько предложений.
+    expect(card.lines[0]).toMatch(/^Астана.* · Нужно к \d+ \S+$/);
+    expect(card.lines[1]).toContain(t.card.offers(2));
   });
 
   it("с моим предложением метки «Новая» нет", () => {
-    expect(incomingCard(row({ myOfferStatus: "ACCEPTED" }), NOW).badges.map((b) => b.text)).toEqual([t.card.myOffer.ACCEPTED]);
+    expect(incomingCard(row({ myOfferStatus: "ACCEPTED" }), NOW).badges.map((b) => b.text)).toEqual([t.card.myOfferShort.ACCEPTED]);
   });
 });

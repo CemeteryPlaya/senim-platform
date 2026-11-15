@@ -1,10 +1,12 @@
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, FirstSteps, NowNext, PageTitle, Section, Split, Stack, Stat, StatRow, TextLink, formatMoney, Money } from "@/kit";
+import { ActionDock, ButtonLink, FirstSteps, NowNext, PageTitle, Section, Stack, Stat, StatRow, TextLink, formatMoney, Money } from "@/kit";
 import type { DealListItem, NextStep } from "@/modules/deal-core";
 import type { IncomingListItem } from "@/modules/requests";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
+import { DealHero } from "../_parts/DealHero";
 import { DealSummaryCard } from "../_parts/DealSummaryCard";
+import type { DealCover } from "../_parts/deal-cover";
 import { dealChip } from "../_parts/deal-summary";
 import { IncomingRows } from "../executor/_parts/IncomingRows";
 import { incomingCard } from "../executor/_parts/incoming-view";
@@ -26,6 +28,8 @@ export type MasterHomeData = {
   fresh: IncomingListItem[];
   /** Числа сводки из модулей: новые заявки, сделки в работе, получено за месяц (журнал денег). */
   stats: { fresh: number; inWork: number; earnedTiyn: bigint };
+  /** Обложка карточки-героя — последнее фото отчёта сделки из «Сейчас»; `null` — без обложки. */
+  cover?: DealCover | null;
 };
 
 /** Содержимое карточки «Сейчас / Дальше» по выбору `masterHome`. */
@@ -86,17 +90,18 @@ function Summary({ stats }: { stats: MasterHomeData["stats"] }) {
     <StatRow label={t.stats.label}>
       <Stat label={t.stats.fresh} value={stats.fresh} />
       <Stat label={t.stats.inWork} value={stats.inWork} />
-      <Stat label={t.stats.earned} value={<Money tiyn={stats.earnedTiyn} />} compact />
+      <Stat label={t.stats.earned} value={<Money tiyn={stats.earnedTiyn} large />} compact />
     </StatRow>
   );
 }
 
-function Deals({ data }: { data: MasterHomeData }) {
-  if (data.deals.length === 0) return null;
+/** Остальные идущие сделки (сделка из «Сейчас» — в герое выше и здесь не повторяется). */
+function Deals({ deals, more }: { deals: MasterHomeData["deals"]; more: number }) {
+  if (deals.length === 0) return more > 0 ? <TextLink href={to("/deals")}>{t.deals.all}</TextLink> : null;
   return (
     <Section title={t.deals.section}>
       <Stack>
-        {data.deals.map(({ item, next, consentMissing }) => (
+        {deals.map(({ item, next, consentMissing }) => (
           <DealSummaryCard
             key={item.id}
             deal={item}
@@ -106,7 +111,7 @@ function Deals({ data }: { data: MasterHomeData }) {
           />
         ))}
       </Stack>
-      {data.moreDeals > 0 && <TextLink href={to("/deals")}>{t.deals.all}</TextLink>}
+      {more > 0 && <TextLink href={to("/deals")}>{t.deals.all}</TextLink>}
     </Section>
   );
 }
@@ -122,8 +127,10 @@ function FreshRequests({ fresh }: { fresh: IncomingListItem[] }) {
 }
 
 /**
- * Показ главной мастера по готовому выбору. Телефон — одна колонка: «Сейчас», сводка, сделки, новые заявки, главное
- * действие в доке. Компьютер — `Split`: слева «Сейчас» с действием и сделки, справа сводка и новые заявки.
+ * Показ главной мастера по готовому выбору. Одна колонка на обоих устройствах (компьютер — 760 px по центру, разбор 3.9):
+ * «Сейчас» — карточкой-героем, когда речь о сделке (обложка из отчёта, «Вы получите…», ход, кнопка внутри на компьютере),
+ * иначе «Сейчас / Дальше» с кнопкой внутри на компьютере; затем сводка, остальные сделки, новые заявки. Телефон — главное
+ * действие в доке в конце экрана.
  */
 export function MasterHomeView({ data, name, device }: { data: MasterHomeData; name: string | null; device: Device }) {
   const { view } = data;
@@ -133,12 +140,22 @@ export function MasterHomeView({ data, name, device }: { data: MasterHomeData; n
       <ButtonLink href={view.primary.href}>{PRIMARY_LABEL[view.primary.kind]}</ButtonLink>
     </ActionDock>
   );
+  // Компьютер: кнопка внутри карточки «Сейчас». Телефон: в доке последним элементом экрана.
+  const inCard = device === "desktop" ? action : null;
+  const secondary = view.secondary && <TextLink href={view.secondary.href}>{secondaryLabel(view.now.kind)}</TextLink>;
+  // Герой — сделка, о которой «Сейчас» (она первая в блоке сделок); остальные — карточками ниже.
+  const heroDeal = view.now.deal ? data.deals.find((d) => d.item.id === view.now.deal?.id) : undefined;
+  const rest = heroDeal ? data.deals.filter((d) => d !== heroDeal) : data.deals;
   const now = (
     <Stack>
-      <NowNext now={{ title: text.title, ...(text.body ? { body: text.body } : {}) }} {...(text.next ? { next: text.next } : {})} />
-      {/* Компьютер: действие сразу под «Сейчас». Телефон: в доке в конце экрана (ниже). */}
-      {device === "desktop" && action}
-      {view.secondary && <TextLink href={view.secondary.href}>{secondaryLabel(view.now.kind)}</TextLink>}
+      {heroDeal ? (
+        <DealHero deal={heroDeal.item} side="EXECUTOR" cover={data.cover ?? null} now={text} action={inCard} link={secondary} progressLabel={t.deals.progressLabel} />
+      ) : (
+        <>
+          <NowNext now={{ title: text.title, ...(text.body ? { body: text.body } : {}) }} {...(text.next ? { next: text.next } : {})} action={inCard} />
+          {secondary}
+        </>
+      )}
       {data.firstSteps && (
         <FirstSteps
           steps={[
@@ -151,37 +168,14 @@ export function MasterHomeView({ data, name, device }: { data: MasterHomeData; n
       )}
     </Stack>
   );
-  const title = <PageTitle title={t.title(name)} />;
-
-  if (device === "desktop") {
-    return (
-      <Stack gap="section">
-        {title}
-        <Split
-          main={
-            <Stack gap="section">
-              {now}
-              <Deals data={data} />
-            </Stack>
-          }
-          aside={
-            <Stack gap="section">
-              <Summary stats={data.stats} />
-              <FreshRequests fresh={data.fresh} />
-            </Stack>
-          }
-        />
-      </Stack>
-    );
-  }
   return (
-    <Stack gap="section">
-      {title}
+    <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
+      <PageTitle title={t.title(name)} />
       {now}
       <Summary stats={data.stats} />
-      <Deals data={data} />
+      <Deals deals={rest} more={data.moreDeals} />
       <FreshRequests fresh={data.fresh} />
-      {action}
+      {device === "mobile" && action}
     </Stack>
   );
 }

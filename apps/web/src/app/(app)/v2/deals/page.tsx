@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
-import { HelpBlock, PageTitle, Split, Stack } from "@/kit";
+import { HelpBlock, PageTitle, Stack } from "@/kit";
 import { listDeals, nextStepsOf, type NextStep } from "@/modules/deal-core";
 import { getDevice } from "@/platform/device";
 import { logger } from "@/platform/logger";
@@ -29,8 +29,8 @@ const OTHER: Record<DealSide, DealSide> = { CLIENT: "EXECUTOR", EXECUTOR: "CLIEN
  * «Сделки» стороны в активной роли (`requireParty`): группы чипами («Идут» / «Завершены»), карточки-ссылки (название,
  * статус, ход, деньги из журнала по стороне). Сделки другой роли сюда не попадают: если они есть и роль выдана, — строка-ссылка
  * на переключение роли. Пусто — обучающий экран с одним действием стороны (покупателю — «Заказать мебель», мастеру —
- * «Открыть заявки»). Мастер без одобрения и без сделок — экран статуса проверки, а не пустой список. Телефон — одна колонка;
- * компьютер — список слева, «Помощь» справа.
+ * «Открыть заявки»). Мастер без одобрения и без сделок — экран статуса проверки, а не пустой список. Одна колонка на обоих
+ * устройствах (компьютер — 760 px по центру), «Помощь» — под списком.
  */
 export default async function DealsPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -60,17 +60,12 @@ export default async function DealsPage({ searchParams }: Props) {
   const help = <HelpBlock items={dealHelpItems(side)} supportEmail={brand.support.email} />;
   const list = <DealList view={view} otherRole={otherRole} side={side} />;
 
+  // Одна колонка на обоих устройствах (компьютер — 760 px по центру): «Помощь» — под списком, а не одна в правой колонке.
   return (
-    <Stack gap="section">
+    <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
       <PageTitle title={t.title} />
-      {device === "desktop" ? (
-        <Split main={list} aside={help} />
-      ) : (
-        <>
-          {list}
-          {help}
-        </>
-      )}
+      {list}
+      {help}
     </Stack>
   );
 }

@@ -33,13 +33,16 @@ export type DesktopShellProps = {
  * кнопка принадлежит экрану), колокольчик и аватар с меню. Гостю справа — «Войти» такой же тихой кнопкой (на экранах входа её нет: человек уже там).
  * Сосредоточенная оболочка (`nav.focus`, первые шаги после входа): слева только название, справа только «Выйти»
  * (вторичная кнопка), без разделов, действия, колокольчика и аватара.
- * Содержимое по центру, до 1100 px. Брейкпоинтов нет: в узком окне оболочка не становится телефонной. Когда строка
- * не помещается (крупный шрифт, узкое окно), правая группа переходит на вторую строку у правого края, разделы
- * переносятся — шапка растёт, ничего не обрезается и не наезжает.
+ * Содержимое по центру, до 1100 px. Брейкпоинтов нет: в узком окне оболочка не становится телефонной. Узкое окно (меньше
+ * 64rem): шапка и содержимое не уже 64rem (`min-w-shell`), разделы меню не переносятся — страница прокручивается вбок, а не
+ * сжимается. При крупном шрифте 64rem растут вместе с ним; если строка шапки всё же не помещается, правая группа переходит
+ * на вторую строку у правого края — шапка растёт, ничего не обрезается и не наезжает.
  */
 export function DesktopShell({ nav, user, theme = "system", unread = 0, unavailable = false, children }: DesktopShellProps) {
   return (
-    <div className="flex min-h-dvh flex-col">
+    // min-w-shell (64rem): в узком окне шапка и содержимое не сжимаются по слову в строке — страница прокручивается вбок
+    // (спека, раздел 5; разбор 3.9).
+    <div className="flex min-h-dvh min-w-shell flex-col">
       <SkipLink />
       <header data-top-bar className="glass-bar sticky top-0 z-20">
         <div className="mx-auto flex min-h-header w-full max-w-content flex-wrap items-center gap-x-6 px-6">
@@ -60,7 +63,7 @@ export function DesktopShell({ nav, user, theme = "system", unread = 0, unavaila
           </div>
         </div>
       </header>
-      <main id={MAIN_ID} tabIndex={-1} className="mx-auto w-full max-w-content flex-1 px-6 pt-8 pb-12 outline-none">
+      <main id={MAIN_ID} tabIndex={-1} className="mx-auto w-full max-w-content flex-1 px-6 pt-12 pb-12 outline-none">
         {unavailable && <UnavailableNotice />}
         {children}
       </main>
