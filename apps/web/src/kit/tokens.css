@@ -816,6 +816,21 @@
  */
 :where([data-mobile-shell]:has(> main [data-action-dock])) {
   --underlay-dock: calc(var(--spacing-control) + var(--spacing-stack-tight));
+  & > [data-bar-underlay] {
+    --underlay-solid: calc(var(--tab-bar-block, 0px) + var(--underlay-dock));
+    height: calc(var(--underlay-solid) + 1.5rem);
+    background: linear-gradient(
+      to top,
+      color-mix(in srgb, var(--role-canvas) 72%, transparent) 0%,
+      var(--role-canvas) max(0px, calc(var(--tab-bar-block, 0px) - 1rem)),
+      var(--role-canvas) var(--underlay-solid),
+      color-mix(in srgb, var(--role-canvas) 55%, transparent) calc(var(--underlay-solid) + 0.75rem),
+      transparent 100%
+    );
+    @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+      background: linear-gradient(to top, var(--role-canvas) calc(100% - 1rem), transparent);
+    }
+  }
 }
 
 /*
@@ -847,21 +862,6 @@
   bottom: calc(var(--spacing-bar-inset) + env(safe-area-inset-bottom) + var(--tab-bar-space, 0px));
   /*
    * В конце страницы sticky отпускает док на нижний край содержимого, а под ним ещё нижнее поле колонки (safe-block).
-  & > [data-bar-underlay] {
-    --underlay-solid: calc(var(--tab-bar-block, 0px) + var(--underlay-dock));
-    height: calc(var(--underlay-solid) + 1.5rem);
-    background: linear-gradient(
-      to top,
-      color-mix(in srgb, var(--role-canvas) 72%, transparent) 0%,
-      var(--role-canvas) max(0px, calc(var(--tab-bar-block, 0px) - 1rem)),
-      var(--role-canvas) var(--underlay-solid),
-      color-mix(in srgb, var(--role-canvas) 55%, transparent) calc(var(--underlay-solid) + 0.75rem),
-      transparent 100%
-    );
-    @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-      background: linear-gradient(to top, var(--role-canvas) calc(100% - 1rem), transparent);
-    }
-  }
    * Отрицательное поле (разница прилипшего и естественного положения) опускает док на то же место, где он стоял
    * прилипшим: зазор до панели вкладок остаётся 8px, без двойного отступа.
    */
