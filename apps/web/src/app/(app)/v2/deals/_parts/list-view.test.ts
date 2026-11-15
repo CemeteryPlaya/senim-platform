@@ -60,7 +60,7 @@ describe("dealListView", () => {
   it("ждём другую сторону — плашка по шагу; оплачено — «в банке под защитой»", () => {
     const nexts = new Map<string, NextStep>([["b", { action: "waitReady", mine: false }]]);
     const [card] = dealListView([deal("b", "IN_PROGRESS")], nexts, undefined).cards;
-    expect(card).toMatchObject({ chip: { text: ru.app.deal.status.inWork, tone: "accent" }, money: { amountTiyn: 102_000_00n, label: ru.app.deal.line.inBank } });
+    expect(card).toMatchObject({ chip: { text: ru.app.deal.status.inWork, tone: "neutral" }, money: { amountTiyn: 102_000_00n, label: ru.app.deal.line.inBank } });
   });
 
   it("спор — плашка «Идёт спор», ход остановлен", () => {
