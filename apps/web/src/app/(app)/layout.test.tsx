@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
+import { PageTitle } from "@/kit";
 import { TOKENS } from "@/kit/tokens";
 import { consentDocument } from "@/modules/identity";
 
@@ -71,7 +72,17 @@ const done = (role: ShellUser["role"], over: Partial<ShellUser> = {}): ShellUser
 const { default: AppLayout, generateViewport, metadata } = await import("./layout");
 
 async function render(): Promise<string> {
-  return renderToStaticMarkup(await AppLayout({ children: <p>page-body</p> }));
+  // Колокольчик телефона стоит в строке заголовка экрана (PageTitle): страница — заголовок и текст.
+  return renderToStaticMarkup(
+    await AppLayout({
+      children: (
+        <>
+          <PageTitle title="Экран" />
+          <p>page-body</p>
+        </>
+      ),
+    }),
+  );
 }
 const htmlTag = (out: string): string => {
   const at = out.indexOf("<html");
@@ -171,12 +182,12 @@ describe("счётчик уведомлений", () => {
     expect(h.unreadCalls).toHaveLength(1);
   });
 
-  it("телефон: на корневом экране вкладки — верхняя строка с колокольчиком, на вложенном — нет", async () => {
+  it("телефон: на корневом экране вкладки — колокольчик в строке заголовка, на вложенном — нет", async () => {
     h.shell = { user: done("CLIENT"), unavailable: false };
     h.pathname = "/v2/deals";
     expect(await render()).toContain(`${ru.app.shell.notifications}, 4 непрочитанных`);
     h.pathname = "/v2/deals/7";
-    expect(await render()).not.toContain("data-top-strip");
+    expect(await render()).not.toContain('href="/v2/notifications"');
   });
 
   it.each(["mobile", "desktop"] as const)("%s: гостю и в сосредоточенной оболочке колокольчика нет и запроса нет", async (device) => {

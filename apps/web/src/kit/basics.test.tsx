@@ -564,3 +564,14 @@ describe("PageTitle: перенос строк", () => {
     expect(html(<PageTitle title="Деньги в банке" />)).toMatch(/<h1 class="(?:[^"]*\s)?text-balance(?:\s[^"]*)?"/);
   });
 });
+
+  it("trailing — в строке h1 справа; при нехватке места уходит под заголовок (flex-wrap), слово не рвётся (без min-w-0)", () => {
+    const out = html(<PageTitle title="Кухня" back={{ href: "/v2/deals", label: "Сделки" }} trailing={<span>КНОПКА</span>} />);
+    const row = out.slice(out.lastIndexOf("<div", out.indexOf("<h1")), out.indexOf("КНОПКА"));
+    expect(row).toContain("flex-wrap");
+    expect(out.indexOf("КНОПКА")).toBeGreaterThan(out.indexOf("</h1>"));
+    expect(out.indexOf("КНОПКА")).toBeLessThan(out.indexOf("</header>"));
+    const h1 = (out.match(/<h1 class="([^"]*)"/)?.[1] ?? "").split(" ");
+    expect(h1).toContain("max-w-full");
+    expect(h1).not.toContain("min-w-0");
+  });

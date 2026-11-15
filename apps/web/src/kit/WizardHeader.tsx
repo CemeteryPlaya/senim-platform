@@ -1,6 +1,7 @@
 import { ru } from "@/i18n/ru";
 import { BackLink, type BackLinkProps } from "./BackLink";
 import { Progress } from "./Progress";
+import { TitleAction } from "./TitleAction";
 
 export type WizardHeaderProps = {
   step: number;
@@ -26,7 +27,11 @@ export function WizardHeader({ step, total, title, back, headingLevel = 1 }: Wiz
           <Progress value={current} max={total} label={t.progressLabel} />
         </>
       )}
-      <Heading className="mt-2 text-title text-ink">{title}</Heading>
+      {/* Действие оболочки (колокольчик корневого экрана вкладки) — справа в строке заголовка, как у PageTitle. */}
+      <div className="mt-2 flex flex-wrap items-start gap-x-3 gap-y-2">
+        <Heading className="max-w-full flex-1 text-title text-ink">{title}</Heading>
+        <TitleAction className="-my-1.5 ml-auto flex shrink-0 items-center gap-1" />
+      </div>
     </header>
   );
 }

@@ -55,19 +55,20 @@ test("вошедший на компьютере: тема переключае�
   await expect(html).not.toHaveAttribute("data-theme");
 });
 
-test("вошедший: колокольчик уведомлений — в шапке компьютера и в верхней строке корневого экрана на телефоне", async ({ page }, info) => {
+test("вошедший: колокольчик уведомлений — в шапке компьютера и в строке заголовка корневого экрана на телефоне", async ({ page }, info) => {
   await loginV2(page, freshPhone().typed);
   await passOnboarding(page);
   await expect(page).toHaveURL(/\/v2$/);
   const bell = page.getByRole("link", { name: new RegExp(`^${shell.notifications}`) });
   await expect(bell).toHaveCount(1);
   await expect(bell).toBeVisible();
-  const inside = info.project.name === "mobile" ? page.locator("[data-top-strip]") : page.locator("[data-top-bar]");
+  // Телефон: колокольчик — в шапке экрана (PageTitle) рядом с h1, без отдельной строки над заголовком.
+  const inside = info.project.name === "mobile" ? page.locator("main header").filter({ has: page.getByRole("heading", { level: 1 }) }) : page.locator("[data-top-bar]");
   await expect(inside.getByRole("link", { name: new RegExp(`^${shell.notifications}`) })).toBeVisible();
   await bell.click();
   await expect(page).toHaveURL(/\/v2\/notifications/);
-  // Вложенный экран: верхней строки с колокольчиком на телефоне нет.
-  if (info.project.name === "mobile") await expect(page.locator("[data-top-strip]")).toHaveCount(0);
+  // Вложенный экран: колокольчика на телефоне нет.
+  if (info.project.name === "mobile") await expect(page.getByRole("link", { name: new RegExp(`^${shell.notifications}`) })).toHaveCount(0);
 });
 
 test("вошедший на компьютере: тема переключается с клавиатуры (стрелки и Enter в меню профиля)", async ({ page }, info) => {

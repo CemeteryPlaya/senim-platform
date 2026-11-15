@@ -35,13 +35,13 @@ describe("на стекле — только ink и glass-secondary (вариа�
 });
 
 describe("меню, поповеры, тосты, шторка", () => {
-  it("Menu: «…» — круг 48 px; на телефоне на стекле, на компьютере без материала; список компьютера — glass-thick из кнопки", () => {
+  it("Menu: «…» — круг 48 px без стекла на обоих устройствах (строка заголовка в покое не плавает); список компьютера — glass-thick из кнопки", () => {
     const items = [{ label: "История денег", href: "/v2/money" }];
-    const mobile = html(<Menu label="Действия" items={items} device="mobile" />);
-    for (const cls of ["glass-regular", "rounded-full", "size-control"]) expect(hasClass(mobile, cls), cls).toBe(true);
-    const desktop = html(<Menu label="Действия" items={items} device="desktop" />);
-    expect(hasClass(desktop, "glass-regular")).toBe(false);
-    expect(hasClass(desktop, "hover:bg-fill")).toBe(true);
+    for (const device of ["mobile", "desktop"] as const) {
+      const out = html(<Menu label="Действия" items={items} device={device} />);
+      for (const cls of ["rounded-full", "size-control", "hover:bg-fill"]) expect(hasClass(out, cls), `${device} ${cls}`).toBe(true);
+      expect(hasClass(out, "glass-regular"), device).toBe(false);
+    }
     const code = source("Menu.tsx");
     expect(code).toMatch(/glass-thick[^"]*origin-\(--radix-dropdown-menu-content-transform-origin\)/);
     expect(code).toContain("presence(reduced, { scale: 0.96 })");

@@ -37,14 +37,11 @@ const ITEM_BASE = "flex w-full items-center text-left text-body no-underline";
 const toneClass = (tone: MenuItem["tone"]): string => (tone === "danger" ? "text-danger" : "text-ink");
 
 /**
- * Кнопка «три точки» — круг 48 px. Телефон: круглая кнопка на стекле `glass-regular` (разбор 3.4, п. 4: плавает в
- * верхней строке экрана над содержимым; не кладите её на другое стекло — например, в шапку переписки). Компьютер: без
- * материала, при наведении — заливка fill.
+ * Кнопка «три точки» — круг 48 px без своего материала на обоих устройствах, при наведении — заливка fill. Она стоит в
+ * строке заголовка (`PageTitle trailing`), которая в покое не плавает над содержимым: стекло без плавания — подделка
+ * (разбор 3.2), и одна кнопка не выглядит по-разному на телефоне и компьютере.
  */
-const TRIGGER: Record<Device, string> = {
-  mobile: "glass-regular",
-  desktop: "hover:bg-fill",
-};
+const TRIGGER = "hover:bg-fill";
 
 /**
  * Второстепенные действия экрана за кнопкой «три точки». Телефон — шторка со списком, компьютер — выпадающее меню
@@ -60,7 +57,7 @@ export function Menu({ label, items, device, triggerRef }: MenuProps) {
       ref={triggerRef}
       type="button"
       aria-label={label}
-      className={cn("inline-flex size-control min-h-control shrink-0 cursor-pointer items-center justify-center rounded-full text-ink pressable", TRIGGER[device])}
+      className={cn("inline-flex size-control min-h-control shrink-0 cursor-pointer items-center justify-center rounded-full text-ink pressable", TRIGGER)}
     >
       <Ellipsis aria-hidden className="size-6" strokeWidth={1.75} />
     </button>

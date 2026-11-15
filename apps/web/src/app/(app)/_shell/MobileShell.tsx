@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { LogoutButton } from "./LogoutButton";
 import type { AppNav } from "./nav";
-import { MobileTopBar } from "./MobileTopBar";
 import { MAIN_ID, SkipLink, UnavailableNotice } from "./ShellParts";
 import { TabBar } from "./TabBar";
+import { TitleBell } from "./TitleBell";
 
 export type MobileShellProps = {
   nav: AppNav;
@@ -22,7 +22,8 @@ export type MobileShellProps = {
  * строку состояния, вырез и полоску «домой». Если в области содержимого есть док главного действия (ActionDock), она — колонка на всю высоту экрана, а предки дока внутри неё (`dock-column`, раскладку других предков не перебивает) растянуты: док уходит к низу даже на коротком экране. Без дока область содержимого обычная. У роли без вкладок (оператор) панели нет. Под плавающими панелями — подложка
  * bar-underlay: «растворение» содержимого у нижнего края (scroll edge), а не плита: стекло панели и док без плиты видны над содержимым; рисуется
  * всегда, а видна (CSS) только при панели вкладок или доке на экране — у оператора и на первых шагах тоже есть док.
- * Корневые экраны вкладок вошедшего открывает верхняя строка с колокольчиком (MobileTopBar, счётчик `unread`).
+ * На корневых экранах вкладок вошедшего колокольчик (счётчик `unread`) стоит в строке заголовка экрана (TitleBell →
+ * PageTitle), без отдельной верхней строки.
  * Сосредоточенная оболочка (`nav.focus`, первые шаги после входа): вместо панели вкладок — узкая шапка с названием
  * продукта и «Выйти»; вкладок нет, док стоит у самого нижнего края (как у оператора).
  */
@@ -39,9 +40,14 @@ export function MobileShell({ nav, unavailable = false, unread = null, children 
         </header>
       )}
       <main id={MAIN_ID} tabIndex={-1} className={`mx-auto w-full max-w-column flex-1 safe-gutter outline-none dock-column ${nav.focus ? "safe-bottom pt-6" : "safe-block"}`}>
-        {unread !== null && !nav.focus && !nav.guest && <MobileTopBar items={nav.tabs} unread={unread} />}
         {unavailable && <UnavailableNotice />}
-        {children}
+        {unread !== null && !nav.focus && !nav.guest ? (
+          <TitleBell items={nav.tabs} unread={unread}>
+            {children}
+          </TitleBell>
+        ) : (
+          children
+        )}
       </main>
       {/* Подложка: ниже дока (z-10) и панели (z-20), выше содержимого; без вкладок и дока скрыта (bar-underlay). */}
       <div aria-hidden data-bar-underlay className="bar-underlay z-0" />

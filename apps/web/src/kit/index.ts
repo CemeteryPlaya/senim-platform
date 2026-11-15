@@ -16,6 +16,7 @@ export { List, ListItem, ListRow } from "./List";
 export type { ListRowProps } from "./List";
 export { PageTitle } from "./PageTitle";
 export type { PageTitleProps } from "./PageTitle";
+export { TitleActionProvider } from "./TitleAction";
 export { formatMoney, Money } from "./Money";
 export { PhotoSlot } from "./PhotoSlot";
 export type { PhotoRatio } from "./PhotoSlot";

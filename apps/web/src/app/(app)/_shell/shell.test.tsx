@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PageTitle } from "@/kit";
 import { count, hasClass, html } from "@/kit/test-utils";
 import { ru } from "@/i18n/ru";
 
@@ -497,51 +498,45 @@ describe("колокольчик: компьютер", () => {
   });
 });
 
-describe("MobileTopBar: колокольчик на корневых экранах вкладок", () => {
-  it.each(["/v2", "/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"])("%s: строка с колокольчиком справа", (path) => {
+describe("TitleBell: колокольчик в строке заголовка корневых экранов вкладок", () => {
+  const page = (
+    <>
+      <PageTitle title="Сделки" />
+      <p>x</p>
+    </>
+  );
+  /** Строка заголовка: от `<h1` до конца шапки экрана. */
+  const titleRow = (m: string) => m.slice(m.indexOf("<h1"), m.indexOf("</header>"));
+
+  it.each(["/v2", "/v2/requests", "/v2/deals", "/v2/chats", "/v2/profile"])("%s: колокольчик справа от h1, отдельной строки нет", (path) => {
     nav.pathname = path;
-    const m = html(
-      <MobileShell nav={clientNav} unread={2}>
-        x
-      </MobileShell>,
-    );
-    const strip = m.match(/<div [^>]*data-top-strip[^>]*>[\s\S]*?<\/div>/)?.[0] ?? "";
-    expect(hasClass(strip, "justify-end")).toBe(true);
-    expect(strip).toContain('href="/v2/notifications"');
-    expect(strip).toContain(`${ru.app.shell.notifications}, 2 непрочитанных`);
-    // Строка стоит в области содержимого, над самим содержимым.
-    expect(m.indexOf("data-top-strip")).toBeGreaterThan(m.indexOf('id="content"'));
-    expect(m.indexOf("data-top-strip")).toBeLessThan(m.indexOf(">x<"));
+    const m = html(<MobileShell nav={clientNav} unread={2}>{page}</MobileShell>);
+    const row = titleRow(m);
+    expect(row).toContain('href="/v2/notifications"');
+    expect(row).toContain(`${ru.app.shell.notifications}, 2 непрочитанных`);
+    expect(count(m, 'href="/v2/notifications"')).toBe(1);
+    // Колокольчик — внутри шапки экрана, после заголовка, а не строкой над ним.
+    expect(m.indexOf('href="/v2/notifications"')).toBeGreaterThan(m.indexOf("<h1"));
   });
 
-  it.each(["/v2/deals/7", "/v2/requests/new", "/v2/profile/data", "/v2/notifications", null])("%s: на вложенном экране и без адреса строки нет", (path) => {
+  it.each(["/v2/deals/7", "/v2/requests/new", "/v2/profile/data", "/v2/notifications", null])("%s: на вложенном экране и без адреса колокольчика нет", (path) => {
     nav.pathname = path;
-    expect(
-      html(
-        <MobileShell nav={clientNav} unread={2}>
-          x
-        </MobileShell>,
-      ),
-    ).not.toContain("data-top-strip");
+    expect(html(<MobileShell nav={clientNav} unread={2}>{page}</MobileShell>)).not.toContain('href="/v2/notifications"');
   });
 
-  it("гость и сосредоточенная оболочка: строки нет, места не занимается", () => {
+  it("гость и сосредоточенная оболочка: колокольчика нет", () => {
     nav.pathname = "/v2";
-    expect(html(<MobileShell nav={guestNav}>x</MobileShell>)).not.toContain("data-top-strip");
-    expect(html(<MobileShell nav={guestNav} unread={0}>x</MobileShell>)).not.toContain("data-top-strip");
-    expect(html(<MobileShell nav={focusNav} unread={0}>x</MobileShell>)).not.toContain("data-top-strip");
-    expect(html(<MobileShell nav={clientNav}>x</MobileShell>)).not.toContain("data-top-strip");
+    expect(html(<MobileShell nav={guestNav}>{page}</MobileShell>)).not.toContain('href="/v2/notifications"');
+    expect(html(<MobileShell nav={guestNav} unread={0}>{page}</MobileShell>)).not.toContain('href="/v2/notifications"');
+    expect(html(<MobileShell nav={focusNav} unread={0}>{page}</MobileShell>)).not.toContain('href="/v2/notifications"');
+    expect(html(<MobileShell nav={clientNav}>{page}</MobileShell>)).not.toContain('href="/v2/notifications"');
   });
 
-  it("колокольчик телефона — круглая кнопка 48 px на стекле; в шапке компьютера (она уже стекло) — без своего материала", () => {
+  it("колокольчик — круглая кнопка 48 px без стекла: на телефоне строка заголовка в покое не плавает, в шапке компьютера шапка уже стекло", () => {
     nav.pathname = "/v2";
-    const m = html(
-      <MobileShell nav={clientNav} unread={2}>
-        x
-      </MobileShell>,
-    );
-    const bell = tagWith(m, 'href="/v2/notifications"');
-    for (const cls of ["glass-regular", "rounded-full", "size-control"]) expect(hasClass(bell, cls), cls).toBe(true);
+    const bell = tagWith(html(<MobileShell nav={clientNav} unread={2}>{page}</MobileShell>), 'href="/v2/notifications"');
+    for (const cls of ["rounded-full", "size-control", "hover:bg-fill"]) expect(hasClass(bell, cls), cls).toBe(true);
+    expect(hasClass(bell, "glass-regular")).toBe(false);
     const d = html(
       <DesktopShell nav={clientNav} user={client} unread={2}>
         x
@@ -552,14 +547,10 @@ describe("MobileTopBar: колокольчик на корневых экран�
     expect(hasClass(deskBell, "hover:bg-fill")).toBe(true);
   });
 
-  it("без непрочитанных строка есть, бейджа нет", () => {
+  it("без непрочитанных колокольчик есть, бейджа нет", () => {
     nav.pathname = "/v2";
-    const m = html(
-      <MobileShell nav={clientNav} unread={0}>
-        x
-      </MobileShell>,
-    );
-    expect(m).toContain("data-top-strip");
+    const m = html(<MobileShell nav={clientNav} unread={0}>{page}</MobileShell>);
+    expect(m).toContain('href="/v2/notifications"');
     expect(m).not.toMatch(/<span aria-hidden="true"[^>]*>0<\/span>/);
   });
 });
