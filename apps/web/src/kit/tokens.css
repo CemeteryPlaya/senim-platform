@@ -1,6 +1,8 @@
 /*
- * Дизайн-токены нового интерфейса (v2): «спокойный, как Apple», светлая и тёмная тема.
- * Источник — спека редизайна, раздел 4, и docs/design/v3/rules.md.
+ * Дизайн-токены нового интерфейса (v2): тёплые нейтральные, крупная типографика, Liquid Glass в слое навигации;
+ * светлая и тёмная тема. Источник — спека редизайна, раздел 18 (пересмотр вида 15.11.2026), и разбор
+ * docs/design/v3/review-2026-11-15-critique.md (3.2 палитра, 3.3 текст, 3.4 стекло, 3.6 формы и тени); правила —
+ * docs/design/v3/rules.md.
  *
  * Цвета задаются ролями. Значения ролей — переменные --role-* в трёх блоках: светлая тема (:root),
  * тёмная по выбору ([data-theme="dark"] на <html>) и тёмная по системе (prefers-color-scheme, если
@@ -8,7 +10,8 @@
  * --role-* через @theme inline, поэтому одна разметка работает в обеих темах.
  * data-theme ставится только на <html> (layout v2): светлая тема внутри тёмной (data-theme="light" на поддереве)
  * не поддерживается — светлые значения висят на :root, и поддерево их заново не получает.
- * Те же hex — в tokens.ts; равенство держит tokens.test.ts, контраст пар — contrast.test.ts.
+ * Те же hex — в tokens.ts (TOKENS, GLASS); равенство держит tokens.test.ts, контраст пар — contrast.test.ts.
+ * Сырые цвета здесь — только hex из tokens.ts; полупрозрачные — color-mix от роли или hex оттуда же.
  *
  * Стандартные шкалы Tailwind обнулены (`--color-*: initial` и т. д.): случайный `bg-blue-500`,
  * `font-bold` или `rounded-xl` не собирается. Размеры — в rem, растут с системным шрифтом.
@@ -25,40 +28,80 @@
   --drop-shadow-*: initial;
   --text-shadow-*: initial;
 
-  /* Шрифт: next/font кладёт --font-inter на <html> (src/kit/fonts.ts); запасной — системный. */
+  /*
+   * Шрифт: next/font кладёт --font-inter на <html> (src/kit/fonts.ts, Inter с осью оптического размера opsz 14–32:
+   * крупные заголовки рисуются начертанием Display — уже очко, плотнее); запасной — системный.
+   */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
-  /* Начертания: только 400, 500, 600. */
+  /* Начертания: только 400, 500, 600. Вес даёт крупный размер и плотный трекинг, а не «жирность». */
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
 
-  /* Текст. Трекинг — по размеру: у основного 0, у заголовков отрицательный. */
-  --text-body: 1.0625rem; /* 17px — основной */
-  --text-body--line-height: 1.45;
-  --text-sub: 0.9375rem; /* 15px — вторичный */
-  --text-sub--line-height: 1.4;
-  --text-small: 0.8125rem; /* 13px — только несущественное: подпись вкладки, метка над значением */
-  --text-small--line-height: 1.35;
-  --text-card: 1.0625rem; /* 17px / 600 — заголовок карточки */
-  --text-card--line-height: 1.35;
-  --text-card--font-weight: 600;
-  --text-section: 1.25rem; /* 20px — заголовок раздела */
-  --text-section--line-height: 1.25;
-  --text-section--letter-spacing: -0.02em;
-  --text-section--font-weight: 600;
-  --text-title: 1.75rem; /* 28px на телефоне, 32px на компьютере (см. data-device ниже) — заголовок экрана */
+  /*
+   * Шкала текста (разбор 3.3). Трекинг — по размеру (динамические метрики Inter: −0,0223 + 0,185·e^(−0,1745·size) em),
+   * заголовкам — ещё немного сжатия. Утилита text-<имя> ставит размер, межстрочный, трекинг и (где указан) вес.
+   */
+  --text-display-xl: 4rem; /* 64px / 600 — только компьютер (desktop:text-display-xl): заголовок лендинга */
+  --text-display-xl--line-height: 1.03;
+  --text-display-xl--letter-spacing: -0.035em;
+  --text-display-xl--font-weight: 600;
+  --text-display: 2.5rem; /* 40px / 600 — заголовок лендинга на телефоне */
+  --text-display--line-height: 1.08;
+  --text-display--letter-spacing: -0.03em;
+  --text-display--font-weight: 600;
+  --text-display-amount: 2.5rem; /* 40px / 600 — сумма-герой экрана (вместе с tabular-nums) */
+  --text-display-amount--line-height: 1.05;
+  --text-display-amount--letter-spacing: -0.02em;
+  --text-display-amount--font-weight: 600;
+  --text-title: 2.125rem; /* 34px на телефоне, 40px на компьютере (см. data-device ниже) — заголовок экрана */
   --text-title--line-height: 1.1;
   --text-title--letter-spacing: -0.025em;
   --text-title--font-weight: 600;
+  --text-amount: 1.75rem; /* 28px / 600 — суммы в карточках сделок и предложений, числа сводок (с tabular-nums) */
+  --text-amount--line-height: 1.1;
+  --text-amount--letter-spacing: -0.02em;
+  --text-amount--font-weight: 600;
+  --text-title-2: 1.375rem; /* 22px / 600 — заголовок раздела, окна, шторки */
+  --text-title-2--line-height: 1.25;
+  --text-title-2--letter-spacing: -0.018em;
+  --text-title-2--font-weight: 600;
+  --text-lead: 1.3125rem; /* 21px — подзаголовок лендинга, вводный абзац */
+  --text-lead--line-height: 1.4;
+  --text-lead--letter-spacing: -0.016em;
+  --text-headline: 1.0625rem; /* 17px / 600 — заголовок карточки, строки списка */
+  --text-headline--line-height: 1.35;
+  --text-headline--letter-spacing: -0.013em;
+  --text-headline--font-weight: 600;
+  --text-body: 1.0625rem; /* 17px — основной */
+  --text-body--line-height: 1.47;
+  --text-body--letter-spacing: -0.013em;
+  --text-sub: 0.9375rem; /* 15px — вторичный текст, чипы статуса */
+  --text-sub--line-height: 1.4;
+  --text-sub--letter-spacing: -0.009em;
+  --text-small: 0.8125rem; /* 13px / 500 — только несущественное: подпись вкладки, метка над значением */
+  --text-small--line-height: 1.35;
+  --text-small--letter-spacing: -0.003em;
+  --text-small--font-weight: 500;
+  /* Знак «₸» в сумме — 0,6 размера самой суммы (text-currency на <span> внутри суммы). */
+  --text-currency: 0.6em;
 
-  /* Радиусы. Кнопка: 14px на телефоне, 12px на компьютере (см. data-device ниже). */
-  --radius-card: 1.125rem; /* 18px */
-  --radius-control: 0.875rem; /* 14px — кнопка */
+  /*
+   * Радиусы (разбор 3.6) — концентричные: внутренний = внешний − отступ. Карточка и кнопка на компьютере — свои
+   * значения (см. data-device ниже).
+   */
+  --radius-card: 1.25rem; /* 20px; на компьютере 22px */
+  --radius-control: 1rem; /* 16px — кнопка; на компьютере 12px */
   --radius-field: 0.75rem; /* 12px — поле */
-  --radius-chip: 0.375rem; /* 6px — чип статуса */
-  --radius-bar: 1.375rem; /* 22px — панель вкладок */
-  --radius-sheet: 1.5rem; /* 24px — шторка */
+  --radius-thumb: 0.75rem; /* 12px — миниатюра 56px в строке списка */
+  /* Фото внутри карточки с отступом p-photo-inset (8px): радиус карточки минус отступ — 12px (компьютер 14px). */
+  --radius-photo: calc(var(--radius-card) - var(--spacing-photo-inset));
+  --radius-small: 0.375rem; /* 6px — флажок, контур фокуса у ссылки в тексте */
+  --radius-chip: 9999px; /* капсула — чип статуса, полоса столбика */
+  --radius-bar: 9999px; /* капсула — панель вкладок */
+  --radius-sheet: 2rem; /* 32px — шторка неполной высоты */
+  --radius-sheet-full: 1.5rem; /* 24px — шторка на всю высоту */
   --radius-full: 9999px; /* круг: аватар, точка статуса */
 
   /* Высота кнопок и полей — 48px: h-control, min-h-control. */
@@ -68,11 +111,15 @@
    * действия внутри карточек и действие в шапке компьютера (вторичная кнопка, Ruling 25).
    */
   --spacing-control-sm: 2.25rem;
+  /* Отступ фото от края карточки (p-photo-inset) — от него считается радиус фото (rounded-photo). */
+  --spacing-photo-inset: 0.5rem;
+  /* Миниатюра в строке списка — 56px (size-thumb, rounded-thumb). */
+  --spacing-thumb: 3.5rem;
 
-  /* Ширина содержимого: компьютер — до 1100px; планшет — колонка до 560px (спека, раздел 5). */
+  /* Ширина содержимого: компьютер — до 1100px; планшет — колонка до 560px (спека, раздел 5); абзац — до 68 знаков. */
   --container-content: 68.75rem;
   --container-column: 35rem;
-
+  --container-measure: 68ch;
   /* Оболочки (src/app/(app)/_shell). Шапка компьютера — 52px (min-h-header: при крупном шрифте растёт, а не режет). */
   --spacing-header: 3.25rem;
   /* Плавающая панель вкладок телефона: отступ 10px от краёв и снизу (утилиты dock-inline и dock-bottom). */
@@ -144,6 +191,7 @@
   --color-muted: var(--role-muted);
   --color-line: var(--role-line);
   --color-line-strong: var(--role-line-strong);
+  --color-fill: var(--role-fill);
   --color-track: var(--role-track);
   --color-bubble: var(--role-bubble);
   --color-action: var(--role-action);
@@ -151,43 +199,87 @@
   --color-accent: var(--role-accent);
   --color-accent-soft: var(--role-accent-soft);
   --color-danger: var(--role-danger);
+  --color-on-danger: var(--role-on-danger);
   --color-danger-soft: var(--role-danger-soft);
   --color-warn: var(--role-warn);
   --color-warn-soft: var(--role-warn-soft);
   --color-focus: var(--role-focus);
-  --color-scrim: var(--role-scrim); /* сплошной цвет; затемнение с прозрачностью — утилита scrim ниже */
+  --color-scrim: var(--role-scrim); /* сплошной цвет; затемнение с прозрачностью — утилиты scrim и scrim-photo ниже */
+  --color-photo-fallback: var(--role-photo-fallback);
+  --color-on-photo: var(--role-on-photo);
+  /* Вторичный текст на стекле (подписи неактивных вкладок): обычный muted на стекле не проходит 4,5:1. */
+  --color-glass-secondary: var(--glass-secondary);
 
-  /* Тени — только у плавающего: панель вкладок, поповер, меню, тост (float) и шторка (sheet). */
-  --shadow-float: 0 0.5rem 1.5rem -0.25rem color-mix(in srgb, var(--shade) 14%, transparent),
-    0 0.0625rem 0.1875rem color-mix(in srgb, var(--shade) 8%, transparent);
-  --shadow-sheet: 0 -0.5rem 2rem color-mix(in srgb, var(--shade) 16%, transparent);
+  /*
+   * Тени (разбор 3.6) — только у плавающего, значения по теме (--elev-* ниже): float — панель, кнопка-док, тост;
+   * overlay — меню, поповер, окно; sheet — шторка; hover — отклик наведения на кликабельную карточку (только desktop:).
+   */
+  --shadow-float: var(--elev-float);
+  --shadow-overlay: var(--elev-overlay);
+  --shadow-sheet: var(--elev-sheet);
+  --shadow-hover: var(--elev-hover);
 }
 
 :root {
   color-scheme: light;
-  --role-canvas: #f5f5f7;
+  --role-canvas: #f6f5f2;
   --role-surface: #ffffff;
   --role-raised: #ffffff;
-  --role-ink: #1d1d1f;
-  --role-muted: #6e6e73;
-  --role-line: #e5e5ea;
-  --role-line-strong: #8a8a8e;
-  --role-track: #e5e5ea; /* дорожка сегментов: белый выбранный сегмент (raised) на сером */
-  --role-bubble: #e5e5ea; /* своё сообщение в переписке: серое рядом с белым чужим (surface) */
-  --role-action: #1d1d1f;
+  --role-ink: #1d1c1a;
+  --role-muted: #66635d;
+  --role-line: #e7e5e0;
+  --role-line-strong: #8a877f;
+  --role-fill: color-mix(in srgb, var(--role-ink) 6%, transparent); /* на canvas ≈ #e9e8e5 */
+  --role-track: #e7e5e0; /* дорожка сегментов: белый выбранный сегмент (raised) на тёплом сером */
+  --role-bubble: #e7e5e0; /* своё сообщение в переписке: серое рядом с белым чужим (surface) */
+  --role-action: #1d1c1a;
   --role-on-action: #ffffff;
   --role-accent: #0a7d54;
   --role-accent-soft: #e6f3ec;
   --role-danger: #b42d2d;
+  --role-on-danger: #ffffff;
   --role-danger-soft: #fbeceb;
   --role-warn: #8a5a00;
   --role-warn-soft: #fbf1de;
   --role-focus: #0a7d54;
   --role-scrim: #000000;
+  --role-photo-fallback: #e9e6e0;
+  --role-on-photo: #ffffff;
   --scrim-opacity: 32%; /* затемнение под шторкой и диалогом, как в эталоне */
-  --shade: var(--role-ink); /* цвет тени: почти чёрный */
-  /* Плотность материала панелей (утилита glass) — в обеих темах: текст под панелью не читается сквозь неё. */
-  --glass-opacity: 85%;
+  --shade: var(--role-ink); /* цвет тени: тёплый почти чёрный */
+
+  --elev-float: 0 0.625rem 1.875rem -0.625rem color-mix(in srgb, var(--shade) 22%, transparent),
+    0 0.0625rem 0.1875rem color-mix(in srgb, var(--shade) 8%, transparent);
+  --elev-overlay: 0 1.5rem 3rem -0.75rem color-mix(in srgb, var(--shade) 28%, transparent),
+    0 0.125rem 0.375rem color-mix(in srgb, var(--shade) 8%, transparent);
+  --elev-sheet: 0 -0.75rem 2.5rem color-mix(in srgb, var(--shade) 18%, transparent);
+  --elev-hover: 0 0.75rem 2rem -0.75rem color-mix(in srgb, var(--shade) 16%, transparent);
+
+  /*
+   * Стекло (утилиты glass-* ниже). Плотность — по худшему фону: под светлым стеклом чёрное фото даёт ≈ #c7c7c7 —
+   * ink 10,1:1, glass-secondary 5,46:1 (contrast.test.ts). Свет кромки (--sheen) — белый в обеих темах, сила — по теме.
+   */
+  --glass-tint: #ffffff;
+  --glass-alpha: 78%;
+  --glass-thick-alpha: 86%;
+  --glass-solid-alpha: 96%; /* без backdrop-filter: почти сплошной, текст под панелью не читается сквозь неё */
+  --glass-secondary: #48474a;
+  --glass-blur: 24px;
+  --glass-thick-blur: 40px;
+  --glass-saturate: 180%;
+  --sheen: #ffffff;
+  --glass-edge-top: color-mix(in srgb, var(--sheen) 90%, transparent); /* блик по верхней кромке */
+  --glass-edge: color-mix(in srgb, var(--sheen) 50%, transparent); /* слабый отсвет снизу */
+  --glass-rim: color-mix(in srgb, var(--shade) 8%, transparent); /* контур 0,5px: край читается на белом фоне */
+  /* Кромка-градиент (имитация преломления по краю): светлее сверху слева, тает к середине, отсвет снизу справа. */
+  --glass-sheen-start: 65%;
+  --glass-sheen-mid: 8%;
+  --glass-sheen-end: 25%;
+  /* Clear поверх фото — одинаково в обеих темах (фото само задаёт свет): подложка, запасные плотности, затемнение фото. */
+  --glass-clear-alpha: 28%;
+  --glass-clear-solid: 60%;
+  --glass-clear-reduced: 78%;
+  --scrim-photo-alpha: 55%;
 
   /* Отклик на нажатие: масштаб 0,97 (утилита pressable). */
   --scale-press: 0.97;
@@ -195,62 +287,105 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --role-canvas: #000000;
-  --role-surface: #1c1c1e;
-  --role-raised: #2c2c2e;
-  --role-ink: #f5f5f7;
-  --role-muted: #a1a1a6;
-  --role-line: #38383a;
-  --role-line-strong: #78787d;
-  --role-track: #1c1c1e; /* выбранный сегмент (raised, #2c2c2e) светлее дорожки */
-  --role-bubble: #2c2c2e; /* как raised: track здесь равен surface, свои сообщения слились бы с чужими */
-  --role-action: #f5f5f7;
-  --role-on-action: #1d1d1f;
-  --role-accent: #30b07a;
-  --role-accent-soft: #12382a;
+  --role-canvas: #0d0d0c;
+  --role-surface: #1b1a18;
+  --role-raised: #272522;
+  --role-ink: #f5f3ef;
+  --role-muted: #a8a49c;
+  --role-line: #34322e;
+  --role-line-strong: #7d7970;
+  --role-fill: color-mix(in srgb, var(--role-ink) 8%, transparent);
+  --role-track: #1b1a18; /* выбранный сегмент (raised, #272522) светлее дорожки */
+  --role-bubble: #302e2a; /* светлее raised: raised к surface — всего 1,14, свои слились бы с чужими */
+  --role-action: #f5f3ef;
+  --role-on-action: #1d1c1a;
+  --role-accent: #3fb985;
+  --role-accent-soft: #113524;
   --role-danger: #f2827a;
-  --role-danger-soft: #3d1d1c;
+  --role-on-danger: #1d1c1a; /* белый на светлом danger — 2,55:1, графит — 6,69:1 */
+  --role-danger-soft: #3a1c1a;
   --role-warn: #e3a23b;
-  --role-warn-soft: #3a2c12;
-  --role-focus: #30b07a;
+  --role-warn-soft: #35290f;
+  --role-focus: #3fb985;
   --role-scrim: #000000;
+  --role-photo-fallback: #262421;
+  --role-on-photo: #ffffff;
   --scrim-opacity: 56%; /* на тёмном фоне 32% почти не видно */
-  --shade: var(--role-canvas); /* в тёмной теме ink светлый — тень берёт чёрный фон */
+  --shade: var(--role-canvas); /* в тёмной теме ink светлый — тень берёт почти чёрный фон, плотнее */
+  --elev-float: 0 0.625rem 1.875rem -0.5rem color-mix(in srgb, var(--shade) 60%, transparent),
+    0 0.0625rem 0.1875rem color-mix(in srgb, var(--shade) 40%, transparent);
+  --elev-overlay: 0 1.5rem 3rem -0.75rem color-mix(in srgb, var(--shade) 70%, transparent),
+    0 0.125rem 0.375rem color-mix(in srgb, var(--shade) 40%, transparent);
+  --elev-sheet: 0 -0.75rem 2.5rem color-mix(in srgb, var(--shade) 50%, transparent);
+  --elev-hover: 0 0.75rem 2rem -0.75rem color-mix(in srgb, var(--shade) 50%, transparent);
+  /* Стекло: тёплый графит 80%; худший фон (белое фото) → ≈ #4b4a49: ink 8,0:1, glass-secondary 5,0:1. */
+  --glass-tint: #1e1d1b;
+  --glass-alpha: 80%;
+  --glass-thick-alpha: 88%;
+  --glass-secondary: #c7c3bb;
+  --glass-edge-top: color-mix(in srgb, var(--sheen) 22%, transparent);
+  --glass-edge: color-mix(in srgb, var(--sheen) 10%, transparent);
+  --glass-rim: color-mix(in srgb, var(--shade) 50%, transparent);
+  --glass-sheen-start: 24%;
+  --glass-sheen-mid: 3%;
+  --glass-sheen-end: 10%;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --role-canvas: #000000;
-    --role-surface: #1c1c1e;
-    --role-raised: #2c2c2e;
-    --role-ink: #f5f5f7;
-    --role-muted: #a1a1a6;
-    --role-line: #38383a;
-    --role-line-strong: #78787d;
-    --role-track: #1c1c1e;
-    --role-bubble: #2c2c2e;
-    --role-action: #f5f5f7;
-    --role-on-action: #1d1d1f;
-    --role-accent: #30b07a;
-    --role-accent-soft: #12382a;
+    --role-canvas: #0d0d0c;
+    --role-surface: #1b1a18;
+    --role-raised: #272522;
+    --role-ink: #f5f3ef;
+    --role-muted: #a8a49c;
+    --role-line: #34322e;
+    --role-line-strong: #7d7970;
+    --role-fill: color-mix(in srgb, var(--role-ink) 8%, transparent);
+    --role-track: #1b1a18;
+    --role-bubble: #302e2a;
+    --role-action: #f5f3ef;
+    --role-on-action: #1d1c1a;
+    --role-accent: #3fb985;
+    --role-accent-soft: #113524;
     --role-danger: #f2827a;
-    --role-danger-soft: #3d1d1c;
+    --role-on-danger: #1d1c1a;
+    --role-danger-soft: #3a1c1a;
     --role-warn: #e3a23b;
-    --role-warn-soft: #3a2c12;
-    --role-focus: #30b07a;
+    --role-warn-soft: #35290f;
+    --role-focus: #3fb985;
     --role-scrim: #000000;
+    --role-photo-fallback: #262421;
+    --role-on-photo: #ffffff;
     --scrim-opacity: 56%;
     --shade: var(--role-canvas);
+    --elev-float: 0 0.625rem 1.875rem -0.5rem color-mix(in srgb, var(--shade) 60%, transparent),
+      0 0.0625rem 0.1875rem color-mix(in srgb, var(--shade) 40%, transparent);
+    --elev-overlay: 0 1.5rem 3rem -0.75rem color-mix(in srgb, var(--shade) 70%, transparent),
+      0 0.125rem 0.375rem color-mix(in srgb, var(--shade) 40%, transparent);
+    --elev-sheet: 0 -0.75rem 2.5rem color-mix(in srgb, var(--shade) 50%, transparent);
+    --elev-hover: 0 0.75rem 2rem -0.75rem color-mix(in srgb, var(--shade) 50%, transparent);
+    --glass-tint: #1e1d1b;
+    --glass-alpha: 80%;
+    --glass-thick-alpha: 88%;
+    --glass-secondary: #c7c3bb;
+    --glass-edge-top: color-mix(in srgb, var(--sheen) 22%, transparent);
+    --glass-edge: color-mix(in srgb, var(--sheen) 10%, transparent);
+    --glass-rim: color-mix(in srgb, var(--shade) 50%, transparent);
+    --glass-sheen-start: 24%;
+    --glass-sheen-mid: 3%;
+    --glass-sheen-end: 10%;
   }
 }
 
 /*
- * Компьютерная версия (data-device на <html> ставит layout v2 по getDevice()): крупнее заголовок, кнопка чуть строже,
- * разделы дальше друг от друга.
+ * Компьютерная версия (data-device на <html> ставит layout v2 по getDevice()): крупнее заголовок экрана (40px) и
+ * радиус карточки (22px), кнопка строже (12px), разделы дальше друг от друга.
  */
 :root[data-device="desktop"] {
-  --text-title: 2rem;
+  --text-title: 2.5rem;
+  --text-title--line-height: 1.08;
+  --radius-card: 1.375rem;
   --radius-control: 0.75rem;
   --spacing-stack-section: 2rem;
   --spacing-signature: 12rem;
@@ -271,15 +406,276 @@
 }
 
 /*
- * Полупрозрачная панель (шапка на компьютере, панель вкладок на телефоне). Полупрозрачное
- * на полупрозрачное не кладётся; при prefers-reduced-transparency — сплошной фон.
+ * Liquid Glass (разбор 3.4) — материал слоя навигации, который плавает над содержимым. Три уровня и панель-полоса:
+ * - glass-regular — панель вкладок, круглые кнопки на панелях (колокольчик, «…»), тосты;
+ * - glass-thick — меню и поповеры со списком (короткие; поповер с длинным текстом остаётся сплошным raised);
+ * - glass-bar — шапка во всю ширину (компьютер, закреплённая шапка переписки): материал regular без контура и тени,
+ *   а вместо линии снизу — «растворение» содержимого под шапкой при прокрутке;
+ * - glass-clear — только поверх фото (цена на работе, шаг на обложке, «капсула доверия»), всегда со scrim-photo под ней.
+ * Нельзя: стекло на стекле, стекло на карточках, списках, блоке денег, полях, пузырях чата, длинном тексте, главной
+ * кнопке. Преломления через SVG нет. Текст на regular/thick/bar — только ink и glass-secondary (не muted).
+ * Запасные виды: без backdrop-filter — почти сплошной; prefers-reduced-transparency — сплошной (форма, кромка и
+ * тень остаются); prefers-contrast: more — сплошной с контрастной границей; forced-colors — системная граница.
+ * Размытие 24px (40px — только у толстого: маленькое и недолго на экране); не больше 3–4 стеклянных слоёв на экране.
  */
-@utility glass {
-  background-color: color-mix(in srgb, var(--role-surface) var(--glass-opacity), transparent);
-  backdrop-filter: saturate(1.8) blur(1.25rem);
+@utility glass-regular {
+  isolation: isolate;
+  background-color: color-mix(in srgb, var(--glass-tint) var(--glass-alpha), transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge-top),
+    inset 0 -1px 0 var(--glass-edge),
+    0 0 0 0.5px var(--glass-rim),
+    var(--elev-float);
+  /* Нулевая специфичность: sticky/fixed элемента (утилиты позиции) сильнее — кромке нужна лишь опора. */
+  :where(&) {
+    position: relative;
+  }
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--sheen) var(--glass-sheen-start), transparent),
+      color-mix(in srgb, var(--sheen) var(--glass-sheen-mid), transparent) 35%,
+      transparent 60%,
+      color-mix(in srgb, var(--sheen) var(--glass-sheen-end), transparent)
+    );
+    -webkit-mask: linear-gradient(#000000 0 0) content-box, linear-gradient(#000000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background-color: color-mix(in srgb, var(--glass-tint) var(--glass-solid-alpha), transparent);
+  }
   @media (prefers-reduced-transparency: reduce) {
     background-color: var(--role-surface);
+    -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+  @media (prefers-contrast: more) {
+    background-color: var(--role-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow:
+      0 0 0 1px var(--role-ink),
+      var(--elev-float);
+    &::before {
+      display: none;
+    }
+  }
+  @media (forced-colors: active) {
+    outline: 1px solid CanvasText;
+  }
+}
+
+/* Толстое стекло: плотнее и мягче рассеивание, тень глубже (overlay). Меню, поповер со списком, меню аватара. */
+@utility glass-thick {
+  isolation: isolate;
+  background-color: color-mix(in srgb, var(--glass-tint) var(--glass-thick-alpha), transparent);
+  -webkit-backdrop-filter: blur(var(--glass-thick-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-thick-blur)) saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge-top),
+    inset 0 -1px 0 var(--glass-edge),
+    0 0 0 0.5px var(--glass-rim),
+    var(--elev-overlay);
+  :where(&) {
+    position: relative;
+  }
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--sheen) var(--glass-sheen-start), transparent),
+      color-mix(in srgb, var(--sheen) var(--glass-sheen-mid), transparent) 35%,
+      transparent 60%,
+      color-mix(in srgb, var(--sheen) var(--glass-sheen-end), transparent)
+    );
+    -webkit-mask: linear-gradient(#000000 0 0) content-box, linear-gradient(#000000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background-color: color-mix(in srgb, var(--glass-tint) var(--glass-solid-alpha), transparent);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: var(--role-raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  @media (prefers-contrast: more) {
+    background-color: var(--role-raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow:
+      0 0 0 1px var(--role-ink),
+      var(--elev-overlay);
+    &::before {
+      display: none;
+    }
+  }
+  @media (forced-colors: active) {
+    outline: 1px solid CanvasText;
+  }
+}
+
+/*
+ * Шапка во всю ширину (компьютер — DesktopShell; телефон — sticky-head переписки): материал regular без контура и
+ * тени. Линии снизу нет: при прокрутке страницы под шапкой проявляется «растворение» (scroll edge, 12px от тона
+ * стекла к прозрачному) — анимация по прокрутке корня (Chrome, Safari 26); без её поддержки край виден всегда.
+ * Элемент должен быть позиционирован (sticky/fixed). prefers-reduced-transparency — сплошной фон и линия line;
+ * prefers-contrast: more — линия line-strong.
+ */
+@utility glass-bar {
+  background-color: color-mix(in srgb, var(--glass-tint) var(--glass-alpha), transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    height: 0.75rem;
+    pointer-events: none;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--glass-tint) 60%, transparent), transparent);
+    animation: glass-edge-in linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 3rem;
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background-color: color-mix(in srgb, var(--glass-tint) var(--glass-solid-alpha), transparent);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: var(--role-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    &::after {
+      height: 1px;
+      background: var(--role-line);
+      animation: none;
+    }
+  }
+  @media (prefers-contrast: more) {
+    background-color: var(--role-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    &::after {
+      height: 1px;
+      background: var(--role-line-strong);
+      animation: none;
+    }
+  }
+  @media (forced-colors: active) {
+    &::after {
+      height: 1px;
+      background: CanvasText;
+      animation: none;
+    }
+  }
+}
+
+@keyframes glass-edge-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * Стекло поверх фото (Clear): прозрачнее, без адаптации, содержимое крупное и яркое — белый текст 600. Под капсулой
+ * фото обязательно затемнено (scrim-photo): без затемнения белый текст на светлой кухне — 2:1. С затемнением —
+ * 7,7:1 по самому светлому (белому) участку фото (contrast.test.ts). Без backdrop-filter и при уменьшении прозрачности
+ * или увеличении контраста — плотная тёмная подложка.
+ */
+@utility glass-clear {
+  color: var(--role-on-photo);
+  font-weight: var(--font-weight-semibold);
+  background-color: color-mix(in srgb, var(--role-scrim) var(--glass-clear-alpha), transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--sheen) 35%, transparent),
+    0 0 0 0.5px color-mix(in srgb, var(--sheen) 25%, transparent);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--role-scrim) 35%, transparent);
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    background-color: color-mix(in srgb, var(--role-scrim) var(--glass-clear-solid), transparent);
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    background-color: color-mix(in srgb, var(--role-scrim) var(--glass-clear-reduced), transparent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  @media (forced-colors: active) {
+    outline: 1px solid CanvasText;
+  }
+}
+
+/*
+ * Затемнение фото под белым текстом и glass-clear (Apple: Clear «needs a dimming layer»). Отдельный пустой слой
+ * поверх <img> и под текстом: `<div aria-hidden className="scrim-photo" />` в контейнере `relative`. Нижняя четверть —
+ * полное затемнение 55% (белый на белом фото 4,74:1), к 60% высоты — прозрачно. Текст и капсулы ставить в нижнюю
+ * четверть. scrim-photo-start — от левого нижнего угла (первый экран лендинга на компьютере, текст слева).
+ * При увеличении контраста — 70%.
+ */
+@utility scrim-photo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 0%,
+    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 25%,
+    transparent 60%
+  );
+  @media (prefers-contrast: more) {
+    --scrim-photo-alpha: 70%;
+  }
+}
+@utility scrim-photo-start {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top right,
+    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 0%,
+    color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 35%,
+    transparent 75%
+  );
+  @media (prefers-contrast: more) {
+    --scrim-photo-alpha: 70%;
+  }
+}
+
+/*
+ * Фото: заливка до загрузки (photo-fallback) и тонкий внутренний контур — белый шкаф на белой карточке не сливается
+ * с ней. Ставится на обёртку фото; радиус — rounded-photo (внутри карточки с отступом) или rounded-card (во всю ширину).
+ */
+@utility photo-frame {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--role-photo-fallback);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--role-ink) 6%, transparent);
+    pointer-events: none;
   }
 }
 
@@ -472,7 +868,7 @@
 /*
  * Затемнение под шторкой и диалогом. При prefers-reduced-transparency — плотнее (непрозрачность 0,7), но не
  * сплошное: затемнение — не материал с размытием, страница под окном остаётся различимой как фон. Размытия
- * (backdrop-filter) у затемнения нет; у поверхностей его снимает утилита glass.
+ * (backdrop-filter) у затемнения нет; у стекла его снимают утилиты glass-*.
  */
 @utility scrim {
   background-color: color-mix(in srgb, var(--role-scrim) var(--scrim-opacity), transparent);
@@ -502,11 +898,11 @@
 
 /*
  * Шапка экрана, закреплённая у верхнего края телефона (экран переписки: «Назад», собеседник, «Почему?»): при прокрутке
- * длинной ленты не уезжает. Материал — как у панелей (glass: плотность 85 %, размытие; при prefers-reduced-transparency
- * сплошной): под ней прокручивается только содержимое страницы, других полупрозрачных панелей наверху нет, поэтому
- * «полупрозрачное на полупрозрачном» не возникает. Выходит за поля содержимого до краёв экрана (как rail-bleed), а сверху —
- * на верхнее поле колонки (safe-block): в покое шапка стоит там же, где стоял бы заголовок, а прилипшая закрывает и строку
- * состояния (вырез). Снизу — тонкая линия, чтобы край материала читался над лентой. Только для `mobile:`.
+ * длинной ленты не уезжает. Здесь — только положение; материал — утилита glass-bar рядом (`mobile:sticky-head
+ * mobile:glass-bar`): стекло без линии снизу, вместо неё содержимое растворяется под шапкой при прокрутке. Под ней
+ * прокручивается только содержимое страницы, других стеклянных панелей наверху нет — стекла на стекле не возникает.
+ * Выходит за поля содержимого до краёв экрана (как rail-bleed), а сверху — на верхнее поле колонки (safe-block): в покое
+ * шапка стоит там же, где стоял бы заголовок, а прилипшая закрывает и строку состояния (вырез). Только для `mobile:`.
  */
 @utility sticky-head {
   position: sticky;
@@ -519,13 +915,6 @@
   padding-left: max(var(--spacing-gutter), env(safe-area-inset-left));
   padding-right: max(var(--spacing-gutter), env(safe-area-inset-right));
   padding-bottom: var(--spacing-stack-group);
-  border-bottom: 1px solid var(--role-line);
-  background-color: color-mix(in srgb, var(--role-surface) var(--glass-opacity), transparent);
-  backdrop-filter: saturate(1.8) blur(1.25rem);
-  @media (prefers-reduced-transparency: reduce) {
-    background-color: var(--role-surface);
-    backdrop-filter: none;
-  }
 }
 
 /*

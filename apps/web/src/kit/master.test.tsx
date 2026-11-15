@@ -14,13 +14,13 @@ describe("Stat и StatRow", () => {
     expect(out).not.toContain("<svg");
     expect(out).not.toContain("border");
     expect(hasClass(out, "flex-col-reverse")).toBe(true);
-    expect(hasClass(out, "text-title")).toBe(true);
+    expect(hasClass(out, "text-amount")).toBe(true);
     expect(hasClass(out, "text-muted")).toBe(true);
   });
 
   it("compact — меньший кегль; значение — любой узел, например Money", () => {
     const out = html(<Stat label="За ноябрь" value={<Money tiyn={1_224_000_00n} />} compact />);
-    expect(hasClass(out, "text-section")).toBe(true);
+    expect(hasClass(out, "text-title-2")).toBe(true);
     expect(text(<Stat label="За ноябрь" value={<Money tiyn={1_224_000_00n} />} />)).toBe(`За ноябрь1${NB}224${NB}000${NB}₸`);
   });
 

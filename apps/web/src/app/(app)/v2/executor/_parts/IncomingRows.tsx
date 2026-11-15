@@ -16,7 +16,7 @@ export function IncomingRows({ cards }: { cards: readonly IncomingCardView[] }) 
             label={
               // Метки и сведения под названием, а не справа: на телефоне справа они сжимали бы строку.
               <span className="flex flex-col items-start gap-1">
-                <span className="text-card wrap-break-word text-ink">{card.title}</span>
+                <span className="text-headline wrap-break-word text-ink">{card.title}</span>
                 {card.badges.length > 0 && (
                   <span className="flex flex-wrap gap-2">
                     {card.badges.map((b) => (

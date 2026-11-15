@@ -38,7 +38,7 @@ export function GuestHome({ device }: { device: Device }) {
         {t.steps.map((step, index) => (
           <Card key={step.title} as="article">
             <p className="text-small text-muted">{t.stepLabel(index + 1)}</p>
-            <h3 className="mt-1 text-card text-ink">{step.title}</h3>
+            <h3 className="mt-1 text-headline text-ink">{step.title}</h3>
             <p className="mt-1 text-body text-ink">{step.text}</p>
           </Card>
         ))}

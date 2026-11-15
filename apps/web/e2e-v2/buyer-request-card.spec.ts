@@ -55,7 +55,7 @@ async function openRequestWithOffers(page: Page, count: number): Promise<void> {
   await page.waitForLoadState("networkidle");
 }
 
-const masters = (page: Page) => page.locator("main a[href*='/offers/']").evaluateAll((links) => links.map((a) => a.querySelector("[class*='text-card']")?.textContent?.match(/Исполнитель №(\d+)$/)?.[1] ?? ""));
+const masters = (page: Page) => page.locator("main a[href*='/offers/']").evaluateAll((links) => links.map((a) => a.querySelector("[class*='text-headline']")?.textContent?.match(/Исполнитель №(\d+)$/)?.[1] ?? ""));
 
 test.beforeAll(async ({ browser }, info) => {
   test.setTimeout(420_000);

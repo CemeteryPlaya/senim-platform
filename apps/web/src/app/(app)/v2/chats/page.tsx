@@ -24,7 +24,7 @@ function Row({ row }: { row: ChatRowView }) {
       >
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0 text-card wrap-anywhere text-ink">{row.counterpart}</span>
+            <span className="min-w-0 text-headline wrap-anywhere text-ink">{row.counterpart}</span>
             {row.time && <span className="shrink-0 text-sub text-muted">{row.time}</span>}
           </span>
           <span className="text-sub wrap-break-word text-muted">{row.title}</span>

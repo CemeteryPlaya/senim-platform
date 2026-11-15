@@ -14,8 +14,10 @@
     @apply bg-canvas;
   }
 
+  /* Оптический размер Inter по кеглю (ось opsz, src/kit/fonts.ts): заголовки — начертание Display, текст — Text. */
   body {
     @apply bg-canvas font-sans text-body text-ink antialiased;
+    font-optical-sizing: auto;
   }
 
   /* Кольцо фокуса с клавиатуры — на любом интерактивном элементе. */

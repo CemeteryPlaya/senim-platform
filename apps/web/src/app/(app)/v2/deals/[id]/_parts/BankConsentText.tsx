@@ -28,10 +28,10 @@ export function BankConsentText({ document: doc }: { document: ConsentDocument }
           <div ref={region} role="region" aria-label={t.textLabel} tabIndex={0} onScroll={checkEnd} className="max-h-64 overflow-y-auto desktop:max-h-80">
             <Stack>
               <p className="text-sub text-muted">{ru.app.onboarding.consent.edition(doc.version)}</p>
-              <p className="text-card text-ink">{doc.title}</p>
+              <p className="text-headline text-ink">{doc.title}</p>
               {doc.sections.map((section) => (
                 <section key={section.heading} className="flex flex-col gap-1">
-                  <h3 className="text-card text-ink">{section.heading}</h3>
+                  <h3 className="text-headline text-ink">{section.heading}</h3>
                   <p className="text-body text-ink">{section.body}</p>
                 </section>
               ))}

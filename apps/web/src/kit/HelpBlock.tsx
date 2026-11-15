@@ -15,7 +15,7 @@ export function HelpBlock({ items, supportEmail }: HelpBlockProps) {
   const t = ru.app.kit.help;
   return (
     <Card as="section" padded={false}>
-      <h2 className="px-4 pt-4 text-card text-ink">{t.title}</h2>
+      <h2 className="px-4 pt-4 text-headline text-ink">{t.title}</h2>
       <List>
         {items.map((item, index) => (
           <ListRow key={`${index}-${item.href}`} label={item.question} href={item.href} />

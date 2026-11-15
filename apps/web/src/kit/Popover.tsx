@@ -49,7 +49,7 @@ export function Popover({ trigger, title, label, open, onOpenChange, children }:
                 className="z-50 w-80 max-w-(--radix-popover-content-available-width) origin-(--radix-popover-content-transform-origin) rounded-card bg-raised p-4 text-body text-ink shadow-float outline-none"
                 {...presence(reduced, { scale: 0.9 })}
               >
-                {title && <PopoverPrimitive.Title className="mb-1 text-card text-ink">{title}</PopoverPrimitive.Title>}
+                {title && <PopoverPrimitive.Title className="mb-1 text-headline text-ink">{title}</PopoverPrimitive.Title>}
                 {children}
               </motion.div>
             </PopoverPrimitive.Content>

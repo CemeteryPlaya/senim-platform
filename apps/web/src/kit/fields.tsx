@@ -149,7 +149,7 @@ export function Checkbox({ label, error, id: explicitId, className, ...rest }: C
         <span
           aria-hidden
           className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-chip border bg-surface text-on-action",
+            "flex size-6 shrink-0 items-center justify-center rounded-small border bg-surface text-on-action",
             error ? "border-danger" : "border-line-strong",
             "peer-checked:border-action peer-checked:bg-action peer-checked:[&>svg]:opacity-100",
             "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus",

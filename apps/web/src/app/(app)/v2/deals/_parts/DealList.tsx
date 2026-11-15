@@ -21,7 +21,7 @@ function DealCard({ card }: { card: DealCardView }) {
       className="pressable relative flex flex-col gap-3 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus"
     >
       <div className="flex items-start justify-between gap-3">
-        <h2 className="min-w-0 text-card text-ink wrap-break-word">
+        <h2 className="min-w-0 text-headline text-ink wrap-break-word">
           <Link href={card.href} className="text-ink no-underline after:absolute after:inset-0 after:rounded-card focus-visible:outline-none">
             {card.title}
           </Link>

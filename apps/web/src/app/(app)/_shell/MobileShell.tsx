@@ -33,7 +33,7 @@ export function MobileShell({ nav, unavailable = false, unread = null, children 
         // Сосредоточенная оболочка (первые шаги): узкая шапка — название (не ссылка: со шага уходить некуда) слева, «Выйти»
         // справа; отступы шапки учитывают вырез (safe-bar), поэтому main под ней верхний вырез второй раз не добавляет.
         <header data-focus-bar className="mx-auto flex w-full max-w-column items-center justify-between safe-bar">
-          <span className="inline-flex min-h-control items-center text-card text-ink">{ru.common.brand}</span>
+          <span className="inline-flex min-h-control items-center text-headline text-ink">{ru.common.brand}</span>
           <LogoutButton />
         </header>
       )}

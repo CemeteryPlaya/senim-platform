@@ -17,7 +17,7 @@ export function NowNext({ now, next }: NowNextProps) {
   return (
     <Card as="section">
       <p className="text-small text-muted">{t.now}</p>
-      <h2 className="mt-1 text-card text-ink">{now.title}</h2>
+      <h2 className="mt-1 text-headline text-ink">{now.title}</h2>
       {now.body && <p className="mt-1 text-sub text-muted">{now.body}</p>}
       {next && (
         <div className="mt-3 border-t border-line pt-3">

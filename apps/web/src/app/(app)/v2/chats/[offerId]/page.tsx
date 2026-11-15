@@ -66,7 +66,7 @@ export default async function ChatPage({ params }: Props) {
   // закреплена у верхнего края (sticky-head) — длинная переписка открывается внизу, и шапка не уезжает.
   return (
     <div className="flex min-w-0 flex-col gap-stack-section desktop:screen-fill">
-      <div className="mobile:sticky-head desktop:shrink-0">
+      <div className="mobile:sticky-head mobile:glass-bar desktop:shrink-0">
         <PageTitle title={counterpartOf(view.counterpart, side)} back={{ href: to("/chats"), label: t.back }} lead={lead} />
       </div>
       <div className="flex min-w-0 flex-col mobile:flex-1 desktop:min-h-0 desktop:max-w-narrow desktop:flex-1">{room}</div>

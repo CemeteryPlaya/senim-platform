@@ -149,7 +149,7 @@ export function CompanyForm({ initial, types, device }: Props) {
             </Stack>
 
             <Stack>
-              <h2 className="text-section text-ink">{t.address.title}</h2>
+              <h2 className="text-title-2 text-ink">{t.address.title}</h2>
               <TextField label={t.address.city} name="city" value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" maxLength={100} error={err.city} />
               <TextField
                 label={`${t.address.district} (${t.optional})`}

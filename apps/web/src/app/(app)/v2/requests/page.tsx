@@ -35,7 +35,7 @@ function Requests({ view }: { view: RequestListView }) {
                   label={
                     // Статус под названием, а не справа: на телефоне справа он сжимал бы строку «что с заявкой».
                     <span className="flex flex-col items-start gap-1">
-                      <span className="text-card wrap-break-word text-ink">{card.title}</span>
+                      <span className="text-headline wrap-break-word text-ink">{card.title}</span>
                       <StatusChip tone={card.tone}>{card.status}</StatusChip>
                       <span className="text-sub text-muted">{card.meta}</span>
                     </span>
@@ -83,7 +83,7 @@ export default async function MyRequestsPage({ searchParams }: Props) {
           aside={
             <Card>
               <Stack>
-                <h2 className="text-card text-ink">{t.asideTitle}</h2>
+                <h2 className="text-headline text-ink">{t.asideTitle}</h2>
                 <p className="text-body text-muted">{t.asideBody}</p>
                 <ButtonLink href={create.href} full>
                   {create.label}

@@ -74,7 +74,7 @@ export default async function IncomingPage({ searchParams }: Props) {
           aside={
             <Card>
               <Stack gap="tight">
-                <h2 className="text-card text-ink">{t.aside.title}</h2>
+                <h2 className="text-headline text-ink">{t.aside.title}</h2>
                 <p className="text-body text-muted">{t.aside.body}</p>
                 <TextLink href={to("/executor/offers")}>{t.aside.link}</TextLink>
               </Stack>

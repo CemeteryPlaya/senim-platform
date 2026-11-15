@@ -143,7 +143,7 @@ export default async function SignPage({ params, searchParams }: Props) {
   const consentGiven = bank?.mine && (
     <Card>
       <Stack gap="tight">
-        <p className="text-card text-ink">{tm.consent.given}</p>
+        <p className="text-headline text-ink">{tm.consent.given}</p>
         <p className="text-body text-muted">{tm.consent.givenBody}</p>
       </Stack>
     </Card>

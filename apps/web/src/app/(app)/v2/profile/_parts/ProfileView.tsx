@@ -16,7 +16,7 @@ const t = ru.app.profile;
 export function ProfileView({ model, theme, device }: { model: ProfileModel; theme: Theme; device: Device }) {
   const who = (
     <Card>
-      <p className="text-card wrap-anywhere text-ink">{model.name}</p>
+      <p className="text-headline wrap-anywhere text-ink">{model.name}</p>
       <p className="mt-1 text-body text-muted tabular-nums">{model.phone}</p>
       <p className="text-body text-muted">{model.roleLine}</p>
     </Card>

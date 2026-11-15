@@ -321,7 +321,7 @@ describe("ActionDock", () => {
   it("на телефоне прилипает над панелью вкладок", () => {
     expect(hasClass(out, "mobile:sticky")).toBe(true);
     expect(hasClass(out, "mobile:dock-above-bar")).toBe(true);
-    expect(hasClass(out, "mobile:glass")).toBe(true);
+    expect(hasClass(out, "mobile:glass-regular")).toBe(true);
   });
 
   it("док сам задаёт ширину детей: на телефоне на всю ширину, на компьютере по своей в ряд", () => {
@@ -454,7 +454,7 @@ describe("WorkCard без href", () => {
     expect(out).not.toContain("pressable");
     expect(out).not.toContain("has-focus-visible");
     expect(out).not.toContain("after:absolute");
-    expect(out).toMatch(/<h3 class="text-card text-ink">Кухня<\/h3>/);
+    expect(out).toMatch(/<h3 class="text-headline text-ink">Кухня<\/h3>/);
     expect(text(<WorkCard title="Кухня" meta="Алматы" byline="Мастер" priceFrom={1000n} />)).toContain("Алматы · Мастер");
   });
 

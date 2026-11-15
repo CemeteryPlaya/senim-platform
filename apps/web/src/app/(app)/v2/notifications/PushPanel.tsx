@@ -54,7 +54,7 @@ export function PushPanel({ publicKey }: { publicKey: string }) {
   return (
     <Card as="section">
       <div className="flex flex-col gap-2">
-        <h2 className="text-card text-ink">{t.title}</h2>
+        <h2 className="text-headline text-ink">{t.title}</h2>
         {state !== null && <p className="text-body text-muted" role="status">{text[state]}</p>}
         {(state === "off" || state === "on") && (
           <div className="flex">

@@ -23,7 +23,7 @@ function OfferRow({ card }: { card: OfferCardView }) {
       href={card.href}
       label={
         <span className="flex flex-col items-start gap-1">
-          <span className="text-card wrap-break-word text-ink">{card.title}</span>
+          <span className="text-headline wrap-break-word text-ink">{card.title}</span>
           <StatusChip tone={card.status.tone}>{card.status.text}</StatusChip>
           <span className="text-body text-ink">
             <span className="text-sub text-muted">{t.card.price}: </span>

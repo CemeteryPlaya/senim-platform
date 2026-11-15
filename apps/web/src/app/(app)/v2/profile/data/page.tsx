@@ -41,7 +41,7 @@ export default async function MyDataPage() {
         </Section>
         <section aria-labelledby="my-data-consents" className="flex min-w-0 flex-col gap-stack-group">
           <div className="flex items-center justify-between gap-2">
-            <h2 id="my-data-consents" className="text-section text-ink">
+            <h2 id="my-data-consents" className="text-title-2 text-ink">
               {t.consentsTitle}
             </h2>
             {view.canRevoke && <ConsentActions device={device} bankDeals={view.bankDeals} />}
@@ -53,7 +53,7 @@ export default async function MyDataPage() {
           ) : (
             view.consents.map((c) => (
               <Card key={c.id} as="article">
-                <p className="text-card text-ink">{c.title}</p>
+                <p className="text-headline text-ink">{c.title}</p>
                 <p className="mt-1 text-body text-muted">{c.edition}</p>
                 <p className="text-body text-muted">
                   {t.granted}: {c.granted}

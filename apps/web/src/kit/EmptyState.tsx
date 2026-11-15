@@ -15,7 +15,7 @@ export type EmptyStateProps = {
 export function EmptyState({ title, body, action }: EmptyStateProps) {
   return (
     <Card as="section" className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-      <h2 className="text-card text-ink">{title}</h2>
+      <h2 className="text-headline text-ink">{title}</h2>
       <p className="mx-auto max-w-narrow text-body text-muted">{body}</p>
       {action && (
         <ButtonLink href={action.href} className="mt-4">

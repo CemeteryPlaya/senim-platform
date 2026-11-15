@@ -21,7 +21,7 @@ export type ExplainProps = {
  * псевдоэлементом до ~48 px по высоте. Отклик на нажатие — сразу, прозрачностью.
  */
 const TRIGGER =
-  "relative rounded-chip font-medium text-accent underline-offset-4 transition-opacity duration-100 hover:underline active:opacity-60 before:absolute before:-inset-x-2 before:-inset-y-3";
+  "relative rounded-small font-medium text-accent underline-offset-4 transition-opacity duration-100 hover:underline active:opacity-60 before:absolute before:-inset-x-2 before:-inset-y-3";
 
 /**
  * Пояснение по нажатию — только для сложных мест (защита сделки, гарантия оплаты, где деньги, спор…).

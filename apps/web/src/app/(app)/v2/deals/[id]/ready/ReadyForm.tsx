@@ -110,7 +110,7 @@ export function ReadyForm({ dealId, dealHref, device }: Props) {
       <Section title={t.place.section}>
         <Card>
           <Stack>
-            <p role="status" className={place.kind === "located" ? "text-card text-ink" : "text-body text-ink"}>
+            <p role="status" className={place.kind === "located" ? "text-headline text-ink" : "text-body text-ink"}>
               {place.text}
             </p>
             {place.button && (

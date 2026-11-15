@@ -6,7 +6,7 @@ export type StatProps = {
   label: string;
   /** Число или сумма: строка, `<Money />` и т. п. Не считается здесь. */
   value: ReactNode;
-  /** Меньший кегль значения (20 px вместо 28 px). Для сумм в тенге на телефоне задавайте `compact`: значение не переносится, а крупная сумма в 390 px не помещается. */
+  /** Меньший кегль значения (22 px, text-title-2, вместо 28 px, text-amount). Для сумм в тенге на телефоне задавайте `compact`: значение не переносится, а крупная сумма в 390 px не помещается. */
   compact?: boolean;
 };
 
@@ -19,7 +19,7 @@ export function Stat({ label, value, compact = false }: StatProps) {
   return (
     <dl className="m-0 flex min-w-0 flex-col-reverse gap-1">
       <dt className="text-sub wrap-break-word text-muted">{label}</dt>
-      <dd className={cn("m-0 min-w-0 font-semibold whitespace-nowrap tabular-nums text-ink", compact ? "text-section" : "text-title")}>{value}</dd>
+      <dd className={cn("m-0 min-w-0 font-semibold whitespace-nowrap tabular-nums text-ink", compact ? "text-title-2" : "text-amount")}>{value}</dd>
     </dl>
   );
 }

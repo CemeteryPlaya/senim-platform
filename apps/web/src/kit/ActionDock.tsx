@@ -11,11 +11,11 @@ import type { ReactNode } from "react";
  * с тем же отступом 10 px плюс безопасная зона. В конце страницы `sticky` отпускает док, и он встаёт обычным блоком под
  * содержимым.
  *
- * Материал. Полупрозрачная панель `glass` с рамкой и тенью `float`, того же радиуса и с теми же боковыми отступами
- * 10 px, что у панели вкладок (утилита `dock-bleed` выводит её за поля содержимого). Стекло на стекле не кладётся: док
- * стоит выше панели вкладок с зазором и её не перекрывает; перекрывает он только содержимое страницы, где и нужны
- * плотность 85 % и размытие. Кнопка внутри сплошная (`bg-action`) — подпись читается на любом фоне; при
- * prefers-reduced-transparency панель сплошная (утилита `glass`).
+ * Материал. Стекло `glass-regular` (кромка, контур и тень `float`) радиуса карточки, с теми же боковыми отступами
+ * 10 px, что у панели вкладок (утилита `dock-bleed` выводит его за поля содержимого). Стекло на стекле не кладётся: док
+ * стоит выше панели вкладок с зазором и её не перекрывает; перекрывает он только содержимое страницы. Кнопка внутри
+ * сплошная (`bg-action`) — подпись читается на любом фоне; при prefers-reduced-transparency панель сплошная.
+ * (Пересмотр вида, разбор 3.4: док станет кнопкой без плиты — задача V2.)
  *
  * Короткий экран. `sticky` сам по себе держит док внизу, только когда содержимое длиннее экрана; иначе он стоял бы сразу
  * под содержимым посреди экрана. Поэтому область содержимого `MobileShell` растянута на высоту экрана (`main` — колонка),
@@ -36,7 +36,7 @@ import type { ReactNode } from "react";
  */
 export function ActionDock({ children }: { children: ReactNode }) {
   return (
-    <div data-action-dock className="flex flex-col gap-stack-tight mobile:sticky mobile:mt-auto mobile:z-10 mobile:glass mobile:dock-above-bar mobile:dock-bleed mobile:rounded-bar mobile:border mobile:border-line mobile:p-2 mobile:shadow-float mobile:*:w-full desktop:flex-row desktop:flex-wrap desktop:items-center desktop:*:w-auto">
+    <div data-action-dock className="flex flex-col gap-stack-tight mobile:sticky mobile:mt-auto mobile:z-10 mobile:glass-regular mobile:dock-above-bar mobile:dock-bleed mobile:rounded-card mobile:p-2 mobile:*:w-full desktop:flex-row desktop:flex-wrap desktop:items-center desktop:*:w-auto">
       {children}
     </div>
   );

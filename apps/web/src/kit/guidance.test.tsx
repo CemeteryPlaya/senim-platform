@@ -211,8 +211,8 @@ describe("HelpBlock: заголовок внутри карточки", () => {
     expect(out).toMatch(/^<section class="[^"]*rounded-card[^"]*bg-surface[^"]*"><h2/);
     expect(count(out, "<h2")).toBe(1);
     const h2 = out.match(/<h2[^>]*>/)?.[0] ?? "";
-    for (const cls of ["text-card", "text-ink", "px-4", "pt-4"]) expect(hasClass(h2, cls), cls).toBe(true);
-    expect(hasClass(h2, "text-section")).toBe(false);
+    for (const cls of ["text-headline", "text-ink", "px-4", "pt-4"]) expect(hasClass(h2, cls), cls).toBe(true);
+    expect(hasClass(h2, "text-title-2")).toBe(false);
     expect(out).toContain(`>${ru.app.kit.help.title}</h2><ul`);
   });
 });

@@ -66,7 +66,7 @@ export function ChatComposer({ onSend, pending = false, maxLength, device, label
         event.preventDefault();
         void send();
       }}
-      className="flex flex-col gap-2 mobile:sticky mobile:z-10 mobile:mt-auto mobile:glass mobile:dock-above-bar mobile:dock-bleed mobile:rounded-bar mobile:border mobile:border-line mobile:p-2 mobile:shadow-float"
+      className="flex flex-col gap-2 mobile:sticky mobile:z-10 mobile:mt-auto mobile:glass-regular mobile:dock-above-bar mobile:dock-bleed mobile:rounded-card mobile:p-2"
     >
       <div className="flex items-end gap-2">
         {onAttach && (

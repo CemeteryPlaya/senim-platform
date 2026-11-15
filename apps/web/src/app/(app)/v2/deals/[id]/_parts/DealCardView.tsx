@@ -225,7 +225,7 @@ function Party({ view, device }: { view: CardView; device: Device }) {
         <List>
           {view.party.label !== null && (
             <ListItem>
-              <p className="px-4 py-3 text-card text-ink wrap-break-word">{view.party.label}</p>
+              <p className="px-4 py-3 text-headline text-ink wrap-break-word">{view.party.label}</p>
             </ListItem>
           )}
           {contacts ? (
@@ -270,7 +270,7 @@ function Reports({ reports }: { reports: NonNullable<CardView["reports"]> }) {
             {reports.items.map((report) => (
               <ListItem key={report.id}>
                 <div className="flex flex-col gap-2 px-4 py-3">
-                  <h3 className="text-card text-ink wrap-break-word">{report.title}</h3>
+                  <h3 className="text-headline text-ink wrap-break-word">{report.title}</h3>
                   <p className="text-sub text-muted">{report.time}</p>
                   {report.text && <p className="text-body whitespace-pre-line text-ink wrap-break-word">{report.text}</p>}
                   {report.photos.length > 0 && (

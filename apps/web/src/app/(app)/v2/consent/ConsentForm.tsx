@@ -97,10 +97,10 @@ export function ConsentForm({ document: doc, updated, next, step, total, device 
               >
                 <Stack>
                   <p className="text-sub text-muted">{t.edition(doc.version)}</p>
-                  <p className="text-card text-ink">{doc.title}</p>
+                  <p className="text-headline text-ink">{doc.title}</p>
                   {doc.sections.map((section) => (
                     <section key={section.heading} className="flex flex-col gap-1">
-                      <h2 className="text-card text-ink">{section.heading}</h2>
+                      <h2 className="text-headline text-ink">{section.heading}</h2>
                       <p className="text-body text-ink">{section.body}</p>
                     </section>
                   ))}

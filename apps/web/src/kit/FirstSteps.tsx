@@ -14,7 +14,7 @@ export function FirstSteps({ steps }: { steps: FirstStep[] }) {
   const t = ru.app.kit.firstSteps;
   return (
     <Card as="section">
-      <h2 className="text-card text-ink">{t.left(left)}</h2>
+      <h2 className="text-headline text-ink">{t.left(left)}</h2>
       <div className="mt-3">
         <Progress value={steps.length - left} max={steps.length} label={t.progressLabel} />
       </div>

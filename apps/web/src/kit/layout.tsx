@@ -81,7 +81,7 @@ export type SectionProps = {
 export function Section({ title, id, children }: SectionProps) {
   return (
     <section className="flex min-w-0 flex-col gap-stack-group" aria-labelledby={id}>
-      <h2 id={id} className={cn("text-section text-ink", id && "desktop:scroll-anchor")}>{title}</h2>
+      <h2 id={id} className={cn("text-title-2 text-ink", id && "desktop:scroll-anchor")}>{title}</h2>
       {children}
     </section>
   );

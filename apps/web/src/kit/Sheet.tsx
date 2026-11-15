@@ -80,7 +80,7 @@ export function Sheet({
           {/* Ручка — знак «можно смахнуть»; тянуть можно за любое место шторки. Размер 36 × 6 px (h-1.5 w-9) —
               размер знака по эталону mobile.html (36 × 5), а не отступ шкалы. */}
           <div aria-hidden className="mx-auto mb-4 h-1.5 w-9 shrink-0 rounded-full bg-muted/50" />
-          <Drawer.Title className="text-section text-ink">{title}</Drawer.Title>
+          <Drawer.Title className="text-title-2 text-ink">{title}</Drawer.Title>
           {description && <Drawer.Description className="mt-2 text-body text-muted">{description}</Drawer.Description>}
           {/* Прокрутка длинного содержимого; поле в 4 px (p-1, -mx-1), чтобы кольцо фокуса кнопок не обрезалось. */}
           <div className="-mx-1 mt-3 min-h-0 overflow-y-auto p-1">{children}</div>

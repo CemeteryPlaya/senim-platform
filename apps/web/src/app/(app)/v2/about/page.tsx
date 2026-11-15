@@ -98,7 +98,7 @@ export default async function AboutPage() {
             <Section id={ABOUT_ANCHORS.price} title={t.price.title}>
               <Card as="article">
                 <p className="text-sub text-muted">{t.price.buyerLabel}</p>
-                <h3 className="mt-1 text-card text-ink">{t.price.buyerTitle}</h3>
+                <h3 className="mt-1 text-headline text-ink">{t.price.buyerTitle}</h3>
                 <p className="mt-1 text-body text-ink">
                   {t.price.buyerPrice} <Money tiyn={money.priceTiyn} /> — {t.price.buyerPays}{" "}
                   <Money tiyn={money.buyerTotalTiyn} />
@@ -107,7 +107,7 @@ export default async function AboutPage() {
               </Card>
               <Card as="article">
                 <p className="text-sub text-muted">{t.price.masterLabel}</p>
-                <h3 className="mt-1 text-card text-ink">{t.price.masterTitle}</h3>
+                <h3 className="mt-1 text-headline text-ink">{t.price.masterTitle}</h3>
                 <p className="mt-1 text-body text-ink">
                   {t.price.masterPrice} <Money tiyn={money.priceTiyn} /> — {t.price.masterGets}{" "}
                   <Money tiyn={money.payoutTiyn} />

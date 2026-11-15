@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { COLOR_ROLES, TOKENS } from "./tokens";
+import { COLOR_ROLES, GLASS, TOKENS, TRANSLUCENT } from "./tokens";
 
 // tokens.css и tokens.ts — одна палитра в двух местах: CSS нужен Tailwind, TS — тестам и метаданным.
 // Тест держит их равными и не даёт цвету появиться в CSS мимо TOKENS.
@@ -31,9 +31,15 @@ const BLOCKS = {
 };
 
 describe("tokens.css совпадает с TOKENS", () => {
-  it("в обеих темах одни и те же роли", () => {
-    expect(Object.keys(TOKENS.light).sort()).toEqual([...COLOR_ROLES].sort());
-    expect(Object.keys(TOKENS.dark).sort()).toEqual([...COLOR_ROLES].sort());
+  it("в обеих темах одни и те же роли: сплошные в TOKENS, полупрозрачные в TRANSLUCENT", () => {
+    const solid = COLOR_ROLES.filter((role) => !(role in TRANSLUCENT));
+    expect(Object.keys(TOKENS.light).sort()).toEqual([...solid].sort());
+    expect(Object.keys(TOKENS.dark).sort()).toEqual([...solid].sort());
+  });
+
+  it.each(Object.entries(BLOCKS))("%s: fill — доля ink поверх фона (color-mix), как в TRANSLUCENT", (name, { body }) => {
+    const percent = TRANSLUCENT.fill[name.startsWith("светлая") ? "light" : "dark"];
+    expect(body()).toContain(`--role-fill: color-mix(in srgb, var(--role-${TRANSLUCENT.fill.of}) ${percent}%, transparent);`);
   });
 
   it.each(Object.entries(BLOCKS))("%s: каждая роль с тем же hex и без лишних", (_name, { body, theme }) => {
@@ -75,21 +81,82 @@ describe("tokens.css совпадает с TOKENS", () => {
     }
   });
 
-  it("нет цветов вне TOKENS", () => {
-    const allowed = new Set([...Object.values(TOKENS.light), ...Object.values(TOKENS.dark)]);
+  it("нет цветов вне TOKENS и GLASS", () => {
+    const allowed = new Set([
+      ...Object.values(TOKENS.light),
+      ...Object.values(TOKENS.dark),
+      ...[GLASS.light, GLASS.dark].flatMap((g) => [g.tint, g.secondary]),
+    ]);
     const hexes = [...css.matchAll(/#[0-9a-f]{3,8}\b/gi)].map((m) => m[0].toLowerCase());
     expect(hexes.filter((hex) => !allowed.has(hex))).toEqual([]);
     expect(css).not.toMatch(/\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/i);
     expect(css).not.toMatch(/:\s*(?:black|white)\b/i);
   });
 
-  it('компьютерные размеры (заголовок 32 px, кнопка 12 px) заданы только под [data-device="desktop"]', () => {
+  it('компьютерные размеры (заголовок 40 px, карточка 22 px, кнопка 12 px) заданы только под [data-device="desktop"]', () => {
+    const theme = block(css, /@theme/);
+    expect(theme).toMatch(/--text-title:\s*2\.125rem\s*;/); // 34 px на телефоне
+    expect(theme).toMatch(/--radius-card:\s*1\.25rem\s*;/); // 20 px
+    expect(theme).toMatch(/--radius-control:\s*1rem\s*;/); // 16 px
     const desktop = block(css, /:root\[data-device="desktop"\]/);
-    expect(desktop).toMatch(/--text-title:\s*2rem\s*;/);
+    expect(desktop).toMatch(/--text-title:\s*2\.5rem\s*;/);
+    expect(desktop).toMatch(/--text-title--line-height:\s*1\.08\s*;/);
+    expect(desktop).toMatch(/--radius-card:\s*1\.375rem\s*;/);
     expect(desktop).toMatch(/--radius-control:\s*0\.75rem\s*;/);
     // Вне @theme (значения телефона) и этого блока размеры не переопределяются: иначе версии смешались бы.
-    const overrides = [...css.matchAll(/([^{}]+)\{[^{}]*--(?:text-title|radius-control):/g)].map((m) => m[1].trim());
+    const overrides = [...css.matchAll(/([^{}]+)\{[^{}]*--(?:text-title|radius-control|radius-card):/g)].map((m) => m[1].trim());
     expect(overrides).toEqual(['@theme', ':root[data-device="desktop"]']);
+  });
+
+  it("шкала текста (разбор 3.3): размер, межстрочный и трекинг по размеру; ₸ — 0,6 размера суммы", () => {
+    const theme = block(css, /@theme/);
+    const scale: [name: string, size: string, leading: string, tracking: string][] = [
+      ["display-xl", "4rem", "1.03", "-0.035em"],
+      ["display", "2.5rem", "1.08", "-0.03em"],
+      ["display-amount", "2.5rem", "1.05", "-0.02em"],
+      ["title", "2.125rem", "1.1", "-0.025em"],
+      ["amount", "1.75rem", "1.1", "-0.02em"],
+      ["title-2", "1.375rem", "1.25", "-0.018em"],
+      ["lead", "1.3125rem", "1.4", "-0.016em"],
+      ["headline", "1.0625rem", "1.35", "-0.013em"],
+      ["body", "1.0625rem", "1.47", "-0.013em"],
+      ["sub", "0.9375rem", "1.4", "-0.009em"],
+      ["small", "0.8125rem", "1.35", "-0.003em"],
+    ];
+    for (const [name, size, leading, tracking] of scale) {
+      expect(theme, name).toContain(`--text-${name}: ${size};`);
+      expect(theme, name).toContain(`--text-${name}--line-height: ${leading};`);
+      expect(theme, name).toContain(`--text-${name}--letter-spacing: ${tracking};`);
+    }
+    // Трекинг сжимается с ростом кегля: чем крупнее, тем отрицательнее (никогда не один на все размеры).
+    const ordered = scale.filter(([name]) => name !== "display-amount" && name !== "amount");
+    const trackings = ordered.map(([, , , tracking]) => Number.parseFloat(tracking));
+    expect([...trackings].sort((a, b) => a - b)).toEqual(trackings);
+    expect(theme).toContain("--text-currency: 0.6em;");
+    // Старых имён шкалы больше нет.
+    expect(css).not.toMatch(/--text-(?:card|section)\b/);
+  });
+
+  it("радиусы (разбор 3.6): чип и панель — капсулы, лист 32/24, миниатюра 12, фото в карточке концентрично", () => {
+    const theme = block(css, /@theme/);
+    expect(theme).toMatch(/--radius-chip:\s*9999px\s*;/);
+    expect(theme).toMatch(/--radius-bar:\s*9999px\s*;/);
+    expect(theme).toMatch(/--radius-sheet:\s*2rem\s*;/);
+    expect(theme).toMatch(/--radius-sheet-full:\s*1\.5rem\s*;/);
+    expect(theme).toMatch(/--radius-thumb:\s*0\.75rem\s*;/);
+    expect(theme).toMatch(/--radius-field:\s*0\.75rem\s*;/);
+    expect(theme).toMatch(/--spacing-photo-inset:\s*0\.5rem\s*;/);
+    expect(theme).toContain("--radius-photo: calc(var(--radius-card) - var(--spacing-photo-inset));");
+  });
+
+  it("тени float, overlay, sheet, hover — по теме: в тёмной плотнее", () => {
+    const theme = block(css, /@theme inline/);
+    for (const name of ["float", "overlay", "sheet", "hover"]) expect(theme).toContain(`--shadow-${name}: var(--elev-${name});`);
+    for (const [, { body }] of Object.entries(BLOCKS)) {
+      for (const name of ["float", "overlay", "sheet", "hover"]) expect(body()).toMatch(new RegExp(String.raw`--elev-${name}:`));
+    }
+    const alpha = (body: string) => Number(/--elev-float:[^;]*?var\(--shade\) (\d+)%/.exec(body)?.[1]);
+    expect(alpha(BLOCKS['тёмная, [data-theme="dark"]'].body())).toBeGreaterThan(alpha(BLOCKS["светлая, :root"].body()));
   });
 
   it("панель вкладок, шапка и аватар — именованные размеры", () => {
@@ -124,14 +191,14 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(utility("dock-above-bar")).not.toMatch(/1\.5rem/);
   });
 
-  it("sticky-head: шапка прилипает к верху, материал панелей со сплошной заменой, верхнее поле колонки — тем же токеном, что safe-block", () => {
+  it("sticky-head: шапка прилипает к верху, верхнее поле колонки — тем же токеном, что safe-block; материал — отдельно (glass-bar)", () => {
     const body = /@utility sticky-head\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
     expect(body).toMatch(/position:\s*sticky/);
     expect(body).toMatch(/top:\s*0/);
     expect(body).toContain("margin-top: calc(-1 * max(var(--spacing-column-block), env(safe-area-inset-top)))");
     expect(body).toContain("padding-top: max(var(--spacing-column-block), env(safe-area-inset-top))");
-    expect(body).toContain("var(--glass-opacity)");
-    expect(body).toMatch(/prefers-reduced-transparency: reduce\)\s*\{\s*background-color: var\(--role-surface\)/);
+    // Ни материала, ни линии снизу: стекло и «растворение» вместо линии даёт glass-bar рядом в разметке.
+    expect(body).not.toMatch(/backdrop-filter|background|border-bottom/);
   });
 
   it("безопасные зоны телефона: утилиты берут env(safe-area-inset-*), но не меньше обычного отступа", () => {
@@ -203,20 +270,79 @@ describe("tokens.css совпадает с TOKENS", () => {
     expect(theme).toMatch(/--spacing-area:\s*calc\(3lh\s*\+\s*1\.625rem\)\s*;/);
   });
 
-  it("материал панелей (glass) плотный: поверхность 85 % в обеих темах", () => {
-    const glass = /@utility glass\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    expect(glass).toMatch(/background-color:\s*color-mix\(in srgb,\s*var\(--role-surface\)\s+var\(--glass-opacity\),\s*transparent\)\s*;/);
-    // Задано один раз на :root: тёмные блоки его не переопределяют, значит, действует в обеих темах.
-    expect(block(css, /:root/)).toMatch(/--glass-opacity:\s*85%\s*;/);
-    expect([...css.matchAll(/--glass-opacity:/g)]).toHaveLength(1);
+  it("старой утилиты glass и --glass-opacity нет: только уровни glass-regular, glass-thick, glass-bar, glass-clear", () => {
+    expect(css).not.toMatch(/@utility glass\s*\{/);
+    expect(css).not.toContain("--glass-opacity");
+    for (const name of ["glass-regular", "glass-thick", "glass-bar", "glass-clear"]) expect(css).toMatch(new RegExp(String.raw`@utility ${name}\s*\{`));
   });
 
-  it("полупрозрачная панель (glass) при prefers-reduced-transparency — сплошная, без размытия", () => {
-    const glass = /@utility glass\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
-    expect(glass).toMatch(/backdrop-filter:\s*saturate\([\d.]+\)\s*blur\([\d.]+rem\)\s*;/);
-    expect(glass).toMatch(
-      /@media\s*\(prefers-reduced-transparency:\s*reduce\)\s*\{\s*background-color:\s*var\(--role-surface\);\s*backdrop-filter:\s*none;/,
+  it.each(Object.entries(BLOCKS))("%s: тон, плотность и вторичный текст стекла — как в GLASS", (name, { body }) => {
+    const g = GLASS[name.startsWith("светлая") ? "light" : "dark"];
+    expect(body()).toContain(`--glass-tint: ${g.tint};`);
+    expect(body()).toContain(`--glass-alpha: ${g.regular}%;`);
+    expect(body()).toContain(`--glass-thick-alpha: ${g.thick}%;`);
+    expect(body()).toContain(`--glass-secondary: ${g.secondary};`);
+  });
+
+  it("запасные плотности стекла и затемнение фото — как в GLASS (одни на обе темы)", () => {
+    const root = block(css, /:root/);
+    expect(root).toContain(`--glass-solid-alpha: ${GLASS.solid}%;`);
+    expect(root).toContain(`--glass-clear-alpha: ${GLASS.clear.regular}%;`);
+    expect(root).toContain(`--glass-clear-solid: ${GLASS.clear.solid}%;`);
+    expect(root).toContain(`--glass-clear-reduced: ${GLASS.clear.reduced}%;`);
+    expect(root).toContain(`--scrim-photo-alpha: ${GLASS.clear.scrim}%;`);
+  });
+
+  it.each(["glass-regular", "glass-thick", "glass-bar"])("%s: размытие с префиксом Safari и запасные виды без прозрачности", (name) => {
+    const body = new RegExp(String.raw`@utility ${name}\s*\{([\s\S]*?)\n\}`).exec(css)?.[1] ?? "";
+    expect(body).toContain("-webkit-backdrop-filter: blur(");
+    expect(body).toMatch(
+      /@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{\s*background-color: color-mix\(in srgb, var\(--glass-tint\) var\(--glass-solid-alpha\), transparent\);/,
     );
+    for (const media of ["prefers-reduced-transparency: reduce", "prefers-contrast: more"]) {
+      const inner = new RegExp(String.raw`@media \(${media}\) \{([\s\S]*?)\n  \}`).exec(body)?.[1] ?? "";
+      expect(inner, media).toMatch(/background-color: var\(--role-(?:surface|raised)\);/);
+      expect(inner, media).toContain("backdrop-filter: none;");
+    }
+    expect(body).toContain("@media (forced-colors: active)");
+  });
+
+  it("glass-regular и glass-thick: кромка и контур вместо серой рамки; позиция — с нулевой специфичностью", () => {
+    for (const name of ["glass-regular", "glass-thick"]) {
+      const body = new RegExp(String.raw`@utility ${name}\s*\{([\s\S]*?)\n\}`).exec(css)?.[1] ?? "";
+      expect(body).toContain("inset 0 1px 0 var(--glass-edge-top)");
+      expect(body).toContain("0 0 0 0.5px var(--glass-rim)");
+      expect(body).toMatch(/:where\(&\) \{\s*position: relative;/);
+      expect(body).toContain("mask-composite: exclude;");
+      expect(body).not.toMatch(/\bborder:/);
+    }
+  });
+
+  it("glass-bar: без линии — «растворение» под шапкой по прокрутке; при уменьшении прозрачности — линия line", () => {
+    const body = /@utility glass-bar\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(body).not.toMatch(/border-bottom/);
+    expect(body).toContain("animation-timeline: scroll(root);");
+    expect(body).toContain("linear-gradient(to bottom, color-mix(in srgb, var(--glass-tint) 60%, transparent), transparent)");
+    const reduced = /@media \(prefers-reduced-transparency: reduce\) \{([\s\S]*?)\n  \}/.exec(body)?.[1] ?? "";
+    expect(reduced).toContain("background: var(--role-line);");
+  });
+
+  it("glass-clear: белый 600 на тёмной подложке; без размытия и при уменьшении прозрачности — плотнее", () => {
+    const body = /@utility glass-clear\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(body).toContain("color: var(--role-on-photo);");
+    expect(body).toContain("font-weight: var(--font-weight-semibold);");
+    expect(body).toContain("background-color: color-mix(in srgb, var(--role-scrim) var(--glass-clear-alpha), transparent);");
+    expect(body).toContain("background-color: color-mix(in srgb, var(--role-scrim) var(--glass-clear-solid), transparent);");
+    expect(body).toMatch(
+      /@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{\s*background-color: color-mix\(in srgb, var\(--role-scrim\) var\(--glass-clear-reduced\), transparent\);/,
+    );
+  });
+
+  it("scrim-photo: нижняя четверть — полное затемнение, к 60% — прозрачно; клики не перехватывает", () => {
+    const body = /@utility scrim-photo\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+    expect(body).toContain("pointer-events: none;");
+    expect(body).toContain("color-mix(in srgb, var(--role-scrim) var(--scrim-photo-alpha), transparent) 25%");
+    expect(body).toContain("transparent 60%");
   });
 
   it("вес шрифта не выше 600", () => {

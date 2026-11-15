@@ -18,7 +18,7 @@ function Payments({ rows }: { rows: readonly PaymentRow[] }) {
             href={row.href}
             label={
               <span className="flex flex-col items-start gap-1">
-                <span className="text-card wrap-break-word text-ink">{row.title}</span>
+                <span className="text-headline wrap-break-word text-ink">{row.title}</span>
                 <span className="text-sub text-muted">{row.line}</span>
               </span>
             }
@@ -39,7 +39,7 @@ function MonthCard({ view }: { view: FinanceView }) {
         <ButtonLink variant="secondary" className="w-control px-0" href={view.prevHref} aria-label={n.prev} title={n.prev}>
           <ChevronLeft aria-hidden className="size-6 shrink-0" />
         </ButtonLink>
-        <h2 className="min-w-0 flex-1 text-center text-section text-ink">{view.title}</h2>
+        <h2 className="min-w-0 flex-1 text-center text-title-2 text-ink">{view.title}</h2>
         {view.nextHref ? (
           <ButtonLink variant="secondary" className="w-control px-0" href={view.nextHref} aria-label={n.next} title={n.next}>
             <ChevronRight aria-hidden className="size-6 shrink-0" />

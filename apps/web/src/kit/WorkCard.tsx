@@ -40,7 +40,7 @@ export function WorkCard({ href, title, meta, byline, priceFrom, media = "none",
   const compact = media === "none";
   const text = (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
-      <Heading className="text-card text-ink">
+      <Heading className="text-headline text-ink">
         {href ? (
           <Link href={href} className="text-ink no-underline after:absolute after:inset-0 after:rounded-card focus-visible:outline-none">
             {title}

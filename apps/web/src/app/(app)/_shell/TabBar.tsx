@@ -10,8 +10,8 @@ import { NAV_ICONS } from "./nav-icons";
 
 /**
  * Плавающая панель вкладок телефона (эталон docs/design/v3/reference/mobile.html): 10 px от низа плюс безопасная зона
- * (dock-bottom), по бокам 10 px или шире выреза (dock-inline), радиус 22 px, полупрозрачный материал (glass: размытие и насыщенность поверх фона; при
- * prefers-reduced-transparency — сплошной), тень float. Панель прилипает к низу (sticky) и стоит в потоке последней:
+ * (dock-bottom), по бокам 10 px или шире выреза (dock-inline), капсула (rounded-bar), стекло glass-regular (размытие и насыщенность
+ * поверх фона, кромка-блик, контур 0,5 px и тень float; при prefers-reduced-transparency — сплошной). Панель прилипает к низу (sticky) и стоит в потоке последней:
  * содержимое прокручивается под ней, а в конце страницы панель встаёт под содержимым — отступ под панель равен её
  * настоящей высоте.
  *
@@ -41,7 +41,7 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
     <nav ref={bar} aria-label={ru.app.shell.navLabel} className="pointer-events-none sticky dock-bottom z-20 dock-inline">
       <ul
         data-tab-bar
-        className="glass pointer-events-auto mx-auto flex max-w-column flex-wrap rounded-bar border border-line p-1 shadow-float"
+        className="glass-regular pointer-events-auto mx-auto flex max-w-column flex-wrap rounded-bar p-1"
       >
         {items.map((item) => {
           const Icon = NAV_ICONS[item.icon];
@@ -56,7 +56,7 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
                 className={cn(
                   "flex min-h-control w-full flex-col items-center justify-center gap-1 rounded-field px-1 py-1.5 text-center no-underline",
                   "pressable",
-                  active ? "text-ink" : "text-muted",
+                  active ? "text-ink" : "text-glass-secondary",
                 )}
               >
                 <Icon aria-hidden className="size-6 shrink-0" strokeWidth={active ? 2.25 : 1.75} />

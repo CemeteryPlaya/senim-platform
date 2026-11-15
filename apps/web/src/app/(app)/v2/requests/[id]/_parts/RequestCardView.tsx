@@ -53,7 +53,7 @@ function Offers({ view }: { view: CardView }) {
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
                   {/* Имя и цена в одной строке; условия — отдельной строкой под ними: цены сравниваются взглядом по правому краю. */}
                   <span className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 text-card wrap-break-word text-ink">{row.label}</span>
+                    <span className="min-w-0 text-headline wrap-break-word text-ink">{row.label}</span>
                     {/* У предложения со сделкой — цена сделки с подписью под ней; у остальных — действующая цена мастера. */}
                     <span className="flex shrink-0 flex-col items-end">
                       <Money tiyn={row.priceTiyn} />

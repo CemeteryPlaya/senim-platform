@@ -91,18 +91,164 @@ const ROLES: readonly { swatch: string; label: string }[] = [
   { swatch: "bg-muted", label: s.colors.muted },
   { swatch: "bg-line", label: s.colors.line },
   { swatch: "bg-line-strong", label: s.colors.lineStrong },
+  { swatch: "bg-fill", label: s.colors.fill },
   { swatch: "bg-track", label: s.colors.track },
   { swatch: "bg-action", label: s.colors.action },
   { swatch: "bg-on-action", label: s.colors.onAction },
   { swatch: "bg-accent", label: s.colors.accent },
   { swatch: "bg-accent-soft", label: s.colors.accentSoft },
   { swatch: "bg-danger", label: s.colors.danger },
+  { swatch: "bg-on-danger", label: s.colors.onDanger },
   { swatch: "bg-danger-soft", label: s.colors.dangerSoft },
   { swatch: "bg-warn", label: s.colors.warn },
   { swatch: "bg-warn-soft", label: s.colors.warnSoft },
   { swatch: "bg-focus", label: s.colors.focus },
   { swatch: "bg-scrim", label: s.colors.scrim },
+  { swatch: "bg-photo-fallback", label: s.colors.photoFallback },
+  { swatch: "bg-on-photo", label: s.colors.onPhoto },
+  { swatch: "bg-glass-secondary", label: s.colors.glassSecondary },
 ];
+
+/** Шкала текста (разбор 3.3): образец набран своим размером; подпись — имя утилиты. Утилиты записаны полностью — Tailwind их собирает. */
+const TYPE_SCALE: readonly { cls: string; label: string; desktopOnly?: boolean }[] = [
+  { cls: "text-display-xl", label: s.typography.displayXl, desktopOnly: true },
+  { cls: "text-display", label: s.typography.display },
+  { cls: "text-title", label: s.typography.title },
+  { cls: "text-title-2", label: s.typography.title2 },
+  { cls: "text-lead", label: s.typography.lead },
+  { cls: "text-headline", label: s.typography.headline },
+  { cls: "text-body", label: s.typography.body },
+  { cls: "text-sub", label: s.typography.sub },
+  { cls: "text-small", label: s.typography.small },
+];
+
+/** Сумма со знаком «₸» на 0,6 размера (text-currency). */
+function AmountSample({ size }: { size: "text-display-amount" | "text-amount" }) {
+  return (
+    <p className={`${size} tabular-nums text-ink`}>
+      {s.typography.sample} <span className="text-currency text-muted">{s.typography.currency}</span>
+    </p>
+  );
+}
+
+function TypeScale({ device }: { device: "mobile" | "desktop" }) {
+  return (
+    <Card className="flex flex-col gap-5">
+      {TYPE_SCALE.filter((row) => device === "desktop" || !row.desktopOnly).map(({ cls, label, desktopOnly }) => (
+        <Specimen key={cls} label={desktopOnly ? `${cls} · ${s.typography.desktopOnly}` : cls}>
+          <p className={`${cls} text-ink`}>{label}</p>
+        </Specimen>
+      ))}
+      <Specimen label={`text-display-amount · ${s.typography.displayAmount}`}>
+        <AmountSample size="text-display-amount" />
+      </Specimen>
+      <Specimen label={`text-amount · ${s.typography.amount}`}>
+        <AmountSample size="text-amount" />
+      </Specimen>
+    </Card>
+  );
+}
+
+/** Радиусы (концентричные) и три тени плавающего слоя. */
+function Shapes() {
+  return (
+    <div className="grid grid-cols-1 gap-stack-group desktop:grid-cols-2">
+      <Card className="flex flex-col gap-4">
+        <Specimen label={s.shapes.card}>
+          <div aria-hidden className="h-16 rounded-card bg-fill" />
+        </Specimen>
+        <Specimen label={s.shapes.control}>
+          <div aria-hidden className="h-control rounded-control bg-action" />
+        </Specimen>
+        <Specimen label={s.shapes.field}>
+          <div aria-hidden className="h-control rounded-field border border-line-strong" />
+        </Specimen>
+        <Specimen label={s.shapes.chip}>
+          <span aria-hidden className="inline-flex h-7 w-32 rounded-chip bg-fill" />
+        </Specimen>
+        <Specimen label={s.shapes.thumb}>
+          <span aria-hidden className="photo-frame block size-thumb rounded-thumb" />
+        </Specimen>
+      </Card>
+      <Card className="flex flex-col gap-4 p-photo-inset">
+        <div aria-hidden className="photo-frame aspect-4/3 rounded-photo" />
+        <p className="px-2 pb-2 text-sub text-muted">{s.shapes.photo}</p>
+      </Card>
+      <div className="flex flex-col gap-6 py-4 desktop:col-span-2 desktop:flex-row">
+        {(
+          [
+            ["shadow-float", s.shapes.float],
+            ["shadow-overlay", s.shapes.overlay],
+            ["shadow-sheet", s.shapes.sheet],
+          ] as const
+        ).map(([cls, label]) => (
+          <div key={cls} className={`flex min-h-20 flex-1 items-center rounded-card bg-raised p-4 ${cls}`}>
+            <p className="text-sub text-ink">{label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Полосы «содержимого» под стеклом: текст и цветные плашки, чтобы было видно размытие. */
+function UnderGlass() {
+  return (
+    <div aria-hidden className="flex flex-col gap-3">
+      {[0, 1, 2, 3].map((row) => (
+        <div key={row} className="flex flex-col gap-2">
+          <p className="text-headline text-ink">{s.glass.under}</p>
+          <div className="flex gap-2">
+            <span className="h-6 flex-1 rounded-chip bg-accent" />
+            <span className="h-6 flex-1 rounded-chip bg-ink" />
+            <span className="h-6 flex-1 rounded-chip bg-warn" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Уровни стекла над содержимым и Clear над «фото». Вместо фото — светлые плашки на photo-fallback: белый участок под
+ * затемнением — худший случай для белого текста.
+ */
+function GlassSamples() {
+  return (
+    <Stack>
+      <p className="text-sub text-muted">{s.glass.note}</p>
+      <div className="grid grid-cols-1 gap-stack-group desktop:grid-cols-2">
+        <div className="relative overflow-hidden rounded-card bg-surface p-4">
+          <UnderGlass />
+          <div className="absolute inset-x-4 top-8 flex flex-col gap-6">
+            <div className="glass-regular flex min-h-control flex-col justify-center rounded-bar px-5 py-2">
+              <p className="text-sub font-medium text-ink">{s.glass.regular}</p>
+              <p className="text-small text-glass-secondary">{s.glass.regularSecondary}</p>
+            </div>
+            <div className="glass-thick rounded-card p-4">
+              <p className="text-body text-ink">{s.glass.thick}</p>
+            </div>
+          </div>
+        </div>
+        <div className="photo-frame aspect-4/3 rounded-card">
+          <div aria-hidden className="absolute inset-0 flex flex-col gap-3 p-6">
+            <span className="h-1/3 rounded-field bg-surface" />
+            <span className="flex-1 rounded-field bg-surface" />
+          </div>
+          <div aria-hidden className="scrim-photo" />
+          {/* Капсулы и подпись — только в нижней четверти: там затемнение полное (scrim-photo). */}
+          <div className="absolute inset-x-4 bottom-4 flex flex-col items-start gap-2">
+            <div className="flex flex-wrap gap-2">
+              <span className="glass-clear rounded-chip px-4 py-2 text-sub">{s.glass.clearChip}</span>
+              <span className="glass-clear rounded-chip px-4 py-2 text-sub">{s.glass.price}</span>
+            </div>
+            <p className="text-small text-on-photo">{s.glass.clear}</p>
+          </div>
+        </div>
+      </div>
+    </Stack>
+  );
+}
 
 function Swatches() {
   return (
@@ -252,7 +398,7 @@ function Choices() {
   return (
     <div className="grid grid-cols-1 gap-stack-group desktop:grid-cols-2">
       <Card className="flex flex-col gap-2">
-        <h3 className="text-card text-ink">{c.checkboxes}</h3>
+        <h3 className="text-headline text-ink">{c.checkboxes}</h3>
         <Checkbox label={c.unchecked} name="check-off" />
         <Checkbox label={c.checked} name="check-on" defaultChecked />
         <Checkbox label={c.disabled} name="check-disabled" disabled />
@@ -260,13 +406,13 @@ function Choices() {
         <Checkbox label={c.error} name="check-error" error={c.errorText} />
       </Card>
       <Card className="flex flex-col gap-4">
-        <h3 className="text-card text-ink">{c.radios}</h3>
+        <h3 className="text-headline text-ink">{c.radios}</h3>
         <RadioGroup legend={c.groupLegend}>
           <RadioCard label={c.phone} name="contact" value="phone" defaultChecked />
           <RadioCard label={c.chat} name="contact" value="chat" />
           <RadioCard label={c.mail} name="contact" value="mail" disabled />
         </RadioGroup>
-        <h3 className="text-card text-ink">{c.described}</h3>
+        <h3 className="text-headline text-ink">{c.described}</h3>
         <RadioGroup legend={c.describedLegend}>
           <RadioCard label={c.sms} description={c.smsText} name="channel" value="sms" defaultChecked />
           <RadioCard label={c.call} description={c.callText} name="channel" value="call" />
@@ -382,16 +528,15 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
       </Section>
 
       <Section title={s.sections.typography}>
-        <Narrow>
-          <Card className="flex flex-col gap-4">
-            <p className="text-title text-ink">{s.typography.title}</p>
-            <p className="text-section text-ink">{s.typography.section}</p>
-            <p className="text-card text-ink">{s.typography.card}</p>
-            <p className="text-body text-ink">{s.typography.body}</p>
-            <p className="text-sub text-muted">{s.typography.sub}</p>
-            <p className="text-small text-muted">{s.typography.small}</p>
-          </Card>
-        </Narrow>
+        <TypeScale device={device} />
+      </Section>
+
+      <Section title={s.sections.shapes}>
+        <Shapes />
+      </Section>
+
+      <Section title={s.sections.glass}>
+        <GlassSamples />
       </Section>
 
       <Section title={s.sections.layout}>
@@ -453,7 +598,7 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
             <Columns count={3}>
               {[s.columns.one, s.columns.two, s.columns.three].map((title) => (
                 <Card key={title}>
-                  <h3 className="text-card text-ink">{title}</h3>
+                  <h3 className="text-headline text-ink">{title}</h3>
                   <p className="mt-1 text-body text-muted">{s.columns.body}</p>
                 </Card>
               ))}
@@ -510,7 +655,7 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
         <Narrow>
           <Stack>
             <Card>
-              <h3 className="text-card text-ink">{s.cards.cardTitle}</h3>
+              <h3 className="text-headline text-ink">{s.cards.cardTitle}</h3>
               <p className="mt-1 text-sub text-muted">{s.cards.cardBody}</p>
             </Card>
             <Specimen label={s.cards.listValues}>

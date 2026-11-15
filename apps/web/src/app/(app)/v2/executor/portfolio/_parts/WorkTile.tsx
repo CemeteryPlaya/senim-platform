@@ -13,7 +13,7 @@ export function WorkTile({ row, media }: { row: WorkRow; media: "none" | "slot" 
       {media === "slot" && <PhotoSlot ratio="4/3" alt={row.photo?.alt ?? ""} {...(row.photo ? { src: row.photo.src } : {})} />}
       <div className="flex min-w-0 flex-col items-start gap-2">
         <StatusChip tone={row.published ? "accent" : "neutral"}>{row.status}</StatusChip>
-        <h2 className="text-card text-ink">
+        <h2 className="text-headline text-ink">
           <Link href={row.href} className="text-ink no-underline after:absolute after:inset-0 after:rounded-card focus-visible:outline-none">
             {row.title}
           </Link>

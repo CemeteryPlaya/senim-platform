@@ -28,7 +28,7 @@ export type DesktopShellProps = {
 
 /**
  * Оболочка компьютера — меню сверху (эталон docs/design/v3/reference/desktop-layout.html, вариант A). Шапка 52 px
- * прилипает к верху; материал полупрозрачный (glass), содержимое прокручивается под ним, по нижнему краю — линия.
+ * прилипает к верху; материал — стекло glass-bar: содержимое прокручивается под ним и растворяется у нижнего края (без линии).
  * Слева название продукта (ссылка на главную), затем разделы строкой; справа действие роли (вторичной кнопкой — главная
  * кнопка принадлежит экрану), колокольчик и аватар с меню. Гостю справа — «Войти» той же вторичной кнопкой (на экранах входа её нет: человек уже там).
  * Сосредоточенная оболочка (`nav.focus`, первые шаги после входа): слева только название, справа только «Выйти»
@@ -41,13 +41,13 @@ export function DesktopShell({ nav, user, theme = "system", unread = 0, unavaila
   return (
     <div className="flex min-h-dvh flex-col">
       <SkipLink />
-      <header data-top-bar className="glass sticky top-0 z-20 border-b border-line">
+      <header data-top-bar className="glass-bar sticky top-0 z-20">
         <div className="mx-auto flex min-h-header w-full max-w-content flex-wrap items-center gap-x-6 px-6">
           {nav.focus ? (
             // Первые шаги: название — текст, а не ссылка (со шага уходить некуда).
-            <span className="inline-flex min-h-control shrink-0 items-center text-card text-ink">{ru.common.brand}</span>
+            <span className="inline-flex min-h-control shrink-0 items-center text-headline text-ink">{ru.common.brand}</span>
           ) : (
-            <Link href={to("/")} className="inline-flex min-h-control shrink-0 items-center text-card text-ink no-underline">
+            <Link href={to("/")} className="inline-flex min-h-control shrink-0 items-center text-headline text-ink no-underline">
               {ru.common.brand}
             </Link>
           )}

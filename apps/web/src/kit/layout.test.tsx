@@ -59,7 +59,7 @@ describe("Section", () => {
     const out = html(<Section title="Помощь">x</Section>);
     expect(out).toMatch(/^<section/);
     const h2 = out.match(/<h2[^>]*>/)?.[0] ?? "";
-    expect(hasClass(h2, "text-section")).toBe(true);
+    expect(hasClass(h2, "text-title-2")).toBe(true);
     expect(h2).not.toMatch(/[\s"](?:-?m|p)[xlrse]?-\d/);
     expect(out).toContain(">Помощь</h2>");
   });

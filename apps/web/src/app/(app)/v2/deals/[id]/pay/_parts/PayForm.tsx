@@ -42,7 +42,7 @@ function ConsentGiven() {
   return (
     <Card>
       <Stack gap="tight">
-        <p className="text-card text-ink">{t.consent.given}</p>
+        <p className="text-headline text-ink">{t.consent.given}</p>
         <p className="text-body text-muted">{t.consent.givenBody}</p>
       </Stack>
     </Card>

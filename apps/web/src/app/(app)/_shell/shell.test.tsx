@@ -75,10 +75,12 @@ describe("MobileShell", () => {
     expect(html(<MobileShell nav={{ ...clientNav, tabs: [] }}>x</MobileShell>)).not.toContain("data-bar-underlay");
   });
 
-  it("панель плавающая и полупрозрачная: glass, rounded-bar, shadow-float, прилипает снизу с отступом", () => {
+  it("панель плавающая, стекло: glass-regular (кромка, контур и тень в материале), капсула, прилипает снизу с отступом", () => {
     const m = html(<MobileShell nav={clientNav}>x</MobileShell>);
     const bar = tagWith(m, "data-tab-bar");
-    for (const cls of ["glass", "rounded-bar", "shadow-float"]) expect(hasClass(bar, cls), cls).toBe(true);
+    for (const cls of ["glass-regular", "rounded-bar"]) expect(hasClass(bar, cls), cls).toBe(true);
+    // Серой рамки и отдельной тени нет: контур 0,5 px и тень float даёт сам материал.
+    for (const cls of ["border", "border-line", "shadow-float"]) expect(hasClass(bar, cls), cls).toBe(false);
     const navTag = tagWith(m, 'aria-label="Основное меню"');
     for (const cls of ["sticky", "dock-bottom", "dock-inline"]) expect(hasClass(navTag, cls), cls).toBe(true);
   });
@@ -99,10 +101,11 @@ describe("MobileShell", () => {
     expect(hasClass(current[0], "text-ink")).toBe(true);
     const home = anchors(m).find((a) => a.includes('href="/v2"'));
     expect(home).toBeDefined();
-    expect(hasClass(home ?? "", "text-muted")).toBe(true);
+    // На стекле вторичный текст — glass-secondary (обычный muted на стекле над тёмным фото ниже 4,5:1).
+    expect(hasClass(home ?? "", "text-glass-secondary")).toBe(true);
   });
 
-  it("гость на главной: «Главная» — текущая вкладка (ink, 600), остальные muted (500)", () => {
+  it("гость на главной: «Главная» — текущая вкладка (ink, 600), остальные glass-secondary (500)", () => {
     // Причина пустого выделения на первых снимках: у гостя не было вкладки, совпадающей с /v2 (и с /v2/ui-kit).
     nav.pathname = "/v2";
     const m = html(<MobileShell nav={guestNav}>x</MobileShell>);
@@ -114,7 +117,7 @@ describe("MobileShell", () => {
     expect(hasClass(current[0], "text-ink")).toBe(true);
     expect(hasClass(tagWith(current[0], "data-tab-label"), "font-semibold")).toBe(true);
     for (const other of links.filter((a) => !a.includes('aria-current="page"'))) {
-      expect(hasClass(other, "text-muted")).toBe(true);
+      expect(hasClass(other, "text-glass-secondary")).toBe(true);
       expect(hasClass(tagWith(other, "data-tab-label"), "font-medium")).toBe(true);
     }
   });
@@ -159,7 +162,7 @@ describe("DesktopShell", () => {
     expect(d).not.toContain("data-primary-action"); // кнопка шапки — secondary: главное действие принадлежит экрану
   });
 
-  it("шапка прилипает, полупрозрачная, высота 52 px; разделы — в nav «Основное меню»", () => {
+  it("шапка прилипает, стекло во всю ширину без линии (glass-bar), высота 52 px; разделы — в nav «Основное меню»", () => {
     const d = html(
       <DesktopShell nav={clientNav} user={client}>
         x
@@ -167,7 +170,8 @@ describe("DesktopShell", () => {
     );
     const header = tagWith(d, "data-top-bar");
     expect(header.startsWith("<header")).toBe(true);
-    for (const cls of ["glass", "sticky", "top-0", "border-b", "border-line"]) expect(hasClass(header, cls), cls).toBe(true);
+    for (const cls of ["glass-bar", "sticky", "top-0"]) expect(hasClass(header, cls), cls).toBe(true);
+    for (const cls of ["border-b", "border-line"]) expect(hasClass(header, cls), cls).toBe(false);
     const inner = d.slice(d.indexOf("data-top-bar")).match(/<div [^>]*>/)?.[0] ?? "";
     for (const cls of ["min-h-header", "max-w-content"]) expect(hasClass(inner, cls), cls).toBe(true);
     expect(d).toMatch(/<nav[^>]+aria-label="Основное меню"/);
@@ -244,7 +248,7 @@ describe("DesktopShell", () => {
     expect(masters).toContain('aria-current="page"');
     for (const cls of ["text-ink", "font-semibold"]) expect(hasClass(masters, cls), cls).toBe(true);
     expect(about).not.toContain("aria-current");
-    for (const cls of ["text-muted", "font-medium"]) expect(hasClass(about, cls), cls).toBe(true);
+    for (const cls of ["text-glass-secondary", "font-medium"]) expect(hasClass(about, cls), cls).toBe(true);
   });
 
   it("оператор: шапка с названием и меню профиля, без разделов", () => {

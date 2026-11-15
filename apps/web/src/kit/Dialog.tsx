@@ -83,7 +83,7 @@ export function Dialog({
                   className="pointer-events-auto relative flex max-h-full w-full max-w-md flex-col overflow-y-auto rounded-card bg-raised p-6 text-body text-ink shadow-float outline-none"
                   {...presence(reduced, { scale: 0.96 })}
                 >
-                  <DialogPrimitive.Title className="pr-12 text-section text-ink">{title}</DialogPrimitive.Title>
+                  <DialogPrimitive.Title className="pr-12 text-title-2 text-ink">{title}</DialogPrimitive.Title>
                   {description && (
                     <DialogPrimitive.Description className="mt-2 text-body text-muted">
                       {description}

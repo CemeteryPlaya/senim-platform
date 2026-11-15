@@ -26,7 +26,7 @@ export type NoticeProps = {
 export function Notice({ tone, title, live = false, children }: NoticeProps) {
   return (
     <div role={live ? "alert" : undefined} className={cn("flex flex-col gap-1 rounded-card p-4 text-body", TONES[tone])}>
-      {title && <p className="text-card">{title}</p>}
+      {title && <p className="text-headline">{title}</p>}
       {children}
     </div>
   );
