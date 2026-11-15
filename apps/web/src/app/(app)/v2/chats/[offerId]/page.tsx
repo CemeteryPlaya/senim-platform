@@ -67,14 +67,16 @@ export default async function ChatPage({ params }: Props) {
 
   if (device === "desktop") {
     // Компьютер — две панели (общий каркас ChatPanes с экраном списка): слева «Чаты» и список (открытый отмечен), справа
-    // заголовок и переписка: заголовок не сжимается, лента — flex-1 со своей прокруткой, поле ввода последним.
+    // заголовок и переписка: заголовок не сжимается, лента — flex-1 со своей прокруткой, поле ввода последним. Обёртка
+    // ленты без min-h-0: меньше ленты chat-min с полем она не сожмётся — тогда прокручивается правая панель (низкое окно,
+    // крупный шрифт), а поле прилипает к её низу (Chat fill).
     const rows = chatRows(await listChats(user), new Date(), side);
     return (
       <ChatPanes rows={rows} side={side} current={offerId} heading={<h2 className="text-balance text-title text-ink">{ru.app.chat.list.title}</h2>}>
         <div className="shrink-0">
           <PageTitle title={counterpart} back={back} lead={lead} />
         </div>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{room}</div>
+        <div className="flex min-w-0 flex-1 flex-col">{room}</div>
       </ChatPanes>
     );
   }

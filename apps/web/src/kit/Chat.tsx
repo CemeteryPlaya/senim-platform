@@ -45,6 +45,9 @@ export type ChatProps = {
    * Компьютер: лента занимает всю высоту родителя (`flex-1 min-h-0` со своей прокруткой) вместо окна высотой 32 rem.
    * Родитель — колонка заданной высоты (`flex flex-col` + `screen-fill`); поле ввода остаётся под лентой. На телефоне
    * ничего не меняет. Для экрана, где чат — всё содержимое.
+   * Размер ленты не зависит от числа сообщений (`contain-size`): её высота — только от колонки, не меньше `chat-min`.
+   * Если и столько не помещается (низкое окно, крупный шрифт), прокручивается колонка-родитель, а поле ввода прилипает
+   * к её нижнему краю (sticky, подложка composer-bar) — поле видно, страница не прокручивается.
    */
   fill?: boolean;
 };
@@ -148,7 +151,7 @@ export function Chat({ messages, composer, label, pageScroll = false, fill = fal
         role="log"
         aria-live="polite"
         aria-label={label ?? t.log}
-        className={cn("relative flex min-h-0 flex-1 flex-col", !pageScroll && (fill ? "desktop:min-h-chat-min desktop:overflow-y-auto" : "desktop:max-h-chat desktop:overflow-y-auto"))}
+        className={cn("relative flex min-h-0 flex-1 flex-col", !pageScroll && (fill ? "desktop:min-h-chat-min desktop:overflow-y-auto desktop:contain-size" : "desktop:max-h-chat desktop:overflow-y-auto"))}
       >
         <div ref={content} className="flex flex-col gap-3">
           {messages.map((message) => {
@@ -188,7 +191,7 @@ export function Chat({ messages, composer, label, pageScroll = false, fill = fal
           <div ref={end} aria-hidden className={cn("h-px", pageScroll && "mobile:chat-end")} />
         </div>
       </div>
-      {composer}
+      {fill ? <div className="mobile:contents desktop:sticky desktop:bottom-0 desktop:z-10 desktop:composer-bar">{composer}</div> : composer}
     </div>
   );
 }

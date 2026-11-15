@@ -69,7 +69,8 @@ export function ChatList({ rows, side, current = null, className }: { rows: read
  * Компьютер: «Чаты» в две панели, как в «Сообщениях» (разбор 3.9) — один каркас у списка (`/v2/chats`) и у диалога
  * (`/v2/chats/<id>`), поэтому при переходе левая панель не прыгает. Слева заголовок «Чаты» (`heading`: на экране списка —
  * его h1, у диалога — h2 того же размера; h1 там — собеседник) и список 360 px со своей прокруткой; справа — `children`
- * (подсказка или переписка). Всё — на высоту окна за вычетом шапки (`screen-fill`).
+ * (подсказка или переписка). Всё — на высоту окна за вычетом шапки (`screen-fill`); правая панель прокручивается сама,
+ * если её содержимое выше окна (низкое окно, крупный шрифт), — страница не прокручивается.
  */
 export function ChatPanes({ rows, side, current = null, heading, children }: { rows: readonly ChatRowView[]; side: DealSide; current?: string | null; heading: ReactNode; children: ReactNode }) {
   return (
@@ -80,7 +81,7 @@ export function ChatPanes({ rows, side, current = null, heading, children }: { r
           <ChatList rows={rows} side={side} current={current} />
         </div>
       </div>
-      <div className="flex min-h-0 min-w-0 flex-col gap-stack-section">{children}</div>
+      <div className="flex min-h-0 min-w-0 flex-col gap-stack-section overflow-y-auto">{children}</div>
     </div>
   );
 }

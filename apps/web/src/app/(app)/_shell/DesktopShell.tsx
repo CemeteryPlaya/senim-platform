@@ -42,7 +42,7 @@ export function DesktopShell({ nav, user, theme = "system", unread = 0, unavaila
   return (
     // min-w-shell (1024px): в узком окне шапка и содержимое не сжимаются по слову в строке — страница прокручивается вбок
     // (спека, раздел 5; разбор 3.9).
-    <div className="flex min-h-dvh min-w-shell flex-col">
+    <div data-desktop-shell className="flex min-h-dvh min-w-shell flex-col">
       <SkipLink />
       <header data-top-bar className="glass-bar sticky top-0 z-20">
         <div className="mx-auto flex min-h-header w-full max-w-content flex-wrap items-center gap-x-6 px-6">
