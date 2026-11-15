@@ -68,6 +68,30 @@ describe.each(["mobile", "desktop"] as const)("«Финансы» мастера
     expect(out).toContain(t.chart.label);
   });
 
+  it("«Ожидает после приёмки» — героем: зелёный блок денег с крупной суммой первым, до месяца", () => {
+    const out = render(WITH_PAYMENTS, undefined, device);
+    expect(out).toContain("bg-accent-soft");
+    expect(out.indexOf(t.awaiting.title)).toBeLessThan(out.indexOf(t.total));
+    expect(out).toContain("text-display-amount");
+  });
+
+  it("месяц переключается симметрично: «‹ Ноябрь 2026 ›» — у текущего месяца «вперёд» погашена, не ссылка; стрелки без серой плиты", () => {
+    const out = render(WITH_PAYMENTS, undefined, device);
+    const nav = out.slice(out.indexOf(`aria-label="${t.monthNav.label}"`), out.indexOf("</nav>"));
+    expect(count(nav, "<svg")).toBe(2);
+    expect(count(nav, "<a ")).toBe(1);
+    expect(nav).not.toContain("bg-fill ");
+  });
+
+  it("все шесть месяцев пустые — столбиков нет; сумма месяца «0 ₸» приглушена", () => {
+    const reservedOnly = journal([row({ state: "reserved" })], []);
+    const out = render(reservedOnly, undefined, device);
+    expect(out).not.toContain(t.chart.title);
+    expect(out).toContain(t.awaiting.title);
+    const zero = out.slice(out.search(/<dd class="[^"]*text-muted[^"]*">/));
+    expect(zero.slice(0, zero.indexOf("</dd>"))).not.toContain("text-ink");
+  });
+
   it("журнал пуст — обучающий экран с одним действием на заявки", () => {
     const out = render(journal([], []), undefined, device);
     expect(out).toContain(t.empty.title);

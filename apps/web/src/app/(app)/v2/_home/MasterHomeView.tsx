@@ -86,14 +86,14 @@ function secondaryLabel(kind: View["now"]["kind"]): string {
 
 /**
  * Сводка числами: ничего не считается на экране — значения пришли из модулей. Телефон — три числа в одну строку (`inline`),
- * сумма компактная с маленьким «₸».
+ * сумма компактная с маленьким «₸». Нули приглушены (разбор 3.1): крупный «0» не спорит с тем, что есть.
  */
 function Summary({ stats, device }: { stats: MasterHomeData["stats"]; device: Device }) {
   return (
     <StatRow label={t.stats.label} inline={device === "mobile"}>
-      <Stat label={t.stats.fresh} value={stats.fresh} />
-      <Stat label={t.stats.inWork} value={stats.inWork} />
-      <Stat label={t.stats.earned} value={<Money tiyn={stats.earnedTiyn} large />} compact />
+      <Stat label={t.stats.fresh} value={stats.fresh} muted={stats.fresh === 0} />
+      <Stat label={t.stats.inWork} value={stats.inWork} muted={stats.inWork === 0} />
+      <Stat label={t.stats.earned} value={<Money tiyn={stats.earnedTiyn} large tone={stats.earnedTiyn === 0n ? "inherit" : "ink"} />} compact muted={stats.earnedTiyn === 0n} />
     </StatRow>
   );
 }
