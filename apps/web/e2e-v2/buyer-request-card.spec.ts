@@ -50,7 +50,13 @@ async function pageOf(browser: Browser, info: TestInfo, person: Person): Promise
 
 async function openRequestWithOffers(page: Page, count: number): Promise<void> {
   await open(page, "/v2/requests");
-  await page.locator("main a[href^='/v2/requests/']").filter({ hasText: ru.app.requests.state.choose(count) }).first().click();
+  // Строка списка: короткая плашка «Выберите мастера» и число предложений рядом («3 предложения»).
+  await page
+    .locator("main a[href^='/v2/requests/']")
+    .filter({ hasText: ru.app.requests.state.chooseShort })
+    .filter({ hasText: ru.app.requests.list.offers(count) })
+    .first()
+    .click();
   await page.waitForURL(/\/v2\/requests\/[^/?]+$/);
   await page.waitForLoadState("networkidle");
 }
@@ -144,7 +150,8 @@ test("прямая заявка без предложений: обучающи�
 test("чужая и несуществующая заявка — 404", async ({ browser }, info) => {
   const owner = await pageOf(browser, info, "daniyar");
   await open(owner, "/v2/requests");
-  const foreign = await owner.locator("main a[href^='/v2/requests/']").first().getAttribute("href");
+  // Первая ссылка-заявка, не «Заказать мебель» (/v2/requests/new).
+  const foreign = await owner.locator("main a[href^='/v2/requests/']:not([href^='/v2/requests/new'])").first().getAttribute("href");
   expect(foreign).toBeTruthy();
   await owner.context().close();
 
