@@ -1,4 +1,5 @@
 import { ru } from "@/i18n/ru";
+import { MAX_PRICE_KZT } from "@/modules/requests/client";
 import type { Mask } from "./mask-logic";
 
 /**
@@ -9,8 +10,22 @@ import type { Mask } from "./mask-logic";
 
 const NBSP = " ";
 
-/** Предел цифр: потолок цены сделки — 1 млрд ₸ (10 цифр); точную границу проверяет схема. */
-export const MONEY_MAX_DIGITS = 10;
+/**
+ * Предел цифр при вводе — по потолку суммы схем (`MAX_PRICE_KZT` модуля requests, 100 млн ₸ → 9 цифр): лишний разряд
+ * не набрать. Сумму выше потолка той же длины («900 000 000») поле пропускает — её отклоняет схема, а `tiynOfDigits`
+ * не отдаёт экрану.
+ */
+export const MONEY_MAX_DIGITS = String(MAX_PRICE_KZT).length;
+
+/**
+ * Цифры целых тенге из поля → сумма для экрана в тиынах, только в границах схем (1 … `MAX_PRICE_KZT`): пусто, ноль и
+ * сумма выше потолка — `null`. Перевод — `kztToTiyn` модуля денег (передаётся, чтобы правило жило в одном месте).
+ */
+export function tiynOfDigits(digits: string, kztToTiyn: (kzt: number) => bigint): bigint | null {
+  if (digits === "") return null;
+  const kzt = Number(digits);
+  return kzt >= 1 && kzt <= MAX_PRICE_KZT ? kztToTiyn(kzt) : null;
+}
 
 /** Слова после числа (русские — из `ru`, где живут все слова языка): «1,2 млн», «500 тыс», «1.5k». */
 const words = ru.app.kit.fields.moneyWords;
@@ -65,6 +80,7 @@ export function parseMoneyText(text: string): string | null {
 export const MONEY_MASK: Mask = {
   keep: (raw) => raw.replace(/[^0-9]/g, ""),
   max: MONEY_MAX_DIGITS,
+  rejectOverflow: true,
   trim: (sig) => {
     const rest = sig.replace(/^0+(?=\d)/, "");
     return { sig: rest, dropped: sig.length - rest.length };

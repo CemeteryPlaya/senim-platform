@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FocusEvent } from "react";
 import { ru } from "@/i18n/ru";
 import type { FieldProps } from "./fields";
 import { checkIdentity, type IdCheck, type IdentityKind } from "./id-check";
@@ -12,6 +12,8 @@ export type IinFieldProps = FieldProps & {
   kind?: IdentityKind;
   defaultValue?: string;
   autoFocus?: boolean;
+  /** Уход с поля: вызывается после своей проверки номера. */
+  onBlur?: (event: FocusEvent<HTMLInputElement>) => void;
 };
 
 const t = ru.app.kit.fields;
@@ -29,7 +31,7 @@ function problemOf(kind: IdentityKind, check: IdCheck): string | null {
  * Пока человек правит номер, прежняя ошибка снимается. Ошибка с сервера (`error`) важнее своей. В форму уходят цифры без
  * пробелов. После сохранения номер не показывается (только 4 последние цифры — дело экрана). Клиентский компонент.
  */
-export function IinField({ kind = "iin", error, ...field }: IinFieldProps) {
+export function IinField({ kind = "iin", error, onBlur, ...field }: IinFieldProps) {
   const [problem, setProblem] = useState<string | null>(null);
   return (
     <MaskedField
@@ -37,7 +39,10 @@ export function IinField({ kind = "iin", error, ...field }: IinFieldProps) {
       mask={IIN_MASK}
       error={error ?? problem ?? undefined}
       onValueChange={(digits) => setProblem(problemOf(kind, checkIdentity(kind, digits, false)))}
-      onBlur={(e) => setProblem(problemOf(kind, checkIdentity(kind, IIN_MASK.keep(e.currentTarget.value), true)))}
+      onBlur={(e) => {
+        setProblem(problemOf(kind, checkIdentity(kind, IIN_MASK.keep(e.currentTarget.value), true)));
+        onBlur?.(e);
+      }}
       inputMode="numeric"
       autoComplete="off"
       className="tabular-nums"

@@ -220,8 +220,11 @@ export type OfferSort = (typeof OFFER_SORTS)[number];
 export const listOffersSchema = z.strictObject({ requestId: id, sort: z.enum(OFFER_SORTS).default("price") });
 export const offerDetailSchema = z.strictObject({ requestId: id, offerId: id });
 
+/** Потолок суммы в целых тенге (100 млн ₸): схемы цены и поле суммы в форме (`MoneyField`) берут его отсюда. */
+export const MAX_PRICE_KZT = 100_000_000;
+
 /** Сумма в целых тенге: цена отклика и торга (на сервере → kztToTiyn), суммы сценариев до договора. */
-const money = z.number({ error: t.price }).int(t.price).min(1, t.price).max(100_000_000, t.price);
+const money = z.number({ error: t.price }).int(t.price).min(1, t.price).max(MAX_PRICE_KZT, t.price);
 const MEASUREMENT_TERMS = ["FREE", "INCLUDED", "FEE_IF_NO_DEAL"] as const;
 
 export const sendOfferSchema = z

@@ -68,7 +68,7 @@ describe("IinField и IbanField", () => {
 });
 
 describe("EmailField и InstagramField", () => {
-  it("почта: имя у самого поля, клавиатура с «@», без автоисправления; подсказки пока нет — живая область пустая", () => {
+  it("почта: имя у самого поля, клавиатура с «@», без автоисправления; подсказки пока нет — живая область пустая, место под неё занято", () => {
     const out = html(<EmailField label="Почта" name="email" defaultValue="a@mail.ru" />);
     const { visible } = inputs(out, "email");
     expect(attr(visible, "name", "email")).toBe(true);
@@ -76,7 +76,8 @@ describe("EmailField и InstagramField", () => {
     expect(attr(visible, "autocomplete", "email")).toBe(true);
     expect(attr(visible, "autocapitalize", "none")).toBe(true);
     expect(attr(visible, "autocorrect", "off")).toBe(true);
-    expect(out).toContain('<div aria-live="polite"></div>');
+    // Строка подсказки занята заранее (min-h-hint: 48px и две строки): её появление не сдвигает кнопку под курсором.
+    expect(out).toContain('<div aria-live="polite" class="min-h-hint text-body"></div>');
   });
 
   it("текст подсказки — из ru", () => {

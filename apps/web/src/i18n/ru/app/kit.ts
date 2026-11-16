@@ -49,6 +49,8 @@ export const kit = {
     emailSuggest: (email: string) => `Возможно, вы имели в виду ${email}?`,
     /** Приставка имени Instagram в поле. */
     instagramPrefix: "@",
+    /** Вставлена ссылка на пост или ролик: имени в ней нет. */
+    instagramPost: "Это ссылка на публикацию, нужна ссылка на профиль",
   },
   /** Постраничный переход (Pagination). */
   pagination: {

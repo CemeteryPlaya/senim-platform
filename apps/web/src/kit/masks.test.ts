@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { kzCheckDigit } from "@/platform/kz-id";
-import { codeAutoSubmit, editDistance, instagramName, suggestEmail } from "./field-logic";
+import { codeAutoSubmit, editDistance, instagramEdit, instagramName, suggestEmail } from "./field-logic";
 import { checkIban, checkIdentity } from "./id-check";
 import { applyEdit, fromRaw, IBAN_MASK, IIN_MASK, PHONE_MASK, phoneValue, pasteInto, type Edited, type Mask } from "./mask-logic";
-import { MONEY_MASK, parseMoneyText } from "./money-logic";
+import { MAX_PRICE_KZT } from "@/modules/requests/client";
+import { MONEY_MAX_DIGITS, MONEY_MASK, parseMoneyText, tiynOfDigits } from "./money-logic";
 
 const NBSP = " ";
 
@@ -60,6 +61,20 @@ describe("телефон: набор, вставка, автозаполнени
     const prev = "777 123 45 67";
     const out = applyEdit(PHONE_MASK, { prev, raw: "+77001234567", caret: 12, inputType: "insertText", data: "+77001234567" });
     expect(out.value).toBe("7001234567");
+  });
+
+  it.each([
+    ["+7 701", "701", "701"],
+    ["+7 (701) 555", "701555", "701 555"],
+    ["+77015554433", "7015554433", "701 555 44 33"],
+    ["8 701", "701", "701"],
+    ["701", "701", "701"],
+    // Без «+» неполная вставка с 7 — как набрана: номера на 77… существуют.
+    ["7701", "7701", "770 1"],
+  ])("частичная вставка в пустое поле «%s» → %s", (text, value, shown) => {
+    const out = pasteInto(PHONE_MASK, "", 0, 0, text) ?? filled(PHONE_MASK, text, "insertFromPaste");
+    expect(out.value).toBe(value);
+    expect(out.shown).toBe(shown);
   });
 
   it("одиннадцатая цифра при наборе отклоняется: поле не меняется", () => {
@@ -155,8 +170,22 @@ describe("деньги: поле", () => {
     expect(pasteInto(MONEY_MASK, "", 0, 0, "абв")).toBeNull();
   });
 
-  it("предел — 10 цифр: одиннадцатая не вводится", () => {
-    expect(typeInto(MONEY_MASK, "12345678901").value).toBe("1234567890");
+  it("предел цифр — по потолку схем (100 млн ₸ — 9 цифр): десятая не вводится", () => {
+    expect(MONEY_MAX_DIGITS).toBe(String(MAX_PRICE_KZT).length);
+    expect(typeInto(MONEY_MASK, "1234567890").value).toBe("123456789");
+  });
+
+  it("вставка сверх предела отклоняется целиком: сумма не обрезается до другой величины", () => {
+    expect(pasteInto(MONEY_MASK, `50${NBSP}000`, 6, 6, "2 млрд")).toEqual({ shown: `50${NBSP}000`, value: "50000", caret: 6 });
+  });
+
+  it("сумма для экрана — только в границах схем: пусто, ноль и выше потолка — null", () => {
+    const toTiyn = (kzt: number) => BigInt(kzt) * 100n;
+    expect(tiynOfDigits("", toTiyn)).toBeNull();
+    expect(tiynOfDigits("0", toTiyn)).toBeNull();
+    expect(tiynOfDigits("1", toTiyn)).toBe(100n);
+    expect(tiynOfDigits(String(MAX_PRICE_KZT), toTiyn)).toBe(BigInt(MAX_PRICE_KZT) * 100n);
+    expect(tiynOfDigits(String(MAX_PRICE_KZT + 1), toTiyn)).toBeNull();
   });
 
   it("правка в середине не уводит курсор в конец", () => {
@@ -304,5 +333,28 @@ describe("Instagram: имя или ссылка", () => {
     ["", ""],
   ])("«%s» → «%s»", (raw, name) => {
     expect(instagramName(raw)).toBe(name);
+  });
+
+  it.each([
+    ["https://www.instagram.com/p/C1a2B3c4D5e/?igsh=x"],
+    ["https://instagram.com/reel/C1a2B3c4D5e/"],
+    ["instagram.com/tv/abc"],
+  ])("ссылка на публикацию «%s» — не имя: пусто и пометка", (raw) => {
+    expect(instagramEdit(raw)).toEqual({ value: "", caret: 0, post: true });
+  });
+
+  it("ссылка на историю — имя автора", () => {
+    expect(instagramEdit("https://instagram.com/stories/dala.mebel/3456789").value).toBe("dala.mebel");
+  });
+
+  it("набор ссылки на профиль «…/p» — ещё имя «p», а не публикация", () => {
+    expect(instagramEdit("instagram.com/p")).toEqual({ value: "p", caret: 1, post: false });
+  });
+
+  it("курсор не прыгает в конец: убранные «@» и пробел перед ним — сдвиг на их число", () => {
+    // «@dala| mebel» → «dala|mebel»: курсор после «dala».
+    expect(instagramEdit("@dala mebel", 5)).toEqual({ value: "dalamebel", caret: 4, post: false });
+    // Пробел после курсора курсор не сдвигает.
+    expect(instagramEdit("da|la ".replace("|", ""), 2)).toEqual({ value: "dala", caret: 2, post: false });
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FocusEvent } from "react";
 import { ru } from "@/i18n/ru";
 import type { FieldProps } from "./fields";
 import { checkIban, type IdCheck } from "./id-check";
@@ -10,6 +10,8 @@ import { IBAN_MASK } from "./mask-logic";
 export type IbanFieldProps = FieldProps & {
   defaultValue?: string;
   autoFocus?: boolean;
+  /** Уход с поля: вызывается после своей проверки номера. */
+  onBlur?: (event: FocusEvent<HTMLInputElement>) => void;
 };
 
 const t = ru.app.kit.fields;
@@ -27,7 +29,7 @@ function problemOf(check: IdCheck): string | null {
  * Название банка не показывается: надёжного справочника кодов банков в коде нет. В форму уходят 20 знаков без пробелов.
  * Клиентский компонент.
  */
-export function IbanField({ error, ...field }: IbanFieldProps) {
+export function IbanField({ error, onBlur, ...field }: IbanFieldProps) {
   const [problem, setProblem] = useState<string | null>(null);
   return (
     <MaskedField
@@ -35,7 +37,10 @@ export function IbanField({ error, ...field }: IbanFieldProps) {
       mask={IBAN_MASK}
       error={error ?? problem ?? undefined}
       onValueChange={(sig) => setProblem(problemOf(checkIban(sig, false)))}
-      onBlur={(e) => setProblem(problemOf(checkIban(IBAN_MASK.keep(e.currentTarget.value), true)))}
+      onBlur={(e) => {
+        setProblem(problemOf(checkIban(IBAN_MASK.keep(e.currentTarget.value), true)));
+        onBlur?.(e);
+      }}
       inputMode="text"
       autoComplete="off"
       autoCapitalize="characters"

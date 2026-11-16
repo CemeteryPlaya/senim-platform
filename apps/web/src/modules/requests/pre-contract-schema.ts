@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import { LIMITS } from "./schema";
+import { LIMITS, MAX_PRICE_KZT } from "./schema";
 
 /**
  * Входы шагов до договора (ADR-005): проект, залог, замер площадки, повторный отклик.
@@ -11,7 +11,7 @@ const t = ru.requests.validation;
 const pe = ru.requests.pre.errors;
 
 const id = z.string().min(1).max(64);
-const money = z.number({ error: t.price }).int(t.price).min(1, t.price).max(100_000_000, t.price);
+const money = z.number({ error: t.price }).int(t.price).min(1, t.price).max(MAX_PRICE_KZT, t.price);
 const cm = z.number({ error: t.size }).int(t.size).min(LIMITS.cmMin, t.size).max(LIMITS.cmMax, t.size);
 
 export const costLineSchema = z.strictObject({

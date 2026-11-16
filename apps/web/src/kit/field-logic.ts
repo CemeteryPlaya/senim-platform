@@ -82,17 +82,45 @@ export function suggestEmail(raw: string): string | null {
 // Instagram
 // ---------------------------------------------------------------------------------------------------------------------
 
-/** Ссылка на профиль: `instagram.com/<имя>` (с `https://`, `www.`, `?igsh=…`, `/` в конце). */
-const PROFILE_LINK = /(?:^|\/\/|\.|\s)(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/i;
+/** Ссылка на Instagram: путь после `instagram.com/` (с `https://`, `www.`, `?igsh=…`). */
+const LINK = /(?:^|\/\/|\.|\s)(?:www\.)?instagram\.com\/([^\s?#]*)/i;
+/** Пути публикаций, а не профиля: пост, ролик, видео, подборка. */
+const POST_PATH = /^(?:p|reel|reels|tv|explore)\//i;
+const NAME = /^[A-Za-z0-9._]+/;
+
+export type InstagramEdit = {
+  /** Имя без «@» для поля. */
+  value: string;
+  /** Курсор в поле после чистки. */
+  caret: number;
+  /** Вставлена ссылка на публикацию (пост, ролик), а не на профиль: имени в ней нет. */
+  post: boolean;
+};
 
 /**
- * Что человек ввёл в поле Instagram → имя без «@» (знак «@» стоит в поле отдельно). Ссылка из приложения
- * («https://www.instagram.com/dala.mebel?igsh=…») → «dala.mebel»; «@dala» → «dala»; пробелы (в имени их не бывает, iOS
- * ставит их после подсказки слова) убираются. Остальное — как есть: правила имени
- * проверяет схема на сервере. Пока ссылка набирается и имени в ней ещё нет, строка не меняется.
+ * Что человек ввёл в поле Instagram → имя без «@» (знак «@» стоит в поле отдельно) и курсор.
+ * - Ссылка на профиль из приложения («https://www.instagram.com/dala.mebel?igsh=…», «…/stories/dala/…») → «dala.mebel»,
+ *   курсор в конце.
+ * - Ссылка на публикацию («instagram.com/p/…», «/reel/…») — не имя: поле пустое, `post` (экран показывает ошибку).
+ * - «@dala» → «dala»; пробелы (в имени их не бывает, iOS ставит их после подсказки слова) убираются; курсор сдвигается
+ *   ровно на убранные перед ним символы, а не прыгает в конец.
+ * - Пока ссылка набирается и имени в ней ещё нет, строка не меняется. Правила имени проверяет схема на сервере.
  */
+export function instagramEdit(raw: string, caret: number = raw.length): InstagramEdit {
+  const link = LINK.exec(raw);
+  if (link) {
+    const path = link[1];
+    if (POST_PATH.test(path)) return { value: "", caret: 0, post: true };
+    const name = NAME.exec(path.replace(/^stories\//i, ""))?.[0];
+    if (name) return { value: name, caret: name.length, post: false };
+    return { value: raw, caret, post: false };
+  }
+  const clean = (text: string) => text.replace(/\s/g, "").replace(/^@+/, "");
+  const value = clean(raw);
+  return { value, caret: clean(raw.slice(0, caret)).length, post: false };
+}
+
+/** Имя из любой строки (значение по умолчанию): то же, что правка с курсором в конце. */
 export function instagramName(raw: string): string {
-  const link = PROFILE_LINK.exec(raw);
-  if (link) return link[1];
-  return raw.replace(/\s/g, "").replace(/^@+/, "");
+  return instagramEdit(raw).value;
 }
