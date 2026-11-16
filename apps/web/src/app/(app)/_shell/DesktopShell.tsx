@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
+import { NavHistory } from "@/kit";
 import type { Theme } from "@/kit/theme";
 import { AvatarMenu } from "./AvatarMenu";
 import { LogoutButton } from "./LogoutButton";
@@ -46,6 +47,7 @@ export function DesktopShell({ nav, user, theme = "system", unread = 0, unavaila
     // (спека, раздел 5; разбор 3.9).
     <div data-desktop-shell className="flex min-h-dvh min-w-shell flex-col">
       <SkipLink />
+      <NavHistory />
       <header data-top-bar className="glass-bar sticky top-0 z-20">
         <div className="mx-auto flex min-h-header w-full max-w-content flex-wrap items-center gap-x-6 px-6">
           {nav.focus ? (

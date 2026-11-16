@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
+import { NavHistory } from "@/kit";
 import { LogoutButton } from "./LogoutButton";
 import type { AppNav } from "./nav";
 import { NetworkStatus } from "./NetworkStatus";
@@ -33,6 +34,7 @@ export function MobileShell({ nav, unavailable = false, unread = null, children 
   return (
     <div data-mobile-shell data-has-tabs={nav.tabs.length > 0 ? "" : undefined} className="flex min-h-dvh flex-col">
       <SkipLink />
+      <NavHistory />
       {nav.focus && (
         // Сосредоточенная оболочка (первые шаги): узкая шапка — название (не ссылка: со шага уходить некуда) слева, «Выйти»
         // справа; отступы шапки учитывают вырез (safe-bar), поэтому main под ней верхний вырез второй раз не добавляет.

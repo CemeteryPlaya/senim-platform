@@ -2,6 +2,7 @@ export { Button, ButtonLink, buttonClasses } from "./Button";
 export type { ButtonLinkProps, ButtonLook, ButtonProps, ButtonSize, ButtonVariant } from "./Button";
 export { BackLink } from "./BackLink";
 export type { BackLinkProps } from "./BackLink";
+export { NavHistory } from "./NavHistory";
 export { CopyButton } from "./CopyButton";
 export type { CopyButtonProps } from "./CopyButton";
 export { ContactActions } from "./ContactActions";
