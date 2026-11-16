@@ -38,23 +38,6 @@ function Field({
   );
 }
 
-/**
- * Поле ИИН/БИН анкеты: значение в ответы попадает при уходе с поля (и при «Дальше» — из формы, см. RegisterWizard):
- * поле само хранит разобранные цифры в скрытом поле рядом, берём оттуда.
- */
-function IdField({ name, label, kind, answers, errors, onChange }: FieldsProps & { name: AnswerField; label: string; kind: "iin" | "bin" }) {
-  return (
-    <div
-      onBlur={(event) => {
-        const hidden = event.currentTarget.querySelector<HTMLInputElement>(`input[type="hidden"][name="${name}"]`);
-        if (hidden && hidden.value !== answers[name]) onChange(name, hidden.value);
-      }}
-    >
-      <IinField label={label} name={name} kind={kind} defaultValue={answers[name]} error={errors[name]} />
-    </div>
-  );
-}
-
 /** Шаг 1: как вы работаете — самозанятый, ИП или ТОО (вопрос задан заголовком шага, у группы он же — имя для диктора). */
 export function FormFields({ answers, errors, onChange }: FieldsProps) {
   return (
@@ -86,7 +69,7 @@ export function NameFields({ answers, errors, onChange, ownIinLast4 }: FieldsPro
     <Stack gap="section">
       <Field {...props} name="legalName" label={t.name.legalName[form]} autoComplete={form === "SELF_EMPLOYED" ? "name" : "organization"} maxLength={200} />
       {form === "TOO" ? (
-        <IdField {...props} name="binIin" label={t.name.bin} kind="bin" />
+        <IinField label={t.name.bin} name="binIin" kind="bin" defaultValue={answers.binIin} error={errors.binIin} onValueChange={(digits) => onChange("binIin", digits)} />
       ) : (
         <Stack gap="tight">
           {ownIinLast4 !== null && (
@@ -113,7 +96,7 @@ export function NameFields({ answers, errors, onChange, ownIinLast4 }: FieldsPro
           <p className="text-body text-muted">{t.name.director.lead}</p>
           <Stack gap="section">
             <Field {...props} name="directorName" label={t.name.director.name} autoComplete="off" maxLength={120} />
-            <IdField {...props} name="directorIin" label={t.name.director.iin} kind="iin" />
+            <IinField label={t.name.director.iin} name="directorIin" kind="iin" defaultValue={answers.directorIin} error={errors.directorIin} onValueChange={(digits) => onChange("directorIin", digits)} />
           </Stack>
         </Section>
       )}

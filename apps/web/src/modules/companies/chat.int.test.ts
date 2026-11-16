@@ -146,6 +146,13 @@ describe("чат отклика: вложения", () => {
     await expect(sendMessage(t.client, t.offerId, "  ", [])).rejects.toMatchObject({ code: "VALIDATION" });
   });
 
+  it("фото без текста до оферты — отказ, сообщение не создаётся", async () => {
+    const t = await makeOfferThread();
+    const file = await makeUploadedFile(t.client, "MESSAGE");
+    await expect(sendMessage(t.client, t.offerId, "", [file.id])).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await db.message.count({ where: { offerId: t.offerId } })).toBe(0);
+  });
+
   it("чужой, уже привязанный или не тот файл — отказ, сообщение не создаётся (после оферты)", async () => {
     const t = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
     const foreign = await makeUploadedFile(t.executor, "MESSAGE");

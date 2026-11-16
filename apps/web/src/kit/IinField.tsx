@@ -12,6 +12,8 @@ export type IinFieldProps = FieldProps & {
   kind?: IdentityKind;
   defaultValue?: string;
   autoFocus?: boolean;
+  /** После каждой правки: цифры номера без пробелов. */
+  onValueChange?: (digits: string) => void;
   /** Уход с поля: вызывается после своей проверки номера. */
   onBlur?: (event: FocusEvent<HTMLInputElement>) => void;
 };
@@ -31,14 +33,17 @@ function problemOf(kind: IdentityKind, check: IdCheck): string | null {
  * Пока человек правит номер, прежняя ошибка снимается. Ошибка с сервера (`error`) важнее своей. В форму уходят цифры без
  * пробелов. После сохранения номер не показывается (только 4 последние цифры — дело экрана). Клиентский компонент.
  */
-export function IinField({ kind = "iin", error, onBlur, ...field }: IinFieldProps) {
+export function IinField({ kind = "iin", error, onBlur, onValueChange, ...field }: IinFieldProps) {
   const [problem, setProblem] = useState<string | null>(null);
   return (
     <MaskedField
       {...field}
       mask={IIN_MASK}
       error={error ?? problem ?? undefined}
-      onValueChange={(digits) => setProblem(problemOf(kind, checkIdentity(kind, digits, false)))}
+      onValueChange={(digits) => {
+        setProblem(problemOf(kind, checkIdentity(kind, digits, false)));
+        onValueChange?.(digits);
+      }}
       onBlur={(e) => {
         setProblem(problemOf(kind, checkIdentity(kind, IIN_MASK.keep(e.currentTarget.value), true)));
         onBlur?.(e);

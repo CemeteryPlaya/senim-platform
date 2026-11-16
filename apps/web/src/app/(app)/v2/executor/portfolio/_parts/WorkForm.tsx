@@ -103,6 +103,8 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
       router.refresh();
     },
   });
+  // Добавление, удаление и порядок фото — тоже правка (у сохранённой работы сравниваем с тем, что было).
+  const photosChanged = uploads.busy || uploads.fileIds.join(",") !== photos.map((p) => p.id).join(",");
   const form = itemId ? update : create;
   const err = form.fieldErrors;
   const atField = Object.keys(err).length > 0;
@@ -199,7 +201,7 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
           </Stack>
         </form>
       </Card>
-      <LeaveGuard dirty={!done && (dirty || (!itemId && uploads.fileIds.length > 0))} device={device} />
+      <LeaveGuard dirty={!done && (dirty || photosChanged)} device={device} />
       <ActionDock>
         <Button type="submit" form={FORM} disabled={done} pending={form.pending}>
           {itemId ? t.save : t.create}
