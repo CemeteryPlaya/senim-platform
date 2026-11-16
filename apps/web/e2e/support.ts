@@ -34,21 +34,21 @@ export const PHONE = {
   zhanna: "+7 700 000 03 04",
 } as const;
 
-/** Точки адресов демо-заявок (src/demo/data.ts, ADDR) и «далеко» — около 5 км к северу. */
+/** Точки адресов демо-заявок (src/seed/data.ts, ADDR) и «далеко» — около 5 км к северу. */
 export const POINT = {
   demo12: { latitude: 51.128207, longitude: 71.430411 },
   far: { latitude: 51.175, longitude: 71.43 },
 } as const;
 
 /**
- * Свежие демо-данные. Сид при DEMO_MODE=true сам очищает таблицы (resetDemo, RESTART IDENTITY),
- * поэтому номера заявок и сделок — как в docs/agents/DEMO_DATA.md. Только база «*e2e*».
+ * Свежие данные стенда. Сид при APP_ENV не prod сам очищает таблицы (reseedStand: ResetStand в identity, TRUNCATE …
+ * RESTART IDENTITY), поэтому номера заявок и сделок — как в docs/agents/DEMO_DATA.md. Только база «*e2e*».
  */
 export function reseed(): void {
   const url = process.env.E2E_DATABASE_URL ?? "";
   if (!/e2e/i.test(new URL(url).pathname)) throw new Error("E2E_DATABASE_URL должна указывать на базу с «e2e» в имени");
   const bin = path.resolve("node_modules/.bin");
-  const env = { ...process.env, DATABASE_URL: url, DEMO_MODE: "true", PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` };
+  const env = { ...process.env, DATABASE_URL: url, APP_ENV: "dev", PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` };
   execFileSync(process.execPath, [path.resolve("node_modules/prisma/build/index.js"), "db", "seed"], { env, stdio: "pipe" });
 }
 
@@ -60,15 +60,15 @@ export async function loginAs(page: Page, name: string): Promise<void> {
   await page.waitForURL((u) => u.pathname !== "/demo");
 }
 
-/** Вход по SMS-коду (SMS_PROVIDER=mock показывает код в демо-баннере). */
+/** Вход по SMS-коду (мок SMS у identity стенда: код показывается на экране входа). */
 export async function loginByPhone(page: Page, phone: string): Promise<void> {
   await page.context().clearCookies();
   await page.goto("/login");
   await page.getByLabel("Номер телефона").fill(phone);
   await page.getByRole("button", { name: "Получить код" }).click();
-  const banner = page.getByText(/Демо-режим: SMS не отправляется\. Ваш код — \d{6}/);
+  const banner = page.getByText(/SMS на стенде не отправляются\. Ваш код — \d{6}/);
   const code = (await banner.textContent())?.match(/\d{6}/)?.[0];
-  if (!code) throw new Error("Код не найден в демо-баннере");
+  if (!code) throw new Error("Код не найден на экране входа");
   await page.getByLabel("Код из SMS").fill(code);
   await page.getByRole("button", { name: "Войти", exact: true }).click();
   await page.waitForURL((u) => u.pathname !== "/login");

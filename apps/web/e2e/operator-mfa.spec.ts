@@ -11,15 +11,15 @@ import { totpNow } from "./totp";
  * Граница «через 5 минут код спрашивается снова» — в vitest (requireRecentMfa): часы Playwright не двигают часы сервера.
  */
 
-/** Номер не из демо-данных (src/demo/data.ts): оператор без демо-входа. */
+/** Номер не из демо-данных (src/seed/data.ts): оператор без демо-входа. */
 const OPERATOR_PHONE = "+77000000901";
 
-/** Завести не-демо оператора в identity стенда (SeedUsers, is_demo=false) — тем же путём, что и сид. */
+/** Завести оператора без секрета TOTP в identity стенда (SeedUsers, засеянный) — тем же путём, что и сид. */
 function seedOperator(phone: string): void {
   const url = process.env.E2E_DATABASE_URL ?? "";
   if (!/e2e/i.test(new URL(url).pathname)) throw new Error("E2E_DATABASE_URL должна указывать на базу с «e2e» в имени");
   execFileSync(process.execPath, [path.resolve("node_modules/tsx/dist/cli.mjs"), "--import", "./scripts/server-only-hook.mjs", "e2e/seed-operator.ts", phone], {
-    env: { ...process.env, DATABASE_URL: url, DEMO_MODE: "true" },
+    env: { ...process.env, DATABASE_URL: url, APP_ENV: "dev" },
     stdio: "pipe",
     // Зависший вызов identity не должен держать прогон до общего тайм-аута.
     timeout: 60_000,
@@ -28,7 +28,7 @@ function seedOperator(phone: string): void {
 
 test.beforeAll(() => {
   test.setTimeout(120_000);
-  // Сид сбрасывает identity стенда (ResetDemo стирает и факторы TOTP): каждый прогон подключает приложение заново.
+  // Сид сбрасывает identity стенда (ResetStand стирает и факторы TOTP засеянных): каждый прогон подключает приложение заново.
   reseed();
   seedOperator(OPERATOR_PHONE);
 });

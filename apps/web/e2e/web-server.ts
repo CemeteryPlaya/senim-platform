@@ -55,7 +55,6 @@ export const webServer: NonNullable<PlaywrightTestConfig["webServer"]> = {
     // В CI сервер — `next start` (NODE_ENV=production): env.ts требует явный APP_ENV (OPEN_QUESTIONS №62).
     APP_ENV: "dev",
     NEXT_DIST_DIR: ".next-e2e",
-    DEMO_MODE: "true",
     SMS_PROVIDER: "mock",
     SIGNATURE_PROVIDER: "mock",
     PAYMENT_PROVIDER: "manual",

@@ -8,7 +8,7 @@ import {
   consentTextSha256,
   projectSeedPerson,
   projectUser,
-  resetIdentityDemo,
+  resetStand,
   seedIdentityUsers,
   seedPartyColumns,
   type ExecutorSigner,
@@ -28,6 +28,7 @@ import {
   MEASURER,
   NOTIFICATIONS,
   OPERATOR,
+  OPERATOR_TOTP_SECRET,
   PRE_CONTRACT_REQUESTS,
   PROJECT_MATERIALS,
   REQUESTS,
@@ -48,23 +49,24 @@ import {
 import { seedDeals, type DealIds } from "./deals";
 import { testIban } from "./kz-id";
 import { seedMaterialPrices } from "./materials";
-import { demoFile } from "./portfolio-files";
-import { retimeDemo } from "./retime";
+import { seedFile } from "./portfolio-files";
+import { retimeSeed } from "./retime";
 import { testDocumentPdf } from "./test-documents";
 
 /**
  * Люди сида заводятся в identity (SeedUsers: по телефону, id стабильны) до транзакции старой базы — с ФИО, ИИН, e-mail,
  * стороной исполнителя (реквизиты, счёт выплаты, KYC с файлами) и согласием на ПДн текущей редакции. В старой базе —
  * только проекции с теми же id (projectUser, projectPerson, столбцы стороны partyColumns): ИИН/БИН и IBAN сид сам больше
- * не шифрует, их хранит identity. Согласия сторон демо-сделок на передачу банку — SeedConsents (deals.ts) до оплаты.
- * Демо-данные в два шага:
+ * не шифрует, их хранит identity. Согласия сторон сделок сида на передачу банку — SeedConsents (deals.ts) до оплаты.
+ * Все люди сида в identity — засеянные (seeded); оператор получает известный секрет TOTP (OPERATOR_TOTP_SECRET): входит
+ * телефоном, кодом с экрана (мок SMS) и кодом из приложения, как все. Данные стенда в два шага:
  *  1. «До сделок» — справочник, люди, мастера с KYC, заявки, отклики и торг, сценарии до договора, уведомления —
  *     одной транзакцией с датами «N дней назад» (журнал аудита — в форме recordAudit);
  *  2. сделки (deals.ts) — настоящими сервисами deal-core, documents, payments и operator: оферта, подписи
  *     (mock ЭЦП), оплата, сдача с фото и GPS, акт, споры, выплаты и возвраты, подтверждения оператора на manual.
- *     Сделки — тестовые (Deal.isDemo, операции журнала isTest), суммы — computeDealMoney, документы — PDF documents.
+ *     Операции журнала на моке — isTest (по провайдеру), суммы — computeDealMoney, документы — PDF documents.
  * Шаг 2 идёт отдельными транзакциями сервисов: упавший сид оставляет базу частично заполненной — повторный
- * запуск через resetDemo (TRUNCATE) начинает с чистой базы.
+ * запуск через reseedStand (TRUNCATE) начинает с чистой базы.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -78,9 +80,9 @@ export async function isDatabaseEmpty(client: Pick<PrismaClient, "user" | "furni
   return (await client.user.count()) === 0 && (await client.furnitureType.count()) === 0;
 }
 
-const NOT_EMPTY = "База не пуста: для пересева используйте resetDemo";
+const NOT_EMPTY = "База не пуста: для пересева используйте reseedStand";
 
-export async function seedDemo(db: PrismaClient): Promise<SeedSummary> {
+export async function seedStand(db: PrismaClient): Promise<SeedSummary> {
   // До identity: непустая база не меняет и пользователей identity.
   if (!(await isDatabaseEmpty(db))) throw new Error(NOT_EMPTY);
   const plan = seedPlan(Date.now());
@@ -92,9 +94,12 @@ export async function seedDemo(db: PrismaClient): Promise<SeedSummary> {
   return finish(db, ids, plan.now);
 }
 
-/** Пересев: в identity — сброс сессий и кодов (ResetDemo) и те же пользователи; старая база — TRUNCATE и сид в одной транзакции. */
-export async function resetDemo(db: PrismaClient): Promise<SeedSummary> {
-  await resetIdentityDemo();
+/**
+ * Пересев стенда: в identity — сброс (ResetStand: сессии, коды, лимиты, факторы и согласия засеянных; при APP_ENV=prod
+ * identity отказывает — до TRUNCATE) и те же пользователи; старая база — TRUNCATE и сид в одной транзакции.
+ */
+export async function reseedStand(db: PrismaClient): Promise<SeedSummary> {
+  await resetStand();
   const plan = seedPlan(Date.now());
   const users = await seedIdentityUsers(plan.people);
   const ids = await db.$transaction(async (tx) => {
@@ -109,7 +114,7 @@ async function finish(db: PrismaClient, ids: DealIds, now: number): Promise<Seed
   registerPorts();
   const seeded = await seedDeals(ids, now);
   // Действия сделок — по дням из плана, номера операций банка вместо MOCK-…, отзывы покупателей (retime.ts).
-  await retimeDemo(db, { windows: seeded.windows, end: seeded.end, now, reviews: seeded.reviews });
+  await retimeSeed(db, { windows: seeded.windows, end: seeded.end, now, reviews: seeded.reviews });
   return {
     users: await db.user.count(),
     executors: ids.executors.size,
@@ -218,7 +223,7 @@ class AuditLog {
 type Ids = DealIds & {
   types: Map<FurnitureSlug, string>;
   portfolio: Map<string, string>;
-  /** Демо-замерщик площадки (сценарий 2). */
+  /** Замерщик площадки стенда (сценарий 2). */
   measurer?: string;
 };
 
@@ -240,11 +245,11 @@ function signerOf(spec: ExecutorSpec): ExecutorSigner {
 }
 
 /**
- * E-mail демо-покупателя и демо-мастера: вымышленный адрес на зарезервированном домене example.com (RFC 2606, письма не
+ * E-mail покупателя и мастера сида: вымышленный адрес на зарезервированном домене example.com (RFC 2606, письма не
  * доставляются). identity записывает адрес сида подтверждённым — на стенде персоны не упираются в шаг почты. Сотрудникам
  * адрес не нужен.
  */
-const demoEmail = (key: ClientKey | ExecutorKey): string => `${key}@example.com`;
+const seedEmail = (key: ClientKey | ExecutorKey): string => `${key}@example.com`;
 
 const executorRoles = (spec: ExecutorSpec): Role[] => (spec.alsoClient ? ["EXECUTOR", "CLIENT"] : ["EXECUTOR"]);
 
@@ -254,7 +259,7 @@ const executorsByRegistration = () => (Object.entries(EXECUTORS) as [ExecutorKey
 /** Тестовый счёт выплаты: только у одобренного исполнителя; n — место в порядке регистрации. */
 const payoutIbanOf = (spec: ExecutorSpec, n: number): string | null => (spec.registration.status === "APPROVED" ? testIban(n + 1) : null);
 
-/** Согласие на ПДн текущей редакции — у каждого не-сотрудника сида: демо-персоны не попадают на экран согласия. */
+/** Согласие на ПДн текущей редакции — у каждого не-сотрудника сида: люди стенда не попадают на экран согласия. */
 const pdConsent = (): SeedConsentProof => ({ version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") });
 
 /** id KYC-документов исполнителя сида: заданы заранее — identity получает их в SeedUsers, файлы сохраняются в транзакции сида. */
@@ -285,7 +290,7 @@ function seedKycOf(key: ExecutorKey, clock: Clock, files: Map<ExecutorKey, KycFi
 }
 
 /**
- * Все люди сида для identity: роли, демо-флаг и дата регистрации — как у них в старой базе; ФИО, ИИН, e-mail и согласие на
+ * Все люди сида для identity: роли и дата регистрации — как у них в старой базе; ФИО, ИИН, e-mail и согласие на
  * ПДн текущей редакции; у исполнителя — сторона со счётом выплаты и KYC (договор, подпись ЭЦП, выплата и очередь KYC
  * оператора читают их из identity). Сотрудникам — только ФИО: ИИН им не нужен, экран согласия их не касается (Ruling AC).
  */
@@ -294,7 +299,6 @@ function seedPeople(clock: Clock, kycFiles: Map<ExecutorKey, KycFileIds>): SeedP
     phone: p.phone,
     role,
     roles,
-    isDemo: p.isDemo,
     createdAt: clock.ago(p.joinedDaysAgo),
     fullName: p.fullName,
     iin: p.iin,
@@ -312,12 +316,12 @@ function seedPeople(clock: Clock, kycFiles: Map<ExecutorKey, KycFileIds>): SeedP
       payoutIban: payoutIbanOf(spec, n),
       kyc: seedKycOf(key, clock, kycFiles),
     };
-    return { ...person(spec.person, "EXECUTOR", executorRoles(spec), demoEmail(key)), party };
+    return { ...person(spec.person, "EXECUTOR", executorRoles(spec), seedEmail(key)), party };
   };
-  const staff = (p: PersonSpec, role: Role): SeedPerson => ({ phone: p.phone, role, roles: [role], isDemo: p.isDemo, createdAt: clock.ago(p.joinedDaysAgo), fullName: p.fullName });
+  const staff = (p: PersonSpec, role: Role): SeedPerson => ({ phone: p.phone, role, roles: [role], createdAt: clock.ago(p.joinedDaysAgo), fullName: p.fullName });
   return [
-    staff(OPERATOR, "OPERATOR"),
-    ...(Object.entries(CLIENTS) as [ClientKey, PersonSpec][]).map(([key, p]) => person(p, "CLIENT", ["CLIENT"], demoEmail(key))),
+    { ...staff(OPERATOR, "OPERATOR"), totpSecretBase32: OPERATOR_TOTP_SECRET },
+    ...(Object.entries(CLIENTS) as [ClientKey, PersonSpec][]).map(([key, p]) => person(p, "CLIENT", ["CLIENT"], seedEmail(key))),
     ...executorsByRegistration().map(executor),
     staff(MEASURER, "MEASURER"),
   ];
@@ -328,7 +332,7 @@ type UserIds = Map<string, string>;
 
 /**
  * Личность человека сида в старой базе — проекция того, что получил identity (ФИО, последние 4 цифры ИИН, e-mail), — и
- * дата регистрации из сида (телефон, роли и демо-флаг пишет projectUser).
+ * дата регистрации из сида (телефон и роли пишет projectUser).
  */
 async function completePerson(tx: Tx, users: UserIds, plan: SeedPlan, p: PersonSpec): Promise<string> {
   const id = users.get(p.phone);
@@ -347,7 +351,7 @@ async function fill(tx: Tx, plan: SeedPlan, identityUsers: User[]): Promise<Ids>
 
   await tx.furnitureType.createMany({ data: DEFAULT_FURNITURE_TYPES.map((t, i) => ({ slug: t.slug, name: t.name, sortOrder: i })) });
   const types = new Map((await tx.furnitureType.findMany()).map((t) => [t.slug as FurnitureSlug, t.id]));
-  // Демо-цены материалов и типовые расчёты (ADR-007): помечены isDemo, оператор заменит реальными.
+  // Цены материалов и типовые расчёты (ADR-007): ориентир, оператор заменит реальными.
   await seedMaterialPrices(tx, types);
 
   const operator = await completePerson(tx, users, plan, OPERATOR);
@@ -437,7 +441,7 @@ async function seedExecutors(tx: Tx, ids: Ids, users: UserIds, plan: SeedPlan, a
     if (kyc && files) await seedKyc(tx, ids, clock, audit, { userId: user.id, profileId: profile.id, name: spec.person.fullName, files }, kyc);
 
     for (const [i, item] of spec.portfolio.entries()) {
-      const file = demoFile(item.file);
+      const file = seedFile(item.file);
       const createdAt = clock.ago(spec.registeredDaysAgo - 1 - i);
       const created = await tx.portfolioItem.create({
         data: {

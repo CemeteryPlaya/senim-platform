@@ -18,7 +18,7 @@ Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind CS
 npm install                 # зависимости и prisma generate
 cp .env.example .env        # затем заполнить по комментариям в файле (для разработки хватает значений по умолчанию)
 npm run db:up               # Postgres 17 в Docker на порту 5442: базы senim, senim_test, senim_e2e
-npm run db:reset            # миграции с нуля + демо-данные
+npm run db:reset            # миграции с нуля + данные стенда
 npm run dev                 # http://localhost:3100
 ```
 
@@ -26,15 +26,21 @@ npm run dev                 # http://localhost:3100
 
 ```bash
 npx prisma migrate deploy
-DEMO_MODE=true npx prisma db seed     # непустую базу сид пересоздаёт только при DEMO_MODE=true
+npx prisma db seed     # непустую базу сид пересоздаёт (ResetStand в identity + TRUNCATE) только при APP_ENV не prod
 ```
 
 После запуска:
 
-- `/demo` — вход под демо-персоной одним нажатием (только при `DEMO_MODE=true`);
-- `/login` — обычный вход по номеру и SMS-коду; в демо с `SMS_PROVIDER=mock` код показывается на экране;
-- `/bank-demo` — страница показа банку (только при `DEMO_MODE=true`);
-- `/operator/demo` — «Сбросить демо».
+- `/login` — вход по номеру и SMS-коду; на стенде (мок SMS у identity) код показывается на экране. Люди сида входят так же;
+  оператор сида — ещё и кодом из приложения по известному секрету TOTP (`OPERATOR_TOTP_SECRET` в `src/seed/data.ts`);
+- `/operator/settings` — режим показа имени исполнителя и сценарий до договора (со свежим кодом из приложения).
+
+Демо-режима нет. Данные стенда пересоздаются только сидом из терминала (`npx prisma db seed`), не из интерфейса.
+
+Уже существующий стенд после перехода на сид без демо: люди сида, которых прежний сид заводил «не демо», в базе identity
+не помечены засеянными (`seeded = false`), и первый `SeedUsers` откажет всей пачке. Пересоздайте базу identity стенда
+(том Postgres стенда) или разово пометьте засеянными людей сида (`UPDATE users SET seeded = true WHERE phone IN (…)` —
+телефоны из `src/seed/data.ts` и `e2e/seed-operator.ts`). В боевой базе этого не делать.
 
 Платёжный провайдер новых сделок задаёт `PAYMENT_PROVIDER` (по умолчанию для `APP_ENV=dev` — `mock`). Для показа пути пилота: `PAYMENT_PROVIDER=manual npm run dev`.
 
@@ -54,7 +60,7 @@ npm run quality:mutate # мутационное тестирование Stryker
 
 - Инструменты качества (эквиваленты crapper, dryer и mutator из `SKILL.md`), пороги и базовая линия — [docs/quality/README.md](docs/quality/README.md). Отчёты — в `reports/quality/` (не в git).
 - Интеграционным тестам нужна `TEST_DATABASE_URL` (база с «test» в имени), сквозным — `E2E_DATABASE_URL` (база с «e2e» в имени). Примеры — в `.env.example`.
-- Playwright сам поднимает сервер на порту 3110 с `DEMO_MODE=true` и моками, накатывает миграции и сид на базу e2e.
+- Playwright сам поднимает сервер на порту 3110 с `APP_ENV=dev` и моками, накатывает миграции и сид на базу e2e.
 - Переходы статусных машин проверяются тестами на каждый разрешённый и запрещённый переход на реальной тестовой БД. Итоги прогонов по фазам — [docs/PROGRESS.md](docs/PROGRESS.md).
 - CI (GitHub Actions, `.github/workflows/check.yml`): `npm ci`, `typecheck`, `lint`, `test`.
 
@@ -119,7 +125,7 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 - **Android (Chrome, Edge, Samsung Internet):** на главной странице — плашка «Сенім на экране телефона» с кнопкой «Установить приложение»; у вошедших та же кнопка в меню «Ещё». Кнопка появляется, когда браузер разрешил установку (событие `beforeinstallprompt`), и пропадает в установленном приложении. Плашку можно скрыть — выбор помнится в браузере. Всегда работает и пункт меню браузера «Установить приложение» / «Добавить на главный экран».
 - **iPhone и iPad (Safari, Chrome с iOS 16.4):** кнопки установки Apple не даёт — вместо неё подсказка: «Поделиться» → «На экран „Домой“».
 - Нужен HTTPS (на `localhost` работает и по http). Без сети установленное приложение показывает страницу «Нет связи» с кнопкой повтора; данные сделок и ответы сервера на телефоне не кэшируются.
-- На демо-стенде с паролем манифест, значки, `sw.js` и `/offline` отдаются без пароля — браузер запрашивает их без учётных данных (`src/platform/demo-gate.ts`).
+- На стенде с паролем (`STAND_ACCESS_PASSWORD`) манифест, значки, `sw.js` и `/offline` отдаются без пароля — браузер запрашивает их без учётных данных (`src/platform/stand-gate.ts`).
 
 Где что лежит: манифест — `src/app/manifest.ts`; значки — `public/icons/` и `src/app/apple-icon.png`, перерисовать: `node scripts/generate-icons.mjs` (цвет из `src/ui/tokens.css`); сервис-воркер — `public/sw.js`; кнопка и подсказка — `src/app/(legacy)/_components/install/`; тексты — `src/i18n/ru/pwa.ts`. Проверка: Chrome DevTools → Application → Manifest (раздел Installability без ошибок).
 

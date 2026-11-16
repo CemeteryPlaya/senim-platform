@@ -7,7 +7,7 @@ import type { ReviewSpec } from "./data";
 import { resolveWhen } from "./timeline";
 
 /**
- * Время демо-сделок по дням (повторный разбор вида, 0.2). Сделки сида идут настоящими сервисами (deals.ts), и каждый сервис
+ * Время сделок сида по дням (повторный разбор вида, 0.2). Сделки сида идут настоящими сервисами (deals.ts), и каждый сервис
  * пишет «сейчас»: без переноса у всех событий истории, отчётов и операций журнала денег — одна минута засева. Сид отмечает
  * окно стенных часов каждого действия (акцепт, подпись, оплата, отчёт…) и потом одной транзакцией переносит все отметки
  * времени этого окна на день из плана (`DealPlan.at`), сохраняя порядок внутри окна. Сделки засеваются по очереди и
@@ -86,14 +86,14 @@ async function setTriggers(tx: Tx, mode: "DISABLE" | "ENABLE"): Promise<void> {
     try {
       await tx.$executeRawUnsafe(`ALTER TABLE "${table}" ${mode} TRIGGER "${trigger}"`);
     } catch (error) {
-      logger.error("demo retime: cannot toggle append-only trigger", { table, trigger, error });
+      logger.error("seed retime: cannot toggle append-only trigger", { table, trigger, error });
       throw new Error(`Сид: нет прав на ALTER TABLE "${table}" (${mode} TRIGGER ${trigger}) — DATABASE_URL сида должен быть владельцем таблиц`, { cause: error });
     }
   }
 }
 
 /** Перенос времени, номера операций и отзывы — одной транзакцией: упало — откат целиком, триггеры остаются включёнными. */
-export async function retimeDemo(db: PrismaClient, input: { windows: SeedWindow[]; end: number; now: number; reviews: SeedReview[] }): Promise<void> {
+export async function retimeSeed(db: PrismaClient, input: { windows: SeedWindow[]; end: number; now: number; reviews: SeedReview[] }): Promise<void> {
   await db.$transaction(
     async (tx) => {
       await setTriggers(tx, "DISABLE");

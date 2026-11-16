@@ -1,11 +1,11 @@
 import type { DisputeReason, KycStatus, LegalForm, PreContractFlow, Segment } from "@/generated/prisma/enums";
 import type { CountertopKey, DEFAULT_FURNITURE_TYPES, FacadeKey, HardwareKey, StyleKey } from "@/verticals/furniture";
 import { testBin, testIin } from "./kz-id";
-import type { DemoFileKey, PortfolioFileKey } from "./portfolio-files";
+import type { SeedFileKey, PortfolioFileKey } from "./portfolio-files";
 
 /**
- * Демо-данные «Сенім» — только описание. Логика вставки — в seed.ts.
- * Все сроки — «дней назад» (или «через N дней») от момента сида, чтобы демо не устаревало.
+ * Данные стенда «Сенім» — только описание. Логика вставки — в seed.ts.
+ * Все сроки — «дней назад» (или «через N дней») от момента сида, чтобы данные не устаревали.
  * Телефоны +7 700 000 XX XX, ИИН/БИН с нулевым порядковым номером, адреса вымышленные.
  * Статусы заявок и откликов не задаются, а выводятся из фактов (seed.ts); сделки проходят свой путь
  * настоящими сервисами (deals.ts) — описать несогласованную историю нельзя.
@@ -19,7 +19,6 @@ export type PersonSpec = {
   fullName: string;
   phone: string;
   iin: string;
-  isDemo: boolean;
   joinedDaysAgo: number;
 };
 
@@ -27,33 +26,38 @@ export const OPERATOR = {
   fullName: "Динара Абенова",
   phone: "+77000000001",
   iin: testIin("890110", 4, 1),
-  isDemo: true,
   joinedDaysAgo: 420,
 } as const satisfies PersonSpec;
+
+/**
+ * Известный секрет TOTP оператора стенда (base32 без «=», 20 байт): сид передаёт его в identity (SeedUsers), вход
+ * оператора требует код по нему — e2e считает код по `e2e/totp.ts`. Только для стенда: SeedUsers и сам сид запрещены
+ * при APP_ENV=prod, у боевого оператора секрет свой (подключение приложения).
+ */
+export const OPERATOR_TOTP_SECRET = "SENIMSTANDOPERATORTOTPSEED234567";
 
 /** Замерщик площадки (сценарий 2, ADR-005): сотрудник, как оператор, — только эта роль. */
 export const MEASURER: PersonSpec = {
   fullName: "Нуржан Сейтказин",
   phone: "+77000000401",
   iin: testIin("900115", 3, 41),
-  isDemo: true,
   joinedDaysAgo: 60,
 };
 
 export const CLIENTS = {
-  aigerim: { fullName: "Айгерим Сапарова", phone: "+77000000101", iin: testIin("940512", 4, 11), isDemo: true, joinedDaysAgo: 40 },
-  daniyar: { fullName: "Данияр Ахметов", phone: "+77000000102", iin: testIin("880217", 3, 12), isDemo: true, joinedDaysAgo: 70 },
-  madina: { fullName: "Мадина Касымова", phone: "+77000000103", iin: testIin("920305", 4, 13), isDemo: true, joinedDaysAgo: 20 },
-  // Заказчики прошлых сделок: авторы отзывов, в демо-вход не попадают.
-  arman: { fullName: "Арман Тулеуов", phone: "+77000000301", iin: testIin("830716", 3, 31), isDemo: false, joinedDaysAgo: 100 },
-  olga: { fullName: "Ольга Смирнова", phone: "+77000000302", iin: testIin("790924", 4, 32), isDemo: false, joinedDaysAgo: 110 },
-  saule: { fullName: "Сауле Мукашева", phone: "+77000000303", iin: testIin("860403", 4, 33), isDemo: false, joinedDaysAgo: 130 },
-  zhanna: { fullName: "Жанна Бекова", phone: "+77000000304", iin: testIin("910129", 4, 34), isDemo: false, joinedDaysAgo: 105 },
-  erbolat: { fullName: "Ерболат Нуриев", phone: "+77000000305", iin: testIin("870811", 3, 35), isDemo: false, joinedDaysAgo: 90 },
-  // Заказчики завершённых сделок витринных мастеров (SHOWCASE_REQUESTS): отзывы и числа в профиле, в демо-вход не попадают.
-  gulnara: { fullName: "Гульнара Ермекова", phone: "+77000000306", iin: testIin("850619", 4, 36), isDemo: false, joinedDaysAgo: 85 },
-  aliya: { fullName: "Алия Жаксыбекова", phone: "+77000000307", iin: testIin("930227", 4, 37), isDemo: false, joinedDaysAgo: 68 },
-  berik: { fullName: "Берик Омаров", phone: "+77000000308", iin: testIin("810514", 3, 38), isDemo: false, joinedDaysAgo: 42 },
+  aigerim: { fullName: "Айгерим Сапарова", phone: "+77000000101", iin: testIin("940512", 4, 11), joinedDaysAgo: 40 },
+  daniyar: { fullName: "Данияр Ахметов", phone: "+77000000102", iin: testIin("880217", 3, 12), joinedDaysAgo: 70 },
+  madina: { fullName: "Мадина Касымова", phone: "+77000000103", iin: testIin("920305", 4, 13), joinedDaysAgo: 20 },
+  // Заказчики прошлых сделок: авторы отзывов, входом не пользуются.
+  arman: { fullName: "Арман Тулеуов", phone: "+77000000301", iin: testIin("830716", 3, 31), joinedDaysAgo: 100 },
+  olga: { fullName: "Ольга Смирнова", phone: "+77000000302", iin: testIin("790924", 4, 32), joinedDaysAgo: 110 },
+  saule: { fullName: "Сауле Мукашева", phone: "+77000000303", iin: testIin("860403", 4, 33), joinedDaysAgo: 130 },
+  zhanna: { fullName: "Жанна Бекова", phone: "+77000000304", iin: testIin("910129", 4, 34), joinedDaysAgo: 105 },
+  erbolat: { fullName: "Ерболат Нуриев", phone: "+77000000305", iin: testIin("870811", 3, 35), joinedDaysAgo: 90 },
+  // Заказчики завершённых сделок витринных мастеров (SHOWCASE_REQUESTS): отзывы и числа в профиле, входом не пользуются.
+  gulnara: { fullName: "Гульнара Ермекова", phone: "+77000000306", iin: testIin("850619", 4, 36), joinedDaysAgo: 85 },
+  aliya: { fullName: "Алия Жаксыбекова", phone: "+77000000307", iin: testIin("930227", 4, 37), joinedDaysAgo: 68 },
+  berik: { fullName: "Берик Омаров", phone: "+77000000308", iin: testIin("810514", 3, 38), joinedDaysAgo: 42 },
 } as const satisfies Record<string, PersonSpec>;
 
 export type ClientKey = keyof typeof CLIENTS;
@@ -81,7 +85,7 @@ type Registration =
 
 /**
  * Форма работы и подписант договора (ADR-003): самозанятый — он сам (ФИО — наименование), ИП — владелец
- * (ФИО — ownerName), у обоих ИИН/БИН профиля — ИИН владельца (person.iin). ТОО — директор: им в демо
+ * (ФИО — ownerName), у обоих ИИН/БИН профиля — ИИН владельца (person.iin). ТОО — директор: им на стенде
  * назначен владелец аккаунта (person — ФИО и тестовый ИИН с верной контрольной цифрой).
  */
 type Legal =
@@ -110,14 +114,14 @@ const FEE = 10_000;
 
 export const EXECUTORS = {
   erlan: {
-    person: { fullName: "Ерлан Жумабаев", phone: "+77000000201", iin: testIin("910803", 3, 21), isDemo: true, joinedDaysAgo: 302 },
+    person: { fullName: "Ерлан Жумабаев", phone: "+77000000201", iin: testIin("910803", 3, 21), joinedDaysAgo: 302 },
     legalForm: "SELF_EMPLOYED",
     legalName: "Жумабаев Ерлан Серикович",
     registration: { status: "APPROVED", segment: "COMFORT", reviewedDaysAgo: 300 },
     registeredDaysAgo: 302,
     measurement: "FREE",
     yearsExperience: 9,
-    workshop: { district: "Есильский район", street: "ул. Тестовая, 1 (демо)" },
+    workshop: { district: "Есильский район", street: "ул. Тестовая, 1" },
     about:
       "Делаю корпусную мебель 9 лет, небольшой цех на левом берегу. ЛДСП Egger и Kronospan, фурнитура Blum и Hettich. Замер и 3D-проект бесплатно.",
     specializations: ["kitchen", "wardrobe", "hallway"],
@@ -128,7 +132,7 @@ export const EXECUTORS = {
     ],
   },
   agash: {
-    person: { fullName: "Бауыржан Тулегенов", phone: "+77000000202", iin: testIin("800215", 3, 22), isDemo: true, joinedDaysAgo: 400 },
+    person: { fullName: "Бауыржан Тулегенов", phone: "+77000000202", iin: testIin("800215", 3, 22), joinedDaysAgo: 400 },
     legalForm: "TOO",
     legalName: "ТОО «Ағаш Шебер»",
     bin: testBin("1806", 1),
@@ -136,7 +140,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 400,
     measurement: "INCLUDED",
     yearsExperience: 12,
-    workshop: { district: "Алматинский район", street: "ул. Тестовая, 2 (демо)" },
+    workshop: { district: "Алматинский район", street: "ул. Тестовая, 2" },
     about:
       "Мебельное производство полного цикла: цех 1 200 м², станки с ЧПУ, три бригады монтажников. Шпон, массив, кварцевые столешницы. Гарантия 3 года.",
     specializations: ["kitchen", "walk-in-closet", "table", "bathroom"],
@@ -147,7 +151,7 @@ export const EXECUTORS = {
     ],
   },
   kim: {
-    person: { fullName: "Руслан Ким", phone: "+77000000203", iin: testIin("870921", 3, 23), isDemo: true, joinedDaysAgo: 250 },
+    person: { fullName: "Руслан Ким", phone: "+77000000203", iin: testIin("870921", 3, 23), joinedDaysAgo: 250 },
     legalForm: "IP",
     legalName: "ИП Ким Руслан Владимирович",
     ownerName: "Ким Руслан Владимирович",
@@ -156,7 +160,7 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 6,
-    workshop: { district: "Сарыаркинский район", street: "ул. Тестовая, 3 (демо)" },
+    workshop: { district: "Сарыаркинский район", street: "ул. Тестовая, 3" },
     about:
       "Детская и корпусная мебель. Материалы класса E0.5, закруглённые кромки, мягкие доводчики. Выезд на замер — 10 000 ₸, только если сделка не состоится.",
     specializations: ["kids-room", "wardrobe", "office"],
@@ -166,14 +170,14 @@ export const EXECUTORS = {
     ],
   },
   timur: {
-    person: { fullName: "Тимур Оспанов", phone: "+77000000204", iin: testIin("930114", 3, 24), isDemo: true, joinedDaysAgo: 200 },
+    person: { fullName: "Тимур Оспанов", phone: "+77000000204", iin: testIin("930114", 3, 24), joinedDaysAgo: 200 },
     legalForm: "SELF_EMPLOYED",
     legalName: "Оспанов Тимур Маратович",
     registration: { status: "APPROVED", segment: "ECONOMY", reviewedDaysAgo: 199 },
     registeredDaysAgo: 200,
     measurement: "FREE",
     yearsExperience: 5,
-    workshop: { district: "район Байконыр", street: "ул. Тестовая, 4 (демо)" },
+    workshop: { district: "район Байконыр", street: "ул. Тестовая, 4" },
     about: "Шкафы-купе и гардеробные из ЛДСП. Профиль Aristo, зеркала с пескоструйным рисунком. Работаю быстро, замер бесплатно.",
     specializations: ["wardrobe", "walk-in-closet", "hallway"],
     portfolio: [
@@ -182,7 +186,7 @@ export const EXECUTORS = {
     ],
   },
   asel: {
-    person: { fullName: "Асель Нурланова", phone: "+77000000205", iin: testIin("960730", 4, 25), isDemo: true, joinedDaysAgo: 180 },
+    person: { fullName: "Асель Нурланова", phone: "+77000000205", iin: testIin("960730", 4, 25), joinedDaysAgo: 180 },
     legalForm: "IP",
     legalName: "ИП Нурланова Асель Ерлановна",
     ownerName: "Нурланова Асель Ерлановна",
@@ -191,7 +195,7 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 4,
-    workshop: { district: "район Нура", street: "ул. Тестовая, 5 (демо)" },
+    workshop: { district: "район Нура", street: "ул. Тестовая, 5" },
     about: "Столярная мастерская: столы, комоды и тумбы для ванной из массива карагача, дуба и ореха. Масло-воск, ручная работа.",
     specializations: ["table", "bathroom", "dresser"],
     portfolio: [
@@ -201,7 +205,7 @@ export const EXECUTORS = {
     ],
   },
   qazaq: {
-    person: { fullName: "Ержан Ибраев", phone: "+77000000206", iin: testIin("850407", 3, 26), isDemo: true, joinedDaysAgo: 350 },
+    person: { fullName: "Ержан Ибраев", phone: "+77000000206", iin: testIin("850407", 3, 26), joinedDaysAgo: 350 },
     legalForm: "TOO",
     legalName: "ТОО «Qazaq Wood»",
     bin: testBin("2003", 2),
@@ -209,7 +213,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 350,
     measurement: "INCLUDED",
     yearsExperience: 8,
-    workshop: { district: "Есильский район", street: "ул. Тестовая, 6 (демо)" },
+    workshop: { district: "Есильский район", street: "ул. Тестовая, 6" },
     about:
       "Корпусная мебель для дома и офиса. Своё производство в промзоне Астаны, замер включён в стоимость заказа. Работаем с физлицами и компаниями.",
     specializations: ["office", "kitchen", "shelving", "living-room"],
@@ -219,7 +223,7 @@ export const EXECUTORS = {
     ],
   },
   dala: {
-    person: { fullName: "Нурлан Абдрахманов", phone: "+77000000207", iin: testIin("880512", 3, 27), isDemo: true, joinedDaysAgo: 280 },
+    person: { fullName: "Нурлан Абдрахманов", phone: "+77000000207", iin: testIin("880512", 3, 27), joinedDaysAgo: 280 },
     legalForm: "IP",
     legalName: "ИП Абдрахманов Нурлан Канатович",
     ownerName: "Абдрахманов Нурлан Канатович",
@@ -229,7 +233,7 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 7,
-    workshop: { district: "Алматинский район", street: "ул. Тестовая, 7 (демо)" },
+    workshop: { district: "Алматинский район", street: "ул. Тестовая, 7" },
     about: "Мастерская полного цикла: кухни, спальни и ТВ-зоны. Помогаем с проектом и подбираем материалы под бюджет.",
     specializations: ["kitchen", "bedroom", "living-room", "kids-room"],
     portfolio: [
@@ -239,14 +243,14 @@ export const EXECUTORS = {
     ],
   },
   samat: {
-    person: { fullName: "Самат Беков", phone: "+77000000208", iin: testIin("990402", 3, 28), isDemo: true, joinedDaysAgo: 30 },
+    person: { fullName: "Самат Беков", phone: "+77000000208", iin: testIin("990402", 3, 28), joinedDaysAgo: 30 },
     legalForm: "SELF_EMPLOYED",
     legalName: "Беков Самат Нурланович",
     registration: { status: "APPROVED", segment: "ECONOMY", reviewedDaysAgo: 28 },
     registeredDaysAgo: 30,
     measurement: "FREE",
     yearsExperience: 2,
-    workshop: { district: "Сарыаркинский район", street: "ул. Тестовая, 8 (демо)" },
+    workshop: { district: "Сарыаркинский район", street: "ул. Тестовая, 8" },
     about: "Начинающий мастер: прихожие, шкафы и комоды из ЛДСП. Работаю аккуратно и недорого.",
     specializations: ["hallway", "wardrobe", "dresser"],
     portfolio: [
@@ -255,20 +259,20 @@ export const EXECUTORS = {
     ],
   },
   almas: {
-    person: { fullName: "Алмас Тлеубаев", phone: "+77000000209", iin: testIin("950918", 3, 29), isDemo: true, joinedDaysAgo: 1.5 },
+    person: { fullName: "Алмас Тлеубаев", phone: "+77000000209", iin: testIin("950918", 3, 29), joinedDaysAgo: 1.5 },
     legalForm: "SELF_EMPLOYED",
     legalName: "Тлеубаев Алмас Бауыржанович",
     registration: { status: "PENDING" },
     registeredDaysAgo: 1.5,
     measurement: "FREE",
     yearsExperience: 3,
-    workshop: { district: "район Байконыр", street: "ул. Тестовая, 9 (демо)" },
+    workshop: { district: "район Байконыр", street: "ул. Тестовая, 9" },
     about: "Три года работал в мебельном цехе, теперь беру заказы сам: кухни и прихожие.",
     specializations: ["kitchen", "hallway"],
     portfolio: [],
   },
   express: {
-    person: { fullName: "Даурен Мусин", phone: "+77000000210", iin: testIin("900623", 3, 30), isDemo: true, joinedDaysAgo: 14 },
+    person: { fullName: "Даурен Мусин", phone: "+77000000210", iin: testIin("900623", 3, 30), joinedDaysAgo: 14 },
     legalForm: "TOO",
     legalName: "ТОО «Мебель Экспресс Астана»",
     bin: testBin("2205", 3),
@@ -280,7 +284,7 @@ export const EXECUTORS = {
     registeredDaysAgo: 14,
     measurement: "FREE",
     yearsExperience: 1,
-    workshop: { district: "район Нура", street: "ул. Тестовая, 10 (демо)" },
+    workshop: { district: "район Нура", street: "ул. Тестовая, 10" },
     about: "Мебель по низким ценам за 7 дней.",
     specializations: ["wardrobe", "kitchen"],
     portfolio: [],
@@ -372,7 +376,7 @@ export type RequestSpec = Targeting & {
   offers: OfferSpec[];
   /** Сценарий до договора (флаг preContractFlows, ADR-005); нет — путь ТЗ: торг и оферта. */
   flow?: PreContractFlow;
-  /** Сценарий 2: замер площадки назначен демо-замерщику. */
+  /** Сценарий 2: замер площадки назначен замерщику стенда. */
   site?: { assignedDaysAgo: number };
 };
 
@@ -888,7 +892,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
 // ─── сделки: путь ТЗ настоящими сервисами (deals.ts) ─────────────────────────
 
 /** Фото сдачи и «Хода работ» — временные снимки стенда (deals.ts загружает их байты через files как приватные файлы сделки). */
-export type ProgressSpec = { title: string; text: string; photos: readonly DemoFileKey[] };
+export type ProgressSpec = { title: string; text: string; photos: readonly SeedFileKey[] };
 
 export type DisputeSpec = {
   by: "client" | "executor";
@@ -914,7 +918,7 @@ export type DealStep =
   | "bank"
   | "start"
   | { progress: ProgressSpec }
-  | { ready: { at: "address" | "far"; photos: readonly DemoFileKey[] } }
+  | { ready: { at: "address" | "far"; photos: readonly SeedFileKey[] } }
   | "signAct"
   | "signActClient"
   | { cancel: "client" | "executor"; reason: string }
@@ -959,7 +963,7 @@ const READY_PHOTOS = {
   erlanHallway: ["hallway-graphite"],
   qazaqKitchen: ["report-kitchen-1", "report-kitchen-2"],
   dalaKitchen: ["kitchen-terracotta"],
-} as const satisfies Record<string, readonly DemoFileKey[]>;
+} as const satisfies Record<string, readonly SeedFileKey[]>;
 
 const KIDS_DISPUTE: DisputeSpec = {
   by: "client",

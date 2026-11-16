@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { expectNoHorizontalScrollAt320And200, expectOnePrimary, PHONE } from "./support";
 
 /**
- * Вход по SMS-коду (SMS_PROVIDER=mock показывает код в демо-баннере).
+ * Вход по SMS-коду (мок SMS у identity стенда: код показывается на экране).
  * Данные не меняются, кроме кодов и сессий, поэтому пересев не нужен. Номер повторно
  * получает код только через минуту — у каждого проекта (mobile/desktop) свои номера.
  */
@@ -16,7 +16,7 @@ function phonesFor(project: string) {
   return project === "desktop" ? PHONES.desktop : PHONES.mobile;
 }
 
-/** Номер → «Получить код» → код из демо-баннера. */
+/** Номер → «Получить код» → код с экрана (мок SMS). */
 async function requestCode(page: Page, phone: string): Promise<string> {
   await page.context().clearCookies();
   await page.goto("/login");
@@ -28,10 +28,10 @@ async function requestCode(page: Page, phone: string): Promise<string> {
   await expect(page.getByRole("main").getByRole("button", { name: "Назад", exact: true })).toBeVisible();
   await expectOnePrimary(page);
   await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveText("Войти");
-  const banner = page.getByText(/Демо-режим: SMS не отправляется\. Ваш код — \d{6}/);
+  const banner = page.getByText(/SMS на стенде не отправляются\. Ваш код — \d{6}/);
   await expect(banner).toBeVisible();
   const code = (await banner.textContent())?.match(/\d{6}/)?.[0];
-  if (!code) throw new Error("Код не найден в демо-баннере");
+  if (!code) throw new Error("Код не найден на экране");
   return code;
 }
 
@@ -64,8 +64,8 @@ test("вход — полноэкранный шаг: «Назад», загол
   await expect(main.getByRole("link", { name: "Назад", exact: true })).toBeVisible();
   await expectOnePrimary(page);
   await expect(main.locator("[data-primary-action]")).toHaveText("Получить код");
-  // Демо-персоны и регистрация мастера — второстепенные, под главной кнопкой.
-  await expect(main.getByRole("link", { name: "Войти демо-персоной" })).toBeVisible();
+  // Регистрация мастера — второстепенный путь под главной кнопкой; входа персонами нет.
+  await expect(main.getByRole("link", { name: /демо/i })).toHaveCount(0);
   await expect(main.getByRole("link", { name: "Я мастер — зарегистрироваться" })).toBeVisible();
   await expectNoHorizontalScrollAt320And200(page, "/login");
 });

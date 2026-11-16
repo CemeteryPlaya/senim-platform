@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { testBin } from "@/demo/kz-id";
+import { testBin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
 import { IIN_MASK } from "@/kit/mask-logic";
 import { freshIin, freshPhone, loginV2, open, passOnboarding } from "./support";

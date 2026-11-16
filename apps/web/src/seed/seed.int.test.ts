@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Role } from "@/gen/senim/identity/v1/identity_pb";
 import { DealStatus, RequestStatus } from "@/generated/prisma/enums";
 import { computeDealMoney, computeSplit, moneyFacts, ledgerEntries } from "@/modules/payments";
 import { segmentPriceHints } from "@/modules/requests";
@@ -13,23 +14,21 @@ import { useSeedStorage } from "../../test/factories/documents";
 import { setEnv } from "../../test/factories/identity";
 import { identityFake } from "../../test/stubs/identity";
 import { monthOf } from "@/modules/deal-core";
-import { CLIENTS, DEALS, EXECUTORS, KYC, MEASURER, OPERATOR, REVIEWS } from "./data";
-import { demoFile } from "./portfolio-files";
-import { resetDemo, seedDemo } from "./seed";
+import { totpNow } from "../../e2e/totp";
+import { CLIENTS, DEALS, EXECUTORS, KYC, MEASURER, OPERATOR, OPERATOR_TOTP_SECRET, REVIEWS } from "./data";
+import { seedFile } from "./portfolio-files";
+import { reseedStand, seedStand } from "./seed";
 
 let cleanup: () => Promise<void>;
 beforeAll(async () => {
   cleanup = await useSeedStorage();
-  // Сид — только демо-стенд (как identity: SeedUsers и SeedConsents — только DEMO_MODE).
-  setEnv({ DEMO_MODE: "true" });
 });
 afterAll(async () => {
-  setEnv({ DEMO_MODE: undefined });
   await cleanup();
 });
 
 /**
- * Почта сида: у каждого демо-покупателя и демо-мастера — `<ключ>@example.com`, подтверждённая в identity и в проекции
+ * Почта сида: у каждого покупателя и мастера сида — `<ключ>@example.com`, подтверждённая в identity и в проекции
  * (шаг почты на стенде не нужен); у сотрудников адреса нет. Проекция совпадает с identity у всех людей сида.
  */
 async function expectSeedEmails(): Promise<void> {
@@ -51,9 +50,9 @@ const sum = (rows: { type: string; status: string; amountTiyn: bigint }[], type:
   rows.filter((r) => r.type === type && r.status === "SUCCEEDED").reduce((a, r) => a + r.amountTiyn, 0n);
 
 // Сид дорогой (сделки идут сервисами, документы — PDF): одна засевка на тест, проверки сгруппированы.
-describe("демо-данные", () => {
+describe("данные стенда", () => {
   it("заявки и торг: все статусы заявок; путь ТЗ — без сценария до договора, у живого отклика открытая цена", { timeout: 120_000 }, async () => {
-    await seedDemo(db);
+    await seedStand(db);
 
     const groups = await db.request.groupBy({ by: ["status"], _count: true });
     expect(groups.map((g) => g.status).sort()).toEqual(Object.values(RequestStatus).sort());
@@ -77,18 +76,18 @@ describe("демо-данные", () => {
     const others = await db.request.aggregate({ where: { preContractFlow: null }, _max: { number: true } });
     expect(flows[0]!.number).toBeGreaterThan(others._max.number!);
     const measurer = await db.user.findFirstOrThrow({ where: { roles: { has: "MEASURER" } }, include: { siteMeasurements: true } });
-    expect(measurer).toMatchObject({ roles: ["MEASURER"], isDemo: true });
+    expect(measurer).toMatchObject({ roles: ["MEASURER"] });
     expect(measurer.siteMeasurements).toHaveLength(1);
   });
 
-  it("сделки: все статусы ТЗ на mock и manual, тестовые; журнал сходится с формулами до тиына", { timeout: 120_000 }, async () => {
-    await seedDemo(db);
+  it("сделки: все статусы ТЗ на mock и manual; тестовые операции — только мока; журнал сходится с формулами до тиына", { timeout: 120_000 }, async () => {
+    await seedStand(db);
     const deals = await db.deal.findMany({ include: { transactions: true, disputes: true, documents: true, progressReports: true } });
 
     expect([...new Set(deals.map((d) => d.status))].sort()).toEqual(Object.values(DealStatus).sort());
     expect(new Set(deals.map((d) => d.paymentProvider))).toEqual(new Set(["MOCK", "MANUAL"]));
-    expect(deals.every((d) => d.isDemo)).toBe(true);
-    expect(deals.flatMap((d) => d.transactions).every((t) => t.isTest)).toBe(true);
+    // isTest — только по провайдеру: операции мока тестовые, операции manual — как боевые (оператор по документам).
+    for (const d of deals) expect(d.transactions.every((t) => t.isTest === (d.paymentProvider === "MOCK")), `сделка №${d.number}`).toBe(true);
 
     for (const d of deals) {
       const money = computeDealMoney(d.priceTiyn);
@@ -146,7 +145,7 @@ describe("демо-данные", () => {
 
   it("время и витрина: действия сделок по дням, номера операций банка, отзывы и числа у мастеров; журналы снова только-добавление", { timeout: 180_000 }, async () => {
     const started = Date.now();
-    await seedDemo(db);
+    await seedStand(db);
     const DAY = 86_400_000;
 
     // Ни одного события сделки и операции журнала «минутой засева»: всё перенесено на дни плана.
@@ -187,8 +186,8 @@ describe("демо-данные", () => {
     expect(await db.request.count({ where: { status: "OPEN", mode: "TENDER", segment: "COMFORT", preContractFlow: { not: null } } })).toBe(0);
   });
 
-  it("люди: мастера с тестовыми адресами, KYC во всех статусах, номера — только в identity; справочник цен — демо", { timeout: 120_000 }, async () => {
-    await seedDemo(db);
+  it("люди: мастера с тестовыми адресами, KYC во всех статусах, номера — только в identity; справочник цен", { timeout: 120_000 }, async () => {
+    await seedStand(db);
     const spec = EXECUTORS.agash;
     const profile = await db.executorProfile.findFirstOrThrow({ where: { legalName: spec.legalName }, include: { user: true } });
     expect(profile.legalForm).toBe("TOO");
@@ -202,7 +201,7 @@ describe("демо-данные", () => {
     expect(profiles.length).toBe(Object.keys(EXECUTORS).length);
     for (const p of profiles) {
       expect(p.district).not.toBe("");
-      expect(p.streetAddress).toMatch(/\(демо\)$/);
+      expect(p.streetAddress).toMatch(/^ул\. Тестовая, \d+$/);
       const iban = identityFake.partyNumbersOf(p.userId)?.payoutIban ?? "";
       if (p.status === "APPROVED") expect(iban).toMatch(/^KZ\d{2}000DEMO/);
       expect(p.payoutIbanLast4).toBe(iban === "" ? null : iban.slice(-4));
@@ -221,9 +220,9 @@ describe("демо-данные", () => {
     expect(aigerim).toMatchObject({ fullName: CLIENTS.aigerim.fullName, iinLast4: CLIENTS.aigerim.iin.slice(-4), email: "aigerim@example.com" });
     expect(identityFake.personOf(aigerim.id)).toMatchObject({ fullName: CLIENTS.aigerim.fullName, iinLast4: CLIENTS.aigerim.iin.slice(-4), email: "aigerim@example.com", emailVerified: true });
     await expectSeedEmails();
-    expect(await db.user.count({ where: { role: "OPERATOR", isDemo: true } })).toBe(1);
+    expect(await db.user.count({ where: { role: "OPERATOR" } })).toBe(1);
 
-    // Фото демо — временные снимки из public/stand-photos. Публичное портфолио — хранилище static (адрес /stand-photos/…):
+    // Фото сида — временные снимки из public/stand-photos. Публичное портфолио — хранилище static (адрес /stand-photos/…):
     // StoredFile сида совпадает с файлом на диске, у каждого файла свой ключ.
     const stored = await db.storedFile.findMany({ where: { provider: "static" } });
     for (const f of stored) {
@@ -234,7 +233,7 @@ describe("демо-данные", () => {
     }
     expect(new Set(stored.map((f) => f.storageKey)).size).toBe(stored.length);
     expect(stored.map((f) => f.purpose)).toEqual(Array<string>(20).fill("PORTFOLIO"));
-    expect(demoFile("kitchen-sage")).toMatchObject({ provider: "static", contentType: "image/webp" });
+    expect(seedFile("kitchen-sage")).toMatchObject({ provider: "static", contentType: "image/webp" });
     // Фото «Хода работ» и сдачи — приватные файлы сделки: сид загружает байты через files (обычное хранилище,
     // только подписанная ссылка), а не кладёт публичный static-адрес. Число — по плану сделок сида.
     const steps = DEALS.flatMap((d) => d.steps);
@@ -250,22 +249,21 @@ describe("демо-данные", () => {
 
     const prices = await db.materialPrice.findMany();
     expect(prices.length).toBeGreaterThan(0);
-    expect(prices.every((p) => p.isDemo && p.active && p.priceKzt > 0 && p.segments.length > 0)).toBe(true);
+    expect(prices.every((p) => p.active && p.priceKzt > 0 && p.segments.length > 0)).toBe(true);
     const estimates = await db.typicalEstimate.findMany({ include: { furnitureType: { select: { slug: true } } } });
     expect(estimates.map((e) => e.furnitureType.slug).sort()).toEqual(["hallway", "kitchen", "wardrobe"]);
     for (const e of estimates) {
-      expect(e.isDemo).toBe(true);
       const { productUnit, typicalWidthCm, typicalHeightCm, markup, perUnit } = e;
       expect(typicalEstimateSchema.safeParse({ productUnit, typicalWidthCm, typicalHeightCm, markup, perUnit }).success).toBe(true);
       // Вилка по справочнику — функция калькулятора материалов (флаг materialsCalculator).
       setEnv({ FEATURE_MATERIALS_CALCULATOR: "true" });
       const hints = await segmentPriceHints(e.furnitureTypeId).finally(() => setEnv({ FEATURE_MATERIALS_CALCULATOR: undefined }));
-      for (const hint of Object.values(hints)) expect(hint).toMatchObject({ source: "materials", demo: true });
+      for (const hint of Object.values(hints)) expect(hint).toMatchObject({ source: "materials" });
     }
   });
 
   it("согласия: на ПДн текущей редакции у всех, кроме сотрудников; передача банку — у обеих сторон каждой оплаченной сделки", { timeout: 120_000 }, async () => {
-    await seedDemo(db);
+    await seedStand(db);
     const pd = { version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") };
     for (const u of await db.user.findMany({ select: { id: true, role: true } })) {
       const consents = identityFake.consentsOf(u.id).filter((c) => c.kind === ConsentKind.PD_PROCESSING);
@@ -283,35 +281,37 @@ describe("демо-данные", () => {
     expect(identityFake.calls.filter((c) => c.method === "seedConsents")).toHaveLength(1);
   });
 
-  it("не дают засеять непустую базу повторно, а resetDemo пересоздаёт её с теми же объёмами", { timeout: 240_000 }, async () => {
-    await seedDemo(db);
+  it("не дают засеять непустую базу повторно, а reseedStand пересоздаёт её с теми же объёмами", { timeout: 240_000 }, async () => {
+    await seedStand(db);
     const before = { users: await db.user.count(), deals: await db.deal.count(), requests: await db.request.count(), money: await db.moneyTransaction.count() };
-    await expect(seedDemo(db)).rejects.toThrow(/не пуста/);
-    await resetDemo(db);
+    await expect(seedStand(db)).rejects.toThrow(/не пуста/);
+    await reseedStand(db);
     expect({ users: await db.user.count(), deals: await db.deal.count(), requests: await db.request.count(), money: await db.moneyTransaction.count() }).toEqual(before);
     expect((await db.request.findFirstOrThrow({ orderBy: { number: "asc" } })).number).toBe(1);
   });
 
-  it("пользователи — из identity (SeedUsers): те же id в старой базе, дата регистрации из сида; resetDemo зовёт ResetDemo один раз и сохраняет id", { timeout: 240_000 }, async () => {
+  it("пользователи — из identity (SeedUsers): те же id в старой базе, дата регистрации из сида; reseedStand зовёт ResetStand один раз и сохраняет id", { timeout: 240_000 }, async () => {
     const started = Date.now();
-    await seedDemo(db);
+    await seedStand(db);
 
     const seedCalls = identityFake.calls.filter((c) => c.method === "seedUsers");
     expect(seedCalls).toHaveLength(1);
-    const sent = (seedCalls[0]!.request as { users: { phone: string; isDemo: boolean; createdAt?: unknown }[] }).users;
-    const users = await db.user.findMany({ select: { id: true, phone: true, isDemo: true, createdAt: true } });
+    const sent = (seedCalls[0]!.request as { users: { phone: string; createdAt?: unknown; totpSecretBase32?: string }[] }).users;
+    const users = await db.user.findMany({ select: { id: true, phone: true, createdAt: true } });
     expect(users.map((u) => u.phone).sort()).toEqual(sent.map((u) => u.phone).sort());
     for (const u of users) expect(identityFake.hasUser(u.id), `пользователь ${u.id} есть в identity`).toBe(true);
     expect(sent.every((u) => u.createdAt !== undefined)).toBe(true);
-    expect(sent.filter((u) => !u.isDemo).length).toBeGreaterThan(0); // заказчики прошлых сделок — тоже в identity
+    expect(sent.some((u) => u.phone === CLIENTS.arman.phone)).toBe(true); // заказчики прошлых сделок — тоже в identity
+    // Известный секрет TOTP — только у оператора стенда.
+    expect(sent.filter((u) => u.totpSecretBase32).map((u) => u.phone)).toEqual([OPERATOR.phone]);
     const operator = users.find((u) => u.phone === OPERATOR.phone)!;
     expect(Math.abs(operator.createdAt.getTime() - (started - OPERATOR.joinedDaysAgo * 86_400_000))).toBeLessThan(60_000);
-    expect(identityFake.calls.filter((c) => c.method === "resetDemo")).toHaveLength(0);
+    expect(identityFake.calls.filter((c) => c.method === "resetStand")).toHaveLength(0);
 
     const ids = Object.fromEntries(users.map((u) => [u.phone, u.id]));
     identityFake.calls.length = 0;
-    await resetDemo(db);
-    expect(identityFake.calls.filter((c) => c.method === "resetDemo")).toHaveLength(1);
+    await reseedStand(db);
+    expect(identityFake.calls.filter((c) => c.method === "resetStand")).toHaveLength(1);
     expect(identityFake.calls.filter((c) => c.method === "seedUsers")).toHaveLength(1);
     const again = await db.user.findMany({ select: { id: true, phone: true } });
     expect(Object.fromEntries(again.map((u) => [u.phone, u.id]))).toEqual(ids);
@@ -319,12 +319,32 @@ describe("демо-данные", () => {
     await expectSeedEmails();
   });
 
+  it("оператор стенда входит как все: код с экрана (мок SMS), затем код из приложения по секрету сида", { timeout: 120_000 }, async () => {
+    await seedStand(db);
+    const sent = await identityFake.client.requestOtp({ phone: OPERATOR.phone, idempotencyKey: "seed-op-otp" });
+    const token = `${"s".repeat(43)}`;
+    const res = await identityFake.client.verifyOtp({ phone: OPERATOR.phone, code: sent.shownCode, sessionToken: token, idempotencyKey: "seed-op-verify" });
+    expect(res.user?.defaultRole).toBe(Role.OPERATOR);
+    expect(res.user?.seeded).toBe(true);
+    expect(res.session).toMatchObject({ mfaRequired: true, mfaVerifiedAt: undefined });
+    const verified = await identityFake.client.verifySecondFactor({ sessionToken: token, code: totpNow(OPERATOR_TOTP_SECRET), idempotencyKey: "seed-op-mfa" });
+    expect(verified.session?.mfaVerifiedAt).toBeDefined();
+  });
+
+  it("при APP_ENV=prod у identity (stand_disabled) пересев отказывает до TRUNCATE: данные старой базы остаются", { timeout: 120_000 }, async () => {
+    await seedStand(db);
+    const users = await db.user.count();
+    identityFake.standEnabled = false;
+    await expect(reseedStand(db)).rejects.toThrow(/stand_disabled/);
+    expect(await db.user.count()).toBe(users);
+  });
+
   it("без identity сид падает с подсказкой запустить стенд и не пишет старую базу", async () => {
     identityFake.failNextUnavailable();
-    await expect(seedDemo(db)).rejects.toThrow(/npm run v2:up/);
+    await expect(seedStand(db)).rejects.toThrow(/npm run v2:up/);
     expect(await db.user.count()).toBe(0);
 
     identityFake.failNextUnavailable();
-    await expect(resetDemo(db)).rejects.toThrow(/npm run v2:up/);
+    await expect(reseedStand(db)).rejects.toThrow(/npm run v2:up/);
   });
 });

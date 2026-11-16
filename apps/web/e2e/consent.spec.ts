@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { testIin } from "@/demo/kz-id";
+import { testIin } from "@/seed/kz-id";
 import { acceptConsent, expectOnePrimary, loginByPhone } from "./support";
 
 /**

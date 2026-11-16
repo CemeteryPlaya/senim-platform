@@ -4,20 +4,19 @@ import type { MaterialCategory, MaterialUnit, TypicalEstimate } from "@/vertical
 import type { FurnitureSlug } from "./data";
 
 /**
- * ДЕМО: справочник цен материалов и типовые расчёты (ADR-007, ответ №33).
- * Это демонстрационные цифры — ориентир порядка цен в тенге, а не данные рынка. Каждая строка
- * помечена isDemo: оператор заменит их реальными на экране «Цены материалов» (пометка снимается
- * при изменении цены). Типовые расчёты — тоже демо: количества материалов на единицу изделия
- * и коэффициент «материалы → цена заказа» нужно подтвердить у мебельщиков (вопрос владельцу).
+ * Справочник цен материалов и типовые расчёты стенда (ADR-007, ответ №33).
+ * Это ориентир порядка цен в тенге, а не данные рынка: оператор заменит их реальными на экране «Цены материалов».
+ * Типовые расчёты — тоже ориентир: количества материалов на единицу изделия и коэффициент «материалы → цена заказа»
+ * нужно подтвердить у мебельщиков (вопрос владельцу).
  */
 
-type DemoPrice = { category: MaterialCategory; name: string; unit: MaterialUnit; priceKzt: number; segments: Segment[] };
+type SeedPrice = { category: MaterialCategory; name: string; unit: MaterialUnit; priceKzt: number; segments: Segment[] };
 
 const E: Segment = "ECONOMY";
 const C: Segment = "COMFORT";
 const P: Segment = "PREMIUM";
 
-export const DEMO_MATERIAL_PRICES: readonly DemoPrice[] = [
+export const SEED_MATERIAL_PRICES: readonly SeedPrice[] = [
   { category: "carcass", name: "ЛДСП 16 мм, стандартные декоры", unit: "m2", priceKzt: 4_200, segments: [E] },
   { category: "carcass", name: "ЛДСП 16 мм, Egger", unit: "m2", priceKzt: 6_500, segments: [C, P] },
   { category: "carcass", name: "Фанера берёзовая 18 мм", unit: "m2", priceKzt: 9_500, segments: [P] },
@@ -42,7 +41,7 @@ export const DEMO_MATERIAL_PRICES: readonly DemoPrice[] = [
 ];
 
 /** ДЕМО: материалы на единицу изделия. Кухня и прихожая — на 1 п. м, шкаф-купе — на 1 м² фасада. */
-export const DEMO_TYPICAL_ESTIMATES: Partial<Record<FurnitureSlug, TypicalEstimate>> = {
+export const SEED_TYPICAL_ESTIMATES: Partial<Record<FurnitureSlug, TypicalEstimate>> = {
   kitchen: {
     productUnit: "lm",
     typicalWidthCm: 300,
@@ -85,15 +84,14 @@ export const DEMO_TYPICAL_ESTIMATES: Partial<Record<FurnitureSlug, TypicalEstima
   },
 };
 
-/** Сид справочника: все строки — демо. Таблицы пустые (seedDemo в пустую базу, resetDemo после TRUNCATE). */
+/** Сид справочника. Таблицы пустые (seedStand в пустую базу, reseedStand после TRUNCATE). */
 export async function seedMaterialPrices(tx: Prisma.TransactionClient, types: ReadonlyMap<FurnitureSlug, string>): Promise<void> {
-  await tx.materialPrice.createMany({ data: DEMO_MATERIAL_PRICES.map((p) => ({ ...p, isDemo: true })) });
+  await tx.materialPrice.createMany({ data: [...SEED_MATERIAL_PRICES] });
   await tx.typicalEstimate.createMany({
-    data: Object.entries(DEMO_TYPICAL_ESTIMATES).map(([slug, { perUnit, ...estimate }]) => ({
+    data: Object.entries(SEED_TYPICAL_ESTIMATES).map(([slug, { perUnit, ...estimate }]) => ({
       furnitureTypeId: types.get(slug as FurnitureSlug)!,
       ...estimate,
       perUnit,
-      isDemo: true,
     })),
   });
 }

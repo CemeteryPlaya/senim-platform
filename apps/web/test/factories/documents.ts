@@ -29,7 +29,7 @@ export async function useDocuments(): Promise<() => Promise<void>> {
 }
 
 /**
- * Для тестов сида (src/demo): хранилище во временной папке (сид загружает фото, сканы и PDF через files);
+ * Для тестов сида (src/seed): хранилище во временной папке (сид загружает фото, сканы и PDF через files);
  * сид сам регистрирует порты (src/ports.ts) — после файла порт документов снимается.
  */
 export async function useSeedStorage(): Promise<() => Promise<void>> {

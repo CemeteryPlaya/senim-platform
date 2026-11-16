@@ -13,7 +13,7 @@ import { loginV2, passOnboarding } from "./support";
  * карточки заявки (откуда на предложение ведут ссылки) делает другая задача. Только SELECT: данные базы не меняются.
  */
 
-/** Засеянный покупатель тендера на кухню (src/demo/data.ts, «aigerim»). */
+/** Засеянный покупатель тендера на кухню (src/seed/data.ts, «aigerim»). */
 export const SEED_BUYER = { phone: "+77000000101" } as const;
 
 export type Round = { id: string; party: "CLIENT" | "EXECUTOR"; status: "PROPOSED" | "SUPERSEDED" | "WITHDRAWN" | "ACCEPTED"; amountTiyn: bigint };

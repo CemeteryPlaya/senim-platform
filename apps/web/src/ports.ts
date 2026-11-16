@@ -6,7 +6,7 @@ import { requestsPort } from "@/modules/requests";
 /**
  * Точка сборки портов: модули, которые не импортируют друг друга (цикл), связываются здесь.
  * deal-core получает документы (PDF оферты и акта) и заявки (закрытие при оферте и отмене).
- * Зовут: src/instrumentation.ts (сервер Next), src/jobs.ts (задачи `npm run jobs` и cron), сид демо-данных.
+ * Зовут: src/instrumentation.ts (сервер Next), src/jobs.ts (задачи `npm run jobs` и cron), сид стенда.
  * Повторный вызов безопасен.
  */
 export function registerPorts(): void {

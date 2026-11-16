@@ -8,58 +8,19 @@ import {
   KycStatus as ProtoKycStatus,
   PartySchema,
   PersonSchema,
-  Role as ProtoRole,
   type User,
 } from "@/gen/senim/identity/v1/identity_pb";
 import type { KycStatus, LegalForm, Role } from "@/generated/prisma/enums";
-import { ru } from "@/i18n/ru";
-import { db, type Tx } from "@/platform/db";
-import { env } from "@/platform/env";
-import { fail } from "@/platform/errors";
+import type { Tx } from "@/platform/db";
 import { rpcErrorCode, rpcStatusName } from "@/platform/rpc";
-import { legalFormToProto, partyColumns, projectPerson, roleFromProto, roleToProto, type PartyColumns } from "./projection";
+import { legalFormToProto, partyColumns, projectPerson, roleToProto, type PartyColumns } from "./projection";
 import { identity } from "./remote";
-import { identityFailure } from "./remote-errors";
-import { newSessionToken } from "./session-cookie";
-import { beginSession, currentToken, signOutPrevious } from "./session";
 
 /**
- * Демо-персоны: вход одним нажатием, только при DEMO_MODE=true и только пользователем с isDemo.
- * В MVP switchUser ставил cookie с любым id — здесь режим и isDemo проверяет identity (StartDemoSession),
- * а токен сессии создаёт web: без доверия к данным клиента.
+ * Сид стенда в identity (только APP_ENV не prod у identity — standGate): люди (SeedUsers), согласия на передачу банку
+ * (SeedConsents) и сброс одноразового состояния (ResetStand). Вызывается только сидом из терминала, не из интерфейса.
+ * Засеянные люди входят как все: телефон и код (на стенде SMS — мок), оператор — со вторым фактором.
  */
-
-export type DemoPersona = {
-  id: string;
-  /** Роль по умолчанию: в ней персона входит и по ней группируется на /demo. */
-  role: Role;
-  /** Выданные роли (ADR-004): у персоны с двумя ролями в шапке есть переключатель. */
-  roles: Role[];
-  fullName: string | null;
-  phone: string;
-  executor: { publicNumber: number; legalForm: LegalForm; legalName: string; status: "PENDING" | "APPROVED" | "REJECTED" } | null;
-};
-
-const ROLE_ORDER: Record<Role, number> = { OPERATOR: 0, MEASURER: 1, CLIENT: 2, EXECUTOR: 3 };
-
-export async function listDemoPersonas(): Promise<DemoPersona[]> {
-  if (!env().DEMO_MODE) return [];
-  const users = await db.user.findMany({
-    where: { isDemo: true, blockedAt: null },
-    select: {
-      id: true,
-      role: true,
-      roles: true,
-      fullName: true,
-      phone: true,
-      executorProfile: { select: { publicNumber: true, legalForm: true, legalName: true, status: true } },
-    },
-    orderBy: { phone: "asc" },
-  });
-  return users
-    .map(({ executorProfile, ...u }) => ({ ...u, executor: executorProfile }))
-    .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || (a.executor?.publicNumber ?? 0) - (b.executor?.publicNumber ?? 0));
-}
 
 /**
  * KYC стороны сида — как после подачи и решения оператора: файлы (id StoredFile, UUID) по видам; причина — только у
@@ -86,21 +47,23 @@ export type SeedPartyInput = {
 export type SeedConsentProof = { version: string; textSha256: string };
 
 /**
- * Человек сида демо-стенда: identity создаёт его или обновляет по телефону (SeedUsers), id не меняется. ФИО, ИИН, e-mail,
- * сторона и согласие на ПДн — в identity: договор, подпись ЭЦП и выплата берут их оттуда (RevealPartyDetails,
- * VerifySignerIin), а экран согласия не показывается тому, у кого засеяно согласие текущей редакции.
+ * Человек сида стенда: identity создаёт его или обновляет по телефону (SeedUsers), id не меняется; каждый помечается
+ * засеянным (seeded), телефон настоящего человека — отказ всей пачки. ФИО, ИИН, e-mail, сторона и согласие на ПДн — в
+ * identity: договор, подпись ЭЦП и выплата берут их оттуда (RevealPartyDetails, VerifySignerIin), а экран согласия не
+ * показывается тому, у кого засеяно согласие текущей редакции. `totpSecretBase32` — известный секрет TOTP оператора
+ * стенда (base32 без «=», 16–64 байт): вход оператора требует код по нему (e2e — `e2e/totp.ts`).
  */
 export type SeedPerson = {
   phone: string;
   role: Role;
   roles: Role[];
-  isDemo: boolean;
   createdAt: Date;
   fullName?: string;
   iin?: string;
   email?: string;
   party?: SeedPartyInput;
   consent?: SeedConsentProof;
+  totpSecretBase32?: string;
 };
 
 const KYC_TO_PROTO: Record<KycStatus, ProtoKycStatus> = {
@@ -130,14 +93,14 @@ async function seedCall<T>(method: string, call: () => Promise<T>): Promise<T> {
     return await call();
   } catch (e) {
     const code = rpcErrorCode(e);
-    if (code) throw new Error(`identity отказал в ${method}: ${code}${code === "demo_disabled" ? " (сиду нужен DEMO_MODE=true у identity)" : ""}`, { cause: e });
+    if (code) throw new Error(`identity отказал в ${method}: ${code}${code === "stand_disabled" ? " (сид разрешён только при APP_ENV dev или staging у identity)" : ""}`, { cause: e });
     const reason = e instanceof ConnectError ? rpcStatusName(e) : e instanceof Error ? e.message : String(e);
     throw new Error(`identity недоступен (${method}: ${reason}): ${STAND_HINT}`, { cause: e });
   }
 }
 
 /**
- * Люди сида — в identity (SeedUsers, только DEMO_MODE у identity): возвращает пользователей в порядке `people`;
+ * Люди сида — в identity (SeedUsers, только вне prod у identity): возвращает пользователей в порядке `people`;
  * их id — id старой базы (проекция — projectUser в транзакции сида).
  */
 export async function seedIdentityUsers(people: SeedPerson[]): Promise<User[]> {
@@ -147,7 +110,6 @@ export async function seedIdentityUsers(people: SeedPerson[]): Promise<User[]> {
         phone: p.phone,
         defaultRole: roleToProto(p.role),
         roles: p.roles.map(roleToProto),
-        isDemo: p.isDemo,
         createdAt: timestampFromDate(p.createdAt),
         fullName: p.fullName ?? "",
         iin: p.iin ?? "",
@@ -155,6 +117,7 @@ export async function seedIdentityUsers(people: SeedPerson[]): Promise<User[]> {
         party: p.party ? seedParty(p.party) : undefined,
         consentVersion: p.consent?.version ?? "",
         consentTextSha256: p.consent?.textSha256 ?? "",
+        totpSecretBase32: p.totpSecretBase32 ?? "",
       })),
       idempotencyKey: randomUUID(),
     }),
@@ -167,7 +130,7 @@ const last4 = (v: string | null | undefined) => (v ? v.slice(-4) : "");
 
 /**
  * Проекция личности человека сида в старую `User` (projectPerson) — какой её вернул бы identity после SeedUsers: ФИО,
- * последние 4 цифры ИИН и e-mail. Адрес сида identity записывает подтверждённым (демо-персона не проходит шаг почты),
+ * последние 4 цифры ИИН и e-mail. Адрес сида identity записывает подтверждённым (человек стенда не проходит шаг почты),
  * поэтому и в проекции он подтверждён. Сам ИИН в старую базу не попадает.
  */
 export async function projectSeedPerson(userId: string, p: SeedPerson, tx: Tx): Promise<void> {
@@ -200,11 +163,11 @@ export function seedPartyColumns(userId: string, p: SeedPerson & { party: SeedPa
   );
 }
 
-/** Согласие на передачу банку к сделке сида (SeedConsents, канал seed): сторона демо-сделки, оплачиваемой без входа. */
+/** Согласие на передачу банку к сделке сида (SeedConsents, канал seed): сторона сделки сида, оплачиваемой без входа. */
 export type SeedBankConsent = SeedConsentProof & { userId: string; dealId: string };
 
 /**
- * Согласия на передачу банку демо-сделок — в identity (SeedConsents, только DEMO_MODE у identity): сид оплачивает сделки
+ * Согласия на передачу банку сделок сида — в identity (SeedConsents, только вне prod у identity): сид оплачивает сделки
  * без сессий сторон, а оплата проверяет согласия обеих сторон (payForDeal, HasConsents) как у всех.
  */
 export async function seedIdentityBankConsents(consents: SeedBankConsent[]): Promise<void> {
@@ -217,40 +180,10 @@ export async function seedIdentityBankConsents(consents: SeedBankConsent[]): Pro
   );
 }
 
-/** «Сбросить демо» в identity: сессии, коды, лимиты и сохранённые ответы удаляются, пользователи остаются. */
-export async function resetIdentityDemo(): Promise<void> {
-  await seedCall("ResetDemo", () => identity().resetDemo({ idempotencyKey: randomUUID() }));
-}
-
 /**
- * Вход персоной (asRole — в указанной выданной роли): сессию начинает identity (StartDemoSession), web даёт токен;
- * возвращает роль сессии и статус профиля исполнителя — чтобы выбрать экран после входа.
+ * Сброс стенда в identity (ResetStand, только вне prod у identity): сессии, коды, лимиты, вторые факторы и согласия
+ * засеянных, сохранённые ответы удаляются; пользователи остаются. Только сид из терминала.
  */
-export async function loginAsDemoPersona(
-  userId: string,
-  userAgent?: string,
-  asRole?: Role,
-): Promise<Pick<DemoPersona, "id" | "role"> & { executor: { status: "PENDING" | "APPROVED" | "REJECTED" } | null }> {
-  if (!env().DEMO_MODE) return fail.forbidden(ru.identity.demo.disabled);
-  const previous = await currentToken();
-
-  const token = newSessionToken();
-  let res;
-  try {
-    res = await identity().startDemoSession({
-      userId,
-      asRole: asRole ? roleToProto(asRole) : ProtoRole.UNSPECIFIED,
-      sessionToken: token,
-      userAgent: (userAgent ?? "").slice(0, 300),
-      idempotencyKey: randomUUID(),
-    });
-  } catch (e) {
-    return identityFailure(e);
-  }
-  const { user, session } = await beginSession(token, res);
-  // Только после успешного входа: отказ (роль не выдана, нет персоны) старую сессию не трогает.
-  await signOutPrevious(previous);
-
-  const profile = await db.executorProfile.findUnique({ where: { userId: user.id }, select: { status: true } });
-  return { id: user.id, role: roleFromProto(session.activeRole), executor: profile };
+export async function resetStand(): Promise<void> {
+  await seedCall("ResetStand", () => identity().resetStand({ idempotencyKey: randomUUID() }));
 }

@@ -34,20 +34,17 @@ export { requestOtp, verifyOtp, type OtpRequested, type OtpVerified } from "./ot
 export { needsEmail, requestEmailCode, verifyEmailCode, type EmailCodeRequested } from "./email";
 export { isCodeTooOften, isEmailCodeAlreadySent } from "./remote-errors";
 export {
-  listDemoPersonas,
-  loginAsDemoPersona,
   projectSeedPerson,
-  resetIdentityDemo,
+  resetStand,
   seedIdentityBankConsents,
   seedIdentityUsers,
   seedPartyColumns,
-  type DemoPersona,
   type SeedBankConsent,
   type SeedConsentProof,
   type SeedKyc,
   type SeedPartyInput,
   type SeedPerson,
-} from "./demo";
+} from "./seed";
 export { projectPerson, projectUser } from "./projection";
 export { authorize, can, type ActionOn, type Resource } from "./rbac";
 export { CONSENT_PATH, EXECUTOR_REGISTRATION_PATH, LOGIN_PATH, MFA_PATH, consentHref, homePathFor, loginHref, mfaHref, safeReturnTo } from "./return-to";

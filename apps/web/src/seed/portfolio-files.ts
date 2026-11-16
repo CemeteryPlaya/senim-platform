@@ -1,7 +1,7 @@
 import { standPhoto, type StandPhotoKey } from "@/platform/stand-photos";
 
 /**
- * Файлы демо — временные фото мебели из public/stand-photos (описание — manifest.json, читает platform/stand-photos).
+ * Файлы сида — временные фото мебели из public/stand-photos (описание — manifest.json, читает platform/stand-photos).
  * Метаданные берутся из манифеста, а не с диска: на Vercel папки public нет в файловой системе функции.
  * Портфолио публично: его файл лежит в хранилище static (ключ — путь внутри public/), сид пишет StoredFile без байтов.
  * Фото отчётов и сдачи приватны: сид загружает их байты через files (deals.ts), static для них не используется.
@@ -17,10 +17,10 @@ export type PortfolioFileKey = Extract<
 /** Фото сдачи (готовая мебель) и «Хода работ» (цех, сборка, монтаж — `process-*`). */
 export type ReportPhotoKey = Extract<StandPhotoKey, `report-${string}` | `process-${string}`>;
 
-export type DemoFileKey = PortfolioFileKey | ReportPhotoKey;
+export type SeedFileKey = PortfolioFileKey | ReportPhotoKey;
 
-/** Данные StoredFile для файла демо в хранилище static (у фото отчётов и сдачи берётся только storageKey — путь к байтам). */
-export function demoFile(key: DemoFileKey) {
+/** Данные StoredFile для файла сида в хранилище static (у фото отчётов и сдачи берётся только storageKey — путь к байтам). */
+export function seedFile(key: SeedFileKey) {
   const p = standPhoto(key);
   return { storageKey: p.storageKey, provider: "static", contentType: "image/webp", size: p.size, sha256: p.sha256, width: p.width, height: p.height } as const;
 }

@@ -30,7 +30,7 @@ import { loginV2, open, passOnboarding } from "../support";
 const t = ru.app.offer;
 const mt = ru.app.masterOffer;
 
-/** Засеянные мастера (src/demo/data.ts): Ерлан — с предложением по кухне, Руслан Ким — того же уровня, без предложения. */
+/** Засеянные мастера (src/seed/data.ts): Ерлан — с предложением по кухне, Руслан Ким — того же уровня, без предложения. */
 const MASTERS = { erlan: "+77000000201", kim: "+77000000203" } as const;
 
 /** Вход мастером через identity один раз за прогон: состояние — во временной папке ОС. */

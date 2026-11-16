@@ -8,13 +8,13 @@ import { acceptPrice } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { formatTiyn } from "@/ui/format";
 import { DEALS, REVIEWS, type ClientKey, type DealPlan, type DealStep, type ExecutorKey } from "./data";
-import { demoFile, type DemoFileKey } from "./portfolio-files";
+import { seedFile, type SeedFileKey } from "./portfolio-files";
 import type { SeedReview, SeedWindow } from "./retime";
 import { resolveWhen } from "./timeline";
 import { testDocumentPdf } from "./test-documents";
 
 /**
- * Сделки демо — путь ТЗ настоящими сервисами, от имени тех, кто нажимает кнопку в приложении:
+ * Сделки сида — путь ТЗ настоящими сервисами, от имени тех, кто нажимает кнопку в приложении:
  * акцепт цены торга (requests.acceptPrice → deal-core.createDeal, оферта PDF через порт documents),
  * подписи сторон (documents: собственноручно напечатанным именем и ЭЦП mock), оплата (payments: mock подтверждает
  * сразу, manual ждёт оператора), сдача с фото и GPS, акт, споры, отмены. На manual оператор подтверждает
@@ -34,7 +34,7 @@ export type DealIds = {
 /** Пользователь сессии — как его собирает identity.getCurrentUser (сид — доверенный скрипт, входа нет). */
 async function asUser(userId: string, role: Role): Promise<CurrentUser> {
   const u = await db.user.findUniqueOrThrow({ where: { id: userId }, include: { executorProfile: { select: { id: true, publicNumber: true, status: true } } } });
-  return { id: u.id, role, roles: u.roles, phone: u.phone, fullName: u.fullName, iinLast4: u.iinLast4, emailVerified: u.emailVerifiedAt !== null, isDemo: u.isDemo, executor: u.executorProfile, mfa: { required: role === "OPERATOR", verifiedAt: role === "OPERATOR" ? new Date() : null }, consents: [], consentRevocationOpen: false };
+  return { id: u.id, role, roles: u.roles, phone: u.phone, fullName: u.fullName, iinLast4: u.iinLast4, emailVerified: u.emailVerifiedAt !== null, executor: u.executorProfile, mfa: { required: role === "OPERATOR", verifiedAt: role === "OPERATOR" ? new Date() : null }, consents: [], consentRevocationOpen: false };
 }
 
 /**
@@ -43,8 +43,8 @@ async function asUser(userId: string, role: Role): Promise<CurrentUser> {
  * ссылка, а не публичный адрес /stand-photos/… — static остаётся только у публичного портфолио.
  * Байты читает провайдер static (public/ рядом с сервером: dev и образ стенда).
  */
-async function photo(source: DemoFileKey, purpose: FilePurpose, uploadedById: string): Promise<string> {
-  const { storageKey } = demoFile(source);
+async function photo(source: SeedFileKey, purpose: FilePurpose, uploadedById: string): Promise<string> {
+  const { storageKey } = seedFile(source);
   const bytes = await (await storageByName("static")).get(storageKey);
   if (!bytes) throw new Error(`Сид: нет файла public/${storageKey}`);
   return (await saveFile({ purpose, bytes, uploadedById })).id;
@@ -128,19 +128,19 @@ async function step(p: Parties, s: DealStep): Promise<void> {
 /** Сторона, чья цена ждёт ответа, — не она; принимает другая (как в экране торга). */
 async function accept(ids: DealIds, plan: DealPlan) {
   const request = ids.requests.get(plan.request);
-  if (!request) throw new Error(`Сделка демо: нет заявки ${plan.request}`);
+  if (!request) throw new Error(`Сделка сида: нет заявки ${plan.request}`);
   const offer = await db.offer.findUniqueOrThrow({
     where: { id: request.offers[0]! },
     include: { request: { select: { clientId: true, addressLat: true, addressLng: true } }, executor: { select: { userId: true } }, proposals: { where: { status: "PROPOSED" } } },
   });
   const open = offer.proposals[0];
-  if (!open || offer.request.addressLat === null || offer.request.addressLng === null) throw new Error(`Сделка демо ${plan.request}: нет открытой цены или адреса`);
+  if (!open || offer.request.addressLat === null || offer.request.addressLng === null) throw new Error(`Сделка сида ${plan.request}: нет открытой цены или адреса`);
   const client = await asUser(offer.request.clientId, "CLIENT");
   const executor = await asUser(offer.executor.userId, "EXECUTOR");
   const { dealId } = await acceptPrice(open.party === "EXECUTOR" ? client : executor, { proposalId: open.id });
-  // Провайдер фиксируется в сделке при создании (из PAYMENT_PROVIDER); демо показывает оба — до первой операции журнала.
-  // Все сделки сида — тестовые (isDemo), и у покупателей вне демо-входа: их деньги не настоящие (операции isTest).
-  await db.deal.update({ where: { id: dealId }, data: { paymentProvider: plan.provider === "manual" ? "MANUAL" : "MOCK", isDemo: true } });
+  // Провайдер фиксируется в сделке при создании (из PAYMENT_PROVIDER); стенд показывает оба — до первой операции журнала.
+  // Операции журнала мока — isTest (по провайдеру); у manual — как боевые: оператор подтверждает их по документам.
+  await db.deal.update({ where: { id: dealId }, data: { paymentProvider: plan.provider === "manual" ? "MANUAL" : "MOCK" } });
   return { dealId, client, executor, address: { lat: offer.request.addressLat, lng: offer.request.addressLng } };
 }
 
@@ -167,7 +167,7 @@ export async function seedDeals(ids: DealIds, now: number): Promise<SeededDeals>
   const mark = (when: DealPlan["at"]["accepted"]) => windows.push({ from: Date.now(), target: resolveWhen(when, now) });
   const deals: { plan: DealPlan; parties: Parties }[] = [];
   for (const plan of DEALS) {
-    if (plan.at.steps.length !== plan.steps.length) throw new Error(`Сделка демо ${plan.request}: время задано не для каждого шага`);
+    if (plan.at.steps.length !== plan.steps.length) throw new Error(`Сделка сида ${plan.request}: время задано не для каждого шага`);
     mark(plan.at.accepted);
     deals.push({ plan, parties: { ...(await accept(ids, plan)), operator } });
   }
@@ -181,7 +181,7 @@ export async function seedDeals(ids: DealIds, now: number): Promise<SeededDeals>
   const dealOf = new Map(deals.map((d) => [d.plan.request, d.parties.dealId]));
   const reviews = REVIEWS.map((r) => {
     const dealId = dealOf.get(r.request);
-    if (!dealId) throw new Error(`Отзыв демо: нет сделки по заявке ${r.request}`);
+    if (!dealId) throw new Error(`Отзыв сида: нет сделки по заявке ${r.request}`);
     return { ...r, dealId };
   });
   return { deals: DEALS.length, windows, end: Date.now(), reviews };
