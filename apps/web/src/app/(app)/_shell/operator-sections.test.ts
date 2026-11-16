@@ -9,6 +9,13 @@ describe("isOperatorReady: экраны v2, готовые для операто
     ["/v2/profile", true],
     ["/v2/notifications", true],
     ["/v2/notifications/n1", true],
+    // Очереди (Q2).
+    ["/v2/operator/money", true],
+    ["/v2/operator/kyc", true],
+    ["/v2/operator/consents", true],
+    ["/v2/operator/executors", true],
+    ["/v2/operator/executors/new", true],
+    ["/v2/operator/executors/p1", true],
     // Споры и заявки (Q3).
     ["/v2/operator/disputes", true],
     ["/v2/operator/disputes/d1", true],
@@ -26,9 +33,9 @@ describe("isOperatorReady: экраны v2, готовые для операто
   });
 
   it.each([
-    // Разделы под главной оператора ещё не перенесены: главная — только сама.
-    "/v2/operator/money",
+    // Разделы под главной оператора, ещё не перенесённые: главная — только сама.
     "/v2/operator/dealsx",
+    "/v2/operator/moneyx",
     "/v2/operator/mfax",
     "/v2/profile/data",
     "/v2/deals/7",

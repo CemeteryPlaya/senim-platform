@@ -12,6 +12,11 @@ export const OPERATOR_READY: readonly { path: string; exact?: boolean }[] = [
   // Главная оператора и второй шаг входа (Q1).
   { path: to("/operator"), exact: true },
   { path: to("/operator/mfa") },
+  // Очереди (Q2): деньги в банке, документы мастеров, отзывы согласий, исполнители (с карточкой и добавлением).
+  { path: to("/operator/money") },
+  { path: to("/operator/kyc") },
+  { path: to("/operator/consents") },
+  { path: to("/operator/executors") },
   // Споры и заявки без откликов (Q3): таблица, карточка спора с решением.
   { path: to("/operator/disputes") },
   { path: to("/operator/requests") },
