@@ -228,7 +228,7 @@ export async function runSubmit<I, T>(
  * `toInput` по умолчанию не проверяет типы: вход действия — «сырой» объект полей, а разбирает и проверяет его
  * схема действия на сервере (первая строка `action()`).
  *
- * Ошибки у полей: правка поля (событие `input` / `change` в форме) снимает его ошибку сразу; после отказа с ошибками у
+ * Ошибки у полей: правка поля (событие `input` в форме) снимает его ошибку сразу; после отказа с ошибками у
  * полей фокус и прокрутка — к первому полю с ошибкой (`firstInvalid`), один раз на отправку. Экранам свои копии этого
  * не нужны.
  */
@@ -251,10 +251,14 @@ export function useActionForm<I, T>(
     shown.current = { error, fieldErrors };
   }, [error, fieldErrors]);
 
-  // Правка поля снимает его ошибку сразу, не дожидаясь следующей отправки.
+  // Правка поля снимает его ошибку сразу, не дожидаясь следующей отправки. Слушаем `input` на window, а не на форме:
+  // обработчик на форме срабатывает раньше обработчика React у корня, и перерисовка между ними вернула бы управляемому
+  // полю прежнее значение (набранное терялось бы). `change` не слушаем: он приходит и при уходе с поля без правки после
+  // фокуса к ошибке — ошибка исчезала бы от касания ссылки, а строка под полем сдвигала бы ссылку из-под пальца.
   useEffect(() => {
     if (formNode === null) return;
     const onEdit = (event: Event) => {
+      if (!(event.target instanceof Node) || !formNode.contains(event.target)) return;
       const name = fieldNameOf(event.target);
       const next = name === null ? null : clearedByEdit(shown.current.error, shown.current.fieldErrors, name);
       if (next === null) return;
@@ -262,12 +266,8 @@ export function useActionForm<I, T>(
       setError(next.error);
       setFieldErrors(next.fieldErrors);
     };
-    formNode.addEventListener("input", onEdit);
-    formNode.addEventListener("change", onEdit);
-    return () => {
-      formNode.removeEventListener("input", onEdit);
-      formNode.removeEventListener("change", onEdit);
-    };
+    window.addEventListener("input", onEdit);
+    return () => window.removeEventListener("input", onEdit);
   }, [formNode]);
 
   // Отказ с ошибками у полей: фокус и прокрутка к первому такому полю — один раз на отправку.
