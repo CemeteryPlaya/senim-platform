@@ -158,7 +158,7 @@ func TestRequestEmailCode(t *testing.T) {
 	h.wantRefusal(err, connect.CodeInvalidArgument, "idempotency_key_reused")
 }
 
-// Код почты показывается при провайдере mock (в staging тоже); не mock — не показывается.
+// Код почты показывается при провайдере mock на стенде (dev, staging); не mock или prod — нет.
 func TestRequestEmailCodeShownOnlyWithMock(t *testing.T) {
 	h := newHarness(t, func(c *ServeConfig) { c.Env = config.Staging })
 	_, token := h.client()
@@ -170,6 +170,16 @@ func TestRequestEmailCodeShownOnlyWithMock(t *testing.T) {
 	res, err := h.requestEmail(token, "a@example.kz", h.key())
 	if err != nil || res.GetShownCode() != "" {
 		t.Fatalf("не mock: %v, %v", res, err)
+	}
+	// Вторая линия: мок в prod (если бы конфиг его пропустил) кода не отдаёт.
+	h = newHarness(t, func(c *ServeConfig) { c.Env = config.Prod })
+	_, token = h.client()
+	res, err = h.requestEmail(token, "a@example.kz", h.key())
+	if err != nil || res.GetShownCode() != "" {
+		t.Fatalf("prod, mock: %v, %v", res, err)
+	}
+	if got := h.email.sent(); len(got) != 1 || !sixDigits.MatchString(got[0].code) {
+		t.Fatalf("письмо: %v", got)
 	}
 }
 

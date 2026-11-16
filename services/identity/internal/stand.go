@@ -43,10 +43,16 @@ func (s *Service) standGate(ctx context.Context) error {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return err
 	}
-	if s.cfg.Env != config.Dev && s.cfg.Env != config.Staging {
+	if !s.standEnv() {
 		return standDisabled()
 	}
 	return nil
+}
+
+// standEnv — окружение стенда: dev или staging. Не prod и не пустое значение (безопасное
+// умолчание). Решает сид, сброс стенда и показ кода на экране.
+func (s *Service) standEnv() bool {
+	return s.cfg.Env == config.Dev || s.cfg.Env == config.Staging
 }
 
 // seedRow — проверенная запись сида.

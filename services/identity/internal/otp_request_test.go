@@ -65,6 +65,9 @@ func TestShownCodeOnlyWithMockProvider(t *testing.T) {
 	for name, tune := range map[string]func(*ServeConfig){
 		"dev, не mock":     func(c *ServeConfig) { c.OTPProvider = "sms" },
 		"staging, не mock": func(c *ServeConfig) { c.Env, c.OTPProvider = config.Staging, "sms" },
+		// Вторая линия: даже если бы конфиг пропустил мок в prod, код не отдаётся.
+		"prod, mock":             func(c *ServeConfig) { c.Env = config.Prod },
+		"пустое окружение, mock": func(c *ServeConfig) { c.Env = "" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t, tune)

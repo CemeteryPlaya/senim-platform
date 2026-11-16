@@ -212,9 +212,10 @@ func (s *Service) RequestEmailCode(ctx context.Context, req *identityv1.RequestE
 	return out, nil
 }
 
-// showsEmailCode — код возвращается в ответе (shown_code) при мок-провайдере: письмо никуда
-// не уходит, человеку код показывает web. В prod мок запрещён конфигом.
-func (s *Service) showsEmailCode() bool { return s.cfg.EmailProvider == "mock" }
+// showsEmailCode — код возвращается в ответе (shown_code) только на стенде и при
+// мок-провайдере: письмо никуда не уходит, человеку код показывает web. В prod мок запрещён
+// конфигом; проверка окружения — вторая линия, как у showsOtpCode.
+func (s *Service) showsEmailCode() bool { return s.standEnv() && s.cfg.EmailProvider == "mock" }
 
 // enforceEmailLimits — лимиты запроса кода на пользователя (общие счётчики rate_limits).
 // Отказ по паузе уточняется: действующий код на этот же адрес — email_code_already_sent.

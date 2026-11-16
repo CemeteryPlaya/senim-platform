@@ -195,10 +195,11 @@ func ipLimitKey(ip string) string {
 	return prefix.String()
 }
 
-// showsOtpCode — код возвращается в ответе (shown_code) только при мок-провайдере: SMS
-// никуда не уходит, код человеку показывает web. В prod мок запрещён конфигом.
+// showsOtpCode — код возвращается в ответе (shown_code) только на стенде и при мок-провайдере:
+// SMS никуда не уходит, код человеку показывает web. В prod мок запрещён конфигом; проверка
+// окружения здесь — вторая линия: даже пропущенный конфигом мок в prod код не отдаёт.
 func (s *Service) showsOtpCode() bool {
-	return s.cfg.OTPProvider == "mock"
+	return s.standEnv() && s.cfg.OTPProvider == "mock"
 }
 
 // enforceLimits применяет лимиты в порядке otp.ts; потолки — последними, чтобы запросы,
