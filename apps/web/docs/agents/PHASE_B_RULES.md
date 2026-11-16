@@ -4,7 +4,7 @@
 
 Прочитай по порядку: `./SKILL.md` → `CLAUDE.md` → `docs/AGENT_PROMPT.md` (разделы 2, 4, 6) → `docs/GLOSSARY.md` → `docs/adr/*` → `docs/agents/UI_COMPONENTS.md` → `docs/design/MOCKUPS.md` (открой макеты своих экранов в `docs/design/mockups/`) → свой файл в `.claude/agents/`.
 
-Демо-данные уже есть (`src/demo/`, персоны и сценарии — в отчёте сида ниже по ссылке `docs/agents/DEMO_DATA.md`). Формат `Request.details` в сиде: `widthCm`, `heightCm`, `depthCm`, `facade`, `countertop`, `hardware`, `color`, `unknown` (список полей «не знаю») — схема requests должна принять его или интегратор поправит сид. Фото портфолио в сиде: `StoredFile.provider = "static"`, ключ `demo/portfolio/<file>.svg` в `public/`.
+Данные стенда уже есть (`src/seed/`, люди и сценарии — `docs/agents/STAND_DATA.md`). Формат `Request.details` в сиде: `widthCm`, `heightCm`, `depthCm`, `facade`, `countertop`, `hardware`, `color`, `unknown` (список полей «не знаю») — схема requests должна принять его или интегратор поправит сид. Фото портфолио в сиде: `StoredFile.provider = "static"`, ключ `demo/portfolio/<file>.svg` в `public/`.
 
 ## Владение файлами
 

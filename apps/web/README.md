@@ -44,7 +44,7 @@ APP_ENV=dev npx prisma db seed   # непустую базу сид пересо
 
 Платёжный провайдер новых сделок задаёт `PAYMENT_PROVIDER` (по умолчанию для `APP_ENV=dev` — `mock`). Для показа пути пилота: `PAYMENT_PROVIDER=manual npm run dev`.
 
-Порт 3100 выбран потому, что 3000 на машине разработки занят. Демо-персоны и данные сида — [docs/agents/DEMO_DATA.md](docs/agents/DEMO_DATA.md).
+Порт 3100 выбран потому, что 3000 на машине разработки занят. Люди и данные сида стенда — [docs/agents/STAND_DATA.md](docs/agents/STAND_DATA.md).
 
 ## Проверки
 

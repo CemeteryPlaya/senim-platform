@@ -47,14 +47,14 @@ src/jobs.ts           сборка обработчиков фоновых за�
 - Название продукта — только из `src/config/brand.ts` (тест).
 - Возможности вне Фазы 1 — за флагами `src/platform/features.ts`, по умолчанию выключены; не удаляются.
 - ИИН/БИН и IBAN в БД только зашифрованы (`encryptPii`), в интерфейсе — последние 4 символа.
-- Демо-персоны, «Сбросить демо» и страница показа банку — только при `DEMO_MODE=true`; демо-сделки помечены «тестовые». `APP_ENV=prod` запрещает `DEMO_MODE`, моки SMS, подписи и платежей, провайдер `freedompay`.
+- Демо-режима нет (ни возможности, ни переменной). `APP_ENV=prod` запрещает моки SMS, подписи и платежей и провайдер `freedompay`. Стенд с кодом входа на экране в production-сборке — только за паролем `STAND_ACCESS_PASSWORD` (`src/platform/env.ts`); данные стенда — `APP_ENV=dev npx prisma db seed`, засеянные люди входят как все (операторы — с 2FA).
 - Внешние сервисы — за интерфейсами с моком; выбор через env, проверенный в `src/platform/env.ts`. API внешних сервисов не выдумываем: нет документации — только интерфейс и TODO.
 
 ## Команды
 
 ```bash
 npm run db:up        # Postgres в Docker на порту 5442 (базы senim, senim_test, senim_e2e)
-npm run db:reset     # миграции с нуля + демо-данные
+npm run db:reset     # миграции с нуля + данные стенда
 npm run dev          # http://localhost:3100
 npm run check        # typecheck + lint + test
 npm run test:e2e     # Playwright
