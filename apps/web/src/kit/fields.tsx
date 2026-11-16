@@ -1,5 +1,6 @@
 import { Check, ChevronDown } from "lucide-react";
 import { useId, type ComponentProps, type ReactNode } from "react";
+import { ru } from "@/i18n/ru";
 import { cn } from "./cn";
 
 /** Общие пропсы полей: подпись и имя обязательны; текст ошибки показывается сразу под полем. */
@@ -113,12 +114,26 @@ export function InputField({ label, error, id: explicitId, className, prefix, su
 
 export type TextAreaProps = Omit<ComponentProps<"textarea">, "name"> & FieldProps;
 
+/** Строка под полем: «Ещё N символов» до минимума (когда человек уже начал писать) или «N из M» у предела; иначе `null`. */
+function countText(value: unknown, minLength: number | undefined, maxLength: number | undefined): { text: string; over: boolean } | null {
+  if (typeof value !== "string") return null;
+  const t = ru.app.kit.fields;
+  const typed = value.trim().length;
+  if (minLength !== undefined && typed > 0 && typed < minLength) return { text: t.charsLeft(minLength - typed), over: false };
+  if (maxLength !== undefined && value.length >= Math.ceil(maxLength * 0.8)) return { text: t.counter(value.length, maxLength), over: value.length > maxLength };
+  return null;
+}
+
 /**
  * Многострочное поле без системного уголка изменения размера: высота растёт по содержимому (field-sizing: content)
  * от трёх строк (min-h-area). Где field-sizing не поддерживается, остаётся фиксированная высота в `rows` (4) строки.
+ * У управляемого поля (`value`) под ним появляется счётчик: «Ещё N символов» до `minLength` (только когда человек уже
+ * начал писать; сама проверка — у схемы, `minLength` в разметку не попадает) и «N из M» у предела `maxLength`.
  */
-export function TextArea({ label, error, id: explicitId, className, rows = 4, ...rest }: TextAreaProps) {
+export function TextArea({ label, error, id: explicitId, className, rows = 4, minLength, ...rest }: TextAreaProps) {
   const { id, errorId } = useFieldIds(explicitId, error);
+  const count = countText(rest.value, minLength, rest.maxLength);
+  const countId = count ? `${id}-count` : undefined;
   return (
     <div className="flex flex-col gap-2">
       <label htmlFor={id} className={labelClass}>
@@ -130,8 +145,13 @@ export function TextArea({ label, error, id: explicitId, className, rows = 4, ..
         aria-invalid={error ? true : undefined}
         className={cn(controlClass, "min-h-area resize-none field-sizing-content py-3", borderFor(Boolean(error)), className)}
         {...rest}
-        aria-describedby={describedBy(rest["aria-describedby"], errorId)}
+        aria-describedby={describedBy(describedBy(rest["aria-describedby"], countId), errorId)}
       />
+      {count && (
+        <p id={countId} className={cn("text-small tabular-nums", count.over ? "text-danger" : "text-muted")}>
+          {count.text}
+        </p>
+      )}
       <ErrorText id={errorId}>{error}</ErrorText>
     </div>
   );
