@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ru } from "@/i18n/ru";
 import { payForDeal } from "@/modules/deal-core";
 import { db } from "@/platform/db";
 import { makeOperator } from "../../../test/factories";
 import { dealAt, dealOf, journalOf, makePhoto, signAct } from "../../../test/factories/deal";
 import { getOperatorDeal } from "./deals";
-import { confirmBankOperation, failBankOperation, listFailedMoney, listMoneyQueue, retryBankOperation, saveBankDocument } from "./money";
+import { confirmBankOperation, confirmBankOperationWithScan, failBankOperation, listFailedMoney, listMoneyQueue, retryBankOperation, saveBankDocument } from "./money";
 
 const PDF = new TextEncoder().encode("%PDF-1.4\n% тестовый документ\n");
 
@@ -134,3 +135,47 @@ describe("деньги в банке: отказ банка и повтор", ()
     await expect(retryBankOperation(f.client, { transactionId: "x" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
+
+describe("документ банка: дата по Астане и скан без мусора", () => {
+  afterEach(() => vi.useRealTimers());
+  const bankDocs = () => db.storedFile.count({ where: { purpose: "BANK_DOCUMENT" } });
+
+  it("дата документа банка завтра по Астане — VALIDATION bankDocInFuture; сегодня — проходит", async () => {
+    const operator = await makeOperator();
+    await pendingHold();
+    const [op] = await listMoneyQueue(operator);
+    // 23:30 по Астане 17 ноября: «завтра» — 18-е, хотя до него меньше суток.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-17T18:30:00Z") });
+    const input = (day: string) => ({ transactionId: op!.id, bankDocNumber: "ПП-30", bankDocDate: new Date(`${day}T00:00:00.000+05:00`), scan: PDF });
+
+    await expect(confirmBankOperationWithScan(operator, input("2026-11-18"))).rejects.toMatchObject({ code: "VALIDATION", message: ru.payments.errors.bankDocInFuture });
+    await confirmBankOperationWithScan(operator, input("2026-11-17"));
+    expect(await db.moneyTransaction.findUniqueOrThrow({ where: { id: op!.id } })).toMatchObject({ status: "SUCCEEDED" });
+  });
+
+  it("операция уже подтверждена — CONFLICT, скан не сохранён", async () => {
+    const operator = await makeOperator();
+    await pendingHold();
+    const [op] = await listMoneyQueue(operator);
+    const input = { transactionId: op!.id, bankDocNumber: "ПП-31", bankDocDate: new Date(), scan: PDF };
+    await confirmBankOperationWithScan(operator, input);
+    const before = await bankDocs();
+
+    await expect(confirmBankOperationWithScan(operator, input)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await bankDocs()).toBe(before);
+  });
+
+  it("два подтверждения одновременно — один эффект, в хранилище только приложенный скан", async () => {
+    const operator = await makeOperator();
+    await pendingHold();
+    const [op] = await listMoneyQueue(operator);
+    const before = await bankDocs();
+    const input = { transactionId: op!.id, bankDocNumber: "ПП-32", bankDocDate: new Date(), scan: PDF };
+
+    const results = await Promise.allSettled([confirmBankOperationWithScan(operator, input), confirmBankOperationWithScan(operator, input)]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(await bankDocs()).toBe(before + 1);
+  });
+});
+

@@ -1,9 +1,10 @@
 import type { MoneyTransactionType } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { onMoneySettled } from "@/modules/deal-core";
-import { saveFile } from "@/modules/files";
+import { discardUpload, saveFile } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import {
+  assertManualPending,
   confirmManualOperation,
   failManualOperation,
   listPendingManualOperations,
@@ -13,6 +14,7 @@ import {
   type PendingManualOperation,
 } from "@/modules/payments";
 import { fail } from "@/platform/errors";
+import { logger } from "@/platform/logger";
 import { assertOperator } from "./access";
 
 /**
@@ -43,6 +45,27 @@ export async function confirmBankOperation(
 ): Promise<void> {
   assertOperator(operator);
   await confirmManualOperation(operator, input, onMoneySettled);
+}
+
+/**
+ * Подтверждение со сканом одним вызовом (экраны «Деньги в банке» v1 и v2): операция ещё ждёт документа — скан сохраняется;
+ * подтверждение не прошло (повтор, второй оператор, неверная дата) — только что сохранённый скан удаляется, а не ждёт
+ * суточной очистки (files.cleanupOrphans). Ошибка — исходная.
+ */
+export async function confirmBankOperationWithScan(
+  operator: CurrentUser,
+  input: { transactionId: string; bankDocNumber: string; bankDocDate: Date; scan: Uint8Array },
+): Promise<void> {
+  assertOperator(operator);
+  const { scan, ...fields } = input;
+  await assertManualPending(operator, fields.transactionId);
+  const bankDocFileId = await saveBankDocument(operator, scan);
+  try {
+    await confirmBankOperation(operator, { ...fields, bankDocFileId });
+  } catch (error) {
+    await discardUpload(operator, bankDocFileId).catch((e: unknown) => logger.warn("operator.bank_doc.discard_failed", { fileId: bankDocFileId, error: e }));
+    throw error;
+  }
 }
 
 export async function failBankOperation(operator: CurrentUser, input: { transactionId: string; reason: string }): Promise<void> {

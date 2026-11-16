@@ -18,6 +18,7 @@ export { moneyFacts, moneyHistoryOf, projectMoney, retryCheck, type RetryCheck, 
 export { isTestProvider, newDealProviderKind, providerFor, providerKindOf } from "./providers";
 export { mockProvider, signMockWebhook } from "./providers/mock";
 export {
+  assertManualPending,
   confirmManualOperation,
   confirmManualSchema,
   failManualOperation,

@@ -4,6 +4,7 @@ import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { assertAttachable } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
+import { astanaDate } from "@/platform/astana";
 import { db, isUniqueViolation, lockDealRow, transaction, type Tx } from "@/platform/db";
 import { fail, isAppError } from "@/platform/errors";
 import { parseInput } from "@/platform/validation";
@@ -45,7 +46,6 @@ export const confirmManualSchema = z.object({
 
 export const failManualSchema = z.object({ transactionId: id, reason: z.string().trim().min(5, v.failReason).max(500) });
 
-const DAY_MS = 24 * 3600 * 1000;
 
 /** Операция manual, ждущая итога, под блокировкой строки сделки (тот же порядок блокировок, что у deal-core). */
 async function lockPendingManual(tx: Tx, transactionId: string) {
@@ -56,6 +56,18 @@ async function lockPendingManual(tx: Tx, transactionId: string) {
   if (op.provider !== "MANUAL") return fail.conflict(ru.payments.errors.notManual);
   if (op.status !== "PENDING") return fail.conflict(ru.payments.errors.notPending);
   return op;
+}
+
+/**
+ * Проверка до сохранения скана: операция есть, она manual и всё ещё ждёт документа банка (иначе NOT_FOUND или CONFLICT).
+ * Окончательная проверка — под блокировкой в confirmManualOperation; эта лишь не даёт сохранять скан к решённой операции.
+ */
+export async function assertManualPending(operator: CurrentUser, transactionId: string): Promise<void> {
+  requireOperator(operator);
+  const op = await db.moneyTransaction.findUnique({ where: { id: transactionId }, select: { provider: true, status: true } });
+  if (!op) return fail.notFound(ru.payments.errors.operationNotFound);
+  if (op.provider !== "MANUAL") return fail.conflict(ru.payments.errors.notManual);
+  if (op.status !== "PENDING") return fail.conflict(ru.payments.errors.notPending);
 }
 
 /** Часть выплаты подтверждается после раскрытия: без принятого банком распоряжения выплаты не было. */
@@ -102,7 +114,8 @@ async function finish(tx: Tx, operator: CurrentUser, op: { id: string; dealId: s
 export async function confirmManualOperation(operator: CurrentUser, raw: z.input<typeof confirmManualSchema>, onSettled: SettledHook): Promise<void> {
   requireOperator(operator);
   const input = parseInput(confirmManualSchema, raw);
-  if (input.bankDocDate.getTime() > Date.now() + DAY_MS) fail.validation(ru.payments.errors.bankDocInFuture);
+  // Дата документа — календарный день по Астане: «завтра» не принимается, даже если до него меньше суток.
+  if (astanaDate(input.bankDocDate) > astanaDate(new Date())) fail.validation(ru.payments.errors.bankDocInFuture);
   try {
     await transaction(async (tx) => {
       const op = await lockPendingManual(tx, input.transactionId);

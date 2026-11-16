@@ -11,6 +11,7 @@ export { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitur
 export { kycQueue, kycQueueCount, kycQueueSize, kycReviewSchema, reviewKyc, type KycDecision, type KycDocument, type KycQueueItem, type KycReviewInput } from "./kyc";
 export {
   confirmBankOperation,
+  confirmBankOperationWithScan,
   failBankOperation,
   isManualType,
   listFailedMoney,

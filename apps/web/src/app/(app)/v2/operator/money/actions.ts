@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { requireRecentMfa, requireUser } from "@/modules/identity";
-import { bankConfirmFieldsSchema, bankFailSchema, confirmBankOperation, failBankOperation, retryBankOperation, saveBankDocument } from "@/modules/operator";
+import { bankConfirmFieldsSchema, bankFailSchema, confirmBankOperationWithScan, failBankOperation, retryBankOperation } from "@/modules/operator";
 import { retryOperationSchema } from "@/modules/payments";
 import { action } from "@/platform/action";
 
@@ -27,8 +27,7 @@ export const confirmBankOperationAction = action(
   async ({ scan: file, ...input }) => {
     const user = await requireUser("OPERATOR");
     requireRecentMfa(user);
-    const bankDocFileId = await saveBankDocument(user, new Uint8Array(await file.arrayBuffer()));
-    await confirmBankOperation(user, { ...input, bankDocFileId });
+    await confirmBankOperationWithScan(user, { ...input, scan: new Uint8Array(await file.arrayBuffer()) });
   },
 );
 

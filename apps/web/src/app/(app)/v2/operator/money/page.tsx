@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { formatDateTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
+import { astanaDate } from "@/platform/astana";
 import { DecisionQueue, Money, Notice, PageTitle, QueueCard, Section, Stack, TextLink } from "@/kit";
 import { listFailedMoney, listMoneyQueue } from "@/modules/operator";
 import { getDevice } from "@/platform/device";
@@ -14,7 +15,6 @@ const t = q.money;
 export const metadata: Metadata = { title: t.metaTitle };
 
 /** Сегодня по Астане в формате поля даты: документ банка по умолчанию сегодняшний и не из будущего. */
-const astanaToday = (now: Date): string => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Almaty" }).format(now);
 
 /** Сумма операции и ссылка на сделку — над формой решения: что подтверждаем и где посмотреть подробности. */
 function OperationFacts({ amountTiyn, dealId, dealNumber, dealTitle }: { amountTiyn: bigint; dealId: string; dealNumber: number; dealTitle: string }) {
@@ -38,7 +38,7 @@ function OperationFacts({ amountTiyn, dealId, dealNumber, dealTitle }: { amountT
 export default async function MoneyQueuePage() {
   const user = await requireOperator(to("/operator/money"));
   const [queue, failed, device] = await Promise.all([listMoneyQueue(user), listFailedMoney(user), getDevice()]);
-  const today = astanaToday(new Date());
+  const today = astanaDate(new Date());
 
   return (
     <Stack gap="section">

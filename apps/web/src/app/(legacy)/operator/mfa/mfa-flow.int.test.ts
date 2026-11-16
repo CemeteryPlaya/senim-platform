@@ -27,8 +27,7 @@ vi.mock("@/modules/operator", async (original) => {
   const real = await original<typeof import("@/modules/operator")>();
   return {
     ...real,
-    saveBankDocument: vi.fn(async () => "file-1"),
-    confirmBankOperation: vi.fn(async () => undefined),
+    confirmBankOperationWithScan: vi.fn(async () => undefined),
     failBankOperation: vi.fn(async () => undefined),
     retryBankOperation: vi.fn(async () => undefined),
     resolveDispute: vi.fn(async () => undefined),
@@ -63,7 +62,7 @@ async function operatorSession(mfaVerifiedAt: Date | null) {
 const scan = () => new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], { type: "application/pdf" });
 /** Сколько раз вызван сервис денег (сохранение скана, подтверждение, отказ, повтор операции, решение спора). */
 const moneyCalls = () =>
-  [operator.saveBankDocument, operator.confirmBankOperation, operator.failBankOperation, operator.retryBankOperation, operator.resolveDispute].reduce(
+  [operator.confirmBankOperationWithScan, operator.failBankOperation, operator.retryBankOperation, operator.resolveDispute].reduce(
     (n, f) => n + vi.mocked(f).mock.calls.length,
     0,
   );
