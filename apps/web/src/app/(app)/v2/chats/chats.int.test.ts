@@ -324,7 +324,7 @@ describe("действия диалога", () => {
     expect((await db.storedFile.findUniqueOrThrow({ where: { id: file.id } })).messageId).toBeNull();
   });
 
-  it("после оферты: сообщение с фото — файл прикрепляется, лента отдаёт адрес; фото без текста и чужой файл — ошибка без сообщения", async () => {
+  it("после оферты: сообщение с фото — файл прикрепляется, лента отдаёт адрес; фото без текста уходит; пустое без фото и чужой файл — ошибка без сообщения", async () => {
     const thread = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
     await signInAs(thread.client);
     const file = (userId: string, tag: string) =>
@@ -337,11 +337,16 @@ describe("действия диалога", () => {
     const withPhoto = sent.data.messages.find((m) => m.attachments && m.attachments.length > 0);
     expect(withPhoto?.attachments?.map((a) => a.name)).toEqual([t.room.photo(1)]);
 
+    // Фото без подписи — как в мессенджерах (U2); пустое без фото — отказ.
     const second = await file(thread.client.id, "second");
-    expect(await sendMessageAction({ offerId: thread.offerId, text: "  ", fileIds: [second.id] })).toMatchObject({ ok: false, code: "VALIDATION" });
+    const photoOnly = await sendMessageAction({ offerId: thread.offerId, text: "  ", fileIds: [second.id] });
+    if (!photoOnly.ok) throw new Error(photoOnly.error);
+    const bare = photoOnly.data.messages.filter((m) => m.attachments && m.attachments.length > 0);
+    expect(bare).toHaveLength(2);
+    expect(await sendMessageAction({ offerId: thread.offerId, text: "  " })).toMatchObject({ ok: false, code: "VALIDATION" });
     const foreign = await file(thread.executor.id, "foreign");
     expect(await sendMessageAction({ offerId: thread.offerId, text: "Чужой", fileIds: [foreign.id] })).toMatchObject({ ok: false });
-    expect(await db.message.count({ where: { offerId: thread.offerId } })).toBe(1);
+    expect(await db.message.count({ where: { offerId: thread.offerId } })).toBe(2);
     // Больше предела — схема.
     const many = Array.from({ length: 6 }, (_, i) => `f${i}`);
     expect(await sendMessageAction({ offerId: thread.offerId, text: "много", fileIds: many })).toMatchObject({ ok: false, code: "VALIDATION" });
