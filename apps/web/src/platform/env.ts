@@ -47,8 +47,8 @@ const base = z
     APP_ENV: optional.pipe(z.enum(APP_ENVS).optional()),
     DATABASE_URL: z.string().min(1),
     APP_URL: z.url().default("http://localhost:3100"),
-    DEMO_MODE: bool,
-    DEMO_ACCESS_PASSWORD: optional,
+    /** Пароль стенда (basic-auth всего сайта, src/proxy.ts): только вне APP_ENV=prod (standChecks). */
+    STAND_ACCESS_PASSWORD: optional,
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
     TRUST_PROXY: bool,
 
@@ -143,26 +143,30 @@ function productionChecks({ env, require, issue }: Checks) {
   if (env.NODE_ENV === "production" && !env.TRUST_PROXY) issue("TRUST_PROXY", "в production должна быть true: без IP клиента не работают лимиты входа по IP");
 }
 
-/** Демо-стенд пускает в любую персону без SMS и умеет стирать базу: в production — только за паролем (src/proxy.ts). */
-function demoChecks({ env, require, issue }: Checks) {
-  if (env.NODE_ENV === "production" && env.DEMO_MODE) require("DEMO_ACCESS_PASSWORD", "DEMO_MODE=true в production");
-  if (env.DEMO_ACCESS_PASSWORD && env.DEMO_ACCESS_PASSWORD.length < 16) {
-    issue("DEMO_ACCESS_PASSWORD", "не короче 16 символов: пароль закрывает стенд с данными и сбросом демо");
+/**
+ * Пароль стенда закрывает basic-auth весь сайт стенда (src/proxy.ts, stand-gate): только вне prod — в prod переменная
+ * запрещена (боевой сайт паролем не закрывают). За паролем /api/cron/run открыт без него — его закрывает CRON_SECRET.
+ */
+function standChecks({ env, require, issue }: Checks) {
+  if (!env.STAND_ACCESS_PASSWORD) return;
+  if (env.APP_ENV === "prod") {
+    issue("STAND_ACCESS_PASSWORD", "запрещена при APP_ENV=prod: пароль стенда — только для dev и staging");
+    return;
   }
-  // За паролем показа /api/cron/run открыт без пароля (demo-gate) — его закрывает только CRON_SECRET.
-  if (env.DEMO_MODE && env.DEMO_ACCESS_PASSWORD) require("CRON_SECRET", "DEMO_MODE=true с паролем показа");
+  if (env.STAND_ACCESS_PASSWORD.length < 16) issue("STAND_ACCESS_PASSWORD", "не короче 16 символов: пароль закрывает стенд с данными");
+  require("CRON_SECRET", "задан STAND_ACCESS_PASSWORD");
 }
 
 /**
- * Вне демо-стенда моки в production означают «код входа никуда не уходит», «подпись не проверяется» и
- * «оплата подтверждается без денег» (провайдер mock — явный или по умолчанию контура dev).
+ * Моки — по контуру, а не по сборке: при APP_ENV dev и staging разрешены (и в production-сборке стенда и e2e), при prod
+ * запрещены — «код входа никуда не уходит», «подпись не проверяется» и «оплата подтверждается без денег».
  */
 function mockChecks({ env, issue }: Checks) {
-  if (env.NODE_ENV !== "production" || env.DEMO_MODE) return;
+  if (env.APP_ENV !== "prod") return;
   for (const key of ["SMS_PROVIDER", "SIGNATURE_PROVIDER"] as const) {
-    if (env[key] === "mock") issue(key, "mock запрещён в production без DEMO_MODE");
+    if (env[key] === "mock") issue(key, "mock запрещён при APP_ENV=prod");
   }
-  if (resolvePaymentProvider(env) === "mock") issue("PAYMENT_PROVIDER", "mock запрещён в production без DEMO_MODE");
+  if (resolvePaymentProvider(env) === "mock") issue("PAYMENT_PROVIDER", "mock запрещён при APP_ENV=prod");
 }
 
 function providerChecks({ env, require }: Checks) {
@@ -179,18 +183,12 @@ function providerChecks({ env, require }: Checks) {
   }
 }
 
-/** prod — пилот с реальными деньгами: никаких моков, демо и песочницы; freedompay — только staging (ADR-009, OPEN_QUESTIONS №41). */
+/** prod — пилот с реальными деньгами: моки запрещает mockChecks; freedompay — только staging (ADR-009, OPEN_QUESTIONS №41). */
 function appEnvChecks({ env, appEnvExplicit, issue }: Checks) {
   if (env.NODE_ENV === "production" && !appEnvExplicit) issue("APP_ENV", "обязательна, когда NODE_ENV=production: dev, staging или prod");
   if (env.PAYMENT_PROVIDER === "freedompay" && env.APP_ENV !== "staging") {
     issue("PAYMENT_PROVIDER", "freedompay разрешён только при APP_ENV=staging: схема без зачисления на счёт ТОО не подтверждена");
   }
-  if (env.APP_ENV !== "prod") return;
-  if (env.DEMO_MODE) issue("DEMO_MODE", "запрещён при APP_ENV=prod");
-  for (const key of ["SMS_PROVIDER", "SIGNATURE_PROVIDER"] as const) {
-    if (env[key] === "mock") issue(key, "mock запрещён при APP_ENV=prod");
-  }
-  if (env.PAYMENT_PROVIDER === "mock") issue("PAYMENT_PROVIDER", "mock запрещён при APP_ENV=prod");
 }
 
 function freedomPayChecks({ env, require }: Checks) {
@@ -227,7 +225,7 @@ const schema = base
     const env = withAppEnv(raw);
     const issue = (key: keyof RawEnv, message: string) => ctx.addIssue({ code: "custom", path: [key], message });
     const checks: Checks = { env, appEnvExplicit: raw.APP_ENV !== undefined, issue, require: (key, when) => !env[key] && issue(key, `обязательна, когда ${when}`) };
-    for (const check of [productionChecks, demoChecks, mockChecks, providerChecks, appEnvChecks, freedomPayChecks, pushChecks, meshChecks]) check(checks);
+    for (const check of [productionChecks, standChecks, mockChecks, providerChecks, appEnvChecks, freedomPayChecks, pushChecks, meshChecks]) check(checks);
   })
   .transform(withAppEnv);
 

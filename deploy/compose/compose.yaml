@@ -194,9 +194,9 @@ services:
       PII_HASH_KEY: ${WEB_PII_HASH_KEY:?запускайте через npm run v2:up}
       FILE_URL_SECRET: ${WEB_FILE_URL_SECRET:?запускайте через npm run v2:up}
       CRON_SECRET: ${WEB_CRON_SECRET:?запускайте через npm run v2:up}
-      # Образ собран с NODE_ENV=production: моки SMS, подписи и оплаты там запрещены без DEMO_MODE,
-      # а DEMO_MODE в production закрывает весь сайт паролем. Стенд v2 проверяет путь до сервисов,
-      # а не вход в legacy-приложение, поэтому провайдеры — не-моки, никуда не подключённые.
+      # Моки web разрешены по контуру (APP_ENV dev и staging), запрещены при prod — сборка (NODE_ENV) не важна.
+      # Стенд v2 проверяет путь до сервисов, а не вход в legacy-приложение, поэтому провайдеры — не-моки,
+      # никуда не подключённые. Пароль стенда (STAND_ACCESS_PASSWORD) здесь не задан.
       SMS_PROVIDER: http
       SMS_HTTP_URL: http://sms.invalid/send
       SMS_HTTP_TOKEN: dev-unused

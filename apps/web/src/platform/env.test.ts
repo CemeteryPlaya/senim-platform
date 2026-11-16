@@ -3,7 +3,7 @@ import { parseEnv } from "./env";
 
 const KEY = Buffer.alloc(32, 1).toString("base64");
 
-/** Минимальное рабочее окружение production без демо: пилот (APP_ENV=prod, manual), реальные SMS и ЭЦП. */
+/** Минимальное рабочее окружение production: пилот (APP_ENV=prod, manual), реальные SMS и ЭЦП. */
 const production = {
   NODE_ENV: "production",
   APP_ENV: "prod",
@@ -19,14 +19,13 @@ const production = {
   TRUST_PROXY: "true",
 };
 
-/** Демо-стенд на Vercel: production-сборка, контур dev, моки за паролем показа. */
-const demoProduction = {
+/** Стенд: production-сборка, контур dev, моки за паролем стенда. */
+const standProduction = {
   ...production,
   APP_ENV: "dev",
-  DEMO_MODE: "true",
   SMS_PROVIDER: "mock",
   SIGNATURE_PROVIDER: "mock",
-  DEMO_ACCESS_PASSWORD: "пароль-показа-банку",
+  STAND_ACCESS_PASSWORD: "пароль-стенда-длинный",
 };
 
 function problems(source: Record<string, string>): string {
@@ -46,33 +45,41 @@ describe("env: production", () => {
   it("TRUST_PROXY=true обязательна: без IP клиента лимиты кодов входа держатся только на общем потолке", () => {
     expect(problems({ ...production, TRUST_PROXY: "" })).toMatch(/TRUST_PROXY/);
     expect(problems({ ...production, TRUST_PROXY: "false" })).toMatch(/TRUST_PROXY/);
-    expect(problems({ ...demoProduction, TRUST_PROXY: "false" })).toMatch(/TRUST_PROXY/);
+    expect(problems({ ...standProduction, TRUST_PROXY: "false" })).toMatch(/TRUST_PROXY/);
     expect(problems({ ...production, NODE_ENV: "development", TRUST_PROXY: "false" })).toBe("");
   });
 
-  it("без DEMO_MODE запрещает мок SMS", () => {
-    expect(problems({ ...production, SMS_PROVIDER: "mock" })).toMatch(/SMS_PROVIDER/);
+  it("при APP_ENV=prod запрещает мок SMS — с именем переменной", () => {
+    expect(problems({ ...production, SMS_PROVIDER: "mock" })).toMatch(/SMS_PROVIDER: mock запрещён при APP_ENV=prod/);
   });
 
-  it("без DEMO_MODE запрещает мок подписи", () => {
-    expect(problems({ ...production, SIGNATURE_PROVIDER: "mock" })).toMatch(/SIGNATURE_PROVIDER/);
+  it("при APP_ENV=prod запрещает мок подписи — с именем переменной", () => {
+    expect(problems({ ...production, SIGNATURE_PROVIDER: "mock" })).toMatch(/SIGNATURE_PROVIDER: mock запрещён при APP_ENV=prod/);
   });
 
-  it("демо-стенд с паролем может работать на моках", () => {
-    expect(problems(demoProduction)).toBe("");
+  it.each(["dev", "staging"])("при APP_ENV=%s моки разрешены и в production-сборке (стенд, e2e)", (appEnv) => {
+    const keys: Record<string, string> = appEnv === "staging" ? { PAYMENT_PROVIDER: "mock" } : {};
+    expect(problems({ ...standProduction, APP_ENV: appEnv, ...keys })).toBe("");
+    expect(problems({ ...standProduction, APP_ENV: appEnv, STAND_ACCESS_PASSWORD: "", ...keys })).toBe("");
   });
 
-  it("демо-стенд без пароля не запускается", () => {
-    expect(problems({ ...demoProduction, DEMO_ACCESS_PASSWORD: "" })).toMatch(/DEMO_ACCESS_PASSWORD/);
+  it("стенд в production-сборке: пароль стенда — не короче 16 символов", () => {
+    expect(problems({ ...standProduction, STAND_ACCESS_PASSWORD: "короткий-пароль" })).toMatch(/STAND_ACCESS_PASSWORD: не короче 16/);
+    expect(problems({ ...standProduction, STAND_ACCESS_PASSWORD: "ровно-16-символ!" })).toBe("");
   });
 
-  it("пароль показа — не короче 16 символов", () => {
-    expect(problems({ ...demoProduction, DEMO_ACCESS_PASSWORD: "короткий-пароль" })).toMatch(/DEMO_ACCESS_PASSWORD: не короче 16/);
-    expect(problems({ ...demoProduction, DEMO_ACCESS_PASSWORD: "ровно-16-символ!" })).toBe("");
+  it("пароль стенда без CRON_SECRET — стенд не запускается", () => {
+    expect(problems({ ...standProduction, CRON_SECRET: "" })).toMatch(/CRON_SECRET: обязательна, когда задан STAND_ACCESS_PASSWORD/);
   });
 
-  it("демо-стенд без CRON_SECRET не запускается", () => {
-    expect(problems({ ...demoProduction, CRON_SECRET: "" })).toMatch(/CRON_SECRET/);
+  it("пароль стенда при APP_ENV=prod запрещён — с именем переменной", () => {
+    expect(problems({ ...production, STAND_ACCESS_PASSWORD: "пароль-стенда-длинный" })).toMatch(/STAND_ACCESS_PASSWORD: запрещена при APP_ENV=prod/);
+  });
+
+  it("DEMO_MODE больше не переменная: лишнее значение ни на что не влияет", () => {
+    expect(problems({ ...production, DEMO_MODE: "true" })).toBe("");
+    expect(problems({ ...production, DEMO_MODE: "true", SMS_PROVIDER: "mock" })).toMatch(/SMS_PROVIDER: mock запрещён при APP_ENV=prod/);
+    expect(parseEnv({ ...production, DEMO_MODE: "true" })).not.toHaveProperty("DEMO_MODE");
   });
 
   it("APP_ENV задаётся явно: забытый контур в production не превращается в dev с тестовыми платежами", () => {
@@ -81,10 +88,10 @@ describe("env: production", () => {
     expect(problems({ ...production, NODE_ENV: "development", APP_ENV: "" })).not.toMatch(/APP_ENV/);
   });
 
-  it("без DEMO_MODE запрещает мок платежей — явный и по умолчанию контура dev", () => {
-    expect(problems({ ...production, APP_ENV: "dev" })).toMatch(/PAYMENT_PROVIDER: mock запрещён в production без DEMO_MODE/);
-    expect(problems({ ...production, APP_ENV: "dev", PAYMENT_PROVIDER: "manual" })).toBe("");
-    expect(problems({ ...demoProduction, PAYMENT_PROVIDER: "mock" })).toBe("");
+  it("мок платежей: при APP_ENV=prod запрещён, при dev (явный и по умолчанию контура) разрешён", () => {
+    expect(problems({ ...production, PAYMENT_PROVIDER: "mock" })).toMatch(/PAYMENT_PROVIDER: mock запрещён при APP_ENV=prod/);
+    expect(problems({ ...production, APP_ENV: "dev" })).toBe("");
+    expect(problems({ ...standProduction, PAYMENT_PROVIDER: "mock" })).toBe("");
   });
 });
 
@@ -99,15 +106,15 @@ describe("env: APP_ENV=prod без NODE_ENV=production", () => {
 });
 
 describe("env: разработка", () => {
-  it("моки и демо без пароля разрешены", () => {
-    expect(problems({ DATABASE_URL: "postgresql://x", DEMO_MODE: "true" })).toBe("");
+  it("моки без пароля стенда разрешены", () => {
+    expect(problems({ DATABASE_URL: "postgresql://x" })).toBe("");
   });
 
-  it("демо за паролем показа требует CRON_SECRET и длинный пароль и при разработке", () => {
-    const demo = { DATABASE_URL: "postgresql://x", DEMO_MODE: "true", DEMO_ACCESS_PASSWORD: "пароль-показа-банку" };
-    expect(problems(demo)).toMatch(/CRON_SECRET/);
-    expect(problems({ ...demo, CRON_SECRET: "c" })).toBe("");
-    expect(problems({ ...demo, CRON_SECRET: "c", DEMO_ACCESS_PASSWORD: "123" })).toMatch(/DEMO_ACCESS_PASSWORD/);
+  it("пароль стенда требует CRON_SECRET и длинный пароль и при разработке", () => {
+    const stand = { DATABASE_URL: "postgresql://x", STAND_ACCESS_PASSWORD: "пароль-стенда-длинный" };
+    expect(problems(stand)).toMatch(/CRON_SECRET/);
+    expect(problems({ ...stand, CRON_SECRET: "c" })).toBe("");
+    expect(problems({ ...stand, CRON_SECRET: "c", STAND_ACCESS_PASSWORD: "123" })).toMatch(/STAND_ACCESS_PASSWORD/);
   });
 });
 
@@ -160,11 +167,11 @@ describe("env: контуры APP_ENV (ТЗ п. 11)", () => {
   });
 
   it.each([
-    ["DEMO_MODE", { DEMO_MODE: "true", DEMO_ACCESS_PASSWORD: "пароль-показа-банку" }],
+    ["STAND_ACCESS_PASSWORD", { STAND_ACCESS_PASSWORD: "пароль-стенда-длинный" }],
     ["SMS_PROVIDER", { SMS_PROVIDER: "mock" }],
     ["SIGNATURE_PROVIDER", { SIGNATURE_PROVIDER: "mock" }],
     ["PAYMENT_PROVIDER", { PAYMENT_PROVIDER: "mock" }],
-  ])("prod запрещает %s в демо- или мок-режиме", (key, extra) => {
+  ])("prod запрещает %s (пароль стенда или мок)", (key, extra) => {
     expect(problems({ ...prod, ...extra })).toContain(`${key}:`);
   });
 

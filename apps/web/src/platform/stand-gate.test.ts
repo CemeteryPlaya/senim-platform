@@ -1,45 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { demoGate } from "./demo-gate";
+import { standGate } from "./stand-gate";
 
 const basic = (user: string, password: string) => `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`;
-const closed = { demoMode: true, password: "пароль-показа" };
+const closed = { password: "пароль-стенда" };
 
-describe("demoGate", () => {
-  it("без DEMO_MODE ничего не закрывает", () => {
-    expect(demoGate("/deals", null, { demoMode: false, password: "пароль-показа" })).toBe("pass");
+describe("standGate", () => {
+  it("без пароля стенда ничего не закрывает (разработка)", () => {
+    expect(standGate("/deals", null, { password: undefined })).toBe("pass");
   });
 
-  it("демо без пароля открыто (разработка)", () => {
-    expect(demoGate("/deals", null, { demoMode: true, password: undefined })).toBe("pass");
-  });
-
-  it.each(["/", "/demo", "/bank-demo", "/login", "/api/files/x", "/api/ai/visualizations"])("закрывает %s без пароля", (path) => {
-    expect(demoGate(path, null, closed)).toBe("challenge");
+  it.each(["/", "/v2", "/operator", "/login", "/api/files/x", "/api/ai/visualizations"])("закрывает %s без пароля", (path) => {
+    expect(standGate(path, null, closed)).toBe("challenge");
   });
 
   it("пускает с верным паролем, имя пользователя любое", () => {
-    expect(demoGate("/bank-demo", basic("bank", "пароль-показа"), closed)).toBe("pass");
-    expect(demoGate("/bank-demo", basic("", "пароль-показа"), closed)).toBe("pass");
+    expect(standGate("/operator", basic("tester", "пароль-стенда"), closed)).toBe("pass");
+    expect(standGate("/operator", basic("", "пароль-стенда"), closed)).toBe("pass");
   });
 
   it.each([
-    ["неверный пароль", basic("bank", "пароль")],
-    ["пароль длиннее", basic("bank", "пароль-показа!")],
-    ["другая схема", "Bearer пароль-показа"],
+    ["неверный пароль", basic("tester", "пароль")],
+    ["пароль длиннее", basic("tester", "пароль-стенда!")],
+    ["другая схема", "Bearer пароль-стенда"],
     ["битый base64", "Basic ###"],
-    ["без двоеточия", `Basic ${Buffer.from("пароль-показа").toString("base64")}`],
+    ["без двоеточия", `Basic ${Buffer.from("пароль-стенда").toString("base64")}`],
   ])("не пускает: %s", (_, authorization) => {
-    expect(demoGate("/", authorization, closed)).toBe("challenge");
+    expect(standGate("/", authorization, closed)).toBe("challenge");
   });
 
   it.each(["/api/webhooks/payments/mock", "/api/webhooks/payments/freedompay", "/api/cron/run"])("вебхуки и cron проходят без пароля: %s", (path) => {
-    expect(demoGate(path, null, closed)).toBe("pass");
+    expect(standGate(path, null, closed)).toBe("pass");
   });
 
   it.each(["/api/webhooks/other", "/api/webhooks/payments/mock/extra", "/api/webhooks/payments/manual", "/api/cron/other", "/api/webhooks/", "/api/cron/run/x"])(
     "другие пути под вебхуками и cron закрыты: %s",
     (path) => {
-      expect(demoGate(path, null, closed)).toBe("challenge");
+      expect(standGate(path, null, closed)).toBe("challenge");
     },
   );
 
@@ -47,19 +43,19 @@ describe("demoGate", () => {
   it.each(["/manifest.webmanifest", "/sw.js", "/offline", "/apple-icon.png", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png"])(
     "файлы установки приложения проходят без пароля: %s",
     (path) => {
-      expect(demoGate(path, null, closed)).toBe("pass");
+      expect(standGate(path, null, closed)).toBe("pass");
     },
   );
 
   it.each(["/icons/", "/icons/x.svg", "/icons/../deals", "/icons/a/b.png", "/icons/icon-192.png/x", "/offline/x", "/sw.js.map", "/manifest.json"])(
     "похожие на файлы установки пути закрыты: %s",
     (path) => {
-      expect(demoGate(path, null, closed)).toBe("challenge");
+      expect(standGate(path, null, closed)).toBe("challenge");
     },
   );
 
   it("похожий на вебхук путь не исключение", () => {
-    expect(demoGate("/api/webhooksX", null, closed)).toBe("challenge");
-    expect(demoGate("/api/cronjob", null, closed)).toBe("challenge");
+    expect(standGate("/api/webhooksX", null, closed)).toBe("challenge");
+    expect(standGate("/api/cronjob", null, closed)).toBe("challenge");
   });
 });
