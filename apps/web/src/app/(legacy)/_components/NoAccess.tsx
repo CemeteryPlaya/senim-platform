@@ -10,7 +10,7 @@ import { navFor } from "../_shell/nav";
  */
 export async function NoAccess({ description, size }: { description: string; size?: "page" | "form" }) {
   const user = await getCurrentUser();
-  const nav = navFor(user, false, features());
+  const nav = navFor(user, features());
   const home = (nav.tabs[0] ?? nav.more[0])?.href ?? "/";
   return (
     <Container size={size} className="pb-10">

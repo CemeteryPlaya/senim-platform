@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { getShellUser } from "@/modules/identity";
-import { env } from "@/platform/env";
 import { features } from "@/platform/features";
 import { ru } from "@/i18n/ru";
-import { Alert, Container, DemoBanner } from "@/ui";
+import { Alert, Container } from "@/ui";
 import { BRAND_COLORS } from "@/ui/brand";
 import { fontVariables } from "@/ui/fonts";
 import { PwaSetup } from "./_components/install";
@@ -28,12 +27,11 @@ export const viewport: Viewport = {
 };
 
 // Оболочка читает сессию (cookie), поэтому все страницы рендерятся на запрос.
-// getShellUser() идёт первым: без cookie он не обращается к БД, а env() читается уже во время запроса.
+// getShellUser() идёт первым: без cookie он не обращается к БД.
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user, unavailable } = await getShellUser();
-  const demoMode = env().DEMO_MODE;
   // Роль без нижней панели (оператор): запас под панель не нужен.
-  const noBar = navFor(user, demoMode, features()).tabs.length === 0;
+  const noBar = navFor(user, features()).tabs.length === 0;
 
   return (
     <html lang="ru" className={fontVariables} style={noBar ? ({ "--tabbar-h": "0px" } as React.CSSProperties) : undefined}>
@@ -41,8 +39,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <SkipLink />
         {/* На десктопе слева боковое меню (SideNav, fixed, 240 px): всё содержимое сдвинуто на его ширину. */}
         <div className="flex min-h-dvh flex-1 flex-col lg:pl-60">
-          {demoMode && <DemoBanner />}
-          <AppHeader user={user} demoMode={demoMode} />
+          <AppHeader user={user} />
           <main id={MAIN_ID} tabIndex={-1} className="flex flex-1 flex-col pb-4 outline-none">
             {unavailable && (
               <Container className="pt-4">

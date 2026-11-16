@@ -43,7 +43,6 @@ export {
   Card,
   Container,
   DateText,
-  DemoBanner,
   EmptyState,
   Fact,
   Money,

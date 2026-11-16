@@ -1,16 +1,23 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { platformSettings } from "@/modules/operator";
+import { isEnabled } from "@/platform/features";
 import { Card, Container, KeyValueList, PageHeader, StatusBadge } from "@/ui";
 import { COL_MID, DataTable, TD, TH, TH_ROW } from "../_components/DataTable";
 import { requireOperatorPage } from "../_lib/guard";
+import { ExecutorIdentitySection } from "./ExecutorIdentitySection";
+import { PreContractFlowSection } from "./PreContractFlowSection";
 
 const o = ru.operator;
 const t = o.settings;
 
 export const metadata: Metadata = { title: t.title };
 
-/** Флаги Фазы 1 и окружение — только чтение (ADR-009 раздел 8): значения задаёт env сервера. */
+/**
+ * Флаги Фазы 1 и окружение — только чтение (ADR-009 раздел 8): значения задаёт env сервера. Настройки площадки, которые
+ * меняет оператор (со свежим вторым фактором): режим показа имени исполнителя (ADR-006) и сценарий до договора (ADR-005,
+ * только при флаге preContractFlows).
+ */
 export default async function SettingsPage() {
   const user = await requireOperatorPage("/operator/settings");
   const s = platformSettings(user);
@@ -23,7 +30,6 @@ export default async function SettingsPage() {
           <KeyValueList
             rows={[
               { label: t.appEnv, value: `${s.appEnv}: ${t.appEnvValues[s.appEnv]}` },
-              { label: t.demoMode, value: s.demoMode ? t.yes : t.no },
               {
                 label: t.provider,
                 value: (
@@ -70,6 +76,10 @@ export default async function SettingsPage() {
           </DataTable>
           <p className="text-base text-ink-soft">{t.flagsHint}</p>
         </div>
+      </div>
+      <div className="mt-6 flex max-w-form flex-col gap-6">
+        <ExecutorIdentitySection />
+        {isEnabled("preContractFlows") && <PreContractFlowSection />}
       </div>
     </Container>
   );

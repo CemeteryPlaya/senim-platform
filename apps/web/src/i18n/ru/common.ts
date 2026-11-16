@@ -54,7 +54,6 @@ export const common = {
     MEASURER: "Замерщик площадки",
   },
   executorLabel: (n: number) => `Исполнитель №${n}`,
-  demoBadge: "Демо-режим: тестовые данные",
 
   shell: {
     skipLink: "Перейти к содержанию",
@@ -82,8 +81,6 @@ export const common = {
     portfolio: "Портфолио",
     operator: "Оператор",
     measurer: "Замеры",
-    bankDemo: "Показ банку",
-    demo: "Демо-персоны",
     login: "Войти",
     newRequest: "Заявка",
     chat: "Чат",
@@ -206,7 +203,7 @@ export const common = {
 
   uiKit: {
     title: "Витрина компонентов",
-    description: "Все базовые компоненты во всех состояниях. Доступна в разработке и в демо-режиме.",
+    description: "Все базовые компоненты во всех состояниях. Доступна только при APP_ENV=dev.",
     tokensNote: "Токены сняты с макетов основателей 7–19. Где макет ниже порогов доступности, значения подняты.",
     sections: {
       colors: "Цвета",

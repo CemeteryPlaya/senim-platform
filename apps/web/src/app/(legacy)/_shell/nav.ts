@@ -20,8 +20,6 @@ export type NavIcon =
   | "company"
   | "portfolio"
   | "operator"
-  | "bank"
-  | "demo"
   | "chat"
   | "plus"
   | "login"
@@ -36,8 +34,7 @@ export type NavIcon =
   | "audit"
   | "income"
   | "report"
-  | "settings"
-  | "reset";
+  | "settings";
 
 /** Группа разделов в меню (у оператора их много): подпись группы — над её пунктами. */
 export type NavGroup = "queues" | "dealsReports" | "reference";
@@ -88,8 +85,6 @@ const ROUTES = {
   portfolio: { href: "/executor/portfolio", label: t.portfolio, icon: "portfolio" },
   operator: { href: "/operator", label: t.operator, icon: "operator" },
   measurer: { href: "/measurer", label: t.measurer, icon: "measurements" },
-  bankDemo: { href: "/bank-demo", label: t.bankDemo, icon: "bank" },
-  demo: { href: "/demo", label: t.demo, icon: "demo" },
   login: { href: LOGIN_HREF, label: t.login, icon: "login" },
   newRequest: { href: "/requests/new", label: t.newRequest, icon: "plus", primary: true },
   chat: { href: "/chats", label: t.chat, icon: "chat" },
@@ -108,7 +103,6 @@ const ROUTES = {
   opTypes: { href: "/operator/furniture-types", label: op.types, icon: "types", group: "reference" },
   opMaterials: { href: "/operator/materials", label: ru.materials.nav, icon: "materials", group: "reference" },
   opSettings: { href: "/operator/settings", label: op.settings, icon: "settings", group: "reference" },
-  opDemo: { href: "/operator/demo", label: op.demo, icon: "reset", group: "reference" },
 } satisfies Record<string, NavItem>;
 
 const R = ROUTES;
@@ -120,9 +114,6 @@ const FLAGGED: Partial<Record<NavItem["href"], keyof NavFeatures>> = {
   [R.measurer.href]: "preContractFlows",
   [R.opMaterials.href]: "materialsCalculator",
 };
-
-/** Пункты только для демо-режима (DEMO_MODE): страницы без него отдают 404. */
-const DEMO_ONLY: ReadonlySet<NavItem["href"]> = new Set([R.opDemo.href]);
 
 const allowed = (features: NavFeatures) => (item: NavItem) => {
   const flag = FLAGGED[item.href];
@@ -149,7 +140,7 @@ function roleNav(user: NavUser | null): RoleNav {
           R.operator,
           ...[R.opMoney, R.opKyc, R.opConsents, R.opExecutors, R.opDisputes, R.opRequests],
           ...[R.opDeals, R.opIncome, R.opReport, R.opAudit],
-          ...[R.opTypes, R.opMaterials, R.opSettings, R.opDemo],
+          ...[R.opTypes, R.opMaterials, R.opSettings],
           R.account,
         ],
       };
@@ -159,15 +150,13 @@ function roleNav(user: NavUser | null): RoleNav {
 }
 
 /**
- * Меню пользователя (null — гость). Вкладки — в порядке макетов; демо-пункты — только при DEMO_MODE
- * и всегда в «Ещё»: показ банку — любой роли, ведущий переключает персоны по ходу показа.
- * Разделы за выключенными флагами (features) в меню не попадают.
+ * Меню пользователя (null — гость). Вкладки — в порядке макетов. Разделы за выключенными флагами (features) в меню не
+ * попадают.
  */
-export function navFor(user: NavUser | null, demoMode: boolean, features: NavFeatures): RoleNav {
+export function navFor(user: NavUser | null, features: NavFeatures): RoleNav {
   const nav = roleNav(user);
-  const flagOk = allowed(features);
-  const shown = (item: NavItem) => flagOk(item) && (demoMode || !DEMO_ONLY.has(item.href));
-  return { tabs: nav.tabs.filter(shown), more: [...nav.more.filter(shown), ...(demoMode ? [R.bankDemo, R.demo] : [])] };
+  const shown = allowed(features);
+  return { tabs: nav.tabs.filter(shown), more: nav.more.filter(shown) };
 }
 
 /** Подряд идущие пункты одной группы — вместе: меню рисует группу списком с подписью, пункты без группы — как есть. */

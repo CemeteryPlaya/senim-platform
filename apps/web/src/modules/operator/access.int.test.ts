@@ -1,11 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { CurrentUser } from "@/modules/identity";
 import { db } from "@/platform/db";
-import { resetEnvCache } from "@/platform/env";
 import { makeClient, makeExecutor } from "../../../test/factories";
 import { searchAudit } from "./audit-log";
 import { getOperatorDeal, listOperatorDeals } from "./deals";
-import { resetDemoData } from "./demo";
 import { getDisputeCard, listDisputes, previewDisputeSplit, resolveDispute } from "./disputes";
 import { addExecutor, changeSegment, getExecutorCard, listExecutors, listRegistrationQueue, reviewRegistration } from "./executors";
 import { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitureType, setFurnitureTypeActive } from "./furniture-types";
@@ -41,7 +39,6 @@ const ACTIONS: Record<string, (u: CurrentUser) => Promise<unknown>> = {
   buildCsv: (u) => buildCsv(u, { kind: "deals", staleDays: 3 }),
   incomeReport: (u) => incomeReport(u, PERIOD),
   buildIncomeCsv: (u) => buildIncomeCsv(u, PERIOD),
-  resetDemoData: (u) => resetDemoData(u),
   listMoneyQueue: (u) => listMoneyQueue(u),
   confirmBankOperation: (u) => confirmBankOperation(u, { transactionId: "x", bankDocNumber: "1", bankDocDate: new Date(), bankDocFileId: "f" }),
   failBankOperation: (u) => failBankOperation(u, { transactionId: "x", reason: "банк отказал" }),
@@ -55,14 +52,6 @@ const ACTIONS: Record<string, (u: CurrentUser) => Promise<unknown>> = {
 };
 
 describe("доступ к панели оператора", () => {
-  beforeEach(() => {
-    process.env.DEMO_MODE = "true";
-    resetEnvCache();
-  });
-  afterEach(() => {
-    delete process.env.DEMO_MODE;
-    resetEnvCache();
-  });
 
   for (const [name, call] of Object.entries(ACTIONS)) {
     it(`${name}: заказчику и исполнителю запрещено, данные не меняются`, async () => {

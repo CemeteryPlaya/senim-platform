@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeClient, makeOperator, makeUser } from "../../../test/factories";
-import { setEnv } from "../../../test/factories/identity";
 import {
   attachRoomPhoto,
   inDays,
@@ -43,20 +42,19 @@ const code = (c: string) => expect.objectContaining({ code: c });
 const statusOf = async (requestId: string) => (await db.request.findUniqueOrThrow({ where: { id: requestId } })).status;
 const one = (results: PromiseSettledResult<unknown>[]) => results.filter((r) => r.status === "fulfilled").length;
 
-// Сценарии до договора — под флагом preContractFlows (ADR-009, п. 8); флаг и DEMO_MODE сбрасываются после теста.
+// Сценарии до договора — под флагом preContractFlows (ADR-009, п. 8); флаг сбрасывается после теста.
 withPreContractFlows();
 
 /** Сделка по согласию на договор: одна оплата по цене (тиыны), оферта, этапов нет (ADR-009). */
 const dealOf = (dealId: string) => db.deal.findUniqueOrThrow({ where: { id: dealId } });
 
 describe("настройка «Сценарий до договора»", () => {
-  it("меняет только оператор и только в демо-режиме; смена пишется в журнал", async () => {
+  it("меняет только оператор со свежим вторым фактором; смена пишется в журнал", async () => {
     const operator = await makeOperator();
     const client = await makeClient();
-    setEnv({ DEMO_MODE: "false" });
-    await expect(setPreContractFlow(operator, { flow: "SELF_MEASURE" })).rejects.toThrow(code("FORBIDDEN"));
+    const stale = { ...operator, mfa: { required: true, verifiedAt: new Date(Date.now() - 60 * 60_000) } };
+    await expect(setPreContractFlow(stale, { flow: "SELF_MEASURE" })).rejects.toThrow(code("MFA_REQUIRED"));
 
-    setEnv({ DEMO_MODE: "true" });
     await expect(setPreContractFlow(client, { flow: "SELF_MEASURE" })).rejects.toThrow(code("FORBIDDEN"));
     expect(await activePreContractFlow()).toBe("EXECUTOR_MEASURE");
     await setPreContractFlow(operator, { flow: "SELF_MEASURE" });

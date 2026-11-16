@@ -14,7 +14,6 @@ import {
   CategoryTiles,
   Container,
   DateText,
-  DemoBanner,
   EmptyState,
   DealProgress,
   DetailColumns,
@@ -78,11 +77,10 @@ const TILE_KEYS = ["kitchen", "wardrobe", "closet", "hallway"] as const;
 
 const TONES: Tone[] = ["neutral", "accent", "info", "success", "warning", "danger"];
 
-/** Витрина компонентов: только в разработке и в демо-режиме. */
+/** Витрина компонентов: служебная страница разработки, только при APP_ENV=dev. */
 export default async function UiKitPage() {
   await connection();
-  const { DEMO_MODE, NODE_ENV } = env();
-  if (!DEMO_MODE && NODE_ENV !== "development") notFound();
+  if (env().APP_ENV !== "dev") notFound();
 
   const { sample, chat } = sampleData();
 
@@ -357,7 +355,6 @@ export default async function UiKitPage() {
             {s.alertDanger}
           </Alert>
         </div>
-        <DemoBanner />
       </KitSection>
 
       <KitSection title={k.sections.stepper}>

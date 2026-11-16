@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { AtSign, ShieldCheck, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { consentHref, formatPhone, getCurrentUser, loginHref, needsConsent, switchTargets } from "@/modules/identity";
-import { env } from "@/platform/env";
 import { features } from "@/platform/features";
 import { ru } from "@/i18n/ru";
 import { Container, KeyValueList, LinkList, PageHeader } from "@/ui";
@@ -29,7 +28,7 @@ export default async function ProfilePage() {
   if (!user) redirect(loginHref(ACCOUNT_HREF));
   // Без согласия на обработку ПДн текущей редакции — на экран согласия (там же «Выйти»); вторая ступень оператора здесь не нужна.
   if (needsConsent(user)) redirect(consentHref(ACCOUNT_HREF));
-  const { tabs, more } = navFor(user, env().DEMO_MODE, features());
+  const { tabs, more } = navFor(user, features());
   // Вкладки и так на виду; здесь — остальные разделы роли (у исполнителя — профиль компании, портфолио, замеры).
   const sections = more.filter((item) => item.href !== ACCOUNT_HREF && !tabs.some((tab) => tab.href === item.href));
   const targets = switchTargets(user);

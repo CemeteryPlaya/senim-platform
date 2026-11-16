@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { testBin, testIin } from "@/demo/kz-id";
+import { testBin, testIin } from "@/seed/kz-id";
 import { registerExecutor, type CurrentUser, type ExecutorRegistrationInput } from "@/modules/identity";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db } from "@/platform/db";

@@ -1,9 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ru } from "@/i18n/ru";
 import { setExecutorIdentityMode } from "@/modules/companies";
 import { db } from "@/platform/db";
-import { resetEnvCache } from "@/platform/env";
 import { makeExecutor, makeOperator } from "../../../../../../test/factories";
 import { makeFurnitureType, makePortfolioItem, makeReview } from "../../../../../../test/factories/companies";
 
@@ -66,11 +65,6 @@ function expectNoSecrets(out: string, binTail: string) {
 
 beforeEach(() => {
   h.device = "mobile";
-});
-
-afterEach(() => {
-  delete process.env.DEMO_MODE;
-  resetEnvCache();
 });
 
 describe("/v2/executors/[publicNumber]: что видит гость", () => {
@@ -145,8 +139,6 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
   });
 
   it("режим «имя показано»: наименование в заголовке, телефон, Instagram и ИИН/БИН — по-прежнему нет", async () => {
-    process.env.DEMO_MODE = "true";
-    resetEnvCache();
     const executor = await seed();
     await setExecutorIdentityMode(await makeOperator(), "SHOWN");
     const profile = await db.executorProfile.findFirstOrThrow({ where: { id: executor.executor.id } });

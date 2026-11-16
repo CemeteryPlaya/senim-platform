@@ -1,8 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { setExecutorIdentityMode } from "@/modules/companies";
 import { db } from "@/platform/db";
-import { resetEnvCache } from "@/platform/env";
 import { makeExecutor, makeOperator } from "../../../../../test/factories";
 import { makeFurnitureType, makePortfolioItem } from "../../../../../test/factories/companies";
 import CatalogPage from "./page";
@@ -14,15 +13,8 @@ vi.mock("next/headers", async () => (await import("../../../../../test/factories
 
 const render = async (params: Record<string, string> = {}) => renderToStaticMarkup(await CatalogPage({ searchParams: Promise.resolve(params) }));
 
-// Режим имени меняется только в DEMO_MODE (ADR-006).
 beforeEach(() => {
   h.device = "mobile";
-  process.env.DEMO_MODE = "true";
-  resetEnvCache();
-});
-afterEach(() => {
-  delete process.env.DEMO_MODE;
-  resetEnvCache();
 });
 
 const SECRETS = { legalName: "ТОО «Секретная Мебель»", instagram: "secret_master_insta", phone: "+77015550199", street: "ул. Потайная, 7" };

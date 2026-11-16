@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { resetEnvCache } from "@/platform/env";
 import { db } from "@/platform/db";
 import { makeExecutor } from "../../../test/factories";
 import { makeFurnitureType, makePortfolioItem, makeReview } from "../../../test/factories/companies";
@@ -99,18 +98,11 @@ describe("публичная страница исполнителя", () => {
     expect(hidden!.reviews[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
     expect(JSON.stringify(hidden)).not.toContain("Ағаш Шебер");
 
-    process.env.DEMO_MODE = "true";
-    resetEnvCache();
-    try {
-      await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
-      const shown = await getPublicExecutorPage(executor.executor.publicNumber);
-      expect(shown!.view.label).toBe("ТОО «Ағаш Шебер»");
-      // Текст отзыва остаётся очищенным: показ имени платформой не отменяет маску в текстах мастера и заказчика.
-      expect(shown!.reviews[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
-    } finally {
-      delete process.env.DEMO_MODE;
-      resetEnvCache();
-    }
+    await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
+    const shown = await getPublicExecutorPage(executor.executor.publicNumber);
+    expect(shown!.view.label).toBe("ТОО «Ағаш Шебер»");
+    // Текст отзыва остаётся очищенным: показ имени платформой не отменяет маску в текстах мастера и заказчика.
+    expect(shown!.reviews[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
   });
 
   it("«Вдохновение»: наименование мастера в отзыве по сделке работы маскируется — в HIDDEN и в SHOWN", async () => {
@@ -123,15 +115,8 @@ describe("публичная страница исполнителя", () => {
 
     expect((await getInspirationItem(item.id, null))!.review!.text).toBe(expected);
 
-    process.env.DEMO_MODE = "true";
-    resetEnvCache();
-    try {
-      await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
-      expect((await getInspirationItem(item.id, null))!.review!.text).toBe(expected);
-    } finally {
-      delete process.env.DEMO_MODE;
-      resetEnvCache();
-    }
+    await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
+    expect((await getInspirationItem(item.id, null))!.review!.text).toBe(expected);
   });
 
   it("отдельное имя владельца вырезается в «О себе», отзывах и на карточке «Вдохновения» — в HIDDEN и в SHOWN; текст без имени не меняется", async () => {
@@ -160,15 +145,8 @@ describe("публичная страница исполнителя", () => {
     };
     await check();
 
-    process.env.DEMO_MODE = "true";
-    resetEnvCache();
-    try {
-      await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
-      await check();
-    } finally {
-      delete process.env.DEMO_MODE;
-      resetEnvCache();
-    }
+    await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
+    await check();
     expect(clean.id).toBeTruthy();
   });
 

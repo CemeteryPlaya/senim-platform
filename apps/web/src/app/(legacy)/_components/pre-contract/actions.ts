@@ -15,8 +15,6 @@ import {
   projectRefSchema,
   requestProjectChanges,
   requestProjectChangesSchema,
-  setPreContractFlow,
-  setPreContractFlowSchema,
   submitProject,
   submitProjectSchema,
 } from "@/modules/requests";
@@ -63,9 +61,4 @@ export const assignSiteMeasurerAction = action("requests.assignSiteMeasurer", as
 export const allowOfferRetryAction = action("requests.allowOfferRetry", allowOfferRetrySchema, async (input) => {
   const user = await requireUser("OPERATOR");
   await allowOfferRetry(user, input);
-});
-
-export const setPreContractFlowAction = action("requests.setPreContractFlow", setPreContractFlowSchema, async (input) => {
-  const user = await requireUser("OPERATOR");
-  await setPreContractFlow(user, input);
 });

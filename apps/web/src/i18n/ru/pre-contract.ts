@@ -200,7 +200,6 @@ export const preContract = {
   },
 
   errors: {
-    demoOnly: "Сценарий меняется только в демо-режиме",
     projectNotFound: "Проект не найден",
     projectNotNow: "Сейчас проект не отправляется: дождитесь своего шага",
     projectNotApproved: "Сначала заказчик должен утвердить проект",

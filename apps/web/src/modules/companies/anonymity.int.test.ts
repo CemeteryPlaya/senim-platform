@@ -1,22 +1,14 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { db, transaction } from "@/platform/db";
-import { resetEnvCache } from "@/platform/env";
 import { makeExecutor } from "../../../test/factories";
 import { makeFurnitureType, makeOfferThread, makeReview } from "../../../test/factories/companies";
 import { executorDisplayOf, executorDisplays, publicExecutorView, publicExecutorViews, recalculateRating } from "./index";
 import { EXECUTOR_IDENTITY_KEY } from "./identity-mode";
 
-/** Режим «имя показано» (№6): настройка оператора действует только в DEMO_MODE. */
+/** Режим «имя показано» (№6): настройка оператора в настройках площадки. */
 async function showNames() {
-  process.env.DEMO_MODE = "true";
-  resetEnvCache();
   await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
 }
-
-afterEach(() => {
-  delete process.env.DEMO_MODE;
-  resetEnvCache();
-});
 
 /** Исполнитель с адресом мастерской, телефоном и ИИН/БИН — всё, что не должно утечь в режиме HIDDEN. */
 async function makeAddressedExecutor() {

@@ -99,11 +99,11 @@ export async function makeAccepted(client: CurrentUser, priceKzt = 500_000) {
 
 /**
  * Сценарии до договора (флаг preContractFlows) в тестах файла или describe: флаг включён перед каждым тестом,
- * после — флаг и DEMO_MODE сброшены (env процесса общий для файла).
+ * после — флаг сброшен (env процесса общий для файла).
  */
 export function withPreContractFlows(): void {
   beforeEach(() => setEnv({ FEATURE_PRE_CONTRACT_FLOWS: "true" }));
-  afterEach(() => setEnv({ FEATURE_PRE_CONTRACT_FLOWS: undefined, DEMO_MODE: undefined }));
+  afterEach(() => setEnv({ FEATURE_PRE_CONTRACT_FLOWS: undefined }));
 }
 
 /** Флаг на время одного вызова (тест «в обоих положениях флага»). */
@@ -159,9 +159,8 @@ export async function makeMeasured(client: CurrentUser, finalPrice = 600_000) {
   return { ...m, projectId };
 }
 
-/** Сценарий до договора для следующих заявок (ADR-005): DEMO_MODE и настройка площадки от имени оператора. */
+/** Сценарий до договора для следующих заявок (ADR-005): настройка площадки от имени оператора (со свежим вторым фактором). */
 export async function withFlow(flow: PreContractFlow): Promise<void> {
-  setEnv({ DEMO_MODE: "true" });
   const operator = await makeUser("OPERATOR", "Оператор сценария");
   await setPreContractFlow(operator, { flow });
 }

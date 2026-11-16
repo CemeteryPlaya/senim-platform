@@ -4,8 +4,9 @@ import { ru } from "@/i18n/ru";
 import type { ExecutorIdentityMode } from "@/modules/companies";
 import { Button, RadioCards } from "@/ui";
 import { FormStatus } from "../_components/FormStatus";
+import { SecondFactorField } from "../_components/SecondFactorField";
 import { useActionForm } from "../_components/useActionForm";
-import { setExecutorIdentityAction } from "./identity-actions";
+import { setExecutorIdentityAction } from "./actions";
 
 const t = ru.companies.identity;
 const MODES = ["HIDDEN", "SHOWN"] as const satisfies readonly ExecutorIdentityMode[];
@@ -24,6 +25,7 @@ export function ExecutorIdentityForm({ current }: { current: ExecutorIdentityMod
         error={form.fieldError("mode")}
       />
       <FormStatus error={form.error} done={form.done} doneText={t.saved} />
+      <SecondFactorField form={form} />
       <Button type="submit" loading={form.pending} className="self-start">
         {t.save}
       </Button>

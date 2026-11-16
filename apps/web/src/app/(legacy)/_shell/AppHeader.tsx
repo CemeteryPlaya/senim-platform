@@ -9,7 +9,7 @@ import { navFor } from "./nav";
 import { MobileMenu, MobileTabBar } from "./ShellNav";
 import { SideNav } from "./SideNav";
 
-type Props = { user: CurrentUser | null; demoMode: boolean };
+type Props = { user: CurrentUser | null };
 
 /**
  * Каркас: на десктопе (от 1024 px) — боковое меню 240 px (SideNav) и шапка без логотипа; на телефоне и планшете —
@@ -19,8 +19,8 @@ type Props = { user: CurrentUser | null; demoMode: boolean };
  * Узкая шапка (уже 22rem — 320 px при шрифте 200 %): название и подпись «Меню» прячутся визуально (остаются в имени
  * ссылки и кнопки), правая группа при нехватке места переносится на вторую строку — ничего не наезжает на логотип.
  */
-export function AppHeader({ user, demoMode }: Props) {
-  const { tabs, more } = navFor(user, demoMode, features());
+export function AppHeader({ user }: Props) {
+  const { tabs, more } = navFor(user, features());
   // Уведомления — колокольчик со счётчиком в шапке на любой ширине, а не пункт меню.
   const sections = [...tabs, ...more].filter((item) => item.icon !== "notifications");
   const primary = tabs.find((item) => item.primary);

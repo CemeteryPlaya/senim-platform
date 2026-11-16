@@ -1,6 +1,5 @@
 import { ai } from "./ru/ai";
 import { app } from "./ru/app";
-import { bankDemo } from "./ru/bankDemo";
 import { chats } from "./ru/chats";
 import { common } from "./ru/common";
 import { companies } from "./ru/companies";
@@ -38,7 +37,6 @@ export const ru = {
   materials,
   ai,
   landing,
-  bankDemo,
   pwa,
   chats,
   /** Новый интерфейс (v2, /v2): свои тексты, отдельно от зон v1. */

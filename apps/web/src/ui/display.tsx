@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ChevronLeft, FlaskConical, Info, OctagonAlert, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, Info, OctagonAlert, Sparkles } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { cn } from "./cn";
@@ -164,7 +164,7 @@ export function Alert({ tone = "info", title, action, live, className, children 
 
 export type BannerProps = { tone?: AlertTone; icon?: ReactNode; className?: string; children: ReactNode };
 
-/** Полоса во всю ширину над шапкой (демо-режим, технические работы). */
+/** Полоса во всю ширину над шапкой (технические работы). */
 export function Banner({ tone = "info", icon, className, children }: BannerProps) {
   return (
     <div className={cn("w-full", TONE_SOFT[tone], className)}>
@@ -173,15 +173,6 @@ export function Banner({ tone = "info", icon, className, children }: BannerProps
         <span>{children}</span>
       </div>
     </div>
-  );
-}
-
-/** Полоса «Демо-режим: тестовые данные». Показывать только при DEMO_MODE (решает вызывающий). */
-export function DemoBanner() {
-  return (
-    <Banner tone="warning" icon={<FlaskConical />}>
-      {ru.common.demoBadge}
-    </Banner>
   );
 }
 

@@ -9,7 +9,6 @@ import { assertOperator } from "./access";
  */
 export type PlatformSettings = {
   appEnv: "dev" | "staging" | "prod";
-  demoMode: boolean;
   /** Провайдер, который получат новые сделки (идущие сделки остаются со своим). */
   newDealProvider: PaymentProviderName;
   /** PAYMENT_PROVIDER не задан — провайдер выбран по APP_ENV. */
@@ -23,7 +22,6 @@ export function platformSettings(operator: CurrentUser): PlatformSettings {
   const current = features();
   return {
     appEnv: e.APP_ENV,
-    demoMode: e.DEMO_MODE,
     newDealProvider: resolvePaymentProvider(e),
     providerFromDefault: e.PAYMENT_PROVIDER === undefined,
     flags: FEATURE_KEYS.map((key) => ({ key, envVar: FEATURE_ENV[key], enabled: current[key] })),

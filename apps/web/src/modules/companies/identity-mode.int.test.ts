@@ -1,27 +1,14 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
-import { resetEnvCache } from "@/platform/env";
 import { makeOperator, makeUser } from "../../../test/factories";
 import { EXECUTOR_IDENTITY_KEY, getExecutorIdentityMode, setExecutorIdentityMode } from "./identity-mode";
 
-function setDemoMode(on: boolean) {
-  process.env.DEMO_MODE = on ? "true" : "false";
-  resetEnvCache();
-}
-
-afterEach(() => {
-  delete process.env.DEMO_MODE;
-  resetEnvCache();
-});
-
 describe("режим «имя исполнителя скрыто / показано»", () => {
   it("по умолчанию — HIDDEN", async () => {
-    setDemoMode(true);
     expect(await getExecutorIdentityMode()).toBe("HIDDEN");
   });
 
-  it("оператор в демо переключает режим; в журнале — до и после", async () => {
-    setDemoMode(true);
+  it("оператор переключает режим; в журнале — до и после", async () => {
     const operator = await makeOperator();
 
     await setExecutorIdentityMode(operator, "SHOWN");
@@ -38,29 +25,25 @@ describe("режим «имя исполнителя скрыто / показа
   });
 
   it("повтор того же режима (двойной клик) ничего не пишет", async () => {
-    setDemoMode(true);
     const operator = await makeOperator();
     await Promise.all([setExecutorIdentityMode(operator, "SHOWN"), setExecutorIdentityMode(operator, "SHOWN")]);
     await setExecutorIdentityMode(operator, "SHOWN");
     expect(await db.auditEvent.count({ where: { action: "companies.executor_identity.switched" } })).toBe(1);
   });
 
-  it("не оператор и вне демо — FORBIDDEN, настройка не меняется", async () => {
-    setDemoMode(true);
+  it("не оператор — FORBIDDEN; оператор без свежего второго фактора — MFA_REQUIRED; настройка не меняется", async () => {
     const client = await makeUser("CLIENT");
     await expect(setExecutorIdentityMode(client, "SHOWN")).rejects.toMatchObject({ code: "FORBIDDEN" });
 
-    setDemoMode(false);
     const operator = await makeOperator();
-    await expect(setExecutorIdentityMode(operator, "SHOWN")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const stale = { ...operator, mfa: { required: true, verifiedAt: new Date(Date.now() - 60 * 60_000) } };
+    await expect(setExecutorIdentityMode(stale, "SHOWN")).rejects.toMatchObject({ code: "MFA_REQUIRED" });
+    await expect(setExecutorIdentityMode({ ...operator, mfa: { required: true, verifiedAt: null } }, "SHOWN")).rejects.toMatchObject({ code: "MFA_REQUIRED" });
     expect(await db.platformSetting.count()).toBe(0);
   });
 
-  it("вне демо настройка не действует: всегда HIDDEN", async () => {
+  it("записанная настройка действует без условий окружения", async () => {
     await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
-    setDemoMode(false);
-    expect(await getExecutorIdentityMode()).toBe("HIDDEN");
-    setDemoMode(true);
     expect(await getExecutorIdentityMode()).toBe("SHOWN");
   });
 });

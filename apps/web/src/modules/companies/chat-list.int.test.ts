@@ -1,16 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
-import { resetEnvCache } from "@/platform/env";
 import { makeClient, makeExecutor, makeOperator, makeUser } from "../../../test/factories";
 import { makeFurnitureType, makeOfferThread } from "../../../test/factories/companies";
 import { MASK } from "./mask";
 import { EXECUTOR_IDENTITY_KEY } from "./identity-mode";
 import { chatSideOf, listChats, sendMessage } from "./index";
-
-afterEach(() => {
-  delete process.env.DEMO_MODE;
-  resetEnvCache();
-});
 
 describe("список чатов: владение", () => {
   it("заказчик видит только свои отклики, исполнитель — только свои", async () => {
@@ -83,8 +77,6 @@ describe("список чатов: собеседник и заголовок", 
   });
 
   it("режим «имя показано» меняет подпись так же, как в чате", async () => {
-    process.env.DEMO_MODE = "true";
-    resetEnvCache();
     await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
     const t = await makeOfferThread();
     const { legalName } = await db.executorProfile.findUniqueOrThrow({ where: { id: t.executor.executor.id } });
