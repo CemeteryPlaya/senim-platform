@@ -155,41 +155,64 @@ describe("EmailField: подсказка опечатки", () => {
   });
 });
 
-describe("IinField: проверка при уходе с поля", () => {
-  /** Уход с поля на `next` (в jsdom фокус не переносится сам — событие с `relatedTarget`). */
-  function blurTo(input: HTMLInputElement, next: Element | null): void {
+describe("IinField: ошибка при уходе с поля не сдвигает кнопку из-под щелчка", () => {
+  /** Событие указателя (в jsdom PointerEvent может не быть): тип, номер указателя, нажатые кнопки. */
+  function pointer(target: Element, type: string, buttons: number): void {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperties(event, { pointerId: { value: 1 }, buttons: { value: buttons } });
     act(() => {
-      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: next }));
+      target.dispatchEvent(event);
     });
   }
+  /** Уход с поля (в jsdom фокус не переносится сам); `relatedTarget` — null, как в Safari при щелчке по кнопке. */
+  function blur(input: HTMLInputElement): void {
+    act(() => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
+    });
+  }
+  const nextFrame = () => act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 
   function renderIin() {
+    const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
     mounted = mount(
-      <>
-        <form id="iin-form">
-          <IinField label="ИИН" name="iin" />
-          <button type="button">Зачем ИИН</button>
-        </form>
-        <button type="submit" form="iin-form">
-          Продолжить
-        </button>
-      </>,
+      <form onSubmit={onSubmit}>
+        <IinField label="ИИН" name="iin" />
+        <button type="submit">Продолжить</button>
+      </form>,
     );
     const input = visibleInput(mounted.container);
     edit(input, "123", { data: "3" });
-    return { container: mounted.container, input };
+    const button = mounted.container.querySelector("button");
+    if (!button) throw new Error("нет кнопки");
+    return { container: mounted.container, input, button, onSubmit };
   }
 
-  it("уход на другое место — ошибка у поля сразу", () => {
+  it("уход без нажатия (Tab) — ошибка у поля сразу", () => {
     const { container, input } = renderIin();
-    blurTo(input, container.querySelector('button[type="button"]'));
+    blur(input);
     expect(container.textContent).toContain("ИИН — 12 цифр");
     expect(input.getAttribute("aria-invalid")).toBe("true");
   });
 
-  it("уход на кнопку отправки своей формы (в доке, атрибут form) — без ошибки: кнопка не съезжает из-под курсора", () => {
-    const { container, input } = renderIin();
-    blurTo(input, container.querySelector('button[type="submit"]'));
+  it("pointerdown → blur → pointerup → click: форма отправилась, ошибка появилась после щелчка", async () => {
+    const { container, input, button, onSubmit } = renderIin();
+    pointer(button, "pointerdown", 1);
+    blur(input);
     expect(container.textContent).not.toContain("ИИН — 12 цифр");
+    pointer(button, "pointerup", 0);
+    act(() => button.click());
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(container.textContent).not.toContain("ИИН — 12 цифр");
+    await nextFrame();
+    expect(container.textContent).toContain("ИИН — 12 цифр");
+  });
+
+  it("отпустили за окном (pointerup не пришёл): движение без нажатых кнопок показывает ошибку", async () => {
+    const { container, input, button } = renderIin();
+    pointer(button, "pointerdown", 1);
+    blur(input);
+    pointer(document.body, "pointermove", 0);
+    await nextFrame();
+    expect(container.textContent).toContain("ИИН — 12 цифр");
   });
 });
