@@ -64,7 +64,7 @@ export type ConfirmRunner = {
  * - Повторный `run`, пока идёт предыдущий, ничего не делает (двойной клик не даёт двойного эффекта).
  * - Успех закрывает окно; `false` — не закрывает.
  * - Исключение или отклонённый промис: окно остаётся открытым, ошибка уходит в `onError` и наружу не идёт
- *   (иначе — `unhandledrejection` из обработчика клика). Показать ошибку пользователю — дело самого действия.
+ *   (иначе — `unhandledrejection` из обработчика клика). ConfirmDialog в `onError` показывает текст сбоя связи.
  */
 export function createConfirmRunner(deps: {
   setPending: (pending: boolean) => void;

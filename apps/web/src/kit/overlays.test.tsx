@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { html } from "./test-utils";
-import { Button, ConfirmDialog, Dialog, Explain, Popover, Sheet, Toaster } from "./index";
+import { Button, ConfirmDialog, Dialog, Explain, failureOf, networkFailureText, Popover, Sheet, Toaster } from "./index";
 import { ru } from "@/i18n/ru";
 import { SPRING } from "./motion";
 import { createConfirmRunner, returnFocusTarget } from "./overlay-state";
@@ -213,6 +213,35 @@ describe("createConfirmRunner: запуск → ожидание → резул�
     await first;
     expect(log).toEqual(["pending:true", "pending:false", "close"]);
     expect(runner.running).toBe(false);
+  });
+});
+
+describe("ConfirmDialog: сбой связи при подтверждении (failureOf в onError раннера)", () => {
+  const redirect = () => Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;push;/v2/deals;307;" });
+
+  it("отклонённый промис (нет сети) — текст «Нет связи», окно открыто, повтор вызывает действие снова", async () => {
+    const shown: (string | null)[] = [];
+    let closed = 0;
+    const runner = createConfirmRunner({ setPending: () => {}, onError: (e) => shown.push(failureOf(e, false)) });
+    let calls = 0;
+    const flaky = async () => {
+      calls += 1;
+      if (calls === 1) throw new TypeError("Failed to fetch");
+    };
+    await runner.run(flaky, () => (closed += 1));
+    expect(shown).toEqual([ru.app.kit.network.offline]);
+    expect(closed).toBe(0);
+    expect(runner.running).toBe(false);
+    await runner.run(flaky, () => (closed += 1));
+    expect(calls).toBe(2);
+    expect(closed).toBe(1);
+  });
+
+  it("сеть есть, а ответа нет (сбой сервера) — «Не удалось отправить»; redirect() в действии — не сбой", () => {
+    expect(failureOf(new Error("500"), true)).toBe(ru.app.kit.network.failed);
+    expect(networkFailureText(true)).toBe(ru.app.kit.network.failed);
+    expect(networkFailureText(false)).toBe(ru.app.kit.network.offline);
+    expect(failureOf(redirect(), false)).toBeNull();
   });
 });
 

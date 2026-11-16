@@ -9,6 +9,8 @@ import type { Device } from "@/platform/device";
 import { logger } from "@/platform/logger";
 import { Button } from "./Button";
 import { FADE, presence } from "./motion";
+import { failureOf } from "./network";
+import { Notice } from "./Notice";
 import { createConfirmRunner, useOpenState, useReturnFocus, type ConfirmAction } from "./overlay-state";
 import { Sheet } from "./Sheet";
 
@@ -123,10 +125,12 @@ export type ConfirmDialogProps = {
    * жест, «Отмена») не срабатывают. Итог:
    * - вернуло ничего или `true` — окно закрывается;
    * - вернуло `false` — окно остаётся открытым (например, сервер отказал, и действие уже показало тост);
-   * - бросило исключение или промис отклонён — окно остаётся открытым, ошибка пишется в лог и дальше не идёт.
+   * - бросило исключение или промис отклонён (обрыв сети, сбой сервера) — окно остаётся открытым, над кнопками —
+   *   текст сбоя связи (`failureOf`, `role="alert"`), ошибка пишется в лог; повторное нажатие повторяет действие.
+   *   `redirect()` в действии — уход со страницы, а не сбой: текста нет.
    *
-   * Показать ошибку пользователю (тостом `toast.error(...)`) — обязанность самого `onConfirm`: окно её не видит
-   * и текста для неё не знает.
+   * Отказ сервера по существу (результат с текстом) показывает сам `onConfirm` — тостом `toast.error(...)`: окно этого
+   * текста не знает.
    */
   onConfirm: ConfirmAction;
   trigger?: ReactElement;
@@ -155,16 +159,26 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [isOpen, setOpen] = useOpenState(open, onOpenChange);
   const [pending, setPending] = useState(false);
+  // Сбой связи при последнем подтверждении: текст над кнопками, пока окно открыто; новое нажатие или закрытие его снимают.
+  const [failure, setFailure] = useState<string | null>(null);
   const actions = useRef<HTMLDivElement>(null);
   const [runner] = useState(() =>
     createConfirmRunner({
       setPending,
-      onError: (error) => logger.warn("kit.confirm-dialog: onConfirm failed", { error }),
+      onError: (error) => {
+        const text = failureOf(error);
+        if (text === null) return;
+        logger.warn("kit.confirm-dialog: onConfirm failed", { error });
+        setFailure(text);
+      },
     }),
   );
 
   const change = (next: boolean) => {
-    if (next || !runner.running) setOpen(next);
+    if (next || !runner.running) {
+      setFailure(null);
+      setOpen(next);
+    }
   };
   const focusCancel = (event: Event) => {
     const cancel = actions.current?.querySelector<HTMLElement>("[data-confirm-cancel]");
@@ -174,12 +188,21 @@ export function ConfirmDialog({
   };
 
   const mobile = device === "mobile";
+  const failureNotice = failure && (
+    <Notice tone="danger" live>
+      {failure}
+    </Notice>
+  );
   const confirmButton = (
     <Button
       variant={tone === "danger" ? "danger" : "primary"}
       full={mobile}
       pending={pending}
-      onClick={() => void runner.run(onConfirm, () => setOpen(false))}
+      onClick={() => {
+        if (runner.running) return;
+        setFailure(null);
+        void runner.run(onConfirm, () => setOpen(false));
+      }}
     >
       {confirmLabel}
     </Button>
@@ -216,6 +239,7 @@ export function ConfirmDialog({
     return (
       <Sheet {...common}>
         <div ref={actions} className="mt-2 flex flex-col gap-2">
+          {failureNotice}
           {confirmButton}
           {cancelButton}
         </div>
@@ -224,6 +248,7 @@ export function ConfirmDialog({
   }
   return (
     <Dialog {...common}>
+      {failureNotice && <div className="mb-4">{failureNotice}</div>}
       <div ref={actions} className="flex justify-end gap-3">
         {cancelButton}
         {confirmButton}

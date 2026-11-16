@@ -33,6 +33,7 @@ export type { ConfirmDialogProps, DialogProps } from "./Dialog";
 export { Explain } from "./Explain";
 export type { ExplainProps } from "./Explain";
 export { Toaster, toast } from "./Toaster";
+export { failureOf, networkFailureText } from "./network";
 export { presence, SPRING } from "./motion";
 export { NavLens } from "./NavLens";
 export { Monogram, monogramOf } from "./Monogram";
