@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CodeField } from "./CodeField";
 import { edit, mount, paste, submit, type Mounted } from "./test-utils";
 import { EMAIL_SUGGEST_PAUSE_MS, EmailField } from "./EmailField";
+import { IinField } from "./IinField";
 import { MoneyField } from "./MoneyField";
 import { PhoneField } from "./PhoneField";
 
@@ -151,5 +152,44 @@ describe("EmailField: подсказка опечатки", () => {
     );
     submit(mounted.container.querySelector("form") as HTMLFormElement);
     expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("IinField: проверка при уходе с поля", () => {
+  /** Уход с поля на `next` (в jsdom фокус не переносится сам — событие с `relatedTarget`). */
+  function blurTo(input: HTMLInputElement, next: Element | null): void {
+    act(() => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: next }));
+    });
+  }
+
+  function renderIin() {
+    mounted = mount(
+      <>
+        <form id="iin-form">
+          <IinField label="ИИН" name="iin" />
+          <button type="button">Зачем ИИН</button>
+        </form>
+        <button type="submit" form="iin-form">
+          Продолжить
+        </button>
+      </>,
+    );
+    const input = visibleInput(mounted.container);
+    edit(input, "123", { data: "3" });
+    return { container: mounted.container, input };
+  }
+
+  it("уход на другое место — ошибка у поля сразу", () => {
+    const { container, input } = renderIin();
+    blurTo(input, container.querySelector('button[type="button"]'));
+    expect(container.textContent).toContain("ИИН — 12 цифр");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("уход на кнопку отправки своей формы (в доке, атрибут form) — без ошибки: кнопка не съезжает из-под курсора", () => {
+    const { container, input } = renderIin();
+    blurTo(input, container.querySelector('button[type="submit"]'));
+    expect(container.textContent).not.toContain("ИИН — 12 цифр");
   });
 });

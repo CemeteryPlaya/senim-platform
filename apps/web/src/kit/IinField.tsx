@@ -2,6 +2,7 @@
 
 import { useState, type FocusEvent } from "react";
 import { ru } from "@/i18n/ru";
+import { blursToSubmit } from "./field-logic";
 import type { FieldProps } from "./fields";
 import { checkIdentity, type IdCheck, type IdentityKind } from "./id-check";
 import { MaskedField } from "./MaskedField";
@@ -29,7 +30,7 @@ function problemOf(kind: IdentityKind, check: IdCheck): string | null {
 
 /**
  * Поле ИИН или БИН: только цифры, не больше 12, показ группами «870304 300 612». Номер проверяется до отправки — сразу
- * после 12-й цифры и при уходе с поля (те же правила, что у схем identity: контрольная цифра, дата, тип); ошибка у поля.
+ * после 12-й цифры и при уходе с поля, кроме ухода на кнопку отправки (`blursToSubmit`; те же правила, что у схем identity: контрольная цифра, дата, тип); ошибка у поля.
  * Пока человек правит номер, прежняя ошибка снимается. Ошибка с сервера (`error`) важнее своей. В форму уходят цифры без
  * пробелов. После сохранения номер не показывается (только 4 последние цифры — дело экрана). Клиентский компонент.
  */
@@ -45,7 +46,7 @@ export function IinField({ kind = "iin", error, onBlur, onValueChange, ...field 
         onValueChange?.(digits);
       }}
       onBlur={(e) => {
-        setProblem(problemOf(kind, checkIdentity(kind, IIN_MASK.keep(e.currentTarget.value), true)));
+        if (!blursToSubmit(e.currentTarget, e.relatedTarget)) setProblem(problemOf(kind, checkIdentity(kind, IIN_MASK.keep(e.currentTarget.value), true)));
         onBlur?.(e);
       }}
       inputMode="numeric"

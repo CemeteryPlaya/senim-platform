@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { kzCheckDigit } from "@/platform/kz-id";
-import { codeAutoSubmit, editDistance, instagramEdit, instagramName, suggestEmail } from "./field-logic";
+import { blursToSubmit, codeAutoSubmit, editDistance, instagramEdit, instagramName, suggestEmail } from "./field-logic";
 import { checkIban, checkIdentity } from "./id-check";
 import { applyEdit, fromRaw, IBAN_MASK, IIN_MASK, PHONE_MASK, phoneValue, pasteInto, type Edited, type Mask } from "./mask-logic";
 import { MAX_PRICE_KZT } from "@/modules/requests/client";
@@ -356,5 +356,18 @@ describe("Instagram: имя или ссылка", () => {
     expect(instagramEdit("@dala mebel", 5)).toEqual({ value: "dalamebel", caret: 4, post: false });
     // Пробел после курсора курсор не сдвигает.
     expect(instagramEdit("da|la ".replace("|", ""), 2)).toEqual({ value: "dala", caret: 2, post: false });
+  });
+});
+
+describe("уход с поля на кнопку отправки", () => {
+  const form = {};
+  it("кнопка отправки своей формы — да; чужой формы, обычная кнопка, ссылка, пусто — нет", () => {
+    expect(blursToSubmit({ form }, { tagName: "BUTTON", type: "submit", form })).toBe(true);
+    expect(blursToSubmit({ form }, { tagName: "INPUT", type: "submit", form })).toBe(true);
+    expect(blursToSubmit({ form }, { tagName: "BUTTON", type: "submit", form: {} })).toBe(false);
+    expect(blursToSubmit({ form }, { tagName: "BUTTON", type: "button", form })).toBe(false);
+    expect(blursToSubmit({ form }, { tagName: "A", form })).toBe(false);
+    expect(blursToSubmit({ form }, null)).toBe(false);
+    expect(blursToSubmit({ form: null }, { tagName: "BUTTON", type: "submit", form: null })).toBe(false);
   });
 });
