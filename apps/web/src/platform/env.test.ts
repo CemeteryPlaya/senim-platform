@@ -60,7 +60,18 @@ describe("env: production", () => {
   it.each(["dev", "staging"])("при APP_ENV=%s моки разрешены и в production-сборке (стенд, e2e)", (appEnv) => {
     const keys: Record<string, string> = appEnv === "staging" ? { PAYMENT_PROVIDER: "mock" } : {};
     expect(problems({ ...standProduction, APP_ENV: appEnv, ...keys })).toBe("");
-    expect(problems({ ...standProduction, APP_ENV: appEnv, STAND_ACCESS_PASSWORD: "", ...keys })).toBe("");
+  });
+
+  it.each(["dev", "staging"])("APP_ENV=%s, production-сборка, мок SMS: без пароля стенда не стартует — с именем переменной", (appEnv) => {
+    const keys: Record<string, string> = appEnv === "staging" ? { PAYMENT_PROVIDER: "mock" } : {};
+    expect(problems({ ...standProduction, APP_ENV: appEnv, STAND_ACCESS_PASSWORD: "", ...keys })).toMatch(
+      /STAND_ACCESS_PASSWORD: обязательна, когда NODE_ENV=production и SMS_PROVIDER=mock/,
+    );
+  });
+
+  it("пароль стенда не нужен: настоящие SMS вне prod, dev-сервер с моком", () => {
+    expect(problems({ ...standProduction, STAND_ACCESS_PASSWORD: "", SMS_PROVIDER: "http", SMS_HTTP_URL: "https://sms.example", SMS_HTTP_TOKEN: "t" })).toBe("");
+    expect(problems({ ...standProduction, NODE_ENV: "development", STAND_ACCESS_PASSWORD: "" })).toBe("");
   });
 
   it("стенд в production-сборке: пароль стенда — не короче 16 символов", () => {

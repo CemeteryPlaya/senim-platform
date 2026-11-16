@@ -26,7 +26,7 @@ npm run dev                 # http://localhost:3100
 
 ```bash
 npx prisma migrate deploy
-npx prisma db seed     # непустую базу сид пересоздаёт (ResetStand в identity + TRUNCATE) только при APP_ENV не prod
+APP_ENV=dev npx prisma db seed   # непустую базу сид пересоздаёт (ResetStand в identity + TRUNCATE) только при явном APP_ENV=dev или staging
 ```
 
 После запуска:
@@ -82,7 +82,7 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 | Группа | Переменные | Примечание |
 |---|---|---|
 | База | `DATABASE_URL`, `TEST_DATABASE_URL`, `E2E_DATABASE_URL` | Тестовые базы — отдельные |
-| Приложение | `APP_ENV`, `APP_URL`, `DEMO_MODE`, `DEMO_ACCESS_PASSWORD`, `LOG_LEVEL`, `TRUST_PROXY` | `APP_ENV`: `dev` (моки), `staging` (песочница Freedom Pay), `prod` (пилот на `manual`; моки, `freedompay` и `DEMO_MODE` запрещены). `DEMO_MODE=true` включает демо-персоны, сброс демо, `/bank-demo` |
+| Приложение | `APP_ENV`, `APP_URL`, `STAND_ACCESS_PASSWORD`, `LOG_LEVEL`, `TRUST_PROXY` | `APP_ENV`: `dev` (моки), `staging` (песочница Freedom Pay), `prod` (пилот на `manual`; моки, `freedompay` и пароль стенда запрещены). `STAND_ACCESS_PASSWORD` — basic-auth всего сайта стенда (не короче 16 символов, требует `CRON_SECRET`) |
 | Персональные данные | `PII_ENCRYPTION_KEY`, `PII_HASH_KEY` | 32 байта в base64 каждый, разные. Шифрование ИИН/БИН и IBAN мастера (AES-256-GCM) и HMAC для поиска |
 | Вход по SMS | `SMS_PROVIDER`, `SMS_HTTP_URL`, `SMS_HTTP_TOKEN`, `SMS_SENDER` | Коды входа и их лимиты ведёт `identity` (Go); эти настройки остались для прочих SMS |
 | Подпись ЭЦП | `SIGNATURE_PROVIDER`, `SIGEX_BASE_URL` | |
@@ -94,7 +94,7 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 | Флаги Фазы 1 | `AI_ENABLED`, `FEATURE_PRE_CONTRACT_FLOWS`, `FEATURE_MATERIALS_CALCULATOR`, `FEATURE_REVIEWS`, `FEATURE_DEAL_PORTFOLIO`, `FEATURE_INSPIRATION`, `FEATURE_PUBLIC_SHOWCASE`, `FEATURE_EXECUTOR_HAND_SIGNS_ACT`, `FEATURE_CLIENT_PHONE_CONSENT` | Всё вне Фазы 1 по умолчанию выключено (`src/platform/features.ts`) |
 | Фоновые задачи | `CRON_SECRET` | Секрет `/api/cron/run` |
 
-В `NODE_ENV=production` обязательны `PII_ENCRYPTION_KEY`, `PII_HASH_KEY`, `FILE_URL_SECRET`, `CRON_SECRET` и `TRUST_PROXY=true`; при `DEMO_MODE=true` — ещё `DEMO_ACCESS_PASSWORD` (весь сайт под паролем, кроме путей уведомлений провайдеров и cron); без демо-режима моки SMS и подписи запрещены. При `APP_ENV=prod` запрещены `DEMO_MODE`, моки SMS, подписи и платежей; `PAYMENT_PROVIDER=freedompay` разрешён только при `APP_ENV=staging`. Локально ключи можно не задавать: используются ключи разработки.
+В `NODE_ENV=production` обязательны `PII_ENCRYPTION_KEY`, `PII_HASH_KEY`, `FILE_URL_SECRET`, `CRON_SECRET`, `TRUST_PROXY=true` и явный `APP_ENV`. Production-сборка вне prod с `SMS_PROVIDER=mock` показывает код входа на экране, поэтому без `STAND_ACCESS_PASSWORD` не стартует (весь сайт под паролем, кроме путей уведомлений провайдеров, cron и файлов установки приложения); dev-сервер — без этого требования. При `APP_ENV=prod` запрещены моки SMS, подписи и платежей и пароль стенда; `PAYMENT_PROVIDER=freedompay` разрешён только при `APP_ENV=staging`. Локально ключи можно не задавать: используются ключи разработки.
 
 ## Режимы провайдеров
 
@@ -103,9 +103,9 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 | Сервис | Переменная | Мок / по умолчанию | Реальная реализация |
 |---|---|---|---|
 | Платежи (`PaymentProvider`) | `PAYMENT_PROVIDER` | `mock` — тестовые платежи, подтверждаются сразу, в интерфейсе «тестовый платёж» (по умолчанию в `dev`) | `manual` — мост к эскроу Freedom Bank: оператор подтверждает каждую операцию номером, датой и сканом банковского документа (по умолчанию в `prod`); `freedompay` — только песочница в `staging` ([07](docs/bank/07-freedompay-integration.md)); `bcc` — интерфейс и TODO. Требования к банку — [03-escrow-integration.md](docs/bank/03-escrow-integration.md) |
-| SMS | `SMS_PROVIDER` | `mock` — код не отправляется, в демо показывается на экране | `http` — каркас под SMS-шлюз РК; формат уточняется по документации провайдера |
+| SMS | `SMS_PROVIDER` | `mock` — код не отправляется, на стенде показывается на экране | `http` — каркас под SMS-шлюз РК; формат уточняется по документации провайдера |
 | Подпись ЭЦП | `SIGNATURE_PROVIDER` | `mock` — подпись имитируется, интерфейс предупреждает | `sigex` — порт и проверка готовы, HTTP-клиент SIGEX — после получения документации и доступа |
-| Хранилище файлов | `STORAGE_PROVIDER` | `local` — папка `./storage` | `s3` (любое S3-совместимое, в том числе облако РК), `vercel-blob` (демо на Vercel, приватное) |
+| Хранилище файлов | `STORAGE_PROVIDER` | `local` — папка `./storage` | `s3` (любое S3-совместимое, в том числе облако РК), `vercel-blob` (стенд на Vercel, приватное) |
 | ИИ-помощник | `AI_ENABLED`, `AI_PROVIDER` | выключен; `mock` — детерминированные ответы | `gateway` — по ключу и моделям владельца |
 | E-mail акта | `EMAIL_PROVIDER` | `mock` | выбирает владелец |
 | Геокодер адреса | `GEOCODER_PROVIDER` | `mock`; покупатель может указать «моё местоположение» | выбирает владелец |
@@ -114,9 +114,9 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 
 ## Сценарий показа банку
 
-Показ на 10 минут: одна полная сделка тремя участниками на провайдере `manual` (`DEMO_MODE=true`, `PAYMENT_PROVIDER=manual`). Покупатель Айгерим Сапарова (+7 700 000 01 01) и мастер Ерлан Жумабаев (+7 700 000 02 01) торгуются и подписывают оферту; смета показывает защиту сделки 2% и гарантию оплаты и клиента 4%. Оператор Динара Абенова (+7 700 000 00 01) подтверждает «Деньги поступили на счёт в банке» тестовым документом; мастер сдаёт работу с фото и GPS; покупатель подписывает акт; оператор подтверждает «Выплачено мастеру» и «Доход платформы получен». Затем — история денег из журнала, журнал аудита, спор с заморозкой выплаты и возврат. Подготовка, реплики и запасной план — [docs/bank/05-demo-script.md](docs/bank/05-demo-script.md).
+Показ на 10 минут на стенде (`APP_ENV=staging` или `dev`, `PAYMENT_PROVIDER=manual`, сайт за `STAND_ACCESS_PASSWORD`): одна полная сделка тремя участниками. Покупатель Айгерим Сапарова (+7 700 000 01 01) и мастер Ерлан Жумабаев (+7 700 000 02 01) торгуются и подписывают оферту; смета показывает защиту сделки 2% и гарантию оплаты и клиента 4%. Оператор Динара Абенова (+7 700 000 00 01) подтверждает «Деньги поступили на счёт в банке» тестовым документом; мастер сдаёт работу с фото и GPS; покупатель подписывает акт; оператор подтверждает «Выплачено мастеру» и «Доход платформы получен». Затем — история денег из журнала, журнал аудита, спор с заморозкой выплаты и возврат. Подготовка, реплики и запасной план — [docs/bank/05-demo-script.md](docs/bank/05-demo-script.md).
 
-Перед показом: Динара → `/operator/demo` → «Сбросить демо».
+Все входят как обычные люди — по номеру и коду с экрана (мок SMS стенда); Динара — ещё кодом из приложения по секрету стенда (`OPERATOR_TOTP_SECRET` в `src/seed/data.ts`). Перед показом данные стенда пересоздаются из терминала: `APP_ENV=staging npx prisma db seed` (в интерфейсе сброса нет). Сделки стенда на провайдере `mock` помечены «тестовая» только у оператора.
 
 ## Установка на телефон
 
@@ -131,7 +131,9 @@ npm run jobs -- --watch      # проход каждые 10 секунд
 
 ## Развёртывание
 
-Деплой, домены, ключи и аккаунты сервисов делает владелец проекта ([docs/OWNER_TODO.md](docs/OWNER_TODO.md)). На Vercel скрипт `vercel-build` выполняет `prisma generate`, `prisma migrate deploy` и `next build`. Демо на Vercel — только с тестовыми данными; реальные клиенты — после переезда в облако в РК (план — [docs/bank/04-security-and-data.md](docs/bank/04-security-and-data.md), разделы 10–11).
+Деплой, домены, ключи и аккаунты сервисов делает владелец проекта ([docs/OWNER_TODO.md](docs/OWNER_TODO.md)). На Vercel скрипт `vercel-build` выполняет `prisma generate`, `prisma migrate deploy`, `prisma db seed -- --if-empty` (пустую базу стенда заполняет, непустую не трогает, при `APP_ENV=prod` сид пропускается) и `next build`. Стенд на Vercel — только с тестовыми данными; реальные клиенты — после переезда в облако в РК (план — [docs/bank/04-security-and-data.md](docs/bank/04-security-and-data.md), разделы 10–11).
+
+Миграции, удаляющие колонки или таблицы, — отдельным релизом после выкладки кода, который их уже не читает: при раскатке старые экземпляры приложения ещё работают со старой схемой. Исключение — `20261116100000_drop_is_demo` (Ruling P5-4): боевой базы web v2 на момент миграции нет.
 
 ## Документы
 

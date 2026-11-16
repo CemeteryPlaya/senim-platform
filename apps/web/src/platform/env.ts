@@ -146,8 +146,15 @@ function productionChecks({ env, require, issue }: Checks) {
 /**
  * Пароль стенда закрывает basic-auth весь сайт стенда (src/proxy.ts, stand-gate): только вне prod — в prod переменная
  * запрещена (боевой сайт паролем не закрывают). За паролем /api/cron/run открыт без него — его закрывает CRON_SECRET.
+ *
+ * Ruling P5-3: production-сборка вне prod с моком SMS показывает код входа на экране — любой, кто открыл адрес, войдёт
+ * любым человеком сида (и оператором). Такой стенд без пароля не стартует. Dev-сервер (NODE_ENV=development) — без
+ * требования: он слушает только машину разработчика.
  */
 function standChecks({ env, require, issue }: Checks) {
+  if (env.NODE_ENV === "production" && env.APP_ENV !== "prod" && env.SMS_PROVIDER === "mock") {
+    require("STAND_ACCESS_PASSWORD", "NODE_ENV=production и SMS_PROVIDER=mock: код входа виден на экране");
+  }
   if (!env.STAND_ACCESS_PASSWORD) return;
   if (env.APP_ENV === "prod") {
     issue("STAND_ACCESS_PASSWORD", "запрещена при APP_ENV=prod: пароль стенда — только для dev и staging");

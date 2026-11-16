@@ -8,7 +8,7 @@ import type { PlaywrightTestConfig } from "@playwright/test";
  * стенда v2, порт и команда сервера Next. Конфиги отличаются только каталогом сценариев, проектами и пересевом данных.
  */
 
-// E2E идут на отдельной базе senim_e2e с демо-данными: e2e/global-setup.ts пересоздаёт её перед прогоном.
+// E2E идут на отдельной базе e2e с данными стенда: e2e/global-setup.ts пересоздаёт её перед прогоном.
 export const E2E_DATABASE_URL = process.env.E2E_DATABASE_URL;
 if (!E2E_DATABASE_URL) throw new Error("Задайте E2E_DATABASE_URL (пример — в .env.example)");
 
@@ -35,11 +35,19 @@ const V2_ENV = Object.fromEntries(
 // Свой порт, не порт dev-сервера: reuseExistingServer иначе прогнал бы e2e против dev-базы.
 export const PORT = Number(process.env.E2E_PORT ?? 3110);
 
+/**
+ * Пароль стенда (basic-auth, src/proxy.ts). Production-сборка с моком SMS без него не стартует (env.ts, Ruling P5-3), поэтому
+ * в CI (`next start`) он задан всегда — тестовый, если не передан; dev-сервер локально — без пароля, если не передан.
+ * Браузер и запросы сценариев входят с ним через `httpCredentials`.
+ */
+const STAND_PASSWORD = process.env.STAND_ACCESS_PASSWORD ?? (process.env.CI ? "e2e-stand-password-local-only" : undefined);
+
 export const baseUse: NonNullable<PlaywrightTestConfig["use"]> = {
   baseURL: `http://localhost:${PORT}`,
   locale: "ru-RU",
   timezoneId: "Asia/Almaty",
   trace: "retain-on-failure",
+  ...(STAND_PASSWORD ? { httpCredentials: { username: "stand", password: STAND_PASSWORD } } : {}),
 };
 
 export const webServer: NonNullable<PlaywrightTestConfig["webServer"]> = {
@@ -58,6 +66,7 @@ export const webServer: NonNullable<PlaywrightTestConfig["webServer"]> = {
     SMS_PROVIDER: "mock",
     SIGNATURE_PROVIDER: "mock",
     PAYMENT_PROVIDER: "manual",
+    ...(STAND_PASSWORD ? { STAND_ACCESS_PASSWORD: STAND_PASSWORD } : {}),
     ...V2_ENV,
   },
 };
