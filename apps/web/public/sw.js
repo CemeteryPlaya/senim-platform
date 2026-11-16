@@ -10,17 +10,27 @@
  * При сети запросы идут мимо воркера как обычно — со входом, cookies, редиректами и паролем
  * демо-стенда: воркер не может показать окно basic-auth, поэтому в эти запросы не вмешивается.
  *
- * Изменили тексты офлайн-страницы — поменяйте версию в CACHE, чтобы телефоны забрали новую.
+ * Офлайн-страниц две: для адресов /v2 — в виде нового интерфейса (/offline?v=2, светлая и тёмная тема), для остальных —
+ * прежняя (/offline, v1 заморожен).
+ *
+ * Изменили тексты или вид офлайн-страницы — поменяйте версию в CACHE, чтобы телефоны забрали новую.
  */
-const CACHE = "senim-offline-v1";
+const CACHE = "senim-offline-v2";
 const OFFLINE_URL = "/offline";
+const OFFLINE_V2_URL = "/offline?v=2";
+
+/** Какую офлайн-страницу показать вместо адреса: новый интерфейс — свою. */
+function offlineFor(url) {
+  const path = new URL(url).pathname;
+  return path === "/v2" || path.startsWith("/v2/") ? OFFLINE_V2_URL : OFFLINE_URL;
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE);
       // Без cookies: страница общая для всех, в кэш не должно попасть ничего от сессии.
-      await cache.add(new Request(OFFLINE_URL, { cache: "reload", credentials: "omit" }));
+      for (const url of [OFFLINE_URL, OFFLINE_V2_URL]) await cache.add(new Request(url, { cache: "reload", credentials: "omit" }));
       await self.skipWaiting();
     })(),
   );
@@ -44,7 +54,7 @@ self.addEventListener("fetch", (event) => {
       try {
         return await fetch(request);
       } catch {
-        return (await caches.match(OFFLINE_URL)) ?? Response.error();
+        return (await caches.match(offlineFor(request.url))) ?? (await caches.match(OFFLINE_URL)) ?? Response.error();
       }
     })(),
   );
