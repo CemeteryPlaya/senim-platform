@@ -28,7 +28,6 @@ export type ContractData = {
   durationDays: number;
   warrantyMonths: number;
   provider: PaymentProviderKind;
-  isDemo: boolean;
 };
 
 /** Фото сдачи для акта: байты для встраивания (null — файл недоступен) и хэш файла — он фиксирует фото в акте. */
@@ -52,7 +51,6 @@ export type AcceptanceActData = {
   gps: { distanceM: number | null; withinRadius: boolean | null; radiusM: number; accuracyM: number | null } | null;
   /** Флаг executorHandSignsAct: подписывает ли мастер акт ещё и собственноручно. */
   executorHandSigns: boolean;
-  isDemo: boolean;
 };
 
 export type StatementEntry = {
@@ -61,7 +59,6 @@ export type StatementEntry = {
   amountTiyn: bigint;
   at: Date;
   operationRef: string | null;
-  isTest: boolean;
 };
 
 export type MoneyStatementData = {
@@ -73,7 +70,6 @@ export type MoneyStatementData = {
   money: DealMoney;
   entries: StatementEntry[];
   bankBalanceTiyn: bigint;
-  isDemo: boolean;
 };
 
 export type ReleaseReceiptData = {

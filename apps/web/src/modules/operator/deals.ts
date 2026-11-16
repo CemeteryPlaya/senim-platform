@@ -1,6 +1,6 @@
 import type { DealStatus, MoneyTransactionStatus, MoneyTransactionType, PaymentProviderKind } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
-import { moneyView, type MoneyBlock } from "@/modules/payments";
+import { isTestProvider, moneyView, type MoneyBlock } from "@/modules/payments";
 import { db, Prisma } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { assertOperator } from "./access";
@@ -17,7 +17,8 @@ export type OperatorDealRow = {
   title: string;
   status: DealStatus;
   provider: PaymentProviderKind;
-  isDemo: boolean;
+  /** Сделка на тестовом провайдере (мок, песочница): операции её журнала — isTest. Пометку видит только оператор. */
+  isTest: boolean;
   disputeOpen: boolean;
   pendingOperations: number;
   createdAt: Date;
@@ -34,7 +35,6 @@ export async function listOperatorDeals(operator: CurrentUser): Promise<Operator
       title: true,
       status: true,
       paymentProvider: true,
-      isDemo: true,
       createdAt: true,
       _count: { select: { disputes: { where: { status: "OPEN" } }, transactions: { where: { status: "PENDING", provider: "MANUAL" } } } },
     },
@@ -45,7 +45,7 @@ export async function listOperatorDeals(operator: CurrentUser): Promise<Operator
     title: d.title,
     status: d.status,
     provider: d.paymentProvider,
-    isDemo: d.isDemo,
+    isTest: isTestProvider(d.paymentProvider),
     disputeOpen: d._count.disputes > 0,
     pendingOperations: d._count.transactions,
     createdAt: d.createdAt,
@@ -107,7 +107,8 @@ export type OperatorDeal = {
     title: string;
     status: DealStatus;
     provider: PaymentProviderKind;
-    isDemo: boolean;
+    /** Тестовый провайдер (мок, песочница) — пометка только у оператора. */
+    isTest: boolean;
     priceTiyn: bigint;
     buyerTotalTiyn: bigint;
     payoutTiyn: bigint;
@@ -145,11 +146,6 @@ function releasePackageOf(journal: JournalRow[], docs: DealDocument[]): ReleaseP
 
 export async function getOperatorDeal(operator: CurrentUser, dealId: string): Promise<OperatorDeal> {
   assertOperator(operator);
-  return loadDealCard(dealId);
-}
-
-/** Карточка без проверки роли — для страницы показа банку (только DEMO_MODE, проверяет вызывающий). */
-export async function loadDealCard(dealId: string): Promise<OperatorDeal> {
   const deal = await db.deal.findUnique({
     where: { id: dealId },
     select: {
@@ -158,7 +154,6 @@ export async function loadDealCard(dealId: string): Promise<OperatorDeal> {
       title: true,
       status: true,
       paymentProvider: true,
-      isDemo: true,
       priceTiyn: true,
       buyerTotalTiyn: true,
       payoutTiyn: true,
@@ -198,7 +193,7 @@ export async function loadDealCard(dealId: string): Promise<OperatorDeal> {
       title: deal.title,
       status: deal.status,
       provider: deal.paymentProvider,
-      isDemo: deal.isDemo,
+      isTest: isTestProvider(deal.paymentProvider),
       priceTiyn: deal.priceTiyn,
       buyerTotalTiyn: deal.buyerTotalTiyn,
       payoutTiyn: deal.payoutTiyn,

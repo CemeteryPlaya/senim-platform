@@ -51,7 +51,10 @@ function panelOf(m: MoneyBlock, party: Party, payoutTiyn: bigint): Omit<MoneyPan
   }
 }
 
-/** Оператор смотрит глазами покупателя: его формулировки — полные. */
-export function moneyPanel(m: MoneyBlock, party: Party, payoutTiyn: bigint): MoneyPanel {
-  return { ...panelOf(m, party, payoutTiyn), testNote: m.isTest ? b.testPayment : null };
+/**
+ * Оператор смотрит глазами покупателя: его формулировки — полные. Пометка тестового платежа (мок, песочница) — только
+ * оператору (`operator`): покупатель и мастер видят сделку стенда такой же, как боевую.
+ */
+export function moneyPanel(m: MoneyBlock, party: Party, payoutTiyn: bigint, opts: { operator?: boolean } = {}): MoneyPanel {
+  return { ...panelOf(m, party, payoutTiyn), testNote: opts.operator && m.isTest ? b.testPayment : null };
 }

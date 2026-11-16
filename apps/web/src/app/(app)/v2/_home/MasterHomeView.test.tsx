@@ -15,7 +15,6 @@ const dealItem = (over: Partial<DealListItem> = {}): DealListItem => ({
   number: 1,
   title: "Кухня угловая",
   status: "PAID_HOLD",
-  isDemo: false,
   paymentProvider: "MOCK",
   priceTiyn: 120_000_000n,
   estimate: { party: "EXECUTOR", priceTiyn: 120_000_000n, extraTiyn: 4_800_000n, totalTiyn: 115_200_000n },

@@ -57,7 +57,6 @@ export function acceptanceActSpec(d: AcceptanceActData): PdfSpec {
       { kind: "paragraph", text: "2. Подписывая акт, Покупатель подтверждает, что результат соответствует договору, и даёт распоряжение о выплате денег, зарезервированных в банке:" },
       moneyTable(d.money),
       { kind: "paragraph", text: `3. После подписания акта Мастер получает ${money(d.money.payoutTiyn)} одним платежом; гарантийный срок по разделу 5 договора исчисляется с даты подписания акта.` },
-      ...(d.isDemo ? [{ kind: "paragraph" as const, text: "4. Тестовая сделка: реальные деньги не перечисляются." }] : []),
       { kind: "heading", text: "Фото сдачи" },
       ...photosBlock(d),
       { kind: "heading", text: "Подписи Сторон" },

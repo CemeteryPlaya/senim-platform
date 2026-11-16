@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Ruler } from "lucide-react";
 import { ru } from "@/i18n/ru";
-import { isDemoMode, listMaterialPrices, type MaterialPriceRow } from "@/modules/operator";
+import { listMaterialPrices, type MaterialPriceRow } from "@/modules/operator";
 import { isEnabled } from "@/platform/features";
-import { Alert, Card, Container, EmptyState, PageHeader, SectionTitle } from "@/ui";
+import { Card, Container, EmptyState, PageHeader, SectionTitle } from "@/ui";
 import { MATERIAL_CATEGORIES } from "@/verticals/furniture";
 import { requireOperatorPage } from "../_lib/guard";
 import { AddMaterialForm, MaterialItem } from "./MaterialForms";
@@ -25,7 +25,6 @@ function MaterialList({ rows }: { rows: MaterialPriceRow[] }) {
 
 /**
  * Справочник цен материалов (ADR-007): разделы по категориям вертикали, внизу — архив.
- * В демо-режиме — пометка, что цифры демонстрационные и их нужно заменить.
  */
 export default async function MaterialPricesPage() {
   if (!isEnabled("materialsCalculator")) notFound();
@@ -33,17 +32,11 @@ export default async function MaterialPricesPage() {
   const rows = await listMaterialPrices(user);
   const active = rows.filter((r) => r.active);
   const archived = rows.filter((r) => !r.active);
-  const showDemoNote = isDemoMode() && rows.some((r) => r.isDemo);
 
   return (
     <Container size="form" className="pb-10">
       <PageHeader title={t.title} description={t.description} back={{ href: "/operator", label: ru.operator.backToPanel }} />
       <div className="flex flex-col gap-8">
-        {showDemoNote && (
-          <Alert tone="warning" title={t.demoTitle}>
-            {t.demoNote}
-          </Alert>
-        )}
         <Card title={t.add.title} titleAs="h2">
           <AddMaterialForm />
         </Card>

@@ -39,7 +39,7 @@ describe("справочник цен материалов", () => {
     const { id } = await addMaterialPrice(operator, { ...LDSP, segments: ["ECONOMY", "COMFORT"] });
 
     const [row] = await listMaterialPrices(operator);
-    expect(row).toMatchObject({ id, category: "carcass", name: "ЛДСП 16 мм", unit: "m2", priceKzt: 4_500, segments: ["ECONOMY", "COMFORT"], active: true, isDemo: false });
+    expect(row).toMatchObject({ id, category: "carcass", name: "ЛДСП 16 мм", unit: "m2", priceKzt: 4_500, segments: ["ECONOMY", "COMFORT"], active: true });
     expect(row.updatedBy).toBe(operator.fullName);
     const [event] = await audit("material_price.added");
     expect(event).toMatchObject({ entityType: "material_price", entityId: id, actorId: operator.id });
@@ -56,18 +56,18 @@ describe("справочник цен материалов", () => {
     await expect(addMaterialPrice(operator, { ...LDSP, unit: "sheet", priceKzt: 23_000 })).resolves.toHaveProperty("id");
   });
 
-  it("смена цены: аудит со старой и новой ценой, автор обновлён, пометка «демо» снимается", async () => {
+  it("смена цены: аудит со старой и новой ценой, автор обновлён", async () => {
     const operator = await makeOperator();
     const { id } = await addMaterialPrice(operator, LDSP);
-    await db.materialPrice.update({ where: { id }, data: { isDemo: true, updatedById: null } });
+    await db.materialPrice.update({ where: { id }, data: { updatedById: null } });
 
     await changeMaterialPrice(operator, { id, from: 4_500, to: 5_200 });
 
     const [row] = await listMaterialPrices(operator);
-    expect(row).toMatchObject({ priceKzt: 5_200, isDemo: false, updatedBy: operator.fullName });
+    expect(row).toMatchObject({ priceKzt: 5_200, updatedBy: operator.fullName });
     const [event] = await audit("material_price.price_changed");
-    expect(event.before).toEqual({ priceKzt: 4_500, isDemo: true });
-    expect(event.after).toEqual({ priceKzt: 5_200, isDemo: false });
+    expect(event.before).toEqual({ priceKzt: 4_500 });
+    expect(event.after).toEqual({ priceKzt: 5_200 });
   });
 
   it("двойной клик по «Сохранить» — одно изменение и одна запись в журнале", async () => {

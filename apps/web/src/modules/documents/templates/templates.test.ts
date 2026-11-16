@@ -33,7 +33,6 @@ const contract = (over: Partial<ContractData> = {}): ContractData => ({
   durationDays: 30,
   warrantyMonths: 12,
   provider: "MANUAL",
-  isDemo: false,
   ...over,
 });
 
@@ -51,7 +50,6 @@ const act = (over: Partial<AcceptanceActData> = {}): AcceptanceActData => ({
   photos: [{ image: null, sha256: "ab".repeat(32) }],
   gps: { distanceM: 120, withinRadius: true, radiusM: 500, accuracyM: 15 },
   executorHandSigns: false,
-  isDemo: false,
   ...over,
 });
 
@@ -83,12 +81,11 @@ describe("оферта", () => {
     expect(text).toContain("12 месяцев");
   });
 
-  it("пометка о юридической проверке — в колонтитуле; тестовая сделка помечена, реальная — нет", () => {
+  it("пометка о юридической проверке — в колонтитуле; договор сделки стенда (мок) совпадает с боевым — без «Тестовая сделка»", () => {
     const real = contractSpec(contract());
     expect(real.footer).toContain("Шаблон требует юридической проверки");
-    expect(plainText(real)).not.toContain("Тестовая сделка");
-    expect(plainText(contractSpec(contract({ provider: "MOCK" })))).toContain("Тестовая сделка");
-    expect(plainText(contractSpec(contract({ isDemo: true })))).toContain("Тестовая сделка");
+    expect(plainText(real)).not.toMatch(/тестов/i);
+    expect(plainText(contractSpec(contract({ provider: "MOCK" })))).toBe(plainText(real));
   });
 
   it("ИП и самозанятый — ИИН; покупатель без ИИН — только ФИО", () => {
@@ -133,11 +130,10 @@ describe("выписка по деньгам", () => {
     dealTitle: "Кухня угловая",
     money: MONEY,
     entries: [
-      { type: "HOLD", status: "SUCCEEDED", amountTiyn: 102_000_000n, at: new Date("2026-11-06T06:00:00Z"), operationRef: "П-17", isTest: false },
-      { type: "SPLIT_MASTER", status: "PENDING", amountTiyn: 96_000_000n, at: new Date("2026-11-21T05:00:00Z"), operationRef: null, isTest: false },
+      { type: "HOLD", status: "SUCCEEDED", amountTiyn: 102_000_000n, at: new Date("2026-11-06T06:00:00Z"), operationRef: "П-17" },
+      { type: "SPLIT_MASTER", status: "PENDING", amountTiyn: 96_000_000n, at: new Date("2026-11-21T05:00:00Z"), operationRef: null },
     ],
     bankBalanceTiyn: 102_000_000n,
-    isDemo: false,
     ...over,
   });
 
@@ -154,6 +150,11 @@ describe("выписка по деньгам", () => {
   it("покупатель и мастер видят выписку: без «эскроу» и «комиссии»; пустой журнал — честная строка", () => {
     expect(plainText(moneyStatementSpec(statement()))).not.toMatch(FORBIDDEN_FOR_PARTIES);
     expect(plainText(moneyStatementSpec(statement({ entries: [] })))).toContain("Операций с деньгами пока не было.");
+  });
+
+  it("акт и выписка сделки стенда совпадают с боевыми: пунктов и пометок «тестовая» нет", () => {
+    expect(plainText(acceptanceActSpec(act()))).not.toMatch(/тестов/i);
+    expect(plainText(moneyStatementSpec(statement()))).not.toMatch(/тестов/i);
   });
 });
 

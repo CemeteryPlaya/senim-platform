@@ -149,7 +149,7 @@ describe("уровень", () => {
   const prices = {
     ECONOMY: null,
     COMFORT: { source: "offers" as const, from: 400_000, to: 900_000, count: 4 },
-    PREMIUM: { source: "materials" as const, from: 1, to: 2, typical: null, demo: true },
+    PREMIUM: { source: "materials" as const, from: 1, to: 2, typical: null },
   };
 
   it("цена — только по предложениям мастеров; подсказка по материалам (флаг) не показывается", () => {

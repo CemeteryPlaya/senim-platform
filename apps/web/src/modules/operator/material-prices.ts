@@ -31,8 +31,6 @@ export type MaterialPriceRow = {
   priceKzt: number;
   segments: Segment[];
   active: boolean;
-  /** Демонстрационная цифра из сида: оператор ещё не заменил её реальной. */
-  isDemo: boolean;
   updatedAt: Date;
   updatedBy: string | null;
 };
@@ -58,7 +56,6 @@ export async function listMaterialPrices(user: CurrentUser): Promise<MaterialPri
       priceKzt: true,
       segments: true,
       active: true,
-      isDemo: true,
       updatedAt: true,
       updatedBy: { select: { fullName: true } },
     },
@@ -92,25 +89,25 @@ export async function addMaterialPrice(user: CurrentUser, input: AddMaterialPric
 
 /**
  * Новая цена. Меняется только та цена, которую оператор видел (`from`): повтор того же сохранения
- * ничего не делает, а цену, уже изменённую другим, не перезаписывает. Пометка «демо» снимается.
+ * ничего не делает, а цену, уже изменённую другим, не перезаписывает.
  */
 export async function changeMaterialPrice(user: CurrentUser, input: ChangeMaterialPriceInput): Promise<void> {
   assertBookOperator(user);
   await transaction(async (tx) => {
-    const [current] = await tx.$queryRaw<{ priceKzt: number; active: boolean; isDemo: boolean }[]>`
-      SELECT "priceKzt", "active", "isDemo" FROM "MaterialPrice" WHERE "id" = ${input.id} FOR UPDATE`;
+    const [current] = await tx.$queryRaw<{ priceKzt: number; active: boolean }[]>`
+      SELECT "priceKzt", "active" FROM "MaterialPrice" WHERE "id" = ${input.id} FOR UPDATE`;
     if (!current) return fail.notFound();
     if (!current.active) return fail.conflict(t.archived);
     if (current.priceKzt === input.to) return;
     if (current.priceKzt !== input.from) return fail.conflict(t.priceChanged);
 
-    await tx.materialPrice.update({ where: { id: input.id }, data: { priceKzt: input.to, isDemo: false, updatedById: user.id } });
+    await tx.materialPrice.update({ where: { id: input.id }, data: { priceKzt: input.to, updatedById: user.id } });
     await recordAudit(tx, {
       actor: actorOf(user),
       action: "material_price.price_changed",
       entity: entity(input.id),
-      before: { priceKzt: current.priceKzt, isDemo: current.isDemo },
-      after: { priceKzt: input.to, isDemo: false },
+      before: { priceKzt: current.priceKzt },
+      after: { priceKzt: input.to },
     });
   });
 }

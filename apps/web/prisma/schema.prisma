@@ -37,7 +37,6 @@ model User {
   email     String?
   /// Когда адрес подтверждён кодом из письма — проекция identity (Person.email_verified); null — не подтверждён. Другой адрес снимает подтверждение.
   emailVerifiedAt DateTime?
-  isDemo    Boolean  @default(false) // демо-персона, доступна только при DEMO_MODE
   blockedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -200,8 +199,6 @@ model MaterialPrice {
   /// Уровни, к которым относится материал: один или несколько.
   segments    Segment[]
   active      Boolean   @default(true)
-  /// Демонстрационная цифра из сида; снимается, когда оператор меняет цену.
-  isDemo      Boolean   @default(false)
   updatedById String?
   updatedBy   User?     @relation("MaterialPriceUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
@@ -211,7 +208,7 @@ model MaterialPrice {
 }
 
 /// Типовой расчёт материалов на единицу изделия для типа мебели (ADR-007). Форма perUnit и единиц —
-/// verticals/furniture/calculator.ts (typicalEstimateSchema). Пока заполняется только демо-сидом.
+/// verticals/furniture/calculator.ts (typicalEstimateSchema). Пока заполняется только сидом стенда.
 model TypicalEstimate {
   furnitureTypeId String        @id
   furnitureType   FurnitureType @relation(fields: [furnitureTypeId], references: [id], onDelete: Cascade)
@@ -223,7 +220,6 @@ model TypicalEstimate {
   markup          Float
   /// Материалы на единицу изделия: [{ category, unit, quantity }].
   perUnit         Json
-  isDemo          Boolean       @default(false)
   updatedAt       DateTime      @updatedAt
 }
 
@@ -570,8 +566,6 @@ model Deal {
   /// Провайдер фиксируется при создании: смена PAYMENT_PROVIDER не трогает идущие сделки.
   paymentProvider  PaymentProviderKind
   status           DealStatus          @default(CREATED)
-  /// Демо-сделка из сида: в интерфейсе помечена «тестовая».
-  isDemo           Boolean             @default(false)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   /// Оферта заключена — подписана обеими сторонами: открывает оплату и контакты сторон.

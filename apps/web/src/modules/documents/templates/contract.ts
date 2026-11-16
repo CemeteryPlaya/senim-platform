@@ -44,8 +44,6 @@ export function moneyTable(m: DealMoney): Block {
   };
 }
 
-const isTestProvider = (d: ContractData) => d.isDemo || d.provider !== "MANUAL";
-
 function subject(d: ContractData): Block[] {
   const blocks: Block[] = [
     { kind: "paragraph", text: `1.1. Мастер обязуется выполнить работы «${d.subject.title}» по заданию Покупателя и сдать их результат, а Покупатель — принять результат и оплатить его в порядке, установленном договором.` },
@@ -56,7 +54,7 @@ function subject(d: ContractData): Block[] {
 }
 
 function payment(d: ContractData): Block[] {
-  const blocks: Block[] = [
+  return [
     { kind: "paragraph", text: `3.1. После подписания договора обеими Сторонами Покупатель одним платежом оплачивает итоговую сумму — ${money(d.money.buyerTotalTiyn)}.` },
     { kind: "paragraph", text: `3.2. Деньги Покупателя резервируются на эскроу-счёте банка. Платформа «${brand.name}» не принимает и не хранит денежные средства Сторон.` },
     { kind: "paragraph", text: "3.3. Зарезервированные деньги недоступны Мастеру до подписания Покупателем акта приёмки. Авансов нет." },
@@ -66,8 +64,6 @@ function payment(d: ContractData): Block[] {
     },
     { kind: "paragraph", text: "3.5. Каждая операция с деньгами (резервирование, заморозка на время спора, выплата, возврат) отражается в выписке по сделке; Стороны получают уведомление о каждом изменении." },
   ];
-  if (isTestProvider(d)) blocks.push({ kind: "paragraph", text: "3.6. Тестовая сделка: платежи проводятся в тестовом режиме, реальные деньги не списываются и не перечисляются." });
-  return blocks;
 }
 
 export function contractSpec(d: ContractData): PdfSpec {

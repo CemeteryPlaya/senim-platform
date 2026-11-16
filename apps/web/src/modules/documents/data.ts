@@ -76,7 +76,6 @@ export async function contractData(client: Db, dealId: string, meta: Meta): Prom
     durationDays: d.deal.durationDays,
     warrantyMonths: d.deal.warrantyMonths,
     provider: d.deal.paymentProvider,
-    isDemo: d.deal.isDemo,
   };
 }
 
@@ -115,7 +114,6 @@ export async function actData(client: Db, dealId: string, meta: Meta & { executo
     readyAt: ready.at,
     photos: await Promise.all(ready.photos.map(async (p) => ({ image: await pdfPhoto(p), sha256: shaOf.get(p.id) ?? "" }))),
     gps: ready.distanceM === null ? null : { distanceM: ready.distanceM, withinRadius: ready.withinRadius, radiusM: ready.radiusM, accuracyM: ready.accuracyM },
-    isDemo: d.deal.isDemo,
   };
 }
 
@@ -127,9 +125,8 @@ export async function statementData(client: Db, dealId: string, meta: Meta): Pro
     contractNumber: contract?.number ?? null,
     dealTitle: d.deal.title,
     money: d.money,
-    entries: d.moneyHistory.map((e) => ({ type: e.type, status: e.status, amountTiyn: e.amountTiyn, at: e.at, operationRef: e.operationRef, isTest: e.isTest })),
+    entries: d.moneyHistory.map((e) => ({ type: e.type, status: e.status, amountTiyn: e.amountTiyn, at: e.at, operationRef: e.operationRef })),
     bankBalanceTiyn: d.moneyBlock.bankBalanceTiyn,
-    isDemo: d.deal.isDemo,
   };
 }
 

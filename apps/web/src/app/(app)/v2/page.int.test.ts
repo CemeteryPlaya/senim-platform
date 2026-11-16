@@ -92,10 +92,9 @@ describe("/v2 для покупателя: по одному главному д
     expect(primaries(out)).toEqual([{ href: `/v2/requests/new?draft=${draftId}`, label: t.now.draft.action }]);
   });
 
-  it("сделка ждёт оплаты: «Оплатить заказ» ведёт в сделку; в карточке — название, ход и «к оплате», без пометок демо", async () => {
+  it("сделка ждёт оплаты: «Оплатить заказ» ведёт в сделку; в карточке — название, ход и «к оплате», без пометок «тестовая»", async () => {
     const client = await buyer();
     const deal = await dealAt("SIGNED", { client });
-    await db.deal.update({ where: { id: deal.dealId }, data: { isDemo: true } });
     await signInAs(client);
     const out = await render();
     expect(primaries(out)).toEqual([{ href: `/v2/deals/${deal.dealId}`, label: t.now.pay.action }]);

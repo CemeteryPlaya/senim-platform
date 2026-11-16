@@ -262,7 +262,7 @@ function priceLine(hint: PriceHint | null): string {
   return hint.source === "materials" ? m.price(range) : w.segment.price(range);
 }
 
-/** Откуда вилки: по скольким откликам, по материалам, для типового размера, демо-цифры. */
+/** Откуда вилки: по скольким откликам, по материалам, для типового размера. */
 function priceNote(prices: Record<Segment, PriceHint | null>): string | undefined {
   const hints = SEGMENTS.flatMap((k) => (prices[k] ? [prices[k]] : []));
   const offers = hints.reduce((n, h) => n + (h.source === "offers" ? h.count : 0), 0);
@@ -271,7 +271,6 @@ function priceNote(prices: Record<Segment, PriceHint | null>): string | undefine
   const notes = [
     materials.length > 0 && m.note,
     typical && m.typicalSize(typical.productUnit === "lm" ? m.sizeLm(typical.widthCm) : m.sizeFront(typical.widthCm, typical.heightCm)),
-    materials.some((h) => h.demo) && m.demo,
     // Фраза о точной цене уже есть в пояснении про отклики.
     offers > 0 ? w.segment.priceNote(offers) : materials.length > 0 && m.exact,
   ].filter((x): x is string => typeof x === "string");

@@ -51,15 +51,15 @@ const KITCHEN_ESTIMATE: TypicalEstimate = {
   ],
 };
 
-async function material(name: string, category: string, priceKzt: number, segments: Segment[], extra: { active?: boolean; isDemo?: boolean } = {}) {
+async function material(name: string, category: string, priceKzt: number, segments: Segment[], extra: { active?: boolean } = {}) {
   return db.materialPrice.create({ data: { name, category, unit: "m2", priceKzt, segments, ...extra } });
 }
 
 /** Эконом и комфорт — полный набор; для премиума фасада в справочнике нет. */
-async function kitchenWithBook(opts: { demo?: boolean } = {}) {
+async function kitchenWithBook() {
   const kitchen = await makeFurnitureType("Кухня");
   const { perUnit, ...rest } = KITCHEN_ESTIMATE;
-  await db.typicalEstimate.create({ data: { furnitureTypeId: kitchen.id, ...rest, perUnit, isDemo: opts.demo ?? false } });
+  await db.typicalEstimate.create({ data: { furnitureTypeId: kitchen.id, ...rest, perUnit } });
   await material("ЛДСП эконом", "carcass", 4_000, ["ECONOMY"]);
   await material("ЛДСП Egger", "carcass", 6_000, ["COMFORT", "PREMIUM"]);
   const economyFacade = await material("ЛДСП-фасад", "facade", 5_000, ["ECONOMY"]);
@@ -82,9 +82,9 @@ describe("вилка по ценам материалов и типовому р
     const { kitchen } = await kitchenWithBook();
     const hints = await segmentPriceHints(kitchen.id, { widthCm: 200 });
     // Эконом: (3 × 4 000 + 1,5 × 5 000) × 2 п. м × 2 = 78 000.
-    expect(hints.ECONOMY).toEqual({ source: "materials", from: 70_000, to: 80_000, typical: null, demo: false });
+    expect(hints.ECONOMY).toEqual({ source: "materials", from: 70_000, to: 80_000, typical: null });
     // Комфорт: (18 000 + 30 000…45 000) × 2 × 2 = 192 000…252 000.
-    expect(hints.COMFORT).toEqual({ source: "materials", from: 190_000, to: 260_000, typical: null, demo: false });
+    expect(hints.COMFORT).toEqual({ source: "materials", from: 190_000, to: 260_000, typical: null });
   });
 
   it("размер «не знаю» — по типовому размеру, и это видно в подсказке", async () => {
@@ -96,7 +96,6 @@ describe("вилка по ценам материалов и типовому р
       from: 110_000,
       to: 120_000,
       typical: { productUnit: "lm", widthCm: 300, heightCm: 220 },
-      demo: false,
     });
   });
 
@@ -118,18 +117,6 @@ describe("вилка по ценам материалов и типовому р
     const hints = await segmentPriceHints(kitchen.id, { widthCm: 200 });
     expect(hints.ECONOMY).toBeNull();
     expect(hints.COMFORT?.source).toBe("materials");
-  });
-
-  it("демонстрационный типовой расчёт или демо-цены — вилка помечена", async () => {
-    const { kitchen } = await kitchenWithBook({ demo: true });
-    expect((await segmentPriceHints(kitchen.id, { widthCm: 200 })).ECONOMY).toMatchObject({ source: "materials", demo: true });
-
-    await db.typicalEstimate.update({ where: { furnitureTypeId: kitchen.id }, data: { isDemo: false } });
-    await material("Фанера", "carcass", 9_000, ["COMFORT"], { isDemo: true });
-    const hints = await segmentPriceHints(kitchen.id, { widthCm: 200 });
-    // Пометка — у уровня, в расчёт которого вошла демо-цена.
-    expect(hints.COMFORT).toMatchObject({ demo: true });
-    expect(hints.ECONOMY).toMatchObject({ demo: false });
   });
 
   it("испорченный типовой расчёт не ломает мастер — вилка как без него", async () => {

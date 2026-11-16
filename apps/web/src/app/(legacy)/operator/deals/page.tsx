@@ -54,7 +54,7 @@ export default async function OperatorDealsPage() {
                     <StatusBadge tone="info">{o.dealStatus[d.status]}</StatusBadge>
                     {d.disputeOpen && <StatusBadge tone="danger">{t.disputeOpen}</StatusBadge>}
                     {d.pendingOperations > 0 && <StatusBadge tone="warning">{t.pending(d.pendingOperations)}</StatusBadge>}
-                    {d.isDemo && <StatusBadge tone="neutral">{o.testMark}</StatusBadge>}
+                    {d.isTest && <StatusBadge tone="neutral">{o.testMark}</StatusBadge>}
                   </span>
                 </td>
                 <td className={`${TD} text-ink-soft ${COL_NARROW}`}>{o.providers[d.provider]}</td>

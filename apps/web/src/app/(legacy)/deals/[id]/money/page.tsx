@@ -51,7 +51,8 @@ export default async function MoneyHistoryPage({ params }: { params: Promise<{ i
                 </span>
                 {item.status !== "SUCCEEDED" && <span className="text-base font-semibold text-warning">{h.status[item.status]}</span>}
                 {item.operationRef && <span className="text-base text-muted">{ru.payments.block.operationRef(item.operationRef)}</span>}
-                {item.isTest && <span className="text-base text-muted">{h.testMark}</span>}
+                {/* Пометку тестового платежа видит только оператор: стороны видят сделку стенда как боевую. */}
+                {item.isTest && deal.viewer === "OPERATOR" && <span className="text-base text-muted">{h.testMark}</span>}
                 {/* Ссылок «Документ-основание» несколько: описание — операция и её дата, имя ссылки прежнее. */}
                 {item.basisDocumentId && (
                   <a

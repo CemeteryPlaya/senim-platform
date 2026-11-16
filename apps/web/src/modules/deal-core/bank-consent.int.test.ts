@@ -4,7 +4,7 @@ import { consentTextSha256, seedIdentityBankConsents } from "@/modules/identity"
 import { db } from "@/platform/db";
 import { makeClient, makeOperator } from "../../../test/factories";
 import { journalOf, makeDeal, signContract } from "../../../test/factories/deal";
-import { freshBrowser, setEnv } from "../../../test/factories/identity";
+import { freshBrowser } from "../../../test/factories/identity";
 import { signInAs } from "../../../test/factories/session";
 import { identityFake } from "../../../test/stubs/identity";
 import { BANK_CONSENT_MISSING, bankConsentState, giveBankConsent, payForDeal } from "./index";
@@ -65,19 +65,13 @@ describe("оплата требует согласий обеих сторон �
     expect(hasConsentsCalls()).toBe(0);
   });
 
-  it("тестовая сделка при DEMO_MODE — та же проверка: обхода нет; засеянные согласия (SeedConsents) открывают оплату", async () => {
+  it("сделка стенда (мок) — та же проверка: обхода нет; засеянные согласия (SeedConsents) открывают оплату", async () => {
     const f = await signedDeal([]);
-    await db.deal.update({ where: { id: f.dealId }, data: { isDemo: true } });
-    setEnv({ DEMO_MODE: "true" });
-    try {
-      await expect(payForDeal(f.client, { dealId: f.dealId })).rejects.toMatchObject({ code: "CONFLICT", details: { reason: BANK_CONSENT_MISSING, missing: ["CLIENT", "EXECUTOR"] } });
-      expect(await journalOf(f.dealId)).toEqual([]);
-      const proof = { version: BANK, textSha256: consentTextSha256("BANK_TRANSFER") };
-      await seedIdentityBankConsents([f.client.id, f.executor.id].map((userId) => ({ ...proof, userId, dealId: f.dealId })));
-      expect(await payForDeal(f.client, { dealId: f.dealId })).toMatchObject({ status: "SUCCEEDED" });
-    } finally {
-      setEnv({ DEMO_MODE: undefined });
-    }
+    await expect(payForDeal(f.client, { dealId: f.dealId })).rejects.toMatchObject({ code: "CONFLICT", details: { reason: BANK_CONSENT_MISSING, missing: ["CLIENT", "EXECUTOR"] } });
+    expect(await journalOf(f.dealId)).toEqual([]);
+    const proof = { version: BANK, textSha256: consentTextSha256("BANK_TRANSFER") };
+    await seedIdentityBankConsents([f.client.id, f.executor.id].map((userId) => ({ ...proof, userId, dealId: f.dealId })));
+    expect(await payForDeal(f.client, { dealId: f.dealId })).toMatchObject({ status: "SUCCEEDED" });
   });
 });
 

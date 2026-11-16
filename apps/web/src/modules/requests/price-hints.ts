@@ -20,18 +20,18 @@ import { SEGMENTS } from "./schema";
 /**
  * Подсказка цены уровня на экране «Уровень» мастера. Источник виден заказчику:
  * - `materials` — по ценам материалов из справочника оператора и типовому расчёту (ADR-007), только при флаге materialsCalculator;
- *   `typical` — размеров в заявке нет, посчитано для типового размера; `demo` — в расчёт вошли демо-цифры;
+ *   `typical` — размеров в заявке нет, посчитано для типового размера;
  * - `offers` — по настоящим откликам на заявки того же типа мебели.
  */
 export type PriceHint =
-  | { source: "materials"; from: number; to: number; typical: { productUnit: ProductUnit; widthCm: number; heightCm: number } | null; demo: boolean }
+  | { source: "materials"; from: number; to: number; typical: { productUnit: ProductUnit; widthCm: number; heightCm: number } | null }
   | { source: "offers"; from: number; to: number; count: number };
 
 export type SegmentPriceHints = Record<Segment, PriceHint | null>;
 
 const EMPTY: SegmentPriceHints = { ECONOMY: null, COMFORT: null, PREMIUM: null };
 
-type Book = { estimate: TypicalEstimate; estimateDemo: boolean; prices: (MaterialPrice & { isDemo: boolean })[] };
+type Book = { estimate: TypicalEstimate; prices: MaterialPrice[] };
 
 /** Типовой расчёт для типа мебели и активные цены материалов. Испорченный расчёт — как будто его нет. */
 async function loadBook(furnitureTypeId: string): Promise<Book | null> {
@@ -50,30 +50,21 @@ async function loadBook(furnitureTypeId: string): Promise<Book | null> {
   }
   const rows = await db.materialPrice.findMany({
     where: { active: true },
-    select: { name: true, category: true, unit: true, priceKzt: true, segments: true, isDemo: true },
+    select: { name: true, category: true, unit: true, priceKzt: true, segments: true },
   });
   const prices = rows.flatMap((r) => {
     const price = materialPriceOf(r);
-    return price ? [{ ...price, isDemo: r.isDemo }] : [];
+    return price ? [price] : [];
   });
-  return { estimate: parsed.data, estimateDemo: row.isDemo, prices };
+  return { estimate: parsed.data, prices };
 }
 
-/** В расчёт уровня вошла демо-цифра: демо-расчёт или демо-цена материала, подходящая под его позиции. */
-function usesDemo(book: Book, segment: Segment): boolean {
-  if (book.estimateDemo) return true;
-  return book.prices.some(
-    (p) => p.isDemo && p.segments.includes(segment) && book.estimate.perUnit.some((l) => l.category === p.category && l.unit === p.unit),
-  );
-}
-
-function materialsHint(book: Book, segment: Segment, order: OrderEstimate): PriceHint {
+function materialsHint(book: Book, order: OrderEstimate): PriceHint {
   const { estimate } = book;
   return {
     source: "materials",
     ...roundOutward(order.from, order.to),
     typical: order.typicalSize ? { productUnit: estimate.productUnit, widthCm: estimate.typicalWidthCm, heightCm: estimate.typicalHeightCm } : null,
-    demo: usesDemo(book, segment),
   };
 }
 
@@ -103,7 +94,7 @@ export async function segmentPriceHints(furnitureTypeId: string | null, size: Pr
   return Object.fromEntries(
     SEGMENTS.map((segment) => {
       const order = orders?.[segment];
-      return [segment, book && order ? materialsHint(book, segment, order) : offers[segment]];
+      return [segment, book && order ? materialsHint(book, order) : offers[segment]];
     }),
   ) as SegmentPriceHints;
 }

@@ -26,8 +26,8 @@ import { canMove, lockDeal, moveDeal, type DealState } from "./state";
 
 type Op = Omit<RecordInput, "dealId" | "provider" | "isTest">;
 
-/** Тестовая операция: провайдер тестовый (mock, песочница) или сделка демо — деньги демо-сделки не настоящие. */
-const isTestMoney = (deal: DealState) => isTestProvider(deal.paymentProvider) || deal.isDemo;
+/** Тестовая операция — только по провайдеру сделки (mock, песочница): настоящих денег через него нет. */
+const isTestMoney = (deal: DealState) => isTestProvider(deal.paymentProvider);
 
 async function record(tx: Tx, deal: DealState, op: Op): Promise<MoneyTransaction> {
   const { entry, created } = await recordOperation(tx, { ...op, dealId: deal.id, provider: deal.paymentProvider, isTest: isTestMoney(deal) });

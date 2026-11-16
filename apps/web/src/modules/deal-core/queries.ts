@@ -63,7 +63,6 @@ export type DealListItem = {
   number: number;
   title: string;
   status: DealStatus;
-  isDemo: boolean;
   priceTiyn: bigint;
   /** Своя смета: покупателю — к оплате, мастеру — к выплате; оператору — к оплате. */
   estimate: PartyEstimate;
@@ -96,7 +95,6 @@ export async function listDeals(user: CurrentUser): Promise<DealListItem[]> {
       number: d.number,
       title: d.title,
       status: d.status,
-      isDemo: d.isDemo,
       priceTiyn: d.priceTiyn,
       estimate: partyEstimate(myRole ?? "CLIENT", d.priceTiyn),
       money: projectMoney(d.transactions.map(toLedgerEntry), d),
@@ -213,7 +211,6 @@ export async function getDealView(user: CurrentUser, dealId: string) {
     requestId: deal.requestId,
     title: deal.title,
     status: deal.status,
-    isDemo: deal.isDemo,
     paymentProvider: deal.paymentProvider,
     viewer,
     /** Снимок денег по оферте; подписи строк — ru.payments.estimate[party]. */
@@ -305,7 +302,7 @@ export async function dealDocumentData(client: Db, dealId: string) {
   if (!deal) return fail.notFound(ru.deal.errors.notFound);
   const entries = await ledgerEntries(client, dealId);
   return {
-    deal: { id: deal.id, number: deal.number, title: deal.title, status: deal.status, isDemo: deal.isDemo, paymentProvider: deal.paymentProvider, durationDays: deal.durationDays, warrantyMonths: deal.warrantyMonths, createdAt: deal.createdAt, signedAt: deal.signedAt, readyAt: deal.readyAt, acceptedAt: deal.acceptedAt },
+    deal: { id: deal.id, number: deal.number, title: deal.title, status: deal.status, paymentProvider: deal.paymentProvider, durationDays: deal.durationDays, warrantyMonths: deal.warrantyMonths, createdAt: deal.createdAt, signedAt: deal.signedAt, readyAt: deal.readyAt, acceptedAt: deal.acceptedAt },
     money: { priceTiyn: deal.priceTiyn, protectionTiyn: deal.protectionTiyn, buyerTotalTiyn: deal.buyerTotalTiyn, guaranteeTiyn: deal.guaranteeTiyn, payoutTiyn: deal.payoutTiyn, platformIncomeTiyn: deal.platformIncomeTiyn },
     client: deal.client,
     executor: deal.executor,

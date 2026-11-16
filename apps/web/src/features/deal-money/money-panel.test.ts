@@ -88,9 +88,11 @@ describe("блок денег — первый блок карточки сде�
     expect(moneyPanel(block({ kind: "refunded", amountTiyn: 10_200_000n, settled: false, refundedAt: null }), "EXECUTOR", payout).title).toBe("Банк возвращает деньги покупателю");
   });
 
-  it("тестовые деньги честно помечены, настоящие — без пометки", () => {
-    const test = moneyPanel(block({ kind: "protected", amountTiyn: 1n, reservedAt, operationRef: null, isTest: true }), "CLIENT", payout);
-    expect(test.testNote).toBe("Тестовый платёж — настоящие деньги не списываются");
-    expect(moneyPanel(block({ kind: "awaiting", payment: "none" }), "CLIENT", payout).testNote).toBeNull();
+  it("тестовый платёж помечен только оператору: покупатель и мастер видят сделку стенда как боевую", () => {
+    const testMoney = block({ kind: "protected", amountTiyn: 1n, reservedAt, operationRef: null, isTest: true });
+    expect(moneyPanel(testMoney, "CLIENT", payout, { operator: true }).testNote).toBe("Тестовый платёж — настоящие деньги не списываются");
+    expect(moneyPanel(testMoney, "CLIENT", payout).testNote).toBeNull();
+    expect(moneyPanel(testMoney, "EXECUTOR", payout).testNote).toBeNull();
+    expect(moneyPanel(block({ kind: "awaiting", payment: "none" }), "CLIENT", payout, { operator: true }).testNote).toBeNull();
   });
 });

@@ -106,7 +106,7 @@ export default async function OperatorDealPage({ params }: { params: Promise<{ i
           <section aria-label={c.money} className="flex flex-col gap-3">
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone="info">{o.dealStatus[deal.status]}</StatusBadge>
-              {deal.isDemo && <StatusBadge tone="neutral">{o.testMark}</StatusBadge>}
+              {deal.isTest && <StatusBadge tone="neutral">{o.testMark}</StatusBadge>}
             </div>
             <MoneyBlockView money={card.money} />
             {card.openDisputeId && (

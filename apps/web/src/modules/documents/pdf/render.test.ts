@@ -173,7 +173,6 @@ describe("renderPdf", () => {
       durationDays: 45,
       warrantyMonths: 24,
       provider: "MOCK",
-      isDemo: true,
     });
     const act = acceptanceActSpec({
       number: "А-0014",
@@ -189,7 +188,6 @@ describe("renderPdf", () => {
       photos: [{ image: { bytes: PNG_1X1, format: "png" }, sha256: "a".repeat(64) }, { image: null, sha256: "b".repeat(64) }, { image: { bytes: new Uint8Array([1, 2, 3]), format: "jpg" }, sha256: "c".repeat(64) }],
       gps: { distanceM: 1800, withinRadius: false, radiusM: 500, accuracyM: 30 },
       executorHandSigns: true,
-      isDemo: true,
     });
     // Рендер бросает исключение, если строка выходит за правое поле, — здесь его быть не должно.
     for (const doc of [contract, act]) {

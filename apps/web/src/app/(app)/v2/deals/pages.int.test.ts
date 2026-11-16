@@ -81,7 +81,6 @@ describe("карточка сделки покупателя: «что сейч�
   it("ждём оплату: «Оплатить 102 000 ₸» — на экран оплаты; деньги «К оплате» с «Защита сделки (2%)»; контакты мастера открыты", async () => {
     const client = await buyer();
     const f = await dealAt("SIGNED", { client });
-    await db.deal.update({ where: { id: f.dealId }, data: { isDemo: true } });
     await signInAs(client);
     h.device = "desktop";
     const out = await card(f.dealId);

@@ -8,12 +8,11 @@ import { createDeal, getDealView, onMoneySettled, payForDeal, processDealMoney, 
 const money = computeDealMoney(PRICE);
 
 describe("createDeal — оферта", () => {
-  it("снимок денег, провайдер из env, демо от покупателя, оферта и уведомления обеим сторонам", async () => {
+  it("снимок денег, провайдер из env, оферта и уведомления обеим сторонам", async () => {
     const client = await makeClient();
-    await db.user.update({ where: { id: client.id }, data: { isDemo: true } });
     const { dealId, executor } = await makeDeal({ client });
     const deal = await dealOf(dealId);
-    expect(deal).toMatchObject({ status: "CREATED", paymentProvider: "MOCK", isDemo: true, signedAt: null, ...money, durationDays: 30, warrantyMonths: 12 });
+    expect(deal).toMatchObject({ status: "CREATED", paymentProvider: "MOCK", signedAt: null, ...money, durationDays: 30, warrantyMonths: 12 });
     expect(await db.document.count({ where: { dealId, kind: "CONTRACT" } })).toBe(1);
     expect(await db.notification.count({ where: { userId: { in: [client.id, executor.id] }, kind: "deal.offer.ready" } })).toBe(2);
     expect(await db.auditEvent.findFirstOrThrow({ where: { action: "deal.created" } })).toMatchObject({ entityId: dealId, scope: `deal:${dealId}` });

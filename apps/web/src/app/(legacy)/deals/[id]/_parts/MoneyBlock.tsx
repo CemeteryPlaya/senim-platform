@@ -30,7 +30,7 @@ export const partyOf = (deal: DealView): "CLIENT" | "EXECUTOR" => (deal.viewer =
  * Цвет — в помощь: смысл несут значок и заголовок.
  */
 export function MoneyBlock({ deal, linked = true }: { deal: DealView; linked?: boolean }) {
-  const p = moneyPanel(deal.moneyBlock, partyOf(deal), deal.money.payoutTiyn);
+  const p = moneyPanel(deal.moneyBlock, partyOf(deal), deal.money.payoutTiyn, { operator: deal.viewer === "OPERATOR" });
   const box = cn("flex gap-4 rounded-card border-2 p-5 text-ink", TONE[p.tone]);
   const body = (
     <>

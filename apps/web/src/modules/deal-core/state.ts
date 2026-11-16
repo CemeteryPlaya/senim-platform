@@ -18,7 +18,6 @@ const dealSelect = {
   executorId: true,
   requestId: true,
   paymentProvider: true,
-  isDemo: true,
   signedAt: true,
   priceTiyn: true,
   buyerTotalTiyn: true,

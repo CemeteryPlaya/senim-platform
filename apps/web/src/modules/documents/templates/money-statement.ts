@@ -28,7 +28,6 @@ const STATUS_LABEL: Record<MoneyTransactionStatus, string> = {
 function statusCell(e: StatementEntry): string {
   const parts = [STATUS_LABEL[e.status]];
   if (e.operationRef) parts.push(`№ ${e.operationRef}`);
-  if (e.isTest) parts.push("тестовая операция");
   return parts.join(", ");
 }
 
@@ -58,7 +57,6 @@ export function moneyStatementSpec(d: MoneyStatementData): PdfSpec {
             rows: d.entries.map((e) => [dateTime(e.at), OPERATION_LABEL[e.type], money(e.amountTiyn), statusCell(e)]),
           },
       { kind: "paragraph", text: `Остаток денег сделки в банке по проведённым операциям: ${money(d.bankBalanceTiyn)}.`, bold: true },
-      ...(d.isDemo ? [{ kind: "paragraph" as const, text: "Тестовая сделка: реальные деньги не списывались и не перечислялись." }] : []),
     ],
   };
 }

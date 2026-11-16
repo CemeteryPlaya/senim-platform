@@ -13,7 +13,7 @@ import type { SignatureSheetData } from "./types";
 const METHOD: Record<SignMethod, string> = {
   EGOV_QR: "eGov Mobile (QR)",
   NCALAYER: "NCALayer",
-  MOCK: "демо-подпись без юридической силы",
+  MOCK: "тестовая подпись без юридической силы",
 };
 
 const matches = (signed: string, sha256: string) => (signed === sha256 ? "совпадает с хэшем документа" : "НЕ совпадает с хэшем документа");

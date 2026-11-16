@@ -83,13 +83,14 @@ describe("manual: оплата и выплата по банковским до�
     expect(await moneyView(f.dealId)).toMatchObject({ kind: "completed", settled: true, bankBalanceTiyn: 0n });
   });
 
-  it("демо-сделка (покупатель — демо-персона) на manual: операции журнала тестовые, блок денег помечен", async () => {
-    const f = await dealAt("SIGNED", { provider: "manual" });
-    await db.user.update({ where: { id: f.client.id }, data: { isDemo: true } });
-    await db.deal.update({ where: { id: f.dealId }, data: { isDemo: true } });
-    await payForDeal(f.client, { dealId: f.dealId });
-    expect((await journalOf(f.dealId)).map((e) => e.isTest)).toEqual([true]);
-    expect(await moneyView(f.dealId)).toMatchObject({ isTest: true });
+  it("isTest — только по провайдеру: на manual операции журнала боевые, на моке — тестовые", async () => {
+    const manual = await dealAt("SIGNED", { provider: "manual" });
+    await payForDeal(manual.client, { dealId: manual.dealId });
+    expect((await journalOf(manual.dealId)).map((e) => e.isTest)).toEqual([false]);
+    expect(await moneyView(manual.dealId)).toMatchObject({ isTest: false });
+    const mock = await dealAt("PAID_HOLD");
+    expect((await journalOf(mock.dealId)).map((e) => e.isTest)).toEqual([true]);
+    expect(await moneyView(mock.dealId)).toMatchObject({ isTest: true });
   });
 
   it("mock-операцию оператор не подтверждает", async () => {

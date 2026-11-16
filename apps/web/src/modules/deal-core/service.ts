@@ -24,7 +24,7 @@ const e = ru.deal.errors;
 
 /**
  * requests → deal-core: акцепт цены в торге. Деньги — снимок computeDealMoney(X) (CHECK в БД держит формулы),
- * провайдер — из env на момент создания, демо — от покупателя. Оферта — порт documents.createContract.
+ * провайдер — из env на момент создания. Оферта — порт documents.createContract.
  */
 export const createDeal: CreateDeal = async (tx, raw) => {
   const input = parseInput(createDealSchema, raw);
@@ -35,7 +35,7 @@ export const createDeal: CreateDeal = async (tx, raw) => {
       executorId: true,
       durationDays: true,
       warrantyMonths: true,
-      request: { select: { clientId: true, client: { select: { isDemo: true } } } },
+      request: { select: { clientId: true } },
       executor: { select: { userId: true } },
     },
   });
@@ -58,7 +58,6 @@ export const createDeal: CreateDeal = async (tx, raw) => {
         durationDays: offer.durationDays,
         warrantyMonths: offer.warrantyMonths,
         paymentProvider,
-        isDemo: offer.request.client.isDemo,
       },
       select: { id: true },
     });
@@ -139,7 +138,7 @@ export type PayResult = { transactionId: string; status: MoneyTransactionStatus;
  *
  * До списания — согласия обеих сторон на передачу данных банку-партнёру к этой сделке (identity HasConsents, вне
  * транзакции): не хватает — CONFLICT BANK_CONSENT_MISSING, журнал денег не трогается. Сначала — что человек покупатель
- * этой сделки (чужая — «не найдено»): отказ по согласиям не выдаёт, что сделка существует. Обхода нет и у демо-сида:
+ * этой сделки (чужая — «не найдено»): отказ по согласиям не выдаёт, что сделка существует. Обхода нет и у сида стенда:
  * согласия его сделок засеяны в identity (SeedConsents) до оплаты.
  */
 export async function payForDeal(user: CurrentUser, raw: { dealId: string }): Promise<PayResult> {

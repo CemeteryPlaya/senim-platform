@@ -24,9 +24,6 @@ export const materials = {
 
   title: "Цены материалов",
   description: "Средние рыночные цены материалов по уровням. Из них считается примерная вилка цены в мастере заявки.",
-  demoTitle: "Демонстрационные цифры",
-  demoNote: "Цены с пометкой «Демо» заполнены для показа. Замените их реальными: после изменения пометка снимается.",
-  demoBadge: "Демо",
   archivedBadge: "В архиве",
 
   add: {
@@ -77,6 +74,5 @@ export const materials = {
     typicalSize: (size: string) => `Размеры не указаны — посчитано примерно, для типового размера: ${size}.`,
     sizeLm: (widthCm: number) => `длина ${widthCm} см`,
     sizeFront: (widthCm: number, heightCm: number) => `${widthCm} × ${heightCm} см`,
-    demo: "Цены материалов демонстрационные.",
   },
 } as const;

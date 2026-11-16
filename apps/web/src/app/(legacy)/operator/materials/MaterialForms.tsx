@@ -92,7 +92,6 @@ export function MaterialItem({ row }: { row: MaterialPriceRow }) {
         {row.segments.map((s) => (
           <StatusBadge key={s}>{ru.operator.segments[s]}</StatusBadge>
         ))}
-        {row.isDemo && <StatusBadge tone="warning">{t.demoBadge}</StatusBadge>}
         {!row.active && <StatusBadge tone="neutral">{t.archivedBadge}</StatusBadge>}
       </div>
       <p className="text-sm text-muted">{t.updated(formatDate(row.updatedAt), row.updatedBy)}</p>
