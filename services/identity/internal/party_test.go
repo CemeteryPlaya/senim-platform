@@ -808,12 +808,12 @@ func TestGetProfileReturnsParty(t *testing.T) {
 func TestSeedUsersWritesParty(t *testing.T) {
 	h := newHarness(t, nil)
 	bin, director, iin := freshBIN(t), freshIIN(t), freshIIN(t)
-	too := seedUser(newPhone(), roleExecutor, true, roleExecutor)
+	too := seedUser(newPhone(), roleExecutor, roleExecutor)
 	too.Party = &identityv1.SeedParty{
 		LegalForm: formTOO, LegalName: "ТОО «Демо»", BinIin: bin, SignerFullName: directorName, SignerIin: director,
 		PayoutIban: "KZ86125KZT5004100100", KycStatus: identityv1.KycStatus_KYC_STATUS_VERIFIED,
 	}
-	ip := seedUser(newPhone(), roleExecutor, true, roleExecutor, roleClient)
+	ip := seedUser(newPhone(), roleExecutor, roleExecutor, roleClient)
 	ip.FullName, ip.Iin = testFullName, iin
 	ip.Party = &identityv1.SeedParty{LegalForm: formIP, LegalName: "ИП «Демо»", SignerFullName: ownerName}
 	res, err := h.seed(too, ip)
@@ -843,15 +843,15 @@ func TestSeedUsersWritesParty(t *testing.T) {
 	if row, _ = h.partyRow(tooID); row.KycStatus != "PENDING" {
 		t.Fatalf("повтор сида: kyc_status = %s", row.KycStatus)
 	}
-	client := seedUser(newPhone(), roleClient, true, roleClient)
+	client := seedUser(newPhone(), roleClient, roleClient)
 	client.Party = &identityv1.SeedParty{LegalForm: formTOO, LegalName: "ТОО «Демо»", BinIin: freshBIN(t), SignerFullName: directorName, SignerIin: director}
 	_, err = h.seed(client)
 	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
-	bad := seedUser(newPhone(), roleExecutor, true, roleExecutor)
+	bad := seedUser(newPhone(), roleExecutor, roleExecutor)
 	bad.Party = &identityv1.SeedParty{LegalForm: formTOO, LegalName: "ТОО «Демо»", BinIin: freshBIN(t), SignerFullName: directorName, SignerIin: director, PayoutIban: "KZ86125KZT5004100101"}
 	_, err = h.seed(bad)
 	h.wantRefusal(err, connect.CodeInvalidArgument, "iban_invalid")
-	taken := seedUser(newPhone(), roleExecutor, true, roleExecutor)
+	taken := seedUser(newPhone(), roleExecutor, roleExecutor)
 	taken.Party = &identityv1.SeedParty{LegalForm: formTOO, LegalName: "ТОО «Демо»", BinIin: bin, SignerFullName: directorName, SignerIin: director}
 	_, err = h.seed(taken)
 	h.wantRefusal(err, connect.CodeAlreadyExists, "iin_taken")
@@ -864,7 +864,7 @@ func TestSeedUsersWritesPartyKyc(t *testing.T) {
 	h := newHarness(t, nil)
 	idFile, regFile := uuid.NewString(), uuid.NewString()
 	executor := func(st identityv1.KycStatus, reason string, ids, regs []string) *identityv1.SeedUser {
-		u := seedUser(newPhone(), roleExecutor, true, roleExecutor)
+		u := seedUser(newPhone(), roleExecutor, roleExecutor)
 		u.Party = &identityv1.SeedParty{
 			LegalForm: formTOO, LegalName: "ТОО «Демо»", BinIin: freshBIN(t), SignerFullName: directorName, SignerIin: freshIIN(t),
 			KycStatus: st, KycRejectReason: reason, KycIdFileIds: ids, KycRegistrationFileIds: regs,

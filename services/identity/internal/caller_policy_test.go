@@ -47,10 +47,6 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 		_, err := c.GrantRole(ctx, &identityv1.GrantRoleRequest{})
 		return err
 	},
-	"StartDemoSession": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
-		_, err := c.StartDemoSession(ctx, &identityv1.StartDemoSessionRequest{})
-		return err
-	},
 	"SeedUsers": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
 		_, err := c.SeedUsers(ctx, &identityv1.SeedUsersRequest{})
 		return err
@@ -59,8 +55,8 @@ var callWithEmptyRequest = map[string]func(context.Context, identityv1connect.Id
 		_, err := c.SeedConsents(ctx, &identityv1.SeedConsentsRequest{})
 		return err
 	},
-	"ResetDemo": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
-		_, err := c.ResetDemo(ctx, &identityv1.ResetDemoRequest{})
+	"ResetStand": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {
+		_, err := c.ResetStand(ctx, &identityv1.ResetStandRequest{})
 		return err
 	},
 	"GetSigningKeys": func(ctx context.Context, c identityv1connect.IdentityServiceClient) error {

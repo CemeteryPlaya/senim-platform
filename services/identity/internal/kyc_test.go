@@ -316,7 +316,7 @@ func TestReviewKycValidation(t *testing.T) {
 		t.Fatalf("verify: %v, %v", res, err)
 	}
 
-	// PENDING без файлов (демо-сид) решить нельзя.
+	// PENDING без файлов (сид стенда) решить нельзя.
 	h.setKyc(exec.ID, kycPending, false, h.clock.now())
 	_, err = h.reviewKyc(opToken, id, true, "", h.key())
 	h.wantRefusal(err, connect.CodeFailedPrecondition, "kyc_documents_missing")

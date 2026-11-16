@@ -25,6 +25,7 @@ import (
 	commonv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/common/v1"
 	identityv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
 	"github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1/identityv1connect"
+	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 	"github.com/CemeteryPlaya/senim-platform/pkg/logging"
 	"github.com/CemeteryPlaya/senim-platform/pkg/pii"
 	"github.com/CemeteryPlaya/senim-platform/pkg/server"
@@ -140,7 +141,7 @@ func newHarness(t *testing.T, tune func(*ServeConfig)) *harness {
 		}
 	}
 	cfg := ServeConfig{
-		DemoMode: true, OTPProvider: "mock", EmailProvider: "mock", OTPHMACKey: testHMACKey,
+		Env: config.Dev, OTPProvider: "mock", EmailProvider: "mock", OTPHMACKey: testHMACKey,
 		OTPDailyGlobalLimit: 500, OTPDailyPrefixLimit: 50,
 		OTPPhoneHourlyLimit: phoneHourly, OTPPhoneDailyLimit: phoneDaily, OTPPhoneCooldown: phoneCooldown,
 		EmailCodeHourlyLimit: emailHourly, EmailCodeDailyLimit: emailDaily, EmailCodeCooldown: emailCooldown,

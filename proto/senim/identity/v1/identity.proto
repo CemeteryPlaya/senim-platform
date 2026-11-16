@@ -77,10 +77,15 @@ message User {
   string phone = 2;
   Role default_role = 3;
   repeated Role roles = 4;
-  bool is_demo = 5;
+  // Прежний признак демо-персоны: демо-режима больше нет (этап 5 редизайна).
+  reserved 5;
+  reserved "is_demo";
   // Пусто, если пользователь не заблокирован.
   google.protobuf.Timestamp blocked_at = 6;
   google.protobuf.Timestamp created_at = 7;
+  // Учётную запись создал сид стенда (SeedUsers): только такие сид перезаписывает, а сброс
+  // стенда (ResetStand) чистит их согласия и второй фактор.
+  bool seeded = 8;
 }
 
 // Session — сессия входа. Сам токен сессии в сообщении не передаётся.
@@ -160,8 +165,8 @@ message Consent {
   repeated string purposes = 5;
   // К чему относится согласие (например, идентификатор сделки); может быть пусто.
   string reference_id = 6;
-  // Канал получения согласия: otp_session — в сессии, открытой кодом из SMS; demo — в
-  // демо-сессии (StartDemoSession, без кода); seed — сид демо-стенда.
+  // Канал получения согласия: otp_session — в сессии, открытой кодом из SMS; seed — сид
+  // стенда. demo — только у записей, сделанных до удаления демо-входа (новые невозможны).
   string channel = 7;
   google.protobuf.Timestamp granted_at = 8;
   // Пусто, если согласие не отозвано.
@@ -198,7 +203,7 @@ message SeedParty {
   string kyc_reject_reason = 10;
 }
 
-// SeedConsent — согласие для начального наполнения демо-стенда (канал seed).
+// SeedConsent — согласие для начального наполнения стенда (канал seed).
 message SeedConsent {
   string user_id = 1;
   ConsentKind kind = 2;
@@ -209,13 +214,16 @@ message SeedConsent {
   string reference_id = 5;
 }
 
-// SeedUser — пользователь для начального наполнения (демо и перенос данных).
+// SeedUser — пользователь для начального наполнения стенда (вне APP_ENV=prod). Каждый
+// пользователь сида получает User.seeded; телефон человека, созданного не сидом, — отказ.
 message SeedUser {
   // E.164.
   string phone = 1;
   Role default_role = 2;
   repeated Role roles = 3;
-  bool is_demo = 4;
+  // Прежний признак демо-персоны: теперь каждый пользователь сида — seeded.
+  reserved 4;
+  reserved "is_demo";
   google.protobuf.Timestamp created_at = 5;
   string full_name = 6;
   string iin = 7;
@@ -226,6 +234,11 @@ message SeedUser {
   // Версия и хеш текста согласия на обработку ПДн; пусто — согласия нет.
   string consent_version = 11;
   string consent_text_sha256 = 12;
+  // Секрет TOTP оператора стенда: base32 (RFC 4648, без «=», как StartTotpEnrollmentResponse
+  // .secret_base32), 16–64 байт. Задан — второй фактор подключён этим секретом (вход
+  // оператора по-прежнему требует код); только у оператора, иначе invalid_request. Пусто —
+  // фактор не меняется.
+  string totp_secret_base32 = 13;
 }
 
 message RequestOtpRequest {
@@ -239,8 +252,11 @@ message RequestOtpRequest {
 message RequestOtpResponse {
   string phone = 1;
   google.protobuf.Timestamp expires_at = 2;
-  // Пуст, кроме DEMO_MODE=true и OTP_PROVIDER=mock.
-  string demo_code = 3;
+  reserved 3;
+  reserved "demo_code";
+  // Код для показа на экране: пуст, кроме IDENTITY_OTP_PROVIDER=mock (в prod мок запрещён
+  // конфигом); повтор по ключу возвращает его пустым.
+  string shown_code = 4;
 }
 
 message VerifyOtpRequest {
@@ -309,19 +325,6 @@ message GrantRoleResponse {
   bool granted = 2;
 }
 
-message StartDemoSessionRequest {
-  string user_id = 1;
-  Role as_role = 2;
-  string session_token = 3;
-  string user_agent = 4;
-  string idempotency_key = 5;
-}
-
-message StartDemoSessionResponse {
-  User user = 1;
-  Session session = 2;
-}
-
 message SeedUsersRequest {
   repeated SeedUser users = 1;
   string idempotency_key = 2;
@@ -338,11 +341,11 @@ message SeedConsentsRequest {
 
 message SeedConsentsResponse {}
 
-message ResetDemoRequest {
+message ResetStandRequest {
   string idempotency_key = 1;
 }
 
-message ResetDemoResponse {}
+message ResetStandResponse {}
 
 message StartTotpEnrollmentRequest {
   string session_token = 1;
@@ -405,8 +408,11 @@ message RequestEmailCodeRequest {
 
 message RequestEmailCodeResponse {
   google.protobuf.Timestamp expires_at = 1;
-  // Пуст, кроме IDENTITY_EMAIL_PROVIDER=mock; повтор по ключу возвращает его пустым.
-  string demo_code = 2;
+  reserved 2;
+  reserved "demo_code";
+  // Код для показа на экране: пуст, кроме IDENTITY_EMAIL_PROVIDER=mock (в prod мок запрещён
+  // конфигом); повтор по ключу возвращает его пустым.
+  string shown_code = 3;
 }
 
 message VerifyEmailCodeRequest {
@@ -621,7 +627,8 @@ message GetSigningKeysResponse {
 //   invalid_phone, otp_too_often, otp_too_many_requests, otp_too_many_today,
 //   otp_global_limit, otp_expired, otp_wrong_code (params.left — осталось попыток),
 //   otp_attempts_exhausted, user_blocked, session_invalid, session_token_invalid,
-//   role_not_granted, role_forbidden, demo_disabled, user_not_found,
+//   role_not_granted, role_forbidden, stand_disabled (SeedUsers, SeedConsents, ResetStand
+//   при APP_ENV=prod), user_not_found,
 //   caller_forbidden, idempotency_key_reused,
 //   invalid_request (idempotency_key пуст или длиннее 128 символов; client_ip не IP-адрес),
 //   mfa_required, mfa_not_required, mfa_not_enrolled, mfa_already_enrolled, mfa_wrong_code,
@@ -646,10 +653,10 @@ service IdentityService {
   rpc SignOutEverywhere(SignOutEverywhereRequest) returns (SignOutEverywhereResponse);
   rpc SwitchRole(SwitchRoleRequest) returns (SwitchRoleResponse);
   rpc GrantRole(GrantRoleRequest) returns (GrantRoleResponse);
-  rpc StartDemoSession(StartDemoSessionRequest) returns (StartDemoSessionResponse);
+  // Сид и сброс стенда: только вне APP_ENV=prod и только вызывающему web.
   rpc SeedUsers(SeedUsersRequest) returns (SeedUsersResponse);
   rpc SeedConsents(SeedConsentsRequest) returns (SeedConsentsResponse);
-  rpc ResetDemo(ResetDemoRequest) returns (ResetDemoResponse);
+  rpc ResetStand(ResetStandRequest) returns (ResetStandResponse);
   // Чтение.
   rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
 

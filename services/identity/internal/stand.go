@@ -3,7 +3,6 @@ package internal
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"slices"
@@ -16,6 +15,7 @@ import (
 
 	identityv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
 	"github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1/identityv1connect"
+	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 	"github.com/CemeteryPlaya/senim-platform/pkg/pii"
 	"github.com/CemeteryPlaya/senim-platform/services/identity/internal/store"
 )
@@ -27,22 +27,24 @@ const (
 	maxSeedConsents = 500
 )
 
-func demoDisabled() error {
-	return rpcError(connect.CodeFailedPrecondition, "demo_disabled", nil)
+// standDisabled — отказ методов стенда (SeedUsers, SeedConsents, ResetStand) при APP_ENV=prod.
+func standDisabled() error {
+	return rpcError(connect.CodeFailedPrecondition, "stand_disabled", nil)
 }
 
 func userNotFound() error { return rpcError(connect.CodeNotFound, "user_not_found", nil) }
 
 func invalidRequest() error { return rpcError(connect.CodeInvalidArgument, "invalid_request", nil) }
 
-// demoGate — общее начало демо-методов: вызывающий — web, затем режим. Без DemoMode база
-// не затрагивается.
-func (s *Service) demoGate(ctx context.Context) error {
+// standGate — общее начало методов стенда: вызывающий — web, затем окружение. Демо-режима
+// нет; стенд — любое окружение, кроме prod. Разрешены только dev и staging (пустое значение —
+// тоже отказ, безопасное умолчание); иначе stand_disabled, и база не затрагивается.
+func (s *Service) standGate(ctx context.Context) error {
 	if err := requireCaller(ctx, webCaller); err != nil {
 		return err
 	}
-	if !s.cfg.DemoMode {
-		return demoDisabled()
+	if s.cfg.Env != config.Dev && s.cfg.Env != config.Staging {
+		return standDisabled()
 	}
 	return nil
 }
@@ -51,7 +53,6 @@ func (s *Service) demoGate(ctx context.Context) error {
 type seedRow struct {
 	phone, defaultRole string
 	roles              []string
-	isDemo             bool
 	createdAt          pgtype.Timestamptz
 	// Личность (persons); пустое поле — не задано.
 	fullName, iin, instagram, email string
@@ -60,6 +61,8 @@ type seedRow struct {
 	// Согласие на обработку ПДн (версия и SHA-256 текста); пустая версия — согласия нет.
 	consentVersion string
 	consentSum     []byte
+	// Секрет TOTP оператора стенда; nil — фактор не меняется.
+	totpSecret []byte
 }
 
 // seedParty — проверенная сторона сида: реквизиты, счёт выплаты (пусто — не указан) и
@@ -224,7 +227,7 @@ func (s *Service) seedPartyRow(ctx context.Context, q *store.Queries, userID uui
 func (s *Service) seedPerson(ctx context.Context, q *store.Queries, userID uuid.UUID, r seedRow, now pgtype.Timestamptz) error {
 	params := store.UpsertSeedPersonParams{
 		UserID: userID, FullName: text(r.fullName), Instagram: text(r.instagram), Email: text(r.email), Now: now,
-		// Адрес сида подтверждён (спека редизайна, раздел 8): демо-персоны не проходят шаг почты.
+		// Адрес сида подтверждён (спека редизайна, раздел 8): люди стенда не проходят шаг почты.
 		EmailVerifiedAt: pgtype.Timestamptz{Time: now.Time, Valid: r.email != ""},
 	}
 	if r.iin != "" {
@@ -295,7 +298,7 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 		if (slices.Contains(roles, "OPERATOR") || slices.Contains(roles, "MEASURER")) && len(roles) != 1 {
 			return nil, invalidRequest()
 		}
-		row := seedRow{phone: phone, defaultRole: def, roles: roles, isDemo: u.GetIsDemo()}
+		row := seedRow{phone: phone, defaultRole: def, roles: roles}
 		if u.GetCreatedAt() != nil {
 			row.createdAt = ts(u.GetCreatedAt().AsTime())
 		}
@@ -310,24 +313,67 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 		if err := validateSeedConsent(u, &row); err != nil {
 			return nil, err
 		}
+		if raw := u.GetTotpSecretBase32(); raw != "" {
+			secret, ok := seedTotpSecret(raw, roles)
+			if !ok {
+				return nil, invalidRequest()
+			}
+			row.totpSecret = secret
+		}
 		rows = append(rows, row)
 	}
 	return rows, nil
 }
 
-// SeedUsers — upsert пользователей по телефону в одной транзакции: существующему
-// обновляются роли, роль по умолчанию, is_demo, created_at (если задан), блокировка
-// снимается; id остаётся прежним. Личность (full_name, iin, instagram, email) пишется,
-// если задано хотя бы одно поле; сторона (party) — целиком, со счётом выплаты и состоянием
-// KYC; согласие на обработку ПДн (consent_version и consent_text_sha256) — действующая
-// запись канала seed, если такой версии ещё нет. Ответ — в порядке запроса.
-// is_demo существующего пользователя не поднимается с false на true: такой сид целиком
-// отклоняется (invalid_request) — настоящий человек не становится демо-персоной, и сброс
-// демо не трогает его данные. Опустить is_demo (true → false) можно.
+// Пределы длины секрета TOTP сида в байтах: не короче 128 бит (RFC 4226), не длиннее 512.
+const (
+	minSeedTotpSecret = 16
+	maxSeedTotpSecret = 64
+)
+
+// seedTotpSecret разбирает секрет TOTP сида: только у оператора (оператор не совмещается с
+// другими ролями — проверено раньше), base32 без «=» (как отдаёт StartTotpEnrollment; регистр
+// не важен), 16–64 байт.
+func seedTotpSecret(raw string, roles []string) ([]byte, bool) {
+	if !slices.Contains(roles, mfaRole) {
+		return nil, false
+	}
+	secret, err := totpBase32.DecodeString(strings.ToUpper(raw))
+	if err != nil || len(secret) < minSeedTotpSecret || len(secret) > maxSeedTotpSecret {
+		return nil, false
+	}
+	return secret, true
+}
+
+// seedMfaFactor подключает оператору стенда второй фактор известным секретом: шифртекст тем
+// же ключом и AAD, что у StartTotpEnrollment, фактор сразу подтверждён (как после
+// ConfirmTotpEnrollment). Отметки второго фактора в сессиях пользователя снимаются — как при
+// mfa-reset: прежний секрет больше не действует.
+func (s *Service) seedMfaFactor(ctx context.Context, q *store.Queries, userID uuid.UUID, secret []byte, now pgtype.Timestamptz) error {
+	enc, err := s.cfg.PII.Seal(secret, mfaSecretAAD(userID))
+	if err != nil {
+		return fmt.Errorf("шифрование секрета TOTP: %w", err)
+	}
+	if err := q.UpsertSeedMfaFactor(ctx, store.UpsertSeedMfaFactorParams{UserID: userID, SecretEnc: enc, Now: now}); err != nil {
+		return err
+	}
+	_, err = q.ClearUserSessionsMfa(ctx, userID)
+	return err
+}
+
+// SeedUsers — upsert пользователей стенда по телефону в одной транзакции: каждый помечается
+// seeded; существующему обновляются роли, роль по умолчанию, created_at (если задан),
+// блокировка снимается; id остаётся прежним. Личность (full_name, iin, instagram, email)
+// пишется, если задано хотя бы одно поле; сторона (party) — целиком, со счётом выплаты и
+// состоянием KYC; согласие на обработку ПДн (consent_version и consent_text_sha256) —
+// действующая запись канала seed, если такой версии ещё нет; секрет TOTP оператора
+// (totp_secret_base32) — подключённый второй фактор. Ответ — в порядке запроса.
+// Телефон человека, созданного не сидом (seeded = false), — весь сид отклоняется
+// (invalid_request): сид не перезаписывает настоящих людей, и сброс стенда их не трогает.
 //
-// Ни аудита, ни событий: это данные демо-стенда (DemoMode), не рабочие учётные записи.
+// Ни аудита, ни событий: это данные стенда (вне prod), не рабочие учётные записи.
 func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersRequest) (*identityv1.SeedUsersResponse, error) {
-	if err := s.demoGate(ctx); err != nil {
+	if err := s.standGate(ctx); err != nil {
 		return nil, err
 	}
 	if !validIdempotencyKey(req.GetIdempotencyKey()) {
@@ -343,12 +389,12 @@ func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersReques
 		now := ts(s.now())
 		for _, r := range rows {
 			u, err := q.UpsertSeedUser(ctx, store.UpsertSeedUserParams{
-				Phone: r.phone, Roles: r.roles, DefaultRole: r.defaultRole, IsDemo: r.isDemo,
+				Phone: r.phone, Roles: r.roles, DefaultRole: r.defaultRole,
 				CreatedAt: r.createdAt, Now: now,
 			})
 			if errors.Is(err, pgx.ErrNoRows) {
-				// Телефон настоящего пользователя (is_demo = false) в демо-сиде: демо он не
-				// становится — иначе сброс демо считал бы его данные демо-данными.
+				// Телефон настоящего пользователя (seeded = false): засеянным он не становится —
+				// иначе сброс стенда считал бы его данные данными сида.
 				return invalidRequest()
 			}
 			if err != nil {
@@ -367,6 +413,11 @@ func (s *Service) SeedUsers(ctx context.Context, req *identityv1.SeedUsersReques
 			if r.consentVersion != "" {
 				err := q.SeedConsent(ctx, store.SeedConsentParams{UserID: u.ID, Version: r.consentVersion, TextSha256: r.consentSum, GrantedAt: now})
 				if err != nil {
+					return err
+				}
+			}
+			if r.totpSecret != nil {
+				if err := s.seedMfaFactor(ctx, q, u.ID, r.totpSecret, now); err != nil {
 					return err
 				}
 			}
@@ -413,16 +464,16 @@ func validateSeedConsents(raw []*identityv1.SeedConsent) ([]seedConsentRow, erro
 	return rows, nil
 }
 
-// SeedConsents — согласия демо-стенда (канал seed, без сессии и целей): например, передача
-// банку к демо-сделке, которую сид оплачивает без входа сторон. Только DemoMode и вызывающий
-// web (demoGate). Пользователь должен существовать (user_not_found; признак демо не
-// требуется — в сделках сида есть заказчики вне демо-входа, Ruling AG). Действующее согласие
-// той же версии и предмета уже есть — без новой записи; та же версия с другим текстом —
-// consent_version_invalid (как GrantConsent). Всё или ничего — одна транзакция.
+// SeedConsents — согласия стенда (канал seed, без сессии и целей): например, передача банку к
+// сделке сида, которую сид оплачивает без входа сторон. Только вне prod и вызывающий web
+// (standGate). Пользователь должен существовать (user_not_found; признак seeded не требуется,
+// Ruling AG). Действующее согласие той же версии и предмета уже есть — без новой записи; та же
+// версия с другим текстом — consent_version_invalid (как GrantConsent). Всё или ничего — одна
+// транзакция.
 //
-// Ни аудита, ни событий, как у SeedUsers: это данные демо-стенда, а не согласия людей.
+// Ни аудита, ни событий, как у SeedUsers: это данные стенда, а не согласия людей.
 func (s *Service) SeedConsents(ctx context.Context, req *identityv1.SeedConsentsRequest) (*identityv1.SeedConsentsResponse, error) {
-	if err := s.demoGate(ctx); err != nil {
+	if err := s.standGate(ctx); err != nil {
 		return nil, err
 	}
 	if !validIdempotencyKey(req.GetIdempotencyKey()) {
@@ -471,93 +522,24 @@ func (s *Service) SeedConsents(ctx context.Context, req *identityv1.SeedConsents
 	return resp, nil
 }
 
-// StartDemoSession начинает сессию демо-персоны. Нет пользователя, он не демо или
-// заблокирован — один и тот же отказ user_not_found: метод не показывает, кто есть.
-// Роль as_role должна быть выдана (createSession этого не проверяет).
-func (s *Service) StartDemoSession(ctx context.Context, req *identityv1.StartDemoSessionRequest) (*identityv1.StartDemoSessionResponse, error) {
-	if err := s.demoGate(ctx); err != nil {
-		return nil, err
-	}
-	if !validSessionToken(req.GetSessionToken()) {
-		return nil, rpcError(connect.CodeInvalidArgument, "session_token_invalid", nil)
-	}
-	if !validIdempotencyKey(req.GetIdempotencyKey()) {
-		return nil, invalidRequest()
-	}
-	asRole := ""
-	if req.GetAsRole() != identityv1.Role_ROLE_UNSPECIFIED {
-		name, ok := roleName(req.GetAsRole())
-		if !ok {
-			return nil, invalidRequest()
-		}
-		asRole = name
-	}
-	userID, err := uuid.Parse(req.GetUserId())
-	if err != nil {
-		return nil, userNotFound()
-	}
-
-	resp := &identityv1.StartDemoSessionResponse{}
-	err = s.idempotent(ctx, "start_demo_session", identityv1connect.IdentityServiceStartDemoSessionProcedure, req.GetIdempotencyKey(), req, resp, func(tx pgx.Tx) error {
-		q := store.New(tx)
-		user, err := q.GetUserByID(ctx, userID)
-		if errors.Is(err, pgx.ErrNoRows) || (err == nil && (!user.IsDemo || user.BlockedAt.Valid)) {
-			return userNotFound()
-		}
-		if err != nil {
-			return err
-		}
-		if asRole != "" && !slices.Contains(user.Roles, asRole) {
-			return rpcError(connect.CodePermissionDenied, "role_not_granted", nil)
-		}
-		// Токен уже у другой сессии (новый ключ, старый токен): как в VerifyOtp.
-		sum := sha256.Sum256([]byte(req.GetSessionToken()))
-		taken, err := q.SessionTokenExists(ctx, sum[:])
-		if err != nil {
-			return err
-		}
-		if taken {
-			return rpcError(connect.CodeInvalidArgument, "session_token_invalid", nil)
-		}
-		now := s.now()
-		sess, err := createSession(ctx, tx, user, req.GetSessionToken(), req.GetUserAgent(), asRole, sessionOpenedByDemo, now)
-		if err != nil {
-			return err
-		}
-		// Демо-оператор считается прошедшим вторую ступень: у демо-персон нет телефона с
-		// приложением, а сценарии оператора идут сразу в кабинет (только DEMO_MODE).
-		if sess.ActiveRole == mfaRole {
-			if sess, err = q.SetSessionMfaVerified(ctx, store.SetSessionMfaVerifiedParams{At: ts(now), ID: sess.ID}); err != nil {
-				return err
-			}
-		}
-		resp.User = userProto(user)
-		resp.Session = sessionProto(sess, idleTimeout)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-// ResetDemo чистит одноразовое и временное состояние стенда: коды (SMS и e-mail), счётчики лимитов,
-// сессии, вторые факторы операторов (повторный прогон e2e подключает TOTP заново, а не
-// упирается в mfa_already_enrolled), согласия и заявки на отзыв демо-пользователей (is_demo;
-// функция identity_purge_demo_consents, миграция 0008) и сохранённые ответы идемпотентности (иначе повтор
-// вернул бы вход с уже несуществующей сессией). Пользователи остаются. Только демо-стенд
-// (demoGate). Сам вызов остаётся идемпотентным:
+// ResetStand чистит одноразовое и временное состояние стенда: коды (SMS и e-mail), счётчики
+// лимитов, сессии, вторые факторы засеянных пользователей (повторный прогон e2e подключает
+// TOTP заново или получает секрет сида, а не упирается в mfa_already_enrolled), согласия и
+// заявки на отзыв засеянных (по признаку seeded записи; функция identity_purge_seeded_consents,
+// миграция 0012) и сохранённые ответы идемпотентности (иначе повтор вернул бы вход с уже
+// несуществующей сессией). Пользователи остаются. Только вне prod и только web (standGate);
+// из интерфейса не вызывается — только сид из терминала. Сам вызов остаётся идемпотентным:
 // запись его ключа в idempotency не удаляется, а ответ сохраняется после очистки.
-func (s *Service) ResetDemo(ctx context.Context, req *identityv1.ResetDemoRequest) (*identityv1.ResetDemoResponse, error) {
-	if err := s.demoGate(ctx); err != nil {
+func (s *Service) ResetStand(ctx context.Context, req *identityv1.ResetStandRequest) (*identityv1.ResetStandResponse, error) {
+	if err := s.standGate(ctx); err != nil {
 		return nil, err
 	}
 	if !validIdempotencyKey(req.GetIdempotencyKey()) {
 		return nil, invalidRequest()
 	}
-	const method = identityv1connect.IdentityServiceResetDemoProcedure
-	resp := &identityv1.ResetDemoResponse{}
-	err := s.idempotent(ctx, "reset_demo", method, req.GetIdempotencyKey(), req, resp, func(tx pgx.Tx) error {
+	const method = identityv1connect.IdentityServiceResetStandProcedure
+	resp := &identityv1.ResetStandResponse{}
+	err := s.idempotent(ctx, "reset_stand", method, req.GetIdempotencyKey(), req, resp, func(tx pgx.Tx) error {
 		q := store.New(tx)
 		if _, err := q.DeleteAllSessions(ctx); err != nil {
 			return err
@@ -571,12 +553,12 @@ func (s *Service) ResetDemo(ctx context.Context, req *identityv1.ResetDemoReques
 		if _, err := q.DeleteAllRateLimits(ctx); err != nil {
 			return err
 		}
-		if _, err := q.DeleteAllMfaFactors(ctx); err != nil {
+		if _, err := q.DeleteSeededMfaFactors(ctx); err != nil {
 			return err
 		}
-		// Согласия и заявки на отзыв демо-пользователей (иначе повторный e2e получает прежнюю
-		// заявку); SeedUsers после сброса пишет согласие сида заново.
-		if _, err := q.PurgeDemoConsents(ctx); err != nil {
+		// Согласия и заявки на отзыв засеянных (иначе повторный e2e получает прежнюю заявку);
+		// SeedUsers после сброса пишет согласие сида заново.
+		if _, err := q.PurgeSeededConsents(ctx); err != nil {
 			return err
 		}
 		_, err := q.DeleteIdempotencyExcept(ctx, store.DeleteIdempotencyExceptParams{Method: method, Key: req.GetIdempotencyKey()})

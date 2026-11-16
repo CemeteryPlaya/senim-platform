@@ -35,7 +35,17 @@ UPDATE sessions SET mfa_verified_at = @at WHERE id = @id RETURNING *;
 -- name: ClearUserSessionsMfa :execrows
 UPDATE sessions SET mfa_verified_at = NULL WHERE user_id = $1 AND mfa_verified_at IS NOT NULL;
 
--- Сброс стенда (ResetDemo): факторы демо-стенда удаляются, чтобы повторный прогон e2e
--- подключал TOTP заново. Таблица mfa_factors помечена senim:app-delete.
--- name: DeleteAllMfaFactors :execrows
-DELETE FROM mfa_factors;
+-- Второй фактор оператора стенда из сида (SeedUsers): подключён сразу известным секретом.
+-- Шаг последнего принятого кода не сбрасывается — уже введённый код не примется повторно.
+-- name: UpsertSeedMfaFactor :exec
+INSERT INTO mfa_factors (user_id, secret_enc, confirmed_at, created_at)
+VALUES (@user_id, @secret_enc, @now, @now)
+ON CONFLICT (user_id) DO UPDATE SET
+    secret_enc   = EXCLUDED.secret_enc,
+    confirmed_at = EXCLUDED.confirmed_at,
+    created_at   = EXCLUDED.created_at;
+
+-- Сброс стенда (ResetStand): факторы засеянных пользователей удаляются, чтобы повторный прогон
+-- e2e подключал TOTP заново или получал секрет сида. Таблица mfa_factors помечена senim:app-delete.
+-- name: DeleteSeededMfaFactors :execrows
+DELETE FROM mfa_factors f USING users u WHERE f.user_id = u.id AND u.seeded;

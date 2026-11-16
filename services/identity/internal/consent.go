@@ -33,8 +33,7 @@ const (
 	consentBank = "BANK_TRANSFER"
 
 	channelOtpSession = "otp_session" // в сессии, открытой кодом из SMS
-	channelDemo       = "demo"        // в демо-сессии (StartDemoSession, без кода)
-	channelSeed       = "seed"
+	channelSeed       = "seed"        // сид стенда, без сессии
 )
 
 // Статусы заявки на отзыв (consent_revocations.status) и решения оператора.
@@ -268,7 +267,7 @@ type consentAudit struct {
 }
 
 // GrantConsent — пользователь даёт согласие в своей сессии (session_id — эта сессия; канал
-// otp_session, если сессия открыта кодом из SMS, demo — если демо-входом): вид, версия и
+// otp_session — сессия открыта кодом из SMS): вид, версия и
 // SHA-256 показанного текста (consent_version_invalid), цели.
 // Согласие на ПДн — без предмета, передача банку — к сделке (reference_id); иначе
 // invalid_request. Действующее согласие той же версии и предмета уже есть — тот же ответ без
@@ -311,6 +310,11 @@ func (s *Service) GrantConsent(ctx context.Context, req *identityv1.GrantConsent
 		if locked.ID != user.ID {
 			return sessionInvalid()
 		}
+		// Канал otp_session утверждает вход по коду из SMS. Сессии другого способа (старые
+		// демо-сессии) отозваны миграцией 0012; если такая всё же жива — отказ, а не запись.
+		if sess.OpenedBy != sessionOpenedByOtp {
+			return sessionInvalid()
+		}
 		q := store.New(tx)
 		// Под блокировкой пользователя: параллельные согласия одной версии выстраиваются в
 		// очередь, второе видит первое.
@@ -329,7 +333,7 @@ func (s *Service) GrantConsent(ctx context.Context, req *identityv1.GrantConsent
 		}
 		c, err := q.InsertConsent(ctx, store.InsertConsentParams{
 			UserID: user.ID, Kind: kind, Version: req.GetVersion(), TextSha256: sum, Purposes: purposes,
-			ReferenceID: req.GetReferenceId(), Channel: sessionConsentChannel(sess),
+			ReferenceID: req.GetReferenceId(), Channel: channelOtpSession,
 			SessionID: uuid.NullUUID{UUID: sess.ID, Valid: true}, GrantedAt: ts(now),
 		})
 		if err != nil {
@@ -650,13 +654,4 @@ func (s *Service) ResolveConsentRevocation(ctx context.Context, req *identityv1.
 		return nil, err
 	}
 	return resp, nil
-}
-
-// sessionConsentChannel — канал согласия, данного в сессии: otp_session утверждает вход по
-// коду из SMS и пишется только для такой сессии; демо-сессия (без кода) — demo.
-func sessionConsentChannel(sess store.Session) string {
-	if sess.OpenedBy == sessionOpenedByOtp {
-		return channelOtpSession
-	}
-	return channelDemo
 }

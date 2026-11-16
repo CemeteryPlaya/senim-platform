@@ -55,7 +55,7 @@ const deleteAllOtpCodes = `-- name: DeleteAllOtpCodes :execrows
 DELETE FROM otp_codes
 `
 
-// Сброс стенда (ResetDemo): таблица otp_codes помечена senim:app-delete.
+// Сброс стенда (ResetStand): таблица otp_codes помечена senim:app-delete.
 func (q *Queries) DeleteAllOtpCodes(ctx context.Context) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteAllOtpCodes)
 	if err != nil {

@@ -59,10 +59,10 @@ func (h *harness) verify(phone, code, ip string) (*identityv1.VerifyOtpResponse,
 	return h.verifyAs("web", h.verifyReq(phone, code, ip))
 }
 
-// issued запрашивает код на phone и возвращает его (демо-режим отдаёт код в ответе).
+// issued запрашивает код на phone и возвращает его (мок-провайдер отдаёт код в ответе).
 func (h *harness) issued(phone string) string {
 	h.t.Helper()
-	return h.mustRequest(phone, "").GetDemoCode()
+	return h.mustRequest(phone, "").GetShownCode()
 }
 
 // errorParams — params из ErrorDetail ошибки.

@@ -15,7 +15,7 @@ const deleteAllRateLimits = `-- name: DeleteAllRateLimits :execrows
 DELETE FROM rate_limits
 `
 
-// Сброс стенда (ResetDemo): таблица rate_limits помечена senim:app-delete.
+// Сброс стенда (ResetStand): таблица rate_limits помечена senim:app-delete.
 func (q *Queries) DeleteAllRateLimits(ctx context.Context) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteAllRateLimits)
 	if err != nil {

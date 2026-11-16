@@ -109,7 +109,7 @@ func lockedEmailSession(ctx context.Context, tx pgx.Tx, token string, userID uui
 // выдаётся, лимит не тратится, web пропускает шаг почты. Проверка — после повтора по ключу:
 // потерянный ответ прежнего запроса возвращается как есть.
 //
-// demo_code — только при провайдере mock (в prod он запрещён конфигом) и только в этом
+// shown_code — только при провайдере mock (в prod он запрещён конфигом) и только в этом
 // ответе: в сохранённый идемпотентный ответ код не попадает, повтор вернёт его пустым.
 func (s *Service) RequestEmailCode(ctx context.Context, req *identityv1.RequestEmailCodeRequest) (*identityv1.RequestEmailCodeResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {
@@ -156,7 +156,7 @@ func (s *Service) RequestEmailCode(ctx context.Context, req *identityv1.RequestE
 	}
 
 	resp := &identityv1.RequestEmailCodeResponse{}
-	demoCode := ""
+	shownCode := ""
 	err = dbx.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		_, err := idem.Do(ctx, tx, method, key, req, resp, func() error {
 			now := s.now()
@@ -188,8 +188,8 @@ func (s *Service) RequestEmailCode(ctx context.Context, req *identityv1.RequestE
 				return fmt.Errorf("отправка кода почты: %w", err)
 			}
 			resp.ExpiresAt = timestamppb.New(expiresAt)
-			if s.showsEmailDemoCode() {
-				demoCode = code
+			if s.showsEmailCode() {
+				shownCode = code
 			}
 			return nil
 		})
@@ -208,13 +208,13 @@ func (s *Service) RequestEmailCode(ctx context.Context, req *identityv1.RequestE
 		return nil, internalError()
 	}
 	out, _ := proto.Clone(resp).(*identityv1.RequestEmailCodeResponse)
-	out.DemoCode = demoCode
+	out.ShownCode = shownCode
 	return out, nil
 }
 
-// showsEmailDemoCode — код возвращается в ответе при мок-провайдере: письмо никуда не
-// уходит, человеку код показывает web. От DEMO_MODE не зависит; в prod мок запрещён.
-func (s *Service) showsEmailDemoCode() bool { return s.cfg.EmailProvider == "mock" }
+// showsEmailCode — код возвращается в ответе (shown_code) при мок-провайдере: письмо никуда
+// не уходит, человеку код показывает web. В prod мок запрещён конфигом.
+func (s *Service) showsEmailCode() bool { return s.cfg.EmailProvider == "mock" }
 
 // enforceEmailLimits — лимиты запроса кода на пользователя (общие счётчики rate_limits).
 // Отказ по паузе уточняется: действующий код на этот же адрес — email_code_already_sent.

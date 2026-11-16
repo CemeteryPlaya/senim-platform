@@ -47,13 +47,11 @@ func loadMigrateFor(vars map[string]string) error {
 }
 
 func TestServeConfigDev(t *testing.T) {
-	vars := serveVars()
-	vars["DEMO_MODE"] = "true"
-	c, err := load(t, vars)
+	c, err := load(t, serveVars())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.DemoMode || c.OTPProvider != "mock" || c.EmailProvider != "mock" || c.TokenKID != "dev-1" {
+	if c.Env != "dev" || c.OTPProvider != "mock" || c.EmailProvider != "mock" || c.TokenKID != "dev-1" {
 		t.Errorf("unexpected config: %+v", c)
 	}
 	if len(c.OTPHMACKey) != 32 || len(c.TokenSigningKey) != ed25519.PrivateKeySize {
@@ -182,10 +180,34 @@ func TestProdRejectsMockEmail(t *testing.T) {
 	mustFailNaming(t, v, "IDENTITY_EMAIL_PROVIDER")
 }
 
-func TestProdRejectsDemoMode(t *testing.T) {
+// Вне prod (staging со строгими секретами) моки SMS и почты допустимы: стенд стартует и
+// показывает код на экране (shown_code).
+func TestStagingAllowsMocks(t *testing.T) {
+	v := prodVars()
+	v["APP_ENV"] = "staging"
+	c, err := load(t, v)
+	if err != nil {
+		t.Fatalf("staging с моками: %v", err)
+	}
+	if c.Env != "staging" || c.OTPProvider != "mock" || c.EmailProvider != "mock" {
+		t.Fatalf("unexpected config: %+v", c)
+	}
+}
+
+// Демо-режима нет: DEMO_MODE не читается и ни на что не влияет — prod по-прежнему не стартует
+// с моками, и ошибка называет провайдеров, а не DEMO_MODE.
+func TestDemoModeIsNotAVariable(t *testing.T) {
 	v := prodVars()
 	v["DEMO_MODE"] = "true"
-	mustFailNaming(t, v, "DEMO_MODE")
+	_, err := load(t, v)
+	if err == nil || strings.Contains(err.Error(), "DEMO_MODE") {
+		t.Fatalf("prod: %v", err)
+	}
+	for _, name := range []string{"IDENTITY_OTP_PROVIDER", "IDENTITY_EMAIL_PROVIDER"} {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("error must name %s: %v", name, err)
+		}
+	}
 }
 
 func TestOTPKeyAndSigningKeyDistinct(t *testing.T) {

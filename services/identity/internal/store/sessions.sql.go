@@ -16,7 +16,7 @@ const deleteAllSessions = `-- name: DeleteAllSessions :execrows
 DELETE FROM sessions
 `
 
-// Сброс стенда (ResetDemo): таблица sessions помечена senim:app-delete.
+// Сброс стенда (ResetStand): таблица sessions помечена senim:app-delete.
 func (q *Queries) DeleteAllSessions(ctx context.Context) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteAllSessions)
 	if err != nil {

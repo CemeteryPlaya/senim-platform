@@ -5,7 +5,7 @@ INSERT INTO consents (user_id, kind, version, text_sha256, purposes, reference_i
 VALUES (@user_id, @kind, @version, @text_sha256, @purposes::text[], @reference_id, @channel, sqlc.narg('session_id'), @granted_at)
 RETURNING *;
 
--- Согласие сида демо-стенда: действующее той же версии уже есть — без изменений.
+-- Согласие сида стенда: действующее той же версии уже есть — без изменений.
 -- name: SeedConsent :exec
 INSERT INTO consents (user_id, kind, version, text_sha256, purposes, reference_id, channel, granted_at)
 VALUES (@user_id, 'PD_PROCESSING', @version, @text_sha256, '{}', '', 'seed', @granted_at)
@@ -66,7 +66,7 @@ SELECT * FROM consent_revocations WHERE status = 'REQUESTED' ORDER BY due_at, re
 -- name: ListUserRevocations :many
 SELECT * FROM consent_revocations WHERE user_id = $1 ORDER BY requested_at DESC, id;
 
--- Сброс демо-стенда (ResetDemo): заявки и согласия демо-пользователей удаляет функция
--- владельца (0008) — у рабочей роли нет DELETE, а триггер пропускает только её.
--- name: PurgeDemoConsents :one
-SELECT identity_purge_demo_consents()::bigint AS deleted;
+-- Сброс стенда (ResetStand): заявки и согласия засеянных пользователей удаляет функция
+-- владельца (0012) — у рабочей роли нет DELETE, а триггер пропускает только её.
+-- name: PurgeSeededConsents :one
+SELECT identity_purge_seeded_consents()::bigint AS deleted;

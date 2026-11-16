@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	identityv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
+	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 )
 
 var sixDigits = regexp.MustCompile(`^\d{6}$`)
@@ -30,38 +31,45 @@ func TestRequestStoresOnlyHMACFor5Min(t *testing.T) {
 	if res.GetPhone() != phone {
 		t.Fatalf("phone = %q, want %q", res.GetPhone(), phone)
 	}
-	if !sixDigits.MatchString(res.GetDemoCode()) {
-		t.Fatalf("demo_code = %q, want 6 digits", res.GetDemoCode())
+	if !sixDigits.MatchString(res.GetShownCode()) {
+		t.Fatalf("shown_code = %q, want 6 digits", res.GetShownCode())
 	}
 	var hash []byte
 	var expires time.Time
 	if err := h.pool.QueryRow(context.Background(), `SELECT code_hash, expires_at FROM otp_codes WHERE phone = $1`, phone).Scan(&hash, &expires); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(hash, wantHash(phone, res.GetDemoCode())) {
+	if !bytes.Equal(hash, wantHash(phone, res.GetShownCode())) {
 		t.Fatal("в базе не HMAC-SHA256(ключ, otp:v1:телефон:код)")
 	}
-	if bytes.Contains(hash, []byte(res.GetDemoCode())) {
+	if bytes.Contains(hash, []byte(res.GetShownCode())) {
 		t.Fatal("код лежит в базе открытым текстом")
 	}
 	if want := h.clock.now().Add(5 * time.Minute); !expires.Equal(want) || !res.GetExpiresAt().AsTime().Equal(want) {
 		t.Fatalf("expires_at = %v / %v, want %v", expires, res.GetExpiresAt().AsTime(), want)
 	}
-	if got := h.sender.sent(); len(got) != 1 || got[0].phone != phone || got[0].code != res.GetDemoCode() {
+	if got := h.sender.sent(); len(got) != 1 || got[0].phone != phone || got[0].code != res.GetShownCode() {
 		t.Fatalf("Send вызван так: %v", got)
 	}
 }
 
-func TestNoDemoCodeOutsideDemo(t *testing.T) {
+// Код на экране — только при мок-провайдере SMS, в любом окружении вне prod (в prod мок
+// запрещён конфигом: TestProdRejectsMockOTP). Настоящий провайдер — код не возвращается.
+func TestShownCodeOnlyWithMockProvider(t *testing.T) {
+	for _, env := range []config.AppEnv{config.Dev, config.Staging} {
+		h := newHarness(t, func(c *ServeConfig) { c.Env = env })
+		if code := h.mustRequest(newPhone(), "").GetShownCode(); !sixDigits.MatchString(code) {
+			t.Fatalf("%s, mock: shown_code = %q, want 6 digits", env, code)
+		}
+	}
 	for name, tune := range map[string]func(*ServeConfig){
-		"не демо":          func(c *ServeConfig) { c.DemoMode = false },
-		"демо, не mock":    func(c *ServeConfig) { c.OTPProvider = "sms" },
-		"ни демо, ни mock": func(c *ServeConfig) { c.DemoMode, c.OTPProvider = false, "sms" },
+		"dev, не mock":     func(c *ServeConfig) { c.OTPProvider = "sms" },
+		"staging, не mock": func(c *ServeConfig) { c.Env, c.OTPProvider = config.Staging, "sms" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t, tune)
-			if code := h.mustRequest(newPhone(), "").GetDemoCode(); code != "" {
-				t.Fatalf("demo_code = %q, want empty", code)
+			if code := h.mustRequest(newPhone(), "").GetShownCode(); code != "" {
+				t.Fatalf("shown_code = %q, want empty", code)
 			}
 			// SMS всё равно уходит.
 			if got := h.sender.sent(); len(got) != 1 || !sixDigits.MatchString(got[0].code) {
@@ -331,9 +339,9 @@ func TestPhoneRefusalDoesNotSpendCeiling(t *testing.T) {
 func TestOnlyLatestCodeValid(t *testing.T) {
 	h := newHarness(t, nil)
 	phone := newPhone()
-	first := h.mustRequest(phone, "").GetDemoCode()
+	first := h.mustRequest(phone, "").GetShownCode()
 	h.clock.advance(61 * time.Second)
-	second := h.mustRequest(phone, "").GetDemoCode()
+	second := h.mustRequest(phone, "").GetShownCode()
 
 	// Проверка кода берёт самую свежую строку: это второй код, первый уже не подходит.
 	var latest []byte
@@ -357,8 +365,8 @@ func TestRequestOtpReplaySameKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.GetDemoCode() == "" {
-		t.Fatal("в демо первый ответ несёт код")
+	if first.GetShownCode() == "" {
+		t.Fatal("при мок-провайдере первый ответ несёт код")
 	}
 	// Сразу же: без идемпотентности это был бы отказ cooldown.
 	again, err := h.callAs("web", proto.Clone(req).(*identityv1.RequestOtpRequest))
@@ -368,7 +376,7 @@ func TestRequestOtpReplaySameKey(t *testing.T) {
 	if !again.GetExpiresAt().AsTime().Equal(first.GetExpiresAt().AsTime()) || again.GetPhone() != first.GetPhone() {
 		t.Fatalf("повтор вернул другой ответ: %v vs %v", again, first)
 	}
-	if again.GetDemoCode() != "" {
+	if again.GetShownCode() != "" {
 		t.Fatal("код попал в сохранённый ответ идемпотентности")
 	}
 	if h.codeRows(phone) != 1 || len(h.sender.sent()) != 1 {

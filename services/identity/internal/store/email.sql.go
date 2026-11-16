@@ -55,7 +55,7 @@ const deleteAllEmailCodes = `-- name: DeleteAllEmailCodes :execrows
 DELETE FROM email_codes
 `
 
-// Сброс стенда (ResetDemo): таблица email_codes помечена senim:app-delete.
+// Сброс стенда (ResetStand): таблица email_codes помечена senim:app-delete.
 func (q *Queries) DeleteAllEmailCodes(ctx context.Context) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteAllEmailCodes)
 	if err != nil {

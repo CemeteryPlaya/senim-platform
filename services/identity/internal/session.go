@@ -32,11 +32,9 @@ const (
 	sessionTokenConstraint = "sessions_token_hash_key"
 )
 
-// Способ открытия сессии (sessions.opened_by): от него зависит канал согласия в этой сессии.
-const (
-	sessionOpenedByOtp  = "otp"  // VerifyOtp: человек ввёл код из SMS
-	sessionOpenedByDemo = "demo" // StartDemoSession: демо-вход без кода (DEMO_MODE)
-)
+// sessionOpenedByOtp — способ открытия сессии (sessions.opened_by): VerifyOtp, человек ввёл
+// код из SMS. Другого способа входа нет; значение 'demo' — только у старых строк (0012).
+const sessionOpenedByOtp = "otp"
 
 // isStaff — оператор или замерщик площадки: у них короткая сессия.
 func isStaff(roles []string) bool {
@@ -94,7 +92,7 @@ func userProto(u store.User) *identityv1.User {
 		Phone:       u.Phone,
 		DefaultRole: roleProto(u.DefaultRole),
 		Roles:       roles,
-		IsDemo:      u.IsDemo,
+		Seeded:      u.Seeded,
 		CreatedAt:   timestamppb.New(u.CreatedAt.Time),
 	}
 	if u.BlockedAt.Valid {

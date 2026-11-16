@@ -75,7 +75,7 @@ var (
 )
 
 // loginOnceViaMesh входит один раз за запуск (лимиты кодов на префикс номера дневные): RequestOtp →
-// demo_code → VerifyOtp со своим session_token. Сертификат — web, как у настоящего BFF.
+// shown_code → VerifyOtp со своим session_token. Сертификат — web, как у настоящего BFF.
 func loginOnceViaMesh(t *testing.T) loginResult {
 	t.Helper()
 	loginOnce.Do(func() {
@@ -86,13 +86,13 @@ func loginOnceViaMesh(t *testing.T) loginResult {
 			loginErr = fmt.Errorf("RequestOtp: %w", err)
 			return
 		}
-		if len(req.GetDemoCode()) != 6 {
-			loginErr = errors.New("RequestOtp: demo_code пуст или не 6 цифр (на стенде DEMO_MODE=true и мок-провайдер)")
+		if len(req.GetShownCode()) != 6 {
+			loginErr = errors.New("RequestOtp: shown_code пуст или не 6 цифр (на стенде мок-провайдер SMS)")
 			return
 		}
 		token := randomKey(t)
 		ver, err := web.VerifyOtp(callCtx(t), &identityv1.VerifyOtpRequest{
-			Phone: phone, Code: req.GetDemoCode(), SessionToken: token, UserAgent: "smoke", IdempotencyKey: randomKey(t),
+			Phone: phone, Code: req.GetShownCode(), SessionToken: token, UserAgent: "smoke", IdempotencyKey: randomKey(t),
 		})
 		if err != nil {
 			loginErr = fmt.Errorf("VerifyOtp: %w", err)

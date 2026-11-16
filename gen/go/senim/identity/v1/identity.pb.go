@@ -411,10 +411,12 @@ type User struct {
 	Phone       string `protobuf:"bytes,2,opt,name=phone,proto3" json:"phone,omitempty"`
 	DefaultRole Role   `protobuf:"varint,3,opt,name=default_role,json=defaultRole,proto3,enum=senim.identity.v1.Role" json:"default_role,omitempty"`
 	Roles       []Role `protobuf:"varint,4,rep,packed,name=roles,proto3,enum=senim.identity.v1.Role" json:"roles,omitempty"`
-	IsDemo      bool   `protobuf:"varint,5,opt,name=is_demo,json=isDemo,proto3" json:"is_demo,omitempty"`
 	// Пусто, если пользователь не заблокирован.
-	BlockedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=blocked_at,json=blockedAt,proto3" json:"blocked_at,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	BlockedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=blocked_at,json=blockedAt,proto3" json:"blocked_at,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// Учётную запись создал сид стенда (SeedUsers): только такие сид перезаписывает, а сброс
+	// стенда (ResetStand) чистит их согласия и второй фактор.
+	Seeded        bool `protobuf:"varint,8,opt,name=seeded,proto3" json:"seeded,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -477,13 +479,6 @@ func (x *User) GetRoles() []Role {
 	return nil
 }
 
-func (x *User) GetIsDemo() bool {
-	if x != nil {
-		return x.IsDemo
-	}
-	return false
-}
-
 func (x *User) GetBlockedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.BlockedAt
@@ -496,6 +491,13 @@ func (x *User) GetCreatedAt() *timestamppb.Timestamp {
 		return x.CreatedAt
 	}
 	return nil
+}
+
+func (x *User) GetSeeded() bool {
+	if x != nil {
+		return x.Seeded
+	}
+	return false
 }
 
 // Session — сессия входа. Сам токен сессии в сообщении не передаётся.
@@ -1000,8 +1002,8 @@ type Consent struct {
 	Purposes   []string `protobuf:"bytes,5,rep,name=purposes,proto3" json:"purposes,omitempty"`
 	// К чему относится согласие (например, идентификатор сделки); может быть пусто.
 	ReferenceId string `protobuf:"bytes,6,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
-	// Канал получения согласия: otp_session — в сессии, открытой кодом из SMS; demo — в
-	// демо-сессии (StartDemoSession, без кода); seed — сид демо-стенда.
+	// Канал получения согласия: otp_session — в сессии, открытой кодом из SMS; seed — сид
+	// стенда. demo — только у записей, сделанных до удаления демо-входа (новые невозможны).
 	Channel   string                 `protobuf:"bytes,7,opt,name=channel,proto3" json:"channel,omitempty"`
 	GrantedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=granted_at,json=grantedAt,proto3" json:"granted_at,omitempty"`
 	// Пусто, если согласие не отозвано.
@@ -1325,7 +1327,7 @@ func (x *SeedParty) GetKycRejectReason() string {
 	return ""
 }
 
-// SeedConsent — согласие для начального наполнения демо-стенда (канал seed).
+// SeedConsent — согласие для начального наполнения стенда (канал seed).
 type SeedConsent struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	UserId  string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -1404,14 +1406,14 @@ func (x *SeedConsent) GetReferenceId() string {
 	return ""
 }
 
-// SeedUser — пользователь для начального наполнения (демо и перенос данных).
+// SeedUser — пользователь для начального наполнения стенда (вне APP_ENV=prod). Каждый
+// пользователь сида получает User.seeded; телефон человека, созданного не сидом, — отказ.
 type SeedUser struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// E.164.
 	Phone       string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
 	DefaultRole Role                   `protobuf:"varint,2,opt,name=default_role,json=defaultRole,proto3,enum=senim.identity.v1.Role" json:"default_role,omitempty"`
 	Roles       []Role                 `protobuf:"varint,3,rep,packed,name=roles,proto3,enum=senim.identity.v1.Role" json:"roles,omitempty"`
-	IsDemo      bool                   `protobuf:"varint,4,opt,name=is_demo,json=isDemo,proto3" json:"is_demo,omitempty"`
 	CreatedAt   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	FullName    string                 `protobuf:"bytes,6,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
 	Iin         string                 `protobuf:"bytes,7,opt,name=iin,proto3" json:"iin,omitempty"`
@@ -1422,8 +1424,13 @@ type SeedUser struct {
 	// Версия и хеш текста согласия на обработку ПДн; пусто — согласия нет.
 	ConsentVersion    string `protobuf:"bytes,11,opt,name=consent_version,json=consentVersion,proto3" json:"consent_version,omitempty"`
 	ConsentTextSha256 string `protobuf:"bytes,12,opt,name=consent_text_sha256,json=consentTextSha256,proto3" json:"consent_text_sha256,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Секрет TOTP оператора стенда: base32 (RFC 4648, без «=», как StartTotpEnrollmentResponse
+	// .secret_base32), 16–64 байт. Задан — второй фактор подключён этим секретом (вход
+	// оператора по-прежнему требует код); только у оператора, иначе invalid_request. Пусто —
+	// фактор не меняется.
+	TotpSecretBase32 string `protobuf:"bytes,13,opt,name=totp_secret_base32,json=totpSecretBase32,proto3" json:"totp_secret_base32,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *SeedUser) Reset() {
@@ -1475,13 +1482,6 @@ func (x *SeedUser) GetRoles() []Role {
 		return x.Roles
 	}
 	return nil
-}
-
-func (x *SeedUser) GetIsDemo() bool {
-	if x != nil {
-		return x.IsDemo
-	}
-	return false
 }
 
 func (x *SeedUser) GetCreatedAt() *timestamppb.Timestamp {
@@ -1536,6 +1536,13 @@ func (x *SeedUser) GetConsentVersion() string {
 func (x *SeedUser) GetConsentTextSha256() string {
 	if x != nil {
 		return x.ConsentTextSha256
+	}
+	return ""
+}
+
+func (x *SeedUser) GetTotpSecretBase32() string {
+	if x != nil {
+		return x.TotpSecretBase32
 	}
 	return ""
 }
@@ -1606,8 +1613,9 @@ type RequestOtpResponse struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Phone     string                 `protobuf:"bytes,1,opt,name=phone,proto3" json:"phone,omitempty"`
 	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	// Пуст, кроме DEMO_MODE=true и OTP_PROVIDER=mock.
-	DemoCode      string `protobuf:"bytes,3,opt,name=demo_code,json=demoCode,proto3" json:"demo_code,omitempty"`
+	// Код для показа на экране: пуст, кроме IDENTITY_OTP_PROVIDER=mock (в prod мок запрещён
+	// конфигом); повтор по ключу возвращает его пустым.
+	ShownCode     string `protobuf:"bytes,4,opt,name=shown_code,json=shownCode,proto3" json:"shown_code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1656,9 +1664,9 @@ func (x *RequestOtpResponse) GetExpiresAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *RequestOtpResponse) GetDemoCode() string {
+func (x *RequestOtpResponse) GetShownCode() string {
 	if x != nil {
-		return x.DemoCode
+		return x.ShownCode
 	}
 	return ""
 }
@@ -2330,134 +2338,6 @@ func (x *GrantRoleResponse) GetGranted() bool {
 	return false
 }
 
-type StartDemoSessionRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	AsRole         Role                   `protobuf:"varint,2,opt,name=as_role,json=asRole,proto3,enum=senim.identity.v1.Role" json:"as_role,omitempty"`
-	SessionToken   string                 `protobuf:"bytes,3,opt,name=session_token,json=sessionToken,proto3" json:"session_token,omitempty"`
-	UserAgent      string                 `protobuf:"bytes,4,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
-	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *StartDemoSessionRequest) Reset() {
-	*x = StartDemoSessionRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[25]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *StartDemoSessionRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*StartDemoSessionRequest) ProtoMessage() {}
-
-func (x *StartDemoSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[25]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use StartDemoSessionRequest.ProtoReflect.Descriptor instead.
-func (*StartDemoSessionRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{25}
-}
-
-func (x *StartDemoSessionRequest) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *StartDemoSessionRequest) GetAsRole() Role {
-	if x != nil {
-		return x.AsRole
-	}
-	return Role_ROLE_UNSPECIFIED
-}
-
-func (x *StartDemoSessionRequest) GetSessionToken() string {
-	if x != nil {
-		return x.SessionToken
-	}
-	return ""
-}
-
-func (x *StartDemoSessionRequest) GetUserAgent() string {
-	if x != nil {
-		return x.UserAgent
-	}
-	return ""
-}
-
-func (x *StartDemoSessionRequest) GetIdempotencyKey() string {
-	if x != nil {
-		return x.IdempotencyKey
-	}
-	return ""
-}
-
-type StartDemoSessionResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
-	Session       *Session               `protobuf:"bytes,2,opt,name=session,proto3" json:"session,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *StartDemoSessionResponse) Reset() {
-	*x = StartDemoSessionResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[26]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *StartDemoSessionResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*StartDemoSessionResponse) ProtoMessage() {}
-
-func (x *StartDemoSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[26]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use StartDemoSessionResponse.ProtoReflect.Descriptor instead.
-func (*StartDemoSessionResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{26}
-}
-
-func (x *StartDemoSessionResponse) GetUser() *User {
-	if x != nil {
-		return x.User
-	}
-	return nil
-}
-
-func (x *StartDemoSessionResponse) GetSession() *Session {
-	if x != nil {
-		return x.Session
-	}
-	return nil
-}
-
 type SeedUsersRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Users          []*SeedUser            `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
@@ -2468,7 +2348,7 @@ type SeedUsersRequest struct {
 
 func (x *SeedUsersRequest) Reset() {
 	*x = SeedUsersRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[27]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2480,7 +2360,7 @@ func (x *SeedUsersRequest) String() string {
 func (*SeedUsersRequest) ProtoMessage() {}
 
 func (x *SeedUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[27]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2493,7 +2373,7 @@ func (x *SeedUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SeedUsersRequest.ProtoReflect.Descriptor instead.
 func (*SeedUsersRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{27}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *SeedUsersRequest) GetUsers() []*SeedUser {
@@ -2519,7 +2399,7 @@ type SeedUsersResponse struct {
 
 func (x *SeedUsersResponse) Reset() {
 	*x = SeedUsersResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[28]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2531,7 +2411,7 @@ func (x *SeedUsersResponse) String() string {
 func (*SeedUsersResponse) ProtoMessage() {}
 
 func (x *SeedUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[28]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2544,7 +2424,7 @@ func (x *SeedUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SeedUsersResponse.ProtoReflect.Descriptor instead.
 func (*SeedUsersResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{28}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SeedUsersResponse) GetUsers() []*User {
@@ -2564,7 +2444,7 @@ type SeedConsentsRequest struct {
 
 func (x *SeedConsentsRequest) Reset() {
 	*x = SeedConsentsRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[29]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2576,7 +2456,7 @@ func (x *SeedConsentsRequest) String() string {
 func (*SeedConsentsRequest) ProtoMessage() {}
 
 func (x *SeedConsentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[29]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2589,7 +2469,7 @@ func (x *SeedConsentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SeedConsentsRequest.ProtoReflect.Descriptor instead.
 func (*SeedConsentsRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{29}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *SeedConsentsRequest) GetConsents() []*SeedConsent {
@@ -2614,7 +2494,7 @@ type SeedConsentsResponse struct {
 
 func (x *SeedConsentsResponse) Reset() {
 	*x = SeedConsentsResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[30]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2626,7 +2506,7 @@ func (x *SeedConsentsResponse) String() string {
 func (*SeedConsentsResponse) ProtoMessage() {}
 
 func (x *SeedConsentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[30]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2639,31 +2519,31 @@ func (x *SeedConsentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SeedConsentsResponse.ProtoReflect.Descriptor instead.
 func (*SeedConsentsResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{30}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{28}
 }
 
-type ResetDemoRequest struct {
+type ResetStandRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	IdempotencyKey string                 `protobuf:"bytes,1,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
-func (x *ResetDemoRequest) Reset() {
-	*x = ResetDemoRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[31]
+func (x *ResetStandRequest) Reset() {
+	*x = ResetStandRequest{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ResetDemoRequest) String() string {
+func (x *ResetStandRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ResetDemoRequest) ProtoMessage() {}
+func (*ResetStandRequest) ProtoMessage() {}
 
-func (x *ResetDemoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[31]
+func (x *ResetStandRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2674,39 +2554,39 @@ func (x *ResetDemoRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResetDemoRequest.ProtoReflect.Descriptor instead.
-func (*ResetDemoRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{31}
+// Deprecated: Use ResetStandRequest.ProtoReflect.Descriptor instead.
+func (*ResetStandRequest) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{29}
 }
 
-func (x *ResetDemoRequest) GetIdempotencyKey() string {
+func (x *ResetStandRequest) GetIdempotencyKey() string {
 	if x != nil {
 		return x.IdempotencyKey
 	}
 	return ""
 }
 
-type ResetDemoResponse struct {
+type ResetStandResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ResetDemoResponse) Reset() {
-	*x = ResetDemoResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[32]
+func (x *ResetStandResponse) Reset() {
+	*x = ResetStandResponse{}
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ResetDemoResponse) String() string {
+func (x *ResetStandResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ResetDemoResponse) ProtoMessage() {}
+func (*ResetStandResponse) ProtoMessage() {}
 
-func (x *ResetDemoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[32]
+func (x *ResetStandResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2717,9 +2597,9 @@ func (x *ResetDemoResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResetDemoResponse.ProtoReflect.Descriptor instead.
-func (*ResetDemoResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{32}
+// Deprecated: Use ResetStandResponse.ProtoReflect.Descriptor instead.
+func (*ResetStandResponse) Descriptor() ([]byte, []int) {
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{30}
 }
 
 type StartTotpEnrollmentRequest struct {
@@ -2732,7 +2612,7 @@ type StartTotpEnrollmentRequest struct {
 
 func (x *StartTotpEnrollmentRequest) Reset() {
 	*x = StartTotpEnrollmentRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[33]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2744,7 +2624,7 @@ func (x *StartTotpEnrollmentRequest) String() string {
 func (*StartTotpEnrollmentRequest) ProtoMessage() {}
 
 func (x *StartTotpEnrollmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[33]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2757,7 +2637,7 @@ func (x *StartTotpEnrollmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartTotpEnrollmentRequest.ProtoReflect.Descriptor instead.
 func (*StartTotpEnrollmentRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{33}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *StartTotpEnrollmentRequest) GetSessionToken() string {
@@ -2784,7 +2664,7 @@ type StartTotpEnrollmentResponse struct {
 
 func (x *StartTotpEnrollmentResponse) Reset() {
 	*x = StartTotpEnrollmentResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[34]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2796,7 +2676,7 @@ func (x *StartTotpEnrollmentResponse) String() string {
 func (*StartTotpEnrollmentResponse) ProtoMessage() {}
 
 func (x *StartTotpEnrollmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[34]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2809,7 +2689,7 @@ func (x *StartTotpEnrollmentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartTotpEnrollmentResponse.ProtoReflect.Descriptor instead.
 func (*StartTotpEnrollmentResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{34}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *StartTotpEnrollmentResponse) GetSecretBase32() string {
@@ -2830,7 +2710,7 @@ type ConfirmTotpEnrollmentRequest struct {
 
 func (x *ConfirmTotpEnrollmentRequest) Reset() {
 	*x = ConfirmTotpEnrollmentRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[35]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2842,7 +2722,7 @@ func (x *ConfirmTotpEnrollmentRequest) String() string {
 func (*ConfirmTotpEnrollmentRequest) ProtoMessage() {}
 
 func (x *ConfirmTotpEnrollmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[35]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2855,7 +2735,7 @@ func (x *ConfirmTotpEnrollmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmTotpEnrollmentRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmTotpEnrollmentRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{35}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ConfirmTotpEnrollmentRequest) GetSessionToken() string {
@@ -2888,7 +2768,7 @@ type ConfirmTotpEnrollmentResponse struct {
 
 func (x *ConfirmTotpEnrollmentResponse) Reset() {
 	*x = ConfirmTotpEnrollmentResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[36]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2900,7 +2780,7 @@ func (x *ConfirmTotpEnrollmentResponse) String() string {
 func (*ConfirmTotpEnrollmentResponse) ProtoMessage() {}
 
 func (x *ConfirmTotpEnrollmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[36]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2913,7 +2793,7 @@ func (x *ConfirmTotpEnrollmentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmTotpEnrollmentResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmTotpEnrollmentResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{36}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ConfirmTotpEnrollmentResponse) GetSession() *Session {
@@ -2934,7 +2814,7 @@ type VerifySecondFactorRequest struct {
 
 func (x *VerifySecondFactorRequest) Reset() {
 	*x = VerifySecondFactorRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[37]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2946,7 +2826,7 @@ func (x *VerifySecondFactorRequest) String() string {
 func (*VerifySecondFactorRequest) ProtoMessage() {}
 
 func (x *VerifySecondFactorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[37]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2959,7 +2839,7 @@ func (x *VerifySecondFactorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifySecondFactorRequest.ProtoReflect.Descriptor instead.
 func (*VerifySecondFactorRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{37}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *VerifySecondFactorRequest) GetSessionToken() string {
@@ -2992,7 +2872,7 @@ type VerifySecondFactorResponse struct {
 
 func (x *VerifySecondFactorResponse) Reset() {
 	*x = VerifySecondFactorResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[38]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3004,7 +2884,7 @@ func (x *VerifySecondFactorResponse) String() string {
 func (*VerifySecondFactorResponse) ProtoMessage() {}
 
 func (x *VerifySecondFactorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[38]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3017,7 +2897,7 @@ func (x *VerifySecondFactorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifySecondFactorResponse.ProtoReflect.Descriptor instead.
 func (*VerifySecondFactorResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{38}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *VerifySecondFactorResponse) GetSession() *Session {
@@ -3039,7 +2919,7 @@ type RecordPersonRequest struct {
 
 func (x *RecordPersonRequest) Reset() {
 	*x = RecordPersonRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[39]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3051,7 +2931,7 @@ func (x *RecordPersonRequest) String() string {
 func (*RecordPersonRequest) ProtoMessage() {}
 
 func (x *RecordPersonRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[39]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3064,7 +2944,7 @@ func (x *RecordPersonRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordPersonRequest.ProtoReflect.Descriptor instead.
 func (*RecordPersonRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{39}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *RecordPersonRequest) GetSessionToken() string {
@@ -3104,7 +2984,7 @@ type RecordPersonResponse struct {
 
 func (x *RecordPersonResponse) Reset() {
 	*x = RecordPersonResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[40]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3116,7 +2996,7 @@ func (x *RecordPersonResponse) String() string {
 func (*RecordPersonResponse) ProtoMessage() {}
 
 func (x *RecordPersonResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[40]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3129,7 +3009,7 @@ func (x *RecordPersonResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordPersonResponse.ProtoReflect.Descriptor instead.
 func (*RecordPersonResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{40}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *RecordPersonResponse) GetPerson() *Person {
@@ -3151,7 +3031,7 @@ type UpdateContactsRequest struct {
 
 func (x *UpdateContactsRequest) Reset() {
 	*x = UpdateContactsRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[41]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3163,7 +3043,7 @@ func (x *UpdateContactsRequest) String() string {
 func (*UpdateContactsRequest) ProtoMessage() {}
 
 func (x *UpdateContactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[41]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3176,7 +3056,7 @@ func (x *UpdateContactsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateContactsRequest.ProtoReflect.Descriptor instead.
 func (*UpdateContactsRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{41}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *UpdateContactsRequest) GetSessionToken() string {
@@ -3216,7 +3096,7 @@ type UpdateContactsResponse struct {
 
 func (x *UpdateContactsResponse) Reset() {
 	*x = UpdateContactsResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[42]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3228,7 +3108,7 @@ func (x *UpdateContactsResponse) String() string {
 func (*UpdateContactsResponse) ProtoMessage() {}
 
 func (x *UpdateContactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[42]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3241,7 +3121,7 @@ func (x *UpdateContactsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateContactsResponse.ProtoReflect.Descriptor instead.
 func (*UpdateContactsResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{42}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *UpdateContactsResponse) GetPerson() *Person {
@@ -3263,7 +3143,7 @@ type RequestEmailCodeRequest struct {
 
 func (x *RequestEmailCodeRequest) Reset() {
 	*x = RequestEmailCodeRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[43]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3275,7 +3155,7 @@ func (x *RequestEmailCodeRequest) String() string {
 func (*RequestEmailCodeRequest) ProtoMessage() {}
 
 func (x *RequestEmailCodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[43]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3288,7 +3168,7 @@ func (x *RequestEmailCodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestEmailCodeRequest.ProtoReflect.Descriptor instead.
 func (*RequestEmailCodeRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{43}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *RequestEmailCodeRequest) GetSessionToken() string {
@@ -3315,15 +3195,16 @@ func (x *RequestEmailCodeRequest) GetIdempotencyKey() string {
 type RequestEmailCodeResponse struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
-	// Пуст, кроме IDENTITY_EMAIL_PROVIDER=mock; повтор по ключу возвращает его пустым.
-	DemoCode      string `protobuf:"bytes,2,opt,name=demo_code,json=demoCode,proto3" json:"demo_code,omitempty"`
+	// Код для показа на экране: пуст, кроме IDENTITY_EMAIL_PROVIDER=mock (в prod мок запрещён
+	// конфигом); повтор по ключу возвращает его пустым.
+	ShownCode     string `protobuf:"bytes,3,opt,name=shown_code,json=shownCode,proto3" json:"shown_code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RequestEmailCodeResponse) Reset() {
 	*x = RequestEmailCodeResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[44]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3335,7 +3216,7 @@ func (x *RequestEmailCodeResponse) String() string {
 func (*RequestEmailCodeResponse) ProtoMessage() {}
 
 func (x *RequestEmailCodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[44]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3348,7 +3229,7 @@ func (x *RequestEmailCodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestEmailCodeResponse.ProtoReflect.Descriptor instead.
 func (*RequestEmailCodeResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{44}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *RequestEmailCodeResponse) GetExpiresAt() *timestamppb.Timestamp {
@@ -3358,9 +3239,9 @@ func (x *RequestEmailCodeResponse) GetExpiresAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *RequestEmailCodeResponse) GetDemoCode() string {
+func (x *RequestEmailCodeResponse) GetShownCode() string {
 	if x != nil {
-		return x.DemoCode
+		return x.ShownCode
 	}
 	return ""
 }
@@ -3382,7 +3263,7 @@ type VerifyEmailCodeRequest struct {
 
 func (x *VerifyEmailCodeRequest) Reset() {
 	*x = VerifyEmailCodeRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[45]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3394,7 +3275,7 @@ func (x *VerifyEmailCodeRequest) String() string {
 func (*VerifyEmailCodeRequest) ProtoMessage() {}
 
 func (x *VerifyEmailCodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[45]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3407,7 +3288,7 @@ func (x *VerifyEmailCodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifyEmailCodeRequest.ProtoReflect.Descriptor instead.
 func (*VerifyEmailCodeRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{45}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *VerifyEmailCodeRequest) GetSessionToken() string {
@@ -3447,7 +3328,7 @@ type VerifyEmailCodeResponse struct {
 
 func (x *VerifyEmailCodeResponse) Reset() {
 	*x = VerifyEmailCodeResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[46]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3459,7 +3340,7 @@ func (x *VerifyEmailCodeResponse) String() string {
 func (*VerifyEmailCodeResponse) ProtoMessage() {}
 
 func (x *VerifyEmailCodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[46]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3472,7 +3353,7 @@ func (x *VerifyEmailCodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifyEmailCodeResponse.ProtoReflect.Descriptor instead.
 func (*VerifyEmailCodeResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{46}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *VerifyEmailCodeResponse) GetPerson() *Person {
@@ -3491,7 +3372,7 @@ type GetProfileRequest struct {
 
 func (x *GetProfileRequest) Reset() {
 	*x = GetProfileRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[47]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3503,7 +3384,7 @@ func (x *GetProfileRequest) String() string {
 func (*GetProfileRequest) ProtoMessage() {}
 
 func (x *GetProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[47]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3516,7 +3397,7 @@ func (x *GetProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProfileRequest.ProtoReflect.Descriptor instead.
 func (*GetProfileRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{47}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *GetProfileRequest) GetSessionToken() string {
@@ -3537,7 +3418,7 @@ type GetProfileResponse struct {
 
 func (x *GetProfileResponse) Reset() {
 	*x = GetProfileResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[48]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3549,7 +3430,7 @@ func (x *GetProfileResponse) String() string {
 func (*GetProfileResponse) ProtoMessage() {}
 
 func (x *GetProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[48]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3562,7 +3443,7 @@ func (x *GetProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProfileResponse.ProtoReflect.Descriptor instead.
 func (*GetProfileResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{48}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *GetProfileResponse) GetPerson() *Person {
@@ -3594,7 +3475,7 @@ type RegisterPartyRequest struct {
 
 func (x *RegisterPartyRequest) Reset() {
 	*x = RegisterPartyRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[49]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3606,7 +3487,7 @@ func (x *RegisterPartyRequest) String() string {
 func (*RegisterPartyRequest) ProtoMessage() {}
 
 func (x *RegisterPartyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[49]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3619,7 +3500,7 @@ func (x *RegisterPartyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterPartyRequest.ProtoReflect.Descriptor instead.
 func (*RegisterPartyRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{49}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *RegisterPartyRequest) GetSessionToken() string {
@@ -3680,7 +3561,7 @@ type RegisterPartyResponse struct {
 
 func (x *RegisterPartyResponse) Reset() {
 	*x = RegisterPartyResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[50]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3692,7 +3573,7 @@ func (x *RegisterPartyResponse) String() string {
 func (*RegisterPartyResponse) ProtoMessage() {}
 
 func (x *RegisterPartyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[50]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3705,7 +3586,7 @@ func (x *RegisterPartyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterPartyResponse.ProtoReflect.Descriptor instead.
 func (*RegisterPartyResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{50}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *RegisterPartyResponse) GetParty() *Party {
@@ -3731,7 +3612,7 @@ type ProvisionExecutorRequest struct {
 
 func (x *ProvisionExecutorRequest) Reset() {
 	*x = ProvisionExecutorRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[51]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3743,7 +3624,7 @@ func (x *ProvisionExecutorRequest) String() string {
 func (*ProvisionExecutorRequest) ProtoMessage() {}
 
 func (x *ProvisionExecutorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[51]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3756,7 +3637,7 @@ func (x *ProvisionExecutorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionExecutorRequest.ProtoReflect.Descriptor instead.
 func (*ProvisionExecutorRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{51}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ProvisionExecutorRequest) GetSessionToken() string {
@@ -3825,7 +3706,7 @@ type ProvisionExecutorResponse struct {
 
 func (x *ProvisionExecutorResponse) Reset() {
 	*x = ProvisionExecutorResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[52]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3837,7 +3718,7 @@ func (x *ProvisionExecutorResponse) String() string {
 func (*ProvisionExecutorResponse) ProtoMessage() {}
 
 func (x *ProvisionExecutorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[52]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3850,7 +3731,7 @@ func (x *ProvisionExecutorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionExecutorResponse.ProtoReflect.Descriptor instead.
 func (*ProvisionExecutorResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{52}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ProvisionExecutorResponse) GetUser() *User {
@@ -3878,7 +3759,7 @@ type SetPayoutIbanRequest struct {
 
 func (x *SetPayoutIbanRequest) Reset() {
 	*x = SetPayoutIbanRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[53]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3890,7 +3771,7 @@ func (x *SetPayoutIbanRequest) String() string {
 func (*SetPayoutIbanRequest) ProtoMessage() {}
 
 func (x *SetPayoutIbanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[53]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3903,7 +3784,7 @@ func (x *SetPayoutIbanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPayoutIbanRequest.ProtoReflect.Descriptor instead.
 func (*SetPayoutIbanRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{53}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *SetPayoutIbanRequest) GetSessionToken() string {
@@ -3939,7 +3820,7 @@ type SetPayoutIbanResponse struct {
 
 func (x *SetPayoutIbanResponse) Reset() {
 	*x = SetPayoutIbanResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[54]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3951,7 +3832,7 @@ func (x *SetPayoutIbanResponse) String() string {
 func (*SetPayoutIbanResponse) ProtoMessage() {}
 
 func (x *SetPayoutIbanResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[54]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3964,7 +3845,7 @@ func (x *SetPayoutIbanResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetPayoutIbanResponse.ProtoReflect.Descriptor instead.
 func (*SetPayoutIbanResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{54}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *SetPayoutIbanResponse) GetParty() *Party {
@@ -3995,7 +3876,7 @@ type VerifySignerIinRequest struct {
 
 func (x *VerifySignerIinRequest) Reset() {
 	*x = VerifySignerIinRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[55]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4007,7 +3888,7 @@ func (x *VerifySignerIinRequest) String() string {
 func (*VerifySignerIinRequest) ProtoMessage() {}
 
 func (x *VerifySignerIinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[55]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4020,7 +3901,7 @@ func (x *VerifySignerIinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifySignerIinRequest.ProtoReflect.Descriptor instead.
 func (*VerifySignerIinRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{55}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *VerifySignerIinRequest) GetUserId() string {
@@ -4053,7 +3934,7 @@ type VerifySignerIinResponse struct {
 
 func (x *VerifySignerIinResponse) Reset() {
 	*x = VerifySignerIinResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[56]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4065,7 +3946,7 @@ func (x *VerifySignerIinResponse) String() string {
 func (*VerifySignerIinResponse) ProtoMessage() {}
 
 func (x *VerifySignerIinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[56]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4078,7 +3959,7 @@ func (x *VerifySignerIinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VerifySignerIinResponse.ProtoReflect.Descriptor instead.
 func (*VerifySignerIinResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{56}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *VerifySignerIinResponse) GetMatches() bool {
@@ -4100,7 +3981,7 @@ type RevealPartyDetailsRequest struct {
 
 func (x *RevealPartyDetailsRequest) Reset() {
 	*x = RevealPartyDetailsRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[57]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4112,7 +3993,7 @@ func (x *RevealPartyDetailsRequest) String() string {
 func (*RevealPartyDetailsRequest) ProtoMessage() {}
 
 func (x *RevealPartyDetailsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[57]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4125,7 +4006,7 @@ func (x *RevealPartyDetailsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevealPartyDetailsRequest.ProtoReflect.Descriptor instead.
 func (*RevealPartyDetailsRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{57}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *RevealPartyDetailsRequest) GetActorSessionToken() string {
@@ -4165,7 +4046,7 @@ type RevealPartyDetailsResponse struct {
 
 func (x *RevealPartyDetailsResponse) Reset() {
 	*x = RevealPartyDetailsResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[58]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4177,7 +4058,7 @@ func (x *RevealPartyDetailsResponse) String() string {
 func (*RevealPartyDetailsResponse) ProtoMessage() {}
 
 func (x *RevealPartyDetailsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[58]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4190,7 +4071,7 @@ func (x *RevealPartyDetailsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevealPartyDetailsResponse.ProtoReflect.Descriptor instead.
 func (*RevealPartyDetailsResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{58}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *RevealPartyDetailsResponse) GetParties() []*PartyDetails {
@@ -4212,7 +4093,7 @@ type SubmitKycRequest struct {
 
 func (x *SubmitKycRequest) Reset() {
 	*x = SubmitKycRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[59]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4224,7 +4105,7 @@ func (x *SubmitKycRequest) String() string {
 func (*SubmitKycRequest) ProtoMessage() {}
 
 func (x *SubmitKycRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[59]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4237,7 +4118,7 @@ func (x *SubmitKycRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitKycRequest.ProtoReflect.Descriptor instead.
 func (*SubmitKycRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{59}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *SubmitKycRequest) GetSessionToken() string {
@@ -4277,7 +4158,7 @@ type SubmitKycResponse struct {
 
 func (x *SubmitKycResponse) Reset() {
 	*x = SubmitKycResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[60]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4289,7 +4170,7 @@ func (x *SubmitKycResponse) String() string {
 func (*SubmitKycResponse) ProtoMessage() {}
 
 func (x *SubmitKycResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[60]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4302,7 +4183,7 @@ func (x *SubmitKycResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitKycResponse.ProtoReflect.Descriptor instead.
 func (*SubmitKycResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{60}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SubmitKycResponse) GetParty() *Party {
@@ -4321,7 +4202,7 @@ type ListKycQueueRequest struct {
 
 func (x *ListKycQueueRequest) Reset() {
 	*x = ListKycQueueRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[61]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4333,7 +4214,7 @@ func (x *ListKycQueueRequest) String() string {
 func (*ListKycQueueRequest) ProtoMessage() {}
 
 func (x *ListKycQueueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[61]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4346,7 +4227,7 @@ func (x *ListKycQueueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListKycQueueRequest.ProtoReflect.Descriptor instead.
 func (*ListKycQueueRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{61}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *ListKycQueueRequest) GetSessionToken() string {
@@ -4366,7 +4247,7 @@ type ListKycQueueResponse struct {
 
 func (x *ListKycQueueResponse) Reset() {
 	*x = ListKycQueueResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[62]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4378,7 +4259,7 @@ func (x *ListKycQueueResponse) String() string {
 func (*ListKycQueueResponse) ProtoMessage() {}
 
 func (x *ListKycQueueResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[62]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4391,7 +4272,7 @@ func (x *ListKycQueueResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListKycQueueResponse.ProtoReflect.Descriptor instead.
 func (*ListKycQueueResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{62}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *ListKycQueueResponse) GetParties() []*Party {
@@ -4426,7 +4307,7 @@ type ReviewKycRequest struct {
 
 func (x *ReviewKycRequest) Reset() {
 	*x = ReviewKycRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[63]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4438,7 +4319,7 @@ func (x *ReviewKycRequest) String() string {
 func (*ReviewKycRequest) ProtoMessage() {}
 
 func (x *ReviewKycRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[63]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4451,7 +4332,7 @@ func (x *ReviewKycRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewKycRequest.ProtoReflect.Descriptor instead.
 func (*ReviewKycRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{63}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ReviewKycRequest) GetSessionToken() string {
@@ -4505,7 +4386,7 @@ type ReviewKycResponse struct {
 
 func (x *ReviewKycResponse) Reset() {
 	*x = ReviewKycResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[64]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4517,7 +4398,7 @@ func (x *ReviewKycResponse) String() string {
 func (*ReviewKycResponse) ProtoMessage() {}
 
 func (x *ReviewKycResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[64]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4530,7 +4411,7 @@ func (x *ReviewKycResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewKycResponse.ProtoReflect.Descriptor instead.
 func (*ReviewKycResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{64}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *ReviewKycResponse) GetParty() *Party {
@@ -4555,7 +4436,7 @@ type GrantConsentRequest struct {
 
 func (x *GrantConsentRequest) Reset() {
 	*x = GrantConsentRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[65]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4567,7 +4448,7 @@ func (x *GrantConsentRequest) String() string {
 func (*GrantConsentRequest) ProtoMessage() {}
 
 func (x *GrantConsentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[65]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4580,7 +4461,7 @@ func (x *GrantConsentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrantConsentRequest.ProtoReflect.Descriptor instead.
 func (*GrantConsentRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{65}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *GrantConsentRequest) GetSessionToken() string {
@@ -4641,7 +4522,7 @@ type GrantConsentResponse struct {
 
 func (x *GrantConsentResponse) Reset() {
 	*x = GrantConsentResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[66]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4653,7 +4534,7 @@ func (x *GrantConsentResponse) String() string {
 func (*GrantConsentResponse) ProtoMessage() {}
 
 func (x *GrantConsentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[66]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4666,7 +4547,7 @@ func (x *GrantConsentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrantConsentResponse.ProtoReflect.Descriptor instead.
 func (*GrantConsentResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{66}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *GrantConsentResponse) GetConsent() *Consent {
@@ -4687,7 +4568,7 @@ type RevokeConsentRequest struct {
 
 func (x *RevokeConsentRequest) Reset() {
 	*x = RevokeConsentRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[67]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4699,7 +4580,7 @@ func (x *RevokeConsentRequest) String() string {
 func (*RevokeConsentRequest) ProtoMessage() {}
 
 func (x *RevokeConsentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[67]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4712,7 +4593,7 @@ func (x *RevokeConsentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeConsentRequest.ProtoReflect.Descriptor instead.
 func (*RevokeConsentRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{67}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *RevokeConsentRequest) GetSessionToken() string {
@@ -4745,7 +4626,7 @@ type RevokeConsentResponse struct {
 
 func (x *RevokeConsentResponse) Reset() {
 	*x = RevokeConsentResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[68]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4757,7 +4638,7 @@ func (x *RevokeConsentResponse) String() string {
 func (*RevokeConsentResponse) ProtoMessage() {}
 
 func (x *RevokeConsentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[68]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4770,7 +4651,7 @@ func (x *RevokeConsentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeConsentResponse.ProtoReflect.Descriptor instead.
 func (*RevokeConsentResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{68}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *RevokeConsentResponse) GetRevocation() *ConsentRevocation {
@@ -4789,7 +4670,7 @@ type ListMyConsentsRequest struct {
 
 func (x *ListMyConsentsRequest) Reset() {
 	*x = ListMyConsentsRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[69]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4801,7 +4682,7 @@ func (x *ListMyConsentsRequest) String() string {
 func (*ListMyConsentsRequest) ProtoMessage() {}
 
 func (x *ListMyConsentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[69]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4814,7 +4695,7 @@ func (x *ListMyConsentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyConsentsRequest.ProtoReflect.Descriptor instead.
 func (*ListMyConsentsRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{69}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *ListMyConsentsRequest) GetSessionToken() string {
@@ -4835,7 +4716,7 @@ type ListMyConsentsResponse struct {
 
 func (x *ListMyConsentsResponse) Reset() {
 	*x = ListMyConsentsResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[70]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4847,7 +4728,7 @@ func (x *ListMyConsentsResponse) String() string {
 func (*ListMyConsentsResponse) ProtoMessage() {}
 
 func (x *ListMyConsentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[70]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4860,7 +4741,7 @@ func (x *ListMyConsentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMyConsentsResponse.ProtoReflect.Descriptor instead.
 func (*ListMyConsentsResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{70}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ListMyConsentsResponse) GetConsents() []*Consent {
@@ -4888,7 +4769,7 @@ type HasConsentsRequest struct {
 
 func (x *HasConsentsRequest) Reset() {
 	*x = HasConsentsRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[71]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4900,7 +4781,7 @@ func (x *HasConsentsRequest) String() string {
 func (*HasConsentsRequest) ProtoMessage() {}
 
 func (x *HasConsentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[71]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4913,7 +4794,7 @@ func (x *HasConsentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HasConsentsRequest.ProtoReflect.Descriptor instead.
 func (*HasConsentsRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{71}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *HasConsentsRequest) GetUserIds() []string {
@@ -4946,7 +4827,7 @@ type HasConsentsResponse struct {
 
 func (x *HasConsentsResponse) Reset() {
 	*x = HasConsentsResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[72]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4958,7 +4839,7 @@ func (x *HasConsentsResponse) String() string {
 func (*HasConsentsResponse) ProtoMessage() {}
 
 func (x *HasConsentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[72]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4971,7 +4852,7 @@ func (x *HasConsentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HasConsentsResponse.ProtoReflect.Descriptor instead.
 func (*HasConsentsResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{72}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *HasConsentsResponse) GetGrantedUserIds() []string {
@@ -4990,7 +4871,7 @@ type ListConsentRevocationsRequest struct {
 
 func (x *ListConsentRevocationsRequest) Reset() {
 	*x = ListConsentRevocationsRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[73]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5002,7 +4883,7 @@ func (x *ListConsentRevocationsRequest) String() string {
 func (*ListConsentRevocationsRequest) ProtoMessage() {}
 
 func (x *ListConsentRevocationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[73]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5015,7 +4896,7 @@ func (x *ListConsentRevocationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConsentRevocationsRequest.ProtoReflect.Descriptor instead.
 func (*ListConsentRevocationsRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{73}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *ListConsentRevocationsRequest) GetSessionToken() string {
@@ -5035,7 +4916,7 @@ type ListConsentRevocationsResponse struct {
 
 func (x *ListConsentRevocationsResponse) Reset() {
 	*x = ListConsentRevocationsResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[74]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5047,7 +4928,7 @@ func (x *ListConsentRevocationsResponse) String() string {
 func (*ListConsentRevocationsResponse) ProtoMessage() {}
 
 func (x *ListConsentRevocationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[74]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5060,7 +4941,7 @@ func (x *ListConsentRevocationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConsentRevocationsResponse.ProtoReflect.Descriptor instead.
 func (*ListConsentRevocationsResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{74}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *ListConsentRevocationsResponse) GetRevocations() []*ConsentRevocation {
@@ -5091,7 +4972,7 @@ type ResolveConsentRevocationRequest struct {
 
 func (x *ResolveConsentRevocationRequest) Reset() {
 	*x = ResolveConsentRevocationRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[75]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5103,7 +4984,7 @@ func (x *ResolveConsentRevocationRequest) String() string {
 func (*ResolveConsentRevocationRequest) ProtoMessage() {}
 
 func (x *ResolveConsentRevocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[75]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5116,7 +4997,7 @@ func (x *ResolveConsentRevocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveConsentRevocationRequest.ProtoReflect.Descriptor instead.
 func (*ResolveConsentRevocationRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{75}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *ResolveConsentRevocationRequest) GetSessionToken() string {
@@ -5163,7 +5044,7 @@ type ResolveConsentRevocationResponse struct {
 
 func (x *ResolveConsentRevocationResponse) Reset() {
 	*x = ResolveConsentRevocationResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[76]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5175,7 +5056,7 @@ func (x *ResolveConsentRevocationResponse) String() string {
 func (*ResolveConsentRevocationResponse) ProtoMessage() {}
 
 func (x *ResolveConsentRevocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[76]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5188,7 +5069,7 @@ func (x *ResolveConsentRevocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveConsentRevocationResponse.ProtoReflect.Descriptor instead.
 func (*ResolveConsentRevocationResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{76}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *ResolveConsentRevocationResponse) GetRevocation() *ConsentRevocation {
@@ -5206,7 +5087,7 @@ type GetSigningKeysRequest struct {
 
 func (x *GetSigningKeysRequest) Reset() {
 	*x = GetSigningKeysRequest{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[77]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5218,7 +5099,7 @@ func (x *GetSigningKeysRequest) String() string {
 func (*GetSigningKeysRequest) ProtoMessage() {}
 
 func (x *GetSigningKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[77]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5231,7 +5112,7 @@ func (x *GetSigningKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSigningKeysRequest.ProtoReflect.Descriptor instead.
 func (*GetSigningKeysRequest) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{77}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{75}
 }
 
 type GetSigningKeysResponse struct {
@@ -5243,7 +5124,7 @@ type GetSigningKeysResponse struct {
 
 func (x *GetSigningKeysResponse) Reset() {
 	*x = GetSigningKeysResponse{}
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[78]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5255,7 +5136,7 @@ func (x *GetSigningKeysResponse) String() string {
 func (*GetSigningKeysResponse) ProtoMessage() {}
 
 func (x *GetSigningKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_senim_identity_v1_identity_proto_msgTypes[78]
+	mi := &file_senim_identity_v1_identity_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5268,7 +5149,7 @@ func (x *GetSigningKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSigningKeysResponse.ProtoReflect.Descriptor instead.
 func (*GetSigningKeysResponse) Descriptor() ([]byte, []int) {
-	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{78}
+	return file_senim_identity_v1_identity_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *GetSigningKeysResponse) GetKeys() []*SigningKey {
@@ -5282,17 +5163,17 @@ var File_senim_identity_v1_identity_proto protoreflect.FileDescriptor
 
 const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\n" +
-	" senim/identity/v1/identity.proto\x12\x11senim.identity.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa6\x02\n" +
+	" senim/identity/v1/identity.proto\x12\x11senim.identity.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb4\x02\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05phone\x18\x02 \x01(\tR\x05phone\x12:\n" +
 	"\fdefault_role\x18\x03 \x01(\x0e2\x17.senim.identity.v1.RoleR\vdefaultRole\x12-\n" +
-	"\x05roles\x18\x04 \x03(\x0e2\x17.senim.identity.v1.RoleR\x05roles\x12\x17\n" +
-	"\ais_demo\x18\x05 \x01(\bR\x06isDemo\x129\n" +
+	"\x05roles\x18\x04 \x03(\x0e2\x17.senim.identity.v1.RoleR\x05roles\x129\n" +
 	"\n" +
 	"blocked_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tblockedAt\x129\n" +
 	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xb9\x02\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x16\n" +
+	"\x06seeded\x18\b \x01(\bR\x06seededJ\x04\b\x05\x10\x06R\ais_demo\"\xb9\x02\n" +
 	"\aSession\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x128\n" +
 	"\vactive_role\x18\x02 \x01(\x0e2\x17.senim.identity.v1.RoleR\n" +
@@ -5393,12 +5274,11 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1f\n" +
 	"\vtext_sha256\x18\x04 \x01(\tR\n" +
 	"textSha256\x12!\n" +
-	"\freference_id\x18\x05 \x01(\tR\vreferenceId\"\xcf\x03\n" +
+	"\freference_id\x18\x05 \x01(\tR\vreferenceId\"\xf3\x03\n" +
 	"\bSeedUser\x12\x14\n" +
 	"\x05phone\x18\x01 \x01(\tR\x05phone\x12:\n" +
 	"\fdefault_role\x18\x02 \x01(\x0e2\x17.senim.identity.v1.RoleR\vdefaultRole\x12-\n" +
-	"\x05roles\x18\x03 \x03(\x0e2\x17.senim.identity.v1.RoleR\x05roles\x12\x17\n" +
-	"\ais_demo\x18\x04 \x01(\bR\x06isDemo\x129\n" +
+	"\x05roles\x18\x03 \x03(\x0e2\x17.senim.identity.v1.RoleR\x05roles\x129\n" +
 	"\n" +
 	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1b\n" +
 	"\tfull_name\x18\x06 \x01(\tR\bfullName\x12\x10\n" +
@@ -5408,16 +5288,18 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x05party\x18\n" +
 	" \x01(\v2\x1c.senim.identity.v1.SeedPartyR\x05party\x12'\n" +
 	"\x0fconsent_version\x18\v \x01(\tR\x0econsentVersion\x12.\n" +
-	"\x13consent_text_sha256\x18\f \x01(\tR\x11consentTextSha256\"o\n" +
+	"\x13consent_text_sha256\x18\f \x01(\tR\x11consentTextSha256\x12,\n" +
+	"\x12totp_secret_base32\x18\r \x01(\tR\x10totpSecretBase32J\x04\b\x04\x10\x05R\ais_demo\"o\n" +
 	"\x11RequestOtpRequest\x12\x14\n" +
 	"\x05phone\x18\x01 \x01(\tR\x05phone\x12\x1b\n" +
 	"\tclient_ip\x18\x02 \x01(\tR\bclientIp\x12'\n" +
-	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"\x82\x01\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"\x95\x01\n" +
 	"\x12RequestOtpResponse\x12\x14\n" +
 	"\x05phone\x18\x01 \x01(\tR\x05phone\x129\n" +
 	"\n" +
-	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1b\n" +
-	"\tdemo_code\x18\x03 \x01(\tR\bdemoCode\"\xc6\x01\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1d\n" +
+	"\n" +
+	"shown_code\x18\x04 \x01(\tR\tshownCodeJ\x04\b\x03\x10\x04R\tdemo_code\"\xc6\x01\n" +
 	"\x10VerifyOtpRequest\x12\x14\n" +
 	"\x05phone\x18\x01 \x01(\tR\x05phone\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x1b\n" +
@@ -5459,17 +5341,7 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"Z\n" +
 	"\x11GrantRoleResponse\x12+\n" +
 	"\x04user\x18\x01 \x01(\v2\x17.senim.identity.v1.UserR\x04user\x12\x18\n" +
-	"\agranted\x18\x02 \x01(\bR\agranted\"\xd1\x01\n" +
-	"\x17StartDemoSessionRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x120\n" +
-	"\aas_role\x18\x02 \x01(\x0e2\x17.senim.identity.v1.RoleR\x06asRole\x12#\n" +
-	"\rsession_token\x18\x03 \x01(\tR\fsessionToken\x12\x1d\n" +
-	"\n" +
-	"user_agent\x18\x04 \x01(\tR\tuserAgent\x12'\n" +
-	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"}\n" +
-	"\x18StartDemoSessionResponse\x12+\n" +
-	"\x04user\x18\x01 \x01(\v2\x17.senim.identity.v1.UserR\x04user\x124\n" +
-	"\asession\x18\x02 \x01(\v2\x1a.senim.identity.v1.SessionR\asession\"n\n" +
+	"\agranted\x18\x02 \x01(\bR\agranted\"n\n" +
 	"\x10SeedUsersRequest\x121\n" +
 	"\x05users\x18\x01 \x03(\v2\x1b.senim.identity.v1.SeedUserR\x05users\x12'\n" +
 	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\"B\n" +
@@ -5478,10 +5350,10 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x13SeedConsentsRequest\x12:\n" +
 	"\bconsents\x18\x01 \x03(\v2\x1e.senim.identity.v1.SeedConsentR\bconsents\x12'\n" +
 	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\"\x16\n" +
-	"\x14SeedConsentsResponse\";\n" +
-	"\x10ResetDemoRequest\x12'\n" +
-	"\x0fidempotency_key\x18\x01 \x01(\tR\x0eidempotencyKey\"\x13\n" +
-	"\x11ResetDemoResponse\"j\n" +
+	"\x14SeedConsentsResponse\"<\n" +
+	"\x11ResetStandRequest\x12'\n" +
+	"\x0fidempotency_key\x18\x01 \x01(\tR\x0eidempotencyKey\"\x14\n" +
+	"\x12ResetStandResponse\"j\n" +
 	"\x1aStartTotpEnrollmentRequest\x12#\n" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12'\n" +
 	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\"B\n" +
@@ -5516,11 +5388,12 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x17RequestEmailCodeRequest\x12#\n" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12'\n" +
-	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"r\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"\x85\x01\n" +
 	"\x18RequestEmailCodeResponse\x129\n" +
 	"\n" +
-	"expires_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1b\n" +
-	"\tdemo_code\x18\x02 \x01(\tR\bdemoCode\"\x90\x01\n" +
+	"expires_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1d\n" +
+	"\n" +
+	"shown_code\x18\x03 \x01(\tR\tshownCodeJ\x04\b\x02\x10\x03R\tdemo_code\"\x90\x01\n" +
 	"\x16VerifyEmailCodeRequest\x12#\n" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12'\n" +
@@ -5684,7 +5557,7 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x1dREVOCATION_STATUS_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bREVOCATION_STATUS_REQUESTED\x10\x01\x12\x1f\n" +
 	"\x1bREVOCATION_STATUS_COMPLETED\x10\x02\x12\x1d\n" +
-	"\x19REVOCATION_STATUS_REFUSED\x10\x032\x93\x1b\n" +
+	"\x19REVOCATION_STATUS_REFUSED\x10\x032\xa9\x1a\n" +
 	"\x0fIdentityService\x12Y\n" +
 	"\n" +
 	"RequestOtp\x12$.senim.identity.v1.RequestOtpRequest\x1a%.senim.identity.v1.RequestOtpResponse\x12V\n" +
@@ -5694,11 +5567,11 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x11SignOutEverywhere\x12+.senim.identity.v1.SignOutEverywhereRequest\x1a,.senim.identity.v1.SignOutEverywhereResponse\x12Y\n" +
 	"\n" +
 	"SwitchRole\x12$.senim.identity.v1.SwitchRoleRequest\x1a%.senim.identity.v1.SwitchRoleResponse\x12V\n" +
-	"\tGrantRole\x12#.senim.identity.v1.GrantRoleRequest\x1a$.senim.identity.v1.GrantRoleResponse\x12k\n" +
-	"\x10StartDemoSession\x12*.senim.identity.v1.StartDemoSessionRequest\x1a+.senim.identity.v1.StartDemoSessionResponse\x12V\n" +
+	"\tGrantRole\x12#.senim.identity.v1.GrantRoleRequest\x1a$.senim.identity.v1.GrantRoleResponse\x12V\n" +
 	"\tSeedUsers\x12#.senim.identity.v1.SeedUsersRequest\x1a$.senim.identity.v1.SeedUsersResponse\x12_\n" +
-	"\fSeedConsents\x12&.senim.identity.v1.SeedConsentsRequest\x1a'.senim.identity.v1.SeedConsentsResponse\x12V\n" +
-	"\tResetDemo\x12#.senim.identity.v1.ResetDemoRequest\x1a$.senim.identity.v1.ResetDemoResponse\x12e\n" +
+	"\fSeedConsents\x12&.senim.identity.v1.SeedConsentsRequest\x1a'.senim.identity.v1.SeedConsentsResponse\x12Y\n" +
+	"\n" +
+	"ResetStand\x12$.senim.identity.v1.ResetStandRequest\x1a%.senim.identity.v1.ResetStandResponse\x12e\n" +
 	"\x0eGetSigningKeys\x12(.senim.identity.v1.GetSigningKeysRequest\x1a).senim.identity.v1.GetSigningKeysResponse\x12t\n" +
 	"\x13StartTotpEnrollment\x12-.senim.identity.v1.StartTotpEnrollmentRequest\x1a..senim.identity.v1.StartTotpEnrollmentResponse\x12z\n" +
 	"\x15ConfirmTotpEnrollment\x12/.senim.identity.v1.ConfirmTotpEnrollmentRequest\x1a0.senim.identity.v1.ConfirmTotpEnrollmentResponse\x12q\n" +
@@ -5738,7 +5611,7 @@ func file_senim_identity_v1_identity_proto_rawDescGZIP() []byte {
 }
 
 var file_senim_identity_v1_identity_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_senim_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 79)
+var file_senim_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 77)
 var file_senim_identity_v1_identity_proto_goTypes = []any{
 	(Role)(0),                                // 0: senim.identity.v1.Role
 	(LegalForm)(0),                           // 1: senim.identity.v1.LegalForm
@@ -5772,215 +5645,208 @@ var file_senim_identity_v1_identity_proto_goTypes = []any{
 	(*SwitchRoleResponse)(nil),               // 29: senim.identity.v1.SwitchRoleResponse
 	(*GrantRoleRequest)(nil),                 // 30: senim.identity.v1.GrantRoleRequest
 	(*GrantRoleResponse)(nil),                // 31: senim.identity.v1.GrantRoleResponse
-	(*StartDemoSessionRequest)(nil),          // 32: senim.identity.v1.StartDemoSessionRequest
-	(*StartDemoSessionResponse)(nil),         // 33: senim.identity.v1.StartDemoSessionResponse
-	(*SeedUsersRequest)(nil),                 // 34: senim.identity.v1.SeedUsersRequest
-	(*SeedUsersResponse)(nil),                // 35: senim.identity.v1.SeedUsersResponse
-	(*SeedConsentsRequest)(nil),              // 36: senim.identity.v1.SeedConsentsRequest
-	(*SeedConsentsResponse)(nil),             // 37: senim.identity.v1.SeedConsentsResponse
-	(*ResetDemoRequest)(nil),                 // 38: senim.identity.v1.ResetDemoRequest
-	(*ResetDemoResponse)(nil),                // 39: senim.identity.v1.ResetDemoResponse
-	(*StartTotpEnrollmentRequest)(nil),       // 40: senim.identity.v1.StartTotpEnrollmentRequest
-	(*StartTotpEnrollmentResponse)(nil),      // 41: senim.identity.v1.StartTotpEnrollmentResponse
-	(*ConfirmTotpEnrollmentRequest)(nil),     // 42: senim.identity.v1.ConfirmTotpEnrollmentRequest
-	(*ConfirmTotpEnrollmentResponse)(nil),    // 43: senim.identity.v1.ConfirmTotpEnrollmentResponse
-	(*VerifySecondFactorRequest)(nil),        // 44: senim.identity.v1.VerifySecondFactorRequest
-	(*VerifySecondFactorResponse)(nil),       // 45: senim.identity.v1.VerifySecondFactorResponse
-	(*RecordPersonRequest)(nil),              // 46: senim.identity.v1.RecordPersonRequest
-	(*RecordPersonResponse)(nil),             // 47: senim.identity.v1.RecordPersonResponse
-	(*UpdateContactsRequest)(nil),            // 48: senim.identity.v1.UpdateContactsRequest
-	(*UpdateContactsResponse)(nil),           // 49: senim.identity.v1.UpdateContactsResponse
-	(*RequestEmailCodeRequest)(nil),          // 50: senim.identity.v1.RequestEmailCodeRequest
-	(*RequestEmailCodeResponse)(nil),         // 51: senim.identity.v1.RequestEmailCodeResponse
-	(*VerifyEmailCodeRequest)(nil),           // 52: senim.identity.v1.VerifyEmailCodeRequest
-	(*VerifyEmailCodeResponse)(nil),          // 53: senim.identity.v1.VerifyEmailCodeResponse
-	(*GetProfileRequest)(nil),                // 54: senim.identity.v1.GetProfileRequest
-	(*GetProfileResponse)(nil),               // 55: senim.identity.v1.GetProfileResponse
-	(*RegisterPartyRequest)(nil),             // 56: senim.identity.v1.RegisterPartyRequest
-	(*RegisterPartyResponse)(nil),            // 57: senim.identity.v1.RegisterPartyResponse
-	(*ProvisionExecutorRequest)(nil),         // 58: senim.identity.v1.ProvisionExecutorRequest
-	(*ProvisionExecutorResponse)(nil),        // 59: senim.identity.v1.ProvisionExecutorResponse
-	(*SetPayoutIbanRequest)(nil),             // 60: senim.identity.v1.SetPayoutIbanRequest
-	(*SetPayoutIbanResponse)(nil),            // 61: senim.identity.v1.SetPayoutIbanResponse
-	(*VerifySignerIinRequest)(nil),           // 62: senim.identity.v1.VerifySignerIinRequest
-	(*VerifySignerIinResponse)(nil),          // 63: senim.identity.v1.VerifySignerIinResponse
-	(*RevealPartyDetailsRequest)(nil),        // 64: senim.identity.v1.RevealPartyDetailsRequest
-	(*RevealPartyDetailsResponse)(nil),       // 65: senim.identity.v1.RevealPartyDetailsResponse
-	(*SubmitKycRequest)(nil),                 // 66: senim.identity.v1.SubmitKycRequest
-	(*SubmitKycResponse)(nil),                // 67: senim.identity.v1.SubmitKycResponse
-	(*ListKycQueueRequest)(nil),              // 68: senim.identity.v1.ListKycQueueRequest
-	(*ListKycQueueResponse)(nil),             // 69: senim.identity.v1.ListKycQueueResponse
-	(*ReviewKycRequest)(nil),                 // 70: senim.identity.v1.ReviewKycRequest
-	(*ReviewKycResponse)(nil),                // 71: senim.identity.v1.ReviewKycResponse
-	(*GrantConsentRequest)(nil),              // 72: senim.identity.v1.GrantConsentRequest
-	(*GrantConsentResponse)(nil),             // 73: senim.identity.v1.GrantConsentResponse
-	(*RevokeConsentRequest)(nil),             // 74: senim.identity.v1.RevokeConsentRequest
-	(*RevokeConsentResponse)(nil),            // 75: senim.identity.v1.RevokeConsentResponse
-	(*ListMyConsentsRequest)(nil),            // 76: senim.identity.v1.ListMyConsentsRequest
-	(*ListMyConsentsResponse)(nil),           // 77: senim.identity.v1.ListMyConsentsResponse
-	(*HasConsentsRequest)(nil),               // 78: senim.identity.v1.HasConsentsRequest
-	(*HasConsentsResponse)(nil),              // 79: senim.identity.v1.HasConsentsResponse
-	(*ListConsentRevocationsRequest)(nil),    // 80: senim.identity.v1.ListConsentRevocationsRequest
-	(*ListConsentRevocationsResponse)(nil),   // 81: senim.identity.v1.ListConsentRevocationsResponse
-	(*ResolveConsentRevocationRequest)(nil),  // 82: senim.identity.v1.ResolveConsentRevocationRequest
-	(*ResolveConsentRevocationResponse)(nil), // 83: senim.identity.v1.ResolveConsentRevocationResponse
-	(*GetSigningKeysRequest)(nil),            // 84: senim.identity.v1.GetSigningKeysRequest
-	(*GetSigningKeysResponse)(nil),           // 85: senim.identity.v1.GetSigningKeysResponse
-	(*timestamppb.Timestamp)(nil),            // 86: google.protobuf.Timestamp
+	(*SeedUsersRequest)(nil),                 // 32: senim.identity.v1.SeedUsersRequest
+	(*SeedUsersResponse)(nil),                // 33: senim.identity.v1.SeedUsersResponse
+	(*SeedConsentsRequest)(nil),              // 34: senim.identity.v1.SeedConsentsRequest
+	(*SeedConsentsResponse)(nil),             // 35: senim.identity.v1.SeedConsentsResponse
+	(*ResetStandRequest)(nil),                // 36: senim.identity.v1.ResetStandRequest
+	(*ResetStandResponse)(nil),               // 37: senim.identity.v1.ResetStandResponse
+	(*StartTotpEnrollmentRequest)(nil),       // 38: senim.identity.v1.StartTotpEnrollmentRequest
+	(*StartTotpEnrollmentResponse)(nil),      // 39: senim.identity.v1.StartTotpEnrollmentResponse
+	(*ConfirmTotpEnrollmentRequest)(nil),     // 40: senim.identity.v1.ConfirmTotpEnrollmentRequest
+	(*ConfirmTotpEnrollmentResponse)(nil),    // 41: senim.identity.v1.ConfirmTotpEnrollmentResponse
+	(*VerifySecondFactorRequest)(nil),        // 42: senim.identity.v1.VerifySecondFactorRequest
+	(*VerifySecondFactorResponse)(nil),       // 43: senim.identity.v1.VerifySecondFactorResponse
+	(*RecordPersonRequest)(nil),              // 44: senim.identity.v1.RecordPersonRequest
+	(*RecordPersonResponse)(nil),             // 45: senim.identity.v1.RecordPersonResponse
+	(*UpdateContactsRequest)(nil),            // 46: senim.identity.v1.UpdateContactsRequest
+	(*UpdateContactsResponse)(nil),           // 47: senim.identity.v1.UpdateContactsResponse
+	(*RequestEmailCodeRequest)(nil),          // 48: senim.identity.v1.RequestEmailCodeRequest
+	(*RequestEmailCodeResponse)(nil),         // 49: senim.identity.v1.RequestEmailCodeResponse
+	(*VerifyEmailCodeRequest)(nil),           // 50: senim.identity.v1.VerifyEmailCodeRequest
+	(*VerifyEmailCodeResponse)(nil),          // 51: senim.identity.v1.VerifyEmailCodeResponse
+	(*GetProfileRequest)(nil),                // 52: senim.identity.v1.GetProfileRequest
+	(*GetProfileResponse)(nil),               // 53: senim.identity.v1.GetProfileResponse
+	(*RegisterPartyRequest)(nil),             // 54: senim.identity.v1.RegisterPartyRequest
+	(*RegisterPartyResponse)(nil),            // 55: senim.identity.v1.RegisterPartyResponse
+	(*ProvisionExecutorRequest)(nil),         // 56: senim.identity.v1.ProvisionExecutorRequest
+	(*ProvisionExecutorResponse)(nil),        // 57: senim.identity.v1.ProvisionExecutorResponse
+	(*SetPayoutIbanRequest)(nil),             // 58: senim.identity.v1.SetPayoutIbanRequest
+	(*SetPayoutIbanResponse)(nil),            // 59: senim.identity.v1.SetPayoutIbanResponse
+	(*VerifySignerIinRequest)(nil),           // 60: senim.identity.v1.VerifySignerIinRequest
+	(*VerifySignerIinResponse)(nil),          // 61: senim.identity.v1.VerifySignerIinResponse
+	(*RevealPartyDetailsRequest)(nil),        // 62: senim.identity.v1.RevealPartyDetailsRequest
+	(*RevealPartyDetailsResponse)(nil),       // 63: senim.identity.v1.RevealPartyDetailsResponse
+	(*SubmitKycRequest)(nil),                 // 64: senim.identity.v1.SubmitKycRequest
+	(*SubmitKycResponse)(nil),                // 65: senim.identity.v1.SubmitKycResponse
+	(*ListKycQueueRequest)(nil),              // 66: senim.identity.v1.ListKycQueueRequest
+	(*ListKycQueueResponse)(nil),             // 67: senim.identity.v1.ListKycQueueResponse
+	(*ReviewKycRequest)(nil),                 // 68: senim.identity.v1.ReviewKycRequest
+	(*ReviewKycResponse)(nil),                // 69: senim.identity.v1.ReviewKycResponse
+	(*GrantConsentRequest)(nil),              // 70: senim.identity.v1.GrantConsentRequest
+	(*GrantConsentResponse)(nil),             // 71: senim.identity.v1.GrantConsentResponse
+	(*RevokeConsentRequest)(nil),             // 72: senim.identity.v1.RevokeConsentRequest
+	(*RevokeConsentResponse)(nil),            // 73: senim.identity.v1.RevokeConsentResponse
+	(*ListMyConsentsRequest)(nil),            // 74: senim.identity.v1.ListMyConsentsRequest
+	(*ListMyConsentsResponse)(nil),           // 75: senim.identity.v1.ListMyConsentsResponse
+	(*HasConsentsRequest)(nil),               // 76: senim.identity.v1.HasConsentsRequest
+	(*HasConsentsResponse)(nil),              // 77: senim.identity.v1.HasConsentsResponse
+	(*ListConsentRevocationsRequest)(nil),    // 78: senim.identity.v1.ListConsentRevocationsRequest
+	(*ListConsentRevocationsResponse)(nil),   // 79: senim.identity.v1.ListConsentRevocationsResponse
+	(*ResolveConsentRevocationRequest)(nil),  // 80: senim.identity.v1.ResolveConsentRevocationRequest
+	(*ResolveConsentRevocationResponse)(nil), // 81: senim.identity.v1.ResolveConsentRevocationResponse
+	(*GetSigningKeysRequest)(nil),            // 82: senim.identity.v1.GetSigningKeysRequest
+	(*GetSigningKeysResponse)(nil),           // 83: senim.identity.v1.GetSigningKeysResponse
+	(*timestamppb.Timestamp)(nil),            // 84: google.protobuf.Timestamp
 }
 var file_senim_identity_v1_identity_proto_depIdxs = []int32{
 	0,   // 0: senim.identity.v1.User.default_role:type_name -> senim.identity.v1.Role
 	0,   // 1: senim.identity.v1.User.roles:type_name -> senim.identity.v1.Role
-	86,  // 2: senim.identity.v1.User.blocked_at:type_name -> google.protobuf.Timestamp
-	86,  // 3: senim.identity.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	84,  // 2: senim.identity.v1.User.blocked_at:type_name -> google.protobuf.Timestamp
+	84,  // 3: senim.identity.v1.User.created_at:type_name -> google.protobuf.Timestamp
 	0,   // 4: senim.identity.v1.Session.active_role:type_name -> senim.identity.v1.Role
-	86,  // 5: senim.identity.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
-	86,  // 6: senim.identity.v1.Session.idle_expires_at:type_name -> google.protobuf.Timestamp
-	86,  // 7: senim.identity.v1.Session.mfa_verified_at:type_name -> google.protobuf.Timestamp
+	84,  // 5: senim.identity.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	84,  // 6: senim.identity.v1.Session.idle_expires_at:type_name -> google.protobuf.Timestamp
+	84,  // 7: senim.identity.v1.Session.mfa_verified_at:type_name -> google.protobuf.Timestamp
 	1,   // 8: senim.identity.v1.Party.legal_form:type_name -> senim.identity.v1.LegalForm
 	2,   // 9: senim.identity.v1.Party.kyc_status:type_name -> senim.identity.v1.KycStatus
-	86,  // 10: senim.identity.v1.Party.kyc_submitted_at:type_name -> google.protobuf.Timestamp
-	86,  // 11: senim.identity.v1.Party.kyc_reviewed_at:type_name -> google.protobuf.Timestamp
+	84,  // 10: senim.identity.v1.Party.kyc_submitted_at:type_name -> google.protobuf.Timestamp
+	84,  // 11: senim.identity.v1.Party.kyc_reviewed_at:type_name -> google.protobuf.Timestamp
 	1,   // 12: senim.identity.v1.PartyDetails.legal_form:type_name -> senim.identity.v1.LegalForm
 	3,   // 13: senim.identity.v1.Consent.kind:type_name -> senim.identity.v1.ConsentKind
-	86,  // 14: senim.identity.v1.Consent.granted_at:type_name -> google.protobuf.Timestamp
-	86,  // 15: senim.identity.v1.Consent.revoked_at:type_name -> google.protobuf.Timestamp
+	84,  // 14: senim.identity.v1.Consent.granted_at:type_name -> google.protobuf.Timestamp
+	84,  // 15: senim.identity.v1.Consent.revoked_at:type_name -> google.protobuf.Timestamp
 	3,   // 16: senim.identity.v1.ConsentRevocation.kind:type_name -> senim.identity.v1.ConsentKind
-	86,  // 17: senim.identity.v1.ConsentRevocation.requested_at:type_name -> google.protobuf.Timestamp
-	86,  // 18: senim.identity.v1.ConsentRevocation.due_at:type_name -> google.protobuf.Timestamp
+	84,  // 17: senim.identity.v1.ConsentRevocation.requested_at:type_name -> google.protobuf.Timestamp
+	84,  // 18: senim.identity.v1.ConsentRevocation.due_at:type_name -> google.protobuf.Timestamp
 	6,   // 19: senim.identity.v1.ConsentRevocation.status:type_name -> senim.identity.v1.RevocationStatus
-	86,  // 20: senim.identity.v1.ConsentRevocation.decided_at:type_name -> google.protobuf.Timestamp
+	84,  // 20: senim.identity.v1.ConsentRevocation.decided_at:type_name -> google.protobuf.Timestamp
 	1,   // 21: senim.identity.v1.SeedParty.legal_form:type_name -> senim.identity.v1.LegalForm
 	2,   // 22: senim.identity.v1.SeedParty.kyc_status:type_name -> senim.identity.v1.KycStatus
 	3,   // 23: senim.identity.v1.SeedConsent.kind:type_name -> senim.identity.v1.ConsentKind
 	0,   // 24: senim.identity.v1.SeedUser.default_role:type_name -> senim.identity.v1.Role
 	0,   // 25: senim.identity.v1.SeedUser.roles:type_name -> senim.identity.v1.Role
-	86,  // 26: senim.identity.v1.SeedUser.created_at:type_name -> google.protobuf.Timestamp
+	84,  // 26: senim.identity.v1.SeedUser.created_at:type_name -> google.protobuf.Timestamp
 	15,  // 27: senim.identity.v1.SeedUser.party:type_name -> senim.identity.v1.SeedParty
-	86,  // 28: senim.identity.v1.RequestOtpResponse.expires_at:type_name -> google.protobuf.Timestamp
+	84,  // 28: senim.identity.v1.RequestOtpResponse.expires_at:type_name -> google.protobuf.Timestamp
 	7,   // 29: senim.identity.v1.VerifyOtpResponse.user:type_name -> senim.identity.v1.User
 	8,   // 30: senim.identity.v1.VerifyOtpResponse.session:type_name -> senim.identity.v1.Session
 	7,   // 31: senim.identity.v1.AuthenticateResponse.user:type_name -> senim.identity.v1.User
 	8,   // 32: senim.identity.v1.AuthenticateResponse.session:type_name -> senim.identity.v1.Session
-	86,  // 33: senim.identity.v1.AuthenticateResponse.access_expires_at:type_name -> google.protobuf.Timestamp
+	84,  // 33: senim.identity.v1.AuthenticateResponse.access_expires_at:type_name -> google.protobuf.Timestamp
 	13,  // 34: senim.identity.v1.AuthenticateResponse.consents:type_name -> senim.identity.v1.Consent
 	0,   // 35: senim.identity.v1.SwitchRoleRequest.role:type_name -> senim.identity.v1.Role
 	7,   // 36: senim.identity.v1.SwitchRoleResponse.user:type_name -> senim.identity.v1.User
 	8,   // 37: senim.identity.v1.SwitchRoleResponse.session:type_name -> senim.identity.v1.Session
 	0,   // 38: senim.identity.v1.GrantRoleRequest.role:type_name -> senim.identity.v1.Role
 	7,   // 39: senim.identity.v1.GrantRoleResponse.user:type_name -> senim.identity.v1.User
-	0,   // 40: senim.identity.v1.StartDemoSessionRequest.as_role:type_name -> senim.identity.v1.Role
-	7,   // 41: senim.identity.v1.StartDemoSessionResponse.user:type_name -> senim.identity.v1.User
-	8,   // 42: senim.identity.v1.StartDemoSessionResponse.session:type_name -> senim.identity.v1.Session
-	17,  // 43: senim.identity.v1.SeedUsersRequest.users:type_name -> senim.identity.v1.SeedUser
-	7,   // 44: senim.identity.v1.SeedUsersResponse.users:type_name -> senim.identity.v1.User
-	16,  // 45: senim.identity.v1.SeedConsentsRequest.consents:type_name -> senim.identity.v1.SeedConsent
-	8,   // 46: senim.identity.v1.ConfirmTotpEnrollmentResponse.session:type_name -> senim.identity.v1.Session
-	8,   // 47: senim.identity.v1.VerifySecondFactorResponse.session:type_name -> senim.identity.v1.Session
-	10,  // 48: senim.identity.v1.RecordPersonResponse.person:type_name -> senim.identity.v1.Person
-	10,  // 49: senim.identity.v1.UpdateContactsResponse.person:type_name -> senim.identity.v1.Person
-	86,  // 50: senim.identity.v1.RequestEmailCodeResponse.expires_at:type_name -> google.protobuf.Timestamp
-	10,  // 51: senim.identity.v1.VerifyEmailCodeResponse.person:type_name -> senim.identity.v1.Person
-	10,  // 52: senim.identity.v1.GetProfileResponse.person:type_name -> senim.identity.v1.Person
-	11,  // 53: senim.identity.v1.GetProfileResponse.party:type_name -> senim.identity.v1.Party
-	1,   // 54: senim.identity.v1.RegisterPartyRequest.legal_form:type_name -> senim.identity.v1.LegalForm
-	11,  // 55: senim.identity.v1.RegisterPartyResponse.party:type_name -> senim.identity.v1.Party
-	1,   // 56: senim.identity.v1.ProvisionExecutorRequest.legal_form:type_name -> senim.identity.v1.LegalForm
-	7,   // 57: senim.identity.v1.ProvisionExecutorResponse.user:type_name -> senim.identity.v1.User
-	11,  // 58: senim.identity.v1.ProvisionExecutorResponse.party:type_name -> senim.identity.v1.Party
-	11,  // 59: senim.identity.v1.SetPayoutIbanResponse.party:type_name -> senim.identity.v1.Party
-	5,   // 60: senim.identity.v1.VerifySignerIinRequest.side:type_name -> senim.identity.v1.SigningSide
-	4,   // 61: senim.identity.v1.RevealPartyDetailsRequest.purpose:type_name -> senim.identity.v1.RevealPurpose
-	12,  // 62: senim.identity.v1.RevealPartyDetailsResponse.parties:type_name -> senim.identity.v1.PartyDetails
-	11,  // 63: senim.identity.v1.SubmitKycResponse.party:type_name -> senim.identity.v1.Party
-	11,  // 64: senim.identity.v1.ListKycQueueResponse.parties:type_name -> senim.identity.v1.Party
-	10,  // 65: senim.identity.v1.ListKycQueueResponse.people:type_name -> senim.identity.v1.Person
-	86,  // 66: senim.identity.v1.ReviewKycRequest.expected_submitted_at:type_name -> google.protobuf.Timestamp
-	11,  // 67: senim.identity.v1.ReviewKycResponse.party:type_name -> senim.identity.v1.Party
-	3,   // 68: senim.identity.v1.GrantConsentRequest.kind:type_name -> senim.identity.v1.ConsentKind
-	13,  // 69: senim.identity.v1.GrantConsentResponse.consent:type_name -> senim.identity.v1.Consent
-	3,   // 70: senim.identity.v1.RevokeConsentRequest.kind:type_name -> senim.identity.v1.ConsentKind
-	14,  // 71: senim.identity.v1.RevokeConsentResponse.revocation:type_name -> senim.identity.v1.ConsentRevocation
-	13,  // 72: senim.identity.v1.ListMyConsentsResponse.consents:type_name -> senim.identity.v1.Consent
-	14,  // 73: senim.identity.v1.ListMyConsentsResponse.revocations:type_name -> senim.identity.v1.ConsentRevocation
-	3,   // 74: senim.identity.v1.HasConsentsRequest.kind:type_name -> senim.identity.v1.ConsentKind
-	14,  // 75: senim.identity.v1.ListConsentRevocationsResponse.revocations:type_name -> senim.identity.v1.ConsentRevocation
-	10,  // 76: senim.identity.v1.ListConsentRevocationsResponse.people:type_name -> senim.identity.v1.Person
-	14,  // 77: senim.identity.v1.ResolveConsentRevocationResponse.revocation:type_name -> senim.identity.v1.ConsentRevocation
-	9,   // 78: senim.identity.v1.GetSigningKeysResponse.keys:type_name -> senim.identity.v1.SigningKey
-	18,  // 79: senim.identity.v1.IdentityService.RequestOtp:input_type -> senim.identity.v1.RequestOtpRequest
-	20,  // 80: senim.identity.v1.IdentityService.VerifyOtp:input_type -> senim.identity.v1.VerifyOtpRequest
-	22,  // 81: senim.identity.v1.IdentityService.Authenticate:input_type -> senim.identity.v1.AuthenticateRequest
-	24,  // 82: senim.identity.v1.IdentityService.SignOut:input_type -> senim.identity.v1.SignOutRequest
-	26,  // 83: senim.identity.v1.IdentityService.SignOutEverywhere:input_type -> senim.identity.v1.SignOutEverywhereRequest
-	28,  // 84: senim.identity.v1.IdentityService.SwitchRole:input_type -> senim.identity.v1.SwitchRoleRequest
-	30,  // 85: senim.identity.v1.IdentityService.GrantRole:input_type -> senim.identity.v1.GrantRoleRequest
-	32,  // 86: senim.identity.v1.IdentityService.StartDemoSession:input_type -> senim.identity.v1.StartDemoSessionRequest
-	34,  // 87: senim.identity.v1.IdentityService.SeedUsers:input_type -> senim.identity.v1.SeedUsersRequest
-	36,  // 88: senim.identity.v1.IdentityService.SeedConsents:input_type -> senim.identity.v1.SeedConsentsRequest
-	38,  // 89: senim.identity.v1.IdentityService.ResetDemo:input_type -> senim.identity.v1.ResetDemoRequest
-	84,  // 90: senim.identity.v1.IdentityService.GetSigningKeys:input_type -> senim.identity.v1.GetSigningKeysRequest
-	40,  // 91: senim.identity.v1.IdentityService.StartTotpEnrollment:input_type -> senim.identity.v1.StartTotpEnrollmentRequest
-	42,  // 92: senim.identity.v1.IdentityService.ConfirmTotpEnrollment:input_type -> senim.identity.v1.ConfirmTotpEnrollmentRequest
-	44,  // 93: senim.identity.v1.IdentityService.VerifySecondFactor:input_type -> senim.identity.v1.VerifySecondFactorRequest
-	46,  // 94: senim.identity.v1.IdentityService.RecordPerson:input_type -> senim.identity.v1.RecordPersonRequest
-	48,  // 95: senim.identity.v1.IdentityService.UpdateContacts:input_type -> senim.identity.v1.UpdateContactsRequest
-	50,  // 96: senim.identity.v1.IdentityService.RequestEmailCode:input_type -> senim.identity.v1.RequestEmailCodeRequest
-	52,  // 97: senim.identity.v1.IdentityService.VerifyEmailCode:input_type -> senim.identity.v1.VerifyEmailCodeRequest
-	54,  // 98: senim.identity.v1.IdentityService.GetProfile:input_type -> senim.identity.v1.GetProfileRequest
-	56,  // 99: senim.identity.v1.IdentityService.RegisterParty:input_type -> senim.identity.v1.RegisterPartyRequest
-	58,  // 100: senim.identity.v1.IdentityService.ProvisionExecutor:input_type -> senim.identity.v1.ProvisionExecutorRequest
-	60,  // 101: senim.identity.v1.IdentityService.SetPayoutIban:input_type -> senim.identity.v1.SetPayoutIbanRequest
-	62,  // 102: senim.identity.v1.IdentityService.VerifySignerIin:input_type -> senim.identity.v1.VerifySignerIinRequest
-	64,  // 103: senim.identity.v1.IdentityService.RevealPartyDetails:input_type -> senim.identity.v1.RevealPartyDetailsRequest
-	66,  // 104: senim.identity.v1.IdentityService.SubmitKyc:input_type -> senim.identity.v1.SubmitKycRequest
-	68,  // 105: senim.identity.v1.IdentityService.ListKycQueue:input_type -> senim.identity.v1.ListKycQueueRequest
-	70,  // 106: senim.identity.v1.IdentityService.ReviewKyc:input_type -> senim.identity.v1.ReviewKycRequest
-	72,  // 107: senim.identity.v1.IdentityService.GrantConsent:input_type -> senim.identity.v1.GrantConsentRequest
-	74,  // 108: senim.identity.v1.IdentityService.RevokeConsent:input_type -> senim.identity.v1.RevokeConsentRequest
-	76,  // 109: senim.identity.v1.IdentityService.ListMyConsents:input_type -> senim.identity.v1.ListMyConsentsRequest
-	78,  // 110: senim.identity.v1.IdentityService.HasConsents:input_type -> senim.identity.v1.HasConsentsRequest
-	80,  // 111: senim.identity.v1.IdentityService.ListConsentRevocations:input_type -> senim.identity.v1.ListConsentRevocationsRequest
-	82,  // 112: senim.identity.v1.IdentityService.ResolveConsentRevocation:input_type -> senim.identity.v1.ResolveConsentRevocationRequest
-	19,  // 113: senim.identity.v1.IdentityService.RequestOtp:output_type -> senim.identity.v1.RequestOtpResponse
-	21,  // 114: senim.identity.v1.IdentityService.VerifyOtp:output_type -> senim.identity.v1.VerifyOtpResponse
-	23,  // 115: senim.identity.v1.IdentityService.Authenticate:output_type -> senim.identity.v1.AuthenticateResponse
-	25,  // 116: senim.identity.v1.IdentityService.SignOut:output_type -> senim.identity.v1.SignOutResponse
-	27,  // 117: senim.identity.v1.IdentityService.SignOutEverywhere:output_type -> senim.identity.v1.SignOutEverywhereResponse
-	29,  // 118: senim.identity.v1.IdentityService.SwitchRole:output_type -> senim.identity.v1.SwitchRoleResponse
-	31,  // 119: senim.identity.v1.IdentityService.GrantRole:output_type -> senim.identity.v1.GrantRoleResponse
-	33,  // 120: senim.identity.v1.IdentityService.StartDemoSession:output_type -> senim.identity.v1.StartDemoSessionResponse
-	35,  // 121: senim.identity.v1.IdentityService.SeedUsers:output_type -> senim.identity.v1.SeedUsersResponse
-	37,  // 122: senim.identity.v1.IdentityService.SeedConsents:output_type -> senim.identity.v1.SeedConsentsResponse
-	39,  // 123: senim.identity.v1.IdentityService.ResetDemo:output_type -> senim.identity.v1.ResetDemoResponse
-	85,  // 124: senim.identity.v1.IdentityService.GetSigningKeys:output_type -> senim.identity.v1.GetSigningKeysResponse
-	41,  // 125: senim.identity.v1.IdentityService.StartTotpEnrollment:output_type -> senim.identity.v1.StartTotpEnrollmentResponse
-	43,  // 126: senim.identity.v1.IdentityService.ConfirmTotpEnrollment:output_type -> senim.identity.v1.ConfirmTotpEnrollmentResponse
-	45,  // 127: senim.identity.v1.IdentityService.VerifySecondFactor:output_type -> senim.identity.v1.VerifySecondFactorResponse
-	47,  // 128: senim.identity.v1.IdentityService.RecordPerson:output_type -> senim.identity.v1.RecordPersonResponse
-	49,  // 129: senim.identity.v1.IdentityService.UpdateContacts:output_type -> senim.identity.v1.UpdateContactsResponse
-	51,  // 130: senim.identity.v1.IdentityService.RequestEmailCode:output_type -> senim.identity.v1.RequestEmailCodeResponse
-	53,  // 131: senim.identity.v1.IdentityService.VerifyEmailCode:output_type -> senim.identity.v1.VerifyEmailCodeResponse
-	55,  // 132: senim.identity.v1.IdentityService.GetProfile:output_type -> senim.identity.v1.GetProfileResponse
-	57,  // 133: senim.identity.v1.IdentityService.RegisterParty:output_type -> senim.identity.v1.RegisterPartyResponse
-	59,  // 134: senim.identity.v1.IdentityService.ProvisionExecutor:output_type -> senim.identity.v1.ProvisionExecutorResponse
-	61,  // 135: senim.identity.v1.IdentityService.SetPayoutIban:output_type -> senim.identity.v1.SetPayoutIbanResponse
-	63,  // 136: senim.identity.v1.IdentityService.VerifySignerIin:output_type -> senim.identity.v1.VerifySignerIinResponse
-	65,  // 137: senim.identity.v1.IdentityService.RevealPartyDetails:output_type -> senim.identity.v1.RevealPartyDetailsResponse
-	67,  // 138: senim.identity.v1.IdentityService.SubmitKyc:output_type -> senim.identity.v1.SubmitKycResponse
-	69,  // 139: senim.identity.v1.IdentityService.ListKycQueue:output_type -> senim.identity.v1.ListKycQueueResponse
-	71,  // 140: senim.identity.v1.IdentityService.ReviewKyc:output_type -> senim.identity.v1.ReviewKycResponse
-	73,  // 141: senim.identity.v1.IdentityService.GrantConsent:output_type -> senim.identity.v1.GrantConsentResponse
-	75,  // 142: senim.identity.v1.IdentityService.RevokeConsent:output_type -> senim.identity.v1.RevokeConsentResponse
-	77,  // 143: senim.identity.v1.IdentityService.ListMyConsents:output_type -> senim.identity.v1.ListMyConsentsResponse
-	79,  // 144: senim.identity.v1.IdentityService.HasConsents:output_type -> senim.identity.v1.HasConsentsResponse
-	81,  // 145: senim.identity.v1.IdentityService.ListConsentRevocations:output_type -> senim.identity.v1.ListConsentRevocationsResponse
-	83,  // 146: senim.identity.v1.IdentityService.ResolveConsentRevocation:output_type -> senim.identity.v1.ResolveConsentRevocationResponse
-	113, // [113:147] is the sub-list for method output_type
-	79,  // [79:113] is the sub-list for method input_type
-	79,  // [79:79] is the sub-list for extension type_name
-	79,  // [79:79] is the sub-list for extension extendee
-	0,   // [0:79] is the sub-list for field type_name
+	17,  // 40: senim.identity.v1.SeedUsersRequest.users:type_name -> senim.identity.v1.SeedUser
+	7,   // 41: senim.identity.v1.SeedUsersResponse.users:type_name -> senim.identity.v1.User
+	16,  // 42: senim.identity.v1.SeedConsentsRequest.consents:type_name -> senim.identity.v1.SeedConsent
+	8,   // 43: senim.identity.v1.ConfirmTotpEnrollmentResponse.session:type_name -> senim.identity.v1.Session
+	8,   // 44: senim.identity.v1.VerifySecondFactorResponse.session:type_name -> senim.identity.v1.Session
+	10,  // 45: senim.identity.v1.RecordPersonResponse.person:type_name -> senim.identity.v1.Person
+	10,  // 46: senim.identity.v1.UpdateContactsResponse.person:type_name -> senim.identity.v1.Person
+	84,  // 47: senim.identity.v1.RequestEmailCodeResponse.expires_at:type_name -> google.protobuf.Timestamp
+	10,  // 48: senim.identity.v1.VerifyEmailCodeResponse.person:type_name -> senim.identity.v1.Person
+	10,  // 49: senim.identity.v1.GetProfileResponse.person:type_name -> senim.identity.v1.Person
+	11,  // 50: senim.identity.v1.GetProfileResponse.party:type_name -> senim.identity.v1.Party
+	1,   // 51: senim.identity.v1.RegisterPartyRequest.legal_form:type_name -> senim.identity.v1.LegalForm
+	11,  // 52: senim.identity.v1.RegisterPartyResponse.party:type_name -> senim.identity.v1.Party
+	1,   // 53: senim.identity.v1.ProvisionExecutorRequest.legal_form:type_name -> senim.identity.v1.LegalForm
+	7,   // 54: senim.identity.v1.ProvisionExecutorResponse.user:type_name -> senim.identity.v1.User
+	11,  // 55: senim.identity.v1.ProvisionExecutorResponse.party:type_name -> senim.identity.v1.Party
+	11,  // 56: senim.identity.v1.SetPayoutIbanResponse.party:type_name -> senim.identity.v1.Party
+	5,   // 57: senim.identity.v1.VerifySignerIinRequest.side:type_name -> senim.identity.v1.SigningSide
+	4,   // 58: senim.identity.v1.RevealPartyDetailsRequest.purpose:type_name -> senim.identity.v1.RevealPurpose
+	12,  // 59: senim.identity.v1.RevealPartyDetailsResponse.parties:type_name -> senim.identity.v1.PartyDetails
+	11,  // 60: senim.identity.v1.SubmitKycResponse.party:type_name -> senim.identity.v1.Party
+	11,  // 61: senim.identity.v1.ListKycQueueResponse.parties:type_name -> senim.identity.v1.Party
+	10,  // 62: senim.identity.v1.ListKycQueueResponse.people:type_name -> senim.identity.v1.Person
+	84,  // 63: senim.identity.v1.ReviewKycRequest.expected_submitted_at:type_name -> google.protobuf.Timestamp
+	11,  // 64: senim.identity.v1.ReviewKycResponse.party:type_name -> senim.identity.v1.Party
+	3,   // 65: senim.identity.v1.GrantConsentRequest.kind:type_name -> senim.identity.v1.ConsentKind
+	13,  // 66: senim.identity.v1.GrantConsentResponse.consent:type_name -> senim.identity.v1.Consent
+	3,   // 67: senim.identity.v1.RevokeConsentRequest.kind:type_name -> senim.identity.v1.ConsentKind
+	14,  // 68: senim.identity.v1.RevokeConsentResponse.revocation:type_name -> senim.identity.v1.ConsentRevocation
+	13,  // 69: senim.identity.v1.ListMyConsentsResponse.consents:type_name -> senim.identity.v1.Consent
+	14,  // 70: senim.identity.v1.ListMyConsentsResponse.revocations:type_name -> senim.identity.v1.ConsentRevocation
+	3,   // 71: senim.identity.v1.HasConsentsRequest.kind:type_name -> senim.identity.v1.ConsentKind
+	14,  // 72: senim.identity.v1.ListConsentRevocationsResponse.revocations:type_name -> senim.identity.v1.ConsentRevocation
+	10,  // 73: senim.identity.v1.ListConsentRevocationsResponse.people:type_name -> senim.identity.v1.Person
+	14,  // 74: senim.identity.v1.ResolveConsentRevocationResponse.revocation:type_name -> senim.identity.v1.ConsentRevocation
+	9,   // 75: senim.identity.v1.GetSigningKeysResponse.keys:type_name -> senim.identity.v1.SigningKey
+	18,  // 76: senim.identity.v1.IdentityService.RequestOtp:input_type -> senim.identity.v1.RequestOtpRequest
+	20,  // 77: senim.identity.v1.IdentityService.VerifyOtp:input_type -> senim.identity.v1.VerifyOtpRequest
+	22,  // 78: senim.identity.v1.IdentityService.Authenticate:input_type -> senim.identity.v1.AuthenticateRequest
+	24,  // 79: senim.identity.v1.IdentityService.SignOut:input_type -> senim.identity.v1.SignOutRequest
+	26,  // 80: senim.identity.v1.IdentityService.SignOutEverywhere:input_type -> senim.identity.v1.SignOutEverywhereRequest
+	28,  // 81: senim.identity.v1.IdentityService.SwitchRole:input_type -> senim.identity.v1.SwitchRoleRequest
+	30,  // 82: senim.identity.v1.IdentityService.GrantRole:input_type -> senim.identity.v1.GrantRoleRequest
+	32,  // 83: senim.identity.v1.IdentityService.SeedUsers:input_type -> senim.identity.v1.SeedUsersRequest
+	34,  // 84: senim.identity.v1.IdentityService.SeedConsents:input_type -> senim.identity.v1.SeedConsentsRequest
+	36,  // 85: senim.identity.v1.IdentityService.ResetStand:input_type -> senim.identity.v1.ResetStandRequest
+	82,  // 86: senim.identity.v1.IdentityService.GetSigningKeys:input_type -> senim.identity.v1.GetSigningKeysRequest
+	38,  // 87: senim.identity.v1.IdentityService.StartTotpEnrollment:input_type -> senim.identity.v1.StartTotpEnrollmentRequest
+	40,  // 88: senim.identity.v1.IdentityService.ConfirmTotpEnrollment:input_type -> senim.identity.v1.ConfirmTotpEnrollmentRequest
+	42,  // 89: senim.identity.v1.IdentityService.VerifySecondFactor:input_type -> senim.identity.v1.VerifySecondFactorRequest
+	44,  // 90: senim.identity.v1.IdentityService.RecordPerson:input_type -> senim.identity.v1.RecordPersonRequest
+	46,  // 91: senim.identity.v1.IdentityService.UpdateContacts:input_type -> senim.identity.v1.UpdateContactsRequest
+	48,  // 92: senim.identity.v1.IdentityService.RequestEmailCode:input_type -> senim.identity.v1.RequestEmailCodeRequest
+	50,  // 93: senim.identity.v1.IdentityService.VerifyEmailCode:input_type -> senim.identity.v1.VerifyEmailCodeRequest
+	52,  // 94: senim.identity.v1.IdentityService.GetProfile:input_type -> senim.identity.v1.GetProfileRequest
+	54,  // 95: senim.identity.v1.IdentityService.RegisterParty:input_type -> senim.identity.v1.RegisterPartyRequest
+	56,  // 96: senim.identity.v1.IdentityService.ProvisionExecutor:input_type -> senim.identity.v1.ProvisionExecutorRequest
+	58,  // 97: senim.identity.v1.IdentityService.SetPayoutIban:input_type -> senim.identity.v1.SetPayoutIbanRequest
+	60,  // 98: senim.identity.v1.IdentityService.VerifySignerIin:input_type -> senim.identity.v1.VerifySignerIinRequest
+	62,  // 99: senim.identity.v1.IdentityService.RevealPartyDetails:input_type -> senim.identity.v1.RevealPartyDetailsRequest
+	64,  // 100: senim.identity.v1.IdentityService.SubmitKyc:input_type -> senim.identity.v1.SubmitKycRequest
+	66,  // 101: senim.identity.v1.IdentityService.ListKycQueue:input_type -> senim.identity.v1.ListKycQueueRequest
+	68,  // 102: senim.identity.v1.IdentityService.ReviewKyc:input_type -> senim.identity.v1.ReviewKycRequest
+	70,  // 103: senim.identity.v1.IdentityService.GrantConsent:input_type -> senim.identity.v1.GrantConsentRequest
+	72,  // 104: senim.identity.v1.IdentityService.RevokeConsent:input_type -> senim.identity.v1.RevokeConsentRequest
+	74,  // 105: senim.identity.v1.IdentityService.ListMyConsents:input_type -> senim.identity.v1.ListMyConsentsRequest
+	76,  // 106: senim.identity.v1.IdentityService.HasConsents:input_type -> senim.identity.v1.HasConsentsRequest
+	78,  // 107: senim.identity.v1.IdentityService.ListConsentRevocations:input_type -> senim.identity.v1.ListConsentRevocationsRequest
+	80,  // 108: senim.identity.v1.IdentityService.ResolveConsentRevocation:input_type -> senim.identity.v1.ResolveConsentRevocationRequest
+	19,  // 109: senim.identity.v1.IdentityService.RequestOtp:output_type -> senim.identity.v1.RequestOtpResponse
+	21,  // 110: senim.identity.v1.IdentityService.VerifyOtp:output_type -> senim.identity.v1.VerifyOtpResponse
+	23,  // 111: senim.identity.v1.IdentityService.Authenticate:output_type -> senim.identity.v1.AuthenticateResponse
+	25,  // 112: senim.identity.v1.IdentityService.SignOut:output_type -> senim.identity.v1.SignOutResponse
+	27,  // 113: senim.identity.v1.IdentityService.SignOutEverywhere:output_type -> senim.identity.v1.SignOutEverywhereResponse
+	29,  // 114: senim.identity.v1.IdentityService.SwitchRole:output_type -> senim.identity.v1.SwitchRoleResponse
+	31,  // 115: senim.identity.v1.IdentityService.GrantRole:output_type -> senim.identity.v1.GrantRoleResponse
+	33,  // 116: senim.identity.v1.IdentityService.SeedUsers:output_type -> senim.identity.v1.SeedUsersResponse
+	35,  // 117: senim.identity.v1.IdentityService.SeedConsents:output_type -> senim.identity.v1.SeedConsentsResponse
+	37,  // 118: senim.identity.v1.IdentityService.ResetStand:output_type -> senim.identity.v1.ResetStandResponse
+	83,  // 119: senim.identity.v1.IdentityService.GetSigningKeys:output_type -> senim.identity.v1.GetSigningKeysResponse
+	39,  // 120: senim.identity.v1.IdentityService.StartTotpEnrollment:output_type -> senim.identity.v1.StartTotpEnrollmentResponse
+	41,  // 121: senim.identity.v1.IdentityService.ConfirmTotpEnrollment:output_type -> senim.identity.v1.ConfirmTotpEnrollmentResponse
+	43,  // 122: senim.identity.v1.IdentityService.VerifySecondFactor:output_type -> senim.identity.v1.VerifySecondFactorResponse
+	45,  // 123: senim.identity.v1.IdentityService.RecordPerson:output_type -> senim.identity.v1.RecordPersonResponse
+	47,  // 124: senim.identity.v1.IdentityService.UpdateContacts:output_type -> senim.identity.v1.UpdateContactsResponse
+	49,  // 125: senim.identity.v1.IdentityService.RequestEmailCode:output_type -> senim.identity.v1.RequestEmailCodeResponse
+	51,  // 126: senim.identity.v1.IdentityService.VerifyEmailCode:output_type -> senim.identity.v1.VerifyEmailCodeResponse
+	53,  // 127: senim.identity.v1.IdentityService.GetProfile:output_type -> senim.identity.v1.GetProfileResponse
+	55,  // 128: senim.identity.v1.IdentityService.RegisterParty:output_type -> senim.identity.v1.RegisterPartyResponse
+	57,  // 129: senim.identity.v1.IdentityService.ProvisionExecutor:output_type -> senim.identity.v1.ProvisionExecutorResponse
+	59,  // 130: senim.identity.v1.IdentityService.SetPayoutIban:output_type -> senim.identity.v1.SetPayoutIbanResponse
+	61,  // 131: senim.identity.v1.IdentityService.VerifySignerIin:output_type -> senim.identity.v1.VerifySignerIinResponse
+	63,  // 132: senim.identity.v1.IdentityService.RevealPartyDetails:output_type -> senim.identity.v1.RevealPartyDetailsResponse
+	65,  // 133: senim.identity.v1.IdentityService.SubmitKyc:output_type -> senim.identity.v1.SubmitKycResponse
+	67,  // 134: senim.identity.v1.IdentityService.ListKycQueue:output_type -> senim.identity.v1.ListKycQueueResponse
+	69,  // 135: senim.identity.v1.IdentityService.ReviewKyc:output_type -> senim.identity.v1.ReviewKycResponse
+	71,  // 136: senim.identity.v1.IdentityService.GrantConsent:output_type -> senim.identity.v1.GrantConsentResponse
+	73,  // 137: senim.identity.v1.IdentityService.RevokeConsent:output_type -> senim.identity.v1.RevokeConsentResponse
+	75,  // 138: senim.identity.v1.IdentityService.ListMyConsents:output_type -> senim.identity.v1.ListMyConsentsResponse
+	77,  // 139: senim.identity.v1.IdentityService.HasConsents:output_type -> senim.identity.v1.HasConsentsResponse
+	79,  // 140: senim.identity.v1.IdentityService.ListConsentRevocations:output_type -> senim.identity.v1.ListConsentRevocationsResponse
+	81,  // 141: senim.identity.v1.IdentityService.ResolveConsentRevocation:output_type -> senim.identity.v1.ResolveConsentRevocationResponse
+	109, // [109:142] is the sub-list for method output_type
+	76,  // [76:109] is the sub-list for method input_type
+	76,  // [76:76] is the sub-list for extension type_name
+	76,  // [76:76] is the sub-list for extension extendee
+	0,   // [0:76] is the sub-list for field type_name
 }
 
 func init() { file_senim_identity_v1_identity_proto_init() }
@@ -5994,7 +5860,7 @@ func file_senim_identity_v1_identity_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_senim_identity_v1_identity_proto_rawDesc), len(file_senim_identity_v1_identity_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   79,
+			NumMessages:   77,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

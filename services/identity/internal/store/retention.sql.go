@@ -20,7 +20,7 @@ type DeleteIdempotencyExceptParams struct {
 	Key    string
 }
 
-// Сброс стенда (ResetDemo): оставляет только запись самого вызова, чтобы его повтор был идемпотентным.
+// Сброс стенда (ResetStand): оставляет только запись самого вызова, чтобы его повтор был идемпотентным.
 func (q *Queries) DeleteIdempotencyExcept(ctx context.Context, arg DeleteIdempotencyExceptParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteIdempotencyExcept, arg.Method, arg.Key)
 	if err != nil {

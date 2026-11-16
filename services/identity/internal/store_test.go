@@ -82,12 +82,12 @@ func TestDBUserCRUD(t *testing.T) {
 	_, q := migratedDB(t)
 	ctx := context.Background()
 	phone := newPhone()
-	u, err := q.CreateUser(ctx, store.CreateUserParams{Phone: phone, Roles: []string{"CLIENT", "EXECUTOR"}, DefaultRole: "EXECUTOR", IsDemo: true})
+	u, err := q.CreateUser(ctx, store.CreateUserParams{Phone: phone, Roles: []string{"CLIENT", "EXECUTOR"}, DefaultRole: "EXECUTOR"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	byPhone, err := q.GetUserByPhone(ctx, phone)
-	if err != nil || byPhone.ID != u.ID || !byPhone.IsDemo || byPhone.DefaultRole != "EXECUTOR" {
+	if err != nil || byPhone.ID != u.ID || byPhone.Seeded || byPhone.DefaultRole != "EXECUTOR" {
 		t.Fatalf("by phone: %+v %v", byPhone, err)
 	}
 	byID, err := q.GetUserByID(ctx, u.ID)

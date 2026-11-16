@@ -264,8 +264,9 @@ func TestGrantConsentRecordsProof(t *testing.T) {
 }
 
 // TestGrantConsentChannelBySessionOpening — Ruling AL: канал согласия — по тому, как открыта
-// сессия. Вход кодом (VerifyOtp) — otp_session, демо-вход без кода (StartDemoSession) —
-// demo; у обоих session_id — эта сессия. Канал demo без сессии база не примет.
+// сессия. Вход кодом (VerifyOtp) — otp_session с этой сессией. Демо-входа больше нет (0012):
+// новые строки с opened_by = 'demo' и channel = 'demo' база не принимает, старые остаются
+// действительными (отметка отзыва проходит), а согласие в старой демо-сессии — отказ.
 func TestGrantConsentChannelBySessionOpening(t *testing.T) {
 	h := newHarness(t, nil)
 	ctx := context.Background()
@@ -277,60 +278,92 @@ func TestGrantConsentChannelBySessionOpening(t *testing.T) {
 		t.Fatal(err)
 	}
 	otpUser := uuid.MustParse(res.GetUser().GetId())
-	if got := h.sessionRow(login.GetSessionToken()).OpenedBy; got != sessionOpenedByOtp {
-		t.Fatalf("сессия входа кодом: opened_by %q", got)
+	otpSession := h.sessionRow(login.GetSessionToken())
+	if otpSession.OpenedBy != sessionOpenedByOtp {
+		t.Fatalf("сессия входа кодом: opened_by %q", otpSession.OpenedBy)
 	}
 	if c := h.mustGrant(pdGrant(login.GetSessionToken(), "2026-11-01")); c.GetChannel() != channelOtpSession {
 		t.Fatalf("канал согласия после входа кодом: %q", c.GetChannel())
 	}
 	if rows := h.consentRows(otpUser); len(rows) != 1 || rows[0].Channel != channelOtpSession ||
-		rows[0].SessionID.UUID != h.sessionRow(login.GetSessionToken()).ID {
+		rows[0].SessionID.UUID != otpSession.ID {
 		t.Fatalf("запись после входа кодом: %+v", rows)
 	}
 
-	demoUser := h.demoUser(roleClient, true, roleClient)
-	demo := &identityv1.StartDemoSessionRequest{UserId: demoUser.GetId()}
-	if _, err := h.startDemo(demo); err != nil {
+	// Новые строки со значением 'demo' — отказ (23514), и рабочей роли, и через UPDATE.
+	_, err = h.pool.Exec(ctx,
+		`INSERT INTO sessions (token_hash, user_id, active_role, expires_at, opened_by)
+		 VALUES ($1, $2, 'CLIENT', now() + interval '1 hour', 'demo')`, []byte("demo-session-token-hash-0000001"), otpUser)
+	if code, msg := pgCode(err); code != "23514" || !strings.Contains(msg, "retired_value") {
+		t.Fatalf("новая демо-сессия: %v, want 23514 retired_value", err)
+	}
+	_, err = h.pool.Exec(ctx, `UPDATE sessions SET opened_by = 'demo' WHERE id = $1`, otpSession.ID)
+	if code, _ := pgCode(err); code != "23514" {
+		t.Fatalf("сессия в демо: %v, want 23514", err)
+	}
+	_, err = h.pool.Exec(ctx,
+		`INSERT INTO consents (user_id, kind, version, text_sha256, purposes, channel, session_id)
+		 VALUES ($1, 'PD_PROCESSING', 'x-1', $2, '{}', 'demo', $3)`, otpUser, make([]byte, 32), otpSession.ID)
+	if code, msg := pgCode(err); code != "23514" || !strings.Contains(msg, "retired_value") {
+		t.Fatalf("новое согласие канала demo: %v, want 23514 retired_value", err)
+	}
+
+	// Старые строки (до 0012): владелец вставляет их в обход триггера, как они лежат в базе.
+	owner := ownerConn(t)
+	oldToken := newToken(t)
+	oldSum := sha256.Sum256([]byte(oldToken))
+	var oldSession uuid.UUID
+	tx, err := owner.Begin(ctx)
+	if err != nil {
 		t.Fatal(err)
 	}
-	demoSession := h.sessionRow(demo.GetSessionToken())
-	if demoSession.OpenedBy != sessionOpenedByDemo {
-		t.Fatalf("демо-сессия: opened_by %q", demoSession.OpenedBy)
-	}
-	deal := uuid.NewString()
-	for _, req := range []*identityv1.GrantConsentRequest{pdGrant(demo.GetSessionToken(), "2026-11-01"), bankGrant(demo.GetSessionToken(), deal)} {
-		if c := h.mustGrant(req); c.GetChannel() != channelDemo {
-			t.Fatalf("канал согласия в демо-сессии: %q", c.GetChannel())
+	for _, q := range []string{
+		`ALTER TABLE sessions DISABLE TRIGGER sessions_opened_by_retired`,
+		`ALTER TABLE consents DISABLE TRIGGER consents_channel_retired`,
+	} {
+		if _, err := tx.Exec(ctx, q); err != nil {
+			t.Fatal(err)
 		}
 	}
-	rows := h.consentRows(uuid.MustParse(demoUser.GetId()))
-	if len(rows) != 2 {
-		t.Fatalf("записей в демо-сессии %d, want 2", len(rows))
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO sessions (token_hash, user_id, active_role, expires_at, opened_by)
+		 VALUES ($1, $2, 'CLIENT', $3, 'demo') RETURNING id`, oldSum[:], otpUser, h.clock.now().Add(time.Hour)).Scan(&oldSession); err != nil {
+		t.Fatal(err)
 	}
-	for _, r := range rows {
-		if r.Channel != channelDemo || !r.SessionID.Valid || r.SessionID.UUID != demoSession.ID {
-			t.Fatalf("запись в демо-сессии: %+v", r)
+	var oldConsent uuid.UUID
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO consents (user_id, kind, version, text_sha256, purposes, reference_id, channel, session_id)
+		 VALUES ($1, 'BANK_TRANSFER', 'x-2', $2, '{}', $3, 'demo', $4) RETURNING id`,
+		otpUser, make([]byte, 32), uuid.NewString(), oldSession).Scan(&oldConsent); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`ALTER TABLE sessions ENABLE TRIGGER sessions_opened_by_retired`,
+		`ALTER TABLE consents ENABLE TRIGGER consents_channel_retired`,
+	} {
+		if _, err := tx.Exec(ctx, q); err != nil {
+			t.Fatal(err)
 		}
 	}
-	audit := h.auditOf(demoUser.GetId(), "consent.granted")
-	if len(audit) != 2 || !strings.Contains(audit[0].GetAfterJson(), `"channel":"demo"`) {
-		t.Fatalf("аудит в демо-сессии: %v", audit)
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Согласие в старой демо-сессии не записывается каналом otp_session.
+	_, err = h.grantConsent(bankGrant(oldToken, uuid.NewString()), h.key())
+	h.wantRefusal(err, connect.CodeUnauthenticated, "session_invalid")
+	// Отметка отзыва старой записи канала demo проходит: история остаётся действительной.
+	if _, err := h.pool.Exec(ctx, `UPDATE consents SET revoked_at = now() WHERE id = $1`, oldConsent); err != nil {
+		t.Fatalf("отзыв записи канала demo: %v", err)
 	}
 
 	// Ограничения базы: demo — только с сессией, неизвестный канал и способ входа — отказ.
 	_, err = h.pool.Exec(ctx,
 		`INSERT INTO consents (user_id, kind, version, text_sha256, purposes, channel)
-		 VALUES ($1, 'PD_PROCESSING', 'x-2', $2, '{}', 'demo')`, otpUser, make([]byte, 32))
-	if code, _ := pgCode(err); code != "23514" {
-		t.Fatalf("demo без сессии: %v, want 23514", err)
-	}
-	_, err = h.pool.Exec(ctx,
-		`INSERT INTO consents (user_id, kind, version, text_sha256, purposes, channel, session_id)
-		 VALUES ($1, 'PD_PROCESSING', 'x-3', $2, '{}', 'sms', $3)`, otpUser, make([]byte, 32), demoSession.ID)
+		 VALUES ($1, 'PD_PROCESSING', 'x-3', $2, '{}', 'sms')`, otpUser, make([]byte, 32))
 	if code, _ := pgCode(err); code != "23514" {
 		t.Fatalf("неизвестный канал: %v, want 23514", err)
 	}
-	_, err = h.pool.Exec(ctx, `UPDATE sessions SET opened_by = 'magic' WHERE id = $1`, demoSession.ID)
+	_, err = h.pool.Exec(ctx, `UPDATE sessions SET opened_by = 'magic' WHERE id = $1`, otpSession.ID)
 	if code, _ := pgCode(err); code != "23514" {
 		t.Fatalf("неизвестный способ входа: %v, want 23514", err)
 	}
@@ -917,38 +950,35 @@ func TestResolveCompletedRevokesConsentsGrantedBefore(t *testing.T) {
 	}
 }
 
-// TestResetDemoPurgesDemoConsents — сброс демо удаляет согласия и заявки демо-пользователей
-// (через функцию владельца), согласия настоящих пользователей остаются; обойти триггер
-// настройкой для не-демо нельзя.
-func TestResetDemoPurgesDemoConsents(t *testing.T) {
+// TestResetStandPurgesSeededConsents — сброс стенда удаляет согласия и заявки засеянных
+// пользователей (через функцию владельца), согласия настоящих пользователей остаются; обойти
+// триггер настройкой для незасеянных нельзя.
+func TestResetStandPurgesSeededConsents(t *testing.T) {
 	h := newHarness(t, nil)
 	phone := newPhone()
-	seeded := seedUser(phone, roleClient, true, roleClient)
+	seeded := seedUser(phone, roleClient, roleClient)
 	seeded.ConsentVersion, seeded.ConsentTextSha256 = "2026-11-01", textSum("ПДн 2026-11-01")
 	res, err := h.seed(seeded)
 	if err != nil {
 		t.Fatal(err)
 	}
-	demoID := uuid.MustParse(res.GetUsers()[0].GetId())
-	demo := &identityv1.StartDemoSessionRequest{UserId: demoID.String()}
-	if _, err := h.startDemo(demo); err != nil {
-		t.Fatal(err)
-	}
-	h.mustGrant(bankGrant(demo.GetSessionToken(), uuid.NewString()))
-	h.mustRevoke(demo.GetSessionToken())
+	seededID := uuid.MustParse(res.GetUsers()[0].GetId())
+	seededToken, _ := h.login(phone)
+	h.mustGrant(bankGrant(seededToken, uuid.NewString()))
+	h.mustRevoke(seededToken)
 
 	person, realToken := h.client()
 	h.mustGrant(pdGrant(realToken, "2026-11-01"))
 	realRev := h.mustRevoke(realToken)
 
-	if err := h.resetDemo(h.key()); err != nil {
-		t.Fatalf("ResetDemo: %v", err)
+	if err := h.resetStand(h.key()); err != nil {
+		t.Fatalf("ResetStand: %v", err)
 	}
-	if n := len(h.consentRows(demoID)); n != 0 {
-		t.Fatalf("согласий демо после сброса %d, want 0", n)
+	if n := len(h.consentRows(seededID)); n != 0 {
+		t.Fatalf("согласий засеянного после сброса %d, want 0", n)
 	}
-	if n := h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1`, demoID); n != 0 {
-		t.Fatalf("заявок демо после сброса %d, want 0", n)
+	if n := h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1`, seededID); n != 0 {
+		t.Fatalf("заявок засеянного после сброса %d, want 0", n)
 	}
 	if n := len(h.consentRows(person.ID)); n != 1 {
 		t.Fatalf("согласий настоящего пользователя %d, want 1", n)
@@ -960,37 +990,43 @@ func TestResetDemoPurgesDemoConsents(t *testing.T) {
 	if _, err := h.seed(seeded); err != nil {
 		t.Fatal(err)
 	}
-	if rows := h.consentRows(demoID); len(rows) != 1 || rows[0].Channel != channelSeed {
+	if rows := h.consentRows(seededID); len(rows) != 1 || rows[0].Channel != channelSeed {
 		t.Fatalf("после пересева: %+v", rows)
 	}
 
 	// Настройка сброса не открывает удаление согласий настоящих пользователей — даже владельцу.
 	ctx := context.Background()
 	owner := ownerConn(t)
-	if _, err := owner.Exec(ctx, `SELECT set_config('identity.demo_purge', 'on', false)`); err != nil {
+	if _, err := owner.Exec(ctx, `SELECT set_config('identity.stand_purge', 'on', false)`); err != nil {
 		t.Fatal(err)
 	}
 	_, err = owner.Exec(ctx, `DELETE FROM consents WHERE user_id = $1`, person.ID)
-	wantImmutable(t, err, "DELETE не-демо с настройкой сброса")
+	wantImmutable(t, err, "DELETE незасеянного с настройкой сброса")
+	// Прежняя настройка демо-очистки больше ничего не открывает.
+	if _, err := owner.Exec(ctx, `SELECT set_config('identity.stand_purge', 'off', false), set_config('identity.demo_purge', 'on', false)`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = owner.Exec(ctx, `DELETE FROM consents WHERE user_id = $1`, seededID)
+	wantImmutable(t, err, "DELETE засеянного по прежней настройке demo_purge")
 	// Рабочей роли настройка не даёт DELETE.
 	conn, err := h.pool.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer conn.Release()
-	if _, err := conn.Exec(ctx, `SELECT set_config('identity.demo_purge', 'on', true)`); err != nil {
+	if _, err := conn.Exec(ctx, `SELECT set_config('identity.stand_purge', 'on', true)`); err != nil {
 		t.Fatal(err)
 	}
-	_, err = conn.Exec(ctx, `DELETE FROM consents WHERE user_id = $1`, demoID)
+	_, err = conn.Exec(ctx, `DELETE FROM consents WHERE user_id = $1`, seededID)
 	if code, _ := pgCode(err); code != "42501" {
 		t.Fatalf("DELETE рабочей ролью: %v, want 42501", err)
 	}
-	// Без настройки владелец демо-согласие тоже не удалит.
+	// Без настройки владелец согласие засеянного тоже не удалит.
 	if _, err := owner.Exec(ctx, `SELECT set_config('identity.demo_purge', 'off', false)`); err != nil {
 		t.Fatal(err)
 	}
-	_, err = owner.Exec(ctx, `DELETE FROM consents WHERE user_id = $1`, demoID)
-	wantImmutable(t, err, "DELETE демо без настройки")
+	_, err = owner.Exec(ctx, `DELETE FROM consents WHERE user_id = $1`, seededID)
+	wantImmutable(t, err, "DELETE засеянного без настройки")
 }
 
 func TestSeedUsersConsent(t *testing.T) {
@@ -998,7 +1034,7 @@ func TestSeedUsersConsent(t *testing.T) {
 	phone := newPhone()
 	sum := textSum("ПДн 2026-11-01")
 	withConsent := func() *identityv1.SeedUser {
-		u := seedUser(phone, roleClient, true, roleClient)
+		u := seedUser(phone, roleClient, roleClient)
 		u.ConsentVersion, u.ConsentTextSha256 = "2026-11-01", sum
 		return u
 	}
@@ -1019,16 +1055,13 @@ func TestSeedUsersConsent(t *testing.T) {
 	if n := len(h.consentRows(id)); n != 1 {
 		t.Fatalf("после повтора записей %d, want 1", n)
 	}
-	// Демо-персона входит с действующим согласием.
-	demo := &identityv1.StartDemoSessionRequest{UserId: id.String()}
-	if _, err := h.startDemo(demo); err != nil {
-		t.Fatal(err)
-	}
-	if got := h.mustAuth(demo.GetSessionToken()).GetConsents(); len(got) != 1 || got[0].GetChannel() != "seed" || got[0].GetKind() != kindPD {
-		t.Fatalf("согласия демо-персоны: %v", got)
+	// Человек стенда входит кодом с действующим согласием сида.
+	token, _ := h.login(phone)
+	if got := h.mustAuth(token).GetConsents(); len(got) != 1 || got[0].GetChannel() != "seed" || got[0].GetKind() != kindPD {
+		t.Fatalf("согласия человека стенда: %v", got)
 	}
 	// Без согласия — записи нет.
-	plain, err := h.seed(seedUser(newPhone(), roleClient, true, roleClient))
+	plain, err := h.seed(seedUser(newPhone(), roleClient, roleClient))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1044,17 +1077,17 @@ func TestSeedUsersConsent(t *testing.T) {
 		{"v 1", sum, "consent_version_invalid"},
 		{"2026-11-01", "abc", "consent_version_invalid"},
 	} {
-		u := seedUser(newPhone(), roleClient, true, roleClient)
+		u := seedUser(newPhone(), roleClient, roleClient)
 		u.ConsentVersion, u.ConsentTextSha256 = bad.version, bad.sum
 		_, err := h.seed(u)
 		h.wantRefusal(err, connect.CodeInvalidArgument, bad.reason)
 	}
 }
 
-// TestDemoPurgeUsesRowFlag — признак демо берётся из записи, а не из текущего users.is_demo:
-// пометить настоящего человека демо задним числом (рабочая роль может UPDATE users) или
-// засеять его телефон как демо-персону — его согласия и заявки после очистки на месте.
-func TestDemoPurgeUsesRowFlag(t *testing.T) {
+// TestStandPurgeUsesRowFlag — признак сида берётся из записи, а не из текущего users.seeded:
+// пометить настоящего человека засеянным задним числом (рабочая роль может UPDATE users) или
+// засеять его телефон — его согласия и заявки после очистки на месте.
+func TestStandPurgeUsesRowFlag(t *testing.T) {
 	h := newHarness(t, nil)
 	ctx := context.Background()
 	person, token := h.client()
@@ -1069,37 +1102,37 @@ func TestDemoPurgeUsesRowFlag(t *testing.T) {
 			t.Fatalf("%s: заявка тронута", what)
 		}
 	}
-	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1 AND is_demo`, person.ID); n != 0 {
-		t.Fatalf("согласие настоящего записано демо")
+	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1 AND seeded`, person.ID); n != 0 {
+		t.Fatalf("согласие настоящего записано засеянным")
 	}
 
-	// (а) Рабочая роль помечает настоящего человека демо и зовёт очистку.
-	if _, err := h.pool.Exec(ctx, `UPDATE users SET is_demo = true WHERE id = $1`, person.ID); err != nil {
+	// (а) Рабочая роль помечает настоящего человека засеянным и зовёт очистку.
+	if _, err := h.pool.Exec(ctx, `UPDATE users SET seeded = true WHERE id = $1`, person.ID); err != nil {
 		t.Fatal(err)
 	}
 	var deleted int64
-	if err := h.pool.QueryRow(ctx, `SELECT identity_purge_demo_consents()`).Scan(&deleted); err != nil {
+	if err := h.pool.QueryRow(ctx, `SELECT identity_purge_seeded_consents()`).Scan(&deleted); err != nil {
 		t.Fatal(err)
 	}
-	intact("UPDATE users.is_demo + очистка")
-	if _, err := h.pool.Exec(ctx, `UPDATE users SET is_demo = false WHERE id = $1`, person.ID); err != nil {
+	intact("UPDATE users.seeded + очистка")
+	if _, err := h.pool.Exec(ctx, `UPDATE users SET seeded = false WHERE id = $1`, person.ID); err != nil {
 		t.Fatal(err)
 	}
 
 	// Признак записи не подделать: вставка берёт его из users, изменение запрещено.
 	if _, err := h.pool.Exec(ctx,
-		`INSERT INTO consents (user_id, kind, version, text_sha256, purposes, channel, is_demo)
+		`INSERT INTO consents (user_id, kind, version, text_sha256, purposes, channel, seeded)
 		 VALUES ($1, 'PD_PROCESSING', 'x-1', $2, '{}', 'seed', true)`, person.ID, make([]byte, 32)); err != nil {
 		t.Fatal(err)
 	}
-	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1 AND is_demo`, person.ID); n != 0 {
-		t.Fatal("is_demo из запроса не проигнорирован")
+	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1 AND seeded`, person.ID); n != 0 {
+		t.Fatal("seeded из запроса не проигнорирован")
 	}
-	_, err := h.pool.Exec(ctx, `UPDATE consents SET is_demo = true WHERE id = $1`, c.GetId())
-	wantImmutable(t, err, "UPDATE consents.is_demo")
-	_, err = h.pool.Exec(ctx, `UPDATE consent_revocations SET is_demo = true WHERE id = $1`, rev.GetId())
+	_, err := h.pool.Exec(ctx, `UPDATE consents SET seeded = true WHERE id = $1`, c.GetId())
+	wantImmutable(t, err, "UPDATE consents.seeded")
+	_, err = h.pool.Exec(ctx, `UPDATE consent_revocations SET seeded = true WHERE id = $1`, rev.GetId())
 	if code, msg := pgCode(err); code != "P0001" || !strings.Contains(msg, "revocation_immutable") {
-		t.Fatalf("UPDATE consent_revocations.is_demo: %v", err)
+		t.Fatalf("UPDATE consent_revocations.seeded: %v", err)
 	}
 	_, err = h.pool.Exec(ctx, `UPDATE consent_revocations SET user_id = $2 WHERE id = $1`, rev.GetId(), h.user([]string{"CLIENT"}, "CLIENT").ID)
 	if code, msg := pgCode(err); code != "P0001" || !strings.Contains(msg, "revocation_immutable") {
@@ -1107,16 +1140,16 @@ func TestDemoPurgeUsesRowFlag(t *testing.T) {
 	}
 	owner := ownerConn(t)
 	if _, err := owner.Exec(ctx, `DELETE FROM consents WHERE user_id = $1 AND version = 'x-1'`, person.ID); err == nil {
-		t.Fatal("удаление строки не-демо прошло")
+		t.Fatal("удаление строки незасеянного прошло")
 	}
 
-	// (б) Сид с телефоном настоящего пользователя как демо — отказ; сброс его не трогает.
-	_, err = h.seed(seedUser(person.Phone, roleClient, true, roleClient))
+	// (б) Сид с телефоном настоящего пользователя — отказ; сброс его не трогает.
+	_, err = h.seed(seedUser(person.Phone, roleClient, roleClient))
 	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
-	if u, err := h.q.GetUserByID(ctx, person.ID); err != nil || u.IsDemo {
-		t.Fatalf("пользователь стал демо: %+v, %v", u, err)
+	if u, err := h.q.GetUserByID(ctx, person.ID); err != nil || u.Seeded {
+		t.Fatalf("пользователь стал засеянным: %+v, %v", u, err)
 	}
-	if err := h.resetDemo(h.key()); err != nil {
+	if err := h.resetStand(h.key()); err != nil {
 		t.Fatal(err)
 	}
 	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1`, person.ID); n != 2 {
@@ -1125,36 +1158,25 @@ func TestDemoPurgeUsesRowFlag(t *testing.T) {
 	if h.revocationRow(rev.GetId()).Status != revocationRequested {
 		t.Fatal("после сброса заявка тронута")
 	}
-	// Опустить признак (демо → настоящий) сид может.
-	demoPhone := newPhone()
-	if _, err := h.seed(seedUser(demoPhone, roleClient, true, roleClient)); err != nil {
-		t.Fatal(err)
-	}
-	if res, err := h.seed(seedUser(demoPhone, roleClient, false, roleClient)); err != nil || res.GetUsers()[0].GetIsDemo() {
-		t.Fatalf("демо → настоящий: %v, %v", res, err)
-	}
 
-	// (в) Демо-персона по-прежнему очищается; её записи — демо.
-	seeded := seedUser(newPhone(), roleClient, true, roleClient)
+	// (в) Засеянный по-прежнему очищается; его записи — засеянные.
+	seeded := seedUser(newPhone(), roleClient, roleClient)
 	seeded.ConsentVersion, seeded.ConsentTextSha256 = "2026-11-01", textSum("ПДн 2026-11-01")
 	res, err := h.seed(seeded)
 	if err != nil {
 		t.Fatal(err)
 	}
-	demoID := uuid.MustParse(res.GetUsers()[0].GetId())
-	demo := &identityv1.StartDemoSessionRequest{UserId: demoID.String()}
-	if _, err := h.startDemo(demo); err != nil {
+	seededID := uuid.MustParse(res.GetUsers()[0].GetId())
+	seededToken, _ := h.login(seeded.GetPhone())
+	h.mustRevoke(seededToken)
+	if n := h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1 AND seeded`, seededID); n != 1 {
+		t.Fatalf("заявка засеянного без признака: %d", n)
+	}
+	if err := h.resetStand(h.key()); err != nil {
 		t.Fatal(err)
 	}
-	h.mustRevoke(demo.GetSessionToken())
-	if n := h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1 AND is_demo`, demoID); n != 1 {
-		t.Fatalf("заявка демо без признака: %d", n)
-	}
-	if err := h.resetDemo(h.key()); err != nil {
-		t.Fatal(err)
-	}
-	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1`, demoID) + h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1`, demoID); n != 0 {
-		t.Fatalf("демо не очищено: %d", n)
+	if n := h.count(`SELECT count(*) FROM consents WHERE user_id = $1`, seededID) + h.count(`SELECT count(*) FROM consent_revocations WHERE user_id = $1`, seededID); n != 0 {
+		t.Fatalf("засеянный не очищен: %d", n)
 	}
 
 	// (г) TRUNCATE владельцем запрещён.
@@ -1178,26 +1200,27 @@ func seedBank(userID, dealID string) *identityv1.SeedConsent {
 }
 
 // SeedConsents пишет согласия канала seed (без сессии и целей) любому существующему
-// пользователю (и не-демо — Ruling AG); их видит HasConsents. Повтор с тем же ключом — тот же
+// пользователю (и незасеянному — Ruling AG); их видит HasConsents. Повтор с тем же ключом — тот же
 // ответ без новых записей, с новым ключом — без вторых записей.
 func TestSeedConsents(t *testing.T) {
 	h := newHarness(t, nil)
-	demo := h.demoUser(roleClient, true, roleClient)
-	plain := h.demoUser(roleClient, false, roleClient)
+	seededU := h.seededUser(roleClient, roleClient)
+	plainUser := h.user([]string{"CLIENT"}, "CLIENT")
+	plain := &identityv1.User{Id: plainUser.ID.String()}
 	deal := uuid.NewString()
 	key := h.key()
-	both := []*identityv1.SeedConsent{seedBank(demo.GetId(), deal), seedBank(plain.GetId(), deal)}
+	both := []*identityv1.SeedConsent{seedBank(seededU.GetId(), deal), seedBank(plain.GetId(), deal)}
 	if err := h.seedConsents(key, both...); err != nil {
 		t.Fatalf("SeedConsents: %v", err)
 	}
-	for _, id := range []string{demo.GetId(), plain.GetId()} {
+	for _, id := range []string{seededU.GetId(), plain.GetId()} {
 		rows := h.consentRows(uuid.MustParse(id))
 		if len(rows) != 1 || rows[0].Kind != consentBank || rows[0].ReferenceID != deal || rows[0].Channel != channelSeed ||
 			rows[0].SessionID.Valid || len(rows[0].Purposes) != 0 || rows[0].RevokedAt.Valid {
 			t.Fatalf("согласие сида %s: %+v", id, rows)
 		}
 	}
-	res, err := h.hasConsents([]string{demo.GetId(), plain.GetId()}, kindBank, deal)
+	res, err := h.hasConsents([]string{seededU.GetId(), plain.GetId()}, kindBank, deal)
 	if err != nil || len(res.GetGrantedUserIds()) != 2 {
 		t.Fatalf("HasConsents: %v, %v", res, err)
 	}
@@ -1207,26 +1230,26 @@ func TestSeedConsents(t *testing.T) {
 	if err := h.seedConsents(h.key(), both...); err != nil {
 		t.Fatalf("повтор с новым ключом: %v", err)
 	}
-	if n := len(h.consentRows(uuid.MustParse(demo.GetId()))); n != 1 {
+	if n := len(h.consentRows(uuid.MustParse(seededU.GetId()))); n != 1 {
 		t.Fatalf("после повторов записей %d, want 1", n)
 	}
 	// Ключ с другим запросом — idempotency_key_reused.
-	err = h.seedConsents(key, seedBank(demo.GetId(), uuid.NewString()))
+	err = h.seedConsents(key, seedBank(seededU.GetId(), uuid.NewString()))
 	h.wantRefusal(err, connect.CodeInvalidArgument, "idempotency_key_reused")
 	// Та же версия с другим текстом — отказ, ничего не пишется.
-	other := seedBank(demo.GetId(), deal)
+	other := seedBank(seededU.GetId(), deal)
 	other.TextSha256 = textSum("другой текст")
 	fresh := uuid.NewString()
-	err = h.seedConsents(h.key(), seedBank(demo.GetId(), fresh), other)
+	err = h.seedConsents(h.key(), seedBank(seededU.GetId(), fresh), other)
 	h.wantRefusal(err, connect.CodeInvalidArgument, "consent_version_invalid")
-	if res, _ := h.hasConsents([]string{demo.GetId()}, kindBank, fresh); len(res.GetGrantedUserIds()) != 0 {
+	if res, _ := h.hasConsents([]string{seededU.GetId()}, kindBank, fresh); len(res.GetGrantedUserIds()) != 0 {
 		t.Fatal("частичная запись при отказе")
 	}
 }
 
 func TestSeedConsentsRefusals(t *testing.T) {
 	h := newHarness(t, nil)
-	u := h.demoUser(roleClient, true, roleClient)
+	u := h.seededUser(roleClient, roleClient)
 	deal := uuid.NewString()
 	// Неизвестный пользователь — user_not_found, вся пачка не пишется.
 	err := h.seedConsents(h.key(), seedBank(u.GetId(), deal), seedBank(unknownUserID, deal))
@@ -1262,23 +1285,5 @@ func TestSeedConsentsRefusals(t *testing.T) {
 	// ПДн без предмета допустимо.
 	if err := h.seedConsents(h.key(), pd); err != nil {
 		t.Fatalf("согласие на ПДн: %v", err)
-	}
-}
-
-// Без DemoMode SeedConsents отказывает demo_disabled и базу не трогает; вызывающий не web —
-// отказ до всего остального.
-func TestSeedConsentsDemoGate(t *testing.T) {
-	h := newHarness(t, func(c *ServeConfig) { c.DemoMode = false })
-	u, _ := h.client()
-	err := h.seedConsents(h.key(), seedBank(u.ID.String(), uuid.NewString()))
-	h.wantRefusal(err, connect.CodeFailedPrecondition, "demo_disabled")
-	if n := len(h.consentRows(u.ID)); n != 0 {
-		t.Fatalf("записей без DemoMode %d", n)
-	}
-	_, err = idc(h, "operator", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*identityv1.SeedConsentsResponse, error) {
-		return c.SeedConsents(ctx, &identityv1.SeedConsentsRequest{Consents: []*identityv1.SeedConsent{seedBank(u.ID.String(), uuid.NewString())}, IdempotencyKey: h.key()})
-	})
-	if err == nil {
-		t.Fatal("ожидался отказ чужому вызывающему")
 	}
 }

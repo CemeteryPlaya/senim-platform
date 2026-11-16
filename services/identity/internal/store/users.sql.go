@@ -13,7 +13,7 @@ import (
 )
 
 const addUserRole = `-- name: AddUserRole :one
-UPDATE users SET roles = array_append(roles, $1::text), updated_at = $2 WHERE id = $3 RETURNING id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at
+UPDATE users SET roles = array_append(roles, $1::text), updated_at = $2 WHERE id = $3 RETURNING id, phone, roles, default_role, seeded, blocked_at, created_at, updated_at
 `
 
 type AddUserRoleParams struct {
@@ -30,7 +30,7 @@ func (q *Queries) AddUserRole(ctx context.Context, arg AddUserRoleParams) (User,
 		&i.Phone,
 		&i.Roles,
 		&i.DefaultRole,
-		&i.IsDemo,
+		&i.Seeded,
 		&i.BlockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -39,32 +39,26 @@ func (q *Queries) AddUserRole(ctx context.Context, arg AddUserRoleParams) (User,
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (phone, roles, default_role, is_demo)
-VALUES ($1, $2, $3, $4)
-RETURNING id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at
+INSERT INTO users (phone, roles, default_role)
+VALUES ($1, $2, $3)
+RETURNING id, phone, roles, default_role, seeded, blocked_at, created_at, updated_at
 `
 
 type CreateUserParams struct {
 	Phone       string
 	Roles       []string
 	DefaultRole string
-	IsDemo      bool
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser,
-		arg.Phone,
-		arg.Roles,
-		arg.DefaultRole,
-		arg.IsDemo,
-	)
+	row := q.db.QueryRow(ctx, createUser, arg.Phone, arg.Roles, arg.DefaultRole)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Phone,
 		&i.Roles,
 		&i.DefaultRole,
-		&i.IsDemo,
+		&i.Seeded,
 		&i.BlockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -73,7 +67,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at FROM users WHERE id = $1
+SELECT id, phone, roles, default_role, seeded, blocked_at, created_at, updated_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -84,7 +78,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Phone,
 		&i.Roles,
 		&i.DefaultRole,
-		&i.IsDemo,
+		&i.Seeded,
 		&i.BlockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -93,7 +87,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const getUserByPhone = `-- name: GetUserByPhone :one
-SELECT id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at FROM users WHERE phone = $1
+SELECT id, phone, roles, default_role, seeded, blocked_at, created_at, updated_at FROM users WHERE phone = $1
 `
 
 func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error) {
@@ -104,7 +98,7 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error
 		&i.Phone,
 		&i.Roles,
 		&i.DefaultRole,
-		&i.IsDemo,
+		&i.Seeded,
 		&i.BlockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -113,7 +107,7 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phone string) (User, error
 }
 
 const lockUser = `-- name: LockUser :one
-SELECT id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at FROM users WHERE id = $1 FOR UPDATE
+SELECT id, phone, roles, default_role, seeded, blocked_at, created_at, updated_at FROM users WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockUser(ctx context.Context, id uuid.UUID) (User, error) {
@@ -124,7 +118,7 @@ func (q *Queries) LockUser(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Phone,
 		&i.Roles,
 		&i.DefaultRole,
-		&i.IsDemo,
+		&i.Seeded,
 		&i.BlockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -133,7 +127,7 @@ func (q *Queries) LockUser(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const setUserDefaultRole = `-- name: SetUserDefaultRole :one
-UPDATE users SET default_role = $2, updated_at = $3 WHERE id = $1 RETURNING id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at
+UPDATE users SET default_role = $2, updated_at = $3 WHERE id = $1 RETURNING id, phone, roles, default_role, seeded, blocked_at, created_at, updated_at
 `
 
 type SetUserDefaultRoleParams struct {
@@ -150,7 +144,7 @@ func (q *Queries) SetUserDefaultRole(ctx context.Context, arg SetUserDefaultRole
 		&i.Phone,
 		&i.Roles,
 		&i.DefaultRole,
-		&i.IsDemo,
+		&i.Seeded,
 		&i.BlockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -159,38 +153,35 @@ func (q *Queries) SetUserDefaultRole(ctx context.Context, arg SetUserDefaultRole
 }
 
 const upsertSeedUser = `-- name: UpsertSeedUser :one
-INSERT INTO users (phone, roles, default_role, is_demo, created_at, updated_at)
-VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, $6::timestamptz), $6::timestamptz)
+INSERT INTO users (phone, roles, default_role, seeded, created_at, updated_at)
+VALUES ($1, $2, $3, true, COALESCE($4::timestamptz, $5::timestamptz), $5::timestamptz)
 ON CONFLICT (phone) DO UPDATE SET
     roles        = EXCLUDED.roles,
     default_role = EXCLUDED.default_role,
-    is_demo      = EXCLUDED.is_demo,
-    created_at   = COALESCE($5::timestamptz, users.created_at),
+    created_at   = COALESCE($4::timestamptz, users.created_at),
     blocked_at   = NULL,
-    updated_at   = $6::timestamptz
-WHERE users.is_demo OR NOT EXCLUDED.is_demo
-RETURNING id, phone, roles, default_role, is_demo, blocked_at, created_at, updated_at
+    updated_at   = $5::timestamptz
+WHERE users.seeded
+RETURNING id, phone, roles, default_role, seeded, blocked_at, created_at, updated_at
 `
 
 type UpsertSeedUserParams struct {
 	Phone       string
 	Roles       []string
 	DefaultRole string
-	IsDemo      bool
 	CreatedAt   pgtype.Timestamptz
 	Now         pgtype.Timestamptz
 }
 
-// Сид демо-пользователей: upsert по телефону. created_at не задан — при вставке now(),
-// при обновлении остаётся прежним. Блокировка снимается. Существующего не-демо
-// пользователя сид демо не делает: is_demo false → true — 0 строк (pgx.ErrNoRows), сервис
-// отказывает.
+// Сид стенда: upsert по телефону, пользователь помечается seeded. created_at не задан — при
+// вставке now(), при обновлении остаётся прежним. Блокировка снимается. Существующего
+// пользователя, созданного не сидом (seeded = false), сид не трогает: 0 строк
+// (pgx.ErrNoRows), сервис отказывает.
 func (q *Queries) UpsertSeedUser(ctx context.Context, arg UpsertSeedUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, upsertSeedUser,
 		arg.Phone,
 		arg.Roles,
 		arg.DefaultRole,
-		arg.IsDemo,
 		arg.CreatedAt,
 		arg.Now,
 	)
@@ -200,7 +191,7 @@ func (q *Queries) UpsertSeedUser(ctx context.Context, arg UpsertSeedUserParams) 
 		&i.Phone,
 		&i.Roles,
 		&i.DefaultRole,
-		&i.IsDemo,
+		&i.Seeded,
 		&i.BlockedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,

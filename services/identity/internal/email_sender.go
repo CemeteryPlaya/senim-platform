@@ -15,7 +15,7 @@ type EmailSender interface {
 }
 
 // mockEmailSender ничего не отправляет; в лог пишет только факт отправки — без адреса и кода.
-// Код человек видит в ответе RequestEmailCode (demo_code).
+// Код человек видит в ответе RequestEmailCode (shown_code).
 type mockEmailSender struct{ log *slog.Logger }
 
 func (m mockEmailSender) Send(ctx context.Context, _, _ string) error {

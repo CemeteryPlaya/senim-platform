@@ -50,26 +50,26 @@ func (q *Queries) ConfirmMfaFactor(ctx context.Context, arg ConfirmMfaFactorPara
 	return result.RowsAffected(), nil
 }
 
-const deleteAllMfaFactors = `-- name: DeleteAllMfaFactors :execrows
-DELETE FROM mfa_factors
-`
-
-// Сброс стенда (ResetDemo): факторы демо-стенда удаляются, чтобы повторный прогон e2e
-// подключал TOTP заново. Таблица mfa_factors помечена senim:app-delete.
-func (q *Queries) DeleteAllMfaFactors(ctx context.Context) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteAllMfaFactors)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteMfaFactor = `-- name: DeleteMfaFactor :execrows
 DELETE FROM mfa_factors WHERE user_id = $1
 `
 
 func (q *Queries) DeleteMfaFactor(ctx context.Context, userID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteMfaFactor, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteSeededMfaFactors = `-- name: DeleteSeededMfaFactors :execrows
+DELETE FROM mfa_factors f USING users u WHERE f.user_id = u.id AND u.seeded
+`
+
+// Сброс стенда (ResetStand): факторы засеянных пользователей удаляются, чтобы повторный прогон
+// e2e подключал TOTP заново или получал секрет сида. Таблица mfa_factors помечена senim:app-delete.
+func (q *Queries) DeleteSeededMfaFactors(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSeededMfaFactors)
 	if err != nil {
 		return 0, err
 	}
@@ -162,6 +162,28 @@ func (q *Queries) UpsertPendingMfaFactor(ctx context.Context, arg UpsertPendingM
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const upsertSeedMfaFactor = `-- name: UpsertSeedMfaFactor :exec
+INSERT INTO mfa_factors (user_id, secret_enc, confirmed_at, created_at)
+VALUES ($1, $2, $3, $3)
+ON CONFLICT (user_id) DO UPDATE SET
+    secret_enc   = EXCLUDED.secret_enc,
+    confirmed_at = EXCLUDED.confirmed_at,
+    created_at   = EXCLUDED.created_at
+`
+
+type UpsertSeedMfaFactorParams struct {
+	UserID    uuid.UUID
+	SecretEnc string
+	Now       pgtype.Timestamptz
+}
+
+// Второй фактор оператора стенда из сида (SeedUsers): подключён сразу известным секретом.
+// Шаг последнего принятого кода не сбрасывается — уже введённый код не примется повторно.
+func (q *Queries) UpsertSeedMfaFactor(ctx context.Context, arg UpsertSeedMfaFactorParams) error {
+	_, err := q.db.Exec(ctx, upsertSeedMfaFactor, arg.UserID, arg.SecretEnc, arg.Now)
+	return err
 }
 
 const useMfaStep = `-- name: UseMfaStep :execrows

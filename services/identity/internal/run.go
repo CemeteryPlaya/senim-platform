@@ -160,7 +160,7 @@ func newEmailSender(provider string, log *slog.Logger) (EmailSender, error) {
 // requireCaller; тест TestCallerPolicyCoversEveryRPC обходит все RPC дескриптора):
 //
 //	RequestOtp, VerifyOtp, Authenticate, SignOut, SignOutEverywhere,
-//	SwitchRole, GrantRole, StartDemoSession, SeedUsers, SeedConsents, ResetDemo,
+//	SwitchRole, GrantRole, SeedUsers, SeedConsents, ResetStand,
 //	StartTotpEnrollment, ConfirmTotpEnrollment, VerifySecondFactor,
 //	RecordPerson, UpdateContacts, RequestEmailCode, VerifyEmailCode,
 //	GetProfile, RegisterParty,

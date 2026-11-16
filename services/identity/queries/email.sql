@@ -47,6 +47,6 @@ RETURNING *;
 DELETE FROM email_codes
 WHERE id IN (SELECT e.id FROM email_codes e WHERE e.created_at < sqlc.arg(cutoff)::timestamptz LIMIT sqlc.arg(batch_size)::int);
 
--- Сброс стенда (ResetDemo): таблица email_codes помечена senim:app-delete.
+-- Сброс стенда (ResetStand): таблица email_codes помечена senim:app-delete.
 -- name: DeleteAllEmailCodes :execrows
 DELETE FROM email_codes;

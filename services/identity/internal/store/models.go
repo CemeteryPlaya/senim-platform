@@ -21,7 +21,7 @@ type Consent struct {
 	SessionID   uuid.NullUUID
 	GrantedAt   pgtype.Timestamptz
 	RevokedAt   pgtype.Timestamptz
-	IsDemo      bool
+	Seeded      bool
 }
 
 type ConsentRevocation struct {
@@ -34,7 +34,7 @@ type ConsentRevocation struct {
 	DecidedAt   pgtype.Timestamptz
 	DecidedBy   uuid.NullUUID
 	Reason      pgtype.Text
-	IsDemo      bool
+	Seeded      bool
 }
 
 type EmailCode struct {
@@ -145,7 +145,7 @@ type User struct {
 	Phone       string
 	Roles       []string
 	DefaultRole string
-	IsDemo      bool
+	Seeded      bool
 	BlockedAt   pgtype.Timestamptz
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz

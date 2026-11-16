@@ -469,31 +469,6 @@ func TestAuthenticateTokenMfaClaims(t *testing.T) {
 	}
 }
 
-func TestDemoOperatorSessionMfaSatisfied(t *testing.T) {
-	h := newHarness(t, nil)
-	op := h.demoUser(roleOperator, true, roleOperator)
-	token := newToken(t)
-	res, err := h.startDemo(&identityv1.StartDemoSessionRequest{UserId: op.GetId(), SessionToken: token})
-	if err != nil {
-		t.Fatal(err)
-	}
-	now := h.clock.now()
-	if s := res.GetSession(); !s.GetMfaRequired() || !s.GetMfaVerifiedAt().AsTime().Equal(now) {
-		t.Fatalf("демо-оператор: %v", s)
-	}
-	if c := h.tokenClaims(token); c["mfa"] != true || c["mfa_at"] != float64(now.Unix()) {
-		t.Fatalf("токен демо-оператора: %v", c)
-	}
-	client := h.demoUser(roleClient, true, roleClient)
-	res, err = h.startDemo(&identityv1.StartDemoSessionRequest{UserId: client.GetId()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s := res.GetSession(); s.GetMfaRequired() || s.GetMfaVerifiedAt() != nil {
-		t.Fatalf("демо-клиент: %v", s)
-	}
-}
-
 func TestMfaResetCommand(t *testing.T) {
 	h := newHarness(t, nil)
 	u, token := h.operator()

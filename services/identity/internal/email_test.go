@@ -15,6 +15,7 @@ import (
 
 	identityv1 "github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1"
 	"github.com/CemeteryPlaya/senim-platform/gen/go/senim/identity/v1/identityv1connect"
+	"github.com/CemeteryPlaya/senim-platform/pkg/config"
 	"github.com/CemeteryPlaya/senim-platform/services/identity/internal/store"
 )
 
@@ -48,7 +49,7 @@ func (h *harness) mustRequestEmail(token, email string) string {
 	if err != nil {
 		h.t.Fatalf("RequestEmailCode: %v", err)
 	}
-	return res.GetDemoCode()
+	return res.GetShownCode()
 }
 
 // verifyEmail — ввод кода для адреса, показанного по этой сессии (emailShownFor).
@@ -115,9 +116,9 @@ func TestRequestEmailCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RequestEmailCode: %v", err)
 	}
-	code := res.GetDemoCode()
+	code := res.GetShownCode()
 	if !sixDigits.MatchString(code) {
-		t.Fatalf("demo_code = %q, want 6 цифр", code)
+		t.Fatalf("shown_code = %q, want 6 цифр", code)
 	}
 	if want := h.clock.now().Add(emailCodeTTL); !res.GetExpiresAt().AsTime().Equal(want) {
 		t.Fatalf("expires_at = %v, want %v", res.GetExpiresAt().AsTime(), want)
@@ -141,7 +142,7 @@ func TestRequestEmailCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("повтор по ключу: %v", err)
 	}
-	if again.GetDemoCode() != "" || !proto.Equal(again.GetExpiresAt(), res.GetExpiresAt()) {
+	if again.GetShownCode() != "" || !proto.Equal(again.GetExpiresAt(), res.GetExpiresAt()) {
 		t.Fatalf("повтор по ключу: %v", again)
 	}
 	if n := len(h.emailCodes(u)); n != 1 || len(h.email.sent()) != 1 {
@@ -157,12 +158,18 @@ func TestRequestEmailCode(t *testing.T) {
 	h.wantRefusal(err, connect.CodeInvalidArgument, "idempotency_key_reused")
 }
 
-// Код показывается при провайдере mock независимо от DEMO_MODE.
-func TestRequestEmailCodeDemoCodeWithoutDemoMode(t *testing.T) {
-	h := newHarness(t, func(c *ServeConfig) { c.DemoMode = false })
+// Код почты показывается при провайдере mock (в staging тоже); не mock — не показывается.
+func TestRequestEmailCodeShownOnlyWithMock(t *testing.T) {
+	h := newHarness(t, func(c *ServeConfig) { c.Env = config.Staging })
 	_, token := h.client()
 	if code := h.mustRequestEmail(token, "a@example.kz"); !sixDigits.MatchString(code) {
-		t.Fatalf("demo_code = %q без DEMO_MODE, want 6 цифр", code)
+		t.Fatalf("shown_code = %q, want 6 цифр", code)
+	}
+	h = newHarness(t, func(c *ServeConfig) { c.EmailProvider = "smtp" })
+	_, token = h.client()
+	res, err := h.requestEmail(token, "a@example.kz", h.key())
+	if err != nil || res.GetShownCode() != "" {
+		t.Fatalf("не mock: %v, %v", res, err)
 	}
 }
 

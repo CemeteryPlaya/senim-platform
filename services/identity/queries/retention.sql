@@ -31,6 +31,6 @@ WHERE (method, key) IN (SELECT i.method, i.key FROM idempotency i WHERE i.create
 DELETE FROM outbox
 WHERE id IN (SELECT o.id FROM outbox o WHERE o.published_at IS NOT NULL AND o.published_at < sqlc.arg(cutoff)::timestamptz LIMIT sqlc.arg(batch_size)::int);
 
--- Сброс стенда (ResetDemo): оставляет только запись самого вызова, чтобы его повтор был идемпотентным.
+-- Сброс стенда (ResetStand): оставляет только запись самого вызова, чтобы его повтор был идемпотентным.
 -- name: DeleteIdempotencyExcept :execrows
 DELETE FROM idempotency WHERE NOT (method = sqlc.arg(method)::text AND key = sqlc.arg(key)::text);

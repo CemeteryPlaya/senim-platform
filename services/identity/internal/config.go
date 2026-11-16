@@ -38,13 +38,14 @@ const (
 
 // ServeConfig — настройки подкоманды serve.
 type ServeConfig struct {
-	Env      config.AppEnv
-	DemoMode bool
-	AppDSN   string
-	// OTPProvider — провайдер одноразовых кодов (сейчас только mock; в prod запрещён).
+	// Env — окружение (APP_ENV). Сид и сброс стенда разрешены только в dev и staging.
+	Env    config.AppEnv
+	AppDSN string
+	// OTPProvider — провайдер одноразовых кодов (сейчас только mock; в prod запрещён). При
+	// mock код возвращается в ответе RequestOtp (shown_code).
 	OTPProvider string
 	// EmailProvider — провайдер писем с кодом подтверждения e-mail (сейчас только mock; в
-	// prod запрещён). При mock код возвращается в ответе RequestEmailCode (demo_code).
+	// prod запрещён). При mock код возвращается в ответе RequestEmailCode (shown_code).
 	EmailProvider string
 	// OTPHMACKey — ключ HMAC, которым хешируются коды в базе.
 	OTPHMACKey []byte
@@ -103,7 +104,6 @@ func LoadServe(src config.Source) (ServeConfig, error) {
 	l := config.NewLoader(src)
 	c := ServeConfig{
 		Env:           l.Env(),
-		DemoMode:      l.DemoMode(),
 		AppDSN:        l.PostgresDSN("IDENTITY_APP_DSN"),
 		CertFile:      l.Required("TLS_CERT_FILE"),
 		KeyFile:       l.Required("TLS_KEY_FILE"),

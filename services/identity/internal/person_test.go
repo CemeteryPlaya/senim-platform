@@ -477,10 +477,10 @@ func TestNoPIIInLogs(t *testing.T) {
 func TestSeedUsersWritesPerson(t *testing.T) {
 	h := newHarness(t, nil)
 	iin := freshIIN(t)
-	su := seedUser(newPhone(), roleClient, true, roleClient)
+	su := seedUser(newPhone(), roleClient, roleClient)
 	su.FullName, su.Iin, su.Instagram, su.Email = "  Иван  Петров ", iin, "@Dala.Mebel", " Master@Example.KZ "
-	plain := seedUser(newPhone(), roleClient, true, roleClient)
-	noEmail := seedUser(newPhone(), roleClient, true, roleClient)
+	plain := seedUser(newPhone(), roleClient, roleClient)
+	noEmail := seedUser(newPhone(), roleClient, roleClient)
 	noEmail.FullName = "Асель Нурланова"
 	res, err := h.seed(su, plain, noEmail)
 	if err != nil {
@@ -514,7 +514,7 @@ func TestSeedUsersWritesPerson(t *testing.T) {
 		t.Fatal("повтор сида снял подтверждение")
 	}
 
-	bad := seedUser(newPhone(), roleClient, true, roleClient)
+	bad := seedUser(newPhone(), roleClient, roleClient)
 	bad.Iin = "123456789012"
 	_, err = h.seed(bad)
 	h.wantRefusal(err, connect.CodeInvalidArgument, "iin_invalid")

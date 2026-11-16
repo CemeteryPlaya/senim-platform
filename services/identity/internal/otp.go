@@ -115,7 +115,7 @@ func (s *Service) RequestOtp(ctx context.Context, req *identityv1.RequestOtpRequ
 	}
 
 	resp := &identityv1.RequestOtpResponse{}
-	demoCode := ""
+	shownCode := ""
 	err = dbx.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		_, err := idem.Do(ctx, tx, method, key, req, resp, func() error {
 			code, err := newOtpCode()
@@ -142,8 +142,8 @@ func (s *Service) RequestOtp(ctx context.Context, req *identityv1.RequestOtpRequ
 			// В идемпотентный ответ код не попадает: повтор вернёт его пустым.
 			resp.Phone = phone
 			resp.ExpiresAt = timestamppb.New(expiresAt)
-			if s.showsDemoCode() {
-				demoCode = code
+			if s.showsOtpCode() {
+				shownCode = code
 			}
 			return nil
 		})
@@ -158,7 +158,7 @@ func (s *Service) RequestOtp(ctx context.Context, req *identityv1.RequestOtpRequ
 		return nil, internalError()
 	}
 	out, _ := proto.Clone(resp).(*identityv1.RequestOtpResponse)
-	out.DemoCode = demoCode
+	out.ShownCode = shownCode
 	return out, nil
 }
 
@@ -195,10 +195,10 @@ func ipLimitKey(ip string) string {
 	return prefix.String()
 }
 
-// showsDemoCode — код возвращается в ответе только в демо с мок-провайдером: настоящая SMS
-// никуда не уходит.
-func (s *Service) showsDemoCode() bool {
-	return s.cfg.DemoMode && s.cfg.OTPProvider == "mock"
+// showsOtpCode — код возвращается в ответе (shown_code) только при мок-провайдере: SMS
+// никуда не уходит, код человеку показывает web. В prod мок запрещён конфигом.
+func (s *Service) showsOtpCode() bool {
+	return s.cfg.OTPProvider == "mock"
 }
 
 // enforceLimits применяет лимиты в порядке otp.ts; потолки — последними, чтобы запросы,
