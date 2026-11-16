@@ -43,7 +43,7 @@ function cached(name: "s3" | "vercel-blob", make: () => Promise<StorageProvider>
 
 /**
  * Провайдер по имени из StoredFile.provider: файл читается тем, чем записан,
- * даже если сейчас для новых файлов выбран другой (демо-файлы static рядом с local или blob).
+ * даже если сейчас для новых файлов выбран другой (файлы сида static рядом с local или blob).
  * SDK S3 и Blob загружаются лениво — без них local работает.
  */
 export async function storageByName(name: string): Promise<StorageProvider> {

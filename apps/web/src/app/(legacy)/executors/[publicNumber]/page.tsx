@@ -78,7 +78,7 @@ function Summary({ view, hero }: { view: PublicExecutorView; hero: PortfolioCard
         {t.facts}
       </h2>
       {cover?.src && (
-        // Фото работы — из хранилища по ссылке или демо-SVG: оптимизатор next/image не нужен.
+        // Фото работы — из хранилища по ссылке или иллюстрация сида (SVG): оптимизатор next/image не нужен.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={cover.src} alt={cover.alt} className="-mx-4 -mt-4 aspect-[4/3] w-[calc(100%+2rem)] max-w-none bg-sunken object-cover sm:-mx-5 sm:-mt-5 sm:w-[calc(100%+2.5rem)] lg:aspect-[16/9]" />
       )}

@@ -483,7 +483,7 @@ async function seedKyc(
 ) {
   const uploadedAt = clock.ago(kyc.status === "PENDING" ? kyc.uploadedDaysAgo : kyc.reviewedDaysAgo + 1);
   const docs = [
-    { id: who.files.id, purpose: "KYC_ID" as const, title: "Удостоверение личности", lines: [`Владелец: ${who.name}`, "Номер и даты — не указываются в демо"] },
+    { id: who.files.id, purpose: "KYC_ID" as const, title: "Удостоверение личности", lines: [`Владелец: ${who.name}`, "Номер и даты — не указываются: тестовый стенд"] },
     { id: who.files.registration, purpose: "KYC_REGISTRATION" as const, title: "Регистрация ИП или ТОО", lines: [`Заявитель: ${who.name}`, "Свидетельство — тестовое"] },
   ];
   for (const [i, d] of docs.entries()) {

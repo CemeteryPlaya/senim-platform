@@ -13,6 +13,8 @@ import type { SignatureSheetData } from "./types";
 const METHOD: Record<SignMethod, string> = {
   EGOV_QR: "eGov Mobile (QR)",
   NCALAYER: "NCALayer",
+  // Ruling P5-5: пометка мока остаётся — мок в prod запрещён (env.ts), а документ с ним не должен выглядеть юридически
+  // действительным на стенде.
   MOCK: "тестовая подпись без юридической силы",
 };
 

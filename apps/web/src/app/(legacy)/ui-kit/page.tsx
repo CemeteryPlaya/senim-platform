@@ -43,7 +43,7 @@ import {
   type ChatMessage,
   type Tone,
 } from "@/ui";
-import { ChatDemo, LoadingButtonDemo, ModalDemo, PhotoDemo, StepperDemo } from "./KitDemos";
+import { ChatExample, LoadingButtonExample, ModalExample, PhotoExample, StepperExample } from "./KitExamples";
 
 const k = ru.common.uiKit;
 const s = k.sample;
@@ -125,7 +125,7 @@ export default async function UiKitPage() {
           </Button>
         </div>
         <div className="flex flex-wrap gap-3">
-          <LoadingButtonDemo />
+          <LoadingButtonExample />
           <Button variant="secondary" disabled>
             {s.disabled}
           </Button>
@@ -359,7 +359,7 @@ export default async function UiKitPage() {
 
       <KitSection title={k.sections.stepper}>
         <div className="max-w-form">
-          <StepperDemo />
+          <StepperExample />
         </div>
         <div className="max-w-form">
           <Stepper steps={s.steps} current={4} back={{ href: "/ui-kit" }} />
@@ -371,18 +371,18 @@ export default async function UiKitPage() {
 
       <KitSection title={k.sections.photos}>
         <div className="max-w-form">
-          <PhotoDemo />
+          <PhotoExample />
         </div>
       </KitSection>
 
       <KitSection title={k.sections.chat}>
         <div className="max-w-form">
-          <ChatDemo initial={chat} />
+          <ChatExample initial={chat} />
         </div>
       </KitSection>
 
       <KitSection title={k.sections.modal}>
-        <ModalDemo />
+        <ModalExample />
       </KitSection>
 
       <KitSection title={k.sections.formats}>

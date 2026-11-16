@@ -54,6 +54,19 @@ describe("демо-режима нет", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("в src/ нет «demo» в именах экспортов (кроме сторожей, которые ищут это слово)", () => {
+    // Сторож слова «демо» в текстах ru.app: имя называет то, что он ищет.
+    const allowed = new Set(["findDemoWord"]);
+    const exported = /\bexport\s+(?:default\s+)?(?:async\s+)?(?:function\*?|const|let|class|type|interface|enum)\s+([A-Za-z0-9_$]+)/g;
+    const offenders = sourceFiles(SRC).flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(exported)]
+        .map((m) => m[1] ?? "")
+        .filter((name) => /demo/i.test(name) && !allowed.has(name))
+        .map((name) => `${path.relative(WEB, file)}: ${name}`),
+    );
+    expect(offenders).toEqual([]);
+  });
+
   it("нет страниц демо-входа, показа банку и демо-настроек оператора", () => {
     for (const route of ["demo", "bank-demo", path.join("operator", "demo")]) {
       expect(existsSync(path.join(SRC, "app", "(legacy)", route)), route).toBe(false);

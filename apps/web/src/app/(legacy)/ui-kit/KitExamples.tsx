@@ -9,11 +9,11 @@ import { Button, Chat, Modal, PhotoUpload, Stepper, type ChatMessage, type Photo
 const s = ru.common.uiKit.sample;
 
 /** Кнопка в загрузке гасит нажатие своим обработчиком — поэтому она живёт в клиентском компоненте. */
-export function LoadingButtonDemo() {
+export function LoadingButtonExample() {
   return <Button loading>{s.loading}</Button>;
 }
 
-export function StepperDemo() {
+export function StepperExample() {
   const [current, setCurrent] = useState(1);
   return (
     <div className="flex flex-col gap-4">
@@ -25,7 +25,7 @@ export function StepperDemo() {
   );
 }
 
-export function ModalDemo() {
+export function ModalExample() {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -53,7 +53,7 @@ export function ModalDemo() {
 }
 
 /** Имитация загрузки: прогресс по таймеру, каждое третье фото «падает». */
-export function PhotoDemo() {
+export function PhotoExample() {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const timers = useRef(new Set<ReturnType<typeof setInterval>>());
   const added = useRef(0);
@@ -107,7 +107,7 @@ export function PhotoDemo() {
   return <PhotoUpload label={s.photosLabel} hint={s.photosHint} photos={photos} onAdd={add} onRemove={remove} onRetry={retry} max={6} />;
 }
 
-export function ChatDemo({ initial }: { initial: ChatMessage[] }) {
+export function ChatExample({ initial }: { initial: ChatMessage[] }) {
   const [messages, setMessages] = useState(initial);
   const send = async (text: string) => {
     await new Promise((resolve) => setTimeout(resolve, 600));

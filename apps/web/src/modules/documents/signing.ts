@@ -200,7 +200,7 @@ function signerOfParty(d: PartyDetails | undefined, party: SignParty): { fullNam
  * Кто подписывает ЭЦП за сторону: ФИО и ИИН — из identity (RevealPartyDetails, цель CONTRACT — подпись документов сделки,
  * reference_id — сделка). Раскрывается только сам подписант, сторона этой сделки (signerOf), и только провайдеру подписи
  * (mock выпускает по ИИН «сертификат»); человеку значение не показывается. Раскрытие — от имени web: подписант раскрывает
- * собственные данные, оператор не подписывает, а сид демо подписывает без входа. Нет ИИН — подписать нельзя.
+ * собственные данные, оператор не подписывает, а сид стенда подписывает без входа. Нет ИИН — подписать нельзя.
  */
 async function expectedSigner(dealId: string, userId: string, party: SignParty): Promise<{ fullName: string; iin: string }> {
   const revealed = await revealParties([userId], "CONTRACT", dealId, "system");

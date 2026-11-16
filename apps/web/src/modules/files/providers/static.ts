@@ -5,7 +5,7 @@ import type { StorageProvider } from "../storage";
 import { readOrNull, resolveInside } from "./local";
 
 /**
- * Только чтение из public/: демо-файлы сида (StoredFile.provider = "static",
+ * Только чтение из public/: файлы сида стенда (StoredFile.provider = "static",
  * ключ — путь внутри public/, например demo/portfolio/kitchen-sage.svg).
  * Адрес — обычный статический путь, его отдаёт Next.js (и CDN на Vercel).
  * get() читает с диска: на Vercel public/ нет в файловой системе функции, поэтому

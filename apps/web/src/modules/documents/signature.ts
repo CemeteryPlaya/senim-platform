@@ -2,7 +2,7 @@ import type { SignMethod } from "@/generated/prisma/enums";
 
 /**
  * Подпись ЭЦП НУЦ РК. Подписывается sha256 PDF-документа, а не JSON условий.
- *  - mock: имитация для разработки и демо;
+ *  - mock: имитация для разработки и стенда (в prod запрещена — env.ts);
  *  - sigex: eGov Mobile (QR) и NCALayer через SIGEX — скелет, реализует documents-engineer.
  * Сервер всегда проверяет подпись сам (verify), не доверяя клиенту.
  */

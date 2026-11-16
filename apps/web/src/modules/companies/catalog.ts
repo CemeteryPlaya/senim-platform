@@ -124,7 +124,7 @@ export async function getPublicExecutorPage(publicNumber: number): Promise<Publi
   if (!row) return null;
   const { about, legalForm, signerFullName, user, ...publicRow } = row;
   const [portfolio, reviews, mode] = await Promise.all([listPublicPortfolio(row.id), listExecutorReviews(row.id), getExecutorIdentityMode()]);
-  // «О себе» сохраняется уже очищенным, но демо-данные и старые записи могли обойти форму — чистим и при показе.
+  // «О себе» сохраняется уже очищенным, но данные сида и старые записи могли обойти форму — чистим и при показе.
   return { view: toPublicView(publicRow, mode), about: maskPublicText(about, { legalForm, legalName: row.legalName, signerFullName, user }).text, portfolio, reviews };
 }
 

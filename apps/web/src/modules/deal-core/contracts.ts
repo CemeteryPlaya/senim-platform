@@ -21,7 +21,7 @@ export type CreateDealInput = {
 
 /**
  * Создаёт сделку в транзакции акцепта цены: снимок денег computeDealMoney(X), провайдер из env
- * (resolvePaymentProvider), признак демо — от покупателя; оферта — через порт documents.createContract.
+ * (resolvePaymentProvider; тестовые деньги — по провайдеру mock); оферта — через порт documents.createContract.
  */
 export type CreateDeal = (tx: Tx, input: CreateDealInput) => Promise<{ dealId: string }>;
 

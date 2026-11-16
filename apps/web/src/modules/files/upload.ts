@@ -172,7 +172,7 @@ export async function saveFile(input: {
   bytes: Uint8Array;
   uploadedById?: string;
   isAiGenerated?: boolean;
-  /** id записи заранее (UUID) — демо-сид передаёт id KYC-документов в identity до того, как сохранит файлы. */
+  /** id записи заранее (UUID) — сид стенда передаёт id KYC-документов в identity до того, как сохранит файлы. */
   id?: string;
   /**
    * Транзакция вызывающего: при её откате не останется записи StoredFile. Байты в хранилище при этом

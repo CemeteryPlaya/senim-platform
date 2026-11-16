@@ -73,7 +73,7 @@ async function confirmBank(p: Parties) {
     scans++;
     const number = `ТЕСТ-${String(scans).padStart(4, "0")}`;
     const date = new Date();
-    const pdf = await testDocumentPdf(`Банковский документ ${number}`, [`Операция: ${op.type}`, `Сумма: ${formatTiyn(op.amountTiyn)}`, "Не является банковским документом: демо-данные."], date);
+    const pdf = await testDocumentPdf(`Банковский документ ${number}`, [`Операция: ${op.type}`, `Сумма: ${formatTiyn(op.amountTiyn)}`, "Не является банковским документом: данные тестового стенда."], date);
     const scan = await saveFile({ purpose: "BANK_DOCUMENT", bytes: pdf, uploadedById: p.operator.id });
     await confirmManualOperation(p.operator, { transactionId: op.id, bankDocNumber: number, bankDocDate: date, bankDocFileId: scan.id }, onMoneySettled);
   }

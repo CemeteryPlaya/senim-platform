@@ -11,7 +11,7 @@ const BATCH = 200;
 /**
  * Задача files.cleanupOrphans: удаляет записи и байты неприкреплённых файлов старше суток.
  * Запись удаляется условно (всё ещё не прикреплена) — файл, который как раз прикрепляют, не пропадёт.
- * Демо-файлы (static) живут в public/ и не трогаются.
+ * Файлы сида (static) живут в public/ и не трогаются.
  */
 export const cleanupOrphans: JobHandler = async (_payload, ctx) => {
   const before = new Date(Date.now() - ORPHAN_AGE_MS);

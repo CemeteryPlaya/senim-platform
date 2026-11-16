@@ -115,7 +115,7 @@ describe("navFor: вкладки по ролям", () => {
       ["Сделки и отчёты", ["/v2/operator/deals", "/v2/operator/income", "/v2/operator/report", "/v2/operator/audit"]],
       ["Справочники и настройки", ["/v2/operator/furniture-types", "/v2/operator/materials", "/v2/operator/settings"]],
     ]);
-    // 15 пунктов, как в v1 без демо-страницы; адреса и значки не повторяются, у каждого значка есть компонент.
+    // 15 пунктов, как в v1 без прежней страницы показа; адреса и значки не повторяются, у каждого значка есть компонент.
     const items = operatorItems(menu);
     expect(items).toHaveLength(15);
     expect(new Set(items.map((i) => i.href)).size).toBe(15);
