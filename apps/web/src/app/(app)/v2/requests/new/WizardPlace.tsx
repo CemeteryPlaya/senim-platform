@@ -7,6 +7,7 @@ import { LIMITS, SUGGESTED_CITIES, type GeoPoint } from "@/modules/requests/clie
 import type { Device } from "@/platform/device";
 import { outcomeOf } from "../../../_shell/form";
 import { locateAddressAction } from "./actions";
+import { locateDevice } from "./locate";
 import { WizardFrame, useWizardStep, type WizardBase } from "./WizardFrame";
 import { addDays, todayAstana } from "./steps";
 import { useStepMemory } from "./wizard-memory";
@@ -46,17 +47,12 @@ function PointField({ value, onChange, city, address, device }: { value: GeoPoin
   const [state, setState] = useState<PointState>({ kind: "idle" });
   const [, startTransition] = useTransition();
 
-  const locate = () => {
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return setState({ kind: "error", message: t.pointUnavailable });
+  const locate = async () => {
     setState({ kind: "busy" });
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        onChange({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setState({ kind: "gps", accuracyM: Math.round(pos.coords.accuracy) });
-      },
-      (err) => setState({ kind: "error", message: err.code === err.PERMISSION_DENIED ? t.pointDenied : t.pointUnavailable }),
-      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
-    );
+    const found = await locateDevice();
+    if ("error" in found) return setState({ kind: "error", message: found.error });
+    onChange(found.point);
+    setState({ kind: "gps", accuracyM: found.accuracyM });
   };
 
   const geocode = () => {
