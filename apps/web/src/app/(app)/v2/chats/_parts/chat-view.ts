@@ -1,4 +1,4 @@
-import { formatDate, formatDateTime, formatRelative, formatTime } from "@/features/format/format";
+import { formatDate, formatDayMonth, formatRelative, formatTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import type { ChatMessage } from "@/kit";
 import type { ChatListItem, ChatView } from "@/modules/companies";
@@ -24,10 +24,16 @@ export type ChatRoomModel = {
   beforeOffer: boolean;
 };
 
-/** Время сообщения: сегодня — «14:30», раньше — «12 ноября 2026, 14:30». */
-export function messageTime(sentAt: Date, now: Date): string {
-  return formatDate(sentAt) === formatDate(now) ? formatTime(sentAt) : formatDateTime(sentAt);
+/** Разделитель дня: «Сегодня», «Вчера», раньше — «12 ноября» (год — если не текущий). */
+export function dayLabel(sentAt: Date, now: Date): string {
+  const day = formatDate(sentAt);
+  if (day === formatDate(now)) return t.room.today;
+  if (day === formatDate(new Date(now.getTime() - 24 * 60 * 60 * 1000))) return t.room.yesterday;
+  return formatDayMonth(sentAt, now);
 }
+
+/** Время сообщения — только часы и минуты («14:30»): день стоит в разделителе над сообщениями. */
+export const messageTime = (sentAt: Date): string => formatTime(sentAt);
 
 /** Текст причины закрытия по коду модуля словами стороны; неизвестный код — общий «Чат закрыт» (текст модуля не показываем). */
 export function closedText(view: Pick<ChatView, "canWrite" | "closedCode">, side: DealSide = "CLIENT"): string | null {
@@ -40,7 +46,7 @@ export function closedText(view: Pick<ChatView, "canWrite" | "closedCode">, side
 export const counterpartOf = (moduleLabel: string, side: DealSide): string => (side === "EXECUTOR" ? tm.counterpart : moduleLabel);
 
 /**
- * Диалог → модель ленты глазами стороны. Системная строка про скрытые контакты стоит первой, пока оферта не заключена.
+ * Диалог → модель ленты глазами стороны. Системная строка про скрытые контакты стоит первой, пока оферта не заключена; над сообщениями каждого дня — разделитель дня.
  * Вложения — адреса из `view.attachments` (запрошены у модуля; подпись «Фото N» по порядку в сообщении). Автор чужих
  * сообщений — собеседник (`counterpartOf`).
  */
@@ -48,16 +54,25 @@ export function chatRoomModel(view: ChatView, now: Date = new Date(), side: Deal
   const attachments = view.attachments;
   // `contacts` отдаёт только состояние «оферта заключена» (у стороны сделки); до оферты — null.
   const beforeOffer = view.contacts === null;
-  const messages: ChatMessage[] = view.messages.map((message) => ({
-    id: message.id,
-    text: message.text,
-    time: messageTime(message.sentAt, now),
-    mine: message.kind === "own",
-    author: message.kind === "own" ? message.author : counterpartOf(message.author, side),
-    attachments: attachments
-      .filter((file) => file.messageId === message.id)
-      .map((file, index) => ({ id: file.id, url: file.url, previewUrl: file.url, name: t.room.photo(index + 1) })),
-  }));
+  const messages: ChatMessage[] = [];
+  let lastDay = "";
+  for (const message of view.messages) {
+    const day = formatDate(message.sentAt);
+    if (day !== lastDay) {
+      messages.push({ id: `day:${day}`, kind: "day", text: dayLabel(message.sentAt, now), time: "" });
+      lastDay = day;
+    }
+    messages.push({
+      id: message.id,
+      text: message.text,
+      time: messageTime(message.sentAt),
+      mine: message.kind === "own",
+      author: message.kind === "own" ? message.author : counterpartOf(message.author, side),
+      attachments: attachments
+        .filter((file) => file.messageId === message.id)
+        .map((file, index) => ({ id: file.id, url: file.url, previewUrl: file.url, name: t.room.photo(index + 1) })),
+    });
+  }
   if (beforeOffer) messages.unshift({ id: "system:contacts-hidden", kind: "system", text: t.room.hiddenSystem, time: "" });
   return {
     messages,

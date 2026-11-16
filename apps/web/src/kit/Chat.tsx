@@ -22,8 +22,11 @@ export type ChatMessage = {
   time: string;
   /** Моё сообщение (справа на нейтральной `bubble`); по умолчанию чужое (слева на `surface`). */
   mine?: boolean;
-  /** `system` — служебная строка по центру вторичным текстом («Контакты скрыты до заключения оферты»). */
-  kind?: "message" | "system";
+  /**
+   * `system` — служебная строка по центру вторичным текстом («Контакты скрыты до заключения оферты»); `day` — разделитель
+   * дня («Сегодня», «Вчера», «12 ноября», текст — в `text`), у сообщений тогда в `time` — только время.
+   */
+  kind?: "message" | "system" | "day";
   /** Имя автора для диктора; по умолчанию «Вы» / «Собеседник». */
   author?: string;
   attachments?: readonly ChatAttachment[];
@@ -158,6 +161,13 @@ export function Chat({ messages, composer, label, pageScroll = false, fill = fal
             if (message.kind === "system") {
               return (
                 <p key={message.id} className="px-4 py-2 text-center text-sub text-muted">
+                  {message.text}
+                </p>
+              );
+            }
+            if (message.kind === "day") {
+              return (
+                <p key={message.id} className="py-1 text-center text-small font-medium text-muted">
                   {message.text}
                 </p>
               );

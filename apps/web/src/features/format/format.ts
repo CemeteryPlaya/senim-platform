@@ -73,6 +73,16 @@ export function formatShortDate(value: DateInput, now: Date = new Date()): strin
   return year === yearFormat.format(now).replace(/\D/g, "") ? day : `${day}${NBSP}${year}`;
 }
 
+const dayMonthFormat = new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "long", timeZone: TIME_ZONE });
+
+/** «12 ноября»; год — только если он не текущий («12 ноября 2025»). Для разделителей дней. */
+export function formatDayMonth(value: DateInput, now: Date = new Date()): string {
+  const date = toDate(value);
+  const day = dayMonthFormat.format(date);
+  const year = yearFormat.format(date).replace(/\D/g, "");
+  return year === yearFormat.format(now).replace(/\D/g, "") ? day : `${day} ${year}`;
+}
+
 /** «14:30». */
 export function formatTime(value: DateInput): string {
   return timeFormat.format(toDate(value));
