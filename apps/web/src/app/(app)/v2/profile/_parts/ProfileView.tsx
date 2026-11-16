@@ -3,6 +3,7 @@ import { Card, List, ListRow, PageTitle, Section, Split, Stack } from "@/kit";
 import type { Theme } from "@/kit/theme";
 import type { Device } from "@/platform/device";
 import { LogoutButton } from "../../../_shell/LogoutButton";
+import { LogoutEverywhere } from "../../../_shell/LogoutEverywhere";
 import { ThemeSwitch } from "../../../_shell/ThemeSwitch";
 import type { ProfileModel } from "./profile-view";
 
@@ -64,8 +65,9 @@ export function ProfileView({ model, theme, device }: { model: ProfileModel; the
     </Section>
   );
   const logout = (
-    <div>
+    <div className="flex flex-col items-start gap-2">
       <LogoutButton />
+      <LogoutEverywhere device={device} />
     </div>
   );
 

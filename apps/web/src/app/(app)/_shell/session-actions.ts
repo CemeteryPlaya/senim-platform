@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { endSession } from "@/modules/identity";
+import { endSession, signOutEverywhere } from "@/modules/identity";
 import { action } from "@/platform/action";
 import { to } from "./paths";
 import { forgetRole } from "./role-cookie";
@@ -17,6 +17,17 @@ import { forgetRole } from "./role-cookie";
  */
 export const logout = action("identity.logout", z.strictObject({}), async () => {
   await endSession();
+  await forgetRole();
+  redirect(to("/login"));
+});
+
+/**
+ * «Выйти на всех устройствах» (профиль): `signOutEverywhere` модуля identity завершает все сессии человека и стирает cookie
+ * этого устройства; дальше — как при обычном выходе. Сбой identity — результат с ошибкой, cookie остаётся: человек не вышел
+ * и может повторить (окно подтверждения остаётся открытым).
+ */
+export const logoutEverywhere = action("identity.logoutEverywhere", z.strictObject({}), async () => {
+  await signOutEverywhere();
   await forgetRole();
   redirect(to("/login"));
 });
