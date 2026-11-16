@@ -8,6 +8,8 @@ const nav = vi.hoisted(() => ({ pathname: null as string | null }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => nav.pathname,
+  // NetworkStatus (плашка «Нет связи», обновление при возврате) берёт роутер; в статическом рендере он не вызывается.
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 // Действия сервера в статическом рендере не вызываются; модуль identity тянет базу — заменяем.
 vi.mock("./session-actions", () => ({ logout: vi.fn() }));

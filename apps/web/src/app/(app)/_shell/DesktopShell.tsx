@@ -5,6 +5,7 @@ import type { Theme } from "@/kit/theme";
 import { AvatarMenu } from "./AvatarMenu";
 import { LogoutButton } from "./LogoutButton";
 import type { AppNav } from "./nav";
+import { NetworkStatus } from "./NetworkStatus";
 import { to } from "./paths";
 import { NotificationsLink } from "./NotificationsLink";
 import { ShellAction } from "./ShellAction";
@@ -37,6 +38,7 @@ export type DesktopShellProps = {
  * 1024px): шапка и содержимое не уже 1024px (`min-w-shell`, в px — не растёт с системным шрифтом), разделы меню не рвутся
  * посередине — страница прокручивается вбок, а не сжимается. При крупном шрифте, если строка шапки не помещается, правая группа переходит
  * на вторую строку у правого края — шапка растёт, ничего не обрезается и не наезжает.
+ * Сверху области содержимого — NetworkStatus: плашка «Нет связи», обновление экрана при возврате связи и во вкладку.
  */
 export function DesktopShell({ nav, user, theme = "system", unread = 0, unavailable = false, children }: DesktopShellProps) {
   return (
@@ -64,6 +66,7 @@ export function DesktopShell({ nav, user, theme = "system", unread = 0, unavaila
         </div>
       </header>
       <main id={MAIN_ID} tabIndex={-1} className="mx-auto w-full max-w-content flex-1 px-6 pt-12 pb-12 outline-none">
+        <NetworkStatus />
         {unavailable && <UnavailableNotice />}
         {children}
       </main>

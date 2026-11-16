@@ -53,6 +53,8 @@ vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => h.pathname,
   useSearchParams: () => new URLSearchParams(h.search),
+  // NetworkStatus оболочки (плашка «Нет связи», обновление при возврате) берёт роутер; в статическом рендере он не вызывается.
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 /** Человек, прошедший первые шаги (согласие, ФИО и ИИН, почта); поля переопределяет тест. */

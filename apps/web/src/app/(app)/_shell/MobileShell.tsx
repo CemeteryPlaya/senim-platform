@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { LogoutButton } from "./LogoutButton";
 import type { AppNav } from "./nav";
+import { NetworkStatus } from "./NetworkStatus";
 import { MAIN_ID, SkipLink, UnavailableNotice } from "./ShellParts";
 import { TabBar } from "./TabBar";
 import { TitleBell } from "./TitleBell";
@@ -26,6 +27,7 @@ export type MobileShellProps = {
  * PageTitle), без отдельной верхней строки.
  * Сосредоточенная оболочка (`nav.focus`, первые шаги после входа): вместо панели вкладок — узкая шапка с названием
  * продукта и «Выйти»; вкладок нет, док стоит у самого нижнего края (как у оператора).
+ * Сверху области содержимого — NetworkStatus: плашка «Нет связи», обновление экрана при возврате связи и в приложение.
  */
 export function MobileShell({ nav, unavailable = false, unread = null, children }: MobileShellProps) {
   return (
@@ -40,6 +42,7 @@ export function MobileShell({ nav, unavailable = false, unread = null, children 
         </header>
       )}
       <main id={MAIN_ID} tabIndex={-1} className={`mx-auto w-full max-w-column flex-1 safe-gutter outline-none dock-column ${nav.focus ? "safe-bottom pt-6" : "safe-block"}`}>
+        <NetworkStatus />
         {unavailable && <UnavailableNotice />}
         {unread !== null && !nav.focus && !nav.guest ? (
           <TitleBell items={nav.tabs} unread={unread}>
