@@ -8,7 +8,7 @@ import { db, isUniqueViolation, Prisma, type Db } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { logger } from "@/platform/logger";
 import { enforceRateLimit } from "@/platform/rate-limit";
-import { processImage, processPng, sniffType } from "./image";
+import { previewImage, processImage, processPng, sniffType } from "./image";
 import { declaredTypeAllowed, PURPOSE_POLICY, purposesOf, type Accepts, type FileOwner, type OwnerField } from "./policy";
 import { fileUrl, storage, storageByName } from "./registry";
 import { openUploadToken, sealUploadToken } from "./signing";
@@ -128,6 +128,9 @@ export async function finalizeUpload(user: CurrentUser, input: { token: string }
   }
 }
 
+/** Фото мастера, которые показываются карточками и обложками: им нужна уменьшенная копия. */
+const PREVIEW_PURPOSES: ReadonlySet<FilePurpose> = new Set(["PORTFOLIO", "PROGRESS_REPORT", "DELIVERY"]);
+
 async function persist(
   providerName: string,
   base: string,
@@ -139,6 +142,17 @@ async function persist(
   const storageKey = `${base}.${processed.ext}`;
   const provider = await storageByName(providerName);
   await provider.put(storageKey, processed.bytes, processed.contentType);
+  // Уменьшенная копия — только у фото мастера; не вышло — экран возьмёт исходник (не ошибка загрузки).
+  let previewKey: string | null = null;
+  if (processed.ext === "jpg" && PREVIEW_PURPOSES.has(purpose)) {
+    try {
+      previewKey = `${base}.preview.jpg`;
+      await provider.put(previewKey, await previewImage(processed.bytes), "image/jpeg");
+    } catch (error) {
+      logger.warn("files.preview.failed", { error });
+      previewKey = null;
+    }
+  }
   try {
     return await client.storedFile.create({
       data: {
@@ -152,6 +166,7 @@ async function persist(
         phash: processed.phash,
         width: processed.width,
         height: processed.height,
+        previewKey,
         uploadedById: extra.uploadedById,
         isAiGenerated: extra.isAiGenerated ?? false,
       },
@@ -257,5 +272,7 @@ export async function discardUpload(user: CurrentUser, fileId: string): Promise<
   if (file.uploadedById !== user.id) return fail.forbidden();
   const result = await db.storedFile.deleteMany({ where: { id: fileId, ...UNATTACHED } });
   expectOneUpdated(result, ru.files.errors.alreadyAttached);
-  await (await storageByName(file.provider)).delete(file.storageKey);
+  const provider = await storageByName(file.provider);
+  await provider.delete(file.storageKey);
+  if (file.previewKey) await provider.delete(file.previewKey);
 }

@@ -7,7 +7,7 @@ import { db } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
 import { isAppError } from "@/platform/errors";
 import { makeClient, makeExecutor } from "../../../test/factories";
-import { attachFiles, createUpload, discardUpload, fileUrl, findSimilar, finalizeUpload, storage } from "./index";
+import { attachFiles, createUpload, discardUpload, fileUrl, findSimilar, finalizeUpload, previewUrl, saveFile, storage } from "./index";
 
 let dir: string;
 beforeAll(async () => {
@@ -232,3 +232,35 @@ describe("fileUrl", () => {
     expect(exp - Date.now() / 1000).toBeLessThanOrEqual(ttl);
   });
 });
+
+describe("уменьшенная копия фото мастера", () => {
+  const big = () => sharp({ create: { width: 2560, height: 1920, channels: 3, background: "#b0a090" } }).jpeg().toBuffer();
+
+  it("фото работы 2560×1920 — превью JPEG ≤ 1024 px по длинной стороне, исходник цел; ссылка превью — своя", async () => {
+    const executor = await makeExecutor();
+    const file = await saveFile({ purpose: "PORTFOLIO", bytes: new Uint8Array(await big()), uploadedById: executor.id });
+    expect(file.previewKey).toMatch(/\.preview\.jpg$/);
+    const preview = await (await storage()).get(file.previewKey!);
+    const meta = await sharp(Buffer.from(preview!)).metadata();
+    expect(Math.max(meta.width ?? 0, meta.height ?? 0)).toBeLessThanOrEqual(1024);
+    expect(file.width).toBe(2560);
+    expect(await previewUrl(file)).not.toBe(await fileUrl(file));
+  });
+
+  it("PDF и фото не мастера (комната заявки) — без превью; ссылка превью — та же, что у файла", async () => {
+    const client = await makeClient();
+    const room = await saveFile({ purpose: "REQUEST_ROOM", bytes: new Uint8Array(await big()), uploadedById: client.id });
+    const pdf = await saveFile({ purpose: "DOCUMENT", bytes: new TextEncoder().encode("%PDF-1.7\n%%EOF\n") });
+    expect(room.previewKey).toBeNull();
+    expect(pdf.previewKey).toBeNull();
+    expect(await previewUrl(room)).toBe(await fileUrl(room));
+  });
+
+  it("брошенный файл удаляется вместе с превью", async () => {
+    const executor = await makeExecutor();
+    const file = await saveFile({ purpose: "PORTFOLIO", bytes: new Uint8Array(await big()), uploadedById: executor.id });
+    await discardUpload(executor, file.id);
+    expect(await (await storage()).get(file.previewKey!)).toBeNull();
+  });
+});
+

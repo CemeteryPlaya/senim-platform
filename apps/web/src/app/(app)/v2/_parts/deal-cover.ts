@@ -1,6 +1,7 @@
 import "server-only";
 import type { DealStatus } from "@/generated/prisma/enums";
-import { getDealView } from "@/modules/deal-core";
+import { ru } from "@/i18n/ru";
+import { latestReportPhoto } from "@/modules/deal-core";
 import type { CurrentUser } from "@/modules/identity";
 import { logger } from "@/platform/logger";
 import { reportsView, type ReportInput } from "../deals/[id]/_parts/deal-card";
@@ -28,15 +29,18 @@ const WITH_REPORTS: ReadonlySet<DealStatus> = new Set(["IN_PROGRESS", "READY", "
 export const mayHaveReports = (status: DealStatus): boolean => WITH_REPORTS.has(status);
 
 /**
- * Обложка героя на главной: читает сделку тем же `getDealView`, что и карточка сделки (права и адреса файлов — модуля),
- * и только в статусах с отчётами (`mayHaveReports`); иначе — без чтения. Сбой чтения не роняет главную — карточка без
- * обложки. Лёгкого чтения «последнее фото отчёта» в модуле нет (долг: функция в deal-core).
+ * Обложка героя на главной: лёгкое чтение модуля `latestReportPhoto` (один запрос — последний отчёт с фото, уменьшенная
+ * копия; права — как у карточки сделки) и только в статусах с отчётами (`mayHaveReports`); иначе — без чтения. Подпись —
+ * как у ленты «Ход работ» (`reportsView`). Сбой чтения не роняет главную — карточка без обложки.
  */
 export async function dealCover(user: CurrentUser, deal: { id: string; status: DealStatus }): Promise<DealCover | null> {
   if (!mayHaveReports(deal.status)) return null;
   const dealId = deal.id;
   try {
-    return coverOf((await getDealView(user, dealId)).progressReports);
+    const photo = await latestReportPhoto(user, dealId);
+    if (!photo) return null;
+    const r = ru.app.deal.card.reports;
+    return { src: photo.src, alt: r.photoAlt(photo.reportTitle.trim() || r.untitled, 1) };
   } catch (error) {
     logger.warn("home deal cover failed", { dealId, error });
     return null;

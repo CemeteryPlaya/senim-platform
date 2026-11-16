@@ -84,6 +84,15 @@ export async function processImage(raw: Uint8Array): Promise<ProcessedImage> {
   }
 }
 
+/** Длинная сторона уменьшенной копии фото мастера: карточки и обложки не шире ~500 px CSS при плотности 2×. */
+export const PREVIEW_MAX_SIDE = 1024;
+
+/** Уменьшенная копия уже обработанного фото (JPEG без метаданных) для карточек и обложек. */
+export async function previewImage(jpeg: Uint8Array): Promise<Uint8Array> {
+  const data = await sharp(jpeg).resize({ width: PREVIEW_MAX_SIDE, height: PREVIEW_MAX_SIDE, fit: "inside", withoutEnlargement: true }).jpeg({ quality: JPEG_QUALITY, mozjpeg: true }).toBuffer();
+  return new Uint8Array(data);
+}
+
 /** Рисунок подписи: хватает для встраивания в PDF и не раздувает документ. */
 export const SIGNATURE_MAX_SIDE = 1200;
 

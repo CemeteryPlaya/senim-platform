@@ -17,7 +17,7 @@ export const cleanupOrphans: JobHandler = async (_payload, ctx) => {
   const before = new Date(Date.now() - ORPHAN_AGE_MS);
   const candidates = await db.storedFile.findMany({
     where: { ...UNATTACHED, createdAt: { lt: before }, provider: { not: "static" } },
-    select: { id: true, provider: true, storageKey: true },
+    select: { id: true, provider: true, storageKey: true, previewKey: true },
     take: BATCH,
   });
   let removed = 0;
@@ -25,9 +25,13 @@ export const cleanupOrphans: JobHandler = async (_payload, ctx) => {
     const result = await db.storedFile.deleteMany({ where: { id: file.id, ...UNATTACHED } });
     if (result.count === 0) continue;
     removed++;
-    await (await storageByName(file.provider)).delete(file.storageKey).catch((error: unknown) => {
-      ctx.log.warn("files.cleanup.delete_failed", { fileId: file.id, error });
-    });
+    const provider = await storageByName(file.provider);
+    for (const key of [file.storageKey, file.previewKey]) {
+      if (!key) continue;
+      await provider.delete(key).catch((error: unknown) => {
+        ctx.log.warn("files.cleanup.delete_failed", { fileId: file.id, error });
+      });
+    }
   }
   ctx.log.info("files.cleanup.done", { removed });
 };

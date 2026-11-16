@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { DealStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { scopeHistory } from "@/modules/audit";
-import { fileUrl } from "@/modules/files";
+import { fileUrl, previewUrl } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import { LEDGER_INCLUDE, ledgerEntries, moneyFacts, toLedgerEntry, moneyHistoryOf, partyEstimate, projectMoney, type MoneyBlock, type MoneyFacts, type MoneyHistoryItem, type PartyEstimate } from "@/modules/payments";
 import { db, type Db } from "@/platform/db";
@@ -156,6 +156,27 @@ function docView(deal: Loaded, kind: "CONTRACT" | "ACCEPTANCE_ACT") {
   const have = { hand: doc.handSignatures.map((s) => s.party), ecp: doc.signatures.map((s) => s.party) };
   const signedBy = partiesDone(kind, signingFlags(), have);
   return { id: doc.id, number: doc.number, status: doc.status, version: doc.version, sha256: doc.sha256, signedBy };
+}
+
+/** Обложка сделки: фото самого свежего отчёта хода работ с фото (уменьшенная копия) и название этого отчёта. */
+export type ReportPhoto = { id: string; src: string; reportTitle: string };
+
+/**
+ * Лёгкое чтение обложки сделки (главная покупателя и мастера): один запрос — последний отчёт с фото и его первое фото,
+ * без загрузки всей сделки (`getDealView`). Права — как у карточки сделки: стороны и оператор; чужая — NOT_FOUND.
+ * Отчётов с фото нет — null.
+ */
+export async function latestReportPhoto(user: CurrentUser, dealId: string): Promise<ReportPhoto | null> {
+  const deal = await db.deal.findUnique({ where: { id: dealId }, select: { clientId: true, executorId: true } });
+  if (!deal || !roleIn(user, deal)) return fail.notFound(ru.deal.errors.notFound);
+  const report = await db.progressReport.findFirst({
+    where: { dealId, photos: { some: {} } },
+    orderBy: { createdAt: "desc" },
+    select: { title: true, photos: { orderBy: { sortOrder: "asc" }, take: 1, select: { id: true, provider: true, storageKey: true, previewKey: true } } },
+  });
+  const photo = report?.photos[0];
+  if (!report || !photo) return null;
+  return { id: photo.id, src: await previewUrl(photo), reportTitle: report.title };
 }
 
 async function loadView(user: CurrentUser, dealId: string): Promise<Loaded> {

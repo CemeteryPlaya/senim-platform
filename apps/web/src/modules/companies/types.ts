@@ -31,7 +31,8 @@ export type GetPublicExecutorView = (executorId: string) => Promise<PublicExecut
 export type RecalculateRating = (tx: Tx, executorId: string) => Promise<void>;
 
 /** Фото для карточки: src готов для <img>; null — файл ещё нельзя показать (заглушка). */
-export type PhotoView = { id: string; src: string | null; alt: string };
+/** Фото работы: `src` — исходник (галерея на весь экран), `thumb` — уменьшенная копия для карточек (нет — берётся src). */
+export type PhotoView = { id: string; src: string | null; thumb?: string; alt: string };
 
 /** Карточка работы в каталоге и на публичной странице. */
 export type PortfolioCard = {

@@ -1,8 +1,8 @@
-import { fileUrl } from "@/modules/files";
+import { fileUrl, previewUrl } from "@/modules/files";
 import type { Prisma } from "@/platform/db";
 import type { PhotoView } from "./types";
 
-type FileRow = { id: string; provider: string; storageKey: string };
+type FileRow = { id: string; provider: string; storageKey: string; previewKey: string | null };
 
 /** Адрес фото для <img>: подписанная ссылка хранилища (local/s3/vercel-blob) или путь в public/ для сида. */
 function photoSrc(file: FileRow): Promise<string> {
@@ -10,10 +10,12 @@ function photoSrc(file: FileRow): Promise<string> {
 }
 
 export function toPhotoViews(files: readonly FileRow[], alt: (n: number) => string): Promise<PhotoView[]> {
-  return Promise.all(files.map(async (f, i) => ({ id: f.id, src: await photoSrc(f), alt: alt(i + 1) })));
+  return Promise.all(
+    files.map(async (f, i) => ({ id: f.id, src: await photoSrc(f), ...(f.previewKey ? { thumb: await previewUrl(f) } : {}), alt: alt(i + 1) })),
+  );
 }
 
-export const PHOTO_SELECT = { id: true, provider: true, storageKey: true } as const;
+export const PHOTO_SELECT = { id: true, provider: true, storageKey: true, previewKey: true } as const;
 
 /** Свои фото работы (загружены в портфолио) — и фото сдачи: порядок, затем время загрузки. */
 export const OWN_PHOTOS = {

@@ -69,6 +69,13 @@ export function storage(): Promise<StorageProvider> {
   return storageByName(env().STORAGE_PROVIDER);
 }
 
+/**
+ * Адрес уменьшенной копии фото для карточек и обложек (`previewKey`); копии нет — адрес исходника. Права — как у fileUrl.
+ */
+export async function previewUrl(file: { provider: string; storageKey: string; previewKey: string | null }): Promise<string> {
+  return fileUrl({ provider: file.provider, storageKey: file.previewKey ?? file.storageKey });
+}
+
 const SCREEN_URL_TTL_SEC = 60 * 60;
 const PRIVATE_URL_TTL_SEC = 15 * 60;
 const SHORT_LINK_KEYS = new Set(

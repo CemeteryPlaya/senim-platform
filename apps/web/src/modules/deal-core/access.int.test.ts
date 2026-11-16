@@ -3,7 +3,7 @@ import { dealAt, makeDeal, makePhoto } from "../../../test/factories/deal";
 import { actingAs, makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { db } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
-import { addProgressReport, cancelDeal, dealPartyOf, getDealView, leaveReview, listDeals, openDispute, payForDeal, startWork, submitReady } from "./index";
+import { addProgressReport, cancelDeal, dealPartyOf, getDealView, latestReportPhoto, leaveReview, listDeals, openDispute, payForDeal, startWork, submitReady } from "./index";
 
 
 afterEach(() => {
@@ -91,6 +91,20 @@ describe("«Ход работ»", () => {
     const a = await addProgressReport(one.executor, { dealId: one.dealId, text: "Первая сделка", clientKey });
     const b = await addProgressReport(two.executor, { dealId: two.dealId, text: "Вторая сделка", clientKey });
     expect(b.reportId).not.toBe(a.reportId);
+  });
+
+  it("последнее фото отчёта (обложка): фото самого свежего отчёта с фото, название отчёта; чужому — NOT_FOUND; нет фото — null", async () => {
+    const f = await dealAt("IN_PROGRESS");
+    expect(await latestReportPhoto(f.client, f.dealId)).toBeNull();
+    const early = await makePhoto(f.executor, "PROGRESS_REPORT");
+    await addProgressReport(f.executor, { dealId: f.dealId, title: "Каркас", text: "Собрал каркас", photoIds: [early] });
+    const late = await makePhoto(f.executor, "PROGRESS_REPORT");
+    await addProgressReport(f.executor, { dealId: f.dealId, title: "Фасады", text: "Навесил фасады", photoIds: [late] });
+    await addProgressReport(f.executor, { dealId: f.dealId, text: "Отчёт без фото" });
+
+    expect(await latestReportPhoto(f.client, f.dealId)).toMatchObject({ id: late, reportTitle: "Фасады" });
+    expect(await latestReportPhoto(f.executor, f.dealId)).toMatchObject({ id: late });
+    await expect(latestReportPhoto(await makeClient(), f.dealId)).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("до начала работ — нельзя; покупатель — нельзя", async () => {

@@ -26,7 +26,7 @@ export { BANK_CONSENT_MISSING, bankConsentSchema, bankConsentState, giveBankCons
 export { onMoneyChanged, onMoneySettled, processDealMoney } from "./money";
 
 // Чтения для экранов и документов
-export { dealDocumentData, dealNumbersOf, dealPartyOf, dealRefsOf, getDealView, listDeals, type DealDocumentData, type DealListItem, type DealView } from "./queries";
+export { dealDocumentData, dealNumbersOf, dealPartyOf, dealRefsOf, getDealView, latestReportPhoto, type ReportPhoto, listDeals, type DealDocumentData, type DealListItem, type DealView } from "./queries";
 export { nextStep, type NextAction, type NextStep } from "./next-step";
 export { nextStepsOf } from "./next-steps";
 export { daysLeft, plannedReadyAt } from "./schedule";

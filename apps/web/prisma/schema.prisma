@@ -886,6 +886,9 @@ model StoredFile {
   phash        String? // перцептивный хэш изображения (поиск повторов)
   width        Int?
   height       Int?
+  /// Уменьшенная копия фото мастера (работа, отчёт, сдача) для карточек и обложек: JPEG до 1024 px. null — нет (PDF,
+  /// прочие назначения, файлы до появления превью): экран берёт исходник.
+  previewKey   String?
   isAiGenerated Boolean    @default(false) // «Иллюстрация ИИ»
   uploadedById String?
   uploadedBy   User?       @relation(fields: [uploadedById], references: [id])

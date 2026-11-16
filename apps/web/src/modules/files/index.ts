@@ -3,7 +3,7 @@ import { cleanupOrphans } from "./cleanup";
 
 // Публичный API модуля files. Другие модули импортируют только отсюда.
 export type * from "./storage";
-export { fileUrl, storage, storageByName } from "./registry";
+export { fileUrl, previewUrl, storage, storageByName } from "./registry";
 export {
   assertAttachable,
   attachFiles,

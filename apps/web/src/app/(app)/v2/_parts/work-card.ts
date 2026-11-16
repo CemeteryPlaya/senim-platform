@@ -24,13 +24,14 @@ export const toTiyn = (tenge: number): bigint => BigInt(Math.round(tenge)) * 100
 /** Чистое отображение работы портфолио в данные карточки: каталог и профиль мастера показывают её одинаково. */
 export function workCardView(card: PortfolioCard): WorkCardView {
   const cover = card.photos.find((p) => p.src !== null && !p.src.startsWith(SEED_ILLUSTRATIONS));
+  // Карточка — уменьшенная копия (thumb), если она есть; исходник — для галереи на весь экран.
   return {
     id: card.id,
     title: card.title,
     meta: [card.furnitureType.name, card.place].filter(Boolean).join(" · "),
     // Ноль — «цена не указана», а не «бесплатно».
     ...(card.priceFrom !== null && card.priceFrom > 0 ? { priceFrom: toTiyn(card.priceFrom) } : {}),
-    ...(cover?.src ? { photo: { src: cover.src, alt: cover.alt } } : {}),
+    ...(cover?.src ? { photo: { src: cover.thumb ?? cover.src, alt: cover.alt } } : {}),
   };
 }
 
