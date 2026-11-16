@@ -164,6 +164,18 @@ describe("уведомления: открытие по нажатию на push
     expect(await run(n.id)).toBe("/v2/deals/d7");
   });
 
+  it("оператор и замерщик: ссылка модуля как есть (их разделы вне v2), уведомление прочитано", async () => {
+    for (const role of ["OPERATOR", "MEASURER"] as const) {
+      const staff = await makeClient();
+      // Маршруту нужны только id и роль человека: роль подменяем (уведомление принадлежит этому же человеку).
+      h.user = { ...staff, role } as typeof h.user;
+      const link = role === "OPERATOR" ? "/operator/disputes/d1" : "/measurer/m1";
+      const n = await notify(staff.id, { link });
+      expect(await run(n.id)).toBe(link);
+      expect((await db.notification.findUniqueOrThrow({ where: { id: n.id } })).readAt).not.toBeNull();
+    }
+  });
+
   it("чужое и несуществующее — на список уведомлений, чужое не помечается", async () => {
     const me = await makeClient();
     h.user = me;
