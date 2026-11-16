@@ -54,11 +54,13 @@ export async function getOwnContacts(user: CurrentUser): Promise<OwnContacts> {
 export async function updateContacts(user: CurrentUser, raw: ContactsInput): Promise<OwnContacts> {
   requireParty(user);
   const input = parseInput(contactsInputSchema, raw);
-  // Сохраняется только Instagram — почту не читаем и не шлём: identity берёт её из базы (keepEmail). Иначе смена почты
-  // между чтением профиля и записью затёрлась бы прочитанной раньше.
+  // Сохраняется только Instagram — keepEmail: identity берёт почту из базы в той же транзакции, и смена почты между
+  // чтением профиля и записью не затирается. Прочитанная почта уходит только ради identity без поля keep_email (выкладка
+  // web раньше identity): пустой email такой identity понял бы как «стереть почту».
   const keepEmail = input.email === undefined;
+  const email = keepEmail ? (await ownProfile(user)).email : (input.email ?? "");
   const sessionToken = await currentSessionToken();
-  const request = { sessionToken, instagram: input.instagram ?? "", email: keepEmail ? "" : (input.email ?? ""), keepEmail, idempotencyKey: randomUUID() };
+  const request = { sessionToken, instagram: input.instagram ?? "", email, keepEmail, idempotencyKey: randomUUID() };
   const res = await retriedOnce(() => identity().updateContacts(request));
   const person = ownPerson(user.id, res.person);
   await projectPerson(person);

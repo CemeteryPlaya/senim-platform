@@ -69,16 +69,16 @@ describe("Instagram в профиле заказчика и мастера", () 
 });
 
 describe("Instagram без гонки с почтой", () => {
-  it("сохранение одного Instagram не читает профиль и не трогает почту (keepEmail): смена почты между чтением и записью не затирается", async () => {
+  it("сохранение одного Instagram — keepEmail: почту берёт identity из базы; прочитанная почта уходит только для identity без keep_email", async () => {
     const user = await signedIn(makeClient());
     await updateContacts(user, { instagram: "", email: "old@example.kz" });
     identityFake.calls.length = 0;
 
     await updateContacts(user, { instagram: "dala.mebel" });
 
-    // Почту web не читает и не присылает: её берёт identity из базы в той же транзакции (TestUpdateContactsKeepEmail в Go).
-    expect(identityFake.calls.map((c) => c.method)).not.toContain("getProfile");
-    expect(identityFake.calls.find((c) => c.method === "updateContacts")?.request).toMatchObject({ keepEmail: true, email: "" });
+    // Новый identity почту запроса не читает (TestUpdateContactsKeepEmail в Go) — гонки нет. Старый identity (выкладка web
+    // раньше identity) поле keep_email не знает и берёт email запроса: пустой стёр бы почту, поэтому шлём прочитанную.
+    expect(identityFake.calls.find((c) => c.method === "updateContacts")?.request).toMatchObject({ keepEmail: true, email: "old@example.kz" });
     expect(identityFake.personOf(user.id)).toMatchObject({ instagram: "dala.mebel", email: "old@example.kz" });
   });
 });
