@@ -60,6 +60,7 @@ import { BuyerKit } from "./BuyerKit";
 import { FormSample } from "./FormSample";
 import { MaskSamples } from "./MaskSamples";
 import { MasterKit } from "./MasterKit";
+import { OperatorKit } from "./OperatorKit";
 import { OverlaySamples } from "./OverlaySamples";
 
 const s = ru.app.kit.showcase;
@@ -927,6 +928,7 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
 
       <BuyerKit device={device} />
       <MasterKit />
+      <OperatorKit />
 
       <Section title={s.sections.theme}>
         {/* Без карточки: переключатель стоит на фоне страницы, как в профиле — сегменты шире. */}

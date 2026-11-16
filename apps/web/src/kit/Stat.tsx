@@ -15,11 +15,12 @@ export type StatProps = {
 /**
  * Число с подписью: крупное значение, под ним вторичная подпись. Без плитки, значка и рамки — стоит прямо на подложке
  * (в `StatRow` или `Card`). Разметка — `dl` с одной парой «термин — значение» (подпись перед значением для диктора,
- * на экране порядок обратный). Серверный компонент.
+ * на экране порядок обратный). В ряду `StatRow` числа стоят по одной верхней линии, даже если подпись соседа в две строки
+ * (`justify-end` у обратной колонки). Серверный компонент.
  */
 export function Stat({ label, value, compact = false, muted = false }: StatProps) {
   return (
-    <dl className="m-0 flex min-w-0 flex-col-reverse gap-1">
+    <dl className="m-0 flex min-w-0 flex-col-reverse justify-end gap-1">
       <dt className="text-sub wrap-break-word text-muted">{label}</dt>
       <dd className={cn("m-0 min-w-0 font-semibold whitespace-nowrap tabular-nums", muted ? "text-muted" : "text-ink", compact ? "text-title-2" : "text-amount")}>{value}</dd>
     </dl>

@@ -163,6 +163,9 @@
   --spacing-gutter: 16px;
   /* Ширина поля кода из сообщения (CodeField): шесть цифр с разрядкой, а не вся ширина формы (max-w-code). */
   --spacing-code: 10rem;
+  /* QR-код подключения приложения-аутентификатора (экран второго шага оператора): 224px — сканируется с экрана компьютера
+     и с соседнего телефона; в px, чтобы при шрифте 200 % не выйти за колонку телефона (w-qr max-w-full). */
+  --spacing-qr: 224px;
   /* Поле содержимого телефона сверху и снизу — 24px (safe-block); от него считается положение дока в конце страницы. */
   --spacing-column-block: 1.5rem;
   /* Монограмма: 36px — шапка (size-avatar), 44px — чаты (size-avatar-md), 72px — профиль (size-avatar-lg). */
@@ -195,6 +198,17 @@
    * шрифте (200 %) 64rem стали бы 2048px и шапка ушла бы за край окна 1440 — там шапка переносится сама.
    */
   --container-shell: 1024px;
+  /*
+   * Оператор на компьютере (спека, раздел 5): меню слева (--sidebar-width) и таблицы и очереди на всю ширину — рабочее
+   * место до 1440px (max-w-operator), шире — по центру. Столбцы таблиц (DataTable): нижняя граница ширины столбца с длинным
+   * текстом — не больше доли окна, чтобы при 320px и шрифте 200 % первый столбец помещался в область прокрутки.
+   */
+  --container-operator: 90rem;
+  --container-col-wide: min(14rem, 70vw);
+  --container-col-mid: min(12rem, 60vw);
+  --container-col-narrow: min(9rem, 50vw);
+  /* «Подпись — значение» (KeyValueList) на компьютере: подписи в колонке до 14rem, значения — на остальную ширину. */
+  --grid-template-columns-key-value: minmax(0, 14rem) minmax(0, 1fr);
   /* Чаты на компьютере — две панели, как в «Сообщениях»: список 360px и переписка на остальную ширину. */
   --grid-template-columns-chats: 22.5rem minmax(0, 1fr);
 
@@ -761,6 +775,18 @@
 @utility sticky-aside {
   position: sticky;
   top: calc(var(--spacing-header) + var(--spacing-stack-section));
+}
+/*
+ * Меню разделов оператора слева (компьютер, DesktopShell): прилипает под шапкой на той же высоте, где стоит в начале
+ * страницы (шапка и верхнее поле колонки 3rem — pt-12), поэтому при прокрутке не сдвигается; длиннее окна (крупный шрифт,
+ * низкое окно) — прокручивается само, иначе нижние пункты были бы недостижимы.
+ */
+@utility sticky-nav {
+  position: sticky;
+  top: calc(var(--spacing-header) + 3rem);
+  max-height: calc(100dvh - var(--spacing-header) - 3rem - var(--spacing-stack-section));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 /*
  * Заливка столбика (Bars): доля 0–100% лежит в переменной --bar. bar-fill — горизонтальная полоса (доля ширины),
