@@ -1,7 +1,7 @@
 "use client";
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
 import { ru } from "@/i18n/ru";
 import type { ActionResult } from "@/platform/action";
 import { logger } from "@/platform/logger";
@@ -85,13 +85,17 @@ export function fieldNameOf(target: unknown): string | null {
 export function clearedByEdit(
   error: string | null,
   fieldErrors: Record<string, string>,
-  name: string,
+  name: string | readonly string[],
 ): { error: string | null; fieldErrors: Record<string, string> } | null {
-  const message = fieldErrors[name];
-  if (message === undefined) return null;
+  const keys = (typeof name === "string" ? [name] : name).filter((key) => fieldErrors[key] !== undefined);
+  if (keys.length === 0) return null;
   const rest = { ...fieldErrors };
-  delete rest[name];
-  return { error: error === message ? null : error, fieldErrors: rest };
+  let next = error;
+  for (const key of keys) {
+    if (next === fieldErrors[key]) next = null;
+    delete rest[key];
+  }
+  return { error: next, fieldErrors: rest };
 }
 
 /**
@@ -112,6 +116,13 @@ export type UseActionFormOptions<I, T> = {
   onSuccess?: (data: T) => void;
   /** Как собрать вход действия из формы; по умолчанию — поля формы как есть (`formDataToInput`). */
   toInput?: (data: FormData) => I;
+  /**
+   * Форма на экране (`useRef`): нужна, когда отправляют программно (`submit(data)`, `reject(...)`) и `onSubmit` формы
+   * не вызывается, — тогда снятие ошибки при правке и фокус к первой ошибке всё равно работают.
+   */
+  formRef?: RefObject<HTMLFormElement | null>;
+  /** Правка поля `name` снимает и ошибки этих ключей (поле называется иначе, чем ошибка: «furnitureType» → «furnitureTypeId»). */
+  clears?: (name: string) => readonly string[];
 };
 
 export type ActionForm = {
@@ -124,6 +135,8 @@ export type ActionForm = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   /** То же для программного вызова с готовыми полями. */
   submit: (data: FormData) => Promise<void>;
+  /** Отказ проверки в браузере: ошибки у полей (как с сервера) — фокус на первое, правка поля снимает его ошибку. */
+  reject: (fieldErrors: Record<string, string>) => void;
 };
 
 /** Состояние формы, которое меняет отправка: занятость (повтор гасится) и то, что видит человек. */
@@ -247,9 +260,11 @@ export function useActionForm<I, T>(
 
   // Последние ошибки для обработчика правки (он живёт дольше одной отрисовки).
   const shown = useRef({ error, fieldErrors });
+  const clears = useRef(options.clears);
   useEffect(() => {
     shown.current = { error, fieldErrors };
-  }, [error, fieldErrors]);
+    clears.current = options.clears;
+  }, [error, fieldErrors, options.clears]);
 
   // Правка поля снимает его ошибку сразу, не дожидаясь следующей отправки. Слушаем `input` на window, а не на форме:
   // обработчик на форме срабатывает раньше обработчика React у корня, и перерисовка между ними вернула бы управляемому
@@ -260,7 +275,7 @@ export function useActionForm<I, T>(
     const onEdit = (event: Event) => {
       if (!(event.target instanceof Node) || !formNode.contains(event.target)) return;
       const name = fieldNameOf(event.target);
-      const next = name === null ? null : clearedByEdit(shown.current.error, shown.current.fieldErrors, name);
+      const next = name === null ? null : clearedByEdit(shown.current.error, shown.current.fieldErrors, [name, ...(clears.current?.(name) ?? [])]);
       if (next === null) return;
       shown.current = next;
       setError(next.error);
@@ -274,7 +289,8 @@ export function useActionForm<I, T>(
   useEffect(() => {
     if (formNode === null || failures === focused.current) return;
     focused.current = failures;
-    const target = firstInvalid(Array.from(formNode.elements) as HTMLInputElement[], fieldErrors);
+    // Группа карточек с ошибкой (радио, плитки): помечена на fieldset, не на поле — фокус на её первый вариант.
+    const target = firstInvalid(Array.from(formNode.elements) as HTMLInputElement[], fieldErrors) ?? formNode.querySelector<HTMLInputElement>("fieldset[aria-describedby] input");
     if (target === null) return;
     target.focus({ preventScroll: true });
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -300,7 +316,19 @@ export function useActionForm<I, T>(
       return () => window.removeEventListener("pageshow", handler);
     },
   };
-  const submit = (data: FormData): Promise<void> => runSubmit(action, options, state, env, data);
+  /** Форма из `formRef`: хук узнаёт о ней и без `onSubmit`. */
+  const attach = () => {
+    const node = options.formRef?.current;
+    if (node) setFormNode((current) => current ?? node);
+  };
+  const submit = (data: FormData): Promise<void> => {
+    attach();
+    return runSubmit(action, options, state, env, data);
+  };
+  const reject = (next: Record<string, string>) => {
+    attach();
+    state.setFieldErrors(next);
+  };
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -309,5 +337,5 @@ export function useActionForm<I, T>(
     void submit(submitter ? new FormData(event.currentTarget, submitter) : new FormData(event.currentTarget));
   }
 
-  return { pending, error, fieldErrors, onSubmit, submit };
+  return { pending, error, fieldErrors, onSubmit, submit, reject };
 }

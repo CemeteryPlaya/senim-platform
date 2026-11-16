@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, Explain, IbanField, Stack, toast } from "@/kit";
 import type { Device } from "@/platform/device";
@@ -22,38 +22,30 @@ export function PayoutForm({ device }: { device: Device }) {
   const router = useRouter();
   // Номер держит поле IbanField (в форму уходит 20 знаков без пробелов); после сохранения поле пересоздаётся пустым.
   const [round, setRound] = useState(0);
-  const [local, setLocal] = useState<string | undefined>();
+  const root = useRef<HTMLFormElement>(null);
   const form = useActionForm(savePayoutAction, {
+    formRef: root,
     toInput: (fd) => ({ iban: String(fd.get("iban") ?? "") }),
     onSuccess: () => {
       setRound((n) => n + 1);
-      setLocal(undefined);
       toast(t.saved);
       router.refresh();
     },
   });
-  const [attempt, setAttempt] = useState(0);
-  const root = useRef<HTMLFormElement>(null);
-  const error = local ?? form.fieldErrors.iban;
+  const error = form.fieldErrors.iban;
 
-  // Ошибка проверки в браузере — фокус на поле (ошибки с сервера — фокус ведёт сам useActionForm).
-  useEffect(() => {
-    if (attempt === 0) return;
-    root.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
-  }, [attempt]);
-
+  // Проверка в браузере — те же правила, что на сервере; отказ показывается как ошибка у поля (фокус и снятие при правке — у хука).
   function submit(event: FormEvent<HTMLFormElement>) {
     const problem = ibanProblem(String(new FormData(event.currentTarget).get("iban") ?? ""));
-    setLocal(problem ?? undefined);
     if (problem === null) return form.onSubmit(event);
     event.preventDefault();
-    setAttempt((n) => n + 1);
+    form.reject({ iban: problem });
   }
 
   return (
     <>
       <Card>
-        <form id={FORM} ref={root} method="post" onSubmit={submit} onInput={() => setLocal(undefined)} noValidate>
+        <form id={FORM} ref={root} method="post" onSubmit={submit} noValidate>
           <Stack>
             <IbanField key={round} label={t.iban} name="iban" error={error} />
             <div>

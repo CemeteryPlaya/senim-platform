@@ -86,13 +86,10 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
   const [restored, setRestored] = useState(false);
   /** Из хранилища восстановлена анкета ТОО: номеров там нет — их нужно ввести снова (плашка на шаге 2). */
   const [numbersDropped, setNumbersDropped] = useState(false);
-  /** Ошибки проверки в браузере. */
-  const [invalid, setInvalid] = useState<StepErrors>({});
-  /** Поля, исправленные после ответа сервера: его ошибка у них больше не показывается. */
-  const [edited, setEdited] = useState<ReadonlySet<string>>(new Set());
-  /** Номер неудачной проверки: по нему фокус уходит на первое поле с ошибкой. */
-  const [attempt, setAttempt] = useState(0);
-  const form = useActionForm(registerMasterAction, { toInput: () => answers });
+  const formEl = useRef<HTMLFormElement>(null);
+  // Ошибки проверки в браузере и ответа сервера — одни (`form.fieldErrors`): фокус на первое поле и снятие ошибки при
+  // правке поля делает useActionForm.
+  const form = useActionForm(registerMasterAction, { formRef: formEl, toInput: () => answers });
 
   // Восстановление после гидратации, в следующем кадре: на сервере хранилища нет, и подставь его первый проход — разметка
   // разошлась бы с серверной.
@@ -124,53 +121,45 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
     if (restored && index < wanted) router.replace(stepHref(STEPS[index]));
   }, [restored, index, wanted, router]);
 
-  // Ошибки сервиса у полей: открыть шаг первой из них.
+  // Ошибки у полей (сервис или проверка всей анкеты на последнем шаге): открыть шаг первой из них, если это не текущий.
   const serverErrors = form.fieldErrors;
   useEffect(() => {
     const first = Object.keys(serverErrors)
       .map(stepOfField)
       .filter((s): s is RegisterStep => s !== null)
       .sort((x, y) => STEPS.indexOf(x) - STEPS.indexOf(y))[0];
-    if (first) router.push(stepHref(first));
+    if (first && first !== step) router.push(stepHref(first));
+    // Только когда ошибки появились: уход человека на другой шаг не возвращает его к ним.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serverErrors, router]);
 
   const root = useRef<HTMLDivElement>(null);
-  // Смена шага — фокус на выбранную карточку или первое поле нового шага; на шаге без полей — на заголовок (первый показ —
-  // без фокуса).
+  // Смена шага — фокус на поле с ошибкой (если пришли сюда за ней), иначе на выбранную карточку или первое поле нового шага;
+  // на шаге без полей — на заголовок (первый показ — без фокуса).
   const shown = useRef(step);
   useEffect(() => {
     if (shown.current === step) return;
     shown.current = step;
-    const field = root.current?.querySelector<HTMLElement>("form input:checked") ?? root.current?.querySelector<HTMLElement>("form input");
+    const field =
+      root.current?.querySelector<HTMLElement>('form [aria-invalid="true"], form fieldset[aria-describedby] input') ??
+      root.current?.querySelector<HTMLElement>("form input:checked") ??
+      root.current?.querySelector<HTMLElement>("form input");
     if (field) return field.focus();
     const heading = root.current?.querySelector<HTMLElement>("h1");
     heading?.setAttribute("tabindex", "-1");
     heading?.focus();
   }, [step]);
-  // Неудачная проверка или ответ сервера с ошибками у полей — фокус на первое поле с ошибкой (у группы карточек — на её
-  // первый вариант); после перехода на шаг с ошибкой — там.
-  useEffect(() => {
-    if (attempt === 0 && Object.keys(serverErrors).length === 0) return;
-    root.current?.querySelector<HTMLElement>('[aria-invalid="true"], fieldset[aria-describedby] input')?.focus();
-  }, [attempt, serverErrors, step]);
-
-  const errors: StepErrors = { ...visibleServerErrors(serverErrors, edited), ...invalid };
+  const errors: StepErrors = answerErrors(serverErrors);
 
   function change(field: AnswerField, value: string) {
     setAnswers((current) => ({ ...current, [field]: value }));
-    setEdited((current) => new Set(current).add(field));
-    if (field in invalid) setInvalid((current) => Object.fromEntries(Object.entries(current).filter(([name]) => name !== field)));
   }
 
   /** Проверка шага; ошибки — у полей и фокус на первое. */
   function check(at: RegisterStep): boolean {
     const issues = stepIssues(at, answers);
-    if (issues.length === 0) {
-      setInvalid({});
-      return true;
-    }
-    setInvalid(errorsOf(issues));
-    setAttempt((n) => n + 1);
+    if (issues.length === 0) return true;
+    form.reject(errorsOf(issues));
     return false;
   }
 
@@ -185,12 +174,9 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
     // Последний шаг: сначала вся анкета; ошибка — на шаг с ней.
     const firstBad = firstInvalidStep(answers);
     if (firstBad < STEPS.length - 1) {
-      setInvalid(errorsOf(stepIssues(STEPS[firstBad], answers)));
-      setAttempt((n) => n + 1);
-      router.push(stepHref(STEPS[firstBad]));
+      form.reject(errorsOf(stepIssues(STEPS[firstBad], answers)));
       return;
     }
-    setEdited(new Set());
     void form.submit(new FormData());
   }
 
@@ -216,7 +202,7 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
         {step === "name" && numbersDropped && answers.legalForm === "TOO" && (answers.binIin === "" || answers.directorIin === "") && (
           <Notice tone="info">{t.name.numbersNotSaved}</Notice>
         )}
-        <form id={FORM} method="post" onSubmit={onSubmit} noValidate>
+        <form id={FORM} ref={formEl} method="post" onSubmit={onSubmit} noValidate>
           <Stack gap="section">
             {step === "form" && <FormFields {...fields} />}
             {step === "name" && <NameFields {...fields} ownIinLast4={ownIinLast4} />}
@@ -237,9 +223,9 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
 
 const ANSWER_FIELDS = new Set<string>(Object.values(STEP_FIELDS).flat());
 
-/** Ошибки сервиса у полей анкеты, кроме исправленных после ответа. */
-function visibleServerErrors(serverErrors: Record<string, string>, edited: ReadonlySet<string>): StepErrors {
-  return Object.fromEntries(Object.entries(serverErrors).filter(([field]) => ANSWER_FIELDS.has(field) && !edited.has(field)));
+/** Ошибки у полей анкеты (ответ сервиса и проверка шага). */
+function answerErrors(errors: Record<string, string>): StepErrors {
+  return Object.fromEntries(Object.entries(errors).filter(([field]) => ANSWER_FIELDS.has(field)));
 }
 
 /** Текст общей ошибки уже стоит у поля анкеты — второй раз его не показывать. */

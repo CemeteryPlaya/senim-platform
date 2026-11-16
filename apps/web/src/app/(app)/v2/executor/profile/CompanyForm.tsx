@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, Checkbox, Columns, Explain, MoneyField, Notice, RadioCard, RadioGroup, Stack, TextArea, TextField, toast } from "@/kit";
 import { kztToTiyn } from "@/modules/payments/client";
@@ -39,8 +39,6 @@ export function CompanyForm({ initial, types, device }: Props) {
   const [street, setStreet] = useState(initial.streetAddress);
   const [masked, setMasked] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [local, setLocal] = useState<Record<string, string>>({});
-  const [attempt, setAttempt] = useState(0);
   const root = useRef<HTMLFormElement>(null);
 
   // Значения держит состояние формы; «опыт — не число» даёт NaN и ошибку у поля (схема чистая: её читают и браузер, и сервер).
@@ -55,6 +53,7 @@ export function CompanyForm({ initial, types, device }: Props) {
     streetAddress: street,
   });
   const form = useActionForm(saveCompanyAction, {
+    formRef: root,
     toInput: input,
     onSuccess: (data) => {
       setAbout(data.about);
@@ -63,13 +62,8 @@ export function CompanyForm({ initial, types, device }: Props) {
       toast(t.saved);
     },
   });
-  const err = { ...form.fieldErrors, ...local };
-
-  // Неудачная проверка или ответ сервера с ошибками у полей — фокус на первое поле с ошибкой.
-  useEffect(() => {
-    if (attempt === 0 && Object.keys(form.fieldErrors).length === 0) return;
-    root.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
-  }, [attempt, form.fieldErrors]);
+  // Ошибки проверки в браузере и с сервера — одни и те же; фокус на первое поле и снятие ошибки при правке — у useActionForm.
+  const err = form.fieldErrors;
 
   /** Проверка в браузере теми же правилами, что на сервере; без ошибок — отправка. Плашка маски прошлого сохранения снимается. */
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -82,11 +76,9 @@ export function CompanyForm({ initial, types, device }: Props) {
         const key = String(issue.path[0] ?? "");
         if (key !== "" && found[key] === undefined) found[key] = issue.message;
       }
-      setLocal(found);
-      setAttempt((n) => n + 1);
+      form.reject(found);
       return;
     }
-    setLocal({});
     void form.submit(new FormData());
   }
 

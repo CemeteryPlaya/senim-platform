@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, type FormEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Notice, Stack, toast, WizardHeader } from "@/kit";
 import { WIZARD_SCREENS, type WizardScreen } from "@/modules/requests/client";
@@ -34,11 +34,9 @@ export type WizardForm = {
   error: string | null;
   /** Ошибки у полей: проверка схемой шага в браузере и ответ сервера; без поля — ключ `form`. */
   errors: Record<string, string>;
-  /** Номер неудачной проверки в браузере: растёт на каждую — по нему рамка ставит фокус на первое поле с ошибкой. */
-  attempt: number;
+  /** Форма шага (хук ведёт по ней фокус к ошибке и снятие ошибки при правке); без неё рамка берёт свою. */
+  formRef?: RefObject<HTMLFormElement | null>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  /** Поле изменили — его ошибка уходит (остальные остаются до следующей проверки). */
-  onEdit?: (name: string) => void;
   /** «Назад» сохраняет шаг и ведёт на прошлый (шаг фото); без него «Назад» — обычная ссылка. */
   onBack?: (form: HTMLFormElement) => void;
 };
@@ -55,9 +53,11 @@ export function useWizardStep(
   base: WizardBase,
   options: { blocked?: { when: boolean; onBlocked: () => void }; saveOnBack?: boolean } = {},
 ): WizardForm {
-  const [invalid, setInvalid] = useState<Record<string, string>>({});
-  const [attempt, setAttempt] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
   const form = useActionForm(saveStepAction, {
+    formRef,
+    // Тип мебели собирается из трёх полей: правка любого из них снимает ошибку выбора типа; правка любого поля — общую ошибку шага.
+    clears: (name) => (["furnitureType", "furnitureTypeOther", "customType"].includes(name) ? ["furnitureTypeId", "customType", "form"] : ["form"]),
     toInput: (fd) => {
       const goto = fd.get("goto");
       return {
@@ -75,11 +75,9 @@ export function useWizardStep(
     if (options.blocked?.when) return options.blocked.onBlocked();
     const found = stepErrors(screen, fd);
     if (found) {
-      setInvalid(found);
-      setAttempt((n) => n + 1);
+      form.reject(found);
       return;
     }
-    setInvalid({});
     forgetStep(base.draftId, screen);
     if (goto) fd.set("goto", goto);
     void form.submit(fd);
@@ -90,15 +88,9 @@ export function useWizardStep(
     save(new FormData(event.currentTarget));
   }
 
-  function onEdit(name: string) {
-    // Тип мебели собирается из трёх полей: правка любого из них снимает ошибку выбора типа.
-    const keys = ["furnitureType", "furnitureTypeOther", "customType"].includes(name) ? ["furnitureTypeId", "customType", "form"] : [name, "form"];
-    if (keys.some((key) => key in invalid)) setInvalid((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !keys.includes(key))));
-  }
-
   const previous = base.index > 0 ? WIZARD_SCREENS[base.index - 1] : null;
   const onBack = options.saveOnBack && previous && base.draftId ? (el: HTMLFormElement) => save(new FormData(el), previous) : undefined;
-  return { pending: form.pending, error: form.error, errors: { ...form.fieldErrors, ...invalid }, attempt, onSubmit, onEdit, onBack };
+  return { pending: form.pending, error: form.error, errors: form.fieldErrors, formRef, onSubmit, onBack };
 }
 
 type FrameProps = {
@@ -122,15 +114,12 @@ type FrameProps = {
  * этого. Компьютер — колонка формы не шире 560 px по центру; телефон — кнопка над панелью вкладок.
  */
 export function WizardFrame({ base, title, lead, form, submitLabel = t.next, busy = false, footer, children }: FrameProps) {
-  const formRef = useRef<HTMLFormElement>(null);
-  const { attempt, onEdit, onBack } = form;
+  const ownRef = useRef<HTMLFormElement>(null);
+  const formRef = form.formRef ?? ownRef;
+  const { onBack } = form;
   useEffect(() => {
     toast.dismiss();
   }, []);
-  useEffect(() => {
-    if (attempt === 0) return;
-    formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"], fieldset[aria-describedby] input')?.focus();
-  }, [attempt]);
 
   /** «Назад» шапки — ссылка kit; когда шаг сохраняется и на «Назад», обычный переход заменяется сохранением. */
   function interceptBack(event: MouseEvent<HTMLDivElement>) {
@@ -157,10 +146,6 @@ export function WizardFrame({ base, title, lead, form, submitLabel = t.next, bus
           ref={formRef}
           method="post"
           onSubmit={form.onSubmit}
-          onChange={(event) => {
-            const target = event.target as { name?: unknown };
-            if (onEdit && typeof target.name === "string") onEdit(target.name);
-          }}
           noValidate
         >
           <Stack gap="section">

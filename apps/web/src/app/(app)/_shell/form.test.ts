@@ -272,6 +272,12 @@ describe("ошибки у полей: правка снимает ошибку",
   it("у поля ошибки не было — менять нечего", () => {
     expect(clearedByEdit("x", { price: "x" }, "comment")).toBeNull();
     expect(clearedByEdit(null, {}, "price")).toBeNull();
+    // Поле называется иначе, чем ошибка (clears): правка снимает все указанные ключи и общую ошибку с их текстом.
+    expect(clearedByEdit("Выберите тип", { furnitureTypeId: "Выберите тип", form: "Проверьте шаг", style: "Стиль" }, ["furnitureType", "furnitureTypeId", "form"])).toEqual({
+      error: null,
+      fieldErrors: { style: "Стиль" },
+    });
+    expect(clearedByEdit(null, { style: "Стиль" }, ["furnitureType", "form"])).toBeNull();
   });
 });
 

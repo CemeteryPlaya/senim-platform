@@ -32,7 +32,7 @@ export function WizardSend({ base, rows, photos, footnote }: Props) {
       return { requestId: base.draftId };
     },
   });
-  const form: WizardForm = { pending: action.pending, error: action.error, errors: NO_ERRORS, attempt: 0, onSubmit: action.onSubmit };
+  const form: WizardForm = { pending: action.pending, error: action.error, errors: NO_ERRORS, onSubmit: action.onSubmit };
   const direct = base.direct !== null;
   return (
     <WizardFrame
