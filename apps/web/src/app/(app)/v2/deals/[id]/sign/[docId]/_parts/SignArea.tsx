@@ -14,6 +14,7 @@ import { outcomeOf } from "../../../../../../_shell/form";
 import type { DealSide } from "../../../../../../_shell/side";
 import { BankConsentText } from "../../../_parts/BankConsentText";
 import { completeSigningAction, signByHandAction, startSigningAction } from "../actions";
+import { attempt, type Handled } from "./sign-call";
 import { methodsFor, type SignKind, type StepView } from "./sign-view";
 
 const t = ru.app.deal.sign;
@@ -37,9 +38,6 @@ export type SignAreaProps = {
    */
   consent: { document: ConsentDocument } | null;
 };
-
-/** Что сделать с ответом действия: успех — данные; уход (вход, согласие, карточка) — уже начат; отказ — текст (и поле). */
-type Handled<T> = { kind: "ok"; data: T } | { kind: "leaving" } | { kind: "error"; error: string; field?: string };
 
 function useHandle(dealHref: string) {
   const router = useRouter();
@@ -150,17 +148,16 @@ function HandStep({ dealId, documentId, kind, side, step, dealHref, fullName, co
 
   async function submit() {
     if (busy.current || !ready || value === null) return;
-    busy.current = true;
     setPending(true);
     setError(null);
     const base = { dealId, documentId, ...lock.fields };
     const input = typeof value === "string" ? { ...base, imageDataUrl: value } : { ...base, typedName: value.typedName };
-    const out = handle(await signByHandAction(input));
-    if (out.kind === "leaving") return;
+    // Обрыв сети — отказ с текстом у кнопки: подпись (value) остаётся в холсте, кнопка снова доступна для повтора.
+    const out = await attempt(busy, () => signByHandAction(input), handle);
+    if (out === null || out.kind === "leaving") return;
     if (out.kind === "error") {
       if (out.field === "agreed") lock.setError(out.error);
       else setError(out.error);
-      busy.current = false;
       setPending(false);
       return;
     }
@@ -232,9 +229,10 @@ function EcpStep({ dealId, documentId, kind, step, dealHref, device, consent }: 
 
   async function start(method: SignMethodChoice) {
     if (busy.current) return;
-    busy.current = true;
     dispatch({ type: "start" });
-    const out = handle(await startSigningAction({ dealId, documentId, method, ...lock.fields }));
+    // Обрыв сети — назад к выбору способа с текстом сбоя; «Подписать» снова доступна.
+    const out = await attempt(busy, () => startSigningAction({ dealId, documentId, method, ...lock.fields }), handle);
+    if (out === null) return;
     busy.current = false;
     if (out.kind === "leaving") return;
     if (out.kind === "error" && out.field === "agreed") {
@@ -247,12 +245,13 @@ function EcpStep({ dealId, documentId, kind, step, dealHref, device, consent }: 
 
   async function complete() {
     if (busy.current || state.step !== "awaiting") return;
-    busy.current = true;
+    const { sessionId } = state.session;
     dispatch({ type: "complete" });
-    const out = handle(await completeSigningAction({ dealId, documentId, sessionId: state.session.sessionId }));
-    if (out.kind === "leaving") return;
+    // Обрыв сети — снова ожидание подписи в той же сессии с текстом сбоя; повтор проверки безопасен (сервер на повтор
+    // отвечает тем же успехом).
+    const out = await attempt(busy, () => completeSigningAction({ dealId, documentId, sessionId }), handle);
+    if (out === null || out.kind === "leaving") return;
     if (out.kind === "error") {
-      busy.current = false;
       dispatch({ type: "failed", error: out.error });
       return;
     }
