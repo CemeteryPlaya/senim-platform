@@ -22,6 +22,7 @@ import { onboarding } from "./onboarding";
 import { operator } from "./operator";
 import { operatorDeals } from "./operator-deals";
 import { operatorDisputes } from "./operator-disputes";
+import { operatorQueues } from "./operator-queues";
 import { profile } from "./profile";
 import { requestCard } from "./request-card";
 import { requests } from "./requests";
@@ -51,6 +52,7 @@ export const app = {
   operator,
   operatorDeals,
   operatorDisputes,
+  operatorQueues,
   profile,
   requestCard,
   requests,
