@@ -326,7 +326,8 @@ describe("данные стенда", () => {
     const res = await identityFake.client.verifyOtp({ phone: OPERATOR.phone, code: sent.shownCode, sessionToken: token, idempotencyKey: "seed-op-verify" });
     expect(res.user?.defaultRole).toBe(Role.OPERATOR);
     expect(res.user?.seeded).toBe(true);
-    expect(res.session).toMatchObject({ mfaRequired: true, mfaVerifiedAt: undefined });
+    expect(res.session?.mfaRequired).toBe(true);
+    expect(res.session?.mfaVerifiedAt).toBeUndefined();
     const verified = await identityFake.client.verifySecondFactor({ sessionToken: token, code: totpNow(OPERATOR_TOTP_SECRET), idempotencyKey: "seed-op-mfa" });
     expect(verified.session?.mfaVerifiedAt).toBeDefined();
   });
