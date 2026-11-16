@@ -11,7 +11,7 @@ import { pageHref } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
 import { dealHrefs } from "../_parts/deal-card";
 import { buyerDeal } from "../_parts/gate";
-import { payMoney, type PayMoney } from "./_parts/pay-view";
+import { payMoney, transferAmount, type PayMoney } from "./_parts/pay-view";
 import { PayForm } from "./_parts/PayForm";
 
 const t = ru.app.deal.pay;
@@ -90,7 +90,7 @@ export default async function PayPage({ params, searchParams }: Props) {
       dealId={deal.id}
       dealHref={card}
       amount={formatMoney(money.amount)}
-      manual={manual ? { offerHref: offer?.pdfUrl ?? null } : null}
+      manual={manual ? { offerHref: offer?.pdfUrl ?? null, copy: { amount: transferAmount(money.amount), purpose: ru.payments.purpose(deal.number) } } : null}
       consentGiven={bank.mine}
       document={consentDocument("BANK_TRANSFER")}
       masterReady={bank.other}

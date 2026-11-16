@@ -43,3 +43,12 @@ export function paidToast(data: { status: "PENDING" | "SUCCEEDED" | "FAILED" }, 
   if (manual) return p.manual.done;
   return data.status === "SUCCEEDED" ? p.done.SUCCEEDED : p.done.PENDING;
 }
+
+/**
+ * Сумма для копирования в банковское приложение: цифры без пробелов и знака валюты, тиыны через точку, только если они есть
+ * («1224000», «101.05»). Тиыны — целые (`bigint`), без дробных чисел.
+ */
+export function transferAmount(tiyn: bigint): string {
+  const cents = tiyn % 100n;
+  return `${tiyn / 100n}${cents === 0n ? "" : `.${cents.toString().padStart(2, "0")}`}`;
+}

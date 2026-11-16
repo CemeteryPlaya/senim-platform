@@ -7,11 +7,14 @@ import {
   ButtonLink,
   Card,
   cn,
+  ContactActions,
+  CopyButton,
   Explain,
   HelpBlock,
   List,
   ListItem,
   ListRow,
+  MapLink,
   MoneyPanel,
   NowNext,
   PageTitle,
@@ -46,13 +49,15 @@ export type CardView = {
   side: DealSide;
   title: string;
   lead: string;
+  /** Номер сделки для копирования («Сделка №6»); без него кнопки «Скопировать» нет. */
+  number?: number;
   chip: { text: string; tone: DealTone };
   now: NowView;
   steps: DealStepsView;
   /** Обложка — последнее фото отчёта хода работ (`coverOf`, Ruling 6); `null` — отчётов с фото нет, карточка без обложки. */
   cover: DealCover | null;
   money: MoneyView & { historyHref: string };
-  order: { label: string; value: string }[];
+  order: { label: string; value: string; map?: boolean }[];
   documents: DocumentRow[];
   /**
    * Другая сторона: мастеру — покупатель, покупателю — мастер (имя — как отдаёт модуль, контакты — после оферты). `label` —
@@ -168,7 +173,21 @@ function OrderRows({ rows }: { rows: CardView["order"] }) {
   return (
     <List>
       {rows.map((row) => (
-        <ListRow key={row.label} label={row.label} value={row.value} stacked />
+        <ListRow
+          key={row.label}
+          label={row.label}
+          value={
+            row.map ? (
+              <span className="flex flex-col items-start">
+                <span>{row.value}</span>
+                <MapLink address={row.value} />
+              </span>
+            ) : (
+              row.value
+            )
+          }
+          stacked
+        />
       ))}
     </List>
   );
@@ -255,7 +274,10 @@ function Party({ view, device }: { view: CardView; device: Device }) {
           )}
           {contacts ? (
             <>
-              <ListRow label={m.phone} value={contacts.phoneDisplay} href={`tel:${contacts.phone}`} />
+              <ListRow label={m.phone} value={contacts.phoneDisplay} />
+              <ListItem>
+                <ContactActions phone={contacts.phone} phoneDisplay={contacts.phoneDisplay} />
+              </ListItem>
               {contacts.instagram && (
                 <ListRow label={m.instagram} value={contacts.instagram} href={`https://www.instagram.com/${encodeURIComponent(contacts.instagram)}/`} />
               )}
@@ -388,7 +410,10 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
       trailing={hasActions && <DealActions dealId={view.id} cancelText={view.actions.cancelText} disputeHref={view.actions.disputeHref} device={device} />}
       lead={
         <span className="flex flex-col items-start gap-2">
-          <span>{view.lead}</span>
+          <span className="flex items-center gap-1">
+            <span>{view.lead}</span>
+            {view.number !== undefined && <CopyButton value={String(view.number)} label={t.copyNumber} />}
+          </span>
           <StatusChip tone={view.chip.tone}>{view.chip.text}</StatusChip>
         </span>
       }

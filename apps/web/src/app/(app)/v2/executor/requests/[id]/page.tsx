@@ -7,6 +7,7 @@ import {
   Card,
   List,
   ListRow,
+  MapLink,
   NowNext,
   PageTitle,
   PhotoSlot,
@@ -117,7 +118,21 @@ function Request({ view }: { view: RequestViewModel }) {
       <Card padded={false}>
         <List>
           {view.details.map((row) => (
-            <ListRow key={row.label} label={row.label} value={row.value} stacked={row.stacked} />
+            <ListRow
+              key={row.label}
+              label={row.label}
+              value={
+                row.map ? (
+                  <span className="flex flex-col items-start">
+                    <span>{row.value}</span>
+                    <MapLink point={row.map.point} address={row.map.address} />
+                  </span>
+                ) : (
+                  row.value
+                )
+              }
+              stacked={row.stacked}
+            />
           ))}
         </List>
       </Card>

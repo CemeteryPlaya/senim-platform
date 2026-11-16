@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { partyEstimate, type MoneyBlock } from "@/modules/payments";
-import { isAgreed, paidToast, payLabel, payMoney } from "./pay-view";
+import { isAgreed, paidToast, payLabel, payMoney, transferAmount } from "./pay-view";
 
 const t = ru.app.deal.pay.money;
 const p = ru.app.deal.pay;
@@ -55,5 +55,13 @@ describe("отметка согласия и редакция текста", () 
     expect(p.waitMaster.body).not.toMatch(/сообщим/);
     expect(p.where.points.join(" ")).not.toMatch(/на (вашу )?карту/);
     expect(p.where.points[0]).toBe("Деньги будут лежать в банке под защитой.");
+  });
+});
+
+describe("transferAmount", () => {
+  it("цифры без пробелов и знака валюты, тиыны — только если есть", () => {
+    expect(transferAmount(122_400_000n)).toBe("1224000");
+    expect(transferAmount(10_105n)).toBe("101.05");
+    expect(transferAmount(10_150n)).toBe("101.50");
   });
 });

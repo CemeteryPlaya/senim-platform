@@ -77,7 +77,10 @@ export type MoneyView = {
   rows: { label: string; amountTiyn: bigint; total?: true; explain?: true }[];
 };
 
-export type DetailRow = { label: string; value: string; stacked: boolean };
+/** Точка и адрес для ссылок «Открыть на карте» под строкой (только то, что отдал модуль после договорённости о цене). */
+export type DetailMap = { point: { lat: number; lng: number } | null; address: string | null };
+
+export type DetailRow = { label: string; value: string; stacked: boolean; map?: DetailMap };
 
 export type RequestViewModel = {
   state: MasterState;
@@ -242,10 +245,13 @@ export function detailRows(r: DetailsInput, now: Date = new Date(), addressHint 
     [t.request.desiredDate, r.desiredDate ? formatDate(r.desiredDate) : null],
     [t.request.published, r.publishedAt ? formatRelative(r.publishedAt, now) : null],
     [t.request.address, r.address ?? (addressHint ? t.request.addressHidden : null), true],
-    [t.request.location, r.location ? t.request.locationValue(r.location.lat.toFixed(5), r.location.lng.toFixed(5)) : null],
+    [t.request.location, r.location && !r.address ? t.request.locationValue : null],
     [t.request.wishes, r.wishes, true],
   ];
-  return rows.flatMap(([label, value, stacked]) => (value ? [{ label, value, stacked: stacked === true }] : []));
+  // Ссылки на карты — под адресом (а если адреса нет, а точка есть, — под строкой точки); координаты на экране не показываются.
+  const map: DetailMap | null = r.address || r.location ? { point: r.location ?? null, address: r.address ?? null } : null;
+  const mapLabel = r.address ? t.request.address : t.request.location;
+  return rows.flatMap(([label, value, stacked]) => (value ? [{ label, value, stacked: stacked === true, ...(map && label === mapLabel ? { map } : {}) }] : []));
 }
 
 /** Снимки помещения с описанием по порядку; снимок без адреса (ещё нельзя показать) пропускается. */

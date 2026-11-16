@@ -450,7 +450,7 @@ export type OrderInput = {
  * не назвала карточка «Сейчас»), иначе — срок изготовления в днях из оферты. Адрес — только если он передан (мастеру после
  * оферты). Другая сторона — в своём блоке.
  */
-export function orderRows(o: OrderInput): { label: string; value: string }[] {
+export function orderRows(o: OrderInput): { label: string; value: string; /** Под значением — ссылки «Открыть на карте» (адрес заказа). */ map?: boolean }[] {
   const r = t.order;
   const term = o.plannedReadyAt
     ? o.readyShownInNow
@@ -460,7 +460,7 @@ export function orderRows(o: OrderInput): { label: string; value: string }[] {
   return [
     { label: r.what, value: o.title },
     ...(o.city ? [{ label: r.city, value: o.city }] : []),
-    ...(o.address ? [{ label: tmd.card.order.address, value: o.address }] : []),
+    ...(o.address ? [{ label: tmd.card.order.address, value: o.address, map: true }] : []),
     ...term,
     { label: r.warranty, value: formatMonths(o.warrantyMonths) },
     ...(o.signedAt ? [{ label: r.signedAt, value: formatDate(o.signedAt) }] : []),

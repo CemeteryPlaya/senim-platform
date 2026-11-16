@@ -200,8 +200,10 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.now).toEqual({ title: t.now.deal.title, body: t.now.deal.body(formatMoney(980_000_00n)) });
     expect(v.withdrawOffer).toBeNull();
     expect(v.money).toBeNull();
-    expect(v.details).toContainEqual({ label: t.request.address, value: "ул. Тестовая, 1", stacked: true });
-    expect(v.details).toContainEqual({ label: t.request.location, value: "51.12820, 71.43040", stacked: false });
+    const map = { point: { lat: 51.1282, lng: 71.4304 }, address: "ул. Тестовая, 1" };
+    expect(v.details).toContainEqual({ label: t.request.address, value: "ул. Тестовая, 1", stacked: true, map });
+    // Сырых координат на экране нет: ссылки на карты — под адресом.
+    expect(JSON.stringify(v.details.map((row) => row.value))).not.toContain("51.1282");
     expect(v.next).toBe(t.now.deal.next);
     expect(v.contactsNote).toBe(t.request.contactsDeal);
     expect(v.chat?.label).toBe(t.actions.chat);

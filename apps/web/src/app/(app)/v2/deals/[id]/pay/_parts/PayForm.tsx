@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import type { ConsentDocument } from "@/i18n/ru/consent";
-import { ActionDock, Button, Card, Checkbox, HiddenField, Section, Stack, TextLink, toast } from "@/kit";
+import { ActionDock, Button, Card, Checkbox, CopyButton, HiddenField, Section, Stack, TextLink, toast } from "@/kit";
 import type { ActionResult } from "@/platform/action";
 import { FormError } from "../../../../../_shell/FormError";
 import { useActionForm } from "../../../../../_shell/form";
@@ -23,7 +23,7 @@ export type PayFormProps = {
   /** «К оплате» строкой (итог сметы модуля, уже через `formatMoney`). */
   amount: string;
   /** Оплата переводом по реквизитам из оферты (`deal.paymentProvider === "MANUAL"`): адрес PDF оферты (или `null`, если его нет). */
-  manual: { offerHref: string | null } | null;
+  manual: { offerHref: string | null; copy: { amount: string; purpose: string } } | null;
   /** Своё согласие на передачу данных банку по этой сделке уже дано (`bankConsentState().mine`). */
   consentGiven: boolean;
   /** Текст согласия — `consentDocument("BANK_TRANSFER")`: его редакцию сервер сверяет с текущей. */
@@ -50,11 +50,27 @@ function ConsentGiven() {
 }
 
 /** Оплата переводом: что сделать после нажатия и где реквизиты (PDF оферты в новой вкладке). */
-function ManualHint({ amount, offerHref }: { amount: string; offerHref: string | null }) {
+function ManualHint({ amount, offerHref, copy }: { amount: string; offerHref: string | null; copy: { amount: string; purpose: string } }) {
+  const m = t.manual;
   return (
     <Card>
       <Stack gap="tight">
-        <p className="text-body text-ink">{t.manual.hint(amount)}</p>
+        <p className="text-body text-ink">{m.hint(amount)}</p>
+        {/* Без выдуманных реквизитов: копируются только сумма и назначение платежа (то же, что получает банк); получатель и счёт — в оферте. */}
+        <dl className="flex flex-col">
+          {[
+            { label: m.amountLabel, shown: amount, value: copy.amount, copyLabel: m.copyAmount },
+            { label: m.purposeLabel, shown: copy.purpose, value: copy.purpose, copyLabel: m.copyPurpose },
+          ].map((row) => (
+            <div key={row.label} className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-col py-2">
+                <dt className="text-sub text-muted">{row.label}</dt>
+                <dd className="text-body text-ink wrap-break-word">{row.shown}</dd>
+              </div>
+              <CopyButton value={row.value} label={row.copyLabel} />
+            </div>
+          ))}
+        </dl>
         {offerHref && (
           // PDF — обработчик маршрута, а не экран: обычная ссылка в новой вкладке.
           <TextLink href={offerHref} external>
@@ -154,7 +170,7 @@ function PayStep({ dealId, dealHref, amount, manual, consentGiven, document: doc
             )}
           </Stack>
         </form>
-        {manual && <ManualHint amount={amount} offerHref={manual.offerHref} />}
+        {manual && <ManualHint amount={amount} offerHref={manual.offerHref} copy={manual.copy} />}
       </Section>
       <ActionDock>
         <Button type="submit" form={PAY_FORM} pending={form.pending || leaving !== null} disabled={!ready} aria-describedby={ready ? undefined : reasonId}>
