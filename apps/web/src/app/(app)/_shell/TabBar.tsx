@@ -7,6 +7,7 @@ import { ru } from "@/i18n/ru";
 import { cn, NavLens } from "@/kit";
 import { activeHref, type NavItem } from "./nav";
 import { NAV_ICONS } from "./nav-icons";
+import { LinkPendingReporter, shownHref, usePendingHref } from "./nav-pending";
 
 /**
  * Не помещаются ли подписи: вкладки встали в несколько рядов или подпись вкладки — в две строки (крупный шрифт).
@@ -30,7 +31,8 @@ function isWrapped(list: HTMLElement): boolean {
  *
  * Активная вкладка — «линза» (NavLens): подложка fill-strong за иконкой и подписью, переезжает к новой вкладке пружиной
  * без отскока (при prefers-reduced-motion — мгновенно); подпись ink 600, у остальных — glass-secondary 500. Иконки
- * одной толщины: выбранную отличает подложка, а не штрих.
+ * одной толщины: выбранную отличает подложка, а не штрих. Линза переезжает в момент касания (useLinkStatus,
+ * nav-pending.tsx), а не после ответа сервера; aria-current остаётся у открытого экрана, пока переход не закончен.
  *
  * Подписи 13 px не обрезаются: вкладка не уже своей подписи. Если при крупном системном шрифте они перестали
  * помещаться в один ряд, подписи скрываются (display: none), остаются иконки в одну строку, а у вкладки появляется
@@ -41,6 +43,9 @@ function isWrapped(list: HTMLElement): boolean {
  */
 export function TabBar({ items }: { items: readonly NavItem[] }) {
   const current = activeHref(items, usePathname());
+  // Линза и подпись — у вкладки, на которую нажали, сразу, пока идёт переход; aria-current — у текущего адреса.
+  const [pending, reportPending] = usePendingHref();
+  const shown = shownHref(pending, current);
   const bar = useRef<HTMLElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const [iconsOnly, setIconsOnly] = useState(false);
@@ -79,12 +84,12 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
       >
         {items.map((item) => {
           const Icon = NAV_ICONS[item.icon];
-          const active = item.href === current;
+          const active = item.href === shown;
           return (
             <li key={item.href} className="flex grow basis-0">
               <Link
                 href={item.href}
-                aria-current={active ? "page" : undefined}
+                aria-current={item.href === current ? "page" : undefined}
                 aria-label={iconsOnly ? item.label : undefined}
                 // py-1.5 (6 px) — мимо шкалы намеренно: иконка 24 px, зазор 4 px и подпись 13 px укладываются в
                 // плашку высотой с эталонную; с py-2 панель становится выше, с py-1 подпись прижата к краю.
@@ -94,6 +99,7 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
                   active ? "text-ink" : "text-glass-secondary",
                 )}
               >
+                <LinkPendingReporter href={item.href} onChange={reportPending} />
                 {active && <NavLens group="tabs" shape="capsule" />}
                 <Icon aria-hidden className="size-6 shrink-0" strokeWidth={1.75} />
                 <span data-tab-label className={cn("text-small group-data-icons-only/tabs:hidden", active ? "font-semibold" : "font-medium")}>

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 import { cn } from "./cn";
 import { HiddenField } from "./HiddenField";
+import { RowChevron } from "./RowChevron";
 
 /** Строка списка — элемент (`ListRow` или `ListItem`), в том числе из map и по условию; текста напрямую нет. */
 type ListChild = ReactElement | false | null | undefined;
@@ -73,7 +73,8 @@ const ROW = "flex min-h-control w-full items-center justify-between px-card text
  * значение и шеврон 16 px muted. Значение — muted; сумма (`Money`) задаёт свой цвет ink сама.
  */
 export function ListRow({ label, value, href, chevron = true, stacked = false, action, fields, leading, detail }: ListRowProps) {
-  const arrow = href && chevron && <ChevronRight aria-hidden className="size-4 shrink-0 text-muted" />;
+  // Шеврон строки-ссылки сменяется индикатором, пока идёт переход по ней (RowChevron, useLinkStatus).
+  const arrow = href && chevron && <RowChevron />;
   let labelPart: ReactNode;
   let valuePart: ReactNode;
   if (stacked) {
