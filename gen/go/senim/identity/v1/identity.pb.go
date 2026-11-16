@@ -3025,8 +3025,11 @@ type UpdateContactsRequest struct {
 	Instagram      string                 `protobuf:"bytes,2,opt,name=instagram,proto3" json:"instagram,omitempty"`
 	Email          string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
 	IdempotencyKey string                 `protobuf:"bytes,4,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Почту не трогать: сохраняется только Instagram, email запроса не читается. Иначе экран, сохраняющий один
+	// Instagram, прислал бы прочитанную раньше почту и затёр бы её смену, сделанную между чтением и записью.
+	KeepEmail     bool `protobuf:"varint,5,opt,name=keep_email,json=keepEmail,proto3" json:"keep_email,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateContactsRequest) Reset() {
@@ -3085,6 +3088,13 @@ func (x *UpdateContactsRequest) GetIdempotencyKey() string {
 		return x.IdempotencyKey
 	}
 	return ""
+}
+
+func (x *UpdateContactsRequest) GetKeepEmail() bool {
+	if x != nil {
+		return x.KeepEmail
+	}
+	return false
 }
 
 type UpdateContactsResponse struct {
@@ -5377,12 +5387,14 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"\x03iin\x18\x03 \x01(\tR\x03iin\x12'\n" +
 	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\"I\n" +
 	"\x14RecordPersonResponse\x121\n" +
-	"\x06person\x18\x01 \x01(\v2\x19.senim.identity.v1.PersonR\x06person\"\x99\x01\n" +
+	"\x06person\x18\x01 \x01(\v2\x19.senim.identity.v1.PersonR\x06person\"\xb8\x01\n" +
 	"\x15UpdateContactsRequest\x12#\n" +
 	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\x12\x1c\n" +
 	"\tinstagram\x18\x02 \x01(\tR\tinstagram\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12'\n" +
-	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\"K\n" +
+	"\x0fidempotency_key\x18\x04 \x01(\tR\x0eidempotencyKey\x12\x1d\n" +
+	"\n" +
+	"keep_email\x18\x05 \x01(\bR\tkeepEmail\"K\n" +
 	"\x16UpdateContactsResponse\x121\n" +
 	"\x06person\x18\x01 \x01(\v2\x19.senim.identity.v1.PersonR\x06person\"}\n" +
 	"\x17RequestEmailCodeRequest\x12#\n" +

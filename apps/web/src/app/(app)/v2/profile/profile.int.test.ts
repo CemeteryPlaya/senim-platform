@@ -71,7 +71,7 @@ describe("saveContactsAction", () => {
     const user = (await getCurrentUser())!;
     expect(user.emailVerified).toBe(true);
     expect(await getOwnContacts(user)).toMatchObject({ instagram: "Dala_01", email: EMAIL });
-    expect(identityFake.calls.filter((c) => c.method === "updateContacts").at(-1)?.request).toMatchObject({ email: EMAIL });
+    expect(identityFake.calls.filter((c) => c.method === "updateContacts").at(-1)?.request).toMatchObject({ keepEmail: true });
   });
 
   it("пустое поле — Instagram не указан", async () => {

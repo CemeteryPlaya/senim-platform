@@ -522,3 +522,24 @@ func TestSeedUsersWritesPerson(t *testing.T) {
 	_, err = h.seed(bad)
 	h.wantRefusal(err, connect.CodeInvalidArgument, "instagram_invalid")
 }
+
+// Review Focus 5 (план 05b): сохранение Instagram с keep_email не затирает почту, сменённую между чтением профиля в
+// web и записью (раньше web присылал прочитанную раньше почту).
+func TestUpdateContactsKeepEmail(t *testing.T) {
+	h := newHarness(t, nil)
+	_, token := h.client()
+	h.mustUpdateContacts(token, "", "old@example.kz")
+	// Другая вкладка сменила почту.
+	h.mustUpdateContacts(token, "", "new@example.kz")
+
+	resp, err := idc(h, "web", func(ctx context.Context, c identityv1connect.IdentityServiceClient) (*identityv1.UpdateContactsResponse, error) {
+		// Экран Instagram прочитал профиль до смены: email запроса — старый, но keep_email.
+		return c.UpdateContacts(ctx, &identityv1.UpdateContactsRequest{SessionToken: token, Instagram: "dala.mebel", Email: "old@example.kz", KeepEmail: true, IdempotencyKey: h.key()})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetPerson().GetEmail() != "new@example.kz" || resp.GetPerson().GetInstagram() != "dala.mebel" {
+		t.Fatalf("контакты после keep_email: %v", resp.GetPerson())
+	}
+}

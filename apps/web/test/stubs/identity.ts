@@ -1566,7 +1566,8 @@ export class FakeIdentity {
           const { user, session } = await this.sessionOf(req.sessionToken ?? "");
           if (session.activeRole !== Role.CLIENT && session.activeRole !== Role.EXECUTOR) throw codedError("role_forbidden", Code.PermissionDenied);
           const before = this.persons.get(user.id) ?? { fullName: "", iin: "", instagram: "", email: "" };
-          const after = { ...before, instagram: checkInstagram(req.instagram ?? ""), email: checkEmail(req.email ?? "") };
+          // keep_email: почта из базы, email запроса не читается (как в Go).
+          const after = { ...before, instagram: checkInstagram(req.instagram ?? ""), email: req.keepEmail ? before.email : checkEmail(req.email ?? "") };
           this.persons.set(user.id, after);
           // Другой адрес (и пустой) снимает подтверждение и гасит ожидающий код почты; тот же — подтверждение оставляет.
           if (before.email !== after.email) {
@@ -1584,7 +1585,7 @@ export class FakeIdentity {
           // Порядок Go: ключ, Instagram, e-mail; дальше повтор по ключу и транзакция.
           this.checkKey(req.idempotencyKey);
           checkInstagram(req.instagram ?? "");
-          checkEmail(req.email ?? "");
+          if (!req.keepEmail) checkEmail(req.email ?? "");
         },
       ),
       requestEmailCode: async (req: MessageInitShape<typeof RequestEmailCodeRequestSchema>) => {

@@ -312,7 +312,11 @@ func (s *Service) UpdateContacts(ctx context.Context, req *identityv1.UpdateCont
 	if !ok {
 		return nil, instagramInvalid(tooLong)
 	}
-	email, ok := normalizeEmail(req.GetEmail())
+	// keep_email: почта не меняется и не читается из запроса (её берём из базы под блокировкой сессии ниже).
+	email, ok := "", true
+	if !req.GetKeepEmail() {
+		email, ok = normalizeEmail(req.GetEmail())
+	}
 	if !ok {
 		return nil, emailInvalid()
 	}
@@ -332,7 +336,11 @@ func (s *Service) UpdateContacts(ctx context.Context, req *identityv1.UpdateCont
 		if err != nil {
 			return err
 		}
-		after, err := q.UpsertContacts(ctx, store.UpsertContactsParams{UserID: user.ID, Instagram: text(instagram), Email: text(email), Now: ts(now)})
+		newEmail := text(email)
+		if req.GetKeepEmail() {
+			newEmail = before.Email
+		}
+		after, err := q.UpsertContacts(ctx, store.UpsertContactsParams{UserID: user.ID, Instagram: text(instagram), Email: newEmail, Now: ts(now)})
 		if err != nil {
 			return err
 		}

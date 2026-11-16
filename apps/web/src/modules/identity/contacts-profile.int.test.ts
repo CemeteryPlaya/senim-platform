@@ -68,6 +68,21 @@ describe("Instagram в профиле заказчика и мастера", () 
   });
 });
 
+describe("Instagram без гонки с почтой", () => {
+  it("сохранение одного Instagram не читает профиль и не трогает почту (keepEmail): смена почты между чтением и записью не затирается", async () => {
+    const user = await signedIn(makeClient());
+    await updateContacts(user, { instagram: "", email: "old@example.kz" });
+    identityFake.calls.length = 0;
+
+    await updateContacts(user, { instagram: "dala.mebel" });
+
+    // Почту web не читает и не присылает: её берёт identity из базы в той же транзакции (TestUpdateContactsKeepEmail в Go).
+    expect(identityFake.calls.map((c) => c.method)).not.toContain("getProfile");
+    expect(identityFake.calls.find((c) => c.method === "updateContacts")?.request).toMatchObject({ keepEmail: true, email: "" });
+    expect(identityFake.personOf(user.id)).toMatchObject({ instagram: "dala.mebel", email: "old@example.kz" });
+  });
+});
+
 describe("e-mail в профиле — для копии подписанного акта", () => {
   it("сохраняется без пробелов по краям и в нижнем регистре; Instagram при этом не трогается; журнал — без значения", async () => {
     const user = await signedIn(makeClient());
@@ -84,12 +99,12 @@ describe("e-mail в профиле — для копии подписанног�
     expect(JSON.stringify(events)).not.toContain("example.kz");
   });
 
-  it("без поля e-mail — в identity уходит прежний адрес (поля — полное состояние), он остаётся; неверный адрес — VALIDATION", async () => {
+  it("без поля e-mail — identity получает keepEmail и адрес не трогает; неверный адрес — VALIDATION", async () => {
     const user = await signedIn(makeExecutor());
     await updateContacts(user, { instagram: "", email: "master@example.kz" });
     await updateContacts(user, { instagram: "dala" });
     const last = identityFake.calls.filter((c) => c.method === "updateContacts").at(-1);
-    expect(last?.request).toMatchObject({ instagram: "dala", email: "master@example.kz" });
+    expect(last?.request).toMatchObject({ instagram: "dala", keepEmail: true });
     expect((await getOwnContacts(user)).email).toBe("master@example.kz");
     expect(await code(updateContacts(user, { instagram: "", email: "не почта" }))).toBe("VALIDATION");
     expect((await getOwnContacts(user)).email).toBe("master@example.kz");
