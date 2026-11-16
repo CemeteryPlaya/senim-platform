@@ -51,6 +51,9 @@ export async function storageByName(name: string): Promise<StorageProvider> {
     case "local":
       return createLocalStorage(env().STORAGE_LOCAL_DIR);
     case "static":
+      // Файлы сида стенда. В рабочей базе их нет (сид при APP_ENV=prod ничего не пишет — src/seed/plan.ts); это вторая
+      // линия: запись StoredFile с provider=static не откроет файл из public/ на боевом сервере.
+      if (env().APP_ENV === "prod") throw new Error("Хранилище static (файлы сида) недоступно при APP_ENV=prod");
       return createStaticStorage(path.join(process.cwd(), "public"));
     case "s3":
       return cached("s3", s3);
