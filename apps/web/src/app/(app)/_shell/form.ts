@@ -59,9 +59,17 @@ export function submitterOf(nativeEvent: unknown): HTMLButtonElement | HTMLInput
   return tag === "BUTTON" || tag === "INPUT" ? (submitter as HTMLButtonElement | HTMLInputElement) : null;
 }
 
-/** Поля формы → простой объект для Server Action (схему и разбор значений держит `action()` на сервере). */
+/**
+ * Поля формы → простой объект для Server Action (схему и разбор значений держит `action()` на сервере). Пустое поле файла
+ * (браузер кладёт `File` размером 0, когда файл не выбран) не передаётся — как в v1: необязательный файл просто отсутствует.
+ * Повтор имени — последнее значение.
+ */
 export function formDataToInput(data: FormData): Record<string, FormDataEntryValue> {
-  return Object.fromEntries(data.entries());
+  const input: Record<string, FormDataEntryValue> = {};
+  for (const [name, value] of data.entries()) {
+    if (typeof value === "string" || value.size > 0) input[name] = value;
+  }
+  return input;
 }
 
 /** Поле формы глазами `useActionForm`: имя, тип и атрибуты (`aria-invalid`, `data-field`). Подходит любой элемент формы. */
@@ -262,6 +270,9 @@ export async function runSubmit<I, T>(
       if (checked === "leave") leaving = true;
       if (checked !== true) return;
       fields = withoutCode(data);
+      // Код принят, а он одноразовый: поле кода убирается сразу, до действия. Сбой связи на самом действии — повторная
+      // отправка идёт без кода (второй шаг уже свежий); понадобится снова — действие опять ответит MFA_REQUIRED.
+      if (data.has(MFA_CODE_FIELD)) state.setCodeReason?.(null);
     }
     // Вход проверяет схема действия на сервере, поэтому приведение типа здесь безопасно.
     const input = options.toInput ? options.toInput(fields) : (formDataToInput(fields) as I);

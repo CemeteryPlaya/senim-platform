@@ -43,14 +43,15 @@ export type DecisionQueueProps = {
 export function DecisionQueue({ count, label, empty, children }: DecisionQueueProps) {
   const root = useRef<HTMLDivElement>(null);
   const decidedAt = useRef<number | null>(null);
-  const [message, setMessage] = useState("");
+  // Номер объявления: тот же текст итога подряд («Операция подтверждена») — новый узел в области статуса, диктор читает снова.
+  const [{ message, n }, setAnnounced] = useState({ message: "", n: 0 });
   const emptyId = useId();
 
   const decided = useCallback<QueueDecided>((text, from) => {
     const items = Array.from(root.current?.querySelectorAll(ITEMS) ?? []);
     const item = from?.closest(ITEMS) ?? null;
     decidedAt.current = item ? items.indexOf(item) : -1;
-    setMessage(text);
+    setAnnounced((prev) => ({ message: text, n: prev.n + 1 }));
   }, []);
 
   useEffect(() => {
@@ -68,7 +69,11 @@ export function DecisionQueue({ count, label, empty, children }: DecisionQueuePr
       <div ref={root} className="flex min-w-0 flex-col gap-stack-group">
         {/* Область есть всегда (пустая — вне потока): иначе первое объявление диктор пропустит. */}
         <div role="status" className={message ? undefined : "sr-only"}>
-          {message && <Notice tone="info">{message}</Notice>}
+          {message && (
+            <Notice key={n} tone="info">
+              {message}
+            </Notice>
+          )}
         </div>
         {count === 0 ? (
           <EmptyState title={empty.title} body={empty.body} titleId={emptyId} />

@@ -70,6 +70,36 @@ describe("DecisionQueue в браузере: фокус и объявление 
     expect(mounted.container.querySelector("[data-queue]")).toBeNull();
   });
 
+  it("тот же итог подряд объявляется снова: в области статуса — новый узел", () => {
+    function Same({ ids }: { ids: string[] }) {
+      return (
+        <DecisionQueue count={ids.length} label="Операции" empty={{ title: "Очередь пуста", body: "—" }}>
+          {ids.map((id) => (
+            <QueueCard key={id} title={`Операция ${id}`}>
+              <SameText id={id} />
+            </QueueCard>
+          ))}
+        </DecisionQueue>
+      );
+    }
+    function SameText({ id }: { id: string }) {
+      const decided = useQueueDecision();
+      return (
+        <span data-decide={id} onClick={(event) => decided?.("Операция подтверждена", event.currentTarget)}>
+          {id}
+        </span>
+      );
+    }
+    mounted = mount(<Same ids={["a", "b"]} />);
+    const status = mounted.container.querySelector('[role="status"]') as HTMLElement;
+    click(mounted.container, "a");
+    const first = status.firstElementChild;
+    act(() => mounted?.root.render(<Same ids={["b"]} />));
+    click(mounted.container, "b");
+    expect(status.textContent).toBe("Операция подтверждена");
+    expect(status.firstElementChild).not.toBe(first);
+  });
+
   it("без решения смена числа карточек фокус не трогает", () => {
     mounted = mount(<Queue ids={["a", "b"]} />);
     const before = document.activeElement;

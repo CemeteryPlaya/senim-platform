@@ -67,6 +67,29 @@ describe("код из приложения в форме оператора (Sec
     expect(codeInput(container)).toBeNull();
   });
 
+  it("код принят, действие упало по сети — поле кода убрано, повтор идёт без проверки кода", async () => {
+    let calls = 0;
+    const action = vi.fn(async (): Promise<ActionResult<number>> => {
+      calls += 1;
+      if (calls === 1) return { ok: false, code: "MFA_REQUIRED", error: STEP_UP };
+      if (calls === 2) throw new TypeError("Failed to fetch");
+      return { ok: true, data: 1 };
+    });
+    const verify = vi.fn<VerifyCode>(async () => ({ ok: true, data: undefined }));
+    mounted = mount(<MoneyForm action={action} verify={verify} />);
+    const { container } = mounted;
+    await submitAndSettle(container);
+    edit(codeInput(container) as HTMLInputElement, "123456", { data: "123456" });
+    await submitAndSettle(container);
+    expect(codeInput(container)).toBeNull();
+    expect(container.querySelector("[data-error]")).not.toBeNull();
+
+    await submitAndSettle(container);
+    expect(verify).toHaveBeenCalledTimes(1);
+    expect(action).toHaveBeenCalledTimes(3);
+    expect(container.querySelector("[data-error]")).toBeNull();
+  });
+
   it("неверный код — ошибка под полем кода, действие не повторяется", async () => {
     const action = vi.fn(async (): Promise<ActionResult<number>> => ({ ok: false, code: "MFA_REQUIRED", error: STEP_UP }));
     const wrong = ru.identity.mfa.errors.wrongCode(4);

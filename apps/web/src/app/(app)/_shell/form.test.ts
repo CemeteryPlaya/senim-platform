@@ -104,6 +104,16 @@ describe("formDataToInput", () => {
     data.set("next", "/v2");
     expect(formDataToInput(data)).toEqual({ phone: "+77001234567", next: "/v2" });
   });
+
+  it("пустое поле файла (File размером 0 — файл не выбран) не передаётся; выбранный файл — передаётся", () => {
+    const data = new FormData();
+    data.set("bankDocNumber", "Б-1");
+    data.set("scan", new File([], "", { type: "application/octet-stream" }));
+    expect(formDataToInput(data)).toEqual({ bankDocNumber: "Б-1" });
+    const scan = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], "scan.pdf", { type: "application/pdf" });
+    data.set("scan", scan);
+    expect(formDataToInput(data)).toEqual({ bankDocNumber: "Б-1", scan });
+  });
 });
 
 describe("submitterOf: кнопка, которой отправили форму", () => {

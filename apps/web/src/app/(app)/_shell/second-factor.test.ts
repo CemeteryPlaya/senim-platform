@@ -106,6 +106,25 @@ describe("протокол второго фактора в форме v2 (runSu
     expect(s).toMatchObject({ error: "Операцию уже подтвердили", codeReason: null });
   });
 
+  it("код принят, а действие упало по сети — поле кода уже убрано: повтор не отправит использованный код снова", async () => {
+    const { s, set } = state();
+    s.codeReason = STEP_UP;
+    const verify = vi.fn<VerifyCode>(async () => ok(undefined));
+    await runSubmit(
+      async () => {
+        throw new TypeError("Failed to fetch");
+      },
+      { verifyCode: verify },
+      set,
+      environment(),
+      fields({ transactionId: "t1", [MFA_CODE_FIELD]: "123456" }),
+    );
+    expect(verify).toHaveBeenCalledTimes(1);
+    expect(s.codeReason).toBeNull();
+    expect(s.error).not.toBeNull();
+    expect(s.busy.current).toBe(false);
+  });
+
   it("без verifyCode MFA_REQUIRED — обычная ошибка формы, поле кода в действие уходит как есть", async () => {
     const { s, set } = state();
     const action = vi.fn(async (input: Record<string, FormDataEntryValue>) => {
