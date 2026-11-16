@@ -56,7 +56,7 @@ function ManualHint({ amount, offerHref, copy }: { amount: string; offerHref: st
     <Card>
       <Stack gap="tight">
         <p className="text-body text-ink">{m.hint(amount)}</p>
-        {/* Без выдуманных реквизитов: копируются только сумма и назначение платежа (то же, что получает банк); получатель и счёт — в оферте. */}
+        {/* Без выдуманных реквизитов: копируются только сумма и назначение платежа (номер сделки и оферты — из данных; ручной провайдер ничего в банк не передаёт, это текст для самого перевода); получатель и счёт — в оферте. */}
         <dl className="flex flex-col">
           {[
             { label: m.amountLabel, shown: amount, value: copy.amount, copyLabel: m.copyAmount },

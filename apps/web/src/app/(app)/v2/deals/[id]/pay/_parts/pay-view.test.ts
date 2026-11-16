@@ -65,3 +65,10 @@ describe("transferAmount", () => {
     expect(transferAmount(10_150n)).toBe("101.50");
   });
 });
+
+describe("назначение перевода", () => {
+  it("сделка и номер оферты из данных; без оферты — только сделка", () => {
+    expect(ru.app.deal.pay.manual.purpose(4, "Д-0004/2026")).toBe("Оплата по сделке №4, оферта Д-0004/2026");
+    expect(ru.app.deal.pay.manual.purpose(4, null)).toBe("Оплата по сделке №4");
+  });
+});

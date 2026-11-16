@@ -90,7 +90,7 @@ export default async function PayPage({ params, searchParams }: Props) {
       dealId={deal.id}
       dealHref={card}
       amount={formatMoney(money.amount)}
-      manual={manual ? { offerHref: offer?.pdfUrl ?? null, copy: { amount: transferAmount(money.amount), purpose: ru.payments.purpose(deal.number) } } : null}
+      manual={manual ? { offerHref: offer?.pdfUrl ?? null, copy: { amount: transferAmount(money.amount), purpose: ru.app.deal.pay.manual.purpose(deal.number, offer?.number ?? null) } } : null}
       consentGiven={bank.mine}
       document={consentDocument("BANK_TRANSFER")}
       masterReady={bank.other}

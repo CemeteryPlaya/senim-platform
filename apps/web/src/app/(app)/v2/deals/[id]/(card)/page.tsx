@@ -41,13 +41,15 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<str
  * предложения), и только после заключения оферты. Сбой чтения или неодобренный мастер (`notApproved`) не роняют карточку:
  * строки адреса просто нет.
  */
-async function masterAddress(user: CurrentUser, deal: DealView): Promise<string | null> {
-  if (deal.dates.signedAt === null) return null;
+async function masterAddress(user: CurrentUser, deal: DealView): Promise<{ address: string | null; location: { lat: number; lng: number } | null }> {
+  const none = { address: null, location: null };
+  if (deal.dates.signedAt === null) return none;
   try {
-    return (await getIncomingRequest(user, deal.requestId)).address;
+    const { address, location } = await getIncomingRequest(user, deal.requestId);
+    return { address, location };
   } catch (error) {
     logger.warn("deal address failed", { dealId: deal.id, error });
-    return null;
+    return none;
   }
 }
 
@@ -64,7 +66,7 @@ export default async function DealPage({ params, searchParams }: Props) {
   const user = await requireV2User(pageHref(`/deals/${encodeURIComponent(id)}`, sp));
   // Сделку уже прочитали ворота (layout.tsx) — то же чтение из `cache`, второго запроса нет.
   const { deal, side } = await partyDealOnce(user, id);
-  const [documents, contacts, bank, address, device] = await Promise.all([
+  const [documents, contacts, bank, place, device] = await Promise.all([
     readDealDocuments(user, deal.id),
     dealContacts(user, deal.id),
     // Отметки «Передача данных банку» есть только до оплаты. Сбой чтения не роняет карточку: кнопка оплаты остаётся
@@ -75,10 +77,10 @@ export default async function DealPage({ params, searchParams }: Props) {
           return null;
         })
       : Promise.resolve(null),
-    side === "EXECUTOR" ? masterAddress(user, deal) : Promise.resolve(null),
+    side === "EXECUTOR" ? masterAddress(user, deal) : Promise.resolve({ address: null, location: null }),
     getDevice(),
   ]);
-  return <DealCardView view={cardView({ deal, side, documents, contacts, bank, address, all: sp.history === "all", device })} device={device} />;
+  return <DealCardView view={cardView({ deal, side, documents, contacts, bank, place, all: sp.history === "all", device })} device={device} />;
 }
 
 /**
@@ -105,13 +107,13 @@ type CardInput = {
   documents: Awaited<ReturnType<typeof readDealDocuments>>;
   contacts: Awaited<ReturnType<typeof dealContacts>>;
   bank: Awaited<ReturnType<typeof bankConsentState>> | null;
-  address: string | null;
+  place: Awaited<ReturnType<typeof masterAddress>>;
   all: boolean;
   device: Device;
 };
 
 /** Вид карточки по стороне: таблица «что сейчас», блок денег, другая сторона, ход работ и история — свои у каждой стороны. */
-function cardView({ deal, side, documents, contacts, bank, address, all, device }: CardInput): CardView {
+function cardView({ deal, side, documents, contacts, bank, place, all, device }: CardInput): CardView {
   const master = side === "EXECUTOR";
   const hrefs = dealHrefs(deal.id);
   const openDispute = deal.dispute?.status === "OPEN";
@@ -160,7 +162,8 @@ function cardView({ deal, side, documents, contacts, bank, address, all, device 
     order: orderRows({
       title: deal.title,
       city: deal.subject.city,
-      address,
+      address: place.address,
+      location: place.location,
       plannedReadyAt: deal.dates.plannedReadyAt,
       signedAt: deal.dates.signedAt,
       durationDays: deal.durationDays,

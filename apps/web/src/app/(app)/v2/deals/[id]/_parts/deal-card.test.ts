@@ -256,6 +256,12 @@ describe("cancelText: последствия отмены по факту cancel
 
 describe("заказ", () => {
   const order = { title: "Кухня", city: "Астана", plannedReadyAt: null, signedAt: null, durationDays: 30, warrantyMonths: 12, readyShownInNow: false };
+  it("адрес мастеру: ссылки на карты — по точке заказа, а без точки — поиск по адресу", () => {
+    const withPoint = orderRows({ ...order, address: "Астана, Абая 1", location: { lat: 51.1, lng: 71.4 } }).find((r) => r.map);
+    expect(withPoint?.map).toEqual({ point: { lat: 51.1, lng: 71.4 }, address: "Астана, Абая 1" });
+    expect(orderRows({ ...order, address: "Астана, Абая 1" }).find((r) => r.map)?.map).toEqual({ point: null, address: "Астана, Абая 1" });
+    expect(orderRows(order).some((r) => r.map)).toBe(false);
+  });
   it("до оферты: что делаем, город, срок в днях, гарантия; строки мастера нет", () => {
     expect(orderRows(order).map((r) => r.label)).toEqual([t.order.what, t.order.city, t.order.duration, t.order.warranty]);
   });

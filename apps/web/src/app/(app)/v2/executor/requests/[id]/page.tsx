@@ -202,7 +202,7 @@ function Title({ view, device }: { view: RequestViewModel; device: Device }) {
             <span className="flex flex-col items-start gap-2">
               <span className="flex items-center gap-1">
                 <span>{view.lead.number}</span>
-                <CopyButton value={view.lead.copy} label={t.copyNumber} />
+                <CopyButton value={view.lead.number} label={t.copyNumber} />
               </span>
               {view.lead.direct && <StatusChip tone="accent">{view.lead.direct}</StatusChip>}
             </span>

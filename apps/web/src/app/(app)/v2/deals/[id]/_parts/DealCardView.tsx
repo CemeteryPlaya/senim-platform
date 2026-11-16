@@ -35,7 +35,7 @@ import type { DealSide } from "../../../../_shell/side";
 import type { DealCover } from "../../../_parts/deal-cover";
 import { DealCoverPhoto } from "../../../_parts/DealCoverPhoto";
 import type { DealStepsView, DealTone } from "../../../_parts/deal-summary";
-import type { DocumentRow, MoneyView, NowView, ReportView } from "./deal-card";
+import type { DocumentRow, MoneyView, NowView, OrderMap, ReportView } from "./deal-card";
 import { dealHelpItems } from "../../_parts/help-items";
 import { DealActions } from "./DealActions";
 
@@ -49,7 +49,7 @@ export type CardView = {
   side: DealSide;
   title: string;
   lead: string;
-  /** Номер сделки для копирования («Сделка №6»); без него кнопки «Скопировать» нет. */
+  /** Номер сделки; копируется как «Сделка №6». Без него кнопки «Скопировать» нет. */
   number?: number;
   chip: { text: string; tone: DealTone };
   now: NowView;
@@ -57,7 +57,7 @@ export type CardView = {
   /** Обложка — последнее фото отчёта хода работ (`coverOf`, Ruling 6); `null` — отчётов с фото нет, карточка без обложки. */
   cover: DealCover | null;
   money: MoneyView & { historyHref: string };
-  order: { label: string; value: string; map?: boolean }[];
+  order: { label: string; value: string; map?: OrderMap }[];
   documents: DocumentRow[];
   /**
    * Другая сторона: мастеру — покупатель, покупателю — мастер (имя — как отдаёт модуль, контакты — после оферты). `label` —
@@ -180,7 +180,7 @@ function OrderRows({ rows }: { rows: CardView["order"] }) {
             row.map ? (
               <span className="flex flex-col items-start">
                 <span>{row.value}</span>
-                <MapLink address={row.value} />
+                <MapLink point={row.map.point} address={row.map.address} />
               </span>
             ) : (
               row.value
@@ -412,7 +412,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
         <span className="flex flex-col items-start gap-2">
           <span className="flex items-center gap-1">
             <span>{view.lead}</span>
-            {view.number !== undefined && <CopyButton value={String(view.number)} label={t.copyNumber} />}
+            {view.number !== undefined && <CopyButton value={tm.lead(view.number)} label={t.copyNumber} />}
           </span>
           <StatusChip tone={view.chip.tone}>{view.chip.text}</StatusChip>
         </span>

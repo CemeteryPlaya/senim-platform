@@ -432,11 +432,15 @@ export function cancelText(i: { side: DealSide; canCancel: boolean; status: Deal
 
 // ─── Заказ, документы, история ───────────────────────────────────────────────────────────────────────────────────────
 
+export type OrderMap = { point: { lat: number; lng: number } | null; address: string };
+
 export type OrderInput = {
   title: string;
   city: string | null;
   /** Адрес заказа — мастеру, когда его отдал модуль заявок и оферта заключена; иначе нет. */
   address?: string | null;
+  /** Точка заказа — вместе с адресом, из того же ответа модуля заявок; по ней ссылки на карты. */
+  location?: { lat: number; lng: number } | null;
   plannedReadyAt: Date | null;
   signedAt: Date | null;
   durationDays: number;
@@ -450,7 +454,7 @@ export type OrderInput = {
  * не назвала карточка «Сейчас»), иначе — срок изготовления в днях из оферты. Адрес — только если он передан (мастеру после
  * оферты). Другая сторона — в своём блоке.
  */
-export function orderRows(o: OrderInput): { label: string; value: string; /** Под значением — ссылки «Открыть на карте» (адрес заказа). */ map?: boolean }[] {
+export function orderRows(o: OrderInput): { label: string; value: string; /** Под значением — ссылки «Открыть на карте» (адрес заказа): по точке, а без неё — поиск по адресу. */ map?: OrderMap }[] {
   const r = t.order;
   const term = o.plannedReadyAt
     ? o.readyShownInNow
@@ -460,7 +464,7 @@ export function orderRows(o: OrderInput): { label: string; value: string; /** П
   return [
     { label: r.what, value: o.title },
     ...(o.city ? [{ label: r.city, value: o.city }] : []),
-    ...(o.address ? [{ label: tmd.card.order.address, value: o.address, map: true }] : []),
+    ...(o.address ? [{ label: tmd.card.order.address, value: o.address, map: { point: o.location ?? null, address: o.address } }] : []),
     ...term,
     { label: r.warranty, value: formatMonths(o.warrantyMonths) },
     ...(o.signedAt ? [{ label: r.signedAt, value: formatDate(o.signedAt) }] : []),

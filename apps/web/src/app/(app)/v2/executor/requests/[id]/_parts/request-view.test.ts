@@ -130,7 +130,7 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.contactsNote).toBe(t.request.contacts);
     expect([v.history, v.conditions]).toEqual([[], []]);
     expect(v.back).toEqual({ href: "/v2/executor/requests", label: t.back });
-    expect(v.lead).toEqual({ number: t.numberLine(18), copy: "18", direct: null });
+    expect(v.lead).toEqual({ number: t.numberLine(18), direct: null });
   });
 
   it("цена покупателя: «Принять X» с подтверждением и суммой «Вы получите» из partyEstimate(\"EXECUTOR\"); своя цена — второстепенное", () => {
