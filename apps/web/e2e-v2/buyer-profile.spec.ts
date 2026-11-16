@@ -155,7 +155,7 @@ test("смена почты: прежняя действует, пока нов�
   await other.close();
 
   await page.getByLabel(email.code.label).fill(code);
-  await page.getByRole("button", { name: email.code.submit, exact: true }).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
   await expect(page).toHaveURL(/\/v2\/profile\/contacts$/);
   await expect(page.getByText(t.contacts.emailChanged)).toBeVisible();
   await expect(page.getByText(newEmail)).toBeVisible();

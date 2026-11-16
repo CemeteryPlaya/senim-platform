@@ -185,7 +185,7 @@ function PhoneStep({ next, phone, onSent }: { next: string | null; phone: string
       <PageTitle title={t.phone.title} back={{ href: loginStepHref("role", next), label: t.phone.backLabel }} lead={t.phone.lead} />
       <form id={FORM.phone} method="post" onSubmit={form.onSubmit} noValidate>
         <Stack gap="section">
-          <PhoneField label={t.phone.label} name="phone" defaultValue={phone} error={form.fieldErrors.phone} />
+          <PhoneField label={t.phone.label} name="phone" defaultValue={phone} error={form.fieldErrors.phone} autoFocus />
           <FormError error={form.error} atField={Boolean(form.fieldErrors.phone)} />
         </Stack>
       </form>
@@ -254,7 +254,7 @@ export function CodeStep({
         {/* Одна строка колонки: форма повтора пустая (только номер) и не должна давать лишний зазор. */}
         <div>
           <form id={FORM.code} method="post" onSubmit={code.onSubmit} noValidate>
-            <CodeField label={t.code.label} name="code" error={code.fieldErrors.code} />
+            <CodeField label={t.code.label} name="code" error={code.fieldErrors.code} autoFocus autoSubmit />
             <HiddenField name="phone" value={sent.phone} />
             <HiddenField name="next" value={next ?? ""} />
           </form>

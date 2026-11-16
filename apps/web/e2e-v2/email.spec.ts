@@ -37,7 +37,7 @@ async function confirmEmail(page: Page, email = freshEmail()) {
   await page.getByLabel(t.address.label).fill(email);
   await primary(page, t.address.submit).click();
   await page.getByLabel(t.code.label).fill(await emailCode(page));
-  await primary(page, t.code.submit).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
 }
 
 /** Ровно один `<h1>` и не больше одного главного действия на экране. */
@@ -96,7 +96,7 @@ test("новый покупатель: почта с ошибками у пол�
 
   // Неверный код — у поля, с числом оставшихся попыток.
   await page.getByLabel(t.code.label).fill(code === "000000" ? "111111" : "000000");
-  await primary(page, t.code.submit).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
   await expect(page.getByText(errors.wrongCode(4))).toBeVisible();
   await expect(page.getByLabel(t.code.label)).toHaveAttribute("aria-invalid", "true");
 
@@ -108,7 +108,7 @@ test("новый покупатель: почта с ошибками у пол�
 
   // Верный код — главная; выбор роли забыт; шаг почты пройден и больше не открывается.
   await page.getByLabel(t.code.label).fill(code);
-  await primary(page, t.code.submit).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
   await expect(page).toHaveURL(/\/v2$/);
   await expectScreenRules(page);
   expect((await page.context().cookies()).map((c) => c.name)).not.toContain("senim_login_role");
@@ -159,7 +159,7 @@ test("двойной клик «Получить код» — один запр�
   const valid = issued > 0 ? await emailCode(page) : code;
   if (issued === 0) await expect(page.getByText(t.code.alreadySent)).toBeVisible();
   await page.getByLabel(t.code.label).fill(valid);
-  await primary(page, t.code.submit).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
   await expect(page).toHaveURL(/\/v2$/);
 });
 
@@ -185,7 +185,7 @@ test("код на A → перезагрузка → B: подтверждает
   if (await codeStep.isVisible()) {
     await expect(page.getByText(t.code.sentTo(second))).toBeVisible();
     await page.getByLabel(t.code.label).fill(codeForFirst);
-    await primary(page, t.code.submit).click();
+    // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
     await expect(page.getByLabel(t.code.label)).toHaveAttribute("aria-invalid", "true");
     await expect(page).not.toHaveURL(/\/v2$/);
   } else {

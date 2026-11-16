@@ -39,7 +39,7 @@ async function requestCode(page: Page, phone: string): Promise<string> {
 async function signInFromPhoneStep(page: Page, phone: string) {
   const code = await requestCode(page, phone);
   await page.getByLabel(t.code.label).fill(code);
-  await primary(page, t.code.submit).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
 }
 
 /**
@@ -96,7 +96,7 @@ test("неверный код: ошибка у поля; «Изменить но
   const code = await requestCode(page, phone.typed);
   const field = page.getByLabel(t.code.label);
   await field.fill(code === "000000" ? "111111" : "000000");
-  await primary(page, t.code.submit).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
   await expect(page.getByText(ru.identity.otp.errors.wrongCode(4))).toBeVisible();
   await expect(field).toHaveAttribute("aria-invalid", "true");
   await expect(page).toHaveURL(/[?&]step=code/);
@@ -108,7 +108,8 @@ test("неверный код: ошибка у поля; «Изменить но
   await page.getByRole("link", { name: t.code.changePhone }).click();
   await expect(heading(page, t.phone.title)).toBeVisible();
   await expect(page).toHaveURL(/\/v2\/login\?step=phone$/);
-  await expect(page.getByLabel(t.phone.label)).toHaveValue(phone.typed);
+  // В поле — номер без приставки «+7» (она стоит в поле отдельно): «700 123 45 67».
+  await expect(page.getByLabel(t.phone.label)).toHaveValue(phone.typed.replace(/^\+7 /, ""));
   expect(page.url()).not.toContain(phone.digits);
 
   // «Назад» браузера возвращает на шаг кода с тем же номером.
@@ -184,7 +185,7 @@ test("перезагрузка на шаге кода: шаг номера, по
   const alreadySent = (await page.getByText(t.code.alreadySent).count()) > 0;
   const valid = alreadySent ? code : await readShownCode(page);
   await page.getByLabel(t.code.label).fill(valid);
-  await primary(page, t.code.submit).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
   await expect(page).toHaveURL(/\/v2\/consent$/);
 });
 

@@ -88,7 +88,7 @@ export async function loginV2(page: Page, phone: string, options: { role?: Login
   await primary(page, t.phone.submit).click();
   const code = await readShownCode(page);
   await page.getByLabel(t.code.label).fill(code);
-  await primary(page, t.code.submit).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
   await page.waitForURL((url) => !url.pathname.startsWith("/v2/login"), { timeout: WIZARD_STEP_MS });
   await page.waitForLoadState("networkidle");
 }
@@ -122,7 +122,7 @@ export async function passOnboarding(page: Page, options: { fullName?: string; i
       await page.getByLabel(email.address.label).fill(options.email ?? freshEmail());
       await primary(page, email.address.submit).click();
       await page.getByLabel(email.code.label).fill(await readShownCode(page, email.code.shownCode));
-      await primary(page, email.code.submit).click();
+      // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
       await page.waitForURL((url) => !url.pathname.startsWith("/v2/email"), { timeout: WIZARD_STEP_MS });
     } else {
       return;

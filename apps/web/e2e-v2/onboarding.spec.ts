@@ -37,7 +37,7 @@ async function signInNewcomer(page: Page, path = "/v2/login?step=phone") {
   await primary(page, login.phone.submit).click();
   const code = await readShownCode(page);
   await page.getByLabel(login.code.label).fill(code);
-  await primary(page, login.code.submit).click();
+  // Код уходит сам после последней цифры (CodeField autoSubmit) — кнопку не нажимаем.
   await page.waitForURL(/\/v2\/consent/);
   await page.waitForLoadState("networkidle");
 }
