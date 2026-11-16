@@ -328,7 +328,7 @@ export async function listChats(user: CurrentUser): Promise<ChatListItem[]> {
       offerId: offer.id,
       title: requestTitle(offer.request),
       counterpart,
-      lastMessage: last ? (beforeOffer ? maskContacts(last.body).text : last.body) : null,
+      lastMessage: last ? (beforeOffer ? maskContacts(last.body).text : last.body) || t.notify.photo : null,
       lastAt: last?.createdAt ?? null,
       closed: closedReasonOf(offer) !== null,
       href: chatHref(offer, party),
@@ -350,9 +350,10 @@ async function applyTextRule(rule: ChatTextRule, executorId: string, body: strin
 /** Сообщение в чат отклика: маска контактов (до оферты вложения запрещены), вложения (свои загруженные файлы), уведомление второй стороне. */
 export async function sendMessage(user: CurrentUser, offerId: string, text: string, attachments: readonly string[]): Promise<ChatMessageView> {
   const body = text.trim();
-  if (body.length === 0) return fail.validation(t.errors.empty);
-  if (body.length > CHAT_MAX_LENGTH) return fail.validation(t.errors.tooLong(CHAT_MAX_LENGTH));
   const fileIds = [...new Set(attachments)];
+  // Фото можно отправить без подписи; пустое сообщение без фото — нет.
+  if (body.length === 0 && fileIds.length === 0) return fail.validation(t.errors.empty);
+  if (body.length > CHAT_MAX_LENGTH) return fail.validation(t.errors.tooLong(CHAT_MAX_LENGTH));
   if (fileIds.length > CHAT_MAX_ATTACHMENTS) return fail.validation(t.errors.tooManyAttachments(CHAT_MAX_ATTACHMENTS));
 
   const loaded = await requireOffer(db, user, offerId);
@@ -398,7 +399,7 @@ async function notifyOtherParty(tx: Db, sender: "client" | "executor", { offer, 
     userId: toClient ? offer.request.clientId : offer.executor.userId,
     kind: "chat.message",
     title: t.notify.title(toClient ? label : t.clientLabel),
-    body: text.length > NOTIFY_SNIPPET ? `${text.slice(0, NOTIFY_SNIPPET - 1)}…` : text,
+    body: text.length === 0 ? t.notify.photo : text.length > NOTIFY_SNIPPET ? `${text.slice(0, NOTIFY_SNIPPET - 1)}…` : text,
     link: linkFor(offer, toClient),
   });
 }

@@ -345,6 +345,10 @@ describe("Chat: логика", () => {
     expect(canSend("   ", 200, false)).toBe(false);
     expect(canSend("Привет", 200, false)).toBe(true);
     expect(canSend("Привет", 3, false)).toBe(false);
+    // Фото без подписи: пустой текст можно отправить, если приложено фото; занятая отправка по-прежнему нет.
+    expect(canSend("", 200, false)).toBe(false);
+    expect(canSend("", 200, false, true)).toBe(true);
+    expect(canSend("", 200, true, true)).toBe(false);
     expect(canSend("Привет", 200, true)).toBe(false);
     expect(canSend("Привет", undefined, false)).toBe(true);
   });

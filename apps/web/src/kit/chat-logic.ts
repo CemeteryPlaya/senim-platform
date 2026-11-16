@@ -17,10 +17,10 @@ export function counterVisible(length: number, maxLength: number | undefined): b
   return maxLength !== undefined && maxLength > 0 && length >= Math.ceil(maxLength * 0.8);
 }
 
-/** Можно ли отправить: есть текст кроме пробелов, не больше предела, не идёт отправка. */
-export function canSend(text: string, maxLength: number | undefined, pending: boolean): boolean {
+/** Можно ли отправить: есть текст кроме пробелов (или `allowEmpty` — к сообщению приложено фото), не больше предела, не идёт отправка. */
+export function canSend(text: string, maxLength: number | undefined, pending: boolean, allowEmpty = false): boolean {
   if (pending) return false;
-  if (text.trim().length === 0) return false;
+  if (text.trim().length === 0 && !allowEmpty) return false;
   return maxLength === undefined || text.length <= maxLength;
 }
 

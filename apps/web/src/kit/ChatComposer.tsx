@@ -22,6 +22,8 @@ export type ChatComposerProps = {
   placeholder?: string;
   /** Кнопка вложения; без обработчика её нет. Сам выбор файла — у вызывающего (`Uploader` или его замена). */
   onAttach?: () => void;
+  /** Можно отправить и без текста (к сообщению приложено фото). */
+  allowEmpty?: boolean;
 };
 
 /**
@@ -31,7 +33,7 @@ export type ChatComposerProps = {
  * цвета фона от края до края экрана (`composer-bar`, `rail-bleed`), над ней лента растворяется. На компьютере стоит в
  * потоке под лентой. Клиентский компонент.
  */
-export function ChatComposer({ onSend, pending = false, maxLength, device, label, placeholder, onAttach }: ChatComposerProps) {
+export function ChatComposer({ onSend, pending = false, maxLength, device, label, placeholder, onAttach, allowEmpty = false }: ChatComposerProps) {
   const t = ru.app.kit.chat;
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,7 +47,7 @@ export function ChatComposer({ onSend, pending = false, maxLength, device, label
     node.style.height = "auto";
     node.style.height = `${node.scrollHeight + node.offsetHeight - node.clientHeight}px`;
   }, [text]);
-  const ready = canSend(text, maxLength, pending || busy);
+  const ready = canSend(text, maxLength, pending || busy, allowEmpty);
 
   const send = async () => {
     if (!ready) return;

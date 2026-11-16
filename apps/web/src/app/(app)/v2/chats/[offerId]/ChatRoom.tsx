@@ -57,6 +57,7 @@ function AttachPanel({ max, onChange }: { max: number; onChange: (state: Attache
       onReject={(_files, reason) => toast.error(reason === "type" ? t.attach.notPhoto : t.attach.limit(max))}
       max={max}
       accept={PHOTO_ACCEPT}
+      capture="environment"
     />
   );
 }
@@ -158,6 +159,7 @@ export function ChatRoom({ offerId, initial, side, device, maxLength, maxAttachm
         device={device}
         onSend={send}
         onAttach={model.beforeOffer ? undefined : () => setAttachOpen(true)}
+        allowEmpty={attached.fileIds.length > 0}
         maxLength={maxLength}
         label={words.composerLabel}
         placeholder={words.composerPlaceholder}

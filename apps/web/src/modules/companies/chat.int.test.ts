@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ru } from "@/i18n/ru";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { makeOfferThread, makeUploadedFile } from "../../../test/factories/companies";
@@ -132,6 +133,17 @@ describe("чат отклика: вложения", () => {
     const sent = await sendMessage(t.client, t.offerId, "Фото кухни", [file.id]);
     expect(sent.attachments).toEqual([{ id: file.id }]);
     expect(await db.storedFile.findUniqueOrThrow({ where: { id: file.id } })).toMatchObject({ messageId: sent.id });
+  });
+
+  it("фото без текста отправляется (после оферты); без фото пустое сообщение по-прежнему отказ", async () => {
+    const t = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
+    const file = await makeUploadedFile(t.client, "MESSAGE");
+    const sent = await sendMessage(t.client, t.offerId, "", [file.id]);
+    expect(sent.attachments).toEqual([{ id: file.id }]);
+    expect(sent.text).toBe("");
+    const note = await db.notification.findFirstOrThrow({ where: { userId: t.executor.id, kind: "chat.message" }, orderBy: { createdAt: "desc" } });
+    expect(note.body).toBe(ru.companies.chat.notify.photo);
+    await expect(sendMessage(t.client, t.offerId, "  ", [])).rejects.toMatchObject({ code: "VALIDATION" });
   });
 
   it("чужой, уже привязанный или не тот файл — отказ, сообщение не создаётся (после оферты)", async () => {
