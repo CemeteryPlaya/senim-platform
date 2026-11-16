@@ -8,7 +8,7 @@ import type { CurrentUser } from "@/modules/identity";
 import { getIncomingRequest } from "@/modules/requests";
 import { getDevice, type Device } from "@/platform/device";
 import { logger } from "@/platform/logger";
-import { pageHref, partyDeal, requireV2User } from "../../../../_shell/auth";
+import { pageHref, requireV2User } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
 import type { DealSide } from "../../../../_shell/side";
 import { coverOf } from "../../../_parts/deal-cover";
@@ -27,6 +27,7 @@ import {
   reviewRows,
 } from "../_parts/deal-card";
 import { DealCardView, type CardView } from "../_parts/DealCardView";
+import { partyDealOnce } from "./party-deal-once";
 
 const t = ru.app.deal.card;
 const tm = ru.app.masterDeal.card;
@@ -54,14 +55,15 @@ async function masterAddress(user: CurrentUser, deal: DealView): Promise<string 
  * Карточка сделки стороны в активной роли (главный экран доверия): что сейчас и одно главное действие шага, деньги из
  * журнала, ход сделки, ход работ (отчёты мастера — обеим сторонам), заказ, документы, другая сторона (контакты — после оферты), история; отмена и
  * спор — в меню «Действия». Действие шага ведёт на свой экран (подпись, оплата, отзыв — покупатель; подпись, начало
- * работы, сдача — мастер). Ворота — `partyDeal`: сторона в другой своей роли — переключение роли, оператор — в v1, чужая и
+ * работы, сдача — мастер). Ворота — `partyDeal` (через `partyDealOnce`, общий с layout.tsx): сторона в другой своей роли — переключение роли, оператор — в v1, чужая и
  * несуществующая — 404. Документы читаются без выпуска выписки (`readDealDocuments`): открытие карточки ничего не пишет.
  */
 export default async function DealPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
   const user = await requireV2User(pageHref(`/deals/${encodeURIComponent(id)}`, sp));
-  const { deal, side } = await partyDeal(user, id);
+  // Сделку уже прочитали ворота (layout.tsx) — то же чтение из `cache`, второго запроса нет.
+  const { deal, side } = await partyDealOnce(user, id);
   const [documents, contacts, bank, address, device] = await Promise.all([
     readDealDocuments(user, deal.id),
     dealContacts(user, deal.id),
