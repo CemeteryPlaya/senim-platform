@@ -31,17 +31,18 @@ async function where(page: Page, id: string): Promise<string> {
   }
 }
 
-const SCREENS: [string, Page, (id: string) => string][] = [
-  ["спор", DisputePage as Page, (id) => `/deals/${id}`],
-  ["отзыв", ReviewPage as Page, (id) => `/deals/${id}`],
-  ["история денег", MoneyHistoryPage as Page, (id) => `/deals/${id}/money`],
+const SCREENS: [string, Page][] = [
+  ["спор", DisputePage as Page],
+  ["отзыв", ReviewPage as Page],
+  ["история денег", MoneyHistoryPage as Page],
 ];
 
-describe.each(SCREENS)("ворота экрана «%s»: оператор — в v1", (_name, page, v1) => {
+// Этап 5: у оператора своя карточка сделки в v2 (журнал денег и споры — на ней), экраны сторон ему не нужны.
+describe.each(SCREENS)("ворота экрана «%s»: оператор — на свою карточку сделки v2", (_name, page) => {
   it("оператор", async () => {
     const f = await dealAt("SIGNED");
     await signInAs(await makeOperator());
-    expect(await where(page, f.dealId)).toBe(v1(f.dealId));
+    expect(await where(page, f.dealId)).toBe(`/v2/operator/deals/${f.dealId}`);
   });
 });
 

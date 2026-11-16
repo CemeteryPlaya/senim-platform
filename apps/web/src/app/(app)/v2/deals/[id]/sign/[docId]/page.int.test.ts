@@ -209,10 +209,10 @@ describe("ворота экрана подписи", () => {
     expect(await outcome(() => render("no-such-deal", docId))).toMatch(/NEXT_HTTP_ERROR_FALLBACK;404/);
   });
 
-  it("оператор — на карточку сделки v1 (его экран подписи — этап 5)", async () => {
+  it("оператор — на свою карточку сделки v2: подписывают только стороны", async () => {
     const { f, docId } = await contractFixture();
     await signInAs(await makeOperator());
-    expect(await outcome(() => render(f.dealId, docId))).toEqual(redirectTo(`/deals/${f.dealId}`));
+    expect(await outcome(() => render(f.dealId, docId))).toEqual(redirectTo(`/v2/operator/deals/${f.dealId}`));
   });
 });
 

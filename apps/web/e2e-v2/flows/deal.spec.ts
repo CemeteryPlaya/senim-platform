@@ -3,7 +3,9 @@ import { Client } from "pg";
 import { ru } from "@/i18n/ru";
 import sharp from "sharp";
 import { formatDays } from "@/features/format/format";
-import { confirmOperation, loginAs, P, phone as phoneContext, POINT } from "../../e2e/support";
+import { loginAs, P, phone as phoneContext, POINT } from "../../e2e/support";
+import { OPERATOR_TOTP_SECRET } from "@/seed/data";
+import { confirmOperationV2 } from "../operator-support";
 import { seedBuyerState } from "../offers";
 import { assertSafeDatabase } from "../safe-database";
 import { open } from "../support";
@@ -21,7 +23,7 @@ import { open } from "../support";
  *
  * Сделка сида одна на пересев, поэтому сценарий идёт только в проекте flows-mobile (в flows-desktop — явный пропуск):
  * от порядка проектов он не зависит. Покупатель входит через identity один раз (состояние во временной папке ОС); мастер
- * и оператор — демо-входом v1 (DEMO_MODE сервера e2e), кодов SMS это не тратит. Геолокацию мастера задаёт контекст
+ * и оператор — входом v1 (код с экрана; у оператора ещё код из приложения по секрету сида). Геолокацию мастера задаёт контекст
  * Playwright: `geolocation` и `permissions: ["geolocation"]` (у адреса «Прихожей»); второй контекст мастера — без разрешения.
  */
 
@@ -147,7 +149,7 @@ test("полная сделка покупателя в v2: оферта → о�
   const baseURL = info.project.use.baseURL;
   const storageState = await seedBuyerState(browser, baseURL, "deal-flow.json");
   const buyerCtx = await browser.newContext({ ...devices["Pixel 7"], baseURL, locale: "ru-RU", timezoneId: "Asia/Almaty", storageState });
-  const masterCtx = await phoneContext(browser, info, POINT.demo12); // мастер сдаёт работу у адреса «Прихожей»
+  const masterCtx = await phoneContext(browser, info, POINT.syganak12); // мастер сдаёт работу у адреса «Прихожей»
   const operatorCtx = await phoneContext(browser, info);
   const buyer = await buyerCtx.newPage();
   const master = await masterCtx.newPage();
@@ -225,7 +227,7 @@ test("полная сделка покупателя в v2: оферта → о�
 
   // ── 4. Оператор в v1 (manual): деньги поступили в банк ──
   if ((await facts(dealId)).holdPending) {
-    await confirmOperation(operator, { type: "Оплата покупателя на эскроу-счёт", deal: dealNumber, confirm: "Деньги поступили на счёт в банке", docNumber: "E2E-V2-HOLD" });
+    await confirmOperationV2(operator, { type: "HOLD", deal: dealNumber, docNumber: "E2E-V2-HOLD", totpSecret: OPERATOR_TOTP_SECRET });
   }
   await expectNow(buyer, dealPath, [now.waitStart.title]);
 
@@ -304,9 +306,9 @@ test("полная сделка покупателя в v2: оферта → о�
   await open(buyer, dealPath);
   await expect(buyer.locator("[data-primary-action]").filter({ hasText: now.accept.action })).toHaveCount(0);
   if (!(await nowHeading(buyer, [now.done.title, now.review.title]).isVisible())) {
-    await confirmOperation(operator, { type: "Распоряжение о раскрытии", deal: dealNumber, confirm: "Распоряжение о раскрытии передано в банк", docNumber: "E2E-V2-REL" });
-    await confirmOperation(operator, { type: "Выплата мастеру", deal: dealNumber, confirm: "Выплачено мастеру", docNumber: "E2E-V2-PAY" });
-    await confirmOperation(operator, { type: "Доход платформы", deal: dealNumber, confirm: "Доход платформы получен", docNumber: "E2E-V2-INC" });
+    await confirmOperationV2(operator, { type: "RELEASE", deal: dealNumber, docNumber: "E2E-V2-REL", totpSecret: OPERATOR_TOTP_SECRET });
+    await confirmOperationV2(operator, { type: "SPLIT_MASTER", deal: dealNumber, docNumber: "E2E-V2-PAY", totpSecret: OPERATOR_TOTP_SECRET });
+    await confirmOperationV2(operator, { type: "SPLIT_PLATFORM", deal: dealNumber, docNumber: "E2E-V2-INC", totpSecret: OPERATOR_TOTP_SECRET });
   }
   await expectNow(buyer, dealPath, [now.done.title, now.review.title]);
   await expect(buyer.locator("main")).toContainText(t.status.done);

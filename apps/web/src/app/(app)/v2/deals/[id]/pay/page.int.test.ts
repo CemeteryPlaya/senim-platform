@@ -175,7 +175,7 @@ describe("ворота экрана оплаты: не шаг оплаты — �
     expect(await outcome(() => render(f.dealId))).toEqual(redirectTo(`/v2/deals/${f.dealId}`));
   });
 
-  it("чужая сделка — 404; мастер — карточка сделки v2, оператор — карточка v1", async () => {
+  it("чужая сделка — 404; мастер — карточка сделки v2, оператор — своя карточка сделки v2", async () => {
     const f = await signed(["CLIENT", "EXECUTOR"]);
     await signInAs(await buyer());
     expect(await outcome(() => render(f.dealId))).toMatch(/NEXT_HTTP_ERROR_FALLBACK;404/);
@@ -184,6 +184,6 @@ describe("ворота экрана оплаты: не шаг оплаты — �
     await signInAs(f.executor);
     expect(await outcome(() => render(f.dealId))).toEqual(redirectTo(`/v2/deals/${f.dealId}`));
     await signInAs(await makeOperator());
-    expect(await outcome(() => render(f.dealId))).toEqual(redirectTo(`/deals/${f.dealId}`));
+    expect(await outcome(() => render(f.dealId))).toEqual(redirectTo(`/v2/operator/deals/${f.dealId}`));
   });
 });
