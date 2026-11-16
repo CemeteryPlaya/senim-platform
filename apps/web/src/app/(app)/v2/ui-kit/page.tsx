@@ -4,6 +4,9 @@ import { ru } from "@/i18n/ru";
 import {
   ActionDock,
   BackLink,
+  ContactActions,
+  CopyButton,
+  MapLink,
   Button,
   ButtonLink,
   Card,
@@ -619,6 +622,20 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
           </Specimen>
           <Specimen label={s.links.back}>
             <BackLink href={to("/")} label={s.links.backParent} />
+          </Specimen>
+          <Specimen label={s.links.copy}>
+            <div className="flex items-center gap-1">
+              <span className="text-body text-ink">{s.links.copyValue}</span>
+              <CopyButton value={s.links.copyValue} label={s.links.copyLabel} />
+            </div>
+          </Specimen>
+          <Specimen label={s.links.contact}>
+            <Card padded={false}>
+              <ContactActions phone={s.links.contactPhone} phoneDisplay={s.links.contactDisplay} />
+            </Card>
+          </Specimen>
+          <Specimen label={s.links.map}>
+            <MapLink point={{ lat: 51.1282, lng: 71.4304 }} />
           </Specimen>
         </Stack>
       </Section>
