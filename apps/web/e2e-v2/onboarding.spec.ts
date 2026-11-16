@@ -263,3 +263,19 @@ test("прошедший онбординг: обычная оболочка —
   await expect(heading(page, login.role.title)).toBeVisible();
   await expect(page.locator("[data-top-bar]").getByRole("link", { name: shell.nav.login, exact: true })).toHaveCount(0);
 });
+
+test("согласие на маленьком экране 320×568: отметка видна и не перекрыта кнопкой в доке", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await loginV2(page, freshPhone().typed);
+  await expect(page).toHaveURL(/\/v2\/consent/);
+  const agree = page.getByText(ru.app.onboarding.consent.agree, { exact: true });
+  await agree.scrollIntoViewIfNeeded();
+  await expect(agree).toBeVisible();
+  // Центр подписи отметки — сама подпись или её флажок, а не панель с кнопкой поверх содержимого.
+  const covered = await agree.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return hit !== null && !el.closest("label")?.contains(hit);
+  });
+  expect(covered).toBe(false);
+});

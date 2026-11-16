@@ -107,6 +107,21 @@ describe("страница согласия: куда ведёт", () => {
   });
 });
 
+describe("новая редакция текста", () => {
+  it("согласие прошлой редакции — страница согласия с пометкой «текст обновился», текущая версия в форме, отметка снята", async () => {
+    h.user = person({ consents: [{ ...CURRENT, version: "2026-11-01-d0" }] });
+    const result = await open("/v2/deals/1");
+    expect(result).toHaveProperty("page");
+    const page = (result as { page: React.ReactElement<{ updated: boolean; document: { version: string } }> }).page;
+    expect(page.props.updated).toBe(true);
+    expect(page.props.document.version).toBe(doc.version);
+    const out = html(page);
+    expect(out).toContain(`name="version" value="${doc.version}"`);
+    expect(out).toMatch(/<input[^>]*name="agreed"[^>]*>/);
+    expect(out.match(/<input[^>]*name="agreed"[^>]*>/)?.[0]).not.toContain("checked");
+  });
+});
+
 describe("экран согласия", () => {
   const render = (over: Partial<Parameters<typeof ConsentForm>[0]> = {}) => (
     <ConsentForm document={doc} updated={false} next={null} step={1} total={3} device="mobile" {...over} />
