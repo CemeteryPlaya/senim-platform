@@ -73,11 +73,12 @@ test("цена мастера: «Принять X», смета с защито�
   await expect(dialog).toBeHidden();
   await expect(page).toHaveURL(new RegExp(`${offerPath(offer)}$`));
 
-  // Своя цена: в окне — цена мастера; дробная — ошибка у поля, запрос в модуль не уходит (схема действия).
+  // Своя цена: в окне — цена мастера; ноль — ошибка у поля, запрос в модуль не уходит (схема действия). Дробную сумму
+  // поле с маской не принимает вовсе (MoneyField: запятая не вводится, «12,5» стало бы 125 ₸ и ушло бы предложением).
   await page.getByRole("button", { name: t.actions.propose }).click();
   const form = page.getByRole("dialog", { name: t.propose.title });
   await expect(form).toContainText(t.propose.masterPrice(formatMoney(m.priceTiyn)));
-  await form.getByLabel(t.propose.amount).fill("12,5");
+  await form.getByLabel(t.propose.amount).fill("0");
   await form.getByRole("button", { name: t.propose.submit }).click();
   await expect(form.getByText(t.errors.amount)).toBeVisible();
   await page.keyboard.press("Escape");

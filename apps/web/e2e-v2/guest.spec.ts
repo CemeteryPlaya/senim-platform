@@ -48,9 +48,10 @@ test("гость: главная, каталог с фильтром, работ
   await expect(page.getByRole("link", { name: executor.action })).toHaveCount(1);
   await expect(page.getByRole("link", { name: executor.action })).toHaveAttribute("href", /\/v2\/requests\/new\?executor=\d+$/);
 
-  // Назад на каталог.
+  // Назад на каталог: шаг по истории (BackLink) — фильтр по типу на месте.
   await page.getByRole("link", { name: `${ru.app.kit.back}: ${executor.backLabel}` }).click();
-  await expect(page).toHaveURL(/\/v2\/catalog$/);
+  await expect(page).toHaveURL(/\/v2\/catalog\?.*type=/);
+  await expect(typeNav.getByRole("link", { name: typeName ?? "", exact: true })).toHaveAttribute("aria-current", "true");
   await expectScreenRules(page);
 
   // «О сервисе».

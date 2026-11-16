@@ -72,7 +72,8 @@ test("новый покупатель: заявка от главной до «�
 
   // Шаг 3: фото и описание.
   await expect(heading(page, w.room.title)).toBeVisible();
-  await page.locator('input[type="file"]').setInputFiles(PHOTO);
+  // Выбор из галереи; рядом — «Снять на камеру» (второе поле файла, с capture).
+  await page.locator('input[type="file"]:not([capture])').setInputFiles(PHOTO);
   await expect(page.getByText(ru.app.kit.uploader.done)).toHaveCount(1, { timeout: 30_000 });
   await expect(page.getByText(ru.app.kit.uploader.counter(1, 10))).toBeVisible();
   await page.getByLabel(w.room.description).fill("Кухня до потолка, нужна посудомойка");

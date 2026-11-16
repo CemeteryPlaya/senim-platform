@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { testBin } from "@/demo/kz-id";
 import { ru } from "@/i18n/ru";
+import { IIN_MASK } from "@/kit/mask-logic";
 import { freshIin, freshPhone, loginV2, open, passOnboarding } from "./support";
 
 /**
@@ -102,7 +103,8 @@ test("новый мастер (ТОО): анкета по шагам, номер
   await expect(heading(page, t.steps.place)).toBeVisible();
   await back(page, t.steps.name).click();
   await expect(heading(page, t.steps.name)).toBeVisible();
-  await expect(page.getByLabel(t.name.bin)).toHaveValue(bin);
+  // Поле показывает номер группами («200240 215 722», IinField); в форму уходят цифры без пробелов.
+  await expect(page.getByLabel(t.name.bin)).toHaveValue(IIN_MASK.format(bin));
   await primary(page, t.next).click();
   await expect(heading(page, t.steps.place)).toBeVisible();
   await expect(page.getByLabel(t.place.city)).toHaveValue(t.place.defaultCity);
