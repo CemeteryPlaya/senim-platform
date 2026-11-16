@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { ru } from "@/i18n/ru";
-import { Notice, toast } from "@/kit";
+import { toast } from "@/kit";
 import { shouldRefreshOnReconnect, shouldRefreshOnReturn, type ReturnState } from "./connection";
 
 const t = ru.app.shell.offline;
@@ -28,8 +28,8 @@ function useOnline(): boolean {
 
 /**
  * Связь и свежесть экрана в оболочке (аудит поведения B-5, B-7):
- * - нет сети — плашка «Нет связи с интернетом» сверху области содержимого (прилипает при прокрутке, `aria-live` через
- *   `role="alert"`); главные кнопки остаются доступными — сбой отправки они покажут сами (подпись, окно подтверждения);
+ * - нет сети — строка «Нет связи с интернетом» сверху области содержимого (прилипает при прокрутке только она, 48 px;
+ *   пояснение под ней уезжает с содержимым; `role="alert"`); главные кнопки остаются доступными — сбой отправки они покажут сами (подпись, окно подтверждения);
  * - связь вернулась — экран перечитывается (`router.refresh()`), тост «Связь восстановлена»;
  * - вкладка или установленное приложение снова видны после паузы не меньше 30 с — экран перечитывается тихо, не чаще раза
  *   в 30 с (`shouldRefreshOnReturn`); возврат из bfcache (`pageshow` с `persisted`) — так же.
@@ -81,11 +81,18 @@ export function NetworkStatus() {
   }, [router]);
 
   if (online) return null;
+  // Прилипает одна строка заголовка (48 px): на телефоне плашка не закрывает экран при прокрутке. Пояснение — ниже, в потоке
+  // (уезжает вместе с содержимым); диктор слышит заголовок и пояснение сразу (role="alert").
+  // Обе строки — прямые дети области содержимого: прилипающая строка держится всю прокрутку, а не только в своей обёртке.
   return (
-    <div data-offline-banner className="sticky-notice mb-stack-section">
-      <Notice tone="warn" title={t.title} live>
+    <>
+      <p role="alert" data-offline-banner className="sticky-notice mb-2 flex min-h-12 items-center rounded-card bg-warn-soft px-4 py-2 text-headline text-warn">
+        {t.title}
+        <span className="sr-only">{`. ${t.body}`}</span>
+      </p>
+      <p aria-hidden className="mb-stack-section px-4 text-sub text-muted">
         {t.body}
-      </Notice>
-    </div>
+      </p>
+    </>
   );
 }
