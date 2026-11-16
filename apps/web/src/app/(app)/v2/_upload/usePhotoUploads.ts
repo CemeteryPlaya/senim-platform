@@ -8,6 +8,7 @@ import { contentTypeOf, isHeic, sendToTarget } from "@/features/upload/transfer"
 import type { UploaderItem } from "@/kit";
 import type { UploadPurpose } from "@/modules/files/client";
 import type { ActionResult } from "@/platform/action";
+import { randomKey } from "../../_shell/client-key";
 import { outcomeOf } from "../../_shell/form";
 import { createUploadAction, discardUploadAction, finalizeUploadAction } from "./actions";
 
@@ -102,7 +103,7 @@ export function usePhotoUploads(purpose: UploadPurpose, saved: readonly SavedPho
 
   function add(selected: File[]) {
     const items = selected.map((file) => {
-      const localId = crypto.randomUUID();
+      const localId = randomKey();
       const src = URL.createObjectURL(file);
       files.current.set(localId, file);
       blobs.current.add(src);

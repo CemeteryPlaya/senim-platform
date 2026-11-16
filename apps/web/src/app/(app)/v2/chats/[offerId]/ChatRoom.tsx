@@ -5,6 +5,7 @@ import { PHOTO_ACCEPT } from "@/features/upload/transfer";
 import { ru } from "@/i18n/ru";
 import { Chat, ChatComposer, Notice, toast, Uploader } from "@/kit";
 import type { Device } from "@/platform/device";
+import { randomKey } from "../../../_shell/client-key";
 import { outcomeOf } from "../../../_shell/form";
 import type { DealSide } from "../../../_shell/side";
 import { usePhotoUploads } from "../../_upload/usePhotoUploads";
@@ -130,7 +131,7 @@ export function ChatRoom({ offerId, initial, side, device, maxLength, maxAttachm
     epoch.current += 1;
     // Ключ повтора: та же отправка (тот же текст после сбоя) — тот же ключ, и записанное до обрыва сообщение не задвоится;
     // изменённый текст — новое сообщение, новый ключ.
-    const clientKey = pending.current?.text === text ? pending.current.key : crypto.randomUUID();
+    const clientKey = pending.current?.text === text ? pending.current.key : randomKey();
     pending.current = { key: clientKey, text };
     try {
       const outcome = outcomeOf(await sendMessageAction({ offerId, text, fileIds: attached.fileIds, clientKey }), here());
