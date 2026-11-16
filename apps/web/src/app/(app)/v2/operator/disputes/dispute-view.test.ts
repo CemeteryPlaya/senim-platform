@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { AuditView } from "@/modules/operator";
 import type { MoneyBlock, MoneyHistoryItem } from "@/modules/payments";
-import { disputeMoney, disputeTone, historyTimeline, moneyTimeline, openedLine } from "./dispute-view";
+import { disputeMoney, disputeTone, entityLabel, historyTimeline, moneyTimeline, openedLine } from "./dispute-view";
 import { hoursOptions } from "../requests/hours";
 import { previewState } from "./[id]/preview";
 
@@ -57,14 +57,14 @@ describe("ленты", () => {
     expect(test).toMatchObject({ title: `${m.types.FREEZE}, ${m.status.PENDING}`, text: m.testMark });
   });
 
-  it("история сделки: название события из текстов сделки, неизвестный код — как есть; автор и сущность", () => {
-    const event = (action: string, actorRole: string): AuditView => ({
+  it("история сделки: название события из текстов сделки, неизвестный код — как есть; автор и сущность по-русски, неизвестная сущность не показывается", () => {
+    const event = (action: string, actorRole: string, entityType = "Dispute"): AuditView => ({
       seq: "1",
       createdAt: at,
       actorId: null,
       actorRole,
       action,
-      entityType: "Dispute",
+      entityType,
       entityId: "d1",
       scope: "deal:x",
       before: null,
@@ -73,9 +73,19 @@ describe("ленты", () => {
       ip: null,
       userAgent: null,
     });
-    const [known, unknown] = historyTimeline([event("dispute.opened", "CLIENT"), event("some.new_code", "ROBOT")]);
-    expect(known).toMatchObject({ title: ru.deal.history.action["dispute.opened"], text: `${ru.deal.history.actor.CLIENT} · Dispute` });
-    expect(unknown).toMatchObject({ title: "some.new_code", text: "ROBOT · Dispute" });
+    const [known, unknown] = historyTimeline([event("dispute.opened", "CLIENT"), event("some.new_code", "ROBOT", "SomethingNew")]);
+    expect(known).toMatchObject({ title: ru.deal.history.action["dispute.opened"], text: `${ru.deal.history.actor.CLIENT} · спор` });
+    expect(unknown).toMatchObject({ title: "some.new_code", text: "ROBOT" });
+  });
+});
+
+describe("entityLabel: тип записи журнала по-русски", () => {
+  it("известные типы — словом (регистр и «_» не важны); неизвестный — null, сырое имя не показывается", () => {
+    expect(entityLabel("Dispute")).toBe("спор");
+    expect(entityLabel("deal")).toBe("сделка");
+    expect(entityLabel("MoneyTransaction")).toBe("операция с деньгами");
+    expect(entityLabel("money_transaction")).toBe("операция с деньгами");
+    expect(entityLabel("SomethingNew")).toBeNull();
   });
 });
 

@@ -1,15 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, Card, formatMoney, HiddenField, KeyValueList, Money, MoneyField, RadioCard, RadioGroup, Stack, TextArea, toast } from "@/kit";
+import { Button, Card, ConfirmDialog, formatMoney, HiddenField, KeyValueList, Money, MoneyField, RadioCard, RadioGroup, Stack, TextArea, toast } from "@/kit";
 import { FormError } from "../../../../_shell/FormError";
 import { outcomeOf } from "../../../../_shell/form";
 import { useOperatorForm } from "../../_parts/form";
 import { SecondFactorField } from "../../_parts/SecondFactorField";
 import { previewSplitAction, resolveDisputeAction } from "../actions";
-import { previewState, type Preview } from "./preview";
+import { previewState, RESOLVED_PARAM, type Preview } from "./preview";
 
 const t = ru.app.operatorDisputes;
 const d = t.decision;
@@ -23,8 +23,11 @@ type Outcome = (typeof OUTCOMES)[number];
  * та, для которой он сделан. Решение просит код из приложения, если его вводили давно (поле кода появляется над кнопкой).
  * Повторное нажатие гасит форма, двойное решение — модуль. После решения экран обновляется: на месте формы — итог.
  */
-export function ResolveForm({ disputeId, maxTiyn, mobile }: { disputeId: string; maxTiyn: bigint; mobile: boolean }) {
+export function ResolveForm({ disputeId, maxTiyn, buyerTotalTiyn, mobile }: { disputeId: string; maxTiyn: bigint; buyerTotalTiyn: bigint; mobile: boolean }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [confirming, setConfirming] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>("CONTINUE");
   const [shareTiyn, setShareTiyn] = useState<bigint | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -32,9 +35,11 @@ export function ResolveForm({ disputeId, maxTiyn, mobile }: { disputeId: string;
   const [calculating, startCalculation] = useTransition();
   const busy = useRef(false);
   const form = useOperatorForm(resolveDisputeAction, {
+    formRef,
     onSuccess: () => {
       toast(d.done);
-      router.refresh();
+      // Адрес с признаком «решено»: экран обновится, и итог примет фокус (форма, где он был, исчезнет).
+      router.replace(`${pathname}?${RESOLVED_PARAM}=1`);
     },
   });
 
@@ -72,8 +77,29 @@ export function ResolveForm({ disputeId, maxTiyn, mobile }: { disputeId: string;
     });
   }
 
+  /** Возврат и раздел необратимы: перед отправкой — окно с итогом и суммами. Раздел — только по свежему расчёту. */
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    // Код из приложения уже просили — решение подтверждено раньше, второе окно не нужно.
+    if (outcome === "CONTINUE" || form.needsCode) return form.onSubmit(event);
+    event.preventDefault();
+    if (outcome === "PARTIAL_SPLIT" && state !== "fresh") {
+      setPreviewError(shareTiyn === null ? d.shareRequired : d.previewFirst);
+      return;
+    }
+    setConfirming(true);
+  }
+
+  const confirm = (() => {
+    if (outcome === "FULL_REFUND") return { title: d.confirm.FULL_REFUND.title, body: d.confirm.FULL_REFUND.body(formatMoney(buyerTotalTiyn)), action: d.confirm.FULL_REFUND.action };
+    if (outcome === "PARTIAL_SPLIT" && preview && state === "fresh") {
+      const c = d.confirm.PARTIAL_SPLIT;
+      return { title: c.title, body: c.body(formatMoney(preview.masterTiyn), formatMoney(preview.platformTiyn), formatMoney(preview.refundTiyn)), action: c.action };
+    }
+    return null;
+  })();
+
   return (
-    <form onSubmit={form.onSubmit} noValidate>
+    <form ref={formRef} onSubmit={onSubmit} noValidate>
       <Stack gap="section">
         <HiddenField name="disputeId" value={disputeId} />
         <RadioGroup legend={d.outcomeLegend} {...(form.fieldErrors.outcome ? { error: form.fieldErrors.outcome } : {})}>
@@ -128,6 +154,21 @@ export function ResolveForm({ disputeId, maxTiyn, mobile }: { disputeId: string;
           {d.submit}
         </Button>
       </Stack>
+      {confirm && (
+        <ConfirmDialog
+          device={mobile ? "mobile" : "desktop"}
+          tone="danger"
+          open={confirming}
+          onOpenChange={setConfirming}
+          title={confirm.title}
+          description={confirm.body}
+          confirmLabel={confirm.action}
+          cancelLabel={d.confirm.cancel}
+          onConfirm={async () => {
+            await form.submit(new FormData(formRef.current ?? undefined));
+          }}
+        />
+      )}
     </form>
   );
 }

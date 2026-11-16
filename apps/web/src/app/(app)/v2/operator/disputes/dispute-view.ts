@@ -58,13 +58,18 @@ export function moneyTimeline(items: readonly MoneyHistoryItem[]): TimelineItem[
 /** Название события журнала аудита: сделки — из общих текстов сделки, неизвестный код — как есть. */
 export const auditTitle = (code: string): string => (ru.deal.history.action as Record<string, string>)[code] ?? code;
 
+/** Над чем событие: слово по типу записи (без учёта регистра и «_»); неизвестный тип — `null` (в ленте только роль). */
+export function entityLabel(entityType: string): string | null {
+  return t.card.entities[entityType.replace(/[_\s]/g, "").toLowerCase()] ?? null;
+}
+
 /** История сделки из журнала аудита лентой: событие, время, кто и над чем. */
 export function historyTimeline(events: readonly AuditView[]): TimelineItem[] {
   const actors = ru.deal.history.actor as Record<string, string>;
   return events.map((e) => ({
     title: auditTitle(e.action),
     time: formatDateTime(e.createdAt),
-    text: t.card.historyActor(actors[e.actorRole] ?? e.actorRole, e.entityType),
+    text: t.card.historyActor(actors[e.actorRole] ?? e.actorRole, entityLabel(e.entityType)),
   }));
 }
 

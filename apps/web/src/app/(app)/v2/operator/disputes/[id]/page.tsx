@@ -9,14 +9,16 @@ import { isAppError } from "@/platform/errors";
 import { requireOperator } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
 import { disputeMoney, disputeTone, historyTimeline, moneyTimeline, openedLine } from "../dispute-view";
+import { RESOLVED_PARAM } from "./preview";
 import { ResolveForm } from "./ResolveForm";
+import { ResolvedSection } from "./ResolvedSection";
 
 const t = ru.app.operatorDisputes;
 const c = t.card;
 
 export const metadata: Metadata = { title: c.metaTitle };
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 async function loadCard(user: Awaited<ReturnType<typeof requireOperator>>, id: string) {
   try {
@@ -40,7 +42,7 @@ function positions(d: Card_) {
 }
 
 /** Решение: открытый спор — форма (код из приложения — по запросу); решённый — итог, сумма мастеру, обоснование, кто и когда. */
-function Decision({ d, mobile }: { d: Card_; mobile: boolean }) {
+function Decision({ d, mobile, justResolved }: { d: Card_; mobile: boolean; justResolved: boolean }) {
   if (d.status === "OPEN") {
     return (
       <Section title={t.decision.title} id="decision">
@@ -50,14 +52,14 @@ function Decision({ d, mobile }: { d: Card_; mobile: boolean }) {
           </Notice>
         )}
         <Card>
-          <ResolveForm disputeId={d.id} maxTiyn={d.deal.priceTiyn} mobile={mobile} />
+          <ResolveForm disputeId={d.id} maxTiyn={d.deal.priceTiyn} buyerTotalTiyn={d.deal.buyerTotalTiyn} mobile={mobile} />
         </Card>
       </Section>
     );
   }
   const r = t.resolved;
   return (
-    <Section title={r.title} id="decision">
+    <ResolvedSection title={r.title} focus={justResolved}>
       <Card padded={false}>
         <KeyValueList
           items={[
@@ -68,7 +70,7 @@ function Decision({ d, mobile }: { d: Card_; mobile: boolean }) {
           ]}
         />
       </Card>
-    </Section>
+    </ResolvedSection>
   );
 }
 
@@ -77,8 +79,9 @@ function Decision({ d, mobile }: { d: Card_; mobile: boolean }) {
  * стороны и вложения; ниже — журнал денег и история сделки. Открытый спор — форма решения с расчётом раздела и кодом из
  * приложения. Единственное главное действие — «Принять решение» (у решённого спора его нет). Несуществующий спор — 404.
  */
-export default async function DisputeCardPage({ params }: Props) {
+export default async function DisputeCardPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const justResolved = (await searchParams)[RESOLVED_PARAM] === "1";
   const user = await requireOperator(to(`/operator/disputes/${encodeURIComponent(id)}`));
   const [d, device] = await Promise.all([loadCard(user, id), getDevice()]);
   const { deal } = d;
@@ -109,7 +112,7 @@ export default async function DisputeCardPage({ params }: Props) {
                 </List>
               </Card>
             </Section>
-            <Decision d={d} mobile={device === "mobile"} />
+            <Decision d={d} mobile={device === "mobile"} justResolved={justResolved} />
           </Stack>
         }
         aside={

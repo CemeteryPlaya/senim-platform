@@ -46,7 +46,7 @@ async function operatorSession(verifiedAgo: number | null) {
 }
 
 const render = async (page: Promise<unknown>) => renderToStaticMarkup((await page) as ReactElement);
-const cardPage = (id: string) => DisputeCardPage({ params: Promise.resolve({ id }) });
+const cardPage = (id: string, search: Record<string, string> = {}) => DisputeCardPage({ params: Promise.resolve({ id }), searchParams: Promise.resolve(search) });
 const requestsPage = (hours?: string) => StaleRequestsPage({ searchParams: Promise.resolve(hours === undefined ? {} : { hours }) });
 
 describe("права: экраны и действия споров — только оператор", () => {
@@ -196,11 +196,14 @@ describe("экраны", () => {
     expect(open).toContain(t.decision.submit);
     expect(open).toContain(t.money.frozen);
     expect(open).toContain(`href="/v2/operator/deals/${f.dealId}"`);
+    // История сделки по-русски: сырые имена типов записей не показываются.
+    expect(open).not.toContain("Dispute");
 
     await resolveDisputeAction({ disputeId: f.disputeId, outcome: "CONTINUE", rationale: "Царапины от монтажа техники" });
     const done = await render(cardPage(f.disputeId));
     expect(done).not.toContain(t.decision.submit);
     expect(done).toContain(t.resolved.title);
+    expect(done).toContain('id="decision" tabindex="-1"');
     expect(done).toContain("Царапины от монтажа техники");
     expect(done).toContain(t.disputes.outcomes.CONTINUE);
   });

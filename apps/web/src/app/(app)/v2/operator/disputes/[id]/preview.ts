@@ -9,3 +9,6 @@ export function previewState(preview: Preview | null, shareTiyn: bigint | null):
   if (preview === null) return "none";
   return shareTiyn !== null && preview.shareTiyn === shareTiyn ? "fresh" : "stale";
 }
+
+/** Параметр адреса после решения: экран с ним ставит фокус на итог (заголовок «Решение принято»). */
+export const RESOLVED_PARAM = "resolved";
