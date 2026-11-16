@@ -214,15 +214,28 @@ describe("runSubmit: отправка формы useActionForm", () => {
     expect(action).toHaveBeenCalledTimes(1);
   });
 
-  it("сбой транспорта: общий текст и форма снова свободна", async () => {
+  it("сбой транспорта: текст сбоя связи и форма снова свободна", async () => {
     const { s, set } = state();
     const action = vi.fn(async (): Promise<ActionResult<never>> => {
       throw new Error("network");
     });
-    await runSubmit(action, {}, set, env, new FormData());
-    expect(s.error).toBe(ru.common.errors.generic);
+    await runSubmit(action, {}, set, { ...env, online: () => true }, new FormData());
+    expect(s.error).toBe(ru.app.kit.network.failed);
     expect(s.pending).toBe(false);
     expect(s.busy.current).toBe(false);
+  });
+
+  it("сети нет (navigator.onLine === false): «Нет связи…», введённое остаётся, повтор возможен", async () => {
+    const { s, set } = state();
+    const action = vi.fn(async (): Promise<ActionResult<never>> => {
+      throw new Error("Failed to fetch");
+    });
+    await runSubmit(action, {}, set, { ...env, online: () => false }, new FormData());
+    expect(s.error).toBe(ru.app.kit.network.offline);
+    expect(s.fieldErrors).toEqual({});
+    expect(s.busy.current).toBe(false);
+    await runSubmit(action, {}, set, { ...env, online: () => false }, new FormData());
+    expect(action).toHaveBeenCalledTimes(2);
   });
 
   it("ошибка у поля: текст и поле, форма свободна", async () => {

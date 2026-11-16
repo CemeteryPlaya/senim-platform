@@ -2,7 +2,7 @@
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
-import { ru } from "@/i18n/ru";
+import { networkFailureText } from "@/kit";
 import type { ActionResult } from "@/platform/action";
 import { logger } from "@/platform/logger";
 import { ONBOARDING_SCREENS, safeLocalPath, to } from "./paths";
@@ -155,6 +155,8 @@ export type SubmitEnv = {
   here: () => Here;
   leave: (href: string) => void;
   onPageShow: (listener: (persisted: boolean) => void) => () => void;
+  /** Есть ли сеть (в браузере — `navigator.onLine`, по умолчанию так и есть): от этого зависит текст сбоя связи. */
+  online?: () => boolean;
 };
 
 /** Через сколько после начала ухода форма снова свободна, если переход так и не состоялся (офлайн, сбой). */
@@ -218,7 +220,8 @@ export async function runSubmit<I, T>(
       return;
     }
     logger.warn("app.form: action failed", { error: e });
-    state.setError(ru.common.errors.generic);
+    // Сбой связи (обрыв сети, сервер не ответил): тот же текст, что у окна подтверждения и подписи — «Нет связи…» или «Не удалось отправить…».
+    state.setError(networkFailureText(env.online?.()));
   } finally {
     if (leaving) holdWhileLeaving(state, env);
     else {
@@ -236,7 +239,7 @@ export async function runSubmit<I, T>(
  * телефон или код. `submit(formData)` — для программного вызова. Повторная отправка, пока идёт прошлая, игнорируется. «Сессия
  * истекла» и «нужно согласие» уводят на экран v2 с возвратом (см. `outcomeOf`) и состояния формы не меняют; `redirect()`
  * в самом действии (вход, выбор шага) — уход без ошибки на экране; при уходе форма остаётся занятой (runSubmit). Сбой
- * транспорта (сеть, сервер) — общая ошибка из `ru.common.errors.generic`, подробности в журнале.
+ * транспорта (сеть, сервер) — текст сбоя связи (`networkFailureText`), подробности в журнале.
  *
  * `toInput` по умолчанию не проверяет типы: вход действия — «сырой» объект полей, а разбирает и проверяет его
  * схема действия на сервере (первая строка `action()`).
