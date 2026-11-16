@@ -39,14 +39,17 @@ describe("карточка исполнителя: чистые помощник
     ]);
   });
 
-  it("история: действие словами и кто, причина смены сегмента строкой; незнакомое действие — кодом", () => {
-    const [changed, unknown] = historyItems([
+  it("история: только события регистрации — действие словами из словаря журнала и кто, причина смены сегмента строкой", () => {
+    const items = historyItems([
       event({ action: "executor.segment.changed", meta: { reason: "Сильное портфолио" } }),
+      event({ action: "pii.kyc_file_link_issued" }),
+      event({ action: "portfolio.item.created", actorRole: "EXECUTOR" }),
       event({ action: "executor.something", actorRole: "ROBOT" }),
     ]);
-    expect(changed).toMatchObject({ title: c.actions["executor.segment.changed"], text: "Сильное портфолио" });
+    expect(items.map((item) => item.title)).toEqual([ru.app.operatorDeals.audit.actions["executor.segment.changed"], "executor.something"]);
+    const [changed, unknown] = items;
+    expect(changed).toMatchObject({ text: "Сильное портфолио" });
     expect(changed?.time).toContain(c.byRole.OPERATOR);
-    expect(unknown).toMatchObject({ title: "executor.something" });
     expect(unknown?.time).toContain("ROBOT");
     expect(unknown).not.toHaveProperty("text");
   });

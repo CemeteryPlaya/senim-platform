@@ -3,18 +3,19 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import { DecisionQueue, QueueCard } from "@/kit";
-import { mount, submit, type Mounted } from "@/kit/test-utils";
+import { edit, mount, submit, type Mounted } from "@/kit/test-utils";
 import type { ActionResult } from "@/platform/action";
 
 const h = vi.hoisted(() => ({
   refresh: vi.fn(),
   review: vi.fn<(input: unknown) => Promise<ActionResult<void>>>(async () => ({ ok: true, data: undefined })),
   confirm: vi.fn<(input: unknown) => Promise<ActionResult<void>>>(async () => ({ ok: true, data: undefined })),
+  verify: vi.fn<(input: { code: string }) => Promise<ActionResult<void>>>(async () => ({ ok: true, data: undefined })),
 }));
 
 vi.mock("next/navigation", async (original) => ({ ...(await original<typeof import("next/navigation")>()), useRouter: () => ({ refresh: h.refresh, push() {} }) }));
 // Действия — server actions: в браузерном тесте подменяются; код из приложения здесь не спрашивается.
-vi.mock("../mfa/actions", () => ({ verifySecondFactorAction: vi.fn(async () => ({ ok: true, data: undefined })) }));
+vi.mock("../mfa/actions", () => ({ verifySecondFactorAction: h.verify }));
 vi.mock("../kyc/actions", () => ({ reviewKycAction: h.review }));
 vi.mock("../money/actions", () => ({ confirmBankOperationAction: h.confirm, failBankOperationAction: vi.fn(), retryBankOperationAction: vi.fn() }));
 
@@ -111,6 +112,46 @@ describe("подтверждение операции банка: скан в ф
     expect(input).toMatchObject({ transactionId: "t1", bankDocNumber: "ПП-17", bankDocDate: "2026-11-16" });
     expect(input.scan).toBe(scan);
     expect(container.querySelector('[role="status"]')?.textContent).toBe(m.confirmed);
+  });
+
+  it("код вводили давно: MFA_REQUIRED → поле кода → проверка кода → повтор с тем же сканом и без поля кода", async () => {
+    h.confirm.mockResolvedValueOnce({ ok: false, code: "MFA_REQUIRED", error: ru.identity.mfa.stepUp });
+    mounted = mount(card());
+    const { container } = mounted;
+    const scan = new File(["%PDF-1.4"], "pp-18.pdf", { type: "application/pdf" });
+    pick(container, scan);
+    (container.querySelector('input[name="bankDocNumber"]') as HTMLInputElement).value = "ПП-18";
+    submit(container.querySelector("form") as HTMLFormElement);
+    await settle();
+
+    const code = container.querySelector<HTMLInputElement>('input[name="mfaCode"]');
+    expect(code).not.toBeNull();
+    edit(code as HTMLInputElement, "123456", { data: "123456" });
+    submit(container.querySelector("form") as HTMLFormElement);
+    await settle();
+
+    expect(h.verify).toHaveBeenCalledWith({ code: "123456" });
+    expect(h.confirm).toHaveBeenCalledTimes(2);
+    const second = h.confirm.mock.calls[1]?.[0] as Record<string, unknown>;
+    expect(second.scan).toBe(scan);
+    expect(second).not.toHaveProperty("mfaCode");
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(m.confirmed);
+  });
+
+  it("ошибка сервера у скана: фокус на «Выбрать скан»; выбор другого файла (и перетаскиванием, без события input) её прячет", async () => {
+    h.confirm.mockResolvedValueOnce({ ok: false, code: "VALIDATION", error: m.scanRequired, fieldErrors: { scan: [m.scanRequired] } });
+    mounted = mount(card());
+    const { container } = mounted;
+    (container.querySelector('input[name="bankDocNumber"]') as HTMLInputElement).value = "ПП-19";
+    submit(container.querySelector("form") as HTMLFormElement);
+    await settle();
+
+    expect(container.textContent).toContain(m.scanRequired);
+    expect(document.activeElement?.getAttribute("data-field")).toBe("scan");
+    expect(document.activeElement?.textContent).toContain(m.scanPick);
+
+    pick(container, new File(["%PDF-1.4"], "pp-19.pdf", { type: "application/pdf" }));
+    expect(container.textContent).not.toContain(m.scanRequired);
   });
 
   it("скан больше 4 МБ — ошибка у поля сразу, файл не берётся; не тот тип — тоже", () => {

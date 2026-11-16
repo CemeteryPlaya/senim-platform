@@ -43,7 +43,11 @@ export type UploaderProps = {
   capture?: "environment" | "user";
   /** Подпись кнопки добавления; по умолчанию «Добавить фото». */
   label?: string;
-  /** Имя поля формы для скрытого input; обычно не требуется (файлы уходят через `onAdd`). */
+  /**
+   * Имя поля формы для скрытого input; обычно не требуется (файлы уходят через `onAdd`). С ним кнопка добавления несёт
+   * `data-field` с тем же именем: форма (`useActionForm`) ставит на неё фокус при ошибке этого поля — скрытый input фокус
+   * не принимает.
+   */
   name?: string;
 };
 
@@ -178,7 +182,7 @@ export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accep
         </ul>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="secondary" disabled={full} onClick={() => input.current?.click()}>
+        <Button variant="secondary" disabled={full} data-field={name} onClick={() => input.current?.click()}>
           <span className="inline-flex items-center gap-2">
             <ImagePlus aria-hidden className="size-5" />
             {label ?? t.add}

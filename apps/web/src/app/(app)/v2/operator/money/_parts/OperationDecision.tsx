@@ -42,8 +42,22 @@ function ConfirmForm({ transactionId, type, today }: Omit<DecisionProps, "device
     onSuccess: () => done(t.confirmed),
   });
   const scanError = form.fieldErrors.scan ?? form.fieldErrors.bankDocFileId;
+  // Ошибка сервера у скана относится к прежнему выбору: выбор или удаление файла её прячет сразу — и при перетаскивании,
+  // где события `input` (по нему форма снимает ошибку поля) нет. Новая отправка снова показывает ответ сервера.
+  const [stale, setStale] = useState<string | null>(null);
+  const pick = (file: File | null) => {
+    setScan(file);
+    setStale(scanError ?? null);
+  };
   return (
-    <form ref={formRef} onSubmit={form.onSubmit} noValidate>
+    <form
+      ref={formRef}
+      onSubmit={(event) => {
+        setStale(null);
+        form.onSubmit(event);
+      }}
+      noValidate
+    >
       <Stack>
         <HiddenField name="transactionId" value={transactionId} />
         {/* Поля не шире 560 px на компьютере: карточка во всю ширину рабочего места, а номер и дата короткие. */}
@@ -51,7 +65,7 @@ function ConfirmForm({ transactionId, type, today }: Omit<DecisionProps, "device
           <Stack>
             <TextField label={t.bankDocNumber} name="bankDocNumber" required maxLength={100} autoComplete="off" error={form.fieldErrors.bankDocNumber} />
             <TextField label={t.bankDocDate} name="bankDocDate" type="date" required defaultValue={today} max={today} error={form.fieldErrors.bankDocDate} />
-            <ScanField file={scan} onChange={setScan} error={scanError} />
+            <ScanField file={scan} onChange={pick} error={scanError === stale ? undefined : scanError} />
           </Stack>
         </Narrow>
         <FormError error={form.error} atField={Object.keys(form.fieldErrors).length > 0} />

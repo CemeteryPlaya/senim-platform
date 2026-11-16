@@ -3,6 +3,7 @@ import type { RegistrationStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import type { StatusTone, StepState, TimelineItem } from "@/kit";
 import type { AuditView } from "@/modules/operator";
+import { actionLabel } from "../../audit/_parts/audit-view";
 
 const q = ru.app.operatorQueues;
 const c = q.executors.card;
@@ -35,14 +36,21 @@ function reasonOf(meta: unknown): string | undefined {
   return typeof reason === "string" && reason !== "" ? reason : undefined;
 }
 
-/** Журнал исполнителя → лента: действие словами (незнакомое — кодом), время и кто, причина смены сегмента. */
+/**
+ * Журнал исполнителя → лента: только события регистрации и профиля (`executor.*`) — в ту же область журнала пишутся и
+ * выдачи ссылок на документы (`pii.*`), и работы портфолио (`portfolio.*`), им место в журнале аудита, а не в истории
+ * регистрации. Действие словами из общего словаря журнала (`actionLabel`, незнакомое — кодом), время и кто, причина смены
+ * сегмента.
+ */
 export function historyItems(events: readonly AuditView[]): TimelineItem[] {
-  return events.map((event) => {
-    const text = reasonOf(event.meta);
-    return {
-      title: c.actions[event.action] ?? event.action,
-      time: c.historyTime(formatDateTime(event.createdAt), c.byRole[event.actorRole] ?? event.actorRole),
-      ...(text ? { text } : {}),
-    };
-  });
+  return events
+    .filter((event) => event.action.startsWith("executor."))
+    .map((event) => {
+      const text = reasonOf(event.meta);
+      return {
+        title: actionLabel(event.action),
+        time: c.historyTime(formatDateTime(event.createdAt), c.byRole[event.actorRole] ?? event.actorRole),
+        ...(text ? { text } : {}),
+      };
+    });
 }

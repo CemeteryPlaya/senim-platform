@@ -162,15 +162,6 @@ export const operatorQueues = {
       steps: { submitted: "Заявка", review: "Проверка оператором", decision: "Решение" },
       history: "История",
       historyEmpty: { title: "Записей в журнале нет", body: "Решения по регистрации и смена сегмента появятся здесь." },
-      /** Действия журнала по исполнителю; незнакомое действие показывается своим кодом. */
-      actions: {
-        "executor.registered": "Исполнитель подал заявку на регистрацию",
-        "executor.approved": "Регистрация подтверждена",
-        "executor.rejected": "Регистрация отклонена",
-        "executor.added_by_operator": "Оператор добавил исполнителя",
-        "executor.segment.changed": "Изменён сегмент",
-        "executor.profile.updated": "Исполнитель изменил профиль",
-      } as Readonly<Record<string, string>>,
       byRole: { OPERATOR: "оператор", EXECUTOR: "исполнитель", CLIENT: "покупатель", SYSTEM: "система" } as Readonly<Record<string, string>>,
       historyTime: (date: string, role: string) => `${date} · ${role}`,
       review: {

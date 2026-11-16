@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
-import { Card, EmptyState, KeyValueList, PageTitle, Section, Split, Stack, StatusChip, Steps, Timeline, type KeyValueItem } from "@/kit";
+import { ActionDock, Card, EmptyState, KeyValueList, PageTitle, Section, Split, Stack, StatusChip, Steps, Timeline, type KeyValueItem } from "@/kit";
 import type { CurrentUser } from "@/modules/identity";
 import { getExecutorCard } from "@/modules/operator";
 import { getDevice } from "@/platform/device";
@@ -10,7 +10,7 @@ import { isAppError } from "@/platform/errors";
 import { requireOperator } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
 import { historyItems, registrationSteps, STATUS_TONE } from "../_parts/view";
-import { ReviewForms } from "./_parts/ReviewForms";
+import { ReviewForms, ReviewProvider, ReviewSubmit } from "./_parts/ReviewForms";
 import { SegmentForm } from "./_parts/SegmentForm";
 
 const q = ru.app.operatorQueues;
@@ -69,7 +69,7 @@ export default async function ExecutorCardPage({ params }: { params: Promise<{ i
     <Stack gap="section">
       {x.status === "PENDING" && (
         <Section title={c.review.title} id="review">
-          <ReviewForms device={device} profileId={x.id} />
+          <ReviewForms device={device} />
         </Section>
       )}
       <Section title={c.details} id="details">
@@ -99,10 +99,17 @@ export default async function ExecutorCardPage({ params }: { params: Promise<{ i
     </Stack>
   );
 
-  return (
+  const page = (
     <Stack gap="section">
       <PageTitle title={q.executor(x.publicNumber, x.legalName)} back={{ href: to("/operator/executors"), label: c.back }} lead={`${q.legalForms[x.legalForm]}, ${x.city}`} />
       <Split main={main} aside={aside} />
+      {/* Телефон: главная кнопка решения — в доке внизу экрана (последний элемент страницы), форма — в карточке «Решение». */}
+      {x.status === "PENDING" && device === "mobile" && (
+        <ActionDock>
+          <ReviewSubmit full />
+        </ActionDock>
+      )}
     </Stack>
   );
+  return x.status === "PENDING" ? <ReviewProvider profileId={x.id}>{page}</ReviewProvider> : page;
 }

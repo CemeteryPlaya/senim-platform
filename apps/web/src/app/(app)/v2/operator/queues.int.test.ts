@@ -18,7 +18,7 @@ import { resolveRevocationAction } from "./consents/actions";
 import { RevocationDecision } from "./consents/_parts/RevocationDecision";
 import ConsentsPage from "./consents/page";
 import { addExecutorAction, changeSegmentAction, reviewRegistrationAction } from "./executors/actions";
-import { ReviewForms } from "./executors/[id]/_parts/ReviewForms";
+import { ReviewForms, ReviewProvider } from "./executors/[id]/_parts/ReviewForms";
 import { SegmentForm } from "./executors/[id]/_parts/SegmentForm";
 import ExecutorCardPage from "./executors/[id]/page";
 import ExecutorsPage from "./executors/page";
@@ -263,7 +263,9 @@ describe("исполнители /v2/operator/executors", () => {
     const pending = await makeExecutor({ status: "PENDING", legalName: "ИП Ждущий" });
     const operator = await makeOperator();
     const card = () => as(operator, () => ExecutorCardPage({ params: Promise.resolve({ id: pending.executor.id }) }));
-    expect(ofType<{ profileId: string }>(await card(), ReviewForms)).toMatchObject([{ profileId: pending.executor.id }]);
+    const before = await card();
+    expect(ofType<{ profileId: string }>(before, ReviewProvider)).toMatchObject([{ profileId: pending.executor.id }]);
+    expect(ofType(before, ReviewForms)).toHaveLength(1);
 
     const client = await makeClient();
     expect(await as(client, () => reviewRegistrationAction({ profileId: pending.executor.id, decision: "approve", segment: "PREMIUM" }))).toMatchObject({ ok: false, code: "FORBIDDEN" });
@@ -272,6 +274,7 @@ describe("исполнители /v2/operator/executors", () => {
 
     const after = await card();
     expect(ofType(after, ReviewForms)).toHaveLength(0);
+    expect(ofType(after, ReviewProvider)).toHaveLength(0);
     expect(ofType<{ current: string }>(after, SegmentForm)).toMatchObject([{ current: "PREMIUM" }]);
   });
 
