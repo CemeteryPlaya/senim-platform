@@ -12,6 +12,9 @@ export const OPERATOR_READY: readonly { path: string; exact?: boolean }[] = [
   // Главная оператора и второй шаг входа (Q1).
   { path: to("/operator"), exact: true },
   { path: to("/operator/mfa") },
+  // Споры и заявки без откликов (Q3): таблица, карточка спора с решением.
+  { path: to("/operator/disputes") },
+  { path: to("/operator/requests") },
   // Общие экраны любой роли: профиль (имя, телефон, тема, выход) и уведомления.
   { path: to("/profile"), exact: true },
   { path: to("/notifications") },

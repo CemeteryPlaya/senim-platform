@@ -9,6 +9,10 @@ describe("isOperatorReady: экраны v2, готовые для операто
     ["/v2/profile", true],
     ["/v2/notifications", true],
     ["/v2/notifications/n1", true],
+    // Споры и заявки (Q3).
+    ["/v2/operator/disputes", true],
+    ["/v2/operator/disputes/d1", true],
+    ["/v2/operator/requests", true],
   ])("%s — страница v2", (path, ready) => {
     expect(isOperatorReady(path)).toBe(ready);
   });
