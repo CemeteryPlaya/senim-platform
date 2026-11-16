@@ -85,7 +85,7 @@ export type DetailRow = { label: string; value: string; stacked: boolean; map?: 
 export type RequestViewModel = {
   state: MasterState;
   title: string;
-  lead: { number: string; direct: string | null };
+  lead: { number: string; /** Номер цифрами — для кнопки «Скопировать». */ copy: string; direct: string | null };
   back: { href: string; label: string };
   now: { title: string; body?: string };
   next?: string;
@@ -280,7 +280,7 @@ export function requestView(r: IncomingRequest, n: NegotiationView | null, now: 
   return {
     state,
     title: r.title,
-    lead: { number: t.numberLine(r.number), direct: r.mode === "DIRECT" ? t.direct : null },
+    lead: { number: t.numberLine(r.number), copy: String(r.number), direct: r.mode === "DIRECT" ? t.direct : null },
     back: { href: to("/executor/requests"), label: t.back },
     ...nowOf(state, n),
     ...actionsOf(state, n),

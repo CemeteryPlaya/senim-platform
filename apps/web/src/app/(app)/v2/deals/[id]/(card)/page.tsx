@@ -141,6 +141,7 @@ function cardView({ deal, side, documents, contacts, bank, address, all, device 
     side,
     title: deal.title,
     lead: master ? tm.lead(deal.number) : t.lead(deal.number, deal.executorLabel),
+    number: deal.number,
     chip: dealChip({
       side,
       status: deal.status,

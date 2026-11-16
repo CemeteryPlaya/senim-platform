@@ -5,6 +5,7 @@ import {
   ActionDock,
   ButtonLink,
   Card,
+  CopyButton,
   List,
   ListRow,
   MapLink,
@@ -199,7 +200,10 @@ function Title({ view, device }: { view: RequestViewModel; device: Device }) {
           back={view.back}
           lead={
             <span className="flex flex-col items-start gap-2">
-              <span>{view.lead.number}</span>
+              <span className="flex items-center gap-1">
+                <span>{view.lead.number}</span>
+                <CopyButton value={view.lead.copy} label={t.copyNumber} />
+              </span>
               {view.lead.direct && <StatusChip tone="accent">{view.lead.direct}</StatusChip>}
             </span>
           }
