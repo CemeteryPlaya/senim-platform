@@ -35,8 +35,15 @@ export type DataTableProps<Row> = {
 
 const WIDTH = { wide: "min-w-col-wide", mid: "min-w-col-mid", narrow: "min-w-col-narrow" } as const;
 
-/** Поля ячейки: 16 px по бокам (как у карточки и строки списка), 12 px сверху и снизу. */
-const CELL = "px-card py-3 align-top";
+/**
+ * Поля ячейки: 16 px по бокам (как у карточки и строки списка), 12 px сверху и снизу. Ссылка в ячейке (`TextLink`) стоит
+ * на линии текста соседних ячеек: своя высота 48 px у неё снята (иначе текст ссылки центруется в 48 px и опускается ниже
+ * соседей), а цель касания 48 px даёт псевдоэлемент, выступающий на поле ячейки сверху и снизу (12 + строка + 12).
+ */
+const CELL = cn(
+  "px-card py-3 align-top",
+  "[&_a]:min-h-0 [&_a]:relative [&_a]:before:absolute [&_a]:before:inset-x-0 [&_a]:before:-inset-y-3",
+);
 
 function cellClass<Row>(column: DataTableColumn<Row>): string {
   return cn(CELL, column.numeric ? "text-right whitespace-nowrap tabular-nums" : "text-left wrap-break-word", column.width && WIDTH[column.width]);

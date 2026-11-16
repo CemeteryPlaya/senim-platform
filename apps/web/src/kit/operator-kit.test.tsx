@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { DataTable, KeyValueList, Money, QueueCard, type DataTableColumn } from "@/kit";
+import { DataTable, KeyValueList, Money, QueueCard, TextLink, type DataTableColumn } from "@/kit";
 import { count, hasClass, html } from "@/kit/test-utils";
 import { nextQueueFocus } from "./queue-logic";
 
@@ -50,6 +50,16 @@ describe("DataTable", () => {
     expect(hasClass(price, "whitespace-nowrap")).toBe(true);
     expect(out).toContain("min-w-col-wide");
     expect(out).toContain("min-w-col-narrow");
+  });
+
+  it("ссылка в ячейке — на линии текста соседей (без высоты 48 px у самой ссылки), касание 48 px — псевдоэлементом", () => {
+    const linked: DataTableColumn<Row>[] = [{ ...COLUMNS[0]!, cell: (row) => <TextLink href={`/v2/operator/deals/${row.id}`}>{row.title}</TextLink> }, ...COLUMNS.slice(1)];
+    const out = table({ columns: linked });
+    const head = out.match(/<th scope="row"[^>]*>/)?.[0] ?? "";
+    // В разметке «&» класса записан как «&amp;».
+    for (const cls of ["[&amp;_a]:min-h-0", "[&amp;_a]:relative", "[&amp;_a]:before:absolute", "[&amp;_a]:before:-inset-y-3"]) expect(hasClass(head, cls)).toBe(true);
+    const cell = out.match(/<td class="[^"]*">/)?.[0] ?? "";
+    expect(hasClass(cell, "[&amp;_a]:min-h-0")).toBe(true);
   });
 
   it("подпись только для диктора — sr-only, имя региона то же", () => {
