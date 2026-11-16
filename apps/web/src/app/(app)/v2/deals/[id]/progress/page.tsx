@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { Narrow, NowNext, PageTitle, Stack } from "@/kit";
+import { getDevice } from "@/platform/device";
 import { pageHref, partyDeal, requireV2User } from "../../../../_shell/auth";
 import { dealHrefs } from "../_parts/deal-card";
 import { ProgressForm } from "./ProgressForm";
@@ -31,7 +32,7 @@ export default async function ProgressPage({ params, searchParams }: Props) {
       <Stack gap="section">
         <PageTitle title={t.title} back={{ href: card, label: deal.title }} />
         <NowNext now={t.now} next={t.next} />
-        <ProgressForm dealId={deal.id} dealHref={card} />
+        <ProgressForm dealId={deal.id} dealHref={card} device={await getDevice()} />
       </Stack>
     </Narrow>
   );

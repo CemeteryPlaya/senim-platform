@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
+import { getDevice } from "@/platform/device";
 import { pageHref } from "../../../../_shell/auth";
 import { dealHrefs } from "../_parts/deal-card";
 import { buyerDeal } from "../_parts/gate";
@@ -21,5 +22,5 @@ export default async function ReviewPage({ params, searchParams }: Props) {
   const { deal } = await buyerDeal(pageHref(`/deals/${encodeURIComponent(id)}/review`, sp), id);
   const hrefs = dealHrefs(deal.id);
   if (deal.next.action !== "leaveReview" || !deal.next.mine) redirect(hrefs.card);
-  return <ReviewForm dealId={deal.id} dealTitle={deal.title} number={deal.number} backHref={hrefs.card} />;
+  return <ReviewForm dealId={deal.id} dealTitle={deal.title} number={deal.number} backHref={hrefs.card} device={await getDevice()} />;
 }

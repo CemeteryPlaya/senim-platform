@@ -7,6 +7,8 @@ import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, Stack, TextArea, TextField, toast, Uploader } from "@/kit";
 import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
+import { LeaveGuard } from "../../../../_shell/LeaveGuard";
+import type { Device } from "@/platform/device";
 import { usePhotoUploads } from "../../../_upload/usePhotoUploads";
 import { progressReportAction } from "./actions";
 
@@ -14,14 +16,14 @@ const t = ru.app.masterSteps.progress;
 const FORM = "progress-form";
 const MAX_PHOTOS = 12;
 
-type Props = { dealId: string; dealHref: string };
+type Props = { dealId: string; dealHref: string; device: Device };
 
 /**
  * Отчёт о ходе работ: заголовок (по желанию), что сделано, фото (по желанию, с камеры на телефоне). «Отправить отчёт» —
  * одно главное действие в `ActionDock`; пока грузятся фото, отправка ждёт (тост). Двойное нажатие — одна отправка
  * (`useActionForm` гасит повтор, после успеха кнопка остаётся занятой до ухода). После — тост и карточка сделки.
  */
-export function ProgressForm({ dealId, dealHref }: Props) {
+export function ProgressForm({ dealId, dealHref, device }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
@@ -88,6 +90,7 @@ export function ProgressForm({ dealId, dealHref }: Props) {
           </Stack>
         </form>
       </Card>
+      <LeaveGuard dirty={!done && (title.trim() !== "" || text.trim() !== "" || uploads.fileIds.length > 0)} device={device} />
       <ActionDock>
         <Button type="submit" form={FORM} pending={form.pending || done}>
           {t.submit}

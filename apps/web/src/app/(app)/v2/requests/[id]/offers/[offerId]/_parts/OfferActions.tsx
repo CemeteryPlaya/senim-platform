@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, ConfirmDialog, Dialog, HiddenField, Notice, Sheet, Stack, TextField, toast } from "@/kit";
+import { Button, ConfirmDialog, Dialog, HiddenField, Money, MoneyField, Notice, Sheet, Stack, toast } from "@/kit";
+import { computeDealMoney, MAX_PRICE_TIYN } from "@/modules/payments/client";
 import type { Device } from "@/platform/device";
 import { useActionForm } from "../../../../../../_shell/form";
 import { LinkButton } from "../../../../../../_shell/LinkButton";
@@ -48,17 +49,27 @@ export function AcceptButton({ device, offerId, proposalId, label, confirmTitle,
 /** Форма своей цены внутри окна: монтируется при каждом открытии — прошлые ошибки не остаются. */
 function ProposeForm({ device, offerId, onDone }: { device: Device; offerId: string; onDone: () => void }) {
   const form = useActionForm(proposePriceAction, { onSuccess: onDone });
+  const [tiyn, setTiyn] = useState<bigint | null>(null);
+  // Сколько заплатит покупатель по введённой цене: цена + защита сделки 2% — тот же расчёт, что у сделки.
+  const total = tiyn !== null && tiyn > 0n && tiyn <= MAX_PRICE_TIYN ? computeDealMoney(tiyn).buyerTotalTiyn : null;
   return (
     <form onSubmit={form.onSubmit} noValidate>
       <Stack>
         <HiddenField name="offerId" value={offerId} />
-        <TextField
+        <MoneyField
           label={t.propose.amount}
           name="amount"
-          inputMode="numeric"
-          autoComplete="off"
           enterKeyHint="send"
+          onValueChange={setTiyn}
           error={form.fieldErrors.amount}
+          under={
+            total !== null && (
+              <p className="flex items-baseline justify-between gap-4 text-body text-ink" aria-live="polite">
+                <span>{t.propose.toPay}</span>
+                <Money tiyn={total} />
+              </p>
+            )
+          }
         />
         {form.error && !form.fieldErrors.amount && (
           <Notice tone="danger" live>

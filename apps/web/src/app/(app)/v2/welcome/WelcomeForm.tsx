@@ -1,7 +1,7 @@
 "use client";
 
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Explain, HiddenField, Stack, TextField, TextLink } from "@/kit";
+import { ActionDock, Button, Explain, HiddenField, IinField, Stack, TextField, TextLink } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../_shell/FormError";
 import { useActionForm } from "../../_shell/form";
@@ -50,13 +50,16 @@ export function WelcomeForm({ defaultFullName, next, step, total, device }: Prop
               label={t.fullName}
               name="fullName"
               autoComplete="name"
+              autoCapitalize="words"
+              autoCorrect="off"
+              spellCheck={false}
               maxLength={200}
               defaultValue={defaultFullName ?? undefined}
               error={form.fieldErrors.fullName}
             />
             {/* ИИН уже у другого профиля: под полем — как написать в поддержку (адрес из конфига бренда). */}
             <div className="flex flex-col">
-              <TextField label={t.iin} name="iin" inputMode="numeric" autoComplete="off" maxLength={15} error={form.fieldErrors.iin} />
+              <IinField label={t.iin} name="iin" error={form.fieldErrors.iin} />
               {form.fieldErrors.iin === t.errors.iinTaken && <TextLink href={SUPPORT_HREF}>{t.errors.supportLink}</TextLink>}
             </div>
             <HiddenField name="next" value={next ?? ""} />

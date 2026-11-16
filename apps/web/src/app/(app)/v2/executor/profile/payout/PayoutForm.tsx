@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Card, Explain, Stack, TextField, toast } from "@/kit";
+import { ActionDock, Button, Card, Explain, IbanField, Stack, toast } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
@@ -20,12 +20,13 @@ const FORM = "payout-form";
  */
 export function PayoutForm({ device }: { device: Device }) {
   const router = useRouter();
-  const [iban, setIban] = useState("");
+  // Номер держит поле IbanField (в форму уходит 20 знаков без пробелов); после сохранения поле пересоздаётся пустым.
+  const [round, setRound] = useState(0);
   const [local, setLocal] = useState<string | undefined>();
   const form = useActionForm(savePayoutAction, {
-    toInput: () => ({ iban }),
+    toInput: (fd) => ({ iban: String(fd.get("iban") ?? "") }),
     onSuccess: () => {
-      setIban("");
+      setRound((n) => n + 1);
       setLocal(undefined);
       toast(t.saved);
       router.refresh();
@@ -35,37 +36,26 @@ export function PayoutForm({ device }: { device: Device }) {
   const root = useRef<HTMLFormElement>(null);
   const error = local ?? form.fieldErrors.iban;
 
-  // Ошибка у поля (в браузере или с сервера) — фокус на него, чтобы исправить сразу.
+  // Ошибка проверки в браузере — фокус на поле (ошибки с сервера — фокус ведёт сам useActionForm).
   useEffect(() => {
-    if (attempt === 0 && form.fieldErrors.iban === undefined) return;
+    if (attempt === 0) return;
     root.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
-  }, [attempt, form.fieldErrors]);
+  }, [attempt]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const problem = ibanProblem(iban);
+    const problem = ibanProblem(String(new FormData(event.currentTarget).get("iban") ?? ""));
     setLocal(problem ?? undefined);
-    if (problem !== null) setAttempt((n) => n + 1);
-    if (problem === null) void form.submit(new FormData());
+    if (problem === null) return form.onSubmit(event);
+    event.preventDefault();
+    setAttempt((n) => n + 1);
   }
 
   return (
     <>
       <Card>
-        <form id={FORM} ref={root} method="post" onSubmit={submit} noValidate>
+        <form id={FORM} ref={root} method="post" onSubmit={submit} onInput={() => setLocal(undefined)} noValidate>
           <Stack>
-            <TextField
-              label={t.iban}
-              name="iban"
-              value={iban}
-              onChange={(e) => setIban(e.target.value)}
-              autoComplete="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-              maxLength={40}
-              className="font-mono tabular-nums"
-              error={error}
-            />
+            <IbanField key={round} label={t.iban} name="iban" error={error} />
             <div>
               <Explain label={t.explain.label} title={t.explain.title} device={device}>
                 {t.explain.points.map((point) => (

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, ConfirmDialog, Dialog, HiddenField, Menu, Money, Notice, Sheet, Stack, TextField, toast } from "@/kit";
+import { Button, ConfirmDialog, Dialog, HiddenField, Menu, Money, MoneyField, Notice, Sheet, Stack, toast } from "@/kit";
 import type { Device } from "@/platform/device";
 import { useActionForm } from "../../../../../_shell/form";
 import { LinkButton } from "../../../../../_shell/LinkButton";
@@ -55,22 +55,21 @@ function ProposeForm({ device, offerId, onDone }: { device: Device; offerId: str
     <form onSubmit={form.onSubmit} noValidate>
       <Stack>
         <HiddenField name="offerId" value={offerId} />
-        <TextField
+        <MoneyField
           label={t.propose.amount}
           name="amount"
-          inputMode="numeric"
-          autoComplete="off"
           enterKeyHint="send"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onValueChange={(tiyn) => setAmount(tiyn === null ? "" : (tiyn / 100n).toString())}
           error={form.fieldErrors.amount}
+          under={
+            money && (
+              <p className="flex items-baseline justify-between gap-4 text-body text-ink" aria-live="polite">
+                <span>{t.propose.youGet}</span>
+                <Money tiyn={money.youGetTiyn} />
+              </p>
+            )
+          }
         />
-        {money && (
-          <p className="flex items-baseline justify-between gap-4 text-body text-ink" aria-live="polite">
-            <span>{t.propose.youGet}</span>
-            <Money tiyn={money.youGetTiyn} />
-          </p>
-        )}
         {form.error && !form.fieldErrors.amount && (
           <Notice tone="danger" live>
             {form.error}

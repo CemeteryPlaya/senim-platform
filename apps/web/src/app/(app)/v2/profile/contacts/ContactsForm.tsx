@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Card, Explain, Stack, TextField, toast } from "@/kit";
+import { ActionDock, Button, Card, Explain, InstagramField, Stack, toast } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../_shell/FormError";
 import { useActionForm } from "../../../_shell/form";
@@ -16,10 +16,10 @@ const FORM = "contacts-form";
  * После сохранения в поле остаётся значение, как его записал сервер (без «@»), и тост «Сохранено».
  */
 export function ContactsForm({ initial, device }: { initial: string; device: Device }) {
-  const [value, setValue] = useState(initial);
+  const [saved, setSaved] = useState(initial);
   const form = useActionForm(saveContactsAction, {
     onSuccess: (data) => {
-      setValue(data.instagram ?? "");
+      setSaved(data.instagram ?? "");
       toast(t.saved);
     },
   });
@@ -28,18 +28,7 @@ export function ContactsForm({ initial, device }: { initial: string; device: Dev
       <Card>
         <form id={FORM} method="post" onSubmit={form.onSubmit} noValidate>
           <Stack>
-            <TextField
-              label={t.instagram.label}
-              name="instagram"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              inputMode="text"
-              maxLength={40}
-              error={form.fieldErrors.instagram}
-            />
+            <InstagramField key={saved} label={t.instagram.label} name="instagram" defaultValue={saved} error={form.fieldErrors.instagram} />
             <div>
               <Explain label={t.instagram.explain.label} title={t.instagram.explain.title} device={device}>
                 <p>{t.instagram.explain.body}</p>

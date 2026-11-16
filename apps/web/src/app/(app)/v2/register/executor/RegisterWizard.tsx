@@ -163,8 +163,8 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
   }
 
   /** Проверка шага; ошибки — у полей и фокус на первое. */
-  function check(at: RegisterStep): boolean {
-    const issues = stepIssues(at, answers);
+  function check(at: RegisterStep, source: Answers = answers): boolean {
+    const issues = stepIssues(at, source);
     if (issues.length === 0) {
       setInvalid({});
       return true;
@@ -177,8 +177,11 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (step !== "check") {
-      if (!check(step)) return;
-      if (step === "form") setAnswers((current) => prefillSigner(current, fullName));
+      // ИИН и БИН держат свои поля (маска): значения берём из формы, они могли не успеть попасть в ответы.
+      const current = withIds(answers, new FormData(event.currentTarget));
+      if (current !== answers) setAnswers(current);
+      if (!check(step, current)) return;
+      if (step === "form") setAnswers((now) => prefillSigner(now, fullName));
       router.push(stepHref(STEPS[index + 1]));
       return;
     }
@@ -233,6 +236,16 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
       </Stack>
     </div>
   );
+}
+
+/** Ответы с номерами из формы шага (`binIin`, `directorIin`); те же — вернётся тот же объект. */
+function withIds(answers: Answers, data: FormData): Answers {
+  let next = answers;
+  for (const field of ["binIin", "directorIin"] as const) {
+    const value = data.get(field);
+    if (typeof value === "string" && value !== next[field]) next = { ...next, [field]: value };
+  }
+  return next;
 }
 
 const ANSWER_FIELDS = new Set<string>(Object.values(STEP_FIELDS).flat());

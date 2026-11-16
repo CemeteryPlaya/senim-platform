@@ -9,6 +9,7 @@ import { ActionDock, Button, Card, Explain, Section, Stack, toast, Uploader } fr
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
+import { LeaveGuard } from "../../../../_shell/LeaveGuard";
 import { useGeolocation } from "../../../../_shell/useGeolocation";
 import { usePhotoUploads } from "../../../_upload/usePhotoUploads";
 import { submitReadyAction, type ReadyOutcome } from "./actions";
@@ -132,6 +133,7 @@ export function ReadyForm({ dealId, dealHref, device }: Props) {
           </Explain>
         </div>
       </Section>
+      <LeaveGuard dirty={!done && uploads.fileIds.length > 0} device={device} />
       <ActionDock>
         <Button type="submit" form={FORM} pending={form.pending || waiting || done}>
           {t.submit}

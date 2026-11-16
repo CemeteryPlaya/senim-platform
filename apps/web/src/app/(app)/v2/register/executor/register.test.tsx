@@ -284,7 +284,7 @@ describe("шаги анкеты: номера и ошибки", () => {
     const out = html(<NameFields answers={{ ...too, binIin: "" }} errors={{ binIin: t.errors.binRequired }} onChange={() => {}} ownIinLast4="1234" />);
     for (const name of ["legalName", "binIin", "directorName", "directorIin"]) expect(out).toContain(`name="${name}"`);
     expect(out).not.toContain("•••• 1234");
-    expect(out).toMatch(/name="binIin"[^>]*aria-invalid="true"|aria-invalid="true"[^>]*name="binIin"/);
+    expect(out).toMatch(/data-field="binIin"[^>]*aria-invalid="true"|aria-invalid="true"[^>]*data-field="binIin"/);
     expect(out).toContain(t.errors.binRequired);
   });
 });

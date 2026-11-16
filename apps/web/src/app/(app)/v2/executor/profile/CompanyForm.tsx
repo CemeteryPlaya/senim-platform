@@ -2,16 +2,24 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Card, Checkbox, Columns, Explain, Notice, RadioCard, RadioGroup, Stack, TextArea, TextField, toast } from "@/kit";
+import { ActionDock, Button, Card, Checkbox, Columns, Explain, MoneyField, Notice, RadioCard, RadioGroup, Stack, TextArea, TextField, toast } from "@/kit";
+import { kztToTiyn } from "@/modules/payments/client";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../_shell/FormError";
 import { useActionForm } from "../../../_shell/form";
+import { LeaveGuard } from "../../../_shell/LeaveGuard";
 import { saveCompanyAction } from "./actions";
 import { companySchema, MEASUREMENT_TERMS, toNumber, type CompanyInput } from "./_parts/company-schema";
-import { formatFee, type CompanyValues } from "./_parts/company-view";
+import type { CompanyValues } from "./_parts/company-view";
 
 const t = ru.app.masterCompany.company.form;
 const FORM = "company-form";
+
+/** Плата за замер из состояния формы → тиыны для начального значения поля (нет числа — пусто). */
+function feeTiyn(raw: string): bigint | null {
+  const n = toNumber(raw);
+  return n === null || !Number.isInteger(n) || n < 0 ? null : kztToTiyn(n);
+}
 
 type Props = { initial: CompanyValues; types: readonly { id: string; name: string }[]; device: Device };
 
@@ -30,6 +38,7 @@ export function CompanyForm({ initial, types, device }: Props) {
   const [district, setDistrict] = useState(initial.district);
   const [street, setStreet] = useState(initial.streetAddress);
   const [masked, setMasked] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [local, setLocal] = useState<Record<string, string>>({});
   const [attempt, setAttempt] = useState(0);
   const root = useRef<HTMLFormElement>(null);
@@ -49,7 +58,7 @@ export function CompanyForm({ initial, types, device }: Props) {
     toInput: input,
     onSuccess: (data) => {
       setAbout(data.about);
-      setFee(formatFee(fee));
+      setDirty(false);
       setMasked(data.aboutMasked);
       toast(t.saved);
     },
@@ -93,7 +102,7 @@ export function CompanyForm({ initial, types, device }: Props) {
   return (
     <>
       <Card>
-        <form id={FORM} ref={root} method="post" onSubmit={submit} noValidate>
+        <form id={FORM} ref={root} method="post" onSubmit={submit} onInput={() => setDirty(true)} noValidate>
           <Stack gap="section">
             <Stack>
               <TextArea label={t.about.label} name="about" value={about} onChange={(e) => setAbout(e.target.value)} rows={6} maxLength={2000} error={err.about} />
@@ -144,7 +153,13 @@ export function CompanyForm({ initial, types, device }: Props) {
                 ))}
               </RadioGroup>
               {terms === "FEE_IF_NO_DEAL" && (
-                <TextField label={t.fee} name="measurementFee" value={fee} onChange={(e) => setFee(e.target.value)} onBlur={() => setFee(formatFee(fee))} inputMode="numeric" autoComplete="off" error={err.measurementFee} />
+                <MoneyField
+                  label={t.fee}
+                  name="measurementFee"
+                  defaultTiyn={feeTiyn(fee)}
+                  onValueChange={(tiyn) => setFee(tiyn === null ? "" : (tiyn / 100n).toString())}
+                  error={err.measurementFee}
+                />
               )}
             </Stack>
 
@@ -179,6 +194,7 @@ export function CompanyForm({ initial, types, device }: Props) {
           </Stack>
         </form>
       </Card>
+      <LeaveGuard dirty={dirty} device={device} />
       <ActionDock>
         <Button type="submit" form={FORM} pending={form.pending}>
           {t.save}

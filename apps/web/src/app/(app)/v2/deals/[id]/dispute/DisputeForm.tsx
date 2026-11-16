@@ -8,10 +8,11 @@ import { PHOTO_ACCEPT } from "@/features/upload/transfer";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
+import { LeaveGuard } from "../../../../_shell/LeaveGuard";
 import { usePhotoUploads } from "../../../_upload/usePhotoUploads";
 import { openDisputeAction } from "./actions";
 import type { DealSide } from "../../../../_shell/side";
-import { disputeTexts, MAX_PHOTOS, REASONS, TEXT_MAX, textValid } from "./dispute-view";
+import { disputeTexts, MAX_PHOTOS, REASONS, TEXT_MAX, TEXT_MIN, textValid } from "./dispute-view";
 
 const FORM = "dispute-form";
 
@@ -80,6 +81,7 @@ export function DisputeForm({ dealId, side, dealTitle, backHref, device }: Props
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 maxLength={TEXT_MAX}
+                minLength={TEXT_MIN}
                 rows={5}
                 {...(fieldErrors.description ? { error: fieldErrors.description } : {})}
               />
@@ -90,6 +92,7 @@ export function DisputeForm({ dealId, side, dealTitle, backHref, device }: Props
                   items={uploads.items}
                   max={MAX_PHOTOS}
                   accept={PHOTO_ACCEPT}
+                  capture="environment"
                   label={t.addPhoto}
                   onAdd={uploads.add}
                   onRemove={uploads.remove}
@@ -115,6 +118,7 @@ export function DisputeForm({ dealId, side, dealTitle, backHref, device }: Props
             {t.submit}
           </Button>
         </ActionDock>
+        <LeaveGuard dirty={!done && (reason !== null || description.trim() !== "" || uploads.fileIds.length > 0)} device={device} />
         <ConfirmDialog
           device={device}
           tone="danger"

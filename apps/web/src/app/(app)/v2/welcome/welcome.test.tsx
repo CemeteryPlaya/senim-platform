@@ -109,14 +109,15 @@ describe("экран знакомства", () => {
     expect(text(render())).toContain(t.iin);
     expect(out).toMatch(/<input[^>]*name="fullName"[^>]*>/);
     expect(out).toMatch(/<input[^>]*name="iin"[^>]*>/);
-    expect(out).toMatch(/<input(?=[^>]*name="iin")(?=[^>]*inputMode="numeric")(?=[^>]*autoComplete="off")[^>]*>/);
+    // Видимое поле ИИН — с маской: имя для формы у скрытого поля, видимое несёт data-field.
+    expect(out).toMatch(/<input(?=[^>]*data-field="iin")(?=[^>]*inputMode="numeric")(?=[^>]*autoComplete="off")[^>]*>/);
     expect(out).toMatch(/<form[^>]*method="post"/);
   });
 
   it("ФИО из проекции подставляется, ИИН поле пустое", () => {
     const out = html(render({ defaultFullName: "Сапаров Ерлан" }));
     expect(out).toMatch(/<input(?=[^>]*name="fullName")(?=[^>]*value="Сапаров Ерлан")[^>]*>/);
-    expect(out).not.toMatch(/<input(?=[^>]*name="iin")(?=[^>]*value=)[^>]*>/);
+    expect(out).not.toMatch(/<input(?=[^>]*name="iin")(?=[^>]*value="[^"])[^>]*>/);
   });
 
   it("под полями нет постоянных подсказок; «Зачем ИИН» — по нажатию", () => {

@@ -756,3 +756,39 @@ describe("правило 8: в ru.app нет слов «демо», «комис
     expectClean("Правило 8: слова «демо» в интерфейсе нового вида нет.", findDemoWord(ru.app));
   });
 });
+
+// ---------------------------------------------------------------------------------------------------------------------
+// 13. Деньги, телефон, ИИН/БИН, IBAN — только своим полем
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** Имена полей, которые вводятся только компонентом с маской (`MoneyField`, `PhoneField`, `IinField`, `IbanField`). */
+const MASKED_NAME = /^(?:price|priceFrom|amount|money|measurementFee|phone|iin|bin|binIin|directorIin|iban)$/i;
+
+/** 13. Голый `TextField` с именем поля денег, телефона, ИИН/БИН или IBAN. */
+export function findBareMaskedField(src: string): Hit[] {
+  const code = stripComments(src);
+  const hits: Hit[] = [];
+  for (const m of code.matchAll(/<TextField\b[^>]*?\bname=["'](\w+)["']/gs)) {
+    if (!MASKED_NAME.test(m[1] ?? "")) continue;
+    hits.push({ line: code.slice(0, m.index).split("\n").length, text: `<TextField name="${m[1]}">` });
+  }
+  return hits;
+}
+
+describe("правило 13: поля денег, телефона, ИИН/БИН и IBAN — только своим компонентом", () => {
+  it("самопроверка", () => {
+    expect(findBareMaskedField('<TextField label="Цена" name="price" inputMode="numeric" />')).toHaveLength(1);
+    expect(findBareMaskedField('<TextField\n  label="IBAN"\n  name="iban"\n/>')).toHaveLength(1);
+    expect(findBareMaskedField('<TextField label="Телефон" name="phone" />')).toHaveLength(1);
+    expect(findBareMaskedField('<TextField label="ИИН" name="directorIin" />')).toHaveLength(1);
+    expect(findBareMaskedField('<MoneyField label="Цена" name="price" />')).toHaveLength(0);
+    expect(findBareMaskedField('<TextField label="Название" name="title" />')).toHaveLength(0);
+    expect(findBareMaskedField('<TextField label="Дней" name="days" />')).toHaveLength(0);
+    expect(findBareMaskedField('{/* <TextField name="price" /> */}')).toHaveLength(0);
+  });
+  it("в src/app/(app) нет голого TextField для денег, телефона, ИИН/БИН и IBAN", () => {
+    const violations: string[] = [];
+    for (const f of APP_ONLY) for (const h of findBareMaskedField(f.text)) violations.push(`${f.rel}:${h.line}  ${h.text}`);
+    expectClean("Правило 13: деньги, телефон, ИИН/БИН, IBAN — MoneyField, PhoneField, IinField, IbanField из @/kit.", violations);
+  });
+});

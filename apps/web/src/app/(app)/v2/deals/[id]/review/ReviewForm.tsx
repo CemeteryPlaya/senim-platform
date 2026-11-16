@@ -6,20 +6,22 @@ import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, Narrow, NowNext, PageTitle, RadioCard, RadioGroup, Stack, TextArea, toast } from "@/kit";
 import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
+import { LeaveGuard } from "../../../../_shell/LeaveGuard";
+import type { Device } from "@/platform/device";
 import { leaveReviewAction } from "./actions";
 
 const t = ru.app.deal.review;
 const FORM = "review-form";
 const RATINGS = [5, 4, 3, 2, 1] as const;
 
-type Props = { dealId: string; dealTitle: string; number: number; backHref: string };
+type Props = { dealId: string; dealTitle: string; number: number; backHref: string; device: Device };
 
 /**
  * Отзыв о мастере: оценка (радио 5…1 с подписью словами), необязательный текст, пояснение про скрытые имя и контакты.
  * «Оставить отзыв» — главное действие. Двойное нажатие даёт один отзыв (форма занята, модуль отвечает CONFLICT на повтор).
  * После успеха — тост и карточка сделки.
  */
-export function ReviewForm({ dealId, dealTitle, number, backHref }: Props) {
+export function ReviewForm({ dealId, dealTitle, number, backHref, device }: Props) {
   const router = useRouter();
   const [rating, setRating] = useState<number | null>(null);
   const [text, setText] = useState("");
@@ -66,6 +68,7 @@ export function ReviewForm({ dealId, dealTitle, number, backHref }: Props) {
             </Stack>
           </form>
         </Card>
+        <LeaveGuard dirty={!done && (rating !== null || text.trim() !== "")} device={device} />
         <ActionDock>
           <Button type="submit" form={FORM} disabled={done} pending={form.pending}>
             {t.submit}
