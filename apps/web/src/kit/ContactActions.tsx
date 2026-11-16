@@ -20,13 +20,13 @@ export function ContactActions({ phone, phoneDisplay }: ContactActionsProps) {
   const wa = whatsappHref(phone);
   return (
     <div className="flex flex-wrap items-center gap-2 px-card pb-3">
-      <a href={telHref(phone)} className={buttonClasses({ variant: "secondary" })}>
+      <a href={telHref(phone)} className={buttonClasses({ variant: "secondary", size: "sm" })}>
         <Phone aria-hidden className="size-5" />
         {t.call}
         <span className="sr-only">{`: ${phoneDisplay}`}</span>
       </a>
       {wa && (
-        <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses({ variant: "secondary" })}>
+        <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses({ variant: "secondary", size: "sm" })}>
           {t.whatsapp}
           <span className="sr-only">{` (${ru.app.kit.externalHint})`}</span>
         </a>
