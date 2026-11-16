@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { testBin, testIin } from "@/demo/kz-id";
+import { testBin, testIin } from "@/seed/kz-id";
 import { executorRegistrationSchema } from "./registration-schema";
 
 const IIN = testIin("910803", 3, 21);

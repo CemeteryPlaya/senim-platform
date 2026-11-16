@@ -19,7 +19,7 @@ const NEXT = "/v2/deals/1";
 
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ SMS_PROVIDER: "mock" });
 });
 afterEach(() => {
   Object.assign(PD, ORIGINAL);

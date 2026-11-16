@@ -1,6 +1,6 @@
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { testIin } from "@/demo/kz-id";
+import { testIin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
 import { sessionCookieName } from "@/modules/identity";
 import { db } from "@/platform/db";
@@ -19,7 +19,7 @@ const NEXT = "/v2/deals/1";
 
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ SMS_PROVIDER: "mock" });
 });
 
 /** Итог действия: адрес перехода (redirect) или результат. */
@@ -75,14 +75,14 @@ describe("requestCodeAction", () => {
     const res = await run(requestCodeAction({ phone: "8 700 000 66 01" }));
     expect(res).toEqual({
       ok: true,
-      data: { phone: "+7 700 000 66 01", expiresAt: expect.any(String), demoCode: FAKE_OTP_CODE, alreadySent: false },
+      data: { phone: "+7 700 000 66 01", expiresAt: expect.any(String), shownCode: FAKE_OTP_CODE, alreadySent: false },
     });
     expect(callsOf("requestOtp")[0].request).toMatchObject({ phone: PHONE });
   });
 
   it("identity не вернул код — null", async () => {
-    identityFake.demoEnabled = false;
-    expect(await run(requestCodeAction({ phone: PHONE }))).toMatchObject({ ok: true, data: { demoCode: null } });
+    identityFake.otpProviderMock = false;
+    expect(await run(requestCodeAction({ phone: PHONE }))).toMatchObject({ ok: true, data: { shownCode: null } });
   });
 
   it("неверный номер — ошибка у поля, identity не вызывается", async () => {
@@ -98,13 +98,13 @@ describe("requestCodeAction", () => {
   it("слишком часто (перезагрузка на шаге кода) — не ошибка: «код уже отправлен» этому номеру, без кода и срока", async () => {
     identityFake.failNextWithCode("otp_too_often");
     const res = await run(requestCodeAction({ phone: "8 700 000 66 01" }));
-    expect(res).toEqual({ ok: true, data: { phone: "+7 700 000 66 01", expiresAt: null, demoCode: null, alreadySent: true } });
+    expect(res).toEqual({ ok: true, data: { phone: "+7 700 000 66 01", expiresAt: null, shownCode: null, alreadySent: true } });
   });
 
   it("после отказа «слишком часто» прежний код действует и впускает", async () => {
     await run(requestCodeAction({ phone: PHONE }));
     identityFake.failNextWithCode("otp_too_often");
-    expect(await run(requestCodeAction({ phone: PHONE }))).toMatchObject({ ok: true, data: { alreadySent: true, demoCode: null } });
+    expect(await run(requestCodeAction({ phone: PHONE }))).toMatchObject({ ok: true, data: { alreadySent: true, shownCode: null } });
     expect(await run(verifyCodeAction({ phone: PHONE, code: FAKE_OTP_CODE, next: "" }))).toEqual({ redirect: "/v2/consent" });
   });
 

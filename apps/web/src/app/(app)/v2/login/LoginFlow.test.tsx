@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe("CodeStep: поле → «Войти» → повтор → «Изменить номер»", () => {
   type Sent = Parameters<typeof CodeStep>[0]["sent"];
-  const sent: Sent = { phone: "+7 700 000 66 01", demoCode: "123456", retryAt: NOW + 60_000, notice: "none" };
+  const sent: Sent = { phone: "+7 700 000 66 01", shownCode: "123456", retryAt: NOW + 60_000, notice: "none" };
   const render = (over: Partial<Sent> = {}, device: "mobile" | "desktop" = "mobile") => (
     <CodeStep next={null} device={device} sent={{ ...sent, ...over }} onResent={() => {}} />
   );
@@ -58,7 +58,7 @@ describe("CodeStep: поле → «Войти» → повтор → «Изме�
 
   it("код уже был отправлен — пояснение; новый отправлен — «Отправили новый код»", () => {
     vi.useFakeTimers({ now: NOW });
-    expect(text(render({ notice: "alreadySent", demoCode: null }))).toContain(t.alreadySent);
+    expect(text(render({ notice: "alreadySent", shownCode: null }))).toContain(t.alreadySent);
     expect(text(render({ notice: "resent" }))).toContain(t.resent);
     expect(text(render())).not.toContain(t.alreadySent);
   });

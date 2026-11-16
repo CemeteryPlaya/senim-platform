@@ -37,7 +37,6 @@ export type CurrentUser = {
    * только экранам контактов и почты, которые читают его из identity. Шаг почты при входе — needsEmail (email.ts).
    */
   emailVerified: boolean;
-  isDemo: boolean;
   /**
    * Профиль исполнителя этого аккаунта, если он есть (в любой активной роли: экран регистрации
    * и история сделок). Права исполнителя — только при role = EXECUTOR.
@@ -96,7 +95,7 @@ async function deleteSessionCookie(): Promise<void> {
 }
 
 /**
- * Начало сессии по ответу identity на вход (VerifyOtp, StartDemoSession): проекция пользователя и cookie.
+ * Начало сессии по ответу identity на вход (VerifyOtp): проекция пользователя и cookie.
  * Срок жизни cookie — `expires_at` сессии identity. Проекция не удалась — сессия в identity уже создана, а cookie
  * не будет: сессия отзывается (сбой отзыва — в лог), наружу уходит исходная ошибка проекции.
  */
@@ -197,7 +196,6 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     fullName: row.fullName,
     iinLast4: row.iinLast4,
     emailVerified: row.emailVerifiedAt !== null,
-    isDemo: row.isDemo,
     executor: row.executorProfile,
     mfa: { required: session.mfaRequired, verifiedAt: session.mfaVerifiedAt ? timestampDate(session.mfaVerifiedAt) : null },
     consents: consents.map((c) => ({ id: c.id, version: c.version, textSha256: c.textSha256 })),

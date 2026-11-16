@@ -43,10 +43,10 @@ const sameRoles = (a: readonly string[], b: readonly string[]) => a.length === b
 
 /**
  * Проекция пользователя identity в старую таблицу `User` (тот же `id`): на неё ссылаются сделки, заявки и профили.
- * Пишутся только поля пользователя identity: телефон, роль по умолчанию, роли, демо-флаг, блокировка; личность
+ * Пишутся только поля пользователя identity: телефон, роль по умолчанию, роли, блокировка; личность
  * (ФИО, ИИН, контакты) — projectPerson. Обновляются только изменившиеся поля. Строка с тем же телефоном, но другим `id`
  * (dev-база до перехода на identity) — ошибка с записью в лог, а не дубль.
- * `client` — транзакция сида демо (пользователи появляются вместе с остальными данными); по умолчанию — `db`.
+ * `client` — транзакция сида стенда (пользователи появляются вместе с остальными данными); по умолчанию — `db`.
  */
 export async function projectUser(user: User, client: Tx = db): Promise<void> {
   try {
@@ -71,9 +71,9 @@ async function project(user: User, client: Tx): Promise<void> {
     return fail.conflict();
   }
 
-  const row = await client.user.findUnique({ where: { id: user.id }, select: { phone: true, role: true, roles: true, isDemo: true, blockedAt: true } });
+  const row = await client.user.findUnique({ where: { id: user.id }, select: { phone: true, role: true, roles: true, blockedAt: true } });
   if (!row) {
-    await client.user.create({ data: { id: user.id, phone: user.phone, role, roles, isDemo: user.isDemo, blockedAt } });
+    await client.user.create({ data: { id: user.id, phone: user.phone, role, roles, blockedAt } });
     return;
   }
 
@@ -81,7 +81,6 @@ async function project(user: User, client: Tx): Promise<void> {
     ...(row.phone !== user.phone && { phone: user.phone }),
     ...(row.role !== role && { role }),
     ...(!sameRoles(row.roles, roles) && { roles }),
-    ...(row.isDemo !== user.isDemo && { isDemo: user.isDemo }),
     ...((row.blockedAt?.getTime() ?? null) !== (blockedAt?.getTime() ?? null) && { blockedAt }),
   };
   if (Object.keys(data).length > 0) await client.user.update({ where: { id: user.id }, data });

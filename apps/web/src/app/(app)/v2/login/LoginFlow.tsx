@@ -47,7 +47,7 @@ type SentNotice = "none" | "resent" | "alreadySent";
 /** Код отправлен: номер для показа и повторной отправки, код заглушки SMS (если есть), когда можно запросить новый. */
 type Sent = {
   phone: string;
-  demoCode: string | null;
+  shownCode: string | null;
   retryAt: number;
   notice: SentNotice;
 };
@@ -93,7 +93,7 @@ export function LoginFlow({ step: requested, role, next, device, rolePhotos }: P
   const codeSent = (data: SentData, resent: boolean) =>
     setSent((previous) => ({
       phone: data.phone,
-      demoCode: data.alreadySent ? (previous?.phone === data.phone ? previous.demoCode : null) : data.demoCode,
+      shownCode: data.alreadySent ? (previous?.phone === data.phone ? previous.shownCode : null) : data.shownCode,
       retryAt: Date.now() + RESEND_SECONDS * 1000,
       notice: data.alreadySent ? "alreadySent" : resent ? "resent" : "none",
     }));
@@ -176,7 +176,7 @@ export function RoleStep({ role, next, photos }: { role: LoginRole; next: string
 }
 
 /** Ответ запроса кода; `alreadySent` — новый код не выдан (раньше минуты), действует прежний. */
-type SentData = { phone: string; demoCode: string | null; alreadySent: boolean };
+type SentData = { phone: string; shownCode: string | null; alreadySent: boolean };
 
 function PhoneStep({ next, phone, onSent }: { next: string | null; phone: string | undefined; onSent: (data: SentData) => void }) {
   const form = useActionForm(requestCodeAction, { onSuccess: onSent });
@@ -248,8 +248,8 @@ export function CodeStep({
             {t.code.alreadySent}
           </Notice>
         )}
-        {sent.demoCode && (
-          <ShownCode lead={t.code.shownLead} codeLine={t.code.shownCode(sent.demoCode)} />
+        {sent.shownCode && (
+          <ShownCode lead={t.code.shownLead} codeLine={t.code.shownCode(sent.shownCode)} />
         )}
         {/* Одна строка колонки: форма повтора пустая (только номер) и не должна давать лишний зазор. */}
         <div>

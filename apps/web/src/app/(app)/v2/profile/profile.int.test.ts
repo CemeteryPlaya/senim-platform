@@ -31,7 +31,7 @@ const d = ru.app.profile.data;
 
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ SMS_PROVIDER: "mock" });
   identityFake.now = () => new Date();
 });
 

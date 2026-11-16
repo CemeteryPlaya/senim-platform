@@ -1,6 +1,6 @@
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { testIin } from "@/demo/kz-id";
+import { testIin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
 import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
 import { getCurrentUser } from "@/modules/identity";
@@ -25,7 +25,7 @@ const ADDRESS = "erlan@mail.kz";
 
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ SMS_PROVIDER: "mock" });
   identityFake.now = () => new Date();
 });
 
@@ -70,8 +70,8 @@ async function atEmail(role: "client" | "executor" | null = null) {
 /** Запросить код и вернуть его (подделка identity с мок-провайдером писем отдаёт код в ответе). */
 async function sentCode(email = ADDRESS): Promise<string> {
   const res = await run(requestEmailCodeAction({ email, next: "" }));
-  if (!("ok" in res) || !res.ok || !res.data.demoCode) throw new Error(`код не выслан: ${JSON.stringify(res)}`);
-  return res.data.demoCode;
+  if (!("ok" in res) || !res.ok || !res.data.shownCode) throw new Error(`код не выслан: ${JSON.stringify(res)}`);
+  return res.data.shownCode;
 }
 
 const wrong = (code: string) => (code === "000000" ? "111111" : "000000");
@@ -80,7 +80,7 @@ describe("requestEmailCodeAction", () => {
   it("код выслан: адрес для строки «Отправили код на …» (без пробелов, строчными) и код заглушки писем", async () => {
     await atEmail();
     const res = await run(requestEmailCodeAction({ email: "  Erlan@Mail.KZ ", next: "" }));
-    expect(res).toEqual({ ok: true, data: { email: ADDRESS, demoCode: expect.stringMatching(/^\d{6}$/), alreadySent: false } });
+    expect(res).toEqual({ ok: true, data: { email: ADDRESS, shownCode: expect.stringMatching(/^\d{6}$/), alreadySent: false } });
     expect(callsOf("requestEmailCode").at(-1)?.request).toMatchObject({ email: ADDRESS });
   });
 
@@ -108,7 +108,7 @@ describe("requestEmailCodeAction", () => {
     await atEmail();
     const code = await sentCode();
     const res = await run(requestEmailCodeAction({ email: ` ${ADDRESS.toUpperCase()}`, next: "" }));
-    expect(res).toEqual({ ok: true, data: { email: ADDRESS, demoCode: null, alreadySent: true } });
+    expect(res).toEqual({ ok: true, data: { email: ADDRESS, shownCode: null, alreadySent: true } });
     // Второго кода нет: identity отказал, прежний код подтверждает почту.
     expect(await run(verifyEmailCodeAction({ code, email: ADDRESS, next: NEXT }))).toEqual({ redirect: NEXT });
   });

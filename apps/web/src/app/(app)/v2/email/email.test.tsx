@@ -176,7 +176,7 @@ describe("шаг адреса", () => {
 
 describe("шаг кода", () => {
   type Sent = Parameters<typeof CodeStep>[0]["sent"];
-  const sent: Sent = { email: "erlan@mail.kz", demoCode: "123456", retryAt: Date.now() + 60_000, notice: "none" };
+  const sent: Sent = { email: "erlan@mail.kz", shownCode: "123456", retryAt: Date.now() + 60_000, notice: "none" };
   const render = (over: Partial<Sent> = {}, device: "mobile" | "desktop" = "mobile") => (
     <CodeStep next="/v2/deals/1" position={POSITION} device={device} sent={{ ...sent, ...over }} onResent={() => {}} />
   );
@@ -201,11 +201,11 @@ describe("шаг кода", () => {
   });
 
   it("без кода от identity плашки нет", () => {
-    expect(text(render({ demoCode: null }))).not.toContain(t.code.shownCode(""));
+    expect(text(render({ shownCode: null }))).not.toContain(t.code.shownCode(""));
   });
 
   it("код уже был отправлен (перезагрузка, запрос раньше минуты) — пояснение плашкой", () => {
-    expect(text(render({ notice: "alreadySent", demoCode: null }))).toContain(t.code.alreadySent);
+    expect(text(render({ notice: "alreadySent", shownCode: null }))).toContain(t.code.alreadySent);
     expect(text(render())).not.toContain(t.code.alreadySent);
     expect(text(render({ notice: "resent" }))).toContain(t.code.resent);
   });
@@ -252,22 +252,22 @@ describe("шаг кода", () => {
 
 describe("sentAfter: что показать после запроса кода", () => {
   const NOW = 1_000_000;
-  const data = (over: Partial<{ email: string; demoCode: string | null; alreadySent: boolean }> = {}) => ({
+  const data = (over: Partial<{ email: string; shownCode: string | null; alreadySent: boolean }> = {}) => ({
     email: "erlan@mail.kz",
-    demoCode: "123456",
+    shownCode: "123456",
     alreadySent: false,
     ...over,
   });
 
   it("код отправлен — без плашки, повтор через минуту", () => {
-    expect(sentAfter(null, data(), false, NOW)).toEqual({ email: "erlan@mail.kz", demoCode: "123456", retryAt: NOW + 60_000, notice: "none" });
+    expect(sentAfter(null, data(), false, NOW)).toEqual({ email: "erlan@mail.kz", shownCode: "123456", retryAt: NOW + 60_000, notice: "none" });
     expect(sentAfter(null, data(), true, NOW).notice).toBe("resent");
   });
 
   it("код уже был отправлен после перезагрузки — плашка «уже отправлен», кода на экране нет, полный интервал повтора", () => {
-    expect(sentAfter(null, data({ demoCode: null, alreadySent: true }), false, NOW)).toEqual({
+    expect(sentAfter(null, data({ shownCode: null, alreadySent: true }), false, NOW)).toEqual({
       email: "erlan@mail.kz",
-      demoCode: null,
+      shownCode: null,
       retryAt: NOW + 60_000,
       notice: "alreadySent",
     });
@@ -275,13 +275,13 @@ describe("sentAfter: что показать после запроса кода"
 
   it("тому же адресу в этой странице — прежний код заглушки остаётся на экране", () => {
     const previous = sentAfter(null, data(), false, NOW);
-    expect(sentAfter(previous, data({ demoCode: null, alreadySent: true }), true, NOW + 5_000).demoCode).toBe("123456");
-    expect(sentAfter(previous, data({ email: "other@mail.kz", demoCode: null, alreadySent: true }), false, NOW).demoCode).toBeNull();
+    expect(sentAfter(previous, data({ shownCode: null, alreadySent: true }), true, NOW + 5_000).shownCode).toBe("123456");
+    expect(sentAfter(previous, data({ email: "other@mail.kz", shownCode: null, alreadySent: true }), false, NOW).shownCode).toBeNull();
   });
 });
 
 describe("refusalAfter: «код уже отправлен» на шаге адреса", () => {
-  const sent = (email: string, alreadySent: boolean) => ({ email, demoCode: null, alreadySent });
+  const sent = (email: string, alreadySent: boolean) => ({ email, shownCode: null, alreadySent });
 
   it("в этой странице код уходил на другой адрес — отказ у поля «код отправлен на другой адрес», а не шаг кода", () => {
     expect(refusalAfter("a@mail.kz", sent("b@mail.kz", true))).toBe(t.errors.otherAddress);

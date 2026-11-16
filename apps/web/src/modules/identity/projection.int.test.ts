@@ -9,7 +9,7 @@ import { projectUser } from "./projection";
 
 afterEach(() => vi.restoreAllMocks());
 
-function identityUser(over: Partial<{ id: string; phone: string; defaultRole: ProtoRole; roles: ProtoRole[]; isDemo: boolean; blockedAt: Date }> = {}): User {
+function identityUser(over: Partial<{ id: string; phone: string; defaultRole: ProtoRole; roles: ProtoRole[]; blockedAt: Date }> = {}): User {
   const { blockedAt, ...rest } = over;
   return create(UserSchema, {
     id: "u-77001234567",
@@ -23,13 +23,12 @@ function identityUser(over: Partial<{ id: string; phone: string; defaultRole: Pr
 
 describe("projectUser", () => {
   it("создаёт строку User с тем же id", async () => {
-    await projectUser(identityUser({ isDemo: true }));
+    await projectUser(identityUser());
 
     expect(await db.user.findUniqueOrThrow({ where: { id: "u-77001234567" } })).toMatchObject({
       phone: "+77001234567",
       role: "CLIENT",
       roles: ["CLIENT"],
-      isDemo: true,
       blockedAt: null,
     });
   });

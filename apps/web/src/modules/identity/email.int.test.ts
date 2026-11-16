@@ -8,7 +8,7 @@ import { freshBrowser } from "../../../test/factories/identity";
 import { signInAs } from "../../../test/factories/session";
 import { identityFake } from "../../../test/stubs/identity";
 import { updateContacts } from "./contacts-profile";
-import { projectSeedPerson } from "./demo";
+import { projectSeedPerson } from "./seed";
 import { needsEmail, requestEmailCode, verifyEmailCode } from "./email";
 import { getCurrentUser, type CurrentUser } from "./session";
 
@@ -47,9 +47,9 @@ async function sentFor(user: CurrentUser, email = ADDRESS) {
 }
 
 async function codeFor(user: CurrentUser, email = ADDRESS): Promise<string> {
-  const { demoCode } = await sentFor(user, email);
-  if (!demoCode) throw new Error("подделка с мок-провайдером почты возвращает код");
-  return demoCode;
+  const { shownCode } = await sentFor(user, email);
+  if (!shownCode) throw new Error("подделка с мок-провайдером почты возвращает код");
+  return shownCode;
 }
 
 /** Другой код из 6 цифр, заведомо неверный. */
@@ -61,7 +61,7 @@ describe("requestEmailCode", () => {
     const before = Date.now();
     const sent = await sentFor(user, `  ${ADDRESS} `);
 
-    expect(sent.demoCode).toMatch(/^\d{6}$/);
+    expect(sent.shownCode).toMatch(/^\d{6}$/);
     expect(sent.expiresAt.getTime()).toBeGreaterThanOrEqual(before + 10 * 60_000 - 1000);
     expect(sent.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 10 * 60_000 + 1000);
     const [call] = callsOf("requestEmailCode");
@@ -77,10 +77,10 @@ describe("requestEmailCode", () => {
     expect(await row(user.id)).toEqual({ email: null, emailVerifiedAt: null });
   });
 
-  it("identity не вернул код (провайдер писем — не мок) — demoCode null", async () => {
+  it("identity не вернул код (провайдер писем — не мок) — shownCode null", async () => {
     const user = await signedIn();
     identityFake.emailProviderMock = false;
-    expect((await sentFor(user)).demoCode).toBeNull();
+    expect((await sentFor(user)).shownCode).toBeNull();
   });
 
   it("неверный адрес — VALIDATION у поля email без вызова identity", async () => {
@@ -135,7 +135,7 @@ describe("requestEmailCode", () => {
     expect(second.idempotencyKey).toBe(first.idempotencyKey);
     expect(sent.expiresAt).toEqual(expect.any(Date));
     // Сохранённый ответ кода не раскрывает (как в Go): повтор возвращает его пустым.
-    expect(sent.demoCode).toBeNull();
+    expect(sent.shownCode).toBeNull();
   });
 
   it("тот же адрес уже подтверждён — { alreadyVerified: true } без кода и без траты лимита; другой адрес — код", async () => {
@@ -149,7 +149,7 @@ describe("requestEmailCode", () => {
     expect(await requestEmailCode(user, ` ${ADDRESS.toUpperCase()} `)).toEqual({ alreadyVerified: true });
     expect(identityFake.auditEvents).toHaveLength(before);
     // Лимит «раз в минуту» не потрачен: другой адрес сразу получает код.
-    expect((await sentFor(user, "other@example.kz")).demoCode).toMatch(/^\d{6}$/);
+    expect((await sentFor(user, "other@example.kz")).shownCode).toMatch(/^\d{6}$/);
   });
 
   it("уже подтверждён в identity, а проекция отстала — проекция обновляется, шаг почты больше не нужен", async () => {
@@ -437,11 +437,11 @@ describe("проекция почты и прежний экран контак�
 
   it("человек сида демо получает подтверждённую почту в проекции (как её отдаёт сид identity)", async () => {
     const user = await makeClient();
-    await projectSeedPerson(user.id, { phone: user.phone, role: "CLIENT", roles: ["CLIENT"], isDemo: true, createdAt: new Date(), fullName: "Демо Клиент", email: ADDRESS }, db);
+    await projectSeedPerson(user.id, { phone: user.phone, role: "CLIENT", roles: ["CLIENT"], createdAt: new Date(), fullName: "Тестовый Клиент", email: ADDRESS }, db);
     expect((await row(user.id)).emailVerifiedAt).toBeInstanceOf(Date);
 
     const other = await makeClient();
-    await projectSeedPerson(other.id, { phone: other.phone, role: "CLIENT", roles: ["CLIENT"], isDemo: true, createdAt: new Date(), fullName: "Демо Клиент" }, db);
+    await projectSeedPerson(other.id, { phone: other.phone, role: "CLIENT", roles: ["CLIENT"], createdAt: new Date(), fullName: "Тестовый Клиент" }, db);
     expect(await row(other.id)).toEqual({ email: null, emailVerifiedAt: null });
   });
 });

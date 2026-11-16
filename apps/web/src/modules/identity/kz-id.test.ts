@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { kzCheckDigit, testBin, testIin } from "@/demo/kz-id";
+import { kzCheckDigit, testBin, testIin } from "@/seed/kz-id";
 import { binIinKindFor, isValidBin, isValidIin } from "./kz-id";
 
 describe("ИИН", () => {

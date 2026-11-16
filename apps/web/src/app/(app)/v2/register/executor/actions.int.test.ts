@@ -1,6 +1,6 @@
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { testBin, testIin } from "@/demo/kz-id";
+import { testBin, testIin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
 import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
 import { getCurrentUser } from "@/modules/identity";
@@ -29,7 +29,7 @@ const STATUS = "/v2/register/executor";
 beforeEach(() => {
   h.revalidated = [];
   freshBrowser({ "user-agent": "vitest" });
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ SMS_PROVIDER: "mock" });
 });
 
 afterEach(() => {

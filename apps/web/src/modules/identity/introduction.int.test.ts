@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { testIin } from "@/demo/kz-id";
+import { testIin } from "@/seed/kz-id";
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { freshBrowser } from "../../../test/factories/identity";

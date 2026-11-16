@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { testBin, testIin } from "@/demo/kz-id";
+import { testBin, testIin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
 import { executorRegistrationSchema } from "@/modules/identity";
 import { answersSchema, errorsOf, firstInvalidStep, moduleInput, stepIssues, stepOfField, type Answers, type SubmittedAnswers } from "./schema";

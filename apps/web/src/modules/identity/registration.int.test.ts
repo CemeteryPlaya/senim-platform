@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KycStatus, LegalForm } from "@/gen/senim/identity/v1/identity_pb";
-import { testBin, testIin } from "@/demo/kz-id";
+import { testBin, testIin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
 import { agreeToContract } from "@/modules/requests";
 import { encryptPii, hashPii, last4 } from "@/platform/crypto";

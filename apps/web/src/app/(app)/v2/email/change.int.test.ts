@@ -19,7 +19,7 @@ const CONTACTS = "/v2/profile/contacts?email=changed";
 
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ SMS_PROVIDER: "mock" });
   identityFake.now = () => new Date();
 });
 
@@ -42,8 +42,8 @@ async function verifiedBuyer() {
 
 async function codeFor(email: string): Promise<string> {
   const res = await run(requestEmailCodeAction({ email, next: "", change: "1" }));
-  if (!("ok" in res) || !res.ok || !res.data.demoCode) throw new Error(`код не выслан: ${JSON.stringify(res)}`);
-  return res.data.demoCode;
+  if (!("ok" in res) || !res.ok || !res.data.shownCode) throw new Error(`код не выслан: ${JSON.stringify(res)}`);
+  return res.data.shownCode;
 }
 
 describe("смена подтверждённой почты", () => {

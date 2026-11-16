@@ -105,7 +105,7 @@ async function ForUser({ user }: { user: CurrentUser }) {
         <Step action={null}>
           <Card>
             <StatusBadge tone="warning" icon={<Clock />} className="self-start">
-              {ru.identity.demo.executorStatus.PENDING}
+              {ru.identity.executorStatus.PENDING}
             </StatusBadge>
             <h2 className="text-xl font-bold text-ink">{t.pending.title}</h2>
             <p className="text-lg text-ink">{t.pending.text}</p>

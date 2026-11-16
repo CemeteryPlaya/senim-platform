@@ -16,7 +16,7 @@ vi.mock("next/headers", async () => (await import("../../../test/factories/ident
 const t = ru.identity.mfa;
 
 beforeEach(() => freshBrowser());
-afterEach(() => setEnv({ MFA_STEP_UP_WINDOW: undefined, DEMO_MODE: undefined }));
+afterEach(() => setEnv({ MFA_STEP_UP_WINDOW: undefined }));
 
 async function errorOf(p: Promise<unknown> | (() => unknown)): Promise<AppError> {
   try {
@@ -118,7 +118,7 @@ describe("второй фактор оператора: подключение �
 
 describe("requireRecentMfa: свежий код перед действием с деньгами", () => {
   const at = new Date("2026-11-11T10:00:00Z");
-  const operator = (verifiedAt: Date | null, isDemo = false): CurrentUser => ({
+  const operator = (verifiedAt: Date | null): CurrentUser => ({
     id: "u1",
     role: "OPERATOR",
     roles: ["OPERATOR"],
@@ -126,7 +126,6 @@ describe("requireRecentMfa: свежий код перед действием с
     fullName: null,
     iinLast4: null,
     emailVerified: false,
-    isDemo,
     executor: null,
     mfa: { required: true, verifiedAt },
     consents: [],
@@ -151,10 +150,7 @@ describe("requireRecentMfa: свежий код перед действием с
     expect((await errorOf(() => requireRecentMfa(operator(at), plus(61_000)))).code).toBe("MFA_REQUIRED");
   });
 
-  it("демо-оператор при DEMO_MODE=true не спрашивается (у демо-персон нет приложения); без DEMO_MODE — спрашивается", async () => {
-    setEnv({ DEMO_MODE: "true" });
-    expect(() => requireRecentMfa(operator(at, true), plus(60 * 60_000))).not.toThrow();
-    setEnv({ DEMO_MODE: "false" });
-    expect((await errorOf(() => requireRecentMfa(operator(at, true), plus(60 * 60_000)))).code).toBe("MFA_REQUIRED");
+  it("исключений нет: оператор стенда с давней отметкой — MFA_REQUIRED", async () => {
+    expect((await errorOf(() => requireRecentMfa(operator(at), plus(60 * 60_000)))).code).toBe("MFA_REQUIRED");
   });
 });

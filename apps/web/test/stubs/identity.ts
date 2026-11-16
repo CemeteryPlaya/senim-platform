@@ -40,8 +40,8 @@ import {
   RequestEmailCodeResponseSchema,
   RequestOtpRequestSchema,
   RequestOtpResponseSchema,
-  ResetDemoRequestSchema,
-  ResetDemoResponseSchema,
+  ResetStandRequestSchema,
+  ResetStandResponseSchema,
   ResolveConsentRevocationRequestSchema,
   ResolveConsentRevocationResponseSchema,
   RevealPartyDetailsRequestSchema,
@@ -65,8 +65,6 @@ import {
   SignOutRequestSchema,
   SignOutResponseSchema,
   SigningSide,
-  StartDemoSessionRequestSchema,
-  StartDemoSessionResponseSchema,
   StartTotpEnrollmentRequestSchema,
   StartTotpEnrollmentResponseSchema,
   SubmitKycRequestSchema,
@@ -95,7 +93,7 @@ import {
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { z } from "zod";
-import { toBase32, totpCode, totpStep } from "../../e2e/totp";
+import { fromBase32, toBase32, totpCode, totpStep } from "../../e2e/totp";
 // Прямой импорт файла, а не index.ts: index тянет next/headers, и подделка (она грузится в setup до vi.mock) закрепила бы настоящий модуль.
 // eslint-disable-next-line no-restricted-imports
 import { TOKEN_SHAPE } from "@/modules/identity/session-cookie";
@@ -109,7 +107,7 @@ import { isValidBin, isValidIin } from "@/modules/identity/kz-id";
 // Тот же разбор IBAN, что в Go (party.go, parseKzIban).
 // eslint-disable-next-line no-restricted-imports
 import { parseKzIban } from "@/modules/identity/iban";
-// Текущая редакция согласия на ПДн: пользователи тестов по умолчанию уже дали его (как демо-персоны после сида).
+// Текущая редакция согласия на ПДн: пользователи тестов по умолчанию уже дали его (как люди стенда после сида).
 // eslint-disable-next-line no-restricted-imports
 import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-text";
 
@@ -126,8 +124,8 @@ import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-t
  *
  * Второй фактор (TOTP, mfa.go) повторён по Go: порядок проверок и коды, лимит 5 неверных кодов (и повторов) за
  * 15 минут фиксированным окном (верный код попытку возвращает), шаг принятого кода не принимается дважды, повтор
- * Start по ключу после замены секрета — idempotency_key_reused, демо-оператор входит с пройденной второй ступенью,
- * ResetDemo стирает факторы. Часы — `now` (тест может подменить). Вход в обход кода (`signIn`) у оператора — уже
+ * Start по ключу после замены секрета — idempotency_key_reused, SeedUsers подключает оператору стенда фактор известным
+ * секретом (totp_secret_base32) и снимает отметки второй ступени его сессий, ResetStand стирает факторы засеянных. Часы — `now` (тест может подменить). Вход в обход кода (`signIn`) у оператора — уже
  * с пройденной второй ступенью («вошедший пользователь»), если тест не передал `mfaVerifiedAt: null`.
  *
  * Личность и контакты (person.go) повторены по Go: порядок проверок и коды (формат до лимита попыток, лимит 5 попыток
@@ -163,7 +161,7 @@ import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-t
  * оператор со второй ступенью (role_forbidden, mfa_required), решённая или неизвестная заявка — revocation_closed,
  * COMPLETED отзывает согласия, данные не позже заявки. Authenticate отдаёт только действующие согласия на ПДн.
  * Пользователь, добавленный тестом (`addUser`), по умолчанию уже дал согласие на ПДн текущей редакции (канал seed) —
- * как демо-персоны после сида; новый пользователь входа по SMS, ProvisionExecutor и SeedUsers без согласия — нет.
+ * как люди стенда после сида; новый пользователь входа по SMS, ProvisionExecutor и SeedUsers без согласия — нет.
  * Расхождение с Go: HasConsents не проверяет id пользователей как UUID (как и прочие методы подделки).
  *
  * Подтверждение почты (email.go) повторено по Go: RequestEmailCode — порядок проверок (ключ, адрес — email_invalid, сессия и
@@ -171,7 +169,7 @@ import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-t
  * кода и без траты лимита, лимиты на пользователя фиксированными окнами: 1 в минуту — email_code_already_sent, если
  * действующий код (не истёк, не погашен, попытки не исчерпаны) выдан на этот же адрес, иначе email_code_too_often; 5 в час
  * и 10 в сутки — email_code_too_many, первый отказ останавливает проверку), код из 6 цифр на 10 минут, прежний код гасится;
- * demo_code — только при мок-провайдере (`emailProviderMock`) и не в сохранённом ответе (повтор по ключу — без кода).
+ * shown_code — только при мок-провайдере (`emailProviderMock`) и не в сохранённом ответе (повтор по ключу — без кода).
  * VerifyEmailCode — ключ и код (не шесть цифр после обрезки пробелов — invalid_request без траты попытки), адрес (пустой и
  * неверный — email_invalid), сессия и роль; дальше повтор по ключу, лимит 20 проверок в сутки (email_code_too_many), нет
  * действующего кода или он выдан на другой адрес — email_code_expired (попытка не тратится); попытка
@@ -318,8 +316,8 @@ type StoredConsent = {
   channel: string;
   grantedAt: Date;
   revokedAt: Date | null;
-  /** Признак демо записи (0009): из users.is_demo при создании записи, дальше не меняется. */
-  isDemo: boolean;
+  /** Признак засеянной записи (0012): из users.seeded при создании записи, дальше не меняется. */
+  seeded: boolean;
 };
 
 type StoredRevocation = {
@@ -331,8 +329,8 @@ type StoredRevocation = {
   status: RevocationStatus;
   decidedAt: Date | null;
   reason: string;
-  /** Признак демо заявки (0009): из users.is_demo при создании, дальше не меняется. */
-  isDemo: boolean;
+  /** Признак засеянной заявки (0012): из users.seeded при создании, дальше не меняется. */
+  seeded: boolean;
 };
 
 const consentKindOk = (k: ConsentKind | undefined): k is ConsentKind => k === ConsentKind.PD_PROCESSING || k === ConsentKind.BANK_TRANSFER;
@@ -342,9 +340,6 @@ function consentProof(version: string, sha: string): string {
   if (!CONSENT_VERSION_RE.test(version) || !SHA256_HEX_RE.test(sha)) throw codedError("consent_version_invalid", Code.InvalidArgument);
   return sha.toLowerCase();
 }
-
-/** sessionConsentChannel в Go: otp_session — только в сессии, открытой кодом из SMS; в демо-сессии — demo. */
-const consentChannel = (session: StoredSession) => (session.openedBy === "otp" ? "otp_session" : "demo");
 
 /** validConsentReference в Go: ПДн — без предмета, передача банку — к сделке. */
 const validConsentReference = (kind: ConsentKind, ref: string) => (kind === ConsentKind.PD_PROCESSING ? ref === "" : CONSENT_REFERENCE_RE.test(ref));
@@ -467,7 +462,8 @@ export type FakeUserInit = {
   phone: string;
   defaultRole?: Role;
   roles?: Role[];
-  isDemo?: boolean;
+  /** Засеян ли (users.seeded): SeedUsers ставит true; пользователь теста по умолчанию — настоящий. */
+  seeded?: boolean;
   blocked?: boolean;
   /** Личность, уже записанная в identity (как сид SeedUsers): null и пусто — поле не указано. */
   person?: { fullName?: string | null; iin?: string | null; instagram?: string | null; email?: string | null; emailVerified?: boolean };
@@ -480,8 +476,8 @@ export type FakeUserInit = {
   consent?: false | { version: string; textSha256: string };
 };
 
-/** openedBy — sessions.opened_by (0010): otp — вход по коду (VerifyOtp), demo — демо-вход без кода (StartDemoSession). */
-type StoredSession = { id: string; userId: string; activeRole: Role; mfaVerifiedAt: Date | null; openedBy: "otp" | "demo" };
+/** Сессия: вход только по коду (VerifyOtp) — демо-входа нет, канал согласия в сессии — otp_session. */
+type StoredSession = { id: string; userId: string; activeRole: Role; mfaVerifiedAt: Date | null };
 /** Фактор TOTP: секрет в base32 (в Go — шифртекст), подтверждён ли, последний принятый шаг. */
 type StoredFactor = { secretBase32: string; secret: Buffer; confirmed: boolean; lastUsedStep: number };
 
@@ -500,7 +496,7 @@ const STATUS_BY_CODE: Record<string, Code> = {
   session_token_invalid: Code.InvalidArgument,
   role_not_granted: Code.PermissionDenied,
   role_forbidden: Code.PermissionDenied,
-  demo_disabled: Code.FailedPrecondition,
+  stand_disabled: Code.FailedPrecondition,
   user_not_found: Code.NotFound,
   invalid_request: Code.InvalidArgument,
   mfa_required: Code.PermissionDenied,
@@ -615,9 +611,11 @@ export class FakeIdentity {
   private revocations: StoredRevocation[] = [];
   /** События аудита личности и контактов (в Go — outbox identity). */
   readonly auditEvents: FakeAuditEvent[] = [];
-  /** Включён ли демо-режим (DEMO_MODE у настоящего сервиса). */
-  demoEnabled = true;
-  /** Провайдер писем — мок (IDENTITY_EMAIL_PROVIDER=mock): код почты возвращается в demo_code. От DEMO_MODE не зависит. */
+  /** Методы стенда разрешены (APP_ENV dev или staging у настоящего сервиса); false — как при prod: stand_disabled. */
+  standEnabled = true;
+  /** Провайдер SMS — мок (IDENTITY_OTP_PROVIDER=mock): код входа возвращается в shown_code. */
+  otpProviderMock = true;
+  /** Провайдер писем — мок (IDENTITY_EMAIL_PROVIDER=mock): код почты возвращается в shown_code. */
   emailProviderMock = true;
   /** Часы сервиса (s.now в Go): шаг TOTP, окно лимита, отметка второй ступени. */
   now: () => Date = () => new Date();
@@ -638,7 +636,8 @@ export class FakeIdentity {
     this.replays.clear();
     this.effectThenFail = null;
     this.calls.length = 0;
-    this.demoEnabled = true;
+    this.standEnabled = true;
+    this.otpProviderMock = true;
     this.factors.clear();
     this.mfaFailures.clear();
     this.persons.clear();
@@ -689,7 +688,7 @@ export class FakeIdentity {
       phone: init.phone,
       defaultRole,
       roles: init.roles ?? [defaultRole],
-      isDemo: init.isDemo ?? false,
+      seeded: init.seeded ?? false,
       createdAt: timestampFromDate(new Date()),
     });
     this.users.set(user.id, user);
@@ -715,14 +714,14 @@ export class FakeIdentity {
     return user;
   }
 
-  /** Триггер identity_consent_demo_flag (0009): признак демо записи — из users.is_demo в момент вставки. */
-  private isDemoUser(userId: string): boolean {
-    return this.users.get(userId)?.isDemo === true;
+  /** Триггер identity_consent_seeded_flag (0012): признак записи — из users.seeded в момент вставки. */
+  private isSeededUser(userId: string): boolean {
+    return this.users.get(userId)?.seeded === true;
   }
 
   /** Новая запись согласия (InsertConsent/SeedConsent в Go): время — часы подделки. */
-  private insertConsent(c: Omit<StoredConsent, "id" | "grantedAt" | "revokedAt" | "isDemo">): StoredConsent {
-    const row: StoredConsent = { ...c, id: randomUUID(), grantedAt: this.now(), revokedAt: null, isDemo: this.isDemoUser(c.userId) };
+  private insertConsent(c: Omit<StoredConsent, "id" | "grantedAt" | "revokedAt" | "seeded">): StoredConsent {
+    const row: StoredConsent = { ...c, id: randomUUID(), grantedAt: this.now(), revokedAt: null, seeded: this.isSeededUser(c.userId) };
     this.consents.push(row);
     return row;
   }
@@ -840,13 +839,13 @@ export class FakeIdentity {
   /**
    * Создать сессию в обход OTP и вернуть токен — для тестов, которым нужен уже вошедший пользователь. Сессия оператора —
    * с пройденной второй ступенью сейчас; `mfaVerifiedAt` задаёт её момент (`null` — вход только по SMS). Сессия — как после
-   * входа по коду (`openedBy: "otp"`), если не задано иное.
+   * входа по коду.
    */
-  signIn(userId: string, token: string, activeRole?: Role, opts: { mfaVerifiedAt?: Date | null; openedBy?: "otp" | "demo" } = {}): void {
+  signIn(userId: string, token: string, activeRole?: Role, opts: { mfaVerifiedAt?: Date | null } = {}): void {
     const user = this.mustUser(userId);
     const role = activeRole ?? user.defaultRole;
     const mfaVerifiedAt = opts.mfaVerifiedAt !== undefined ? opts.mfaVerifiedAt : role === Role.OPERATOR ? this.now() : null;
-    this.sessions.set(token, { id: `s-${++this.counter}`, userId, activeRole: role, mfaVerifiedAt, openedBy: opts.openedBy ?? "otp" });
+    this.sessions.set(token, { id: `s-${++this.counter}`, userId, activeRole: role, mfaVerifiedAt });
   }
 
   /** Подключённый фактор в обход Start/Confirm: секрет base32 (для кода в тесте). */
@@ -911,7 +910,7 @@ export class FakeIdentity {
     if (failure !== undefined) throw failure;
   }
 
-  /** Формат токена, который задаёт вызывающий (VerifyOtp, StartDemoSession). */
+  /** Формат токена, который задаёт вызывающий (VerifyOtp). */
   private checkTokenShape(token: string): void {
     if (!TOKEN_SHAPE.test(token)) throw codedError("session_token_invalid", Code.InvalidArgument);
   }
@@ -925,9 +924,9 @@ export class FakeIdentity {
     if (!key || key.length > MAX_KEY) throw codedError("invalid_request", Code.InvalidArgument);
   }
 
-  /** Демо-методы: сначала режим (в Go — после проверки вызывающего), потом остальные проверки. */
-  private demoGate(): void {
-    if (!this.demoEnabled) throw codedError("demo_disabled", Code.FailedPrecondition);
+  /** Методы стенда (standGate в Go): сначала окружение (в Go — после проверки вызывающего), потом остальные проверки. */
+  private standGate(): void {
+    if (!this.standEnabled) throw codedError("stand_disabled", Code.FailedPrecondition);
   }
 
   /**
@@ -967,7 +966,7 @@ export class FakeIdentity {
   }
 
   /**
-   * validateSeed из demo.go: непустой список ≤ 200, телефоны верны и не повторяются, роли известны, роль по умолчанию выдана,
+   * validateSeed из stand.go: непустой список ≤ 200, телефоны верны и не повторяются, роли известны, роль по умолчанию выдана,
    * сотрудник один в своей роли; затем личность (validateSeedPerson) и сторона (validateSeedParty).
    */
   private validateSeed(users: SeedUserInit[]): void {
@@ -990,6 +989,13 @@ export class FakeIdentity {
       const sha = u.consentTextSha256 ?? "";
       if ((version === "") !== (sha === "")) throw codedError("invalid_request", Code.InvalidArgument);
       if (version !== "") consentProof(version, sha);
+      // seedTotpSecret в Go: только у оператора, base32 без «=» (регистр не важен), 16–64 байт.
+      const totp = u.totpSecretBase32 ?? "";
+      if (totp !== "") {
+        if (!roles.includes(Role.OPERATOR) || !/^[A-Z2-7]+$/i.test(totp)) throw codedError("invalid_request", Code.InvalidArgument);
+        const len = fromBase32(totp).length;
+        if (len < 16 || len > 64) throw codedError("invalid_request", Code.InvalidArgument);
+      }
     }
   }
 
@@ -1299,7 +1305,7 @@ export class FakeIdentity {
         async (req) => {
           const phone = req.phone ?? "";
           this.otpRequested.add(phone);
-          return create(RequestOtpResponseSchema, { phone, expiresAt: timestampFromDate(new Date(Date.now() + 5 * 60_000)), demoCode: this.demoEnabled ? FAKE_OTP_CODE : "" });
+          return create(RequestOtpResponseSchema, { phone, expiresAt: timestampFromDate(new Date(Date.now() + 5 * 60_000)), shownCode: this.otpProviderMock ? FAKE_OTP_CODE : "" });
         },
         (req) => {
           this.checkKey(req.idempotencyKey);
@@ -1320,7 +1326,7 @@ export class FakeIdentity {
           const user = existing ?? this.addUser({ phone, consent: false });
           this.otpRequested.delete(phone);
           // Вход по SMS: второй ступени в этой сессии ещё нет (у оператора — /operator/mfa).
-          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: user.defaultRole, mfaVerifiedAt: null, openedBy: "otp" };
+          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: user.defaultRole, mfaVerifiedAt: null };
           this.sessions.set(req.sessionToken ?? "", session);
           return create(VerifyOtpResponseSchema, { user: this.view(user), session: this.sessionView(session), isNew: !existing });
         },
@@ -1374,47 +1380,22 @@ export class FakeIdentity {
         this.users.set(user.id, updated);
         return create(GrantRoleResponseSchema, { user: this.view(updated), granted: true });
       }),
-      startDemoSession: mutating(
-        "startDemoSession",
-        StartDemoSessionRequestSchema,
-        async (req) => {
-          // Нет пользователя, он не демо или заблокирован — один отказ: метод не показывает, кто есть.
-          const user = this.users.get(req.userId ?? "");
-          if (!user || !user.isDemo || this.blocked.has(user.id)) throw codedError("user_not_found", Code.NotFound);
-          const asRole = req.asRole ? req.asRole : user.defaultRole;
-          if (!user.roles.includes(asRole)) throw codedError("role_not_granted", Code.PermissionDenied);
-          this.checkTokenFree(req.sessionToken ?? "");
-          // Демо-оператор считается прошедшим вторую ступень (demo.go: у демо-персон нет приложения).
-          const session: StoredSession = { id: `s-${++this.counter}`, userId: user.id, activeRole: asRole, mfaVerifiedAt: asRole === Role.OPERATOR ? this.now() : null, openedBy: "demo" };
-          this.sessions.set(req.sessionToken ?? "", session);
-          return create(StartDemoSessionResponseSchema, { user: this.view(user), session: this.sessionView(session) });
-        },
-        (req) => {
-          // Порядок Go (demo.go): режим, формат токена, ключ, роль.
-          this.demoGate();
-          this.checkTokenShape(req.sessionToken ?? "");
-          this.checkKey(req.idempotencyKey);
-          if (req.asRole !== undefined && req.asRole !== Role.UNSPECIFIED && !(req.asRole in Role)) throw codedError("invalid_request", Code.InvalidArgument);
-        },
-      ),
       seedUsers: mutating(
         "seedUsers",
         SeedUsersRequestSchema,
         async (req) => {
-          // Как UpsertSeedUser в Go: по телефону; у существующего id прежний, роли, демо-флаг и created_at (если задан) — из запроса, блокировка снимается.
-          // WHERE users.is_demo OR NOT EXCLUDED.is_demo: настоящего пользователя (is_demo = false) сид демо не делает —
+          // Как UpsertSeedUser в Go: по телефону; у существующего id прежний, роли и created_at (если задан) — из запроса,
+          // seeded = true, блокировка снимается. WHERE users.seeded: телефон настоящего пользователя (seeded = false) —
           // invalid_request, и вся транзакция откатывается (проверка до любых изменений).
-          const demoByPhone = new Map([...this.users.values()].map((x) => [x.phone, x.isDemo]));
           for (const u of req.users ?? []) {
             const phone = normalizePhone(u.phone ?? "");
-            if (demoByPhone.get(phone) === false && u.isDemo) throw codedError("invalid_request", Code.InvalidArgument);
-            demoByPhone.set(phone, u.isDemo ?? false);
+            if ([...this.users.values()].some((x) => x.phone === phone && !x.seeded)) throw codedError("invalid_request", Code.InvalidArgument);
           }
           const seeded: User[] = [];
           for (const u of req.users ?? []) {
             const phone = normalizePhone(u.phone ?? "");
             const existing = [...this.users.values()].find((x) => x.phone === phone);
-            const user = this.addUser({ id: existing?.id, phone, defaultRole: u.defaultRole, roles: [...new Set((u.roles ?? []) as Role[])], isDemo: u.isDemo ?? false, consent: false });
+            const user = this.addUser({ id: existing?.id, phone, defaultRole: u.defaultRole, roles: [...new Set((u.roles ?? []) as Role[])], seeded: true, consent: false });
             const createdAt = u.createdAt ? create(TimestampSchema, u.createdAt) : existing?.createdAt;
             if (createdAt) user.createdAt = createdAt;
             this.blocked.delete(user.id);
@@ -1423,7 +1404,7 @@ export class FakeIdentity {
             if (Object.keys(person).length > 0) {
               this.persons.set(user.id, { ...(this.persons.get(user.id) ?? { fullName: "", iin: "", instagram: "", email: "" }), ...person });
             }
-            // Адрес сида — подтверждённый: демо-персона не проходит шаг почты (решение по задаче A2).
+            // Адрес сида — подтверждённый: человек стенда не проходит шаг почты (решение по задаче A2).
             if (person.email) this.emailVerified.add(user.id);
             if (u.party) this.parties.set(user.id, this.seedPartyOf(u.party, user.roles, this.persons.get(user.id)?.iin));
             // SeedConsent в Go: действующее согласие той же версии уже есть — без изменений.
@@ -1432,12 +1413,19 @@ export class FakeIdentity {
               const textSha256 = (u.consentTextSha256 ?? "").toLowerCase();
               this.insertConsent({ userId: user.id, kind: ConsentKind.PD_PROCESSING, version, textSha256, purposes: [], referenceId: "", channel: "seed" });
             }
+            // seedMfaFactor в Go: фактор сразу подтверждён известным секретом (шаг последнего кода сохраняется), отметки
+            // второй ступени сессий пользователя снимаются.
+            if (u.totpSecretBase32) {
+              const secretBase32 = u.totpSecretBase32.toUpperCase();
+              this.factors.set(user.id, { secretBase32, secret: fromBase32(secretBase32), confirmed: true, lastUsedStep: this.factors.get(user.id)?.lastUsedStep ?? 0 });
+              for (const s of this.sessions.values()) if (s.userId === user.id) s.mfaVerifiedAt = null;
+            }
             seeded.push(user);
           }
           return create(SeedUsersResponseSchema, { users: seeded.map((u) => this.view(u)) });
         },
         (req) => {
-          this.demoGate();
+          this.standGate();
           this.checkKey(req.idempotencyKey);
           this.validateSeed(req.users ?? []);
         },
@@ -1446,7 +1434,7 @@ export class FakeIdentity {
         "seedConsents",
         SeedConsentsRequestSchema,
         async (req) => {
-          // Транзакция Go: пользователь должен существовать (признак демо не нужен, Ruling AG); действующее той же версии и
+          // Транзакция Go: пользователь должен существовать (признак seeded не нужен, Ruling AG); действующее той же версии и
           // предмета — без новой записи, другой текст — consent_version_invalid; всё или ничего.
           const rows = (req.consents ?? []).map((c) => ({ userId: c.userId ?? "", kind: c.kind as ConsentKind, version: c.version ?? "", textSha256: consentProof(c.version ?? "", c.textSha256 ?? ""), referenceId: c.referenceId ?? "" }));
           const fresh: typeof rows = [];
@@ -1459,9 +1447,9 @@ export class FakeIdentity {
           for (const r of fresh) this.insertConsent({ ...r, purposes: [], channel: "seed" });
           return create(SeedConsentsResponseSchema);
         },
-        // Порядок Go (demo.go): режим, ключ, затем validateSeedConsents — 1–500 записей, UUID, вид, предмет, версия и хэш.
+        // Порядок Go (stand.go): окружение, ключ, затем validateSeedConsents — 1–500 записей, UUID, вид, предмет, версия и хэш.
         (req) => {
-          this.demoGate();
+          this.standGate();
           this.checkKey(req.idempotencyKey);
           const consents = req.consents ?? [];
           if (consents.length === 0 || consents.length > 500) throw codedError("invalid_request", Code.InvalidArgument);
@@ -1472,9 +1460,9 @@ export class FakeIdentity {
           }
         },
       ),
-      resetDemo: mutating(
-        "resetDemo",
-        ResetDemoRequestSchema,
+      resetStand: mutating(
+        "resetStand",
+        ResetStandRequestSchema,
         async () => {
           // Пользователи остаются; сессии, коды и сохранённые ответы стираются (свой ответ once() запишет после очистки).
           this.sessions.clear();
@@ -1483,15 +1471,16 @@ export class FakeIdentity {
           this.emailLimits.clear(); // DeleteAllRateLimits
           this.replays.clear();
           this.mfaFailures.clear();
-          this.factors.clear(); // Ruling E: повторный прогон e2e подключает TOTP заново
-          // identity_purge_demo_consents в Go (0009): удаляются согласия и заявки с признаком демо самой записи — не по
-          // текущему users.is_demo (пометка пользователя демо задним числом его записи не открывает для удаления).
-          this.consents = this.consents.filter((c) => !c.isDemo);
-          this.revocations = this.revocations.filter((r) => !r.isDemo);
-          return create(ResetDemoResponseSchema);
+          // DeleteSeededMfaFactors: факторы только засеянных — фактор настоящего оператора остаётся.
+          for (const id of [...this.factors.keys()]) if (this.users.get(id)?.seeded) this.factors.delete(id);
+          // identity_purge_seeded_consents в Go (0012): удаляются согласия и заявки с признаком самой записи — не по
+          // текущему users.seeded.
+          this.consents = this.consents.filter((c) => !c.seeded);
+          this.revocations = this.revocations.filter((r) => !r.seeded);
+          return create(ResetStandResponseSchema);
         },
         (req) => {
-          this.demoGate();
+          this.standGate();
           this.checkKey(req.idempotencyKey);
         },
       ),
@@ -1600,7 +1589,7 @@ export class FakeIdentity {
       ),
       requestEmailCode: async (req: MessageInitShape<typeof RequestEmailCodeRequestSchema>) => {
         let email = "";
-        let demoCode = "";
+        let shownCode = "";
         const res = await this.once(
           "requestEmailCode",
           RequestEmailCodeRequestSchema,
@@ -1621,7 +1610,7 @@ export class FakeIdentity {
             const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
             const expiresAt = new Date(this.now().getTime() + EMAIL_CODE_TTL_MS);
             this.emailCodes.set(user.id, { email, code, attempts: 0, expiresAt, consumed: false });
-            if (this.emailProviderMock) demoCode = code;
+            if (this.emailProviderMock) shownCode = code;
             return create(RequestEmailCodeResponseSchema, { expiresAt: timestampFromDate(expiresAt) });
           },
           // Порядок Go: ключ, адрес (пустой и неверный — email_invalid), сессия и роль стороны сделки.
@@ -1633,9 +1622,9 @@ export class FakeIdentity {
           },
         );
         // Код — только в ответе этого вызова: сохранённый ответ (повтор по ключу) его не раскрывает.
-        if (demoCode === "") return res;
+        if (shownCode === "") return res;
         const out = clone(RequestEmailCodeResponseSchema, res);
-        out.demoCode = demoCode;
+        out.shownCode = shownCode;
         return out;
       },
       verifyEmailCode: mutating(
@@ -1898,7 +1887,7 @@ export class FakeIdentity {
               if (existing.textSha256 !== sum) throw codedError("consent_version_invalid", Code.InvalidArgument);
               return create(GrantConsentResponseSchema, { consent: consentView(existing) });
             }
-            const c = this.insertConsent({ userId: user.id, kind, version, textSha256: sum, purposes, referenceId: ref, channel: consentChannel(session) });
+            const c = this.insertConsent({ userId: user.id, kind, version, textSha256: sum, purposes, referenceId: ref, channel: "otp_session" });
             this.auditEvents.push({ userId: user.id, actorRole: session.activeRole, action: "consent.granted", after: { kind: ConsentKind[kind], version, reference_id: ref, channel: c.channel } });
             return create(GrantConsentResponseSchema, { consent: consentView(c) });
           },
@@ -1926,7 +1915,7 @@ export class FakeIdentity {
           const open = this.revocations.find((r) => r.userId === user.id && r.kind === ConsentKind.PD_PROCESSING && r.status === RevocationStatus.REQUESTED);
           if (open) return create(RevokeConsentResponseSchema, { revocation: revocationView(open) });
           const now = this.now();
-          const rev: StoredRevocation = { id: randomUUID(), userId: user.id, kind: ConsentKind.PD_PROCESSING, requestedAt: now, dueAt: fakeRevocationDue(now), status: RevocationStatus.REQUESTED, decidedAt: null, reason: "", isDemo: this.isDemoUser(user.id) };
+          const rev: StoredRevocation = { id: randomUUID(), userId: user.id, kind: ConsentKind.PD_PROCESSING, requestedAt: now, dueAt: fakeRevocationDue(now), status: RevocationStatus.REQUESTED, decidedAt: null, reason: "", seeded: this.isSeededUser(user.id) };
           this.revocations.push(rev);
           this.auditEvents.push({
             userId: user.id,

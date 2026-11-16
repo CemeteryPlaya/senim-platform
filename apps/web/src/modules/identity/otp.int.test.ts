@@ -22,7 +22,7 @@ const COOKIE = () => cookieValue(sessionCookieName());
 
 beforeEach(() => {
   freshBrowser();
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ SMS_PROVIDER: "mock" });
 });
 
 afterEach(() => {
@@ -30,9 +30,9 @@ afterEach(() => {
 });
 
 async function codeFor(phone = PHONE, ip: string | null = IP): Promise<string> {
-  const { demoCode } = await requestOtp({ phone, ip });
-  if (!demoCode) throw new Error("подделка в демо-режиме возвращает код");
-  return demoCode;
+  const { shownCode } = await requestOtp({ phone, ip });
+  if (!shownCode) throw new Error("подделка с мок-SMS возвращает код");
+  return shownCode;
 }
 
 async function errorOf(p: Promise<unknown>): Promise<AppError> {
@@ -65,17 +65,17 @@ describe("requestOtp", () => {
     expect(callsOf("requestOtp").map((c) => c.clientIp)).toEqual(["", ""]);
   });
 
-  it("возвращает номер, срок и демо-код, когда его вернул identity", async () => {
+  it("возвращает номер, срок и код для экрана, когда его вернул identity", async () => {
     const before = Date.now();
     const sent = await requestOtp({ phone: "+7 700 000 55 01", ip: IP });
 
-    expect(sent).toEqual({ phone: PHONE, expiresAt: expect.any(Date), demoCode: FAKE_OTP_CODE });
+    expect(sent).toEqual({ phone: PHONE, expiresAt: expect.any(Date), shownCode: FAKE_OTP_CODE });
     expect(sent.expiresAt.getTime()).toBeGreaterThan(before + 4 * 60_000);
   });
 
-  it("identity не вернул демо-код — null", async () => {
-    identityFake.demoEnabled = false;
-    expect((await requestOtp({ phone: PHONE, ip: IP })).demoCode).toBeNull();
+  it("identity не вернул код (провайдер SMS — не мок) — null", async () => {
+    identityFake.otpProviderMock = false;
+    expect((await requestOtp({ phone: PHONE, ip: IP })).shownCode).toBeNull();
   });
 
   it("не казахстанский номер отклоняется на месте, identity не вызывается", async () => {

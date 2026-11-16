@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ru } from "@/i18n/ru";
 import { EXECUTOR_REGISTRATION_PATH, getShellUser, homePathFor, safeReturnTo } from "@/modules/identity";
-import { env } from "@/platform/env";
 import { Alert, ButtonLink, Container, FullscreenStep } from "@/ui";
 import { LogoutButton } from "../_components/auth/LogoutButton";
 import { LoginForm } from "./LoginForm";
@@ -14,8 +13,8 @@ export const metadata: Metadata = { title: t.metaTitle };
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 /**
- * Вход — полноэкранный шаг (FullscreenStep): «Назад», один вопрос и одна главная кнопка. Демо-персоны (только
- * DEMO_MODE) и регистрация мастера — второстепенные пути под ней. Вошедшему — куда идти дальше и «Выйти».
+ * Вход — полноэкранный шаг (FullscreenStep): «Назад», один вопрос и одна главная кнопка. Регистрация мастера —
+ * второстепенный путь под ней. Вошедшему — куда идти дальше и «Выйти».
  * Недоступный identity — форма входа гостя, как в оболочке.
  */
 export default async function LoginPage({ searchParams }: Props) {
@@ -23,7 +22,6 @@ export default async function LoginPage({ searchParams }: Props) {
   const next = safeReturnTo(params.next);
   const wrongRole = params.reason === "role";
   const { user } = await getShellUser();
-  const demoMode = env().DEMO_MODE;
 
   return (
     <Container size="form" className="pt-3 pb-8 sm:pt-6">
@@ -51,19 +49,12 @@ export default async function LoginPage({ searchParams }: Props) {
         <LoginForm
           next={next}
           extra={
-            <>
-              {demoMode && (
-                <ButtonLink href="/demo" variant="secondary" fullWidth>
-                  {t.demoPersonas}
-                </ButtonLink>
-              )}
-              <Link
-                href={EXECUTOR_REGISTRATION_PATH}
-                className="inline-flex min-h-control-sm items-center justify-center self-center rounded-control px-2 text-center text-base font-semibold text-primary underline underline-offset-4"
-              >
-                {t.registerExecutor}
-              </Link>
-            </>
+            <Link
+              href={EXECUTOR_REGISTRATION_PATH}
+              className="inline-flex min-h-control-sm items-center justify-center self-center rounded-control px-2 text-center text-base font-semibold text-primary underline underline-offset-4"
+            >
+              {t.registerExecutor}
+            </Link>
           }
         />
       )}

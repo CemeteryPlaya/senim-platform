@@ -43,7 +43,7 @@ const table: Record<(typeof IDENTITY_ERROR_CODES)[number], { code: ErrorCode; me
   session_token_invalid: { code: "UNAVAILABLE", message: g.generic },
   role_not_granted: { code: "FORBIDDEN", message: ru.identity.switchRole.notGranted },
   role_forbidden: { code: "FORBIDDEN", message: g.notAllowed },
-  demo_disabled: { code: "FORBIDDEN", message: ru.identity.demo.disabled },
+  stand_disabled: { code: "FORBIDDEN", message: g.notAllowed },
   user_not_found: { code: "NOT_FOUND", message: g.notFoundShort },
   caller_forbidden: { code: "UNAVAILABLE", message: g.generic },
   idempotency_key_reused: { code: "UNAVAILABLE", message: g.generic },

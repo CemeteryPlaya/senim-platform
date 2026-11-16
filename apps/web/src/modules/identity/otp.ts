@@ -22,10 +22,11 @@ function phoneOrFail(raw: string): Phone {
   return parsePhone(raw) ?? fail.validation(t.errors.invalidPhone);
 }
 
-export type OtpRequested = { phone: Phone; expiresAt: Date; demoCode: string | null };
+export type OtpRequested = { phone: Phone; expiresAt: Date; shownCode: string | null };
 
 /**
- * Просит identity выдать код на номер. Демо-код возвращается, только когда его вернул сам identity (DEMO_MODE и мок-SMS там).
+ * Просит identity выдать код на номер. Код для показа на экране — только когда его вернул сам identity (мок-SMS там; в prod
+ * мок запрещён конфигом identity).
  * Потерянный ответ повторяется с тем же ключом: SMS уже ушла, а без повтора человек минуту видел бы «слишком часто».
  */
 export async function requestOtp(input: { phone: string; ip: string | null }): Promise<OtpRequested> {
@@ -36,7 +37,7 @@ export async function requestOtp(input: { phone: string; ip: string | null }): P
     logger.error("identity.call_rejected", { reason: "request_otp_without_expiry" });
     return fail.unavailable(ru.common.errors.generic);
   }
-  return { phone, expiresAt: timestampDate(res.expiresAt), demoCode: res.demoCode === "" ? null : res.demoCode };
+  return { phone, expiresAt: timestampDate(res.expiresAt), shownCode: res.shownCode === "" ? null : res.shownCode };
 }
 
 /** Кто вошёл: этого хватает, чтобы выбрать экран после входа (homePathFor). */

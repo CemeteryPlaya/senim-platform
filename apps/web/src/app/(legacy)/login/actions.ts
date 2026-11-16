@@ -11,7 +11,7 @@ import { clientInfo } from "../_components/auth/client-info";
 export const requestCodeAction = action("identity.requestOtp", z.object({ phone: z.string().max(40) }), async ({ phone }) => {
   const { ip } = await clientInfo();
   const sent = await requestOtp({ phone, ip });
-  return { phone: sent.phone, demoCode: sent.demoCode };
+  return { phone: sent.phone, shownCode: sent.shownCode };
 });
 
 export const verifyCodeAction = action(

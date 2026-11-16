@@ -4,7 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ErrorDetailSchema } from "@/gen/senim/common/v1/error_pb";
 import { ConsentKind, KycStatus, LegalForm, RevealPurpose, RevocationStatus, Role, SigningSide } from "@/gen/senim/identity/v1/identity_pb";
-import { testBin, testIin } from "@/demo/kz-id";
+import { testBin, testIin } from "@/seed/kz-id";
 import { totpNow } from "../../e2e/totp";
 import { FakeIdentity, FAKE_OTP_CODE, fakeRevocationDue } from "./identity";
 
@@ -42,9 +42,8 @@ describe("подделка identity: ключ идемпотентности", (
     ["signOutEverywhere", () => fake.client.signOutEverywhere({ sessionToken: token(1) })],
     ["switchRole", () => fake.client.switchRole({ sessionToken: token(1), role: Role.CLIENT })],
     ["grantRole", () => fake.client.grantRole({ sessionToken: token(1), role: Role.CLIENT })],
-    ["startDemoSession", () => fake.client.startDemoSession({ userId: "x", sessionToken: token(1) })],
     ["seedUsers", () => fake.client.seedUsers({ users: [] })],
-    ["resetDemo", () => fake.client.resetDemo({})],
+    ["resetStand", () => fake.client.resetStand({})],
     ["recordPerson", () => fake.client.recordPerson({ sessionToken: token(1), fullName: "Сапаров Ерлан", iin: "870304300614" })],
     ["updateContacts", () => fake.client.updateContacts({ sessionToken: token(1) })],
   ];
@@ -54,8 +53,8 @@ describe("подделка identity: ключ идемпотентности", (
   });
 
   it("ключ длиннее 128 символов — invalid_request", async () => {
-    expect(await rejection(fake.client.resetDemo({ idempotencyKey: "k".repeat(129) }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
-    await expect(fake.client.resetDemo({ idempotencyKey: "k".repeat(128) })).resolves.toBeDefined();
+    expect(await rejection(fake.client.resetStand({ idempotencyKey: "k".repeat(129) }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+    await expect(fake.client.resetStand({ idempotencyKey: "k".repeat(128) })).resolves.toBeDefined();
   });
 
   it("повтор с тем же ключом и запросом даёт тот же ответ без второго эффекта", async () => {
@@ -86,7 +85,7 @@ describe("подделка identity: ключ идемпотентности", (
   });
 
   it("тот же ключ на другом методе — новый вызов (ключ действует в паре с методом, как в pkg/idem)", async () => {
-    await fake.client.resetDemo({ idempotencyKey: "k" });
+    await fake.client.resetStand({ idempotencyKey: "k" });
     await expect(fake.client.requestOtp({ phone: PHONE, idempotencyKey: "k" })).resolves.toBeDefined();
   });
 
@@ -143,13 +142,13 @@ describe("подделка identity: токены сессии", () => {
     expect(fake.sessionCount(user.id)).toBe(0);
   });
 
-  it("session_token_invalid — только для токена, который задаёт вызывающий (VerifyOtp, StartDemoSession), в том числе занятого", async () => {
+  it("session_token_invalid — для токена, который задаёт вызывающий (VerifyOtp), в том числе занятого", async () => {
     await fake.client.requestOtp({ phone: PHONE, idempotencyKey: "r" });
     expect(await rejection(fake.client.verifyOtp({ phone: PHONE, code: FAKE_OTP_CODE, sessionToken: "bad", idempotencyKey: "v" }))).toEqual({ code: Code.InvalidArgument, detail: "session_token_invalid" });
 
-    const demo = fake.addUser({ phone: "+77001110000", isDemo: true });
     await signedIn();
-    expect(await rejection(fake.client.startDemoSession({ userId: demo.id, sessionToken: token(1), idempotencyKey: "d" }))).toEqual({ code: Code.InvalidArgument, detail: "session_token_invalid" });
+    await fake.client.requestOtp({ phone: "+77001110000", idempotencyKey: "r2" });
+    expect(await rejection(fake.client.verifyOtp({ phone: "+77001110000", code: FAKE_OTP_CODE, sessionToken: token(1), idempotencyKey: "v2" }))).toEqual({ code: Code.InvalidArgument, detail: "session_token_invalid" });
   });
 });
 
@@ -175,23 +174,20 @@ describe("подделка identity: активная роль", () => {
   });
 });
 
-describe("подделка identity: демо-методы по demo.go", () => {
-  const demoToken = token(5);
-
-  it("StartDemoSession: заблокированная демо-персона — user_not_found", async () => {
-    const demo = fake.addUser({ phone: PHONE, isDemo: true });
-    fake.block(demo.id);
-    expect(await rejection(fake.client.startDemoSession({ userId: demo.id, sessionToken: demoToken, idempotencyKey: "d" }))).toEqual({ code: Code.NotFound, detail: "user_not_found" });
+describe("подделка identity: методы стенда по stand.go", () => {
+  it("порядок проверок: окружение (stand_disabled, как APP_ENV=prod) раньше ключа", async () => {
+    fake.standEnabled = false;
+    expect(await rejection(fake.client.resetStand({}))).toEqual({ code: Code.FailedPrecondition, detail: "stand_disabled" });
+    expect(await rejection(fake.client.seedUsers({}))).toEqual({ code: Code.FailedPrecondition, detail: "stand_disabled" });
+    expect(await rejection(fake.client.seedConsents({}))).toEqual({ code: Code.FailedPrecondition, detail: "stand_disabled" });
+    fake.standEnabled = true;
+    expect(await rejection(fake.client.resetStand({}))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
   });
 
-  it("порядок проверок: режим раньше ключа и токена, формат токена раньше ключа", async () => {
-    fake.demoEnabled = false;
-    expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: "bad" }))).toEqual({ code: Code.FailedPrecondition, detail: "demo_disabled" });
-    expect(await rejection(fake.client.resetDemo({}))).toEqual({ code: Code.FailedPrecondition, detail: "demo_disabled" });
-    expect(await rejection(fake.client.seedUsers({}))).toEqual({ code: Code.FailedPrecondition, detail: "demo_disabled" });
-    fake.demoEnabled = true;
-    expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: "bad" }))).toEqual({ code: Code.InvalidArgument, detail: "session_token_invalid" });
-    expect(await rejection(fake.client.startDemoSession({ userId: "x", sessionToken: demoToken }))).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
+  it("RequestOtp: код на экране (shown_code) — только при мок-провайдере SMS", async () => {
+    expect((await fake.client.requestOtp({ phone: PHONE, idempotencyKey: "a" })).shownCode).toBe(FAKE_OTP_CODE);
+    fake.otpProviderMock = false;
+    expect((await fake.client.requestOtp({ phone: PHONE, idempotencyKey: "b" })).shownCode).toBe("");
   });
 
   it("VerifyOtp: повтор по ключу раньше проверки кода и занятого токена", async () => {
@@ -202,22 +198,22 @@ describe("подделка identity: демо-методы по demo.go", () => 
     expect(await fake.client.verifyOtp(req)).toBe(first);
   });
 
-  it("ResetDemo: пользователи остаются; сессии, коды и чужие сохранённые ответы стираются, свой ответ остаётся", async () => {
-    const demo = fake.addUser({ phone: PHONE, isDemo: true });
-    fake.signIn(demo.id, token(1));
+  it("ResetStand: пользователи остаются; сессии, коды и чужие сохранённые ответы стираются, свой ответ остаётся", async () => {
+    const person = fake.addUser({ phone: PHONE, seeded: true });
+    fake.signIn(person.id, token(1));
     await fake.client.requestOtp({ phone: "+77001110000", idempotencyKey: "r" });
-    const start = { userId: demo.id, sessionToken: token(7), idempotencyKey: "s" };
-    await fake.client.startDemoSession(start);
+    await fake.client.requestOtp({ phone: PHONE, idempotencyKey: "r2" });
+    const verify = { phone: PHONE, code: FAKE_OTP_CODE, sessionToken: token(7), idempotencyKey: "s" };
+    await fake.client.verifyOtp(verify);
 
-    const reset = await fake.client.resetDemo({ idempotencyKey: "x" });
+    const reset = await fake.client.resetStand({ idempotencyKey: "x" });
 
     expect(fake.sessionCount()).toBe(0);
     expect(await rejection(fake.client.verifyOtp({ phone: "+77001110000", code: FAKE_OTP_CODE, sessionToken: token(8), idempotencyKey: "v" }))).toEqual({ code: Code.InvalidArgument, detail: "otp_expired" });
-    // чужой ответ стёрт: повтор StartDemoSession выполняется заново (новая сессия), а не отдаёт ответ про несуществующую
-    await fake.client.startDemoSession({ ...start, sessionToken: token(7) });
-    expect(fake.sessionCount()).toBe(1);
-    expect(await fake.client.resetDemo({ idempotencyKey: "x" })).toBe(reset);
-    expect((await fake.client.authenticate({ sessionToken: token(7) })).user?.id).toBe(demo.id);
+    // чужой ответ стёрт: повтор VerifyOtp выполняется заново (код уже погашен), а не отдаёт вход в несуществующую сессию
+    expect(await rejection(fake.client.verifyOtp(verify))).toEqual({ code: Code.InvalidArgument, detail: "otp_expired" });
+    expect(await fake.client.resetStand({ idempotencyKey: "x" })).toBe(reset);
+    expect(fake.hasUser(person.id)).toBe(true);
   });
 });
 
@@ -263,6 +259,8 @@ describe("подделка identity: второй фактор (как mfa.go)",
   let n = 0;
   const key = () => `k-${++n}`;
   const codeAt = (secret: string, at = clock) => totpNow(secret, at);
+  /** Секрет оператора сида: 20 байт в base32 без «=». */
+  const SEED_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
 
   /** Оператор, вошедший по SMS (без второй ступени). */
   function operator(t = 1) {
@@ -386,14 +384,37 @@ describe("подделка identity: второй фактор (как mfa.go)",
     expect(await rejection(verify(code))).toEqual({ code: Code.InvalidArgument, detail: "mfa_code_reused" });
   });
 
-  it("демо-оператор входит с пройденной второй ступенью; ResetDemo стирает факторы", async () => {
-    const op = fake.addUser({ phone: OP_PHONE, defaultRole: Role.OPERATOR, isDemo: true });
-    const res = await fake.client.startDemoSession({ userId: op.id, sessionToken: token(1), idempotencyKey: key() });
+  it("оператор сида: секрет TOTP подключён, вход кодом требует вторую ступень, код по секрету сида проходит; пересев снимает отметку", async () => {
+    const seed = (totpSecretBase32: string) =>
+      fake.client.seedUsers({ users: [{ phone: OP_PHONE, defaultRole: Role.OPERATOR, roles: [Role.OPERATOR], totpSecretBase32 }], idempotencyKey: key() });
+    const [op] = (await seed(SEED_SECRET)).users;
+    expect(fake.factorState(op!.id)).toBe("confirmed");
+    await fake.client.requestOtp({ phone: OP_PHONE, idempotencyKey: key() });
+    const res = await fake.client.verifyOtp({ phone: OP_PHONE, code: FAKE_OTP_CODE, sessionToken: token(1), idempotencyKey: key() });
     expect(res.session?.mfaRequired).toBe(true);
-    expect(res.session?.mfaVerifiedAt && timestampDate(res.session.mfaVerifiedAt)).toEqual(clock);
-    fake.enrollTotp(op.id);
-    await fake.client.resetDemo({ idempotencyKey: key() });
-    expect(fake.factorState(op.id)).toBe("none");
+    expect(res.session?.mfaVerifiedAt).toBeUndefined();
+    expect(await rejection(start())).toEqual({ code: Code.FailedPrecondition, detail: "mfa_already_enrolled" });
+    await verify(codeAt(SEED_SECRET));
+    expect(fake.mfaVerifiedAtOf(token(1))).toEqual(clock);
+    await seed(SEED_SECRET.toLowerCase());
+    expect(fake.mfaVerifiedAtOf(token(1))).toBeNull();
+  });
+
+  it("секрет сида: только у оператора, base32 без «=», 16–64 байт — иначе invalid_request", async () => {
+    const seed = (roles: Role[], totpSecretBase32: string) => fake.client.seedUsers({ users: [{ phone: OP_PHONE, defaultRole: roles[0], roles, totpSecretBase32 }], idempotencyKey: key() });
+    expect((await rejection(seed([Role.CLIENT], SEED_SECRET))).detail).toBe("invalid_request");
+    expect((await rejection(seed([Role.OPERATOR], `${SEED_SECRET}=`))).detail).toBe("invalid_request");
+    expect((await rejection(seed([Role.OPERATOR], "JBSWY3DP"))).detail).toBe("invalid_request");
+    expect((await rejection(seed([Role.OPERATOR], "A".repeat(110)))).detail).toBe("invalid_request");
+  });
+
+  it("ResetStand стирает факторы засеянных; фактор настоящего оператора остаётся", async () => {
+    const [seededOp] = (await fake.client.seedUsers({ users: [{ phone: OP_PHONE, defaultRole: Role.OPERATOR, roles: [Role.OPERATOR], totpSecretBase32: SEED_SECRET }], idempotencyKey: key() })).users;
+    const real = fake.addUser({ phone: "+77000000002", defaultRole: Role.OPERATOR });
+    fake.enrollTotp(real.id);
+    await fake.client.resetStand({ idempotencyKey: key() });
+    expect(fake.factorState(seededOp!.id)).toBe("none");
+    expect(fake.factorState(real.id)).toBe("confirmed");
   });
 
   it("mfa-reset: фактор удалён, отметка снята — Start снова выдаёт секрет", async () => {
@@ -888,18 +909,17 @@ describe("подделка identity: согласия (как consent.go)", () =
     expect(fake.consentsOf(withConsent.id)).toHaveLength(1);
   });
 
-  it("GrantConsent: канал по способу открытия сессии — вход кодом otp_session, демо-вход без кода demo (Ruling AL, как sessionConsentChannel)", async () => {
+  it("GrantConsent: канал — otp_session (вход только кодом); засеянный человек даёт согласие тем же каналом", async () => {
     await fake.client.requestOtp({ phone: "+77002220098", idempotencyKey: key() });
     const otp = await fake.client.verifyOtp({ phone: "+77002220098", code: FAKE_OTP_CODE, sessionToken: token(3), idempotencyKey: key() });
     expect((await grant(3)).consent?.channel).toBe("otp_session");
     expect(fake.consentsOf(otp.user!.id).map((c) => c.channel)).toEqual(["otp_session"]);
 
-    const demo = fake.addUser({ phone: "+77002220097", isDemo: true, consent: false });
-    await fake.client.startDemoSession({ userId: demo.id, sessionToken: token(4), idempotencyKey: key() });
-    expect((await grant(4)).consent?.channel).toBe("demo");
-    expect((await grant(4, { kind: ConsentKind.BANK_TRANSFER, referenceId: "deal-1" })).consent?.channel).toBe("demo");
-    expect(fake.consentsOf(demo.id).map((c) => c.channel)).toEqual(["demo", "demo"]);
-    expect(fake.auditEvents.filter((e) => e.userId === demo.id && e.action === "consent.granted").map((e) => (e.after as { channel: string }).channel)).toEqual(["demo", "demo"]);
+    const person = fake.addUser({ phone: "+77002220097", seeded: true, consent: false });
+    fake.signIn(person.id, token(4));
+    expect((await grant(4)).consent?.channel).toBe("otp_session");
+    expect((await grant(4, { kind: ConsentKind.BANK_TRANSFER, referenceId: "deal-1" })).consent?.channel).toBe("otp_session");
+    expect(fake.auditEvents.filter((e) => e.userId === person.id && e.action === "consent.granted").map((e) => (e.after as { channel: string }).channel)).toEqual(["otp_session", "otp_session"]);
   });
 
   it("GrantConsent: порядок проверок — ключ, вид, версия и хэш, предмет, цели, сессия", async () => {
@@ -1013,54 +1033,50 @@ describe("подделка identity: согласия (как consent.go)", () =
     expect(fake.auditEvents.filter((e) => e.userId === user.id && e.action === "consent.revocation_refused")).toHaveLength(1);
   });
 
-  it("SeedUsers: версия и хэш вместе (invalid_request), по правилам GrantConsent; ResetDemo удаляет согласия демо-пользователей", async () => {
+  it("SeedUsers: версия и хэш вместе (invalid_request), по правилам GrantConsent; ResetStand удаляет согласия засеянных", async () => {
     const seed = (consentVersion: string, consentTextSha256: string) =>
-      fake.client.seedUsers({ users: [{ phone: "+77002220080", defaultRole: Role.CLIENT, roles: [Role.CLIENT], isDemo: true, consentVersion, consentTextSha256 }], idempotencyKey: key() });
+      fake.client.seedUsers({ users: [{ phone: "+77002220080", defaultRole: Role.CLIENT, roles: [Role.CLIENT], consentVersion, consentTextSha256 }], idempotencyKey: key() });
     expect((await rejection(seed("v1", ""))).detail).toBe("invalid_request");
     expect((await rejection(seed("bad version", SHA))).detail).toBe("consent_version_invalid");
     const [u] = (await seed("v1", SHA)).users;
     await seed("v1", SHA);
     expect(fake.consentsOf(u!.id).map((c) => [c.version, c.channel])).toEqual([["v1", "seed"]]);
-    await fake.client.resetDemo({ idempotencyKey: key() });
+    await fake.client.resetStand({ idempotencyKey: key() });
     expect(fake.consentsOf(u!.id)).toEqual([]);
   });
 
-  it("SeedUsers не делает настоящего пользователя демо (invalid_request, сид целиком откатывается); снять демо можно (Ruling AL, как UpsertSeedUser)", async () => {
+  it("SeedUsers не трогает настоящего пользователя: его телефон — invalid_request, сид целиком откатывается (как UpsertSeedUser WHERE users.seeded)", async () => {
     const real = fake.addUser({ phone: "+77002220081", defaultRole: Role.CLIENT });
     const roles = { defaultRole: Role.CLIENT, roles: [Role.CLIENT] };
-    const other = { phone: "+77002220082", ...roles, isDemo: true };
-    const raise = fake.client.seedUsers({ users: [other, { phone: real.phone, ...roles, isDemo: true }], idempotencyKey: key() });
+    const other = { phone: "+77002220082", ...roles };
+    const raise = fake.client.seedUsers({ users: [other, { phone: real.phone, ...roles }], idempotencyKey: key() });
     expect(await rejection(raise)).toEqual({ code: Code.InvalidArgument, detail: "invalid_request" });
     expect(fake.hasUser(real.id)).toBe(true);
-    const [same] = (await fake.client.seedUsers({ users: [{ phone: real.phone, ...roles }], idempotencyKey: key() })).users;
-    expect(same).toMatchObject({ id: real.id, isDemo: false });
-    // Первая запись отказанного сида не создана: в Go вся транзакция откатывается.
+    expect(real.seeded).toBe(false);
     const [created] = (await fake.client.seedUsers({ users: [other], idempotencyKey: key() })).users;
-    expect(created?.isDemo).toBe(true);
-    const lowered = (await fake.client.seedUsers({ users: [{ ...other, isDemo: false }], idempotencyKey: key() })).users[0];
-    expect(lowered).toMatchObject({ id: created!.id, isDemo: false });
+    expect(created?.seeded).toBe(true);
+    const [again] = (await fake.client.seedUsers({ users: [other], idempotencyKey: key() })).users;
+    expect(again).toMatchObject({ id: created!.id, seeded: true });
   });
 
-  it("ResetDemo удаляет согласия и заявки по признаку демо самой записи, а не по текущему users.is_demo (0009)", async () => {
-    // Настоящий пользователь с согласием и заявкой; потом его «помечают» демо — записи остаются его, не демо.
+  it("ResetStand удаляет согласия и заявки по признаку seeded самой записи, а не по текущему users.seeded (0012)", async () => {
+    // Настоящий пользователь с согласием и заявкой; потом его «помечают» засеянным — записи остаются его, не сида.
     const real = fake.addUser({ phone: "+77002220083", defaultRole: Role.CLIENT });
     fake.signIn(real.id, token(1));
     await fake.client.revokeConsent({ sessionToken: token(1), kind: ConsentKind.PD_PROCESSING, idempotencyKey: key() });
-    expect(fake.consentsOf(real.id).map((c) => c.isDemo)).toEqual([false]);
-    // Демо-пользователь: его записи — демо; потом признак у пользователя снимают — записи остаются демо.
-    const demo = fake.addUser({ phone: "+77002220084", defaultRole: Role.CLIENT, isDemo: true });
-    fake.signIn(demo.id, token(2));
+    expect(fake.consentsOf(real.id).map((c) => c.seeded)).toEqual([false]);
+    // Засеянный: его записи — засеянные.
+    const person = fake.addUser({ phone: "+77002220084", defaultRole: Role.CLIENT, seeded: true });
+    fake.signIn(person.id, token(2));
     await fake.client.revokeConsent({ sessionToken: token(2), kind: ConsentKind.PD_PROCESSING, idempotencyKey: key() });
-    expect(fake.consentsOf(demo.id).map((c) => c.isDemo)).toEqual([true]);
+    expect(fake.consentsOf(person.id).map((c) => c.seeded)).toEqual([true]);
 
-    const roles = { defaultRole: Role.CLIENT, roles: [Role.CLIENT] };
-    await fake.client.seedUsers({ users: [{ phone: demo.phone, ...roles, isDemo: false }], idempotencyKey: key() });
-    real.isDemo = true; // как UPDATE users SET is_demo = true рабочей ролью в обход сида
+    real.seeded = true; // как UPDATE users SET seeded = true рабочей ролью в обход сида
 
-    await fake.client.resetDemo({ idempotencyKey: key() });
+    await fake.client.resetStand({ idempotencyKey: key() });
     expect(fake.consentsOf(real.id)).toHaveLength(1);
     expect(fake.revocationsOf(real.id)).toHaveLength(1);
-    expect(fake.consentsOf(demo.id)).toEqual([]);
-    expect(fake.revocationsOf(demo.id)).toEqual([]);
+    expect(fake.consentsOf(person.id)).toEqual([]);
+    expect(fake.revocationsOf(person.id)).toEqual([]);
   });
 });

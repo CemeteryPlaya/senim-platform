@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { db } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
 
 /**
@@ -68,7 +67,3 @@ export function setEnv(vars: Record<string, string | undefined>) {
   resetEnvCache();
 }
 
-/** Пользователь с флагом демо-персоны. */
-export async function makeDemoPersona(role: "CLIENT" | "EXECUTOR" | "OPERATOR", phone: string, isDemo = true) {
-  return db.user.create({ data: { role, roles: [role], phone, fullName: `Демо ${phone}`, isDemo } });
-}

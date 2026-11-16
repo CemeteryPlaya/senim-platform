@@ -61,7 +61,7 @@ export const IDENTITY_ERROR_CODES = [
   "session_token_invalid",
   "role_not_granted",
   "role_forbidden",
-  "demo_disabled",
+  "stand_disabled",
   "user_not_found",
   "caller_forbidden",
   "idempotency_key_reused",
@@ -176,8 +176,8 @@ function byCode(code: IdentityErrorCode, params: Record<string, string>): never 
       return fail.forbidden(ru.identity.switchRole.notGranted);
     case "role_forbidden":
       return fail.forbidden();
-    case "demo_disabled":
-      return fail.forbidden(ru.identity.demo.disabled);
+    case "stand_disabled":
+      return fail.forbidden();
     case "user_not_found":
       return fail.notFound();
     case "mfa_required":

@@ -28,7 +28,7 @@ const FORM = {
 } as const;
 
 /** Ответ запроса кода: адрес, код заглушки писем; `alreadySent` — новый код не выдан (раньше минуты), действует прежний. */
-type SentData = { email: string; demoCode: string | null; alreadySent: boolean };
+type SentData = { email: string; shownCode: string | null; alreadySent: boolean };
 
 /** Плашка под заголовком шага кода: новый код отправлен повторно или код уже был отправлен раньше. */
 type SentNotice = "none" | "resent" | "alreadySent";
@@ -36,7 +36,7 @@ type SentNotice = "none" | "resent" | "alreadySent";
 /** Код отправлен: адрес для показа и повторной отправки, код заглушки писем (если есть), когда можно запросить новый. */
 type Sent = {
   email: string;
-  demoCode: string | null;
+  shownCode: string | null;
   retryAt: number;
   notice: SentNotice;
 };
@@ -67,9 +67,9 @@ function Header({ change, position, title }: { change: boolean; position: Positi
  * отправки — полный интервал: сервис не сообщает, сколько осталось.
  */
 export function sentAfter(previous: Sent | null, data: SentData, resent: boolean, now: number): Sent {
-  const demoCode = data.alreadySent ? (previous?.email === data.email ? previous.demoCode : null) : data.demoCode;
+  const shownCode = data.alreadySent ? (previous?.email === data.email ? previous.shownCode : null) : data.shownCode;
   const notice: SentNotice = data.alreadySent ? "alreadySent" : resent ? "resent" : "none";
-  return { email: data.email, demoCode, retryAt: now + EMAIL_RESEND_SECONDS * 1000, notice };
+  return { email: data.email, shownCode, retryAt: now + EMAIL_RESEND_SECONDS * 1000, notice };
 }
 
 /**
@@ -246,8 +246,8 @@ export function CodeStep({ next, change = false, position, device, sent, onResen
             {t.code.alreadySent}
           </Notice>
         )}
-        {sent.demoCode && (
-          <ShownCode lead={t.code.shownLead} codeLine={t.code.shownCode(sent.demoCode)} />
+        {sent.shownCode && (
+          <ShownCode lead={t.code.shownLead} codeLine={t.code.shownCode(sent.shownCode)} />
         )}
         {/* Одна строка колонки: форма повтора пустая (только адрес) и не должна давать лишний зазор. */}
         <div>

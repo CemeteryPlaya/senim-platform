@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { testBin, testIin } from "@/demo/kz-id";
+import { testBin, testIin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
 import { count, html } from "@/kit/test-utils";
 import { consentDocument, consentTextSha256 } from "@/modules/identity";

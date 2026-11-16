@@ -114,12 +114,10 @@ export async function verifySecondFactor(_user: CurrentUser, rawCode: string): P
 /**
  * Перед действием с деньгами (подтверждение, отказ и повтор операции банка, решение спора): второй фактор пройден
  * не раньше, чем MFA_STEP_UP_WINDOW назад (по умолчанию 5 минут; ровно 5 минут — ещё можно). Иначе MFA_REQUIRED:
- * форма спросит код и повторит действие. Демо-оператор на демо-стенде (DEMO_MODE) не спрашивается: у демо-персон нет
- * приложения, identity отмечает их вторую ступень при входе (demo.go); вне DEMO_MODE исключения нет.
+ * форма спросит код и повторит действие. Исключений нет: оператор стенда тоже вводит код (сид выдаёт ему известный секрет).
  */
 export function requireRecentMfa(user: CurrentUser, now: Date = new Date()): void {
-  const { DEMO_MODE, MFA_STEP_UP_WINDOW } = env();
-  if (user.isDemo && DEMO_MODE) return;
+  const { MFA_STEP_UP_WINDOW } = env();
   const at = user.mfa.verifiedAt;
   if (at === null || now.getTime() - at.getTime() > MFA_STEP_UP_WINDOW) fail.mfaRequired();
 }

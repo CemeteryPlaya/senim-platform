@@ -29,7 +29,7 @@ const MONDAY = new Date("2026-11-09T05:00:00Z");
 
 beforeEach(() => {
   freshBrowser();
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ SMS_PROVIDER: "mock" });
 });
 afterEach(() => {
   Object.assign(PD, ORIGINAL);

@@ -1,6 +1,6 @@
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { testIin } from "@/demo/kz-id";
+import { testIin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
 import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
 import { getCurrentUser } from "@/modules/identity";
@@ -22,7 +22,7 @@ const OTHER_IIN = testIin("900101", 3, 62);
 
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
-  setEnv({ DEMO_MODE: "true", SMS_PROVIDER: "mock" });
+  setEnv({ SMS_PROVIDER: "mock" });
 });
 
 /** Всё, что ушло в консоль (логгер пишет JSON-строки через console.log/warn/error) с включённым уровнем debug. */

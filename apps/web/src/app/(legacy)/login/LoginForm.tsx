@@ -7,13 +7,13 @@ import { requestCodeAction, verifyCodeAction } from "./actions";
 
 const t = ru.identity.login;
 
-type Step = { kind: "phone" } | { kind: "code"; phone: string; demoCode: string | null };
+type Step = { kind: "phone" } | { kind: "code"; phone: string; shownCode: string | null };
 type Message = { tone: "danger" | "success"; text: string } | null;
 
 /**
  * Два полноэкранных шага (FullscreenStep): номер → код из SMS. «Назад» на шаге кода возвращает к номеру.
  * После верного кода сервер сам переводит на нужную страницу. extra — второстепенные пути под главной кнопкой
- * шага номера (демо-персоны, регистрация мастера).
+ * шага номера (регистрация мастера).
  */
 export function LoginForm({ next, extra }: { next: string | null; extra?: ReactNode }) {
   const [step, setStep] = useState<Step>({ kind: "phone" });
@@ -47,7 +47,7 @@ export function LoginForm({ next, extra }: { next: string | null; extra?: ReactN
         else setPhoneError(res.fieldErrors?.phone?.[0] ?? res.error);
         return;
       }
-      setStep({ kind: "code", phone: res.data.phone, demoCode: res.data.demoCode });
+      setStep({ kind: "code", phone: res.data.phone, shownCode: res.data.shownCode });
       if (resend) setMessage({ tone: "success", text: t.resent });
     });
   }
@@ -127,9 +127,9 @@ export function LoginForm({ next, extra }: { next: string | null; extra?: ReactN
         }
       >
         <p className="text-lg text-ink-soft">{t.codeSentTo(step.phone)}</p>
-        {step.demoCode && (
+        {step.shownCode && (
           <Alert tone="warning" live="polite">
-            {t.demoCode(step.demoCode)}
+            {t.shownCode(step.shownCode)}
           </Alert>
         )}
         {message && (

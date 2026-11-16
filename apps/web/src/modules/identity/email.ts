@@ -51,10 +51,10 @@ export function needsEmail(user: Pick<CurrentUser, "role" | "roles" | "emailVeri
 }
 
 /**
- * Итог запроса кода: код выслан (срок и `demoCode` — код, если его вернул identity при мок-провайдере писем) или этот
+ * Итог запроса кода: код выслан (срок и `shownCode` — код, если его вернул identity при мок-провайдере писем) или этот
  * адрес уже подтверждён (identity: email_already_verified) — кода нет, проекция обновлена, экран пропускает шаг почты.
  */
-export type EmailCodeRequested = { alreadyVerified: false; expiresAt: Date; demoCode: string | null } | { alreadyVerified: true };
+export type EmailCodeRequested = { alreadyVerified: false; expiresAt: Date; shownCode: string | null } | { alreadyVerified: true };
 
 const reasonOf = (e: unknown, reason: string) => e instanceof AppError && e.details?.["reason"] === reason;
 
@@ -77,7 +77,7 @@ async function refreshPerson(user: CurrentUser, sessionToken: string): Promise<s
 }
 
 /**
- * Просит identity выслать код на адрес-кандидат. Адрес в профиль не записывается до подтверждения. `demoCode` — только
+ * Просит identity выслать код на адрес-кандидат. Адрес в профиль не записывается до подтверждения. `shownCode` — только
  * когда его вернул identity (провайдер писем — мок); повтор после обрыва возвращает его пустым. Срок, попытки и лимиты
  * ведёт identity; ключ идемпотентности — здесь, один на оба вызова повтора.
  */
@@ -99,7 +99,7 @@ export async function requestEmailCode(user: CurrentUser, email: string): Promis
     logger.error("identity.call_rejected", { reason: "request_email_code_without_expiry" });
     return fail.unavailable(ru.common.errors.generic);
   }
-  return { alreadyVerified: false, expiresAt: timestampDate(res.expiresAt), demoCode: res.demoCode === "" ? null : res.demoCode };
+  return { alreadyVerified: false, expiresAt: timestampDate(res.expiresAt), shownCode: res.shownCode === "" ? null : res.shownCode };
 }
 
 /**

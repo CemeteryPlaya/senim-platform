@@ -71,7 +71,7 @@ export const requestEmailCodeAction = action(
     try {
       sent = await requestEmailCode(user, email);
     } catch (e) {
-      if (isEmailCodeAlreadySent(e)) return { email: address, demoCode: null, alreadySent: true };
+      if (isEmailCodeAlreadySent(e)) return { email: address, shownCode: null, alreadySent: true };
       if (isCodeTooOften(e)) throw new AppError("RATE_LIMITED", t.errors.otherAddress, { fieldErrors: { email: [t.errors.otherAddress] } });
       throw e;
     }
@@ -79,7 +79,7 @@ export const requestEmailCodeAction = action(
       if (changing) throw new AppError("VALIDATION", c.sameAddress, { fieldErrors: { email: [c.sameAddress] } });
       return moveOn(user, next);
     }
-    return { email: address, demoCode: sent.demoCode, alreadySent: false };
+    return { email: address, shownCode: sent.shownCode, alreadySent: false };
   },
 );
 

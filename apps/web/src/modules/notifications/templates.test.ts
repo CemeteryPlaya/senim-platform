@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { NOTIFICATIONS } from "@/demo/data";
+import { NOTIFICATIONS } from "@/seed/data";
 import { days } from "@/i18n/ru/notifications";
 import { renderTemplate, SMS_KINDS, TEMPLATES } from "./templates";
 
