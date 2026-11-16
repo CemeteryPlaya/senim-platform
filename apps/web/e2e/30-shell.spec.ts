@@ -139,7 +139,7 @@ test("гость: «Войти» одно на любой ширине, уста
 });
 
 test("детали: «Назад» видна, закреплённая кнопка не закрывает содержание и панель", async ({ page }) => {
-  // Витрина компонентов (демо-режим): StickyAction стоит последним, как будет на экранах деталей.
+  // Витрина компонентов (только APP_ENV=dev): StickyAction стоит последним, как будет на экранах деталей.
   await loginAs(page, P.aigerim);
   await page.goto("/ui-kit");
   await expect(page.getByRole("main").getByRole("link", { name: "Назад" }).first()).toBeVisible();

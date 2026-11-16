@@ -77,7 +77,7 @@ test("мастер откликается на тендер, покупател�
   await expect(page).toHaveURL(/\/executor\/requests$/);
   await page.getByRole("link", { name: /^Заявка №18:/ }).first().click();
   await expect(page.getByRole("heading", { level: 1, name: /^Заявка №18:/ })).toBeVisible();
-  await expect(page.getByRole("main")).not.toContainText("ул. Демонстрационная");
+  await expect(page.getByRole("main")).not.toContainText("ул. Сыганак");
 
   // Зеркальный расчёт до отправки: «Вы получите после приёмки» = цена − гарантия 4% (оракул ТЗ п. 6, не computeDealMoney).
   const m = dealMoney(1_120_000);

@@ -3,13 +3,15 @@ import path from "node:path";
 import { devices, expect, type Browser, type BrowserContext, type Locator, type Page, type Request, type TestInfo } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
+import { CLIENTS, EXECUTORS, OPERATOR, OPERATOR_TOTP_SECRET } from "@/seed/data";
+import { TOTP_PERIOD_S, totpNow } from "./totp";
 
 /**
- * Общие шаги e2e: демо-персоны, пересев базы, подписи, деньги, оператор manual.
+ * Общие шаги e2e: люди сида, вход, пересев базы, подписи, деньги, оператор manual.
  * Селекторы — по ролям и подписям из `ru`: так тест заодно проверяет доступность.
  */
 
-/** Демо-персоны: имя — как на кнопке «Войти: …» страницы /demo (у мастера — наименование). */
+/** Люди сида (src/seed/data.ts): имя — как его видят на экране (у мастера — наименование). Телефон — в PERSONA_PHONE. */
 export const P = {
   dinara: "Динара Абенова", // оператор
   aigerim: "Айгерим Сапарова",
@@ -25,7 +27,7 @@ export const P = {
   almas: "Тлеубаев Алмас Бауыржанович", // Исп. №10, регистрация PENDING
 } as const;
 
-/** Телефоны в том виде, как их вводит человек. Покупатели без демо-входа — только по SMS. */
+/** Телефоны в том виде, как их вводит человек. Покупатели и мастера входят только по SMS-коду. */
 export const PHONE = {
   daniyar: "+7 700 000 01 02",
   madina: "+7 700 000 01 03",
@@ -34,15 +36,15 @@ export const PHONE = {
   zhanna: "+7 700 000 03 04",
 } as const;
 
-/** Точки адресов демо-заявок (src/seed/data.ts, ADDR) и «далеко» — около 5 км к северу. */
+/** Точки адресов заявок сида (src/seed/data.ts, ADDR) и «далеко» — около 5 км к северу. */
 export const POINT = {
-  demo12: { latitude: 51.128207, longitude: 71.430411 },
+  syganak12: { latitude: 51.128207, longitude: 71.430411 },
   far: { latitude: 51.175, longitude: 71.43 },
 } as const;
 
 /**
  * Свежие данные стенда. Сид при APP_ENV не prod сам очищает таблицы (reseedStand: ResetStand в identity, TRUNCATE …
- * RESTART IDENTITY), поэтому номера заявок и сделок — как в docs/agents/DEMO_DATA.md. Только база «*e2e*».
+ * RESTART IDENTITY), поэтому номера заявок и сделок — как в docs/agents/STAND_DATA.md. Только база «*e2e*».
  */
 export function reseed(): void {
   const url = process.env.E2E_DATABASE_URL ?? "";
@@ -52,12 +54,48 @@ export function reseed(): void {
   execFileSync(process.execPath, [path.resolve("node_modules/prisma/build/index.js"), "db", "seed"], { env, stdio: "pipe" });
 }
 
-/** Вход демо-персоной одним нажатием (выход из прежней сессии — очисткой cookie). */
+/** Телефон человека сида (E.164) по имени из `P`: вход — как у любого, по SMS-коду с экрана. */
+const PERSONA_PHONE: Record<string, string> = {
+  [P.dinara]: OPERATOR.phone,
+  [P.aigerim]: CLIENTS.aigerim.phone,
+  [P.daniyar]: CLIENTS.daniyar.phone,
+  [P.madina]: CLIENTS.madina.phone,
+  [P.erlan]: EXECUTORS.erlan.person.phone,
+  [P.agash]: EXECUTORS.agash.person.phone,
+  [P.qazaq]: EXECUTORS.qazaq.person.phone,
+  [P.dala]: EXECUTORS.dala.person.phone,
+  [P.kim]: EXECUTORS.kim.person.phone,
+  [P.timur]: EXECUTORS.timur.person.phone,
+  [P.asel]: EXECUTORS.asel.person.phone,
+  [P.almas]: EXECUTORS.almas.person.phone,
+};
+
+/**
+ * Вторая ступень входа оператора сида: код из приложения по известному секрету стенда (OPERATOR_TOTP_SECRET). Один код
+ * принимается один раз: если шаг уже занят предыдущим входом, ждём следующий шаг (30 с) и повторяем.
+ */
+export async function passOperatorTotp(page: Page): Promise<void> {
+  await expect(page).toHaveURL(/\/operator\/mfa/);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.getByLabel("Код из приложения").fill(totpNow(OPERATOR_TOTP_SECRET));
+    await page.getByRole("button", { name: "Войти в кабинет" }).click();
+    const left = await page.waitForURL((u) => !u.pathname.startsWith("/operator/mfa"), { timeout: 8_000 }).then(
+      () => true,
+      () => false,
+    );
+    if (left) return;
+    await expect(page.getByText(/уже использован/)).toBeVisible();
+    await page.waitForTimeout((TOTP_PERIOD_S - ((Date.now() / 1000) % TOTP_PERIOD_S) + 1) * 1000);
+  }
+  throw new Error("Оператор сида не прошёл вторую ступень входа");
+}
+
+/** Вход человека сида: телефон → код с экрана → для оператора код из приложения (секрет стенда). Прежний вход сбрасывается. */
 export async function loginAs(page: Page, name: string): Promise<void> {
-  await page.context().clearCookies();
-  await page.goto("/demo");
-  await page.getByRole("button", { name: `Войти: ${name}` }).click();
-  await page.waitForURL((u) => u.pathname !== "/demo");
+  const phone = PERSONA_PHONE[name];
+  if (!phone) throw new Error(`Нет телефона сида для «${name}»`);
+  await loginByPhone(page, phone);
+  if (phone === OPERATOR.phone) await passOperatorTotp(page);
 }
 
 /** Вход по SMS-коду (мок SMS у identity стенда: код показывается на экране входа). */
@@ -75,8 +113,8 @@ export async function loginByPhone(page: Page, phone: string): Promise<void> {
 }
 
 /**
- * Экран согласия на обработку ПДн после входа новым номером: «Даю согласие» и переход дальше (на `next`). Демо-персоны и
- * люди сида его не видят — у них засеяно согласие текущей редакции. Проверки самого экрана — в consent.spec.ts.
+ * Экран согласия на обработку ПДн после входа новым номером: «Даю согласие» и переход дальше (на `next`). Люди сида
+ * его не видят — у них засеяно согласие текущей редакции. Проверки самого экрана — в consent.spec.ts.
  */
 export async function acceptConsent(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/consent\?next=/);

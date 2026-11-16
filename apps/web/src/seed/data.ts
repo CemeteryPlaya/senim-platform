@@ -384,7 +384,7 @@ export type RequestSpec = Targeting & {
 type Address = { text: string; point: GeoPoint };
 
 const ADDR = {
-  demo12: { text: "Астана, ул. Демонстрационная, 12, кв. 45", point: { lat: 51.128207, lng: 71.430411 } },
+  syganak12: { text: "Астана, ул. Сыганак, 12, кв. 45", point: { lat: 51.128207, lng: 71.430411 } },
   primer8: { text: "Астана, пр. Примерный, 8, кв. 101", point: { lat: 51.0905, lng: 71.4187 } },
   obrazets3: { text: "Астана, ул. Образцовая, 3, кв. 17", point: { lat: 51.1605, lng: 71.4704 } },
   test2: { text: "Астана, мкр. Тестовый-2, д. 5, кв. 30", point: { lat: 51.1477, lng: 71.3915 } },
@@ -469,7 +469,7 @@ const OPEN_REQUESTS: RequestSpec[] = [
     style: "modern",
     details: { widthCm: 340, heightCm: 270, depthCm: 60, facade: "mdf_enamel", countertop: "compact", hardware: "soft_close", color: "Шалфей и светлый дуб" },
     segment: "COMFORT",
-    address: ADDR.demo12,
+    address: ADDR.syganak12,
     desiredInDays: 45,
     wishes: "Встроить посудомойку и духовой шкаф, верхние шкафы до потолка.",
     createdDaysAgo: 3.4,
@@ -559,7 +559,7 @@ const OPEN_REQUESTS: RequestSpec[] = [
 const DEAL_REQUESTS: RequestSpec[] = [
   dealRequest({
     key: "deal-offer-hallway", client: "aigerim", executor: "erlan", type: "hallway", style: "minimalism",
-    details: { widthCm: 220, heightCm: 250, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Графит" }, segment: "COMFORT", address: ADDR.demo12,
+    details: { widthCm: 220, heightCm: 250, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Графит" }, segment: "COMFORT", address: ADDR.syganak12,
     wishes: "Нужна антресоль над входной дверью.", daysAgo: 6, price: 330_000, durationDays: 21, comment: "Антресоль над дверью сделаю в цвет шкафа.",
     rounds: [
       { by: "client", priceKzt: 300_000, daysAgo: 5 },
@@ -580,7 +580,7 @@ const DEAL_REQUESTS: RequestSpec[] = [
   }),
   dealRequest({
     key: "deal-paid-wardrobe", client: "aigerim", executor: "timur", type: "wardrobe", style: "modern",
-    details: { widthCm: 240, heightCm: 260, depthCm: 60, facade: "ldsp", hardware: "standard", color: "Белый, одна дверь — зеркало" }, segment: "ECONOMY", address: ADDR.demo12,
+    details: { widthCm: 240, heightCm: 260, depthCm: 60, facade: "ldsp", hardware: "standard", color: "Белый, одна дверь — зеркало" }, segment: "ECONOMY", address: ADDR.syganak12,
     wishes: "Шкаф в прихожую, внутри полки под обувь.", daysAgo: 9, price: 290_000, durationDays: 14, comment: "Профиль Aristo, зеркало серебро.",
     others: [{ executor: "samat", price: 260_000, durationDays: 18, warrantyMonths: 12, comment: "Сделаю недорого и аккуратно.", sentDaysAgo: 8.2 }],
   }),
@@ -591,7 +591,7 @@ const DEAL_REQUESTS: RequestSpec[] = [
   }),
   dealRequest({
     key: "deal-progress-kitchen", client: "aigerim", executor: "erlan", type: "kitchen", style: "modern",
-    details: { widthCm: 320, heightCm: 270, depthCm: 60, facade: "mdf_enamel", countertop: "ldsp", hardware: "soft_close", color: "Шалфей" }, segment: "COMFORT", address: ADDR.demo12,
+    details: { widthCm: 320, heightCm: 270, depthCm: 60, facade: "mdf_enamel", countertop: "ldsp", hardware: "soft_close", color: "Шалфей" }, segment: "COMFORT", address: ADDR.syganak12,
     wishes: "Кухня 3,2 м под потолок.", daysAgo: 25, price: 1_050_000, durationDays: 35, comment: "Фасады МДФ в эмали, верхние шкафы до потолка.",
     rounds: [
       { by: "client", priceKzt: 1_000_000, daysAgo: 23 },
@@ -788,7 +788,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     style: "modern",
     details: { widthCm: 100, facade: "veneer", countertop: "artificial_stone" },
     segment: "PREMIUM",
-    address: ADDR.demo12,
+    address: ADDR.syganak12,
     wishes: "Подвесная тумба под раковину и пенал.",
     createdDaysAgo: 20,
     publishedDaysAgo: 19.9,

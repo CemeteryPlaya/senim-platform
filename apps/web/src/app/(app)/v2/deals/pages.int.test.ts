@@ -320,10 +320,10 @@ describe("карточка сделки: доступ и роли", () => {
     expect(plain(await card(f.dealId))).toContain(ru.app.masterDeal.card.buyer.section);
   });
 
-  it("оператор — на экран сделки v1", async () => {
+  it("оператор — на карточку сделки в кабинете оператора v2", async () => {
     const f = await dealAt("SIGNED");
     await signInAs(await makeOperator());
-    expect(await outcome(() => card(f.dealId))).toContain(`;/deals/${f.dealId};`);
+    expect(await outcome(() => card(f.dealId))).toContain(`;/v2/operator/deals/${f.dealId};`);
   });
 
   it("человек с двумя ролями: активна роль мастера, а в сделке он покупатель — переключение на роль покупателя", async () => {

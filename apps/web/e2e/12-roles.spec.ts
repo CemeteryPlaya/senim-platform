@@ -48,9 +48,9 @@ test("профиль: «метка — значение» и разделы ро
   // Кто вошёл — список «метка — значение».
   for (const term of ["Имя", "Роль", "Телефон"]) await expect(main.getByRole("term").filter({ hasText: term })).toHaveCount(1);
   await expect(main.getByRole("definition").filter({ hasText: /^Заказчик$/ })).toHaveCount(1);
-  // Разделы — те же, что в меню роли (кроме вкладок): у заказчика в демо-режиме.
+  // Разделы — те же, что в меню роли (кроме вкладок): у заказчика.
   const sections = main.getByRole("navigation", { name: "Разделы" }).getByRole("link");
-  await expect(sections).toHaveText(["Мои заявки", "Работы", "Уведомления", "Показ банку", "Демо-персоны"]);
+  await expect(sections).toHaveText(["Мои заявки", "Работы", "Уведомления"]);
   await expect(main.locator("[data-primary-action]")).toHaveCount(0);
   await expect(main.getByRole("button", { name: "Выйти" })).toBeVisible();
   await expectNoHorizontalScrollAt320And200(page, "/profile");
@@ -63,8 +63,6 @@ test("профиль: «метка — значение» и разделы ро
     "Профиль компании",
     "Портфолио",
     "Уведомления",
-    "Показ банку",
-    "Демо-персоны",
   ]);
   await expect(main.locator("[data-primary-action]")).toHaveCount(0);
 });

@@ -50,8 +50,8 @@ test("полная сделка: покупатель, мастер и опер�
   // Формула-оракул совпадает с примером ТЗ.
   expect([M.buyerTotal, M.payout, M.income]).toEqual([153_000_000n, 144_000_000n, 9_000_000n]);
 
-  const buyerCtx = await phone(browser, info, POINT.demo12);
-  const masterCtx = await phone(browser, info, POINT.demo12); // мастер сдаёт работу у адреса
+  const buyerCtx = await phone(browser, info, POINT.syganak12);
+  const masterCtx = await phone(browser, info, POINT.syganak12); // мастер сдаёт работу у адреса
   const operatorCtx = await phone(browser, info);
   const buyer = await buyerCtx.newPage();
   const master = await masterCtx.newPage();
@@ -69,7 +69,7 @@ test("полная сделка: покупатель, мастер и опер�
   await master.goto("/executor/requests");
   await master.getByRole("link", { name: new RegExp(`^Заявка №${requestNumber}:`) }).first().click();
   await expect(master.getByRole("heading", { level: 1, name: new RegExp(`^Заявка №${requestNumber}:`) })).toBeVisible();
-  await expect(master.getByRole("main")).not.toContainText("ул. Демонстрационная");
+  await expect(master.getByRole("main")).not.toContainText("ул. Сыганак");
   await master.getByLabel("Ваша цена, ₸").fill(FIRST_PRICE);
   // Зеркальный расчёт: мастер видит, сколько получит после приёмки, ещё до отправки.
   await expect(master.getByRole("main").getByRole("note").filter({ hasText: "Вы получите после приёмки" })).toContainText(amount(dealMoney(1_600_000).payout));
@@ -358,7 +358,7 @@ async function createKitchenRequest(page: Page): Promise<string> {
 
   await expect(page.getByRole("heading", { level: 1, name: "Где и когда" })).toBeVisible();
   await page.getByLabel("Город").fill("Астана");
-  await page.getByLabel("Адрес или район").fill("Астана, ул. Демонстрационная, 12, кв. 45");
+  await page.getByLabel("Адрес или район").fill("Астана, ул. Сыганак, 12, кв. 45");
   await page.getByRole("button", { name: "Указать моё местоположение" }).click();
   await expect(page.getByText(/^Точка указана: /)).toBeVisible();
   await page.getByRole("button", { name: "Далее" }).click();
