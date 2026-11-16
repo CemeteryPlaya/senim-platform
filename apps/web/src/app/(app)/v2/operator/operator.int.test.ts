@@ -5,9 +5,10 @@ import { ru } from "@/i18n/ru";
 import * as operator from "@/modules/operator";
 import { totpNow } from "../../../../../e2e/totp";
 import { makeClient, makeOperator } from "../../../../../test/factories";
-import { freshBrowser } from "../../../../../test/factories/identity";
+import { freshBrowser, putCookie } from "../../../../../test/factories/identity";
 import { signInAs } from "../../../../../test/factories/session";
 import { identityFake } from "../../../../../test/stubs/identity";
+import { confirmTotpEnrollment, getCurrentUser, sessionCookieName, startTotpEnrollment } from "@/modules/identity";
 import { confirmEnrollmentAction, verifySecondFactorAction } from "./mfa/actions";
 import { MfaForm } from "./mfa/MfaForm";
 import MfaPage from "./mfa/page";
@@ -65,6 +66,38 @@ describe("экран /v2/operator/mfa", () => {
 
     expect(await redirectTarget(confirmEnrollmentAction({ code: totpNow(secret), next: "/v2/operator/money" }))).toBe("/v2/operator/money");
     expect(identityFake.factorState(op.id)).toBe("confirmed");
+  });
+
+  it("подключение устойчиво в пределах сессии: повторное открытие (обновление экрана) — тот же секрет; подключено — null", async () => {
+    const op = await makeOperator();
+    await signInAs(op, undefined, { mfaVerifiedAt: null });
+    const first = (await formOf(page())).enrollment?.secret;
+    const again = (await formOf(page())).enrollment?.secret;
+    expect(first).toMatch(/^[A-Z2-7]{32}$/);
+    expect(again).toBe(first);
+
+    const user = await getCurrentUser();
+    if (!user || !first) throw new Error("нет сессии или секрета");
+    await confirmTotpEnrollment(user, totpNow(first));
+    expect(identityFake.factorState(op.id)).toBe("confirmed");
+    expect(await startTotpEnrollment(user)).toBeNull();
+  });
+
+  it("секрет сессии заменён в другой сессии — экран выдаёт новый действующий секрет, а не ошибку", async () => {
+    const op = await makeOperator();
+    const mine = await signInAs(op, undefined, { mfaVerifiedAt: null });
+    const first = (await formOf(page())).enrollment?.secret;
+    // Другая сессия того же оператора начинает подключение — секрет первой перестаёт действовать.
+    freshBrowser();
+    await signInAs(op, undefined, { mfaVerifiedAt: null });
+    const other = (await formOf(page())).enrollment?.secret;
+    expect(other).not.toBe(first);
+    // Вернулись в первую сессию: её ключ указывает на заменённый секрет — выдаётся новый, им можно подключиться.
+    freshBrowser();
+    putCookie(sessionCookieName(), mine);
+    const renewed = (await formOf(page())).enrollment?.secret ?? "";
+    expect(renewed).not.toBe(first);
+    expect(await redirectTarget(confirmEnrollmentAction({ code: totpNow(renewed), next: "/v2/operator" }))).toBe("/v2/operator");
   });
 
   it("подключено — только поле кода; адрес возврата не v2 или чужой — главная оператора", async () => {

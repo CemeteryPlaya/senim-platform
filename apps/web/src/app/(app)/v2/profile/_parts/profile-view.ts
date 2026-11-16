@@ -1,6 +1,6 @@
 import type { Role } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { formatPhone, switchTargets, type CurrentUser } from "@/modules/identity";
+import { formatPhone, isStaffRole, switchTargets, type CurrentUser } from "@/modules/identity";
 import { masterStatusOf, switchRoleTo } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
 
@@ -16,7 +16,10 @@ export type ProfileModel = {
   roleLine: string;
   /** Разделы мастера (компания, документы, счёт, портфолио, финансы): только у активной роли «мастер»; у остальных пусто. */
   work: ProfileLink[];
-  /** Разделы-ссылки. Контакты и «Мои данные» — только у сторон сделки (покупатель, мастер). */
+  /**
+   * Разделы-ссылки. Контакты и «Мои данные» — только у сторон сделки (покупатель, мастер); «Помощь» — не у сотрудников
+   * площадки (её ответы — для покупателя и мастера, а у оператора раздел вёл бы в заглушку v1).
+   */
   sections: ProfileLink[];
   /** Смена роли: другая выданная роль и, если роли мастера нет, «Стать мастером». */
   roles: ProfileLink[];
@@ -64,7 +67,8 @@ export function profileModel(user: ProfileUser): ProfileModel {
   if (isParty(user.role)) {
     sections.push({ label: t.rows.contacts, href: to("/profile/contacts") }, { label: t.rows.data, href: to("/profile/data") });
   }
-  sections.push({ label: t.rows.notifications, href: to("/notifications") }, { label: t.rows.help, href: to("/help") });
+  sections.push({ label: t.rows.notifications, href: to("/notifications") });
+  if (!isStaffRole(user.role)) sections.push({ label: t.rows.help, href: to("/help") });
   return {
     name: user.fullName ?? t.nameMissing,
     phone: formatPhone(user.phone),

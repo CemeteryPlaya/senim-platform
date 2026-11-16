@@ -28,9 +28,11 @@ describe("profileModel", () => {
     expect(profileModel({ ...client, fullName: null }).name).toBe(t.nameMissing);
   });
 
-  it("разделы покупателя и мастера — контакты, мои данные, уведомления, помощь; у оператора только уведомления и помощь", () => {
+  it("разделы покупателя и мастера — контакты, мои данные, уведомления, помощь; у сотрудников только уведомления", () => {
     expect(profileModel(client).sections.map((s) => s.href)).toEqual(["/v2/profile/contacts", "/v2/profile/data", "/v2/notifications", "/v2/help"]);
-    expect(profileModel({ ...client, role: "OPERATOR", roles: ["OPERATOR"] }).sections.map((s) => s.href)).toEqual(["/v2/notifications", "/v2/help"]);
+    // Сотрудникам «Помощь» не показывается: её ответы — для покупателя и мастера.
+    expect(profileModel({ ...client, role: "OPERATOR", roles: ["OPERATOR"] }).sections.map((s) => s.href)).toEqual(["/v2/notifications"]);
+    expect(profileModel({ ...client, role: "MEASURER", roles: ["MEASURER"] }).sections.map((s) => s.href)).toEqual(["/v2/notifications"]);
   });
 
   it("роль: только заказчик — «Стать мастером» (регистрация мастера)", () => {

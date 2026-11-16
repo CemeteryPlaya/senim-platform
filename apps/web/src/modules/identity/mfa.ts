@@ -1,5 +1,5 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import QRCode from "qrcode";
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
@@ -49,18 +49,42 @@ export async function requireMfaUser(): Promise<CurrentUser> {
 }
 
 /**
- * Начать подключение: identity выдаёт новый секрет (прежний неподтверждённый перестаёт действовать). null — приложение
- * уже подключено: экран спрашивает код. Каждый вызов — новый ключ идемпотентности, поэтому обновление экрана даёт новый QR.
+ * Ключ идемпотентности подключения приложения в этой сессии: один и тот же при каждом открытии экрана (хэш токена
+ * сессии, сам токен в ключ не попадает). По тому же ключу identity отдаёт тот же неподтверждённый секрет, поэтому
+ * обновление экрана (в том числе само, при возврате во вкладку) не меняет QR-код и ключ, переписанный в приложение.
+ */
+function enrollmentKey(sessionToken: string): string {
+  return `totp-enroll:${createHash("sha256").update(`totp-enroll\0${sessionToken}`).digest("base64url")}`;
+}
+
+/** Секрет подключения от identity по ключу; `null` — приложение уже подключено. Прочие отказы identity — наружу. */
+async function enrollmentSecret(sessionToken: string, idempotencyKey: string): Promise<string | null> {
+  try {
+    return (await identity().startTotpEnrollment({ sessionToken, idempotencyKey })).secretBase32;
+  } catch (e) {
+    if (rpcErrorCode(e) === "mfa_already_enrolled") return null;
+    throw e;
+  }
+}
+
+/**
+ * Начать подключение: identity выдаёт секрет для приложения-аутентификатора. В пределах сессии секрет один и тот же
+ * (ключ идемпотентности от сессии — `enrollmentKey`): QR-код не меняется при обновлении экрана. Если секрет этой сессии
+ * уже заменён (подключение начали в другой сессии или фактор сбросили — identity отвечает idempotency_key_reused), —
+ * новый секрет по новому ключу. null — приложение уже подключено: экран спрашивает код.
  */
 export async function startTotpEnrollment(user: CurrentUser): Promise<TotpEnrollment | null> {
   const sessionToken = await currentSessionToken();
-  let secret: string;
+  let secret: string | null;
   try {
-    secret = (await identity().startTotpEnrollment({ sessionToken, idempotencyKey: randomUUID() })).secretBase32;
+    secret = await enrollmentSecret(sessionToken, enrollmentKey(sessionToken)).catch((e: unknown) => {
+      if (rpcErrorCode(e) === "idempotency_key_reused") return enrollmentSecret(sessionToken, randomUUID());
+      throw e;
+    });
   } catch (e) {
-    if (rpcErrorCode(e) === "mfa_already_enrolled") return null;
     return identityFailure(e);
   }
+  if (secret === null) return null;
   const url = otpauthUrl(user.phone, secret);
   return { secret, otpauthUrl: url, qrSvg: await QRCode.toString(url, { type: "svg", margin: 1, errorCorrectionLevel: "M" }) };
 }
