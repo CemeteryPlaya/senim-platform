@@ -4,11 +4,15 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import type { WizardScreen } from "@/modules/requests/client";
 
 // Несохранённый ввод шага мастера в sessionStorage вкладки: «Назад» и перезагрузка не теряют то, что человек ввёл, но
-// ещё не отправил «Дальше». Ключ — `<черновик>:<шаг>`; до черновика — метка сессии мастера (`new-<время>`), заведённая
-// один раз на вкладку. Хранилище может быть недоступно (приватный режим, запрет сайта) — тогда всё работает без него.
+// ещё не отправил «Дальше». Ключ — `<черновик>:<шаг>`; до черновика — метка мастера из адреса (`?w=new-<время>`): её
+// заводит первое открытие мастера без черновика, перезагрузка её сохраняет, а новая заявка получает новую — ввод брошенной
+// заявки в неё не подставляется (и стирается). Хранилище может быть недоступно (приватный режим, запрет сайта) — тогда всё
+// работает без него.
 
 const PREFIX = "senim.request-wizard";
-const SESSION = `${PREFIX}.session`;
+/** Прежнее место метки (до метки в адресе) — стирается вместе с вводом брошенных заявок. */
+const LEGACY_SESSION = `${PREFIX}.session`;
+const MARKER = /^new-[a-z0-9]+$/;
 
 function storage(): Storage | null {
   try {
@@ -18,23 +22,37 @@ function storage(): Storage | null {
   }
 }
 
-/** Метка сессии мастера для ещё не созданного черновика. */
-function sessionMarker(): string {
+/**
+ * Метка мастера для ещё не созданного черновика — из адреса (`w`). Нет её (новая заявка) — заводится новая, записывается в
+ * адрес без перехода (`history.replaceState`), а ввод прошлых брошенных заявок этой вкладки стирается.
+ */
+function wizardMarker(): string {
+  if (typeof window === "undefined") return "new";
+  const url = new URL(window.location.href);
+  const current = url.searchParams.get("w");
+  if (current && MARKER.test(current)) return current;
+  const marker = `new-${Date.now().toString(36)}`;
+  forgetAbandoned();
+  url.searchParams.set("w", marker);
+  window.history.replaceState(window.history.state, "", url);
+  return marker;
+}
+
+/** Стереть ввод всех заявок без черновика (метки `new-…`) и прежнюю метку сессии. */
+function forgetAbandoned(): void {
   const s = storage();
   try {
-    const existing = s?.getItem(SESSION);
-    if (existing) return existing;
-    const marker = `new-${Date.now().toString(36)}`;
-    s?.setItem(SESSION, marker);
-    return marker;
+    if (!s) return;
+    s.removeItem(LEGACY_SESSION);
+    for (const key of Object.keys(s)) if (key.startsWith(`${PREFIX}:new`)) s.removeItem(key);
   } catch {
-    return "new";
+    // Нечего забывать.
   }
 }
 
 /** Ключ ввода шага: `<префикс>:<черновик или метка сессии>:<шаг>`. */
 export function memoryKey(draftId: string | null, screen: WizardScreen): string {
-  return `${PREFIX}:${draftId ?? sessionMarker()}:${screen}`;
+  return `${PREFIX}:${draftId ?? wizardMarker()}:${screen}`;
 }
 
 function read(key: string): unknown {
