@@ -1109,3 +1109,21 @@
   min-height: 0;
   height: auto;
 }
+
+/*
+ * Панель вкладок телефона скрыта там, где она мешает: на экране переписки (в мессенджерах вкладок в переписке нет — поле
+ * ввода у самого низа) и пока в поле текста стоит курсор, то есть открыта экранная клавиатура (на 844 px высоты над
+ * клавиатурой иначе остаются панель, поле и узкая лента). Без JS: `:has()` на корне оболочки. Место под панель
+ * (--tab-bar-space, --tab-bar-block) обнуляется, поэтому док и поле ввода встают к самому низу, а подложка не растворяет
+ * лишнее. Флажки, радио и кнопки-поля курсора не ставят — на них панель остаётся. Панель — `nav[data-tab-nav]` (TabBar).
+ */
+[data-mobile-shell][data-has-tabs]:is(
+    :has(> main [data-chat-bar]),
+    :has(> main :is(textarea, input:not([type="checkbox"], [type="radio"], [type="file"], [type="button"], [type="submit"], [type="hidden"], [type="range"])):focus)
+  ) {
+  --tab-bar-space: 0px;
+  --tab-bar-block: 0px;
+  & > nav[data-tab-nav] {
+    display: none;
+  }
+}

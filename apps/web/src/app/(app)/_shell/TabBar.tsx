@@ -55,6 +55,8 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
     const shell = nav?.parentElement;
     if (!nav || !shell || typeof ResizeObserver === "undefined") return;
     const measure = () => {
+      // Панель скрыта (экран переписки, открыта клавиатура — tokens.css): замерять нечего, состояние не трогаем.
+      if (nav.offsetHeight === 0) return;
       shell.style.setProperty("--tab-bar-height", `${nav.getBoundingClientRect().height}px`);
       const tabs = list.current;
       if (!tabs) return;
@@ -75,7 +77,7 @@ export function TabBar({ items }: { items: readonly NavItem[] }) {
   }, []);
 
   return (
-    <nav ref={bar} aria-label={ru.app.shell.navLabel} className="pointer-events-none sticky dock-bottom z-20 dock-inline">
+    <nav ref={bar} data-tab-nav aria-label={ru.app.shell.navLabel} className="pointer-events-none sticky dock-bottom z-20 dock-inline">
       <ul
         ref={list}
         data-tab-bar
