@@ -68,6 +68,22 @@ function useHandle(dealHref: string) {
   };
 }
 
+/**
+ * Ошибка у кнопки подписи — в поле зрения: на телефоне кнопка висит в доке у нижнего края и закрывает конец экрана, где
+ * стоит текст ошибки, — экран прокручивается так, чтобы текст был по центру (мгновенно, без анимации).
+ */
+function SignError({ error }: { error: string | null | undefined }) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) box.current?.scrollIntoView({ block: "center" });
+  }, [error]);
+  return (
+    <div ref={box} className="empty:hidden">
+      <FormError error={error ?? null} />
+    </div>
+  );
+}
+
 /** Подпись поставлена целиком (своя часть): тост и карточка сделки. */
 function useFinish(kind: SignKind, dealHref: string) {
   const router = useRouter();
@@ -185,7 +201,7 @@ function HandStep({ dealId, documentId, kind, side, step, dealHref, fullName, co
             </p>
           )}
         </Stack>
-        <FormError error={error} />
+        <SignError error={error} />
       </Section>
       <ActionDock>
         <Button onClick={submit} pending={pending} disabled={!ready} aria-describedby={ready ? undefined : reasonId}>
@@ -302,8 +318,7 @@ function EcpStep({ dealId, documentId, kind, step, dealHref, device, consent }: 
             {tc.locked}
           </p>
         )}
-        {state.step === "choose" && state.error && <FormError error={state.error} />}
-        {state.step === "awaiting" && state.error && !expired && <FormError error={state.error} />}
+        <SignError error={(state.step === "choose" || (state.step === "awaiting" && !expired)) && state.error ? state.error : null} />
       </Section>
       <ActionDock>
         {choosing || state.step === "done" ? (

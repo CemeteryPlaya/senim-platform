@@ -79,7 +79,7 @@ export function SkeletonChips({ count = 2 }: { count?: number }) {
   return (
     <div aria-hidden className="flex gap-2">
       {Array.from({ length: count }, (_, i) => (
-        <Bar key={i} className="h-12 w-28 rounded-control desktop:h-9" />
+        <Bar key={i} className="h-12 w-28 rounded-chip desktop:h-9" />
       ))}
     </div>
   );
