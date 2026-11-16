@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, Explain, HiddenField, Stack, TextField } from "@/kit";
-import { LIMITS, type GeoPoint } from "@/modules/requests/client";
+import { Button, CityField, Explain, HiddenField, Stack, TextField } from "@/kit";
+import { LIMITS, SUGGESTED_CITIES, type GeoPoint } from "@/modules/requests/client";
 import type { Device } from "@/platform/device";
 import { outcomeOf } from "../../../_shell/form";
 import { locateAddressAction } from "./actions";
@@ -133,7 +133,7 @@ export function WizardPlace({ base, device, initial }: { base: WizardBase; devic
   return (
     <WizardFrame base={base} title={t.title} lead={t.lead} form={form}>
       <Stack>
-        <TextField label={t.city} name="city" autoComplete="address-level2" maxLength={LIMITS.city} value={place.city} onChange={(ev) => set({ city: ev.target.value })} error={e.city} />
+        <CityField label={t.city} name="city" suggestions={SUGGESTED_CITIES} maxLength={LIMITS.city} value={place.city} onChange={(city) => set({ city })} error={e.city} />
         <TextField
           label={t.address}
           name="address"

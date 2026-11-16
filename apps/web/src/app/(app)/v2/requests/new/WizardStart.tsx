@@ -2,7 +2,7 @@
 
 import { LayoutGrid } from "lucide-react";
 import { ru } from "@/i18n/ru";
-import { Button, HiddenField, PhotoChoice, PhotoChoiceGroup, RadioCard, RadioGroup, Select, Stack, TextField } from "@/kit";
+import { Button, HiddenField, LengthField, PhotoChoice, PhotoChoiceGroup, RadioCard, RadioGroup, Select, Stack, TextField } from "@/kit";
 import { LIMITS } from "@/modules/requests/client";
 import { WizardFrame, useWizardStep, type WizardBase } from "./WizardFrame";
 import { useStepMemory } from "./wizard-memory";
@@ -42,9 +42,9 @@ function Advanced({ state, onChange, errors }: { state: AdvancedState; onChange:
         </RadioGroup>
         {state.sizeKnown && (
           <Stack>
-            <TextField label={t.width} name="widthCm" inputMode="numeric" autoComplete="off" value={state.width} onChange={(e) => onChange({ width: e.target.value })} error={errors.widthCm} />
-            <TextField label={t.height} name="heightCm" inputMode="numeric" autoComplete="off" value={state.height} onChange={(e) => onChange({ height: e.target.value })} error={errors.heightCm} />
-            <TextField label={t.depth} name="depthCm" inputMode="numeric" autoComplete="off" value={state.depth} onChange={(e) => onChange({ depth: e.target.value })} error={errors.depthCm} />
+            <LengthField label={t.width} name="widthCm" value={state.width} onChange={(width) => onChange({ width })} error={errors.widthCm} />
+            <LengthField label={t.height} name="heightCm" value={state.height} onChange={(height) => onChange({ height })} error={errors.heightCm} />
+            <LengthField label={t.depth} name="depthCm" value={state.depth} onChange={(depth) => onChange({ depth })} error={errors.depthCm} />
           </Stack>
         )}
         {(

@@ -2,8 +2,9 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Card, Checkbox, Columns, Explain, MoneyField, Notice, RadioCard, RadioGroup, Stack, TextArea, TextField, toast } from "@/kit";
+import { ActionDock, Button, Card, Checkbox, CityField, Columns, Explain, MoneyField, Notice, RadioCard, RadioGroup, Stack, TextArea, TextField, toast } from "@/kit";
 import { kztToTiyn } from "@/modules/payments/client";
+import { SUGGESTED_CITIES } from "@/modules/requests/client";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../_shell/FormError";
 import { useActionForm } from "../../../_shell/form";
@@ -157,7 +158,7 @@ export function CompanyForm({ initial, types, device }: Props) {
 
             <Stack>
               <h2 className="text-title-2 text-ink">{t.address.title}</h2>
-              <TextField label={t.address.city} name="city" value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" maxLength={100} error={err.city} />
+              <CityField label={t.address.city} name="city" suggestions={SUGGESTED_CITIES} value={city} onChange={setCity} maxLength={100} error={err.city} />
               <TextField
                 label={`${t.address.district} (${t.optional})`}
                 name="district"

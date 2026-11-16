@@ -1,5 +1,6 @@
 import { ru } from "@/i18n/ru";
-import { Card, Explain, IinField, List, ListRow, Notice, RadioCard, RadioGroup, Section, Stack, TextField } from "@/kit";
+import { Card, CityField, Explain, IinField, List, ListRow, Notice, RadioCard, RadioGroup, Section, Stack, TextField } from "@/kit";
+import { SUGGESTED_CITIES } from "@/modules/requests/client";
 import type { Device } from "@/platform/device";
 import { LEGAL_FORMS, type AnswerField, type Answers } from "./_parts/schema";
 import { stepHref, summaryRows } from "./_parts/steps";
@@ -108,7 +109,7 @@ export function NameFields({ answers, errors, onChange, ownIinLast4 }: FieldsPro
 export function PlaceFields(props: FieldsProps) {
   return (
     <Stack gap="section">
-      <Field {...props} name="city" label={t.place.city} autoComplete="address-level2" maxLength={100} />
+      <CityField label={t.place.city} name="city" suggestions={SUGGESTED_CITIES} value={props.answers.city} onChange={(city) => props.onChange("city", city)} maxLength={100} error={props.errors.city} />
       <Field {...props} name="district" label={t.place.district} autoComplete="address-level3" maxLength={100} />
       <Field {...props} name="streetAddress" label={t.place.street} autoComplete="street-address" maxLength={200} />
       <Field {...props} name="yearsExperience" label={t.place.experience} inputMode="numeric" autoComplete="off" maxLength={2} />
