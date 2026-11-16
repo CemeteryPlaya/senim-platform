@@ -145,3 +145,31 @@ describe("уведомления: действия", () => {
     expect(h.revalidated).toEqual([["/(app)", "layout"]]);
   });
 });
+
+describe("уведомления: открытие по нажатию на push (GET /v2/notifications/<id>/open)", () => {
+  const run = (id: string) =>
+    redirectOf(async () => {
+      const { GET } = await import("./[id]/open/route");
+      await GET(new Request("http://localhost/x"), { params: Promise.resolve({ id }) });
+    });
+
+  it("отмечает прочитанным и ведёт на экран v2 (ссылка модуля — путь v1); счётчик колокольчика сбрасывается", async () => {
+    const me = await makeClient();
+    h.user = me;
+    const n = await notify(me.id, { link: "/deals/d7" });
+    expect(await run(n.id)).toBe("/v2/deals/d7");
+    expect((await db.notification.findUniqueOrThrow({ where: { id: n.id } })).readAt).not.toBeNull();
+    expect(h.revalidated).toContainEqual(["/(app)", "layout"]);
+    // Повтор безопасен: то же место, уже прочитанное остаётся прочитанным.
+    expect(await run(n.id)).toBe("/v2/deals/d7");
+  });
+
+  it("чужое и несуществующее — на список уведомлений, чужое не помечается", async () => {
+    const me = await makeClient();
+    h.user = me;
+    const other = await notify((await makeClient()).id, { link: "/deals/x" });
+    expect(await run(other.id)).toBe("/v2/notifications");
+    expect((await db.notification.findUniqueOrThrow({ where: { id: other.id } })).readAt).toBeNull();
+    expect(await run("нет-такого")).toBe("/v2/notifications");
+  });
+});

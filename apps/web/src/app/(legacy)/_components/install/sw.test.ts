@@ -48,7 +48,7 @@ describe("public/sw.js: push", () => {
     await sw.dispatch("push", { data: pushData({ title: "Событие", url: "https://evil.example/phish" }) });
     await sw.dispatch("push", { data: pushData("не json") });
     await sw.dispatch("push", { data: null });
-    expect(sw.shown.map((s) => s.options.data)).toEqual([{ url: "/notifications" }, { url: "/notifications" }, { url: "/notifications" }]);
+    expect(sw.shown.map((s) => s.options.data)).toEqual([{ url: "/v2/notifications" }, { url: "/v2/notifications" }, { url: "/v2/notifications" }]);
     expect(sw.shown[1]!.title).toBe("senim.example");
   });
 });
@@ -69,7 +69,13 @@ describe("public/sw.js: нажатие на уведомление", () => {
   it("окна нет — открывает новое; внешний адрес не открывает", async () => {
     const sw = loadWorker({ windows: [{ url: "https://other.example/" }] });
     await sw.dispatch("notificationclick", click("//evil.example/x"));
-    expect(sw.self.clients.openWindow).toHaveBeenCalledWith(`${ORIGIN}/notifications`);
+    expect(sw.self.clients.openWindow).toHaveBeenCalledWith(`${ORIGIN}/v2/notifications`);
+  });
+
+  it("push с tag (id уведомления) ведёт в v2 через обработчик, который отметит прочитанным", async () => {
+    const sw = loadWorker({ windows: [{ url: `${ORIGIN}/v2` }] });
+    await sw.dispatch("notificationclick", { notification: { close: vi.fn(), tag: "n 1/2", data: { url: "/deals/d7" } } });
+    expect(sw.windows[0]!.navigate).toHaveBeenCalledWith(`${ORIGIN}/v2/notifications/n%201%2F2/open`);
   });
 });
 

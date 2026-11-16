@@ -60,9 +60,23 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+/** Страница уведомлений нового интерфейса: запасной адрес. */
+const NOTIFICATIONS_URL = "/v2/notifications";
+
 /** Только путь внутри сайта: «/deals/…». Чужой адрес или «//host» — страница уведомлений. */
 function safePath(url) {
-  return typeof url === "string" && url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\") ? url : "/notifications";
+  return typeof url === "string" && url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\") ? url : NOTIFICATIONS_URL;
+}
+
+/**
+ * Куда вести нажатие на уведомление. У push с `tag` (id уведомления в модуле) — обработчик /v2/notifications/<tag>/open: он
+ * отметит уведомление прочитанным и откроет нужный экран в новом интерфейсе (ссылка в push — путь старого). Без `tag` — путь из
+ * данных уведомления, а без него — страница уведомлений v2.
+ */
+function targetFor(notification) {
+  const tag = notification && typeof notification.tag === "string" ? notification.tag : "";
+  if (tag) return NOTIFICATIONS_URL + "/" + encodeURIComponent(tag) + "/open";
+  return safePath(notification && notification.data && notification.data.url);
 }
 
 /** Сервер присылает { title, body, url, tag } (notifications.sendPush). Тексты — с сервера: здесь своих нет. */
@@ -75,7 +89,7 @@ function readPush(data) {
   } catch {
     // Не JSON — покажем общее уведомление: push без показа браузер считает нарушением.
   }
-  return { title: self.location.hostname, body: "", url: "/notifications", tag: undefined };
+  return { title: self.location.hostname, body: "", url: NOTIFICATIONS_URL, tag: undefined };
 }
 
 self.addEventListener("push", (event) => {
@@ -93,7 +107,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = new URL(safePath(event.notification.data && event.notification.data.url), self.location.origin).href;
+  const url = new URL(targetFor(event.notification), self.location.origin).href;
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
