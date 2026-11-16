@@ -105,11 +105,18 @@ describe("nextStepFor", () => {
     ["оператор — его раздел; согласие, ФИО и почта его не касаются", operator(), null, null, "/v2/operator"],
     ["оператор с next — next", operator(), NEXT, null, NEXT],
     [
-      "оператор без второго фактора — экран кода из приложения (v1) с возвратом",
+      "оператор без второго фактора — экран кода из приложения v2 с возвратом домой",
       operator({ mfa: { required: true, verifiedAt: null } }),
       null,
       null,
-      `/operator/mfa?next=${encodeURIComponent("/v2/operator")}`,
+      `/v2/operator/mfa?next=${encodeURIComponent("/v2/operator")}`,
+    ],
+    [
+      "оператор без второго фактора с next — экран кода с возвратом на next",
+      operator({ mfa: { required: true, verifiedAt: null } }),
+      "/v2/operator/money",
+      null,
+      `/v2/operator/mfa?next=${encodeURIComponent("/v2/operator/money")}`,
     ],
   ])("%s", (_name, user, next, chosen, expected) => {
     expect(nextStepFor(user, next, chosen)).toBe(expected);

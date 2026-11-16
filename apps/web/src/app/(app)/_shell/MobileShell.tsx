@@ -1,9 +1,12 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { NavHistory } from "@/kit";
 import { LogoutButton } from "./LogoutButton";
 import type { AppNav } from "./nav";
 import { NetworkStatus } from "./NetworkStatus";
+import { NotificationsLink } from "./NotificationsLink";
+import { OperatorMenu } from "./OperatorNav";
 import { MAIN_ID, SkipLink, UnavailableNotice } from "./ShellParts";
 import { TabBar } from "./TabBar";
 import { TitleBell } from "./TitleBell";
@@ -29,8 +32,13 @@ export type MobileShellProps = {
  * Сосредоточенная оболочка (`nav.focus`, первые шаги после входа): вместо панели вкладок — узкая шапка с названием
  * продукта и «Выйти»; вкладок нет, док стоит у самого нижнего края (как у оператора).
  * Сверху области содержимого — NetworkStatus: плашка «Нет связи», обновление экрана при возврате связи и в приложение.
+ *
+ * Оператор (`nav.operator`, спека, раздел 5): вкладок нет — узкая шапка, как у сосредоточенной оболочки: название (ссылка
+ * на главную оператора) слева, колокольчик и «Меню» справа; «Меню» открывает шторку со всеми разделами по группам. Док
+ * главного действия — у нижнего края.
  */
 export function MobileShell({ nav, unavailable = false, unread = null, children }: MobileShellProps) {
+  const operator = nav.focus ? undefined : nav.operator;
   return (
     <div data-mobile-shell data-has-tabs={nav.tabs.length > 0 ? "" : undefined} className="flex min-h-dvh flex-col">
       <SkipLink />
@@ -43,10 +51,27 @@ export function MobileShell({ nav, unavailable = false, unread = null, children 
           <LogoutButton />
         </header>
       )}
-      <main id={MAIN_ID} tabIndex={-1} className={`mx-auto w-full max-w-column flex-1 safe-gutter outline-none dock-column ${nav.focus ? "safe-bottom pt-6" : "safe-block"}`}>
+      {operator && (
+        // Шапка оператора: отступы учитывают вырез (safe-bar), поэтому main под ней верхний вырез второй раз не добавляет.
+        // Крупный шрифт на узком телефоне: колокольчик и «Меню» переносятся строкой ниже у правого края, а не за край экрана.
+        <header data-operator-bar className="mx-auto flex w-full max-w-column flex-wrap items-center justify-between gap-x-2 safe-bar">
+          <Link href={operator.home.href} className="inline-flex min-h-control items-center text-headline text-ink no-underline">
+            {ru.common.brand}
+          </Link>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+            {unread !== null && <NotificationsLink unread={unread} />}
+            <OperatorMenu nav={operator} />
+          </div>
+        </header>
+      )}
+      <main
+        id={MAIN_ID}
+        tabIndex={-1}
+        className={`mx-auto w-full max-w-column flex-1 safe-gutter outline-none dock-column ${nav.focus || operator ? "safe-bottom pt-6" : "safe-block"}`}
+      >
         <NetworkStatus />
         {unavailable && <UnavailableNotice />}
-        {unread !== null && !nav.focus && !nav.guest ? (
+        {unread !== null && !nav.focus && !nav.guest && !operator ? (
           <TitleBell items={nav.tabs} unread={unread}>
             {children}
           </TitleBell>

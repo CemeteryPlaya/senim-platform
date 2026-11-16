@@ -1,15 +1,20 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
+import type { ReactNode } from "react";
 import { MovingPlaceholder } from "./Moving";
+import { isOperatorReady } from "./operator-sections";
 import { legacy, to } from "./paths";
 
 /**
- * Оператор в v2 до своей оболочки (этап 5): вместо любой страницы v2 — заглушка со ссылкой на тот же адрес в v1
- * (с параметрами). Адрес знает только клиентский роутер, поэтому компонент клиентский; рисует его layout.
+ * Оператор в v2, пока разделы переносятся (этап 5): на готовых экранах (`OPERATOR_READY`) — сама страница, на остальных —
+ * заглушка со ссылкой на тот же адрес в v1 (с параметрами). Адрес знает только клиентский роутер, поэтому компонент
+ * клиентский; рисует его layout вокруг страницы. Это только интерфейс, а не граница доступа: страница выполняется на
+ * сервере в любом случае, права проверяют она сама и действия сервера.
  */
-export function OperatorMoving() {
+export function OperatorMoving({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? to("/");
   const query = useSearchParams()?.toString() ?? "";
+  if (isOperatorReady(pathname)) return children;
   return <MovingPlaceholder href={legacy(pathname) + (query ? `?${query}` : "")} />;
 }

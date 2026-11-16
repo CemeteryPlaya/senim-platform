@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
-import { NavHistory } from "@/kit";
+import { cn, NavHistory } from "@/kit";
 import type { Theme } from "@/kit/theme";
 import { AvatarMenu } from "./AvatarMenu";
 import { LogoutButton } from "./LogoutButton";
@@ -9,6 +9,7 @@ import type { AppNav } from "./nav";
 import { NetworkStatus } from "./NetworkStatus";
 import { to } from "./paths";
 import { NotificationsLink } from "./NotificationsLink";
+import { OperatorNavList } from "./OperatorNav";
 import { ShellAction } from "./ShellAction";
 import { MAIN_ID, SkipLink, UnavailableNotice } from "./ShellParts";
 import { TopNav } from "./TopNav";
@@ -40,8 +41,20 @@ export type DesktopShellProps = {
  * посередине — страница прокручивается вбок, а не сжимается. При крупном шрифте, если строка шапки не помещается, правая группа переходит
  * на вторую строку у правого края — шапка растёт, ничего не обрезается и не наезжает.
  * Сверху области содержимого — NetworkStatus: плашка «Нет связи», обновление экрана при возврате связи и во вкладку.
+ *
+ * Оператор (`nav.operator`, спека, раздел 5): разделов в шапке нет — меню слева по группам (колонка 240 px прилипает под
+ * шапкой и прокручивается сама, если длиннее окна), содержимое — таблицы и очереди — на остальную ширину рабочего места до
+ * 1440 px (`max-w-operator`); название продукта ведёт на главную оператора.
  */
 export function DesktopShell({ nav, user, theme = "system", unread = 0, unavailable = false, children }: DesktopShellProps) {
+  const operator = nav.focus ? undefined : nav.operator;
+  const content = (
+    <>
+      <NetworkStatus />
+      {unavailable && <UnavailableNotice />}
+      {children}
+    </>
+  );
   return (
     // min-w-shell (1024px): в узком окне шапка и содержимое не сжимаются по слову в строке — страница прокручивается вбок
     // (спека, раздел 5; разбор 3.9).
@@ -49,12 +62,12 @@ export function DesktopShell({ nav, user, theme = "system", unread = 0, unavaila
       <SkipLink />
       <NavHistory />
       <header data-top-bar className="glass-bar sticky top-0 z-20">
-        <div className="mx-auto flex min-h-header w-full max-w-content flex-wrap items-center gap-x-6 px-6">
+        <div className={cn("mx-auto flex min-h-header w-full flex-wrap items-center gap-x-6 px-6", operator ? "max-w-operator" : "max-w-content")}>
           {nav.focus ? (
             // Первые шаги: название — текст, а не ссылка (со шага уходить некуда).
             <span className="inline-flex min-h-control shrink-0 items-center text-headline text-ink">{ru.common.brand}</span>
           ) : (
-            <Link href={to("/")} className="inline-flex min-h-control shrink-0 items-center text-headline text-ink no-underline">
+            <Link href={operator?.home.href ?? to("/")} className="inline-flex min-h-control shrink-0 items-center text-headline text-ink no-underline">
               {ru.common.brand}
             </Link>
           )}
@@ -67,11 +80,23 @@ export function DesktopShell({ nav, user, theme = "system", unread = 0, unavaila
           </div>
         </div>
       </header>
-      <main id={MAIN_ID} tabIndex={-1} className="mx-auto w-full max-w-content flex-1 px-6 pt-12 pb-12 outline-none">
-        <NetworkStatus />
-        {unavailable && <UnavailableNotice />}
-        {children}
-      </main>
+      {operator ? (
+        // Колонки растянуты на высоту ряда (без items-start): прилипающему меню есть куда «ехать» внутри своей колонки.
+        <div className="mx-auto grid w-full max-w-operator flex-1 grid-cols-sidebar gap-split px-6">
+          <aside className="min-w-0 pt-12 pb-12">
+            <div className="sticky-nav">
+              <OperatorNavList nav={operator} />
+            </div>
+          </aside>
+          <main id={MAIN_ID} tabIndex={-1} className="min-w-0 pt-12 pb-12 outline-none">
+            {content}
+          </main>
+        </div>
+      ) : (
+        <main id={MAIN_ID} tabIndex={-1} className="mx-auto w-full max-w-content flex-1 px-6 pt-12 pb-12 outline-none">
+          {content}
+        </main>
+      )}
     </div>
   );
 }

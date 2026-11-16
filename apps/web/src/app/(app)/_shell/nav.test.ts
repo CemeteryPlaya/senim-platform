@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { activeHref, isTabRoot, navFor, visibleAction, type AppNav, type NavFeatures, type NavUser } from "./nav";
+import { activeHref, isTabRoot, navFor, operatorItems, visibleAction, type AppNav, type NavFeatures, type NavUser } from "./nav";
+import { NAV_ICONS } from "./nav-icons";
 
 const OFF: NavFeatures = { preContractFlows: false, inspiration: false, materialsCalculator: false };
 const ON: NavFeatures = { preContractFlows: true, inspiration: true, materialsCalculator: true };
@@ -96,12 +97,56 @@ describe("navFor: вкладки по ролям", () => {
     expect(activeHref(tabs, "/v2")).toBeUndefined();
   });
 
-  it("оператор: вкладок нет (оболочка оператора — этап 5)", () => {
+  it("оператор: вкладок и разделов шапки нет — меню слева по группам, главная сверху, профиль снизу", () => {
     const nav = navFor(operator, ON);
     expect(nav.tabs).toEqual([]);
     expect(nav.sections).toEqual([]);
     expect(nav.action).toBeUndefined();
     expect(nav.guest).toBe(false);
+    const menu = nav.operator;
+    if (!menu) throw new Error("нет меню оператора");
+    expect(menu.home).toMatchObject({ href: "/v2/operator", label: "Главная" });
+    expect(menu.profile).toMatchObject({ href: "/v2/profile", label: "Профиль" });
+    expect(menu.groups.map((g) => [g.label, g.items.map((i) => i.href)])).toEqual([
+      [
+        "Очереди",
+        ["/v2/operator/money", "/v2/operator/kyc", "/v2/operator/consents", "/v2/operator/executors", "/v2/operator/disputes", "/v2/operator/requests"],
+      ],
+      ["Сделки и отчёты", ["/v2/operator/deals", "/v2/operator/income", "/v2/operator/report", "/v2/operator/audit"]],
+      ["Справочники и настройки", ["/v2/operator/furniture-types", "/v2/operator/materials", "/v2/operator/settings"]],
+    ]);
+    // 15 пунктов, как в v1 без демо-страницы; адреса и значки не повторяются, у каждого значка есть компонент.
+    const items = operatorItems(menu);
+    expect(items).toHaveLength(15);
+    expect(new Set(items.map((i) => i.href)).size).toBe(15);
+    expect(new Set(items.map((i) => i.icon)).size).toBe(15);
+    for (const item of items) expect(NAV_ICONS[item.icon]).toBeDefined();
+  });
+
+  it("оператор: «Цены материалов» — только при включённом флаге калькулятора материалов", () => {
+    const hrefsOf = (f: NavFeatures) => {
+      const menu = navFor(operator, f).operator;
+      return menu ? operatorItems(menu).map((i) => i.href) : [];
+    };
+    expect(hrefsOf(ON)).toContain("/v2/operator/materials");
+    expect(hrefsOf(OFF)).not.toContain("/v2/operator/materials");
+    expect(navFor(operator, OFF).operator?.groups.at(-1)?.items.map((i) => i.href)).toEqual(["/v2/operator/furniture-types", "/v2/operator/settings"]);
+  });
+
+  it("оператор на втором шаге входа — сосредоточенная оболочка без меню", () => {
+    expect(navFor(operator, ON, { focus: true })).toEqual({ tabs: [], sections: [], guest: false, focus: true });
+  });
+
+  it("оператор: главная подсвечена только на самой главной, раздел — на своих вложенных экранах", () => {
+    const menu = navFor(operator, ON).operator;
+    if (!menu) throw new Error("нет меню оператора");
+    const items = operatorItems(menu);
+    const exact = [menu.home.href];
+    expect(activeHref(items, "/v2/operator", exact)).toBe("/v2/operator");
+    expect(activeHref(items, "/v2/operator/money", exact)).toBe("/v2/operator/money");
+    expect(activeHref(items, "/v2/operator/executors/7", exact)).toBe("/v2/operator/executors");
+    expect(activeHref(items, "/v2/operator/mfa", exact)).toBeUndefined();
+    expect(activeHref(items, "/v2/profile", exact)).toBe("/v2/profile");
   });
 
   it("замерщик: «Замеры» только при включённом флаге сценариев до договора", () => {

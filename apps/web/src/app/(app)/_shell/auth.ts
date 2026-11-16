@@ -5,7 +5,6 @@ import { dealPartyOf, getDealView, type DealView } from "@/modules/deal-core";
 import {
   getCurrentUser,
   getShellUser,
-  mfaHref,
   needsConsent,
   needsEmail,
   needsIntroduction,
@@ -110,13 +109,17 @@ export function stepWithNext(screen: string, next: string | null): string {
   return next ? `${to(screen)}?${new URLSearchParams({ next })}` : to(screen);
 }
 
+/** Экран второго шага входа оператора (код из приложения-аутентификатора) в v2. */
+export const OPERATOR_MFA_SCREEN = "/operator/mfa";
+
 /**
- * Первый непройденный обязательный шаг после входа или `null`: второй фактор оператора (экран v1 — в v2 его ещё нет) →
+ * Первый непройденный обязательный шаг после входа или `null`: второй фактор оператора (экран v2 `/v2/operator/mfa`) →
  * согласие на обработку ПДн → ФИО и ИИН → подтверждённая почта. Операторов и прочий персонал согласие, знакомство и почта
- * не касаются (needsConsent, needsIntroduction, needsEmail). `next` переносится на шаг, чтобы после него вернуться.
+ * не касаются (needsConsent, needsIntroduction, needsEmail). `next` переносится на шаг, чтобы после него вернуться; у
+ * второго шага без `next` возврат — дом человека (главная оператора).
  */
 export function barrierFor(user: StepUser, next: string | null, chosen: ChosenRole | null = null): string | null {
-  if (needsSecondFactor(user)) return mfaHref(next ?? homeFor(user, chosen));
+  if (needsSecondFactor(user)) return stepWithNext(OPERATOR_MFA_SCREEN, next ?? homeFor(user, chosen));
   if (needsConsent(user)) return stepWithNext("/consent", next);
   if (needsIntroduction(user)) return stepWithNext("/welcome", next);
   if (needsEmail(user)) return stepWithNext("/email", next);
@@ -265,6 +268,16 @@ export async function requireParty(next: string): Promise<{ user: CurrentUser; s
 export async function requireMaster(next: string): Promise<{ user: CurrentUser; status: MasterStatus }> {
   const user = await requireV2User(next, "EXECUTOR");
   return { user, status: masterStatusOf(user) };
+}
+
+/**
+ * Ворота экранов оператора v2 (`/v2/operator/...`): вошедший оператор с пройденным вторым шагом входа. Всё, что делает
+ * `requireV2User(next, "OPERATOR")`: гость — на вход с возвратом, второй шаг не пройден — на экран кода с возвратом,
+ * другая роль — в свой дом (роль оператора не переключается — её не выдают вместе с другими). `next` — адрес этой страницы
+ * v2 (с параметрами). Граница экрана, а не прав: модуль operator и действия проверяют роль сами (`requireUser("OPERATOR")`).
+ */
+export async function requireOperator(next: string): Promise<CurrentUser> {
+  return requireV2User(next, "OPERATOR");
 }
 
 /**

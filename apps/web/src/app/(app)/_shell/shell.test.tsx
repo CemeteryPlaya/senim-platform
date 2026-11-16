@@ -171,9 +171,12 @@ describe("MobileShell", () => {
     expect(main).not.toMatch(/class="(?:[^"]*\s)?(?:p|px|py|pt|pb|pl|pr)-\d/);
   });
 
-  it("у роли без вкладок (оператор) панели нет", () => {
+  it("у роли без вкладок (оператор) панели нет: разделы — шторкой «Меню» из шапки (закрыта — меню в разметке нет)", () => {
     const m = html(<MobileShell nav={operatorNav}>x</MobileShell>);
     expect(m).not.toContain("<nav");
+    expect(m).not.toContain("data-tab-bar");
+    expect(m).toContain("data-operator-bar");
+    expect(m).toContain('aria-haspopup="dialog"');
     expect(m).toContain('id="content"');
   });
 });
@@ -306,15 +309,20 @@ describe("DesktopShell", () => {
     for (const cls of ["text-glass-secondary", "font-medium"]) expect(hasClass(about, cls), cls).toBe(true);
   });
 
-  it("оператор: шапка с названием и меню профиля, без разделов", () => {
+  it("оператор: шапка с названием и меню профиля без разделов; разделы — меню слева по группам", () => {
     const d = html(
       <DesktopShell nav={operatorNav} user={{ fullName: null }}>
         x
       </DesktopShell>,
     );
     expect(d).toContain("data-top-bar");
-    expect(d).not.toContain("<nav");
+    expect(d).not.toContain(`aria-label="${ru.app.shell.navLabel}"`);
     expect(d).toContain(ru.app.shell.profileMenu);
+    const navs = d.match(/<nav[^>]*>/g) ?? [];
+    expect(navs).toEqual([expect.stringContaining(`aria-label="${ru.app.operator.navLabel}"`)]);
+    // Меню стоит в разметке до содержимого и прилипает под шапкой.
+    expect(d.indexOf("<nav")).toBeLessThan(d.indexOf('id="content"'));
+    expect(d).toContain("sticky-nav");
   });
 
   it("активный раздел — aria-current=page", () => {

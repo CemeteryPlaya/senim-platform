@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ru } from "@/i18n/ru";
-import { getShellUser } from "@/modules/identity";
+import { getShellUser, needsSecondFactor } from "@/modules/identity";
 import { unreadCount } from "@/modules/notifications";
 import { cn, Toaster } from "@/kit";
 import { fontVariables } from "@/kit/fonts";
@@ -69,15 +69,17 @@ export default async function AppLayout({ children }: Readonly<{ children: React
   // getShellUser() идёт первым: без cookie он не обращается к БД, а env() (features) читается уже во время запроса.
   const { user, unavailable } = await getShellUser();
   const [theme, device] = await Promise.all([getTheme(), getDevice()]);
-  // Пока не пройдены первые шаги (согласие, знакомство, почта) — сосредоточенная оболочка: только название и «Выйти».
-  const nav = navFor(user, features(), { focus: user !== null && pendingOnboarding(user).length > 0 });
+  // Пока не пройдены первые шаги (согласие, знакомство, почта; у оператора — второй шаг входа) — сосредоточенная оболочка:
+  // только название и «Выйти». Меню оператора без второго шага вело бы на разделы, которые всё равно вернут на код.
+  const focus = user !== null && (pendingOnboarding(user).length > 0 || needsSecondFactor(user));
+  const nav = navFor(user, features(), { focus });
   // Счётчик уведомлений — один запрос на запрос страницы, только вошедшему с пройденными первыми шагами (в
   // сосредоточенной оболочке колокольчика нет, у гостя — тоже). Сбой чтения счётчика не должен ронять всю оболочку.
   const unread = user && !nav.focus ? await unreadOf(user.id) : null;
-  // Оболочка оператора — этап 5; до неё оператору вместо страниц v2 показывается заглушка со ссылкой на тот же адрес
-  // в v1. Это только интерфейс, а не граница доступа: страница при этом всё равно выполняется на сервере, и права
-  // проверяют она сама и действия сервера.
-  const content = user?.role === "OPERATOR" ? <OperatorMoving /> : children;
+  // Разделы оператора переносятся по частям (этап 5): на ещё не перенесённых адресах оператору вместо страницы v2 —
+  // заглушка со ссылкой на тот же адрес в v1 (список готовых — _shell/operator-sections.ts). Это только интерфейс, а не
+  // граница доступа: страница всё равно выполняется на сервере, и права проверяют она сама и действия сервера.
+  const content = user?.role === "OPERATOR" ? <OperatorMoving>{children}</OperatorMoving> : children;
 
   return (
     <html

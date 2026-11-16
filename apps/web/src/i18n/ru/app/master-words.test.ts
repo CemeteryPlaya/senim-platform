@@ -33,12 +33,14 @@ type Zone = keyof typeof ru.app;
 
 /** Зоны только покупателя: мастер их не видит, у них свой тест (`buyer-words.test.ts`). */
 const BUYER_ONLY: readonly Zone[] = ["buyer", "requests", "requestCard", "offer"];
+/** Зоны только сотрудников площадки (оператор): мастер и покупатель их не видят — там законны «доход платформы», «отклики». */
+const STAFF_ONLY: readonly Zone[] = ["operator"];
 
 // Зоны мастера: `master.ts` и `master-*.ts` подключаются в `ru.app` под именами `master…`.
 const zones = Object.keys(ru.app) as Zone[];
 const MASTER_ZONES = zones.filter((name) => name.startsWith("master"));
 // Общие зоны: всё, что не только покупателя и не только мастера (оболочка, kit, вход, первые шаги, гость, сделка, чаты, профиль).
-const SHARED_ZONES = zones.filter((name) => !name.startsWith("master") && !BUYER_ONLY.includes(name));
+const SHARED_ZONES = zones.filter((name) => !name.startsWith("master") && !BUYER_ONLY.includes(name) && !STAFF_ONLY.includes(name));
 
 const master = MASTER_ZONES.flatMap((name) => strings(ru.app[name]));
 const shared = SHARED_ZONES.flatMap((name) => strings(ru.app[name]));

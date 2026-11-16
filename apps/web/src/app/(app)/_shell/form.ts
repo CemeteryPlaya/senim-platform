@@ -111,6 +111,15 @@ export function firstInvalid<F extends FieldLike>(fields: readonly F[], fieldErr
   return null;
 }
 
+/**
+ * Поле кода из приложения-аутентификатора в форме действия оператора с деньгами (подтверждение и отказ операции банка,
+ * повтор, решение спора): появляется, когда действие ответило MFA_REQUIRED (второй шаг пройден давно или не пройден).
+ */
+export const MFA_CODE_FIELD = "mfaCode";
+
+/** Проверка кода из приложения (server action v2 второго шага входа без `next`): верный код отмечает сессию «пройдено сейчас». */
+export type VerifyCode = (input: { code: string }) => Promise<ActionResult<unknown>>;
+
 export type UseActionFormOptions<I, T> = {
   /** Вызывается с данными успешного ответа. */
   onSuccess?: (data: T) => void;
@@ -123,6 +132,13 @@ export type UseActionFormOptions<I, T> = {
   formRef?: RefObject<HTMLFormElement | null>;
   /** Правка поля `name` снимает и ошибки этих ключей (поле называется иначе, чем ошибка: «furnitureType» → «furnitureTypeId»). */
   clears?: (name: string) => readonly string[];
+  /**
+   * Протокол второго фактора (формы оператора, `useOperatorForm`): действие ответило MFA_REQUIRED — форма просит код
+   * (`needsCode`, поле `MFA_CODE_FIELD` — `SecondFactorField`); следующая отправка сначала проверяет код этим вызовом, затем
+   * повторяет действие без поля кода. Ошибка кода — у поля кода, действие тогда не вызывается. Без `verifyCode` ответ
+   * MFA_REQUIRED — обычная ошибка формы.
+   */
+  verifyCode?: VerifyCode;
 };
 
 export type ActionForm = {
@@ -137,6 +153,10 @@ export type ActionForm = {
   submit: (data: FormData) => Promise<void>;
   /** Отказ проверки в браузере: ошибки у полей (как с сервера) — фокус на первое, правка поля снимает его ошибку. */
   reject: (fieldErrors: Record<string, string>) => void;
+  /** Действие просит код из приложения (MFA_REQUIRED, есть `verifyCode`): показать поле кода (`SecondFactorField`). */
+  needsCode: boolean;
+  /** Почему просят код — текст ответа сервера; `null`, пока код не нужен. */
+  codeReason: string | null;
 };
 
 /** Состояние формы, которое меняет отправка: занятость (повтор гасится) и то, что видит человек. */
@@ -145,6 +165,8 @@ export type SubmitState = {
   setPending: (pending: boolean) => void;
   setError: (error: string | null) => void;
   setFieldErrors: (fieldErrors: Record<string, string>) => void;
+  /** Попросить код из приложения (`reason` — текст сервера) или убрать поле кода (`null`). Нужен только с `verifyCode`. */
+  setCodeReason?: (reason: string | null) => void;
 };
 
 /**
@@ -182,12 +204,42 @@ function holdWhileLeaving(state: SubmitState, env: SubmitEnv): void {
   });
 }
 
+/** Поля формы без поля кода: код уходит в проверку, а не в само действие. Исходные поля не меняются. */
+function withoutCode(data: FormData): FormData {
+  const rest = new FormData();
+  for (const [key, value] of data.entries()) if (key !== MFA_CODE_FIELD) rest.append(key, value);
+  return rest;
+}
+
+/**
+ * Код из приложения перед действием (протокол второго фактора): `true` — код принят или его в форме нет, можно вызывать
+ * действие; `"leave"` — уход (сессия истекла); `false` — код не принят, ошибка уже у поля кода, действие не вызывается.
+ */
+async function checkCode(verify: VerifyCode, data: FormData, state: SubmitState, env: SubmitEnv): Promise<boolean | "leave"> {
+  const code = data.get(MFA_CODE_FIELD);
+  if (typeof code !== "string") return true;
+  const outcome = outcomeOf(await verify({ code }), env.here());
+  if (outcome.kind === "success") return true;
+  if (outcome.kind === "leave") {
+    env.leave(outcome.href);
+    return "leave";
+  }
+  // Ошибка кода (неверный, повтор, лимит) — у поля кода; общий текст не дублируется.
+  state.setFieldErrors({ [MFA_CODE_FIELD]: outcome.fieldErrors.code ?? outcome.error });
+  return false;
+}
+
 /**
  * Одна отправка формы (чистая часть useActionForm, без React): вызов действия и разбор ответа. Пока идёт прошлая отправка,
  * новая игнорируется. Уход со страницы — `redirect()` в действии (Next уже ведёт на новый адрес, а обещание вызова
  * отклоняет ошибкой перехода: это не сбой, ошибки нет) или ответ «сессия истекла» / «нужно согласие» (outcomeOf → leave):
  * форма ОСТАЁТСЯ занятой, иначе кнопка ожила бы посреди перехода и второе нажатие вызвало бы действие ещё раз; если переход
  * не состоялся — освобождается (holdWhileLeaving). Прочий сбой — общий текст, форма снова свободна.
+ *
+ * Протокол второго фактора (`options.verifyCode`): в полях есть код из приложения — сначала его проверка (не принят —
+ * ошибка у поля кода, действие не вызывается), затем действие без поля кода. Действие ответило MFA_REQUIRED — форма просит
+ * код (`setCodeReason`), общей ошибки нет. Действие после проверки отказало по своей причине или прошло — поле кода
+ * убирается (свежий код действует несколько минут).
  */
 export async function runSubmit<I, T>(
   action: (input: I) => Promise<ActionResult<T>>,
@@ -203,9 +255,23 @@ export async function runSubmit<I, T>(
   state.setFieldErrors({});
   let leaving = false;
   try {
+    const verify = options.verifyCode;
+    let fields = data;
+    if (verify) {
+      const checked = await checkCode(verify, data, state, env);
+      if (checked === "leave") leaving = true;
+      if (checked !== true) return;
+      fields = withoutCode(data);
+    }
     // Вход проверяет схема действия на сервере, поэтому приведение типа здесь безопасно.
-    const input = options.toInput ? options.toInput(data) : (formDataToInput(data) as I);
-    const outcome = outcomeOf(await action(input), env.here());
+    const input = options.toInput ? options.toInput(fields) : (formDataToInput(fields) as I);
+    const result = await action(input);
+    if (verify && !result.ok && result.code === "MFA_REQUIRED") {
+      state.setCodeReason?.(result.error);
+      return;
+    }
+    if (verify) state.setCodeReason?.(null);
+    const outcome = outcomeOf(result, env.here());
     if (outcome.kind === "success") options.onSuccess?.(outcome.data);
     else if (outcome.kind === "leave") {
       leaving = true;
@@ -255,6 +321,10 @@ export function useActionForm<I, T>(
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [codeReason, setCodeReason] = useState<string | null>(null);
+  // Сколько раз просили код: каждая просьба — фокус в поле кода (после его появления).
+  const [asked, setAsked] = useState(0);
+  const focusedAsk = useRef(0);
   const busy = useRef(false);
   // Форма, которую отправляли (известна с первой отправки — до неё ошибок нет), и счётчик отказов с ошибками у полей.
   const [formNode, setFormNode] = useState<HTMLFormElement | null>(null);
@@ -301,6 +371,13 @@ export function useActionForm<I, T>(
     target.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
   }, [failures, fieldErrors, formNode]);
 
+  // Просьба кода: фокус в появившееся поле кода — один раз на просьбу (поле рисует SecondFactorField по needsCode).
+  useEffect(() => {
+    if (formNode === null || asked === focusedAsk.current) return;
+    focusedAsk.current = asked;
+    formNode.querySelector<HTMLInputElement>(`[name="${MFA_CODE_FIELD}"]`)?.focus();
+  }, [asked, formNode]);
+
   const state: SubmitState = {
     busy,
     setPending,
@@ -308,6 +385,10 @@ export function useActionForm<I, T>(
     setFieldErrors: (next) => {
       setFieldErrors(next);
       if (Object.keys(next).length > 0) setFailures((n) => n + 1);
+    },
+    setCodeReason: (reason) => {
+      setCodeReason(reason);
+      if (reason !== null) setAsked((n) => n + 1);
     },
   };
   const env: SubmitEnv = {
@@ -340,5 +421,5 @@ export function useActionForm<I, T>(
     void submit(submitter ? new FormData(event.currentTarget, submitter) : new FormData(event.currentTarget));
   }
 
-  return { pending, error, fieldErrors, onSubmit, submit, reject };
+  return { pending, error, fieldErrors, onSubmit, submit, reject, needsCode: codeReason !== null, codeReason };
 }

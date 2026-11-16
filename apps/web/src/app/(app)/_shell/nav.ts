@@ -18,7 +18,19 @@ export type NavIcon =
   | "profile"
   | "company"
   | "portfolio"
-  | "measurements";
+  | "measurements"
+  | "money"
+  | "kyc"
+  | "consents"
+  | "executors"
+  | "disputes"
+  | "staleRequests"
+  | "income"
+  | "report"
+  | "audit"
+  | "types"
+  | "materials"
+  | "settings";
 
 export type NavItem = { href: string; label: string; icon: NavIcon };
 
@@ -34,7 +46,19 @@ export type AppNav = {
   action?: { href: string; label: string };
   guest: boolean;
   focus: boolean;
+  /** Меню оператора (только у оператора): слева по группам на компьютере, «Меню» шторкой на телефоне. */
+  operator?: OperatorNav;
 };
+
+/** Группа разделов оператора: подпись и пункты. */
+export type NavGroup = { key: "queues" | "dealsReports" | "reference"; label: string; items: NavItem[] };
+
+/**
+ * Меню оператора (спека, раздел 5): 15 разделов в строку шапки не помещаются — на компьютере они слева по группам
+ * («Очереди», «Сделки и отчёты», «Справочники и настройки»), на телефоне — в шторке «Меню». Сверху — главная, внизу —
+ * профиль (как в v1).
+ */
+export type OperatorNav = { home: NavItem; groups: NavGroup[]; profile: NavItem };
 
 /** Ровно то, что нужно навигации от текущего пользователя (подмножество CurrentUser из identity). */
 export type NavUser = {
@@ -65,10 +89,60 @@ const R = {
   measurements: { href: to("/measurer"), label: t.measurements, icon: "measurements" },
 } as const satisfies Record<string, NavItem>;
 
+const op = ru.app.operator.nav;
+
+/** Разделы оператора v2: адреса v2 тех же разделов v1 (`/operator/...`); ещё не перенесённые открываются заглушкой. */
+const OP = {
+  home: { href: to("/operator"), label: op.home, icon: "home" },
+  money: { href: to("/operator/money"), label: op.money, icon: "money" },
+  kyc: { href: to("/operator/kyc"), label: op.kyc, icon: "kyc" },
+  consents: { href: to("/operator/consents"), label: op.consents, icon: "consents" },
+  executors: { href: to("/operator/executors"), label: op.executors, icon: "executors" },
+  disputes: { href: to("/operator/disputes"), label: op.disputes, icon: "disputes" },
+  requests: { href: to("/operator/requests"), label: op.requests, icon: "staleRequests" },
+  deals: { href: to("/operator/deals"), label: op.deals, icon: "deals" },
+  income: { href: to("/operator/income"), label: op.income, icon: "income" },
+  report: { href: to("/operator/report"), label: op.report, icon: "report" },
+  audit: { href: to("/operator/audit"), label: op.audit, icon: "audit" },
+  types: { href: to("/operator/furniture-types"), label: op.types, icon: "types" },
+  materials: { href: to("/operator/materials"), label: op.materials, icon: "materials" },
+  settings: { href: to("/operator/settings"), label: op.settings, icon: "settings" },
+  profile: { href: to("/profile"), label: op.profile, icon: "profile" },
+} as const satisfies Record<string, NavItem>;
+
 /** Вкладки за флагами: «Замеры» замерщика — сценарии до договора (Фаза 2, по умолчанию выключены). */
 const FLAGGED: Readonly<Partial<Record<NavItem["href"], keyof NavFeatures>>> = {
   [R.measurements.href]: "preContractFlows",
+  [OP.materials.href]: "materialsCalculator",
 };
+
+/** Пункт не за выключенным флагом. */
+const shownWith =
+  (f: NavFeatures) =>
+  (item: NavItem): boolean => {
+    const flag = FLAGGED[item.href];
+    return flag === undefined || f[flag];
+  };
+
+/** Меню оператора по группам; пункты за выключенными флагами («Цены материалов») не попадают, пустая группа — тоже. */
+function operatorNav(f: NavFeatures): OperatorNav {
+  const g = ru.app.operator.groups;
+  const groups: NavGroup[] = [
+    { key: "queues", label: g.queues, items: [OP.money, OP.kyc, OP.consents, OP.executors, OP.disputes, OP.requests] },
+    { key: "dealsReports", label: g.dealsReports, items: [OP.deals, OP.income, OP.report, OP.audit] },
+    { key: "reference", label: g.reference, items: [OP.types, OP.materials, OP.settings] },
+  ];
+  return {
+    home: OP.home,
+    groups: groups.map((group) => ({ ...group, items: group.items.filter(shownWith(f)) })).filter((group) => group.items.length > 0),
+    profile: OP.profile,
+  };
+}
+
+/** Все пункты меню оператора по порядку: главная, группы, профиль. */
+export function operatorItems(nav: OperatorNav): NavItem[] {
+  return [nav.home, ...nav.groups.flatMap((group) => group.items), nav.profile];
+}
 
 function roleTabs(user: NavUser): NavItem[] {
   switch (user.role) {
@@ -84,7 +158,7 @@ function roleTabs(user: NavUser): NavItem[] {
     case "MEASURER":
       return [R.measurements, R.chat, R.profile];
     case "OPERATOR":
-      // Оболочка оператора (меню слева по группам) — этап 5; до неё оператор в v2 видит заглушку со ссылкой на v1.
+      // Вкладок нет: разделы оператора — меню слева по группам (компьютер) и «Меню» шторкой (телефон), см. operatorNav.
       return [];
   }
 }
@@ -107,24 +181,23 @@ export function navFor(user: NavUser | null, f: NavFeatures, options: { focus?: 
       focus: false,
     };
   }
-  const tabs = roleTabs(user).filter((item) => {
-    const flag = FLAGGED[item.href];
-    return flag === undefined || f[flag];
-  });
+  if (user.role === "OPERATOR") return { tabs: [], sections: [], guest: false, focus: false, operator: operatorNav(f) };
+  const tabs = roleTabs(user).filter(shownWith(f));
   const action = user.role === "CLIENT" ? { href: to("/requests/new"), label: ru.app.shell.order } : undefined;
   return action ? { tabs, sections: tabs, action, guest: false, focus: false } : { tabs, sections: tabs, guest: false, focus: false };
 }
 
 /**
  * Адрес активной вкладки для aria-current="page": раздел, под которым лежит адрес (по целым сегментам), самый точный
- * из подходящих. Главная v2 подсвечивается только на самой главной. `null` — адреса нет (рендер вне роутера).
+ * из подходящих. Главная v2 подсвечивается только на самой главной; `exact` — другие такие адреса (главная оператора:
+ * разделы оператора лежат под ней, но она подсвечена только на себе). `null` — адреса нет (рендер вне роутера).
  */
-export function activeHref(items: readonly NavItem[], pathname: string | null): string | undefined {
+export function activeHref(items: readonly NavItem[], pathname: string | null, exact: readonly string[] = []): string | undefined {
   if (pathname === null) return undefined;
   const home = to("/");
   let best: string | undefined;
   for (const { href } of items) {
-    const match = href === home ? pathname === home : pathname === href || pathname.startsWith(`${href}/`);
+    const match = href === home || exact.includes(href) ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
     if (match && (best === undefined || href.length > best.length)) best = href;
   }
   return best;

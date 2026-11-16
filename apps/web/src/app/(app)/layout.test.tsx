@@ -164,7 +164,7 @@ describe("корневой layout v2", () => {
     expect(await render()).toContain(ru.common.errors.unavailable);
   });
 
-  it("оператор: вместо страниц v2 — заглушка со ссылкой на тот же адрес в v1", async () => {
+  it("оператор: на ещё не перенесённом адресе — заглушка со ссылкой на тот же адрес в v1", async () => {
     h.device = "desktop";
     h.shell = { user: done("OPERATOR", { consents: [], emailVerified: false, mfa: { required: true, verifiedAt: new Date() } }), unavailable: false };
     const out = await render();
@@ -172,6 +172,55 @@ describe("корневой layout v2", () => {
     expect(out).toContain(ru.app.shell.movingTitle);
     expect(out).toContain('href="/deals/7?tab=docs"');
     expect(out).toContain("data-top-bar");
+  });
+});
+
+describe("оболочка оператора", () => {
+  const operator = (verifiedAt: Date | null = new Date()) =>
+    done("OPERATOR", { consents: [], emailVerified: false, fullName: "Динара", mfa: { required: true, verifiedAt } });
+
+  it("компьютер: меню слева по группам, разделов в шапке нет; готовый экран — сама страница", async () => {
+    h.device = "desktop";
+    h.pathname = "/v2/operator";
+    h.shell = { user: operator(), unavailable: false };
+    const out = await render();
+    expect(out).toContain("page-body");
+    expect(out).not.toContain(ru.app.shell.movingTitle);
+    expect(out).toContain(`aria-label="${ru.app.operator.navLabel}"`);
+    expect(out).not.toContain(`aria-label="${ru.app.shell.navLabel}"`);
+    for (const group of Object.values(ru.app.operator.groups)) expect(out).toContain(`>${group}</p>`);
+    // Главная подсвечена; название продукта ведёт на главную оператора; колокольчик и аватар — в шапке.
+    expect(out).toMatch(/<a aria-current="page"[^>]*href="\/v2\/operator"/);
+    expect(out).toMatch(/<a [^>]*href="\/v2\/operator"[^>]*>[^<]*<\/a>/);
+    expect(out).toContain('href="/v2/notifications"');
+    expect(out).toContain("grid-cols-sidebar");
+    expect(out).toContain("max-w-operator");
+    expect(out).not.toContain("data-tab-bar");
+  });
+
+  it("телефон: без вкладок — шапка с названием, колокольчиком и «Меню» (шторка)", async () => {
+    h.pathname = "/v2/operator";
+    h.shell = { user: operator(), unavailable: false };
+    const out = await render();
+    expect(out).toContain("data-operator-bar");
+    expect(out).toContain(`${ru.app.operator.menu}</span></span></button>`);
+    expect(out).toContain('aria-haspopup="dialog"');
+    expect(out).toContain('href="/v2/notifications"');
+    expect(out).not.toContain("data-tab-bar");
+    expect(out).toContain("page-body");
+  });
+
+  it.each(["mobile", "desktop"] as const)("%s: второй шаг входа не пройден — сосредоточенная оболочка без меню и колокольчика", async (device) => {
+    h.device = device;
+    h.pathname = "/v2/operator/mfa";
+    h.shell = { user: operator(null), unavailable: false };
+    const out = await render();
+    expect(out).toContain("page-body");
+    expect(out).not.toContain(ru.app.operator.navLabel);
+    expect(out).not.toContain("data-operator-bar");
+    expect(out).not.toContain('href="/v2/notifications"');
+    expect(out).toContain(`>${ru.app.shell.logout}</span></button>`);
+    expect(h.unreadCalls).toHaveLength(0);
   });
 });
 

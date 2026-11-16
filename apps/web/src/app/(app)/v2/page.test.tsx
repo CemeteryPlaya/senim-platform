@@ -9,7 +9,16 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/modules/identity", () => ({ getShellUser: async () => h.shell }));
 // Барьер первых шагов проверяет onboarding-gate.test.tsx; здесь вошедший их уже прошёл.
-vi.mock("../_shell/auth", () => ({ requireV2User: async () => h.shell.user, masterStatusOf: () => "approved" }));
+vi.mock("../_shell/auth", () => ({
+  requireV2User: async () => h.shell.user,
+  masterStatusOf: () => "approved",
+  homeFor: (user: { role: string }) => (user.role === "OPERATOR" ? "/v2/operator" : "/v2"),
+}));
+vi.mock("next/navigation", () => ({
+  redirect: (href: string) => {
+    throw new Error(`redirect:${href}`);
+  },
+}));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
 // Главная покупателя читает базу — её проверяет page.int.test.ts; здесь только выбор по роли.
 vi.mock("./_home/BuyerHome", () => ({ BuyerHome: ({ device }: { device: string }) => <h1>покупатель-{device}</h1> }));
@@ -50,10 +59,9 @@ describe("главная /v2", () => {
     expect(html(await V2Home())).toContain("мастер-approved-mobile");
   });
 
-  it("оператор пока видит прежний образец", async () => {
+  it("оператор уходит на свою главную", async () => {
     h.shell = { user: { role: "OPERATOR" }, unavailable: false };
-    const out = html(await V2Home());
-    expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(ru.app.shell.preview.title);
+    await expect(V2Home()).rejects.toThrow("redirect:/v2/operator");
   });
 });
 
