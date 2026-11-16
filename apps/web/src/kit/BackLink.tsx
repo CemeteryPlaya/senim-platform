@@ -18,7 +18,7 @@ export type BackLinkProps = {
  * mobile.html, «‹ Сделки»). Диктор слышит «Назад: <родитель>». Цель касания — 48 px на телефоне, 36 px на компьютере.
  * Отрицательный отступ слева выравнивает сам шеврон (у иконки поле внутри квадрата) по левому краю содержимого.
  *
- * Шаг назад по истории: если человек пришёл с экрана-родителя этого сайта (оболочка помнит путь — NavHistory), нажатие делает
+ * Шаг назад по истории: если человек пришёл с экрана-родителя этого сайта (оболочка помнит адреса — NavHistory; условия — back-nav.ts), нажатие делает
  * `history.back()` — прокрутка списка и фильтры в адресе на месте, история не растёт. При прямом входе (уведомление, ссылка)
  * — обычный переход к родителю. Остаётся настоящей ссылкой: средняя кнопка, Ctrl/⌘ и «открыть в новой вкладке» работают.
  * Клиентский компонент.
@@ -32,6 +32,7 @@ export function BackLink({ href, label, onGlass = false }: BackLinkProps) {
           memory: navMemory.read(),
           href,
           click: { button: event.button, metaKey: event.metaKey, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, altKey: event.altKey, defaultPrevented: event.defaultPrevented },
+          current: window.location.pathname + window.location.search,
           historyLength: window.history.length,
         });
         if (!goBack) return;

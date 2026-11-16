@@ -29,23 +29,52 @@ describe("память экранов", () => {
 });
 
 describe("«Назад» по истории или к родителю", () => {
-  const memory = { prev: "/v2/deals", cur: "/v2/deals/5" };
+  const go = (memory: { prev: string | null; cur: string | null }, href: string, current: string, over: Partial<BackClick> = {}, historyLength = 4) =>
+    shouldGoBack({ memory, href, current, click: { ...plain, ...over }, historyLength });
 
-  it("пришли с родителя (в том числе с фильтром в адресе) — назад по истории", () => {
+  it("пришли со списка (в том числе с фильтром в адресе) — назад по истории", () => {
     expect(pathnameOf("/v2/deals/?group=done#x")).toBe("/v2/deals");
-    expect(shouldGoBack({ memory: { prev: "/v2/deals?group=done", cur: "/v2/deals/5" }, href: "/v2/deals", click: plain, historyLength: 4 })).toBe(true);
-    expect(shouldGoBack({ memory, href: "/v2/deals", click: plain, historyLength: 2 })).toBe(true);
+    expect(go({ prev: "/v2/deals?group=done", cur: "/v2/deals/5" }, "/v2/deals", "/v2/deals/5")).toBe(true);
+    expect(go({ prev: "/v2/deals", cur: "/v2/deals/5" }, "/v2/deals", "/v2/deals/5", {}, 2)).toBe(true);
+  });
+
+  it("сделка → ?history=all → «‹ Сделки»: предыдущий адрес — сама сделка, значит ссылка к родителю, а не шаг назад на карточку", () => {
+    let m = visit({ prev: null, cur: null }, "/v2/deals?group=done");
+    m = visit(m, "/v2/deals/5");
+    expect(go(m, "/v2/deals", "/v2/deals/5")).toBe(true);
+    m = visit(m, "/v2/deals/5?history=all");
+    expect(m).toEqual({ prev: "/v2/deals/5", cur: "/v2/deals/5?history=all" });
+    expect(go(m, "/v2/deals", "/v2/deals/5?history=all")).toBe(false);
+  });
+
+  it("мастер заявки и регистрация (?draft, ?step): смена шага не даёт шаг назад по истории", () => {
+    let m = visit({ prev: null, cur: null }, "/v2/requests");
+    m = visit(m, "/v2/requests/new?draft=a1&step=1");
+    expect(go(m, "/v2/requests", "/v2/requests/new?draft=a1&step=1")).toBe(true);
+    m = visit(m, "/v2/requests/new?draft=a1&step=2");
+    // «Назад» на шаг: ссылка с параметрами — всегда обычная ссылка (replace и push шагов неважны).
+    expect(go(m, "/v2/requests/new?draft=a1&step=1", "/v2/requests/new?draft=a1&step=2")).toBe(false);
+    // «Назад» к родителю из середины анкеты: предыдущий адрес — шаг анкеты, а не список.
+    expect(go(m, "/v2/requests", "/v2/requests/new?draft=a1&step=2")).toBe(false);
+    let reg = visit({ prev: null, cur: null }, "/v2/profile");
+    reg = visit(reg, "/v2/register/executor?step=2");
+    reg = visit(reg, "/v2/register/executor?step=3");
+    expect(go(reg, "/v2/profile", "/v2/register/executor?step=3")).toBe(false);
+  });
+
+  it("память устарела (запись не совпадает с адресом в окне) — ссылка", () => {
+    expect(go({ prev: "/v2/deals", cur: "/v2/deals/5" }, "/v2/deals", "/v2/deals/7")).toBe(false);
   });
 
   it("прямой вход (нет предыдущего) или пришли не с родителя — ссылка к родителю", () => {
-    expect(shouldGoBack({ memory: { prev: null, cur: "/v2/deals/5" }, href: "/v2/deals", click: plain, historyLength: 3 })).toBe(false);
-    expect(shouldGoBack({ memory: { prev: "/v2/notifications", cur: "/v2/deals/5" }, href: "/v2/deals", click: plain, historyLength: 3 })).toBe(false);
-    expect(shouldGoBack({ memory, href: "/v2/deals", click: plain, historyLength: 1 })).toBe(false);
+    expect(go({ prev: null, cur: "/v2/deals/5" }, "/v2/deals", "/v2/deals/5")).toBe(false);
+    expect(go({ prev: "/v2/notifications", cur: "/v2/deals/5" }, "/v2/deals", "/v2/deals/5")).toBe(false);
+    expect(go({ prev: "/v2/deals", cur: "/v2/deals/5" }, "/v2/deals", "/v2/deals/5", {}, 1)).toBe(false);
   });
 
   it("средняя кнопка, Ctrl, ⌘, Shift — ссылка работает как обычно", () => {
-    for (const click of [{ ...plain, button: 1 }, { ...plain, ctrlKey: true }, { ...plain, metaKey: true }, { ...plain, shiftKey: true }]) {
-      expect(shouldGoBack({ memory, href: "/v2/deals", click, historyLength: 5 })).toBe(false);
+    for (const over of [{ button: 1 }, { ctrlKey: true }, { metaKey: true }, { shiftKey: true }]) {
+      expect(go({ prev: "/v2/deals", cur: "/v2/deals/5" }, "/v2/deals", "/v2/deals/5", over)).toBe(false);
     }
   });
 });

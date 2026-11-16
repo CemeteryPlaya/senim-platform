@@ -1,17 +1,27 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
 import { navMemory, visit } from "./back-nav";
 
+function Tracker() {
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  const address = search ? `${pathname}?${search}` : pathname;
+  useEffect(() => {
+    navMemory.write(visit(navMemory.read(), address));
+  }, [address]);
+  return null;
+}
+
 /**
- * Запоминает, с какого экрана пришли (для «‹ Назад», BackLink): по смене пути переносит текущий в «предыдущий». Ничего не
- * рисует; одна на оболочку.
+ * Запоминает, с какого адреса (путь и параметры) пришли, для «‹ Назад» (BackLink): по смене адреса переносит текущий в
+ * «предыдущий». Ничего не рисует; одна на оболочку. Suspense — `useSearchParams` требует границы.
  */
 export function NavHistory() {
-  const pathname = usePathname();
-  useEffect(() => {
-    navMemory.write(visit(navMemory.read(), pathname));
-  }, [pathname]);
-  return null;
+  return (
+    <Suspense fallback={null}>
+      <Tracker />
+    </Suspense>
+  );
 }

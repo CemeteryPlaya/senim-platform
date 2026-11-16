@@ -1,8 +1,11 @@
 /**
  * «Назад» как шаг назад по истории (BackLink): чистая логика без React.
- * Оболочка (NavHistory) запоминает, с какого экрана пришли: `prev` — путь предыдущего экрана этого сайта, `cur` — текущего.
- * «‹ Родитель» возвращает по истории (`history.back()`: прокрутка и фильтры списка на месте), если пришли именно с родителя;
- * при прямом входе (уведомление, ссылка, новая вкладка) `prev` пуст или другой — обычный переход к родителю.
+ * Оболочка (NavHistory) запоминает адреса вместе со строкой запроса: `prev` — предыдущий адрес этого сайта, `cur` — текущий.
+ * «‹ Родитель» возвращает по истории (`history.back()`: прокрутка и фильтры списка на месте) только когда это точно шаг к
+ * родителю: ссылка без строки запроса (родитель — список; ссылки с параметрами, например шаг анкеты, остаются ссылками),
+ * предыдущий адрес — путь родителя, а запись `cur` совпадает с адресом в окне (память не устарела: вкладку открыли заново,
+ * скопировали). Смена одних параметров (сделка → `?history=all`) делает предыдущим адрес самой сделки, поэтому «‹ Сделки» после
+ * неё — обычный переход к родителю, а не шаг назад на карточку без параметров. Прямой вход (уведомление, ссылка) — тоже ссылка.
  */
 
 export const NAV_KEY = "senim-nav";
@@ -16,10 +19,10 @@ export function pathnameOf(href: string): string {
   return path.length > 1 ? path.replace(/\/+$/, "") || "/" : path;
 }
 
-/** Экран сменился: прежний текущий становится предыдущим. Тот же путь (смена фильтра в адресе) память не двигает. */
-export function visit(memory: NavMemory, pathname: string): NavMemory {
-  if (memory.cur === pathname) return memory;
-  return { prev: memory.cur, cur: pathname };
+/** Адрес сменился (путь или параметры): прежний текущий становится предыдущим. Тот же адрес память не двигает. */
+export function visit(memory: NavMemory, address: string): NavMemory {
+  if (memory.cur === address) return memory;
+  return { prev: memory.cur, cur: address };
 }
 
 export type BackClick = { button: number; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; defaultPrevented: boolean };
@@ -27,10 +30,22 @@ export type BackClick = { button: number; metaKey: boolean; ctrlKey: boolean; sh
 /** Обычное нажатие левой кнопкой: средняя кнопка, Ctrl/⌘ и Shift (новая вкладка или окно) — оставляем ссылке. */
 export const isPlainClick = (e: BackClick): boolean => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.defaultPrevented;
 
-/** Идти ли по истории назад: обычное нажатие, пришли с экрана-родителя, в истории есть куда возвращаться. */
-export function shouldGoBack(input: { memory: NavMemory; href: string; click: BackClick; historyLength: number }): boolean {
-  const { memory, href, click, historyLength } = input;
-  return isPlainClick(click) && historyLength > 1 && memory.prev !== null && pathnameOf(memory.prev) === pathnameOf(href);
+/** Адрес без якоря: путь и строка запроса. */
+const withoutHash = (href: string): string => {
+  const at = href.indexOf("#");
+  return at < 0 ? href : href.slice(0, at);
+};
+
+/**
+ * Идти ли по истории назад: обычное нажатие, в истории есть куда возвращаться, ссылка ведёт на родителя без параметров, пришли
+ * именно с него (путь `prev`), а память не устарела (`cur` — адрес, который сейчас в окне).
+ */
+export function shouldGoBack(input: { memory: NavMemory; href: string; current: string; click: BackClick; historyLength: number }): boolean {
+  const { memory, href, current, click, historyLength } = input;
+  if (!isPlainClick(click) || historyLength <= 1 || memory.prev === null || memory.cur === null) return false;
+  if (withoutHash(href).includes("?")) return false;
+  if (withoutHash(memory.cur) !== withoutHash(current)) return false;
+  return pathnameOf(memory.prev) === pathnameOf(href);
 }
 
 /** Чтение памяти из sessionStorage (может быть закрыт или повреждён: тогда «Назад» — обычная ссылка). */
