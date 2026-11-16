@@ -25,6 +25,10 @@ export const OPERATOR_READY: readonly { path: string; exact?: boolean }[] = [
   { path: to("/operator/income") },
   { path: to("/operator/report") },
   { path: to("/operator/audit") },
+  // Справочники и настройки площадки (Q5): типы мебели, цены материалов (при флаге), флаги, окружение, режим имени.
+  { path: to("/operator/furniture-types") },
+  { path: to("/operator/materials") },
+  { path: to("/operator/settings") },
   // Общие экраны любой роли: профиль (имя, телефон, тема, выход) и уведомления.
   { path: to("/profile"), exact: true },
   { path: to("/notifications") },

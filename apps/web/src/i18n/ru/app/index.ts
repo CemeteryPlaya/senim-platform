@@ -23,6 +23,7 @@ import { operator } from "./operator";
 import { operatorDeals } from "./operator-deals";
 import { operatorDisputes } from "./operator-disputes";
 import { operatorQueues } from "./operator-queues";
+import { operatorSettings } from "./operator-settings";
 import { profile } from "./profile";
 import { requestCard } from "./request-card";
 import { requests } from "./requests";
@@ -53,6 +54,7 @@ export const app = {
   operatorDeals,
   operatorDisputes,
   operatorQueues,
+  operatorSettings,
   profile,
   requestCard,
   requests,

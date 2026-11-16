@@ -164,14 +164,19 @@ describe("уведомления: открытие по нажатию на push
     expect(await run(n.id)).toBe("/v2/deals/d7");
   });
 
-  it("оператор и замерщик: ссылка модуля как есть (их разделы вне v2), уведомление прочитано", async () => {
-    for (const role of ["OPERATOR", "MEASURER"] as const) {
+  it("оператор — в перенесённый раздел v2, замерщик — ссылка модуля как есть; уведомление прочитано", async () => {
+    const cases = [
+      { role: "OPERATOR", link: "/operator/disputes/d1", target: "/v2/operator/disputes/d1" },
+      // Раздела в v2 нет — ссылка v1, а не заглушка «раздел переносится».
+      { role: "OPERATOR", link: "/deals/d1", target: "/deals/d1" },
+      { role: "MEASURER", link: "/measurer/m1", target: "/measurer/m1" },
+    ] as const;
+    for (const { role, link, target } of cases) {
       const staff = await makeClient();
       // Маршруту нужны только id и роль человека: роль подменяем (уведомление принадлежит этому же человеку).
       h.user = { ...staff, role } as typeof h.user;
-      const link = role === "OPERATOR" ? "/operator/disputes/d1" : "/measurer/m1";
       const n = await notify(staff.id, { link });
-      expect(await run(n.id)).toBe(link);
+      expect(await run(n.id)).toBe(target);
       expect((await db.notification.findUniqueOrThrow({ where: { id: n.id } })).readAt).not.toBeNull();
     }
   });

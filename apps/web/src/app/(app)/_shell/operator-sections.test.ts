@@ -28,6 +28,10 @@ describe("isOperatorReady: экраны v2, готовые для операто
     ["/v2/operator/report", true],
     ["/v2/operator/report/csv", true],
     ["/v2/operator/audit", true],
+    // Справочники и настройки (Q5).
+    ["/v2/operator/furniture-types", true],
+    ["/v2/operator/materials", true],
+    ["/v2/operator/settings", true],
   ])("%s — страница v2", (path, ready) => {
     expect(isOperatorReady(path)).toBe(ready);
   });
