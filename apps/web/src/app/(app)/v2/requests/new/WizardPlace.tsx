@@ -8,6 +8,7 @@ import type { Device } from "@/platform/device";
 import { outcomeOf } from "../../../_shell/form";
 import { locateAddressAction } from "./actions";
 import { WizardFrame, useWizardStep, type WizardBase } from "./WizardFrame";
+import { addDays, todayAstana } from "./steps";
 import { useStepMemory } from "./wizard-memory";
 
 const t = ru.app.requests.wizard.place;
@@ -122,6 +123,13 @@ export function WizardPlace({ base, device, initial }: { base: WizardBase; devic
   // Функциональное обновление: точка от геокодера приходит позже и не должна стереть то, что ввели за это время.
   const set = (patch: Partial<PlaceInitial>) => setPlace((p) => ({ ...p, ...patch }));
   const e = form.errors;
+  // Сегодня по Астане: раньше желаемую дату выбрать нельзя; быстрые сроки считаются от этого дня.
+  const [today] = useState(() => todayAstana());
+  const quick = [
+    { label: t.quickDates.month, date: addDays(today, 30) },
+    { label: t.quickDates.twoMonths, date: addDays(today, 60) },
+    { label: t.quickDates.noRush, date: "" },
+  ];
   return (
     <WizardFrame base={base} title={t.title} lead={t.lead} form={form}>
       <Stack>
@@ -142,7 +150,16 @@ export function WizardPlace({ base, device, initial }: { base: WizardBase; devic
           {e.location}
         </p>
       )}
-      <TextField label={t.date} name="desiredDate" type="date" value={place.desiredDate} onChange={(ev) => set({ desiredDate: ev.target.value })} error={e.desiredDate} />
+      <Stack>
+        <TextField label={t.date} name="desiredDate" type="date" min={today} value={place.desiredDate} onChange={(ev) => set({ desiredDate: ev.target.value })} error={e.desiredDate} />
+        <div className="flex flex-wrap gap-2">
+          {quick.map((q) => (
+            <Button key={q.label} variant="secondary" size="sm" aria-pressed={place.desiredDate === q.date} onClick={() => set({ desiredDate: q.date })}>
+              {q.label}
+            </Button>
+          ))}
+        </div>
+      </Stack>
     </WizardFrame>
   );
 }

@@ -144,16 +144,34 @@ export function readStep(screen: WizardScreen, fd: Fields): StepFormInput {
  * Ошибки шага по полям (первое сообщение на поле) или `null`, если шаг верен. Ключ — имя поля формы: последний элемент
  * пути (`advanced.size.widthCm` → `widthCm`), точка адреса — `location`, ошибка без поля — `form`.
  */
-export function stepErrors(screen: WizardScreen, fd: Fields): Record<string, string> | null {
+export function stepErrors(screen: WizardScreen, fd: Fields, now: number = Date.now()): Record<string, string> | null {
   const parsed = stepInputSchema.safeParse(readStep(screen, fd));
-  if (parsed.success) return null;
   const errors: Record<string, string> = {};
-  for (const issue of parsed.error.issues) {
-    const names = issue.path.filter((p): p is string => typeof p === "string");
-    const key = names.includes("location") ? "location" : (names.at(-1) ?? "form");
-    errors[key] ??= v2Message(issue.message);
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      const names = issue.path.filter((p): p is string => typeof p === "string");
+      const key = names.includes("location") ? "location" : (names.at(-1) ?? "form");
+      errors[key] ??= v2Message(issue.message);
+    }
   }
-  return errors;
+  // Желаемая дата — не раньше сегодняшней (Астана); схема модуля проверяет только формат даты.
+  const date = screen === "place" ? text(fd, "desiredDate") : "";
+  if (date !== "" && date < todayAstana(now)) errors.desiredDate ??= ru.app.requests.wizard.place.datePast;
+  return Object.keys(errors).length > 0 ? errors : null;
+}
+
+/** Часовой пояс Казахстана (Астана и Алматы) — UTC+5 без перехода на летнее время. */
+const ASTANA_OFFSET_MS = 5 * 3_600_000;
+
+/** Сегодняшняя дата в Астане («2026-11-16»): нижняя граница желаемой даты заявки. */
+export function todayAstana(now: number = Date.now()): string {
+  return new Date(now + ASTANA_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Дата через `days` дней от `from` («2026-11-16» → «2026-12-16»): быстрые сроки заявки. */
+export function addDays(from: string, days: number): string {
+  const [y, m, d] = from.split("-").map(Number);
+  return new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, (d ?? 1) + days)).toISOString().slice(0, 10);
 }
 
 // ─── начальные значения ────────────────────────────────────────────────────────────────────────────────────────────

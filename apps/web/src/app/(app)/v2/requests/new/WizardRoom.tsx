@@ -26,6 +26,7 @@ export function WizardRoom({ base, photos, description }: Props) {
         items={uploads.items}
         max={LIMITS.photos}
         accept={PHOTO_ACCEPT}
+        capture="environment"
         label={t.addPhoto}
         onAdd={uploads.add}
         onRemove={uploads.remove}

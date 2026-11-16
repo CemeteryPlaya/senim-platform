@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
 import {
+  addDays,
   advancedFrom,
   CUSTOM,
   nextScreen,
@@ -14,6 +15,7 @@ import {
   splitTypes,
   stepErrors,
   summaryRows,
+  todayAstana,
   typeChoice,
   v2Message,
   wizardBack,
@@ -209,5 +211,28 @@ describe("сводка", () => {
 describe("тексты мастера", () => {
   it("нет запрещённых слов", () => {
     expect(JSON.stringify(ru.app.requests)).not.toMatch(/демо|комисси|эскроу|тестов|платформ/i);
+  });
+});
+
+describe("желаемая дата заявки: не раньше сегодняшней (Астана, UTC+5)", () => {
+  const now = Date.UTC(2026, 10, 16, 20, 30); // 16.11 20:30 UTC = 17.11 01:30 в Астане
+
+  it("сегодня — по Астане, не по UTC", () => {
+    expect(todayAstana(now)).toBe("2026-11-17");
+    expect(todayAstana(Date.UTC(2026, 10, 16, 5, 0))).toBe("2026-11-16");
+  });
+
+  it("addDays переходит через границу месяца и года", () => {
+    expect(addDays("2026-11-16", 30)).toBe("2026-12-16");
+    expect(addDays("2026-12-20", 30)).toBe("2027-01-19");
+    expect(addDays("2026-11-16", 0)).toBe("2026-11-16");
+  });
+
+  it("вчерашняя дата — ошибка у поля, сегодняшняя и дальше — нет, пустая — нет", () => {
+    const place = (desiredDate: string) => form({ city: "Астана", address: "ул. Абая 1", desiredDate });
+    expect(stepErrors("place", place("2026-11-16"), now)).toEqual({ desiredDate: t.place.datePast });
+    expect(stepErrors("place", place("2026-11-17"), now)).toBeNull();
+    expect(stepErrors("place", place("2027-01-01"), now)).toBeNull();
+    expect(stepErrors("place", place(""), now)).toBeNull();
   });
 });
