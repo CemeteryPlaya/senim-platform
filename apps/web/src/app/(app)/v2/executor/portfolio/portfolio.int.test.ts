@@ -123,6 +123,19 @@ describe("действия портфолио", () => {
     expect(bad).toMatchObject({ ok: false, code: "VALIDATION", fieldErrors: { title: [m.form.errors.title(3, 120)] } });
   });
 
+  it("повтор создания с тем же ключом после записи — та же работа, фото прикреплены один раз, ответ «фото на месте»", async () => {
+    const executor = await master();
+    const file = await makeUploadedFile(executor);
+    const fields = await input({ fileIds: [file.id], clientKey: crypto.randomUUID() });
+    const first = await createWorkAction(fields);
+    const again = await createWorkAction(fields);
+    expect(again).toMatchObject({ ok: true, data: { photosAttached: true } });
+    if (!first.ok || !again.ok) return;
+    expect(again.data.id).toBe(first.data.id);
+    expect(await db.portfolioItem.count({ where: { executorId: executor.executor.id } })).toBe(1);
+    expect((await getOwnPortfolioItem(executor, first.data.id)).photos.map((p) => p.id)).toEqual([file.id]);
+  });
+
   it("создание: чужой файл не прикрепился — работа есть, ответ говорит об этом, второй работы нет", async () => {
     const executor = await master();
     const stranger = await makeExecutor();

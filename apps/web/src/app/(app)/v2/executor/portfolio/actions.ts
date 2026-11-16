@@ -23,21 +23,27 @@ import { createWorkSchema, deleteWorkSchema, setPublishedSchema, updateWorkSchem
  * Новая работа и её фото. Работа с фото создаётся скрытой, фото прикрепляются следом отдельным шагом модуля, и только
  * после успеха работа публикуется (если мастер так выбрал): в каталоге не появится работа без фото. Если прикрепить не
  * вышло, работа остаётся скрытой, а ответ говорит об этом (`photosAttached: false`) — форма ведёт в правку работы, не
- * создавая вторую. Без фото работа создаётся сразу с выбором мастера. Повторное создание гасит форма (кнопка занята).
+ * создавая вторую. Без фото работа создаётся сразу с выбором мастера. Повтор с тем же ключом (`clientKey`, обрыв связи
+ * после записи) отдаёт ту же работу и прикрепляет только те фото, которых у неё ещё нет.
  */
 export const createWorkAction = action("app.executor.createWork", createWorkSchema, async ({ fileIds, ...fields }) => {
   const user = await requireUser("EXECUTOR");
   try {
-    if (fileIds.length === 0) return { ...(await createPortfolioItem(user, fields)), photosAttached: true };
-    const created = await createPortfolioItem(user, { ...fields, published: false });
+    if (fileIds.length === 0) {
+      const { id, masked } = await createPortfolioItem(user, fields);
+      return { id, masked, photosAttached: true };
+    }
+    const { id, masked, replayed } = await createPortfolioItem(user, { ...fields, published: false });
+    const have = replayed ? new Set((await getOwnPortfolioItem(user, id)).photos.map((p) => p.id)) : new Set<string>();
+    const missing = fileIds.filter((fileId) => !have.has(fileId));
     try {
-      await attachPortfolioPhotos(user, created.id, fileIds);
+      if (missing.length > 0) await attachPortfolioPhotos(user, id, missing);
     } catch (e) {
       logger.warn("app.executor.createWork: photos not attached", { error: e });
-      return { ...created, photosAttached: false };
+      return { id, masked, photosAttached: false };
     }
-    if (fields.published) await setPortfolioPublished(user, created.id, true);
-    return { ...created, photosAttached: true };
+    if (fields.published) await setPortfolioPublished(user, id, true);
+    return { id, masked, photosAttached: true };
   } catch (e) {
     throw workFailure(e);
   }

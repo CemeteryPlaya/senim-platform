@@ -6,6 +6,7 @@ import { PHOTO_ACCEPT } from "@/features/upload/transfer";
 import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, Stack, TextArea, TextField, toast, Uploader } from "@/kit";
 import { FormError } from "../../../../_shell/FormError";
+import { useClientKey } from "../../../../_shell/client-key";
 import { useActionForm } from "../../../../_shell/form";
 import { LeaveGuard } from "../../../../_shell/LeaveGuard";
 import type { Device } from "@/platform/device";
@@ -29,8 +30,10 @@ export function ProgressForm({ dealId, dealHref, device }: Props) {
   const [text, setText] = useState("");
   const [done, setDone] = useState(false);
   const uploads = usePhotoUploads("PROGRESS_REPORT", [], t.photos.name);
+  // Ключ повтора: обрыв связи после записи и повторная отправка не дадут второго отчёта (форма уходит после успеха).
+  const { key: clientKey } = useClientKey();
   const form = useActionForm(progressReportAction, {
-    toInput: () => ({ dealId, title, text, photoIds: uploads.fileIds }),
+    toInput: () => ({ dealId, title, text, photoIds: uploads.fileIds, clientKey }),
     onSuccess: () => {
       setDone(true);
       toast(t.sent);

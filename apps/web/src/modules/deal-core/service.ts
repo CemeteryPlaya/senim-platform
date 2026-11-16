@@ -210,15 +210,32 @@ export async function submitReady(user: CurrentUser, raw: { dealId: string; phot
   });
 }
 
-/** «Ход работ» (бывшие этапы): необязательный фото-отчёт мастера в ленте сделки — без денег и актов. */
-export async function addProgressReport(user: CurrentUser, raw: { dealId: string; title?: string; text: string; photoIds?: string[] }): Promise<{ reportId: string }> {
+/**
+ * «Ход работ» (бывшие этапы): необязательный фото-отчёт мастера в ленте сделки — без денег и актов. С `clientKey` повтор
+ * (обрыв связи после записи, двойное нажатие) отдаёт уже записанный отчёт — без второй записи, фото, аудита и уведомления;
+ * повторы одной сделки идут под блокировкой её строки, поэтому проверка «уже есть» не гоняется с записью.
+ */
+export async function addProgressReport(
+  user: CurrentUser,
+  raw: { dealId: string; title?: string; text: string; photoIds?: string[]; clientKey?: string },
+): Promise<{ reportId: string }> {
   const input = parseInput(progressReportSchema, raw);
   return transaction(async (tx) => {
     const deal = await lockDeal(tx, input.dealId);
     requireParty(user, deal, "EXECUTOR");
+    if (input.clientKey) {
+      const again = await tx.progressReport.findUnique({ where: { dealId_clientKey: { dealId: deal.id, clientKey: input.clientKey } }, select: { id: true } });
+      if (again) return { reportId: again.id };
+    }
     if (deal.status !== "IN_PROGRESS" && deal.status !== "READY") return fail.conflict(e.progressNotNow);
     const report = await tx.progressReport.create({
-      data: { dealId: deal.id, authorId: user.id, title: await partyText(tx, deal, "EXECUTOR", input.title), text: await partyText(tx, deal, "EXECUTOR", input.text) },
+      data: {
+        dealId: deal.id,
+        authorId: user.id,
+        clientKey: input.clientKey,
+        title: await partyText(tx, deal, "EXECUTOR", input.title),
+        text: await partyText(tx, deal, "EXECUTOR", input.text),
+      },
       select: { id: true },
     });
     await attachOwnFiles(tx, { fileIds: input.photoIds, uploadedById: user.id, owner: { progressReportId: report.id } });

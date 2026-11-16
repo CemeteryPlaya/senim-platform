@@ -42,6 +42,8 @@ export const progressReportSchema = z.object({
   title: z.string().trim().max(120, v.tooLong(120)).default(""),
   text: text(2, 2000, v.progressText),
   photoIds: photos(0, v.deliveryPhotos).default([]),
+  /** Ключ повтора (форма v2): повтор с тем же ключом отдаёт тот же отчёт. */
+  clientKey: z.uuid().optional(),
 });
 
 export const cancelDealSchema = z.object({ dealId: id, reason: z.string().trim().max(500, v.tooLong(500)).default("") });
@@ -51,6 +53,8 @@ export const openDisputeSchema = z.object({
   reason: z.enum(DisputeReason),
   description: text(10, 2000, v.disputeDescription),
   photoIds: photos(0, v.deliveryPhotos).default([]),
+  /** Ключ повтора (форма v2): повтор с тем же ключом отдаёт тот же отчёт. */
+  clientKey: z.uuid().optional(),
 });
 
 export const disputePositionSchema = z.object({ disputeId: id, position: text(10, 2000, v.disputePosition) });

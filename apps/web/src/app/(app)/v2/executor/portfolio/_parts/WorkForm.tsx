@@ -8,6 +8,7 @@ import { ActionDock, Button, Card, Checkbox, Explain, MoneyField, Notice, RadioC
 import { kztToTiyn } from "@/modules/payments/client";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../../_shell/FormError";
+import { useClientKey } from "../../../../_shell/client-key";
 import { useActionForm } from "../../../../_shell/form";
 import { LeaveGuard } from "../../../../_shell/LeaveGuard";
 import { to } from "../../../../_shell/paths";
@@ -66,6 +67,8 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
   const [done, setDone] = useState(false);
   const [dirty, setDirty] = useState(false);
 
+  // Ключ повтора новой работы: обрыв связи после записи не даст второй работы (форма уходит после успеха).
+  const { key: clientKey } = useClientKey();
   const toInput = (): WorkInput => ({
     furnitureTypeId: typeId,
     // Пустой выбор отклоняет схема действия: ошибка у поля.
@@ -80,7 +83,7 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
   });
 
   const create = useActionForm(createWorkAction, {
-    toInput,
+    toInput: () => ({ ...toInput(), clientKey }),
     onSuccess: (data) => {
       setDone(true);
       if (!data.photosAttached) {

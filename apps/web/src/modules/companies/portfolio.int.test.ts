@@ -20,6 +20,19 @@ async function input(overrides: Partial<PortfolioInput> = {}): Promise<Portfolio
   return { furnitureTypeId: type.id, style: "scandi", title: "Светлая кухня", description: "Фасады МДФ", priceFrom: 900_000, published: true, ...overrides };
 }
 
+describe("портфолио: повтор с ключом", () => {
+  it("работа дважды с тем же ключом — одна работа, повтор помечен", async () => {
+    const executor = await makeExecutor();
+    const fields = { ...(await input()), clientKey: crypto.randomUUID() };
+    const a = await createPortfolioItem(executor, fields);
+    const b = await createPortfolioItem(executor, fields);
+    expect(b.id).toBe(a.id);
+    expect(a.replayed).toBe(false);
+    expect(b.replayed).toBe(true);
+    expect(await db.portfolioItem.count({ where: { executorId: executor.executor.id } })).toBe(1);
+  });
+});
+
 describe("портфолио: своё", () => {
   it("исполнитель создаёт, меняет и видит свои работы", async () => {
     const executor = await makeExecutor();

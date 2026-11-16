@@ -68,6 +68,31 @@ describe("«Ход работ»", () => {
     expect((await getDealView(f.client, f.dealId)).progressReports).toHaveLength(1);
   });
 
+  it("отчёт дважды с тем же ключом — один отчёт, одно событие аудита и уведомление, фото прикреплены один раз", async () => {
+    const f = await dealAt("IN_PROGRESS");
+    const photo = await makePhoto(f.executor, "PROGRESS_REPORT");
+    const clientKey = crypto.randomUUID();
+    const send = () => addProgressReport(f.executor, { dealId: f.dealId, text: "Собрал каркас", photoIds: [photo], clientKey });
+
+    const a = await send();
+    const b = await send();
+
+    expect(b.reportId).toBe(a.reportId);
+    expect(await db.progressReport.count({ where: { dealId: f.dealId } })).toBe(1);
+    expect(await db.auditEvent.count({ where: { action: "deal.progress.reported", entityId: a.reportId } })).toBe(1);
+    expect(await db.notification.count({ where: { userId: f.client.id, kind: "deal.progress" } })).toBe(1);
+    expect(await db.storedFile.count({ where: { progressReportId: a.reportId } })).toBe(1);
+  });
+
+  it("тот же ключ в другой сделке — новый отчёт", async () => {
+    const one = await dealAt("IN_PROGRESS");
+    const two = await dealAt("IN_PROGRESS", { executor: one.executor });
+    const clientKey = crypto.randomUUID();
+    const a = await addProgressReport(one.executor, { dealId: one.dealId, text: "Первая сделка", clientKey });
+    const b = await addProgressReport(two.executor, { dealId: two.dealId, text: "Вторая сделка", clientKey });
+    expect(b.reportId).not.toBe(a.reportId);
+  });
+
   it("до начала работ — нельзя; покупатель — нельзя", async () => {
     const f = await dealAt("PAID_HOLD");
     await expect(addProgressReport(f.executor, { dealId: f.dealId, text: "Рано" })).rejects.toMatchObject({ code: "CONFLICT" });

@@ -46,6 +46,16 @@ describe("progressReportAction", () => {
     expect(report?.photos.map((p) => p.id)).toEqual([photo]);
   });
 
+  it("повтор отправки с тем же ключом — один отчёт", async () => {
+    const f = await dealAt("IN_PROGRESS");
+    await signInAs(f.executor);
+    const report = { dealId: f.dealId, text: "Ставлю фасады", photoIds: [await makePhoto(f.executor, "PROGRESS_REPORT")], clientKey: crypto.randomUUID() };
+    const a = await progressReportAction(report);
+    const b = await progressReportAction(report);
+    expect(b).toEqual(a);
+    expect(await reportsOf(f.dealId)).toHaveLength(1);
+  });
+
   it("короткий текст — ошибка у поля текстом экрана, отчёта нет; до начала работ — отказ «пока идут работы»", async () => {
     const f = await dealAt("IN_PROGRESS");
     await signInAs(f.executor);

@@ -32,7 +32,8 @@ const fields = {
   fileIds: z.array(id).max(PHOTOS_MAX, t.photos(PHOTOS_MAX)),
 };
 
-export const createWorkSchema = z.strictObject(fields);
+/** Новая работа: `clientKey` — ключ повтора формы (повтор отдаёт ту же работу, модуль companies). */
+export const createWorkSchema = z.strictObject({ ...fields, clientKey: z.uuid().optional() });
 export const updateWorkSchema = z.strictObject({ id, ...fields });
 export const setPublishedSchema = z.strictObject({ id, published: z.boolean() });
 export const deleteWorkSchema = z.strictObject({ id });

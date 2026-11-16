@@ -4,7 +4,7 @@ import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { attachFiles } from "@/modules/files";
 import { actorOf, type CurrentUser } from "@/modules/identity";
-import { db, transaction, type Db, type Prisma } from "@/platform/db";
+import { db, isUniqueViolation, transaction, type Db, type Prisma } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { STYLES, type StyleKey } from "@/verticals/furniture";
 import { parseInput } from "@/platform/validation";
@@ -39,6 +39,8 @@ export const portfolioInputSchema = z.object({
   published: z.boolean(),
   /** В обычной работе место необязательно. */
   place: placeField.default(""),
+  /** Ключ повтора создания (форма v2): повтор с тем же ключом отдаёт ту же работу. Для правки не используется. */
+  clientKey: z.uuid().optional(),
 });
 
 export type PortfolioInput = z.input<typeof portfolioInputSchema>;
@@ -126,10 +128,18 @@ export async function cleanTexts(client: Db, executorId: string, input: { title:
   return { title: title.text, description: description.text, masked: title.masked || description.masked };
 }
 
-export async function createPortfolioItem(user: CurrentUser, raw: PortfolioInput): Promise<{ id: string; masked: boolean }> {
+/**
+ * Новая работа. С `clientKey` повтор (обрыв связи после записи) отдаёт уже созданную работу с `replayed: true` — без второй
+ * записи и аудита; одновременный повтор ловит уникальность (исполнитель, ключ).
+ */
+export async function createPortfolioItem(user: CurrentUser, raw: PortfolioInput): Promise<{ id: string; masked: boolean; replayed: boolean }> {
   const { executorId } = requireExecutor(user);
   const input = parseInput(portfolioInputSchema, raw);
-  return transaction(async (tx) => {
+  const created = (key: string) =>
+    db.portfolioItem.findUnique({ where: { executorId_clientKey: { executorId, clientKey: key } }, select: { id: true } }).then((row) => (row ? { id: row.id, masked: false, replayed: true } : null));
+  const existing = input.clientKey ? await created(input.clientKey) : null;
+  if (existing) return existing;
+  const write = transaction(async (tx) => {
     await assertActiveFurnitureTypes(tx, [input.furnitureTypeId]);
     const texts = await cleanTexts(tx, executorId, input);
     const item = await tx.portfolioItem.create({
@@ -142,10 +152,16 @@ export async function createPortfolioItem(user: CurrentUser, raw: PortfolioInput
         place: input.place,
         title: texts.title,
         description: texts.description,
+        clientKey: input.clientKey,
       },
     });
     await recordAudit(tx, audit(user, executorId, item.id, "portfolio.created", { published: input.published }));
-    return { id: item.id, masked: texts.masked };
+    return { id: item.id, masked: texts.masked, replayed: false };
+  });
+  return write.catch(async (e: unknown) => {
+    const raced = input.clientKey && isUniqueViolation(e) ? await created(input.clientKey) : null;
+    if (raced) return raced;
+    throw e;
   });
 }
 

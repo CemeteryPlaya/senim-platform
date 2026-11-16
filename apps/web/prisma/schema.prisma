@@ -242,12 +242,15 @@ model PortfolioItem {
   dealId          String?         @unique
   deal            Deal?           @relation(fields: [dealId], references: [id], onDelete: Cascade)
   createdAt       DateTime        @default(now())
+  /// Ключ повтора создания (форма v2): повтор с тем же ключом отдаёт ту же работу. У сида и v1 — null.
+  clientKey       String?
 
   photos     StoredFile[]
   dealPhotos PortfolioDealPhoto[]
   requests   Request[]
 
   @@index([furnitureTypeId, style])
+  @@unique([executorId, clientKey])
 }
 
 /// Фото отчёта сделки в работе портфолио: ссылка, а не копия — файл остаётся файлом этапа
@@ -612,10 +615,13 @@ model ProgressReport {
   title     String   @default("")
   text      String   @default("")
   createdAt DateTime @default(now())
+  /// Ключ повтора (форма v2): повтор отчёта с тем же ключом отдаёт тот же отчёт. У сида и v1 — null.
+  clientKey String?
 
   photos StoredFile[]
 
   @@index([dealId, createdAt])
+  @@unique([dealId, clientKey])
 }
 
 /// Согласие стороны на публичную обезличенную витрину сделки (ТЗ п. 8): нужны обе стороны.
