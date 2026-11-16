@@ -103,8 +103,8 @@ services:
       TLS_KEY_FILE: /certs/identity-key.pem
       TLS_CA_FILE: /certs/ca.pem
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-      # Демо-код входа нужен e2e и дымовому тесту; в prod DEMO_MODE запрещён конфигом.
-      DEMO_MODE: ${IDENTITY_DEMO_MODE:?запускайте через npm run v2:up}
+      # Мок SMS: код входа возвращается в ответе (shown_code) — его показывает web, читают e2e и
+      # дымовой тест. В prod мок запрещён конфигом, как и сид и сброс стенда.
       IDENTITY_OTP_PROVIDER: mock
       # Писем с кодом нет: при mock код подтверждения почты показывает web; в prod мок запрещён конфигом.
       IDENTITY_EMAIL_PROVIDER: mock
