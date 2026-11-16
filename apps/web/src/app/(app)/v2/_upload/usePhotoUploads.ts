@@ -3,6 +3,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
 import { doneFileIds, initialState, isUploading, uploaderReducer, type UploaderState } from "@/features/upload/state";
+import { resizePhoto } from "@/features/upload/resize";
 import { contentTypeOf, isHeic, sendToTarget } from "@/features/upload/transfer";
 import type { UploaderItem } from "@/kit";
 import type { UploadPurpose } from "@/modules/files/client";
@@ -82,15 +83,17 @@ export function usePhotoUploads(purpose: UploadPurpose, saved: readonly SavedPho
   }
 
   async function upload(localId: string) {
-    const file = files.current.get(localId);
-    if (!file) return;
+    const picked = files.current.get(localId);
+    if (!picked) return;
     try {
+      // Большое фото уменьшается на телефоне до загрузки (HEIC и PDF — как есть); повтор берёт исходный выбор.
+      const file = await resizePhoto(picked);
       const created = settle(await createUploadAction({ purpose, contentType: contentTypeOf(file), size: file.size }));
       if (!created) return;
       await sendToTarget(created.target, file, (progress) => dispatch({ type: "progress", localId, progress }));
       const done = settle(await finalizeUploadAction({ token: created.token }));
       if (!done) return;
-      dispatch({ type: "done", localId, fileId: done.id, url: done.url, serverPreview: isHeic(file) });
+      dispatch({ type: "done", localId, fileId: done.id, url: done.url, serverPreview: isHeic(picked) });
     } catch (e) {
       // Отказ сервиса — его понятный текст; сеть, хранилище и прочее — общий текст (подробности не показываем).
       dispatch({ type: "failed", localId, error: e instanceof UploadFailed && e.message ? e.message : ru.files.uploader.failed });
