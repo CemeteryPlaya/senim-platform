@@ -70,7 +70,7 @@ export const acceptPriceAction = action("app.offer.acceptPrice", acceptSchema, a
   }
 });
 
-/** «Отозвать предложение»: только своё открытое (чужое — FORBIDDEN), уже решённое — CONFLICT. */
+/** «Отозвать мою цену»: только своё открытое (чужое — FORBIDDEN), уже решённое — CONFLICT. */
 export const withdrawPriceAction = action("app.offer.withdrawPrice", withdrawSchema, async ({ proposalId }) => {
   const user = await requireUser("CLIENT");
   try {

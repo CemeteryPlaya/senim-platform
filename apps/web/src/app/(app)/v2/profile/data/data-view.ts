@@ -48,22 +48,25 @@ function revocationBlock(rev: RevocationView): RevocationBlock {
   return { status: rev.status, statusText: t.revocation.status[rev.status], rows, open: rev.status === "REQUESTED" };
 }
 
-/** Модель экрана «Мои данные»: личные данные, согласия с редакцией и датой, заявка на отзыв. `numbers` — номера сделок по id. */
-export function dataView(data: MyData, numbers: ReadonlyMap<string, number>): DataView {
+/** Сделка согласия: номер и название заказа (по одному номеру сделку не узнать). */
+export type ConsentDeal = { number: number; title: string };
+
+/** Модель экрана «Мои данные»: личные данные, согласия с редакцией и датой, заявка на отзыв. `deals` — сделки по id. */
+export function dataView(data: MyData, deals: ReadonlyMap<string, ConsentDeal>): DataView {
   const notSet = t.notSet;
   const consents: ConsentView[] = data.consents.map((c) => {
-    const number = c.dealId ? numbers.get(c.dealId) : undefined;
+    const deal = c.dealId ? deals.get(c.dealId) : undefined;
     return {
       id: c.id,
       title: t.consentKinds[c.kind],
       edition: ru.app.onboarding.consent.edition(c.version),
       granted: formatDateTime(c.grantedAt),
-      deal: c.dealId ? { label: number === undefined ? t.dealUnknown : t.deal(number), href: to(`/deals/${c.dealId}`) } : null,
+      deal: c.dealId ? { label: deal === undefined ? t.dealUnknown : t.deal(deal.number, deal.title), href: to(`/deals/${c.dealId}`) } : null,
     };
   });
   const open = data.revocation?.status === "REQUESTED";
   const bankNumbers = data.consents.flatMap((c) => {
-    const number = c.dealId ? numbers.get(c.dealId) : undefined;
+    const number = c.dealId ? deals.get(c.dealId)?.number : undefined;
     return number === undefined ? [] : [number];
   });
   return {

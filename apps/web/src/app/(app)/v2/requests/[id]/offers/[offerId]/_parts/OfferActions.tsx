@@ -118,7 +118,7 @@ export function ProposeButton({ device, offerId, primary, description }: { devic
   );
 }
 
-/** «Отозвать предложение»: своё открытое, с подтверждением; после — экран обновляется (цены, ждущей ответа, нет). */
+/** «Отозвать мою цену»: своё открытое, с подтверждением; после — экран обновляется (цены, ждущей ответа, нет). */
 export function WithdrawButton({ device, proposalId }: { device: Device; proposalId: string }) {
   const router = useRouter();
   const settle = useSettle();

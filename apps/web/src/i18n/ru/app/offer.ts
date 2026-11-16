@@ -60,7 +60,7 @@ export const offer = {
   actions: {
     accept: (price: string) => `Принять ${price}`,
     propose: "Предложить свою цену",
-    withdraw: "Отозвать предложение",
+    withdraw: "Отозвать мою цену",
     openDeal: "Открыть сделку",
     chat: "Написать мастеру",
     profile: "Профиль и работы",

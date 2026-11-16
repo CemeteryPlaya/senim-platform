@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { Card, List, ListRow, Narrow, Notice, PageTitle, Section, Stack, StatusChip, TextLink } from "@/kit";
-import { dealNumbersOf } from "@/modules/deal-core";
+import { dealRefsOf } from "@/modules/deal-core";
 import { getMyData } from "@/modules/identity";
 import { getDevice } from "@/platform/device";
 import { requireV2User } from "../../../_shell/auth";
@@ -21,8 +21,8 @@ export const metadata: Metadata = { title: t.metaTitle };
 export default async function MyDataPage() {
   const user = await requireV2User(to("/profile/data"), "CLIENT", "EXECUTOR");
   const data = await getMyData(user);
-  const numbers = await dealNumbersOf(user, data.consents.flatMap((c) => (c.dealId ? [c.dealId] : [])));
-  const view = dataView(data, numbers);
+  const deals = await dealRefsOf(user, data.consents.flatMap((c) => (c.dealId ? [c.dealId] : [])));
+  const view = dataView(data, deals);
   const device = await getDevice();
   const rev = view.revocation;
 

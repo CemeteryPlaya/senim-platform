@@ -201,7 +201,7 @@ describe("offerView: действия, смета и тексты по сост�
     expect(view.secondary).toEqual({ kind: "propose" });
   });
 
-  it("(2) ждём мастера: главного действия нет, «Отозвать предложение»; смета по своей цене, условие — в заголовке", () => {
+  it("(2) ждём мастера: главного действия нет, «Отозвать мою цену»; смета по своей цене, условие — в заголовке", () => {
     const n = negotiation([round("p1", "EXECUTOR", 1_050_000, "SUPERSEDED"), round("p2", "CLIENT", 980_000, "PROPOSED")]);
     const view = offerView(offer(), n);
     expect(view.primary).toBeNull();
@@ -210,6 +210,11 @@ describe("offerView: действия, смета и тексты по сост�
     expect(view.money?.rows[0]).toEqual({ label: t.money.price.yours, amountTiyn: 980_000_00n });
     expect(view.money?.title).toBe(t.money.titleWaiting);
     expect(view.proposeDescription).toBe(t.propose.description);
+  });
+
+  it("отзыв своей встречной цены называется как у мастера — «Отозвать мою цену»", () => {
+    expect(t.actions.withdraw).toBe("Отозвать мою цену");
+    expect(t.actions.withdraw).toBe(ru.app.masterOffer.actions.withdrawPrice);
   });
 
   it("цены, ждущей ответа, нет: главное — «Предложить свою цену», сметы нет", () => {

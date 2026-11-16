@@ -85,7 +85,7 @@ test("цена мастера: «Принять X», смета с защито�
   await expect(form).toBeHidden();
 });
 
-test("своё предложение ждёт мастера: главного действия нет, «Отозвать предложение», смета под условием", async ({ page }) => {
+test("своё предложение ждёт мастера: главного действия нет, «Отозвать мою цену», смета под условием", async ({ page }) => {
   const offer = await seedOffer("waiting");
   await openOffer(page, offer);
   await expect(page.getByRole("heading", { level: 2, name: t.now.waiting.title })).toBeVisible();

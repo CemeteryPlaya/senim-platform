@@ -34,9 +34,11 @@ describe("dataView", () => {
           { id: "c3", kind: "BANK_TRANSFER", version: "v1", grantedAt: new Date("2026-11-13T11:00:00Z"), dealId: "d5" },
         ],
       }),
-      new Map([["d3", 3], ["d5", 5]]),
+      new Map([["d3", { number: 3, title: "Кухня" }], ["d5", { number: 5, title: "Шкаф-купе" }]]),
     );
     expect(view.bankDeals).toBe("№3, №5");
+    // Согласие по сделке — с названием заказа: по одному номеру сделку не узнать.
+    expect(view.consents.find((c) => c.id === "c2")?.deal).toEqual({ label: "Сделка №3: Кухня", href: "/v2/deals/d3" });
     const text = t.revoke.bankDeals(view.bankDeals!);
     expect(text).toBe("Согласие на передачу данных банку по сделкам №3, №5 этим отзывом не затрагивается.");
     expect(text).not.toContain("исполнил");

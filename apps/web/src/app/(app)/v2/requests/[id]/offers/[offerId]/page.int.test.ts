@@ -91,7 +91,7 @@ describe("экран предложения: состояния торга", () 
     for (const amount of [m.priceTiyn, m.protectionTiyn, m.buyerTotalTiyn]) expect(plain).toContain(formatMoney(amount));
   });
 
-  it("(2) своё предложение ждёт мастера: главного действия нет, «Отозвать предложение», смета по своей цене", async () => {
+  it("(2) своё предложение ждёт мастера: главного действия нет, «Отозвать мою цену», смета по своей цене", async () => {
     const { client, requestId, offerId } = await offered();
     await proposePrice(client, { offerId, amountKzt: 1_000_000 });
     const out = await render(requestId, offerId);

@@ -110,7 +110,7 @@ export const profile = {
     granted: "Дано",
     status: "Статус",
     statusActive: "Действует",
-    deal: (n: number) => `Сделка №${n}`,
+    deal: (n: number, title: string) => `Сделка №${n}: ${title}`,
     dealUnknown: "Сделка",
     menu: "Действия с согласием",
     revoke: {
