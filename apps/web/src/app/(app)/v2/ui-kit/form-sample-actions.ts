@@ -20,3 +20,39 @@ export const sampleAction = action("uikit.sample", z.object({ value: z.string(),
     fieldErrors: { value: [ru.app.kit.showcase.formSample.fieldError] },
   });
 });
+
+const masks = ru.app.kit.showcase.masks;
+
+/**
+ * Действие-образец полей с маской (только dev): показывает, что дошло до сервера (значения без разделителей), и всегда
+ * отвечает ошибками у цены и почты — на нём видно фокус к первой ошибке и снятие ошибки правкой.
+ */
+export const maskSampleAction = action(
+  "uikit.maskSample",
+  z.object({
+    phone: z.string(),
+    price: z.string(),
+    iin: z.string(),
+    bin: z.string(),
+    iban: z.string(),
+    email: z.string(),
+    instagram: z.string(),
+  }),
+  async (input) => {
+    if (env().APP_ENV !== "dev") notFound();
+    await wait(400);
+    const values = Object.entries(input)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(" ");
+    return fail.validation(masks.received(values), {
+      fieldErrors: { price: [masks.priceError], email: [masks.emailError] },
+    });
+  },
+);
+
+/** Действие-образец кода (только dev): всегда «код не подошёл» у поля; по нему видно, что код ушёл один раз. */
+export const codeSampleAction = action("uikit.codeSample", z.object({ code: z.string() }), async () => {
+  if (env().APP_ENV !== "dev") notFound();
+  await wait(400);
+  return fail.validation(masks.codeError, { fieldErrors: { code: [masks.codeError] } });
+});

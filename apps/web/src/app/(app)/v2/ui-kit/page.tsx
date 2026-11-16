@@ -55,6 +55,7 @@ import { ThemeSwitch } from "../../_shell/ThemeSwitch";
 import { to } from "../../_shell/paths";
 import { BuyerKit } from "./BuyerKit";
 import { FormSample } from "./FormSample";
+import { MaskSamples } from "./MaskSamples";
 import { MasterKit } from "./MasterKit";
 import { OverlaySamples } from "./OverlaySamples";
 
@@ -632,6 +633,10 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
 
       <Section title={s.sections.notices}>
         <Entry />
+      </Section>
+
+      <Section title={s.sections.masks}>
+        <MaskSamples />
       </Section>
 
       <Section title={s.sections.filters}>

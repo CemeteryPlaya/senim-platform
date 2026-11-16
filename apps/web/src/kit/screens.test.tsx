@@ -95,16 +95,22 @@ describe("CodeField", () => {
 
 describe("PhoneField", () => {
   const out = html(<PhoneField label="Телефон" name="phone" defaultValue="+77001234567" />);
-  const tag = inputTag(out, "phone");
+  const visible = /<input(?![^>]*type="hidden")[^>]*>/.exec(out)?.[0] ?? "";
 
-  it("type=tel, автозаполнение tel, значение по умолчанию", () => {
-    expect(tag).toContain('type="tel"');
-    expect(hasAttr(tag, "autocomplete", "tel")).toBe(true);
-    expect(tag).toContain('value="+77001234567"');
+  it("видимое поле: type=tel, автозаполнение tel, номер группами без приставки; в форму — +7XXXXXXXXXX", () => {
+    expect(visible).toContain('type="tel"');
+    expect(hasAttr(visible, "autocomplete", "tel")).toBe(true);
+    expect(hasAttr(visible, "inputmode", "tel")).toBe(true);
+    expect(visible).toContain('value="700 123 45 67"');
+    expect(visible).toContain('data-field="phone"');
+    expect(visible).not.toMatch(/\sname=/);
+    expect(inputTag(out, "phone")).toContain('value="+77001234567"');
   });
 
-  it("подсказка формата из ru", () => {
-    expect(tag).toContain(`placeholder="${ru.app.kit.fields.phonePlaceholder}"`);
+  it("приставка «+7» в поле — для диктора скрыта; пример номера из ru", () => {
+    expect(out).toContain(`<span aria-hidden="true" class="pointer-events-none`);
+    expect(out).toContain(`>${ru.app.kit.fields.phonePrefix}</span>`);
+    expect(hasAttr(visible, "placeholder", ru.app.kit.fields.phonePlaceholder)).toBe(true);
   });
 });
 

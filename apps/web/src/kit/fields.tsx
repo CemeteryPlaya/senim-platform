@@ -44,21 +44,69 @@ function ErrorText({ id, children }: { id: string | undefined; children: ReactNo
 
 export type TextFieldProps = Omit<ComponentProps<"input">, "name"> & FieldProps;
 
-export function TextField({ label, error, id: explicitId, className, ...rest }: TextFieldProps) {
+export function TextField(props: TextFieldProps) {
+  return <InputField {...props} />;
+}
+
+/**
+ * Внутреннее поле kit (не в `@/kit`): то же, что `TextField`, плюс то, что нужно полям с маской.
+ * - `name` необязателен: у поля с маской имя и значение для формы — у скрытого поля рядом, а видимое несёт `data-field`
+ *   (по нему `useActionForm` снимает ошибку поля при правке и находит поле с ошибкой).
+ * - `prefix` / `suffix` — неизменяемая часть внутри рамки («+7», «@», «₸»): видна всегда, для диктора скрыта (подпись поля
+ *   называет, что вводить), нажатие сквозь неё попадает в поле.
+ * - `after` — строка под полем и ошибкой (подсказка исправления, расчёт «Вы получите»).
+ */
+export type InputFieldProps = Omit<ComponentProps<"input">, "prefix"> & {
+  label: string;
+  error?: string;
+  prefix?: string;
+  suffix?: string;
+  after?: ReactNode;
+};
+
+export function InputField({ label, error, id: explicitId, className, prefix, suffix, after, ...rest }: InputFieldProps) {
   const { id, errorId } = useFieldIds(explicitId, error);
+  const input = (
+    <input
+      id={id}
+      aria-invalid={error ? true : undefined}
+      className={cn(
+        controlClass,
+        "h-control",
+        borderFor(Boolean(error)),
+        // Отступ под приставку и знак — 40 px, мимо шкалы: место под «+7» / «₸» (≈ 18 px при 17 px) и зазор как пробел.
+        prefix && "pl-10",
+        suffix && "pr-10",
+        className,
+      )}
+      {...rest}
+      aria-describedby={describedBy(rest["aria-describedby"], errorId)}
+    />
+  );
   return (
     <div className="flex flex-col gap-2">
       <label htmlFor={id} className={labelClass}>
         {label}
       </label>
-      <input
-        id={id}
-        aria-invalid={error ? true : undefined}
-        className={cn(controlClass, "h-control", borderFor(Boolean(error)), className)}
-        {...rest}
-        aria-describedby={describedBy(rest["aria-describedby"], errorId)}
-      />
+      {prefix || suffix ? (
+        <div className="relative">
+          {input}
+          {prefix && (
+            <span aria-hidden className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-body text-ink">
+              {prefix}
+            </span>
+          )}
+          {suffix && (
+            <span aria-hidden className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-body text-muted">
+              {suffix}
+            </span>
+          )}
+        </div>
+      ) : (
+        input
+      )}
       <ErrorText id={errorId}>{error}</ErrorText>
+      {after}
     </div>
   );
 }
