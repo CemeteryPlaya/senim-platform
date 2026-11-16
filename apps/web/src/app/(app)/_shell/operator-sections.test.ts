@@ -13,6 +13,14 @@ describe("isOperatorReady: экраны v2, готовые для операто
     ["/v2/operator/disputes", true],
     ["/v2/operator/disputes/d1", true],
     ["/v2/operator/requests", true],
+    // Сделки, доход, отчёт, журнал аудита (Q4).
+    ["/v2/operator/deals", true],
+    ["/v2/operator/deals/7", true],
+    ["/v2/operator/income", true],
+    ["/v2/operator/income/csv", true],
+    ["/v2/operator/report", true],
+    ["/v2/operator/report/csv", true],
+    ["/v2/operator/audit", true],
   ])("%s — страница v2", (path, ready) => {
     expect(isOperatorReady(path)).toBe(ready);
   });
@@ -20,7 +28,7 @@ describe("isOperatorReady: экраны v2, готовые для операто
   it.each([
     // Разделы под главной оператора ещё не перенесены: главная — только сама.
     "/v2/operator/money",
-    "/v2/operator/deals/7",
+    "/v2/operator/dealsx",
     "/v2/operator/mfax",
     "/v2/profile/data",
     "/v2/deals/7",

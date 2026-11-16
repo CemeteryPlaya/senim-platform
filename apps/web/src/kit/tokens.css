@@ -208,7 +208,7 @@
   --container-col-mid: min(12rem, 60vw);
   --container-col-narrow: min(9rem, 50vw);
   /* «Подпись — значение» (KeyValueList) на компьютере: подписи в колонке до 14rem, значения — на остальную ширину. */
-  --grid-template-columns-key-value: minmax(0, 14rem) minmax(0, 1fr);
+  --grid-template-columns-key-value: minmax(0, min(14rem, 42%)) minmax(0, 1fr);
   /* Чаты на компьютере — две панели, как в «Сообщениях»: список 360px и переписка на остальную ширину. */
   --grid-template-columns-chats: 22.5rem minmax(0, 1fr);
 

@@ -67,14 +67,14 @@ const modelOf = (side: DealSide, user: CurrentUser, deal: DealView): Promise<Mon
 /**
  * История денег сделки стороны (тап по блоку денег на карточке): блок денег и операции — только из журнала (`moneyBlock`,
  * `moneyHistory`), не из статуса. Покупателю — документы-основания, выписка и акт со ссылкой «Поделиться»; мастеру — его
- * деньги без сумм покупателя. Ворота — `partyDeal`: другая роль — переключение, оператор — тот же экран v1, чужая — 404.
+ * деньги без сумм покупателя. Ворота — `partyDeal`: другая роль — переключение, оператор — карточка сделки оператора v2, чужая — 404.
  */
 export default async function MoneyHistoryPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
   const here = pageHref(`/deals/${encodeURIComponent(id)}/money`, sp);
   const user = await requireV2User(here);
-  const { deal, side } = await partyDeal(user, id, { here, operatorTo: `/deals/${encodeURIComponent(id)}/money` });
+  const { deal, side } = await partyDeal(user, id, { here });
   const [model, device]: [MoneyHistoryModel, Device] = await Promise.all([modelOf(side, user, deal), getDevice()]);
   return <MoneyHistoryView device={device} model={model} />;
 }

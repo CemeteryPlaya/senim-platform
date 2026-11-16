@@ -221,9 +221,9 @@ describe("partyDeal: сделка для стороны в её активной
     expect(await outcome(partyDeal(person(), "d1"))).toBe("NOT_FOUND");
   });
 
-  it("оператор — в v1 на карточку сделки (или на указанный адрес v1), модуль не читается", async () => {
-    expect(await outcome(partyDeal(operator(), "d1"))).toBe("/deals/d1");
-    expect(await outcome(partyDeal(operator(), "a/b"))).toBe("/deals/a%2Fb");
+  it("оператор — на свою карточку сделки v2 (или на указанный адрес), модуль не читается", async () => {
+    expect(await outcome(partyDeal(operator(), "d1"))).toBe("/v2/operator/deals/d1");
+    expect(await outcome(partyDeal(operator(), "a/b"))).toBe("/v2/operator/deals/a%2Fb");
     expect(await outcome(partyDeal(operator(), "d1", { operatorTo: "/deals/d1/money" }))).toBe("/deals/d1/money");
     expect(await outcome(partyDeal(operator(), "d1", { operatorTo: "//evil.example" }))).toBe("/");
     expect(h.viewCalls).toBe(0);

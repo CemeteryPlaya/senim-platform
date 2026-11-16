@@ -3,30 +3,23 @@ import { redirect } from "next/navigation";
 import { dealPartyOf, type DealView } from "@/modules/deal-core";
 import type { CurrentUser } from "@/modules/identity";
 import { dealOrSwitch, requireBuyer, requireV2User } from "../../../../_shell/auth";
-import { legacy } from "../../../../_shell/paths";
+import { to } from "../../../../_shell/paths";
 import { dealHrefs } from "./deal-card";
 
 /**
  * Ворота экранов сделки только покупателя (оплата, отзыв). Экраны, общие для сторон (карточка, подпись, спор, история
- * денег), берут сделку через `partyDeal` из `_shell/auth.ts` (сделка и сторона в активной роли). Здесь экран v2 есть только
- * у покупателя (оператор — этап 5), поэтому:
- * - вошедший в роли оператора — в v1 (права там проверит модуль: чужое — 404);
+ * денег), берут сделку через `partyDeal` из `_shell/auth.ts` (сделка и сторона в активной роли). Здесь:
+ * - вошедший в роли оператора — на свою карточку сделки v2 (`/v2/operator/deals/<id>`): оплаты, отзыва, подписи и спора
+ *   у оператора нет, всё нужное ему — на карточке (права там проверит модуль: чужое — 404);
  * - вошедший в роли мастера, который в этой сделке мастер, — на карточку сделки v2 (иначе `requireBuyer` переключил бы его
  *   на роль заказчика, а `dealOrSwitch` — обратно на мастера: петля);
  * - остальные — `requireBuyer` (гость — вход, роль заказчика выдана, но не активна — переключение, нет — дом) и
  *   `dealOrSwitch` (своя — экран; сторона в другой выданной роли — переключение роли; чужая и несуществующая — 404).
- * Оператор уходит в v1 на карточку сделки: экранов спора, отзыва, подписи и оплаты там нет (они на экране сделки), поэтому
- * тот же адрес дал бы 404. Исключение — `legacyAt: "same"`: экран есть и в v1 под тем же адресом (история денег —
- * `/deals/<id>/money`). `here` — адрес этой страницы v2 (с параметрами).
+ * `here` — адрес этой страницы v2 (с параметрами).
  */
-export async function buyerDeal(
-  here: string,
-  dealId: string,
-  { legacyAt = "card" }: { legacyAt?: "card" | "same" } = {},
-): Promise<{ user: CurrentUser; deal: DealView }> {
+export async function buyerDeal(here: string, dealId: string): Promise<{ user: CurrentUser; deal: DealView }> {
   const signedIn = await requireV2User(here);
-  const v1 = legacy(legacyAt === "same" ? here : dealHrefs(dealId).card);
-  if (signedIn.role === "OPERATOR") redirect(v1);
+  if (signedIn.role === "OPERATOR") redirect(to(`/operator/deals/${encodeURIComponent(dealId)}`));
   if (signedIn.role === "EXECUTOR" && (await dealPartyOf(signedIn, dealId)) === "EXECUTOR") redirect(dealHrefs(dealId).card);
   const user = await requireBuyer(here);
   return { user, deal: await dealOrSwitch(user, dealId) };

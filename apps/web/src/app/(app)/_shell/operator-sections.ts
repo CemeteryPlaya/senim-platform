@@ -15,6 +15,11 @@ export const OPERATOR_READY: readonly { path: string; exact?: boolean }[] = [
   // Споры и заявки без откликов (Q3): таблица, карточка спора с решением.
   { path: to("/operator/disputes") },
   { path: to("/operator/requests") },
+  // Сделки, доход, отчёт и журнал аудита (Q4): таблица и карточка сделки, период дохода, выгрузки CSV, фильтры аудита.
+  { path: to("/operator/deals") },
+  { path: to("/operator/income") },
+  { path: to("/operator/report") },
+  { path: to("/operator/audit") },
   // Общие экраны любой роли: профиль (имя, телефон, тема, выход) и уведомления.
   { path: to("/profile"), exact: true },
   { path: to("/notifications") },

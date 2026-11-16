@@ -20,6 +20,7 @@ import { masterSteps } from "./master-steps";
 import { offer } from "./offer";
 import { onboarding } from "./onboarding";
 import { operator } from "./operator";
+import { operatorDeals } from "./operator-deals";
 import { operatorDisputes } from "./operator-disputes";
 import { profile } from "./profile";
 import { requestCard } from "./request-card";
@@ -48,6 +49,7 @@ export const app = {
   offer,
   onboarding,
   operator,
+  operatorDeals,
   operatorDisputes,
   profile,
   requestCard,

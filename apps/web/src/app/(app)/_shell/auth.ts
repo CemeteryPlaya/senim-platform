@@ -282,7 +282,8 @@ export async function requireOperator(next: string): Promise<CurrentUser> {
 
 /**
  * Сделка для экрана, общего для сторон, в активной роли человека. `user` — из `requireV2User(<адрес страницы>)` без ролей:
- * - оператор — в v1 (`operatorTo`, по умолчанию карточка сделки `/deals/<id>`): его экраны сделки — этап 5;
+ * - оператор — на свою карточку сделки v2 (`/v2/operator/deals/<id>`; `operatorTo` — другой адрес, путь этого сайта): общие
+ *   экраны сторон (подпись, спор, история денег) оператору не нужны — всё на его карточке;
  * - сторона сделки в активной роли — вид сделки из модуля и сторона (`deal.viewer`);
  * - сторона в другой своей выданной роли (ADR-004) — переключение роли с возвратом на `here` (адрес этого экрана v2:
  *   подпись, спор, история денег; проверка — `safeNext`) или, без него и для чужого адреса, на карточку сделки v2;
@@ -295,7 +296,7 @@ export async function partyDeal(
   dealId: string,
   { operatorTo, here }: { operatorTo?: string; here?: string } = {},
 ): Promise<{ deal: DealView; side: DealSide }> {
-  if (user.role === "OPERATOR") redirect(safeLocalPath(operatorTo ?? `/deals/${encodeURIComponent(dealId)}`));
+  if (user.role === "OPERATOR") redirect(safeLocalPath(operatorTo ?? to(`/operator/deals/${encodeURIComponent(dealId)}`)));
   const deal = await dealOrSwitch(user, dealId, here);
   // Модуль отдаёт сделку стороне в её активной роли; оператор отсечён выше, поэтому `viewer` — сторона.
   if (deal.viewer === "OPERATOR") notFound();
