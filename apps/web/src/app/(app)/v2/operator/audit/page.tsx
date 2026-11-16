@@ -53,9 +53,22 @@ export default async function AuditPage({ searchParams }: Props) {
             <TextField label={t.from} name="from" type="date" defaultValue={raw.from ?? ""} />
             <TextField label={t.to} name="to" type="date" defaultValue={raw.to ?? ""} />
           </div>
-          <p className="text-sub text-muted">
-            {t.dealHint}. {t.scopeHint}. {t.actionHint}. {t.entityTypeHint}.
-          </p>
+          <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sub text-muted">
+            {(
+              [
+                [t.deal, t.dealHint],
+                [t.entityType, t.entityTypeHint],
+                [t.scope, t.scopeHint],
+                [t.action, t.actionHint],
+              ] as const
+            ).map(([label, hint]) => (
+              <li key={label}>
+                <span className="text-ink">{label}</span>
+                {" — "}
+                {hint}
+              </li>
+            ))}
+          </ul>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" variant="secondary">
               {t.apply}

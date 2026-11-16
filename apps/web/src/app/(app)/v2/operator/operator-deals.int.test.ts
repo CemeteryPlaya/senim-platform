@@ -221,7 +221,9 @@ describe("доход и отчёт", () => {
       expect(html).toContain(`/v2/operator/report/csv?kind=${kind}&amp;staleDays=3`);
       const res = await reportCsv(get(`/v2/operator/report/csv?kind=${kind}&staleDays=3`));
       expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Disposition")).toContain(`senim-${kind}-`);
+      // Дата в имени файла — день по Астане, не по UTC.
+      const astana = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Almaty" }).format(new Date());
+      expect(res.headers.get("Content-Disposition")).toBe(`attachment; filename="senim-${kind}-${astana}.csv"`);
       expect(await res.text()).toContain(ru.operator.csvHeaders[kind][0]);
     }
     expect((await reportCsv(get("/v2/operator/report/csv?kind=nope"))).status).toBe(400);

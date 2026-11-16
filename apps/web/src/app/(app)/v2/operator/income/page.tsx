@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { Download } from "lucide-react";
 import { formatDateTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
-import { Button, buttonClasses, DataTable, Money, PageTitle, Stack, Stat, StatRow, StatusChip, TextField, TextLink } from "@/kit";
+import { Button, buttonClasses, Money, PageTitle, Stack, Stat, StatRow, StatusChip, TextField, TextLink } from "@/kit";
 import { incomePeriodSchema, incomeReport } from "@/modules/operator";
 import { pageHref, requireOperator } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
+import { TableOrCards } from "../_parts/TableOrCards";
 import { flatParams, thisMonth, type SearchParams } from "../_parts/search-params";
 
 const t = ru.app.operatorDeals;
@@ -50,7 +51,7 @@ export default async function IncomePage({ searchParams }: Props) {
         <Stat compact label={i.guarantee} value={<Money tiyn={report.guaranteeTiyn} />} />
         <Stat compact label={i.total} value={<Money tiyn={report.totalTiyn} />} />
       </StatRow>
-      <DataTable
+      <TableOrCards
         caption={i.byDeal}
         rows={report.rows}
         rowKey={(r) => r.transactionId}

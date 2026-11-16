@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { Download } from "lucide-react";
 import { formatDateTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
-import { Button, buttonClasses, Card, DataTable, Money, PageTitle, Section, Stack, Stat, StatRow, TextField, TextLink } from "@/kit";
+import { Button, buttonClasses, Card, Money, PageTitle, Section, Stack, Stat, StatRow, TextField, TextLink } from "@/kit";
 import { buildReport, CSV_KINDS, reportSchema } from "@/modules/operator";
 import { pageHref, requireOperator } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
+import { TableOrCards } from "../_parts/TableOrCards";
 import { flatParams, type SearchParams } from "../_parts/search-params";
 
 const t = ru.app.operatorDeals;
@@ -21,7 +22,7 @@ type Row = { key: string; label: string; count: number; sumTiyn: bigint };
 function Totals({ caption, head, rows, empty }: { caption: string; head: string; rows: Row[]; empty: { title: string; body: string } }) {
   const total = rows.reduce((acc, row) => ({ count: acc.count + row.count, sum: acc.sum + row.sumTiyn }), { count: 0, sum: 0n });
   return (
-    <DataTable
+    <TableOrCards
       caption={caption}
       captionHidden
       rows={rows}
@@ -103,7 +104,7 @@ export default async function ReportPage({ searchParams }: Props) {
             </Button>
           </div>
         </form>
-        <DataTable
+        <TableOrCards
           caption={r.discrepancies}
           captionHidden
           rows={report.discrepancies}

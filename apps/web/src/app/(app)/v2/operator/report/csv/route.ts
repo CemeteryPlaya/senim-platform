@@ -12,7 +12,8 @@ export async function GET(request: Request) {
     const input = csvSchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
     if (!input.success) return new Response(null, { status: httpStatusOf("VALIDATION") });
     const csv = await buildCsv(user, input.data);
-    const date = new Date().toISOString().slice(0, 10);
+    // День по Астане, а не по UTC: ночью по местному времени файл не получает вчерашнюю дату.
+    const date = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Almaty" }).format(new Date());
     return new Response(csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
