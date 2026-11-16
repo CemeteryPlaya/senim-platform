@@ -635,3 +635,27 @@ func TestVerifyConcurrentSameKeyWaitsForFirstCall(t *testing.T) {
 		t.Fatal("сессий не одна")
 	}
 }
+
+// Review Focus 4 (план 05b): ответ «неверный код» потерялся, web повторил вызов с тем же ключом — тот же отказ,
+// попытка не тратится второй раз; новый ключ — новая попытка.
+func TestVerifyWrongCodeReplayDoesNotSpendAttempt(t *testing.T) {
+	h := newHarness(t, nil)
+	phone := newPhone()
+	code := h.issued(phone)
+	req := h.verifyReq(phone, wrongOf(code), verifyIP)
+
+	_, err := h.verifyAs("web", req)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "otp_wrong_code")
+	_, err = h.verifyAs("web", proto.Clone(req).(*identityv1.VerifyOtpRequest))
+	h.wantRefusal(err, connect.CodeInvalidArgument, "otp_wrong_code")
+	if left := errorParams(t, err)["left"]; left != "4" {
+		t.Fatalf("повтор с тем же ключом: left = %q, want 4", left)
+	}
+	_, err = h.verify(phone, wrongOf(code), verifyIP)
+	if left := errorParams(t, err)["left"]; left != "3" {
+		t.Fatalf("новый ключ: left = %q, want 3", left)
+	}
+	if _, err := h.verify(phone, code, verifyIP); err != nil {
+		t.Fatalf("верный код после двух попыток: %v", err)
+	}
+}

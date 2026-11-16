@@ -184,3 +184,29 @@ func TestEmptyResponseReplays(t *testing.T) {
 		t.Fatalf("пустой ответ: %v calls=%d err=%v", replayed, calls.Load(), err)
 	}
 }
+
+// Отказ хранится по ключу: повтор того же запроса читает его, другой запрос с тем же ключом — ErrKeyReused,
+// а готовый ответ (Lookup) отказом не подменяется.
+func TestRefusalSavedAndReplayed(t *testing.T) {
+	pool := setup(t)
+	ctx := context.Background()
+	req := wrapperspb.String("код 123456")
+	if err := idem.SaveRefusal(ctx, pool, "/svc/Verify", "r1", req, wrapperspb.String("wrong_code")); err != nil {
+		t.Fatal(err)
+	}
+	got := &wrapperspb.StringValue{}
+	found, err := idem.LookupRefusal(ctx, pool, "/svc/Verify", "r1", req, got)
+	if err != nil || !found || got.GetValue() != "wrong_code" {
+		t.Fatalf("LookupRefusal: %v %v %v", got, found, err)
+	}
+	if _, err := idem.LookupRefusal(ctx, pool, "/svc/Verify", "r1", wrapperspb.String("код 654321"), got); !errors.Is(err, idem.ErrKeyReused) {
+		t.Fatalf("другой запрос с тем же ключом: %v", err)
+	}
+	if found, err := idem.LookupRefusal(ctx, pool, "/svc/Verify", "r2", req, got); err != nil || found {
+		t.Fatalf("чужой ключ: %v %v", found, err)
+	}
+	resp := &wrapperspb.StringValue{}
+	if found, err := idem.Lookup(ctx, pool, "/svc/Verify", "r1", req, resp); err != nil || found {
+		t.Fatalf("отказ не должен читаться как ответ: %v %v", found, err)
+	}
+}

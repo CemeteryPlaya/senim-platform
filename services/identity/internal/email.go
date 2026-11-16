@@ -301,6 +301,10 @@ func (s *Service) VerifyEmailCode(ctx context.Context, req *identityv1.VerifyEma
 	if found {
 		return resp, nil
 	}
+	// Тот же запрос уже получил окончательный отказ (ответ потерялся): тот же отказ, попытка не тратится.
+	if refusal := s.replayedRefusal(ctx, method, key, req); refusal != nil {
+		return nil, refusal
+	}
 
 	row, refusal := s.checkEmailCode(ctx, op, user.ID, email, code)
 	if refusal != nil {
@@ -308,6 +312,7 @@ func (s *Service) VerifyEmailCode(ctx context.Context, req *identityv1.VerifyEma
 		if found, lerr := idem.Lookup(ctx, s.pool, method, key, req, again); lerr == nil && found {
 			return again, nil
 		}
+		s.rememberRefusal(ctx, method, key, req, refusal)
 		return nil, refusal
 	}
 

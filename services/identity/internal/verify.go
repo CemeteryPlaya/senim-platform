@@ -94,6 +94,10 @@ func (s *Service) VerifyOtp(ctx context.Context, req *identityv1.VerifyOtpReques
 	if found {
 		return saved, nil
 	}
+	// Тот же запрос уже получил окончательный отказ (ответ потерялся): тот же отказ, попытка не тратится.
+	if refusal := s.replayedRefusal(ctx, method, key, req); refusal != nil {
+		return nil, refusal
+	}
 
 	// Токен уже у другой сессии (новый ключ, старый токен): отказ до того, как тратится попытка.
 	sum := sha256.Sum256([]byte(req.GetSessionToken()))
@@ -116,6 +120,7 @@ func (s *Service) VerifyOtp(ctx context.Context, req *identityv1.VerifyOtpReques
 		if lerr != nil && !errors.Is(lerr, idem.ErrKeyReused) {
 			s.log.WarnContext(ctx, "otp: повторная проверка ключа после отказа", "err", lerr)
 		}
+		s.rememberRefusal(ctx, method, key, req, refusal)
 		return nil, refusal
 	}
 

@@ -750,3 +750,24 @@ func TestRequestEmailCodeAlreadySentOnlyForLiveCode(t *testing.T) {
 	_, err = h.requestEmail(other, "c@example.kz", h.key())
 	h.wantRefusal(err, connect.CodeResourceExhausted, "email_code_too_often")
 }
+
+// Review Focus 4 (план 05b): повтор VerifyEmailCode с тем же ключом после «неверный код» — тот же отказ, попытка не
+// тратится второй раз.
+func TestVerifyEmailCodeWrongReplayDoesNotSpendAttempt(t *testing.T) {
+	h := newHarness(t, nil)
+	_, token := h.client()
+	code := h.mustRequestEmail(token, "b@example.kz")
+	key := h.key()
+
+	_, err := h.verifyEmail(token, wrongOf(code), key)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "email_code_wrong")
+	_, err = h.verifyEmail(token, wrongOf(code), key)
+	h.wantRefusal(err, connect.CodeInvalidArgument, "email_code_wrong")
+	if left := errorParams(t, err)["left"]; left != "4" {
+		t.Fatalf("повтор с тем же ключом: left = %q, want 4", left)
+	}
+	_, err = h.verifyEmail(token, wrongOf(code), h.key())
+	if left := errorParams(t, err)["left"]; left != "3" {
+		t.Fatalf("новый ключ: left = %q, want 3", left)
+	}
+}

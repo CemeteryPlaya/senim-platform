@@ -148,3 +148,52 @@ func read(ctx context.Context, tx pgx.Tx, method, key string, hash []byte, resp 
 	}
 	return true, nil
 }
+
+// refusalSuffix отделяет сохранённые отказы от ответов в той же таблице: успех и отказ одного ключа не путаются.
+const refusalSuffix = "#refusal"
+
+// SaveRefusal запоминает окончательный отказ метода по ключу (например, «неверный код»): повтор того же запроса с тем
+// же ключом — потерянный ответ — получит его из LookupRefusal, не тратя заново попытку или лимит. Хранится в таблице
+// idempotency под методом `<method>#refusal` и удаляется той же очисткой по сроку. Первый сохранённый отказ остаётся:
+// повторная запись ничего не меняет. Временные сбои (база, провайдер) сохранять нельзя — их повтор должен выполняться.
+func SaveRefusal(ctx context.Context, pool *pgxpool.Pool, method, key string, req, refusal proto.Message) error {
+	hash, err := hashOf(req)
+	if err != nil {
+		return err
+	}
+	saved, err := proto.MarshalOptions{Deterministic: true}.Marshal(refusal)
+	if err != nil {
+		return fmt.Errorf("idem: сериализация отказа: %w", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO idempotency (method, key, request_hash, response) VALUES ($1, $2, $3, $4) ON CONFLICT (method, key) DO NOTHING`,
+		method+refusalSuffix, key, hash, saved); err != nil {
+		return fmt.Errorf("idem: запись отказа: %w", err)
+	}
+	return nil
+}
+
+// LookupRefusal читает отказ, сохранённый SaveRefusal для того же запроса: found = false — отказа по ключу нет;
+// ErrKeyReused — ключ с отказом использован с другим запросом.
+func LookupRefusal(ctx context.Context, pool *pgxpool.Pool, method, key string, req, refusal proto.Message) (found bool, err error) {
+	hash, err := hashOf(req)
+	if err != nil {
+		return false, err
+	}
+	var storedHash, saved []byte
+	err = pool.QueryRow(ctx, `SELECT request_hash, response FROM idempotency WHERE method = $1 AND key = $2`, method+refusalSuffix, key).
+		Scan(&storedHash, &saved)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("idem: чтение отказа: %w", err)
+	}
+	if !bytes.Equal(storedHash, hash) {
+		return false, ErrKeyReused
+	}
+	if err := proto.Unmarshal(saved, refusal); err != nil {
+		return false, fmt.Errorf("idem: разбор сохранённого отказа: %w", err)
+	}
+	return true, nil
+}
