@@ -52,6 +52,16 @@ describe("saveStepAction", () => {
     expect(draft).toMatchObject({ status: "DRAFT", mode: "TENDER", wizardStep: 1 });
   });
 
+  it("повтор первого шага с тем же ключом — тот же черновик, переход туда же", async () => {
+    const type = await makeFurnitureType();
+    session.user = await makeClient();
+    const clientKey = crypto.randomUUID();
+    const a = await run(saveStepAction({ requestId: null, clientKey, step: start(type.id) }));
+    const b = await run(saveStepAction({ requestId: null, clientKey, step: start(type.id) }));
+    expect(b).toEqual(a);
+    expect(await db.request.count({ where: { clientId: session.user.id } })).toBe(1);
+  });
+
   it("прямая заявка по номеру мастера: черновик адресован ему", async () => {
     const executor = await makeExecutor();
     const type = await makeFurnitureType();

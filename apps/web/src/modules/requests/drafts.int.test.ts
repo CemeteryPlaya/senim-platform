@@ -369,3 +369,40 @@ describe("мои заявки", () => {
     expect(cover(without)).toBeNull();
   });
 });
+
+describe("черновик заявки: повтор первого шага с ключом", () => {
+  const first = (furnitureTypeId: string) => ({ screen: "type" as const, furnitureTypeId, customType: null });
+
+  it("первый шаг дважды с тем же ключом — один черновик, тот же requestId", async () => {
+    const client = await makeClient();
+    const type = await makeFurnitureType("Прихожая");
+    const clientKey = crypto.randomUUID();
+
+    const a = await saveDraftStep(client, { requestId: null, clientKey, step: first(type.id) });
+    const b = await saveDraftStep(client, { requestId: null, clientKey, step: first(type.id) });
+
+    expect(b.requestId).toBe(a.requestId);
+    expect(await db.request.count({ where: { clientId: client.id } })).toBe(1);
+    expect(await db.auditEvent.count({ where: { action: "request.created", entityId: a.requestId } })).toBe(1);
+  });
+
+  it("два одновременных первых шага с тем же ключом — один черновик", async () => {
+    const client = await makeClient();
+    const type = await makeFurnitureType("Гардеробная");
+    const clientKey = crypto.randomUUID();
+
+    const results = await Promise.all([0, 1].map(() => saveDraftStep(client, { requestId: null, clientKey, step: first(type.id) })));
+
+    expect(new Set(results.map((r) => r.requestId)).size).toBe(1);
+    expect(await db.request.count({ where: { clientId: client.id } })).toBe(1);
+  });
+
+  it("тот же ключ у другого покупателя — свой черновик", async () => {
+    const type = await makeFurnitureType("Тумба");
+    const clientKey = crypto.randomUUID();
+    const a = await saveDraftStep(await makeClient(), { requestId: null, clientKey, step: first(type.id) });
+    const b = await saveDraftStep(await makeClient(), { requestId: null, clientKey, step: first(type.id) });
+    expect(b.requestId).not.toBe(a.requestId);
+  });
+});
+

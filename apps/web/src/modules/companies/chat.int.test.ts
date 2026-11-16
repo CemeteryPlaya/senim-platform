@@ -166,3 +166,35 @@ describe("чат отклика: вложения", () => {
     expect(await db.message.count()).toBe(1);
   });
 });
+
+describe("сообщение: повтор с ключом", () => {
+  it("сообщение дважды с тем же ключом — одно сообщение, тот же id, одно уведомление", async () => {
+    const t = await makeOfferThread();
+    const key = crypto.randomUUID();
+    const notes = () => db.notification.count({ where: { kind: "chat.message", link: { contains: t.requestId } } });
+    const before = await notes();
+
+    const a = await sendMessage(t.client, t.offerId, "Можно замер в субботу?", [], key);
+    const b = await sendMessage(t.client, t.offerId, "Можно замер в субботу?", [], key);
+
+    expect(b.id).toBe(a.id);
+    expect(await db.message.count({ where: { offerId: t.offerId, senderId: t.client.id } })).toBe(1);
+    expect(await notes()).toBe(before + 1);
+  });
+
+  it("два одновременных отправления с тем же ключом — одно сообщение", async () => {
+    const t = await makeOfferThread();
+    const key = crypto.randomUUID();
+    const sent = await Promise.all([0, 1].map(() => sendMessage(t.client, t.offerId, "Добрый день", [], key)));
+    expect(new Set(sent.map((m) => m.id)).size).toBe(1);
+    expect(await db.message.count({ where: { offerId: t.offerId, senderId: t.client.id } })).toBe(1);
+  });
+
+  it("без ключа (v1) — каждое отправление новое сообщение", async () => {
+    const t = await makeOfferThread();
+    await sendMessage(t.client, t.offerId, "Раз", []);
+    await sendMessage(t.client, t.offerId, "Раз", []);
+    expect(await db.message.count({ where: { offerId: t.offerId, senderId: t.client.id } })).toBe(2);
+  });
+});
+

@@ -84,6 +84,8 @@ export function ChatRoom({ offerId, initial, side, device, maxLength, maxAttachm
   const leave = (href: string) => window.location.assign(href);
 
   const gates = useRef({ poll: createGate(), send: createGate() });
+  /** Последняя неудачная отправка: её ключ повтора и текст. */
+  const pending = useRef<{ key: string; text: string } | null>(null);
 
   const refresh = useCallback(async () => {
     const gate = gates.current.poll;
@@ -126,10 +128,15 @@ export function ChatRoom({ offerId, initial, side, device, maxLength, maxAttachm
     }
     setError(null);
     epoch.current += 1;
+    // Ключ повтора: та же отправка (тот же текст после сбоя) — тот же ключ, и записанное до обрыва сообщение не задвоится;
+    // изменённый текст — новое сообщение, новый ключ.
+    const clientKey = pending.current?.text === text ? pending.current.key : crypto.randomUUID();
+    pending.current = { key: clientKey, text };
     try {
-      const outcome = outcomeOf(await sendMessageAction({ offerId, text, fileIds: attached.fileIds }), here());
+      const outcome = outcomeOf(await sendMessageAction({ offerId, text, fileIds: attached.fileIds, clientKey }), here());
       epoch.current += 1;
       if (outcome.kind === "success") {
+        pending.current = null;
         setRoom((prev) => mergeRoom(prev, outcome.data, Date.now()));
         setAttachOpen(false);
         setAttached({ fileIds: [], busy: false });

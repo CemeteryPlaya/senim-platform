@@ -6,7 +6,7 @@ import { attachFiles } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { ru } from "@/i18n/ru";
-import { db, transaction, type Tx } from "@/platform/db";
+import { db, isUniqueViolation, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { suggestSegment } from "@/verticals/furniture";
 import { auditByUser, links, loadOwnRequest, requestTitle, requireClient, type RequestWithType } from "./access";
@@ -111,7 +111,18 @@ function maskStepTexts(step: StepInput): StepInput {
  * номеру (`executor`, профиль мастера). Мастер прямого запроса — по одному правилу видимости (подтверждён, не заблокирован,
  * не сам заказчик); нет такого — NOT_FOUND, как у несуществующей работы.
  */
-async function createDraft(tx: Tx, user: CurrentUser, like: string | null | undefined, executor: number | null | undefined): Promise<RequestWithType> {
+/** Черновик этого покупателя, созданный первым шагом с тем же ключом повтора; нет — null. */
+async function findDraftByKey(tx: Tx, user: CurrentUser, clientKey: string): Promise<RequestWithType | null> {
+  return tx.request.findUnique({ where: { clientId_clientKey: { clientId: user.id, clientKey } }, include: { furnitureType: { select: { name: true } } } });
+}
+
+async function createDraft(
+  tx: Tx,
+  user: CurrentUser,
+  like: string | null | undefined,
+  executor: number | null | undefined,
+  clientKey: string | undefined,
+): Promise<RequestWithType> {
   if (like && executor) fail.validation(ru.common.errors.invalid);
   const item = like ? await findLikeablePortfolioItem(tx, like, user.id) : null;
   if (like && !item) fail.notFound(e.portfolioNotFound);
@@ -121,6 +132,7 @@ async function createDraft(tx: Tx, user: CurrentUser, like: string | null | unde
   const r = await tx.request.create({
     data: {
       clientId: user.id,
+      clientKey,
       mode: targetExecutorId ? "DIRECT" : "TENDER",
       targetExecutorId,
       portfolioItemId: item?.id,
@@ -142,6 +154,16 @@ async function createDraft(tx: Tx, user: CurrentUser, like: string | null | unde
  */
 export async function saveDraftStep(user: CurrentUser, input: SaveDraftInput): Promise<{ requestId: string; wizardStep: number }> {
   requireClient(user);
+  try {
+    return await saveDraftStepOnce(user, input);
+  } catch (e) {
+    // Тот же первый шаг с тем же ключом пришёл одновременно: черновик уже создал соседний запрос — сохраняем шаг в него.
+    if (!input.requestId && input.clientKey && isUniqueViolation(e)) return saveDraftStepOnce(user, input);
+    throw e;
+  }
+}
+
+async function saveDraftStepOnce(user: CurrentUser, input: SaveDraftInput): Promise<{ requestId: string; wizardStep: number }> {
   const step = maskStepTexts(input.step);
   return transaction(async (tx) => {
     let r: RequestWithType;
@@ -149,7 +171,9 @@ export async function saveDraftStep(user: CurrentUser, input: SaveDraftInput): P
       r = await loadOwnRequest(tx, user, input.requestId);
     } else {
       if (step.screen !== "start" && step.screen !== "type") fail.validation(e.startFromFirst);
-      r = await createDraft(tx, user, input.like, input.executor);
+      // Повтор первого шага с тем же ключом (обрыв связи после записи) — тот же черновик.
+      const again = input.clientKey ? await findDraftByKey(tx, user, input.clientKey) : null;
+      r = again ?? (await createDraft(tx, user, input.like, input.executor, input.clientKey));
     }
     if (r.status !== "DRAFT") fail.conflict(e.notDraft);
 

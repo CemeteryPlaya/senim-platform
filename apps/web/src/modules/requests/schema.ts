@@ -207,6 +207,8 @@ export const saveDraftSchema = z.strictObject({
   like: id.nullable().optional(),
   /** Прямая заявка мастеру по его публичному номеру (профиль мастера) — только при создании черновика; вместе с `like` нельзя. */
   executor: z.number().int().positive().max(2_147_483_647).nullable().optional(),
+  /** Ключ повтора первого шага (форма v2): повтор с тем же ключом отдаёт тот же черновик, а не второй. */
+  clientKey: z.uuid().optional(),
   step: stepInputSchema,
 });
 export type SaveDraftInput = z.output<typeof saveDraftSchema>;

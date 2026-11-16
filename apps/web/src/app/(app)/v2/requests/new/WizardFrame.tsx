@@ -5,6 +5,7 @@ import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Notice, Stack, toast, WizardHeader } from "@/kit";
 import { WIZARD_SCREENS, type WizardScreen } from "@/modules/requests/client";
 import { FormError } from "../../../_shell/FormError";
+import { useClientKey } from "../../../_shell/client-key";
 import { useActionForm } from "../../../_shell/form";
 import { saveStepAction } from "./actions";
 import { readStep, stepErrors, TOTAL_STEPS } from "./steps";
@@ -54,6 +55,8 @@ export function useWizardStep(
   options: { blocked?: { when: boolean; onBlocked: () => void }; saveOnBack?: boolean } = {},
 ): WizardForm {
   const formRef = useRef<HTMLFormElement>(null);
+  // Первый шаг без черновика создаёт его: ключ повтора — чтобы обрыв связи после записи не дал второго черновика.
+  const { key: clientKey } = useClientKey();
   const form = useActionForm(saveStepAction, {
     formRef,
     // Тип мебели собирается из трёх полей: правка любого из них снимает ошибку выбора типа; правка любого поля — общую ошибку шага.
@@ -64,6 +67,7 @@ export function useWizardStep(
         requestId: base.draftId,
         like: base.draftId ? null : base.like,
         executor: base.draftId ? null : base.executor,
+        ...(base.draftId ? {} : { clientKey }),
         step: readStep(screen, fd),
         ...(typeof goto === "string" ? { goto: goto as WizardScreen } : {}),
       };

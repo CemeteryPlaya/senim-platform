@@ -39,10 +39,12 @@ export const sendMessageAction = action(
     offerId,
     text: z.string().max(CHAT_MAX_LENGTH * 2),
     fileIds: z.array(z.string().min(1).max(64)).max(CHAT_MAX_ATTACHMENTS).default([]),
+    /** Ключ повтора отправки: повтор с тем же ключом отдаёт то же сообщение (модуль). */
+    clientKey: z.uuid().optional(),
   }),
   async (input) => {
     const user = await requireUser("CLIENT", "EXECUTOR");
-    await sendMessage(user, input.offerId, input.text, input.fileIds);
+    await sendMessage(user, input.offerId, input.text, input.fileIds, input.clientKey);
     return roomOf(user, input.offerId);
   },
 );

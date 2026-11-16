@@ -330,6 +330,8 @@ model Request {
   status            RequestStatus   @default(DRAFT)
   preContractFlow   PreContractFlow? // снимок сценария при отправке; null — черновик
   wizardStep        Int             @default(0) // последний сохранённый шаг мастера
+  /// Ключ повтора первого шага мастера (форма v2): повтор с тем же ключом отдаёт тот же черновик. У сида и v1 — null.
+  clientKey         String?
   publishedAt       DateTime?
   closedAt          DateTime?
   createdAt         DateTime        @default(now())
@@ -346,6 +348,7 @@ model Request {
 
   @@index([status, segment, mode])
   @@index([clientId, status])
+  @@unique([clientId, clientKey])
 }
 
 enum OfferStatus {
@@ -923,10 +926,13 @@ model Message {
   body        String // уже с замаскированными контактами; исходный текст не храним
   wasMasked   Boolean  @default(false)
   createdAt   DateTime @default(now())
+  /// Ключ повтора отправки (чат v2): повтор с тем же ключом отдаёт то же сообщение. У v1 — null.
+  clientKey   String?
 
   attachments StoredFile[]
 
   @@index([offerId, createdAt])
+  @@unique([senderId, clientKey])
 }
 
 /// Подписка браузера на web push (VAPID). Ответ 404/410 от push-сервиса — подписка удаляется.

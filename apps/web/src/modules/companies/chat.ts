@@ -4,7 +4,7 @@ import { recordAudit } from "@/modules/audit";
 import { attachFiles, fileUrl } from "@/modules/files";
 import { actorOf, formatPhone, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
-import { db, transaction, type Db, type Prisma } from "@/platform/db";
+import { db, isUniqueViolation, transaction, type Db, type Prisma } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
 import { logger } from "@/platform/logger";
@@ -347,8 +347,12 @@ async function applyTextRule(rule: ChatTextRule, executorId: string, body: strin
   return { text: body, masked: false };
 }
 
-/** Сообщение в чат отклика: маска контактов (до оферты вложения запрещены), вложения (свои загруженные файлы), уведомление второй стороне. */
-export async function sendMessage(user: CurrentUser, offerId: string, text: string, attachments: readonly string[]): Promise<ChatMessageView> {
+/**
+ * Сообщение в чат отклика: маска контактов (до оферты вложения запрещены), вложения (свои загруженные файлы), уведомление
+ * второй стороне. `clientKey` (чат v2) — ключ повтора: отправка с тем же ключом (обрыв связи после записи, двойное нажатие)
+ * отдаёт уже созданное сообщение — без второго сообщения, вложений и уведомления. Без ключа (v1) — каждое отправление новое.
+ */
+export async function sendMessage(user: CurrentUser, offerId: string, text: string, attachments: readonly string[], clientKey?: string): Promise<ChatMessageView> {
   const body = text.trim();
   const fileIds = [...new Set(attachments)];
   // Фото можно отправить без подписи; пустое сообщение без фото — нет.
@@ -359,6 +363,8 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
   const loaded = await requireOffer(db, user, offerId);
   const { offer, party } = loaded;
   if (party === "operator") return fail.forbidden(t.operatorReadOnly);
+  const sent = clientKey ? await sentWithKey(user, offerId, clientKey) : null;
+  if (sent) return toView(sent, user, loaded);
   const closed = closedReasonText(offer);
   if (closed) return fail.conflict(closed);
   // Фото не маскируются: снимок с телефоном обошёл бы защиту контактов. Вложения — только после заключения оферты
@@ -367,8 +373,8 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
   await enforceRateLimit(`chat:${user.id}`, SEND_RATE, t.errors.rateLimited);
 
   const { text: safeText, masked } = await applyTextRule(chatTextRule(loaded.stage, party), offer.executorId, body);
-  const row = await transaction(async (tx) => {
-    const message = await tx.message.create({ data: { offerId, senderId: user.id, body: safeText, wasMasked: masked } });
+  const write = () => transaction(async (tx) => {
+    const message = await tx.message.create({ data: { offerId, senderId: user.id, body: safeText, wasMasked: masked, clientKey } });
     if (fileIds.length > 0) await attachFiles(tx, { fileIds, uploadedById: user.id, owner: { messageId: message.id } });
     await notifyOtherParty(tx, party, loaded, safeText);
     if (masked) {
@@ -382,7 +388,21 @@ export async function sendMessage(user: CurrentUser, offerId: string, text: stri
     }
     return tx.message.findUniqueOrThrow({ where: { id: message.id }, select: MESSAGE_SELECT });
   });
+  const row = await write().catch(async (e: unknown) => {
+    // Тот же ключ пришёл одновременно: сообщение уже записал соседний запрос — отдаём его.
+    const again = clientKey && isUniqueViolation(e) ? await sentWithKey(user, offerId, clientKey) : null;
+    if (again) return again;
+    throw e;
+  });
   return toView(row, user, loaded);
+}
+
+/** Своё сообщение с этим ключом повтора; в другом диалоге — конфликт (ключ одной отправки не переносится в чужой чат). */
+async function sentWithKey(user: CurrentUser, offerId: string, clientKey: string) {
+  const row = await db.message.findUnique({ where: { senderId_clientKey: { senderId: user.id, clientKey } }, select: { ...MESSAGE_SELECT, offerId: true } });
+  if (!row) return null;
+  if (row.offerId !== offerId) return fail.conflict(ru.common.errors.invalid);
+  return row;
 }
 
 const scopeOf = (offer: OfferContext) => (offer.deal ? `deal:${offer.deal.id}` : `request:${offer.requestId}`);

@@ -287,6 +287,17 @@ describe("действия диалога", () => {
     expect((await db.message.findFirstOrThrow({ where: { offerId: thread.offerId } })).body).not.toMatch(/555 44 33/);
   });
 
+  it("повтор отправки с тем же ключом — одно сообщение (обрыв связи после записи)", async () => {
+    const thread = await makeOfferThread();
+    await signInAs(thread.client);
+    const clientKey = crypto.randomUUID();
+    await sendMessageAction({ offerId: thread.offerId, text: "Когда замер?", clientKey });
+    const again = await sendMessageAction({ offerId: thread.offerId, text: "Когда замер?", clientKey });
+    if (!again.ok) throw new Error(again.error);
+    expect(again.data.messages.filter((m) => m.mine)).toHaveLength(1);
+    expect(await db.message.count({ where: { offerId: thread.offerId } })).toBe(1);
+  });
+
   it("замаскированное сообщение другой стороны показывается как отдаёт модуль", async () => {
     const thread = await makeOfferThread();
     await signInAs(thread.executor);
