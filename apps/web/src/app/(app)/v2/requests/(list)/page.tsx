@@ -3,12 +3,12 @@ import { ru } from "@/i18n/ru";
 import { ActionDock, ButtonLink, Card, Chips, EmptyState, List, ListRow, PageTitle, Stack, StatusChip, TextLink } from "@/kit";
 import { listMyRequests, myOfferStates } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
-import { pageHref, requireBuyer } from "../../_shell/auth";
-import { to } from "../../_shell/paths";
-import { offersByRequest } from "../_parts/request-state";
-import { thumbOf } from "../_parts/Thumb";
-import { requestListView, type RequestListView } from "./_parts/list-view";
-import { wizardHref } from "./new/steps";
+import { pageHref, requireBuyer } from "../../../_shell/auth";
+import { to } from "../../../_shell/paths";
+import { offersByRequest } from "../../_parts/request-state";
+import { thumbOf } from "../../_parts/Thumb";
+import { requestListView, type RequestListView } from "../_parts/list-view";
+import { wizardHref } from "../new/steps";
 
 const t = ru.app.requests.list;
 

@@ -23,7 +23,7 @@ vi.mock("../../_shell/theme-actions", () => ({ chooseTheme: vi.fn(async () => un
 
 const { saveContactsAction } = await import("./contacts/actions");
 const { revokeConsentAction } = await import("./data/actions");
-const { default: ProfilePage } = await import("./page");
+const { default: ProfilePage } = await import("./(main)/page");
 const { default: ContactsPage } = await import("./contacts/page");
 const { default: MyDataPage } = await import("./data/page");
 

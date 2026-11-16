@@ -15,7 +15,7 @@ vi.mock("../_shell/role-cookie", () => ({ recallRole: async () => h.chosen }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => "mobile" }));
 
 const { pageHref, userPastOnboarding } = await import("../_shell/auth");
-const { default: V2Home } = await import("./page");
+const { default: V2Home } = await import("./(home)/page");
 const { default: CatalogPage } = await import("./catalog/page");
 
 const CURRENT = { id: "c1", version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") };

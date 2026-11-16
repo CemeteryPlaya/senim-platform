@@ -9,7 +9,7 @@ import { dealAt } from "../../../../test/factories/deal";
 import { freshBrowser } from "../../../../test/factories/identity";
 import { makeDraft, makeExecutorWithTerms, makeOpenRequest, offerInput } from "../../../../test/factories/requests";
 import { signInAs } from "../../../../test/factories/session";
-import V2Home from "./page";
+import V2Home from "./(home)/page";
 
 const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop" }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));

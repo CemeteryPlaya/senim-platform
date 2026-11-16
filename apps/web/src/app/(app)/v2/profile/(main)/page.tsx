@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { getTheme } from "@/kit/theme";
 import { getDevice } from "@/platform/device";
-import { requireV2User } from "../../_shell/auth";
-import { to } from "../../_shell/paths";
-import { ProfileView } from "./_parts/ProfileView";
-import { profileModel } from "./_parts/profile-view";
+import { requireV2User } from "../../../_shell/auth";
+import { to } from "../../../_shell/paths";
+import { ProfileView } from "../_parts/ProfileView";
+import { profileModel } from "../_parts/profile-view";
 
 export const metadata: Metadata = { title: ru.app.profile.metaTitle };
 

@@ -13,12 +13,12 @@ const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop" }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
 vi.mock("next/headers", async () => (await import("../../../../../test/factories/identity")).nextHeadersMock);
 
-const { default: IncomingPage } = await import("./requests/page");
+const { default: IncomingPage } = await import("./requests/(list)/page");
 const { default: OffersPage } = await import("./offers/page");
 const { default: FinancePage } = await import("./finance/page");
 const { default: PortfolioPage } = await import("./portfolio/page");
 const { default: NewWorkPage } = await import("./portfolio/new/page");
-const { default: DealsPage } = await import("../deals/page");
+const { default: DealsPage } = await import("../deals/(list)/page");
 
 const m = ru.app.masterRequests;
 type Params = Record<string, string>;

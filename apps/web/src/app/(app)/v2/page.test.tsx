@@ -16,7 +16,7 @@ vi.mock("./_home/BuyerHome", () => ({ BuyerHome: ({ device }: { device: string }
 
 vi.mock("./_home/MasterHome", () => ({ MasterHome: ({ device, status }: { device: string; status: string }) => <h1>мастер-{status}-{device}</h1> }));
 
-const { default: V2Home } = await import("./page");
+const { default: V2Home } = await import("./(home)/page");
 
 beforeEach(() => {
   h.shell = { user: null, unavailable: false };

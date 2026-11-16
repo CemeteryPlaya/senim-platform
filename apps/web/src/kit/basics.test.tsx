@@ -17,6 +17,11 @@ import {
   RadioGroup,
   Select,
   Skeleton,
+  SkeletonCard,
+  SkeletonChips,
+  SkeletonRows,
+  SkeletonScreen,
+  SkeletonTitle,
   StatusChip,
   TextArea,
   TextField,
@@ -498,6 +503,26 @@ describe("Остальное", () => {
     for (const line of lines) expect(line).toContain('aria-hidden="true"');
     expect(out).toContain('role="status"');
     expect(text(<Skeleton lines={4} />)).toBe("Загрузка");
+  });
+
+  it("SkeletonScreen: каркас экрана — диктор слышит только «Загрузка», плашки скрыты, заголовка h1 нет, проявляется с задержкой", () => {
+    const screen = (
+      <SkeletonScreen className="desktop:max-w-home">
+        <SkeletonTitle back lead chip />
+        <SkeletonChips count={2} />
+        <SkeletonCard photo lines={3} />
+        <SkeletonRows rows={2} leading />
+      </SkeletonScreen>
+    );
+    const out = html(screen);
+    expect(out).toMatch(/^<div role="status" aria-busy="true" data-skeleton-screen="true" class="[^"]*skeleton-screen/);
+    expect(out).toContain("desktop:max-w-home");
+    expect(text(screen)).toBe("Загрузка");
+    expect(out).not.toContain("<h1");
+    // Плашки: заголовок с «Назад», пояснением и чипом (4), чипы (2), фото + заголовок + 3 строки (5), 2 строки × (круг + 2) (6).
+    const bars = out.match(/<span[^>]*data-skeleton-bar[^>]*>/g) ?? [];
+    expect(bars).toHaveLength(17);
+    for (const bar of bars) expect(bar).toMatch(/aria-hidden="true"[^>]*skeleton-bar/);
   });
 
   it("Card и StatusChip", () => {

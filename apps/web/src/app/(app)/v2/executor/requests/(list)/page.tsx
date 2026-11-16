@@ -4,12 +4,12 @@ import { ru } from "@/i18n/ru";
 import { Card, Chips, EmptyState, PageTitle, Stack, TextLink } from "@/kit";
 import { listIncomingRequests } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
-import { pageHref, requireMaster } from "../../../_shell/auth";
-import { to } from "../../../_shell/paths";
-import { readForMaster, REGISTER } from "../_parts/approved";
-import { IncomingRows } from "../_parts/IncomingRows";
-import { incomingListView, type IncomingListView } from "../_parts/incoming-view";
-import { GATE_BACK, MasterGate } from "../_parts/MasterGate";
+import { pageHref, requireMaster } from "../../../../_shell/auth";
+import { to } from "../../../../_shell/paths";
+import { readForMaster, REGISTER } from "../../_parts/approved";
+import { IncomingRows } from "../../_parts/IncomingRows";
+import { incomingListView, type IncomingListView } from "../../_parts/incoming-view";
+import { GATE_BACK, MasterGate } from "../../_parts/MasterGate";
 
 const t = ru.app.masterRequests.incoming;
 

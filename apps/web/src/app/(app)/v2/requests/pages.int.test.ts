@@ -22,7 +22,7 @@ vi.mock("@/app/(app)/_shell/auth", async (original) => ({
   },
 }));
 
-const { default: MyRequestsPage } = await import("./page");
+const { default: MyRequestsPage } = await import("./(list)/page");
 const { default: NewRequestPage } = await import("./new/page");
 
 const list = ru.app.requests.list;

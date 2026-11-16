@@ -6,15 +6,15 @@ import { HelpBlock, PageTitle, Stack } from "@/kit";
 import { listDeals, nextStepsOf, type NextStep } from "@/modules/deal-core";
 import { getDevice } from "@/platform/device";
 import { logger } from "@/platform/logger";
-import { masterStatusOf, pageHref, requireParty, switchRoleTo } from "../../_shell/auth";
-import { to } from "../../_shell/paths";
-import type { DealSide } from "../../_shell/side";
-import { REGISTER } from "../executor/_parts/approved";
-import { GATE_BACK, MasterGate } from "../executor/_parts/MasterGate";
-import { DealList } from "./_parts/DealList";
-import { dealHelpItems } from "./_parts/help-items";
-import { consentMissingOf, payWaitingMaster } from "../_parts/pay-waits";
-import { dealListView } from "./_parts/list-view";
+import { masterStatusOf, pageHref, requireParty, switchRoleTo } from "../../../_shell/auth";
+import { to } from "../../../_shell/paths";
+import type { DealSide } from "../../../_shell/side";
+import { REGISTER } from "../../executor/_parts/approved";
+import { GATE_BACK, MasterGate } from "../../executor/_parts/MasterGate";
+import { DealList } from "../_parts/DealList";
+import { dealHelpItems } from "../_parts/help-items";
+import { consentMissingOf, payWaitingMaster } from "../../_parts/pay-waits";
+import { dealListView } from "../_parts/list-view";
 
 const t = ru.app.deal.list;
 

@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { getShellUser } from "@/modules/identity";
 import { getDevice } from "@/platform/device";
-import { homeFor, masterStatusOf, requireV2User } from "../_shell/auth";
-import { to } from "../_shell/paths";
-import { GuestHome } from "./_home/GuestHome";
-import { BuyerHome } from "./_home/BuyerHome";
-import { MasterHome } from "./_home/MasterHome";
-import { SignedInHome } from "./_home/SignedInHome";
+import { homeFor, masterStatusOf, requireV2User } from "../../_shell/auth";
+import { to } from "../../_shell/paths";
+import { GuestHome } from "../_home/GuestHome";
+import { BuyerHome } from "../_home/BuyerHome";
+import { MasterHome } from "../_home/MasterHome";
+import { SignedInHome } from "../_home/SignedInHome";
 
 /**
  * Главная нового интерфейса. Гость видит лендинг (`GuestHome`); покупатель (активная роль заказчика) — свою главную

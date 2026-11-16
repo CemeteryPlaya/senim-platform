@@ -1,0 +1,49 @@
+/*
+ * Отклик на ожидание (аудит поведения B-3, B-4): каркас экрана, пока грузится маршрут (SkeletonScreen и его части), и
+ * знак «переход начат» у строки-ссылки (RowChevron). Только прозрачность.
+ *
+ * Без мигания на быстрой сети: каркас появляется не сразу, а проявляется через 300 мс (animation-delay, без скриптов);
+ * если экран пришёл раньше, каркас не виден вовсе. Плашки каркаса мягко пульсируют прозрачностью; при
+ * prefers-reduced-motion общее правило app.css гасит анимации (1 мс, один раз) — каркас статичный и виден сразу после
+ * задержки, без пульсации. Знак у строки — так же: проявление через 150 мс.
+ */
+@utility skeleton-screen {
+  animation: kit-skeleton-in 200ms ease-out 300ms both;
+}
+
+@utility skeleton-bar {
+  background-color: var(--role-fill);
+  animation: kit-skeleton-pulse 1.6s ease-in-out 500ms infinite;
+}
+
+@utility pending-reveal {
+  animation: kit-skeleton-in 150ms ease-out 150ms both;
+}
+
+@keyframes kit-skeleton-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes kit-skeleton-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/*
+ * Плашка «Нет связи» оболочки (OfflineBanner): прилипает к верху области содержимого, пока человек прокручивает экран.
+ * Телефон — ниже строки состояния (вырез), компьютер — под стеклянной шапкой. Плашка сплошная (warn-soft), не стекло.
+ */
+@utility sticky-notice {
+  position: sticky;
+  z-index: 15;
+  top: max(var(--spacing-stack-tight), env(safe-area-inset-top));
+  [data-device="desktop"] & {
+    top: calc(var(--spacing-header) + var(--spacing-stack-tight));
+  }
+}

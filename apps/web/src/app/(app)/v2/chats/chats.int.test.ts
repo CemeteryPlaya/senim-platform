@@ -27,7 +27,7 @@ vi.mock("@/app/(app)/_shell/auth", async (original) => ({
   },
 }));
 
-const { default: ChatsPage } = await import("./page");
+const { default: ChatsPage } = await import("./(list)/page");
 const { default: ChatPage } = await import("./[offerId]/page");
 const { loadChatAction, sendMessageAction } = await import("./actions");
 

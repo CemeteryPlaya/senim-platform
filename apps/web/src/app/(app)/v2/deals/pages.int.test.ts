@@ -9,8 +9,8 @@ import { makeClient, makeExecutor, makeOperator } from "../../../../../test/fact
 import { dealAt, makeDeal, signAct, type Executor } from "../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../test/factories/identity";
 import { signInAs } from "../../../../../test/factories/session";
-import DealPage from "./[id]/page";
-import DealsPage from "./page";
+import DealPage from "./[id]/(card)/page";
+import DealsPage from "./(list)/page";
 
 const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop" }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));

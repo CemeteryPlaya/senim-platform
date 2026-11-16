@@ -5,7 +5,7 @@ import { db } from "@/platform/db";
 import { dealAt, makePhoto } from "../../../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../../../test/factories/identity";
 import { signInAs } from "../../../../../../../test/factories/session";
-import DealPage from "../page";
+import DealPage from "../(card)/page";
 import { progressReportAction } from "./actions";
 import ProgressPage from "./page";
 

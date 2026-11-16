@@ -4,10 +4,10 @@ import { Card, EmptyState, PageTitle, Stack, TextLink } from "@/kit";
 import { listChats } from "@/modules/companies";
 import { listMyRequests } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
-import { masterStatusOf, pageHref, requireParty } from "../../_shell/auth";
-import { to } from "../../_shell/paths";
-import { ChatList, ChatPanes } from "./_parts/ChatList";
-import { chatRows } from "./_parts/chat-view";
+import { masterStatusOf, pageHref, requireParty } from "../../../_shell/auth";
+import { to } from "../../../_shell/paths";
+import { ChatList, ChatPanes } from "../_parts/ChatList";
+import { chatRows } from "../_parts/chat-view";
 
 const t = ru.app.chat.list;
 const tm = ru.app.masterDeal.chat.list;

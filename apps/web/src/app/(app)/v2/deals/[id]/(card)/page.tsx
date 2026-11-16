@@ -8,11 +8,11 @@ import type { CurrentUser } from "@/modules/identity";
 import { getIncomingRequest } from "@/modules/requests";
 import { getDevice, type Device } from "@/platform/device";
 import { logger } from "@/platform/logger";
-import { pageHref, partyDeal, requireV2User } from "../../../_shell/auth";
-import { to } from "../../../_shell/paths";
-import type { DealSide } from "../../../_shell/side";
-import { coverOf } from "../../_parts/deal-cover";
-import { dealChip, dealStepsView, masterConsentMissing, payWaitsMaster } from "../../_parts/deal-summary";
+import { pageHref, partyDeal, requireV2User } from "../../../../_shell/auth";
+import { to } from "../../../../_shell/paths";
+import type { DealSide } from "../../../../_shell/side";
+import { coverOf } from "../../../_parts/deal-cover";
+import { dealChip, dealStepsView, masterConsentMissing, payWaitsMaster } from "../../../_parts/deal-summary";
 import {
   cancelText,
   dealHrefs,
@@ -25,8 +25,8 @@ import {
   orderRows,
   reportsView,
   reviewRows,
-} from "./_parts/deal-card";
-import { DealCardView, type CardView } from "./_parts/DealCardView";
+} from "../_parts/deal-card";
+import { DealCardView, type CardView } from "../_parts/DealCardView";
 
 const t = ru.app.deal.card;
 const tm = ru.app.masterDeal.card;
