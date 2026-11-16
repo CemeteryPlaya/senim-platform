@@ -1,7 +1,7 @@
 "use client";
 
 import { isRedirectError } from "next/dist/client/components/redirect-error";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
 import type { ActionResult } from "@/platform/action";
 import { logger } from "@/platform/logger";
@@ -62,6 +62,49 @@ export function submitterOf(nativeEvent: unknown): HTMLButtonElement | HTMLInput
 /** Поля формы → простой объект для Server Action (схему и разбор значений держит `action()` на сервере). */
 export function formDataToInput(data: FormData): Record<string, FormDataEntryValue> {
   return Object.fromEntries(data.entries());
+}
+
+/** Поле формы глазами `useActionForm`: имя, тип и атрибуты (`aria-invalid`, `data-field`). Подходит любой элемент формы. */
+export type FieldLike = { name?: string; type?: string; disabled?: boolean; getAttribute: (name: string) => string | null };
+
+/**
+ * Имя поля, которое правит человек: `name`, а у видимого поля с маской (имя — у скрытого поля рядом) — `data-field`.
+ * Не поле формы — `null`.
+ */
+export function fieldNameOf(target: unknown): string | null {
+  if (typeof target !== "object" || target === null || !("getAttribute" in target)) return null;
+  const field = target as FieldLike;
+  return field.name || field.getAttribute("data-field") || null;
+}
+
+/**
+ * Человек правит поле `name`: его ошибка снимается, а общая ошибка формы — тоже, если это тот же текст (отказ проверки
+ * несёт первое сообщение поля и общим текстом; экран прячет его, пока он стоит у поля, — без поля он всплыл бы плашкой).
+ * У поля ошибки не было — `null` (менять нечего).
+ */
+export function clearedByEdit(
+  error: string | null,
+  fieldErrors: Record<string, string>,
+  name: string,
+): { error: string | null; fieldErrors: Record<string, string> } | null {
+  const message = fieldErrors[name];
+  if (message === undefined) return null;
+  const rest = { ...fieldErrors };
+  delete rest[name];
+  return { error: error === message ? null : error, fieldErrors: rest };
+}
+
+/**
+ * Первое по порядку формы поле с ошибкой: `aria-invalid="true"` (так помечают ошибку поля kit) или имя из ошибок
+ * ответа. Скрытые и отключённые поля пропускаются: в них нельзя поставить фокус.
+ */
+export function firstInvalid<F extends FieldLike>(fields: readonly F[], fieldErrors: Record<string, string>): F | null {
+  for (const field of fields) {
+    if (field.type === "hidden" || field.disabled) continue;
+    const name = fieldNameOf(field);
+    if (field.getAttribute("aria-invalid") === "true" || (name !== null && name in fieldErrors)) return field;
+  }
+  return null;
 }
 
 export type UseActionFormOptions<I, T> = {
@@ -184,6 +227,10 @@ export async function runSubmit<I, T>(
  *
  * `toInput` по умолчанию не проверяет типы: вход действия — «сырой» объект полей, а разбирает и проверяет его
  * схема действия на сервере (первая строка `action()`).
+ *
+ * Ошибки у полей: правка поля (событие `input` / `change` в форме) снимает его ошибку сразу; после отказа с ошибками у
+ * полей фокус и прокрутка — к первому полю с ошибкой (`firstInvalid`), один раз на отправку. Экранам свои копии этого
+ * не нужны.
  */
 export function useActionForm<I, T>(
   action: (input: I) => Promise<ActionResult<T>>,
@@ -193,8 +240,57 @@ export function useActionForm<I, T>(
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const busy = useRef(false);
+  // Форма, которую отправляли (известна с первой отправки — до неё ошибок нет), и счётчик отказов с ошибками у полей.
+  const [formNode, setFormNode] = useState<HTMLFormElement | null>(null);
+  const [failures, setFailures] = useState(0);
+  const focused = useRef(0);
 
-  const state: SubmitState = { busy, setPending, setError, setFieldErrors };
+  // Последние ошибки для обработчика правки (он живёт дольше одной отрисовки).
+  const shown = useRef({ error, fieldErrors });
+  useEffect(() => {
+    shown.current = { error, fieldErrors };
+  }, [error, fieldErrors]);
+
+  // Правка поля снимает его ошибку сразу, не дожидаясь следующей отправки.
+  useEffect(() => {
+    if (formNode === null) return;
+    const onEdit = (event: Event) => {
+      const name = fieldNameOf(event.target);
+      const next = name === null ? null : clearedByEdit(shown.current.error, shown.current.fieldErrors, name);
+      if (next === null) return;
+      shown.current = next;
+      setError(next.error);
+      setFieldErrors(next.fieldErrors);
+    };
+    formNode.addEventListener("input", onEdit);
+    formNode.addEventListener("change", onEdit);
+    return () => {
+      formNode.removeEventListener("input", onEdit);
+      formNode.removeEventListener("change", onEdit);
+    };
+  }, [formNode]);
+
+  // Отказ с ошибками у полей: фокус и прокрутка к первому такому полю — один раз на отправку.
+  useEffect(() => {
+    if (formNode === null || failures === focused.current) return;
+    focused.current = failures;
+    const target = firstInvalid(Array.from(formNode.elements) as HTMLInputElement[], fieldErrors);
+    if (target === null) return;
+    target.focus({ preventScroll: true });
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // По центру окна: поле не прячется ни под шапкой, ни под доком с кнопкой.
+    target.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
+  }, [failures, fieldErrors, formNode]);
+
+  const state: SubmitState = {
+    busy,
+    setPending,
+    setError,
+    setFieldErrors: (next) => {
+      setFieldErrors(next);
+      if (Object.keys(next).length > 0) setFailures((n) => n + 1);
+    },
+  };
   const env: SubmitEnv = {
     here: () => window.location,
     leave: (href) => window.location.assign(href),
@@ -208,6 +304,7 @@ export function useActionForm<I, T>(
 
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    setFormNode(event.currentTarget);
     const submitter = submitterOf(event.nativeEvent);
     void submit(submitter ? new FormData(event.currentTarget, submitter) : new FormData(event.currentTarget));
   }

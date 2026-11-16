@@ -2,7 +2,19 @@ import { redirect } from "next/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { ActionResult } from "@/platform/action";
-import { formDataToInput, LEAVE_TIMEOUT_MS, outcomeOf, runSubmit, submitterOf, type SubmitEnv, type SubmitState } from "./form";
+import {
+  clearedByEdit,
+  fieldNameOf,
+  firstInvalid,
+  formDataToInput,
+  LEAVE_TIMEOUT_MS,
+  outcomeOf,
+  runSubmit,
+  submitterOf,
+  type FieldLike,
+  type SubmitEnv,
+  type SubmitState,
+} from "./form";
 
 const here = { pathname: "/v2/masters/7", search: "?tab=works" };
 
@@ -227,5 +239,55 @@ describe("runSubmit: отправка формы useActionForm", () => {
     await runSubmit(async () => ({ ok: true, data: 7 }), { onSuccess }, set, env, new FormData());
     expect(onSuccess).toHaveBeenCalledWith(7);
     expect(s.pending).toBe(false);
+  });
+});
+
+/** Поле формы без DOM: имя, тип и атрибуты. */
+function field(name: string, attrs: Record<string, string> = {}, type = "text", disabled = false): FieldLike & { id: string } {
+  return { id: `${name}/${type}`, name, type, disabled, getAttribute: (attr) => attrs[attr] ?? null };
+}
+
+describe("ошибки у полей: правка снимает ошибку", () => {
+  it("имя поля — name, у видимого поля с маской — data-field; не поле — null", () => {
+    expect(fieldNameOf(field("phone"))).toBe("phone");
+    expect(fieldNameOf(field("", { "data-field": "price" }))).toBe("price");
+    expect(fieldNameOf(field(""))).toBeNull();
+    expect(fieldNameOf(null)).toBeNull();
+    expect(fieldNameOf({})).toBeNull();
+  });
+
+  it("правка поля с ошибкой снимает её; общая ошибка с тем же текстом — тоже", () => {
+    const fieldErrors = { price: "Укажите цену", days: "Укажите срок" };
+    expect(clearedByEdit("Укажите цену", fieldErrors, "price")).toEqual({ error: null, fieldErrors: { days: "Укажите срок" } });
+  });
+
+  it("общая ошибка о другом (лимит, другое поле) остаётся", () => {
+    expect(clearedByEdit("Слишком часто", { code: "Код не подошёл" }, "code")).toEqual({ error: "Слишком часто", fieldErrors: {} });
+    expect(clearedByEdit("Укажите цену", { price: "Укажите цену", days: "Укажите срок" }, "days")).toEqual({
+      error: "Укажите цену",
+      fieldErrors: { price: "Укажите цену" },
+    });
+  });
+
+  it("у поля ошибки не было — менять нечего", () => {
+    expect(clearedByEdit("x", { price: "x" }, "comment")).toBeNull();
+    expect(clearedByEdit(null, {}, "price")).toBeNull();
+  });
+});
+
+describe("ошибки у полей: первое поле с ошибкой", () => {
+  it("первое по порядку формы: aria-invalid или имя из ответа", () => {
+    const fields = [field("title"), field("", { "data-field": "price", "aria-invalid": "true" }), field("days", { "aria-invalid": "true" })];
+    expect(firstInvalid(fields, {})?.id).toBe("/text");
+    expect(firstInvalid([field("title"), field("role", {}, "radio"), field("days")], { days: "x", role: "y" })?.id).toBe("role/radio");
+  });
+
+  it("скрытое и отключённое поле пропускаются: в них нельзя поставить фокус", () => {
+    const fields = [field("price", {}, "hidden"), field("locked", { "aria-invalid": "true" }, "text", true), field("", { "data-field": "price", "aria-invalid": "true" })];
+    expect(firstInvalid(fields, { price: "x" })?.getAttribute("data-field")).toBe("price");
+  });
+
+  it("ошибок у полей формы нет — null", () => {
+    expect(firstInvalid([field("title"), field("next", {}, "hidden")], { next: "x" })).toBeNull();
   });
 });
