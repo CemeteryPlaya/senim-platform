@@ -139,12 +139,31 @@ describe("отзыв и выбор одной отправкой", () => {
     expect(await db.dealShowcase.count({ where: { dealId: f.dealId } })).toBe(1);
   });
 
-  it("без ключа повтор остаётся конфликтом", async () => {
+  it("повтор с тем же содержимым без ключа — успех: отзыв один, выбор сохранён", async () => {
     const f = await completed();
-    const input = { dealId: f.dealId, rating: 5, text: "", showcase: { photos: false, price: false, address: "NONE", signature: "INITIAL" } } as const;
+    expect((await leaveReviewAction({ dealId: f.dealId, rating: 4, text: "Хорошо" })).ok).toBe(true);
+    const input = { dealId: f.dealId, rating: 4, text: "  Хорошо ", showcase: { photos: true, price: false, address: "CITY", signature: "INITIAL" }, clientKey: KEY } as const;
     expect((await leaveReviewAction(input)).ok).toBe(true);
-    const again = await leaveReviewAction(input);
+    expect(await db.review.count({ where: { dealId: f.dealId } })).toBe(1);
+    expect(await db.dealShowcase.findUniqueOrThrow({ where: { dealId: f.dealId } })).toMatchObject({ photos: true, address: "CITY" });
+  });
+
+  it("повтор с другой оценкой — отказ: оценка прежняя, выбор не записан", async () => {
+    const f = await completed();
+    expect((await leaveReviewAction({ dealId: f.dealId, rating: 4, text: "Хорошо" })).ok).toBe(true);
+    const again = await leaveReviewAction({ dealId: f.dealId, rating: 2, text: "Хорошо", showcase: { photos: true, price: true, address: "CITY", signature: "NAME" }, clientKey: KEY });
     expect(again.ok ? null : again.code).toBe("CONFLICT");
+    expect((await db.review.findFirstOrThrow({ where: { dealId: f.dealId } })).rating).toBe(4);
+    expect(await db.dealShowcase.count({ where: { dealId: f.dealId } })).toBe(0);
+  });
+
+  it("повтор с другим текстом — отказ: текст прежний, выбор не записан", async () => {
+    const f = await completed();
+    expect((await leaveReviewAction({ dealId: f.dealId, rating: 4, text: "Хорошо" })).ok).toBe(true);
+    const again = await leaveReviewAction({ dealId: f.dealId, rating: 4, text: "Совсем другое", showcase: { photos: true, price: true, address: "CITY", signature: "NAME" }, clientKey: KEY });
+    expect(again.ok ? null : again.code).toBe("CONFLICT");
+    expect((await db.review.findFirstOrThrow({ where: { dealId: f.dealId } })).text).toBe("Хорошо");
+    expect(await db.dealShowcase.count({ where: { dealId: f.dealId } })).toBe(0);
   });
 
   it("экран отзыва: под оценкой тот же выбор", async () => {

@@ -5,7 +5,7 @@ import { actorOf, type CurrentUser } from "@/modules/identity";
 import { computeDealMoney, newDealProviderKind } from "@/modules/payments";
 import { db, isUniqueViolation, transaction, type Tx } from "@/platform/db";
 import { env } from "@/platform/env";
-import { fail } from "@/platform/errors";
+import { fail, isAppError } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
 import { checkGps, type GpsCheck } from "@/platform/geo";
 import { parseInput } from "@/platform/validation";
@@ -292,6 +292,9 @@ function assertCanReview(user: CurrentUser, deal: DealState): void {
   if (!isEndedSigned(deal)) fail.conflict(e.reviewOnlyCompleted);
 }
 
+/** Машинный признак отказа «отзыв по этой сделке уже есть» (`AppError.details.reason`). */
+export const REVIEW_EXISTS = "REVIEW_EXISTS";
+
 export async function leaveReview(user: CurrentUser, raw: { dealId: string; rating: number; text?: string; portfolioConsent?: boolean }): Promise<void> {
   if (!isEnabled("reviews")) return fail.forbidden(e.reviewsOff);
   const input = parseInput(reviewSchema, raw);
@@ -302,11 +305,27 @@ export async function leaveReview(user: CurrentUser, raw: { dealId: string; rati
       data: [{ dealId: deal.id, executorId: deal.executorId, authorId: user.id, rating: input.rating, text: input.text }],
       skipDuplicates: true,
     });
-    if (created.count === 0) return fail.conflict(e.reviewExists);
+    if (created.count === 0) return fail.conflict(e.reviewExists, { reason: REVIEW_EXISTS });
     await recordAudit(tx, { actor: actorOf(user), action: "review.created", entity: { type: "deal", id: deal.id }, scope: scopeOf(deal.id), after: { rating: input.rating } });
     await recalculateRating(tx, deal.executorId);
     // Согласие на показ фото — в той же транзакции: отзыв без согласия или согласие без отзыва не останутся наполовину.
     if (input.portfolioConsent) await applyPortfolioConsent(tx, user, deal.id, true);
     await notifyParty(tx, deal, "EXECUTOR", "deal.review", { title: t.review.title, body: t.review.body(input.rating) });
   });
+}
+
+/**
+ * Отзыв, безопасный к повтору (обрыв связи, двойное нажатие): если отзыв этого покупателя по сделке уже есть и совпадает
+ * по оценке и тексту (после той же нормализации, что при записи), повтор — успех без второй записи; иначе — отказ
+ * «отзыв уже оставлен» (CONFLICT): другое содержимое молча не теряется.
+ */
+export async function leaveReviewOnce(user: CurrentUser, raw: { dealId: string; rating: number; text?: string }): Promise<void> {
+  try {
+    await leaveReview(user, raw);
+  } catch (error) {
+    if (!isAppError(error) || error.code !== "CONFLICT" || error.details?.reason !== REVIEW_EXISTS) throw error;
+    const input = parseInput(reviewSchema, raw);
+    const existing = await db.review.findFirst({ where: { dealId: input.dealId, authorId: user.id }, select: { rating: true, text: true } });
+    if (!existing || existing.rating !== input.rating || (existing.text ?? "") !== input.text) throw error;
+  }
 }

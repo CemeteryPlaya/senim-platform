@@ -106,14 +106,19 @@ describe("leaveReviewAction", () => {
     expect([review.rating, review.text]).toEqual([4, "Всё сделано аккуратно"]);
   });
 
-  it("двойное нажатие: один отзыв, второй вызов — конфликт", async () => {
+  it("двойное нажатие: один отзыв, оба вызова успешны (второй — повтор с тем же содержимым)", async () => {
     const f = await completed();
     const input = { dealId: f.dealId, rating: 5, text: "" };
     const results = await Promise.all([leaveReviewAction(input), leaveReviewAction(input)]);
-    expect(results.filter((r) => r.ok)).toHaveLength(1);
-    const failed = results.find((r) => !r.ok);
-    expect(failed && !failed.ok ? failed.code : null).toBe("CONFLICT");
+    expect(results.every((r) => r.ok)).toBe(true);
     expect(await db.review.count({ where: { dealId: f.dealId } })).toBe(1);
+  });
+
+  it("повторный отзыв с другой оценкой — конфликт", async () => {
+    const f = await completed();
+    expect((await leaveReviewAction({ dealId: f.dealId, rating: 5, text: "" })).ok).toBe(true);
+    const again = await leaveReviewAction({ dealId: f.dealId, rating: 3, text: "" });
+    expect(again.ok ? null : again.code).toBe("CONFLICT");
   });
 
   it("оценка вне 1–5 — по-русски у поля; флаг выключен — отказ", async () => {
