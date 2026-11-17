@@ -70,10 +70,14 @@ export function storage(): Promise<StorageProvider> {
 }
 
 /**
- * Адрес уменьшенной копии фото для карточек и обложек (`previewKey`); копии нет — адрес исходника. Права — как у fileUrl.
+ * Адрес уменьшенной копии фото для карточек и обложек (`previewKey`); копии нет — адрес исходника. Права и срок ссылки —
+ * как у fileUrl.
  */
-export async function previewUrl(file: { provider: string; storageKey: string; previewKey: string | null }): Promise<string> {
-  return fileUrl({ provider: file.provider, storageKey: file.previewKey ?? file.storageKey });
+export async function previewUrl(
+  file: { provider: string; storageKey: string; previewKey: string | null },
+  opts: { expiresInSec?: number } = {},
+): Promise<string> {
+  return fileUrl({ provider: file.provider, storageKey: file.previewKey ?? file.storageKey }, opts);
 }
 
 const SCREEN_URL_TTL_SEC = 60 * 60;

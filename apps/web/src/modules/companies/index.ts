@@ -24,6 +24,7 @@ export {
   listCatalog,
   listExecutorReviews,
   listPublicPortfolio,
+  NAME_MASK_SELECT,
   type PortfolioForRequest,
   VISIBLE_EXECUTOR,
 } from "./catalog";
@@ -56,7 +57,7 @@ export { executorDisplayOf, executorDisplays, publicExecutorView, publicExecutor
 export { EXECUTOR_IDENTITY_MODES, type ExecutorDisplay, type ExecutorIdentityMode } from "./display";
 export { getExecutorIdentityMode, setExecutorIdentityMode } from "./identity-mode";
 export { recalculateRating } from "./rating";
-export { MASK, maskContacts, maskIdentity, type MaskResult } from "./mask";
+export { MASK, maskContacts, maskIdentity, maskPublicText, type MaskResult } from "./mask";
 /** Текст исполнителя, который увидит заказчик: без контактов и без наименования/ФИО (до договора — анонимность). */
 export { sanitizePublicText as sanitizeExecutorText } from "./own";
 export {

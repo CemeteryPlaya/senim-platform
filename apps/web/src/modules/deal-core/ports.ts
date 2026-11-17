@@ -14,6 +14,8 @@ import { logger } from "@/platform/logger";
  * (задачи) и сид. requests — тоже порт: requests импортирует deal-core (createDeal).
  */
 export { applyPortfolioConsent, executorDisplayOf, executorDisplays, maskContacts, recalculateRating, sanitizeExecutorText } from "@/modules/companies";
+// Публичная история сделок мастера: те же правило видимости мастера и маска текстов, что у его страницы.
+export { maskPublicText, NAME_MASK_SELECT, VISIBLE_EXECUTOR } from "@/modules/companies";
 // Фото сдачи, «Хода работ» и спора прикрепляет files: свой файл, нужного назначения, ещё ничей.
 export { attachFiles as attachOwnFiles } from "@/modules/files";
 
