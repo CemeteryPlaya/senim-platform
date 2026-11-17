@@ -1199,29 +1199,35 @@ func seedBank(userID, dealID string) *identityv1.SeedConsent {
 	return &identityv1.SeedConsent{UserId: userID, Kind: kindBank, Version: "2026-11-01", TextSha256: textSum("банк-партнёр"), ReferenceId: dealID}
 }
 
-// SeedConsents пишет согласия канала seed (без сессии и целей) любому существующему
-// пользователю (и незасеянному — Ruling AG); их видит HasConsents. Повтор с тем же ключом — тот же
-// ответ без новых записей, с новым ключом — без вторых записей.
+// SeedConsents пишет согласия канала seed (без сессии и целей) только засеянным людям; их видит HasConsents.
+// Незасеянному (настоящему человеку на стенде) — отказ без записей, вся пачка не пишется (итоговое ревью этапа 5:
+// исключение Ruling AG снято). Повтор с тем же ключом — тот же ответ без новых записей, с новым ключом — без вторых.
 func TestSeedConsents(t *testing.T) {
 	h := newHarness(t, nil)
 	seededU := h.seededUser(roleClient, roleClient)
 	plainUser := h.user([]string{"CLIENT"}, "CLIENT")
-	plain := &identityv1.User{Id: plainUser.ID.String()}
 	deal := uuid.NewString()
+
+	err := h.seedConsents(h.key(), seedBank(seededU.GetId(), deal), seedBank(plainUser.ID.String(), deal))
+	h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+	for _, id := range []uuid.UUID{uuid.MustParse(seededU.GetId()), plainUser.ID} {
+		if n := len(h.consentRows(id)); n != 0 {
+			t.Fatalf("отказ пачки записал согласие %s: %d", id, n)
+		}
+	}
+
 	key := h.key()
-	both := []*identityv1.SeedConsent{seedBank(seededU.GetId(), deal), seedBank(plain.GetId(), deal)}
+	both := []*identityv1.SeedConsent{seedBank(seededU.GetId(), deal)}
 	if err := h.seedConsents(key, both...); err != nil {
 		t.Fatalf("SeedConsents: %v", err)
 	}
-	for _, id := range []string{seededU.GetId(), plain.GetId()} {
-		rows := h.consentRows(uuid.MustParse(id))
-		if len(rows) != 1 || rows[0].Kind != consentBank || rows[0].ReferenceID != deal || rows[0].Channel != channelSeed ||
-			rows[0].SessionID.Valid || len(rows[0].Purposes) != 0 || rows[0].RevokedAt.Valid {
-			t.Fatalf("согласие сида %s: %+v", id, rows)
-		}
+	rows := h.consentRows(uuid.MustParse(seededU.GetId()))
+	if len(rows) != 1 || rows[0].Kind != consentBank || rows[0].ReferenceID != deal || rows[0].Channel != channelSeed ||
+		rows[0].SessionID.Valid || len(rows[0].Purposes) != 0 || rows[0].RevokedAt.Valid {
+		t.Fatalf("согласие сида: %+v", rows)
 	}
-	res, err := h.hasConsents([]string{seededU.GetId(), plain.GetId()}, kindBank, deal)
-	if err != nil || len(res.GetGrantedUserIds()) != 2 {
+	res, err := h.hasConsents([]string{seededU.GetId()}, kindBank, deal)
+	if err != nil || len(res.GetGrantedUserIds()) != 1 {
 		t.Fatalf("HasConsents: %v, %v", res, err)
 	}
 	if err := h.seedConsents(key, both...); err != nil {

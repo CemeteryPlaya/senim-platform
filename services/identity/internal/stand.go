@@ -472,8 +472,8 @@ func validateSeedConsents(raw []*identityv1.SeedConsent) ([]seedConsentRow, erro
 
 // SeedConsents — согласия стенда (канал seed, без сессии и целей): например, передача банку к
 // сделке сида, которую сид оплачивает без входа сторон. Только вне prod и вызывающий web
-// (standGate). Пользователь должен существовать (user_not_found; признак seeded не требуется,
-// Ruling AG). Действующее согласие той же версии и предмета уже есть — без новой записи; та же
+// (standGate). Пользователь должен существовать (user_not_found) и быть засеянным (иначе invalid_request:
+// настоящему человеку на стенде сид согласий не пишет). Действующее согласие той же версии и предмета уже есть — без новой записи; та же
 // версия с другим текстом — consent_version_invalid (как GrantConsent). Всё или ничего — одна
 // транзакция.
 //
@@ -496,10 +496,16 @@ func (s *Service) SeedConsents(ctx context.Context, req *identityv1.SeedConsents
 		known := make(map[uuid.UUID]bool, len(rows))
 		for _, r := range rows {
 			if !known[r.userID] {
-				if _, err := q.GetUserByID(ctx, r.userID); errors.Is(err, pgx.ErrNoRows) {
+				u, err := q.GetUserByID(ctx, r.userID)
+				if errors.Is(err, pgx.ErrNoRows) {
 					return userNotFound()
 				} else if err != nil {
 					return err
+				}
+				// Только люди сида: настоящему человеку на стенде сид не пишет неудаляемое согласие (как SeedUsers
+				// отказывает по телефону незасеянного).
+				if !u.Seeded {
+					return invalidRequest()
 				}
 				known[r.userID] = true
 			}
