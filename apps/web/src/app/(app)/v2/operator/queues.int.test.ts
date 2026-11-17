@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FilePurpose } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { DataTable, Notice, PageTitle, QueueCard, StatusChip } from "@/kit";
-import { payForDeal } from "@/modules/deal-core";
+import { getDealShowcase, payForDeal, setDealShowcase } from "@/modules/deal-core";
 import { revokePdConsent, sessionCookieName, submitKycDocuments, type CurrentUser } from "@/modules/identity";
 import * as operatorModule from "@/modules/operator";
 import { listMoneyQueue } from "@/modules/operator";
@@ -245,6 +245,21 @@ describe("отзывы согласий /v2/operator/consents", () => {
       code: "CONFLICT",
     });
     expect(ofType(await as(operator, () => ConsentsPage()), RevocationDecision)).toHaveLength(0);
+  });
+
+  it("исполненный отзыв закрывает показ сделок покупателя в профиле мастера; отказ — выбор остаётся", async () => {
+    const operator = await makeOperator();
+    const decide = async (f: Awaited<ReturnType<typeof dealAt>>, decision: "COMPLETED" | "REFUSED") => {
+      await db.deal.update({ where: { id: f.dealId }, data: { status: "SPLIT_PAYOUT" } });
+      await setDealShowcase(f.client, { dealId: f.dealId, photos: true, price: true, address: "CITY", signature: "NAME" });
+      await as(f.client, () => revokePdConsent());
+      const card = ofType<{ revocationId: string }>(await as(operator, () => ConsentsPage()), RevocationDecision)[0];
+      const reason = decision === "REFUSED" ? { reason: "Идёт сделка" } : {};
+      expect(await as(operator, () => resolveRevocationAction({ revocationId: card!.revocationId, decision, ...reason }))).toEqual({ ok: true, data: undefined });
+      return getDealShowcase(f.client, f.dealId);
+    };
+    expect(await decide(await dealAt("SIGNED"), "REFUSED")).toMatchObject({ photos: true, price: true, address: "CITY", signature: "NAME" });
+    expect(await decide(await dealAt("SIGNED"), "COMPLETED")).toMatchObject({ photos: false, price: false, address: "NONE", signature: "INITIAL" });
   });
 
   it("срок ответа истёк — пометка у карточки и число над очередью", async () => {

@@ -21,14 +21,15 @@ const REVIEWS_LIMIT = 20;
 
 export const VISIBLE_EXECUTOR = { status: "APPROVED", user: { blockedAt: null } } satisfies Prisma.ExecutorProfileWhereInput;
 /**
- * Работа из сделки (dealId) — только с согласием заказчика сделки (встреча 31.10, п. 3): без него это черновик исполнителя.
+ * Работа из сделки (dealId) — только если покупатель сделки разрешил показать фото сдачи (DealShowcase.photos, спека
+ * 2026-11-17, 3.5; прежнее согласие Deal.portfolioConsentAt перенесено туда миграцией): без этого — черновик исполнителя.
  * Единственное правило видимости: каталог, страница исполнителя, «Вдохновение» и «Хочу похожее» берут его отсюда.
  */
 export const VISIBLE_ITEM = {
   published: true,
   executor: VISIBLE_EXECUTOR,
   furnitureType: { active: true },
-  OR: [{ dealId: null }, { deal: { portfolioConsentAt: { not: null } } }],
+  OR: [{ dealId: null }, { deal: { showcase: { photos: true } } }],
 } satisfies Prisma.PortfolioItemWhereInput;
 
 /** Поля для маски имени мастера в текстах: только для maskPublicText, в публичные представления не попадают. */

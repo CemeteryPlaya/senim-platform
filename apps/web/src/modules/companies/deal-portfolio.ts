@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
-import { actorOf, type CurrentUser } from "@/modules/identity";
+import { actorOf, publicSignatureOf, type CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
 import { db, transaction, type Db } from "@/platform/db";
 import { fail } from "@/platform/errors";
@@ -18,8 +18,9 @@ import type { PhotoView } from "./types";
  * Портфолио из итоговых фото сделки (встреча 31.10, п. 3).
  * - Исполнитель завершённой сделки добавляет работу: фото сдачи (ссылками, не копиями),
  *   тип и стиль из заявки, место — город, район или ЖК. Одна работа на сделку (уникальный dealId).
- * - Показ заказчикам — только с согласия заказчика сделки (Deal.portfolioConsentAt). Без него работа —
- *   черновик исполнителя; правило видимости — VISIBLE_ITEM в catalog.ts. Согласие можно отозвать.
+ * - Показ заказчикам — только с согласия заказчика сделки: «фото: да» в его выборе показа (DealShowcase.photos, спека
+ *   2026-11-17, 3.5). Без него работа — черновик исполнителя; правило видимости — VISIBLE_ITEM в catalog.ts. Согласие
+ *   можно отозвать.
  * Фото уже без EXIF и геометок: files.processImage пережимает каждое загруженное фото без метаданных.
  */
 const t = ru.companies.dealPortfolio;
@@ -56,7 +57,7 @@ async function executorDeal(client: Db, executorId: string, dealId: string) {
       number: true,
       title: true,
       status: true,
-      portfolioConsentAt: true,
+      showcase: { select: { photos: true } },
       portfolioItem: { select: { id: true } },
       request: { select: { furnitureTypeId: true, style: true, city: true } },
     },
@@ -94,7 +95,7 @@ export async function getDealPortfolioDraft(user: CurrentUser, dealId: string): 
     place: deal.request.city,
     photos: await toPhotoViews(await finalPhotos(db, deal.id), t.form.photoAlt),
     existingItemId: deal.portfolioItem?.id ?? null,
-    consent: deal.portfolioConsentAt !== null,
+    consent: deal.showcase?.photos === true,
   };
 }
 
@@ -147,25 +148,28 @@ export async function createPortfolioFromDeal(user: CurrentUser, raw: FromDealIn
 }
 
 /**
- * Согласие заказчика показать фото (или его отзыв). Вызывается и из отзыва (deal-core.leaveReview) в его
- * транзакции. Переход — updateMany по ожидаемому состоянию: повтор и двойной клик ничего не меняют
- * и журнал второй раз не пишут.
+ * Редакция текста прежнего вопроса v1 («показать фото в портфолио»): записывается в DealShowcase.textVersion, когда строку
+ * выбора создаёт этот вопрос, — он спрашивает только о фото, остальное остаётся закрытым.
+ */
+export const PORTFOLIO_CONSENT_TEXT_VERSION = "v1-portfolio-consent";
+
+/**
+ * Согласие заказчика показать фото (или его отзыв) — «фото» в выборе показа сделки (DealShowcase.photos); остальной выбор
+ * (стоимость, адрес, подпись) не трогается, новая строка — закрытый вид с подписью-инициалом. Вызывается и из отзыва
+ * (deal-core.leaveReview) в его транзакции. Переход — вставка без дублей или updateMany по ожидаемому состоянию: повтор
+ * и двойной клик ничего не меняют и журнал второй раз не пишут.
  */
 export async function applyPortfolioConsent(tx: Db, user: CurrentUser, dealId: string, consent: boolean): Promise<{ changed: boolean }> {
   requireDealPortfolio();
   if (user.role !== "CLIENT") return fail.forbidden(t.errors.onlyClient);
   const deal = await tx.deal.findFirst({
     where: { id: dealId, clientId: user.id },
-    select: { id: true, number: true, status: true, executorId: true, executor: { select: { userId: true } } },
+    select: { id: true, number: true, status: true, executorId: true, executor: { select: { userId: true } }, client: { select: { fullName: true } } },
   });
   if (!deal) return fail.notFound(t.errors.dealNotFound);
   if (deal.status !== DONE) return fail.conflict(t.errors.notCompleted);
 
-  const result = await tx.deal.updateMany({
-    where: { id: deal.id, portfolioConsentAt: consent ? null : { not: null } },
-    data: { portfolioConsentAt: consent ? new Date() : null },
-  });
-  if (result.count === 0) return { changed: false };
+  if (!(await setShowcasePhotos(tx, user.id, deal.id, consent, deal.client.fullName))) return { changed: false };
 
   const action = consent ? "portfolio.consent_given" : "portfolio.consent_revoked";
   await recordAudit(tx, { actor: actorOf(user), action, entity: { type: "deal", id: deal.id }, scope: `deal:${deal.id}`, after: { consent } });
@@ -177,6 +181,19 @@ export async function applyPortfolioConsent(tx: Db, user: CurrentUser, dealId: s
     link: `/deals/${deal.id}`,
   });
   return { changed: true };
+}
+
+/** «Фото: да/нет» в выборе показа. true — изменилось; уже было так (или «нет» без строки) — false. */
+async function setShowcasePhotos(tx: Db, userId: string, dealId: string, photos: boolean, fullName: string | null): Promise<boolean> {
+  if (photos) {
+    const created = await tx.dealShowcase.createMany({
+      data: [{ dealId, photos: true, signedAs: publicSignatureOf(fullName, "INITIAL"), textVersion: PORTFOLIO_CONSENT_TEXT_VERSION, updatedById: userId }],
+      skipDuplicates: true,
+    });
+    if (created.count === 1) return true;
+  }
+  const updated = await tx.dealShowcase.updateMany({ where: { dealId, photos: !photos }, data: { photos, updatedById: userId } });
+  return updated.count === 1;
 }
 
 export async function setPortfolioConsent(user: CurrentUser, raw: z.input<typeof consentSchema>): Promise<{ changed: boolean }> {
@@ -195,10 +212,10 @@ export async function getDealPortfolioPanel(user: CurrentUser, dealId: string): 
   requireDealPortfolio();
   const deal = await db.deal.findUnique({
     where: { id: dealId },
-    select: { status: true, clientId: true, executorId: true, portfolioConsentAt: true, portfolioItem: { select: { id: true } } },
+    select: { status: true, clientId: true, executorId: true, showcase: { select: { photos: true } }, portfolioItem: { select: { id: true } } },
   });
   if (!deal || deal.status !== DONE) return null;
-  const consent = deal.portfolioConsentAt !== null;
+  const consent = deal.showcase?.photos === true;
   if (user.role === "CLIENT" && deal.clientId === user.id) return { viewer: "CLIENT", consent };
   if (user.role === "EXECUTOR" && user.executor?.id === deal.executorId) {
     return { viewer: "EXECUTOR", consent, itemId: deal.portfolioItem?.id ?? null, photos: (await finalPhotos(db, dealId)).length };

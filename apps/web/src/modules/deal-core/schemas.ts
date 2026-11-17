@@ -75,3 +75,18 @@ export const reviewSchema = z.object({
   text: z.string().trim().max(2000, v.tooLong(2000)).default(""),
   portfolioConsent: z.boolean().default(false),
 });
+
+/**
+ * Выбор покупателя оконченной сделки: что видно в профиле мастера (спека 2026-11-17, 3.5). Строгая схема: лишнее поле —
+ * отказ. Доступность адреса (район, ЖК в заявке) проверяет сервис. `clientKey` — ключ повтора формы; повтор с тем же
+ * содержимым ничего не меняет и журнал не пишет.
+ */
+export const showcaseSchema = z.strictObject({
+  dealId: id,
+  photos: z.boolean(),
+  price: z.boolean(),
+  address: z.enum(["NONE", "CITY", "DISTRICT", "COMPLEX"]),
+  signature: z.enum(["NAME", "INITIAL"]),
+  clientKey: z.uuid().optional(),
+});
+export type ShowcaseInput = z.input<typeof showcaseSchema>;

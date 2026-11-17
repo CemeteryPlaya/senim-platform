@@ -135,6 +135,12 @@ export async function makeOfferThread(
   return { client, executor, requestId: request.id, offerId: offer.id, dealId: deal?.id ?? null };
 }
 
+/** Покупатель разрешил показать фото сдачи в профиле мастера (DealShowcase.photos), остальное — закрыто. */
+export async function allowDealPhotos(dealId: string) {
+  const deal = await db.deal.findUniqueOrThrow({ where: { id: dealId }, select: { clientId: true } });
+  return db.dealShowcase.create({ data: { dealId, photos: true, signedAs: "", textVersion: "test", updatedById: deal.clientId } });
+}
+
 /** Завершённая сделка с отзывом заказчика. */
 export async function makeReview(executor: Executor, rating: number, text = "") {
   const thread = await makeOfferThread({ executor, dealStatus: "SPLIT_PAYOUT", requestStatus: "CLOSED" });

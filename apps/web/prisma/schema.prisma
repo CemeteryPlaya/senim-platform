@@ -238,7 +238,7 @@ model PortfolioItem {
   place           String          @default("")
   // «Подборка Сенім» во «Вдохновении»: отмечает оператор.
   featured        Boolean         @default(false)
-  // Работа из завершённой сделки на площадке: одна на сделку. Видна заказчикам только при Deal.portfolioConsentAt.
+  // Работа из завершённой сделки на площадке: одна на сделку. Видна заказчикам только при DealShowcase.photos.
   dealId          String?         @unique
   deal            Deal?           @relation(fields: [dealId], references: [id], onDelete: Cascade)
   createdAt       DateTime        @default(now())
@@ -592,7 +592,8 @@ model Deal {
   readyWithinRadius Boolean?
   /// Публичный идентификатор для витрины (Фаза 2): случайный, не номер сделки; null — не выдан.
   publicId         String?             @unique
-  // Согласие заказчика показать фото мебели в портфолио исполнителя (без адреса); null — нет или отозвано.
+  /// Устарело: прежнее согласие на фото в портфолио, перенесено в DealShowcase.photos (миграция 20261118100000). Не читается и
+  /// не пишется; удаление колонки — отдельным релизом.
   portfolioConsentAt DateTime?
 
   progressReports ProgressReport[]
@@ -603,6 +604,7 @@ model Deal {
   transactions    MoneyTransaction[]
   deliveryPhotos  StoredFile[]        @relation("DealDeliveryPhotos")
   publicConsents  DealPublicConsent[]
+  showcase        DealShowcase?
 
   @@index([clientId, status])
   @@index([executorId, status])
@@ -624,6 +626,36 @@ model ProgressReport {
 
   @@index([dealId, createdAt])
   @@unique([dealId, clientKey])
+}
+
+enum ShowcaseAddress {
+  NONE
+  CITY
+  DISTRICT // город и район
+  COMPLEX // город, район и ЖК — только если у заявки есть и район, и ЖК
+}
+
+enum ShowcaseSignature {
+  NAME // имя: «Айгерим»
+  INITIAL // инициал: «А.»
+}
+
+/// Выбор покупателя оконченной сделки с офертой: что из неё видно в публичном профиле мастера (спека 2026-11-17, 3.5).
+/// Нет строки — закрытый вид (без фото, стоимости и адреса, подпись — инициал). Каждое изменение — в журнал аудита
+/// (deal.showcase.changed). Отзыв согласия на ПДн возвращает все выборы человека к закрытому виду (closeShowcasesOf).
+model DealShowcase {
+  dealId      String            @id
+  deal        Deal              @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  photos      Boolean           @default(false)
+  price       Boolean           @default(false)
+  address     ShowcaseAddress   @default(NONE)
+  signature   ShowcaseSignature @default(INITIAL)
+  /// Снимок подписи в момент выбора: «Айгерим» или «А.»; без ФИО — пусто (отзыв не подписывается). Гостю identity не нужен.
+  signedAs    String
+  /// Редакция текста вопроса, на который ответил покупатель (SHOWCASE_TEXT_VERSION).
+  textVersion String
+  updatedAt   DateTime          @updatedAt
+  updatedById String
 }
 
 /// Согласие стороны на публичную обезличенную витрину сделки (ТЗ п. 8): нужны обе стороны.

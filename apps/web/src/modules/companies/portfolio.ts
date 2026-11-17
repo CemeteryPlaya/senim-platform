@@ -70,7 +70,7 @@ const ITEM_SELECT = {
   place: true,
   createdAt: true,
   furnitureType: { select: { id: true, name: true } },
-  deal: { select: { id: true, number: true, portfolioConsentAt: true } },
+  deal: { select: { id: true, number: true, showcase: { select: { photos: true } } } },
   photos: OWN_PHOTOS,
   dealPhotos: DEAL_PHOTOS,
 } satisfies Prisma.PortfolioItemSelect;
@@ -91,7 +91,7 @@ async function toOwnItem(row: ItemRow): Promise<OwnPortfolioItem> {
     priceFrom: row.priceFrom,
     published: row.published,
     place: row.place,
-    fromDeal: row.deal ? { dealId: row.deal.id, dealNumber: row.deal.number, consent: row.deal.portfolioConsentAt !== null } : null,
+    fromDeal: row.deal ? { dealId: row.deal.id, dealNumber: row.deal.number, consent: row.deal.showcase?.photos === true } : null,
     photos: await toPhotoViews(itemFiles(row), (n) => ru.companies.photoAlt(row.title, n)),
     createdAt: row.createdAt,
   };

@@ -3,6 +3,7 @@ import "server-only";
 // Публичный API модуля operator. Каждая функция сервиса проверяет роль OPERATOR сама;
 // экраны дополнительно вызывают requireUser("OPERATOR").
 export { searchAudit } from "./audit-log";
+export { decideConsentRevocation } from "./consents";
 export type { AuditView } from "./audit-view";
 export { getOperatorDeal, listOperatorDeals, type DealDocument, type JournalRow, type OperatorDeal, type OperatorDealRow, type ReleasePackage } from "./deals";
 export { getDisputeCard, listDisputes, previewDisputeSplit, resolveDispute } from "./disputes";

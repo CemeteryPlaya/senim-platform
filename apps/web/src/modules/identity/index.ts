@@ -70,7 +70,7 @@ export {
 } from "./consent";
 export { formatPhone, parsePhone, type Phone } from "./phone";
 export { binIinKindFor, isValidBin, isValidIin, type BinIinKind } from "./kz-id";
-export { isValidFullName, normalizeFullName } from "./full-name";
+export { givenNameOf, isValidFullName, normalizeFullName, publicSignatureOf } from "./full-name";
 export { hasClientIdentity, recordOwnIdentity, recordPersonIdentity, requirePersonIdentity, type PersonIdentity } from "./person-identity";
 export { INTRODUCTION_PATH, introductionHref, needsIntroduction } from "./introduction";
 export { INSTAGRAM_MAX, contactsInputSchema, emailField, instagramField, type ContactsInput } from "./instagram";

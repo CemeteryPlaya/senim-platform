@@ -28,6 +28,8 @@ export { onMoneyChanged, onMoneySettled, processDealMoney } from "./money";
 // Чтения для экранов и документов
 export { dealDocumentData, dealNumbersOf, dealPartyOf, dealRefsOf, getDealView, latestReportPhoto, type ReportPhoto, listDeals, type DealDocumentData, type DealListItem, type DealView } from "./queries";
 export { ENDED_DEAL, isEndedSigned } from "./ended";
+// Выбор покупателя: что из оконченной сделки видно в профиле мастера; отзыв согласия на ПДн закрывает показ
+export { CLOSED_SHOWCASE, SHOWCASE_TEXT_VERSION, addressOptionsOf, closeShowcasesOf, getDealShowcase, setDealShowcase, type ShowcaseChoice, type ShowcaseView } from "./showcase";
 export { nextStep, type NextAction, type NextStep } from "./next-step";
 export { nextStepsOf } from "./next-steps";
 export { daysLeft, plannedReadyAt } from "./schedule";
@@ -43,7 +45,9 @@ export {
   progressReportSchema,
   resolveDisputeSchema,
   reviewSchema,
+  showcaseSchema,
   submitReadySchema,
+  type ShowcaseInput,
 } from "./schemas";
 
 // Публичная витрина (Фаза 2): фундамент — согласия сторон и обезличенная проекция под флагом publicShowcase

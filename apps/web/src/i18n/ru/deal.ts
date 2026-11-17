@@ -191,6 +191,7 @@ export const deal = {
       "review.created": "Оставлен отзыв",
       "portfolio.consent_given": "Покупатель разрешил показать фото в портфолио мастера",
       "portfolio.consent_revoked": "Покупатель отозвал разрешение показывать фото",
+      "deal.showcase.changed": "Покупатель изменил, что видно в профиле мастера",
       "payment.operation.succeeded": "Банк провёл операцию",
       "payment.operation.failed": "Операция банка не прошла",
       "payment.operation.confirmed": "Оператор подтвердил операцию банковским документом",
@@ -238,6 +239,7 @@ export const deal = {
     rationale: "Обоснуйте решение — хотя бы 10 символов",
     shareOnlyPartial: "Сумма мастеру указывается только при частичном разделе",
     rating: "Оценка от 1 до 5",
+    showcaseAddress: "Такого адреса в заявке нет — выберите другой вариант",
   },
 
   errors: {
@@ -270,5 +272,7 @@ export const deal = {
     reviewOnlyCompleted: "Отзыв можно оставить после завершения сделки",
     onlyClientReviews: "Отзыв оставляет покупатель",
     selfReview: "Нельзя оставить отзыв самому себе",
+    showcaseOnlyEnded: "Выбрать, что показать в профиле мастера, можно после окончания сделки",
+    onlyClientShowcase: "Что показать в профиле мастера, выбирает покупатель",
   },
 } as const;

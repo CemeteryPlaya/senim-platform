@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/platform/db";
 import { makeExecutor } from "../../../test/factories";
-import { makeFurnitureType, makePortfolioItem, makeReview } from "../../../test/factories/companies";
+import { allowDealPhotos, makeFurnitureType, makePortfolioItem, makeReview } from "../../../test/factories/companies";
 import { EXECUTOR_IDENTITY_KEY } from "./identity-mode";
 import { CATALOG_PAGE_SIZE, getInspirationItem, listInspiration, getPortfolioForRequest, getPublicExecutorPage, listCatalog, MASK } from "./index";
 
@@ -110,7 +110,7 @@ describe("публичная страница исполнителя", () => {
     const review = await makeReview(executor, 5, "Спасибо, Ағаш Шебер! Звоните 87001234567");
     const item = await makePortfolioItem(executor, { title: "Кухня" });
     await db.portfolioItem.update({ where: { id: item.id }, data: { dealId: review.dealId } });
-    await db.deal.update({ where: { id: review.dealId }, data: { portfolioConsentAt: new Date() } });
+    await allowDealPhotos(review.dealId);
     const expected = `Спасибо, ${MASK}! Звоните ${MASK}`;
 
     expect((await getInspirationItem(item.id, null))!.review!.text).toBe(expected);
@@ -127,7 +127,7 @@ describe("публичная страница исполнителя", () => {
     const clean = await makeReview(executor, 4, "Всё сделано аккуратно");
     const item = await makePortfolioItem(executor, { title: "Кухня Ерлана", description: "Сделал Ерлан" });
     await db.portfolioItem.update({ where: { id: item.id }, data: { dealId: review.dealId } });
-    await db.deal.update({ where: { id: review.dealId }, data: { portfolioConsentAt: new Date() } });
+    await allowDealPhotos(review.dealId);
 
     const check = async () => {
       const page = await getPublicExecutorPage(executor.executor.publicNumber);

@@ -44,6 +44,8 @@ beforeAll(() => {
 });
 afterAll(() => restoreFlags());
 
+/** Покупатель разрешил фото сдачи (DealShowcase.photos); нет строки — закрытый вид. */
+const photosAllowed = async (dealId: string) => (await db.dealShowcase.findUnique({ where: { dealId } }))?.photos === true;
 const inFeed = async (itemId: string) => (await listInspiration({ limit: 96 })).items.some((i) => i.id === itemId);
 
 describe("портфолио из сделки: добавление исполнителем", () => {
@@ -140,13 +142,13 @@ describe("согласие заказчика на показ", () => {
   it("повтор согласия не меняет дату и не пишет журнал второй раз", async () => {
     const d = await makeDealWithReport();
     await setPortfolioConsent(d.client, { dealId: d.dealId, consent: true });
-    const at = (await db.deal.findUniqueOrThrow({ where: { id: d.dealId } })).portfolioConsentAt;
+    const at = (await db.dealShowcase.findUniqueOrThrow({ where: { dealId: d.dealId } })).updatedAt;
     const twice = await Promise.all([
       setPortfolioConsent(d.client, { dealId: d.dealId, consent: true }),
       setPortfolioConsent(d.client, { dealId: d.dealId, consent: true }),
     ]);
     expect(twice).toEqual([{ changed: false }, { changed: false }]);
-    expect((await db.deal.findUniqueOrThrow({ where: { id: d.dealId } })).portfolioConsentAt).toEqual(at);
+    expect((await db.dealShowcase.findUniqueOrThrow({ where: { dealId: d.dealId } })).updatedAt).toEqual(at);
     expect(await db.auditEvent.count({ where: { scope: `deal:${d.dealId}`, action: "portfolio.consent_given" } })).toBe(1);
   });
 
@@ -164,17 +166,17 @@ describe("согласие заказчика на показ", () => {
 
     const running = await makeDealWithReport({ dealStatus: "IN_PROGRESS" });
     await expect(setPortfolioConsent(running.client, { dealId: running.dealId, consent: true })).rejects.toMatchObject({ code: "CONFLICT" });
-    expect((await db.deal.findUniqueOrThrow({ where: { id: running.dealId } })).portfolioConsentAt).toBeNull();
+    expect(await photosAllowed(running.dealId)).toBe(false);
   });
 
   it("галочка в отзыве даёт согласие в той же транзакции", async () => {
     const d = await makeDealWithReport();
     await withFeature("reviews", true, () => leaveReview(d.client, { dealId: d.dealId, rating: 5, text: "Отлично", portfolioConsent: true }));
-    expect((await db.deal.findUniqueOrThrow({ where: { id: d.dealId } })).portfolioConsentAt).not.toBeNull();
+    expect(await photosAllowed(d.dealId)).toBe(true);
 
     const other = await makeDealWithReport();
     await withFeature("reviews", true, () => leaveReview(other.client, { dealId: other.dealId, rating: 4 }));
-    expect((await db.deal.findUniqueOrThrow({ where: { id: other.dealId } })).portfolioConsentAt).toBeNull();
+    expect(await photosAllowed(other.dealId)).toBe(false);
   });
 
   it("неподтверждённый или заблокированный исполнитель — работы нет в ленте даже при согласии", async () => {
@@ -277,7 +279,7 @@ describe("флаги выключены: портфолио из сделок и
     });
     expect(await db.portfolioItem.count({ where: { dealId: d.dealId } })).toBe(0);
     expect(await db.review.count({ where: { dealId: d.dealId } })).toBe(0);
-    expect((await db.deal.findUniqueOrThrow({ where: { id: d.dealId } })).portfolioConsentAt).toBeNull();
+    expect(await photosAllowed(d.dealId)).toBe(false);
     // Включён — те же вызовы работают.
     expect((await getDealPortfolioPanel(d.client, d.dealId))?.viewer).toBe("CLIENT");
     expect((await fromDeal(d)).created).toBe(true);

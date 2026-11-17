@@ -221,9 +221,10 @@ export async function consentRevocationQueue(operator: CurrentUser): Promise<Rev
 /**
  * Решение по заявке (ResolveConsentRevocation): исполнить — identity отмечает отозванными согласия, данные не позже
  * заявки; отказать — согласие остаётся. Условный переход в identity: двойной клик и второй оператор дают одно решение,
- * остальным — CONFLICT «заявка уже рассмотрена».
+ * остальным — CONFLICT «заявка уже рассмотрена». `userId` — чьё согласие: последствия исполненного отзыва в web
+ * (закрыть показ сделок в профилях мастеров) выполняет operator.decideConsentRevocation.
  */
-export async function resolveConsentRevocation(operator: CurrentUser, raw: RevocationDecision): Promise<RevocationView> {
+export async function resolveConsentRevocation(operator: CurrentUser, raw: RevocationDecision): Promise<RevocationView & { userId: string }> {
   requireOperator(operator);
   const input = parseInput(revocationDecisionSchema, raw);
   const completed = input.decision === "COMPLETED";
@@ -235,5 +236,8 @@ export async function resolveConsentRevocation(operator: CurrentUser, raw: Revoc
     idempotencyKey: randomUUID(),
   };
   const res = await retriedOnce(() => identity().resolveConsentRevocation(request));
-  return revocationView(res.revocation);
+  const view = revocationView(res.revocation);
+  const userId = res.revocation?.userId;
+  if (!userId) return broken("revocation_without_user");
+  return { ...view, userId };
 }
