@@ -51,9 +51,13 @@ async function fieldsOf(tx: Tx, step: StepInput): Promise<Prisma.RequestUpdateMa
     case "segment":
       return { segment: step.segment };
     case "place":
+      // Схема это уже проверила; повтор — на случай вызова модуля мимо неё.
+      if (step.complex !== null && step.district === null) fail.validation(ru.requests.validation.complexNeedsDistrict);
       return {
         city: step.city,
         address: step.address,
+        district: step.district,
+        complex: step.complex,
         desiredDate: step.desiredDate ? new Date(`${step.desiredDate}T00:00:00Z`) : null,
         // Точка адреса — обе координаты или ни одной (CHECK в БД); без точки адрес сохраняется как есть.
         addressLat: step.location?.lat ?? null,
@@ -98,7 +102,7 @@ function maskStepTexts(step: StepInput): StepInput {
     case "materials":
       return { ...step, color: masked(step.color), description: masked(step.description) };
     case "place":
-      return { ...step, city: masked(step.city) };
+      return { ...step, city: masked(step.city), district: step.district === null ? null : masked(step.district), complex: step.complex === null ? null : masked(step.complex) };
     case "segment":
     case "size":
     case "send":
@@ -309,6 +313,8 @@ export async function getDraft(user: CurrentUser, requestId: string) {
     segment: r.segment,
     segmentSuggested: r.segmentSuggested,
     city: r.city,
+    district: r.district,
+    complex: r.complex,
     address: r.address,
     location: pointOf(r),
     desiredDate: r.desiredDate,
@@ -403,6 +409,8 @@ export async function getClientRequest(user: CurrentUser, requestId: string) {
     style: r.style,
     details: parseDetails(r.details),
     city: r.city,
+    district: r.district,
+    complex: r.complex,
     address: r.address,
     location: pointOf(r),
     desiredDate: r.desiredDate,

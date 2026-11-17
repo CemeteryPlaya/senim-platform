@@ -42,6 +42,8 @@ export const LIMITS = {
   wishes: 300,
   address: 200,
   city: 60,
+  district: 60,
+  complex: 80,
   photos: 10,
 } as const;
 
@@ -172,13 +174,18 @@ export function pointOf(r: { addressLat: number | null; addressLng: number | nul
   return r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null;
 }
 
+const emptyToNull = (s: z.ZodString) => s.nullable().transform((v) => (v === "" ? null : v));
+
 const placeStep = z.strictObject({
   screen: z.literal("place"),
   city: z.string().trim().min(2, t.cityRequired).max(LIMITS.city),
   address: z.string().trim().min(5, t.addressRequired).max(LIMITS.address, t.tooLong(LIMITS.address)),
   desiredDate: z.iso.date(t.date).nullable(),
   location: geoPointSchema.nullable().default(null),
-});
+  /** Район и ЖК (необязательны): пустая строка — «не указано». ЖК без района не хранится. */
+  district: emptyToNull(z.string().trim().max(LIMITS.district)).default(null),
+  complex: emptyToNull(z.string().trim().max(LIMITS.complex)).default(null),
+}).refine((s) => s.complex === null || s.district !== null, { path: ["complex"], error: t.complexNeedsDistrict });
 
 /** Проверка и отправка: всё уже сохранено на прошлых экранах. */
 const sendStep = z.strictObject({ screen: z.literal("send") });

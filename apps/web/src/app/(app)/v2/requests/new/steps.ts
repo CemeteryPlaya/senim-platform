@@ -134,7 +134,7 @@ export function readStep(screen: WizardScreen, fd: Fields): StepFormInput {
     case "room":
       return { screen, photoFileIds: fd.getAll("photoFileIds").filter((v): v is string => typeof v === "string"), description: text(fd, "description") };
     case "place":
-      return { screen, city: text(fd, "city"), address: text(fd, "address"), desiredDate: text(fd, "desiredDate") || null, location: locationFields(fd) };
+      return { screen, city: text(fd, "city"), district: text(fd, "district") || null, complex: text(fd, "complex") || null, address: text(fd, "address"), desiredDate: text(fd, "desiredDate") || null, location: locationFields(fd) };
     case "send":
       return { screen };
   }
@@ -259,6 +259,8 @@ export type SummaryDraft = {
   segment: Segment | null;
   photos: readonly { id: string; src: string }[];
   city: string;
+  district: string | null;
+  complex: string | null;
   address: string | null;
   desiredDate: Date | null;
 };
@@ -281,7 +283,7 @@ export function summaryRows(draft: SummaryDraft): SummaryRow[] {
     { label: s.segment, value: draft.segment ? SEGMENT_NAMES[draft.segment] : s.notSet, href: at("segment") },
     { label: s.photos, value: draft.photos.length > 0 ? s.photosCount(draft.photos.length) : s.noPhotos, href: at("room") },
     d.description ? { label: s.description, value: d.description, href: at("room") } : null,
-    { label: s.address, value: [draft.city, draft.address].filter(Boolean).join(", ") || s.notSet, href: at("place") },
+    { label: s.address, value: [draft.city, draft.district, draft.complex, draft.address].filter(Boolean).join(", ") || s.notSet, href: at("place") },
     { label: s.date, value: draft.desiredDate ? formatDate(draft.desiredDate) : s.notSet, href: at("place") },
   ];
   return rows.filter((row): row is SummaryRow => row !== null);

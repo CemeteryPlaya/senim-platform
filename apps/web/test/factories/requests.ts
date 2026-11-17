@@ -38,7 +38,7 @@ export function segmentStep(segment: Segment = "COMFORT"): StepInput {
 
 /** Байтерек (Астана): точка адреса заявки. */
 export const POINT = { lat: 51.128207, lng: 71.430411 };
-export const placeStep: StepInput = { screen: "place", city: "Астана", address: "ул. Тестовая, 1, кв. 2", desiredDate: null, location: POINT };
+export const placeStep: StepInput = { screen: "place", city: "Астана", address: "ул. Тестовая, 1, кв. 2", desiredDate: null, location: POINT, district: null, complex: null };
 
 /** Заполненный мастер (все экраны, «Для продвинутых» открыт), но ещё не отправленный. */
 export async function makeDraft(client: CurrentUser, opts: DraftOpts = {}): Promise<string> {

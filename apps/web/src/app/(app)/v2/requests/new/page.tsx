@@ -122,6 +122,8 @@ export default async function NewRequestPage({ searchParams }: Props) {
           device={device}
           initial={{
             city: draft.city,
+            district: draft.district ?? "",
+            complex: draft.complex ?? "",
             address: draft.address ?? "",
             desiredDate: draft.desiredDate ? draft.desiredDate.toISOString().slice(0, 10) : "",
             location: draft.location,

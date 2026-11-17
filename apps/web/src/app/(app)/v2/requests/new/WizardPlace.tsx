@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, CityField, Explain, HiddenField, Stack, TextField } from "@/kit";
-import { LIMITS, SUGGESTED_CITIES, type GeoPoint } from "@/modules/requests/client";
+import { Button, CityField, Explain, HiddenField, Select, Stack, TextField } from "@/kit";
+import { DISTRICTS, LIMITS, SUGGESTED_CITIES, type GeoPoint } from "@/modules/requests/client";
 import type { Device } from "@/platform/device";
 import { outcomeOf } from "../../../_shell/form";
 import { locateAddressAction } from "./actions";
@@ -14,7 +14,7 @@ import { useStepMemory } from "./wizard-memory";
 
 const t = ru.app.requests.wizard.place;
 
-export type PlaceInitial = { city: string; address: string; desiredDate: string; location: GeoPoint | null };
+export type PlaceInitial = { city: string; district: string; complex: string; address: string; desiredDate: string; location: GeoPoint | null };
 
 /** Что сейчас с точкой: найдена (как и с какой точностью), ищется, не найдена. */
 type PointState =
@@ -111,7 +111,7 @@ function PointField({ value, onChange, city, address, device }: { value: GeoPoin
   );
 }
 
-/** Шаг 4 «Где и когда?»: город, адрес (его увидит только мастер, с которым договоритесь), точка и желаемая дата. */
+/** Шаг 4 «Где и когда?»: город, район, ЖК, адрес (его увидит только мастер, с которым договоритесь), точка и желаемая дата. */
 export function WizardPlace({ base, device, initial }: { base: WizardBase; device: Device; initial: PlaceInitial }) {
   const form = useWizardStep("place", base);
   // Несохранённый ввод шага переживает «Назад» и перезагрузку (sessionStorage).
@@ -119,6 +119,9 @@ export function WizardPlace({ base, device, initial }: { base: WizardBase; devic
   // Функциональное обновление: точка от геокодера приходит позже и не должна стереть то, что ввели за это время.
   const set = (patch: Partial<PlaceInitial>) => setPlace((p) => ({ ...p, ...patch }));
   const e = form.errors;
+  const districts = DISTRICTS[place.city.trim()];
+  // Район другого города не подходит: при смене списка районов выбор сбрасывается.
+  const changeCity = (city: string) => set({ city, ...(DISTRICTS[city.trim()] === districts ? {} : { district: "" }) });
   // Сегодня по Астане: раньше желаемую дату выбрать нельзя; быстрые сроки считаются от этого дня.
   const [today] = useState(() => todayAstana());
   const quick = [
@@ -129,7 +132,20 @@ export function WizardPlace({ base, device, initial }: { base: WizardBase; devic
   return (
     <WizardFrame base={base} title={t.title} lead={t.lead} form={form}>
       <Stack>
-        <CityField label={t.city} name="city" suggestions={SUGGESTED_CITIES} maxLength={LIMITS.city} value={place.city} onChange={(city) => set({ city })} error={e.city} />
+        <CityField label={t.city} name="city" suggestions={SUGGESTED_CITIES} maxLength={LIMITS.city} value={place.city} onChange={changeCity} error={e.city} />
+        {districts ? (
+          <Select label={t.district} name="district" value={place.district} onChange={(ev) => set({ district: ev.target.value })} error={e.district}>
+            <option value="">{t.districtNone}</option>
+            {districts.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <TextField label={t.district} name="district" maxLength={LIMITS.district} value={place.district} onChange={(ev) => set({ district: ev.target.value })} error={e.district} />
+        )}
+        <TextField label={t.complex} name="complex" maxLength={LIMITS.complex} value={place.complex} onChange={(ev) => set({ complex: ev.target.value })} error={e.complex} />
         <TextField
           label={t.address}
           name="address"

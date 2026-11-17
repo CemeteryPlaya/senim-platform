@@ -325,6 +325,8 @@ model Request {
   segmentSuggested  Segment? // подсказка правил verticals/furniture
   city              String          @default("Астана")
   address           String? // раскрывается исполнителю после выбора отклика
+  district          String? // район города: публичная страница мастера показывает «город, район, ЖК», улицу — никогда
+  complex           String? // жилой комплекс (необязательно, только вместе с районом)
   /// Координаты адреса: «Указать моё местоположение» или точка на карте; нужны для GPS-проверки сдачи.
   addressLat        Float?
   addressLng        Float?

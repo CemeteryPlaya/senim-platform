@@ -112,11 +112,21 @@ describe("разбор формы шага и ошибки у полей", () =>
     expect(stepErrors("room", form({}))).toBeNull();
   });
 
+  it("readStep(place) читает district/complex; ЖК без района — ошибка у complex", () => {
+    const fields = { city: "Астана", address: "ул. Достык, 5", district: "Есиль", complex: "ЖК Highvill" };
+    expect(readStep("place", form(fields))).toMatchObject({ screen: "place", district: "Есиль", complex: "ЖК Highvill" });
+    expect(readStep("place", form({ city: "Астана", address: "ул. Достык, 5" }))).toMatchObject({ district: null, complex: null });
+    expect(stepErrors("place", form(fields))).toBeNull();
+    expect(stepErrors("place", form({ ...fields, district: "" }))).toEqual({ complex: v.complexNeedsDistrict });
+  });
+
   it("шаг 4: город и адрес у своих полей; точка — обе координаты или ни одной", () => {
     expect(stepErrors("place", form({ city: "", address: "" }))).toEqual({ city: v.cityRequired, address: t.errors.addressRequired });
     expect(readStep("place", form({ city: "Астана", address: "ул. Достык, 5", desiredDate: "", lat: "51.1", lng: "71.4" }))).toEqual({
       screen: "place",
       city: "Астана",
+      district: null,
+      complex: null,
       address: "ул. Достык, 5",
       desiredDate: null,
       location: { lat: 51.1, lng: 71.4 },
@@ -175,6 +185,8 @@ describe("сводка", () => {
     segment: "COMFORT" as const,
     photos: [{ id: "f1", src: "/x.jpg" }],
     city: "Астана",
+    district: null,
+    complex: null,
     address: "ул. Достык, 5",
     desiredDate: null,
   };
@@ -193,6 +205,11 @@ describe("сводка", () => {
       [s.address, "Астана, ул. Достык, 5", "place"],
       [s.date, s.notSet, "place"],
     ]);
+  });
+
+  it("сводка адреса: город, район, ЖК, адрес", () => {
+    const row = summaryRows({ ...draft, district: "Есиль", complex: "ЖК Highvill" }).find((r) => r.label === t.send.address);
+    expect(row?.value).toBe("Астана, Есиль, ЖК Highvill, ул. Достык, 5");
   });
 
   it("без размеров — «уточнит замер», без стиля — «не важно», без фото — «без фото»", () => {
