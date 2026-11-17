@@ -11,10 +11,10 @@ import {
   getDealPortfolioDraft,
   getDealPortfolioPanel,
   getInspirationItem,
-  getPublicExecutorPage,
   listCatalog,
   listInspiration,
   listOwnPortfolio,
+  listPublicPortfolio,
   setPortfolioConsent,
   setPortfolioFeatured,
 } from "./index";
@@ -113,7 +113,7 @@ describe("согласие заказчика на показ", () => {
 
     expect(await inFeed(id)).toBe(false);
     expect((await listCatalog({ page: 1 })).items.map((i) => i.id)).not.toContain(id);
-    expect((await getPublicExecutorPage(d.executor.executor.publicNumber))!.portfolio.map((p) => p.id)).not.toContain(id);
+    expect((await listPublicPortfolio(d.executor.executor.id)).map((p) => p.id)).not.toContain(id);
     expect(await findLikeablePortfolioItem(db, id, viewer.id)).toBeNull();
     expect(await getInspirationItem(id, viewer)).toBeNull();
 
@@ -129,7 +129,7 @@ describe("согласие заказчика на показ", () => {
     const tile = (await listInspiration({ limit: 96 })).items.find((i) => i.id === id);
     expect(tile).toMatchObject({ doneOnPlatform: true, place: "Астана, Есильский район" });
     expect(tile!.cover?.id).toBe(d.finalPhotoIds[0]);
-    expect((await getPublicExecutorPage(d.executor.executor.publicNumber))!.portfolio.map((p) => p.id)).toContain(id);
+    expect((await listPublicPortfolio(d.executor.executor.id)).map((p) => p.id)).toContain(id);
 
     expect(await setPortfolioConsent(d.client, { dealId: d.dealId, consent: false })).toEqual({ changed: true });
     expect(await inFeed(id)).toBe(false);

@@ -3,7 +3,17 @@ import { db } from "@/platform/db";
 import { makeExecutor } from "../../../test/factories";
 import { allowDealPhotos, makeFurnitureType, makePortfolioItem, makeReview } from "../../../test/factories/companies";
 import { EXECUTOR_IDENTITY_KEY } from "./identity-mode";
-import { CATALOG_PAGE_SIZE, getInspirationItem, listInspiration, getPortfolioForRequest, getPublicExecutorPage, listCatalog, MASK } from "./index";
+import {
+  CATALOG_PAGE_SIZE,
+  getInspirationItem,
+  listInspiration,
+  getPortfolioForRequest,
+  getPublicExecutorPage,
+  listCatalog,
+  listExecutorReviews,
+  listPublicPortfolio,
+  MASK,
+} from "./index";
 
 describe("каталог работ", () => {
   it("показывает только опубликованные работы подтверждённых исполнителей по включённым типам", async () => {
@@ -73,7 +83,7 @@ describe("каталог работ", () => {
 });
 
 describe("публичная страница исполнителя", () => {
-  it("анонимно: «о себе» без контактов и наименования, отзывы, только опубликованные работы", async () => {
+  it("анонимно: «о себе» без контактов и наименования, только опубликованные работы; отдельного списка отзывов нет", async () => {
     const executor = await makeExecutor({ legalName: "ТОО «Ағаш Шебер»" });
     await db.executorProfile.update({ where: { id: executor.executor.id }, data: { about: "Ағаш Шебер — кухни. Тел. 87001234567" } });
     const shown = await makePortfolioItem(executor);
@@ -84,25 +94,42 @@ describe("публичная страница исполнителя", () => {
     expect(page).not.toBeNull();
     expect(page!.view.label).toBe(`Исполнитель №${executor.executor.publicNumber}`);
     expect(page!.about).toBe(`${MASK} — кухни. Тел. ${MASK}`);
-    expect(page!.portfolio.map((p) => p.id)).toEqual([shown.id]);
-    expect(page!.reviews).toHaveLength(1);
-    expect(page!.reviews[0]).toMatchObject({ rating: 5, text: `Отлично! Мастер оставил номер ${MASK}` });
+    expect(page!.offPlatform.map((p) => p.id)).toEqual([shown.id]);
+    expect(page!.highlights).toEqual([]);
+    expect(Object.keys(page!).sort()).toEqual(["about", "highlights", "offPlatform", "view"]);
     expect(JSON.stringify(page)).not.toMatch(/Ағаш Шебер|87001234567/);
+    // Отзывы по-прежнему читаются отдельно (v1 и карточка отклика): текст без контактов.
+    const reviews = await listExecutorReviews(executor.executor.id);
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]).toMatchObject({ rating: 5, text: `Отлично! Мастер оставил номер ${MASK}` });
+  });
+
+  it("«Работы вне площадки»: работа из сделки туда не попадает, даже если покупатель разрешил фото", async () => {
+    const executor = await makeExecutor();
+    const own = await makePortfolioItem(executor, { title: "Своя" });
+    const review = await makeReview(executor, 5);
+    const fromDeal = await makePortfolioItem(executor, { title: "Из сделки" });
+    await db.portfolioItem.update({ where: { id: fromDeal.id }, data: { dealId: review.dealId } });
+    await allowDealPhotos(review.dealId);
+
+    const page = await getPublicExecutorPage(executor.executor.publicNumber);
+    expect(page!.offPlatform.map((p) => p.id)).toEqual([own.id]);
+    expect((await listPublicPortfolio(executor.executor.id)).map((p) => p.id).sort()).toEqual([own.id, fromDeal.id].sort());
   });
 
   it("наименование мастера из текста отзыва маскируется (как «о себе») — в HIDDEN и в SHOWN", async () => {
     const executor = await makeExecutor({ legalName: "ТОО «Ағаш Шебер»" });
     await makeReview(executor, 5, "Спасибо, Ағаш Шебер, всё сделали вовремя");
 
-    const hidden = await getPublicExecutorPage(executor.executor.publicNumber);
-    expect(hidden!.reviews[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
+    const hidden = await listExecutorReviews(executor.executor.id);
+    expect(hidden[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
     expect(JSON.stringify(hidden)).not.toContain("Ағаш Шебер");
 
     await db.platformSetting.create({ data: { key: EXECUTOR_IDENTITY_KEY, value: "SHOWN" } });
     const shown = await getPublicExecutorPage(executor.executor.publicNumber);
     expect(shown!.view.label).toBe("ТОО «Ағаш Шебер»");
     // Текст отзыва остаётся очищенным: показ имени платформой не отменяет маску в текстах мастера и заказчика.
-    expect(shown!.reviews[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
+    expect((await listExecutorReviews(executor.executor.id))[0]!.text).toBe(`Спасибо, ${MASK}, всё сделали вовремя`);
   });
 
   it("«Вдохновение»: наименование мастера в отзыве по сделке работы маскируется — в HIDDEN и в SHOWN", async () => {
@@ -132,16 +159,18 @@ describe("публичная страница исполнителя", () => {
     const check = async () => {
       const page = await getPublicExecutorPage(executor.executor.publicNumber);
       expect(page!.about).toBe(`Меня зовут ${MASK}, делаю кухни`);
-      const texts = page!.reviews.map((r) => r.text).sort();
+      const reviews = await listExecutorReviews(executor.executor.id);
+      const texts = reviews.map((r) => r.text).sort();
       expect(texts).toEqual([`${MASK} сделал кухню вовремя`, "Всё сделано аккуратно"].sort());
-      expect(page!.portfolio[0]).toMatchObject({ title: `Кухня ${MASK}`, description: `Сделал ${MASK}` });
+      const portfolio = await listPublicPortfolio(executor.executor.id);
+      expect(portfolio[0]).toMatchObject({ title: `Кухня ${MASK}`, description: `Сделал ${MASK}` });
       const card = await getInspirationItem(item.id, null);
       expect(card!.review!.text).toBe(`${MASK} сделал кухню вовремя`);
       expect(card!.title).toBe(`Кухня ${MASK}`);
       const feed = await listInspiration({ limit: 12 });
       expect(feed.items[0]!.title).toBe(`Кухня ${MASK}`);
       // Поля для маски наружу не уходят.
-      expect(JSON.stringify([page, card, feed])).not.toMatch(/Ерлан|Жумабаев|signerFullName|legalForm/);
+      expect(JSON.stringify([page, reviews, portfolio, card, feed])).not.toMatch(/Ерлан|Жумабаев|signerFullName|legalForm/);
     };
     await check();
 

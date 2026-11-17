@@ -2,21 +2,44 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Card, Columns, Explain, List, ListRow, Money, Monogram, PageTitle, PhotoGallery, Section, Split, Stack, WorkCard } from "@/kit";
-import { getPublicExecutorPage } from "@/modules/companies";
+import {
+  ActionDock,
+  ButtonLink,
+  Card,
+  Columns,
+  Explain,
+  List,
+  ListRow,
+  Money,
+  Monogram,
+  PageTitle,
+  PhotoGallery,
+  Section,
+  Split,
+  Stack,
+  Stat,
+  StatRow,
+  StatusChip,
+  WorkCard,
+} from "@/kit";
 import { getDevice, type Device } from "@/platform/device";
 import { userPastOnboarding } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
-import { executorView, parsePublicNumber, type ExecutorViewModel } from "./_parts/executor-view";
+import { cardsMedia } from "../../_parts/work-card";
+import { executorView, parsePublicNumber, type DealView, type ExecutorViewModel } from "./_parts/executor-view";
+import { loadExecutorPageData } from "./_parts/load";
 
 const t = ru.app.guest.executor;
 
+/** Карточка в сетке из двух колонок основной части профиля. */
+const HALF_SIZES = "(min-width: 64rem) 360px, 100vw";
+
 type Props = { params: Promise<{ publicNumber: string }> };
 
-/** Один запрос к БД на HTTP-запрос: и метаданные, и страница. Не число в адресе — страницы нет, базу не трогаем. */
+/** Одна загрузка на HTTP-запрос: и метаданные, и страница. Не число в адресе — страницы нет, базу не трогаем. */
 const loadPage = cache(async (raw: string) => {
   const publicNumber = parsePublicNumber(raw);
-  return publicNumber === null ? null : getPublicExecutorPage(publicNumber);
+  return publicNumber === null ? null : loadExecutorPageData(publicNumber);
 });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -25,29 +48,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * Факты крупно под заголовком (разбор 4, п. 9): рейтинг, сделки в сервисе, стаж — три в одну строку без подложки.
- * Значение 22 px 600 в одну строку, подпись под ним серым. Нет данных — прочерк, а подпись говорит, чего нет
- * («Пока без отзывов», «Пока без сделок»): высота значений одинакова.
+ * Числа под заголовком (спека 2026-11-17, 3.3): рейтинг с числом отзывов, «Сделок», «Успешных N%» — в одну строку
+ * (`StatRow inline`). Нет данных — прочерк приглушённо, а подпись говорит, чего нет («Пока без отзывов», «Пока нет
+ * завершённых сделок»).
  */
 function Facts({ view }: { view: ExecutorViewModel }) {
-  const { rating } = view;
-  const cells = [
-    rating.value === null
-      ? { label: ru.app.kit.rating.none, value: t.emptyValue }
-      : { label: ru.app.guest.catalog.reviews(rating.count), value: rating.value.toFixed(1).replace(".", ",") },
-    ...view.facts.map((fact) =>
-      fact.plain ? { label: fact.value, value: t.emptyValue } : { label: fact.after ?? fact.before ?? t.dealsLabel, value: fact.value },
-    ),
-  ];
   return (
-    <div role="group" aria-label={t.factsLabel} className="grid grid-cols-3 gap-4">
-      {cells.map((cell) => (
-        <dl key={cell.label} className="m-0 flex min-w-0 flex-col-reverse gap-1">
-          <dt className="text-sub text-muted">{cell.label}</dt>
-          <dd className="m-0 text-title-2 whitespace-nowrap text-ink tabular-nums">{cell.value}</dd>
-        </dl>
+    <StatRow label={t.factsLabel} inline>
+      {view.stats.map((stat) => (
+        <Stat key={stat.label} label={stat.label} value={stat.value} compact muted={stat.muted} />
       ))}
-    </div>
+    </StatRow>
   );
 }
 
@@ -103,71 +114,129 @@ function Conditions({ view, device }: { view: ExecutorViewModel; device: Device 
 function About({ view }: { view: ExecutorViewModel }) {
   return (
     <Section title={t.aboutTitle}>
-        <Card>
-          {view.about.length === 0 ? (
-            <p className="text-body text-muted">{t.aboutEmpty}</p>
-          ) : (
-            <Stack>
-              {view.about.map((text, i) => (
-                <p key={i} className="text-body text-ink">
-                  {text}
-                </p>
-              ))}
-            </Stack>
-          )}
-        </Card>
-    </Section>
-  );
-}
-
-/** Работы: мозаика снимков (галерея на весь экран по нажатию) и под ней компактные карточки с ценой «от». */
-function Works({ view }: { view: ExecutorViewModel }) {
-  return (
-    <Section title={t.worksTitle}>
-      {view.works.length === 0 ? (
-        <p className="text-body text-muted">{t.worksEmpty}</p>
-      ) : (
-        <Stack>
-          {view.gallery.length > 0 && <PhotoGallery photos={view.gallery} layout="mosaic" label={t.worksTitle} />}
-          <Columns count={2}>
-            {view.works.map((work) => (
-              <WorkCard key={work.id} title={work.title} meta={work.meta} priceFrom={work.priceFrom} />
-            ))}
-          </Columns>
-        </Stack>
-      )}
-    </Section>
-  );
-}
-
-/** Отзывы заказчиков. */
-function Reviews({ view }: { view: ExecutorViewModel }) {
-  if (view.reviews.length === 0) return null;
-  return (
-    <Section title={t.reviewsTitle}>
-      <ul className="flex flex-col gap-3">
-        {view.reviews.map((review) => (
-          <li key={review.id} id={`review-${review.id}`} className="scroll-anchor">
-            <Card as="article">
-              <p className="text-sub text-muted">
-                <span className="text-ink">{review.ratingLabel}</span> · {review.date}
+      <Card>
+        {view.about.length === 0 ? (
+          <p className="text-body text-muted">{t.aboutEmpty}</p>
+        ) : (
+          <Stack>
+            {view.about.map((text, i) => (
+              <p key={i} className="text-body text-ink">
+                {text}
               </p>
-              {review.text && <p className="mt-1 whitespace-pre-line text-body text-ink">{review.text}</p>}
-            </Card>
-          </li>
+            ))}
+          </Stack>
+        )}
+      </Card>
+    </Section>
+  );
+}
+
+/** «Лучшие работы»: витрина, которую собрал мастер (сделки и работы вне площадки), в его порядке. Пусто — раздела нет. */
+function Highlights({ view }: { view: ExecutorViewModel }) {
+  if (view.highlights.length === 0) return null;
+  const media = cardsMedia(view.highlights);
+  return (
+    <Section title={t.highlightsTitle}>
+      <Columns count={2}>
+        {view.highlights.map((card) => (
+          <WorkCard key={card.id} title={card.title} meta={card.meta} media={media} sizes={HALF_SIZES} {...(card.photo ? { photo: card.photo } : {})} />
         ))}
-      </ul>
+      </Columns>
     </Section>
   );
 }
 
 /**
- * Профиль мастера для заказчика: кому доверять (монограмма, крупные факты: рейтинг, сделки на платформе, стаж; мозаика работ с галереей на весь экран), условия
- * (специализация, замер, где работает), о мастере, работы и отзывы. Открыт гостю. Мастер показан ровно так, как его отдаёт
- * модуль (`toPublicView`): по умолчанию «Исполнитель №N», без телефона, Instagram и ИИН/БИН; тексты уже очищены от
- * контактов и наименования. Телефон — одна колонка и `ActionDock` в конце. Компьютер — `Split`: слева «О мастере», работы и
- * отзывы, справа прилипающая карточка условий, внизу которой главная кнопка. Действие есть у любого мастера: заявка
- * с параметром `executor` (публичный номер) — контракт для экрана заявки следующего этапа. Карточки работ неинтерактивны.
+ * Карточка сделки: фото сдачи лентой, что делали, уровень и месяц, итог; стоимость и место — только если покупатель
+ * разрешил; отзыв покупателя — внизу карточки, с подписью, как он выбрал.
+ */
+function DealCard({ deal }: { deal: DealView }) {
+  return (
+    <Card as="article">
+      <Stack>
+        {deal.photos.length > 0 && <PhotoGallery photos={deal.photos} layout="strip" label={t.dealPhotos(deal.title)} />}
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="text-headline text-ink">{deal.title}</h3>
+            <p className="text-sub text-muted">{deal.meta}</p>
+          </div>
+          <StatusChip tone={deal.outcome.tone}>{deal.outcome.label}</StatusChip>
+        </div>
+        {(deal.priceTiyn !== undefined || deal.place !== undefined) && (
+          <dl className="m-0 flex flex-col gap-1 text-body">
+            {deal.priceTiyn !== undefined && (
+              <div className="flex flex-wrap gap-x-2">
+                <dt className="text-muted">{t.dealPrice}</dt>
+                <dd className="m-0">
+                  <Money tiyn={deal.priceTiyn} />
+                </dd>
+              </div>
+            )}
+            {deal.place !== undefined && (
+              <div className="flex flex-wrap gap-x-2">
+                <dt className="text-muted">{t.dealPlace}</dt>
+                <dd className="m-0 text-ink">{deal.place}</dd>
+              </div>
+            )}
+          </dl>
+        )}
+        {deal.review && (
+          <figure className="m-0 border-t border-line pt-3">
+            <p className="text-sub text-ink">{deal.review.ratingLabel}</p>
+            {deal.review.text && <blockquote className="m-0 mt-1 whitespace-pre-line text-body text-ink">{deal.review.text}</blockquote>}
+            {deal.review.signature && <figcaption className="mt-1 text-sub text-muted">{deal.review.signature}</figcaption>}
+          </figure>
+        )}
+      </Stack>
+    </Card>
+  );
+}
+
+/** «Сделки на площадке»: оконченные сделки, новые выше; отзыв — внизу своей сделки. Пусто — текст. */
+function Deals({ view }: { view: ExecutorViewModel }) {
+  return (
+    <Section title={t.dealsTitle}>
+      {view.deals.length === 0 ? (
+        <p className="text-body text-muted">{t.dealsEmpty}</p>
+      ) : (
+        <ul className="m-0 flex list-none flex-col gap-3 p-0">
+          {view.deals.map((deal) => (
+            <li key={deal.id} id={`deal-${deal.id}`} className="scroll-anchor">
+              <DealCard deal={deal} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+/** «Работы вне площадки»: мозаика снимков (галерея на весь экран) и компактные карточки с пометкой. Пусто — раздела нет. */
+function OffPlatform({ view }: { view: ExecutorViewModel }) {
+  const { works, gallery } = view.offPlatform;
+  if (works.length === 0) return null;
+  return (
+    <Section title={t.offPlatformTitle}>
+      <Stack>
+        {gallery.length > 0 && <PhotoGallery photos={gallery} layout="mosaic" label={t.offPlatformTitle} />}
+        <Columns count={2}>
+          {works.map((work) => (
+            <WorkCard key={work.id} title={work.title} meta={work.meta} byline={work.byline} priceFrom={work.priceFrom} />
+          ))}
+        </Columns>
+      </Stack>
+    </Section>
+  );
+}
+
+/**
+ * Профиль мастера для заказчика (спека 2026-11-17, 3.3): монограмма и числа (рейтинг, отзывы, сделки, доля успешных),
+ * «Лучшие работы», «Сделки на площадке» с отзывом под каждой, «Работы вне площадки», «О мастере», условия. Отдельного
+ * раздела отзывов нет. Открыт гостю. Мастер показан ровно так, как его отдаёт модуль (`toPublicView`, ADR-006): по
+ * умолчанию «Исполнитель №N», без телефона, Instagram и ИИН/БИН; тексты уже очищены; фото, стоимость, место и подпись
+ * сделки — только по выбору покупателя. Телефон — одна колонка и `ActionDock` в конце. Компьютер — `Split`: слева разделы,
+ * справа прилипающая карточка условий с главной кнопкой. Действие есть у любого мастера: заявка с параметром `executor`
+ * (публичный номер). Карточки работ и сделок неинтерактивны.
  */
 export default async function ExecutorPage({ params }: Props) {
   const { publicNumber } = await params;
@@ -188,9 +257,10 @@ export default async function ExecutorPage({ params }: Props) {
           main={
             <Stack gap="section">
               <Facts view={view} />
-              <Works view={view} />
+              <Highlights view={view} />
+              <Deals view={view} />
+              <OffPlatform view={view} />
               <About view={view} />
-              <Reviews view={view} />
             </Stack>
           }
           aside={<Conditions view={view} device={device} />}
@@ -203,10 +273,11 @@ export default async function ExecutorPage({ params }: Props) {
     <Stack gap="section">
       {title}
       <Facts view={view} />
-      <Works view={view} />
+      <Highlights view={view} />
+      <Deals view={view} />
+      <OffPlatform view={view} />
       <About view={view} />
       <Conditions view={view} device={device} />
-      <Reviews view={view} />
       <ActionDock>
         <ButtonLink href={view.action.href}>{view.action.label}</ButtonLink>
       </ActionDock>

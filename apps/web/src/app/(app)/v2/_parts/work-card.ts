@@ -18,6 +18,9 @@ export type WorkCardView = {
  */
 const SEED_ILLUSTRATIONS = "/demo/";
 
+/** Загруженный снимок, а не иллюстрация сида. */
+export const isUploadedSrc = (src: string): boolean => !src.startsWith(SEED_ILLUSTRATIONS);
+
 /** Цена в модуле — целые тенге; в интерфейсе деньги — тиыны. */
 export const toTiyn = (tenge: number): bigint => BigInt(Math.round(tenge)) * 100n;
 

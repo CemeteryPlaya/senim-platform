@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { BadgeCheck, Star } from "lucide-react";
 import { ru } from "@/i18n/ru";
-import { getPublicExecutorPage, type PortfolioCard, type PublicExecutorView } from "@/modules/companies";
+import { getPublicExecutorPage, listExecutorReviews, listPublicPortfolio, type PortfolioCard, type PublicExecutorView } from "@/modules/companies";
 import { ButtonLink, Container, DateText, DetailColumns, formatYears, KeyValueList, Money, PageHeader, StatusBadge, TrustNote } from "@/ui";
 import { measurementText, Rating, SegmentBadge } from "../../catalog/_components/executor-bits";
 import { wantSimilarHref, WorkCard } from "../../catalog/_components/WorkCard";
@@ -36,7 +36,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ExecutorPublicPage({ params }: Props) {
   const page = await loadPage((await params).publicNumber);
   if (!page) notFound();
-  const { view, about, portfolio, reviews } = page;
+  const { view, about } = page;
+  // v1 заморожен: показывает все видимые работы и отдельный список отзывов, как до страницы v2.
+  const [portfolio, reviews] = await Promise.all([listPublicPortfolio(view.id), listExecutorReviews(view.id)]);
   const hero = portfolio[0];
 
   return (

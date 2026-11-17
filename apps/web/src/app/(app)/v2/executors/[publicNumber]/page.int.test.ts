@@ -4,7 +4,7 @@ import { ru } from "@/i18n/ru";
 import { setExecutorIdentityMode } from "@/modules/companies";
 import { db } from "@/platform/db";
 import { makeExecutor, makeOperator } from "../../../../../../test/factories";
-import { makeFurnitureType, makePortfolioItem, makeReview } from "../../../../../../test/factories/companies";
+import { makeDealWithReport, makeFurnitureType, makePortfolioItem, makeReview, PRICE_TIYN } from "../../../../../../test/factories/companies";
 
 const h = vi.hoisted(() => ({ device: "mobile" as "mobile" | "desktop" }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
@@ -13,7 +13,8 @@ vi.mock("next/headers", async () => (await import("../../../../../../test/factor
 
 const { default: ExecutorPage } = await import("./page");
 const { executorView } = await import("./_parts/executor-view");
-const { getPublicExecutorPage } = await import("@/modules/companies");
+const { loadExecutorPageData } = await import("./_parts/load");
+const { formatMoney } = await import("@/kit");
 
 const t = ru.app.guest.executor;
 
@@ -41,9 +42,28 @@ async function seed() {
     },
   });
   const kitchen = await makeFurnitureType({ slug: "kitchen", name: "Кухня" });
-  await makePortfolioItem(executor, { furnitureTypeId: kitchen.id, title: "Светлая кухня", priceFrom: 1_200_000 });
-  await makeReview(executor, 5, `Спасибо, ${SECRETS.legalName}! Мой номер ${SECRETS.phone}`);
-  return executor;
+  const offPlatform = await makePortfolioItem(executor, { furnitureTypeId: kitchen.id, title: "Светлая кухня", priceFrom: 1_200_000 });
+  // Сделка без выбора покупателя: закрытый вид, отзыв с инициалом.
+  const plain = await makeReview(executor, 5, `Спасибо, ${SECRETS.legalName}! Мой номер ${SECRETS.phone}`);
+  // Сделка, где покупатель разрешил фото, стоимость, район и имя в подписи.
+  const shown = await makeDealWithReport({ executor });
+  await db.request.update({ where: { id: shown.requestId }, data: { district: "Есиль" } });
+  await db.review.create({ data: { dealId: shown.dealId, executorId: executor.executor.id, authorId: shown.client.id, rating: 4, text: "Сделали аккуратно" } });
+  await db.dealShowcase.create({
+    data: { dealId: shown.dealId, photos: true, price: true, address: "DISTRICT", signature: "NAME", signedAs: "Айгерим", textVersion: "test", updatedById: shown.client.id },
+  });
+  // Работа портфолио, созданная из сделки: в «Работах вне площадки» её нет — сделка показана в «Сделках на площадке».
+  const fromDeal = await makePortfolioItem(executor, { furnitureTypeId: kitchen.id, title: "Работа из сделки" });
+  await db.portfolioItem.update({ where: { id: fromDeal.id }, data: { dealId: shown.dealId } });
+  await db.executorProfile.update({ where: { id: executor.executor.id }, data: { ratingAvg: 4.5, reviewsCount: 2 } });
+  return { executor, offPlatform, plainDealId: plain.dealId, shownDealId: shown.dealId };
+}
+
+/** Карточка сделки в разметке: от её якоря до конца статьи. */
+function dealCard(out: string, dealId: string): string {
+  const start = out.indexOf(`id="deal-${dealId}"`);
+  expect(start).toBeGreaterThan(-1);
+  return out.slice(start, out.indexOf("</article>", start));
 }
 
 function expectNoSecrets(out: string, binTail: string) {
@@ -69,7 +89,7 @@ beforeEach(() => {
 
 describe("/v2/executors/[publicNumber]: что видит гость", () => {
   it("профиль: подпись «Исполнитель №N», сводка, работа, отзыв; «Назад: Мастера» на каталог v2", async () => {
-    const executor = await seed();
+    const { executor } = await seed();
     const out = await render(String(executor.executor.publicNumber));
     expect(out).toContain(`Исполнитель №${executor.executor.publicNumber}`);
     expect(out).toContain(t.aboutTitle);
@@ -87,14 +107,14 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
 
   it.each(["mobile", "desktop"] as const)("%s: HIDDEN — в HTML нет телефона, Instagram, наименования, улицы и ИИН/БИН", async (device) => {
     h.device = device;
-    const executor = await seed();
+    const { executor } = await seed();
     const profile = await db.executorProfile.findFirstOrThrow({ where: { id: executor.executor.id } });
     expectNoSecrets(await render(String(executor.executor.publicNumber)), profile.binIinLast4);
   });
 
   it("view-модель страницы, сериализованная в JSON, тоже без контактов (это не проверка потока RSC)", async () => {
-    const executor = await seed();
-    const page = await getPublicExecutorPage(executor.executor.publicNumber);
+    const { executor } = await seed();
+    const page = await loadExecutorPageData(executor.executor.publicNumber);
     if (!page) throw new Error("страницы нет");
     expect(page.view.nameShown).toBe(false);
     const json = JSON.stringify(executorView(page), (_, v: unknown) => (typeof v === "bigint" ? v.toString() : v));
@@ -103,7 +123,7 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
   });
 
   it("один h1; одно главное действие — «Предложить заказ» с публичным номером мастера", async () => {
-    const executor = await seed();
+    const { executor } = await seed();
     for (const device of ["mobile", "desktop"] as const) {
       h.device = device;
       const out = await render(String(executor.executor.publicNumber));
@@ -115,10 +135,10 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
   });
 
   it("пояснение «почему скрыто»: подпись на экране, текст — в пропсах, без данных мастера", async () => {
-    const executor = await seed();
+    const { executor } = await seed();
     const out = await render(String(executor.executor.publicNumber));
     expect(out).toContain(t.explain.hidden.label);
-    const page = await getPublicExecutorPage(executor.executor.publicNumber);
+    const page = await loadExecutorPageData(executor.executor.publicNumber);
     if (!page) throw new Error("страницы нет");
     const { explain } = executorView(page);
     expect(explain.title).toBe(t.explain.hidden.title);
@@ -127,19 +147,24 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
     expect(JSON.stringify(explain)).not.toMatch(/Секретная|secret_master|\+7\d{10}/);
   });
 
-  it("мастер без работ и отзывов: действие есть, «Пока без отзывов» один раз, раздела отзывов нет", async () => {
+  it("мастер без работ, сделок и отзывов: действие есть, «Пока без отзывов» один раз; пустые разделы скрыты, у сделок — текст", async () => {
     const executor = await makeExecutor();
     const out = await render(String(executor.executor.publicNumber));
-    expect(out).toContain(t.worksEmpty);
     expect(count(out, ru.app.kit.rating.none)).toBe(1);
-    expect(out).not.toContain(`>${t.reviewsTitle}<`);
+    expect(out).toContain(t.stats.successNone);
+    expect(out).not.toMatch(/\d%</);
+    expect(out).toContain(`>${t.dealsTitle}<`);
+    expect(out).toContain(t.dealsEmpty);
+    expect(out).not.toContain(`>${t.highlightsTitle}<`);
+    expect(out).not.toContain(`>${t.offPlatformTitle}<`);
+    expect(out).not.toContain(">Отзывы<");
     expect(count(out, "<h1")).toBe(1);
     expect(count(out, "data-primary-action")).toBe(1);
     expect(out).toContain(`href="/v2/requests/new?executor=${executor.executor.publicNumber}"`);
   });
 
   it("режим «имя показано»: наименование в заголовке, телефон, Instagram и ИИН/БИН — по-прежнему нет", async () => {
-    const executor = await seed();
+    const { executor } = await seed();
     await setExecutorIdentityMode(await makeOperator(), "SHOWN");
     const profile = await db.executorProfile.findFirstOrThrow({ where: { id: executor.executor.id } });
     const out = await render(String(executor.executor.publicNumber));
@@ -149,6 +174,80 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
     expect(out).not.toContain(profile.binIinLast4);
     expect(out).not.toMatch(/\b\d{12}\b/);
     expect(out).toContain(t.explain.shown.title);
+  });
+});
+
+describe("/v2/executors/[publicNumber]: шапка и разделы", () => {
+  it("шапка: рейтинг, число отзывов, «Сделок», «Успешных N%»", async () => {
+    const { executor } = await seed();
+    const out = await render(String(executor.executor.publicNumber));
+    const start = out.indexOf(`aria-label="${t.factsLabel}"`);
+    expect(start).toBeGreaterThan(-1);
+    const header = out.slice(start, out.indexOf("</div>", start));
+    expect(header).toContain(">4,5<");
+    expect(header).toContain(ru.app.guest.catalog.reviews(2));
+    // Две сделки с офертой, обе успешные.
+    expect(header).toContain(`>${t.stats.deals}<`);
+    expect(header).toMatch(/>2<\/dd>/);
+    expect(header).toContain(`>${t.stats.success}<`);
+    expect(header).toContain(">100%<");
+    expect(header).not.toContain(t.stats.successNone);
+  });
+
+  it("«Сделки на площадке»: по карточке на сделку, отзыв — внизу своей сделки с подписью; отдельного раздела отзывов нет", async () => {
+    const { executor, plainDealId, shownDealId } = await seed();
+    const out = await render(String(executor.executor.publicNumber));
+    expect(out).toContain(`>${t.dealsTitle}<`);
+    expect(count(out, 'id="deal-')).toBe(2);
+
+    const shown = dealCard(out, shownDealId);
+    expect(shown).toContain(t.outcome.success);
+    expect(shown).toContain(formatMoney(PRICE_TIYN));
+    expect(shown).toContain("Астана, Есиль");
+    expect(shown).toContain("<img");
+    expect(shown.indexOf("Кухня")).toBeLessThan(shown.indexOf("Сделали аккуратно"));
+    expect(shown.indexOf("Сделали аккуратно")).toBeLessThan(shown.indexOf(t.reviewSignature("Айгерим")));
+    expect(shown).toContain(t.reviewRating(4));
+
+    // Без выбора покупателя: ни фото, ни стоимости, ни места; отзыв — свой.
+    const plain = dealCard(out, plainDealId);
+    expect(plain).toContain("Спасибо,");
+    expect(plain).not.toContain("Сделали аккуратно");
+    expect(plain).not.toContain("<img");
+    expect(plain).not.toContain(t.dealPrice);
+    expect(plain).not.toContain(t.dealPlace);
+
+    expect(out).not.toContain(">Отзывы<");
+    expect(count(out, "Сделали аккуратно")).toBe(1);
+  });
+
+  it("«Работы вне площадки»: без работ из сделок, с пометкой", async () => {
+    const { executor } = await seed();
+    const out = await render(String(executor.executor.publicNumber));
+    expect(out).toContain(`>${t.offPlatformTitle}<`);
+    const section = out.slice(out.indexOf(`>${t.offPlatformTitle}<`));
+    expect(section).toContain("Светлая кухня");
+    expect(section).toContain(t.offPlatformMark);
+    expect(out).not.toContain("Работа из сделки");
+  });
+
+  it("«Лучшие работы»: выбор мастера в его порядке; нет выбора — раздела нет", async () => {
+    const { executor, offPlatform, shownDealId } = await seed();
+    const before = await render(String(executor.executor.publicNumber));
+    expect(before).not.toContain(`>${t.highlightsTitle}<`);
+
+    await db.executorHighlight.createMany({
+      data: [
+        { executorId: executor.executor.id, position: 0, dealId: shownDealId },
+        { executorId: executor.executor.id, position: 1, portfolioItemId: offPlatform.id },
+      ],
+    });
+    const out = await render(String(executor.executor.publicNumber));
+    expect(out).toContain(`>${t.highlightsTitle}<`);
+    const section = out.slice(out.indexOf(`>${t.highlightsTitle}<`), out.indexOf(`>${t.dealsTitle}<`));
+    expect(section).toContain(t.highlightKind.deal);
+    expect(section).toContain("Светлая кухня");
+    expect(section.indexOf(t.highlightKind.deal)).toBeLessThan(section.indexOf("Светлая кухня"));
   });
 });
 

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import type { PortfolioCard, PublicExecutorPage, PublicExecutorView } from "@/modules/companies";
-import { executorView, parsePublicNumber } from "./executor-view";
+import type { HighlightCard, PortfolioCard, PublicExecutorView } from "@/modules/companies";
+import type { DealHistoryItem, ExecutorStats } from "@/modules/deal-core";
+import { executorView, parsePublicNumber, type ExecutorPageData } from "./executor-view";
 
 const t = ru.app.guest.executor;
 
@@ -47,8 +48,25 @@ function work(over: Partial<PortfolioCard> = {}): PortfolioCard {
   };
 }
 
-function page(over: Partial<PublicExecutorPage> = {}): PublicExecutorPage {
-  return { view: viewOf(), about: "Делаю кухни десять лет.", portfolio: [work()], reviews: [], ...over };
+function deal(over: Partial<DealHistoryItem> = {}): DealHistoryItem {
+  return {
+    id: "d1",
+    title: "Кухня в ЖК",
+    segment: "COMFORT",
+    endedAt: new Date("2026-10-15T10:00:00Z"),
+    outcome: "success",
+    photos: [],
+    priceTiyn: null,
+    place: null,
+    review: null,
+    ...over,
+  };
+}
+
+const STATS: ExecutorStats = { deals: 15, ended: 14, successful: 13, successRate: 93 };
+
+function page(over: Partial<ExecutorPageData> = {}): ExecutorPageData {
+  return { view: viewOf(), about: "Делаю кухни десять лет.", highlights: [], offPlatform: [work()], stats: STATS, dealHistory: [], ...over };
 }
 
 describe("parsePublicNumber", () => {
@@ -63,40 +81,52 @@ describe("parsePublicNumber", () => {
   );
 });
 
-describe("executorView: строка-сводка", () => {
-  it("рейтинг: число как есть (шкала 1…5), число отзывов рядом", () => {
-    expect(executorView(page()).rating).toEqual({ value: 4.75, count: 12 });
-  });
-
-  it("нет отзывов: рейтинг null, даже если в профиле 0", () => {
-    expect(executorView(page({ view: viewOf({ ratingAvg: 0, reviewsCount: 0 }) })).rating).toEqual({ value: null, count: 0 });
-  });
-
-  it("сделки в сервисе и стаж — со склонением: значение отдельно от пояснений", () => {
-    expect(executorView(page()).facts).toEqual([
-      { value: "21 сделка", after: "в сервисе" },
-      { before: "Стаж", value: "5 лет" },
+describe("executorView: шапка с числами", () => {
+  it("рейтинг (число отзывов подписью), сделок, «Успешных 93%»", () => {
+    expect(executorView(page()).stats).toEqual([
+      { value: "4,8", label: "12 отзывов" },
+      { value: "15", label: t.stats.deals },
+      { value: "93%", label: t.stats.success },
     ]);
   });
 
-  it("стаж 0 — факта нет; сделок 0 — «Пока без сделок» без выделения значения", () => {
-    expect(executorView(page({ view: viewOf({ yearsExperience: 0, completedDeals: 0 }) })).facts).toEqual([{ value: "Пока без сделок", plain: true }]);
+  it("нет отзывов, сделок и оконченных: прочерк и подпись, чего нет; ноль сделок — приглушён", () => {
+    const stats = executorView(
+      page({ view: viewOf({ ratingAvg: 0, reviewsCount: 0 }), stats: { deals: 0, ended: 0, successful: 0, successRate: null } }),
+    ).stats;
+    expect(stats).toEqual([
+      { value: t.emptyValue, label: ru.app.kit.rating.none, muted: true },
+      { value: "0", label: t.stats.deals, muted: true },
+      { value: t.emptyValue, label: t.stats.successNone, muted: true },
+    ]);
+    expect(t.stats.successNone.toLowerCase()).toBe("пока нет завершённых сделок");
+  });
+
+  it("сделки идут, но оконченных нет — процента нет", () => {
+    const stats = executorView(page({ stats: { deals: 2, ended: 0, successful: 0, successRate: null } })).stats;
+    expect(stats[1]).toEqual({ value: "2", label: t.stats.deals });
+    expect(stats[2]).toEqual({ value: t.emptyValue, label: t.stats.successNone, muted: true });
+  });
+
+  it("ноль успешных из оконченных — «0%», не прочерк", () => {
+    expect(executorView(page({ stats: { deals: 1, ended: 1, successful: 0, successRate: 0 } })).stats[2]).toEqual({ value: "0%", label: t.stats.success });
   });
 });
 
 describe("executorView: условия", () => {
   const find = (v: PublicExecutorView, label: string) => executorView(page({ view: v })).conditions.find((r) => r.label === label);
 
-  it("строки: специализация, замер, где работает; вид задан явно", () => {
+  it("строки: специализация, замер, где работает, стаж; вид задан явно", () => {
     const rows = executorView(page()).conditions;
-    expect(rows.map((r) => r.label)).toEqual([t.rows.specializations, t.rows.measurement, t.rows.address]);
+    expect(rows.map((r) => r.label)).toEqual([t.rows.specializations, t.rows.measurement, t.rows.address, t.rows.experience]);
     expect(rows[0]).toMatchObject({ value: "Кухни, Шкафы", layout: "stacked" });
     expect(rows[1]).toMatchObject({ value: t.measurement.FREE, layout: "inline" });
     expect(rows[2]).toMatchObject({ value: "Астана, Есиль", layout: "stacked" });
+    expect(rows[3]).toMatchObject({ value: "5 лет", layout: "inline" });
   });
 
-  it("нет специализаций или адреса — строки нет", () => {
-    const labels = executorView(page({ view: viewOf({ specializations: [], address: " " }) })).conditions.map((r) => r.label);
+  it("нет специализаций, адреса и стажа — строк нет", () => {
+    const labels = executorView(page({ view: viewOf({ specializations: [], address: " ", yearsExperience: 0 }) })).conditions.map((r) => r.label);
     expect(labels).toEqual([t.rows.measurement]);
   });
 
@@ -122,10 +152,11 @@ describe("executorView: условия", () => {
 });
 
 describe("executorView: заголовок, «О мастере»", () => {
-  it("заголовок — публичная подпись, ссылка «Назад» на каталог v2", () => {
+  it("заголовок — публичная подпись (ADR-006), ссылка «Назад» на каталог v2", () => {
     const v = executorView(page({ view: viewOf({ label: "ТОО «Мебель Сити»", nameShown: true }) }));
     expect(v.title).toBe("ТОО «Мебель Сити»");
     expect(v.backHref).toBe("/v2/catalog");
+    expect(executorView(page()).title).toBe("Исполнитель №17");
   });
 
   it("абзацы по переводам строк, без пустых", () => {
@@ -141,56 +172,124 @@ describe("executorView: заголовок, «О мастере»", () => {
   });
 });
 
-describe("executorView: работы и действие", () => {
+describe("executorView: лучшие работы", () => {
+  const card = (over: Partial<HighlightCard> = {}): HighlightCard => ({ kind: "work", id: "h1", title: "Шкаф-купе", photo: null, href: null, ...over });
+
+  it("в порядке мастера; сделка и работа вне площадки подписаны по-разному; фото — как есть", () => {
+    const photo = { src: "/files/x", alt: "Кухня, фото 1" };
+    const v = executorView(page({ highlights: [card({ kind: "deal", id: "d9", title: "Кухня", photo }), card()] }));
+    expect(v.highlights).toEqual([
+      { id: "d9", title: "Кухня", meta: t.highlightKind.deal, photo },
+      { id: "h1", title: "Шкаф-купе", meta: t.highlightKind.work },
+    ]);
+  });
+
+  it("иллюстрация сида — не фото мастера; нет витрины — пусто (раздел скрыт)", () => {
+    expect(executorView(page({ highlights: [card({ photo: { src: "/demo/portfolio/a.svg", alt: "a" } })] })).highlights[0]).not.toHaveProperty("photo");
+    expect(executorView(page()).highlights).toEqual([]);
+  });
+});
+
+describe("executorView: сделки на площадке", () => {
+  it("по одной карточке на сделку, в порядке модуля: что делали, уровень, месяц, итог", () => {
+    const v = executorView(
+      page({
+        dealHistory: [
+          deal({ id: "a", outcome: "success" }),
+          // 23:30 UTC 31 октября — уже ноябрь в Алматы (UTC+5).
+          deal({ id: "b", title: "Шкаф", segment: null, outcome: "failed", endedAt: new Date("2026-10-31T23:30:00Z") }),
+        ],
+      }),
+    );
+    expect(v.deals.map((d) => d.id)).toEqual(["a", "b"]);
+    expect(v.deals[0]).toMatchObject({ title: "Кухня в ЖК", meta: `${t.segments.COMFORT} · октябрь 2026`, outcome: { label: t.outcome.success, tone: "accent" } });
+    expect(v.deals[1]).toMatchObject({ title: "Шкаф", meta: "ноябрь 2026", outcome: { label: t.outcome.failed, tone: "neutral" } });
+    expect(t.outcome.success.toLowerCase()).toBe("завершена");
+    expect(t.outcome.failed.toLowerCase()).toBe("не состоялась");
+  });
+
+  it("закрытый вид (без выбора покупателя): нет фото, стоимости, места и отзыва — только сведения о сделке", () => {
+    const [d] = executorView(page({ dealHistory: [deal()] })).deals;
+    expect(d?.photos).toEqual([]);
+    expect(d).not.toHaveProperty("priceTiyn");
+    expect(d).not.toHaveProperty("place");
+    expect(d).not.toHaveProperty("review");
+  });
+
+  it("по выбору покупателя: фото (подпись — что делали), стоимость в тиынах, место — ровно как отдал модуль", () => {
+    const photos = [{ id: "f1", src: "/files/a?sig=1", alt: "Кухня в ЖК, фото 1" }];
+    const [d] = executorView(page({ dealHistory: [deal({ photos, priceTiyn: 45_000_000n, place: "Астана, Есиль" })] })).deals;
+    expect(d?.photos).toEqual([{ src: "/files/a?sig=1", alt: "Кухня в ЖК, фото 1", caption: "Кухня в ЖК" }]);
+    expect(d?.priceTiyn).toBe(45_000_000n);
+    expect(d?.place).toBe("Астана, Есиль");
+  });
+
+  it("отзыв — внизу своей сделки: оценка, текст, подпись как выбрал покупатель", () => {
+    const createdAt = new Date("2026-10-20T10:00:00Z");
+    const v = executorView(
+      page({
+        dealHistory: [
+          deal({ id: "a", review: { rating: 5, text: "  Отличная кухня \n", signedAs: "Айгерим", createdAt } }),
+          deal({ id: "b", review: { rating: 3, text: "", signedAs: "А.", createdAt } }),
+          deal({ id: "c" }),
+        ],
+      }),
+    );
+    expect(v.deals[0]?.review).toEqual({ ratingLabel: t.reviewRating(5), text: "Отличная кухня", signature: t.reviewSignature("Айгерим") });
+    expect(v.deals[1]?.review).toEqual({ ratingLabel: t.reviewRating(3), text: "", signature: t.reviewSignature("А.") });
+    expect(v.deals[2]).not.toHaveProperty("review");
+    expect(t.reviewSignature("А.")).toContain("А.");
+  });
+
+  it("пустая подпись — без подписи", () => {
+    const [d] = executorView(page({ dealHistory: [deal({ review: { rating: 4, text: "Хорошо", signedAs: "", createdAt: new Date() } })] })).deals;
+    expect(d?.review).toEqual({ ratingLabel: t.reviewRating(4), text: "Хорошо" });
+  });
+
+  it("сделок нет — пустой список (раздел с текстом-заглушкой)", () => {
+    expect(executorView(page()).deals).toEqual([]);
+  });
+});
+
+describe("executorView: работы вне площадки и действие", () => {
   const seed = { id: "f1", src: "/demo/portfolio/a.svg", alt: "a" };
   const real = { id: "f2", src: "/files/abc", alt: "Кухня" };
 
-  it("карточка: тип · место, цена в тиынах; только загруженные фото, иллюстрации сида — нет", () => {
-    const [w] = executorView(page({ portfolio: [work({ photos: [seed, real] })] })).works;
-    expect(w).toMatchObject({ id: "w1", title: "Светлая кухня", meta: "Кухня · Астана", priceFrom: 120_000_000n, photo: { src: "/files/abc", alt: "Кухня" } });
-    expect(executorView(page({ portfolio: [work({ photos: [seed] })] })).works[0]).not.toHaveProperty("photo");
+  it("карточка: тип · место, цена в тиынах, пометка «вне площадки»; только загруженные фото", () => {
+    const [w] = executorView(page({ offPlatform: [work({ photos: [seed, real] })] })).offPlatform.works;
+    expect(w).toMatchObject({
+      id: "w1",
+      title: "Светлая кухня",
+      meta: "Кухня · Астана",
+      byline: t.offPlatformMark,
+      priceFrom: 120_000_000n,
+      photo: { src: "/files/abc", alt: "Кухня" },
+    });
+    expect(executorView(page({ offPlatform: [work({ photos: [seed] })] })).offPlatform.works[0]).not.toHaveProperty("photo");
   });
 
-  it("карточки неинтерактивны: адреса нет", () => {
-    expect(executorView(page()).works[0]).not.toHaveProperty("href");
+  it("карточки неинтерактивны: адреса нет; цена null — поля нет", () => {
+    expect(executorView(page()).offPlatform.works[0]).not.toHaveProperty("href");
+    expect(executorView(page({ offPlatform: [work({ priceFrom: null })] })).offPlatform.works[0]).not.toHaveProperty("priceFrom");
   });
 
-  it("цена null — поля нет", () => {
-    expect(executorView(page({ portfolio: [work({ priceFrom: null })] })).works[0]).not.toHaveProperty("priceFrom");
-  });
-
-  it("галерея: обложки работ первыми, потом остальные снимки; иллюстрации сида не попадают; подпись — название работы", () => {
+  it("галерея: обложки работ первыми, потом остальные снимки; иллюстрации сида не попадают", () => {
     const more = { id: "f3", src: "/files/def", alt: "Вид сбоку" };
     const other = { id: "f4", src: "/files/ghi", alt: "Шкаф" };
-    const gallery = executorView(page({ portfolio: [work({ id: "a", photos: [seed, real, more] }), work({ id: "b", title: "Шкаф", photos: [other] })] })).gallery;
+    const { gallery } = executorView(page({ offPlatform: [work({ id: "a", photos: [seed, real, more] }), work({ id: "b", title: "Шкаф", photos: [other] })] })).offPlatform;
     expect(gallery.map((p) => p.src)).toEqual(["/files/abc", "/files/ghi", "/files/def"]);
     expect(gallery[0]).toEqual({ src: "/files/abc", alt: "Кухня", caption: "Светлая кухня" });
-    expect(executorView(page({ portfolio: [work({ photos: [seed] })] })).gallery).toEqual([]);
-    expect(executorView(page({ portfolio: [] })).gallery).toEqual([]);
+    expect(executorView(page({ offPlatform: [] })).offPlatform).toEqual({ works: [], gallery: [] });
   });
 
   it("главное действие — у любого мастера: заявка с публичным номером мастера", () => {
     const expected = { href: "/v2/requests/new?executor=17", label: t.action };
     expect(executorView(page()).action).toEqual(expected);
-    expect(executorView(page({ portfolio: [] })).action).toEqual(expected);
+    expect(executorView(page({ offPlatform: [], dealHistory: [] })).action).toEqual(expected);
   });
-});
 
-describe("executorView: отзывы", () => {
-  it("оценка, дата и текст; пустой текст остаётся пустым", () => {
-    const { reviews } = executorView(
-      page({
-        reviews: [
-          { id: "r1", rating: 5, text: "Отлично", createdAt: new Date("2026-03-05T10:00:00Z") },
-          { id: "r2", rating: 4, text: "", createdAt: new Date("2026-03-31T23:30:00Z") },
-        ],
-      }),
-    );
-    expect(reviews[0]).toMatchObject({ id: "r1", ratingLabel: t.reviewRating(5), text: "Отлично" });
-    expect(reviews[0]?.date).toContain("5 марта 2026");
-    expect(reviews[1]?.text).toBe("");
-    // 23:30 UTC — уже 1 апреля в Алматы (UTC+5).
-    expect(reviews[1]?.date).toContain("1 апреля 2026");
+  it("отдельного раздела отзывов в модели нет", () => {
+    expect(executorView(page())).not.toHaveProperty("reviews");
   });
 });
 

@@ -1,5 +1,6 @@
 import type { MeasurementTerms, Segment } from "@/generated/prisma/enums";
 import type { Tx } from "@/platform/db";
+import type { HighlightCard } from "./highlights";
 
 /**
  * Контракты companies (зафиксированы в фазе A) и типы публичных представлений.
@@ -56,10 +57,15 @@ export type PortfolioCard = {
 
 export type PublicReview = { id: string; rating: number; text: string; createdAt: Date };
 
-/** Публичная страница исполнителя /executors/[publicNumber]. */
+/**
+ * Публичная страница исполнителя /executors/[publicNumber] — часть companies. Числа сделок и «Сделки на площадке» с
+ * отзывами страница берёт из deal-core сама (companies не импортирует deal-core); отдельного списка отзывов нет.
+ */
 export type PublicExecutorPage = {
   view: PublicExecutorView;
   about: string;
-  portfolio: PortfolioCard[];
-  reviews: PublicReview[];
+  /** «Лучшие работы» в порядке мастера. */
+  highlights: HighlightCard[];
+  /** «Работы вне площадки»: опубликованные работы без сделки (работа из сделки показана в «Сделках на площадке»). */
+  offPlatform: PortfolioCard[];
 };

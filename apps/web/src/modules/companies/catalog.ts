@@ -4,6 +4,7 @@ import { db, type Db, type Prisma } from "@/platform/db";
 import { PUBLIC_EXECUTOR_SELECT, toPublicView } from "./anonymity";
 import { priceRange, type CatalogFilter } from "./catalog-filter";
 import type { ExecutorIdentityMode } from "./display";
+import { publicHighlights } from "./highlights";
 import { getExecutorIdentityMode } from "./identity-mode";
 import { maskPublicText } from "./mask";
 import { DEAL_PHOTOS, itemFiles, OWN_PHOTOS, toPhotoViews } from "./photos";
@@ -92,16 +93,17 @@ export async function listCatalog(filter: CatalogFilter): Promise<{ items: Portf
   return { items: await Promise.all(rows.map((row) => toCard(row, mode))), total, page: filter.page, pageCount: Math.max(1, Math.ceil(total / CATALOG_PAGE_SIZE)) };
 }
 
-/** Опубликованные работы исполнителя — для публичной страницы и миниатюр в карточке отклика. */
-export async function listPublicPortfolio(executorId: string, limit = PUBLIC_PAGE_PORTFOLIO_LIMIT): Promise<PortfolioCard[]> {
-  const [rows, mode] = await Promise.all([
-    db.portfolioItem.findMany({ where: { ...VISIBLE_ITEM, executorId }, orderBy: ORDER, take: limit, select: CARD_SELECT }),
-    getExecutorIdentityMode(),
-  ]);
+/**
+ * Опубликованные работы исполнителя — для миниатюр в карточке отклика и страницы v1. `offPlatformOnly` — только работы
+ * без сделки («Работы вне площадки» страницы v2).
+ */
+export async function listPublicPortfolio(executorId: string, limit = PUBLIC_PAGE_PORTFOLIO_LIMIT, opts: { offPlatformOnly?: boolean } = {}): Promise<PortfolioCard[]> {
+  const where: Prisma.PortfolioItemWhereInput = { ...VISIBLE_ITEM, executorId, ...(opts.offPlatformOnly ? { dealId: null } : {}) };
+  const [rows, mode] = await Promise.all([db.portfolioItem.findMany({ where, orderBy: ORDER, take: limit, select: CARD_SELECT }), getExecutorIdentityMode()]);
   return Promise.all(rows.map((row) => toCard(row, mode)));
 }
 
-/** Отзывы об исполнителе: оценка, текст без контактов, дата. Автор не показывается. */
+/** Отзывы об исполнителе: оценка, текст без контактов, дата. Автор не показывается. Страница v1 и карточка отклика. */
 export async function listExecutorReviews(executorId: string, limit = REVIEWS_LIMIT): Promise<PublicReview[]> {
   const [rows, profile] = await Promise.all([
     db.review.findMany({
@@ -116,7 +118,10 @@ export async function listExecutorReviews(executorId: string, limit = REVIEWS_LI
   return rows.map((r) => ({ ...r, text: profile ? maskPublicText(r.text, profile).text : r.text }));
 }
 
-/** Публичная страница /executors/[publicNumber]. null — исполнителя нет или он не подтверждён. */
+/**
+ * Публичная страница /executors/[publicNumber]: представление, «О себе», «Лучшие работы» и «Работы вне площадки».
+ * null — исполнителя нет или он не подтверждён.
+ */
 export async function getPublicExecutorPage(publicNumber: number): Promise<PublicExecutorPage | null> {
   const row = await db.executorProfile.findFirst({
     where: { publicNumber, ...VISIBLE_EXECUTOR },
@@ -124,9 +129,14 @@ export async function getPublicExecutorPage(publicNumber: number): Promise<Publi
   });
   if (!row) return null;
   const { about, legalForm, signerFullName, user, ...publicRow } = row;
-  const [portfolio, reviews, mode] = await Promise.all([listPublicPortfolio(row.id), listExecutorReviews(row.id), getExecutorIdentityMode()]);
+  const [offPlatform, highlights, mode] = await Promise.all([
+    listPublicPortfolio(row.id, PUBLIC_PAGE_PORTFOLIO_LIMIT, { offPlatformOnly: true }),
+    publicHighlights(row.id),
+    getExecutorIdentityMode(),
+  ]);
   // «О себе» сохраняется уже очищенным, но данные сида и старые записи могли обойти форму — чистим и при показе.
-  return { view: toPublicView(publicRow, mode), about: maskPublicText(about, { legalForm, legalName: row.legalName, signerFullName, user }).text, portfolio, reviews };
+  const cleanAbout = maskPublicText(about, { legalForm, legalName: row.legalName, signerFullName, user }).text;
+  return { view: toPublicView(publicRow, mode), about: cleanAbout, highlights, offPlatform };
 }
 
 export type PortfolioForRequest = PortfolioCard & { furnitureTypeId: string; executor: PublicExecutorView };
