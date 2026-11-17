@@ -1,3 +1,4 @@
+import { Code, ConnectError } from "@connectrpc/connect";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FilePurpose } from "@/generated/prisma/enums";
@@ -259,7 +260,29 @@ describe("отзывы согласий /v2/operator/consents", () => {
       return getDealShowcase(f.client, f.dealId);
     };
     expect(await decide(await dealAt("SIGNED"), "REFUSED")).toMatchObject({ photos: true, price: true, address: "CITY", signature: "NAME" });
-    expect(await decide(await dealAt("SIGNED"), "COMPLETED")).toMatchObject({ photos: false, price: false, address: "NONE", signature: "INITIAL" });
+    const completed = await dealAt("SIGNED");
+    expect(await decide(completed, "COMPLETED")).toMatchObject({ photos: false, price: false, address: "NONE", signature: "INITIAL" });
+    // Закрыто ровно один раз: одна запись системного закрытия.
+    expect(await db.auditEvent.count({ where: { entityId: completed.dealId, action: "deal.showcase.changed", actorRole: "SYSTEM" } })).toBe(1);
+  });
+
+  it("identity не принял «исполнить» — показ сделок покупателя всё равно закрыт, заявка осталась в очереди", async () => {
+    const operator = await makeOperator();
+    const f = await dealAt("SIGNED");
+    await db.deal.update({ where: { id: f.dealId }, data: { status: "SPLIT_PAYOUT" } });
+    await setDealShowcase(f.client, { dealId: f.dealId, photos: true, price: true, address: "CITY", signature: "NAME" });
+    await as(f.client, () => revokePdConsent());
+    const card = ofType<{ revocationId: string }>(await as(operator, () => ConsentsPage()), RevocationDecision)[0];
+
+    const down = vi.spyOn(identityFake.client, "resolveConsentRevocation").mockRejectedValue(new ConnectError("unavailable", Code.Unavailable));
+    expect(await as(operator, () => resolveRevocationAction({ revocationId: card!.revocationId, decision: "COMPLETED" }))).toMatchObject({ ok: false, code: "UNAVAILABLE" });
+    down.mockRestore();
+
+    expect(await getDealShowcase(f.client, f.dealId)).toMatchObject({ photos: false, price: false, address: "NONE", signature: "INITIAL" });
+    expect(ofType(await as(operator, () => ConsentsPage()), RevocationDecision)).toHaveLength(1);
+    // Повтор решения проходит; показ уже закрыт — второго закрытия нет.
+    expect(await as(operator, () => resolveRevocationAction({ revocationId: card!.revocationId, decision: "COMPLETED" }))).toEqual({ ok: true, data: undefined });
+    expect(await db.auditEvent.count({ where: { entityId: f.dealId, action: "deal.showcase.changed", actorRole: "SYSTEM" } })).toBe(1);
   });
 
   it("срок ответа истёк — пометка у карточки и число над очередью", async () => {
