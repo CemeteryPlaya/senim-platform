@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { ActionDock, Button, Card, Checkbox, List, ListItem, Narrow, PhotoSlot, Section, Stack, StatusChip, toast } from "@/kit";
 import type { Device } from "@/platform/device";
@@ -15,6 +15,7 @@ import { initialSelected, isFull, moveRef, refKey, toggleRef, type BestRef } fro
 
 const t = ru.app.masterPortfolio.best;
 const FORM = "best-form";
+const LIMIT_ID = "best-limit";
 
 export type BestCandidate = {
   kind: "work" | "deal";
@@ -57,6 +58,30 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
       router.replace(backHref);
     },
   });
+  // После сдвига: фокус на ту же стрелку перемещённой строки (на краю она отключена — на соседнюю) и объявление места.
+  const moved = useRef<{ key: string; dir: "up" | "down" } | null>(null);
+  const [announce, setAnnounce] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const m = moved.current;
+    if (m === null) return;
+    moved.current = null;
+    const row = listRef.current?.querySelector<HTMLElement>(`[data-best-row="${CSS.escape(m.key)}"]`);
+    const same = row?.querySelector<HTMLButtonElement>(`[data-dir="${m.dir}"]`);
+    const other = row?.querySelector<HTMLButtonElement>(`[data-dir="${m.dir === "up" ? "down" : "up"}"]`);
+    (same?.disabled ? other : same)?.focus();
+    const place = selected.findIndex((r) => refKey(r) === m.key);
+    const c = byKey.get(m.key);
+    if (place >= 0 && c) setAnnounce(t.moved(c.title, place + 1, selected.length));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- реагируем только на смену порядка
+  }, [selected]);
+  const shift = (index: number, dir: "up" | "down") => {
+    const ref = selected[index];
+    if (!ref) return;
+    moved.current = { key: refKey(ref), dir };
+    setSelected((s) => moveRef(s, index, dir));
+  };
+
   const dirty = selected.map(refKey).join(",") !== initial;
   const full = isFull(selected, max);
   const chosen = new Set(selected.map(refKey));
@@ -77,6 +102,7 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
           aria-label={t.pick(c.title)}
           checked={chosen.has(refKey(c))}
           disabled={!chosen.has(refKey(c)) && full}
+          {...(!chosen.has(refKey(c)) && full ? { "aria-describedby": LIMIT_ID } : {})}
           onChange={() => setSelected((s) => toggleRef(s, { kind: c.kind, id: c.id }, max))}
         />
         <StatusChip tone="neutral">{t.kind[c.kind]}</StatusChip>
@@ -90,7 +116,11 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
       <Stack gap="section">
         <form id={FORM} method="post" onSubmit={submit} noValidate>
           <Stack gap="section">
+            <div ref={listRef} className="contents">
             <p className="text-sub text-muted">{t.counter(selected.length, max)}</p>
+            <p aria-live="polite" className="sr-only">
+              {announce}
+            </p>
             {selected.length > 0 && (
               <Section title={t.chosenTitle}>
                 <Card padded={false}>
@@ -100,17 +130,19 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
                       if (!c) return null;
                       return (
                         <ListItem key={refKey(ref)}>
+                          <div data-best-row={refKey(ref)}>
                           {mark(
                             c,
                             <div className="flex shrink-0 gap-2">
-                              <Button type="button" variant="secondary" size="sm" aria-label={t.up(c.title)} disabled={index === 0} onClick={() => setSelected((s) => moveRef(s, index, "up"))}>
+                              <Button type="button" variant="secondary" size="sm" data-dir="up" aria-label={t.up(c.title)} disabled={index === 0} onClick={() => shift(index, "up")}>
                                 <ArrowUp aria-hidden className="size-5" />
                               </Button>
-                              <Button type="button" variant="secondary" size="sm" aria-label={t.down(c.title)} disabled={index === selected.length - 1} onClick={() => setSelected((s) => moveRef(s, index, "down"))}>
+                              <Button type="button" variant="secondary" size="sm" data-dir="down" aria-label={t.down(c.title)} disabled={index === selected.length - 1} onClick={() => shift(index, "down")}>
                                 <ArrowDown aria-hidden className="size-5" />
                               </Button>
                             </div>,
                           )}
+                          </div>
                         </ListItem>
                       );
                     })}
@@ -127,10 +159,15 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
                     ))}
                   </List>
                 </Card>
-                {full && <p className="text-sub text-muted">{t.limit(max)}</p>}
+                {full && (
+                  <p id={LIMIT_ID} className="text-sub text-muted">
+                    {t.limit(max)}
+                  </p>
+                )}
               </Section>
             )}
             {hiddenDeals > 0 && <p className="text-sub text-muted">{t.hiddenDeals(hiddenDeals)}</p>}
+            </div>
             <FormError error={form.error} />
           </Stack>
         </form>

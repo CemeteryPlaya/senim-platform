@@ -3,7 +3,7 @@ import { db } from "@/platform/db";
 import { makeClient, makeExecutor } from "../../../test/factories";
 import { makeDealWithReport, makePortfolioItem } from "../../../test/factories/companies";
 import type { Executor } from "../../../test/factories/deal";
-import { HIGHLIGHTS_MAX, listHighlightCandidates, publicHighlights, setHighlights } from "./index";
+import { countHighlights, HIGHLIGHTS_MAX, listHighlightCandidates, publicHighlights, setHighlights } from "./index";
 
 /** Оконченная сделка мастера с офертой и фото сдачи; выбор покупателя «фото: да» по умолчанию. */
 async function endedDeal(executor: Executor, opts: { photos?: boolean | null; status?: "SPLIT_PAYOUT" | "CANCELLED" | "CREATED"; signed?: boolean } = {}) {
@@ -195,6 +195,15 @@ describe("лучшие работы: кандидаты мастера", () => {
         ["work", a.id, false, null],
       ].sort(),
     );
+  });
+
+  it("countHighlights — число выбранных; не мастер — FORBIDDEN", async () => {
+    const executor = await makeExecutor();
+    expect(await countHighlights(executor)).toBe(0);
+    const a = await makePortfolioItem(executor);
+    await setHighlights(executor, { items: [work(a.id)] });
+    expect(await countHighlights(executor)).toBe(1);
+    await expect(countHighlights(await makeClient())).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("не мастер — FORBIDDEN", async () => {

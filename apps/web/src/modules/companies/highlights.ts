@@ -132,6 +132,12 @@ async function dealCard(row: DealRow, mask: Mask): Promise<HighlightCard> {
 
 const ENDED_SHOWN = { status: { in: ENDED }, signedAt: { not: null }, showcase: { photos: true } } satisfies Prisma.DealWhereInput;
 
+/** Сколько работ и сделок мастер выбрал (для ссылки в портфолио; дешевле, чем список кандидатов). */
+export async function countHighlights(user: CurrentUser): Promise<number> {
+  const executorId = requireApprovedExecutor(user);
+  return db.executorHighlight.count({ where: { executorId } });
+}
+
 /** Витрина на публичной странице: мастер виден, порядок по position, закрытое покупателем и снятое с публикации — не показывается. */
 export async function publicHighlights(executorId: string): Promise<HighlightCard[]> {
   const executor = await db.executorProfile.findFirst({ where: { id: executorId, ...VISIBLE_EXECUTOR }, select: NAME_MASK_SELECT });

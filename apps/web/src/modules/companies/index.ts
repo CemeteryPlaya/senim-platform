@@ -110,6 +110,7 @@ export {
 } from "./chat";
 export type { ChatClosedReason } from "./chat-policy";
 export {
+  countHighlights,
   HIGHLIGHTS_MAX,
   listHighlightCandidates,
   publicHighlights,

@@ -123,8 +123,8 @@ export const masterPortfolio = {
     pick: (name: string) => `Выбрать: ${name}`,
     up: (name: string) => `Выше: ${name}`,
     down: (name: string) => `Ниже: ${name}`,
-    /** «Кухня теперь на 2 месте». */
-    moved: (name: string, place: number) => `${name}: место ${place}`,
+    /** Для диктора после перестановки: «Кухня: место 2 из 4». */
+    moved: (name: string, place: number, count: number) => `${name}: место ${place} из ${count}`,
     hiddenDeals: (n: number) => {
       const form = { one: "сделка не показана", few: "сделки не показаны", many: "сделок не показаны" }[pluralForm(n)];
       return `${n} ${form}: покупатель не разрешил показывать фото`;
@@ -139,7 +139,6 @@ export const masterPortfolio = {
       approvedOnly: "Лучшие работы выбирают после подтверждения профиля",
       tooMany: (max: number) => `Можно выбрать не больше ${max}`,
       changed: "Набор изменился: обновите страницу и выберите заново",
-      failed: "Не удалось сохранить. Попробуйте ещё раз",
     },
   },
 } as const;

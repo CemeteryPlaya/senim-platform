@@ -90,6 +90,10 @@ describe("экран «Лучшие работы»", () => {
     expect(boxes).toHaveLength(7);
     expect(boxes.filter((b) => /disabled/.test(b))).toHaveLength(1);
     expect(out).toContain(t.limit(HIGHLIGHTS_MAX));
+    // Подсказка связана с недоступной отметкой; область для диктора после перестановки есть и пока пуста.
+    expect(out).toContain('id="best-limit"');
+    expect(boxes.find((b) => /disabled/.test(b))).toContain('aria-describedby="best-limit"');
+    expect(out).toContain('aria-live="polite"');
   });
 
   it("пусто — обучающий экран без формы", async () => {
@@ -134,6 +138,13 @@ describe("действие «Сохранить»", () => {
 });
 
 describe("ссылка на странице портфолио", () => {
+  it("видна одобренному мастеру и без работ: N = 0", async () => {
+    await master();
+    const out = await render(PortfolioPage());
+    expect(out).toContain(ru.app.masterPortfolio.list.best(0, HIGHLIGHTS_MAX));
+    expect(out).toContain('href="/v2/executor/portfolio/best"');
+  });
+
   it("«Лучшие работы: N из 6» ведёт на экран выбора; мастеру на проверке ссылки нет", async () => {
     const executor = await master();
     const a = await makePortfolioItem(executor);
