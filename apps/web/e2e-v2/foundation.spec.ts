@@ -366,7 +366,9 @@ test.describe("ConfirmDialog на витрине", () => {
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
-    const nextOverlay = page.locator("[data-nextjs-dialog], [data-issues]");
+    // Плашка «Security Insight» (Next 16.4: версия Next с известной уязвимостью) живёт в том же оверлее, но это не ошибка
+    // страницы — её отбрасываем по тексту «Insight»; ошибка (`Promise.reject`, исключение) по-прежнему даёт оверлей.
+    const nextOverlay = page.locator("[data-nextjs-dialog], [data-issues]").filter({ hasNotText: /Insight/ });
     await page.goto(UI_KIT);
     await button(page, overlays.confirmThrow).click();
     const dialog = page.getByRole("dialog", { name: overlays.confirmThrowTitle });
