@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DISTRICTS, SUGGESTED_CITIES } from "./cities";
+import { DISTRICTS, districtsOf, SUGGESTED_CITIES } from "./cities";
 import { mockGeocoder } from "./geocoder";
 
 describe("города-подсказки", () => {
@@ -16,5 +16,12 @@ describe("города-подсказки", () => {
     expect(DISTRICTS["Астана"]).toEqual(["Алматы", "Байконыр", "Есиль", "Нура", "Сарыарка"]);
     expect(DISTRICTS["Алматы"]).toHaveLength(8);
     expect(DISTRICTS["Шымкент"]).toBeUndefined();
+  });
+
+  it("districtsOf: города без списка и имена из прототипа — null", () => {
+    expect(districtsOf("constructor")).toBeNull();
+    expect(districtsOf("__proto__")).toBeNull();
+    expect(districtsOf("toString")).toBeNull();
+    expect(districtsOf(" Астана ")).toHaveLength(5);
   });
 });

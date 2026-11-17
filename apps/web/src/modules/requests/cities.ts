@@ -14,3 +14,9 @@ export const DISTRICTS: Readonly<Record<string, readonly string[]>> = {
   Астана: ["Алматы", "Байконыр", "Есиль", "Нура", "Сарыарка"],
   Алматы: ["Алатауский", "Алмалинский", "Ауэзовский", "Бостандыкский", "Жетысуский", "Медеуский", "Наурызбайский", "Турксибский"],
 };
+
+/** Районы города или `null`, если списка нет. Только собственные ключи: «constructor» и «__proto__» — не города. */
+export function districtsOf(city: string): readonly string[] | null {
+  const name = city.trim();
+  return Object.hasOwn(DISTRICTS, name) ? (DISTRICTS[name] ?? null) : null;
+}

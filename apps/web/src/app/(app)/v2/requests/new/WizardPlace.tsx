@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { ru } from "@/i18n/ru";
 import { Button, CityField, Explain, HiddenField, Select, Stack, TextField } from "@/kit";
-import { DISTRICTS, LIMITS, SUGGESTED_CITIES, type GeoPoint } from "@/modules/requests/client";
+import { districtsOf, LIMITS, SUGGESTED_CITIES, type GeoPoint } from "@/modules/requests/client";
 import type { Device } from "@/platform/device";
 import { outcomeOf } from "../../../_shell/form";
 import { locateAddressAction } from "./actions";
@@ -119,9 +119,9 @@ export function WizardPlace({ base, device, initial }: { base: WizardBase; devic
   // Функциональное обновление: точка от геокодера приходит позже и не должна стереть то, что ввели за это время.
   const set = (patch: Partial<PlaceInitial>) => setPlace((p) => ({ ...p, ...patch }));
   const e = form.errors;
-  const districts = DISTRICTS[place.city.trim()];
+  const districts = districtsOf(place.city);
   // Район другого города не подходит: при смене списка районов выбор сбрасывается.
-  const changeCity = (city: string) => set({ city, ...(DISTRICTS[city.trim()] === districts ? {} : { district: "" }) });
+  const changeCity = (city: string) => set({ city, ...(districtsOf(city) === districts ? {} : { district: "" }) });
   // Сегодня по Астане: раньше желаемую дату выбрать нельзя; быстрые сроки считаются от этого дня.
   const [today] = useState(() => todayAstana());
   const quick = [
