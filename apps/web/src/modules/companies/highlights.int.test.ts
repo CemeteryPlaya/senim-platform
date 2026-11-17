@@ -179,10 +179,16 @@ describe("лучшие работы: кандидаты мастера", () => {
     await makePortfolioItem(other);
     const ok = await endedDeal(executor);
     await endedDeal(executor, { photos: false });
+    await endedDeal(executor, { photos: null });
+    await endedDeal(executor, { status: "CANCELLED", signed: false, photos: false });
+    await endedDeal(other, { photos: false });
     await endedDeal(other);
+    await endedDeal(executor, { status: "CREATED", photos: null });
     await setHighlights(executor, { items: [deal(ok.dealId)] });
 
-    const list = await listHighlightCandidates(executor);
+    const { items: list, hiddenDeals } = await listHighlightCandidates(executor);
+    // Сделки без разрешения фото (с выбором «нет» и без выбора) в кандидатах не показаны, но посчитаны; чужая, без оферты и не оконченная — нет.
+    expect(hiddenDeals).toBe(2);
     expect(list.map((c) => [c.kind, c.id, c.selected, c.position]).sort()).toEqual(
       [
         ["deal", ok.dealId, true, 0],

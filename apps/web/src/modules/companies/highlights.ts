@@ -156,18 +156,22 @@ export async function publicHighlights(executorId: string): Promise<HighlightCar
   return cards.filter((c): c is HighlightCard => c !== null);
 }
 
-/** Кандидаты мастера: свои опубликованные работы без сделки и оконченные сделки с «фото: да», с пометкой выбора. */
-export async function listHighlightCandidates(user: CurrentUser): Promise<HighlightCandidate[]> {
+/**
+ * Кандидаты мастера: свои опубликованные работы без сделки и оконченные сделки с «фото: да», с пометкой выбора.
+ * `hiddenDeals` — свои оконченные сделки с офертой, где покупатель не разрешил показ фото (в кандидатах их нет).
+ */
+export async function listHighlightCandidates(user: CurrentUser): Promise<{ items: HighlightCandidate[]; hiddenDeals: number }> {
   const executorId = requireApprovedExecutor(user);
-  const [executor, works, deals, chosen] = await Promise.all([
+  const [executor, works, deals, chosen, hiddenDeals] = await Promise.all([
     db.executorProfile.findUniqueOrThrow({ where: { id: executorId }, select: NAME_MASK_SELECT }),
     db.portfolioItem.findMany({ where: { executorId, published: true, dealId: null }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: WORK_SELECT }),
     db.deal.findMany({ where: { executorId, ...ENDED_SHOWN }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], select: DEAL_SELECT }),
     db.executorHighlight.findMany({ where: { executorId }, select: { portfolioItemId: true, dealId: true, position: true } }),
+    db.deal.count({ where: { executorId, status: { in: ENDED }, signedAt: { not: null }, NOT: { showcase: { photos: true } } } }),
   ]);
   const mask: Mask = (text) => maskPublicText(text, executor).text;
   const position = new Map(chosen.map((c) => [c.dealId ?? c.portfolioItemId ?? "", c.position]));
   const mark = (card: HighlightCard): HighlightCandidate => ({ ...card, selected: position.has(card.id), position: position.get(card.id) ?? null });
   const cards = await Promise.all([...works.map((w) => workCard(w, mask)), ...deals.map((d) => dealCard(d, mask))]);
-  return cards.map(mark);
+  return { items: cards.map(mark), hiddenDeals };
 }

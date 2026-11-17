@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { ActionDock, ButtonLink, Columns, EmptyState, PageTitle, Stack } from "@/kit";
-import { listOwnPortfolio } from "@/modules/companies";
+import { ActionDock, ButtonLink, Columns, EmptyState, List, ListRow, PageTitle, Stack, Card } from "@/kit";
+import { HIGHLIGHTS_MAX, listHighlightCandidates, listOwnPortfolio } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { requireMaster } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
@@ -38,6 +38,15 @@ export default async function PortfolioPage() {
     );
   }
   const view = workListView(read.data);
+  // «Лучшие работы» выбирает одобренный мастер (так отвечает и модуль); на проверке ссылки нет.
+  const best =
+    status === "approved" ? (
+      <Card padded={false}>
+        <List>
+          <ListRow label={t.best((await listHighlightCandidates(user)).items.filter((c) => c.selected).length, HIGHLIGHTS_MAX)} href={to("/executor/portfolio/best")} />
+        </List>
+      </Card>
+    ) : null;
   const add = (
     <ActionDock>
       <ButtonLink href={to("/executor/portfolio/new")}>{t.add}</ButtonLink>
@@ -48,6 +57,7 @@ export default async function PortfolioPage() {
     <Stack gap="section">
       {title}
       {device === "desktop" && add}
+      {best}
       <Stack>
         <p className="text-sub text-muted">{view.countText}</p>
         {view.media === "slot" ? (
