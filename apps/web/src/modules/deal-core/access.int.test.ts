@@ -117,6 +117,8 @@ describe("«Ход работ»", () => {
 describe("отзыв (флаг reviews)", () => {
   it("флаг выключен — недоступно; включён — только покупатель и только после выплаты", async () => {
     const f = await dealAt("IN_PROGRESS");
+    process.env.FEATURE_REVIEWS = "false";
+    resetEnvCache();
     await expect(leaveReview(f.client, { dealId: f.dealId, rating: 5 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     process.env.FEATURE_REVIEWS = "true";
     resetEnvCache();

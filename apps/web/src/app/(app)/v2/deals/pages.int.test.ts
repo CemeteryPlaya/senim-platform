@@ -24,6 +24,9 @@ const now = t.card.now;
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
   h.device = "mobile";
+  // Отзывы включены по умолчанию; «что сейчас» по состояниям проверяется без них, тест отзыва включает их сам.
+  process.env.FEATURE_REVIEWS = "false";
+  resetEnvCache();
 });
 
 afterEach(() => {
@@ -213,6 +216,8 @@ describe("карточка сделки покупателя: «что сейч�
     const f = await dealAt("READY", { client });
     await signAct(f.dealId);
     await processDealMoney(f.dealId);
+    process.env.FEATURE_REVIEWS = "false";
+    resetEnvCache();
     await signInAs(client);
     const done = await card(f.dealId);
     expect(h2s(done)).toContain(now.done.title);

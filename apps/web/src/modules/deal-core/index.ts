@@ -27,6 +27,7 @@ export { onMoneyChanged, onMoneySettled, processDealMoney } from "./money";
 
 // Чтения для экранов и документов
 export { dealDocumentData, dealNumbersOf, dealPartyOf, dealRefsOf, getDealView, latestReportPhoto, type ReportPhoto, listDeals, type DealDocumentData, type DealListItem, type DealView } from "./queries";
+export { ENDED_DEAL, isEndedSigned } from "./ended";
 export { nextStep, type NextAction, type NextStep } from "./next-step";
 export { nextStepsOf } from "./next-steps";
 export { daysLeft, plannedReadyAt } from "./schedule";

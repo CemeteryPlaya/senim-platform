@@ -11,6 +11,7 @@ import { checkGps, type GpsCheck } from "@/platform/geo";
 import { parseInput } from "@/platform/validation";
 import type { CreateDeal, OnDocumentSigned } from "./contracts";
 import { notifyBoth, notifyParty, otherParty, partyText, SYSTEM_ACTOR } from "./effects";
+import { isEndedSigned } from "./ended";
 import { processDealMoney, requestHold, requestPayout, requestRefund } from "./money";
 import { dealParties, requireBankConsents } from "./bank-consent";
 import { applyPortfolioConsent, attachOwnFiles, documents, recalculateRating, requests } from "./ports";
@@ -284,11 +285,11 @@ export async function cancelDeal(user: CurrentUser, raw: { dealId: string; reaso
 
 // ─── отзыв (флаг reviews) ────────────────────────────────────────────────────
 
-/** Отзыв оставляет покупатель этой сделки (не сам себе) и только после выплаты. */
+/** Отзыв оставляет покупатель этой сделки (не сам себе) и только после окончания сделки с офертой (успех, отмена, возврат). */
 function assertCanReview(user: CurrentUser, deal: DealState): void {
   if (requireRole(user, deal) !== "CLIENT") fail.forbidden(e.onlyClientReviews);
   if (deal.executor.userId === user.id) fail.forbidden(e.selfReview);
-  if (deal.status !== "SPLIT_PAYOUT") fail.conflict(e.reviewOnlyCompleted);
+  if (!isEndedSigned(deal)) fail.conflict(e.reviewOnlyCompleted);
 }
 
 export async function leaveReview(user: CurrentUser, raw: { dealId: string; rating: number; text?: string; portfolioConsent?: boolean }): Promise<void> {

@@ -5,6 +5,12 @@ const bool = z
   .default("false")
   .transform((v) => v === "true" || v === "1");
 
+/** Как `bool`, но без переменной (и с пустой) — включено; выключает только `false`/`0`. */
+const boolOn = z
+  .enum(["true", "false", "1", "0", ""])
+  .default("true")
+  .transform((v) => v !== "false" && v !== "0");
+
 const optional = z
   .string()
   .optional()
@@ -101,8 +107,9 @@ const base = z
     // Флаги Фазы 1 (platform/features.ts): по умолчанию всё вне Фазы 1 выключено. ИИ — AI_ENABLED.
     FEATURE_PRE_CONTRACT_FLOWS: bool,
     FEATURE_MATERIALS_CALCULATOR: bool,
-    FEATURE_REVIEWS: bool,
-    FEATURE_DEAL_PORTFOLIO: bool,
+    // Отзывы и портфолио сделок — в текущей фазе по решению владельца (17.11.2026, ADR-009): включены по умолчанию.
+    FEATURE_REVIEWS: boolOn,
+    FEATURE_DEAL_PORTFOLIO: boolOn,
     FEATURE_INSPIRATION: bool,
     FEATURE_PUBLIC_SHOWCASE: bool,
     FEATURE_EXECUTOR_HAND_SIGNS_ACT: bool,

@@ -19,7 +19,7 @@ const t = ru.app.deal.review;
 
 function reviews(on: boolean) {
   if (on) process.env.FEATURE_REVIEWS = "true";
-  else delete process.env.FEATURE_REVIEWS;
+  else process.env.FEATURE_REVIEWS = "false";
   resetEnvCache();
 }
 
@@ -27,7 +27,10 @@ beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
   reviews(true);
 });
-afterEach(() => reviews(false));
+afterEach(() => {
+  delete process.env.FEATURE_REVIEWS;
+  resetEnvCache();
+});
 
 async function buyer(name = "Сапаров Ерлан Ержанович") {
   const client = await makeClient(name);

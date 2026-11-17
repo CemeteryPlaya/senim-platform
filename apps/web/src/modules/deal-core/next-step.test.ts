@@ -51,4 +51,14 @@ describe("«что дальше» — одно главное действие",
     expect(step({ status: "CANCELLED" })).toEqual({ action: "cancelled", mine: false });
     expect(step({ status: "REFUNDED" })).toEqual({ action: "refunded", mine: false });
   });
+
+  it("отмена и возврат после оферты: покупателю — отзыв, мастеру и без оферты — нет", () => {
+    for (const status of ["CANCELLED", "REFUNDED"] as const) {
+      const after = { cancelled: "cancelled", refunded: "refunded" }[status.toLowerCase() as "cancelled" | "refunded"];
+      expect(step({ status, signed: true, canReview: true })).toEqual({ action: "leaveReview", mine: true });
+      expect(step({ status, signed: true, canReview: true, viewer: "EXECUTOR" })).toEqual({ action: after, mine: false });
+      expect(step({ status, signed: true, canReview: false })).toEqual({ action: after, mine: false });
+      expect(step({ status, signed: false, canReview: true })).toEqual({ action: after, mine: false });
+    }
+  });
 });

@@ -71,8 +71,8 @@ const ACTIVE: Record<"PAID_HOLD" | "IN_PROGRESS" | "READY", (i: NextStepInput, p
 };
 
 const FINAL: Partial<Record<DealStatus, (i: NextStepInput) => NextStep>> = {
-  CANCELLED: () => wait("cancelled"),
-  REFUNDED: () => wait("refunded"),
+  CANCELLED: (i) => (i.viewer === "CLIENT" && i.canReview && i.signed ? mine("leaveReview") : wait("cancelled")),
+  REFUNDED: (i) => (i.viewer === "CLIENT" && i.canReview && i.signed ? mine("leaveReview") : wait("refunded")),
   SPLIT_PAYOUT: (i) => (i.viewer === "CLIENT" && i.canReview ? mine("leaveReview") : wait("done")),
 };
 

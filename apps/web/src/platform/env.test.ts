@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseEnv } from "./env";
+import { featuresFrom } from "./features";
 
 const KEY = Buffer.alloc(32, 1).toString("base64");
 
@@ -36,6 +37,26 @@ function problems(source: Record<string, string>): string {
     return e instanceof Error ? e.message : String(e);
   }
 }
+
+describe("env: флаги отзывов и портфолио сделок", () => {
+  const dev = { DATABASE_URL: "postgresql://x" };
+
+  it("без переменных отзывы и портфолио сделок включены", () => {
+    const f = featuresFrom(parseEnv(dev));
+    expect(f.reviews).toBe(true);
+    expect(f.dealPortfolio).toBe(true);
+  });
+
+  it("FEATURE_REVIEWS=false и FEATURE_DEAL_PORTFOLIO=false выключают", () => {
+    const f = featuresFrom(parseEnv({ ...dev, FEATURE_REVIEWS: "false", FEATURE_DEAL_PORTFOLIO: "0" }));
+    expect(f.reviews).toBe(false);
+    expect(f.dealPortfolio).toBe(false);
+  });
+
+  it("остальные флаги вне Фазы 1 по-прежнему выключены", () => {
+    expect(featuresFrom(parseEnv(dev)).inspiration).toBe(false);
+  });
+});
 
 describe("env: production", () => {
   it("рабочее окружение без моков проходит", () => {
