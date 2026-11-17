@@ -3,33 +3,50 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Card, Narrow, NowNext, PageTitle, RadioCard, RadioGroup, Stack, TextArea, toast } from "@/kit";
+import { ActionDock, Button, Card, Narrow, NowNext, PageTitle, RadioCard, RadioGroup, Section, Stack, TextArea, toast } from "@/kit";
+import { useClientKey } from "../../../../_shell/client-key";
 import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
 import { LeaveGuard } from "../../../../_shell/LeaveGuard";
 import type { Device } from "@/platform/device";
+import { ShowcaseFields, type ShowcaseChoice } from "../showcase/_parts/ShowcaseFields";
 import { leaveReviewAction } from "./actions";
 
 const t = ru.app.deal.review;
 const FORM = "review-form";
 const RATINGS = [5, 4, 3, 2, 1] as const;
 
-type Props = { dealId: string; dealTitle: string; number: number; backHref: string; device: Device };
+type Props = {
+  dealId: string;
+  dealTitle: string;
+  number: number;
+  backHref: string;
+  /** Выбор «что видно в профиле мастера»: прежний выбор и доступные варианты адреса. */
+  showcase: { initial: ShowcaseChoice; addressOptions: readonly ShowcaseChoice["address"][] };
+  device: Device;
+};
 
 /**
  * Отзыв о мастере: оценка (радио 5…1 с подписью словами), необязательный текст, пояснение про скрытые имя и контакты.
- * «Оставить отзыв» — главное действие. Двойное нажатие даёт один отзыв (форма занята, модуль отвечает CONFLICT на повтор).
+ * Под оценкой — тот же выбор, что видно в профиле мастера; одна отправка пишет отзыв и выбор. «Оставить отзыв» — главное действие. Двойное нажатие даёт один отзыв (форма занята, модуль отвечает CONFLICT на повтор).
  * После успеха — тост и карточка сделки.
  */
-export function ReviewForm({ dealId, dealTitle, number, backHref, device }: Props) {
+export function ReviewForm({ dealId, dealTitle, number, backHref, showcase, device }: Props) {
   const router = useRouter();
   const [rating, setRating] = useState<number | null>(null);
   const [text, setText] = useState("");
+  const [choice, setChoice] = useState<ShowcaseChoice>(showcase.initial);
   const [local, setLocal] = useState<string | undefined>();
   const [done, setDone] = useState(false);
+  // Ключ повтора: обрыв связи после записи отзыва и повторная отправка того же не дадут второго отзыва; правка — новая отправка.
+  const retry = useClientKey();
   const form = useActionForm(leaveReviewAction, {
-    toInput: () => ({ dealId, rating: rating ?? 0, text }),
+    toInput: () => {
+      const sent = { dealId, rating: rating ?? 0, text, showcase: choice };
+      return { ...sent, clientKey: retry.keyFor(sent) };
+    },
     onSuccess: () => {
+      retry.done();
       setDone(true);
       toast(t.sent);
       router.replace(backHref);
@@ -68,7 +85,15 @@ export function ReviewForm({ dealId, dealTitle, number, backHref, device }: Prop
             </Stack>
           </form>
         </Card>
-        <LeaveGuard dirty={!done && (rating !== null || text.trim() !== "")} device={device} />
+        <Section title={ru.app.deal.showcase.title}>
+          <Card>
+            <Stack gap="section">
+              <p className="text-sub text-muted">{ru.app.deal.showcase.lead}</p>
+              <ShowcaseFields value={choice} onChange={setChoice} addressOptions={showcase.addressOptions} />
+            </Stack>
+          </Card>
+        </Section>
+        <LeaveGuard dirty={!done && (rating !== null || text.trim() !== "" || JSON.stringify(choice) !== JSON.stringify(showcase.initial))} device={device} />
         <ActionDock>
           <Button type="submit" form={FORM} disabled={done} pending={form.pending}>
             {t.submit}

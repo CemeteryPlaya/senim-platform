@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
+import { getDealShowcase } from "@/modules/deal-core";
 import { getDevice } from "@/platform/device";
 import { pageHref } from "../../../../_shell/auth";
 import { dealHrefs } from "../_parts/deal-card";
@@ -19,8 +20,18 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<str
 export default async function ReviewPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
-  const { deal } = await buyerDeal(pageHref(`/deals/${encodeURIComponent(id)}/review`, sp), id);
+  const { user, deal } = await buyerDeal(pageHref(`/deals/${encodeURIComponent(id)}/review`, sp), id);
   const hrefs = dealHrefs(deal.id);
   if (deal.next.action !== "leaveReview" || !deal.next.mine) redirect(hrefs.card);
-  return <ReviewForm dealId={deal.id} dealTitle={deal.title} number={deal.number} backHref={hrefs.card} device={await getDevice()} />;
+  const showcase = await getDealShowcase(user, deal.id);
+  return (
+    <ReviewForm
+      dealId={deal.id}
+      dealTitle={deal.title}
+      number={deal.number}
+      backHref={hrefs.card}
+      showcase={{ initial: { photos: showcase.photos, price: showcase.price, address: showcase.address, signature: showcase.signature }, addressOptions: showcase.addressOptions }}
+      device={await getDevice()}
+    />
+  );
 }

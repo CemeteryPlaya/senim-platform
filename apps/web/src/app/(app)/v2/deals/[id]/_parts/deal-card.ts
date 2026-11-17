@@ -32,6 +32,7 @@ export const dealHrefs = (id: string) => ({
   ready: to(`${dealPath(id)}/ready`),
   dispute: to(`${dealPath(id)}/dispute`),
   review: to(`${dealPath(id)}/review`),
+  showcase: to(`${dealPath(id)}/showcase`),
   money: to(`${dealPath(id)}/money`),
   history: to(`${dealPath(id)}?history=all#history`),
 });
@@ -670,4 +671,10 @@ export function historyView(
   }
   const fresh = shown.reverse();
   return { items: opts.all ? fresh : fresh.slice(0, opts.limit), more: !opts.all && fresh.length > opts.limit };
+}
+
+/** Строка «Показ в профиле мастера: …» с выбором покупателя (`answered` — выбирал ли он) и ссылкой «Изменить». */
+export function showcaseLine(dealId: string, view: { answered: boolean; photos: boolean; price: boolean; address: string; signature: string }): { text: string; href: string } {
+  const s = ru.app.deal.showcase;
+  return { text: s.line(view.answered ? s.summary.of(view) : s.summary.unanswered), href: dealHrefs(dealId).showcase };
 }

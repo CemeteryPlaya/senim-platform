@@ -549,6 +549,38 @@ export const deal = {
     errors: { rating: "Выберите оценку" },
   },
 
+  /** Выбор покупателя: что из оконченной сделки видно в профиле мастера (`/v2/deals/<id>/showcase` и под оценкой отзыва). */
+  showcase: {
+    metaTitle: "Показ в профиле мастера",
+    title: "Показать сделку в профиле мастера?",
+    lead: "Так будущие покупатели увидят, как мастер работает. Улицу и номер дома мы не показываем никогда. Контакты тоже скрыты.",
+    /** Редакция текста вопроса: записывается с выбором (совпадает с SHOWCASE_TEXT_VERSION модуля). */
+    version: "2026-11-18",
+    photos: "Фото из отчёта сдачи",
+    price: "Стоимость сделки",
+    addressLegend: "Адрес",
+    address: { NONE: "Не показывать", CITY: "Город", DISTRICT: "Город и район", COMPLEX: "Город, район и ЖК" } as Readonly<Record<string, string>>,
+    signatureLegend: "Как подписать отзыв",
+    signature: { NAME: "Имя", INITIAL: "Первая буква имени" } as Readonly<Record<string, string>>,
+    submit: "Сохранить",
+    saved: "Сохранили ваш выбор",
+    lineLabel: "Показ в профиле мастера",
+    line: (summary: string) => `Показ в профиле мастера: ${summary}`,
+    change: "Изменить",
+    summary: {
+      unanswered: "вы ещё не выбирали",
+      of: (c: { photos: boolean; price: boolean; address: string; signature: string }) => {
+        const shown = [
+          ...(c.photos ? ["фото"] : []),
+          ...(c.price ? ["стоимость"] : []),
+          ...(c.address === "NONE" ? [] : [(({ CITY: "город", DISTRICT: "город и район", COMPLEX: "город, район и ЖК" }) as Readonly<Record<string, string>>)[c.address] ?? ""]),
+        ];
+        const what = shown.length === 0 ? "ничего, кроме отзыва" : shown.join(", ");
+        return `${what}; подпись — ${c.signature === "NAME" ? "имя" : "первая буква имени"}`;
+      },
+    },
+  },
+
   /** Подпись оферты и акта приёмки (`/v2/deals/<id>/sign/<docId>`): один экран, вид документа — из данных модуля. */
   sign: {
     metaTitle: "Подпись документа",

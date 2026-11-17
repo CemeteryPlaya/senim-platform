@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { needsPosition } from "@/features/deal-view/facts";
 import { ru } from "@/i18n/ru";
 import { dealContacts } from "@/modules/companies";
-import { bankConsentState, type DealView } from "@/modules/deal-core";
+import { bankConsentState, getDealShowcase, isEndedSigned, type DealView } from "@/modules/deal-core";
 import { readDealDocuments } from "@/modules/documents";
 import type { CurrentUser } from "@/modules/identity";
 import { getIncomingRequest } from "@/modules/requests";
@@ -25,6 +25,7 @@ import {
   orderRows,
   reportsView,
   reviewRows,
+  showcaseLine,
 } from "../_parts/deal-card";
 import { DealCardView, type CardView } from "../_parts/DealCardView";
 import { partyDealOnce } from "./party-deal-once";
@@ -66,7 +67,7 @@ export default async function DealPage({ params, searchParams }: Props) {
   const user = await requireV2User(pageHref(`/deals/${encodeURIComponent(id)}`, sp));
   // Сделку уже прочитали ворота (layout.tsx) — то же чтение из `cache`, второго запроса нет.
   const { deal, side } = await partyDealOnce(user, id);
-  const [documents, contacts, bank, place, device] = await Promise.all([
+  const [documents, contacts, bank, place, showcase, device] = await Promise.all([
     readDealDocuments(user, deal.id),
     dealContacts(user, deal.id),
     // Отметки «Передача данных банку» есть только до оплаты. Сбой чтения не роняет карточку: кнопка оплаты остаётся
@@ -78,9 +79,16 @@ export default async function DealPage({ params, searchParams }: Props) {
         })
       : Promise.resolve(null),
     side === "EXECUTOR" ? masterAddress(user, deal) : Promise.resolve({ address: null, location: null }),
+    // Выбор показа — только покупателю оконченной сделки с офертой; сбой чтения не роняет карточку.
+    side === "CLIENT" && isEndedSigned({ status: deal.status, signedAt: deal.dates.signedAt })
+      ? getDealShowcase(user, deal.id).catch((error: unknown) => {
+          logger.warn("deal showcase failed", { dealId: deal.id, error });
+          return null;
+        })
+      : Promise.resolve(null),
     getDevice(),
   ]);
-  return <DealCardView view={cardView({ deal, side, documents, contacts, bank, place, all: sp.history === "all", device })} device={device} />;
+  return <DealCardView view={cardView({ deal, side, documents, contacts, bank, place, showcase, all: sp.history === "all", device })} device={device} />;
 }
 
 /**
@@ -108,12 +116,13 @@ type CardInput = {
   contacts: Awaited<ReturnType<typeof dealContacts>>;
   bank: Awaited<ReturnType<typeof bankConsentState>> | null;
   place: Awaited<ReturnType<typeof masterAddress>>;
+  showcase: Awaited<ReturnType<typeof getDealShowcase>> | null;
   all: boolean;
   device: Device;
 };
 
 /** Вид карточки по стороне: таблица «что сейчас», блок денег, другая сторона, ход работ и история — свои у каждой стороны. */
-function cardView({ deal, side, documents, contacts, bank, place, all, device }: CardInput): CardView {
+function cardView({ deal, side, documents, contacts, bank, place, showcase, all, device }: CardInput): CardView {
   const master = side === "EXECUTOR";
   const hrefs = dealHrefs(deal.id);
   const openDispute = deal.dispute?.status === "OPEN";
@@ -180,6 +189,7 @@ function cardView({ deal, side, documents, contacts, bank, place, all, device }:
     },
     reports: master ? reportsBlock(deal, now.kind === "ready" ? null : hrefs.progress) : buyerReports(deal),
     review: reviewRows(deal.review),
+    showcase: showcase?.changeable ? showcaseLine(deal.id, showcase) : null,
     history: { ...historyView(deal.history, { all, limit: HISTORY_SHOWN[device] }, side), allHref: hrefs.history },
     actions: {
       cancelText: cancelText({ side, canCancel: deal.can.cancel, status: deal.status, block: deal.moneyBlock, manual }),

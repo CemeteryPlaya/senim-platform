@@ -69,6 +69,8 @@ export type CardView = {
   history: { items: { title: string; time: string }[]; more: boolean; allHref: string };
   /** Оставленный отзыв строками; `null` — отзыва нет. */
   review: { label: string; value: string; stacked: boolean }[] | null;
+  /** Покупателю оконченной сделки с офертой: строка выбора показа в профиле мастера; иначе нет. */
+  showcase?: { text: string; href: string } | null;
   actions: { cancelText: string | null; disputeHref: string | null };
 };
 
@@ -353,6 +355,16 @@ function Review({ rows, side }: { rows: NonNullable<CardView["review"]>; side: D
   );
 }
 
+/** «Показ в профиле мастера: …» одной строкой и ссылка «Изменить». */
+function ShowcaseRow({ showcase }: { showcase: NonNullable<CardView["showcase"]> }) {
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 text-body text-ink">
+      <span>{showcase.text}</span>
+      <TextLink href={showcase.href}>{ru.app.deal.showcase.change}</TextLink>
+    </p>
+  );
+}
+
 function History({ view }: { view: CardView }) {
   const h = t.history;
   return (
@@ -436,6 +448,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
               <Documents view={view} />
               <Party view={view} device={device} />
               {view.review && <Review rows={view.review} side={view.side} />}
+              {view.showcase && <ShowcaseRow showcase={view.showcase} />}
               <History view={view} />
             </Stack>
           }
@@ -478,6 +491,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
       <Documents view={view} />
       <Party view={view} device={device} />
       {view.review && <Review rows={view.review} side={view.side} />}
+      {view.showcase && <ShowcaseRow showcase={view.showcase} />}
       <History view={view} />
       <Help side={view.side} />
       {primary && <ActionDock>{primary}</ActionDock>}
