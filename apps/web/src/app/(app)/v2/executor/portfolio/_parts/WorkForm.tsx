@@ -67,8 +67,8 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
   const [done, setDone] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  // Ключ повтора новой работы: обрыв связи после записи не даст второй работы (форма уходит после успеха).
-  const { key: clientKey } = useClientKey();
+  // Ключ повтора новой работы: обрыв связи после записи и повтор той же работы не дадут второй; правка — новая работа.
+  const retry = useClientKey();
   const toInput = (): WorkInput => ({
     furnitureTypeId: typeId,
     // Пустой выбор отклоняет схема действия: ошибка у поля.
@@ -83,8 +83,12 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
   });
 
   const create = useActionForm(createWorkAction, {
-    toInput: () => ({ ...toInput(), clientKey }),
+    toInput: () => {
+      const work = toInput();
+      return { ...work, clientKey: retry.keyFor(work) };
+    },
     onSuccess: (data) => {
+      retry.done();
       setDone(true);
       if (!data.photosAttached) {
         toast.error(t.photosFailed);

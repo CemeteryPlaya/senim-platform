@@ -30,11 +30,15 @@ export function ProgressForm({ dealId, dealHref, device }: Props) {
   const [text, setText] = useState("");
   const [done, setDone] = useState(false);
   const uploads = usePhotoUploads("PROGRESS_REPORT", [], t.photos.name);
-  // Ключ повтора: обрыв связи после записи и повторная отправка не дадут второго отчёта (форма уходит после успеха).
-  const { key: clientKey } = useClientKey();
+  // Ключ повтора: обрыв связи после записи и повторная отправка того же отчёта не дадут второго; правка — новый отчёт.
+  const retry = useClientKey();
   const form = useActionForm(progressReportAction, {
-    toInput: () => ({ dealId, title, text, photoIds: uploads.fileIds, clientKey }),
+    toInput: () => {
+      const report = { dealId, title, text, photoIds: uploads.fileIds };
+      return { ...report, clientKey: retry.keyFor(report) };
+    },
     onSuccess: () => {
+      retry.done();
       setDone(true);
       toast(t.sent);
       router.push(dealHref);

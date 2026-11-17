@@ -85,8 +85,8 @@ export function ChatRoom({ offerId, initial, side, device, maxLength, maxAttachm
   const leave = (href: string) => window.location.assign(href);
 
   const gates = useRef({ poll: createGate(), send: createGate() });
-  /** Последняя неудачная отправка: её ключ повтора и текст. */
-  const pending = useRef<{ key: string; text: string } | null>(null);
+  /** Последняя неудачная отправка: её ключ повтора и содержимое (текст и фото). */
+  const pending = useRef<{ key: string; content: string } | null>(null);
 
   const refresh = useCallback(async () => {
     const gate = gates.current.poll;
@@ -129,10 +129,11 @@ export function ChatRoom({ offerId, initial, side, device, maxLength, maxAttachm
     }
     setError(null);
     epoch.current += 1;
-    // Ключ повтора: та же отправка (тот же текст после сбоя) — тот же ключ, и записанное до обрыва сообщение не задвоится;
-    // изменённый текст — новое сообщение, новый ключ.
-    const clientKey = pending.current?.text === text ? pending.current.key : randomKey();
-    pending.current = { key: clientKey, text };
+    // Ключ повтора: та же отправка (тот же текст и те же фото после сбоя) — тот же ключ, и записанное до обрыва сообщение
+    // не задвоится; изменённый текст или фото — новое сообщение, новый ключ.
+    const content = JSON.stringify({ text, fileIds: attached.fileIds });
+    const clientKey = pending.current?.content === content ? pending.current.key : randomKey();
+    pending.current = { key: clientKey, content };
     try {
       const outcome = outcomeOf(await sendMessageAction({ offerId, text, fileIds: attached.fileIds, clientKey }), here());
       epoch.current += 1;

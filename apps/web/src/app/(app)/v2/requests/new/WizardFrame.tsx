@@ -55,20 +55,22 @@ export function useWizardStep(
   options: { blocked?: { when: boolean; onBlocked: () => void }; saveOnBack?: boolean } = {},
 ): WizardForm {
   const formRef = useRef<HTMLFormElement>(null);
-  // Первый шаг без черновика создаёт его: ключ повтора — чтобы обрыв связи после записи не дал второго черновика.
-  const { key: clientKey } = useClientKey();
+  // Первый шаг без черновика создаёт его: ключ повтора — чтобы обрыв связи после записи не дал второго черновика (тот же
+  // ввод — тот же ключ; поправленный ввод — новая отправка).
+  const retry = useClientKey();
   const form = useActionForm(saveStepAction, {
     formRef,
     // Тип мебели собирается из трёх полей: правка любого из них снимает ошибку выбора типа; правка любого поля — общую ошибку шага.
     clears: (name) => (["furnitureType", "furnitureTypeOther", "customType"].includes(name) ? ["furnitureTypeId", "customType", "form"] : ["form"]),
     toInput: (fd) => {
       const goto = fd.get("goto");
+      const step = readStep(screen, fd);
       return {
         requestId: base.draftId,
         like: base.draftId ? null : base.like,
         executor: base.draftId ? null : base.executor,
-        ...(base.draftId ? {} : { clientKey }),
-        step: readStep(screen, fd),
+        ...(base.draftId ? {} : { clientKey: retry.keyFor({ step, like: base.like, executor: base.executor }) }),
+        step,
         ...(typeof goto === "string" ? { goto: goto as WizardScreen } : {}),
       };
     },
