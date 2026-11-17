@@ -12,6 +12,7 @@ import { identity, identityClientIp } from "./remote";
 import { retriedOnce } from "./remote-errors";
 import { newSessionToken } from "./session-cookie";
 import { beginSession, currentToken, signOutPrevious } from "./session";
+import { shownCodeOf } from "./shown-code";
 
 const t = ru.identity.otp;
 
@@ -37,7 +38,7 @@ export async function requestOtp(input: { phone: string; ip: string | null }): P
     logger.error("identity.call_rejected", { reason: "request_otp_without_expiry" });
     return fail.unavailable(ru.common.errors.generic);
   }
-  return { phone, expiresAt: timestampDate(res.expiresAt), shownCode: res.shownCode === "" ? null : res.shownCode };
+  return { phone, expiresAt: timestampDate(res.expiresAt), shownCode: shownCodeOf(res.shownCode) };
 }
 
 /** Кто вошёл: этого хватает, чтобы выбрать экран после входа (homePathFor). */

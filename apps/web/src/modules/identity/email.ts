@@ -11,6 +11,7 @@ import { identity } from "./remote";
 import { EMAIL_ALREADY_VERIFIED, EMAIL_CODE_EXPIRED, identityFailure, retriedOnce, type IdentityErrorOverrides } from "./remote-errors";
 import { isStaffRole } from "./roles";
 import { currentSessionToken, type CurrentUser } from "./session";
+import { shownCodeOf } from "./shown-code";
 
 const t = ru.app.login.email.errors;
 
@@ -99,7 +100,7 @@ export async function requestEmailCode(user: CurrentUser, email: string): Promis
     logger.error("identity.call_rejected", { reason: "request_email_code_without_expiry" });
     return fail.unavailable(ru.common.errors.generic);
   }
-  return { alreadyVerified: false, expiresAt: timestampDate(res.expiresAt), shownCode: res.shownCode === "" ? null : res.shownCode };
+  return { alreadyVerified: false, expiresAt: timestampDate(res.expiresAt), shownCode: shownCodeOf(res.shownCode) };
 }
 
 /**
