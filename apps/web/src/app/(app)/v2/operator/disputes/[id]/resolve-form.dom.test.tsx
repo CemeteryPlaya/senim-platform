@@ -196,6 +196,47 @@ describe("форма решения спора", () => {
     expect(replace).toHaveBeenCalledTimes(1);
   });
 
+  it("сервер попросил код, а итог сменили на возврат — окно с суммой снова, без подтверждения решение не уходит", async () => {
+    resolve.mockResolvedValueOnce({ ok: false, code: "MFA_REQUIRED", error: ru.identity.mfa.stepUp }).mockResolvedValue({ ok: true, data: undefined });
+    open();
+    write("Дефект устранён на месте");
+    submitForm();
+    await settle();
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(show().querySelector('input[name="mfaCode"]')).not.toBeNull();
+
+    // Пока поле кода на экране, оператор переключился на необратимый итог.
+    act(() => radio("FULL_REFUND").click());
+    edit(show().querySelector<HTMLInputElement>('input[name="mfaCode"]') as HTMLInputElement, "123456", { data: "123456" });
+    submitForm();
+    await settle();
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(dialog()?.textContent).toContain(d.confirm.FULL_REFUND.body(formatMoney(102_000_000n)));
+
+    act(() => dialogButton(d.confirm.FULL_REFUND.action).click());
+    await settle();
+    expect(resolve).toHaveBeenCalledTimes(2);
+    expect(resolve).toHaveBeenLastCalledWith(expect.objectContaining({ outcome: "FULL_REFUND" }));
+  });
+
+  it("раздел подтверждён, сервер попросил код, сумму правили — нужен свежий расчёт, решение не уходит", async () => {
+    resolve.mockResolvedValueOnce({ ok: false, code: "MFA_REQUIRED", error: ru.identity.mfa.stepUp }).mockResolvedValue({ ok: true, data: undefined });
+    open();
+    await fillSplit();
+    submitForm();
+    await settle();
+    act(() => dialogButton(d.confirm.PARTIAL_SPLIT.action).click());
+    await settle();
+    expect(resolve).toHaveBeenCalledTimes(1);
+
+    edit(share(), "70000", { data: "0" });
+    edit(show().querySelector<HTMLInputElement>('input[name="mfaCode"]') as HTMLInputElement, "123456", { data: "123456" });
+    submitForm();
+    await settle();
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(show().textContent).toContain(d.previewFirst);
+  });
+
   it("ошибка обоснования — у поля, один раз (общей плашки нет)", async () => {
     resolve.mockResolvedValue({ ok: false, code: "VALIDATION", error: "Напишите обоснование", fieldErrors: { rationale: ["Напишите обоснование"] } } satisfies ActionResult<unknown>);
     open();

@@ -34,6 +34,8 @@ export function ResolveForm({ disputeId, maxTiyn, buyerTotalTiyn, mobile }: { di
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [calculating, startCalculation] = useTransition();
   const busy = useRef(false);
+  /** Что оператор подтвердил в окне (итог и сумма мастеру): повтор с кодом без окна — только для этого же решения. */
+  const confirmed = useRef<{ outcome: Outcome; shareTiyn: bigint | null } | null>(null);
   const form = useOperatorForm(resolveDisputeAction, {
     formRef,
     onSuccess: () => {
@@ -79,8 +81,10 @@ export function ResolveForm({ disputeId, maxTiyn, buyerTotalTiyn, mobile }: { di
 
   /** Возврат и раздел необратимы: перед отправкой — окно с итогом и суммами. Раздел — только по свежему расчёту. */
   function onSubmit(event: FormEvent<HTMLFormElement>) {
-    // Код из приложения уже просили — решение подтверждено раньше, второе окно не нужно.
-    if (outcome === "CONTINUE" || form.needsCode) return form.onSubmit(event);
+    // Код из приложения уже просили после подтверждения — второе окно не нужно, но только если итог и сумма те же, а расчёт
+    // раздела свежий: иначе (сменили итог или сумму, пока на экране поле кода) — снова расчёт и окно с суммами.
+    const same = confirmed.current?.outcome === outcome && confirmed.current.shareTiyn === shareTiyn && (outcome !== "PARTIAL_SPLIT" || state === "fresh");
+    if (outcome === "CONTINUE" || (form.needsCode && same)) return form.onSubmit(event);
     event.preventDefault();
     if (outcome === "PARTIAL_SPLIT" && state !== "fresh") {
       setPreviewError(shareTiyn === null ? d.shareRequired : d.previewFirst);
@@ -165,6 +169,7 @@ export function ResolveForm({ disputeId, maxTiyn, buyerTotalTiyn, mobile }: { di
           confirmLabel={confirm.action}
           cancelLabel={d.confirm.cancel}
           onConfirm={async () => {
+            confirmed.current = { outcome, shareTiyn };
             await form.submit(new FormData(formRef.current ?? undefined));
           }}
         />
