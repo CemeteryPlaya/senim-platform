@@ -21,6 +21,23 @@ describe("склонения профиля мастера", () => {
   });
 });
 
+describe("общий список мастеров", () => {
+  const l = ru.app.guest.executors;
+  it("заголовок «Мастера», «Сделок», «Успешных»; без оконченных сделок — без доли", () => {
+    expect(l.title).toBe("Мастера");
+    expect(l.deals).toBe("Сделок");
+    expect(l.success).toBe("Успешных");
+    expect(l.statsLine(12, 92)).toBe("Сделок: 12 · Успешных: 92%");
+    expect(l.statsLine(3, null)).toBe("Сделок: 3");
+    expect(l.beyond.body(1)).toBe("В списке 1 страница");
+    expect(l.beyond.body(5)).toBe("В списке 5 страниц");
+  });
+
+  it("нет «комисси», «эскроу», «демо», «отклик» (и «платформ» — общий сторож ниже)", () => {
+    expect(JSON.stringify(l) + l.statsLine(1, 1) + l.forRequest(7)).not.toMatch(/комисси|эскроу|демо|отклик|платформ/i);
+  });
+});
+
 describe("шапка профиля мастера", () => {
   it("«Сделок», «Успешных N%»; нет оконченных — «Пока нет завершённых сделок»", () => {
     expect(t.stats.deals).toBe("Сделок");

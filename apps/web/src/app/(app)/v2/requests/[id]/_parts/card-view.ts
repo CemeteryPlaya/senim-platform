@@ -2,7 +2,7 @@ import type { OfferStatus, RequestStatus, Segment } from "@/generated/prisma/enu
 import { formatDays, formatDeals, formatMonths } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import type { StatusTone } from "@/kit";
-import type { OfferSort, RequestDetails } from "@/modules/requests/client";
+import { TZ_PATH, type OfferSort, type RequestDetails, type RequestPath } from "@/modules/requests/client";
 import { COUNTERTOPS, FACADES, HARDWARE, SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { to } from "../../../../_shell/paths";
 import type { RequestState } from "../../../_parts/request-state";
@@ -37,6 +37,8 @@ export type NowKind = "draft" | "waiting" | "waiting-direct" | "offers" | "site-
 export type NowInput = {
   id: string;
   mode: "TENDER" | "DIRECT";
+  /** Путь заявки (`pathOf`): ТЗ или сценарий до договора. */
+  path: RequestPath;
   /** Состояние заявки — общая `requestState` (то же, что на главной и в «Моих заявках»): что сейчас и сколько действующих предложений. */
   state: Pick<RequestState, "kind" | "liveOffers">;
   dealId: string | null;
@@ -50,6 +52,8 @@ export type NowView = {
   next?: string;
   /** Единственное главное действие экрана; `null` — от человека ничего не нужно или действие в списке ниже. */
   primary: { label: string; href: string } | null;
+  /** Второстепенное действие («Посмотреть мастеров»): ссылка рядом с «Сейчас», не главная кнопка. */
+  secondary: { label: string; href: string } | null;
 };
 
 /**
@@ -58,6 +62,20 @@ export type NowView = {
  * сами карточки предложений ниже.
  */
 export function nowView(i: NowInput): NowView {
+  return { ...nowState(i), secondary: executorsLink(i) };
+}
+
+/**
+ * «Посмотреть мастеров» — у открытой заявки (ждёт предложений или они пришли) на всех мастеров, идущей путём ТЗ: общий
+ * список мастеров с заявкой в адресе. Главное действие экрана не меняет.
+ */
+function executorsLink(i: NowInput): NowView["secondary"] {
+  const open = i.state.kind === "waiting" || i.state.kind === "choose";
+  if (!open || i.mode !== "TENDER" || i.path !== TZ_PATH) return null;
+  return { label: t.now.executors, href: `${to("/executors")}?${new URLSearchParams({ request: i.id })}` };
+}
+
+function nowState(i: NowInput): Omit<NowView, "secondary"> {
   const dealAction = (label: string) => (i.dealId ? { label, href: to(`/deals/${encodeURIComponent(i.dealId)}`) } : null);
   switch (i.state.kind) {
     case "draft":

@@ -32,7 +32,7 @@ function view(over: Partial<CardView> = {}, offers: OfferInput[] = [offer("3", 1
     number: 18,
     sent: null,
     chip: { text: ru.app.requests.state.choose(offers.length), tone: "warn" },
-    now: nowView({ id: "r1", mode: "TENDER", state: { kind: offers.length > 0 ? "choose" : "waiting", liveOffers: offers.length }, dealId: null, chosenOfferId: null }),
+    now: nowView({ id: "r1", mode: "TENDER", path: "TZ", state: { kind: offers.length > 0 ? "choose" : "waiting", liveOffers: offers.length }, dealId: null, chosenOfferId: null }),
     offers: offersView(request, offers, "price"),
     details: [{ label: "Город", value: "Астана", stacked: false }],
     photos: [{ id: "p1", src: "/f/p1", alt: "Фото помещения 1 из 1" }],
@@ -72,6 +72,14 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
     expect(count(html(<RequestCardView view={view()} device={device} />), "data-primary-action")).toBe(0);
   });
 
+  it("«Посмотреть мастеров» — второстепенная ссылка на общий список с заявкой; главной кнопкой не становится", () => {
+    const out = html(<RequestCardView view={view()} device={device} />);
+    expect(out).toContain(`href="/v2/executors?request=r1">${t.now.executors}</a>`);
+    expect(count(out, "data-primary-action")).toBe(0);
+    const direct = nowView({ id: "r1", mode: "DIRECT", path: "TZ", state: { kind: "waiting", liveOffers: 0 }, dealId: null, chosenOfferId: null });
+    expect(html(<RequestCardView view={view({ now: direct })} device={device} />)).not.toContain("/v2/executors");
+  });
+
   it("пусто: обучающий экран без кнопки", () => {
     const out = html(<RequestCardView view={view({}, [])} device={device} />);
     expect(out).toContain(t.offers.empty.title);
@@ -81,7 +89,7 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
 
   it("сделка: одно главное действие «Открыть сделку» на сделку", () => {
     const request = { id: "r1", status: "CONTRACTING" as const, mode: "TENDER" as const };
-    const now = nowView({ id: "r1", mode: "TENDER", state: { kind: "deal", liveOffers: 0 }, dealId: "d9", chosenOfferId: null });
+    const now = nowView({ id: "r1", mode: "TENDER", path: "TZ", state: { kind: "deal", liveOffers: 0 }, dealId: "d9", chosenOfferId: null });
     const out = html(<RequestCardView view={view({ now, offers: offersView(request, [offer("3", 1n)], "price"), cancel: null })} device={device} />);
     expect(count(out, "data-primary-action")).toBe(1);
     expect(out).toMatch(/data-primary-action[^>]*href="\/v2\/deals\/d9"|href="\/v2\/deals\/d9"[^>]*data-primary-action/);
@@ -120,7 +128,7 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
 describe("раскладка по устройствам", () => {
   it("телефон: действие в ActionDock последним; компьютер: под «Сейчас», дока нет", () => {
     const request = { id: "r1", status: "CLOSED" as const, mode: "TENDER" as const };
-    const now = nowView({ id: "r1", mode: "TENDER", state: { kind: "deal", liveOffers: 0 }, dealId: "d9", chosenOfferId: null });
+    const now = nowView({ id: "r1", mode: "TENDER", path: "TZ", state: { kind: "deal", liveOffers: 0 }, dealId: "d9", chosenOfferId: null });
     const v = view({ now, offers: offersView(request, [], "price"), cancel: null });
     const mobile = html(<RequestCardView view={v} device="mobile" />);
     const desktop = html(<RequestCardView view={v} device="desktop" />);

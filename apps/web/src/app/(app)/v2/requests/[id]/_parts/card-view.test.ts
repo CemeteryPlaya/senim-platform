@@ -6,8 +6,35 @@ import { detailRows, nowView, offerRow, offersView, parseSort, photoView, sentNo
 const t = ru.app.requestCard;
 const buyer = ru.app.buyer.home.now;
 
-const base: NowInput = { id: "r1", mode: "TENDER", state: { kind: "waiting", liveOffers: 0 }, dealId: null, chosenOfferId: null };
+const base: NowInput = { id: "r1", mode: "TENDER", path: "TZ", state: { kind: "waiting", liveOffers: 0 }, dealId: null, chosenOfferId: null };
 const st = (kind: RequestStateKind, liveOffers = 0) => ({ state: { kind, liveOffers } });
+
+describe("nowView: «Посмотреть мастеров» — только у открытой заявки на всех мастеров путём ТЗ", () => {
+  const link = { label: t.now.executors, href: "/v2/executors?request=r1" };
+  it.each([
+    ["ждёт предложений", base, link],
+    ["есть предложения", { ...base, ...st("choose", 2) }, link],
+    ["прямая", { ...base, mode: "DIRECT" as const }, null],
+    ["прямая с предложением", { ...base, mode: "DIRECT" as const, ...st("choose", 1) }, null],
+    ["сценарий до договора", { ...base, path: "EXECUTOR_MEASURE" as const }, null],
+    ["замер помещения", { ...base, ...st("site-measuring") }, null],
+    ["мастер выбран", { ...base, ...st("chosen"), chosenOfferId: "o1" }, null],
+    ["идёт сделка", { ...base, ...st("deal"), dealId: "d1" }, null],
+    ["завершена", { ...base, ...st("done"), dealId: "d1" }, null],
+    ["отменена", { ...base, ...st("cancelled") }, null],
+    ["черновик", { ...base, ...st("draft") }, null],
+  ])("%s", (_name, input, secondary) => {
+    const view = nowView(input);
+    expect(view.secondary).toEqual(secondary);
+    // Главное действие не меняется: у открытой заявки его нет.
+    if (secondary) expect(view.primary).toBeNull();
+  });
+
+  it("текст кнопки — без «выплат» и «договор»", () => {
+    expect(t.now.executors).toBe("Посмотреть мастеров");
+    expect(t.now.executors).not.toMatch(/выплат|договор/i);
+  });
+});
 
 describe("nowView: таблица состояний заявки (по общей requestState)", () => {
   it.each([

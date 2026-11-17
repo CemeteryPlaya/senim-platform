@@ -112,12 +112,14 @@ const DEAL_SELECT = {
 
 type WorkRow = Prisma.PortfolioItemGetPayload<{ select: typeof WORK_SELECT }>;
 type DealRow = Prisma.DealGetPayload<{ select: typeof DEAL_SELECT }>;
-type Mask = (text: string) => string;
+export type Mask = (text: string) => string;
 
-async function workCard(row: WorkRow, mask: Mask): Promise<HighlightCard> {
+/** `thumb` — уменьшенная копия, если есть (обложка в списке); иначе исходник (витрина страницы мастера). */
+async function workCard(row: WorkRow, mask: Mask, opts: { thumb?: boolean } = {}): Promise<HighlightCard> {
   const title = mask(row.title);
   const [cover] = await toPhotoViews(itemFiles(row).slice(0, 1), (n) => ru.companies.photoAlt(title, n));
-  return { kind: "work", id: row.id, title, photo: cover?.src ? { src: cover.src, alt: cover.alt } : null, href: null };
+  const src = (opts.thumb ? cover?.thumb : undefined) ?? cover?.src;
+  return { kind: "work", id: row.id, title, photo: src ? { src, alt: cover.alt } : null, href: null };
 }
 
 async function dealCard(row: DealRow, mask: Mask): Promise<HighlightCard> {
@@ -135,28 +137,68 @@ export async function countHighlights(user: CurrentUser): Promise<number> {
   return db.executorHighlight.count({ where: { executorId } });
 }
 
+/** Строка витрины для показа: работа или сделка с полями правила видимости. */
+const SHOWN_ROW_SELECT = {
+  executorId: true,
+  portfolioItem: { select: { ...WORK_SELECT, published: true, dealId: true, furnitureType: { select: { active: true } } } },
+  deal: { select: { ...DEAL_SELECT, status: true, signedAt: true, executorId: true, showcase: { select: { photos: true } } } },
+} satisfies Prisma.ExecutorHighlightSelect;
+type ShownRow = Prisma.ExecutorHighlightGetPayload<{ select: typeof SHOWN_ROW_SELECT }>;
+
+/**
+ * Можно ли показать строку витрины публично: работа опубликована, вне площадки и её тип мебели включён; сделка своя,
+ * оконченная с офертой и покупатель разрешил фото. Одно правило для страницы мастера и обложки в списке мастеров.
+ */
+function shown(row: ShownRow): { work: WorkRow } | { deal: DealRow } | null {
+  const { portfolioItem: w, deal: d } = row;
+  if (w) return w.published && w.dealId === null && w.furnitureType.active ? { work: w } : null;
+  if (d) return isEndedSigned(d) && d.executorId === row.executorId && d.showcase?.photos === true ? { deal: d } : null;
+  return null;
+}
+
 /** Витрина на публичной странице: мастер виден, порядок по position, закрытое покупателем и снятое с публикации — не показывается. */
 export async function publicHighlights(executorId: string): Promise<HighlightCard[]> {
   const executor = await db.executorProfile.findFirst({ where: { id: executorId, ...VISIBLE_EXECUTOR }, select: NAME_MASK_SELECT });
   if (!executor) return [];
-  const rows = await db.executorHighlight.findMany({
-    where: { executorId },
-    orderBy: { position: "asc" },
-    select: {
-      id: true,
-      portfolioItem: { select: { ...WORK_SELECT, published: true, dealId: true, furnitureType: { select: { active: true } } } },
-      deal: { select: { ...DEAL_SELECT, status: true, signedAt: true, executorId: true, showcase: { select: { photos: true } } } },
-    },
-  });
+  const rows = await db.executorHighlight.findMany({ where: { executorId }, orderBy: { position: "asc" }, select: SHOWN_ROW_SELECT });
   const mask: Mask = (text) => maskPublicText(text, executor).text;
   const cards = await Promise.all(
-    rows.map(async ({ portfolioItem: w, deal: d }): Promise<HighlightCard | null> => {
-      if (w) return w.published && w.dealId === null && w.furnitureType.active ? workCard(w, mask) : null;
-      if (d) return isEndedSigned(d) && d.executorId === executorId && d.showcase?.photos === true ? dealCard(d, mask) : null;
-      return null;
+    rows.map(async (row): Promise<HighlightCard | null> => {
+      const item = shown(row);
+      if (!item) return null;
+      return "work" in item ? workCard(item.work, mask) : dealCard(item.deal, mask);
     }),
   );
   return cards.filter((c): c is HighlightCard => c !== null);
+}
+
+/**
+ * Обложки списка мастеров: у каждого мастера — первая по порядку показываемая лучшая работа с фото. Один запрос на всю
+ * страницу списка; ссылки на фото строятся только для выбранных. `maskOf` — маска имени мастера для подписи фото.
+ * Видимость самих мастеров проверяет вызывающий (в список попадают только видимые).
+ */
+export async function highlightCovers(executorIds: readonly string[], maskOf: (executorId: string) => Mask): Promise<Map<string, { src: string; alt: string }>> {
+  const covers = new Map<string, { src: string; alt: string }>();
+  if (executorIds.length === 0) return covers;
+  const rows = await db.executorHighlight.findMany({
+    where: { executorId: { in: [...new Set(executorIds)] } },
+    orderBy: [{ executorId: "asc" }, { position: "asc" }],
+    select: SHOWN_ROW_SELECT,
+  });
+  const first = new Map<string, NonNullable<ReturnType<typeof shown>>>();
+  for (const row of rows) {
+    if (first.has(row.executorId)) continue;
+    const item = shown(row);
+    const hasPhoto = item && ("work" in item ? itemFiles(item.work).length > 0 : item.deal.deliveryPhotos.length > 0);
+    if (item && hasPhoto) first.set(row.executorId, item);
+  }
+  await Promise.all(
+    [...first].map(async ([executorId, item]) => {
+      const card = "work" in item ? await workCard(item.work, maskOf(executorId), { thumb: true }) : await dealCard(item.deal, maskOf(executorId));
+      if (card.photo) covers.set(executorId, card.photo);
+    }),
+  );
+  return covers;
 }
 
 /**

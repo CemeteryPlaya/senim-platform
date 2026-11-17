@@ -115,7 +115,8 @@ function Details({ view }: { view: CardView }) {
 /**
  * Карточка заявки покупателя. Телефон — одна колонка: «Сейчас» → предложения → «Что в заявке»; главное действие
  * (сделка или выбранное предложение) — в `ActionDock` последним. Компьютер — `Split`: слева «Сейчас» (действие под ним) и
- * предложения, справа «Что в заявке».
+ * предложения, справа «Что в заявке». Второстепенное действие открытой заявки («Посмотреть мастеров») — тихой кнопкой-ссылкой
+ * под «Сейчас» на обоих устройствах.
  */
 export function RequestCardView({ view, device }: { view: CardView; device: Device }) {
   const { now } = view;
@@ -149,6 +150,11 @@ export function RequestCardView({ view, device }: { view: CardView; device: Devi
           <Stack gap="section">
             <Stack>
               <NowNext now={{ title: now.title, ...(now.body ? { body: now.body } : {}) }} {...(now.next ? { next: now.next } : {})} />
+              {now.secondary && (
+                <ButtonLink href={now.secondary.href} variant="quiet" flush>
+                  {now.secondary.label}
+                </ButtonLink>
+              )}
               {device === "desktop" && action}
             </Stack>
             <Offers view={view} />

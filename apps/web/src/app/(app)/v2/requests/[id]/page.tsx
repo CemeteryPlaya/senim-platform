@@ -64,6 +64,7 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
   const now = nowView({
     id,
     mode: request.mode,
+    path: request.path,
     state,
     dealId: request.deal?.id ?? null,
     chosenOfferId: request.chosen?.id ?? null,
