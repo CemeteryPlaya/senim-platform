@@ -3,7 +3,7 @@ import type { DealStatus } from "@/generated/prisma/enums";
 import { makeExecutor } from "../../../test/factories";
 import { makeDeal, type Executor } from "../../../test/factories/deal";
 import { db } from "@/platform/db";
-import { executorStats } from "./executor-stats";
+import { executorStats } from "./deal-stats";
 
 /** Сделка мастера в нужном статусе; signedAt — по умолчанию есть (оферта заключена). */
 async function dealOf(executor: Executor, status: DealStatus, signed = true) {

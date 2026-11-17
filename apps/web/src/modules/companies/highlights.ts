@@ -1,6 +1,5 @@
 import "server-only";
 import { z } from "zod";
-import type { DealStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import { previewUrl } from "@/modules/files";
@@ -9,6 +8,7 @@ import { db, isUniqueViolation, transaction, type Prisma } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { parseInput } from "@/platform/validation";
 import { NAME_MASK_SELECT, VISIBLE_EXECUTOR } from "./catalog";
+import { ENDED_DEAL, isEndedSigned } from "./deal-stats";
 import { maskPublicText } from "./mask";
 import { requireExecutor } from "./own";
 import { DEAL_PHOTOS, itemFiles, OWN_PHOTOS, toPhotoViews } from "./photos";
@@ -16,13 +16,10 @@ import { DEAL_PHOTOS, itemFiles, OWN_PHOTOS, toPhotoViews } from "./photos";
 /**
  * «Лучшие работы» мастера: до 6 опубликованных работ портфолио и/или оконченных сделок, где покупатель разрешил показ фото.
  * Витрина читается каждый раз заново: показ, снятый покупателем, или снятая с публикации работа выпадают сразу.
- * companies не импортирует deal-core (обратная зависимость), поэтому правило «оконченная с офертой» здесь — по данным сделки.
  */
 export const HIGHLIGHTS_MAX = 6;
 /** Ссылка на фото сделки живёт час — как фото в истории сделок на странице мастера. */
 const PHOTO_URL_TTL_SEC = 60 * 60;
-/** Конечные статусы сделки (как deal-core ENDED_DEAL; companies deal-core не импортирует). */
-const ENDED: DealStatus[] = ["SPLIT_PAYOUT", "CANCELLED", "REFUNDED"];
 
 const t = ru.companies.highlights.errors;
 
@@ -73,7 +70,7 @@ export async function setHighlights(user: CurrentUser, raw: { items: HighlightRe
       if (w.dealId !== null) fail.validation(t.workFromDeal);
     }
     for (const d of deals) {
-      if (!ENDED.includes(d.status) || d.signedAt === null || d.showcase?.photos !== true) fail.validation(t.dealNotShowable);
+      if (!isEndedSigned(d) || d.showcase?.photos !== true) fail.validation(t.dealNotShowable);
     }
 
     await tx.executorHighlight.deleteMany({ where: { executorId } });
@@ -130,7 +127,7 @@ async function dealCard(row: DealRow, mask: Mask): Promise<HighlightCard> {
   return { kind: "deal", id: row.id, title, photo, href: null };
 }
 
-const ENDED_SHOWN = { status: { in: ENDED }, signedAt: { not: null }, showcase: { photos: true } } satisfies Prisma.DealWhereInput;
+const ENDED_SHOWN = { status: { in: [...ENDED_DEAL] }, signedAt: { not: null }, showcase: { photos: true } } satisfies Prisma.DealWhereInput;
 
 /** Сколько работ и сделок мастер выбрал (для ссылки в портфолио; дешевле, чем список кандидатов). */
 export async function countHighlights(user: CurrentUser): Promise<number> {
@@ -155,7 +152,7 @@ export async function publicHighlights(executorId: string): Promise<HighlightCar
   const cards = await Promise.all(
     rows.map(async ({ portfolioItem: w, deal: d }): Promise<HighlightCard | null> => {
       if (w) return w.published && w.dealId === null && w.furnitureType.active ? workCard(w, mask) : null;
-      if (d) return ENDED.includes(d.status) && d.signedAt !== null && d.executorId === executorId && d.showcase?.photos === true ? dealCard(d, mask) : null;
+      if (d) return isEndedSigned(d) && d.executorId === executorId && d.showcase?.photos === true ? dealCard(d, mask) : null;
       return null;
     }),
   );
@@ -173,7 +170,7 @@ export async function listHighlightCandidates(user: CurrentUser): Promise<{ item
     db.portfolioItem.findMany({ where: { executorId, published: true, dealId: null }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: WORK_SELECT }),
     db.deal.findMany({ where: { executorId, ...ENDED_SHOWN }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], select: DEAL_SELECT }),
     db.executorHighlight.findMany({ where: { executorId }, select: { portfolioItemId: true, dealId: true, position: true } }),
-    db.deal.count({ where: { executorId, status: { in: ENDED }, signedAt: { not: null }, NOT: { showcase: { photos: true } } } }),
+    db.deal.count({ where: { executorId, status: { in: [...ENDED_DEAL] }, signedAt: { not: null }, NOT: { showcase: { photos: true } } } }),
   ]);
   const mask: Mask = (text) => maskPublicText(text, executor).text;
   const position = new Map(chosen.map((c) => [c.dealId ?? c.portfolioItemId ?? "", c.position]));
