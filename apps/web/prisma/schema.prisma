@@ -169,8 +169,24 @@ model ExecutorProfile {
   reviews         Review[]
   grade           Grade?
   kycDocuments    StoredFile[]    @relation("KycDocuments")
+  highlights      ExecutorHighlight[]
 
   @@index([status, segment])
+}
+
+/// «Лучшие работы» мастера на его публичной странице: до 6, ровно одно из portfolioItemId / dealId (CHECK в миграции).
+/// Удаление работы или сделки убирает её из витрины (CASCADE); виден ли показ сейчас — решает чтение (publicHighlights).
+model ExecutorHighlight {
+  id              String          @id @default(cuid())
+  executorId      String
+  executor        ExecutorProfile @relation(fields: [executorId], references: [id], onDelete: Cascade)
+  portfolioItemId String?         @unique
+  portfolioItem   PortfolioItem?  @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)
+  dealId          String?         @unique
+  deal            Deal?           @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  position        Int
+
+  @@unique([executorId, position])
 }
 
 model FurnitureType {
@@ -248,6 +264,7 @@ model PortfolioItem {
   photos     StoredFile[]
   dealPhotos PortfolioDealPhoto[]
   requests   Request[]
+  highlight  ExecutorHighlight?
 
   @@index([furnitureTypeId, style])
   @@unique([executorId, clientKey])
@@ -605,6 +622,7 @@ model Deal {
   deliveryPhotos  StoredFile[]        @relation("DealDeliveryPhotos")
   publicConsents  DealPublicConsent[]
   showcase        DealShowcase?
+  highlight       ExecutorHighlight?
 
   @@index([clientId, status])
   @@index([executorId, status])

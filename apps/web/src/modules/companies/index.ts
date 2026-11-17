@@ -109,6 +109,15 @@ export {
   type ChatView,
 } from "./chat";
 export type { ChatClosedReason } from "./chat-policy";
+export {
+  HIGHLIGHTS_MAX,
+  listHighlightCandidates,
+  publicHighlights,
+  setHighlights,
+  type HighlightCandidate,
+  type HighlightCard,
+  type HighlightRef,
+} from "./highlights";
 export { dealContacts, type PartyContacts } from "./contacts";
 export { CONTACTS, contactStage, type ContactStage } from "./contacts-policy";
 
