@@ -28,6 +28,7 @@ export { onMoneyChanged, onMoneySettled, processDealMoney } from "./money";
 // Чтения для экранов и документов
 export { dealDocumentData, dealNumbersOf, dealPartyOf, dealRefsOf, getDealView, latestReportPhoto, type ReportPhoto, listDeals, type DealDocumentData, type DealListItem, type DealView } from "./queries";
 export { ENDED_DEAL, isEndedSigned } from "./ended";
+export { executorStats, type ExecutorStats } from "./executor-stats";
 // Выбор покупателя: что из оконченной сделки видно в профиле мастера; отзыв согласия на ПДн закрывает показ
 export { CLOSED_SHOWCASE, SHOWCASE_TEXT_VERSION, addressOptionsOf, closeShowcasesOf, getDealShowcase, setDealShowcase, type ShowcaseChoice, type ShowcaseView } from "./showcase";
 export { nextStep, type NextAction, type NextStep } from "./next-step";
