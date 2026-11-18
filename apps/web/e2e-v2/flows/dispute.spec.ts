@@ -83,9 +83,12 @@ test("покупатель открывает спор по сделке в ра
     await expect(refundRow).toBeVisible({ timeout: 3_000 });
   }).toPass({ timeout: 30_000 });
   await expect(wardrobeOps.getByText(t.money.type.HOLD)).toBeVisible();
-  // «Сейчас» на карточке — про возврат или отмену, а не про оплату.
+  // «Сейчас» на карточке — про возврат или отмену, а не про оплату. Возврат по сделке с офертой — окончание сделки: когда
+  // банк вернул деньги (мок стенда — сразу), покупателю предлагается отзыв (спека 2026-11-17, 3.4; флаг reviews включён).
   await open(page, wardrobe);
-  await expect(page.getByRole("heading", { level: 2, name: new RegExp(`^(${card.now.waitRefund.title}|${card.now.refunded.title}|${card.now.cancelled.title})$`) })).toBeVisible();
+  const after = [card.now.waitRefund.title, card.now.refunded.title, card.now.cancelled.title, card.now.review.title];
+  await expect(page.getByRole("heading", { level: 2, name: new RegExp(`^(${after.join("|")})$`) })).toBeVisible();
+  await expect(page.locator('[data-primary-action][href$="/pay"]')).toHaveCount(0);
   await open(page, `${wardrobe}/money`);
   await expect(page.locator("main")).not.toContainText(/комисси|эскроу|тестов|демо|платформ/i);
 
