@@ -80,6 +80,38 @@ describe("landing.css: контраст белого текста на фото"
     expect(css).toMatch(/to bottom,\s*color-mix\(in srgb, var\(--role-scrim\) var\(--hero-scrim-zone\)/);
   });
 
+  it("шапка над первым экраном в светлой теме: на любой прокрутке 0–1rem текст ≥ 4,5:1 — фон и цвет текста меняются одним шагом", () => {
+    // Анимация по прокрутке: цвет текста (свойства-переменные) переключается дискретно — на половине прогресса, а фон
+    // (стекло glass-bar) при плавной функции растёт постепенно. Тогда на прокрутке в несколько пикселей белый текст стоит
+    // на полупрозрачном белом стекле (≈ 2,4:1), а тёмный сразу после переключения — на полупрозрачном стекле над тёмным
+    // фото (≈ 2,9:1). Поэтому функция — ступень в конце диапазона: до 1rem шапка прозрачна с белым текстом, с 1rem — стекло
+    // с тёмным; промежуточного вида нет.
+    const rule = /\[data-hero\]\) \[data-top-bar\] \{\s*animation: top-bar-over-photo ([^;]+);/.exec(css);
+    expect(rule).not.toBeNull();
+    const timing = (rule?.[1] ?? "").split(/\s+/).filter((part) => part !== "top-bar-over-photo" && part !== "both")[0];
+    /** Выход функции времени для прогресса прокрутки `t` (0–1): поддержаны ступень в конце и линейная. */
+    const progress = (t: number): number => {
+      if (timing === "step-end" || timing === "steps(1,end)" || timing === "steps(1, end)") return t < 1 ? 0 : 1;
+      if (timing === "linear") return t;
+      throw new Error(`неожиданная функция времени шапки: ${timing}`);
+    };
+    const glass = percent(tokens, "glass-alpha"); // светлая тема: белое стекло
+    const dim = stacked(base, zone); // верхняя полоса затемнения под шапкой
+    const ink = linear(0x1d / 255) * 0.2126 + linear(0x1c / 255) * 0.7152 + linear(0x1a / 255) * 0.0722; // --role-ink светлой темы
+    for (let step = 0; step < 16; step += 1) {
+      const p = progress(step / 16);
+      const g = glass * p;
+      if (p < 0.5) {
+        // Белый текст; худший фон — самое светлое (белое) фото под затемнением и стеклом.
+        const bg = (1 - dim) * (1 - g) + g;
+        expect(1.05 / (linear(bg) + 0.05), `прокрутка ${step}px, белый текст`).toBeGreaterThanOrEqual(4.5);
+      } else {
+        // Тёмный текст; худший фон — самое тёмное (чёрное) фото под стеклом.
+        expect((linear(g) + 0.05) / (ink + 0.05), `прокрутка ${step}px, тёмный текст`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
   it("на всю ширину — без 100vw и без обрезки корня: узкое окно компьютера прокручивается вбок", () => {
     expect(css).not.toMatch(/100vw|50vw/);
     expect(css).not.toMatch(/overflow-x:\s*clip/);
