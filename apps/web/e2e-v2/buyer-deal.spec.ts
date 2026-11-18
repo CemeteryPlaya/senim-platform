@@ -169,12 +169,16 @@ test("спор: «Спор рассматривает оператор», вып
   await page.context().close();
 });
 
-test("завершена и возвращена: объяснение, что с деньгами, без главного действия", async ({ browser }, info) => {
+test("завершена и возвращена: объяснение, что с деньгами; главное действие — только отзыв", async ({ browser }, info) => {
   const page = await pageOf(browser, info, "arman");
   await open(page, await dealHref(page, "Прихожая", "done"));
   await expectCard(page);
-  await expect(page.getByRole("heading", { level: 2, name: card.now.refunded.title })).toBeVisible();
-  await expect(page.locator("[data-primary-action]")).toHaveCount(0);
+  // Возврат по сделке с офертой — окончание сделки: «Сейчас» предлагает отзыв (спека 2026-11-17, 3.4; флаг reviews включён),
+  // что с деньгами — в блоке денег.
+  await expect(page.getByRole("heading", { level: 2, name: new RegExp(`^(${card.now.refunded.title}|${card.now.review.title})$`) })).toBeVisible();
+  await expect(page.locator("main")).toContainText(card.money.refunded.done);
+  expect(await page.locator("[data-primary-action]").count()).toBeLessThanOrEqual(1);
+  await expect(page.locator('[data-primary-action]:not([href$="/review"])')).toHaveCount(0);
   await open(page, await dealHref(page, "Шкаф-купе", "done"));
   await expectCard(page);
   expect(await page.locator("[data-primary-action]").count()).toBeLessThanOrEqual(1);

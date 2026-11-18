@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { ru } from "@/i18n/ru";
 
 /**
- * Гость в новом интерфейсе: главная -> каталог -> фильтр по типу -> работа -> профиль мастера -> назад в каталог ->
+ * Гость в новом интерфейсе: главная -> каталог -> фильтр по типу -> работа -> профиль мастера -> «Назад» в список мастеров ->
+ * браузерный «Назад» в каталог ->
  * «О сервисе». Данных не меняет. Подписи — только из ru; на каждом экране ровно один h1 и не больше одного главного действия.
  */
 
@@ -48,8 +49,15 @@ test("гость: главная, каталог с фильтром, работ
   await expect(page.getByRole("link", { name: executor.action })).toHaveCount(1);
   await expect(page.getByRole("link", { name: executor.action })).toHaveAttribute("href", /\/v2\/requests\/new\?executor=\d+$/);
 
-  // Назад на каталог: шаг по истории (BackLink) — фильтр по типу на месте.
+  // «Назад» со страницы мастера — в общий список мастеров (спека 2026-11-17, 3.1); браузерный «Назад» оттуда — снова к мастеру,
+  // затем в каталог с фильтром по типу на месте.
   await page.getByRole("link", { name: `${ru.app.kit.back}: ${executor.backLabel}` }).click();
+  await expect(page).toHaveURL(/\/v2\/executors$/);
+  await expect(page.getByRole("heading", { level: 1, name: ru.app.guest.executors.title })).toBeVisible();
+  await expectScreenRules(page);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/v2\/executors\/\d+$/);
+  await page.goBack();
   await expect(page).toHaveURL(/\/v2\/catalog\?.*type=/);
   await expect(typeNav.getByRole("link", { name: typeName ?? "", exact: true })).toHaveAttribute("aria-current", "true");
   await expectScreenRules(page);
