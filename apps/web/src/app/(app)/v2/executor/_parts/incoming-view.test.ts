@@ -19,6 +19,7 @@ const row = (over: Partial<IncomingListItem> = {}): IncomingListItem => ({
   offersCount: 0,
   myOfferStatus: null as never, // тип модуля не знает про null, а значение бывает
   cover: null,
+  invited: false,
   ...over,
 });
 

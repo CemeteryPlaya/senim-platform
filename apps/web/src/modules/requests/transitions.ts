@@ -1,5 +1,6 @@
 import type {
   DepositStatus,
+  InvitationStatus,
   MeasurementStatus,
   OfferStatus,
   PreContractFlow,
@@ -105,6 +106,12 @@ export const OFFER_TRANSITIONS = [
   { action: "noDeal", from: ["ACCEPTED"], to: "DECLINED", who: ["CLIENT", "EXECUTOR"], guard: "замер без сделки" },
   { action: "requestCancelled", from: ["ACCEPTED"], to: "DECLINED", who: ["CLIENT"], guard: "заказчик отменил заявку до договора" },
 ] as const satisfies Table<OfferStatus, string>;
+
+/** Приглашение мастера к заказу: отказ — его решение, переход в OFFERED — следствие отклика (система, в транзакции отклика). */
+export const INVITATION_TRANSITIONS = [
+  { action: "decline", from: ["INVITED"], to: "DECLINED", who: ["EXECUTOR"], guard: "причина 3–300 знаков; отказ окончателен" },
+  { action: "offer", from: ["INVITED"], to: "OFFERED", who: ["SYSTEM"], guard: "мастер откликнулся на заявку; DECLINED не меняется" },
+] as const satisfies Table<InvitationStatus, string>;
 
 /**
  * Торг по отклику (решение 2.2.3, ТЗ п. 9): раунды PriceProposal. Роль — относительно открытого (PROPOSED) предложения:

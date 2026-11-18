@@ -80,6 +80,7 @@ function request(over: Partial<IncomingRequest> = {}): IncomingRequest {
     defaults: { measurementTerms: "FREE", measurementFee: null },
     // Тип `myOffer` модуль выводит без `null` (`r.offers[0]` без noUncheckedIndexedAccess), а на деле без предложения он null.
     myOffer: null as unknown as IncomingRequest["myOffer"],
+    invited: false,
     ...over,
   };
 }

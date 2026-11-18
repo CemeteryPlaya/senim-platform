@@ -164,6 +164,7 @@ model ExecutorProfile {
   specializations FurnitureType[]
   portfolio       PortfolioItem[]
   offers          Offer[]
+  invitations     RequestInvitation[]
   directRequests  Request[]       @relation("DirectRequests")
   deals           Deal[]
   reviews         Review[]
@@ -367,10 +368,35 @@ model Request {
   siteMeasurement SiteMeasurement?
   projects       Project[]
   offerRetries   OfferRetry[]
+  invitations    RequestInvitation[]
 
   @@index([status, segment, mode])
   @@index([clientId, status])
   @@unique([clientId, clientKey])
+}
+
+/// Приглашение мастера к открытому заказу-тендеру: покупатель зовёт мастера своей ценовой группы.
+/// Видимость заказа не меняет; мастер отвечает откликом (OFFERED) или отказом с причиной (DECLINED).
+enum InvitationStatus {
+  INVITED
+  DECLINED
+  OFFERED
+}
+
+model RequestInvitation {
+  id         String           @id @default(cuid())
+  requestId  String
+  request    Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  executorId String
+  executor   ExecutorProfile  @relation(fields: [executorId], references: [id], onDelete: Cascade)
+  status     InvitationStatus @default(INVITED)
+  reason     String?
+  clientKey  String?
+  createdAt  DateTime         @default(now())
+  decidedAt  DateTime?
+
+  @@unique([requestId, executorId])
+  @@index([executorId, status])
 }
 
 enum OfferStatus {

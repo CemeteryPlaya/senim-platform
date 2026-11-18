@@ -36,6 +36,14 @@ export const TEMPLATES = {
     ...t.requestDirect(p.portfolioTitle),
     link: links.executorRequest(p.requestId),
   })),
+  "request.invited": template<{ requestId: string; requestTitle: string }>(true, (p) => ({
+    ...t.requestInvited(p.requestTitle),
+    link: links.executorRequest(p.requestId),
+  })),
+  "request.invitation_declined": template<{ requestId: string; requestTitle: string; who: string; reason: string }>(false, (p) => ({
+    ...t.invitationDeclined(p.requestTitle, p.who, p.reason),
+    link: links.request(p.requestId),
+  })),
   "offer.received": template<{ requestId: string; requestTitle: string; price: number; durationDays: number }>(false, (p) => ({
     ...t.offerReceived(p.requestTitle, formatMoney(p.price), p.durationDays),
     link: links.request(p.requestId),

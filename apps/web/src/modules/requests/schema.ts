@@ -224,6 +224,24 @@ export const requestRefSchema = z.strictObject({ requestId: id });
 export const cancelRequestSchema = z.strictObject({ requestId: id, reason: optionalText(300) });
 export const offerRefSchema = z.strictObject({ offerId: id });
 
+/** Приглашений на одну заявку (покупатель зовёт мастеров своей ценовой группы). */
+export const INVITATIONS_PER_REQUEST = 10;
+export const INVITATION_REASON = { min: 3, max: 300 } as const;
+
+/** Приглашение мастера по публичному номеру; `clientKey` — ключ повтора формы, решающий признак повтора — пара заявка + мастер. */
+export const inviteExecutorSchema = z.strictObject({
+  requestId: id,
+  publicNumber: z.number().int().positive().max(2_147_483_647),
+  clientKey: z.uuid().optional(),
+});
+export type InviteExecutorInput = z.output<typeof inviteExecutorSchema>;
+
+export const declineInvitationSchema = z.strictObject({
+  requestId: id,
+  reason: z.string().trim().min(INVITATION_REASON.min, t.invitationReason).max(INVITATION_REASON.max, t.invitationReason),
+});
+export type DeclineInvitationInput = z.output<typeof declineInvitationSchema>;
+
 export const OFFER_SORTS = ["price", "duration", "rating"] as const;
 export type OfferSort = (typeof OFFER_SORTS)[number];
 export const listOffersSchema = z.strictObject({ requestId: id, sort: z.enum(OFFER_SORTS).default("price") });

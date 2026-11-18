@@ -4,6 +4,7 @@ import { PRE_CONTRACT_FLOWS, TZ_PATH, type RequestPath } from "./flows";
 import {
   PROPOSAL_TRANSITIONS,
   DEPOSIT_TRANSITIONS,
+  INVITATION_TRANSITIONS,
   MEASUREMENT_TRANSITIONS,
   OFFER_TRANSITIONS,
   PROJECT_TRANSITIONS,
@@ -172,5 +173,30 @@ describe("таблицы переходов", () => {
     // Выбор отклика без торга и цена из торга — каждое только на своём пути.
     expect(() => transition(REQUEST_TRANSITIONS, "chooseOffer", "OPEN", "CLIENT", TZ_PATH)).toThrow(expect.objectContaining({ code: "CONFLICT" }));
     expect(() => transition(REQUEST_TRANSITIONS, "priceAccepted", "OPEN", "CLIENT", "EXECUTOR_MEASURE")).toThrow(expect.objectContaining({ code: "CONFLICT" }));
+  });
+});
+
+describe("приглашения: INVITATION_TRANSITIONS", () => {
+  const STATES = ["INVITED", "DECLINED", "OFFERED"] as const;
+  const allowed = new Set(["decline:INVITED:EXECUTOR", "offer:INVITED:SYSTEM"]);
+
+  it("разрешены только отказ мастера и отклик (система) из INVITED; остальное — CONFLICT или FORBIDDEN", () => {
+    for (const action of ["decline", "offer"] as const) {
+      for (const from of STATES) {
+        for (const who of WHO) {
+          const ok = allowed.has(`${action}:${from}:${who}`);
+          let result: string;
+          try {
+            result = transition(INVITATION_TRANSITIONS, action, from, who);
+          } catch (err) {
+            expect(ok).toBe(false);
+            expect(isAppError(err)).toBe(true);
+            continue;
+          }
+          expect(ok).toBe(true);
+          expect(result).toBe(action === "decline" ? "DECLINED" : "OFFERED");
+        }
+      }
+    }
   });
 });

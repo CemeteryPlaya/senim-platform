@@ -71,6 +71,7 @@ describe("шаблоны уведомлений", () => {
       "registration.approved",
       "registration.rejected",
       "request.direct",
+      "request.invited",
     ]);
   });
 

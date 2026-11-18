@@ -39,6 +39,7 @@ const fresh = (id: string): IncomingListItem => ({
   offersCount: 0,
   myOfferStatus: null as never, // тип модуля не знает про null (r.offers[0]?.status ?? null), а значение бывает
   cover: null,
+  invited: false,
 });
 
 function data(input: Partial<MasterHomeInput>, over: Partial<MasterHomeData> = {}): MasterHomeData {

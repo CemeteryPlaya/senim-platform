@@ -1,5 +1,6 @@
 import "server-only";
 import type { Measurement, Offer } from "@/generated/prisma/client";
+import type { InvitationStatus } from "@/generated/prisma/enums";
 import { executorDisplayOf, publicExecutorView, publicExecutorViews, sanitizeExecutorText } from "@/modules/companies";
 import type { CurrentUser } from "@/modules/identity";
 import { notify } from "@/modules/notifications";
@@ -12,7 +13,7 @@ import { auditByUser, declineOtherOffers, links, loadExecutor, loadOwnRequest, p
 import { executorPortfolio, executorReviews, roomPhotos } from "./adapters";
 import { parseDetails, pointOf, type OfferSort, type SendOfferInput } from "./schema";
 import { sortOffers } from "./sort";
-import { OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
+import { INVITATION_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
 import { visibleToExecutor } from "./visibility";
 import { allowedRound } from "./retries";
 import { preContractView } from "./pre-contract";
@@ -59,6 +60,11 @@ export async function sendOffer(user: CurrentUser, input: SendOfferInput): Promi
         action: "offer.sent",
         entity: { type: "offer", id: offer.id },
         after: { status: offer.status, priceTiyn: String(offer.priceTiyn), durationDays: offer.durationDays, measurementTerms: terms, round },
+      });
+      // Приглашённый мастер откликнулся: INVITED → OFFERED (DECLINED не трогаем — отказ окончателен).
+      await tx.requestInvitation.updateMany({
+        where: { requestId: r.id, executorId: executor.id, status: "INVITED" },
+        data: { status: transition(INVITATION_TRANSITIONS, "offer", "INVITED", "SYSTEM"), decidedAt: new Date() },
       });
       if (pathOf(r) === TZ_PATH) await openNegotiation(tx, offer, user.id);
       const title = requestTitle(r);
@@ -215,6 +221,7 @@ export async function listIncomingRequests(user: CurrentUser, filter: { mode?: "
       // Последняя попытка исполнителя (повтор разрешает оператор, №16).
       offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, select: { status: true } },
       _count: { select: { offers: { where: { status: { not: "WITHDRAWN" } } } } },
+      invitations: { where: { executorId: executor.id }, select: { status: true }, take: 1 },
       photos: coverPhoto,
     },
   });
@@ -232,6 +239,8 @@ export async function listIncomingRequests(user: CurrentUser, filter: { mode?: "
     publishedAt: r.publishedAt,
     offersCount: r._count.offers,
     myOfferStatus: r.offers[0]?.status ?? null,
+    /** Покупатель пригласил этого мастера и приглашение в силе (ждёт ответа или мастер откликнулся). */
+    invited: isInvited(r.invitations[0]?.status),
   }));
 }
 export type IncomingListItem = Awaited<ReturnType<typeof listIncomingRequests>>[number];
@@ -249,6 +258,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
       photos: { where: { purpose: "REQUEST_ROOM" }, orderBy: { sortOrder: "asc" }, select: { id: true, provider: true, storageKey: true } },
       offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, include: { measurement: true, deal: { select: { id: true } } } },
       offerRetries: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, select: { round: true } },
+      invitations: { where: { executorId: executor.id }, select: { status: true }, take: 1 },
     },
   });
   if (!r) return fail.notFound(e.notFound);
@@ -278,8 +288,11 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     pre: await preContractView(db, r, mine),
     defaults: { measurementTerms: executor.measurementTerms, measurementFee: executor.measurementFee },
     myOffer: mine && myOfferView(mine),
+    invited: isInvited(r.invitations[0]?.status),
   };
 }
+
+const isInvited = (status: InvitationStatus | undefined) => status === "INVITED" || status === "OFFERED";
 
 /** Свой отклик мастера на экране заявки: условия, сделка (оферта) и замер сценария до договора. */
 function myOfferView(mine: Offer & { measurement: Measurement | null; deal: { id: string } | null }) {

@@ -58,6 +58,14 @@ export const notifications = {
       title: "Заказчик хочет похожее",
       body: `Новая заявка по вашей работе «${portfolioTitle}».`,
     }),
+    requestInvited: (requestTitle: string): Text => ({
+      title: "Вас приглашают к заказу",
+      body: `Покупатель приглашает вас по заказу «${requestTitle}». Посмотрите заказ и предложите цену или откажитесь.`,
+    }),
+    invitationDeclined: (requestTitle: string, who: string, reason: string): Text => ({
+      title: "Мастер отказался от приглашения",
+      body: `${who} не возьмётся за заказ «${requestTitle}»: ${reason}`,
+    }),
     offerReceived: (requestTitle: string, price: string, durationDays: number): Text => ({
       title: "Новый отклик на заявку",
       body: `На заявку «${requestTitle}» пришёл отклик: ${price}, срок ${days(durationDays)}.`,
