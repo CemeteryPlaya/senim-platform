@@ -18,6 +18,6 @@ export default async function setup() {
   const root = await createRunStorageRoot();
   process.env[TEST_STORAGE_ROOT_ENV] = root;
   return async () => {
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 3 });
   };
 }
