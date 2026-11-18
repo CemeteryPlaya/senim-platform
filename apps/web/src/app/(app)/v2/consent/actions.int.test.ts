@@ -10,6 +10,9 @@ import { FAKE_OTP_CODE, identityFake } from "../../../../../test/stubs/identity"
 import { chooseRoleAction, requestCodeAction, verifyCodeAction } from "../login/actions";
 import { grantConsentAction } from "./actions";
 
+// Шаг первых шагов меняет оболочку (сосредоточенная → с меню): действие просит перерисовать layout.
+const h = vi.hoisted(() => ({ revalidated: [] as unknown[][] }));
+vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => void h.revalidated.push(args) }));
 vi.mock("next/headers", async () => (await import("../../../../../test/factories/identity")).nextHeadersMock);
 
 const t = ru.app.onboarding.consent;
@@ -18,6 +21,7 @@ const ORIGINAL = { version: PD.version, sections: PD.sections };
 const NEXT = "/v2/deals/1";
 
 beforeEach(() => {
+  h.revalidated = [];
   freshBrowser({ "user-agent": "vitest" });
   setEnv({ SMS_PROVIDER: "mock" });
 });
@@ -53,6 +57,12 @@ describe("grantConsentAction", () => {
     const [record] = identityFake.consentsOf(user.id);
     expect(record).toMatchObject({ kind: ConsentKind.PD_PROCESSING, version: PD.version, textSha256: consentTextSha256("PD_PROCESSING"), channel: "otp_session" });
     expect(record?.purposes).toEqual(PD.purposes);
+  });
+
+  it("после записи оболочка перерисовывается: согласие может быть последним шагом (новая редакция у прошедшего остальные)", async () => {
+    await signInNewcomer("+77000007807");
+    await run(grantConsentAction({ agreed: "on", version: PD.version, next: "" }));
+    expect(h.revalidated).toContainEqual(["/(app)", "layout"]);
   });
 
   it("без next — на знакомство без параметра; чужой next отбрасывается", async () => {

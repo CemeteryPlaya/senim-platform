@@ -1,4 +1,5 @@
 import "server-only";
+import { revalidatePath } from "next/cache";
 import { needsConsent, needsEmail, needsIntroduction } from "@/modules/identity";
 import type { StepUser } from "./auth";
 
@@ -12,6 +13,17 @@ export function pendingOnboarding(user: StepUser): OnboardingScreen[] {
   if (needsIntroduction(user)) steps.push("welcome");
   if (needsEmail(user)) steps.push("email");
   return steps;
+}
+
+/**
+ * Пройден один из первых шагов (Server Action согласия, знакомства, почты): оболочка (layout) может смениться с
+ * сосредоточенной (название и «Выйти») на обычную с меню — если это был последний шаг или следующий экран сам ведёт
+ * дальше (почта уже подтверждена в identity — стенд после пересева базы web). Действие шага изменило данные, но не
+ * cookie, а redirect из Server Action без перерисовки клиентский роутер ведёт со старым layout: человек видел свой дом
+ * без меню до перезагрузки. Поэтому layout группы помечается устаревшим — как после смены роли (регистрация мастера).
+ */
+export function shellChanged(): void {
+  revalidatePath("/(app)", "layout");
 }
 
 /** Постоянная последовательность первых шагов: номер шага — его место в ней, а не число оставшихся. */

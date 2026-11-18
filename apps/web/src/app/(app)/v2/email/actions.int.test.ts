@@ -16,6 +16,9 @@ import { chooseRoleAction, requestCodeAction, verifyCodeAction } from "../login/
 import { introduceAction } from "../welcome/actions";
 import { requestEmailCodeAction, verifyEmailCodeAction } from "./actions";
 
+// Шаг первых шагов меняет оболочку (сосредоточенная → с меню): действие просит перерисовать layout.
+const h = vi.hoisted(() => ({ revalidated: [] as unknown[][] }));
+vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => void h.revalidated.push(args) }));
 vi.mock("next/headers", async () => (await import("../../../../../test/factories/identity")).nextHeadersMock);
 
 const t = ru.app.onboarding.email;
@@ -24,6 +27,7 @@ const NEXT = "/v2/deals/1";
 const ADDRESS = "erlan@mail.kz";
 
 beforeEach(() => {
+  h.revalidated = [];
   freshBrowser({ "user-agent": "vitest" });
   setEnv({ SMS_PROVIDER: "mock" });
   identityFake.now = () => new Date();
@@ -164,6 +168,12 @@ describe("verifyEmailCodeAction", () => {
     expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerifiedAt).not.toBeNull();
     expect(identityFake.personOf(user.id)).toMatchObject({ email: ADDRESS, emailVerified: true });
     expect(deletedCookies.map((c) => c.name)).toContain(roleCookieName());
+  });
+
+  it("почта — последний шаг: оболочка перерисовывается (явно, а не только из-за удаления cookie выбора роли)", async () => {
+    await atEmail();
+    await run(verifyEmailCodeAction({ code: await sentCode(), email: ADDRESS, next: "" }));
+    expect(h.revalidated).toContainEqual(["/(app)", "layout"]);
   });
 
   it("без next — дом покупателя; чужой next отбрасывается", async () => {

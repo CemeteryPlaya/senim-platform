@@ -12,6 +12,9 @@ import { grantConsentAction } from "../consent/actions";
 import { requestCodeAction, verifyCodeAction } from "../login/actions";
 import { introduceAction } from "./actions";
 
+// Шаг первых шагов меняет оболочку (сосредоточенная → с меню): действие просит перерисовать layout.
+const h = vi.hoisted(() => ({ revalidated: [] as unknown[][] }));
+vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => void h.revalidated.push(args) }));
 vi.mock("next/headers", async () => (await import("../../../../../test/factories/identity")).nextHeadersMock);
 
 const t = ru.app.onboarding.welcome.errors;
@@ -21,6 +24,7 @@ const IIN = testIin("870304", 3, 61);
 const OTHER_IIN = testIin("900101", 3, 62);
 
 beforeEach(() => {
+  h.revalidated = [];
   freshBrowser({ "user-agent": "vitest" });
   setEnv({ SMS_PROVIDER: "mock" });
 });
@@ -66,6 +70,14 @@ describe("introduceAction", () => {
 
     expect(identityFake.personOf(user.id)).toMatchObject({ fullName: "Сапаров Ерлан", iinLast4: IIN.slice(-4) });
     expect(await db.user.findUniqueOrThrow({ where: { id: user.id } })).toMatchObject({ fullName: "Сапаров Ерлан", iinLast4: IIN.slice(-4) });
+  });
+
+  it("после записи оболочка перерисовывается: знакомство может быть последним шагом (почта уже подтверждена в identity)", async () => {
+    // Стенд после пересева базы web: identity помнит человека (согласие, почта), а в проекции нет ФИО — знакомство
+    // оказывается последним шагом. Без перерисовки layout клиентский роутер оставлял сосредоточенную шапку без меню.
+    await atWelcome("+77000007919");
+    await run(introduceAction({ fullName: "Сапаров Ерлан", iin: IIN, next: "" }));
+    expect(h.revalidated).toContainEqual(["/(app)", "layout"]);
   });
 
   it("чужой next отбрасывается", async () => {

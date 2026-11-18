@@ -10,6 +10,8 @@ import { signInAs } from "../../../../../test/factories/session";
 import { identityFake } from "../../../../../test/stubs/identity";
 import { requestEmailCodeAction, verifyEmailCodeAction } from "./actions";
 
+// Переход дальше после почты перерисовывает оболочку (shellChanged → revalidatePath): вне запроса Next он недоступен.
+vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("next/headers", async () => (await import("../../../../../test/factories/identity")).nextHeadersMock);
 
 const c = ru.app.profile.emailChange;

@@ -6,6 +6,7 @@ import { ru } from "@/i18n/ru";
 import { grantPdConsent, requireConsentSubject } from "@/modules/identity";
 import { action } from "@/platform/action";
 import { nextStepFor, safeNext } from "../../_shell/auth";
+import { shellChanged } from "../../_shell/onboarding";
 import { recallRole } from "../../_shell/role-cookie";
 
 const t = ru.app.onboarding.consent;
@@ -30,5 +31,6 @@ export const grantConsentAction = action("app.consent.grant", schema, async ({ v
   const user = await requireConsentSubject();
   await grantPdConsent(version);
   const granted = { ...user, consents: [{ id: "", version, textSha256: "" }], consentRevocationOpen: false };
+  shellChanged();
   redirect(nextStepFor(granted, safeNext(next), await recallRole()));
 });

@@ -7,6 +7,7 @@ import { recordOwnIdentity, requireUser } from "@/modules/identity";
 import { action } from "@/platform/action";
 import { AppError } from "@/platform/errors";
 import { nextStepFor, safeNext } from "../../_shell/auth";
+import { shellChanged } from "../../_shell/onboarding";
 import { recallRole } from "../../_shell/role-cookie";
 
 const t = ru.app.onboarding.welcome.errors;
@@ -56,5 +57,6 @@ export const introduceAction = action("app.welcome.introduce", schema, async ({ 
     throw atIinField(e);
   });
   const introduced = { ...user, fullName, iinLast4: iin.slice(-4) };
+  shellChanged();
   redirect(nextStepFor(introduced, safeNext(next), await recallRole()));
 });

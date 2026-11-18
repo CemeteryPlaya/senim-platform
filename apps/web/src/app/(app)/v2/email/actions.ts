@@ -16,6 +16,7 @@ import { action } from "@/platform/action";
 import { digitsOnly } from "@/platform/digits";
 import { AppError } from "@/platform/errors";
 import { nextStepFor, safeNext } from "../../_shell/auth";
+import { shellChanged } from "../../_shell/onboarding";
 import { to } from "../../_shell/paths";
 import { forgetRole, recallRole } from "../../_shell/role-cookie";
 
@@ -43,6 +44,7 @@ const emailField = z.string().trim().min(1, t.errors.required).max(254, errors.i
 async function moveOn(user: CurrentUser, next: string | undefined): Promise<never> {
   const chosen = await recallRole();
   await forgetRole();
+  shellChanged();
   redirect(nextStepFor({ ...user, emailVerified: true }, safeNext(next), chosen));
 }
 

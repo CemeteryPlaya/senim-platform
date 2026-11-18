@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import { Client } from "pg";
 import { ru } from "@/i18n/ru";
 import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
+import { assertSafeDatabase } from "./safe-database";
 import { freshIin, freshPhone, loginV2, open, passOnboarding, readShownCode } from "./support";
 
 /**
@@ -78,7 +80,7 @@ test("новый номер: согласие → знакомство → по�
 
   // Пустые поля — обе ошибки сразу у полей.
   await primary(page, welcome.submit).click();
-  await expect(page.getByText(welcome.errors.fullNameRequired)).toBeVisible();
+  await expect(page.getByText(welcome.errors.fullNameRequired, { exact: true })).toBeVisible();
   await expect(page.getByText(welcome.errors.iinRequired)).toBeVisible();
   await expect(page.getByLabel(welcome.fullName)).toHaveAttribute(
     "aria-invalid",
@@ -213,6 +215,56 @@ test("ИИН уже указан в другом аккаунте — ошибк
   await expect(page.getByLabel(welcome.iin)).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByLabel(welcome.fullName)).toHaveValue("Другой Человек");
   await expect(page).toHaveURL(/\/v2\/welcome$/);
+});
+
+/**
+ * Как на стенде после пересева базы web: identity помнит человека (согласие, ФИО и ИИН, подтверждённая почта), а в проекции
+ * web нет ФИО, ИИН и почты. Стирается только строка этого нового человека в базе e2e (`senim_v2web_*`).
+ */
+async function forgetPersonInWeb(phoneDigits: string): Promise<void> {
+  const url = process.env.E2E_DATABASE_URL ?? "";
+  assertSafeDatabase(url);
+  const db = new Client({ connectionString: url });
+  await db.connect();
+  try {
+    const res = await db.query(`update "User" set "fullName" = null, "iinLast4" = null, email = null, "emailVerifiedAt" = null where phone = $1`, [
+      `+7${phoneDigits}`,
+    ]);
+    if (res.rowCount !== 1) throw new Error(`Нет пользователя +7${phoneDigits} в базе e2e`);
+  } finally {
+    await db.end();
+  }
+}
+
+test("знакомство — последний шаг (почта уже подтверждена в identity): дом сразу в обычной оболочке, без перезагрузки", async ({
+  page,
+  context,
+}, info) => {
+  const phone = freshPhone();
+  const iin = freshIin();
+  await loginV2(page, phone.typed);
+  await passOnboarding(page, { fullName: "Сапаров Ерлан", iin });
+  await context.clearCookies();
+  await forgetPersonInWeb(phone.digits);
+
+  // Повторный вход (как у владельца — «Я мастер»): согласие и почта уже есть в identity, остаётся знакомство.
+  await loginV2(page, phone.typed, { role: "executor" });
+  await expect(heading(page, welcome.title)).toBeVisible();
+  await page.getByLabel(welcome.fullName).fill("Сапаров Ерлан");
+  await page.getByLabel(welcome.iin).fill(iin);
+  await primary(page, welcome.submit).click();
+
+  // Шаг почты пропускается (подтверждена) — дом. Оболочка уже обычная: раньше оставалась сосредоточенная шапка
+  // (название и «Выйти») без меню до перезагрузки.
+  await page.waitForURL((url) => url.pathname === "/v2");
+  await expect(page.getByRole("navigation", { name: shell.navLabel })).toBeVisible();
+  if (info.project.name === "mobile") {
+    await expect(page.locator("[data-focus-bar]")).toHaveCount(0);
+    await expect(page.locator("[data-tab-bar]")).toBeVisible();
+  } else {
+    await expect(page.getByRole("button", { name: shell.profileMenu })).toBeVisible();
+    await expect(page.locator("[data-top-bar]").getByRole("button", { name: shell.logout, exact: true })).toHaveCount(0);
+  }
 });
 
 test("вошедший с непройденными шагами не застревает: главная и каталог уводят на шаг с возвратом туда же", async ({ page }) => {
