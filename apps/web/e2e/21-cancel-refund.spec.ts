@@ -41,7 +41,9 @@ test("покупатель отменяет оплаченную сделку: R
   await expectDealStatus(page, "Деньги возвращены");
   await expect(moneyBlock(page)).toContainText("Деньги вернулись покупателю");
   await expect(moneyBlock(page)).toContainText(amount(PAID.buyerTotal));
-  await expect(nextStep(page)).toContainText("Деньги возвращены покупателю");
+  // Возврат по сделке с офертой — окончание сделки: с флагом reviews (включён по умолчанию с 18.11.2026, ADR-009) «Что дальше»
+  // предлагает оценить мастера (спека 2026-11-17, 3.4); без флага — строка о возврате.
+  await expect(nextStep(page)).toContainText(/Деньги возвращены покупателю|Оцените мастера/);
   await expect(page.getByRole("button", { name: "Отменить сделку" })).toHaveCount(0);
 
   const rows = await openMoneyHistory(page, dealPath);
@@ -78,8 +80,10 @@ test("отмена до оплаты: CANCELLED, движений денег н�
   await expectDealStatus(page, "Отменена");
   await page.goto(dealPath);
   await expectDealStatus(page, "Отменена");
-  await expect(nextStep(page)).toContainText("Сделка отменена");
-  await expect(nextStep(page).getByRole("button")).toHaveCount(0);
+  // Оферта была заключена — отмена до оплаты тоже окончание сделки: с флагом reviews «Что дальше» предлагает оценить мастера
+  // (спека 2026-11-17, 3.4); других действий нет.
+  await expect(nextStep(page)).toContainText(/Сделка отменена|Оцените мастера/);
+  await expect(nextStep(page).getByRole("button").filter({ hasNotText: "Отправить отзыв" })).toHaveCount(0);
   await openMoneyHistory(page, dealPath);
   await expect(page.getByText("Движений денег пока нет.")).toBeVisible();
 });
