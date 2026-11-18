@@ -289,6 +289,8 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     defaults: { measurementTerms: executor.measurementTerms, measurementFee: executor.measurementFee },
     myOffer: mine && myOfferView(mine),
     invited: isInvited(r.invitations[0]?.status),
+    /** Статус приглашения этого мастера (для отказа: только INVITED); нет приглашения — null. */
+    invitation: (r.invitations[0]?.status ?? null) as InvitationStatus | null,
   };
 }
 

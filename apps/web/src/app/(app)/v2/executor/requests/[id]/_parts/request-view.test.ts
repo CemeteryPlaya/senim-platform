@@ -81,6 +81,7 @@ function request(over: Partial<IncomingRequest> = {}): IncomingRequest {
     // Тип `myOffer` модуль выводит без `null` (`r.offers[0]` без noUncheckedIndexedAccess), а на деле без предложения он null.
     myOffer: null as unknown as IncomingRequest["myOffer"],
     invited: false,
+    invitation: null,
     ...over,
   };
 }
@@ -89,6 +90,19 @@ const stateOf = (over: Partial<MasterStateInput> = {}): MasterState =>
   masterState({ canOffer: false, retryAllowed: false, status: "OPEN", myOffer: { status: "SENT", dealId: null }, negotiation: null, ...over });
 
 describe("masterState: состояние заявки и торга глазами мастера", () => {
+  it("приглашён и ответа нет — метка в заголовке и отказ; после ответа или отказа — без отказа; не OPEN — без отказа", () => {
+    const base = request();
+    expect(requestView(base, null, now).lead.invited).toBeNull();
+    expect(requestView(base, null, now).declineInvitation).toBeNull();
+    const invited = requestView(request({ invited: true, invitation: "INVITED" }), null, now);
+    expect(invited.lead.invited).toBe(t.invited);
+    expect(invited.declineInvitation).toEqual({ requestId: "req-1" });
+    const offered = requestView(request({ invited: true, invitation: "OFFERED" }), null, now);
+    expect(offered.lead.invited).toBe(t.invited);
+    expect(offered.declineInvitation).toBeNull();
+    expect(requestView(request({ invited: true, invitation: "INVITED", status: "CANCELLED" }), null, now).declineInvitation).toBeNull();
+  });
+
   it("своего предложения нет — форма; новая попытка от оператора — форма «ещё раз»; отправить нельзя — «не принимает»", () => {
     expect(stateOf({ canOffer: true, myOffer: null })).toEqual({ kind: "form", retry: false });
     expect(stateOf({ canOffer: true, retryAllowed: true, myOffer: { status: "DECLINED", dealId: null } })).toEqual({ kind: "form", retry: true });
@@ -131,7 +145,7 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.contactsNote).toBe(t.request.contacts);
     expect([v.history, v.conditions]).toEqual([[], []]);
     expect(v.back).toEqual({ href: "/v2/executor/requests", label: t.back });
-    expect(v.lead).toEqual({ number: t.numberLine(18), direct: null });
+    expect(v.lead).toEqual({ number: t.numberLine(18), direct: null, invited: null });
   });
 
   it("цена покупателя: «Принять X» с подтверждением и суммой «Вы получите» из partyEstimate(\"EXECUTOR\"); своя цена — второстепенное", () => {

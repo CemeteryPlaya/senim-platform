@@ -152,10 +152,15 @@ describe("executorView: условия", () => {
 });
 
 describe("executorView: заголовок, «О мастере»", () => {
-  it("заголовок — публичная подпись (ADR-006), ссылка «Назад» на каталог v2", () => {
+  it("«Назад» ведёт в список мастеров; с заказом в адресе — с тем же ?request=", () => {
+    expect(executorView(page()).backHref).toBe("/v2/executors");
+    expect(executorView(page(), { requestId: "r1" }).backHref).toBe("/v2/executors?request=r1");
+  });
+
+  it("заголовок — публичная подпись (ADR-006)", () => {
     const v = executorView(page({ view: viewOf({ label: "ТОО «Мебель Сити»", nameShown: true }) }));
     expect(v.title).toBe("ТОО «Мебель Сити»");
-    expect(v.backHref).toBe("/v2/catalog");
+    expect(v.backHref).toBe("/v2/executors");
     expect(executorView(page()).title).toBe("Исполнитель №17");
   });
 

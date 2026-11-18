@@ -71,6 +71,11 @@ describe("вид списка мастеров", () => {
     expect(view.media).toBe("none");
   });
 
+  it("с заявкой ссылка на профиль несёт ?request= (профиль приглашает к этому заказу)", () => {
+    const view = executorsListView({ items: [item()], total: 1 }, { page: 1, requestId: "r1" }, { requestId: "r1", number: 42 });
+    expect(view.cards[0]?.href).toBe("/v2/executors/7?request=r1");
+  });
+
   it("пагинация: страниц по total, адрес страницы сохраняет заявку", () => {
     const view = executorsListView({ items: [item()], total: 25 }, { page: 2, requestId: "r1" }, { requestId: "r1", number: 42 });
     expect(view.pageCount).toBe(3);

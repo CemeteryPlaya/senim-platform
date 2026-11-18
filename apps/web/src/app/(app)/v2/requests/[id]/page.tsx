@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import type { RequestStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { getClientRequest, getDraft, listOffers, myOfferStates, REQUEST_TRANSITIONS } from "@/modules/requests";
+import { getClientRequest, getDraft, listInvitations, listOffers, myOfferStates, REQUEST_TRANSITIONS } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { pageHref, requireBuyer } from "../../../_shell/auth";
 import { requestState } from "../../_parts/request-state";
-import { detailRows, draftHref, nowView, offersView, parseSort, photoView, sentNotice, type OfferInput } from "./_parts/card-view";
+import { detailRows, draftHref, invitationRows, nowView, offersView, parseSort, photoView, sentNotice, type OfferInput } from "./_parts/card-view";
 import { RequestCardView, type CardView } from "./_parts/RequestCardView";
 
 export const metadata: Metadata = { title: ru.app.requestCard.metaTitle };
@@ -45,10 +45,11 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
   const sort = parseSort(one(sp.sort));
   // Фото помещения и мастер прямой заявки приходят от модуля вместе с «черновиком» (то же чтение своей заявки); действующие
   // цены и состояние предложений — лёгким чтением `myOfferStates` (цена торга или сделки, а не первая цена отклика).
-  const [offers, own, states] = await Promise.all([
+  const [offers, own, states, invitations] = await Promise.all([
     orNotFound(listOffers(user, { requestId: id, sort })),
     orNotFound(getDraft(user, id)),
     orNotFound(myOfferStates(user, { requestId: id })),
+    orNotFound(listInvitations(user, id)),
   ]);
   const device = await getDevice();
 
@@ -76,6 +77,7 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
     sent: notice && { ...notice, href: pageHref(`/requests/${encodeURIComponent(id)}`, withoutSent) },
     chip: { text: state.text, tone: state.tone },
     now,
+    invitations: invitationRows(invitations),
     offers: offersView({ id, status: request.status, mode: request.mode }, inputs, sort),
     details: detailRows({
       title: request.title,

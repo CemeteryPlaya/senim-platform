@@ -107,6 +107,14 @@ export const requestCard = {
     photoAlt: (n: number, total: number) => `Фото помещения ${n} из ${total}`,
   },
 
+  /** Приглашённые мастера: покупатель позвал их со страницы мастера; статус — по ответу мастера. */
+  invitations: {
+    section: "Приглашённые мастера",
+    status: { INVITED: "Ждём ответа", OFFERED: "Прислал предложение" },
+    declined: (reason: string): string => `Отказался: ${reason}`,
+    declinedNoReason: "Отказался",
+  },
+
   actions: {
     menu: "Действия с заявкой",
     cancel: "Отменить заявку",

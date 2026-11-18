@@ -33,6 +33,7 @@ function view(over: Partial<CardView> = {}, offers: OfferInput[] = [offer("3", 1
     sent: null,
     chip: { text: ru.app.requests.state.choose(offers.length), tone: "warn" },
     now: nowView({ id: "r1", mode: "TENDER", path: "TZ", state: { kind: offers.length > 0 ? "choose" : "waiting", liveOffers: offers.length }, dealId: null, chosenOfferId: null }),
+    invitations: [],
     offers: offersView(request, offers, "price"),
     details: [{ label: "Город", value: "Астана", stacked: false }],
     photos: [{ id: "p1", src: "/f/p1", alt: "Фото помещения 1 из 1" }],

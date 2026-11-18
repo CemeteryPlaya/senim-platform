@@ -13,7 +13,7 @@ export type ExecutorsSearch = { page: number; requestId: string | null };
 
 /**
  * Заявка, для которой открыт список: своя у покупателя, открыта, на всех мастеров и путём ТЗ (страница проверила).
- * В этом шаге — только контекст: кнопки приглашения появятся следующим шагом.
+ * Ссылки списка несут её дальше, на страницу мастера.
  */
 export type InviteContext = { requestId: string; number: number };
 
@@ -71,12 +71,13 @@ function listHref(page: number, invite: InviteContext | null): string {
   return to(query ? `/executors?${query}` : "/executors");
 }
 
-function cardView(item: ExecutorListItem): ExecutorCardView {
+function cardView(item: ExecutorListItem, invite: InviteContext | null): ExecutorCardView {
   const rating =
     item.reviewsCount > 0 ? t.rating(item.ratingAvg.toLocaleString("ru-RU", { maximumFractionDigits: 1 }), ru.app.guest.catalog.reviews(item.reviewsCount)) : t.noReviews;
   return {
     key: String(item.publicNumber),
-    href: to(`/executors/${item.publicNumber}`),
+    // С заявкой в адресе профиль тоже открыт для неё: оттуда мастера приглашают к этому заказу.
+    href: to(`/executors/${item.publicNumber}${invite ? `?${new URLSearchParams({ request: invite.requestId })}` : ""}`),
     title: item.label,
     meta: [item.segment ? segments[item.segment] : null, rating].filter(Boolean).join(" · "),
     byline: t.statsLine(item.stats.deals, item.stats.successRate),
@@ -102,7 +103,7 @@ export function executorsListView(
     empty: { title: t.empty.title, body: t.empty.body, action: { href: to("/"), label: t.empty.action } },
     beyond: { title: t.beyond.title, body: t.beyond.body(pageCount), action: { href: hrefFor(1), label: t.beyond.action } },
   }[state];
-  const cards = result.items.map(cardView);
+  const cards = result.items.map((item) => cardView(item, invite));
   return {
     state,
     lead: invite ? t.forRequest(invite.number) : t.lead,

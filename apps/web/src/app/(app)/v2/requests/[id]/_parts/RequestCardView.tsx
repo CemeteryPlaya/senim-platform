@@ -5,7 +5,7 @@ import { ActionDock, ButtonLink, Card, EmptyState, List, ListItem, ListRow, Mone
 import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
 import { chooseOfferSort } from "../actions";
-import { sortOptions, type DetailRow, type NowView, type OffersView } from "./card-view";
+import { sortOptions, type DetailRow, type InvitationRow, type NowView, type OffersView } from "./card-view";
 import { RequestActions } from "./RequestActions";
 import { SentNotice } from "./SentNotice";
 
@@ -21,6 +21,8 @@ export type CardView = {
   chip: { text: string; tone: StatusTone };
   now: NowView;
   offers: OffersView;
+  /** Приглашённые мастера; пусто — раздела нет. */
+  invitations: InvitationRow[];
   details: DetailRow[];
   photos: { id: string; src: string; alt: string }[];
   /** Отмена разрешена: показываем «Действия»; число предложений — для текста последствий. */
@@ -73,6 +75,33 @@ function Offers({ view }: { view: CardView }) {
                       <StatusChip tone={row.chip.tone}>{row.chip.text}</StatusChip>
                     </span>
                   )}
+                </span>
+                <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
+              </Link>
+            </ListItem>
+          ))}
+        </List>
+      </Card>
+    </Section>
+  );
+}
+
+/** «Приглашённые мастера»: мастер — ссылкой на его страницу, под ним — ответ на приглашение. */
+function Invitations({ view }: { view: CardView }) {
+  if (view.invitations.length === 0) return null;
+  return (
+    <Section title={t.invitations.section}>
+      <Card padded={false}>
+        <List>
+          {view.invitations.map((row) => (
+            <ListItem key={row.key}>
+              <Link
+                href={row.href}
+                className="flex w-full items-center gap-3 px-card py-3 text-body no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
+              >
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="min-w-0 text-headline wrap-break-word text-ink">{row.label}</span>
+                  <span className="text-sub wrap-break-word text-muted">{row.status}</span>
                 </span>
                 <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
               </Link>
@@ -158,6 +187,7 @@ export function RequestCardView({ view, device }: { view: CardView; device: Devi
               {device === "desktop" && action}
             </Stack>
             <Offers view={view} />
+            <Invitations view={view} />
           </Stack>
         }
         aside={<Details view={view} />}

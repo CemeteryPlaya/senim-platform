@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { proposePriceSchema, sendOfferSchema } from "@/modules/requests/client";
-import { DAYS, MAX_PRICE_KZT, parsePriceKzt, priceKzt, proposeSchema, sendSchema, WARRANTY } from "./schema";
+import { declineSchema, DAYS, MAX_PRICE_KZT, parsePriceKzt, priceKzt, proposeSchema, sendSchema, WARRANTY } from "./schema";
 
 const t = ru.app.masterOffer.errors;
 
@@ -67,5 +67,21 @@ describe("цена предложения мастера: поле → целы�
     expect(byField).toEqual({ price: t.price, days: t.days, warranty: t.warranty, comment: t.comment });
     expect(sendSchema.safeParse({ ...form(), measurementTerms: "FREE" }).success).toBe(false);
     expect(sendSchema.parse(form({ comment: "  Блюм  " }))).toEqual({ requestId: "r", price: 500_000, days: 30, warranty: 12, comment: "Блюм" });
+  });
+});
+
+describe("declineSchema: отказ от приглашения", () => {
+  const first = (reason: string) => {
+    const parsed = declineSchema.safeParse({ requestId: "r", reason });
+    return parsed.success ? null : parsed.error.issues[0]?.message;
+  };
+
+  it("причина 3..300 знаков после обрезки пробелов; иначе — текст у поля", () => {
+    expect(first("")).toBe(t.declineReason);
+    expect(first("  ab  ")).toBe(t.declineReason);
+    expect(first("abc")).toBeNull();
+    expect(first("я".repeat(300))).toBeNull();
+    expect(first("я".repeat(301))).toBe(t.declineReason);
+    expect(declineSchema.parse({ requestId: "r", reason: "  Занят  " })).toEqual({ requestId: "r", reason: "Занят" });
   });
 });

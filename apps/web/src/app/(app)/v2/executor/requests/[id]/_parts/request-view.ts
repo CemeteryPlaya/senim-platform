@@ -85,7 +85,7 @@ export type DetailRow = { label: string; value: string; stacked: boolean; map?: 
 export type RequestViewModel = {
   state: MasterState;
   title: string;
-  lead: { number: string; direct: string | null };
+  lead: { number: string; direct: string | null; invited: string | null };
   back: { href: string; label: string };
   now: { title: string; body?: string };
   next?: string;
@@ -93,6 +93,8 @@ export type RequestViewModel = {
   secondary: SecondaryAction | null;
   /** Предложение целиком можно отозвать (меню «Действия с предложением»): торг идёт. */
   withdrawOffer: { offerId: string } | null;
+  /** От приглашения можно отказаться (приглашён, ответа ещё нет, заявка открыта): окно с причиной. */
+  declineInvitation: { requestId: string } | null;
   /** id своего предложения: торг и переписка идут по нему. */
   offerId: string | null;
   /** Описание окна «Ваша цена»: открытая цена покупателя, если она есть. */
@@ -280,10 +282,11 @@ export function requestView(r: IncomingRequest, n: NegotiationView | null, now: 
   return {
     state,
     title: r.title,
-    lead: { number: t.numberLine(r.number), direct: r.mode === "DIRECT" ? t.direct : null },
+    lead: { number: t.numberLine(r.number), direct: r.mode === "DIRECT" ? t.direct : null, invited: r.invited ? t.invited : null },
     back: { href: to("/executor/requests"), label: t.back },
     ...nowOf(state, n),
     ...actionsOf(state, n),
+    declineInvitation: r.invitation === "INVITED" && r.status === "OPEN" ? { requestId: r.id } : null,
     withdrawOffer: live && r.myOffer ? { offerId: r.myOffer.id } : null,
     offerId,
     proposeDescription: buyerOpen === null ? t.propose.description : t.propose.buyerPrice(formatMoney(buyerOpen)),

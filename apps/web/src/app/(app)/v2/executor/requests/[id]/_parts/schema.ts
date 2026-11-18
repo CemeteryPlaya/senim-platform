@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
+import { INVITATION_REASON } from "@/modules/requests/client";
 
 const t = ru.app.masterOffer.errors;
 
@@ -60,3 +61,9 @@ export const withdrawPriceSchema = z.strictObject({ offerId: id, proposalId: id 
 
 /** «Отказаться от заявки»: своё предложение целиком. */
 export const withdrawOfferSchema = z.strictObject({ offerId: id });
+
+/** «Отказаться от приглашения»: заявка и причина (3..300 знаков после обрезки пробелов; текст ошибки — у поля). */
+export const declineSchema = z.strictObject({
+  requestId: id,
+  reason: z.string().trim().min(INVITATION_REASON.min, t.declineReason).max(INVITATION_REASON.max, t.declineReason),
+});

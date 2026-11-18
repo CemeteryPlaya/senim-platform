@@ -18,7 +18,7 @@ const { formatMoney } = await import("@/kit");
 
 const t = ru.app.guest.executor;
 
-const render = async (publicNumber: string) => renderToStaticMarkup(await ExecutorPage({ params: Promise.resolve({ publicNumber }) }));
+const render = async (publicNumber: string) => renderToStaticMarkup(await ExecutorPage({ params: Promise.resolve({ publicNumber }), searchParams: Promise.resolve({}) }));
 const count = (out: string, needle: string) => out.split(needle).length - 1;
 
 const SECRETS = {
@@ -88,7 +88,7 @@ beforeEach(() => {
 });
 
 describe("/v2/executors/[publicNumber]: что видит гость", () => {
-  it("профиль: подпись «Исполнитель №N», сводка, работа, отзыв; «Назад: Мастера» на каталог v2", async () => {
+  it("профиль: подпись «Исполнитель №N», сводка, работа, отзыв; «Назад: Мастера» в список мастеров", async () => {
     const { executor } = await seed();
     const out = await render(String(executor.executor.publicNumber));
     expect(out).toContain(`Исполнитель №${executor.executor.publicNumber}`);
@@ -96,7 +96,7 @@ describe("/v2/executors/[publicNumber]: что видит гость", () => {
     expect(out).toContain("Светлая кухня");
     expect(out).toContain("Спасибо,");
     expect(out).toContain("7 лет");
-    expect(out).toContain('href="/v2/catalog"');
+    expect(out).toContain('href="/v2/executors"');
     expect(out).not.toMatch(/href="\/(catalog|executors|requests)/);
     // Режим «имя скрыто»: заголовок — метка с номером, не наименование.
     expect(out).toMatch(new RegExp(`<h1[^>]*>Исполнитель №${executor.executor.publicNumber}</h1>`));

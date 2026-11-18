@@ -2,11 +2,11 @@
 
 import { ru } from "@/i18n/ru";
 import { requireUser, type CurrentUser } from "@/modules/identity";
-import { acceptPrice, getIncomingRequest, getNegotiation, listMyOffers, proposePrice, sendOffer, withdrawOffer, withdrawPrice } from "@/modules/requests";
+import { acceptPrice, declineInvitation, getIncomingRequest, getNegotiation, listMyOffers, proposePrice, sendOffer, withdrawOffer, withdrawPrice } from "@/modules/requests";
 import { kztToTiyn } from "@/modules/payments";
 import { action } from "@/platform/action";
 import { AppError, isAppError, type ErrorCode } from "@/platform/errors";
-import { acceptSchema, proposeSchema, sendSchema, withdrawOfferSchema, withdrawPriceSchema } from "./_parts/schema";
+import { acceptSchema, declineSchema, proposeSchema, sendSchema, withdrawOfferSchema, withdrawPriceSchema } from "./_parts/schema";
 
 // Предложение мастера и торг (ТЗ п. 9, решение 2.2.3) — обёртки v2 над модулем requests (действия v1 в (legacy) не
 // меняются). Вход — zod-схема (_parts/schema.ts), первая строка обработчика — роль мастера; что мастер одобрен, видит
@@ -153,5 +153,23 @@ export const withdrawPriceAction = action("app.masterOffer.withdrawPrice", withd
       if (view?.rounds.some((r) => r.id === proposalId && r.mine && r.status === "WITHDRAWN")) return;
     }
     throw retext(e, { FORBIDDEN: t.notYours, CONFLICT: t.changed, NOT_FOUND: t.notFound });
+  }
+});
+
+/**
+ * «Отказаться от приглашения» с причиной (3..300 знаков; короткая — ошибка у поля, схема). Отказ окончателен: повтор —
+ * CONFLICT «уже ответили»; приглашения нет — NOT_FOUND; мастер не одобрен — FORBIDDEN. Предложение по заявке отказ не
+ * закрывает: заявка видна мастеру как прежде.
+ */
+export const declineInvitationAction = action("app.masterOffer.declineInvitation", declineSchema, async (input) => {
+  const user = await requireUser("EXECUTOR");
+  try {
+    await declineInvitation(user, input);
+  } catch (e) {
+    throw retext(
+      e,
+      { VALIDATION: t.declineReason, CONFLICT: t.declineDecided, NOT_FOUND: t.declineNotFound, FORBIDDEN: t.notApproved },
+      { name: "reason", codes: ["VALIDATION"] },
+    );
   }
 });

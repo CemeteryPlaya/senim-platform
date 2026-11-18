@@ -27,7 +27,7 @@ import { requireMaster } from "../../../../_shell/auth";
 import { legacy, to } from "../../../../_shell/paths";
 import { readForMaster, REGISTER } from "../../_parts/approved";
 import { GATE_BACK, MasterGate } from "../../_parts/MasterGate";
-import { AcceptButton, OfferMenu, ProposeButton, WithdrawPriceButton } from "./_parts/MasterOfferActions";
+import { AcceptButton, DeclineInvitationButton, OfferMenu, ProposeButton, WithdrawPriceButton } from "./_parts/MasterOfferActions";
 import { MasterMoney } from "./_parts/MasterMoney";
 import { OfferForm } from "./_parts/OfferForm";
 import { requestView, type RequestViewModel } from "./_parts/request-view";
@@ -89,7 +89,16 @@ function Actions({ view, device }: { view: RequestViewModel; device: Device }) {
 function Secondary({ view, device }: { view: RequestViewModel; device: Device }) {
   const { secondary, offerId } = view;
   const chat = view.chat && <TextLink href={view.chat.href}>{view.chat.label}</TextLink>;
-  if (!secondary) return chat || null;
+  const decline = view.declineInvitation && <DeclineInvitationButton device={device} requestId={view.declineInvitation.requestId} />;
+  if (!secondary) {
+    if (!decline && !chat) return null;
+    return (
+      <div className="flex flex-col">
+        <div className="flex">{decline}</div>
+        {chat}
+      </div>
+    );
+  }
   const action =
     secondary.kind === "link" ? (
       <TextLink href={secondary.href}>{secondary.label}</TextLink>
@@ -107,6 +116,7 @@ function Secondary({ view, device }: { view: RequestViewModel; device: Device })
   return (
     <div className="flex flex-col">
       {action}
+      {decline && <div className="flex">{decline}</div>}
       {chat}
     </div>
   );
@@ -205,6 +215,7 @@ function Title({ view, device }: { view: RequestViewModel; device: Device }) {
                 <CopyButton value={view.lead.number} label={t.copyNumber} />
               </span>
               {view.lead.direct && <StatusChip tone="accent">{view.lead.direct}</StatusChip>}
+              {view.lead.invited && <StatusChip tone="accent">{view.lead.invited}</StatusChip>}
             </span>
           }
         />

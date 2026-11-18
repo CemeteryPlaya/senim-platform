@@ -26,6 +26,13 @@ const row = (over: Partial<IncomingListItem> = {}): IncomingListItem => ({
 const list = [row({ id: "a" }), row({ id: "b", title: "Шкаф", mode: "DIRECT" }), row({ id: "c", title: "Шкаф", myOfferStatus: "SENT" })];
 const ids = (search: { f?: string; type?: string }) => incomingListView(list, search, NOW).cards.map((c) => c.id);
 
+describe("входящие мастера: «Вас пригласили»", () => {
+  it("приглашённому — акцентная плашка; остальным — нет", () => {
+    expect(incomingCard(row({ invited: true }), NOW).badges).toContainEqual({ text: t.card.invited, tone: "accent" });
+    expect(incomingCard(row(), NOW).badges.map((b) => b.text)).not.toContain(t.card.invited);
+  });
+});
+
 describe("входящие мастера: фильтры в адресе", () => {
   it("«Все», «Новые» (без моего предложения), «Прямые», тип мебели; неизвестное — «Все»", () => {
     expect(ids({})).toEqual(["a", "b", "c"]);

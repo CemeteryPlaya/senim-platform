@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ru } from "@/i18n/ru";
-import { cancelRequest, sendOffer } from "@/modules/requests";
+import { cancelRequest, declineInvitation, inviteExecutor, sendOffer } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { makeClient } from "../../../../../../test/factories";
 import { freshBrowser } from "../../../../../../test/factories/identity";
@@ -214,5 +214,29 @@ describe("/v2/requests/[id]: доступ", () => {
     const result = await outcome(draftId);
     expect(result).toContain("NEXT_REDIRECT");
     expect(result).toContain(`/v2/requests/new?draft=${draftId}`);
+  });
+});
+
+describe("/v2/requests/[id]: приглашённые мастера", () => {
+  it("раздел только при приглашениях: мастер ссылкой, статусы «Ждём ответа», «Отказался: причина», «Прислал предложение»", async () => {
+    const client = await buyer();
+    const requestId = await makeOpenRequest(client, { segment: "COMFORT" });
+    await signInAs(client);
+    expect(await render(requestId)).not.toContain(t.invitations.section);
+
+    const waiting = await makeExecutorWithTerms("COMFORT");
+    const declined = await makeExecutorWithTerms("COMFORT");
+    const offered = await makeExecutorWithTerms("COMFORT");
+    for (const m of [waiting, declined, offered]) await inviteExecutor(client, { requestId, publicNumber: m.executor.publicNumber });
+    await declineInvitation(declined, { requestId, reason: "Занят до весны" });
+    await sendOffer(offered, offerInput(requestId));
+
+    const out = await render(requestId);
+    expect(out).toContain(`>${t.invitations.section}<`);
+    const section = out.slice(out.indexOf(`>${t.invitations.section}<`));
+    for (const m of [waiting, declined, offered]) expect(section).toContain(`href="/v2/executors/${m.executor.publicNumber}"`);
+    expect(section).toContain(t.invitations.status.INVITED);
+    expect(section).toContain(t.invitations.declined("Занят до весны"));
+    expect(section).toContain(t.invitations.status.OFFERED);
   });
 });

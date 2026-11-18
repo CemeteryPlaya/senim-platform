@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
 import { computeDealMoney } from "@/modules/payments/client";
-import { acceptPrice, cancelRequest, proposePrice, sendOffer, withdrawOffer } from "@/modules/requests";
+import { acceptPrice, cancelRequest, declineInvitation, inviteExecutor, proposePrice, sendOffer, withdrawOffer } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor } from "../../../../../../../test/factories";
 import { freshBrowser } from "../../../../../../../test/factories/identity";
@@ -175,5 +175,43 @@ describe("заявка мастера: доступ", () => {
     await db.request.update({ where: { id: requestId }, data: { preContractFlow: "EXECUTOR_MEASURE" } });
     await master();
     await expect(render(requestId)).rejects.toMatchObject({ digest: expect.stringContaining(`;/executor/requests/${requestId};`) });
+  });
+});
+
+describe("заявка мастера: приглашение", () => {
+  it.each(["mobile", "desktop"] as const)("%s: приглашён и не ответил — метка «Вас пригласили», «Отказаться от приглашения»; форма и главное действие прежние", async (device) => {
+    h.device = device;
+    const { client, requestId } = await buyerRequest();
+    const executor = await master();
+    await inviteExecutor(client, { requestId, publicNumber: executor.executor.publicNumber });
+    const out = await render(requestId);
+    expect(out).toContain(t.invited);
+    expect(out).toContain(t.decline.action);
+    expect(primaries(out)).toEqual([t.form.submit]);
+    expect(count(out, "<h1")).toBe(1);
+  });
+
+  it("не приглашён — ни метки, ни отказа; отказался — метки и отказа больше нет", async () => {
+    const { client, requestId } = await buyerRequest();
+    const executor = await master();
+    const plain = await render(requestId);
+    expect(plain).not.toContain(t.invited);
+    expect(plain).not.toContain(t.decline.action);
+
+    await inviteExecutor(client, { requestId, publicNumber: executor.executor.publicNumber });
+    await declineInvitation(executor, { requestId, reason: "Занят до весны" });
+    const out = await render(requestId);
+    expect(out).not.toContain(t.invited);
+    expect(out).not.toContain(t.decline.action);
+  });
+
+  it("ответил предложением — метка осталась, отказа нет", async () => {
+    const { client, requestId } = await buyerRequest();
+    const executor = await master();
+    await inviteExecutor(client, { requestId, publicNumber: executor.executor.publicNumber });
+    await sendOffer(executor, offerInput(requestId));
+    const out = await render(requestId);
+    expect(out).toContain(t.invited);
+    expect(out).not.toContain(t.decline.action);
   });
 });

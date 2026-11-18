@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import { partyEstimate } from "@/modules/payments";
-import { acceptPrice, getNegotiation, proposePrice, sendOffer, withdrawPrice } from "@/modules/requests";
+import { acceptPrice, getNegotiation, inviteExecutor, proposePrice, sendOffer, withdrawPrice } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor } from "../../../../../../../test/factories";
 import { freshBrowser } from "../../../../../../../test/factories/identity";
 import { makeExecutorWithTerms, makeOpenRequest, offerInput, openProposal } from "../../../../../../../test/factories/requests";
 import { signInAs } from "../../../../../../../test/factories/session";
-import { acceptPriceAction, proposePriceAction, sendOfferAction, withdrawOfferAction, withdrawPriceAction } from "./actions";
+import { acceptPriceAction, declineInvitationAction, proposePriceAction, sendOfferAction, withdrawOfferAction, withdrawPriceAction } from "./actions";
 
 vi.mock("next/headers", async () => (await import("../../../../../../../test/factories/identity")).nextHeadersMock);
 
@@ -225,5 +225,43 @@ describe("withdrawPriceAction и withdrawOfferAction: отозвать", () => {
       expect(offer.status).toBe("ACCEPTED");
       expect(deals).toHaveLength(1);
     }
+  });
+});
+
+describe("declineInvitationAction: отказ от приглашения с причиной", () => {
+  async function invited() {
+    const { client, requestId, executor } = await openForMaster();
+    await inviteExecutor(client, { requestId, publicNumber: executor.executor.publicNumber });
+    return { client, requestId, executor };
+  }
+
+  it("отказывает: статус DECLINED, причина сохранена, покупателю — уведомление", async () => {
+    const { client, requestId, executor } = await invited();
+    expect(await declineInvitationAction({ requestId, reason: "  Занят до весны  " })).toEqual({ ok: true, data: undefined });
+    const row = await db.requestInvitation.findFirstOrThrow({ where: { requestId, executorId: executor.executor.id } });
+    expect(row).toMatchObject({ status: "DECLINED", reason: "Занят до весны" });
+    expect(await db.notification.count({ where: { userId: client.id, kind: "request.invitation_declined" } })).toBe(1);
+  });
+
+  it("пустая и короткая причина — ошибка у поля reason, приглашение не тронуто", async () => {
+    const { requestId, executor } = await invited();
+    for (const reason of ["", "  ", "ab"]) {
+      expect(await declineInvitationAction({ requestId, reason })).toMatchObject({ ok: false, code: "VALIDATION", fieldErrors: { reason: [t.declineReason] } });
+    }
+    expect((await db.requestInvitation.findFirstOrThrow({ where: { requestId, executorId: executor.executor.id } })).status).toBe("INVITED");
+  });
+
+  it("повтор — конфликт с текстом экрана, состояние то же; без приглашения — «не найдено»", async () => {
+    const { requestId } = await invited();
+    expect((await declineInvitationAction({ requestId, reason: "Занят до весны" })).ok).toBe(true);
+    expect(await declineInvitationAction({ requestId, reason: "Занят до весны" })).toEqual(failed("CONFLICT", t.declineDecided));
+    const { requestId: other } = await openForMaster();
+    expect(await declineInvitationAction({ requestId: other, reason: "Занят до весны" })).toEqual(failed("NOT_FOUND", t.declineNotFound));
+  });
+
+  it("покупатель отказаться от приглашения не может", async () => {
+    const { client, requestId } = await invited();
+    await signInAs(client);
+    expect((await declineInvitationAction({ requestId, reason: "Занят до весны" })).ok).toBe(false);
   });
 });

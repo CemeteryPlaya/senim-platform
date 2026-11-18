@@ -147,11 +147,12 @@ function dealView(item: DealHistoryItem): DealView {
  * отдали модули (`toPublicView`, маски, выбор покупателя уже применены): телефона, Instagram, наименования в режиме
  * HIDDEN, ИИН/БИН и того, что покупатель не разрешил показать, здесь нет и взять неоткуда.
  */
-export function executorView(page: ExecutorPageData): ExecutorViewModel {
+export function executorView(page: ExecutorPageData, opts: { requestId?: string | null } = {}): ExecutorViewModel {
   const { view } = page;
   return {
     title: view.label,
-    backHref: to("/catalog"),
+    // «Назад» — в список мастеров, откуда пришли (с тем же заказом в адресе, если он был).
+    backHref: opts.requestId ? `${to("/executors")}?${new URLSearchParams({ request: opts.requestId })}` : to("/executors"),
     stats: statsOf(view, page.stats),
     conditions: conditionRows(view),
     about: page.about

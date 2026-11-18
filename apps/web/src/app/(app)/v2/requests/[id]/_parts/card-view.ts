@@ -257,3 +257,21 @@ export function photoView(photos: readonly Photo[]): { id: string; src: string; 
   const shown = photos.flatMap((p) => (p.src ? [{ id: p.id, src: p.src }] : []));
   return shown.map((p, index) => ({ ...p, alt: t.details.photoAlt(index + 1, shown.length) }));
 }
+
+// ─── Приглашённые мастера ────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Приглашение в объёме, нужном списку (`listInvitations`). */
+export type InvitationInput = { publicNumber: number; label: string; status: "INVITED" | "DECLINED" | "OFFERED"; reason: string | null };
+
+export type InvitationRow = { key: string; label: string; href: string; status: string };
+
+/** Мастер — ссылкой на его страницу; статус по ответу: «Ждём ответа», «Отказался: причина», «Прислал предложение». */
+export function invitationRows(list: readonly InvitationInput[]): InvitationRow[] {
+  const s = t.invitations;
+  return list.map((x) => ({
+    key: String(x.publicNumber),
+    label: x.label,
+    href: to(`/executors/${x.publicNumber}`),
+    status: x.status === "DECLINED" ? (x.reason?.trim() ? s.declined(x.reason.trim()) : s.declinedNoReason) : s.status[x.status],
+  }));
+}

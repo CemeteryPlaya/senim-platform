@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { RequestStateKind } from "../../../_parts/request-state";
-import { detailRows, nowView, offerRow, offersView, parseSort, photoView, sentNotice, sortHref, sortOptions, type NowInput, type OfferInput } from "./card-view";
+import { detailRows, invitationRows, nowView, offerRow, offersView, parseSort, photoView, sentNotice, sortHref, sortOptions, type NowInput, type OfferInput } from "./card-view";
 
 const t = ru.app.requestCard;
 const buyer = ru.app.buyer.home.now;
@@ -260,6 +260,24 @@ describe("photoView", () => {
     expect(photoView([{ id: "a", src: "/f/a" }, { id: "b", src: null }, { id: "c", src: "/f/c" }])).toEqual([
       { id: "a", src: "/f/a", alt: "Фото помещения 1 из 2" },
       { id: "c", src: "/f/c", alt: "Фото помещения 2 из 2" },
+    ]);
+  });
+});
+
+describe("invitationRows: приглашённые мастера", () => {
+  const at = new Date("2026-11-10T10:00:00Z");
+  const inv = (publicNumber: number, status: "INVITED" | "DECLINED" | "OFFERED", reason: string | null = null) => ({ publicNumber, label: `Исполнитель №${publicNumber}`, status, reason, createdAt: at });
+
+  it("пусто — раздела нет", () => {
+    expect(invitationRows([])).toEqual([]);
+  });
+
+  it("мастер — ссылка на страницу; статус: ждём ответа / отказался с причиной / прислал предложение", () => {
+    expect(invitationRows([inv(5, "INVITED"), inv(6, "DECLINED", "Занят до весны"), inv(7, "OFFERED"), inv(8, "DECLINED")])).toEqual([
+      { key: "5", label: "Исполнитель №5", href: "/v2/executors/5", status: t.invitations.status.INVITED },
+      { key: "6", label: "Исполнитель №6", href: "/v2/executors/6", status: "Отказался: Занят до весны" },
+      { key: "7", label: "Исполнитель №7", href: "/v2/executors/7", status: t.invitations.status.OFFERED },
+      { key: "8", label: "Исполнитель №8", href: "/v2/executors/8", status: t.invitations.declinedNoReason },
     ]);
   });
 });

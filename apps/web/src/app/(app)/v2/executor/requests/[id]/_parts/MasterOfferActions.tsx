@@ -3,13 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, ConfirmDialog, Dialog, HiddenField, Menu, Money, MoneyField, Notice, Sheet, Stack, toast } from "@/kit";
+import { Button, ConfirmDialog, Dialog, HiddenField, Menu, Money, MoneyField, Notice, Sheet, Stack, TextArea, toast } from "@/kit";
+import { INVITATION_REASON } from "@/modules/requests/client";
 import type { Device } from "@/platform/device";
 import { useActionForm } from "../../../../../_shell/form";
 import { LinkButton } from "../../../../../_shell/LinkButton";
 import { useSettle } from "../../../../../_shell/settle";
 import { to } from "../../../../../_shell/paths";
-import { acceptPriceAction, proposePriceAction, withdrawOfferAction, withdrawPriceAction } from "../actions";
+import { acceptPriceAction, declineInvitationAction, proposePriceAction, withdrawOfferAction, withdrawPriceAction } from "../actions";
 import { liveMoney } from "./live-money";
 
 const t = ru.app.masterOffer;
@@ -169,5 +170,62 @@ export function OfferMenu({ device, offerId }: { device: Device; offerId: string
         }
       />
     </>
+  );
+}
+
+/** Форма отказа внутри окна: монтируется при каждом открытии — прошлые ошибки не остаются. Ошибка причины — у поля. */
+function DeclineForm({ device, requestId, onDone }: { device: Device; requestId: string; onDone: () => void }) {
+  const form = useActionForm(declineInvitationAction, { onSuccess: onDone });
+  const [reason, setReason] = useState("");
+  return (
+    <form onSubmit={form.onSubmit} noValidate>
+      <Stack>
+        <HiddenField name="requestId" value={requestId} />
+        <TextArea
+          label={t.decline.reasonLabel}
+          name="reason"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          minLength={INVITATION_REASON.min}
+          maxLength={INVITATION_REASON.max}
+          rows={3}
+          {...(form.fieldErrors.reason ? { error: form.fieldErrors.reason } : {})}
+        />
+        {form.error && !form.fieldErrors.reason && (
+          <Notice tone="danger" live>
+            {form.error}
+          </Notice>
+        )}
+        <Button type="submit" full={device === "mobile"} pending={form.pending}>
+          {t.decline.submit}
+        </Button>
+      </Stack>
+    </form>
+  );
+}
+
+/**
+ * «Отказаться от приглашения»: тихая кнопка-ссылка под «Сейчас»; причина — в шторке (телефон) или окне (компьютер).
+ * После отказа окно закрывается, экран обновляется (метки приглашения нет), заявка остаётся доступной.
+ */
+export function DeclineInvitationButton({ device, requestId }: { device: Device; requestId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const change = (next: boolean) => {
+    setOpen(next);
+    if (!next) router.refresh();
+  };
+  const Window = device === "mobile" ? Sheet : Dialog;
+  return (
+    <Window title={t.decline.title} description={t.decline.description} trigger={<LinkButton label={t.decline.action} />} open={open} onOpenChange={change}>
+      <DeclineForm
+        device={device}
+        requestId={requestId}
+        onDone={() => {
+          toast(t.toasts.declined);
+          change(false);
+        }}
+      />
+    </Window>
   );
 }

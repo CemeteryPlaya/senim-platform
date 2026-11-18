@@ -17,6 +17,8 @@ export type IncomingRow = Pick<
   IncomingListItem,
   "id" | "number" | "title" | "mode" | "segment" | "city" | "desiredDate" | "publishedAt" | "offersCount" | "myOfferStatus"
 > & {
+  /** Покупатель позвал мастера и приглашение в силе. */
+  invited?: boolean;
   /** Обложка — первое фото помещения (модуль); нет — `null`. */
   cover?: { src: string } | null;
 };
@@ -60,6 +62,7 @@ const OFFER_TONE: Record<OfferStatus, StatusTone> = { SENT: "neutral", ACCEPTED:
 export function incomingCard(r: IncomingRow, now: Date = new Date()): IncomingCardView {
   const badges: IncomingBadge[] = [];
   if (r.myOfferStatus === null) badges.push({ text: t.card.fresh, tone: "warn" });
+  if (r.invited) badges.push({ text: t.card.invited, tone: "accent" });
   if (r.mode === "DIRECT") badges.push({ text: t.card.direct, tone: "accent" });
   // В строке — короткая подпись плашки (без переноса); полная — `t.card.myOffer` на экране заявки.
   if (r.myOfferStatus) badges.push({ text: t.card.myOfferShort[r.myOfferStatus], tone: OFFER_TONE[r.myOfferStatus] });

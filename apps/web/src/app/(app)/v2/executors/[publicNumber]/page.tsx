@@ -23,18 +23,21 @@ import {
   WorkCard,
 } from "@/kit";
 import { getDevice, type Device } from "@/platform/device";
-import { userPastOnboarding } from "../../../_shell/auth";
-import { to } from "../../../_shell/paths";
+import { pageHref, userPastOnboarding } from "../../../_shell/auth";
 import { cardsMedia } from "../../_parts/work-card";
+import { parseExecutorsSearch } from "../_parts/list-view";
 import { executorView, parsePublicNumber, type DealView, type ExecutorViewModel } from "./_parts/executor-view";
+import { InviteControl } from "./_parts/InviteControl";
+import type { InviteView } from "./_parts/invite";
 import { loadExecutorPageData } from "./_parts/load";
+import { loadInvite } from "./_parts/load-invite";
 
 const t = ru.app.guest.executor;
 
 /** Карточка в сетке из двух колонок основной части профиля. */
 const HALF_SIZES = "(min-width: 64rem) 360px, 100vw";
 
-type Props = { params: Promise<{ publicNumber: string }> };
+type Props = { params: Promise<{ publicNumber: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 /** Одна загрузка на HTTP-запрос: и метаданные, и страница. Не число в адресе — страницы нет, базу не трогаем. */
 const loadPage = cache(async (raw: string) => {
@@ -63,7 +66,29 @@ function Facts({ view }: { view: ExecutorViewModel }) {
 }
 
 /** Карточка «Условия»: строки, ссылка-пояснение и (на компьютере) главная кнопка последней в карточке. */
-function Conditions({ view, device }: { view: ExecutorViewModel; device: Device }) {
+/**
+ * Главное действие экрана. Есть приглашение (кнопка) — оно главное, а «Предложить заказ» становится тихой ссылкой рядом;
+ * иначе «Предложить заказ» — главное. Одна главная кнопка на экране в любом случае.
+ */
+function PrimaryActions({ view, invite, device, publicNumber }: { view: ExecutorViewModel; invite: InviteView; device: Device; publicNumber: number }) {
+  const withInvite = invite.kind === "context" || invite.kind === "pick";
+  return (
+    <>
+      {withInvite && <InviteControl view={invite} publicNumber={publicNumber} device={device} />}
+      <ButtonLink href={view.action.href} {...(withInvite ? { variant: "quiet" as const } : {})}>
+        {view.action.label}
+      </ButtonLink>
+    </>
+  );
+}
+
+/** Состояние приглашения без кнопки («Приглашение отправлено», «Работает в другой ценовой группе»). */
+function InviteNote({ invite }: { invite: InviteView }) {
+  if (invite.kind !== "note") return null;
+  return <p className="text-body text-muted">{invite.text}</p>;
+}
+
+function Conditions({ view, device, invite, publicNumber }: { view: ExecutorViewModel; device: Device; invite: InviteView; publicNumber: number }) {
   return (
     <Section title={t.conditionsTitle}>
       <Card padded={false}>
@@ -99,10 +124,8 @@ function Conditions({ view, device }: { view: ExecutorViewModel; device: Device 
           </Explain>
         </div>
         {device === "desktop" && (
-          <div className="px-4 pb-4">
-            <ButtonLink href={view.action.href} full>
-              {view.action.label}
-            </ButtonLink>
+          <div className="flex flex-col gap-2 px-4 pb-4 *:w-full">
+            <PrimaryActions view={view} invite={invite} device={device} publicNumber={publicNumber} />
           </div>
         )}
       </Card>
@@ -238,20 +261,24 @@ function OffPlatform({ view }: { view: ExecutorViewModel }) {
  * справа прилипающая карточка условий с главной кнопкой. Действие есть у любого мастера: заявка с параметром `executor`
  * (публичный номер). Карточки работ и сделок неинтерактивны.
  */
-export default async function ExecutorPage({ params }: Props) {
+export default async function ExecutorPage({ params, searchParams }: Props) {
   const { publicNumber } = await params;
+  const search = await searchParams;
   // Вошедший с непройденными первыми шагами — на шаг с возвратом сюда (адрес проверит safeNext).
-  await userPastOnboarding(to(`/executors/${encodeURIComponent(publicNumber)}`));
+  const user = await userPastOnboarding(pageHref(`/executors/${encodeURIComponent(publicNumber)}`, search));
   const page = await loadPage(publicNumber);
   if (!page) notFound();
   const device = await getDevice();
-  const view = executorView(page);
+  const { requestId } = parseExecutorsSearch(search);
+  const view = executorView(page, { requestId });
+  const invite = await loadInvite(user, { publicNumber: page.view.publicNumber, segment: page.view.segment }, requestId);
   const title = <PageTitle title={view.title} back={{ href: view.backHref, label: t.backLabel }} leading={<Monogram name={view.title} size="lg" />} />;
 
   if (device === "desktop") {
     return (
       <Stack gap="section">
         {title}
+        <InviteNote invite={invite} />
         <Split
           stickyAside
           main={
@@ -263,7 +290,7 @@ export default async function ExecutorPage({ params }: Props) {
               <About view={view} />
             </Stack>
           }
-          aside={<Conditions view={view} device={device} />}
+          aside={<Conditions view={view} device={device} invite={invite} publicNumber={page.view.publicNumber} />}
         />
       </Stack>
     );
@@ -272,14 +299,15 @@ export default async function ExecutorPage({ params }: Props) {
   return (
     <Stack gap="section">
       {title}
+      <InviteNote invite={invite} />
       <Facts view={view} />
       <Highlights view={view} />
       <Deals view={view} />
       <OffPlatform view={view} />
       <About view={view} />
-      <Conditions view={view} device={device} />
+      <Conditions view={view} device={device} invite={invite} publicNumber={page.view.publicNumber} />
       <ActionDock>
-        <ButtonLink href={view.action.href}>{view.action.label}</ButtonLink>
+        <PrimaryActions view={view} invite={invite} device={device} publicNumber={page.view.publicNumber} />
       </ActionDock>
     </Stack>
   );
