@@ -45,7 +45,8 @@ export const MEASURER: PersonSpec = {
 };
 
 export const CLIENTS = {
-  aigerim: { fullName: "Айгерим Сапарова", phone: "+77000000101", iin: testIin("940512", 4, 11), joinedDaysAgo: 40 },
+  // ФИО — «Фамилия Имя», как просит анкета: подпись отзыва на странице мастера берёт имя вторым словом («Айгерим»).
+  aigerim: { fullName: "Сапарова Айгерим", phone: "+77000000101", iin: testIin("940512", 4, 11), joinedDaysAgo: 40 },
   daniyar: { fullName: "Данияр Ахметов", phone: "+77000000102", iin: testIin("880217", 3, 12), joinedDaysAgo: 70 },
   madina: { fullName: "Мадина Касымова", phone: "+77000000103", iin: testIin("920305", 4, 13), joinedDaysAgo: 20 },
   // Заказчики прошлых сделок: авторы отзывов, входом не пользуются.
@@ -380,11 +381,15 @@ export type RequestSpec = Targeting & {
   site?: { assignedDaysAgo: number };
 };
 
-/** Тестовые адреса с координатами (центр Астаны): по ним — мягкая GPS-проверка сдачи работы. */
-type Address = { text: string; point: GeoPoint };
+/**
+ * Тестовые адреса с координатами (центр Астаны): по ним — мягкая GPS-проверка сдачи работы. Район и ЖК (шаг адреса
+ * заявки) — у адресов, по которым страница мастера показывает «город, район, ЖК» по выбору покупателя.
+ */
+type Address = { text: string; point: GeoPoint; district?: string; complex?: string };
 
 const ADDR = {
   syganak12: { text: "Астана, ул. Сыганак, 12, кв. 45", point: { lat: 51.128207, lng: 71.430411 } },
+  syganak12Esil: { text: "Астана, ул. Сыганак, 12, кв. 45", point: { lat: 51.128207, lng: 71.430411 }, district: "Есиль", complex: "Тестовый квартал" },
   primer8: { text: "Астана, пр. Примерный, 8, кв. 101", point: { lat: 51.0905, lng: 71.4187 } },
   obrazets3: { text: "Астана, ул. Образцовая, 3, кв. 17", point: { lat: 51.1605, lng: 71.4704 } },
   test2: { text: "Астана, мкр. Тестовый-2, д. 5, кв. 30", point: { lat: 51.1477, lng: 71.3915 } },
@@ -889,6 +894,20 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
   },
 ];
 
+/**
+ * Профили мастеров и история покупателя (спека 2026-11-17): завершённая сделка Айгерим с фото сдачи, районом и ЖК в заявке,
+ * без отзыва и без выбора показа — e2e v2 (flows/showcase.spec.ts) оставляет отзыв с выбором и меняет выбор. Мастер —
+ * «Qazaq Wood» (Исп. №2). Сеется после витрины (перед сценариями до договора, они — последними); сделка — последней в DEALS:
+ * номера заявок и сделок, на которые опираются сценарии, не сдвигаются.
+ */
+export const PROFILE_REQUESTS: RequestSpec[] = [
+  dealRequest({
+    key: "profile-aigerim-tv", client: "aigerim", executor: "qazaq", type: "living-room", style: "modern",
+    details: { widthCm: 300, heightCm: 260, facade: "mdf_film", hardware: "soft_close", color: "Белый и светлый дуб" }, segment: "COMFORT", address: ADDR.syganak12Esil,
+    wishes: "ТВ-зона в гостиной: подвесная тумба и полки по сторонам.", daysAgo: 36, price: 480_000, durationDays: 20, comment: "Тумба на скрытом креплении, полки из МДФ в плёнке.",
+  }),
+];
+
 // ─── сделки: путь ТЗ настоящими сервисами (deals.ts) ─────────────────────────
 
 /** Фото сдачи и «Хода работ» — временные снимки стенда (deals.ts загружает их байты через files как приватные файлы сделки). */
@@ -935,7 +954,7 @@ export type When = number | { thisMonth: number };
 export const THIS_MONTH_SPAN_DAYS = 6;
 
 export type DealPlan = {
-  /** Ключ заявки из REQUESTS / DUAL_ROLE_REQUESTS / SHOWCASE_REQUESTS: принимается последняя цена торга её первого отклика. */
+  /** Ключ заявки из REQUESTS / DUAL_ROLE_REQUESTS / SHOWCASE_REQUESTS / PROFILE_REQUESTS: принимается последняя цена торга её первого отклика. */
   request: string;
   provider: "mock" | "manual";
   steps: readonly DealStep[];
@@ -963,6 +982,7 @@ const READY_PHOTOS = {
   erlanHallway: ["hallway-graphite"],
   qazaqKitchen: ["report-kitchen-1", "report-kitchen-2"],
   dalaKitchen: ["kitchen-terracotta"],
+  aigerimTv: ["report-tv-1"],
 } as const satisfies Record<string, readonly SeedFileKey[]>;
 
 const KIDS_DISPUTE: DisputeSpec = {
@@ -1176,6 +1196,13 @@ export const DEALS: readonly DealPlan[] = [
       "signAct",
     ],
     at: { accepted: 57.2, steps: [57.0, 56.8, 54.0, 40.0, 26.0, 25.0] },
+  },
+  // Профили (PROFILE_REQUESTS): завершённая сделка Айгерим без отзыва — отзыв и выбор показа оставляет e2e.
+  {
+    request: "profile-aigerim-tv",
+    provider: "mock",
+    steps: ["sign", "pay", "start", { ready: { at: "address", photos: READY_PHOTOS.aigerimTv } }, "signAct"],
+    at: { accepted: 34.0, steps: [33.8, 33.5, 31.0, 13.0, 12.0] },
   },
 ];
 

@@ -30,6 +30,7 @@ import {
   OPERATOR,
   OPERATOR_TOTP_SECRET,
   PRE_CONTRACT_REQUESTS,
+  PROFILE_REQUESTS,
   PROJECT_MATERIALS,
   REQUESTS,
   SHOWCASE_REQUESTS,
@@ -368,6 +369,8 @@ async function fill(tx: Tx, plan: SeedPlan, identityUsers: User[]): Promise<Ids>
   for (const spec of DUAL_ROLE_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
   // Витрина мастеров — после всех заявок, на номера которых опираются сценарии.
   for (const spec of SHOWCASE_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
+  // Профили мастеров и история покупателя — после витрины: номера заявок пути ТЗ, на которые опираются сценарии, не сдвигаются.
+  for (const spec of PROFILE_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
   // Сценарии до договора (флаг preContractFlows, ADR-005) — в конце.
   ids.measurer = await completePerson(tx, users, plan, MEASURER);
   for (const spec of PRE_CONTRACT_REQUESTS) await seedRequest(tx, ids, clock, audit, spec);
@@ -524,6 +527,8 @@ async function seedRequest(tx: Tx, ids: Ids, clock: Clock, audit: AuditLog, spec
       address: spec.address?.text ?? null,
       addressLat: spec.address?.point.lat ?? null,
       addressLng: spec.address?.point.lng ?? null,
+      district: spec.address?.district ?? null,
+      complex: spec.address?.complex ?? null,
       desiredDate: spec.desiredInDays !== undefined ? clock.ahead(spec.desiredInDays, 12) : null,
       wishes: spec.wishes,
       status,

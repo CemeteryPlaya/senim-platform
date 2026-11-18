@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEALS, DUAL_ROLE_REQUESTS, REQUESTS, REVIEWS, SHOWCASE_REQUESTS, type RequestSpec, type When } from "./data";
+import { DEALS, DUAL_ROLE_REQUESTS, PROFILE_REQUESTS, REQUESTS, REVIEWS, SHOWCASE_REQUESTS, type RequestSpec, type When } from "./data";
 import { monthStartAstana, resolveWhen } from "./timeline";
 
 /**
@@ -7,7 +7,7 @@ import { monthStartAstana, resolveWhen } from "./timeline";
  * разных «сейчас»: середина месяца, первые часы месяца и второй день — `thisMonth` не выпадает в прошлый месяц.
  */
 
-const ALL: RequestSpec[] = [...REQUESTS, ...DUAL_ROLE_REQUESTS, ...SHOWCASE_REQUESTS];
+const ALL: RequestSpec[] = [...REQUESTS, ...DUAL_ROLE_REQUESTS, ...SHOWCASE_REQUESTS, ...PROFILE_REQUESTS];
 const request = (key: string) => ALL.find((r) => r.key === key)!;
 
 /** Последнее событие заявки до акцепта: отклик, встречные цены. */
