@@ -4,6 +4,7 @@
 // С флагом --if-empty (сборка на Vercel, `vercel-build`) непустая база не трогается, а при prod сид пропускается.
 import "dotenv/config";
 import { isDatabaseEmpty, reseedStand, seedStand } from "../src/seed/seed";
+import { pruneLocalStorage } from "../src/modules/files";
 import { seedPlan } from "../src/seed/plan";
 import { db } from "../src/platform/db";
 import { logger } from "../src/platform/logger";
@@ -14,9 +15,13 @@ async function main() {
     case "seed":
       logger.info("seed.done", await seedStand(db));
       return;
-    case "reseed":
+    case "reseed": {
       logger.info("seed.reset", await reseedStand(db));
+      // Файлы прежних записей (TRUNCATE их не удаляет) — только local и только при явном dev/staging (prune.ts).
+      const pruned = await pruneLocalStorage();
+      logger.info("seed.storage_pruned", pruned.plan === "prune" ? pruned.result : { plan: pruned.plan });
       return;
+    }
     case "skip-not-empty":
       logger.info("seed.skipped: база не пуста");
       return;

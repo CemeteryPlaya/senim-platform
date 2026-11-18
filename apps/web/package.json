@@ -16,6 +16,7 @@
     "test:e2e": "playwright test",
     "test:e2e:v2": "playwright test -c playwright.v2.config.ts",
     "jobs": "tsx --import ./scripts/server-only-hook.mjs scripts/run-jobs.ts",
+    "storage:prune": "tsx --import ./scripts/server-only-hook.mjs scripts/storage-prune.ts",
     "db:up": "docker compose up -d --wait",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
