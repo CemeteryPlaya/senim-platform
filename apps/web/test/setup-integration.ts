@@ -1,8 +1,14 @@
+import path from "node:path";
 import { afterAll, beforeEach } from "vitest";
 import { TEST_DATABASE_URL } from "./db-url";
+import { TEST_STORAGE_ROOT_ENV } from "./storage-dir";
 import { identityFake } from "./stubs/identity";
 
 process.env.DATABASE_URL = TEST_DATABASE_URL;
+// Файлы тестов — в папке прогона (test/global-setup.ts), не в ./storage dev и стенда. До resetEnvCache: env() кэширует.
+const storageRoot = process.env[TEST_STORAGE_ROOT_ENV];
+if (!storageRoot) throw new Error(`${TEST_STORAGE_ROOT_ENV} не задана: папку хранилища прогона создаёт test/global-setup.ts`);
+process.env.STORAGE_LOCAL_DIR = path.join(storageRoot, "storage");
 
 const { db } = await import("@/platform/db");
 const { resetEnvCache } = await import("@/platform/env");

@@ -1,21 +1,19 @@
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import sharp from "sharp";
 import type { RequestStatus } from "@/generated/prisma/enums";
 import type { CurrentUser } from "@/modules/identity";
 import { attachFiles, saveFile } from "@/modules/files";
 import { db } from "@/platform/db";
 import { resetEnvCache } from "@/platform/env";
+import { testTempDir } from "../storage-dir";
 
 /**
  * Фабрики для тестов ai-модуля. Заявка — чужой модуль, поэтому пишется прямо в БД;
  * фото помещения сохраняется через files (как при загрузке заказчиком).
  */
 
-/** Окружение ИИ для теста: флаг, мок-провайдер, локальное хранилище во временной папке. */
+/** Окружение ИИ для теста: флаг, мок-провайдер, локальное хранилище во временной папке (внутри папки прогона — её удалит teardown). */
 export async function useAiEnv(overrides: Record<string, string> = {}) {
-  const dir = await mkdtemp(path.join(tmpdir(), "senim-ai-"));
+  const dir = await testTempDir("senim-ai-");
   Object.assign(process.env, {
     AI_ENABLED: "true",
     AI_PROVIDER: "mock",

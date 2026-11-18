@@ -1,6 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import { rm } from "node:fs/promises";
 import sharp from "sharp";
 import type { CurrentUser } from "@/modules/identity";
 import { registerDocumentsPort, type DocumentsPort } from "@/modules/deal-core";
@@ -8,6 +6,7 @@ import { completeSigning, documentsPort, signByHand, startSigning } from "@/modu
 import { storage } from "@/modules/files";
 import { sha256Hex } from "@/platform/crypto";
 import { db } from "@/platform/db";
+import { testTempDir } from "../storage-dir";
 import { setEnv } from "./identity";
 
 /**
@@ -19,7 +18,7 @@ const registry = globalThis as unknown as { senimDocumentsPort?: DocumentsPort }
 
 /** Включить порт documents и локальное хранилище; вернуть уборку. */
 export async function useDocuments(): Promise<() => Promise<void>> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "senim-documents-"));
+  const dir = await testTempDir("senim-documents-");
   setEnv({ STORAGE_PROVIDER: "local", STORAGE_LOCAL_DIR: dir, SIGNATURE_PROVIDER: "mock" });
   registerDocumentsPort(documentsPort);
   return async () => {
@@ -33,7 +32,7 @@ export async function useDocuments(): Promise<() => Promise<void>> {
  * сид сам регистрирует порты (src/ports.ts) — после файла порт документов снимается.
  */
 export async function useSeedStorage(): Promise<() => Promise<void>> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "senim-seed-"));
+  const dir = await testTempDir("senim-seed-");
   setEnv({ STORAGE_PROVIDER: "local", STORAGE_LOCAL_DIR: dir, SIGNATURE_PROVIDER: "mock" });
   return async () => {
     delete registry.senimDocumentsPort;
