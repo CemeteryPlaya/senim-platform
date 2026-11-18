@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { localPrunePlan, pruneLocalFiles, PRUNE_GRACE_MS } from "./prune";
+import { databaseName, localPrunePlan, markStorageIfNew, pruneLocalFiles, PRUNE_GRACE_MS, readStorageMark, STORAGE_DB_MARK } from "./prune";
 
 const NOW = Date.UTC(2026, 10, 19, 12);
 const OLD = NOW - PRUNE_GRACE_MS - 60_000;
@@ -68,6 +68,41 @@ describe("pruneLocalFiles", () => {
 
     const missing = path.join(root, "missing");
     expect(await pruneLocalFiles({ root: missing, referenced: new Set(), now: NOW })).toEqual({ removed: 0, removedBytes: 0, kept: 0 });
+  });
+});
+
+describe("метка владельца папки хранилища", () => {
+  it("пишется в новую (нет папки) и в пустую папку — имя базы", async () => {
+    const fresh = path.join(root, "new", "storage-e2e");
+    expect(await markStorageIfNew(fresh, "senim_v2web_e2e")).toBe("created");
+    expect(await readStorageMark(fresh)).toBe("senim_v2web_e2e");
+    expect(await markStorageIfNew(root, "senim_v2web_e2e")).toBe("not-empty"); // в root уже есть папка new
+    const empty = path.join(root, "empty");
+    await mkdir(empty);
+    expect(await markStorageIfNew(empty, "senim_v2web_e2e")).toBe("created");
+  });
+
+  it("не пишется в непустую папку без метки и не перезаписывает существующую", async () => {
+    await put("document/2026/11/a.pdf");
+    expect(await markStorageIfNew(root, "senim_v2web_e2e")).toBe("not-empty");
+    expect(await readStorageMark(root)).toBeNull();
+
+    const marked = path.join(root, "marked");
+    expect(await markStorageIfNew(marked, "senim_dev")).toBe("created");
+    expect(await markStorageIfNew(marked, "senim_v2web_e2e")).toBe("exists");
+    expect(await readStorageMark(marked)).toBe("senim_dev");
+  });
+
+  it("файл метки не считается сиротой", async () => {
+    await markStorageIfNew(root, "senim_v2web_e2e");
+    await utimes(path.join(root, STORAGE_DB_MARK), OLD / 1000, OLD / 1000);
+    expect(await pruneLocalFiles({ root, referenced: new Set(), now: NOW })).toEqual({ removed: 0, removedBytes: 0, kept: 1 });
+    expect(await readStorageMark(root)).toBe("senim_v2web_e2e");
+  });
+
+  it("имя базы — из DATABASE_URL без параметров", () => {
+    expect(databaseName("postgresql://postgres:postgres@localhost:5442/senim_v2web_e2e?schema=public")).toBe("senim_v2web_e2e");
+    expect(databaseName("postgresql://u:p@h:5432/senim")).toBe("senim");
   });
 });
 

@@ -60,8 +60,9 @@ next-env.d.ts
 /.codebase-memory/
 /.remember/
 
-# локальное хранилище файлов (StorageProvider=local)
+# локальное хранилище файлов (StorageProvider=local): dev — storage, e2e и стенд — storage-e2e
 /storage/
+/storage-e2e/
 
 # тесты
 /test-results/

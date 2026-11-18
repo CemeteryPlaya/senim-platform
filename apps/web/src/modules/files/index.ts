@@ -22,7 +22,7 @@ export { readLocalDownload, receiveLocalUpload } from "./local-transfer";
 export { PURPOSE_POLICY, type FileOwner, type OwnerField } from "./policy";
 export { verifyDownload, openUploadToken } from "./signing";
 export { MAX_INPUT_PIXELS, sniffType } from "./image";
-export { pruneLocalStorage, type LocalPrunePlan, type PruneResult } from "./prune";
+export { markLocalStorageIfNew, pruneLocalStorage, pruneRefusalHint, type LocalPrunePlan, type PruneOutcome, type PruneResult } from "./prune";
 
 export const jobHandlers = {
   "files.cleanupOrphans": cleanupOrphans,

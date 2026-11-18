@@ -32,6 +32,14 @@ const V2_ENV = Object.fromEntries(
   ["V2_ENABLED", "MESH_URL", "MESH_TLS_CERT_FILE", "MESH_TLS_KEY_FILE", "MESH_TLS_CA_FILE"].map((k) => [k, process.env[k] ?? ""]),
 );
 
+/**
+ * Своя папка файлов e2e и стенда (apps/web/storage-e2e): ./storage — у dev (npm run dev, своя база). Пишется в process.env
+ * поверх значения из файла переменных: её наследуют global-setup и reseed() (сид с чисткой файлов прежних записей по метке
+ * базы — src/modules/files/prune.ts) и сервер Next.
+ */
+const STORAGE_DIR = path.join(__dirname, "..", "storage-e2e");
+process.env.STORAGE_LOCAL_DIR = STORAGE_DIR;
+
 // Свой порт, не порт dev-сервера: reuseExistingServer иначе прогнал бы e2e против dev-базы.
 export const PORT = Number(process.env.E2E_PORT ?? 3110);
 
@@ -68,6 +76,7 @@ export const webServer: NonNullable<PlaywrightTestConfig["webServer"]> = {
     // В CI сервер — `next start` (NODE_ENV=production): env.ts требует явный APP_ENV (OPEN_QUESTIONS №62).
     APP_ENV: "dev",
     NEXT_DIST_DIR: DIST_DIR,
+    STORAGE_LOCAL_DIR: STORAGE_DIR,
     SMS_PROVIDER: "mock",
     SIGNATURE_PROVIDER: "mock",
     PAYMENT_PROVIDER: "manual",

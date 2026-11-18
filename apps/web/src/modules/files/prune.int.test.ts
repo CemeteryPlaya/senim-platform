@@ -1,14 +1,23 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { env, resetEnvCache } from "@/platform/env";
 import { makeClient } from "../../../test/factories";
 import { setEnv } from "../../../test/factories/identity";
-import { PRUNE_GRACE_MS, pruneLocalStorage } from "./prune";
+import { testTempDir } from "../../../test/storage-dir";
+import { markLocalStorageIfNew, PRUNE_GRACE_MS, pruneLocalStorage, readStorageMark, STORAGE_DB_MARK } from "./prune";
 import { saveFile } from "./index";
 
-const saved = { APP_ENV: process.env.APP_ENV, STORAGE_PROVIDER: process.env.STORAGE_PROVIDER };
+const saved = { APP_ENV: process.env.APP_ENV, STORAGE_PROVIDER: process.env.STORAGE_PROVIDER, STORAGE_LOCAL_DIR: process.env.STORAGE_LOCAL_DIR };
+const TEST_DB = new URL(process.env.DATABASE_URL ?? "").pathname.slice(1);
+
+/** Каждый тест — своя новая папка хранилища (ещё не созданная): метка и сироты не смешиваются между тестами. */
+let dir: string;
+beforeEach(async () => {
+  dir = path.join(await testTempDir("senim-prune-"), "storage");
+  setEnv({ APP_ENV: "dev", STORAGE_PROVIDER: "local", STORAGE_LOCAL_DIR: dir });
+});
 afterEach(() => {
   setEnv(saved);
   resetEnvCache();
@@ -18,7 +27,7 @@ afterEach(() => {
 const LATER = () => Date.now() + 2 * PRUNE_GRACE_MS;
 
 async function orphan(key: string) {
-  const full = path.join(env().STORAGE_LOCAL_DIR, ...key.split("/"));
+  const full = path.join(dir, ...key.split("/"));
   await mkdir(path.dirname(full), { recursive: true });
   await writeFile(full, "orphan");
   return full;
@@ -26,8 +35,8 @@ async function orphan(key: string) {
 const exists = (full: string) => stat(full).then(() => true, () => false);
 
 describe("pruneLocalStorage", () => {
-  it("APP_ENV=dev: удаляет файлы без записи StoredFile, файлы записей (и уменьшенные копии) остаются", async () => {
-    setEnv({ APP_ENV: "dev", STORAGE_PROVIDER: "local" });
+  it("метка совпадает с базой: удаляет файлы без записи StoredFile, файлы записей (и уменьшенные копии) и метка остаются", async () => {
+    expect(await markLocalStorageIfNew()).toBe("created");
     const client = await makeClient();
     const photo = await saveFile({
       purpose: "PORTFOLIO",
@@ -41,18 +50,41 @@ describe("pruneLocalStorage", () => {
 
     expect(out.plan).toBe("prune");
     expect(await exists(stale)).toBe(false);
-    const root = env().STORAGE_LOCAL_DIR;
     expect(photo.previewKey).not.toBeNull();
     for (const key of [photo.storageKey, photo.previewKey ?? "", pdf.storageKey]) {
-      expect((await readFile(path.join(root, key))).length).toBeGreaterThan(0);
+      expect((await readFile(path.join(env().STORAGE_LOCAL_DIR, key))).length).toBeGreaterThan(0);
     }
+    expect(await readStorageMark(dir)).toBe(TEST_DB);
   });
 
-  it("APP_ENV=prod: отказ, ничего не удалено и база не читается", async () => {
+  it("нет метки — отказ, ничего не удалено", async () => {
+    const stale = await orphan("document/2020/01/no-mark.pdf");
+    expect(await pruneLocalStorage({ now: LATER() })).toMatchObject({ plan: "refuse-no-mark", root: dir, database: TEST_DB });
+    expect(await exists(stale)).toBe(true);
+  });
+
+  it("метка чужой базы — отказ, ничего не удалено", async () => {
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, STORAGE_DB_MARK), "senim\n");
+    const stale = await orphan("document/2020/01/foreign.pdf");
+    expect(await pruneLocalStorage({ now: LATER() })).toMatchObject({ plan: "refuse-foreign-db", root: dir, database: TEST_DB, mark: "senim" });
+    expect(await exists(stale)).toBe(true);
+  });
+
+  it("метка пишется только в новую папку: в непустую без метки — нет, чистка затем отказывает", async () => {
+    await orphan("document/2020/01/old.pdf");
+    expect(await markLocalStorageIfNew()).toBe("not-empty");
+    expect(await readStorageMark(dir)).toBeNull();
+    expect((await pruneLocalStorage({ now: LATER() })).plan).toBe("refuse-no-mark");
+  });
+
+  it("APP_ENV=prod: отказ, метка не пишется, ничего не удалено и база не читается", async () => {
     const stale = await orphan("document/2020/01/prod.pdf");
     setEnv({ APP_ENV: "prod" });
+    expect(await markLocalStorageIfNew()).toBe("refuse-prod");
     expect(await pruneLocalStorage({ now: LATER() })).toEqual({ plan: "refuse-prod" });
     expect(await exists(stale)).toBe(true);
+    expect(await readStorageMark(dir)).toBeNull();
   });
 
   it("APP_ENV не задан — отказ; STORAGE_PROVIDER=s3 — пропуск", async () => {
