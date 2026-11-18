@@ -10,6 +10,9 @@ describe("Disclosure", () => {
     expect(out).not.toMatch(/<details[^>]*\sopen/);
     expect(out).toMatch(/<summary[^>]*>.*Как считаются статусы/s);
     expect(out.indexOf("<summary")).toBeLessThan(out.indexOf("Ответ про статусы"));
+    // summary — единственная фокусируемая цель до ответа: без tabindex, ссылок и кнопок перед ним.
+    expect(out).not.toContain("tabindex");
+    expect(out.slice(0, out.indexOf("<summary"))).not.toMatch(/<(a|button|input)/);
     expect(text(<Disclosure title="Q">Ответ</Disclosure>)).toContain("Ответ");
   });
 
@@ -25,6 +28,16 @@ describe("Disclosure", () => {
 });
 
 describe("DisclosureList", () => {
+  it("имя группы — по id заголовка секции (labelledBy), без дубля aria-label", () => {
+    const list = html(
+      <DisclosureList labelledBy="faq">
+        <Disclosure title="Один">A</Disclosure>
+      </DisclosureList>,
+    );
+    expect(list).toContain('aria-labelledby="faq"');
+    expect(list).not.toContain("aria-label=");
+  });
+
   it("группа с именем для диктора; вопросы — отдельные details", () => {
     const list = html(
       <DisclosureList label="Вопросы и ответы">

@@ -28,10 +28,10 @@ export function Disclosure({ title, open = false, children }: DisclosureProps) {
   );
 }
 
-/** Группа вопросов на одной подложке: раскрывающие строки с разделителями, у последней разделителя нет. */
-export function DisclosureList({ label, children }: { label: string; children: ReactNode }) {
+/** Группа вопросов (имя — `label` или `labelledBy`: id заголовка секции, чтобы диктор не читал его дважды) на одной подложке: раскрывающие строки с разделителями, у последней разделителя нет. */
+export function DisclosureList({ label, labelledBy, children }: { label?: string; labelledBy?: string; children: ReactNode }) {
   return (
-    <div role="group" aria-label={label} className="flex flex-col overflow-hidden rounded-card bg-surface">
+    <div role="group" aria-label={labelledBy ? undefined : label} aria-labelledby={labelledBy} className="flex flex-col overflow-hidden rounded-card bg-surface">
       {children}
     </div>
   );

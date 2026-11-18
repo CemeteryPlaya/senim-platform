@@ -218,6 +218,7 @@ export const kit = {
       fields: "Поля",
       choices: "Флажки и выбор",
       cards: "Карточки и списки",
+      disclosure: "Раскрывающиеся вопросы",
       chips: "Статусы",
       progress: "Прогресс",
       money: "Деньги",
@@ -278,6 +279,13 @@ export const kit = {
       queueBody: "Перевод мастеру после приёмки, ждёт документа банка",
       queueDecide: "Решить",
       queueDone: (n: number) => `Операция по сделке №${n} подтверждена`,
+    },
+    disclosure: {
+      label: "Образец вопросов",
+      closedTitle: "Закрытый по умолчанию",
+      closedBody: "Ответ лежит в разметке и открывается Enter или пробелом.",
+      openTitle: "Раскрытый сразу (open)",
+      openBody: "Шеврон повёрнут; при уменьшении движения анимации нет.",
     },
     master: {
       statRowLabel: "Сводка мастера",

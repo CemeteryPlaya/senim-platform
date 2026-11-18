@@ -694,14 +694,15 @@ const { pending, error, fieldErrors, onSubmit } = useActionForm(requestCodeActio
 
 ### `Disclosure` и `DisclosureList`
 
-Раскрывающийся вопрос с ответом: нативный `<details>`/`<summary>` — открывается Enter и пробелом, диктор читает состояние, клиентский код не нужен (серверный компонент). Подпись — цель не ниже 48 px (`min-h-control`) с шевроном справа; шеврон поворачивается при раскрытии, при `prefers-reduced-motion` — без анимации. Ответ лежит в разметке и в закрытом состоянии. `DisclosureList` — группа (`role="group"`) на одной подложке `surface` с разделителями между вопросами. Образец — «Вопросы и ответы» внизу профиля покупателя.
+Раскрывающийся вопрос с ответом: нативный `<details>`/`<summary>` — открывается Enter и пробелом, диктор читает состояние, клиентский код не нужен (серверный компонент). Подпись — цель не ниже 48 px (`min-h-control`) с шевроном справа; шеврон поворачивается при раскрытии, при `prefers-reduced-motion` — без анимации. Ответ лежит в разметке и в закрытом состоянии. `DisclosureList` — группа (`role="group"`) на одной подложке `surface` с разделителями между вопросами. Образец — на `/v2/ui-kit` (закрытый и `open`); в деле — «Вопросы и ответы» внизу профиля покупателя.
 
 | Проп | Тип | Смысл |
 |---|---|---|
 | `Disclosure.title` | `string` | Вопрос (подпись summary, 17 px ink) |
 | `Disclosure.open` | `boolean?` | Раскрыт сразу; по умолчанию закрыт |
 | `Disclosure.children` | `ReactNode` | Ответ: абзацы `<p>` (muted, 17 px) |
-| `DisclosureList.label` | `string` | Имя группы для диктора |
+| `DisclosureList.label` | `string?` | Имя группы для диктора |
+| `DisclosureList.labelledBy` | `string?` | id заголовка секции (`Section id`): имя группы без дубля; вместо `label` |
 | `DisclosureList.children` | `ReactNode` | `Disclosure`-ы |
 
 Нельзя: прятать в `Disclosure` главное действие экрана или важное условие сделки (оно должно быть на виду); вкладывать один `Disclosure` в другой.

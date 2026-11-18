@@ -34,6 +34,8 @@ import {
   RadioCard,
   RadioGroup,
   Rating,
+  Disclosure,
+  DisclosureList,
   Section,
   Select,
   Sidebar,
@@ -923,6 +925,19 @@ export default async function UiKit({ searchParams }: { searchParams: Promise<Re
               <Button variant="quiet">{s.dock.quiet}</Button>
             </ActionDock>
           </Stack>
+        </Narrow>
+      </Section>
+
+      <Section title={s.sections.disclosure}>
+        <Narrow>
+          <DisclosureList label={s.disclosure.label}>
+            <Disclosure title={s.disclosure.closedTitle}>
+              <p>{s.disclosure.closedBody}</p>
+            </Disclosure>
+            <Disclosure title={s.disclosure.openTitle} open>
+              <p>{s.disclosure.openBody}</p>
+            </Disclosure>
+          </DisclosureList>
         </Narrow>
       </Section>
 

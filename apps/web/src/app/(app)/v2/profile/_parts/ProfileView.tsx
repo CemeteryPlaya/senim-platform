@@ -75,8 +75,8 @@ export function ProfileView({ model, theme, device }: { model: ProfileModel; the
     </Section>
   );
   const faq = model.history && (
-    <Section title={h.faq.title}>
-      <DisclosureList label={h.faq.title}>
+    <Section title={h.faq.title} id="profile-faq">
+      <DisclosureList labelledBy="profile-faq">
         <Disclosure title={h.faq.statuses.title}>
           {h.faq.statuses.paragraphs.map((text) => (
             <p key={text}>{text}</p>
