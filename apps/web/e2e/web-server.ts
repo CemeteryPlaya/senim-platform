@@ -50,8 +50,13 @@ export const baseUse: NonNullable<PlaywrightTestConfig["use"]> = {
   ...(STAND_PASSWORD ? { httpCredentials: { username: "stand", password: STAND_PASSWORD } } : {}),
 };
 
+// Папка сборки e2e-сервера (NEXT_DIST_DIR ниже).
+const DIST_DIR = ".next-e2e";
+
 export const webServer: NonNullable<PlaywrightTestConfig["webServer"]> = {
-  command: process.env.CI ? `npm run build && npx next start -p ${PORT}` : `npx next dev -p ${PORT}`,
+  // Перед `next dev` — предохранитель от разросшегося кэша Turbopack (e2e/turbopack-cache.ts). Команда запускается, только
+  // когда сервер не поднят (reuseExistingServer): кэш работающего сервера не трогается.
+  command: process.env.CI ? `npm run build && npx next start -p ${PORT}` : `npx tsx e2e/trim-turbopack-cache.ts ${DIST_DIR} && npx next dev -p ${PORT}`,
   port: PORT,
   reuseExistingServer: !process.env.CI,
   timeout: 180_000,
@@ -62,7 +67,7 @@ export const webServer: NonNullable<PlaywrightTestConfig["webServer"]> = {
     DATABASE_URL: E2E_DATABASE_URL,
     // В CI сервер — `next start` (NODE_ENV=production): env.ts требует явный APP_ENV (OPEN_QUESTIONS №62).
     APP_ENV: "dev",
-    NEXT_DIST_DIR: ".next-e2e",
+    NEXT_DIST_DIR: DIST_DIR,
     SMS_PROVIDER: "mock",
     SIGNATURE_PROVIDER: "mock",
     PAYMENT_PROVIDER: "manual",

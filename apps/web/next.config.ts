@@ -77,6 +77,9 @@ const nextConfig: NextConfig = {
     "/*": ["src/modules/documents/fonts/*.ttf"],
   },
   experimental: {
+    // Сборка мусора файлового кэша Turbopack (<distDir>/dev/cache/turbopack и cache/turbopack): без неё кэш `next dev` рос
+    // без предела — до 15–50 ГБ. Недостижимое удаляется, корни живут 3 дня (по умолчанию). Next ≥ 16.4.
+    turbopackGc: true,
     serverActions: {
       // фото этапов приходят как сжатые data URL
       bodySizeLimit: "4mb",
