@@ -1,14 +1,58 @@
 import type { Role } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
+import { formatShortDate } from "@/features/format/format";
+import type { BuyerHistory, BuyerHistoryState } from "@/modules/requests";
+import type { StatusTone } from "@/kit";
 import { formatPhone, isStaffRole, switchTargets, type CurrentUser } from "@/modules/identity";
 import { masterStatusOf, switchRoleTo } from "../../../_shell/auth";
-import { to } from "../../../_shell/paths";
+import { to, v2Href } from "../../../_shell/paths";
 
 const t = ru.app.profile;
 const m = ru.app.masterProfile.rows;
 
 /** Строка раздела: подпись и адрес v2. */
 export type ProfileLink = { label: string; href: string };
+
+/** Строка истории: заголовок, статус с тоном, мастер, цена (тиыны), дата и адрес v2. */
+export type HistoryRowModel = {
+  id: string;
+  title: string;
+  href: string;
+  status: string;
+  tone: StatusTone;
+  executorLabel: string | null;
+  priceTiyn: bigint | null;
+  date: string;
+};
+
+export type HistoryModel = {
+  stats: { label: string; value: number }[];
+  rows: HistoryRowModel[];
+};
+
+const TONES: Record<BuyerHistoryState, StatusTone> = { success: "accent", failed: "danger", cancelled: "neutral", progress: "warn" };
+
+/** Сводка и строки истории покупателя: порядок строк — как отдал модуль. Чистая функция. */
+export function historyModel(history: BuyerHistory): HistoryModel {
+  const h = t.history;
+  return {
+    stats: [
+      { label: h.stats.orders, value: history.counts.orders },
+      { label: h.stats.deals, value: history.counts.deals },
+      { label: h.stats.successful, value: history.counts.successful },
+    ],
+    rows: history.rows.map((r) => ({
+      id: r.requestId,
+      title: r.title,
+      href: v2Href(r.href),
+      status: h.status[r.state],
+      tone: TONES[r.state],
+      executorLabel: r.executorLabel,
+      priceTiyn: r.priceTiyn,
+      date: formatShortDate(r.at),
+    })),
+  };
+}
 
 export type ProfileModel = {
   name: string;
@@ -23,6 +67,8 @@ export type ProfileModel = {
   sections: ProfileLink[];
   /** Смена роли: другая выданная роль и, если роли мастера нет, «Стать мастером». */
   roles: ProfileLink[];
+  /** История и счётчики — только у активной роли «покупатель» и только если их передали; иначе null. */
+  history: HistoryModel | null;
 };
 
 type ProfileUser = Pick<CurrentUser, "role" | "roles" | "fullName" | "phone"> & Partial<Pick<CurrentUser, "executor">>;
@@ -62,7 +108,7 @@ export function masterLinks(executor: CurrentUser["executor"] | undefined): Prof
 }
 
 /** Что показать на экране профиля: имя как записано, телефон, активная роль, разделы и роли. Чистая функция. */
-export function profileModel(user: ProfileUser): ProfileModel {
+export function profileModel(user: ProfileUser, history?: BuyerHistory): ProfileModel {
   const sections: ProfileLink[] = [];
   if (isParty(user.role)) {
     sections.push({ label: t.rows.contacts, href: to("/profile/contacts") }, { label: t.rows.data, href: to("/profile/data") });
@@ -76,5 +122,6 @@ export function profileModel(user: ProfileUser): ProfileModel {
     work: user.role === "EXECUTOR" ? masterLinks(user.executor) : [],
     sections,
     roles: roleLinks(user),
+    history: user.role === "CLIENT" && history ? historyModel(history) : null,
   };
 }

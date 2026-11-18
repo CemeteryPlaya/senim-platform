@@ -128,3 +128,5 @@ export { PhotoChoice, PhotoChoiceGroup } from "./PhotoChoice";
 export type { PhotoChoiceGroupProps, PhotoChoiceProps } from "./PhotoChoice";
 export { PhotoGallery } from "./PhotoGallery";
 export type { GalleryPhoto, PhotoGalleryProps } from "./PhotoGallery";
+export { Disclosure, DisclosureList } from "./Disclosure";
+export type { DisclosureProps } from "./Disclosure";

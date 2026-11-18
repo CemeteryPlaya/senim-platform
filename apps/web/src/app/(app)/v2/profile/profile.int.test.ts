@@ -7,6 +7,7 @@ import { getCurrentUser, getOwnContacts } from "@/modules/identity";
 import type { ActionResult } from "@/platform/action";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor, makeOperator } from "../../../../../test/factories";
+import { makeOfferThread } from "../../../../../test/factories/companies";
 import { freshBrowser, setEnv } from "../../../../../test/factories/identity";
 import { signInAs } from "../../../../../test/factories/session";
 import { identityFake } from "../../../../../test/stubs/identity";
@@ -175,6 +176,28 @@ describe("страницы профиля", () => {
 
     await buyer();
     expect((await render(ProfilePage)).html).not.toContain(ru.app.masterProfile.sectionsTitle);
+  });
+
+  it("профиль покупателя: счётчики, история со ссылками в v2 и вопросы про статусы; у мастера истории нет", async () => {
+    const user = await buyer();
+    const done = await makeOfferThread({ client: user, dealStatus: "SPLIT_PAYOUT", requestStatus: "CLOSED" });
+    const open = await makeOfferThread({ client: user, dealStatus: undefined, requestStatus: "OPEN" });
+    const h = ru.app.profile.history;
+    const out = (await render(ProfilePage)).html!;
+    expect(out).toContain(`>${h.title}</h2>`);
+    expect(out).toContain(`href="/v2/deals/${done.dealId}"`);
+    expect(out).toContain(`href="/v2/requests/${open.requestId}"`);
+    expect(out).toContain(h.status.success);
+    expect(out).toContain(h.status.progress);
+    expect(out).toContain(h.faq.statuses.title);
+    expect(out.split("data-primary-action").length - 1).toBe(0);
+
+    const master = await makeExecutor();
+    await db.user.update({ where: { id: master.id }, data: { emailVerifiedAt: new Date() } });
+    await signInAs(master);
+    const masterOut = (await render(ProfilePage)).html!;
+    expect(masterOut).not.toContain(h.title);
+    expect(masterOut).not.toContain(h.faq.title);
   });
 
   it("контакты: Instagram показан в поле; ?email=changed показывает тост-компонент", async () => {

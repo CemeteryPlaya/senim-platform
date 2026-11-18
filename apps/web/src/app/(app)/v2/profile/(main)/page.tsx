@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
+import { buyerHistory } from "@/modules/requests";
 import { getTheme } from "@/kit/theme";
 import { getDevice } from "@/platform/device";
 import { requireV2User } from "../../../_shell/auth";
@@ -16,5 +17,7 @@ export const metadata: Metadata = { title: ru.app.profile.metaTitle };
 export default async function ProfilePage() {
   const user = await requireV2User(to("/profile"));
   const [theme, device] = await Promise.all([getTheme(), getDevice()]);
-  return <ProfileView model={profileModel(user)} theme={theme} device={device} />;
+  // История — только у покупателя: у мастера buyerHistory отказывает (FORBIDDEN), а экран остаётся прежним.
+  const history = user.role === "CLIENT" ? await buyerHistory(user) : undefined;
+  return <ProfileView model={profileModel(user, history)} theme={theme} device={device} />;
 }
