@@ -18,6 +18,8 @@ export { applyPortfolioConsent, executorDisplayOf, executorDisplays, maskContact
 export { maskPublicText, NAME_MASK_SELECT, VISIBLE_EXECUTOR } from "@/modules/companies";
 // Правило «оконченной сделки» и числа мастера: одно место — companies (его страница и список мастеров).
 export { ENDED_DEAL, executorStats, isEndedSigned, type ExecutorStats } from "@/modules/companies";
+// Место сделки по выбору покупателя и варианты адреса: одно правило со страницей мастера и работами портфолио из сделки.
+export { addressOptionsOf, placeOf } from "@/modules/companies";
 // Фото сдачи, «Хода работ» и спора прикрепляет files: свой файл, нужного назначения, ещё ничей.
 export { attachFiles as attachOwnFiles } from "@/modules/files";
 

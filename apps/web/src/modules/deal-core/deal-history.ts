@@ -1,12 +1,12 @@
 import "server-only";
-import type { Segment, ShowcaseAddress } from "@/generated/prisma/enums";
+import type { Segment } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { previewUrl } from "@/modules/files";
 import { publicSignatureOf } from "@/modules/identity";
 import { db, Prisma } from "@/platform/db";
 import { ENDED_DEAL } from "./ended";
-import { maskPublicText, NAME_MASK_SELECT, VISIBLE_EXECUTOR } from "./ports";
-import { addressOptionsOf, CLOSED_SHOWCASE } from "./showcase";
+import { maskPublicText, NAME_MASK_SELECT, placeOf, VISIBLE_EXECUTOR } from "./ports";
+import { CLOSED_SHOWCASE } from "./showcase";
 
 /**
  * Оконченные сделки мастера для его публичной страницы (спека 2026-11-17): что делали, когда закончили, чем закончилось
@@ -62,19 +62,6 @@ const HISTORY_SELECT = {
 } satisfies Prisma.DealSelect;
 
 type HistoryRow = Prisma.DealGetPayload<{ select: typeof HISTORY_SELECT }>;
-
-const ADDRESS_LEVELS: readonly ShowcaseAddress[] = ["NONE", "CITY", "DISTRICT", "COMPLEX"];
-
-/** Выбранный уровень адреса, пониженный до доступного по данным заявки (ЖК — только с районом). */
-function placeOf(request: HistoryRow["request"], chosen: ShowcaseAddress): string | null {
-  const options = addressOptionsOf(request);
-  const level = ADDRESS_LEVELS.slice(0, ADDRESS_LEVELS.indexOf(chosen) + 1).findLast((l) => options.includes(l)) ?? "NONE";
-  const parts = [request.city, request.district, request.complex]
-    .slice(0, ADDRESS_LEVELS.indexOf(level))
-    .map((p) => (p ?? "").trim())
-    .filter(Boolean);
-  return parts.length ? parts.join(", ") : null;
-}
 
 const endedAtOf = (row: HistoryRow): Date => (row.status === "SPLIT_PAYOUT" ? row.completedAt : row.cancelledAt) ?? row.updatedAt;
 

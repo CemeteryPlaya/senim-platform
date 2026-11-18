@@ -6,6 +6,7 @@ import { db, lockDealRow, transaction, type Db, type Tx } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { parseInput } from "@/platform/validation";
 import { isEndedSigned } from "./ended";
+import { addressOptionsOf } from "./ports";
 import { showcaseSchema, type ShowcaseInput } from "./schemas";
 import { requireParty, requireRole, scopeOf } from "./state";
 
@@ -35,15 +36,6 @@ export type ShowcaseView = ShowcaseChoice & {
 
 /** Самое закрытое: без фото, стоимости и адреса, подпись — инициал. Так до ответа покупателя и после отзыва согласия на ПДн. */
 export const CLOSED_SHOWCASE: ShowcaseChoice = { photos: false, price: false, address: "NONE", signature: "INITIAL" };
-
-const present = (s: string | null) => (s ?? "").trim() !== "";
-
-export function addressOptionsOf(request: { district: string | null; complex: string | null }): ShowcaseAddress[] {
-  const options: ShowcaseAddress[] = ["NONE", "CITY"];
-  if (present(request.district)) options.push("DISTRICT");
-  if (present(request.district) && present(request.complex)) options.push("COMPLEX");
-  return options;
-}
 
 const choiceOf = (row: ShowcaseChoice): ShowcaseChoice => ({ photos: row.photos, price: row.price, address: row.address, signature: row.signature });
 const sameChoice = (a: ShowcaseChoice, b: ShowcaseChoice) => a.photos === b.photos && a.price === b.price && a.address === b.address && a.signature === b.signature;

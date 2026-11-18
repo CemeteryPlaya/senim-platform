@@ -3,7 +3,7 @@ import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import { db, type Prisma } from "@/platform/db";
 import { EXECUTOR_DISPLAY_SELECT } from "./anonymity";
-import { CARD_SELECT, NAME_MASK_SELECT, toCard, VISIBLE_ITEM } from "./catalog";
+import { CARD_SELECT, DEAL_CHOICE_SELECT, NAME_MASK_SELECT, publicPlaceOf, toCard, VISIBLE_ITEM } from "./catalog";
 import { executorDisplay } from "./display";
 import { getExecutorIdentityMode } from "./identity-mode";
 import type { InspirationFilter } from "./inspiration-filter";
@@ -23,7 +23,8 @@ export type InspirationTile = {
   cover: PhotoView | null;
   furnitureType: { slug: string; name: string };
   style: { key: string; name: string };
-  place: string;
+  /** Как PortfolioCard.place: у работы из сделки — только по выбору покупателя. */
+  place: string | null;
   featured: boolean;
   doneOnPlatform: boolean;
   executorLabel: string;
@@ -36,6 +37,7 @@ const TILE_SELECT = {
   place: true,
   featured: true,
   dealId: true,
+  deal: { select: DEAL_CHOICE_SELECT },
   furnitureType: { select: { slug: true, name: true } },
   photos: { ...OWN_PHOTOS, take: 1 },
   dealPhotos: { ...DEAL_PHOTOS, take: 1 },
@@ -61,7 +63,7 @@ export async function listInspiration(filter: InspirationFilter): Promise<{ item
         cover: cover ?? null,
         furnitureType: row.furnitureType,
         style: styleView(row.style),
-        place: row.place,
+        place: publicPlaceOf(row, row.executor),
         featured: row.featured,
         doneOnPlatform: row.dealId !== null,
         executorLabel: executorDisplay(row.executor, mode).label,

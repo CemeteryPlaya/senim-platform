@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { leaveReview } from "@/modules/deal-core";
+import { leaveReview, setDealShowcase } from "@/modules/deal-core";
 import { db } from "@/platform/db";
 import { actingAs, makeClient, makeExecutor, makeOperator, makeUser } from "../../../test/factories";
 import { makeDealWithReport, makePortfolioItem, withFeature } from "../../../test/factories/companies";
@@ -11,6 +11,7 @@ import {
   getDealPortfolioDraft,
   getDealPortfolioPanel,
   getInspirationItem,
+  getPortfolioForRequest,
   listCatalog,
   listInspiration,
   listOwnPortfolio,
@@ -121,11 +122,15 @@ describe("согласие заказчика на показ", () => {
     expect(own).toMatchObject({ fromDeal: { consent: false } });
   });
 
-  it("заказчик разрешает — работа видна с пометкой «Выполнено на Сенім» и местом; отзывает — скрыта", async () => {
+  it("заказчик разрешает — работа видна с пометкой «Выполнено на Сенім» и местом по его выбору; отзывает — скрыта", async () => {
     const d = await makeDealWithReport();
-    const { id } = await fromDeal(d);
+    await db.request.update({ where: { id: d.requestId }, data: { district: "Есильский район" } });
+    const { id } = await fromDeal(d, { place: "Текст мастера" });
 
     expect(await setPortfolioConsent(d.client, { dealId: d.dealId, consent: true })).toEqual({ changed: true });
+    // Только «фото: да» — место не показано: адрес заказчика — лишь по его явному выбору.
+    expect((await listInspiration({ limit: 96 })).items.find((i) => i.id === id)).toMatchObject({ doneOnPlatform: true, place: null });
+    await setDealShowcase(d.client, { dealId: d.dealId, photos: true, price: false, address: "DISTRICT", signature: "INITIAL" });
     const tile = (await listInspiration({ limit: 96 })).items.find((i) => i.id === id);
     expect(tile).toMatchObject({ doneOnPlatform: true, place: "Астана, Есильский район" });
     expect(tile!.cover?.id).toBe(d.finalPhotoIds[0]);
@@ -190,6 +195,49 @@ describe("согласие заказчика на показ", () => {
     await db.user.update({ where: { id: d.executor.id }, data: { blockedAt: null } });
     await db.executorProfile.update({ where: { id: d.executor.executor.id }, data: { status: "PENDING" } });
     expect(await inFeed(id)).toBe(false);
+  });
+});
+
+describe("работа из сделки публично: место и цена только по выбору покупателя", () => {
+  const show = (d: Fixture, choice: { price: boolean; address: "NONE" | "CITY" | "DISTRICT" | "COMPLEX" }) =>
+    setDealShowcase(d.client, { dealId: d.dealId, photos: true, signature: "INITIAL", ...choice });
+
+  it("фото: да, стоимость: нет, адрес: нет — карточка есть везде, без места и цены", async () => {
+    const d = await makeDealWithReport();
+    await db.request.update({ where: { id: d.requestId }, data: { district: "Есильский район" } });
+    const { id } = await fromDeal(d, { place: "Астана, Есильский район", priceFrom: 450_000 });
+    await show(d, { price: false, address: "NONE" });
+    const viewer = await makeClient();
+
+    const card = (await listCatalog({ page: 1 })).items.find((i) => i.id === id);
+    expect(card).toMatchObject({ doneOnPlatform: true, place: null, priceFrom: null });
+    expect((await listPublicPortfolio(d.executor.executor.id)).find((i) => i.id === id)).toMatchObject({ place: null, priceFrom: null });
+    expect(await getInspirationItem(id, viewer)).toMatchObject({ place: null, priceFrom: null });
+    expect(await getPortfolioForRequest(id)).toMatchObject({ place: null, priceFrom: null });
+    expect((await listInspiration({ limit: 96 })).items.find((i) => i.id === id)).toMatchObject({ place: null });
+    // Фильтр каталога по цене не раскрывает скрытую стоимость.
+    expect((await listCatalog({ page: 1, price: "300-700" })).items.map((i) => i.id)).not.toContain(id);
+  });
+
+  it("стоимость: да, адрес: район — цена мастера, место из заявки без улицы и без текста мастера", async () => {
+    const d = await makeDealWithReport();
+    await db.request.update({ where: { id: d.requestId }, data: { district: "Есильский район", complex: "Хайвил" } });
+    const { id } = await fromDeal(d, { place: "Левый берег", priceFrom: 450_000 });
+    await show(d, { price: true, address: "DISTRICT" });
+
+    const card = (await listCatalog({ page: 1 })).items.find((i) => i.id === id);
+    expect(card).toMatchObject({ place: "Астана, Есильский район", priceFrom: 450_000 });
+    expect(JSON.stringify(card)).not.toContain("Тестовая");
+    expect((await getInspirationItem(id, null))?.place).toBe("Астана, Есильский район");
+    expect((await listInspiration({ limit: 96 })).items.find((i) => i.id === id)?.place).toBe("Астана, Есильский район");
+    expect((await listCatalog({ page: 1, price: "300-700" })).items.map((i) => i.id)).toContain(id);
+  });
+
+  it("работа вне площадки — место и цена мастера как есть", async () => {
+    const executor = await makeExecutor();
+    const made = await makePortfolioItem(executor, { priceFrom: 300_000 });
+    const item = await db.portfolioItem.update({ where: { id: made.id }, data: { place: "Алматы, Бостандыкский район" } });
+    expect((await listCatalog({ page: 1 })).items.find((i) => i.id === item.id)).toMatchObject({ place: "Алматы, Бостандыкский район", priceFrom: 300_000 });
   });
 });
 

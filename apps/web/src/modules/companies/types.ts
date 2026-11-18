@@ -43,8 +43,11 @@ export type PortfolioCard = {
   furnitureType: { slug: string; name: string };
   style: { key: string; name: string };
   priceFrom: number | null;
-  /** Где делали: город, район или ЖК; пустая строка — не указано. */
-  place: string;
+  /**
+   * Где делали: город, район или ЖК; пустая строка или null — не показывается. У работы из сделки — только по выбору
+   * покупателя и из заявки (publicPlaceOf), у работы вне площадки — текст мастера.
+   */
+  place: string | null;
   /** «Подборка Сенім» во «Вдохновении». */
   featured: boolean;
   /** Работа из завершённой сделки на площадке — пометка «Выполнено на Сенім». */

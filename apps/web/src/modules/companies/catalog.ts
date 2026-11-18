@@ -6,9 +6,10 @@ import { priceRange, type CatalogFilter } from "./catalog-filter";
 import type { ExecutorIdentityMode } from "./display";
 import { publicHighlights } from "./highlights";
 import { getExecutorIdentityMode } from "./identity-mode";
-import { maskPublicText } from "./mask";
+import { maskPublicText, type ExecutorNameSource } from "./mask";
 import { DEAL_PHOTOS, itemFiles, OWN_PHOTOS, toPhotoViews } from "./photos";
 import { styleView } from "./portfolio";
+import { placeOf } from "./showcase-place";
 import type { PortfolioCard, PublicExecutorPage, PublicExecutorView, PublicReview } from "./types";
 
 /**
@@ -36,6 +37,37 @@ export const VISIBLE_ITEM = {
 /** Поля для маски имени мастера в текстах: только для maskPublicText, в публичные представления не попадают. */
 export const NAME_MASK_SELECT = { legalForm: true, legalName: true, signerFullName: true, user: { select: { fullName: true } } } as const satisfies Prisma.ExecutorProfileSelect;
 
+/**
+ * Выбор покупателя сделки для работы из неё: стоимость и уровень адреса (DealShowcase), место — из заявки.
+ * Request.address (улица и дом) не выбирается: публично его нет ни при каком выборе.
+ */
+export const DEAL_CHOICE_SELECT = {
+  showcase: { select: { price: true, address: true } },
+  request: { select: { city: true, district: true, complex: true } },
+} satisfies Prisma.DealSelect;
+
+type DealChoiceRow = Prisma.DealGetPayload<{ select: typeof DEAL_CHOICE_SELECT }>;
+
+/**
+ * Место работы публично. Работа вне площадки — текст мастера; работа из сделки — не текст мастера, а место из заявки по
+ * выбранному покупателем уровню адреса (то же правило, что «Сделки на площадке» на странице мастера), через маску текста.
+ * Нет выбора — закрытый вид (null).
+ */
+export function publicPlaceOf(row: { place: string; dealId: string | null; deal: DealChoiceRow | null }, executor: ExecutorNameSource): string | null {
+  if (row.dealId === null) return row.place;
+  const place = row.deal?.showcase ? placeOf(row.deal.request, row.deal.showcase.address) : null;
+  return place === null ? null : maskPublicText(place, executor).text;
+}
+
+/** Цена «от» публично: у работы из сделки — только если покупатель разрешил показать стоимость. */
+function publicPriceOf(row: { priceFrom: number | null; dealId: string | null; deal: DealChoiceRow | null }): number | null {
+  if (row.dealId === null) return row.priceFrom;
+  return row.deal?.showcase?.price === true ? row.priceFrom : null;
+}
+
+/** Фильтр по цене не должен раскрывать скрытую покупателем стоимость: работа из сделки — только с «стоимость: да». */
+const PRICE_SHOWN = { OR: [{ dealId: null }, { deal: { showcase: { price: true } } }] } satisfies Prisma.PortfolioItemWhereInput;
+
 export const CARD_SELECT = {
   id: true,
   title: true,
@@ -50,7 +82,7 @@ export const CARD_SELECT = {
   furnitureType: { select: { slug: true, name: true } },
   photos: OWN_PHOTOS,
   dealPhotos: DEAL_PHOTOS,
-  deal: { select: { review: { select: { id: true, rating: true, text: true } } } },
+  deal: { select: { review: { select: { id: true, rating: true, text: true } }, ...DEAL_CHOICE_SELECT } },
   executor: { select: { ...PUBLIC_EXECUTOR_SELECT, ...NAME_MASK_SELECT } },
 } satisfies Prisma.PortfolioItemSelect;
 
@@ -65,8 +97,8 @@ export async function toCard(row: CardRow, mode: ExecutorIdentityMode): Promise<
     description: maskPublicText(row.description, row.executor).text,
     furnitureType: row.furnitureType,
     style: styleView(row.style),
-    priceFrom: row.priceFrom,
-    place: row.place,
+    priceFrom: publicPriceOf(row),
+    place: publicPlaceOf(row, row.executor),
     featured: row.featured,
     doneOnPlatform: row.dealId !== null,
     reviewId: row.deal?.review?.id ?? null,
@@ -84,6 +116,7 @@ export async function listCatalog(filter: CatalogFilter): Promise<{ items: Portf
     priceFrom: filter.price ? priceRange(filter.price) : undefined,
     furnitureType: { active: true, slug: filter.type },
     executor: { ...VISIBLE_EXECUTOR, segment: filter.segment },
+    ...(filter.price ? { AND: [PRICE_SHOWN] } : {}),
   };
   const [total, rows, mode] = await Promise.all([
     db.portfolioItem.count({ where }),

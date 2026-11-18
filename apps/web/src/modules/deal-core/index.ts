@@ -32,7 +32,7 @@ export { executorStats, type ExecutorStats } from "./executor-stats";
 // Оконченные сделки мастера для его публичной страницы: фото, стоимость, место и подпись — строго по выбору покупателя
 export { listExecutorDealHistory, type DealHistoryItem, type DealHistoryPhoto } from "./deal-history";
 // Выбор покупателя: что из оконченной сделки видно в профиле мастера; отзыв согласия на ПДн закрывает показ
-export { CLOSED_SHOWCASE, SHOWCASE_TEXT_VERSION, addressOptionsOf, closeShowcasesOf, getDealShowcase, setDealShowcase, type ShowcaseChoice, type ShowcaseView } from "./showcase";
+export { CLOSED_SHOWCASE, SHOWCASE_TEXT_VERSION, closeShowcasesOf, getDealShowcase, setDealShowcase, type ShowcaseChoice, type ShowcaseView } from "./showcase";
 export { nextStep, type NextAction, type NextStep } from "./next-step";
 export { nextStepsOf } from "./next-steps";
 export { daysLeft, plannedReadyAt } from "./schedule";
