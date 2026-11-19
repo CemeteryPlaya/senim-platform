@@ -11,12 +11,12 @@ const executor = (over: Partial<NonNullable<NonNullable<Viewer>["executor"]>> = 
 });
 
 const tender: RequestFacts = { clientId: "c1", mode: "TENDER", status: "OPEN", segment: "COMFORT", targetExecutorId: null, viewerHasOffer: false };
-const req = (r: Partial<RequestFacts> = {}): FileFacts => ({ uploadedById: "c1", owner: { kind: "request", request: { ...tender, ...r } } });
+const req = (r: Partial<RequestFacts> = {}, hidden = false): FileFacts => ({ uploadedById: "c1", hidden, owner: { kind: "request", request: { ...tender, ...r } } });
 
 describe("права на файл", () => {
   it("портфолио публично, даже для гостя; неопубликованное — владельцу и оператору", () => {
-    const pub: FileFacts = { uploadedById: "e1", owner: { kind: "portfolio", published: true, ownerUserId: "e1" } };
-    const hidden: FileFacts = { uploadedById: "e1", owner: { kind: "portfolio", published: false, ownerUserId: "e1" } };
+    const pub: FileFacts = { uploadedById: "e1", hidden: false, owner: { kind: "portfolio", published: true, ownerUserId: "e1" } };
+    const hidden: FileFacts = { uploadedById: "e1", hidden: false, owner: { kind: "portfolio", published: false, ownerUserId: "e1" } };
     expect(decideFileAccess(null, pub)).toBe(true);
     expect(decideFileAccess(otherClient, pub)).toBe(true);
     expect(decideFileAccess(null, hidden)).toBe(false);
@@ -53,7 +53,7 @@ describe("права на файл", () => {
   });
 
   it("этап, спор, документ, вложение чата — только стороны и оператор", () => {
-    const facts: FileFacts = { uploadedById: "e1", owner: { kind: "parties", userIds: ["c1", "e1"] } };
+    const facts: FileFacts = { uploadedById: "e1", hidden: false, owner: { kind: "parties", userIds: ["c1", "e1"] } };
     expect(decideFileAccess(client, facts)).toBe(true);
     expect(decideFileAccess(executor(), facts)).toBe(true);
     expect(decideFileAccess(operator, facts)).toBe(true);
@@ -62,9 +62,24 @@ describe("права на файл", () => {
   });
 
   it("неприкреплённый файл видит только загрузивший и оператор", () => {
-    const facts: FileFacts = { uploadedById: "c1", owner: { kind: "none" } };
+    const facts: FileFacts = { uploadedById: "c1", hidden: false, owner: { kind: "none" } };
     expect(decideFileAccess(client, facts)).toBe(true);
     expect(decideFileAccess(operator, facts)).toBe(true);
     expect(decideFileAccess(otherClient, facts)).toBe(false);
+  });
+
+  it("скрытый оператором файл заявки — только оператор и загрузивший заказчик; мастер сегмента — нет", () => {
+    expect(decideFileAccess(executor(), req({}, true))).toBe(false);
+    expect(decideFileAccess(executor({ segment: "PREMIUM" }), req({ status: "MEASURING", viewerHasOffer: true }, true))).toBe(false);
+    expect(decideFileAccess(client, req({}, true))).toBe(true);
+    expect(decideFileAccess(operator, req({}, true))).toBe(true);
+    expect(decideFileAccess(otherClient, req({}, true))).toBe(false);
+    expect(decideFileAccess(null, req({}, true))).toBe(false);
+  });
+
+  it("скрытый файл сторон сделки вторая сторона не читает", () => {
+    const facts: FileFacts = { uploadedById: "c1", hidden: true, owner: { kind: "parties", userIds: ["c1", "e1"] } };
+    expect(decideFileAccess(client, facts)).toBe(true);
+    expect(decideFileAccess(executor(), facts)).toBe(false);
   });
 });

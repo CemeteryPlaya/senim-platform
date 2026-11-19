@@ -353,6 +353,9 @@ model Request {
   status            RequestStatus   @default(DRAFT)
   preContractFlow   PreContractFlow? // снимок сценария при отправке; null — черновик
   wizardStep        Int             @default(0) // последний сохранённый шаг мастера
+  /// Покупатель отметил, что убрал из файлов дизайн-проекта телефоны, адреса и имена. Ставится при сохранении шага
+  /// «Помещение» с файлами REQUEST_DESIGN, сбрасывается, когда файлов не осталось.
+  designConfirmedAt DateTime?
   /// Ключ повтора первого шага мастера (форма v2): повтор с тем же ключом отдаёт тот же черновик. У сида и v1 — null.
   clientKey         String?
   publishedAt       DateTime?
@@ -949,6 +952,7 @@ enum FilePurpose {
   KYC_REGISTRATION // регистрация ИП/ТОО
   BANK_DOCUMENT // скан банковского документа (manual-провайдер)
   HAND_SIGNATURE // рисунок собственноручной подписи
+  REQUEST_DESIGN // свой дизайн-проект покупателя в заявке (фото или PDF)
 }
 
 // Файл принадлежит не более чем одной сущности (одно из полей-владельцев заполнено).
@@ -972,6 +976,10 @@ model StoredFile {
   uploadedBy   User?       @relation(fields: [uploadedById], references: [id])
   sortOrder    Int         @default(0)
   createdAt    DateTime    @default(now())
+  /// Скрыт оператором (дизайн-проект с контактами): читают только оператор и загрузивший. Файл не удаляется — его можно
+  /// вернуть. hiddenById — id оператора, без внешнего ключа.
+  hiddenAt     DateTime?
+  hiddenById   String?
 
   portfolioItemId  String?
   portfolioItem    PortfolioItem?   @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)

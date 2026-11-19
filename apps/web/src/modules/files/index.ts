@@ -18,6 +18,7 @@ export {
 } from "./upload";
 export { findSimilar, type SimilarFile } from "./similar";
 export { canReadFile } from "./access";
+export { fileViews, type FileView } from "./views";
 export { readLocalDownload, receiveLocalUpload } from "./local-transfer";
 export { PURPOSE_POLICY, type FileOwner, type OwnerField } from "./policy";
 export { verifyDownload, openUploadToken } from "./signing";

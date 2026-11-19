@@ -33,6 +33,18 @@ describe("canReadFile по сущности-владельцу (реальная
     expect(await readers(photo, people)).toEqual(["client", "comfort", "operator"]);
   });
 
+  it("скрытый оператором файл дизайн-проекта: заказчик-загрузчик и оператор — да; мастер сегмента — нет", async () => {
+    const client = await makeClient();
+    const operator = await makeOperator();
+    const request = await db.request.create({ data: { clientId: client.id, mode: "TENDER", status: "OPEN", segment: "COMFORT" } });
+    const design = await file({ purpose: "REQUEST_DESIGN", requestId: request.id, uploadedById: client.id });
+    const people = { client, comfort: await makeExecutor({ segment: "COMFORT" }), operator };
+    expect(await readers(design, people)).toEqual(["client", "comfort", "operator"]);
+
+    await db.storedFile.update({ where: { id: design.id }, data: { hiddenAt: new Date(), hiddenById: operator.id } });
+    expect(await readers(design, people)).toEqual(["client", "operator"]);
+  });
+
   it("фото сдачи, «Ход работ», спор и документ сделки — стороны и оператор, чужие — нет (IDOR)", async () => {
     const deal = await dealAt("IN_PROGRESS");
     const report = await db.progressReport.create({ data: { dealId: deal.dealId, authorId: deal.executor.id, text: "Корпус собран" } });

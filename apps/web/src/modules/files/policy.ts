@@ -44,6 +44,9 @@ export const PURPOSE_POLICY: Readonly<Record<FilePurpose, PurposePolicy>> = {
   PORTFOLIO: { roles: ["EXECUTOR"], accepts: "image", maxBytes: PHOTO_MAX, attachTo: { owner: "portfolioItemId" }, shortLink: false },
   // Фото помещения — заказчик в мастере и замерщик площадки (ADR-005).
   REQUEST_ROOM: { roles: ["CLIENT", "MEASURER"], accepts: "image", maxBytes: PHOTO_MAX, attachTo: { owner: "requestId" }, shortLink: false },
+  // Свой дизайн-проект покупателя (фото или PDF): в файле могут остаться контакты — пересланная ссылка должна быстро умирать.
+  // Владелец тот же, что у фото помещения: привязка обязана передавать purpose (attachFiles), иначе назначения смешаются.
+  REQUEST_DESIGN: { roles: ["CLIENT"], accepts: "imageOrPdf", maxBytes: PDF_MAX, attachTo: { owner: "requestId" }, shortLink: true },
   // «Ход работ» и фото сдачи (READY) — мастер сделки; прикрепляет deal-core после своей проверки сторон.
   PROGRESS_REPORT: { roles: ["EXECUTOR"], accepts: "image", maxBytes: PHOTO_MAX, attachTo: { owner: "progressReportId" }, shortLink: true },
   DELIVERY: { roles: ["EXECUTOR"], accepts: "image", maxBytes: PHOTO_MAX, attachTo: { owner: "dealId" }, shortLink: true },

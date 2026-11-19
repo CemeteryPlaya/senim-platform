@@ -23,6 +23,8 @@ export type RequestFacts = {
 /** Что известно о файле для решения о доступе. */
 export type FileFacts = {
   uploadedById: string | null;
+  /** Скрыт оператором: читают только оператор и загрузивший. */
+  hidden: boolean;
   owner:
     | { kind: "portfolio"; published: boolean; ownerUserId: string }
     | { kind: "request"; request: RequestFacts }
@@ -33,9 +35,10 @@ export type FileFacts = {
 /** Решение о доступе — чистая функция; загрузку фактов делает canReadFile. */
 export function decideFileAccess(viewer: Viewer, facts: FileFacts): boolean {
   const { owner } = facts;
-  if (owner.kind === "portfolio" && owner.published) return true;
+  if (owner.kind === "portfolio" && owner.published && !facts.hidden) return true;
   if (!viewer) return false;
-  return viewer.role === "OPERATOR" || facts.uploadedById === viewer.id || ownerAllows(viewer, owner);
+  if (viewer.role === "OPERATOR" || facts.uploadedById === viewer.id) return true;
+  return !facts.hidden && ownerAllows(viewer, owner);
 }
 
 /** Доступ по владельцу файла: автор портфолио, стороны сделки, заказчик заявки или исполнитель, который её видит. */
@@ -74,6 +77,7 @@ function ownersSelect(executorId: string | undefined) {
   const req = requestSelect(executorId);
   return {
     uploadedById: true,
+    hiddenAt: true,
     portfolioItem: { select: { published: true, executor: { select: { userId: true } } } },
     request: req,
     visualization: { select: { request: req } },
@@ -92,7 +96,7 @@ type LoadedOwners = Prisma.StoredFileGetPayload<{ select: ReturnType<typeof owne
 
 async function loadFacts(fileId: string, executorId: string | undefined): Promise<FileFacts | null> {
   const f = await db.storedFile.findUnique({ where: { id: fileId }, select: ownersSelect(executorId) });
-  return f && { uploadedById: f.uploadedById, owner: ownerOf(f) };
+  return f && { uploadedById: f.uploadedById, hidden: f.hiddenAt !== null, owner: ownerOf(f) };
 }
 
 /**
@@ -152,7 +156,7 @@ async function viewerOf(user: CurrentUser | null): Promise<Viewer> {
  * Права на файл по сущности-владельцу: портфолио — публично; фото помещения — заказчик и исполнители,
  * видящие заявку; фото сдачи, «Ход работ», спор, документ, вложение чата — стороны; KYC — мастер;
  * рисунок подписи — подписавший; скан банковского документа — оператор (ownerOf); оператор — всё;
- * гость — только опубликованное портфолио.
+ * гость — только опубликованное портфолио. Скрытый оператором файл (дизайн-проект заявки) — только оператор и загрузивший.
  *
  * Правило для маршрутов «файл по id» без сущности-владельца на руках (ADR-003: право проверяется при
  * выдаче ссылки). Сервисы, которые сейчас выдают fileUrl, уже проверяют доступ к своей сущности и
