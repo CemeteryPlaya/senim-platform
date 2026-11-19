@@ -206,7 +206,8 @@
  * прошлая анимация по прокрутке (keyframes с --role-ink) делала фон прозрачным, а посещённые ссылки оставались тёмными на
  * тёмном фото. В покое шапка всегда в одном из двух видов ≥ 4,5:1; ниже — только середина перехода (≈ 0,1 с).
  *
- * Пока скрипт не запущен — вид над фото (страница открывается сверху); без скриптов вовсе — стекло. При уменьшении
+ * Пока React не запущен, вид задаёт встроенный скрипт TopBarOverPhoto атрибутом data-top-bar-glass на <html> (открытая
+ * заново или по «Назад» прокрученная страница — сразу стекло); без атрибута — вид над фото. Без скриптов — стекло. При уменьшении
  * прозрачности и увеличении контраста — обычная шапка glass-bar (сплошная, тёмный текст) всегда. Меню и поповеры из шапки
  * рендерятся в портал (body), вне шапки, — переопределение их не касается (landing.test.tsx); первый экран [data-hero]
  * есть только у главной гостя, где меню аватара нет.
@@ -232,6 +233,11 @@
     --role-fill-strong: color-mix(in srgb, var(--top-bar-fill-strong) calc(var(--top-bar-p) * 100%), color-mix(in srgb, var(--role-scrim) 35%, transparent));
     --role-focus: color-mix(in srgb, var(--top-bar-focus) calc(var(--top-bar-p) * 100%), var(--role-on-photo));
     --focus-halo: color-mix(in srgb, var(--role-scrim) calc((1 - var(--top-bar-p)) * 100%), transparent);
+  }
+
+  /* До запуска React: страница, открытая уже прокрученной, — стекло (атрибут ставит встроенный скрипт TopBarOverPhoto). */
+  :root[data-device="desktop"][data-top-bar-glass]:has([data-hero]) [data-top-bar] {
+    --top-bar-p: 1;
   }
 
   @media (scripting: none) {

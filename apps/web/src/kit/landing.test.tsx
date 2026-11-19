@@ -102,6 +102,8 @@ describe("landing.css: контраст белого текста на фото"
   it("шапка над первым экраном прозрачна только в самом верху; не при уменьшении прозрачности и увеличении контраста; без скриптов — стекло", () => {
     const block = css.slice(css.indexOf("@media not ((prefers-reduced-transparency: reduce) or (prefers-contrast: more))"));
     expect(block).toMatch(/^@media not \(\(prefers-reduced-transparency: reduce\) or \(prefers-contrast: more\)\) \{\s*:root\[data-device="desktop"\]:has\(\[data-hero\]\) \[data-top-bar\] \{/);
+    // До запуска React открытая прокрученной страница — стекло: атрибут на <html> ставит встроенный скрипт.
+    expect(block).toMatch(/:root\[data-device="desktop"\]\[data-top-bar-glass\]:has\(\[data-hero\]\) \[data-top-bar\] \{\s*--top-bar-p: 1;/);
     expect(block).toMatch(/@media \(scripting: none\) \{\s*:root\[data-device="desktop"\]:has\(\[data-hero\]\) \[data-top-bar\] \{\s*--top-bar-p: 1;/);
     // Белый текст шапки стоит на верхней полосе затемнения — она того же уровня, что колонка текста.
     expect(css).toMatch(/to bottom,\s*color-mix\(in srgb, var\(--role-scrim\) var\(--hero-scrim-zone\)/);
@@ -132,10 +134,10 @@ describe("landing.css: контраст белого текста на фото"
     const secondary = 0x4a4844; // --glass-secondary светлой темы
 
     it("в покое — только два вида, оба ≥ 4,5:1: прозрачная с белым текстом (прокрутка < 1rem) и стекло с тёмным", () => {
-      expect(topBarTarget(0, 16)).toBe(0);
-      expect(topBarTarget(15.9, 16)).toBe(0);
-      expect(topBarTarget(16, 16)).toBe(1);
-      expect(TOP_BAR_GLASS_FROM_REM).toBe(1);
+      expect(topBarTarget(0, 16, 0)).toBe(0);
+      expect(topBarTarget(15.9, 16, 0)).toBe(0);
+      expect(topBarTarget(16, 16, 0)).toBe(1);
+      expect(TOP_BAR_GLASS_FROM_REM).toBe(1); // белый текст держит контраст, пока шапка над полосой затемнения (её высота + 1rem)
       for (const target of [ink, secondary]) {
         expect(worst(0, target)).toBeGreaterThanOrEqual(4.5);
         expect(worst(1, target)).toBeGreaterThanOrEqual(4.5);
@@ -191,7 +193,7 @@ describe("landing.css: контраст белого текста на фото"
     expect(home).toContain("data-hero");
     const bars = [...css.matchAll(/([^{}]*)\[data-top-bar\]/g)].map((m) => (m[1] ?? "").trim());
     expect(bars.length).toBeGreaterThan(0);
-    for (const prefix of bars) expect(prefix.endsWith(':root[data-device="desktop"]:has([data-hero])')).toBe(true);
+    for (const prefix of bars) expect(prefix).toMatch(/:root\[data-device="desktop"\](?:\[data-top-bar-glass\])?:has\(\[data-hero\]\)$/);
   });
 
   it("в landing.css нет сырых цветов — только роли", () => {
