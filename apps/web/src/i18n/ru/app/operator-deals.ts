@@ -204,6 +204,8 @@ export const operatorDeals = {
       "furniture_type.moved": "Изменён порядок типов мебели",
       "request.created": "Создан черновик заявки",
       "request.draft_saved": "Сохранён шаг черновика",
+      "request.design_file_hidden": "Оператор скрыл файл дизайн-проекта",
+      "request.design_file_restored": "Оператор вернул файл дизайн-проекта",
       "request.published": "Заявка отправлена исполнителям",
       "request.contracting": "Заявка перешла к оферте",
       "request.closed": "Заявка закрыта: оферта подписана",

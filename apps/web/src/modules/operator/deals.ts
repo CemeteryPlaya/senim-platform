@@ -117,6 +117,8 @@ export type OperatorDeal = {
     clientName: string | null;
     executorNumber: number;
     executorName: string;
+    /** Номер заявки сделки — ссылка «Файлы заявки» (дизайн-проект покупателя). */
+    requestNumber: number;
   };
   money: MoneyBlock;
   journal: JournalRow[];
@@ -161,6 +163,7 @@ export async function getOperatorDeal(operator: CurrentUser, dealId: string): Pr
       signedAt: true,
       client: { select: { fullName: true } },
       executor: { select: { publicNumber: true, legalName: true } },
+      request: { select: { number: true } },
       documents: { orderBy: [{ createdAt: "asc" }, { version: "asc" }], select: documentSelect },
       disputes: { where: { status: "OPEN" }, select: { id: true } },
       transactions: { orderBy: { seq: "asc" } },
@@ -202,6 +205,7 @@ export async function getOperatorDeal(operator: CurrentUser, dealId: string): Pr
       clientName: deal.client.fullName,
       executorNumber: deal.executor.publicNumber,
       executorName: deal.executor.legalName,
+      requestNumber: deal.request.number,
     },
     money: await moneyView(deal.id),
     journal,

@@ -144,6 +144,7 @@ export default async function OperatorDealPage({ params }: Props) {
             <Section title={c.documents} id="documents">
               <DealDocuments documents={card.documents} />
             </Section>
+            <TextLink href={to(`/operator/requests/${deal.requestNumber}`)}>{ru.app.operatorDisputes.requestFiles.link}</TextLink>
             <TextLink href={`${to("/operator/audit")}?deal=${deal.number}`}>{c.audit}</TextLink>
           </Stack>
         }

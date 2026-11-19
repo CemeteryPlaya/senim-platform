@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { formatDateTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
-import { Chips, DataTable, Notice, PageTitle, Stack, StatusChip, TextLink } from "@/kit";
+import { Button, Chips, DataTable, Notice, PageTitle, Stack, StatusChip, TextField, TextLink } from "@/kit";
 import { listStaleRequests, staleRequestsSchema } from "@/modules/operator";
 import { isEnabled } from "@/platform/features";
 import { requireOperator } from "../../../_shell/auth";
 import { legacy, to } from "../../../_shell/paths";
 import { filterChips } from "../_parts/filters";
 import { hoursOptions } from "./hours";
+import { requestNumberOf } from "./request-number";
 
 const t = ru.app.operatorDisputes.requests;
+const files = ru.app.operatorDisputes.requestFiles;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
@@ -21,10 +24,16 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
  * заявка, что сделать, режим, заказчик (телефон ссылкой), когда опубликована, сколько ждёт. Раздел из меню: «Назад» не
  * нужно; главной кнопки нет. Сценарии до оферты (замерщик площадки, повторный отклик; флаг `preContractFlows`) в v2 не
  * переносились (этап 6): при включённом флаге — плашка со ссылкой на прежнюю версию раздела.
+ *
+ * Форма «Открыть заявку» (GET `?open=<номер>`, без JavaScript) ведёт на «Файлы заявки» `/v2/operator/requests/<номер>`
+ * (дизайн-проект: скрыть или вернуть файл); не номер — ошибка у поля, номера нет — 404 той страницы.
  */
 export default async function StaleRequestsPage({ searchParams }: Props) {
   const user = await requireOperator(to("/operator/requests"));
   const params = await searchParams;
+  const open = typeof params.open === "string" ? params.open : undefined;
+  const openNumber = requestNumberOf(open);
+  if (openNumber !== null) redirect(to(`/operator/requests/${openNumber}`));
   const raw = params.hours;
   const parsed = staleRequestsSchema.safeParse({ hours: typeof raw === "string" ? raw : undefined });
   const { hours } = parsed.success ? parsed.data : { hours: 24 };
@@ -34,7 +43,15 @@ export default async function StaleRequestsPage({ searchParams }: Props) {
   return (
     <Stack gap="section">
       <PageTitle title={t.title} lead={t.lead} />
-      <Chips label={t.filter} items={filterChips("/operator/requests", params, "hours", hoursOptions(hours))} />
+      <form method="get" action={to("/operator/requests")} noValidate aria-label={files.open.title} className="flex flex-col gap-stack-group desktop:max-w-measure">
+        <TextField label={files.open.number} name="open" inputMode="numeric" autoComplete="off" defaultValue={open ?? ""} {...(open !== undefined ? { error: files.notFound } : {})} />
+        <div>
+          <Button type="submit" variant="secondary">
+            {files.open.submit}
+          </Button>
+        </div>
+      </form>
+      <Chips label={t.filter} items={filterChips("/operator/requests", { ...params, open: undefined }, "hours", hoursOptions(hours))} />
       <DataTable
         caption={t.tableCaption}
         captionHidden

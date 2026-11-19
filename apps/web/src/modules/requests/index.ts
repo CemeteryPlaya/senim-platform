@@ -15,7 +15,8 @@ export {
   type ClientRequest,
   type Draft,
 } from "./drafts";
-export { buyerHistory, type BuyerHistory, type BuyerHistoryRow, type BuyerHistoryState } from "./buyer-history";
+export { getRequestDesignFiles, setRequestFileHidden, type DesignFileView } from "./design-files";
+export { buyerHistory,type BuyerHistory, type BuyerHistoryRow, type BuyerHistoryState } from "./buyer-history";
 export {
   chooseOffer,
   getIncomingRequest,
