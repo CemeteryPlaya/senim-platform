@@ -60,3 +60,13 @@
 - Операторы стенда, включая засеянного, проходят 2FA без исключений: сид выдаёт им секрет TOTP (`SeedUsers`), повторный код для денег и споров спрашивается так же, как в рабочем режиме. Пункт «демо-исключение для `authz.RequireRecentMFA`» закрыт.
 - Код входа на экране (`shown_code`) отдаётся только при `APP_ENV` dev или staging (вторая линия после мока SMS); стенд в production-сборке без пароля стенда не стартует (`apps/web/src/platform/env.ts`, Ruling P5-3).
 - Риск стенда — в таблице «Цена ошибки», строка «Стенд: код на экране и известный TOTP засеянных операторов».
+
+## Дополнение 20.11.2026: роль администратора (ADMIN)
+
+Спека и план — `docs/superpowers/specs/2026-11-20-admin-panel-design.md`, `docs/superpowers/plans/2026-11-20-admin-panel.md`.
+
+- `ADMIN` (`ROLE_ADMIN = 5`) — сотрудник, как `OPERATOR` и `MEASURER`: только эта роль (CHECK `users_staff_role_alone` в `identity`, `User_staff_alone` в `apps/web`), короткая сессия 8 ч, экраны согласия, знакомства и почты его не касаются.
+- Второй фактор (п. 7) обязателен и для `ADMIN`: `needsMfa(role)` — `OPERATOR` или `ADMIN`; сессия администратора отдаёт `mfa_required = true`, без пройденного TOTP `web` ведёт его на тот же экран `/v2/operator/mfa`, а действия отвечают `MFA_REQUIRED`. Решения KYC и по отзыву согласий остаются только за `OPERATOR` (`role_forbidden` для `ADMIN`); `RevealPartyDetails` без пройденного второго фактора у `ADMIN` — `mfa_required`.
+- Роль выдаётся только командой `identity grant-admin --phone <E.164>` из терминала (рабочая роль базы, одна транзакция: `RoleGranted` в outbox и аудит `user.role_granted`, `actor_kind = cli`) и сидом стенда (`SeedUsers` с известным секретом TOTP — `ADMIN_TOTP_SECRET`, только `APP_ENV` dev или staging). `GrantRole` её не выдаёт; ни переменной окружения, ни экрана нет.
+- Человек, созданный командой `grant-admin`, не получает `UserRegistered` (событие — «первый вход нового пользователя», а он ещё не входил): только `RoleGranted`.
+- `identity mfa-reset --phone …` работает и для администратора: удаляет фактор, снимает отметку со всех его сессий; при следующем входе он подключает TOTP заново.

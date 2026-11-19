@@ -85,14 +85,14 @@ func Migrate(ctx context.Context, src config.Source, log *slog.Logger) error {
 }
 
 // MfaReset — подкоманда «identity mfa-reset --phone <E.164>»: владелец сбрасывает второй
-// фактор оператора (потерян телефон). Удаляет фактор, снимает отметку второго фактора со
-// всех сессий пользователя, пишет MfaReset и аудит (actor_kind "cli") в одной транзакции.
-// После сброса оператор подключает TOTP заново при следующем входе. Работает рабочей
+// фактор оператора или администратора (потерян телефон). Удаляет фактор, снимает отметку
+// второго фактора со всех сессий пользователя, пишет MfaReset и аудит (actor_kind "cli") в
+// одной транзакции. После сброса человек подключает TOTP заново при следующем входе. Работает рабочей
 // ролью (IDENTITY_APP_DSN); телефон в лог не пишется.
 func MfaReset(ctx context.Context, src config.Source, log *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("mfa-reset", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	rawPhone := fs.String("phone", "", "телефон оператора в E.164")
+	rawPhone := fs.String("phone", "", "телефон оператора или администратора в E.164")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("mfa-reset: %w", err)
 	}
