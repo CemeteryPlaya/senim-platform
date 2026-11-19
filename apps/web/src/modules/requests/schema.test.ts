@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ru } from "@/i18n/ru";
 import { applyStep, parseDetails, requestDetailsSchema, resumeIndex, screenIndex, segmentInputOf, stepInputSchema, WIZARD_SCREENS } from "./schema";
 
 describe("схема details", () => {
@@ -93,6 +94,29 @@ describe("шаги мастера", () => {
     expect(applyStep(parseDetails({ widthCm: 300 }), step)).toEqual({ widthCm: 300, description: "Угловая, до потолка" });
     const empty = stepInputSchema.parse({ screen: "room", photoFileIds: [] });
     expect(applyStep(parseDetails({ description: "старое" }), empty)).toEqual({});
+  });
+
+  it("помещение: дизайн-проект по умолчанию пуст и без отметки", () => {
+    expect(stepInputSchema.parse({ screen: "room", photoFileIds: [] })).toMatchObject({ designFileIds: [], designContactsConfirmed: false });
+  });
+
+  it("помещение: файлы дизайн-проекта без отметки «убрал контакты» — ошибка у отметки; с отметкой — верно", () => {
+    const noMark = stepInputSchema.safeParse({ screen: "room", photoFileIds: [], designFileIds: ["f1"] });
+    expect(noMark.success).toBe(false);
+    expect(noMark.error?.issues).toEqual([
+      expect.objectContaining({ path: ["designContactsConfirmed"], message: ru.requests.validation.designContactsRequired }),
+    ]);
+    expect(stepInputSchema.safeParse({ screen: "room", photoFileIds: [], designFileIds: ["f1"], designContactsConfirmed: true }).success).toBe(true);
+    // Отметка без файлов не мешает.
+    expect(stepInputSchema.safeParse({ screen: "room", photoFileIds: [], designFileIds: [], designContactsConfirmed: true }).success).toBe(true);
+  });
+
+  it("помещение: не больше 5 файлов дизайн-проекта", () => {
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => `f${i}`);
+    expect(stepInputSchema.safeParse({ screen: "room", photoFileIds: [], designFileIds: ids(5), designContactsConfirmed: true }).success).toBe(true);
+    const six = stepInputSchema.safeParse({ screen: "room", photoFileIds: [], designFileIds: ids(6), designContactsConfirmed: true });
+    expect(six.success).toBe(false);
+    expect(six.error?.issues).toEqual([expect.objectContaining({ path: ["designFileIds"], message: ru.requests.validation.designTooMany })]);
   });
 
   it("адрес: город и адрес обязательны, дата и точка — по желанию; точка — обе координаты в пределах Земли", () => {

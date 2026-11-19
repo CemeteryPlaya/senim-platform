@@ -52,7 +52,7 @@ export async function makeDraft(client: CurrentUser, opts: DraftOpts = {}): Prom
       advanced: { size: { mode: "known", widthCm: 300, heightCm: 250, depthCm: 60 }, facade: "mdf_film", countertop: "unknown", hardware: "soft_close" },
     },
     segmentStep(opts.segment),
-    { screen: "room", photoFileIds: [], description: "" },
+    { screen: "room", photoFileIds: [], description: "", designFileIds: [], designContactsConfirmed: false },
     placeStep,
     { screen: "send" },
   ];

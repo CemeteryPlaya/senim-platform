@@ -78,7 +78,7 @@ export async function completeSiteMeasurement(measurer: CurrentUser, input: Comp
     const data = { status: smTo, widthCm: input.widthCm, heightCm: input.heightCm, depthCm: input.depthCm, notes: input.notes, doneAt: new Date() };
     expectOneUpdated(await tx.siteMeasurement.updateMany({ where: { id: sm.id, status: sm.status }, data }));
     expectOneUpdated(await tx.request.updateMany({ where: { id: r.id, status: r.status }, data: { status: requestTo, publishedAt: new Date() } }));
-    if (input.photoFileIds.length > 0) await attachFiles(tx, { fileIds: input.photoFileIds, uploadedById: measurer.id, owner: { requestId: r.id } });
+    if (input.photoFileIds.length > 0) await attachFiles(tx, { fileIds: input.photoFileIds, uploadedById: measurer.id, owner: { requestId: r.id }, purpose: "REQUEST_ROOM" });
 
     await audit(tx, measurer, r.id, {
       action: "site_measurement.done",

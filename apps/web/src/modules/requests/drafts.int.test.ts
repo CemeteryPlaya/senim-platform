@@ -61,7 +61,7 @@ describe("черновик заявки", () => {
     const afterMaterials = await step({ screen: "materials", facade: "ldsp", countertop: "none", hardware: "unknown", color: "", extras: [], description: "" });
     expect(afterMaterials.wizardStep).toBe(0);
     await step(segmentStep("ECONOMY"));
-    await step({ screen: "room", photoFileIds: [], description: "Кухня до потолка, есть газовая труба" });
+    await step({ screen: "room", photoFileIds: [], description: "Кухня до потолка, есть газовая труба", designFileIds: [], designContactsConfirmed: false });
     await step({ screen: "place", city: "Алматы", address: "мкр Самал-2, 10", desiredDate: "2026-12-20", location: POINT, district: null, complex: null });
 
     const draft = await getDraft(client, requestId);
@@ -100,7 +100,7 @@ describe("черновик заявки", () => {
     const step = (s: Parameters<typeof saveDraftStep>[1]["step"]) => saveDraftStep(client, { requestId, step: s });
     await step({ screen: "style", style: "loft", styleNote: "как в инсте ivan_mebel" });
     await step({ screen: "materials", facade: "ldsp", countertop: "none", hardware: "unknown", color: `белый, ${phone}`, extras: [], description: "" });
-    await step({ screen: "room", photoFileIds: [], description: `Кухня до потолка, ${phone}` });
+    await step({ screen: "room", photoFileIds: [], description: `Кухня до потолка, ${phone}`, designFileIds: [], designContactsConfirmed: false });
     await step({ screen: "place", city: "Алматы 8 701 234 56 78", address: "мкр Самал-2, 10", desiredDate: null, location: null, district: null, complex: null });
 
     const row = await db.request.findUniqueOrThrow({ where: { id: requestId }, select: { customType: true, city: true, details: true } });
@@ -189,7 +189,7 @@ describe("черновик заявки", () => {
         data: { storageKey: `test/room-${uploadedById}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById },
       });
     const [a, b] = [await upload(client.id, 1), await upload(client.id, 2)];
-    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "" } });
+    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "", designFileIds: [], designContactsConfirmed: false } });
 
     await room([a.id, b.id]);
     expect((await getDraft(client, requestId)).photos.map((p) => p.id)).toEqual([a.id, b.id]);
@@ -206,7 +206,7 @@ describe("черновик заявки", () => {
         data: { storageKey: `test/room-order-${client.id}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById: client.id },
       });
     const [a, b, c] = [await upload(1), await upload(2), await upload(3)];
-    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "" } });
+    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "", designFileIds: [], designContactsConfirmed: false } });
 
     await room([a.id, b.id]);
     await room([a.id, b.id, c.id]);
@@ -384,7 +384,7 @@ describe("мои заявки", () => {
         data: { storageKey: `test/cover-${client.id}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById: client.id },
       });
     const [a, b] = [await upload(1), await upload(2)];
-    await saveDraftStep(client, { requestId: withPhotos, step: { screen: "room", photoFileIds: [a.id, b.id], description: "" } });
+    await saveDraftStep(client, { requestId: withPhotos, step: { screen: "room", photoFileIds: [a.id, b.id], description: "", designFileIds: [], designContactsConfirmed: false } });
 
     const list = await listMyRequests(client);
     const cover = (id: string) => list.find((r) => r.id === id)?.cover;
@@ -430,3 +430,103 @@ describe("черновик заявки: повтор первого шага с
   });
 });
 
+
+describe("свой дизайн-проект в шаге «Помещение»", () => {
+  let n = 0;
+  const upload = (uploadedById: string, purpose: "REQUEST_ROOM" | "REQUEST_DESIGN", contentType = purpose === "REQUEST_DESIGN" ? "application/pdf" : "image/jpeg") =>
+    db.storedFile.create({ data: { storageKey: `test/design-${uploadedById}-${++n}`, provider: "local", purpose, contentType, size: 1, sha256: "x", uploadedById } });
+  const room = (client: Awaited<ReturnType<typeof makeClient>>, requestId: string, s: { photoFileIds?: string[]; designFileIds?: string[]; designContactsConfirmed?: boolean }) =>
+    saveDraftStep(client, {
+      requestId,
+      step: { screen: "room", photoFileIds: s.photoFileIds ?? [], description: "", designFileIds: s.designFileIds ?? [], designContactsConfirmed: s.designContactsConfirmed ?? false },
+    });
+  const stored = (id: string) => db.storedFile.findUniqueOrThrow({ where: { id } });
+  const confirmedAt = async (requestId: string) => (await db.request.findUniqueOrThrow({ where: { id: requestId } })).designConfirmedAt;
+
+  it("PDF проекта с отметкой прикрепляется как REQUEST_DESIGN, отметка запоминается, аудит знает число файлов", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const pdf = await upload(client.id, "REQUEST_DESIGN");
+
+    await room(client, requestId, { designFileIds: [pdf.id], designContactsConfirmed: true });
+
+    expect(await stored(pdf.id)).toMatchObject({ requestId, purpose: "REQUEST_DESIGN" });
+    const first = await confirmedAt(requestId);
+    expect(first).toBeInstanceOf(Date);
+    // Повторное сохранение не сдвигает время отметки.
+    await room(client, requestId, { designFileIds: [pdf.id], designContactsConfirmed: true });
+    expect(await confirmedAt(requestId)).toEqual(first);
+    const audit = await db.auditEvent.findFirstOrThrow({ where: { action: "request.draft_saved", entityId: requestId }, orderBy: { createdAt: "desc" } });
+    expect(audit.meta).toMatchObject({ screen: "room", designFiles: 1 });
+  });
+
+  it("файлы проекта без отметки — VALIDATION у отметки, даже мимо схемы; файл не прикрепляется", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const pdf = await upload(client.id, "REQUEST_DESIGN");
+
+    await expect(room(client, requestId, { designFileIds: [pdf.id], designContactsConfirmed: false })).rejects.toThrow(
+      expect.objectContaining({ code: "VALIDATION", details: { fieldErrors: { designContactsConfirmed: [expect.any(String)] } } }),
+    );
+    expect(await stored(pdf.id)).toMatchObject({ requestId: null });
+    expect(await confirmedAt(requestId)).toBeNull();
+  });
+
+  it("назначения не смешиваются: файл проекта среди фото помещения и фото среди файлов проекта — отказ", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const pdf = await upload(client.id, "REQUEST_DESIGN");
+    const photo = await upload(client.id, "REQUEST_ROOM");
+
+    await expect(room(client, requestId, { photoFileIds: [pdf.id] })).rejects.toThrow(code("CONFLICT"));
+    await expect(room(client, requestId, { designFileIds: [photo.id], designContactsConfirmed: true })).rejects.toThrow(code("CONFLICT"));
+    expect(await stored(pdf.id)).toMatchObject({ requestId: null, purpose: "REQUEST_DESIGN" });
+    expect(await stored(photo.id)).toMatchObject({ requestId: null, purpose: "REQUEST_ROOM" });
+  });
+
+  it("фото помещения и файлы проекта сохраняются вместе, каждый — по своему назначению", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const photo = await upload(client.id, "REQUEST_ROOM");
+    const pdf = await upload(client.id, "REQUEST_DESIGN");
+    const design = await upload(client.id, "REQUEST_DESIGN", "image/jpeg");
+
+    await room(client, requestId, { photoFileIds: [photo.id], designFileIds: [pdf.id, design.id], designContactsConfirmed: true });
+
+    expect((await getDraft(client, requestId)).photos.map((p) => p.id)).toEqual([photo.id]);
+    const designFiles = await db.storedFile.findMany({ where: { requestId, purpose: "REQUEST_DESIGN" }, orderBy: { sortOrder: "asc" } });
+    expect(designFiles.map((f) => f.id)).toEqual([pdf.id, design.id]);
+    // Убрать фото не трогает файлы проекта, и наоборот.
+    await room(client, requestId, { photoFileIds: [], designFileIds: [pdf.id, design.id], designContactsConfirmed: true });
+    expect(await db.storedFile.count({ where: { requestId, purpose: "REQUEST_DESIGN" } })).toBe(2);
+    await room(client, requestId, { photoFileIds: [photo.id], designFileIds: [], designContactsConfirmed: false });
+    expect(await db.storedFile.count({ where: { requestId, purpose: "REQUEST_ROOM" } })).toBe(1);
+  });
+
+  it("убрали все файлы проекта — отметка сбрасывается, файлы откреплены", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const pdf = await upload(client.id, "REQUEST_DESIGN");
+    await room(client, requestId, { designFileIds: [pdf.id], designContactsConfirmed: true });
+
+    await room(client, requestId, { designFileIds: [] });
+
+    expect(await confirmedAt(requestId)).toBeNull();
+    expect(await stored(pdf.id)).toMatchObject({ requestId: null });
+  });
+
+  it("отправка с файлами проекта без отметки в БД — VALIDATION; с отметкой — уходит", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const pdf = await upload(client.id, "REQUEST_DESIGN");
+    await room(client, requestId, { designFileIds: [pdf.id], designContactsConfirmed: true });
+    await db.request.update({ where: { id: requestId }, data: { designConfirmedAt: null } });
+
+    await expect(publishRequest(client, { requestId })).rejects.toThrow(code("VALIDATION"));
+    expect((await db.request.findUniqueOrThrow({ where: { id: requestId } })).status).toBe("DRAFT");
+
+    await room(client, requestId, { designFileIds: [pdf.id], designContactsConfirmed: true });
+    await publishRequest(client, { requestId });
+    expect((await db.request.findUniqueOrThrow({ where: { id: requestId } })).status).toBe("OPEN");
+  });
+});

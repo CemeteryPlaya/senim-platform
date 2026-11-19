@@ -72,16 +72,34 @@ async function fieldsOf(tx: Tx, step: StepInput): Promise<Prisma.RequestUpdateMa
 }
 
 /**
- * Фото помещения: к заявке прикреплены ровно выбранные файлы. Убранные открепляются,
- * новые прикрепляет files.attachFiles (только свои, ещё не прикреплённые, назначения REQUEST_ROOM).
+ * Файлы заявки одного назначения: к заявке прикреплены ровно выбранные. Убранные открепляются, новые прикрепляет
+ * files.attachFiles (только свои, ещё не прикреплённые, этого назначения). У фото помещения и дизайн-проекта один
+ * владелец (requestId) — без purpose attachFiles принял бы файл любого из них.
  */
-async function linkRoomPhotos(tx: Tx, user: CurrentUser, requestId: string, fileIds: string[]) {
-  await tx.storedFile.updateMany({ where: { requestId, purpose: "REQUEST_ROOM", id: { notIn: fileIds } }, data: { requestId: null } });
-  const attached = new Set(
-    (await tx.storedFile.findMany({ where: { requestId, purpose: "REQUEST_ROOM" }, select: { id: true } })).map((f) => f.id),
-  );
+async function linkRequestFiles(tx: Tx, user: CurrentUser, requestId: string, purpose: "REQUEST_ROOM" | "REQUEST_DESIGN", fileIds: string[]) {
+  await tx.storedFile.updateMany({ where: { requestId, purpose, id: { notIn: fileIds } }, data: { requestId: null } });
+  const attached = new Set((await tx.storedFile.findMany({ where: { requestId, purpose }, select: { id: true } })).map((f) => f.id));
   const fresh = fileIds.filter((id) => !attached.has(id));
-  if (fresh.length > 0) await attachFiles(tx, { fileIds: fresh, uploadedById: user.id, owner: { requestId } });
+  if (fresh.length > 0) await attachFiles(tx, { fileIds: fresh, uploadedById: user.id, owner: { requestId }, purpose });
+}
+
+/** Фото помещения (REQUEST_ROOM). */
+const linkRoomPhotos = (tx: Tx, user: CurrentUser, requestId: string, fileIds: string[]) => linkRequestFiles(tx, user, requestId, "REQUEST_ROOM", fileIds);
+
+/** Свой дизайн-проект покупателя (REQUEST_DESIGN): фото или PDF. */
+const linkDesignFiles = (tx: Tx, user: CurrentUser, requestId: string, fileIds: string[]) => linkRequestFiles(tx, user, requestId, "REQUEST_DESIGN", fileIds);
+
+/**
+ * Отметка «убрал из файлов контакты»: файлы проекта есть — время первой отметки (повтор его не сдвигает), нет — сброс.
+ * Схема требует отметку при файлах; повтор — на случай вызова модуля мимо неё.
+ */
+function designConfirmedAtOf(r: { designConfirmedAt: Date | null }, step: { designFileIds: string[]; designContactsConfirmed: boolean }): Date | null {
+  if (step.designFileIds.length === 0) return null;
+  if (!step.designContactsConfirmed) {
+    const message = ru.requests.validation.designContactsRequired;
+    return fail.validation(message, { fieldErrors: { designContactsConfirmed: [message] } });
+  }
+  return r.designConfirmedAt ?? new Date();
 }
 
 const masked = (text: string) => maskContacts(text).text;
@@ -183,26 +201,38 @@ async function saveDraftStepOnce(user: CurrentUser, input: SaveDraftInput): Prom
 
     const details = applyStep(parseDetails(r.details), step);
     const wizardStep = Math.max(r.wizardStep, screenIndex(step.screen) + 1);
+    const design = step.screen === "room" ? { designConfirmedAt: designConfirmedAtOf(r, step) } : {};
     const updated = await tx.request.updateMany({
       where: { id: r.id, status: "DRAFT" },
       data: {
         ...(await fieldsOf(tx, step)),
+        ...design,
         details,
         segmentSuggested: suggestSegment(segmentInputOf(details)).segment,
         wizardStep,
       },
     });
     expectOneUpdated(updated);
-    if (step.screen === "room") await linkRoomPhotos(tx, user, r.id, step.photoFileIds);
+    if (step.screen === "room") {
+      await linkRoomPhotos(tx, user, r.id, step.photoFileIds);
+      await linkDesignFiles(tx, user, r.id, step.designFileIds);
+    }
 
-    await auditByUser(tx, user, r.id, { action: "request.draft_saved", entity: { type: "request", id: r.id }, meta: { screen: step.screen, wizardStep } });
+    const designMeta = step.screen === "room" ? { designFiles: step.designFileIds.length } : {};
+    await auditByUser(tx, user, r.id, { action: "request.draft_saved", entity: { type: "request", id: r.id }, meta: { screen: step.screen, wizardStep, ...designMeta } });
     return { requestId: r.id, wizardStep };
   });
 }
 
-/** Все экраны мастера сохранены; в онлайн-замере (сценарий 5) — ещё три размера и фото с рулеткой. */
+/**
+ * Все экраны мастера сохранены; файлы дизайн-проекта — только с отметкой «убрал контакты»; в онлайн-замере
+ * (сценарий 5) — ещё три размера и фото с рулеткой.
+ */
 async function requireComplete(tx: Tx, r: RequestWithType, path: RequestPath): Promise<void> {
   if (r.wizardStep < WIZARD_SCREENS.length || !r.segment || !r.address || !(r.furnitureTypeId || r.customType)) fail.validation(e.incomplete);
+  if (r.designConfirmedAt === null && (await tx.storedFile.count({ where: { requestId: r.id, purpose: "REQUEST_DESIGN" } })) > 0) {
+    fail.validation(ru.requests.validation.designContactsRequired);
+  }
   if (path === TZ_PATH || !flowRules(path).selfMeasure) return;
   const photos = await tx.storedFile.count({ where: { requestId: r.id, purpose: "REQUEST_ROOM" } });
   if (!selfMeasureComplete(parseDetails(r.details), photos)) fail.validation(ru.requests.pre.errors.selfMeasureIncomplete);

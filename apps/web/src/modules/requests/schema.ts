@@ -45,6 +45,7 @@ export const LIMITS = {
   district: 60,
   complex: 80,
   photos: 10,
+  designFiles: 5,
 } as const;
 
 const cm = z.number({ error: t.size }).int(t.size).min(LIMITS.cmMin, t.size).max(LIMITS.cmMax, t.size);
@@ -119,12 +120,18 @@ const styleStep = z.strictObject({
   styleNote: optionalText(LIMITS.styleNote),
 });
 
-const roomStep = z.strictObject({
-  screen: z.literal("room"),
-  photoFileIds: z.array(z.string().min(1)).max(LIMITS.photos),
-  /** Описание своими словами. */
-  description: optionalText(LIMITS.description),
-});
+const roomStep = z
+  .strictObject({
+    screen: z.literal("room"),
+    photoFileIds: z.array(z.string().min(1)).max(LIMITS.photos),
+    /** Описание своими словами. */
+    description: optionalText(LIMITS.description),
+    /** Свой дизайн-проект (фото или PDF, назначение REQUEST_DESIGN) — необязателен. */
+    designFileIds: z.array(z.string().min(1)).max(LIMITS.designFiles, t.designTooMany).default([]),
+    /** «Я убрал из файлов телефоны, адреса и имена» — обязательна, если файлы проекта приложены. */
+    designContactsConfirmed: z.boolean().default(false),
+  })
+  .refine((s) => s.designFileIds.length === 0 || s.designContactsConfirmed, { path: ["designContactsConfirmed"], error: t.designContactsRequired });
 
 const sizeInput = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("known"), widthCm: cm, heightCm: cm.nullable(), depthCm: cm.nullable() }),
