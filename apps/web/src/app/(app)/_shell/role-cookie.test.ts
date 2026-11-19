@@ -21,8 +21,8 @@ describe("cookie выбора роли", () => {
     expect(openRole(sealRole("EXECUTOR", NOW), NOW + ROLE_TTL_MS - 1)).toBe("EXECUTOR");
   });
 
-  it("срок 30 минут: после него — null", () => {
-    expect(ROLE_TTL_MS).toBe(30 * 60_000);
+  it("срок — сутки: после него — null", () => {
+    expect(ROLE_TTL_MS).toBe(24 * 60 * 60_000);
     expect(openRole(sealRole("EXECUTOR", NOW), NOW + ROLE_TTL_MS)).toBeNull();
   });
 
