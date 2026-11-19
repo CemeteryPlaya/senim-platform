@@ -10,7 +10,7 @@ import { db, isUniqueViolation, transaction } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { isEnabled } from "@/platform/features";
 import { auditByUser, declineOtherOffers, links, loadExecutor, loadOwnRequest, preContractFlow, requestTitle, requireClient } from "./access";
-import { executorPortfolio, executorReviews, roomPhotos } from "./adapters";
+import { DESIGN_FILE_SELECT, designViews, executorPortfolio, executorReviews, roomPhotos } from "./adapters";
 import { parseDetails, pointOf, type OfferSort, type SendOfferInput } from "./schema";
 import { sortOffers } from "./sort";
 import { INVITATION_TRANSITIONS, OFFER_TRANSITIONS, REQUEST_TRANSITIONS, transition } from "./transitions";
@@ -262,6 +262,13 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     },
   });
   if (!r) return fail.notFound(e.notFound);
+  // Свой дизайн-проект покупателя — отдельным запросом (у Prisma нет второго выбора связи photos): скрытые оператором
+  // файлы мастеру не отдаются вовсе — ни вида, ни ссылки (маршрут скачивания проверяет только подпись ссылки).
+  const design = await db.storedFile.findMany({
+    where: { requestId: r.id, purpose: "REQUEST_DESIGN", hiddenAt: null },
+    orderBy: { sortOrder: "asc" },
+    select: DESIGN_FILE_SELECT,
+  });
   const mine = r.offers[0] ?? null;
   const chosen = mine?.status === "ACCEPTED";
   // Оператор разрешил следующую попытку после отклонённого отклика (№16).
@@ -283,6 +290,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     wishes: r.wishes,
     publishedAt: r.publishedAt,
     photos: await roomPhotos(r.photos),
+    design: await designViews(design),
     canOffer: r.status === "OPEN" && (mine === null || retryAllowed),
     retryAllowed,
     pre: await preContractView(db, r, mine),

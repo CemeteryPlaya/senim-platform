@@ -4,6 +4,7 @@ import { formatMoney } from "@/kit";
 import type { IncomingRequest, NegotiationView } from "@/modules/requests";
 import { COUNTERTOPS, FACADES, HARDWARE, SEGMENT_NAMES, STYLES, type StyleKey } from "@/verticals/furniture";
 import { to } from "../../../../../_shell/paths";
+import { designView, type DesignView } from "../../../../_parts/design-files";
 
 // Вид заявки глазами мастера (чистая логика без React и базы): состояние заявки и торга, «Сейчас / Дальше», действия,
 // смета мастера, сводка заявки, своё предложение и история цены. Страница читает модули (`getIncomingRequest`,
@@ -105,6 +106,8 @@ export type RequestViewModel = {
   conditions: { label: string; value: string; stacked?: true }[];
   details: DetailRow[];
   photos: { id: string; src: string; alt: string }[];
+  /** Свой дизайн-проект покупателя (модуль не отдаёт скрытые оператором файлы); `null` — файлов нет, раздела нет. */
+  design: DesignView | null;
   /** Переписка с покупателем по своему предложению: «Написать покупателю», у закрытого торга — «Переписка». */
   chat: { href: string; label: string } | null;
   /** Строка о скрытых контактах покупателя: до оферты — «откроются после оферты», у сделки — «на экране сделки». */
@@ -294,6 +297,7 @@ export function requestView(r: IncomingRequest, n: NegotiationView | null, now: 
     conditions: conditionsOf(state, r.myOffer),
     details: detailRows(r, now, !over),
     photos: photoView(r.photos),
+    design: designView(r.design, t.request.design),
     chat: offerId ? { href: to(`/chats/${encodeURIComponent(offerId)}`), label: over ? t.actions.chatClosed : t.actions.chat } : null,
     contactsNote: over ? null : state.kind === "deal" ? t.request.contactsDeal : t.request.contacts,
     // У формы (в том числе новой попытки) истории нет: прошлый торг закрыт и к новому предложению не относится.

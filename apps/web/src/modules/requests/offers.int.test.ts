@@ -66,6 +66,46 @@ describe("видимость заявок исполнителю", () => {
   });
 });
 
+describe("дизайн-проект во входящей заявке", () => {
+  let n = 0;
+  const design = (requestId: string, uploadedById: string, contentType: string, sortOrder: number, hidden = false) =>
+    db.storedFile.create({
+      data: {
+        storageKey: `test/incoming-design-${++n}`,
+        provider: "local",
+        purpose: "REQUEST_DESIGN",
+        contentType,
+        size: 1,
+        sha256: "x",
+        uploadedById,
+        requestId,
+        sortOrder,
+        ...(hidden ? { hiddenAt: new Date(), hiddenById: uploadedById } : {}),
+      },
+    });
+
+  it("мастер сегмента видит файлы проекта до отклика (PDF и фото по порядку), скрытый оператором — нет", async () => {
+    const client = await makeClient();
+    const requestId = await makeOpenRequest(client, { segment: "COMFORT" });
+    const master = await makeExecutor({ segment: "COMFORT" });
+    const pdf = await design(requestId, client.id, "application/pdf", 0);
+    const hidden = await design(requestId, client.id, "image/jpeg", 1, true);
+    const photo = await design(requestId, client.id, "image/jpeg", 2);
+
+    const r = await getIncomingRequest(master, requestId);
+
+    expect(r.myOffer).toBeNull();
+    expect(r.design.map((f) => ({ id: f.id, kind: f.kind, n: f.n }))).toEqual([
+      { id: pdf.id, kind: "pdf", n: 1 },
+      { id: photo.id, kind: "image", n: 2 },
+    ]);
+    expect(r.design.some((f) => f.id === hidden.id)).toBe(false);
+    expect(JSON.stringify(r)).not.toContain(hidden.id);
+    // Фото помещения — отдельно: файлы проекта среди них не появляются.
+    expect(r.photos).toEqual([]);
+  });
+});
+
 describe("отклик исполнителя", () => {
   it("берёт условия замера из профиля по умолчанию и уведомляет заказчика", async () => {
     const client = await makeClient();

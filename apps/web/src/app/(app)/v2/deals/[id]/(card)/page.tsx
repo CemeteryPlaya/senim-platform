@@ -12,6 +12,7 @@ import { pageHref, requireV2User } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
 import type { DealSide } from "../../../../_shell/side";
 import { coverOf } from "../../../_parts/deal-cover";
+import { designView } from "../../../_parts/design-files";
 import { dealChip, dealStepsView, masterConsentMissing, payWaitsMaster } from "../../../_parts/deal-summary";
 import {
   cancelText,
@@ -180,6 +181,7 @@ function cardView({ deal, side, documents, contacts, bank, place, showcase, all,
       // Плановую дату называет «Сейчас»: покупателю — «Мастер изготавливает мебель», мастеру — «Изготовьте мебель и сдайте работу».
       readyShownInNow: (now.kind === "wait-ready" || now.kind === "ready") && deal.dates.plannedReadyAt !== null,
     }),
+    design: designView(deal.design, t.design),
     documents: documentRows(documents, outcome),
     party: {
       // Имени покупателя модуль экрану сделки не отдаёт: раздел «Покупатель» без строки имени.

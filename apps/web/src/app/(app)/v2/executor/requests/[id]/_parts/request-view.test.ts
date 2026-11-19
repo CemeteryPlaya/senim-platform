@@ -74,6 +74,7 @@ function request(over: Partial<IncomingRequest> = {}): IncomingRequest {
     wishes: "Верхние шкафы до потолка",
     publishedAt: at,
     photos: [{ id: "p1", src: "/files/p1" }],
+    design: [],
     canOffer: true,
     retryAllowed: false,
     pre: null,
@@ -258,5 +259,24 @@ describe("requestView: экран заявки мастера", () => {
     expect(t.request.location in rows).toBe(false);
     expect(v.photos).toEqual([{ id: "p1", src: "/files/p1", alt: t.request.photoAlt(1, 1) }]);
     expect(photoView([{ id: "a", src: null }, { id: "b", src: "/b" }])).toEqual([{ id: "b", src: "/b", alt: t.request.photoAlt(1, 1) }]);
+  });
+
+  it("дизайн-проект покупателя: фото — в галерею, PDF — строкой «Дизайн-проект, файл N (PDF)»; без файлов раздела нет", () => {
+    const d = t.request.design;
+    const v = requestView(
+      request({
+        design: [
+          { id: "a", kind: "image", src: "/f/a", n: 1 },
+          { id: "b", kind: "pdf", src: "/f/b.pdf", n: 2 },
+        ],
+      }),
+      null,
+      now,
+    );
+    expect(v.design).toEqual({
+      gallery: [{ src: "/f/a", alt: d.photo(1) }],
+      rows: [{ id: "b", href: "/f/b.pdf", label: "Дизайн-проект, файл 2 (PDF)", hidden: null }],
+    });
+    expect(requestView(request(), null, now).design).toBeNull();
   });
 });

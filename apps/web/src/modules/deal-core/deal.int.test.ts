@@ -176,4 +176,38 @@ describe("экран сделки", () => {
     const master = await getDealView(f.executor, f.dealId);
     expect(master).toMatchObject({ estimate: { party: "EXECUTOR", extraTiyn: money.guaranteeTiyn, totalTiyn: money.payoutTiyn }, next: { action: "startWork", mine: true }, can: { cancel: false } });
   });
+
+  it("обе стороны видят дизайн-проект заявки по порядку (PDF и фото), скрытого оператором нет ни у одной", async () => {
+    const f = await makeDeal();
+    let n = 0;
+    const design = (contentType: string, hidden = false) =>
+      db.storedFile.create({
+        data: {
+          storageKey: `test/deal-design-${f.dealId}-${++n}`,
+          provider: "local",
+          purpose: "REQUEST_DESIGN",
+          contentType,
+          size: 1,
+          sha256: "x",
+          uploadedById: f.client.id,
+          requestId: f.requestId,
+          sortOrder: n,
+          ...(hidden ? { hiddenAt: new Date(), hiddenById: f.client.id } : {}),
+        },
+      });
+    const pdf = await design("application/pdf");
+    const hidden = await design("image/jpeg", true);
+    const photo = await design("image/jpeg");
+
+    for (const viewer of [f.client, f.executor]) {
+      const view = await getDealView(viewer, f.dealId);
+      expect(view.design.map((d) => ({ id: d.id, kind: d.kind, n: d.n }))).toEqual([
+        { id: pdf.id, kind: "pdf", n: 1 },
+        { id: photo.id, kind: "image", n: 2 },
+      ]);
+      expect(JSON.stringify(view.design)).not.toContain(hidden.id);
+      // Фото помещения сделки — отдельно: файлы проекта среди них не появляются.
+      expect(view.subject.roomPhotos).toEqual([]);
+    }
+  });
 });

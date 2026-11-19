@@ -25,6 +25,7 @@ import { getDevice, type Device } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { requireMaster } from "../../../../_shell/auth";
 import { legacy, to } from "../../../../_shell/paths";
+import { DesignFiles } from "../../../_parts/DesignFiles";
 import { readForMaster, REGISTER } from "../../_parts/approved";
 import { GATE_BACK, MasterGate } from "../../_parts/MasterGate";
 import { AcceptButton, DeclineInvitationButton, OfferMenu, ProposeButton, WithdrawPriceButton } from "./_parts/MasterOfferActions";
@@ -122,7 +123,7 @@ function Secondary({ view, device }: { view: RequestViewModel; device: Device })
   );
 }
 
-/** Что нужно покупателю: сводка, фото помещения, строка о контактах покупателя (у закрытого торга её нет). */
+/** Что нужно покупателю: сводка, фото помещения, его дизайн-проект, строка о контактах покупателя (у закрытого торга её нет). */
 function Request({ view }: { view: RequestViewModel }) {
   return (
     <Section title={t.request.title}>
@@ -161,6 +162,7 @@ function Request({ view }: { view: RequestViewModel }) {
           </Stack>
         </Card>
       )}
+      {view.design && <DesignFiles title={t.request.design.title} view={view.design} />}
       {view.contactsNote && <p className="text-sub text-muted">{view.contactsNote}</p>}
     </Section>
   );

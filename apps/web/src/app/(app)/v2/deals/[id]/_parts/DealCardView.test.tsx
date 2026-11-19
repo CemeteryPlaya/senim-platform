@@ -3,6 +3,7 @@ import { ru } from "@/i18n/ru";
 import { count, html, text } from "@/kit/test-utils";
 import type { MoneyBlock } from "@/modules/payments";
 import { dealStepsView } from "../../../_parts/deal-summary";
+import { designView } from "../../../_parts/design-files";
 import { cancelText, masterMoneyView, moneyView, nowView, reportsView, reviewRows, type NowInput } from "./deal-card";
 import { DealCardView, type CardView } from "./DealCardView";
 
@@ -166,6 +167,27 @@ it("«…» — в строке заголовка рядом с h1 и без с
     expect(row).not.toContain("</header>");
     expect(out).not.toContain("glass-regular");
   }
+});
+
+it.each(["CLIENT", "EXECUTOR"] as const)("дизайн-проект у стороны %s: фото галереей, PDF ссылкой в новой вкладке, в «Заказе»; нет файлов — нет раздела", (side) => {
+  const d = t.design;
+  const design = designView(
+    [
+      { id: "a", kind: "image", src: "/f/a", n: 1 },
+      { id: "b", kind: "pdf", src: "/f/b.pdf", n: 2 },
+    ],
+    d,
+  );
+  for (const device of ["mobile", "desktop"] as const) {
+    const out = html(<DealCardView view={view({ side, design })} device={device} />);
+    expect(out).toContain(d.title);
+    expect(out).toContain('src="/f/a"');
+    expect(out).toContain(`alt="${d.photo(1)}"`);
+    expect(out).toMatch(/href="\/f\/b\.pdf"[^>]*target="_blank"/);
+    expect(out).toContain("Дизайн-проект, файл 2 (PDF)");
+    expect(out.indexOf(t.order.section)).toBeLessThan(out.indexOf(d.title));
+  }
+  expect(html(<DealCardView view={view({ side })} device="mobile" />)).not.toContain(d.title);
 });
 
 it("«Помощь» ведёт в разделы помощи: где деньги и если мебель не понравилась", () => {

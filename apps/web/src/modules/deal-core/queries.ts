@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { DealStatus } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { scopeHistory } from "@/modules/audit";
-import { fileUrl, previewUrl } from "@/modules/files";
+import { fileUrl, fileViews, previewUrl } from "@/modules/files";
 import type { CurrentUser } from "@/modules/identity";
 import { LEDGER_INCLUDE, ledgerEntries, moneyFacts, toLedgerEntry, moneyHistoryOf, partyEstimate, projectMoney, type MoneyBlock, type MoneyFacts, type MoneyHistoryItem, type PartyEstimate } from "@/modules/payments";
 import { db, type Db } from "@/platform/db";
@@ -149,6 +149,20 @@ async function photoUrls(photos: { id: string; provider: string; storageKey: str
   return out;
 }
 
+/**
+ * Свой дизайн-проект покупателя из заявки сделки — обеим сторонам (и оператору) в виде файлов для экрана. Скрытые
+ * оператором файлы не отдаются вовсе: маршрут скачивания проверяет только подпись ссылки. PDF скачивается как
+ * `design-N.pdf` (исходное имя не хранится). Отдельный запрос: `viewInclude` выбирает фото помещения той же связи.
+ */
+async function designFiles(requestId: string) {
+  const files = await db.storedFile.findMany({
+    where: { requestId, purpose: "REQUEST_DESIGN", hiddenAt: null },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, provider: true, storageKey: true, contentType: true },
+  });
+  return fileViews(files, (n) => `design-${n}.pdf`);
+}
+
 /** signedBy — стороны, поставившие ВСЕ свои требуемые подписи (таблица signatures.ts), а не любую одну. */
 function docView(deal: Loaded, kind: "CONTRACT" | "ACCEPTANCE_ACT") {
   const doc = deal.documents.find((d) => d.kind === kind);
@@ -280,6 +294,8 @@ export async function getDealView(user: CurrentUser, dealId: string) {
       typeSlug: deal.request.furnitureType?.slug ?? null,
       roomPhotos: await photoUrls(deal.request.photos),
     },
+    /** Свой дизайн-проект покупателя (фото или PDF) без скрытых оператором. */
+    design: await designFiles(deal.requestId),
     executorLabel: shown.label,
     executorAddress: shown.address,
     contract,

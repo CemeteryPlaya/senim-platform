@@ -34,6 +34,8 @@ import { to } from "../../../../_shell/paths";
 import type { DealSide } from "../../../../_shell/side";
 import type { DealCover } from "../../../_parts/deal-cover";
 import { DealCoverPhoto } from "../../../_parts/DealCoverPhoto";
+import type { DesignView } from "../../../_parts/design-files";
+import { DesignFiles } from "../../../_parts/DesignFiles";
 import type { DealStepsView, DealTone } from "../../../_parts/deal-summary";
 import type { DocumentRow, MoneyView, NowView, OrderMap, ReportView } from "./deal-card";
 import { dealHelpItems } from "../../_parts/help-items";
@@ -58,6 +60,8 @@ export type CardView = {
   cover: DealCover | null;
   money: MoneyView & { historyHref: string };
   order: { label: string; value: string; map?: OrderMap }[];
+  /** Свой дизайн-проект покупателя из заявки — обеим сторонам, под «Заказом» (без скрытых оператором); нет файлов — нет. */
+  design?: DesignView | null;
   documents: DocumentRow[];
   /**
    * Другая сторона: мастеру — покупатель, покупателю — мастер (имя — как отдаёт модуль, контакты — после оферты). `label` —
@@ -195,7 +199,7 @@ function OrderRows({ rows }: { rows: CardView["order"] }) {
   );
 }
 
-/** «Заказ». Телефон — первые строки и «Показать всё»; компьютер — все строки. */
+/** «Заказ». Телефон — первые строки и «Показать всё»; компьютер — все строки. Под ними — дизайн-проект покупателя. */
 function Order({ view, device }: { view: CardView; device: Device }) {
   const head = device === "mobile" ? view.order.slice(0, ORDER_SHOWN_MOBILE) : view.order;
   const rest = device === "mobile" ? view.order.slice(ORDER_SHOWN_MOBILE) : [];
@@ -214,6 +218,7 @@ function Order({ view, device }: { view: CardView; device: Device }) {
           </More>
         )}
       </Card>
+      {view.design && <DesignFiles title={t.design.title} view={view.design} />}
     </Section>
   );
 }
