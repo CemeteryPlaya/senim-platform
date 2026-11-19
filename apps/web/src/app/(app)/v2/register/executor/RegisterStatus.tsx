@@ -1,6 +1,7 @@
 import { ru } from "@/i18n/ru";
 import { ActionDock, ButtonLink, Card, List, ListRow, NowNext, PageTitle, Section, Split, Stack, TextLink } from "@/kit";
 import { to } from "../../../_shell/paths";
+import { HowToTakeOrder } from "../../executor/_parts/HowToTakeOrder";
 import type { LegalForm } from "./_parts/schema";
 import { guestLoginHref, stepHref } from "./_parts/steps";
 
@@ -47,7 +48,7 @@ function DealsLink() {
 /**
  * На проверке: что проверяем и что можно сделать, пока ждёте. Документы не поданы или отклонены — главное действие
  * «Загрузить документы» (в доке); поданы или проверены — строка с их состоянием, главного действия нет. Счёт и
- * портфолио — строками.
+ * портфолио — строками; ниже — «Как взять заказ» со строкой о том, что заявки откроются после проверки.
  */
 function Pending({ registration, kyc }: { registration: RegistrationView; kyc: KycState | null }) {
   const p = s.pending;
@@ -71,6 +72,7 @@ function Pending({ registration, kyc }: { registration: RegistrationView; kyc: K
               </List>
             </Card>
           </Section>
+          <HowToTakeOrder beforeApproval />
         </Stack>
       }
       aside={
@@ -92,7 +94,7 @@ function Pending({ registration, kyc }: { registration: RegistrationView; kyc: K
 }
 
 /**
- * Статус регистрации мастера — дом мастера до одобрения: на проверке, одобрено (к заявкам), отказ (причина и «Исправить и
+ * Статус регистрации мастера — дом мастера до одобрения: на проверке, одобрено (к заявкам; оба — с «Как взять заказ»), отказ (причина и «Исправить и
  * отправить заново» — та же анкета с первого шага). Вложенным экраном не является: «Назад» нет. Номер — только 4 цифры. `hasDeals` — у мастера есть сделки: под
  * «Сейчас» ссылка «Ваши сделки» (до одобрения вкладки «Сделки» нет).
  */
@@ -118,7 +120,15 @@ export function RegisterStatus({ registration, kyc = null, hasDeals = false }: {
   return (
     <Stack gap="section">
       <PageTitle title={s.title} />
-      <Split main={<NowNext now={now} next={approved ? s.approved.next : s.rejected.next} />} aside={<Summary registration={registration} />} />
+      <Split
+        main={
+          <Stack gap="section">
+            <NowNext now={now} next={approved ? s.approved.next : s.rejected.next} />
+            {approved && <HowToTakeOrder beforeApproval={false} />}
+          </Stack>
+        }
+        aside={<Summary registration={registration} />}
+      />
       {hasDeals && !approved && <DealsLink />}
       <ActionDock>
         {approved ? (

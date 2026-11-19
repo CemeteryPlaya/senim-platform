@@ -94,7 +94,9 @@ export async function MasterHome({ user, status, device }: { user: CurrentUser; 
     docs,
   };
   const view = masterHome(input);
-  const firstSteps = masterFirstSteps({ docs, offered: offered || mine.length > 0, primaryHref: view.primary?.href ?? null });
+  // Предложение было, если оно есть в списке или по нему уже идёт сделка.
+  const anyOffer = offered || mine.length > 0;
+  const firstSteps = masterFirstSteps({ docs, offered: anyOffer, primaryHref: view.primary?.href ?? null });
 
   const { shown, more } = shownDeals(running, view.now.deal?.id ?? null);
   const month = monthOf(new Date());
@@ -103,6 +105,7 @@ export async function MasterHome({ user, status, device }: { user: CurrentUser; 
   const data: MasterHomeData = {
     view,
     firstSteps,
+    showHowTo: !anyOffer,
     deals: shown.map((d) => ({ item: d, next: nexts.get(d.id) ?? null, consentMissing: missing.has(d.id) })),
     moreDeals: more,
     fresh: fresh.slice(0, SHOWN_REQUESTS),

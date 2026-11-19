@@ -8,6 +8,7 @@ import { DealHero } from "../_parts/DealHero";
 import { DealSummaryCard } from "../_parts/DealSummaryCard";
 import type { DealCover } from "../_parts/deal-cover";
 import { dealChip } from "../_parts/deal-summary";
+import { HowToTakeOrder } from "../executor/_parts/HowToTakeOrder";
 import { IncomingRows } from "../executor/_parts/IncomingRows";
 import { incomingCard } from "../executor/_parts/incoming-view";
 import { type MasterFirstSteps, type MasterHomeView as View, type MasterPrimary } from "./master-home";
@@ -20,6 +21,8 @@ export type MasterHomeData = {
   view: View;
   /** Первые шаги мастера; `null` — не показывать (всё сделано). */
   firstSteps: MasterFirstSteps | null;
+  /** «Как взять заказ» — пока мастер не отправил ни одного предложения. */
+  showHowTo: boolean;
   /** До двух идущих сделок: сделка, «что дальше» по ней и отметка «нет согласия для банка». */
   deals: { item: DealListItem; next: NextStep | null; consentMissing: boolean }[];
   /** Сколько идущих сделок осталось за пределами блока. */
@@ -132,8 +135,8 @@ function FreshRequests({ fresh }: { fresh: IncomingListItem[] }) {
 /**
  * Показ главной мастера по готовому выбору. Одна колонка на обоих устройствах (компьютер — 760 px по центру, разбор 3.9):
  * «Сейчас» — карточкой-героем, когда речь о сделке (обложка из отчёта, «Вы получите…», ход, кнопка внутри на компьютере),
- * иначе «Сейчас / Дальше» с кнопкой внутри на компьютере; затем сводка, остальные сделки, новые заявки. Телефон — главное
- * действие в доке в конце экрана.
+ * иначе «Сейчас / Дальше» с кнопкой внутри на компьютере; под ним первые шаги и «Как взять заказ» (до первого
+ * предложения); затем сводка, остальные сделки, новые заявки. Телефон — главное действие в доке в конце экрана.
  */
 export function MasterHomeView({ data, name, device }: { data: MasterHomeData; name: string | null; device: Device }) {
   const { view } = data;
@@ -169,6 +172,7 @@ export function MasterHomeView({ data, name, device }: { data: MasterHomeData; n
           ]}
         />
       )}
+      {data.showHowTo && <HowToTakeOrder beforeApproval={false} />}
     </Stack>
   );
   return (

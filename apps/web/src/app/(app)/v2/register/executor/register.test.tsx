@@ -210,6 +210,10 @@ describe("регистрация мастера: кто что видит", () =
     expect(out).toContain(`•••• ${BIN.slice(-4)}`);
     // Пояснение «как проходит проверка» не повторяет первую карточку.
     expect(out).not.toContain(t.form.explain.label);
+    // «Как взять заказ» со строкой о проверке; главное действие по-прежнему одно.
+    expect(out).toContain(`>${ru.app.masterRequests.howTo.title}</h2>`);
+    expect(out).toContain(ru.app.masterRequests.howTo.beforeApproval);
+    for (const step of ru.app.masterRequests.howTo.steps) expect(out).toContain(step);
   });
 
   it("«Ваши сделки» — только у мастера, у которого сделки есть; без сделок и у заказчика ссылки нет", async () => {
@@ -271,6 +275,8 @@ describe("регистрация мастера: кто что видит", () =
     const out = await page();
     expectScreen(out);
     expect(out).toContain(t.status.approved.now);
+    expect(out).toContain(`>${ru.app.masterRequests.howTo.title}</h2>`);
+    expect(out).not.toContain(ru.app.masterRequests.howTo.beforeApproval);
     expect(out).toMatch(/<a [^>]*href="\/v2\/executor\/requests"[^>]*data-primary-action|<a [^>]*data-primary-action[^>]*href="\/v2\/executor\/requests"/);
   });
 
@@ -294,7 +300,10 @@ describe("регистрация мастера: кто что видит", () =
 
   it("отказ без причины — пояснение, что делать", async () => {
     h.registration = registration("REJECTED");
-    expect(await page()).toContain(t.status.rejected.noReason);
+    const out = await page();
+    expect(out).toContain(t.status.rejected.noReason);
+    // При отказе блока «Как взять заказ» нет: сначала исправить анкету.
+    expect(out).not.toContain(ru.app.masterRequests.howTo.title);
   });
 });
 

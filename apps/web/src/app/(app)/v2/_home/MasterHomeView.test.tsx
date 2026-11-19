@@ -44,7 +44,7 @@ const fresh = (id: string): IncomingListItem => ({
 
 function data(input: Partial<MasterHomeInput>, over: Partial<MasterHomeData> = {}): MasterHomeData {
   const view = masterHome({ deals: [], counters: [], freshCount: 0, docs: { kyc: "VERIFIED", payoutSet: true }, ...input });
-  return { view, firstSteps: null, deals: [], moreDeals: 0, fresh: [], stats: { fresh: 0, inWork: 0, earnedTiyn: 0n }, ...over };
+  return { view, firstSteps: null, showHowTo: false, deals: [], moreDeals: 0, fresh: [], stats: { fresh: 0, inWork: 0, earnedTiyn: 0n }, ...over };
 }
 
 const render = (d: MasterHomeData, device: Device) => html(<MasterHomeView data={d} name="Ерлан" device={device} />);
@@ -129,5 +129,18 @@ describe.each(["mobile", "desktop"] as const)("главная мастера (%s
     expect(out).toContain('href="/v2/executor/profile/kyc"');
     expect(count(out, "data-primary-action")).toBe(1);
     expect(render(data({ freshCount: 2 }), device)).not.toContain(ru.app.kit.firstSteps.progressLabel);
+  });
+
+  it("«Как взять заказ» — пока предложений не было, под «Сейчас» и первыми шагами, без строки о проверке; главное действие одно", () => {
+    const howTo = ru.app.masterRequests.howTo;
+    const docs = { kyc: "NOT_SUBMITTED", payoutSet: false } as const;
+    const view = masterHome({ deals: [], counters: [], freshCount: 0, docs });
+    const shown = render(data({ docs }, { showHowTo: true, firstSteps: masterFirstSteps({ docs, offered: false, primaryHref: view.primary?.href ?? null }) }), device);
+    expect(shown).toContain(`>${howTo.title}</h2>`);
+    for (const step of howTo.steps) expect(shown).toContain(step);
+    expect(shown).not.toContain(howTo.beforeApproval);
+    expect(shown.indexOf(ru.app.kit.firstSteps.progressLabel)).toBeLessThan(shown.indexOf(howTo.title));
+    expect(count(shown, "data-primary-action")).toBe(1);
+    expect(render(data({ docs }, { showHowTo: false }), device)).not.toContain(howTo.title);
   });
 });
