@@ -21,6 +21,8 @@ import { kztToTiyn } from "@/modules/payments";
 import { registerPorts } from "@/ports";
 import { DEFAULT_FURNITURE_TYPES, suggestSegment } from "@/verticals/furniture";
 import {
+  ADMIN,
+  ADMIN_TOTP_SECRET,
   CLIENTS,
   DUAL_ROLE_REQUESTS,
   EXECUTORS,
@@ -59,8 +61,9 @@ import { testDocumentPdf } from "./test-documents";
  * стороной исполнителя (реквизиты, счёт выплаты, KYC с файлами) и согласием на ПДн текущей редакции. В старой базе —
  * только проекции с теми же id (projectUser, projectPerson, столбцы стороны partyColumns): ИИН/БИН и IBAN сид сам больше
  * не шифрует, их хранит identity. Согласия сторон сделок сида на передачу банку — SeedConsents (deals.ts) до оплаты.
- * Все люди сида в identity — засеянные (seeded); оператор получает известный секрет TOTP (OPERATOR_TOTP_SECRET): входит
- * телефоном, кодом с экрана (мок SMS) и кодом из приложения, как все. Данные стенда в два шага:
+ * Все люди сида в identity — засеянные (seeded); оператор и администратор получают известные секреты TOTP
+ * (OPERATOR_TOTP_SECRET, ADMIN_TOTP_SECRET): входят телефоном, кодом с экрана (мок SMS) и кодом из приложения, как все.
+ * Данные стенда в два шага:
  *  1. «До сделок» — справочник, люди, мастера с KYC, заявки, отклики и торг, сценарии до договора, уведомления —
  *     одной транзакцией с датами «N дней назад» (журнал аудита — в форме recordAudit);
  *  2. сделки (deals.ts) — настоящими сервисами deal-core, documents, payments и operator: оферта, подписи
@@ -319,14 +322,19 @@ function seedPeople(clock: Clock, kycFiles: Map<ExecutorKey, KycFileIds>): SeedP
     };
     return { ...person(spec.person, "EXECUTOR", executorRoles(spec), seedEmail(key)), party };
   };
-  const staff = (p: PersonSpec, role: Role): SeedPerson => ({ phone: p.phone, role, roles: [role], createdAt: clock.ago(p.joinedDaysAgo), fullName: p.fullName });
+  const staff = (p: StaffSpec, role: Role): SeedPerson => ({ phone: p.phone, role, roles: [role], createdAt: clock.ago(p.joinedDaysAgo), fullName: p.fullName });
   return [
     { ...staff(OPERATOR, "OPERATOR"), totpSecretBase32: OPERATOR_TOTP_SECRET },
+    // Администратор — сотрудник с одной ролью и своим известным секретом TOTP (вход как у оператора: SMS, затем код).
+    { ...staff(ADMIN, "ADMIN"), totpSecretBase32: ADMIN_TOTP_SECRET },
     ...(Object.entries(CLIENTS) as [ClientKey, PersonSpec][]).map(([key, p]) => person(p, "CLIENT", ["CLIENT"], seedEmail(key))),
     ...executorsByRegistration().map(executor),
     staff(MEASURER, "MEASURER"),
   ];
 }
+
+/** Человек сида в том объёме, что нужен сотруднику и проекции личности: без ИИН (у администратора его нет). */
+type StaffSpec = Omit<PersonSpec, "iin">;
 
 /** Id человека сида в identity (и в старой базе). */
 type UserIds = Map<string, string>;
@@ -335,7 +343,7 @@ type UserIds = Map<string, string>;
  * Личность человека сида в старой базе — проекция того, что получил identity (ФИО, последние 4 цифры ИИН, e-mail), — и
  * дата регистрации из сида (телефон и роли пишет projectUser).
  */
-async function completePerson(tx: Tx, users: UserIds, plan: SeedPlan, p: PersonSpec): Promise<string> {
+async function completePerson(tx: Tx, users: UserIds, plan: SeedPlan, p: StaffSpec): Promise<string> {
   const id = users.get(p.phone);
   const seeded = plan.byPhone.get(p.phone);
   if (!id || !seeded) throw new Error("Человек сида не заведён в identity");
@@ -356,6 +364,7 @@ async function fill(tx: Tx, plan: SeedPlan, identityUsers: User[]): Promise<Ids>
   await seedMaterialPrices(tx, types);
 
   const operator = await completePerson(tx, users, plan, OPERATOR);
+  await completePerson(tx, users, plan, ADMIN);
   const clients = new Map<ClientKey, string>();
   for (const [key, person] of Object.entries(CLIENTS) as [ClientKey, PersonSpec][]) {
     clients.set(key, await completePerson(tx, users, plan, person));

@@ -13,7 +13,7 @@ vi.mock("@/modules/identity", async (original) => ({
 }));
 vi.mock("./role-cookie", () => ({ recallRole: async () => h.chosen }));
 
-const { requireV2User } = await import("./auth");
+const { requireAdmin, requireV2User } = await import("./auth");
 
 const CURRENT = { id: "c1", version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") };
 
@@ -143,12 +143,12 @@ describe("requireV2User: роль", () => {
   });
 
   it("дом не требует роль, которой нет: для каждой роли человек, получив отказ, попадает на страницу, где отказа уже нет", async () => {
-    for (const role of ["CLIENT", "EXECUTOR", "OPERATOR", "MEASURER"] as const) {
+    for (const role of ["CLIENT", "EXECUTOR", "OPERATOR", "MEASURER", "ADMIN"] as const) {
       h.user = person({
         role,
         roles: [role],
         executor: role === "EXECUTOR" ? { id: "e1", publicNumber: 1, status: "APPROVED" } : null,
-        mfa: { required: role === "OPERATOR", verifiedAt: new Date("2026-11-13T10:00:00Z") },
+        mfa: { required: role === "OPERATOR" || role === "ADMIN", verifiedAt: new Date("2026-11-13T10:00:00Z") },
       });
       const absent = role === "CLIENT" ? "MEASURER" : "CLIENT";
       const home = await target(requireV2User("/v2/somewhere", absent));
@@ -156,5 +156,34 @@ describe("requireV2User: роль", () => {
       // Дом — страница тех же ролей: повторный вызов с «домашней» ролью пускает.
       expect((await requireV2User(home!, role)).role).toBe(role);
     }
+  });
+});
+
+describe("requireAdmin: ворота экранов администратора", () => {
+  const ADMIN_PAGE = "/v2/admin/data";
+  /** Администратор: сотрудник — согласие, ФИО и почта его не касаются; второй фактор пройден. */
+  const admin = (over: Record<string, unknown> = {}) =>
+    person({ role: "ADMIN", roles: ["ADMIN"], fullName: null, iinLast4: null, emailVerified: false, consents: [], mfa: { required: true, verifiedAt: new Date() }, ...over });
+
+  it("администратор со вторым фактором — страница открывается", async () => {
+    h.user = admin();
+    expect((await requireAdmin(ADMIN_PAGE)).role).toBe("ADMIN");
+  });
+
+  it("администратор без второго фактора — экран кода из приложения с возвратом на страницу", async () => {
+    h.user = admin({ mfa: { required: true, verifiedAt: null } });
+    expect(await target(requireAdmin(ADMIN_PAGE))).toBe(`/v2/operator/mfa?next=${encodeURIComponent(ADMIN_PAGE)}`);
+  });
+
+  it("оператор (со вторым фактором) — в свой дом, а не в админку; заказчик — тоже в свой", async () => {
+    h.user = person({ role: "OPERATOR", roles: ["OPERATOR"], consents: [], mfa: { required: true, verifiedAt: new Date() } });
+    expect(await target(requireAdmin(ADMIN_PAGE))).toBe("/v2/operator");
+    h.user = person();
+    expect(await target(requireAdmin(ADMIN_PAGE))).toBe("/v2");
+  });
+
+  it("гость — на вход с возвратом на страницу админки", async () => {
+    h.user = null;
+    expect(await target(requireAdmin(ADMIN_PAGE))).toBe(`/v2/login?next=${encodeURIComponent(ADMIN_PAGE)}`);
   });
 });

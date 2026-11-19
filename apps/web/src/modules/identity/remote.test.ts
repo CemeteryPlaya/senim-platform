@@ -19,8 +19,9 @@ describe("роли identity и Prisma", () => {
     expect(roleFromProto(roleToProto(role))).toBe(role);
   });
 
-  it("четыре роли — четыре разные роли identity", () => {
-    expect(new Set(Object.values(Role).map(roleToProto)).size).toBe(4);
+  it("пять ролей (с администратором) — пять разных ролей identity", () => {
+    expect(new Set(Object.values(Role).map(roleToProto)).size).toBe(5);
+    expect(roleToProto(Role.ADMIN)).toBe(ProtoRole.ADMIN);
   });
 
   it("ROLE_UNSPECIFIED — ошибка", () => {

@@ -30,8 +30,9 @@ export async function makeUser(role: Role, fullName = `Тест ${role} ${seq + 
     // id — UUID, как у пользователей identity (проекция пишет их id; ReviewKyc принимает только UUID).
     data: { id: randomUUID(), role, roles, phone: nextPhone(), fullName, iinEnc: encryptPii(iin), iinHash: hashPii(iin), iinLast4: last4(iin) },
   });
-  // Оператор — как после входа с пройденной второй ступенью (сейчас).
-  const mfa = { required: role === "OPERATOR", verifiedAt: role === "OPERATOR" ? new Date() : null };
+  // Оператор и администратор — как после входа с пройденной второй ступенью (сейчас).
+  const needsMfa = role === "OPERATOR" || role === "ADMIN";
+  const mfa = { required: needsMfa, verifiedAt: needsMfa ? new Date() : null };
   return { id: user.id, role, roles, phone: user.phone, fullName, iinLast4: user.iinLast4, emailVerified: false, executor: null, mfa, consents: [], consentRevocationOpen: false };
 }
 
@@ -66,3 +67,5 @@ export function actingAs<U extends CurrentUser>(user: U, role: Role): U {
   return { ...user, role };
 }
 export const makeOperator = (name?: string) => makeUser("OPERATOR", name);
+/** Администратор (сотрудник, одна роль, второй фактор обязателен). */
+export const makeAdmin = (name?: string) => makeUser("ADMIN", name);

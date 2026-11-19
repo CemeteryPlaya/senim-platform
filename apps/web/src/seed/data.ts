@@ -36,6 +36,22 @@ export const OPERATOR = {
  */
 export const OPERATOR_TOTP_SECRET = "SENIMSTANDOPERATORTOTPSEED234567";
 
+/**
+ * Администратор стенда (спека админки): владелец платформы, сотрудник — только эта роль, второй фактор обязателен. Личности
+ * (ИИН) у сотрудника нет: сид передаёт только телефон, ФИО и роль. В prod администратора выдаёт только `identity grant-admin`.
+ */
+export const ADMIN = {
+  fullName: "Санжар Администратор",
+  phone: "+77000000002",
+  joinedDaysAgo: 420,
+} as const satisfies Omit<PersonSpec, "iin">;
+
+/**
+ * Известный секрет TOTP администратора стенда (base32 без «=», 20 байт), свой — не операторский: сид передаёт его в identity
+ * (SeedUsers), e2e считает код по `e2e/totp.ts`. Только для стенда, как OPERATOR_TOTP_SECRET.
+ */
+export const ADMIN_TOTP_SECRET = "SENIMSTANDADMINTOTPSEED234567ABC";
+
 /** Замерщик площадки (сценарий 2, ADR-005): сотрудник, как оператор, — только эта роль. */
 export const MEASURER: PersonSpec = {
   fullName: "Нуржан Сейтказин",

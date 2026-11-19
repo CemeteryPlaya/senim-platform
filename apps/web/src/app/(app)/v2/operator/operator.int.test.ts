@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import * as operator from "@/modules/operator";
 import { totpNow } from "../../../../../e2e/totp";
-import { makeClient, makeOperator } from "../../../../../test/factories";
+import { makeAdmin, makeClient, makeOperator } from "../../../../../test/factories";
 import { freshBrowser, putCookie } from "../../../../../test/factories/identity";
 import { signInAs } from "../../../../../test/factories/session";
 import { identityFake } from "../../../../../test/stubs/identity";
@@ -138,6 +138,33 @@ describe("экран /v2/operator/mfa", () => {
     expect(target).not.toContain("/operator/mfa");
     // Действия экрана тоже не для него.
     expect(await verifySecondFactorAction({ code: "123456" })).toMatchObject({ ok: false, code: "FORBIDDEN" });
+  });
+});
+
+describe("экран /v2/operator/mfa для администратора (общий экран второго фактора)", () => {
+  it("вошёл по SMS, приложение не подключено — QR-код; первый верный код подключает и ведёт в админку", async () => {
+    const admin = await makeAdmin();
+    await signInAs(admin, undefined, { mfaVerifiedAt: null });
+    const secret = (await formOf(page())).enrollment?.secret ?? "";
+    expect(secret).toMatch(/^[A-Z2-7]{32}$/);
+    expect(await redirectTarget(confirmEnrollmentAction({ code: totpNow(secret), next: "" }))).toBe("/v2/admin");
+    expect(identityFake.factorState(admin.id)).toBe("confirmed");
+  });
+
+  it("приложение подключено — код ведёт на next или домой (админка), чужой адрес возврата — домой", async () => {
+    const admin = await makeAdmin();
+    await signInAs(admin, undefined, { mfaVerifiedAt: null });
+    const secret = identityFake.enrollTotp(admin.id);
+    expect(await formOf(page("/v2/admin/data"))).toEqual({ next: "/v2/admin/data", enrollment: null });
+    expect(await redirectTarget(verifySecondFactorAction({ code: totpNow(secret), next: "//evil.example" }))).toBe("/v2/admin");
+  });
+
+  it("второй шаг пройден — экран уходит в админку; раздел оператора администратору закрыт — в свой дом", async () => {
+    const admin = await makeAdmin();
+    await signInAs(admin);
+    expect(await redirectTarget(OperatorHome())).toBe("/v2/admin");
+    expect(await redirectTarget(page())).toBe("/v2/admin");
+    expect(await redirectTarget(page("/v2/admin/data"))).toBe("/v2/admin/data");
   });
 });
 

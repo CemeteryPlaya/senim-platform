@@ -63,6 +63,9 @@ export function homePathFor(user: { role: Role; executor: { status: string } | n
       return "/operator";
     case "MEASURER":
       return "/measurer";
+    case "ADMIN":
+      // Админка есть только в v2 (v1 заморожен): сразу её адрес v2, иначе вход через v1 вёл бы на 404.
+      return "/v2/admin";
     case "EXECUTOR":
       return user.executor?.status === "APPROVED" ? "/executor/requests" : EXECUTOR_REGISTRATION_PATH;
   }

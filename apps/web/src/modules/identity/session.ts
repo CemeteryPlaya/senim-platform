@@ -43,8 +43,8 @@ export type CurrentUser = {
    */
   executor: { id: string; publicNumber: number; status: "PENDING" | "APPROVED" | "REJECTED" } | null;
   /**
-   * Второй фактор этой сессии (identity, Session.mfa_required/mfa_verified_at): нужен оператору; verifiedAt — когда
-   * пройден код из приложения (вход или повторный код), null — не пройден. Свежесть перед деньгами — requireRecentMfa.
+   * Второй фактор этой сессии (identity, Session.mfa_required/mfa_verified_at): нужен оператору и администратору;
+   * verifiedAt — когда пройден код из приложения (вход или повторный код), null — не пройден. Свежесть перед деньгами — requireRecentMfa.
    */
   mfa: { required: boolean; verifiedAt: Date | null };
   /**
@@ -241,14 +241,14 @@ export async function getAccessToken(): Promise<string | null> {
   return (await authenticated())?.accessToken ?? null;
 }
 
-/** Сессии нужен второй фактор (оператор), а он в ней не пройден: вошёл только по SMS. */
+/** Сессии нужен второй фактор (оператор, администратор), а он в ней не пройден: вошёл только по SMS. */
 export function needsSecondFactor(user: Pick<CurrentUser, "mfa">): boolean {
   return user.mfa.required && user.mfa.verifiedAt === null;
 }
 
 /**
  * Для Server Actions и сервисов: пользователь с одной из ролей, иначе ошибка. Сессии, которой нужен второй фактор
- * (оператор), он должен быть пройден — иначе MFA_REQUIRED: вход только по SMS не открывает действий оператора,
+ * (оператор, администратор), он должен быть пройден — иначе MFA_REQUIRED: вход только по SMS не открывает их действий,
  * даже в обход экранов. Экран самой второй ступени берёт пользователя через requireMfaUser. Без действующего согласия
  * на обработку ПДн текущей редакции — CONSENT_REQUIRED (форма уводит на экран согласия с возвратом, leaveIfSignedOut).
  */

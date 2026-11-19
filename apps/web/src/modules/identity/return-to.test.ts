@@ -46,6 +46,10 @@ describe("homePathFor", () => {
     expect(homePathFor({ role: "EXECUTOR", executor: { status: "APPROVED" } })).toBe("/executor/requests");
   });
 
+  it("администратора — сразу в админку v2 (в v1 её нет)", () => {
+    expect(homePathFor({ role: "ADMIN", executor: null })).toBe("/v2/admin");
+  });
+
   it("исполнителя без подтверждения — на экран статуса регистрации", () => {
     expect(homePathFor({ role: "EXECUTOR", executor: { status: "PENDING" } })).toBe("/register/executor");
     expect(homePathFor({ role: "EXECUTOR", executor: null })).toBe("/register/executor");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeRoleOf, canGrant, parseSwitchableRole, roleToSwitch, switchRoleHref, switchTargets } from "./roles";
+import { activeRoleOf, canGrant, isStaffRole, parseSwitchableRole, roleToSwitch, STAFF_ROLES, switchRoleHref, switchTargets } from "./roles";
 
 describe("activeRoleOf", () => {
   it("роль сессии, если она выдана", () => {
@@ -35,6 +35,15 @@ describe("canGrant", () => {
     expect(canGrant(["MEASURER"], "EXECUTOR")).toBe(false);
     expect(canGrant(["CLIENT"], "MEASURER")).toBe(false);
     expect(canGrant(["OPERATOR"], "MEASURER")).toBe(false);
+  });
+
+  it("администратор — сотрудник: роль не выдаётся вместе с другими и к нему ничего не добавляется", () => {
+    expect(STAFF_ROLES).toContain("ADMIN");
+    expect(isStaffRole("ADMIN")).toBe(true);
+    expect(canGrant(["ADMIN"], "CLIENT")).toBe(false);
+    expect(canGrant(["ADMIN"], "OPERATOR")).toBe(false);
+    expect(canGrant(["CLIENT"], "ADMIN")).toBe(false);
+    expect(canGrant([], "ADMIN")).toBe(false);
   });
 });
 

@@ -417,6 +417,41 @@ describe("подделка identity: второй фактор (как mfa.go)",
     expect(fake.factorState(real.id)).toBe("confirmed");
   });
 
+  it("администратор (как needsMfa в Go): сессия по SMS — mfa_required; подключение и код ставят отметку; signIn — уже с отметкой", async () => {
+    const admin = fake.addUser({ phone: "+77000000002", defaultRole: Role.ADMIN, roles: [Role.ADMIN] });
+    fake.signIn(admin.id, token(1), undefined, { mfaVerifiedAt: null });
+    expect((await fake.client.authenticate({ sessionToken: token(1) })).session?.mfaRequired).toBe(true);
+    const { secretBase32 } = await start();
+    await confirm(codeAt(secretBase32));
+    expect(fake.mfaVerifiedAtOf(token(1))).toEqual(clock);
+    fake.signIn(admin.id, token(2));
+    expect(fake.mfaVerifiedAtOf(token(2))).toEqual(clock);
+  });
+
+  it("администратор сида: секрет TOTP подключён, вход по SMS требует код; ADMIN вместе с другой ролью — invalid_request", async () => {
+    const seed = (roles: Role[]) =>
+      fake.client.seedUsers({ users: [{ phone: "+77000000002", defaultRole: roles[0], roles, totpSecretBase32: SEED_SECRET }], idempotencyKey: key() });
+    expect((await rejection(seed([Role.ADMIN, Role.CLIENT]))).detail).toBe("invalid_request");
+    expect((await rejection(seed([Role.CLIENT, Role.ADMIN]))).detail).toBe("invalid_request");
+    const [admin] = (await seed([Role.ADMIN])).users;
+    expect(admin?.roles).toEqual([Role.ADMIN]);
+    expect(fake.factorState(admin!.id)).toBe("confirmed");
+    await fake.client.requestOtp({ phone: "+77000000002", idempotencyKey: key() });
+    const res = await fake.client.verifyOtp({ phone: "+77000000002", code: FAKE_OTP_CODE, sessionToken: token(1), idempotencyKey: key() });
+    expect(res.session).toMatchObject({ activeRole: Role.ADMIN, mfaRequired: true });
+    await verify(codeAt(SEED_SECRET));
+    expect(fake.mfaVerifiedAtOf(token(1))).toEqual(clock);
+  });
+
+  it("администратор: GrantRole не выдаёт ему ролей и не выдаёт роль ADMIN (role_forbidden)", async () => {
+    const admin = fake.addUser({ phone: "+77000000002", defaultRole: Role.ADMIN, roles: [Role.ADMIN] });
+    fake.signIn(admin.id, token(1));
+    expect((await rejection(fake.client.grantRole({ sessionToken: token(1), role: Role.CLIENT, idempotencyKey: key() }))).detail).toBe("role_forbidden");
+    const client = fake.addUser({ phone: PHONE });
+    fake.signIn(client.id, token(2));
+    expect((await rejection(fake.client.grantRole({ sessionToken: token(2), role: Role.ADMIN, idempotencyKey: key() }))).detail).toBe("role_forbidden");
+  });
+
   it("mfa-reset: фактор удалён, отметка снята — Start снова выдаёт секрет", async () => {
     const user = operator();
     fake.enrollTotp(user.id);

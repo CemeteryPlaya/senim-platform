@@ -60,7 +60,7 @@ export const safeNext = makeSafeNext(BASE);
 /**
  * Дом человека после всех первых шагов: заказчик и мастер с одобренным профилем — главная v2 (у каждого своя «что сейчас»),
  * мастер без профиля, на проверке или с отказом — регистрация мастера (анкета и статус проверки), оператор — его раздел,
- * замерщик — замеры. Выбор «Я мастер» на первом шаге входа ведёт заказчика без профиля исполнителя на регистрацию мастера
+ * замерщик — замеры, администратор — админка. Выбор «Я мастер» на первом шаге входа ведёт заказчика без профиля исполнителя на регистрацию мастера
  * (роль в identity от выбора не меняется).
  *
  * Регистрация мастера — дом и заказчика без профиля, и неодобренного мастера: её страница берёт пользователя с обеими ролями
@@ -76,6 +76,8 @@ export function homeFor(user: Pick<StepUser, "role" | "executor">, chosen: Chose
       return to("/operator");
     case "MEASURER":
       return to("/measurer");
+    case "ADMIN":
+      return to("/admin");
   }
 }
 
@@ -109,14 +111,14 @@ export function stepWithNext(screen: string, next: string | null): string {
   return next ? `${to(screen)}?${new URLSearchParams({ next })}` : to(screen);
 }
 
-/** Экран второго шага входа оператора (код из приложения-аутентификатора) в v2. */
+/** Экран второго шага входа оператора и администратора (код из приложения-аутентификатора) в v2 — один на обе роли. */
 export const OPERATOR_MFA_SCREEN = "/operator/mfa";
 
 /**
- * Первый непройденный обязательный шаг после входа или `null`: второй фактор оператора (экран v2 `/v2/operator/mfa`) →
- * согласие на обработку ПДн → ФИО и ИИН → подтверждённая почта. Операторов и прочий персонал согласие, знакомство и почта
- * не касаются (needsConsent, needsIntroduction, needsEmail). `next` переносится на шаг, чтобы после него вернуться; у
- * второго шага без `next` возврат — дом человека (главная оператора).
+ * Первый непройденный обязательный шаг после входа или `null`: второй фактор оператора и администратора (экран v2
+ * `/v2/operator/mfa`) → согласие на обработку ПДн → ФИО и ИИН → подтверждённая почта. Операторов и прочий персонал
+ * согласие, знакомство и почта не касаются (needsConsent, needsIntroduction, needsEmail). `next` переносится на шаг, чтобы
+ * после него вернуться; у второго шага без `next` возврат — дом человека (главная оператора, админка).
  */
 export function barrierFor(user: StepUser, next: string | null, chosen: ChosenRole | null = null): string | null {
   if (needsSecondFactor(user)) return stepWithNext(OPERATOR_MFA_SCREEN, next ?? homeFor(user, chosen));
@@ -278,6 +280,16 @@ export async function requireMaster(next: string): Promise<{ user: CurrentUser; 
  */
 export async function requireOperator(next: string): Promise<CurrentUser> {
   return requireV2User(next, "OPERATOR");
+}
+
+/**
+ * Ворота экранов администратора v2 (`/v2/admin/...`): вошедший администратор с пройденным вторым шагом входа. Как
+ * requireOperator: гость — на вход с возвратом, второй шаг не пройден — на экран кода (`/v2/operator/mfa`) с возвратом,
+ * другая роль (и оператор) — в свой дом. Граница экрана, а не прав: модуль admin и действия проверяют роль сами
+ * (`requireUser("ADMIN")`).
+ */
+export async function requireAdmin(next: string): Promise<CurrentUser> {
+  return requireV2User(next, "ADMIN");
 }
 
 /**

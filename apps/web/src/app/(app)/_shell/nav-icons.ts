@@ -4,6 +4,7 @@ import {
   ChartColumn,
   ClipboardList,
   Clock,
+  Database,
   FileCheck2,
   Hammer,
   House,
@@ -55,4 +56,7 @@ export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   types: Armchair,
   materials: Boxes,
   settings: Settings2,
+  // Админка: статистика платформы и данные базы.
+  stats: ChartColumn,
+  data: Database,
 };

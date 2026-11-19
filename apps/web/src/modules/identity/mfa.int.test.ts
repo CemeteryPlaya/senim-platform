@@ -5,7 +5,7 @@ import { AppError } from "@/platform/errors";
 import { totpNow } from "../../../e2e/totp";
 import { freshBrowser, setEnv } from "../../../test/factories/identity";
 import { signInAs } from "../../../test/factories/session";
-import { makeClient, makeOperator } from "../../../test/factories";
+import { makeAdmin, makeClient, makeOperator } from "../../../test/factories";
 import { identityFake } from "../../../test/stubs/identity";
 import { confirmTotpEnrollment, requireRecentMfa, startTotpEnrollment, verifySecondFactor } from "./mfa";
 import { mfaHref } from "./return-to";
@@ -108,6 +108,29 @@ describe("второй фактор оператора: подключение �
     const secret = identityFake.enrollTotp(op.id);
     await verifySecondFactor(op, totpNow(secret));
     await expect(requireUser("OPERATOR")).resolves.toMatchObject({ id: op.id });
+  });
+
+  it("администратор: сессия по SMS требует второй фактор; requireUser(\"ADMIN\") — MFA_REQUIRED, после кода — пускает", async () => {
+    const admin = await makeAdmin();
+    await signInAs(admin, undefined, { mfaVerifiedAt: null });
+    const user = await getCurrentUser();
+    if (!user) throw new Error("нет пользователя");
+    expect(user).toMatchObject({ role: "ADMIN", roles: ["ADMIN"], mfa: { required: true, verifiedAt: null } });
+    expect((await errorOf(requireUser("ADMIN"))).code).toBe("MFA_REQUIRED");
+
+    const secret = identityFake.enrollTotp(admin.id);
+    await verifySecondFactor(user, totpNow(secret));
+    await expect(requireUser("ADMIN")).resolves.toMatchObject({ id: admin.id, role: "ADMIN" });
+    // Действия оператора администратору не открываются.
+    expect((await errorOf(requireUser("OPERATOR"))).code).toBe("FORBIDDEN");
+  });
+
+  it("requireUser(\"ADMIN\"): оператор со вторым фактором и заказчик — FORBIDDEN", async () => {
+    await signInAs(await makeOperator());
+    expect((await errorOf(requireUser("ADMIN"))).code).toBe("FORBIDDEN");
+    freshBrowser();
+    await signInAs(await makeClient());
+    expect((await errorOf(requireUser("ADMIN"))).code).toBe("FORBIDDEN");
   });
 
   it("адрес экрана второго фактора — с возвратом на страницу", () => {

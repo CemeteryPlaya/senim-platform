@@ -146,6 +146,9 @@ function roleNav(user: NavUser | null): RoleNav {
       };
     case "MEASURER":
       return { tabs: [R.measurer, R.chat, R.account], more: [R.notifications] };
+    case "ADMIN":
+      // v1 заморожен: админка только в v2 — в v1 администратору лишь профиль (выход).
+      return { tabs: [R.account], more: [] };
   }
 }
 

@@ -15,7 +15,7 @@ import { setEnv } from "../../test/factories/identity";
 import { identityFake } from "../../test/stubs/identity";
 import { monthOf } from "@/modules/deal-core";
 import { totpNow } from "../../e2e/totp";
-import { CLIENTS, DEALS, EXECUTORS, KYC, MEASURER, OPERATOR, OPERATOR_TOTP_SECRET, REVIEWS } from "./data";
+import { ADMIN, ADMIN_TOTP_SECRET, CLIENTS, DEALS, EXECUTORS, KYC, MEASURER, OPERATOR, OPERATOR_TOTP_SECRET, REVIEWS } from "./data";
 import { seedFile } from "./portfolio-files";
 import { reseedStand, seedStand } from "./seed";
 
@@ -37,6 +37,7 @@ async function expectSeedEmails(): Promise<void> {
     ...Object.entries(EXECUTORS).map(([key, e]): [string, string | null] => [e.person.phone, `${key}@example.com`]),
     [OPERATOR.phone, null],
     [MEASURER.phone, null],
+    [ADMIN.phone, null],
   ];
   for (const [phone, email] of people) {
     const row = await db.user.findUniqueOrThrow({ where: { phone }, select: { id: true, email: true, emailVerifiedAt: true } });
@@ -221,6 +222,9 @@ describe("данные стенда", () => {
     expect(identityFake.personOf(aigerim.id)).toMatchObject({ fullName: CLIENTS.aigerim.fullName, iinLast4: CLIENTS.aigerim.iin.slice(-4), email: "aigerim@example.com", emailVerified: true });
     await expectSeedEmails();
     expect(await db.user.count({ where: { role: "OPERATOR" } })).toBe(1);
+    expect(await db.user.findMany({ where: { roles: { has: "ADMIN" } }, select: { phone: true, role: true, roles: true, fullName: true } })).toEqual([
+      { phone: ADMIN.phone, role: "ADMIN", roles: ["ADMIN"], fullName: ADMIN.fullName },
+    ]);
 
     // Фото сида — временные снимки из public/stand-photos. Публичное портфолио — хранилище static (адрес /stand-photos/…):
     // StoredFile сида совпадает с файлом на диске, у каждого файла свой ключ.
@@ -267,7 +271,7 @@ describe("данные стенда", () => {
     const pd = { version: consentDocument("PD_PROCESSING").version, textSha256: consentTextSha256("PD_PROCESSING") };
     for (const u of await db.user.findMany({ select: { id: true, role: true } })) {
       const consents = identityFake.consentsOf(u.id).filter((c) => c.kind === ConsentKind.PD_PROCESSING);
-      if (u.role === "OPERATOR" || u.role === "MEASURER") expect(consents, u.role).toHaveLength(0);
+      if (u.role === "OPERATOR" || u.role === "MEASURER" || u.role === "ADMIN") expect(consents, u.role).toHaveLength(0);
       else expect(consents.map((c) => ({ version: c.version, textSha256: c.textSha256, channel: c.channel }))).toEqual([{ ...pd, channel: "seed" }]);
     }
     const bank = { version: consentDocument("BANK_TRANSFER").version, textSha256: consentTextSha256("BANK_TRANSFER") };
@@ -302,8 +306,13 @@ describe("данные стенда", () => {
     for (const u of users) expect(identityFake.hasUser(u.id), `пользователь ${u.id} есть в identity`).toBe(true);
     expect(sent.every((u) => u.createdAt !== undefined)).toBe(true);
     expect(sent.some((u) => u.phone === CLIENTS.arman.phone)).toBe(true); // заказчики прошлых сделок — тоже в identity
-    // Известный секрет TOTP — только у оператора стенда.
-    expect(sent.filter((u) => u.totpSecretBase32).map((u) => u.phone)).toEqual([OPERATOR.phone]);
+    // Известный секрет TOTP — только у оператора и администратора стенда, у каждого свой.
+    expect(sent.filter((u) => u.totpSecretBase32).map((u) => [u.phone, u.totpSecretBase32])).toEqual([
+      [OPERATOR.phone, OPERATOR_TOTP_SECRET],
+      [ADMIN.phone, ADMIN_TOTP_SECRET],
+    ]);
+    expect(ADMIN_TOTP_SECRET).toMatch(/^[A-Z2-7]{32}$/);
+    expect(ADMIN_TOTP_SECRET).not.toBe(OPERATOR_TOTP_SECRET);
     const operator = users.find((u) => u.phone === OPERATOR.phone)!;
     expect(Math.abs(operator.createdAt.getTime() - (started - OPERATOR.joinedDaysAgo * 86_400_000))).toBeLessThan(60_000);
     expect(identityFake.calls.filter((c) => c.method === "resetStand")).toHaveLength(0);
@@ -329,6 +338,18 @@ describe("данные стенда", () => {
     expect(res.session?.mfaRequired).toBe(true);
     expect(res.session?.mfaVerifiedAt).toBeUndefined();
     const verified = await identityFake.client.verifySecondFactor({ sessionToken: token, code: totpNow(OPERATOR_TOTP_SECRET), idempotencyKey: "seed-op-mfa" });
+    expect(verified.session?.mfaVerifiedAt).toBeDefined();
+  });
+
+  it("администратор стенда входит как все: код с экрана, затем код из приложения по своему секрету сида", { timeout: 120_000 }, async () => {
+    await seedStand(db);
+    const sent = await identityFake.client.requestOtp({ phone: ADMIN.phone, idempotencyKey: "seed-admin-otp" });
+    const token = `${"a".repeat(43)}`;
+    const res = await identityFake.client.verifyOtp({ phone: ADMIN.phone, code: sent.shownCode, sessionToken: token, idempotencyKey: "seed-admin-verify" });
+    expect(res.user).toMatchObject({ defaultRole: Role.ADMIN, roles: [Role.ADMIN], seeded: true });
+    expect(res.session?.mfaRequired).toBe(true);
+    expect(res.session?.mfaVerifiedAt).toBeUndefined();
+    const verified = await identityFake.client.verifySecondFactor({ sessionToken: token, code: totpNow(ADMIN_TOTP_SECRET), idempotencyKey: "seed-admin-mfa" });
     expect(verified.session?.mfaVerifiedAt).toBeDefined();
   });
 

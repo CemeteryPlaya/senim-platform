@@ -9,12 +9,13 @@ const client: NavUser = { role: "CLIENT", executor: null };
 const executor = (status: "PENDING" | "APPROVED" | "REJECTED"): NavUser => ({ role: "EXECUTOR", executor: { status } });
 const operator: NavUser = { role: "OPERATOR", executor: null };
 const measurer: NavUser = { role: "MEASURER", executor: null };
+const admin: NavUser = { role: "ADMIN", executor: null };
 
 const labels = (nav: AppNav) => nav.tabs.map((t) => t.label);
 const hrefs = (nav: AppNav) => nav.tabs.map((t) => t.href);
 
 describe("navFor: сосредоточенная оболочка первых шагов", () => {
-  it.each([client, executor("APPROVED"), executor("PENDING"), measurer])("вошедший с непройденными шагами (%j): ни вкладок, ни разделов, ни действия", (user) => {
+  it.each([client, executor("APPROVED"), executor("PENDING"), measurer, admin])("вошедший с непройденными шагами (%j): ни вкладок, ни разделов, ни действия", (user) => {
     expect(navFor(user, ON, { focus: true })).toEqual({ tabs: [], sections: [], guest: false, focus: true });
   });
 
@@ -44,7 +45,7 @@ describe("navFor: вкладки по ролям", () => {
   });
 
   it("подписи вкладок — одно-два слова", () => {
-    const users = [null, client, executor("APPROVED"), executor("PENDING"), measurer];
+    const users = [null, client, executor("APPROVED"), executor("PENDING"), measurer, admin];
     for (const user of users) {
       for (const { label } of navFor(user, ON).tabs) expect(label.split(" ").length, label).toBeLessThanOrEqual(2);
     }
@@ -181,8 +182,30 @@ describe("navFor: вкладки по ролям", () => {
     expect(labels(navFor(measurer, OFF))).toEqual(["Чат", "Профиль"]);
   });
 
+  it("администратор: Статистика · Данные · Профиль; в шапке те же разделы, без «Заказать мебель» и без меню оператора", () => {
+    for (const f of [OFF, ON]) {
+      const nav = navFor(admin, f);
+      expect(labels(nav)).toEqual(["Статистика", "Данные", "Профиль"]);
+      expect(hrefs(nav)).toEqual(["/v2/admin", "/v2/admin/data", "/v2/profile"]);
+      expect(nav.tabs.map((t) => t.icon)).toEqual(["stats", "data", "profile"]);
+      expect(nav.sections).toEqual(nav.tabs);
+      expect(nav.action).toBeUndefined();
+      expect(nav.operator).toBeUndefined();
+      expect(nav.guest).toBe(false);
+    }
+  });
+
+  it("администратор: «Статистика» подсвечена на главной админки, «Данные» — на таблицах и карточках", () => {
+    const { tabs } = navFor(admin, OFF);
+    expect(activeHref(tabs, "/v2/admin")).toBe("/v2/admin");
+    expect(activeHref(tabs, "/v2/admin/data")).toBe("/v2/admin/data");
+    expect(activeHref(tabs, "/v2/admin/data/User/u1")).toBe("/v2/admin/data");
+    expect(isTabRoot(tabs, "/v2/admin/data")).toBe(true);
+    expect(isTabRoot(tabs, "/v2/admin/data/User")).toBe(false);
+  });
+
   it("ни в одной роли больше пяти вкладок, у каждой вкладки своя иконка и адрес", () => {
-    const users = [null, client, executor("APPROVED"), executor("PENDING"), executor("REJECTED"), operator, measurer];
+    const users = [null, client, executor("APPROVED"), executor("PENDING"), executor("REJECTED"), operator, measurer, admin];
     for (const user of users) {
       for (const f of [OFF, ON]) {
         const { tabs } = navFor(user, f);

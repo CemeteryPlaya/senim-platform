@@ -52,6 +52,7 @@ export const common = {
     EXECUTOR: "Исполнитель",
     OPERATOR: "Оператор",
     MEASURER: "Замерщик площадки",
+    ADMIN: "Администратор",
   },
   executorLabel: (n: number) => `Исполнитель №${n}`,
 

@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ru } from "@/i18n/ru";
 import { sendOffer } from "@/modules/requests";
 import { db } from "@/platform/db";
-import { makeClient, makeExecutor } from "../../../../test/factories";
+import { makeAdmin, makeClient, makeExecutor, makeOperator } from "../../../../test/factories";
 import { dealAt } from "../../../../test/factories/deal";
 import { freshBrowser } from "../../../../test/factories/identity";
 import { makeDraft, makeExecutorWithTerms, makeOpenRequest, offerInput } from "../../../../test/factories/requests";
@@ -195,5 +195,19 @@ describe("/v2 для мастера", () => {
     await sendOffer(executor, offerInput(requestId));
     const after = await render();
     expect(after).toContain(`${steps.offer}<span class="sr-only">`);
+  });
+});
+
+describe("/v2 для сотрудников: главная уводит в их дом", () => {
+  it("оператор — его главная, администратор — админка; администратор без второго шага — на экран кода", async () => {
+    await signInAs(await makeOperator());
+    expect(await where()).toBe("/v2/operator");
+    freshBrowser();
+    const admin = await makeAdmin();
+    await signInAs(admin);
+    expect(await where()).toBe("/v2/admin");
+    freshBrowser();
+    await signInAs(admin, undefined, { mfaVerifiedAt: null });
+    expect(await where()).toBe(`/v2/operator/mfa?next=${encodeURIComponent("/v2")}`);
   });
 });

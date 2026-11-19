@@ -19,6 +19,7 @@ const TO_PRISMA = {
   [ProtoRole.EXECUTOR]: "EXECUTOR",
   [ProtoRole.OPERATOR]: "OPERATOR",
   [ProtoRole.MEASURER]: "MEASURER",
+  [ProtoRole.ADMIN]: "ADMIN",
 } as const satisfies Partial<Record<ProtoRole, PrismaRole>>;
 
 const TO_PROTO: Record<PrismaRole, ProtoRole> = {
@@ -26,6 +27,7 @@ const TO_PROTO: Record<PrismaRole, ProtoRole> = {
   EXECUTOR: ProtoRole.EXECUTOR,
   OPERATOR: ProtoRole.OPERATOR,
   MEASURER: ProtoRole.MEASURER,
+  ADMIN: ProtoRole.ADMIN,
 };
 
 /** Роль из identity → роль старой базы. `ROLE_UNSPECIFIED` — ошибка контракта. */

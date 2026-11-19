@@ -34,6 +34,11 @@ function operator(over: Partial<StepUser> = {}): StepUser {
   });
 }
 
+/** Администратор: сотрудник, как оператор, — согласие, ФИО и почта его не касаются; второй фактор пройден. */
+function admin(over: Partial<StepUser> = {}): StepUser {
+  return operator({ role: "ADMIN", roles: ["ADMIN"], ...over });
+}
+
 const NEXT = "/v2/deals/1";
 const Q = `?next=${encodeURIComponent(NEXT)}`;
 
@@ -118,6 +123,22 @@ describe("nextStepFor", () => {
       null,
       `/v2/operator/mfa?next=${encodeURIComponent("/v2/operator/money")}`,
     ],
+    ["администратор — его раздел; согласие, ФИО и почта его не касаются", admin(), null, null, "/v2/admin"],
+    ["администратор с next — next", admin(), "/v2/admin/data", null, "/v2/admin/data"],
+    [
+      "администратор без второго фактора — тот же экран кода из приложения v2 с возвратом в админку",
+      admin({ mfa: { required: true, verifiedAt: null } }),
+      null,
+      null,
+      `/v2/operator/mfa?next=${encodeURIComponent("/v2/admin")}`,
+    ],
+    [
+      "администратор без второго фактора с next — экран кода с возвратом на next",
+      admin({ mfa: { required: true, verifiedAt: null } }),
+      "/v2/admin/data",
+      null,
+      `/v2/operator/mfa?next=${encodeURIComponent("/v2/admin/data")}`,
+    ],
   ])("%s", (_name, user, next, chosen, expected) => {
     expect(nextStepFor(user, next, chosen)).toBe(expected);
   });
@@ -126,6 +147,11 @@ describe("nextStepFor", () => {
 describe("homeFor", () => {
   it("замерщик — замеры", () => {
     expect(homeFor({ role: "MEASURER", executor: null })).toBe("/v2/measurer");
+  });
+
+  it("администратор — админка; выбор на первом шаге входа его не касается", () => {
+    expect(homeFor({ role: "ADMIN", executor: null })).toBe("/v2/admin");
+    expect(homeFor({ role: "ADMIN", executor: null }, "EXECUTOR")).toBe("/v2/admin");
   });
 
   it("мастер, выбравший «Заказать мебель», всё равно попадает в свой дом", () => {

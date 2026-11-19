@@ -5,7 +5,7 @@ import { Role as ProtoRole, UserSchema, type User } from "@/gen/senim/identity/v
 import { db } from "@/platform/db";
 import { AppError } from "@/platform/errors";
 import { logger } from "@/platform/logger";
-import { projectUser } from "./projection";
+import { projectUser, roleFromProto, roleToProto } from "./projection";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -31,6 +31,20 @@ describe("projectUser", () => {
       roles: ["CLIENT"],
       blockedAt: null,
     });
+  });
+
+  it("администратор identity (ROLE_ADMIN) — строка User с ролью ADMIN; роль переводится в proto и обратно", async () => {
+    await projectUser(identityUser({ defaultRole: ProtoRole.ADMIN, roles: [ProtoRole.ADMIN] }));
+
+    expect(await db.user.findUniqueOrThrow({ where: { id: "u-77001234567" } })).toMatchObject({ role: "ADMIN", roles: ["ADMIN"] });
+    expect(roleFromProto(ProtoRole.ADMIN)).toBe("ADMIN");
+    expect(roleToProto("ADMIN")).toBe(ProtoRole.ADMIN);
+  });
+
+  it("администратор не совмещает роль с другими и в старой базе (User_staff_alone)", async () => {
+    await expect(
+      db.user.create({ data: { id: "u-admin-client", phone: "+77001230000", role: "ADMIN", roles: ["ADMIN", "CLIENT"] } }),
+    ).rejects.toThrow(/User_staff_alone/);
   });
 
   it("обновляет роли и роль по умолчанию, не трогая поля старой базы", async () => {

@@ -118,15 +118,17 @@ import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-t
  *
  * Сознательные расхождения с Go (тестам web они не мешают):
  * - `PHONE_RE` шире: любой `+7` и 10 цифр; Go (phone.go) принимает только `+77…`;
- * - `sessionView` всегда даёт 7 суток; в Go у сотрудника (OPERATOR, MEASURER) — 8 ч;
+ * - `sessionView` всегда даёт 7 суток; в Go у сотрудника (OPERATOR, MEASURER, ADMIN) — 8 ч;
  * - `signOutEverywhere` для заблокированного — no-op (lookup отказывает); Go отзывает его сессии
  *   (sessionByToken без проверки блокировки).
  *
  * Второй фактор (TOTP, mfa.go) повторён по Go: порядок проверок и коды, лимит 5 неверных кодов (и повторов) за
  * 15 минут фиксированным окном (верный код попытку возвращает), шаг принятого кода не принимается дважды, повтор
- * Start по ключу после замены секрета — idempotency_key_reused, SeedUsers подключает оператору стенда фактор известным
- * секретом (totp_secret_base32) и снимает отметки второй ступени его сессий, ResetStand стирает факторы засеянных. Часы — `now` (тест может подменить). Вход в обход кода (`signIn`) у оператора — уже
- * с пройденной второй ступенью («вошедший пользователь»), если тест не передал `mfaVerifiedAt: null`.
+ * Start по ключу после замены секрета — idempotency_key_reused, SeedUsers подключает оператору и администратору стенда
+ * фактор известным секретом (totp_secret_base32) и снимает отметки второй ступени его сессий, ResetStand стирает факторы
+ * засеянных. Часы — `now` (тест может подменить). Второй фактор нужен ролям OPERATOR и ADMIN (needsMfa); переходы KYC и
+ * согласий — только оператору. Вход в обход кода (`signIn`) у них — уже с пройденной второй ступенью («вошедший
+ * пользователь»), если тест не передал `mfaVerifiedAt: null`.
  *
  * Личность и контакты (person.go) повторены по Go: порядок проверок и коды (формат до лимита попыток, лимит 5 попыток
  * указать ИИН в час фиксированным окном, тот же ИИН ещё раз — тот же ответ без попытки, другой поверх записанного —
@@ -140,8 +142,8 @@ import { consentDocument, consentTextSha256 } from "@/modules/identity/consent-t
  * другой стороны — iin_taken; новая сторона — KYC NOT_SUBMITTED; SetPayoutIban отвечает changed. Номера хранятся открыто.
  *
  * Раскрытие и сверка (reveal.go, VerifySignerIin в party.go): RevealPartyDetails — порядок проверок (цель —
- * reveal_purpose_invalid, ссылка 1..128 и список 1..50 — invalid_request, затем сессия действующего лица; оператор без второй
- * ступени — mfa_required), повторы убираются, неизвестный пропускается, аудит pii.revealed на каждого субъекта — без значений
+ * reveal_purpose_invalid, ссылка 1..128 и список 1..50 — invalid_request, затем сессия действующего лица; оператор или
+ * администратор без второй ступени — mfa_required), повторы убираются, неизвестный пропускается, аудит pii.revealed на каждого субъекта — без значений
  * (действующее лицо без сессии — сервис, `actorRole` UNSPECIFIED). VerifySignerIin — сторона обязательна (invalid_request),
  * не ИИН — не совпало, заказчик — ИИН личности, исполнитель — директор ТОО или ИИН стороны ИП и самозанятого, без стороны —
  * не совпало. Расхождение с Go: id пользователей не проверяются как UUID (id подделки — `u-<цифры>` и cuid фабрик).
@@ -186,7 +188,9 @@ type IdentityClient = Client<typeof IdentityService>;
 export const FAKE_OTP_CODE = "123456";
 const MAX_KEY = 128;
 const PHONE_RE = /^\+7\d{10}$/;
-const STAFF: readonly Role[] = [Role.OPERATOR, Role.MEASURER];
+const STAFF: readonly Role[] = [Role.OPERATOR, Role.MEASURER, Role.ADMIN];
+/** needsMfa в Go (mfa.go): второй фактор нужен оператору и администратору. Переходы KYC и согласий — только оператору. */
+const needsMfa = (role: Role): boolean => role === Role.OPERATOR || role === Role.ADMIN;
 /** Как mfa.go: неверных кодов не больше 5 за 15 минут; поле code — не длиннее 32 символов до разбора. */
 const MFA_MAX_FAILURES = 5;
 const MFA_FAILURE_WINDOW_MS = 15 * 60_000;
@@ -844,7 +848,7 @@ export class FakeIdentity {
   signIn(userId: string, token: string, activeRole?: Role, opts: { mfaVerifiedAt?: Date | null } = {}): void {
     const user = this.mustUser(userId);
     const role = activeRole ?? user.defaultRole;
-    const mfaVerifiedAt = opts.mfaVerifiedAt !== undefined ? opts.mfaVerifiedAt : role === Role.OPERATOR ? this.now() : null;
+    const mfaVerifiedAt = opts.mfaVerifiedAt !== undefined ? opts.mfaVerifiedAt : needsMfa(role) ? this.now() : null;
     this.sessions.set(token, { id: `s-${++this.counter}`, userId, activeRole: role, mfaVerifiedAt });
   }
 
@@ -898,8 +902,8 @@ export class FakeIdentity {
       activeRole: s.activeRole,
       expiresAt: timestampFromDate(new Date(now + 7 * 24 * 3600_000)),
       idleExpiresAt: timestampFromDate(new Date(now + 30 * 60_000)),
-      // Как sessionProto в Go: второй фактор нужен сессии оператора; отметка — когда пройден.
-      mfaRequired: s.activeRole === Role.OPERATOR,
+      // Как sessionProto в Go: второй фактор нужен сессии оператора и администратора (needsMfa); отметка — когда пройден.
+      mfaRequired: needsMfa(s.activeRole),
       mfaVerifiedAt: s.mfaVerifiedAt ? timestampFromDate(s.mfaVerifiedAt) : undefined,
     });
   }
@@ -989,10 +993,10 @@ export class FakeIdentity {
       const sha = u.consentTextSha256 ?? "";
       if ((version === "") !== (sha === "")) throw codedError("invalid_request", Code.InvalidArgument);
       if (version !== "") consentProof(version, sha);
-      // seedTotpSecret в Go: только у оператора, base32 без «=» (регистр не важен), 16–64 байт.
+      // seedTotpSecret в Go: только у ролей с needsMfa (оператор, администратор), base32 без «=» (регистр не важен), 16–64 байт.
       const totp = u.totpSecretBase32 ?? "";
       if (totp !== "") {
-        if (!roles.includes(Role.OPERATOR) || !/^[A-Z2-7]+$/i.test(totp)) throw codedError("invalid_request", Code.InvalidArgument);
+        if (!roles.some(needsMfa) || !/^[A-Z2-7]+$/i.test(totp)) throw codedError("invalid_request", Code.InvalidArgument);
         const len = fromBase32(totp).length;
         if (len < 16 || len > 64) throw codedError("invalid_request", Code.InvalidArgument);
       }
@@ -1087,10 +1091,13 @@ export class FakeIdentity {
     throw codedError("session_invalid", Code.Unauthenticated);
   }
 
-  /** operatorSession в Go: сессия действует, активная роль — оператор, иначе mfa_not_required. Сессия — хранимая (её отметку меняют). */
+  /**
+   * operatorSession в Go: сессия действует, активной роли нужен второй фактор (needsMfa: оператор, администратор), иначе
+   * mfa_not_required. Сессия — хранимая (её отметку меняют).
+   */
   private async operatorSession(token: string): Promise<{ user: User; session: StoredSession }> {
     const found = await this.lookup(token);
-    if (this.effective(found.user, found.session).activeRole !== Role.OPERATOR) throw codedError("mfa_not_required", Code.FailedPrecondition);
+    if (!needsMfa(this.effective(found.user, found.session).activeRole)) throw codedError("mfa_not_required", Code.FailedPrecondition);
     return found;
   }
 
@@ -1764,7 +1771,7 @@ export class FakeIdentity {
         let actorRole = Role.UNSPECIFIED;
         if (req.actorSessionToken) {
           const { session } = await this.sessionOf(req.actorSessionToken);
-          if (session.activeRole === Role.OPERATOR && !session.mfaVerifiedAt) throw codedError("mfa_required", Code.PermissionDenied);
+          if (needsMfa(session.activeRole) && !session.mfaVerifiedAt) throw codedError("mfa_required", Code.PermissionDenied);
           actorRole = session.activeRole;
         }
         const parties: PartyDetails[] = [];

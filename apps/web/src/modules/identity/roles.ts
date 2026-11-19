@@ -19,8 +19,11 @@ export function activeRoleOf(granted: readonly Role[], defaultRole: Role, sessio
   return sessionRole !== null && granted.includes(sessionRole) ? sessionRole : defaultRole;
 }
 
-/** Сотрудники площадки (оператор, замерщик — ADR-004, ADR-005): роль не совмещается с другими. */
-export const STAFF_ROLES = ["OPERATOR", "MEASURER"] as const satisfies readonly Role[];
+/**
+ * Сотрудники площадки (оператор, замерщик — ADR-004, ADR-005; администратор — ADR-014, дополнение 20.11.2026): роль не
+ * совмещается с другими, шаги согласия, знакомства и почты их не касаются.
+ */
+export const STAFF_ROLES = ["OPERATOR", "MEASURER", "ADMIN"] as const satisfies readonly Role[];
 export const isStaffRole = (role: Role): boolean => (STAFF_ROLES as readonly Role[]).includes(role);
 
 /** Можно ли выдать роль: ещё не выдана, и сотрудник площадки не совмещает роль с другими. */

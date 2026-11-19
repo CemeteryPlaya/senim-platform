@@ -2,11 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { confirmTotpEnrollment, requireMfaUser, verifySecondFactor } from "@/modules/identity";
+import { confirmTotpEnrollment, requireMfaUser, verifySecondFactor, type CurrentUser } from "@/modules/identity";
 import { action } from "@/platform/action";
 import { AppError } from "@/platform/errors";
-import { safeNext } from "../../../_shell/auth";
-import { to } from "../../../_shell/paths";
+import { homeFor, safeNext } from "../../../_shell/auth";
 
 /**
  * Код проверяет identity (формат — modules/identity/mfa.ts: шесть цифр, пробелы убираются); здесь — только длина полей до
@@ -26,25 +25,26 @@ async function atCodeField(run: () => Promise<void>): Promise<void> {
   }
 }
 
-/** Куда после второго шага: `next` (путь v2) или главная оператора. */
-const afterMfa = (next: string | undefined): string => safeNext(next) ?? to("/operator");
+/** Куда после второго шага: `next` (путь v2) или дом человека — главная оператора, админка (`homeFor`). */
+const afterMfa = (user: CurrentUser, next: string | undefined): string => safeNext(next) ?? homeFor(user);
 
 /**
  * Подключение приложения-аутентификатора: первый верный код подключает его и проходит второй шаг этой сессии — дальше
- * `next` или главная оператора. Вход — `requireMfaUser` (сессия оператора, второй шаг ещё не пройден — это и есть экран).
+ * `next` или дом. Вход — `requireMfaUser` (сессия оператора или администратора, второй шаг ещё не пройден — это и есть
+ * экран).
  */
 export const confirmEnrollmentAction = action("app.operator.confirmTotpEnrollment", codeInput, async ({ code, next }) => {
   const user = await requireMfaUser();
   await atCodeField(() => confirmTotpEnrollment(user, code));
-  redirect(afterMfa(next));
+  redirect(afterMfa(user, next));
 });
 
 /**
- * Код из приложения: второй шаг входа (с `next` — переход туда, без него на экране входа — на главную оператора) или
- * повторный код перед действием с деньгами (протокол формы `useOperatorForm`: без `next`, форма сама повторяет действие).
+ * Код из приложения: второй шаг входа (с `next` — переход туда, пустой или чужой `next` — домой: главная оператора,
+ * админка) или повторный код перед действием с деньгами (протокол формы `useOperatorForm`: без `next`, форма сама повторяет действие).
  */
 export const verifySecondFactorAction = action("app.operator.verifySecondFactor", codeInput, async ({ code, next }) => {
   const user = await requireMfaUser();
   await atCodeField(() => verifySecondFactor(user, code));
-  if (next !== undefined) redirect(afterMfa(next));
+  if (next !== undefined) redirect(afterMfa(user, next));
 });

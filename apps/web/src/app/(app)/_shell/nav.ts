@@ -30,7 +30,9 @@ export type NavIcon =
   | "audit"
   | "types"
   | "materials"
-  | "settings";
+  | "settings"
+  | "stats"
+  | "data";
 
 export type NavItem = { href: string; label: string; icon: NavIcon };
 
@@ -94,6 +96,9 @@ const R = {
   company: { href: to("/executor/profile"), label: t.company, icon: "company" },
   portfolio: { href: to("/executor/portfolio"), label: t.portfolio, icon: "portfolio" },
   measurements: { href: to("/measurer"), label: t.measurements, icon: "measurements" },
+  /** Админка (спека админки): статистика платформы и данные базы web. */
+  stats: { href: to("/admin"), label: t.stats, icon: "stats" },
+  data: { href: to("/admin/data"), label: t.data, icon: "data" },
 } as const satisfies Record<string, NavItem>;
 
 const op = ru.app.operator.nav;
@@ -170,6 +175,9 @@ function roleTabs(user: NavUser): NavItem[] {
     case "OPERATOR":
       // Вкладок нет: разделы оператора — меню слева по группам (компьютер) и «Меню» шторкой (телефон), см. operatorNav.
       return [];
+    case "ADMIN":
+      // Администратор: статистика (его дом), данные базы и профиль. Ни «Заказать мебель», ни меню оператора.
+      return [R.stats, R.data, R.profile];
   }
 }
 

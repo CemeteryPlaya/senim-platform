@@ -14,6 +14,7 @@ export const profile = {
     EXECUTOR: "мастер",
     OPERATOR: "оператор",
     MEASURER: "замерщик",
+    ADMIN: "администратор",
   },
   /** Имя списка разделов для диктора. */
   sectionsLabel: "Разделы профиля",

@@ -32,8 +32,8 @@ export default async function V2Home() {
       if (masterStatusOf(current) !== "approved") redirect(homeFor(current));
       return <MasterHome user={current} status="approved" device={await getDevice()} />;
     }
-    // Дом оператора — его главная (меню разделов слева); название продукта в его оболочке ведёт туда же.
-    if (current.role === "OPERATOR") redirect(homeFor(current));
+    // Дом оператора — его главная (меню разделов слева), администратора — админка; название продукта ведёт туда же.
+    if (current.role === "OPERATOR" || current.role === "ADMIN") redirect(homeFor(current));
     return <SignedInHome />;
   }
   return <GuestHome device={await getDevice()} />;
