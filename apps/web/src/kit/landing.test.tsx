@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PhoneFrame } from "./PhoneFrame";
 import { count, hasClass, html } from "./test-utils";
+import { TOP_BAR_FADE_MS, TOP_BAR_GLASS_FROM_REM, topBarFade, topBarTarget } from "./top-bar-logic";
 import { TrustCapsule } from "./TrustCapsule";
 
 // Утилиты лендинга (landing.css): затемнение первого экрана держит белый текст ≥ 4,5:1 по самому светлому (белому)
@@ -72,44 +73,91 @@ describe("landing.css: контраст белого текста на фото"
     expect(css).toMatch(/--text-hero-mobile: min\(2\.25rem, 11vw\);/);
   });
 
-  it("шапка над первым экраном прозрачна только в самом верху и только там, где есть анимация по прокрутке; не при уменьшении прозрачности и увеличении контраста", () => {
-    const block = css.slice(css.indexOf("@supports (animation-timeline: scroll())"));
-    expect(block).toMatch(/@media not \(\(prefers-reduced-transparency: reduce\) or \(prefers-contrast: more\)\)/);
-    expect(block).toMatch(/\[data-hero\]\) \[data-top-bar\][\s\S]*animation-range: 0 1rem/);
+  /** Правило шапки над фото: `:root[data-device="desktop"]:has([data-hero]) [data-top-bar] { … }` (первое, без вложений). */
+  const topBarRule = (): string => /\[data-hero\]\) \[data-top-bar\] \{([^{}]*)\}/.exec(css)?.[1] ?? "";
+
+  it("цвета текста шапки над фото — обычные объявления от --top-bar-p, а не анимация: Chrome рисует посещённые ссылки цветом без анимированных переменных", () => {
+    // Корень (стенд, Chrome 157): ссылки шапки («Сенім», разделы, «Войти») после посещения — :visited. Цвет посещённой
+    // ссылки Chrome берёт из своего «посещённого» цвета, который не пересчитывается от переменных (--role-ink и др.),
+    // заданных анимацией (keyframes) или переходом. Фон шапки из той же анимации прозрачный, а посещённые ссылки
+    // оставались тёмными (--role-ink) на тёмном фото; getComputedStyle при этом отвечает «белый» (защита истории), поэтому
+    // прошлые проверки этого не видели. Значит, переменные текста шапки задаются только обычными объявлениями.
+    const textRoles = ["--role-ink", "--glass-secondary", "--role-fill", "--role-fill-strong", "--role-focus", "--focus-halo"];
+    for (const [, name, body] of css.matchAll(/@keyframes ([\w-]+) \{([\s\S]*?)\n\}/g)) {
+      for (const role of textRoles) expect(body, `@keyframes ${name} задаёт ${role}`).not.toContain(`${role}:`);
+    }
+    for (const [, body] of css.matchAll(/\[data-top-bar\][^{]*\{([^{}]*)\}/g)) {
+      expect(body).not.toMatch(/animation|transition/);
+    }
+    const rule = topBarRule();
+    expect(rule).toMatch(/--top-bar-p: 0;/);
+    expect(rule).toMatch(/--role-ink: color-mix\(in srgb, var\(--top-bar-ink\) calc\(var\(--top-bar-p\) \* 100%\), var\(--role-on-photo\)\);/);
+    expect(rule).toMatch(/--glass-secondary: color-mix\(in srgb, var\(--top-bar-secondary\) calc\(var\(--top-bar-p\) \* 100%\), var\(--role-on-photo\)\);/);
+    expect(rule).toMatch(/background-color: color-mix\(in srgb, var\(--glass-tint\) calc\(var\(--glass-alpha\) \* var\(--top-bar-p\)\), transparent\);/);
+    expect(rule).toMatch(/\bbackdrop-filter: blur\(calc\(var\(--glass-blur\) \* var\(--top-bar-p\)\)\)/);
+    // Цвета темы берутся у оболочки — выше шапки, где роли ещё не переопределены.
+    expect(css).toMatch(/\[data-hero\]\) \[data-desktop-shell\] \{\s*--top-bar-ink: var\(--role-ink\);\s*--top-bar-secondary: var\(--glass-secondary\);/);
+  });
+
+  it("шапка над первым экраном прозрачна только в самом верху; не при уменьшении прозрачности и увеличении контраста; без скриптов — стекло", () => {
+    const block = css.slice(css.indexOf("@media not ((prefers-reduced-transparency: reduce) or (prefers-contrast: more))"));
+    expect(block).toMatch(/^@media not \(\(prefers-reduced-transparency: reduce\) or \(prefers-contrast: more\)\) \{\s*:root\[data-device="desktop"\]:has\(\[data-hero\]\) \[data-top-bar\] \{/);
+    expect(block).toMatch(/@media \(scripting: none\) \{\s*:root\[data-device="desktop"\]:has\(\[data-hero\]\) \[data-top-bar\] \{\s*--top-bar-p: 1;/);
     // Белый текст шапки стоит на верхней полосе затемнения — она того же уровня, что колонка текста.
     expect(css).toMatch(/to bottom,\s*color-mix\(in srgb, var\(--role-scrim\) var\(--hero-scrim-zone\)/);
   });
 
-  it("шапка над первым экраном в светлой теме: на любой прокрутке 0–1rem текст ≥ 4,5:1 — фон и цвет текста меняются одним шагом", () => {
-    // Анимация по прокрутке: цвет текста (свойства-переменные) переключается дискретно — на половине прогресса, а фон
-    // (стекло glass-bar) при плавной функции растёт постепенно. Тогда на прокрутке в несколько пикселей белый текст стоит
-    // на полупрозрачном белом стекле (≈ 2,4:1), а тёмный сразу после переключения — на полупрозрачном стекле над тёмным
-    // фото (≈ 2,9:1). Поэтому функция — ступень в конце диапазона: до 1rem шапка прозрачна с белым текстом, с 1rem — стекло
-    // с тёмным; промежуточного вида нет.
-    const rule = /\[data-hero\]\) \[data-top-bar\] \{\s*animation: top-bar-over-photo ([^;]+);/.exec(css);
-    expect(rule).not.toBeNull();
-    const timing = (rule?.[1] ?? "").split(/\s+/).filter((part) => part !== "top-bar-over-photo" && part !== "both")[0];
-    /** Выход функции времени для прогресса прокрутки `t` (0–1): поддержаны ступень в конце и линейная. */
-    const progress = (t: number): number => {
-      if (timing === "step-end" || timing === "steps(1,end)" || timing === "steps(1, end)") return t < 1 ? 0 : 1;
-      if (timing === "linear") return t;
-      throw new Error(`неожиданная функция времени шапки: ${timing}`);
-    };
+  describe("шапка над первым экраном в светлой теме: контраст на переходе", () => {
     const glass = percent(tokens, "glass-alpha"); // светлая тема: белое стекло
     const dim = stacked(base, zone); // верхняя полоса затемнения под шапкой
-    const ink = linear(0x1d / 255) * 0.2126 + linear(0x1c / 255) * 0.7152 + linear(0x1a / 255) * 0.0722; // --role-ink светлой темы
-    for (let step = 0; step < 16; step += 1) {
-      const p = progress(step / 16);
-      const g = glass * p;
-      if (p < 0.5) {
-        // Белый текст; худший фон — самое светлое (белое) фото под затемнением и стеклом.
-        const bg = (1 - dim) * (1 - g) + g;
-        expect(1.05 / (linear(bg) + 0.05), `прокрутка ${step}px, белый текст`).toBeGreaterThanOrEqual(4.5);
-      } else {
-        // Тёмный текст; худший фон — самое тёмное (чёрное) фото под стеклом.
-        expect((linear(g) + 0.05) / (ink + 0.05), `прокрутка ${step}px, тёмный текст`).toBeGreaterThanOrEqual(4.5);
+    type Rgb = readonly [number, number, number];
+    const rgb = (hex: number): Rgb => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
+    const L = ([r, g, b]: Rgb) => 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+    const ratio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    /**
+     * Худший контраст текста `target` (смешан с белым: color-mix … calc(p * 100%)) на шапке с прогрессом `p` — по всем
+     * фото от чёрного до белого под затемнением; стекло — белое с непрозрачностью glass-alpha · p (смешение в sRGB).
+     */
+    const worst = (p: number, target: number) => {
+      const [r, g, b] = rgb(target);
+      const text = L([1 - p + r * p, 1 - p + g * p, 1 - p + b * p]);
+      let min = Infinity;
+      for (let photo = 0; photo <= 1; photo += 0.01) {
+        const v = glass * p + (1 - glass * p) * photo * (1 - dim);
+        min = Math.min(min, ratio(text, L([v, v, v])));
       }
-    }
+      return min;
+    };
+    const ink = 0x1d1c1a; // --role-ink светлой темы
+    const secondary = 0x4a4844; // --glass-secondary светлой темы
+
+    it("в покое — только два вида, оба ≥ 4,5:1: прозрачная с белым текстом (прокрутка < 1rem) и стекло с тёмным", () => {
+      expect(topBarTarget(0, 16)).toBe(0);
+      expect(topBarTarget(15.9, 16)).toBe(0);
+      expect(topBarTarget(16, 16)).toBe(1);
+      expect(TOP_BAR_GLASS_FROM_REM).toBe(1);
+      for (const target of [ink, secondary]) {
+        expect(worst(0, target)).toBeGreaterThanOrEqual(4.5);
+        expect(worst(1, target)).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+
+    it("переход плавный (не ступенькой), а промежуточный вид ниже 4,5:1 длится не дольше 0,1 с (Ruling: середина плавности)", () => {
+      // Фон и текст меняются вместе (одна переменная). Белый текст держит 4,5:1 только на почти прозрачной шапке, тёмный —
+      // только на почти плотном стекле; между ними по худшему фото контраст неизбежно ниже. Переход идёт по времени, а
+      // не по прокрутке, — в покое такого вида не бывает; кривая проходит середину быстрее краёв.
+      const samples = Array.from({ length: TOP_BAR_FADE_MS + 1 }, (_, ms) => topBarFade(0, 1, ms, false));
+      expect(new Set(samples.map((p) => p.toFixed(2))).size).toBeGreaterThan(50);
+      for (const target of [ink, secondary]) {
+        const low = samples.filter((p) => worst(p, target) < 4.5).length;
+        expect(low).toBeLessThanOrEqual(100);
+      }
+    });
+
+    it("меньше движения — сразу, без промежуточного вида", () => {
+      expect(topBarFade(0, 1, 0, true)).toBe(1);
+      expect(topBarFade(1, 0, 50, true)).toBe(0);
+    });
   });
 
   it("на всю ширину — без 100vw и без обрезки корня: узкое окно компьютера прокручивается вбок", () => {
@@ -126,9 +174,10 @@ describe("landing.css: контраст белого текста на фото"
 
   it("кольцо фокуса на фото и в прозрачной шапке — двойное: светлое снаружи, тёмное внутри", () => {
     expect(css).toMatch(/\[data-hero\] :focus-visible \{\s*outline-color: var\(--role-on-photo\);\s*box-shadow: 0 0 0 2px var\(--role-scrim\);/);
-    const frames = css.slice(css.indexOf("@keyframes top-bar-over-photo"));
-    expect(frames).toMatch(/--role-focus: var\(--role-on-photo\);[\s\S]*--focus-halo: var\(--role-scrim\);/);
-    expect(frames).toMatch(/\[data-top-bar\] :focus-visible \{\s*box-shadow: 0 0 0 2px var\(--focus-halo, transparent\);/);
+    const rule = topBarRule();
+    expect(rule).toMatch(/--role-focus: color-mix\(in srgb, var\(--top-bar-focus\) calc\(var\(--top-bar-p\) \* 100%\), var\(--role-on-photo\)\);/);
+    expect(rule).toMatch(/--focus-halo: color-mix\(in srgb, var\(--role-scrim\) calc\(\(1 - var\(--top-bar-p\)\) \* 100%\), transparent\);/);
+    expect(css).toMatch(/\[data-top-bar\] :focus-visible \{\s*box-shadow: 0 0 0 2px var\(--focus-halo, transparent\);/);
   });
 
   it("белые роли прозрачной шапки не достают меню и поповеры: они рендерятся в портал вне шапки; первый экран — только у главной гостя", () => {
@@ -140,7 +189,9 @@ describe("landing.css: контраст белого текста на фото"
     // Переопределение — только у [data-top-bar] на странице с [data-hero]; [data-hero] ставит только лендинг гостя.
     const home = read("../app/(app)/v2/_home/GuestLanding.tsx");
     expect(home).toContain("data-hero");
-    expect(css.match(/\[data-top-bar\]/g)?.length).toBe(2);
+    const bars = [...css.matchAll(/([^{}]*)\[data-top-bar\]/g)].map((m) => (m[1] ?? "").trim());
+    expect(bars.length).toBeGreaterThan(0);
+    for (const prefix of bars) expect(prefix.endsWith(':root[data-device="desktop"]:has([data-hero])')).toBe(true);
   });
 
   it("в landing.css нет сырых цветов — только роли", () => {

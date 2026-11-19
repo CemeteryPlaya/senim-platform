@@ -4,7 +4,7 @@ import { ArrowDown, ArrowRight, ChevronDown, ChevronRight, Hammer, HandCoins, La
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
 import { computeDealMoney } from "@/modules/payments";
-import { ButtonLink, Explain, Money, PhoneFrame, TextLink, TrustCapsule } from "@/kit";
+import { ButtonLink, Explain, Money, PhoneFrame, TextLink, TopBarOverPhoto, TrustCapsule } from "@/kit";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { ABOUT_ANCHORS } from "../about/anchors";
@@ -32,6 +32,8 @@ const captionOf = (photo: HeroPhoto) => (photo.temporary ? t.photoCaption.tempor
 export function DesktopHero({ photo }: { photo: HeroPhoto }) {
   return (
     <section data-hero className="hero-fold relative isolate flex w-full flex-col justify-end overflow-hidden bg-photo-fallback">
+      {/* Шапка над фото: прозрачная с белым текстом вверху, стекло с 1rem прокрутки (landing.css). */}
+      <TopBarOverPhoto />
       <Image src={photo.src} alt={photo.alt} fill preload sizes="100vw" className="object-cover" />
       <div aria-hidden className="scrim-hero" />
       <div aria-hidden className="hero-fade" />

@@ -195,38 +195,49 @@
 
 /*
  * Шапка компьютера над первым экраном лендинга (разбор 3.8): в самом верху страницы — прозрачная, с белым текстом поверх
- * затемнённого фото (верхняя полоса scrim-hero); с первых пикселей прокрутки — обычное стекло glass-bar с тёмным
- * текстом. Переключение — анимацией по прокрутке корня (как «растворение» glass-bar), поэтому разметка оболочки не
- * меняется. Цвета текста шапки — роли ink, glass-secondary, fill и focus внутри неё. Функция времени — ступень в конце
- * диапазона 0–1rem (step-end): фон, размытие и цвет текста меняются одним шагом. При плавной (linear) функции
- * переменные текста переключались бы на середине, а фон и размытие росли бы постепенно: на прокрутке в несколько
- * пикселей белый текст стоял на полупрозрачном белом стекле (светлая тема, ≈ 2,4:1), а тёмный сразу после переключения —
- * на полупрозрачном стекле над тёмным фото (landing.test.tsx). Пока прокрутка меньше 1rem, шапка ещё целиком над верхней
- * полосой затемнения (высота шапки + 1rem), белый текст держит ≥ 4,5:1. Меню и поповеры из шапки рендерятся в портал (body), вне шапки, — переопределение их не
- * касается (landing.test.tsx); первый экран [data-hero] есть только у главной гостя, где меню аватара нет. Без animation-timeline (Firefox, старый Safari), при уменьшении прозрачности и при увеличении
- * контраста — обычная шапка со стеклом всегда: белый текст на прозрачной шапке без прокрутки к фото не привязан.
+ * затемнённого фото (верхняя полоса scrim-hero); с 1rem прокрутки — обычное стекло glass-bar с тёмным текстом (в тёмной
+ * теме текст светлый в обоих видах). Вид задаёт одна переменная --top-bar-p (0 — над фото, 1 — стекло): её ставит
+ * TopBarOverPhoto (kit) в атрибут style шапки и меняет плавно за 150 мс (при меньшем движении — сразу). От неё вместе
+ * растут стекло (тон, размытие) и смешение ролей текста шапки — ink, glass-secondary, fill и focus — от белого (на фото)
+ * к цветам темы; цвета темы берутся у оболочки, выше шапки, где роли ещё не переопределены.
+ *
+ * Только обычные объявления — без анимаций и переходов переменных (landing.test.tsx): ссылки шапки после посещения —
+ * :visited, и Chrome рисует их своим «посещённым» цветом, который не пересчитывается от переменных, заданных анимацией;
+ * прошлая анимация по прокрутке (keyframes с --role-ink) делала фон прозрачным, а посещённые ссылки оставались тёмными на
+ * тёмном фото. В покое шапка всегда в одном из двух видов ≥ 4,5:1; ниже — только середина перехода (≈ 0,1 с).
+ *
+ * Пока скрипт не запущен — вид над фото (страница открывается сверху); без скриптов вовсе — стекло. При уменьшении
+ * прозрачности и увеличении контраста — обычная шапка glass-bar (сплошная, тёмный текст) всегда. Меню и поповеры из шапки
+ * рендерятся в портал (body), вне шапки, — переопределение их не касается (landing.test.tsx); первый экран [data-hero]
+ * есть только у главной гостя, где меню аватара нет.
  */
-@supports (animation-timeline: scroll()) {
-  @media not ((prefers-reduced-transparency: reduce) or (prefers-contrast: more)) {
-    :root[data-device="desktop"]:has([data-hero]) [data-top-bar] {
-      animation: top-bar-over-photo step-end both;
-      animation-timeline: scroll(root);
-      animation-range: 0 1rem;
-    }
-  }
+:root[data-device="desktop"]:has([data-hero]) [data-desktop-shell] {
+  --top-bar-ink: var(--role-ink);
+  --top-bar-secondary: var(--glass-secondary);
+  --top-bar-fill: var(--role-fill);
+  --top-bar-fill-strong: var(--role-fill-strong);
+  --top-bar-focus: var(--role-focus);
 }
 
-@keyframes top-bar-over-photo {
-  from {
-    background-color: transparent;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    --role-ink: var(--role-on-photo);
-    --glass-secondary: var(--role-on-photo);
-    --role-fill: color-mix(in srgb, var(--role-scrim) 25%, transparent); /* «Войти» темнее фото: белый текст не теряет контраст */
-    --role-fill-strong: color-mix(in srgb, var(--role-scrim) 35%, transparent);
-    --role-focus: var(--role-on-photo);
-    --focus-halo: var(--role-scrim);
+@media not ((prefers-reduced-transparency: reduce) or (prefers-contrast: more)) {
+  :root[data-device="desktop"]:has([data-hero]) [data-top-bar] {
+    --top-bar-p: 0;
+    background-color: color-mix(in srgb, var(--glass-tint) calc(var(--glass-alpha) * var(--top-bar-p)), transparent);
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) * var(--top-bar-p))) saturate(calc(100% + (var(--glass-saturate) - 100%) * var(--top-bar-p)));
+    backdrop-filter: blur(calc(var(--glass-blur) * var(--top-bar-p))) saturate(calc(100% + (var(--glass-saturate) - 100%) * var(--top-bar-p)));
+    --role-ink: color-mix(in srgb, var(--top-bar-ink) calc(var(--top-bar-p) * 100%), var(--role-on-photo));
+    --glass-secondary: color-mix(in srgb, var(--top-bar-secondary) calc(var(--top-bar-p) * 100%), var(--role-on-photo));
+    /* «Войти» над фото темнее фото: белый текст не теряет контраст. */
+    --role-fill: color-mix(in srgb, var(--top-bar-fill) calc(var(--top-bar-p) * 100%), color-mix(in srgb, var(--role-scrim) 25%, transparent));
+    --role-fill-strong: color-mix(in srgb, var(--top-bar-fill-strong) calc(var(--top-bar-p) * 100%), color-mix(in srgb, var(--role-scrim) 35%, transparent));
+    --role-focus: color-mix(in srgb, var(--top-bar-focus) calc(var(--top-bar-p) * 100%), var(--role-on-photo));
+    --focus-halo: color-mix(in srgb, var(--role-scrim) calc((1 - var(--top-bar-p)) * 100%), transparent);
+  }
+
+  @media (scripting: none) {
+    :root[data-device="desktop"]:has([data-hero]) [data-top-bar] {
+      --top-bar-p: 1;
+    }
   }
 }
 
