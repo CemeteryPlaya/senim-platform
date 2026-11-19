@@ -198,6 +198,42 @@ func TestSeedRespectsStaffCheck(t *testing.T) {
 	}
 }
 
+// Администратор стенда — тоже сотрудник: с другой ролью сид отклоняется; один — с секретом
+// TOTP проходит, вход требует второго фактора, код по секрету сида принимается.
+func TestSeedAdmin(t *testing.T) {
+	h := newHarness(t, nil)
+	roleAdmin := identityv1.Role_ROLE_ADMIN
+	mixed := newPhone()
+	for _, u := range []*identityv1.SeedUser{seedUser(mixed, roleAdmin, roleAdmin, roleClient), seedUser(mixed, roleClient, roleClient, roleAdmin)} {
+		_, err := h.seed(u)
+		h.wantRefusal(err, connect.CodeInvalidArgument, "invalid_request")
+	}
+	if n := h.count(`SELECT count(*) FROM users WHERE phone = $1`, mixed); n != 0 {
+		t.Fatalf("пользователь создан: %d", n)
+	}
+
+	phone := newPhone()
+	admin := seedUser(phone, roleAdmin, roleAdmin)
+	admin.TotpSecretBase32 = b32.EncodeToString(testTotpSecret)
+	res, err := h.seed(admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.GetUsers()[0]; got.GetDefaultRole() != roleAdmin || len(got.GetRoles()) != 1 || got.GetRoles()[0] != roleAdmin {
+		t.Fatalf("администратор сида: %v", got)
+	}
+	if f, ok := h.factor(res.GetUsers()[0].GetId()); !ok || !f.ConfirmedAt.Valid {
+		t.Fatalf("фактор сида: %+v %v", f, ok)
+	}
+	token, login := h.login(phone)
+	if s := login.GetSession(); !s.GetMfaRequired() || s.GetMfaVerifiedAt() != nil || s.GetActiveRole() != roleAdmin {
+		t.Fatalf("администратор стенда вошёл без второго фактора: %v", s)
+	}
+	if _, err := h.verify2FA(token, h.codeNow(testTotpSecret), h.key()); err != nil {
+		t.Fatalf("код по секрету сида: %v", err)
+	}
+}
+
 func TestSeedUsersValidation(t *testing.T) {
 	h := newHarness(t, nil)
 	ph := newPhone()

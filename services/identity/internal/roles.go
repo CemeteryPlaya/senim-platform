@@ -133,8 +133,9 @@ func (s *Service) SwitchRole(ctx context.Context, req *identityv1.SwitchRoleRequ
 	return resp, nil
 }
 
-// GrantRole выдаёт себе роль CLIENT или EXECUTOR. Сотрудник (оператор, замерщик) не
-// совмещает роли, а роли сотрудников не выдаются никому. Уже выданная роль — granted=false
+// GrantRole выдаёт себе роль CLIENT или EXECUTOR. Сотрудник (оператор, замерщик,
+// администратор) не совмещает роли, а роли сотрудников не выдаются никому (администратора
+// делает только identity grant-admin). Уже выданная роль — granted=false
 // без события. Роль по умолчанию и активная роль не меняются.
 func (s *Service) GrantRole(ctx context.Context, req *identityv1.GrantRoleRequest) (*identityv1.GrantRoleResponse, error) {
 	if err := requireCaller(ctx, webCaller); err != nil {

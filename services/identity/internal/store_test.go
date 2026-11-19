@@ -134,9 +134,28 @@ func TestDBMeasurerCannotBeClient(t *testing.T) {
 	requireCheckViolation(t, err, "users_staff_role_alone")
 }
 
+// Администратор — сотрудник: роль известна, но не совмещается ни с какой другой (0013).
+func TestDBAdminIsAlone(t *testing.T) {
+	pool, q := migratedDB(t)
+	admin, err := createUser(q, []string{"ADMIN"}, "ADMIN")
+	if err != nil {
+		t.Fatalf("admin alone: %v", err)
+	}
+	_, err = createUser(q, []string{"ADMIN", "CLIENT"}, "ADMIN")
+	requireCheckViolation(t, err, "users_staff_role_alone")
+	_, err = createUser(q, []string{"CLIENT", "ADMIN"}, "CLIENT")
+	requireCheckViolation(t, err, "users_staff_role_alone")
+	_, err = createUser(q, []string{"OPERATOR", "ADMIN"}, "OPERATOR")
+	requireCheckViolation(t, err, "users_staff_role_alone")
+	if _, err := pool.Exec(context.Background(), `INSERT INTO sessions (token_hash, user_id, active_role, expires_at, opened_by)
+		VALUES ($1, $2, 'ADMIN', now() + interval '1 hour', 'otp')`, []byte(newToken(t)), admin.ID); err != nil {
+		t.Fatalf("сессия администратора: %v", err)
+	}
+}
+
 func TestDBRolesAreKnown(t *testing.T) {
 	_, q := migratedDB(t)
-	_, err := createUser(q, []string{"CLIENT", "ADMIN"}, "CLIENT")
+	_, err := createUser(q, []string{"CLIENT", "SUPERUSER"}, "CLIENT")
 	requireCheckViolation(t, err, "users_roles_known")
 	_, err = createUser(q, []string{}, "CLIENT")
 	var pgErr *pgconn.PgError

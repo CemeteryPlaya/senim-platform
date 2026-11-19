@@ -301,7 +301,7 @@ func validateSeed(users []*identityv1.SeedUser) ([]seedRow, error) {
 		if !ok || !slices.Contains(roles, def) {
 			return nil, invalidRequest()
 		}
-		if (slices.Contains(roles, "OPERATOR") || slices.Contains(roles, "MEASURER")) && len(roles) != 1 {
+		if isStaff(roles) && len(roles) != 1 {
 			return nil, invalidRequest()
 		}
 		row := seedRow{phone: phone, defaultRole: def, roles: roles}
@@ -337,11 +337,11 @@ const (
 	maxSeedTotpSecret = 64
 )
 
-// seedTotpSecret разбирает секрет TOTP сида: только у оператора (оператор не совмещается с
-// другими ролями — проверено раньше), base32 без «=» (как отдаёт StartTotpEnrollment; регистр
-// не важен), 16–64 байт.
+// seedTotpSecret разбирает секрет TOTP сида: только у роли со вторым фактором (needsMfa:
+// оператор, администратор; сотрудник не совмещается с другими ролями — проверено раньше),
+// base32 без «=» (как отдаёт StartTotpEnrollment; регистр не важен), 16–64 байт.
 func seedTotpSecret(raw string, roles []string) ([]byte, bool) {
-	if !slices.Contains(roles, mfaRole) {
+	if !slices.ContainsFunc(roles, needsMfa) {
 		return nil, false
 	}
 	secret, err := totpBase32.DecodeString(strings.ToUpper(raw))
@@ -351,8 +351,8 @@ func seedTotpSecret(raw string, roles []string) ([]byte, bool) {
 	return secret, true
 }
 
-// seedMfaFactor подключает оператору стенда второй фактор известным секретом: шифртекст тем
-// же ключом и AAD, что у StartTotpEnrollment, фактор сразу подтверждён (как после
+// seedMfaFactor подключает оператору или администратору стенда второй фактор известным
+// секретом: шифртекст тем же ключом и AAD, что у StartTotpEnrollment, фактор сразу подтверждён (как после
 // ConfirmTotpEnrollment). Отметки второго фактора в сессиях пользователя снимаются — как при
 // mfa-reset: прежний секрет больше не действует.
 func (s *Service) seedMfaFactor(ctx context.Context, q *store.Queries, userID uuid.UUID, secret []byte, now pgtype.Timestamptz) error {
@@ -372,8 +372,8 @@ func (s *Service) seedMfaFactor(ctx context.Context, q *store.Queries, userID uu
 // блокировка снимается; id остаётся прежним. Личность (full_name, iin, instagram, email)
 // пишется, если задано хотя бы одно поле; сторона (party) — целиком, со счётом выплаты и
 // состоянием KYC; согласие на обработку ПДн (consent_version и consent_text_sha256) —
-// действующая запись канала seed, если такой версии ещё нет; секрет TOTP оператора
-// (totp_secret_base32) — подключённый второй фактор. Ответ — в порядке запроса.
+// действующая запись канала seed, если такой версии ещё нет; секрет TOTP оператора или
+// администратора (totp_secret_base32) — подключённый второй фактор. Ответ — в порядке запроса.
 // Телефон человека, созданного не сидом (seeded = false), — весь сид отклоняется
 // (invalid_request): сид не перезаписывает настоящих людей, и сброс стенда их не трогает.
 //

@@ -413,6 +413,31 @@ func TestGrantRoleStaffForbidden(t *testing.T) {
 	h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
 }
 
+// Роль администратора GrantRole не выдаёт никому (только identity grant-admin), а сам
+// администратор — сотрудник: ему не выдаются и роли клиента и исполнителя.
+func TestGrantRoleAdminForbidden(t *testing.T) {
+	h := newHarness(t, nil)
+	client := h.user([]string{"CLIENT"}, "CLIENT")
+	admin := h.user([]string{"ADMIN"}, "ADMIN")
+	_, err := h.grantRole(h.session(client), identityv1.Role_ROLE_ADMIN, h.key())
+	h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
+	adminToken := h.session(admin)
+	for _, r := range []identityv1.Role{identityv1.Role_ROLE_ADMIN, roleClient, roleExecutor} {
+		_, err = h.grantRole(adminToken, r, h.key())
+		h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
+	}
+	if len(h.grants(client.ID.String())) != 0 || len(h.grants(admin.ID.String())) != 0 {
+		t.Fatal("отказ оставил событие")
+	}
+	var roles []string
+	if err := h.pool.QueryRow(context.Background(), `SELECT roles FROM users WHERE id = $1`, client.ID).Scan(&roles); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(roles) != "[CLIENT]" {
+		t.Fatalf("roles = %v", roles)
+	}
+}
+
 func TestGrantRoleArgumentsAndSession(t *testing.T) {
 	h := newHarness(t, nil)
 	token := h.session(h.user([]string{"CLIENT"}, "CLIENT"))
@@ -443,7 +468,7 @@ func TestSessionsRejectUnknownRole(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = pool.Exec(context.Background(), `INSERT INTO sessions (token_hash, user_id, active_role, expires_at, opened_by)
-		VALUES ($1, $2, 'ADMIN', now() + interval '1 hour', 'otp')`, []byte(newToken(t)), u.ID)
+		VALUES ($1, $2, 'SUPERUSER', now() + interval '1 hour', 'otp')`, []byte(newToken(t)), u.ID)
 	requireCheckViolation(t, err, "sessions_active_role_known")
 }
 

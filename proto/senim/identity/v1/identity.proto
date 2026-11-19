@@ -11,6 +11,9 @@ enum Role {
   ROLE_EXECUTOR = 2;
   ROLE_OPERATOR = 3;
   ROLE_MEASURER = 4;
+  // Администратор площадки: сотрудник с одной ролью, второй фактор обязателен; выдаётся
+  // только командой identity grant-admin (и сидом стенда).
+  ROLE_ADMIN = 5;
 }
 
 // LegalForm — правовая форма исполнителя.
@@ -94,7 +97,7 @@ message Session {
   Role active_role = 2;
   google.protobuf.Timestamp expires_at = 3;
   google.protobuf.Timestamp idle_expires_at = 4;
-  // Для сессии оператора нужен второй фактор (TOTP).
+  // Для сессии оператора и администратора нужен второй фактор (TOTP).
   bool mfa_required = 5;
   // Пусто, пока второй фактор в этой сессии не подтверждён.
   google.protobuf.Timestamp mfa_verified_at = 6;
@@ -234,10 +237,10 @@ message SeedUser {
   // Версия и хеш текста согласия на обработку ПДн; пусто — согласия нет.
   string consent_version = 11;
   string consent_text_sha256 = 12;
-  // Секрет TOTP оператора стенда: base32 (RFC 4648, без «=», как StartTotpEnrollmentResponse
-  // .secret_base32), 16–64 байт. Задан — второй фактор подключён этим секретом (вход
-  // оператора по-прежнему требует код); только у оператора, иначе invalid_request. Пусто —
-  // фактор не меняется.
+  // Секрет TOTP оператора или администратора стенда: base32 (RFC 4648, без «=», как
+  // StartTotpEnrollmentResponse.secret_base32), 16–64 байт. Задан — второй фактор подключён
+  // этим секретом (вход по-прежнему требует код); только у оператора или администратора,
+  // иначе invalid_request. Пусто — фактор не меняется.
   string totp_secret_base32 = 13;
 }
 
@@ -663,7 +666,7 @@ service IdentityService {
   // Чтение.
   rpc GetSigningKeys(GetSigningKeysRequest) returns (GetSigningKeysResponse);
 
-  // Второй фактор оператора (TOTP).
+  // Второй фактор оператора и администратора (TOTP).
   rpc StartTotpEnrollment(StartTotpEnrollmentRequest) returns (StartTotpEnrollmentResponse);
   rpc ConfirmTotpEnrollment(ConfirmTotpEnrollmentRequest) returns (ConfirmTotpEnrollmentResponse);
   rpc VerifySecondFactor(VerifySecondFactorRequest) returns (VerifySecondFactorResponse);

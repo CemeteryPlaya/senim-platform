@@ -559,3 +559,83 @@ func TestVerifySecondFactorReplayAfterLostResponse(t *testing.T) {
 	_, err = h.verify2FA(token, code, h.key())
 	h.wantRefusal(err, connect.CodeInvalidArgument, "mfa_code_reused")
 }
+
+// admin — пользователь-администратор и его сессия (вход по коду, без второго фактора).
+func (h *harness) admin() (store.User, string) {
+	h.t.Helper()
+	u := h.user([]string{"ADMIN"}, "ADMIN")
+	return u, h.session(u)
+}
+
+// Администратору второй фактор обязателен, как оператору: mfa_required в сессии, подключение
+// и проверка TOTP работают, аудит подключения — от имени администратора.
+func TestAdminSecondFactor(t *testing.T) {
+	h := newHarness(t, nil)
+	u, token := h.admin()
+	if s := h.mustAuth(token).GetSession(); !s.GetMfaRequired() || s.GetMfaVerifiedAt() != nil || s.GetActiveRole() != identityv1.Role_ROLE_ADMIN {
+		t.Fatalf("сессия администратора до второго фактора: %v", s)
+	}
+	if c := h.tokenClaims(token); c["mfa"] != false {
+		t.Fatalf("токен до второго фактора: mfa=%v", c["mfa"])
+	}
+
+	secret := h.enrolled(token)
+	if n := h.mfaEvents(subjectMfaEnrolled, u.ID.String()); n != 1 {
+		t.Fatalf("MfaEnrolled: %d, want 1", n)
+	}
+	audit := h.auditOf(u.ID.String(), "user.mfa_enrolled")
+	if len(audit) != 1 || audit[0].GetActorKind() != "user" || audit[0].GetActorRole() != "ADMIN" {
+		t.Fatalf("аудит: %v", audit)
+	}
+
+	next := h.session(u) // новый вход: второй ступени в этой сессии ещё нет
+	if s := h.mustAuth(next).GetSession(); !s.GetMfaRequired() || s.GetMfaVerifiedAt() != nil {
+		t.Fatalf("новая сессия: %v", s)
+	}
+	_, err := h.verify2FA(next, h.wrongCode(secret), h.key())
+	h.wantRefusal(err, connect.CodeInvalidArgument, "mfa_wrong_code")
+	at := h.clock.now()
+	res, err := h.verify2FA(next, h.codeNow(secret), h.key())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.GetSession().GetMfaRequired() || !res.GetSession().GetMfaVerifiedAt().AsTime().Equal(at) {
+		t.Fatalf("после проверки: %v", res.GetSession())
+	}
+	if c := h.tokenClaims(next); c["mfa"] != true {
+		t.Fatalf("токен после второго фактора: mfa=%v", c["mfa"])
+	}
+}
+
+// Переходы KYC и отзыва согласия остаются за оператором: администратор и со вторым фактором
+// получает role_forbidden, состояние не меняется.
+func TestAdminCannotDecideKycOrRevocations(t *testing.T) {
+	h := newHarness(t, nil)
+	exec, _, _, _ := h.tooParty()
+	h.setKyc(exec.ID, kycPending, true, h.clock.now())
+	_, adminToken := h.admin()
+	h.markMfa(adminToken)
+
+	_, err := h.kycQueue(adminToken)
+	h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
+	_, err = h.reviewKyc(adminToken, exec.ID.String(), true, "", h.key())
+	h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
+	_, err = h.reviewKyc(adminToken, exec.ID.String(), false, "Фото нечитаемо", h.key())
+	h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
+	if h.kycStatus(exec.ID).KycStatus != kycPending || len(h.kycEvents(exec.ID.String())) != 0 {
+		t.Fatal("администратор принял решение KYC")
+	}
+
+	_, clientToken := h.client()
+	h.mustGrant(pdGrant(clientToken, "2026-11-01"))
+	rev := h.mustRevoke(clientToken)
+	_, err = h.revocationQueue(adminToken)
+	h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
+	_, err = h.resolveRevocation(adminToken, rev.GetId(), true, "", h.key())
+	h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
+	_, err = h.resolveRevocation(adminToken, rev.GetId(), false, "Причина отказа", h.key())
+	h.wantRefusal(err, connect.CodePermissionDenied, "role_forbidden")
+	if got := h.revocationRow(rev.GetId()); got.Status != revocationRequested {
+		t.Fatalf("отзыв изменён администратором: %+v", got)
+	}
+}

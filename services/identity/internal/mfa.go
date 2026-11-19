@@ -31,8 +31,12 @@ const (
 	subjectMfaEnrolled = "senim.identity.mfa.enrolled"
 	subjectMfaReset    = "senim.identity.mfa.reset"
 
-	// mfaRole — роль, которой нужен второй фактор (спека §4.4: операторы).
+	// mfaRole — роль оператора: ей принадлежат переходы KYC и согласий (с пройденным
+	// вторым фактором). Кому нужен второй фактор — needsMfa.
 	mfaRole = "OPERATOR"
+	// adminRole — администратор площадки: сотрудник, второй фактор обязателен, переходов
+	// оператора не делает. Выдаётся только identity grant-admin и сидом стенда.
+	adminRole = "ADMIN"
 	// Неверных кодов (и повторов кода) на пользователя: не больше 5 за 15 минут; шестая
 	// попытка — mfa_too_many_attempts. Верный код попытку возвращает.
 	mfaMaxFailures   = 5
@@ -48,6 +52,10 @@ var totpBase32 = base32.StdEncoding.WithPadding(base32.NoPadding)
 func mfaSecretAAD(userID uuid.UUID) string { return "identity.mfa_factors.secret:" + userID.String() }
 
 func mfaLimitKey(userID uuid.UUID) string { return "mfa:" + userID.String() }
+
+// needsMfa — роли, которой нужен второй фактор TOTP в каждой сессии: оператор (спека §4.4)
+// и администратор (спека админки).
+func needsMfa(role string) bool { return role == mfaRole || role == adminRole }
 
 func mfaNotRequired() error {
 	return rpcError(connect.CodeFailedPrecondition, "mfa_not_required", nil)
@@ -70,13 +78,13 @@ func mfaWrongCode(left int) error {
 }
 
 // operatorSession — чтение до ключа идемпотентности: сессия действует, пользователь не
-// заблокирован, активная роль — оператор. Ошибки — уже ответы клиенту.
+// заблокирован, активной роли нужен второй фактор (needsMfa). Ошибки — уже ответы клиенту.
 func (s *Service) operatorSession(ctx context.Context, op, token string) (store.Session, store.User, error) {
 	sess, user, err := s.liveSession(ctx, op, token)
 	if err != nil {
 		return sess, user, err
 	}
-	if activeRole(user.Roles, user.DefaultRole, &sess.ActiveRole) != mfaRole {
+	if !needsMfa(activeRole(user.Roles, user.DefaultRole, &sess.ActiveRole)) {
 		return sess, user, mfaNotRequired()
 	}
 	return sess, user, nil
@@ -88,13 +96,13 @@ func lockedOperatorSession(ctx context.Context, tx pgx.Tx, token string, now tim
 	if err != nil {
 		return sess, user, err
 	}
-	if activeRole(user.Roles, user.DefaultRole, &sess.ActiveRole) != mfaRole {
+	if !needsMfa(activeRole(user.Roles, user.DefaultRole, &sess.ActiveRole)) {
 		return sess, user, mfaNotRequired()
 	}
 	return sess, user, nil
 }
 
-// StartTotpEnrollment выдаёт оператору новый секрет TOTP. Повтор до подтверждения
+// StartTotpEnrollment выдаёт оператору или администратору новый секрет TOTP. Повтор до подтверждения
 // заменяет неподтверждённый секрет новым (прежний перестаёт действовать); подключённый
 // фактор не меняется — mfa_already_enrolled (сброс — identity mfa-reset).
 //
@@ -349,7 +357,7 @@ func (s *Service) acceptTotp(ctx context.Context, tx pgx.Tx, c secondFactorCall,
 	if c.enrolling {
 		if err := recordRoleEvent(ctx, tx, subjectMfaEnrolled, "senim.events.v1.MfaEnrolled",
 			&eventsv1.MfaEnrolled{UserId: user.ID.String()},
-			locked, mfaRole, "user.mfa_enrolled", map[string]string{"mfa": "none"}, map[string]string{"mfa": "totp"}, now); err != nil {
+			locked, activeRole(locked.Roles, locked.DefaultRole, &sess.ActiveRole), "user.mfa_enrolled", map[string]string{"mfa": "none"}, map[string]string{"mfa": "totp"}, now); err != nil {
 			return err
 		}
 	}

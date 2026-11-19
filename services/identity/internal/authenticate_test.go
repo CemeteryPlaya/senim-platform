@@ -272,6 +272,7 @@ func TestAbsoluteExpiry7dAnd8h(t *testing.T) {
 		{"client 7d", []string{"CLIENT"}, "CLIENT", 7 * 24 * time.Hour},
 		{"operator 8h", []string{"OPERATOR"}, "OPERATOR", 8 * time.Hour},
 		{"measurer 8h", []string{"MEASURER"}, "MEASURER", 8 * time.Hour},
+		{"admin 8h", []string{"ADMIN"}, "ADMIN", 8 * time.Hour},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

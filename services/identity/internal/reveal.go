@@ -117,7 +117,7 @@ func (s *Service) RevealPartyDetails(ctx context.Context, req *identityv1.Reveal
 			return nil, err
 		}
 		role := activeRole(user.Roles, user.DefaultRole, &sess.ActiveRole)
-		if role == mfaRole && !sess.MfaVerifiedAt.Valid {
+		if needsMfa(role) && !sess.MfaVerifiedAt.Valid {
 			return nil, mfaRequired()
 		}
 		actor = userActor(user, role)

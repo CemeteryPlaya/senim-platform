@@ -365,7 +365,7 @@ type IdentityServiceClient interface {
 	ResetStand(context.Context, *v1.ResetStandRequest) (*v1.ResetStandResponse, error)
 	// Чтение.
 	GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error)
-	// Второй фактор оператора (TOTP).
+	// Второй фактор оператора и администратора (TOTP).
 	StartTotpEnrollment(context.Context, *v1.StartTotpEnrollmentRequest) (*v1.StartTotpEnrollmentResponse, error)
 	ConfirmTotpEnrollment(context.Context, *v1.ConfirmTotpEnrollmentRequest) (*v1.ConfirmTotpEnrollmentResponse, error)
 	VerifySecondFactor(context.Context, *v1.VerifySecondFactorRequest) (*v1.VerifySecondFactorResponse, error)
@@ -423,7 +423,7 @@ type IdentityServiceHandler interface {
 	ResetStand(context.Context, *v1.ResetStandRequest) (*v1.ResetStandResponse, error)
 	// Чтение.
 	GetSigningKeys(context.Context, *v1.GetSigningKeysRequest) (*v1.GetSigningKeysResponse, error)
-	// Второй фактор оператора (TOTP).
+	// Второй фактор оператора и администратора (TOTP).
 	StartTotpEnrollment(context.Context, *v1.StartTotpEnrollmentRequest) (*v1.StartTotpEnrollmentResponse, error)
 	ConfirmTotpEnrollment(context.Context, *v1.ConfirmTotpEnrollmentRequest) (*v1.ConfirmTotpEnrollmentResponse, error)
 	VerifySecondFactor(context.Context, *v1.VerifySecondFactorRequest) (*v1.VerifySecondFactorResponse, error)

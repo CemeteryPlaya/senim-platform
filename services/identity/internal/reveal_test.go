@@ -138,6 +138,14 @@ func TestRevealWritesAuditPerSubject(t *testing.T) {
 		t.Fatalf("аудит оператора: %+v", got)
 	}
 
+	// Администратору второй фактор нужен так же: без него — отказ, без раскрытия.
+	_, adminToken := h.admin()
+	_, err = h.reveal(adminToken, []string{master.ID.String()}, identityv1.RevealPurpose_REVEAL_PURPOSE_CONTRACT, "deal-admin")
+	h.wantRefusal(err, connect.CodePermissionDenied, "mfa_required")
+	if got := revealedOf(t, h, master.ID.String(), "deal-admin"); len(got) != 0 {
+		t.Fatalf("раскрытие администратору без второго фактора: %+v", got)
+	}
+
 	// Недействующая сессия действующего лица — отказ, без раскрытия и аудита.
 	ref3 := "deal-" + uuid.NewString()
 	_, err = h.reveal(newToken(t), []string{master.ID.String()}, identityv1.RevealPurpose_REVEAL_PURPOSE_CONTRACT, ref3)

@@ -31,6 +31,9 @@ const (
 	Role_ROLE_EXECUTOR    Role = 2
 	Role_ROLE_OPERATOR    Role = 3
 	Role_ROLE_MEASURER    Role = 4
+	// Администратор площадки: сотрудник с одной ролью, второй фактор обязателен; выдаётся
+	// только командой identity grant-admin (и сидом стенда).
+	Role_ROLE_ADMIN Role = 5
 )
 
 // Enum value maps for Role.
@@ -41,6 +44,7 @@ var (
 		2: "ROLE_EXECUTOR",
 		3: "ROLE_OPERATOR",
 		4: "ROLE_MEASURER",
+		5: "ROLE_ADMIN",
 	}
 	Role_value = map[string]int32{
 		"ROLE_UNSPECIFIED": 0,
@@ -48,6 +52,7 @@ var (
 		"ROLE_EXECUTOR":    2,
 		"ROLE_OPERATOR":    3,
 		"ROLE_MEASURER":    4,
+		"ROLE_ADMIN":       5,
 	}
 )
 
@@ -507,7 +512,7 @@ type Session struct {
 	ActiveRole    Role                   `protobuf:"varint,2,opt,name=active_role,json=activeRole,proto3,enum=senim.identity.v1.Role" json:"active_role,omitempty"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	IdleExpiresAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=idle_expires_at,json=idleExpiresAt,proto3" json:"idle_expires_at,omitempty"`
-	// Для сессии оператора нужен второй фактор (TOTP).
+	// Для сессии оператора и администратора нужен второй фактор (TOTP).
 	MfaRequired bool `protobuf:"varint,5,opt,name=mfa_required,json=mfaRequired,proto3" json:"mfa_required,omitempty"`
 	// Пусто, пока второй фактор в этой сессии не подтверждён.
 	MfaVerifiedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=mfa_verified_at,json=mfaVerifiedAt,proto3" json:"mfa_verified_at,omitempty"`
@@ -1424,10 +1429,10 @@ type SeedUser struct {
 	// Версия и хеш текста согласия на обработку ПДн; пусто — согласия нет.
 	ConsentVersion    string `protobuf:"bytes,11,opt,name=consent_version,json=consentVersion,proto3" json:"consent_version,omitempty"`
 	ConsentTextSha256 string `protobuf:"bytes,12,opt,name=consent_text_sha256,json=consentTextSha256,proto3" json:"consent_text_sha256,omitempty"`
-	// Секрет TOTP оператора стенда: base32 (RFC 4648, без «=», как StartTotpEnrollmentResponse
-	// .secret_base32), 16–64 байт. Задан — второй фактор подключён этим секретом (вход
-	// оператора по-прежнему требует код); только у оператора, иначе invalid_request. Пусто —
-	// фактор не меняется.
+	// Секрет TOTP оператора или администратора стенда: base32 (RFC 4648, без «=», как
+	// StartTotpEnrollmentResponse.secret_base32), 16–64 байт. Задан — второй фактор подключён
+	// этим секретом (вход по-прежнему требует код); только у оператора или администратора,
+	// иначе invalid_request. Пусто — фактор не меняется.
 	TotpSecretBase32 string `protobuf:"bytes,13,opt,name=totp_secret_base32,json=totpSecretBase32,proto3" json:"totp_secret_base32,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
@@ -5534,13 +5539,15 @@ const file_senim_identity_v1_identity_proto_rawDesc = "" +
 	"revocation\"\x17\n" +
 	"\x15GetSigningKeysRequest\"K\n" +
 	"\x16GetSigningKeysResponse\x121\n" +
-	"\x04keys\x18\x01 \x03(\v2\x1d.senim.identity.v1.SigningKeyR\x04keys*f\n" +
+	"\x04keys\x18\x01 \x03(\v2\x1d.senim.identity.v1.SigningKeyR\x04keys*v\n" +
 	"\x04Role\x12\x14\n" +
 	"\x10ROLE_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vROLE_CLIENT\x10\x01\x12\x11\n" +
 	"\rROLE_EXECUTOR\x10\x02\x12\x11\n" +
 	"\rROLE_OPERATOR\x10\x03\x12\x11\n" +
-	"\rROLE_MEASURER\x10\x04*l\n" +
+	"\rROLE_MEASURER\x10\x04\x12\x0e\n" +
+	"\n" +
+	"ROLE_ADMIN\x10\x05*l\n" +
 	"\tLegalForm\x12\x1a\n" +
 	"\x16LEGAL_FORM_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18LEGAL_FORM_SELF_EMPLOYED\x10\x01\x12\x11\n" +

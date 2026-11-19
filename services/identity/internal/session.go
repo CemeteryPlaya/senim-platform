@@ -23,7 +23,7 @@ const (
 	// проверяет Authenticate (Task 6).
 	idleTimeout = 30 * time.Minute
 	// userSessionTTL и staffSessionTTL — абсолютный срок сессии. Сотрудник (оператор,
-	// замерщик) живёт 8 часов, остальные 7 дней.
+	// замерщик, администратор) живёт 8 часов, остальные 7 дней.
 	userSessionTTL  = 7 * day
 	staffSessionTTL = 8 * hour
 	// maxUserAgent — предел длины user_agent в рунах.
@@ -36,9 +36,13 @@ const (
 // код из SMS. Другого способа входа нет; значение 'demo' — только у старых строк (0012).
 const sessionOpenedByOtp = "otp"
 
-// isStaff — оператор или замерщик площадки: у них короткая сессия.
+// staffRoles — роли сотрудников площадки: короткая сессия, роль не совмещается с другими и не
+// выдаётся через GrantRole (ограничение users_staff_role_alone — та же тройка).
+var staffRoles = []string{"OPERATOR", "MEASURER", "ADMIN"}
+
+// isStaff — у пользователя роль сотрудника (оператор, замерщик, администратор).
 func isStaff(roles []string) bool {
-	return slices.Contains(roles, "OPERATOR") || slices.Contains(roles, "MEASURER")
+	return slices.ContainsFunc(roles, func(r string) bool { return slices.Contains(staffRoles, r) })
 }
 
 // createSession вставляет сессию для токена, который сгенерировал web. В базе лежит только
@@ -102,14 +106,15 @@ func userProto(u store.User) *identityv1.User {
 }
 
 // sessionProto — сессия в ответах сервиса; токена в ней нет. Второй фактор нужен сессии
-// оператора; mfa_verified_at — когда он пройден в этой сессии (пусто — не пройден).
+// оператора и администратора (needsMfa); mfa_verified_at — когда он пройден в этой сессии
+// (пусто — не пройден).
 func sessionProto(s store.Session, idle time.Duration) *identityv1.Session {
 	out := &identityv1.Session{
 		Id:            s.ID.String(),
 		ActiveRole:    roleProto(s.ActiveRole),
 		ExpiresAt:     timestamppb.New(s.ExpiresAt.Time),
 		IdleExpiresAt: timestamppb.New(s.LastSeenAt.Time.Add(idle)),
-		MfaRequired:   s.ActiveRole == mfaRole,
+		MfaRequired:   needsMfa(s.ActiveRole),
 	}
 	if s.MfaVerifiedAt.Valid {
 		out.MfaVerifiedAt = timestamppb.New(s.MfaVerifiedAt.Time)
