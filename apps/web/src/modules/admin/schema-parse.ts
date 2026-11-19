@@ -14,6 +14,11 @@ export type AdminField = {
   hasDefault: boolean;
   /** У поля-связи — скалярные поля из `@relation(fields: [...])`; у остальных — пусто. */
   relationFields: readonly string[];
+  /**
+   * Имя связи из `@relation("…")` (или `name: "…"`), если оно задано: по нему находится обратная сторона, когда между
+   * двумя моделями несколько связей (User.disputesOpened ↔ Dispute.openedBy). Без имени ключа нет.
+   */
+  relationName?: string;
 };
 
 export type AdminModel = {
@@ -71,6 +76,7 @@ function parseField(model: string, line: string, enums: ReadonlySet<string>, mod
   const kind = SCALARS.has(type) ? "scalar" : enums.has(type) ? "enum" : models.has(type) ? "object" : null;
   if (!kind) throw new Error(`schema.prisma: неизвестный тип ${type} поля ${model}.${name}`);
   const relation = /@relation\([^)]*\bfields:\s*\[([^\]]*)\]/.exec(attrs);
+  const relationName = /@relation\(\s*(?:name:\s*)?"([^"]+)"/.exec(attrs)?.[1];
   return {
     name,
     kind,
@@ -81,6 +87,7 @@ function parseField(model: string, line: string, enums: ReadonlySet<string>, mod
     updatedAt: hasAttr(attrs, "updatedAt"),
     hasDefault: /(^|\s)@default\(/.test(attrs),
     relationFields: relation ? relation[1].split(",").map((s) => s.trim()).filter(Boolean) : [],
+    ...(relationName ? { relationName } : {}),
   };
 }
 

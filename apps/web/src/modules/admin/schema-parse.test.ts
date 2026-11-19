@@ -67,8 +67,25 @@ describe("parseSchema", () => {
     expect(field("updatedAt")).toMatchObject({ kind: "scalar", type: "DateTime", updatedAt: true, hasDefault: false });
     expect(field("client")).toEqual({
       name: "client", kind: "object", type: "User", required: true, list: false, id: false, updatedAt: false, hasDefault: false, relationFields: ["clientId"],
+      relationName: "X",
     });
     expect(field("offers")).toMatchObject({ kind: "object", type: "Offer", list: true, relationFields: [] });
+    expect(field("offers")).not.toHaveProperty("relationName");
+  });
+
+  it("имя связи — из @relation(\"…\") и @relation(name: \"…\"); без имени ключа нет", () => {
+    const named = parseSchema(`model A {
+  id String @id
+  b  B[] @relation(name: "AB")
+  c  B[] @relation( "AC" )
+}
+model B {
+  id String @id
+}`);
+    const a = named.find((m) => m.name === "A");
+    expect(a?.fields.find((f) => f.name === "b")?.relationName).toBe("AB");
+    expect(a?.fields.find((f) => f.name === "c")?.relationName).toBe("AC");
+    expect(models.find((m) => m.name === "Offer")?.fields.find((f) => f.name === "deal")).not.toHaveProperty("relationName");
   });
 
   it("idField — единственное поле с @id; составной ключ — null", () => {

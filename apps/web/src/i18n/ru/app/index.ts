@@ -1,4 +1,5 @@
 // Тексты нового интерфейса (v2). Каждая часть — свой файл в этой папке.
+import { admin } from "./admin";
 import { buyer } from "./buyer";
 import { chat } from "./chat";
 import { deal } from "./deal";
@@ -30,6 +31,7 @@ import { requests } from "./requests";
 import { shell } from "./shell";
 
 export const app = {
+  admin,
   buyer,
   chat,
   deal,

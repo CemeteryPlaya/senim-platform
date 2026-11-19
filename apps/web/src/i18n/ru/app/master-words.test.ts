@@ -33,8 +33,8 @@ type Zone = keyof typeof ru.app;
 
 /** Зоны только покупателя: мастер их не видит, у них свой тест (`buyer-words.test.ts`). */
 const BUYER_ONLY: readonly Zone[] = ["buyer", "requests", "requestCard", "offer"];
-/** Зоны только сотрудников площадки (оператор): мастер и покупатель их не видят — там законны «доход платформы», «отклики». */
-const STAFF_ONLY: readonly Zone[] = ["operator", "operatorQueues", "operatorDisputes", "operatorDeals", "operatorSettings"];
+/** Зоны только сотрудников площадки (оператор, администратор): мастер и покупатель их не видят — там законны «доход платформы», «отклики». */
+const STAFF_ONLY: readonly Zone[] = ["admin", "operator", "operatorQueues", "operatorDisputes", "operatorDeals", "operatorSettings"];
 
 // Зоны мастера: `master.ts` и `master-*.ts` подключаются в `ru.app` под именами `master…`.
 const zones = Object.keys(ru.app) as Zone[];
