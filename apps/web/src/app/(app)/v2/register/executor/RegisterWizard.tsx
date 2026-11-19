@@ -1,13 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Notice, Stack, WizardHeader } from "@/kit";
+import { ActionDock, Button, Notice, Stack, toast, WizardHeader } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../_shell/FormError";
 import { useActionForm } from "../../../_shell/form";
-import { registerMasterAction } from "./actions";
+import { forgetMasterChoiceAction, registerMasterAction } from "./actions";
 import { errorsOf, firstInvalidStep, stepIssues, stepOfField, STEP_FIELDS, STEPS, type AnswerField, type Answers, type RegisterStep } from "./_parts/schema";
 import { backOf, initialAnswers, persistable, prefillSigner, restoreAnswers, stepHref, type Origin } from "./_parts/steps";
 import { CheckSummary, FormFields, NameFields, PlaceFields, StepExplain, type StepErrors } from "./RegisterSteps";
@@ -189,6 +189,7 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
           <WizardHeader step={index + 1} total={STEPS.length} title={t.steps[step]} back={backOf(step, origin)} />
           {step === "form" && <p className="text-body text-muted">{t.form.lead}</p>}
           {step === "form" && keepsBuyer && <p className="text-body text-ink">{t.form.keepsBuyer}</p>}
+          {step === "form" && keepsBuyer && origin === "home" && <OrderFirst />}
           {step === "form" && <StepExplain kind="form" device={device} />}
           {step === "name" && <StepExplain kind="name" device={device} />}
           {step === "place" && <p className="text-body text-muted">{t.place.lead}</p>}
@@ -217,6 +218,28 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
           </Button>
         </ActionDock>
       </Stack>
+    </div>
+  );
+}
+
+/**
+ * «Сначала заказать мебель»: выход для покупателя, который передумал регистрироваться сейчас (свобода выбора — в анкете не
+ * застревают). Тихая кнопка по левой линии, как текстовая ссылка (`flush`, 48 px): переход меняет cookie выбора, поэтому
+ * это действие, а не ссылка. Сбой — тостом.
+ */
+function OrderFirst() {
+  const [pending, startTransition] = useTransition();
+  const leave = () =>
+    startTransition(async () => {
+      const res = await forgetMasterChoiceAction({});
+      if (!res.ok) toast.error(res.error);
+    });
+  // Обёртка: в колонке Stack кнопка иначе растянулась бы на всю ширину, и подпись встала бы по центру.
+  return (
+    <div>
+      <Button variant="quiet" flush pending={pending} onClick={leave}>
+        {t.orderFirst}
+      </Button>
     </div>
   );
 }

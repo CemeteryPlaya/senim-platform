@@ -6,14 +6,15 @@ import { CONSENT_DOCUMENTS } from "@/i18n/ru/consent";
 import { getCurrentUser } from "@/modules/identity";
 import type { ActionResult } from "@/platform/action";
 import { db } from "@/platform/db";
-import { freshBrowser, setEnv } from "../../../../../../test/factories/identity";
+import { deletedCookies, freshBrowser, setEnv } from "../../../../../../test/factories/identity";
 import { FAKE_OTP_CODE, identityFake } from "../../../../../../test/stubs/identity";
 import { grantConsentAction } from "../../consent/actions";
-import { requestCodeAction, verifyCodeAction } from "../../login/actions";
+import { recallRole, roleCookieName } from "../../../_shell/role-cookie";
+import { chooseRoleAction, requestCodeAction, verifyCodeAction } from "../../login/actions";
 import { introduceAction } from "../../welcome/actions";
 import type { Answers } from "./_parts/schema";
 import { initialAnswers } from "./_parts/steps";
-import { registerMasterAction } from "./actions";
+import { forgetMasterChoiceAction, registerMasterAction } from "./actions";
 
 const h = vi.hoisted(() => ({ revalidated: [] as unknown[][] }));
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => void h.revalidated.push(args) }));
@@ -145,6 +146,15 @@ describe("registerMasterAction", () => {
     expect(await run(registerMasterAction(selfEmployed))).toMatchObject({ ok: false, code: "UNAUTHENTICATED" });
   });
 
+  it("выбор «Я мастер» с входа забывается при отправке анкеты", async () => {
+    await run(chooseRoleAction({ role: "executor", next: "" }));
+    await buyer("+77000008609");
+    expect(await recallRole()).toBe("EXECUTOR");
+    expect(await run(registerMasterAction(selfEmployed))).toEqual({ redirect: STATUS });
+    expect(deletedCookies.map((c) => c.name)).toContain(roleCookieName());
+    expect(await recallRole()).toBeNull();
+  });
+
   it("ИИН и БИН не попадают в журнал ни при успехе, ни при ошибке", async () => {
     await buyer("+77000008607");
     const logs = captureLogs();
@@ -158,5 +168,24 @@ describe("registerMasterAction", () => {
     }
     const all = logs.lines.join("\n");
     for (const secret of [BIN, DIRECTOR_IIN, BIN.slice(0, 6), DIRECTOR_IIN.slice(0, 6)]) expect(all, secret).not.toContain(secret);
+  });
+});
+
+describe("forgetMasterChoiceAction: «Сначала заказать мебель»", () => {
+  it("выбор «Я мастер» забыт, оболочка перерисована, дальше — главная покупателя", async () => {
+    await run(chooseRoleAction({ role: "executor", next: "" }));
+    const user = await buyer("+77000008610");
+    expect(await recallRole()).toBe("EXECUTOR");
+    expect(await run(forgetMasterChoiceAction({}))).toEqual({ redirect: "/v2" });
+    expect(await recallRole()).toBeNull();
+    expect(h.revalidated).toContainEqual(["/(app)", "layout"]);
+    expect(await profiles(user.id)).toHaveLength(0);
+    expect((await getCurrentUser())?.role).toBe("CLIENT");
+  });
+
+  it("гость — UNAUTHENTICATED, выбор не тронут", async () => {
+    await run(chooseRoleAction({ role: "executor", next: "" }));
+    expect(await run(forgetMasterChoiceAction({}))).toMatchObject({ ok: false, code: "UNAUTHENTICATED" });
+    expect(await recallRole()).toBe("EXECUTOR");
   });
 });

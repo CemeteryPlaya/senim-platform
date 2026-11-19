@@ -18,6 +18,7 @@ import { AppError } from "@/platform/errors";
 import { nextStepFor, safeNext } from "../../_shell/auth";
 import { shellChanged } from "../../_shell/onboarding";
 import { to } from "../../_shell/paths";
+import { becomingMaster } from "../../_shell/role-choice";
 import { forgetRole, recallRole } from "../../_shell/role-cookie";
 
 // Почта — последний из первых шагов после входа. Адрес и код в журнал не пишутся (действия ничего не логируют, модуль
@@ -37,13 +38,14 @@ const changeField = z.string().max(1).optional();
 const emailField = z.string().trim().min(1, t.errors.required).max(254, errors.invalid);
 
 /**
- * Почта подтверждена — сейчас или раньше (вторая вкладка, отставшая проекция): выбор роли на входе больше не нужен
- * (forgetRole), дальше — `next` или дом с учётом выбора (nextStepFor). Пользователь прочитан до подтверждения (кэш на
- * время запроса), поэтому признак дописывается вручную — иначе шаг вёл бы сам на себя.
+ * Почта подтверждена — сейчас или раньше (вторая вкладка, отставшая проекция): выбор роли на входе забывается, кроме того,
+ * кто идёт к профилю мастера (`becomingMaster`): ему выбор нужен до отправки анкеты. Дальше — `next` или дом с учётом
+ * выбора (nextStepFor). Пользователь прочитан до подтверждения (кэш на время запроса), поэтому признак дописывается
+ * вручную — иначе шаг вёл бы сам на себя.
  */
 async function moveOn(user: CurrentUser, next: string | undefined): Promise<never> {
   const chosen = await recallRole();
-  await forgetRole();
+  if (!becomingMaster(user, chosen)) await forgetRole();
   shellChanged();
   redirect(nextStepFor({ ...user, emailVerified: true }, safeNext(next), chosen));
 }

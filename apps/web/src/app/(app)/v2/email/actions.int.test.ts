@@ -181,10 +181,19 @@ describe("verifyEmailCodeAction", () => {
     expect(await run(verifyEmailCodeAction({ code: await sentCode(), email: ADDRESS, next: "https://evil.example/x" }))).toEqual({ redirect: "/v2" });
   });
 
-  it("выбравший «Я мастер» на входе — на регистрацию мастера; выбор забыт", async () => {
+  it("выбравший «Я мастер» на входе — на регистрацию мастера; выбор живёт до отправки анкеты", async () => {
     await atEmail("executor");
     expect(await recallRole()).toBe("EXECUTOR");
     expect(await run(verifyEmailCodeAction({ code: await sentCode(), email: ADDRESS, next: "" }))).toEqual({ redirect: "/v2/register/executor" });
+    expect(deletedCookies.map((c) => c.name)).not.toContain(roleCookieName());
+    expect(await recallRole()).toBe("EXECUTOR");
+  });
+
+  it("выбравший «Заказать мебель» на входе — дом покупателя; выбор забыт, как раньше", async () => {
+    await atEmail("client");
+    expect(await recallRole()).toBe("CLIENT");
+    expect(await run(verifyEmailCodeAction({ code: await sentCode(), email: ADDRESS, next: "" }))).toEqual({ redirect: "/v2" });
+    expect(deletedCookies.map((c) => c.name)).toContain(roleCookieName());
     expect(await recallRole()).toBeNull();
   });
 

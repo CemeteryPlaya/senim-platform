@@ -2,7 +2,9 @@ import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testIin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
-import { sessionCookieName } from "@/modules/identity";
+import { Role } from "@/gen/senim/identity/v1/identity_pb";
+import { getCurrentUser, sessionCookieName } from "@/modules/identity";
+import { encryptPii, hashPii, last4 } from "@/platform/crypto";
 import { db } from "@/platform/db";
 import type { ActionResult } from "@/platform/action";
 import { cookieValue, deletedCookies, freshBrowser, setEnv } from "../../../../../test/factories/identity";
@@ -45,6 +47,29 @@ async function existingClient(phone = PHONE) {
   const user = identityFake.addUser({ phone, person: { ...person, iin, emailVerified: true } });
   await db.user.create({
     data: { id: user.id, phone, role: "CLIENT", roles: ["CLIENT"], ...person, iinLast4: iin.slice(-4), emailVerifiedAt: new Date() },
+  });
+  return user;
+}
+
+/** Известный номер с обеими ролями (активна — заказчика по умолчанию) и одобренным профилем мастера. */
+async function clientAndMaster() {
+  const iin = testIin("870304", 3, 62);
+  const person = { fullName: "Сапаров Ерлан", email: "erlan@mail.kz" };
+  const user = identityFake.addUser({ phone: PHONE, defaultRole: Role.CLIENT, roles: [Role.CLIENT, Role.EXECUTOR], person: { ...person, iin, emailVerified: true } });
+  await db.user.create({
+    data: { id: user.id, phone: PHONE, role: "CLIENT", roles: ["CLIENT", "EXECUTOR"], ...person, iinLast4: iin.slice(-4), emailVerifiedAt: new Date() },
+  });
+  await db.executorProfile.create({
+    data: {
+      userId: user.id,
+      legalForm: "SELF_EMPLOYED",
+      legalName: person.fullName,
+      binIinEnc: encryptPii(iin),
+      binIinHash: hashPii(iin),
+      binIinLast4: last4(iin),
+      signerFullName: person.fullName,
+      status: "APPROVED",
+    },
   });
   return user;
 }
@@ -146,13 +171,50 @@ describe("verifyCodeAction", () => {
     });
   });
 
-  it("существующий человек: свой дом, выбор роли забыт", async () => {
+  it("существующий человек, выбрал «Заказать мебель»: свой дом, выбор роли забыт", async () => {
     await existingClient();
-    await run(chooseRoleAction({ role: "executor", next: "" }));
+    await run(chooseRoleAction({ role: "client", next: "" }));
     await run(requestCodeAction({ phone: PHONE }));
 
     expect(await run(verifyCodeAction({ phone: PHONE, code: FAKE_OTP_CODE, next: "" }))).toEqual({ redirect: "/v2" });
     expect(session()).toBeDefined();
+    expect(deletedCookies.map((c) => c.name)).toContain(roleCookieName());
+    expect(await recallRole()).toBeNull();
+  });
+
+  it("известный номер без профиля мастера, выбрал «Я мастер»: анкета мастера, выбор живёт дальше, роль та же", async () => {
+    await existingClient();
+    await run(chooseRoleAction({ role: "executor", next: "" }));
+    await run(requestCodeAction({ phone: PHONE }));
+
+    expect(await run(verifyCodeAction({ phone: PHONE, code: FAKE_OTP_CODE, next: "" }))).toEqual({ redirect: "/v2/register/executor" });
+    expect(deletedCookies.map((c) => c.name)).not.toContain(roleCookieName());
+    expect(await recallRole()).toBe("EXECUTOR");
+    expect(callsOf("switchRole")).toHaveLength(0);
+    expect((await getCurrentUser())?.role).toBe("CLIENT");
+  });
+
+  it("известный номер с ролями заказчика и мастера, активна заказчика, выбрал «Я мастер»: активна мастера, выбор забыт", async () => {
+    await clientAndMaster();
+    await run(chooseRoleAction({ role: "executor", next: "" }));
+    await run(requestCodeAction({ phone: PHONE }));
+
+    expect(await run(verifyCodeAction({ phone: PHONE, code: FAKE_OTP_CODE, next: "" }))).toEqual({ redirect: "/v2" });
+    expect(callsOf("switchRole")).toHaveLength(1);
+    expect((await getCurrentUser())?.role).toBe("EXECUTOR");
+    expect(deletedCookies.map((c) => c.name)).toContain(roleCookieName());
+    expect(await recallRole()).toBeNull();
+  });
+
+  it("оператор, выбравший «Я мастер»: выбор игнорируется и забывается, дальше второй фактор, как раньше", async () => {
+    identityFake.addUser({ phone: PHONE, defaultRole: Role.OPERATOR });
+    await run(chooseRoleAction({ role: "executor", next: "" }));
+    await run(requestCodeAction({ phone: PHONE }));
+
+    expect(await run(verifyCodeAction({ phone: PHONE, code: FAKE_OTP_CODE, next: "" }))).toEqual({
+      redirect: `/v2/operator/mfa?next=${encodeURIComponent("/v2/operator")}`,
+    });
+    expect(callsOf("switchRole")).toHaveLength(0);
     expect(deletedCookies.map((c) => c.name)).toContain(roleCookieName());
     expect(await recallRole()).toBeNull();
   });

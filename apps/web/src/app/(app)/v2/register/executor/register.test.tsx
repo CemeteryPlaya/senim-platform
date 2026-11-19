@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { testBin, testIin } from "@/seed/kz-id";
 import { ru } from "@/i18n/ru";
-import { count, html } from "@/kit/test-utils";
+import { count, hasClass, html } from "@/kit/test-utils";
 import { consentDocument, consentTextSha256 } from "@/modules/identity";
 import { AppError } from "@/platform/errors";
 
@@ -39,7 +39,7 @@ vi.mock("next/navigation", async (original) => ({
 vi.mock("../../../_shell/role-cookie", () => ({ recallRole: async () => null }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => "mobile" }));
 vi.mock("../../../_shell/form", () => ({ useActionForm: () => ({ ...h.form, onSubmit() {}, submit: async () => {} }) }));
-vi.mock("./actions", () => ({ registerMasterAction: vi.fn() }));
+vi.mock("./actions", () => ({ registerMasterAction: vi.fn(), forgetMasterChoiceAction: vi.fn() }));
 
 const { default: RegisterPage } = await import("./page");
 const { CheckSummary, NameFields } = await import("./RegisterSteps");
@@ -92,6 +92,10 @@ async function page(step?: string): Promise<string> {
   if (!("out" in res)) throw new Error(`ожидался экран, а не переход на ${res.redirect}`);
   return res.out;
 }
+
+/** Кнопка «Сначала заказать мебель» целиком (тег с подписью) или `null`. */
+const orderFirstButton = (out: string): string | null =>
+  out.match(new RegExp(`<button[^>]*>(?:(?!</button>).)*${t.orderFirst}(?:(?!</button>).)*</button>`))?.[0] ?? null;
 
 const h1 = (out: string) => out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1];
 /** Экран по правилам: один h1, не больше одного главного действия; ни одного полного ИИН/БИН (12 цифр подряд). */
@@ -146,6 +150,24 @@ describe("регистрация мастера: кто что видит", () =
   it("мастер без профиля пояснения «станете мастером» не видит", async () => {
     h.user = person({ role: "EXECUTOR", roles: ["EXECUTOR"] });
     expect(await page()).not.toContain(t.form.keepsBuyer);
+  });
+
+  it("покупатель на первом шаге — выход «Сначала заказать мебель»: тихая кнопка 48 px, не главное действие", async () => {
+    const out = await page();
+    const exit = orderFirstButton(out);
+    expect(exit).not.toBeNull();
+    expect(hasClass(exit!, "min-h-control")).toBe(true);
+    expect(exit).not.toContain("data-primary-action");
+    expect(count(out, "data-primary-action")).toBe(1);
+  });
+
+  it("выхода «Сначала заказать мебель» нет: дальше первого шага, у мастера, после отказа", async () => {
+    expect(await page("place")).not.toContain(t.orderFirst);
+    h.user = person({ role: "EXECUTOR", roles: ["EXECUTOR"] });
+    expect(await page()).not.toContain(t.orderFirst);
+    h.user = person();
+    h.registration = registration("REJECTED");
+    expect(await page("form")).not.toContain(t.orderFirst);
   });
 
   it("шаг из адреса открывается (дальше — после восстановления в браузере)", async () => {
