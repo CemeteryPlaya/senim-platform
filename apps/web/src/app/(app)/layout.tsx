@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ru } from "@/i18n/ru";
-import { getShellUser, needsSecondFactor } from "@/modules/identity";
+import { listDeals } from "@/modules/deal-core";
+import { getShellUser, needsSecondFactor, type CurrentUser } from "@/modules/identity";
 import { unreadCount } from "@/modules/notifications";
 import { cn, Toaster } from "@/kit";
 import { fontVariables } from "@/kit/fonts";
@@ -59,6 +60,19 @@ async function unreadOf(userId: string): Promise<number> {
 }
 
 /**
+ * Есть ли у идущего к профилю мастера сделки как у заказчика (тот же способ, что `hasMasterDeals` экрана статуса
+ * регистрации: `listDeals` и `myRole`). Сбой чтения — «нет»: оболочка не падает, в журнал — предупреждение.
+ */
+async function hasBuyerDeals(user: CurrentUser): Promise<boolean> {
+  try {
+    return (await listDeals(user)).some((d) => d.myRole === "CLIENT");
+  } catch (e) {
+    logger.warn("shell.deals.failed", { error: e });
+    return false;
+  }
+}
+
+/**
  * Корневой layout нового интерфейса (v2, адреса под /v2). Свой документ, отдельный от v1 (группа (legacy)):
  * переход между ними — полная загрузка страницы.
  *
@@ -75,7 +89,8 @@ export default async function AppLayout({ children }: Readonly<{ children: React
   // только название и «Выйти». Меню оператора без второго шага вело бы на разделы, которые всё равно вернут на код.
   const focus = user !== null && (pendingOnboarding(user).length > 0 || needsSecondFactor(user));
   // Идущий к профилю мастера (выбрал «Я мастер», профиля нет) — вкладки неодобренного мастера, без «Заказать мебель».
-  const navUser = user && { ...user, becomingMaster: becomingMaster(user, await recallRole()) };
+  const toMaster = user !== null && becomingMaster(user, await recallRole());
+  const navUser = user && { ...user, becomingMaster: toMaster, hasBuyerDeals: toMaster && !focus && (await hasBuyerDeals(user)) };
   const nav = navFor(navUser, features(), { focus });
   // Счётчик уведомлений — один запрос на запрос страницы, только вошедшему с пройденными первыми шагами (в
   // сосредоточенной оболочке колокольчика нет, у гостя — тоже). Сбой чтения счётчика не должен ронять всю оболочку.

@@ -69,6 +69,8 @@ export type NavUser = {
    * мастера и без «Заказать мебель». Считает layout по cookie выбора; нет — `false`.
    */
   becomingMaster?: boolean;
+  /** У идущего к профилю мастера есть сделки как у заказчика: ему остаётся вкладка «Сделки». Считает layout; нет — `false`. */
+  hasBuyerDeals?: boolean;
 };
 
 /** Флаги (platform/features), от которых зависят вкладки: раздел за выключенным флагом в меню не показывается. */
@@ -153,7 +155,9 @@ function roleTabs(user: NavUser): NavItem[] {
   switch (user.role) {
     case "CLIENT":
       // Идущий к профилю мастера: дом — анкета мастера (`/v2` ведёт туда же). «Компании» нет: её страница требует роль мастера.
-      return user.becomingMaster ? [R.registration, R.profile] : [R.home, R.requests, R.deals, R.chat, R.profile];
+      // Идущему со сделками заказчика «Сделки» остаётся: иначе до суток (срок выбора) путь к ним пропадает.
+      if (user.becomingMaster) return user.hasBuyerDeals ? [R.registration, R.deals, R.profile] : [R.registration, R.profile];
+      return [R.home, R.requests, R.deals, R.chat, R.profile];
     case "EXECUTOR":
       // Мастер: «что сейчас» на главной; финансы, компания и портфолио — из профиля и главной. Неодобренный (нет профиля,
       // на проверке, отказ): «Главная» — регистрация и статус проверки (тот же дом, что у `homeFor`; `/v2` его туда

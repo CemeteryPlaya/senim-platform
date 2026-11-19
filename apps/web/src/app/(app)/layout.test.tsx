@@ -26,6 +26,16 @@ const h = vi.hoisted(() => ({
   pathname: "/v2/deals/7",
   search: "tab=docs",
   chosen: null as "CLIENT" | "EXECUTOR" | null,
+  deals: [] as { myRole: "CLIENT" | "EXECUTOR" | null }[] | Error,
+  dealCalls: 0,
+}));
+
+vi.mock("@/modules/deal-core", () => ({
+  listDeals: async () => {
+    h.dealCalls += 1;
+    if (h.deals instanceof Error) throw h.deals;
+    return h.deals;
+  },
 }));
 
 vi.mock("@/kit/theme", async (importOriginal) => ({
@@ -101,6 +111,8 @@ beforeEach(() => {
   h.unreadCalls = [];
   h.pathname = "/v2/deals/7";
   h.chosen = null;
+  h.deals = [];
+  h.dealCalls = 0;
 });
 
 describe("корневой layout v2", () => {
@@ -149,6 +161,29 @@ describe("корневой layout v2", () => {
     expect(out).not.toContain(ru.app.shell.order);
     expect(out).toContain('href="/v2/register/executor"');
     expect(out).not.toContain('href="/v2/requests"');
+  });
+
+  it("идущий к профилю мастера: «Сделки» в оболочке только при сделках заказчика; запрос — только ему", async () => {
+    h.device = "desktop";
+    h.shell = { user: done("CLIENT"), unavailable: false };
+    h.deals = [{ myRole: "CLIENT" }];
+    await render();
+    expect(h.dealCalls).toBe(0);
+
+    h.chosen = "EXECUTOR";
+    expect(await render()).toContain('href="/v2/deals"');
+    expect(h.dealCalls).toBe(1);
+
+    h.deals = [];
+    expect(await render()).not.toContain('href="/v2/deals"');
+
+    h.deals = [{ myRole: "EXECUTOR" }];
+    expect(await render()).not.toContain('href="/v2/deals"');
+
+    h.deals = new Error("база недоступна");
+    const out = await render();
+    expect(out).toContain("page-body");
+    expect(out).not.toContain('href="/v2/deals"');
   });
 
   it("гость: обычная оболочка, сосредоточенной нет", async () => {

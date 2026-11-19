@@ -68,6 +68,18 @@ describe("navFor: вкладки по ролям", () => {
     expect(activeHref(nav.tabs, "/v2/register/executor")).toBe("/v2/register/executor");
   });
 
+  it("идущий к профилю мастера со своими сделками: Главная · Сделки · Профиль (путь к сделкам не теряется)", () => {
+    const nav = navFor({ ...client, becomingMaster: true, hasBuyerDeals: true }, OFF);
+    expect(labels(nav)).toEqual(["Главная", "Сделки", "Профиль"]);
+    expect(hrefs(nav)).toEqual(["/v2/register/executor", "/v2/deals", "/v2/profile"]);
+    expect(nav.action).toBeUndefined();
+  });
+
+  it("идущий к профилю мастера без сделок: «Сделок» нет; признак сделок без «идёт к мастеру» ничего не меняет", () => {
+    expect(labels(navFor({ ...client, becomingMaster: true, hasBuyerDeals: false }, OFF))).toEqual(["Главная", "Профиль"]);
+    expect(navFor({ ...client, hasBuyerDeals: true }, OFF)).toEqual(navFor(client, OFF));
+  });
+
   it("признак «идёт к профилю мастера» ложный — у покупателя всё как раньше", () => {
     expect(navFor({ ...client, becomingMaster: false }, OFF)).toEqual(navFor(client, OFF));
     expect(navFor({ ...client, becomingMaster: false }, OFF).action).toEqual({ href: "/v2/requests/new", label: "Заказать мебель" });
