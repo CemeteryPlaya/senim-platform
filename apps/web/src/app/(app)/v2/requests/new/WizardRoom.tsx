@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ru } from "@/i18n/ru";
 import { Checkbox, HiddenField, Section, TextArea, toast, Uploader } from "@/kit";
 import { LIMITS } from "@/modules/requests/client";
@@ -34,6 +35,13 @@ type Props = {
 export function WizardRoom({ base, photos, description, design, designConfirmed }: Props) {
   const uploads = usePhotoUploads("REQUEST_ROOM", photos, ru.requests.wizard.room.photoAlt);
   const project = usePhotoUploads("REQUEST_DESIGN", design, d.photo);
+  // Отметка подтверждает именно эти файлы: новый файл проекта снимает её — нужно проверить и подтвердить заново;
+  // удаление файла её не снимает (в оставшихся контактов не прибавилось).
+  const [confirmed, setConfirmed] = useState(designConfirmed);
+  const addDesign = (files: File[]) => {
+    setConfirmed(false);
+    project.add(files);
+  };
   const busy = uploads.busy || project.busy;
   // «Назад» тоже сохраняет шаг: загруженные файлы и описание не теряются (пока файлы грузятся — ждёт, объясняя тостом).
   const form = useWizardStep("room", base, { blocked: { when: busy, onBlocked: () => toast(t.uploading) }, saveOnBack: true });
@@ -61,7 +69,7 @@ export function WizardRoom({ base, photos, description, design, designConfirmed 
           max={LIMITS.designFiles}
           accept={DESIGN_ACCEPT}
           label={d.add}
-          onAdd={project.add}
+          onAdd={addDesign}
           onRemove={project.remove}
           onRetry={project.retry}
           onReject={(_files, reason) => toast.error(reason === "type" ? d.rejectType : d.rejectLimit(LIMITS.designFiles))}
@@ -70,7 +78,14 @@ export function WizardRoom({ base, photos, description, design, designConfirmed 
           <HiddenField key={id} name="designFileIds" value={id} />
         ))}
         {project.items.length > 0 && (
-          <Checkbox name="designContactsConfirmed" value="on" label={d.confirm} defaultChecked={designConfirmed} error={form.errors.designContactsConfirmed} />
+          <Checkbox
+            name="designContactsConfirmed"
+            value="on"
+            label={d.confirm}
+            checked={confirmed}
+            onChange={(event) => setConfirmed(event.currentTarget.checked)}
+            error={form.errors.designContactsConfirmed}
+          />
         )}
       </Section>
     </WizardFrame>
