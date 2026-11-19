@@ -15,6 +15,8 @@ import { navFor } from "./_shell/nav";
 import { pendingOnboarding } from "./_shell/onboarding";
 import { OperatorMoving } from "./_shell/OperatorMoving";
 import { PwaSetup } from "./_shell/PwaSetup";
+import { becomingMaster } from "./_shell/role-choice";
+import { recallRole } from "./_shell/role-cookie";
 import "./app.css";
 
 export const metadata: Metadata = {
@@ -72,7 +74,9 @@ export default async function AppLayout({ children }: Readonly<{ children: React
   // Пока не пройдены первые шаги (согласие, знакомство, почта; у оператора — второй шаг входа) — сосредоточенная оболочка:
   // только название и «Выйти». Меню оператора без второго шага вело бы на разделы, которые всё равно вернут на код.
   const focus = user !== null && (pendingOnboarding(user).length > 0 || needsSecondFactor(user));
-  const nav = navFor(user, features(), { focus });
+  // Идущий к профилю мастера (выбрал «Я мастер», профиля нет) — вкладки неодобренного мастера, без «Заказать мебель».
+  const navUser = user && { ...user, becomingMaster: becomingMaster(user, await recallRole()) };
+  const nav = navFor(navUser, features(), { focus });
   // Счётчик уведомлений — один запрос на запрос страницы, только вошедшему с пройденными первыми шагами (в
   // сосредоточенной оболочке колокольчика нет, у гостя — тоже). Сбой чтения счётчика не должен ронять всю оболочку.
   const unread = user && !nav.focus ? await unreadOf(user.id) : null;

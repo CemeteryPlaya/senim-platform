@@ -25,6 +25,7 @@ const h = vi.hoisted(() => ({
   unreadCalls: [] as string[],
   pathname: "/v2/deals/7",
   search: "tab=docs",
+  chosen: null as "CLIENT" | "EXECUTOR" | null,
 }));
 
 vi.mock("@/kit/theme", async (importOriginal) => ({
@@ -48,6 +49,7 @@ vi.mock("@/modules/notifications", () => ({
   },
 }));
 vi.mock("./_shell/session-actions", () => ({ logout: vi.fn() }));
+vi.mock("./_shell/role-cookie", () => ({ recallRole: async () => h.chosen }));
 vi.mock("./_shell/theme-actions", () => ({ chooseTheme: vi.fn(async () => undefined) }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
@@ -98,6 +100,7 @@ beforeEach(() => {
   h.unread = 4;
   h.unreadCalls = [];
   h.pathname = "/v2/deals/7";
+  h.chosen = null;
 });
 
 describe("корневой layout v2", () => {
@@ -134,6 +137,18 @@ describe("корневой layout v2", () => {
     expect(usual).toMatch(/<nav/);
     expect(usual).not.toContain(ru.app.shell.logout);
     expect(usual).not.toContain("data-focus-bar");
+  });
+
+  it("компьютер: покупатель, идущий к профилю мастера, — без «Заказать мебель» и разделов покупателя", async () => {
+    h.device = "desktop";
+    h.shell = { user: done("CLIENT"), unavailable: false };
+    expect(await render()).toContain(ru.app.shell.order);
+
+    h.chosen = "EXECUTOR";
+    const out = await render();
+    expect(out).not.toContain(ru.app.shell.order);
+    expect(out).toContain('href="/v2/register/executor"');
+    expect(out).not.toContain('href="/v2/requests"');
   });
 
   it("гость: обычная оболочка, сосредоточенной нет", async () => {

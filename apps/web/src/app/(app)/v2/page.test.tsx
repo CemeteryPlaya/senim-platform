@@ -3,8 +3,9 @@ import { ru } from "@/i18n/ru";
 import { count, html } from "@/kit/test-utils";
 
 const h = vi.hoisted(() => ({
-  shell: { user: null as { role: "CLIENT" | "EXECUTOR" | "OPERATOR" } | null, unavailable: false },
+  shell: { user: null as { role: "CLIENT" | "EXECUTOR" | "OPERATOR"; executor?: null } | null, unavailable: false },
   device: "desktop" as "mobile" | "desktop",
+  chosen: null as "CLIENT" | "EXECUTOR" | null,
 }));
 
 vi.mock("@/modules/identity", () => ({ getShellUser: async () => h.shell }));
@@ -20,6 +21,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
+vi.mock("../_shell/role-cookie", () => ({ recallRole: async () => h.chosen }));
 // Главная покупателя читает базу — её проверяет page.int.test.ts; здесь только выбор по роли.
 vi.mock("./_home/BuyerHome", () => ({ BuyerHome: ({ device }: { device: string }) => <h1>покупатель-{device}</h1> }));
 
@@ -30,6 +32,7 @@ const { default: V2Home } = await import("./(home)/page");
 beforeEach(() => {
   h.shell = { user: null, unavailable: false };
   h.device = "desktop";
+  h.chosen = null;
 });
 
 describe("главная /v2", () => {
@@ -51,6 +54,18 @@ describe("главная /v2", () => {
     h.shell = { user: { role: "CLIENT" }, unavailable: false };
     h.device = "mobile";
     expect(html(await V2Home())).toContain("покупатель-mobile");
+  });
+
+  it("покупатель без профиля мастера, выбравший «Я мастер», главную покупателя не видит — на анкету мастера", async () => {
+    h.shell = { user: { role: "CLIENT", executor: null }, unavailable: false };
+    h.chosen = "EXECUTOR";
+    await expect(V2Home()).rejects.toThrow("redirect:/v2/register/executor");
+  });
+
+  it("покупатель с выбором «Заказать мебель» видит свою главную", async () => {
+    h.shell = { user: { role: "CLIENT", executor: null }, unavailable: false };
+    h.chosen = "CLIENT";
+    expect(html(await V2Home())).toContain("покупатель-desktop");
   });
 
   it("вошедший с активной ролью мастера видит главную мастера", async () => {

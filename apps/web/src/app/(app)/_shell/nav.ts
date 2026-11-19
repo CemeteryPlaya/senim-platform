@@ -64,6 +64,11 @@ export type OperatorNav = { home: NavItem; groups: NavGroup[]; profile: NavItem 
 export type NavUser = {
   role: Role;
   executor: { status: "PENDING" | "APPROVED" | "REJECTED" } | null;
+  /**
+   * Покупатель идёт к профилю мастера (`becomingMaster`: выбрал «Я мастер», профиля ещё нет): вкладки как у неодобренного
+   * мастера и без «Заказать мебель». Считает layout по cookie выбора; нет — `false`.
+   */
+  becomingMaster?: boolean;
 };
 
 /** Флаги (platform/features), от которых зависят вкладки: раздел за выключенным флагом в меню не показывается. */
@@ -147,7 +152,8 @@ export function operatorItems(nav: OperatorNav): NavItem[] {
 function roleTabs(user: NavUser): NavItem[] {
   switch (user.role) {
     case "CLIENT":
-      return [R.home, R.requests, R.deals, R.chat, R.profile];
+      // Идущий к профилю мастера: дом — анкета мастера (`/v2` ведёт туда же). «Компании» нет: её страница требует роль мастера.
+      return user.becomingMaster ? [R.registration, R.profile] : [R.home, R.requests, R.deals, R.chat, R.profile];
     case "EXECUTOR":
       // Мастер: «что сейчас» на главной; финансы, компания и портфолио — из профиля и главной. Неодобренный (нет профиля,
       // на проверке, отказ): «Главная» — регистрация и статус проверки (тот же дом, что у `homeFor`; `/v2` его туда
@@ -183,7 +189,7 @@ export function navFor(user: NavUser | null, f: NavFeatures, options: { focus?: 
   }
   if (user.role === "OPERATOR") return { tabs: [], sections: [], guest: false, focus: false, operator: operatorNav(f) };
   const tabs = roleTabs(user).filter(shownWith(f));
-  const action = user.role === "CLIENT" ? { href: to("/requests/new"), label: ru.app.shell.order } : undefined;
+  const action = user.role === "CLIENT" && !user.becomingMaster ? { href: to("/requests/new"), label: ru.app.shell.order } : undefined;
   return action ? { tabs, sections: tabs, action, guest: false, focus: false } : { tabs, sections: tabs, guest: false, focus: false };
 }
 

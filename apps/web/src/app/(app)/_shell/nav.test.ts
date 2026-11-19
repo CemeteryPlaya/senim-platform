@@ -59,6 +59,20 @@ describe("navFor: вкладки по ролям", () => {
     expect(nav.guest).toBe(false);
   });
 
+  it("покупатель, идущий к профилю мастера: «Главная» — анкета мастера · Профиль, без «Заказать мебель» и «Компании»", () => {
+    const nav = navFor({ ...client, becomingMaster: true }, OFF);
+    expect(labels(nav)).toEqual(["Главная", "Профиль"]);
+    expect(hrefs(nav)).toEqual(["/v2/register/executor", "/v2/profile"]);
+    expect(nav.sections).toEqual(nav.tabs);
+    expect(nav.action).toBeUndefined();
+    expect(activeHref(nav.tabs, "/v2/register/executor")).toBe("/v2/register/executor");
+  });
+
+  it("признак «идёт к профилю мастера» ложный — у покупателя всё как раньше", () => {
+    expect(navFor({ ...client, becomingMaster: false }, OFF)).toEqual(navFor(client, OFF));
+    expect(navFor({ ...client, becomingMaster: false }, OFF).action).toEqual({ href: "/v2/requests/new", label: "Заказать мебель" });
+  });
+
   it("мастер (одобрен): Главная · Заявки · Сделки · Чат · Профиль (финансы и компания — из профиля и главной)", () => {
     const nav = navFor(executor("APPROVED"), OFF);
     expect(labels(nav)).toEqual(["Главная", "Заявки", "Сделки", "Чат", "Профиль"]);
