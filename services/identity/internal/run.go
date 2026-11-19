@@ -25,20 +25,20 @@ import (
 	"github.com/CemeteryPlaya/senim-platform/services/identity"
 )
 
-const usage = "использование: identity serve | identity migrate | identity healthcheck | identity mfa-reset --phone <E.164> | identity rewrap-pii [--batch 500]"
+const usage = "использование: identity serve | identity migrate | identity healthcheck | identity mfa-reset --phone <E.164> | identity grant-admin --phone <E.164> | identity rewrap-pii [--batch 500]"
 
 // healthcheckTimeout — сколько ждать ответа пробы; docker compose сам ограничивает проверку сверху.
 const healthcheckTimeout = 3 * time.Second
 
-// mfaResetTimeout — предел подключения к базе и транзакции identity mfa-reset: ни одного
-// вызова без дедлайна.
+// mfaResetTimeout — предел подключения к базе и транзакции identity mfa-reset и
+// identity grant-admin: ни одного вызова без дедлайна.
 const mfaResetTimeout = 30 * time.Second
 
 // Main выполняет команду и возвращает код выхода процесса. Ошибки пишутся в stderr
 // через логгер; значения секретов в них не попадают.
 func Main(ctx context.Context, args []string, src config.Source, stderr io.Writer) int {
 	log := logging.New(stderr, ServiceID, slog.LevelInfo)
-	if len(args) == 0 || (args[0] != "mfa-reset" && args[0] != "rewrap-pii" && len(args) != 1) {
+	if len(args) == 0 || (args[0] != "mfa-reset" && args[0] != "grant-admin" && args[0] != "rewrap-pii" && len(args) != 1) {
 		log.Error(usage)
 		return 2
 	}
@@ -52,6 +52,8 @@ func Main(ctx context.Context, args []string, src config.Source, stderr io.Write
 		err = Healthcheck(ctx, src)
 	case "mfa-reset":
 		err = MfaReset(ctx, src, log, args[1:])
+	case "grant-admin":
+		err = GrantAdmin(ctx, src, log, args[1:])
 	case "rewrap-pii":
 		err = RewrapPII(ctx, src, log, args[1:])
 	default:
@@ -117,6 +119,49 @@ func MfaReset(ctx context.Context, src config.Source, log *slog.Logger, args []s
 		return err
 	}
 	log.Info("второй фактор сброшен", "user_id", userID.String())
+	return nil
+}
+
+// GrantAdmin — подкоманда «identity grant-admin --phone <E.164>»: владелец делает номер
+// администратором площадки (роль ADMIN — единственная у человека, второй фактор обязателен).
+// Других способов выдать роль нет: ни переменной, ни экрана (на стенде — сид). Нового
+// человека создаёт; уже администратор — без изменений; номер с другими ролями или
+// заблокированный — ошибка. RoleGranted и аудит (actor_kind "cli") — в одной транзакции.
+// Работает рабочей ролью (IDENTITY_APP_DSN); телефон в лог не пишется.
+func GrantAdmin(ctx context.Context, src config.Source, log *slog.Logger, args []string) error {
+	fs := flag.NewFlagSet("grant-admin", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	rawPhone := fs.String("phone", "", "телефон администратора в E.164")
+	if err := fs.Parse(args); err != nil {
+		return fmt.Errorf("grant-admin: %w", err)
+	}
+	if fs.NArg() != 0 {
+		return errors.New("grant-admin: лишние аргументы")
+	}
+	phone, ok := parsePhone(*rawPhone)
+	if !ok {
+		return errors.New("grant-admin: --phone: нужен мобильный номер РК (+77001234567)")
+	}
+	cfg, err := LoadMfaReset(src)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, mfaResetTimeout)
+	defer cancel()
+	pool, err := dbx.Connect(ctx, cfg.AppDSN, ServiceID, 1)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	userID, granted, err := grantAdmin(ctx, pool, phone, time.Now())
+	if err != nil {
+		return err
+	}
+	if granted {
+		log.Info("роль администратора выдана", "user_id", userID.String())
+	} else {
+		log.Info("уже администратор, без изменений", "user_id", userID.String())
+	}
 	return nil
 }
 
