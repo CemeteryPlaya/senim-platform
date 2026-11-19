@@ -457,7 +457,19 @@ describe("свой дизайн-проект в шаге «Помещение»"
     await room(client, requestId, { designFileIds: [pdf.id], designContactsConfirmed: true });
     expect(await confirmedAt(requestId)).toEqual(first);
     const audit = await db.auditEvent.findFirstOrThrow({ where: { action: "request.draft_saved", entityId: requestId }, orderBy: { createdAt: "desc" } });
-    expect(audit.meta).toMatchObject({ screen: "room", designFiles: 1 });
+    expect(audit.meta).toMatchObject({ screen: "room", designFiles: 1, designContactsConfirmed: true });
+  });
+
+  it("аудит не пишет отметку о контактах, когда файлов проекта нет: пустой список и шаг без полей проекта", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const lastMeta = async () =>
+      (await db.auditEvent.findFirstOrThrow({ where: { action: "request.draft_saved", entityId: requestId }, orderBy: { createdAt: "desc" } })).meta;
+
+    await room(client, requestId, { designFileIds: [] });
+    expect(await lastMeta()).not.toHaveProperty("designContactsConfirmed");
+    await saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds: [], description: "" } });
+    expect(await lastMeta()).not.toHaveProperty("designContactsConfirmed");
   });
 
   it("файлы проекта без отметки — VALIDATION у отметки, даже мимо схемы; файл не прикрепляется", async () => {

@@ -219,7 +219,8 @@ async function saveDraftStepOnce(user: CurrentUser, input: SaveDraftInput): Prom
     if (step.screen === "room") await linkRoomPhotos(tx, user, r.id, step.photoFileIds);
     if (designFileIds) await linkDesignFiles(tx, user, r.id, designFileIds);
 
-    const designMeta = designFileIds ? { designFiles: designFileIds.length } : {};
+    // Аудит фиксирует и отметку «убрал контакты»: без файлов проекта её нет (схема требует её только вместе с файлами).
+    const designMeta = designFileIds ? { designFiles: designFileIds.length, ...(designFileIds.length > 0 ? { designContactsConfirmed: true } : {}) } : {};
     await auditByUser(tx, user, r.id, { action: "request.draft_saved", entity: { type: "request", id: r.id }, meta: { screen: step.screen, wizardStep, ...designMeta } });
     return { requestId: r.id, wizardStep };
   });
