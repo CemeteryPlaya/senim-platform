@@ -34,6 +34,12 @@ describe("адреса и «Назад»", () => {
     expect(backOf("check", "status")).toEqual({ href: "/v2/register/executor?step=place", label: t.steps.place });
   });
 
+  it("анкета — дом человека (мастер без профиля, идущий к профилю мастера): на первом шаге «Назад» нет, дальше — к прошлому шагу", () => {
+    expect(backOf("form", "home", true)).toBeUndefined();
+    expect(backOf("name", "home", true)).toEqual({ href: "/v2/register/executor?step=form", label: t.steps.form });
+    expect(backOf("check", "home", true)).toEqual({ href: "/v2/register/executor?step=place", label: t.steps.place });
+  });
+
   it("гость — на вход мастером с возвратом сюда", () => {
     expect(guestLoginHref()).toBe("/v2/login?role=executor&next=%2Fv2%2Fregister%2Fexecutor");
   });

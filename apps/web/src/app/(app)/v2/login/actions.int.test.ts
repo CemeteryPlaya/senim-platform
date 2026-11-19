@@ -10,7 +10,7 @@ import type { ActionResult } from "@/platform/action";
 import { cookieValue, deletedCookies, freshBrowser, setEnv } from "../../../../../test/factories/identity";
 import { FAKE_OTP_CODE, identityFake } from "../../../../../test/stubs/identity";
 import { recallRole, roleCookieName } from "../../_shell/role-cookie";
-import { chooseRoleAction, requestCodeAction, verifyCodeAction } from "./actions";
+import { chooseRoleAction, haveAccountAction, requestCodeAction, verifyCodeAction } from "./actions";
 
 vi.mock("next/headers", async () => (await import("../../../../../test/factories/identity")).nextHeadersMock);
 
@@ -92,6 +92,26 @@ describe("chooseRoleAction", () => {
     const res = await run(chooseRoleAction({ next: "" } as never));
     expect(res).toMatchObject({ ok: false, code: "VALIDATION", fieldErrors: { role: [t.role.errors.required] } });
     expect(cookieValue(roleCookieName())).toBeUndefined();
+  });
+});
+
+describe("haveAccountAction: «Уже регистрировались? Войти по номеру»", () => {
+  it("прежний выбор забыт, дальше шаг номера с безопасным next", async () => {
+    await run(chooseRoleAction({ role: "executor", next: "" }));
+    expect(await run(haveAccountAction({ next: NEXT }))).toEqual({ redirect: `/v2/login?step=phone&next=${encodeURIComponent(NEXT)}` });
+    expect(deletedCookies.map((c) => c.name)).toContain(roleCookieName());
+    expect(await recallRole()).toBeNull();
+    expect(await run(haveAccountAction({ next: "//evil.com/v2" }))).toEqual({ redirect: "/v2/login?step=phone" });
+  });
+
+  it("после «Я мастер» и «Войти по номеру» известный покупатель без профиля мастера попадает в свой дом, а не на анкету", async () => {
+    await existingClient();
+    await run(chooseRoleAction({ role: "executor", next: "" }));
+    await run(haveAccountAction({ next: "" }));
+    await run(requestCodeAction({ phone: PHONE }));
+
+    expect(await run(verifyCodeAction({ phone: PHONE, code: FAKE_OTP_CODE, next: "" }))).toEqual({ redirect: "/v2" });
+    expect(await recallRole()).toBeNull();
   });
 });
 

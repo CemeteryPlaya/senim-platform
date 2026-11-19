@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   unavailable: false,
   kyc: "NOT_SUBMITTED" as string | Error,
   deals: [] as { myRole: string }[],
+  chosen: null as "CLIENT" | "EXECUTOR" | null,
   form: { pending: false, error: null as string | null, fieldErrors: {} as Record<string, string> },
 }));
 
@@ -36,7 +37,7 @@ vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} }),
 }));
-vi.mock("../../../_shell/role-cookie", () => ({ recallRole: async () => null }));
+vi.mock("../../../_shell/role-cookie", () => ({ recallRole: async () => h.chosen }));
 vi.mock("@/platform/device", () => ({ getDevice: async () => "mobile" }));
 vi.mock("../../../_shell/form", () => ({ useActionForm: () => ({ ...h.form, onSubmit() {}, submit: async () => {} }) }));
 vi.mock("./actions", () => ({ registerMasterAction: vi.fn(), forgetMasterChoiceAction: vi.fn() }));
@@ -112,6 +113,7 @@ beforeEach(() => {
   h.unavailable = false;
   h.kyc = "NOT_SUBMITTED";
   h.deals = [];
+  h.chosen = null;
   h.form = { pending: false, error: null, fieldErrors: {} };
 });
 
@@ -147,13 +149,19 @@ describe("регистрация мастера: кто что видит", () =
     expect(out).toContain(t.next);
   });
 
-  it("мастер без профиля пояснения «станете мастером» не видит", async () => {
+  it("мастер без профиля пояснения «станете мастером» не видит; анкета — его дом: на первом шаге «Назад» нет", async () => {
     h.user = person({ role: "EXECUTOR", roles: ["EXECUTOR"] });
-    expect(await page()).not.toContain(t.form.keepsBuyer);
+    const out = await page();
+    expect(out).not.toContain(t.form.keepsBuyer);
+    expect(out).not.toContain(t.backHome);
+    expect(out).not.toContain(t.orderFirst);
   });
 
-  it("покупатель на первом шаге — выход «Сначала заказать мебель»: тихая кнопка 48 px, не главное действие", async () => {
+  it("покупатель, идущий к профилю мастера: на первом шаге «Назад» нет — выход «Сначала заказать мебель», тихая кнопка 48 px", async () => {
+    h.chosen = "EXECUTOR";
     const out = await page();
+    expect(out).not.toContain(t.backHome);
+    expect(out).not.toContain('href="/v2"');
     const exit = orderFirstButton(out);
     expect(exit).not.toBeNull();
     expect(hasClass(exit!, "min-h-control")).toBe(true);
@@ -161,11 +169,20 @@ describe("регистрация мастера: кто что видит", () =
     expect(count(out, "data-primary-action")).toBe(1);
   });
 
+  it("покупатель без выбора «Я мастер» (пришёл из профиля): «‹ Главная» есть, второй кнопки туда же нет", async () => {
+    const out = await page();
+    expect(out).toContain(t.backHome);
+    expect(out).not.toContain(t.orderFirst);
+  });
+
   it("выхода «Сначала заказать мебель» нет: дальше первого шага, у мастера, после отказа", async () => {
-    expect(await page("place")).not.toContain(t.orderFirst);
+    h.chosen = "EXECUTOR";
+    const later = await page("place");
+    expect(later).not.toContain(t.orderFirst);
+    expect(later).toContain(`href="/v2/register/executor?step=name"`);
     h.user = person({ role: "EXECUTOR", roles: ["EXECUTOR"] });
     expect(await page()).not.toContain(t.orderFirst);
-    h.user = person();
+    h.user = person({ role: "EXECUTOR", roles: ["CLIENT", "EXECUTOR"], executor: { id: "e1", status: "REJECTED" } });
     h.registration = registration("REJECTED");
     expect(await page("form")).not.toContain(t.orderFirst);
   });

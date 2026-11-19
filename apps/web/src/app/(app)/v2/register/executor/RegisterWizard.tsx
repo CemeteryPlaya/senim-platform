@@ -65,6 +65,10 @@ type Props = {
   fullName: string | null;
   /** Покупатель становится мастером: пояснение на первом шаге. */
   keepsBuyer: boolean;
+  /** Анкета — дом человека (мастер без профиля, идущий к профилю мастера): на первом шаге нет «Назад» на главную. */
+  isHome: boolean;
+  /** Покупатель идёт к профилю мастера по выбору «Я мастер»: на первом шаге — выход «Сначала заказать мебель». */
+  becomingMaster: boolean;
   /** Ключ хранилища вкладки (свой у каждого пользователя). */
   storageKey: string;
   device: Device;
@@ -80,7 +84,7 @@ type Props = {
  * шаг отправляет анкету целиком (`registerMasterAction`); ошибки сервиса приходят у полей — анкета открывает шаг с первой из
  * них. Повторное нажатие, пока идёт отправка, гасит `useActionForm`; сервер на повтор отвечает экраном статуса.
  */
-export function RegisterWizard({ step: requested, initial, origin, rejectReason = null, ownIinLast4, fullName, keepsBuyer, storageKey, device }: Props) {
+export function RegisterWizard({ step: requested, initial, origin, rejectReason = null, ownIinLast4, fullName, keepsBuyer, isHome, becomingMaster, storageKey, device }: Props) {
   const router = useRouter();
   const [answers, setAnswers] = useState(initial);
   const [restored, setRestored] = useState(false);
@@ -186,10 +190,10 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
     <div ref={root} className="desktop:mx-auto desktop:max-w-narrow">
       <Stack gap="section">
         <Stack gap="tight">
-          <WizardHeader step={index + 1} total={STEPS.length} title={t.steps[step]} back={backOf(step, origin)} />
+          <WizardHeader step={index + 1} total={STEPS.length} title={t.steps[step]} back={backOf(step, origin, isHome)} />
           {step === "form" && <p className="text-body text-muted">{t.form.lead}</p>}
           {step === "form" && keepsBuyer && <p className="text-body text-ink">{t.form.keepsBuyer}</p>}
-          {step === "form" && keepsBuyer && origin === "home" && <OrderFirst />}
+          {step === "form" && becomingMaster && <OrderFirst />}
           {step === "form" && <StepExplain kind="form" device={device} />}
           {step === "name" && <StepExplain kind="name" device={device} />}
           {step === "place" && <p className="text-body text-muted">{t.place.lead}</p>}

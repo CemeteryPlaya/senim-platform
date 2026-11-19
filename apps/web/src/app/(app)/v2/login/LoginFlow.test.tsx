@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { count, html, text } from "@/kit/test-utils";
+import { count, hasClass, html, text } from "@/kit/test-utils";
 import { ru } from "@/i18n/ru";
 import { CodeStep, RoleStep } from "./LoginFlow";
 
@@ -104,6 +104,15 @@ describe("RoleStep: покупатель или мастер", () => {
     const dock = out.slice(out.indexOf("data-action-dock"));
     expect(dock).toContain(role.submit);
     expect(dock).not.toContain(role.haveAccount);
-    expect(out).toContain(`href="/v2/login?step=phone&amp;next=%2Fv2%2Fabout"`);
+  });
+
+  it("«Войти по номеру» — действие (забывает прежний выбор роли), а не ссылка: тихая кнопка 48 px, не главная", () => {
+    const out = html(<RoleStep role="client" next="/v2/about" />);
+    const label = role.haveAccount.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const button = out.match(new RegExp(`<button[^>]*>(?:(?!</button>).)*${label}(?:(?!</button>).)*</button>`))?.[0];
+    expect(button).toBeDefined();
+    expect(hasClass(button!, "min-h-control")).toBe(true);
+    expect(button).not.toContain("data-primary-action");
+    expect(out).not.toContain("href=\"/v2/login?step=phone");
   });
 });

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Hammer, Sofa } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ru } from "@/i18n/ru";
 import {
   ActionDock,
@@ -16,6 +16,7 @@ import {
   Stack,
   PageTitle,
   TextLink,
+  toast,
 } from "@/kit";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../_shell/FormError";
@@ -23,7 +24,7 @@ import { useActionForm } from "../../_shell/form";
 import { to } from "../../_shell/paths";
 import { ResendCode } from "../../_shell/ResendCode";
 import { ShownCode } from "../../_shell/ShownCode";
-import { chooseRoleAction, requestCodeAction, verifyCodeAction } from "./actions";
+import { chooseRoleAction, haveAccountAction, requestCodeAction, verifyCodeAction } from "./actions";
 import type { RolePhotos } from "./role-photos";
 import { loginStepHref, RESEND_SECONDS, type LoginRole, type LoginStep } from "./steps";
 
@@ -165,13 +166,34 @@ export function RoleStep({ role, next, photos }: { role: LoginRole; next: string
           <FormError error={form.error} atField={Boolean(form.fieldErrors.role)} />
         </Stack>
       </form>
-      <TextLink href={loginStepHref("phone", next)}>{t.role.haveAccount}</TextLink>
+      <HaveAccount next={next} />
       <ActionDock>
         <Button type="submit" form={FORM.role} pending={form.pending}>
           {t.role.submit}
         </Button>
       </ActionDock>
     </Stack>
+  );
+}
+
+/**
+ * «Уже регистрировались? Войти по номеру»: действие, а не ссылка — оно забывает прежний выбор роли (cookie на сутки), иначе
+ * вход известного номера повёл бы по старому выбору. Вид — тихая кнопка по левой линии, как текстовая ссылка (`flush`,
+ * 48 px); обёртка не даёт колонке растянуть её. Сбой — тостом.
+ */
+function HaveAccount({ next }: { next: string | null }) {
+  const [pending, startTransition] = useTransition();
+  const go = () =>
+    startTransition(async () => {
+      const res = await haveAccountAction({ next: next ?? "" });
+      if (!res.ok) toast.error(res.error);
+    });
+  return (
+    <div>
+      <Button variant="quiet" flush pending={pending} onClick={go}>
+        {t.role.haveAccount}
+      </Button>
+    </div>
   );
 }
 

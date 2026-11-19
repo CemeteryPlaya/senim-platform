@@ -4,7 +4,9 @@ import { listDeals } from "@/modules/deal-core";
 import { getMyRegistration, getOwnKyc, getShellUser, type CurrentUser } from "@/modules/identity";
 import { getDevice } from "@/platform/device";
 import { logger } from "@/platform/logger";
-import { requireV2User } from "../../../_shell/auth";
+import { masterStatusOf, requireV2User } from "../../../_shell/auth";
+import { becomingMaster } from "../../../_shell/role-choice";
+import { recallRole } from "../../../_shell/role-cookie";
 import { initialAnswers, parseStep, REGISTER_PATH } from "./_parts/steps";
 import { RegisterGuest, RegisterStatus, type KycState } from "./RegisterStatus";
 import { RegisterWizard } from "./RegisterWizard";
@@ -41,6 +43,9 @@ export default async function RegisterExecutorPage({ searchParams }: Props) {
   }
 
   const rejected = registration !== null;
+  // Анкета — дом (homeFor): у мастера без профиля и у идущего к профилю мастера; «Назад» на главную вело бы сюда же.
+  const toMaster = becomingMaster(user, await recallRole());
+  const isHome = toMaster || (user.role === "EXECUTOR" && masterStatusOf(user) === "none");
   return (
     <RegisterWizard
       step={step}
@@ -50,6 +55,8 @@ export default async function RegisterExecutorPage({ searchParams }: Props) {
       ownIinLast4={user.iinLast4}
       fullName={user.fullName}
       keepsBuyer={user.roles.includes("CLIENT") && !user.roles.includes("EXECUTOR")}
+      isHome={isHome}
+      becomingMaster={toMaster}
       storageKey={`senim.master-register:${user.id}`}
       device={device}
     />

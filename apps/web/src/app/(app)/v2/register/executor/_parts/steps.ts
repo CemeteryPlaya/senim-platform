@@ -24,9 +24,14 @@ export const guestLoginHref = (): string => `${to("/login")}?${new URLSearchPara
 /** Откуда пришёл человек: новая анкета — с главной, повторная после отказа — с экрана статуса. */
 export type Origin = "home" | "status";
 
-/** «Назад»: с первого шага — на главную (после отказа — к статусу), дальше — на прошлый шаг с его заголовком. */
-export function backOf(step: RegisterStep, origin: Origin): { href: string; label: string } {
+/**
+ * «Назад»: с первого шага — на главную (после отказа — к статусу), дальше — на прошлый шаг с его заголовком. Если анкета —
+ * дом человека (`isHome`: мастер без профиля, идущий к профилю мастера), на первом шаге «Назад» нет: главная привела бы
+ * обратно сюда.
+ */
+export function backOf(step: RegisterStep, origin: Origin, isHome = false): { href: string; label: string } | undefined {
   const index = STEPS.indexOf(step);
+  if (index <= 0 && isHome) return undefined;
   if (index <= 0) return origin === "status" ? { href: REGISTER_PATH, label: t.backStatus } : { href: to("/"), label: t.backHome };
   const previous = STEPS[index - 1];
   return { href: stepHref(previous), label: t.steps[previous] };
