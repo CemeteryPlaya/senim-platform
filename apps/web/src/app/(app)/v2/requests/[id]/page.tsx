@@ -6,6 +6,7 @@ import { getClientRequest, getDraft, listInvitations, listOffers, myOfferStates,
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { pageHref, requireBuyer } from "../../../_shell/auth";
+import { designView } from "../../_parts/design-files";
 import { requestState } from "../../_parts/request-state";
 import { detailRows, draftHref, invitationRows, nowView, offersView, parseSort, photoView, sentNotice, type OfferInput } from "./_parts/card-view";
 import { RequestCardView, type CardView } from "./_parts/RequestCardView";
@@ -90,6 +91,8 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
       directLabel: request.mode === "DIRECT" ? own.targetLabel : null,
     }),
     photos: photoView(own.photos),
+    // Свой дизайн-проект: покупатель-загрузчик видит и скрытые оператором файлы — с пометкой.
+    design: designView(request.design, ru.app.requests.wizard.room.design),
     cancel: cancellable(request.status) ? { offersCount: state.liveOffers, direct: request.mode === "DIRECT" } : null,
   };
   return <RequestCardView view={view} device={device} />;

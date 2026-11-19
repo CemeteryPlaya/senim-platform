@@ -113,7 +113,16 @@ export default async function NewRequestPage({ searchParams }: Props) {
       );
     }
     case "room":
-      return <WizardRoom key={key} base={base} photos={draft.photos} description={draft.details.description ?? ""} />;
+      return (
+        <WizardRoom
+          key={key}
+          base={base}
+          photos={draft.photos}
+          description={draft.details.description ?? ""}
+          design={draft.design}
+          designConfirmed={draft.designConfirmed}
+        />
+      );
     case "place":
       return (
         <WizardPlace

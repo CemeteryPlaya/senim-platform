@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import { count, html } from "@/kit/test-utils";
+import { designView } from "../../../_parts/design-files";
 import { nowView, offersView, type OfferInput } from "./card-view";
 import { RequestCardView, type CardView } from "./RequestCardView";
 
@@ -37,6 +38,7 @@ function view(over: Partial<CardView> = {}, offers: OfferInput[] = [offer("3", 1
     offers: offersView(request, offers, "price"),
     details: [{ label: "Город", value: "Астана", stacked: false }],
     photos: [{ id: "p1", src: "/f/p1", alt: "Фото помещения 1 из 1" }],
+    design: null,
     cancel: { offersCount: offers.length, direct: false },
     ...over,
   };
@@ -119,6 +121,28 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
     const out = html(<RequestCardView view={view()} device={device} />);
     expect(out).toContain('alt="Фото помещения 1 из 1"');
     expect(out).toContain('src="/f/p1"');
+  });
+
+  it("дизайн-проект: фото галереей, PDF — ссылкой в новой вкладке, скрытый — с пометкой; без файлов раздела нет", () => {
+    const d = ru.app.requests.wizard.room.design;
+    const design = designView(
+      [
+        { id: "a", kind: "image", src: "/f/a", n: 1 },
+        { id: "b", kind: "pdf", src: "/f/b.pdf", n: 2 },
+        { id: "c", kind: "pdf", src: "/f/c.pdf", n: 3, hidden: true },
+      ],
+      d,
+    );
+    const out = html(<RequestCardView view={view({ design })} device={device} />);
+    expect(out).toContain(t.details.design);
+    expect(out).toContain('src="/f/a"');
+    expect(out).toContain(`alt="${d.photo(1)}"`);
+    expect(out).toMatch(/href="\/f\/b\.pdf"[^>]*target="_blank"/);
+    expect(out).toContain(d.pdf(2));
+    expect(out).toContain("Дизайн-проект, файл 2 (PDF)");
+    expect(out).toContain(d.pdf(3));
+    expect(count(out, d.hidden)).toBe(1);
+    expect(html(<RequestCardView view={view()} device={device} />)).not.toContain(t.details.design);
   });
 
   it("устройство различают классами mobile:/desktop:, без sm:/md:/lg:", () => {

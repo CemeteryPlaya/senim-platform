@@ -13,7 +13,7 @@ import {
   segmentStep,
   withPreContractFlows,
 } from "../../../test/factories/requests";
-import { agreeToContract, cancelRequest, getDraft, likeTarget, listMyRequests, publishRequest, saveDraftStep } from "./index";
+import { agreeToContract, cancelRequest, getClientRequest, getDraft, likeTarget, listMyRequests, publishRequest, saveDraftStep } from "./index";
 
 const code = (code: string) => expect.objectContaining({ code });
 
@@ -528,6 +528,32 @@ describe("свой дизайн-проект в шаге «Помещение»"
 
     expect(await confirmedAt(requestId)).toBeNull();
     expect(await stored(pdf.id)).toMatchObject({ requestId: null });
+  });
+
+  it("покупатель видит свой проект в черновике и в заявке: вид файла, номер, скрытый — с пометкой; отметка", async () => {
+    const client = await makeClient();
+    const operator = await makeOperator();
+    const requestId = await makeDraft(client);
+    const pdf = await upload(client.id, "REQUEST_DESIGN");
+    const photo = await upload(client.id, "REQUEST_DESIGN", "image/jpeg");
+    expect(await getDraft(client, requestId)).toMatchObject({ design: [], designConfirmed: false });
+
+    await room(client, requestId, { designFileIds: [pdf.id, photo.id], designContactsConfirmed: true });
+    await db.storedFile.update({ where: { id: photo.id }, data: { hiddenAt: new Date(), hiddenById: operator.id } });
+
+    const draft = await getDraft(client, requestId);
+    expect(draft.designConfirmed).toBe(true);
+    expect(draft.design).toEqual([
+      expect.objectContaining({ id: pdf.id, kind: "pdf", n: 1, hidden: false }),
+      expect.objectContaining({ id: photo.id, kind: "image", n: 2, hidden: true }),
+    ]);
+    expect(draft.design[0]?.src).toEqual(expect.any(String));
+    const card = await getClientRequest(client, requestId);
+    expect(card.design.map((f) => [f.id, f.hidden])).toEqual([
+      [pdf.id, false],
+      [photo.id, true],
+    ]);
+    expect(card.designConfirmed).toBe(true);
   });
 
   it("отправка с файлами проекта без отметки в БД — VALIDATION; с отметкой — уходит", async () => {

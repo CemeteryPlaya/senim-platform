@@ -1,6 +1,6 @@
 import "server-only";
 import { listExecutorReviews, listPublicPortfolio } from "@/modules/companies";
-import { fileUrl } from "@/modules/files";
+import { fileUrl, fileViews } from "@/modules/files";
 
 /**
  * Зависимости от соседних модулей, приведённые к форме экранов requests.
@@ -26,3 +26,13 @@ export const executorReviews = (executorId: string) => listExecutorReviews(execu
 export async function roomPhotos(files: readonly { id: string; provider: string; storageKey: string }[]) {
   return Promise.all(files.map(async (f) => ({ id: f.id, src: await fileUrl(f) })));
 }
+
+/** Файл дизайн-проекта из базы в объёме, нужном виду (`fileViews`). */
+export const DESIGN_FILE_SELECT = { id: true, provider: true, storageKey: true, contentType: true } as const;
+
+/**
+ * Свой дизайн-проект заявки для экрана: фото или PDF с подписанными ссылками; PDF скачивается как `design-N.pdf` (исходное
+ * имя файла не хранится). Права и отбор скрытых — у вызывающего: мастеру и сделке скрытые не передаются вовсе.
+ */
+export const designViews = (files: readonly { id: string; provider: string; storageKey: string; contentType: string }[]) =>
+  fileViews(files, (n) => `design-${n}.pdf`);

@@ -5,6 +5,7 @@ import {
   addDays,
   advancedFrom,
   CUSTOM,
+  designItems,
   nextScreen,
   OTHER,
   parseExecutorNumber,
@@ -108,8 +109,51 @@ describe("разбор формы шага и ошибки у полей", () =>
   });
 
   it("шаг 3: фото — id загруженных файлов по порядку; всё необязательно", () => {
-    expect(readStep("room", form({ photoFileIds: ["a", "b"], description: "до потолка" }))).toEqual({ screen: "room", photoFileIds: ["a", "b"], description: "до потолка" });
+    expect(readStep("room", form({ photoFileIds: ["a", "b"], description: "до потолка" }))).toEqual({
+      screen: "room",
+      photoFileIds: ["a", "b"],
+      description: "до потолка",
+      designFileIds: [],
+      designContactsConfirmed: false,
+    });
     expect(stepErrors("room", form({}))).toBeNull();
+  });
+
+  it("шаг 3: дизайн-проект — id файлов по порядку и отметка; пустой блок — всегда пустой список (убрать все)", () => {
+    expect(readStep("room", form({ designFileIds: ["d1", "d2"], designContactsConfirmed: "on" }))).toMatchObject({
+      designFileIds: ["d1", "d2"],
+      designContactsConfirmed: true,
+    });
+    // Без файлов форма всё равно шлёт пустой список: отсутствие поля модуль понимает как «не трогать файлы проекта».
+    expect(readStep("room", form({ description: "" }))).toMatchObject({ designFileIds: [], designContactsConfirmed: false });
+    expect(stepErrors("room", form({ designFileIds: ["d1"], designContactsConfirmed: "on" }))).toBeNull();
+  });
+
+  it("шаг 3: файлы проекта без отметки — ошибка у отметки", () => {
+    expect(stepErrors("room", form({ designFileIds: ["d1"] }))).toEqual({ designContactsConfirmed: v.designContactsRequired });
+    expect(stepErrors("room", form({ designContactsConfirmed: "on" }))).toBeNull();
+  });
+
+  it("загрузчик проекта: сохранённые файлы — подпись по виду и номеру, PDF — документом; новые PDF — по имени", () => {
+    const d = t.room.design;
+    const items = designItems(
+      [
+        { id: "f1", name: "x", state: "done", previewUrl: "/f1" },
+        { id: "f2", name: "y", state: "done", previewUrl: "/f2" },
+        { id: "local", name: "План.PDF", state: "uploading", progress: 40 },
+        { id: "local2", name: "кухня.jpg", state: "error", error: "Сбой", previewUrl: "blob:1" },
+      ],
+      [
+        { id: "f1", kind: "pdf", n: 1 },
+        { id: "f2", kind: "image", n: 2 },
+      ],
+    );
+    expect(items).toEqual([
+      { id: "f1", name: d.pdf(1), kind: "document", state: "done" },
+      { id: "f2", name: d.photo(2), kind: "image", state: "done", previewUrl: "/f2" },
+      { id: "local", name: "План.PDF", kind: "document", state: "uploading", progress: 40 },
+      { id: "local2", name: "кухня.jpg", kind: "image", state: "error", error: "Сбой", previewUrl: "blob:1" },
+    ]);
   });
 
   it("readStep(place) читает district/complex; ЖК без района — ошибка у complex", () => {

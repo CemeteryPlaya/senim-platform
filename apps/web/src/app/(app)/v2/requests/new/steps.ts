@@ -1,7 +1,7 @@
 import type { Segment } from "@/generated/prisma/enums";
 import { formatDate } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
-import { formatMoney } from "@/kit";
+import { formatMoney, type UploaderItem } from "@/kit";
 import {
   SEGMENTS,
   stepInputSchema,
@@ -95,6 +95,9 @@ const text = (fd: Fields, name: string): string => {
   return typeof value === "string" ? value : "";
 };
 
+/** id загруженных файлов из скрытых полей по порядку. */
+const ids = (fd: Fields, name: string): string[] => fd.getAll(name).filter((v): v is string => typeof v === "string");
+
 /** Сантиметры из поля: пусто — null; «60,5» → 60.5 (схема модуля потребует целое и скажет об этом у поля). */
 const centimeters = (value: string): number | null => (value.trim() === "" ? null : Number(value.trim().replace(",", ".")));
 
@@ -132,7 +135,15 @@ export function readStep(screen: WizardScreen, fd: Fields): StepFormInput {
     case "segment":
       return { screen, segment: (text(fd, "segment") || undefined) as Segment } as StepFormInput;
     case "room":
-      return { screen, photoFileIds: fd.getAll("photoFileIds").filter((v): v is string => typeof v === "string"), description: text(fd, "description") };
+      // Файлы проекта — всегда списком, пустой блок — `[]`: без поля модуль не трогает файлы проекта (форма v1), и
+      // убрать проект было бы нельзя.
+      return {
+        screen,
+        photoFileIds: ids(fd, "photoFileIds"),
+        description: text(fd, "description"),
+        designFileIds: ids(fd, "designFileIds"),
+        designContactsConfirmed: text(fd, "designContactsConfirmed") === "on",
+      };
     case "place":
       return { screen, city: text(fd, "city"), district: text(fd, "district") || null, complex: text(fd, "complex") || null, address: text(fd, "address"), desiredDate: text(fd, "desiredDate") || null, location: locationFields(fd) };
     case "send":
@@ -220,6 +231,36 @@ export const STYLE_OPTIONS: { value: string; label: string }[] = Object.entries(
 export const FACADE_OPTIONS = materialOptions(FACADES);
 export const COUNTERTOP_OPTIONS = [...materialOptions(COUNTERTOPS), { value: NO_COUNTERTOP, label: t.start.noCountertop }];
 export const HARDWARE_OPTIONS = materialOptions(HARDWARE);
+
+// ─── дизайн-проект ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Сохранённый файл проекта в черновике: вид и номер (из `getDraft().design`). */
+export type SavedDesign = { id: string; kind: "image" | "pdf"; n: number };
+
+/**
+ * Файлы загрузчика проекта → строки `Uploader`: PDF — документом (значок и имя, превью нет), фото — превью. Сохранённые
+ * подписаны по виду и номеру («Дизайн-проект, файл 1 (PDF)»), новые — именем выбранного файла (PDF — по расширению;
+ * окончательно тип проверяет сервер по байтам).
+ */
+export function designItems(items: readonly UploaderItem[], saved: readonly SavedDesign[]): UploaderItem[] {
+  const d = t.room.design;
+  const byId = new Map(saved.map((f) => [f.id, f]));
+  return items.map((item) => {
+    const own = byId.get(item.id);
+    const pdf = own ? own.kind === "pdf" : item.name.toLowerCase().endsWith(".pdf");
+    const name = own ? (pdf ? d.pdf(own.n) : d.photo(own.n)) : item.name;
+    if (!pdf) return { ...item, name, kind: "image" };
+    // У документа превью нет: значок и имя файла.
+    return {
+      id: item.id,
+      name,
+      kind: "document",
+      state: item.state,
+      ...(item.progress !== undefined ? { progress: item.progress } : {}),
+      ...(item.error !== undefined ? { error: item.error } : {}),
+    };
+  });
+}
 
 // ─── уровень ───────────────────────────────────────────────────────────────────────────────────────────────────────
 

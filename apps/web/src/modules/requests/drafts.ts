@@ -10,7 +10,7 @@ import { db, isUniqueViolation, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { suggestSegment } from "@/verticals/furniture";
 import { auditByUser, links, loadOwnRequest, requestTitle, requireClient, type RequestWithType } from "./access";
-import { roomPhotos } from "./adapters";
+import { DESIGN_FILE_SELECT, designViews, roomPhotos } from "./adapters";
 import { announceToExecutors, executorRecipients } from "./announce";
 import { newRequestPath } from "./flow-setting";
 import { flowRules, pathOf, selfMeasureComplete, TZ_PATH, type RequestPath } from "./flows";
@@ -318,6 +318,20 @@ async function closeMeasurement(tx: Tx, offer: { id: string; measurementTerms: s
 
 // ─── чтение для экранов заказчика ────────────────────────────────────────────
 
+/**
+ * Свой дизайн-проект глазами покупателя-загрузчика: все файлы по порядку, скрытые оператором — с пометкой `hidden`
+ * (мастерам и сделке их модули не отдают).
+ */
+async function ownDesign(requestId: string) {
+  const files = await db.storedFile.findMany({
+    where: { requestId, purpose: "REQUEST_DESIGN" },
+    orderBy: { sortOrder: "asc" },
+    select: { ...DESIGN_FILE_SELECT, hiddenAt: true },
+  });
+  const hidden = new Set(files.filter((f) => f.hiddenAt !== null).map((f) => f.id));
+  return (await designViews(files)).map((view) => ({ ...view, hidden: hidden.has(view.id) }));
+}
+
 /** Черновик для мастера: сохранённые ответы и фото. */
 export async function getDraft(user: CurrentUser, requestId: string) {
   const r = await loadOwnRequest(db, user, requestId);
@@ -353,6 +367,8 @@ export async function getDraft(user: CurrentUser, requestId: string) {
     typeChosen: r.furnitureTypeId !== null || r.customType !== null,
     title: requestTitle(r),
     photos: await roomPhotos(photos),
+    design: await ownDesign(r.id),
+    designConfirmed: r.designConfirmedAt !== null,
     target,
     targetLabel,
   };
@@ -459,6 +475,8 @@ export async function getClientRequest(user: CurrentUser, requestId: string) {
     },
     measurement: m && { id: m.id, status: m.status, scheduledAt: m.scheduledAt, finalPrice: m.finalPrice, result: m.result },
     deal,
+    design: await ownDesign(r.id),
+    designConfirmed: r.designConfirmedAt !== null,
     pre: await preContractView(db, r, chosen),
   };
 }

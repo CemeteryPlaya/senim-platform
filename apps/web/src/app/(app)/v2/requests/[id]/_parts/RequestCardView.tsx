@@ -4,6 +4,8 @@ import { ChevronRight } from "lucide-react";
 import { ActionDock, ButtonLink, Card, EmptyState, List, ListItem, ListRow, Money, NowNext, PageTitle, PhotoSlot, Rating, Section, Segmented, Split, Stack, StatusChip, type StatusTone } from "@/kit";
 import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
+import type { DesignView } from "../../../_parts/design-files";
+import { DesignFiles } from "../../../_parts/DesignFiles";
 import { chooseOfferSort } from "../actions";
 import { sortOptions, type DetailRow, type InvitationRow, type NowView, type OffersView } from "./card-view";
 import { RequestActions } from "./RequestActions";
@@ -25,6 +27,8 @@ export type CardView = {
   invitations: InvitationRow[];
   details: DetailRow[];
   photos: { id: string; src: string; alt: string }[];
+  /** Свой дизайн-проект покупателя (скрытые оператором — с пометкой); `null` — файлов нет, раздела нет. */
+  design: DesignView | null;
   /** Отмена разрешена: показываем «Действия»; число предложений — для текста последствий. */
   cancel: { offersCount: number; direct: boolean } | null;
 };
@@ -137,6 +141,7 @@ function Details({ view }: { view: CardView }) {
           </Stack>
         </Card>
       )}
+      {view.design && <DesignFiles title={t.details.design} view={view.design} />}
     </Section>
   );
 }
