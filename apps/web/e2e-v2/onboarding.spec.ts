@@ -254,9 +254,9 @@ test("знакомство — последний шаг (почта уже по
   await page.getByLabel(welcome.iin).fill(iin);
   await primary(page, welcome.submit).click();
 
-  // Шаг почты пропускается (подтверждена) — дом. Оболочка уже обычная: раньше оставалась сосредоточенная шапка
-  // (название и «Выйти») без меню до перезагрузки.
-  await page.waitForURL((url) => url.pathname === "/v2");
+  // Шаг почты пропускается (подтверждена) — дом идущего к профилю мастера, анкета (выбор «Я мастер» живёт до её
+  // отправки). Оболочка уже обычная: раньше оставалась сосредоточенная шапка (название и «Выйти») без меню до перезагрузки.
+  await page.waitForURL((url) => url.pathname === "/v2/register/executor");
   await expect(page.getByRole("navigation", { name: shell.navLabel })).toBeVisible();
   if (info.project.name === "mobile") {
     await expect(page.locator("[data-focus-bar]")).toHaveCount(0);

@@ -90,7 +90,8 @@ test("новый номер: роль → номер → код → соглас
 test("неверный код: ошибка у поля; «Изменить номер» возвращает к номеру, номер сохранён", async ({ page }) => {
   const phone = freshPhone();
   await open(page, "/v2/login");
-  await page.getByRole("link", { name: t.role.haveAccount }).click();
+  // «Уже регистрировались? Войти по номеру» — кнопка: действие забывает прежний выбор роли и ведёт на шаг номера.
+  await page.getByRole("button", { name: t.role.haveAccount }).click();
   await expect(page).toHaveURL(/\/v2\/login\?step=phone$/);
 
   const code = await requestCode(page, phone.typed);
