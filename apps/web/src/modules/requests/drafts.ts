@@ -93,9 +93,9 @@ const linkDesignFiles = (tx: Tx, user: CurrentUser, requestId: string, fileIds: 
  * Отметка «убрал из файлов контакты»: файлы проекта есть — время первой отметки (повтор его не сдвигает), нет — сброс.
  * Схема требует отметку при файлах; повтор — на случай вызова модуля мимо неё.
  */
-function designConfirmedAtOf(r: { designConfirmedAt: Date | null }, step: { designFileIds: string[]; designContactsConfirmed: boolean }): Date | null {
-  if (step.designFileIds.length === 0) return null;
-  if (!step.designContactsConfirmed) {
+function designConfirmedAtOf(r: { designConfirmedAt: Date | null }, designFileIds: string[], confirmed: boolean | undefined): Date | null {
+  if (designFileIds.length === 0) return null;
+  if (confirmed !== true) {
     const message = ru.requests.validation.designContactsRequired;
     return fail.validation(message, { fieldErrors: { designContactsConfirmed: [message] } });
   }
@@ -201,7 +201,9 @@ async function saveDraftStepOnce(user: CurrentUser, input: SaveDraftInput): Prom
 
     const details = applyStep(parseDetails(r.details), step);
     const wizardStep = Math.max(r.wizardStep, screenIndex(step.screen) + 1);
-    const design = step.screen === "room" ? { designConfirmedAt: designConfirmedAtOf(r, step) } : {};
+    // Шаг room без полей проекта (форма v1) файлы проекта и отметку не трогает.
+    const designFileIds = step.screen === "room" ? step.designFileIds : undefined;
+    const design = designFileIds && step.screen === "room" ? { designConfirmedAt: designConfirmedAtOf(r, designFileIds, step.designContactsConfirmed) } : {};
     const updated = await tx.request.updateMany({
       where: { id: r.id, status: "DRAFT" },
       data: {
@@ -213,12 +215,10 @@ async function saveDraftStepOnce(user: CurrentUser, input: SaveDraftInput): Prom
       },
     });
     expectOneUpdated(updated);
-    if (step.screen === "room") {
-      await linkRoomPhotos(tx, user, r.id, step.photoFileIds);
-      await linkDesignFiles(tx, user, r.id, step.designFileIds);
-    }
+    if (step.screen === "room") await linkRoomPhotos(tx, user, r.id, step.photoFileIds);
+    if (designFileIds) await linkDesignFiles(tx, user, r.id, designFileIds);
 
-    const designMeta = step.screen === "room" ? { designFiles: step.designFileIds.length } : {};
+    const designMeta = designFileIds ? { designFiles: designFileIds.length } : {};
     await auditByUser(tx, user, r.id, { action: "request.draft_saved", entity: { type: "request", id: r.id }, meta: { screen: step.screen, wizardStep, ...designMeta } });
     return { requestId: r.id, wizardStep };
   });

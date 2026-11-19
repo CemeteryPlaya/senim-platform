@@ -61,7 +61,7 @@ describe("черновик заявки", () => {
     const afterMaterials = await step({ screen: "materials", facade: "ldsp", countertop: "none", hardware: "unknown", color: "", extras: [], description: "" });
     expect(afterMaterials.wizardStep).toBe(0);
     await step(segmentStep("ECONOMY"));
-    await step({ screen: "room", photoFileIds: [], description: "Кухня до потолка, есть газовая труба", designFileIds: [], designContactsConfirmed: false });
+    await step({ screen: "room", photoFileIds: [], description: "Кухня до потолка, есть газовая труба" });
     await step({ screen: "place", city: "Алматы", address: "мкр Самал-2, 10", desiredDate: "2026-12-20", location: POINT, district: null, complex: null });
 
     const draft = await getDraft(client, requestId);
@@ -100,7 +100,7 @@ describe("черновик заявки", () => {
     const step = (s: Parameters<typeof saveDraftStep>[1]["step"]) => saveDraftStep(client, { requestId, step: s });
     await step({ screen: "style", style: "loft", styleNote: "как в инсте ivan_mebel" });
     await step({ screen: "materials", facade: "ldsp", countertop: "none", hardware: "unknown", color: `белый, ${phone}`, extras: [], description: "" });
-    await step({ screen: "room", photoFileIds: [], description: `Кухня до потолка, ${phone}`, designFileIds: [], designContactsConfirmed: false });
+    await step({ screen: "room", photoFileIds: [], description: `Кухня до потолка, ${phone}` });
     await step({ screen: "place", city: "Алматы 8 701 234 56 78", address: "мкр Самал-2, 10", desiredDate: null, location: null, district: null, complex: null });
 
     const row = await db.request.findUniqueOrThrow({ where: { id: requestId }, select: { customType: true, city: true, details: true } });
@@ -189,7 +189,7 @@ describe("черновик заявки", () => {
         data: { storageKey: `test/room-${uploadedById}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById },
       });
     const [a, b] = [await upload(client.id, 1), await upload(client.id, 2)];
-    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "", designFileIds: [], designContactsConfirmed: false } });
+    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "" } });
 
     await room([a.id, b.id]);
     expect((await getDraft(client, requestId)).photos.map((p) => p.id)).toEqual([a.id, b.id]);
@@ -206,7 +206,7 @@ describe("черновик заявки", () => {
         data: { storageKey: `test/room-order-${client.id}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById: client.id },
       });
     const [a, b, c] = [await upload(1), await upload(2), await upload(3)];
-    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "", designFileIds: [], designContactsConfirmed: false } });
+    const room = (photoFileIds: string[]) => saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds, description: "" } });
 
     await room([a.id, b.id]);
     await room([a.id, b.id, c.id]);
@@ -384,7 +384,7 @@ describe("мои заявки", () => {
         data: { storageKey: `test/cover-${client.id}-${n}`, provider: "local", purpose: "REQUEST_ROOM", contentType: "image/jpeg", size: 1, sha256: "x", uploadedById: client.id },
       });
     const [a, b] = [await upload(1), await upload(2)];
-    await saveDraftStep(client, { requestId: withPhotos, step: { screen: "room", photoFileIds: [a.id, b.id], description: "", designFileIds: [], designContactsConfirmed: false } });
+    await saveDraftStep(client, { requestId: withPhotos, step: { screen: "room", photoFileIds: [a.id, b.id], description: "" } });
 
     const list = await listMyRequests(client);
     const cover = (id: string) => list.find((r) => r.id === id)?.cover;
@@ -501,6 +501,21 @@ describe("свой дизайн-проект в шаге «Помещение»"
     expect(await db.storedFile.count({ where: { requestId, purpose: "REQUEST_DESIGN" } })).toBe(2);
     await room(client, requestId, { photoFileIds: [photo.id], designFileIds: [], designContactsConfirmed: false });
     expect(await db.storedFile.count({ where: { requestId, purpose: "REQUEST_ROOM" } })).toBe(1);
+  });
+
+  it("шаг room без полей проекта (форма v1) не трогает файлы проекта и отметку", async () => {
+    const client = await makeClient();
+    const requestId = await makeDraft(client);
+    const pdf = await upload(client.id, "REQUEST_DESIGN");
+    await room(client, requestId, { designFileIds: [pdf.id], designContactsConfirmed: true });
+    const before = await confirmedAt(requestId);
+
+    await saveDraftStep(client, { requestId, step: { screen: "room", photoFileIds: [], description: "" } });
+
+    expect(await stored(pdf.id)).toMatchObject({ requestId, purpose: "REQUEST_DESIGN" });
+    expect(await confirmedAt(requestId)).toEqual(before);
+    const audit = await db.auditEvent.findFirstOrThrow({ where: { action: "request.draft_saved", entityId: requestId }, orderBy: { createdAt: "desc" } });
+    expect(audit.meta).not.toHaveProperty("designFiles");
   });
 
   it("убрали все файлы проекта — отметка сбрасывается, файлы откреплены", async () => {

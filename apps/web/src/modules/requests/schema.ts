@@ -126,12 +126,15 @@ const roomStep = z
     photoFileIds: z.array(z.string().min(1)).max(LIMITS.photos),
     /** Описание своими словами. */
     description: optionalText(LIMITS.description),
-    /** Свой дизайн-проект (фото или PDF, назначение REQUEST_DESIGN) — необязателен. */
-    designFileIds: z.array(z.string().min(1)).max(LIMITS.designFiles, t.designTooMany).default([]),
+    /**
+     * Свой дизайн-проект (фото или PDF, назначение REQUEST_DESIGN) — необязателен. Поля нет (форма v1) — файлы проекта
+     * и отметка не меняются; `[]` — убрать все.
+     */
+    designFileIds: z.array(z.string().min(1)).max(LIMITS.designFiles, t.designTooMany).optional(),
     /** «Я убрал из файлов телефоны, адреса и имена» — обязательна, если файлы проекта приложены. */
-    designContactsConfirmed: z.boolean().default(false),
+    designContactsConfirmed: z.boolean().optional(),
   })
-  .refine((s) => s.designFileIds.length === 0 || s.designContactsConfirmed, { path: ["designContactsConfirmed"], error: t.designContactsRequired });
+  .refine((s) => !s.designFileIds?.length || s.designContactsConfirmed === true, { path: ["designContactsConfirmed"], error: t.designContactsRequired });
 
 const sizeInput = z.discriminatedUnion("mode", [
   z.strictObject({ mode: z.literal("known"), widthCm: cm, heightCm: cm.nullable(), depthCm: cm.nullable() }),

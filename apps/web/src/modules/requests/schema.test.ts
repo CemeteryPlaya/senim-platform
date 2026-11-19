@@ -96,8 +96,10 @@ describe("шаги мастера", () => {
     expect(applyStep(parseDetails({ description: "старое" }), empty)).toEqual({});
   });
 
-  it("помещение: дизайн-проект по умолчанию пуст и без отметки", () => {
-    expect(stepInputSchema.parse({ screen: "room", photoFileIds: [] })).toMatchObject({ designFileIds: [], designContactsConfirmed: false });
+  it("помещение: без полей проекта (форма v1) — поля не появляются, файлы проекта не трогаются", () => {
+    const step = stepInputSchema.parse({ screen: "room", photoFileIds: [] });
+    expect(step).not.toHaveProperty("designFileIds");
+    expect(step).not.toHaveProperty("designContactsConfirmed");
   });
 
   it("помещение: файлы дизайн-проекта без отметки «убрал контакты» — ошибка у отметки; с отметкой — верно", () => {

@@ -77,9 +77,11 @@ describe("права на файл", () => {
     expect(decideFileAccess(null, req({}, true))).toBe(false);
   });
 
-  it("скрытый файл сторон сделки вторая сторона не читает", () => {
-    const facts: FileFacts = { uploadedById: "c1", hidden: true, owner: { kind: "parties", userIds: ["c1", "e1"] } };
-    expect(decideFileAccess(client, facts)).toBe(true);
-    expect(decideFileAccess(executor(), facts)).toBe(false);
+  it("скрытый файл заявки в сделке: исполнитель сделки (с откликом) не читает, заказчик-загрузчик и оператор — да", () => {
+    const inDeal = { status: "CONTRACTING" as const, viewerHasOffer: true };
+    expect(decideFileAccess(executor(), req(inDeal))).toBe(true);
+    expect(decideFileAccess(executor(), req(inDeal, true))).toBe(false);
+    expect(decideFileAccess(client, req(inDeal, true))).toBe(true);
+    expect(decideFileAccess(operator, req(inDeal, true))).toBe(true);
   });
 });

@@ -31,7 +31,7 @@ async function fillDraft(client: CurrentUser, target: { executor?: number; like?
   const steps: StepInput[] = [
     { screen: "start", furnitureTypeId: type.id, customType: null, style: "modern", advanced: null },
     segmentStep("COMFORT"),
-    { screen: "room", photoFileIds: [], description: "", designFileIds: [], designContactsConfirmed: false },
+    { screen: "room", photoFileIds: [], description: "" },
     placeStep,
     { screen: "send" },
   ];
