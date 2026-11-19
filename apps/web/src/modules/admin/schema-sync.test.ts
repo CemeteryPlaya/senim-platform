@@ -21,6 +21,16 @@ describe("schema.gen.ts совпадает с prisma/schema.prisma", () => {
     expect(new Set(ADMIN_MODELS.map((m) => m.name))).toEqual(new Set(Object.values(Prisma.ModelName)));
   });
 
+  it("скалярные поля каждой модели (scalar и enum) — ровно <Model>ScalarFieldEnum Prisma Client, в том же порядке", () => {
+    const namespace: Readonly<Record<string, unknown>> = Prisma;
+    for (const model of ADMIN_MODELS) {
+      const scalarEnum = namespace[`${model.name}ScalarFieldEnum`];
+      expect(scalarEnum, model.name).toBeTypeOf("object");
+      const expected = Object.values(scalarEnum as Readonly<Record<string, string>>);
+      expect(model.fields.filter((f) => f.kind !== "object").map((f) => f.name), model.name).toEqual(expected);
+    }
+  });
+
   it("перечисления — ровно перечисления Prisma Client", () => {
     const client = Object.fromEntries(Object.entries($Enums).map(([name, values]) => [name, Object.values(values)]));
     expect(ENUMS).toEqual(client);

@@ -21,7 +21,7 @@ type Overrides = Readonly<Record<string, Readonly<Record<string, Access>>>>;
 /**
  * Явные исключения владельца после показа: `{ Модель: { поле: доступ } }`, ключ `"*"` — правило всей модели (поля
  * с признаком «только чтение» им не открываются — для них нужен ключ поля). Секреты и запертые поля не открываются
- * ничем; тест падает, если исключение ничего не меняет.
+ * ничем; тест падает, если исключение не меняет ни одного доступа по сравнению с правилами без него.
  */
 export const OVERRIDES: Overrides = {};
 
@@ -86,13 +86,20 @@ const READONLY_MODELS: ReadonlySet<string> = new Set([
 /** Только чтение — отдельные поля моделей, открытых для правки. */
 const READONLY_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // Проекция identity (partyColumns), номер «Исполнитель №N», счётчики из сделок и отзывов, решения оператора.
-  ExecutorProfile: ["legalForm", "legalName", "signerFullName", "kycRejectReason", "publicNumber", "reviewsCount", "completedDeals", "addedByOperator", "segment", "rejectReason"],
+  // Условия замера — пара с правилом предметной области (плата только при FEE_IF_NO_DEAL), правка её обошла бы.
+  ExecutorProfile: [
+    "legalForm", "legalName", "signerFullName", "kycRejectReason", "publicNumber", "reviewsCount", "completedDeals", "addedByOperator", "segment", "rejectReason",
+    "measurementTerms", "measurementFee",
+  ],
   // Номер заявки и поля процесса: режим, сценарий до договора, шаг мастера, ценовая группа (кому видна), ключ стиля.
-  Request: ["number", "mode", "preContractFlow", "wizardStep", "segment", "segmentSuggested", "style"],
-  // Ключи вертикали (verticals/furniture), проверяемые zod на входе.
+  // Адрес входит в оферту и акт и в витрину сделки; координаты не правятся — адрес и точка разошлись бы.
+  Request: ["number", "mode", "preContractFlow", "wizardStep", "segment", "segmentSuggested", "style", "city", "address", "district", "complex"],
+  // Ключи вертикали (verticals/furniture), проверяемые zod на входе; slug — адрес раздела каталога.
   MaterialPrice: ["category", "unit"],
   TypicalEstimate: ["productUnit"],
-  PortfolioItem: ["style"],
+  FurnitureType: ["slug"],
+  // Ключ стиля; название и описание работы проходят zod формы мастера (длина, обрезка пробелов: companies/portfolio.ts).
+  PortfolioItem: ["style", "title", "description"],
 };
 
 /** Модели со статусной машиной: их DateTime — отметки переходов (спека). */
