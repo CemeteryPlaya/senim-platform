@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { Button, Card, Checkbox, HiddenField, KeyValueList, Section, Select, Stack, TextArea, TextField, toast } from "@/kit";
+import { Button, Card, Checkbox, HiddenField, KeyValueList, Narrow, Section, Select, Stack, TextArea, TextField, toast } from "@/kit";
 import type { AdminFieldInfo, AdminRow } from "@/modules/admin";
 import { useActionForm } from "../../../../../_shell/form";
 import { FormError } from "../../../../../_shell/FormError";
@@ -73,27 +73,30 @@ export function RecordForm({ model, id, fields, row }: RecordFormProps) {
     <Stack gap="section">
       {editable.length > 0 && (
         <Section title={t.edit}>
-          <Card>
-            <form onSubmit={form.onSubmit} noValidate>
-              <Stack>
-                {editable.map((field) => {
-                  const value = formValue(row[field.name]);
-                  return (
-                    <div key={field.name}>
-                      {value !== null && <HiddenField name={`${FROM}${field.name}`} value={value} />}
-                      <EditableField field={field} value={value} error={form.fieldErrors[field.name]} />
-                    </div>
-                  );
-                })}
-                <FormError error={form.error} atField={errorAtField} />
-                <div>
-                  <Button type="submit" pending={form.pending}>
-                    {t.save}
-                  </Button>
-                </div>
-              </Stack>
-            </form>
-          </Card>
+          {/* Форма на компьютере — не шире 560 px (Narrow, rules.md). */}
+          <Narrow>
+            <Card>
+              <form onSubmit={form.onSubmit} noValidate>
+                <Stack>
+                  {editable.map((field) => {
+                    const value = formValue(row[field.name]);
+                    return (
+                      <div key={field.name}>
+                        {value !== null && <HiddenField name={`${FROM}${field.name}`} value={value} />}
+                        <EditableField field={field} value={value} error={form.fieldErrors[field.name]} />
+                      </div>
+                    );
+                  })}
+                  <FormError error={form.error} atField={errorAtField} />
+                  <div>
+                    <Button type="submit" pending={form.pending}>
+                      {t.save}
+                    </Button>
+                  </div>
+                </Stack>
+              </form>
+            </Card>
+          </Narrow>
         </Section>
       )}
       <Section title={t.fields}>

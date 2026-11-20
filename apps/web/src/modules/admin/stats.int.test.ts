@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cancelDeal, processDealMoney } from "@/modules/deal-core";
 import type { CurrentUser } from "@/modules/identity";
-import { computeDealMoney } from "@/modules/payments";
+import { computeDealMoney, platformIncomeReport } from "@/modules/payments";
 import { db } from "@/platform/db";
 import { makeAdmin, makeClient, makeExecutor, makeOperator } from "../../../test/factories";
 import { dealAt, journalOf, PRICE, signAct } from "../../../test/factories/deal";
@@ -113,6 +113,25 @@ describe("админка: статистика платформы", () => {
     expect(later.money).toEqual({ paidTiyn: 0n, payoutTiyn: 0n, refundTiyn: 0n, incomeTiyn: 0n });
     expect(later.funnel).toEqual({ published: 0, withOffer: 0, dealCreated: 0, paid: 0, accepted: 0, paidOut: 0 });
     expect(total((await adminStats(admin, "all", new Date(Date.now() + 10 * DAY))).requests)).toBe(4);
+  });
+
+  it("доход платформы за 30 дней сходится с отчётом оператора «доход платформы» на тех же данных", async () => {
+    const admin = await makeAdmin();
+    const operator = await makeOperator();
+    const { done } = await platform();
+    // Выплата 40 дней назад — вне периода и статистики, и отчёта.
+    const old = await dealAt("READY");
+    await signAct(old.dealId);
+    await processDealMoney(old.dealId);
+    await db.moneyTransaction.updateMany({ where: { dealId: old.dealId }, data: { settledAt: daysAgo(40) } });
+
+    const now = new Date();
+    const stats = await adminStats(admin, "30d", now);
+    const report = await platformIncomeReport(operator, { from: new Date(now.getTime() - 30 * DAY), to: new Date(now.getTime() + 1) });
+
+    expect(report.rows.map((r) => r.dealId)).toEqual([done.dealId]);
+    expect(stats.money.incomeTiyn).toBe(report.totalTiyn);
+    expect(stats.money.incomeTiyn).toBe(money.platformIncomeTiyn);
   });
 
   it("операции журнала не в итоге (ждут банк, отказ) в деньги не входят", async () => {

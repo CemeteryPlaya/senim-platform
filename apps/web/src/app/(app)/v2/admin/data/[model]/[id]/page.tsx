@@ -19,15 +19,15 @@ type Props = { params: Promise<{ model: string; id: string }> };
 function relationRow(relation: AdminRelation, id: string) {
   if (relation.kind === "one") {
     return relation.targetId === null ? (
-      <ListRow key={relation.name} label={`${relation.name} · ${relation.model}`} value={t.relationEmpty} />
+      <ListRow key={relation.name} label={t.relationLabel(relation.name, relation.model)} value={t.relationEmpty} />
     ) : (
-      <ListRow key={relation.name} label={`${relation.name} · ${relation.model}`} value={relation.targetId} href={to(recordPath(relation.model, relation.targetId))} />
+      <ListRow key={relation.name} label={t.relationLabel(relation.name, relation.model)} value={relation.targetId} href={to(recordPath(relation.model, relation.targetId))} />
     );
   }
   return (
     <ListRow
       key={relation.name}
-      label={`${relation.name} · ${relation.model}`}
+      label={t.relationLabel(relation.name, relation.model)}
       value={t.relationCount(relation.count)}
       href={pageHref(tablePath(relation.model), { where: relation.field, value: id })}
     />

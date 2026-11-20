@@ -30,7 +30,7 @@ export function displayValue(value: AdminValue | undefined): string {
 
 export function cellText(value: AdminValue | undefined): string {
   const text = displayValue(value);
-  return text.length > CELL_MAX ? `${text.slice(0, CELL_MAX - 1)}…` : text;
+  return text.length > CELL_MAX ? t.truncated(text.slice(0, CELL_MAX - 1)) : text;
 }
 
 /** Значение записи → строка формы правки (и прежнее значение для условного обновления); нет значения — null. */

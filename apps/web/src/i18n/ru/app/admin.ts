@@ -56,6 +56,8 @@ export const admin = {
     yes: "да",
     no: "нет",
     none: "—",
+    /** Обрезанное значение ячейки таблицы (полное — в карточке). */
+    truncated: (text: string) => `${text}…`,
     errors: {
       /** Поиск длиннее предела: текст запроса в ответ не возвращается. */
       searchTooLong: "Слишком длинный запрос поиска",
@@ -76,6 +78,8 @@ export const admin = {
     conflict: "Запись уже изменили. Обновите страницу и повторите",
     relations: "Связи",
     noRelations: "Связей нет",
+    /** Подпись связи: имя поля связи и таблица, на которую она ведёт. */
+    relationLabel: (name: string, model: string) => `${name} · ${model}`,
     relationCount: (n: number) => `Записей: ${n}`,
     relationEmpty: "нет",
     optional: "не выбрано",
