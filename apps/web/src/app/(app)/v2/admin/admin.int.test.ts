@@ -13,6 +13,7 @@ import { makeOffer, makeRequest } from "../../../../../test/factories/operator";
 import { dealAt, PRICE, signAct } from "../../../../../test/factories/deal";
 import { freshBrowser } from "../../../../../test/factories/identity";
 import { signInAs } from "../../../../../test/factories/session";
+import { to } from "../../_shell/paths";
 import AdminRecordPage from "./data/[model]/[id]/page";
 import { updateRecordAction } from "./data/[model]/[id]/actions";
 import { RecordForm, type RecordFormProps } from "./data/[model]/[id]/RecordForm";
@@ -107,7 +108,7 @@ describe("админка: ворота экранов", () => {
 
     freshBrowser();
     await signInAs(await makeClient());
-    expect(await redirectTo(open())).not.toMatch(/^\/v2\/admin/);
+    expect(await redirectTo(open())).toBe(to("/"));
 
     freshBrowser();
     await signInAs(await makeAdmin(), undefined, { mfaVerifiedAt: null });

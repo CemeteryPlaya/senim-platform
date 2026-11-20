@@ -32,6 +32,10 @@ describe("isOperatorReady: экраны v2, готовые для операто
     ["/v2/operator/furniture-types", true],
     ["/v2/operator/materials", true],
     ["/v2/operator/settings", true],
+    // Админка: оператору её не показывают, страница сама уводит его в его дом (заглушка с ссылкой на v1 здесь была бы ложью).
+    ["/v2/admin", true],
+    ["/v2/admin/data", true],
+    ["/v2/admin/data/User/u1", true],
   ])("%s — страница v2", (path, ready) => {
     expect(isOperatorReady(path)).toBe(ready);
   });

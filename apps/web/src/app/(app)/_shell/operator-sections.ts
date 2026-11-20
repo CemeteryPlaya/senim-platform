@@ -29,6 +29,10 @@ export const OPERATOR_READY: readonly { path: string; exact?: boolean }[] = [
   { path: to("/operator/furniture-types") },
   { path: to("/operator/materials") },
   { path: to("/operator/settings") },
+  // Админка (/v2/admin…): не раздел оператора и не «переносится» — её страницы сами уводят не-администратора в его дом
+  // (requireAdmin, до чтения данных). Заглушка оператору на этих адресах держала его на месте со ссылкой на v1 `/admin`,
+  // которого нет; без заглушки клиентский роутер исполняет redirect страницы.
+  { path: to("/admin") },
   // Общие экраны любой роли: профиль (имя, телефон, тема, выход) и уведомления.
   { path: to("/profile"), exact: true },
   { path: to("/notifications") },
