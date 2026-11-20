@@ -8,7 +8,15 @@ export type { AuditView } from "./audit-view";
 export { getOperatorDeal, listOperatorDeals, type DealDocument, type JournalRow, type OperatorDeal, type OperatorDealRow, type ReleasePackage } from "./deals";
 export { getDisputeCard, listDisputes, previewDisputeSplit, resolveDispute } from "./disputes";
 export { addExecutor, changeSegment, getExecutorCard, listExecutors, listRegistrationQueue, reviewRegistration } from "./executors";
-export { addFurnitureType, listFurnitureTypes, moveFurnitureType, renameFurnitureType, setFurnitureTypeActive } from "./furniture-types";
+export {
+  addFurnitureType,
+  furnitureTypeNameTaken,
+  listFurnitureTypes,
+  lockFurnitureTypes,
+  moveFurnitureType,
+  renameFurnitureType,
+  setFurnitureTypeActive,
+} from "./furniture-types";
 export { kycQueue, kycQueueCount, kycQueueSize, kycReviewSchema, reviewKyc, type KycDecision, type KycDocument, type KycQueueItem, type KycReviewInput } from "./kyc";
 export {
   confirmBankOperation,

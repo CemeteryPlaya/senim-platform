@@ -18,12 +18,23 @@ export async function listFurnitureTypes(user: CurrentUser) {
   });
 }
 
-async function assertNameFree(tx: Tx, name: string, exceptId?: string) {
+/** Блокирует справочник на время изменения: названия уникальны, порядок не перемешивается. */
+export const lockFurnitureTypes = (tx: Tx) => tx.$queryRaw`SELECT id FROM "FurnitureType" FOR UPDATE`;
+
+/**
+ * Название занято другим видом без учёта регистра. Вызывать под lockFurnitureTypes в той же транзакции; правка
+ * админкой (modules/admin) проверяет то же правило, что и оператор.
+ */
+export async function furnitureTypeNameTaken(tx: Tx, name: string, exceptId?: string): Promise<boolean> {
   const taken = await tx.furnitureType.findFirst({
     where: { name: { equals: name, mode: "insensitive" }, id: exceptId ? { not: exceptId } : undefined },
     select: { id: true },
   });
-  if (taken) fail.conflict(ru.operator.errors.typeNameTaken);
+  return taken !== null;
+}
+
+async function assertNameFree(tx: Tx, name: string, exceptId?: string) {
+  if (await furnitureTypeNameTaken(tx, name, exceptId)) fail.conflict(ru.operator.errors.typeNameTaken);
 }
 
 async function freeSlug(tx: Tx, name: string): Promise<string> {
@@ -34,13 +45,10 @@ async function freeSlug(tx: Tx, name: string): Promise<string> {
   return slug;
 }
 
-/** Блокирует справочник на время изменения: названия уникальны, порядок не перемешивается. */
-const lockTypes = (tx: Tx) => tx.$queryRaw`SELECT id FROM "FurnitureType" FOR UPDATE`;
-
 export async function addFurnitureType(user: CurrentUser, input: { name: string }): Promise<{ id: string }> {
   assertOperator(user);
   return transaction(async (tx) => {
-    await lockTypes(tx);
+    await lockFurnitureTypes(tx);
     await assertNameFree(tx, input.name);
     const last = await tx.furnitureType.aggregate({ _max: { sortOrder: true } });
     const created = await tx.furnitureType.create({
@@ -54,7 +62,7 @@ export async function addFurnitureType(user: CurrentUser, input: { name: string 
 export async function renameFurnitureType(user: CurrentUser, input: { id: string; name: string }): Promise<void> {
   assertOperator(user);
   await transaction(async (tx) => {
-    await lockTypes(tx);
+    await lockFurnitureTypes(tx);
     const current = await tx.furnitureType.findUnique({ where: { id: input.id } });
     if (!current) return fail.notFound();
     if (current.name === input.name) return;
@@ -87,7 +95,7 @@ export async function setFurnitureTypeActive(user: CurrentUser, input: { id: str
 export async function moveFurnitureType(user: CurrentUser, input: { id: string; direction: "up" | "down" }): Promise<void> {
   assertOperator(user);
   await transaction(async (tx) => {
-    await lockTypes(tx);
+    await lockFurnitureTypes(tx);
     const order = await tx.furnitureType.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true, sortOrder: true } });
     const from = order.findIndex((t) => t.id === input.id);
     if (from === -1) return fail.notFound();

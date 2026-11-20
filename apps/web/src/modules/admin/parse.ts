@@ -32,7 +32,7 @@ const bad = (error: string): ParseResult => ({ ok: false, error });
 /**
  * `side` — какое значение разбирается: `to` (новое) или `from` (прежнее, для условного обновления). Пустое значение
  * необязательного поля — null (Ruling: форма не различает «пусто» и «нет значения»). У обязательной строки новое пустое
- * значение — ошибка, а прежнее пустое допустимо: в базе бывает `""` по умолчанию (Request.wishes, PortfolioItem.place).
+ * значение — ошибка, а прежнее пустое допустимо: в базе бывает `""` по умолчанию (ExecutorProfile.district, streetAddress).
  */
 export function parseFieldValue(field: AdminField, raw: string | null, side: "from" | "to"): ParseResult {
   if (field.list || (field.kind !== "scalar" && field.kind !== "enum")) return fail.forbidden();

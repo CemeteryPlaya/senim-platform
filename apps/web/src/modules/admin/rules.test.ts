@@ -43,8 +43,8 @@ const ACCESS_MAP: Readonly<Record<string, Groups>> = {
     editable: ["typicalWidthCm", "typicalHeightCm"],
   },
   PortfolioItem: {
-    readonly: ["id", "executorId", "executor", "furnitureTypeId", "furnitureType", "style", "title", "description", "dealId", "deal", "createdAt", "clientKey", "photos", "dealPhotos", "requests", "highlight"],
-    editable: ["priceFrom", "published", "place", "featured"],
+    readonly: ["id", "executorId", "executor", "furnitureTypeId", "furnitureType", "style", "title", "description", "place", "featured", "dealId", "deal", "createdAt", "clientKey", "photos", "dealPhotos", "requests", "highlight"],
+    editable: ["priceFrom", "published"],
   },
   PortfolioDealPhoto: {
     readonly: ["portfolioItemId", "portfolioItem", "fileId", "file", "sortOrder"],
@@ -53,8 +53,7 @@ const ACCESS_MAP: Readonly<Record<string, Groups>> = {
     readonly: ["id", "dealId", "deal", "executorId", "executor", "authorId", "author", "rating", "text", "createdAt"],
   },
   Request: {
-    readonly: ["id", "number", "clientId", "client", "mode", "targetExecutorId", "targetExecutor", "portfolioItemId", "portfolioItem", "furnitureTypeId", "furnitureType", "style", "details", "segment", "segmentSuggested", "city", "address", "district", "complex", "addressLat", "addressLng", "desiredDate", "status", "preContractFlow", "wizardStep", "designConfirmedAt", "clientKey", "publishedAt", "closedAt", "createdAt", "updatedAt", "photos", "offers", "measurements", "deal", "visualizations", "siteMeasurement", "projects", "offerRetries", "invitations"],
-    editable: ["customType", "wishes"],
+    readonly: ["id", "number", "clientId", "client", "mode", "targetExecutorId", "targetExecutor", "portfolioItemId", "portfolioItem", "furnitureTypeId", "furnitureType", "customType", "style", "details", "segment", "segmentSuggested", "city", "address", "district", "complex", "addressLat", "addressLng", "desiredDate", "wishes", "status", "preContractFlow", "wizardStep", "designConfirmedAt", "clientKey", "publishedAt", "closedAt", "createdAt", "updatedAt", "photos", "offers", "measurements", "deal", "visualizations", "siteMeasurement", "projects", "offerRetries", "invitations"],
   },
   RequestInvitation: {
     readonly: ["id", "requestId", "request", "executorId", "executor", "status", "reason", "clientKey", "createdAt", "decidedAt"],
@@ -322,6 +321,14 @@ describe("справочники открыты для правки", () => {
     for (const f of ["measurementTerms", "measurementFee"]) expect(fieldAccess("ExecutorProfile", f)).toBe("readonly");
     for (const f of ["title", "description"]) expect(fieldAccess("PortfolioItem", f)).toBe("readonly");
     for (const f of ["city", "address", "district", "complex", "addressLat", "addressLng"]) expect(fieldAccess("Request", f)).toBe("readonly");
+  });
+
+  it("поля с проверками процессов — только чтение: тип и пожелания заявки, место и флаг вдохновения работы", () => {
+    // customType и wishes: маскирование контактов черновика (requests/drafts.ts) и предмет договора (documents/data.ts).
+    for (const f of ["customType", "wishes"]) expect(fieldAccess("Request", f)).toBe("readonly");
+    expect(modelReadonly("Request")).toBe(true);
+    // place — isPlaceAllowed (companies/portfolio.ts); featured — флаг inspiration (deal-portfolio.ts).
+    for (const f of ["place", "featured"]) expect(fieldAccess("PortfolioItem", f)).toBe("readonly");
   });
 
   it("цены материалов: priceKzt (целые тенге справочника) и name; автор правки — только чтение", () => {

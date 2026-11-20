@@ -96,13 +96,16 @@ const READONLY_FIELDS: Readonly<Record<string, readonly string[]>> = {
   ],
   // Номер заявки и поля процесса: режим, сценарий до договора, шаг мастера, ценовая группа (кому видна), ключ стиля.
   // Адрес входит в оферту и акт и в витрину сделки; координаты не правятся — адрес и точка разошлись бы.
-  Request: ["number", "mode", "preContractFlow", "wizardStep", "segment", "segmentSuggested", "style", "city", "address", "district", "complex"],
+  // Свой тип мебели и пожелания: маскирование контактов черновика (requests/drafts.ts) и предмет договора
+  // (documents/data.ts) — правка в обход открыла бы контакты до оферты и изменила бы текст договора.
+  Request: ["number", "mode", "preContractFlow", "wizardStep", "segment", "segmentSuggested", "style", "city", "address", "district", "complex", "customType", "wishes"],
   // Ключи вертикали (verticals/furniture), проверяемые zod на входе; slug — адрес раздела каталога.
   MaterialPrice: ["category", "unit"],
   TypicalEstimate: ["productUnit"],
   FurnitureType: ["slug"],
   // Ключ стиля; название и описание работы проходят zod формы мастера (длина, обрезка пробелов: companies/portfolio.ts).
-  PortfolioItem: ["style", "title", "description"],
+  // Место — только из разрешённых (isPlaceAllowed там же); featured ставит флаг inspiration (deal-portfolio.ts).
+  PortfolioItem: ["style", "title", "description", "place", "featured"],
   // Порядок выделенных работ ведёт companies/highlights.ts (уникальная пара executorId + position, сдвиг соседей).
   ExecutorHighlight: ["position"],
 };

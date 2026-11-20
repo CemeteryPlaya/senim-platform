@@ -1,11 +1,13 @@
 // Правка записи админкой. Порядок (спека, решение владельца 5): роль и второй фактор → модель и каждое поле по реестру
 // (запрещённое — FORBIDDEN, ничего не пишется) → разбор значений по типу → в одной транзакции запись аудита со старым
 // и новым значением, затем условный updateMany по ключу и прежним значениям. Ноль строк — CONFLICT, и аудит
-// откатывается вместе с транзакцией: изменения без аудита и аудита без изменения не бывает.
+// откатывается вместе с транзакцией: изменения без аудита и аудита без изменения не бывает. Модели со своими правилами
+// процессов (GUARDS) проходят те же проверки, что и правка модулем-владельцем, — в той же транзакции, до updateMany.
 import { ru } from "@/i18n/ru";
 import { recordAudit } from "@/modules/audit";
 import type { CurrentUser } from "@/modules/identity";
-import { db, isUniqueViolation, Prisma, transaction } from "@/platform/db";
+import { furnitureTypeNameTaken, lockFurnitureTypes } from "@/modules/operator";
+import { db, isUniqueViolation, Prisma, transaction, type Tx } from "@/platform/db";
 import { expectOneUpdated, fail } from "@/platform/errors";
 import { assertAdmin } from "./access";
 import { delegateOf } from "./delegate";
@@ -45,6 +47,30 @@ function auditValues(changes: readonly Parsed[], side: "from" | "to"): Prisma.In
   return Object.fromEntries(changes.map((c) => [c.field.name, serializeValue(c.field, c[side])]));
 }
 
+/**
+ * Проверка модели перед записью: отказ — исключение (откатывает транзакцию с аудитом), иначе — поля, которые правка
+ * пишет вместе с изменёнными (автор правки). Аудит остаётся общим: в нём только изменённые поля.
+ */
+type Guard = (tx: Tx, user: CurrentUser, id: string, changes: readonly Parsed[]) => Promise<Record<string, unknown>>;
+
+const GUARDS: Readonly<Record<string, Guard>> = {
+  // Как operator/material-prices.ts: автор каждой правки — updatedById; архивный материал не правится, его можно только
+  // вернуть из архива (одно поле active). Строка блокируется: архивирование оператором не проскочит между проверкой и записью.
+  MaterialPrice: async (tx, user, id, changes) => {
+    const [row] = await tx.$queryRaw<{ active: boolean }[]>`SELECT "active" FROM "MaterialPrice" WHERE "id" = ${id} FOR UPDATE`;
+    if (row && !row.active && changes.some((c) => c.field.name !== "active")) return fail.validation(t.errors.archived);
+    return { updatedById: user.id };
+  },
+  // Как operator/furniture-types.ts: название уникально без учёта регистра, под той же блокировкой справочника.
+  FurnitureType: async (tx, _user, id, changes) => {
+    const name = changes.find((c) => c.field.name === "name")?.to;
+    if (typeof name !== "string") return {};
+    await lockFurnitureTypes(tx);
+    if (await furnitureTypeNameTaken(tx, name, id)) return fail.validation(t.errors.nameTaken, { fieldErrors: { name: [t.errors.nameTaken] } });
+    return {};
+  },
+};
+
 export async function updateRecord(user: CurrentUser, input: UpdateRecordInput): Promise<{ changed: number }> {
   assertAdmin(user);
   const meta = modelMeta(input.model);
@@ -83,6 +109,8 @@ export async function updateRecord(user: CurrentUser, input: UpdateRecordInput):
   if (changes.length === 0) return { changed: 0 };
 
   await transaction(async (tx) => {
+    const guard = Object.hasOwn(GUARDS, meta.name) ? GUARDS[meta.name] : undefined;
+    const extra = guard ? await guard(tx, user, input.id, changes) : {};
     await recordAudit(tx, {
       actor: { kind: "user", id: user.id, role: "ADMIN" },
       action: "admin.record.updated",
@@ -96,7 +124,7 @@ export async function updateRecord(user: CurrentUser, input: UpdateRecordInput):
     try {
       result = await delegate.updateMany({
         where: { AND: [{ [idField]: input.id }, ...changes.map(fromCondition)] },
-        data: Object.fromEntries(changes.map((c) => [c.field.name, c.to])),
+        data: { ...Object.fromEntries(changes.map((c) => [c.field.name, c.to])), ...extra },
       });
     } catch (e) {
       // Ограничения базы — ответ человеку, а не 500; исключение откатывает транзакцию вместе с аудитом.
