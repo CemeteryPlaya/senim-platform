@@ -6,6 +6,7 @@ import { confirmTotpEnrollment, requireMfaUser, verifySecondFactor, type Current
 import { action } from "@/platform/action";
 import { AppError } from "@/platform/errors";
 import { homeFor, safeNext } from "../../../_shell/auth";
+import { shellChanged } from "../../../_shell/onboarding";
 
 /**
  * Код проверяет identity (формат — modules/identity/mfa.ts: шесть цифр, пробелы убираются); здесь — только длина полей до
@@ -36,6 +37,8 @@ const afterMfa = (user: CurrentUser, next: string | undefined): string => safeNe
 export const confirmEnrollmentAction = action("app.operator.confirmTotpEnrollment", codeInput, async ({ code, next }) => {
   const user = await requireMfaUser();
   await atCodeField(() => confirmTotpEnrollment(user, code));
+  // Второй шаг пройден — оболочка из сосредоточенной (без меню) становится обычной: layout перерисовывается.
+  shellChanged();
   redirect(afterMfa(user, next));
 });
 
@@ -46,5 +49,7 @@ export const confirmEnrollmentAction = action("app.operator.confirmTotpEnrollmen
 export const verifySecondFactorAction = action("app.operator.verifySecondFactor", codeInput, async ({ code, next }) => {
   const user = await requireMfaUser();
   await atCodeField(() => verifySecondFactor(user, code));
-  if (next !== undefined) redirect(afterMfa(user, next));
+  if (next === undefined) return;
+  shellChanged();
+  redirect(afterMfa(user, next));
 });

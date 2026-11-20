@@ -15,6 +15,9 @@ import MfaPage from "./mfa/page";
 import OperatorHome from "./page";
 
 vi.mock("next/headers", async () => (await import("../../../../../test/factories/identity")).nextHeadersMock);
+// Второй шаг меняет оболочку (сосредоточенная → с меню): действие просит перерисовать layout.
+const h = vi.hoisted(() => ({ revalidated: [] as unknown[][] }));
+vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => void h.revalidated.push(args) }));
 // Число документов мастеров приходит из identity; тест подменяет его, чтобы проверить «нет связи».
 vi.mock("@/modules/operator", async (original) => {
   const real = await original<typeof import("@/modules/operator")>();
@@ -23,7 +26,10 @@ vi.mock("@/modules/operator", async (original) => {
 
 const MIN = 60_000;
 
-beforeEach(() => freshBrowser());
+beforeEach(() => {
+  freshBrowser();
+  h.revalidated = [];
+});
 afterEach(() => vi.clearAllMocks());
 
 /** Куда ведёт redirect() из next/navigation (он бросает ошибку с digest); `null` — перехода нет. */
@@ -105,6 +111,19 @@ describe("экран /v2/operator/mfa", () => {
     expect(await formOf(page("https://evil.example"))).toEqual({ next: null, enrollment: null });
     expect(await formOf(page("/operator/money"))).toMatchObject({ next: null });
     expect(await redirectTarget(verifySecondFactorAction({ code: totpNow(secret), next: "//evil.example" }))).toBe("/v2/operator");
+  });
+
+  it("после второго шага (подключение и код) оболочка перерисовывается: без этого шапка остаётся без меню до перезагрузки", async () => {
+    const { secret } = await operatorSession(null);
+    await redirectTarget(verifySecondFactorAction({ code: totpNow(secret), next: "/v2/operator" }));
+    expect(h.revalidated).toContainEqual(["/(app)", "layout"]);
+
+    h.revalidated = [];
+    const fresh = await makeOperator();
+    await signInAs(fresh, undefined, { mfaVerifiedAt: null });
+    const enrollment = (await formOf(page())).enrollment;
+    await redirectTarget(confirmEnrollmentAction({ code: totpNow(enrollment?.secret ?? ""), next: "" }));
+    expect(h.revalidated).toContainEqual(["/(app)", "layout"]);
   });
 
   it("неверный код — ошибка у поля кода с числом попыток, перехода нет", async () => {
