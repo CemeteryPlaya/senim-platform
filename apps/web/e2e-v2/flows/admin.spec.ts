@@ -11,7 +11,8 @@ import { loginV2, open } from "../support";
  * как все — номер, код с экрана, код из приложения (экран второго шага общий с оператором). Статистика → «Данные» →
  * FurnitureType: поиск, карточка, правка названия с тостом и строкой аудита `admin.record.updated`, затем название
  * возвращается (справочник нужен другим сценариям). Карточка ExecutorProfile засеянного мастера — без ИИН, IBAN, их
- * последних цифр и имён скрытых полей ни в тексте, ни в разметке страницы. Оператор (с 2FA) в админку не попадает.
+ * последних цифр и имён скрытых полей ни в тексте, ни в разметке страницы. Оператор (с 2FA) в админку не попадает: любой
+ * её адрес уводит его в его дом `/v2/operator`.
  * Только flows-desktop: админка — экран компьютера, правка одна на пересев.
  */
 
@@ -73,9 +74,11 @@ test("администратор: вход с кодом из приложени
   await expect(page.getByText(a.stats.money.income, { exact: true })).toBeVisible();
 
   // ── 2. «Данные» → FurnitureType → поиск → карточка → правка названия ──
-  // Сразу после второго шага оболочка ещё сосредоточенная (только «Выйти»): меню — после полной загрузки страницы.
-  await open(page, "/v2/admin");
-  await page.getByRole("link", { name: ru.app.shell.nav.data, exact: true }).first().click();
+  // Меню администратора («Данные») — сразу после второго шага, без перезагрузки страницы: шапка получает меню, как только
+  // второй фактор пройден (не остаётся сосредоточенной, только с «Выйти»).
+  const dataLink = page.getByRole("link", { name: ru.app.shell.nav.data, exact: true }).first();
+  await expect(dataLink).toBeVisible();
+  await dataLink.click();
   await expect(page.getByRole("heading", { level: 1, name: a.data.title })).toBeVisible();
   await searchTable(page, "FurnitureType", "kitchen");
   const id = await openRow(page, "FurnitureType", "kitchen");
@@ -114,15 +117,16 @@ test("администратор: вход с кодом из приложени
   expect(html).not.toMatch(/KZ\d{2}000DEMO/);
 });
 
-test("оператор (с кодом из приложения) в админку не попадает", async ({ page }, info) => {
+test("оператор (с кодом из приложения) в админку не попадает: адреса админки уводят его в /v2/operator", async ({ page }, info) => {
   test.skip(info.project.name !== "flows-desktop", DESKTOP_ONLY);
   test.setTimeout(120_000);
   await loginV2(page, OPERATOR.phone);
   await passOperatorTotpV2(page, OPERATOR_TOTP_SECRET);
   for (const path of ["/v2/admin", "/v2/admin/data", "/v2/admin/data/FurnitureType", "/v2/admin/data/User"]) {
     await open(page, path);
-    // Оболочка оператора на неперенесённом адресе — заглушка «раздел переносится» (страница админки отказала на сервере,
-    // OperatorMoving её не показывает); ни экрана, ни данных админки ни в тексте, ни в разметке.
+    // Страница админки (requireAdmin) уводит не-администратора в его дом до чтения данных: адрес — дом оператора,
+    // ни экрана, ни данных админки ни в тексте, ни в разметке.
+    await expect(page, path).toHaveURL((u) => u.pathname === "/v2/operator");
     const title = page.getByRole("heading", { level: 1 });
     await expect(title).toHaveCount(1);
     await expect(title).not.toHaveText(new RegExp(`^(${a.stats.title}|${a.data.title}|FurnitureType|User)$`));
