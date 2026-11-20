@@ -5,4 +5,4 @@ export { assertAdmin } from "./access";
 export { getRecord, listModels, listRecords, PAGE_SIZE, type AdminFieldInfo, type AdminRelation, type RecordsQuery } from "./read";
 export { ADMIN_PERIODS, adminStats, isAdminPeriod, type AdminPeriod, type AdminStats, type StatusCount } from "./stats";
 export { updateRecord, type FieldChange, type UpdateRecordInput } from "./update";
-export type { AdminRow, AdminValue } from "./values";
+export { KEY_MAX, type AdminRow, type AdminValue } from "./values";

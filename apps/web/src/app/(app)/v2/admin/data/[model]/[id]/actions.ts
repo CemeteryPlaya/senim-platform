@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ru } from "@/i18n/ru";
-import { updateRecord } from "@/modules/admin";
+import { KEY_MAX, updateRecord } from "@/modules/admin";
 import { requireUser } from "@/modules/identity";
 import { action } from "@/platform/action";
 import { fail, isAppError } from "@/platform/errors";
@@ -20,7 +20,7 @@ const changeSchema = z.strictObject({
 
 const updateRecordSchema = z.strictObject({
   model: z.string().min(1).max(64),
-  id: z.string().min(1).max(100),
+  id: z.string().min(1).max(KEY_MAX), // предел ключа модуля: схема и модуль не расходятся
   changes: z.array(changeSchema).min(1).max(50),
 });
 

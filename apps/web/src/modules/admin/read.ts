@@ -12,14 +12,13 @@ import { listSelect, modelMeta, navigationOf, recordSelect, relationsOf, scalarF
 import { fieldAccess, modelReadonly } from "./rules";
 import { ADMIN_MODELS, ENUMS } from "./schema.gen";
 import type { AdminField, AdminModel } from "./schema-parse";
-import { serializeRow, type AdminRow } from "./values";
+import { KEY_MAX, serializeRow, type AdminRow } from "./values";
 
 const t = ru.app.admin.data.errors;
 
 export const PAGE_SIZE = 50;
 /** Пределы ввода из адреса страницы: длиннее — отказ (поиск, переход) или «не найдено» (ключ карточки). */
 const SEARCH_MAX = 200;
-const VALUE_MAX = 200;
 
 export type RecordsQuery = {
   q?: string;
@@ -82,7 +81,7 @@ function navigationCondition(model: string, where: unknown): Where {
   const { field, value }: { field?: unknown; value?: unknown } = where;
   if (typeof field !== "string" || typeof value !== "string") return fail.validation(t.relation);
   const nav = navigationOf(model, field);
-  if (!nav || !value || value.length > VALUE_MAX) return fail.validation(t.relation);
+  if (!nav || !value || value.length > KEY_MAX) return fail.validation(t.relation);
   return nav.kind === "fk" ? { [field]: value } : { [field]: { some: { [nav.idField]: value } } };
 }
 
@@ -184,7 +183,7 @@ export async function getRecord(
   const { meta, delegate } = tableOf(model);
   // Ключ — только строка: объект ({ not: "" }) стал бы условием Prisma.
   if (typeof id !== "string") return fail.validation(ru.common.errors.invalid);
-  if (meta.idField === null || fieldAccess(meta.name, meta.idField) === "hidden" || !id || id.length > VALUE_MAX) return fail.notFound();
+  if (meta.idField === null || fieldAccess(meta.name, meta.idField) === "hidden" || !id || id.length > KEY_MAX) return fail.notFound();
   const record = await delegate.findUnique({ where: { [meta.idField]: id }, select: recordSelect(meta.name) });
   if (!record) return fail.notFound();
   const scalars = scalarFields(meta.name);

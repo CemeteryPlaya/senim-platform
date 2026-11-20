@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
+import { KEY_MAX } from "@/modules/admin";
 import { processDealMoney } from "@/modules/deal-core";
 import { computeDealMoney } from "@/modules/payments";
 import { db } from "@/platform/db";
@@ -287,6 +288,7 @@ describe("админка: правка записи updateRecordAction", () => {
       { ...ok, changes: [{ field: "name", from: { not: "" }, to: "Кухни" }] },
       { ...ok, model: "x".repeat(65) },
       { ...ok, id: "" },
+      { ...ok, id: "x".repeat(KEY_MAX + 1) },
       { ...ok, changes: Array.from({ length: 51 }, () => ok.changes[0]) },
     ];
     for (const input of bad) {
@@ -298,6 +300,8 @@ describe("админка: правка записи updateRecordAction", () => {
       code: "VALIDATION",
       fieldErrors: { sortOrder: [t.record.errors.int] },
     });
+    // Предел ключа — один у действия и модуля (KEY_MAX): ключ ровно предельной длины схема пропускает, записи нет — CONFLICT.
+    expect(await updateRecordAction({ ...ok, id: "x".repeat(KEY_MAX) })).toMatchObject({ ok: false, code: "CONFLICT" });
     expect((await db.furnitureType.findUniqueOrThrow({ where: { id: type.id } })).name).toBe("Кухня");
     expect(await audit()).toBe(0);
   });

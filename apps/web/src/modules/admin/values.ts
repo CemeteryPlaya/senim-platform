@@ -3,6 +3,12 @@
 // за 2^53, а RSC и JSON BigInt не передают.
 import type { AdminField } from "./schema-parse";
 
+/**
+ * Предел длины ключа записи и значения перехода по связи — один для действия (zod), чтения и правки: длиннее —
+ * отказ до запроса в базу. Ключи схемы — cuid и UUID (≤ 36 символов), запас — для составных и текстовых ключей.
+ */
+export const KEY_MAX = 200;
+
 export type AdminValue = string | number | boolean | null | readonly string[];
 export type AdminRow = Readonly<Record<string, AdminValue>>;
 
