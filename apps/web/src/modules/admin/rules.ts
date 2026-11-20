@@ -35,6 +35,9 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   StoredFile: ["storageKey", "previewKey"],
   // Сырое тело вебхука провайдера: данные плательщика и подпись провайдера.
   PaymentWebhookEvent: ["payload"],
+  // Текст уведомления: шаблон смены счёта выплаты пишет последние 4 символа IBAN (ru.identity.payout.notify,
+  // identity/payout.ts) — решение владельца 4: последние 4 символа не показываются.
+  Notification: ["title", "body"],
 };
 
 const SECRET_SUFFIX = /(Enc|Hash|Last4)$/;
@@ -100,6 +103,8 @@ const READONLY_FIELDS: Readonly<Record<string, readonly string[]>> = {
   FurnitureType: ["slug"],
   // Ключ стиля; название и описание работы проходят zod формы мастера (длина, обрезка пробелов: companies/portfolio.ts).
   PortfolioItem: ["style", "title", "description"],
+  // Порядок выделенных работ ведёт companies/highlights.ts (уникальная пара executorId + position, сдвиг соседей).
+  ExecutorHighlight: ["position"],
 };
 
 /** Модели со статусной машиной: их DateTime — отметки переходов (спека). */

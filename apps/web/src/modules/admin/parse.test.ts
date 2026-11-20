@@ -72,6 +72,16 @@ describe("parseFieldValue: строка формы → значение поля
   });
 });
 
+describe("parseFieldValue: вход не строка (Раунд 1)", () => {
+  it("объект, число или массив вместо строки — ошибка значения, а не оператор Prisma", () => {
+    for (const raw of [{ not: "" }, 0, ["a"], true]) {
+      for (const field of [f("String"), optional("String"), f("Int"), f("Boolean"), f("DateTime"), f("MeasurementTerms", { kind: "enum" })]) {
+        expect(parseFieldValue(field, raw as unknown as string, "from"), `${field.type} ${JSON.stringify(raw)}`).toEqual({ ok: false, error: t.invalid });
+      }
+    }
+  });
+});
+
 describe("sameValue", () => {
   it("даты — по времени, остальное — строго", () => {
     expect(sameValue(new Date("2026-11-20T10:00:00Z"), new Date("2026-11-20T15:00:00+05:00"))).toBe(true);

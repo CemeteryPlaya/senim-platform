@@ -37,6 +37,8 @@ const bad = (error: string): ParseResult => ({ ok: false, error });
 export function parseFieldValue(field: AdminField, raw: string | null, side: "from" | "to"): ParseResult {
   if (field.list || (field.kind !== "scalar" && field.kind !== "enum")) return fail.forbidden();
   if (field.kind === "scalar" && !["String", "Int", "Boolean", "DateTime"].includes(field.type)) return fail.forbidden();
+  // Защита в глубину: типы TS вызывающего не проверяются в рантайме — объект на месте строки стал бы оператором Prisma.
+  if (raw !== null && typeof raw !== "string") return bad(t.invalid);
   if (raw === null || raw === "") {
     if (!field.required) return ok(null);
     return side === "from" && raw === "" && field.type === "String" ? ok("") : bad(t.required);

@@ -28,8 +28,7 @@ const ACCESS_MAP: Readonly<Record<string, Groups>> = {
     editable: ["about", "yearsExperience", "city", "district", "streetAddress"],
   },
   ExecutorHighlight: {
-    readonly: ["id", "executorId", "executor", "portfolioItemId", "portfolioItem", "dealId", "deal"],
-    editable: ["position"],
+    readonly: ["id", "executorId", "executor", "portfolioItemId", "portfolioItem", "dealId", "deal", "position"],
   },
   FurnitureType: {
     readonly: ["id", "slug", "createdAt", "executors", "portfolio", "requests", "typicalEstimate"],
@@ -128,7 +127,8 @@ const ACCESS_MAP: Readonly<Record<string, Groups>> = {
     readonly: ["id", "userId", "user", "userAgent", "createdAt", "lastUsedAt"],
   },
   Notification: {
-    readonly: ["id", "userId", "user", "kind", "title", "body", "link", "readAt", "createdAt"],
+    hidden: ["title", "body"],
+    readonly: ["id", "userId", "user", "kind", "link", "readAt", "createdAt"],
   },
   AuditEvent: {
     readonly: ["id", "seq", "actorId", "actorRole", "action", "entityType", "entityId", "scope", "before", "after", "meta", "ip", "userAgent", "createdAt"],

@@ -1,6 +1,7 @@
 // Чтение админки: список моделей, записи таблицы (поиск, фильтры, переход по связи, страницы) и карточка записи.
 // Из базы выбираются только видимые поля (meta.ts); поиск, фильтры и переход — тоже только по видимым полям, так что
-// значение скрытого поля (хеш, последние 4 символа) не находится и не сравнивается. Ошибки не повторяют ввод.
+// значение скрытого поля (хеш, последние 4 символа) не находится и не сравнивается. Ошибки не повторяют ввод. Типы TS
+// вызывающего в рантайме не проверяются: каждое значение входа сверяется с typeof, объект на месте строки — VALIDATION.
 import { ru } from "@/i18n/ru";
 import type { CurrentUser } from "@/modules/identity";
 import { db } from "@/platform/db";
@@ -54,8 +55,10 @@ function tableOf(model: string): { meta: AdminModel; delegate: ModelDelegate } {
 const enumValuesOf = (type: string): readonly string[] => (Object.hasOwn(ENUMS, type) ? ENUMS[type] : []);
 
 /** Поиск `contains` без учёта регистра по видимым строковым полям; таких полей нет — ничего не находится. */
-function searchCondition(model: string, raw: string | undefined): Where | null {
-  const q = raw?.trim() ?? "";
+function searchCondition(model: string, raw: unknown): Where | null {
+  if (raw === undefined) return null;
+  if (typeof raw !== "string") return fail.validation(ru.common.errors.invalid);
+  const q = raw.trim();
   if (!q) return null;
   if (q.length > SEARCH_MAX) return fail.validation(t.searchTooLong);
   const strings = scalarFields(model).filter((f) => f.kind === "scalar" && f.type === "String" && !f.list);
@@ -66,25 +69,31 @@ function searchCondition(model: string, raw: string | undefined): Where | null {
  * Фильтр — только видимое перечисление (значение из схемы) или булево поле. Скрытое, неизвестное, иное поле и неверное
  * значение — один и тот же отказ VALIDATION: ответ не различает «поле есть, но скрыто» и «поля нет».
  */
-function filterCondition(model: string, field: string, value: string): Where {
+function filterCondition(model: string, field: string, value: unknown): Where {
+  if (typeof value !== "string") return fail.validation(t.filter);
   const f = scalarFields(model).find((x) => x.name === field);
   if (f && !f.list && f.kind === "enum" && enumValuesOf(f.type).includes(value)) return { [f.name]: value };
   if (f && !f.list && f.kind === "scalar" && f.type === "Boolean" && (value === "true" || value === "false")) return { [f.name]: value === "true" };
   return fail.validation(t.filter);
 }
 
-function navigationCondition(model: string, where: { field: string; value: string }): Where {
-  const nav = navigationOf(model, where.field);
-  if (!nav || !where.value || where.value.length > VALUE_MAX) return fail.validation(t.relation);
-  return nav.kind === "fk" ? { [where.field]: where.value } : { [where.field]: { some: { [nav.idField]: where.value } } };
+function navigationCondition(model: string, where: unknown): Where {
+  if (typeof where !== "object" || where === null) return fail.validation(t.relation);
+  const { field, value }: { field?: unknown; value?: unknown } = where;
+  if (typeof field !== "string" || typeof value !== "string") return fail.validation(t.relation);
+  const nav = navigationOf(model, field);
+  if (!nav || !value || value.length > VALUE_MAX) return fail.validation(t.relation);
+  return nav.kind === "fk" ? { [field]: value } : { [field]: { some: { [nav.idField]: value } } };
 }
 
 function recordsWhere(model: string, query: RecordsQuery): Where {
   const and: Where[] = [];
   const search = searchCondition(model, query.q);
   if (search) and.push(search);
-  for (const [field, value] of Object.entries(query.filters ?? {})) and.push(filterCondition(model, field, value));
-  if (query.where) and.push(navigationCondition(model, query.where));
+  const filters: unknown = query.filters ?? {};
+  if (typeof filters !== "object" || filters === null || Array.isArray(filters)) return fail.validation(t.filter);
+  for (const [field, value] of Object.entries(filters)) and.push(filterCondition(model, field, value));
+  if (query.where !== undefined) and.push(navigationCondition(model, query.where));
   return and.length > 0 ? { AND: and } : {};
 }
 
@@ -155,6 +164,8 @@ export async function getRecord(
 ): Promise<{ row: AdminRow; fields: readonly AdminFieldInfo[]; relations: readonly AdminRelation[] }> {
   assertAdmin(user);
   const { meta, delegate } = tableOf(model);
+  // Ключ — только строка: объект ({ not: "" }) стал бы условием Prisma.
+  if (typeof id !== "string") return fail.validation(ru.common.errors.invalid);
   if (meta.idField === null || fieldAccess(meta.name, meta.idField) === "hidden" || !id || id.length > VALUE_MAX) return fail.notFound();
   const record = await delegate.findUnique({ where: { [meta.idField]: id }, select: recordSelect(meta.name) });
   if (!record) return fail.notFound();

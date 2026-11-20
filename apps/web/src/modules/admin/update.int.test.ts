@@ -6,7 +6,7 @@ import { makeAdmin, makeClient, makeExecutor, makeOperator } from "../../../test
 import { makeFurnitureType } from "../../../test/factories/companies";
 import { dealAt } from "../../../test/factories/deal";
 import { makeRequest } from "../../../test/factories/operator";
-import { updateRecord } from "./update";
+import { updateRecord, type FieldChange } from "./update";
 
 const audit = () => db.auditEvent.findMany({ where: { action: "admin.record.updated" }, orderBy: { seq: "asc" } });
 const withoutMfa = (user: CurrentUser): CurrentUser => ({ ...user, mfa: { required: true, verifiedAt: null } });
@@ -109,6 +109,7 @@ describe("админка: подмена модели или поля в фор�
       ["FurnitureType.createdAt", { model: "FurnitureType", id: type.id, changes: [{ field: "createdAt", from: type.createdAt.toISOString(), to: "2020-01-01T00:00:00.000Z" }] }],
       ["FurnitureType.slug", { model: "FurnitureType", id: type.id, changes: [{ field: "slug", from: type.slug, to: "x" }] }],
       ["FurnitureType.executors", { model: "FurnitureType", id: type.id, changes: [{ field: "executors", from: null, to: profile.id }] }],
+      ["ExecutorHighlight.position", { model: "ExecutorHighlight", id: "x", changes: [{ field: "position", from: "0", to: "1" }] }],
       ["неизвестное поле", { model: "FurnitureType", id: type.id, changes: [{ field: "nope", from: null, to: "x" }] }],
       ["поле прототипа", { model: "FurnitureType", id: type.id, changes: [{ field: "__proto__", from: null, to: "x" }] }],
       ["разрешённое вместе с запрещённым", { model: "FurnitureType", id: type.id, changes: [{ field: "name", from: "Кухня", to: "Кухни" }, { field: "slug", from: type.slug, to: "x" }] }],
@@ -195,6 +196,53 @@ describe("админка: одновременная правка (Review Focus 
     await expect(updateRecord(admin, { model: "FurnitureType", id: type.id, changes: [{ field: "name", from: "Кухня", to: "Кухни" }] })).rejects.toMatchObject({ code: "CONFLICT" });
     expect((await db.furnitureType.findUniqueOrThrow({ where: { id: type.id } })).name).toBe("Кухня (правка оператора)");
     await expect(updateRecord(admin, { model: "FurnitureType", id: "нет-такой", changes: [{ field: "name", from: "Кухня", to: "Кухни" }] })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await audit()).toHaveLength(0);
+  });
+});
+
+describe("админка: правка не доверяет типам входа и ограничениям базы (Раунд 1)", () => {
+  const bad = <T>(value: unknown) => value as T;
+
+  it("объект вместо строки в ключе, прежнем и новом значении, не массив изменений — VALIDATION, ничего не меняется", async () => {
+    const admin = await makeAdmin();
+    // Единственная запись: ключ { not: "" } совпал бы ровно с ней, и условное обновление прошло бы.
+    const type = await makeFurnitureType({ name: "Кухня" });
+    const attempts: Parameters<typeof updateRecord>[1][] = [
+      { model: "FurnitureType", id: bad<string>({ not: "" }), changes: [{ field: "name", from: "Кухня", to: "Кухни" }] },
+      { model: "FurnitureType", id: type.id, changes: [{ field: "name", from: bad<string>({ not: "" }), to: "Кухни" }] },
+      { model: "FurnitureType", id: type.id, changes: [{ field: "name", from: "Кухня", to: bad<string>({ set: "Кухни" }) }] },
+      { model: "FurnitureType", id: type.id, changes: [{ field: "sortOrder", from: bad<string>(0), to: "5" }] },
+      { model: "FurnitureType", id: type.id, changes: bad<FieldChange[]>({ 0: { field: "name", from: "Кухня", to: "Кухни" }, length: 1 }) },
+    ];
+    const before = await snapshot();
+    for (const input of attempts) {
+      await expect(updateRecord(admin, input), JSON.stringify(input)).rejects.toMatchObject({ code: "VALIDATION" });
+    }
+    expect(await snapshot()).toBe(before);
+  });
+
+  it("нарушение уникальности — CONFLICT (не 500), аудит откатывается", async () => {
+    const admin = await makeAdmin();
+    await makeFurnitureType({ name: "Кухня" });
+    const other = await makeFurnitureType({ name: "Шкаф" });
+    // Ни одно редактируемое поле сейчас не уникально: индекс — только на время теста.
+    await db.$executeRawUnsafe(`CREATE UNIQUE INDEX "admin_test_furniture_name" ON "FurnitureType"("name")`);
+    try {
+      const error = await failure(updateRecord(admin, { model: "FurnitureType", id: other.id, changes: [{ field: "name", from: "Шкаф", to: "Кухня" }] }));
+      expect(error).toMatchObject({ code: "CONFLICT" });
+    } finally {
+      await db.$executeRawUnsafe(`DROP INDEX "admin_test_furniture_name"`);
+    }
+    expect((await db.furnitureType.findUniqueOrThrow({ where: { id: other.id } })).name).toBe("Шкаф");
+    expect(await audit()).toHaveLength(0);
+  });
+
+  it("значение, которое не принимает ограничение базы (CHECK), — VALIDATION, аудит откатывается", async () => {
+    const admin = await makeAdmin();
+    const price = await db.materialPrice.create({ data: { category: "carcass", name: "ЛДСП 16 мм", unit: "m2", priceKzt: 4_500, segments: ["ECONOMY"] } });
+    const error = await failure(updateRecord(admin, { model: "MaterialPrice", id: price.id, changes: [{ field: "priceKzt", from: "4500", to: "0" }] }));
+    expect(error).toMatchObject({ code: "VALIDATION" });
+    expect((await db.materialPrice.findUniqueOrThrow({ where: { id: price.id } })).priceKzt).toBe(4_500);
     expect(await audit()).toHaveLength(0);
   });
 });

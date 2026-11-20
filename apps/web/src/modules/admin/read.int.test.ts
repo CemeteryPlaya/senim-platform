@@ -231,3 +231,51 @@ describe("админка: карточка и связи", () => {
     await expect(getRecord(admin, "FurnitureType", "")).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
+
+describe("админка: тексты уведомлений (Раунд 1)", () => {
+  it("уведомление о смене счёта выплаты: последних 4 символов IBAN нет ни в списке, ни в карточке, поиск по ним — 0 строк", async () => {
+    const admin = await makeAdmin();
+    const executor = await makeExecutor({ legalName: "ИП Счетов" });
+    const last4 = "Ю7Ю8";
+    const n = ru.identity.payout.notify;
+    const mine = await db.notification.create({ data: { userId: executor.id, kind: "executor.payout_iban_changed", title: n.title(false), body: n.body(last4) } });
+    await db.notification.create({ data: { userId: admin.id, kind: "executor.payout_iban_changed", title: n.title(false), body: n.operatorBody("ИП Счетов", false, last4) } });
+
+    const list = await listRecords(admin, "Notification", {});
+    expect(list.total).toBe(2);
+    expect(list.columns).not.toEqual(expect.arrayContaining(["title"]));
+    expect(list.columns).not.toEqual(expect.arrayContaining(["body"]));
+    const card = await getRecord(admin, "Notification", mine.id);
+    for (const result of [list, card]) {
+      const json = JSON.stringify(result);
+      expect(json).not.toContain(last4);
+      expect(json).not.toContain("KZ…");
+    }
+    for (const q of [last4, "KZ…", "Счёт для выплаты"]) expect((await listRecords(admin, "Notification", { q })).total, q).toBe(0);
+  });
+});
+
+describe("админка: чтение не доверяет типам входа (Раунд 1)", () => {
+  // Вход из адреса страницы и форм — строки; объект на их месте — попытка подставить оператор Prisma ({ contains: "" }).
+  const bad = <T>(value: unknown) => value as T;
+
+  it("объект вместо строки в поиске, переходе, фильтре и ключе карточки — VALIDATION, а не выборка всего", async () => {
+    const admin = await makeAdmin();
+    const request = await makeRequest();
+    await makeOffer(request.id);
+    const queries: RecordsQuery[] = [
+      { q: bad<string>({ contains: "" }) },
+      { where: { field: "requestId", value: bad<string>({ contains: "" }) } },
+      { where: { field: bad<string>({ toString: "requestId" }), value: request.id } },
+      { where: bad<{ field: string; value: string }>("requestId") },
+      { filters: { status: bad<string>({ not: "WITHDRAWN" }) } },
+      { filters: bad<Record<string, string>>("status") },
+    ];
+    for (const query of queries) {
+      await expect(listRecords(admin, "Offer", query), JSON.stringify(query)).rejects.toMatchObject({ code: "VALIDATION" });
+    }
+    await expect(getRecord(admin, "Offer", bad<string>({ not: "" }))).rejects.toMatchObject({ code: "VALIDATION" });
+    // Нечисловая страница — первая.
+    expect((await listRecords(admin, "Offer", { page: bad<number>("2") })).page).toBe(1);
+  });
+});
