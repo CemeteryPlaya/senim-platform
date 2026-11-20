@@ -122,7 +122,17 @@ export async function listRecords(
   user: CurrentUser,
   model: string,
   query: RecordsQuery,
-): Promise<{ rows: AdminRow[]; total: number; page: number; pageSize: typeof PAGE_SIZE; columns: readonly string[] }> {
+): Promise<{
+  rows: AdminRow[];
+  total: number;
+  page: number;
+  pageSize: typeof PAGE_SIZE;
+  columns: readonly string[];
+  /** Столбцы с типом и доступом — экран строит по ним фильтры (перечисления, булевы). */
+  fields: readonly AdminFieldInfo[];
+  /** Ключ записи для ссылки на карточку; null — у таблицы нет единственного видимого ключа (карточки нет). */
+  idField: string | null;
+}> {
   assertAdmin(user);
   const { meta, delegate } = tableOf(model);
   const where = recordsWhere(meta.name, query);
@@ -132,7 +142,15 @@ export async function listRecords(
     delegate.count({ where }),
     delegate.findMany({ select: listSelect(meta.name), where, orderBy: orderOf(meta, columns), skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
   ]);
-  return { rows: records.map((r) => serializeRow(columns, r)), total, page, pageSize: PAGE_SIZE, columns: columns.map((f) => f.name) };
+  return {
+    rows: records.map((r) => serializeRow(columns, r)),
+    total,
+    page,
+    pageSize: PAGE_SIZE,
+    columns: columns.map((f) => f.name),
+    fields: columns.map((f) => describeField(meta.name, f)),
+    idField: meta.idField !== null && columns.some((f) => f.name === meta.idField) ? meta.idField : null,
+  };
 }
 
 function describeField(model: string, f: AdminField): AdminFieldInfo {

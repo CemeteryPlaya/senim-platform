@@ -87,7 +87,11 @@ describe("админка: записи таблицы", () => {
   it("каждая модель открывается списком и карточкой (запрос к базе собирается), неизвестная — NOT_FOUND", async () => {
     const admin = await makeAdmin();
     for (const model of ADMIN_MODELS) {
-      await expect(listRecords(admin, model.name, {}), model.name).resolves.toMatchObject({ page: 1, pageSize: 50 });
+      const list = await listRecords(admin, model.name, {});
+      expect(list, model.name).toMatchObject({ page: 1, pageSize: 50, idField: model.idField });
+      // Описание столбцов — те же столбцы, с доступом; ключ записи — один из них.
+      expect(list.fields.map((f) => f.name), model.name).toEqual(list.columns);
+      if (list.idField !== null) expect(list.columns, model.name).toContain(list.idField);
       if (model.idField) await expect(getRecord(admin, model.name, randomUUID()), model.name).rejects.toMatchObject({ code: "NOT_FOUND" });
     }
     await expect(listRecords(admin, "Nope", {})).rejects.toMatchObject({ code: "NOT_FOUND" });
