@@ -3,6 +3,7 @@ export type { ButtonLinkProps, ButtonLook, ButtonProps, ButtonSize, ButtonVarian
 export { BackLink } from "./BackLink";
 export type { BackLinkProps } from "./BackLink";
 export { NavHistory } from "./NavHistory";
+export { TopBarOverPhoto } from "./TopBarOverPhoto";
 export { CopyButton } from "./CopyButton";
 export type { CopyButtonProps } from "./CopyButton";
 export { ContactActions } from "./ContactActions";
