@@ -185,6 +185,21 @@ describe("админка: данные", () => {
     expect(plain(await html(table("Offer", { where: "binIinHash", value: "x" })))).toContain(t.data.errors.relation);
   });
 
+  it("таблица: у каждой группы чипов-фильтров видимая подпись — имя поля, связанная с группой для диктора", async () => {
+    await signInAs(await makeAdmin());
+    const out = await html(table("Request"));
+    // У Request две одинаковые ленты ECONOMY/COMFORT/PREMIUM (segment и segmentSuggested): различает их только подпись.
+    const ids = ["segment", "segmentSuggested"].map((field) => {
+      const caption = new RegExp(`<[a-z]+ id="([^"]+)"[^>]*>${field}</`).exec(out);
+      expect(caption, field).not.toBeNull();
+      expect(out, field).toContain(`<nav aria-labelledby="${caption?.[1]}"`);
+      return caption?.[1];
+    });
+    expect(new Set(ids).size).toBe(2);
+    // Подпись видна глазам, а не только диктору.
+    expect(out).not.toMatch(/class="[^"]*sr-only[^"]*">segment</);
+  });
+
   it("таблица и карточка ExecutorProfile: ни имён, ни значений скрытых полей — в HTML и в данных формы (RSC)", async () => {
     const { executor, secrets } = await executorWithSecrets();
     await signInAs(await makeAdmin());

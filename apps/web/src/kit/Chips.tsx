@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useId } from "react";
 import { ChipsRail } from "./ChipsRail";
 import { cn } from "./cn";
 
@@ -8,6 +9,8 @@ export type ChipsProps = {
   items: readonly ChipItem[];
   /** Имя группы для диктора («Категории»). */
   label: string;
+  /** Видимая подпись группы над лентой (имя поля, когда групп несколько и по ленте не понять, что она фильтрует); диктор берёт имя группы из неё. */
+  caption?: string;
 };
 
 /**
@@ -20,9 +23,15 @@ export type ChipsProps = {
  * клиентская часть). Компьютер: высота 36 px, строки переносятся. Ряд с вертикальным отступом `py-1` и отрицательным
  * полем: кольцо фокуса не обрезается прокруткой.
  */
-export function Chips({ items, label }: ChipsProps) {
+export function Chips({ items, label, caption }: ChipsProps) {
+  const captionId = useId();
   return (
-    <nav aria-label={label}>
+    <nav aria-label={caption === undefined ? label : undefined} aria-labelledby={caption === undefined ? undefined : captionId}>
+      {caption !== undefined && (
+        <p id={captionId} className="mb-1 text-sub font-semibold text-muted">
+          {caption}
+        </p>
+      )}
       <ChipsRail className="-my-1 flex gap-2 overflow-x-auto py-1 mobile:rail-bleed desktop:flex-wrap desktop:overflow-visible">
         {items.map((item) => (
           <li key={item.href} className="shrink-0">

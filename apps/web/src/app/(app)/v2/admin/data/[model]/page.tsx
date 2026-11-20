@@ -106,7 +106,7 @@ export default async function AdminTablePage({ params, searchParams }: Props) {
         </div>
       </form>
       {filters.map((f) => (
-        <Chips key={f.name} label={t.filterLabel(f.name)} items={filterChips(screen, sp, `${FILTER}${f.name}`, filterOptions(f))} />
+        <Chips key={f.name} label={t.filterLabel(f.name)} caption={f.name} items={filterChips(screen, sp, `${FILTER}${f.name}`, filterOptions(f))} />
       ))}
       {listing.idField === null && <p className="text-body text-muted">{t.noKey}</p>}
       <TableOrCards
