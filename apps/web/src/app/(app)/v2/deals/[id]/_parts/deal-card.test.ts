@@ -591,17 +591,17 @@ describe("masterMoneyView: блок денег мастера из журнал�
   // Смета мастера модуля (`partyEstimate("EXECUTOR")`): цена 100 000 ₸, гарантия 4% — 4 000 ₸, «вы получите» — 96 000 ₸.
   const mine = { priceTiyn: 100_000_00n, extraTiyn: 4_000_00n, totalTiyn: 96_000_00n };
   const master = (b: MoneyBlock) => masterMoneyView({ block: b, estimate: mine });
-  const offerRows = (youGet: bigint) => [
+  const offerRows = (youGet: bigint, label: string = md.youGet) => [
     { label: md.price, amount: 100_000_00n },
     { label: md.guarantee, amount: 4_000_00n, explain: true },
-    { label: md.youGet, amount: youGet, total: true },
+    { label, amount: youGet, total: true },
   ];
   /** Суммы покупателя в журнале: оплата с защитой (102 000 ₸) и остаток в банке. Мастеру их видно быть не должно. */
   const BUYER_SUMS = [102_000_00n, 2_000_00n];
   const amounts = (v: ReturnType<typeof master>) => [v.amount, ...v.rows.map((r) => r.amount)];
 
   // Заголовок называет сумму мастера («Вы получите после приёмки», пока оплаты мастеру нет); состояние — первой фразой пояснения.
-  const CASES: { name: string; block: MoneyBlock; tone: string; title: string; amount: bigint; note?: string }[] = [
+  const CASES: { name: string; block: MoneyBlock; tone: string; title: string; amount: bigint; note?: string; total?: string }[] = [
     { name: "ждём оплату покупателя", block: block({ kind: "awaiting", payment: "none" }), tone: "awaiting", title: md.youGetAfter, amount: 96_000_00n, note: md.awaiting },
     { name: "оплата обрабатывается", block: block({ kind: "awaiting", payment: "PENDING" }), tone: "awaiting", title: md.youGetAfter, amount: 96_000_00n, note: md.pending },
     { name: "оплата покупателя не прошла", block: block({ kind: "awaiting", payment: "FAILED" }), tone: "awaiting", title: md.youGetAfter, amount: 96_000_00n, note: md.failed },
@@ -634,16 +634,18 @@ describe("masterMoneyView: блок денег мастера из журнал�
       tone: "completed",
       title: md.completed.done,
       amount: 96_000_00n,
+      // Деньги уже у мастера — итоговая строка в прошедшем времени.
+      total: "Вы получили",
     },
   ];
 
-  it.each(CASES)("$name: тон, заголовок о сумме мастера, состояние в пояснении; строки — цена, гарантия 4%, «Вы получите»", ({ block: b, tone, title, amount, note }) => {
+  it.each(CASES)("$name: тон, заголовок о сумме мастера, состояние в пояснении; строки — цена, гарантия 4%, «Вы получите»", ({ block: b, tone, title, amount, note, total }) => {
     const v = master(b);
     expect(v).toMatchObject({ tone, title, amount });
     if (note) expect(v.note).toBe(note);
     // Состояние — первой фразой пояснения, а не заголовком: заголовок ни в одном случае не говорит о деньгах покупателя.
     expect(v.title).not.toMatch(/покупател/i);
-    expect(v.rows).toEqual(offerRows(amount));
+    expect(v.rows).toEqual(offerRows(amount, total));
     for (const sum of BUYER_SUMS) expect(amounts(v)).not.toContain(sum);
   });
 

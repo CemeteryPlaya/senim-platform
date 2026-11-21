@@ -371,10 +371,10 @@ export type MasterMoneyInput = {
 export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyView {
   const m = tmd.card.money;
   const priceRow = { label: m.price, amount: estimate.priceTiyn };
-  const offerRows = (youGet: bigint) => [
+  const offerRows = (youGet: bigint, label: string = m.youGet) => [
     priceRow,
     { label: m.guarantee, amount: estimate.extraTiyn, explain: true as const },
-    { label: m.youGet, amount: youGet, total: true },
+    { label, amount: youGet, total: true },
   ];
   switch (block.kind) {
     case "awaiting": {
@@ -404,7 +404,13 @@ export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyVie
           note: block.settled ? c.splitNote : c.splitNotePending,
         };
       }
-      return { tone: "completed", title: block.settled ? c.done : c.pending, amount: block.paidToMasterTiyn, rows: offerRows(block.paidToMasterTiyn) };
+      // Оплата получена — итог в прошедшем времени («Вы получили»); пока банк переводит — «Вы получите».
+      return {
+        tone: "completed",
+        title: block.settled ? c.done : c.pending,
+        amount: block.paidToMasterTiyn,
+        rows: offerRows(block.paidToMasterTiyn, block.settled ? m.youGot : m.youGet),
+      };
     }
     case "refunded":
       return { tone: "refunded", title: m.refunded.title, amount: 0n, rows: [priceRow], note: block.settled ? m.refunded.done : m.refunded.pending };
