@@ -304,6 +304,8 @@ export type SummaryDraft = {
   complex: string | null;
   address: string | null;
   desiredDate: Date | null;
+  /** Свой дизайн-проект покупателя (`getDraft().design`): в сводке — число файлов. */
+  design: readonly { id: string }[];
 };
 
 export type SummaryRow = { label: string; value: string; href: string };
@@ -323,6 +325,7 @@ export function summaryRows(draft: SummaryDraft): SummaryRow[] {
     d.hardware ? { label: s.hardware, value: HARDWARE[d.hardware].name, href: at("start") } : null,
     { label: s.segment, value: draft.segment ? SEGMENT_NAMES[draft.segment] : s.notSet, href: at("segment") },
     { label: s.photos, value: draft.photos.length > 0 ? s.photosCount(draft.photos.length) : s.noPhotos, href: at("room") },
+    draft.design.length > 0 ? { label: s.design, value: s.designCount(draft.design.length), href: at("room") } : null,
     d.description ? { label: s.description, value: d.description, href: at("room") } : null,
     { label: s.address, value: [draft.city, draft.district, draft.complex, draft.address].filter(Boolean).join(", ") || s.notSet, href: at("place") },
     { label: s.date, value: draft.desiredDate ? formatDate(draft.desiredDate) : s.notSet, href: at("place") },

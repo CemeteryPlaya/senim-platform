@@ -233,7 +233,18 @@ describe("сводка", () => {
     complex: null,
     address: "ул. Достык, 5",
     desiredDate: null,
+    design: [],
   };
+
+  it("свой дизайн-проект — строкой с числом файлов на шаг «Фото»; без проекта строки нет", () => {
+    const rows = summaryRows({ ...draft, design: [{ id: "d1" }, { id: "d2" }] });
+    const i = rows.findIndex((r) => r.label === t.send.design);
+    expect(rows[i]).toMatchObject({ value: "2 файла" });
+    expect(rows[i]?.href.split("step=")[1]).toBe("room");
+    expect(rows[i - 1]?.label).toBe(t.send.photos);
+    expect(summaryRows({ ...draft, design: [{ id: "d1" }] }).find((r) => r.label === t.send.design)?.value).toBe("1 файл");
+    expect(summaryRows(draft).some((r) => r.label === t.send.design)).toBe(false);
+  });
 
   it("каждая строка ведёт на свой шаг; материалы — только указанные", () => {
     const rows = summaryRows(draft);

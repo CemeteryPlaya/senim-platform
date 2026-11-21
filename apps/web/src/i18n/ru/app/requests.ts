@@ -212,6 +212,8 @@ export const requests = {
       photos: "Фото",
       photosCount: (n: number) => `${n} фото`,
       noPhotos: "Без фото",
+      design: "Дизайн-проект",
+      designCount: (n: number) => `${n} ${({ one: "файл", few: "файла", many: "файлов" } as const)[pluralForm(n)]}`,
       address: "Адрес",
       date: "К какой дате",
       notSet: "Не указано",
