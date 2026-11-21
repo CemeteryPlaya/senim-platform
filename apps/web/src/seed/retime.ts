@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { recalculateRating } from "@/modules/companies";
 import { Prisma, type Tx } from "@/platform/db";
@@ -13,8 +12,8 @@ import { resolveWhen } from "./timeline";
  * времени этого окна на день из плана (`DealPlan.at`), сохраняя порядок внутри окна. Сделки засеваются по очереди и
  * больше никто в базу не пишет, поэтому окно однозначно называет действие.
  *
- * В той же транзакции номера операций тестового провайдера (`MOCK-…`, выводятся из ключа идемпотентности) заменяются
- * правдоподобными номерами банка, а покупатели завершённых сделок оставляют отзывы.
+ * В той же транзакции покупатели завершённых сделок оставляют отзывы (номера операций тестовый провайдер сразу выдаёт в виде
+ * номеров банка — 12 цифр).
  *
  * Журнал аудита и журнал денег защищены триггерами только-добавления: на время этой транзакции сид отключает их
  * (ALTER TABLE … DISABLE TRIGGER — нужен владелец таблиц, на стенде и в тестах это так) и включает обратно до фиксации.
@@ -40,12 +39,6 @@ const TRIGGERS = [
 const pgTs = (ms: number) => new Date(ms).toISOString().slice(0, 23).replace("T", " ");
 const ident = (name: string) => Prisma.raw(`"${name.replaceAll('"', '""')}"`);
 
-/** Правдоподобный номер операции банка: 12 цифр, стабильно из id строки журнала. */
-export function bankRefOf(id: string): string {
-  const n = BigInt(`0x${createHash("sha256").update(id).digest("hex").slice(0, 15)}`) % 100_000_000_000n;
-  return `7${n.toString().padStart(11, "0")}`;
-}
-
 async function shiftWindows(tx: Tx, windows: SeedWindow[], end: number): Promise<void> {
   await tx.$executeRaw`CREATE TEMP TABLE seed_retime (from_at timestamp(3), to_at timestamp(3), target timestamp(3)) ON COMMIT DROP`;
   const rows = windows.map((w, i) => Prisma.sql`(${pgTs(w.from)}::timestamp(3), ${pgTs(windows[i + 1]?.from ?? end)}::timestamp(3), ${pgTs(w.target)}::timestamp(3))`);
@@ -59,11 +52,6 @@ async function shiftWindows(tx: Tx, windows: SeedWindow[], end: number): Promise
     const c = ident(column);
     await tx.$executeRaw`UPDATE ${t} AS t SET ${c} = w.target + (t.${c} - w.from_at) FROM seed_retime w WHERE t.${c} >= w.from_at AND t.${c} < w.to_at`;
   }
-}
-
-async function replaceMockRefs(tx: Tx): Promise<void> {
-  const ops = await tx.moneyTransaction.findMany({ where: { externalRef: { startsWith: "MOCK-" } }, select: { id: true } });
-  for (const op of ops) await tx.moneyTransaction.update({ where: { id: op.id }, data: { externalRef: bankRefOf(op.id) } });
 }
 
 /** Отзывы — как их пишет deal-core.leaveReview (отзыв, событие аудита, пересчёт рейтинга), но со временем из плана. */
@@ -92,13 +80,12 @@ async function setTriggers(tx: Tx, mode: "DISABLE" | "ENABLE"): Promise<void> {
   }
 }
 
-/** Перенос времени, номера операций и отзывы — одной транзакцией: упало — откат целиком, триггеры остаются включёнными. */
+/** Перенос времени и отзывы — одной транзакцией: упало — откат целиком, триггеры остаются включёнными. */
 export async function retimeSeed(db: PrismaClient, input: { windows: SeedWindow[]; end: number; now: number; reviews: SeedReview[] }): Promise<void> {
   await db.$transaction(
     async (tx) => {
       await setTriggers(tx, "DISABLE");
       await shiftWindows(tx, input.windows, input.end);
-      await replaceMockRefs(tx);
       await seedReviews(tx, input.reviews, input.now);
       await setTriggers(tx, "ENABLE");
     },

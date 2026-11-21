@@ -117,7 +117,7 @@ async function finish(db: PrismaClient, ids: DealIds, now: number): Promise<Seed
   // Сделки идут настоящими сервисами: оферте и акту нужен порт documents (PDF), заявке — порт requests.
   registerPorts();
   const seeded = await seedDeals(ids, now);
-  // Действия сделок — по дням из плана, номера операций банка вместо MOCK-…, отзывы покупателей (retime.ts).
+  // Действия сделок — по дням из плана, отзывы покупателей (retime.ts).
   await retimeSeed(db, { windows: seeded.windows, end: seeded.end, now, reviews: seeded.reviews });
   return {
     users: await db.user.count(),

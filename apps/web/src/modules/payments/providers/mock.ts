@@ -4,8 +4,9 @@ import type { PaymentProvider, ProviderResult, WebhookResult } from "../provider
 
 /**
  * Тестовый провайдер (dev и стенд; в prod запрещён — env.ts): подтверждает каждую операцию сразу, деньги не двигаются. Номер операции
- * выводится из ключа идемпотентности, поэтому повтор с тем же ключом — та же операция. В интерфейсе
- * операции помечены «тестовый платёж» (isTest). Заменяет прежний симулятор эскроу.
+ * выводится из ключа идемпотентности, поэтому повтор с тем же ключом — та же операция; вид — как у банка (12 цифр): номер видят
+ * покупатель и мастер в истории денег. Тестовые операции помечены «тестовая» только у оператора (isTest). Заменяет прежний
+ * симулятор эскроу.
  *
  * Вебхуки mock сам не шлёт; формат нужен тестам и показу повторной доставки: JSON
  * `{ eventId, idempotencyKey, status, externalRef?, error?, amountTiyn? }`, подпись HMAC-SHA256 от «<время>.<тело>»
@@ -17,7 +18,8 @@ export const MOCK_TIMESTAMP_HEADER = "x-mock-timestamp";
 const TOLERANCE_MS = 5 * 60_000;
 const secret = randomToken();
 
-const refOf = (idempotencyKey: string) => `MOCK-${sha256Hex(idempotencyKey).slice(0, 12).toUpperCase()}`;
+/** Номер операции: «7» и 11 цифр, стабильно из ключа идемпотентности. */
+const refOf = (idempotencyKey: string) => `7${(BigInt(`0x${sha256Hex(idempotencyKey).slice(0, 15)}`) % 100_000_000_000n).toString().padStart(11, "0")}`;
 const ok = (idempotencyKey: string): ProviderResult => ({ status: "SUCCEEDED", externalRef: refOf(idempotencyKey) });
 
 /** Подписанная доставка вебхука mock — как её отправил бы провайдер. */
