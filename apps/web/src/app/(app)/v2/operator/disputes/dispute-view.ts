@@ -55,8 +55,9 @@ export function moneyTimeline(items: readonly MoneyHistoryItem[]): TimelineItem[
   }));
 }
 
-/** Название события журнала аудита: сделки — из общих текстов сделки, неизвестный код — как есть. */
-export const auditTitle = (code: string): string => (ru.deal.history.action as Record<string, string>)[code] ?? code;
+/** Название события журнала аудита: сделки — из общих текстов сделки, остальные — из текстов журнала, неизвестный код — как есть. */
+export const auditTitle = (code: string): string =>
+  (ru.deal.history.action as Record<string, string>)[code] ?? ru.app.operatorDeals.audit.actions[code] ?? code;
 
 /** Над чем событие: слово по типу записи (без учёта регистра и «_»); неизвестный тип — `null` (в ленте только роль). */
 export function entityLabel(entityType: string): string | null {

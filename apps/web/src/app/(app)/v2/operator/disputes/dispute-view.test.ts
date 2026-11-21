@@ -76,6 +76,9 @@ describe("ленты", () => {
     const [known, unknown] = historyTimeline([event("dispute.opened", "CLIENT"), event("some.new_code", "ROBOT", "SomethingNew")]);
     expect(known).toMatchObject({ title: ru.deal.history.action["dispute.opened"], text: `${ru.deal.history.actor.CLIENT} · спор` });
     expect(unknown).toMatchObject({ title: "some.new_code", text: "ROBOT" });
+    const [signing, masked] = historyTimeline([event("document.signing.started", "EXECUTOR"), event("chat.contacts_masked", "SYSTEM")]);
+    expect(signing?.title).toBe("Сторона начала подпись документа");
+    expect(masked?.title).toBe(ru.app.operatorDeals.audit.actions["chat.contacts_masked"]);
   });
 });
 

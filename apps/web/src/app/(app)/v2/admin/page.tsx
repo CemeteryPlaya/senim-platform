@@ -4,6 +4,7 @@ import { Chips, Columns, Money, PageTitle, Section, Stack, Stat, StatRow, type C
 import { ADMIN_PERIODS, adminStats, isAdminPeriod, type AdminPeriod, type StatusCount } from "@/modules/admin";
 import { pageHref, requireAdmin } from "../../_shell/auth";
 import { TableOrCards } from "../operator/_parts/TableOrCards";
+import { statusLabel, type StatusTableKind } from "./_parts/status-label";
 import { first, type SearchParams } from "./_parts/values";
 
 const t = ru.app.admin.stats;
@@ -24,7 +25,7 @@ function periodChips(current: AdminPeriod): ChipItem[] {
   }));
 }
 
-function StatusTable<S extends string>({ id, title, rows }: { id: string; title: string; rows: readonly StatusCount<S>[] }) {
+function StatusTable<S extends string>({ id, title, rows }: { id: StatusTableKind; title: string; rows: readonly StatusCount<S>[] }) {
   return (
     <Section title={title} id={id}>
       <TableOrCards
@@ -35,7 +36,7 @@ function StatusTable<S extends string>({ id, title, rows }: { id: string; title:
         empty={t.empty}
         footer={{ status: t.total, count: rows.reduce((acc, r) => acc + r.count, 0) }}
         columns={[
-          { key: "status", header: t.columns.status, rowHeader: true, cell: (r) => r.status },
+          { key: "status", header: t.columns.status, rowHeader: true, cell: (r) => statusLabel(id, r.status) },
           { key: "count", header: t.columns.count, numeric: true, cell: (r) => r.count },
         ]}
       />
