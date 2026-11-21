@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
+import { formatDateTime } from "@/features/format/format";
 import { formatMoney } from "@/kit";
 import type { NextAction } from "@/modules/deal-core";
 import type { MoneyBlock, MoneyView } from "@/modules/payments";
 import {
   cancelText,
+  deliveryView,
   documentRows,
   HISTORY_SHOWN,
   historyView,
@@ -692,5 +694,32 @@ describe("заказ мастера и ход работ", () => {
     expect(items.map((i) => i.id)).toEqual(["r2", "r1"]);
     expect(items[1]?.title).toBe(r.untitled);
     expect(items[1]?.photos.map((p) => p.alt)).toEqual([r.photoAlt(r.untitled, 1), r.photoAlt(r.untitled, 2)]);
+  });
+});
+
+describe("deliveryView: блок «Сдача работы» — фото и место сдачи обеим сторонам", () => {
+  const at = new Date("2026-11-20T10:00:00Z");
+  const ready = { at, photos: [{ id: "p1", src: "/f/p1" }, { id: "p2", src: "/f/p2" }], distanceM: 36, withinRadius: true, radiusM: 500 };
+
+  it("в радиусе: фото с подписью, расстояние и радиус", () => {
+    const v = deliveryView(ready);
+    expect(v?.photos).toEqual([
+      { id: "p1", src: "/f/p1", alt: t.delivery.photoAlt(1) },
+      { id: "p2", src: "/f/p2", alt: t.delivery.photoAlt(2) },
+    ]);
+    expect(v?.place).toBe("Сдано у адреса заказа: 36 м, в пределах 500 м");
+    expect(v?.far).toBe(false);
+    expect(v?.time).toBe(formatDateTime(at));
+  });
+
+  it("дальше радиуса — предупреждение", () => {
+    const v = deliveryView({ ...ready, distanceM: 2021, withinRadius: false });
+    expect(v?.place).toBe("Сдано в 2021 м от адреса заказа — дальше 500 м");
+    expect(v?.far).toBe(true);
+  });
+
+  it("без геолокации — так и сказано; не сдано — блока нет", () => {
+    expect(deliveryView({ ...ready, distanceM: null, withinRadius: null })?.place).toBe(t.delivery.noGps);
+    expect(deliveryView(null)).toBeNull();
   });
 });

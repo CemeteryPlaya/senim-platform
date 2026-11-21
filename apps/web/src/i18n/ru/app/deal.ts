@@ -313,6 +313,16 @@ export const deal = {
       photoAlt: (title: string, n: number) => `${title}: фото ${n}`,
     },
 
+    /** «Сдача работы»: фото результата и где мастер отметил сдачу (мягкая проверка GPS) — обеим сторонам. */
+    delivery: {
+      section: "Сдача работы",
+      photosLabel: "Фото сдачи",
+      photoAlt: (n: number) => `Фото сдачи ${n}`,
+      near: (distance: string, radius: string) => `Сдано у адреса заказа: ${distance} м, в пределах ${radius} м`,
+      far: (distance: string, radius: string) => `Сдано в ${distance} м от адреса заказа — дальше ${radius} м`,
+      noGps: "Место сдачи не определено: геолокация была недоступна",
+    },
+
     /** «Ваш отзыв»: оставленный отзыв о мастере (флаг reviews). */
     review: {
       section: "Ваш отзыв",

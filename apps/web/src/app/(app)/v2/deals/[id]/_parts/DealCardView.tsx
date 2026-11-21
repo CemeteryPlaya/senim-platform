@@ -16,6 +16,7 @@ import {
   ListRow,
   MapLink,
   MoneyPanel,
+  Notice,
   NowNext,
   PageTitle,
   PhotoGallery,
@@ -37,7 +38,7 @@ import { DealCoverPhoto } from "../../../_parts/DealCoverPhoto";
 import type { DesignView } from "../../../_parts/design-files";
 import { DesignFiles } from "../../../_parts/DesignFiles";
 import type { DealStepsView, DealTone } from "../../../_parts/deal-summary";
-import type { DocumentRow, MoneyView, NowView, OrderMap, ReportView } from "./deal-card";
+import type { DeliveryView, DocumentRow, MoneyView, NowView, OrderMap, ReportView } from "./deal-card";
 import { dealHelpItems } from "../../_parts/help-items";
 import { DealActions } from "./DealActions";
 
@@ -70,6 +71,8 @@ export type CardView = {
   party: { label: string | null; contacts: PartyContacts | null; chatHref: string };
   /** «Ход работ» мастера: отчёты и ссылка «Добавить отчёт» (`null` — не добавить); у покупателя блока нет (`null`). */
   reports: { items: ReportView[]; addHref: string | null } | null;
+  /** «Сдача работы»: фото результата и место сдачи (`deliveryView`) — обеим сторонам; не сдано — нет. */
+  delivery?: DeliveryView | null;
   history: { items: { title: string; time: string }[]; more: boolean; allHref: string };
   /** Оставленный отзыв строками; `null` — отзыва нет. */
   review: { label: string; value: string; stacked: boolean }[] | null;
@@ -346,6 +349,31 @@ function Reports({ reports }: { reports: NonNullable<CardView["reports"]> }) {
   );
 }
 
+/**
+ * «Сдача работы»: когда сдано, где (в радиусе от адреса заказа или дальше — тогда предупреждение) и фото результата лентой
+ * 4 : 3 (по нажатию — на весь экран). Покупатель видит, что сдано, до подписи акта.
+ */
+function Delivery({ delivery }: { delivery: DeliveryView }) {
+  const d = t.delivery;
+  return (
+    <Section title={d.section} id="delivery">
+      <Card>
+        <div className="flex flex-col gap-3">
+          <p className="text-sub text-muted">{delivery.time}</p>
+          {delivery.far ? <Notice tone="warn">{delivery.place}</Notice> : <p className="text-body text-ink">{delivery.place}</p>}
+          {delivery.photos.length > 0 && (
+            <PhotoGallery
+              layout="strip"
+              label={d.photosLabel}
+              photos={delivery.photos.map((photo) => ({ src: photo.src, alt: photo.alt, caption: [d.section, delivery.time].join(" · ") }))}
+            />
+          )}
+        </div>
+      </Card>
+    </Section>
+  );
+}
+
 function Review({ rows, side }: { rows: NonNullable<CardView["review"]>; side: DealSide }) {
   return (
     <Section title={side === "EXECUTOR" ? tm.review.section : t.review.section}>
@@ -438,6 +466,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
   );
   const cover = view.cover && <Cover cover={view.cover} steps={view.steps} />;
   const reports = view.reports && <Reports reports={view.reports} />;
+  const delivery = view.delivery && <Delivery delivery={view.delivery} />;
 
   if (device === "desktop") {
     return (
@@ -449,6 +478,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
               {cover}
               {nowBlock}
               <Progression steps={view.steps} device={device} />
+              {delivery}
               {reports}
               <Documents view={view} />
               <Party view={view} device={device} />
@@ -481,6 +511,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
             <Money view={view} device={device} underCover />
           </Stack>
           {nowBlock}
+          {delivery}
           {reports}
           <Progression steps={view.steps} device={device} />
         </>
@@ -489,6 +520,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
           {nowBlock}
           <Money view={view} device={device} />
           <Progression steps={view.steps} device={device} />
+          {delivery}
           {reports}
         </>
       )}

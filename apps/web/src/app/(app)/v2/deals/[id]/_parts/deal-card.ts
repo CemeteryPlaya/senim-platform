@@ -554,6 +554,36 @@ export function reportsView(reports: readonly ReportInput[]): ReportView[] {
   });
 }
 
+/** Сдача работы из модуля (`deal.ready`): время, фото результата и мягкая проверка GPS. */
+export type ReadyInput = {
+  at: Date;
+  photos: { id: string; src: string }[];
+  distanceM: number | null;
+  withinRadius: boolean | null;
+  radiusM: number;
+} | null;
+
+export type DeliveryView = { time: string; photos: { id: string; src: string; alt: string }[]; place: string; far: boolean };
+
+/**
+ * «Сдача работы»: фото результата и место сдачи — обеим сторонам, чтобы покупатель видел, что сдано, до подписи акта.
+ * В радиусе — расстояние и радиус; дальше — предупреждение (`far`); геолокации не было — так и сказано. Не сдано — `null`.
+ */
+export function deliveryView(ready: ReadyInput): DeliveryView | null {
+  if (!ready) return null;
+  const d = t.delivery;
+  const place =
+    ready.distanceM === null || ready.withinRadius === null
+      ? d.noGps
+      : (ready.withinRadius ? d.near : d.far)(String(ready.distanceM), String(ready.radiusM));
+  return {
+    time: formatDateTime(ready.at),
+    photos: ready.photos.map((photo, index) => ({ id: photo.id, src: photo.src, alt: d.photoAlt(index + 1) })),
+    place,
+    far: ready.withinRadius === false,
+  };
+}
+
 /** Сколько последних событий видно, пока история свёрнута: телефон и компьютер. */
 export const HISTORY_SHOWN = { mobile: 3, desktop: 5 } as const;
 

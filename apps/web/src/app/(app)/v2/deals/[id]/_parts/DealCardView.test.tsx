@@ -4,7 +4,7 @@ import { count, html, text } from "@/kit/test-utils";
 import type { MoneyBlock } from "@/modules/payments";
 import { dealStepsView } from "../../../_parts/deal-summary";
 import { designView } from "../../../_parts/design-files";
-import { cancelText, masterMoneyView, moneyView, nowView, reportsView, reviewRows, type NowInput } from "./deal-card";
+import { cancelText, deliveryView, masterMoneyView, moneyView, nowView, reportsView, reviewRows, type NowInput } from "./deal-card";
 import { DealCardView, type CardView } from "./DealCardView";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => undefined }), redirect: () => undefined }));
@@ -280,5 +280,25 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки м�
     expect(out).toContain('src="/f/p1.jpg"');
     expect(out).not.toContain(tm.reports.add);
     expect(out).not.toContain(tm.reports.empty);
+  });
+});
+
+describe("«Сдача работы» — фото результата и место сдачи", () => {
+  const ready = { at: new Date("2026-11-20T10:00:00Z"), photos: [{ id: "p9", src: "/f/p9.jpg" }], distanceM: 36, withinRadius: true, radiusM: 500 };
+
+  for (const device of ["mobile", "desktop"] as const) {
+    it(`${device}: покупатель видит фото сдачи и «в пределах радиуса»`, () => {
+      const out = html(<DealCardView view={view({ delivery: deliveryView(ready) })} device={device} />);
+      expect(out).toContain(`>${t.delivery.section}<`);
+      expect(out).toContain('src="/f/p9.jpg"');
+      expect(out).toContain("Сдано у адреса заказа: 36 м, в пределах 500 м");
+    });
+  }
+
+  it("дальше радиуса — предупреждение; не сдано — блока нет", () => {
+    expect(text(<DealCardView view={view({ delivery: deliveryView({ ...ready, distanceM: 2021, withinRadius: false }) })} device="mobile" />)).toContain(
+      "Сдано в 2021 м от адреса заказа — дальше 500 м",
+    );
+    expect(html(<DealCardView view={view({ delivery: null })} device="mobile" />)).not.toContain(t.delivery.section);
   });
 });
