@@ -11,8 +11,8 @@ const t = ru.app.admin.stats;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
-/** Период по умолчанию: без `?period=` — последние 30 дней. */
-const DEFAULT_PERIOD: AdminPeriod = "30d";
+/** Период по умолчанию: без `?period=` — этот месяц, как «Доход платформы» оператора (доход на двух экранах сходится). */
+const DEFAULT_PERIOD: AdminPeriod = "month";
 const FUNNEL = ["published", "withOffer", "dealCreated", "paid", "accepted", "paidOut"] as const;
 
 type Props = { searchParams: Promise<SearchParams> };

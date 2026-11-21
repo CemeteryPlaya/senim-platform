@@ -9,11 +9,24 @@ import { db, type Prisma } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { assertAdmin } from "./access";
 
-export const ADMIN_PERIODS = ["7d", "30d", "all"] as const;
+export const ADMIN_PERIODS = ["month", "7d", "30d", "all"] as const;
 export type AdminPeriod = (typeof ADMIN_PERIODS)[number];
 
 const DAY = 86_400_000;
-const DAYS: Record<AdminPeriod, number | null> = { "7d": 7, "30d": 30, all: null };
+const DAYS: Record<Exclude<AdminPeriod, "month">, number | null> = { "7d": 7, "30d": 30, all: null };
+
+/**
+ * Начало периода. «Этот месяц» — с 1-го числа по Алматы (+05:00), как «Доход платформы» оператора по умолчанию: на двух
+ * экранах один и тот же доход; остальные — скользящие N дней от «сейчас»; «всё время» — без границы.
+ */
+function periodStart(period: AdminPeriod, now: Date): Date | null {
+  if (period === "month") {
+    const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Almaty" }).format(now);
+    return new Date(`${today.slice(0, 8)}01T00:00:00.000+05:00`);
+  }
+  const days = DAYS[period];
+  return days === null ? null : new Date(now.getTime() - days * DAY);
+}
 
 export type StatusCount<S extends string> = { status: S; count: number };
 
@@ -42,8 +55,8 @@ export async function adminStats(user: CurrentUser, period: AdminPeriod, now: Da
   assertAdmin(user);
   // Вход сверяется с typeof, а не с типом TS: неизвестный период — отказ, а не «всё время».
   if (!isAdminPeriod(period)) return fail.validation(ru.common.errors.invalid);
-  const days = DAYS[period];
-  const since = days === null ? undefined : { gte: new Date(now.getTime() - days * DAY) };
+  const start = periodStart(period, now);
+  const since = start === null ? undefined : { gte: start };
   const created = since ? { createdAt: since } : {};
 
   // Воронка: заявки периода; шаг — условие на заявку вместе со всеми прежними шагами.

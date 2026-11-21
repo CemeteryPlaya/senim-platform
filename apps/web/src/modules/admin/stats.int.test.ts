@@ -134,6 +134,30 @@ describe("админка: статистика платформы", () => {
     expect(stats.money.incomeTiyn).toBe(money.platformIncomeTiyn);
   });
 
+  it("этот месяц — с 1-го числа по Алматы (+05:00), как «Доход платформы» оператора по умолчанию", async () => {
+    const admin = await makeAdmin();
+    const operator = await makeOperator();
+    const { done } = await platform();
+    const now = new Date("2026-11-21T12:00:00.000Z");
+    const monthStart = new Date("2026-11-01T00:00:00.000+05:00");
+    // Черновик — за миг до начала месяца по Алматы (31 октября по UTC тоже); другой — ровно в начале месяца.
+    const before = await makeRequest({ status: "DRAFT" });
+    await db.request.update({ where: { id: before.id }, data: { createdAt: new Date(monthStart.getTime() - 1) } });
+    const first = await makeRequest({ status: "DRAFT" });
+    await db.request.update({ where: { id: first.id }, data: { createdAt: monthStart } });
+    await db.moneyTransaction.updateMany({ where: { dealId: done.dealId }, data: { settledAt: monthStart } });
+
+    const month = await adminStats(admin, "month", now);
+    // Черновики месяца: черновик платформы (10 дней назад) и «ровно в начале»; «за миг до» — нет.
+    const drafts = await db.request.findMany({ where: { status: "DRAFT", createdAt: { gte: monthStart } }, select: { id: true } });
+    expect(drafts.map((d) => d.id)).toContain(first.id);
+    expect(drafts.map((d) => d.id)).not.toContain(before.id);
+    expect(count(month.requests, "DRAFT")).toBe(drafts.length);
+    const report = await platformIncomeReport(operator, { from: monthStart, to: new Date(now.getTime() + 1) });
+    expect(month.money.incomeTiyn).toBe(report.totalTiyn);
+    expect(month.money.incomeTiyn).toBe(money.platformIncomeTiyn);
+  });
+
   it("операции журнала не в итоге (ждут банк, отказ) в деньги не входят", async () => {
     const admin = await makeAdmin();
     const waiting = await dealAt("SIGNED", { provider: "manual" });

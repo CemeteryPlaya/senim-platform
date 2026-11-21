@@ -130,15 +130,19 @@ describe("админка: статистика /v2/admin", () => {
       expect(text).toContain(label);
     }
     for (const tiyn of [split.buyerTotalTiyn, split.payoutTiyn, split.platformIncomeTiyn]) expect(text).toContain(money(tiyn));
-    expect(text).toContain("SPLIT_PAYOUT");
+    // Статусы — по-русски, формулировками оператора, без enum-ов.
+    expect(text).toContain(ru.app.operatorDeals.dealStatus.SPLIT_PAYOUT);
+    expect(text).not.toContain("SPLIT_PAYOUT");
 
     const week = await html(home({ period: "7d" }));
     const active = (out: string) => [...out.matchAll(/aria-current="true"[^>]*>([^<]+)</g)].map((m) => m[1]);
     expect(active(week)).toEqual([t.stats.period["7d"]]);
     expect(week).toContain('href="/v2/admin?period=all"');
-    // Без параметра и с неизвестным периодом — 30 дней, без ошибки.
-    expect(active(await html(home()))).toEqual([t.stats.period["30d"]]);
-    expect(active(await html(home({ period: "1y" })))).toEqual([t.stats.period["30d"]]);
+    expect(week).toContain('href="/v2/admin?period=30d"');
+    // Без параметра и с неизвестным периодом — этот месяц (как «Доход платформы» оператора), без ошибки.
+    expect(active(await html(home()))).toEqual([t.stats.period.month]);
+    expect(active(await html(home({ period: "1y" })))).toEqual([t.stats.period.month]);
+    expect(week).toContain('href="/v2/admin"');
   });
 });
 
