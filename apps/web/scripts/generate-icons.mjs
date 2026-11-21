@@ -7,9 +7,10 @@
  * public/icons/icon-maskable-512.png — на всю площадь, знак в безопасной зоне (круг 80%):
  *   Android сам обрезает его кругом или «капелькой»;
  * src/app/apple-icon.png — 180×180 для iPhone (Next сам ставит <link rel="apple-touch-icon">);
- *   квадрат без прозрачности — углы iOS скругляет сама.
+ *   квадрат без прозрачности — углы iOS скругляет сама;
+ * src/app/favicon.ico — 16, 32 и 48 px (PNG внутри ICO): браузеры сами просят /favicon.ico, даже когда есть icon.svg.
  */
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -44,3 +45,27 @@ for (const { file, size, rounded, scale } of outputs) {
     .toFile(path.join(root, file));
   process.stdout.write(`${file} ${size}×${size}\n`);
 }
+
+/** ICO из PNG: заголовок, по записи на картинку (ширина, высота, 32 бита, размер, смещение), затем сами PNG. */
+const icoSizes = [16, 32, 48];
+const pngs = await Promise.all(
+  icoSizes.map((size) => sharp(Buffer.from(svg({ rounded: true, scale: 1 })), { density: (72 * size) / 32 }).resize(size, size).png({ compressionLevel: 9 }).toBuffer()),
+);
+const header = Buffer.alloc(6 + 16 * pngs.length);
+header.writeUInt16LE(0, 0);
+header.writeUInt16LE(1, 2);
+header.writeUInt16LE(pngs.length, 4);
+let offset = header.length;
+pngs.forEach((png, i) => {
+  const entry = 6 + i * 16;
+  header.writeUInt8(icoSizes[i], entry);
+  header.writeUInt8(icoSizes[i], entry + 1);
+  header.writeUInt16LE(1, entry + 4);
+  header.writeUInt16LE(32, entry + 6);
+  header.writeUInt32LE(png.length, entry + 8);
+  header.writeUInt32LE(offset, entry + 12);
+  offset += png.length;
+});
+await writeFile(path.join(root, "src/app/favicon.ico"), Buffer.concat([header, ...pngs]));
+process.stdout.write(`src/app/favicon.ico ${icoSizes.join(", ")}
+`);
