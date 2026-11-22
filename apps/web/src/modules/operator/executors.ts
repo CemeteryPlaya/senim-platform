@@ -51,7 +51,8 @@ export async function getExecutorCard(user: CurrentUser, profileId: string) {
   assertOperator(user);
   const profile = await db.executorProfile.findUnique({
     where: { id: profileId },
-    select: { ...executorRow, user: { select: { phone: true } }, _count: { select: { portfolio: true, deals: true } } },
+    // Реквизиты для сверки (решение владельца 22.11.2026): подписант и последние 4 символа счёта для оплаты — без шифртекстов.
+    select: { ...executorRow, signerFullName: true, payoutIbanLast4: true, user: { select: { phone: true } }, _count: { select: { portfolio: true, deals: true } } },
   });
   if (!profile) return fail.notFound();
   const { user: owner, ...rest } = profile;

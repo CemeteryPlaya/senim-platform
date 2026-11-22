@@ -146,9 +146,18 @@ export const operatorQueues = {
     card: {
       back: "Исполнители",
       details: "Данные исполнителя",
+      /** Реквизиты для сверки ввода: номера — последние 4 символа, полные — в оферте и расписке. */
+      requisites: {
+        title: "Реквизиты",
+        legalName: "Название",
+        legalForm: "Форма",
+        binIin: "ИИН/БИН",
+        signer: "Подписант оферты",
+        iban: "Счёт для оплаты (IBAN)",
+        ibanMissing: "Не указан",
+      },
       status: "Регистрация",
       segment: "Сегмент",
-      binIin: "ИИН/БИН",
       phone: "Телефон",
       experience: "Опыт",
       years: (n: number) => `${n} ${word(n, "год", "года", "лет")}`,

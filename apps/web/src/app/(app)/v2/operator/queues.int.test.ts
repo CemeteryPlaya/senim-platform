@@ -3,7 +3,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FilePurpose } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
-import { DataTable, Notice, PageTitle, QueueCard, StatusChip } from "@/kit";
+import { DataTable, KeyValueList, Notice, PageTitle, QueueCard, StatusChip } from "@/kit";
 import { getDealShowcase, payForDeal, setDealShowcase } from "@/modules/deal-core";
 import { revokePdConsent, sessionCookieName, submitKycDocuments, type CurrentUser } from "@/modules/identity";
 import * as operatorModule from "@/modules/operator";
@@ -304,6 +304,10 @@ describe("исполнители /v2/operator/executors", () => {
     const before = await card();
     expect(ofType<{ profileId: string }>(before, ReviewProvider)).toMatchObject([{ profileId: pending.executor.id }]);
     expect(ofType(before, ReviewForms)).toHaveLength(1);
+    // Реквизиты для сверки ввода — отдельный список: название, форма, ИИН/БИН, подписант, счёт для оплаты (маской).
+    const r = ru.app.operatorQueues.executors.card.requisites;
+    const lists = ofType<{ items: { label: string }[] }>(before, KeyValueList).map((l) => l.items.map((i) => i.label));
+    expect(lists).toContainEqual([r.legalName, r.legalForm, r.binIin, r.signer, r.iban]);
 
     const client = await makeClient();
     expect(await as(client, () => reviewRegistrationAction({ profileId: pending.executor.id, decision: "approve", segment: "PREMIUM" }))).toMatchObject({ ok: false, code: "FORBIDDEN" });

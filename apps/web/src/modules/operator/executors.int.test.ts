@@ -272,6 +272,20 @@ describe("карточка исполнителя", () => {
     expect(card.phone).toBe(ex.phone);
   });
 
+  it("реквизиты для сверки: название, форма, ИИН/БИН и счёт для оплаты — последние 4 символа, подписант (решение владельца 22.11.2026)", async () => {
+    const operator = await makeOperator();
+    const ex = await makeExecutor();
+    await db.executorProfile.update({ where: { id: ex.executor.id }, data: { payoutIbanLast4: "0100" } });
+
+    const row = await db.executorProfile.findUniqueOrThrow({ where: { id: ex.executor.id }, select: { legalName: true, binIinLast4: true } });
+
+    const card = await getExecutorCard(operator, ex.executor.id);
+
+    expect(card).toMatchObject({ legalForm: "IP", legalName: row.legalName, binIinLast4: row.binIinLast4, payoutIbanLast4: "0100", signerFullName: ex.fullName });
+    expect(card).not.toHaveProperty("payoutIbanEnc");
+    expect(card).not.toHaveProperty("binIinEnc");
+  });
+
   it("чужой роли недоступна", async () => {
     const client = await makeClient();
     const ex = await makeExecutor();

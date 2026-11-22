@@ -10,6 +10,7 @@ import { isAppError } from "@/platform/errors";
 import { requireOperator } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
 import { historyItems, registrationSteps, STATUS_TONE } from "../_parts/view";
+import { requisitesOf } from "./_parts/requisites";
 import { ReviewForms, ReviewProvider, ReviewSubmit } from "./_parts/ReviewForms";
 import { SegmentForm } from "./_parts/SegmentForm";
 
@@ -29,7 +30,7 @@ async function loadCard(user: CurrentUser, id: string) {
 
 type ExecutorCard = Awaited<ReturnType<typeof loadCard>>;
 
-/** Данные исполнителя: статус и сегмент, номера — последние 4 цифры, опыт, специализация, адрес, о себе, причина отказа. */
+/** Данные исполнителя: статус и сегмент, телефон, опыт, специализация, адрес, о себе, причина отказа (реквизиты — отдельным блоком). */
 function detailsOf(x: ExecutorCard): KeyValueItem[] {
   const items: KeyValueItem[] = [
     {
@@ -42,7 +43,6 @@ function detailsOf(x: ExecutorCard): KeyValueItem[] {
       ),
     },
     { label: c.segment, value: x.segment ? q.segments[x.segment] : q.noSegment },
-    { label: c.binIin, value: <span className="tabular-nums">{q.masked(x.binIinLast4)}</span> },
     { label: c.phone, value: <TextLink href={`tel:${x.phone}`}><span className="tabular-nums">{formatPhone(x.phone)}</span></TextLink> },
     { label: c.registered, value: formatDate(x.createdAt) },
     { label: c.experience, value: c.years(x.yearsExperience) },
@@ -52,6 +52,11 @@ function detailsOf(x: ExecutorCard): KeyValueItem[] {
   ];
   if (x.rejectReason) items.push({ label: c.rejectReason, value: <span className="whitespace-pre-line">{x.rejectReason}</span> });
   return items;
+}
+
+/** Реквизиты для сверки ввода: номера — последние 4 символа (`requisitesOf`). */
+function requisiteItems(x: ExecutorCard): KeyValueItem[] {
+  return requisitesOf(x).map((row) => ({ label: row.label, value: row.numeric ? <span className="tabular-nums">{row.value}</span> : row.value }));
 }
 
 /**
@@ -75,6 +80,11 @@ export default async function ExecutorCardPage({ params }: { params: Promise<{ i
       <Section title={c.details} id="details">
         <Card padded={false}>
           <KeyValueList items={detailsOf(x)} />
+        </Card>
+      </Section>
+      <Section title={c.requisites.title} id="requisites">
+        <Card padded={false}>
+          <KeyValueList items={requisiteItems(x)} />
         </Card>
       </Section>
       {x.status === "APPROVED" && x.segment && <SegmentForm key={x.segment} profileId={x.id} current={x.segment} />}
