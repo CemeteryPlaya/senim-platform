@@ -34,7 +34,7 @@ describe("createDeal — оферта", () => {
 
   it("цена — из строки цифр; ноль и дробь — VALIDATION", async () => {
     const f = await makeDeal({ priceTiyn: 12_345n });
-    expect((await dealOf(f.dealId)).protectionTiyn).toBe(247n); // ⌈12 345 × 2 / 100⌉
+    expect(await dealOf(f.dealId)).toMatchObject({ protectionTiyn: 0n, payoutTiyn: 11_604n }); // ADR-015: ⌊12 345 × 94 / 100⌋
     const g = await makeDeal();
     await db.deal.delete({ where: { id: g.dealId } }).catch(() => null);
     for (const priceTiyn of ["0", "1.5", "-1"]) {

@@ -115,7 +115,7 @@ test("оферта не подписана: «Подписать оферту» 
   await page.context().close();
 });
 
-test("оплата закрыта до согласия мастера для банка: «Ждём согласие мастера» без кнопки, в списке — то же; «Защита сделки (2%)»", async ({ browser }, info) => {
+test("оплата закрыта до согласия мастера для банка: «Ждём согласие мастера» без кнопки, в списке — то же; без доплат к цене", async ({ browser }, info) => {
   const page = await pageOf(browser, info, "madina");
   // В сиде на шаге оплаты одна сделка — «Стеллаж», и согласия мастера у неё нет; кнопку «Оплатить N ₸» при согласиях
   // обеих сторон проверяет интеграционный тест.
@@ -126,7 +126,7 @@ test("оплата закрыта до согласия мастера для б
   await expectCard(page);
   await expect(page.getByRole("heading", { level: 2, name: card.now.payWaitMaster.title })).toBeVisible();
   await expect(page.locator("[data-primary-action]")).toHaveCount(0);
-  await expect(page.locator("main")).toContainText("Защита сделки (2%)");
+  await expect(page.locator("main")).not.toContainText("Защита сделки");
   await page.getByRole("button", { name: card.money.explain.label }).first().click();
   await expect(page.getByText(card.money.explain.body)).toBeVisible();
   await page.context().close();

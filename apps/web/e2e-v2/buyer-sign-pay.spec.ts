@@ -124,13 +124,13 @@ test("акт приёмки: «Примите мебель», что значи�
   await page.context().close();
 });
 
-test("оплата: смета, «Защита сделки (2%)» с пояснением, «Где будут деньги», согласие для банка; одно главное или чего ждём", async ({ browser }, info) => {
+test("оплата: смета без доплат с пояснением, «Где будут деньги», согласие для банка; одно главное или чего ждём", async ({ browser }, info) => {
   const page = await pageOf(browser, info, "madina");
   const deal = await dealHref(page, "Стеллаж");
   await open(page, `${deal}/pay`);
   await expect(page, RESEED).toHaveURL(new RegExp(`${deal}/pay$`));
   await expectScreen(page, pay.title, "Стеллаж");
-  await expect(page.locator("main")).toContainText(pay.money.protection);
+  await expect(page.locator("main")).not.toContainText("Защита сделки");
   await expect(page.locator("main")).toContainText(pay.money.total);
   await expect(page.getByRole("heading", { level: 2, name: pay.where.section })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: pay.consent.section })).toBeVisible();

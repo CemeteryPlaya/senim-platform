@@ -130,7 +130,7 @@ function cardView({ deal, side, documents, contacts, bank, place, showcase, all,
   const openDispute = deal.dispute?.status === "OPEN";
   const outcome = deal.dispute?.status === "RESOLVED" ? deal.dispute.outcome : null;
   const manual = deal.paymentProvider === "MANUAL";
-  // Мастеру — его смета (`deal.estimate` модуля по стороне: цена − гарантия 4%) и журнал; сумм покупателя нет.
+  // Мастеру — его смета (`deal.estimate` модуля по стороне: цена − гарантия 6%) и журнал; сумм покупателя нет.
   const money = master
     ? masterMoneyView({ block: deal.moneyBlock, estimate: deal.estimate })
     : moneyView({ block: deal.moneyBlock, estimate: deal.estimate, snapshot: deal.money, manual });

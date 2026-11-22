@@ -5,7 +5,7 @@ import { parsePriceKzt } from "./schema";
 
 const t = ru.app.masterOffer.money;
 
-/** Деньги мастера по введённой цене: цена по оферте X, гарантия 4% (вниз до тиына), «Вы получите». Тиыны. */
+/** Деньги мастера по введённой цене: цена по оферте X, гарантия 6% (вниз до тиына), «Вы получите». Тиыны. */
 export type LiveMoney = { priceTiyn: bigint; guaranteeTiyn: bigint; youGetTiyn: bigint };
 
 /**
@@ -20,7 +20,7 @@ export function liveMoney(raw: string): LiveMoney | null {
   return { priceTiyn: m.priceTiyn, guaranteeTiyn: m.guaranteeTiyn, youGetTiyn: m.payoutTiyn };
 }
 
-/** Смета формы для `MasterMoney`: «Цена покупателю X → Гарантия оплаты и клиента (4%) → Вы получите». Нет цены — `null`. */
+/** Смета формы для `MasterMoney`: «Цена покупателю X → Гарантия оплаты и клиента (6%) → Вы получите». Нет цены — `null`. */
 export function formMoney(raw: string): MoneyView | null {
   const m = liveMoney(raw);
   if (!m) return null;

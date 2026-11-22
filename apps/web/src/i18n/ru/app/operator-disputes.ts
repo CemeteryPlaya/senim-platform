@@ -76,7 +76,7 @@ export const operatorDisputes = {
     executor: "Мастер",
     executorValue: (n: number, name: string) => `№${n}, ${name}`,
     price: "Цена по оферте",
-    paid: "Покупатель вносит (с защитой сделки 2%)",
+    paid: "Покупатель вносит (цена по оферте)",
     provider: "Провайдер оплаты",
     providers: { MOCK: "Тестовый (mock)", MANUAL: "Ручной: банк без API", FREEDOMPAY: "Freedom Pay, песочница" },
     openDeal: "Открыть карточку сделки",
@@ -115,8 +115,8 @@ export const operatorDisputes = {
     outcomeLegend: "Итог спора",
     outcomeHints: {
       CONTINUE: "Заморозка снимается, сделка продолжается с этапа, на котором открыли спор",
-      FULL_REFUND: "Покупателю возвращается всё оплаченное, включая защиту сделки 2%",
-      PARTIAL_SPLIT: "Мастеру — часть цены за вычетом 4%, остаток возвращается покупателю",
+      FULL_REFUND: "Покупателю возвращается всё оплаченное",
+      PARTIAL_SPLIT: "Мастеру — часть цены за вычетом 6%, остаток возвращается покупателю",
     },
     shareLabel: "Сумма мастеру из цены",
     shareRequired: "Введите сумму мастеру из цены",
@@ -126,7 +126,7 @@ export const operatorDisputes = {
     previewWaiting: "Введите сумму мастеру и нажмите «Рассчитать раздел»",
     previewFirst: "Сначала рассчитайте раздел: решение принимается по расчёту",
     previewStale: "Сумма изменилась: рассчитайте раздел заново",
-    previewMaster: "Мастеру (сумма минус 4%)",
+    previewMaster: "Мастеру (сумма минус 6%)",
     previewPlatform: "Доход платформы",
     previewRefund: "Возврат покупателю",
     rationaleLabel: "Обоснование",
@@ -134,7 +134,7 @@ export const operatorDisputes = {
     confirm: {
       FULL_REFUND: {
         title: "Вернуть деньги покупателю?",
-        body: (refund: string) => `Покупателю вернётся ${refund} — всё оплаченное, включая защиту сделки 2%. Мастер ничего не получит. Решение нельзя отменить.`,
+        body: (refund: string) => `Покупателю вернётся ${refund} — всё оплаченное. Мастер ничего не получит. Решение нельзя отменить.`,
         action: "Вернуть деньги",
       },
       PARTIAL_SPLIT: {

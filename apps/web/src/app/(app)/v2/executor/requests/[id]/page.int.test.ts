@@ -95,9 +95,9 @@ describe("заявка мастера: состояния", () => {
       expect(plain).toContain(s);
     }
     for (const amount of [m.priceTiyn, m.guaranteeTiyn, m.payoutTiyn]) expect(plain).toContain(formatMoney(amount));
-    expect(plain).not.toContain(formatMoney(m.buyerTotalTiyn));
-    expect(plain).not.toContain(formatMoney(m.protectionTiyn));
-    expect(plain).not.toMatch(/2\s?%|защит[аыеу] сделки|к оплате/i);
+    // ADR-015: покупатель платит цену без доплат — его сумма равна цене, отдельной суммы покупателя нет.
+    expect(m.buyerTotalTiyn).toBe(m.priceTiyn);
+    expect(plain).not.toMatch(/защит[аыеу] сделки|к оплате/i);
     expect(out).toContain(`href="/v2/chats/${offerId}"`);
     expect(out).toContain(t.actions.menu);
     expectNoBuyer(out);

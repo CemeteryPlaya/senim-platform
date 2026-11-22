@@ -19,7 +19,7 @@ function thisMonth(): { from: string; to: string } {
   return { from: `${today.slice(0, 8)}01`, to: today };
 }
 
-/** Доход платформы по схеме 2% + 4% за период — только из журнала денег (payments.platformIncomeReport). */
+/** Доход платформы по схеме «6% с мастера» (ADR-015) за период — только из журнала денег (payments.platformIncomeReport). */
 export default async function IncomePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireOperatorPage("/operator/income");
   const sp = flatParams(await searchParams);

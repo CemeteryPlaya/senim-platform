@@ -15,7 +15,7 @@ export type MoneyFieldProps = FieldProps & {
    * считать `computeDealMoney`; `null` — поле пустое, ноль или сумма выше потолка (расчёта нет).
    */
   onValueChange?: (tiyn: bigint | null) => void;
-  /** Строка под полем: «Вы получите …», «К оплате с защитой сделки (2%) …» — считает экран. */
+  /** Строка под полем: «Вы получите …», «К оплате …» — считает экран. */
   under?: ReactNode;
   enterKeyHint?: "done" | "next" | "send" | "go";
 };

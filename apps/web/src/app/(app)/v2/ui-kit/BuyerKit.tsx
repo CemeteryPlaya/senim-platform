@@ -19,10 +19,9 @@ function Specimen({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Сделка на 200 000 ₸ + защита 2% = 4 000 ₸; суммы в тиынах. */
+/** Сделка на 200 000 ₸: покупатель платит цену без доплат (ADR-015); суммы в тиынах. */
 const PRICE = 20_000_000n;
-const PROTECTION = 400_000n;
-const TOTAL = PRICE + PROTECTION;
+const TOTAL = PRICE;
 
 const MONEY_TITLES: Record<MoneyTone, string> = {
   awaiting: t.moneyTitleAwaiting,
@@ -40,11 +39,11 @@ const STEP_ITEMS = t.steps.map((label, index) => ({ label, state: STEP_STATES[in
 const ROWS = [
   { label: t.moneyPrice, amount: PRICE },
   {
-    label: t.moneyProtection,
-    amount: PROTECTION,
+    label: t.moneyTotal,
+    amount: TOTAL,
+    total: true,
     explain: { label: t.moneyExplainLabel, title: t.moneyExplainTitle, body: t.moneyExplainBody },
   },
-  { label: t.moneyTotal, amount: TOTAL, total: true },
 ];
 
 /** События сделки; сумма события — тиыны (в ru лежит только текст). */

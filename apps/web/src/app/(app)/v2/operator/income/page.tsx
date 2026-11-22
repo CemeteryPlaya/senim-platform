@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: i.metaTitle };
 type Props = { searchParams: Promise<SearchParams> };
 
 /**
- * Доход платформы по схеме 2% + 4% за период — только из журнала денег (`platformIncomeReport`), не из статусов сделок.
+ * Доход платформы по схеме «6% с мастера» (ADR-015) за период — только из журнала денег (`platformIncomeReport`), не из статусов сделок.
  * Период — форма GET (даты в адресе: ссылкой можно поделиться, работает без JavaScript); по умолчанию текущий месяц по
  * Астане. Неверный период — сообщение у поля и отчёт за месяц по умолчанию. Строки — сделки с пометкой «тестовая» у
  * тестовой операции (только оператору); внизу — выгрузка CSV за тот же период.
@@ -47,7 +47,6 @@ export default async function IncomePage({ searchParams }: Props) {
         </div>
       </form>
       <StatRow label={i.title}>
-        <Stat compact label={i.protection} value={<Money tiyn={report.protectionTiyn} />} />
         <Stat compact label={i.guarantee} value={<Money tiyn={report.guaranteeTiyn} />} />
         <Stat compact label={i.total} value={<Money tiyn={report.totalTiyn} />} />
       </StatRow>
@@ -70,7 +69,6 @@ export default async function IncomePage({ searchParams }: Props) {
             ),
           },
           { key: "settledAt", header: c.settledAt, cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.settledAt)}</span> },
-          { key: "protection", header: c.protection, numeric: true, cell: (r) => <Money tiyn={r.protectionTiyn} /> },
           { key: "guarantee", header: c.guarantee, numeric: true, cell: (r) => <Money tiyn={r.guaranteeTiyn} /> },
           { key: "total", header: c.total, numeric: true, cell: (r) => <Money tiyn={r.totalTiyn} /> },
         ]}

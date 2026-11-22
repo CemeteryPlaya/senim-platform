@@ -90,7 +90,7 @@ describe("выплата мастеру: IBAN — из identity", () => {
     const reveals = identityFake.calls.filter((c) => c.method === "revealPartyDetails").map((c) => c.request);
     expect(reveals).toEqual([expect.objectContaining({ userIds: [f.executor.id], purpose: RevealPurpose.PAYOUT, referenceId: f.dealId, actorSessionToken: "" })]);
     // Суммы выплаты — из журнала, как и прежде.
-    expect((await journalOf(f.dealId)).filter((e) => e.type === "SPLIT_MASTER").map((e) => e.amountTiyn)).toEqual([96_000_00n]);
+    expect((await journalOf(f.dealId)).filter((e) => e.type === "SPLIT_MASTER").map((e) => e.amountTiyn)).toEqual([94_000_00n]);
     expect(await dealOf(f.dealId)).toMatchObject({ status: "SPLIT_PAYOUT" });
   });
 

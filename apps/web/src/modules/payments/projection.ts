@@ -152,7 +152,7 @@ export type MoneyView =
       refundedTiyn: bigint;
       settled: boolean;
       completedAt: Date | null;
-      /** Сколько заплатил покупатель: подтверждённая оплата (`HOLD`) из журнала, цена с защитой сделки. Нет — оплаты в журнале нет. */
+      /** Сколько заплатил покупатель: подтверждённая оплата (`HOLD`) из журнала, цена по оферте (без доплат, ADR-015). Нет — оплаты в журнале нет. */
       paidTiyn?: bigint;
     }
   | { kind: "refunded"; amountTiyn: bigint; settled: boolean; refundedAt: Date | null };
@@ -162,7 +162,7 @@ export type MoneyBlock = MoneyView & { bankBalanceTiyn: bigint; isTest: boolean 
 const at = (e: LedgerEntry) => e.settledAt ?? e.createdAt;
 
 /**
- * Защита сделки (2%), которую покупатель заплатил по итогу: от цены X, а при разделе по спору — от доли мастера Y
+ * Защита сделки, которую покупатель заплатил по итогу (с ADR-015 — 0): от цены X, а при разделе по спору — от доли мастера Y
  * (та же формула computeDealMoney). Цена X — снимок сделки, не её статус.
  */
 function protectionOf(release: LedgerEntry, priceTiyn: bigint): bigint {

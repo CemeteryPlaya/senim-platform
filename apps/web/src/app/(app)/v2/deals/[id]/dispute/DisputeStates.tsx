@@ -19,7 +19,7 @@ export function OpenState({ deal, side, dispute, photos }: { deal: DealView; sid
   const o = t.open;
   const block = deal.moneyBlock;
   const positions = positionsOf(side, dispute);
-  // Покупателю — остаток в банке из журнала; мастеру — его смета (цена по оферте − гарантия 4%), суммы покупателя нет.
+  // Покупателю — остаток в банке из журнала; мастеру — его смета (цена по оферте − гарантия 6%), суммы покупателя нет.
   const frozenTiyn = block.kind !== "frozen" ? null : side === "CLIENT" ? block.bankBalanceTiyn : deal.estimate.totalTiyn;
   return (
     <Narrow>

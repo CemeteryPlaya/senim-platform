@@ -74,21 +74,23 @@ describe("экран предложения: состояния торга", () 
     expect(out).toContain(`href="/v2/chats/${offerId}"`);
     const plain = text(out);
     expect(plain).toContain(t.money.title);
-    expect(plain).toContain(t.money.protection);
+    expect(plain).toContain(t.money.total);
+    expect(plain).not.toContain("Защита сделки");
     expect(plain).toContain(t.money.explain.label);
     for (const amount of [m.priceTiyn, m.protectionTiyn, m.buyerTotalTiyn]) expect(plain).toContain(formatMoney(amount));
     expect(plain).toContain("Своё производство.");
     if (device === "mobile") expect(out).toContain("data-action-dock");
   });
 
-  it("смета: защита сделки 2% вверх до тиына — значения computeDealMoney (цена с тиынами)", async () => {
+  it("смета: к оплате — цена без доплат, значения computeDealMoney (цена с тиынами)", async () => {
     const { requestId, offerId } = await offered();
     const opening = await openProposal(offerId);
     await db.priceProposal.update({ where: { id: opening.id }, data: { amountTiyn: 1_000_000_01n } });
     const plain = text(await render(requestId, offerId));
     const m = computeDealMoney(1_000_000_01n);
-    expect(m.protectionTiyn).toBe(2_000_001n);
-    for (const amount of [m.priceTiyn, m.protectionTiyn, m.buyerTotalTiyn]) expect(plain).toContain(formatMoney(amount));
+    expect(m.buyerTotalTiyn).toBe(1_000_000_01n);
+    expect(plain).toContain(formatMoney(m.buyerTotalTiyn));
+    expect(plain).not.toContain("Защита сделки");
   });
 
   it("(2) своё предложение ждёт мастера: главного действия нет, «Отозвать мою цену», смета по своей цене", async () => {
@@ -123,7 +125,7 @@ describe("экран предложения: состояния торга", () 
     expect(primaries(out)).toEqual([t.actions.propose]);
     expect(out).toContain(t.now.youWithdrew.title);
     expect(out).toContain(t.history.status.WITHDRAWN);
-    expect(out).not.toContain(t.money.protection);
+    expect(out).not.toContain(t.money.title);
   });
 
   it.each(["mobile", "desktop"] as const)("%s (4) цена принята: «Открыть сделку» на /v2/deals/<id>, цена сделки строкой, блока денег нет", async (device) => {
@@ -137,7 +139,7 @@ describe("экран предложения: состояния торга", () 
     expect(text(out)).toContain(t.now.deal.body(formatMoney(1_180_000_00n)));
     expect(out).not.toContain(t.actions.propose);
     expect(out).not.toContain(t.money.total);
-    expect(out).not.toContain(t.money.protection);
+    expect(out).not.toContain(t.money.title);
   });
 
   it("(4) сделка отменена — по-прежнему «Открыть сделку», и нигде нет «К оплате»", async () => {
@@ -175,7 +177,7 @@ describe("экран предложения: состояния торга", () 
     expect(primaries(out)).toEqual([]);
     expect(out).not.toContain(t.actions.propose);
     expect(out).not.toContain(t.actions.withdraw);
-    expect(out).not.toContain(t.money.protection);
+    expect(out).not.toContain(t.money.title);
     expect(out).toContain(t.history.notAccepted);
     expect(out).not.toContain(t.history.status.PROPOSED);
   });

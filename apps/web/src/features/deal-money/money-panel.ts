@@ -25,7 +25,7 @@ type Completed = Extract<MoneyBlock, { kind: "completed" }>;
 
 function completed(m: Completed, party: Party): Omit<MoneyPanel, "testNote"> {
   const paid = (m.settled ? b.completed.paid : b.completed.toPay)[party](formatTiyn(m.paidToMasterTiyn));
-  const lines = [paid, ...(party === "CLIENT" ? [b.completed.protection(formatTiyn(m.protectionTiyn))] : [])];
+  const lines = [paid];
   if (m.refundedTiyn > 0n) lines.push(b.completed.refunded(formatTiyn(m.refundedTiyn)));
   return m.settled ? { tone: "success", icon: "check", title: b.completed.title, lines } : { tone: "success", icon: "clock", title: b.completed.pending, lines };
 }

@@ -4,7 +4,7 @@ import { formatDate, formatDateTime, formatTiyn } from "@/ui/format";
  * Редакция шаблонов. Тексты оферты, акта, выписки и расписки — проект: до работы с реальными
  * деньгами их проверяет юрист; после проверки поднять редакцию и убрать пометку.
  */
-export const TEMPLATE_EDITION = "ред. 2026-11, ТЗ MVP v1.0";
+export const TEMPLATE_EDITION = "ред. 2026-11-22, ТЗ MVP v1.0";
 export const LEGAL_REVIEW_NOTICE = "Шаблон требует юридической проверки";
 
 export const money = formatTiyn;

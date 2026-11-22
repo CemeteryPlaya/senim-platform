@@ -113,7 +113,7 @@ describe("acceptPriceAction: мастер принимает цену покуп
     const { executor, offerId } = await countered();
     const n = await getNegotiation(executor, { offerId });
     expect(n.estimate).toEqual(partyEstimate("EXECUTOR", 450_000_00n));
-    expect(n.estimate.totalTiyn).toBe(432_000_00n);
+    expect(n.estimate.totalTiyn).toBe(423_000_00n);
   });
 
   it("гонка: покупатель отозвал цену и назвал новую, пока мастер смотрел, — CONFLICT, сделки нет; новая принимается своим id", async () => {

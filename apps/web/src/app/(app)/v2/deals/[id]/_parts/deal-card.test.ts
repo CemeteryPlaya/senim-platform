@@ -153,34 +153,33 @@ describe("nowView: таблица «что сейчас» покупателя",
   });
 });
 
-const snapshot = { priceTiyn: 100_000_00n, protectionTiyn: 2_000_00n, buyerTotalTiyn: 102_000_00n };
-const estimate = { priceTiyn: 100_000_00n, extraTiyn: 2_000_00n, totalTiyn: 102_000_00n };
+const snapshot = { priceTiyn: 100_000_00n, buyerTotalTiyn: 100_000_00n };
+const estimate = { priceTiyn: 100_000_00n, extraTiyn: 0n, totalTiyn: 100_000_00n };
 /** Блок денег журнала; пометка тестового платежа включена нарочно — экран её не показывает. */
 const block = (view: MoneyView, bankBalanceTiyn = 0n): MoneyBlock => ({ ...view, bankBalanceTiyn, isTest: true });
 const money = (b: MoneyBlock, manual = false) => moneyView({ block: b, estimate, snapshot, manual });
 const reservedAt = new Date("2026-11-14T10:00:00Z");
 
 describe("moneyView: блок денег из журнала", () => {
-  it("до оплаты: «К оплате» — итог сметы, строки цены и защиты (с пояснением) и итог; тон без зелёного", () => {
+  it("до оплаты: «К оплате» — итог сметы, строки цены и итога (с пояснением), без доплат; тон без зелёного", () => {
     const v = money(block({ kind: "awaiting", payment: "none" }));
-    expect(v).toMatchObject({ tone: "awaiting", title: t.money.awaiting.title, amount: 102_000_00n, note: t.money.awaiting.note });
+    expect(v).toMatchObject({ tone: "awaiting", title: t.money.awaiting.title, amount: 100_000_00n, note: t.money.awaiting.note });
     expect(v.rows).toEqual([
       { label: "Цена по оферте", amount: 100_000_00n },
-      { label: "Защита сделки (2%)", amount: 2_000_00n, explain: true },
-      { label: t.money.total, amount: 102_000_00n, total: true },
+      { label: t.money.total, amount: 100_000_00n, total: true, explain: true },
     ]);
   });
 
   it("оплата в обработке: онлайн — «Оплата в обработке», ручной провайдер — «Ждём ваш перевод»; не прошла — своё", () => {
-    expect(money(block({ kind: "awaiting", payment: "PENDING" }))).toMatchObject({ tone: "awaiting", title: t.money.pending.title, amount: 102_000_00n });
-    expect(money(block({ kind: "awaiting", payment: "PENDING" }), true)).toMatchObject({ title: t.money.transfer.title, note: t.money.transfer.note, amount: 102_000_00n });
+    expect(money(block({ kind: "awaiting", payment: "PENDING" }))).toMatchObject({ tone: "awaiting", title: t.money.pending.title, amount: 100_000_00n });
+    expect(money(block({ kind: "awaiting", payment: "PENDING" }), true)).toMatchObject({ title: t.money.transfer.title, note: t.money.transfer.note, amount: 100_000_00n });
     expect(money(block({ kind: "awaiting", payment: "FAILED" }))).toMatchObject({ tone: "awaiting", title: t.money.failed.title, note: t.money.failed.note });
   });
 
   it("под защитой: единственный зелёный тон, сумма — зарезервированная; под блоком — только дата резерва (номер операции — в истории денег)", () => {
     const v = money(block({ kind: "protected", amountTiyn: 102_000_00n, reservedAt, operationRef: "X-1" }));
     expect(v).toMatchObject({ tone: "protected", title: "Деньги в банке под защитой", amount: 102_000_00n });
-    expect(v.rows.map((r) => r.label)).toEqual(["Цена по оферте", "Защита сделки (2%)"]);
+    expect(v.rows).toEqual([{ label: "Цена по оферте", amount: 100_000_00n, explain: true }]);
     expect(v.proof).toBe(t.money.reservedAt("14 ноября 2026"));
     expect(money(block({ kind: "protected", amountTiyn: 1n, reservedAt, operationRef: null })).proof).toBe(t.money.reservedAt("14 ноября 2026"));
   });
@@ -194,16 +193,13 @@ describe("moneyView: блок денег из журнала", () => {
     const done = { kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 2_000_00n, refundedTiyn: 0n, settled: true, completedAt: new Date() } as const;
     expect(money(block({ ...done, paidTiyn: 103_500_00n })).amount).toBe(103_500_00n);
     // Оплаты в журнале нет (не бывает при выплате) — запасной вариант, снимок оферты.
-    expect(money(block(done)).amount).toBe(102_000_00n);
+    expect(money(block(done)).amount).toBe(100_000_00n);
   });
 
   it("выплата: выплаты мастеру с гарантией на экране нет", () => {
     const pending = money(block({ kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 2_000_00n, refundedTiyn: 0n, settled: false, completedAt: null, paidTiyn: 102_000_00n }));
     expect(pending).toMatchObject({ tone: "completed", title: t.money.completed.title, amount: 102_000_00n, note: t.money.completed.pending });
-    expect(pending.rows).toEqual([
-      { label: "Цена по оферте", amount: 100_000_00n },
-      { label: "Защита сделки (2%)", amount: 2_000_00n, explain: true },
-    ]);
+    expect(pending.rows).toEqual([{ label: "Цена по оферте", amount: 100_000_00n, explain: true }]);
     expect(pending.rows.some((r) => r.amount === 96_000_00n)).toBe(false);
     expect(money(block({ kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 2_000_00n, refundedTiyn: 0n, settled: true, completedAt: new Date() })).note).toBe(
       t.money.completed.done,
@@ -242,12 +238,12 @@ describe("cancelText: последствия отмены по факту cancel
   });
   it("после онлайн-оплаты — вся зарезервированная сумма вернётся на карту, включая защиту", () => {
     expect(cancelText({ side: "CLIENT", canCancel: true, status: "PAID_HOLD", block: protectedBlock, manual: false })).toBe(
-      `Сделка будет отменена, ${formatMoney(102_000_00n)} вернутся на вашу карту — включая защиту сделки.`,
+      `Сделка будет отменена, ${formatMoney(102_000_00n)} вернутся на вашу карту.`,
     );
   });
   it("после перевода по реквизитам — «вернутся вам», не «на карту»", () => {
     expect(cancelText({ side: "CLIENT", canCancel: true, status: "PAID_HOLD", block: protectedBlock, manual: true })).toBe(
-      `Сделка будет отменена, ${formatMoney(102_000_00n)} вернутся вам — включая защиту сделки.`,
+      `Сделка будет отменена, ${formatMoney(102_000_00n)} вернутся вам.`,
     );
   });
   it("отмена недоступна — пункта нет", () => {

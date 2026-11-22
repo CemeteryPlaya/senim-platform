@@ -27,7 +27,7 @@ const STATUS_TONE: Record<NegotiationView["rounds"][number]["status"], Tone> = {
 /**
  * Торг по отклику (ТЗ п. 9, решение 2.2.3) — встраивается над чатом отклика у покупателя и у мастера.
  * Сверху — что сейчас (цена другой стороны или «ждём ответа»), смета до оплаты по текущей цене (ТЗ п. 5:
- * покупателю — «Стоимость заказа · Защита сделки (2%) · Итого к оплате», мастеру — «Сумма заказа · Гарантия
+ * покупателю — «Стоимость заказа · Итого к оплате» (без доплат, ADR-015), мастеру — «Сумма заказа · Гарантия
  * оплаты · К выплате»), кнопки торга и раунды: кто, сколько, когда, статус. Чужой отклик — 404 страницы.
  *
  * Пример: <Negotiation offerId={offer.id} /> над <OfferChat offerId={offer.id} />.
@@ -81,10 +81,8 @@ function Now({ view }: { view: NegotiationView }) {
 /** Смета стороны до оплаты (ТЗ п. 5): суммы и проценты видны заранее. Расчёт — payments.partyEstimate. */
 function Estimate({ view }: { view: NegotiationView }) {
   const labels = ru.payments.estimate[view.party];
-  const rows = [
-    { label: labels.price, value: view.estimate.priceTiyn },
-    { label: labels.extra, value: view.estimate.extraTiyn },
-  ];
+  // Покупатель платит цену без доплат (ADR-015): строка гарантии — только у мастера.
+  const rows = [{ label: labels.price, value: view.estimate.priceTiyn }, ...("extra" in labels ? [{ label: labels.extra, value: view.estimate.extraTiyn }] : [])];
   return (
     <section aria-label={t.estimateTitle} className="flex flex-col gap-2 rounded-control bg-sunken p-4">
       <dl className="flex flex-col gap-2">

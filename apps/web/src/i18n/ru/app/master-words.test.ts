@@ -27,7 +27,7 @@ function strings(value: unknown): string[] {
 }
 
 /** Формула гарантии мастера — единственное место, где допустимо слово «клиент». */
-const GUARANTEE = "Гарантия оплаты и клиента (4%)";
+const GUARANTEE = "Гарантия оплаты и клиента (6%)";
 
 type Zone = keyof typeof ru.app;
 
@@ -89,14 +89,14 @@ describe("тексты мастера: запретные слова", () => {
     expect(DECIDED.flatMap((name) => strings(ru.app[name])).filter((s) => pattern.test(s))).toEqual([]);
   });
 
-  it("«клиент» — только в формуле «Гарантия оплаты и клиента (4%)»", () => {
+  it("«клиент» — только в формуле «Гарантия оплаты и клиента (6%)»", () => {
     expect(master.filter((s) => /клиент/i.test(s.replaceAll(GUARANTEE, "")))).toEqual([]);
     expect(ru.app.masterDeal.card.money.guarantee).toBe(GUARANTEE);
   });
 
-  // Где выводится гарантия: слово «гарантия» рядом с 4% — это ровно формула (не «комиссия 4%», не «гарантия 4%»).
+  // Где выводится гарантия: слово «гарантия» рядом с 6% — это ровно формула (не «комиссия 6%», не «гарантия 6%»).
   const WITH_GUARANTEE: readonly Zone[] = ["masterDeal", "masterOffer", "masterSteps", "masterProfile"];
-  const NEAR_FOUR = /гаранти[а-яё]*[^%\d]{0,40}4\s?%\)?/gi;
+  const NEAR_FOUR = /гаранти[а-яё]*[^%\d]{0,40}6\s?%\)?/gi;
   it.each(WITH_GUARANTEE)("зона «%s»: «гарантия» рядом с процентом — ровно формула гарантии", (name) => {
     const found = strings(ru.app[name]).flatMap((s) => (s.match(NEAR_FOUR) ?? []).map((m) => m.replace(/^[«"]|[»"]$/g, "")));
     expect(found.length).toBeGreaterThan(0);

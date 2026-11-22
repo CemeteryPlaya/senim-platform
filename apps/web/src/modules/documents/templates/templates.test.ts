@@ -11,13 +11,13 @@ import type { AcceptanceActData, ContractData, DealMoney, MoneyStatementData, Re
 // Суммы форматируются с неразрывными пробелами; в ожиданиях — обычные.
 const plainText = (spec: PdfSpec) => rawText(spec).replace(/[  ]/g, " ");
 
-/** X = 1 000 000 ₸: защита 20 000, итого 1 020 000, гарантия 40 000, выплата 960 000, доход 60 000. */
+/** X = 1 000 000 ₸ (ADR-015): защиты нет, итого 1 000 000, гарантия 60 000, выплата 940 000, доход 60 000. */
 const MONEY: DealMoney = {
   priceTiyn: 100_000_000n,
-  protectionTiyn: 2_000_000n,
-  buyerTotalTiyn: 102_000_000n,
-  guaranteeTiyn: 4_000_000n,
-  payoutTiyn: 96_000_000n,
+  protectionTiyn: 0n,
+  buyerTotalTiyn: 100_000_000n,
+  guaranteeTiyn: 6_000_000n,
+  payoutTiyn: 94_000_000n,
   platformIncomeTiyn: 6_000_000n,
 };
 
@@ -61,13 +61,12 @@ describe("оферта", () => {
     expect(text).toContain("Сапарова Айгерим Болатовна, ИИН 900101300123");
     expect(text).toContain("ТОО «Ағаш Шебер», БИН 210140012345, в лице директора Тулегенов Бауыржан Серикович");
     expect(text).toContain("1 000 000 ₸");
-    expect(text).toContain("Защита сделки (2%)");
-    expect(text).toContain("20 000 ₸");
-    expect(text).toContain("Итого к оплате Покупателем");
-    expect(text).toContain("1 020 000 ₸");
-    expect(text).toContain("Гарантия оплаты и клиента (4%)");
+    expect(text).not.toContain("Защита сделки");
+    expect(text).toContain("Итого к оплате Покупателем (без доплат сверх цены)");
+    expect(text).toContain("Гарантия оплаты и клиента (6%)");
+    expect(text).toContain("60 000 ₸");
     expect(text).toContain("К выплате Мастеру");
-    expect(text).toContain("960 000 ₸");
+    expect(text).toContain("940 000 ₸");
     expect(text).not.toMatch(/комисси/i);
   });
 
@@ -100,7 +99,7 @@ describe("акт приёмки (макет стр. 18)", () => {
     const text = plainText(acceptanceActSpec(act()));
     expect(text).toContain("Кухня угловая");
     expect(text).toContain("1 000 000 ₸");
-    expect(text).toContain("960 000 ₸");
+    expect(text).toContain("940 000 ₸");
     expect(text).toContain("Фото 1 (файл недоступен) · SHA-256 abababababababab");
     expect(text).toContain("Д-0014/2026");
     expect(text).not.toContain("210140012345");
@@ -130,21 +129,21 @@ describe("выписка по деньгам", () => {
     dealTitle: "Кухня угловая",
     money: MONEY,
     entries: [
-      { type: "HOLD", status: "SUCCEEDED", amountTiyn: 102_000_000n, at: new Date("2026-11-06T06:00:00Z"), operationRef: "П-17" },
-      { type: "SPLIT_MASTER", status: "PENDING", amountTiyn: 96_000_000n, at: new Date("2026-11-21T05:00:00Z"), operationRef: null },
+      { type: "HOLD", status: "SUCCEEDED", amountTiyn: 100_000_000n, at: new Date("2026-11-06T06:00:00Z"), operationRef: "П-17" },
+      { type: "SPLIT_MASTER", status: "PENDING", amountTiyn: 94_000_000n, at: new Date("2026-11-21T05:00:00Z"), operationRef: null },
     ],
-    bankBalanceTiyn: 102_000_000n,
+    bankBalanceTiyn: 100_000_000n,
     ...over,
   });
 
   it("таймлайн операций журнала с суммами, статусом и номером; остаток в банке", () => {
     const text = plainText(moneyStatementSpec(statement()));
     expect(text).toContain("Деньги покупателя зарезервированы в банке");
-    expect(text).toContain("1 020 000 ₸");
+    expect(text).toContain("1 000 000 ₸");
     expect(text).toContain("проведено, № П-17");
     expect(text).toContain("Выплачено мастеру");
     expect(text).toContain("ожидает подтверждения банка");
-    expect(text).toContain("Остаток денег сделки в банке по проведённым операциям: 1 020 000 ₸.");
+    expect(text).toContain("Остаток денег сделки в банке по проведённым операциям: 1 000 000 ₸.");
   });
 
   it("покупатель и мастер видят выписку: без «эскроу» и «комиссии»; пустой журнал — честная строка", () => {

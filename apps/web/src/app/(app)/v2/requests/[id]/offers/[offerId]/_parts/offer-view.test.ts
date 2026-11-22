@@ -157,20 +157,20 @@ describe("offerState: каждая строка таблицы состояни�
 });
 
 describe("offerView: действия, смета и тексты по состояниям", () => {
-  it("(1) «Принять X» с суммой мастера; подтверждение: цена + защита 2% = к оплате; второстепенное — своя цена", () => {
+  it("(1) «Принять X» с суммой мастера; подтверждение: к оплате — цена, без доплат; второстепенное — своя цена", () => {
     const n = negotiation([round("p1", "EXECUTOR", 1_180_000, "PROPOSED")]);
     const view = offerView(offer(), n);
     const m = computeDealMoney(1_180_000_00n);
-    const [price, protection, total] = [formatMoney(m.priceTiyn), formatMoney(m.protectionTiyn), formatMoney(m.buyerTotalTiyn)];
+    const price = formatMoney(m.priceTiyn);
     expect(view.primary).toEqual({
       kind: "accept",
       proposalId: "p1",
       label: `Принять ${price}`,
       confirmTitle: t.acceptConfirm.title(price),
-      confirmDescription: t.acceptConfirm.description({ price, protection, total }),
+      confirmDescription: t.acceptConfirm.description({ price }),
     });
     if (view.primary?.kind !== "accept") throw new Error("нет принятия");
-    expect(view.primary.confirmDescription).toContain(`Будет создана сделка на ${price}. К оплате — ${total} с защитой сделки 2% (${protection}).`);
+    expect(view.primary.confirmDescription).toContain(`Будет создана сделка на ${price}. К оплате — ${price}, без доплат.`);
     expect(view.secondary).toEqual({ kind: "propose" });
     // Сумма к оплате — в блоке денег сразу ниже, в «Сейчас» не повторяется.
     expect(view.now).toEqual({ title: t.now.masterPrice.title(price) });
@@ -180,17 +180,16 @@ describe("offerView: действия, смета и тексты по сост�
       amountTiyn: m.buyerTotalTiyn,
       rows: [
         { label: t.money.price.master, amountTiyn: m.priceTiyn },
-        { label: t.money.protection, amountTiyn: m.protectionTiyn, explain: true },
-        { label: t.money.total, amountTiyn: m.buyerTotalTiyn, total: true },
+        { label: t.money.total, amountTiyn: m.buyerTotalTiyn, total: true, explain: true },
       ],
     });
   });
 
-  it("суммы — из сметы модуля как есть: защита вверх до тиына (10 001 тиын → 201), экран не пересчитывает", () => {
+  it("суммы — из сметы модуля как есть: к оплате — цена без доплат (10 001 тиын), экран не пересчитывает", () => {
     const n = { ...negotiation([round("p1", "EXECUTOR", 1, "PROPOSED")]), estimate: estimate(10_001n) };
     const view = offerView(offer(), n);
-    expect(view.money?.rows.map((r) => r.amountTiyn)).toEqual([10_001n, 201n, 10_202n]);
-    expect(view.money?.amountTiyn).toBe(10_202n);
+    expect(view.money?.rows.map((r) => r.amountTiyn)).toEqual([10_001n, 10_001n]);
+    expect(view.money?.amountTiyn).toBe(10_001n);
   });
 
   it("(3) встречная мастера — свой заголовок, то же главное действие", () => {
@@ -300,10 +299,11 @@ describe("ru.app.offer: слова интерфейса покупателя", (
     return [];
   };
 
-  it("нет «платформа», «демо», «комиссия», «эскроу», «тестовый», «отклик»; защита — «Защита сделки (2%)»", () => {
+  it("нет «платформа», «демо», «комиссия», «эскроу», «тестовый», «отклик»; доплат нет — «Защита сделки» не упоминается", () => {
     const all = texts(t).join("\n");
     expect(all).not.toMatch(/платформ|демо|комисси|эскроу|тестов|отклик/i);
-    expect(all).toContain("Защита сделки (2%)");
+    expect(all).not.toMatch(/Защита сделки|2\s?%/);
+    expect(all).toContain("без доплат");
     expect(all).toContain("в банке под защитой");
     expect(all).not.toMatch(/через сч[её]т/i);
   });

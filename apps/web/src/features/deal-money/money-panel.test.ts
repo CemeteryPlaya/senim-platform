@@ -52,13 +52,13 @@ describe("блок денег — первый блок карточки сде�
     expect(p).toMatchObject({ tone: "warning", icon: "pause", title: "Выплата заморожена до решения спора", lines: ["Сумма к выплате: 96 000 ₸"] });
   });
 
-  it("выплата подтверждена — «Сделка завершена», выплачено мастеру и защита сделки", () => {
+  it("выплата подтверждена — «Сделка завершена», выплачено мастеру", () => {
     const done = block({ kind: "completed", paidToMasterTiyn: payout, protectionTiyn: 200_000n, refundedTiyn: 0n, settled: true, completedAt: reservedAt });
     expect(moneyPanel(done, "CLIENT", payout)).toMatchObject({
       tone: "success",
       icon: "check",
       title: "Сделка завершена",
-      lines: ["Выплачено мастеру: 96 000 ₸", "Защита сделки: 2 000 ₸"],
+      lines: ["Выплачено мастеру: 96 000 ₸"],
     });
     expect(moneyPanel(done, "EXECUTOR", payout).lines).toEqual(["Выплачено вам: 96 000 ₸"]);
   });
@@ -70,7 +70,7 @@ describe("блок денег — первый блок карточки сде�
 
   it("частичный раздел по спору — ещё и возврат покупателю", () => {
     const p = moneyPanel(block({ kind: "completed", paidToMasterTiyn: 4_800_000n, protectionTiyn: 100_000n, refundedTiyn: 5_100_000n, settled: true, completedAt: reservedAt }), "CLIENT", payout);
-    expect(p.lines).toEqual(["Выплачено мастеру: 48 000 ₸", "Защита сделки: 1 000 ₸", "Возвращено покупателю: 51 000 ₸"]);
+    expect(p.lines).toEqual(["Выплачено мастеру: 48 000 ₸", "Возвращено покупателю: 51 000 ₸"]);
   });
 
   it("возврат: подтверждён — «Деньги вернулись покупателю», в банке — «Деньги вернутся на вашу карту»", () => {

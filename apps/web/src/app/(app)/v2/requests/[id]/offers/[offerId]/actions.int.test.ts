@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ru } from "@/i18n/ru";
-import { computeDealMoney } from "@/modules/payments/client";
 import { proposePrice, sendOffer, withdrawPrice } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { makeClient } from "../../../../../../../../test/factories";
@@ -53,16 +52,16 @@ describe("acceptPriceAction: принять цену мастера → сдел
     expect(await dealsOf(offerId)).toHaveLength(1);
   });
 
-  it("смета сделки — та же формула: защита 2% вверх до тиына (computeDealMoney)", async () => {
+  it("смета сделки — та же формула: без доплат покупателя, выплата вниз до тиына (computeDealMoney, ADR-015)", async () => {
     const { client, offerId, opening } = await offered();
-    // Цена с тиынами (1 000 000,01 ₸): 2% = 20 000,0002 ₸ → вверх до тиына.
+    // Цена с тиынами (1 000 000,01 ₸): 94% = 940 000,0094 ₸ → вниз до тиына.
     await db.priceProposal.update({ where: { id: opening.id }, data: { amountTiyn: 1_000_000_01n } });
     await signInAs(client);
     const res = await acceptPriceAction({ offerId, proposalId: opening.id });
     if (!res.ok) throw new Error(res.error);
     const deal = await db.deal.findUniqueOrThrow({ where: { id: res.data.dealId } });
     expect(deal.priceTiyn).toBe(1_000_000_01n);
-    expect(computeDealMoney(deal.priceTiyn).protectionTiyn).toBe(2_000_001n);
+    expect(deal).toMatchObject({ protectionTiyn: 0n, buyerTotalTiyn: 1_000_000_01n, payoutTiyn: 940_000_00n });
   });
 
   it("гонка: мастер ответил новой ценой, пока покупатель смотрел — CONFLICT с текстом экрана, сделки нет", async () => {

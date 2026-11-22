@@ -60,7 +60,7 @@ describe("отчёт", () => {
   });
 });
 
-describe("доход платформы по схеме 2% + 4%", () => {
+describe("доход платформы по схеме «6% с мастера» (ADR-015)", () => {
   it("за период — из журнала: защита, гарантия и итог по сделкам; CSV с итоговой строкой", async () => {
     const operator = await makeOperator();
     const f = await paidOut();
@@ -74,7 +74,8 @@ describe("доход платформы по схеме 2% + 4%", () => {
 
     const csv = (await buildIncomeCsv(operator, period)).trim().split("\r\n");
     expect(csv).toHaveLength(3);
-    expect(csv[2]).toBe(`Итого доход;;${csvTiyn(money.protectionTiyn)};${csvTiyn(money.guaranteeTiyn)};${csvTiyn(money.platformIncomeTiyn)};`);
+    expect(money.protectionTiyn).toBe(0n);
+    expect(csv[2]).toBe(`Итого доход;;${csvTiyn(money.guaranteeTiyn)};${csvTiyn(money.platformIncomeTiyn)};`);
 
     expect((await incomeReport(operator, { from: new Date(Date.now() + DAY), to: new Date(Date.now() + 2 * DAY) })).rows).toEqual([]);
   });

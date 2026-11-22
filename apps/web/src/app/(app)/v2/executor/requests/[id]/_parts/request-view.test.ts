@@ -162,7 +162,7 @@ describe("requestView: экран заявки мастера", () => {
       confirmTitle: t.acceptConfirm.title(price),
       confirmDescription: t.acceptConfirm.description({ price, guarantee: formatMoney(e.extraTiyn), youGet: formatMoney(e.totalTiyn) }),
     });
-    expect(v.primary?.kind === "accept" && v.primary.confirmDescription).toContain(formatMoney(940_800_00n));
+    expect(v.primary?.kind === "accept" && v.primary.confirmDescription).toContain(formatMoney(921_200_00n));
     expect(v.secondary).toEqual({ kind: "propose" });
     expect(v.proposeDescription).toBe(t.propose.buyerPrice(price));
     expect(v.money).toEqual({

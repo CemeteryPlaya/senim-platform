@@ -182,7 +182,7 @@ export async function acceptPrice(user: CurrentUser, input: { proposalId: string
 
 /**
  * Торг глазами стороны отклика: раунды по порядку, открытое предложение, что можно сделать, и смета до оплаты
- * по текущей цене (покупателю — с защитой сделки 2 %, мастеру — с гарантией 4 %, ТЗ п. 5).
+ * по текущей цене (покупателю — цена без доплат, мастеру — с гарантией 6 %, ТЗ п. 5, ADR-015).
  */
 export async function getNegotiation(user: CurrentUser, input: { offerId: string }) {
   const { offer, party } = await partyOf(db, user, await loadOffer(db, input.offerId));

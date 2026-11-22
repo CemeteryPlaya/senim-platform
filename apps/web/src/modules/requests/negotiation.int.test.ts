@@ -151,7 +151,7 @@ describe("акцепт цены → оферта", () => {
     expect(await db.auditEvent.findFirstOrThrow({ where: { action: "price.accepted" } })).toMatchObject({ actorId: executor.id });
   });
 
-  it("смета до оплаты: покупателю — с защитой сделки 2 %, мастеру — с гарантией 4 % от текущей цены", async () => {
+  it("смета до оплаты: покупателю — цена без доплат, мастеру — с гарантией 6 % от текущей цены (ADR-015)", async () => {
     const { client, executor, offerId } = await offered();
     await proposePrice(client, { offerId, amountKzt: 400_000 });
 
@@ -162,12 +162,12 @@ describe("акцепт цены → оферта", () => {
       party: "CLIENT",
       live: true,
       priceTiyn: 400_000_00n,
-      estimate: { priceTiyn: 400_000_00n, extraTiyn: 8_000_00n, totalTiyn: 408_000_00n },
+      estimate: { priceTiyn: 400_000_00n, extraTiyn: 0n, totalTiyn: 400_000_00n },
       can: { propose: false, accept: false, withdraw: true },
     });
     expect(forExecutor).toMatchObject({
       party: "EXECUTOR",
-      estimate: { priceTiyn: 400_000_00n, extraTiyn: 16_000_00n, totalTiyn: 384_000_00n },
+      estimate: { priceTiyn: 400_000_00n, extraTiyn: 24_000_00n, totalTiyn: 376_000_00n },
       can: { propose: true, accept: true, withdraw: false },
     });
     expect(forClient.rounds.map((r) => [r.party, r.mine, r.status])).toEqual([

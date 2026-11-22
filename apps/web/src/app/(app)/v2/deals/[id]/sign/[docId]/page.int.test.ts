@@ -234,11 +234,11 @@ describe("экран подписи мастера", () => {
   }
 
   /** Суммы покупателя (защита сделки 2% и к оплате) — их в HTML мастера нет. */
+  // С ADR-015 сумма покупателя равна цене по оферте (её мастер видит): скрыта только строка «к оплате» покупателя.
   function noBuyerSums(out: string) {
-    expect(plain(out)).not.toContain(money(m.buyerTotalTiyn));
-    expect(plain(out)).not.toContain(money(m.protectionTiyn));
-    expect(out).not.toContain(m.buyerTotalTiyn.toString());
+    expect(m.buyerTotalTiyn).toBe(m.priceTiyn);
     expect(plain(out)).not.toContain(t.what.total);
+    expect(plain(out)).not.toMatch(/Защита сделки/);
   }
 
   it("оферта, согласия нет: текст согласия с прокруткой и отметка над подписью; «Подписать оферту» отключена с объяснением; суммы мастера", async () => {

@@ -65,12 +65,13 @@ describe("/v2/about: структура", () => {
 });
 
 describe("/v2/about: цена по ролям", () => {
-  it("названия «Защита сделки (2%)» для покупателя и «Гарантия оплаты и клиента (4%)» для мастера — отдельными карточками", async () => {
+  it("покупатель — «Только цена мастера, без доплат» и «Гарантия оплаты и клиента (6%)» для мастера — отдельными карточками", async () => {
     const out = await render();
     expect(out).toContain(`>${t.price.buyerTitle}</h3>`);
     expect(out).toContain(`>${t.price.masterTitle}</h3>`);
-    expect(t.price.buyerTitle).toContain("Защита сделки (2%)");
-    expect(t.price.masterTitle).toContain("Гарантия оплаты и клиента (4%)");
+    expect(t.price.buyerTitle).toBe("Только цена мастера, без доплат");
+    expect(out).not.toMatch(/Защита сделки|2\s?%/);
+    expect(t.price.masterTitle).toContain("Гарантия оплаты и клиента (6%)");
     expect(out).not.toContain("Заявка бесплатная");
   });
 
@@ -84,10 +85,10 @@ describe("/v2/about: цена по ролям", () => {
     expect(count(out, "<h1")).toBe(1);
   });
 
-  it("пример: 200 000 ₸ → покупатель платит 204 000 ₸, мастер получает 192 000 ₸ — из одного значения и сверено с computeDealMoney", async () => {
+  it("пример: 200 000 ₸ → покупатель платит 200 000 ₸, мастер получает 188 000 ₸ — из одного значения и сверено с computeDealMoney", async () => {
     const price = 200_000n * 100n;
-    const protection = (price * 2n) / 100n; // 2% без округления: 4 000 ₸ ровно
-    const guarantee = (price * 4n) / 100n;
+    const protection = 0n; // ADR-015: покупатель платит цену без доплат
+    const guarantee = (price * 6n) / 100n;
     const money = computeDealMoney(price);
     expect(money.buyerTotalTiyn).toBe(price + protection);
     expect(money.payoutTiyn).toBe(price - guarantee);
@@ -95,8 +96,8 @@ describe("/v2/about: цена по ролям", () => {
     expect(out).toContain(`${t.price.buyerPrice} <span class="whitespace-nowrap tabular-nums text-ink">${formatMoney(price)}</span>`);
     expect(out).toContain(formatMoney(price + protection));
     expect(out).toContain(formatMoney(price - guarantee));
-    expect(formatMoney(price + protection).replace(/\s/g, " ")).toBe("204 000 ₸");
-    expect(formatMoney(price - guarantee).replace(/\s/g, " ")).toBe("192 000 ₸");
+    expect(formatMoney(price + protection).replace(/\s/g, " ")).toBe("200 000 ₸");
+    expect(formatMoney(price - guarantee).replace(/\s/g, " ")).toBe("188 000 ₸");
   });
 });
 

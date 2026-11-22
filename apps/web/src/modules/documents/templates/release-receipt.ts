@@ -17,7 +17,7 @@ export function releaseReceiptSpec(d: ReleaseReceiptData): PdfSpec {
     : `решение по спору по договору № ${d.contractNumber}`;
   const rows: string[][] = [
     ["Мастеру (бенефициару)", money(d.release.masterTiyn)],
-    [`Платформе «${brand.name}» — защита сделки и гарантия оплаты`, money(d.release.platformTiyn)],
+    [`Платформе «${brand.name}» — гарантия оплаты и клиента`, money(d.release.platformTiyn)],
   ];
   if (d.release.refundTiyn > 0n) rows.push(["Возврат Покупателю (депоненту)", money(d.release.refundTiyn)]);
   return {

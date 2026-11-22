@@ -62,7 +62,8 @@ describe("/v2/help", () => {
     expect(out).toContain('href="mailto:');
     expect(out).toContain(t.money.paragraphs[1]);
     expect(out.toLowerCase()).not.toMatch(/комисси|эскроу|платформ|демо|тестов|отклик/);
-    expect(out).toContain("Защита сделки (2%)");
+    expect(out).toContain(ru.app.profile.help.price.intro);
+    expect(out).not.toMatch(/Защита сделки|2\s?%/);
   });
 });
 
@@ -85,11 +86,11 @@ describe("/v2/help для мастера", () => {
     for (const section of [m.requests, m.price, m.money, m.dispute, m.contacts]) expect(out).toContain(section.title);
   });
 
-  it("гарантия 4% и «вы получите» — суммы из модуля; защиты сделки покупателя (2%) нет; деньги не проходят через счета сервиса", async () => {
+  it("гарантия 6% и «вы получите» — суммы из модуля; защиты сделки покупателя (2%) нет; деньги не проходят через счета сервиса", async () => {
     const out = await asMaster();
-    expect(out).toContain("Гарантия оплаты и клиента (4%)");
+    expect(out).toContain("Гарантия оплаты и клиента (6%)");
     expect(out).toContain(formatMoney(20_000_000n));
-    expect(out).toContain(formatMoney(19_200_000n));
+    expect(out).toContain(formatMoney(18_800_000n));
     expect(out).toContain(m.money.paragraphs[0]);
     expect(out).not.toMatch(/2\s?%|Защита сделки/);
   });

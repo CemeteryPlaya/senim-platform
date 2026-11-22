@@ -176,7 +176,7 @@ function actionsOf(state: MasterState, n: NegotiationView | null): Pick<RequestV
   }
 }
 
-/** Смета мастера из `partyEstimate("EXECUTOR")` модуля (n.estimate): цена, гарантия 4% вниз до тиына, «Вы получите». */
+/** Смета мастера из `partyEstimate("EXECUTOR")` модуля (n.estimate): цена, гарантия 6% вниз до тиына, «Вы получите». */
 function moneyOf(state: MasterState, n: NegotiationView | null): MoneyView | null {
   if (!n || (state.kind !== "buyerPrice" && state.kind !== "waiting")) return null;
   const e = n.estimate;

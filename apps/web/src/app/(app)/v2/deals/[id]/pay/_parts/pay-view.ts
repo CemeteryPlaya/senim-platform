@@ -14,16 +14,16 @@ export type PayMoney = {
 
 /**
  * Деньги экрана оплаты — смета покупателя модуля (`deal.estimate` = `partyEstimate("CLIENT", цена)`, тот же источник, что
- * у блока денег карточки сделки до оплаты): цена по оферте, защита сделки (2%) с пояснением, итого. На экране ничего не
+ * у блока денег карточки сделки до оплаты): цена по оферте и итого с пояснением «Что это?» (покупатель платит цену без
+ * доплат, ADR-015). На экране ничего не
  * считается. Пометка тестового платежа (`isTest`) в v2 не выводится.
  */
-export function payMoney(estimate: Pick<PartyEstimate, "priceTiyn" | "extraTiyn" | "totalTiyn">, block: MoneyBlock): PayMoney {
+export function payMoney(estimate: Pick<PartyEstimate, "priceTiyn" | "totalTiyn">, block: MoneyBlock): PayMoney {
   return {
     amount: estimate.totalTiyn,
     rows: [
       { label: t.price, amount: estimate.priceTiyn },
-      { label: t.protection, amount: estimate.extraTiyn, explain: true },
-      { label: t.total, amount: estimate.totalTiyn, total: true },
+      { label: t.total, amount: estimate.totalTiyn, total: true, explain: true },
     ],
     failed: block.kind === "awaiting" && block.payment === "FAILED",
   };

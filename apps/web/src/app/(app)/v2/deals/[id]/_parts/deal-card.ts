@@ -230,7 +230,7 @@ function masterResolvedDispute(i: NowInput): NowView | null {
 /**
  * Таблица «что сейчас» мастера по `deal.next` модуля (`deal-core/next-step.ts`). Главное действие ведёт на экран шага:
  * подпись оферты (там же согласие на передачу данных банку — без него подпись закрыта), начало работы, сдача работы,
- * подпись акта ЭЦП. Сумм покупателя (к оплате, защита 2%) здесь нет. Шаги покупателя и оператора и действие без нужного
+ * подпись акта ЭЦП. Сумм покупателя (к оплате) здесь нет. Шаги покупателя и оператора и действие без нужного
  * документа — «Сделка идёт» без кнопки.
  *
  * Оферта заключена, а своего согласия для банка нет (`bank.mine === false` при ожидании оплаты) — оплату покупателя
@@ -299,7 +299,7 @@ function masterNow(i: NowInput): NowView {
 export type MoneyInput = {
   block: MoneyBlock;
   estimate: { priceTiyn: bigint; extraTiyn: bigint; totalTiyn: bigint };
-  snapshot: { priceTiyn: bigint; protectionTiyn: bigint; buyerTotalTiyn: bigint };
+  snapshot: { priceTiyn: bigint; buyerTotalTiyn: bigint };
   /** Оплата переводом по реквизитам (провайдер `MANUAL`); по умолчанию — нет. */
   manual?: boolean;
 };
@@ -317,22 +317,20 @@ export type MoneyView = {
 /**
  * Блок денег покупателя — только из журнала (`moneyBlock`): тон по виду блока (`protected` — единственный зелёный),
  * главная сумма — то, что сейчас важно покупателю: к оплате, в банке, сколько он заплатил (после выплаты), сколько
- * возвращено. Выплату мастеру (цена − гарантия 4%) покупателю не показываем. Строки «Цена по оферте» и «Защита сделки
- * (2%)» — снимок оферты; у защиты — пояснение. Пометка тестового платежа (`isTest`) в v2 не выводится.
+ * возвращено. Выплату мастеру (цена − гарантия 6%) покупателю не показываем. Строка «Цена по оферте» — снимок оферты,
+ * с пояснением «Что это?» (деньги в банке под защитой; доплат сверх цены нет, ADR-015). Пометка тестового платежа (`isTest`) в v2 не выводится.
  */
 export function moneyView({ block, estimate, snapshot, manual = false }: MoneyInput): MoneyView {
   const m = t.money;
   const offerRows = [
-    { label: m.price, amount: snapshot.priceTiyn },
-    { label: m.protection, amount: snapshot.protectionTiyn, explain: true as const },
+    { label: m.price, amount: snapshot.priceTiyn, explain: true as const },
   ];
   switch (block.kind) {
     case "awaiting": {
       const text = block.payment === "PENDING" ? (manual ? m.transfer : m.pending) : block.payment === "FAILED" ? m.failed : m.awaiting;
       const rows = [
         { label: m.price, amount: estimate.priceTiyn },
-        { label: m.protection, amount: estimate.extraTiyn, explain: true as const },
-        { label: m.total, amount: estimate.totalTiyn, total: true },
+        { label: m.total, amount: estimate.totalTiyn, total: true, explain: true as const },
       ];
       return { tone: "awaiting", title: text.title, amount: estimate.totalTiyn, rows, note: text.note };
     }
@@ -354,7 +352,7 @@ export function moneyView({ block, estimate, snapshot, manual = false }: MoneyIn
   }
 }
 
-/** Деньги мастера: журнал (`moneyBlock`) и смета мастера (`partyEstimate("EXECUTOR")` модуля: цена, гарантия 4%, «вы получите»). */
+/** Деньги мастера: журнал (`moneyBlock`) и смета мастера (`partyEstimate("EXECUTOR")` модуля: цена, гарантия 6%, «вы получите»). */
 export type MasterMoneyInput = {
   block: MoneyBlock;
   estimate: { priceTiyn: bigint; extraTiyn: bigint; totalTiyn: bigint };
@@ -363,10 +361,10 @@ export type MasterMoneyInput = {
 /**
  * Блок денег мастера — только из журнала (`moneyBlock`) и сметы мастера, ничего не считается здесь. Главная сумма — всегда
  * сумма мастера, и заголовок называет её: пока оплаты мастеру нет (ждём оплату, оплата идёт или не прошла, деньги
- * покупателя в банке) — «Вы получите после приёмки» (цена по оферте − гарантия 4%), а состояние — первой фразой пояснения;
+ * покупателя в банке) — «Вы получите после приёмки» (цена по оферте − гарантия 6%), а состояние — первой фразой пояснения;
  * спор — «Оплата вам приостановлена спором»; после раскрытия — его часть из журнала (`paidToMasterTiyn`: идёт или получена).
- * Строки — «Цена по оферте», «Гарантия оплаты и клиента (4%)» с пояснением и «Вы получите». Сумм покупателя (к оплате,
- * защита 2%, остаток в банке, возврат) мастеру не показываем: при возврате покупателю — «Вы получите по этой сделке: 0 ₸».
+ * Строки — «Цена по оферте», «Гарантия оплаты и клиента (6%)» с пояснением и «Вы получите». Сумм покупателя (к оплате,
+ * остаток в банке, возврат) мастеру не показываем: при возврате покупателю — «Вы получите по этой сделке: 0 ₸».
  */
 export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyView {
   const m = tmd.card.money;
@@ -422,7 +420,7 @@ export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyVie
 /**
  * Текст последствий отмены — ровно то, что делает `cancelDeal` модуля: до оплаты (CREATED) сделка отменяется, денег нет;
  * после оплаты (PAID_HOLD, деньги в банке) — возврат всей зарезервированной суммы (`heldEntry`, она же сумма блока
- * «под защитой»), то есть цена и защита сделки: онлайн-оплата — на карту, перевод по реквизитам — «вам».
+ * «под защитой»), то есть цена по оферте: онлайн-оплата — на карту, перевод по реквизитам — «вам».
  * Мастер отменяет только до оплаты (`can.cancel` модуля): после оплаты отменяет покупатель, текста мастеру нет.
  * Отмена недоступна (`can.cancel`) или состояние другое — `null`.
  */

@@ -124,11 +124,7 @@ function actionsOf(state: OfferState, n: NegotiationView, requestHref: string): 
           proposalId: state.proposalId,
           label: t.actions.accept(price),
           confirmTitle: t.acceptConfirm.title(price),
-          confirmDescription: t.acceptConfirm.description({
-            price,
-            protection: formatMoney(n.estimate.extraTiyn),
-            total: formatMoney(n.estimate.totalTiyn),
-          }),
+          confirmDescription: t.acceptConfirm.description({ price: formatMoney(n.estimate.totalTiyn) }),
         },
         secondary: n.can.propose ? { kind: "propose" } : null,
       };
@@ -148,7 +144,7 @@ function actionsOf(state: OfferState, n: NegotiationView, requestHref: string): 
   }
 }
 
-/** Смета из `partyEstimate` модуля (n.estimate): цена, защита сделки 2% вверх до тиына, к оплате. Ничего не считается здесь. */
+/** Смета из `partyEstimate` модуля (n.estimate): цена и к оплате — без доплат (ADR-015). Ничего не считается здесь. */
 function moneyOf(state: OfferState, n: NegotiationView): MoneyView | null {
   const master = state.kind === "masterPrice" || state.kind === "masterCounter";
   if (!master && state.kind !== "waiting") return null;
@@ -158,8 +154,7 @@ function moneyOf(state: OfferState, n: NegotiationView): MoneyView | null {
     amountTiyn: e.totalTiyn,
     rows: [
       { label: master ? t.money.price.master : t.money.price.yours, amountTiyn: e.priceTiyn },
-      { label: t.money.protection, amountTiyn: e.extraTiyn, explain: true },
-      { label: t.money.total, amountTiyn: e.totalTiyn, total: true },
+      { label: t.money.total, amountTiyn: e.totalTiyn, total: true, explain: true },
     ],
   };
 }

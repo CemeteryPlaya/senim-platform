@@ -14,23 +14,23 @@ const block = (m: MoneyView, bankBalanceTiyn: bigint): MoneyBlock => ({ ...m, ba
 const text = (r: ReturnType<typeof homeDealMoney>) => `${r.amountTiyn === null ? "" : `${formatTiyn(r.amountTiyn)} `}${r.label}`.replace(/ /g, " ");
 
 describe("«Моя сделка»: деньги на главной из журнала", () => {
-  it("до оплаты — смета «к оплате»: цена + защита 2%", () => {
+  it("до оплаты — смета «к оплате»: цена без доплат", () => {
     const r = homeDealMoney(block({ kind: "awaiting", payment: "none" }, 0n), estimate);
     expect(r).toEqual({ amountTiyn: money.buyerTotalTiyn, label: c.toPay });
-    expect(text(r)).toBe("1 479 000 ₸ к оплате");
+    expect(text(r)).toBe("1 450 000 ₸ к оплате");
   });
 
   it("оплачено — в банке вся оплата покупателя (HOLD)", () => {
     const r = homeDealMoney(block({ kind: "protected", amountTiyn: money.buyerTotalTiyn, reservedAt: at, operationRef: null }, money.buyerTotalTiyn), estimate);
     expect(r).toEqual({ amountTiyn: money.buyerTotalTiyn, label: c.inBank });
-    expect(text(r)).toBe("1 479 000 ₸ в банке под защитой");
+    expect(text(r)).toBe("1 450 000 ₸ в банке под защитой");
   });
 
   it("спор — в банке остаток на счёте, а не замороженная выплата мастеру", () => {
     const r = homeDealMoney(block({ kind: "frozen", amountTiyn: money.payoutTiyn, frozenAt: at }, money.buyerTotalTiyn), estimate);
     expect(r.amountTiyn).toBe(money.buyerTotalTiyn);
     expect(r.amountTiyn).not.toBe(money.payoutTiyn);
-    expect(text(r)).toBe("1 479 000 ₸ в банке под защитой");
+    expect(text(r)).toBe("1 450 000 ₸ в банке под защитой");
   });
 
   it("приёмка подписана, выплата идёт — итог блока денег, не «к оплате»", () => {
@@ -45,6 +45,6 @@ describe("«Моя сделка»: деньги на главной из жур�
   it("возврат — заголовок блока денег с суммой возврата", () => {
     const r = homeDealMoney(block({ kind: "refunded", amountTiyn: money.buyerTotalTiyn, settled: true, refundedAt: at }, 0n), estimate);
     expect(r.amountTiyn).toBeNull();
-    expect(r.label.replace(/ /g, " ")).toContain("1 479 000 ₸");
+    expect(r.label.replace(/ /g, " ")).toContain("1 450 000 ₸");
   });
 });

@@ -68,7 +68,7 @@ describe("«Что вы подписываете»", () => {
     warrantyMonths: 12,
     readyAt: NOW,
   };
-  /** Смета мастера модуля (`partyEstimate("EXECUTOR")`): цена − гарантия 4%. */
+  /** Смета мастера модуля (`partyEstimate("EXECUTOR")`): цена − гарантия 6%. */
   const master = { ...base, side: "EXECUTOR" as const, estimate: { priceTiyn: 100_000_00n, extraTiyn: 4_000_00n, totalTiyn: 96_000_00n } };
 
   it("оферта: документ, стороны (мастер — подпись модуля), цена, к оплате с защитой, срок, гарантия; суммы — из сметы модуля как есть", () => {
@@ -103,7 +103,7 @@ describe("«Что вы подписываете»", () => {
     ]);
     expect(rows.map((r) => r.label)).not.toContain(t.what.total);
     expect(rows.map((r) => r.label)).not.toContain(t.what.buyer);
-    expect(tm.what.guarantee).toBe("Гарантия оплаты и клиента (4%)");
+    expect(tm.what.guarantee).toBe("Гарантия оплаты и клиента (6%)");
   });
 
   it("акт мастеру: цена, «Вы получите» и дата сдачи", () => {
@@ -147,7 +147,7 @@ describe("тексты подписи и оплаты", () => {
     expect(all).not.toMatch(/платформ|демо|комисси|эскроу|тестов|отклик/i);
     expect(all).not.toMatch(/сч[её]т(а|у|е|ом)? сервиса|через сервис/i);
     expect(ru.app.deal.pay.where.points[0]).toContain("в банке под защитой");
-    expect(ru.app.deal.pay.money.protection).toBe("Защита сделки (2%)");
+    expect(JSON.stringify(ru.app.deal.pay.money)).not.toMatch(/Защита сделки|2%/);
   });
 });
 

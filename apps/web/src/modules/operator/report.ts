@@ -83,12 +83,11 @@ export async function buildIncomeCsv(user: CurrentUser, period: IncomePeriod): P
   const rows: CsvCell[][] = report.rows.map((r) => [
     r.dealNumber,
     csvDateTime(r.settledAt),
-    csvTiyn(r.protectionTiyn),
     csvTiyn(r.guaranteeTiyn),
     csvTiyn(r.totalTiyn),
     r.isTest ? t.income.testMark : "",
   ]);
-  rows.push([t.income.total, "", csvTiyn(report.protectionTiyn), csvTiyn(report.guaranteeTiyn), csvTiyn(report.totalTiyn), ""]);
+  rows.push([t.income.total, "", csvTiyn(report.guaranteeTiyn), csvTiyn(report.totalTiyn), ""]);
   return toCsv(t.csvHeaders.income, rows);
 }
 

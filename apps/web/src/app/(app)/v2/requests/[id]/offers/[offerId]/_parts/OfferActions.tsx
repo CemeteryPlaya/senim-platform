@@ -50,7 +50,7 @@ export function AcceptButton({ device, offerId, proposalId, label, confirmTitle,
 function ProposeForm({ device, offerId, onDone }: { device: Device; offerId: string; onDone: () => void }) {
   const form = useActionForm(proposePriceAction, { onSuccess: onDone });
   const [tiyn, setTiyn] = useState<bigint | null>(null);
-  // Сколько заплатит покупатель по введённой цене: цена + защита сделки 2% — тот же расчёт, что у сделки.
+  // Сколько заплатит покупатель по введённой цене: цена без доплат (ADR-015) — тот же расчёт, что у сделки.
   const total = tiyn !== null && tiyn > 0n && tiyn <= MAX_PRICE_TIYN ? computeDealMoney(tiyn).buyerTotalTiyn : null;
   return (
     <form onSubmit={form.onSubmit} noValidate>

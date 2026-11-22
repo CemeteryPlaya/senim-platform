@@ -15,7 +15,7 @@ describe("MirrorPayout", () => {
   });
   it("тексты — из ru", () => {
     expect(text).toContain(ru.payments.mirror.title);
-    expect(text).toContain("Гарантия оплаты и клиента (4%)");
+    expect(text).toContain("Гарантия оплаты и клиента (6%)");
     expect(text).toContain(ru.payments.mirror.guarantee);
   });
 });

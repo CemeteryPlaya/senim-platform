@@ -118,7 +118,7 @@ describe("ПДн сторон — из identity (RevealPartyDetails), не из 
     const data = await contractData(db, f.dealId, META);
     expect(data.client).toEqual({ fullName: f.client.fullName, iin: identityFake.personIinOf(f.client.id) });
     expect(data.executor).toMatchObject({ legalForm: "IP", binIin: identityFake.partyNumbersOf(f.executor.id)?.binIin, signerFullName: f.executor.fullName });
-    expect(data.money).toMatchObject({ priceTiyn: 100_000_00n, buyerTotalTiyn: 102_000_00n, payoutTiyn: 96_000_00n });
+    expect(data.money).toMatchObject({ priceTiyn: 100_000_00n, buyerTotalTiyn: 100_000_00n, payoutTiyn: 94_000_00n });
   });
 
   it("исполнителя нет в identity — оферта не выпускается (документ без ИИН/БИН стороны недействителен)", async () => {
@@ -146,7 +146,7 @@ describe("ПДн сторон — из identity (RevealPartyDetails), не из 
     expect(reveals()).toHaveLength(1);
     expect(data.executor).toMatchObject({ binIin: identityFake.partyNumbersOf(f.executor.id)?.binIin, iban: IBAN });
     expect(data.client.iin).toBe(identityFake.personIinOf(f.client.id));
-    expect(data.release).toEqual({ masterTiyn: 96_000_00n, platformTiyn: 6_000_00n, refundTiyn: 0n });
+    expect(data.release).toEqual({ masterTiyn: 94_000_00n, platformTiyn: 6_000_00n, refundTiyn: 0n });
   });
 
   it("расписка: identity недоступен — расписки нет, транзакция выпуска не открывается, журнал денег не меняется", async () => {

@@ -6,7 +6,7 @@ const t = ru.payments.mirror;
 
 export type MirrorPayoutProps = { payoutTiyn: bigint; guaranteeTiyn: bigint; className?: string };
 
-/** Зеркальный расчёт мастера: «Вы получите после приёмки» и гарантия (4%). Суммы — тиыны, считает computeDealMoney. */
+/** Зеркальный расчёт мастера: «Вы получите после приёмки» и гарантия (6%). Суммы — тиыны, считает computeDealMoney. */
 export function MirrorPayout({ payoutTiyn, guaranteeTiyn, className }: MirrorPayoutProps) {
   return (
     <div role="note" className={cn("flex flex-col gap-1 rounded-card bg-accent-soft p-4 text-ink", className)}>

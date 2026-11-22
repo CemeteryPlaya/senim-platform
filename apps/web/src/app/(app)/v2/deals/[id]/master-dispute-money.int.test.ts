@@ -17,15 +17,16 @@ vi.mock("@/platform/device", () => ({ getDevice: async () => h.device }));
 vi.mock("next/headers", async () => (await import("../../../../../../test/factories/identity")).nextHeadersMock);
 vi.mock("next/navigation", async (importActual) => ({ ...(await importActual<typeof import("next/navigation")>()), useRouter: () => ({ refresh: () => undefined, replace: () => undefined }) }));
 
-// Спор и история денег глазами мастера (сделка dealAt: цена 100 000 ₸, покупатель платит 102 000 ₸, мастер получает 96 000 ₸).
+// Спор и история денег глазами мастера (сделка dealAt: цена 100 000 ₸, покупатель платит её без доплат — ADR-015, мастер получает 94 000 ₸).
 
 const td = ru.app.masterDispute;
 const tm = ru.app.masterMoney;
 const DESCRIPTION = "Покупатель отказывается принимать работу без объяснения причин";
 const FORBIDDEN = /комисси|эскроу|тестов|демо|платформ|заказчик|выплат|договор/i;
-const BUYER_TOTAL = 102_000_00n;
-const PROTECTION = 2_000_00n;
-const YOU_GET = 96_000_00n;
+const BUYER_TOTAL = 100_000_00n;
+/** Цена по оферте: мастер видит её в смете; с ADR-015 сумма покупателя равна ей и скрытой больше не бывает. */
+const PRICE = 100_000_00n;
+const YOU_GET = 94_000_00n;
 
 beforeEach(() => {
   freshBrowser({ "user-agent": "vitest" });
@@ -47,14 +48,15 @@ const h1s = (out: string) => [...out.matchAll(/<h1[^>]*>([^<]*)<\/h1>/g)].map((m
 const primaries = (out: string) => [...out.matchAll(/data-primary-action/g)].length;
 const timelineItems = (out: string) => (out.match(new RegExp(`<ol aria-label="${tm.operationsLabel}"[\\s\\S]*?</ol>`))?.[0].match(/<li/g) ?? []).length;
 
-/** В разметке мастера нет сумм покупателя: «к оплате», защита сделки (2%), остаток и возврат с защитой. */
+/**
+ * В разметке мастера нет сумм и слов покупателя: «к оплате», защита сделки, остаток и возврат (кроме суммы, равной цене по
+ * оферте: покупатель платит цену без доплат — ADR-015, а цену мастер видит в своей смете).
+ */
 function expectNoBuyerAmounts(out: string, extra: bigint[] = []) {
   const text = plain(out);
-  for (const tiyn of [BUYER_TOTAL, PROTECTION, ...extra]) expect(amountsIn(text), money(tiyn)).not.toContain(money(tiyn));
-  expect(text).not.toMatch(/2\s?%|защит[аыеу] сделки|к оплате/i);
+  for (const tiyn of extra.filter((x) => x !== PRICE)) expect(amountsIn(text), money(tiyn)).not.toContain(money(tiyn));
+  expect(text).not.toMatch(/защит[аыеу] сделки|к оплате/i);
   expect(text).not.toMatch(FORBIDDEN);
-  // Снимок денег сделки (защита, сумма покупателя) не уходит в атрибуты разметки.
-  expect(out).not.toContain(String(BUYER_TOTAL));
 }
 
 async function outcome(run: () => Promise<string>): Promise<string> {
@@ -322,7 +324,8 @@ describe("история денег мастера: по записям журн
     const platform = journal.find((e) => e.type === "SPLIT_PLATFORM");
     expect(text).toContain(tm.payout.DONE);
     expect(amountsIn(text)).toContain(money(master?.amountTiyn ?? 0n));
-    expect(amountsIn(text)).not.toContain(money(platform?.amountTiyn ?? 0n));
+    // Доля платформы (SPLIT_PLATFORM) мастеру строкой не показывается; по сумме она равна его гарантии 6% (ADR-015), которую он видит.
+    expect(platform?.amountTiyn).toBe(PRICE - YOU_GET);
     expect(text).toContain(ru.app.masterDeal.card.money.completed.done);
   });
 

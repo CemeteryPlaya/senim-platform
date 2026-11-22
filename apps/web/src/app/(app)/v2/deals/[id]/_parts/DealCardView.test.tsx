@@ -34,7 +34,7 @@ const nowBase: NowInput = {
 };
 
 function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: Partial<NowInput> = {}): CardView {
-  const money = moneyView({ block, estimate: { priceTiyn: 100_000_00n, extraTiyn: 2_000_00n, totalTiyn: 102_000_00n }, snapshot: { priceTiyn: 100_000_00n, protectionTiyn: 2_000_00n, buyerTotalTiyn: 102_000_00n } });
+  const money = moneyView({ block, estimate: { priceTiyn: 100_000_00n, extraTiyn: 0n, totalTiyn: 100_000_00n }, snapshot: { priceTiyn: 100_000_00n, buyerTotalTiyn: 100_000_00n } });
   return {
     id: "d1",
     side: "CLIENT",
@@ -81,9 +81,9 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки, %s
     expect(out).toContain(t.now.waitReady.title);
   });
 
-  it("деньги: «Защита сделки (2%)» с пояснением, «История денег»; без слов «комиссия», «эскроу», «тестов», «платформ», «демо», «отклик»", () => {
+  it("деньги: цена по оферте с пояснением, без доплат, «История денег»; без слов «комиссия», «эскроу», «тестов», «платформ», «демо», «отклик»", () => {
     const out = text(<DealCardView view={view({}, held)} device={device} />);
-    expect(out).toContain("Защита сделки (2%)");
+    expect(out).not.toMatch(/Защита сделки|2\s?%/);
     expect(out).toContain(t.money.explain.label);
     expect(out).toContain(t.money.history);
     expect(out).toContain("Деньги в банке под защитой");

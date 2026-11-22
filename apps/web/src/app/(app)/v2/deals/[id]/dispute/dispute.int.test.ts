@@ -146,8 +146,8 @@ describe("спор открыт", () => {
     expect(plain(out)).toContain(t.open.now.body);
     expect(plain(out)).toContain(t.reasons.DEADLINE);
     expect(plain(out)).toContain(DESCRIPTION);
-    expect(plain(out)).toContain(money(102_000_00n));
-    expect(plain(out)).not.toContain(money(96_000_00n));
+    expect(plain(out)).toContain(money(100_000_00n));
+    expect(plain(out)).not.toContain(money(94_000_00n));
     expect(out).toContain('name="position"');
     expect(primaries(out)).toBe(1);
     expect(plain(out)).not.toMatch(FORBIDDEN);

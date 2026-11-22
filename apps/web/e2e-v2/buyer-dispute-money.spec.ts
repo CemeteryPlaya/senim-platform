@@ -79,14 +79,14 @@ test.beforeEach(() => {
   test.setTimeout(120_000);
 });
 
-test("история денег оплаченной сделки: блок денег, строка оплаты, «Защита сделки (2%)», выписка; нет «комиссии», «эскроу», «тестового»", async ({ browser }, info) => {
+test("история денег оплаченной сделки: блок денег, строка оплаты, без доплат к цене, выписка; нет «комиссии», «эскроу», «тестового»", async ({ browser }, info) => {
   const page = await pageOf(browser, info, "aigerim");
   const href = await dealHref(page, "Шкаф-купе");
   await open(page, `${href}/money`);
   await expectScreen(page, "Шкаф-купе");
   await expect(page.locator("h1")).toHaveText(money.title);
   await expect(page.locator("main")).toContainText(t.card.money.protected.title);
-  await expect(page.locator("main")).toContainText("Защита сделки (2%)");
+  await expect(page.locator("main")).not.toContainText("Защита сделки");
   await expect(page.getByRole("list", { name: money.operationsLabel }).getByText(money.type.HOLD)).toBeVisible();
   await expect(page.getByRole("link", { name: ru.app.deal.openDocument.MONEY_STATEMENT })).toBeVisible();
   await expect(page.getByRole("button", { name: money.shareNamed("Выписка по деньгам") }).first()).toBeVisible();
@@ -100,7 +100,7 @@ test("история денег завершённой и возвращённо
   const done = page.getByRole("list", { name: money.operationsLabel });
   await expect(done.getByText(money.payout)).toBeVisible();
   // Доля мастера и доход сервиса покупателю не показываются.
-  await expect(page.locator("main")).not.toContainText(/гарантия оплаты|4%|доход/i);
+  await expect(page.locator("main")).not.toContainText(/гарантия оплаты|6%|доход/i);
   await open(page, `${await dealHref(page, "Прихожая", "done")}/money`);
   await expectScreen(page, "Прихожая");
   await expect(page.getByRole("list", { name: money.operationsLabel }).getByText(money.type.REFUND)).toBeVisible();

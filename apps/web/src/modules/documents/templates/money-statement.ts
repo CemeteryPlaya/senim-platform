@@ -15,7 +15,7 @@ export const OPERATION_LABEL: Record<StatementEntry["type"], string> = {
   FREEZE: "Выплата заморожена на время спора",
   UNFREEZE: "Выплата разморожена",
   SPLIT_MASTER: "Выплачено мастеру",
-  SPLIT_PLATFORM: "Доход платформы (защита сделки и гарантия оплаты)",
+  SPLIT_PLATFORM: "Доход платформы (гарантия оплаты и клиента)",
   REFUND: "Возврат покупателю",
 };
 

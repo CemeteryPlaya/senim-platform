@@ -7,7 +7,7 @@ import { open } from "./support";
 
 /**
  * Экран предложения мастера глазами засеянного покупателя (Айгерим, тендер на кухню и сделка по прихожей): заголовок
- * «Предложение мастера» и подпись «Исполнитель №N» без имени, смета с защитой 2% из той же формулы, одно главное
+ * «Предложение мастера» и подпись «Исполнитель №N» без имени, смета без доплат из той же формулы, одно главное
  * действие, пояснение «Что это?», подтверждение «Принять» (открыть и отказаться) и ошибка у поля своей цены. Сценарий
  * ТОЛЬКО ЧИТАЕТ: ничего не принимается и не отправляется (ошибочная цена отклоняется схемой до модуля). Нужное состояние
  * берётся из сида; если его нет (сид изменил прогон flows) — падение с текстом «нужен пересев», а не пропуск.
@@ -44,7 +44,7 @@ const openPrice = (offer: BuyerOffer): bigint => {
   return open.amountTiyn;
 };
 
-test("цена мастера: «Принять X», смета с защитой 2%, «Что это?», подтверждение без принятия, ошибка у поля своей цены", async ({ page }) => {
+test("цена мастера: «Принять X», смета без доплат, «Что это?», подтверждение без принятия, ошибка у поля своей цены", async ({ page }) => {
   const offer = await seedOffer("masterPrice");
   await openOffer(page, offer);
 
@@ -53,21 +53,22 @@ test("цена мастера: «Принять X», смета с защито�
   await expect(primary).toHaveText(t.actions.accept(formatMoney(m.priceTiyn)));
   const main = page.getByRole("main");
   await expect(main.getByText(t.money.title, { exact: true })).toBeVisible();
-  await expect(main.getByText(t.money.protection, { exact: true })).toBeVisible();
-  for (const amount of [m.protectionTiyn, m.buyerTotalTiyn]) await expect(main.getByText(formatMoney(amount)).first()).toBeVisible();
+  await expect(main.getByText(t.money.total, { exact: true })).toBeVisible();
+  await expect(main.getByText(formatMoney(m.buyerTotalTiyn)).first()).toBeVisible();
+  await expect(main).not.toContainText("Защита сделки");
 
-  // Пояснение защиты сделки: шторка на телефоне, поповер на компьютере.
+  // Пояснение «деньги в банке под защитой»: шторка на телефоне, поповер на компьютере.
   await page.getByRole("button", { name: t.money.explain.label }).click();
   await expect(page.getByText(t.money.explain.paragraphs[1])).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByText(t.money.explain.paragraphs[1])).toBeHidden();
 
-  // Подтверждение: цена, сумма к оплате и защита; «Отмена» — ничего не создано, адрес прежний.
+  // Подтверждение: цена и сумма к оплате (без доплат); «Отмена» — ничего не создано, адрес прежний.
   await primary.click();
   const dialog = page.getByRole("dialog", { name: t.acceptConfirm.title(formatMoney(m.priceTiyn)) });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText(
-    t.acceptConfirm.description({ price: formatMoney(m.priceTiyn), protection: formatMoney(m.protectionTiyn), total: formatMoney(m.buyerTotalTiyn) }),
+    t.acceptConfirm.description({ price: formatMoney(m.buyerTotalTiyn) }),
   );
   await dialog.getByRole("button", { name: ru.app.kit.cancel }).click();
   await expect(dialog).toBeHidden();

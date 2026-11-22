@@ -81,7 +81,7 @@ describe("главная гостя (лендинг)", () => {
         expect(count(out, 'data-theme="dark"')).toBe(1);
         for (const node of t.flow) expect(out).toContain(`>${node.label}</p>`);
         expect(out).toContain(formatMoney(200_000n * 100n));
-        expect(out).toContain(formatMoney(204_000n * 100n));
+        expect(out).not.toContain(formatMoney(204_000n * 100n));
         expect(out).toContain(t.explainLabel);
         for (const text of t.trustParagraphs) expect(out).toContain(text);
       });
@@ -198,7 +198,8 @@ describe("главная гостя (лендинг)", () => {
     const all = JSON.stringify(ru.app.guest.home) + JSON.stringify(ru.app.guest.about);
     expect(all).not.toMatch(/эскроу|комисси|демо|тестов/i);
     expect(JSON.stringify(ru.app.guest.home)).not.toMatch(/приёмк/i);
-    expect(all).toContain("Защита сделки (2%)");
+    expect(all).not.toMatch(/Защита сделки|2\s?%\)/);
+    expect(all).toContain("без доплат");
     expect(t.title).toContain("в банке");
     expect(JSON.stringify(t.facts)).toContain("Не проходят через счета сервиса");
   });

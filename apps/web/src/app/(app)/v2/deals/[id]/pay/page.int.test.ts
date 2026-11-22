@@ -71,8 +71,9 @@ describe("экран оплаты", () => {
     expect(out.match(/<h1/g)).toHaveLength(1);
     expect(out).toContain(`>${t.title}<`);
     expect(out).toContain(`href="/v2/deals/${f.dealId}"`);
-    for (const sum of [m.priceTiyn, m.protectionTiyn, m.buyerTotalTiyn]) expect(plain(out)).toContain(money(sum));
-    expect(plain(out)).toContain(t.money.protection);
+    for (const sum of [m.priceTiyn, m.buyerTotalTiyn]) expect(plain(out)).toContain(money(sum));
+    expect(m.buyerTotalTiyn).toBe(m.priceTiyn);
+    expect(plain(out)).not.toContain("Защита сделки");
     expect(plain(out)).toContain(t.money.explain.label);
     expect(plain(out)).toContain(t.where.section);
     expect(plain(out)).toContain(ru.consent.documents.BANK_TRANSFER.title);

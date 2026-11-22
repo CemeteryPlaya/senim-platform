@@ -81,7 +81,7 @@ describe("карточка сделки покупателя: «что сейч�
     expect(out).toContain(`aria-label="${t.card.actions.menu}"`);
   });
 
-  it("ждём оплату: «Оплатить 102 000 ₸» — на экран оплаты; деньги «К оплате» с «Защита сделки (2%)»; контакты мастера открыты", async () => {
+  it("ждём оплату: «Оплатить 100 000 ₸» — на экран оплаты; деньги «К оплате» без доплат; контакты мастера открыты", async () => {
     const client = await buyer();
     const f = await dealAt("SIGNED", { client });
     await signInAs(client);
@@ -89,21 +89,21 @@ describe("карточка сделки покупателя: «что сейч�
     const out = await card(f.dealId);
     expect(primaries(out)).toHaveLength(1);
     expect(primaries(out)[0]?.href).toBe(`/v2/deals/${f.dealId}/pay`);
-    expect(plain(primaries(out)[0]?.label ?? "")).toBe(`Оплатить ${money(102_000_00n)}`);
+    expect(plain(primaries(out)[0]?.label ?? "")).toBe(`Оплатить ${money(100_000_00n)}`);
     expect(plain(out)).toContain(t.card.money.awaiting.title);
-    expect(plain(out)).toContain("Защита сделки (2%)");
+    expect(plain(out)).not.toContain("Защита сделки");
     expect(out).toContain("tel:");
     expect(shown(out)).not.toMatch(FORBIDDEN);
   });
 
-  it("ручной провайдер после «Оплатить»: «Переведите 102 000 ₸ по реквизитам из оферты», ссылка на PDF оферты, кнопки нет", async () => {
+  it("ручной провайдер после «Оплатить»: «Переведите 100 000 ₸ по реквизитам из оферты», ссылка на PDF оферты, кнопки нет", async () => {
     const client = await buyer();
     const f = await dealAt("SIGNED", { client, provider: "manual" });
     await payForDeal(client, { dealId: f.dealId });
     const contract = await db.document.findFirstOrThrow({ where: { dealId: f.dealId, kind: "CONTRACT" } });
     await signInAs(client);
     const out = await card(f.dealId);
-    expect(plain(out)).toContain(`Переведите ${money(102_000_00n)} по реквизитам из оферты`);
+    expect(plain(out)).toContain(`Переведите ${money(100_000_00n)} по реквизитам из оферты`);
     expect(plain(out)).toContain(now.payTransfer.next);
     expect(out).toContain(`href="/api/documents/${contract.id}/pdf"`);
     expect(plain(out)).toContain(t.card.money.transfer.title);
@@ -208,7 +208,7 @@ describe("карточка сделки покупателя: «что сейч�
     expect((await db.deal.findUniqueOrThrow({ where: { id: f.dealId } })).status).toBe("REFUNDED");
     expect(h2s(out)).toContain(now.refunded.title);
     expect(plain(out)).toContain(t.card.money.refunded.done);
-    expect(plain(out)).toContain(money(102_000_00n));
+    expect(plain(out)).toContain(money(100_000_00n));
   });
 
   it("завершена: без отзывов — «Сделка завершена»; с флагом отзывов — «Оставить отзыв»", async () => {
@@ -249,7 +249,7 @@ describe("карточка сделки покупателя: «что сейч�
     expect(plain(out)).not.toContain(ru.app.deal.allStepsDone);
     expect(plain(out)).toContain(t.card.money.completed.title);
     expect(plain(out)).toContain(t.card.money.refundedRow);
-    expect(plain(out)).toContain(money(102_000_00n));
+    expect(plain(out)).toContain(money(100_000_00n));
   });
 
   it("спор решён полным возвратом: «Спор решён: деньги вернулись вам»", async () => {
@@ -410,10 +410,10 @@ describe("карточка сделки мастера: «что сейчас» 
   const m = ru.app.master.deal;
   const mn = m.now;
   const md = ru.app.masterDeal.card;
-  /** Суммы покупателя, которых мастер не видит: оплата с защитой 102 000 ₸ и защита 2 000 ₸. */
-  const buyerMoney = (out: string) => [money(102_000_00n), money(2_000_00n)].filter((sum) => plain(out).includes(sum));
-  /** Слова покупателя и v1, которых нет у мастера: защита сделки, «2%», «к оплате», «заказчик», «выплата», «договор». */
-  const BUYER_WORDS = /Защита сделки|2\s?%|к оплате|заказчик|выплат|договор/i;
+  /** Суммы покупателя, которых мастер не видит: с ADR-015 покупатель платит цену без доплат — отдельных сумм покупателя нет. */
+  const buyerMoney = (out: string) => [money(2_000_00n)].filter((sum) => plain(out).includes(sum));
+  /** Слова покупателя и v1, которых нет у мастера: защита сделки, «к оплате», «заказчик», «выплата», «договор». */
+  const BUYER_WORDS = /Защита сделки|к оплате|заказчик|выплат|договор/i;
 
   async function master(): Promise<Executor> {
     const executor = await makeExecutor();
@@ -432,7 +432,7 @@ describe("карточка сделки мастера: «что сейчас» 
     expect(plain(out)).toContain(md.money.youGetAfter);
     expect(plain(out)).toContain(md.money.awaiting);
     expect(plain(out)).toContain(md.money.guarantee);
-    expect(plain(out)).toContain(money(96_000_00n));
+    expect(plain(out)).toContain(money(94_000_00n));
     expect(plain(out)).toContain(md.buyer.hidden);
     expect(out).not.toContain("tel:");
     expect(out).toContain(`href="/v2/chats/${f.offerId}"`);
@@ -470,7 +470,7 @@ describe("карточка сделки мастера: «что сейчас» 
     expect(plain(out)).toContain(md.money.youGetAfter);
     expect(plain(out)).toContain(md.money.protected);
     expect(out).toContain("bg-accent-soft");
-    expect(plain(out)).toContain(money(96_000_00n));
+    expect(plain(out)).toContain(money(94_000_00n));
     expect(buyerMoney(out)).toEqual([]);
     // После оплаты мастер не отменяет (только покупатель), но спор открыть может — меню есть.
     expect(out).toContain(`aria-label="${t.card.actions.menu}"`);
@@ -538,7 +538,7 @@ describe("карточка сделки мастера: «что сейчас» 
     const out = await card(f.dealId);
     expect(h2s(out)).toContain(mn.done.title);
     expect(plain(out)).toContain(md.money.completed.done);
-    expect(plain(out)).toContain(money(96_000_00n));
+    expect(plain(out)).toContain(money(94_000_00n));
     expect(buyerMoney(out)).toEqual([]);
   });
 
@@ -589,8 +589,7 @@ describe("список «Сделки» мастера", () => {
     expect(out).toContain(`href="/v2/deals/${asMaster.dealId}"`);
     expect(out).not.toContain(asClient.dealId);
     expect(plain(out)).toContain(m.status.start);
-    expect(plain(out)).toContain(money(96_000_00n));
-    expect(plain(out)).not.toContain(money(102_000_00n));
+    expect(plain(out)).toContain(money(94_000_00n));
     expect(plain(out)).toContain(ru.app.masterDeal.list.otherRole);
     // После переключения роли — снова «Сделки» (другой роли).
     expect(out).toContain(`/switch-role?to=CLIENT&amp;returnTo=${encodeURIComponent("/v2/deals")}"`);

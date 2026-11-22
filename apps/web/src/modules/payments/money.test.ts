@@ -4,27 +4,28 @@ import { computeDealMoney, computeSplit, kztToTiyn, MAX_PRICE_TIYN } from "./mon
 
 const price = fc.bigInt({ min: 1n, max: MAX_PRICE_TIYN });
 
-describe("расчёт денег сделки (ТЗ п. 6)", () => {
-  it("пример ТЗ: X = 1 500 000 ₸ → 1 530 000 / 1 440 000 / 90 000", () => {
+describe("расчёт денег сделки (ТЗ п. 6; решение основателей 22.11.2026 — 6% только с мастера)", () => {
+  it("X = 1 500 000 ₸ → покупатель платит 1 500 000, мастер получает 1 410 000, доход 90 000", () => {
     expect(computeDealMoney(kztToTiyn(1_500_000))).toEqual({
       priceTiyn: 150_000_000n,
-      protectionTiyn: 3_000_000n,
-      buyerTotalTiyn: 153_000_000n,
-      guaranteeTiyn: 6_000_000n,
-      payoutTiyn: 144_000_000n,
+      protectionTiyn: 0n,
+      buyerTotalTiyn: 150_000_000n,
+      guaranteeTiyn: 9_000_000n,
+      payoutTiyn: 141_000_000n,
       platformIncomeTiyn: 9_000_000n,
     });
   });
 
-  it("пример ТЗ п. 4.1: X = 1 650 000 ₸ → выплачено мастеру 1 584 000 ₸, защита 33 000 ₸", () => {
+  it("покупатель ничего сверх цены не платит: защиты сделки нет", () => {
     const money = computeDealMoney(kztToTiyn(1_650_000));
-    expect(money.payoutTiyn).toBe(kztToTiyn(1_584_000));
-    expect(money.protectionTiyn).toBe(kztToTiyn(33_000));
+    expect(money.protectionTiyn).toBe(0n);
+    expect(money.buyerTotalTiyn).toBe(kztToTiyn(1_650_000));
+    expect(money.payoutTiyn).toBe(kztToTiyn(1_551_000));
   });
 
-  it("защита округляется вверх, выплата — вниз до тиына", () => {
-    // 2% от 101 тиына = 2,02 → 3; 96% от 101 = 96,96 → 96.
-    expect(computeDealMoney(101n)).toMatchObject({ protectionTiyn: 3n, payoutTiyn: 96n, guaranteeTiyn: 5n, platformIncomeTiyn: 8n });
+  it("выплата округляется вниз до тиына, гарантия поглощает округление", () => {
+    // 94% от 101 тиына = 94,94 → 94; гарантия 7.
+    expect(computeDealMoney(101n)).toMatchObject({ protectionTiyn: 0n, buyerTotalTiyn: 101n, payoutTiyn: 94n, guaranteeTiyn: 7n, platformIncomeTiyn: 7n });
   });
 
   it("цена ≤ 0 или больше потолка — ошибка, а не странная сумма", () => {
@@ -33,31 +34,29 @@ describe("расчёт денег сделки (ТЗ п. 6)", () => {
     expect(() => computeDealMoney(MAX_PRICE_TIYN + 1n)).toThrow();
   });
 
-  it("свойство: оплачено = выплата мастеру + доход платформы, до тиына", () => {
+  it("свойство: оплачено = цена = выплата мастеру + доход платформы, до тиына", () => {
     fc.assert(
       fc.property(price, (x) => {
         const m = computeDealMoney(x);
-        return m.buyerTotalTiyn === m.payoutTiyn + m.platformIncomeTiyn && m.buyerTotalTiyn === x + m.protectionTiyn && m.payoutTiyn === x - m.guaranteeTiyn;
+        return m.buyerTotalTiyn === x && m.protectionTiyn === 0n && m.buyerTotalTiyn === m.payoutTiyn + m.platformIncomeTiyn && m.payoutTiyn === x - m.guaranteeTiyn;
       }),
     );
   });
 
-  it("свойство: защита — наименьшее целое ≥ 2% X, выплата — наибольшее целое ≤ 96% X", () => {
+  it("свойство: выплата — наибольшее целое ≤ 94% X", () => {
     fc.assert(
       fc.property(price, (x) => {
-        const m = computeDealMoney(x);
-        const p = m.protectionTiyn * 100n;
-        const o = m.payoutTiyn * 100n;
-        return p >= x * 2n && p - 100n < x * 2n && o <= x * 96n && o + 100n > x * 96n;
+        const o = computeDealMoney(x).payoutTiyn * 100n;
+        return o <= x * 94n && o + 100n > x * 94n;
       }),
     );
   });
 
-  it("свойство: доход платформы в пределах 6% X ± 2 тиына округления", () => {
+  it("свойство: доход платформы — 6% X, округлённые вверх (меньше чем на тиын)", () => {
     fc.assert(
       fc.property(price, (x) => {
         const income = computeDealMoney(x).platformIncomeTiyn * 100n;
-        return income >= x * 6n && income < x * 6n + 200n;
+        return income >= x * 6n && income < x * 6n + 100n;
       }),
     );
   });
@@ -68,7 +67,7 @@ describe("раздел по спору (ADR-009, OPEN_QUESTIONS №38)", () => {
 
   it("мастеру вся цена — то же, что обычная выплата, возврат 0", () => {
     const x = kztToTiyn(1_500_000);
-    expect(computeSplit(x, x)).toEqual({ masterTiyn: 144_000_000n, platformTiyn: 9_000_000n, refundTiyn: 0n });
+    expect(computeSplit(x, x)).toEqual({ masterTiyn: 141_000_000n, platformTiyn: 9_000_000n, refundTiyn: 0n });
   });
 
   it("мастеру 0 — полный возврат всего оплаченного, доход платформы 0", () => {
