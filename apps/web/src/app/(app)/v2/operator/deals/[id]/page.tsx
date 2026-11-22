@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ru } from "@/i18n/ru";
 import { Card, KeyValueList, Money, MoneyPanel, Notice, PageTitle, Section, Split, Stack, StatusChip, TextLink, Timeline } from "@/kit";
+import { formatPhone } from "@/modules/identity";
 import { getOperatorDeal, type OperatorDeal, type ReleasePackage } from "@/modules/operator";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
@@ -64,6 +65,15 @@ function ReleaseSection({ dealId, pack }: { dealId: string; pack: ReleasePackage
   );
 }
 
+/** Телефон стороны полностью, ссылкой «позвонить»: оператор сверяет данные и звонит для уточнения. */
+function PhoneLink({ phone }: { phone: string }) {
+  return (
+    <TextLink href={`tel:${phone}`}>
+      <span className="tabular-nums">{formatPhone(phone)}</span>
+    </TextLink>
+  );
+}
+
 function Summary({ deal }: { deal: OperatorDeal["deal"] }) {
   return (
     <Section title={c.summary} id="summary">
@@ -71,7 +81,9 @@ function Summary({ deal }: { deal: OperatorDeal["deal"] }) {
         <KeyValueList
           items={[
             { label: c.client, value: deal.clientName ?? t.none },
+            { label: c.clientPhone, value: <PhoneLink phone={deal.clientPhone} /> },
             { label: c.executor, value: c.executorValue(deal.executorNumber, deal.executorName) },
+            { label: c.executorPhone, value: <PhoneLink phone={deal.executorPhone} /> },
             { label: c.offer, value: deal.signedAt ? c.offerSigned : c.offerNotSigned },
             { label: c.price, value: <Money tiyn={deal.priceTiyn} /> },
             { label: c.buyerTotal, value: <Money tiyn={deal.buyerTotalTiyn} /> },

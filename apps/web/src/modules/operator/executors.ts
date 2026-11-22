@@ -56,7 +56,8 @@ export async function getExecutorCard(user: CurrentUser, profileId: string) {
   if (!profile) return fail.notFound();
   const { user: owner, ...rest } = profile;
   const history = (await scopeHistory(`executor:${profileId}`)).map(toAuditView);
-  return { ...rest, phoneLast4: last4(owner.phone), history };
+  // Телефон полностью — оператор сверяет данные и звонит мастеру (решение владельца 22.11.2026); phoneLast4 — для v1.
+  return { ...rest, phone: owner.phone, phoneLast4: last4(owner.phone), history };
 }
 
 export async function reviewRegistration(user: CurrentUser, input: ReviewRegistrationInput): Promise<void> {

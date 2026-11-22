@@ -115,6 +115,10 @@ export type OperatorDeal = {
     platformIncomeTiyn: bigint;
     signedAt: Date | null;
     clientName: string | null;
+    /** Телефон покупателя полностью: оператор сверяет данные и звонит сторонам. */
+    clientPhone: string;
+    /** Телефон владельца аккаунта мастера полностью. */
+    executorPhone: string;
     executorNumber: number;
     executorName: string;
     /** Номер заявки сделки — ссылка «Файлы заявки» (дизайн-проект покупателя). */
@@ -161,8 +165,8 @@ export async function getOperatorDeal(operator: CurrentUser, dealId: string): Pr
       payoutTiyn: true,
       platformIncomeTiyn: true,
       signedAt: true,
-      client: { select: { fullName: true } },
-      executor: { select: { publicNumber: true, legalName: true } },
+      client: { select: { fullName: true, phone: true } },
+      executor: { select: { publicNumber: true, legalName: true, user: { select: { phone: true } } } },
       request: { select: { number: true } },
       documents: { orderBy: [{ createdAt: "asc" }, { version: "asc" }], select: documentSelect },
       disputes: { where: { status: "OPEN" }, select: { id: true } },
@@ -203,6 +207,8 @@ export async function getOperatorDeal(operator: CurrentUser, dealId: string): Pr
       platformIncomeTiyn: deal.platformIncomeTiyn,
       signedAt: deal.signedAt,
       clientName: deal.client.fullName,
+      clientPhone: deal.client.phone,
+      executorPhone: deal.executor.user.phone,
       executorNumber: deal.executor.publicNumber,
       executorName: deal.executor.legalName,
       requestNumber: deal.request.number,

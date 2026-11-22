@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Card, EmptyState, KeyValueList, PageTitle, Section, Split, Stack, StatusChip, Steps, Timeline, type KeyValueItem } from "@/kit";
-import type { CurrentUser } from "@/modules/identity";
+import { ActionDock, Card, EmptyState, KeyValueList, PageTitle, Section, Split, Stack, StatusChip, Steps, TextLink, Timeline, type KeyValueItem } from "@/kit";
+import { formatPhone, type CurrentUser } from "@/modules/identity";
 import { getExecutorCard } from "@/modules/operator";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
@@ -43,7 +43,7 @@ function detailsOf(x: ExecutorCard): KeyValueItem[] {
     },
     { label: c.segment, value: x.segment ? q.segments[x.segment] : q.noSegment },
     { label: c.binIin, value: <span className="tabular-nums">{q.masked(x.binIinLast4)}</span> },
-    { label: c.phone, value: <span className="tabular-nums">{q.masked(x.phoneLast4)}</span> },
+    { label: c.phone, value: <TextLink href={`tel:${x.phone}`}><span className="tabular-nums">{formatPhone(x.phone)}</span></TextLink> },
     { label: c.registered, value: formatDate(x.createdAt) },
     { label: c.experience, value: c.years(x.yearsExperience) },
     { label: c.specializations, value: x.specializations.map((s) => s.name).join(", ") || q.none },

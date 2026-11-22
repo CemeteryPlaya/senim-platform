@@ -71,6 +71,12 @@ describe("деньги в банке: кнопки провайдера manual",
 
     const card = await getOperatorDeal(operator, f.dealId);
     const deal = await dealOf(f.dealId);
+    // Оператор сверяет данные и звонит сторонам: телефоны покупателя и мастера — полностью.
+    const parties = await db.deal.findUniqueOrThrow({
+      where: { id: f.dealId },
+      select: { client: { select: { phone: true } }, executor: { select: { user: { select: { phone: true } } } } },
+    });
+    expect(card.deal).toMatchObject({ clientPhone: parties.client.phone, executorPhone: parties.executor.user.phone });
     expect(card.releasePackage).toMatchObject({
       act: { kind: "ACCEPTANCE_ACT" },
       receipt: null,

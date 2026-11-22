@@ -259,7 +259,7 @@ describe("смена сегмента", () => {
 });
 
 describe("карточка исполнителя", () => {
-  it("содержит историю из журнала и не содержит телефон целиком", async () => {
+  it("содержит историю из журнала и телефон мастера целиком (решение владельца 22.11.2026: оператор звонит для уточнения)", async () => {
     const operator = await makeOperator();
     const ex = await makeExecutor({ status: "PENDING" });
     await reviewRegistration(operator, { profileId: ex.executor.id, decision: { approve: true, segment: "COMFORT" } });
@@ -268,7 +268,8 @@ describe("карточка исполнителя", () => {
 
     expect(card.history.map((e) => e.action)).toEqual(["executor.approved"]);
     expect(card.phoneLast4).toBe(ex.phone.slice(-4));
-    expect(JSON.stringify(card)).not.toContain(ex.phone);
+    // Оператор сверяет данные и звонит мастеру: в v2 телефон полностью (phoneLast4 остаётся для замороженного v1).
+    expect(card.phone).toBe(ex.phone);
   });
 
   it("чужой роли недоступна", async () => {
