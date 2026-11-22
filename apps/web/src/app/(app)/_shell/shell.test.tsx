@@ -215,6 +215,11 @@ describe("DesktopShell", () => {
       </DesktopShell>,
     );
     expect(d).toContain(`>${ru.common.brand}</a>`);
+    // Название продукта у вошедшего — лендинг (как до входа), «Главная» в меню — его дом.
+    expect(d).toMatch(new RegExp(`<a [^>]*href="/v2/landing"[^>]*>${ru.common.brand}</a>`));
+    expect(d).toMatch(/<nav[\s\S]*href="\/v2"/);
+    const g = html(<DesktopShell nav={guestNav} user={null}>x</DesktopShell>);
+    expect(g).toMatch(new RegExp(`<a [^>]*href="/v2"[^>]*>${ru.common.brand}</a>`));
     const bell = tagWith(d, 'href="/v2/notifications"');
     expect(bell).toContain(`aria-label="${ru.app.shell.notifications}"`);
     const avatar = tagWith(d, `aria-label="${ru.app.shell.profileMenu}"`);
@@ -471,7 +476,7 @@ describe("сосредоточенная оболочка (первые шаги
       </DesktopShell>,
     );
     expect(c).toMatch(/<nav/);
-    expect(c).toMatch(new RegExp(`<a [^>]*href="/v2"[^>]*>${brand}</a>`));
+    expect(c).toMatch(new RegExp(`<a [^>]*href="/v2/landing"[^>]*>${brand}</a>`));
     expect(c).toContain(ru.app.shell.order);
     expect(c).toContain(ru.app.shell.profileMenu);
     expect(c).not.toContain(ru.app.shell.logout);

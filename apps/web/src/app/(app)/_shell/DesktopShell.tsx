@@ -67,7 +67,8 @@ export function DesktopShell({ nav, user, theme = "system", unread = 0, unavaila
             // Первые шаги: название — текст, а не ссылка (со шага уходить некуда).
             <span className="inline-flex min-h-control shrink-0 items-center text-headline text-ink">{ru.common.brand}</span>
           ) : (
-            <Link href={operator?.home.href ?? to("/")} className="inline-flex min-h-control shrink-0 items-center text-headline text-ink no-underline">
+            // Вошедший по названию продукта попадает на лендинг (тот, что видел до входа), «Главная» в меню — его дом.
+            <Link href={operator?.home.href ?? (user ? to("/landing") : to("/"))} className="inline-flex min-h-control shrink-0 items-center text-headline text-ink no-underline">
               {ru.common.brand}
             </Link>
           )}
