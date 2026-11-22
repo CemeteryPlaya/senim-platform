@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ru } from "@/i18n/ru";
 import { CityField } from "./CityField";
 import { html } from "./test-utils";
 
@@ -27,8 +28,15 @@ describe("CityField", () => {
     expect(out).toMatch(/<button[^>]*>.*Алматы.*<\/button>/);
     expect(out).toMatch(/<button[^>]*>.*Шымкент.*<\/button>/);
     expect(out).not.toMatch(/<button[^>]*>.*Караганда.*<\/button>/);
-    expect(html(field("Алм"))).not.toContain("<button");
-    expect(html(field("", { quick: 0 }))).not.toContain("<button");
+    expect(html(field("Алм"))).not.toMatch(/<button[^>]*>.*Алматы.*<\/button>/);
+    expect(html(field("", { quick: 0 }))).not.toMatch(/<button[^>]*>.*Алматы.*<\/button>/);
+  });
+
+  it("кнопка со стрелкой в поле открывает весь список городов — и у пустого, и у заполненного поля", () => {
+    for (const value of ["", "Астана"]) {
+      const withList = html(field(value));
+      expect(withList).toMatch(new RegExp(`<button[^>]*aria-label="${ru.app.kit.cityList.open}"[^>]*aria-haspopup="dialog"`));
+    }
   });
 
   it("ошибка — у поля", () => {

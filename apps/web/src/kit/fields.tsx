@@ -56,6 +56,7 @@ export function TextField(props: TextFieldProps) {
  * - `prefix` / `suffix` — неизменяемая часть внутри рамки («+7», «@», «₸»): видна всегда, для диктора скрыта (подпись поля
  *   называет, что вводить), нажатие сквозь неё попадает в поле.
  * - `after` — строка под полем и ошибкой (подсказка исправления, расчёт «Вы получите»).
+ * - `trailing` — кнопка 48 px внутри рамки справа (стрелка списка у поля «Город»); вместо `suffix`.
  */
 export type InputFieldProps = Omit<ComponentProps<"input">, "prefix"> & {
   label: string;
@@ -63,9 +64,10 @@ export type InputFieldProps = Omit<ComponentProps<"input">, "prefix"> & {
   prefix?: string;
   suffix?: string;
   after?: ReactNode;
+  trailing?: ReactNode;
 };
 
-export function InputField({ label, error, id: explicitId, className, prefix, suffix, after, ...rest }: InputFieldProps) {
+export function InputField({ label, error, id: explicitId, className, prefix, suffix, after, trailing, ...rest }: InputFieldProps) {
   const { id, errorId } = useFieldIds(explicitId, error);
   const input = (
     <input
@@ -78,6 +80,7 @@ export function InputField({ label, error, id: explicitId, className, prefix, su
         // Отступ под приставку и знак — 40 px, мимо шкалы: место под «+7» / «₸» (≈ 18 px при 17 px) и зазор как пробел.
         prefix && "pl-10",
         suffix && "pr-10",
+        trailing && "pr-14",
         className,
       )}
       {...rest}
@@ -89,9 +92,10 @@ export function InputField({ label, error, id: explicitId, className, prefix, su
       <label htmlFor={id} className={labelClass}>
         {label}
       </label>
-      {prefix || suffix ? (
+      {prefix || suffix || trailing ? (
         <div className="relative">
           {input}
+          {trailing && <div className="absolute inset-y-0 right-0 flex items-center">{trailing}</div>}
           {prefix && (
             <span aria-hidden className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-body text-ink">
               {prefix}
