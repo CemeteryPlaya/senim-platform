@@ -100,11 +100,11 @@ test("новый покупатель: заявка от главной до «�
 
   // Ошибки у полей (словами v2), точка по адресу (мок-геокодер знает центр города).
   await page.getByLabel(w.place.address).fill("");
-  await page.getByLabel(w.place.city).fill("");
+  await page.getByLabel(w.place.city, { exact: true }).fill("");
   await button(page, w.next).click();
   await expect(page.getByText(v.cityRequired)).toBeVisible();
   await expect(page.getByText(w.errors.addressRequired)).toBeVisible();
-  await page.getByLabel(w.place.city).fill("Астана");
+  await page.getByLabel(w.place.city, { exact: true }).fill("Астана");
   await page.getByLabel(w.place.address).fill("ул. Достык, 5");
   await button(page, w.place.findPoint).click();
   await expect(page.getByText(w.place.pointCity)).toBeVisible();
@@ -169,7 +169,7 @@ test("прямая заявка из профиля мастера: «Заявк
   await page.waitForURL(/step=room/);
   await button(page, w.next).click();
   await page.waitForURL(/step=place/);
-  await page.getByLabel(w.place.city).fill("Алматы");
+  await page.getByLabel(w.place.city, { exact: true }).fill("Алматы");
   await page.getByLabel(w.place.address).fill("пр. Абая, 10");
   await button(page, w.next).click();
   await page.waitForURL(/step=send/);

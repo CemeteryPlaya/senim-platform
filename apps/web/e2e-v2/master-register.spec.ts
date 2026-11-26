@@ -130,7 +130,7 @@ test("новый мастер (ТОО): анкета по шагам, номер
   await expect(page.getByLabel(t.name.bin)).toHaveValue(IIN_MASK.format(bin));
   await primary(page, t.next).click();
   await expect(heading(page, t.steps.place)).toBeVisible();
-  await expect(page.getByLabel(t.place.city)).toHaveValue(t.place.defaultCity);
+  await expect(page.getByLabel(t.place.city, { exact: true })).toHaveValue(t.place.defaultCity);
   await page.getByLabel(t.place.experience).fill("7");
   await primary(page, t.next).click();
 

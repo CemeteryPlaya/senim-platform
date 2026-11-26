@@ -29,14 +29,22 @@ test("гость: главная, каталог с фильтром, работ
   await expect(page.getByRole("heading", { level: 1, name: catalog.title })).toBeVisible();
   await expectScreenRules(page);
 
-  // Фильтр по типу — тот, что есть у первой карточки без фильтра (в навигации фильтров: чипы на телефоне, список слева на компьютере).
+  // Фильтр по типу — первый, у которого есть работы (в навигации фильтров: чипы на телефоне, список слева на компьютере).
+  // Тип на карточке не пишется (аудит, guest-23): работу ищем перебором фильтров.
   const typeNav = page.getByRole("navigation", { name: catalog.typeLabel });
   await typeNav.getByRole("link", { name: catalog.allTypes }).waitFor();
-  const firstCard = (await page.getByRole("article").first().innerText()).trim();
-  const typeName = (await typeNav.getByRole("link").allInnerTexts()).map((text) => text.trim()).find((text) => text !== catalog.allTypes && firstCard.includes(text));
-  expect(typeName, "тип первой карточки есть среди фильтров").toBeTruthy();
-  await typeNav.getByRole("link", { name: typeName ?? "", exact: true }).click();
-  await expect(page).toHaveURL(/\/v2\/catalog\?.*type=/);
+  const typeNames = (await typeNav.getByRole("link").allInnerTexts()).map((text) => text.trim()).filter((text) => text !== catalog.allTypes);
+  let typeName: string | undefined;
+  for (const name of typeNames) {
+    await typeNav.getByRole("link", { name, exact: true }).click();
+    await expect(page).toHaveURL(/\/v2\/catalog\?.*type=/);
+    await expect(typeNav.locator('[aria-current="true"]')).toContainText(name);
+    if ((await page.getByRole("article").count()) > 0) {
+      typeName = name;
+      break;
+    }
+  }
+  expect(typeName, "есть фильтр по типу с работами").toBeTruthy();
   await expect(typeNav.locator('[aria-current="true"]')).toHaveCount(1);
   await expect(page.getByRole("article").first()).toBeVisible();
   await expectScreenRules(page);

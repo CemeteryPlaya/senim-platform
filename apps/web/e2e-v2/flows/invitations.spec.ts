@@ -38,7 +38,7 @@ async function publishTender(page: Page): Promise<string> {
   await page.waitForURL(/step=room/);
   await button(page, w.next).click();
   await page.waitForURL(/step=place/);
-  await page.getByLabel(w.place.city).fill("Астана");
+  await page.getByLabel(w.place.city, { exact: true }).fill("Астана");
   await page.getByLabel(w.place.district).selectOption("Есиль");
   await page.getByLabel(w.place.complex).fill("Тестовый квартал");
   await page.getByLabel(w.place.address).fill("ул. Достык, 5");

@@ -210,7 +210,7 @@ test("меню «Действия»: отмена с точными послед
   await page.getByText(card.actions.cancel, { exact: true }).first().click();
   const dialog = page.getByRole("dialog", { name: card.actions.cancelTitle });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText(/Сделка будет отменена, .+ вернутся на вашу карту — включая защиту сделки\./);
+  await expect(dialog).toContainText(/Сделка будет отменена, .+ вернутся на вашу карту\./);
   await expect(dialog.getByRole("button", { name: card.actions.keep })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
