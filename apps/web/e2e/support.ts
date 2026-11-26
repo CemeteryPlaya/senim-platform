@@ -104,7 +104,7 @@ export async function loginByPhone(page: Page, phone: string): Promise<void> {
   await page.goto("/login");
   await page.getByLabel("Номер телефона").fill(phone);
   await page.getByRole("button", { name: "Получить код" }).click();
-  const banner = page.getByText(/SMS на стенде не отправляются\. Ваш код — \d{6}/);
+  const banner = page.getByText(/Ваш код — \d{6}/);
   const code = (await banner.textContent())?.match(/\d{6}/)?.[0];
   if (!code) throw new Error("Код не найден на экране входа");
   await page.getByLabel("Код из SMS").fill(code);

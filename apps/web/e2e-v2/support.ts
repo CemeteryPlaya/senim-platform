@@ -51,7 +51,7 @@ export async function open(page: Page, path: string): Promise<void> {
 }
 
 /**
- * Код из плашки на экране шага кода: входа (плашка: «Сообщения пока не отправляются.» и отдельной строкой «Ваш код: NNNNNN») или почты (`shownCode` —
+ * Код из плашки на экране шага кода: входа (плашка — одна строка «Ваш код: NNNNNN») или почты (`shownCode` —
  * ru.app.onboarding.email.code.shownCode).
  */
 export async function readShownCode(page: Page, shownCode: (code: string) => string = login.code.shownCode): Promise<string> {

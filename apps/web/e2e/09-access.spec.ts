@@ -35,7 +35,7 @@ async function daniyarLinks(page: Page): Promise<Links> {
   return { deal, money: `${deal}/money`, request, offer, pdf, photo };
 }
 
-const LEAK = /Сделка №7|Заявка №19|Ахметов|Данияр|Ағаш|Примерный, 8|700\s*000\s*01\s*02/;
+const LEAK = /Сделка №7|Заявка №19|Ахметов|Данияр|Ағаш|Туран, 37|700\s*000\s*01\s*02/;
 
 test("другой покупатель и чужой мастер получают 404 без данных", async ({ page }) => {
   const links = await daniyarLinks(page);

@@ -247,7 +247,7 @@ export function CodeStep({ next, change = false, position, device, sent, onResen
           </Notice>
         )}
         {sent.shownCode && (
-          <ShownCode lead={t.code.shownLead} codeLine={t.code.shownCode(sent.shownCode)} />
+          <ShownCode codeLine={t.code.shownCode(sent.shownCode)} />
         )}
         {/* Одна строка колонки: форма повтора пустая (только адрес) и не должна давать лишний зазор. */}
         <div>

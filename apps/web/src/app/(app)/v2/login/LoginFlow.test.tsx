@@ -54,10 +54,11 @@ describe("CodeStep: поле → «Войти» → повтор; к номер�
     expect(out).toMatch(new RegExp(`<label for="[^"]+" class="sr-only">${t.label}</label>`));
   });
 
-  it("плашка кода: первая фраза, затем «Ваш код: NNNNNN» отдельной строкой с tabular-nums; один h1; счётчика шагов нет", () => {
+  it("плашка кода: только «Ваш код: NNNNNN» одной строкой с tabular-nums, без пояснения про SMS; один h1; счётчика шагов нет", () => {
     vi.useFakeTimers({ now: NOW });
     const out = html(render());
-    expect(out).toContain(`<span class="block">${t.shownLead}</span><span class="block tabular-nums">${t.shownCode("123456")}</span>`);
+    expect(out).toContain(`<span class="block tabular-nums">${t.shownCode("123456")}</span>`);
+    expect(out).not.toMatch(/не отправляются/);
     expect(count(out, "<h1")).toBe(1);
     expect(count(out, "data-primary-action")).toBe(1);
     expect(out).not.toMatch(/Шаг \d из|Анкета|progressbar/);

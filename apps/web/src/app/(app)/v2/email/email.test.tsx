@@ -196,8 +196,10 @@ describe("шаг кода", () => {
     expect(plain).toContain(t.code.changeEmail);
   });
 
-  it("плашка кода — та же разметка, что на входе: фраза, затем «Ваш код» отдельной строкой", () => {
-    expect(html(render())).toContain(`<span class="block">${t.code.shownLead}</span><span class="block tabular-nums">${t.code.shownCode("123456")}</span>`);
+  it("плашка кода — та же разметка, что на входе: только «Ваш код» одной строкой, без пояснения «письма не отправляются»", () => {
+    const out = html(render());
+    expect(out).toContain(`<span class="block tabular-nums">${t.code.shownCode("123456")}</span>`);
+    expect(text(render())).not.toMatch(/не отправляются/);
   });
 
   it("без кода от identity плашки нет", () => {

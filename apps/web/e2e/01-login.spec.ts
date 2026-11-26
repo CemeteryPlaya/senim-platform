@@ -28,7 +28,7 @@ async function requestCode(page: Page, phone: string): Promise<string> {
   await expect(page.getByRole("main").getByRole("button", { name: "Назад", exact: true })).toBeVisible();
   await expectOnePrimary(page);
   await expect(page.getByRole("main").locator("[data-primary-action]")).toHaveText("Войти");
-  const banner = page.getByText(/SMS на стенде не отправляются\. Ваш код — \d{6}/);
+  const banner = page.getByText(/Ваш код — \d{6}/);
   await expect(banner).toBeVisible();
   const code = (await banner.textContent())?.match(/\d{6}/)?.[0];
   if (!code) throw new Error("Код не найден на экране");

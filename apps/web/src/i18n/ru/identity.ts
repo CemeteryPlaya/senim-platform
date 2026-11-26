@@ -36,7 +36,7 @@ export const identity = {
     resend: "Отправить код ещё раз",
     resent: "Новый код отправлен",
     /** Код на экране: SMS на стенде не уходит (мок-провайдер identity; в prod мок запрещён). */
-    shownCode: (code: string) => `SMS на стенде не отправляются. Ваш код — ${code}`,
+    shownCode: (code: string) => `Ваш код — ${code}`,
     registerExecutor: "Я мастер — зарегистрироваться",
     alreadySignedIn: (role: string) => `Вы уже вошли как ${role.toLowerCase()}.`,
     wrongRole: "Эта страница доступна другой роли. Выйдите и войдите под нужным номером.",
@@ -57,7 +57,7 @@ export const identity = {
 
   stand: {
     /** Ответ 401 от src/proxy.ts, когда стенд закрыт паролем (STAND_ACCESS_PASSWORD). */
-    accessRequired: `Тестовый стенд «${brand.name}» закрыт паролем. Пароль выдаёт владелец проекта.`,
+    accessRequired: `Сайт «${brand.name}» закрыт паролем. Пароль выдаёт владелец проекта.`,
   },
 
   /** Несколько ролей на одном аккаунте (ADR-004): переключение и «Стать заказчиком». */

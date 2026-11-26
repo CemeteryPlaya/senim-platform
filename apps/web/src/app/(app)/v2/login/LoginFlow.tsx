@@ -268,7 +268,7 @@ export function CodeStep({
           </Notice>
         )}
         {sent.shownCode && (
-          <ShownCode lead={t.code.shownLead} codeLine={t.code.shownCode(sent.shownCode)} />
+          <ShownCode codeLine={t.code.shownCode(sent.shownCode)} />
         )}
         {/* Одна строка колонки: форма повтора пустая (только номер) и не должна давать лишний зазор. */}
         <div>
